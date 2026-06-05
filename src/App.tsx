@@ -176,6 +176,9 @@ export function CockpitApp() {
   const [termSheet, setTermSheet] = useState(false);
   const [palette, setPalette] = useState(false);
   const [help, setHelp] = useState(false);
+  const [focusSignal, setFocusSignal] = useState(0);
+
+  const editUser = (text: string) => { setDraft(text); setFocusSignal((n) => n + 1); };
 
   const rowRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ which: string; startX: number; startLeft: number; startRight: number; w: number } | null>(null);
@@ -298,7 +301,7 @@ export function CockpitApp() {
       ) : isMobile ? (
         <MobileLayout
           sessionsProps={{ sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onClose: handleCloseSession, archived, onUnhide: handleUnhide, searchResults, onSearch }}
-          chatProps={{ session: activeSession, messages, phase: viewPhase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, contextTokens, onNew: handleNew, attachments, onUpload, onRemoveAttachment }}
+          chatProps={{ session: activeSession, messages, phase: viewPhase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, contextTokens, onNew: handleNew, attachments, onUpload, onRemoveAttachment, onEditUser: editUser, focusSignal }}
           termProps={{ terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term }}
           drawer={drawer} setDrawer={setDrawer}
           termSheet={termSheet} setTermSheet={setTermSheet}
@@ -317,7 +320,8 @@ export function CockpitApp() {
             <ChatPanel session={activeSession} messages={messages} phase={viewPhase}
               draft={draft} setDraft={setDraft} onSend={handleSend} onPrompt={handleSend} onStop={handleStop}
               mode={mode} setMode={setMode} contextTokens={contextTokens} onNew={handleNew}
-              attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} />
+              attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment}
+              onEditUser={editUser} focusSignal={focusSignal} />
           </div>
 
           <div className="resizer w-[3px] shrink-0 cursor-col-resize bg-neutral-800" onMouseDown={startDrag('right')} />
