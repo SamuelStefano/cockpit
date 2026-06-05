@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Session, Message, Block } from './data/mock';
 import type { ClientMsg, ServerMsg, SessionMeta, ToolCall, SysStats, PermMode, ContextMeta, SkillMeta } from '../shared/protocol';
+import { loadPref, savePref } from './lib/persist';
 
 export interface ContextDoc { id: string; title: string; body: string }
 export interface SkillDoc { id: string; name: string; body: string }
@@ -105,8 +106,8 @@ export function useCockpit(): Cockpit {
   const [openSkill, setOpenSkill] = useState<SkillDoc | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const attachmentsRef = useRef<Attachment[]>([]);
-  const [mode, setMode] = useState<PermMode>('auto');
-  const modeRef = useRef<PermMode>('auto');
+  const [mode, setMode] = useState<PermMode>(() => loadPref<PermMode>('mode', 'auto'));
+  const modeRef = useRef<PermMode>(mode);
 
   const wsRef = useRef<WebSocket | null>(null);
   const runMsg = useRef<Record<string, string>>({});      // sessionKey -> assistant msgId em voo
@@ -357,7 +358,7 @@ export function useCockpit(): Cockpit {
     setAttachments(next);
   }, []);
 
-  const changeMode = useCallback((m: PermMode) => { modeRef.current = m; setMode(m); }, []);
+  const changeMode = useCallback((m: PermMode) => { modeRef.current = m; setMode(m); savePref('mode', m); }, []);
 
   // Busca por conteúdo: dispara no backend (grep) e guarda o termo p/ descartar
   // respostas atrasadas. <2 chars limpa os resultados.

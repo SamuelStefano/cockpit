@@ -9,6 +9,7 @@ import { Contextos } from './routes/Contextos';
 import { Skills } from './routes/Skills';
 import { useCockpit } from './useCockpit';
 import { useRoute, type Route } from './useRoute';
+import { usePersisted } from './lib/persist';
 import { TERMINALS_SEED, type Terminal } from './data/mock';
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -136,8 +137,8 @@ export function CockpitApp() {
   const [quotaClosed, setQuotaClosed] = useState(false);
   const quota = !!rate && !quotaClosed;
 
-  const [leftW, setLeftW] = useState(17);
-  const [rightW, setRightW] = useState(37);
+  const [leftW, setLeftW] = usePersisted('panel.left', 17);
+  const [rightW, setRightW] = usePersisted('panel.right', 37);
   const [isMobile, setIsMobile] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [termSheet, setTermSheet] = useState(false);
