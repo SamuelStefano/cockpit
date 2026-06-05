@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type Dispatch, type SetStateAction } from 'react';
 
 // Prefs de UI local (não-sensível): largura de painéis, modo, rota. Só primitivos
 // JSON. Falha silenciosa se localStorage indisponível (SSR/privado).
@@ -21,7 +21,7 @@ export function savePref<T>(key: string, value: T): void {
   }
 }
 
-export function usePersisted<T>(key: string, fallback: T): [T, (v: T) => void] {
+export function usePersisted<T>(key: string, fallback: T): [T, Dispatch<SetStateAction<T>>] {
   const [value, setValue] = useState<T>(() => loadPref(key, fallback));
   useEffect(() => {
     savePref(key, value);
