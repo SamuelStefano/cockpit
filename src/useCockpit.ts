@@ -34,7 +34,7 @@ function appendDelta(blocks: Block[], text: string): Block[] {
 }
 
 export interface TermApi {
-  attach: (id: string, cols: number, rows: number, onData: (d: string) => void, onExit: () => void) => void;
+  attach: (id: string, cols: number, rows: number, onData: (d: string) => void, onExit: () => void, onReplay: (d: string) => void) => void;
   detach: (id: string) => void;
   input: (id: string, data: string) => void;
   resize: (id: string, cols: number, rows: number) => void;
@@ -86,6 +86,7 @@ export function useCockpit(): Cockpit {
   const activeRef = useRef('');
   const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
   const termData = useRef<Map<string, (d: string) => void>>(new Map());   // termId -> xterm.write
+  const termReplay = useRef<Map<string, (d: string) => void>>(new Map()); // termId -> reset()+write (snapshot)
   const termExit = useRef<Map<string, () => void>>(new Map());
   const termDims = useRef<Map<string, { cols: number; rows: number }>>(new Map()); // p/ reattach no reconnect
 
@@ -184,6 +185,10 @@ export function useCockpit(): Cockpit {
         termData.current.get(msg.termId)?.(msg.data);
         return;
       }
+      case 'term-replay': {
+        termReplay.current.get(msg.termId)?.(msg.data);
+        return;
+      }
       case 'term-exit': {
         termExit.current.get(msg.termId)?.();
         return;
@@ -269,15 +274,17 @@ export function useCockpit(): Cockpit {
   const changeMode = useCallback((m: PermMode) => { modeRef.current = m; setMode(m); }, []);
 
   const term: TermApi = {
-    attach: useCallback((id, cols, rows, onData, onExit) => {
+    attach: useCallback((id, cols, rows, onData, onExit, onReplay) => {
       termData.current.set(id, onData);
       termExit.current.set(id, onExit);
+      termReplay.current.set(id, onReplay);
       termDims.current.set(id, { cols, rows });
       send({ t: 'term-open', termId: id, cols, rows });
     }, [send]),
     detach: useCallback((id) => {
       termData.current.delete(id);
       termExit.current.delete(id);
+      termReplay.current.delete(id);
       termDims.current.delete(id);
       send({ t: 'term-detach', termId: id });
     }, [send]),
@@ -290,6 +297,7 @@ export function useCockpit(): Cockpit {
     kill: useCallback((id) => {
       termData.current.delete(id);
       termExit.current.delete(id);
+      termReplay.current.delete(id);
       termDims.current.delete(id);
       send({ t: 'term-close', termId: id });
     }, [send]),

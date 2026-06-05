@@ -33,6 +33,7 @@ export function openTerm(
   rows: number,
   onData: (d: string) => void,
   onExit: () => void,
+  onReplay: (d: string) => void,
 ): boolean {
   if (!NAME_RE.test(id)) return false;
 
@@ -59,7 +60,10 @@ export function openTerm(
 
   t.data.add(onData);
   t.exit.add(onExit);
-  if (t.buffer) onData(t.buffer); // replay pro cliente que acabou de anexar
+  // Snapshot do scrollback como mensagem SEPARADA (term-replay): o cliente dá
+  // reset() antes de repintar, então reattach/reconnect não DUPLICA a tela.
+  // Emitido após registrar onData, então a ordem replay -> live é preservada.
+  if (t.buffer) onReplay(t.buffer);
   return true;
 }
 

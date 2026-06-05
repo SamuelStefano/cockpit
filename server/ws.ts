@@ -69,7 +69,8 @@ function handleTerm(
       if (myTerms.has(msg.termId)) return true; // já anexado nesta conexão
       const onData = (data: string) => send(ws, { t: 'term-data', termId: msg.termId, data });
       const onExit = () => { send(ws, { t: 'term-exit', termId: msg.termId }); myTerms.delete(msg.termId); };
-      const ok = openTerm(msg.termId, msg.cols, msg.rows, onData, onExit);
+      const onReplay = (data: string) => send(ws, { t: 'term-replay', termId: msg.termId, data });
+      const ok = openTerm(msg.termId, msg.cols, msg.rows, onData, onExit, onReplay);
       if (ok) myTerms.set(msg.termId, { onData, onExit });
       else send(ws, { t: 'term-exit', termId: msg.termId });
       return true;
