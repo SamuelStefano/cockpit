@@ -39,6 +39,14 @@ interface HeaderProps {
   route: Route;
   nav: (to: Route) => void;
   onPalette: () => void;
+  cost: number;
+}
+
+function fmtCost(n: number): string {
+  if (n >= 100) return '$' + n.toFixed(0);
+  if (n >= 1) return '$' + n.toFixed(2);
+  if (n > 0) return '$' + n.toFixed(3);
+  return '$0';
 }
 
 const NAV: { to: Route; label: string }[] = [
@@ -48,7 +56,7 @@ const NAV: { to: Route; label: string }[] = [
   { to: '/uso', label: 'uso' },
 ];
 
-function Header({ conn, onNew, isMobile, onMenu, route, nav, onPalette }: HeaderProps) {
+function Header({ conn, onNew, isMobile, onMenu, route, nav, onPalette, cost }: HeaderProps) {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex items-center gap-2.5">
@@ -78,6 +86,16 @@ function Header({ conn, onNew, isMobile, onMenu, route, nav, onPalette }: Header
       </div>
 
       <div className="flex items-center gap-3">
+        {cost > 0 && (
+          <button
+            onClick={() => nav('/uso')}
+            title="Custo estimado acumulado — abrir Uso"
+            className="flex items-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1.5 text-emerald-400/90 transition hover:border-emerald-500/30 hover:text-emerald-300"
+          >
+            <Icon name="zap" size={13} />
+            <span className="font-mono text-[11.5px] tabular-nums">{fmtCost(cost)}</span>
+          </button>
+        )}
         <button
           onClick={onPalette}
           title="Comandos (⌘K)"
@@ -255,7 +273,7 @@ export function CockpitApp() {
         sessions={sessions} onSelectSession={setActiveSessionId}
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
-      <Header conn={conn} onNew={handleNew} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} />
+      <Header conn={conn} onNew={handleNew} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} cost={usageStats?.totalCost ?? 0} />
 
       {quota && rate && <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} />}
 

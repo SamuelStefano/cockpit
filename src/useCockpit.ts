@@ -284,6 +284,7 @@ export function useCockpit(): Cockpit {
           resumeId.current[key] = msg.sessionId;
           migrateKey(key, msg.sessionId);
         }
+        send({ t: 'usage-list' }); // atualiza o burn chip após cada turno
         return;
       }
       case 'error': {
@@ -296,7 +297,7 @@ export function useCockpit(): Cockpit {
         return;
       }
     }
-  }, [updateThread, patchRunMsg, migrateKey]);
+  }, [updateThread, patchRunMsg, migrateKey, send]);
 
   const connect = useCallback(() => {
     setConn((c) => ({ ...c, ws: 'reconnecting', sse: 'reconnecting' }));
@@ -308,6 +309,7 @@ export function useCockpit(): Cockpit {
       setConn({ ws: 'connected', sse: 'connected' });
       send({ t: 'list' });
       send({ t: 'list-archived' });
+      send({ t: 'usage-list' });
       for (const [id, d] of termDims.current) send({ t: 'term-open', termId: id, cols: d.cols, rows: d.rows });
     };
     ws.onmessage = (ev) => {
