@@ -9,6 +9,7 @@ import { Contextos } from './routes/Contextos';
 import { Skills } from './routes/Skills';
 import { Observatorio } from './routes/Observatorio';
 import { CommandPalette } from './components/CommandPalette';
+import { ShortcutsHelp } from './components/ShortcutsHelp';
 import { useCockpit } from './useCockpit';
 import { useRoute, type Route } from './useRoute';
 import { usePersisted } from './lib/persist';
@@ -156,6 +157,7 @@ export function CockpitApp() {
   const [drawer, setDrawer] = useState(false);
   const [termSheet, setTermSheet] = useState(false);
   const [palette, setPalette] = useState(false);
+  const [help, setHelp] = useState(false);
 
   const rowRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ which: string; startX: number; startLeft: number; startRight: number; w: number } | null>(null);
@@ -169,6 +171,12 @@ export function CockpitApp() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setPalette((p) => !p);
+        return;
+      }
+      if (e.key === '?' && !e.metaKey && !e.ctrlKey) {
+        const el = document.activeElement as HTMLElement | null;
+        const typing = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+        if (!typing) { e.preventDefault(); setHelp((h) => !h); }
       }
     };
     window.addEventListener('keydown', onKey);
@@ -246,6 +254,7 @@ export function CockpitApp() {
         mode={mode} setMode={setMode}
         sessions={sessions} onSelectSession={setActiveSessionId}
       />
+      <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
       <Header conn={conn} onNew={handleNew} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} />
 
       {quota && rate && <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} />}
