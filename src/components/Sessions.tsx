@@ -20,9 +20,10 @@ interface SessionRowProps {
   active: boolean;
   onSelect: (id: string) => void;
   onRename: (id: string, title: string) => void;
+  onClose: (id: string) => void;
 }
 
-function SessionRow({ s, active, onSelect, onRename }: SessionRowProps) {
+function SessionRow({ s, active, onSelect, onRename, onClose }: SessionRowProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(s.title);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -72,7 +73,18 @@ function SessionRow({ s, active, onSelect, onRename }: SessionRowProps) {
             {s.title}
           </button>
         )}
-        {!editing && <span className="shrink-0 text-[10px] tabular-nums text-neutral-600">{s.relative}</span>}
+        {!editing && (
+          <div className="flex shrink-0 items-center gap-1">
+            <span className="text-[10px] tabular-nums text-neutral-600 group-hover:hidden">{s.relative}</span>
+            <button
+              onClick={(e) => { e.stopPropagation(); onClose(s.id); }}
+              title="Arquivar sessão (some do sidebar; o histórico não é apagado)"
+              className="hidden rounded p-0.5 text-neutral-500 transition hover:bg-neutral-800 hover:text-orange-300 group-hover:block"
+            >
+              <Icon name="x" size={13} />
+            </button>
+          </div>
+        )}
       </div>
       {!editing && (
         <p className="line-clamp-2 text-[11.5px] leading-snug text-neutral-500">{s.snippet}</p>
@@ -93,10 +105,45 @@ export interface SessionsPanelProps {
   onSelect: (id: string) => void;
   onNew: () => void;
   onRename: (id: string, title: string) => void;
+  onClose: (id: string) => void;
+  archived?: Session[];
+  onUnhide?: (id: string) => void;
   onCloseMobile?: () => void;
 }
 
-export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, onRename, onCloseMobile }: SessionsPanelProps) {
+function ArchivedSection({ archived, onUnhide }: { archived: Session[]; onUnhide: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
+  if (archived.length === 0) return null;
+  return (
+    <div className="mt-2 border-t border-neutral-800/70 pt-2">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px] font-medium text-neutral-500 transition hover:text-neutral-300"
+      >
+        <Icon name="chevronRight" size={13} className={`transition-transform ${open ? 'rotate-90' : ''}`} />
+        Arquivadas <span className="tabular-nums text-neutral-600">({archived.length})</span>
+      </button>
+      {open && (
+        <div className="mt-1 space-y-0.5">
+          {archived.map((s) => (
+            <div key={s.id} className="group flex items-center justify-between gap-2 rounded-md px-1.5 py-1 hover:bg-neutral-900">
+              <span className="truncate text-[11.5px] text-neutral-500">{s.title}</span>
+              <button
+                onClick={() => onUnhide(s.id)}
+                title="Restaurar sessão"
+                className="shrink-0 rounded px-1.5 py-0.5 text-[10.5px] font-medium text-neutral-500 opacity-0 transition hover:bg-neutral-800 hover:text-orange-300 group-hover:opacity-100"
+              >
+                restaurar
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, onRename, onClose, archived = [], onUnhide, onCloseMobile }: SessionsPanelProps) {
   const [query, setQuery] = useState('');
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -162,9 +209,10 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
           filtered.map((s) => (
             <SessionRow key={s.id} s={s} active={s.id === activeId}
               onSelect={(id) => { onSelect(id); onCloseMobile && onCloseMobile(); }}
-              onRename={onRename} />
+              onRename={onRename} onClose={onClose} />
           ))
         )}
+        {!loading && !query && onUnhide && <ArchivedSection archived={archived} onUnhide={onUnhide} />}
       </div>
     </div>
   );

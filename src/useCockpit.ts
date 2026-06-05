@@ -56,10 +56,13 @@ export interface Cockpit {
   mode: PermMode;
   setMode: (m: PermMode) => void;
   term: TermApi;
+  archived: Session[];
   onSend: (text: string) => void;
   onStop: () => void;
   onNew: () => void;
   onRename: (id: string, title: string) => void;
+  onClose: (id: string) => void;
+  onUnhide: (id: string) => void;
 }
 
 export function useCockpit(): Cockpit {
@@ -72,6 +75,7 @@ export function useCockpit(): Cockpit {
   const [conn, setConn] = useState<{ ws: ConnState; sse: ConnState }>({ ws: 'reconnecting', sse: 'reconnecting' });
   const [rate, setRate] = useState<{ resetsAt: number; status: string } | null>(null);
   const [stats, setStats] = useState<SysStats | null>(null);
+  const [archived, setArchived] = useState<Session[]>([]);
   const [mode, setMode] = useState<PermMode>('plan');
   const modeRef = useRef<PermMode>('plan');
 
@@ -172,6 +176,10 @@ export function useCockpit(): Cockpit {
         setStats(msg.stats);
         return;
       }
+      case 'archived': {
+        setArchived(msg.items.map((m) => metaToSession(m, false)));
+        return;
+      }
       case 'term-data': {
         termData.current.get(msg.termId)?.(msg.data);
         return;
@@ -211,6 +219,7 @@ export function useCockpit(): Cockpit {
     ws.onopen = () => {
       setConn({ ws: 'connected', sse: 'connected' });
       send({ t: 'list' });
+      send({ t: 'list-archived' });
       for (const [id, d] of termDims.current) send({ t: 'term-open', termId: id, cols: d.cols, rows: d.rows });
     };
     ws.onmessage = (ev) => {
@@ -307,10 +316,42 @@ export function useCockpit(): Cockpit {
     setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)));
   }, []);
 
+  // Fechar = arquivar. Sessão real -> backend esconde do list (não deleta JSONL);
+  // sessão local `new-` (sem history) -> só remove da view. Some na hora; se era
+  // a ativa, cai pra próxima (abrindo o history dela).
+  const onClose = useCallback((id: string) => {
+    if (id && !id.startsWith('new-')) send({ t: 'hide', sessionId: id });
+    setSessions((prev) => {
+      const next = prev.filter((s) => s.id !== id);
+      if (activeRef.current !== id) return next;
+      const fb = next[0]?.id ?? '';
+      activeRef.current = fb;
+      setActiveIdState(fb);
+      if (fb && !fb.startsWith('new-') && !opened.current.has(fb)) {
+        opened.current.add(fb);
+        send({ t: 'open', sessionId: fb });
+      }
+      return next.map((s) => ({ ...s, active: s.id === fb }));
+    });
+    setThreads((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    setPhases((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    setDrafts((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    delete runMsg.current[id];
+    delete resumeId.current[id];
+    opened.current.delete(id);
+  }, [send]);
+
+  // Desarquivar: backend reenvia sessions + archived; some da lista de arquivadas
+  // na hora e reaparece no sidebar principal.
+  const onUnhide = useCallback((id: string) => {
+    setArchived((prev) => prev.filter((s) => s.id !== id));
+    send({ t: 'unhide', sessionId: id });
+  }, [send]);
+
   const messages = threads[activeId] || [];
   const phase = phases[activeId] || 'idle';
   const draft = drafts[activeId] || '';
   const setDraft = useCallback((v: string) => setDrafts((d) => ({ ...d, [activeRef.current]: v })), []);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, mode, setMode: changeMode, term, onSend, onStop, onNew, onRename };
+  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, archived, mode, setMode: changeMode, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
 }
