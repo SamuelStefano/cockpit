@@ -1,20 +1,30 @@
 import { createServer } from 'node:http';
 import { mkdir } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { attachWs } from './ws';
+import { makeStatic } from './static';
 import { CONFIG } from './config';
+
+const distDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 
 async function main() {
   await mkdir(CONFIG.workdir, { recursive: true }); // cwd isolado (DR-004 #4)
 
-  const server = createServer((_req, res) => {
-    res.writeHead(200, { 'content-type': 'text/plain' });
-    res.end('cockpit backend ok\n');
+  const serveStatic = makeStatic(distDir);
+
+  const server = createServer((req, res) => {
+    serveStatic(req, res).then((served) => {
+      if (served) return;
+      res.writeHead(200, { 'content-type': 'text/plain' });
+      res.end('cockpit backend ok (rode `npm run build` p/ servir a UI)\n');
+    }).catch(() => { res.writeHead(500).end(); });
   });
 
   attachWs(server);
 
   server.listen(CONFIG.port, CONFIG.host, () => {
-    console.log(`cockpit backend em http://${CONFIG.host}:${CONFIG.port} (ws /ws, permission=${CONFIG.permissionMode})`);
+    console.log(`cockpit em http://${CONFIG.host}:${CONFIG.port} (ws /ws, permission=${CONFIG.permissionMode})`);
   });
 }
 
