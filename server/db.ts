@@ -130,5 +130,28 @@ export function usageStats(): UsageStats {
     totalOutput: sessions.reduce((a, s) => a + s.outputTokens, 0),
     totalSamples: sessions.reduce((a, s) => a + s.samples, 0),
     totalCost: sessions.reduce((a, s) => a + s.costUsd, 0),
+    series: dailySeries(14),
   };
+}
+
+// Buckets diários (output + custo estimado) dos últimos N dias, pra trend no /uso.
+function dailySeries(days: number): { day: number; output: number; cost: number }[] {
+  const cutoff = Date.now() - days * 86_400_000;
+  const rows = open().prepare(`
+    SELECT ts, output_tokens AS output, input_tokens AS input,
+           cache_read_tokens AS cacheRead, cache_creation_tokens AS cacheCreation, model
+    FROM usage_sample WHERE ts >= ?
+  `).all(cutoff) as Array<{ ts: number; output: number; input: number; cacheRead: number; cacheCreation: number; model: string | null }>;
+
+  const buckets = new Map<number, { day: number; output: number; cost: number }>();
+  for (const r of rows) {
+    const d = new Date(r.ts); d.setHours(0, 0, 0, 0);
+    const day = d.getTime();
+    const p = priceOf(r.model);
+    const cost = (r.input * p.input + r.cacheCreation * p.cacheWrite + r.cacheRead * p.cacheRead + r.output * p.output) / 1_000_000;
+    const b = buckets.get(day) ?? { day, output: 0, cost: 0 };
+    b.output += r.output; b.cost += cost;
+    buckets.set(day, b);
+  }
+  return [...buckets.values()].sort((a, b) => a.day - b.day);
 }

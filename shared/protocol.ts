@@ -83,11 +83,18 @@ export interface SessionUsage {
   costUsd: number;        // custo estimado (preço público aproximado por modelo)
 }
 
+export interface DailyUsage {
+  day: number;            // epoch ms do início do dia local
+  output: number;         // tokens de saída no dia
+  cost: number;           // custo estimado no dia (USD)
+}
+
 export interface UsageStats {
   sessions: SessionUsage[];
   totalOutput: number;
   totalSamples: number;
   totalCost: number;      // soma do custo estimado de todas as sessões
+  series: DailyUsage[];   // buckets diários (últimos N dias) pra trend
 }
 
 // --- WebSocket protocol ----------------------------------------------------
