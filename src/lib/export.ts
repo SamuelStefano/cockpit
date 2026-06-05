@@ -1,4 +1,4 @@
-import type { Message } from '../data/mock';
+import type { Message, Block } from '../data/mock';
 
 // Serializa a thread em Markdown — 100% client-side, os dados já vivem no
 // messages[] do useCockpit. Sem backend, sem dep.
@@ -22,6 +22,16 @@ export function threadToMarkdown(title: string, messages: Message[]): string {
     }
   }
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
+}
+
+// Texto copiável de uma única mensagem do assistente (texto + code blocks).
+export function messageToText(blocks: Block[]): string {
+  const out: string[] = [];
+  for (const b of blocks) {
+    if (b.type === 'text') out.push(b.md.trim());
+    else if (b.type === 'code') out.push('```' + (b.lang || ''), b.code, '```');
+  }
+  return out.join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 export function download(name: string, mime: string, data: string) {
