@@ -5,7 +5,9 @@ import { ChatPanel } from './components/Chat';
 import { TerminalsPanel } from './components/Terminals';
 import { MobileLayout } from './components/Mobile';
 import { StatusBar } from './components/StatusBar';
+import { Contextos } from './routes/Contextos';
 import { useCockpit } from './useCockpit';
+import { useRoute, type Route } from './useRoute';
 import { TERMINALS_SEED, type Terminal } from './data/mock';
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -29,9 +31,16 @@ interface HeaderProps {
   onNew: () => void;
   isMobile: boolean;
   onMenu: () => void;
+  route: Route;
+  nav: (to: Route) => void;
 }
 
-function Header({ conn, onNew, isMobile, onMenu }: HeaderProps) {
+const NAV: { to: Route; label: string }[] = [
+  { to: '/', label: 'chat' },
+  { to: '/contextos', label: 'contextos' },
+];
+
+function Header({ conn, onNew, isMobile, onMenu, route, nav }: HeaderProps) {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex items-center gap-2.5">
@@ -46,6 +55,18 @@ function Header({ conn, onNew, isMobile, onMenu }: HeaderProps) {
           </span>
           <span className="font-mono text-[14px] font-semibold lowercase tracking-tight text-neutral-100">cockpit</span>
         </div>
+        <nav className="ml-1 flex items-center gap-0.5 rounded-lg border border-neutral-800 bg-neutral-900/60 p-0.5">
+          {NAV.map((n) => (
+            <button
+              key={n.to}
+              onClick={() => nav(n.to)}
+              className={`rounded-md px-2.5 py-1 font-mono text-[11.5px] lowercase tracking-tight transition
+                ${route === n.to ? 'bg-orange-500/15 text-orange-300' : 'text-neutral-500 hover:text-neutral-300'}`}
+            >
+              {n.label}
+            </button>
+          ))}
+        </nav>
       </div>
 
       <div className="flex items-center gap-3">
@@ -102,6 +123,8 @@ export function CockpitApp() {
     contexts, openContext, onCtxList, onCtxOpen, onCtxClose,
     onSend: handleSend, onStop: handleStop, onNew: cockpitNew, onRename: handleRename, onClose: handleCloseSession,
   } = cockpit;
+
+  const { route, nav } = useRoute();
 
   const [terminals, setTerminals] = useState<Terminal[]>(TERMINALS_SEED);
   const [activeTermId, setActiveTermId] = useState('main');
@@ -164,6 +187,7 @@ export function CockpitApp() {
   const handleNew = () => {
     cockpitNew();
     setDrawer(false);
+    nav('/');
   };
 
   const handleAddTerm = () => {
@@ -186,13 +210,16 @@ export function CockpitApp() {
 
   return (
     <div className="relative flex h-full flex-col bg-neutral-950">
-      <Header conn={conn} onNew={handleNew} isMobile={isMobile} onMenu={() => setDrawer(true)} />
+      <Header conn={conn} onNew={handleNew} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} />
 
       {quota && rate && <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} />}
 
-      {isMobile ? (
+      {route === '/contextos' ? (
+        <Contextos connected={conn.ws === 'connected'} contexts={contexts} openContext={openContext}
+          onCtxList={onCtxList} onCtxOpen={onCtxOpen} onCtxClose={onCtxClose} />
+      ) : isMobile ? (
         <MobileLayout
-          sessionsProps={{ sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onClose: handleCloseSession, archived, onUnhide: handleUnhide, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose }}
+          sessionsProps={{ sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onClose: handleCloseSession, archived, onUnhide: handleUnhide, searchResults, onSearch }}
           chatProps={{ session: activeSession, messages, phase: viewPhase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, contextTokens, onNew: handleNew }}
           termProps={{ terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term }}
           drawer={drawer} setDrawer={setDrawer}
@@ -204,8 +231,7 @@ export function CockpitApp() {
           <div style={{ width: `${leftW}%` }} className="min-w-0 shrink-0 border-r border-neutral-800">
             <SessionsPanel sessions={sessions} loading={loading} activeId={activeSessionId}
               onSelect={setActiveSessionId} onNew={handleNew} onRename={handleRename} onClose={handleCloseSession}
-              archived={archived} onUnhide={handleUnhide} searchResults={searchResults} onSearch={onSearch}
-              contexts={contexts} openContext={openContext} onCtxList={onCtxList} onCtxOpen={onCtxOpen} onCtxClose={onCtxClose} />
+              archived={archived} onUnhide={handleUnhide} searchResults={searchResults} onSearch={onSearch} />
           </div>
           <div className="resizer w-[3px] shrink-0 cursor-col-resize bg-neutral-800" onMouseDown={startDrag('left')} />
 
