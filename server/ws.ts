@@ -6,6 +6,7 @@ import { run, sanitize, type RunHandle } from './engine/claude';
 import { CONFIG } from './config';
 import { listSessions, listArchived } from './sessions/index';
 import { searchSessions } from './sessions/search';
+import { listContexts, readContext } from './contexts';
 import { hideSession, unhideSession } from './store';
 import { parseSession, ctxTokens } from './sessions/parse';
 import { collect } from './stats';
@@ -124,6 +125,15 @@ async function handle(ws: WebSocket, msg: ClientMsg) {
     }
     case 'search': {
       send(ws, { t: 'search-results', q: msg.q, items: await searchSessions(msg.q) });
+      return;
+    }
+    case 'ctx-list': {
+      send(ws, { t: 'contexts', items: await listContexts() });
+      return;
+    }
+    case 'ctx-open': {
+      const c = await readContext(msg.id);
+      if (c) send(ws, { t: 'context', id: msg.id, title: c.title, body: c.body });
       return;
     }
     case 'stop': {

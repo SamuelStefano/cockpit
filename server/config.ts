@@ -10,6 +10,9 @@ export const CONFIG = {
   // Diretório dos JSONL do CLI (fonte da verdade das sessões).
   projectsDir: join(homedir(), '.claude', 'projects', '-home-samuel'),
 
+  // Memórias do agente (markdown tipado) — surfaceadas READ-ONLY na aba Contextos.
+  memoryDir: join(homedir(), '.claude', 'projects', '-home-samuel', 'memory'),
+
   // cwd isolado pro spawn do claude (DR-004 #4).
   workdir: process.env.COCKPIT_WORKDIR ?? join(homedir(), 'cockpit-workdir'),
 
