@@ -66,6 +66,7 @@ export interface SysStats {
   cpu: number;                 // 0..100
   mem: { used: number; total: number };       // bytes
   gpu: { util: number; memUsed: number; memTotal: number } | null;
+  disk: { used: number; total: number };       // bytes
   load: number;
 }
 
