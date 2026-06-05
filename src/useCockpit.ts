@@ -91,7 +91,7 @@ export function useCockpit(): Cockpit {
   const [loading, setLoading] = useState(true);
   const [activeId, setActiveIdState] = useState<string>('');
   const [threads, setThreads] = useState<Record<string, Message[]>>({});
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [drafts, setDrafts] = useState<Record<string, string>>(() => loadPref('drafts', {} as Record<string, string>));
   const [phases, setPhases] = useState<Record<string, Phase>>({});
   const [conn, setConn] = useState<{ ws: ConnState; sse: ConnState }>({ ws: 'reconnecting', sse: 'reconnecting' });
   const [rate, setRate] = useState<{ resetsAt: number; status: string } | null>(null);
@@ -464,6 +464,14 @@ export function useCockpit(): Cockpit {
   const draft = drafts[activeId] || '';
   const contextTokens = usage[activeId] || 0;
   const setDraft = useCallback((v: string) => setDrafts((d) => ({ ...d, [activeRef.current]: v })), []);
+
+  // Drafts não-enviados sobrevivem a reload. Só persiste sessões reais (uuid) e
+  // não-vazias — keys `new-xxx` são efêmeras e não casam após reload.
+  useEffect(() => {
+    const keep: Record<string, string> = {};
+    for (const [k, v] of Object.entries(drafts)) if (v && !k.startsWith('new-')) keep[k] = v;
+    savePref('drafts', keep);
+  }, [drafts]);
 
   return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, archived, contextTokens, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
 }
