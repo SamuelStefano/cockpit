@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Session, Message, Block } from './data/mock';
-import type { ClientMsg, ServerMsg, SessionMeta, ToolCall } from '../shared/protocol';
+import type { ClientMsg, ServerMsg, SessionMeta, ToolCall, SysStats, PermMode } from '../shared/protocol';
 import type { ConnState } from './components/primitives';
 import type { Phase } from './components/Chat';
 
@@ -44,6 +44,9 @@ export interface Cockpit {
   setDraft: (v: string) => void;
   conn: { ws: ConnState; sse: ConnState };
   rate: { resetsAt: number; status: string } | null;
+  stats: SysStats | null;
+  mode: PermMode;
+  setMode: (m: PermMode) => void;
   onSend: (text: string) => void;
   onStop: () => void;
   onNew: () => void;
@@ -59,6 +62,9 @@ export function useCockpit(): Cockpit {
   const [phases, setPhases] = useState<Record<string, Phase>>({});
   const [conn, setConn] = useState<{ ws: ConnState; sse: ConnState }>({ ws: 'reconnecting', sse: 'reconnecting' });
   const [rate, setRate] = useState<{ resetsAt: number; status: string } | null>(null);
+  const [stats, setStats] = useState<SysStats | null>(null);
+  const [mode, setMode] = useState<PermMode>('plan');
+  const modeRef = useRef<PermMode>('plan');
 
   const wsRef = useRef<WebSocket | null>(null);
   const runMsg = useRef<Record<string, string>>({});      // sessionKey -> assistant msgId em voo
@@ -123,6 +129,10 @@ export function useCockpit(): Cockpit {
       }
       case 'rate': {
         setRate({ resetsAt: msg.resetsAt, status: msg.status });
+        return;
+      }
+      case 'stats': {
+        setStats(msg.stats);
         return;
       }
       case 'done': {
@@ -194,8 +204,10 @@ export function useCockpit(): Cockpit {
     updateThread(key, (prev) => [...prev, { id: newId('u'), role: 'user', text }]);
     setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: text, relative: 'agora' } : s)));
     setDrafts((d) => ({ ...d, [key]: '' }));
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text });
+    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text, mode: modeRef.current });
   }, [send, updateThread]);
+
+  const changeMode = useCallback((m: PermMode) => { modeRef.current = m; setMode(m); }, []);
 
   const onStop = useCallback(() => {
     const key = activeRef.current;
@@ -223,5 +235,5 @@ export function useCockpit(): Cockpit {
   const draft = drafts[activeId] || '';
   const setDraft = useCallback((v: string) => setDrafts((d) => ({ ...d, [activeRef.current]: v })), []);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, onSend, onStop, onNew, onRename };
+  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, mode, setMode: changeMode, onSend, onStop, onNew, onRename };
 }
