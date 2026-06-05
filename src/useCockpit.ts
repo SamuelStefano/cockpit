@@ -4,6 +4,7 @@ import type { ClientMsg, ServerMsg, SessionMeta, ToolCall, SysStats, PermMode, C
 
 export interface ContextDoc { id: string; title: string; body: string }
 export interface SkillDoc { id: string; name: string; body: string }
+export interface Attachment { name: string; path: string }
 import type { ConnState } from './components/primitives';
 import type { Phase } from './components/Chat';
 
@@ -73,6 +74,9 @@ export interface Cockpit {
   onSkillList: () => void;
   onSkillOpen: (id: string) => void;
   onSkillClose: () => void;
+  attachments: Attachment[];
+  onUpload: (file: File) => void;
+  onRemoveAttachment: (path: string) => void;
   onSend: (text: string) => void;
   onStop: () => void;
   onNew: () => void;
@@ -99,6 +103,8 @@ export function useCockpit(): Cockpit {
   const [openContext, setOpenContext] = useState<ContextDoc | null>(null);
   const [skills, setSkills] = useState<SkillMeta[]>([]);
   const [openSkill, setOpenSkill] = useState<SkillDoc | null>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const attachmentsRef = useRef<Attachment[]>([]);
   const [mode, setMode] = useState<PermMode>('auto');
   const modeRef = useRef<PermMode>('auto');
 
@@ -230,6 +236,12 @@ export function useCockpit(): Cockpit {
         setOpenSkill({ id: msg.id, name: msg.name, body: msg.body });
         return;
       }
+      case 'uploaded': {
+        const next = [...attachmentsRef.current, { name: msg.name, path: msg.path }];
+        attachmentsRef.current = next;
+        setAttachments(next);
+        return;
+      }
       case 'term-data': {
         termData.current.get(msg.termId)?.(msg.data);
         return;
@@ -304,6 +316,7 @@ export function useCockpit(): Cockpit {
   const setActiveId = useCallback((id: string) => {
     activeRef.current = id;
     setActiveIdState(id);
+    if (attachmentsRef.current.length) { attachmentsRef.current = []; setAttachments([]); }
     setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === id })));
     if (id && !id.startsWith('new-') && !opened.current.has(id)) {
       opened.current.add(id);
@@ -314,11 +327,35 @@ export function useCockpit(): Cockpit {
   const onSend = useCallback((text: string) => {
     const key = activeRef.current;
     if (!key) return;
+    const atts = attachmentsRef.current;
+    // Anexos viram refs de path no início do prompt; o agente abre via Read.
+    const wire = atts.length
+      ? atts.map((a) => `[anexo: ${a.path}]`).join('\n') + '\n\n' + text
+      : text;
+    if (atts.length) { attachmentsRef.current = []; setAttachments([]); }
     updateThread(key, (prev) => [...prev, { id: newId('u'), role: 'user', text }]);
     setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: text, relative: 'agora' } : s)));
     setDrafts((d) => ({ ...d, [key]: '' }));
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text, mode: modeRef.current });
+    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, mode: modeRef.current });
   }, [send, updateThread]);
+
+  const onUpload = useCallback((file: File) => {
+    const key = activeRef.current;
+    if (!key) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const res = String(reader.result);
+      const b64 = res.includes(',') ? res.slice(res.indexOf(',') + 1) : res;
+      send({ t: 'upload', sessionKey: key, name: file.name, dataB64: b64 });
+    };
+    reader.readAsDataURL(file);
+  }, [send]);
+
+  const onRemoveAttachment = useCallback((path: string) => {
+    const next = attachmentsRef.current.filter((a) => a.path !== path);
+    attachmentsRef.current = next;
+    setAttachments(next);
+  }, []);
 
   const changeMode = useCallback((m: PermMode) => { modeRef.current = m; setMode(m); }, []);
 
@@ -427,5 +464,5 @@ export function useCockpit(): Cockpit {
   const contextTokens = usage[activeId] || 0;
   const setDraft = useCallback((v: string) => setDrafts((d) => ({ ...d, [activeRef.current]: v })), []);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, archived, contextTokens, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, mode, setMode: changeMode, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
+  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, archived, contextTokens, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
 }

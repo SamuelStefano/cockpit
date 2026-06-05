@@ -29,6 +29,9 @@ export const CONFIG = {
   // Teto do prompt: evita ARG_MAX/DoS no spawn (argv -p).
   maxPromptBytes: 100_000,
 
+  // Teto por anexo gravado no workdir (loopback-only, mas evita encher o disco).
+  maxUploadBytes: 15_000_000,
+
   // Tools pré-aprovadas no modo Executar (acceptEdits). Allow-list nomeada,
   // não bypass. Override por env COCKPIT_ALLOWED_TOOLS (separado por vírgula).
   allowedTools: (process.env.COCKPIT_ALLOWED_TOOLS ?? 'Bash,Read,Edit,Write,Glob,Grep')
