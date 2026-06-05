@@ -1,17 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Icon, Badge, Markdown } from '../components/primitives';
+import { download } from '../lib/export';
 import type { SkillMeta } from '../../shared/protocol';
 import type { SkillDoc } from '../useCockpit';
-
-function download(name: string, mime: string, data: string) {
-  const blob = new Blob([data], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  a.click();
-  URL.revokeObjectURL(url);
-}
 
 function Card({ s, onClick }: { s: SkillMeta; onClick: () => void }) {
   return (
