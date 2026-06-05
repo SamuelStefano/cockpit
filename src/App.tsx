@@ -97,12 +97,12 @@ export function CockpitApp() {
   const cockpit = useCockpit();
   const {
     sessions, loading, activeId: activeSessionId, setActiveId: setActiveSessionId,
-    messages, phase, draft, setDraft, conn, rate, stats, mode, setMode,
+    messages, phase, draft, setDraft, conn, rate, stats, mode, setMode, term,
     onSend: handleSend, onStop: handleStop, onNew: cockpitNew, onRename: handleRename,
   } = cockpit;
 
   const [terminals, setTerminals] = useState<Terminal[]>(TERMINALS_SEED);
-  const [activeTermId, setActiveTermId] = useState('t1');
+  const [activeTermId, setActiveTermId] = useState('main');
 
   const [quotaClosed, setQuotaClosed] = useState(false);
   const quota = !!rate && !quotaClosed;
@@ -119,29 +119,6 @@ export function CockpitApp() {
   useEffect(() => {
     if (!activeSessionId && sessions.length) setActiveSessionId(sessions[0].id);
   }, [activeSessionId, sessions, setActiveSessionId]);
-
-  useEffect(() => {
-    const samples = [
-      { t: 'out' as const, s: 'GET  /v1/sessions 200 5ms' },
-      { t: 'out' as const, s: 'POST /auth/refresh 200 23ms' },
-      { t: 'out' as const, s: 'GET  /health 200 0.9ms' },
-      { t: 'warn' as const, s: 'WARN slow query 412ms — /v1/messages' },
-      { t: 'out' as const, s: 'POST /webhook/github 200 16ms' },
-      { t: 'ok' as const, s: '✓ cache hit ratio 0.94' },
-    ];
-    let k = 0;
-    const id = setInterval(() => {
-      setTerminals((prev) => prev.map((t) => {
-        if (!t.running) return t;
-        const stamp = new Date().toLocaleTimeString('pt-BR', { hour12: false });
-        const ln = samples[k % samples.length];
-        k++;
-        const lines = [...t.lines, { t: ln.t, s: `${stamp} ${ln.s}` }];
-        return { ...t, lines: lines.slice(-120) };
-      }));
-    }, 2600);
-    return () => clearInterval(id);
-  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 1023px)');
@@ -188,22 +165,14 @@ export function CockpitApp() {
   };
 
   const handleAddTerm = () => {
-    const id = nextId('t');
+    const id = nextId('term-');
     const n = terminals.length + 1;
-    const term: Terminal = {
-      id, name: `shell ${n}`, running: true,
-      pid: 3000 + Math.floor(Math.random() * 900),
-      cwd: '~',
-      lines: [
-        { t: 'sys', s: 'novo pty anexado · vps-fra-01' },
-        { t: 'cmd', s: 'bash -l' },
-      ],
-    };
-    setTerminals((prev) => [...prev, term]);
+    setTerminals((prev) => [...prev, { id, name: `shell ${n}` }]);
     setActiveTermId(id);
   };
 
   const handleCloseTerm = (id: string) => {
+    term.kill(id);
     setTerminals((prev) => {
       const next = prev.filter((t) => t.id !== id);
       if (id === activeTermId && next.length) setActiveTermId(next[0].id);
@@ -211,13 +180,7 @@ export function CockpitApp() {
     });
   };
 
-  const handleToggleRun = (id: string) => setTerminals((prev) => prev.map((t) => {
-    if (t.id !== id) return t;
-    if (t.running) return { ...t, running: false, pid: null, lines: [...t.lines, { t: 'sys' as const, s: 'processo interrompido · exit 130' }] };
-    return { ...t, running: true, pid: 3000 + Math.floor(Math.random() * 900), lines: [...t.lines, { t: 'cmd' as const, s: 'pnpm dev --filter api' }, { t: 'ok' as const, s: '✓ reiniciado' }] };
-  }));
-
-  const runningTerm = terminals.find((t) => t.running);
+  const runningTerm = terminals[0];
 
   return (
     <div className="relative flex h-full flex-col bg-neutral-950">
@@ -229,7 +192,7 @@ export function CockpitApp() {
         <MobileLayout
           sessionsProps={{ sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename }}
           chatProps={{ session: activeSession, messages, phase: viewPhase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode }}
-          termProps={{ terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, onToggleRun: handleToggleRun }}
+          termProps={{ terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term }}
           drawer={drawer} setDrawer={setDrawer}
           termSheet={termSheet} setTermSheet={setTermSheet}
           runningTerm={runningTerm}
@@ -251,7 +214,7 @@ export function CockpitApp() {
           <div className="resizer w-[3px] shrink-0 cursor-col-resize bg-neutral-800" onMouseDown={startDrag('right')} />
           <div style={{ width: `${rightW}%` }} className="min-w-0 shrink-0 border-l border-neutral-800">
             <TerminalsPanel terminals={terminals} activeId={activeTermId} onSelect={setActiveTermId}
-              onAdd={handleAddTerm} onClose={handleCloseTerm} onToggleRun={handleToggleRun} />
+              onAdd={handleAddTerm} onClose={handleCloseTerm} term={term} />
           </div>
         </div>
       )}

@@ -33,6 +33,14 @@ function appendDelta(blocks: Block[], text: string): Block[] {
   return [...blocks, { type: 'text', md: text }];
 }
 
+export interface TermApi {
+  attach: (id: string, cols: number, rows: number, onData: (d: string) => void, onExit: () => void) => void;
+  detach: (id: string) => void;
+  input: (id: string, data: string) => void;
+  resize: (id: string, cols: number, rows: number) => void;
+  kill: (id: string) => void;
+}
+
 export interface Cockpit {
   sessions: Session[];
   loading: boolean;
@@ -47,6 +55,7 @@ export interface Cockpit {
   stats: SysStats | null;
   mode: PermMode;
   setMode: (m: PermMode) => void;
+  term: TermApi;
   onSend: (text: string) => void;
   onStop: () => void;
   onNew: () => void;
@@ -72,6 +81,9 @@ export function useCockpit(): Cockpit {
   const opened = useRef<Set<string>>(new Set());          // sessionKeys cujo histórico já foi pedido
   const activeRef = useRef('');
   const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const termData = useRef<Map<string, (d: string) => void>>(new Map());   // termId -> xterm.write
+  const termExit = useRef<Map<string, () => void>>(new Map());
+  const termDims = useRef<Map<string, { cols: number; rows: number }>>(new Map()); // p/ reattach no reconnect
 
   const send = useCallback((m: ClientMsg) => {
     const ws = wsRef.current;
@@ -135,6 +147,14 @@ export function useCockpit(): Cockpit {
         setStats(msg.stats);
         return;
       }
+      case 'term-data': {
+        termData.current.get(msg.termId)?.(msg.data);
+        return;
+      }
+      case 'term-exit': {
+        termExit.current.get(msg.termId)?.();
+        return;
+      }
       case 'done': {
         if (msg.sessionId) resumeId.current[msg.sessionKey] = msg.sessionId;
         delete runMsg.current[msg.sessionKey];
@@ -162,6 +182,7 @@ export function useCockpit(): Cockpit {
     ws.onopen = () => {
       setConn({ ws: 'connected', sse: 'connected' });
       send({ t: 'list' });
+      for (const [id, d] of termDims.current) send({ t: 'term-open', termId: id, cols: d.cols, rows: d.rows });
     };
     ws.onmessage = (ev) => {
       let m: ServerMsg;
@@ -209,6 +230,33 @@ export function useCockpit(): Cockpit {
 
   const changeMode = useCallback((m: PermMode) => { modeRef.current = m; setMode(m); }, []);
 
+  const term: TermApi = {
+    attach: useCallback((id, cols, rows, onData, onExit) => {
+      termData.current.set(id, onData);
+      termExit.current.set(id, onExit);
+      termDims.current.set(id, { cols, rows });
+      send({ t: 'term-open', termId: id, cols, rows });
+    }, [send]),
+    detach: useCallback((id) => {
+      termData.current.delete(id);
+      termExit.current.delete(id);
+      termDims.current.delete(id);
+      send({ t: 'term-detach', termId: id });
+    }, [send]),
+    input: useCallback((id, data) => send({ t: 'term-input', termId: id, data }), [send]),
+    resize: useCallback((id, cols, rows) => {
+      const d = termDims.current.get(id);
+      if (d) { d.cols = cols; d.rows = rows; }
+      send({ t: 'term-resize', termId: id, cols, rows });
+    }, [send]),
+    kill: useCallback((id) => {
+      termData.current.delete(id);
+      termExit.current.delete(id);
+      termDims.current.delete(id);
+      send({ t: 'term-close', termId: id });
+    }, [send]),
+  };
+
   const onStop = useCallback(() => {
     const key = activeRef.current;
     if (!key) return;
@@ -235,5 +283,5 @@ export function useCockpit(): Cockpit {
   const draft = drafts[activeId] || '';
   const setDraft = useCallback((v: string) => setDrafts((d) => ({ ...d, [activeRef.current]: v })), []);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, mode, setMode: changeMode, onSend, onStop, onNew, onRename };
+  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, mode, setMode: changeMode, term, onSend, onStop, onNew, onRename };
 }
