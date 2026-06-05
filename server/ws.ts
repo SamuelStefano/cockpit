@@ -7,6 +7,7 @@ import { CONFIG } from './config';
 import { listSessions, listArchived } from './sessions/index';
 import { searchSessions } from './sessions/search';
 import { listContexts, readContext } from './contexts';
+import { listSkills, readSkill } from './skills';
 import { hideSession, unhideSession } from './store';
 import { parseSession, ctxTokens } from './sessions/parse';
 import { collect } from './stats';
@@ -134,6 +135,15 @@ async function handle(ws: WebSocket, msg: ClientMsg) {
     case 'ctx-open': {
       const c = await readContext(msg.id);
       if (c) send(ws, { t: 'context', id: msg.id, title: c.title, body: c.body });
+      return;
+    }
+    case 'skill-list': {
+      send(ws, { t: 'skills', items: await listSkills() });
+      return;
+    }
+    case 'skill-open': {
+      const s = await readSkill(msg.id);
+      if (s) send(ws, { t: 'skill', id: msg.id, name: s.name, body: s.body });
       return;
     }
     case 'stop': {

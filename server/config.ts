@@ -13,6 +13,9 @@ export const CONFIG = {
   // Memórias do agente (markdown tipado) — surfaceadas READ-ONLY na aba Contextos.
   memoryDir: join(homedir(), '.claude', 'projects', '-home-samuel', 'memory'),
 
+  // Skills do agente (cada dir tem um SKILL.md) — surfaceadas READ-ONLY na rota Skills.
+  skillsDir: join(homedir(), '.claude', 'skills'),
+
   // cwd isolado pro spawn do claude (DR-004 #4).
   workdir: process.env.COCKPIT_WORKDIR ?? join(homedir(), 'cockpit-workdir'),
 
