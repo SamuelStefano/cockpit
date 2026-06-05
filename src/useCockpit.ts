@@ -21,8 +21,22 @@ function metaToSession(m: SessionMeta, active: boolean): Session {
 function upsertTool(blocks: Block[], tool: ToolCall): Block[] {
   const i = blocks.findIndex((b) => b.type === 'tool' && b.tool.id === tool.id);
   if (i >= 0) {
+    const prev = (blocks[i] as { type: 'tool'; tool: ToolCall }).tool;
+    // O update de "done"/"error" (tool_result) chega com placeholders genéricos
+    // (label/name 'tool', command ''). Preserva os campos reais do "running".
+    const merged: ToolCall = {
+      ...prev,
+      status: tool.status,
+      output: tool.output.length ? tool.output : prev.output,
+      exit: tool.exit ?? prev.exit,
+      expanded: tool.expanded ?? prev.expanded,
+      durationMs: tool.durationMs ?? prev.durationMs,
+      label: tool.label && tool.label !== 'tool' ? tool.label : prev.label,
+      name: tool.name && tool.name !== 'tool' ? tool.name : prev.name,
+      command: tool.command || prev.command,
+    };
     const next = blocks.slice();
-    next[i] = { type: 'tool', tool };
+    next[i] = { type: 'tool', tool: merged };
     return next;
   }
   return [...blocks, { type: 'tool', tool }];
