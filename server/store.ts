@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 
@@ -25,7 +25,10 @@ async function load(): Promise<Store> {
 async function persist(): Promise<void> {
   if (!cache) return;
   await mkdir(dirname(STORE_PATH), { recursive: true });
-  await writeFile(STORE_PATH, JSON.stringify(cache, null, 2), 'utf8');
+  // Escrita atômica: tmp + rename, pra um crash no meio não corromper o store.
+  const tmp = `${STORE_PATH}.${process.pid}.tmp`;
+  await writeFile(tmp, JSON.stringify(cache, null, 2), 'utf8');
+  await rename(tmp, STORE_PATH);
 }
 
 export async function hiddenSet(): Promise<Set<string>> {
@@ -39,6 +42,7 @@ export async function hideSession(id: string): Promise<void> {
 }
 
 export async function unhideSession(id: string): Promise<void> {
+  if (!UUID_RE.test(id)) return;
   const s = await load();
   const i = s.hidden.indexOf(id);
   if (i >= 0) { s.hidden.splice(i, 1); await persist(); }
