@@ -7,6 +7,7 @@ import { CONFIG } from './config';
 import { listSessions } from './sessions/index';
 import { parseSession } from './sessions/parse';
 import { collect } from './stats';
+import { openTerm, detachTerm, inputTerm, resizeTerm, closeTerm } from './terminals';
 
 interface Thread {
   handle: RunHandle;
@@ -22,10 +23,19 @@ export function attachWs(server: Server) {
     send(ws, { t: 'busy', keys: [...threads.keys()] });
     collect().then((stats) => send(ws, { t: 'stats', stats })).catch(() => {});
 
+    // terminais anexados por ESTA conexão — pra desanexar no disconnect.
+    const myTerms = new Map<string, { onData: (d: string) => void; onExit: () => void }>();
+
     ws.on('message', (raw) => {
       let msg: ClientMsg;
       try { msg = JSON.parse(String(raw)) as ClientMsg; } catch { return; }
+      if (handleTerm(ws, msg, myTerms)) return;
       handle(ws, msg).catch((e) => send(ws, { t: 'error', message: sanitize(String(e?.message ?? e)) }));
+    });
+
+    ws.on('close', () => {
+      for (const [id, h] of myTerms) detachTerm(id, h.onData, h.onExit);
+      myTerms.clear();
     });
   });
 
@@ -45,6 +55,39 @@ function startStatsLoop(wss: WebSocketServer) {
     } catch { /* best-effort */ }
   };
   setInterval(tick, 2000).unref();
+}
+
+// Terminais (síncrono): true se a msg foi de terminal e já tratada.
+function handleTerm(
+  ws: WebSocket,
+  msg: ClientMsg,
+  myTerms: Map<string, { onData: (d: string) => void; onExit: () => void }>,
+): boolean {
+  switch (msg.t) {
+    case 'term-open': {
+      if (myTerms.has(msg.termId)) return true; // já anexado nesta conexão
+      const onData = (data: string) => send(ws, { t: 'term-data', termId: msg.termId, data });
+      const onExit = () => { send(ws, { t: 'term-exit', termId: msg.termId }); myTerms.delete(msg.termId); };
+      const ok = openTerm(msg.termId, msg.cols, msg.rows, onData, onExit);
+      if (ok) myTerms.set(msg.termId, { onData, onExit });
+      else send(ws, { t: 'term-exit', termId: msg.termId });
+      return true;
+    }
+    case 'term-input': { inputTerm(msg.termId, msg.data); return true; }
+    case 'term-resize': { resizeTerm(msg.termId, msg.cols, msg.rows); return true; }
+    case 'term-detach': {
+      const h = myTerms.get(msg.termId);
+      if (h) { detachTerm(msg.termId, h.onData, h.onExit); myTerms.delete(msg.termId); }
+      return true; // sessão tmux fica viva pra reattach
+    }
+    case 'term-close': {
+      const h = myTerms.get(msg.termId);
+      if (h) { detachTerm(msg.termId, h.onData, h.onExit); myTerms.delete(msg.termId); }
+      closeTerm(msg.termId);
+      return true;
+    }
+  }
+  return false;
 }
 
 async function handle(ws: WebSocket, msg: ClientMsg) {

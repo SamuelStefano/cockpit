@@ -73,7 +73,12 @@ export type ClientMsg =
   | { t: 'send'; sessionKey: string; sessionId?: string; text: string; mode?: PermMode }
   | { t: 'stop'; sessionKey: string }
   | { t: 'list' }
-  | { t: 'open'; sessionId: string };
+  | { t: 'open'; sessionId: string }
+  | { t: 'term-open'; termId: string; cols: number; rows: number }
+  | { t: 'term-input'; termId: string; data: string }
+  | { t: 'term-resize'; termId: string; cols: number; rows: number }
+  | { t: 'term-detach'; termId: string }
+  | { t: 'term-close'; termId: string };
 
 export type ServerMsg =
   | { t: 'sessions'; items: SessionMeta[] }
@@ -85,5 +90,7 @@ export type ServerMsg =
   | { t: 'tool'; sessionKey: string; tool: ToolCall }
   | { t: 'rate'; resetsAt: number; status: string }
   | { t: 'stats'; stats: SysStats }
+  | { t: 'term-data'; termId: string; data: string }
+  | { t: 'term-exit'; termId: string }
   | { t: 'done'; sessionKey: string; sessionId: string }
   | { t: 'error'; sessionKey?: string; message: string };
