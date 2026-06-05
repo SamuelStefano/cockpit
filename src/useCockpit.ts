@@ -100,6 +100,31 @@ export function useCockpit(): Cockpit {
     updateThread(key, (prev) => prev.map((m) => (m.id === mid && m.role === 'assistant' ? { ...m, blocks: fn(m.blocks) } : m)));
   }, [updateThread]);
 
+  // Sessão local `new-xxx` ganha um uuid real do claude só no fim do 1º run.
+  // Migrar a key local -> uuid evita que ela apareça DUPLICADA no sidebar quando
+  // o `list` (reconnect) trouxer a mesma sessão já persistida no JSONL.
+  // Migra-se no `done` (não no meio): assim nenhum delta/tool em voo (ainda
+  // keyed por `new-xxx`) fica órfão.
+  const migrateKey = useCallback((oldKey: string, newId: string) => {
+    if (oldKey === newId || !oldKey.startsWith('new-')) return;
+    resumeId.current[newId] = newId;
+    delete resumeId.current[oldKey];
+    opened.current.add(newId);   // history já está local; não re-buscar
+    opened.current.delete(oldKey);
+    if (activeRef.current === oldKey) { activeRef.current = newId; setActiveIdState(newId); }
+    const move = <T,>(prev: Record<string, T>): Record<string, T> => {
+      if (!(oldKey in prev)) return prev;
+      const next = { ...prev };
+      next[newId] = next[oldKey];
+      delete next[oldKey];
+      return next;
+    };
+    setThreads(move);
+    setPhases(move);
+    setDrafts(move);
+    setSessions((prev) => prev.map((s) => (s.id === oldKey ? { ...s, id: newId } : s)));
+  }, []);
+
   const onServer = useCallback((msg: ServerMsg) => {
     switch (msg.t) {
       case 'sessions': {
@@ -156,9 +181,13 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'done': {
-        if (msg.sessionId) resumeId.current[msg.sessionKey] = msg.sessionId;
-        delete runMsg.current[msg.sessionKey];
-        setPhases((p) => ({ ...p, [msg.sessionKey]: 'idle' }));
+        const key = msg.sessionKey;
+        delete runMsg.current[key];
+        setPhases((p) => ({ ...p, [key]: 'idle' }));
+        if (msg.sessionId) {
+          resumeId.current[key] = msg.sessionId;
+          migrateKey(key, msg.sessionId);
+        }
         return;
       }
       case 'error': {
@@ -171,7 +200,7 @@ export function useCockpit(): Cockpit {
         return;
       }
     }
-  }, [updateThread, patchRunMsg]);
+  }, [updateThread, patchRunMsg, migrateKey]);
 
   const connect = useCallback(() => {
     setConn((c) => ({ ...c, ws: 'reconnecting', sse: 'reconnecting' }));
