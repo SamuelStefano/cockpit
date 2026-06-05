@@ -7,6 +7,7 @@ import { MobileLayout } from './components/Mobile';
 import { StatusBar } from './components/StatusBar';
 import { Contextos } from './routes/Contextos';
 import { Skills } from './routes/Skills';
+import { Observatorio } from './routes/Observatorio';
 import { CommandPalette } from './components/CommandPalette';
 import { useCockpit } from './useCockpit';
 import { useRoute, type Route } from './useRoute';
@@ -43,6 +44,7 @@ const NAV: { to: Route; label: string }[] = [
   { to: '/', label: 'chat' },
   { to: '/contextos', label: 'contextos' },
   { to: '/skills', label: 'skills' },
+  { to: '/uso', label: 'uso' },
 ];
 
 function Header({ conn, onNew, isMobile, onMenu, route, nav, onPalette }: HeaderProps) {
@@ -135,6 +137,7 @@ export function CockpitApp() {
     archived, onUnhide: handleUnhide, contextTokens, searchResults, onSearch,
     contexts, openContext, onCtxList, onCtxOpen, onCtxClose,
     skills, openSkill, onSkillList, onSkillOpen, onSkillClose,
+    usageStats, onUsageList,
     attachments, onUpload, onRemoveAttachment,
     onSend: handleSend, onStop: handleStop, onNew: cockpitNew, onRename: handleRename, onClose: handleCloseSession,
   } = cockpit;
@@ -253,6 +256,8 @@ export function CockpitApp() {
       ) : route === '/skills' ? (
         <Skills connected={conn.ws === 'connected'} skills={skills} openSkill={openSkill}
           onSkillList={onSkillList} onSkillOpen={onSkillOpen} onSkillClose={onSkillClose} />
+      ) : route === '/uso' ? (
+        <Observatorio connected={conn.ws === 'connected'} usageStats={usageStats} onUsageList={onUsageList} sessions={sessions} />
       ) : isMobile ? (
         <MobileLayout
           sessionsProps={{ sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onClose: handleCloseSession, archived, onUnhide: handleUnhide, searchResults, onSearch }}

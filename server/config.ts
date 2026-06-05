@@ -19,6 +19,10 @@ export const CONFIG = {
   // cwd isolado pro spawn do claude (DR-004 #4).
   workdir: process.env.COCKPIT_WORKDIR ?? join(homedir(), 'cockpit-workdir'),
 
+  // SQLite local (loopback, sem segredo): time-series de uso/tokens p/ o
+  // observatório. Mesmo dir do store.json. Override por env.
+  dbPath: process.env.COCKPIT_DB ?? join(homedir(), '.cockpit', 'cockpit.db'),
+
   // DR-004 #1: plan-mode na Fase 1 (NÃO bypassPermissions). Allow-list trava
   // qualquer env solto de armar bypass (= RCE root) por engano.
   permissionMode: safeMode(process.env.COCKPIT_PERMISSION_MODE),

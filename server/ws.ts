@@ -9,6 +9,7 @@ import { searchSessions } from './sessions/search';
 import { listContexts, readContext } from './contexts';
 import { listSkills, readSkill } from './skills';
 import { saveAttachment } from './attachments';
+import { recordUsage, usageStats } from './db';
 import { hideSession, unhideSession } from './store';
 import { parseSession, ctxTokens } from './sessions/parse';
 import { collect } from './stats';
@@ -147,6 +148,10 @@ async function handle(ws: WebSocket, msg: ClientMsg) {
       if (s) send(ws, { t: 'skill', id: msg.id, name: s.name, body: s.body });
       return;
     }
+    case 'usage-list': {
+      send(ws, { t: 'usage-stats', stats: usageStats() });
+      return;
+    }
     case 'upload': {
       const r = await saveAttachment(msg.sessionKey, msg.name, msg.dataB64);
       if ('error' in r) send(ws, { t: 'error', message: r.error });
@@ -219,8 +224,15 @@ function translate(ws: WebSocket, sessionKey: string, thread: Thread, ev: Claude
           if (c?.type === 'tool_use') emitTool(ws, sessionKey, c, 'running');
         }
       }
-      const tokens = ctxTokens((ev as any).message?.usage);
+      const usage = (ev as any).message?.usage;
+      const tokens = ctxTokens(usage);
       if (tokens > 0) send(ws, { t: 'usage', sessionKey, tokens });
+      recordUsage({
+        sessionId: thread.sessionId ?? sessionKey,
+        ctxTokens: tokens,
+        outputTokens: usage?.output_tokens ?? 0,
+        model: (ev as any).message?.model,
+      });
       capture(thread, ev);
       return;
     }

@@ -72,6 +72,22 @@ export interface SkillMeta {
   mtime: number;
 }
 
+// Uso/tokens por sessão (time-series agregada do SQLite) — observatório.
+export interface SessionUsage {
+  sessionId: string;
+  ctxTokens: number;      // último contexto observado (fill da janela)
+  outputTokens: number;   // soma de saída (proxy de geração/custo)
+  samples: number;
+  lastTs: number;
+  model: string | null;
+}
+
+export interface UsageStats {
+  sessions: SessionUsage[];
+  totalOutput: number;
+  totalSamples: number;
+}
+
 // --- WebSocket protocol ----------------------------------------------------
 
 // Modo de permissão exposto na UI. 'plan' = só planeja (nada executa);
@@ -101,6 +117,7 @@ export type ClientMsg =
   | { t: 'ctx-open'; id: string }
   | { t: 'skill-list' }
   | { t: 'skill-open'; id: string }
+  | { t: 'usage-list' }
   | { t: 'upload'; sessionKey: string; name: string; dataB64: string }
   | { t: 'term-open'; termId: string; cols: number; rows: number }
   | { t: 'term-input'; termId: string; data: string }
@@ -125,6 +142,7 @@ export type ServerMsg =
   | { t: 'tool'; sessionKey: string; tool: ToolCall }
   | { t: 'rate'; resetsAt: number; status: string }
   | { t: 'usage'; sessionKey: string; tokens: number }
+  | { t: 'usage-stats'; stats: UsageStats }
   | { t: 'stats'; stats: SysStats }
   | { t: 'term-data'; termId: string; data: string }
   | { t: 'term-replay'; termId: string; data: string }
