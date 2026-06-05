@@ -231,6 +231,9 @@ function translate(ws: WebSocket, sessionKey: string, thread: Thread, ev: Claude
         sessionId: thread.sessionId ?? sessionKey,
         ctxTokens: tokens,
         outputTokens: usage?.output_tokens ?? 0,
+        inputTokens: usage?.input_tokens ?? 0,
+        cacheReadTokens: usage?.cache_read_input_tokens ?? 0,
+        cacheCreationTokens: usage?.cache_creation_input_tokens ?? 0,
         model: (ev as any).message?.model,
       });
       capture(thread, ev);

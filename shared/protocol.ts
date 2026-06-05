@@ -80,12 +80,14 @@ export interface SessionUsage {
   samples: number;
   lastTs: number;
   model: string | null;
+  costUsd: number;        // custo estimado (preço público aproximado por modelo)
 }
 
 export interface UsageStats {
   sessions: SessionUsage[];
   totalOutput: number;
   totalSamples: number;
+  totalCost: number;      // soma do custo estimado de todas as sessões
 }
 
 // --- WebSocket protocol ----------------------------------------------------

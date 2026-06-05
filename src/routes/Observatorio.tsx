@@ -11,6 +11,13 @@ function fmt(n: number): string {
   return String(n);
 }
 
+function usd(n: number): string {
+  if (n >= 100) return '$' + n.toFixed(0);
+  if (n >= 1) return '$' + n.toFixed(2);
+  if (n > 0) return '$' + n.toFixed(3);
+  return '$0';
+}
+
 function rel(ts: number): string {
   const d = Date.now() - ts;
   const m = Math.floor(d / 60_000);
@@ -89,7 +96,8 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions }: P
         <Offline />
       ) : (
         <div className="scroll-thin flex-1 overflow-y-auto p-4">
-          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Stat label="custo estimado" value={usd(usageStats?.totalCost ?? 0)} icon="zap" />
             <Stat label="tokens de saída" value={fmt(usageStats?.totalOutput ?? 0)} icon="arrowUp" />
             <Stat label="amostras" value={fmt(usageStats?.totalSamples ?? 0)} icon="zap" />
             <Stat label="sessões ativas" value={String(rows.length)} icon="message" />
@@ -105,6 +113,7 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions }: P
                     <th className="px-3 py-2 font-medium">sessão</th>
                     <th className="px-3 py-2 font-medium">contexto</th>
                     <th className="px-3 py-2 font-medium">saída</th>
+                    <th className="px-3 py-2 font-medium">custo</th>
                     <th className="hidden px-3 py-2 font-medium sm:table-cell">amostras</th>
                     <th className="px-3 py-2 text-right font-medium">visto</th>
                   </tr>
@@ -134,6 +143,7 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions }: P
                             <span className="font-mono text-[11px] text-neutral-400">{fmt(r.outputTokens)}</span>
                           </div>
                         </td>
+                        <td className="px-3 py-2 font-mono text-[11px] text-emerald-400/80">{usd(r.costUsd)}</td>
                         <td className="hidden px-3 py-2 font-mono text-neutral-500 sm:table-cell">{r.samples}</td>
                         <td className="px-3 py-2 text-right text-neutral-500">{rel(r.lastTs)}</td>
                       </tr>
