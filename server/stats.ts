@@ -1,7 +1,7 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, statfs } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 
-// Coletor de telemetria da máquina (CPU/RAM/GPU) em tempo real.
+// Coletor de telemetria da máquina (CPU/RAM/GPU/disco) em tempo real.
 // Lê /proc direto (sem deps) e nvidia-smi quando há GPU. Tudo best-effort:
 // qualquer leitura que falhe vira null/0, nunca derruba o broadcast.
 
@@ -9,6 +9,7 @@ export interface Stats {
   cpu: number;                 // 0..100 (% de uso agregado)
   mem: { used: number; total: number };       // bytes
   gpu: { util: number; memUsed: number; memTotal: number } | null; // % / bytes
+  disk: { used: number; total: number };       // bytes (filesystem do HOME)
   load: number;                // load average 1min
 }
 
@@ -67,7 +68,16 @@ function readGpu(): Promise<Stats['gpu']> {
   });
 }
 
+async function readDisk(): Promise<{ used: number; total: number }> {
+  const fs = await statfs(process.env.HOME ?? '/').catch(() => null);
+  if (!fs) return { used: 0, total: 0 };
+  const bs = Number(fs.bsize) || 0;
+  const total = Number(fs.blocks) * bs;
+  const free = Number(fs.bfree) * bs;
+  return { used: Math.max(0, total - free), total };
+}
+
 export async function collect(): Promise<Stats> {
-  const [cpu, mem, gpu, load] = await Promise.all([readCpu(), readMem(), readGpu(), readLoad()]);
-  return { cpu, mem, gpu, load };
+  const [cpu, mem, gpu, disk, load] = await Promise.all([readCpu(), readMem(), readGpu(), readDisk(), readLoad()]);
+  return { cpu, mem, gpu, disk, load };
 }

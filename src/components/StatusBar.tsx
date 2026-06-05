@@ -49,11 +49,19 @@ export function StatusBar({ stats }: { stats: SysStats | null }) {
   const memPct = stats.mem.total ? (stats.mem.used / stats.mem.total) * 100 : 0;
   const gpu = stats.gpu;
   const gpuMemPct = gpu && gpu.memTotal ? (gpu.memUsed / gpu.memTotal) * 100 : 0;
+  const disk = stats.disk;
+  const diskPct = disk && disk.total ? (disk.used / disk.total) * 100 : 0;
   return (
     <footer className="flex h-7 shrink-0 items-center gap-3.5 overflow-x-auto border-t border-neutral-800 bg-neutral-950 px-3">
       <Meter label="cpu" pct={stats.cpu} detail={`CPU ${stats.cpu.toFixed(0)}% · load ${stats.load.toFixed(2)}`} />
       <span className="h-3 w-px shrink-0 bg-neutral-800" />
       <Meter label="ram" pct={memPct} detail={`RAM ${fmtBytes(stats.mem.used)} / ${fmtBytes(stats.mem.total)}`} />
+      {disk && disk.total > 0 && (
+        <>
+          <span className="h-3 w-px shrink-0 bg-neutral-800" />
+          <Meter label="disco" pct={diskPct} detail={`Disco ${fmtBytes(disk.used)} / ${fmtBytes(disk.total)} · ${fmtBytes(disk.total - disk.used)} livre`} />
+        </>
+      )}
       {gpu && (
         <>
           <span className="h-3 w-px shrink-0 bg-neutral-800" />
