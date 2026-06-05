@@ -2,6 +2,33 @@ import { useState, useEffect, useRef } from 'react';
 import { Icon, Badge, Markdown, CodeBlock } from './primitives';
 import type { Session, Message, Block, ToolCall } from '../data/mock';
 import type { PermMode } from '../../shared/protocol';
+import { threadToMarkdown, download, fileSlug } from '../lib/export';
+
+// --- ExportMenu ------------------------------------------------------------
+
+// Export 100% client-side: os dados já vivem em messages[]. .md serializa a
+// thread; PDF usa o print nativo do browser (@media print isola .print-thread).
+function ExportMenu({ title, messages }: { title: string; messages: Message[] }) {
+  const exportMd = () => download(`${fileSlug(title)}.md`, 'text/markdown', threadToMarkdown(title, messages));
+  return (
+    <div className="ml-auto flex items-center gap-0.5">
+      <button
+        onClick={exportMd}
+        title="Baixar conversa em Markdown"
+        className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300"
+      >
+        <Icon name="download" size={13} /> .md
+      </button>
+      <button
+        onClick={() => window.print()}
+        title="Exportar como PDF (impressão do navegador)"
+        className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300"
+      >
+        <Icon name="download" size={13} /> pdf
+      </button>
+    </div>
+  );
+}
 
 // --- ModeToggle ------------------------------------------------------------
 
@@ -390,9 +417,10 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         <span className="truncate text-[12.5px] font-medium text-neutral-300">{session ? session.title : 'Nova sessão'}</span>
         {session?.hasTerminal && <Badge tone="green" dot className="ml-0.5">terminal</Badge>}
         <ContextMeter tokens={contextTokens} onNew={onNew} />
+        {!isEmpty && <ExportMenu title={session?.title || 'sessao'} messages={messages} />}
       </div>
 
-      <div ref={scrollRef} onScroll={onScroll} className="scroll-thin flex-1 overflow-y-auto">
+      <div ref={scrollRef} onScroll={onScroll} className="print-thread scroll-thin flex-1 overflow-y-auto">
         {isEmpty && phase === 'idle' ? (
           <ChatEmpty onPrompt={onPrompt} />
         ) : (

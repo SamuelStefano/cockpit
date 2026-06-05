@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { download, codeExt } from '../lib/export';
 
 // --- Icon ------------------------------------------------------------------
 
@@ -265,14 +266,22 @@ export function CodeBlock({ code, lang = 'bash' }: CodeBlockProps) {
     navigator.clipboard?.writeText(code).catch(() => {});
     setCopied(true); setTimeout(() => setCopied(false), 1200);
   };
+  const save = () => {
+    download(`snippet.${codeExt(lang)}`, 'text/plain', code);
+  };
   return (
     <div className="group/code my-1 overflow-hidden rounded-lg border border-neutral-800 bg-[#0c0c0c]">
       <div className="flex items-center justify-between border-b border-neutral-800 px-3 py-1.5">
         <span className="font-mono text-[10px] uppercase tracking-wider text-neutral-500">{lang}</span>
-        <button onClick={copy} className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300">
-          <Icon name={copied ? 'check' : 'copy'} size={11} />
-          {copied ? 'copiado' : 'copiar'}
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button onClick={save} title="Baixar trecho" className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300">
+            <Icon name="download" size={11} />
+          </button>
+          <button onClick={copy} className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300">
+            <Icon name={copied ? 'check' : 'copy'} size={11} />
+            {copied ? 'copiado' : 'copiar'}
+          </button>
+        </div>
       </div>
       <pre className="scroll-thin overflow-x-auto px-3 py-2.5 text-[12.5px] leading-relaxed">
         <code className="font-mono">{highlightBash(code)}</code>
