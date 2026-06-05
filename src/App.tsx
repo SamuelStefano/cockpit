@@ -284,7 +284,8 @@ export function CockpitApp() {
         <Skills connected={conn.ws === 'connected'} skills={skills} openSkill={openSkill}
           onSkillList={onSkillList} onSkillOpen={onSkillOpen} onSkillClose={onSkillClose} />
       ) : route === '/uso' ? (
-        <Observatorio connected={conn.ws === 'connected'} usageStats={usageStats} onUsageList={onUsageList} sessions={sessions} />
+        <Observatorio connected={conn.ws === 'connected'} usageStats={usageStats} onUsageList={onUsageList} sessions={sessions}
+          onOpenSession={(id) => { setActiveSessionId(id); nav('/'); }} />
       ) : isMobile ? (
         <MobileLayout
           sessionsProps={{ sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onClose: handleCloseSession, archived, onUnhide: handleUnhide, searchResults, onSearch }}

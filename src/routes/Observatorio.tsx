@@ -70,11 +70,13 @@ interface Props {
   usageStats: UsageStats | null;
   onUsageList: () => void;
   sessions: Session[];
+  onOpenSession: (id: string) => void;
 }
 
-export function Observatorio({ connected, usageStats, onUsageList, sessions }: Props) {
+export function Observatorio({ connected, usageStats, onUsageList, sessions, onOpenSession }: Props) {
   useEffect(() => { if (connected) onUsageList(); }, [connected, onUsageList]);
 
+  const known = useMemo(() => new Set(sessions.map((s) => s.id)), [sessions]);
   const titleOf = useMemo(() => {
     const m = new Map(sessions.map((s) => [s.id, s.title || s.snippet]));
     return (id: string) => m.get(id) || id.slice(0, 8);
@@ -121,8 +123,14 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions }: P
                 <tbody>
                   {rows.map((r) => {
                     const fill = Math.min(100, Math.round((r.ctxTokens / CTX_WINDOW) * 100));
+                    const openable = known.has(r.sessionId);
                     return (
-                      <tr key={r.sessionId} className="border-b border-neutral-800/60 last:border-0 hover:bg-neutral-900/40">
+                      <tr
+                        key={r.sessionId}
+                        onClick={openable ? () => onOpenSession(r.sessionId) : undefined}
+                        title={openable ? 'Abrir sessão no chat' : undefined}
+                        className={`border-b border-neutral-800/60 last:border-0 hover:bg-neutral-900/40 ${openable ? 'cursor-pointer' : ''}`}
+                      >
                         <td className="max-w-0 px-3 py-2">
                           <div className="truncate text-neutral-300">{titleOf(r.sessionId)}</div>
                           {r.model && <div className="truncate font-mono text-[10px] text-neutral-600">{r.model}</div>}
@@ -133,6 +141,11 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions }: P
                               <div className={`h-full rounded-full ${fill > 75 ? 'bg-red-500' : fill > 50 ? 'bg-amber-500' : 'bg-orange-500'}`} style={{ width: `${fill}%` }} />
                             </div>
                             <span className="font-mono text-[11px] text-neutral-500">{fmt(r.ctxTokens)}</span>
+                            {fill >= 75 && (
+                              <span title="Contexto quase cheio — considere uma nova sessão" className="flex items-center gap-0.5 rounded bg-red-500/10 px-1 text-[9.5px] font-medium text-red-400">
+                                <Icon name="zap" size={9} /> {fill}%
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="px-3 py-2">
