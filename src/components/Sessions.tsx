@@ -109,6 +109,8 @@ export interface SessionsPanelProps {
   archived?: Session[];
   onUnhide?: (id: string) => void;
   onCloseMobile?: () => void;
+  searchResults?: Session[];
+  onSearch?: (q: string) => void;
 }
 
 function ArchivedSection({ archived, onUnhide }: { archived: Session[]; onUnhide: (id: string) => void }) {
@@ -143,13 +145,25 @@ function ArchivedSection({ archived, onUnhide }: { archived: Session[]; onUnhide
   );
 }
 
-export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, onRename, onClose, archived = [], onUnhide, onCloseMobile }: SessionsPanelProps) {
+export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, onRename, onClose, archived = [], onUnhide, onCloseMobile, searchResults = [], onSearch }: SessionsPanelProps) {
   const [query, setQuery] = useState('');
+
+  // Busca de conteúdo no backend (debounce 150ms). O filtro local (título/snippet)
+  // aparece na hora; os hits por CONTEÚDO chegam logo depois e são mesclados.
+  useEffect(() => {
+    if (!onSearch) return;
+    const id = setTimeout(() => onSearch(query), 150);
+    return () => clearTimeout(id);
+  }, [query, onSearch]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return sessions;
-    return sessions.filter(s => (s.title + ' ' + s.snippet).toLowerCase().includes(q));
-  }, [sessions, query]);
+    const local = sessions.filter(s => (s.title + ' ' + s.snippet).toLowerCase().includes(q));
+    const seen = new Set(local.map(s => s.id));
+    const extra = searchResults.filter(s => !seen.has(s.id)); // hits só-por-conteúdo
+    return [...local, ...extra];
+  }, [sessions, query, searchResults]);
 
   return (
     <div className="flex h-full flex-col bg-neutral-950">

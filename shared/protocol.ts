@@ -78,6 +78,7 @@ export type ClientMsg =
   | { t: 'hide'; sessionId: string }
   | { t: 'unhide'; sessionId: string }
   | { t: 'list-archived' }
+  | { t: 'search'; q: string }
   | { t: 'term-open'; termId: string; cols: number; rows: number }
   | { t: 'term-input'; termId: string; data: string }
   | { t: 'term-resize'; termId: string; cols: number; rows: number }
@@ -87,6 +88,7 @@ export type ClientMsg =
 export type ServerMsg =
   | { t: 'sessions'; items: SessionMeta[] }
   | { t: 'archived'; items: SessionMeta[] }
+  | { t: 'search-results'; q: string; items: SessionMeta[] }
   | { t: 'history'; sessionId: string; messages: Message[]; cursor?: string; tokens?: number }
   | { t: 'busy'; keys: string[] }
   | { t: 'started'; sessionKey: string }
