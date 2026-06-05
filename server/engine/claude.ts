@@ -37,6 +37,13 @@ export function run(opts: RunOpts): RunHandle {
     '--verbose',
     '--permission-mode', permissionMode,
   ];
+  // No modo Executar (acceptEdits), headless só auto-aprova edits. Pra o agente
+  // de fato RODAR (bash etc.) sem prompt interativo, pré-aprovamos uma allow-list
+  // explícita de tools — NÃO é bypass (bypass libera tudo; aqui é uma lista
+  // nomeada e auditável, no espírito do DR-004). Plan-mode nunca recebe isso.
+  if (permissionMode === 'acceptEdits' && CONFIG.allowedTools.length) {
+    args.push('--allowedTools', CONFIG.allowedTools.join(' '));
+  }
   if (resumeId) {
     if (!UUID_RE.test(resumeId)) {
       onError('sessionId inválido');
