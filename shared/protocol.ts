@@ -1,0 +1,76 @@
+// Tipos compartilhados entre backend (server/) e frontend (src/).
+// REGRA (squad L3): types-only — zero import de node:*/fs. O bundle do browser
+// importa este arquivo.
+
+export interface ToolCall {
+  id: string; // = tool_use_id (correlação running -> done; squad H1)
+  name: string;
+  label: string;
+  command: string;
+  status: 'running' | 'done' | 'error';
+  durationMs?: number;
+  exit?: number;
+  expanded?: boolean;
+  output: string[];
+}
+
+export interface TextBlock {
+  type: 'text';
+  md: string;
+}
+
+export interface CodeBlock {
+  type: 'code';
+  lang: string;
+  code: string;
+}
+
+export interface ToolBlock {
+  type: 'tool';
+  tool: ToolCall;
+}
+
+export type Block = TextBlock | CodeBlock | ToolBlock;
+
+export interface UserMessage {
+  id: string;
+  role: 'user';
+  text: string;
+}
+
+export interface AssistantMessage {
+  id: string;
+  role: 'assistant';
+  blocks: Block[];
+}
+
+export type Message = UserMessage | AssistantMessage;
+
+export interface SessionMeta {
+  id: string;
+  title: string;
+  relative: string;
+  snippet: string;
+  mtime: number;
+  count: number;
+}
+
+// --- WebSocket protocol ----------------------------------------------------
+
+export type ClientMsg =
+  | { t: 'send'; sessionKey: string; sessionId?: string; text: string }
+  | { t: 'stop'; sessionKey: string }
+  | { t: 'list' }
+  | { t: 'open'; sessionId: string };
+
+export type ServerMsg =
+  | { t: 'sessions'; items: SessionMeta[] }
+  | { t: 'history'; sessionId: string; messages: Message[]; cursor?: string }
+  | { t: 'busy'; keys: string[] }
+  | { t: 'started'; sessionKey: string }
+  | { t: 'system'; sessionKey: string; sessionId: string }
+  | { t: 'delta'; sessionKey: string; text: string }
+  | { t: 'tool'; sessionKey: string; tool: ToolCall }
+  | { t: 'rate'; resetsAt: number; status: string }
+  | { t: 'done'; sessionKey: string; sessionId: string }
+  | { t: 'error'; sessionKey?: string; message: string };
