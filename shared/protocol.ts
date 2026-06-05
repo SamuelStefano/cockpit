@@ -67,9 +67,10 @@ export interface ContextMeta {
 // --- WebSocket protocol ----------------------------------------------------
 
 // Modo de permissão exposto na UI. 'plan' = só planeja (nada executa);
-// 'acceptEdits' = agente edita/roda de fato. 'bypassPermissions' NUNCA entra
+// 'auto' = edita/lê arquivos sem shell (allow-list sem Bash);
+// 'acceptEdits' = agente edita E roda comandos. 'bypassPermissions' NUNCA entra
 // (sudo NOPASSWD = RCE root) — a allow-list do backend trava.
-export type PermMode = 'plan' | 'acceptEdits';
+export type PermMode = 'plan' | 'auto' | 'acceptEdits';
 
 export interface SysStats {
   cpu: number;                 // 0..100

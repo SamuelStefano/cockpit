@@ -91,8 +91,8 @@ export function useCockpit(): Cockpit {
   const searchQ = useRef('');
   const [contexts, setContexts] = useState<ContextMeta[]>([]);
   const [openContext, setOpenContext] = useState<ContextDoc | null>(null);
-  const [mode, setMode] = useState<PermMode>('plan');
-  const modeRef = useRef<PermMode>('plan');
+  const [mode, setMode] = useState<PermMode>('auto');
+  const modeRef = useRef<PermMode>('auto');
 
   const wsRef = useRef<WebSocket | null>(null);
   const runMsg = useRef<Record<string, string>>({});      // sessionKey -> assistant msgId em voo

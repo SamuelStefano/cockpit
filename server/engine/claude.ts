@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import type { ClaudeEvent } from './events';
-import { CONFIG, safeMode } from '../config';
+import { CONFIG } from '../config';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -27,8 +27,8 @@ export interface RunHandle {
 export function run(opts: RunOpts): RunHandle {
   const { prompt, resumeId, mode, onEvent, onError, onClose } = opts;
 
-  // UI pode pedir o modo por mensagem; safeMode garante que bypass nunca passa.
-  const permissionMode = opts.mode ? safeMode(mode) : CONFIG.permissionMode;
+  // UI pede o modo por mensagem; resolveMode garante que bypass nunca passa.
+  const { permissionMode, allow } = resolveMode(mode);
 
   const args = [
     '-p', prompt,
@@ -37,12 +37,11 @@ export function run(opts: RunOpts): RunHandle {
     '--verbose',
     '--permission-mode', permissionMode,
   ];
-  // No modo Executar (acceptEdits), headless só auto-aprova edits. Pra o agente
-  // de fato RODAR (bash etc.) sem prompt interativo, pré-aprovamos uma allow-list
-  // explícita de tools — NÃO é bypass (bypass libera tudo; aqui é uma lista
-  // nomeada e auditável, no espírito do DR-004). Plan-mode nunca recebe isso.
-  if (permissionMode === 'acceptEdits' && CONFIG.allowedTools.length) {
-    args.push('--allowedTools', CONFIG.allowedTools.join(' '));
+  // Allow-list explícita pra o agente trabalhar sem prompt interativo (headless
+  // não tem como responder). NÃO é bypass (bypass libera tudo; aqui é uma lista
+  // nomeada e auditável, no espírito do DR-004). Plan-mode nunca recebe lista.
+  if (allow.length) {
+    args.push('--allowedTools', allow.join(' '));
   }
   if (resumeId) {
     if (!UUID_RE.test(resumeId)) {
@@ -90,6 +89,26 @@ export function run(opts: RunOpts): RunHandle {
       }
     },
   };
+}
+
+// Mapeia o modo da UI → permission-mode do CLI + allow-list. 'bypassPermissions'
+// (RCE root via sudo NOPASSWD) NUNCA é um caso: qualquer valor desconhecido cai
+// no default do backend (plan na Fase 1). auto = edita sem shell; acceptEdits =
+// edita E roda. plan = nada executa, sem allow-list.
+function resolveMode(mode: string | undefined): { permissionMode: string; allow: string[] } {
+  switch (mode) {
+    case 'auto':
+      return { permissionMode: 'default', allow: CONFIG.allowedToolsAuto };
+    case 'acceptEdits':
+      return { permissionMode: 'acceptEdits', allow: CONFIG.allowedTools };
+    case 'plan':
+      return { permissionMode: 'plan', allow: [] };
+    default:
+      return {
+        permissionMode: CONFIG.permissionMode,
+        allow: CONFIG.permissionMode === 'acceptEdits' ? CONFIG.allowedTools : [],
+      };
+  }
 }
 
 // env curto: PATH + HOME + idioma. Nada de tokens/SUPABASE_*/Infisical.
