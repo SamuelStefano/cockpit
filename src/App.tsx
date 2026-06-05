@@ -163,8 +163,8 @@ export function CockpitApp() {
 
   const { route, nav } = useRoute();
 
-  const [terminals, setTerminals] = useState<Terminal[]>(TERMINALS_SEED);
-  const [activeTermId, setActiveTermId] = useState('main');
+  const [terminals, setTerminals] = usePersisted<Terminal[]>('terminals', TERMINALS_SEED);
+  const [activeTermId, setActiveTermId] = usePersisted('term.active', 'main');
 
   const [quotaClosed, setQuotaClosed] = useState(false);
   const quota = !!rate && !quotaClosed;
@@ -183,6 +183,15 @@ export function CockpitApp() {
   useEffect(() => {
     if (!activeSessionId && sessions.length) setActiveSessionId(sessions[0].id);
   }, [activeSessionId, sessions, setActiveSessionId]);
+
+  // Evita colisão de id ao criar abas após restaurar do localStorage.
+  useEffect(() => {
+    for (const t of terminals) {
+      const n = Number(t.id.replace(/^term-/, ''));
+      if (Number.isFinite(n) && n > _tid) _tid = n;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
