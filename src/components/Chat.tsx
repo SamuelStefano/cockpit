@@ -205,12 +205,22 @@ function AssistantBlocks({ blocks, caretOnLast }: AssistantBlocksProps) {
 interface MessageRowProps {
   msg: Message;
   caretOnLast: boolean;
+  onEditUser?: (text: string) => void;
 }
 
-function MessageRow({ msg, caretOnLast }: MessageRowProps) {
+function MessageRow({ msg, caretOnLast, onEditUser }: MessageRowProps) {
   if (msg.role === 'user') {
     return (
-      <div className="fade-up flex justify-end gap-2.5">
+      <div className="fade-up group/u flex items-start justify-end gap-2.5">
+        {onEditUser && (
+          <button
+            onClick={() => onEditUser(msg.text)}
+            title="Editar e reenviar"
+            className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-neutral-600 opacity-0 transition hover:bg-neutral-800 hover:text-neutral-300 group-hover/u:opacity-100"
+          >
+            <Icon name="pencil" size={12} />
+          </button>
+        )}
         <div className="max-w-[82%] rounded-2xl rounded-br-md border border-neutral-700/60 bg-neutral-800 px-3.5 py-2.5 text-[14px] leading-relaxed text-neutral-100 shadow-sm shadow-black/20 [text-wrap:pretty]">
           {msg.text}
         </div>
@@ -324,14 +334,24 @@ interface ChatInputProps {
   attachments: Attachment[];
   onUpload: (file: File) => void;
   onRemoveAttachment: (path: string) => void;
+  focusSignal: number;
 }
 
 const MAX_UPLOAD = 15_000_000;
 
-function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, attachments, onUpload, onRemoveAttachment }: ChatInputProps) {
+function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, attachments, onUpload, onRemoveAttachment, focusSignal }: ChatInputProps) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const hasAtt = attachments.length > 0;
+  useEffect(() => {
+    if (focusSignal === 0) return;
+    const el = taRef.current;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+  }, [focusSignal]);
   const submit = () => {
     const v = value.trim();
     if ((!v && !hasAtt) || disabled) return;
@@ -451,9 +471,11 @@ export interface ChatPanelProps {
   attachments: Attachment[];
   onUpload: (file: File) => void;
   onRemoveAttachment: (path: string) => void;
+  onEditUser?: (text: string) => void;
+  focusSignal?: number;
 }
 
-export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, contextTokens, onNew, attachments, onUpload, onRemoveAttachment }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, contextTokens, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, focusSignal = 0 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -496,7 +518,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-5">
             {messages.map((m, i) => (
-              <MessageRow key={m.id} msg={m} caretOnLast={streaming && i === messages.length - 1 && m.role === 'assistant'} />
+              <MessageRow key={m.id} msg={m} caretOnLast={streaming && i === messages.length - 1 && m.role === 'assistant'} onEditUser={onEditUser} />
             ))}
             {phase === 'thinking' && <Thinking />}
           </div>
@@ -514,7 +536,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
       )}
 
       <ChatInput disabled={disabled} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
-        attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} />
+        attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} focusSignal={focusSignal} />
     </div>
   );
 }
