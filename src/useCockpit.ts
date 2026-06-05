@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Session, Message, Block } from './data/mock';
-import type { ClientMsg, ServerMsg, SessionMeta, ToolCall, SysStats, PermMode, ContextMeta } from '../shared/protocol';
+import type { ClientMsg, ServerMsg, SessionMeta, ToolCall, SysStats, PermMode, ContextMeta, SkillMeta } from '../shared/protocol';
 
 export interface ContextDoc { id: string; title: string; body: string }
+export interface SkillDoc { id: string; name: string; body: string }
 import type { ConnState } from './components/primitives';
 import type { Phase } from './components/Chat';
 
@@ -67,6 +68,11 @@ export interface Cockpit {
   onCtxList: () => void;
   onCtxOpen: (id: string) => void;
   onCtxClose: () => void;
+  skills: SkillMeta[];
+  openSkill: SkillDoc | null;
+  onSkillList: () => void;
+  onSkillOpen: (id: string) => void;
+  onSkillClose: () => void;
   onSend: (text: string) => void;
   onStop: () => void;
   onNew: () => void;
@@ -91,6 +97,8 @@ export function useCockpit(): Cockpit {
   const searchQ = useRef('');
   const [contexts, setContexts] = useState<ContextMeta[]>([]);
   const [openContext, setOpenContext] = useState<ContextDoc | null>(null);
+  const [skills, setSkills] = useState<SkillMeta[]>([]);
+  const [openSkill, setOpenSkill] = useState<SkillDoc | null>(null);
   const [mode, setMode] = useState<PermMode>('auto');
   const modeRef = useRef<PermMode>('auto');
 
@@ -214,6 +222,14 @@ export function useCockpit(): Cockpit {
         setOpenContext({ id: msg.id, title: msg.title, body: msg.body });
         return;
       }
+      case 'skills': {
+        setSkills(msg.items);
+        return;
+      }
+      case 'skill': {
+        setOpenSkill({ id: msg.id, name: msg.name, body: msg.body });
+        return;
+      }
       case 'term-data': {
         termData.current.get(msg.termId)?.(msg.data);
         return;
@@ -317,6 +333,9 @@ export function useCockpit(): Cockpit {
   const onCtxList = useCallback(() => send({ t: 'ctx-list' }), [send]);
   const onCtxOpen = useCallback((id: string) => send({ t: 'ctx-open', id }), [send]);
   const onCtxClose = useCallback(() => setOpenContext(null), []);
+  const onSkillList = useCallback(() => send({ t: 'skill-list' }), [send]);
+  const onSkillOpen = useCallback((id: string) => send({ t: 'skill-open', id }), [send]);
+  const onSkillClose = useCallback(() => setOpenSkill(null), []);
 
   const term: TermApi = {
     attach: useCallback((id, cols, rows, onData, onExit, onReplay) => {
@@ -408,5 +427,5 @@ export function useCockpit(): Cockpit {
   const contextTokens = usage[activeId] || 0;
   const setDraft = useCallback((v: string) => setDrafts((d) => ({ ...d, [activeRef.current]: v })), []);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, archived, contextTokens, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, mode, setMode: changeMode, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
+  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, archived, contextTokens, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, mode, setMode: changeMode, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
 }

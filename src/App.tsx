@@ -6,6 +6,7 @@ import { TerminalsPanel } from './components/Terminals';
 import { MobileLayout } from './components/Mobile';
 import { StatusBar } from './components/StatusBar';
 import { Contextos } from './routes/Contextos';
+import { Skills } from './routes/Skills';
 import { useCockpit } from './useCockpit';
 import { useRoute, type Route } from './useRoute';
 import { TERMINALS_SEED, type Terminal } from './data/mock';
@@ -38,6 +39,7 @@ interface HeaderProps {
 const NAV: { to: Route; label: string }[] = [
   { to: '/', label: 'chat' },
   { to: '/contextos', label: 'contextos' },
+  { to: '/skills', label: 'skills' },
 ];
 
 function Header({ conn, onNew, isMobile, onMenu, route, nav }: HeaderProps) {
@@ -121,6 +123,7 @@ export function CockpitApp() {
     messages, phase, draft, setDraft, conn, rate, stats, mode, setMode, term,
     archived, onUnhide: handleUnhide, contextTokens, searchResults, onSearch,
     contexts, openContext, onCtxList, onCtxOpen, onCtxClose,
+    skills, openSkill, onSkillList, onSkillOpen, onSkillClose,
     onSend: handleSend, onStop: handleStop, onNew: cockpitNew, onRename: handleRename, onClose: handleCloseSession,
   } = cockpit;
 
@@ -217,6 +220,9 @@ export function CockpitApp() {
       {route === '/contextos' ? (
         <Contextos connected={conn.ws === 'connected'} contexts={contexts} openContext={openContext}
           onCtxList={onCtxList} onCtxOpen={onCtxOpen} onCtxClose={onCtxClose} />
+      ) : route === '/skills' ? (
+        <Skills connected={conn.ws === 'connected'} skills={skills} openSkill={openSkill}
+          onSkillList={onSkillList} onSkillOpen={onSkillOpen} onSkillClose={onSkillClose} />
       ) : isMobile ? (
         <MobileLayout
           sessionsProps={{ sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onClose: handleCloseSession, archived, onUnhide: handleUnhide, searchResults, onSearch }}

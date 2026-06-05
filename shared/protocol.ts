@@ -64,6 +64,14 @@ export interface ContextMeta {
   mtime: number;
 }
 
+// Skill do agente (dir com SKILL.md) surfaceada read-only na rota Skills.
+export interface SkillMeta {
+  id: string;
+  name: string;
+  description: string;
+  mtime: number;
+}
+
 // --- WebSocket protocol ----------------------------------------------------
 
 // Modo de permissão exposto na UI. 'plan' = só planeja (nada executa);
@@ -91,6 +99,8 @@ export type ClientMsg =
   | { t: 'search'; q: string }
   | { t: 'ctx-list' }
   | { t: 'ctx-open'; id: string }
+  | { t: 'skill-list' }
+  | { t: 'skill-open'; id: string }
   | { t: 'term-open'; termId: string; cols: number; rows: number }
   | { t: 'term-input'; termId: string; data: string }
   | { t: 'term-resize'; termId: string; cols: number; rows: number }
@@ -103,6 +113,8 @@ export type ServerMsg =
   | { t: 'search-results'; q: string; items: SessionMeta[] }
   | { t: 'contexts'; items: ContextMeta[] }
   | { t: 'context'; id: string; title: string; body: string }
+  | { t: 'skills'; items: SkillMeta[] }
+  | { t: 'skill'; id: string; name: string; body: string }
   | { t: 'history'; sessionId: string; messages: Message[]; cursor?: string; tokens?: number }
   | { t: 'busy'; keys: string[] }
   | { t: 'started'; sessionKey: string }
