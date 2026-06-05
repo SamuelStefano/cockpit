@@ -30,7 +30,15 @@ export interface ToolBlock {
   tool: ToolCall;
 }
 
-export type Block = TextBlock | CodeBlock | ToolBlock;
+// Raciocínio estendido (extended thinking). Só aparece quando o modelo pensa;
+// renderizado colapsado por padrão (ruído alto, valor pra debug/transparência).
+export interface ThinkingBlock {
+  type: 'thinking';
+  text: string;
+  expanded?: boolean;
+}
+
+export type Block = TextBlock | CodeBlock | ToolBlock | ThinkingBlock;
 
 export interface UserMessage {
   id: string;
@@ -148,6 +156,7 @@ export type ServerMsg =
   | { t: 'started'; sessionKey: string }
   | { t: 'system'; sessionKey: string; sessionId: string }
   | { t: 'delta'; sessionKey: string; text: string }
+  | { t: 'thinking'; sessionKey: string; text: string }
   | { t: 'tool'; sessionKey: string; tool: ToolCall }
   | { t: 'rate'; resetsAt: number; status: string }
   | { t: 'usage'; sessionKey: string; tokens: number }

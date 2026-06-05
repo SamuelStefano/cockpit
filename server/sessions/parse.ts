@@ -107,6 +107,7 @@ function recToMessage(r: Rec): Message | null {
     const blocks: Block[] = [];
     for (const c of content as any[]) {
       if (c?.type === 'text' && c.text) blocks.push({ type: 'text', md: c.text });
+      else if (c?.type === 'thinking' && c.thinking) blocks.push({ type: 'thinking', text: c.thinking });
       else if (c?.type === 'tool_use') {
         const tool: ToolCall = {
           id: c.id ?? '',

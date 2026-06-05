@@ -211,6 +211,8 @@ function translate(ws: WebSocket, sessionKey: string, thread: Thread, ev: Claude
       const e = (ev as any).event;
       if (e?.type === 'content_block_delta' && e.delta?.type === 'text_delta' && e.delta.text) {
         send(ws, { t: 'delta', sessionKey, text: e.delta.text });
+      } else if (e?.type === 'content_block_delta' && e.delta?.type === 'thinking_delta' && e.delta.thinking) {
+        send(ws, { t: 'thinking', sessionKey, text: e.delta.thinking });
       } else if (e?.type === 'content_block_start' && e.content_block?.type === 'tool_use') {
         emitTool(ws, sessionKey, e.content_block, 'running');
       }
