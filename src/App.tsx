@@ -7,6 +7,7 @@ import { MobileLayout } from './components/Mobile';
 import { StatusBar } from './components/StatusBar';
 import { Contextos } from './routes/Contextos';
 import { Skills } from './routes/Skills';
+import { CommandPalette } from './components/CommandPalette';
 import { useCockpit } from './useCockpit';
 import { useRoute, type Route } from './useRoute';
 import { usePersisted } from './lib/persist';
@@ -35,6 +36,7 @@ interface HeaderProps {
   onMenu: () => void;
   route: Route;
   nav: (to: Route) => void;
+  onPalette: () => void;
 }
 
 const NAV: { to: Route; label: string }[] = [
@@ -43,7 +45,7 @@ const NAV: { to: Route; label: string }[] = [
   { to: '/skills', label: 'skills' },
 ];
 
-function Header({ conn, onNew, isMobile, onMenu, route, nav }: HeaderProps) {
+function Header({ conn, onNew, isMobile, onMenu, route, nav, onPalette }: HeaderProps) {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex items-center gap-2.5">
@@ -73,6 +75,14 @@ function Header({ conn, onNew, isMobile, onMenu, route, nav }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-3">
+        <button
+          onClick={onPalette}
+          title="Comandos (⌘K)"
+          className="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1.5 text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-300"
+        >
+          <Icon name="search" size={14} />
+          {!isMobile && <kbd className="font-mono text-[10px] text-neutral-600">⌘K</kbd>}
+        </button>
         <div className="flex items-center rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1">
           <ConnDot label="ws" state={conn.ws} compact={isMobile} />
         </div>
@@ -142,6 +152,7 @@ export function CockpitApp() {
   const [isMobile, setIsMobile] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [termSheet, setTermSheet] = useState(false);
+  const [palette, setPalette] = useState(false);
 
   const rowRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ which: string; startX: number; startLeft: number; startRight: number; w: number } | null>(null);
@@ -149,6 +160,17 @@ export function CockpitApp() {
   useEffect(() => {
     if (!activeSessionId && sessions.length) setActiveSessionId(sessions[0].id);
   }, [activeSessionId, sessions, setActiveSessionId]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPalette((p) => !p);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 1023px)');
@@ -215,7 +237,13 @@ export function CockpitApp() {
 
   return (
     <div className="relative flex h-full flex-col bg-neutral-950">
-      <Header conn={conn} onNew={handleNew} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} />
+      <CommandPalette
+        open={palette} onClose={() => setPalette(false)}
+        route={route} nav={nav} onNew={handleNew}
+        mode={mode} setMode={setMode}
+        sessions={sessions} onSelectSession={setActiveSessionId}
+      />
+      <Header conn={conn} onNew={handleNew} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} />
 
       {quota && rate && <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} />}
 
