@@ -30,6 +30,11 @@ export const CONFIG = {
   // não bypass. Override por env COCKPIT_ALLOWED_TOOLS (separado por vírgula).
   allowedTools: (process.env.COCKPIT_ALLOWED_TOOLS ?? 'Bash,Read,Edit,Write,Glob,Grep')
     .split(',').map((s) => s.trim()).filter(Boolean),
+
+  // Modo Auto: edita/lê sem shell. Mesma allow-list SEM Bash — o agente trabalha
+  // arquivos sozinho mas não roda comandos arbitrários.
+  allowedToolsAuto: (process.env.COCKPIT_ALLOWED_TOOLS_AUTO ?? 'Read,Edit,Write,Glob,Grep')
+    .split(',').map((s) => s.trim()).filter(Boolean),
 };
 
 // 'bypassPermissions' nunca entra: numa máquina com sudo NOPASSWD = RCE root.
