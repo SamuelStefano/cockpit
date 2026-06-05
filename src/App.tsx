@@ -1,20 +1,25 @@
 import { useState, useEffect, useRef } from 'react';
 import { Icon, ConnDot, type ConnState } from './components/primitives';
 import { SessionsPanel } from './components/Sessions';
-import { ChatPanel, type Phase } from './components/Chat';
+import { ChatPanel } from './components/Chat';
 import { TerminalsPanel } from './components/Terminals';
 import { MobileLayout } from './components/Mobile';
-import {
-  SESSIONS_SEED, CHAT_SEED, TERMINALS_SEED, EXTRA_THREADS,
-  STREAM_REPLY, STREAM_TOOL, STREAM_REPLY_TAIL,
-  type Session, type Message, type Terminal, type Block,
-} from './data/mock';
+import { useCockpit } from './useCockpit';
+import { TERMINALS_SEED, type Terminal } from './data/mock';
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 let _tid = 100;
 const nextId = (p: string) => `${p}${++_tid}`;
+
+function relReset(resetsAt: number): string {
+  const diff = resetsAt - Date.now();
+  if (diff <= 0) return 'agora';
+  const min = Math.round(diff / 60000);
+  if (min < 60) return `${min}min`;
+  const h = Math.floor(min / 60);
+  return `${h}h${String(min % 60).padStart(2, '0')}`;
+}
 
 // --- Header ----------------------------------------------------------------
 
@@ -70,9 +75,10 @@ function Header({ conn, cycleConn, onNew, isMobile, onMenu }: HeaderProps) {
 
 interface QuotaBannerProps {
   onClose: () => void;
+  reset: string;
 }
 
-function QuotaBanner({ onClose }: QuotaBannerProps) {
+function QuotaBanner({ onClose, reset }: QuotaBannerProps) {
   return (
     <div className="fade-up pointer-events-none absolute left-1/2 top-[58px] z-40 -translate-x-1/2">
       <div className="pointer-events-auto flex items-center gap-2.5 rounded-lg border border-yellow-500/30 bg-yellow-500/[0.12] px-3 py-2 shadow-2xl shadow-black/40 backdrop-blur-md">
@@ -81,7 +87,7 @@ function QuotaBanner({ onClose }: QuotaBannerProps) {
         </span>
         <div className="leading-tight">
           <p className="text-[12px] font-medium text-yellow-200">Uso próximo do limite</p>
-          <p className="text-[11px] text-yellow-200/60">o limite de uso reseta em 2h14</p>
+          <p className="text-[11px] text-yellow-200/60">o limite de uso reseta em {reset}</p>
         </div>
         <button onClick={onClose} className="ml-1 rounded p-1 text-yellow-200/50 transition hover:bg-yellow-500/10 hover:text-yellow-200">
           <Icon name="x" size={14} />
@@ -94,20 +100,18 @@ function QuotaBanner({ onClose }: QuotaBannerProps) {
 // --- CockpitApp ------------------------------------------------------------
 
 export function CockpitApp() {
-  const [loading, setLoading] = useState(true);
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [activeSessionId, setActiveSessionId] = useState('s1');
-  const [threads, setThreads] = useState<Record<string, Message[]>>({ s1: CHAT_SEED, ...EXTRA_THREADS });
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-
-  const [phase, setPhase] = useState<Phase>('idle');
-  const [streamSession, setStreamSession] = useState<string | null>(null);
+  const cockpit = useCockpit();
+  const {
+    sessions, loading, activeId: activeSessionId, setActiveId: setActiveSessionId,
+    messages, phase, draft, setDraft, conn, rate,
+    onSend: handleSend, onStop: handleStop, onNew: cockpitNew, onRename: handleRename,
+  } = cockpit;
 
   const [terminals, setTerminals] = useState<Terminal[]>(TERMINALS_SEED);
   const [activeTermId, setActiveTermId] = useState('t1');
 
-  const [conn, setConn] = useState<{ ws: ConnState; sse: ConnState }>({ ws: 'connected', sse: 'connected' });
-  const [quota, setQuota] = useState(false);
+  const [quotaClosed, setQuotaClosed] = useState(false);
+  const quota = !!rate && !quotaClosed;
 
   const [leftW, setLeftW] = useState(17);
   const [rightW, setRightW] = useState(37);
@@ -117,23 +121,10 @@ export function CockpitApp() {
 
   const rowRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ which: string; startX: number; startLeft: number; startRight: number; w: number } | null>(null);
-  const abortRef = useRef(false);
 
   useEffect(() => {
-    const t = setTimeout(() => { setSessions(SESSIONS_SEED); setLoading(false); }, 1300);
-    return () => clearTimeout(t);
-  }, []);
-
-  useEffect(() => {
-    const t = setTimeout(() => setQuota(true), 3200);
-    return () => clearTimeout(t);
-  }, []);
-
-  useEffect(() => {
-    const a = setTimeout(() => setConn((c) => ({ ...c, sse: 'reconnecting' })), 7000);
-    const b = setTimeout(() => setConn((c) => ({ ...c, sse: 'connected' })), 10500);
-    return () => { clearTimeout(a); clearTimeout(b); };
-  }, []);
+    if (!activeSessionId && sessions.length) setActiveSessionId(sessions[0].id);
+  }, [activeSessionId, sessions, setActiveSessionId]);
 
   useEffect(() => {
     const samples = [
@@ -195,102 +186,12 @@ export function CockpitApp() {
   };
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
-  const messages = threads[activeSessionId] || [];
-  const viewPhase = activeSessionId === streamSession ? phase : 'idle';
-  const draft = drafts[activeSessionId] || '';
-  const setDraft = (v: string) => setDrafts((d) => ({ ...d, [activeSessionId]: v }));
-
-  const updateMsg = (sid: string, mid: string, fn: (m: Message) => Message) =>
-    setThreads((prev) => ({ ...prev, [sid]: (prev[sid] || []).map((m) => (m.id === mid ? fn(m) : m)) }));
-
-  const streamLastText = async (sid: string, mid: string, text: string) => {
-    for (let i = 1; i <= text.length; i += 2) {
-      if (abortRef.current) return;
-      const slice = text.slice(0, i);
-      updateMsg(sid, mid, (m) => {
-        if (m.role !== 'assistant') return m;
-        const blocks = m.blocks.slice() as Block[];
-        blocks[blocks.length - 1] = { ...blocks[blocks.length - 1], md: slice } as Block;
-        return { ...m, blocks };
-      });
-      await sleep(15);
-    }
-    if (abortRef.current) return;
-    updateMsg(sid, mid, (m) => {
-      if (m.role !== 'assistant') return m;
-      const blocks = m.blocks.slice() as Block[];
-      blocks[blocks.length - 1] = { ...blocks[blocks.length - 1], md: text } as Block;
-      return { ...m, blocks };
-    });
-  };
-
-  const runAgent = async (sid: string) => {
-    abortRef.current = false;
-    setStreamSession(sid);
-    setPhase('thinking');
-    await sleep(950);
-    if (abortRef.current) return finishRun();
-    const amId = nextId('a');
-    setThreads((prev) => ({ ...prev, [sid]: [...(prev[sid] || []), { id: amId, role: 'assistant' as const, blocks: [{ type: 'text' as const, md: '' }] }] }));
-    setPhase('streaming');
-    await streamLastText(sid, amId, STREAM_REPLY);
-    if (abortRef.current) return finishRun();
-    updateMsg(sid, amId, (m) => {
-      if (m.role !== 'assistant') return m;
-      return { ...m, blocks: [...m.blocks, { type: 'tool' as const, tool: { ...STREAM_TOOL, status: 'running' as const, expanded: false, output: [] } }] };
-    });
-    await sleep(1600);
-    if (abortRef.current) return finishRun();
-    updateMsg(sid, amId, (m) => {
-      if (m.role !== 'assistant') return m;
-      return {
-        ...m,
-        blocks: m.blocks.map((b) =>
-          b.type === 'tool'
-            ? { ...b, tool: { ...b.tool, status: 'done' as const, durationMs: 1480, exit: 0, output: STREAM_TOOL.output, expanded: true } }
-            : b
-        ),
-      };
-    });
-    await sleep(450);
-    if (abortRef.current) return finishRun();
-    updateMsg(sid, amId, (m) => {
-      if (m.role !== 'assistant') return m;
-      return { ...m, blocks: [...m.blocks, { type: 'text' as const, md: '' }] };
-    });
-    await streamLastText(sid, amId, STREAM_REPLY_TAIL);
-    finishRun();
-  };
-
-  const finishRun = () => {
-    setPhase('idle');
-    setStreamSession(null);
-  };
-
-  const handleStop = () => {
-    abortRef.current = true;
-    finishRun();
-  };
-
-  const handleSend = (text: string) => {
-    const sid = activeSessionId;
-    const uid = nextId('u');
-    setThreads((prev) => ({ ...prev, [sid]: [...(prev[sid] || []), { id: uid, role: 'user' as const, text }] }));
-    setSessions((prev) => prev.map((s) => (s.id === sid ? { ...s, snippet: text, relative: 'agora' } : s)));
-    runAgent(sid);
-  };
+  const viewPhase = phase;
 
   const handleNew = () => {
-    const id = nextId('s');
-    const s: Session = { id, title: 'Nova sessão', relative: 'agora', snippet: 'Sem mensagens ainda', hasTerminal: false, active: false };
-    setSessions((prev) => [s, ...prev]);
-    setThreads((prev) => ({ ...prev, [id]: [] }));
-    setActiveSessionId(id);
+    cockpitNew();
     setDrawer(false);
   };
-
-  const handleRename = (id: string, title: string) =>
-    setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)));
 
   const handleAddTerm = () => {
     const id = nextId('t');
@@ -322,11 +223,7 @@ export function CockpitApp() {
     return { ...t, running: true, pid: 3000 + Math.floor(Math.random() * 900), lines: [...t.lines, { t: 'cmd' as const, s: 'pnpm dev --filter api' }, { t: 'ok' as const, s: '✓ reiniciado' }] };
   }));
 
-  const cycleConn = (key: 'ws' | 'sse') => setConn((c) => {
-    const order: ConnState[] = ['connected', 'reconnecting', 'down'];
-    const ni = (order.indexOf(c[key]) + 1) % order.length;
-    return { ...c, [key]: order[ni] };
-  });
+  const cycleConn = (_key: 'ws' | 'sse') => {};
 
   const runningTerm = terminals.find((t) => t.running);
 
@@ -334,7 +231,7 @@ export function CockpitApp() {
     <div className="relative flex h-full flex-col bg-neutral-950">
       <Header conn={conn} cycleConn={cycleConn} onNew={handleNew} isMobile={isMobile} onMenu={() => setDrawer(true)} />
 
-      {quota && <QuotaBanner onClose={() => setQuota(false)} />}
+      {quota && rate && <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} />}
 
       {isMobile ? (
         <MobileLayout
