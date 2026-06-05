@@ -1,6 +1,29 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import { Icon, Badge, Skeleton } from './primitives';
 import type { Session } from '../data/mock';
+
+function Highlight({ text, term }: { text: string; term?: string }) {
+  const q = term?.trim();
+  if (!q || q.length < 2) return <>{text}</>;
+  const lower = text.toLowerCase();
+  const needle = q.toLowerCase();
+  const parts: ReactNode[] = [];
+  let i = 0;
+  let hit = lower.indexOf(needle);
+  let k = 0;
+  while (hit >= 0) {
+    if (hit > i) parts.push(text.slice(i, hit));
+    parts.push(
+      <mark key={k++} className="rounded-[2px] bg-orange-500/25 px-0.5 text-orange-200">
+        {text.slice(hit, hit + q.length)}
+      </mark>,
+    );
+    i = hit + q.length;
+    hit = lower.indexOf(needle, i);
+  }
+  if (i < text.length) parts.push(text.slice(i));
+  return <>{parts}</>;
+}
 
 function SessionSkeletonRow() {
   return (
@@ -18,12 +41,13 @@ function SessionSkeletonRow() {
 interface SessionRowProps {
   s: Session;
   active: boolean;
+  highlight?: string;
   onSelect: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onClose: (id: string) => void;
 }
 
-function SessionRow({ s, active, onSelect, onRename, onClose }: SessionRowProps) {
+function SessionRow({ s, active, highlight, onSelect, onRename, onClose }: SessionRowProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(s.title);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -70,7 +94,7 @@ function SessionRow({ s, active, onSelect, onRename, onClose }: SessionRowProps)
             title="Clique para renomear"
             className={`truncate text-left text-[12.5px] font-medium leading-tight ${active ? 'text-neutral-100' : 'text-neutral-300'} hover:text-orange-300`}
           >
-            {s.title}
+            <Highlight text={s.title} term={highlight} />
           </button>
         )}
         {!editing && (
@@ -87,7 +111,7 @@ function SessionRow({ s, active, onSelect, onRename, onClose }: SessionRowProps)
         )}
       </div>
       {!editing && (
-        <p className="line-clamp-2 text-[11.5px] leading-snug text-neutral-500">{s.snippet}</p>
+        <p className="line-clamp-2 text-[11.5px] leading-snug text-neutral-500"><Highlight text={s.snippet} term={highlight} /></p>
       )}
       {s.hasTerminal && !editing && (
         <div className="mt-1.5">
@@ -238,7 +262,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
           )
         ) : (
           filtered.map((s) => (
-            <SessionRow key={s.id} s={s} active={s.id === activeId}
+            <SessionRow key={s.id} s={s} active={s.id === activeId} highlight={query}
               onSelect={(id) => { onSelect(id); onCloseMobile && onCloseMobile(); }}
               onRename={onRename} onClose={onClose} />
           ))
