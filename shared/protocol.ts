@@ -101,6 +101,7 @@ export type ClientMsg =
   | { t: 'ctx-open'; id: string }
   | { t: 'skill-list' }
   | { t: 'skill-open'; id: string }
+  | { t: 'upload'; sessionKey: string; name: string; dataB64: string }
   | { t: 'term-open'; termId: string; cols: number; rows: number }
   | { t: 'term-input'; termId: string; data: string }
   | { t: 'term-resize'; termId: string; cols: number; rows: number }
@@ -115,6 +116,7 @@ export type ServerMsg =
   | { t: 'context'; id: string; title: string; body: string }
   | { t: 'skills'; items: SkillMeta[] }
   | { t: 'skill'; id: string; name: string; body: string }
+  | { t: 'uploaded'; name: string; path: string }
   | { t: 'history'; sessionId: string; messages: Message[]; cursor?: string; tokens?: number }
   | { t: 'busy'; keys: string[] }
   | { t: 'started'; sessionKey: string }

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Icon, Badge, Markdown, CodeBlock } from './primitives';
 import type { Session, Message, Block, ToolCall } from '../data/mock';
 import type { PermMode } from '../../shared/protocol';
+import type { Attachment } from '../useCockpit';
 import { threadToMarkdown, download, fileSlug } from '../lib/export';
 
 // --- ExportMenu ------------------------------------------------------------
@@ -295,15 +296,30 @@ interface ChatInputProps {
   setValue: (v: string) => void;
   mode: PermMode;
   setMode: (m: PermMode) => void;
+  attachments: Attachment[];
+  onUpload: (file: File) => void;
+  onRemoveAttachment: (path: string) => void;
 }
 
-function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode }: ChatInputProps) {
+const MAX_UPLOAD = 15_000_000;
+
+function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, attachments, onUpload, onRemoveAttachment }: ChatInputProps) {
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const hasAtt = attachments.length > 0;
   const submit = () => {
     const v = value.trim();
-    if (!v || disabled) return;
+    if ((!v && !hasAtt) || disabled) return;
     onSend(v); setValue('');
     if (taRef.current) taRef.current.style.height = 'auto';
+  };
+  const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    for (const f of files) {
+      if (f.size > MAX_UPLOAD) continue; // teto de 15MB (espelha o backend)
+      onUpload(f);
+    }
+    e.target.value = '';
   };
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
@@ -327,8 +343,34 @@ function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode }:
           </span>
         )}
       </div>
+      {hasAtt && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {attachments.map((a) => (
+            <span key={a.path} className="flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-800/60 py-1 pl-2 pr-1 text-[11px] text-neutral-300">
+              <Icon name="paperclip" size={11} />
+              <span className="max-w-[160px] truncate">{a.name}</span>
+              <button
+                onClick={() => onRemoveAttachment(a.path)}
+                title="Remover anexo"
+                className="flex h-4 w-4 items-center justify-center rounded text-neutral-500 transition hover:bg-neutral-700 hover:text-neutral-200"
+              >
+                <Icon name="x" size={11} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <input ref={fileRef} type="file" multiple onChange={pick} className="hidden" />
       <div className={`flex items-end gap-2 rounded-xl border bg-neutral-950 px-3 py-2 transition
         ${disabled ? 'border-neutral-800 opacity-80' : 'border-neutral-700 focus-within:border-orange-500/50 focus-within:ring-2 focus-within:ring-orange-500/15'}`}>
+        <button
+          onClick={() => fileRef.current?.click()}
+          disabled={disabled}
+          title="Anexar arquivo"
+          className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Icon name="paperclip" size={15} />
+        </button>
         <textarea
           ref={taRef}
           rows={1}
@@ -350,9 +392,9 @@ function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode }:
         ) : (
           <button
             onClick={submit}
-            disabled={!value.trim()}
+            disabled={!value.trim() && !hasAtt}
             className={`mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40
-              ${value.trim()
+              ${value.trim() || hasAtt
                 ? 'bg-orange-500 text-neutral-950 hover:bg-orange-400'
                 : 'bg-neutral-800 text-neutral-600'}`}
           >
@@ -381,9 +423,12 @@ export interface ChatPanelProps {
   setMode: (m: PermMode) => void;
   contextTokens: number;
   onNew: () => void;
+  attachments: Attachment[];
+  onUpload: (file: File) => void;
+  onRemoveAttachment: (path: string) => void;
 }
 
-export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, contextTokens, onNew }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, contextTokens, onNew, attachments, onUpload, onRemoveAttachment }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -443,7 +488,8 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         </button>
       )}
 
-      <ChatInput disabled={disabled} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode} />
+      <ChatInput disabled={disabled} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
+        attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} />
     </div>
   );
 }

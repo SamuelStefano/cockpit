@@ -8,6 +8,7 @@ import { listSessions, listArchived } from './sessions/index';
 import { searchSessions } from './sessions/search';
 import { listContexts, readContext } from './contexts';
 import { listSkills, readSkill } from './skills';
+import { saveAttachment } from './attachments';
 import { hideSession, unhideSession } from './store';
 import { parseSession, ctxTokens } from './sessions/parse';
 import { collect } from './stats';
@@ -144,6 +145,12 @@ async function handle(ws: WebSocket, msg: ClientMsg) {
     case 'skill-open': {
       const s = await readSkill(msg.id);
       if (s) send(ws, { t: 'skill', id: msg.id, name: s.name, body: s.body });
+      return;
+    }
+    case 'upload': {
+      const r = await saveAttachment(msg.sessionKey, msg.name, msg.dataB64);
+      if ('error' in r) send(ws, { t: 'error', message: r.error });
+      else send(ws, { t: 'uploaded', name: msg.name, path: r.path });
       return;
     }
     case 'stop': {
