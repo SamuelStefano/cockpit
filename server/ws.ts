@@ -2,7 +2,8 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'node:http';
 import type { ClientMsg, ServerMsg, ToolCall } from '../shared/protocol';
 import type { ClaudeEvent } from './engine/events';
-import { run, type RunHandle } from './engine/claude';
+import { run, sanitize, type RunHandle } from './engine/claude';
+import { CONFIG } from './config';
 import { listSessions } from './sessions/index';
 import { parseSession } from './sessions/parse';
 
@@ -22,7 +23,7 @@ export function attachWs(server: Server) {
     ws.on('message', (raw) => {
       let msg: ClientMsg;
       try { msg = JSON.parse(String(raw)) as ClientMsg; } catch { return; }
-      handle(ws, msg).catch((e) => send(ws, { t: 'error', message: String(e?.message ?? e).slice(0, 200) }));
+      handle(ws, msg).catch((e) => send(ws, { t: 'error', message: sanitize(String(e?.message ?? e)) }));
     });
   });
 
@@ -54,6 +55,10 @@ async function handle(ws: WebSocket, msg: ClientMsg) {
 }
 
 function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: string) {
+  if (Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) {
+    send(ws, { t: 'error', sessionKey, message: 'prompt grande demais' });
+    return;
+  }
   if (threads.has(sessionKey)) threads.get(sessionKey)!.handle.kill();
 
   const thread: Thread = { handle: { kill: () => {} }, sessionId: resumeId };

@@ -13,9 +13,18 @@ export const CONFIG = {
   // cwd isolado pro spawn do claude (DR-004 #4).
   workdir: process.env.COCKPIT_WORKDIR ?? join(homedir(), 'cockpit-workdir'),
 
-  // DR-004 #1: plan-mode na Fase 1 (NÃO bypassPermissions).
-  permissionMode: process.env.COCKPIT_PERMISSION_MODE ?? 'plan',
+  // DR-004 #1: plan-mode na Fase 1 (NÃO bypassPermissions). Allow-list trava
+  // qualquer env solto de armar bypass (= RCE root) por engano.
+  permissionMode: safeMode(process.env.COCKPIT_PERMISSION_MODE),
 
   // Paginação de history (squad M3: maior JSONL = 46MB).
   historyLimit: 60,
+
+  // Teto do prompt: evita ARG_MAX/DoS no spawn (argv -p).
+  maxPromptBytes: 100_000,
 };
+
+// 'bypassPermissions' nunca entra: numa máquina com sudo NOPASSWD = RCE root.
+function safeMode(v: string | undefined): 'plan' | 'default' | 'acceptEdits' {
+  return v === 'default' || v === 'acceptEdits' ? v : 'plan';
+}

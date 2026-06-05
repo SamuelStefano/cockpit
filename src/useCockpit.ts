@@ -100,6 +100,7 @@ export function useCockpit(): Cockpit {
       }
       case 'busy': return;
       case 'started': {
+        if (runMsg.current[msg.sessionKey]) return; // já em voo (reconnect) — não duplica bubble
         const id = newId('a');
         runMsg.current[msg.sessionKey] = id;
         updateThread(msg.sessionKey, (prev) => [...prev, { id, role: 'assistant', blocks: [] }]);
@@ -131,7 +132,7 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'error': {
-        const key = msg.sessionKey;
+        const key = msg.sessionKey ?? activeRef.current; // erro sem key (top-level) não pode travar o spinner
         if (key) {
           delete runMsg.current[key];
           setPhases((p) => ({ ...p, [key]: 'idle' }));

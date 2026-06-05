@@ -92,6 +92,6 @@ function minimalEnv(): NodeJS.ProcessEnv {
 }
 
 // nunca vazar caminho de segredo/stack cru pro cliente
-function sanitize(msg: string): string {
+export function sanitize(msg: string): string {
   return msg.replace(/\/home\/[^\s]+/g, '<path>').slice(0, 300);
 }
