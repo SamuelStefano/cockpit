@@ -2,6 +2,7 @@ import { readdir, stat, open } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { SessionMeta } from '../../shared/protocol';
 import { CONFIG } from '../config';
+import { hiddenSet } from '../store';
 
 const UUID_FILE = /^[0-9a-f-]{36}\.jsonl$/;
 
@@ -9,7 +10,16 @@ const UUID_FILE = /^[0-9a-f-]{36}\.jsonl$/;
 // Cache em memória invalidado por mtime.
 const cache = new Map<string, { mtime: number; meta: SessionMeta }>();
 
-export async function listSessions(): Promise<SessionMeta[]> {
+export function listSessions(): Promise<SessionMeta[]> {
+  return collectMetas((id, hidden) => !hidden.has(id));
+}
+
+// Só as arquivadas (escondidas do sidebar principal).
+export function listArchived(): Promise<SessionMeta[]> {
+  return collectMetas((id, hidden) => hidden.has(id));
+}
+
+async function collectMetas(keep: (id: string, hidden: Set<string>) => boolean): Promise<SessionMeta[]> {
   let files: string[];
   try {
     files = await readdir(CONFIG.projectsDir);
@@ -17,10 +27,12 @@ export async function listSessions(): Promise<SessionMeta[]> {
     return [];
   }
 
+  const hidden = await hiddenSet();
   const metas: SessionMeta[] = [];
   for (const f of files) {
     if (!UUID_FILE.test(f)) continue;
     const id = f.replace('.jsonl', '');
+    if (!keep(id, hidden)) continue;
     const full = join(CONFIG.projectsDir, f);
     let st;
     try { st = await stat(full); } catch { continue; }

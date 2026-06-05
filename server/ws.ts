@@ -4,7 +4,8 @@ import type { ClientMsg, ServerMsg, ToolCall } from '../shared/protocol';
 import type { ClaudeEvent } from './engine/events';
 import { run, sanitize, type RunHandle } from './engine/claude';
 import { CONFIG } from './config';
-import { listSessions } from './sessions/index';
+import { listSessions, listArchived } from './sessions/index';
+import { hideSession, unhideSession } from './store';
 import { parseSession } from './sessions/parse';
 import { collect } from './stats';
 import { openTerm, detachTerm, inputTerm, resizeTerm, closeTerm } from './terminals';
@@ -101,6 +102,22 @@ async function handle(ws: WebSocket, msg: ClientMsg) {
       const parsed = await parseSession(msg.sessionId);
       if (!parsed) { send(ws, { t: 'error', message: 'sessão inválida' }); return; }
       send(ws, { t: 'history', sessionId: msg.sessionId, messages: parsed.messages });
+      return;
+    }
+    case 'hide': {
+      await hideSession(msg.sessionId);
+      send(ws, { t: 'sessions', items: await listSessions() });
+      send(ws, { t: 'archived', items: await listArchived() });
+      return;
+    }
+    case 'unhide': {
+      await unhideSession(msg.sessionId);
+      send(ws, { t: 'sessions', items: await listSessions() });
+      send(ws, { t: 'archived', items: await listArchived() });
+      return;
+    }
+    case 'list-archived': {
+      send(ws, { t: 'archived', items: await listArchived() });
       return;
     }
     case 'stop': {

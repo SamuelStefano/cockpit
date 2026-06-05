@@ -98,7 +98,8 @@ export function CockpitApp() {
   const {
     sessions, loading, activeId: activeSessionId, setActiveId: setActiveSessionId,
     messages, phase, draft, setDraft, conn, rate, stats, mode, setMode, term,
-    onSend: handleSend, onStop: handleStop, onNew: cockpitNew, onRename: handleRename,
+    archived, onUnhide: handleUnhide,
+    onSend: handleSend, onStop: handleStop, onNew: cockpitNew, onRename: handleRename, onClose: handleCloseSession,
   } = cockpit;
 
   const [terminals, setTerminals] = useState<Terminal[]>(TERMINALS_SEED);
@@ -190,7 +191,7 @@ export function CockpitApp() {
 
       {isMobile ? (
         <MobileLayout
-          sessionsProps={{ sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename }}
+          sessionsProps={{ sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onClose: handleCloseSession, archived, onUnhide: handleUnhide }}
           chatProps={{ session: activeSession, messages, phase: viewPhase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode }}
           termProps={{ terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term }}
           drawer={drawer} setDrawer={setDrawer}
@@ -201,7 +202,8 @@ export function CockpitApp() {
         <div ref={rowRef} className="flex min-h-0 flex-1">
           <div style={{ width: `${leftW}%` }} className="min-w-0 shrink-0 border-r border-neutral-800">
             <SessionsPanel sessions={sessions} loading={loading} activeId={activeSessionId}
-              onSelect={setActiveSessionId} onNew={handleNew} onRename={handleRename} />
+              onSelect={setActiveSessionId} onNew={handleNew} onRename={handleRename} onClose={handleCloseSession}
+              archived={archived} onUnhide={handleUnhide} />
           </div>
           <div className="resizer w-[3px] shrink-0 cursor-col-resize bg-neutral-800" onMouseDown={startDrag('left')} />
 
