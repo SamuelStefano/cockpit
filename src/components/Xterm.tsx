@@ -35,7 +35,12 @@ export function XtermView({ id, term }: { id: string; term: TermApi }) {
     xt.open(el);
     try { fit.fit(); } catch { /* container pode estar 0x0 momentaneamente */ }
 
-    term.attach(id, xt.cols, xt.rows, (d) => xt.write(d), () => xt.write('\r\n\x1b[2m[sessão encerrada]\x1b[0m\r\n'));
+    term.attach(
+      id, xt.cols, xt.rows,
+      (d) => xt.write(d),
+      () => xt.write('\r\n\x1b[2m[sessão encerrada]\x1b[0m\r\n'),
+      (snapshot) => { xt.reset(); xt.write(snapshot); }, // repinta sem duplicar
+    );
     const dataSub = xt.onData((d) => term.input(id, d));
     xt.focus();
 

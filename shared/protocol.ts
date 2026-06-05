@@ -96,6 +96,7 @@ export type ServerMsg =
   | { t: 'rate'; resetsAt: number; status: string }
   | { t: 'stats'; stats: SysStats }
   | { t: 'term-data'; termId: string; data: string }
+  | { t: 'term-replay'; termId: string; data: string }
   | { t: 'term-exit'; termId: string }
   | { t: 'done'; sessionKey: string; sessionId: string }
   | { t: 'error'; sessionKey?: string; message: string };
