@@ -52,6 +52,16 @@ function appendDelta(blocks: Block[], text: string): Block[] {
   return [...blocks, { type: 'text', md: text }];
 }
 
+function appendThinking(blocks: Block[], text: string): Block[] {
+  const last = blocks[blocks.length - 1];
+  if (last && last.type === 'thinking') {
+    const next = blocks.slice();
+    next[next.length - 1] = { type: 'thinking', text: last.text + text, expanded: last.expanded };
+    return next;
+  }
+  return [...blocks, { type: 'thinking', text }];
+}
+
 export interface TermApi {
   attach: (id: string, cols: number, rows: number, onData: (d: string) => void, onExit: () => void, onReplay: (d: string) => void) => void;
   detach: (id: string) => void;
@@ -211,6 +221,11 @@ export function useCockpit(): Cockpit {
       case 'delta': {
         setPhases((p) => ({ ...p, [msg.sessionKey]: 'streaming' }));
         patchRunMsg(msg.sessionKey, (b) => appendDelta(b, msg.text));
+        return;
+      }
+      case 'thinking': {
+        setPhases((p) => ({ ...p, [msg.sessionKey]: 'streaming' }));
+        patchRunMsg(msg.sessionKey, (b) => appendThinking(b, msg.text));
         return;
       }
       case 'tool': {
