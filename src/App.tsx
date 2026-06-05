@@ -26,13 +26,12 @@ function relReset(resetsAt: number): string {
 
 interface HeaderProps {
   conn: { ws: ConnState; sse: ConnState };
-  cycleConn: (key: 'ws' | 'sse') => void;
   onNew: () => void;
   isMobile: boolean;
   onMenu: () => void;
 }
 
-function Header({ conn, cycleConn, onNew, isMobile, onMenu }: HeaderProps) {
+function Header({ conn, onNew, isMobile, onMenu }: HeaderProps) {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex items-center gap-2.5">
@@ -50,14 +49,8 @@ function Header({ conn, cycleConn, onNew, isMobile, onMenu }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-3 rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1">
-          <button onClick={() => cycleConn('ws')} title="Conexão WebSocket (terminal) — clique para alternar">
-            <ConnDot label="ws" state={conn.ws} compact={isMobile} />
-          </button>
-          <span className="h-3 w-px bg-neutral-800" />
-          <button onClick={() => cycleConn('sse')} title="Conexão SSE (chat) — clique para alternar">
-            <ConnDot label="sse" state={conn.sse} compact={isMobile} />
-          </button>
+        <div className="flex items-center rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1">
+          <ConnDot label="ws" state={conn.ws} compact={isMobile} />
         </div>
         {!isMobile && (
           <button
@@ -224,13 +217,11 @@ export function CockpitApp() {
     return { ...t, running: true, pid: 3000 + Math.floor(Math.random() * 900), lines: [...t.lines, { t: 'cmd' as const, s: 'pnpm dev --filter api' }, { t: 'ok' as const, s: '✓ reiniciado' }] };
   }));
 
-  const cycleConn = (_key: 'ws' | 'sse') => {};
-
   const runningTerm = terminals.find((t) => t.running);
 
   return (
     <div className="relative flex h-full flex-col bg-neutral-950">
-      <Header conn={conn} cycleConn={cycleConn} onNew={handleNew} isMobile={isMobile} onMenu={() => setDrawer(true)} />
+      <Header conn={conn} onNew={handleNew} isMobile={isMobile} onMenu={() => setDrawer(true)} />
 
       {quota && rate && <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} />}
 
