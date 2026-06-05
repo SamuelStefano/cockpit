@@ -217,11 +217,28 @@ function ArchivedSection({ archived, onUnhide }: { archived: Session[]; onUnhide
 export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, onRename, onClose, archived = [], onUnhide, onCloseMobile, searchResults = [], onSearch, contexts = [], openContext, onCtxList, onCtxOpen, onCtxClose }: SessionsPanelProps) {
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState<'sessions' | 'contexts'>('sessions');
+  const searchRef = useRef<HTMLInputElement>(null);
 
   // Carrega contextos ao abrir a aba pela 1ª vez (e re-busca a cada visita: barato).
   useEffect(() => {
     if (tab === 'contexts') onCtxList?.();
   }, [tab, onCtxList]);
+
+  // ⌘K / Ctrl+K foca a busca (volta pra aba Sessões se preciso). Esc limpa+desfoca.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setTab('sessions');
+        requestAnimationFrame(() => { searchRef.current?.focus(); searchRef.current?.select(); });
+      } else if (e.key === 'Escape' && document.activeElement === searchRef.current) {
+        setQuery('');
+        searchRef.current?.blur();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // Busca de conteúdo no backend (debounce 150ms). O filtro local (título/snippet)
   // aparece na hora; os hits por CONTEÚDO chegam logo depois e são mesclados.
@@ -266,6 +283,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
           <div className="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 focus-within:border-neutral-700 focus-within:ring-2 focus-within:ring-orange-500/15">
             <Icon name="search" size={14} className="shrink-0 text-neutral-500" />
             <input
+              ref={searchRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar sessões…"
