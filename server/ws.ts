@@ -257,9 +257,14 @@ function capture(thread: Thread, ev: ClaudeEvent) {
   if (sid && !thread.sessionId) thread.sessionId = sid;
 }
 
+// Início de cada tool por id de correlação, pra cravar a duração real no close.
+const toolStart = new Map<string, number>();
+
 function emitTool(ws: WebSocket, sessionKey: string, block: any, status: ToolCall['status']) {
+  const id = block.id ?? '';
+  if (id && !toolStart.has(id)) toolStart.set(id, Date.now());
   const tool: ToolCall = {
-    id: block.id ?? '',
+    id,
     name: block.name ?? 'tool',
     label: block.name ?? 'tool',
     command: cmdOf(block.input),
@@ -274,8 +279,11 @@ function closeTool(ws: WebSocket, sessionKey: string, c: any) {
   const output = Array.isArray(c.content)
     ? c.content.filter((x: any) => x?.type === 'text').map((x: any) => x.text)
     : typeof c.content === 'string' ? c.content.split('\n') : [];
+  const id = c.tool_use_id ?? '';
+  const start = toolStart.get(id);
+  if (start !== undefined) toolStart.delete(id);
   const tool: ToolCall = {
-    id: c.tool_use_id ?? '',
+    id,
     name: 'tool',
     label: 'tool',
     command: '',
@@ -283,6 +291,7 @@ function closeTool(ws: WebSocket, sessionKey: string, c: any) {
     exit: isErr ? 1 : 0,
     output,
     expanded: true,
+    durationMs: start !== undefined ? Date.now() - start : undefined,
   };
   send(ws, { t: 'tool', sessionKey, tool });
 }
