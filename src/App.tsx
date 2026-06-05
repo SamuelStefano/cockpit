@@ -99,6 +99,7 @@ export function CockpitApp() {
     sessions, loading, activeId: activeSessionId, setActiveId: setActiveSessionId,
     messages, phase, draft, setDraft, conn, rate, stats, mode, setMode, term,
     archived, onUnhide: handleUnhide, contextTokens, searchResults, onSearch,
+    contexts, openContext, onCtxList, onCtxOpen, onCtxClose,
     onSend: handleSend, onStop: handleStop, onNew: cockpitNew, onRename: handleRename, onClose: handleCloseSession,
   } = cockpit;
 
@@ -191,7 +192,7 @@ export function CockpitApp() {
 
       {isMobile ? (
         <MobileLayout
-          sessionsProps={{ sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onClose: handleCloseSession, archived, onUnhide: handleUnhide, searchResults, onSearch }}
+          sessionsProps={{ sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onClose: handleCloseSession, archived, onUnhide: handleUnhide, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose }}
           chatProps={{ session: activeSession, messages, phase: viewPhase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, contextTokens, onNew: handleNew }}
           termProps={{ terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term }}
           drawer={drawer} setDrawer={setDrawer}
@@ -203,7 +204,8 @@ export function CockpitApp() {
           <div style={{ width: `${leftW}%` }} className="min-w-0 shrink-0 border-r border-neutral-800">
             <SessionsPanel sessions={sessions} loading={loading} activeId={activeSessionId}
               onSelect={setActiveSessionId} onNew={handleNew} onRename={handleRename} onClose={handleCloseSession}
-              archived={archived} onUnhide={handleUnhide} searchResults={searchResults} onSearch={onSearch} />
+              archived={archived} onUnhide={handleUnhide} searchResults={searchResults} onSearch={onSearch}
+              contexts={contexts} openContext={openContext} onCtxList={onCtxList} onCtxOpen={onCtxOpen} onCtxClose={onCtxClose} />
           </div>
           <div className="resizer w-[3px] shrink-0 cursor-col-resize bg-neutral-800" onMouseDown={startDrag('left')} />
 

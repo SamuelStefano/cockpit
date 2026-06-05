@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Icon, Badge, Skeleton } from './primitives';
+import { Icon, Badge, Skeleton, Markdown } from './primitives';
 import type { Session } from '../data/mock';
+import type { ContextMeta } from '../../shared/protocol';
+import type { ContextDoc } from '../useCockpit';
 
 function SessionSkeletonRow() {
   return (
@@ -111,6 +113,73 @@ export interface SessionsPanelProps {
   onCloseMobile?: () => void;
   searchResults?: Session[];
   onSearch?: (q: string) => void;
+  contexts?: ContextMeta[];
+  openContext?: ContextDoc | null;
+  onCtxList?: () => void;
+  onCtxOpen?: (id: string) => void;
+  onCtxClose?: () => void;
+}
+
+const TYPE_TONE: Record<string, 'orange' | 'green' | 'yellow' | 'neutral'> = {
+  user: 'orange', feedback: 'yellow', project: 'green', reference: 'neutral',
+};
+
+function ContextsList({ contexts, onCtxOpen }: { contexts: ContextMeta[]; onCtxOpen: (id: string) => void }) {
+  if (contexts.length === 0) {
+    return (
+      <div className="mt-10 flex flex-col items-center px-4 text-center">
+        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-neutral-800 bg-neutral-900 text-neutral-600">
+          <Icon name="sparkles" size={18} />
+        </div>
+        <p className="text-[12.5px] font-medium text-neutral-400">Nenhum contexto ainda</p>
+        <p className="mt-1 text-[11.5px] leading-snug text-neutral-600">As memórias do agente aparecem aqui assim que forem criadas.</p>
+      </div>
+    );
+  }
+  return (
+    <>
+      {contexts.map((c) => (
+        <button
+          key={c.id}
+          onClick={() => onCtxOpen(c.id)}
+          className="group block w-full rounded-lg border border-transparent px-2.5 py-2 text-left transition hover:border-neutral-800 hover:bg-neutral-900"
+        >
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <span className="truncate text-[12.5px] font-medium leading-tight text-neutral-300 group-hover:text-orange-300">{c.title}</span>
+            <Badge tone={TYPE_TONE[c.type] ?? 'neutral'}>{c.type}</Badge>
+          </div>
+          {c.description && <p className="line-clamp-2 text-[11.5px] leading-snug text-neutral-500">{c.description}</p>}
+        </button>
+      ))}
+    </>
+  );
+}
+
+function ContextModal({ doc, onClose }: { doc: ContextDoc; onClose: () => void }) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative flex max-h-[80vh] w-full max-w-2xl flex-col rounded-xl border border-neutral-800 bg-neutral-950 shadow-2xl"
+      >
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-800 px-4 py-3">
+          <span className="truncate text-[13px] font-semibold text-neutral-200">{doc.title}</span>
+          <button onClick={onClose} className="rounded-md p-1 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200">
+            <Icon name="x" size={16} />
+          </button>
+        </div>
+        <div className="scroll-thin overflow-y-auto px-4 py-3 text-[13px] leading-relaxed text-neutral-300">
+          <Markdown md={doc.body} />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ArchivedSection({ archived, onUnhide }: { archived: Session[]; onUnhide: (id: string) => void }) {
@@ -145,8 +214,14 @@ function ArchivedSection({ archived, onUnhide }: { archived: Session[]; onUnhide
   );
 }
 
-export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, onRename, onClose, archived = [], onUnhide, onCloseMobile, searchResults = [], onSearch }: SessionsPanelProps) {
+export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, onRename, onClose, archived = [], onUnhide, onCloseMobile, searchResults = [], onSearch, contexts = [], openContext, onCtxList, onCtxOpen, onCtxClose }: SessionsPanelProps) {
   const [query, setQuery] = useState('');
+  const [tab, setTab] = useState<'sessions' | 'contexts'>('sessions');
+
+  // Carrega contextos ao abrir a aba pela 1ª vez (e re-busca a cada visita: barato).
+  useEffect(() => {
+    if (tab === 'contexts') onCtxList?.();
+  }, [tab, onCtxList]);
 
   // Busca de conteúdo no backend (debounce 150ms). O filtro local (título/snippet)
   // aparece na hora; os hits por CONTEÚDO chegam logo depois e são mesclados.
@@ -168,26 +243,45 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
   return (
     <div className="flex h-full flex-col bg-neutral-950">
       <div className="shrink-0 border-b border-neutral-800/80 p-2.5">
-        <div className="mb-2 flex items-center justify-between px-0.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">Sessões</span>
+        <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
+          <div className="flex items-center gap-1 rounded-lg border border-neutral-800 bg-neutral-900 p-0.5">
+            {(['sessions', 'contexts'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`rounded-md px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide transition
+                  ${tab === t ? 'bg-orange-500/15 text-orange-300' : 'text-neutral-500 hover:text-neutral-300'}`}
+              >
+                {t === 'sessions' ? 'Sessões' : 'Contextos'}
+              </button>
+            ))}
+          </div>
           {onCloseMobile && (
             <button onClick={onCloseMobile} className="rounded-md p-1 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200 lg:hidden">
               <Icon name="x" size={16} />
             </button>
           )}
         </div>
-        <div className="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 focus-within:border-neutral-700 focus-within:ring-2 focus-within:ring-orange-500/15">
-          <Icon name="search" size={14} className="shrink-0 text-neutral-500" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar sessões…"
-            className="w-full bg-transparent text-[12.5px] text-neutral-200 placeholder-neutral-600 outline-none"
-          />
-          <kbd className="hidden shrink-0 rounded border border-neutral-700 bg-neutral-950 px-1 py-px font-mono text-[9px] text-neutral-500 sm:block">⌘K</kbd>
-        </div>
+        {tab === 'sessions' && (
+          <div className="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 focus-within:border-neutral-700 focus-within:ring-2 focus-within:ring-orange-500/15">
+            <Icon name="search" size={14} className="shrink-0 text-neutral-500" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar sessões…"
+              className="w-full bg-transparent text-[12.5px] text-neutral-200 placeholder-neutral-600 outline-none"
+            />
+            <kbd className="hidden shrink-0 rounded border border-neutral-700 bg-neutral-950 px-1 py-px font-mono text-[9px] text-neutral-500 sm:block">⌘K</kbd>
+          </div>
+        )}
       </div>
 
+      {tab === 'contexts' ? (
+        <div className="scroll-thin mt-2.5 flex-1 space-y-1 overflow-y-auto px-2.5 pb-3">
+          <ContextsList contexts={contexts} onCtxOpen={(id) => onCtxOpen?.(id)} />
+        </div>
+      ) : (
+      <>
       <div className="shrink-0 px-2.5 pt-2.5">
         <button
           onClick={onNew}
@@ -228,6 +322,10 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
         )}
         {!loading && !query && onUnhide && <ArchivedSection archived={archived} onUnhide={onUnhide} />}
       </div>
+      </>
+      )}
+
+      {openContext && onCtxClose && <ContextModal doc={openContext} onClose={onCtxClose} />}
     </div>
   );
 }

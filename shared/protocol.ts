@@ -55,6 +55,15 @@ export interface SessionMeta {
   count: number;
 }
 
+// Memória do agente surfaceada read-only na aba Contextos.
+export interface ContextMeta {
+  id: string;
+  title: string;
+  description: string;
+  type: string; // user | feedback | project | reference | memory
+  mtime: number;
+}
+
 // --- WebSocket protocol ----------------------------------------------------
 
 // Modo de permissão exposto na UI. 'plan' = só planeja (nada executa);
@@ -79,6 +88,8 @@ export type ClientMsg =
   | { t: 'unhide'; sessionId: string }
   | { t: 'list-archived' }
   | { t: 'search'; q: string }
+  | { t: 'ctx-list' }
+  | { t: 'ctx-open'; id: string }
   | { t: 'term-open'; termId: string; cols: number; rows: number }
   | { t: 'term-input'; termId: string; data: string }
   | { t: 'term-resize'; termId: string; cols: number; rows: number }
@@ -89,6 +100,8 @@ export type ServerMsg =
   | { t: 'sessions'; items: SessionMeta[] }
   | { t: 'archived'; items: SessionMeta[] }
   | { t: 'search-results'; q: string; items: SessionMeta[] }
+  | { t: 'contexts'; items: ContextMeta[] }
+  | { t: 'context'; id: string; title: string; body: string }
   | { t: 'history'; sessionId: string; messages: Message[]; cursor?: string; tokens?: number }
   | { t: 'busy'; keys: string[] }
   | { t: 'started'; sessionKey: string }
