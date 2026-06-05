@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { Icon, Badge } from '../components/primitives';
-import type { UsageStats } from '../../shared/protocol';
+import type { UsageStats, DailyUsage } from '../../shared/protocol';
 import type { Session } from '../data/mock';
 
 const CTX_WINDOW = 200_000; // janela de contexto aproximada (fill %)
@@ -49,6 +49,42 @@ function Offline() {
       <p className="mt-1 max-w-sm text-[12px] leading-snug text-neutral-600">
         O histórico de uso vive no SQLite local e só aparece com o backend do cockpit rodando em <span className="font-mono">127.0.0.1</span>.
       </p>
+    </div>
+  );
+}
+
+function Trend({ series }: { series: DailyUsage[] }) {
+  const dayLabel = (ts: number) => {
+    const d = new Date(ts);
+    return `${d.getDate()}/${d.getMonth() + 1}`;
+  };
+  const max = Math.max(1, ...series.map((d) => d.cost));
+  const totalCost = series.reduce((a, d) => a + d.cost, 0);
+  return (
+    <div className="mb-4 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-neutral-500">
+          <Icon name="zap" size={12} /> custo por dia · {series.length}d
+        </span>
+        <span className="font-mono text-[11px] text-emerald-400/80">{usd(totalCost)}</span>
+      </div>
+      <div className="flex h-24 items-end gap-1">
+        {series.map((d) => {
+          const h = Math.max(2, Math.round((d.cost / max) * 100));
+          return (
+            <div key={d.day} className="group/bar flex flex-1 flex-col items-center justify-end gap-1">
+              <div className="relative flex w-full justify-center">
+                <div
+                  className="w-full max-w-[18px] rounded-sm bg-sky-500/70 transition-colors group-hover/bar:bg-sky-400"
+                  style={{ height: `${h}%`, minHeight: '2px' }}
+                  title={`${dayLabel(d.day)} · ${usd(d.cost)} · ${fmt(d.output)} out`}
+                />
+              </div>
+              <span className="text-[8.5px] tabular-nums text-neutral-600">{new Date(d.day).getDate()}</span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -104,6 +140,8 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions, onO
             <Stat label="amostras" value={fmt(usageStats?.totalSamples ?? 0)} icon="zap" />
             <Stat label="sessões ativas" value={String(rows.length)} icon="message" />
           </div>
+
+          {(usageStats?.series?.length ?? 0) > 0 && <Trend series={usageStats!.series} />}
 
           {rows.length === 0 ? (
             <Empty />
