@@ -101,7 +101,7 @@ export function Contextos({ connected, contexts, openContext, onCtxList, onCtxOp
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.key === '/') {
         e.preventDefault();
         searchRef.current?.focus();
         searchRef.current?.select();
@@ -145,7 +145,7 @@ export function Contextos({ connected, contexts, openContext, onCtxList, onCtxOp
               placeholder="Buscar contextos…"
               className="w-full bg-transparent text-[12.5px] text-neutral-200 placeholder-neutral-600 outline-none"
             />
-            <kbd className="hidden shrink-0 rounded border border-neutral-700 bg-neutral-950 px-1 py-px font-mono text-[9px] text-neutral-500 sm:block">⌘K</kbd>
+            <kbd className="hidden shrink-0 rounded border border-neutral-700 bg-neutral-950 px-1 py-px font-mono text-[9px] text-neutral-500 sm:block">⌘/</kbd>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
