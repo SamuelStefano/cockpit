@@ -55,6 +55,7 @@ Um **cockpit dev** único pra:
 ## Stack
 
 `Vite` · `React 18` · `TypeScript` · `Tailwind v3` · fontes `Geist` / `Geist Mono`
+Backend: `Node` · `TypeScript` · `ws` · `tsx`. Bind `127.0.0.1:7777` (acesso via Tailscale).
 
 Paleta: base `neutral-900`, acento `orange-500`, status verde/vermelho/amarelo.
 
@@ -62,10 +63,23 @@ Paleta: base `neutral-900`, acento `orange-500`, status verde/vermelho/amarelo.
 
 ## Rodar
 
+**Dev** (frontend + backend juntos, hot-reload):
+
 ```bash
 npm install
-npm run dev   # http://localhost:5173
+npm run dev          # vite :5173  +  backend :7777 (proxy /ws)
 ```
+
+**Produção** (porta única, ideal pra Tailscale):
+
+```bash
+npm run build        # typecheck (web+server) + bundle em dist/
+npm run serve        # http://127.0.0.1:7777 serve a UI e o WS
+```
+
+O backend roda `claude -p` em `--permission-mode plan` (sem bypass) e lê as
+sessões do CLI direto do JSONL. Sobrescrevíveis por env: `COCKPIT_PORT`,
+`COCKPIT_WORKDIR`, `COCKPIT_PERMISSION_MODE` (`plan`|`default`|`acceptEdits`).
 
 ---
 

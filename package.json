@@ -4,10 +4,12 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "vite",
     "dev:server": "tsx watch server/index.ts",
     "typecheck:server": "tsc --noEmit -p tsconfig.server.json",
     "build": "tsc --noEmit && tsc --noEmit -p tsconfig.server.json && vite build",
+    "serve": "tsx server/index.ts",
     "preview": "vite preview"
   },
   "dependencies": {
