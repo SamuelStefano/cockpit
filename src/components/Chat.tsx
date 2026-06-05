@@ -3,7 +3,7 @@ import { Icon, Badge, Markdown, CodeBlock } from './primitives';
 import type { Session, Message, Block, ToolCall } from '../data/mock';
 import type { PermMode } from '../../shared/protocol';
 import type { Attachment } from '../useCockpit';
-import { threadToMarkdown, download, fileSlug } from '../lib/export';
+import { threadToMarkdown, messageToText, download, fileSlug } from '../lib/export';
 
 // --- ExportMenu ------------------------------------------------------------
 
@@ -220,15 +220,40 @@ function MessageRow({ msg, caretOnLast }: MessageRowProps) {
       </div>
     );
   }
+  const hasText = msg.blocks.some((b) => b.type === 'text' || b.type === 'code');
   return (
-    <div className="fade-up flex gap-2.5">
+    <div className="fade-up group/msg flex gap-2.5">
       <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-500 text-neutral-950 shadow-sm shadow-orange-500/20">
         <Icon name="sparkles" size={14} />
       </div>
       <div className="min-w-0 flex-1 pt-0.5">
         <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} />
+        {hasText && !caretOnLast && (
+          <div className="mt-1 opacity-0 transition group-hover/msg:opacity-100">
+            <CopyMessageButton blocks={msg.blocks} />
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+function CopyMessageButton({ blocks }: { blocks: Block[] }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard?.writeText(messageToText(blocks)).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }).catch(() => {});
+  };
+  return (
+    <button
+      onClick={copy}
+      title="Copiar resposta"
+      className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300"
+    >
+      <Icon name={copied ? 'check' : 'copy'} size={11} /> {copied ? 'copiado' : 'copiar'}
+    </button>
   );
 }
 
