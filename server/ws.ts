@@ -5,6 +5,7 @@ import type { ClaudeEvent } from './engine/events';
 import { run, sanitize, type RunHandle } from './engine/claude';
 import { CONFIG } from './config';
 import { listSessions, listArchived } from './sessions/index';
+import { searchSessions } from './sessions/search';
 import { hideSession, unhideSession } from './store';
 import { parseSession, ctxTokens } from './sessions/parse';
 import { collect } from './stats';
@@ -119,6 +120,10 @@ async function handle(ws: WebSocket, msg: ClientMsg) {
     }
     case 'list-archived': {
       send(ws, { t: 'archived', items: await listArchived() });
+      return;
+    }
+    case 'search': {
+      send(ws, { t: 'search-results', q: msg.q, items: await searchSessions(msg.q) });
       return;
     }
     case 'stop': {

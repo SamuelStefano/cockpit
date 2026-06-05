@@ -57,6 +57,29 @@ async function collectMetas(keep: (id: string, hidden: Set<string>) => boolean):
   return metas.sort((a, b) => b.mtime - a.mtime);
 }
 
+// Constrói (ou reusa do cache) a SessionMeta de um id — usado pela busca pra
+// decorar arquivos casados sem re-listar tudo.
+export async function metaForId(id: string): Promise<SessionMeta | null> {
+  if (!UUID_FILE.test(`${id}.jsonl`)) return null;
+  const full = join(CONFIG.projectsDir, `${id}.jsonl`);
+  let st;
+  try { st = await stat(full); } catch { return null; }
+  const mtime = st.mtimeMs;
+  const hit = cache.get(id);
+  if (hit && hit.mtime === mtime) return hit.meta;
+  const head = await scanMeta(full);
+  const meta: SessionMeta = {
+    id,
+    title: head.title || head.firstUser?.slice(0, 60) || 'Sem título',
+    relative: relTime(mtime),
+    snippet: head.firstUser?.slice(0, 120) || '',
+    mtime,
+    count: head.count,
+  };
+  cache.set(id, { mtime, meta });
+  return meta;
+}
+
 // Lê o arquivo uma vez: pega o ÚLTIMO ai-title, a 1ª msg de user, e conta msgs.
 // (scan linear único — barato o suficiente; evita ler 46MB duas vezes.)
 async function scanMeta(path: string): Promise<{ title: string; firstUser?: string; count: number }> {

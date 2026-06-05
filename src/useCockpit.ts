@@ -58,6 +58,8 @@ export interface Cockpit {
   term: TermApi;
   archived: Session[];
   contextTokens: number;
+  searchResults: Session[];
+  onSearch: (q: string) => void;
   onSend: (text: string) => void;
   onStop: () => void;
   onNew: () => void;
@@ -78,6 +80,8 @@ export function useCockpit(): Cockpit {
   const [stats, setStats] = useState<SysStats | null>(null);
   const [archived, setArchived] = useState<Session[]>([]);
   const [usage, setUsage] = useState<Record<string, number>>({}); // sessionKey -> tokens de contexto
+  const [searchResults, setSearchResults] = useState<Session[]>([]);
+  const searchQ = useRef('');
   const [mode, setMode] = useState<PermMode>('plan');
   const modeRef = useRef<PermMode>('plan');
 
@@ -189,6 +193,10 @@ export function useCockpit(): Cockpit {
         setArchived(msg.items.map((m) => metaToSession(m, false)));
         return;
       }
+      case 'search-results': {
+        if (msg.q === searchQ.current) setSearchResults(msg.items.map((m) => metaToSession(m, m.id === activeRef.current)));
+        return;
+      }
       case 'term-data': {
         termData.current.get(msg.termId)?.(msg.data);
         return;
@@ -281,6 +289,14 @@ export function useCockpit(): Cockpit {
 
   const changeMode = useCallback((m: PermMode) => { modeRef.current = m; setMode(m); }, []);
 
+  // Busca por conteúdo: dispara no backend (grep) e guarda o termo p/ descartar
+  // respostas atrasadas. <2 chars limpa os resultados.
+  const onSearch = useCallback((q: string) => {
+    searchQ.current = q;
+    if (q.trim().length < 2) { setSearchResults([]); return; }
+    send({ t: 'search', q });
+  }, [send]);
+
   const term: TermApi = {
     attach: useCallback((id, cols, rows, onData, onExit, onReplay) => {
       termData.current.set(id, onData);
@@ -371,5 +387,5 @@ export function useCockpit(): Cockpit {
   const contextTokens = usage[activeId] || 0;
   const setDraft = useCallback((v: string) => setDrafts((d) => ({ ...d, [activeRef.current]: v })), []);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, archived, contextTokens, mode, setMode: changeMode, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
+  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, archived, contextTokens, searchResults, onSearch, mode, setMode: changeMode, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
 }
