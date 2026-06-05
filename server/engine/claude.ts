@@ -1,13 +1,14 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import type { ClaudeEvent } from './events';
-import { CONFIG } from '../config';
+import { CONFIG, safeMode } from '../config';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export interface RunOpts {
   prompt: string;
   resumeId?: string;
+  mode?: string;               // pedido pela UI; passa por safeMode (nunca bypass)
   onEvent: (ev: ClaudeEvent) => void;
   onError: (msg: string) => void;
   onClose: () => void;
@@ -24,14 +25,17 @@ export interface RunHandle {
 // - cwd isolado
 // - detached pra matar a árvore no stop
 export function run(opts: RunOpts): RunHandle {
-  const { prompt, resumeId, onEvent, onError, onClose } = opts;
+  const { prompt, resumeId, mode, onEvent, onError, onClose } = opts;
+
+  // UI pode pedir o modo por mensagem; safeMode garante que bypass nunca passa.
+  const permissionMode = opts.mode ? safeMode(mode) : CONFIG.permissionMode;
 
   const args = [
     '-p', prompt,
     '--output-format', 'stream-json',
     '--include-partial-messages',
     '--verbose',
-    '--permission-mode', CONFIG.permissionMode,
+    '--permission-mode', permissionMode,
   ];
   if (resumeId) {
     if (!UUID_RE.test(resumeId)) {

@@ -57,8 +57,20 @@ export interface SessionMeta {
 
 // --- WebSocket protocol ----------------------------------------------------
 
+// Modo de permissão exposto na UI. 'plan' = só planeja (nada executa);
+// 'acceptEdits' = agente edita/roda de fato. 'bypassPermissions' NUNCA entra
+// (sudo NOPASSWD = RCE root) — a allow-list do backend trava.
+export type PermMode = 'plan' | 'acceptEdits';
+
+export interface SysStats {
+  cpu: number;                 // 0..100
+  mem: { used: number; total: number };       // bytes
+  gpu: { util: number; memUsed: number; memTotal: number } | null;
+  load: number;
+}
+
 export type ClientMsg =
-  | { t: 'send'; sessionKey: string; sessionId?: string; text: string }
+  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; mode?: PermMode }
   | { t: 'stop'; sessionKey: string }
   | { t: 'list' }
   | { t: 'open'; sessionId: string };
@@ -72,5 +84,6 @@ export type ServerMsg =
   | { t: 'delta'; sessionKey: string; text: string }
   | { t: 'tool'; sessionKey: string; tool: ToolCall }
   | { t: 'rate'; resetsAt: number; status: string }
+  | { t: 'stats'; stats: SysStats }
   | { t: 'done'; sessionKey: string; sessionId: string }
   | { t: 'error'; sessionKey?: string; message: string };

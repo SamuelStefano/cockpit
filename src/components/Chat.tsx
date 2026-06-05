@@ -1,6 +1,41 @@
 import { useState, useEffect, useRef } from 'react';
 import { Icon, Badge, Markdown, CodeBlock } from './primitives';
 import type { Session, Message, Block, ToolCall } from '../data/mock';
+import type { PermMode } from '../../shared/protocol';
+
+// --- ModeToggle ------------------------------------------------------------
+
+function ModeToggle({ mode, setMode, disabled }: { mode: PermMode; setMode: (m: PermMode) => void; disabled: boolean }) {
+  const opts: { v: PermMode; label: string; hint: string }[] = [
+    { v: 'plan', label: 'Planejar', hint: 'só descreve o plano — nada é executado' },
+    { v: 'acceptEdits', label: 'Executar', hint: 'o agente edita arquivos e roda comandos' },
+  ];
+  return (
+    <div className="inline-flex items-center rounded-lg border border-neutral-800 bg-neutral-950 p-0.5">
+      {opts.map((o) => {
+        const active = mode === o.v;
+        const exec = o.v === 'acceptEdits';
+        return (
+          <button
+            key={o.v}
+            type="button"
+            disabled={disabled}
+            onClick={() => setMode(o.v)}
+            title={o.hint}
+            className={`rounded-md px-2 py-1 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-50
+              ${active
+                ? exec
+                  ? 'bg-orange-500/20 text-orange-300 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.4)]'
+                  : 'bg-neutral-800 text-neutral-100'
+                : 'text-neutral-500 hover:text-neutral-300'}`}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 // --- ToolCallCard ----------------------------------------------------------
 
@@ -191,9 +226,11 @@ interface ChatInputProps {
   onStop: () => void;
   value: string;
   setValue: (v: string) => void;
+  mode: PermMode;
+  setMode: (m: PermMode) => void;
 }
 
-function ChatInput({ disabled, onSend, onStop, value, setValue }: ChatInputProps) {
+function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode }: ChatInputProps) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const submit = () => {
     const v = value.trim();
@@ -210,6 +247,14 @@ function ChatInput({ disabled, onSend, onStop, value, setValue }: ChatInputProps
   };
   return (
     <div className="shrink-0 border-t border-neutral-800 bg-neutral-900/60 px-3 py-3 backdrop-blur">
+      <div className="mb-2 flex items-center gap-2">
+        <ModeToggle mode={mode} setMode={setMode} disabled={disabled} />
+        {mode === 'acceptEdits' && (
+          <span className="flex items-center gap-1 text-[10.5px] text-orange-400/70">
+            <Icon name="zap" size={11} /> executa de verdade
+          </span>
+        )}
+      </div>
       <div className={`flex items-end gap-2 rounded-xl border bg-neutral-950 px-3 py-2 transition
         ${disabled ? 'border-neutral-800 opacity-80' : 'border-neutral-700 focus-within:border-orange-500/50 focus-within:ring-2 focus-within:ring-orange-500/15'}`}>
         <textarea
@@ -260,9 +305,11 @@ export interface ChatPanelProps {
   onSend: (text: string) => void;
   onPrompt: (text: string) => void;
   onStop: () => void;
+  mode: PermMode;
+  setMode: (m: PermMode) => void;
 }
 
-export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -320,7 +367,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         </button>
       )}
 
-      <ChatInput disabled={disabled} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} />
+      <ChatInput disabled={disabled} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode} />
     </div>
   );
 }

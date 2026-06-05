@@ -6,6 +6,7 @@ import { run, sanitize, type RunHandle } from './engine/claude';
 import { CONFIG } from './config';
 import { listSessions } from './sessions/index';
 import { parseSession } from './sessions/parse';
+import { collect } from './stats';
 
 interface Thread {
   handle: RunHandle;
@@ -19,6 +20,7 @@ export function attachWs(server: Server) {
 
   wss.on('connection', (ws) => {
     send(ws, { t: 'busy', keys: [...threads.keys()] });
+    collect().then((stats) => send(ws, { t: 'stats', stats })).catch(() => {});
 
     ws.on('message', (raw) => {
       let msg: ClientMsg;
@@ -27,7 +29,22 @@ export function attachWs(server: Server) {
     });
   });
 
+  startStatsLoop(wss);
   return wss;
+}
+
+// Um timer único: amostra a máquina e empurra pra todos os clientes abertos.
+// 2s é suave e mantém o delta de CPU significativo.
+function startStatsLoop(wss: WebSocketServer) {
+  const tick = async () => {
+    if (wss.clients.size === 0) return;
+    try {
+      const stats = await collect();
+      const payload = JSON.stringify({ t: 'stats', stats } satisfies ServerMsg);
+      for (const c of wss.clients) if (c.readyState === c.OPEN) c.send(payload);
+    } catch { /* best-effort */ }
+  };
+  setInterval(tick, 2000).unref();
 }
 
 async function handle(ws: WebSocket, msg: ClientMsg) {
@@ -48,13 +65,13 @@ async function handle(ws: WebSocket, msg: ClientMsg) {
       return;
     }
     case 'send': {
-      startRun(ws, msg.sessionKey, msg.text, msg.sessionId);
+      startRun(ws, msg.sessionKey, msg.text, msg.sessionId, msg.mode);
       return;
     }
   }
 }
 
-function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: string) {
+function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: string, mode?: string) {
   if (Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) {
     send(ws, { t: 'error', sessionKey, message: 'prompt grande demais' });
     return;
@@ -68,6 +85,7 @@ function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: 
   thread.handle = run({
     prompt,
     resumeId,
+    mode,
     onEvent: (ev) => translate(ws, sessionKey, thread, ev),
     onError: (message) => send(ws, { t: 'error', sessionKey, message }),
     onClose: () => {

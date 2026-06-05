@@ -25,6 +25,6 @@ export const CONFIG = {
 };
 
 // 'bypassPermissions' nunca entra: numa máquina com sudo NOPASSWD = RCE root.
-function safeMode(v: string | undefined): 'plan' | 'default' | 'acceptEdits' {
+export function safeMode(v: string | undefined): 'plan' | 'default' | 'acceptEdits' {
   return v === 'default' || v === 'acceptEdits' ? v : 'plan';
 }
