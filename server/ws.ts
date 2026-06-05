@@ -6,7 +6,7 @@ import { run, sanitize, type RunHandle } from './engine/claude';
 import { CONFIG } from './config';
 import { listSessions, listArchived } from './sessions/index';
 import { hideSession, unhideSession } from './store';
-import { parseSession } from './sessions/parse';
+import { parseSession, ctxTokens } from './sessions/parse';
 import { collect } from './stats';
 import { openTerm, detachTerm, inputTerm, resizeTerm, closeTerm } from './terminals';
 
@@ -102,7 +102,7 @@ async function handle(ws: WebSocket, msg: ClientMsg) {
     case 'open': {
       const parsed = await parseSession(msg.sessionId);
       if (!parsed) { send(ws, { t: 'error', message: 'sessão inválida' }); return; }
-      send(ws, { t: 'history', sessionId: msg.sessionId, messages: parsed.messages });
+      send(ws, { t: 'history', sessionId: msg.sessionId, messages: parsed.messages, tokens: parsed.tokens });
       return;
     }
     case 'hide': {
@@ -187,6 +187,8 @@ function translate(ws: WebSocket, sessionKey: string, thread: Thread, ev: Claude
           if (c?.type === 'tool_use') emitTool(ws, sessionKey, c, 'running');
         }
       }
+      const tokens = ctxTokens((ev as any).message?.usage);
+      if (tokens > 0) send(ws, { t: 'usage', sessionKey, tokens });
       capture(thread, ev);
       return;
     }

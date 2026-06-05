@@ -37,6 +37,44 @@ function ModeToggle({ mode, setMode, disabled }: { mode: PermMode; setMode: (m: 
   );
 }
 
+// --- ContextMeter ----------------------------------------------------------
+
+// Janela de contexto dos modelos atuais ~200K tokens. O medidor mostra quanto
+// do contexto o último turno ocupou; perto do teto, sugere abrir nova sessão.
+const CONTEXT_LIMIT = 200_000;
+
+function ContextMeter({ tokens, onNew }: { tokens: number; onNew?: () => void }) {
+  if (tokens <= 0) return null;
+  const pct = Math.min(100, Math.round((tokens / CONTEXT_LIMIT) * 100));
+  const high = pct >= 75;
+  const mid = pct >= 50;
+  const color = high ? 'bg-red-500' : mid ? 'bg-amber-500' : 'bg-neutral-600';
+  const text = high ? 'text-red-400' : mid ? 'text-amber-400' : 'text-neutral-500';
+  const k = (tokens / 1000).toFixed(0);
+  return (
+    <div className="ml-auto flex items-center gap-2">
+      <div
+        className="flex items-center gap-1.5"
+        title={`contexto: ~${tokens.toLocaleString()} tokens de ~${CONTEXT_LIMIT.toLocaleString()} (${pct}%)`}
+      >
+        <div className="h-1.5 w-16 overflow-hidden rounded-full bg-neutral-800">
+          <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
+        </div>
+        <span className={`text-[11px] tabular-nums ${text}`}>{k}k</span>
+      </div>
+      {high && onNew && (
+        <button
+          onClick={onNew}
+          title="Contexto quase cheio — comece uma sessão nova para respostas mais rápidas e baratas"
+          className="flex items-center gap-1 rounded-md border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 text-[10.5px] font-medium text-red-300 transition hover:bg-red-500/20"
+        >
+          <Icon name="plus" size={11} /> nova sessão
+        </button>
+      )}
+    </div>
+  );
+}
+
 // --- ToolCallCard ----------------------------------------------------------
 
 interface ToolCallCardProps {
@@ -307,9 +345,11 @@ export interface ChatPanelProps {
   onStop: () => void;
   mode: PermMode;
   setMode: (m: PermMode) => void;
+  contextTokens: number;
+  onNew: () => void;
 }
 
-export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, contextTokens, onNew }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -342,6 +382,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         <Icon name="message" size={14} className="text-neutral-500" />
         <span className="truncate text-[12.5px] font-medium text-neutral-300">{session ? session.title : 'Nova sessão'}</span>
         {session?.hasTerminal && <Badge tone="green" dot className="ml-0.5">terminal</Badge>}
+        <ContextMeter tokens={contextTokens} onNew={onNew} />
       </div>
 
       <div ref={scrollRef} onScroll={onScroll} className="scroll-thin flex-1 overflow-y-auto">

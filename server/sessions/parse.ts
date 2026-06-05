@@ -6,12 +6,25 @@ import { CONFIG } from '../config';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
+interface Usage {
+  input_tokens?: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+}
+
 interface Rec {
   type: string;
   uuid?: string;
   parentUuid?: string | null;
-  message?: { role: string; content: unknown };
+  message?: { role: string; content: unknown; usage?: Usage };
   leafUuid?: string;
+}
+
+// Tokens de contexto "em voo" no último turno = entrada + cache (o que foi
+// enviado ao modelo). Aproxima o quanto da janela de contexto está ocupado.
+export function ctxTokens(u?: Usage): number {
+  if (!u) return 0;
+  return (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
 }
 
 // Resolve o caminho do JSONL com validação anti-traversal (squad High-1).
@@ -29,7 +42,7 @@ export function sessionPath(sessionId: string): string | null {
 export async function parseSession(
   sessionId: string,
   limit = CONFIG.historyLimit
-): Promise<{ blocks: Block[]; messages: Message[] } | null> {
+): Promise<{ blocks: Block[]; messages: Message[]; tokens: number } | null> {
   const path = sessionPath(sessionId);
   if (!path) return null;
 
@@ -66,10 +79,16 @@ export async function parseSession(
   }
   chain.reverse();
 
+  // Último assistant da cadeia ativa carrega o usage mais recente = contexto atual.
+  let tokens = 0;
+  for (let i = chain.length - 1; i >= 0; i--) {
+    if (chain[i].type === 'assistant' && chain[i].message?.usage) { tokens = ctxTokens(chain[i].message!.usage); break; }
+  }
+
   const trimmed = chain.slice(-limit);
   const messages = trimmed.map(recToMessage).filter((m): m is Message => m !== null);
   const blocks = messages.flatMap((m) => (m.role === 'assistant' ? m.blocks : [{ type: 'text' as const, md: m.text }]));
-  return { blocks, messages };
+  return { blocks, messages, tokens };
 }
 
 function recToMessage(r: Rec): Message | null {

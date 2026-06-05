@@ -57,6 +57,7 @@ export interface Cockpit {
   setMode: (m: PermMode) => void;
   term: TermApi;
   archived: Session[];
+  contextTokens: number;
   onSend: (text: string) => void;
   onStop: () => void;
   onNew: () => void;
@@ -76,6 +77,7 @@ export function useCockpit(): Cockpit {
   const [rate, setRate] = useState<{ resetsAt: number; status: string } | null>(null);
   const [stats, setStats] = useState<SysStats | null>(null);
   const [archived, setArchived] = useState<Session[]>([]);
+  const [usage, setUsage] = useState<Record<string, number>>({}); // sessionKey -> tokens de contexto
   const [mode, setMode] = useState<PermMode>('plan');
   const modeRef = useRef<PermMode>('plan');
 
@@ -127,6 +129,7 @@ export function useCockpit(): Cockpit {
     setThreads(move);
     setPhases(move);
     setDrafts(move);
+    setUsage(move);
     setSessions((prev) => prev.map((s) => (s.id === oldKey ? { ...s, id: newId } : s)));
   }, []);
 
@@ -144,6 +147,7 @@ export function useCockpit(): Cockpit {
       case 'history': {
         setThreads((prev) => ({ ...prev, [msg.sessionId]: msg.messages }));
         resumeId.current[msg.sessionId] = msg.sessionId;
+        if (msg.tokens) setUsage((u) => ({ ...u, [msg.sessionId]: msg.tokens! }));
         return;
       }
       case 'busy': return;
@@ -171,6 +175,10 @@ export function useCockpit(): Cockpit {
       }
       case 'rate': {
         setRate({ resetsAt: msg.resetsAt, status: msg.status });
+        return;
+      }
+      case 'usage': {
+        setUsage((u) => ({ ...u, [msg.sessionKey]: msg.tokens }));
         return;
       }
       case 'stats': {
@@ -344,6 +352,7 @@ export function useCockpit(): Cockpit {
     setThreads((prev) => { const n = { ...prev }; delete n[id]; return n; });
     setPhases((prev) => { const n = { ...prev }; delete n[id]; return n; });
     setDrafts((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    setUsage((prev) => { const n = { ...prev }; delete n[id]; return n; });
     delete runMsg.current[id];
     delete resumeId.current[id];
     opened.current.delete(id);
@@ -359,7 +368,8 @@ export function useCockpit(): Cockpit {
   const messages = threads[activeId] || [];
   const phase = phases[activeId] || 'idle';
   const draft = drafts[activeId] || '';
+  const contextTokens = usage[activeId] || 0;
   const setDraft = useCallback((v: string) => setDrafts((d) => ({ ...d, [activeRef.current]: v })), []);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, archived, mode, setMode: changeMode, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
+  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, archived, contextTokens, mode, setMode: changeMode, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
 }

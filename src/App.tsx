@@ -98,7 +98,7 @@ export function CockpitApp() {
   const {
     sessions, loading, activeId: activeSessionId, setActiveId: setActiveSessionId,
     messages, phase, draft, setDraft, conn, rate, stats, mode, setMode, term,
-    archived, onUnhide: handleUnhide,
+    archived, onUnhide: handleUnhide, contextTokens,
     onSend: handleSend, onStop: handleStop, onNew: cockpitNew, onRename: handleRename, onClose: handleCloseSession,
   } = cockpit;
 
@@ -192,7 +192,7 @@ export function CockpitApp() {
       {isMobile ? (
         <MobileLayout
           sessionsProps={{ sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onClose: handleCloseSession, archived, onUnhide: handleUnhide }}
-          chatProps={{ session: activeSession, messages, phase: viewPhase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode }}
+          chatProps={{ session: activeSession, messages, phase: viewPhase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, contextTokens, onNew: handleNew }}
           termProps={{ terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term }}
           drawer={drawer} setDrawer={setDrawer}
           termSheet={termSheet} setTermSheet={setTermSheet}
@@ -210,7 +210,7 @@ export function CockpitApp() {
           <div style={{ width: `${100 - leftW - rightW}%` }} className="min-w-0 flex-1">
             <ChatPanel session={activeSession} messages={messages} phase={viewPhase}
               draft={draft} setDraft={setDraft} onSend={handleSend} onPrompt={handleSend} onStop={handleStop}
-              mode={mode} setMode={setMode} />
+              mode={mode} setMode={setMode} contextTokens={contextTokens} onNew={handleNew} />
           </div>
 
           <div className="resizer w-[3px] shrink-0 cursor-col-resize bg-neutral-800" onMouseDown={startDrag('right')} />

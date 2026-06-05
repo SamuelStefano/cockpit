@@ -87,13 +87,14 @@ export type ClientMsg =
 export type ServerMsg =
   | { t: 'sessions'; items: SessionMeta[] }
   | { t: 'archived'; items: SessionMeta[] }
-  | { t: 'history'; sessionId: string; messages: Message[]; cursor?: string }
+  | { t: 'history'; sessionId: string; messages: Message[]; cursor?: string; tokens?: number }
   | { t: 'busy'; keys: string[] }
   | { t: 'started'; sessionKey: string }
   | { t: 'system'; sessionKey: string; sessionId: string }
   | { t: 'delta'; sessionKey: string; text: string }
   | { t: 'tool'; sessionKey: string; tool: ToolCall }
   | { t: 'rate'; resetsAt: number; status: string }
+  | { t: 'usage'; sessionKey: string; tokens: number }
   | { t: 'stats'; stats: SysStats }
   | { t: 'term-data'; termId: string; data: string }
   | { t: 'term-replay'; termId: string; data: string }
