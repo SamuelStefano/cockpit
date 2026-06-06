@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Icon } from './primitives';
+import { filterCommands, groupByOrder } from './commandPalette.filter';
 import type { Route } from '../useRoute';
 import type { PermMode } from '../../shared/protocol';
 import type { Session } from '../data/mock';
@@ -94,11 +95,7 @@ export function CommandPalette({ open, onClose, route, nav, onNew, mode, setMode
     return [...nav_, ...actions, ...runningCmds, ...modes, ...sess];
   }, [nav, onClose, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp]);
 
-  const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    if (!needle) return commands;
-    return commands.filter((c) => c.label.toLowerCase().includes(needle) || c.group.toLowerCase().includes(needle));
-  }, [q, commands]);
+  const filtered = useMemo(() => filterCommands(commands, q), [q, commands]);
 
   useEffect(() => { setSel(0); }, [q, open]);
   useEffect(() => {
@@ -114,13 +111,7 @@ export function CommandPalette({ open, onClose, route, nav, onNew, mode, setMode
     else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
   };
 
-  // Agrupa preservando a ordem de aparição.
-  const groups: { name: string; items: Cmd[] }[] = [];
-  for (const c of filtered) {
-    let g = groups.find((x) => x.name === c.group);
-    if (!g) { g = { name: c.group, items: [] }; groups.push(g); }
-    g.items.push(c);
-  }
+  const groups = groupByOrder(filtered);
   const flatIndex = (c: Cmd) => filtered.indexOf(c);
 
   return (
