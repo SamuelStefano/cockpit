@@ -2,6 +2,7 @@ import { Icon } from '../primitives';
 import type { Message } from '../../data/mock';
 import type { PermMode, ModelAlias, EffortLevel, TurnStats } from '../../../shared/protocol';
 import { threadToMarkdown, download, fileSlug } from '../../lib/export';
+import { turnStatParts, contextMeter, CONTEXT_LIMIT } from './toolbar.format';
 
 // --- ExportMenu ------------------------------------------------------------
 
@@ -136,26 +137,13 @@ export function ModelPicker({ model, setModel, effort, setEffort, budget, setBud
 
 // Custo/duração REAIS do último turno (result.total_cost_usd do CLI), não a
 // estimativa por preço de token. Ground-truth — some quando há um valor.
-// Modelo efetivo do CLI ("claude-opus-4-..." -> "opus"). Mostra o que o run de
-// fato usou — sob --fallback-model pode divergir do escolhido no picker.
-function shortModel(m?: string): string {
-  if (!m) return '';
-  const lo = m.toLowerCase();
-  if (lo.includes('opus')) return 'opus';
-  if (lo.includes('sonnet')) return 'sonnet';
-  if (lo.includes('haiku')) return 'haiku';
-  return m;
-}
-
 export function TurnStat({ stats }: { stats?: TurnStats }) {
-  if (!stats || (stats.costUsd === undefined && stats.durationMs === undefined)) return null;
-  const parts: string[] = [];
-  if (stats.costUsd !== undefined) parts.push('$' + stats.costUsd.toFixed(stats.costUsd < 0.01 ? 4 : 3));
-  if (stats.durationMs !== undefined) parts.push((stats.durationMs / 1000).toFixed(1) + 's');
-  const model = shortModel(stats.model);
+  const fmt = turnStatParts(stats);
+  if (!fmt) return null;
+  const { parts, model } = fmt;
   return (
     <span
-      title={`último turno (custo real do CLI)${stats.numTurns ? ` · ${stats.numTurns} turnos` : ''}${stats.model ? ` · modelo efetivo: ${stats.model}` : ''}`}
+      title={`último turno (custo real do CLI)${stats?.numTurns ? ` · ${stats.numTurns} turnos` : ''}${stats?.model ? ` · modelo efetivo: ${stats.model}` : ''}`}
       className="flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-950 px-1.5 py-0.5 text-[10.5px] tabular-nums text-neutral-400"
     >
       <Icon name="zap" size={10} className="text-emerald-400/70" />
@@ -167,18 +155,14 @@ export function TurnStat({ stats }: { stats?: TurnStats }) {
 
 // --- ContextMeter ----------------------------------------------------------
 
-// Janela de contexto dos modelos atuais ~200K tokens. O medidor mostra quanto
-// do contexto o último turno ocupou; perto do teto, sugere abrir nova sessão.
-const CONTEXT_LIMIT = 200_000;
-
+// O medidor mostra quanto do contexto o último turno ocupou; perto do teto,
+// sugere abrir nova sessão.
 export function ContextMeter({ tokens, onNew }: { tokens: number; onNew?: () => void }) {
-  if (tokens <= 0) return null;
-  const pct = Math.min(100, Math.round((tokens / CONTEXT_LIMIT) * 100));
-  const high = pct >= 75;
-  const mid = pct >= 50;
+  const m = contextMeter(tokens);
+  if (!m) return null;
+  const { pct, high, mid, k } = m;
   const color = high ? 'bg-red-500' : mid ? 'bg-amber-500' : 'bg-neutral-600';
   const text = high ? 'text-red-400' : mid ? 'text-amber-400' : 'text-neutral-500';
-  const k = (tokens / 1000).toFixed(0);
   return (
     <div className="flex items-center gap-2">
       <div
