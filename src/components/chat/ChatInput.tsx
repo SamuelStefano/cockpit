@@ -147,6 +147,18 @@ interface ChatInputProps {
 
 const MAX_UPLOAD = 15_000_000;
 
+// Comandos interceptados pelo app (executam local, ver runSlash). O resto da
+// lista segue pro Claude como texto — marcamos no palette pra ficar claro.
+const SLASH_HINTS: Record<string, string> = {
+  clear: 'limpa e começa uma sessão nova',
+  new: 'começa uma sessão nova',
+  'model opus': 'troca esta sessão pro Opus',
+  'model sonnet': 'troca esta sessão pro Sonnet',
+  'model haiku': 'troca esta sessão pro Haiku',
+};
+const isLocalSlash = (c: string) => c in SLASH_HINTS;
+const slashHint = (c: string) => SLASH_HINTS[c] ?? 'enviado ao Claude como texto';
+
 export function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, attachments, onUpload, onRemoveAttachment, focusSignal, queued, onQueue, onCancelQueue, history, pendingConfirm, onNew }: ChatInputProps) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -338,16 +350,25 @@ export function ChatInput({ disabled, onSend, onStop, value, setValue, mode, set
       <div className="relative">
       {showPalette && (
         <div className="scroll-thin absolute bottom-full left-0 z-30 mb-2 max-h-60 w-full overflow-auto rounded-lg border border-neutral-700 bg-neutral-900 py-1 shadow-xl shadow-black/50">
-          {matches.map((c, i) => (
-            <button
-              key={c}
-              onMouseDown={(e) => { e.preventDefault(); complete(c); }}
-              onMouseEnter={() => setSel(i)}
-              className={`flex w-full items-center gap-1.5 px-3 py-1.5 text-left font-mono text-[12.5px] transition ${i === sel ? 'bg-orange-500/15 text-orange-200' : 'text-neutral-300'}`}
-            >
-              <span className="text-neutral-600">/</span>{c}
-            </button>
-          ))}
+          {matches.map((c, i) => {
+            const local = isLocalSlash(c);
+            return (
+              <button
+                key={c}
+                onMouseDown={(e) => { e.preventDefault(); complete(c); }}
+                onMouseEnter={() => setSel(i)}
+                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left transition ${i === sel ? 'bg-orange-500/15' : ''}`}
+              >
+                <span className={`font-mono text-[12.5px] ${i === sel ? 'text-orange-200' : 'text-neutral-300'}`}>
+                  <span className="text-neutral-600">/</span>{c}
+                </span>
+                {local && (
+                  <span className="rounded bg-emerald-500/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-emerald-300/90">app</span>
+                )}
+                <span className="ml-auto truncate text-[10.5px] text-neutral-500">{slashHint(c)}</span>
+              </button>
+            );
+          })}
         </div>
       )}
       <div className="flex items-end gap-2 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 transition focus-within:border-orange-500/50 focus-within:ring-2 focus-within:ring-orange-500/15">
