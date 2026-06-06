@@ -202,6 +202,10 @@ export function Markdown({ md, caret = false }: MarkdownProps) {
         const showCaret = caret && idx === lastIdx;
         const lines = block.split('\n');
 
+        if (lines.length === 1 && /^(?:-{3,}|\*{3,}|_{3,})$/.test(block.trim())) {
+          return <hr key={idx} className="border-neutral-800" />;
+        }
+
         const heading = /^(#{1,3})\s+(.*)$/.exec(block.trim());
         if (heading && lines.length === 1) {
           const level = heading[1].length;
