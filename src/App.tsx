@@ -410,7 +410,10 @@ export function CockpitApp() {
   const runningTerm = terminals[0];
 
   return (
-    <div className="relative flex h-full flex-col bg-neutral-950">
+    <div
+      className="relative flex h-full flex-col bg-neutral-950"
+      style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
       <CommandPalette
         open={palette} onClose={() => setPalette(false)}
         route={route} nav={nav} onNew={handleNew}
