@@ -153,7 +153,7 @@ export function CockpitApp() {
   const cockpit = useCockpit();
   const {
     sessions, loading, activeId: activeSessionId, setActiveId: setActiveSessionId,
-    messages, phase, running, updated, draft, setDraft, conn, rate, stats, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, term,
+    messages, phase, running, stalled, updated, draft, setDraft, conn, rate, stats, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, term,
     archived, onUnhide: handleUnhide, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch,
     contexts, openContext, onCtxList, onCtxOpen, onCtxClose,
     skills, openSkill, onSkillList, onSkillOpen, onSkillClose,
@@ -338,7 +338,7 @@ export function CockpitApp() {
           onOpenSession={(id) => { setActiveSessionId(id); nav('/'); }} />
       ) : isMobile ? (
         <MobileLayout
-          sessionsProps={{ sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onClose: handleCloseSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, updated, searchResults, onSearch }}
+          sessionsProps={{ sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onClose: handleCloseSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, stalled, updated, searchResults, onSearch }}
           chatProps={{ session: activeSession, messages, phase: viewPhase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew: handleNew, attachments, onUpload, onRemoveAttachment, onEditUser: editUser, focusSignal }}
           termProps={{ terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term }}
           drawer={drawer} setDrawer={setDrawer}
@@ -350,7 +350,7 @@ export function CockpitApp() {
           <div style={{ width: `${leftW}%` }} className="min-w-0 shrink-0 border-r border-neutral-800">
             <SessionsPanel sessions={sessions} loading={loading} activeId={activeSessionId}
               onSelect={setActiveSessionId} onNew={handleNew} onRename={handleRename} onClose={handleCloseSession} onStop={handleStop}
-              archived={archived} onUnhide={handleUnhide} usage={usage} cost={sessionCost} running={running} updated={updated} searchResults={searchResults} onSearch={onSearch} />
+              archived={archived} onUnhide={handleUnhide} usage={usage} cost={sessionCost} running={running} stalled={stalled} updated={updated} searchResults={searchResults} onSearch={onSearch} />
           </div>
           <div className="resizer w-[3px] shrink-0 cursor-col-resize bg-neutral-800" onMouseDown={startDrag('left')} />
 
