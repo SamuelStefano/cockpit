@@ -2,13 +2,19 @@ import type { ReactNode } from 'react';
 
 export function renderInline(text: string, keyBase: string): ReactNode[] {
   const nodes: ReactNode[] = [];
-  const re = /(\*\*[^*]+\*\*|\*\S[^*\n]*?\*|~~[^~]+~~|`[^`]+`|\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s<>)\]]+)/g;
+  const re = /(\[\[[^\]\n]+\]\]|\*\*[^*]+\*\*|\*\S[^*\n]*?\*|~~[^~]+~~|`[^`]+`|\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s<>)\]]+)/g;
   let last = 0, i = 0;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) nodes.push(<span key={`${keyBase}-t${i++}`}>{text.slice(last, m.index)}</span>);
     const tok = m[0];
-    if (tok.startsWith('**')) {
+    if (tok.startsWith('[[')) {
+      nodes.push(
+        <span key={`${keyBase}-w${i++}`} className="rounded bg-orange-500/10 px-1 py-px font-medium text-orange-300/90 ring-1 ring-inset ring-orange-500/20">
+          {tok.slice(2, -2)}
+        </span>
+      );
+    } else if (tok.startsWith('**')) {
       nodes.push(<strong key={`${keyBase}-b${i++}`} className="font-semibold text-neutral-100">{tok.slice(2, -2)}</strong>);
     } else if (tok.startsWith('~~')) {
       nodes.push(<span key={`${keyBase}-s${i++}`} className="text-neutral-500 line-through">{tok.slice(2, -2)}</span>);

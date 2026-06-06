@@ -2,6 +2,7 @@ import React from 'react';
 import type { ReactNode } from 'react';
 import { Icon } from '../Icon';
 import { renderInline } from './render-inline';
+import { headingSlug } from './slug';
 
 export function proseBlocks(md: string, keyBase: string, caret: boolean): ReactNode[] {
   const blocks = md.split('\n\n');
@@ -22,7 +23,12 @@ export function proseBlocks(md: string, keyBase: string, caret: boolean): ReactN
         : level === 2 ? 'text-[15px] font-semibold text-neutral-100'
         : level === 3 ? 'text-[14px] font-semibold text-neutral-200'
         : 'text-[13px] font-semibold uppercase tracking-wide text-neutral-400';
-      return <p key={k} className={cls}>{renderInline(heading[2], `${k}-h`)}{showCaret && <span className="caret" />}</p>;
+      return React.createElement(
+        `h${level}`,
+        { key: k, id: headingSlug(heading[2]), className: `scroll-mt-4 ${cls}` },
+        renderInline(heading[2], `${k}-h`),
+        showCaret ? <span key={`${k}-caret`} className="caret" /> : null,
+      );
     }
 
     // Tabela GFM: header + separador |---|:--:| + linhas. Claude emite tabela
