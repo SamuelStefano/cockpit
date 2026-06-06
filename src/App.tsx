@@ -15,22 +15,13 @@ import { useCockpit } from './useCockpit';
 import { useRoute, type Route } from './useRoute';
 import { usePersisted } from './lib/persist';
 import { setTitleBase } from './lib/notify';
+import { relReset } from './lib/time';
 import { TERMINALS_SEED, type Terminal } from './data/mock';
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
 let _tid = 100;
 const nextId = (p: string) => `${p}${++_tid}`;
-
-function relReset(resetsAt: number): string {
-  const diff = resetsAt - Date.now();
-  if (diff <= 0) return 'agora';
-  const min = Math.round(diff / 60000);
-  if (min < 60) return `${min}min`;
-  const h = Math.floor(min / 60);
-  return `${h}h${String(min % 60).padStart(2, '0')}`;
-}
-
 
 // --- CockpitApp ------------------------------------------------------------
 
