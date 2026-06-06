@@ -193,100 +193,139 @@ interface MarkdownProps {
   caret?: boolean;
 }
 
-export function Markdown({ md, caret = false }: MarkdownProps) {
+// Separa regiões de código cercado (```), que podem conter linhas em branco,
+// ANTES do split por parágrafo. Sem isto, fence com linha vazia se partia em
+// vários blocos e o código vinha como texto cru com os ``` à mostra.
+function splitFences(md: string): Array<{ t: 'code'; lang: string; code: string } | { t: 'prose'; text: string }> {
+  const lines = md.split('\n');
+  const segs: Array<{ t: 'code'; lang: string; code: string } | { t: 'prose'; text: string }> = [];
+  let prose: string[] = [];
+  const flush = () => { if (prose.join('\n').trim()) segs.push({ t: 'prose', text: prose.join('\n') }); prose = []; };
+  let i = 0;
+  while (i < lines.length) {
+    const open = /^```([a-zA-Z0-9_+#.-]*)$/.exec(lines[i].trim());
+    if (open) {
+      flush();
+      const code: string[] = [];
+      i++;
+      while (i < lines.length && lines[i].trim() !== '```') { code.push(lines[i]); i++; }
+      if (i < lines.length) i++; // pula a fence de fechamento
+      segs.push({ t: 'code', lang: open[1], code: code.join('\n') });
+    } else {
+      prose.push(lines[i]);
+      i++;
+    }
+  }
+  flush();
+  return segs;
+}
+
+function proseBlocks(md: string, keyBase: string, caret: boolean): React.ReactNode[] {
   const blocks = md.split('\n\n');
   const lastIdx = blocks.length - 1;
+  return blocks.map((block, idx) => {
+    const showCaret = caret && idx === lastIdx;
+    const lines = block.split('\n');
+    const k = `${keyBase}-${idx}`;
+
+    if (lines.length === 1 && /^(?:-{3,}|\*{3,}|_{3,})$/.test(block.trim())) {
+      return <hr key={k} className="border-neutral-800" />;
+    }
+
+    const heading = /^(#{1,3})\s+(.*)$/.exec(block.trim());
+    if (heading && lines.length === 1) {
+      const level = heading[1].length;
+      const cls = level === 1 ? 'text-[17px] font-semibold text-neutral-100'
+        : level === 2 ? 'text-[15px] font-semibold text-neutral-100'
+        : 'text-[14px] font-semibold text-neutral-200';
+      return <p key={k} className={cls}>{renderInline(heading[2], `${k}-h`)}{showCaret && <span className="caret" />}</p>;
+    }
+
+    // Tabela GFM: header + separador |---|:--:| + linhas. Claude emite tabela
+    // o tempo todo (comparações, schemas); sem isto vinha como texto cru.
+    if (
+      lines.length >= 2 &&
+      lines[0].includes('|') &&
+      lines[1].includes('-') &&
+      /^[\s|:-]+$/.test(lines[1].trim())
+    ) {
+      const cells = (l: string) => l.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|').map((c) => c.trim());
+      const header = cells(lines[0]);
+      const rows = lines.slice(2).map(cells);
+      return (
+        <div key={k} className="scroll-thin overflow-x-auto">
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr>{header.map((h, hi) => (
+                <th key={hi} className="border border-neutral-800 bg-neutral-900/60 px-2.5 py-1.5 text-left font-semibold text-neutral-200">{renderInline(h, `${k}-th${hi}`)}</th>
+              ))}</tr>
+            </thead>
+            <tbody>
+              {rows.map((r, ri) => (
+                <tr key={ri}>{header.map((_, ci) => (
+                  <td key={ci} className="border border-neutral-800 px-2.5 py-1.5 align-top text-neutral-300">{renderInline(r[ci] ?? '', `${k}-td${ri}-${ci}`)}</td>
+                ))}</tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    if (block.trim().startsWith('>')) {
+      const inner = lines.map((l) => l.replace(/^\s*>\s?/, '')).join('\n');
+      return (
+        <blockquote key={k} className="border-l-2 border-orange-500/40 pl-3 text-neutral-400 [text-wrap:pretty]">
+          {inner.split('\n').map((l, li) => (
+            <React.Fragment key={li}>{renderInline(l, `${k}-q${li}`)}{li < inner.split('\n').length - 1 && <br />}</React.Fragment>
+          ))}
+          {showCaret && <span className="caret" />}
+        </blockquote>
+      );
+    }
+
+    const isOrdered = lines.every((l) => /^\s*\d+\.\s+/.test(l));
+    const isUnordered = lines.every((l) => /^\s*[-*]\s+/.test(l));
+    if ((isOrdered || isUnordered) && lines.length > 0 && lines[0].trim() !== '') {
+      const items = lines.map((l) => ({
+        depth: Math.min(4, Math.floor((/^\s*/.exec(l)![0].length) / 2)),
+        text: l.replace(/^\s*(?:\d+\.|[-*])\s+/, ''),
+      }));
+      const ListTag = isOrdered ? 'ol' : 'ul';
+      return (
+        <ListTag key={k} className={`space-y-1 pl-5 [text-wrap:pretty] ${isOrdered ? 'list-decimal' : 'list-disc'} marker:text-neutral-500`}>
+          {items.map((it, li) => (
+            <li key={li} style={it.depth ? { marginLeft: it.depth * 16 } : undefined}>{renderInline(it.text, `${k}-i${li}`)}</li>
+          ))}
+        </ListTag>
+      );
+    }
+
+    return (
+      <p key={k} className="[text-wrap:pretty]">
+        {lines.map((line, li) => (
+          <React.Fragment key={li}>
+            {renderInline(line, `${k}-${li}`)}
+            {li < lines.length - 1 && <br />}
+          </React.Fragment>
+        ))}
+        {showCaret && <span className="caret" />}
+      </p>
+    );
+  });
+}
+
+export function Markdown({ md, caret = false }: MarkdownProps) {
+  const segs = splitFences(md);
+  let lastProse = -1;
+  for (let i = segs.length - 1; i >= 0; i--) { if (segs[i].t === 'prose') { lastProse = i; break; } }
   return (
     <div className="space-y-3 text-[14px] leading-relaxed text-neutral-300">
-      {blocks.map((block, idx) => {
-        const showCaret = caret && idx === lastIdx;
-        const lines = block.split('\n');
-
-        if (lines.length === 1 && /^(?:-{3,}|\*{3,}|_{3,})$/.test(block.trim())) {
-          return <hr key={idx} className="border-neutral-800" />;
-        }
-
-        const heading = /^(#{1,3})\s+(.*)$/.exec(block.trim());
-        if (heading && lines.length === 1) {
-          const level = heading[1].length;
-          const cls = level === 1 ? 'text-[17px] font-semibold text-neutral-100'
-            : level === 2 ? 'text-[15px] font-semibold text-neutral-100'
-            : 'text-[14px] font-semibold text-neutral-200';
-          return <p key={idx} className={cls}>{renderInline(heading[2], `${idx}-h`)}{showCaret && <span className="caret" />}</p>;
-        }
-
-        // Tabela GFM: header + separador |---|:--:| + linhas. Claude emite tabela
-        // o tempo todo (comparações, schemas); sem isto vinha como texto cru.
-        if (
-          lines.length >= 2 &&
-          lines[0].includes('|') &&
-          lines[1].includes('-') &&
-          /^[\s|:-]+$/.test(lines[1].trim())
-        ) {
-          const cells = (l: string) => l.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|').map((c) => c.trim());
-          const header = cells(lines[0]);
-          const rows = lines.slice(2).map(cells);
-          return (
-            <div key={idx} className="scroll-thin overflow-x-auto">
-              <table className="w-full border-collapse text-[13px]">
-                <thead>
-                  <tr>{header.map((h, hi) => (
-                    <th key={hi} className="border border-neutral-800 bg-neutral-900/60 px-2.5 py-1.5 text-left font-semibold text-neutral-200">{renderInline(h, `${idx}-th${hi}`)}</th>
-                  ))}</tr>
-                </thead>
-                <tbody>
-                  {rows.map((r, ri) => (
-                    <tr key={ri}>{header.map((_, ci) => (
-                      <td key={ci} className="border border-neutral-800 px-2.5 py-1.5 align-top text-neutral-300">{renderInline(r[ci] ?? '', `${idx}-td${ri}-${ci}`)}</td>
-                    ))}</tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          );
-        }
-
-        if (block.trim().startsWith('>')) {
-          const inner = lines.map((l) => l.replace(/^\s*>\s?/, '')).join('\n');
-          return (
-            <blockquote key={idx} className="border-l-2 border-orange-500/40 pl-3 text-neutral-400 [text-wrap:pretty]">
-              {inner.split('\n').map((l, li) => (
-                <React.Fragment key={li}>{renderInline(l, `${idx}-q${li}`)}{li < inner.split('\n').length - 1 && <br />}</React.Fragment>
-              ))}
-              {showCaret && <span className="caret" />}
-            </blockquote>
-          );
-        }
-
-        const isOrdered = lines.every((l) => /^\s*\d+\.\s+/.test(l));
-        const isUnordered = lines.every((l) => /^\s*[-*]\s+/.test(l));
-        if ((isOrdered || isUnordered) && lines.length > 0 && lines[0].trim() !== '') {
-          const items = lines.map((l) => ({
-            depth: Math.min(4, Math.floor((/^\s*/.exec(l)![0].length) / 2)),
-            text: l.replace(/^\s*(?:\d+\.|[-*])\s+/, ''),
-          }));
-          const ListTag = isOrdered ? 'ol' : 'ul';
-          return (
-            <ListTag key={idx} className={`space-y-1 pl-5 [text-wrap:pretty] ${isOrdered ? 'list-decimal' : 'list-disc'} marker:text-neutral-500`}>
-              {items.map((it, li) => (
-                <li key={li} style={it.depth ? { marginLeft: it.depth * 16 } : undefined}>{renderInline(it.text, `${idx}-i${li}`)}</li>
-              ))}
-            </ListTag>
-          );
-        }
-
-        return (
-          <p key={idx} className="[text-wrap:pretty]">
-            {lines.map((line, li) => (
-              <React.Fragment key={li}>
-                {renderInline(line, `${idx}-${li}`)}
-                {li < lines.length - 1 && <br />}
-              </React.Fragment>
-            ))}
-            {showCaret && <span className="caret" />}
-          </p>
-        );
-      })}
+      {segs.map((s, si) =>
+        s.t === 'code'
+          ? <CodeBlock key={`seg${si}`} code={s.code} lang={s.lang || undefined} />
+          : <React.Fragment key={`seg${si}`}>{proseBlocks(s.text, `s${si}`, caret && si === lastProse)}</React.Fragment>
+      )}
     </div>
   );
 }
