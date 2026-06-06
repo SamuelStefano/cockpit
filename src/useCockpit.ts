@@ -627,7 +627,7 @@ export function useCockpit(): Cockpit {
     const keys = Object.keys(threadsRef.current);
     if (keys.length <= THREAD_CAP) return;
     const drop = keys
-      .filter((k) => k !== activeRef.current && !running.has(k) && !k.startsWith('new-'))
+      .filter((k) => k !== activeRef.current && !running.has(k) && !inFlight.current.has(k) && !k.startsWith('new-'))
       .sort((a, b) => (lastActivity.current[a] ?? 0) - (lastActivity.current[b] ?? 0))
       .slice(0, keys.length - THREAD_CAP);
     if (!drop.length) return;
