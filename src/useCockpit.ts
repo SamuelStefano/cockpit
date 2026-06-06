@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Session, Message, Block } from './data/mock';
 import type { ClientMsg, ServerMsg, SessionMeta, ToolCall, SysStats, PermMode, ModelAlias, EffortLevel, ContextMeta, SkillMeta, UsageStats, TurnStats } from '../shared/protocol';
 import { loadPref, savePref } from './lib/persist';
@@ -78,6 +78,7 @@ export interface Cockpit {
   setActiveId: (id: string) => void;
   messages: Message[];
   phase: Phase;
+  running: Set<string>;
   draft: string;
   setDraft: (v: string) => void;
   conn: { ws: ConnState; sse: ConnState };
@@ -227,7 +228,21 @@ export function useCockpit(): Cockpit {
         if (msg.tokens) setUsage((u) => ({ ...u, [msg.sessionId]: msg.tokens! }));
         return;
       }
-      case 'busy': return;
+      case 'busy': {
+        // Snapshot autoritativo do servidor (envia no connect): quais keys têm
+        // run vivo. Reconcilia o phases local — cobre sessões que ESTE cliente
+        // não iniciou (run noturno, outra aba) e limpa keys que já terminaram.
+        const live = new Set(msg.keys);
+        setPhases((p) => {
+          const n = { ...p };
+          for (const k of msg.keys) if (n[k] !== 'streaming') n[k] = 'thinking';
+          for (const k of Object.keys(n)) {
+            if (!live.has(k) && (n[k] === 'thinking' || n[k] === 'streaming')) n[k] = 'idle';
+          }
+          return n;
+        });
+        return;
+      }
       case 'started': {
         if (runMsg.current[msg.sessionKey]) return; // já em voo (reconnect) — não duplica bubble
         const id = newId('a');
@@ -563,6 +578,12 @@ export function useCockpit(): Cockpit {
 
   const messages = threads[activeId] || [];
   const phase = phases[activeId] || 'idle';
+  // Sessões com run vivo (pra dot pulsante no sidebar) — útil em run noturno
+  // multi-sessão: ver de relance quem ainda trabalha sem abrir cada uma.
+  const running = useMemo(
+    () => new Set(Object.keys(phases).filter((k) => phases[k] === 'thinking' || phases[k] === 'streaming')),
+    [phases]
+  );
   const draft = drafts[activeId] || '';
   const contextTokens = usage[activeId] || 0;
   const lastTurn = turnStats[activeId];
@@ -576,5 +597,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
 }
