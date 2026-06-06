@@ -1,0 +1,110 @@
+import { useState, useEffect } from 'react';
+import { Icon, Markdown } from '../primitives';
+import type { ToolCall } from '../../data/mock';
+import { DiffView } from './DiffView';
+import { CopyTextButton } from './MessageActions';
+
+export interface ToolSignal { open: boolean; n: number }
+
+interface ToolCallCardProps {
+  tool: ToolCall;
+  signal?: ToolSignal;
+}
+
+export function ToolCallCard({ tool, signal }: ToolCallCardProps) {
+  const [open, setOpen] = useState(!!tool.expanded);
+  const { status } = tool;
+  const lines = tool.output || [];
+
+  // Toggle global "recolher/expandir ferramentas" (signal.n incrementa a cada clique).
+  useEffect(() => { if (signal && signal.n > 0) setOpen(signal.open); }, [signal]);
+
+  const statusEl = {
+    running: (
+      <span className="flex items-center gap-1.5 text-[11px] font-medium text-neutral-400">
+        <Icon name="rotate" size={12} className="spin text-orange-400" /> running…
+      </span>
+    ),
+    done: (
+      <span className="flex items-center gap-1.5 text-[11px] font-medium text-green-400">
+        <Icon name="check" size={13} /> done {((tool.durationMs ?? 0) / 1000).toFixed(1)}s
+      </span>
+    ),
+    error: (
+      <span className="flex items-center gap-1.5 text-[11px] font-medium text-red-400">
+        <Icon name="x" size={13} /> exit {tool.exit ?? 1}
+      </span>
+    ),
+  }[status];
+
+  const ring = status === 'error' ? 'border-red-500/30' : status === 'running' ? 'border-orange-500/30' : 'border-neutral-800';
+
+  // Bash mostra prompt `$`; ferramentas de arquivo (Read/Edit/…) trazem um path
+  // no campo command — `$` ali confunde, então usam ícone de arquivo.
+  const kind = (tool.name || tool.label || '').toLowerCase();
+  const isShell = kind === 'bash' || kind === 'shell' || kind === 'sh';
+  const headIcon = isShell ? 'terminal'
+    : kind === 'read' ? 'file'
+    : kind === 'edit' || kind === 'write' || kind === 'multiedit' || kind === 'notebookedit' ? 'pencil'
+    : kind === 'grep' || kind === 'glob' || kind === 'websearch' || kind === 'webfetch' ? 'search'
+    : kind === 'task' ? 'sparkles'
+    : kind === 'todowrite' ? 'check'
+    : 'terminal';
+
+  return (
+    <div className={`my-2 overflow-hidden rounded-xl border ${ring} bg-neutral-900/70`}>
+      <div className="flex items-center gap-2.5 px-3 py-2">
+        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${status === 'error' ? 'bg-red-500/15 text-red-400' : 'bg-neutral-800 text-orange-400'}`}>
+          <Icon name={headIcon} size={13} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-[12px] font-medium text-neutral-200">{tool.label}</span>
+            <span className="shrink-0">{statusEl}</span>
+          </div>
+        </div>
+      </div>
+      {tool.command && (
+        <div className="px-3 pb-2">
+          <div className="flex items-center gap-2 rounded-md border border-neutral-800 bg-[#0c0c0c] px-2.5 py-1.5">
+            {isShell
+              ? <span className="select-none font-mono text-[11px] text-orange-500/70">$</span>
+              : <Icon name="file" size={12} className="shrink-0 text-neutral-500" />}
+            <code className="scroll-thin overflow-x-auto whitespace-nowrap font-mono text-[11.5px] text-neutral-300">{tool.command}</code>
+          </div>
+        </div>
+      )}
+      {tool.diff && <DiffView diff={tool.diff} signal={signal} />}
+      {tool.markdown && (
+        <div className="px-3 pb-2">
+          <div className="rounded-md border border-neutral-800 bg-[#0c0c0c] px-3 py-2 text-[13px] leading-relaxed text-neutral-300">
+            <Markdown md={tool.markdown} />
+          </div>
+        </div>
+      )}
+      {lines.length > 0 && (
+        <div className="border-t border-neutral-800">
+          <div className="flex items-center pr-2">
+            <button
+              onClick={() => setOpen(o => !o)}
+              className="flex flex-1 items-center gap-1.5 px-3 py-1.5 text-[11px] text-neutral-500 transition hover:text-neutral-300"
+            >
+              <Icon name="chevronDown" size={13} className="transition-transform duration-200" style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
+              {open ? 'ocultar output' : `mostrar output (${lines.length} linhas)`}
+            </button>
+            {open && <CopyTextButton text={lines.join('\n')} />}
+          </div>
+          <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+            <div className="overflow-hidden">
+            <pre className="scroll-thin max-h-52 overflow-auto border-t border-neutral-800 bg-[#070707] px-3 py-2.5 font-mono text-[11.5px] leading-relaxed text-neutral-400">
+              {lines.map((l, i) => (
+                <div key={i} className={l.startsWith('##') || l.startsWith('?') ? 'text-sky-400/80' : l.startsWith(' M') ? 'text-orange-400/80' : ''}>{l || ' '}</div>
+              ))}
+            </pre>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
