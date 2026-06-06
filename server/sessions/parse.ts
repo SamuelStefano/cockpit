@@ -123,7 +123,7 @@ export async function parseFullSession(
   return { messages, tokens };
 }
 
-function recToMessage(r: Rec): Message | null {
+export function recToMessage(r: Rec): Message | null {
   if (!r.message) return null;
   const content = r.message.content;
   const t = r.timestamp ? Date.parse(r.timestamp) : NaN;
