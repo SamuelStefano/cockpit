@@ -9,7 +9,7 @@ import { CONFIG } from './config';
 
 const UNSAFE = /[^a-zA-Z0-9._-]/g;
 
-function safeSeg(s: string, max: number, fallback: string): string {
+export function safeSeg(s: string, max: number, fallback: string): string {
   const out = basename(s).replace(UNSAFE, '_').replace(/^\.+/, '').slice(0, max);
   return out || fallback;
 }
