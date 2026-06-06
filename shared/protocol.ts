@@ -52,12 +52,14 @@ export interface UserMessage {
   id: string;
   role: 'user';
   text: string;
+  ts?: number; // epoch ms; ausente em sessões antigas sem timestamp no JSONL
 }
 
 export interface AssistantMessage {
   id: string;
   role: 'assistant';
   blocks: Block[];
+  ts?: number; // epoch ms; ausente em sessões antigas sem timestamp no JSONL
 }
 
 export type Message = UserMessage | AssistantMessage;
