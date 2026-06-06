@@ -31,6 +31,15 @@ interface Thread {
 
 const threads = new Map<string, Thread>();
 
+const startedAt = Date.now();
+let lastStatsAt = 0;
+
+// Saúde do processo pro /healthz: se o HTTP responde isto, o event loop não está
+// totalmente travado. activeRuns/lastStatsAt são informativos (supervisor decide).
+export function runStats(): { uptimeMs: number; activeRuns: number; lastStatsAt: number } {
+  return { uptimeMs: Date.now() - startedAt, activeRuns: threads.size, lastStatsAt };
+}
+
 // Mata toda a árvore de runs vivos. Chamado no shutdown do processo: sem isto,
 // um restart (tsx watch, OOM-reap, Ctrl-C) deixa cada `claude -p` detached
 // rodando órfão a noite toda — queimando token/CPU sem socket lendo o stdout,
@@ -134,6 +143,7 @@ function startStatsLoop(wss: WebSocketServer) {
     if (wss.clients.size === 0) return;
     try {
       broadcast({ t: 'stats', stats: await collect() });
+      lastStatsAt = Date.now();
     } catch { /* best-effort */ }
   };
   setInterval(tick, 2000).unref();
