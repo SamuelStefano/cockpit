@@ -198,7 +198,7 @@ interface MarkdownProps {
 // Separa regiões de código cercado (```), que podem conter linhas em branco,
 // ANTES do split por parágrafo. Sem isto, fence com linha vazia se partia em
 // vários blocos e o código vinha como texto cru com os ``` à mostra.
-function splitFences(md: string): Array<{ t: 'code'; lang: string; code: string } | { t: 'prose'; text: string }> {
+export function splitFences(md: string): Array<{ t: 'code'; lang: string; code: string } | { t: 'prose'; text: string }> {
   const lines = md.split('\n');
   const segs: Array<{ t: 'code'; lang: string; code: string } | { t: 'prose'; text: string }> = [];
   let prose: string[] = [];
