@@ -407,16 +407,18 @@ interface MessageRowProps {
   msg: Message;
   caretOnLast: boolean;
   onEditUser?: (text: string) => void;
+  onQuote?: (text: string) => void;
   toolSignal?: ToolSignal;
 }
 
-function MessageRow({ msg, caretOnLast, onEditUser, toolSignal }: MessageRowProps) {
+function MessageRow({ msg, caretOnLast, onEditUser, onQuote, toolSignal }: MessageRowProps) {
   if (msg.role === 'user') {
     return (
       <div className="fade-up group/u flex items-start justify-end gap-2.5">
         <div className="mt-1 flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover/u:opacity-100">
           {msg.ts && <time className="mr-1 text-[10px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
           <CopyTextButton text={msg.text} />
+          {onQuote && <QuoteButton onClick={() => onQuote(msg.text)} />}
           {onEditUser && (
             <button
               onClick={() => onEditUser(msg.text)}
@@ -447,6 +449,7 @@ function MessageRow({ msg, caretOnLast, onEditUser, toolSignal }: MessageRowProp
         {hasText && !caretOnLast && (
           <div className="mt-1 flex items-center gap-2 opacity-0 transition group-hover/msg:opacity-100">
             <CopyMessageButton blocks={msg.blocks} />
+            {onQuote && <QuoteButton onClick={() => onQuote(messageToText(msg.blocks))} withLabel />}
             {msg.ts && <time className="text-[10px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
           </div>
         )}
@@ -470,6 +473,29 @@ function CopyTextButton({ text }: { text: string }) {
       className="flex h-6 w-6 items-center justify-center rounded-md text-neutral-600 transition hover:bg-neutral-800 hover:text-neutral-300"
     >
       <Icon name={copied ? 'check' : 'copy'} size={12} />
+    </button>
+  );
+}
+
+function QuoteButton({ onClick, withLabel }: { onClick: () => void; withLabel?: boolean }) {
+  if (withLabel) {
+    return (
+      <button
+        onClick={onClick}
+        title="Citar esta mensagem no compositor"
+        className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300"
+      >
+        <Icon name="message" size={11} /> citar
+      </button>
+    );
+  }
+  return (
+    <button
+      onClick={onClick}
+      title="Citar esta mensagem no compositor"
+      className="flex h-6 w-6 items-center justify-center rounded-md text-neutral-600 transition hover:bg-neutral-800 hover:text-neutral-300"
+    >
+      <Icon name="message" size={12} />
     </button>
   );
 }
@@ -929,11 +955,12 @@ export interface ChatPanelProps {
   onUpload: (file: File) => void;
   onRemoveAttachment: (path: string) => void;
   onEditUser?: (text: string) => void;
+  onQuote?: (text: string) => void;
   lastEnd?: string;
   focusSignal?: number;
 }
 
-export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, focusSignal = 0 }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, onQuote, focusSignal = 0 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -1031,7 +1058,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-5">
             {messages.map((m, i) => (
-              <MessageRow key={m.id} msg={m} caretOnLast={streaming && i === messages.length - 1 && m.role === 'assistant'} onEditUser={onEditUser} toolSignal={toolSignal} />
+              <MessageRow key={m.id} msg={m} caretOnLast={streaming && i === messages.length - 1 && m.role === 'assistant'} onEditUser={onEditUser} onQuote={onQuote} toolSignal={toolSignal} />
             ))}
             {phase === 'thinking' && <Thinking />}
           </div>

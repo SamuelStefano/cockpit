@@ -306,6 +306,14 @@ export function CockpitApp() {
 
   const editUser = (text: string) => { setDraft(text); setFocusSignal((n) => n + 1); };
 
+  // Citar uma mensagem: vira blockquote no topo do rascunho atual (trunca longos).
+  const quoteMsg = (text: string) => {
+    const clipped = text.length > 280 ? text.slice(0, 280).trimEnd() + '…' : text;
+    const quoted = clipped.split('\n').map((l) => '> ' + l).join('\n');
+    setDraft((draft ? draft.trimEnd() + '\n\n' : '') + quoted + '\n\n');
+    setFocusSignal((n) => n + 1);
+  };
+
   // Custo estimado acumulado por sessão (do observatório) → chip no sidebar.
   const sessionCost = useMemo(() => {
     const m: Record<string, number> = {};
@@ -491,7 +499,7 @@ export function CockpitApp() {
       ) : isMobile ? (
         <MobileLayout
           sessionsProps={{ sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onClose: handleCloseSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, stalled, updated, searchResults, onSearch }}
-          chatProps={{ session: activeSession, messages, phase: viewPhase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew: handleNew, attachments, onUpload, onRemoveAttachment, onEditUser: editUser, focusSignal }}
+          chatProps={{ session: activeSession, messages, phase: viewPhase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew: handleNew, attachments, onUpload, onRemoveAttachment, onEditUser: editUser, onQuote: quoteMsg, focusSignal }}
           termProps={{ terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term }}
           drawer={drawer} setDrawer={setDrawer}
           termSheet={termSheet} setTermSheet={setTermSheet}
@@ -518,7 +526,7 @@ export function CockpitApp() {
               draft={draft} setDraft={setDraft} onSend={handleSend} onPrompt={handleSend} onStop={handleStop}
               mode={mode} setMode={setMode} model={model} setModel={setModel} effort={effort} setEffort={setEffort} budget={budget} setBudget={setBudget} slashCommands={slashCommands} contextTokens={contextTokens} lastTurn={lastTurn} lastEnd={lastEnd} onNew={handleNew}
               attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment}
-              onEditUser={editUser} focusSignal={focusSignal} />
+              onEditUser={editUser} onQuote={quoteMsg} focusSignal={focusSignal} />
           </div>
 
           {rightCollapsed ? (
