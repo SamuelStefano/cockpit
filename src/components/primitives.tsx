@@ -5,7 +5,7 @@ import { download, codeExt } from '../lib/export';
 
 type IconName =
   | 'terminal' | 'plus' | 'search' | 'menu' | 'send' | 'arrowUp'
-  | 'chevronDown' | 'chevronRight' | 'check' | 'x' | 'square' | 'play'
+  | 'chevronDown' | 'chevronRight' | 'chevronLeft' | 'check' | 'x' | 'square' | 'play'
   | 'rotate' | 'message' | 'pencil' | 'zap' | 'trash' | 'sparkles'
   | 'panelRight' | 'circle' | 'user' | 'copy' | 'command' | 'grip' | 'download' | 'paperclip' | 'clock' | 'star';
 
@@ -18,6 +18,7 @@ const ICON_PATHS: Record<IconName, React.ReactNode> = {
   arrowUp: <><line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" /></>,
   chevronDown: <polyline points="6 9 12 15 18 9" />,
   chevronRight: <polyline points="9 6 15 12 9 18" />,
+  chevronLeft: <polyline points="15 6 9 12 15 18" />,
   check: <polyline points="20 6 9 17 4 12" />,
   x: <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>,
   square: <rect x="6" y="6" width="12" height="12" rx="1" />,

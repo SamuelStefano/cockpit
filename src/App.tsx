@@ -207,6 +207,37 @@ function QuotaBanner({ onClose, reset }: QuotaBannerProps) {
   );
 }
 
+// Rail fino que ocupa o lugar de um painel recolhido — clicar reexpande.
+function CollapsedRail({ side, label, icon, onExpand }: {
+  side: 'left' | 'right'; label: string; icon: Parameters<typeof Icon>[0]['name']; onExpand: () => void;
+}) {
+  return (
+    <button
+      onClick={onExpand}
+      title={`Mostrar ${label}`}
+      className={`group flex w-9 shrink-0 flex-col items-center gap-2 bg-neutral-950 py-3 text-neutral-500 transition hover:bg-neutral-900 hover:text-neutral-200 ${side === 'left' ? 'border-r' : 'border-l'} border-neutral-800`}
+    >
+      <Icon name={side === 'left' ? 'chevronRight' : 'chevronLeft'} size={15} />
+      <Icon name={icon} size={14} className="text-neutral-600 group-hover:text-orange-400" />
+      <span className="mt-1 text-[10px] font-medium uppercase tracking-wide text-neutral-600 [writing-mode:vertical-rl]">{label}</span>
+    </button>
+  );
+}
+
+// Botão de recolher ancorado no canto superior-direito (área vazia em ambos os
+// painéis). A seta aponta pra fora — esquerda recolhe à esquerda, direita à direita.
+function CollapseBtn({ side, onClick }: { side: 'left' | 'right'; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title="Recolher painel"
+      className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-md border border-neutral-800 bg-neutral-900/80 text-neutral-500 backdrop-blur transition hover:border-neutral-700 hover:text-neutral-200"
+    >
+      <Icon name={side === 'left' ? 'chevronLeft' : 'chevronRight'} size={14} />
+    </button>
+  );
+}
+
 // --- CockpitApp ------------------------------------------------------------
 
 export function CockpitApp() {
@@ -232,6 +263,8 @@ export function CockpitApp() {
 
   const [leftW, setLeftW] = usePersisted('panel.left', 17);
   const [rightW, setRightW] = usePersisted('panel.right', 37);
+  const [leftCollapsed, setLeftCollapsed] = usePersisted('panel.leftCollapsed', false);
+  const [rightCollapsed, setRightCollapsed] = usePersisted('panel.rightCollapsed', false);
   const [isMobile, setIsMobile] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [termSheet, setTermSheet] = useState(false);
@@ -434,14 +467,21 @@ export function CockpitApp() {
         />
       ) : (
         <div ref={rowRef} className="flex min-h-0 flex-1">
-          <div style={{ width: `${leftW}%` }} className="min-w-0 shrink-0 border-r border-neutral-800">
-            <SessionsPanel sessions={sessions} loading={loading} activeId={activeSessionId}
-              onSelect={setActiveSessionId} onNew={handleNew} onRename={handleRename} onClose={handleCloseSession} onStop={handleStop}
-              archived={archived} onUnhide={handleUnhide} usage={usage} cost={sessionCost} running={running} stalled={stalled} updated={updated} searchResults={searchResults} onSearch={onSearch} />
-          </div>
-          <div className="resizer w-[3px] shrink-0 cursor-col-resize bg-neutral-800" onMouseDown={startDrag('left')} />
+          {leftCollapsed ? (
+            <CollapsedRail side="left" label="Sessões" icon="message" onExpand={() => setLeftCollapsed(false)} />
+          ) : (
+            <>
+              <div style={{ width: `${leftW}%` }} className="relative min-w-0 shrink-0 border-r border-neutral-800">
+                <SessionsPanel sessions={sessions} loading={loading} activeId={activeSessionId}
+                  onSelect={setActiveSessionId} onNew={handleNew} onRename={handleRename} onClose={handleCloseSession} onStop={handleStop}
+                  archived={archived} onUnhide={handleUnhide} usage={usage} cost={sessionCost} running={running} stalled={stalled} updated={updated} searchResults={searchResults} onSearch={onSearch} />
+                <CollapseBtn side="left" onClick={() => setLeftCollapsed(true)} />
+              </div>
+              <div className="resizer w-[3px] shrink-0 cursor-col-resize bg-neutral-800" onMouseDown={startDrag('left')} />
+            </>
+          )}
 
-          <div style={{ width: `${100 - leftW - rightW}%` }} className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1">
             <ChatPanel session={activeSession} messages={messages} phase={viewPhase}
               draft={draft} setDraft={setDraft} onSend={handleSend} onPrompt={handleSend} onStop={handleStop}
               mode={mode} setMode={setMode} model={model} setModel={setModel} effort={effort} setEffort={setEffort} budget={budget} setBudget={setBudget} slashCommands={slashCommands} contextTokens={contextTokens} lastTurn={lastTurn} lastEnd={lastEnd} onNew={handleNew}
@@ -449,11 +489,18 @@ export function CockpitApp() {
               onEditUser={editUser} focusSignal={focusSignal} />
           </div>
 
-          <div className="resizer w-[3px] shrink-0 cursor-col-resize bg-neutral-800" onMouseDown={startDrag('right')} />
-          <div style={{ width: `${rightW}%` }} className="min-w-0 shrink-0 border-l border-neutral-800">
-            <TerminalsPanel terminals={terminals} activeId={activeTermId} onSelect={setActiveTermId}
-              onAdd={handleAddTerm} onClose={handleCloseTerm} term={term} />
-          </div>
+          {rightCollapsed ? (
+            <CollapsedRail side="right" label="Terminais" icon="terminal" onExpand={() => setRightCollapsed(false)} />
+          ) : (
+            <>
+              <div className="resizer w-[3px] shrink-0 cursor-col-resize bg-neutral-800" onMouseDown={startDrag('right')} />
+              <div style={{ width: `${rightW}%` }} className="relative min-w-0 shrink-0 border-l border-neutral-800">
+                <TerminalsPanel terminals={terminals} activeId={activeTermId} onSelect={setActiveTermId}
+                  onAdd={handleAddTerm} onClose={handleCloseTerm} term={term} />
+                <CollapseBtn side="right" onClick={() => setRightCollapsed(true)} />
+              </div>
+            </>
+          )}
         </div>
       )}
 
