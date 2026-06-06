@@ -1,7 +1,7 @@
-import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { Icon } from './Icon';
 import { download, codeExt } from '../../lib/export';
+import { useCopied } from '../../lib/useCopied';
 
 function highlightBash(code: string): ReactNode[] {
   return code.split('\n').map((line, i) => {
@@ -65,11 +65,7 @@ interface CodeBlockProps {
 }
 
 export function CodeBlock({ code, lang }: CodeBlockProps) {
-  const [copied, setCopied] = useState(false);
-  const copy = () => {
-    navigator.clipboard?.writeText(code).catch(() => {});
-    setCopied(true); setTimeout(() => setCopied(false), 1200);
-  };
+  const [copied, copy] = useCopied(1200);
   const save = () => {
     download(`snippet.${codeExt(lang || '')}`, 'text/plain', code);
   };
@@ -84,7 +80,7 @@ export function CodeBlock({ code, lang }: CodeBlockProps) {
           <button onClick={save} title="Baixar trecho" className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300">
             <Icon name="download" size={11} />
           </button>
-          <button onClick={copy} className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300">
+          <button onClick={() => copy(code)} className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300">
             <Icon name={copied ? 'check' : 'copy'} size={11} />
             {copied ? 'copiado' : 'copiar'}
           </button>

@@ -1,19 +1,13 @@
-import { useState } from 'react';
 import { Icon } from '../primitives';
 import type { Block } from '../../data/mock';
 import { messageToText } from '../../lib/export';
+import { useCopied } from '../../lib/useCopied';
 
 export function CopyTextButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = () => {
-    navigator.clipboard?.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    }).catch(() => {});
-  };
+  const [copied, copy] = useCopied();
   return (
     <button
-      onClick={copy}
+      onClick={() => copy(text)}
       title="Copiar mensagem"
       className="flex h-6 w-6 items-center justify-center rounded-md text-neutral-600 transition hover:bg-neutral-800 hover:text-neutral-300"
     >
@@ -46,16 +40,10 @@ export function QuoteButton({ onClick, withLabel }: { onClick: () => void; withL
 }
 
 export function CopyMessageButton({ blocks }: { blocks: Block[] }) {
-  const [copied, setCopied] = useState(false);
-  const copy = () => {
-    navigator.clipboard?.writeText(messageToText(blocks)).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    }).catch(() => {});
-  };
+  const [copied, copy] = useCopied();
   return (
     <button
-      onClick={copy}
+      onClick={() => copy(messageToText(blocks))}
       title="Copiar resposta"
       className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300"
     >
