@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import type { SysStats, TurnStats } from '../../shared/protocol';
 import { relReset } from '../lib/time';
+import { CONTEXT_LIMIT, ctxPct } from '../lib/format';
 import { fmtBytes, meterTone } from './statusBar.format';
-
-const CTX_LIMIT = 200_000;
 
 // Stats do Claude na barra inferior: sempre visível, em todo layout. Reset do
 // limite, % de contexto + tokens, duração do último turno (prompt→prompt).
@@ -28,7 +27,7 @@ function ClaudeStats({ rate, ctxTokens, lastTurn }: {
     ) });
   }
   if (ctxTokens > 0) {
-    const pct = Math.min(100, Math.round((ctxTokens / CTX_LIMIT) * 100));
+    const pct = ctxPct(ctxTokens);
     const tone = pct >= 75 ? 'text-red-400' : pct >= 50 ? 'text-amber-400' : 'text-neutral-300';
     parts.push({ k: 'ctx', node: (
       <span className={`font-mono text-[10.5px] tabular-nums ${tone}`} title={`Contexto: ~${ctxTokens.toLocaleString()} tokens (${pct}%)`}>
