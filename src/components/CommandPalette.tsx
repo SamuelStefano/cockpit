@@ -26,7 +26,7 @@ interface CommandPaletteProps {
   sessions: Session[];
   onSelectSession: (id: string) => void;
   running: Set<string>;
-  onStop: () => void;
+  onStop: (key?: string) => void;
   onFocusComposer: () => void;
 }
 
@@ -52,6 +52,11 @@ export function CommandPalette({ open, onClose, route, nav, onNew, mode, setMode
     ];
     if (running.size) {
       actions.push({ id: 'stop', label: 'Parar resposta atual', icon: 'square', group: 'Ações', run: () => { onStop(); onClose(); } });
+    }
+    if (running.size > 1) {
+      // Kill-switch do run noturno: derruba todos os turnos em voo de uma vez.
+      const keys = [...running];
+      actions.push({ id: 'stop-all', label: `Parar todas as respostas (${keys.length})`, icon: 'square', group: 'Ações', run: () => { for (const k of keys) onStop(k); onClose(); } });
     }
     // Sessões com run em andamento: pulo rápido pra acompanhar. Resolve o título
     // pela lista; chave temporária (new-*) sem título cai num rótulo genérico.
