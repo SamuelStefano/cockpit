@@ -287,10 +287,36 @@ function proseBlocks(md: string, keyBase: string, caret: boolean): React.ReactNo
     const isOrdered = lines.every((l) => /^\s*\d+\.\s+/.test(l));
     const isUnordered = lines.every((l) => /^\s*[-*]\s+/.test(l));
     if ((isOrdered || isUnordered) && lines.length > 0 && lines[0].trim() !== '') {
-      const items = lines.map((l) => ({
-        depth: Math.min(4, Math.floor((/^\s*/.exec(l)![0].length) / 2)),
-        text: l.replace(/^\s*(?:\d+\.|[-*])\s+/, ''),
-      }));
+      const items = lines.map((l) => {
+        const text = l.replace(/^\s*(?:\d+\.|[-*])\s+/, '');
+        const task = /^\[([ xX])\]\s+(.*)$/.exec(text);
+        return {
+          depth: Math.min(4, Math.floor((/^\s*/.exec(l)![0].length) / 2)),
+          text: task ? task[2] : text,
+          done: task ? task[1].toLowerCase() === 'x' : null,
+        };
+      });
+      // Task list GFM (- [ ] / - [x]): Claude emite to-dos o tempo todo; sem
+      // isto vinham com `[ ]`/`[x]` crus. Marcadores viram checkbox visual.
+      const isTask = isUnordered && items.some((it) => it.done !== null);
+      if (isTask) {
+        return (
+          <ul key={k} className="space-y-1 [text-wrap:pretty]">
+            {items.map((it, li) => (
+              <li key={li} className="flex items-start gap-2" style={it.depth ? { marginLeft: it.depth * 16 } : undefined}>
+                {it.done === null ? (
+                  <span className="mt-[3px] inline-block h-3.5 w-3.5 shrink-0" />
+                ) : (
+                  <span className={`mt-[3px] flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[3px] border ${it.done ? 'border-orange-500/50 bg-orange-500/20' : 'border-neutral-700 bg-neutral-900'}`}>
+                    {it.done && <Icon name="check" size={9} className="text-orange-300" />}
+                  </span>
+                )}
+                <span className={it.done ? 'text-neutral-500 line-through' : undefined}>{renderInline(it.text, `${k}-i${li}`)}</span>
+              </li>
+            ))}
+          </ul>
+        );
+      }
       const ListTag = isOrdered ? 'ol' : 'ul';
       return (
         <ListTag key={k} className={`space-y-1 pl-5 [text-wrap:pretty] ${isOrdered ? 'list-decimal' : 'list-disc'} marker:text-neutral-500`}>
