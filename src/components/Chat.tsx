@@ -662,11 +662,12 @@ interface ChatInputProps {
   onQueue: (text: string) => void;
   onCancelQueue: () => void;
   history: string[];
+  pendingConfirm?: () => void;
 }
 
 const MAX_UPLOAD = 15_000_000;
 
-function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, attachments, onUpload, onRemoveAttachment, focusSignal, queued, onQueue, onCancelQueue, history }: ChatInputProps) {
+function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, attachments, onUpload, onRemoveAttachment, focusSignal, queued, onQueue, onCancelQueue, history, pendingConfirm }: ChatInputProps) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const hasAtt = attachments.length > 0;
@@ -738,6 +739,11 @@ function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, m
       if (next >= history.length) { setHistIdx(null); setValue(''); if (taRef.current) taRef.current.style.height = 'auto'; }
       else recall(next);
       return;
+    }
+    // Composição vazia + banner pendente: Enter confirma o banner em vez de ser
+    // um submit no-op. Só quando idle (com run em curso a barra vira stop/queue).
+    if (e.key === 'Enter' && !e.shiftKey && !disabled && !value.trim() && !hasAtt && pendingConfirm) {
+      e.preventDefault(); pendingConfirm(); return;
     }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); setHistIdx(null); submit(); }
   };
@@ -969,6 +975,16 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
       if (m.role === 'user') { onSend(m.text); return; }
     }
   };
+  // Enter na composição vazia confirma o banner visível (aprovar plano / retomar
+  // / reenviar) — a ação que o usuário quase sempre quer ali. Mesma precedência
+  // da renderização: falha > plano > corte de teto.
+  const bannerConfirm = failed
+    ? retryLast
+    : planPending
+      ? () => onSend('Plano aprovado — prossiga com a implementação.', 'acceptEdits')
+      : (phase === 'idle' && lastEnd)
+        ? () => onSend('Continue de onde você parou e termine a tarefa.')
+        : undefined;
 
   return (
     <div className="relative flex h-full flex-col bg-neutral-900">
@@ -1062,7 +1078,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
       <ChatInput disabled={disabled} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
         model={model} setModel={setModel} effort={effort} setEffort={setEffort} budget={budget} setBudget={setBudget} slashCommands={slashCommands}
         attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} focusSignal={focusSignal}
-        queued={queued} onQueue={setQueued} onCancelQueue={() => setQueued('')} history={sentHistory} />
+        queued={queued} onQueue={setQueued} onCancelQueue={() => setQueued('')} history={sentHistory} pendingConfirm={bannerConfirm} />
     </div>
   );
 }
