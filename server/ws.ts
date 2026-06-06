@@ -82,9 +82,15 @@ function broadcast(msg: ServerMsg) {
   }
 }
 
-// Lista de slash-commands aprendida do system/init (global ao CLI+skills, não
-// varia por sessão). Cacheada em memória pra popular o palette de comandos.
-let slashCommands: string[] = [];
+// Comandos slash ACIONÁVEIS no app (interceptados em Chat.tsx, ver #140): o
+// `claude -p` headless não interpreta slash, então estes são tratados client-side.
+// Semeia o palette pra "/" nunca vir vazio (o CLI raramente reporta slash_commands
+// no init headless). Une-se ao que o CLI eventualmente reporta.
+const SEED_SLASH = ['clear', 'new', 'model opus', 'model sonnet', 'model haiku'];
+
+// Lista de slash-commands: seed app-side + aprendida do system/init (global ao
+// CLI+skills). Cacheada em memória pra popular o palette de comandos.
+let slashCommands: string[] = [...SEED_SLASH];
 
 export function attachWs(server: Server) {
   // maxPayload: rejeita frames gigantes no transporte ANTES de o ws alocar/
@@ -318,9 +324,12 @@ function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       const sm = (ev as any).model;
       if (typeof sm === 'string' && sm) thread.model = sm;
       const sc = (ev as any).slash_commands;
-      if (Array.isArray(sc) && sc.length && sc.join() !== slashCommands.join()) {
-        slashCommands = sc;
-        broadcast({ t: 'slash-commands', items: slashCommands });
+      if (Array.isArray(sc) && sc.length) {
+        const merged = [...SEED_SLASH, ...sc.filter((c: string) => !SEED_SLASH.includes(c))];
+        if (merged.join() !== slashCommands.join()) {
+          slashCommands = merged;
+          broadcast({ t: 'slash-commands', items: slashCommands });
+        }
       }
       if (thread.sessionId) broadcast({ t: 'system', sessionKey, sessionId: thread.sessionId });
       return;
