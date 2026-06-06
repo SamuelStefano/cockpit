@@ -244,10 +244,10 @@ function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
     case 'stream_event': {
       const e = (ev as any).event;
       if (e?.type === 'content_block_delta' && e.delta?.type === 'text_delta' && e.delta.text) {
-        thread.text += e.delta.text;
+        thread.text = capTail(thread.text + e.delta.text);
         send(ws, { t: 'delta', sessionKey, text: e.delta.text });
       } else if (e?.type === 'content_block_delta' && e.delta?.type === 'thinking_delta' && e.delta.thinking) {
-        thread.thinking += e.delta.thinking;
+        thread.thinking = capTail(thread.thinking + e.delta.thinking);
         send(ws, { t: 'thinking', sessionKey, text: e.delta.thinking });
       } else if (e?.type === 'content_block_start' && e.content_block?.type === 'tool_use') {
         emitTool(thread, sessionKey, e.content_block, 'running');
@@ -296,6 +296,15 @@ function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       return;
     }
   }
+}
+
+// O snapshot text/thinking só existe pra replay no reconnect (#10) — a verdade
+// completa fica no JSONL. Limita a cauda pra um run de horas com saída enorme
+// não inflar a memória do thread nem o payload de replay. Os deltas ao vivo vão
+// inteiros pro cliente conectado; só o snapshot é truncado.
+const SNAPSHOT_CAP = 512 * 1024;
+function capTail(s: string): string {
+  return s.length > SNAPSHOT_CAP ? s.slice(s.length - SNAPSHOT_CAP) : s;
 }
 
 function capture(thread: Thread, ev: ClaudeEvent) {
