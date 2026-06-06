@@ -284,7 +284,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
 
       <div className="shrink-0 px-2.5 pt-2.5">
         <button
-          onClick={onNew}
+          onClick={() => { onNew(); onCloseMobile?.(); }}
           className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-900 py-2 text-[12.5px] font-medium text-neutral-200 transition hover:border-orange-500/40 hover:bg-orange-500/[0.06] hover:text-orange-300"
         >
           <Icon name="plus" size={15} /> Nova sessão
@@ -304,7 +304,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
               </div>
               <p className="text-[12.5px] font-medium text-neutral-400">Nenhuma sessão ainda</p>
               <p className="mt-1 text-[11.5px] leading-snug text-neutral-600">Crie uma para começar a conversar com o agente.</p>
-              <button onClick={onNew} className="mt-3 flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-[12px] font-semibold text-neutral-950 transition hover:bg-orange-400">
+              <button onClick={() => { onNew(); onCloseMobile?.(); }} className="mt-3 flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-[12px] font-semibold text-neutral-950 transition hover:bg-orange-400">
                 <Icon name="plus" size={14} /> Criar sessão
               </button>
             </div>
