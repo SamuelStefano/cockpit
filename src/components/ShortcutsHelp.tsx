@@ -15,6 +15,7 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
     items: [
       { keys: ['↵'], label: 'Enviar mensagem' },
       { keys: ['⇧', '↵'], label: 'Quebrar linha' },
+      { keys: ['esc'], label: 'Parar o turno (composição vazia)' },
     ],
   },
   {
