@@ -358,11 +358,14 @@ interface ChatInputProps {
   onUpload: (file: File) => void;
   onRemoveAttachment: (path: string) => void;
   focusSignal: number;
+  queued: string;
+  onQueue: (text: string) => void;
+  onCancelQueue: () => void;
 }
 
 const MAX_UPLOAD = 15_000_000;
 
-function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, attachments, onUpload, onRemoveAttachment, focusSignal }: ChatInputProps) {
+function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, attachments, onUpload, onRemoveAttachment, focusSignal, queued, onQueue, onCancelQueue }: ChatInputProps) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const hasAtt = attachments.length > 0;
@@ -377,8 +380,14 @@ function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, a
   }, [focusSignal]);
   const submit = () => {
     const v = value.trim();
-    if ((!v && !hasAtt) || disabled) return;
-    onSend(v); setValue('');
+    // Enquanto ocupado, anexos ficam fora da fila (são por-sessão); só texto.
+    if (disabled) {
+      if (!v) return;
+      onQueue(v); setValue('');
+    } else {
+      if (!v && !hasAtt) return;
+      onSend(v); setValue('');
+    }
     if (taRef.current) taRef.current.style.height = 'auto';
   };
   const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -428,9 +437,23 @@ function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, a
           ))}
         </div>
       )}
+      {queued && (
+        <div className="mb-2 flex items-start gap-2 rounded-lg border border-orange-500/30 bg-orange-500/[0.06] px-2.5 py-1.5">
+          <Icon name="clock" size={12} className="mt-0.5 shrink-0 text-orange-400/80" />
+          <span className="flex-1 text-[11.5px] leading-snug text-neutral-300">
+            <span className="font-medium text-orange-300/90">na fila</span> · {queued}
+          </span>
+          <button
+            onClick={onCancelQueue}
+            title="Cancelar mensagem na fila"
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200"
+          >
+            <Icon name="x" size={12} />
+          </button>
+        </div>
+      )}
       <input ref={fileRef} type="file" multiple onChange={pick} className="hidden" />
-      <div className={`flex items-end gap-2 rounded-xl border bg-neutral-950 px-3 py-2 transition
-        ${disabled ? 'border-neutral-800 opacity-80' : 'border-neutral-700 focus-within:border-orange-500/50 focus-within:ring-2 focus-within:ring-orange-500/15'}`}>
+      <div className="flex items-end gap-2 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 transition focus-within:border-orange-500/50 focus-within:ring-2 focus-within:ring-orange-500/15">
         <button
           onClick={() => fileRef.current?.click()}
           disabled={disabled}
@@ -442,12 +465,11 @@ function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, a
         <textarea
           ref={taRef}
           rows={1}
-          disabled={disabled}
           value={value}
           onChange={grow}
           onKeyDown={onKey}
-          placeholder={disabled ? 'Aguarde a resposta…' : 'Pergunte ou peça um comando…  (↵ envia, ⇧↵ quebra linha)'}
-          className="scroll-thin max-h-[140px] w-full resize-none bg-transparent py-1 text-[14px] leading-relaxed text-neutral-100 placeholder-neutral-600 outline-none disabled:cursor-not-allowed disabled:text-neutral-500"
+          placeholder={disabled ? 'Próxima mensagem (envia ao terminar)…' : 'Pergunte ou peça um comando…  (↵ envia, ⇧↵ quebra linha)'}
+          className="scroll-thin max-h-[140px] w-full resize-none bg-transparent py-1 text-[14px] leading-relaxed text-neutral-100 placeholder-neutral-600 outline-none"
         />
         {disabled ? (
           <button
@@ -502,8 +524,18 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
+  const [queued, setQueued] = useState('');
   const streaming = phase === 'streaming';
   const disabled = phase !== 'idle';
+
+  // Fila stop-aware: mensagem digitada durante o turno dispara sozinha no idle.
+  useEffect(() => {
+    if (phase === 'idle' && queued) {
+      const text = queued;
+      setQueued('');
+      onSend(text);
+    }
+  }, [phase, queued, onSend]);
 
   const onScroll = () => {
     const el = scrollRef.current;
@@ -559,7 +591,8 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
       )}
 
       <ChatInput disabled={disabled} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
-        attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} focusSignal={focusSignal} />
+        attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} focusSignal={focusSignal}
+        queued={queued} onQueue={setQueued} onCancelQueue={() => setQueued('')} />
     </div>
   );
 }
