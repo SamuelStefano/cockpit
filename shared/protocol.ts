@@ -18,6 +18,7 @@ export interface ToolCall {
   exit?: number;
   expanded?: boolean;
   diff?: ToolDiff; // Edit/Write: antes/depois p/ render de diff colorido
+  markdown?: string; // corpo rico (ex: plano do ExitPlanMode) renderizado como md
   output: string[];
 }
 

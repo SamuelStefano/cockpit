@@ -116,6 +116,7 @@ function recToMessage(r: Rec): Message | null {
           command: extractCommand(c.input),
           status: 'done',
           diff: diffOf(c.name, c.input),
+          markdown: planOf(c.name, c.input),
           output: [],
         };
         blocks.push({ type: 'tool', tool });
@@ -150,4 +151,12 @@ export function diffOf(name: unknown, input: unknown): ToolDiff | undefined {
     return { path, old: '', new: o.content };
   }
   return undefined;
+}
+
+// ExitPlanMode carrega o plano (markdown) no input.plan — extrai pra render rico
+// no card da ferramenta (o plano fica invisível sem isso; squad plan-mode).
+export function planOf(name: unknown, input: unknown): string | undefined {
+  if (name !== 'ExitPlanMode' || !input || typeof input !== 'object') return undefined;
+  const plan = (input as Record<string, unknown>).plan;
+  return typeof plan === 'string' && plan.trim() ? plan : undefined;
 }

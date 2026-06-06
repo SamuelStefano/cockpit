@@ -305,13 +305,22 @@ function ToolCallCard({ tool, signal }: ToolCallCardProps) {
           </div>
         </div>
       </div>
-      <div className="px-3 pb-2">
-        <div className="flex items-center gap-2 rounded-md border border-neutral-800 bg-[#0c0c0c] px-2.5 py-1.5">
-          <span className="select-none font-mono text-[11px] text-orange-500/70">$</span>
-          <code className="scroll-thin overflow-x-auto whitespace-nowrap font-mono text-[11.5px] text-neutral-300">{tool.command}</code>
+      {tool.command && (
+        <div className="px-3 pb-2">
+          <div className="flex items-center gap-2 rounded-md border border-neutral-800 bg-[#0c0c0c] px-2.5 py-1.5">
+            <span className="select-none font-mono text-[11px] text-orange-500/70">$</span>
+            <code className="scroll-thin overflow-x-auto whitespace-nowrap font-mono text-[11.5px] text-neutral-300">{tool.command}</code>
+          </div>
         </div>
-      </div>
+      )}
       {tool.diff && <DiffView diff={tool.diff} />}
+      {tool.markdown && (
+        <div className="px-3 pb-2">
+          <div className="rounded-md border border-neutral-800 bg-[#0c0c0c] px-3 py-2 text-[13px] leading-relaxed text-neutral-300">
+            <Markdown md={tool.markdown} />
+          </div>
+        </div>
+      )}
       {lines.length > 0 && (
         <div className="border-t border-neutral-800">
           <button
