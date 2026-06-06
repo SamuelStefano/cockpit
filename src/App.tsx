@@ -276,7 +276,7 @@ export function CockpitApp() {
       ) : isMobile ? (
         <MobileLayout
           sessionsProps={{ sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onClose: handleCloseSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, stalled, updated, searchResults, onSearch }}
-          chatProps={{ session: activeSession, messages, phase: viewPhase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew: handleNew, attachments, onUpload, onRemoveAttachment, onEditUser: editUser, onQuote: quoteMsg, focusSignal }}
+          chatProps={{ session: activeSession, messages, phase: viewPhase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew: handleNew, attachments, onUpload, onRemoveAttachment, onEditUser: editUser, onQuote: quoteMsg, onShowHelp: () => setHelp(true), focusSignal }}
           termProps={{ terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term }}
           drawer={drawer} setDrawer={setDrawer}
           termSheet={termSheet} setTermSheet={setTermSheet}
@@ -303,7 +303,7 @@ export function CockpitApp() {
               draft={draft} setDraft={setDraft} onSend={handleSend} onPrompt={handleSend} onStop={handleStop}
               mode={mode} setMode={setMode} model={model} setModel={setModel} effort={effort} setEffort={setEffort} budget={budget} setBudget={setBudget} slashCommands={slashCommands} contextTokens={contextTokens} lastTurn={lastTurn} lastEnd={lastEnd} onNew={handleNew}
               attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment}
-              onEditUser={editUser} onQuote={quoteMsg} onOpenFull={onOpenFull} focusSignal={focusSignal} />
+              onEditUser={editUser} onQuote={quoteMsg} onOpenFull={onOpenFull} onShowHelp={() => setHelp(true)} focusSignal={focusSignal} />
           </div>
 
           {rightCollapsed ? (

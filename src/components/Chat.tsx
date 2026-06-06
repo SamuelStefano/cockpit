@@ -40,11 +40,12 @@ export interface ChatPanelProps {
   onEditUser?: (text: string) => void;
   onQuote?: (text: string) => void;
   onOpenFull?: (id: string) => void;
+  onShowHelp?: () => void;
   lastEnd?: string;
   focusSignal?: number;
 }
 
-export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, onQuote, onOpenFull, focusSignal = 0 }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, onQuote, onOpenFull, onShowHelp, focusSignal = 0 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -216,7 +217,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
       <ChatInput disabled={disabled} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
         model={model} setModel={setModel} effort={effort} setEffort={setEffort} budget={budget} setBudget={setBudget} slashCommands={slashCommands}
         attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} focusSignal={focusSignal}
-        queued={queued} onQueue={setQueued} onCancelQueue={() => setQueued('')} history={sentHistory} pendingConfirm={bannerConfirm} onNew={onNew} />
+        queued={queued} onQueue={setQueued} onCancelQueue={() => setQueued('')} history={sentHistory} pendingConfirm={bannerConfirm} onNew={onNew} onShowHelp={onShowHelp} />
     </div>
   );
 }
