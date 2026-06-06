@@ -78,17 +78,35 @@ interface SessionRowProps {
   stalled?: boolean;
   updated?: boolean;
   pinned?: boolean;
+  tags?: string[];
   onTogglePin?: (id: string) => void;
+  onAddTag?: (id: string, tag: string) => void;
+  onRemoveTag?: (id: string, tag: string) => void;
+  onFilterTag?: (tag: string) => void;
   onSelect: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onClose: (id: string) => void;
   onStop?: (id: string) => void;
 }
 
-function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated, pinned, onTogglePin, onSelect, onRename, onClose, onStop }: SessionRowProps) {
+function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated, pinned, tags = [], onTogglePin, onAddTag, onRemoveTag, onFilterTag, onSelect, onRename, onClose, onStop }: SessionRowProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(s.title);
+  const [tagging, setTagging] = useState(false);
+  const [tagDraft, setTagDraft] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const tagRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (tagging && tagRef.current) tagRef.current.focus();
+  }, [tagging]);
+
+  const commitTag = () => {
+    const v = tagDraft.trim().toLowerCase().replace(/\s+/g, '-').slice(0, 24);
+    if (v && onAddTag) onAddTag(s.id, v);
+    setTagDraft('');
+    setTagging(false);
+  };
 
   useEffect(() => {
     if (editing && inputRef.current) {
@@ -164,6 +182,15 @@ function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated
                 <Icon name="square" size={12} />
               </button>
             )}
+            {onAddTag && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setTagging((t) => !t); }}
+                title="Adicionar etiqueta"
+                className="block rounded p-0.5 text-neutral-500 transition hover:bg-neutral-800 hover:text-sky-300 sm:hidden sm:group-hover:block"
+              >
+                <Icon name="tag" size={12} />
+              </button>
+            )}
             {onTogglePin && (
               <button
                 onClick={(e) => { e.stopPropagation(); onTogglePin(s.id); }}
@@ -199,6 +226,35 @@ function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated
       {s.hasTerminal && !editing && (
         <div className="mt-1.5">
           <Badge tone="green" dot>terminal ativo</Badge>
+        </div>
+      )}
+      {!editing && (tags.length > 0 || tagging) && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-1">
+          {tags.map((t) => (
+            <span key={t} className="group/tag inline-flex items-center gap-0.5 rounded-full border border-sky-500/30 bg-sky-500/[0.08] px-1.5 py-px text-[9.5px] font-medium text-sky-300/90">
+              <button onClick={(e) => { e.stopPropagation(); onFilterTag?.(t); }} title={`Filtrar por "${t}"`} className="hover:text-sky-200">#{t}</button>
+              {onRemoveTag && (
+                <button onClick={(e) => { e.stopPropagation(); onRemoveTag(s.id, t); }} title="Remover etiqueta" className="text-sky-400/50 hover:text-red-400">
+                  <Icon name="x" size={9} />
+                </button>
+              )}
+            </span>
+          ))}
+          {tagging && (
+            <input
+              ref={tagRef}
+              value={tagDraft}
+              onChange={(e) => setTagDraft(e.target.value)}
+              onBlur={commitTag}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitTag();
+                if (e.key === 'Escape') { setTagDraft(''); setTagging(false); }
+              }}
+              onClick={(e) => e.stopPropagation()}
+              placeholder="etiqueta…"
+              className="w-20 rounded-full border border-sky-500/40 bg-neutral-950 px-1.5 py-px text-[9.5px] text-sky-200 outline-none placeholder-neutral-600"
+            />
+          )}
         </div>
       )}
     </div>
@@ -306,6 +362,31 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
   const togglePin = useCallback((id: string) => {
     setPins((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }, [setPins]);
+
+  // Etiquetas por sessão (só FE, via localStorage). Permite organizar/filtrar além
+  // da recência — o "tags" pedido junto do grupo "trabalhando agora" (#144).
+  const [tagMap, setTagMap] = usePersisted<Record<string, string[]>>('tags', {});
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const addTag = useCallback((id: string, tag: string) => {
+    setTagMap((prev) => {
+      const cur = prev[id] || [];
+      if (cur.includes(tag)) return prev;
+      return { ...prev, [id]: [...cur, tag] };
+    });
+  }, [setTagMap]);
+  const removeTag = useCallback((id: string, tag: string) => {
+    setTagMap((prev) => {
+      const cur = (prev[id] || []).filter((t) => t !== tag);
+      const next = { ...prev };
+      if (cur.length) next[id] = cur; else delete next[id];
+      return next;
+    });
+  }, [setTagMap]);
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const arr of Object.values(tagMap)) for (const t of arr) set.add(t);
+    return [...set].sort();
+  }, [tagMap]);
   const searchRef = useRef<HTMLInputElement>(null);
 
   // ⌘/ foca a busca de sessões (⌘K virou o command palette). Esc limpa+desfoca.
@@ -333,23 +414,25 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const base = q
+    let base = q
       ? (() => {
           const local = sessions.filter(s => (s.title + ' ' + s.snippet).toLowerCase().includes(q));
           const seen = new Set(local.map(s => s.id));
           return [...local, ...searchResults.filter(s => !seen.has(s.id))]; // hits só-por-conteúdo
         })()
       : sessions;
+    if (tagFilter) base = base.filter(s => (tagMap[s.id] || []).includes(tagFilter));
     // Fixadas sobem ao topo preservando a ordem original entre si.
     if (pinned.size === 0) return base;
     const top = base.filter(s => pinned.has(s.id));
     const rest = base.filter(s => !pinned.has(s.id));
     return [...top, ...rest];
-  }, [sessions, query, searchResults, pinned]);
+  }, [sessions, query, searchResults, pinned, tagFilter, tagMap]);
 
   const renderRow = (s: Session) => (
     <SessionRow key={s.id} s={s} active={s.id === activeId} highlight={query} ctx={usage[s.id]} cost={cost[s.id]}
       running={running?.has(s.id)} stalled={stalled?.has(s.id)} updated={updated?.has(s.id)} pinned={pinned.has(s.id)} onTogglePin={togglePin}
+      tags={tagMap[s.id]} onAddTag={addTag} onRemoveTag={removeTag} onFilterTag={setTagFilter}
       onSelect={(id) => { onSelect(id); onCloseMobile && onCloseMobile(); }}
       onRename={onRename} onClose={setConfirmId} onStop={onStop} />
   );
@@ -387,6 +470,34 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
         </button>
       </div>
 
+      {allTags.length > 0 && (
+        <div className="scroll-thin shrink-0 overflow-x-auto px-2.5 pt-2">
+          <div className="flex items-center gap-1">
+            {tagFilter && (
+              <button
+                onClick={() => setTagFilter(null)}
+                title="Limpar filtro de etiqueta"
+                className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-neutral-700 px-1.5 py-0.5 text-[9.5px] font-medium text-neutral-400 transition hover:text-neutral-200"
+              >
+                <Icon name="x" size={9} /> limpar
+              </button>
+            )}
+            {allTags.map((t) => (
+              <button
+                key={t}
+                onClick={() => setTagFilter((cur) => (cur === t ? null : t))}
+                className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9.5px] font-medium transition
+                  ${tagFilter === t
+                    ? 'border-sky-500/60 bg-sky-500/20 text-sky-200'
+                    : 'border-sky-500/25 bg-sky-500/[0.06] text-sky-300/80 hover:border-sky-500/50 hover:text-sky-200'}`}
+              >
+                #{t}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="scroll-thin mt-2.5 flex-1 space-y-1 overflow-y-auto px-2.5 pb-3">
         {loading ? (
           <div className="space-y-1.5">
@@ -403,6 +514,10 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
               <button onClick={() => { onNew(); onCloseMobile?.(); }} className="mt-3 flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-[12px] font-semibold text-neutral-950 transition hover:bg-orange-400">
                 <Icon name="plus" size={14} /> Criar sessão
               </button>
+            </div>
+          ) : tagFilter && !query ? (
+            <div className="mt-8 text-center text-[12px] text-neutral-600">
+              Nenhuma sessão com <span className="text-sky-300/80">#{tagFilter}</span>
             </div>
           ) : (
             <div className="mt-8 text-center text-[12px] text-neutral-600">
