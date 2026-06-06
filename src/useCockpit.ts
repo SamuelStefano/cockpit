@@ -10,7 +10,12 @@ export interface Attachment { name: string; path: string }
 import type { ConnState } from './components/primitives';
 import type { Phase } from './components/Chat';
 
-const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
+// Default: mesma origin (proxy do vite/reverse-proxy resolve o /ws → :7777). Um
+// deploy do front separado do back (ex: Vercel servindo a SPA, backend atrás de
+// Tailscale serve) seta VITE_WS_URL pra apontar pro host real do backend. Sem
+// isso a SPA tenta wss://<host-do-front>/ws e não acha ninguém atendendo.
+const ENV_WS = (import.meta.env.VITE_WS_URL ?? '').trim();
+const WS_URL = ENV_WS || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
 
 let _mid = 0;
 const newId = (p: string) => `${p}${Date.now().toString(36)}${(_mid++).toString(36)}`;
