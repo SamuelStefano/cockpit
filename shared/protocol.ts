@@ -140,10 +140,18 @@ export interface SysStats {
 
 // Health read-only do painel admin (DR-007). Só existência/contagem — nunca
 // segredo. Auth-gate fica p/ depois; hoje protegido só por loopback.
+export interface McpInfo { name: string; transport: string }
+export interface CliInfo { name: string; present: boolean }
+
 export interface AdminHealth {
   claudeAuth: boolean;         // ~/.claude/.credentials.json existe?
   mcpServers: string[];        // nomes dos MCP configurados (chaves, sem segredo)
+  mcp: McpInfo[];              // MCP com transporte (stdio/sse/http), sem segredo
   sshKeys: number;             // chaves privadas em ~/.ssh
+  sshHosts: string[];          // aliases Host do ~/.ssh/config (sem chave/host real)
+  clis: CliInfo[];             // CLIs no PATH (git/gh/docker/tmux/…)
+  envTokens: string[];         // NOMES de env que parecem token/segredo (nunca valor)
+  tmuxSessions: string[];      // sessões tmux ativas
   sessions: number;            // JSONL no projectsDir
   memories: number;            // .md no memoryDir
   skills: number;              // dirs em skillsDir
