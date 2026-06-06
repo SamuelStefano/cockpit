@@ -1,5 +1,6 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Icon, Markdown } from './primitives';
+import { useCopied } from '../lib/useCopied';
 
 // Visualizador de documento (contexto/skill). No desktop é um diálogo central;
 // no mobile vira bottom-sheet (sobe de baixo, largura cheia, alça de arraste e
@@ -61,12 +62,6 @@ export function DocAction({ label, icon, onClick }: { label: string; icon: 'copy
 
 // Botão "copiar" com feedback de estado, usado pelos dois viewers.
 export function CopyDocAction({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = () => {
-    navigator.clipboard?.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    }).catch(() => {});
-  };
-  return <DocAction label={copied ? 'copiado!' : 'copiar'} icon={copied ? 'check' : 'copy'} onClick={copy} />;
+  const [copied, copy] = useCopied();
+  return <DocAction label={copied ? 'copiado!' : 'copiar'} icon={copied ? 'check' : 'copy'} onClick={() => copy(text)} />;
 }
