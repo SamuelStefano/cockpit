@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { attachWs } from './ws';
 import { makeStatic } from './static';
+import { sweepAttachments } from './attachments';
 import { CONFIG } from './config';
 
 const distDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
@@ -22,6 +23,11 @@ async function main() {
   });
 
   attachWs(server);
+
+  // Limpeza de anexos velhos: na subida + a cada 6h (daily driver fica de pé).
+  const sweep = () => { sweepAttachments().catch(() => {}); };
+  sweep();
+  setInterval(sweep, 6 * 60 * 60 * 1000).unref();
 
   server.listen(CONFIG.port, CONFIG.host, () => {
     console.log(`cockpit em http://${CONFIG.host}:${CONFIG.port} (ws /ws, permission=${CONFIG.permissionMode})`);
