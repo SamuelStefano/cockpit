@@ -11,6 +11,7 @@ export interface Stats {
   gpu: { util: number; memUsed: number; memTotal: number } | null; // % / bytes
   disk: { used: number; total: number };       // bytes (filesystem do HOME)
   load: number;                // load average 1min
+  saturated?: { cpu: boolean; mem: boolean; seconds: number }; // watchdog (#103), preenchido no loop de ws
 }
 
 let prevCpu: { total: number; idle: number } | null = null;

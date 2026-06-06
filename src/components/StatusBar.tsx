@@ -143,6 +143,15 @@ export function StatusBar({ stats, rate = null, ctxTokens = 0, lastTurn }: Statu
         </>
       )}
       {claude}
+      {stats.saturated && (
+        <span
+          title={`VPS sob carga alta há ${stats.saturated.seconds}s (${[stats.saturated.cpu && 'CPU', stats.saturated.mem && 'RAM'].filter(Boolean).join(' + ')} acima de 92%). Considere parar runs pesados.`}
+          className="flex shrink-0 items-center gap-1 rounded bg-red-500/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-red-300"
+        >
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
+          carga alta {stats.saturated.seconds}s
+        </span>
+      )}
       <span className="ml-auto shrink-0 font-mono text-[10px] text-neutral-600">load {stats.load.toFixed(2)}</span>
     </footer>
   );
