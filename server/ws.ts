@@ -31,6 +31,17 @@ interface Thread {
 
 const threads = new Map<string, Thread>();
 
+// Mata toda a árvore de runs vivos. Chamado no shutdown do processo: sem isto,
+// um restart (tsx watch, OOM-reap, Ctrl-C) deixa cada `claude -p` detached
+// rodando órfão a noite toda — queimando token/CPU sem socket lendo o stdout,
+// e o run some pro cliente (threads é só memória). kill() já escala SIGTERM→
+// SIGKILL no grupo (detached), então isto encerra a árvore inteira.
+export function killAllRuns(): void {
+  for (const t of threads.values()) {
+    try { t.handle.kill(); } catch { /* já morto */ }
+  }
+}
+
 // Fan-out: frames de um run vão pra TODOS os clientes abertos, não pra um socket
 // fixo. Sem isto, uma 2ª aba (ou um reconnect que cria o socket novo antes do
 // 'close' do antigo) rouba o stream e congela a aba anterior no meio do turno.
