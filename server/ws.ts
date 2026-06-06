@@ -86,7 +86,12 @@ function broadcast(msg: ServerMsg) {
 // `claude -p` headless não interpreta slash, então estes são tratados client-side.
 // Semeia o palette pra "/" nunca vir vazio (o CLI raramente reporta slash_commands
 // no init headless). Une-se ao que o CLI eventualmente reporta.
-const SEED_SLASH = ['clear', 'new', 'model opus', 'model sonnet', 'model haiku'];
+const SEED_SLASH = [
+  'clear', 'new',
+  'model opus', 'model sonnet', 'model haiku',
+  'plan', 'auto', 'execute',
+  'effort low', 'effort medium', 'effort high', 'effort xhigh', 'effort max',
+];
 
 // Lista de slash-commands: seed app-side + aprendida do system/init (global ao
 // CLI+skills). Cacheada em memória pra popular o palette de comandos.
