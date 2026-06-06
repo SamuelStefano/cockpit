@@ -16,8 +16,13 @@ export const CONFIG = {
   // Skills do agente (cada dir tem um SKILL.md) — surfaceadas READ-ONLY na rota Skills.
   skillsDir: join(homedir(), '.claude', 'skills'),
 
-  // cwd isolado pro spawn do claude (DR-004 #4).
-  workdir: process.env.COCKPIT_WORKDIR ?? join(homedir(), 'cockpit-workdir'),
+  // cwd do spawn do claude. DEVE casar com o slug de projectsDir pra o --resume
+  // achar o JSONL: o CLI deriva o dir do projeto do cwd (/home/samuel ->
+  // -home-samuel), e listamos/lemos de -home-samuel. Apontar pro workdir isolado
+  // (DR-004 #4) quebrava TODO resume ("No conversation found"): superseded por
+  // DR-006. cwd nunca foi sandbox real (caminho absoluto fura); contenção real =
+  // allow-list do modo (auto sem Bash) + loopback + user não-sudo da Fase 0.
+  workdir: process.env.COCKPIT_WORKDIR ?? homedir(),
 
   // SQLite local (loopback, sem segredo): time-series de uso/tokens p/ o
   // observatório. Mesmo dir do store.json. Override por env.
