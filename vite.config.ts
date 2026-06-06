@@ -12,4 +12,17 @@ export default defineConfig({
       '/ws': { target: 'ws://127.0.0.1:7777', ws: true },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Separa libs pesadas e estáveis em chunks próprios: o bundle do app
+        // (que muda a cada deploy) deixa de invalidar o cache do vendor, e some
+        // o aviso de chunk > 500KB. xterm só importa no painel de terminal.
+        manualChunks: {
+          react: ['react', 'react-dom'],
+          xterm: ['@xterm/xterm', '@xterm/addon-fit'],
+        },
+      },
+    },
+  },
 });
