@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ctxTokens, diffOf, planOf, extractCommand, recToMessage } from './parse';
+import { ctxTokens, diffOf, planOf, extractCommand, recToMessage, activeChain, type Rec } from './parse';
 
 describe('ctxTokens', () => {
   it('returns 0 for undefined', () => {
@@ -114,5 +114,34 @@ describe('recToMessage', () => {
   it('leaves ts undefined for an unparseable timestamp', () => {
     const m = recToMessage({ uuid: 'u4', timestamp: 'not-a-date', message: { role: 'user', content: 'x' } } as any);
     expect(m?.ts).toBeUndefined();
+  });
+});
+
+describe('activeChain', () => {
+  const mk = (uuid: string, parent: string | null, type = 'user'): Rec => ({ type, uuid, parentUuid: parent });
+  const index = (recs: Rec[]) => new Map(recs.map((r) => [r.uuid!, r]));
+
+  it('walks parentUuid root→leaf order from a valid leaf', () => {
+    const recs = [mk('a', null), mk('b', 'a'), mk('c', 'b')];
+    const chain = activeChain(index(recs), 'c', 'c');
+    expect(chain.map((r) => r.uuid)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('falls back to last message when the leaf is missing locally', () => {
+    const recs = [mk('a', null), mk('b', 'a')];
+    const chain = activeChain(index(recs), 'ghost-leaf', 'b');
+    expect(chain.map((r) => r.uuid)).toEqual(['a', 'b']);
+  });
+
+  it('walks through intermediate non-message records but excludes them', () => {
+    const recs = [mk('a', null), { type: 'system', uuid: 's', parentUuid: 'a' } as Rec, mk('b', 's')];
+    const chain = activeChain(index(recs), 'b', 'b');
+    expect(chain.map((r) => r.uuid)).toEqual(['a', 'b']);
+  });
+
+  it('guards against parentUuid cycles', () => {
+    const recs = [mk('a', 'b'), mk('b', 'a')];
+    const chain = activeChain(index(recs), 'a', 'a');
+    expect(chain.length).toBe(2);
   });
 });
