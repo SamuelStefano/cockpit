@@ -104,6 +104,17 @@ export function checkpointWal(): void {
   try { open().pragma('wal_checkpoint(TRUNCATE)'); } catch { /* lock/disco — ignora */ }
 }
 
+// Retenção: descarta amostras de uso mais velhas que RETAIN_DAYS. O daily driver
+// fica de pé por semanas e o loop de stats insere ~1 linha/5s por run; sem poda a
+// tabela cresce indefinidamente. O trend do /uso só olha os últimos ~30 dias.
+const RETAIN_DAYS = 90;
+export function sweepUsage(): void {
+  try {
+    const cutoff = Date.now() - RETAIN_DAYS * 24 * 60 * 60 * 1000;
+    open().prepare('DELETE FROM usage_sample WHERE ts < ?').run(cutoff);
+  } catch { /* lock/disco — ignora, tenta no próximo sweep */ }
+}
+
 export function usageStats(): UsageStats {
   try {
     return computeStats();
