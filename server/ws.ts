@@ -22,8 +22,7 @@ interface Thread {
   durationMs?: number;
   numTurns?: number;
   endReason?: string;   // result.subtype: success | error_max_budget | error_max_turns | ...
-  // Alvo atual do stream + snapshot acumulado p/ replay no reconnect (#10).
-  ws: WebSocket;
+  // Snapshot acumulado p/ replay no reconnect (#10). Os frames vão por broadcast.
   text: string;
   thinking: string;
   tools: ToolCall[];
@@ -32,20 +31,32 @@ interface Thread {
 
 const threads = new Map<string, Thread>();
 
+// Fan-out: frames de um run vão pra TODOS os clientes abertos, não pra um socket
+// fixo. Sem isto, uma 2ª aba (ou um reconnect que cria o socket novo antes do
+// 'close' do antigo) rouba o stream e congela a aba anterior no meio do turno.
+// O cliente já deduplica por sessionKey/runMsg, então cada aba renderiza uma vez.
+let wssRef: WebSocketServer | null = null;
+function broadcast(msg: ServerMsg) {
+  if (!wssRef) return;
+  const payload = JSON.stringify(msg);
+  for (const c of wssRef.clients) if (c.readyState === c.OPEN) c.send(payload);
+}
+
 // Lista de slash-commands aprendida do system/init (global ao CLI+skills, não
 // varia por sessão). Cacheada em memória pra popular o palette de comandos.
 let slashCommands: string[] = [];
 
 export function attachWs(server: Server) {
   const wss = new WebSocketServer({ server, path: '/ws' });
+  wssRef = wss;
 
   wss.on('connection', (ws) => {
     send(ws, { t: 'busy', keys: [...threads.keys()] });
     if (slashCommands.length) send(ws, { t: 'slash-commands', items: slashCommands });
-    // Reconnect mid-run (#10): re-aponta o stream pra ESTE socket e replaya o
-    // snapshot acumulado, pra a UI reconstruir o turno em voo sem duplicar.
+    // Reconnect mid-run (#10): replaya o snapshot acumulado SÓ pra ESTE socket,
+    // pra a UI reconstruir o turno em voo. Os deltas seguintes chegam via
+    // broadcast (não roubamos mais o stream das outras abas).
     for (const [key, thread] of threads) {
-      thread.ws = ws;
       send(ws, { t: 'replay', sessionKey: key, text: thread.text, thinking: thread.thinking, tools: thread.tools });
     }
     collect().then((stats) => send(ws, { t: 'stats', stats })).catch(() => {});
@@ -197,9 +208,9 @@ function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: 
   }
   if (threads.has(sessionKey)) threads.get(sessionKey)!.handle.kill();
 
-  const thread: Thread = { handle: { kill: () => {} }, sessionId: resumeId, ws, text: '', thinking: '', tools: [], toolStart: new Map() };
+  const thread: Thread = { handle: { kill: () => {} }, sessionId: resumeId, text: '', thinking: '', tools: [], toolStart: new Map() };
   threads.set(sessionKey, thread);
-  send(thread.ws, { t: 'started', sessionKey });
+  broadcast({ t: 'started', sessionKey });
 
   thread.handle = run({
     prompt,
@@ -209,13 +220,13 @@ function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: 
     effort,
     maxBudgetUsd,
     onEvent: (ev) => translate(sessionKey, thread, ev),
-    onError: (message) => send(thread.ws, { t: 'error', sessionKey, message }),
+    onError: (message) => broadcast({ t: 'error', sessionKey, message }),
     onClose: () => {
       // Se este thread já foi substituído por um run mais novo na mesma key
       // (re-send que matou o anterior), o onClose do antigo NÃO deve mandar um
       // 'done' prematuro nem apagar a entrada do novo run.
       if (threads.get(sessionKey) !== thread) return;
-      send(thread.ws, { t: 'done', sessionKey, sessionId: thread.sessionId ?? '', costUsd: thread.costUsd, durationMs: thread.durationMs, numTurns: thread.numTurns, endReason: thread.endReason });
+      broadcast({ t: 'done', sessionKey, sessionId: thread.sessionId ?? '', costUsd: thread.costUsd, durationMs: thread.durationMs, numTurns: thread.numTurns, endReason: thread.endReason });
       threads.delete(sessionKey);
     },
   });
@@ -223,11 +234,10 @@ function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: 
 
 // Tradução evento NDJSON -> ServerMsg (squad C2/H1: tool por id de correlação).
 function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
-  const ws = thread.ws;
   switch (ev.type) {
     case 'rate_limit_event': {
       const info = (ev as any).rate_limit_info;
-      if (info) send(ws, { t: 'rate', resetsAt: info.resetsAt, status: info.status });
+      if (info) broadcast({ t: 'rate', resetsAt: info.resetsAt, status: info.status });
       capture(thread, ev);
       return;
     }
@@ -236,19 +246,19 @@ function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       const sc = (ev as any).slash_commands;
       if (Array.isArray(sc) && sc.length && sc.join() !== slashCommands.join()) {
         slashCommands = sc;
-        send(ws, { t: 'slash-commands', items: slashCommands });
+        broadcast({ t: 'slash-commands', items: slashCommands });
       }
-      if (thread.sessionId) send(ws, { t: 'system', sessionKey, sessionId: thread.sessionId });
+      if (thread.sessionId) broadcast({ t: 'system', sessionKey, sessionId: thread.sessionId });
       return;
     }
     case 'stream_event': {
       const e = (ev as any).event;
       if (e?.type === 'content_block_delta' && e.delta?.type === 'text_delta' && e.delta.text) {
         thread.text = capTail(thread.text + e.delta.text);
-        send(ws, { t: 'delta', sessionKey, text: e.delta.text });
+        broadcast({ t: 'delta', sessionKey, text: e.delta.text });
       } else if (e?.type === 'content_block_delta' && e.delta?.type === 'thinking_delta' && e.delta.thinking) {
         thread.thinking = capTail(thread.thinking + e.delta.thinking);
-        send(ws, { t: 'thinking', sessionKey, text: e.delta.thinking });
+        broadcast({ t: 'thinking', sessionKey, text: e.delta.thinking });
       } else if (e?.type === 'content_block_start' && e.content_block?.type === 'tool_use') {
         emitTool(thread, sessionKey, e.content_block, 'running');
       }
@@ -264,7 +274,7 @@ function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       }
       const usage = (ev as any).message?.usage;
       const tokens = ctxTokens(usage);
-      if (tokens > 0) send(ws, { t: 'usage', sessionKey, tokens });
+      if (tokens > 0) broadcast({ t: 'usage', sessionKey, tokens });
       recordUsage({
         sessionId: thread.sessionId ?? sessionKey,
         ctxTokens: tokens,
@@ -360,7 +370,7 @@ function emitTool(thread: Thread, sessionKey: string, block: any, status: ToolCa
     output: [],
   };
   snapshotTool(thread, tool);
-  send(thread.ws, { t: 'tool', sessionKey, tool });
+  broadcast({ t: 'tool', sessionKey, tool });
 }
 
 function closeTool(thread: Thread, sessionKey: string, c: any) {
@@ -383,7 +393,7 @@ function closeTool(thread: Thread, sessionKey: string, c: any) {
     durationMs: start !== undefined ? Date.now() - start : undefined,
   };
   snapshotTool(thread, tool);
-  send(thread.ws, { t: 'tool', sessionKey, tool });
+  broadcast({ t: 'tool', sessionKey, tool });
 }
 
 function cmdOf(input: unknown): string {
