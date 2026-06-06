@@ -60,6 +60,7 @@ export interface AssistantMessage {
   role: 'assistant';
   blocks: Block[];
   ts?: number; // epoch ms; ausente em sessões antigas sem timestamp no JSONL
+  error?: boolean; // bubble de erro do turno (habilita "tentar novamente" na UI)
 }
 
 export type Message = UserMessage | AssistantMessage;

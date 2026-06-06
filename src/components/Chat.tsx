@@ -839,6 +839,16 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
     const last = messages[messages.length - 1];
     return !!last && last.role === 'assistant' && last.blocks.some((b) => b.type === 'tool' && b.tool.name === 'ExitPlanMode');
   })();
+  const failed = phase === 'idle' && (() => {
+    const last = messages[messages.length - 1];
+    return !!last && last.role === 'assistant' && last.error === true;
+  })();
+  const retryLast = () => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.role === 'user') { onSend(m.text); return; }
+    }
+  };
 
   return (
     <div className="relative flex h-full flex-col bg-neutral-900">
@@ -884,7 +894,20 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         </button>
       )}
 
-      {phase === 'idle' && lastEnd && !planPending && (
+      {failed && (
+        <div className="flex shrink-0 items-center gap-2 border-t border-red-500/30 bg-red-500/[0.06] px-4 py-2">
+          <Icon name="rotate" size={13} className="text-red-400" />
+          <span className="text-[12px] text-red-200/90">O turno falhou. Reenviar a última mensagem?</span>
+          <button
+            onClick={retryLast}
+            className="ml-auto rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-[11.5px] font-medium text-red-200 transition hover:bg-red-500/20"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
+
+      {phase === 'idle' && lastEnd && !planPending && !failed && (
         <div className="flex shrink-0 items-center gap-2 border-t border-amber-500/30 bg-amber-500/[0.06] px-4 py-2">
           <Icon name="rotate" size={13} className="text-amber-400" />
           <span className="text-[12px] text-amber-200/90">

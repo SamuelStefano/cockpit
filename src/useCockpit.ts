@@ -434,7 +434,7 @@ export function useCockpit(): Cockpit {
         if (key) {
           delete runMsg.current[key];
           setPhases((p) => ({ ...p, [key]: 'idle' }));
-          updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ ${msg.message}` }] }]);
+          updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ ${msg.message}` }], error: true }]);
         }
         return;
       }
