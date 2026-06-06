@@ -123,7 +123,7 @@ export interface UsageStats {
 // 'acceptEdits' = agente edita E roda comandos. 'bypassPermissions' NUNCA entra
 // (sudo NOPASSWD = RCE root) — a allow-list do backend trava.
 export type PermMode = 'plan' | 'auto' | 'acceptEdits';
-export interface TurnStats { costUsd?: number; durationMs?: number; numTurns?: number }
+export interface TurnStats { costUsd?: number; durationMs?: number; numTurns?: number; model?: string }
 export type ModelAlias = 'opus' | 'sonnet' | 'haiku';
 export type EffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
@@ -181,5 +181,5 @@ export type ServerMsg =
   | { t: 'term-data'; termId: string; data: string }
   | { t: 'term-replay'; termId: string; data: string }
   | { t: 'term-exit'; termId: string }
-  | { t: 'done'; sessionKey: string; sessionId: string; costUsd?: number; durationMs?: number; numTurns?: number; endReason?: string }
+  | { t: 'done'; sessionKey: string; sessionId: string; costUsd?: number; durationMs?: number; numTurns?: number; endReason?: string; model?: string }
   | { t: 'error'; sessionKey?: string; message: string };

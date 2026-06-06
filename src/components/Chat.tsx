@@ -140,18 +140,31 @@ function ModelPicker({ model, setModel, effort, setEffort, budget, setBudget, di
 
 // Custo/duração REAIS do último turno (result.total_cost_usd do CLI), não a
 // estimativa por preço de token. Ground-truth — some quando há um valor.
+// Modelo efetivo do CLI ("claude-opus-4-..." -> "opus"). Mostra o que o run de
+// fato usou — sob --fallback-model pode divergir do escolhido no picker.
+function shortModel(m?: string): string {
+  if (!m) return '';
+  const lo = m.toLowerCase();
+  if (lo.includes('opus')) return 'opus';
+  if (lo.includes('sonnet')) return 'sonnet';
+  if (lo.includes('haiku')) return 'haiku';
+  return m;
+}
+
 function TurnStat({ stats }: { stats?: TurnStats }) {
   if (!stats || (stats.costUsd === undefined && stats.durationMs === undefined)) return null;
   const parts: string[] = [];
   if (stats.costUsd !== undefined) parts.push('$' + stats.costUsd.toFixed(stats.costUsd < 0.01 ? 4 : 3));
   if (stats.durationMs !== undefined) parts.push((stats.durationMs / 1000).toFixed(1) + 's');
+  const model = shortModel(stats.model);
   return (
     <span
-      title={`último turno (custo real do CLI)${stats.numTurns ? ` · ${stats.numTurns} turnos` : ''}`}
+      title={`último turno (custo real do CLI)${stats.numTurns ? ` · ${stats.numTurns} turnos` : ''}${stats.model ? ` · modelo efetivo: ${stats.model}` : ''}`}
       className="flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-950 px-1.5 py-0.5 text-[10.5px] tabular-nums text-neutral-400"
     >
       <Icon name="zap" size={10} className="text-emerald-400/70" />
       {parts.join(' · ')}
+      {model && <span className="text-neutral-500">· {model}</span>}
     </span>
   );
 }
