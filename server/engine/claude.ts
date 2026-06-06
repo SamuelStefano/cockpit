@@ -60,6 +60,10 @@ export function run(opts: RunOpts): RunHandle {
   if (allow.length) {
     args.push('--allowedTools', allow.join(' '));
   }
+  // Kill-switch duro: nega em todos os modos, precede a allow-list (DR-004).
+  if (CONFIG.disallowedTools.length) {
+    args.push('--disallowedTools', CONFIG.disallowedTools.join(' '));
+  }
   if (resumeId) {
     if (!UUID_RE.test(resumeId)) {
       onError('sessionId inválido');

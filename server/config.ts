@@ -54,6 +54,12 @@ export const CONFIG = {
   // arquivos sozinho mas não roda comandos arbitrários.
   allowedToolsAuto: (process.env.COCKPIT_ALLOWED_TOOLS_AUTO ?? 'Read,Edit,Write,Glob,Grep')
     .split(',').map((s) => s.trim()).filter(Boolean),
+
+  // Kill-switch DURO: tools aqui são negadas em TODOS os modos (precede a allow-list
+  // no CLI). Vazio por padrão. Ex: COCKPIT_DISALLOWED_TOOLS=WebFetch,WebSearch pra
+  // travar saída de rede mesmo no modo Executar.
+  disallowedTools: (process.env.COCKPIT_DISALLOWED_TOOLS ?? '')
+    .split(',').map((s) => s.trim()).filter(Boolean),
 };
 
 // 'bypassPermissions' nunca entra: numa máquina com sudo NOPASSWD = RCE root.
