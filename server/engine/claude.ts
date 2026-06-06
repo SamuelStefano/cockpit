@@ -143,7 +143,7 @@ export function run(opts: RunOpts): RunHandle {
 // (RCE root via sudo NOPASSWD) NUNCA é um caso: qualquer valor desconhecido cai
 // no default do backend (plan na Fase 1). auto = edita sem shell; acceptEdits =
 // edita E roda. plan = nada executa, sem allow-list.
-function resolveMode(mode: string | undefined): { permissionMode: string; allow: string[] } {
+export function resolveMode(mode: string | undefined): { permissionMode: string; allow: string[] } {
   switch (mode) {
     case 'auto':
       return { permissionMode: 'default', allow: CONFIG.allowedToolsAuto };
