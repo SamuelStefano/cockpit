@@ -125,7 +125,7 @@ export interface SysStats {
 }
 
 export type ClientMsg =
-  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; mode?: PermMode; model?: ModelAlias; effort?: EffortLevel }
+  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; mode?: PermMode; model?: ModelAlias; effort?: EffortLevel; maxBudgetUsd?: number }
   | { t: 'stop'; sessionKey: string }
   | { t: 'list' }
   | { t: 'open'; sessionId: string }
@@ -168,5 +168,5 @@ export type ServerMsg =
   | { t: 'term-data'; termId: string; data: string }
   | { t: 'term-replay'; termId: string; data: string }
   | { t: 'term-exit'; termId: string }
-  | { t: 'done'; sessionKey: string; sessionId: string; costUsd?: number; durationMs?: number; numTurns?: number }
+  | { t: 'done'; sessionKey: string; sessionId: string; costUsd?: number; durationMs?: number; numTurns?: number; endReason?: string }
   | { t: 'error'; sessionKey?: string; message: string };

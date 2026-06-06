@@ -89,6 +89,8 @@ export interface Cockpit {
   setModel: (m: ModelAlias) => void;
   effort: EffortLevel;
   setEffort: (e: EffortLevel) => void;
+  budget: number;
+  setBudget: (n: number) => void;
   term: TermApi;
   archived: Session[];
   contextTokens: number;
@@ -147,6 +149,8 @@ export function useCockpit(): Cockpit {
   const modelRef = useRef<ModelAlias>(model);
   const [effort, setEffort] = useState<EffortLevel>(() => loadPref<EffortLevel>('effort', 'high'));
   const effortRef = useRef<EffortLevel>(effort);
+  const [budget, setBudget] = useState<number>(() => loadPref<number>('budget', 0)); // 0 = sem teto
+  const budgetRef = useRef<number>(budget);
 
   const wsRef = useRef<WebSocket | null>(null);
   const runMsg = useRef<Record<string, string>>({});      // sessionKey -> assistant msgId em voo
@@ -314,6 +318,14 @@ export function useCockpit(): Cockpit {
         if (msg.costUsd !== undefined || msg.durationMs !== undefined) {
           setTurnStats((t) => ({ ...t, [key]: { costUsd: msg.costUsd, durationMs: msg.durationMs, numTurns: msg.numTurns } }));
         }
+        if (msg.endReason && msg.endReason !== 'success') {
+          const note = msg.endReason.includes('budget')
+            ? `⚠️ Turno interrompido: teto de gasto atingido${msg.costUsd !== undefined ? ` ($${msg.costUsd.toFixed(3)})` : ''}.`
+            : msg.endReason.includes('max_turns')
+              ? '⚠️ Turno interrompido: limite de turnos atingido.'
+              : `⚠️ Turno encerrado (${msg.endReason}).`;
+          updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: note }] }]);
+        }
         if (msg.sessionId) {
           resumeId.current[key] = msg.sessionId;
           migrateKey(key, msg.sessionId);
@@ -397,7 +409,7 @@ export function useCockpit(): Cockpit {
     updateThread(key, (prev) => [...prev, { id: newId('u'), role: 'user', text }]);
     setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: text, relative: 'agora' } : s)));
     setDrafts((d) => ({ ...d, [key]: '' }));
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, mode: modeRef.current, model: modelRef.current, effort: effortRef.current });
+    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, mode: modeRef.current, model: modelRef.current, effort: effortRef.current, maxBudgetUsd: budgetRef.current > 0 ? budgetRef.current : undefined });
   }, [send, updateThread]);
 
   const onUpload = useCallback((file: File) => {
@@ -421,6 +433,7 @@ export function useCockpit(): Cockpit {
   const changeMode = useCallback((m: PermMode) => { modeRef.current = m; setMode(m); savePref('mode', m); }, []);
   const changeModel = useCallback((m: ModelAlias) => { modelRef.current = m; setModel(m); savePref('model', m); }, []);
   const changeEffort = useCallback((e: EffortLevel) => { effortRef.current = e; setEffort(e); savePref('effort', e); }, []);
+  const changeBudget = useCallback((n: number) => { const v = Number.isFinite(n) && n > 0 ? n : 0; budgetRef.current = v; setBudget(v); savePref('budget', v); }, []);
 
   // Busca por conteúdo: dispara no backend (grep) e guarda o termo p/ descartar
   // respostas atrasadas. <2 chars limpa os resultados.
@@ -537,5 +550,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, model, setModel: changeModel, effort, setEffort: changeEffort, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
+  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
 }
