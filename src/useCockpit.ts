@@ -203,7 +203,7 @@ export function useCockpit(): Cockpit {
     const move = <T,>(prev: Record<string, T>): Record<string, T> => {
       if (!(oldKey in prev)) return prev;
       const next = { ...prev };
-      next[newId] = next[oldKey];
+      next[newId] = next[oldKey];   // dados locais em voo vencem qualquer entrada já-presente
       delete next[oldKey];
       return next;
     };
@@ -212,7 +212,14 @@ export function useCockpit(): Cockpit {
     setDrafts(move);
     setUsage(move);
     setTurnStats(move);
-    setSessions((prev) => prev.map((s) => (s.id === oldKey ? { ...s, id: newId } : s)));
+    // Se o `list` já trouxe newId como linha persistida, renomear oldKey->newId
+    // criaria DUAS linhas com o mesmo id. Renomeia a local e remove a duplicata
+    // do servidor (a local carrega o estado em voo, então fica preferida).
+    setSessions((prev) => {
+      const renamed = prev.map((s) => (s.id === oldKey ? { ...s, id: newId } : s));
+      const seenIds = new Set<string>();
+      return renamed.filter((s) => (seenIds.has(s.id) ? false : (seenIds.add(s.id), true)));
+    });
   }, []);
 
   const onServer = useCallback((msg: ServerMsg) => {
