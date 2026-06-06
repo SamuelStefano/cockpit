@@ -598,6 +598,8 @@ function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, m
       if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); complete(matches[sel]); return; }
       if (e.key === 'Escape') { e.preventDefault(); setDismissed(true); return; }
     }
+    // Esc com a composição vazia durante um turno = parar o run (atalho do botão stop).
+    if (e.key === 'Escape' && disabled && !value) { e.preventDefault(); onStop(); return; }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
   };
   const grow = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
