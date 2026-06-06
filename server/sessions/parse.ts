@@ -12,13 +12,32 @@ interface Usage {
   cache_read_input_tokens?: number;
 }
 
-interface Rec {
+export interface Rec {
   type: string;
   uuid?: string;
   parentUuid?: string | null;
   message?: { role: string; content: unknown; usage?: Usage };
   leafUuid?: string;
   timestamp?: string;
+}
+
+// Caminho ativo (user/assistant em ordem raiz→folha) a partir do leaf. O leaf vem
+// do last-prompt.leafUuid, MAS ele pode apontar pra um uuid que não é record local
+// (resume cross-file / folha podada): nesse caso a caminhada nem entra e o
+// histórico voltaria VAZIO. Cai pro último user/assistant quando o leaf não existe.
+export function activeChain(byUuid: Map<string, Rec>, leaf: string | undefined, lastMsgUuid: string | undefined): Rec[] {
+  if (!leaf || !byUuid.has(leaf)) leaf = lastMsgUuid ?? [...byUuid.keys()].pop();
+  const chain: Rec[] = [];
+  let cur: string | undefined = leaf;
+  const guard = new Set<string>();
+  while (cur && byUuid.has(cur) && !guard.has(cur)) {
+    guard.add(cur);
+    const r = byUuid.get(cur)!;
+    if (r.type === 'user' || r.type === 'assistant') chain.push(r);
+    cur = r.parentUuid ?? undefined;
+  }
+  chain.reverse();
+  return chain;
 }
 
 // Tokens de contexto "em voo" no último turno = entrada + cache (o que foi
@@ -65,21 +84,7 @@ export async function parseSession(
     if (r.uuid && (r.type === 'user' || r.type === 'assistant')) lastMsgUuid = r.uuid;
   }
 
-  // fallback: sem leaf, usa o último user/assistant (não o último record qualquer
-  // — o último pode ser um nó system/sidechain fora do caminho ativo, o que
-  // truncaria a caminhada parentUuid e cortaria o histórico).
-  if (!leaf) leaf = lastMsgUuid ?? [...byUuid.keys()].pop();
-
-  const chain: Rec[] = [];
-  let cur: string | undefined = leaf;
-  const guard = new Set<string>();
-  while (cur && byUuid.has(cur) && !guard.has(cur)) {
-    guard.add(cur);
-    const r: Rec = byUuid.get(cur)!;
-    if (r.type === 'user' || r.type === 'assistant') chain.push(r);
-    cur = r.parentUuid ?? undefined;
-  }
-  chain.reverse();
+  const chain = activeChain(byUuid, leaf, lastMsgUuid);
 
   // Último assistant da cadeia ativa carrega o usage mais recente = contexto atual.
   let tokens = 0;
