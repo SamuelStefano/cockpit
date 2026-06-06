@@ -13,6 +13,7 @@ export interface SystemEvent {
   subtype: string; // 'init' | 'status' | ...
   session_id: string;
   model?: string;
+  slash_commands?: string[];
 }
 
 export interface ContentBlock {

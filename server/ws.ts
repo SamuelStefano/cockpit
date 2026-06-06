@@ -26,11 +26,16 @@ interface Thread {
 
 const threads = new Map<string, Thread>();
 
+// Lista de slash-commands aprendida do system/init (global ao CLI+skills, não
+// varia por sessão). Cacheada em memória pra popular o palette de comandos.
+let slashCommands: string[] = [];
+
 export function attachWs(server: Server) {
   const wss = new WebSocketServer({ server, path: '/ws' });
 
   wss.on('connection', (ws) => {
     send(ws, { t: 'busy', keys: [...threads.keys()] });
+    if (slashCommands.length) send(ws, { t: 'slash-commands', items: slashCommands });
     collect().then((stats) => send(ws, { t: 'stats', stats })).catch(() => {});
 
     // terminais anexados por ESTA conexão — pra desanexar no disconnect.
@@ -211,6 +216,11 @@ function translate(ws: WebSocket, sessionKey: string, thread: Thread, ev: Claude
     }
     case 'system': {
       capture(thread, ev);
+      const sc = (ev as any).slash_commands;
+      if (Array.isArray(sc) && sc.length && sc.join() !== slashCommands.join()) {
+        slashCommands = sc;
+        send(ws, { t: 'slash-commands', items: slashCommands });
+      }
       if (thread.sessionId) send(ws, { t: 'system', sessionKey, sessionId: thread.sessionId });
       return;
     }

@@ -91,6 +91,7 @@ export interface Cockpit {
   setEffort: (e: EffortLevel) => void;
   budget: number;
   setBudget: (n: number) => void;
+  slashCommands: string[];
   term: TermApi;
   archived: Session[];
   contextTokens: number;
@@ -151,6 +152,7 @@ export function useCockpit(): Cockpit {
   const effortRef = useRef<EffortLevel>(effort);
   const [budget, setBudget] = useState<number>(() => loadPref<number>('budget', 0)); // 0 = sem teto
   const budgetRef = useRef<number>(budget);
+  const [slashCommands, setSlashCommands] = useState<string[]>(() => loadPref<string[]>('slashCommands', []));
 
   const wsRef = useRef<WebSocket | null>(null);
   const runMsg = useRef<Record<string, string>>({});      // sessionKey -> assistant msgId em voo
@@ -236,6 +238,11 @@ export function useCockpit(): Cockpit {
       }
       case 'system': {
         if (msg.sessionId) resumeId.current[msg.sessionKey] = msg.sessionId;
+        return;
+      }
+      case 'slash-commands': {
+        setSlashCommands(msg.items);
+        savePref('slashCommands', msg.items);
         return;
       }
       case 'delta': {
@@ -550,5 +557,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
+  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
 }

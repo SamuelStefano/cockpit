@@ -165,6 +165,7 @@ export type ServerMsg =
   | { t: 'busy'; keys: string[] }
   | { t: 'started'; sessionKey: string }
   | { t: 'system'; sessionKey: string; sessionId: string }
+  | { t: 'slash-commands'; items: string[] }
   | { t: 'delta'; sessionKey: string; text: string }
   | { t: 'thinking'; sessionKey: string; text: string }
   | { t: 'tool'; sessionKey: string; tool: ToolCall }
