@@ -113,7 +113,7 @@ export interface Cockpit {
   attachments: Attachment[];
   onUpload: (file: File) => void;
   onRemoveAttachment: (path: string) => void;
-  onSend: (text: string) => void;
+  onSend: (text: string, modeOverride?: PermMode) => void;
   onStop: () => void;
   onNew: () => void;
   onRename: (id: string, title: string) => void;
@@ -396,7 +396,7 @@ export function useCockpit(): Cockpit {
     }
   }, [send]);
 
-  const onSend = useCallback((text: string) => {
+  const onSend = useCallback((text: string, modeOverride?: PermMode) => {
     const key = activeRef.current;
     if (!key) return;
     requestNotifyPermission(); // 1ª vez: pede permissão (gesto do usuário)
@@ -409,7 +409,7 @@ export function useCockpit(): Cockpit {
     updateThread(key, (prev) => [...prev, { id: newId('u'), role: 'user', text }]);
     setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: text, relative: 'agora' } : s)));
     setDrafts((d) => ({ ...d, [key]: '' }));
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, mode: modeRef.current, model: modelRef.current, effort: effortRef.current, maxBudgetUsd: budgetRef.current > 0 ? budgetRef.current : undefined });
+    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, mode: modeOverride ?? modeRef.current, model: modelRef.current, effort: effortRef.current, maxBudgetUsd: budgetRef.current > 0 ? budgetRef.current : undefined });
   }, [send, updateThread]);
 
   const onUpload = useCallback((file: File) => {
