@@ -133,6 +133,7 @@ export interface Cockpit {
   onRename: (id: string, title: string) => void;
   onClose: (id: string) => void;
   onUnhide: (id: string) => void;
+  onOpenFull: (id: string) => void;
 }
 
 export function useCockpit(): Cockpit {
@@ -697,6 +698,14 @@ export function useCockpit(): Cockpit {
     send({ t: 'unhide', sessionId: id });
   }, [send]);
 
+  // Recarrega o histórico COMPLETO (em ordem de arquivo, inclui pré-compactação)
+  // sobre o thread ativo. O 'open' normal só traz o caminho parentUuid ativo, então
+  // mensagens antes de um /compact somem — este botão recupera tudo.
+  const onOpenFull = useCallback((id: string) => {
+    if (!id || id.startsWith('new-')) return;
+    send({ t: 'open-full', sessionId: id });
+  }, [send]);
+
   const messages = threads[activeId] || [];
   const phase = phases[activeId] || 'idle';
   // Sessões com run vivo (pra dot pulsante no sidebar) — útil em run noturno
@@ -775,5 +784,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, onSend, onStop, onNew, onRename, onClose, onUnhide, onOpenFull };
 }
