@@ -133,6 +133,9 @@ export interface SysStats {
   gpu: { util: number; memUsed: number; memTotal: number } | null;
   disk: { used: number; total: number };       // bytes
   load: number;
+  // Watchdog (#103): CPU e/ou RAM acima do teto por uma janela contínua. Só
+  // alerta — não mata processo nenhum (a sessão real do usuário não é tocada).
+  saturated?: { cpu: boolean; mem: boolean; seconds: number };
 }
 
 // Health read-only do painel admin (DR-007). Só existência/contagem — nunca
