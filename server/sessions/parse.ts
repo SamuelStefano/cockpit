@@ -1,7 +1,7 @@
 import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { join, resolve } from 'node:path';
-import type { Block, Message, ToolCall } from '../../shared/protocol';
+import type { Block, Message, ToolCall, ToolDiff } from '../../shared/protocol';
 import { CONFIG } from '../config';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -115,6 +115,7 @@ function recToMessage(r: Rec): Message | null {
           label: c.name ?? 'tool',
           command: extractCommand(c.input),
           status: 'done',
+          diff: diffOf(c.name, c.input),
           output: [],
         };
         blocks.push({ type: 'tool', tool });
@@ -133,4 +134,20 @@ function extractCommand(input: unknown): string {
     if (typeof o.file_path === 'string') return String(o.file_path);
   }
   return '';
+}
+
+// Edit/Write carregam o conteúdo antes/depois no input — extrai pra render de
+// diff colorido. Edit: old_string/new_string. Write: content (old vazio).
+export function diffOf(name: unknown, input: unknown): ToolDiff | undefined {
+  if (typeof name !== 'string' || !input || typeof input !== 'object') return undefined;
+  const o = input as Record<string, unknown>;
+  const path = typeof o.file_path === 'string' ? o.file_path : '';
+  if (!path) return undefined;
+  if (name === 'Edit' && typeof o.old_string === 'string' && typeof o.new_string === 'string') {
+    return { path, old: o.old_string, new: o.new_string };
+  }
+  if (name === 'Write' && typeof o.content === 'string') {
+    return { path, old: '', new: o.content };
+  }
+  return undefined;
 }
