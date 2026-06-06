@@ -321,6 +321,7 @@ export function CockpitApp() {
         route={route} nav={nav} onNew={handleNew}
         mode={mode} setMode={setMode}
         sessions={sessions} onSelectSession={setActiveSessionId}
+        running={running} onStop={handleStop} onFocusComposer={() => setFocusSignal((n) => n + 1)}
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
       <Header conn={conn} onNew={handleNew} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} cost={usageStats?.totalCost ?? 0} />
