@@ -10,6 +10,7 @@ import { Skills } from './routes/Skills';
 import { Observatorio } from './routes/Observatorio';
 import { CommandPalette } from './components/CommandPalette';
 import { ShortcutsHelp } from './components/ShortcutsHelp';
+import { ProfileMenu } from './components/Avatar';
 import { useCockpit } from './useCockpit';
 import { useRoute, type Route } from './useRoute';
 import type { TurnStats } from '../shared/protocol';
@@ -176,6 +177,7 @@ function Header({ conn, onNew, isMobile, onMenu, route, nav, onPalette, cost, ra
             <Icon name="plus" size={15} stroke={2.4} /> Nova sessão
           </button>
         )}
+        <ProfileMenu />
       </div>
     </header>
   );
