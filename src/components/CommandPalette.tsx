@@ -25,11 +25,14 @@ interface CommandPaletteProps {
   setMode: (m: PermMode) => void;
   sessions: Session[];
   onSelectSession: (id: string) => void;
+  running: Set<string>;
+  onStop: () => void;
+  onFocusComposer: () => void;
 }
 
 const MODE_LABEL: Record<PermMode, string> = { plan: 'Planejar', auto: 'Auto', acceptEdits: 'Executar' };
 
-export function CommandPalette({ open, onClose, route, nav, onNew, mode, setMode, sessions, onSelectSession }: CommandPaletteProps) {
+export function CommandPalette({ open, onClose, route, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer }: CommandPaletteProps) {
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -45,7 +48,24 @@ export function CommandPalette({ open, onClose, route, nav, onNew, mode, setMode
     ];
     const actions: Cmd[] = [
       { id: 'new', label: 'Nova sessão', icon: 'plus', group: 'Ações', run: () => { onNew(); onClose(); } },
+      { id: 'focus', label: 'Focar campo de mensagem', hint: '↵', icon: 'pencil', group: 'Ações', run: () => { nav('/'); onFocusComposer(); onClose(); } },
     ];
+    if (running.size) {
+      actions.push({ id: 'stop', label: 'Parar resposta atual', icon: 'square', group: 'Ações', run: () => { onStop(); onClose(); } });
+    }
+    // Sessões com run em andamento: pulo rápido pra acompanhar. Resolve o título
+    // pela lista; chave temporária (new-*) sem título cai num rótulo genérico.
+    const runningCmds: Cmd[] = [...running].map((key) => {
+      const s = sessions.find((x) => x.id === key);
+      return {
+        id: `run-${key}`,
+        label: s?.title || s?.snippet || 'sessão em execução',
+        hint: '▶',
+        icon: 'message' as IconName,
+        group: 'Em execução',
+        run: () => { onSelectSession(key); nav('/'); onClose(); },
+      };
+    });
     const modes: Cmd[] = (['plan', 'auto', 'acceptEdits'] as PermMode[]).map((m) => ({
       id: `mode-${m}`,
       label: `Modo: ${MODE_LABEL[m]}`,
@@ -61,8 +81,8 @@ export function CommandPalette({ open, onClose, route, nav, onNew, mode, setMode
       group: 'Sessões',
       run: () => { onSelectSession(s.id); nav('/'); onClose(); },
     }));
-    return [...nav_, ...actions, ...modes, ...sess];
-  }, [nav, onClose, onNew, mode, setMode, sessions, onSelectSession]);
+    return [...nav_, ...actions, ...runningCmds, ...modes, ...sess];
+  }, [nav, onClose, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
