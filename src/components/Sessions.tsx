@@ -43,7 +43,7 @@ const CTX_WINDOW = 200_000;
 
 // Agrupa as sessões por recência (estilo ChatGPT/Claude). Fixadas viram um grupo
 // próprio no topo; o resto cai num balde por mtime. Só roda fora da busca.
-function groupByRecency(list: Session[], pinned: Set<string>, running?: Set<string>): { label: string; items: Session[] }[] {
+export function groupByRecency(list: Session[], pinned: Set<string>, running?: Set<string>): { label: string; items: Session[] }[] {
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const day = 86_400_000;
