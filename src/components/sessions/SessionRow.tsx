@@ -32,8 +32,15 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={active}
       onClick={() => onSelect(s.id)}
-      className={`group relative cursor-pointer rounded-lg border px-2.5 py-2 transition
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return; // tecla foi pra um botão/input interno
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(s.id); }
+      }}
+      className={`group relative cursor-pointer rounded-lg border px-2.5 py-2 transition outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40
         ${active
           ? 'border-orange-500/40 bg-orange-500/[0.07]'
           : 'border-transparent hover:border-neutral-800 hover:bg-neutral-900'}`}
