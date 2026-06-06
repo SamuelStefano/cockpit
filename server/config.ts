@@ -27,6 +27,11 @@ export const CONFIG = {
   // qualquer env solto de armar bypass (= RCE root) por engano.
   permissionMode: safeMode(process.env.COCKPIT_PERMISSION_MODE),
 
+  // Modelo de fallback quando o primário está sobrecarregado (overload). Resiliência
+  // pra runs longos/noturnos: o CLI cai pra cá em vez de abortar. Validado contra a
+  // allow-list de modelos no engine. Vazio = sem fallback.
+  fallbackModel: process.env.COCKPIT_FALLBACK_MODEL ?? '',
+
   // Paginação de history (squad M3: maior JSONL = 46MB).
   historyLimit: 60,
 
