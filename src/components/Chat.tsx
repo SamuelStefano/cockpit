@@ -107,14 +107,20 @@ function ContextMeter({ tokens, onNew }: { tokens: number; onNew?: () => void })
 
 // --- ToolCallCard ----------------------------------------------------------
 
+export interface ToolSignal { open: boolean; n: number }
+
 interface ToolCallCardProps {
   tool: ToolCall;
+  signal?: ToolSignal;
 }
 
-function ToolCallCard({ tool }: ToolCallCardProps) {
+function ToolCallCard({ tool, signal }: ToolCallCardProps) {
   const [open, setOpen] = useState(!!tool.expanded);
   const { status } = tool;
   const lines = tool.output || [];
+
+  // Toggle global "recolher/expandir ferramentas" (signal.n incrementa a cada clique).
+  useEffect(() => { if (signal && signal.n > 0) setOpen(signal.open); }, [signal]);
 
   const statusEl = {
     running: (
@@ -184,6 +190,7 @@ function ToolCallCard({ tool }: ToolCallCardProps) {
 interface AssistantBlocksProps {
   blocks: Block[];
   caretOnLast: boolean;
+  toolSignal?: ToolSignal;
 }
 
 function ThinkingCard({ text }: { text: string }) {
@@ -208,14 +215,14 @@ function ThinkingCard({ text }: { text: string }) {
   );
 }
 
-function AssistantBlocks({ blocks, caretOnLast }: AssistantBlocksProps) {
+function AssistantBlocks({ blocks, caretOnLast, toolSignal }: AssistantBlocksProps) {
   return (
     <div className="space-y-1">
       {blocks.map((b, i) => {
         const isLast = i === blocks.length - 1;
         if (b.type === 'text') return <Markdown key={i} md={b.md} caret={caretOnLast && isLast} />;
         if (b.type === 'code') return <CodeBlock key={i} code={b.code} lang={b.lang} />;
-        if (b.type === 'tool') return <ToolCallCard key={i} tool={b.tool} />;
+        if (b.type === 'tool') return <ToolCallCard key={i} tool={b.tool} signal={toolSignal} />;
         if (b.type === 'thinking') return <ThinkingCard key={i} text={b.text} />;
         return null;
       })}
@@ -229,9 +236,10 @@ interface MessageRowProps {
   msg: Message;
   caretOnLast: boolean;
   onEditUser?: (text: string) => void;
+  toolSignal?: ToolSignal;
 }
 
-function MessageRow({ msg, caretOnLast, onEditUser }: MessageRowProps) {
+function MessageRow({ msg, caretOnLast, onEditUser, toolSignal }: MessageRowProps) {
   if (msg.role === 'user') {
     return (
       <div className="fade-up group/u flex items-start justify-end gap-2.5">
@@ -260,7 +268,7 @@ function MessageRow({ msg, caretOnLast, onEditUser }: MessageRowProps) {
         <Icon name="sparkles" size={14} />
       </div>
       <div className="min-w-0 flex-1 pt-0.5">
-        <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} />
+        <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} toolSignal={toolSignal} />
         {hasText && !caretOnLast && (
           <div className="mt-1 opacity-0 transition group-hover/msg:opacity-100">
             <CopyMessageButton blocks={msg.blocks} />
@@ -525,8 +533,10 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
   const [queued, setQueued] = useState('');
+  const [toolSignal, setToolSignal] = useState<ToolSignal>({ open: true, n: 0 });
   const streaming = phase === 'streaming';
   const disabled = phase !== 'idle';
+  const hasTools = messages.some((m) => m.role === 'assistant' && m.blocks.some((b) => b.type === 'tool'));
 
   // Fila stop-aware: mensagem digitada durante o turno dispara sozinha no idle.
   useEffect(() => {
@@ -564,6 +574,16 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         <span className="truncate text-[12.5px] font-medium text-neutral-300">{session ? session.title : 'Nova sessão'}</span>
         {session?.hasTerminal && <Badge tone="green" dot className="ml-0.5">terminal</Badge>}
         <ContextMeter tokens={contextTokens} onNew={onNew} />
+        {hasTools && (
+          <button
+            onClick={() => setToolSignal((s) => ({ open: !s.open, n: s.n + 1 }))}
+            title={toolSignal.open ? 'Recolher todas as ferramentas' : 'Expandir todas as ferramentas'}
+            className="ml-auto flex items-center gap-1 rounded-md border border-neutral-800 px-1.5 py-0.5 text-[10.5px] text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-300"
+          >
+            <Icon name="terminal" size={11} />
+            {toolSignal.open ? 'recolher' : 'expandir'}
+          </button>
+        )}
         {!isEmpty && <ExportMenu title={session?.title || 'sessao'} messages={messages} />}
       </div>
 
@@ -573,7 +593,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-5">
             {messages.map((m, i) => (
-              <MessageRow key={m.id} msg={m} caretOnLast={streaming && i === messages.length - 1 && m.role === 'assistant'} onEditUser={onEditUser} />
+              <MessageRow key={m.id} msg={m} caretOnLast={streaming && i === messages.length - 1 && m.role === 'assistant'} onEditUser={onEditUser} toolSignal={toolSignal} />
             ))}
             {phase === 'thinking' && <Thinking />}
           </div>
