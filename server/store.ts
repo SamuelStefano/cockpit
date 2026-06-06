@@ -38,14 +38,30 @@ export async function hiddenSet(): Promise<Set<string>> {
   return new Set((await load()).hidden);
 }
 
+// Serializa as mutações: hide/unhide fazem read-modify-write sobre o cache e,
+// sem fila, duas chamadas concorrentes leem o mesmo snapshot e a segunda commit
+// sobrescreve a primeira (update perdido). A fila garante que cada mutação veja
+// o estado já commitado pela anterior; de quebra, nunca há dois commits no ar
+// disputando o mesmo arquivo .tmp.
+let queue: Promise<unknown> = Promise.resolve();
+function serialize<T>(fn: () => Promise<T>): Promise<T> {
+  const run = queue.then(fn, fn);
+  queue = run.catch(() => {});
+  return run;
+}
+
 export async function hideSession(id: string): Promise<void> {
   if (!UUID_RE.test(id)) return;
-  const s = await load();
-  if (!s.hidden.includes(id)) await commit({ hidden: [...s.hidden, id] });
+  await serialize(async () => {
+    const s = await load();
+    if (!s.hidden.includes(id)) await commit({ hidden: [...s.hidden, id] });
+  });
 }
 
 export async function unhideSession(id: string): Promise<void> {
   if (!UUID_RE.test(id)) return;
-  const s = await load();
-  if (s.hidden.includes(id)) await commit({ hidden: s.hidden.filter((x) => x !== id) });
+  await serialize(async () => {
+    const s = await load();
+    if (s.hidden.includes(id)) await commit({ hidden: s.hidden.filter((x) => x !== id) });
+  });
 }
