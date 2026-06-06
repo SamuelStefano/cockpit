@@ -35,8 +35,30 @@ const terms = new Map<string, Term>();
 const clampDim = (n: number, def: number) =>
   Number.isFinite(n) && n > 0 ? Math.min(500, Math.max(1, Math.floor(n))) : def;
 
+const PREFIX = 'cockpit-';
 function sessionName(id: string): string {
-  return `cockpit-${id}`;
+  return `${PREFIX}${id}`;
+}
+
+export function parseTermSessions(stdout: string, prefix = PREFIX): string[] {
+  return stdout
+    .split('\n')
+    .map((s) => s.trim())
+    .filter((n) => n.startsWith(prefix))
+    .map((n) => n.slice(prefix.length))
+    .filter((id) => NAME_RE.test(id));
+}
+
+// Sessões tmux persistentes do cockpit (sobrevivem a restart): permite reanexar
+// a qualquer uma de outro device — as "branches" de terminal da VPS.
+export function listTerms(): Promise<string[]> {
+  return new Promise((resolve) => {
+    const p = spawn('tmux', ['ls', '-F', '#{session_name}'], { stdio: ['ignore', 'pipe', 'ignore'] });
+    let out = '';
+    p.stdout.on('data', (d) => { out += d; });
+    p.on('close', () => resolve(parseTermSessions(out)));
+    p.on('error', () => resolve([]));
+  });
 }
 
 export function openTerm(

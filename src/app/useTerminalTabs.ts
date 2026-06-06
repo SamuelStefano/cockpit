@@ -6,7 +6,7 @@ import type { TermApi } from '../useCockpit';
 let _tid = 100;
 const nextId = (p: string) => `${p}${++_tid}`;
 
-export function useTerminalTabs(term: TermApi) {
+export function useTerminalTabs(term: TermApi, discoveredTerms: string[] = [], listTerms?: () => void) {
   const [terminals, setTerminals] = usePersisted<Terminal[]>('terminals', TERMINALS_SEED);
   const [activeTermId, setActiveTermId] = usePersisted('term.active', 'main');
 
@@ -16,8 +16,19 @@ export function useTerminalTabs(term: TermApi) {
       const n = Number(t.id.replace(/^term-/, ''));
       if (Number.isFinite(n) && n > _tid) _tid = n;
     }
+    listTerms?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Sessões tmux vivas no servidor que ainda não estão abertas como aba aqui:
+  // permite reanexar (as "branches" persistentes da VPS, visíveis de outro device).
+  const attachable = discoveredTerms.filter((id) => !terminals.some((t) => t.id === id));
+
+  const attachExisting = (id: string) => {
+    if (terminals.some((t) => t.id === id)) { setActiveTermId(id); return; }
+    setTerminals((prev) => [...prev, { id, name: id }]);
+    setActiveTermId(id);
+  };
 
   const handleAddTerm = () => {
     const id = nextId('term-');
@@ -35,5 +46,5 @@ export function useTerminalTabs(term: TermApi) {
     });
   };
 
-  return { terminals, activeTermId, setActiveTermId, handleAddTerm, handleCloseTerm, runningTerm: terminals[0] };
+  return { terminals, activeTermId, setActiveTermId, handleAddTerm, handleCloseTerm, attachable, attachExisting, runningTerm: terminals[0] };
 }

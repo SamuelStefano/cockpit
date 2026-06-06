@@ -10,10 +10,12 @@ export interface TerminalsPanelProps {
   onAdd: () => void;
   onClose: (id: string) => void;
   term: TermApi;
+  attachable?: string[];
+  onAttach?: (id: string) => void;
   onCloseMobile?: () => void;
 }
 
-export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, term, onCloseMobile }: TerminalsPanelProps) {
+export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, term, attachable = [], onAttach, onCloseMobile }: TerminalsPanelProps) {
   const active = terminals.find((t) => t.id === activeId) || terminals[0];
 
   return (
@@ -51,6 +53,21 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
           >
             <Icon name="plus" size={14} />
           </button>
+          {attachable.length > 0 && onAttach && (
+            <>
+              <span className="mx-1 h-4 w-px shrink-0 bg-neutral-800" />
+              {attachable.map((id) => (
+                <button
+                  key={id}
+                  onClick={() => onAttach(id)}
+                  title={`Reanexar sessão tmux cockpit-${id}`}
+                  className="flex shrink-0 items-center gap-1 rounded-md border border-dashed border-neutral-700 px-2 py-1 font-mono text-[11px] text-neutral-500 transition hover:border-orange-500/40 hover:text-orange-300"
+                >
+                  <Icon name="terminal" size={11} /> {id}
+                </button>
+              ))}
+            </>
+          )}
         </div>
         {onCloseMobile && (
           <button onClick={onCloseMobile} className="mb-1.5 ml-1 rounded-md p-1.5 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200">

@@ -39,6 +39,8 @@ export interface Cockpit {
   setBudget: (n: number) => void;
   slashCommands: string[];
   term: TermApi;
+  discoveredTerms: string[];
+  listTerms: () => void;
   archived: Session[];
   contextTokens: number;
   usage: Record<string, number>;
@@ -130,7 +132,7 @@ export function useCockpit(): Cockpit {
     if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify(m));
   }, []);
 
-  const { term, onTermData, onTermReplay, onTermExit, reattach } = useTerminals(send);
+  const { term, onTermData, onTermReplay, onTermExit, onTerms, discovered: discoveredTerms, listTerms, reattach } = useTerminals(send);
 
   const updateThread = useCallback((key: string, fn: (prev: Message[]) => Message[]) => {
     setThreads((prev) => ({ ...prev, [key]: fn(prev[key] || []) }));
@@ -359,6 +361,10 @@ export function useCockpit(): Cockpit {
         onTermReplay(msg.termId, msg.data);
         return;
       }
+      case 'terms': {
+        onTerms(msg.ids);
+        break;
+      }
       case 'term-exit': {
         onTermExit(msg.termId);
         return;
@@ -430,7 +436,7 @@ export function useCockpit(): Cockpit {
         return;
       }
     }
-  }, [updateThread, patchRunMsg, migrateKey, reconcileTools, send, onTermData, onTermReplay, onTermExit]);
+  }, [updateThread, patchRunMsg, migrateKey, reconcileTools, send, onTermData, onTermReplay, onTermExit, onTerms]);
 
   const connect = useCallback(() => {
     setConn((c) => ({ ...c, ws: 'reconnecting', sse: 'reconnecting' }));
@@ -689,5 +695,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, onSend, onStop, onNew, onRename, onClose, onUnhide, onOpenFull };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onClose, onUnhide, onOpenFull };
 }
