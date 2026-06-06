@@ -1,5 +1,5 @@
 import type { ToolCall } from '../../shared/protocol';
-import { diffOf, planOf } from '../sessions/parse';
+import { diffOf, planOf, extractCommand } from '../sessions/parse';
 import { broadcast } from './broadcast';
 import type { Thread } from './runs';
 
@@ -60,7 +60,7 @@ export function emitTool(thread: Thread, sessionKey: string, block: any, status:
     id,
     name: block.name ?? 'tool',
     label: block.name ?? 'tool',
-    command: cmdOf(block.input),
+    command: extractCommand(block.input),
     status,
     diff: diffOf(block.name, block.input),
     markdown: planOf(block.name, block.input),
@@ -91,17 +91,4 @@ export function closeTool(thread: Thread, sessionKey: string, c: any) {
   };
   snapshotTool(thread, tool);
   broadcast({ t: 'tool', sessionKey, tool });
-}
-
-function cmdOf(input: unknown): string {
-  if (input && typeof input === 'object') {
-    const o = input as Record<string, unknown>;
-    // Ordem: Bash(command) → file-tools(file_path) → Grep/Glob(pattern) →
-    // WebFetch(url) → WebSearch(query) → Task(description). Sem isto, esses
-    // cards apareciam sem nenhuma linha de argumento.
-    for (const key of ['command', 'file_path', 'pattern', 'url', 'query', 'description'] as const) {
-      if (typeof o[key] === 'string' && o[key]) return o[key] as string;
-    }
-  }
-  return '';
 }
