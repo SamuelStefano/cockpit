@@ -33,6 +33,10 @@ const threads = new Map<string, Thread>();
 
 const startedAt = Date.now();
 let lastStatsAt = 0;
+// Último rate-limit conhecido: o CLI só emite `rate_limit_event` durante um run,
+// então uma aba recém-aberta (ou pós-reconnect) ficaria sem o chip de reset até
+// o próximo run. Cacheia e replaya no connect — o Samuel quer o reset SEMPRE à vista.
+let lastRate: { resetsAt: number; status: string } | null = null;
 
 // Saúde do processo pro /healthz: se o HTTP responde isto, o event loop não está
 // totalmente travado. activeRuns/lastStatsAt são informativos (supervisor decide).
@@ -108,6 +112,7 @@ export function attachWs(server: Server) {
     ws.on('pong', () => { (ws as WebSocket & { isAlive?: boolean }).isAlive = true; });
     send(ws, { t: 'busy', keys: [...threads.keys()] });
     if (slashCommands.length) send(ws, { t: 'slash-commands', items: slashCommands });
+    if (lastRate) send(ws, { t: 'rate', ...lastRate });
     // Reconnect mid-run (#10): replaya o snapshot acumulado SÓ pra ESTE socket,
     // pra a UI reconstruir o turno em voo. Os deltas seguintes chegam via
     // broadcast (não roubamos mais o stream das outras abas).
@@ -296,6 +301,7 @@ function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
         // Normaliza pra ms aqui (guard: valores < 1e12 são claramente segundos).
         const raw = Number(info.resetsAt) || 0;
         const resetsAt = raw > 0 && raw < 1e12 ? raw * 1000 : raw;
+        lastRate = { resetsAt, status: info.status };
         broadcast({ t: 'rate', resetsAt, status: info.status });
       }
       capture(thread, ev);
