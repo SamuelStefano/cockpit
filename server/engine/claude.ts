@@ -98,7 +98,13 @@ export function run(opts: RunOpts): RunHandle {
   // Spawn falho (ex: `claude` fora do PATH) emite 'error' mas pode NÃO emitir
   // 'close' — sem isto o thread nunca limpa e o cliente trava no spinner.
   let closed = false;
-  const finish = () => { if (closed) return; closed = true; onClose(); };
+  let killTimer: NodeJS.Timeout | undefined;
+  const finish = () => {
+    if (closed) return;
+    closed = true;
+    if (killTimer) { clearTimeout(killTimer); killTimer = undefined; }
+    onClose();
+  };
   child.on('error', (err) => { onError(sanitize(err.message)); finish(); });
   child.on('close', (code) => {
     if (code && code !== 0 && stderr) onError(sanitize(`claude saiu (${code})`));
@@ -107,11 +113,15 @@ export function run(opts: RunOpts): RunHandle {
 
   return {
     kill: () => {
-      try {
-        if (child.pid) process.kill(-child.pid, 'SIGTERM');
-      } catch {
-        child.kill('SIGTERM');
-      }
+      const signal = (sig: NodeJS.Signals) => {
+        try { if (child.pid) process.kill(-child.pid, sig); }
+        catch { try { child.kill(sig); } catch { /* já morto */ } }
+      };
+      signal('SIGTERM');
+      // Escalada: se o processo (ou um tool filho que ignora SIGTERM) não fechar
+      // em 5s, SIGKILL no grupo — senão vira zumbi segurando a sessão a noite
+      // toda. O timer morre no 'close' (finish), evitando matar PID reciclado.
+      if (!killTimer) killTimer = setTimeout(() => signal('SIGKILL'), 5000);
     },
   };
 }
