@@ -43,11 +43,12 @@ const CTX_WINDOW = 200_000;
 
 // Agrupa as sessões por recência (estilo ChatGPT/Claude). Fixadas viram um grupo
 // próprio no topo; o resto cai num balde por mtime. Só roda fora da busca.
-function groupByRecency(list: Session[], pinned: Set<string>): { label: string; items: Session[] }[] {
+function groupByRecency(list: Session[], pinned: Set<string>, running?: Set<string>): { label: string; items: Session[] }[] {
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const day = 86_400_000;
   const buckets: { label: string; items: Session[] }[] = [
+    { label: 'Trabalhando agora', items: [] },
     { label: 'Fixadas', items: [] },
     { label: 'Hoje', items: [] },
     { label: 'Ontem', items: [] },
@@ -56,12 +57,13 @@ function groupByRecency(list: Session[], pinned: Set<string>): { label: string; 
     { label: 'Anteriores', items: [] },
   ];
   for (const s of list) {
-    if (pinned.has(s.id)) { buckets[0].items.push(s); continue; }
-    if (s.mtime >= startOfToday) buckets[1].items.push(s);
-    else if (s.mtime >= startOfToday - day) buckets[2].items.push(s);
-    else if (s.mtime >= startOfToday - 7 * day) buckets[3].items.push(s);
-    else if (s.mtime >= startOfToday - 30 * day) buckets[4].items.push(s);
-    else buckets[5].items.push(s);
+    if (running?.has(s.id)) { buckets[0].items.push(s); continue; }
+    if (pinned.has(s.id)) { buckets[1].items.push(s); continue; }
+    if (s.mtime >= startOfToday) buckets[2].items.push(s);
+    else if (s.mtime >= startOfToday - day) buckets[3].items.push(s);
+    else if (s.mtime >= startOfToday - 7 * day) buckets[4].items.push(s);
+    else if (s.mtime >= startOfToday - 30 * day) buckets[5].items.push(s);
+    else buckets[6].items.push(s);
   }
   return buckets.filter((b) => b.items.length > 0);
 }
@@ -410,10 +412,11 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
         ) : query ? (
           filtered.map((s) => renderRow(s))
         ) : (
-          groupByRecency(filtered, pinned).map((g) => (
+          groupByRecency(filtered, pinned, running).map((g) => (
             <div key={g.label} className="space-y-1">
-              <div className="sticky top-0 z-[1] -mx-2.5 bg-neutral-950/95 px-3.5 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600 backdrop-blur-sm">
+              <div className={`sticky top-0 z-[1] -mx-2.5 bg-neutral-950/95 px-3.5 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide backdrop-blur-sm ${g.label === 'Trabalhando agora' ? 'text-green-400/80' : 'text-neutral-600'}`}>
                 {g.label === 'Fixadas' && <Icon name="star" size={9} className="mr-1 inline -translate-y-px text-orange-400/80" />}
+                {g.label === 'Trabalhando agora' && <span className="mr-1 inline-block h-1.5 w-1.5 -translate-y-px rounded-full bg-green-400" />}
                 {g.label}
               </div>
               {g.items.map((s) => renderRow(s))}
