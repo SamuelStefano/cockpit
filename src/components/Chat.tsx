@@ -781,10 +781,11 @@ export interface ChatPanelProps {
   onUpload: (file: File) => void;
   onRemoveAttachment: (path: string) => void;
   onEditUser?: (text: string) => void;
+  lastEnd?: string;
   focusSignal?: number;
 }
 
-export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, contextTokens, lastTurn, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, focusSignal = 0 }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, focusSignal = 0 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -869,6 +870,21 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         >
           <Icon name="chevronDown" size={16} />
         </button>
+      )}
+
+      {phase === 'idle' && lastEnd && !planPending && (
+        <div className="flex shrink-0 items-center gap-2 border-t border-amber-500/30 bg-amber-500/[0.06] px-4 py-2">
+          <Icon name="rotate" size={13} className="text-amber-400" />
+          <span className="text-[12px] text-amber-200/90">
+            {lastEnd.includes('budget') ? 'Interrompido pelo teto de gasto.' : 'Interrompido pelo limite de turnos.'} Retomar de onde parou?
+          </span>
+          <button
+            onClick={() => onSend('Continue de onde você parou e termine a tarefa.')}
+            className="ml-auto rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-[11.5px] font-medium text-amber-200 transition hover:bg-amber-500/20"
+          >
+            Continuar
+          </button>
+        </div>
       )}
 
       {planPending && (
