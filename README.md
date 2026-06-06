@@ -81,6 +81,11 @@ O backend roda `claude -p` em `--permission-mode plan` (sem bypass) e lê as
 sessões do CLI direto do JSONL. Sobrescrevíveis por env: `COCKPIT_PORT`,
 `COCKPIT_WORKDIR`, `COCKPIT_PERMISSION_MODE` (`plan`|`default`|`acceptEdits`).
 
+A SPA aponta o WebSocket pra mesma origin por padrão. Se o front for servido
+separado do backend (ex: SPA estática num CDN, backend atrás de `tailscale
+serve`), defina `VITE_WS_URL` no build pra apontar pro host real do backend
+(ex: `VITE_WS_URL=wss://maquina.tailnet.ts.net/ws`).
+
 ---
 
 ## Roadmap
