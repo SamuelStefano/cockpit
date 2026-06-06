@@ -22,13 +22,16 @@ async function load(): Promise<Store> {
   return cache;
 }
 
-async function persist(): Promise<void> {
-  if (!cache) return;
+// Persiste o estado novo no disco e SÓ DEPOIS adota como cache. Se a escrita
+// falhar (disco cheio/permissão), o cache em memória segue casado com o disco —
+// senão a UI mostraria a sessão escondida que sumiria no próximo restart.
+async function commit(next: Store): Promise<void> {
   await mkdir(dirname(STORE_PATH), { recursive: true });
   // Escrita atômica: tmp + rename, pra um crash no meio não corromper o store.
   const tmp = `${STORE_PATH}.${process.pid}.tmp`;
-  await writeFile(tmp, JSON.stringify(cache, null, 2), 'utf8');
+  await writeFile(tmp, JSON.stringify(next, null, 2), 'utf8');
   await rename(tmp, STORE_PATH);
+  cache = next;
 }
 
 export async function hiddenSet(): Promise<Set<string>> {
@@ -38,12 +41,11 @@ export async function hiddenSet(): Promise<Set<string>> {
 export async function hideSession(id: string): Promise<void> {
   if (!UUID_RE.test(id)) return;
   const s = await load();
-  if (!s.hidden.includes(id)) { s.hidden.push(id); await persist(); }
+  if (!s.hidden.includes(id)) await commit({ hidden: [...s.hidden, id] });
 }
 
 export async function unhideSession(id: string): Promise<void> {
   if (!UUID_RE.test(id)) return;
   const s = await load();
-  const i = s.hidden.indexOf(id);
-  if (i >= 0) { s.hidden.splice(i, 1); await persist(); }
+  if (s.hidden.includes(id)) await commit({ hidden: s.hidden.filter((x) => x !== id) });
 }
