@@ -226,10 +226,18 @@ export function useCockpit(): Cockpit {
         // Baseline: sessão vista pela 1ª vez entra no `seen` com o mtime atual
         // (não vira "atualizada" retroativamente). Só mtime que AVANÇA depois badgeia.
         setSeen((prev) => {
+          // baseline ids novos + poda ids que sumiram da lista (arquivados/
+          // apagados) pra o mapa não crescer sem limite no localStorage.
+          const live = new Set(msg.items.map((m) => m.id));
+          const next: Record<string, number> = {};
           let changed = false;
-          const next = { ...prev };
           for (const m of msg.items) {
-            if (next[m.id] === undefined) { next[m.id] = m.mtime; changed = true; }
+            next[m.id] = prev[m.id] ?? m.mtime;
+            if (prev[m.id] === undefined) changed = true;
+          }
+          for (const id of Object.keys(prev)) {
+            if (id.startsWith('new-')) { next[id] = prev[id]; continue; } // sessão local ainda não migrada
+            if (!live.has(id)) changed = true; // podada
           }
           if (changed) savePref('seen', next);
           return changed ? next : prev;
