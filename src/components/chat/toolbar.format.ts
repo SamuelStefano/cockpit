@@ -1,7 +1,7 @@
 import type { TurnStats } from '../../../shared/protocol';
+import { CONTEXT_LIMIT, ctxPct } from '../../lib/format';
 
-// Janela de contexto dos modelos atuais ~200K tokens.
-export const CONTEXT_LIMIT = 200_000;
+export { CONTEXT_LIMIT };
 
 // Modelo efetivo do CLI ("claude-opus-4-..." -> "opus"); sob --fallback-model
 // pode divergir do escolhido no picker.
@@ -24,6 +24,6 @@ export function turnStatParts(stats?: TurnStats): { parts: string[]; model: stri
 
 export function contextMeter(tokens: number): { pct: number; high: boolean; mid: boolean; k: string } | null {
   if (tokens <= 0) return null;
-  const pct = Math.min(100, Math.round((tokens / CONTEXT_LIMIT) * 100));
+  const pct = ctxPct(tokens);
   return { pct, high: pct >= 75, mid: pct >= 50, k: (tokens / 1000).toFixed(0) };
 }

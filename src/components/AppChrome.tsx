@@ -3,8 +3,7 @@ import { Icon, ConnDot, type ConnState } from './primitives';
 import { ProfileMenu } from './Avatar';
 import type { Route } from '../useRoute';
 import type { TurnStats } from '../../shared/protocol';
-
-const CTX_LIMIT = 200_000;
+import { CONTEXT_LIMIT, ctxPct, fmtCost } from '../lib/format';
 
 // HUD sempre-visível no header: reset do limite Claude, % de contexto + tokens,
 // e duração do último turno (prompt→prompt). Re-renderiza sozinho a cada 30s pro
@@ -27,13 +26,13 @@ function StatHud({ rate, ctxTokens, lastTurn, onNav }: {
   // O reset do limite Claude vive só no rodapé (StatusBar) — não duplicar aqui.
 
   if (ctxTokens > 0) {
-    const pct = Math.min(100, Math.round((ctxTokens / CTX_LIMIT) * 100));
+    const pct = ctxPct(ctxTokens);
     const tone = pct >= 75 ? 'text-red-400' : pct >= 50 ? 'text-amber-400' : 'text-neutral-400';
     chips.push(
       <button
         key="ctx"
         onClick={() => onNav('/')}
-        title={`Contexto: ~${ctxTokens.toLocaleString()} tokens (${pct}% de ${CTX_LIMIT.toLocaleString()})`}
+        title={`Contexto: ~${ctxTokens.toLocaleString()} tokens (${pct}% de ${CONTEXT_LIMIT.toLocaleString()})`}
         className={`flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-900/60 px-1.5 py-0.5 text-[10.5px] tabular-nums ${tone}`}
       >
         <Icon name="circle" size={9} className={pct >= 75 ? 'text-red-500' : pct >= 50 ? 'text-amber-500' : 'text-neutral-600'} />
@@ -73,13 +72,6 @@ interface HeaderProps {
   rate: { resetsAt: number; status: string } | null;
   ctxTokens: number;
   lastTurn?: TurnStats;
-}
-
-function fmtCost(n: number): string {
-  if (n >= 100) return '$' + n.toFixed(0);
-  if (n >= 1) return '$' + n.toFixed(2);
-  if (n > 0) return '$' + n.toFixed(3);
-  return '$0';
 }
 
 const NAV: { to: Route; label: string }[] = [

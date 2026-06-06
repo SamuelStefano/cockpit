@@ -1,4 +1,5 @@
 import type { DailyUsage } from '../../shared/protocol';
+import { fmtCost } from '../lib/format';
 
 export function fmtNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -6,12 +7,7 @@ export function fmtNum(n: number): string {
   return String(n);
 }
 
-export function usd(n: number): string {
-  if (n >= 100) return '$' + n.toFixed(0);
-  if (n >= 1) return '$' + n.toFixed(2);
-  if (n > 0) return '$' + n.toFixed(3);
-  return '$0';
-}
+export const usd = fmtCost;
 
 export function startOfDay(now: number): number {
   const d = new Date(now);
