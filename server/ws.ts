@@ -350,6 +350,11 @@ function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: 
 
 // Tradução evento NDJSON -> ServerMsg (squad C2/H1: tool por id de correlação).
 function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
+  // Um re-send mata o run anterior e o substitui na mesma key, mas o kill é
+  // assíncrono: o run morrendo ainda drena frames. Sem este guard, deltas/tools
+  // do run velho se intercalam com os do novo na mesma sessionKey (o onClose já
+  // tem o guard equivalente pro 'done').
+  if (threads.get(sessionKey) !== thread) return;
   switch (ev.type) {
     case 'rate_limit_event': {
       const info = (ev as any).rate_limit_info;
