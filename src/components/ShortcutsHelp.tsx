@@ -21,6 +21,8 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
     title: 'Listas (sessões, skills, contextos)',
     items: [
       { keys: ['⌘', '/'], label: 'Focar a busca' },
+      { keys: ['⌥', '↓'], label: 'Próxima sessão' },
+      { keys: ['⌥', '↑'], label: 'Sessão anterior' },
     ],
   },
   {

@@ -178,6 +178,7 @@ export function CockpitApp() {
   const [palette, setPalette] = useState(false);
   const [help, setHelp] = useState(false);
   const [focusSignal, setFocusSignal] = useState(0);
+  const [navPins] = usePersisted<string[]>('pinned', []); // espelha a ordem do sidebar p/ Alt+↑/↓
 
   const editUser = (text: string) => { setDraft(text); setFocusSignal((n) => n + 1); };
 
@@ -222,6 +223,26 @@ export function CockpitApp() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  // Alt+↑/↓ cicla entre sessões (ergonomia do run noturno multi-sessão). Usa a
+  // mesma ordem do sidebar (fixadas no topo). Funciona mesmo com o input em foco
+  // — Alt+seta não é combo de edição de texto comum.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || e.metaKey || e.ctrlKey) return;
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      const pinSet = new Set(navPins);
+      const ordered = [...sessions.filter((s) => pinSet.has(s.id)), ...sessions.filter((s) => !pinSet.has(s.id))];
+      if (ordered.length < 2) return;
+      e.preventDefault();
+      const i = ordered.findIndex((s) => s.id === activeSessionId);
+      const delta = e.key === 'ArrowDown' ? 1 : -1;
+      const next = ordered[(((i < 0 ? 0 : i) + delta) % ordered.length + ordered.length) % ordered.length];
+      if (next) setActiveSessionId(next.id);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [sessions, activeSessionId, navPins, setActiveSessionId]);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 1023px)');
