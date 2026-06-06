@@ -255,9 +255,13 @@ export function ChatInput({ disabled, onSend, onStop, value, setValue, mode, set
       if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => (s - 1 + matches.length) % matches.length); return; }
       if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault();
-        const c = matches[sel].toLowerCase();
-        // Comando emulado sem argumento dispara direto; o resto só completa o texto.
-        if (e.key === 'Enter' && (c === 'clear' || c === 'new')) { onNew(); setValue(''); return; }
+        // Enter num comando app-side runnable dispara a ação direto; Tab (e os que
+        // seguem pro Claude) só completam o texto pra revisão antes de enviar.
+        if (e.key === 'Enter' && runSlash('/' + matches[sel])) {
+          setValue('');
+          if (taRef.current) taRef.current.style.height = 'auto';
+          return;
+        }
         complete(matches[sel]);
         return;
       }
