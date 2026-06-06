@@ -30,10 +30,10 @@ export interface RunHandle {
 // - env mínimo (não vaza segredo do processo pai)
 // - cwd isolado
 // - detached pra matar a árvore no stop
-export function run(opts: RunOpts): RunHandle {
-  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, onEvent, onError, onClose } = opts;
+export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd'>;
 
-  // UI pede o modo por mensagem; resolveMode garante que bypass nunca passa.
+export function buildArgs(opts: BuildArgsOpts): { args: string[] } | { error: string } {
+  const { prompt, resumeId, mode, model, effort, maxBudgetUsd } = opts;
   const { permissionMode, allow } = resolveMode(mode);
 
   const args = [
@@ -43,37 +43,34 @@ export function run(opts: RunOpts): RunHandle {
     '--verbose',
     '--permission-mode', permissionMode,
   ];
-  // Allow-list de valores (nunca repassa string arbitrária da UI pro argv).
   if (model && MODELS.has(model)) args.push('--model', model);
   if (effort && EFFORTS.has(effort)) args.push('--effort', effort);
-  // Fallback em overload (resiliência de run longo). Só passa se for um alias
-  // conhecido E diferente do primário — nunca string arbitrária da config.
   if (CONFIG.fallbackModel && MODELS.has(CONFIG.fallbackModel) && CONFIG.fallbackModel !== model) {
     args.push('--fallback-model', CONFIG.fallbackModel);
   }
   if (typeof maxBudgetUsd === 'number' && Number.isFinite(maxBudgetUsd) && maxBudgetUsd > 0) {
     args.push('--max-budget-usd', String(maxBudgetUsd));
   }
-  // Allow-list explícita pra o agente trabalhar sem prompt interativo (headless
-  // não tem como responder). NÃO é bypass (bypass libera tudo; aqui é uma lista
-  // nomeada e auditável, no espírito do DR-004). Plan-mode nunca recebe lista.
-  if (allow.length) {
-    args.push('--allowedTools', allow.join(' '));
-  }
-  // Kill-switch duro: nega em todos os modos, precede a allow-list (DR-004).
-  if (CONFIG.disallowedTools.length) {
-    args.push('--disallowedTools', CONFIG.disallowedTools.join(' '));
-  }
+  if (allow.length) args.push('--allowedTools', allow.join(' '));
+  if (CONFIG.disallowedTools.length) args.push('--disallowedTools', CONFIG.disallowedTools.join(' '));
   if (resumeId) {
-    if (!UUID_RE.test(resumeId)) {
-      onError('sessionId inválido');
-      onClose();
-      return { kill: () => {} };
-    }
+    if (!UUID_RE.test(resumeId)) return { error: 'sessionId inválido' };
     args.push('--resume', resumeId);
   }
+  return { args };
+}
 
-  const child: ChildProcess = spawn('claude', args, {
+export function run(opts: RunOpts): RunHandle {
+  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, onEvent, onError, onClose } = opts;
+
+  const built = buildArgs({ prompt, resumeId, mode, model, effort, maxBudgetUsd });
+  if ('error' in built) {
+    onError(built.error);
+    onClose();
+    return { kill: () => {} };
+  }
+
+  const child: ChildProcess = spawn('claude', built.args, {
     cwd: CONFIG.workdir,
     env: minimalEnv(),
     shell: false,
