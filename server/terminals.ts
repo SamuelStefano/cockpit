@@ -11,6 +11,18 @@ import { spawn } from 'node:child_process';
 const NAME_RE = /^[a-zA-Z0-9_-]{1,32}$/;
 const MAX_BUFFER = 200_000; // ~200KB de scrollback pra replay no attach
 
+// Sequências de RESPOSTA do terminal (não de tecla). O xterm.js auto-responde a
+// queries de Device Attributes (CSI c / CSI > c) e Status Report (CSI n) com
+// CSI ? ... c (DA1), CSI > ... c (DA2), CSI ... R (CPR), CSI ? ... $y (DECRPM).
+// Essas respostas voltam pelo onData do xterm e, escritas no PTY como se fossem
+// digitadas, ecoam no shell e realimentam o loop infinito de "letras e números
+// estranhos" (DA1/DA2 repetindo pra sempre). Um humano NUNCA digita isso, então
+// filtrar na entrada (cliente->PTY) corta o loop no único ponto de junção, valha
+// qual cliente/replay/reset o disparou. Setas (CSI A/B/C/D) e paste (CSI 200~)
+// terminam em outra letra e não casam.
+const INPUT_REPORT_RE = /\x1b\[\?[0-9;]*c|\x1b\[>[0-9;]*c|\x1b\[[0-9;]*R|\x1b\[\?[0-9;]*\$y/g;
+const stripReports = (s: string) => s.replace(INPUT_REPORT_RE, '');
+
 interface Term {
   pty: IPty;
   buffer: string;
@@ -76,7 +88,7 @@ export function detachTerm(id: string, onData: (d: string) => void, onExit: () =
 }
 
 export function inputTerm(id: string, data: string) {
-  terms.get(id)?.pty.write(data);
+  terms.get(id)?.pty.write(stripReports(data));
 }
 
 export function resizeTerm(id: string, cols: number, rows: number) {
