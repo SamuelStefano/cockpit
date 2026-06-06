@@ -24,6 +24,7 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
       { keys: ['⌘', '/'], label: 'Focar a busca' },
       { keys: ['⌥', '↓'], label: 'Próxima sessão' },
       { keys: ['⌥', '↑'], label: 'Sessão anterior' },
+      { keys: ['n'], label: 'Próxima sessão com output novo' },
     ],
   },
   {

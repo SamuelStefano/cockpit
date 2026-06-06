@@ -251,6 +251,29 @@ export function CockpitApp() {
     return () => window.removeEventListener('keydown', onKey);
   }, [sessions, activeSessionId, navPins, setActiveSessionId]);
 
+  // `n` salta pra próxima sessão com output novo não visto (ergonomia do run
+  // noturno: vários turnos terminam em background; `n` cicla só pelas que
+  // produziram algo). `n` é tecla de digitação — só age fora de input.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'n' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+      if (!updated.size) return;
+      const pinSet = new Set(navPins);
+      const ordered = [...sessions.filter((s) => pinSet.has(s.id)), ...sessions.filter((s) => !pinSet.has(s.id))];
+      if (!ordered.length) return;
+      e.preventDefault();
+      const start = ordered.findIndex((s) => s.id === activeSessionId);
+      for (let k = 1; k <= ordered.length; k++) {
+        const cand = ordered[((start < 0 ? -1 : start) + k) % ordered.length];
+        if (cand && updated.has(cand.id)) { setActiveSessionId(cand.id); nav('/'); break; }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [sessions, activeSessionId, navPins, updated, setActiveSessionId, nav]);
+
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 1023px)');
     const apply = () => setIsMobile(mq.matches);
