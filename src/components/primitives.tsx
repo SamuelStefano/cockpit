@@ -291,6 +291,43 @@ function highlightBash(code: string): React.ReactNode[] {
   });
 }
 
+const CODE_KEYWORDS = new Set([
+  'const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while', 'do', 'switch',
+  'case', 'break', 'continue', 'import', 'from', 'export', 'default', 'class', 'extends', 'new',
+  'async', 'await', 'yield', 'try', 'catch', 'finally', 'throw', 'typeof', 'instanceof', 'in', 'of',
+  'def', 'lambda', 'pass', 'with', 'as', 'elif', 'self', 'type', 'interface', 'enum', 'struct',
+  'fn', 'match', 'impl', 'use', 'pub', 'mut', 'public', 'private', 'protected', 'static', 'void',
+  'true', 'false', 'null', 'none', 'nil', 'undefined', 'True', 'False', 'None',
+]);
+
+const CODE_TOKEN = /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)|(\/\/.*)|(\b\d[\w.]*\b)|([A-Za-z_$][\w$]*)/g;
+
+// Realce genérico leve pra linguagens não-shell (js/ts/py/json…): strings, comentários,
+// números e um set de keywords. O highlightBash misturava heurística de git/flags em
+// qualquer código; aqui cada lang ganha um realce coerente.
+function highlightGeneric(code: string): React.ReactNode[] {
+  return code.split('\n').map((line, i) => {
+    if (/^\s*#/.test(line)) return <div key={i} className="text-neutral-500">{line || ' '}</div>;
+    const nodes: React.ReactNode[] = [];
+    let last = 0, j = 0, m: RegExpExecArray | null;
+    const re = new RegExp(CODE_TOKEN.source, 'g');
+    while ((m = re.exec(line))) {
+      if (m.index > last) nodes.push(<span key={j++}>{line.slice(last, m.index)}</span>);
+      const [tok, str, comment, num, word] = m;
+      if (str) nodes.push(<span key={j++} className="text-green-400">{tok}</span>);
+      else if (comment) nodes.push(<span key={j++} className="text-neutral-500">{tok}</span>);
+      else if (num) nodes.push(<span key={j++} className="text-amber-300">{tok}</span>);
+      else if (word && CODE_KEYWORDS.has(word)) nodes.push(<span key={j++} className="text-sky-400">{tok}</span>);
+      else nodes.push(<span key={j++} className="text-neutral-300">{tok}</span>);
+      last = m.index + tok.length;
+    }
+    if (last < line.length) nodes.push(<span key={j++}>{line.slice(last)}</span>);
+    return <div key={i}>{nodes.length ? nodes : ' '}</div>;
+  });
+}
+
+const SHELL_LANGS = new Set(['bash', 'sh', 'shell', 'zsh', 'console', 'shell-session', 'shellscript']);
+
 interface CodeBlockProps {
   code: string;
   lang?: string;
@@ -320,7 +357,7 @@ export function CodeBlock({ code, lang = 'bash' }: CodeBlockProps) {
         </div>
       </div>
       <pre className="scroll-thin overflow-x-auto px-3 py-2.5 text-[12.5px] leading-relaxed">
-        <code className="font-mono">{highlightBash(code)}</code>
+        <code className="font-mono">{SHELL_LANGS.has((lang || '').toLowerCase()) ? highlightBash(code) : highlightGeneric(code)}</code>
       </pre>
     </div>
   );
