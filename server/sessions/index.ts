@@ -80,11 +80,11 @@ export async function metaForId(id: string): Promise<SessionMeta | null> {
 
 // Monta a SessionMeta a partir do cabeçalho escaneado — compartilhado pela
 // listagem e pela decoração de busca, pra os dois não divergirem nos defaults.
-function metaFromHead(id: string, mtime: number, head: { title: string; firstUser?: string; count: number }): SessionMeta {
+export function metaFromHead(id: string, mtime: number, head: { title: string; firstUser?: string; count: number }, now = Date.now()): SessionMeta {
   return {
     id,
     title: head.title || head.firstUser?.slice(0, 60) || 'Sem título',
-    relative: relTime(mtime),
+    relative: relTime(mtime, now),
     snippet: head.firstUser?.slice(0, 120) || '',
     mtime,
     count: head.count,
@@ -145,8 +145,8 @@ async function scanMeta(path: string, prev?: MetaScan): Promise<MetaScan> {
   }
 }
 
-function relTime(ms: number): string {
-  const diff = Date.now() - ms;
+export function relTime(ms: number, now = Date.now()): string {
+  const diff = now - ms;
   const min = Math.floor(diff / 60000);
   if (min < 1) return 'agora';
   if (min < 60) return `${min}min atrás`;
