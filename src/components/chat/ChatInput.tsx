@@ -177,7 +177,9 @@ export function ChatInput({ disabled, onSend, onStop, value, setValue, mode, set
   const fileRef = useRef<HTMLInputElement>(null);
   const hasAtt = attachments.length > 0;
   const [sel, setSel] = useState(0);
-  const slashOpen = !disabled && /^\/[^\s]*$/.test(value);
+  // "/" sozinho lista tudo; espaços continuam filtrando (comandos multi-palavra
+  // como "model opus"/"effort low"). Newline = mensagem de verdade, não comando.
+  const slashOpen = !disabled && value.startsWith('/') && !value.includes('\n');
   const slashQuery = slashOpen ? value.slice(1).toLowerCase() : '';
   const matches = useMemo(
     () => (slashOpen ? slashCommands.filter((c) => c.toLowerCase().includes(slashQuery)).slice(0, 8) : []),
