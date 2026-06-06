@@ -51,19 +51,7 @@ function StatHud({ rate, ctxTokens, lastTurn, onNav }: {
 
   const chips: React.ReactNode[] = [];
 
-  if (rate) {
-    const limited = rate.status !== 'allowed';
-    chips.push(
-      <span
-        key="rst"
-        title={`Limite de uso Claude: ${rate.status} — reseta em ${relReset(rate.resetsAt)}`}
-        className={`flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10.5px] tabular-nums transition ${limited ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-300' : 'border-neutral-800 bg-neutral-900/60 text-neutral-400'}`}
-      >
-        <Icon name="clock" size={10} className={limited ? 'text-yellow-400' : 'text-neutral-500'} />
-        {relReset(rate.resetsAt)}
-      </span>
-    );
-  }
+  // O reset do limite Claude vive só no rodapé (StatusBar) — não duplicar aqui.
 
   if (ctxTokens > 0) {
     const pct = Math.min(100, Math.round((ctxTokens / CTX_LIMIT) * 100));

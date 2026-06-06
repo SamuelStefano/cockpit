@@ -18,7 +18,9 @@ const ENV_WS = (import.meta.env.VITE_WS_URL ?? '').trim();
 const WS_URL = ENV_WS || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
 
 let _mid = 0;
-const newId = (p: string) => `${p}${Date.now().toString(36)}${(_mid++).toString(36)}`;
+// Sufixo aleatório além do contador monotônico: blinda contra colisão de key do
+// React mesmo se dois ids forem gerados no mesmo tick após um reload de módulo.
+const newId = (p: string) => `${p}${Date.now().toString(36)}${(_mid++).toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 
 function metaToSession(m: SessionMeta, active: boolean): Session {
   return { id: m.id, title: m.title, relative: m.relative, snippet: m.snippet, mtime: m.mtime, hasTerminal: false, active };

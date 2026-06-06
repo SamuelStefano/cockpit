@@ -219,11 +219,12 @@ function lineDiff(oldText: string, newText: string): DiffRow[] {
   return out;
 }
 
-function DiffView({ diff }: { diff: ToolDiff }) {
+function DiffView({ diff, signal }: { diff: ToolDiff; signal?: ToolSignal }) {
   const rows = useMemo(() => lineDiff(diff.old, diff.new), [diff.old, diff.new]);
   const adds = rows.filter((r) => r.t === 'add').length;
   const dels = rows.filter((r) => r.t === 'del').length;
   const [open, setOpen] = useState(true);
+  useEffect(() => { if (signal && signal.n > 0) setOpen(signal.open); }, [signal]);
   return (
     <div className="px-3 pb-2">
       <button
@@ -314,7 +315,7 @@ function ToolCallCard({ tool, signal }: ToolCallCardProps) {
           </div>
         </div>
       )}
-      {tool.diff && <DiffView diff={tool.diff} />}
+      {tool.diff && <DiffView diff={tool.diff} signal={signal} />}
       {tool.markdown && (
         <div className="px-3 pb-2">
           <div className="rounded-md border border-neutral-800 bg-[#0c0c0c] px-3 py-2 text-[13px] leading-relaxed text-neutral-300">
