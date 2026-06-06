@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from './primitives';
 import { usePersisted } from '../lib/persist';
+import { initials } from './avatar.initials';
 
 // Avatares do chat. O do Claude é um burst laranja (marca própria, não o ícone
 // genérico sparkles). O do usuário é configurável: clicar abre seletor de imagem,
@@ -39,12 +40,6 @@ function downscale(file: File, max = 96): Promise<string> {
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode failed')); };
     img.src = url;
   });
-}
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return '';
-  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
 }
 
 export function UserAvatar({ size = 28 }: { size?: number }) {
