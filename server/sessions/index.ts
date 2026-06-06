@@ -48,15 +48,7 @@ async function collectMetas(keep: (id: string, hidden: Set<string>) => boolean):
     const hit = cache.get(id);
     if (hit && hit.mtime === mtime) { metas.push(hit.meta); continue; }
 
-    const head = await scanMeta(full);
-    const meta: SessionMeta = {
-      id,
-      title: head.title || head.firstUser?.slice(0, 60) || 'Sem título',
-      relative: relTime(mtime),
-      snippet: head.firstUser?.slice(0, 120) || '',
-      mtime,
-      count: head.count,
-    };
+    const meta = metaFromHead(id, mtime, await scanMeta(full));
     cache.set(id, { mtime, meta });
     metas.push(meta);
   }
@@ -74,8 +66,15 @@ export async function metaForId(id: string): Promise<SessionMeta | null> {
   const mtime = st.mtimeMs;
   const hit = cache.get(id);
   if (hit && hit.mtime === mtime) return hit.meta;
-  const head = await scanMeta(full);
-  const meta: SessionMeta = {
+  const meta = metaFromHead(id, mtime, await scanMeta(full));
+  cache.set(id, { mtime, meta });
+  return meta;
+}
+
+// Monta a SessionMeta a partir do cabeçalho escaneado — compartilhado pela
+// listagem e pela decoração de busca, pra os dois não divergirem nos defaults.
+function metaFromHead(id: string, mtime: number, head: { title: string; firstUser?: string; count: number }): SessionMeta {
+  return {
     id,
     title: head.title || head.firstUser?.slice(0, 60) || 'Sem título',
     relative: relTime(mtime),
@@ -83,8 +82,6 @@ export async function metaForId(id: string): Promise<SessionMeta | null> {
     mtime,
     count: head.count,
   };
-  cache.set(id, { mtime, meta });
-  return meta;
 }
 
 // Lê o arquivo uma vez: pega o ÚLTIMO ai-title, a 1ª msg de user, e conta msgs.
