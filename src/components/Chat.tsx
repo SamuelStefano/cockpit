@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Icon, Badge, Markdown, CodeBlock } from './primitives';
 import type { Session, Message, Block, ToolCall } from '../data/mock';
-import type { PermMode, ModelAlias, EffortLevel } from '../../shared/protocol';
+import type { PermMode, ModelAlias, EffortLevel, TurnStats } from '../../shared/protocol';
 import type { Attachment } from '../useCockpit';
 import { threadToMarkdown, messageToText, download, fileSlug } from '../lib/export';
 
@@ -110,6 +110,26 @@ function ModelPicker({ model, setModel, effort, setEffort, disabled }: {
         {EFFORT_OPTS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
       </select>
     </div>
+  );
+}
+
+// --- TurnStat --------------------------------------------------------------
+
+// Custo/duração REAIS do último turno (result.total_cost_usd do CLI), não a
+// estimativa por preço de token. Ground-truth — some quando há um valor.
+function TurnStat({ stats }: { stats?: TurnStats }) {
+  if (!stats || (stats.costUsd === undefined && stats.durationMs === undefined)) return null;
+  const parts: string[] = [];
+  if (stats.costUsd !== undefined) parts.push('$' + stats.costUsd.toFixed(stats.costUsd < 0.01 ? 4 : 3));
+  if (stats.durationMs !== undefined) parts.push((stats.durationMs / 1000).toFixed(1) + 's');
+  return (
+    <span
+      title={`último turno (custo real do CLI)${stats.numTurns ? ` · ${stats.numTurns} turnos` : ''}`}
+      className="ml-auto flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-950 px-1.5 py-0.5 text-[10.5px] tabular-nums text-neutral-400"
+    >
+      <Icon name="zap" size={10} className="text-emerald-400/70" />
+      {parts.join(' · ')}
+    </span>
   );
 }
 
@@ -577,6 +597,7 @@ export interface ChatPanelProps {
   effort: EffortLevel;
   setEffort: (e: EffortLevel) => void;
   contextTokens: number;
+  lastTurn?: TurnStats;
   onNew: () => void;
   attachments: Attachment[];
   onUpload: (file: File) => void;
@@ -585,7 +606,7 @@ export interface ChatPanelProps {
   focusSignal?: number;
 }
 
-export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, model, setModel, effort, setEffort, contextTokens, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, focusSignal = 0 }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, model, setModel, effort, setEffort, contextTokens, lastTurn, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, focusSignal = 0 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -630,6 +651,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         <Icon name="message" size={14} className="text-neutral-500" />
         <span className="truncate text-[12.5px] font-medium text-neutral-300">{session ? session.title : 'Nova sessão'}</span>
         {session?.hasTerminal && <Badge tone="green" dot className="ml-0.5">terminal</Badge>}
+        <TurnStat stats={lastTurn} />
         <ContextMeter tokens={contextTokens} onNew={onNew} />
         {hasTools && (
           <button

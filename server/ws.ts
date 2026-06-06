@@ -18,6 +18,9 @@ import { openTerm, detachTerm, inputTerm, resizeTerm, closeTerm } from './termin
 interface Thread {
   handle: RunHandle;
   sessionId?: string;
+  costUsd?: number;     // custo real do turno (result.total_cost_usd, ground-truth)
+  durationMs?: number;
+  numTurns?: number;
 }
 
 const threads = new Map<string, Thread>();
@@ -189,7 +192,7 @@ function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: 
     onEvent: (ev) => translate(ws, sessionKey, thread, ev),
     onError: (message) => send(ws, { t: 'error', sessionKey, message }),
     onClose: () => {
-      send(ws, { t: 'done', sessionKey, sessionId: thread.sessionId ?? '' });
+      send(ws, { t: 'done', sessionKey, sessionId: thread.sessionId ?? '', costUsd: thread.costUsd, durationMs: thread.durationMs, numTurns: thread.numTurns });
       threads.delete(sessionKey);
     },
   });
@@ -253,6 +256,10 @@ function translate(ws: WebSocket, sessionKey: string, thread: Thread, ev: Claude
       return;
     }
     case 'result': {
+      const r = ev as any;
+      if (typeof r.total_cost_usd === 'number') thread.costUsd = r.total_cost_usd;
+      if (typeof r.duration_ms === 'number') thread.durationMs = r.duration_ms;
+      if (typeof r.num_turns === 'number') thread.numTurns = r.num_turns;
       capture(thread, ev);
       return;
     }

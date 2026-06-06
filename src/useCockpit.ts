@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Session, Message, Block } from './data/mock';
-import type { ClientMsg, ServerMsg, SessionMeta, ToolCall, SysStats, PermMode, ModelAlias, EffortLevel, ContextMeta, SkillMeta, UsageStats } from '../shared/protocol';
+import type { ClientMsg, ServerMsg, SessionMeta, ToolCall, SysStats, PermMode, ModelAlias, EffortLevel, ContextMeta, SkillMeta, UsageStats, TurnStats } from '../shared/protocol';
 import { loadPref, savePref } from './lib/persist';
 import { requestNotifyPermission, notifyTurnDone } from './lib/notify';
 
@@ -93,6 +93,7 @@ export interface Cockpit {
   archived: Session[];
   contextTokens: number;
   usage: Record<string, number>;
+  lastTurn?: TurnStats;
   searchResults: Session[];
   onSearch: (q: string) => void;
   contexts: ContextMeta[];
@@ -130,6 +131,7 @@ export function useCockpit(): Cockpit {
   const [stats, setStats] = useState<SysStats | null>(null);
   const [archived, setArchived] = useState<Session[]>([]);
   const [usage, setUsage] = useState<Record<string, number>>({}); // sessionKey -> tokens de contexto
+  const [turnStats, setTurnStats] = useState<Record<string, TurnStats>>({}); // sessionKey -> custo/duração reais do último turno
   const [searchResults, setSearchResults] = useState<Session[]>([]);
   const searchQ = useRef('');
   const [contexts, setContexts] = useState<ContextMeta[]>([]);
@@ -198,6 +200,7 @@ export function useCockpit(): Cockpit {
     setPhases(move);
     setDrafts(move);
     setUsage(move);
+    setTurnStats(move);
     setSessions((prev) => prev.map((s) => (s.id === oldKey ? { ...s, id: newId } : s)));
   }, []);
 
@@ -308,6 +311,9 @@ export function useCockpit(): Cockpit {
         const key = msg.sessionKey;
         delete runMsg.current[key];
         setPhases((p) => ({ ...p, [key]: 'idle' }));
+        if (msg.costUsd !== undefined || msg.durationMs !== undefined) {
+          setTurnStats((t) => ({ ...t, [key]: { costUsd: msg.costUsd, durationMs: msg.durationMs, numTurns: msg.numTurns } }));
+        }
         if (msg.sessionId) {
           resumeId.current[key] = msg.sessionId;
           migrateKey(key, msg.sessionId);
@@ -520,6 +526,7 @@ export function useCockpit(): Cockpit {
   const phase = phases[activeId] || 'idle';
   const draft = drafts[activeId] || '';
   const contextTokens = usage[activeId] || 0;
+  const lastTurn = turnStats[activeId];
   const setDraft = useCallback((v: string) => setDrafts((d) => ({ ...d, [activeRef.current]: v })), []);
 
   // Drafts não-enviados sobrevivem a reload. Só persiste sessões reais (uuid) e
@@ -530,5 +537,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, model, setModel: changeModel, effort, setEffort: changeEffort, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
+  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, model, setModel: changeModel, effort, setEffort: changeEffort, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
 }
