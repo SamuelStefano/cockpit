@@ -415,7 +415,7 @@ function MessageRow({ msg, caretOnLast, onEditUser, onQuote, toolSignal }: Messa
   if (msg.role === 'user') {
     return (
       <div className="fade-up group/u flex items-start justify-end gap-2.5">
-        <div className="mt-1 flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover/u:opacity-100">
+        <div className="mt-1 flex shrink-0 items-center gap-0.5 opacity-100 transition group-hover/u:opacity-100 sm:opacity-0 sm:group-hover/u:opacity-100">
           {msg.ts && <time className="mr-1 text-[10px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
           <CopyTextButton text={msg.text} />
           {onQuote && <QuoteButton onClick={() => onQuote(msg.text)} />}
@@ -447,7 +447,7 @@ function MessageRow({ msg, caretOnLast, onEditUser, onQuote, toolSignal }: Messa
       <div className="min-w-0 flex-1 pt-0.5">
         <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} toolSignal={toolSignal} />
         {hasText && !caretOnLast && (
-          <div className="mt-1 flex items-center gap-2 opacity-0 transition group-hover/msg:opacity-100">
+          <div className="mt-1 flex items-center gap-2 opacity-100 transition group-hover/msg:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100">
             <CopyMessageButton blocks={msg.blocks} />
             {onQuote && <QuoteButton onClick={() => onQuote(messageToText(msg.blocks))} withLabel />}
             {msg.ts && <time className="text-[10px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
