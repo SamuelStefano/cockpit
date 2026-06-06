@@ -48,6 +48,11 @@ export const CONFIG = {
   // Teto do prompt: evita ARG_MAX/DoS no spawn (argv -p).
   maxPromptBytes: 100_000,
 
+  // Teto de runs `claude -p` vivos ao mesmo tempo: no loop autônomo a noite toda
+  // um cliente bugado podia abrir sessões sem fim e fritar CPU/token. Substituir
+  // uma key existente sempre passa; só barra abertura de NOVAS sessões além disto.
+  maxConcurrentRuns: Number(process.env.COCKPIT_MAX_RUNS ?? 12),
+
   // Teto por anexo gravado no workdir (loopback-only, mas evita encher o disco).
   maxUploadBytes: 15_000_000,
 

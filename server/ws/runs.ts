@@ -22,6 +22,10 @@ export interface Thread {
 
 export const threads = new Map<string, Thread>();
 
+export function admitRun(liveRuns: number, replacing: boolean, cap = CONFIG.maxConcurrentRuns): boolean {
+  return replacing || liveRuns < cap;
+}
+
 const startedAt = Date.now();
 let lastStatsAt = 0;
 export function markStatsAt(now: number) { lastStatsAt = now; }
@@ -48,7 +52,12 @@ export function startRun(ws: WebSocket, sessionKey: string, prompt: string, resu
     send(ws, { t: 'error', sessionKey, message: 'prompt grande demais' });
     return;
   }
-  if (threads.has(sessionKey)) threads.get(sessionKey)!.handle.kill();
+  const replacing = threads.has(sessionKey);
+  if (!admitRun(threads.size, replacing)) {
+    send(ws, { t: 'error', sessionKey, message: 'limite de sessões simultâneas atingido' });
+    return;
+  }
+  if (replacing) threads.get(sessionKey)!.handle.kill();
 
   const thread: Thread = { handle: { kill: () => {} }, sessionId: resumeId, text: '', thinking: '', tools: [], toolStart: new Map() };
   threads.set(sessionKey, thread);
