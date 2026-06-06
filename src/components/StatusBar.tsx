@@ -1,15 +1,8 @@
 import { useState, useEffect } from 'react';
 import type { SysStats, TurnStats } from '../../shared/protocol';
+import { relReset } from '../lib/time';
 
 const CTX_LIMIT = 200_000;
-
-function relReset(resetsAt: number): string {
-  const diff = resetsAt - Date.now();
-  if (diff <= 0) return 'agora';
-  const min = Math.round(diff / 60000);
-  if (min < 60) return `${min}min`;
-  return `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`;
-}
 
 // Stats do Claude na barra inferior: sempre visível, em todo layout. Reset do
 // limite, % de contexto + tokens, duração do último turno (prompt→prompt).
