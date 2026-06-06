@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { SysStats, TurnStats } from '../../shared/protocol';
 import { relReset } from '../lib/time';
+import { fmtBytes, meterTone } from './statusBar.format';
 
 const CTX_LIMIT = 200_000;
 
@@ -56,19 +57,6 @@ function ClaudeStats({ rate, ctxTokens, lastTurn }: {
   );
 }
 
-function fmtBytes(b: number): string {
-  if (!b) return '0';
-  const gb = b / 1024 ** 3;
-  if (gb >= 1) return `${gb.toFixed(1)}G`;
-  return `${Math.round(b / 1024 ** 2)}M`;
-}
-
-function tone(pct: number): string {
-  if (pct >= 90) return 'var(--err)';
-  if (pct >= 70) return 'var(--warn)';
-  return 'var(--ok)';
-}
-
 interface MeterProps {
   label: string;
   pct: number;
@@ -76,7 +64,7 @@ interface MeterProps {
 }
 
 function Meter({ label, pct, detail }: MeterProps) {
-  const c = tone(pct);
+  const c = meterTone(pct);
   return (
     <div className="group relative flex items-center gap-1.5">
       <span className="font-mono text-[10px] font-medium uppercase tracking-wide text-neutral-500">{label}</span>
