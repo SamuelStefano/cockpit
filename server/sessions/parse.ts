@@ -48,6 +48,7 @@ export async function parseSession(
 
   const byUuid = new Map<string, Rec>();
   let leaf: string | undefined;
+  let lastMsgUuid: string | undefined;
 
   const rl = createInterface({ input: createReadStream(path), crlfDelay: Infinity });
   for await (const line of rl) {
@@ -60,13 +61,13 @@ export async function parseSession(
     // pra um nó intermediário (attachment/system) — se só indexar user/assistant
     // a caminhada quebra no 1º intermediário e trunca o histórico (squad).
     if (r.uuid) byUuid.set(r.uuid, r);
+    if (r.uuid && (r.type === 'user' || r.type === 'assistant')) lastMsgUuid = r.uuid;
   }
 
-  // fallback: sem leaf, usa o último record inserido
-  if (!leaf) {
-    const keys = [...byUuid.keys()];
-    leaf = keys[keys.length - 1];
-  }
+  // fallback: sem leaf, usa o último user/assistant (não o último record qualquer
+  // — o último pode ser um nó system/sidechain fora do caminho ativo, o que
+  // truncaria a caminhada parentUuid e cortaria o histórico).
+  if (!leaf) leaf = lastMsgUuid ?? [...byUuid.keys()].pop();
 
   const chain: Rec[] = [];
   let cur: string | undefined = leaf;
