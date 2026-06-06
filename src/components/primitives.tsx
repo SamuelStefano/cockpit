@@ -145,7 +145,7 @@ export function Skeleton({ className = '' }: SkeletonProps) {
 
 function renderInline(text: string, keyBase: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
-  const re = /(\*\*[^*]+\*\*|\*\S[^*\n]*?\*|~~[^~]+~~|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
+  const re = /(\*\*[^*]+\*\*|\*\S[^*\n]*?\*|~~[^~]+~~|`[^`]+`|\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s<>)\]]+)/g;
   let last = 0, i = 0;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
@@ -163,6 +163,16 @@ function renderInline(text: string, keyBase: string): React.ReactNode[] {
           {tok.slice(1, -1)}
         </code>
       );
+    } else if (tok.startsWith('http')) {
+      const trail = /[.,;:!?]+$/.exec(tok);
+      const url = trail ? tok.slice(0, -trail[0].length) : tok;
+      nodes.push(
+        <a key={`${keyBase}-u${i++}`} href={url} target="_blank" rel="noreferrer"
+          className="break-all text-orange-400 underline decoration-orange-400/40 underline-offset-2 transition hover:decoration-orange-400">
+          {url}
+        </a>
+      );
+      if (trail) nodes.push(<span key={`${keyBase}-tp${i++}`}>{trail[0]}</span>);
     } else {
       const mm = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(tok)!;
       nodes.push(
