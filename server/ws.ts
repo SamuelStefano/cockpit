@@ -11,7 +11,7 @@ import { listSkills, readSkill } from './skills';
 import { saveAttachment } from './attachments';
 import { recordUsage, usageStats } from './db';
 import { hideSession, unhideSession } from './store';
-import { parseSession, ctxTokens, diffOf } from './sessions/parse';
+import { parseSession, ctxTokens, diffOf, planOf } from './sessions/parse';
 import { collect } from './stats';
 import { openTerm, detachTerm, inputTerm, resizeTerm, closeTerm } from './terminals';
 
@@ -319,6 +319,7 @@ function emitTool(thread: Thread, sessionKey: string, block: any, status: ToolCa
     command: cmdOf(block.input),
     status,
     diff: diffOf(block.name, block.input),
+    markdown: planOf(block.name, block.input),
     output: [],
   };
   snapshotTool(thread, tool);
