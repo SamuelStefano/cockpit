@@ -46,6 +46,11 @@ export function run(opts: RunOpts): RunHandle {
   // Allow-list de valores (nunca repassa string arbitrária da UI pro argv).
   if (model && MODELS.has(model)) args.push('--model', model);
   if (effort && EFFORTS.has(effort)) args.push('--effort', effort);
+  // Fallback em overload (resiliência de run longo). Só passa se for um alias
+  // conhecido E diferente do primário — nunca string arbitrária da config.
+  if (CONFIG.fallbackModel && MODELS.has(CONFIG.fallbackModel) && CONFIG.fallbackModel !== model) {
+    args.push('--fallback-model', CONFIG.fallbackModel);
+  }
   if (typeof maxBudgetUsd === 'number' && Number.isFinite(maxBudgetUsd) && maxBudgetUsd > 0) {
     args.push('--max-budget-usd', String(maxBudgetUsd));
   }
