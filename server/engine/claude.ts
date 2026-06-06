@@ -92,8 +92,15 @@ export function run(opts: RunOpts): RunHandle {
     }
   });
 
+  // O `slice(0,2000)` era por-chunk, não cumulativo: um run pendurado cuspindo
+  // stderr a noite toda crescia o buffer sem teto. Mantém só a cauda (8KB) — é o
+  // que o erro de close usa (slice(-300)); o resto não serve pra nada.
+  const STDERR_CAP = 8192;
   let stderr = '';
-  child.stderr!.on('data', (d) => { stderr += String(d).slice(0, 2000); });
+  child.stderr!.on('data', (d) => {
+    stderr += String(d);
+    if (stderr.length > STDERR_CAP) stderr = stderr.slice(-STDERR_CAP);
+  });
 
   // Spawn falho (ex: `claude` fora do PATH) emite 'error' mas pode NÃO emitir
   // 'close' — sem isto o thread nunca limpa e o cliente trava no spinner.
