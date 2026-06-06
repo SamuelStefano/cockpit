@@ -54,9 +54,10 @@ interface SessionRowProps {
   onSelect: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onClose: (id: string) => void;
+  onStop?: (id: string) => void;
 }
 
-function SessionRow({ s, active, highlight, ctx, cost, running, updated, pinned, onTogglePin, onSelect, onRename, onClose }: SessionRowProps) {
+function SessionRow({ s, active, highlight, ctx, cost, running, updated, pinned, onTogglePin, onSelect, onRename, onClose, onStop }: SessionRowProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(s.title);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -123,6 +124,15 @@ function SessionRow({ s, active, highlight, ctx, cost, running, updated, pinned,
               </span>
             )}
             <span className="text-[10px] tabular-nums text-neutral-600 group-hover:hidden">{s.relative}</span>
+            {running && onStop && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onStop(s.id); }}
+                title="Parar o turno desta sessão"
+                className="hidden rounded p-0.5 text-neutral-500 transition hover:bg-neutral-800 hover:text-red-400 group-hover:block"
+              >
+                <Icon name="square" size={12} />
+              </button>
+            )}
             {onTogglePin && (
               <button
                 onClick={(e) => { e.stopPropagation(); onTogglePin(s.id); }}
@@ -172,6 +182,7 @@ export interface SessionsPanelProps {
   onNew: () => void;
   onRename: (id: string, title: string) => void;
   onClose: (id: string) => void;
+  onStop?: (sessionKey?: string) => void;
   archived?: Session[];
   onUnhide?: (id: string) => void;
   onCloseMobile?: () => void;
@@ -215,7 +226,7 @@ function ArchivedSection({ archived, onUnhide }: { archived: Session[]; onUnhide
   );
 }
 
-export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, onRename, onClose, archived = [], onUnhide, onCloseMobile, usage = {}, cost = {}, running, updated, searchResults = [], onSearch }: SessionsPanelProps) {
+export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, onRename, onClose, onStop, archived = [], onUnhide, onCloseMobile, usage = {}, cost = {}, running, updated, searchResults = [], onSearch }: SessionsPanelProps) {
   const [query, setQuery] = useState('');
   const [pins, setPins] = usePersisted<string[]>('pinned', []);
   const pinned = useMemo(() => new Set(pins), [pins]);
@@ -323,7 +334,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
             <SessionRow key={s.id} s={s} active={s.id === activeId} highlight={query} ctx={usage[s.id]} cost={cost[s.id]}
               running={running?.has(s.id)} updated={updated?.has(s.id)} pinned={pinned.has(s.id)} onTogglePin={togglePin}
               onSelect={(id) => { onSelect(id); onCloseMobile && onCloseMobile(); }}
-              onRename={onRename} onClose={onClose} />
+              onRename={onRename} onClose={onClose} onStop={onStop} />
           ))
         )}
         {!loading && !query && onUnhide && <ArchivedSection archived={archived} onUnhide={onUnhide} />}

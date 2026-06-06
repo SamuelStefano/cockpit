@@ -118,7 +118,7 @@ export interface Cockpit {
   onUpload: (file: File) => void;
   onRemoveAttachment: (path: string) => void;
   onSend: (text: string, modeOverride?: PermMode) => void;
-  onStop: () => void;
+  onStop: (sessionKey?: string) => void;
   onNew: () => void;
   onRename: (id: string, title: string) => void;
   onClose: (id: string) => void;
@@ -576,8 +576,8 @@ export function useCockpit(): Cockpit {
     }, [send]),
   };
 
-  const onStop = useCallback(() => {
-    const key = activeRef.current;
+  const onStop = useCallback((sessionKey?: string) => {
+    const key = sessionKey ?? activeRef.current;
     if (!key) return;
     send({ t: 'stop', sessionKey: key });
     delete runMsg.current[key];
