@@ -8,6 +8,7 @@ import { StatusBar } from './components/StatusBar';
 import { Contextos } from './routes/Contextos';
 import { Skills } from './routes/Skills';
 import { Observatorio } from './routes/Observatorio';
+import { Admin } from './routes/Admin';
 import { CommandPalette } from './components/CommandPalette';
 import { ShortcutsHelp } from './components/ShortcutsHelp';
 import { ProfileMenu } from './components/Avatar';
@@ -115,6 +116,7 @@ const NAV: { to: Route; label: string }[] = [
   { to: '/contextos', label: 'contextos' },
   { to: '/skills', label: 'skills' },
   { to: '/uso', label: 'uso' },
+  { to: '/admin', label: 'admin' },
 ];
 
 function Header({ conn, onNew, isMobile, onMenu, route, nav, onPalette, cost, rate, ctxTokens, lastTurn }: HeaderProps) {
@@ -271,7 +273,7 @@ export function CockpitApp() {
     archived, onUnhide: handleUnhide, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch,
     contexts, openContext, onCtxList, onCtxOpen, onCtxClose,
     skills, openSkill, onSkillList, onSkillOpen, onSkillClose,
-    usageStats, onUsageList,
+    usageStats, onUsageList, health, onHealthList,
     attachments, onUpload, onRemoveAttachment,
     onSend: handleSend, onStop: handleStop, onNew: cockpitNew, onRename: handleRename, onClose: handleCloseSession,
   } = cockpit;
@@ -499,6 +501,8 @@ export function CockpitApp() {
       ) : route === '/uso' ? (
         <Observatorio connected={conn.ws === 'connected'} usageStats={usageStats} onUsageList={onUsageList} sessions={sessions}
           onOpenSession={(id) => { setActiveSessionId(id); nav('/'); }} />
+      ) : route === '/admin' ? (
+        <Admin health={health} onHealthList={onHealthList} />
       ) : isMobile ? (
         <MobileLayout
           sessionsProps={{ sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onClose: handleCloseSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, stalled, updated, searchResults, onSearch }}

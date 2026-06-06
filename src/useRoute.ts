@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 
 // Router minúsculo (sem dep): só troca a VIEW principal. useCockpit fica ACIMA
 // deste switch no App, então o WebSocket/terminais nunca desmontam ao navegar.
-export type Route = '/' | '/contextos' | '/skills' | '/uso';
+export type Route = '/' | '/contextos' | '/skills' | '/uso' | '/admin';
 
-const ROUTES: Route[] = ['/', '/contextos', '/skills', '/uso'];
+const ROUTES: Route[] = ['/', '/contextos', '/skills', '/uso', '/admin'];
 
 function current(): Route {
   const p = location.pathname as Route;

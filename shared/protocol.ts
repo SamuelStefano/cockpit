@@ -135,6 +135,24 @@ export interface SysStats {
   load: number;
 }
 
+// Health read-only do painel admin (DR-007). Só existência/contagem — nunca
+// segredo. Auth-gate fica p/ depois; hoje protegido só por loopback.
+export interface AdminHealth {
+  claudeAuth: boolean;         // ~/.claude/.credentials.json existe?
+  mcpServers: string[];        // nomes dos MCP configurados (chaves, sem segredo)
+  sshKeys: number;             // chaves privadas em ~/.ssh
+  sessions: number;            // JSONL no projectsDir
+  memories: number;            // .md no memoryDir
+  skills: number;              // dirs em skillsDir
+  node: string;                // process.version
+  uptimeSec: number;           // uptime do backend
+  pid: number;
+  host: string;
+  port: number;
+  permissionMode: string;
+  disk: { used: number; total: number };
+}
+
 export type ClientMsg =
   | { t: 'send'; sessionKey: string; sessionId?: string; text: string; mode?: PermMode; model?: ModelAlias; effort?: EffortLevel; maxBudgetUsd?: number }
   | { t: 'stop'; sessionKey: string }
@@ -149,6 +167,7 @@ export type ClientMsg =
   | { t: 'skill-list' }
   | { t: 'skill-open'; id: string }
   | { t: 'usage-list' }
+  | { t: 'admin-health' }
   | { t: 'upload'; sessionKey: string; name: string; dataB64: string }
   | { t: 'term-open'; termId: string; cols: number; rows: number }
   | { t: 'term-input'; termId: string; data: string }
@@ -177,6 +196,7 @@ export type ServerMsg =
   | { t: 'rate'; resetsAt: number; status: string }
   | { t: 'usage'; sessionKey: string; tokens: number }
   | { t: 'usage-stats'; stats: UsageStats }
+  | { t: 'health'; health: AdminHealth }
   | { t: 'stats'; stats: SysStats }
   | { t: 'term-data'; termId: string; data: string }
   | { t: 'term-replay'; termId: string; data: string }

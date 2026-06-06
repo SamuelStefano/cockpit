@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Session, Message, Block } from './data/mock';
-import type { ClientMsg, ServerMsg, SessionMeta, ToolCall, SysStats, PermMode, ModelAlias, EffortLevel, ContextMeta, SkillMeta, UsageStats, TurnStats } from '../shared/protocol';
+import type { ClientMsg, ServerMsg, SessionMeta, ToolCall, SysStats, PermMode, ModelAlias, EffortLevel, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth } from '../shared/protocol';
 import { loadPref, savePref } from './lib/persist';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
 
@@ -122,6 +122,8 @@ export interface Cockpit {
   onSkillClose: () => void;
   usageStats: UsageStats | null;
   onUsageList: () => void;
+  health: AdminHealth | null;
+  onHealthList: () => void;
   attachments: Attachment[];
   onUpload: (file: File) => void;
   onRemoveAttachment: (path: string) => void;
@@ -156,6 +158,7 @@ export function useCockpit(): Cockpit {
   const [skills, setSkills] = useState<SkillMeta[]>([]);
   const [openSkill, setOpenSkill] = useState<SkillDoc | null>(null);
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
+  const [health, setHealth] = useState<AdminHealth | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const attachmentsRef = useRef<Attachment[]>([]);
   const [mode, setMode] = useState<PermMode>(() => loadPref<PermMode>('mode', 'auto'));
@@ -403,6 +406,10 @@ export function useCockpit(): Cockpit {
         setUsageStats(msg.stats);
         return;
       }
+      case 'health': {
+        setHealth(msg.health);
+        return;
+      }
       case 'uploaded': {
         const next = [...attachmentsRef.current, { name: msg.name, path: msg.path }];
         attachmentsRef.current = next;
@@ -602,6 +609,7 @@ export function useCockpit(): Cockpit {
   const onSkillOpen = useCallback((id: string) => send({ t: 'skill-open', id }), [send]);
   const onSkillClose = useCallback(() => setOpenSkill(null), []);
   const onUsageList = useCallback(() => send({ t: 'usage-list' }), [send]);
+  const onHealthList = useCallback(() => send({ t: 'admin-health' }), [send]);
 
   const term: TermApi = {
     attach: useCallback((id, cols, rows, onData, onExit, onReplay) => {
@@ -767,5 +775,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
 }
