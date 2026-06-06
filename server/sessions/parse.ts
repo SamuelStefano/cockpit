@@ -162,7 +162,7 @@ function recToMessage(r: Rec): Message | null {
   return null;
 }
 
-function extractCommand(input: unknown): string {
+export function extractCommand(input: unknown): string {
   if (input && typeof input === 'object') {
     const o = input as Record<string, unknown>;
     for (const key of ['command', 'file_path', 'pattern', 'url', 'query', 'description'] as const) {

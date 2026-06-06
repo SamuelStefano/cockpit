@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ctxTokens, diffOf, planOf } from './parse';
+import { ctxTokens, diffOf, planOf, extractCommand } from './parse';
 
 describe('ctxTokens', () => {
   it('returns 0 for undefined', () => {
@@ -44,5 +44,29 @@ describe('planOf', () => {
   it('ignores blank or wrong tools', () => {
     expect(planOf('ExitPlanMode', { plan: '   ' })).toBeUndefined();
     expect(planOf('Edit', { plan: 'x' })).toBeUndefined();
+  });
+});
+
+describe('extractCommand', () => {
+  it('prefers command over other keys', () => {
+    expect(extractCommand({ command: 'ls -la', file_path: '/a.ts' })).toBe('ls -la');
+  });
+  it('falls back through the key precedence list', () => {
+    expect(extractCommand({ file_path: '/a.ts' })).toBe('/a.ts');
+    expect(extractCommand({ pattern: 'foo' })).toBe('foo');
+    expect(extractCommand({ url: 'https://x' })).toBe('https://x');
+    expect(extractCommand({ query: 'q' })).toBe('q');
+    expect(extractCommand({ description: 'd' })).toBe('d');
+  });
+  it('skips empty strings to reach the next key', () => {
+    expect(extractCommand({ command: '', file_path: '/a.ts' })).toBe('/a.ts');
+  });
+  it('ignores non-string values', () => {
+    expect(extractCommand({ command: 42, pattern: 'p' })).toBe('p');
+  });
+  it('returns empty for non-objects or no matching key', () => {
+    expect(extractCommand(null)).toBe('');
+    expect(extractCommand('str')).toBe('');
+    expect(extractCommand({ other: 'x' })).toBe('');
   });
 });
