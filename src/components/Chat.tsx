@@ -324,13 +324,16 @@ function ToolCallCard({ tool, signal }: ToolCallCardProps) {
       )}
       {lines.length > 0 && (
         <div className="border-t border-neutral-800">
-          <button
-            onClick={() => setOpen(o => !o)}
-            className="flex w-full items-center gap-1.5 px-3 py-1.5 text-[11px] text-neutral-500 transition hover:text-neutral-300"
-          >
-            <Icon name="chevronDown" size={13} className="transition-transform duration-200" style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
-            {open ? 'ocultar output' : `mostrar output (${lines.length} linhas)`}
-          </button>
+          <div className="flex items-center pr-2">
+            <button
+              onClick={() => setOpen(o => !o)}
+              className="flex flex-1 items-center gap-1.5 px-3 py-1.5 text-[11px] text-neutral-500 transition hover:text-neutral-300"
+            >
+              <Icon name="chevronDown" size={13} className="transition-transform duration-200" style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
+              {open ? 'ocultar output' : `mostrar output (${lines.length} linhas)`}
+            </button>
+            {open && <CopyTextButton text={lines.join('\n')} />}
+          </div>
           <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
             <div className="overflow-hidden">
             <pre className="scroll-thin max-h-52 overflow-auto border-t border-neutral-800 bg-[#070707] px-3 py-2.5 font-mono text-[11.5px] leading-relaxed text-neutral-400">
