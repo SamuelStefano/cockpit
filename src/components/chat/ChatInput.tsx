@@ -155,6 +155,17 @@ const SLASH_HINTS: Record<string, string> = {
   'model opus': 'troca esta sessão pro Opus',
   'model sonnet': 'troca esta sessão pro Sonnet',
   'model haiku': 'troca esta sessão pro Haiku',
+  plan: 'modo planejar — só descreve, não executa',
+  auto: 'modo auto — edita/lê arquivos, sem shell',
+  execute: 'modo executar — edita e roda comandos',
+  'effort low': 'esforço de raciocínio baixo',
+  'effort medium': 'esforço de raciocínio médio',
+  'effort high': 'esforço de raciocínio alto',
+  'effort xhigh': 'esforço de raciocínio extra-alto',
+  'effort max': 'esforço de raciocínio máximo',
+};
+const EFFORT_BY_SLASH: Record<string, EffortLevel> = {
+  low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max',
 };
 const isLocalSlash = (c: string) => c in SLASH_HINTS;
 const slashHint = (c: string) => SLASH_HINTS[c] ?? 'enviado ao Claude como texto';
@@ -200,6 +211,10 @@ export function ChatInput({ disabled, onSend, onStop, value, setValue, mode, set
     const arg = m[2].trim().toLowerCase();
     if (cmd === 'clear' || cmd === 'new') { onNew(); return true; }
     if (cmd === 'model' && (arg === 'opus' || arg === 'sonnet' || arg === 'haiku')) { setModel(arg); return true; }
+    if (cmd === 'plan') { setMode('plan'); return true; }
+    if (cmd === 'auto') { setMode('auto'); return true; }
+    if (cmd === 'execute') { setMode('acceptEdits'); return true; }
+    if (cmd === 'effort' && arg in EFFORT_BY_SLASH) { setEffort(EFFORT_BY_SLASH[arg]); return true; }
     return false;
   };
   const submit = () => {
