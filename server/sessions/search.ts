@@ -61,12 +61,8 @@ async function matchSnippet(path: string, q: string): Promise<string | null> {
       let o: any;
       try { o = JSON.parse(line); } catch { continue; }
       if (o?.type !== 'user' && o?.type !== 'assistant') continue;
-      const text = extractText(o.message?.content);
-      const i = text.toLowerCase().indexOf(needle);
-      if (i < 0) continue;
-      const start = Math.max(0, i - 40);
-      const body = text.slice(start, i + q.length + 80).replace(/\s+/g, ' ').trim();
-      return (start > 0 ? '…' : '') + body + '…';
+      const snip = makeSnippet(extractText(o.message?.content), q);
+      if (snip) return snip;
     }
   } finally {
     rl.close();
@@ -74,7 +70,17 @@ async function matchSnippet(path: string, q: string): Promise<string | null> {
   return null;
 }
 
-function extractText(content: unknown): string {
+// Janela em torno do 1º hit (40 antes, termo + 80 depois), espaços colapsados e
+// reticências nas bordas cortadas. null se o termo não está na prosa.
+export function makeSnippet(text: string, q: string): string | null {
+  const i = text.toLowerCase().indexOf(q.toLowerCase());
+  if (i < 0) return null;
+  const start = Math.max(0, i - 40);
+  const body = text.slice(start, i + q.length + 80).replace(/\s+/g, ' ').trim();
+  return (start > 0 ? '…' : '') + body + '…';
+}
+
+export function extractText(content: unknown): string {
   if (typeof content === 'string') return content;
   if (Array.isArray(content)) {
     return content.filter((c: any) => c?.type === 'text').map((c: any) => c.text).join(' ');
