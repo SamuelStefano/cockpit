@@ -403,15 +403,18 @@ function MessageRow({ msg, caretOnLast, onEditUser, toolSignal }: MessageRowProp
   if (msg.role === 'user') {
     return (
       <div className="fade-up group/u flex items-start justify-end gap-2.5">
-        {onEditUser && (
-          <button
-            onClick={() => onEditUser(msg.text)}
-            title="Editar e reenviar"
-            className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-neutral-600 opacity-0 transition hover:bg-neutral-800 hover:text-neutral-300 group-hover/u:opacity-100"
-          >
-            <Icon name="pencil" size={12} />
-          </button>
-        )}
+        <div className="mt-1 flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover/u:opacity-100">
+          <CopyTextButton text={msg.text} />
+          {onEditUser && (
+            <button
+              onClick={() => onEditUser(msg.text)}
+              title="Editar e reenviar"
+              className="flex h-6 w-6 items-center justify-center rounded-md text-neutral-600 transition hover:bg-neutral-800 hover:text-neutral-300"
+            >
+              <Icon name="pencil" size={12} />
+            </button>
+          )}
+        </div>
         <div className="max-w-[82%] rounded-2xl rounded-br-md border border-neutral-700/60 bg-neutral-800 px-3.5 py-2.5 text-[14px] leading-relaxed text-neutral-100 shadow-sm shadow-black/20 [text-wrap:pretty]">
           {msg.text}
         </div>
@@ -436,6 +439,25 @@ function MessageRow({ msg, caretOnLast, onEditUser, toolSignal }: MessageRowProp
         )}
       </div>
     </div>
+  );
+}
+
+function CopyTextButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard?.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }).catch(() => {});
+  };
+  return (
+    <button
+      onClick={copy}
+      title="Copiar mensagem"
+      className="flex h-6 w-6 items-center justify-center rounded-md text-neutral-600 transition hover:bg-neutral-800 hover:text-neutral-300"
+    >
+      <Icon name={copied ? 'check' : 'copy'} size={12} />
+    </button>
   );
 }
 

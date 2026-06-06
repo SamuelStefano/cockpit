@@ -122,9 +122,7 @@ function SessionRow({ s, active, highlight, ctx, cost, running, updated, pinned,
                 ${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(2)}
               </span>
             )}
-            {pinned
-              ? <span className="text-[10px] tabular-nums text-neutral-600 group-hover:hidden" />
-              : <span className="text-[10px] tabular-nums text-neutral-600 group-hover:hidden">{s.relative}</span>}
+            <span className="text-[10px] tabular-nums text-neutral-600 group-hover:hidden">{s.relative}</span>
             {onTogglePin && (
               <button
                 onClick={(e) => { e.stopPropagation(); onTogglePin(s.id); }}
