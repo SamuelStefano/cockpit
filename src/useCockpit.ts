@@ -404,7 +404,18 @@ export function useCockpit(): Cockpit {
         send({ t: 'usage-list' }); // atualiza o burn chip após cada turno
         send({ t: 'list' });       // mtime avança -> badge "atualizada" em sessão não-ativa
         const id = msg.sessionId ?? key;
-        notifyTurnDone(sessionsRef.current.find((s) => s.id === id || s.id === key)?.title ?? '');
+        notifyTurnDone(
+          sessionsRef.current.find((s) => s.id === id || s.id === key)?.title ?? '',
+          () => {
+            activeRef.current = id;
+            setActiveIdState(id);
+            setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === id })));
+            if (id && !id.startsWith('new-') && !opened.current.has(id)) {
+              opened.current.add(id);
+              send({ t: 'open', sessionId: id });
+            }
+          },
+        );
         return;
       }
       case 'error': {

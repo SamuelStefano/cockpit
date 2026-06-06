@@ -19,7 +19,7 @@ export function requestNotifyPermission(): void {
   }
 }
 
-export function notifyTurnDone(sessionTitle: string): void {
+export function notifyTurnDone(sessionTitle: string, onActivate?: () => void): void {
   if (typeof document === 'undefined') return;
   if (document.visibilityState !== 'hidden') return; // só avisa fora da aba
   flashTitle();
@@ -29,7 +29,8 @@ export function notifyTurnDone(sessionTitle: string): void {
         body: sessionTitle || 'A sessão terminou de responder.',
         tag: 'cockpit-done',
       });
-      n.onclick = () => { window.focus(); n.close(); };
+      // Clicar não só foca a janela: pula direto pra sessão que terminou.
+      n.onclick = () => { window.focus(); onActivate?.(); n.close(); };
     } catch {
       /* best-effort */
     }
