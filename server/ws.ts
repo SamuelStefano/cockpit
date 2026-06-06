@@ -281,7 +281,13 @@ function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
   switch (ev.type) {
     case 'rate_limit_event': {
       const info = (ev as any).rate_limit_info;
-      if (info) broadcast({ t: 'rate', resetsAt: info.resetsAt, status: info.status });
+      if (info) {
+        // O CLI manda resetsAt em epoch SEGUNDOS; a UI compara com Date.now() (ms).
+        // Normaliza pra ms aqui (guard: valores < 1e12 são claramente segundos).
+        const raw = Number(info.resetsAt) || 0;
+        const resetsAt = raw > 0 && raw < 1e12 ? raw * 1000 : raw;
+        broadcast({ t: 'rate', resetsAt, status: info.status });
+      }
       capture(thread, ev);
       return;
     }

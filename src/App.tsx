@@ -12,6 +12,7 @@ import { CommandPalette } from './components/CommandPalette';
 import { ShortcutsHelp } from './components/ShortcutsHelp';
 import { useCockpit } from './useCockpit';
 import { useRoute, type Route } from './useRoute';
+import type { TurnStats } from '../shared/protocol';
 import { usePersisted } from './lib/persist';
 import { setTitleBase } from './lib/notify';
 import { TERMINALS_SEED, type Terminal } from './data/mock';
@@ -30,6 +31,73 @@ function relReset(resetsAt: number): string {
   return `${h}h${String(min % 60).padStart(2, '0')}`;
 }
 
+const CTX_LIMIT = 200_000;
+
+// HUD sempre-visível no header: reset do limite Claude, % de contexto + tokens,
+// e duração do último turno (prompt→prompt). Re-renderiza sozinho a cada 30s pro
+// countdown de reset andar mesmo sem novos frames.
+function StatHud({ rate, ctxTokens, lastTurn, onNav }: {
+  rate: { resetsAt: number; status: string } | null;
+  ctxTokens: number;
+  lastTurn?: TurnStats;
+  onNav: (to: Route) => void;
+}) {
+  const [, force] = useState(0);
+  useEffect(() => {
+    if (!rate) return;
+    const id = setInterval(() => force((n) => (n + 1) % 1e6), 30_000);
+    return () => clearInterval(id);
+  }, [rate]);
+
+  const chips: React.ReactNode[] = [];
+
+  if (rate) {
+    const limited = rate.status !== 'allowed';
+    chips.push(
+      <span
+        key="rst"
+        title={`Limite de uso Claude: ${rate.status} — reseta em ${relReset(rate.resetsAt)}`}
+        className={`flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10.5px] tabular-nums transition ${limited ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-300' : 'border-neutral-800 bg-neutral-900/60 text-neutral-400'}`}
+      >
+        <Icon name="clock" size={10} className={limited ? 'text-yellow-400' : 'text-neutral-500'} />
+        {relReset(rate.resetsAt)}
+      </span>
+    );
+  }
+
+  if (ctxTokens > 0) {
+    const pct = Math.min(100, Math.round((ctxTokens / CTX_LIMIT) * 100));
+    const tone = pct >= 75 ? 'text-red-400' : pct >= 50 ? 'text-amber-400' : 'text-neutral-400';
+    chips.push(
+      <button
+        key="ctx"
+        onClick={() => onNav('/')}
+        title={`Contexto: ~${ctxTokens.toLocaleString()} tokens (${pct}% de ${CTX_LIMIT.toLocaleString()})`}
+        className={`flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-900/60 px-1.5 py-0.5 text-[10.5px] tabular-nums ${tone}`}
+      >
+        <Icon name="circle" size={9} className={pct >= 75 ? 'text-red-500' : pct >= 50 ? 'text-amber-500' : 'text-neutral-600'} />
+        {pct}% · {(ctxTokens / 1000).toFixed(0)}k
+      </button>
+    );
+  }
+
+  if (lastTurn?.durationMs !== undefined) {
+    chips.push(
+      <span
+        key="trn"
+        title={`Último turno: ${(lastTurn.durationMs / 1000).toFixed(1)}s${lastTurn.numTurns ? ` · ${lastTurn.numTurns} turnos` : ''} (tempo de um prompt ao próximo)`}
+        className="flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-900/60 px-1.5 py-0.5 text-[10.5px] tabular-nums text-neutral-400"
+      >
+        <Icon name="zap" size={10} className="text-emerald-400/70" />
+        {(lastTurn.durationMs / 1000).toFixed(1)}s
+      </span>
+    );
+  }
+
+  if (!chips.length) return null;
+  return <div className="flex items-center gap-1.5">{chips}</div>;
+}
+
 // --- Header ----------------------------------------------------------------
 
 interface HeaderProps {
@@ -41,6 +109,9 @@ interface HeaderProps {
   nav: (to: Route) => void;
   onPalette: () => void;
   cost: number;
+  rate: { resetsAt: number; status: string } | null;
+  ctxTokens: number;
+  lastTurn?: TurnStats;
 }
 
 function fmtCost(n: number): string {
@@ -57,7 +128,7 @@ const NAV: { to: Route; label: string }[] = [
   { to: '/uso', label: 'uso' },
 ];
 
-function Header({ conn, onNew, isMobile, onMenu, route, nav, onPalette, cost }: HeaderProps) {
+function Header({ conn, onNew, isMobile, onMenu, route, nav, onPalette, cost, rate, ctxTokens, lastTurn }: HeaderProps) {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex items-center gap-2.5">
@@ -86,7 +157,8 @@ function Header({ conn, onNew, isMobile, onMenu, route, nav, onPalette, cost }: 
         </nav>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3">
+        {!isMobile && <StatHud rate={rate} ctxTokens={ctxTokens} lastTurn={lastTurn} onNav={nav} />}
         {cost > 0 && (
           <button
             onClick={() => nav('/uso')}
@@ -347,7 +419,7 @@ export function CockpitApp() {
         running={running} onStop={handleStop} onFocusComposer={() => setFocusSignal((n) => n + 1)}
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
-      <Header conn={conn} onNew={handleNew} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} cost={usageStats?.totalCost ?? 0} />
+      <Header conn={conn} onNew={handleNew} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} cost={usageStats?.totalCost ?? 0} rate={rate} ctxTokens={contextTokens} lastTurn={lastTurn} />
 
       {quota && rate && <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} />}
 
@@ -394,7 +466,7 @@ export function CockpitApp() {
         </div>
       )}
 
-      <StatusBar stats={stats} />
+      <StatusBar stats={stats} rate={rate} ctxTokens={contextTokens} lastTurn={lastTurn} />
     </div>
   );
 }

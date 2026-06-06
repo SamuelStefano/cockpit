@@ -1,4 +1,67 @@
-import type { SysStats } from '../../shared/protocol';
+import { useState, useEffect } from 'react';
+import type { SysStats, TurnStats } from '../../shared/protocol';
+
+const CTX_LIMIT = 200_000;
+
+function relReset(resetsAt: number): string {
+  const diff = resetsAt - Date.now();
+  if (diff <= 0) return 'agora';
+  const min = Math.round(diff / 60000);
+  if (min < 60) return `${min}min`;
+  return `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`;
+}
+
+// Stats do Claude na barra inferior: sempre visível, em todo layout. Reset do
+// limite, % de contexto + tokens, duração do último turno (prompt→prompt).
+function ClaudeStats({ rate, ctxTokens, lastTurn }: {
+  rate: { resetsAt: number; status: string } | null;
+  ctxTokens: number;
+  lastTurn?: TurnStats;
+}) {
+  const [, force] = useState(0);
+  useEffect(() => {
+    if (!rate) return;
+    const id = setInterval(() => force((n) => (n + 1) % 1e6), 30_000);
+    return () => clearInterval(id);
+  }, [rate]);
+  const parts: { k: string; node: React.ReactNode }[] = [];
+  if (rate) {
+    const limited = rate.status !== 'allowed';
+    parts.push({ k: 'rst', node: (
+      <span className={`font-mono text-[10.5px] tabular-nums ${limited ? 'text-yellow-400' : 'text-neutral-300'}`} title={`Limite Claude: ${rate.status} — reseta em ${relReset(rate.resetsAt)}`}>
+        <span className="text-neutral-500">reset</span> {relReset(rate.resetsAt)}
+      </span>
+    ) });
+  }
+  if (ctxTokens > 0) {
+    const pct = Math.min(100, Math.round((ctxTokens / CTX_LIMIT) * 100));
+    const tone = pct >= 75 ? 'text-red-400' : pct >= 50 ? 'text-amber-400' : 'text-neutral-300';
+    parts.push({ k: 'ctx', node: (
+      <span className={`font-mono text-[10.5px] tabular-nums ${tone}`} title={`Contexto: ~${ctxTokens.toLocaleString()} tokens (${pct}%)`}>
+        <span className="text-neutral-500">ctx</span> {pct}% · {(ctxTokens / 1000).toFixed(0)}k
+      </span>
+    ) });
+  }
+  if (lastTurn?.durationMs !== undefined) {
+    parts.push({ k: 'trn', node: (
+      <span className="font-mono text-[10.5px] tabular-nums text-neutral-300" title={`Último turno: ${(lastTurn.durationMs / 1000).toFixed(1)}s${lastTurn.numTurns ? ` · ${lastTurn.numTurns} turnos` : ''}`}>
+        <span className="text-neutral-500">turno</span> {(lastTurn.durationMs / 1000).toFixed(1)}s
+      </span>
+    ) });
+  }
+  if (!parts.length) return null;
+  return (
+    <>
+      {parts.map((p, i) => (
+        <span key={p.k} className="flex shrink-0 items-center gap-3.5">
+          {i === 0 && <span className="h-3 w-px shrink-0 bg-neutral-800" />}
+          {p.node}
+          {i < parts.length - 1 && <span className="h-3 w-px shrink-0 bg-neutral-800" />}
+        </span>
+      ))}
+    </>
+  );
+}
 
 function fmtBytes(b: number): string {
   if (!b) return '0';
@@ -38,11 +101,20 @@ function Meter({ label, pct, detail }: MeterProps) {
   );
 }
 
-export function StatusBar({ stats }: { stats: SysStats | null }) {
+interface StatusBarProps {
+  stats: SysStats | null;
+  rate?: { resetsAt: number; status: string } | null;
+  ctxTokens?: number;
+  lastTurn?: TurnStats;
+}
+
+export function StatusBar({ stats, rate = null, ctxTokens = 0, lastTurn }: StatusBarProps) {
+  const claude = <ClaudeStats rate={rate} ctxTokens={ctxTokens} lastTurn={lastTurn} />;
   if (!stats) {
     return (
-      <footer className="flex h-7 shrink-0 items-center gap-3 border-t border-neutral-800 bg-neutral-950 px-3 text-[10.5px] text-neutral-600">
-        <span className="font-mono">lendo telemetria…</span>
+      <footer className="flex h-7 shrink-0 items-center gap-3 overflow-x-auto border-t border-neutral-800 bg-neutral-950 px-3 text-[10.5px] text-neutral-600">
+        <span className="shrink-0 font-mono">lendo telemetria…</span>
+        {claude}
       </footer>
     );
   }
@@ -70,6 +142,7 @@ export function StatusBar({ stats }: { stats: SysStats | null }) {
           <Meter label="vram" pct={gpuMemPct} detail={`VRAM ${fmtBytes(gpu.memUsed)} / ${fmtBytes(gpu.memTotal)}`} />
         </>
       )}
+      {claude}
       <span className="ml-auto shrink-0 font-mono text-[10px] text-neutral-600">load {stats.load.toFixed(2)}</span>
     </footer>
   );
