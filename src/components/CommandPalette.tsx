@@ -28,11 +28,12 @@ interface CommandPaletteProps {
   running: Set<string>;
   onStop: (key?: string) => void;
   onFocusComposer: () => void;
+  onShowHelp: () => void;
 }
 
 const MODE_LABEL: Record<PermMode, string> = { plan: 'Planejar', auto: 'Auto', acceptEdits: 'Executar' };
 
-export function CommandPalette({ open, onClose, route, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer }: CommandPaletteProps) {
+export function CommandPalette({ open, onClose, route, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp }: CommandPaletteProps) {
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -49,6 +50,7 @@ export function CommandPalette({ open, onClose, route, nav, onNew, mode, setMode
     const actions: Cmd[] = [
       { id: 'new', label: 'Nova sessão', icon: 'plus', group: 'Ações', run: () => { onNew(); onClose(); } },
       { id: 'focus', label: 'Focar campo de mensagem', hint: '↵', icon: 'pencil', group: 'Ações', run: () => { nav('/'); onFocusComposer(); onClose(); } },
+      { id: 'help', label: 'Mostrar atalhos de teclado', hint: '?', icon: 'command', group: 'Ações', run: () => { onClose(); onShowHelp(); } },
     ];
     if (running.size) {
       // Com 1 só rodando, mira nela explicitamente — senão onStop() cairia no
@@ -90,7 +92,7 @@ export function CommandPalette({ open, onClose, route, nav, onNew, mode, setMode
       run: () => { onSelectSession(s.id); nav('/'); onClose(); },
     }));
     return [...nav_, ...actions, ...runningCmds, ...modes, ...sess];
-  }, [nav, onClose, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer]);
+  }, [nav, onClose, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
