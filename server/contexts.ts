@@ -51,7 +51,7 @@ interface Fm { name?: string; description?: string; type?: string }
 
 // Parser tolerante do frontmatter (name/description/type). description é uma
 // linha física (longa, possivelmente entre aspas) nos arquivos atuais.
-function parseFrontmatter(text: string): Fm {
+export function parseFrontmatter(text: string): Fm {
   if (!text.startsWith('---')) return {};
   const end = text.indexOf('\n---', 3);
   const block = end >= 0 ? text.slice(3, end) : text.slice(3);
@@ -68,12 +68,12 @@ function parseFrontmatter(text: string): Fm {
   return fm;
 }
 
-function unquote(s: string): string {
+export function unquote(s: string): string {
   if (s.length >= 2 && (s[0] === '"' || s[0] === "'") && s[s.length - 1] === s[0]) return s.slice(1, -1);
   return s;
 }
 
-function stripFrontmatter(raw: string): string {
+export function stripFrontmatter(raw: string): string {
   if (!raw.startsWith('---')) return raw;
   const end = raw.indexOf('\n---', 3);
   if (end < 0) return raw;
