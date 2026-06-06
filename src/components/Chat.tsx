@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Icon, Badge, Markdown, CodeBlock } from './primitives';
 import type { Session, Message, Block, ToolCall } from '../data/mock';
-import type { PermMode } from '../../shared/protocol';
+import type { PermMode, ModelAlias, EffortLevel } from '../../shared/protocol';
 import type { Attachment } from '../useCockpit';
 import { threadToMarkdown, messageToText, download, fileSlug } from '../lib/export';
 
@@ -63,6 +63,52 @@ function ModeToggle({ mode, setMode, disabled }: { mode: PermMode; setMode: (m: 
           </button>
         );
       })}
+    </div>
+  );
+}
+
+// --- ModelPicker -----------------------------------------------------------
+
+// Modelo + esforço de raciocínio por sessão. Repassados como --model/--effort
+// pro CLI (validados por allow-list no backend). Opus/high é o default.
+const MODEL_OPTS: { v: ModelAlias; label: string; hint: string }[] = [
+  { v: 'opus', label: 'Opus', hint: 'mais capaz e caro' },
+  { v: 'sonnet', label: 'Sonnet', hint: 'equilíbrio custo/qualidade' },
+  { v: 'haiku', label: 'Haiku', hint: 'rápido e barato' },
+];
+const EFFORT_OPTS: { v: EffortLevel; label: string }[] = [
+  { v: 'low', label: 'baixo' },
+  { v: 'medium', label: 'médio' },
+  { v: 'high', label: 'alto' },
+  { v: 'xhigh', label: 'x-alto' },
+  { v: 'max', label: 'máx' },
+];
+
+function ModelPicker({ model, setModel, effort, setEffort, disabled }: {
+  model: ModelAlias; setModel: (m: ModelAlias) => void;
+  effort: EffortLevel; setEffort: (e: EffortLevel) => void; disabled: boolean;
+}) {
+  const sel = 'rounded-md border border-neutral-800 bg-neutral-950 px-1.5 py-1 text-[11px] font-medium text-neutral-300 outline-none transition hover:border-neutral-700 focus:border-orange-500/40 disabled:cursor-not-allowed disabled:opacity-50';
+  return (
+    <div className="inline-flex items-center gap-1">
+      <select
+        value={model}
+        disabled={disabled}
+        onChange={(e) => setModel(e.target.value as ModelAlias)}
+        title="Modelo desta sessão"
+        className={sel}
+      >
+        {MODEL_OPTS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+      </select>
+      <select
+        value={effort}
+        disabled={disabled}
+        onChange={(e) => setEffort(e.target.value as EffortLevel)}
+        title="Esforço de raciocínio (extended thinking)"
+        className={sel}
+      >
+        {EFFORT_OPTS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+      </select>
     </div>
   );
 }
@@ -362,6 +408,10 @@ interface ChatInputProps {
   setValue: (v: string) => void;
   mode: PermMode;
   setMode: (m: PermMode) => void;
+  model: ModelAlias;
+  setModel: (m: ModelAlias) => void;
+  effort: EffortLevel;
+  setEffort: (e: EffortLevel) => void;
   attachments: Attachment[];
   onUpload: (file: File) => void;
   onRemoveAttachment: (path: string) => void;
@@ -373,7 +423,7 @@ interface ChatInputProps {
 
 const MAX_UPLOAD = 15_000_000;
 
-function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, attachments, onUpload, onRemoveAttachment, focusSignal, queued, onQueue, onCancelQueue }: ChatInputProps) {
+function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, model, setModel, effort, setEffort, attachments, onUpload, onRemoveAttachment, focusSignal, queued, onQueue, onCancelQueue }: ChatInputProps) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const hasAtt = attachments.length > 0;
@@ -427,6 +477,9 @@ function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, a
             <Icon name="zap" size={11} /> executa de verdade
           </span>
         )}
+        <div className="ml-auto">
+          <ModelPicker model={model} setModel={setModel} effort={effort} setEffort={setEffort} disabled={false} />
+        </div>
       </div>
       {hasAtt && (
         <div className="mb-2 flex flex-wrap gap-1.5">
@@ -519,6 +572,10 @@ export interface ChatPanelProps {
   onStop: () => void;
   mode: PermMode;
   setMode: (m: PermMode) => void;
+  model: ModelAlias;
+  setModel: (m: ModelAlias) => void;
+  effort: EffortLevel;
+  setEffort: (e: EffortLevel) => void;
   contextTokens: number;
   onNew: () => void;
   attachments: Attachment[];
@@ -528,7 +585,7 @@ export interface ChatPanelProps {
   focusSignal?: number;
 }
 
-export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, contextTokens, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, focusSignal = 0 }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, model, setModel, effort, setEffort, contextTokens, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, focusSignal = 0 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -611,6 +668,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
       )}
 
       <ChatInput disabled={disabled} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
+        model={model} setModel={setModel} effort={effort} setEffort={setEffort}
         attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} focusSignal={focusSignal}
         queued={queued} onQueue={setQueued} onCancelQueue={() => setQueued('')} />
     </div>

@@ -9,10 +9,15 @@ export interface RunOpts {
   prompt: string;
   resumeId?: string;
   mode?: string;               // pedido pela UI; passa por safeMode (nunca bypass)
+  model?: string;              // alias opus/sonnet/haiku (validado por allow-list)
+  effort?: string;             // low|medium|high|xhigh|max (validado)
   onEvent: (ev: ClaudeEvent) => void;
   onError: (msg: string) => void;
   onClose: () => void;
 }
+
+const MODELS = new Set(['opus', 'sonnet', 'haiku']);
+const EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
 
 export interface RunHandle {
   kill: () => void;
@@ -25,7 +30,7 @@ export interface RunHandle {
 // - cwd isolado
 // - detached pra matar a árvore no stop
 export function run(opts: RunOpts): RunHandle {
-  const { prompt, resumeId, mode, onEvent, onError, onClose } = opts;
+  const { prompt, resumeId, mode, model, effort, onEvent, onError, onClose } = opts;
 
   // UI pede o modo por mensagem; resolveMode garante que bypass nunca passa.
   const { permissionMode, allow } = resolveMode(mode);
@@ -37,6 +42,9 @@ export function run(opts: RunOpts): RunHandle {
     '--verbose',
     '--permission-mode', permissionMode,
   ];
+  // Allow-list de valores (nunca repassa string arbitrária da UI pro argv).
+  if (model && MODELS.has(model)) args.push('--model', model);
+  if (effort && EFFORTS.has(effort)) args.push('--effort', effort);
   // Allow-list explícita pra o agente trabalhar sem prompt interativo (headless
   // não tem como responder). NÃO é bypass (bypass libera tudo; aqui é uma lista
   // nomeada e auditável, no espírito do DR-004). Plan-mode nunca recebe lista.

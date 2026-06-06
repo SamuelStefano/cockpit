@@ -163,13 +163,13 @@ async function handle(ws: WebSocket, msg: ClientMsg) {
       return;
     }
     case 'send': {
-      startRun(ws, msg.sessionKey, msg.text, msg.sessionId, msg.mode);
+      startRun(ws, msg.sessionKey, msg.text, msg.sessionId, msg.mode, msg.model, msg.effort);
       return;
     }
   }
 }
 
-function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: string, mode?: string) {
+function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: string, mode?: string, model?: string, effort?: string) {
   if (Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) {
     send(ws, { t: 'error', sessionKey, message: 'prompt grande demais' });
     return;
@@ -184,6 +184,8 @@ function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: 
     prompt,
     resumeId,
     mode,
+    model,
+    effort,
     onEvent: (ev) => translate(ws, sessionKey, thread, ev),
     onError: (message) => send(ws, { t: 'error', sessionKey, message }),
     onClose: () => {
