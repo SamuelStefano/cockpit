@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Session, Message, Block } from './data/mock';
 import type { ClientMsg, ServerMsg, SessionMeta, ToolCall, SysStats, PermMode, ContextMeta, SkillMeta, UsageStats } from '../shared/protocol';
 import { loadPref, savePref } from './lib/persist';
+import { requestNotifyPermission, notifyTurnDone } from './lib/notify';
 
 export interface ContextDoc { id: string; title: string; body: string }
 export interface SkillDoc { id: string; name: string; body: string }
@@ -141,11 +142,14 @@ export function useCockpit(): Cockpit {
   const resumeId = useRef<Record<string, string>>({});    // sessionKey -> claude sessionId p/ --resume
   const opened = useRef<Set<string>>(new Set());          // sessionKeys cujo histórico já foi pedido
   const activeRef = useRef('');
+  const sessionsRef = useRef<Session[]>([]);
   const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
   const termData = useRef<Map<string, (d: string) => void>>(new Map());   // termId -> xterm.write
   const termReplay = useRef<Map<string, (d: string) => void>>(new Map()); // termId -> reset()+write (snapshot)
   const termExit = useRef<Map<string, () => void>>(new Map());
   const termDims = useRef<Map<string, { cols: number; rows: number }>>(new Map()); // p/ reattach no reconnect
+
+  useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
 
   const send = useCallback((m: ClientMsg) => {
     const ws = wsRef.current;
@@ -300,6 +304,8 @@ export function useCockpit(): Cockpit {
           migrateKey(key, msg.sessionId);
         }
         send({ t: 'usage-list' }); // atualiza o burn chip após cada turno
+        const id = msg.sessionId ?? key;
+        notifyTurnDone(sessionsRef.current.find((s) => s.id === id || s.id === key)?.title ?? '');
         return;
       }
       case 'error': {
@@ -366,6 +372,7 @@ export function useCockpit(): Cockpit {
   const onSend = useCallback((text: string) => {
     const key = activeRef.current;
     if (!key) return;
+    requestNotifyPermission(); // 1ª vez: pede permissão (gesto do usuário)
     const atts = attachmentsRef.current;
     // Anexos viram refs de path no início do prompt; o agente abre via Read.
     const wire = atts.length
