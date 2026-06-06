@@ -56,6 +56,8 @@ export interface ResultEvent {
   result?: string;
   session_id: string;
   total_cost_usd?: number;
+  duration_ms?: number;
+  num_turns?: number;
 }
 
 export type ClaudeEvent =
