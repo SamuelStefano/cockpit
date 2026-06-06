@@ -236,6 +236,25 @@ export function useCockpit(): Cockpit {
         setPhases((p) => ({ ...p, [msg.sessionKey]: 'thinking' }));
         return;
       }
+      case 'replay': {
+        // Reconnect mid-run (#10): snapshot autoritativo do turno em voo.
+        // Reconstrói (ou sobrescreve) o bubble e segue recebendo deltas ao vivo.
+        const key = msg.sessionKey;
+        const blocks: Block[] = [];
+        if (msg.thinking) blocks.push({ type: 'thinking', text: msg.thinking });
+        if (msg.text) blocks.push({ type: 'text', md: msg.text });
+        for (const t of msg.tools) blocks.push({ type: 'tool', tool: t });
+        let mid = runMsg.current[key];
+        if (!mid) { mid = newId('a'); runMsg.current[key] = mid; }
+        const id = mid;
+        updateThread(key, (prev) =>
+          prev.some((m) => m.id === id)
+            ? prev.map((m) => (m.id === id && m.role === 'assistant' ? { ...m, blocks } : m))
+            : [...prev, { id, role: 'assistant', blocks }],
+        );
+        setPhases((p) => ({ ...p, [key]: blocks.some((b) => b.type === 'text') ? 'streaming' : 'thinking' }));
+        return;
+      }
       case 'system': {
         if (msg.sessionId) resumeId.current[msg.sessionKey] = msg.sessionId;
         return;

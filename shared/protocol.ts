@@ -164,6 +164,7 @@ export type ServerMsg =
   | { t: 'history'; sessionId: string; messages: Message[]; cursor?: string; tokens?: number }
   | { t: 'busy'; keys: string[] }
   | { t: 'started'; sessionKey: string }
+  | { t: 'replay'; sessionKey: string; text: string; thinking: string; tools: ToolCall[] }
   | { t: 'system'; sessionKey: string; sessionId: string }
   | { t: 'slash-commands'; items: string[] }
   | { t: 'delta'; sessionKey: string; text: string }
