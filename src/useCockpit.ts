@@ -280,7 +280,7 @@ export function useCockpit(): Cockpit {
         if (runMsg.current[msg.sessionKey]) return; // já em voo (reconnect) — não duplica bubble
         const id = newId('a');
         runMsg.current[msg.sessionKey] = id;
-        updateThread(msg.sessionKey, (prev) => [...prev, { id, role: 'assistant', blocks: [] }]);
+        updateThread(msg.sessionKey, (prev) => [...prev, { id, role: 'assistant', blocks: [], ts: Date.now() }]);
         setPhases((p) => ({ ...p, [msg.sessionKey]: 'thinking' }));
         return;
       }
@@ -501,7 +501,7 @@ export function useCockpit(): Cockpit {
       : text;
     if (atts.length) { attachmentsRef.current = []; setAttachments([]); }
     setInterrupted((p) => { if (!(key in p)) return p; const n = { ...p }; delete n[key]; return n; });
-    updateThread(key, (prev) => [...prev, { id: newId('u'), role: 'user', text }]);
+    updateThread(key, (prev) => [...prev, { id: newId('u'), role: 'user', text, ts: Date.now() }]);
     setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: text, relative: 'agora' } : s)));
     setDrafts((d) => ({ ...d, [key]: '' }));
     send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, mode: modeOverride ?? modeRef.current, model: modelRef.current, effort: effortRef.current, maxBudgetUsd: budgetRef.current > 0 ? budgetRef.current : undefined });

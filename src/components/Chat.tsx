@@ -404,6 +404,7 @@ function MessageRow({ msg, caretOnLast, onEditUser, toolSignal }: MessageRowProp
     return (
       <div className="fade-up group/u flex items-start justify-end gap-2.5">
         <div className="mt-1 flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover/u:opacity-100">
+          {msg.ts && <time className="mr-1 text-[10px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
           <CopyTextButton text={msg.text} />
           {onEditUser && (
             <button
@@ -433,8 +434,9 @@ function MessageRow({ msg, caretOnLast, onEditUser, toolSignal }: MessageRowProp
       <div className="min-w-0 flex-1 pt-0.5">
         <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} toolSignal={toolSignal} />
         {hasText && !caretOnLast && (
-          <div className="mt-1 opacity-0 transition group-hover/msg:opacity-100">
+          <div className="mt-1 flex items-center gap-2 opacity-0 transition group-hover/msg:opacity-100">
             <CopyMessageButton blocks={msg.blocks} />
+            {msg.ts && <time className="text-[10px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
           </div>
         )}
       </div>
@@ -512,6 +514,16 @@ function fmtElapsed(secs: number): string {
   const m = Math.floor(secs / 60);
   const s = secs % 60;
   return `${m}m ${s}s`;
+}
+
+// Horário do turno (HH:MM). Mostra dia quando não é hoje.
+function fmtClock(ts: number): string {
+  const d = new Date(ts);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const hm = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (sameDay) return hm;
+  return `${d.toLocaleDateString([], { day: '2-digit', month: '2-digit' })} ${hm}`;
 }
 
 // --- ChatEmpty -------------------------------------------------------------

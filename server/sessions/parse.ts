@@ -18,6 +18,7 @@ interface Rec {
   parentUuid?: string | null;
   message?: { role: string; content: unknown; usage?: Usage };
   leafUuid?: string;
+  timestamp?: string;
 }
 
 // Tokens de contexto "em voo" no último turno = entrada + cache (o que foi
@@ -95,6 +96,8 @@ export async function parseSession(
 function recToMessage(r: Rec): Message | null {
   if (!r.message) return null;
   const content = r.message.content;
+  const t = r.timestamp ? Date.parse(r.timestamp) : NaN;
+  const ts = Number.isFinite(t) ? t : undefined;
   if (r.message.role === 'user') {
     const text = typeof content === 'string'
       ? content
@@ -102,7 +105,7 @@ function recToMessage(r: Rec): Message | null {
         ? content.filter((c: any) => c?.type === 'text').map((c: any) => c.text).join('\n')
         : '';
     if (!text.trim()) return null;
-    return { id: r.uuid!, role: 'user', text };
+    return { id: r.uuid!, role: 'user', text, ts };
   }
   if (r.message.role === 'assistant' && Array.isArray(content)) {
     const blocks: Block[] = [];
@@ -124,7 +127,7 @@ function recToMessage(r: Rec): Message | null {
       }
     }
     if (!blocks.length) return null;
-    return { id: r.uuid!, role: 'assistant', blocks };
+    return { id: r.uuid!, role: 'assistant', blocks, ts };
   }
   return null;
 }
