@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { attachWs, killAllRuns } from './ws';
+import { attachWs, killAllRuns, runStats } from './ws';
 import { makeStatic } from './static';
 import { sweepAttachments } from './attachments';
 import { checkpointWal, sweepUsage } from './db';
@@ -16,6 +16,13 @@ async function main() {
   const serveStatic = makeStatic(distDir);
 
   const server = createServer((req, res) => {
+    // Liveness: o supervisor (run-backend.sh) faz poll disto pra detectar backend
+    // pendurado-mas-vivo — se isto responde, o event loop não travou de vez.
+    if (req.url === '/healthz') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, ...runStats() }));
+      return;
+    }
     serveStatic(req, res).then((served) => {
       if (served) return;
       res.writeHead(200, { 'content-type': 'text/plain' });
