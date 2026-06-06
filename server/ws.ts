@@ -62,8 +62,20 @@ export function attachWs(server: Server) {
 
     ws.on('message', (raw) => {
       let msg: ClientMsg;
-      try { msg = JSON.parse(String(raw)) as ClientMsg; } catch { return; }
-      if (handleTerm(ws, msg, myTerms)) return;
+      try {
+        const parsed = JSON.parse(String(raw));
+        if (!parsed || typeof parsed !== 'object') return; // frame não-objeto (null/string/número)
+        msg = parsed as ClientMsg;
+      } catch { return; }
+      // handleTerm é síncrono e roda fora do .catch do handle — um frame de
+      // terminal malformado que lançasse aqui viraria uncaughtException e
+      // derrubaria o processo inteiro. O try isola o socket que mandou lixo.
+      try {
+        if (handleTerm(ws, msg, myTerms)) return;
+      } catch (e) {
+        send(ws, { t: 'error', message: sanitize(String((e as Error)?.message ?? e)) });
+        return;
+      }
       handle(ws, msg).catch((e) => send(ws, { t: 'error', message: sanitize(String(e?.message ?? e)) }));
     });
 
