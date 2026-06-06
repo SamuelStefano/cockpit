@@ -145,7 +145,7 @@ export function Skeleton({ className = '' }: SkeletonProps) {
 
 function renderInline(text: string, keyBase: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
-  const re = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
+  const re = /(\*\*[^*]+\*\*|\*\S[^*\n]*?\*|~~[^~]+~~|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
   let last = 0, i = 0;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
@@ -153,6 +153,10 @@ function renderInline(text: string, keyBase: string): React.ReactNode[] {
     const tok = m[0];
     if (tok.startsWith('**')) {
       nodes.push(<strong key={`${keyBase}-b${i++}`} className="font-semibold text-neutral-100">{tok.slice(2, -2)}</strong>);
+    } else if (tok.startsWith('~~')) {
+      nodes.push(<span key={`${keyBase}-s${i++}`} className="text-neutral-500 line-through">{tok.slice(2, -2)}</span>);
+    } else if (tok.startsWith('*')) {
+      nodes.push(<em key={`${keyBase}-i${i++}`} className="italic text-neutral-200">{tok.slice(1, -1)}</em>);
     } else if (tok.startsWith('`')) {
       nodes.push(
         <code key={`${keyBase}-c${i++}`} className="rounded bg-neutral-800 px-1.5 py-0.5 font-mono text-[0.86em] text-orange-300">
