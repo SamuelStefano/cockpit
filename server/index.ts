@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { attachWs, killAllRuns } from './ws';
 import { makeStatic } from './static';
 import { sweepAttachments } from './attachments';
+import { checkpointWal } from './db';
 import { CONFIG } from './config';
 
 const distDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
@@ -25,7 +26,7 @@ async function main() {
   attachWs(server);
 
   // Limpeza de anexos velhos: na subida + a cada 6h (daily driver fica de pé).
-  const sweep = () => { sweepAttachments().catch(() => {}); };
+  const sweep = () => { sweepAttachments().catch(() => {}); checkpointWal(); };
   sweep();
   setInterval(sweep, 6 * 60 * 60 * 1000).unref();
 
