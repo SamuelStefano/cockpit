@@ -1,82 +1,18 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Session, Message, Block } from './data/mock';
-import type { ClientMsg, ServerMsg, SessionMeta, ToolCall, SysStats, PermMode, ModelAlias, EffortLevel, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth } from '../shared/protocol';
+import type { ClientMsg, ServerMsg, SysStats, PermMode, ModelAlias, EffortLevel, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth } from '../shared/protocol';
 import { loadPref, savePref } from './lib/persist';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
+import { WS_URL, newId, metaToSession } from './cockpit/session';
+import { upsertTool, appendDelta, appendThinking } from './cockpit/blocks';
+import { useTerminals, type TermApi } from './cockpit/useTerminals';
 
 export interface ContextDoc { id: string; title: string; body: string }
 export interface SkillDoc { id: string; name: string; body: string }
 export interface Attachment { name: string; path: string }
+export type { TermApi };
 import type { ConnState } from './components/primitives';
 import type { Phase } from './components/Chat';
-
-// Default: mesma origin (proxy do vite/reverse-proxy resolve o /ws → :7777). Um
-// deploy do front separado do back (ex: Vercel servindo a SPA, backend atrás de
-// Tailscale serve) seta VITE_WS_URL pra apontar pro host real do backend. Sem
-// isso a SPA tenta wss://<host-do-front>/ws e não acha ninguém atendendo.
-const ENV_WS = (import.meta.env.VITE_WS_URL ?? '').trim();
-const WS_URL = ENV_WS || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
-
-let _mid = 0;
-// Sufixo aleatório além do contador monotônico: blinda contra colisão de key do
-// React mesmo se dois ids forem gerados no mesmo tick após um reload de módulo.
-const newId = (p: string) => `${p}${Date.now().toString(36)}${(_mid++).toString(36)}${Math.random().toString(36).slice(2, 5)}`;
-
-function metaToSession(m: SessionMeta, active: boolean): Session {
-  return { id: m.id, title: m.title, relative: m.relative, snippet: m.snippet, mtime: m.mtime, hasTerminal: false, active };
-}
-
-function upsertTool(blocks: Block[], tool: ToolCall): Block[] {
-  const i = blocks.findIndex((b) => b.type === 'tool' && b.tool.id === tool.id);
-  if (i >= 0) {
-    const prev = (blocks[i] as { type: 'tool'; tool: ToolCall }).tool;
-    // O update de "done"/"error" (tool_result) chega com placeholders genéricos
-    // (label/name 'tool', command ''). Preserva os campos reais do "running".
-    const merged: ToolCall = {
-      ...prev,
-      status: tool.status,
-      output: tool.output.length ? tool.output : prev.output,
-      exit: tool.exit ?? prev.exit,
-      expanded: tool.expanded ?? prev.expanded,
-      durationMs: tool.durationMs ?? prev.durationMs,
-      label: tool.label && tool.label !== 'tool' ? tool.label : prev.label,
-      name: tool.name && tool.name !== 'tool' ? tool.name : prev.name,
-      command: tool.command || prev.command,
-    };
-    const next = blocks.slice();
-    next[i] = { type: 'tool', tool: merged };
-    return next;
-  }
-  return [...blocks, { type: 'tool', tool }];
-}
-
-function appendDelta(blocks: Block[], text: string): Block[] {
-  const last = blocks[blocks.length - 1];
-  if (last && last.type === 'text') {
-    const next = blocks.slice();
-    next[next.length - 1] = { type: 'text', md: last.md + text };
-    return next;
-  }
-  return [...blocks, { type: 'text', md: text }];
-}
-
-function appendThinking(blocks: Block[], text: string): Block[] {
-  const last = blocks[blocks.length - 1];
-  if (last && last.type === 'thinking') {
-    const next = blocks.slice();
-    next[next.length - 1] = { type: 'thinking', text: last.text + text, expanded: last.expanded };
-    return next;
-  }
-  return [...blocks, { type: 'thinking', text }];
-}
-
-export interface TermApi {
-  attach: (id: string, cols: number, rows: number, onData: (d: string) => void, onExit: () => void, onReplay: (d: string) => void) => void;
-  detach: (id: string) => void;
-  input: (id: string, data: string) => void;
-  resize: (id: string, cols: number, rows: number) => void;
-  kill: (id: string) => void;
-}
 
 export interface Cockpit {
   sessions: Session[];
@@ -184,10 +120,6 @@ export function useCockpit(): Cockpit {
   const sessionsRef = useRef<Session[]>([]);
   const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryDelay = useRef(1500); // backoff exponencial, reset no connect bem-sucedido
-  const termData = useRef<Map<string, (d: string) => void>>(new Map());   // termId -> xterm.write
-  const termReplay = useRef<Map<string, (d: string) => void>>(new Map()); // termId -> reset()+write (snapshot)
-  const termExit = useRef<Map<string, () => void>>(new Map());
-  const termDims = useRef<Map<string, { cols: number; rows: number }>>(new Map()); // p/ reattach no reconnect
 
   useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
   const threadsRef = useRef<Record<string, Message[]>>(threads);
@@ -197,6 +129,8 @@ export function useCockpit(): Cockpit {
     const ws = wsRef.current;
     if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify(m));
   }, []);
+
+  const { term, onTermData, onTermReplay, onTermExit, reattach } = useTerminals(send);
 
   const updateThread = useCallback((key: string, fn: (prev: Message[]) => Message[]) => {
     setThreads((prev) => ({ ...prev, [key]: fn(prev[key] || []) }));
@@ -418,15 +352,15 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'term-data': {
-        termData.current.get(msg.termId)?.(msg.data);
+        onTermData(msg.termId, msg.data);
         return;
       }
       case 'term-replay': {
-        termReplay.current.get(msg.termId)?.(msg.data);
+        onTermReplay(msg.termId, msg.data);
         return;
       }
       case 'term-exit': {
-        termExit.current.get(msg.termId)?.();
+        onTermExit(msg.termId);
         return;
       }
       case 'done': {
@@ -496,7 +430,7 @@ export function useCockpit(): Cockpit {
         return;
       }
     }
-  }, [updateThread, patchRunMsg, migrateKey, reconcileTools, send]);
+  }, [updateThread, patchRunMsg, migrateKey, reconcileTools, send, onTermData, onTermReplay, onTermExit]);
 
   const connect = useCallback(() => {
     setConn((c) => ({ ...c, ws: 'reconnecting', sse: 'reconnecting' }));
@@ -510,7 +444,7 @@ export function useCockpit(): Cockpit {
       send({ t: 'list' });
       send({ t: 'list-archived' });
       send({ t: 'usage-list' });
-      for (const [id, d] of termDims.current) send({ t: 'term-open', termId: id, cols: d.cols, rows: d.rows });
+      reattach();
     };
     ws.onmessage = (ev) => {
       let m: ServerMsg;
@@ -520,7 +454,7 @@ export function useCockpit(): Cockpit {
     ws.onclose = () => { setConn({ ws: 'down', sse: 'down' }); scheduleRetry(); };
     ws.onerror = () => { try { ws.close(); } catch { /* noop */ } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [send, onServer]);
+  }, [send, onServer, reattach]);
 
   const scheduleRetry = useCallback(() => {
     if (retry.current) return;
@@ -611,36 +545,6 @@ export function useCockpit(): Cockpit {
   const onSkillClose = useCallback(() => setOpenSkill(null), []);
   const onUsageList = useCallback(() => send({ t: 'usage-list' }), [send]);
   const onHealthList = useCallback(() => send({ t: 'admin-health' }), [send]);
-
-  const term: TermApi = {
-    attach: useCallback((id, cols, rows, onData, onExit, onReplay) => {
-      termData.current.set(id, onData);
-      termExit.current.set(id, onExit);
-      termReplay.current.set(id, onReplay);
-      termDims.current.set(id, { cols, rows });
-      send({ t: 'term-open', termId: id, cols, rows });
-    }, [send]),
-    detach: useCallback((id) => {
-      termData.current.delete(id);
-      termExit.current.delete(id);
-      termReplay.current.delete(id);
-      termDims.current.delete(id);
-      send({ t: 'term-detach', termId: id });
-    }, [send]),
-    input: useCallback((id, data) => send({ t: 'term-input', termId: id, data }), [send]),
-    resize: useCallback((id, cols, rows) => {
-      const d = termDims.current.get(id);
-      if (d) { d.cols = cols; d.rows = rows; }
-      send({ t: 'term-resize', termId: id, cols, rows });
-    }, [send]),
-    kill: useCallback((id) => {
-      termData.current.delete(id);
-      termExit.current.delete(id);
-      termReplay.current.delete(id);
-      termDims.current.delete(id);
-      send({ t: 'term-close', termId: id });
-    }, [send]),
-  };
 
   const onStop = useCallback((sessionKey?: string) => {
     const key = sessionKey ?? activeRef.current;
