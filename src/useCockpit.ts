@@ -16,7 +16,7 @@ let _mid = 0;
 const newId = (p: string) => `${p}${Date.now().toString(36)}${(_mid++).toString(36)}`;
 
 function metaToSession(m: SessionMeta, active: boolean): Session {
-  return { id: m.id, title: m.title, relative: m.relative, snippet: m.snippet, hasTerminal: false, active };
+  return { id: m.id, title: m.title, relative: m.relative, snippet: m.snippet, mtime: m.mtime, hasTerminal: false, active };
 }
 
 function upsertTool(blocks: Block[], tool: ToolCall): Block[] {
@@ -79,6 +79,7 @@ export interface Cockpit {
   messages: Message[];
   phase: Phase;
   running: Set<string>;
+  updated: Set<string>;
   draft: string;
   setDraft: (v: string) => void;
   conn: { ws: ConnState; sse: ConnState };
@@ -154,6 +155,9 @@ export function useCockpit(): Cockpit {
   const [budget, setBudget] = useState<number>(() => loadPref<number>('budget', 0)); // 0 = sem teto
   const budgetRef = useRef<number>(budget);
   const [slashCommands, setSlashCommands] = useState<string[]>(() => loadPref<string[]>('slashCommands', []));
+  // sessionId -> mtime já visto. Sessão cujo mtime no servidor avançou além do
+  // visto = "atualizada" (produziu output enquanto você não olhava — run noturno).
+  const [seen, setSeen] = useState<Record<string, number>>(() => loadPref<Record<string, number>>('seen', {}));
 
   const wsRef = useRef<WebSocket | null>(null);
   const runMsg = useRef<Record<string, string>>({});      // sessionKey -> assistant msgId em voo
@@ -218,6 +222,17 @@ export function useCockpit(): Cockpit {
           const localOnly = prev.filter((s) => s.id.startsWith('new-'));
           const fromServer = msg.items.map((m) => metaToSession(m, m.id === activeRef.current));
           return [...localOnly, ...fromServer];
+        });
+        // Baseline: sessão vista pela 1ª vez entra no `seen` com o mtime atual
+        // (não vira "atualizada" retroativamente). Só mtime que AVANÇA depois badgeia.
+        setSeen((prev) => {
+          let changed = false;
+          const next = { ...prev };
+          for (const m of msg.items) {
+            if (next[m.id] === undefined) { next[m.id] = m.mtime; changed = true; }
+          }
+          if (changed) savePref('seen', next);
+          return changed ? next : prev;
         });
         setLoading(false);
         return;
@@ -372,6 +387,7 @@ export function useCockpit(): Cockpit {
           migrateKey(key, msg.sessionId);
         }
         send({ t: 'usage-list' }); // atualiza o burn chip após cada turno
+        send({ t: 'list' });       // mtime avança -> badge "atualizada" em sessão não-ativa
         const id = msg.sessionId ?? key;
         notifyTurnDone(sessionsRef.current.find((s) => s.id === id || s.id === key)?.title ?? '');
         return;
@@ -532,7 +548,7 @@ export function useCockpit(): Cockpit {
 
   const onNew = useCallback(() => {
     const id = newId('new-');
-    const s: Session = { id, title: 'Nova sessão', relative: 'agora', snippet: 'Sem mensagens ainda', hasTerminal: false, active: true };
+    const s: Session = { id, title: 'Nova sessão', relative: 'agora', snippet: 'Sem mensagens ainda', mtime: Date.now(), hasTerminal: false, active: true };
     setSessions((prev) => [s, ...prev.map((x) => ({ ...x, active: false }))]);
     setThreads((prev) => ({ ...prev, [id]: [] }));
     activeRef.current = id;
@@ -584,6 +600,24 @@ export function useCockpit(): Cockpit {
     () => new Set(Object.keys(phases).filter((k) => phases[k] === 'thinking' || phases[k] === 'streaming')),
     [phases]
   );
+  // A sessão aberta está sempre "vista": ao abri-la (ou quando seu mtime avança
+  // com ela em foco) grava o mtime atual, limpando o badge de atualizada.
+  useEffect(() => {
+    if (!activeId) return;
+    const s = sessions.find((x) => x.id === activeId);
+    if (!s) return;
+    setSeen((prev) => {
+      if (prev[activeId] === s.mtime) return prev;
+      const next = { ...prev, [activeId]: s.mtime };
+      savePref('seen', next);
+      return next;
+    });
+  }, [activeId, sessions]);
+  // Sessão não-ativa cujo mtime avançou além do visto = produziu output novo.
+  const updated = useMemo(
+    () => new Set(sessions.filter((s) => s.id !== activeId && !running.has(s.id) && seen[s.id] !== undefined && s.mtime > seen[s.id]).map((s) => s.id)),
+    [sessions, seen, activeId, running]
+  );
   const draft = drafts[activeId] || '';
   const contextTokens = usage[activeId] || 0;
   const lastTurn = turnStats[activeId];
@@ -597,5 +631,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, updated, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
 }

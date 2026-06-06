@@ -10,6 +10,7 @@ export interface Session {
   title: string;
   relative: string;
   snippet: string;
+  mtime: number;
   hasTerminal: boolean;
   active: boolean;
 }
