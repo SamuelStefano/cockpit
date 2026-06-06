@@ -33,7 +33,17 @@ const MAX_TOOLS = 300;
 function snapshotTool(thread: Thread, tool: ToolCall) {
   const i = thread.tools.findIndex((t) => t.id === tool.id);
   if (i === -1) thread.tools.push(tool);
-  else thread.tools[i] = { ...thread.tools[i], ...tool };
+  else {
+    const prev = thread.tools[i];
+    thread.tools[i] = {
+      ...prev,
+      ...tool,
+      label: tool.label && tool.label !== 'tool' ? tool.label : prev.label,
+      name: tool.name && tool.name !== 'tool' ? tool.name : prev.name,
+      command: tool.command || prev.command,
+      output: tool.output.length ? tool.output : prev.output,
+    };
+  }
   if (thread.tools.length > MAX_TOOLS) {
     // Some o toolStart das tools podadas: uma tool sem tool_result (run morto no
     // meio) nunca passa por closeTool, então sua chave em toolStart só seria
