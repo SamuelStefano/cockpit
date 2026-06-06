@@ -239,15 +239,19 @@ function ArchivedSection({ archived, onUnhide }: { archived: Session[]; onUnhide
       {open && (
         <div className="mt-1 space-y-0.5">
           {archived.map((s) => (
-            <div key={s.id} className="group flex items-center justify-between gap-2 rounded-md px-1.5 py-1 hover:bg-neutral-900">
-              <span className="truncate text-[11.5px] text-neutral-500">{s.title}</span>
-              <button
-                onClick={() => onUnhide(s.id)}
-                title="Restaurar sessão"
-                className="shrink-0 rounded px-1.5 py-0.5 text-[10.5px] font-medium text-neutral-500 opacity-100 transition hover:bg-neutral-800 hover:text-orange-300 sm:opacity-0 sm:group-hover:opacity-100"
-              >
-                restaurar
-              </button>
+            <div key={s.id} className="group rounded-md px-1.5 py-1.5 hover:bg-neutral-900">
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-[11.5px] font-medium text-neutral-400">{s.title}</span>
+                <button
+                  onClick={() => onUnhide(s.id)}
+                  title="Restaurar sessão"
+                  className="shrink-0 rounded px-1.5 py-0.5 text-[10.5px] font-medium text-neutral-500 opacity-100 transition hover:bg-neutral-800 hover:text-orange-300 sm:opacity-0 sm:group-hover:opacity-100"
+                >
+                  restaurar
+                </button>
+              </div>
+              {s.snippet && <p className="mt-0.5 truncate text-[10.5px] text-neutral-600">{s.snippet}</p>}
+              {s.relative && <p className="mt-0.5 text-[10px] tabular-nums text-neutral-700">{s.relative}</p>}
             </div>
           ))}
         </div>
