@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Session, Message, Block } from './data/mock';
-import type { ClientMsg, ServerMsg, SessionMeta, ToolCall, SysStats, PermMode, ContextMeta, SkillMeta, UsageStats } from '../shared/protocol';
+import type { ClientMsg, ServerMsg, SessionMeta, ToolCall, SysStats, PermMode, ModelAlias, EffortLevel, ContextMeta, SkillMeta, UsageStats } from '../shared/protocol';
 import { loadPref, savePref } from './lib/persist';
 import { requestNotifyPermission, notifyTurnDone } from './lib/notify';
 
@@ -85,6 +85,10 @@ export interface Cockpit {
   stats: SysStats | null;
   mode: PermMode;
   setMode: (m: PermMode) => void;
+  model: ModelAlias;
+  setModel: (m: ModelAlias) => void;
+  effort: EffortLevel;
+  setEffort: (e: EffortLevel) => void;
   term: TermApi;
   archived: Session[];
   contextTokens: number;
@@ -137,6 +141,10 @@ export function useCockpit(): Cockpit {
   const attachmentsRef = useRef<Attachment[]>([]);
   const [mode, setMode] = useState<PermMode>(() => loadPref<PermMode>('mode', 'auto'));
   const modeRef = useRef<PermMode>(mode);
+  const [model, setModel] = useState<ModelAlias>(() => loadPref<ModelAlias>('model', 'opus'));
+  const modelRef = useRef<ModelAlias>(model);
+  const [effort, setEffort] = useState<EffortLevel>(() => loadPref<EffortLevel>('effort', 'high'));
+  const effortRef = useRef<EffortLevel>(effort);
 
   const wsRef = useRef<WebSocket | null>(null);
   const runMsg = useRef<Record<string, string>>({});      // sessionKey -> assistant msgId em voo
@@ -383,7 +391,7 @@ export function useCockpit(): Cockpit {
     updateThread(key, (prev) => [...prev, { id: newId('u'), role: 'user', text }]);
     setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: text, relative: 'agora' } : s)));
     setDrafts((d) => ({ ...d, [key]: '' }));
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, mode: modeRef.current });
+    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, mode: modeRef.current, model: modelRef.current, effort: effortRef.current });
   }, [send, updateThread]);
 
   const onUpload = useCallback((file: File) => {
@@ -405,6 +413,8 @@ export function useCockpit(): Cockpit {
   }, []);
 
   const changeMode = useCallback((m: PermMode) => { modeRef.current = m; setMode(m); savePref('mode', m); }, []);
+  const changeModel = useCallback((m: ModelAlias) => { modelRef.current = m; setModel(m); savePref('model', m); }, []);
+  const changeEffort = useCallback((e: EffortLevel) => { effortRef.current = e; setEffort(e); savePref('effort', e); }, []);
 
   // Busca por conteúdo: dispara no backend (grep) e guarda o termo p/ descartar
   // respostas atrasadas. <2 chars limpa os resultados.
@@ -520,5 +530,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
+  return { sessions, loading, activeId, setActiveId, messages, phase, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, model, setModel: changeModel, effort, setEffort: changeEffort, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
 }
