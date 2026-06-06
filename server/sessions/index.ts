@@ -27,6 +27,13 @@ async function collectMetas(keep: (id: string, hidden: Set<string>) => boolean):
     return [];
   }
 
+  // Poda entradas órfãs: ids no cache cujo .jsonl sumiu (sessão apagada fora do
+  // app). Baseado no conjunto COMPLETO de arquivos — não no recorte de `keep` —
+  // senão arquivadas (filtradas aqui) seriam despejadas a cada listSessions.
+  const live = new Set<string>();
+  for (const f of files) if (UUID_FILE.test(f)) live.add(f.replace('.jsonl', ''));
+  for (const id of cache.keys()) if (!live.has(id)) cache.delete(id);
+
   const hidden = await hiddenSet();
   const metas: SessionMeta[] = [];
   for (const f of files) {
