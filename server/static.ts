@@ -16,18 +16,28 @@ const TYPES: Record<string, string> = {
   '.map': 'application/json; charset=utf-8',
 };
 
+// Anti-traversal: resolve sob root e exige prefixo. decodeURIComponent lança
+// URIError em %-encoding malformado — o catch o transforma em 403, não em crash.
+export function resolveStaticPath(root: string, url: string): string | null {
+  let urlPath: string;
+  try { urlPath = decodeURIComponent((url || '/').split('?')[0]); }
+  catch { return null; }
+  const rel = normalize(urlPath).replace(/^(\.\.[/\\])+/, '');
+  const file = resolve(join(root, rel));
+  if (file !== root && !file.startsWith(root + '/')) return null;
+  return file;
+}
+
 // Serve a SPA buildada (dist/) na MESMA porta do WS — um único bind 127.0.0.1
-// pra acesso via Tailscale. Anti-traversal: resolve sob root e exige prefixo.
+// pra acesso via Tailscale.
 export function makeStatic(distRoot: string) {
   const root = resolve(distRoot);
 
   return async function serve(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
     if (req.method !== 'GET' && req.method !== 'HEAD') return false;
 
-    const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
-    const rel = normalize(urlPath).replace(/^(\.\.[/\\])+/, '');
-    let file = resolve(join(root, rel));
-    if (file !== root && !file.startsWith(root + '/')) { res.writeHead(403).end(); return true; }
+    let file = resolveStaticPath(root, req.url || '/');
+    if (file === null) { res.writeHead(403).end(); return true; }
 
     let st = await stat(file).catch(() => null);
     if (st?.isDirectory()) { file = join(file, 'index.html'); st = await stat(file).catch(() => null); }
