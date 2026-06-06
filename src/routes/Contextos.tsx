@@ -3,20 +3,10 @@ import { Icon, Badge } from '../components/primitives';
 import { ContextModal, TYPE_TONE } from '../components/ContextModal';
 import type { ContextMeta } from '../../shared/protocol';
 import type { ContextDoc } from '../useCockpit';
+import { relPast } from '../lib/time';
+import { countByType, filterContexts } from './contextos.filter';
 
 const TYPES = ['user', 'project', 'feedback', 'reference', 'memory'] as const;
-
-function relTime(ms: number): string {
-  const d = Date.now() - ms;
-  const min = Math.round(d / 60000);
-  if (min < 1) return 'agora';
-  if (min < 60) return `${min}min`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h}h`;
-  const days = Math.floor(h / 24);
-  if (days < 7) return `${days}d`;
-  return `${Math.floor(days / 7)}sem`;
-}
 
 const CHIP_ACTIVE: Record<string, string> = {
   orange: 'border-orange-500/40 bg-orange-500/15 text-orange-300',
@@ -46,7 +36,7 @@ function Card({ c, onClick }: { c: ContextMeta; onClick: () => void }) {
     >
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <Badge tone={TYPE_TONE[c.type] ?? 'neutral'}>{c.type}</Badge>
-        <span className="shrink-0 text-[10px] tabular-nums text-neutral-600">{relTime(c.mtime)}</span>
+        <span className="shrink-0 text-[10px] tabular-nums text-neutral-600">{relPast(c.mtime)}</span>
       </div>
       <h3 className="mb-1 line-clamp-1 text-[13px] font-medium text-neutral-200 group-hover:text-orange-300">{c.title}</h3>
       <p className="line-clamp-3 text-[12px] leading-snug text-neutral-500">{c.description || '—'}</p>
@@ -111,20 +101,8 @@ export function Contextos({ connected, contexts, openContext, onCtxList, onCtxOp
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const counts = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const c of contexts) m[c.type] = (m[c.type] ?? 0) + 1;
-    return m;
-  }, [contexts]);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return contexts.filter((c) => {
-      if (filter && c.type !== filter) return false;
-      if (!q) return true;
-      return (c.title + ' ' + c.description + ' ' + c.type).toLowerCase().includes(q);
-    });
-  }, [contexts, query, filter]);
+  const counts = useMemo(() => countByType(contexts), [contexts]);
+  const filtered = useMemo(() => filterContexts(contexts, query, filter), [contexts, query, filter]);
 
   const openType = openContext ? contexts.find((c) => c.id === openContext.id)?.type : undefined;
 
