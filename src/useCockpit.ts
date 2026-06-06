@@ -183,6 +183,8 @@ export function useCockpit(): Cockpit {
   const termDims = useRef<Map<string, { cols: number; rows: number }>>(new Map()); // p/ reattach no reconnect
 
   useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
+  const threadsRef = useRef<Record<string, Message[]>>(threads);
+  useEffect(() => { threadsRef.current = threads; }, [threads]);
 
   const send = useCallback((m: ClientMsg) => {
     const ws = wsRef.current;
@@ -666,6 +668,31 @@ export function useCockpit(): Cockpit {
     () => new Set(Object.keys(phases).filter((k) => phases[k] === 'thinking' || phases[k] === 'streaming')),
     [phases]
   );
+  // LRU de threads: numa aba aberta por semanas (daily driver), cada sessão
+  // visitada deixa o Message[] inteiro em memória pra sempre. Acima do teto,
+  // despeja as mais antigas por atividade — nunca a ativa, nem com run vivo, nem
+  // locais `new-`. Reabrir re-busca o history do JSONL (tira do `opened`).
+  const THREAD_CAP = 30;
+  useEffect(() => {
+    const keys = Object.keys(threadsRef.current);
+    if (keys.length <= THREAD_CAP) return;
+    const drop = keys
+      .filter((k) => k !== activeRef.current && !running.has(k) && !k.startsWith('new-'))
+      .sort((a, b) => (lastActivity.current[a] ?? 0) - (lastActivity.current[b] ?? 0))
+      .slice(0, keys.length - THREAD_CAP);
+    if (!drop.length) return;
+    for (const k of drop) opened.current.delete(k);
+    const prune = <T,>(m: Record<string, T>): Record<string, T> => {
+      const n = { ...m };
+      for (const k of drop) delete n[k];
+      return n;
+    };
+    setThreads(prune);
+    setPhases((p) => (drop.some((k) => k in p) ? prune(p) : p));
+    setUsage((u) => (drop.some((k) => k in u) ? prune(u) : u));
+    for (const k of drop) delete lastActivity.current[k];
+  }, [activeId, running]);
+
   // Watchdog: enquanto algo roda, tica a cada 20s pra recomputar "quietas".
   useEffect(() => {
     if (running.size === 0) return;
