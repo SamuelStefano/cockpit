@@ -27,6 +27,7 @@ interface Thread {
   text: string;
   thinking: string;
   tools: ToolCall[];
+  toolStart: Map<string, number>; // id -> início, p/ cravar duração no close; morre com o thread
 }
 
 const threads = new Map<string, Thread>();
@@ -196,7 +197,7 @@ function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: 
   }
   if (threads.has(sessionKey)) threads.get(sessionKey)!.handle.kill();
 
-  const thread: Thread = { handle: { kill: () => {} }, sessionId: resumeId, ws, text: '', thinking: '', tools: [] };
+  const thread: Thread = { handle: { kill: () => {} }, sessionId: resumeId, ws, text: '', thinking: '', tools: [], toolStart: new Map() };
   threads.set(sessionKey, thread);
   send(thread.ws, { t: 'started', sessionKey });
 
@@ -210,6 +211,10 @@ function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: 
     onEvent: (ev) => translate(sessionKey, thread, ev),
     onError: (message) => send(thread.ws, { t: 'error', sessionKey, message }),
     onClose: () => {
+      // Se este thread já foi substituído por um run mais novo na mesma key
+      // (re-send que matou o anterior), o onClose do antigo NÃO deve mandar um
+      // 'done' prematuro nem apagar a entrada do novo run.
+      if (threads.get(sessionKey) !== thread) return;
       send(thread.ws, { t: 'done', sessionKey, sessionId: thread.sessionId ?? '', costUsd: thread.costUsd, durationMs: thread.durationMs, numTurns: thread.numTurns, endReason: thread.endReason });
       threads.delete(sessionKey);
     },
@@ -298,9 +303,6 @@ function capture(thread: Thread, ev: ClaudeEvent) {
   if (sid && !thread.sessionId) thread.sessionId = sid;
 }
 
-// Início de cada tool por id de correlação, pra cravar a duração real no close.
-const toolStart = new Map<string, number>();
-
 // Upsert por id no snapshot do thread (mesma lógica do client upsertTool):
 // preserva campos do evento running (diff/command) ao mesclar o done.
 function snapshotTool(thread: Thread, tool: ToolCall) {
@@ -311,7 +313,7 @@ function snapshotTool(thread: Thread, tool: ToolCall) {
 
 function emitTool(thread: Thread, sessionKey: string, block: any, status: ToolCall['status']) {
   const id = block.id ?? '';
-  if (id && !toolStart.has(id)) toolStart.set(id, Date.now());
+  if (id && !thread.toolStart.has(id)) thread.toolStart.set(id, Date.now());
   const tool: ToolCall = {
     id,
     name: block.name ?? 'tool',
@@ -332,8 +334,8 @@ function closeTool(thread: Thread, sessionKey: string, c: any) {
     ? c.content.filter((x: any) => x?.type === 'text').map((x: any) => x.text)
     : typeof c.content === 'string' ? c.content.split('\n') : [];
   const id = c.tool_use_id ?? '';
-  const start = toolStart.get(id);
-  if (start !== undefined) toolStart.delete(id);
+  const start = thread.toolStart.get(id);
+  if (start !== undefined) thread.toolStart.delete(id);
   const tool: ToolCall = {
     id,
     name: 'tool',
