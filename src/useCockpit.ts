@@ -5,6 +5,7 @@ import { loadPref, savePref } from './lib/persist';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
 import { WS_URL, newId, metaToSession, dedupById, mergeSeen } from './cockpit/session';
 import { upsertTool, appendDelta, appendThinking } from './cockpit/blocks';
+import { selectEvictions } from './cockpit/evict';
 import { useTerminals, type TermApi } from './cockpit/useTerminals';
 
 export interface ContextDoc { id: string; title: string; body: string }
@@ -614,12 +615,13 @@ export function useCockpit(): Cockpit {
   // locais `new-`. Reabrir re-busca o history do JSONL (tira do `opened`).
   const THREAD_CAP = 30;
   useEffect(() => {
-    const keys = Object.keys(threadsRef.current);
-    if (keys.length <= THREAD_CAP) return;
-    const drop = keys
-      .filter((k) => k !== activeRef.current && !running.has(k) && !inFlight.current.has(k) && !k.startsWith('new-'))
-      .sort((a, b) => (lastActivity.current[a] ?? 0) - (lastActivity.current[b] ?? 0))
-      .slice(0, keys.length - THREAD_CAP);
+    const drop = selectEvictions(Object.keys(threadsRef.current), {
+      active: activeRef.current,
+      cap: THREAD_CAP,
+      running,
+      inFlight: inFlight.current,
+      lastActivity: lastActivity.current,
+    });
     if (!drop.length) return;
     for (const k of drop) opened.current.delete(k);
     const prune = <T,>(m: Record<string, T>): Record<string, T> => {
