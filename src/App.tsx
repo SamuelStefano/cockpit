@@ -13,6 +13,7 @@ import { ShortcutsHelp } from './components/ShortcutsHelp';
 import { useCockpit } from './useCockpit';
 import { useRoute, type Route } from './useRoute';
 import { usePersisted } from './lib/persist';
+import { setTitleBase } from './lib/notify';
 import { TERMINALS_SEED, type Terminal } from './data/mock';
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -186,6 +187,15 @@ export function CockpitApp() {
   useEffect(() => {
     if (!activeSessionId && sessions.length) setActiveSessionId(sessions[0].id);
   }, [activeSessionId, sessions, setActiveSessionId]);
+
+  // Reflete atividade no título da aba (visível com a aba em background no run
+  // noturno): "▶N" rodando, "●N" com output novo não visto.
+  useEffect(() => {
+    const parts: string[] = [];
+    if (running.size) parts.push(`▶${running.size}`);
+    if (updated.size) parts.push(`●${updated.size}`);
+    setTitleBase((parts.length ? parts.join(' ') + ' — ' : '') + 'cockpit');
+  }, [running, updated]);
 
   // Evita colisão de id ao criar abas após restaurar do localStorage.
   useEffect(() => {

@@ -2,8 +2,15 @@
 // dispara um prompt longo e troca de aba). Notification API + flash no título.
 // Tudo best-effort: sem permissão / API ausente, vira no-op silencioso.
 
-let flashOriginal = '';
+let baseTitle = typeof document !== 'undefined' ? document.title : 'cockpit';
 let flashing = false;
+
+// Título "base" da aba (sem o flash de done). Reflete atividade persistente:
+// nº de sessões rodando/atualizadas, pra ver de relance com a aba em background.
+export function setTitleBase(t: string): void {
+  baseTitle = t;
+  if (typeof document !== 'undefined' && !flashing) document.title = t;
+}
 
 export function requestNotifyPermission(): void {
   if (typeof Notification === 'undefined') return;
@@ -32,11 +39,10 @@ export function notifyTurnDone(sessionTitle: string): void {
 function flashTitle(): void {
   if (flashing) return;
   flashing = true;
-  flashOriginal = document.title;
-  document.title = '● ' + flashOriginal;
+  document.title = '✦ ' + baseTitle;
   const restore = () => {
     if (document.visibilityState !== 'visible') return;
-    document.title = flashOriginal;
+    document.title = baseTitle;
     flashing = false;
     document.removeEventListener('visibilitychange', restore);
   };
