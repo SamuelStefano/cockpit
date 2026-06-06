@@ -51,7 +51,10 @@ export function CommandPalette({ open, onClose, route, nav, onNew, mode, setMode
       { id: 'focus', label: 'Focar campo de mensagem', hint: '↵', icon: 'pencil', group: 'Ações', run: () => { nav('/'); onFocusComposer(); onClose(); } },
     ];
     if (running.size) {
-      actions.push({ id: 'stop', label: 'Parar resposta atual', icon: 'square', group: 'Ações', run: () => { onStop(); onClose(); } });
+      // Com 1 só rodando, mira nela explicitamente — senão onStop() cairia no
+      // activeRef (a sessão que você está vendo, que pode estar ociosa).
+      const lone = running.size === 1 ? [...running][0] : undefined;
+      actions.push({ id: 'stop', label: 'Parar resposta atual', icon: 'square', group: 'Ações', run: () => { onStop(lone); onClose(); } });
     }
     if (running.size > 1) {
       // Kill-switch do run noturno: derruba todos os turnos em voo de uma vez.
