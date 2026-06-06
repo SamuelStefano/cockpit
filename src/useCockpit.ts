@@ -428,7 +428,7 @@ export function useCockpit(): Cockpit {
         delete runMsg.current[key];
         setPhases((p) => ({ ...p, [key]: 'idle' }));
         if (msg.costUsd !== undefined || msg.durationMs !== undefined) {
-          setTurnStats((t) => ({ ...t, [key]: { costUsd: msg.costUsd, durationMs: msg.durationMs, numTurns: msg.numTurns } }));
+          setTurnStats((t) => ({ ...t, [key]: { costUsd: msg.costUsd, durationMs: msg.durationMs, numTurns: msg.numTurns, model: msg.model } }));
         }
         const resumable = !!msg.endReason && (msg.endReason.includes('budget') || msg.endReason.includes('max_turns'));
         if (msg.endReason && msg.endReason !== 'success') {

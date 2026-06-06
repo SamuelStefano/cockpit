@@ -22,6 +22,7 @@ interface Thread {
   durationMs?: number;
   numTurns?: number;
   endReason?: string;   // result.subtype: success | error_max_budget | error_max_turns | ...
+  model?: string;       // modelo EFETIVO do turno (message.model do CLI); pode divergir do pedido sob --fallback-model
   // Snapshot acumulado p/ replay no reconnect (#10). Os frames vão por broadcast.
   text: string;
   thinking: string;
@@ -285,7 +286,7 @@ function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: 
       // (re-send que matou o anterior), o onClose do antigo NÃO deve mandar um
       // 'done' prematuro nem apagar a entrada do novo run.
       if (threads.get(sessionKey) !== thread) return;
-      broadcast({ t: 'done', sessionKey, sessionId: thread.sessionId ?? '', costUsd: thread.costUsd, durationMs: thread.durationMs, numTurns: thread.numTurns, endReason: thread.endReason });
+      broadcast({ t: 'done', sessionKey, sessionId: thread.sessionId ?? '', costUsd: thread.costUsd, durationMs: thread.durationMs, numTurns: thread.numTurns, endReason: thread.endReason, model: thread.model });
       threads.delete(sessionKey);
     },
   });
@@ -309,6 +310,8 @@ function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
     }
     case 'system': {
       capture(thread, ev);
+      const sm = (ev as any).model;
+      if (typeof sm === 'string' && sm) thread.model = sm;
       const sc = (ev as any).slash_commands;
       if (Array.isArray(sc) && sc.length && sc.join() !== slashCommands.join()) {
         slashCommands = sc;
@@ -332,6 +335,8 @@ function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       return;
     }
     case 'assistant': {
+      const m = (ev as any).message?.model;
+      if (typeof m === 'string' && m) thread.model = m;
       const content = (ev as any).message?.content;
       if (Array.isArray(content)) {
         for (const c of content) {
