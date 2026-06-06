@@ -87,7 +87,7 @@ function broadcast(msg: ServerMsg) {
 // Semeia o palette pra "/" nunca vir vazio (o CLI raramente reporta slash_commands
 // no init headless). Une-se ao que o CLI eventualmente reporta.
 const SEED_SLASH = [
-  'clear', 'new',
+  'help', 'clear', 'new',
   'model opus', 'model sonnet', 'model haiku',
   'plan', 'auto', 'execute',
   'effort low', 'effort medium', 'effort high', 'effort xhigh', 'effort max',

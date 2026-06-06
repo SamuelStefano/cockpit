@@ -143,6 +143,7 @@ interface ChatInputProps {
   history: string[];
   pendingConfirm?: () => void;
   onNew: () => void;
+  onShowHelp?: () => void;
 }
 
 const MAX_UPLOAD = 15_000_000;
@@ -150,6 +151,7 @@ const MAX_UPLOAD = 15_000_000;
 // Comandos interceptados pelo app (executam local, ver runSlash). O resto da
 // lista segue pro Claude como texto — marcamos no palette pra ficar claro.
 const SLASH_HINTS: Record<string, string> = {
+  help: 'mostra os atalhos de teclado',
   clear: 'limpa e começa uma sessão nova',
   new: 'começa uma sessão nova',
   'model opus': 'troca esta sessão pro Opus',
@@ -170,7 +172,7 @@ const EFFORT_BY_SLASH: Record<string, EffortLevel> = {
 const isLocalSlash = (c: string) => c in SLASH_HINTS;
 const slashHint = (c: string) => SLASH_HINTS[c] ?? 'enviado ao Claude como texto';
 
-export function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, attachments, onUpload, onRemoveAttachment, focusSignal, queued, onQueue, onCancelQueue, history, pendingConfirm, onNew }: ChatInputProps) {
+export function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, attachments, onUpload, onRemoveAttachment, focusSignal, queued, onQueue, onCancelQueue, history, pendingConfirm, onNew, onShowHelp }: ChatInputProps) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const hasAtt = attachments.length > 0;
@@ -209,6 +211,7 @@ export function ChatInput({ disabled, onSend, onStop, value, setValue, mode, set
     if (!m) return false;
     const cmd = m[1].toLowerCase();
     const arg = m[2].trim().toLowerCase();
+    if (cmd === 'help') { onShowHelp?.(); return true; }
     if (cmd === 'clear' || cmd === 'new') { onNew(); return true; }
     if (cmd === 'model' && (arg === 'opus' || arg === 'sonnet' || arg === 'haiku')) { setModel(arg); return true; }
     if (cmd === 'plan') { setMode('plan'); return true; }
