@@ -107,7 +107,13 @@ export function run(opts: RunOpts): RunHandle {
   };
   child.on('error', (err) => { onError(sanitize(err.message)); finish(); });
   child.on('close', (code) => {
-    if (code && code !== 0 && stderr) onError(sanitize(`claude saiu (${code})`));
+    // Qualquer saída não-zero vira erro visível — antes, sem stderr, um crash
+    // silencioso parecia "done" com sucesso (madrugada inteira sem saber). Kill
+    // por sinal (stop do usuário) vem com code=null, então não dispara aqui.
+    if (code && code !== 0) {
+      const tail = stderr.trim().slice(-300);
+      onError(sanitize(tail ? `claude saiu (${code}): ${tail}` : `claude saiu (${code})`));
+    }
     finish();
   });
 
