@@ -2,21 +2,9 @@ import { useEffect, useMemo } from 'react';
 import { Icon, Badge } from '../components/primitives';
 import type { UsageStats, DailyUsage } from '../../shared/protocol';
 import type { Session } from '../data/mock';
+import { fmtNum as fmt, usd, costToday as computeCostToday } from './observatorio.format';
 
 const CTX_WINDOW = 200_000; // janela de contexto aproximada (fill %)
-
-function fmt(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'k';
-  return String(n);
-}
-
-function usd(n: number): string {
-  if (n >= 100) return '$' + n.toFixed(0);
-  if (n >= 1) return '$' + n.toFixed(2);
-  if (n > 0) return '$' + n.toFixed(3);
-  return '$0';
-}
 
 function rel(ts: number): string {
   const d = Date.now() - ts;
@@ -122,13 +110,7 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions, onO
   const maxOut = Math.max(1, ...rows.map((r) => r.outputTokens));
 
   // Insights derivados (sem dado novo): custo de hoje e média por sessão.
-  const costToday = useMemo(() => {
-    const series = usageStats?.series ?? [];
-    if (!series.length) return 0;
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    return series.filter((d) => d.day >= startOfToday).reduce((a, d) => a + d.cost, 0);
-  }, [usageStats]);
+  const costToday = useMemo(() => computeCostToday(usageStats?.series ?? []), [usageStats]);
   const avgPerSession = rows.length ? (usageStats?.totalCost ?? 0) / rows.length : 0;
 
   return (
