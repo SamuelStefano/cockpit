@@ -36,6 +36,10 @@ export const CONFIG = {
   // Teto por anexo gravado no workdir (loopback-only, mas evita encher o disco).
   maxUploadBytes: 15_000_000,
 
+  // Anexos são one-shot (o agente lê no turno e nunca mais). Varre e apaga os
+  // mais velhos que isto pra o workdir não crescer sem limite num daily driver.
+  attachmentTtlMs: Number(process.env.COCKPIT_ATTACHMENT_TTL_MS ?? 7 * 24 * 60 * 60 * 1000),
+
   // Tools pré-aprovadas no modo Executar (acceptEdits). Allow-list nomeada,
   // não bypass. Override por env COCKPIT_ALLOWED_TOOLS (separado por vírgula).
   allowedTools: (process.env.COCKPIT_ALLOWED_TOOLS ?? 'Bash,Read,Edit,Write,Glob,Grep')
