@@ -137,6 +137,7 @@ function computeStats(): UsageStats {
   const rows = open().prepare(`
     SELECT
       session_id                       AS sessionId,
+      model                            AS model,
       COUNT(*)                         AS samples,
       SUM(output_tokens)               AS outputTokens,
       SUM(input_tokens)                AS inputTokens,
@@ -144,10 +145,9 @@ function computeStats(): UsageStats {
       SUM(cache_creation_tokens)       AS cacheCreationTokens,
       MAX(ts)                          AS lastTs
     FROM usage_sample
-    GROUP BY session_id
-    ORDER BY lastTs DESC
+    GROUP BY session_id, model
   `).all() as Array<{
-    sessionId: string; samples: number; outputTokens: number;
+    sessionId: string; model: string | null; samples: number; outputTokens: number;
     inputTokens: number; cacheReadTokens: number; cacheCreationTokens: number; lastTs: number;
   }>;
 
@@ -156,24 +156,34 @@ function computeStats(): UsageStats {
     WHERE session_id = ? ORDER BY ts DESC LIMIT 1
   `);
 
-  const sessions: SessionUsage[] = rows.map((r) => {
-    const l = latest.get(r.sessionId) as { ctxTokens: number; model: string | null } | undefined;
-    const costUsd = costOf(l?.model ?? null, {
+  const bySession = new Map<string, SessionUsage>();
+  for (const r of rows) {
+    const cost = costOf(r.model, {
       input: r.inputTokens ?? 0,
       output: r.outputTokens ?? 0,
       cacheRead: r.cacheReadTokens ?? 0,
       cacheCreation: r.cacheCreationTokens ?? 0,
     });
-    return {
-      sessionId: r.sessionId,
-      ctxTokens: l?.ctxTokens ?? 0,
-      outputTokens: r.outputTokens ?? 0,
-      samples: r.samples,
-      lastTs: r.lastTs,
-      model: l?.model ?? null,
-      costUsd,
-    };
-  });
+    const prev = bySession.get(r.sessionId);
+    if (prev) {
+      prev.outputTokens += r.outputTokens ?? 0;
+      prev.samples += r.samples;
+      prev.costUsd += cost;
+      if (r.lastTs > prev.lastTs) prev.lastTs = r.lastTs;
+    } else {
+      bySession.set(r.sessionId, {
+        sessionId: r.sessionId, ctxTokens: 0, outputTokens: r.outputTokens ?? 0,
+        samples: r.samples, lastTs: r.lastTs, model: null, costUsd: cost,
+      });
+    }
+  }
+
+  const sessions: SessionUsage[] = [...bySession.values()]
+    .map((s) => {
+      const l = latest.get(s.sessionId) as { ctxTokens: number; model: string | null } | undefined;
+      return { ...s, ctxTokens: l?.ctxTokens ?? 0, model: l?.model ?? null };
+    })
+    .sort((a, b) => b.lastTs - a.lastTs);
 
   return {
     sessions,

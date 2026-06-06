@@ -1,4 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { priceOf, costOf } from './db';
 
 describe('priceOf', () => {
@@ -41,5 +44,34 @@ describe('costOf', () => {
 
   it('returns zero for no tokens', () => {
     expect(costOf('claude-opus-4', empty)).toBe(0);
+  });
+});
+
+describe('computeStats per-model pricing', () => {
+  const dirs: string[] = [];
+  async function freshDb() {
+    const dir = mkdtempSync(join(tmpdir(), 'cockpit-db-'));
+    dirs.push(dir);
+    process.env.COCKPIT_DB = join(dir, 'usage.db');
+    vi.resetModules();
+    return import('./db');
+  }
+  afterEach(() => {
+    delete process.env.COCKPIT_DB;
+    for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
+
+  it('prices each turn at its own model, not the latest one', async () => {
+    const { recordUsage, usageStats, costOf: cost } = await freshDb();
+    recordUsage({ sessionId: 's1', ctxTokens: 1000, outputTokens: 1_000_000, model: 'claude-opus-4' });
+    recordUsage({ sessionId: 's1', ctxTokens: 1000, outputTokens: 1_000_000, model: 'claude-3-5-haiku' });
+    const stats = usageStats();
+    const s1 = stats.sessions.find((s) => s.sessionId === 's1')!;
+    const expected = cost('claude-opus-4', { input: 0, output: 1_000_000, cacheRead: 0, cacheCreation: 0 })
+      + cost('claude-3-5-haiku', { input: 0, output: 1_000_000, cacheRead: 0, cacheCreation: 0 });
+    expect(s1.costUsd).toBeCloseTo(expected, 8);
+    expect(s1.model).toBe('claude-3-5-haiku');
+    expect(s1.outputTokens).toBe(2_000_000);
+    expect(s1.samples).toBe(2);
   });
 });
