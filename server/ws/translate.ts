@@ -5,10 +5,15 @@ import { broadcast } from './broadcast';
 import { applySlashCommands } from './slash';
 import { setLastRate } from './rate';
 import { emitTool, closeTool } from './tools';
-import type { Thread } from './runs';
+import { threads, type Thread } from './runs';
 
 // Tradução evento NDJSON -> ServerMsg (squad C2/H1: tool por id de correlação).
 export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
+  // Um re-send mata o run anterior e o substitui na mesma key, mas o kill é
+  // assíncrono: o run morrendo ainda drena frames. Sem este guard, deltas/tools
+  // do run velho se intercalam com os do novo na mesma sessionKey (o onClose já
+  // tem o guard equivalente pro 'done').
+  if (threads.get(sessionKey) !== thread) return;
   switch (ev.type) {
     case 'rate_limit_event': {
       const info = (ev as any).rate_limit_info;
