@@ -817,15 +817,15 @@ function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, m
   };
   return (
     <div className="shrink-0 border-t border-neutral-800 bg-neutral-900/60 px-3 py-3 backdrop-blur">
-      <div className="mb-2 flex items-center gap-2">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
         <ModeToggle mode={mode} setMode={setMode} disabled={disabled} />
         {mode === 'auto' && (
-          <span className="flex items-center gap-1 text-[10.5px] text-amber-400/70">
+          <span className="hidden items-center gap-1 text-[10.5px] text-amber-400/70 sm:flex">
             <Icon name="zap" size={11} /> edita sozinho, sem shell
           </span>
         )}
         {mode === 'acceptEdits' && (
-          <span className="flex items-center gap-1 text-[10.5px] text-orange-400/70">
+          <span className="hidden items-center gap-1 text-[10.5px] text-orange-400/70 sm:flex">
             <Icon name="zap" size={11} /> executa de verdade
           </span>
         )}
