@@ -154,6 +154,20 @@ export function diffOf(name: unknown, input: unknown): ToolDiff | undefined {
   if (name === 'Write' && typeof o.content === 'string') {
     return { path, old: '', new: o.content };
   }
+  // MultiEdit aplica vários old/new no mesmo arquivo; junta os hunks num par só
+  // pro DiffView (sem isto, MultiEdit — muito usado — não mostrava diff nenhum).
+  if (name === 'MultiEdit' && Array.isArray(o.edits)) {
+    const edits = (o.edits as Array<Record<string, unknown>>).filter(
+      (e) => e && typeof e.old_string === 'string' && typeof e.new_string === 'string',
+    );
+    if (edits.length) {
+      return {
+        path,
+        old: edits.map((e) => e.old_string as string).join('\n'),
+        new: edits.map((e) => e.new_string as string).join('\n'),
+      };
+    }
+  }
   return undefined;
 }
 
