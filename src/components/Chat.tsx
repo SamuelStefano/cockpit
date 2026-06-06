@@ -309,11 +309,23 @@ function ToolCallCard({ tool, signal }: ToolCallCardProps) {
 
   const ring = status === 'error' ? 'border-red-500/30' : status === 'running' ? 'border-orange-500/30' : 'border-neutral-800';
 
+  // Bash mostra prompt `$`; ferramentas de arquivo (Read/Edit/…) trazem um path
+  // no campo command — `$` ali confunde, então usam ícone de arquivo.
+  const kind = (tool.name || tool.label || '').toLowerCase();
+  const isShell = kind === 'bash' || kind === 'shell' || kind === 'sh';
+  const headIcon = isShell ? 'terminal'
+    : kind === 'read' ? 'file'
+    : kind === 'edit' || kind === 'write' || kind === 'multiedit' || kind === 'notebookedit' ? 'pencil'
+    : kind === 'grep' || kind === 'glob' || kind === 'websearch' || kind === 'webfetch' ? 'search'
+    : kind === 'task' ? 'sparkles'
+    : kind === 'todowrite' ? 'check'
+    : 'terminal';
+
   return (
     <div className={`my-2 overflow-hidden rounded-xl border ${ring} bg-neutral-900/70`}>
       <div className="flex items-center gap-2.5 px-3 py-2">
         <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${status === 'error' ? 'bg-red-500/15 text-red-400' : 'bg-neutral-800 text-orange-400'}`}>
-          <Icon name="terminal" size={13} />
+          <Icon name={headIcon} size={13} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -325,7 +337,9 @@ function ToolCallCard({ tool, signal }: ToolCallCardProps) {
       {tool.command && (
         <div className="px-3 pb-2">
           <div className="flex items-center gap-2 rounded-md border border-neutral-800 bg-[#0c0c0c] px-2.5 py-1.5">
-            <span className="select-none font-mono text-[11px] text-orange-500/70">$</span>
+            {isShell
+              ? <span className="select-none font-mono text-[11px] text-orange-500/70">$</span>
+              : <Icon name="file" size={12} className="shrink-0 text-neutral-500" />}
             <code className="scroll-thin overflow-x-auto whitespace-nowrap font-mono text-[11.5px] text-neutral-300">{tool.command}</code>
           </div>
         </div>
