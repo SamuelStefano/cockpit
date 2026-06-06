@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Session, Message, Block } from './data/mock';
 import type { ClientMsg, ServerMsg, SessionMeta, ToolCall, SysStats, PermMode, ModelAlias, EffortLevel, ContextMeta, SkillMeta, UsageStats, TurnStats } from '../shared/protocol';
 import { loadPref, savePref } from './lib/persist';
-import { requestNotifyPermission, notifyTurnDone } from './lib/notify';
+import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
 
 export interface ContextDoc { id: string; title: string; body: string }
 export interface SkillDoc { id: string; name: string; body: string }
@@ -442,6 +442,15 @@ export function useCockpit(): Cockpit {
           delete runMsg.current[key];
           setPhases((p) => ({ ...p, [key]: 'idle' }));
           updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ ${msg.message}` }], error: true }]);
+          notifyTurnError(
+            sessionsRef.current.find((s) => s.id === key)?.title ?? '',
+            msg.message,
+            () => {
+              activeRef.current = key;
+              setActiveIdState(key);
+              setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === key })));
+            },
+          );
         }
         return;
       }
