@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Icon, Badge, Markdown, CodeBlock } from './primitives';
+import { ClaudeAvatar, UserAvatar } from './Avatar';
 import type { Session, Message, Block, ToolCall } from '../data/mock';
 import type { PermMode, ModelAlias, EffortLevel, TurnStats, ToolDiff } from '../../shared/protocol';
 import type { Attachment } from '../useCockpit';
@@ -429,8 +430,8 @@ function MessageRow({ msg, caretOnLast, onEditUser, toolSignal }: MessageRowProp
         <div className="max-w-[82%] rounded-2xl rounded-br-md border border-neutral-700/60 bg-neutral-800 px-3.5 py-2.5 text-[14px] leading-relaxed text-neutral-100 shadow-sm shadow-black/20 [text-wrap:pretty]">
           {msg.text}
         </div>
-        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900 text-neutral-400">
-          <Icon name="user" size={14} />
+        <div className="mt-0.5">
+          <UserAvatar size={28} />
         </div>
       </div>
     );
@@ -438,8 +439,8 @@ function MessageRow({ msg, caretOnLast, onEditUser, toolSignal }: MessageRowProp
   const hasText = msg.blocks.some((b) => b.type === 'text' || b.type === 'code');
   return (
     <div className="fade-up group/msg flex gap-2.5">
-      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-500 text-neutral-950 shadow-sm shadow-orange-500/20">
-        <Icon name="sparkles" size={14} />
+      <div className="mt-0.5">
+        <ClaudeAvatar size={28} />
       </div>
       <div className="min-w-0 flex-1 pt-0.5">
         <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} toolSignal={toolSignal} />
@@ -503,8 +504,8 @@ function Thinking() {
   }, []);
   return (
     <div className="fade-up flex gap-2.5">
-      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-500 text-neutral-950">
-        <Icon name="sparkles" size={14} />
+      <div className="mt-0.5">
+        <ClaudeAvatar size={28} />
       </div>
       <div className="flex items-center gap-2 pt-1.5">
         <div className="flex items-center gap-1">
@@ -550,8 +551,8 @@ function ChatEmpty({ onPrompt }: ChatEmptyProps) {
   ];
   return (
     <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500 text-neutral-950 shadow-lg shadow-orange-500/25">
-        <Icon name="sparkles" size={22} />
+      <div className="mb-4">
+        <ClaudeAvatar size={48} />
       </div>
       <h2 className="text-[17px] font-semibold text-neutral-200">Em que vamos trabalhar?</h2>
       <p className="mt-1.5 max-w-sm text-[13px] leading-snug text-neutral-500">
