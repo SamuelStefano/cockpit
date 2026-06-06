@@ -172,6 +172,31 @@ const EFFORT_BY_SLASH: Record<string, EffortLevel> = {
 const isLocalSlash = (c: string) => c in SLASH_HINTS;
 const slashHint = (c: string) => SLASH_HINTS[c] ?? 'enviado ao Claude como texto';
 
+export type SlashAction =
+  | { kind: 'help' }
+  | { kind: 'new' }
+  | { kind: 'model'; model: 'opus' | 'sonnet' | 'haiku' }
+  | { kind: 'mode'; mode: 'plan' | 'auto' | 'acceptEdits' }
+  | { kind: 'effort'; effort: EffortLevel }
+  | null;
+
+// Decisão PURA de qual ação app-side um slash dispara (ou null = passa pro
+// Claude como texto). runSlash só despacha os efeitos colaterais a partir disto.
+export function classifySlash(raw: string): SlashAction {
+  const m = raw.match(/^\/(\S+)\s*(.*)$/);
+  if (!m) return null;
+  const cmd = m[1].toLowerCase();
+  const arg = m[2].trim().toLowerCase();
+  if (cmd === 'help') return { kind: 'help' };
+  if (cmd === 'clear' || cmd === 'new') return { kind: 'new' };
+  if (cmd === 'model' && (arg === 'opus' || arg === 'sonnet' || arg === 'haiku')) return { kind: 'model', model: arg };
+  if (cmd === 'plan') return { kind: 'mode', mode: 'plan' };
+  if (cmd === 'auto') return { kind: 'mode', mode: 'auto' };
+  if (cmd === 'execute') return { kind: 'mode', mode: 'acceptEdits' };
+  if (cmd === 'effort' && arg in EFFORT_BY_SLASH) return { kind: 'effort', effort: EFFORT_BY_SLASH[arg] };
+  return null;
+}
+
 export function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, attachments, onUpload, onRemoveAttachment, focusSignal, queued, onQueue, onCancelQueue, history, pendingConfirm, onNew, onShowHelp }: ChatInputProps) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -209,18 +234,16 @@ export function ChatInput({ disabled, onSend, onStop, value, setValue, mode, set
   // (viram texto literal no prompt). Interceptamos um conjunto conhecido e
   // disparamos a ação local; tudo que não casa segue pro modelo como antes.
   const runSlash = (raw: string): boolean => {
-    const m = raw.match(/^\/(\S+)\s*(.*)$/);
-    if (!m) return false;
-    const cmd = m[1].toLowerCase();
-    const arg = m[2].trim().toLowerCase();
-    if (cmd === 'help') { onShowHelp?.(); return true; }
-    if (cmd === 'clear' || cmd === 'new') { onNew(); return true; }
-    if (cmd === 'model' && (arg === 'opus' || arg === 'sonnet' || arg === 'haiku')) { setModel(arg); return true; }
-    if (cmd === 'plan') { setMode('plan'); return true; }
-    if (cmd === 'auto') { setMode('auto'); return true; }
-    if (cmd === 'execute') { setMode('acceptEdits'); return true; }
-    if (cmd === 'effort' && arg in EFFORT_BY_SLASH) { setEffort(EFFORT_BY_SLASH[arg]); return true; }
-    return false;
+    const a = classifySlash(raw);
+    if (!a) return false;
+    switch (a.kind) {
+      case 'help': onShowHelp?.(); break;
+      case 'new': onNew(); break;
+      case 'model': setModel(a.model); break;
+      case 'mode': setMode(a.mode); break;
+      case 'effort': setEffort(a.effort); break;
+    }
+    return true;
   };
   const submit = () => {
     const v = value.trim();
