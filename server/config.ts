@@ -37,8 +37,13 @@ export const CONFIG = {
   // allow-list de modelos no engine. Vazio = sem fallback.
   fallbackModel: process.env.COCKPIT_FALLBACK_MODEL ?? '',
 
-  // Paginação de history (squad M3: maior JSONL = 46MB).
-  historyLimit: 60,
+  // Quantas mensagens (user/assistant) do fim da sessão o history devolve. 60 era
+  // baixíssimo: sessões de daily-driver têm milhares de records, então no reload
+  // o usuário via só um pedacinho do fim ("só algumas mensagens aparecem"). O
+  // history parseado NÃO carrega output de tool (só comando/diff), então o payload
+  // por mensagem é pequeno e 500 cabe folgado no loopback. Full-history/paginação
+  // (carregar anteriores) fica como evolução. Override por env.
+  historyLimit: Number(process.env.COCKPIT_HISTORY_LIMIT ?? 500),
 
   // Teto do prompt: evita ARG_MAX/DoS no spawn (argv -p).
   maxPromptBytes: 100_000,
