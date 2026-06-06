@@ -48,7 +48,7 @@ function ensureColumn(d: Database.Database, table: string, col: string, decl: st
 
 // Preço estimado por 1M tokens (USD). Aproxima a tabela pública da Anthropic;
 // casado por substring do nome do modelo. É ESTIMATIVA — a UI rotula como tal.
-interface Price { input: number; output: number; cacheWrite: number; cacheRead: number }
+export interface Price { input: number; output: number; cacheWrite: number; cacheRead: number }
 const PRICES: Record<string, Price> = {
   opus: { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.5 },
   sonnet: { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
@@ -56,12 +56,21 @@ const PRICES: Record<string, Price> = {
 };
 const DEFAULT_PRICE = PRICES.sonnet;
 
-function priceOf(model: string | null): Price {
+export function priceOf(model: string | null): Price {
   const m = (model ?? '').toLowerCase();
   if (m.includes('opus')) return PRICES.opus;
   if (m.includes('haiku')) return PRICES.haiku;
   if (m.includes('sonnet')) return PRICES.sonnet;
   return DEFAULT_PRICE;
+}
+
+export interface CostTokens { input: number; output: number; cacheRead: number; cacheCreation: number }
+
+// Custo estimado (USD) de um conjunto de tokens pro modelo. Centraliza a fórmula
+// usada tanto no agregado por sessão quanto nos buckets diários do /uso.
+export function costOf(model: string | null, t: CostTokens): number {
+  const p = priceOf(model);
+  return (t.input * p.input + t.cacheCreation * p.cacheWrite + t.cacheRead * p.cacheRead + t.output * p.output) / 1_000_000;
 }
 
 export interface UsageInput {
@@ -149,13 +158,12 @@ function computeStats(): UsageStats {
 
   const sessions: SessionUsage[] = rows.map((r) => {
     const l = latest.get(r.sessionId) as { ctxTokens: number; model: string | null } | undefined;
-    const p = priceOf(l?.model ?? null);
-    const costUsd = (
-      (r.inputTokens ?? 0) * p.input +
-      (r.cacheCreationTokens ?? 0) * p.cacheWrite +
-      (r.cacheReadTokens ?? 0) * p.cacheRead +
-      (r.outputTokens ?? 0) * p.output
-    ) / 1_000_000;
+    const costUsd = costOf(l?.model ?? null, {
+      input: r.inputTokens ?? 0,
+      output: r.outputTokens ?? 0,
+      cacheRead: r.cacheReadTokens ?? 0,
+      cacheCreation: r.cacheCreationTokens ?? 0,
+    });
     return {
       sessionId: r.sessionId,
       ctxTokens: l?.ctxTokens ?? 0,
@@ -189,8 +197,7 @@ function dailySeries(days: number): { day: number; output: number; cost: number 
   for (const r of rows) {
     const d = new Date(r.ts); d.setHours(0, 0, 0, 0);
     const day = d.getTime();
-    const p = priceOf(r.model);
-    const cost = (r.input * p.input + r.cacheCreation * p.cacheWrite + r.cacheRead * p.cacheRead + r.output * p.output) / 1_000_000;
+    const cost = costOf(r.model, { input: r.input, output: r.output, cacheRead: r.cacheRead, cacheCreation: r.cacheCreation });
     const b = buckets.get(day) ?? { day, output: 0, cost: 0 };
     b.output += r.output; b.cost += cost;
     buckets.set(day, b);
