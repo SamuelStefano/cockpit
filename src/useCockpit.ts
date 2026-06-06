@@ -171,6 +171,7 @@ export function useCockpit(): Cockpit {
   const activeRef = useRef('');
   const sessionsRef = useRef<Session[]>([]);
   const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryDelay = useRef(1500); // backoff exponencial, reset no connect bem-sucedido
   const termData = useRef<Map<string, (d: string) => void>>(new Map());   // termId -> xterm.write
   const termReplay = useRef<Map<string, (d: string) => void>>(new Map()); // termId -> reset()+write (snapshot)
   const termExit = useRef<Map<string, () => void>>(new Map());
@@ -464,6 +465,7 @@ export function useCockpit(): Cockpit {
     wsRef.current = ws;
 
     ws.onopen = () => {
+      retryDelay.current = 1500; // reconectou — zera o backoff
       setConn({ ws: 'connected', sse: 'connected' });
       send({ t: 'list' });
       send({ t: 'list-archived' });
@@ -482,7 +484,12 @@ export function useCockpit(): Cockpit {
 
   const scheduleRetry = useCallback(() => {
     if (retry.current) return;
-    retry.current = setTimeout(() => { retry.current = null; connect(); }, 1500);
+    // Backoff exponencial (1.5s → 30s): no wake-from-sleep com Tailscale flapando,
+    // um retry fixo de 1.5s vira tempestade de full-scans (list + archived +
+    // usage, cada um varrendo o diretório de sessões e o SQLite síncrono).
+    const delay = retryDelay.current;
+    retryDelay.current = Math.min(delay * 2, 30_000);
+    retry.current = setTimeout(() => { retry.current = null; connect(); }, delay);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
