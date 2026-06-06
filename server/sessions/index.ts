@@ -6,9 +6,12 @@ import { hiddenSet } from '../store';
 
 const UUID_FILE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$/;
 
-// Lista sessões sem SQLite (DR-003): readdir + scan reverso de metadado (M2).
-// Cache em memória invalidado por mtime.
-const cache = new Map<string, { mtime: number; meta: SessionMeta }>();
+export interface MetaScan { title: string; firstUser?: string; count: number; consumed: number }
+
+// Cache em memória invalidado por mtime. Guarda `size` + o `scan` cru pra permitir
+// scan incremental: JSONL de sessão é append-only, então quando o arquivo só cresce
+// relê apenas a cauda nova (de `consumed`) em vez do arquivo inteiro a cada `list`.
+const cache = new Map<string, { mtime: number; size: number; scan: MetaScan; meta: SessionMeta }>();
 
 export function listSessions(): Promise<SessionMeta[]> {
   return collectMetas((id, hidden) => !hidden.has(id));
@@ -48,8 +51,10 @@ async function collectMetas(keep: (id: string, hidden: Set<string>) => boolean):
     const hit = cache.get(id);
     if (hit && hit.mtime === mtime) { metas.push(hit.meta); continue; }
 
-    const meta = metaFromHead(id, mtime, await scanMeta(full));
-    cache.set(id, { mtime, meta });
+    const prev = hit && st.size > hit.size ? hit.scan : undefined;
+    const scan = await scanMeta(full, prev);
+    const meta = metaFromHead(id, mtime, scan);
+    cache.set(id, { mtime, size: st.size, scan, meta });
     metas.push(meta);
   }
 
@@ -66,8 +71,10 @@ export async function metaForId(id: string): Promise<SessionMeta | null> {
   const mtime = st.mtimeMs;
   const hit = cache.get(id);
   if (hit && hit.mtime === mtime) return hit.meta;
-  const meta = metaFromHead(id, mtime, await scanMeta(full));
-  cache.set(id, { mtime, meta });
+  const prev = hit && st.size > hit.size ? hit.scan : undefined;
+  const scan = await scanMeta(full, prev);
+  const meta = metaFromHead(id, mtime, scan);
+  cache.set(id, { mtime, size: st.size, scan, meta });
   return meta;
 }
 
@@ -84,41 +91,58 @@ function metaFromHead(id: string, mtime: number, head: { title: string; firstUse
   };
 }
 
-// Lê o arquivo uma vez: pega o ÚLTIMO ai-title, a 1ª msg de user, e conta msgs.
-// (scan linear único — barato o suficiente; evita ler 46MB duas vezes.)
-async function scanMeta(path: string): Promise<{ title: string; firstUser?: string; count: number }> {
+// Funde linhas COMPLETAS de JSONL no acumulador: ÚLTIMO ai-title, 1ª msg de user,
+// contagem, e bytes consumidos (offset da última `\n`, pra retomada incremental).
+// Pura e combinável — `prev` continua um scan anterior sobre a cauda nova.
+export function scanMetaText(text: string, prev?: MetaScan): MetaScan {
+  let title = prev?.title ?? '';
+  let firstUser = prev?.firstUser;
+  let count = prev?.count ?? 0;
+  let consumed = prev?.consumed ?? 0;
+  let i = 0;
+  let nl: number;
+  while ((nl = text.indexOf('\n', i)) >= 0) {
+    const raw = text.slice(i, nl);
+    consumed += Buffer.byteLength(raw, 'utf8') + 1;
+    i = nl + 1;
+    const line = raw.trim();
+    if (!line) continue;
+    let o: any;
+    try { o = JSON.parse(line); } catch { continue; }
+    if (o.type === 'ai-title' && o.aiTitle) title = o.aiTitle;
+    else if (o.type === 'user' || o.type === 'assistant') {
+      count++;
+      if (!firstUser && o.type === 'user' && o.message) {
+        const c = o.message.content;
+        firstUser = typeof c === 'string'
+          ? c
+          : Array.isArray(c) ? c.filter((x: any) => x?.type === 'text').map((x: any) => x.text).join(' ') : '';
+      }
+    }
+  }
+  return { title, firstUser, count, consumed };
+}
+
+// Lê do byte `prev.consumed` até EOF (full scan quando prev ausente) e funde com
+// scanMetaText. JSONL é append-only: relê só a cauda quando o arquivo cresceu.
+async function scanMeta(path: string, prev?: MetaScan): Promise<MetaScan> {
   const fh = await open(path, 'r');
-  let title = '';
-  let firstUser: string | undefined;
-  let count = 0;
   try {
-    const stream = fh.createReadStream({ encoding: 'utf8' });
+    const stream = fh.createReadStream({ encoding: 'utf8', start: prev?.consumed ?? 0 });
+    let acc: MetaScan = prev ?? { title: '', count: 0, consumed: 0 };
     let buf = '';
     for await (const chunk of stream) {
       buf += chunk;
-      let nl: number;
-      while ((nl = buf.indexOf('\n')) >= 0) {
-        const line = buf.slice(0, nl).trim();
-        buf = buf.slice(nl + 1);
-        if (!line) continue;
-        let o: any;
-        try { o = JSON.parse(line); } catch { continue; }
-        if (o.type === 'ai-title' && o.aiTitle) title = o.aiTitle;
-        else if (o.type === 'user' || o.type === 'assistant') {
-          count++;
-          if (!firstUser && o.type === 'user' && o.message) {
-            const c = o.message.content;
-            firstUser = typeof c === 'string'
-              ? c
-              : Array.isArray(c) ? c.filter((x: any) => x?.type === 'text').map((x: any) => x.text).join(' ') : '';
-          }
-        }
+      const lastNl = buf.lastIndexOf('\n');
+      if (lastNl >= 0) {
+        acc = scanMetaText(buf.slice(0, lastNl + 1), acc);
+        buf = buf.slice(lastNl + 1);
       }
     }
+    return acc;
   } finally {
     await fh.close();
   }
-  return { title, firstUser, count };
 }
 
 function relTime(ms: number): string {
