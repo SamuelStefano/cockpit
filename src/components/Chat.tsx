@@ -452,7 +452,7 @@ function MessageRow({ msg, caretOnLast, onEditUser, onQuote, toolSignal }: Messa
             </button>
           )}
         </div>
-        <div className="max-w-[82%] rounded-2xl rounded-br-md border border-neutral-700/60 bg-neutral-800 px-3.5 py-2.5 text-[14px] leading-relaxed text-neutral-100 shadow-sm shadow-black/20 [text-wrap:pretty]">
+        <div className="max-w-[82%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md border border-neutral-700/60 bg-neutral-800 px-3.5 py-2.5 text-[14px] leading-relaxed text-neutral-100 shadow-sm shadow-black/20">
           {msg.text}
         </div>
         <div className="mt-0.5">
