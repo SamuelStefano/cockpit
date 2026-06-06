@@ -471,8 +471,12 @@ function closeTool(thread: Thread, sessionKey: string, c: any) {
 function cmdOf(input: unknown): string {
   if (input && typeof input === 'object') {
     const o = input as Record<string, unknown>;
-    if (typeof o.command === 'string') return o.command;
-    if (typeof o.file_path === 'string') return String(o.file_path);
+    // Ordem: Bash(command) → file-tools(file_path) → Grep/Glob(pattern) →
+    // WebFetch(url) → WebSearch(query) → Task(description). Sem isto, esses
+    // cards apareciam sem nenhuma linha de argumento.
+    for (const key of ['command', 'file_path', 'pattern', 'url', 'query', 'description'] as const) {
+      if (typeof o[key] === 'string' && o[key]) return o[key] as string;
+    }
   }
   return '';
 }

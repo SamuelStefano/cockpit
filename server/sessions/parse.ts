@@ -135,8 +135,9 @@ function recToMessage(r: Rec): Message | null {
 function extractCommand(input: unknown): string {
   if (input && typeof input === 'object') {
     const o = input as Record<string, unknown>;
-    if (typeof o.command === 'string') return o.command;
-    if (typeof o.file_path === 'string') return String(o.file_path);
+    for (const key of ['command', 'file_path', 'pattern', 'url', 'query', 'description'] as const) {
+      if (typeof o[key] === 'string' && o[key]) return o[key] as string;
+    }
   }
   return '';
 }
