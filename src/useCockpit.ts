@@ -99,6 +99,7 @@ export interface Cockpit {
   contextTokens: number;
   usage: Record<string, number>;
   lastTurn?: TurnStats;
+  lastEnd?: string;
   searchResults: Session[];
   onSearch: (q: string) => void;
   contexts: ContextMeta[];
@@ -137,6 +138,7 @@ export function useCockpit(): Cockpit {
   const [archived, setArchived] = useState<Session[]>([]);
   const [usage, setUsage] = useState<Record<string, number>>({}); // sessionKey -> tokens de contexto
   const [turnStats, setTurnStats] = useState<Record<string, TurnStats>>({}); // sessionKey -> custo/duração reais do último turno
+  const [interrupted, setInterrupted] = useState<Record<string, string>>({}); // sessionKey -> endReason (budget/max_turns) p/ oferecer "continuar"
   const [searchResults, setSearchResults] = useState<Session[]>([]);
   const searchQ = useRef('');
   const [contexts, setContexts] = useState<ContextMeta[]>([]);
@@ -212,6 +214,7 @@ export function useCockpit(): Cockpit {
     setDrafts(move);
     setUsage(move);
     setTurnStats(move);
+    setInterrupted(move);
     // Se o `list` já trouxe newId como linha persistida, renomear oldKey->newId
     // criaria DUAS linhas com o mesmo id. Renomeia a local e remove a duplicata
     // do servidor (a local carrega o estado em voo, então fica preferida).
@@ -389,6 +392,7 @@ export function useCockpit(): Cockpit {
         if (msg.costUsd !== undefined || msg.durationMs !== undefined) {
           setTurnStats((t) => ({ ...t, [key]: { costUsd: msg.costUsd, durationMs: msg.durationMs, numTurns: msg.numTurns } }));
         }
+        const resumable = !!msg.endReason && (msg.endReason.includes('budget') || msg.endReason.includes('max_turns'));
         if (msg.endReason && msg.endReason !== 'success') {
           const note = msg.endReason.includes('budget')
             ? `⚠️ Turno interrompido: teto de gasto atingido${msg.costUsd !== undefined ? ` ($${msg.costUsd.toFixed(3)})` : ''}.`
@@ -397,6 +401,13 @@ export function useCockpit(): Cockpit {
               : `⚠️ Turno encerrado (${msg.endReason}).`;
           updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: note }] }]);
         }
+        // Oferece "continuar" só em corte recuperável (budget/max_turns); limpa
+        // o flag em qualquer outro encerramento pra não persistir uma oferta velha.
+        setInterrupted((p) => {
+          if (resumable) return { ...p, [key]: msg.endReason! };
+          if (!(key in p)) return p;
+          const n = { ...p }; delete n[key]; return n;
+        });
         if (msg.sessionId) {
           resumeId.current[key] = msg.sessionId;
           migrateKey(key, msg.sessionId);
@@ -489,6 +500,7 @@ export function useCockpit(): Cockpit {
       ? atts.map((a) => `[anexo: ${a.path}]`).join('\n') + '\n\n' + text
       : text;
     if (atts.length) { attachmentsRef.current = []; setAttachments([]); }
+    setInterrupted((p) => { if (!(key in p)) return p; const n = { ...p }; delete n[key]; return n; });
     updateThread(key, (prev) => [...prev, { id: newId('u'), role: 'user', text }]);
     setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: text, relative: 'agora' } : s)));
     setDrafts((d) => ({ ...d, [key]: '' }));
@@ -647,6 +659,7 @@ export function useCockpit(): Cockpit {
   const draft = drafts[activeId] || '';
   const contextTokens = usage[activeId] || 0;
   const lastTurn = turnStats[activeId];
+  const lastEnd = interrupted[activeId];
   const setDraft = useCallback((v: string) => setDrafts((d) => ({ ...d, [activeRef.current]: v })), []);
 
   // Drafts não-enviados sobrevivem a reload. Só persiste sessões reais (uuid) e
@@ -657,5 +670,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, updated, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, updated, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
 }

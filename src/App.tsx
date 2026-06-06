@@ -154,7 +154,7 @@ export function CockpitApp() {
   const {
     sessions, loading, activeId: activeSessionId, setActiveId: setActiveSessionId,
     messages, phase, running, updated, draft, setDraft, conn, rate, stats, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, term,
-    archived, onUnhide: handleUnhide, contextTokens, usage, lastTurn, searchResults, onSearch,
+    archived, onUnhide: handleUnhide, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch,
     contexts, openContext, onCtxList, onCtxOpen, onCtxClose,
     skills, openSkill, onSkillList, onSkillOpen, onSkillClose,
     usageStats, onUsageList,
@@ -339,7 +339,7 @@ export function CockpitApp() {
       ) : isMobile ? (
         <MobileLayout
           sessionsProps={{ sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onClose: handleCloseSession, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, updated, searchResults, onSearch }}
-          chatProps={{ session: activeSession, messages, phase: viewPhase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, contextTokens, lastTurn, onNew: handleNew, attachments, onUpload, onRemoveAttachment, onEditUser: editUser, focusSignal }}
+          chatProps={{ session: activeSession, messages, phase: viewPhase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew: handleNew, attachments, onUpload, onRemoveAttachment, onEditUser: editUser, focusSignal }}
           termProps={{ terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term }}
           drawer={drawer} setDrawer={setDrawer}
           termSheet={termSheet} setTermSheet={setTermSheet}
@@ -357,7 +357,7 @@ export function CockpitApp() {
           <div style={{ width: `${100 - leftW - rightW}%` }} className="min-w-0 flex-1">
             <ChatPanel session={activeSession} messages={messages} phase={viewPhase}
               draft={draft} setDraft={setDraft} onSend={handleSend} onPrompt={handleSend} onStop={handleStop}
-              mode={mode} setMode={setMode} model={model} setModel={setModel} effort={effort} setEffort={setEffort} budget={budget} setBudget={setBudget} slashCommands={slashCommands} contextTokens={contextTokens} lastTurn={lastTurn} onNew={handleNew}
+              mode={mode} setMode={setMode} model={model} setModel={setModel} effort={effort} setEffort={setEffort} budget={budget} setBudget={setBudget} slashCommands={slashCommands} contextTokens={contextTokens} lastTurn={lastTurn} lastEnd={lastEnd} onNew={handleNew}
               attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment}
               onEditUser={editUser} focusSignal={focusSignal} />
           </div>
