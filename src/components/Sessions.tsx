@@ -38,16 +38,19 @@ function SessionSkeletonRow() {
   );
 }
 
+const CTX_WINDOW = 200_000;
+
 interface SessionRowProps {
   s: Session;
   active: boolean;
   highlight?: string;
+  ctx?: number;
   onSelect: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onClose: (id: string) => void;
 }
 
-function SessionRow({ s, active, highlight, onSelect, onRename, onClose }: SessionRowProps) {
+function SessionRow({ s, active, highlight, ctx, onSelect, onRename, onClose }: SessionRowProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(s.title);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -113,6 +116,15 @@ function SessionRow({ s, active, highlight, onSelect, onRename, onClose }: Sessi
       {!editing && (
         <p className="line-clamp-2 text-[11.5px] leading-snug text-neutral-500"><Highlight text={s.snippet} term={highlight} /></p>
       )}
+      {!editing && ctx !== undefined && ctx > 0 && (() => {
+        const pct = Math.min(100, (ctx / CTX_WINDOW) * 100);
+        const tone = pct >= 85 ? 'bg-red-500' : pct >= 60 ? 'bg-amber-500' : 'bg-sky-500/70';
+        return (
+          <div className="mt-1.5 h-[3px] overflow-hidden rounded-full bg-neutral-800" title={`${Math.round(ctx / 1000)}k / 200k tokens de contexto (${Math.round(pct)}%)`}>
+            <div className={`h-full rounded-full ${tone}`} style={{ width: `${pct}%` }} />
+          </div>
+        );
+      })()}
       {s.hasTerminal && !editing && (
         <div className="mt-1.5">
           <Badge tone="green" dot>terminal ativo</Badge>
@@ -133,6 +145,7 @@ export interface SessionsPanelProps {
   archived?: Session[];
   onUnhide?: (id: string) => void;
   onCloseMobile?: () => void;
+  usage?: Record<string, number>;
   searchResults?: Session[];
   onSearch?: (q: string) => void;
 }
@@ -169,7 +182,7 @@ function ArchivedSection({ archived, onUnhide }: { archived: Session[]; onUnhide
   );
 }
 
-export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, onRename, onClose, archived = [], onUnhide, onCloseMobile, searchResults = [], onSearch }: SessionsPanelProps) {
+export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, onRename, onClose, archived = [], onUnhide, onCloseMobile, usage = {}, searchResults = [], onSearch }: SessionsPanelProps) {
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -262,7 +275,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
           )
         ) : (
           filtered.map((s) => (
-            <SessionRow key={s.id} s={s} active={s.id === activeId} highlight={query}
+            <SessionRow key={s.id} s={s} active={s.id === activeId} highlight={query} ctx={usage[s.id]}
               onSelect={(id) => { onSelect(id); onCloseMobile && onCloseMobile(); }}
               onRename={onRename} onClose={onClose} />
           ))
