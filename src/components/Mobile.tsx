@@ -68,7 +68,7 @@ export function MobileLayout({ sessionsProps, chatProps, termProps, drawer, setD
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1">
-        <ChatPanel {...chatProps} />
+        <ChatPanel key={chatProps.session?.id ?? 'none'} {...chatProps} />
       </div>
 
       {!termSheet && (
