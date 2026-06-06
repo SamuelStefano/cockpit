@@ -674,7 +674,7 @@ export interface ChatPanelProps {
   phase: Phase;
   draft: string;
   setDraft: (v: string) => void;
-  onSend: (text: string) => void;
+  onSend: (text: string, modeOverride?: PermMode) => void;
   onPrompt: (text: string) => void;
   onStop: () => void;
   mode: PermMode;
@@ -733,6 +733,10 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
   }, [messages, phase]);
 
   const isEmpty = messages.length === 0;
+  const planPending = phase === 'idle' && (() => {
+    const last = messages[messages.length - 1];
+    return !!last && last.role === 'assistant' && last.blocks.some((b) => b.type === 'tool' && b.tool.name === 'ExitPlanMode');
+  })();
 
   return (
     <div className="relative flex h-full flex-col bg-neutral-900">
@@ -776,6 +780,19 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         >
           <Icon name="chevronDown" size={16} />
         </button>
+      )}
+
+      {planPending && (
+        <div className="flex shrink-0 items-center gap-2 border-t border-emerald-500/30 bg-emerald-500/[0.06] px-4 py-2">
+          <Icon name="check" size={13} className="text-emerald-400" />
+          <span className="text-[12px] text-emerald-200/90">Plano pronto para execução.</span>
+          <button
+            onClick={() => onSend('Plano aprovado — prossiga com a implementação.', 'acceptEdits')}
+            className="ml-auto rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-[11.5px] font-medium text-emerald-200 transition hover:bg-emerald-500/20"
+          >
+            Aprovar &amp; executar
+          </button>
+        </div>
       )}
 
       <ChatInput disabled={disabled} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
