@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Icon, Badge, Markdown, CodeBlock } from './primitives';
 import type { Session, Message, Block, ToolCall } from '../data/mock';
-import type { PermMode, ModelAlias, EffortLevel, TurnStats } from '../../shared/protocol';
+import type { PermMode, ModelAlias, EffortLevel, TurnStats, ToolDiff } from '../../shared/protocol';
 import type { Attachment } from '../useCockpit';
 import { threadToMarkdown, messageToText, download, fileSlug } from '../lib/export';
 
@@ -187,6 +187,74 @@ function ContextMeter({ tokens, onNew }: { tokens: number; onNew?: () => void })
   );
 }
 
+// --- DiffView --------------------------------------------------------------
+
+type DiffRow = { t: 'ctx' | 'add' | 'del'; s: string };
+
+// LCS de linhas pra um diff interleaved. O(n*m) — limitado a trechos pequenos
+// (Edit/Write costumam ser curtos); acima do teto cai pro before/after simples.
+function lineDiff(oldText: string, newText: string): DiffRow[] {
+  const a = oldText === '' ? [] : oldText.split('\n');
+  const b = newText === '' ? [] : newText.split('\n');
+  if (a.length === 0) return b.map((s) => ({ t: 'add' as const, s }));
+  if (b.length === 0) return a.map((s) => ({ t: 'del' as const, s }));
+  if (a.length > 300 || b.length > 300) {
+    return [...a.map((s) => ({ t: 'del' as const, s })), ...b.map((s) => ({ t: 'add' as const, s }))];
+  }
+  const n = a.length, m = b.length;
+  const dp = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--)
+    for (let j = m - 1; j >= 0; j--)
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const out: DiffRow[] = [];
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) { out.push({ t: 'ctx', s: a[i] }); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { out.push({ t: 'del', s: a[i] }); i++; }
+    else { out.push({ t: 'add', s: b[j] }); j++; }
+  }
+  while (i < n) out.push({ t: 'del', s: a[i++] });
+  while (j < m) out.push({ t: 'add', s: b[j++] });
+  return out;
+}
+
+function DiffView({ diff }: { diff: ToolDiff }) {
+  const rows = useMemo(() => lineDiff(diff.old, diff.new), [diff.old, diff.new]);
+  const adds = rows.filter((r) => r.t === 'add').length;
+  const dels = rows.filter((r) => r.t === 'del').length;
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="px-3 pb-2">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="mb-1 flex w-full items-center gap-1.5 text-[11px] text-neutral-500 transition hover:text-neutral-300"
+      >
+        <Icon name="chevronDown" size={13} style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
+        diff
+        <span className="text-emerald-400/80">+{adds}</span>
+        <span className="text-red-400/80">-{dels}</span>
+      </button>
+      {open && (
+        <pre className="scroll-thin max-h-72 overflow-auto rounded-md border border-neutral-800 bg-[#070707] py-1.5 font-mono text-[11.5px] leading-relaxed">
+          {rows.map((r, i) => (
+            <div
+              key={i}
+              className={
+                r.t === 'add' ? 'bg-emerald-500/10 text-emerald-300'
+                  : r.t === 'del' ? 'bg-red-500/10 text-red-300'
+                    : 'text-neutral-500'
+              }
+            >
+              <span className="select-none px-2 text-neutral-600">{r.t === 'add' ? '+' : r.t === 'del' ? '-' : ' '}</span>
+              {r.s || ' '}
+            </div>
+          ))}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 // --- ToolCallCard ----------------------------------------------------------
 
 export interface ToolSignal { open: boolean; n: number }
@@ -243,6 +311,7 @@ function ToolCallCard({ tool, signal }: ToolCallCardProps) {
           <code className="scroll-thin overflow-x-auto whitespace-nowrap font-mono text-[11.5px] text-neutral-300">{tool.command}</code>
         </div>
       </div>
+      {tool.diff && <DiffView diff={tool.diff} />}
       {lines.length > 0 && (
         <div className="border-t border-neutral-800">
           <button

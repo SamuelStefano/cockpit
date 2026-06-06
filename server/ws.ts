@@ -11,7 +11,7 @@ import { listSkills, readSkill } from './skills';
 import { saveAttachment } from './attachments';
 import { recordUsage, usageStats } from './db';
 import { hideSession, unhideSession } from './store';
-import { parseSession, ctxTokens } from './sessions/parse';
+import { parseSession, ctxTokens, diffOf } from './sessions/parse';
 import { collect } from './stats';
 import { openTerm, detachTerm, inputTerm, resizeTerm, closeTerm } from './terminals';
 
@@ -286,6 +286,7 @@ function emitTool(ws: WebSocket, sessionKey: string, block: any, status: ToolCal
     label: block.name ?? 'tool',
     command: cmdOf(block.input),
     status,
+    diff: diffOf(block.name, block.input),
     output: [],
   };
   send(ws, { t: 'tool', sessionKey, tool });

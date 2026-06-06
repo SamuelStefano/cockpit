@@ -2,6 +2,12 @@
 // REGRA (squad L3): types-only — zero import de node:*/fs. O bundle do browser
 // importa este arquivo.
 
+export interface ToolDiff {
+  path: string;
+  old: string;
+  new: string;
+}
+
 export interface ToolCall {
   id: string; // = tool_use_id (correlação running -> done; squad H1)
   name: string;
@@ -11,6 +17,7 @@ export interface ToolCall {
   durationMs?: number;
   exit?: number;
   expanded?: boolean;
+  diff?: ToolDiff; // Edit/Write: antes/depois p/ render de diff colorido
   output: string[];
 }
 
