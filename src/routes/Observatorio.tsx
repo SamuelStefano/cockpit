@@ -121,6 +121,16 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions, onO
   const rows = usageStats?.sessions ?? [];
   const maxOut = Math.max(1, ...rows.map((r) => r.outputTokens));
 
+  // Insights derivados (sem dado novo): custo de hoje e média por sessão.
+  const costToday = useMemo(() => {
+    const series = usageStats?.series ?? [];
+    if (!series.length) return 0;
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    return series.filter((d) => d.day >= startOfToday).reduce((a, d) => a + d.cost, 0);
+  }, [usageStats]);
+  const avgPerSession = rows.length ? (usageStats?.totalCost ?? 0) / rows.length : 0;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-neutral-950">
       <div className="shrink-0 border-b border-neutral-800/80 px-4 py-3">
@@ -134,8 +144,10 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions, onO
         <Offline />
       ) : (
         <div className="scroll-thin flex-1 overflow-y-auto p-4">
-          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <Stat label="custo estimado" value={usd(usageStats?.totalCost ?? 0)} icon="zap" />
+            <Stat label="custo hoje" value={usd(costToday)} icon="clock" />
+            <Stat label="média/sessão" value={usd(avgPerSession)} icon="message" />
             <Stat label="tokens de saída" value={fmt(usageStats?.totalOutput ?? 0)} icon="arrowUp" />
             <Stat label="amostras" value={fmt(usageStats?.totalSamples ?? 0)} icon="zap" />
             <Stat label="sessões ativas" value={String(rows.length)} icon="message" />
