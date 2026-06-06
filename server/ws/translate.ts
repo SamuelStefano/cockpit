@@ -60,6 +60,7 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
           if (c?.type === 'tool_use') emitTool(thread, sessionKey, c, 'running');
         }
       }
+      capture(thread, ev);
       const usage = (ev as any).message?.usage;
       const tokens = ctxTokens(usage);
       if (tokens > 0) broadcast({ t: 'usage', sessionKey, tokens });
@@ -72,7 +73,6 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
         cacheCreationTokens: usage?.cache_creation_input_tokens ?? 0,
         model: (ev as any).message?.model,
       });
-      capture(thread, ev);
       return;
     }
     case 'user': {

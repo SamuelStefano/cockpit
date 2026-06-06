@@ -60,6 +60,12 @@ describe('translate', () => {
     expect(t.sessionId).toBe('first');
   });
 
+  it('captures the session id on an assistant event so usage records under it', () => {
+    const t = register();
+    translate(KEY, t, { type: 'assistant', session_id: 'sid-asst', message: { model: 'claude-opus', usage: { output_tokens: 1 } } } as never);
+    expect(t.sessionId).toBe('sid-asst');
+  });
+
   it('appends streamed text and thinking deltas to the snapshot', () => {
     const t = register();
     translate(KEY, t, { type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'hel' } } } as never);
