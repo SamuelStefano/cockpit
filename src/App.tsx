@@ -238,6 +238,27 @@ function CollapseBtn({ side, onClick }: { side: 'left' | 'right'; onClick: () =>
   );
 }
 
+// Aviso honesto quando o backend não responde por alguns segundos (caso clássico:
+// front no Vercel sem túnel pro backend loopback). Evita a sensação de "app quebrado".
+function OfflineNotice({ show }: { show: boolean }) {
+  if (!show) return null;
+  return (
+    <div className="fade-up pointer-events-none absolute left-1/2 top-[58px] z-40 w-[min(92vw,30rem)] -translate-x-1/2">
+      <div className="pointer-events-auto flex items-start gap-2.5 rounded-lg border border-red-500/30 bg-red-500/[0.12] px-3 py-2 shadow-2xl shadow-black/40 backdrop-blur-md">
+        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-red-500/15 text-red-400">
+          <Icon name="circle" size={13} />
+        </span>
+        <div className="leading-tight">
+          <p className="text-[12px] font-medium text-red-200">Backend não acessível</p>
+          <p className="text-[11px] text-red-200/70">
+            O cockpit não alcança o servidor em <span className="font-mono">{location.host}</span>. Confira se o backend está rodando (ou o túnel/Tailscale). Tentando reconectar…
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // --- CockpitApp ------------------------------------------------------------
 
 export function CockpitApp() {
@@ -260,6 +281,16 @@ export function CockpitApp() {
 
   const [quotaClosed, setQuotaClosed] = useState(false);
   const quota = !!rate && !quotaClosed;
+
+  // Só alarma depois de ~6s offline (atravessa o flap reconnecting↔down sem piscar).
+  const offlineSince = useRef<number | null>(null);
+  const [showOffline, setShowOffline] = useState(false);
+  useEffect(() => {
+    if (conn.ws === 'connected') { offlineSince.current = null; setShowOffline(false); return; }
+    if (offlineSince.current == null) offlineSince.current = Date.now();
+    const id = setTimeout(() => setShowOffline(true), Math.max(0, 6000 - (Date.now() - offlineSince.current)));
+    return () => clearTimeout(id);
+  }, [conn.ws]);
 
   const [leftW, setLeftW] = usePersisted('panel.left', 17);
   const [rightW, setRightW] = usePersisted('panel.right', 37);
@@ -446,6 +477,7 @@ export function CockpitApp() {
       <Header conn={conn} onNew={handleNew} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} cost={usageStats?.totalCost ?? 0} rate={rate} ctxTokens={contextTokens} lastTurn={lastTurn} />
 
       {quota && rate && <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} />}
+      <OfflineNotice show={showOffline} />
 
       {route === '/contextos' ? (
         <Contextos connected={conn.ws === 'connected'} contexts={contexts} openContext={openContext}
