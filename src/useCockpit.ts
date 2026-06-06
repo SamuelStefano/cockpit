@@ -640,7 +640,8 @@ export function useCockpit(): Cockpit {
     setThreads(prune);
     setPhases((p) => (drop.some((k) => k in p) ? prune(p) : p));
     setUsage((u) => (drop.some((k) => k in u) ? prune(u) : u));
-    for (const k of drop) delete lastActivity.current[k];
+    setTurnStats((t) => (drop.some((k) => k in t) ? prune(t) : t));
+    for (const k of drop) { delete lastActivity.current[k]; delete resumeId.current[k]; }
   }, [activeId, running]);
 
   // Watchdog: enquanto algo roda, tica a cada 20s pra recomputar "quietas".
