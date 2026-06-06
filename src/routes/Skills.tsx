@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Icon, Badge, Markdown } from '../components/primitives';
+import { Icon, Badge } from '../components/primitives';
+import { DocViewer, DocAction, CopyDocAction } from '../components/DocViewer';
 import { download } from '../lib/export';
 import type { SkillMeta } from '../../shared/protocol';
 import type { SkillDoc } from '../useCockpit';
@@ -24,59 +25,21 @@ function Card({ s, onClick }: { s: SkillMeta; onClick: () => void }) {
   );
 }
 
-function ExportBtn({ label, icon, onClick }: { label: string; icon: 'copy' | 'download'; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      title={label}
-      className="flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-900 px-2 py-1 text-[11px] font-medium text-neutral-400 transition hover:border-orange-500/40 hover:text-orange-300"
-    >
-      <Icon name={icon} size={12} /> {label}
-    </button>
-  );
-}
-
 function SkillModal({ doc, onClose }: { doc: SkillDoc; onClose: () => void }) {
-  const [copied, setCopied] = useState(false);
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
-  }, [onClose]);
-
-  const copy = () => {
-    navigator.clipboard.writeText(doc.body).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="fade-up relative flex max-h-[85vh] w-full max-w-3xl flex-col rounded-xl border border-neutral-800 bg-neutral-950 shadow-2xl"
-      >
-        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-800 px-4 py-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate font-mono text-[13px] font-semibold lowercase text-neutral-200">{doc.name}</span>
-            <Badge tone="neutral">skill</Badge>
-          </div>
-          <div className="flex shrink-0 items-center gap-1.5">
-            <ExportBtn label={copied ? 'copiado!' : 'copiar'} icon="copy" onClick={copy} />
-            <ExportBtn label=".md" icon="download" onClick={() => download(`${doc.id}.md`, 'text/markdown', doc.body)} />
-            <ExportBtn label=".json" icon="download" onClick={() => download(`${doc.id}.json`, 'application/json', JSON.stringify({ id: doc.id, name: doc.name, body: doc.body }, null, 2))} />
-            <button onClick={onClose} className="rounded-md p-1 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200">
-              <Icon name="x" size={16} />
-            </button>
-          </div>
-        </div>
-        <div className="scroll-thin overflow-y-auto px-5 py-4 text-[13px] leading-relaxed text-neutral-300">
-          <div className="max-w-prose"><Markdown md={doc.body} /></div>
-        </div>
-      </div>
-    </div>
+    <DocViewer
+      onClose={onClose}
+      title={<span className="truncate font-mono text-[13px] font-semibold lowercase text-neutral-200">{doc.name}</span>}
+      badges={<Badge tone="neutral">skill</Badge>}
+      actions={
+        <>
+          <CopyDocAction text={doc.body} />
+          <DocAction label=".md" icon="download" onClick={() => download(`${doc.id}.md`, 'text/markdown', doc.body)} />
+          <DocAction label=".json" icon="download" onClick={() => download(`${doc.id}.json`, 'application/json', JSON.stringify({ id: doc.id, name: doc.name, body: doc.body }, null, 2))} />
+        </>
+      }
+      body={doc.body}
+    />
   );
 }
 
