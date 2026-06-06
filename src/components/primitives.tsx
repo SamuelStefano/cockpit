@@ -232,12 +232,13 @@ function proseBlocks(md: string, keyBase: string, caret: boolean): React.ReactNo
       return <hr key={k} className="border-neutral-800" />;
     }
 
-    const heading = /^(#{1,3})\s+(.*)$/.exec(block.trim());
+    const heading = /^(#{1,6})\s+(.*)$/.exec(block.trim());
     if (heading && lines.length === 1) {
       const level = heading[1].length;
       const cls = level === 1 ? 'text-[17px] font-semibold text-neutral-100'
         : level === 2 ? 'text-[15px] font-semibold text-neutral-100'
-        : 'text-[14px] font-semibold text-neutral-200';
+        : level === 3 ? 'text-[14px] font-semibold text-neutral-200'
+        : 'text-[13px] font-semibold uppercase tracking-wide text-neutral-400';
       return <p key={k} className={cls}>{renderInline(heading[2], `${k}-h`)}{showCaret && <span className="caret" />}</p>;
     }
 
