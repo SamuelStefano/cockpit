@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ctxTokens, diffOf, planOf, extractCommand } from './parse';
+import { ctxTokens, diffOf, planOf, extractCommand, recToMessage } from './parse';
 
 describe('ctxTokens', () => {
   it('returns 0 for undefined', () => {
@@ -68,5 +68,51 @@ describe('extractCommand', () => {
     expect(extractCommand(null)).toBe('');
     expect(extractCommand('str')).toBe('');
     expect(extractCommand({ other: 'x' })).toBe('');
+  });
+});
+
+describe('recToMessage', () => {
+  it('returns null when there is no message', () => {
+    expect(recToMessage({ type: 'summary' } as any)).toBeNull();
+  });
+
+  it('builds a user message from string content', () => {
+    const m = recToMessage({ uuid: 'u1', timestamp: '2026-06-06T00:00:00.000Z', message: { role: 'user', content: 'hello' } } as any);
+    expect(m).toMatchObject({ id: 'u1', role: 'user', text: 'hello' });
+    expect(m?.ts).toBe(Date.parse('2026-06-06T00:00:00.000Z'));
+  });
+
+  it('joins text parts in user array content', () => {
+    const m = recToMessage({ uuid: 'u2', message: { role: 'user', content: [
+      { type: 'text', text: 'a' }, { type: 'tool_result', content: 'x' }, { type: 'text', text: 'b' },
+    ] } } as any);
+    expect(m).toMatchObject({ role: 'user', text: 'a\nb' });
+  });
+
+  it('drops empty/whitespace-only user messages', () => {
+    expect(recToMessage({ uuid: 'u3', message: { role: 'user', content: '   ' } } as any)).toBeNull();
+  });
+
+  it('builds assistant blocks for text, thinking and tool_use', () => {
+    const m = recToMessage({ uuid: 'a1', message: { role: 'assistant', content: [
+      { type: 'text', text: 'hi' },
+      { type: 'thinking', thinking: 'hmm' },
+      { type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'ls' } },
+    ] } } as any);
+    expect(m?.role).toBe('assistant');
+    expect((m as any).blocks).toEqual([
+      { type: 'text', md: 'hi' },
+      { type: 'thinking', text: 'hmm' },
+      { type: 'tool', tool: expect.objectContaining({ id: 't1', name: 'Bash', command: 'ls', status: 'done' }) },
+    ]);
+  });
+
+  it('returns null for assistant with no usable blocks', () => {
+    expect(recToMessage({ uuid: 'a2', message: { role: 'assistant', content: [{ type: 'image' }] } } as any)).toBeNull();
+  });
+
+  it('leaves ts undefined for an unparseable timestamp', () => {
+    const m = recToMessage({ uuid: 'u4', timestamp: 'not-a-date', message: { role: 'user', content: 'x' } } as any);
+    expect(m?.ts).toBeUndefined();
   });
 });
