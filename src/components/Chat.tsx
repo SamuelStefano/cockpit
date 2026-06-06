@@ -735,11 +735,12 @@ interface ChatInputProps {
   onCancelQueue: () => void;
   history: string[];
   pendingConfirm?: () => void;
+  onNew: () => void;
 }
 
 const MAX_UPLOAD = 15_000_000;
 
-function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, attachments, onUpload, onRemoveAttachment, focusSignal, queued, onQueue, onCancelQueue, history, pendingConfirm }: ChatInputProps) {
+function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, attachments, onUpload, onRemoveAttachment, focusSignal, queued, onQueue, onCancelQueue, history, pendingConfirm, onNew }: ChatInputProps) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const hasAtt = attachments.length > 0;
@@ -770,8 +771,25 @@ function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, m
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 140) + 'px';
   }, [focusSignal]);
+  // Slash-commands emulados no app: o `claude -p` headless NÃO interpreta slash
+  // (viram texto literal no prompt). Interceptamos um conjunto conhecido e
+  // disparamos a ação local; tudo que não casa segue pro modelo como antes.
+  const runSlash = (raw: string): boolean => {
+    const m = raw.match(/^\/(\S+)\s*(.*)$/);
+    if (!m) return false;
+    const cmd = m[1].toLowerCase();
+    const arg = m[2].trim().toLowerCase();
+    if (cmd === 'clear' || cmd === 'new') { onNew(); return true; }
+    if (cmd === 'model' && (arg === 'opus' || arg === 'sonnet' || arg === 'haiku')) { setModel(arg); return true; }
+    return false;
+  };
   const submit = () => {
     const v = value.trim();
+    if (v.startsWith('/') && runSlash(v)) {
+      setValue('');
+      if (taRef.current) taRef.current.style.height = 'auto';
+      return;
+    }
     // Enquanto ocupado, anexos ficam fora da fila (são por-sessão); só texto.
     if (disabled) {
       if (!v) return;
@@ -798,7 +816,14 @@ function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, m
     if (showPalette) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => (s + 1) % matches.length); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => (s - 1 + matches.length) % matches.length); return; }
-      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); complete(matches[sel]); return; }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        const c = matches[sel].toLowerCase();
+        // Comando emulado sem argumento dispara direto; o resto só completa o texto.
+        if (e.key === 'Enter' && (c === 'clear' || c === 'new')) { onNew(); setValue(''); return; }
+        complete(matches[sel]);
+        return;
+      }
       if (e.key === 'Escape') { e.preventDefault(); setDismissed(true); return; }
     }
     // Esc com a composição vazia durante um turno = parar o run (atalho do botão stop).
@@ -1155,7 +1180,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
       <ChatInput disabled={disabled} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
         model={model} setModel={setModel} effort={effort} setEffort={setEffort} budget={budget} setBudget={setBudget} slashCommands={slashCommands}
         attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} focusSignal={focusSignal}
-        queued={queued} onQueue={setQueued} onCancelQueue={() => setQueued('')} history={sentHistory} pendingConfirm={bannerConfirm} />
+        queued={queued} onQueue={setQueued} onCancelQueue={() => setQueued('')} history={sentHistory} pendingConfirm={bannerConfirm} onNew={onNew} />
     </div>
   );
 }
