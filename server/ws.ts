@@ -397,7 +397,13 @@ function snapshotTool(thread: Thread, tool: ToolCall) {
   const i = thread.tools.findIndex((t) => t.id === tool.id);
   if (i === -1) thread.tools.push(tool);
   else thread.tools[i] = { ...thread.tools[i], ...tool };
-  if (thread.tools.length > MAX_TOOLS) thread.tools.splice(0, thread.tools.length - MAX_TOOLS);
+  if (thread.tools.length > MAX_TOOLS) {
+    // Some o toolStart das tools podadas: uma tool sem tool_result (run morto no
+    // meio) nunca passa por closeTool, então sua chave em toolStart só seria
+    // limpa aqui. Sem isto, um run de horas com >300 tools vaza timestamps.
+    const dropped = thread.tools.splice(0, thread.tools.length - MAX_TOOLS);
+    for (const d of dropped) thread.toolStart.delete(d.id);
+  }
 }
 
 function emitTool(thread: Thread, sessionKey: string, block: any, status: ToolCall['status']) {
