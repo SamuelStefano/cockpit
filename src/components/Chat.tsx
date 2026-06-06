@@ -12,7 +12,7 @@ import { threadToMarkdown, messageToText, download, fileSlug } from '../lib/expo
 function ExportMenu({ title, messages }: { title: string; messages: Message[] }) {
   const exportMd = () => download(`${fileSlug(title)}.md`, 'text/markdown', threadToMarkdown(title, messages));
   return (
-    <div className="ml-auto flex items-center gap-0.5">
+    <div className="flex items-center gap-0.5">
       <button
         onClick={exportMd}
         title="Baixar conversa em Markdown"
@@ -141,7 +141,7 @@ function TurnStat({ stats }: { stats?: TurnStats }) {
   return (
     <span
       title={`último turno (custo real do CLI)${stats.numTurns ? ` · ${stats.numTurns} turnos` : ''}`}
-      className="ml-auto flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-950 px-1.5 py-0.5 text-[10.5px] tabular-nums text-neutral-400"
+      className="flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-950 px-1.5 py-0.5 text-[10.5px] tabular-nums text-neutral-400"
     >
       <Icon name="zap" size={10} className="text-emerald-400/70" />
       {parts.join(' · ')}
@@ -164,7 +164,7 @@ function ContextMeter({ tokens, onNew }: { tokens: number; onNew?: () => void })
   const text = high ? 'text-red-400' : mid ? 'text-amber-400' : 'text-neutral-500';
   const k = (tokens / 1000).toFixed(0);
   return (
-    <div className="ml-auto flex items-center gap-2">
+    <div className="flex items-center gap-2">
       <div
         className="flex items-center gap-1.5"
         title={`contexto: ~${tokens.toLocaleString()} tokens de ~${CONTEXT_LIMIT.toLocaleString()} (${pct}%)`}
@@ -856,19 +856,23 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         <Icon name="message" size={14} className="text-neutral-500" />
         <span className="truncate text-[12.5px] font-medium text-neutral-300">{session ? session.title : 'Nova sessão'}</span>
         {session?.hasTerminal && <Badge tone="green" dot className="ml-0.5">terminal</Badge>}
-        <TurnStat stats={lastTurn} />
-        <ContextMeter tokens={contextTokens} onNew={onNew} />
-        {hasTools && (
-          <button
-            onClick={() => setToolSignal((s) => ({ open: !s.open, n: s.n + 1 }))}
-            title={toolSignal.open ? 'Recolher todas as ferramentas' : 'Expandir todas as ferramentas'}
-            className="ml-auto flex items-center gap-1 rounded-md border border-neutral-800 px-1.5 py-0.5 text-[10.5px] text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-300"
-          >
-            <Icon name="terminal" size={11} />
-            {toolSignal.open ? 'recolher' : 'expandir'}
-          </button>
-        )}
-        {!isEmpty && <ExportMenu title={session?.title || 'sessao'} messages={messages} />}
+        {/* Cluster direito num só container: vários ml-auto irmãos se espalham
+            (margens auto dividem o espaço livre); aqui só este wrapper empurra. */}
+        <div className="ml-auto flex items-center gap-2">
+          <TurnStat stats={lastTurn} />
+          <ContextMeter tokens={contextTokens} onNew={onNew} />
+          {hasTools && (
+            <button
+              onClick={() => setToolSignal((s) => ({ open: !s.open, n: s.n + 1 }))}
+              title={toolSignal.open ? 'Recolher todas as ferramentas' : 'Expandir todas as ferramentas'}
+              className="flex items-center gap-1 rounded-md border border-neutral-800 px-1.5 py-0.5 text-[10.5px] text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-300"
+            >
+              <Icon name="terminal" size={11} />
+              {toolSignal.open ? 'recolher' : 'expandir'}
+            </button>
+          )}
+          {!isEmpty && <ExportMenu title={session?.title || 'sessao'} messages={messages} />}
+        </div>
       </div>
 
       <div ref={scrollRef} onScroll={onScroll} className="print-thread scroll-thin flex-1 overflow-y-auto">
