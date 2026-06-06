@@ -158,6 +158,7 @@ export type ClientMsg =
   | { t: 'stop'; sessionKey: string }
   | { t: 'list' }
   | { t: 'open'; sessionId: string }
+  | { t: 'open-full'; sessionId: string }
   | { t: 'hide'; sessionId: string }
   | { t: 'unhide'; sessionId: string }
   | { t: 'list-archived' }
@@ -184,7 +185,7 @@ export type ServerMsg =
   | { t: 'skills'; items: SkillMeta[] }
   | { t: 'skill'; id: string; name: string; body: string }
   | { t: 'uploaded'; name: string; path: string }
-  | { t: 'history'; sessionId: string; messages: Message[]; cursor?: string; tokens?: number }
+  | { t: 'history'; sessionId: string; messages: Message[]; cursor?: string; tokens?: number; full?: boolean }
   | { t: 'busy'; keys: string[] }
   | { t: 'started'; sessionKey: string }
   | { t: 'replay'; sessionKey: string; text: string; thinking: string; tools: ToolCall[] }

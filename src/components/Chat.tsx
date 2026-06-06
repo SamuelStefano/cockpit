@@ -1023,16 +1023,19 @@ export interface ChatPanelProps {
   onRemoveAttachment: (path: string) => void;
   onEditUser?: (text: string) => void;
   onQuote?: (text: string) => void;
+  onOpenFull?: (id: string) => void;
   lastEnd?: string;
   focusSignal?: number;
 }
 
-export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, onQuote, focusSignal = 0 }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, onQuote, onOpenFull, focusSignal = 0 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
   const [queued, setQueued] = useState('');
   const [toolSignal, setToolSignal] = useState<ToolSignal>({ open: true, n: 0 });
+  const [fullLoaded, setFullLoaded] = useState(false);
+  useEffect(() => { setFullLoaded(false); }, [session?.id]);
   const streaming = phase === 'streaming';
   const disabled = phase !== 'idle';
   const hasTools = messages.some((m) => m.role === 'assistant' && m.blocks.some((b) => b.type === 'tool'));
@@ -1113,6 +1116,17 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
             >
               <Icon name="terminal" size={11} />
               {toolSignal.open ? 'recolher' : 'expandir'}
+            </button>
+          )}
+          {!isEmpty && session && !session.id.startsWith('new-') && onOpenFull && (
+            <button
+              onClick={() => { setFullLoaded(true); onOpenFull(session.id); }}
+              disabled={fullLoaded}
+              title="Recarrega todas as mensagens do arquivo, inclusive as anteriores a um /compact que somem do caminho ativo"
+              className="flex items-center gap-1 rounded-md border border-neutral-800 px-1.5 py-0.5 text-[10.5px] text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-300 disabled:opacity-50"
+            >
+              <Icon name="message" size={11} />
+              {fullLoaded ? 'histórico completo' : 'ver tudo'}
             </button>
           )}
           {!isEmpty && <ExportMenu title={session?.title || 'sessao'} messages={messages} />}

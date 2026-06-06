@@ -276,6 +276,7 @@ export function CockpitApp() {
     usageStats, onUsageList, health, onHealthList,
     attachments, onUpload, onRemoveAttachment,
     onSend: handleSend, onStop: handleStop, onNew: cockpitNew, onRename: handleRename, onClose: handleCloseSession,
+    onOpenFull,
   } = cockpit;
 
   const { route, nav } = useRoute();
@@ -533,7 +534,7 @@ export function CockpitApp() {
               draft={draft} setDraft={setDraft} onSend={handleSend} onPrompt={handleSend} onStop={handleStop}
               mode={mode} setMode={setMode} model={model} setModel={setModel} effort={effort} setEffort={setEffort} budget={budget} setBudget={setBudget} slashCommands={slashCommands} contextTokens={contextTokens} lastTurn={lastTurn} lastEnd={lastEnd} onNew={handleNew}
               attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment}
-              onEditUser={editUser} onQuote={quoteMsg} focusSignal={focusSignal} />
+              onEditUser={editUser} onQuote={quoteMsg} onOpenFull={onOpenFull} focusSignal={focusSignal} />
           </div>
 
           {rightCollapsed ? (

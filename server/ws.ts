@@ -11,7 +11,7 @@ import { listSkills, readSkill } from './skills';
 import { saveAttachment } from './attachments';
 import { recordUsage, usageStats } from './db';
 import { hideSession, unhideSession } from './store';
-import { parseSession, ctxTokens, diffOf, planOf } from './sessions/parse';
+import { parseSession, parseFullSession, ctxTokens, diffOf, planOf } from './sessions/parse';
 import { collect } from './stats';
 import { collectHealth } from './health';
 import { openTerm, detachTerm, inputTerm, resizeTerm, closeTerm } from './terminals';
@@ -207,6 +207,12 @@ async function handle(ws: WebSocket, msg: ClientMsg) {
       const parsed = await parseSession(msg.sessionId);
       if (!parsed) { send(ws, { t: 'error', message: 'sessão inválida' }); return; }
       send(ws, { t: 'history', sessionId: msg.sessionId, messages: parsed.messages, tokens: parsed.tokens });
+      return;
+    }
+    case 'open-full': {
+      const parsed = await parseFullSession(msg.sessionId);
+      if (!parsed) { send(ws, { t: 'error', message: 'sessão inválida' }); return; }
+      send(ws, { t: 'history', sessionId: msg.sessionId, messages: parsed.messages, tokens: parsed.tokens, full: true });
       return;
     }
     case 'hide': {

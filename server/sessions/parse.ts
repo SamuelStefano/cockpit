@@ -93,6 +93,36 @@ export async function parseSession(
   return { blocks, messages, tokens };
 }
 
+// Histórico COMPLETO em ordem de arquivo (não só o caminho ativo). Após /compact
+// o CLI ramifica de um summary e as mensagens antigas saem do caminho parentUuid —
+// some do parseSession. Esta variante devolve TODOS os user/assistant na ordem em
+// que foram gravados, pro viewer "ver tudo (inclui pré-compactação)". Capado no fim.
+export async function parseFullSession(
+  sessionId: string,
+  limit = CONFIG.historyLimit,
+): Promise<{ messages: Message[]; tokens: number } | null> {
+  const path = sessionPath(sessionId);
+  if (!path) return null;
+
+  const recs: Rec[] = [];
+  const rl = createInterface({ input: createReadStream(path), crlfDelay: Infinity });
+  for await (const line of rl) {
+    const s = line.trim();
+    if (!s) continue;
+    let r: Rec;
+    try { r = JSON.parse(s) as Rec; } catch { continue; }
+    if (r.uuid && (r.type === 'user' || r.type === 'assistant')) recs.push(r);
+  }
+
+  let tokens = 0;
+  for (let i = recs.length - 1; i >= 0; i--) {
+    if (recs[i].type === 'assistant' && recs[i].message?.usage) { tokens = ctxTokens(recs[i].message!.usage); break; }
+  }
+
+  const messages = recs.slice(-limit).map(recToMessage).filter((m): m is Message => m !== null);
+  return { messages, tokens };
+}
+
 function recToMessage(r: Rec): Message | null {
   if (!r.message) return null;
   const content = r.message.content;
