@@ -171,6 +171,7 @@ export function useCockpit(): Cockpit {
 
   const wsRef = useRef<WebSocket | null>(null);
   const runMsg = useRef<Record<string, string>>({});      // sessionKey -> assistant msgId em voo
+  const inFlight = useRef<Set<string>>(new Set());        // sessionKeys com turno em voo — guarda síncrona contra envio duplo (runMsg só é setado no `started`)
   const resumeId = useRef<Record<string, string>>({});    // sessionKey -> claude sessionId p/ --resume
   const opened = useRef<Set<string>>(new Set());          // sessionKeys cujo histórico já foi pedido
   const activeRef = useRef('');
@@ -201,6 +202,16 @@ export function useCockpit(): Cockpit {
     updateThread(key, (prev) => prev.map((m) => (m.id === mid && m.role === 'assistant' ? { ...m, blocks: fn(m.blocks) } : m)));
   }, [updateThread]);
 
+  // Turno encerrado (done/error/stop) sem o tool_result de uma ferramenta em voo:
+  // o card ficaria girando "running" pra sempre. Marca as órfãs como encerradas.
+  const reconcileTools = useCallback((key: string) => {
+    updateThread(key, (prev) => prev.map((m) =>
+      m.role === 'assistant'
+        ? { ...m, blocks: m.blocks.map((b) => (b.type === 'tool' && b.tool.status === 'running' ? { type: 'tool', tool: { ...b.tool, status: 'error' as const } } : b)) }
+        : m,
+    ));
+  }, [updateThread]);
+
   // Sessão local `new-xxx` ganha um uuid real do claude só no fim do 1º run.
   // Migrar a key local -> uuid evita que ela apareça DUPLICADA no sidebar quando
   // o `list` (reconnect) trouxer a mesma sessão já persistida no JSONL.
@@ -212,6 +223,8 @@ export function useCockpit(): Cockpit {
     delete resumeId.current[oldKey];
     opened.current.add(newId);   // history já está local; não re-buscar
     opened.current.delete(oldKey);
+    if (oldKey in lastActivity.current) { lastActivity.current[newId] = lastActivity.current[oldKey]; delete lastActivity.current[oldKey]; }
+    if (inFlight.current.has(oldKey)) { inFlight.current.delete(oldKey); inFlight.current.add(newId); }
     if (activeRef.current === oldKey) { activeRef.current = newId; setActiveIdState(newId); }
     const move = <T,>(prev: Record<string, T>): Record<string, T> => {
       if (!(oldKey in prev)) return prev;
@@ -277,6 +290,10 @@ export function useCockpit(): Cockpit {
         // run vivo. Reconcilia o phases local — cobre sessões que ESTE cliente
         // não iniciou (run noturno, outra aba) e limpa keys que já terminaram.
         const live = new Set(msg.keys);
+        // Reconcilia a guarda síncrona: descarta keys que ficaram presas (envio
+        // enquanto desconectado nunca recebeu started/done) e marca as vivas.
+        for (const k of [...inFlight.current]) if (!live.has(k)) inFlight.current.delete(k);
+        for (const k of msg.keys) inFlight.current.add(k);
         setPhases((p) => {
           const n = { ...p };
           for (const k of msg.keys) if (n[k] !== 'streaming') n[k] = 'thinking';
@@ -289,6 +306,7 @@ export function useCockpit(): Cockpit {
       }
       case 'started': {
         lastActivity.current[msg.sessionKey] = Date.now();
+        inFlight.current.add(msg.sessionKey);
         if (runMsg.current[msg.sessionKey]) return; // já em voo (reconnect) — não duplica bubble
         const id = newId('a');
         runMsg.current[msg.sessionKey] = id;
@@ -300,6 +318,7 @@ export function useCockpit(): Cockpit {
         // Reconnect mid-run (#10): snapshot autoritativo do turno em voo.
         // Reconstrói (ou sobrescreve) o bubble e segue recebendo deltas ao vivo.
         const key = msg.sessionKey;
+        inFlight.current.add(key);
         const blocks: Block[] = [];
         if (msg.thinking) blocks.push({ type: 'thinking', text: msg.thinking });
         if (msg.text) blocks.push({ type: 'text', md: msg.text });
@@ -402,6 +421,8 @@ export function useCockpit(): Cockpit {
       }
       case 'done': {
         const key = msg.sessionKey;
+        inFlight.current.delete(key);
+        reconcileTools(key);
         delete runMsg.current[key];
         setPhases((p) => ({ ...p, [key]: 'idle' }));
         if (msg.costUsd !== undefined || msg.durationMs !== undefined) {
@@ -447,6 +468,8 @@ export function useCockpit(): Cockpit {
       case 'error': {
         const key = msg.sessionKey ?? activeRef.current; // erro sem key (top-level) não pode travar o spinner
         if (key) {
+          inFlight.current.delete(key);
+          reconcileTools(key);
           delete runMsg.current[key];
           setPhases((p) => ({ ...p, [key]: 'idle' }));
           updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ ${msg.message}` }], error: true }]);
@@ -463,7 +486,7 @@ export function useCockpit(): Cockpit {
         return;
       }
     }
-  }, [updateThread, patchRunMsg, migrateKey, send]);
+  }, [updateThread, patchRunMsg, migrateKey, reconcileTools, send]);
 
   const connect = useCallback(() => {
     setConn((c) => ({ ...c, ws: 'reconnecting', sse: 'reconnecting' }));
@@ -523,6 +546,8 @@ export function useCockpit(): Cockpit {
   const onSend = useCallback((text: string, modeOverride?: PermMode) => {
     const key = activeRef.current;
     if (!key) return;
+    if (inFlight.current.has(key)) return; // turno em voo: ignora envio duplo (senão o 2º turno funde no bubble do 1º)
+    inFlight.current.add(key);
     requestNotifyPermission(); // 1ª vez: pede permissão (gesto do usuário)
     const atts = attachmentsRef.current;
     // Anexos viram refs de path no início do prompt; o agente abre via Read.
@@ -610,9 +635,11 @@ export function useCockpit(): Cockpit {
     const key = sessionKey ?? activeRef.current;
     if (!key) return;
     send({ t: 'stop', sessionKey: key });
+    inFlight.current.delete(key);
+    reconcileTools(key);
     delete runMsg.current[key];
     setPhases((p) => ({ ...p, [key]: 'idle' }));
-  }, [send]);
+  }, [send, reconcileTools]);
 
   const onNew = useCallback(() => {
     const id = newId('new-');
