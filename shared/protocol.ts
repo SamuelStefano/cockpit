@@ -185,7 +185,8 @@ export type ClientMsg =
   | { t: 'term-input'; termId: string; data: string }
   | { t: 'term-resize'; termId: string; cols: number; rows: number }
   | { t: 'term-detach'; termId: string }
-  | { t: 'term-close'; termId: string };
+  | { t: 'term-close'; termId: string }
+  | { t: 'term-list' };
 
 export type ServerMsg =
   | { t: 'sessions'; items: SessionMeta[] }
@@ -213,5 +214,6 @@ export type ServerMsg =
   | { t: 'term-data'; termId: string; data: string }
   | { t: 'term-replay'; termId: string; data: string }
   | { t: 'term-exit'; termId: string }
+  | { t: 'terms'; ids: string[] }
   | { t: 'done'; sessionKey: string; sessionId: string; costUsd?: number; durationMs?: number; numTurns?: number; endReason?: string; model?: string }
   | { t: 'error'; sessionKey?: string; message: string };

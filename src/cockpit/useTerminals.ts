@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { ClientMsg } from '../../shared/protocol';
 
 export interface TermApi {
@@ -14,7 +14,10 @@ export interface Terminals {
   onTermData: (id: string, data: string) => void;
   onTermReplay: (id: string, data: string) => void;
   onTermExit: (id: string) => void;
-  reattach: () => void; // reabre cada termId vivo após reconnect do ws
+  onTerms: (ids: string[]) => void;       // resposta do term-list (sessões tmux persistentes)
+  discovered: string[];                    // ids de sessões tmux vivas no servidor
+  listTerms: () => void;                   // pede a lista ao servidor
+  reattach: () => void;                    // reabre cada termId vivo após reconnect do ws
 }
 
 export function useTerminals(send: (m: ClientMsg) => void): Terminals {
@@ -52,12 +55,16 @@ export function useTerminals(send: (m: ClientMsg) => void): Terminals {
   }, [send]);
   const term: TermApi = useMemo(() => ({ attach, detach, input, resize, kill }), [attach, detach, input, resize, kill]);
 
+  const [discovered, setDiscovered] = useState<string[]>([]);
+
   const onTermData = useCallback((id: string, data: string) => termData.current.get(id)?.(data), []);
   const onTermReplay = useCallback((id: string, data: string) => termReplay.current.get(id)?.(data), []);
   const onTermExit = useCallback((id: string) => termExit.current.get(id)?.(), []);
+  const onTerms = useCallback((ids: string[]) => setDiscovered(ids), []);
+  const listTerms = useCallback(() => send({ t: 'term-list' }), [send]);
   const reattach = useCallback(() => {
     for (const [id, d] of termDims.current) send({ t: 'term-open', termId: id, cols: d.cols, rows: d.rows });
   }, [send]);
 
-  return { term, onTermData, onTermReplay, onTermExit, reattach };
+  return { term, onTermData, onTermReplay, onTermExit, onTerms, discovered, listTerms, reattach };
 }

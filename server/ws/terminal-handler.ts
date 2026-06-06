@@ -1,6 +1,6 @@
 import type { WebSocket } from 'ws';
 import type { ClientMsg } from '../../shared/protocol';
-import { openTerm, detachTerm, inputTerm, resizeTerm, closeTerm } from '../terminals';
+import { openTerm, detachTerm, inputTerm, resizeTerm, closeTerm, listTerms } from '../terminals';
 import { send } from './broadcast';
 
 export type TermHandle = { onData: (d: string) => void; onExit: () => void };
@@ -22,6 +22,7 @@ export function handleTerm(
       else send(ws, { t: 'term-exit', termId: msg.termId });
       return true;
     }
+    case 'term-list': { void listTerms().then((ids) => send(ws, { t: 'terms', ids })); return true; }
     case 'term-input': { inputTerm(msg.termId, msg.data); return true; }
     case 'term-resize': { resizeTerm(msg.termId, msg.cols, msg.rows); return true; }
     case 'term-detach': {
