@@ -84,9 +84,10 @@ const EFFORT_OPTS: { v: EffortLevel; label: string }[] = [
   { v: 'max', label: 'máx' },
 ];
 
-function ModelPicker({ model, setModel, effort, setEffort, disabled }: {
+function ModelPicker({ model, setModel, effort, setEffort, budget, setBudget, disabled }: {
   model: ModelAlias; setModel: (m: ModelAlias) => void;
-  effort: EffortLevel; setEffort: (e: EffortLevel) => void; disabled: boolean;
+  effort: EffortLevel; setEffort: (e: EffortLevel) => void;
+  budget: number; setBudget: (n: number) => void; disabled: boolean;
 }) {
   const sel = 'rounded-md border border-neutral-800 bg-neutral-950 px-1.5 py-1 text-[11px] font-medium text-neutral-300 outline-none transition hover:border-neutral-700 focus:border-orange-500/40 disabled:cursor-not-allowed disabled:opacity-50';
   return (
@@ -109,6 +110,21 @@ function ModelPicker({ model, setModel, effort, setEffort, disabled }: {
       >
         {EFFORT_OPTS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
       </select>
+      <div
+        title="Teto de gasto por turno em USD (vazio = sem limite). O turno para sozinho ao atingir o valor."
+        className={`flex items-center rounded-md border bg-neutral-950 pl-1.5 transition focus-within:border-orange-500/40 ${budget > 0 ? 'border-emerald-500/40' : 'border-neutral-800 hover:border-neutral-700'}`}
+      >
+        <span className="text-[11px] text-neutral-500">$</span>
+        <input
+          type="number"
+          min="0"
+          step="0.1"
+          value={budget > 0 ? budget : ''}
+          placeholder="teto"
+          onChange={(e) => setBudget(parseFloat(e.target.value))}
+          className="w-12 bg-transparent px-1 py-1 text-[11px] font-medium text-neutral-300 outline-none placeholder-neutral-600"
+        />
+      </div>
     </div>
   );
 }
@@ -432,6 +448,8 @@ interface ChatInputProps {
   setModel: (m: ModelAlias) => void;
   effort: EffortLevel;
   setEffort: (e: EffortLevel) => void;
+  budget: number;
+  setBudget: (n: number) => void;
   attachments: Attachment[];
   onUpload: (file: File) => void;
   onRemoveAttachment: (path: string) => void;
@@ -443,7 +461,7 @@ interface ChatInputProps {
 
 const MAX_UPLOAD = 15_000_000;
 
-function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, model, setModel, effort, setEffort, attachments, onUpload, onRemoveAttachment, focusSignal, queued, onQueue, onCancelQueue }: ChatInputProps) {
+function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, attachments, onUpload, onRemoveAttachment, focusSignal, queued, onQueue, onCancelQueue }: ChatInputProps) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const hasAtt = attachments.length > 0;
@@ -498,7 +516,7 @@ function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, m
           </span>
         )}
         <div className="ml-auto">
-          <ModelPicker model={model} setModel={setModel} effort={effort} setEffort={setEffort} disabled={false} />
+          <ModelPicker model={model} setModel={setModel} effort={effort} setEffort={setEffort} budget={budget} setBudget={setBudget} disabled={false} />
         </div>
       </div>
       {hasAtt && (
@@ -596,6 +614,8 @@ export interface ChatPanelProps {
   setModel: (m: ModelAlias) => void;
   effort: EffortLevel;
   setEffort: (e: EffortLevel) => void;
+  budget: number;
+  setBudget: (n: number) => void;
   contextTokens: number;
   lastTurn?: TurnStats;
   onNew: () => void;
@@ -606,7 +626,7 @@ export interface ChatPanelProps {
   focusSignal?: number;
 }
 
-export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, model, setModel, effort, setEffort, contextTokens, lastTurn, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, focusSignal = 0 }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, contextTokens, lastTurn, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, focusSignal = 0 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -690,7 +710,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
       )}
 
       <ChatInput disabled={disabled} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
-        model={model} setModel={setModel} effort={effort} setEffort={setEffort}
+        model={model} setModel={setModel} effort={effort} setEffort={setEffort} budget={budget} setBudget={setBudget}
         attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} focusSignal={focusSignal}
         queued={queued} onQueue={setQueued} onCancelQueue={() => setQueued('')} />
     </div>

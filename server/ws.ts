@@ -21,6 +21,7 @@ interface Thread {
   costUsd?: number;     // custo real do turno (result.total_cost_usd, ground-truth)
   durationMs?: number;
   numTurns?: number;
+  endReason?: string;   // result.subtype: success | error_max_budget | error_max_turns | ...
 }
 
 const threads = new Map<string, Thread>();
@@ -166,13 +167,13 @@ async function handle(ws: WebSocket, msg: ClientMsg) {
       return;
     }
     case 'send': {
-      startRun(ws, msg.sessionKey, msg.text, msg.sessionId, msg.mode, msg.model, msg.effort);
+      startRun(ws, msg.sessionKey, msg.text, msg.sessionId, msg.mode, msg.model, msg.effort, msg.maxBudgetUsd);
       return;
     }
   }
 }
 
-function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: string, mode?: string, model?: string, effort?: string) {
+function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: string, mode?: string, model?: string, effort?: string, maxBudgetUsd?: number) {
   if (Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) {
     send(ws, { t: 'error', sessionKey, message: 'prompt grande demais' });
     return;
@@ -189,10 +190,11 @@ function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: 
     mode,
     model,
     effort,
+    maxBudgetUsd,
     onEvent: (ev) => translate(ws, sessionKey, thread, ev),
     onError: (message) => send(ws, { t: 'error', sessionKey, message }),
     onClose: () => {
-      send(ws, { t: 'done', sessionKey, sessionId: thread.sessionId ?? '', costUsd: thread.costUsd, durationMs: thread.durationMs, numTurns: thread.numTurns });
+      send(ws, { t: 'done', sessionKey, sessionId: thread.sessionId ?? '', costUsd: thread.costUsd, durationMs: thread.durationMs, numTurns: thread.numTurns, endReason: thread.endReason });
       threads.delete(sessionKey);
     },
   });
@@ -260,6 +262,7 @@ function translate(ws: WebSocket, sessionKey: string, thread: Thread, ev: Claude
       if (typeof r.total_cost_usd === 'number') thread.costUsd = r.total_cost_usd;
       if (typeof r.duration_ms === 'number') thread.durationMs = r.duration_ms;
       if (typeof r.num_turns === 'number') thread.numTurns = r.num_turns;
+      if (typeof r.subtype === 'string') thread.endReason = r.subtype;
       capture(thread, ev);
       return;
     }
