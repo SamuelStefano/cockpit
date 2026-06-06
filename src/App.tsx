@@ -1,20 +1,18 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Icon, ConnDot, type ConnState } from './components/primitives';
 import { SessionsPanel } from './components/Sessions';
 import { ChatPanel } from './components/Chat';
 import { TerminalsPanel } from './components/Terminals';
 import { MobileLayout } from './components/Mobile';
 import { StatusBar } from './components/StatusBar';
+import { Header, QuotaBanner, CollapsedRail, CollapseBtn, OfflineNotice } from './components/AppChrome';
 import { Contextos } from './routes/Contextos';
 import { Skills } from './routes/Skills';
 import { Observatorio } from './routes/Observatorio';
 import { Admin } from './routes/Admin';
 import { CommandPalette } from './components/CommandPalette';
 import { ShortcutsHelp } from './components/ShortcutsHelp';
-import { ProfileMenu } from './components/Avatar';
 import { useCockpit } from './useCockpit';
 import { useRoute, type Route } from './useRoute';
-import type { TurnStats } from '../shared/protocol';
 import { usePersisted } from './lib/persist';
 import { setTitleBase } from './lib/notify';
 import { TERMINALS_SEED, type Terminal } from './data/mock';
@@ -33,235 +31,6 @@ function relReset(resetsAt: number): string {
   return `${h}h${String(min % 60).padStart(2, '0')}`;
 }
 
-const CTX_LIMIT = 200_000;
-
-// HUD sempre-visível no header: reset do limite Claude, % de contexto + tokens,
-// e duração do último turno (prompt→prompt). Re-renderiza sozinho a cada 30s pro
-// countdown de reset andar mesmo sem novos frames.
-function StatHud({ rate, ctxTokens, lastTurn, onNav }: {
-  rate: { resetsAt: number; status: string } | null;
-  ctxTokens: number;
-  lastTurn?: TurnStats;
-  onNav: (to: Route) => void;
-}) {
-  const [, force] = useState(0);
-  useEffect(() => {
-    if (!rate) return;
-    const id = setInterval(() => force((n) => (n + 1) % 1e6), 30_000);
-    return () => clearInterval(id);
-  }, [rate]);
-
-  const chips: React.ReactNode[] = [];
-
-  // O reset do limite Claude vive só no rodapé (StatusBar) — não duplicar aqui.
-
-  if (ctxTokens > 0) {
-    const pct = Math.min(100, Math.round((ctxTokens / CTX_LIMIT) * 100));
-    const tone = pct >= 75 ? 'text-red-400' : pct >= 50 ? 'text-amber-400' : 'text-neutral-400';
-    chips.push(
-      <button
-        key="ctx"
-        onClick={() => onNav('/')}
-        title={`Contexto: ~${ctxTokens.toLocaleString()} tokens (${pct}% de ${CTX_LIMIT.toLocaleString()})`}
-        className={`flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-900/60 px-1.5 py-0.5 text-[10.5px] tabular-nums ${tone}`}
-      >
-        <Icon name="circle" size={9} className={pct >= 75 ? 'text-red-500' : pct >= 50 ? 'text-amber-500' : 'text-neutral-600'} />
-        {pct}% · {(ctxTokens / 1000).toFixed(0)}k
-      </button>
-    );
-  }
-
-  if (lastTurn?.durationMs !== undefined) {
-    chips.push(
-      <span
-        key="trn"
-        title={`Último turno: ${(lastTurn.durationMs / 1000).toFixed(1)}s${lastTurn.numTurns ? ` · ${lastTurn.numTurns} turnos` : ''} (tempo de um prompt ao próximo)`}
-        className="flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-900/60 px-1.5 py-0.5 text-[10.5px] tabular-nums text-neutral-400"
-      >
-        <Icon name="zap" size={10} className="text-emerald-400/70" />
-        {(lastTurn.durationMs / 1000).toFixed(1)}s
-      </span>
-    );
-  }
-
-  if (!chips.length) return null;
-  return <div className="flex items-center gap-1.5">{chips}</div>;
-}
-
-// --- Header ----------------------------------------------------------------
-
-interface HeaderProps {
-  conn: { ws: ConnState; sse: ConnState };
-  onNew: () => void;
-  isMobile: boolean;
-  onMenu: () => void;
-  route: Route;
-  nav: (to: Route) => void;
-  onPalette: () => void;
-  cost: number;
-  rate: { resetsAt: number; status: string } | null;
-  ctxTokens: number;
-  lastTurn?: TurnStats;
-}
-
-function fmtCost(n: number): string {
-  if (n >= 100) return '$' + n.toFixed(0);
-  if (n >= 1) return '$' + n.toFixed(2);
-  if (n > 0) return '$' + n.toFixed(3);
-  return '$0';
-}
-
-const NAV: { to: Route; label: string }[] = [
-  { to: '/', label: 'chat' },
-  { to: '/contextos', label: 'contextos' },
-  { to: '/skills', label: 'skills' },
-  { to: '/uso', label: 'uso' },
-  { to: '/admin', label: 'admin' },
-];
-
-function Header({ conn, onNew, isMobile, onMenu, route, nav, onPalette, cost, rate, ctxTokens, lastTurn }: HeaderProps) {
-  return (
-    <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
-      <div className="flex items-center gap-2.5">
-        {isMobile && (
-          <button onClick={onMenu} className="-ml-1 rounded-md p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100">
-            <Icon name="menu" size={18} />
-          </button>
-        )}
-        <div className="flex items-center gap-2">
-          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-orange-500 text-neutral-950 shadow-[0_0_12px_-1px_rgba(249,115,22,0.55)]">
-            <Icon name="terminal" size={14} stroke={2.4} />
-          </span>
-          <span className="font-mono text-[14px] font-semibold lowercase tracking-tight text-neutral-100">cockpit</span>
-        </div>
-        <nav className="ml-1 flex items-center gap-0.5 rounded-lg border border-neutral-800 bg-neutral-900/60 p-0.5">
-          {NAV.map((n) => (
-            <button
-              key={n.to}
-              onClick={() => nav(n.to)}
-              className={`rounded-md px-2.5 py-1 font-mono text-[11.5px] lowercase tracking-tight transition
-                ${route === n.to ? 'bg-orange-500/15 text-orange-300' : 'text-neutral-500 hover:text-neutral-300'}`}
-            >
-              {n.label}
-            </button>
-          ))}
-        </nav>
-      </div>
-
-      <div className="flex min-w-0 items-center gap-3">
-        {!isMobile && <StatHud rate={rate} ctxTokens={ctxTokens} lastTurn={lastTurn} onNav={nav} />}
-        {cost > 0 && (
-          <button
-            onClick={() => nav('/uso')}
-            title="Custo estimado acumulado — abrir Uso"
-            className="flex items-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1.5 text-emerald-400/90 transition hover:border-emerald-500/30 hover:text-emerald-300"
-          >
-            <Icon name="zap" size={13} />
-            <span className="font-mono text-[11.5px] tabular-nums">{fmtCost(cost)}</span>
-          </button>
-        )}
-        <button
-          onClick={onPalette}
-          title="Comandos (⌘K)"
-          className="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1.5 text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-300"
-        >
-          <Icon name="search" size={14} />
-          {!isMobile && <kbd className="font-mono text-[10px] text-neutral-600">⌘K</kbd>}
-        </button>
-        <div className="flex items-center rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1">
-          <ConnDot label="ws" state={conn.ws} compact={isMobile} />
-        </div>
-        {!isMobile && (
-          <button
-            onClick={onNew}
-            className="flex items-center gap-1.5 rounded-lg bg-orange-500 px-2.5 py-1.5 text-[12.5px] font-semibold text-neutral-950 transition hover:bg-orange-400"
-          >
-            <Icon name="plus" size={15} stroke={2.4} /> Nova sessão
-          </button>
-        )}
-        <ProfileMenu />
-      </div>
-    </header>
-  );
-}
-
-// --- QuotaBanner -----------------------------------------------------------
-
-interface QuotaBannerProps {
-  onClose: () => void;
-  reset: string;
-}
-
-function QuotaBanner({ onClose, reset }: QuotaBannerProps) {
-  return (
-    <div className="fade-up pointer-events-none absolute left-1/2 top-[58px] z-40 -translate-x-1/2">
-      <div className="pointer-events-auto flex items-center gap-2.5 rounded-lg border border-yellow-500/30 bg-yellow-500/[0.12] px-3 py-2 shadow-2xl shadow-black/40 backdrop-blur-md">
-        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-yellow-500/15 text-yellow-400">
-          <Icon name="zap" size={13} />
-        </span>
-        <div className="leading-tight">
-          <p className="text-[12px] font-medium text-yellow-200">Uso próximo do limite</p>
-          <p className="text-[11px] text-yellow-200/60">o limite de uso reseta em {reset}</p>
-        </div>
-        <button onClick={onClose} className="ml-1 rounded p-1 text-yellow-200/50 transition hover:bg-yellow-500/10 hover:text-yellow-200">
-          <Icon name="x" size={14} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// Rail fino que ocupa o lugar de um painel recolhido — clicar reexpande.
-function CollapsedRail({ side, label, icon, onExpand }: {
-  side: 'left' | 'right'; label: string; icon: Parameters<typeof Icon>[0]['name']; onExpand: () => void;
-}) {
-  return (
-    <button
-      onClick={onExpand}
-      title={`Mostrar ${label}`}
-      className={`group flex w-9 shrink-0 flex-col items-center gap-2 bg-neutral-950 py-3 text-neutral-500 transition hover:bg-neutral-900 hover:text-neutral-200 ${side === 'left' ? 'border-r' : 'border-l'} border-neutral-800`}
-    >
-      <Icon name={side === 'left' ? 'chevronRight' : 'chevronLeft'} size={15} />
-      <Icon name={icon} size={14} className="text-neutral-600 group-hover:text-orange-400" />
-      <span className="mt-1 text-[10px] font-medium uppercase tracking-wide text-neutral-600 [writing-mode:vertical-rl]">{label}</span>
-    </button>
-  );
-}
-
-// Botão de recolher ancorado no canto superior-direito (área vazia em ambos os
-// painéis). A seta aponta pra fora — esquerda recolhe à esquerda, direita à direita.
-function CollapseBtn({ side, onClick }: { side: 'left' | 'right'; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      title="Recolher painel"
-      className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-md border border-neutral-800 bg-neutral-900/80 text-neutral-500 backdrop-blur transition hover:border-neutral-700 hover:text-neutral-200"
-    >
-      <Icon name={side === 'left' ? 'chevronLeft' : 'chevronRight'} size={14} />
-    </button>
-  );
-}
-
-// Aviso honesto quando o backend não responde por alguns segundos (caso clássico:
-// front no Vercel sem túnel pro backend loopback). Evita a sensação de "app quebrado".
-function OfflineNotice({ show }: { show: boolean }) {
-  if (!show) return null;
-  return (
-    <div className="fade-up pointer-events-none absolute left-1/2 top-[58px] z-40 w-[min(92vw,30rem)] -translate-x-1/2">
-      <div className="pointer-events-auto flex items-start gap-2.5 rounded-lg border border-red-500/30 bg-red-500/[0.12] px-3 py-2 shadow-2xl shadow-black/40 backdrop-blur-md">
-        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-red-500/15 text-red-400">
-          <Icon name="circle" size={13} />
-        </span>
-        <div className="leading-tight">
-          <p className="text-[12px] font-medium text-red-200">Backend não acessível</p>
-          <p className="text-[11px] text-red-200/70">
-            O cockpit não alcança o servidor em <span className="font-mono">{location.host}</span>. Confira se o backend está rodando (ou o túnel/Tailscale). Tentando reconectar…
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // --- CockpitApp ------------------------------------------------------------
 
