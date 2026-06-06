@@ -86,10 +86,14 @@ export function run(opts: RunOpts): RunHandle {
   let stderr = '';
   child.stderr!.on('data', (d) => { stderr += String(d).slice(0, 2000); });
 
-  child.on('error', (err) => onError(sanitize(err.message)));
+  // Spawn falho (ex: `claude` fora do PATH) emite 'error' mas pode NÃO emitir
+  // 'close' — sem isto o thread nunca limpa e o cliente trava no spinner.
+  let closed = false;
+  const finish = () => { if (closed) return; closed = true; onClose(); };
+  child.on('error', (err) => { onError(sanitize(err.message)); finish(); });
   child.on('close', (code) => {
     if (code && code !== 0 && stderr) onError(sanitize(`claude saiu (${code})`));
-    onClose();
+    finish();
   });
 
   return {
