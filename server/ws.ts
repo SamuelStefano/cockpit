@@ -22,6 +22,11 @@ interface Thread {
   durationMs?: number;
   numTurns?: number;
   endReason?: string;   // result.subtype: success | error_max_budget | error_max_turns | ...
+  // Alvo atual do stream + snapshot acumulado p/ replay no reconnect (#10).
+  ws: WebSocket;
+  text: string;
+  thinking: string;
+  tools: ToolCall[];
 }
 
 const threads = new Map<string, Thread>();
@@ -36,6 +41,12 @@ export function attachWs(server: Server) {
   wss.on('connection', (ws) => {
     send(ws, { t: 'busy', keys: [...threads.keys()] });
     if (slashCommands.length) send(ws, { t: 'slash-commands', items: slashCommands });
+    // Reconnect mid-run (#10): re-aponta o stream pra ESTE socket e replaya o
+    // snapshot acumulado, pra a UI reconstruir o turno em voo sem duplicar.
+    for (const [key, thread] of threads) {
+      thread.ws = ws;
+      send(ws, { t: 'replay', sessionKey: key, text: thread.text, thinking: thread.thinking, tools: thread.tools });
+    }
     collect().then((stats) => send(ws, { t: 'stats', stats })).catch(() => {});
 
     // terminais anexados por ESTA conexão — pra desanexar no disconnect.
@@ -185,9 +196,9 @@ function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: 
   }
   if (threads.has(sessionKey)) threads.get(sessionKey)!.handle.kill();
 
-  const thread: Thread = { handle: { kill: () => {} }, sessionId: resumeId };
+  const thread: Thread = { handle: { kill: () => {} }, sessionId: resumeId, ws, text: '', thinking: '', tools: [] };
   threads.set(sessionKey, thread);
-  send(ws, { t: 'started', sessionKey });
+  send(thread.ws, { t: 'started', sessionKey });
 
   thread.handle = run({
     prompt,
@@ -196,17 +207,18 @@ function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: 
     model,
     effort,
     maxBudgetUsd,
-    onEvent: (ev) => translate(ws, sessionKey, thread, ev),
-    onError: (message) => send(ws, { t: 'error', sessionKey, message }),
+    onEvent: (ev) => translate(sessionKey, thread, ev),
+    onError: (message) => send(thread.ws, { t: 'error', sessionKey, message }),
     onClose: () => {
-      send(ws, { t: 'done', sessionKey, sessionId: thread.sessionId ?? '', costUsd: thread.costUsd, durationMs: thread.durationMs, numTurns: thread.numTurns, endReason: thread.endReason });
+      send(thread.ws, { t: 'done', sessionKey, sessionId: thread.sessionId ?? '', costUsd: thread.costUsd, durationMs: thread.durationMs, numTurns: thread.numTurns, endReason: thread.endReason });
       threads.delete(sessionKey);
     },
   });
 }
 
 // Tradução evento NDJSON -> ServerMsg (squad C2/H1: tool por id de correlação).
-function translate(ws: WebSocket, sessionKey: string, thread: Thread, ev: ClaudeEvent) {
+function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
+  const ws = thread.ws;
   switch (ev.type) {
     case 'rate_limit_event': {
       const info = (ev as any).rate_limit_info;
@@ -227,11 +239,13 @@ function translate(ws: WebSocket, sessionKey: string, thread: Thread, ev: Claude
     case 'stream_event': {
       const e = (ev as any).event;
       if (e?.type === 'content_block_delta' && e.delta?.type === 'text_delta' && e.delta.text) {
+        thread.text += e.delta.text;
         send(ws, { t: 'delta', sessionKey, text: e.delta.text });
       } else if (e?.type === 'content_block_delta' && e.delta?.type === 'thinking_delta' && e.delta.thinking) {
+        thread.thinking += e.delta.thinking;
         send(ws, { t: 'thinking', sessionKey, text: e.delta.thinking });
       } else if (e?.type === 'content_block_start' && e.content_block?.type === 'tool_use') {
-        emitTool(ws, sessionKey, e.content_block, 'running');
+        emitTool(thread, sessionKey, e.content_block, 'running');
       }
       capture(thread, ev);
       return;
@@ -240,7 +254,7 @@ function translate(ws: WebSocket, sessionKey: string, thread: Thread, ev: Claude
       const content = (ev as any).message?.content;
       if (Array.isArray(content)) {
         for (const c of content) {
-          if (c?.type === 'tool_use') emitTool(ws, sessionKey, c, 'running');
+          if (c?.type === 'tool_use') emitTool(thread, sessionKey, c, 'running');
         }
       }
       const usage = (ev as any).message?.usage;
@@ -262,7 +276,7 @@ function translate(ws: WebSocket, sessionKey: string, thread: Thread, ev: Claude
       const content = (ev as any).message?.content;
       if (Array.isArray(content)) {
         for (const c of content) {
-          if (c?.type === 'tool_result') closeTool(ws, sessionKey, c);
+          if (c?.type === 'tool_result') closeTool(thread, sessionKey, c);
         }
       }
       return;
@@ -287,7 +301,15 @@ function capture(thread: Thread, ev: ClaudeEvent) {
 // Início de cada tool por id de correlação, pra cravar a duração real no close.
 const toolStart = new Map<string, number>();
 
-function emitTool(ws: WebSocket, sessionKey: string, block: any, status: ToolCall['status']) {
+// Upsert por id no snapshot do thread (mesma lógica do client upsertTool):
+// preserva campos do evento running (diff/command) ao mesclar o done.
+function snapshotTool(thread: Thread, tool: ToolCall) {
+  const i = thread.tools.findIndex((t) => t.id === tool.id);
+  if (i === -1) thread.tools.push(tool);
+  else thread.tools[i] = { ...thread.tools[i], ...tool };
+}
+
+function emitTool(thread: Thread, sessionKey: string, block: any, status: ToolCall['status']) {
   const id = block.id ?? '';
   if (id && !toolStart.has(id)) toolStart.set(id, Date.now());
   const tool: ToolCall = {
@@ -299,10 +321,11 @@ function emitTool(ws: WebSocket, sessionKey: string, block: any, status: ToolCal
     diff: diffOf(block.name, block.input),
     output: [],
   };
-  send(ws, { t: 'tool', sessionKey, tool });
+  snapshotTool(thread, tool);
+  send(thread.ws, { t: 'tool', sessionKey, tool });
 }
 
-function closeTool(ws: WebSocket, sessionKey: string, c: any) {
+function closeTool(thread: Thread, sessionKey: string, c: any) {
   const isErr = !!c.is_error;
   const output = Array.isArray(c.content)
     ? c.content.filter((x: any) => x?.type === 'text').map((x: any) => x.text)
@@ -321,7 +344,8 @@ function closeTool(ws: WebSocket, sessionKey: string, c: any) {
     expanded: true,
     durationMs: start !== undefined ? Date.now() - start : undefined,
   };
-  send(ws, { t: 'tool', sessionKey, tool });
+  snapshotTool(thread, tool);
+  send(thread.ws, { t: 'tool', sessionKey, tool });
 }
 
 function cmdOf(input: unknown): string {
