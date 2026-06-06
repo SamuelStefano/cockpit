@@ -519,6 +519,7 @@ interface ChatInputProps {
   setEffort: (e: EffortLevel) => void;
   budget: number;
   setBudget: (n: number) => void;
+  slashCommands: string[];
   attachments: Attachment[];
   onUpload: (file: File) => void;
   onRemoveAttachment: (path: string) => void;
@@ -530,10 +531,26 @@ interface ChatInputProps {
 
 const MAX_UPLOAD = 15_000_000;
 
-function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, attachments, onUpload, onRemoveAttachment, focusSignal, queued, onQueue, onCancelQueue }: ChatInputProps) {
+function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, attachments, onUpload, onRemoveAttachment, focusSignal, queued, onQueue, onCancelQueue }: ChatInputProps) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const hasAtt = attachments.length > 0;
+  const [sel, setSel] = useState(0);
+  const slashOpen = !disabled && /^\/[^\s]*$/.test(value);
+  const slashQuery = slashOpen ? value.slice(1).toLowerCase() : '';
+  const matches = useMemo(
+    () => (slashOpen ? slashCommands.filter((c) => c.toLowerCase().includes(slashQuery)).slice(0, 8) : []),
+    [slashOpen, slashQuery, slashCommands],
+  );
+  const showPalette = matches.length > 0;
+  useEffect(() => { setSel(0); }, [slashQuery, slashOpen]);
+  const complete = (cmd: string) => {
+    setValue('/' + cmd + ' ');
+    requestAnimationFrame(() => {
+      const el = taRef.current;
+      if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+    });
+  };
   useEffect(() => {
     if (focusSignal === 0) return;
     const el = taRef.current;
@@ -564,6 +581,12 @@ function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, m
     e.target.value = '';
   };
   const onKey = (e: React.KeyboardEvent) => {
+    if (showPalette) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => (s + 1) % matches.length); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => (s - 1 + matches.length) % matches.length); return; }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); complete(matches[sel]); return; }
+      if (e.key === 'Escape') { e.preventDefault(); setValue(''); return; }
+    }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
   };
   const grow = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -621,6 +644,21 @@ function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, m
         </div>
       )}
       <input ref={fileRef} type="file" multiple onChange={pick} className="hidden" />
+      <div className="relative">
+      {showPalette && (
+        <div className="scroll-thin absolute bottom-full left-0 z-30 mb-2 max-h-60 w-full overflow-auto rounded-lg border border-neutral-700 bg-neutral-900 py-1 shadow-xl shadow-black/50">
+          {matches.map((c, i) => (
+            <button
+              key={c}
+              onMouseDown={(e) => { e.preventDefault(); complete(c); }}
+              onMouseEnter={() => setSel(i)}
+              className={`flex w-full items-center gap-1.5 px-3 py-1.5 text-left font-mono text-[12.5px] transition ${i === sel ? 'bg-orange-500/15 text-orange-200' : 'text-neutral-300'}`}
+            >
+              <span className="text-neutral-600">/</span>{c}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex items-end gap-2 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 transition focus-within:border-orange-500/50 focus-within:ring-2 focus-within:ring-orange-500/15">
         <button
           onClick={() => fileRef.current?.click()}
@@ -660,6 +698,7 @@ function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, m
           </button>
         )}
       </div>
+      </div>
     </div>
   );
 }
@@ -685,6 +724,7 @@ export interface ChatPanelProps {
   setEffort: (e: EffortLevel) => void;
   budget: number;
   setBudget: (n: number) => void;
+  slashCommands: string[];
   contextTokens: number;
   lastTurn?: TurnStats;
   onNew: () => void;
@@ -695,7 +735,7 @@ export interface ChatPanelProps {
   focusSignal?: number;
 }
 
-export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, contextTokens, lastTurn, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, focusSignal = 0 }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, contextTokens, lastTurn, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, focusSignal = 0 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -796,7 +836,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
       )}
 
       <ChatInput disabled={disabled} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
-        model={model} setModel={setModel} effort={effort} setEffort={setEffort} budget={budget} setBudget={setBudget}
+        model={model} setModel={setModel} effort={effort} setEffort={setEffort} budget={budget} setBudget={setBudget} slashCommands={slashCommands}
         attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} focusSignal={focusSignal}
         queued={queued} onQueue={setQueued} onCancelQueue={() => setQueued('')} />
     </div>
