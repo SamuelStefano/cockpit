@@ -3,7 +3,7 @@ import type { Session, Message, Block } from './data/mock';
 import type { ClientMsg, ServerMsg, SysStats, PermMode, ModelAlias, EffortLevel, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth } from '../shared/protocol';
 import { loadPref, savePref } from './lib/persist';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
-import { WS_URL, newId, metaToSession } from './cockpit/session';
+import { WS_URL, newId, metaToSession, dedupById, mergeSeen } from './cockpit/session';
 import { upsertTool, appendDelta, appendThinking } from './cockpit/blocks';
 import { useTerminals, type TermApi } from './cockpit/useTerminals';
 
@@ -184,11 +184,7 @@ export function useCockpit(): Cockpit {
     // Se o `list` já trouxe newId como linha persistida, renomear oldKey->newId
     // criaria DUAS linhas com o mesmo id. Renomeia a local e remove a duplicata
     // do servidor (a local carrega o estado em voo, então fica preferida).
-    setSessions((prev) => {
-      const renamed = prev.map((s) => (s.id === oldKey ? { ...s, id: newId } : s));
-      const seenIds = new Set<string>();
-      return renamed.filter((s) => (seenIds.has(s.id) ? false : (seenIds.add(s.id), true)));
-    });
+    setSessions((prev) => dedupById(prev.map((s) => (s.id === oldKey ? { ...s, id: newId } : s))));
   }, []);
 
   const onServer = useCallback((msg: ServerMsg) => {
@@ -202,19 +198,7 @@ export function useCockpit(): Cockpit {
         // Baseline: sessão vista pela 1ª vez entra no `seen` com o mtime atual
         // (não vira "atualizada" retroativamente). Só mtime que AVANÇA depois badgeia.
         setSeen((prev) => {
-          // baseline ids novos + poda ids que sumiram da lista (arquivados/
-          // apagados) pra o mapa não crescer sem limite no localStorage.
-          const live = new Set(msg.items.map((m) => m.id));
-          const next: Record<string, number> = {};
-          let changed = false;
-          for (const m of msg.items) {
-            next[m.id] = prev[m.id] ?? m.mtime;
-            if (prev[m.id] === undefined) changed = true;
-          }
-          for (const id of Object.keys(prev)) {
-            if (id.startsWith('new-')) { next[id] = prev[id]; continue; } // sessão local ainda não migrada
-            if (!live.has(id)) changed = true; // podada
-          }
+          const { next, changed } = mergeSeen(prev, msg.items);
           if (changed) savePref('seen', next);
           return changed ? next : prev;
         });
