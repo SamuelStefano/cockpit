@@ -4,7 +4,7 @@ import type { SessionMeta } from '../../shared/protocol';
 import { CONFIG } from '../config';
 import { hiddenSet } from '../store';
 
-const UUID_FILE = /^[0-9a-f-]{36}\.jsonl$/;
+const UUID_FILE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$/;
 
 // Lista sessões sem SQLite (DR-003): readdir + scan reverso de metadado (M2).
 // Cache em memória invalidado por mtime.

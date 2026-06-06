@@ -13,7 +13,7 @@ import { metaForId } from './index';
 // trocado pela linha de prosa que casou (a lista do sidebar renderiza igual).
 
 const execFileP = promisify(execFile);
-const UUID_FILE = /^([0-9a-f-]{36})\.jsonl$/;
+const UUID_FILE = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/;
 const MAX_HITS = 40;
 
 export async function searchSessions(q: string): Promise<SessionMeta[]> {
