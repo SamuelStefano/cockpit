@@ -72,10 +72,31 @@ function broadcast(msg: ServerMsg) {
 let slashCommands: string[] = [];
 
 export function attachWs(server: Server) {
-  const wss = new WebSocketServer({ server, path: '/ws' });
+  // maxPayload: rejeita frames gigantes no transporte ANTES de o ws alocar/
+  // decodificar e o JSON.parse alocar de novo. O upload manda o arquivo inteiro
+  // em base64 num frame só; o teto de 15MB do app só checa DEPOIS. 32MB cobre o
+  // upload legítimo (15MB → ~20MB em base64) e corta o frame acidental de 100MB.
+  const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 32 * 1024 * 1024 });
   wssRef = wss;
 
+  // Heartbeat ping/pong: um socket meio-aberto (laptop dormindo, sem FIN do TCP)
+  // não dispara 'close' por horas — e o broadcast segue empurrando frames de
+  // ciclo de vida pro buffer de um cliente morto até estourar a heap (o OOM da
+  // madrugada). A varredura termina sockets sem pong dentro de um intervalo.
+  const beat = setInterval(() => {
+    for (const c of wss.clients) {
+      const alive = (c as WebSocket & { isAlive?: boolean }).isAlive;
+      if (alive === false) { c.terminate(); continue; }
+      (c as WebSocket & { isAlive?: boolean }).isAlive = false;
+      try { c.ping(); } catch { /* socket já indo embora */ }
+    }
+  }, 30_000);
+  beat.unref();
+  wss.on('close', () => clearInterval(beat));
+
   wss.on('connection', (ws) => {
+    (ws as WebSocket & { isAlive?: boolean }).isAlive = true;
+    ws.on('pong', () => { (ws as WebSocket & { isAlive?: boolean }).isAlive = true; });
     send(ws, { t: 'busy', keys: [...threads.keys()] });
     if (slashCommands.length) send(ws, { t: 'slash-commands', items: slashCommands });
     // Reconnect mid-run (#10): replaya o snapshot acumulado SÓ pra ESTE socket,
