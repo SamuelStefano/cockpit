@@ -79,6 +79,7 @@ export interface Cockpit {
   messages: Message[];
   phase: Phase;
   running: Set<string>;
+  stalled: Set<string>;
   updated: Set<string>;
   draft: string;
   setDraft: (v: string) => void;
@@ -132,6 +133,8 @@ export function useCockpit(): Cockpit {
   const [threads, setThreads] = useState<Record<string, Message[]>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>(() => loadPref('drafts', {} as Record<string, string>));
   const [phases, setPhases] = useState<Record<string, Phase>>({});
+  const lastActivity = useRef<Record<string, number>>({}); // sessionKey -> ts do último frame; alimenta o watchdog de "sessão quieta"
+  const [clockTick, setClockTick] = useState(0); // re-render periódico p/ recomputar quietas sem novo evento
   const [conn, setConn] = useState<{ ws: ConnState; sse: ConnState }>({ ws: 'reconnecting', sse: 'reconnecting' });
   const [rate, setRate] = useState<{ resetsAt: number; status: string } | null>(null);
   const [stats, setStats] = useState<SysStats | null>(null);
@@ -277,6 +280,7 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'started': {
+        lastActivity.current[msg.sessionKey] = Date.now();
         if (runMsg.current[msg.sessionKey]) return; // já em voo (reconnect) — não duplica bubble
         const id = newId('a');
         runMsg.current[msg.sessionKey] = id;
@@ -313,16 +317,19 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'delta': {
+        lastActivity.current[msg.sessionKey] = Date.now();
         setPhases((p) => ({ ...p, [msg.sessionKey]: 'streaming' }));
         patchRunMsg(msg.sessionKey, (b) => appendDelta(b, msg.text));
         return;
       }
       case 'thinking': {
+        lastActivity.current[msg.sessionKey] = Date.now();
         setPhases((p) => ({ ...p, [msg.sessionKey]: 'streaming' }));
         patchRunMsg(msg.sessionKey, (b) => appendThinking(b, msg.text));
         return;
       }
       case 'tool': {
+        lastActivity.current[msg.sessionKey] = Date.now();
         setPhases((p) => ({ ...p, [msg.sessionKey]: 'streaming' }));
         patchRunMsg(msg.sessionKey, (b) => upsertTool(b, msg.tool));
         return;
@@ -638,6 +645,19 @@ export function useCockpit(): Cockpit {
     () => new Set(Object.keys(phases).filter((k) => phases[k] === 'thinking' || phases[k] === 'streaming')),
     [phases]
   );
+  // Watchdog: enquanto algo roda, tica a cada 20s pra recomputar "quietas".
+  useEffect(() => {
+    if (running.size === 0) return;
+    const id = setInterval(() => setClockTick((n) => n + 1), 20_000);
+    return () => clearInterval(id);
+  }, [running.size]);
+  // Sessão viva mas sem nenhum frame há >2min = "quieta" (tool longo, rate-limit
+  // ou travada). Não é alarme — só um sinal de relance pra olhar a madrugada.
+  const stalled = useMemo(() => {
+    const now = Date.now();
+    void clockTick;
+    return new Set([...running].filter((k) => now - (lastActivity.current[k] ?? now) > 120_000));
+  }, [running, clockTick]);
   // A sessão aberta está sempre "vista": ao abri-la (ou quando seu mtime avança
   // com ela em foco) grava o mtime atual, limpando o badge de atualizada.
   useEffect(() => {
@@ -670,5 +690,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, updated, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, onSend, onStop, onNew, onRename, onClose, onUnhide };
 }

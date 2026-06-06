@@ -48,6 +48,7 @@ interface SessionRowProps {
   ctx?: number;
   cost?: number;
   running?: boolean;
+  stalled?: boolean;
   updated?: boolean;
   pinned?: boolean;
   onTogglePin?: (id: string) => void;
@@ -57,7 +58,7 @@ interface SessionRowProps {
   onStop?: (id: string) => void;
 }
 
-function SessionRow({ s, active, highlight, ctx, cost, running, updated, pinned, onTogglePin, onSelect, onRename, onClose, onStop }: SessionRowProps) {
+function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated, pinned, onTogglePin, onSelect, onRename, onClose, onStop }: SessionRowProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(s.title);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -104,11 +105,14 @@ function SessionRow({ s, active, highlight, ctx, cost, running, updated, pinned,
             title="Clique para renomear"
             className={`flex min-w-0 items-center gap-1.5 truncate text-left text-[12.5px] font-medium leading-tight ${active ? 'text-neutral-100' : 'text-neutral-300'} hover:text-orange-300`}
           >
-            {running && (
+            {running && !stalled && (
               <span className="relative flex h-1.5 w-1.5 shrink-0" title="Sessão trabalhando agora">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-green-400" />
               </span>
+            )}
+            {running && stalled && (
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" title="Trabalhando, mas sem output há alguns minutos (tool longo, rate-limit ou travada)" />
             )}
             {!running && updated && (
               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-orange-400" title="Novo output desde a última vez que você abriu" />
@@ -189,6 +193,7 @@ export interface SessionsPanelProps {
   usage?: Record<string, number>;
   cost?: Record<string, number>;
   running?: Set<string>;
+  stalled?: Set<string>;
   updated?: Set<string>;
   searchResults?: Session[];
   onSearch?: (q: string) => void;
@@ -226,7 +231,7 @@ function ArchivedSection({ archived, onUnhide }: { archived: Session[]; onUnhide
   );
 }
 
-export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, onRename, onClose, onStop, archived = [], onUnhide, onCloseMobile, usage = {}, cost = {}, running, updated, searchResults = [], onSearch }: SessionsPanelProps) {
+export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, onRename, onClose, onStop, archived = [], onUnhide, onCloseMobile, usage = {}, cost = {}, running, stalled, updated, searchResults = [], onSearch }: SessionsPanelProps) {
   const [query, setQuery] = useState('');
   const [pins, setPins] = usePersisted<string[]>('pinned', []);
   const pinned = useMemo(() => new Set(pins), [pins]);
@@ -332,7 +337,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
         ) : (
           filtered.map((s) => (
             <SessionRow key={s.id} s={s} active={s.id === activeId} highlight={query} ctx={usage[s.id]} cost={cost[s.id]}
-              running={running?.has(s.id)} updated={updated?.has(s.id)} pinned={pinned.has(s.id)} onTogglePin={togglePin}
+              running={running?.has(s.id)} stalled={stalled?.has(s.id)} updated={updated?.has(s.id)} pinned={pinned.has(s.id)} onTogglePin={togglePin}
               onSelect={(id) => { onSelect(id); onCloseMobile && onCloseMobile(); }}
               onRename={onRename} onClose={onClose} onStop={onStop} />
           ))
