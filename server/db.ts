@@ -15,6 +15,13 @@ function open(): Database.Database {
   mkdirSync(dirname(CONFIG.dbPath), { recursive: true });
   db = new Database(CONFIG.dbPath);
   db.pragma('journal_mode = WAL');
+  // Sem busy_timeout, qualquer SQLITE_BUSY (checkpoint, leitor externo) estoura
+  // na hora — recordUsage engole, mas usageStats subiria um toast espúrio. 5s de
+  // retry cobre a contenção real (escrita por evento + leituras do /uso).
+  db.pragma('busy_timeout = 5000');
+  // Checkpoint automático a cada ~1000 páginas (default, explícito): num processo
+  // que fica dias de pé com escrita contínua, evita o -wal crescer sem limite.
+  db.pragma('wal_autocheckpoint = 1000');
   db.exec(`
     CREATE TABLE IF NOT EXISTS usage_sample (
       id            INTEGER PRIMARY KEY,
@@ -89,7 +96,24 @@ export function recordUsage(u: UsageInput): void {
   }
 }
 
+const EMPTY_STATS: UsageStats = { sessions: [], totalOutput: 0, totalSamples: 0, totalCost: 0, series: [] };
+
+// Força um checkpoint TRUNCATE: zera o -wal quando o auto-checkpoint é starved
+// por um leitor de longa duração. Best-effort, chamado no sweep periódico.
+export function checkpointWal(): void {
+  try { open().pragma('wal_checkpoint(TRUNCATE)'); } catch { /* lock/disco — ignora */ }
+}
+
 export function usageStats(): UsageStats {
+  try {
+    return computeStats();
+  } catch {
+    // lock transitório / disco — devolve vazio em vez de derrubar o handler num toast
+    return EMPTY_STATS;
+  }
+}
+
+function computeStats(): UsageStats {
   const rows = open().prepare(`
     SELECT
       session_id                       AS sessionId,
