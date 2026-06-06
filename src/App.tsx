@@ -290,7 +290,7 @@ export function CockpitApp() {
           )}
 
           <div className="min-w-0 flex-1">
-            <ChatPanel session={activeSession} messages={messages} phase={viewPhase}
+            <ChatPanel key={activeSession?.id ?? 'none'} session={activeSession} messages={messages} phase={viewPhase}
               draft={draft} setDraft={setDraft} onSend={handleSend} onPrompt={handleSend} onStop={handleStop}
               mode={mode} setMode={setMode} model={model} setModel={setModel} effort={effort} setEffort={setEffort} budget={budget} setBudget={setBudget} slashCommands={slashCommands} contextTokens={contextTokens} lastTurn={lastTurn} lastEnd={lastEnd} onNew={handleNew}
               attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment}
