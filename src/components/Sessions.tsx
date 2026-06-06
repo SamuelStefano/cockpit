@@ -152,12 +152,12 @@ function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated
                 ${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(2)}
               </span>
             )}
-            <span className="text-[10px] tabular-nums text-neutral-600 group-hover:hidden">{s.relative}</span>
+            <span className="hidden text-[10px] tabular-nums text-neutral-600 sm:inline sm:group-hover:hidden">{s.relative}</span>
             {running && onStop && (
               <button
                 onClick={(e) => { e.stopPropagation(); onStop(s.id); }}
                 title="Parar o turno desta sessão"
-                className="hidden rounded p-0.5 text-neutral-500 transition hover:bg-neutral-800 hover:text-red-400 group-hover:block"
+                className="block rounded p-0.5 text-neutral-500 transition hover:bg-neutral-800 hover:text-red-400 sm:hidden sm:group-hover:block"
               >
                 <Icon name="square" size={12} />
               </button>
@@ -167,7 +167,7 @@ function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated
                 onClick={(e) => { e.stopPropagation(); onTogglePin(s.id); }}
                 title={pinned ? 'Desafixar sessão' : 'Fixar sessão no topo'}
                 className={`rounded p-0.5 transition hover:bg-neutral-800
-                  ${pinned ? 'text-orange-400 hover:text-orange-300' : 'hidden text-neutral-500 hover:text-orange-300 group-hover:block'}`}
+                  ${pinned ? 'text-orange-400 hover:text-orange-300' : 'block text-neutral-500 hover:text-orange-300 sm:hidden sm:group-hover:block'}`}
               >
                 <Icon name="star" size={12} />
               </button>
@@ -175,7 +175,7 @@ function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated
             <button
               onClick={(e) => { e.stopPropagation(); onClose(s.id); }}
               title="Arquivar sessão (some do sidebar; o histórico não é apagado)"
-              className="hidden rounded p-0.5 text-neutral-500 transition hover:bg-neutral-800 hover:text-orange-300 group-hover:block"
+              className="block rounded p-0.5 text-neutral-500 transition hover:bg-neutral-800 hover:text-orange-300 sm:hidden sm:group-hover:block"
             >
               <Icon name="x" size={13} />
             </button>
@@ -244,7 +244,7 @@ function ArchivedSection({ archived, onUnhide }: { archived: Session[]; onUnhide
               <button
                 onClick={() => onUnhide(s.id)}
                 title="Restaurar sessão"
-                className="shrink-0 rounded px-1.5 py-0.5 text-[10.5px] font-medium text-neutral-500 opacity-0 transition hover:bg-neutral-800 hover:text-orange-300 group-hover:opacity-100"
+                className="shrink-0 rounded px-1.5 py-0.5 text-[10.5px] font-medium text-neutral-500 opacity-100 transition hover:bg-neutral-800 hover:text-orange-300 sm:opacity-0 sm:group-hover:opacity-100"
               >
                 restaurar
               </button>
