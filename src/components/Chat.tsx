@@ -661,11 +661,12 @@ interface ChatInputProps {
   queued: string;
   onQueue: (text: string) => void;
   onCancelQueue: () => void;
+  history: string[];
 }
 
 const MAX_UPLOAD = 15_000_000;
 
-function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, attachments, onUpload, onRemoveAttachment, focusSignal, queued, onQueue, onCancelQueue }: ChatInputProps) {
+function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, slashCommands, attachments, onUpload, onRemoveAttachment, focusSignal, queued, onQueue, onCancelQueue, history }: ChatInputProps) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const hasAtt = attachments.length > 0;
@@ -725,11 +726,38 @@ function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, m
     }
     // Esc com a composição vazia durante um turno = parar o run (atalho do botão stop).
     if (e.key === 'Escape' && disabled && !value) { e.preventDefault(); onStop(); return; }
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
+    // Recall de histórico (↑/↓), só fora da palette de slash.
+    if (history.length && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      if (e.key === 'ArrowUp') {
+        if (histIdx === null) { if (value !== '') return; e.preventDefault(); recall(history.length - 1); return; }
+        e.preventDefault(); recall(Math.max(0, histIdx - 1)); return;
+      }
+      if (histIdx === null) return; // ↓ sem recall ativo = cursor normal
+      e.preventDefault();
+      const next = histIdx + 1;
+      if (next >= history.length) { setHistIdx(null); setValue(''); if (taRef.current) taRef.current.style.height = 'auto'; }
+      else recall(next);
+      return;
+    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); setHistIdx(null); submit(); }
   };
   const grow = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setValue(e.target.value);
+    if (histIdx !== null) setHistIdx(null); // digitar sai do modo recall
     const el = e.target; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+  };
+  // Recall estilo shell: ↑ no campo vazio puxa o último prompt enviado; ↑/↓
+  // navegam o histórico; ↓ abaixo do fim limpa. Histórico = msgs do usuário.
+  const [histIdx, setHistIdx] = useState<number | null>(null);
+  const recall = (idx: number) => {
+    setHistIdx(idx);
+    setValue(history[idx]);
+    requestAnimationFrame(() => {
+      const el = taRef.current;
+      if (!el) return;
+      el.setSelectionRange(el.value.length, el.value.length);
+      el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+    });
   };
   const insertTemplate = (text: string) => {
     setValue(text);
@@ -894,6 +922,10 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
   const streaming = phase === 'streaming';
   const disabled = phase !== 'idle';
   const hasTools = messages.some((m) => m.role === 'assistant' && m.blocks.some((b) => b.type === 'tool'));
+  const sentHistory = useMemo(
+    () => messages.filter((m) => m.role === 'user').map((m) => m.text).filter(Boolean),
+    [messages],
+  );
 
   // Fila stop-aware: mensagem digitada durante o turno dispara sozinha no idle.
   useEffect(() => {
@@ -1030,7 +1062,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
       <ChatInput disabled={disabled} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
         model={model} setModel={setModel} effort={effort} setEffort={setEffort} budget={budget} setBudget={setBudget} slashCommands={slashCommands}
         attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} focusSignal={focusSignal}
-        queued={queued} onQueue={setQueued} onCancelQueue={() => setQueued('')} />
+        queued={queued} onQueue={setQueued} onCancelQueue={() => setQueued('')} history={sentHistory} />
     </div>
   );
 }
