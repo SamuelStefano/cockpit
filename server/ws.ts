@@ -97,12 +97,28 @@ const SEED_SLASH = [
 // CLI+skills). Cacheada em memória pra popular o palette de comandos.
 let slashCommands: string[] = [...SEED_SLASH];
 
+// CSWSH (cross-site WebSocket hijacking): um browser em outra origem pode abrir
+// um ws:// pro backend e herdar a sessão. Hoje só o loopback nos protege. Esta
+// allowlist é opt-in: sem COCKPIT_ALLOWED_ORIGINS não filtra nada (preserva o
+// front no Vercel). Quando Samuel expor o app, basta setar as origens válidas.
+// Cliente sem header Origin (node/curl, não-browser) não é vetor de CSWSH → passa.
+const ALLOWED_ORIGINS = (process.env.COCKPIT_ALLOWED_ORIGINS ?? '')
+  .split(',').map((s) => s.trim()).filter(Boolean);
+function originAllowed(origin?: string): boolean {
+  if (ALLOWED_ORIGINS.length === 0) return true;
+  if (!origin) return true;
+  return ALLOWED_ORIGINS.includes(origin);
+}
+
 export function attachWs(server: Server) {
   // maxPayload: rejeita frames gigantes no transporte ANTES de o ws alocar/
   // decodificar e o JSON.parse alocar de novo. O upload manda o arquivo inteiro
   // em base64 num frame só; o teto de 15MB do app só checa DEPOIS. 32MB cobre o
   // upload legítimo (15MB → ~20MB em base64) e corta o frame acidental de 100MB.
-  const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 32 * 1024 * 1024 });
+  const wss = new WebSocketServer({
+    server, path: '/ws', maxPayload: 32 * 1024 * 1024,
+    verifyClient: (info: { origin: string }) => originAllowed(info.origin),
+  });
   wssRef = wss;
 
   // Heartbeat ping/pong: um socket meio-aberto (laptop dormindo, sem FIN do TCP)
