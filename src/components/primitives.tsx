@@ -195,6 +195,37 @@ export function Markdown({ md, caret = false }: MarkdownProps) {
           return <p key={idx} className={cls}>{renderInline(heading[2], `${idx}-h`)}{showCaret && <span className="caret" />}</p>;
         }
 
+        // Tabela GFM: header + separador |---|:--:| + linhas. Claude emite tabela
+        // o tempo todo (comparações, schemas); sem isto vinha como texto cru.
+        if (
+          lines.length >= 2 &&
+          lines[0].includes('|') &&
+          lines[1].includes('-') &&
+          /^[\s|:-]+$/.test(lines[1].trim())
+        ) {
+          const cells = (l: string) => l.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|').map((c) => c.trim());
+          const header = cells(lines[0]);
+          const rows = lines.slice(2).map(cells);
+          return (
+            <div key={idx} className="scroll-thin overflow-x-auto">
+              <table className="w-full border-collapse text-[13px]">
+                <thead>
+                  <tr>{header.map((h, hi) => (
+                    <th key={hi} className="border border-neutral-800 bg-neutral-900/60 px-2.5 py-1.5 text-left font-semibold text-neutral-200">{renderInline(h, `${idx}-th${hi}`)}</th>
+                  ))}</tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, ri) => (
+                    <tr key={ri}>{header.map((_, ci) => (
+                      <td key={ci} className="border border-neutral-800 px-2.5 py-1.5 align-top text-neutral-300">{renderInline(r[ci] ?? '', `${idx}-td${ri}-${ci}`)}</td>
+                    ))}</tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+
         if (block.trim().startsWith('>')) {
           const inner = lines.map((l) => l.replace(/^\s*>\s?/, '')).join('\n');
           return (
