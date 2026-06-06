@@ -121,7 +121,7 @@ function ModelPicker({ model, setModel, effort, setEffort, budget, setBudget, di
           step="0.1"
           value={budget > 0 ? budget : ''}
           placeholder="teto"
-          onChange={(e) => setBudget(parseFloat(e.target.value))}
+          onChange={(e) => { const v = parseFloat(e.target.value); setBudget(Number.isFinite(v) && v > 0 ? v : 0); }}
           className="w-12 bg-transparent px-1 py-1 text-[11px] font-medium text-neutral-300 outline-none placeholder-neutral-600"
         />
       </div>
@@ -551,8 +551,10 @@ function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, m
     () => (slashOpen ? slashCommands.filter((c) => c.toLowerCase().includes(slashQuery)).slice(0, 8) : []),
     [slashOpen, slashQuery, slashCommands],
   );
-  const showPalette = matches.length > 0;
-  useEffect(() => { setSel(0); }, [slashQuery, slashOpen]);
+  const [dismissed, setDismissed] = useState(false);
+  const showPalette = matches.length > 0 && !dismissed;
+  // Esc dispensa a palette mas preserva o texto; digitar de novo a traz de volta.
+  useEffect(() => { setSel(0); setDismissed(false); }, [slashQuery, slashOpen]);
   const complete = (cmd: string) => {
     setValue('/' + cmd + ' ');
     requestAnimationFrame(() => {
@@ -594,7 +596,7 @@ function ChatInput({ disabled, onSend, onStop, value, setValue, mode, setMode, m
       if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => (s + 1) % matches.length); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => (s - 1 + matches.length) % matches.length); return; }
       if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); complete(matches[sel]); return; }
-      if (e.key === 'Escape') { e.preventDefault(); setValue(''); return; }
+      if (e.key === 'Escape') { e.preventDefault(); setDismissed(true); return; }
     }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
   };
