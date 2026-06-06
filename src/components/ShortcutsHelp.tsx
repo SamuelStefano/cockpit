@@ -37,6 +37,16 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
   },
 ];
 
+// Comandos de barra interceptados pelo app (o resto segue pro Claude como texto).
+const SLASH: { cmd: string; label: string }[] = [
+  { cmd: '/help', label: 'Mostrar este painel' },
+  { cmd: '/new', label: 'Começar uma sessão nova' },
+  { cmd: '/clear', label: 'Limpar e começar nova' },
+  { cmd: '/model opus·sonnet·haiku', label: 'Trocar o modelo da sessão' },
+  { cmd: '/plan · /auto · /execute', label: 'Trocar o modo de permissão' },
+  { cmd: '/effort low…max', label: 'Ajustar o esforço de raciocínio' },
+];
+
 function Keys({ keys }: { keys: string[] }) {
   return (
     <span className="flex shrink-0 items-center gap-1">
@@ -85,6 +95,17 @@ export function ShortcutsHelp({ open, onClose }: { open: boolean; onClose: () =>
               </div>
             </div>
           ))}
+          <div>
+            <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-neutral-600">Comandos de barra (/)</div>
+            <div className="space-y-1">
+              {SLASH.map((s) => (
+                <div key={s.cmd} className="flex items-center justify-between gap-3 rounded-md px-1 py-1">
+                  <span className="text-[12.5px] text-neutral-300">{s.label}</span>
+                  <code className="shrink-0 rounded border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[10px] text-orange-300">{s.cmd}</code>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>
