@@ -91,26 +91,31 @@ function ModelPicker({ model, setModel, effort, setEffort, budget, setBudget, di
   budget: number; setBudget: (n: number) => void; disabled: boolean;
 }) {
   const sel = 'rounded-md border border-neutral-800 bg-neutral-950 px-1.5 py-1 text-[11px] font-medium text-neutral-300 outline-none transition hover:border-neutral-700 focus:border-orange-500/40 disabled:cursor-not-allowed disabled:opacity-50';
+  const tag = 'text-[9px] font-semibold uppercase tracking-wide text-neutral-600';
   return (
-    <div className="inline-flex items-center gap-1">
-      <select
-        value={model}
-        disabled={disabled}
-        onChange={(e) => setModel(e.target.value as ModelAlias)}
-        title="Modelo desta sessão"
-        className={sel}
-      >
-        {MODEL_OPTS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
-      </select>
-      <select
-        value={effort}
-        disabled={disabled}
-        onChange={(e) => setEffort(e.target.value as EffortLevel)}
-        title="Esforço de raciocínio (extended thinking)"
-        className={sel}
-      >
-        {EFFORT_OPTS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
-      </select>
+    <div className="inline-flex items-center gap-1.5">
+      <label className="inline-flex items-center gap-1" title="Modelo desta sessão (Opus é o mais capaz)">
+        <span className={tag}>modelo</span>
+        <select
+          value={model}
+          disabled={disabled}
+          onChange={(e) => setModel(e.target.value as ModelAlias)}
+          className={sel}
+        >
+          {MODEL_OPTS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+        </select>
+      </label>
+      <label className="inline-flex items-center gap-1" title="Esforço de raciocínio (extended thinking) — independente do modelo">
+        <span className={tag}>raciocínio</span>
+        <select
+          value={effort}
+          disabled={disabled}
+          onChange={(e) => setEffort(e.target.value as EffortLevel)}
+          className={sel}
+        >
+          {EFFORT_OPTS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+        </select>
+      </label>
       <div
         title="Teto de gasto por turno em USD (vazio = sem limite). O turno para sozinho ao atingir o valor."
         className={`flex items-center rounded-md border bg-neutral-950 pl-1.5 transition focus-within:border-orange-500/40 ${budget > 0 ? 'border-emerald-500/40' : 'border-neutral-800 hover:border-neutral-700'}`}
