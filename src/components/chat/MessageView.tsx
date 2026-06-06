@@ -7,11 +7,11 @@ import { messageToText } from '../../lib/export';
 
 // --- DiffView --------------------------------------------------------------
 
-type DiffRow = { t: 'ctx' | 'add' | 'del'; s: string };
+export type DiffRow = { t: 'ctx' | 'add' | 'del'; s: string };
 
 // LCS de linhas pra um diff interleaved. O(n*m) — limitado a trechos pequenos
 // (Edit/Write costumam ser curtos); acima do teto cai pro before/after simples.
-function lineDiff(oldText: string, newText: string): DiffRow[] {
+export function lineDiff(oldText: string, newText: string): DiffRow[] {
   const a = oldText === '' ? [] : oldText.split('\n');
   const b = newText === '' ? [] : newText.split('\n');
   if (a.length === 0) return b.map((s) => ({ t: 'add' as const, s }));
