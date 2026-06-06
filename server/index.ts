@@ -38,14 +38,21 @@ async function main() {
   // detached viram zumbis órfãos no restart. SIGTERM já foi enviado ao grupo de
   // forma síncrona em kill(); o pequeno atraso só garante a entrega antes do exit.
   let closing = false;
-  const shutdown = () => {
+  const shutdown = (code: number) => {
     if (closing) return;
     closing = true;
     killAllRuns();
-    setTimeout(() => process.exit(0), 300);
+    setTimeout(() => process.exit(code), 300);
   };
-  process.once('SIGINT', shutdown);
-  process.once('SIGTERM', shutdown);
+  process.once('SIGINT', () => shutdown(0));
+  process.once('SIGTERM', () => shutdown(0));
+
+  // Backstop pro throw inesperado que escapa dos try/catch por-caminho (callback
+  // de pty, handler de connection, tick de stats). Sem isto o Node morre no
+  // default SEM matar a árvore de runs — cada `claude -p` detached vira zumbi
+  // queimando token a noite toda. Falha alto e LIMPO: mata os runs, depois sai.
+  process.on('uncaughtException', (err) => { console.error('uncaughtException', err); shutdown(1); });
+  process.on('unhandledRejection', (reason) => { console.error('unhandledRejection', reason); shutdown(1); });
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
