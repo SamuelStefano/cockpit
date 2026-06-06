@@ -261,11 +261,16 @@ export function Markdown({ md, caret = false }: MarkdownProps) {
         const isOrdered = lines.every((l) => /^\s*\d+\.\s+/.test(l));
         const isUnordered = lines.every((l) => /^\s*[-*]\s+/.test(l));
         if ((isOrdered || isUnordered) && lines.length > 0 && lines[0].trim() !== '') {
-          const items = lines.map((l) => l.replace(/^\s*(?:\d+\.|[-*])\s+/, ''));
+          const items = lines.map((l) => ({
+            depth: Math.min(4, Math.floor((/^\s*/.exec(l)![0].length) / 2)),
+            text: l.replace(/^\s*(?:\d+\.|[-*])\s+/, ''),
+          }));
           const ListTag = isOrdered ? 'ol' : 'ul';
           return (
             <ListTag key={idx} className={`space-y-1 pl-5 [text-wrap:pretty] ${isOrdered ? 'list-decimal' : 'list-disc'} marker:text-neutral-500`}>
-              {items.map((it, li) => <li key={li}>{renderInline(it, `${idx}-i${li}`)}</li>)}
+              {items.map((it, li) => (
+                <li key={li} style={it.depth ? { marginLeft: it.depth * 16 } : undefined}>{renderInline(it.text, `${idx}-i${li}`)}</li>
+              ))}
             </ListTag>
           );
         }
