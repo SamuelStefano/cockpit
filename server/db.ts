@@ -70,16 +70,23 @@ export interface UsageInput {
 export function recordUsage(u: UsageInput): void {
   if (!u.sessionId) return;
   if (u.ctxTokens <= 0 && u.outputTokens <= 0) return;
-  open()
-    .prepare(`INSERT INTO usage_sample
-      (session_id, ts, ctx_tokens, output_tokens, input_tokens, cache_read_tokens, cache_creation_tokens, model)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(
-      u.sessionId, Date.now(),
-      Math.round(u.ctxTokens), Math.round(u.outputTokens),
-      Math.round(u.inputTokens ?? 0), Math.round(u.cacheReadTokens ?? 0), Math.round(u.cacheCreationTokens ?? 0),
-      u.model ?? null,
-    );
+  // Best-effort: uma falha de disco/lock no SQLite nunca pode abortar a tradução
+  // do evento NDJSON (o try/catch do line handler engoliria o throw e perderia o
+  // capture() do snapshot). Métrica é secundária; o stream do chat é primário.
+  try {
+    open()
+      .prepare(`INSERT INTO usage_sample
+        (session_id, ts, ctx_tokens, output_tokens, input_tokens, cache_read_tokens, cache_creation_tokens, model)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(
+        u.sessionId, Date.now(),
+        Math.round(u.ctxTokens), Math.round(u.outputTokens),
+        Math.round(u.inputTokens ?? 0), Math.round(u.cacheReadTokens ?? 0), Math.round(u.cacheCreationTokens ?? 0),
+        u.model ?? null,
+      );
+  } catch {
+    // disco cheio / DB lock — ignora; não derruba o turno
+  }
 }
 
 export function usageStats(): UsageStats {
