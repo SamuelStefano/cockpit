@@ -13,6 +13,7 @@ import { recordUsage, usageStats } from './db';
 import { hideSession, unhideSession } from './store';
 import { parseSession, ctxTokens, diffOf, planOf } from './sessions/parse';
 import { collect } from './stats';
+import { collectHealth } from './health';
 import { openTerm, detachTerm, inputTerm, resizeTerm, closeTerm } from './terminals';
 
 interface Thread {
@@ -242,6 +243,10 @@ async function handle(ws: WebSocket, msg: ClientMsg) {
     }
     case 'usage-list': {
       send(ws, { t: 'usage-stats', stats: usageStats() });
+      return;
+    }
+    case 'admin-health': {
+      send(ws, { t: 'health', health: await collectHealth() });
       return;
     }
     case 'upload': {
