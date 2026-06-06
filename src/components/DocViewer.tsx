@@ -1,10 +1,34 @@
-import { useEffect, type ReactNode } from 'react';
-import { Icon, Markdown } from './primitives';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Icon, Markdown, splitFences } from './primitives';
+import { headingSlug } from './primitives/markdown/slug';
 import { useCopied } from '../lib/useCopied';
 
-// Visualizador de documento (contexto/skill). No desktop é um diálogo central;
-// no mobile vira bottom-sheet (sobe de baixo, largura cheia, alça de arraste e
-// alvos de toque maiores). Esc fecha. `actions` recebe botões extras do header.
+interface OutlineItem { level: number; text: string; slug: string }
+
+// Extrai o índice de headings do mesmo jeito que o proseBlocks os renderiza: só
+// blocos de UMA linha que casam `^#{1,6} ` contam (e fora de cercas de código),
+// senão o link do índice apontaria pra uma âncora que não existe no DOM.
+function outlineOf(body: string): OutlineItem[] {
+  const items: OutlineItem[] = [];
+  for (const seg of splitFences(body)) {
+    if (seg.t !== 'prose') continue;
+    for (const block of seg.text.split('\n\n')) {
+      const bl = block.trim();
+      if (bl.split('\n').length !== 1) continue;
+      const m = /^(#{1,6})\s+(.*)$/.exec(bl);
+      if (m) items.push({ level: m[1].length, text: m[2], slug: headingSlug(m[2]) });
+    }
+  }
+  return items;
+}
+
+function plainHeading(text: string): string {
+  return text.replace(/[`*~_]/g, '').replace(/\[\[([^\]]+)\]\]/g, '$1').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+}
+
+// Visualizador de documento (contexto/skill). Desktop: diálogo largo com índice
+// (rail de headings) à esquerda e leitura confortável à direita. Mobile:
+// bottom-sheet de largura cheia, sem rail. Toggle de markdown cru. Esc fecha.
 export function DocViewer({
   title, badges, actions, body,
   onClose,
@@ -15,32 +39,87 @@ export function DocViewer({
   body: string;
   onClose: () => void;
 }) {
+  const [raw, setRaw] = useState(false);
+  const [active, setActive] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const outline = useMemo(() => outlineOf(body), [body]);
+  const hasOutline = outline.length >= 3;
+
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [onClose]);
 
+  // Scroll-spy: destaca no índice a seção mais alta visível na área de leitura.
+  useEffect(() => {
+    if (raw || !hasOutline) return;
+    const root = scrollRef.current;
+    if (!root) return;
+    const heads = Array.from(root.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6')).filter((h) => h.id);
+    if (!heads.length) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const vis = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (vis[0]) setActive(vis[0].target.id);
+      },
+      { root, rootMargin: '0px 0px -70% 0px', threshold: 0 },
+    );
+    heads.forEach((h) => io.observe(h));
+    return () => io.disconnect();
+  }, [raw, hasOutline, body]);
+
+  const jump = (slug: string) => {
+    scrollRef.current?.querySelector<HTMLElement>(`#${CSS.escape(slug)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setActive(slug);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
         onClick={(e) => e.stopPropagation()}
-        className="fade-up relative flex max-h-[92vh] w-full flex-col rounded-t-2xl border border-neutral-800 bg-neutral-950 shadow-2xl sm:max-h-[85vh] sm:max-w-3xl sm:rounded-xl"
+        className="fade-up relative flex max-h-[92vh] w-full flex-col rounded-t-2xl border border-neutral-800 bg-neutral-950 shadow-2xl sm:max-h-[88vh] sm:max-w-5xl sm:rounded-xl"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <div className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-neutral-700 sm:hidden" />
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-800 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">{title}{badges}</div>
           <div className="flex shrink-0 items-center gap-1.5">
+            <DocAction label={raw ? 'lido' : 'cru'} icon={raw ? 'check' : 'file'} onClick={() => setRaw((v) => !v)} />
             {actions}
             <button onClick={onClose} title="Fechar (Esc)" className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200">
               <Icon name="x" size={16} />
             </button>
           </div>
         </div>
-        <div className="scroll-thin overflow-y-auto px-4 py-4 text-[13px] leading-relaxed text-neutral-300 sm:px-5">
-          <div className="max-w-prose"><Markdown md={body} /></div>
+
+        <div className="flex min-h-0 flex-1">
+          {hasOutline && !raw && (
+            <nav className="scroll-thin hidden w-56 shrink-0 overflow-y-auto border-r border-neutral-800/80 px-2 py-4 lg:block">
+              <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-600">Nesta página</p>
+              {outline.map((o, oi) => (
+                <button
+                  key={`${o.slug}-${oi}`}
+                  onClick={() => jump(o.slug)}
+                  style={{ paddingLeft: 8 + (o.level - 1) * 10 }}
+                  className={`block w-full truncate rounded-md py-1 pr-2 text-left text-[12px] leading-snug transition
+                    ${active === o.slug ? 'bg-orange-500/10 font-medium text-orange-300' : 'text-neutral-500 hover:bg-neutral-900 hover:text-neutral-300'}`}
+                  title={plainHeading(o.text)}
+                >
+                  {plainHeading(o.text)}
+                </button>
+              ))}
+            </nav>
+          )}
+
+          <div ref={scrollRef} className="scroll-thin flex-1 overflow-y-auto px-4 py-5 sm:px-7">
+            {raw ? (
+              <pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-relaxed text-neutral-400">{body}</pre>
+            ) : (
+              <div className="mx-auto max-w-[74ch]"><Markdown md={body} /></div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -48,7 +127,7 @@ export function DocViewer({
 }
 
 // Botão de header reaproveitável (copiar/baixar).
-export function DocAction({ label, icon, onClick }: { label: string; icon: 'copy' | 'check' | 'download'; onClick: () => void }) {
+export function DocAction({ label, icon, onClick }: { label: string; icon: 'copy' | 'check' | 'download' | 'file'; onClick: () => void }) {
   return (
     <button
       onClick={onClick}

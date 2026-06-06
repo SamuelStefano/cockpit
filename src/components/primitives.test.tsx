@@ -40,6 +40,13 @@ describe('Markdown — blocos', () => {
     expect(container.textContent).not.toContain('#');
   });
 
+  it('headings viram elemento <hN> com id de âncora (pra navegação do índice)', () => {
+    const { container } = render(<Markdown md={'## Estado atual'} />);
+    const h = container.querySelector('h2');
+    expect(h).not.toBeNull();
+    expect(h?.id).toBe('estado-atual');
+  });
+
   it('renderiza horizontal rule', () => {
     const { container } = render(<Markdown md={'antes\n\n---\n\ndepois'} />);
     expect(container.querySelector('hr')).not.toBeNull();
@@ -87,5 +94,12 @@ describe('Markdown — inline', () => {
     const a = container.querySelector('a');
     expect(a?.getAttribute('href')).toBe('https://x.dev');
     expect(a?.textContent).toBe('clique');
+  });
+
+  it('wikilink [[nome]] vira chip sem os colchetes crus', () => {
+    const { container } = render(<Markdown md={'veja [[outra-memoria]] aqui'} />);
+    expect(container.textContent).not.toContain('[[');
+    expect(container.textContent).not.toContain(']]');
+    expect(container.textContent).toContain('outra-memoria');
   });
 });
