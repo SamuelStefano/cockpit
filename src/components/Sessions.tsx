@@ -41,6 +41,31 @@ function SessionSkeletonRow() {
 
 const CTX_WINDOW = 200_000;
 
+// Agrupa as sessões por recência (estilo ChatGPT/Claude). Fixadas viram um grupo
+// próprio no topo; o resto cai num balde por mtime. Só roda fora da busca.
+function groupByRecency(list: Session[], pinned: Set<string>): { label: string; items: Session[] }[] {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const day = 86_400_000;
+  const buckets: { label: string; items: Session[] }[] = [
+    { label: 'Fixadas', items: [] },
+    { label: 'Hoje', items: [] },
+    { label: 'Ontem', items: [] },
+    { label: '7 dias', items: [] },
+    { label: '30 dias', items: [] },
+    { label: 'Anteriores', items: [] },
+  ];
+  for (const s of list) {
+    if (pinned.has(s.id)) { buckets[0].items.push(s); continue; }
+    if (s.mtime >= startOfToday) buckets[1].items.push(s);
+    else if (s.mtime >= startOfToday - day) buckets[2].items.push(s);
+    else if (s.mtime >= startOfToday - 7 * day) buckets[3].items.push(s);
+    else if (s.mtime >= startOfToday - 30 * day) buckets[4].items.push(s);
+    else buckets[5].items.push(s);
+  }
+  return buckets.filter((b) => b.items.length > 0);
+}
+
 interface SessionRowProps {
   s: Session;
   active: boolean;
@@ -316,6 +341,13 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
     return [...top, ...rest];
   }, [sessions, query, searchResults, pinned]);
 
+  const renderRow = (s: Session) => (
+    <SessionRow key={s.id} s={s} active={s.id === activeId} highlight={query} ctx={usage[s.id]} cost={cost[s.id]}
+      running={running?.has(s.id)} stalled={stalled?.has(s.id)} updated={updated?.has(s.id)} pinned={pinned.has(s.id)} onTogglePin={togglePin}
+      onSelect={(id) => { onSelect(id); onCloseMobile && onCloseMobile(); }}
+      onRename={onRename} onClose={setConfirmId} onStop={onStop} />
+  );
+
   return (
     <div className="flex h-full flex-col bg-neutral-950">
       <div className="shrink-0 border-b border-neutral-800/80 p-2.5">
@@ -371,12 +403,17 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
               Nada encontrado para <span className="text-neutral-400">"{query}"</span>
             </div>
           )
+        ) : query ? (
+          filtered.map((s) => renderRow(s))
         ) : (
-          filtered.map((s) => (
-            <SessionRow key={s.id} s={s} active={s.id === activeId} highlight={query} ctx={usage[s.id]} cost={cost[s.id]}
-              running={running?.has(s.id)} stalled={stalled?.has(s.id)} updated={updated?.has(s.id)} pinned={pinned.has(s.id)} onTogglePin={togglePin}
-              onSelect={(id) => { onSelect(id); onCloseMobile && onCloseMobile(); }}
-              onRename={onRename} onClose={setConfirmId} onStop={onStop} />
+          groupByRecency(filtered, pinned).map((g) => (
+            <div key={g.label} className="space-y-1">
+              <div className="sticky top-0 z-[1] -mx-2.5 bg-neutral-950/95 px-3.5 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600 backdrop-blur-sm">
+                {g.label === 'Fixadas' && <Icon name="star" size={9} className="mr-1 inline -translate-y-px text-orange-400/80" />}
+                {g.label}
+              </div>
+              {g.items.map((s) => renderRow(s))}
+            </div>
           ))
         )}
         {!loading && !query && onUnhide && <ArchivedSection archived={archived} onUnhide={onUnhide} />}
