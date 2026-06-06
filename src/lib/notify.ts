@@ -37,6 +37,26 @@ export function notifyTurnDone(sessionTitle: string, onActivate?: () => void): v
   }
 }
 
+// Espelha notifyTurnDone pro caso de falha: rodar a noite toda e voltar sem
+// saber que o turno quebrou (overload, exit não-zero, claude fora do PATH) é o
+// pior cenário — aqui o erro avisa igual ao sucesso, fora da aba.
+export function notifyTurnError(sessionTitle: string, message: string, onActivate?: () => void): void {
+  if (typeof document === 'undefined') return;
+  if (document.visibilityState !== 'hidden') return;
+  flashTitle();
+  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    try {
+      const n = new Notification('Cockpit — turno falhou', {
+        body: (sessionTitle ? `${sessionTitle} — ` : '') + (message || 'A sessão terminou com erro.'),
+        tag: 'cockpit-error',
+      });
+      n.onclick = () => { window.focus(); onActivate?.(); n.close(); };
+    } catch {
+      /* best-effort */
+    }
+  }
+}
+
 function flashTitle(): void {
   if (flashing) return;
   flashing = true;
