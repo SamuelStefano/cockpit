@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, type ReactNode } from 'react';
 import { Icon, Badge, Skeleton } from './primitives';
 import type { Session } from '../data/mock';
+import { usePersisted } from '../lib/persist';
 
 function Highlight({ text, term }: { text: string; term?: string }) {
   const q = term?.trim();
@@ -45,12 +46,14 @@ interface SessionRowProps {
   active: boolean;
   highlight?: string;
   ctx?: number;
+  pinned?: boolean;
+  onTogglePin?: (id: string) => void;
   onSelect: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onClose: (id: string) => void;
 }
 
-function SessionRow({ s, active, highlight, ctx, onSelect, onRename, onClose }: SessionRowProps) {
+function SessionRow({ s, active, highlight, ctx, pinned, onTogglePin, onSelect, onRename, onClose }: SessionRowProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(s.title);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -102,7 +105,19 @@ function SessionRow({ s, active, highlight, ctx, onSelect, onRename, onClose }: 
         )}
         {!editing && (
           <div className="flex shrink-0 items-center gap-1">
-            <span className="text-[10px] tabular-nums text-neutral-600 group-hover:hidden">{s.relative}</span>
+            {pinned
+              ? <span className="text-[10px] tabular-nums text-neutral-600 group-hover:hidden" />
+              : <span className="text-[10px] tabular-nums text-neutral-600 group-hover:hidden">{s.relative}</span>}
+            {onTogglePin && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onTogglePin(s.id); }}
+                title={pinned ? 'Desafixar sessão' : 'Fixar sessão no topo'}
+                className={`rounded p-0.5 transition hover:bg-neutral-800
+                  ${pinned ? 'text-orange-400 hover:text-orange-300' : 'hidden text-neutral-500 hover:text-orange-300 group-hover:block'}`}
+              >
+                <Icon name="star" size={12} />
+              </button>
+            )}
             <button
               onClick={(e) => { e.stopPropagation(); onClose(s.id); }}
               title="Arquivar sessão (some do sidebar; o histórico não é apagado)"
@@ -184,6 +199,11 @@ function ArchivedSection({ archived, onUnhide }: { archived: Session[]; onUnhide
 
 export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, onRename, onClose, archived = [], onUnhide, onCloseMobile, usage = {}, searchResults = [], onSearch }: SessionsPanelProps) {
   const [query, setQuery] = useState('');
+  const [pins, setPins] = usePersisted<string[]>('pinned', []);
+  const pinned = useMemo(() => new Set(pins), [pins]);
+  const togglePin = useCallback((id: string) => {
+    setPins((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }, [setPins]);
   const searchRef = useRef<HTMLInputElement>(null);
 
   // ⌘/ foca a busca de sessões (⌘K virou o command palette). Esc limpa+desfoca.
@@ -211,12 +231,19 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return sessions;
-    const local = sessions.filter(s => (s.title + ' ' + s.snippet).toLowerCase().includes(q));
-    const seen = new Set(local.map(s => s.id));
-    const extra = searchResults.filter(s => !seen.has(s.id)); // hits só-por-conteúdo
-    return [...local, ...extra];
-  }, [sessions, query, searchResults]);
+    const base = q
+      ? (() => {
+          const local = sessions.filter(s => (s.title + ' ' + s.snippet).toLowerCase().includes(q));
+          const seen = new Set(local.map(s => s.id));
+          return [...local, ...searchResults.filter(s => !seen.has(s.id))]; // hits só-por-conteúdo
+        })()
+      : sessions;
+    // Fixadas sobem ao topo preservando a ordem original entre si.
+    if (pinned.size === 0) return base;
+    const top = base.filter(s => pinned.has(s.id));
+    const rest = base.filter(s => !pinned.has(s.id));
+    return [...top, ...rest];
+  }, [sessions, query, searchResults, pinned]);
 
   return (
     <div className="flex h-full flex-col bg-neutral-950">
@@ -276,6 +303,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
         ) : (
           filtered.map((s) => (
             <SessionRow key={s.id} s={s} active={s.id === activeId} highlight={query} ctx={usage[s.id]}
+              pinned={pinned.has(s.id)} onTogglePin={togglePin}
               onSelect={(id) => { onSelect(id); onCloseMobile && onCloseMobile(); }}
               onRename={onRename} onClose={onClose} />
           ))
