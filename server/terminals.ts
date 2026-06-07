@@ -14,13 +14,17 @@ const MAX_BUFFER = 200_000; // ~200KB de scrollback pra replay no attach
 // Sequências de RESPOSTA do terminal (não de tecla). O xterm.js auto-responde a
 // queries de Device Attributes (CSI c / CSI > c) e Status Report (CSI n) com
 // CSI ? ... c (DA1), CSI > ... c (DA2), CSI ... R (CPR), CSI ? ... $y (DECRPM).
+// Também responde a queries de cor OSC que o tmux/vim disparam: OSC 10 (fg),
+// 11 (bg), 12 (cursor) e 4 (paleta) — ex: ESC ] 11 ; rgb:0a0a/.. ST. Sem isso,
+// `rgb:..` e fragmentos de DA vazam pro shell ("command not found" em loop).
 // Essas respostas voltam pelo onData do xterm e, escritas no PTY como se fossem
 // digitadas, ecoam no shell e realimentam o loop infinito de "letras e números
-// estranhos" (DA1/DA2 repetindo pra sempre). Um humano NUNCA digita isso, então
-// filtrar na entrada (cliente->PTY) corta o loop no único ponto de junção, valha
-// qual cliente/replay/reset o disparou. Setas (CSI A/B/C/D) e paste (CSI 200~)
-// terminam em outra letra e não casam.
-const INPUT_REPORT_RE = /\x1b\[\?[0-9;]*c|\x1b\[>[0-9;]*c|\x1b\[[0-9;]*R|\x1b\[\?[0-9;]*\$y/g;
+// estranhos" (DA1/DA2/cor repetindo pra sempre). Um humano NUNCA digita isso,
+// então filtrar na entrada (cliente->PTY) corta o loop no único ponto de junção,
+// valha qual cliente/replay/reset o disparou. Setas (CSI A/B/C/D) e paste (CSI
+// 200~) terminam em outra letra e não casam; OSC 52 (clipboard) e OSC 0 (título)
+// ficam de fora de propósito — não são auto-respostas de query.
+const INPUT_REPORT_RE = /\x1b\[\?[0-9;]*c|\x1b\[>[0-9;]*c|\x1b\[[0-9;]*R|\x1b\[\?[0-9;]*\$y|\x1b\](?:4|10|11|12);[^\x07\x1b]*(?:\x07|\x1b\\)/g;
 export const stripReports = (s: string) => s.replace(INPUT_REPORT_RE, '');
 
 // Mantém os últimos ~max chars de scrollback pra replay, mas reinicia numa

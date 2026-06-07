@@ -51,10 +51,20 @@ describe('stripReports', () => {
     expect(stripReports('a\x1b[?2026;1$yb')).toBe('ab'); // DECRPM
   });
 
-  it('leaves arrows, paste markers and plain text untouched', () => {
+  it('strips OSC color-query replies (fg/bg/cursor/palette), ST- and BEL-terminated', () => {
+    expect(stripReports('a\x1b]10;rgb:e5e5/e5e5/e5e5\x1b\\b')).toBe('ab'); // OSC 10 fg (ST)
+    expect(stripReports('a\x1b]11;rgb:0a0a/0a0a/0a0a\x1b\\b')).toBe('ab'); // OSC 11 bg (ST)
+    expect(stripReports('a\x1b]12;rgb:ffff/ffff/ffff\x07b')).toBe('ab'); // OSC 12 cursor (BEL)
+    expect(stripReports('a\x1b]4;1;rgb:0000/0000/0000\x07b')).toBe('ab'); // OSC 4 palette (BEL)
+    expect(stripReports('\x1b]10;rgb:1/1/1\x1b\\\x1b]11;rgb:2/2/2\x1b\\')).toBe(''); // back-to-back
+  });
+
+  it('leaves arrows, paste markers, plain text and OSC clipboard/title untouched', () => {
     expect(stripReports('\x1b[A\x1b[B\x1b[C\x1b[D')).toBe('\x1b[A\x1b[B\x1b[C\x1b[D');
     expect(stripReports('\x1b[200~hi\x1b[201~')).toBe('\x1b[200~hi\x1b[201~');
     expect(stripReports('ls -la\n')).toBe('ls -la\n');
+    expect(stripReports('\x1b]52;c;aGVsbG8=\x07')).toBe('\x1b]52;c;aGVsbG8=\x07'); // OSC 52 clipboard
+    expect(stripReports('\x1b]0;my title\x07')).toBe('\x1b]0;my title\x07'); // OSC 0 window title
   });
 });
 
