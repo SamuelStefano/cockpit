@@ -246,6 +246,17 @@ export function useCockpit(): Cockpit {
         });
         return;
       }
+      case 'user': {
+        // Eco do servidor: o cliente que enviou já tem a bolha (add otimista) e
+        // deduplica por id; uma 2ª aba/dispositivo não tem e anexa — é o que torna
+        // a mensagem do usuário tempo-real entre clientes (antes só aparecia no F5).
+        lastActivity.current[msg.sessionKey] = Date.now();
+        updateThread(msg.sessionKey, (prev) =>
+          prev.some((m) => m.id === msg.id) ? prev : [...prev, { id: msg.id, role: 'user', text: msg.text, ts: msg.ts }],
+        );
+        setSessions((prev) => prev.map((s) => (s.id === msg.sessionKey ? { ...s, snippet: msg.text, relative: 'agora' } : s)));
+        return;
+      }
       case 'started': {
         lastActivity.current[msg.sessionKey] = Date.now();
         inFlight.current.add(msg.sessionKey);
@@ -517,14 +528,17 @@ export function useCockpit(): Cockpit {
       : text;
     if (atts.length) { attachmentsRef.current = []; setAttachments([]); }
     setInterrupted((p) => { if (!(key in p)) return p; const n = { ...p }; delete n[key]; return n; });
-    updateThread(key, (prev) => [...prev, { id: newId('u'), role: 'user', text, ts: Date.now() }]);
+    // Add otimista (feedback instantâneo, sem round-trip). O servidor ecoa esta
+    // mensagem com o MESMO msgId pra todos os clientes; este aqui deduplica por id.
+    const msgId = newId('u');
+    updateThread(key, (prev) => [...prev, { id: msgId, role: 'user', text, ts: Date.now() }]);
     setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: text, relative: 'agora' } : s)));
     setDrafts((d) => ({ ...d, [key]: '' }));
     // bypass só vai no fio quando o servidor anunciou a capacidade (admin + env +
     // loopback). O backend reimpõe via bypassAllowed — isto é só pra não anunciar
     // um pedido que seria recusado.
     const bypassWire = capsRef.current?.canBypass && bypassRef.current ? true : undefined;
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, mode: modeOverride ?? modeRef.current, model: modelRef.current, effort: effortRef.current, maxBudgetUsd: budgetRef.current > 0 ? budgetRef.current : undefined, bypass: bypassWire });
+    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: modelRef.current, effort: effortRef.current, maxBudgetUsd: budgetRef.current > 0 ? budgetRef.current : undefined, bypass: bypassWire });
   }, [send, updateThread]);
 
   const onUpload = useCallback((file: File) => {

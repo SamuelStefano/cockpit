@@ -88,7 +88,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg) {
       return;
     }
     case 'send': {
-      startRun(ws, msg.sessionKey, msg.text, msg.sessionId, msg.mode, msg.model, msg.effort, msg.maxBudgetUsd, msg.bypass);
+      startRun(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.effort, msg.maxBudgetUsd, msg.bypass);
       return;
     }
   }

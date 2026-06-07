@@ -167,7 +167,7 @@ export interface AdminHealth {
 }
 
 export type ClientMsg =
-  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; mode?: PermMode; model?: ModelAlias; effort?: EffortLevel; maxBudgetUsd?: number; bypass?: boolean }
+  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; msgId?: string; mode?: PermMode; model?: ModelAlias; effort?: EffortLevel; maxBudgetUsd?: number; bypass?: boolean }
   | { t: 'stop'; sessionKey: string }
   | { t: 'list' }
   | { t: 'open'; sessionId: string }
@@ -208,6 +208,11 @@ export type ServerMsg =
   | { t: 'uploaded'; name: string; path: string }
   | { t: 'history'; sessionId: string; messages: Message[]; cursor?: string; tokens?: number; full?: boolean }
   | { t: 'busy'; keys: string[] }
+  // Eco da mensagem do usuário pra TODOS os clientes (não só quem enviou): sem
+  // isto, uma 2ª aba/dispositivo vendo a mesma sessão só recebe a resposta e a
+  // bolha do usuário só aparece no F5 (lendo o JSONL). `id` casa o id otimista do
+  // remetente p/ dedup; os demais clientes anexam.
+  | { t: 'user'; sessionKey: string; id: string; text: string; ts: number }
   | { t: 'started'; sessionKey: string }
   | { t: 'replay'; sessionKey: string; text: string; thinking: string; tools: ToolCall[] }
   | { t: 'system'; sessionKey: string; sessionId: string }
