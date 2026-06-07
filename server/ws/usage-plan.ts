@@ -59,13 +59,15 @@ export async function fetchPlanUsage(): Promise<PlanUsage | null> {
 }
 
 export function startPlanUsageLoop(wss: WebSocketServer) {
-  const tick = async () => {
-    if (wss.clients.size === 0) return;
+  const tick = async (force = false) => {
+    // Prime uma vez no boot (force) pra a barra pintar no primeiro connect; depois
+    // só poll quando há cliente, pra não bater no endpoint à toa.
+    if (!force && wss.clients.size === 0) return;
     const u = await fetchPlanUsage();
     if (!u) return;
     last = u;
     broadcast({ t: 'plan-usage', usage: u });
   };
-  tick();
-  setInterval(tick, POLL_MS).unref();
+  tick(true);
+  setInterval(() => tick(), POLL_MS).unref();
 }
