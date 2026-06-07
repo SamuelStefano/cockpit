@@ -1,18 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isAdminOnly, takeToken, createRateLimiter, type Bucket } from './guard';
-
-describe('isAdminOnly', () => {
-  it('gates terminal and admin messages', () => {
-    for (const t of ['admin-health', 'term-open', 'term-input', 'term-resize', 'term-detach', 'term-close', 'term-list'] as const) {
-      expect(isAdminOnly(t)).toBe(true);
-    }
-  });
-  it('leaves normal chat messages open', () => {
-    for (const t of ['send', 'stop', 'list', 'open', 'search', 'upload', 'usage-list'] as const) {
-      expect(isAdminOnly(t)).toBe(false);
-    }
-  });
-});
+import { takeToken, createRateLimiter, type Bucket } from './guard';
 
 describe('takeToken', () => {
   it('consumes one token per call until empty', () => {

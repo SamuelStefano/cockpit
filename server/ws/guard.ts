@@ -1,24 +1,5 @@
 import type { ClientMsg } from '../../shared/protocol';
 
-// Mensagens que só o admin pode disparar. Hoje currentRole() é 'admin' constante
-// (loopback single-user), então o gate é defense-in-depth pra Fase 2 (DR-011):
-// quando role passar a sair do token, student NÃO pode abrir shell/terminal nem
-// ver o painel admin sem reescrever o roteador. term-* dá shell interativo no
-// host (mais poderoso que o bypass, que já é gated) e admin-health é recon.
-const ADMIN_ONLY: ReadonlySet<ClientMsg['t']> = new Set([
-  'admin-health',
-  'term-open',
-  'term-input',
-  'term-resize',
-  'term-detach',
-  'term-close',
-  'term-list',
-]);
-
-export function isAdminOnly(t: ClientMsg['t']): boolean {
-  return ADMIN_ONLY.has(t);
-}
-
 // Operações que tocam fs/spawn/grep — caras o bastante pra merecer um teto mais
 // apertado que o global. Um loop de `search` (grep sobre centenas de MB) ou
 // `term-open` (spawn de tmux) sem freio é o vetor de DoS quando houver 2º ator.
