@@ -29,4 +29,12 @@ describe('saveAttachment', () => {
   it('rejects an empty file before touching disk', async () => {
     expect(await saveAttachment('s', 'x.txt', '')).toEqual({ error: 'arquivo vazio' });
   });
+
+  it('rejects non-string fields before decoding (raw WS frame is untyped)', async () => {
+    const bad = { error: 'anexo inválido' };
+    expect(await saveAttachment(1 as unknown as string, 'x.txt', 'aGk=')).toEqual(bad);
+    expect(await saveAttachment('s', null as unknown as string, 'aGk=')).toEqual(bad);
+    expect(await saveAttachment('s', 'x.txt', 42 as unknown as string)).toEqual(bad);
+    expect(await saveAttachment('s', 'x.txt', { b: 1 } as unknown as string)).toEqual(bad);
+  });
 });

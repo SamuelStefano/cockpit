@@ -19,6 +19,12 @@ export async function saveAttachment(
   name: string,
   dataB64: string,
 ): Promise<{ path: string } | { error: string }> {
+  // O frame da WS é JSON.parse cru: os campos chegam sem validação de tipo. Um
+  // dataB64 não-string faria Buffer.from lançar; sessionKey/name não-string
+  // quebraria o basename. Recusa cedo em vez de cair no caminho de erro.
+  if (typeof sessionKey !== 'string' || typeof name !== 'string' || typeof dataB64 !== 'string') {
+    return { error: 'anexo inválido' };
+  }
   const buf = Buffer.from(dataB64, 'base64');
   if (buf.length === 0) return { error: 'arquivo vazio' };
   if (buf.length > CONFIG.maxUploadBytes) return { error: 'arquivo grande demais' };
