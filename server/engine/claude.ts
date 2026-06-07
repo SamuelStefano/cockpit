@@ -9,14 +9,15 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // Gate do bypassPermissions (#94, DR-011). bypass só é permitido com TODAS as
 // quatro condições — qualquer uma falsa cai no fluxo normal (safeMode). Pura e
 // testável: recebe cfg explícito em vez de ler CONFIG. Defesa em profundidade —
-// flag de servidor (opt-in do dono) + role admin + loopback. Sem identidade real
-// ainda (role vem do seam currentRole, hoje constante 'admin'); a flag de env é o
-// que torna isto seguro na Fase 1, e o loopback impede bypass exposto sem auth.
+// flag de servidor (opt-in do dono) + role admin + deploy local-confiável. O role
+// agora chega de verdade por-conexão (seam da Fase 2, ver runs.ts); a flag de env
+// é o opt-in do dono, e localOnly (DR-017 fato 2 — substitui host==='127.0.0.1')
+// impede bypass num agente exposto sem auth real.
 export function bypassAllowed(
   gate: { bypass?: boolean; role?: Role } | undefined,
-  cfg: { allowBypass: boolean; host: string },
+  cfg: { allowBypass: boolean; localOnly: boolean },
 ): boolean {
-  return !!gate?.bypass && gate.role === 'admin' && cfg.allowBypass === true && cfg.host === '127.0.0.1';
+  return !!gate?.bypass && gate.role === 'admin' && cfg.allowBypass === true && cfg.localOnly === true;
 }
 
 export interface RunOpts {

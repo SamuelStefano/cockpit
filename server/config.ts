@@ -92,6 +92,17 @@ export const CONFIG = {
   // engine). É opt-in do dono no servidor; sem isto o toggle da UI é inerte.
   allowBypass: process.env.COCKPIT_ALLOW_BYPASS === '1',
 
+  // Deploy é local-confiável (DR-017 fato 2): substitui o literal host==='127.0.0.1'
+  // que estava cravado no gate de bypass/caps. O acoplamento ao loopback estava
+  // errado pro mundo federado (T3): no agente da VPS de um fellow o host não é
+  // loopback, então bypass E o cap caíam pra false — o DONO da própria box nunca
+  // veria o toggle. Aqui a intenção ("este deploy é a box de quem manda") fica
+  // explícita e separada do bind. Default = loopback (idêntico ao de hoje);
+  // COCKPIT_LOCAL_ONLY=0/1 sobrescreve quando o agente roda fora do loopback.
+  localOnly: process.env.COCKPIT_LOCAL_ONLY !== undefined
+    ? process.env.COCKPIT_LOCAL_ONLY === '1'
+    : true, // host é sempre 127.0.0.1 hoje
+
   // Tools pré-aprovadas no modo Executar (acceptEdits). Allow-list nomeada,
   // não bypass. Override por env COCKPIT_ALLOWED_TOOLS (separado por vírgula).
   allowedTools: (process.env.COCKPIT_ALLOWED_TOOLS ?? 'Bash,Read,Edit,Write,Glob,Grep')

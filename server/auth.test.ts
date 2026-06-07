@@ -22,10 +22,10 @@ describe('currentRole', () => {
 });
 
 describe('capsFor', () => {
-  it('canBypass only for admin with flag on loopback', () => {
-    expect(capsFor('admin', { allowBypass: true, host: '127.0.0.1' })).toEqual({ role: 'admin', canBypass: true });
-    expect(capsFor('admin', { allowBypass: false, host: '127.0.0.1' }).canBypass).toBe(false);
-    expect(capsFor('admin', { allowBypass: true, host: '0.0.0.0' }).canBypass).toBe(false);
-    expect(capsFor('student', { allowBypass: true, host: '127.0.0.1' }).canBypass).toBe(false);
+  it('canBypass only for admin with flag on a local-only deploy', () => {
+    expect(capsFor('admin', { allowBypass: true, localOnly: true })).toEqual({ role: 'admin', canBypass: true });
+    expect(capsFor('admin', { allowBypass: false, localOnly: true }).canBypass).toBe(false);
+    expect(capsFor('admin', { allowBypass: true, localOnly: false }).canBypass).toBe(false);
+    expect(capsFor('student', { allowBypass: true, localOnly: true }).canBypass).toBe(false);
   });
 });
