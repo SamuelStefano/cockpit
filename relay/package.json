@@ -1,0 +1,12 @@
+{
+  "name": "@deck/relay",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Deck T3 relay — stateless authenticated WS router (browser↔agent). Holds no signing key and cannot spawn (DR-023).",
+  "main": "src/index.ts",
+  "dependencies": {
+    "jose": "^6.2.3",
+    "ws": "^8.21.0"
+  }
+}
