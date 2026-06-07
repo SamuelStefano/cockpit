@@ -11,7 +11,7 @@ import { hideSession, unhideSession, purgeSession, setTitle, setNote } from '../
 import { parseSession, parseFullSession } from '../sessions/parse';
 import { collectHealth } from '../health';
 import { send, broadcast } from './broadcast';
-import { threads, startRun, routeSend, clearPending } from './runs';
+import { threads, startRun, routeSend, onStop } from './runs';
 
 export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
   switch (msg.t) {
@@ -100,9 +100,10 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'stop': {
-      // Limpa a fila ANTES do kill: o onClose do turno morto chama drainPending,
-      // que sem isto subiria a mensagem enfileirada logo após o stop.
-      clearPending(msg.sessionKey);
+      // Marca o stop ANTES do kill: limpa a fila (senão o onClose→drainPending
+      // sobe a mensagem enfileirada) e bumpa a época (descarta mensagem em
+      // triagem no momento do stop).
+      onStop(msg.sessionKey);
       threads.get(msg.sessionKey)?.handle.kill();
       return;
     }

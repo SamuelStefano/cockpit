@@ -7,7 +7,7 @@ const runs = vi.hoisted(() => ({
   threads: new Map<string, { handle: { kill: ReturnType<typeof vi.fn> } }>(),
   startRun: vi.fn(),
   routeSend: vi.fn(() => Promise.resolve()),
-  clearPending: vi.fn(),
+  onStop: vi.fn(),
 }));
 const bc = vi.hoisted(() => ({ send: vi.fn(), broadcast: vi.fn() }));
 const parse = vi.hoisted(() => ({ parseSession: vi.fn(), parseFullSession: vi.fn() }));
@@ -69,15 +69,15 @@ describe('stop', () => {
     await expect(handle(ws, { t: 'stop', sessionKey: 'ghost' } as ClientMsg)).resolves.toBeUndefined();
   });
 
-  it('clears the pending queue so a queued message is not auto-launched after stop', async () => {
+  it('marks the stop (clears queue + bumps epoch) so no queued/in-triage message launches after stop', async () => {
     runs.threads.set('k1', { handle: { kill: vi.fn() } });
     await handle(ws, { t: 'stop', sessionKey: 'k1' } as ClientMsg);
-    expect(runs.clearPending).toHaveBeenCalledWith('k1');
+    expect(runs.onStop).toHaveBeenCalledWith('k1');
   });
 
-  it('clears the pending queue even when no thread is live', async () => {
+  it('marks the stop even when no thread is live', async () => {
     await handle(ws, { t: 'stop', sessionKey: 'ghost' } as ClientMsg);
-    expect(runs.clearPending).toHaveBeenCalledWith('ghost');
+    expect(runs.onStop).toHaveBeenCalledWith('ghost');
   });
 });
 
