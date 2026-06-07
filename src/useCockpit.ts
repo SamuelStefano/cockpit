@@ -4,6 +4,7 @@ import type { ClientMsg, ServerMsg, SysStats, PermMode, ModelInfo, ContextMeta, 
 import { loadPref, savePref } from './lib/persist';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
 import { wsUrlWithToken, newId, metaToSession, dedupById, mergeSeen } from './cockpit/session';
+import { computeStalled, computeUpdated } from './cockpit/signals';
 import { upsertTool, appendDelta, appendThinking } from './cockpit/blocks';
 import { selectEvictions } from './cockpit/evict';
 import { resolveKey, moveKey } from './cockpit/migrate';
@@ -838,9 +839,8 @@ export function useCockpit(): Cockpit {
   // Sessão viva mas sem nenhum frame há >2min = "quieta" (tool longo, rate-limit
   // ou travada). Não é alarme — só um sinal de relance pra olhar a madrugada.
   const stalled = useMemo(() => {
-    const now = Date.now();
     void clockTick;
-    return new Set([...running].filter((k) => now - (lastActivity.current[k] ?? now) > 120_000));
+    return computeStalled(running, lastActivity.current, Date.now());
   }, [running, clockTick]);
   // A sessão aberta está sempre "vista": ao abri-la (ou quando seu mtime avança
   // com ela em foco) grava o mtime atual, limpando o badge de atualizada.
@@ -857,7 +857,7 @@ export function useCockpit(): Cockpit {
   }, [activeId, sessions]);
   // Sessão não-ativa cujo mtime avançou além do visto = produziu output novo.
   const updated = useMemo(
-    () => new Set(sessions.filter((s) => s.id !== activeId && !running.has(s.id) && seen[s.id] !== undefined && s.mtime > seen[s.id]).map((s) => s.id)),
+    () => computeUpdated(sessions, seen, activeId, running),
     [sessions, seen, activeId, running]
   );
   const draft = drafts[activeId] || '';
