@@ -3,8 +3,7 @@ import type { Session } from '../../data/mock';
 import { Highlight } from './Highlight';
 import { SessionRowTags } from './SessionRowTags';
 import { useSessionRow } from './useSessionRow';
-
-const CTX_WINDOW = 200_000;
+import { ctxPercent, ctxTone, isIdle } from './row-meta';
 
 export interface SessionRowProps {
   s: Session;
@@ -128,17 +127,25 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
         )}
       </div>
       {!editing && (
-        <p className="line-clamp-2 text-[11.5px] leading-snug text-neutral-500"><Highlight text={s.snippet} term={highlight} /></p>
+        <p className="line-clamp-2 text-[11.5px] leading-snug text-neutral-500"><Highlight text={s.summary || s.snippet} term={highlight} /></p>
       )}
-      {!editing && ctx !== undefined && ctx > 0 && (() => {
-        const pct = Math.min(100, (ctx / CTX_WINDOW) * 100);
-        const tone = pct >= 85 ? 'bg-red-500' : pct >= 60 ? 'bg-amber-500' : 'bg-sky-500/70';
+      {!editing && (() => {
+        const pct = ctxPercent(ctx);
+        if (pct === null) return null;
         return (
-          <div className="mt-1.5 h-[3px] overflow-hidden rounded-full bg-neutral-800" title={`${Math.round(ctx / 1000)}k / 200k tokens de contexto (${Math.round(pct)}%)`}>
-            <div className={`h-full rounded-full ${tone}`} style={{ width: `${pct}%` }} />
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <div className="h-[3px] flex-1 overflow-hidden rounded-full bg-neutral-800" title={`${Math.round((ctx ?? 0) / 1000)}k / 200k tokens de contexto`}>
+              <div className={`h-full rounded-full ${ctxTone(pct)}`} style={{ width: `${pct}%` }} />
+            </div>
+            <span className="shrink-0 text-[9px] tabular-nums text-neutral-500" title="% da janela de contexto (200k) em uso">{pct}%</span>
           </div>
         );
       })()}
+      {!editing && isIdle(s.mtime, !!running) && (
+        <div className="mt-1.5">
+          <Badge tone="neutral">ociosa</Badge>
+        </div>
+      )}
       {s.hasTerminal && !editing && (
         <div className="mt-1.5">
           <Badge tone="green" dot>terminal ativo</Badge>
