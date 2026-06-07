@@ -1,27 +1,36 @@
 import { describe, it, expect } from 'vitest';
-import { generateIdentityKeys, signChallenge, backoffMs } from './agent';
+import { generateIdentityKeys, signChallenge, challengeMessage, backoffMs } from './agent';
 import { verifyAgentSignature, makeChallenge } from '../relay/src/verify';
 
+const AID = 'agent-123';
+
 describe('agent ↔ relay signature contract', () => {
-  it('a challenge signed by the agent verifies on the relay', () => {
+  it('a challenge signed by the agent verifies on the relay (domain-separated)', () => {
     const { privateKeyPem, publicKey } = generateIdentityKeys();
     const challenge = makeChallenge();
-    const sig = signChallenge(privateKeyPem, challenge);
-    expect(verifyAgentSignature(publicKey, challenge, sig)).toBe(true);
+    const sig = signChallenge(privateKeyPem, challenge, AID);
+    expect(verifyAgentSignature(publicKey, challengeMessage(challenge, AID), sig)).toBe(true);
   });
 
   it('a signature does not verify against a different challenge', () => {
     const { privateKeyPem, publicKey } = generateIdentityKeys();
-    const sig = signChallenge(privateKeyPem, makeChallenge());
-    expect(verifyAgentSignature(publicKey, makeChallenge(), sig)).toBe(false);
+    const sig = signChallenge(privateKeyPem, makeChallenge(), AID);
+    expect(verifyAgentSignature(publicKey, challengeMessage(makeChallenge(), AID), sig)).toBe(false);
+  });
+
+  it('a signature for one agentId does not verify for another (domain separation)', () => {
+    const { privateKeyPem, publicKey } = generateIdentityKeys();
+    const challenge = makeChallenge();
+    const sig = signChallenge(privateKeyPem, challenge, AID);
+    expect(verifyAgentSignature(publicKey, challengeMessage(challenge, 'other-agent'), sig)).toBe(false);
   });
 
   it('one agent key cannot impersonate another', () => {
     const a = generateIdentityKeys();
     const b = generateIdentityKeys();
     const challenge = makeChallenge();
-    const sigA = signChallenge(a.privateKeyPem, challenge);
-    expect(verifyAgentSignature(b.publicKey, challenge, sigA)).toBe(false);
+    const sigA = signChallenge(a.privateKeyPem, challenge, AID);
+    expect(verifyAgentSignature(b.publicKey, challengeMessage(challenge, AID), sigA)).toBe(false);
   });
 });
 

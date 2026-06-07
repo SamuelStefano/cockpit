@@ -44,9 +44,15 @@ export function saveIdentity(id: Identity): void {
   try { chmodSync(ID_FILE, 0o600); } catch { /* best-effort em FS sem perms */ }
 }
 
-// Assina o challenge do relay com a privada. Base64, igual ao que verifyAgentSignature lê.
-export function signChallenge(privateKeyPem: string, challenge: string): string {
-  return edSign(null, Buffer.from(challenge), createPrivateKey(privateKeyPem)).toString('base64');
+// Mensagem assinada no handshake = challenge + agentId (domain separation: a
+// assinatura vale só pra este agente, não é reusável noutro contexto/endpoint).
+export function challengeMessage(challenge: string, agentId: string): string {
+  return `${challenge}.${agentId}`;
+}
+
+// Assina o challenge (domain-separado) com a privada. Base64, igual ao verify do relay.
+export function signChallenge(privateKeyPem: string, challenge: string, agentId: string): string {
+  return edSign(null, Buffer.from(challengeMessage(challenge, agentId)), createPrivateKey(privateKeyPem)).toString('base64');
 }
 
 // Backoff exponencial com teto (reconnect do dial; o listen nunca precisou).
@@ -54,7 +60,11 @@ export function backoffMs(attempt: number): number {
   return Math.min(30_000, 1_000 * 2 ** Math.min(attempt, 5));
 }
 
-function connect(relayUrl: string, id: Identity, onClose: () => void): WebSocket {
+// Socket cujo broadcast está ativo. Compare-and-clear: o 'close' do socket antigo
+// NÃO pode zerar a fonte de um socket novo que já reconectou (race de reconnect).
+let activeWs: WebSocket | null = null;
+
+function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: () => void): WebSocket {
   const ws = new WebSocket(`${relayUrl.replace(/\/$/, '')}/agent`);
   let ready = false;
 
@@ -62,18 +72,20 @@ function connect(relayUrl: string, id: Identity, onClose: () => void): WebSocket
     let m: { t?: string; nonce?: string } = {};
     try { m = JSON.parse(raw.toString()); } catch { return; }
     if (m.t === 'challenge' && typeof m.nonce === 'string') {
-      ws.send(JSON.stringify({ t: 'agent-auth', sig: signChallenge(id.privateKeyPem, m.nonce) }));
+      ws.send(JSON.stringify({ t: 'agent-auth', sig: signChallenge(id.privateKeyPem, m.nonce, id.agentId) }));
     } else if (m.t === 'agent-ready') {
+      if (ready) return;                            // idempotente: ignora 2º agent-ready
       ready = true;
-      ws.removeListener('message', onHandshake);   // serveConnection assume o loop
+      ws.removeListener('message', onHandshake);    // serveConnection assume o loop
+      activeWs = ws;
       setClientSource({ clients: new Set([ws]) });  // broadcast sai por ESTE socket
-      serveConnection(ws, { role: AGENT_ROLE });
+      serveConnection(ws, { role: AGENT_ROLE, sendCaps: false }); // relay é a fonte do caps
     }
   };
 
-  ws.on('open', () => ws.send(JSON.stringify({ t: 'agent-hello', agentId: id.agentId })));
+  ws.on('open', () => { onOpen(); ws.send(JSON.stringify({ t: 'agent-hello', agentId: id.agentId })); });
   ws.on('message', onHandshake);
-  ws.on('close', () => { if (ready) setClientSource(null); onClose(); });
+  ws.on('close', () => { if (activeWs === ws) { setClientSource(null); activeWs = null; } onClose(); });
   ws.on('error', () => { /* o 'close' cuida do reconnect */ });
 
   const beat = setInterval(() => { try { ws.ping(); } catch { /* indo embora */ } }, 30_000);
@@ -117,12 +129,15 @@ export function runAgent(relayUrl: string): void {
   }
   let attempt = 0;
   const loop = () => {
-    connect(relayUrl, id, () => {
-      const wait = backoffMs(attempt++);
-      console.error(`[agent] desconectado; reconectando em ${Math.round(wait / 1000)}s`);
-      setTimeout(loop, wait);
-    });
-    attempt = 0; // zera ao conseguir abrir (reset no próximo open via heurística simples)
+    connect(
+      relayUrl, id,
+      () => { attempt = 0; },                       // reset SÓ quando abre de fato (backoff cresce)
+      () => {
+        const wait = backoffMs(attempt++);
+        console.error(`[agent] desconectado; reconectando em ${Math.round(wait / 1000)}s`);
+        setTimeout(loop, wait);
+      },
+    );
   };
   loop();
   process.on('SIGTERM', () => { killAllRuns(); process.exit(0); });

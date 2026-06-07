@@ -34,7 +34,7 @@ export function supabaseStore(cfg: StoreConfig): RelayStore {
     async agentById(agentId) {
       const enc = encodeURIComponent(agentId);
       const row = await getOne<{ account_id: string; public_key: string }>(
-        `/agent?id=eq.${enc}&revoked_at=is.null&select=account_id,public_key`,
+        `/agent?id=eq.${enc}&kind=eq.vps&revoked_at=is.null&select=account_id,public_key`,
       );
       return row ? { accountId: row.account_id, publicKey: row.public_key } : null;
     },
