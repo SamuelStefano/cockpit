@@ -34,6 +34,12 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       if (typeof sm === 'string' && sm) thread.model = sm;
       const sc = (ev as any).slash_commands;
       if (Array.isArray(sc) && sc.length) applySlashCommands(sc as string[]);
+      // O CLI auto-compacta perto do limite e marca com este boundary (DR-012). Não
+      // disparamos compactação — só observamos pra a UI resetar o medidor de contexto.
+      if ((ev as any).subtype === 'compact_boundary') {
+        const meta = (ev as any).compact_metadata ?? {};
+        broadcast({ t: 'compact', sessionKey, trigger: meta.trigger, preTokens: meta.pre_tokens });
+      }
       if (thread.sessionId) broadcast({ t: 'system', sessionKey, sessionId: thread.sessionId });
       return;
     }
