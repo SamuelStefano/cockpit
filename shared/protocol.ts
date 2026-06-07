@@ -69,6 +69,7 @@ export interface AssistantMessage {
   ts?: number; // epoch ms; ausente em sessões antigas sem timestamp no JSONL
   error?: boolean; // bubble de erro do turno (habilita "tentar novamente" na UI)
   quick?: boolean; // resposta-rápida de subagente (triagem 'answer'); fora do turno principal
+  model?: string; // modelo EFETIVO daquele turno; rotula a bolha (evita anacronismo ao trocar modelo mid-thread)
 }
 
 export type Message = UserMessage | AssistantMessage;
