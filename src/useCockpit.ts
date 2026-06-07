@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Session, Message, Block } from './data/mock';
-import type { ClientMsg, ServerMsg, SysStats, PermMode, ModelAlias, EffortLevel, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth, Caps } from '../shared/protocol';
+import type { ClientMsg, ServerMsg, SysStats, PermMode, ModelAlias, EffortLevel, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth, Caps, PlanUsage } from '../shared/protocol';
 import { loadPref, savePref } from './lib/persist';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
 import { WS_URL, newId, metaToSession, dedupById, mergeSeen } from './cockpit/session';
@@ -29,6 +29,7 @@ export interface Cockpit {
   setDraft: (v: string) => void;
   conn: { ws: ConnState; sse: ConnState };
   rate: { resetsAt: number; status: string } | null;
+  planUsage: PlanUsage | null;
   stats: SysStats | null;
   mode: PermMode;
   setMode: (m: PermMode) => void;
@@ -91,6 +92,7 @@ export function useCockpit(): Cockpit {
   const [clockTick, setClockTick] = useState(0); // re-render periódico p/ recomputar quietas sem novo evento
   const [conn, setConn] = useState<{ ws: ConnState; sse: ConnState }>({ ws: 'reconnecting', sse: 'reconnecting' });
   const [rate, setRate] = useState<{ resetsAt: number; status: string } | null>(null);
+  const [planUsage, setPlanUsage] = useState<PlanUsage | null>(null);
   const [stats, setStats] = useState<SysStats | null>(null);
   const [archived, setArchived] = useState<Session[]>([]);
   const [usage, setUsage] = useState<Record<string, number>>({}); // sessionKey -> tokens de contexto
@@ -340,6 +342,10 @@ export function useCockpit(): Cockpit {
       }
       case 'rate': {
         setRate({ resetsAt: msg.resetsAt, status: msg.status });
+        return;
+      }
+      case 'plan-usage': {
+        setPlanUsage(msg.usage);
         return;
       }
       case 'usage': {
@@ -775,5 +781,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, draft, setDraft, conn, rate, planUsage, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull };
 }

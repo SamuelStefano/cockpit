@@ -125,6 +125,15 @@ export interface UsageStats {
   series: DailyUsage[];   // buckets diários (últimos N dias) pra trend
 }
 
+// Uso do PLANO (claude.ai/settings/usage) — quota global da conta, NÃO contexto
+// de chat. utilization = % já consumida da janela. O backend lê isto do endpoint
+// OAuth; só os números chegam ao cliente — o token nunca sai do servidor.
+export interface PlanUsage {
+  fiveHour: number;         // 0..100 — % consumida da janela de 5h (a que o usuário vê)
+  sevenDay: number;         // 0..100 — % consumida da janela de 7 dias
+  resetsAt: number | null;  // epoch ms do reset da janela de 5h
+}
+
 // --- WebSocket protocol ----------------------------------------------------
 
 // Modo de permissão exposto na UI. 'plan' = só planeja (nada executa);
@@ -235,6 +244,7 @@ export type ServerMsg =
   | { t: 'thinking'; sessionKey: string; text: string }
   | { t: 'tool'; sessionKey: string; tool: ToolCall }
   | { t: 'rate'; resetsAt: number; status: string }
+  | { t: 'plan-usage'; usage: PlanUsage }
   | { t: 'usage'; sessionKey: string; tokens: number }
   | { t: 'compact'; sessionKey: string; trigger?: string; preTokens?: number }
   | { t: 'usage-stats'; stats: UsageStats }
