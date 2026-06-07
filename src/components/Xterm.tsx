@@ -42,7 +42,7 @@ export function XtermView({ id, term }: { id: string; term: TermApi }) {
       if (disposed || !el.isConnected || !el.offsetParent || el.clientWidth < 2 || el.clientHeight < 2) return;
       try { fit.fit(); term.resize(id, xt.cols, xt.rows); } catch { /* noop */ }
     };
-    requestAnimationFrame(safeFit);
+    const firstFit = requestAnimationFrame(safeFit);
 
     term.attach(
       id, xt.cols, xt.rows,
@@ -62,6 +62,7 @@ export function XtermView({ id, term }: { id: string; term: TermApi }) {
 
     return () => {
       disposed = true;
+      cancelAnimationFrame(firstFit);
       cancelAnimationFrame(raf);
       ro.disconnect();
       dataSub.dispose();
