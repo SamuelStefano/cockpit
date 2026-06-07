@@ -1,6 +1,8 @@
 import { Icon } from '../primitives';
+import type { IconName } from '../primitives/Icon';
 import { ClaudeAvatar, UserAvatar } from '../Avatar';
 import type { Message } from '../../data/mock';
+import type { TriageAction } from '../../../shared/protocol';
 import { messageToText } from '../../lib/export';
 import { AssistantBlocks } from './AssistantBlocks';
 import type { ToolSignal } from './ToolCallCard';
@@ -37,8 +39,11 @@ export function MessageRow({ msg, caretOnLast, onEditUser, onQuote, toolSignal }
             </button>
           )}
         </div>
-        <div className="max-w-[82%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md border border-neutral-700/60 bg-neutral-800 px-3.5 py-2.5 text-[14px] leading-relaxed text-neutral-100 shadow-sm shadow-black/20">
-          {msg.text}
+        <div className="flex max-w-[82%] flex-col items-end gap-1">
+          <div className="w-full whitespace-pre-wrap break-words rounded-2xl rounded-br-md border border-neutral-700/60 bg-neutral-800 px-3.5 py-2.5 text-[14px] leading-relaxed text-neutral-100 shadow-sm shadow-black/20">
+            {msg.text}
+          </div>
+          {msg.triage && <TriageBadge action={msg.triage.action} reason={msg.triage.reason} />}
         </div>
         <div className="mt-0.5">
           <UserAvatar size={28} />
@@ -53,6 +58,11 @@ export function MessageRow({ msg, caretOnLast, onEditUser, onQuote, toolSignal }
         <ClaudeAvatar size={28} />
       </div>
       <div className="min-w-0 flex-1 pt-0.5">
+        {msg.quick && (
+          <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-300">
+            <Icon name="zap" size={10} /> resposta rápida (paralela)
+          </div>
+        )}
         <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} toolSignal={toolSignal} />
         {hasText && !caretOnLast && (
           <div className="mt-1 flex items-center gap-2 opacity-100 transition group-hover/msg:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100">
@@ -63,6 +73,23 @@ export function MessageRow({ msg, caretOnLast, onEditUser, onQuote, toolSignal }
         )}
       </div>
     </div>
+  );
+}
+
+// Selo da triagem sob a bolha do usuário (prompt enviado com o turno ocupado).
+const TRIAGE_META: Record<TriageAction, { icon: IconName; label: string; cls: string }> = {
+  wait: { icon: 'clock', label: 'na fila', cls: 'bg-amber-500/15 text-amber-300' },
+  answer: { icon: 'zap', label: 'resposta rápida', cls: 'bg-sky-500/15 text-sky-300' },
+  priority: { icon: 'arrowUp', label: 'priorizado', cls: 'bg-rose-500/15 text-rose-300' },
+  merge: { icon: 'sparkles', label: 'juntado ao anterior', cls: 'bg-violet-500/15 text-violet-300' },
+};
+
+function TriageBadge({ action, reason }: { action: TriageAction; reason: string }) {
+  const m = TRIAGE_META[action];
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${m.cls}`} title={reason}>
+      <Icon name={m.icon} size={10} /> {m.label}
+    </span>
   );
 }
 

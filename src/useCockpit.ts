@@ -257,6 +257,28 @@ export function useCockpit(): Cockpit {
         setSessions((prev) => prev.map((s) => (s.id === msg.sessionKey ? { ...s, snippet: msg.text, relative: 'agora' } : s)));
         return;
       }
+      case 'triage': {
+        // Veredito da triagem (prompt enviado com o turno ocupado). Anexa o selo na
+        // bolha do usuário correspondente. Em 'priority' o turno atual será morto e
+        // substituído: solta o runMsg p/ o próximo 'started' criar um bubble novo
+        // (senão o turno novo fundiria no bubble interrompido).
+        if (msg.msgId) {
+          updateThread(msg.sessionKey, (prev) =>
+            prev.map((m) => (m.id === msg.msgId && m.role === 'user' ? { ...m, triage: { action: msg.action, reason: msg.reason } } : m)),
+          );
+        }
+        if (msg.action === 'priority') delete runMsg.current[msg.sessionKey];
+        return;
+      }
+      case 'quick-answer': {
+        // Subagente respondeu à parte (triagem 'answer'); bolha independente, não
+        // toca o turno principal em andamento.
+        lastActivity.current[msg.sessionKey] = Date.now();
+        updateThread(msg.sessionKey, (prev) =>
+          prev.some((m) => m.id === msg.id) ? prev : [...prev, { id: msg.id, role: 'assistant', blocks: [{ type: 'text', md: msg.text }], ts: msg.ts, quick: true }],
+        );
+        return;
+      }
       case 'started': {
         lastActivity.current[msg.sessionKey] = Date.now();
         inFlight.current.add(msg.sessionKey);
@@ -518,8 +540,11 @@ export function useCockpit(): Cockpit {
   const onSend = useCallback((text: string, modeOverride?: PermMode) => {
     const key = activeRef.current;
     if (!key) return;
-    if (inFlight.current.has(key)) return; // turno em voo: ignora envio duplo (senão o 2º turno funde no bubble do 1º)
-    inFlight.current.add(key);
+    // Turno em voo: NÃO bloqueia mais. O servidor tria o prompt (esperar/responder/
+    // prioridade/juntar) — ver routeSend. A bolha do usuário entra otimista e o
+    // 'started' do próximo turno (ou da prioridade) cria o bubble do assistente.
+    const busy = inFlight.current.has(key);
+    if (!busy) inFlight.current.add(key);
     requestNotifyPermission(); // 1ª vez: pede permissão (gesto do usuário)
     const atts = attachmentsRef.current;
     // Anexos viram refs de path no início do prompt; o agente abre via Read.

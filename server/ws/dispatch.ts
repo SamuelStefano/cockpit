@@ -10,7 +10,7 @@ import { hideSession, unhideSession } from '../store';
 import { parseSession, parseFullSession } from '../sessions/parse';
 import { collectHealth } from '../health';
 import { send } from './broadcast';
-import { threads, startRun } from './runs';
+import { threads, startRun, routeSend } from './runs';
 
 export async function handle(ws: WebSocket, msg: ClientMsg) {
   switch (msg.t) {
@@ -88,7 +88,13 @@ export async function handle(ws: WebSocket, msg: ClientMsg) {
       return;
     }
     case 'send': {
-      startRun(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.effort, msg.maxBudgetUsd, msg.bypass);
+      // Sessão ocupada → triador decide o destino (esperar/responder/prioridade/
+      // juntar). Livre → roda direto como antes.
+      if (threads.has(msg.sessionKey)) {
+        void routeSend(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.effort, msg.maxBudgetUsd, msg.bypass);
+      } else {
+        startRun(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.effort, msg.maxBudgetUsd, msg.bypass);
+      }
       return;
     }
   }
