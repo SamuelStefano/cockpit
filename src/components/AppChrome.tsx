@@ -6,7 +6,6 @@ import type { Route } from '../useRoute';
 
 interface HeaderProps {
   conn: { ws: ConnState; sse: ConnState };
-  onNew: () => void;
   isMobile: boolean;
   onMenu: () => void;
   route: Route;
@@ -22,7 +21,7 @@ const NAV: { to: Route; label: string }[] = [
   { to: '/admin', label: 'admin' },
 ];
 
-export function Header({ conn, onNew, isMobile, onMenu, route, nav, onPalette }: HeaderProps) {
+export function Header({ conn, isMobile, onMenu, route, nav, onPalette }: HeaderProps) {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex items-center gap-2.5">
@@ -63,14 +62,6 @@ export function Header({ conn, onNew, isMobile, onMenu, route, nav, onPalette }:
         <div className="flex items-center rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1">
           <ConnDot label="ws" state={conn.ws} compact={isMobile} />
         </div>
-        {!isMobile && (
-          <button
-            onClick={onNew}
-            className="flex items-center gap-1.5 rounded-lg bg-orange-500 px-2.5 py-1.5 text-[12.5px] font-semibold text-neutral-950 transition hover:bg-orange-400"
-          >
-            <Icon name="plus" size={15} stroke={2.4} /> Nova sessão
-          </button>
-        )}
         <ProfileMenu />
       </div>
     </header>
