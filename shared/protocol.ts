@@ -48,11 +48,18 @@ export interface ThinkingBlock {
 
 export type Block = TextBlock | CodeBlock | ToolBlock | ThinkingBlock;
 
+// Veredito do triador (squad de triagem): roteia um prompt enviado com o turno
+// atual ocupado. wait=enfileira; answer=subagente responde em bolha à parte;
+// priority=interrompe o turno atual; merge=roda em seguida como complemento.
+export type TriageAction = 'wait' | 'answer' | 'priority' | 'merge';
+export interface TriageVerdict { action: TriageAction; reason: string }
+
 export interface UserMessage {
   id: string;
   role: 'user';
   text: string;
   ts?: number; // epoch ms; ausente em sessões antigas sem timestamp no JSONL
+  triage?: TriageVerdict; // anexado quando a msg foi triada (enviada com turno ocupado)
 }
 
 export interface AssistantMessage {
@@ -61,6 +68,7 @@ export interface AssistantMessage {
   blocks: Block[];
   ts?: number; // epoch ms; ausente em sessões antigas sem timestamp no JSONL
   error?: boolean; // bubble de erro do turno (habilita "tentar novamente" na UI)
+  quick?: boolean; // resposta-rápida de subagente (triagem 'answer'); fora do turno principal
 }
 
 export type Message = UserMessage | AssistantMessage;
@@ -213,6 +221,10 @@ export type ServerMsg =
   // bolha do usuário só aparece no F5 (lendo o JSONL). `id` casa o id otimista do
   // remetente p/ dedup; os demais clientes anexam.
   | { t: 'user'; sessionKey: string; id: string; text: string; ts: number }
+  // Veredito da triagem de um prompt enviado com o turno ocupado. msgId casa a
+  // bolha do usuário p/ anexar o selo; quick-answer chega à parte quando answer.
+  | { t: 'triage'; sessionKey: string; msgId?: string; action: TriageAction; reason: string }
+  | { t: 'quick-answer'; sessionKey: string; id: string; text: string; ts: number }
   | { t: 'started'; sessionKey: string }
   | { t: 'replay'; sessionKey: string; text: string; thinking: string; tools: ToolCall[] }
   | { t: 'system'; sessionKey: string; sessionId: string }
