@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { SessionMeta } from '../../shared/protocol';
 import { CONFIG } from '../config';
 import { hiddenSet } from '../store';
+import { allSummaries, getSummary } from '../db';
 
 const UUID_FILE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$/;
 
@@ -38,6 +39,9 @@ async function collectMetas(keep: (id: string, hidden: Set<string>) => boolean):
   for (const id of cache.keys()) if (!live.has(id)) cache.delete(id);
 
   const hidden = await hiddenSet();
+  // Resumos vivem fora do JSONL (SQLite) e mudam sem o mtime do arquivo mover, então
+  // aplica o resumo atual em CIMA do meta (cacheado ou fresco) a cada listagem.
+  const summaries = allSummaries();
   const metas: SessionMeta[] = [];
   for (const f of files) {
     if (!UUID_FILE.test(f)) continue;
@@ -49,12 +53,16 @@ async function collectMetas(keep: (id: string, hidden: Set<string>) => boolean):
     const mtime = st.mtimeMs;
 
     const hit = cache.get(id);
-    if (hit && hit.mtime === mtime) { metas.push(hit.meta); continue; }
-
-    const prev = hit && st.size > hit.size ? hit.scan : undefined;
-    const scan = await scanMeta(full, prev);
-    const meta = metaFromHead(id, mtime, scan);
-    cache.set(id, { mtime, size: st.size, scan, meta });
+    let meta: SessionMeta;
+    if (hit && hit.mtime === mtime) {
+      meta = hit.meta;
+    } else {
+      const prev = hit && st.size > hit.size ? hit.scan : undefined;
+      const scan = await scanMeta(full, prev);
+      meta = metaFromHead(id, mtime, scan);
+      cache.set(id, { mtime, size: st.size, scan, meta });
+    }
+    meta.summary = summaries.get(id);
     metas.push(meta);
   }
 
@@ -70,11 +78,16 @@ export async function metaForId(id: string): Promise<SessionMeta | null> {
   try { st = await stat(full); } catch { return null; }
   const mtime = st.mtimeMs;
   const hit = cache.get(id);
-  if (hit && hit.mtime === mtime) return hit.meta;
-  const prev = hit && st.size > hit.size ? hit.scan : undefined;
-  const scan = await scanMeta(full, prev);
-  const meta = metaFromHead(id, mtime, scan);
-  cache.set(id, { mtime, size: st.size, scan, meta });
+  let meta: SessionMeta;
+  if (hit && hit.mtime === mtime) {
+    meta = hit.meta;
+  } else {
+    const prev = hit && st.size > hit.size ? hit.scan : undefined;
+    const scan = await scanMeta(full, prev);
+    meta = metaFromHead(id, mtime, scan);
+    cache.set(id, { mtime, size: st.size, scan, meta });
+  }
+  meta.summary = getSummary(id) ?? undefined;
   return meta;
 }
 

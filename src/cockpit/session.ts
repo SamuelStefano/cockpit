@@ -14,7 +14,7 @@ let _mid = 0;
 export const newId = (p: string) => `${p}${Date.now().toString(36)}${(_mid++).toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 
 export function metaToSession(m: SessionMeta, active: boolean): Session {
-  return { id: m.id, title: m.title, relative: m.relative, snippet: m.snippet, mtime: m.mtime, hasTerminal: false, active };
+  return { id: m.id, title: m.title, relative: m.relative, snippet: m.snippet, summary: m.summary, mtime: m.mtime, hasTerminal: false, active };
 }
 
 // Mantém a 1ª ocorrência de cada id, descartando duplicatas. Usado ao migrar a

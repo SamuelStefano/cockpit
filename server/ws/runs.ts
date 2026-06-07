@@ -5,6 +5,7 @@ import { CONFIG } from '../config';
 import { currentRole } from '../auth';
 import { broadcast, send } from './broadcast';
 import { translate } from './translate';
+import { summarize } from '../summary';
 
 export interface Thread {
   handle: RunHandle;
@@ -81,6 +82,9 @@ export function startRun(ws: WebSocket, sessionKey: string, prompt: string, resu
       // 'done' prematuro nem apagar a entrada do novo run.
       if (threads.get(sessionKey) !== thread) return;
       broadcast({ t: 'done', sessionKey, sessionId: thread.sessionId ?? '', costUsd: thread.costUsd, durationMs: thread.durationMs, numTurns: thread.numTurns, endReason: thread.endReason, model: thread.model });
+      // Resumo IA do que a sessão fez, atualizado ao fim do turno (pedido do Samuel).
+      // Fire-and-forget: best-effort, nunca bloqueia/derruba o fechamento do run.
+      if (thread.sessionId) void summarize(thread.sessionId);
       threads.delete(sessionKey);
     },
   });
