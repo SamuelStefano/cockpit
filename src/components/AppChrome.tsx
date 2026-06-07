@@ -102,7 +102,7 @@ export function Header({ conn, onNew, isMobile, onMenu, route, nav, onPalette, c
             <button
               key={n.to}
               onClick={() => nav(n.to)}
-              className={`rounded-md px-2.5 py-1 font-mono text-[11.5px] lowercase tracking-tight transition
+              className={`rounded-md px-2.5 py-1 font-mono text-[11.5px] lowercase tracking-tight transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40
                 ${route === n.to ? 'bg-orange-500/15 text-orange-300' : 'text-neutral-500 hover:text-neutral-300'}`}
             >
               {n.label}
