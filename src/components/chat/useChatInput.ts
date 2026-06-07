@@ -32,6 +32,41 @@ export function useChatInput(args: UseChatInputArgs) {
   const { disabled, onSend, onStop, value, setValue, setMode, setModel, slashCommands, hasAtt, onUpload, focusSignal, onQueue, history, pendingConfirm, onNew, onShowHelp } = args;
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Sobe vários arquivos respeitando o teto (espelha o backend); retorna quantos
+  // passaram pra o caller decidir se houve upload (ex: paste consome o evento).
+  const uploadFiles = (files: File[]): number => {
+    let n = 0;
+    for (const f of files) { if (f.size > MAX_UPLOAD) continue; onUpload(f); n++; }
+    return n;
+  };
+  // Drag-and-drop: contador de profundidade pra o overlay não piscar quando o
+  // cursor passa sobre filhos (dragenter/leave borbulham).
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
+  const onDragEnter = (e: React.DragEvent) => {
+    if (disabled || !e.dataTransfer?.types.includes('Files')) return;
+    e.preventDefault(); dragDepth.current += 1; setDragging(true);
+  };
+  const onDragOver = (e: React.DragEvent) => {
+    if (disabled || !e.dataTransfer?.types.includes('Files')) return;
+    e.preventDefault();
+  };
+  const onDragLeave = (e: React.DragEvent) => {
+    if (!dragging) return;
+    e.preventDefault(); dragDepth.current -= 1; if (dragDepth.current <= 0) { dragDepth.current = 0; setDragging(false); }
+  };
+  const onDrop = (e: React.DragEvent) => {
+    dragDepth.current = 0; setDragging(false);
+    if (disabled) return;
+    const files = Array.from(e.dataTransfer?.files ?? []);
+    if (files.length) { e.preventDefault(); uploadFiles(files); }
+  };
+  // Colar imagem/arquivo do clipboard (print screen, copiar arquivo) vira anexo.
+  const onPaste = (e: React.ClipboardEvent) => {
+    if (disabled) return;
+    const files = Array.from(e.clipboardData?.files ?? []);
+    if (files.length && uploadFiles(files) > 0) e.preventDefault();
+  };
   const [sel, setSel] = useState(0);
   // "/" sozinho lista tudo; espaços continuam filtrando (comandos multi-palavra
   // como "model opus"/"effort low"). Newline = mensagem de verdade, não comando.
@@ -98,11 +133,7 @@ export function useChatInput(args: UseChatInputArgs) {
     if (taRef.current) taRef.current.style.height = 'auto';
   };
   const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    for (const f of files) {
-      if (f.size > MAX_UPLOAD) continue; // teto de 15MB (espelha o backend)
-      onUpload(f);
-    }
+    uploadFiles(Array.from(e.target.files ?? [])); // teto de 15MB espelha o backend
     e.target.value = '';
   };
   // Recall estilo shell: ↑ no campo vazio puxa o último prompt enviado; ↑/↓
@@ -167,5 +198,5 @@ export function useChatInput(args: UseChatInputArgs) {
     if (histIdx !== null) setHistIdx(null); // digitar sai do modo recall
     fitHeight(e.target);
   };
-  return { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick };
+  return { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste };
 }
