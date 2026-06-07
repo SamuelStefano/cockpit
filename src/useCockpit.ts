@@ -741,6 +741,8 @@ export function useCockpit(): Cockpit {
     delete runMsg.current[id];
     delete resumeId.current[id];
     delete migratedTo.current[id];
+    // ...e o ponteiro por VALOR (entrada keyed pelo `new-xxx` cujo alvo é este id).
+    for (const ok in migratedTo.current) if (migratedTo.current[ok] === id) delete migratedTo.current[ok];
     delete runStartRef.current[id];
     delete lastActivity.current[id];
     opened.current.delete(id);
@@ -821,6 +823,10 @@ export function useCockpit(): Cockpit {
       delete runMsg.current[k];
       delete runStartRef.current[k];
     }
+    // migratedTo é keyed pelo `new-xxx` (valor = id real); despejar o id real
+    // tem que limpar o ponteiro por VALOR, senão o mapa cresce sem teto numa aba
+    // de dias e um frame tardio `new-xxx` ressuscitaria a sessão já despejada.
+    for (const ok in migratedTo.current) if (drop.includes(migratedTo.current[ok])) delete migratedTo.current[ok];
   }, [activeId, running]);
 
   // Watchdog: enquanto algo roda, tica a cada 20s pra recomputar "quietas".
