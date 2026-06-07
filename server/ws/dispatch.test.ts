@@ -7,6 +7,7 @@ const runs = vi.hoisted(() => ({
   threads: new Map<string, { handle: { kill: ReturnType<typeof vi.fn> } }>(),
   startRun: vi.fn(),
   routeSend: vi.fn(() => Promise.resolve()),
+  clearPending: vi.fn(),
 }));
 const bc = vi.hoisted(() => ({ send: vi.fn(), broadcast: vi.fn() }));
 const parse = vi.hoisted(() => ({ parseSession: vi.fn(), parseFullSession: vi.fn() }));
@@ -66,6 +67,17 @@ describe('stop', () => {
 
   it('is a no-op when no thread exists for the key', async () => {
     await expect(handle(ws, { t: 'stop', sessionKey: 'ghost' } as ClientMsg)).resolves.toBeUndefined();
+  });
+
+  it('clears the pending queue so a queued message is not auto-launched after stop', async () => {
+    runs.threads.set('k1', { handle: { kill: vi.fn() } });
+    await handle(ws, { t: 'stop', sessionKey: 'k1' } as ClientMsg);
+    expect(runs.clearPending).toHaveBeenCalledWith('k1');
+  });
+
+  it('clears the pending queue even when no thread is live', async () => {
+    await handle(ws, { t: 'stop', sessionKey: 'ghost' } as ClientMsg);
+    expect(runs.clearPending).toHaveBeenCalledWith('ghost');
   });
 });
 
