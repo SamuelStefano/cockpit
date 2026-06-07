@@ -25,6 +25,10 @@ export function useTerminalTabs(term: TermApi, discoveredTerms: string[] = [], l
   const attachable = discoveredTerms.filter((id) => !terminals.some((t) => t.id === id));
 
   const attachExisting = (id: string) => {
+    // Sessão descoberta no servidor pode ser `term-NNN` acima do contador atual;
+    // sobe o _tid pra um novo tab nunca colidir com ela (id/key duplicado).
+    const n = Number(/^term-(\d+)$/.exec(id)?.[1]);
+    if (Number.isFinite(n) && n > _tid) _tid = n;
     if (terminals.some((t) => t.id === id)) { setActiveTermId(id); return; }
     setTerminals((prev) => [...prev, { id, name: id }]);
     setActiveTermId(id);

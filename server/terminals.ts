@@ -21,7 +21,18 @@ const MAX_BUFFER = 200_000; // ~200KB de scrollback pra replay no attach
 // qual cliente/replay/reset o disparou. Setas (CSI A/B/C/D) e paste (CSI 200~)
 // terminam em outra letra e não casam.
 const INPUT_REPORT_RE = /\x1b\[\?[0-9;]*c|\x1b\[>[0-9;]*c|\x1b\[[0-9;]*R|\x1b\[\?[0-9;]*\$y/g;
-const stripReports = (s: string) => s.replace(INPUT_REPORT_RE, '');
+export const stripReports = (s: string) => s.replace(INPUT_REPORT_RE, '');
+
+// Mantém os últimos ~max chars de scrollback pra replay, mas reinicia numa
+// fronteira de linha: um corte cru no meio de um escape ANSI / codepoint UTF-8
+// faz o xterm pintar lixo na 1ª linha do reattach. Sem newline na janela (uma
+// linha gigante única) cai no corte cru — raro e auto-cura no próximo redraw.
+export function trimBuffer(buf: string, max = MAX_BUFFER): string {
+  if (buf.length <= max) return buf;
+  const cut = buf.slice(buf.length - max);
+  const nl = cut.indexOf('\n');
+  return nl >= 0 && nl < cut.length - 1 ? cut.slice(nl + 1) : cut;
+}
 
 interface Term {
   pty: IPty;
@@ -32,7 +43,7 @@ interface Term {
 
 const terms = new Map<string, Term>();
 
-const clampDim = (n: number, def: number) =>
+export const clampDim = (n: number, def: number) =>
   Number.isFinite(n) && n > 0 ? Math.min(500, Math.max(1, Math.floor(n))) : def;
 
 const PREFIX = 'cockpit-';
@@ -82,7 +93,7 @@ export function openTerm(
     });
     const term: Term = { pty: p, buffer: '', data: new Set(), exit: new Set() };
     p.onData((d) => {
-      term.buffer = (term.buffer + d).slice(-MAX_BUFFER);
+      term.buffer = trimBuffer(term.buffer + d);
       for (const l of term.data) l(d);
     });
     p.onExit(() => {
