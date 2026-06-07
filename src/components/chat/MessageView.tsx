@@ -40,7 +40,7 @@ export function MessageRow({ msg, caretOnLast, modelLabel, onEditUser, onQuote }
           )}
         </div>
         <div className="flex max-w-[82%] flex-col items-end gap-1">
-          <span className="px-1 text-[11px] font-medium text-neutral-500">{userName || 'Você'}</span>
+          <span className="max-w-[200px] truncate px-1 text-[11px] font-medium text-neutral-500">{userName || 'Você'}</span>
           <div className="w-full whitespace-pre-wrap break-words rounded-2xl rounded-br-md border border-neutral-700/60 bg-neutral-800 px-3.5 py-2.5 text-[14px] leading-relaxed text-neutral-100 shadow-sm shadow-black/20">
             {msg.text}
           </div>
@@ -59,7 +59,7 @@ export function MessageRow({ msg, caretOnLast, modelLabel, onEditUser, onQuote }
         <ClaudeAvatar size={28} />
       </div>
       <div className="min-w-0 flex-1 pt-0.5">
-        <span className="mb-0.5 block px-0.5 text-[11px] font-medium text-orange-300/80">{modelLabel || 'Claude'}</span>
+        <span className="mb-0.5 block max-w-[260px] truncate px-0.5 text-[11px] font-medium text-orange-300/80">{modelLabel || 'Claude'}</span>
         {msg.quick && (
           <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-300">
             <Icon name="zap" size={10} /> resposta rápida (paralela)

@@ -193,6 +193,9 @@ export function useCockpit(): Cockpit {
     opened.current.add(newId);   // history já está local; não re-buscar
     opened.current.delete(oldKey);
     if (oldKey in lastActivity.current) { lastActivity.current[newId] = lastActivity.current[oldKey]; delete lastActivity.current[oldKey]; }
+    // Sem migrar runStartRef, o efeito do cronômetro re-registra Date.now() na key
+    // nova e o tempo decorrido do card zera no meio do 1º turno.
+    if (oldKey in runStartRef.current) { runStartRef.current[newId] = runStartRef.current[oldKey]; delete runStartRef.current[oldKey]; }
     if (inFlight.current.has(oldKey)) { inFlight.current.delete(oldKey); inFlight.current.add(newId); }
     if (activeRef.current === oldKey) { activeRef.current = newId; setActiveIdState(newId); }
     const move = <T,>(prev: Record<string, T>): Record<string, T> => {
@@ -269,11 +272,14 @@ export function useCockpit(): Cockpit {
         // Eco do servidor: o cliente que enviou já tem a bolha (add otimista) e
         // deduplica por id; uma 2ª aba/dispositivo não tem e anexa — é o que torna
         // a mensagem do usuário tempo-real entre clientes (antes só aparecia no F5).
-        lastActivity.current[msg.sessionKey] = Date.now();
-        updateThread(msg.sessionKey, (prev) =>
+        // Frame tardio keyed pelo `new-xxx` antigo é redirecionado p/ a key real
+        // já migrada (senão recria um thread/linha fantasma).
+        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
+        lastActivity.current[key] = Date.now();
+        updateThread(key, (prev) =>
           prev.some((m) => m.id === msg.id) ? prev : [...prev, { id: msg.id, role: 'user', text: msg.text, ts: msg.ts }],
         );
-        setSessions((prev) => prev.map((s) => (s.id === msg.sessionKey ? { ...s, snippet: msg.text, relative: 'agora' } : s)));
+        setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: msg.text, relative: 'agora' } : s)));
         return;
       }
       case 'triage': {
@@ -299,13 +305,15 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'started': {
-        lastActivity.current[msg.sessionKey] = Date.now();
-        inFlight.current.add(msg.sessionKey);
-        if (runMsg.current[msg.sessionKey]) return; // já em voo (reconnect) — não duplica bubble
+        // Frame tardio do turno antigo pode chegar keyed pelo `new-xxx` já migrado.
+        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
+        lastActivity.current[key] = Date.now();
+        inFlight.current.add(key);
+        if (runMsg.current[key]) return; // já em voo (reconnect) — não duplica bubble
         const id = newId('a');
-        runMsg.current[msg.sessionKey] = id;
-        updateThread(msg.sessionKey, (prev) => [...prev, { id, role: 'assistant', blocks: [], ts: Date.now() }]);
-        setPhases((p) => ({ ...p, [msg.sessionKey]: 'thinking' }));
+        runMsg.current[key] = id;
+        updateThread(key, (prev) => [...prev, { id, role: 'assistant', blocks: [], ts: Date.now() }]);
+        setPhases((p) => ({ ...p, [key]: 'thinking' }));
         return;
       }
       case 'replay': {
@@ -498,7 +506,8 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'error': {
-        const key = msg.sessionKey ?? activeRef.current; // erro sem key (top-level) não pode travar o spinner
+        // Resolve a key migrada antes do fallback p/ a sessão ativa.
+        const key = (msg.sessionKey && migratedTo.current[msg.sessionKey]) || msg.sessionKey || activeRef.current; // erro sem key (top-level) não pode travar o spinner
         if (key) {
           inFlight.current.delete(key);
           reconcileTools(key);
@@ -720,6 +729,8 @@ export function useCockpit(): Cockpit {
     setUsage((prev) => { const n = { ...prev }; delete n[id]; return n; });
     delete runMsg.current[id];
     delete resumeId.current[id];
+    delete migratedTo.current[id];
+    delete runStartRef.current[id];
     opened.current.delete(id);
   }, [send]);
 
