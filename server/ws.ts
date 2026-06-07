@@ -16,6 +16,7 @@ import { handleTerm, type TermHandle } from './ws/terminal-handler';
 import { isAdminOnly, createRateLimiter } from './ws/guard';
 import { startStatsLoop } from './ws/stats-loop';
 import { getLastPlanUsage, startPlanUsageLoop } from './ws/usage-plan';
+import { getLastModels, startModelsLoop } from './ws/models';
 
 export { runStats, killAllRuns } from './ws/runs';
 
@@ -56,6 +57,8 @@ export function attachWs(server: Server) {
     if (rate) send(ws, { t: 'rate', ...rate });
     const planUsage = getLastPlanUsage();
     if (planUsage) send(ws, { t: 'plan-usage', usage: planUsage });
+    const models = getLastModels();
+    if (models.length) send(ws, { t: 'models', models });
     // Reconnect mid-run (#10): replaya o snapshot acumulado SÓ pra ESTE socket,
     // pra a UI reconstruir o turno em voo. Os deltas seguintes chegam via
     // broadcast (não roubamos mais o stream das outras abas).

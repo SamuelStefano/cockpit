@@ -143,8 +143,10 @@ export interface PlanUsage {
 // (#94, DR-011), pra o safeMode continuar rejeitando bypass vindo como mode.
 export type PermMode = 'plan' | 'auto' | 'acceptEdits';
 export interface TurnStats { costUsd?: number; durationMs?: number; numTurns?: number; model?: string }
-export type ModelAlias = 'opus' | 'sonnet' | 'haiku';
-export type EffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+// Modelo concreto disponível na conta (de /v1/models). O cliente escolhe um id
+// específico (ex: claude-opus-4-8); aliases opus/sonnet/haiku ainda valem como
+// fallback antes da lista carregar.
+export interface ModelInfo { id: string; displayName: string }
 
 export interface SysStats {
   cpu: number;                 // 0..100
@@ -184,7 +186,7 @@ export interface AdminHealth {
 }
 
 export type ClientMsg =
-  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; msgId?: string; mode?: PermMode; model?: ModelAlias; effort?: EffortLevel; maxBudgetUsd?: number; bypass?: boolean }
+  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; msgId?: string; mode?: PermMode; model?: string; maxBudgetUsd?: number; bypass?: boolean }
   | { t: 'stop'; sessionKey: string }
   | { t: 'list' }
   | { t: 'open'; sessionId: string }
@@ -222,6 +224,7 @@ export type ServerMsg =
   | { t: 'session-summary'; sessionId: string; summary: string }
   | { t: 'contexts'; items: ContextMeta[] }
   | { t: 'context'; id: string; title: string; body: string }
+  | { t: 'models'; models: ModelInfo[] }
   | { t: 'skills'; items: SkillMeta[] }
   | { t: 'skill'; id: string; name: string; body: string }
   | { t: 'uploaded'; name: string; path: string }
