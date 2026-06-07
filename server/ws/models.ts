@@ -13,6 +13,30 @@ const POLL_MS = 60 * 60_000;
 let last: ModelInfo[] = [];
 export function getLastModels() { return last; }
 
+// A lista da Anthropic vem do mais novo pro mais antigo. Enxugamos pra não poluir
+// o seletor: no máximo as 2 versões mais recentes do Opus, e só a última de cada
+// um dos outros tipos (Sonnet, Haiku). Mantém a ordem original (novo primeiro).
+const FAMILY_CAP: Record<string, number> = { opus: 2, sonnet: 1, haiku: 1 };
+
+function familyOf(id: string): string | null {
+  for (const fam of Object.keys(FAMILY_CAP)) if (id.includes(fam)) return fam;
+  return null;
+}
+
+export function limitModels(models: ModelInfo[]): ModelInfo[] {
+  const seen: Record<string, number> = {};
+  const out: ModelInfo[] = [];
+  for (const m of models) {
+    const fam = familyOf(m.id);
+    if (!fam) continue;
+    const n = seen[fam] ?? 0;
+    if (n >= FAMILY_CAP[fam]) continue;
+    seen[fam] = n + 1;
+    out.push(m);
+  }
+  return out;
+}
+
 export function mapModels(body: unknown): ModelInfo[] {
   const b = body as { data?: Array<{ id?: unknown; display_name?: unknown }> };
   if (!Array.isArray(b?.data)) return [];
@@ -22,7 +46,7 @@ export function mapModels(body: unknown): ModelInfo[] {
     const displayName = typeof m.display_name === 'string' && m.display_name ? m.display_name : m.id;
     out.push({ id: m.id, displayName });
   }
-  return out;
+  return limitModels(out);
 }
 
 export async function fetchModels(): Promise<ModelInfo[] | null> {
