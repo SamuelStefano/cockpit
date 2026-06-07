@@ -3,7 +3,7 @@ import type { Session, Message, Block } from './data/mock';
 import type { ClientMsg, ServerMsg, SysStats, PermMode, ModelInfo, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth, Caps, PlanUsage } from '../shared/protocol';
 import { loadPref, savePref } from './lib/persist';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
-import { WS_URL, newId, metaToSession, dedupById, mergeSeen } from './cockpit/session';
+import { wsUrlWithToken, newId, metaToSession, dedupById, mergeSeen } from './cockpit/session';
 import { upsertTool, appendDelta, appendThinking } from './cockpit/blocks';
 import { selectEvictions } from './cockpit/evict';
 import { useTerminals, type TermApi } from './cockpit/useTerminals';
@@ -28,6 +28,8 @@ export interface Cockpit {
   draft: string;
   setDraft: (v: string) => void;
   conn: { ws: ConnState; sse: ConnState };
+  authRequired: boolean;
+  submitToken: (token: string) => void;
   rate: { resetsAt: number; status: string } | null;
   planUsage: PlanUsage | null;
   stats: SysStats | null;
@@ -132,6 +134,12 @@ export function useCockpit(): Cockpit {
   const sessionsRef = useRef<Session[]>([]);
   const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryDelay = useRef(1500); // backoff exponencial, reset no connect bem-sucedido
+  // Token de auth (DR-011 Fase 2). Só é exigido quando o servidor tem COCKPIT_TOKEN
+  // setado; aí uma conexão sem token (ou errado) volta com close code 4401 e a UI
+  // pede o token. Guardado em ref pra o connect() ler o valor atual sem recriar o
+  // callback (que reabriria o socket a cada digitação).
+  const tokenRef = useRef<string>(loadPref<string>('auth.token', ''));
+  const [authRequired, setAuthRequired] = useState(false);
 
   useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
   const threadsRef = useRef<Record<string, Message[]>>(threads);
@@ -504,11 +512,12 @@ export function useCockpit(): Cockpit {
   const connect = useCallback(() => {
     setConn((c) => ({ ...c, ws: 'reconnecting', sse: 'reconnecting' }));
     let ws: WebSocket;
-    try { ws = new WebSocket(WS_URL); } catch { scheduleRetry(); return; }
+    try { ws = new WebSocket(wsUrlWithToken(tokenRef.current)); } catch { scheduleRetry(); return; }
     wsRef.current = ws;
 
     ws.onopen = () => {
       retryDelay.current = 1500; // reconectou — zera o backoff
+      setAuthRequired(false); // token válido (ou gate desligado)
       setConn({ ws: 'connected', sse: 'connected' });
       send({ t: 'list' });
       send({ t: 'list-archived' });
@@ -520,7 +529,13 @@ export function useCockpit(): Cockpit {
       try { m = JSON.parse(String(ev.data)) as ServerMsg; } catch { return; }
       onServer(m);
     };
-    ws.onclose = () => { setConn({ ws: 'down', sse: 'down' }); scheduleRetry(); };
+    ws.onclose = (ev) => {
+      setConn({ ws: 'down', sse: 'down' });
+      // 4401 = servidor exige token e o nosso falta/está errado. NÃO re-tenta em
+      // loop: mostra o login. Qualquer outro código = queda de rede → backoff.
+      if (ev.code === 4401) { setAuthRequired(true); return; }
+      scheduleRetry();
+    };
     ws.onerror = () => { try { ws.close(); } catch { /* noop */ } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [send, onServer, reattach]);
@@ -535,6 +550,19 @@ export function useCockpit(): Cockpit {
     retry.current = setTimeout(() => { retry.current = null; connect(); }, delay);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Login: guarda o token e reconecta na hora com ele. Chamado pelo gate de auth.
+  const submitToken = useCallback((token: string) => {
+    const t = token.trim();
+    tokenRef.current = t;
+    savePref('auth.token', t);
+    setAuthRequired(false);
+    retryDelay.current = 1500;
+    if (retry.current) { clearTimeout(retry.current); retry.current = null; }
+    try { wsRef.current?.close(); } catch { /* noop */ }
+    connect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connect]);
 
   useEffect(() => {
     connect();
@@ -791,5 +819,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, draft, setDraft, conn, rate, planUsage, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, models, budget, setBudget: changeBudget, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, draft, setDraft, conn, authRequired, submitToken, rate, planUsage, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, models, budget, setBudget: changeBudget, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull };
 }

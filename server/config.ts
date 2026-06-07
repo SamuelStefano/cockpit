@@ -28,6 +28,13 @@ export const CONFIG = {
   // observatório. Mesmo dir do store.json. Override por env.
   dbPath: process.env.COCKPIT_DB ?? join(homedir(), '.cockpit', 'cockpit.db'),
 
+  // Gate de auth do WS (DR-011 Fase 2). Token compartilhado exigido no handshake
+  // quando setado; vazio = sem gate (loopback-only, comportamento atual). Setar
+  // COCKPIT_TOKEN é o que torna seguro EXPOR o app fora do loopback
+  // (Tailscale/Vercel): sem o token a conexão é fechada com código 4401 e a UI
+  // pede o token. Single-account — o token É a identidade hoje.
+  authToken: process.env.COCKPIT_TOKEN ?? '',
+
   // DR-004 #1: plan-mode na Fase 1 (NÃO bypassPermissions). Allow-list trava
   // qualquer env solto de armar bypass (= RCE root) por engano.
   permissionMode: safeMode(process.env.COCKPIT_PERMISSION_MODE),

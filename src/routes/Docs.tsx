@@ -704,13 +704,24 @@ export function Docs() {
                   pra ter a foto geral da operação num lugar só.
                 </p>
               </Card>
+              <Card>
+                <div className="mb-2 flex items-center gap-2">
+                  <Icon name="shield" size={15} className="text-amber-300" />
+                  <h3 className="text-[14px] font-semibold text-neutral-100">Token de acesso</h3>
+                </div>
+                <p className="text-[13px] leading-relaxed text-neutral-400">
+                  Defina a variável <Pill>COCKPIT_TOKEN</Pill> no servidor e o Deck passa a exigir esse token na entrada —
+                  uma tela de login aparece antes de qualquer coisa da VPS carregar. Sem a variável, o acesso fica livre
+                  (modo de rede privada). O token nunca é exposto: viaja só na conexão e fica guardado no navegador.
+                </p>
+              </Card>
             </div>
             <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-red-500/25 bg-red-500/[0.07] p-4">
               <Icon name="shield" size={15} className="mt-0.5 shrink-0 text-red-400/80" />
               <p className="text-[12.5px] leading-relaxed text-red-200/80">
                 <span className="font-medium">Só para administradores ·</span> esta aba dá visão da máquina inteira e por isso
-                deve ficar visível apenas para quem é admin. Enquanto o login com níveis de acesso não está pronto, o Deck roda
-                restrito à rede privada — mas o controle de contas é o próximo passo crítico de segurança.
+                deve ficar visível apenas para quem é admin. O acesso ao Deck já pode ser protegido por um token (veja abaixo);
+                o próximo passo é o login com níveis de acesso distintos por conta.
               </p>
             </div>
           </section>

@@ -8,6 +8,20 @@ import type { SessionMeta } from '../../shared/protocol';
 const ENV_WS = (import.meta.env.VITE_WS_URL ?? '').trim();
 export const WS_URL = ENV_WS || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
 
+// Anexa o token de auth (DR-011 Fase 2) na query — browsers não mandam header no
+// upgrade do WS. Sem token, conecta como antes (loopback sem gate). Token errado
+// → o servidor fecha com 4401 e a UI pede pra digitar de novo.
+export function wsUrlWithToken(token: string): string {
+  if (!token) return WS_URL;
+  try {
+    const u = new URL(WS_URL);
+    u.searchParams.set('token', token);
+    return u.toString();
+  } catch {
+    return WS_URL;
+  }
+}
+
 let _mid = 0;
 // Sufixo aleatório além do contador monotônico: blinda contra colisão de key do
 // React mesmo se dois ids forem gerados no mesmo tick após um reload de módulo.
