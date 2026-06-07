@@ -12,6 +12,9 @@ import { CommandPalette } from './components/CommandPalette';
 import { ShortcutsHelp } from './components/ShortcutsHelp';
 import { useCockpit } from './useCockpit';
 import { useRoute } from './useRoute';
+import { SUPABASE_ENABLED } from './lib/supabase';
+import { useSupabaseAuth } from './lib/useSupabaseAuth';
+import { SupabaseAuthGate } from './components/auth/SupabaseAuthGate';
 import { setTitleBase } from './lib/notify';
 import { relReset } from './lib/time';
 import { usePanelResize } from './app/usePanelResize';
@@ -35,6 +38,11 @@ export function CockpitApp() {
   } = cockpit;
 
   const { route, nav } = useRoute();
+
+  // Produto multi-conta (DR-023): quando o Supabase está ligado (deploy do relay),
+  // a sessão vem do login e o access_token alimenta o WS. No loopback (Supabase
+  // desligado) este hook fica inerte e o gate de token de sempre vale.
+  const sbAuth = useSupabaseAuth((token) => submitToken(token ?? ''));
 
   const { rowRef, leftW, rightW, leftCollapsed, setLeftCollapsed, rightCollapsed, setRightCollapsed, startDrag } = usePanelResize();
   const { terminals, activeTermId, setActiveTermId, handleAddTerm, handleCloseTerm, attachable, attachExisting, runningTerm } = useTerminalTabs(term, discoveredTerms, listTerms);
@@ -114,17 +122,21 @@ export function CockpitApp() {
   const chatProps = { session: activeSession, messages, phase: viewPhase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, bypass, setBypass, model, setModel, models, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew: handleNew, attachments, onUpload, onRemoveAttachment, onEditUser: editUser, onQuote: quoteMsg, onOpenFull, truncated, onShowHelp: () => setHelp(true), focusSignal };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
 
-  // Gate de auth (DR-011 Fase 2): servidor exige token e o nosso falta/errou.
-  // Substitui o app inteiro até autenticar — nada da VPS aparece antes disso.
-  if (authRequired) {
-    return (
-      <div
-        className="flex h-full flex-col bg-neutral-950"
-        style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
-      >
-        <AuthGate onSubmit={submitToken} />
-      </div>
-    );
+  // Gate de auth. Com Supabase ligado (relay): login por e-mail/senha; sem sessão,
+  // nada do app aparece. Sem Supabase (loopback): o gate de token de sempre (DR-011
+  // Fase 2), quando o servidor exige token e o nosso falta/errou.
+  const gateShell = (node: React.ReactNode) => (
+    <div
+      className="flex h-full flex-col bg-neutral-950"
+      style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
+      {node}
+    </div>
+  );
+  if (SUPABASE_ENABLED) {
+    if (!sbAuth.loading && !sbAuth.session) return gateShell(<SupabaseAuthGate auth={sbAuth} />);
+  } else if (authRequired) {
+    return gateShell(<AuthGate onSubmit={submitToken} />);
   }
 
   return (
