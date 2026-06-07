@@ -1,5 +1,6 @@
 import type { WebSocket } from 'ws';
 import type { ClientMsg } from '../../shared/protocol';
+import type { Role } from '../auth';
 import { listSessions, listArchived } from '../sessions/index';
 import { searchSessions } from '../sessions/search';
 import { listContexts, readContext } from '../contexts';
@@ -12,7 +13,7 @@ import { collectHealth } from '../health';
 import { send, broadcast } from './broadcast';
 import { threads, startRun, routeSend } from './runs';
 
-export async function handle(ws: WebSocket, msg: ClientMsg) {
+export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
   switch (msg.t) {
     case 'list': {
       const items = await listSessions();
@@ -106,9 +107,9 @@ export async function handle(ws: WebSocket, msg: ClientMsg) {
       // Sessão ocupada → triador decide o destino (esperar/responder/prioridade/
       // juntar). Livre → roda direto como antes.
       if (threads.has(msg.sessionKey)) {
-        void routeSend(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.maxBudgetUsd, msg.bypass);
+        void routeSend(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.maxBudgetUsd, msg.bypass, role);
       } else {
-        startRun(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.maxBudgetUsd, msg.bypass);
+        startRun(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.maxBudgetUsd, msg.bypass, role);
       }
       return;
     }

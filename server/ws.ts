@@ -114,7 +114,7 @@ export function attachWs(server: Server) {
         send(ws, { t: 'error', message: sanitize(String((e as Error)?.message ?? e)) });
         return;
       }
-      handle(ws, msg).catch((e) => send(ws, { t: 'error', message: sanitize(String(e?.message ?? e)) }));
+      handle(ws, msg, role).catch((e) => send(ws, { t: 'error', message: sanitize(String(e?.message ?? e)) }));
     });
 
     ws.on('close', () => {
