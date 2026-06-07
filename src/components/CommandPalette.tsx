@@ -47,6 +47,7 @@ export function CommandPalette({ open, onClose, route, nav, onNew, mode, setMode
       { id: 'go-ctx', label: 'Ir para Contextos', icon: 'sparkles', group: 'Navegar', run: go('/contextos') },
       { id: 'go-skills', label: 'Ir para Skills', icon: 'zap', group: 'Navegar', run: go('/skills') },
       { id: 'go-uso', label: 'Ir para Uso', icon: 'arrowUp', group: 'Navegar', run: go('/uso') },
+      { id: 'go-docs', label: 'Ir para Docs', icon: 'file', group: 'Navegar', run: go('/docs') },
     ];
     const actions: Cmd[] = [
       { id: 'new', label: 'Nova sessão', icon: 'plus', group: 'Ações', run: () => { onNew(); onClose(); } },
