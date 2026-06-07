@@ -189,7 +189,13 @@ export type ClientMsg =
   | { t: 'term-close'; termId: string }
   | { t: 'term-list' };
 
+// Capabilities da conexão (DR-011). role = papel do ator (hoje sempre admin em
+// loopback; Fase 2 vem do token). canBypass = se o servidor permite o toggle de
+// bypass (env opt-in + admin + loopback). A UI só mostra o switch quando true.
+export type Caps = { role: 'admin' | 'student'; canBypass: boolean };
+
 export type ServerMsg =
+  | { t: 'caps'; caps: Caps }
   | { t: 'sessions'; items: SessionMeta[] }
   | { t: 'archived'; items: SessionMeta[] }
   | { t: 'search-results'; q: string; items: SessionMeta[] }

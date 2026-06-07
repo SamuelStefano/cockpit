@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Session, Message, Block } from './data/mock';
-import type { ClientMsg, ServerMsg, SysStats, PermMode, ModelAlias, EffortLevel, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth } from '../shared/protocol';
+import type { ClientMsg, ServerMsg, SysStats, PermMode, ModelAlias, EffortLevel, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth, Caps } from '../shared/protocol';
 import { loadPref, savePref } from './lib/persist';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
 import { WS_URL, newId, metaToSession, dedupById, mergeSeen } from './cockpit/session';
@@ -32,6 +32,9 @@ export interface Cockpit {
   stats: SysStats | null;
   mode: PermMode;
   setMode: (m: PermMode) => void;
+  caps: Caps | null;
+  bypass: boolean;
+  setBypass: (b: boolean) => void;
   model: ModelAlias;
   setModel: (m: ModelAlias) => void;
   effort: EffortLevel;
@@ -103,6 +106,10 @@ export function useCockpit(): Cockpit {
   const attachmentsRef = useRef<Attachment[]>([]);
   const [mode, setMode] = useState<PermMode>(() => loadPref<PermMode>('mode', 'auto'));
   const modeRef = useRef<PermMode>(mode);
+  const [caps, setCaps] = useState<Caps | null>(null);
+  const capsRef = useRef<Caps | null>(null);
+  const [bypass, setBypass] = useState<boolean>(false); // nunca persistido: opt-in por sessão, default off
+  const bypassRef = useRef<boolean>(false);
   const [model, setModel] = useState<ModelAlias>(() => loadPref<ModelAlias>('model', 'opus'));
   const modelRef = useRef<ModelAlias>(model);
   const [effort, setEffort] = useState<EffortLevel>(() => loadPref<EffortLevel>('effort', 'high'));
@@ -190,6 +197,14 @@ export function useCockpit(): Cockpit {
 
   const onServer = useCallback((msg: ServerMsg) => {
     switch (msg.t) {
+      case 'caps': {
+        capsRef.current = msg.caps;
+        setCaps(msg.caps);
+        // Servidor revogou a capacidade (flag off / não-admin): força o toggle off
+        // pra a UI não anunciar um bypass que o backend recusaria de qualquer jeito.
+        if (!msg.caps.canBypass) { bypassRef.current = false; setBypass(false); }
+        return;
+      }
       case 'sessions': {
         setSessions((prev) => {
           const localOnly = prev.filter((s) => s.id.startsWith('new-'));
@@ -494,7 +509,11 @@ export function useCockpit(): Cockpit {
     updateThread(key, (prev) => [...prev, { id: newId('u'), role: 'user', text, ts: Date.now() }]);
     setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: text, relative: 'agora' } : s)));
     setDrafts((d) => ({ ...d, [key]: '' }));
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, mode: modeOverride ?? modeRef.current, model: modelRef.current, effort: effortRef.current, maxBudgetUsd: budgetRef.current > 0 ? budgetRef.current : undefined });
+    // bypass só vai no fio quando o servidor anunciou a capacidade (admin + env +
+    // loopback). O backend reimpõe via bypassAllowed — isto é só pra não anunciar
+    // um pedido que seria recusado.
+    const bypassWire = capsRef.current?.canBypass && bypassRef.current ? true : undefined;
+    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, mode: modeOverride ?? modeRef.current, model: modelRef.current, effort: effortRef.current, maxBudgetUsd: budgetRef.current > 0 ? budgetRef.current : undefined, bypass: bypassWire });
   }, [send, updateThread]);
 
   const onUpload = useCallback((file: File) => {
@@ -516,6 +535,7 @@ export function useCockpit(): Cockpit {
   }, []);
 
   const changeMode = useCallback((m: PermMode) => { modeRef.current = m; setMode(m); savePref('mode', m); }, []);
+  const changeBypass = useCallback((b: boolean) => { bypassRef.current = b; setBypass(b); }, []);
   const changeModel = useCallback((m: ModelAlias) => { modelRef.current = m; setModel(m); savePref('model', m); }, []);
   const changeEffort = useCallback((e: EffortLevel) => { effortRef.current = e; setEffort(e); savePref('effort', e); }, []);
   const changeBudget = useCallback((n: number) => { const v = Number.isFinite(n) && n > 0 ? n : 0; budgetRef.current = v; setBudget(v); savePref('budget', v); }, []);
@@ -681,5 +701,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onClose, onUnhide, onOpenFull };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onClose, onUnhide, onOpenFull };
 }

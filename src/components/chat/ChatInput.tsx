@@ -1,6 +1,6 @@
 import { Icon } from '../primitives';
-import { ModeToggle, ModelPicker } from './Toolbar';
-import type { PermMode, ModelAlias, EffortLevel } from '../../../shared/protocol';
+import { ModeToggle, ModelPicker, BypassToggle } from './Toolbar';
+import type { PermMode, ModelAlias, EffortLevel, Caps } from '../../../shared/protocol';
 import type { Attachment } from '../../useCockpit';
 import { TemplatesMenu } from './TemplatesMenu';
 import { useChatInput } from './useChatInput';
@@ -17,6 +17,9 @@ interface ChatInputProps {
   setValue: (v: string) => void;
   mode: PermMode;
   setMode: (m: PermMode) => void;
+  caps: Caps | null;
+  bypass: boolean;
+  setBypass: (b: boolean) => void;
   model: ModelAlias;
   setModel: (m: ModelAlias) => void;
   effort: EffortLevel;
@@ -38,13 +41,16 @@ interface ChatInputProps {
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, onStop, value, setValue, mode, setMode, model, setModel, effort, setEffort, budget, setBudget, attachments, onRemoveAttachment, queued, onCancelQueue } = props;
+  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, effort, setEffort, budget, setBudget, attachments, onRemoveAttachment, queued, onCancelQueue } = props;
   const hasAtt = attachments.length > 0;
   const { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, insertTemplate } = useChatInput({ ...props, hasAtt });
   return (
     <div className="shrink-0 border-t border-neutral-800 bg-neutral-900/60 px-3 py-3 backdrop-blur">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <ModeToggle mode={mode} setMode={setMode} disabled={disabled} />
+        {caps?.canBypass && (
+          <BypassToggle on={bypass} setOn={setBypass} disabled={disabled} />
+        )}
         {mode === 'auto' && (
           <span className="hidden items-center gap-1 text-[10.5px] text-amber-400/70 sm:flex">
             <Icon name="zap" size={11} /> edita sozinho, sem shell

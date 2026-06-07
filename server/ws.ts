@@ -5,6 +5,8 @@ import { sanitize } from './engine/claude';
 import { collect } from './stats';
 import { detachTerm } from './terminals';
 import { send, setWss } from './ws/broadcast';
+import { CONFIG } from './config';
+import { currentRole, capsFor } from './auth';
 import { originAllowed } from './ws/origin';
 import { getSlashCommands } from './ws/slash';
 import { getLastRate } from './ws/rate';
@@ -44,6 +46,7 @@ export function attachWs(server: Server) {
   wss.on('connection', (ws) => {
     (ws as WebSocket & { isAlive?: boolean }).isAlive = true;
     ws.on('pong', () => { (ws as WebSocket & { isAlive?: boolean }).isAlive = true; });
+    send(ws, { t: 'caps', caps: capsFor(currentRole(), CONFIG) });
     send(ws, { t: 'busy', keys: [...threads.keys()] });
     const slash = getSlashCommands();
     if (slash.length) send(ws, { t: 'slash-commands', items: slash });
