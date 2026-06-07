@@ -64,8 +64,14 @@ export async function threadToPdf(title: string, messages: Message[]) {
     doc.setTextColor(color[0], color[1], color[2]);
     const lh = size * 1.4;
     for (const para of text.split('\n')) {
-      const lines = doc.splitTextToSize(para || ' ', maxW) as string[];
-      for (const ln of lines) { ensure(lh); doc.text(ln, margin, y); y += lh; }
+      // splitTextToSize descarta o whitespace inicial — preserva indentação de
+      // código/listas aninhadas medindo o recuo e deslocando o x das linhas
+      // (tab = 2 espaços). Continuações de uma linha longa herdam o mesmo recuo.
+      const raw = para.replace(/\t/g, '  ');
+      const indent = raw.match(/^ */)![0];
+      const indentW = indent ? doc.getTextWidth(indent) : 0;
+      const lines = doc.splitTextToSize(raw.slice(indent.length) || ' ', maxW - indentW) as string[];
+      for (const ln of lines) { ensure(lh); doc.text(ln, margin + indentW, y); y += lh; }
     }
   };
 
