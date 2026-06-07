@@ -63,10 +63,8 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
             className="w-full rounded border border-orange-500/50 bg-neutral-950 px-1.5 py-0.5 text-[12.5px] font-medium text-neutral-100 outline-none ring-2 ring-orange-500/20"
           />
         ) : (
-          <button
-            onClick={(e) => { e.stopPropagation(); setDraft(s.title); setEditing(true); }}
-            title="Clique para renomear"
-            className={`flex min-w-0 items-center gap-1.5 truncate text-left text-[12.5px] font-medium leading-tight ${active ? 'text-neutral-100' : 'text-neutral-300'} hover:text-orange-300`}
+          <span
+            className={`flex min-w-0 items-center gap-1.5 truncate text-left text-[12.5px] font-medium leading-tight ${active ? 'text-neutral-100' : 'text-neutral-300'}`}
           >
             {running && !stalled && (
               <span className="relative flex h-1.5 w-1.5 shrink-0" title="Sessão trabalhando agora">
@@ -81,7 +79,7 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-orange-400" title="Novo output desde a última vez que você abriu" />
             )}
             <span className={`truncate ${!running && updated && !active ? 'text-neutral-100' : ''}`}><Highlight text={s.title} term={highlight} /></span>
-          </button>
+          </span>
         )}
         {!editing && (
           <div className="flex shrink-0 items-center gap-1">
