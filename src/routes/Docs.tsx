@@ -137,6 +137,8 @@ const SLASH: { cmd: string; desc: string }[] = [
   { cmd: '/plan', desc: 'Entra no modo Planejar — só descreve, não executa.' },
   { cmd: '/auto', desc: 'Modo Auto — edita e lê arquivos sozinho, sem shell.' },
   { cmd: '/execute', desc: 'Modo Executar — edita arquivos e roda comandos.' },
+  { cmd: '/attcontext', desc: 'Destila o assunto desta sessão e salva na memória de contextos.' },
+  { cmd: '/importgpt', desc: 'Importa contextos do export do ChatGPT — anexe o conversations.json e envie.' },
 ];
 
 const KEYS: { keys: string[]; desc: string }[] = [
