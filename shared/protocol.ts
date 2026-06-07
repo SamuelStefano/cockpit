@@ -215,6 +215,7 @@ export type ServerMsg =
   | { t: 'tool'; sessionKey: string; tool: ToolCall }
   | { t: 'rate'; resetsAt: number; status: string }
   | { t: 'usage'; sessionKey: string; tokens: number }
+  | { t: 'compact'; sessionKey: string; trigger?: string; preTokens?: number }
   | { t: 'usage-stats'; stats: UsageStats }
   | { t: 'health'; health: AdminHealth }
   | { t: 'stats'; stats: SysStats }

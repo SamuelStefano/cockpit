@@ -311,6 +311,13 @@ export function useCockpit(): Cockpit {
         setUsage((u) => ({ ...u, [msg.sessionKey]: msg.tokens }));
         return;
       }
+      case 'compact': {
+        // O CLI auto-compactou: a janela encolheu. Zera o medidor; o próximo turno
+        // repopula com o tamanho real pós-compactação (DR-012). "Ver tudo" recupera
+        // o pré-compactação — nada é perdido na verdade.
+        setUsage((u) => ({ ...u, [msg.sessionKey]: 0 }));
+        return;
+      }
       case 'stats': {
         setStats(msg.stats);
         return;

@@ -1,7 +1,10 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { translate } from './translate';
 import { threads, type Thread } from './runs';
 import { getLastRate } from './rate';
+import { broadcast } from './broadcast';
+
+vi.mock('./broadcast', () => ({ broadcast: vi.fn(), send: vi.fn(), setWss: vi.fn() }));
 
 const KEY = 'k';
 
@@ -14,7 +17,7 @@ function register(): Thread {
   return t;
 }
 
-beforeEach(() => threads.clear());
+beforeEach(() => { threads.clear(); vi.mocked(broadcast).mockClear(); });
 
 describe('translate', () => {
   it('drops frames from a run superseded on the same key', () => {
@@ -64,6 +67,18 @@ describe('translate', () => {
     const t = register();
     translate(KEY, t, { type: 'assistant', session_id: 'sid-asst', message: { model: 'claude-opus', usage: { output_tokens: 1 } } } as never);
     expect(t.sessionId).toBe('sid-asst');
+  });
+
+  it('broadcasts a compact message on a compact_boundary system event (DR-012)', () => {
+    const t = register();
+    translate(KEY, t, { type: 'system', subtype: 'compact_boundary', session_id: 'sid-c', compact_metadata: { trigger: 'auto', pre_tokens: 150000 } } as never);
+    expect(broadcast).toHaveBeenCalledWith({ t: 'compact', sessionKey: KEY, trigger: 'auto', preTokens: 150000 });
+  });
+
+  it('does not broadcast compact for a plain system event', () => {
+    const t = register();
+    translate(KEY, t, { type: 'system', model: 'claude-opus', session_id: 'sid-2' } as never);
+    expect(broadcast).not.toHaveBeenCalledWith(expect.objectContaining({ t: 'compact' }));
   });
 
   it('appends streamed text and thinking deltas to the snapshot', () => {
