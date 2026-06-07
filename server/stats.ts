@@ -14,26 +14,35 @@ export interface Stats {
   saturated?: { cpu: boolean; mem: boolean; seconds: number }; // watchdog (#103), preenchido no loop de ws
 }
 
-let prevCpu: { total: number; idle: number } | null = null;
+type CpuSample = { total: number; idle: number };
+let prevCpu: CpuSample | null = null;
 
-async function readCpu(): Promise<number> {
-  const raw = await readFile('/proc/stat', 'utf8').catch(() => '');
+// Pura e testável: deriva % de uso de /proc/stat dado o snapshot anterior. O
+// primeiro tick (prev=null) não tem delta → 0. Retorna o novo snapshot pro
+// caller persistir, em vez de esconder o estado aqui dentro.
+export function parseCpu(raw: string, prev: CpuSample | null): { cpu: number; sample: CpuSample | null } {
   const line = raw.split('\n').find((l) => l.startsWith('cpu '));
-  if (!line) return 0;
+  if (!line) return { cpu: 0, sample: prev };
   const n = line.trim().split(/\s+/).slice(1).map(Number);
   const idle = (n[3] ?? 0) + (n[4] ?? 0);            // idle + iowait
   const total = n.reduce((a, b) => a + (b || 0), 0);
-  const prev = prevCpu;
-  prevCpu = { total, idle };
-  if (!prev) return 0;
+  const sample = { total, idle };
+  if (!prev) return { cpu: 0, sample };
   const dt = total - prev.total;
   const di = idle - prev.idle;
-  if (dt <= 0) return 0;
-  return Math.max(0, Math.min(100, (1 - di / dt) * 100));
+  if (dt <= 0) return { cpu: 0, sample };
+  return { cpu: Math.max(0, Math.min(100, (1 - di / dt) * 100)), sample };
 }
 
-async function readMem(): Promise<{ used: number; total: number }> {
-  const raw = await readFile('/proc/meminfo', 'utf8').catch(() => '');
+async function readCpu(): Promise<number> {
+  const raw = await readFile('/proc/stat', 'utf8').catch(() => '');
+  const { cpu, sample } = parseCpu(raw, prevCpu);
+  prevCpu = sample;
+  return cpu;
+}
+
+// Pura: extrai used/total de /proc/meminfo (used = MemTotal - MemAvailable).
+export function parseMem(raw: string): { used: number; total: number } {
   const kb = (key: string) => {
     const m = new RegExp(`^${key}:\\s+(\\d+)`, 'm').exec(raw);
     return m ? Number(m[1]) * 1024 : 0;
@@ -43,12 +52,29 @@ async function readMem(): Promise<{ used: number; total: number }> {
   return { used: Math.max(0, total - avail), total };
 }
 
-async function readLoad(): Promise<number> {
-  const raw = await readFile('/proc/loadavg', 'utf8').catch(() => '');
+async function readMem(): Promise<{ used: number; total: number }> {
+  return parseMem(await readFile('/proc/meminfo', 'utf8').catch(() => ''));
+}
+
+// Pura: load average de 1min (primeiro campo de /proc/loadavg).
+export function parseLoad(raw: string): number {
   return Number(raw.split(/\s+/)[0]) || 0;
 }
 
+async function readLoad(): Promise<number> {
+  return parseLoad(await readFile('/proc/loadavg', 'utf8').catch(() => ''));
+}
+
 let gpuAvailable: boolean | null = null; // null=desconhecido, false=ausente (não retenta)
+
+// Pura: parseia a 1ª linha CSV do nvidia-smi (util, memUsed MiB, memTotal MiB).
+// util não-numérico (header inesperado, GPU sem suporte) → null.
+export function parseGpu(stdout: string): Stats['gpu'] {
+  const [util, used, total] = stdout.trim().split('\n')[0].split(',').map((s) => Number(s.trim()));
+  if (!Number.isFinite(util)) return null;
+  const MiB = 1024 * 1024;
+  return { util, memUsed: (used || 0) * MiB, memTotal: (total || 0) * MiB };
+}
 
 function readGpu(): Promise<Stats['gpu']> {
   if (gpuAvailable === false) return Promise.resolve(null);
@@ -60,22 +86,23 @@ function readGpu(): Promise<Stats['gpu']> {
       (err, stdout) => {
         if (err) { gpuAvailable = false; resolve(null); return; }
         gpuAvailable = true;
-        const [util, used, total] = stdout.trim().split('\n')[0].split(',').map((s) => Number(s.trim()));
-        if (!Number.isFinite(util)) { resolve(null); return; }
-        const MiB = 1024 * 1024;
-        resolve({ util, memUsed: (used || 0) * MiB, memTotal: (total || 0) * MiB });
+        resolve(parseGpu(stdout));
       },
     );
   });
 }
 
-async function readDisk(): Promise<{ used: number; total: number }> {
-  const fs = await statfs(process.env.HOME ?? '/').catch(() => null);
+// Pura: bytes usados/totais a partir do statfs (blocos * tamanho de bloco).
+export function parseDisk(fs: { bsize: number | bigint; blocks: number | bigint; bfree: number | bigint } | null): { used: number; total: number } {
   if (!fs) return { used: 0, total: 0 };
   const bs = Number(fs.bsize) || 0;
   const total = Number(fs.blocks) * bs;
   const free = Number(fs.bfree) * bs;
   return { used: Math.max(0, total - free), total };
+}
+
+async function readDisk(): Promise<{ used: number; total: number }> {
+  return parseDisk(await statfs(process.env.HOME ?? '/').catch(() => null));
 }
 
 export async function collect(): Promise<Stats> {
