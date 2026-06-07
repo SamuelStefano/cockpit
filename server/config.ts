@@ -1,6 +1,19 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+// O CLI nomeia o dir do projeto trocando os separadores do caminho absoluto do
+// cwd por '-' (/home/samuel -> -home-samuel; /home/joao -> -home-joao). Derivar o
+// slug do workdir em vez de cravar o do Samuel torna o backend portável pra a VPS
+// de qualquer fellow (Fase 0b, DR-017): cada um roda na própria box, com o próprio
+// HOME. Também casa projectsDir com o cwd do spawn — antes, setar COCKPIT_WORKDIR
+// quebrava o --resume (slug fixo != cwd).
+export function projectSlug(p: string): string {
+  return p.replace(/[/\\:.]/g, '-');
+}
+
+const WORKDIR = process.env.COCKPIT_WORKDIR ?? homedir();
+const PROJECTS_ROOT = join(homedir(), '.claude', 'projects');
+
 // Config do backend. Segredos (quando houver) vêm do Infisical, nunca de .env
 // versionado. Na Fase 1 não há segredo (Pro usa auth local do CLI).
 export const CONFIG = {
@@ -8,10 +21,10 @@ export const CONFIG = {
   port: Number(process.env.COCKPIT_PORT ?? 7777),
 
   // Diretório dos JSONL do CLI (fonte da verdade das sessões).
-  projectsDir: join(homedir(), '.claude', 'projects', '-home-samuel'),
+  projectsDir: join(PROJECTS_ROOT, projectSlug(WORKDIR)),
 
   // Memórias do agente (markdown tipado) — surfaceadas READ-ONLY na aba Contextos.
-  memoryDir: join(homedir(), '.claude', 'projects', '-home-samuel', 'memory'),
+  memoryDir: join(PROJECTS_ROOT, projectSlug(WORKDIR), 'memory'),
 
   // Skills do agente (cada dir tem um SKILL.md) — surfaceadas READ-ONLY na rota Skills.
   skillsDir: join(homedir(), '.claude', 'skills'),
@@ -22,7 +35,7 @@ export const CONFIG = {
   // (DR-004 #4) quebrava TODO resume ("No conversation found"): superseded por
   // DR-006. cwd nunca foi sandbox real (caminho absoluto fura); contenção real =
   // allow-list do modo (auto sem Bash) + loopback + user não-sudo da Fase 0.
-  workdir: process.env.COCKPIT_WORKDIR ?? homedir(),
+  workdir: WORKDIR,
 
   // SQLite local (loopback, sem segredo): time-series de uso/tokens p/ o
   // observatório. Mesmo dir do store.json. Override por env.
