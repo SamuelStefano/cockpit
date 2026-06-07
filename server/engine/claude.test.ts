@@ -60,9 +60,9 @@ describe('resolveMode', () => {
 
 // O gate é a única porta pro bypass: precisa das QUATRO condições simultâneas.
 describe('bypassAllowed', () => {
-  const ok = { allowBypass: true, host: '127.0.0.1' };
+  const ok = { allowBypass: true, localOnly: true };
 
-  it('permite só com pedido + role admin + flag on + loopback', () => {
+  it('permite só com pedido + role admin + flag on + deploy local-confiável', () => {
     expect(bypassAllowed({ bypass: true, role: 'admin' }, ok)).toBe(true);
   });
 
@@ -78,11 +78,11 @@ describe('bypassAllowed', () => {
   });
 
   it('nega com a flag de servidor desligada', () => {
-    expect(bypassAllowed({ bypass: true, role: 'admin' }, { allowBypass: false, host: '127.0.0.1' })).toBe(false);
+    expect(bypassAllowed({ bypass: true, role: 'admin' }, { allowBypass: false, localOnly: true })).toBe(false);
   });
 
-  it('nega fora do loopback (sem auth real, não expõe bypass)', () => {
-    expect(bypassAllowed({ bypass: true, role: 'admin' }, { allowBypass: true, host: '0.0.0.0' })).toBe(false);
+  it('nega num deploy não-local (sem auth real, não expõe bypass)', () => {
+    expect(bypassAllowed({ bypass: true, role: 'admin' }, { allowBypass: true, localOnly: false })).toBe(false);
   });
 });
 
