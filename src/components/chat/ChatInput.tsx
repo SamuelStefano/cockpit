@@ -120,7 +120,7 @@ export function ChatInput(props: ChatInputProps) {
           })}
         </div>
       )}
-      <div className="flex items-end gap-2 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 transition focus-within:border-orange-500/50 focus-within:ring-2 focus-within:ring-orange-500/15">
+      <div className="flex items-end gap-2 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 transition focus-within:border-orange-500/50">
         <button
           onClick={() => fileRef.current?.click()}
           disabled={disabled}
