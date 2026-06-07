@@ -43,6 +43,20 @@ describe('shouldReportExit', () => {
       expect(shouldReportExit(true, c)).toBe(false);
     }
   });
+
+  // Corte gracioso (budget/max-turns): o claude emite `result` e DEPOIS sai com
+  // code=1. Com sawResult=true esse exit não pode virar "claude saiu (1)" por
+  // cima do banner "teto atingido / Continuar".
+  it('never reports a non-zero exit once a result event was already seen', () => {
+    expect(shouldReportExit(false, 1, true)).toBe(false);
+    expect(shouldReportExit(false, 137, true)).toBe(false);
+  });
+
+  // Crash genuíno (sem result): segue reportando.
+  it('still reports a non-zero exit when no result was seen', () => {
+    expect(shouldReportExit(false, 1, false)).toBe(true);
+    expect(shouldReportExit(false, 127, false)).toBe(true);
+  });
 });
 
 describe('resolveMode', () => {
