@@ -2,7 +2,7 @@
 // dispara um prompt longo e troca de aba). Notification API + flash no título.
 // Tudo best-effort: sem permissão / API ausente, vira no-op silencioso.
 
-let baseTitle = typeof document !== 'undefined' ? document.title : 'cockpit';
+let baseTitle = typeof document !== 'undefined' ? document.title : 'Deck';
 let flashing = false;
 
 // Título "base" da aba (sem o flash de done). Reflete atividade persistente:
@@ -25,7 +25,7 @@ export function notifyTurnDone(sessionTitle: string, onActivate?: () => void): v
   flashTitle();
   if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     try {
-      const n = new Notification('Cockpit — resposta pronta', {
+      const n = new Notification('Deck — resposta pronta', {
         body: sessionTitle || 'A sessão terminou de responder.',
         tag: 'cockpit-done',
       });
@@ -46,7 +46,7 @@ export function notifyTurnError(sessionTitle: string, message: string, onActivat
   flashTitle();
   if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     try {
-      const n = new Notification('Cockpit — turno falhou', {
+      const n = new Notification('Deck — turno falhou', {
         body: (sessionTitle ? `${sessionTitle} — ` : '') + (message || 'A sessão terminou com erro.'),
         tag: 'cockpit-error',
       });

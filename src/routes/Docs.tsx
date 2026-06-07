@@ -198,7 +198,7 @@ export function Docs() {
         <div className="sticky top-0 p-4">
           <div className="mb-4 px-2">
             <div className="font-mono text-[15px] font-semibold lowercase tracking-tight text-neutral-100">documentação</div>
-            <div className="mt-0.5 text-[11px] text-neutral-500">manual do cockpit</div>
+            <div className="mt-0.5 text-[11px] text-neutral-500">manual do Deck</div>
           </div>
           <nav className="space-y-0.5">
             {SECTIONS.map((s) => (
@@ -238,13 +238,13 @@ export function Docs() {
           {/* Hero */}
           <div className="mb-12 overflow-hidden rounded-3xl border border-neutral-800 bg-gradient-to-br from-orange-500/[0.08] via-neutral-900/40 to-neutral-950 p-7 sm:p-9">
             <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-[11px] font-medium text-orange-300">
-              <Icon name="terminal" size={12} /> cockpit
+              <Icon name="terminal" size={12} /> Deck
             </div>
             <h1 className="text-[30px] font-bold leading-tight tracking-tight text-neutral-50 sm:text-[36px]">
               Seu posto de comando<br className="hidden sm:block" /> pra trabalhar com o Claude.
             </h1>
             <p className="mt-4 max-w-2xl text-[14.5px] leading-relaxed text-neutral-400">
-              O cockpit é uma interface pessoal que roda na sua VPS pra conversar com o agente,
+              O Deck é uma interface pessoal que roda na sua VPS pra conversar com o agente,
               acompanhar a máquina em tempo real, gerenciar contextos e abrir terminais — tudo num lugar só.
               Esta página explica cada peça, do botão de busca ao que acontece nos bastidores.
             </p>
@@ -257,8 +257,8 @@ export function Docs() {
 
           {/* Visão geral */}
           <section id="visao" className="mb-14 scroll-mt-6">
-            <SectionTitle icon="sparkles" kicker="o básico" title="O que é o cockpit"
-              desc="Um app web que conecta você a um agente Claude rodando na sua máquina. Pense nele como o cockpit de um avião: vários painéis à mão, cada um cuidando de uma parte da operação." />
+            <SectionTitle icon="sparkles" kicker="o básico" title="O que é o Deck"
+              desc="Um app web que conecta você a um agente Claude rodando na sua máquina. Pense nele como o deck de comando de uma nave: vários painéis à mão, cada um cuidando de uma parte da operação." />
             <div className="grid gap-3 sm:grid-cols-3">
               <Card>
                 <div className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-orange-400/80">Conversa</div>
@@ -295,7 +295,7 @@ export function Docs() {
               <Icon name="zap" size={15} className="mt-0.5 shrink-0 text-amber-400/80" />
               <p className="text-[12.5px] leading-relaxed text-amber-200/80">
                 <span className="font-medium">Watchdog automático ·</span> se CPU ou RAM ficarem saturadas por tempo demais,
-                o cockpit sinaliza e pode agir pra evitar travar a máquina inteira.
+                o Deck sinaliza e pode agir pra evitar travar a máquina inteira.
               </p>
             </div>
           </section>
@@ -470,7 +470,7 @@ export function Docs() {
                   <h3 className="text-[14px] font-semibold text-neutral-100">Suas conversas são arquivos</h3>
                 </div>
                 <p className="text-[13px] leading-relaxed text-neutral-400">
-                  Cada sessão é gravada em disco como histórico estruturado. O cockpit apenas lê e lista esses arquivos —
+                  Cada sessão é gravada em disco como histórico estruturado. O Deck apenas lê e lista esses arquivos —
                   ele não reescreve o seu histórico real. Fechar a aba não perde nada: ao voltar, a conversa é recarregada.
                 </p>
               </Card>
@@ -488,7 +488,7 @@ export function Docs() {
           </section>
 
           <div className="border-t border-neutral-800/80 pt-6 text-center text-[11px] text-neutral-600">
-            cockpit · manual interno · {year}
+            Deck · manual interno · {year}
           </div>
         </div>
       </div>

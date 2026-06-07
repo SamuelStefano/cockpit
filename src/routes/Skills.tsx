@@ -52,7 +52,7 @@ function Offline() {
       <p className="text-[13px] font-medium text-neutral-300">Backend local indisponível</p>
       <p className="mt-1 max-w-sm text-[12px] leading-snug text-neutral-600">
         As skills vivem na sua máquina (<span className="font-mono">~/.claude/skills/</span>) e só aparecem com o backend do
-        cockpit rodando em <span className="font-mono">127.0.0.1</span>.
+        Deck rodando em <span className="font-mono">127.0.0.1</span>.
       </p>
     </div>
   );
