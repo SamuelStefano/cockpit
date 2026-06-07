@@ -318,6 +318,10 @@ export function useCockpit(): Cockpit {
         setUsage((u) => ({ ...u, [msg.sessionKey]: 0 }));
         return;
       }
+      case 'session-summary': {
+        setSessions((prev) => prev.map((s) => (s.id === msg.sessionId ? { ...s, summary: msg.summary } : s)));
+        return;
+      }
       case 'stats': {
         setStats(msg.stats);
         return;

@@ -60,6 +60,12 @@ export const CONFIG = {
   // mais velhos que isto pra o workdir não crescer sem limite num daily driver.
   attachmentTtlMs: Number(process.env.COCKPIT_ATTACHMENT_TTL_MS ?? 7 * 24 * 60 * 60 * 1000),
 
+  // Resumo IA da sessão (1 frase do que ela fez), gerado ao fim de cada turno via
+  // API Anthropic (haiku, barato). Default ligado; COCKPIT_SUMMARY=off desliga.
+  // Modelo dedicado (não o do chat) pra manter o custo do resumo previsível.
+  summaryEnabled: process.env.COCKPIT_SUMMARY !== 'off',
+  summaryModel: process.env.COCKPIT_SUMMARY_MODEL ?? 'claude-haiku-4-5-20251001',
+
   // Gate DURO do bypassPermissions (#94, DR-011). Default FALSE: numa máquina com
   // sudo NOPASSWD + grupo docker + containers DFL prod na mesma box, bypass = RCE
   // root. Mesmo ligado, só vale com role admin E loopback (ver bypassAllowed no

@@ -38,7 +38,41 @@ function open(): Database.Database {
   ensureColumn(db, 'usage_sample', 'input_tokens', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'usage_sample', 'cache_read_tokens', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'usage_sample', 'cache_creation_tokens', 'INTEGER NOT NULL DEFAULT 0');
+  // Resumo IA por sessão (1 frase), regerado ao fim do turno. Keyed por session_id
+  // (upsert) — derivado do JSONL, descartável, jamais sobrescreve histórico real.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS session_summary (
+      session_id TEXT PRIMARY KEY,
+      summary    TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+  `);
   return db;
+}
+
+export function setSummary(sessionId: string, summary: string): void {
+  if (!sessionId || !summary) return;
+  try {
+    open()
+      .prepare(`INSERT INTO session_summary (session_id, summary, updated_at) VALUES (?, ?, ?)
+        ON CONFLICT(session_id) DO UPDATE SET summary = excluded.summary, updated_at = excluded.updated_at`)
+      .run(sessionId, summary, Date.now());
+  } catch { /* lock/disco — resumo é descartável, ignora */ }
+}
+
+export function getSummary(sessionId: string): string | null {
+  try {
+    const r = open().prepare('SELECT summary FROM session_summary WHERE session_id = ?').get(sessionId) as { summary: string } | undefined;
+    return r?.summary ?? null;
+  } catch { return null; }
+}
+
+// Mapa id->resumo, pra decorar a listagem inteira numa query só (sem N selects).
+export function allSummaries(): Map<string, string> {
+  try {
+    const rows = open().prepare('SELECT session_id AS id, summary FROM session_summary').all() as Array<{ id: string; summary: string }>;
+    return new Map(rows.map((r) => [r.id, r.summary]));
+  } catch { return new Map(); }
 }
 
 function ensureColumn(d: Database.Database, table: string, col: string, decl: string): void {

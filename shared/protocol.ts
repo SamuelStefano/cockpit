@@ -70,6 +70,7 @@ export interface SessionMeta {
   title: string;
   relative: string;
   snippet: string;
+  summary?: string; // resumo IA do que a sessão fez (gerado ao fim do turno)
   mtime: number;
   count: number;
 }
@@ -199,6 +200,7 @@ export type ServerMsg =
   | { t: 'sessions'; items: SessionMeta[] }
   | { t: 'archived'; items: SessionMeta[] }
   | { t: 'search-results'; q: string; items: SessionMeta[] }
+  | { t: 'session-summary'; sessionId: string; summary: string }
   | { t: 'contexts'; items: ContextMeta[] }
   | { t: 'context'; id: string; title: string; body: string }
   | { t: 'skills'; items: SkillMeta[] }
