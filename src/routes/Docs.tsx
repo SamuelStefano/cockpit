@@ -16,11 +16,15 @@ interface Section {
 const SECTIONS: Section[] = [
   { id: 'visao', label: 'Visão geral', icon: 'sparkles' },
   { id: 'features', label: 'Funcionalidades', icon: 'grip' },
+  { id: 'sessoes', label: 'Sessões & fila', icon: 'message' },
+  { id: 'tempo-real', label: 'Tempo real', icon: 'circle' },
   { id: 'recursos', label: 'Recursos da máquina', icon: 'zap' },
   { id: 'modos', label: 'Modos & permissões', icon: 'shield' },
+  { id: 'perfil', label: 'Perfil & aparência', icon: 'user' },
   { id: 'busca', label: 'Busca & navegação', icon: 'search' },
   { id: 'comandos', label: 'Comandos & atalhos', icon: 'command' },
   { id: 'modelos', label: 'Modelos & teto', icon: 'claude' },
+  { id: 'admin', label: 'Admin', icon: 'shield' },
   { id: 'bastidores', label: 'Por trás dos panos', icon: 'terminal' },
 ];
 
@@ -284,6 +288,116 @@ export function Docs() {
             </div>
           </section>
 
+          {/* Sessões & fila */}
+          <section id="sessoes" className="mb-14 scroll-mt-6">
+            <SectionTitle icon="message" kicker="organização" title="Sessões & fila de prompts"
+              desc="Cada conversa é uma sessão que você pode favoritar, renomear ou arquivar. E quando você manda uma mensagem enquanto o agente ainda trabalha, um segundo agente decide o que fazer com ela — você não precisa esperar." />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Card>
+                <div className="mb-2 flex items-center gap-2">
+                  <Icon name="star" size={15} className="text-amber-300" />
+                  <h3 className="text-[14px] font-semibold text-neutral-100">Ações da sessão</h3>
+                </div>
+                <p className="text-[13px] leading-relaxed text-neutral-400">
+                  Passe o mouse sobre uma sessão na lista pra ver os botões: <span className="font-medium text-neutral-300">favoritar</span> (fixa no topo),
+                  <span className="font-medium text-neutral-300"> renomear</span>, <span className="font-medium text-neutral-300">arquivar</span> e <span className="font-medium text-neutral-300">excluir</span>.
+                  O arquivado some da lista mas continua no disco; o excluído é escondido do Deck — o histórico real em arquivo nunca é apagado de fato.
+                </p>
+              </Card>
+              <Card>
+                <div className="mb-2 flex items-center gap-2">
+                  <Icon name="sparkles" size={15} className="text-violet-300" />
+                  <h3 className="text-[14px] font-semibold text-neutral-100">Resumo & contexto</h3>
+                </div>
+                <p className="text-[13px] leading-relaxed text-neutral-400">
+                  Cada sessão mostra um título destilado pelo agente e um medidor de quanto da janela de contexto já foi usado.
+                  Quando o contexto enche, o botão de <span className="font-medium text-neutral-300">nova sessão</span> dá um recomeço limpo sem perder o histórico antigo.
+                </p>
+              </Card>
+            </div>
+            <div className="mt-3">
+              <Card className="border-orange-500/20">
+                <div className="mb-3 flex items-center gap-2">
+                  <Icon name="claude" size={15} className="text-orange-300" />
+                  <h3 className="text-[14px] font-semibold text-neutral-100">Triagem do próximo prompt (sub-agente)</h3>
+                </div>
+                <p className="mb-4 text-[13px] leading-relaxed text-neutral-400">
+                  Se você mandar uma mensagem com o turno ainda rodando, o Deck dispara um agente leve e barato (Haiku, em modo só-leitura)
+                  pra classificar a sua mensagem e decidir o melhor destino. São quatro saídas possíveis:
+                </p>
+                <div className="grid gap-2.5 sm:grid-cols-2">
+                  <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06] p-3">
+                    <div className="mb-1 inline-flex rounded-md bg-emerald-500/20 px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-emerald-300">responder</div>
+                    <p className="text-[12.5px] leading-relaxed text-neutral-400">Pergunta trivial e independente — é respondida na hora num balão lateral, sem atrapalhar o turno principal.</p>
+                  </div>
+                  <div className="rounded-xl border border-sky-500/25 bg-sky-500/[0.06] p-3">
+                    <div className="mb-1 inline-flex rounded-md bg-sky-500/20 px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-sky-300">enfileirar</div>
+                    <p className="text-[12.5px] leading-relaxed text-neutral-400">Complementa o trabalho atual — fica na fila e é enviada sozinha assim que o turno termina.</p>
+                  </div>
+                  <div className="rounded-xl border border-amber-500/25 bg-amber-500/[0.06] p-3">
+                    <div className="mb-1 inline-flex rounded-md bg-amber-500/20 px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-amber-300">prioridade</div>
+                    <p className="text-[12.5px] leading-relaxed text-neutral-400">Urgente ou corrige o rumo — interrompe o turno em andamento e entra na frente.</p>
+                  </div>
+                  <div className="rounded-xl border border-violet-500/25 bg-violet-500/[0.06] p-3">
+                    <div className="mb-1 inline-flex rounded-md bg-violet-500/20 px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-violet-300">mesclar</div>
+                    <p className="text-[12.5px] leading-relaxed text-neutral-400">É continuação do mesmo assunto — tratada como parte do turno atual.</p>
+                  </div>
+                </div>
+                <p className="mt-3 text-[12px] leading-relaxed text-neutral-500">
+                  A decisão e o motivo aparecem como uma etiqueta na sua mensagem. Na dúvida, o padrão é sempre <span className="font-medium text-neutral-400">enfileirar</span> — nada se perde.
+                </p>
+              </Card>
+            </div>
+          </section>
+
+          {/* Tempo real */}
+          <section id="tempo-real" className="mb-14 scroll-mt-6">
+            <SectionTitle icon="circle" kicker="ao vivo" title="Tempo real entre a VPS e o app"
+              desc="Tudo que você vê acontecer sozinho na tela passa por um único canal sempre aberto entre o navegador e o servidor na VPS. Sem recarregar, sem F5 — o estado chega empurrado." />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Card>
+                <div className="mb-2 flex items-center gap-2">
+                  <Icon name="zap" size={15} className="text-orange-300" />
+                  <h3 className="text-[14px] font-semibold text-neutral-100">Um canal, vários fluxos</h3>
+                </div>
+                <p className="text-[13px] leading-relaxed text-neutral-400">
+                  Pela mesma conexão (WebSocket) trafegam: a resposta do agente token a token, a telemetria da máquina,
+                  as telas dos terminais, a triagem de mensagens e as mudanças nas sessões. Cada fluxo é um tipo de evento etiquetado.
+                </p>
+              </Card>
+              <Card>
+                <div className="mb-2 flex items-center gap-2">
+                  <Icon name="rotate" size={15} className="text-emerald-300" />
+                  <h3 className="text-[14px] font-semibold text-neutral-100">Reconexão sem perda</h3>
+                </div>
+                <p className="text-[13px] leading-relaxed text-neutral-400">
+                  Se a conexão cair (rede, app dormindo no celular), o Deck reconecta sozinho e recupera o que aconteceu enquanto esteve fora.
+                  Um turno iniciado num aparelho continua visível em outro — o estado mora no servidor, não na aba.
+                </p>
+              </Card>
+              <Card>
+                <div className="mb-2 flex items-center gap-2">
+                  <Icon name="terminal" size={15} className="text-neutral-300" />
+                  <h3 className="text-[14px] font-semibold text-neutral-100">Terminais multi-dispositivo</h3>
+                </div>
+                <p className="text-[13px] leading-relaxed text-neutral-400">
+                  Os shells reais (PTY) vivem na VPS, não no navegador. Por isso o mesmo terminal segue rodando se você abrir de outro aparelho —
+                  o app só desenha os quadros que chegam pelo canal.
+                </p>
+              </Card>
+              <Card>
+                <div className="mb-2 flex items-center gap-2">
+                  <Icon name="circle" size={15} className="text-sky-300" />
+                  <h3 className="text-[14px] font-semibold text-neutral-100">Indicador de conexão</h3>
+                </div>
+                <p className="text-[13px] leading-relaxed text-neutral-400">
+                  O ponto <Pill>ws</Pill> no cabeçalho mostra o estado do canal em tempo real. Se o backend ficar inacessível,
+                  um aviso honesto aparece em vez de o app parecer quebrado — e ele continua tentando reconectar.
+                </p>
+              </Card>
+            </div>
+          </section>
+
           {/* Recursos da máquina */}
           <section id="recursos" className="mb-14 scroll-mt-6">
             <SectionTitle icon="zap" kicker="telemetria" title="Recursos da máquina"
@@ -324,6 +438,34 @@ export function Docs() {
                 <span className="font-medium">Bypass (admin) ·</span> um interruptor que deixa o agente rodar qualquer comando sem pedir aprovação.
                 Vem desligado, é restrito a administrador e deve ser usado com muito cuidado — desligue assim que terminar.
               </p>
+            </div>
+          </section>
+
+          {/* Perfil & aparência */}
+          <section id="perfil" className="mb-14 scroll-mt-6">
+            <SectionTitle icon="user" kicker="personalização" title="Perfil & aparência"
+              desc="O Deck é seu — dá pra dar cara a você e ao agente. Tudo fica salvo localmente no seu navegador (nada vai pro servidor) e o menu de perfil mora no canto direito do cabeçalho." />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Card>
+                <div className="mb-2 flex items-center gap-2">
+                  <Icon name="user" size={15} className="text-orange-300" />
+                  <h3 className="text-[14px] font-semibold text-neutral-100">Seu avatar e nome</h3>
+                </div>
+                <p className="text-[13px] leading-relaxed text-neutral-400">
+                  Defina seu nome (usado nas iniciais do chat) e envie uma foto de avatar. A imagem é reduzida no próprio navegador
+                  e guardada localmente — sem upload pra lugar nenhum. Sem foto, o app usa suas iniciais.
+                </p>
+              </Card>
+              <Card>
+                <div className="mb-2 flex items-center gap-2">
+                  <Icon name="sparkles" size={15} className="text-violet-300" />
+                  <h3 className="text-[14px] font-semibold text-neutral-100">Ícone da IA</h3>
+                </div>
+                <p className="text-[13px] leading-relaxed text-neutral-400">
+                  Dentro do menu de perfil há um seletor escondido pro ícone do agente: o burst laranja da marca por padrão,
+                  ou um dos vários emojis divertidos (caranguejo, robô, alienígena, raposa…). Escolha um e ele passa a aparecer em todas as respostas.
+                </p>
+              </Card>
             </div>
           </section>
 
@@ -436,6 +578,42 @@ export function Docs() {
                   Vazio = sem limite.
                 </p>
               </Card>
+            </div>
+          </section>
+
+          {/* Admin */}
+          <section id="admin" className="mb-14 scroll-mt-6">
+            <SectionTitle icon="shield" kicker="operação" title="Tela de Admin"
+              desc="O painel de controle de quem opera a VPS: saúde da máquina, estado do CLI e da infra, inventário de sessões e memórias. É leitura — mostra o que está acontecendo, sem mexer no sistema." />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Card>
+                <div className="mb-2 flex items-center gap-2">
+                  <Icon name="zap" size={15} className="text-emerald-300" />
+                  <h3 className="text-[14px] font-semibold text-neutral-100">Saúde & infra</h3>
+                </div>
+                <p className="text-[13px] leading-relaxed text-neutral-400">
+                  CPU, RAM, disco e carga em tempo real, mais o estado do CLI do Claude, do SSH e dos servidores MCP conectados.
+                  Um raio-x de tudo que o Deck depende pra funcionar.
+                </p>
+              </Card>
+              <Card>
+                <div className="mb-2 flex items-center gap-2">
+                  <Icon name="message" size={15} className="text-violet-300" />
+                  <h3 className="text-[14px] font-semibold text-neutral-100">Inventário</h3>
+                </div>
+                <p className="text-[13px] leading-relaxed text-neutral-400">
+                  Contagem de sessões, memórias de contexto e skills instaladas, além de números de consumo agregados —
+                  pra ter a foto geral da operação num lugar só.
+                </p>
+              </Card>
+            </div>
+            <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-red-500/25 bg-red-500/[0.07] p-4">
+              <Icon name="shield" size={15} className="mt-0.5 shrink-0 text-red-400/80" />
+              <p className="text-[12.5px] leading-relaxed text-red-200/80">
+                <span className="font-medium">Só para administradores ·</span> esta aba dá visão da máquina inteira e por isso
+                deve ficar visível apenas para quem é admin. Enquanto o login com níveis de acesso não está pronto, o Deck roda
+                restrito à rede privada — mas o controle de contas é o próximo passo crítico de segurança.
+              </p>
             </div>
           </section>
 
