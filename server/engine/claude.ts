@@ -120,6 +120,7 @@ export function run(opts: RunOpts): RunHandle {
   // Spawn falho (ex: `claude` fora do PATH) emite 'error' mas pode NÃO emitir
   // 'close' — sem isto o thread nunca limpa e o cliente trava no spinner.
   let closed = false;
+  let killed = false;
   let killTimer: NodeJS.Timeout | undefined;
   const finish = () => {
     if (closed) return;
@@ -129,10 +130,7 @@ export function run(opts: RunOpts): RunHandle {
   };
   child.on('error', (err) => { onError(sanitize(err.message)); finish(); });
   child.on('close', (code) => {
-    // Qualquer saída não-zero vira erro visível — antes, sem stderr, um crash
-    // silencioso parecia "done" com sucesso (madrugada inteira sem saber). Kill
-    // por sinal (stop do usuário) vem com code=null, então não dispara aqui.
-    if (code && code !== 0) {
+    if (shouldReportExit(killed, code)) {
       const tail = stderr.trim().slice(-300);
       onError(sanitize(tail ? `claude saiu (${code}): ${tail}` : `claude saiu (${code})`));
     }
@@ -141,6 +139,7 @@ export function run(opts: RunOpts): RunHandle {
 
   return {
     kill: () => {
+      killed = true;
       const signal = (sig: NodeJS.Signals) => {
         try { if (child.pid) process.kill(-child.pid, sig); }
         catch { try { child.kill(sig); } catch { /* já morto */ } }
@@ -195,4 +194,14 @@ function minimalEnv(): NodeJS.ProcessEnv {
 // nunca vazar caminho de segredo/stack cru pro cliente
 export function sanitize(msg: string): string {
   return msg.replace(/\/home\/[^\s]+/g, '<path>').slice(0, 300);
+}
+
+// Saída não-zero do `claude` vira erro visível — antes, sem stderr, um crash
+// silencioso parecia "done" com sucesso (madrugada inteira sem saber). Mas o stop
+// do usuário NÃO é falha: o `claude` instala handler de SIGTERM e sai com code=143
+// (128+15) — não com code=null como um kill cru. Sem o guard `killed`, todo
+// Esc/stop pintava o banner vermelho "O turno falhou. Reenviar?". Gate no flag (não
+// no code) cobre 143/137/qualquer code resultante do nosso próprio kill.
+export function shouldReportExit(killed: boolean, code: number | null): boolean {
+  return !killed && code != null && code !== 0;
 }

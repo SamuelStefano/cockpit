@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitize, resolveMode, buildArgs, bypassAllowed } from './claude';
+import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit } from './claude';
 
 function argsOf(o: Parameters<typeof buildArgs>[0]): string[] {
   const r = buildArgs(o);
@@ -22,6 +22,26 @@ describe('sanitize', () => {
 
   it('caps the message at 300 chars', () => {
     expect(sanitize('x'.repeat(500)).length).toBe(300);
+  });
+});
+
+describe('shouldReportExit', () => {
+  it('reports genuine non-zero crashes (not killed)', () => {
+    expect(shouldReportExit(false, 1)).toBe(true);
+    expect(shouldReportExit(false, 127)).toBe(true);
+  });
+
+  it('stays silent on clean exit and signal-less close', () => {
+    expect(shouldReportExit(false, 0)).toBe(false);
+    expect(shouldReportExit(false, null)).toBe(false);
+  });
+
+  // Stop do usuário: nosso kill() leva o claude a sair com 143 (SIGTERM) / 137
+  // (SIGKILL). Com killed=true nenhum desses pode virar o banner "turno falhou".
+  it('never reports an exit caused by our own kill, whatever the code', () => {
+    for (const c of [143, 137, 1, 0, null]) {
+      expect(shouldReportExit(true, c)).toBe(false);
+    }
   });
 });
 
