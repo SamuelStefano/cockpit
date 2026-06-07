@@ -23,11 +23,14 @@ import { authorize } from './authz';
 // resolvido (token no listen; dono-da-box no agente) — aqui é só servir o
 // protocolo: bootstrap (caps/busy/replay/…), o loop de mensagens com o checkpoint
 // authorize, e o cleanup de terminais no close.
-export function serveConnection(ws: WebSocket, opts: { role: Role }) {
-  const { role } = opts;
+export function serveConnection(ws: WebSocket, opts: { role: Role; sendCaps?: boolean }) {
+  const { role, sendCaps = true } = opts;
   (ws as WebSocket & { isAlive?: boolean }).isAlive = true;
   ws.on('pong', () => { (ws as WebSocket & { isAlive?: boolean }).isAlive = true; });
-  send(ws, { t: 'caps', caps: capsFor(role, CONFIG) });
+  // No modo dial (agente T3) o caps autoritativo é do relay (papel da conta vem do
+  // JWT). O agente NÃO reanuncia caps — senão sobrescreveria o papel do viewer com
+  // o papel-de-engine 'student'. busy/replay/stats seguem (estado de engine).
+  if (sendCaps) send(ws, { t: 'caps', caps: capsFor(role, CONFIG) });
   send(ws, { t: 'busy', keys: [...threads.keys()] });
   const slash = getSlashCommands();
   if (slash.length) send(ws, { t: 'slash-commands', items: slash });

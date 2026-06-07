@@ -87,7 +87,9 @@ export function createRelay(cfg: RelayConfig) {
     if (!id) { ws.close(4401, 'auth'); return; }            // default-deny (red line #10)
     const accountId = id.accountId;
     registry.addBrowser(accountId, ws);
-    ws.send(JSON.stringify({ t: 'caps', caps: { role: id.role } }));
+    // caps autoritativo do relay (papel da conta vem do JWT). canBypass=false: bypass
+    // é local-only do agente, nunca concedido via relay.
+    ws.send(JSON.stringify({ t: 'caps', caps: { role: id.role, canBypass: false } }));
     if (!registry.hasAgent(accountId)) ws.send(JSON.stringify({ t: 'agent-offline' }));
     ws.on('message', (data) => {
       // Roteia opaco pro agente DAQUELA conta. A autenticidade fim-a-fim do frame
@@ -100,10 +102,16 @@ export function createRelay(cfg: RelayConfig) {
   // ── Agent path: challenge-signature (Ed25519). Pubkey/conta vêm do Store.
   wssAgent.on('connection', (ws: WebSocket) => {
     const st: AgentState = { agentId: '', accountId: '', challenge: '', authed: false };
+    let attempts = 0;
+    // Socket pré-auth não pode ficar pendurado (DB-amplification/exaustão): fecha
+    // se não autenticar em 15s.
+    const authTimer = setTimeout(() => { if (!st.authed) { try { ws.close(4408, 'auth timeout'); } catch { /* indo */ } } }, 15_000);
+    authTimer.unref?.();
     ws.on('message', async (raw) => {
       let m: { t?: string; agentId?: string; sig?: string; code?: string; publicKey?: string } = {};
       try { m = JSON.parse(raw.toString()); } catch { return; }
       if (!st.authed) {
+        if (++attempts > 10) { try { ws.close(4429, 'too many attempts'); } catch { /* indo */ } return; }
         // Pairing: consome o código (atômico) → registra o agente → devolve agentId.
         if (m.t === 'pair' && typeof m.code === 'string' && typeof m.publicKey === 'string') {
           const accountId = await cfg.store.consumePairingCode(m.code);
@@ -123,8 +131,10 @@ export function createRelay(cfg: RelayConfig) {
         }
         if (m.t === 'agent-auth' && typeof m.sig === 'string') {
           const pub = (st as AgentState & { pub?: string }).pub ?? '';
-          if (!st.challenge || !verifyAgentSignature(pub, st.challenge, m.sig)) { ws.close(4401, 'bad sig'); return; }
+          // Verifica sobre challenge+agentId (domain separation; casa com o agente).
+          if (!st.challenge || !verifyAgentSignature(pub, `${st.challenge}.${st.agentId}`, m.sig)) { ws.close(4401, 'bad sig'); return; }
           st.authed = true;
+          clearTimeout(authTimer);
           registry.bindAgent(st.accountId, ws);
           await cfg.store.markAgentSeen(st.agentId);
           ws.send(JSON.stringify({ t: 'agent-ready' }));
@@ -138,6 +148,7 @@ export function createRelay(cfg: RelayConfig) {
       registry.toBrowsers(st.accountId, raw.toString());
     });
     ws.on('close', () => {
+      clearTimeout(authTimer);
       if (st.authed) {
         registry.unbindAgent(st.accountId, ws);
         registry.toBrowsers(st.accountId, JSON.stringify({ t: 'agent-offline' }));
@@ -151,6 +162,27 @@ export function createRelay(cfg: RelayConfig) {
     if (!target) { socket.destroy(); return; }
     target.handleUpgrade(req, socket, head, (ws) => target.emit('connection', ws, req));
   });
+
+  // Heartbeat: termina sockets meio-abertos (laptop dormindo, sem FIN) em ambos os
+  // servidores — sem isto o buffer de um cliente morto cresce até o OOM, e um agente
+  // morto fica "online" engolindo frames. Espelha o sweep do server/ws.ts.
+  for (const w of [wssBrowser, wssAgent]) {
+    w.on('connection', (ws: WebSocket) => {
+      (ws as WebSocket & { isAlive?: boolean }).isAlive = true;
+      ws.on('pong', () => { (ws as WebSocket & { isAlive?: boolean }).isAlive = true; });
+    });
+  }
+  const beat = setInterval(() => {
+    for (const w of [wssBrowser, wssAgent]) {
+      for (const c of w.clients) {
+        if ((c as WebSocket & { isAlive?: boolean }).isAlive === false) { c.terminate(); continue; }
+        (c as WebSocket & { isAlive?: boolean }).isAlive = false;
+        try { c.ping(); } catch { /* indo embora */ }
+      }
+    }
+  }, 30_000);
+  beat.unref();
+  server.on('close', () => clearInterval(beat));
 
   return { server, registry };
 }
