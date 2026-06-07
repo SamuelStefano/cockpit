@@ -51,7 +51,7 @@ export function killAllRuns(): void {
 
 const SESSION_KEY_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 
-export function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: string, mode?: string, model?: string, effort?: string, maxBudgetUsd?: number, bypass?: boolean) {
+export function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: string, msgId?: string, mode?: string, model?: string, effort?: string, maxBudgetUsd?: number, bypass?: boolean) {
   // sessionKey é string crua do cliente usada como chave do mapa `threads` e
   // ecoada nos broadcasts; restringe a um slug (cobre uuid e as keys 'new-…').
   if (typeof sessionKey !== 'string' || !SESSION_KEY_RE.test(sessionKey)) {
@@ -71,6 +71,10 @@ export function startRun(ws: WebSocket, sessionKey: string, prompt: string, resu
 
   const thread: Thread = { handle: { kill: () => {} }, sessionId: resumeId, text: '', thinking: '', tools: [], toolStart: new Map() };
   threads.set(sessionKey, thread);
+  // Eco da mensagem do usuário a todos os clientes ANTES do 'started' (bolha do
+  // usuário aparece antes da do assistente). Só quando o cliente mandou msgId — o
+  // dedup no remetente depende de casar o id otimista dele.
+  if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
   broadcast({ t: 'started', sessionKey });
 
   thread.handle = run({
