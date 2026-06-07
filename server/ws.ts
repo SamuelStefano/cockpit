@@ -17,6 +17,7 @@ import { isAdminOnly, createRateLimiter } from './ws/guard';
 import { startStatsLoop } from './ws/stats-loop';
 import { getLastPlanUsage, startPlanUsageLoop } from './ws/usage-plan';
 import { getLastModels, startModelsLoop } from './ws/models';
+import { probeSlashCommands } from './ws/slash-probe';
 
 export { runStats, killAllRuns } from './ws/runs';
 
@@ -108,5 +109,6 @@ export function attachWs(server: Server) {
   startStatsLoop(wss);
   startPlanUsageLoop(wss);
   startModelsLoop(wss);
+  probeSlashCommands();
   return wss;
 }
