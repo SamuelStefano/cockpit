@@ -73,6 +73,7 @@ export interface Cockpit {
   onStop: (sessionKey?: string) => void;
   onNew: () => void;
   onRename: (id: string, title: string) => void;
+  onDescribe: (id: string, summary: string) => void;
   onClose: (id: string) => void;
   onUnhide: (id: string) => void;
   onOpenFull: (id: string) => void;
@@ -628,6 +629,15 @@ export function useCockpit(): Cockpit {
 
   const onRename = useCallback((id: string, title: string) => {
     setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)));
+    // Persiste no servidor (override em store.json) só p/ sessão real; `new-`
+    // ainda não tem JSONL/UUID, fica só local até virar sessão de verdade.
+    if (id && !id.startsWith('new-')) send({ t: 'set-meta', sessionId: id, title });
+  }, []);
+
+  // Descrição manual da sessão (ganha do resumo IA). Mesma regra do rename.
+  const onDescribe = useCallback((id: string, summary: string) => {
+    setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, summary } : s)));
+    if (id && !id.startsWith('new-')) send({ t: 'set-meta', sessionId: id, summary });
   }, []);
 
   // Fechar = arquivar. Sessão real -> backend esconde do list (não deleta JSONL);
@@ -751,5 +761,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onClose, onUnhide, onOpenFull };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onUnhide, onOpenFull };
 }

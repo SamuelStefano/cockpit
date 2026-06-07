@@ -1,62 +1,6 @@
-import { useState, useEffect } from 'react';
 import { Icon, ConnDot, type ConnState } from './primitives';
 import { ProfileMenu } from './Avatar';
 import type { Route } from '../useRoute';
-import type { TurnStats } from '../../shared/protocol';
-import { CONTEXT_LIMIT, ctxPct, fmtCost } from '../lib/format';
-
-// HUD sempre-visível no header: reset do limite Claude, % de contexto + tokens,
-// e duração do último turno (prompt→prompt). Re-renderiza sozinho a cada 30s pro
-// countdown de reset andar mesmo sem novos frames.
-function StatHud({ rate, ctxTokens, lastTurn, onNav }: {
-  rate: { resetsAt: number; status: string } | null;
-  ctxTokens: number;
-  lastTurn?: TurnStats;
-  onNav: (to: Route) => void;
-}) {
-  const [, force] = useState(0);
-  useEffect(() => {
-    if (!rate) return;
-    const id = setInterval(() => force((n) => (n + 1) % 1e6), 30_000);
-    return () => clearInterval(id);
-  }, [rate]);
-
-  const chips: React.ReactNode[] = [];
-
-  // O reset do limite Claude vive só no rodapé (StatusBar) — não duplicar aqui.
-
-  if (ctxTokens > 0) {
-    const pct = ctxPct(ctxTokens);
-    const tone = pct >= 75 ? 'text-red-400' : pct >= 50 ? 'text-amber-400' : 'text-neutral-400';
-    chips.push(
-      <button
-        key="ctx"
-        onClick={() => onNav('/')}
-        title={`Contexto: ~${ctxTokens.toLocaleString()} tokens (${pct}% de ${CONTEXT_LIMIT.toLocaleString()})`}
-        className={`flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-900/60 px-1.5 py-0.5 text-[10.5px] tabular-nums ${tone}`}
-      >
-        <Icon name="circle" size={9} className={pct >= 75 ? 'text-red-500' : pct >= 50 ? 'text-amber-500' : 'text-neutral-600'} />
-        {pct}% · {(ctxTokens / 1000).toFixed(0)}k
-      </button>
-    );
-  }
-
-  if (lastTurn?.durationMs !== undefined) {
-    chips.push(
-      <span
-        key="trn"
-        title={`Último turno: ${(lastTurn.durationMs / 1000).toFixed(1)}s${lastTurn.numTurns ? ` · ${lastTurn.numTurns} turnos` : ''} (tempo de um prompt ao próximo)`}
-        className="flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-900/60 px-1.5 py-0.5 text-[10.5px] tabular-nums text-neutral-400"
-      >
-        <Icon name="zap" size={10} className="text-emerald-400/70" />
-        {(lastTurn.durationMs / 1000).toFixed(1)}s
-      </span>
-    );
-  }
-
-  if (!chips.length) return null;
-  return <div className="flex items-center gap-1.5">{chips}</div>;
-}
 
 // --- Header ----------------------------------------------------------------
 
@@ -68,10 +12,6 @@ interface HeaderProps {
   route: Route;
   nav: (to: Route) => void;
   onPalette: () => void;
-  cost: number;
-  rate: { resetsAt: number; status: string } | null;
-  ctxTokens: number;
-  lastTurn?: TurnStats;
 }
 
 const NAV: { to: Route; label: string }[] = [
@@ -82,7 +22,7 @@ const NAV: { to: Route; label: string }[] = [
   { to: '/admin', label: 'admin' },
 ];
 
-export function Header({ conn, onNew, isMobile, onMenu, route, nav, onPalette, cost, rate, ctxTokens, lastTurn }: HeaderProps) {
+export function Header({ conn, onNew, isMobile, onMenu, route, nav, onPalette }: HeaderProps) {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex items-center gap-2.5">
@@ -112,17 +52,6 @@ export function Header({ conn, onNew, isMobile, onMenu, route, nav, onPalette, c
       </div>
 
       <div className="flex min-w-0 items-center gap-3">
-        {!isMobile && <StatHud rate={rate} ctxTokens={ctxTokens} lastTurn={lastTurn} onNav={nav} />}
-        {cost > 0 && (
-          <button
-            onClick={() => nav('/uso')}
-            title="Custo estimado acumulado — abrir Uso"
-            className="flex items-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1.5 text-emerald-400/90 transition hover:border-emerald-500/30 hover:text-emerald-300"
-          >
-            <Icon name="zap" size={13} />
-            <span className="font-mono text-[11.5px] tabular-nums">{fmtCost(cost)}</span>
-          </button>
-        )}
         <button
           onClick={onPalette}
           title="Comandos (⌘K)"
@@ -157,17 +86,12 @@ interface QuotaBannerProps {
 
 export function QuotaBanner({ onClose, reset }: QuotaBannerProps) {
   return (
-    <div className="fade-up pointer-events-none absolute left-1/2 top-[58px] z-40 -translate-x-1/2">
-      <div className="pointer-events-auto flex items-center gap-2.5 rounded-lg border border-yellow-500/30 bg-yellow-500/[0.12] px-3 py-2 shadow-2xl shadow-black/40 backdrop-blur-md">
-        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-yellow-500/15 text-yellow-400">
-          <Icon name="zap" size={13} />
-        </span>
-        <div className="leading-tight">
-          <p className="text-[12px] font-medium text-yellow-200">Uso próximo do limite</p>
-          <p className="text-[11px] text-yellow-200/60">o limite de uso reseta em {reset}</p>
-        </div>
-        <button onClick={onClose} className="ml-1 rounded p-1 text-yellow-200/50 transition hover:bg-yellow-500/10 hover:text-yellow-200">
-          <Icon name="x" size={14} />
+    <div className="fade-up pointer-events-none absolute bottom-3 right-3 z-30 max-w-[calc(100vw-1.5rem)]">
+      <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-yellow-500/20 bg-neutral-900/85 py-1 pl-2 pr-1 text-yellow-200/80 shadow-lg shadow-black/30 backdrop-blur-md transition hover:border-yellow-500/40 hover:text-yellow-200">
+        <Icon name="zap" size={12} className="shrink-0 text-yellow-400/80" />
+        <span className="truncate text-[11px]">Uso próximo do limite · reseta {reset}</span>
+        <button onClick={onClose} title="Dispensar" className="shrink-0 rounded-full p-0.5 text-yellow-200/40 transition hover:bg-yellow-500/10 hover:text-yellow-200">
+          <Icon name="x" size={12} />
         </button>
       </div>
     </div>

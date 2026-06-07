@@ -2,7 +2,7 @@ import { readdir, stat, open } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { SessionMeta } from '../../shared/protocol';
 import { CONFIG } from '../config';
-import { hiddenSet } from '../store';
+import { hiddenSet, titleOverrides, noteOverrides } from '../store';
 import { allSummaries, getSummary } from '../db';
 
 const UUID_FILE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$/;
@@ -41,7 +41,10 @@ async function collectMetas(keep: (id: string, hidden: Set<string>) => boolean):
   const hidden = await hiddenSet();
   // Resumos vivem fora do JSONL (SQLite) e mudam sem o mtime do arquivo mover, então
   // aplica o resumo atual em CIMA do meta (cacheado ou fresco) a cada listagem.
+  // Overrides manuais (titles/notes) idem — fora do JSONL, aplicados por id.
   const summaries = allSummaries();
+  const titleOv = await titleOverrides();
+  const noteOv = await noteOverrides();
   const metas: SessionMeta[] = [];
   for (const f of files) {
     if (!UUID_FILE.test(f)) continue;
@@ -62,8 +65,13 @@ async function collectMetas(keep: (id: string, hidden: Set<string>) => boolean):
       meta = metaFromHead(id, mtime, scan);
       cache.set(id, { mtime, size: st.size, scan, meta });
     }
-    meta.summary = summaries.get(id);
-    metas.push(meta);
+    // Cópia rasa por listagem: o override NÃO é mutado no `meta` cacheado, senão
+    // limpar o override depois não voltaria ao título derivado (ficaria grudado).
+    metas.push({
+      ...meta,
+      title: titleOv[id] ?? meta.title,
+      summary: noteOv[id] ?? summaries.get(id),
+    });
   }
 
   return metas.sort((a, b) => b.mtime - a.mtime);
@@ -87,8 +95,9 @@ export async function metaForId(id: string): Promise<SessionMeta | null> {
     meta = metaFromHead(id, mtime, scan);
     cache.set(id, { mtime, size: st.size, scan, meta });
   }
-  meta.summary = getSummary(id) ?? undefined;
-  return meta;
+  const titleOv = await titleOverrides();
+  const noteOv = await noteOverrides();
+  return { ...meta, title: titleOv[id] ?? meta.title, summary: noteOv[id] ?? getSummary(id) ?? undefined };
 }
 
 // Monta a SessionMeta a partir do cabeçalho escaneado — compartilhado pela
