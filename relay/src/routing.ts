@@ -1,0 +1,75 @@
+// Roteamento por conta do relay T3 (DR-023, red line #2). O relay NUNCA roteia por
+// chave vinda do frame; roteia pelo accountId que cada socket carrega após autenticar
+// (derivado server-side do JWT/keypair — red line #1). Um frame da conta A jamais
+// alcança a conta B porque o destino é o conjunto de sockets daquela conta, não um
+// fan-out global. Puro/testável: opera sobre uma interface mínima de socket.
+
+export interface Sock {
+  send(data: string): void;
+  readyState?: number;
+}
+const OPEN = 1; // WebSocket.OPEN
+
+interface Bucket {
+  agent: Sock | null;        // o agente (VPS) pareado daquela conta — no máx 1 ativo
+  browsers: Set<Sock>;       // abas/dispositivos logados na conta
+}
+
+export class Registry {
+  private byAccount = new Map<string, Bucket>();
+
+  private bucket(accountId: string): Bucket {
+    let b = this.byAccount.get(accountId);
+    if (!b) { b = { agent: null, browsers: new Set() }; this.byAccount.set(accountId, b); }
+    return b;
+  }
+
+  private gc(accountId: string): void {
+    const b = this.byAccount.get(accountId);
+    if (b && !b.agent && b.browsers.size === 0) this.byAccount.delete(accountId);
+  }
+
+  bindAgent(accountId: string, sock: Sock): void { this.bucket(accountId).agent = sock; }
+
+  unbindAgent(accountId: string, sock: Sock): void {
+    const b = this.byAccount.get(accountId);
+    if (b && b.agent === sock) { b.agent = null; this.gc(accountId); }
+  }
+
+  addBrowser(accountId: string, sock: Sock): void { this.bucket(accountId).browsers.add(sock); }
+
+  removeBrowser(accountId: string, sock: Sock): void {
+    const b = this.byAccount.get(accountId);
+    if (b) { b.browsers.delete(sock); this.gc(accountId); }
+  }
+
+  hasAgent(accountId: string): boolean { return !!this.byAccount.get(accountId)?.agent; }
+
+  // Frame de um browser → o agente DAQUELA conta. Retorna false se não há agente
+  // pareado/online (a UI mostra "agente offline"). Nunca alcança outra conta.
+  toAgent(accountId: string, data: string): boolean {
+    const agent = this.byAccount.get(accountId)?.agent;
+    if (!agent || (agent.readyState !== undefined && agent.readyState !== OPEN)) return false;
+    agent.send(data);
+    return true;
+  }
+
+  // Frame do agente → as abas DAQUELA conta (escopo por conta; nunca fan-out global).
+  // Retorna quantas abas receberam.
+  toBrowsers(accountId: string, data: string): number {
+    const b = this.byAccount.get(accountId);
+    if (!b) return 0;
+    let n = 0;
+    for (const s of b.browsers) {
+      if (s.readyState !== undefined && s.readyState !== OPEN) continue;
+      s.send(data); n++;
+    }
+    return n;
+  }
+
+  stats(): { accounts: number; agents: number; browsers: number } {
+    let agents = 0, browsers = 0;
+    for (const b of this.byAccount.values()) { if (b.agent) agents++; browsers += b.browsers.size; }
+    return { accounts: this.byAccount.size, agents, browsers };
+  }
+}
