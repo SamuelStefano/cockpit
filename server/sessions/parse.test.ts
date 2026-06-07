@@ -1,5 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import { ctxTokens, diffOf, planOf, extractCommand, recToMessage, activeChain, type Rec } from './parse';
+import { ctxTokens, num, diffOf, planOf, extractCommand, recToMessage, activeChain, type Rec } from './parse';
+
+describe('num', () => {
+  it('passes through finite non-negative numbers', () => {
+    expect(num(0)).toBe(0);
+    expect(num(42)).toBe(42);
+  });
+  it('coerces numeric strings (JSONL fields can arrive as strings)', () => {
+    expect(num('123')).toBe(123);
+  });
+  it('rejects NaN/Infinity/negatives/garbage to 0', () => {
+    expect(num(NaN)).toBe(0);
+    expect(num(Infinity)).toBe(0);
+    expect(num(-5)).toBe(0);
+    expect(num('abc')).toBe(0);
+    expect(num(null)).toBe(0);
+    expect(num(undefined)).toBe(0);
+    expect(num({})).toBe(0);
+  });
+});
 
 describe('ctxTokens', () => {
   it('returns 0 for undefined', () => {
@@ -10,6 +29,11 @@ describe('ctxTokens', () => {
   });
   it('treats missing fields as 0', () => {
     expect(ctxTokens({ input_tokens: 7 })).toBe(7);
+  });
+  it('never lets a dirty JSONL usage field poison the total', () => {
+    expect(ctxTokens({ input_tokens: NaN as number, cache_read_input_tokens: 10 })).toBe(10);
+    expect(ctxTokens({ input_tokens: '50' as unknown as number })).toBe(50);
+    expect(ctxTokens({ input_tokens: -1 as number, cache_creation_input_tokens: 3 })).toBe(3);
   });
 });
 
