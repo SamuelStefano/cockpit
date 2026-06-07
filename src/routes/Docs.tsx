@@ -26,6 +26,104 @@ const SECTIONS: Section[] = [
   { id: 'modelos', label: 'Modelos & teto', icon: 'claude' },
   { id: 'admin', label: 'Admin', icon: 'shield' },
   { id: 'bastidores', label: 'Por trás dos panos', icon: 'terminal' },
+  { id: 'repo', label: 'Mapa do repositório', icon: 'file' },
+];
+
+// --- Mapa do repositório ---------------------------------------------------
+// Visão de quem desenvolve: o que cada arquivo importante faz. Cada arquivo .ts/.tsx
+// listado costuma ter um vizinho .test.ts ao lado (convenção do projeto), omitido aqui.
+
+const FILEMAP: { group: string; tone: string; files: { path: string; what: string }[] }[] = [
+  {
+    group: 'Raiz & configuração', tone: 'text-neutral-300 border-neutral-600 bg-neutral-800/60',
+    files: [
+      { path: 'protocol.ts', what: 'Contrato compartilhado front↔back: tipos de mensagem do WebSocket, modos de permissão, info de modelo, telemetria.' },
+      { path: 'index.html', what: 'Casca HTML da SPA — ponto de entrada que o Vite serve e empacota.' },
+      { path: 'vite.config.ts', what: 'Configuração do Vite: build, chunks de vendor, dev server em 127.0.0.1.' },
+      { path: 'package.json', what: 'Dependências e scripts (dev, build = tsc cliente + tsc servidor + vite).' },
+      { path: 'tsconfig*.json', what: 'Configs do TypeScript — uma pro cliente, outra (.server) pro backend Node.' },
+      { path: 'vercel.json', what: 'Regras de deploy do front no Vercel (SPA fallback).' },
+    ],
+  },
+  {
+    group: 'Frontend · casca & estado', tone: 'text-orange-300 border-orange-500/30 bg-orange-500/10',
+    files: [
+      { path: 'src/main.tsx', what: 'Bootstrap do React — monta o app na página.' },
+      { path: 'src/App.tsx', what: 'Componente raiz: junta header, layouts, rotas e o estado global do cockpit.' },
+      { path: 'src/useCockpit.ts', what: 'O cérebro do cliente: conexão WebSocket, sessões, envio de mensagens, telemetria, anexos.' },
+      { path: 'src/useRoute.ts', what: 'Roteador minúsculo entre as abas (/, /contextos, /skills, /uso, /admin, /docs).' },
+      { path: 'src/app/DesktopLayout.tsx', what: 'Layout de 3 painéis do desktop (sessões · chat · terminais), com recolher/redimensionar.' },
+      { path: 'src/app/usePanelResize.ts', what: 'Lógica de arrastar pra redimensionar os painéis laterais.' },
+      { path: 'src/app/useGlobalShortcuts.ts', what: 'Atalhos globais de teclado (⌘K, navegação entre sessões, Esc).' },
+      { path: 'src/app/useTerminalTabs.ts', what: 'Estado das abas de terminal abertas.' },
+    ],
+  },
+  {
+    group: 'Frontend · componentes', tone: 'text-violet-300 border-violet-500/30 bg-violet-500/10',
+    files: [
+      { path: 'src/components/AppChrome.tsx', what: 'Header, barra de uso do plano, menu de rotas mobile e avisos (offline, quota).' },
+      { path: 'src/components/Chat.tsx', what: 'Painel de chat: thread, banners (plano/falha/retomar), botão de terminal, scroll.' },
+      { path: 'src/components/Sessions.tsx', what: 'Lista de sessões com busca, ações (favoritar/arquivar/excluir) e seção de arquivadas.' },
+      { path: 'src/components/Terminals.tsx', what: 'Painel de terminais com abas, montando o xterm por aba.' },
+      { path: 'src/components/Xterm.tsx', what: 'Ponte com a lib xterm.js — desenha os quadros do PTY que chegam pelo WebSocket.' },
+      { path: 'src/components/Mobile.tsx', what: 'Layout mobile: chat em tela cheia, drawer de sessões e sheet de terminal.' },
+      { path: 'src/components/Avatar.tsx', what: 'Avatares do usuário e da IA + menu de perfil com o seletor de ícone.' },
+      { path: 'src/components/aiAvatar.ts', what: 'Presets de ícone da IA (burst da marca + emojis divertidos).' },
+      { path: 'src/components/CommandPalette.tsx', what: 'Paleta global de ações (⌘K).' },
+      { path: 'src/components/StatusBar.tsx', what: 'Rodapé com telemetria da máquina (CPU/RAM/disco/load).' },
+      { path: 'src/components/DocViewer.tsx', what: 'Visualizador de markdown reusado por Contextos e Skills.' },
+      { path: 'src/components/primitives.tsx', what: 'Átomos de UI compartilhados: Icon, Badge, render de markdown.' },
+    ],
+  },
+  {
+    group: 'Frontend · rotas, lib & núcleo', tone: 'text-sky-300 border-sky-500/30 bg-sky-500/10',
+    files: [
+      { path: 'src/routes/Contextos.tsx', what: 'Aba Contextos — viewer/busca da memória do agente.' },
+      { path: 'src/routes/Skills.tsx', what: 'Aba Skills — habilidades instaladas, compartilháveis.' },
+      { path: 'src/routes/Observatorio.tsx', what: 'Aba Uso — custo, tokens, turnos e janela de rate-limit.' },
+      { path: 'src/routes/Admin.tsx', what: 'Aba Admin — saúde da máquina, infra e inventário.' },
+      { path: 'src/routes/Docs.tsx', what: 'Esta página — o manual do Deck.' },
+      { path: 'src/cockpit/blocks.ts', what: 'Monta os blocos de uma mensagem (texto, ferramenta, raciocínio) a partir do stream.' },
+      { path: 'src/cockpit/session.ts', what: 'Modelo e helpers de uma sessão no cliente.' },
+      { path: 'src/cockpit/evict.ts', what: 'Despejo LRU de threads na memória do cliente pra não crescer sem fim.' },
+      { path: 'src/lib/persist.ts', what: 'usePersisted — localStorage com sincronização entre abas/instâncias.' },
+      { path: 'src/lib/export.ts', what: 'Exportação de conversa (PDF e outros formatos).' },
+      { path: 'src/lib/notify.ts', what: 'Notificações do navegador (turno pronto/falhou).' },
+      { path: 'src/lib/format.ts · time.ts', what: 'Formatação de números, custo e tempo relativo.' },
+    ],
+  },
+  {
+    group: 'Backend · entrada & WebSocket', tone: 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10',
+    files: [
+      { path: 'server/index.ts', what: 'Sobe o servidor HTTP + WebSocket, liga as rotas e o canal em 127.0.0.1.' },
+      { path: 'server/ws.ts', what: 'Aceita conexões WebSocket, autentica origem e despacha eventos.' },
+      { path: 'server/ws/dispatch.ts', what: 'Roteia cada tipo de mensagem que chega do cliente pro handler certo.' },
+      { path: 'server/ws/runs.ts', what: 'Ciclo de vida dos turnos: fila de prompts, drenagem no fim, broadcast do stream.' },
+      { path: 'server/ws/broadcast.ts', what: 'Envia um evento pra todos os clientes conectados (multi-dispositivo).' },
+      { path: 'server/ws/terminal-handler.ts', what: 'Liga as abas de terminal aos PTYs reais.' },
+      { path: 'server/ws/slash.ts · slash-probe.ts', what: 'Detecta e resolve comandos com barra conhecidos pelo CLI.' },
+      { path: 'server/ws/models.ts · usage-plan.ts', what: 'Catálogo de modelos da Anthropic e uso global do plano.' },
+      { path: 'server/ws/rate.ts · guard.ts · origin.ts', what: 'Rate-limit, backpressure e checagem de origem do socket.' },
+    ],
+  },
+  {
+    group: 'Backend · agente, sessões & dados', tone: 'text-amber-300 border-amber-500/30 bg-amber-500/10',
+    files: [
+      { path: 'server/engine/claude.ts', what: 'Spawna o Claude headless (stream-json) e traduz a saída em eventos.' },
+      { path: 'server/engine/triage.ts', what: 'O sub-agente de triagem do próximo prompt (responder/enfileirar/prioridade/mesclar).' },
+      { path: 'server/engine/events.ts', what: 'Tipos e normalização dos eventos do agente.' },
+      { path: 'server/sessions/index.ts', what: 'Lista e carrega as sessões a partir dos arquivos JSONL no disco.' },
+      { path: 'server/sessions/parse.ts', what: 'Faz o parse do JSONL bruto numa sessão estruturada.' },
+      { path: 'server/sessions/search.ts', what: 'Busca por conteúdo dentro das conversas (grep sob demanda).' },
+      { path: 'server/store.ts · db.ts', what: 'Cache de sessões e persistência SQLite (metadados, uso).' },
+      { path: 'server/contexts.ts · skills.ts', what: 'Leem a memória de contextos e as skills instaladas do disco.' },
+      { path: 'server/summary.ts', what: 'Gera o título/resumo destilado de uma sessão.' },
+      { path: 'server/health.ts · stats.ts', what: 'Telemetria da máquina (CPU/RAM/disco/GPU/load) lida do SO.' },
+      { path: 'server/terminals.ts', what: 'Cria e gerencia os PTYs (shells reais) da VPS.' },
+      { path: 'server/auth.ts · oauth.ts', what: 'Credenciais e uso do plano via OAuth (chaves nunca chegam ao cliente).' },
+      { path: 'server/attachments.ts · config.ts', what: 'Anexos enviados e configuração/ambiente mínimo do processo.' },
+    ],
+  },
 ];
 
 // --- Átomos de layout ------------------------------------------------------
@@ -662,6 +760,32 @@ export function Docs() {
                   Chaves de API e tokens ficam no servidor e nunca são enviados pro navegador — só números calculados (uso, custo) e nomes de modelo chegam à tela.
                 </p>
               </Card>
+            </div>
+          </section>
+
+          {/* Mapa do repositório */}
+          <section id="repo" className="mb-10 scroll-mt-6">
+            <SectionTitle icon="file" kicker="para desenvolvedores" title="Mapa do repositório"
+              desc="A vista de quem mexe no código: o que cada arquivo importante faz, agrupado por área. A maioria dos arquivos tem um vizinho .test ao lado (convenção do projeto), omitido aqui pra não poluir." />
+            <div className="space-y-5">
+              {FILEMAP.map((g) => (
+                <Card key={g.group}>
+                  <div className="mb-3 flex items-center gap-2">
+                    <span className={`flex h-7 w-7 items-center justify-center rounded-lg border ${g.tone}`}>
+                      <Icon name="file" size={13} />
+                    </span>
+                    <h3 className="text-[13.5px] font-semibold text-neutral-100">{g.group}</h3>
+                  </div>
+                  <div className="space-y-2">
+                    {g.files.map((f) => (
+                      <div key={f.path} className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3">
+                        <span className="shrink-0 sm:w-60"><Pill>{f.path}</Pill></span>
+                        <span className="text-[12.5px] leading-snug text-neutral-400">{f.what}</span>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              ))}
             </div>
           </section>
 
