@@ -700,7 +700,7 @@ export function Docs() {
                   <h3 className="text-[14px] font-semibold text-neutral-100">Inventário</h3>
                 </div>
                 <p className="text-[13px] leading-relaxed text-neutral-400">
-                  Contagem de sessões, memórias de contexto e skills instaladas, além de números de consumo agregados —
+                  Contagem de sessões, memórias de contexto, skills e plugins instalados, além de números de consumo agregados —
                   pra ter a foto geral da operação num lugar só.
                 </p>
               </Card>

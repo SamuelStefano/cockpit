@@ -91,7 +91,7 @@ export function Admin({ health, stats, onHealthList }: { health: AdminHealth | n
           </button>
         </div>
         <p className="mb-5 text-[12.5px] text-neutral-500">
-          Saúde e inventário da VPS — somente leitura. Vínculos, CLIs, MCP, SSH, tokens (só nomes) e tmux. Controle/escrita aguarda o gate de auth.
+          Saúde e inventário da VPS — somente leitura. Vínculos, CLIs, MCP, SSH, plugins, tokens (só nomes) e tmux. Controle/escrita aguarda o gate de auth.
         </p>
 
         {saturated && (
@@ -147,6 +147,9 @@ export function Admin({ health, stats, onHealthList }: { health: AdminHealth | n
               </Inv>
               <Inv icon="message" title="Sessões tmux" count={health.tmuxSessions.length}>
                 {health.tmuxSessions.map((s) => <Chip key={s} label={s} />)}
+              </Inv>
+              <Inv icon="sparkles" title="Plugins instalados" count={health.plugins.length}>
+                {health.plugins.map((p) => <Chip key={`${p.name}@${p.marketplace}`} label={p.name} muted={p.version ? `v${p.version}` : undefined} />)}
               </Inv>
               <div className="sm:col-span-2">
                 <Inv icon="zap" title="Tokens no ambiente (só nomes)" count={health.envTokens.length}>
