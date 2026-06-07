@@ -221,6 +221,10 @@ export type Caps = { role: 'admin' | 'student'; canBypass: boolean };
 
 export type ServerMsg =
   | { t: 'caps'; caps: Caps }
+  // Relay T3 (DR-023): a VPS pareada da conta está online/offline. O browser usa
+  // pra mostrar o dashboard de pareamento quando não há agente atendendo.
+  | { t: 'agent-online' }
+  | { t: 'agent-offline' }
   | { t: 'sessions'; items: SessionMeta[] }
   | { t: 'archived'; items: SessionMeta[] }
   | { t: 'search-results'; q: string; items: SessionMeta[] }

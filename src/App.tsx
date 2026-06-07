@@ -15,6 +15,7 @@ import { useRoute } from './useRoute';
 import { SUPABASE_ENABLED } from './lib/supabase';
 import { useSupabaseAuth } from './lib/useSupabaseAuth';
 import { SupabaseAuthGate } from './components/auth/SupabaseAuthGate';
+import { Dashboard } from './components/auth/Dashboard';
 import { setTitleBase } from './lib/notify';
 import { relReset } from './lib/time';
 import { usePanelResize } from './app/usePanelResize';
@@ -27,7 +28,7 @@ export function CockpitApp() {
   const cockpit = useCockpit();
   const {
     sessions, loading, activeId: activeSessionId, setActiveId: setActiveSessionId,
-    messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, submitToken, rate, planUsage, stats, mode, setMode, caps, bypass, setBypass, model, setModel, models, budget, setBudget, slashCommands, term, discoveredTerms, listTerms,
+    messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, mode, setMode, caps, bypass, setBypass, model, setModel, models, budget, setBudget, slashCommands, term, discoveredTerms, listTerms,
     archived, onUnhide: handleUnhide, contextTokens, usage, truncated, lastTurn, lastEnd, searchResults, onSearch,
     contexts, openContext, onCtxList, onCtxOpen, onCtxClose,
     skills, openSkill, onSkillList, onSkillOpen, onSkillClose,
@@ -135,6 +136,8 @@ export function CockpitApp() {
   );
   if (SUPABASE_ENABLED) {
     if (!sbAuth.loading && !sbAuth.session) return gateShell(<SupabaseAuthGate auth={sbAuth} />);
+    // Logado mas a VPS ainda não atende → dashboard de pareamento ("conecte sua VPS").
+    if (sbAuth.session && !agentOnline) return gateShell(<Dashboard token={sbAuth.session.access_token} onSignOut={sbAuth.signOut} />);
   } else if (authRequired) {
     return gateShell(<AuthGate onSubmit={submitToken} />);
   }

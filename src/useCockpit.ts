@@ -32,6 +32,7 @@ export interface Cockpit {
   setDraft: (v: string) => void;
   conn: { ws: ConnState; sse: ConnState };
   authRequired: boolean;
+  agentOnline: boolean;
   submitToken: (token: string) => void;
   rate: { resetsAt: number; status: string } | null;
   planUsage: PlanUsage | null;
@@ -148,6 +149,9 @@ export function useCockpit(): Cockpit {
   // callback (que reabriria o socket a cada digitação).
   const tokenRef = useRef<string>(loadPref<string>('auth.token', ''));
   const [authRequired, setAuthRequired] = useState(false);
+  // Relay T3: a VPS pareada está atendendo? Default true — no loopback (sem relay)
+  // estes frames nunca chegam, então o dashboard de pareamento nunca aparece.
+  const [agentOnline, setAgentOnline] = useState(true);
 
   useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
   const threadsRef = useRef<Record<string, Message[]>>(threads);
@@ -225,6 +229,8 @@ export function useCockpit(): Cockpit {
         if (!msg.caps.canBypass) { bypassRef.current = false; setBypass(false); }
         return;
       }
+      case 'agent-online': { setAgentOnline(true); return; }
+      case 'agent-offline': { setAgentOnline(false); return; }
       case 'sessions': {
         setSessions((prev) => {
           const localOnly = prev.filter((s) => s.id.startsWith('new-'));
@@ -884,5 +890,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, submitToken, rate, planUsage, stats, archived, contextTokens, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, models, budget, setBudget: changeBudget, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, models, budget, setBudget: changeBudget, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull };
 }
