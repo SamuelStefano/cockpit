@@ -104,7 +104,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
             </div>
           ))
         )}
-        {!loading && !query && onUnhide && <ArchivedSection archived={archived} onUnhide={onUnhide} />}
+        {!loading && !query && onUnhide && <ArchivedSection archived={archived} onUnhide={onUnhide} onDelete={onDelete ? setDeleteId : undefined} />}
       </div>
       {confirmId && (
         <ConfirmArchive
@@ -116,7 +116,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
       {deleteId && onDelete && (
         <ConfirmArchive
           mode="delete"
-          title={sessions.find((s) => s.id === deleteId)?.title || 'esta sessão'}
+          title={(sessions.find((s) => s.id === deleteId) || archived.find((s) => s.id === deleteId))?.title || 'esta sessão'}
           onConfirm={() => { onDelete(deleteId); setDeleteId(null); }}
           onCancel={() => setDeleteId(null)}
         />
