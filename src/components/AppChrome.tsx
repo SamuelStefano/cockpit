@@ -55,6 +55,7 @@ const NAV: { to: Route; label: string }[] = [
   { to: '/skills', label: 'skills' },
   { to: '/uso', label: 'uso' },
   { to: '/admin', label: 'admin' },
+  { to: '/docs', label: 'docs' },
 ];
 
 export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsage }: HeaderProps) {

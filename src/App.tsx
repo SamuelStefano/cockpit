@@ -7,6 +7,7 @@ import { Contextos } from './routes/Contextos';
 import { Skills } from './routes/Skills';
 import { Observatorio } from './routes/Observatorio';
 import { Admin } from './routes/Admin';
+import { Docs } from './routes/Docs';
 import { CommandPalette } from './components/CommandPalette';
 import { ShortcutsHelp } from './components/ShortcutsHelp';
 import { useCockpit } from './useCockpit';
@@ -143,6 +144,8 @@ export function CockpitApp() {
           onOpenSession={(id) => { setActiveSessionId(id); nav('/'); }} />
       ) : route === '/admin' ? (
         <Admin health={health} stats={stats} onHealthList={onHealthList} />
+      ) : route === '/docs' ? (
+        <Docs />
       ) : isMobile ? (
         <MobileLayout
           sessionsProps={sessionsProps}
