@@ -52,7 +52,7 @@ function oneShot(prompt: string, timeoutMs: number, cap = 65536): Promise<string
   });
 }
 
-function parseVerdict(raw: string): TriageVerdict {
+export function parseVerdict(raw: string): TriageVerdict {
   const fallback: TriageVerdict = { action: 'wait', reason: 'triagem indisponível — enfileirado' };
   if (!raw) return fallback;
   const m = raw.match(/\{[\s\S]*\}/); // o modelo às vezes embrulha em ```json
