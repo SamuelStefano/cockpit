@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import type { Session } from '../../data/mock';
 import { usePersisted } from '../../lib/persist';
+import { filterSessions } from './filter';
 
 interface UseSessionsPanelArgs {
   sessions: Session[];
@@ -67,22 +68,10 @@ export function useSessionsPanel({ sessions, searchResults, onSearch }: UseSessi
     return () => clearTimeout(id);
   }, [query, onSearch]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    let base = q
-      ? (() => {
-          const local = sessions.filter(s => (s.title + ' ' + s.snippet).toLowerCase().includes(q));
-          const seen = new Set(local.map(s => s.id));
-          return [...local, ...searchResults.filter(s => !seen.has(s.id))]; // hits só-por-conteúdo
-        })()
-      : sessions;
-    if (tagFilter) base = base.filter(s => (tagMap[s.id] || []).includes(tagFilter));
-    // Fixadas sobem ao topo preservando a ordem original entre si.
-    if (pinned.size === 0) return base;
-    const top = base.filter(s => pinned.has(s.id));
-    const rest = base.filter(s => !pinned.has(s.id));
-    return [...top, ...rest];
-  }, [sessions, query, searchResults, pinned, tagFilter, tagMap]);
+  const filtered = useMemo(
+    () => filterSessions(sessions, query, searchResults, pinned, tagFilter, tagMap),
+    [sessions, query, searchResults, pinned, tagFilter, tagMap],
+  );
 
   return {
     query, setQuery,
