@@ -349,21 +349,24 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'delta': {
-        lastActivity.current[msg.sessionKey] = Date.now();
-        setPhases((p) => ({ ...p, [msg.sessionKey]: 'streaming' }));
-        patchRunMsg(msg.sessionKey, (b) => appendDelta(b, msg.text));
+        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
+        lastActivity.current[key] = Date.now();
+        setPhases((p) => ({ ...p, [key]: 'streaming' }));
+        patchRunMsg(key, (b) => appendDelta(b, msg.text));
         return;
       }
       case 'thinking': {
-        lastActivity.current[msg.sessionKey] = Date.now();
-        setPhases((p) => ({ ...p, [msg.sessionKey]: 'streaming' }));
-        patchRunMsg(msg.sessionKey, (b) => appendThinking(b, msg.text));
+        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
+        lastActivity.current[key] = Date.now();
+        setPhases((p) => ({ ...p, [key]: 'streaming' }));
+        patchRunMsg(key, (b) => appendThinking(b, msg.text));
         return;
       }
       case 'tool': {
-        lastActivity.current[msg.sessionKey] = Date.now();
-        setPhases((p) => ({ ...p, [msg.sessionKey]: 'streaming' }));
-        patchRunMsg(msg.sessionKey, (b) => upsertTool(b, msg.tool));
+        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
+        lastActivity.current[key] = Date.now();
+        setPhases((p) => ({ ...p, [key]: 'streaming' }));
+        patchRunMsg(key, (b) => upsertTool(b, msg.tool));
         return;
       }
       case 'rate': {
@@ -388,14 +391,16 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'usage': {
-        setUsage((u) => ({ ...u, [msg.sessionKey]: msg.tokens }));
+        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
+        setUsage((u) => ({ ...u, [key]: msg.tokens }));
         return;
       }
       case 'compact': {
         // O CLI auto-compactou: a janela encolheu. Zera o medidor; o próximo turno
         // repopula com o tamanho real pós-compactação (DR-012). "Ver tudo" recupera
         // o pré-compactação — nada é perdido na verdade.
-        setUsage((u) => ({ ...u, [msg.sessionKey]: 0 }));
+        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
+        setUsage((u) => ({ ...u, [key]: 0 }));
         return;
       }
       case 'session-summary': {
@@ -736,10 +741,13 @@ export function useCockpit(): Cockpit {
     setPhases((prev) => { const n = { ...prev }; delete n[id]; return n; });
     setDrafts((prev) => { const n = { ...prev }; delete n[id]; return n; });
     setUsage((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    setTurnStats((prev) => { if (!(id in prev)) return prev; const n = { ...prev }; delete n[id]; return n; });
+    setInterrupted((prev) => { if (!(id in prev)) return prev; const n = { ...prev }; delete n[id]; return n; });
     delete runMsg.current[id];
     delete resumeId.current[id];
     delete migratedTo.current[id];
     delete runStartRef.current[id];
+    delete lastActivity.current[id];
     opened.current.delete(id);
   }, [send]);
 
@@ -811,6 +819,7 @@ export function useCockpit(): Cockpit {
     setPhases((p) => (drop.some((k) => k in p) ? prune(p) : p));
     setUsage((u) => (drop.some((k) => k in u) ? prune(u) : u));
     setTurnStats((t) => (drop.some((k) => k in t) ? prune(t) : t));
+    setInterrupted((p) => (drop.some((k) => k in p) ? prune(p) : p));
     for (const k of drop) {
       delete lastActivity.current[k];
       delete resumeId.current[k];
