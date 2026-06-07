@@ -55,11 +55,19 @@ function enqueue(sessionKey: string, item: QueuedSend): boolean {
   return true;
 }
 
-// Stop explícito do usuário deve significar silêncio: sem isto, o onClose do
-// turno morto chama drainPending e a mensagem enfileirada (triada wait/merge)
-// sobe logo em seguida — o usuário pediu pra parar e a sessão volta a falar.
-export function clearPending(sessionKey: string): void {
+// Época de stop por sessão: incrementa a cada stop explícito. routeSend captura a
+// época ANTES do await da triagem; se ela mudou quando o veredito chega, um stop
+// aconteceu no meio e a mensagem é descartada (senão o run avaliado some e o
+// fallback "turno fechou → roda como novo" sobe a mensagem logo após o stop).
+const stopEpoch = new Map<string, number>();
+
+// Stop explícito do usuário deve significar silêncio. Sem isto: (a) o onClose do
+// turno morto chama drainPending e a mensagem enfileirada (wait/merge) sobe logo;
+// (b) uma mensagem em triagem no momento do stop vira novo turno ao resolver. A
+// limpeza da fila cobre (a); o bump de época cobre (b).
+export function onStop(sessionKey: string): void {
   pending.delete(sessionKey);
+  stopEpoch.set(sessionKey, (stopEpoch.get(sessionKey) ?? 0) + 1);
 }
 
 export function admitRun(liveRuns: number, replacing: boolean, cap = CONFIG.maxConcurrentRuns): boolean {
@@ -166,7 +174,11 @@ export async function routeSend(ws: WebSocket, sessionKey: string, prompt: strin
   // Bolha do usuário aparece já (antes da decisão da triagem, que leva ~alguns s).
   if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
 
+  const epoch = stopEpoch.get(sessionKey) ?? 0;
   const verdict = await classify(cur.prompt, cur.text, prompt);
+
+  // Stop durante o await da triagem → o usuário pediu silêncio; descarta.
+  if ((stopEpoch.get(sessionKey) ?? 0) !== epoch) return;
 
   // O turno avaliado pode ter fechado/sido substituído durante o await (~s) do
   // triador. Agir sobre o veredito agora atingiria o turno ERRADO: 'priority'
