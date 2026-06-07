@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Icon, Markdown, CodeBlock } from '../primitives';
 import type { Block } from '../../data/mock';
-import { ToolCallCard, type ToolSignal } from './ToolCallCard';
+import { ToolCallCard } from './ToolCallCard';
 
 function ThinkingCard({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
@@ -34,17 +34,16 @@ function ThinkingCard({ text }: { text: string }) {
 interface AssistantBlocksProps {
   blocks: Block[];
   caretOnLast: boolean;
-  toolSignal?: ToolSignal;
 }
 
-export function AssistantBlocks({ blocks, caretOnLast, toolSignal }: AssistantBlocksProps) {
+export function AssistantBlocks({ blocks, caretOnLast }: AssistantBlocksProps) {
   return (
     <div className="space-y-1">
       {blocks.map((b, i) => {
         const isLast = i === blocks.length - 1;
         if (b.type === 'text') return <Markdown key={i} md={b.md} caret={caretOnLast && isLast} />;
         if (b.type === 'code') return <CodeBlock key={i} code={b.code} lang={b.lang} />;
-        if (b.type === 'tool') return <ToolCallCard key={i} tool={b.tool} signal={toolSignal} />;
+        if (b.type === 'tool') return <ToolCallCard key={i} tool={b.tool} />;
         if (b.type === 'thinking') return <ThinkingCard key={i} text={b.text} />;
         return null;
       })}

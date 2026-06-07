@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Icon, Badge } from './primitives';
-import { MessageRow, Thinking, type ToolSignal } from './chat/MessageView';
+import { MessageRow, Thinking } from './chat/MessageView';
 import { ExportMenu, TurnStat, ContextMeter } from './chat/Toolbar';
 import { ChatEmpty, ChatInput } from './chat/ChatInput';
 import type { Session, Message } from '../data/mock';
@@ -53,12 +53,10 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
   const [queued, setQueued] = useState('');
-  const [toolSignal, setToolSignal] = useState<ToolSignal>({ open: true, n: 0 });
   const [fullLoaded, setFullLoaded] = useState(false);
   useEffect(() => { setFullLoaded(false); }, [session?.id]);
   const streaming = phase === 'streaming';
   const disabled = phase !== 'idle';
-  const hasTools = messages.some((m) => m.role === 'assistant' && m.blocks.some((b) => b.type === 'tool'));
   const sentHistory = useMemo(
     () => messages.filter((m) => m.role === 'user').map((m) => m.text).filter(Boolean),
     [messages],
@@ -128,16 +126,6 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         <div className="ml-auto flex items-center gap-2">
           <TurnStat stats={lastTurn} />
           <ContextMeter tokens={contextTokens} onNew={onNew} />
-          {hasTools && (
-            <button
-              onClick={() => setToolSignal((s) => ({ open: !s.open, n: s.n + 1 }))}
-              title={toolSignal.open ? 'Recolher todas as ferramentas' : 'Expandir todas as ferramentas'}
-              className="flex items-center gap-1 rounded-md border border-neutral-800 px-1.5 py-0.5 text-[10.5px] text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-300"
-            >
-              <Icon name="terminal" size={11} />
-              {toolSignal.open ? 'recolher' : 'expandir'}
-            </button>
-          )}
           {!isEmpty && session && !session.id.startsWith('new-') && onOpenFull && (
             <button
               onClick={() => { setFullLoaded(true); onOpenFull(session.id); }}
@@ -159,7 +147,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-5">
             {messages.map((m, i) => (
-              <MessageRow key={m.id} msg={m} caretOnLast={streaming && i === messages.length - 1 && m.role === 'assistant'} onEditUser={onEditUser} onQuote={onQuote} toolSignal={toolSignal} />
+              <MessageRow key={m.id} msg={m} caretOnLast={streaming && i === messages.length - 1 && m.role === 'assistant'} onEditUser={onEditUser} onQuote={onQuote} />
             ))}
             {phase === 'thinking' && <Thinking />}
           </div>

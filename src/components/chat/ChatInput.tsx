@@ -2,7 +2,6 @@ import { Icon } from '../primitives';
 import { ModeToggle, ModelPicker, BypassToggle } from './Toolbar';
 import type { PermMode, ModelAlias, EffortLevel, Caps } from '../../../shared/protocol';
 import type { Attachment } from '../../useCockpit';
-import { TemplatesMenu } from './TemplatesMenu';
 import { useChatInput } from './useChatInput';
 import { isLocalSlash, slashHint } from './slash';
 
@@ -43,7 +42,7 @@ interface ChatInputProps {
 export function ChatInput(props: ChatInputProps) {
   const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, effort, setEffort, budget, setBudget, attachments, onRemoveAttachment, queued, onCancelQueue } = props;
   const hasAtt = attachments.length > 0;
-  const { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, insertTemplate } = useChatInput({ ...props, hasAtt });
+  const { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick } = useChatInput({ ...props, hasAtt });
   return (
     <div className="shrink-0 border-t border-neutral-800 bg-neutral-900/60 px-3 py-3 backdrop-blur">
       <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -62,7 +61,6 @@ export function ChatInput(props: ChatInputProps) {
           </span>
         )}
         <div className="ml-auto flex items-center gap-2">
-          <TemplatesMenu draft={value} onInsert={insertTemplate} />
           <ModelPicker model={model} setModel={setModel} effort={effort} setEffort={setEffort} budget={budget} setBudget={setBudget} disabled={false} />
         </div>
       </div>
