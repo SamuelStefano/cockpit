@@ -60,6 +60,12 @@ export const CONFIG = {
   // mais velhos que isto pra o workdir não crescer sem limite num daily driver.
   attachmentTtlMs: Number(process.env.COCKPIT_ATTACHMENT_TTL_MS ?? 7 * 24 * 60 * 60 * 1000),
 
+  // Gate DURO do bypassPermissions (#94, DR-011). Default FALSE: numa máquina com
+  // sudo NOPASSWD + grupo docker + containers DFL prod na mesma box, bypass = RCE
+  // root. Mesmo ligado, só vale com role admin E loopback (ver bypassAllowed no
+  // engine). É opt-in do dono no servidor; sem isto o toggle da UI é inerte.
+  allowBypass: process.env.COCKPIT_ALLOW_BYPASS === '1',
+
   // Tools pré-aprovadas no modo Executar (acceptEdits). Allow-list nomeada,
   // não bypass. Override por env COCKPIT_ALLOWED_TOOLS (separado por vírgula).
   allowedTools: (process.env.COCKPIT_ALLOWED_TOOLS ?? 'Bash,Read,Edit,Write,Glob,Grep')

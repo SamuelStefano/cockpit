@@ -2,8 +2,22 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import type { ClaudeEvent } from './events';
 import { CONFIG } from '../config';
+import type { Role } from '../auth';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+// Gate do bypassPermissions (#94, DR-011). bypass só é permitido com TODAS as
+// quatro condições — qualquer uma falsa cai no fluxo normal (safeMode). Pura e
+// testável: recebe cfg explícito em vez de ler CONFIG. Defesa em profundidade —
+// flag de servidor (opt-in do dono) + role admin + loopback. Sem identidade real
+// ainda (role vem do seam currentRole, hoje constante 'admin'); a flag de env é o
+// que torna isto seguro na Fase 1, e o loopback impede bypass exposto sem auth.
+export function bypassAllowed(
+  gate: { bypass?: boolean; role?: Role } | undefined,
+  cfg: { allowBypass: boolean; host: string },
+): boolean {
+  return !!gate?.bypass && gate.role === 'admin' && cfg.allowBypass === true && cfg.host === '127.0.0.1';
+}
 
 export interface RunOpts {
   prompt: string;
@@ -12,6 +26,8 @@ export interface RunOpts {
   model?: string;              // alias opus/sonnet/haiku (validado por allow-list)
   effort?: string;             // low|medium|high|xhigh|max (validado)
   maxBudgetUsd?: number;       // teto de gasto por run (--max-budget-usd)
+  bypass?: boolean;            // pedido explícito de bypass; só vale se bypassAllowed
+  role?: Role;                 // role do ator (seam Fase 2); gate do bypass
   onEvent: (ev: ClaudeEvent) => void;
   onError: (msg: string) => void;
   onClose: () => void;
@@ -30,11 +46,11 @@ export interface RunHandle {
 // - env mínimo (não vaza segredo do processo pai)
 // - cwd isolado
 // - detached pra matar a árvore no stop
-export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd'>;
+export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role'>;
 
 export function buildArgs(opts: BuildArgsOpts): { args: string[] } | { error: string } {
-  const { prompt, resumeId, mode, model, effort, maxBudgetUsd } = opts;
-  const { permissionMode, allow } = resolveMode(mode);
+  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role } = opts;
+  const { permissionMode, allow } = resolveMode(mode, { bypass, role });
 
   const args = [
     '-p', prompt,
@@ -61,9 +77,9 @@ export function buildArgs(opts: BuildArgsOpts): { args: string[] } | { error: st
 }
 
 export function run(opts: RunOpts): RunHandle {
-  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, onEvent, onError, onClose } = opts;
+  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, onEvent, onError, onClose } = opts;
 
-  const built = buildArgs({ prompt, resumeId, mode, model, effort, maxBudgetUsd });
+  const built = buildArgs({ prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role });
   if ('error' in built) {
     onError(built.error);
     onClose();
@@ -137,10 +153,18 @@ export function run(opts: RunOpts): RunHandle {
 }
 
 // Mapeia o modo da UI → permission-mode do CLI + allow-list. 'bypassPermissions'
-// (RCE root via sudo NOPASSWD) NUNCA é um caso: qualquer valor desconhecido cai
-// no default do backend (plan na Fase 1). auto = edita sem shell; acceptEdits =
-// edita E roda. plan = nada executa, sem allow-list.
-export function resolveMode(mode: string | undefined): { permissionMode: string; allow: string[] } {
+// (RCE root via sudo NOPASSWD) SÓ é alcançável via o gate explícito bypassAllowed
+// (#94, DR-011): pedido explícito + role admin + flag de servidor + loopback.
+// Sem gate (chamada de 1 arg) o comportamento é idêntico ao da Fase 1 — qualquer
+// valor de mode desconhecido cai no default. auto = edita sem shell; acceptEdits
+// = edita E roda. plan = nada executa, sem allow-list.
+export function resolveMode(
+  mode: string | undefined,
+  gate?: { bypass?: boolean; role?: Role },
+): { permissionMode: string; allow: string[] } {
+  if (bypassAllowed(gate, CONFIG)) {
+    return { permissionMode: 'bypassPermissions', allow: CONFIG.allowedTools };
+  }
   switch (mode) {
     case 'auto':
       return { permissionMode: 'default', allow: CONFIG.allowedToolsAuto };

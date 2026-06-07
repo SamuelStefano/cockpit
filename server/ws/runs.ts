@@ -2,6 +2,7 @@ import type { WebSocket } from 'ws';
 import type { ToolCall } from '../../shared/protocol';
 import { run, type RunHandle } from '../engine/claude';
 import { CONFIG } from '../config';
+import { currentRole } from '../auth';
 import { broadcast, send } from './broadcast';
 import { translate } from './translate';
 
@@ -47,7 +48,7 @@ export function killAllRuns(): void {
   }
 }
 
-export function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: string, mode?: string, model?: string, effort?: string, maxBudgetUsd?: number) {
+export function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: string, mode?: string, model?: string, effort?: string, maxBudgetUsd?: number, bypass?: boolean) {
   if (Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) {
     send(ws, { t: 'error', sessionKey, message: 'prompt grande demais' });
     return;
@@ -70,6 +71,8 @@ export function startRun(ws: WebSocket, sessionKey: string, prompt: string, resu
     model,
     effort,
     maxBudgetUsd,
+    bypass,
+    role: currentRole(),
     onEvent: (ev) => translate(sessionKey, thread, ev),
     onError: (message) => broadcast({ t: 'error', sessionKey, message }),
     onClose: () => {

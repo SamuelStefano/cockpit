@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitize, resolveMode, buildArgs } from './claude';
+import { sanitize, resolveMode, buildArgs, bypassAllowed } from './claude';
 
 function argsOf(o: Parameters<typeof buildArgs>[0]): string[] {
   const r = buildArgs(o);
@@ -47,6 +47,42 @@ describe('resolveMode', () => {
     for (const m of ['plan', 'auto', 'acceptEdits', undefined, 'bypassPermissions', 'junk']) {
       expect(resolveMode(m).permissionMode).not.toBe('bypassPermissions');
     }
+  });
+
+  // Gate fechado por default (CONFIG.allowBypass=false em teste): nem com pedido
+  // explícito de bypass + role admin o modo pode virar bypassPermissions.
+  it('never resolves to bypassPermissions when the server flag is off (default)', () => {
+    for (const m of ['plan', 'auto', 'acceptEdits', undefined]) {
+      expect(resolveMode(m, { bypass: true, role: 'admin' }).permissionMode).not.toBe('bypassPermissions');
+    }
+  });
+});
+
+// O gate é a única porta pro bypass: precisa das QUATRO condições simultâneas.
+describe('bypassAllowed', () => {
+  const ok = { allowBypass: true, host: '127.0.0.1' };
+
+  it('permite só com pedido + role admin + flag on + loopback', () => {
+    expect(bypassAllowed({ bypass: true, role: 'admin' }, ok)).toBe(true);
+  });
+
+  it('nega sem pedido explícito de bypass', () => {
+    expect(bypassAllowed({ bypass: false, role: 'admin' }, ok)).toBe(false);
+    expect(bypassAllowed({ role: 'admin' }, ok)).toBe(false);
+    expect(bypassAllowed(undefined, ok)).toBe(false);
+  });
+
+  it('nega pra qualquer role que não seja admin (student NUNCA)', () => {
+    expect(bypassAllowed({ bypass: true, role: 'student' }, ok)).toBe(false);
+    expect(bypassAllowed({ bypass: true }, ok)).toBe(false);
+  });
+
+  it('nega com a flag de servidor desligada', () => {
+    expect(bypassAllowed({ bypass: true, role: 'admin' }, { allowBypass: false, host: '127.0.0.1' })).toBe(false);
+  });
+
+  it('nega fora do loopback (sem auth real, não expõe bypass)', () => {
+    expect(bypassAllowed({ bypass: true, role: 'admin' }, { allowBypass: true, host: '0.0.0.0' })).toBe(false);
   });
 });
 

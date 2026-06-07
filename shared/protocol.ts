@@ -120,8 +120,9 @@ export interface UsageStats {
 
 // Modo de permissão exposto na UI. 'plan' = só planeja (nada executa);
 // 'auto' = edita/lê arquivos sem shell (allow-list sem Bash);
-// 'acceptEdits' = agente edita E roda comandos. 'bypassPermissions' NUNCA entra
-// (sudo NOPASSWD = RCE root) — a allow-list do backend trava.
+// 'acceptEdits' = agente edita E roda comandos. 'bypassPermissions' NÃO é um
+// PermMode: é um flag separado (`bypass` no send) atrás do gate admin+env+loopback
+// (#94, DR-011), pra o safeMode continuar rejeitando bypass vindo como mode.
 export type PermMode = 'plan' | 'auto' | 'acceptEdits';
 export interface TurnStats { costUsd?: number; durationMs?: number; numTurns?: number; model?: string }
 export type ModelAlias = 'opus' | 'sonnet' | 'haiku';
@@ -165,7 +166,7 @@ export interface AdminHealth {
 }
 
 export type ClientMsg =
-  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; mode?: PermMode; model?: ModelAlias; effort?: EffortLevel; maxBudgetUsd?: number }
+  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; mode?: PermMode; model?: ModelAlias; effort?: EffortLevel; maxBudgetUsd?: number; bypass?: boolean }
   | { t: 'stop'; sessionKey: string }
   | { t: 'list' }
   | { t: 'open'; sessionId: string }
