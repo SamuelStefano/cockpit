@@ -48,29 +48,16 @@ function downscale(file: File, max = 96): Promise<string> {
   });
 }
 
+// Avatar do usuário no chat: SÓ exibe (não troca a imagem ao clicar). A troca de
+// avatar vive no menu de perfil do header — clicar na bolha do chat não deve
+// abrir seletor de imagem (pedido do Samuel).
 export function UserAvatar({ size = 28 }: { size?: number }) {
-  const [avatar, setAvatar] = usePersisted<string>('user.avatar', '');
+  const [avatar] = usePersisted<string>('user.avatar', '');
   const [name] = usePersisted<string>('user.name', '');
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const pick = (e: React.MouseEvent) => {
-    if (e.shiftKey && avatar) { setAvatar(''); return; }
-    fileRef.current?.click();
-  };
-  const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    downscale(file).then(setAvatar).catch(() => {});
-  };
-
   const init = initials(name);
-  const title = avatar ? 'Trocar avatar (shift+clique limpa)' : 'Clique para definir seu avatar';
   return (
-    <button
-      onClick={pick}
-      title={title}
-      className="group relative flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-neutral-700 bg-neutral-900 text-neutral-300 transition hover:border-orange-500/60"
+    <span
+      className="flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-neutral-700 bg-neutral-900 text-neutral-300"
       style={{ width: size, height: size }}
     >
       {avatar ? (
@@ -80,8 +67,7 @@ export function UserAvatar({ size = 28 }: { size?: number }) {
       ) : (
         <Icon name="user" size={Math.round(size * 0.5)} />
       )}
-      <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
-    </button>
+    </span>
   );
 }
 

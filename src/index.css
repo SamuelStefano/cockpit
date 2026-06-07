@@ -73,7 +73,10 @@ pre, code, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
 
 ::selection { background: rgba(249,115,22,0.30); }
 
-:focus-visible { outline: 2px solid rgba(249,115,22,0.5); outline-offset: 2px; }
+/* Form controls já desenham seu próprio foco (border/ring); o outline global
+   dobraria a borda (ex: 2ª borda interna no composer do chat). Por isso o
+   :focus-visible global pula input/textarea/select. */
+:focus-visible:not(input):not(textarea):not(select) { outline: 2px solid rgba(249,115,22,0.5); outline-offset: 2px; }
 
 /* Export PDF via print nativo: isola a thread do chat, esconde o resto da app
    (sidebar, terminais, header, input). .print-thread vira fluxo normal. */
