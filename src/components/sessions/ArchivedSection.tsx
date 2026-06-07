@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Icon } from '../primitives';
 import type { Session } from '../../data/mock';
 
-export function ArchivedSection({ archived, onUnhide }: { archived: Session[]; onUnhide: (id: string) => void }) {
+export function ArchivedSection({ archived, onUnhide, onDelete }: { archived: Session[]; onUnhide: (id: string) => void; onDelete?: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   if (archived.length === 0) return null;
   return (
@@ -20,13 +20,24 @@ export function ArchivedSection({ archived, onUnhide }: { archived: Session[]; o
             <div key={s.id} className="group rounded-md px-1.5 py-1.5 hover:bg-neutral-900">
               <div className="flex items-center justify-between gap-2">
                 <span className="truncate text-[11.5px] font-medium text-neutral-400">{s.title}</span>
-                <button
-                  onClick={() => onUnhide(s.id)}
-                  title="Restaurar sessão"
-                  className="shrink-0 rounded px-1.5 py-0.5 text-[10.5px] font-medium text-neutral-500 opacity-100 transition hover:bg-neutral-800 hover:text-orange-300 sm:opacity-0 sm:group-hover:opacity-100"
-                >
-                  restaurar
-                </button>
+                <div className="flex shrink-0 items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+                  <button
+                    onClick={() => onUnhide(s.id)}
+                    title="Restaurar sessão"
+                    className="rounded px-1.5 py-0.5 text-[10.5px] font-medium text-neutral-500 transition hover:bg-neutral-800 hover:text-orange-300"
+                  >
+                    restaurar
+                  </button>
+                  {onDelete && (
+                    <button
+                      onClick={() => onDelete(s.id)}
+                      title="Excluir sessão"
+                      className="flex h-6 w-6 items-center justify-center rounded text-neutral-500 transition hover:bg-red-500/15 hover:text-red-400"
+                    >
+                      <Icon name="trash" size={13} />
+                    </button>
+                  )}
+                </div>
               </div>
               {s.snippet && <p className="mt-0.5 truncate text-[10.5px] text-neutral-600">{s.snippet}</p>}
               {s.relative && <p className="mt-0.5 text-[10px] tabular-nums text-neutral-700">{s.relative}</p>}
