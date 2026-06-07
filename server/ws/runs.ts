@@ -55,6 +55,13 @@ function enqueue(sessionKey: string, item: QueuedSend): boolean {
   return true;
 }
 
+// Stop explícito do usuário deve significar silêncio: sem isto, o onClose do
+// turno morto chama drainPending e a mensagem enfileirada (triada wait/merge)
+// sobe logo em seguida — o usuário pediu pra parar e a sessão volta a falar.
+export function clearPending(sessionKey: string): void {
+  pending.delete(sessionKey);
+}
+
 export function admitRun(liveRuns: number, replacing: boolean, cap = CONFIG.maxConcurrentRuns): boolean {
   return replacing || liveRuns < cap;
 }
