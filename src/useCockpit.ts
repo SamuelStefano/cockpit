@@ -490,7 +490,12 @@ export function useCockpit(): Cockpit {
             : msg.endReason.includes('max_turns')
               ? '⚠️ Turno interrompido: limite de turnos atingido.'
               : `⚠️ Turno encerrado (${msg.endReason}).`;
-          updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: note }] }]);
+          // Corte recuperável (budget/max_turns) → nota cinza + banner "Continuar".
+          // Subtype de erro genuíno (error_during_execution etc.) → marca error
+          // pra a UI oferecer "reenviar" em vez de só uma nota muda. (#307 cobre
+          // só o exit code≠0 pós-result; o erro reportado pelo próprio result
+          // ainda precisa do retry.)
+          updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: note }], error: !resumable }]);
         }
         // Oferece "continuar" só em corte recuperável (budget/max_turns); limpa
         // o flag em qualquer outro encerramento pra não persistir uma oferta velha.
