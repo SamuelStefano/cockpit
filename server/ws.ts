@@ -6,15 +6,16 @@ import { collect } from './stats';
 import { detachTerm } from './terminals';
 import { send, setWss } from './ws/broadcast';
 import { CONFIG } from './config';
-import { currentRole, capsFor } from './auth';
+import { currentRole, roleFromToken, capsFor } from './auth';
 import { originAllowed } from './ws/origin';
 import { tokenAllowed, tokenFromUrl } from './ws/token';
+import { authorize } from './ws/authz';
 import { getSlashCommands } from './ws/slash';
 import { getLastRate } from './ws/rate';
 import { threads, runStats, killAllRuns } from './ws/runs';
 import { handle } from './ws/dispatch';
 import { handleTerm, type TermHandle } from './ws/terminal-handler';
-import { isAdminOnly, createRateLimiter } from './ws/guard';
+import { createRateLimiter } from './ws/guard';
 import { startStatsLoop } from './ws/stats-loop';
 import { getLastPlanUsage, startPlanUsageLoop } from './ws/usage-plan';
 import { getLastModels, startModelsLoop } from './ws/models';
@@ -57,9 +58,14 @@ export function attachWs(server: Server) {
       try { ws.close(4401, 'auth'); } catch { /* socket já indo embora */ }
       return;
     }
+    // Papel fixado por-conexão a partir do token (DR-011 Fase 2 / DR-014). Sem
+    // token configurado = loopback single-user → admin (currentRole). Com token,
+    // sai do token: o checkpoint authorize() abaixo consulta ESTE role, não um
+    // constante. Inerte hoje (token único → admin); arma o corte pro student.
+    const role = CONFIG.authToken ? roleFromToken(CONFIG.authToken, tokenFromUrl(req.url)) : currentRole();
     (ws as WebSocket & { isAlive?: boolean }).isAlive = true;
     ws.on('pong', () => { (ws as WebSocket & { isAlive?: boolean }).isAlive = true; });
-    send(ws, { t: 'caps', caps: capsFor(currentRole(), CONFIG) });
+    send(ws, { t: 'caps', caps: capsFor(role, CONFIG) });
     send(ws, { t: 'busy', keys: [...threads.keys()] });
     const slash = getSlashCommands();
     if (slash.length) send(ws, { t: 'slash-commands', items: slash });
@@ -91,9 +97,11 @@ export function attachWs(server: Server) {
       if (typeof msg.t !== 'string') return;
       // Teto por conexão antes de qualquer trabalho: corta loop de frames (DoS).
       if (!limiter.allow(msg.t)) { send(ws, { t: 'error', message: 'muitas requisições' }); return; }
-      // Gate de role ANTES do handleTerm (que trata term-* e retorna). Hoje no-op
-      // (role sempre admin); arma o corte de shell/admin pra student na Fase 2.
-      if (isAdminOnly(msg.t) && currentRole() !== 'admin') {
+      // Checkpoint ÚNICO de autorização (default-deny), ANTES do handleTerm (que
+      // trata term-* e retorna) e do dispatch/startRun. Uma só fonte de verdade:
+      // a allowlist por papel em authz.ts. Inerte hoje (role admin recebe tudo);
+      // corta shell/admin/mutação alheia pro student quando o token trouxer role.
+      if (!authorize(role, msg.t)) {
         send(ws, { t: 'error', message: 'sem permissão' });
         return;
       }

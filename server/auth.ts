@@ -12,6 +12,16 @@ export function currentRole(): Role {
   return 'admin';
 }
 
+// Deriva o papel da conexão a partir do token do handshake (DR-011 Fase 2 /
+// DR-014). Single-account hoje: o token configurado é do dono → 'admin'; qualquer
+// outra coisa → 'student' (sem capabilities perigosas). É o seam pra um mapa
+// token→role no futuro, sem reescrever o roteador. O compare em si NÃO é o gate
+// de auth (esse já rodou em tempo constante no upgrade do WS via tokenAllowed);
+// aqui é só atribuição de papel pós-autenticação.
+export function roleFromToken(expected: string, got: string | null): Role {
+  return expected !== '' && got === expected ? 'admin' : 'student';
+}
+
 // Capabilities anunciadas pra conexão no connect. canBypass espelha o gate do
 // engine (bypassAllowed): só true com flag de servidor + admin + loopback. A UI
 // usa isto pra decidir se mostra o switch — mas o servidor reimpõe no run.
