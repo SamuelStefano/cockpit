@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mapModels } from './models';
+import { mapModels, limitModels } from './models';
 
 describe('mapModels', () => {
   it('maps the live shape from /v1/models', () => {
@@ -29,5 +29,31 @@ describe('mapModels', () => {
     expect(mapModels({})).toEqual([]);
     expect(mapModels(null)).toEqual([]);
     expect(mapModels({ data: 'nope' })).toEqual([]);
+  });
+
+  it('keeps at most 2 newest Opus + latest Sonnet + latest Haiku (newest-first input)', () => {
+    const ids = (m: { id: string }[]) => m.map((x) => x.id);
+    const out = mapModels({
+      data: [
+        { id: 'claude-opus-4-8' },
+        { id: 'claude-opus-4-7' },
+        { id: 'claude-sonnet-4-6' },
+        { id: 'claude-opus-4-6' },
+        { id: 'claude-opus-4-5-20251101' },
+        { id: 'claude-haiku-4-5-20251001' },
+        { id: 'claude-sonnet-4-5-20250929' },
+        { id: 'claude-opus-4-1-20250805' },
+      ],
+    });
+    expect(ids(out)).toEqual([
+      'claude-opus-4-8',
+      'claude-opus-4-7',
+      'claude-sonnet-4-6',
+      'claude-haiku-4-5-20251001',
+    ]);
+  });
+
+  it('drops models with no known family', () => {
+    expect(limitModels([{ id: 'gpt-4o', displayName: 'gpt' }])).toEqual([]);
   });
 });
