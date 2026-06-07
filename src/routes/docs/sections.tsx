@@ -115,6 +115,7 @@ export function DocSections({ year }: { year: number }) {
             </div>
             <p className="mt-3 text-[12px] leading-relaxed text-neutral-500">
               A decisão e o motivo aparecem como uma etiqueta na sua mensagem. Na dúvida, o padrão é sempre <span className="font-medium text-neutral-400">enfileirar</span> — nada se perde.
+              Parar o turno (<span className="font-medium text-neutral-400">Esc</span>) significa silêncio: também limpa a fila e cancela qualquer mensagem ainda em triagem.
             </p>
           </Card>
         </div>
