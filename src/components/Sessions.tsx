@@ -18,6 +18,7 @@ export interface SessionsPanelProps {
   onSelect: (id: string) => void;
   onNew: () => void;
   onRename: (id: string, title: string) => void;
+  onDescribe?: (id: string, summary: string) => void;
   onClose: (id: string) => void;
   onStop?: (sessionKey?: string) => void;
   archived?: Session[];
@@ -32,7 +33,7 @@ export interface SessionsPanelProps {
   onSearch?: (q: string) => void;
 }
 
-export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, onRename, onClose, onStop, archived = [], onUnhide, onCloseMobile, usage = {}, cost = {}, running, stalled, updated, searchResults = [], onSearch }: SessionsPanelProps) {
+export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, onRename, onDescribe, onClose, onStop, archived = [], onUnhide, onCloseMobile, usage = {}, cost = {}, running, stalled, updated, searchResults = [], onSearch }: SessionsPanelProps) {
   const {
     query, setQuery, confirmId, setConfirmId, pinned, togglePin,
     tagMap, tagFilter, setTagFilter, addTag, removeTag, allTags, searchRef, filtered,
@@ -43,7 +44,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
       running={running?.has(s.id)} stalled={stalled?.has(s.id)} updated={updated?.has(s.id)} pinned={pinned.has(s.id)} onTogglePin={togglePin}
       tags={tagMap[s.id]} onAddTag={addTag} onRemoveTag={removeTag} onFilterTag={setTagFilter}
       onSelect={(id) => { onSelect(id); onCloseMobile && onCloseMobile(); }}
-      onRename={onRename} onClose={setConfirmId} onStop={onStop} />
+      onRename={onRename} onDescribe={onDescribe} onClose={setConfirmId} onStop={onStop} />
   );
 
   return (

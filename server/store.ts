@@ -8,16 +8,31 @@ import { homedir } from 'node:os';
 const STORE_PATH = process.env.COCKPIT_STORE ?? join(homedir(), '.cockpit', 'store.json');
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-interface Store { hidden: string[] }
+interface Store { hidden: string[]; titles: Record<string, string>; notes: Record<string, string> }
 let cache: Store | null = null;
+
+// Só pares com chave UUID e valor string entram nos overrides (anti-lixo no disco).
+function cleanMap(o: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (o && typeof o === 'object') {
+    for (const [k, v] of Object.entries(o as Record<string, unknown>)) {
+      if (UUID_RE.test(k) && typeof v === 'string') out[k] = v;
+    }
+  }
+  return out;
+}
 
 async function load(): Promise<Store> {
   if (cache) return cache;
   try {
     const o = JSON.parse(await readFile(STORE_PATH, 'utf8'));
-    cache = { hidden: Array.isArray(o.hidden) ? o.hidden.filter((x: unknown) => typeof x === 'string') : [] };
+    cache = {
+      hidden: Array.isArray(o.hidden) ? o.hidden.filter((x: unknown) => typeof x === 'string') : [],
+      titles: cleanMap(o.titles),
+      notes: cleanMap(o.notes),
+    };
   } catch {
-    cache = { hidden: [] };
+    cache = { hidden: [], titles: {}, notes: {} };
   }
   return cache;
 }
@@ -38,6 +53,38 @@ export async function hiddenSet(): Promise<Set<string>> {
   return new Set((await load()).hidden);
 }
 
+// Overrides manuais de título/descrição (o usuário edita; ganham do derivado do
+// JSONL e do resumo IA). Mapas crus pra a listagem aplicar por id.
+export async function titleOverrides(): Promise<Record<string, string>> {
+  return (await load()).titles;
+}
+export async function noteOverrides(): Promise<Record<string, string>> {
+  return (await load()).notes;
+}
+
+// Grava (ou limpa, com texto vazio) o override. Cap em 200 chars no título e
+// 2000 na descrição pra não inchar o store.json.
+export async function setTitle(id: string, title: string): Promise<void> {
+  if (!UUID_RE.test(id)) return;
+  await serialize(async () => {
+    const s = await load();
+    const v = title.trim().slice(0, 200);
+    const titles = { ...s.titles };
+    if (v) titles[id] = v; else delete titles[id];
+    await commit({ ...s, titles });
+  });
+}
+export async function setNote(id: string, note: string): Promise<void> {
+  if (!UUID_RE.test(id)) return;
+  await serialize(async () => {
+    const s = await load();
+    const v = note.trim().slice(0, 2000);
+    const notes = { ...s.notes };
+    if (v) notes[id] = v; else delete notes[id];
+    await commit({ ...s, notes });
+  });
+}
+
 // Serializa as mutações: hide/unhide fazem read-modify-write sobre o cache e,
 // sem fila, duas chamadas concorrentes leem o mesmo snapshot e a segunda commit
 // sobrescreve a primeira (update perdido). A fila garante que cada mutação veja
@@ -54,7 +101,7 @@ export async function hideSession(id: string): Promise<void> {
   if (!UUID_RE.test(id)) return;
   await serialize(async () => {
     const s = await load();
-    if (!s.hidden.includes(id)) await commit({ hidden: [...s.hidden, id] });
+    if (!s.hidden.includes(id)) await commit({ ...s, hidden: [...s.hidden, id] });
   });
 }
 
@@ -62,6 +109,6 @@ export async function unhideSession(id: string): Promise<void> {
   if (!UUID_RE.test(id)) return;
   await serialize(async () => {
     const s = await load();
-    if (s.hidden.includes(id)) await commit({ hidden: s.hidden.filter((x) => x !== id) });
+    if (s.hidden.includes(id)) await commit({ ...s, hidden: s.hidden.filter((x) => x !== id) });
   });
 }

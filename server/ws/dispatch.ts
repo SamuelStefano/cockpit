@@ -6,10 +6,10 @@ import { listContexts, readContext } from '../contexts';
 import { listSkills, readSkill } from '../skills';
 import { saveAttachment } from '../attachments';
 import { usageStats } from '../db';
-import { hideSession, unhideSession } from '../store';
+import { hideSession, unhideSession, setTitle, setNote } from '../store';
 import { parseSession, parseFullSession } from '../sessions/parse';
 import { collectHealth } from '../health';
-import { send } from './broadcast';
+import { send, broadcast } from './broadcast';
 import { threads, startRun, routeSend } from './runs';
 
 export async function handle(ws: WebSocket, msg: ClientMsg) {
@@ -45,6 +45,14 @@ export async function handle(ws: WebSocket, msg: ClientMsg) {
     }
     case 'list-archived': {
       send(ws, { t: 'archived', items: await listArchived() });
+      return;
+    }
+    case 'set-meta': {
+      // Override manual de título/descrição (texto vazio limpa). Re-broadcast da
+      // lista p/ todos os clientes verem o novo rótulo na hora.
+      if (typeof msg.title === 'string') await setTitle(msg.sessionId, msg.title);
+      if (typeof msg.summary === 'string') await setNote(msg.sessionId, msg.summary);
+      broadcast({ t: 'sessions', items: await listSessions() });
       return;
     }
     case 'search': {

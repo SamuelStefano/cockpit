@@ -22,12 +22,13 @@ export interface SessionRowProps {
   onFilterTag?: (tag: string) => void;
   onSelect: (id: string) => void;
   onRename: (id: string, title: string) => void;
+  onDescribe?: (id: string, summary: string) => void;
   onClose: (id: string) => void;
   onStop?: (id: string) => void;
 }
 
-export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated, pinned, tags = [], onTogglePin, onAddTag, onRemoveTag, onFilterTag, onSelect, onRename, onClose, onStop }: SessionRowProps) {
-  const { editing, setEditing, draft, setDraft, tagging, setTagging, tagDraft, setTagDraft, inputRef, tagRef, commit, commitTag } = useSessionRow({ s, onAddTag, onRename });
+export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated, pinned, tags = [], onTogglePin, onAddTag, onRemoveTag, onFilterTag, onSelect, onRename, onDescribe, onClose, onStop }: SessionRowProps) {
+  const { editing, setEditing, draft, setDraft, descEditing, setDescEditing, descDraft, setDescDraft, tagging, setTagging, tagDraft, setTagDraft, inputRef, descRef, tagRef, commit, commitDesc, commitTag } = useSessionRow({ s, onAddTag, onRename, onDescribe });
 
   return (
     <div
@@ -126,9 +127,35 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
           </div>
         )}
       </div>
-      {!editing && (
-        <p className="line-clamp-2 text-[11.5px] leading-snug text-neutral-500"><Highlight text={s.summary || s.snippet} term={highlight} /></p>
-      )}
+      {!editing && (descEditing ? (
+        <textarea
+          ref={descRef}
+          value={descDraft}
+          onChange={(e) => setDescDraft(e.target.value)}
+          onBlur={commitDesc}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) commitDesc();
+            if (e.key === 'Escape') { setDescDraft(s.summary || ''); setDescEditing(false); }
+          }}
+          onClick={(e) => e.stopPropagation()}
+          rows={2}
+          placeholder="Descrição da sessão…"
+          className="mt-0.5 w-full resize-none rounded border border-orange-500/50 bg-neutral-950 px-1.5 py-1 text-[11.5px] leading-snug text-neutral-200 outline-none ring-2 ring-orange-500/20"
+        />
+      ) : (
+        <div className="flex items-start gap-1">
+          <p className="line-clamp-2 flex-1 text-[11.5px] leading-snug text-neutral-500"><Highlight text={s.summary || s.snippet} term={highlight} /></p>
+          {onDescribe && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setDescDraft(s.summary || ''); setDescEditing(true); }}
+              title="Editar descrição"
+              className="mt-px hidden shrink-0 rounded p-0.5 text-neutral-600 transition hover:bg-neutral-800 hover:text-orange-300 group-hover:block"
+            >
+              <Icon name="pencil" size={11} />
+            </button>
+          )}
+        </div>
+      ))}
       {!editing && (() => {
         const pct = ctxPercent(ctx);
         if (pct === null) return null;
