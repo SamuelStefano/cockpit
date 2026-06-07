@@ -10,6 +10,7 @@ export interface Session {
   title: string;
   relative: string;
   snippet: string;
+  summary?: string; // resumo IA do que a sessão fez (fica acima do snippet quando existe)
   mtime: number;
   hasTerminal: boolean;
   active: boolean;
