@@ -17,6 +17,7 @@ export const SECTIONS: Section[] = [
   { id: 'features', label: 'Funcionalidades', icon: 'grip' },
   { id: 'sessoes', label: 'Sessões & fila', icon: 'message' },
   { id: 'tempo-real', label: 'Tempo real', icon: 'circle' },
+  { id: 'conexao', label: 'Conectar de outro aparelho', icon: 'terminal' },
   { id: 'recursos', label: 'Recursos da máquina', icon: 'zap' },
   { id: 'modos', label: 'Modos & permissões', icon: 'shield' },
   { id: 'perfil', label: 'Perfil & aparência', icon: 'user' },

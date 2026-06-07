@@ -169,6 +169,51 @@ export function DocSections({ year }: { year: number }) {
         </div>
       </section>
 
+      {/* Conectar de outro aparelho */}
+      <section id="conexao" className="mb-14 scroll-mt-6">
+        <SectionTitle icon="terminal" kicker="acesso remoto" title="Conectar de outro aparelho"
+          desc="O Deck que você abre no navegador é só a tela; o cérebro é o backend que roda na sua VPS. Pra usar do celular ou de outro PC, o app precisa saber onde a VPS está e ter o token de acesso." />
+        <div className="space-y-3">
+          <Card>
+            <div className="mb-2 flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-orange-500/15 text-[11px] font-semibold text-orange-300">1</span>
+              <h3 className="text-[14px] font-semibold text-neutral-100">Deixe a VPS alcançável</h3>
+            </div>
+            <p className="text-[13px] leading-relaxed text-neutral-400">
+              O backend escuta só em <Pill>127.0.0.1</Pill> (loopback) por segurança — ele não fica aberto na internet.
+              A forma recomendada de alcançá-lo de fora é uma rede privada como o <span className="font-medium text-neutral-300">Tailscale</span>:
+              instale na VPS e no seu aparelho, e a VPS ganha um endereço fixo da sua tailnet (ex: <Pill>deck.minha-tailnet.ts.net</Pill>) que só você acessa.
+            </p>
+          </Card>
+          <Card>
+            <div className="mb-2 flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-orange-500/15 text-[11px] font-semibold text-orange-300">2</span>
+              <h3 className="text-[14px] font-semibold text-neutral-100">Proteja com um token</h3>
+            </div>
+            <p className="text-[13px] leading-relaxed text-neutral-400">
+              Defina a variável <Pill>COCKPIT_TOKEN</Pill> ao subir o backend (o <Pill>serve-fellow</Pill> gera uma forte sozinho e imprime no console).
+              Sem token, o backend só aceita conexões locais; com token, qualquer aparelho precisa apresentá-lo pra entrar.
+            </p>
+          </Card>
+          <Card>
+            <div className="mb-2 flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-orange-500/15 text-[11px] font-semibold text-orange-300">3</span>
+              <h3 className="text-[14px] font-semibold text-neutral-100">Aponte o app pra VPS</h3>
+            </div>
+            <p className="text-[13px] leading-relaxed text-neutral-400">
+              No aparelho novo, abra o Deck e use <span className="font-medium text-neutral-300">Configurar endereço do backend</span> (na tela de acesso ou no aviso de “backend não acessível”).
+              Cole o endereço do WebSocket — <Pill>wss://deck.minha-tailnet.ts.net/ws</Pill> — e o token. Fica salvo só naquele navegador.
+            </p>
+          </Card>
+        </div>
+        <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-sky-500/20 bg-sky-500/[0.06] p-4">
+          <Icon name="circle" size={15} className="mt-0.5 shrink-0 text-sky-400/80" />
+          <p className="text-[12.5px] leading-relaxed text-sky-200/80">
+            Uma sessão iniciada no PC continua visível no celular: o estado mora no backend, não na aba. Trocar de aparelho é só reabrir o Deck apontado pra mesma VPS.
+          </p>
+        </div>
+      </section>
+
       {/* Recursos da máquina */}
       <section id="recursos" className="mb-14 scroll-mt-6">
         <SectionTitle icon="zap" kicker="telemetria" title="Recursos da máquina"
