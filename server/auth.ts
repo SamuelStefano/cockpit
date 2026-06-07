@@ -11,3 +11,10 @@ export type Role = 'admin' | 'student';
 export function currentRole(): Role {
   return 'admin';
 }
+
+// Capabilities anunciadas pra conexão no connect. canBypass espelha o gate do
+// engine (bypassAllowed): só true com flag de servidor + admin + loopback. A UI
+// usa isto pra decidir se mostra o switch — mas o servidor reimpõe no run.
+export function capsFor(role: Role, cfg: { allowBypass: boolean; host: string }): { role: Role; canBypass: boolean } {
+  return { role, canBypass: role === 'admin' && cfg.allowBypass === true && cfg.host === '127.0.0.1' };
+}
