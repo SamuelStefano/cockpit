@@ -82,6 +82,33 @@ function connect(relayUrl: string, id: Identity, onClose: () => void): WebSocket
   return ws;
 }
 
+// Pareia esta VPS com a conta dona do código. Gera (ou reusa) a keypair local,
+// apresenta código+pubkey ao relay, salva o agentId devolvido. A privada nunca sai.
+export function pairAgent(relayUrl: string, code: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const existing = loadIdentity();
+    const keys = existing?.privateKeyPem
+      ? { privateKeyPem: existing.privateKeyPem, publicKey: existing.publicKey }
+      : generateIdentityKeys();
+    const ws = new WebSocket(`${relayUrl.replace(/\/$/, '')}/agent`);
+    let done = false;
+    ws.on('open', () => ws.send(JSON.stringify({ t: 'pair', code, publicKey: keys.publicKey })));
+    ws.on('message', (raw) => {
+      let m: { t?: string; agentId?: string } = {};
+      try { m = JSON.parse(raw.toString()); } catch { return; }
+      if (m.t === 'paired' && typeof m.agentId === 'string') {
+        saveIdentity({ agentId: m.agentId, privateKeyPem: keys.privateKeyPem, publicKey: keys.publicKey });
+        done = true;
+        console.log(`[agent] pareado! identidade salva em ${ID_FILE}`);
+        ws.close();
+        resolve();
+      }
+    });
+    ws.on('close', () => { if (!done) reject(new Error('pareamento falhou (código inválido/expirado?)')); });
+    ws.on('error', (e) => { if (!done) reject(e); });
+  });
+}
+
 export function runAgent(relayUrl: string): void {
   const id = loadIdentity();
   if (!id?.agentId) {
@@ -102,9 +129,16 @@ export function runAgent(relayUrl: string): void {
   process.on('SIGINT', () => { killAllRuns(); process.exit(0); });
 }
 
-// Execução direta: `tsx server/agent.ts` (relay via DECK_RELAY_URL).
+// Execução direta: `tsx server/agent.ts [--pair=CÓDIGO]` (relay via DECK_RELAY_URL).
 if (process.argv[1] && process.argv[1].endsWith('agent.ts')) {
   const url = process.env.DECK_RELAY_URL;
   if (!url) { console.error('[agent] defina DECK_RELAY_URL'); process.exit(1); }
-  runAgent(url);
+  const pairArg = process.argv.find((a) => a.startsWith('--pair='));
+  if (pairArg) {
+    pairAgent(url, pairArg.slice('--pair='.length))
+      .then(() => process.exit(0))
+      .catch((e) => { console.error('[agent]', e.message ?? e); process.exit(1); });
+  } else {
+    runAgent(url);
+  }
 }

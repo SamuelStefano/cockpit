@@ -21,6 +21,11 @@ export interface RelayStore {
   // is_admin da conta (pra resolver role admin); root vem do env, não daqui.
   isAdmin(accountId: string): Promise<boolean>;
   markAgentSeen(agentId: string): Promise<void>;
+  // Pairing: cria código (devolve texto plano 1x), consome atômico (→ accountId),
+  // registra o agente pareado (→ agentId).
+  createPairingCode(accountId: string, label?: string): Promise<string>;
+  consumePairingCode(code: string): Promise<string | null>;
+  createAgent(accountId: string, publicKey: string, label?: string): Promise<string | null>;
 }
 
 export interface RelayConfig {
@@ -41,7 +46,32 @@ export function createRelay(cfg: RelayConfig) {
   const registry = new Registry();
   const roots = parseRootEmails(cfg.rootEmails);
   const jwks: JwksFn = makeJwks(cfg.jwksUrl);
-  const server = createServer((_req, res) => { res.writeHead(426); res.end('upgrade required'); });
+
+  // Resolve a identidade de um JWT (Authorization: Bearer ou ?token=). Usado pelo
+  // HTTP de pairing e poderia servir o WS — aqui só o que precisa de accountId.
+  async function identityFrom(token: string | null): Promise<Identity | null> {
+    if (!token) return null;
+    const payload = await verifyJwtSignature(token, jwks, cfg.iss);
+    const isAdmin = payload?.sub ? await cfg.store.isAdmin(String(payload.sub)) : false;
+    return validateClaims(payload, { iss: cfg.iss, nowSec: Math.floor(nowMs() / 1000), rootEmails: roots, isAdmin });
+  }
+
+  const server = createServer(async (req, res) => {
+    // POST /pair/new — o browser logado pede um código de pareamento (JWT no header).
+    if (req.method === 'POST' && (req.url ?? '').split('?')[0] === '/pair/new') {
+      const auth = req.headers.authorization ?? '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : tokenFromUrl(req.url);
+      const id = await identityFrom(token);
+      if (!id) { res.writeHead(401); res.end('auth'); return; }
+      try {
+        const code = await cfg.store.createPairingCode(id.accountId);
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ code }));
+      } catch { res.writeHead(500); res.end('error'); }
+      return;
+    }
+    res.writeHead(426); res.end('upgrade required');
+  });
   const wssBrowser = new WebSocketServer({ noServer: true, maxPayload: cfg.maxPayload ?? 4 * 1024 * 1024 });
   const wssAgent = new WebSocketServer({ noServer: true, maxPayload: cfg.maxPayload ?? 32 * 1024 * 1024 });
 
@@ -71,9 +101,18 @@ export function createRelay(cfg: RelayConfig) {
   wssAgent.on('connection', (ws: WebSocket) => {
     const st: AgentState = { agentId: '', accountId: '', challenge: '', authed: false };
     ws.on('message', async (raw) => {
-      let m: { t?: string; agentId?: string; sig?: string } = {};
+      let m: { t?: string; agentId?: string; sig?: string; code?: string; publicKey?: string } = {};
       try { m = JSON.parse(raw.toString()); } catch { return; }
       if (!st.authed) {
+        // Pairing: consome o código (atômico) → registra o agente → devolve agentId.
+        if (m.t === 'pair' && typeof m.code === 'string' && typeof m.publicKey === 'string') {
+          const accountId = await cfg.store.consumePairingCode(m.code);
+          if (!accountId) { ws.close(4401, 'invalid code'); return; }
+          const agentId = await cfg.store.createAgent(accountId, m.publicKey);
+          if (!agentId) { ws.close(4500, 'pair failed'); return; }
+          ws.send(JSON.stringify({ t: 'paired', agentId }));
+          return;
+        }
         if (m.t === 'agent-hello' && typeof m.agentId === 'string') {
           const rec = await cfg.store.agentById(m.agentId);
           if (!rec) { ws.close(4401, 'unknown agent'); return; }
