@@ -2,20 +2,26 @@ import { useEffect, useRef, useState } from 'react';
 import { Icon } from './primitives';
 import { usePersisted } from '../lib/persist';
 import { initials } from './avatar.initials';
+import { AI_AVATAR_KEY, AI_AVATAR_DEFAULT, AI_AVATARS, findAiAvatar } from './aiAvatar';
 
-// Avatares do chat. O do Claude é um burst laranja (marca própria, não o ícone
-// genérico sparkles). O do usuário é configurável: clicar abre seletor de imagem,
-// que é reduzida pra 96px e salva como data URL no localStorage (sem backend).
-// Shift+clique limpa. Sem imagem → iniciais do nome salvo, senão ícone de pessoa.
+// Avatares do chat. O do Claude é configurável (burst laranja da marca por padrão,
+// ou um emoji divertido escolhido no menu de perfil). O do usuário também: clicar
+// abre seletor de imagem, reduzida pra 96px e salva como data URL no localStorage
+// (sem backend). Shift+clique limpa. Sem imagem → iniciais do nome, senão pessoa.
 
 export function ClaudeAvatar({ size = 28 }: { size?: number }) {
-  const icon = Math.round(size * 0.52);
+  const [id] = usePersisted<string>(AI_AVATAR_KEY, AI_AVATAR_DEFAULT);
+  const preset = findAiAvatar(id);
   return (
     <div
       className="flex shrink-0 items-center justify-center rounded-full text-neutral-950 shadow-sm shadow-orange-500/25"
-      style={{ width: size, height: size, background: 'radial-gradient(circle at 32% 28%, #fb923c, #ea580c)' }}
+      style={{ width: size, height: size, background: preset.bg }}
     >
-      <Icon name="claude" size={icon} stroke={2.2} />
+      {preset.emoji ? (
+        <span style={{ fontSize: Math.round(size * 0.56), lineHeight: 1 }}>{preset.emoji}</span>
+      ) : (
+        <Icon name="claude" size={Math.round(size * 0.52)} stroke={2.2} />
+      )}
     </div>
   );
 }
@@ -104,7 +110,9 @@ function AvatarFace({ avatar, name, size }: { avatar: string; name: string; size
 export function ProfileMenu() {
   const [avatar, setAvatar] = usePersisted<string>('user.avatar', '');
   const [name, setName] = usePersisted<string>('user.name', '');
+  const [aiIcon, setAiIcon] = usePersisted<string>(AI_AVATAR_KEY, AI_AVATAR_DEFAULT);
   const [open, setOpen] = useState(false);
+  const [iconOpen, setIconOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -168,6 +176,35 @@ export function ProfileMenu() {
             )}
           </div>
           <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
+
+          <div className="mt-3 border-t border-neutral-800 pt-3">
+            <button
+              onClick={() => setIconOpen((o) => !o)}
+              className="flex w-full items-center gap-2 text-left text-[11px] font-medium text-neutral-500 transition hover:text-neutral-300"
+            >
+              <ClaudeAvatar size={18} />
+              <span className="flex-1">Ícone da IA</span>
+              <Icon name={iconOpen ? 'chevronDown' : 'chevronRight'} size={13} />
+            </button>
+            {iconOpen && (
+              <div className="scroll-thin mt-2 grid max-h-40 grid-cols-6 gap-1.5 overflow-y-auto">
+                {AI_AVATARS.map((a) => {
+                  const on = a.id === aiIcon;
+                  return (
+                    <button
+                      key={a.id}
+                      onClick={() => setAiIcon(a.id)}
+                      title={a.label}
+                      className={`flex h-8 w-8 items-center justify-center rounded-full text-neutral-950 transition ${on ? 'ring-2 ring-orange-400 ring-offset-1 ring-offset-neutral-900' : 'hover:scale-110'}`}
+                      style={{ background: a.bg }}
+                    >
+                      {a.emoji ? <span style={{ fontSize: 15, lineHeight: 1 }}>{a.emoji}</span> : <Icon name="claude" size={15} stroke={2.2} />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
