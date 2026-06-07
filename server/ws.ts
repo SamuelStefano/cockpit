@@ -1,25 +1,16 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'node:http';
-import type { ClientMsg } from '../shared/protocol';
-import { sanitize } from './engine/claude';
-import { collect } from './stats';
-import { detachTerm } from './terminals';
-import { send, setWss } from './ws/broadcast';
+import { setWss } from './ws/broadcast';
 import { CONFIG } from './config';
-import { currentRole, roleFromToken, capsFor } from './auth';
+import { currentRole, roleFromToken } from './auth';
 import { originAllowed } from './ws/origin';
 import { tokenAllowed, tokenFromUrl } from './ws/token';
-import { authorize } from './ws/authz';
-import { getSlashCommands } from './ws/slash';
-import { getLastRate } from './ws/rate';
-import { threads, runStats, killAllRuns } from './ws/runs';
-import { handle } from './ws/dispatch';
-import { handleTerm, type TermHandle } from './ws/terminal-handler';
-import { createRateLimiter } from './ws/guard';
+import { runStats, killAllRuns } from './ws/runs';
 import { startStatsLoop } from './ws/stats-loop';
-import { getLastPlanUsage, startPlanUsageLoop } from './ws/usage-plan';
-import { getLastModels, startModelsLoop } from './ws/models';
+import { startPlanUsageLoop } from './ws/usage-plan';
+import { startModelsLoop } from './ws/models';
 import { probeSlashCommands } from './ws/slash-probe';
+import { serveConnection } from './ws/serve-connection';
 
 export { runStats, killAllRuns } from './ws/runs';
 
@@ -60,67 +51,11 @@ export function attachWs(server: Server) {
     }
     // Papel fixado por-conexão a partir do token (DR-011 Fase 2 / DR-014). Sem
     // token configurado = loopback single-user → admin (currentRole). Com token,
-    // sai do token: o checkpoint authorize() abaixo consulta ESTE role, não um
-    // constante. Inerte hoje (token único → admin); arma o corte pro student.
+    // sai do token: o checkpoint authorize() consulta ESTE role, não um constante.
     const role = CONFIG.authToken ? roleFromToken(CONFIG.authToken, tokenFromUrl(req.url)) : currentRole();
-    (ws as WebSocket & { isAlive?: boolean }).isAlive = true;
-    ws.on('pong', () => { (ws as WebSocket & { isAlive?: boolean }).isAlive = true; });
-    send(ws, { t: 'caps', caps: capsFor(role, CONFIG) });
-    send(ws, { t: 'busy', keys: [...threads.keys()] });
-    const slash = getSlashCommands();
-    if (slash.length) send(ws, { t: 'slash-commands', items: slash });
-    const rate = getLastRate();
-    if (rate) send(ws, { t: 'rate', ...rate });
-    const planUsage = getLastPlanUsage();
-    if (planUsage) send(ws, { t: 'plan-usage', usage: planUsage });
-    const models = getLastModels();
-    if (models.length) send(ws, { t: 'models', models });
-    // Reconnect mid-run (#10): replaya o snapshot acumulado SÓ pra ESTE socket,
-    // pra a UI reconstruir o turno em voo. Os deltas seguintes chegam via
-    // broadcast (não roubamos mais o stream das outras abas).
-    for (const [key, thread] of threads) {
-      send(ws, { t: 'replay', sessionKey: key, text: thread.text, thinking: thread.thinking, tools: thread.tools });
-    }
-    collect().then((stats) => send(ws, { t: 'stats', stats })).catch(() => {});
-
-    // terminais anexados por ESTA conexão — pra desanexar no disconnect.
-    const myTerms = new Map<string, TermHandle>();
-    const limiter = createRateLimiter();
-
-    ws.on('message', (raw) => {
-      let msg: ClientMsg;
-      try {
-        const parsed = JSON.parse(String(raw));
-        if (!parsed || typeof parsed !== 'object') return; // frame não-objeto (null/string/número)
-        msg = parsed as ClientMsg;
-      } catch { return; }
-      if (typeof msg.t !== 'string') return;
-      // Teto por conexão antes de qualquer trabalho: corta loop de frames (DoS).
-      if (!limiter.allow(msg.t)) { send(ws, { t: 'error', message: 'muitas requisições' }); return; }
-      // Checkpoint ÚNICO de autorização (default-deny), ANTES do handleTerm (que
-      // trata term-* e retorna) e do dispatch/startRun. Uma só fonte de verdade:
-      // a allowlist por papel em authz.ts. Inerte hoje (role admin recebe tudo);
-      // corta shell/admin/mutação alheia pro student quando o token trouxer role.
-      if (!authorize(role, msg.t)) {
-        send(ws, { t: 'error', message: 'sem permissão' });
-        return;
-      }
-      // handleTerm é síncrono e roda fora do .catch do handle — um frame de
-      // terminal malformado que lançasse aqui viraria uncaughtException e
-      // derrubaria o processo inteiro. O try isola o socket que mandou lixo.
-      try {
-        if (handleTerm(ws, msg, myTerms)) return;
-      } catch (e) {
-        send(ws, { t: 'error', message: sanitize(String((e as Error)?.message ?? e)) });
-        return;
-      }
-      handle(ws, msg, role).catch((e) => send(ws, { t: 'error', message: sanitize(String(e?.message ?? e)) }));
-    });
-
-    ws.on('close', () => {
-      for (const [id, h] of myTerms) detachTerm(id, h.onData, h.onExit);
-      myTerms.clear();
-    });
+    // O ciclo de vida da conexão (bootstrap + loop + cleanup) é agnóstico ao
+    // transporte — o mesmo serveConnection serve o agente T3 que disca pro relay.
+    serveConnection(ws, { role });
   });
 
   startStatsLoop(wss);
