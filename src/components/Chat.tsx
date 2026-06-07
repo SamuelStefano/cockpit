@@ -62,6 +62,10 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
     () => messages.filter((m) => m.role === 'user').map((m) => m.text).filter(Boolean),
     [messages],
   );
+  const modelLabel = useMemo(
+    () => models.find((m) => m.id === model)?.displayName || model,
+    [models, model],
+  );
 
   // Fila stop-aware: mensagem digitada durante o turno dispara sozinha no idle.
   useEffect(() => {
@@ -160,7 +164,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-5">
             {messages.map((m, i) => (
-              <MessageRow key={m.id} msg={m} caretOnLast={streaming && i === messages.length - 1 && m.role === 'assistant'} onEditUser={onEditUser} onQuote={onQuote} />
+              <MessageRow key={m.id} msg={m} caretOnLast={streaming && i === messages.length - 1 && m.role === 'assistant'} modelLabel={modelLabel} onEditUser={onEditUser} onQuote={onQuote} />
             ))}
             {phase === 'thinking' && <Thinking />}
           </div>

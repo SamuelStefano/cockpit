@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Icon, Badge } from '../primitives';
 import type { Session } from '../../data/mock';
 import { Highlight } from './Highlight';
@@ -15,6 +16,7 @@ export interface SessionRowProps {
   running?: boolean;
   stalled?: boolean;
   updated?: boolean;
+  runStart?: number;
   pinned?: boolean;
   tags?: string[];
   onTogglePin?: (id: string) => void;
@@ -29,7 +31,7 @@ export interface SessionRowProps {
   onStop?: (id: string) => void;
 }
 
-export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated, pinned, tags = [], onTogglePin, onAddTag, onRemoveTag, onFilterTag, onSelect, onRename, onDescribe, onClose, onDelete, onStop }: SessionRowProps) {
+export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated, runStart, pinned, tags = [], onTogglePin, onAddTag, onRemoveTag, onFilterTag, onSelect, onRename, onDescribe, onClose, onDelete, onStop }: SessionRowProps) {
   const { editing, setEditing, draft, setDraft, descEditing, setDescEditing, descDraft, setDescDraft, tagging, setTagging, tagDraft, setTagDraft, inputRef, descRef, tagRef, commit, commitDesc, commitTag } = useSessionRow({ s, onAddTag, onRename, onDescribe });
 
   return (
@@ -136,6 +138,9 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
       ) : (
         <p className="line-clamp-2 text-[11.5px] leading-snug text-neutral-500"><Highlight text={s.summary || s.snippet} term={highlight} /></p>
       ))}
+      {!editing && running && (
+        <RunStatus start={runStart} stalled={!!stalled} />
+      )}
       {!editing && isIdle(s.mtime, !!running) && (
         <div className="mt-1.5">
           <Badge tone="neutral">ociosa</Badge>
@@ -155,4 +160,31 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
       )}
     </div>
   );
+}
+
+// Status do turno em voo no card do sidebar: cronômetro próprio (1s) só enquanto
+// a sessão roda, então só a(s) linha(s) ativa(s) re-renderizam — não a lista toda.
+function RunStatus({ start, stalled }: { start?: number; stalled: boolean }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const elapsed = start ? fmtElapsed(Math.max(0, Date.now() - start)) : null;
+  return (
+    <div className="mt-1.5 flex items-center gap-1.5 text-[10px] font-medium">
+      <span className={stalled ? 'text-amber-400' : 'text-green-400'}>
+        {stalled ? 'sem resposta há um tempo' : 'trabalhando'}
+      </span>
+      {elapsed && <span className="tabular-nums text-neutral-500">· {elapsed}</span>}
+    </div>
+  );
+}
+
+function fmtElapsed(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${s % 60}s`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
 }

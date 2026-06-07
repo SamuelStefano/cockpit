@@ -25,6 +25,7 @@ export interface Cockpit {
   running: Set<string>;
   stalled: Set<string>;
   updated: Set<string>;
+  runStart: Record<string, number>;
   draft: string;
   setDraft: (v: string) => void;
   conn: { ws: ConnState; sse: ConnState };
@@ -90,6 +91,8 @@ export function useCockpit(): Cockpit {
   const [drafts, setDrafts] = useState<Record<string, string>>(() => loadPref('drafts', {} as Record<string, string>));
   const [phases, setPhases] = useState<Record<string, Phase>>({});
   const lastActivity = useRef<Record<string, number>>({}); // sessionKey -> ts do último frame; alimenta o watchdog de "sessão quieta"
+  const runStartRef = useRef<Record<string, number>>({}); // sessionKey -> ts em que o turno começou; alimenta o cronômetro do card
+  const [runStart, setRunStart] = useState<Record<string, number>>({});
   const [clockTick, setClockTick] = useState(0); // re-render periódico p/ recomputar quietas sem novo evento
   const [conn, setConn] = useState<{ ws: ConnState; sse: ConnState }>({ ws: 'reconnecting', sse: 'reconnecting' });
   const [rate, setRate] = useState<{ resetsAt: number; status: string } | null>(null);
@@ -130,6 +133,7 @@ export function useCockpit(): Cockpit {
   const inFlight = useRef<Set<string>>(new Set());        // sessionKeys com turno em voo — guarda síncrona contra envio duplo (runMsg só é setado no `started`)
   const resumeId = useRef<Record<string, string>>({});    // sessionKey -> claude sessionId p/ --resume
   const opened = useRef<Set<string>>(new Set());          // sessionKeys cujo histórico já foi pedido
+  const migratedTo = useRef<Record<string, string>>({});  // new-xxx -> claude sessionId já migrado (idempotência: 2º `done` não re-migra nem zera o thread)
   const activeRef = useRef('');
   const sessionsRef = useRef<Session[]>([]);
   const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -179,6 +183,11 @@ export function useCockpit(): Cockpit {
   // keyed por `new-xxx`) fica órfão.
   const migrateKey = useCallback((oldKey: string, newId: string) => {
     if (oldKey === newId || !oldKey.startsWith('new-')) return;
+    // Idempotência: o servidor pode emitir `done` duas vezes p/ o mesmo turno.
+    // Sem isto, o 2º done re-roda reconcileTools(oldKey) (recria threads[oldKey]
+    // VAZIO) e re-migra, zerando o thread real — o chat some após o run.
+    if (migratedTo.current[oldKey]) return;
+    migratedTo.current[oldKey] = newId;
     resumeId.current[newId] = newId;
     delete resumeId.current[oldKey];
     opened.current.add(newId);   // history já está local; não re-buscar
@@ -441,7 +450,9 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'done': {
-        const key = msg.sessionKey;
+        // `done` duplicado após a migração chega keyed pelo `new-xxx` antigo;
+        // redireciona p/ o id real já migrado pra não tocar uma key órfã.
+        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
         inFlight.current.delete(key);
         reconcileTools(key);
         delete runMsg.current[key];
@@ -747,6 +758,15 @@ export function useCockpit(): Cockpit {
     () => new Set(Object.keys(phases).filter((k) => phases[k] === 'thinking' || phases[k] === 'streaming')),
     [phases]
   );
+  // Marca o início do turno por sessão (idle→running) e limpa no fim, pra o card
+  // do sidebar mostrar há quanto tempo aquela sessão trabalha.
+  useEffect(() => {
+    const cur = runStartRef.current;
+    let changed = false;
+    for (const k of running) if (cur[k] === undefined) { cur[k] = Date.now(); changed = true; }
+    for (const k of Object.keys(cur)) if (!running.has(k)) { delete cur[k]; changed = true; }
+    if (changed) setRunStart({ ...cur });
+  }, [running]);
   // LRU de threads: numa aba aberta por semanas (daily driver), cada sessão
   // visitada deixa o Message[] inteiro em memória pra sempre. Acima do teto,
   // despeja as mais antigas por atividade — nunca a ativa, nem com run vivo, nem
@@ -819,5 +839,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, draft, setDraft, conn, authRequired, submitToken, rate, planUsage, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, models, budget, setBudget: changeBudget, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, submitToken, rate, planUsage, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, models, budget, setBudget: changeBudget, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull };
 }
