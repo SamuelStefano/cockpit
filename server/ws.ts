@@ -107,5 +107,6 @@ export function attachWs(server: Server) {
 
   startStatsLoop(wss);
   startPlanUsageLoop(wss);
+  startModelsLoop(wss);
   return wss;
 }
