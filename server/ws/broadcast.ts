@@ -24,10 +24,13 @@ export function broadcast(msg: ServerMsg) {
   for (const c of wssRef.clients) {
     if (c.readyState !== c.OPEN) continue;
     if (droppable && c.bufferedAmount > BACKPRESSURE_BYTES) continue;
-    c.send(payload);
+    // ws.send pode lançar se o socket fechar entre o check e o envio; um cliente
+    // morto não pode abortar o fan-out pros demais (perderiam o `done`).
+    try { c.send(payload); } catch { /* socket fechou no meio do loop */ }
   }
 }
 
 export function send(ws: WebSocket, msg: ServerMsg) {
-  if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
+  if (ws.readyState !== ws.OPEN) return;
+  try { ws.send(JSON.stringify(msg)); } catch { /* socket fechou entre o check e o envio */ }
 }
