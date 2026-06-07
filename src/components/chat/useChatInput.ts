@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import type { PermMode } from '../../../shared/protocol';
 import { classifySlash } from './slash';
+import { nextRecall } from './recall';
 
 const MAX_UPLOAD = 15_000_000;
 
@@ -175,15 +176,11 @@ export function useChatInput(args: UseChatInputArgs) {
     if (e.key === 'Escape' && disabled && !value) { e.preventDefault(); onStop(); return; }
     // Recall de histórico (↑/↓), só fora da palette de slash.
     if (history.length && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-      if (e.key === 'ArrowUp') {
-        if (histIdx === null) { if (value !== '') return; e.preventDefault(); recall(history.length - 1); return; }
-        e.preventDefault(); recall(Math.max(0, histIdx - 1)); return;
-      }
-      if (histIdx === null) return; // ↓ sem recall ativo = cursor normal
+      const r = nextRecall(history, histIdx, value, e.key === 'ArrowUp' ? 'up' : 'down');
+      if (!r) return; // cai no cursor normal
       e.preventDefault();
-      const next = histIdx + 1;
-      if (next >= history.length) { setHistIdx(null); setValue(''); if (taRef.current) taRef.current.style.height = 'auto'; }
-      else recall(next);
+      if (r.histIdx === null) { setHistIdx(null); setValue(''); if (taRef.current) taRef.current.style.height = 'auto'; }
+      else recall(r.histIdx);
       return;
     }
     // Composição vazia + banner pendente: Enter confirma o banner em vez de ser
