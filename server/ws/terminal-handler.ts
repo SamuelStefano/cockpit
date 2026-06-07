@@ -23,7 +23,12 @@ export function handleTerm(
       return true;
     }
     case 'term-list': { void listTerms().then((ids) => send(ws, { t: 'terms', ids })); return true; }
-    case 'term-input': { inputTerm(msg.termId, msg.data); return true; }
+    case 'term-input': {
+      // Cap de tamanho: um frame de 32MB (teto do transporte) escrito cru no PTY
+      // é pressão de memória/CPU sem freio. Digitação/paste humanos cabem em 64KB.
+      if (typeof msg.data === 'string' && msg.data.length <= 65536) inputTerm(msg.termId, msg.data);
+      return true;
+    }
     case 'term-resize': { resizeTerm(msg.termId, msg.cols, msg.rows); return true; }
     case 'term-detach': {
       const h = myTerms.get(msg.termId);

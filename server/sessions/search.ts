@@ -18,7 +18,9 @@ const MAX_HITS = 40;
 
 export async function searchSessions(q: string): Promise<SessionMeta[]> {
   const query = q.trim();
-  if (query.length < 2) return [];
+  // Sem injeção (argv-array), mas um `q` de megabytes vira argv gigante (ARG_MAX/
+  // DoS). Termo de busca real cabe folgado em 200 chars.
+  if (query.length < 2 || query.length > 200) return [];
   const dir = resolve(CONFIG.projectsDir);
 
   let stdout = '';

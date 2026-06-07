@@ -13,6 +13,7 @@ import { getLastRate } from './ws/rate';
 import { threads, runStats, killAllRuns } from './ws/runs';
 import { handle } from './ws/dispatch';
 import { handleTerm, type TermHandle } from './ws/terminal-handler';
+import { isAdminOnly, createRateLimiter } from './ws/guard';
 import { startStatsLoop } from './ws/stats-loop';
 
 export { runStats, killAllRuns } from './ws/runs';
@@ -62,6 +63,7 @@ export function attachWs(server: Server) {
 
     // terminais anexados por ESTA conexão — pra desanexar no disconnect.
     const myTerms = new Map<string, TermHandle>();
+    const limiter = createRateLimiter();
 
     ws.on('message', (raw) => {
       let msg: ClientMsg;
@@ -70,6 +72,15 @@ export function attachWs(server: Server) {
         if (!parsed || typeof parsed !== 'object') return; // frame não-objeto (null/string/número)
         msg = parsed as ClientMsg;
       } catch { return; }
+      if (typeof msg.t !== 'string') return;
+      // Teto por conexão antes de qualquer trabalho: corta loop de frames (DoS).
+      if (!limiter.allow(msg.t)) { send(ws, { t: 'error', message: 'muitas requisições' }); return; }
+      // Gate de role ANTES do handleTerm (que trata term-* e retorna). Hoje no-op
+      // (role sempre admin); arma o corte de shell/admin pra student na Fase 2.
+      if (isAdminOnly(msg.t) && currentRole() !== 'admin') {
+        send(ws, { t: 'error', message: 'sem permissão' });
+        return;
+      }
       // handleTerm é síncrono e roda fora do .catch do handle — um frame de
       // terminal malformado que lançasse aqui viraria uncaughtException e
       // derrubaria o processo inteiro. O try isola o socket que mandou lixo.

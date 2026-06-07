@@ -49,8 +49,16 @@ export function killAllRuns(): void {
   }
 }
 
+const SESSION_KEY_RE = /^[a-zA-Z0-9_-]{1,64}$/;
+
 export function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: string, mode?: string, model?: string, effort?: string, maxBudgetUsd?: number, bypass?: boolean) {
-  if (Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) {
+  // sessionKey é string crua do cliente usada como chave do mapa `threads` e
+  // ecoada nos broadcasts; restringe a um slug (cobre uuid e as keys 'new-…').
+  if (typeof sessionKey !== 'string' || !SESSION_KEY_RE.test(sessionKey)) {
+    send(ws, { t: 'error', message: 'sessão inválida' });
+    return;
+  }
+  if (typeof prompt !== 'string' || Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) {
     send(ws, { t: 'error', sessionKey, message: 'prompt grande demais' });
     return;
   }
