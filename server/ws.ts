@@ -8,6 +8,7 @@ import { send, setWss } from './ws/broadcast';
 import { CONFIG } from './config';
 import { currentRole, capsFor } from './auth';
 import { originAllowed } from './ws/origin';
+import { tokenAllowed, tokenFromUrl } from './ws/token';
 import { getSlashCommands } from './ws/slash';
 import { getLastRate } from './ws/rate';
 import { threads, runStats, killAllRuns } from './ws/runs';
@@ -47,7 +48,15 @@ export function attachWs(server: Server) {
   beat.unref();
   wss.on('close', () => clearInterval(beat));
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws, req) => {
+    // Gate de auth ANTES de qualquer trabalho ou estado por-conexão (DR-011 Fase
+    // 2). verifyClient já barrou origem cruzada; aqui exigimos o token quando
+    // configurado. Fechamos com 4401 (código de app) pra a UI distinguir
+    // "token errado" de "backend caiu" e mostrar o login em vez de re-tentar.
+    if (!tokenAllowed(CONFIG.authToken, tokenFromUrl(req.url))) {
+      try { ws.close(4401, 'auth'); } catch { /* socket já indo embora */ }
+      return;
+    }
     (ws as WebSocket & { isAlive?: boolean }).isAlive = true;
     ws.on('pong', () => { (ws as WebSocket & { isAlive?: boolean }).isAlive = true; });
     send(ws, { t: 'caps', caps: capsFor(currentRole(), CONFIG) });

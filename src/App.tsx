@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { MobileLayout } from './components/Mobile';
 import { DesktopLayout } from './app/DesktopLayout';
 import { StatusBar } from './components/StatusBar';
-import { Header, QuotaBanner, OfflineNotice } from './components/AppChrome';
+import { Header, QuotaBanner, OfflineNotice, AuthGate } from './components/AppChrome';
 import { Contextos } from './routes/Contextos';
 import { Skills } from './routes/Skills';
 import { Observatorio } from './routes/Observatorio';
@@ -24,7 +24,7 @@ export function CockpitApp() {
   const cockpit = useCockpit();
   const {
     sessions, loading, activeId: activeSessionId, setActiveId: setActiveSessionId,
-    messages, phase, running, stalled, updated, draft, setDraft, conn, rate, planUsage, stats, mode, setMode, caps, bypass, setBypass, model, setModel, models, budget, setBudget, slashCommands, term, discoveredTerms, listTerms,
+    messages, phase, running, stalled, updated, draft, setDraft, conn, authRequired, submitToken, rate, planUsage, stats, mode, setMode, caps, bypass, setBypass, model, setModel, models, budget, setBudget, slashCommands, term, discoveredTerms, listTerms,
     archived, onUnhide: handleUnhide, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch,
     contexts, openContext, onCtxList, onCtxOpen, onCtxClose,
     skills, openSkill, onSkillList, onSkillOpen, onSkillClose,
@@ -113,6 +113,19 @@ export function CockpitApp() {
   const sessionsProps = { sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, stalled, updated, searchResults, onSearch };
   const chatProps = { session: activeSession, messages, phase: viewPhase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, bypass, setBypass, model, setModel, models, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew: handleNew, attachments, onUpload, onRemoveAttachment, onEditUser: editUser, onQuote: quoteMsg, onOpenFull, onShowHelp: () => setHelp(true), focusSignal };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
+
+  // Gate de auth (DR-011 Fase 2): servidor exige token e o nosso falta/errou.
+  // Substitui o app inteiro até autenticar — nada da VPS aparece antes disso.
+  if (authRequired) {
+    return (
+      <div
+        className="flex h-full flex-col bg-neutral-950"
+        style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        <AuthGate onSubmit={submitToken} />
+      </div>
+    );
+  }
 
   return (
     <div
