@@ -6,6 +6,7 @@ import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/
 import { wsUrlWithToken, newId, metaToSession, dedupById, mergeSeen } from './cockpit/session';
 import { upsertTool, appendDelta, appendThinking } from './cockpit/blocks';
 import { selectEvictions } from './cockpit/evict';
+import { resolveKey, moveKey } from './cockpit/migrate';
 import { useTerminals, type TermApi } from './cockpit/useTerminals';
 
 export interface ContextDoc { id: string; title: string; body: string }
@@ -198,13 +199,7 @@ export function useCockpit(): Cockpit {
     if (oldKey in runStartRef.current) { runStartRef.current[newId] = runStartRef.current[oldKey]; delete runStartRef.current[oldKey]; }
     if (inFlight.current.has(oldKey)) { inFlight.current.delete(oldKey); inFlight.current.add(newId); }
     if (activeRef.current === oldKey) { activeRef.current = newId; setActiveIdState(newId); }
-    const move = <T,>(prev: Record<string, T>): Record<string, T> => {
-      if (!(oldKey in prev)) return prev;
-      const next = { ...prev };
-      next[newId] = next[oldKey];   // dados locais em voo vencem qualquer entrada já-presente
-      delete next[oldKey];
-      return next;
-    };
+    const move = <T,>(prev: Record<string, T>): Record<string, T> => moveKey(prev, oldKey, newId);
     setThreads(move);
     setPhases(move);
     setDrafts(move);
@@ -274,7 +269,7 @@ export function useCockpit(): Cockpit {
         // a mensagem do usuário tempo-real entre clientes (antes só aparecia no F5).
         // Frame tardio keyed pelo `new-xxx` antigo é redirecionado p/ a key real
         // já migrada (senão recria um thread/linha fantasma).
-        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
+        const key = resolveKey(migratedTo.current, msg.sessionKey);
         lastActivity.current[key] = Date.now();
         updateThread(key, (prev) =>
           prev.some((m) => m.id === msg.id) ? prev : [...prev, { id: msg.id, role: 'user', text: msg.text, ts: msg.ts }],
@@ -287,7 +282,7 @@ export function useCockpit(): Cockpit {
         // bolha do usuário correspondente. Em 'priority' o turno atual será morto e
         // substituído: solta o runMsg p/ o próximo 'started' criar um bubble novo
         // (senão o turno novo fundiria no bubble interrompido).
-        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
+        const key = resolveKey(migratedTo.current, msg.sessionKey);
         if (msg.msgId) {
           updateThread(key, (prev) =>
             prev.map((m) => (m.id === msg.msgId && m.role === 'user' ? { ...m, triage: { action: msg.action, reason: msg.reason } } : m)),
@@ -299,7 +294,7 @@ export function useCockpit(): Cockpit {
       case 'quick-answer': {
         // Subagente respondeu à parte (triagem 'answer'); bolha independente, não
         // toca o turno principal em andamento.
-        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
+        const key = resolveKey(migratedTo.current, msg.sessionKey);
         lastActivity.current[key] = Date.now();
         updateThread(key, (prev) =>
           prev.some((m) => m.id === msg.id) ? prev : [...prev, { id: msg.id, role: 'assistant', blocks: [{ type: 'text', md: msg.text }], ts: msg.ts, quick: true }],
@@ -308,7 +303,7 @@ export function useCockpit(): Cockpit {
       }
       case 'started': {
         // Frame tardio do turno antigo pode chegar keyed pelo `new-xxx` já migrado.
-        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
+        const key = resolveKey(migratedTo.current, msg.sessionKey);
         lastActivity.current[key] = Date.now();
         inFlight.current.add(key);
         if (runMsg.current[key]) return; // já em voo (reconnect) — não duplica bubble
@@ -321,7 +316,7 @@ export function useCockpit(): Cockpit {
       case 'replay': {
         // Reconnect mid-run (#10): snapshot autoritativo do turno em voo.
         // Reconstrói (ou sobrescreve) o bubble e segue recebendo deltas ao vivo.
-        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
+        const key = resolveKey(migratedTo.current, msg.sessionKey);
         inFlight.current.add(key);
         const blocks: Block[] = [];
         if (msg.thinking) blocks.push({ type: 'thinking', text: msg.thinking });
@@ -339,7 +334,7 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'system': {
-        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
+        const key = resolveKey(migratedTo.current, msg.sessionKey);
         if (msg.sessionId) resumeId.current[key] = msg.sessionId;
         return;
       }
@@ -349,21 +344,21 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'delta': {
-        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
+        const key = resolveKey(migratedTo.current, msg.sessionKey);
         lastActivity.current[key] = Date.now();
         setPhases((p) => ({ ...p, [key]: 'streaming' }));
         patchRunMsg(key, (b) => appendDelta(b, msg.text));
         return;
       }
       case 'thinking': {
-        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
+        const key = resolveKey(migratedTo.current, msg.sessionKey);
         lastActivity.current[key] = Date.now();
         setPhases((p) => ({ ...p, [key]: 'streaming' }));
         patchRunMsg(key, (b) => appendThinking(b, msg.text));
         return;
       }
       case 'tool': {
-        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
+        const key = resolveKey(migratedTo.current, msg.sessionKey);
         lastActivity.current[key] = Date.now();
         setPhases((p) => ({ ...p, [key]: 'streaming' }));
         patchRunMsg(key, (b) => upsertTool(b, msg.tool));
@@ -391,7 +386,7 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'usage': {
-        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
+        const key = resolveKey(migratedTo.current, msg.sessionKey);
         setUsage((u) => ({ ...u, [key]: msg.tokens }));
         return;
       }
@@ -399,7 +394,7 @@ export function useCockpit(): Cockpit {
         // O CLI auto-compactou: a janela encolheu. Zera o medidor; o próximo turno
         // repopula com o tamanho real pós-compactação (DR-012). "Ver tudo" recupera
         // o pré-compactação — nada é perdido na verdade.
-        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
+        const key = resolveKey(migratedTo.current, msg.sessionKey);
         setUsage((u) => ({ ...u, [key]: 0 }));
         return;
       }
@@ -468,7 +463,7 @@ export function useCockpit(): Cockpit {
       case 'done': {
         // `done` duplicado após a migração chega keyed pelo `new-xxx` antigo;
         // redireciona p/ o id real já migrado pra não tocar uma key órfã.
-        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
+        const key = resolveKey(migratedTo.current, msg.sessionKey);
         inFlight.current.delete(key);
         reconcileTools(key);
         // Carimba o modelo EFETIVO do turno na bolha (revela --fallback-model e
