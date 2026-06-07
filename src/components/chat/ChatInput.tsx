@@ -41,7 +41,7 @@ interface ChatInputProps {
 export function ChatInput(props: ChatInputProps) {
   const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, budget, setBudget, attachments, onRemoveAttachment, queued, onCancelQueue } = props;
   const hasAtt = attachments.length > 0;
-  const { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick } = useChatInput({ ...props, hasAtt });
+  const { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste } = useChatInput({ ...props, hasAtt });
   return (
     <div className="shrink-0 border-t border-neutral-800 bg-neutral-900/60 px-3 py-3 backdrop-blur">
       <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -96,7 +96,12 @@ export function ChatInput(props: ChatInputProps) {
         </div>
       )}
       <input ref={fileRef} type="file" multiple onChange={pick} className="hidden" />
-      <div className="relative">
+      <div className="relative" onDragEnter={onDragEnter} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+      {dragging && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-orange-500/60 bg-neutral-950/85 text-[13px] font-medium text-orange-300 backdrop-blur-sm">
+          <Icon name="paperclip" size={15} /> Solte os arquivos pra anexar
+        </div>
+      )}
       {showPalette && (
         <div className="scroll-thin absolute bottom-full left-0 z-30 mb-2 max-h-60 w-full overflow-auto rounded-lg border border-neutral-700 bg-neutral-900 py-1 shadow-xl shadow-black/50">
           {matches.map((c, i) => {
@@ -124,7 +129,7 @@ export function ChatInput(props: ChatInputProps) {
         <button
           onClick={() => fileRef.current?.click()}
           disabled={disabled}
-          title="Anexar arquivo"
+          title="Anexar arquivo — ou arraste e solte / cole (Ctrl+V)"
           className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Icon name="paperclip" size={15} />
@@ -135,6 +140,7 @@ export function ChatInput(props: ChatInputProps) {
           value={value}
           onChange={grow}
           onKeyDown={onKey}
+          onPaste={onPaste}
           placeholder={disabled ? 'Próxima mensagem (envia ao terminar)…' : 'Pergunte ou peça um comando…  (↵ envia, ⇧↵ quebra linha)'}
           className="scroll-thin max-h-[140px] w-full resize-none bg-transparent py-1 text-[14px] leading-relaxed text-neutral-100 placeholder-neutral-600 outline-none"
         />
