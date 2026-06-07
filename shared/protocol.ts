@@ -163,6 +163,7 @@ export interface SysStats {
 // segredo. Auth-gate fica p/ depois; hoje protegido só por loopback.
 export interface McpInfo { name: string; transport: string }
 export interface CliInfo { name: string; present: boolean }
+export interface PluginInfo { name: string; marketplace: string; version: string }
 
 export interface AdminHealth {
   claudeAuth: boolean;         // ~/.claude/.credentials.json existe?
@@ -173,6 +174,7 @@ export interface AdminHealth {
   clis: CliInfo[];             // CLIs no PATH (git/gh/docker/tmux/…)
   envTokens: string[];         // NOMES de env que parecem token/segredo (nunca valor)
   tmuxSessions: string[];      // sessões tmux ativas
+  plugins: PluginInfo[];       // plugins instalados (~/.claude/plugins), sem segredo
   sessions: number;            // JSONL no projectsDir
   memories: number;            // .md no memoryDir
   skills: number;              // dirs em skillsDir

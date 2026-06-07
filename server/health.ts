@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { AdminHealth, CliInfo, McpInfo } from '../shared/protocol';
+import type { AdminHealth, CliInfo, McpInfo, PluginInfo } from '../shared/protocol';
 import { CONFIG } from './config';
 import { collect } from './stats';
 
@@ -27,6 +27,22 @@ export function mcpInfoFrom(raw: string): McpInfo[] {
       name,
       transport: cfg?.type ?? (cfg?.command ? 'stdio' : cfg?.url ? 'http' : 'unknown'),
     }));
+  } catch { return []; }
+}
+
+// Lê ~/.claude/plugins/installed_plugins.json. Chaves são "nome@marketplace";
+// o valor é um array de instalações (scope user/project) — pegamos a 1ª p/ versão.
+export function pluginsFrom(raw: string): PluginInfo[] {
+  if (!raw) return [];
+  try {
+    const j = JSON.parse(raw) as { plugins?: Record<string, Array<{ version?: string }>> };
+    const plugins = j.plugins ?? {};
+    return Object.entries(plugins).map(([key, installs]) => {
+      const at = key.lastIndexOf('@');
+      const name = at > 0 ? key.slice(0, at) : key;
+      const marketplace = at > 0 ? key.slice(at + 1) : '';
+      return { name, marketplace, version: installs?.[0]?.version ?? '' };
+    }).sort((a, b) => a.name.localeCompare(b.name));
   } catch { return []; }
 }
 
@@ -73,10 +89,11 @@ async function sshKeys(): Promise<number> {
 }
 
 export async function collectHealth(): Promise<AdminHealth> {
-  const [claudeAuth, mcpRaw, sshConfig, ssh, cli, tmux, sessions, memories, skills, sys] = await Promise.all([
+  const [claudeAuth, mcpRaw, sshConfig, pluginsRaw, ssh, cli, tmux, sessions, memories, skills, sys] = await Promise.all([
     exists(join(homedir(), '.claude', '.credentials.json')),
     readFile(join(homedir(), '.claude.json'), 'utf8').catch(() => ''),
     readFile(join(homedir(), '.ssh', 'config'), 'utf8').catch(() => ''),
+    readFile(join(homedir(), '.claude', 'plugins', 'installed_plugins.json'), 'utf8').catch(() => ''),
     sshKeys(),
     clis(),
     tmuxSessions(),
@@ -95,6 +112,7 @@ export async function collectHealth(): Promise<AdminHealth> {
     clis: cli,
     envTokens: tokenEnvNames(process.env),
     tmuxSessions: tmux,
+    plugins: pluginsFrom(pluginsRaw),
     sessions,
     memories,
     skills,

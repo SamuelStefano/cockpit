@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mcpInfoFrom, parseSshHosts, tokenEnvNames, parseTmuxList, parseWhich } from './health';
+import { mcpInfoFrom, parseSshHosts, tokenEnvNames, parseTmuxList, parseWhich, pluginsFrom } from './health';
 
 describe('mcpInfoFrom', () => {
   it('extracts name + transport from .claude.json, never the secret payload', () => {
@@ -30,6 +30,33 @@ describe('mcpInfoFrom', () => {
     expect(mcpInfoFrom('')).toEqual([]);
     expect(mcpInfoFrom('{not json')).toEqual([]);
     expect(mcpInfoFrom('{}')).toEqual([]);
+  });
+});
+
+describe('pluginsFrom', () => {
+  it('splits name@marketplace and takes version from the first install', () => {
+    const raw = JSON.stringify({
+      version: 2,
+      plugins: {
+        'supabase@claude-plugins-official': [{ scope: 'user', version: '0.1.10' }],
+        'foo@bar': [{ version: '2.0.0' }, { version: '1.0.0' }],
+      },
+    });
+    expect(pluginsFrom(raw)).toEqual([
+      { name: 'foo', marketplace: 'bar', version: '2.0.0' },
+      { name: 'supabase', marketplace: 'claude-plugins-official', version: '0.1.10' },
+    ]);
+  });
+
+  it('handles key without marketplace and missing version', () => {
+    const raw = JSON.stringify({ plugins: { solo: [{}] } });
+    expect(pluginsFrom(raw)).toEqual([{ name: 'solo', marketplace: '', version: '' }]);
+  });
+
+  it('returns [] on empty or malformed json', () => {
+    expect(pluginsFrom('')).toEqual([]);
+    expect(pluginsFrom('{not json')).toEqual([]);
+    expect(pluginsFrom('{}')).toEqual([]);
   });
 });
 
