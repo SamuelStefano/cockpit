@@ -1,6 +1,38 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest';
-import { newId, metaToSession, dedupById, mergeSeen } from './session';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { newId, metaToSession, dedupById, mergeSeen, buildWsUrl, wsBase } from './session';
+
+describe('buildWsUrl', () => {
+  it('returns the base unchanged when no token', () => {
+    expect(buildWsUrl('wss://vps.ts.net/ws', '')).toBe('wss://vps.ts.net/ws');
+  });
+
+  it('appends the token as a query param', () => {
+    expect(buildWsUrl('wss://vps.ts.net/ws', 'sekret')).toBe('wss://vps.ts.net/ws?token=sekret');
+  });
+
+  it('falls back to the raw base when it is not a valid URL', () => {
+    expect(buildWsUrl('not a url', 'sekret')).toBe('not a url');
+  });
+});
+
+describe('wsBase', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('prefers a saved override over the default', () => {
+    localStorage.setItem('cockpit:ws.url', JSON.stringify('wss://my-vps.ts.net/ws'));
+    expect(wsBase()).toBe('wss://my-vps.ts.net/ws');
+  });
+
+  it('ignores a blank override and uses the default', () => {
+    localStorage.setItem('cockpit:ws.url', JSON.stringify('   '));
+    expect(wsBase()).toBe(`ws://${location.host}/ws`);
+  });
+
+  it('uses the default when no override is set', () => {
+    expect(wsBase()).toBe(`ws://${location.host}/ws`);
+  });
+});
 
 describe('newId', () => {
   it('keeps the given prefix', () => {

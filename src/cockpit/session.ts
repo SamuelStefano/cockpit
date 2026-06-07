@@ -1,5 +1,6 @@
 import type { Session } from '../data/mock';
 import type { SessionMeta } from '../../shared/protocol';
+import { loadPref } from '../lib/persist';
 
 // Default: mesma origin (proxy do vite/reverse-proxy resolve o /ws → :7777). Um
 // deploy do front separado do back (ex: Vercel servindo a SPA, backend atrás de
@@ -8,18 +9,32 @@ import type { SessionMeta } from '../../shared/protocol';
 const ENV_WS = (import.meta.env.VITE_WS_URL ?? '').trim();
 export const WS_URL = ENV_WS || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
 
-// Anexa o token de auth (DR-011 Fase 2) na query — browsers não mandam header no
-// upgrade do WS. Sem token, conecta como antes (loopback sem gate). Token errado
-// → o servidor fecha com 4401 e a UI pede pra digitar de novo.
-export function wsUrlWithToken(token: string): string {
-  if (!token) return WS_URL;
+// Override por dispositivo (#147): um build único no Vercel não consegue setar
+// VITE_WS_URL por aparelho. Salvar o endereço do backend no localStorage deixa o
+// usuário apontar o celular/laptop pra sua VPS (Tailscale/público) sem rebuild.
+// Precedência: override salvo > VITE_WS_URL do build > mesma origin. Lido a cada
+// conexão (função, não const) pra valer logo após salvar.
+export function wsBase(): string {
+  const override = loadPref('ws.url', '').trim();
+  return override || WS_URL;
+}
+
+// Monta a URL do WS a partir de uma base + token. Pura: a base entra pronta (de
+// wsBase()), o token (DR-011 Fase 2) vai na query — browsers não mandam header no
+// upgrade do WS. Sem token, conecta sem gate. Token errado → 4401 e a UI repergunta.
+export function buildWsUrl(base: string, token: string): string {
+  if (!token) return base;
   try {
-    const u = new URL(WS_URL);
+    const u = new URL(base);
     u.searchParams.set('token', token);
     return u.toString();
   } catch {
-    return WS_URL;
+    return base;
   }
+}
+
+export function wsUrlWithToken(token: string): string {
+  return buildWsUrl(wsBase(), token);
 }
 
 let _mid = 0;
