@@ -10,7 +10,7 @@ export { classifySlash, type SlashAction } from './slash';
 
 interface ChatInputProps {
   disabled: boolean;
-  onSend: (text: string) => void;
+  onSend: (text: string, modeOverride?: PermMode) => void;
   onStop: () => void;
   value: string;
   setValue: (v: string) => void;

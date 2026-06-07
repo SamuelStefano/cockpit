@@ -20,6 +20,18 @@ describe('classifySlash', () => {
     expect(classifySlash('/execute')).toEqual({ kind: 'mode', mode: 'acceptEdits' });
   });
 
+  it('maps prompt-expanding commands to auto mode', () => {
+    const att = classifySlash('/attcontext');
+    expect(att?.kind).toBe('prompt');
+    expect(att && 'mode' in att && att.mode).toBe('auto');
+    expect(att && 'text' in att && att.text).toContain('memória');
+
+    const imp = classifySlash('/importgpt');
+    expect(imp?.kind).toBe('prompt');
+    expect(imp && 'mode' in imp && imp.mode).toBe('auto');
+    expect(imp && 'text' in imp && imp.text).toContain('conversations.json');
+  });
+
   it('no longer maps effort (feature removed)', () => {
     for (const e of ['low', 'medium', 'high', 'xhigh', 'max'] as const) {
       expect(classifySlash(`/effort ${e}`)).toBeNull();

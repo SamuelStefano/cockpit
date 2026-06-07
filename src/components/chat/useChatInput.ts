@@ -6,7 +6,7 @@ const MAX_UPLOAD = 15_000_000;
 
 interface UseChatInputArgs {
   disabled: boolean;
-  onSend: (text: string) => void;
+  onSend: (text: string, modeOverride?: PermMode) => void;
   onStop: () => void;
   value: string;
   setValue: (v: string) => void;
@@ -71,6 +71,12 @@ export function useChatInput(args: UseChatInputArgs) {
       case 'new': onNew(); break;
       case 'model': setModel(a.model); break;
       case 'mode': setMode(a.mode); break;
+      // Expande num prompt pronto e envia ao Claude (modo 'auto': lê/grava memória,
+      // sem shell). Ocupado entra na fila; livre vai direto com o modeOverride.
+      case 'prompt':
+        if (disabled) onQueue(a.text);
+        else onSend(a.text, a.mode);
+        break;
     }
     return true;
   };
