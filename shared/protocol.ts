@@ -231,7 +231,7 @@ export type ServerMsg =
   | { t: 'skills'; items: SkillMeta[] }
   | { t: 'skill'; id: string; name: string; body: string }
   | { t: 'uploaded'; name: string; path: string }
-  | { t: 'history'; sessionId: string; messages: Message[]; cursor?: string; tokens?: number; full?: boolean }
+  | { t: 'history'; sessionId: string; messages: Message[]; cursor?: string; tokens?: number; full?: boolean; truncated?: boolean }
   | { t: 'busy'; keys: string[] }
   // Eco da mensagem do usuário pra TODOS os clientes (não só quem enviou): sem
   // isto, uma 2ª aba/dispositivo vendo a mesma sessão só recebe a resposta e a
