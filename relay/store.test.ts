@@ -72,3 +72,41 @@ describe('supabaseStore.markAgentSeen', () => {
     await expect(store.markAgentSeen('ag-1')).resolves.toBeUndefined();
   });
 });
+
+describe('supabaseStore pairing', () => {
+  it('createPairingCode posts a hash + TTL and returns plaintext once', async () => {
+    const { impl, calls } = fakeFetch({ '/pairing_code': { ok: true, body: [] } });
+    const store = supabaseStore({ ...CFG, fetchImpl: impl });
+    const code = await store.createPairingCode('acc-1', 'my vps');
+    expect(typeof code).toBe('string');
+    expect(code.length).toBeGreaterThan(8);
+    const body = JSON.parse(String(calls[0].init?.body));
+    expect(body.account_id).toBe('acc-1');
+    expect(body.code_hash).toMatch(/^[0-9a-f]{64}$/);   // sha256 hex, NOT the plaintext
+    expect(body.code_hash).not.toContain(code);
+    expect(body.expires_at).toBeTruthy();
+  });
+
+  it('consumePairingCode returns the account on an atomic single-row update', async () => {
+    const { impl, calls } = fakeFetch({ '/pairing_code': { body: [{ account_id: 'acc-1' }] } });
+    const store = supabaseStore({ ...CFG, fetchImpl: impl });
+    expect(await store.consumePairingCode('CODE')).toBe('acc-1');
+    expect(calls[0].init?.method).toBe('PATCH');
+    expect(calls[0].url).toContain('used_at=is.null');     // single-use
+    expect(calls[0].url).toContain('expires_at=gt.');       // not expired
+  });
+
+  it('consumePairingCode returns null when no row matched (used/expired/wrong)', async () => {
+    const { impl } = fakeFetch({ '/pairing_code': { body: [] } });
+    const store = supabaseStore({ ...CFG, fetchImpl: impl });
+    expect(await store.consumePairingCode('CODE')).toBeNull();
+  });
+
+  it('createAgent inserts and returns the new agentId', async () => {
+    const { impl, calls } = fakeFetch({ '/agent': { body: [{ id: 'ag-new' }] } });
+    const store = supabaseStore({ ...CFG, fetchImpl: impl });
+    expect(await store.createAgent('acc-1', 'PUBKEY', 'vps')).toBe('ag-new');
+    const body = JSON.parse(String(calls[0].init?.body));
+    expect(body).toMatchObject({ account_id: 'acc-1', public_key: 'PUBKEY', kind: 'vps' });
+  });
+});
