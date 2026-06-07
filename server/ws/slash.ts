@@ -8,7 +8,6 @@ export const SEED_SLASH = [
   'help', 'clear', 'new',
   'model opus', 'model sonnet', 'model haiku',
   'plan', 'auto', 'execute',
-  'effort low', 'effort medium', 'effort high', 'effort xhigh', 'effort max',
 ];
 
 // Lista de slash-commands: seed app-side + aprendida do system/init (global ao

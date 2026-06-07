@@ -107,11 +107,12 @@ describe('buildArgs', () => {
     }
   });
 
-  it('allow-lists model and effort, dropping arbitrary values', () => {
-    expect(valAfter(argsOf({ prompt: 'x', model: 'opus', effort: 'high' }), '--model')).toBe('opus');
-    const evil = argsOf({ prompt: 'x', model: 'evil; rm -rf', effort: 'turbo' });
+  it('allow-lists model (alias or concrete claude-* id), dropping arbitrary values', () => {
+    expect(valAfter(argsOf({ prompt: 'x', model: 'opus' }), '--model')).toBe('opus');
+    expect(valAfter(argsOf({ prompt: 'x', model: 'claude-opus-4-8' }), '--model')).toBe('claude-opus-4-8');
+    const evil = argsOf({ prompt: 'x', model: 'evil; rm -rf' });
     expect(evil).not.toContain('--model');
-    expect(evil).not.toContain('--effort');
+    expect(argsOf({ prompt: 'x' })).not.toContain('--effort');
   });
 
   it('adds --resume for a valid uuid and aborts on a malformed one', () => {

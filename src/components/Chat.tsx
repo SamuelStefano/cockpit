@@ -4,7 +4,7 @@ import { MessageRow, Thinking } from './chat/MessageView';
 import { ExportMenu, TurnStat, ContextMeter } from './chat/Toolbar';
 import { ChatEmpty, ChatInput } from './chat/ChatInput';
 import type { Session, Message } from '../data/mock';
-import type { PermMode, ModelAlias, EffortLevel, TurnStats, Caps } from '../../shared/protocol';
+import type { PermMode, ModelInfo, TurnStats, Caps } from '../../shared/protocol';
 import type { Attachment } from '../useCockpit';
 
 
@@ -27,10 +27,9 @@ export interface ChatPanelProps {
   caps: Caps | null;
   bypass: boolean;
   setBypass: (b: boolean) => void;
-  model: ModelAlias;
-  setModel: (m: ModelAlias) => void;
-  effort: EffortLevel;
-  setEffort: (e: EffortLevel) => void;
+  model: string;
+  setModel: (m: string) => void;
+  models: ModelInfo[];
   budget: number;
   setBudget: (n: number) => void;
   slashCommands: string[];
@@ -48,7 +47,7 @@ export interface ChatPanelProps {
   focusSignal?: number;
 }
 
-export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, bypass, setBypass, model, setModel, effort, setEffort, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, onQuote, onOpenFull, onShowHelp, focusSignal = 0 }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, bypass, setBypass, model, setModel, models, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, onQuote, onOpenFull, onShowHelp, focusSignal = 0 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -207,7 +206,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
 
       <ChatInput disabled={disabled} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
         caps={caps} bypass={bypass} setBypass={setBypass}
-        model={model} setModel={setModel} effort={effort} setEffort={setEffort} budget={budget} setBudget={setBudget} slashCommands={slashCommands}
+        model={model} setModel={setModel} models={models} budget={budget} setBudget={setBudget} slashCommands={slashCommands}
         attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} focusSignal={focusSignal}
         queued={queued} onQueue={setQueued} onCancelQueue={() => setQueued('')} history={sentHistory} pendingConfirm={bannerConfirm} onNew={onNew} onShowHelp={onShowHelp} />
     </div>

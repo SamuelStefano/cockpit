@@ -20,9 +20,9 @@ describe('classifySlash', () => {
     expect(classifySlash('/execute')).toEqual({ kind: 'mode', mode: 'acceptEdits' });
   });
 
-  it('maps every effort level', () => {
+  it('no longer maps effort (feature removed)', () => {
     for (const e of ['low', 'medium', 'high', 'xhigh', 'max'] as const) {
-      expect(classifySlash(`/effort ${e}`)).toEqual({ kind: 'effort', effort: e });
+      expect(classifySlash(`/effort ${e}`)).toBeNull();
     }
   });
 

@@ -106,9 +106,9 @@ export async function handle(ws: WebSocket, msg: ClientMsg) {
       // Sessão ocupada → triador decide o destino (esperar/responder/prioridade/
       // juntar). Livre → roda direto como antes.
       if (threads.has(msg.sessionKey)) {
-        void routeSend(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.effort, msg.maxBudgetUsd, msg.bypass);
+        void routeSend(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.maxBudgetUsd, msg.bypass);
       } else {
-        startRun(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.effort, msg.maxBudgetUsd, msg.bypass);
+        startRun(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.maxBudgetUsd, msg.bypass);
       }
       return;
     }

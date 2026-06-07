@@ -1,9 +1,7 @@
-import { homedir } from 'node:os';
-import { join } from 'node:path';
-import { readFile } from 'node:fs/promises';
 import type { WebSocketServer } from 'ws';
 import type { PlanUsage } from '../../shared/protocol';
 import { broadcast } from './broadcast';
+import { readOAuthToken, OAUTH_BETA } from '../oauth';
 
 // Uso GLOBAL do plano (claude.ai/settings/usage). Lê o token OAuth do CLI
 // (~/.claude/.credentials.json) e consulta o endpoint de usage da Anthropic.
@@ -11,19 +9,10 @@ import { broadcast } from './broadcast';
 // pro cliente. O arquivo é relido a cada poll pra pegar o token já renovado
 // pelo CLI (que faz o refresh sozinho).
 const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
-const OAUTH_BETA = 'oauth-2025-04-20';
 const POLL_MS = 60_000;
 
 let last: PlanUsage | null = null;
 export function getLastPlanUsage() { return last; }
-
-async function readToken(): Promise<string | null> {
-  try {
-    const raw = await readFile(join(homedir(), '.claude', '.credentials.json'), 'utf8');
-    const tok = JSON.parse(raw)?.claudeAiOauth?.accessToken;
-    return typeof tok === 'string' && tok ? tok : null;
-  } catch { return null; }
-}
 
 function pct(v: unknown): number {
   const n = typeof v === 'number' ? v : 0;
@@ -46,7 +35,7 @@ export function mapPlanUsage(body: unknown): PlanUsage {
 }
 
 export async function fetchPlanUsage(): Promise<PlanUsage | null> {
-  const token = await readToken();
+  const token = await readOAuthToken();
   if (!token) return null;
   let res: Response;
   try {

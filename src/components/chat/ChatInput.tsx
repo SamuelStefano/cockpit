@@ -1,6 +1,6 @@
 import { Icon } from '../primitives';
 import { ModeToggle, ModelPicker, BypassToggle } from './Toolbar';
-import type { PermMode, ModelAlias, EffortLevel, Caps } from '../../../shared/protocol';
+import type { PermMode, ModelInfo, Caps } from '../../../shared/protocol';
 import type { Attachment } from '../../useCockpit';
 import { useChatInput } from './useChatInput';
 import { isLocalSlash, slashHint } from './slash';
@@ -19,10 +19,9 @@ interface ChatInputProps {
   caps: Caps | null;
   bypass: boolean;
   setBypass: (b: boolean) => void;
-  model: ModelAlias;
-  setModel: (m: ModelAlias) => void;
-  effort: EffortLevel;
-  setEffort: (e: EffortLevel) => void;
+  model: string;
+  setModel: (m: string) => void;
+  models: ModelInfo[];
   budget: number;
   setBudget: (n: number) => void;
   slashCommands: string[];
@@ -40,7 +39,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, effort, setEffort, budget, setBudget, attachments, onRemoveAttachment, queued, onCancelQueue } = props;
+  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, budget, setBudget, attachments, onRemoveAttachment, queued, onCancelQueue } = props;
   const hasAtt = attachments.length > 0;
   const { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick } = useChatInput({ ...props, hasAtt });
   return (
@@ -61,7 +60,7 @@ export function ChatInput(props: ChatInputProps) {
           </span>
         )}
         <div className="ml-auto flex items-center gap-2">
-          <ModelPicker model={model} setModel={setModel} effort={effort} setEffort={setEffort} budget={budget} setBudget={setBudget} disabled={false} />
+          <ModelPicker model={model} setModel={setModel} models={models} budget={budget} setBudget={setBudget} disabled={false} />
         </div>
       </div>
       {hasAtt && (

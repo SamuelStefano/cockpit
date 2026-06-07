@@ -44,7 +44,6 @@ const SLASH: { cmd: string; label: string }[] = [
   { cmd: '/clear', label: 'Limpar e começar nova' },
   { cmd: '/model opus·sonnet·haiku', label: 'Trocar o modelo da sessão' },
   { cmd: '/plan · /auto · /execute', label: 'Trocar o modo de permissão' },
-  { cmd: '/effort low…max', label: 'Ajustar o esforço de raciocínio' },
 ];
 
 function Keys({ keys }: { keys: string[] }) {

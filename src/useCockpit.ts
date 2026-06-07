@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Session, Message, Block } from './data/mock';
-import type { ClientMsg, ServerMsg, SysStats, PermMode, ModelAlias, EffortLevel, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth, Caps, PlanUsage } from '../shared/protocol';
+import type { ClientMsg, ServerMsg, SysStats, PermMode, ModelInfo, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth, Caps, PlanUsage } from '../shared/protocol';
 import { loadPref, savePref } from './lib/persist';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
 import { WS_URL, newId, metaToSession, dedupById, mergeSeen } from './cockpit/session';
@@ -36,10 +36,9 @@ export interface Cockpit {
   caps: Caps | null;
   bypass: boolean;
   setBypass: (b: boolean) => void;
-  model: ModelAlias;
-  setModel: (m: ModelAlias) => void;
-  effort: EffortLevel;
-  setEffort: (e: EffortLevel) => void;
+  model: string;
+  setModel: (m: string) => void;
+  models: ModelInfo[];
   budget: number;
   setBudget: (n: number) => void;
   slashCommands: string[];
@@ -114,10 +113,9 @@ export function useCockpit(): Cockpit {
   const capsRef = useRef<Caps | null>(null);
   const [bypass, setBypass] = useState<boolean>(false); // nunca persistido: opt-in por sessão, default off
   const bypassRef = useRef<boolean>(false);
-  const [model, setModel] = useState<ModelAlias>(() => loadPref<ModelAlias>('model', 'opus'));
-  const modelRef = useRef<ModelAlias>(model);
-  const [effort, setEffort] = useState<EffortLevel>(() => loadPref<EffortLevel>('effort', 'high'));
-  const effortRef = useRef<EffortLevel>(effort);
+  const [model, setModel] = useState<string>(() => loadPref<string>('model', 'opus'));
+  const modelRef = useRef<string>(model);
+  const [models, setModels] = useState<ModelInfo[]>([]);
   const [budget, setBudget] = useState<number>(() => loadPref<number>('budget', 0)); // 0 = sem teto
   const budgetRef = useRef<number>(budget);
   const [slashCommands, setSlashCommands] = useState<string[]>(() => loadPref<string[]>('slashCommands', []));
@@ -348,6 +346,19 @@ export function useCockpit(): Cockpit {
         setPlanUsage(msg.usage);
         return;
       }
+      case 'models': {
+        setModels(msg.models);
+        // Se a sessão ainda está num alias cru (opus/sonnet/haiku), promove pra a
+        // versão concreta mais recente daquela família (ex: opus → claude-opus-4-8).
+        const cur = modelRef.current;
+        if (msg.models.length && !msg.models.some((m) => m.id === cur)) {
+          const upgrade = ['opus', 'sonnet', 'haiku'].includes(cur)
+            ? msg.models.find((m) => m.id.includes(cur))
+            : undefined;
+          if (upgrade) { modelRef.current = upgrade.id; setModel(upgrade.id); savePref('model', upgrade.id); }
+        }
+        return;
+      }
       case 'usage': {
         setUsage((u) => ({ ...u, [msg.sessionKey]: msg.tokens }));
         return;
@@ -571,7 +582,7 @@ export function useCockpit(): Cockpit {
     // loopback). O backend reimpõe via bypassAllowed — isto é só pra não anunciar
     // um pedido que seria recusado.
     const bypassWire = capsRef.current?.canBypass && bypassRef.current ? true : undefined;
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: modelRef.current, effort: effortRef.current, maxBudgetUsd: budgetRef.current > 0 ? budgetRef.current : undefined, bypass: bypassWire });
+    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: modelRef.current, maxBudgetUsd: budgetRef.current > 0 ? budgetRef.current : undefined, bypass: bypassWire });
   }, [send, updateThread]);
 
   const onUpload = useCallback((file: File) => {
@@ -594,8 +605,7 @@ export function useCockpit(): Cockpit {
 
   const changeMode = useCallback((m: PermMode) => { modeRef.current = m; setMode(m); savePref('mode', m); }, []);
   const changeBypass = useCallback((b: boolean) => { bypassRef.current = b; setBypass(b); }, []);
-  const changeModel = useCallback((m: ModelAlias) => { modelRef.current = m; setModel(m); savePref('model', m); }, []);
-  const changeEffort = useCallback((e: EffortLevel) => { effortRef.current = e; setEffort(e); savePref('effort', e); }, []);
+  const changeModel = useCallback((m: string) => { modelRef.current = m; setModel(m); savePref('model', m); }, []);
   const changeBudget = useCallback((n: number) => { const v = Number.isFinite(n) && n > 0 ? n : 0; budgetRef.current = v; setBudget(v); savePref('budget', v); }, []);
 
   // Busca por conteúdo: dispara no backend (grep) e guarda o termo p/ descartar
@@ -781,5 +791,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, draft, setDraft, conn, rate, planUsage, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, draft, setDraft, conn, rate, planUsage, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, models, budget, setBudget: changeBudget, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull };
 }

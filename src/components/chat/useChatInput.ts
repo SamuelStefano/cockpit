@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import type { PermMode, ModelAlias, EffortLevel } from '../../../shared/protocol';
+import type { PermMode } from '../../../shared/protocol';
 import { classifySlash } from './slash';
 
 const MAX_UPLOAD = 15_000_000;
@@ -11,8 +11,7 @@ interface UseChatInputArgs {
   value: string;
   setValue: (v: string) => void;
   setMode: (m: PermMode) => void;
-  setModel: (m: ModelAlias) => void;
-  setEffort: (e: EffortLevel) => void;
+  setModel: (m: string) => void;
   slashCommands: string[];
   hasAtt: boolean;
   onUpload: (file: File) => void;
@@ -30,7 +29,7 @@ const fitHeight = (el: HTMLTextAreaElement) => {
 };
 
 export function useChatInput(args: UseChatInputArgs) {
-  const { disabled, onSend, onStop, value, setValue, setMode, setModel, setEffort, slashCommands, hasAtt, onUpload, focusSignal, onQueue, history, pendingConfirm, onNew, onShowHelp } = args;
+  const { disabled, onSend, onStop, value, setValue, setMode, setModel, slashCommands, hasAtt, onUpload, focusSignal, onQueue, history, pendingConfirm, onNew, onShowHelp } = args;
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [sel, setSel] = useState(0);
@@ -72,7 +71,6 @@ export function useChatInput(args: UseChatInputArgs) {
       case 'new': onNew(); break;
       case 'model': setModel(a.model); break;
       case 'mode': setMode(a.mode); break;
-      case 'effort': setEffort(a.effort); break;
     }
     return true;
   };

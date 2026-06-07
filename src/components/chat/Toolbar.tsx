@@ -1,6 +1,6 @@
 import { Icon } from '../primitives';
 import type { Message } from '../../data/mock';
-import type { PermMode, ModelAlias, EffortLevel, TurnStats } from '../../../shared/protocol';
+import type { PermMode, ModelInfo, TurnStats } from '../../../shared/protocol';
 import { useState } from 'react';
 import { threadToMarkdown, threadToPdf, download, fileSlug } from '../../lib/export';
 import { turnStatParts, contextMeter, CONTEXT_LIMIT } from './toolbar.format';
@@ -106,50 +106,37 @@ export function BypassToggle({ on, setOn, disabled }: { on: boolean; setOn: (b: 
 
 // --- ModelPicker -----------------------------------------------------------
 
-// Modelo + esforço de raciocínio por sessão. Repassados como --model/--effort
-// pro CLI (validados por allow-list no backend). Opus/high é o default.
-const MODEL_OPTS: { v: ModelAlias; label: string; hint: string }[] = [
-  { v: 'opus', label: 'Opus', hint: 'mais capaz e caro' },
-  { v: 'sonnet', label: 'Sonnet', hint: 'equilíbrio custo/qualidade' },
-  { v: 'haiku', label: 'Haiku', hint: 'rápido e barato' },
-];
-const EFFORT_OPTS: { v: EffortLevel; label: string }[] = [
-  { v: 'low', label: 'baixo' },
-  { v: 'medium', label: 'médio' },
-  { v: 'high', label: 'alto' },
-  { v: 'xhigh', label: 'x-alto' },
-  { v: 'max', label: 'máx' },
+// Versão concreta do agente por sessão (ex: Opus 4.8), puxada de /v1/models pelo
+// backend. Repassada como --model (id validado por allow-list no servidor). Sem
+// a lista (boot/offline) cai nos aliases opus/sonnet/haiku, que o CLI aceita.
+const FALLBACK_MODELS: ModelInfo[] = [
+  { id: 'opus', displayName: 'Opus' },
+  { id: 'sonnet', displayName: 'Sonnet' },
+  { id: 'haiku', displayName: 'Haiku' },
 ];
 
-export function ModelPicker({ model, setModel, effort, setEffort, budget, setBudget, disabled }: {
-  model: ModelAlias; setModel: (m: ModelAlias) => void;
-  effort: EffortLevel; setEffort: (e: EffortLevel) => void;
+export function ModelPicker({ model, setModel, models, budget, setBudget, disabled }: {
+  model: string; setModel: (m: string) => void;
+  models: ModelInfo[];
   budget: number; setBudget: (n: number) => void; disabled: boolean;
 }) {
   const sel = 'rounded-md border border-neutral-800 bg-neutral-950 px-1.5 py-1 text-[11px] font-medium text-neutral-300 outline-none transition hover:border-neutral-700 focus:border-orange-500/40 disabled:cursor-not-allowed disabled:opacity-50';
   const tag = 'text-[9px] font-semibold uppercase tracking-wide text-neutral-600';
+  const opts = models.length ? models : FALLBACK_MODELS;
+  // Garante que o modelo atual apareça na lista mesmo que não esteja em /v1/models
+  // (alias persistido, modelo descontinuado) — senão o select renderiza vazio.
+  const list = opts.some((o) => o.id === model) ? opts : [{ id: model, displayName: model }, ...opts];
   return (
     <div className="inline-flex items-center gap-1.5">
-      <label className="inline-flex items-center gap-1" title="Modelo desta sessão (Opus é o mais capaz)">
-        <span className={tag}>modelo</span>
+      <label className="inline-flex items-center gap-1" title="Versão do agente desta sessão">
+        <span className={tag}>versão</span>
         <select
           value={model}
           disabled={disabled}
-          onChange={(e) => setModel(e.target.value as ModelAlias)}
+          onChange={(e) => setModel(e.target.value)}
           className={sel}
         >
-          {MODEL_OPTS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
-        </select>
-      </label>
-      <label className="inline-flex items-center gap-1" title="Esforço de raciocínio (extended thinking) — independente do modelo">
-        <span className={tag}>raciocínio</span>
-        <select
-          value={effort}
-          disabled={disabled}
-          onChange={(e) => setEffort(e.target.value as EffortLevel)}
-          className={sel}
-        >
-          {EFFORT_OPTS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+          {list.map((o) => <option key={o.id} value={o.id}>{o.displayName}</option>)}
         </select>
       </label>
       <div

@@ -23,8 +23,7 @@ export interface RunOpts {
   prompt: string;
   resumeId?: string;
   mode?: string;               // pedido pela UI; passa por safeMode (nunca bypass)
-  model?: string;              // alias opus/sonnet/haiku (validado por allow-list)
-  effort?: string;             // low|medium|high|xhigh|max (validado)
+  model?: string;              // alias opus/sonnet/haiku OU id concreto claude-* (validado)
   maxBudgetUsd?: number;       // teto de gasto por run (--max-budget-usd)
   bypass?: boolean;            // pedido explícito de bypass; só vale se bypassAllowed
   role?: Role;                 // role do ator (seam Fase 2); gate do bypass
@@ -34,7 +33,10 @@ export interface RunOpts {
 }
 
 const MODELS = new Set(['opus', 'sonnet', 'haiku']);
-const EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
+// id concreto vindo de /v1/models (ex: claude-opus-4-8). Ancorado e restrito a
+// [a-z0-9-] pra não virar vetor de injeção de flag no argv.
+const MODEL_ID_RE = /^claude-[a-z0-9-]+$/;
+function validModel(m: string): boolean { return MODELS.has(m) || MODEL_ID_RE.test(m); }
 
 export interface RunHandle {
   kill: () => void;
@@ -46,10 +48,10 @@ export interface RunHandle {
 // - env mínimo (não vaza segredo do processo pai)
 // - cwd isolado
 // - detached pra matar a árvore no stop
-export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role'>;
+export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'maxBudgetUsd' | 'bypass' | 'role'>;
 
 export function buildArgs(opts: BuildArgsOpts): { args: string[] } | { error: string } {
-  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role } = opts;
+  const { prompt, resumeId, mode, model, maxBudgetUsd, bypass, role } = opts;
   const { permissionMode, allow } = resolveMode(mode, { bypass, role });
 
   const args = [
@@ -59,9 +61,8 @@ export function buildArgs(opts: BuildArgsOpts): { args: string[] } | { error: st
     '--verbose',
     '--permission-mode', permissionMode,
   ];
-  if (model && MODELS.has(model)) args.push('--model', model);
-  if (effort && EFFORTS.has(effort)) args.push('--effort', effort);
-  if (CONFIG.fallbackModel && MODELS.has(CONFIG.fallbackModel) && CONFIG.fallbackModel !== model) {
+  if (model && validModel(model)) args.push('--model', model);
+  if (CONFIG.fallbackModel && validModel(CONFIG.fallbackModel) && CONFIG.fallbackModel !== model) {
     args.push('--fallback-model', CONFIG.fallbackModel);
   }
   if (typeof maxBudgetUsd === 'number' && Number.isFinite(maxBudgetUsd) && maxBudgetUsd > 0) {
@@ -77,9 +78,9 @@ export function buildArgs(opts: BuildArgsOpts): { args: string[] } | { error: st
 }
 
 export function run(opts: RunOpts): RunHandle {
-  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, onEvent, onError, onClose } = opts;
+  const { prompt, resumeId, mode, model, maxBudgetUsd, bypass, role, onEvent, onError, onClose } = opts;
 
-  const built = buildArgs({ prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role });
+  const built = buildArgs({ prompt, resumeId, mode, model, maxBudgetUsd, bypass, role });
   if ('error' in built) {
     onError(built.error);
     onClose();
