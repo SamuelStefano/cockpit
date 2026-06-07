@@ -11,6 +11,7 @@ interface UseSessionsPanelArgs {
 export function useSessionsPanel({ sessions, searchResults, onSearch }: UseSessionsPanelArgs) {
   const [query, setQuery] = useState('');
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [pins, setPins] = usePersisted<string[]>('pinned', []);
   const pinned = useMemo(() => new Set(pins), [pins]);
   const togglePin = useCallback((id: string) => {
@@ -86,6 +87,7 @@ export function useSessionsPanel({ sessions, searchResults, onSearch }: UseSessi
   return {
     query, setQuery,
     confirmId, setConfirmId,
+    deleteId, setDeleteId,
     pinned, togglePin,
     tagMap, tagFilter, setTagFilter, addTag, removeTag, allTags,
     searchRef,

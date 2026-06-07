@@ -2,6 +2,7 @@ import { Icon, Badge } from '../primitives';
 import type { Session } from '../../data/mock';
 import { Highlight } from './Highlight';
 import { SessionRowTags } from './SessionRowTags';
+import { SessionRowActions } from './SessionRowActions';
 import { useSessionRow } from './useSessionRow';
 import { ctxPercent, ctxTone, isIdle } from './row-meta';
 
@@ -24,10 +25,11 @@ export interface SessionRowProps {
   onRename: (id: string, title: string) => void;
   onDescribe?: (id: string, summary: string) => void;
   onClose: (id: string) => void;
+  onDelete?: (id: string) => void;
   onStop?: (id: string) => void;
 }
 
-export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated, pinned, tags = [], onTogglePin, onAddTag, onRemoveTag, onFilterTag, onSelect, onRename, onDescribe, onClose, onStop }: SessionRowProps) {
+export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated, pinned, tags = [], onTogglePin, onAddTag, onRemoveTag, onFilterTag, onSelect, onRename, onDescribe, onClose, onDelete, onStop }: SessionRowProps) {
   const { editing, setEditing, draft, setDraft, descEditing, setDescEditing, descDraft, setDescDraft, tagging, setTagging, tagDraft, setTagDraft, inputRef, descRef, tagRef, commit, commitDesc, commitTag } = useSessionRow({ s, onAddTag, onRename, onDescribe });
 
   return (
@@ -88,15 +90,11 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
                 ${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(2)}
               </span>
             )}
-            <span className="hidden text-[10px] tabular-nums text-neutral-600 sm:inline sm:group-hover:hidden">{s.relative}</span>
-            {running && onStop && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onStop(s.id); }}
-                title="Parar o turno desta sessão"
-                className="block rounded p-0.5 text-neutral-500 transition hover:bg-neutral-800 hover:text-red-400 sm:hidden sm:group-hover:block"
-              >
-                <Icon name="square" size={12} />
-              </button>
+            <span className="hidden text-[10px] tabular-nums text-neutral-600 sm:inline">{s.relative}</span>
+            {pinned && (
+              <span title="Sessão fixada" className="text-orange-400">
+                <Icon name="star" size={11} />
+              </span>
             )}
             {onAddTag && (
               <button
@@ -107,23 +105,18 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
                 <Icon name="tag" size={12} />
               </button>
             )}
-            {onTogglePin && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onTogglePin(s.id); }}
-                title={pinned ? 'Desafixar sessão' : 'Fixar sessão no topo'}
-                className={`rounded p-0.5 transition hover:bg-neutral-800
-                  ${pinned ? 'text-orange-400 hover:text-orange-300' : 'block text-neutral-500 hover:text-orange-300 sm:hidden sm:group-hover:block'}`}
-              >
-                <Icon name="star" size={12} />
-              </button>
-            )}
-            <button
-              onClick={(e) => { e.stopPropagation(); onClose(s.id); }}
-              title="Arquivar sessão (some do sidebar; o histórico não é apagado)"
-              className="block rounded p-0.5 text-neutral-500 transition hover:bg-neutral-800 hover:text-orange-300 sm:hidden sm:group-hover:block"
-            >
-              <Icon name="x" size={13} />
-            </button>
+            <SessionRowActions
+              pinned={!!pinned}
+              running={!!running}
+              canStop={!!onStop}
+              canDescribe={!!onDescribe}
+              onTogglePin={onTogglePin ? () => onTogglePin(s.id) : undefined}
+              onRename={() => { setDraft(s.title); setEditing(true); }}
+              onDescribe={() => { setDescDraft(s.summary || ''); setDescEditing(true); }}
+              onStop={onStop ? () => onStop(s.id) : undefined}
+              onArchive={() => onClose(s.id)}
+              onDelete={() => (onDelete ?? onClose)(s.id)}
+            />
           </div>
         )}
       </div>
@@ -143,18 +136,7 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
           className="mt-0.5 w-full resize-none rounded border border-orange-500/50 bg-neutral-950 px-1.5 py-1 text-[11.5px] leading-snug text-neutral-200 outline-none ring-2 ring-orange-500/20"
         />
       ) : (
-        <div className="flex items-start gap-1">
-          <p className="line-clamp-2 flex-1 text-[11.5px] leading-snug text-neutral-500"><Highlight text={s.summary || s.snippet} term={highlight} /></p>
-          {onDescribe && (
-            <button
-              onClick={(e) => { e.stopPropagation(); setDescDraft(s.summary || ''); setDescEditing(true); }}
-              title="Editar descrição"
-              className="mt-px hidden shrink-0 rounded p-0.5 text-neutral-600 transition hover:bg-neutral-800 hover:text-orange-300 group-hover:block"
-            >
-              <Icon name="pencil" size={11} />
-            </button>
-          )}
-        </div>
+        <p className="line-clamp-2 text-[11.5px] leading-snug text-neutral-500"><Highlight text={s.summary || s.snippet} term={highlight} /></p>
       ))}
       {!editing && (() => {
         const pct = ctxPercent(ctx);

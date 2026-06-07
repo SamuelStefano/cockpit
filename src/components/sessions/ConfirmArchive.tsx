@@ -1,7 +1,29 @@
 import { useEffect } from 'react';
 import { Icon } from '../primitives';
 
-export function ConfirmArchive({ title, onConfirm, onCancel }: { title: string; onConfirm: () => void; onCancel: () => void }) {
+type Mode = 'archive' | 'delete';
+
+const COPY: Record<Mode, { heading: string; cta: string; icon: 'x' | 'trash'; body: (title: string) => React.ReactNode }> = {
+  archive: {
+    heading: 'Arquivar sessão?',
+    cta: 'Arquivar',
+    icon: 'x',
+    body: (title) => (
+      <><span className="text-neutral-200">{title}</span> some do sidebar. O histórico no disco não é apagado — dá pra restaurar em "Arquivadas".</>
+    ),
+  },
+  delete: {
+    heading: 'Excluir sessão?',
+    cta: 'Excluir',
+    icon: 'trash',
+    body: (title) => (
+      <><span className="text-neutral-200">{title}</span> some do cockpit por completo (nem em "Arquivadas"). O arquivo de histórico no disco não é apagado.</>
+    ),
+  },
+};
+
+export function ConfirmArchive({ title, mode = 'archive', onConfirm, onCancel }: { title: string; mode?: Mode; onConfirm: () => void; onCancel: () => void }) {
+  const c = COPY[mode];
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
@@ -15,13 +37,11 @@ export function ConfirmArchive({ title, onConfirm, onCancel }: { title: string; 
       <div className="w-full max-w-sm rounded-2xl border border-neutral-700 bg-neutral-900 p-4 shadow-2xl shadow-black/50" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start gap-3">
           <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-500/15 text-red-400">
-            <Icon name="x" size={16} />
+            <Icon name={c.icon} size={16} />
           </span>
           <div className="min-w-0">
-            <p className="text-[13.5px] font-semibold text-neutral-100">Arquivar sessão?</p>
-            <p className="mt-1 text-[12px] leading-snug text-neutral-400">
-              <span className="text-neutral-200">{title}</span> some do sidebar. O histórico no disco não é apagado — dá pra restaurar em "Arquivadas".
-            </p>
+            <p className="text-[13.5px] font-semibold text-neutral-100">{c.heading}</p>
+            <p className="mt-1 text-[12px] leading-snug text-neutral-400">{c.body(title)}</p>
           </div>
         </div>
         <div className="mt-4 flex items-center justify-end gap-2">
@@ -29,7 +49,7 @@ export function ConfirmArchive({ title, onConfirm, onCancel }: { title: string; 
             Cancelar
           </button>
           <button onClick={onConfirm} className="rounded-lg bg-red-500/90 px-3 py-1.5 text-[12.5px] font-semibold text-white transition hover:bg-red-500">
-            Arquivar
+            {c.cta}
           </button>
         </div>
       </div>

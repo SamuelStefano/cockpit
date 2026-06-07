@@ -75,6 +75,7 @@ export interface Cockpit {
   onRename: (id: string, title: string) => void;
   onDescribe: (id: string, summary: string) => void;
   onClose: (id: string) => void;
+  onDelete: (id: string) => void;
   onUnhide: (id: string) => void;
   onOpenFull: (id: string) => void;
 }
@@ -643,8 +644,9 @@ export function useCockpit(): Cockpit {
   // Fechar = arquivar. Sessão real -> backend esconde do list (não deleta JSONL);
   // sessão local `new-` (sem history) -> só remove da view. Some na hora; se era
   // a ativa, cai pra próxima (abrindo o history dela).
-  const onClose = useCallback((id: string) => {
-    if (id && !id.startsWith('new-')) send({ t: 'hide', sessionId: id });
+  // Remoção local do sidebar (some na hora, escolhe fallback ativo, limpa estado
+  // por sessão). Compartilhada por arquivar e excluir — só muda a msg ao backend.
+  const dropFromSidebar = useCallback((id: string) => {
     setSessions((prev) => {
       const next = prev.filter((s) => s.id !== id);
       if (activeRef.current !== id) return next;
@@ -665,6 +667,18 @@ export function useCockpit(): Cockpit {
     delete resumeId.current[id];
     opened.current.delete(id);
   }, [send]);
+
+  const onClose = useCallback((id: string) => {
+    if (id && !id.startsWith('new-')) send({ t: 'hide', sessionId: id });
+    dropFromSidebar(id);
+  }, [send, dropFromSidebar]);
+
+  // Excluir: some do cockpit por completo (nem em Arquivadas). O .jsonl no disco
+  // permanece — exclusão é só do app.
+  const onDelete = useCallback((id: string) => {
+    if (id && !id.startsWith('new-')) send({ t: 'purge', sessionId: id });
+    dropFromSidebar(id);
+  }, [send, dropFromSidebar]);
 
   // Desarquivar: backend reenvia sessions + archived; some da lista de arquivadas
   // na hora e reaparece no sidebar principal.
@@ -761,5 +775,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onUnhide, onOpenFull };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, draft, setDraft, conn, rate, stats, archived, contextTokens, usage, lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, effort, setEffort: changeEffort, budget, setBudget: changeBudget, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull };
 }

@@ -2,7 +2,7 @@ import { readdir, stat, open } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { SessionMeta } from '../../shared/protocol';
 import { CONFIG } from '../config';
-import { hiddenSet, titleOverrides, noteOverrides } from '../store';
+import { hiddenSet, purgedSet, titleOverrides, noteOverrides } from '../store';
 import { allSummaries, getSummary } from '../db';
 
 const UUID_FILE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$/;
@@ -39,6 +39,7 @@ async function collectMetas(keep: (id: string, hidden: Set<string>) => boolean):
   for (const id of cache.keys()) if (!live.has(id)) cache.delete(id);
 
   const hidden = await hiddenSet();
+  const purged = await purgedSet();
   // Resumos vivem fora do JSONL (SQLite) e mudam sem o mtime do arquivo mover, então
   // aplica o resumo atual em CIMA do meta (cacheado ou fresco) a cada listagem.
   // Overrides manuais (titles/notes) idem — fora do JSONL, aplicados por id.
@@ -49,6 +50,7 @@ async function collectMetas(keep: (id: string, hidden: Set<string>) => boolean):
   for (const f of files) {
     if (!UUID_FILE.test(f)) continue;
     const id = f.replace('.jsonl', '');
+    if (purged.has(id)) continue; // excluída: fora do sidebar E das arquivadas
     if (!keep(id, hidden)) continue;
     const full = join(CONFIG.projectsDir, f);
     let st;
