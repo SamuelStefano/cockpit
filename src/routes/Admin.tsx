@@ -1,12 +1,16 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Icon } from '../components/primitives';
-import type { AdminHealth } from '../../shared/protocol';
+import type { AdminHealth, SysStats } from '../../shared/protocol';
 
 // Painel admin READ-ONLY (DR-007): health da máquina/agente. Sem controle/escrita
 // — auth-gate fica p/ depois. Hoje protegido só por loopback.
 
 function gb(bytes: number): string {
   return (bytes / 1024 ** 3).toFixed(1) + ' GB';
+}
+
+function clockTime(ms: number): string {
+  return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 function dur(sec: number): string {
@@ -57,14 +61,20 @@ function Inv({ icon, title, count, children }: { icon: Parameters<typeof Icon>[0
   );
 }
 
-export function Admin({ health, onHealthList }: { health: AdminHealth | null; onHealthList: () => void }) {
+export function Admin({ health, stats, onHealthList }: { health: AdminHealth | null; stats: SysStats | null; onHealthList: () => void }) {
+  const [updatedAt, setUpdatedAt] = useState(0);
   useEffect(() => {
     onHealthList();
     const id = setInterval(onHealthList, 10_000);
     return () => clearInterval(id);
   }, [onHealthList]);
+  useEffect(() => { if (health) setUpdatedAt(Date.now()); }, [health]);
 
   const diskPct = health && health.disk.total > 0 ? Math.round((health.disk.used / health.disk.total) * 100) : 0;
+  const memPct = stats && stats.mem.total > 0 ? Math.round((stats.mem.used / stats.mem.total) * 100) : 0;
+  const cpuPct = stats ? Math.round(stats.cpu) : 0;
+  const gpuPct = stats?.gpu ? Math.round(stats.gpu.util) : null;
+  const saturated = !!stats?.saturated && (stats.saturated.cpu || stats.saturated.mem);
 
   return (
     <div className="scroll-thin h-full overflow-y-auto px-4 py-5 sm:px-6">
@@ -72,10 +82,34 @@ export function Admin({ health, onHealthList }: { health: AdminHealth | null; on
         <div className="mb-1 flex items-center gap-2">
           <Icon name="check" size={17} className="text-orange-400" />
           <h1 className="text-[17px] font-semibold text-neutral-100">Admin</h1>
+          <button
+            onClick={onHealthList}
+            title="Atualizar agora"
+            className="ml-auto flex items-center gap-1.5 rounded-md border border-neutral-800 bg-neutral-900/60 px-2.5 py-1 text-[12px] text-neutral-300 transition-colors hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
+          >
+            <Icon name="rotate" size={12} /> Atualizar
+          </button>
         </div>
         <p className="mb-5 text-[12.5px] text-neutral-500">
           Saúde e inventário da VPS — somente leitura. Vínculos, CLIs, MCP, SSH, tokens (só nomes) e tmux. Controle/escrita aguarda o gate de auth.
         </p>
+
+        {saturated && (
+          <div className="mb-5 flex items-center gap-2 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-[12.5px] text-yellow-200">
+            <Icon name="zap" size={14} />
+            Recursos saturados há {dur(stats!.saturated!.seconds)}
+            {stats!.saturated!.cpu ? ' · CPU' : ''}{stats!.saturated!.mem ? ' · RAM' : ''} — só alerta, nenhuma sessão é tocada.
+          </div>
+        )}
+
+        {stats && (
+          <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Stat label="CPU" value={`${cpuPct}%`} icon="zap" tone={cpuPct >= 85 ? 'warn' : cpuPct < 60 ? 'ok' : undefined} />
+            <Stat label="RAM" value={`${memPct}%`} icon="zap" tone={memPct >= 85 ? 'warn' : memPct < 60 ? 'ok' : undefined} />
+            <Stat label="Load" value={stats.load.toFixed(2)} icon="zap" />
+            <Stat label="GPU" value={gpuPct === null ? '—' : `${gpuPct}%`} icon="zap" tone={gpuPct !== null && gpuPct >= 85 ? 'warn' : undefined} />
+          </div>
+        )}
 
         {!health ? (
           <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 px-4 py-8 text-center text-[12.5px] text-neutral-500">
@@ -133,7 +167,7 @@ export function Admin({ health, onHealthList }: { health: AdminHealth | null; on
             </div>
 
             <p className="mt-5 text-[11px] text-neutral-600">
-              Backend {health.host}:{health.port} · pid {health.pid} · atualiza a cada 10s · loopback-only (sem porta pública até hardening).
+              Backend {health.host}:{health.port} · pid {health.pid} · {updatedAt ? `atualizado ${clockTime(updatedAt)}` : 'atualiza a cada 10s'} · loopback-only (sem porta pública até hardening).
             </p>
           </>
         )}

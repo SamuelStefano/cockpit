@@ -140,7 +140,7 @@ export function CockpitApp() {
         <Observatorio connected={conn.ws === 'connected'} usageStats={usageStats} onUsageList={onUsageList} sessions={sessions}
           onOpenSession={(id) => { setActiveSessionId(id); nav('/'); }} />
       ) : route === '/admin' ? (
-        <Admin health={health} onHealthList={onHealthList} />
+        <Admin health={health} stats={stats} onHealthList={onHealthList} />
       ) : isMobile ? (
         <MobileLayout
           sessionsProps={sessionsProps}
