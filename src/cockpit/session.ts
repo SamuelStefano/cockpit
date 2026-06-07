@@ -37,6 +37,13 @@ export function wsUrlWithToken(token: string): string {
   return buildWsUrl(wsBase(), token);
 }
 
+// Base HTTP do relay (pra /pair/new etc.), derivada da URL do WS: ws→http, wss→
+// https, e /ws no fim vira raiz. Mesma origem do relay, uma fonte só.
+export function relayHttpBase(): string {
+  const ws = wsBase();
+  return ws.replace(/^ws/, 'http').replace(/\/ws$/, '');
+}
+
 let _mid = 0;
 // Sufixo aleatório além do contador monotônico: blinda contra colisão de key do
 // React mesmo se dois ids forem gerados no mesmo tick após um reload de módulo.
