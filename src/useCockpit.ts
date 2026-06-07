@@ -466,6 +466,12 @@ export function useCockpit(): Cockpit {
         const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
         inFlight.current.delete(key);
         reconcileTools(key);
+        // Carimba o modelo EFETIVO do turno na bolha (revela --fallback-model e
+        // evita rotular bolhas antigas com o modelo atual ao trocar mid-thread).
+        const aid = runMsg.current[key];
+        if (aid && msg.model) {
+          updateThread(key, (prev) => prev.map((m) => (m.id === aid && m.role === 'assistant' ? { ...m, model: msg.model } : m)));
+        }
         delete runMsg.current[key];
         setPhases((p) => ({ ...p, [key]: 'idle' }));
         if (msg.costUsd !== undefined || msg.durationMs !== undefined) {

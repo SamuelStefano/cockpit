@@ -16,7 +16,7 @@ export interface Rec {
   type: string;
   uuid?: string;
   parentUuid?: string | null;
-  message?: { role: string; content: unknown; usage?: Usage };
+  message?: { role: string; content: unknown; usage?: Usage; model?: string };
   leafUuid?: string;
   timestamp?: string;
 }
@@ -162,7 +162,7 @@ export function recToMessage(r: Rec): Message | null {
       }
     }
     if (!blocks.length) return null;
-    return { id: r.uuid!, role: 'assistant', blocks, ts };
+    return { id: r.uuid!, role: 'assistant', blocks, ts, model: r.message.model };
   }
   return null;
 }

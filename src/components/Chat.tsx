@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { Icon, Badge } from './primitives';
 import { MessageRow, Thinking } from './chat/MessageView';
 import { ExportMenu, TurnStat, ContextMeter } from './chat/Toolbar';
+import { shortModel } from './chat/toolbar.format';
 import { ChatEmpty, ChatInput } from './chat/ChatInput';
 import type { Session, Message } from '../data/mock';
 import type { PermMode, ModelInfo, TurnStats, Caps } from '../../shared/protocol';
@@ -65,6 +66,12 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
   const modelLabel = useMemo(
     () => models.find((m) => m.id === model)?.displayName || model,
     [models, model],
+  );
+  // Rótulo POR bolha: usa o modelo carimbado naquele turno (done/JSONL) e cai
+  // pro modelo atual da sessão só quando a bolha não tem modelo (sessão antiga).
+  const labelFor = useMemo(
+    () => (id?: string) => (id ? models.find((m) => m.id === id)?.displayName || shortModel(id) : modelLabel),
+    [models, modelLabel],
   );
 
   // Fila stop-aware: mensagem digitada durante o turno dispara sozinha no idle.
@@ -164,7 +171,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-5">
             {messages.map((m, i) => (
-              <MessageRow key={m.id} msg={m} caretOnLast={streaming && i === messages.length - 1 && m.role === 'assistant'} modelLabel={modelLabel} onEditUser={onEditUser} onQuote={onQuote} />
+              <MessageRow key={m.id} msg={m} caretOnLast={streaming && i === messages.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? labelFor(m.model) : modelLabel} onEditUser={onEditUser} onQuote={onQuote} />
             ))}
             {phase === 'thinking' && <Thinking />}
           </div>
