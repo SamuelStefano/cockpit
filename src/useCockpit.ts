@@ -287,19 +287,21 @@ export function useCockpit(): Cockpit {
         // bolha do usuário correspondente. Em 'priority' o turno atual será morto e
         // substituído: solta o runMsg p/ o próximo 'started' criar um bubble novo
         // (senão o turno novo fundiria no bubble interrompido).
+        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
         if (msg.msgId) {
-          updateThread(msg.sessionKey, (prev) =>
+          updateThread(key, (prev) =>
             prev.map((m) => (m.id === msg.msgId && m.role === 'user' ? { ...m, triage: { action: msg.action, reason: msg.reason } } : m)),
           );
         }
-        if (msg.action === 'priority') delete runMsg.current[msg.sessionKey];
+        if (msg.action === 'priority') delete runMsg.current[key];
         return;
       }
       case 'quick-answer': {
         // Subagente respondeu à parte (triagem 'answer'); bolha independente, não
         // toca o turno principal em andamento.
-        lastActivity.current[msg.sessionKey] = Date.now();
-        updateThread(msg.sessionKey, (prev) =>
+        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
+        lastActivity.current[key] = Date.now();
+        updateThread(key, (prev) =>
           prev.some((m) => m.id === msg.id) ? prev : [...prev, { id: msg.id, role: 'assistant', blocks: [{ type: 'text', md: msg.text }], ts: msg.ts, quick: true }],
         );
         return;
@@ -319,7 +321,7 @@ export function useCockpit(): Cockpit {
       case 'replay': {
         // Reconnect mid-run (#10): snapshot autoritativo do turno em voo.
         // Reconstrói (ou sobrescreve) o bubble e segue recebendo deltas ao vivo.
-        const key = msg.sessionKey;
+        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
         inFlight.current.add(key);
         const blocks: Block[] = [];
         if (msg.thinking) blocks.push({ type: 'thinking', text: msg.thinking });
@@ -337,7 +339,8 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'system': {
-        if (msg.sessionId) resumeId.current[msg.sessionKey] = msg.sessionId;
+        const key = migratedTo.current[msg.sessionKey] ?? msg.sessionKey;
+        if (msg.sessionId) resumeId.current[key] = msg.sessionId;
         return;
       }
       case 'slash-commands': {
@@ -802,7 +805,12 @@ export function useCockpit(): Cockpit {
     setPhases((p) => (drop.some((k) => k in p) ? prune(p) : p));
     setUsage((u) => (drop.some((k) => k in u) ? prune(u) : u));
     setTurnStats((t) => (drop.some((k) => k in t) ? prune(t) : t));
-    for (const k of drop) { delete lastActivity.current[k]; delete resumeId.current[k]; }
+    for (const k of drop) {
+      delete lastActivity.current[k];
+      delete resumeId.current[k];
+      delete runMsg.current[k];
+      delete runStartRef.current[k];
+    }
   }, [activeId, running]);
 
   // Watchdog: enquanto algo roda, tica a cada 20s pra recomputar "quietas".
