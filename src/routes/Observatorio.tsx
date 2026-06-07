@@ -77,6 +77,40 @@ function Trend({ series }: { series: DailyUsage[] }) {
   );
 }
 
+function relReset(ts: number): string {
+  const d = ts - Date.now();
+  if (d <= 0) return 'agora';
+  const m = Math.ceil(d / 60_000);
+  if (m < 60) return `${m}min`;
+  const h = Math.floor(m / 60);
+  return `${h}h${String(m % 60).padStart(2, '0')}`;
+}
+
+// O CLI só manda { status, resetsAt } — NUNCA uma % de tokens. Então a barra é
+// categórica (longe/perto/no limite), não um percentual fabricado.
+function RateWindow({ rate }: { rate: { resetsAt: number; status: string } }) {
+  const limited = rate.status !== 'allowed';
+  const fill = rate.status === 'allowed' ? 12 : rate.status.includes('warn') ? 66 : 100;
+  const tone = !limited ? 'bg-emerald-500' : fill >= 100 ? 'bg-red-500' : 'bg-amber-500';
+  const label = !limited ? 'longe do limite' : fill >= 100 ? 'no limite' : 'perto do limite';
+  return (
+    <div className="mb-4 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-neutral-500">
+          <Icon name="clock" size={12} /> janela de limite · {label}
+        </span>
+        <span className="font-mono text-[11px] text-neutral-400">reseta {relReset(rate.resetsAt)}</span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-800">
+        <div className={`h-full rounded-full ${tone} transition-all`} style={{ width: `${fill}%` }} />
+      </div>
+      <p className="mt-2 text-[10.5px] leading-snug text-neutral-600">
+        O CLI do Claude não expõe a % exata de uso — só sinaliza quando está perto do teto. A barra reflete esse status, não um percentual de tokens.
+      </p>
+    </div>
+  );
+}
+
 function Empty() {
   return (
     <div className="mt-16 flex flex-col items-center px-4 text-center">
@@ -94,10 +128,11 @@ interface Props {
   usageStats: UsageStats | null;
   onUsageList: () => void;
   sessions: Session[];
+  rate: { resetsAt: number; status: string } | null;
   onOpenSession: (id: string) => void;
 }
 
-export function Observatorio({ connected, usageStats, onUsageList, sessions, onOpenSession }: Props) {
+export function Observatorio({ connected, usageStats, onUsageList, sessions, rate, onOpenSession }: Props) {
   useEffect(() => { if (connected) onUsageList(); }, [connected, onUsageList]);
 
   const known = useMemo(() => new Set(sessions.map((s) => s.id)), [sessions]);
@@ -126,6 +161,7 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions, onO
         <Offline />
       ) : (
         <div className="scroll-thin flex-1 overflow-y-auto p-4">
+          {rate && <RateWindow rate={rate} />}
           <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <Stat label="custo estimado" value={usd(usageStats?.totalCost ?? 0)} icon="zap" />
             <Stat label="custo hoje" value={usd(costToday)} icon="clock" />

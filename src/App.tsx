@@ -127,7 +127,7 @@ export function CockpitApp() {
         onShowHelp={() => setHelp(true)}
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
-      <Header conn={conn} onNew={handleNew} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} />
+      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} />
 
       {quota && rate && <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} />}
       <OfflineNotice show={showOffline} />
@@ -139,7 +139,7 @@ export function CockpitApp() {
         <Skills connected={conn.ws === 'connected'} skills={skills} openSkill={openSkill}
           onSkillList={onSkillList} onSkillOpen={onSkillOpen} onSkillClose={onSkillClose} />
       ) : route === '/uso' ? (
-        <Observatorio connected={conn.ws === 'connected'} usageStats={usageStats} onUsageList={onUsageList} sessions={sessions}
+        <Observatorio connected={conn.ws === 'connected'} usageStats={usageStats} onUsageList={onUsageList} sessions={sessions} rate={rate}
           onOpenSession={(id) => { setActiveSessionId(id); nav('/'); }} />
       ) : route === '/admin' ? (
         <Admin health={health} stats={stats} onHealthList={onHealthList} />
