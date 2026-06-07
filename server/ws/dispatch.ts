@@ -6,7 +6,7 @@ import { listContexts, readContext } from '../contexts';
 import { listSkills, readSkill } from '../skills';
 import { saveAttachment } from '../attachments';
 import { usageStats } from '../db';
-import { hideSession, unhideSession, setTitle, setNote } from '../store';
+import { hideSession, unhideSession, purgeSession, setTitle, setNote } from '../store';
 import { parseSession, parseFullSession } from '../sessions/parse';
 import { collectHealth } from '../health';
 import { send, broadcast } from './broadcast';
@@ -45,6 +45,13 @@ export async function handle(ws: WebSocket, msg: ClientMsg) {
     }
     case 'list-archived': {
       send(ws, { t: 'archived', items: await listArchived() });
+      return;
+    }
+    case 'purge': {
+      // "Excluir": some de tudo no cockpit (o .jsonl no disco fica intacto).
+      await purgeSession(msg.sessionId);
+      broadcast({ t: 'sessions', items: await listSessions() });
+      broadcast({ t: 'archived', items: await listArchived() });
       return;
     }
     case 'set-meta': {

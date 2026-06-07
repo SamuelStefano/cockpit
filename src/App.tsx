@@ -29,7 +29,7 @@ export function CockpitApp() {
     skills, openSkill, onSkillList, onSkillOpen, onSkillClose,
     usageStats, onUsageList, health, onHealthList,
     attachments, onUpload, onRemoveAttachment,
-    onSend: handleSend, onStop: handleStop, onNew: cockpitNew, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession,
+    onSend: handleSend, onStop: handleStop, onNew: cockpitNew, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession,
     onOpenFull,
   } = cockpit;
 
@@ -109,7 +109,7 @@ export function CockpitApp() {
     nav('/');
   };
 
-  const sessionsProps = { sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, stalled, updated, searchResults, onSearch };
+  const sessionsProps = { sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, stalled, updated, searchResults, onSearch };
   const chatProps = { session: activeSession, messages, phase: viewPhase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, bypass, setBypass, model, setModel, effort, setEffort, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew: handleNew, attachments, onUpload, onRemoveAttachment, onEditUser: editUser, onQuote: quoteMsg, onOpenFull, onShowHelp: () => setHelp(true), focusSignal };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
 

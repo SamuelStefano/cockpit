@@ -20,6 +20,7 @@ export interface SessionsPanelProps {
   onRename: (id: string, title: string) => void;
   onDescribe?: (id: string, summary: string) => void;
   onClose: (id: string) => void;
+  onDelete?: (id: string) => void;
   onStop?: (sessionKey?: string) => void;
   archived?: Session[];
   onUnhide?: (id: string) => void;
@@ -33,9 +34,9 @@ export interface SessionsPanelProps {
   onSearch?: (q: string) => void;
 }
 
-export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, onRename, onDescribe, onClose, onStop, archived = [], onUnhide, onCloseMobile, usage = {}, cost = {}, running, stalled, updated, searchResults = [], onSearch }: SessionsPanelProps) {
+export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, onRename, onDescribe, onClose, onDelete, onStop, archived = [], onUnhide, onCloseMobile, usage = {}, cost = {}, running, stalled, updated, searchResults = [], onSearch }: SessionsPanelProps) {
   const {
-    query, setQuery, confirmId, setConfirmId, pinned, togglePin,
+    query, setQuery, confirmId, setConfirmId, deleteId, setDeleteId, pinned, togglePin,
     tagMap, tagFilter, setTagFilter, addTag, removeTag, allTags, searchRef, filtered,
   } = useSessionsPanel({ sessions, searchResults, onSearch });
 
@@ -44,7 +45,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
       running={running?.has(s.id)} stalled={stalled?.has(s.id)} updated={updated?.has(s.id)} pinned={pinned.has(s.id)} onTogglePin={togglePin}
       tags={tagMap[s.id]} onAddTag={addTag} onRemoveTag={removeTag} onFilterTag={setTagFilter}
       onSelect={(id) => { onSelect(id); onCloseMobile && onCloseMobile(); }}
-      onRename={onRename} onDescribe={onDescribe} onClose={setConfirmId} onStop={onStop} />
+      onRename={onRename} onDescribe={onDescribe} onClose={setConfirmId} onDelete={onDelete ? setDeleteId : undefined} onStop={onStop} />
   );
 
   return (
@@ -110,6 +111,14 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
           title={sessions.find((s) => s.id === confirmId)?.title || 'esta sessão'}
           onConfirm={() => { onClose(confirmId); setConfirmId(null); }}
           onCancel={() => setConfirmId(null)}
+        />
+      )}
+      {deleteId && onDelete && (
+        <ConfirmArchive
+          mode="delete"
+          title={sessions.find((s) => s.id === deleteId)?.title || 'esta sessão'}
+          onConfirm={() => { onDelete(deleteId); setDeleteId(null); }}
+          onCancel={() => setDeleteId(null)}
         />
       )}
     </div>

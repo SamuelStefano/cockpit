@@ -182,6 +182,7 @@ export type ClientMsg =
   | { t: 'open-full'; sessionId: string }
   | { t: 'hide'; sessionId: string }
   | { t: 'unhide'; sessionId: string }
+  | { t: 'purge'; sessionId: string }
   | { t: 'set-meta'; sessionId: string; title?: string; summary?: string }
   | { t: 'list-archived' }
   | { t: 'search'; q: string }

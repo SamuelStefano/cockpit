@@ -8,7 +8,9 @@ import { homedir } from 'node:os';
 const STORE_PATH = process.env.COCKPIT_STORE ?? join(homedir(), '.cockpit', 'store.json');
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-interface Store { hidden: string[]; titles: Record<string, string>; notes: Record<string, string> }
+// `purged` = "excluída": some de TODA listagem (sidebar e arquivadas), mas o
+// JSONL no disco fica intacto — exclusão é só do cockpit, nunca apaga o history.
+interface Store { hidden: string[]; purged: string[]; titles: Record<string, string>; notes: Record<string, string> }
 let cache: Store | null = null;
 
 // Só pares com chave UUID e valor string entram nos overrides (anti-lixo no disco).
@@ -28,11 +30,12 @@ async function load(): Promise<Store> {
     const o = JSON.parse(await readFile(STORE_PATH, 'utf8'));
     cache = {
       hidden: Array.isArray(o.hidden) ? o.hidden.filter((x: unknown) => typeof x === 'string') : [],
+      purged: Array.isArray(o.purged) ? o.purged.filter((x: unknown) => typeof x === 'string') : [],
       titles: cleanMap(o.titles),
       notes: cleanMap(o.notes),
     };
   } catch {
-    cache = { hidden: [], titles: {}, notes: {} };
+    cache = { hidden: [], purged: [], titles: {}, notes: {} };
   }
   return cache;
 }
@@ -51,6 +54,10 @@ async function commit(next: Store): Promise<void> {
 
 export async function hiddenSet(): Promise<Set<string>> {
   return new Set((await load()).hidden);
+}
+
+export async function purgedSet(): Promise<Set<string>> {
+  return new Set((await load()).purged);
 }
 
 // Overrides manuais de título/descrição (o usuário edita; ganham do derivado do
@@ -110,5 +117,24 @@ export async function unhideSession(id: string): Promise<void> {
   await serialize(async () => {
     const s = await load();
     if (s.hidden.includes(id)) await commit({ ...s, hidden: s.hidden.filter((x) => x !== id) });
+  });
+}
+
+// "Excluir": tira de toda listagem (sidebar + arquivadas) e limpa overrides do id.
+// NÃO toca no .jsonl — o history continua no disco, só some do cockpit.
+export async function purgeSession(id: string): Promise<void> {
+  if (!UUID_RE.test(id)) return;
+  await serialize(async () => {
+    const s = await load();
+    if (s.purged.includes(id)) return;
+    const titles = { ...s.titles }; delete titles[id];
+    const notes = { ...s.notes }; delete notes[id];
+    await commit({
+      ...s,
+      hidden: s.hidden.filter((x) => x !== id),
+      purged: [...s.purged, id],
+      titles,
+      notes,
+    });
   });
 }
