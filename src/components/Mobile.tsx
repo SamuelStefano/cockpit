@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react';
-import { Icon } from './primitives';
 import { SessionsPanel, type SessionsPanelProps } from './Sessions';
 import { ChatPanel, type ChatPanelProps } from './Chat';
 import { TerminalsPanel, type TerminalsPanelProps } from './Terminals';
@@ -68,21 +67,8 @@ export function MobileLayout({ sessionsProps, chatProps, termProps, drawer, setD
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1">
-        <ChatPanel key={chatProps.session?.id ?? 'none'} {...chatProps} />
+        <ChatPanel key={chatProps.session?.id ?? 'none'} {...chatProps} onTerminal={() => setTermSheet(true)} terminalRunning={!!runningTerm} />
       </div>
-
-      {!termSheet && (
-        <button
-          onClick={() => setTermSheet(true)}
-          className="absolute bottom-20 right-4 z-30 flex items-center justify-center rounded-full border border-neutral-700 bg-neutral-900 text-orange-400 shadow-2xl shadow-black/50 transition active:scale-95"
-          style={{ height: 52, width: 52 }}
-        >
-          <Icon name="terminal" size={20} />
-          {runningTerm && (
-            <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-neutral-900 bg-green-500" style={{ boxShadow: '0 0 6px var(--ok)' }} />
-          )}
-        </button>
-      )}
 
       {drawer && (
         <>

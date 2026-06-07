@@ -45,9 +45,11 @@ export interface ChatPanelProps {
   onShowHelp?: () => void;
   lastEnd?: string;
   focusSignal?: number;
+  onTerminal?: () => void;
+  terminalRunning?: boolean;
 }
 
-export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, bypass, setBypass, model, setModel, models, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, onQuote, onOpenFull, onShowHelp, focusSignal = 0 }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, bypass, setBypass, model, setModel, models, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, onQuote, onOpenFull, onShowHelp, focusSignal = 0, onTerminal, terminalRunning }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -137,6 +139,18 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
             </button>
           )}
           {!isEmpty && <ExportMenu title={session?.title || 'sessao'} messages={messages} />}
+          {onTerminal && (
+            <button
+              onClick={onTerminal}
+              title="Abrir terminais"
+              className="relative flex h-7 w-7 items-center justify-center rounded-md border border-neutral-800 text-neutral-400 transition hover:border-neutral-700 hover:text-orange-300"
+            >
+              <Icon name="terminal" size={14} />
+              {terminalRunning && (
+                <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-neutral-900 bg-green-500" style={{ boxShadow: '0 0 6px var(--ok)' }} />
+              )}
+            </button>
+          )}
         </div>
       </div>
 
