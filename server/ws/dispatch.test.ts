@@ -76,6 +76,12 @@ describe('open / open-full invalid session', () => {
     expect(bc.send).toHaveBeenCalledWith(ws, { t: 'error', message: 'sessão inválida' });
   });
 
+  it('forwards the truncated flag from parseSession on a normal open', async () => {
+    parse.parseSession.mockResolvedValue({ messages: [{ role: 'user' }], tokens: 3, truncated: true });
+    await handle(ws, { t: 'open', sessionId: 's1' } as ClientMsg);
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'history', truncated: true }));
+  });
+
   it('sends history with full:true for open-full on a valid session', async () => {
     parse.parseFullSession.mockResolvedValue({ messages: [{ role: 'user' }], tokens: 7 });
     await handle(ws, { t: 'open-full', sessionId: 's1' } as ClientMsg);

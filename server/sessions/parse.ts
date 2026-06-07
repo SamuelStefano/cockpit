@@ -70,7 +70,7 @@ export function sessionPath(sessionId: string): string | null {
 export async function parseSession(
   sessionId: string,
   limit = CONFIG.historyLimit
-): Promise<{ blocks: Block[]; messages: Message[]; tokens: number } | null> {
+): Promise<{ blocks: Block[]; messages: Message[]; tokens: number; truncated: boolean } | null> {
   const path = sessionPath(sessionId);
   if (!path) return null;
 
@@ -100,10 +100,14 @@ export async function parseSession(
     if (chain[i].type === 'assistant' && chain[i].message?.usage) { tokens = ctxTokens(chain[i].message!.usage); break; }
   }
 
+  // O caminho ativo passou do cap → o slice dropou mensagens MAIS ANTIGAS sem
+  // marcador. Sinaliza pro front avisar e oferecer o "ver tudo" (parseFullSession),
+  // em vez de apresentar um transcript parcial como se fosse completo (squad red-team).
+  const truncated = chain.length > limit;
   const trimmed = chain.slice(-limit);
   const messages = trimmed.map(recToMessage).filter((m): m is Message => m !== null);
   const blocks = messages.flatMap((m) => (m.role === 'assistant' ? m.blocks : [{ type: 'text' as const, md: m.text }]));
-  return { blocks, messages, tokens };
+  return { blocks, messages, tokens, truncated };
 }
 
 // Histórico COMPLETO em ordem de arquivo (não só o caminho ativo). Após /compact
