@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Icon } from '../primitives';
 import type { Session } from '../../data/mock';
 
-export function ArchivedSection({ archived, onUnhide, onDelete }: { archived: Session[]; onUnhide: (id: string) => void; onDelete?: (id: string) => void }) {
+export function ArchivedSection({ archived, onUnhide, onDelete, onView }: { archived: Session[]; onUnhide: (id: string) => void; onDelete?: (id: string) => void; onView?: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   if (archived.length === 0) return null;
   return (
@@ -19,7 +19,17 @@ export function ArchivedSection({ archived, onUnhide, onDelete }: { archived: Se
           {archived.map((s) => (
             <div key={s.id} className="group rounded-md px-1.5 py-1.5 hover:bg-neutral-900">
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-[11.5px] font-medium text-neutral-400">{s.title}</span>
+                {onView ? (
+                  <button
+                    onClick={() => onView(s.id)}
+                    title="Ver conversa (somente leitura)"
+                    className="min-w-0 flex-1 truncate text-left text-[11.5px] font-medium text-neutral-400 transition hover:text-orange-300"
+                  >
+                    {s.title}
+                  </button>
+                ) : (
+                  <span className="truncate text-[11.5px] font-medium text-neutral-400">{s.title}</span>
+                )}
                 <div className="flex shrink-0 items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
                   <button
                     onClick={() => onUnhide(s.id)}

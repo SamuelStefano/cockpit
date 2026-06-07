@@ -104,7 +104,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
             </div>
           ))
         )}
-        {!loading && !query && onUnhide && <ArchivedSection archived={archived} onUnhide={onUnhide} onDelete={onDelete ? setDeleteId : undefined} />}
+        {!loading && !query && onUnhide && <ArchivedSection archived={archived} onUnhide={onUnhide} onDelete={onDelete ? setDeleteId : undefined} onView={(id) => { onSelect(id); onCloseMobile && onCloseMobile(); }} />}
       </div>
       {confirmId && (
         <ConfirmArchive

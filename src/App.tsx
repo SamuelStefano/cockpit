@@ -101,7 +101,7 @@ export function CockpitApp() {
     return () => mq.removeEventListener('change', apply);
   }, []);
 
-  const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
+  const activeSession = sessions.find((s) => s.id === activeSessionId) || archived.find((s) => s.id === activeSessionId) || null;
   const viewPhase = phase;
 
   const handleNew = () => {
