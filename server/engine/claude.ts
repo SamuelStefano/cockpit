@@ -96,12 +96,21 @@ export function run(opts: RunOpts): RunHandle {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
+  // O `claude` emite um evento `result` ao terminar de forma graciosa — inclusive
+  // nos cortes esperados (budget/max-turns), que ele reporta como subtype no
+  // result E DEPOIS sai com code≠0. Sem registrar que o result já veio, o close
+  // handler trataria esse exit como crash e pintaria "claude saiu (1)" por cima
+  // do banner correto de "teto atingido / Continuar". Visto o result, o exit não
+  // é mais um crash a reportar.
+  let sawResult = false;
   const rl = createInterface({ input: child.stdout! });
   rl.on('line', (line) => {
     const s = line.trim();
     if (!s) return;
     try {
-      onEvent(JSON.parse(s) as ClaudeEvent);
+      const ev = JSON.parse(s) as ClaudeEvent;
+      if (ev.type === 'result') sawResult = true;
+      onEvent(ev);
     } catch {
       // linha não-JSON (ruído) — ignora
     }
@@ -130,7 +139,7 @@ export function run(opts: RunOpts): RunHandle {
   };
   child.on('error', (err) => { onError(sanitize(err.message)); finish(); });
   child.on('close', (code) => {
-    if (shouldReportExit(killed, code)) {
+    if (shouldReportExit(killed, code, sawResult)) {
       const tail = stderr.trim().slice(-300);
       onError(sanitize(tail ? `claude saiu (${code}): ${tail}` : `claude saiu (${code})`));
     }
@@ -197,11 +206,15 @@ export function sanitize(msg: string): string {
 }
 
 // Saída não-zero do `claude` vira erro visível — antes, sem stderr, um crash
-// silencioso parecia "done" com sucesso (madrugada inteira sem saber). Mas o stop
-// do usuário NÃO é falha: o `claude` instala handler de SIGTERM e sai com code=143
-// (128+15) — não com code=null como um kill cru. Sem o guard `killed`, todo
-// Esc/stop pintava o banner vermelho "O turno falhou. Reenviar?". Gate no flag (não
-// no code) cobre 143/137/qualquer code resultante do nosso próprio kill.
-export function shouldReportExit(killed: boolean, code: number | null): boolean {
-  return !killed && code != null && code !== 0;
+// silencioso parecia "done" com sucesso (madrugada inteira sem saber). Mas há dois
+// encerramentos não-zero que NÃO são crash:
+//  1. stop do usuário: o `claude` instala handler de SIGTERM e sai com code=143
+//     (128+15) — não code=null como um kill cru. O guard `killed` cobre
+//     143/137/qualquer code do nosso próprio kill.
+//  2. corte gracioso (budget/max-turns): o `claude` emite o evento `result` com o
+//     subtype E DEPOIS sai com code=1. O guard `sawResult` impede que esse exit
+//     vire "claude saiu (1)" por cima do banner "teto atingido / Continuar".
+// Só reporta quando NÃO matamos e o `claude` NÃO reportou um result próprio.
+export function shouldReportExit(killed: boolean, code: number | null, sawResult = false): boolean {
+  return !killed && !sawResult && code != null && code !== 0;
 }
