@@ -35,7 +35,7 @@ function Offline() {
       </div>
       <p className="text-[13px] font-medium text-neutral-300">Backend local indisponível</p>
       <p className="mt-1 max-w-sm text-[12px] leading-snug text-neutral-600">
-        O histórico de uso vive no SQLite local e só aparece com o backend do cockpit rodando em <span className="font-mono">127.0.0.1</span>.
+        O histórico de uso vive no SQLite local e só aparece com o backend do Deck rodando em <span className="font-mono">127.0.0.1</span>.
       </p>
     </div>
   );

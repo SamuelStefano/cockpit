@@ -17,7 +17,7 @@ const COPY: Record<Mode, { heading: string; cta: string; icon: 'x' | 'trash'; bo
     cta: 'Excluir',
     icon: 'trash',
     body: (title) => (
-      <><span className="text-neutral-200">{title}</span> some do cockpit por completo (nem em "Arquivadas"). O arquivo de histórico no disco não é apagado.</>
+      <><span className="text-neutral-200">{title}</span> some do Deck por completo (nem em "Arquivadas"). O arquivo de histórico no disco não é apagado.</>
     ),
   },
 };

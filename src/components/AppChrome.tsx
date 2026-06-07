@@ -47,6 +47,7 @@ interface HeaderProps {
   nav: (to: Route) => void;
   onPalette: () => void;
   planUsage: PlanUsage | null;
+  onNew: () => void;
 }
 
 const NAV: { to: Route; label: string }[] = [
@@ -58,7 +59,7 @@ const NAV: { to: Route; label: string }[] = [
   { to: '/docs', label: 'docs' },
 ];
 
-export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsage }: HeaderProps) {
+export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsage, onNew }: HeaderProps) {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex items-center gap-2.5">
@@ -67,12 +68,16 @@ export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsag
             <Icon name="menu" size={18} />
           </button>
         )}
-        <div className="flex items-center gap-2">
+        <button
+          onClick={() => { nav('/'); onNew(); }}
+          title="Nova conversa"
+          className="flex items-center gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
+        >
           <span className="flex h-6 w-6 items-center justify-center rounded-md bg-orange-500 text-neutral-950 shadow-[0_0_12px_-1px_rgba(249,115,22,0.55)]">
             <Icon name="terminal" size={14} stroke={2.4} />
           </span>
-          <span className="font-mono text-[14px] font-semibold lowercase tracking-tight text-neutral-100">cockpit</span>
-        </div>
+          <span className="font-mono text-[14px] font-semibold lowercase tracking-tight text-neutral-100 transition hover:text-white">Deck</span>
+        </button>
         <nav className="ml-1 flex items-center gap-0.5 rounded-lg border border-neutral-800 bg-neutral-900/60 p-0.5">
           {NAV.map((n) => (
             <button
@@ -171,7 +176,7 @@ export function OfflineNotice({ show }: { show: boolean }) {
         <div className="leading-tight">
           <p className="text-[12px] font-medium text-red-200">Backend não acessível</p>
           <p className="text-[11px] text-red-200/70">
-            O cockpit não alcança o servidor em <span className="font-mono">{location.host}</span>. Confira se o backend está rodando (ou o túnel/Tailscale). Tentando reconectar…
+            O Deck não alcança o servidor em <span className="font-mono">{location.host}</span>. Confira se o backend está rodando (ou o túnel/Tailscale). Tentando reconectar…
           </p>
         </div>
       </div>

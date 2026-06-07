@@ -90,7 +90,7 @@ export function CockpitApp() {
     const parts: string[] = [];
     if (running.size) parts.push(`▶${running.size}`);
     if (updated.size) parts.push(`●${updated.size}`);
-    setTitleBase((parts.length ? parts.join(' ') + ' — ' : '') + 'cockpit');
+    setTitleBase((parts.length ? parts.join(' ') + ' — ' : '') + 'Deck');
   }, [running, updated]);
 
   useEffect(() => {
@@ -128,7 +128,7 @@ export function CockpitApp() {
         onShowHelp={() => setHelp(true)}
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
-      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} />
+      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} onNew={handleNew} />
 
       {quota && rate && <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} />}
       <OfflineNotice show={showOffline} />
