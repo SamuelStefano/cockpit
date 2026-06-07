@@ -1,15 +1,13 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Icon } from '../primitives';
 import type { ToolDiff } from '../../../shared/protocol';
 import { lineDiff } from './diff';
-import type { ToolSignal } from './ToolCallCard';
 
-export function DiffView({ diff, signal }: { diff: ToolDiff; signal?: ToolSignal }) {
+export function DiffView({ diff }: { diff: ToolDiff }) {
   const rows = useMemo(() => lineDiff(diff.old, diff.new), [diff.old, diff.new]);
   const adds = rows.filter((r) => r.t === 'add').length;
   const dels = rows.filter((r) => r.t === 'del').length;
   const [open, setOpen] = useState(true);
-  useEffect(() => { if (signal && signal.n > 0) setOpen(signal.open); }, [signal]);
   return (
     <div className="px-3 pb-2">
       <button

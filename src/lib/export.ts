@@ -44,6 +44,57 @@ export function download(name: string, mime: string, data: string) {
   URL.revokeObjectURL(url);
 }
 
+// PDF real (jspdf carregado sob demanda — fica fora do bundle inicial). Texto
+// fluido paginado, não o print do navegador. Cada turno vira blocos de linhas.
+export async function threadToPdf(title: string, messages: Message[]) {
+  const { jsPDF } = await import('jspdf');
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const margin = 48;
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const maxW = pageW - margin * 2;
+  let y = margin;
+
+  const ensure = (h: number) => {
+    if (y + h > pageH - margin) { doc.addPage(); y = margin; }
+  };
+  const write = (text: string, size: number, color: [number, number, number], style: 'normal' | 'bold' = 'normal', font = 'helvetica') => {
+    doc.setFont(font, style);
+    doc.setFontSize(size);
+    doc.setTextColor(color[0], color[1], color[2]);
+    const lh = size * 1.4;
+    for (const para of text.split('\n')) {
+      const lines = doc.splitTextToSize(para || ' ', maxW) as string[];
+      for (const ln of lines) { ensure(lh); doc.text(ln, margin, y); y += lh; }
+    }
+  };
+
+  write(title, 18, [20, 20, 20], 'bold');
+  y += 8;
+
+  for (const m of messages) {
+    ensure(28);
+    if (m.role === 'user') {
+      write('Você', 11, [180, 90, 0], 'bold');
+      write(m.text.trim(), 10.5, [40, 40, 40]);
+    } else {
+      write('Claude', 11, [120, 80, 200], 'bold');
+      for (const b of m.blocks) {
+        if (b.type === 'text') write(b.md.trim(), 10.5, [40, 40, 40]);
+        else if (b.type === 'code') write(b.code, 9.5, [30, 30, 30], 'normal', 'courier');
+        else if (b.type === 'tool') {
+          write(`$ ${b.tool.command || b.tool.label}`, 9.5, [90, 90, 90], 'normal', 'courier');
+          const o = b.tool.output.join('').trim();
+          if (o) write(o, 9, [110, 110, 110], 'normal', 'courier');
+        }
+      }
+    }
+    y += 10;
+  }
+
+  doc.save(`${fileSlug(title)}.pdf`);
+}
+
 // slug seguro pra nome de arquivo a partir do título da sessão.
 export function fileSlug(title: string): string {
   return (title || 'sessao').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'sessao';

@@ -163,15 +163,5 @@ export function useChatInput(args: UseChatInputArgs) {
     if (histIdx !== null) setHistIdx(null); // digitar sai do modo recall
     fitHeight(e.target);
   };
-  const insertTemplate = (text: string) => {
-    setValue(text);
-    requestAnimationFrame(() => {
-      const el = taRef.current;
-      if (!el) return;
-      el.focus();
-      el.setSelectionRange(el.value.length, el.value.length);
-      fitHeight(el);
-    });
-  };
-  return { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, insertTemplate };
+  return { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick };
 }

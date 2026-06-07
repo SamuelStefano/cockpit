@@ -1,23 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Icon, Markdown } from '../primitives';
 import type { ToolCall } from '../../data/mock';
 import { DiffView } from './DiffView';
 import { CopyTextButton } from './MessageActions';
 
-export interface ToolSignal { open: boolean; n: number }
-
 interface ToolCallCardProps {
   tool: ToolCall;
-  signal?: ToolSignal;
 }
 
-export function ToolCallCard({ tool, signal }: ToolCallCardProps) {
+export function ToolCallCard({ tool }: ToolCallCardProps) {
   const [open, setOpen] = useState(!!tool.expanded);
   const { status } = tool;
   const lines = tool.output || [];
-
-  // Toggle global "recolher/expandir ferramentas" (signal.n incrementa a cada clique).
-  useEffect(() => { if (signal && signal.n > 0) setOpen(signal.open); }, [signal]);
 
   const statusEl = {
     running: (
@@ -74,7 +68,7 @@ export function ToolCallCard({ tool, signal }: ToolCallCardProps) {
           </div>
         </div>
       )}
-      {tool.diff && <DiffView diff={tool.diff} signal={signal} />}
+      {tool.diff && <DiffView diff={tool.diff} />}
       {tool.markdown && (
         <div className="px-3 pb-2">
           <div className="rounded-md border border-neutral-800 bg-[#0c0c0c] px-3 py-2 text-[13px] leading-relaxed text-neutral-300">

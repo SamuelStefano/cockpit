@@ -5,10 +5,8 @@ import type { Message } from '../../data/mock';
 import type { TriageAction } from '../../../shared/protocol';
 import { messageToText } from '../../lib/export';
 import { AssistantBlocks } from './AssistantBlocks';
-import type { ToolSignal } from './ToolCallCard';
 import { CopyTextButton, QuoteButton, CopyMessageButton } from './MessageActions';
 
-export type { ToolSignal } from './ToolCallCard';
 export type { DiffRow } from './diff';
 export { lineDiff } from './diff';
 export { Thinking } from './Thinking';
@@ -18,10 +16,9 @@ interface MessageRowProps {
   caretOnLast: boolean;
   onEditUser?: (text: string) => void;
   onQuote?: (text: string) => void;
-  toolSignal?: ToolSignal;
 }
 
-export function MessageRow({ msg, caretOnLast, onEditUser, onQuote, toolSignal }: MessageRowProps) {
+export function MessageRow({ msg, caretOnLast, onEditUser, onQuote }: MessageRowProps) {
   if (msg.role === 'user') {
     return (
       <div className="fade-up group/u flex items-start justify-end gap-2.5">
@@ -63,7 +60,7 @@ export function MessageRow({ msg, caretOnLast, onEditUser, onQuote, toolSignal }
             <Icon name="zap" size={10} /> resposta rápida (paralela)
           </div>
         )}
-        <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} toolSignal={toolSignal} />
+        <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} />
         {hasText && !caretOnLast && (
           <div className="mt-1 flex items-center gap-2 opacity-100 transition group-hover/msg:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100">
             <CopyMessageButton blocks={msg.blocks} />
