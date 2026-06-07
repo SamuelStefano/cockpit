@@ -1,6 +1,6 @@
 import type { ClaudeEvent } from '../engine/events';
 import { recordUsage } from '../db';
-import { ctxTokens } from '../sessions/parse';
+import { ctxTokens, num } from '../sessions/parse';
 import { broadcast } from './broadcast';
 import { applySlashCommands } from './slash';
 import { setLastRate } from './rate';
@@ -73,10 +73,10 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       recordUsage({
         sessionId: thread.sessionId ?? sessionKey,
         ctxTokens: tokens,
-        outputTokens: usage?.output_tokens ?? 0,
-        inputTokens: usage?.input_tokens ?? 0,
-        cacheReadTokens: usage?.cache_read_input_tokens ?? 0,
-        cacheCreationTokens: usage?.cache_creation_input_tokens ?? 0,
+        outputTokens: num(usage?.output_tokens),
+        inputTokens: num(usage?.input_tokens),
+        cacheReadTokens: num(usage?.cache_read_input_tokens),
+        cacheCreationTokens: num(usage?.cache_creation_input_tokens),
         model: (ev as any).message?.model,
       });
       return;

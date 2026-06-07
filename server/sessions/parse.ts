@@ -40,11 +40,19 @@ export function activeChain(byUuid: Map<string, Rec>, leaf: string | undefined, 
   return chain;
 }
 
+// JSONL é não-confiável: um campo de usage pode vir string/NaN/Infinity/negativo
+// e contaminar o HUD de custo e o INSERT no SQLite (squad High-2). Coage pra
+// inteiro finito >= 0; qualquer coisa fora disso vira 0.
+export function num(x: unknown): number {
+  const n = typeof x === 'number' ? x : Number(x);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
 // Tokens de contexto "em voo" no último turno = entrada + cache (o que foi
 // enviado ao modelo). Aproxima o quanto da janela de contexto está ocupado.
 export function ctxTokens(u?: Usage): number {
   if (!u) return 0;
-  return (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
+  return num(u.input_tokens) + num(u.cache_creation_input_tokens) + num(u.cache_read_input_tokens);
 }
 
 // Resolve o caminho do JSONL com validação anti-traversal (squad High-1).
