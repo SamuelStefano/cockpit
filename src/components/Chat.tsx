@@ -31,8 +31,6 @@ export interface ChatPanelProps {
   model: string;
   setModel: (m: string) => void;
   models: ModelInfo[];
-  budget: number;
-  setBudget: (n: number) => void;
   skills: SkillMeta[];
   selectedSkills: string[];
   setSelectedSkills: (ids: string[]) => void;
@@ -53,9 +51,10 @@ export interface ChatPanelProps {
   focusSignal?: number;
   onTerminal?: () => void;
   terminalRunning?: boolean;
+  isMobile?: boolean;
 }
 
-export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, bypass, setBypass, model, setModel, models, budget, setBudget, skills, selectedSkills, setSelectedSkills, slashCommands, contextTokens, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, onQuote, onOpenFull, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, bypass, setBypass, model, setModel, models, skills, selectedSkills, setSelectedSkills, slashCommands, contextTokens, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, onQuote, onOpenFull, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -145,7 +144,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
             (margens auto dividem o espaço livre); aqui só este wrapper empurra. */}
         <div className="ml-auto flex items-center gap-2">
           <TurnStat stats={lastTurn} />
-          <ContextMeter tokens={contextTokens} onNew={onNew} />
+          {!isMobile && <ContextMeter tokens={contextTokens} onNew={onNew} />}
           {!isEmpty && session && !session.id.startsWith('new-') && onOpenFull && (
             <button
               onClick={() => {
@@ -169,7 +168,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
               {fullLoaded ? 'mostrar resumido' : truncated ? 'carregar antigas' : 'ver tudo'}
             </button>
           )}
-          {!isEmpty && <ExportMenu title={session?.title || 'sessao'} messages={messages} />}
+          {!isEmpty && !isMobile && <ExportMenu title={session?.title || 'sessao'} messages={messages} />}
           {onTerminal && (
             <button
               onClick={onTerminal}
@@ -249,9 +248,9 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         </div>
       )}
 
-      <ChatInput disabled={disabled} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
+      <ChatInput disabled={disabled} onSend={onSend} onStop={() => { setQueued(''); onStop(); }} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
         caps={caps} bypass={bypass} setBypass={setBypass}
-        model={model} setModel={setModel} models={models} budget={budget} setBudget={setBudget}
+        model={model} setModel={setModel} models={models}
         skills={skills} selectedSkills={selectedSkills} setSelectedSkills={setSelectedSkills} slashCommands={slashCommands}
         attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} focusSignal={focusSignal}
         queued={queued} onQueue={setQueued} onCancelQueue={() => setQueued('')} history={sentHistory} pendingConfirm={bannerConfirm} onNew={onNew} onShowHelp={onShowHelp} />

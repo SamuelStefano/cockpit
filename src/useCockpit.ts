@@ -47,8 +47,6 @@ export interface Cockpit {
   model: string;
   setModel: (m: string) => void;
   models: ModelInfo[];
-  budget: number;
-  setBudget: (n: number) => void;
   selectedSkills: string[];
   setSelectedSkills: (ids: string[]) => void;
   slashCommands: string[];
@@ -143,8 +141,6 @@ export function useCockpit(): Cockpit {
   const [model, setModel] = useState<string>(() => loadPref<string>('model', 'opus'));
   const modelRef = useRef<string>(model);
   const [models, setModels] = useState<ModelInfo[]>([]);
-  const [budget, setBudget] = useState<number>(() => loadPref<number>('budget', 0)); // 0 = sem teto
-  const budgetRef = useRef<number>(budget);
   const [slashCommands, setSlashCommands] = useState<string[]>(() => loadPref<string[]>('slashCommands', []));
   // Skills selecionadas p/ os próximos prompts (ids). Vazio = todas ativas (default).
   // Persiste como pref global, igual modelo/teto; o ref deixa o onSend ler o atual.
@@ -157,6 +153,7 @@ export function useCockpit(): Cockpit {
   const wsRef = useRef<WebSocket | null>(null);
   const runMsg = useRef<Record<string, string>>({});      // sessionKey -> assistant msgId em voo
   const inFlight = useRef<Set<string>>(new Set());        // sessionKeys com turno em voo — guarda síncrona contra envio duplo (runMsg só é setado no `started`)
+  const stopping = useRef<Set<string>>(new Set());        // sessionKeys parados pelo usuário: o kill leva até 5s (SIGTERM→SIGKILL) e frames tardios re-acenderiam o phase. Limpo no `done`/`error`.
   const resumeId = useRef<Record<string, string>>({});    // sessionKey -> claude sessionId p/ --resume
   const opened = useRef<Set<string>>(new Set());          // sessionKeys cujo histórico já foi pedido
   const migratedTo = useRef<Record<string, string>>({});  // new-xxx -> claude sessionId já migrado (idempotência: 2º `done` não re-migra nem zera o thread)
@@ -228,6 +225,7 @@ export function useCockpit(): Cockpit {
     // nova e o tempo decorrido do card zera no meio do 1º turno.
     if (oldKey in runStartRef.current) { runStartRef.current[newId] = runStartRef.current[oldKey]; delete runStartRef.current[oldKey]; }
     if (inFlight.current.has(oldKey)) { inFlight.current.delete(oldKey); inFlight.current.add(newId); }
+    if (stopping.current.has(oldKey)) { stopping.current.delete(oldKey); stopping.current.add(newId); }
     if (activeRef.current === oldKey) { activeRef.current = newId; setActiveIdState(newId); }
     const move = <T,>(prev: Record<string, T>): Record<string, T> => moveKey(prev, oldKey, newId);
     setThreads(move);
@@ -396,21 +394,21 @@ export function useCockpit(): Cockpit {
       case 'delta': {
         const key = resolveKey(migratedTo.current, msg.sessionKey);
         lastActivity.current[key] = Date.now();
-        setPhases((p) => ({ ...p, [key]: 'streaming' }));
+        if (!stopping.current.has(key)) setPhases((p) => ({ ...p, [key]: 'streaming' }));
         patchRunMsg(key, (b) => appendDelta(b, msg.text));
         return;
       }
       case 'thinking': {
         const key = resolveKey(migratedTo.current, msg.sessionKey);
         lastActivity.current[key] = Date.now();
-        setPhases((p) => ({ ...p, [key]: 'streaming' }));
+        if (!stopping.current.has(key)) setPhases((p) => ({ ...p, [key]: 'streaming' }));
         patchRunMsg(key, (b) => appendThinking(b, msg.text));
         return;
       }
       case 'tool': {
         const key = resolveKey(migratedTo.current, msg.sessionKey);
         lastActivity.current[key] = Date.now();
-        setPhases((p) => ({ ...p, [key]: 'streaming' }));
+        if (!stopping.current.has(key)) setPhases((p) => ({ ...p, [key]: 'streaming' }));
         patchRunMsg(key, (b) => upsertTool(b, msg.tool));
         return;
       }
@@ -533,6 +531,7 @@ export function useCockpit(): Cockpit {
         // redireciona p/ o id real já migrado pra não tocar uma key órfã.
         const key = resolveKey(migratedTo.current, msg.sessionKey);
         inFlight.current.delete(key);
+        stopping.current.delete(key);
         reconcileTools(key);
         // Carimba o modelo EFETIVO do turno na bolha (revela --fallback-model e
         // evita rotular bolhas antigas com o modelo atual ao trocar mid-thread).
@@ -599,6 +598,7 @@ export function useCockpit(): Cockpit {
         const key = (msg.sessionKey && migratedTo.current[msg.sessionKey]) || msg.sessionKey;
         if (key) {
           inFlight.current.delete(key);
+          stopping.current.delete(key);
           reconcileTools(key);
           delete runMsg.current[key];
           setPhases((p) => ({ ...p, [key]: 'idle' }));
@@ -741,6 +741,7 @@ export function useCockpit(): Cockpit {
     // 'started' do próximo turno (ou da prioridade) cria o bubble do assistente.
     const busy = inFlight.current.has(key);
     if (!busy) inFlight.current.add(key);
+    stopping.current.delete(key); // novo prompt nesta sessão cancela o latch de stop
     requestNotifyPermission(); // 1ª vez: pede permissão (gesto do usuário)
     const atts = attachmentsRef.current;
     // Anexos viram refs de path no início do prompt; o agente abre via Read.
@@ -761,7 +762,7 @@ export function useCockpit(): Cockpit {
     const bypassWire = capsRef.current?.canBypass && bypassRef.current ? true : undefined;
     // skills só vai no fio quando o usuário restringiu (subconjunto); vazio = todas.
     const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: modelRef.current, maxBudgetUsd: budgetRef.current > 0 ? budgetRef.current : undefined, bypass: bypassWire, skills: skillsWire });
+    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: modelRef.current, bypass: bypassWire, skills: skillsWire });
   }, [send, updateThread]);
 
   const onUpload = useCallback((file: File) => {
@@ -785,7 +786,6 @@ export function useCockpit(): Cockpit {
   const changeMode = useCallback((m: PermMode) => { modeRef.current = m; setMode(m); savePref('mode', m); }, []);
   const changeBypass = useCallback((b: boolean) => { bypassRef.current = b; setBypass(b); }, []);
   const changeModel = useCallback((m: string) => { modelRef.current = m; setModel(m); savePref('model', m); }, []);
-  const changeBudget = useCallback((n: number) => { const v = Number.isFinite(n) && n > 0 ? n : 0; budgetRef.current = v; setBudget(v); savePref('budget', v); }, []);
   const changeSelectedSkills = useCallback((ids: string[]) => { selectedSkillsRef.current = ids; setSelectedSkills(ids); savePref('selectedSkills', ids); }, []);
 
   // Busca por conteúdo: dispara no backend (grep) e guarda o termo p/ descartar
@@ -820,6 +820,7 @@ export function useCockpit(): Cockpit {
     if (!key) return;
     send({ t: 'stop', sessionKey: key });
     inFlight.current.delete(key);
+    stopping.current.add(key);
     reconcileTools(key);
     delete runMsg.current[key];
     setPhases((p) => ({ ...p, [key]: 'idle' }));
@@ -1017,5 +1018,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, models, budget, setBudget: changeBudget, selectedSkills, setSelectedSkills: changeSelectedSkills, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, models, selectedSkills, setSelectedSkills: changeSelectedSkills, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
 }

@@ -142,9 +142,7 @@ export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsag
       </div>
 
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-        <div className="hidden sm:block">
-          <UsageBar usage={planUsage} compact={isMobile} />
-        </div>
+        <UsageBar usage={planUsage} compact={isMobile} />
         <button
           onClick={onPalette}
           title="Comandos (⌘K)"

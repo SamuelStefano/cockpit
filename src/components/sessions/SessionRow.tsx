@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon, Badge } from '../primitives';
 import type { Session } from '../../data/mock';
 import { Highlight } from './Highlight';
@@ -33,13 +33,28 @@ export interface SessionRowProps {
 
 export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated, runStart, pinned, tags = [], onTogglePin, onAddTag, onRemoveTag, onFilterTag, onSelect, onRename, onDescribe, onClose, onDelete, onStop }: SessionRowProps) {
   const { editing, setEditing, draft, setDraft, descEditing, setDescEditing, descDraft, setDescDraft, tagging, setTagging, tagDraft, setTagDraft, inputRef, descRef, tagRef, commit, commitDesc, commitTag } = useSessionRow({ s, onAddTag, onRename, onDescribe });
+  // Mobile: segurar o dedo (long-press) abre o menu de ações, sem precisar mirar
+  // no grip. O timer dispara em 450ms; um toque curto só seleciona a sessão.
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressed = useRef(false);
+  const clearPress = () => { if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null; } };
+  const onTouchStart = () => {
+    longPressed.current = false;
+    clearPress();
+    pressTimer.current = setTimeout(() => { longPressed.current = true; setActionsOpen(true); }, 450);
+  };
 
   return (
     <div
       role="button"
       tabIndex={0}
       aria-pressed={active}
-      onClick={() => onSelect(s.id)}
+      onClick={() => { if (longPressed.current) { longPressed.current = false; return; } onSelect(s.id); }}
+      onTouchStart={onTouchStart}
+      onTouchMove={clearPress}
+      onTouchEnd={clearPress}
+      onTouchCancel={clearPress}
       onKeyDown={(e) => {
         if (e.target !== e.currentTarget) return; // tecla foi pra um botão/input interno
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(s.id); }
@@ -86,7 +101,7 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
         {!editing && (
           <div className="flex shrink-0 items-center gap-1">
             {cost !== undefined && cost > 0 && (
-              <span className="text-[9.5px] tabular-nums text-emerald-500/70" title="Custo estimado acumulado desta sessão">
+              <span className="hidden text-[9.5px] tabular-nums text-emerald-500/70 sm:inline" title="Custo estimado acumulado desta sessão">
                 ${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(2)}
               </span>
             )}
@@ -110,6 +125,8 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
               running={!!running}
               canStop={!!onStop}
               canDescribe={!!onDescribe}
+              open={actionsOpen}
+              onOpenChange={setActionsOpen}
               onTogglePin={onTogglePin ? () => onTogglePin(s.id) : undefined}
               onRename={() => { setDraft(s.title); setEditing(true); }}
               onDescribe={() => { setDescDraft(s.summary || ''); setDescEditing(true); }}

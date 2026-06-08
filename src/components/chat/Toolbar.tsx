@@ -115,46 +115,38 @@ const FALLBACK_MODELS: ModelInfo[] = [
   { id: 'haiku', displayName: 'Haiku' },
 ];
 
-export function ModelPicker({ model, setModel, models, budget, setBudget, disabled }: {
+// A conta pode expor só uma família concreta em /v1/models (ex: só Opus 4.8). Pra
+// não deixar o seletor com uma opção só, completamos com os aliases das famílias
+// ausentes (sonnet/haiku) — o CLI aceita o alias e resolve a versão mais recente.
+function withFamilies(models: ModelInfo[]): ModelInfo[] {
+  const have = new Set(models.map((m) => FALLBACK_MODELS.find((f) => m.id.includes(f.id))?.id));
+  const extra = FALLBACK_MODELS.filter((f) => !have.has(f.id));
+  return [...models, ...extra];
+}
+
+export function ModelPicker({ model, setModel, models, disabled }: {
   model: string; setModel: (m: string) => void;
   models: ModelInfo[];
-  budget: number; setBudget: (n: number) => void; disabled: boolean;
+  disabled: boolean;
 }) {
   const sel = 'rounded-md border border-neutral-800 bg-neutral-950 px-1.5 py-1 text-[11px] font-medium text-neutral-300 outline-none transition hover:border-neutral-700 focus:border-orange-500/40 disabled:cursor-not-allowed disabled:opacity-50';
   const tag = 'text-[9px] font-semibold uppercase tracking-wide text-neutral-600';
-  const opts = models.length ? models : FALLBACK_MODELS;
+  const opts = models.length ? withFamilies(models) : FALLBACK_MODELS;
   // Garante que o modelo atual apareça na lista mesmo que não esteja em /v1/models
   // (alias persistido, modelo descontinuado) — senão o select renderiza vazio.
   const list = opts.some((o) => o.id === model) ? opts : [{ id: model, displayName: model }, ...opts];
   return (
-    <div className="inline-flex items-center gap-1.5">
-      <label className="inline-flex items-center gap-1" title="Versão do agente desta sessão">
-        <span className={tag}>versão</span>
-        <select
-          value={model}
-          disabled={disabled}
-          onChange={(e) => setModel(e.target.value)}
-          className={sel}
-        >
-          {list.map((o) => <option key={o.id} value={o.id}>{o.displayName}</option>)}
-        </select>
-      </label>
-      <div
-        title="Teto de gasto por turno em USD (vazio = sem limite). O turno para sozinho ao atingir o valor."
-        className={`flex items-center rounded-md border bg-neutral-950 pl-1.5 transition focus-within:border-orange-500/40 ${budget > 0 ? 'border-emerald-500/40' : 'border-neutral-800 hover:border-neutral-700'}`}
+    <label className="inline-flex items-center gap-1" title="Versão do agente desta sessão">
+      <span className={tag}>versão</span>
+      <select
+        value={model}
+        disabled={disabled}
+        onChange={(e) => setModel(e.target.value)}
+        className={sel}
       >
-        <span className="text-[11px] text-neutral-500">$</span>
-        <input
-          type="number"
-          min="0"
-          step="0.1"
-          value={budget > 0 ? budget : ''}
-          placeholder="teto"
-          onChange={(e) => { const v = parseFloat(e.target.value); setBudget(Number.isFinite(v) && v > 0 ? v : 0); }}
-          className="w-12 bg-transparent px-1 py-1 text-[11px] font-medium text-neutral-300 outline-none placeholder-neutral-600"
-        />
-      </div>
-    </div>
+        {list.map((o) => <option key={o.id} value={o.id}>{o.displayName}</option>)}
+      </select>
+    </label>
   );
 }
 

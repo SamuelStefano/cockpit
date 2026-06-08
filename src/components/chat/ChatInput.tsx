@@ -24,8 +24,6 @@ interface ChatInputProps {
   model: string;
   setModel: (m: string) => void;
   models: ModelInfo[];
-  budget: number;
-  setBudget: (n: number) => void;
   skills: SkillMeta[];
   selectedSkills: string[];
   setSelectedSkills: (ids: string[]) => void;
@@ -44,7 +42,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, budget, setBudget, skills, selectedSkills, setSelectedSkills, attachments, onRemoveAttachment, queued, onCancelQueue } = props;
+  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, skills, selectedSkills, setSelectedSkills, attachments, onRemoveAttachment, queued, onCancelQueue } = props;
   const hasAtt = attachments.length > 0;
   const { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic } = useChatInput({ ...props, hasAtt });
   return (
@@ -66,7 +64,7 @@ export function ChatInput(props: ChatInputProps) {
         )}
         <div className="ml-auto flex items-center gap-2">
           <SkillPicker skills={skills} selected={selectedSkills} setSelected={setSelectedSkills} />
-          <ModelPicker model={model} setModel={setModel} models={models} budget={budget} setBudget={setBudget} disabled={false} />
+          <ModelPicker model={model} setModel={setModel} models={models} disabled={false} />
         </div>
       </div>
       {hasAtt && (
@@ -154,6 +152,7 @@ export function ChatInput(props: ChatInputProps) {
         />
         {disabled ? (
           <button
+            type="button"
             onClick={onStop}
             title="Interromper resposta"
             className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-800 text-neutral-200 transition hover:bg-red-500/20 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40"

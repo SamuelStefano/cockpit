@@ -13,6 +13,10 @@ interface SessionRowActionsProps {
   onStop?: () => void;
   onArchive: () => void;
   onDelete: () => void;
+  // Abertura controlada de fora (ex: long-press no card em mobile). Se omitido, o
+  // menu controla o próprio estado via o botão de grip.
+  open?: boolean;
+  onOpenChange?: (v: boolean) => void;
 }
 
 interface Item {
@@ -23,8 +27,10 @@ interface Item {
   danger?: boolean;
 }
 
-export function SessionRowActions({ pinned, running, canStop, canDescribe, onTogglePin, onRename, onDescribe, onStop, onArchive, onDelete }: SessionRowActionsProps) {
-  const [open, setOpen] = useState(false);
+export function SessionRowActions({ pinned, running, canStop, canDescribe, onTogglePin, onRename, onDescribe, onStop, onArchive, onDelete, open: openProp, onOpenChange }: SessionRowActionsProps) {
+  const [openInternal, setOpenInternal] = useState(false);
+  const open = openProp ?? openInternal;
+  const setOpen = (v: boolean) => { onOpenChange ? onOpenChange(v) : setOpenInternal(v); };
   const ref = useRef<HTMLDivElement>(null);
 
   // Fecha ao clicar fora ou apertar Esc.
@@ -48,7 +54,7 @@ export function SessionRowActions({ pinned, running, canStop, canDescribe, onTog
   return (
     <div ref={ref} className="relative">
       <button
-        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
         title="Ações"
         aria-haspopup="menu"
         aria-expanded={open}

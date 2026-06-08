@@ -375,10 +375,10 @@ export function DocSections({ year }: { year: number }) {
         </div>
       </section>
 
-      {/* Modelos & teto */}
+      {/* Modelos */}
       <section id="modelos" className="mb-14 scroll-mt-6">
-        <SectionTitle icon="claude" kicker="o agente" title="Modelos & teto de gasto"
-          desc="Cada sessão escolhe qual versão do agente usar e quanto pode gastar. As versões são puxadas direto da Anthropic, então a lista fica sempre atualizada." />
+        <SectionTitle icon="claude" kicker="o agente" title="Versão do agente"
+          desc="Cada sessão escolhe qual versão do agente usar. As versões são puxadas direto da Anthropic, então a lista fica sempre atualizada." />
         <div className="grid gap-3 sm:grid-cols-2">
           <Card>
             <div className="mb-2 flex items-center gap-2">
@@ -389,17 +389,6 @@ export function DocSections({ year }: { year: number }) {
               O seletor <span className="font-medium text-neutral-300">versão</span> lista os modelos disponíveis
               (Opus, Sonnet, Haiku) na release mais recente. Opus é o mais capaz; Haiku, o mais rápido e barato.
               A lista vem do catálogo oficial da Anthropic — quando sai uma versão nova, ela aparece sozinha.
-            </p>
-          </Card>
-          <Card>
-            <div className="mb-2 flex items-center gap-2">
-              <Icon name="zap" size={15} className="text-emerald-300" />
-              <h3 className="text-[14px] font-semibold text-neutral-100">Teto por turno ($)</h3>
-            </div>
-            <p className="text-[13px] leading-relaxed text-neutral-400">
-              O campo <span className="font-medium text-neutral-300">teto</span> define um limite de gasto em dólares
-              por turno. Ao atingir o valor, o turno para sozinho — uma rede de segurança contra um run que dispara o custo.
-              Vazio = sem limite.
             </p>
           </Card>
         </div>
