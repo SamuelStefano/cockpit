@@ -112,6 +112,14 @@ export function createRelay(cfg: RelayConfig) {
 
   // ── Browser path: JWT → accountId, route command frames to that account's agent.
   wssBrowser.on('connection', async (ws: WebSocket, req: IncomingMessage) => {
+    // O cliente dispara `list`/`list-archived`/… no onopen, ANTES de a auth (await
+    // do JWKS) terminar e o listener real ser anexado. Sem capturar, o `ws` descarta
+    // esses frames (sem listener) e a aba nunca recebe `sessions` → sidebar vazio em
+    // prod/relay. Bufferiza os frames pré-auth e os drena depois de autenticar.
+    const early: string[] = [];
+    const buffer = (data: import('ws').RawData) => { early.push(data.toString()); };
+    ws.on('message', buffer);
+
     const id = await identityFrom(tokenFromUrl(req.url));
     if (!id) { ws.close(4401, 'auth'); return; }            // default-deny (red line #10)
     const accountId = id.accountId;
@@ -120,9 +128,12 @@ export function createRelay(cfg: RelayConfig) {
     // caps autoritativo do relay (papel da conta vem do JWT). canBypass casa o papel
     // privilegiado com a capacidade que o agente reportou — o gate real é no agente.
     ws.send(capsFrame(id.role, accountId));
-    if (!registry.hasAgent(accountId)) ws.send(JSON.stringify({ t: 'agent-offline' }));
-    ws.on('message', async (data) => {
-      const s = data.toString();
+    // Estado ATUAL do agente pra esta aba. Antes só mandava agent-offline; uma aba
+    // que conectava com o agente JÁ online nunca recebia agent-online e ficava presa
+    // na tela de pareamento (agentOnline inicia false no modo relay).
+    ws.send(JSON.stringify({ t: registry.hasAgent(accountId) ? 'agent-online' : 'agent-offline' }));
+
+    const onFrame = async (s: string) => {
       // Frames de administração de CONTA (T3): tratados NO RELAY (só ele tem a
       // service-role do Supabase). Gate por papel da conta vindo do JWT — nunca
       // do frame. Não são repassados ao agente (que não tem acesso ao banco).
@@ -153,7 +164,11 @@ export function createRelay(cfg: RelayConfig) {
       // Roteia opaco pro agente DAQUELA conta. A autenticidade fim-a-fim do frame
       // (assinatura, T5) é verificada NO AGENTE, não aqui — o relay não confia em si.
       if (!registry.toAgent(accountId, s)) ws.send(JSON.stringify({ t: 'agent-offline' }));
-    });
+    };
+
+    ws.off('message', buffer);
+    ws.on('message', (data) => { void onFrame(data.toString()); });
+    for (const s of early) void onFrame(s);   // drena na ordem de chegada
     ws.on('close', () => registry.removeBrowser(accountId, ws));
   });
 

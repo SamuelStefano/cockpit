@@ -100,6 +100,66 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
     expect(off.t).toBe('agent-offline'); // conta B isolada, sem agente pareado
   });
 
+  it('tells a newly-connected browser the agent is already online', async () => {
+    const A = makeAgentKeys();
+    const store: RelayStore = {
+      async agentById(id) { return id === 'ag-A' ? { accountId: 'accA', publicKey: A.pub } : null; },
+      async isAdmin() { return false; },
+      async listAccounts() { return []; }, async setAdmin() { return true; },
+      async markAgentSeen() {}, async createPairingCode() { return 'x'; },
+      async consumePairingCode() { return null; }, async createAgent() { return null; },
+    };
+    const relay = createRelay({
+      iss: 't', jwksUrl: 'http://x', rootEmails: '', store,
+      resolveIdentity: async (tok) => tok?.startsWith('A') ? { accountId: 'accA', email: 'a@x', role: 'fellow' } : null,
+    });
+    server = relay.server;
+    await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
+    const url = `ws://127.0.0.1:${(server!.address() as AddressInfo).port}`;
+
+    const agentA = connectFakeAgent(url, 'ag-A', A.priv); sockets.push(agentA.ws);
+    await agentA.ready; // agente já bindado ANTES da aba conectar
+
+    const browserA = new WebSocket(`${url}/ws?token=A1`); sockets.push(browserA);
+    const waitA = collect(browserA);
+    // Sem este frame a aba ficava presa no pareamento (agentOnline inicia false).
+    const online = await waitA((m) => m.t === 'agent-online');
+    expect(online.t).toBe('agent-online');
+  });
+
+  it('routes a browser frame sent on open, before auth completes (no early-frame drop)', async () => {
+    const A = makeAgentKeys();
+    const store: RelayStore = {
+      async agentById(id) { return id === 'ag-A' ? { accountId: 'accA', publicKey: A.pub } : null; },
+      async isAdmin() { return false; },
+      async listAccounts() { return []; }, async setAdmin() { return true; },
+      async markAgentSeen() {}, async createPairingCode() { return 'x'; },
+      async consumePairingCode() { return null; }, async createAgent() { return null; },
+    };
+    const relay = createRelay({
+      iss: 't', jwksUrl: 'http://x', rootEmails: '', store,
+      // Auth lenta de propósito: simula o RTT do JWKS. No código antigo o `list`
+      // disparado no open chegava nessa janela e era descartado (sem listener).
+      resolveIdentity: async (tok) => {
+        await new Promise((r) => setTimeout(r, 60));
+        return tok?.startsWith('A') ? { accountId: 'accA', email: 'a@x', role: 'fellow' } : null;
+      },
+    });
+    server = relay.server;
+    await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
+    const url = `ws://127.0.0.1:${(server!.address() as AddressInfo).port}`;
+
+    const agentA = connectFakeAgent(url, 'ag-A', A.priv); sockets.push(agentA.ws);
+    await agentA.ready;
+
+    const browserA = new WebSocket(`${url}/ws?token=A1`); sockets.push(browserA);
+    const waitA = collect(browserA);
+    // Dispara `list` no open — exatamente como o cliente real faz — ANTES da auth.
+    browserA.on('open', () => browserA.send(JSON.stringify({ t: 'list' })));
+    const echo = await waitA((m) => m.t === 'echo' && m.saw === 'list');
+    expect(echo.saw).toBe('list'); // o frame pré-auth chegou ao agente
+  });
+
   it('gates account admin frames by role (root toggles, fellow denied)', async () => {
     const setCalls: Array<{ id: string; admin: boolean }> = [];
     const rows = [
