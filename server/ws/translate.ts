@@ -92,7 +92,9 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
     }
     case 'result': {
       const r = ev as any;
-      if (typeof r.total_cost_usd === 'number') thread.costUsd = r.total_cost_usd;
+      // typeof NaN === 'number': um total_cost_usd NaN/negativo/Infinity do CLI
+      // vazaria pro 'done' e pra UI. Exige finito e >= 0.
+      if (Number.isFinite(r.total_cost_usd) && r.total_cost_usd >= 0) thread.costUsd = r.total_cost_usd;
       if (typeof r.duration_ms === 'number') thread.durationMs = r.duration_ms;
       if (typeof r.num_turns === 'number') thread.numTurns = r.num_turns;
       if (typeof r.subtype === 'string') thread.endReason = r.subtype;

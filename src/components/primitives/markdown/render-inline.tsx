@@ -1,6 +1,17 @@
 import type { ReactNode } from 'react';
 import { tokenizeInline } from './tokenize-inline';
 
+// Allowlist de esquema pra href de link markdown. O conteúdo vem do modelo / saída
+// de tool (não-confiável): um `[clique](javascript:...)` viraria âncora que executa
+// script no clique. Só http(s)/mailto e caminhos relativos passam; o resto perde o
+// href (vira texto puro). data: também fica de fora (data:text/html é vetor de XSS).
+function safeHref(url: string): string | undefined {
+  const u = url.trim();
+  if (/^(https?:|mailto:)/i.test(u)) return u;
+  if (/^[/#?]/.test(u) || /^[\w.-]+(\/|$)/.test(u)) return u; // relativo (sem esquema)
+  return undefined;
+}
+
 export function renderInline(text: string, keyBase: string): ReactNode[] {
   const nodes: ReactNode[] = [];
   let i = 0;
@@ -42,14 +53,20 @@ export function renderInline(text: string, keyBase: string): ReactNode[] {
         );
         if (t.trail) nodes.push(<span key={`${key}-tp`}>{t.trail}</span>);
         break;
-      case 'link':
+      case 'link': {
+        const href = safeHref(t.url);
         nodes.push(
-          <a key={key} href={t.url} target="_blank" rel="noreferrer"
-            className="text-orange-400 underline decoration-orange-400/40 underline-offset-2 transition hover:decoration-orange-400">
-            {t.label}
-          </a>
+          href === undefined ? (
+            <span key={key}>{t.label}</span>
+          ) : (
+            <a key={key} href={href} target="_blank" rel="noreferrer"
+              className="text-orange-400 underline decoration-orange-400/40 underline-offset-2 transition hover:decoration-orange-400">
+              {t.label}
+            </a>
+          )
         );
         break;
+      }
     }
   }
   return nodes;

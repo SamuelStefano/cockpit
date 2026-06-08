@@ -30,14 +30,31 @@ describe('translate', () => {
 
   it('normalizes a rate-limit reset given in epoch seconds to ms', () => {
     const t = register();
-    translate(KEY, t, { type: 'rate_limit_event', rate_limit_info: { resetsAt: 1_700_000_000, status: 'limited' } } as never);
-    expect(getLastRate()?.resetsAt).toBe(1_700_000_000_000);
+    const secs = Math.floor(Date.now() / 1000) + 3600; // futuro: getLastRate não expira
+    translate(KEY, t, { type: 'rate_limit_event', rate_limit_info: { resetsAt: secs, status: 'limited' } } as never);
+    expect(getLastRate()?.resetsAt).toBe(secs * 1000);
   });
 
   it('leaves a reset already in ms untouched', () => {
     const t = register();
-    translate(KEY, t, { type: 'rate_limit_event', rate_limit_info: { resetsAt: 1_700_000_000_000, status: 'allowed' } } as never);
-    expect(getLastRate()?.resetsAt).toBe(1_700_000_000_000);
+    const ms = Date.now() + 3_600_000; // futuro: getLastRate não expira
+    translate(KEY, t, { type: 'rate_limit_event', rate_limit_info: { resetsAt: ms, status: 'allowed' } } as never);
+    expect(getLastRate()?.resetsAt).toBe(ms);
+  });
+
+  it('expires a stale rate window (resetsAt já passou) on read', () => {
+    const t = register();
+    const past = Math.floor(Date.now() / 1000) - 3600; // 1h atrás, em segundos
+    translate(KEY, t, { type: 'rate_limit_event', rate_limit_info: { resetsAt: past, status: 'limited' } } as never);
+    expect(getLastRate()).toBeNull();
+  });
+
+  it('ignores a non-finite/negative total_cost_usd from result', () => {
+    const t = register();
+    translate(KEY, t, { type: 'result', total_cost_usd: NaN, subtype: 'success' } as never);
+    expect(t.costUsd).toBeUndefined();
+    translate(KEY, t, { type: 'result', total_cost_usd: -5, subtype: 'success' } as never);
+    expect(t.costUsd).toBeUndefined();
   });
 
   it('captures cost/duration/turns/endReason from result', () => {

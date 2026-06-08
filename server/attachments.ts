@@ -1,5 +1,6 @@
 import { mkdir, writeFile, readdir, stat, rm } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
+import { randomBytes } from 'node:crypto';
 import { CONFIG } from './config';
 
 // Anexo LOCAL: grava o arquivo no workdir isolado do agente e devolve um path
@@ -30,7 +31,9 @@ export async function saveAttachment(
   if (buf.length > CONFIG.maxUploadBytes) return { error: 'arquivo grande demais' };
 
   const key = safeSeg(sessionKey, 64, 'default');
-  const fname = `${Date.now().toString(36)}-${safeSeg(name, 80, 'file')}`;
+  // Sufixo aleatório além do timestamp: dois uploads no mesmo ms com o mesmo nome
+  // resolveriam pro mesmo path e o 2º sobrescreveria o 1º (Read apontaria errado).
+  const fname = `${Date.now().toString(36)}-${randomBytes(4).toString('hex')}-${safeSeg(name, 80, 'file')}`;
 
   const root = resolve(CONFIG.workdir, 'attachments');
   const dir = resolve(root, key);
