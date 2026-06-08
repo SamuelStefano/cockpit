@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Icon } from '../primitives';
+import { AuthIntro } from './AuthIntro';
 
 interface AuthActions {
   error: string;
@@ -31,7 +32,8 @@ export function SupabaseAuthGate({ auth }: { auth: AuthActions }) {
   const switchMode = (m: 'login' | 'register') => { setMode(m); auth.clearError(); setInfo(''); };
 
   return (
-    <div className="flex h-full flex-1 items-center justify-center bg-neutral-950 px-4">
+    <div className="flex h-full flex-1 items-center justify-center gap-12 bg-neutral-950 px-4">
+      <AuthIntro />
       <form onSubmit={submit} className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900/60 p-7 shadow-2xl">
         <div className="mb-5 flex items-center gap-2.5">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-neutral-950 shadow-[0_0_12px_-1px_rgba(249,115,22,0.55)]">

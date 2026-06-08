@@ -1,4 +1,4 @@
-export { Icon } from './Icon';
+export { Icon, type IconName } from './Icon';
 export { Badge } from './Badge';
 export { ConnDot, type ConnState } from './ConnDot';
 export { Skeleton } from './Skeleton';

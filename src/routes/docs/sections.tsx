@@ -190,7 +190,7 @@ export function DocSections({ year }: { year: number }) {
               <h3 className="text-[14px] font-semibold text-neutral-100">Rode o agente na VPS</h3>
             </div>
             <p className="text-[13px] leading-relaxed text-neutral-400">
-              No terminal da sua VPS — com o <Pill>claude</Pill> CLI já logado — cole o comando mostrado: <Pill>npx @deck/agent --pair=CÓDIGO</Pill>.
+              No terminal da sua VPS — com o <Pill>claude</Pill> CLI já logado — cole o comando mostrado (<Pill>curl … agent-setup.sh | bash -s -- CÓDIGO</Pill>), que clona o repo, instala as dependências e pareia.
               O agente gera um par de chaves <span className="font-medium text-neutral-300">Ed25519</span> que <span className="font-medium text-neutral-300">nasce e fica na sua máquina</span> (a privada nunca sai),
               disca o relay e se pareia à sua conta. A tela troca sozinha quando ele conecta.
             </p>
