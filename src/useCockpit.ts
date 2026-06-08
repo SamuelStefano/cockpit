@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Session, Message, Block } from './data/mock';
 import type { ClientMsg, ServerMsg, SysStats, PermMode, ModelInfo, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth, Caps, PlanUsage, AccountSummary } from '../shared/protocol';
 import { loadPref, savePref } from './lib/persist';
+import { SUPABASE_ENABLED } from './lib/supabase';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
 import { wsUrlWithToken, newId, metaToSession, dedupById, mergeSeen } from './cockpit/session';
 import { computeStalled, computeUpdated } from './cockpit/signals';
@@ -645,9 +646,14 @@ export function useCockpit(): Cockpit {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Login: guarda o token e reconecta na hora com ele. Chamado pelo gate de auth.
+  // Login: guarda o token e reconecta na hora com ele. Chamado pelo gate de auth e
+  // por todo onAuthStateChange do Supabase. Se o token não mudou e já existe um
+  // socket vivo, não derruba a conexão à toa — senão o SIGNED_IN inicial (mesmo
+  // token já persistido) fecharia o socket ainda CONNECTING ("closed before
+  // established") e o TOKEN_REFRESHED periódico reconectaria sem necessidade.
   const submitToken = useCallback((token: string) => {
     const t = token.trim();
+    if (t === tokenRef.current && wsRef.current) return;
     tokenRef.current = t;
     savePref('auth.token', t);
     setAuthRequired(false);
@@ -659,7 +665,11 @@ export function useCockpit(): Cockpit {
   }, [connect]);
 
   useEffect(() => {
-    connect();
+    // Com Supabase ligado (relay), só disca depois que o login alimentar o token —
+    // conectar antes manda um socket sem credencial pro relay, que o derruba na hora
+    // e gera o churn de reconnect. submitToken (via onAuthStateChange) chama connect()
+    // assim que a sessão resolve. No loopback (Supabase off) conecta de cara como sempre.
+    if (!(SUPABASE_ENABLED && !tokenRef.current)) connect();
     return () => {
       if (retry.current) clearTimeout(retry.current);
       if (adminOpTimer.current) clearTimeout(adminOpTimer.current);
