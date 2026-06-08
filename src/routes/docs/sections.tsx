@@ -171,45 +171,53 @@ export function DocSections({ year }: { year: number }) {
 
       {/* Conectar de outro aparelho */}
       <section id="conexao" className="mb-14 scroll-mt-6">
-        <SectionTitle icon="terminal" kicker="acesso remoto" title="Conectar de outro aparelho"
-          desc="O Deck que você abre no navegador é só a tela; o cérebro é o backend que roda na sua VPS. Pra usar do celular ou de outro PC, o app precisa saber onde a VPS está e ter o token de acesso." />
+        <SectionTitle icon="terminal" kicker="acesso remoto" title="Conectar a sua VPS"
+          desc="O Deck que você abre no navegador é só a tela; o cérebro roda na sua VPS. Você pareia a VPS à sua conta uma única vez — depois é só logar de qualquer aparelho que ela te segue, sem expor nada na internet." />
         <div className="space-y-3">
           <Card>
             <div className="mb-2 flex items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded-md bg-orange-500/15 text-[11px] font-semibold text-orange-300">1</span>
-              <h3 className="text-[14px] font-semibold text-neutral-100">Deixe a VPS alcançável</h3>
+              <h3 className="text-[14px] font-semibold text-neutral-100">Entre na sua conta</h3>
             </div>
             <p className="text-[13px] leading-relaxed text-neutral-400">
-              O backend escuta só em <Pill>127.0.0.1</Pill> (loopback) por segurança — ele não fica aberto na internet.
-              A forma recomendada de alcançá-lo de fora é uma rede privada como o <span className="font-medium text-neutral-300">Tailscale</span>:
-              instale na VPS e no seu aparelho, e a VPS ganha um endereço fixo da sua tailnet (ex: <Pill>deck.minha-tailnet.ts.net</Pill>) que só você acessa.
+              Abra o Deck e faça login. Enquanto nenhuma VPS sua estiver pareada e online, aparece a tela
+              <span className="font-medium text-neutral-300"> “conectar sua VPS”</span> com um comando de uma linha e um código de pareamento.
             </p>
           </Card>
           <Card>
             <div className="mb-2 flex items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded-md bg-orange-500/15 text-[11px] font-semibold text-orange-300">2</span>
-              <h3 className="text-[14px] font-semibold text-neutral-100">Proteja com um token</h3>
+              <h3 className="text-[14px] font-semibold text-neutral-100">Rode o agente na VPS</h3>
             </div>
             <p className="text-[13px] leading-relaxed text-neutral-400">
-              Defina a variável <Pill>COCKPIT_TOKEN</Pill> ao subir o backend (o <Pill>serve-fellow</Pill> gera uma forte sozinho e imprime no console).
-              Sem token, o backend só aceita conexões locais; com token, qualquer aparelho precisa apresentá-lo pra entrar.
+              No terminal da sua VPS — com o <Pill>claude</Pill> CLI já logado — cole o comando mostrado: <Pill>npx @deck/agent --pair=CÓDIGO</Pill>.
+              O agente gera um par de chaves <span className="font-medium text-neutral-300">Ed25519</span> que <span className="font-medium text-neutral-300">nasce e fica na sua máquina</span> (a privada nunca sai),
+              disca o relay e se pareia à sua conta. A tela troca sozinha quando ele conecta.
             </p>
           </Card>
           <Card>
             <div className="mb-2 flex items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded-md bg-orange-500/15 text-[11px] font-semibold text-orange-300">3</span>
-              <h3 className="text-[14px] font-semibold text-neutral-100">Aponte o app pra VPS</h3>
+              <h3 className="text-[14px] font-semibold text-neutral-100">Use de qualquer lugar</h3>
             </div>
             <p className="text-[13px] leading-relaxed text-neutral-400">
-              No aparelho novo, abra o Deck e use <span className="font-medium text-neutral-300">Configurar endereço do backend</span> (na tela de acesso ou no aviso de “backend não acessível”).
-              Cole o endereço do WebSocket — <Pill>wss://deck.minha-tailnet.ts.net/ws</Pill> — e o token. Fica salvo só naquele navegador.
+              Pronto. O app puxa o que vive na sua VPS — conta Claude, uso, contextos, skills, sessões.
+              Do celular ou de outro PC, basta logar na mesma conta: o relay roteia <span className="font-medium text-neutral-300">por-conta</span>, então só você alcança o seu agente.
             </p>
           </Card>
+        </div>
+        <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-amber-500/20 bg-amber-500/[0.06] p-4">
+          <Icon name="shield" size={15} className="mt-0.5 shrink-0 text-amber-400/80" />
+          <p className="text-[12.5px] leading-relaxed text-amber-200/80">
+            <span className="font-medium">Capacidade do agente ·</span> por padrão o agente sobe em modo <span className="font-medium">least-capability</span> (chat, sessões e contextos — sem terminais nem admin).
+            Pra ter controle total da própria box (terminais reais + painel admin), o dono sobe o agente com <Pill>DECK_AGENT_ROLE=admin</Pill>.
+          </p>
         </div>
         <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-sky-500/20 bg-sky-500/[0.06] p-4">
           <Icon name="circle" size={15} className="mt-0.5 shrink-0 text-sky-400/80" />
           <p className="text-[12.5px] leading-relaxed text-sky-200/80">
-            Uma sessão iniciada no PC continua visível no celular: o estado mora no backend, não na aba. Trocar de aparelho é só reabrir o Deck apontado pra mesma VPS.
+            <span className="font-medium">Beta · relay confiável.</span> Hoje o relay é operado pela DevFellowship: ele encaminha sua sessão pra sua VPS,
+            mas tecnicamente vê o tráfego. A verificação ponta-a-ponta (relay sem poder forjar comandos) entra antes de abrir pra VPSs de terceiros.
           </p>
         </div>
       </section>
@@ -400,26 +408,37 @@ export function DocSections({ year }: { year: number }) {
       {/* Admin */}
       <section id="admin" className="mb-14 scroll-mt-6">
         <SectionTitle icon="shield" kicker="operação" title="Tela de Admin"
-          desc="O painel de controle de quem opera a VPS: saúde da máquina, estado do CLI e da infra, inventário de sessões e memórias. É leitura — mostra o que está acontecendo, sem mexer no sistema." />
+          desc="O posto de controle de quem opera a VPS: saúde da máquina, inventário, gestão de contas e operações no host. A leitura está sempre à mão; as ações de escrita são restritas e ficam visíveis só pra quem é admin." />
         <div className="grid gap-3 sm:grid-cols-2">
           <Card>
             <div className="mb-2 flex items-center gap-2">
               <Icon name="zap" size={15} className="text-emerald-300" />
-              <h3 className="text-[14px] font-semibold text-neutral-100">Saúde & infra</h3>
+              <h3 className="text-[14px] font-semibold text-neutral-100">Saúde & inventário</h3>
             </div>
             <p className="text-[13px] leading-relaxed text-neutral-400">
-              CPU, RAM, disco e carga em tempo real, mais o estado do CLI do Claude, do SSH e dos servidores MCP conectados.
-              Um raio-x de tudo que o Deck depende pra funcionar.
+              CPU, RAM, disco e carga em tempo real, mais o estado do CLI do Claude, SSH, MCPs, plugins, tmux
+              e contagem de sessões, contextos e skills. Tokens do ambiente aparecem <span className="font-medium text-neutral-300">só pelo nome</span> — nunca o valor.
             </p>
           </Card>
           <Card>
             <div className="mb-2 flex items-center gap-2">
-              <Icon name="message" size={15} className="text-violet-300" />
-              <h3 className="text-[14px] font-semibold text-neutral-100">Inventário</h3>
+              <Icon name="user" size={15} className="text-violet-300" />
+              <h3 className="text-[14px] font-semibold text-neutral-100">Contas</h3>
             </div>
             <p className="text-[13px] leading-relaxed text-neutral-400">
-              Contagem de sessões, memórias de contexto, skills e plugins instalados, além de números de consumo agregados —
-              pra ter a foto geral da operação num lugar só.
+              Lista de contas com acesso e um interruptor de <span className="font-medium text-neutral-300">admin</span> por conta.
+              Conceder/revogar admin é restrito ao <span className="font-medium text-neutral-300">root</span> (definido por variável de ambiente no servidor, não no banco).
+            </p>
+          </Card>
+          <Card>
+            <div className="mb-2 flex items-center gap-2">
+              <Icon name="terminal" size={15} className="text-orange-300" />
+              <h3 className="text-[14px] font-semibold text-neutral-100">Operações no host</h3>
+            </div>
+            <p className="text-[13px] leading-relaxed text-neutral-400">
+              Direto do browser: definir/remover <span className="font-medium text-neutral-300">tokens de ambiente</span>,
+              adicionar/remover <span className="font-medium text-neutral-300">servidores MCP</span> e instalar <span className="font-medium text-neutral-300">CLIs</span> na máquina.
+              Tudo gated por admin — comandos rodam por argumentos (sem shell), não por concatenação de texto.
             </p>
           </Card>
           <Card>
@@ -428,18 +447,16 @@ export function DocSections({ year }: { year: number }) {
               <h3 className="text-[14px] font-semibold text-neutral-100">Token de acesso</h3>
             </div>
             <p className="text-[13px] leading-relaxed text-neutral-400">
-              Defina a variável <Pill>COCKPIT_TOKEN</Pill> no servidor e o Deck passa a exigir esse token na entrada —
-              uma tela de login aparece antes de qualquer coisa da VPS carregar. Sem a variável, o acesso fica livre
-              (modo de rede privada). O token nunca é exposto: viaja só na conexão e fica guardado no navegador.
+              Defina a variável <Pill>COCKPIT_TOKEN</Pill> no servidor e o Deck passa a exigir esse token na entrada (modo loopback/rede privada).
+              Pelo relay, o acesso é por <span className="font-medium text-neutral-300">conta</span>. Em qualquer caso o token nunca é exposto: viaja só na conexão e fica no navegador.
             </p>
           </Card>
         </div>
         <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-red-500/25 bg-red-500/[0.07] p-4">
           <Icon name="shield" size={15} className="mt-0.5 shrink-0 text-red-400/80" />
           <p className="text-[12.5px] leading-relaxed text-red-200/80">
-            <span className="font-medium">Só para administradores ·</span> esta aba dá visão da máquina inteira e por isso
-            deve ficar visível apenas para quem é admin. O acesso ao Deck já pode ser protegido por um token (veja abaixo);
-            o próximo passo é o login com níveis de acesso distintos por conta.
+            <span className="font-medium">Default-deny por papel ·</span> a rota Admin fica escondida pra quem não é admin, e o backend nega toda
+            ação administrativa que não venha de um admin — qualquer comando novo já entra negado por padrão até ser liberado explicitamente.
           </p>
         </div>
       </section>

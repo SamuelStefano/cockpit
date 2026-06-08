@@ -79,7 +79,10 @@ export const FILEMAP: { group: string; tone: string; files: { path: string; what
       { path: 'src/routes/Contextos.tsx', what: 'Aba Contextos — viewer/busca da memória do agente.' },
       { path: 'src/routes/Skills.tsx', what: 'Aba Skills — habilidades instaladas, compartilháveis.' },
       { path: 'src/routes/Observatorio.tsx', what: 'Aba Uso — custo, tokens, turnos e janela de rate-limit.' },
-      { path: 'src/routes/Admin.tsx', what: 'Aba Admin — saúde da máquina, infra e inventário.' },
+      { path: 'src/routes/Admin.tsx', what: 'Aba Admin — junta saúde, contas, host-ops e inventário; cada bloco num arquivo próprio.' },
+      { path: 'src/routes/AdminAccounts.tsx', what: 'Lista de contas + toggle de admin (conceder/revogar restrito ao root).' },
+      { path: 'src/routes/AdminHostOps.tsx', what: 'Ações no host: tokens de ambiente, servidores MCP e install de CLI a partir do browser.' },
+      { path: 'src/routes/AdminInventory.tsx', what: 'Inventário read-only do host (vínculos + grids de CLIs/MCP/SSH/tmux/plugins/tokens).' },
       { path: 'src/routes/Docs.tsx', what: 'Esta página — o manual do Deck.' },
       { path: 'src/cockpit/blocks.ts', what: 'Monta os blocos de uma mensagem (texto, ferramenta, raciocínio) a partir do stream.' },
       { path: 'src/cockpit/session.ts', what: 'Modelo e helpers de uma sessão no cliente.' },
@@ -107,6 +110,8 @@ export const FILEMAP: { group: string; tone: string; files: { path: string; what
   {
     group: 'Backend · agente, sessões & dados', tone: 'text-amber-300 border-amber-500/30 bg-amber-500/10',
     files: [
+      { path: 'server/agent.ts', what: 'Modo dial (T3): pareia a VPS ao relay com chave Ed25519 (privada fica na box) e atende a conta dona.' },
+      { path: 'server/admin-ops.ts', what: 'Backend das operações de host (env tokens/MCP/install de CLI), gated por papel admin.' },
       { path: 'server/engine/claude.ts', what: 'Spawna o Claude headless (stream-json) e traduz a saída em eventos.' },
       { path: 'server/engine/triage.ts', what: 'O sub-agente de triagem do próximo prompt (responder/enfileirar/prioridade/mesclar).' },
       { path: 'server/engine/events.ts', what: 'Tipos e normalização dos eventos do agente.' },
