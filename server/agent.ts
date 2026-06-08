@@ -108,10 +108,16 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: ()
   // socket meio-aberto (relay reiniciou, NAT dropou, laptop dormiu) fica "vivo"
   // pra sempre engolindo frames. Se não veio pong desde o último ping, o link
   // está morto → terminate() → dispara o 'close' → reconnect com backoff.
+  // Também reconecta se o buffer de saída encalhar: um relay que para de DRENAR
+  // (consumidor lento/meio-morto que ainda responde pong) deixa o bufferedAmount
+  // crescer sem parar. Aí os loops periódicos (stats é 'droppable' no broadcast)
+  // são descartados por backpressure e a telemetria/usage somem na UI mesmo com o
+  // socket "aberto" — o bug que sumia com stats após horas. Encalhe = link morto.
+  const MAX_BUFFERED = 1_000_000;
   let alive = true;
   ws.on('pong', () => { alive = true; });
   const beat = setInterval(() => {
-    if (!alive) { try { ws.terminate(); } catch { /* indo embora */ } return; }
+    if (!alive || ws.bufferedAmount > MAX_BUFFERED) { try { ws.terminate(); } catch { /* indo embora */ } return; }
     alive = false;
     try { ws.ping(); } catch { /* indo embora */ }
   }, 30_000);
