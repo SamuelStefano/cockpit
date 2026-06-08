@@ -34,6 +34,9 @@ export interface RelayConfig {
   rootEmails: string;     // CSV (COCKPIT_ROOT_EMAILS)
   store: RelayStore;
   maxPayload?: number;
+  // Override da resolução de identidade do browser (default: JWT via JWKS). Existe
+  // só pra TESTE de integração local (stub) — em prod fica undefined = JWKS real.
+  resolveIdentity?: (token: string | null) => Promise<Identity | null>;
 }
 
 const tokenFromUrl = (url: string | undefined): string | null => {
@@ -48,8 +51,10 @@ export function createRelay(cfg: RelayConfig) {
   const jwks: JwksFn = makeJwks(cfg.jwksUrl);
 
   // Resolve a identidade de um JWT (Authorization: Bearer ou ?token=). Usado pelo
-  // HTTP de pairing e poderia servir o WS — aqui só o que precisa de accountId.
+  // HTTP de pairing e pelo path do browser. O override (cfg.resolveIdentity) é só
+  // pra teste local; em prod é o caminho JWKS real abaixo.
   async function identityFrom(token: string | null): Promise<Identity | null> {
+    if (cfg.resolveIdentity) return cfg.resolveIdentity(token);
     if (!token) return null;
     const payload = await verifyJwtSignature(token, jwks, cfg.iss);
     const isAdmin = payload?.sub ? await cfg.store.isAdmin(String(payload.sub)) : false;
@@ -77,13 +82,7 @@ export function createRelay(cfg: RelayConfig) {
 
   // ── Browser path: JWT → accountId, route command frames to that account's agent.
   wssBrowser.on('connection', async (ws: WebSocket, req: IncomingMessage) => {
-    const token = tokenFromUrl(req.url);
-    let id: Identity | null = null;
-    if (token) {
-      const payload = await verifyJwtSignature(token, jwks, cfg.iss);
-      const isAdmin = payload?.sub ? await cfg.store.isAdmin(String(payload.sub)) : false;
-      id = validateClaims(payload, { iss: cfg.iss, nowSec: Math.floor(nowMs() / 1000), rootEmails: roots, isAdmin });
-    }
+    const id = await identityFrom(tokenFromUrl(req.url));
     if (!id) { ws.close(4401, 'auth'); return; }            // default-deny (red line #10)
     const accountId = id.accountId;
     registry.addBrowser(accountId, ws);
