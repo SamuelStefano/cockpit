@@ -5,8 +5,9 @@ import { join } from 'node:path';
 import { homedir, loadavg, cpus, freemem } from 'node:os';
 import type { Role } from './auth';
 import { serveConnection } from './ws/serve-connection';
-import { setClientSource } from './ws/broadcast';
+import { setClientSource, broadcast } from './ws/broadcast';
 import { killAllRuns } from './ws/runs';
+import { refreshModels } from './ws/models';
 
 // Entrypoint do AGENTE T3 (DR-023): em vez de escutar (attachWs), DISCA pro relay
 // e serve o MESMO protocolo pelo socket de saída. O relay encaminha os frames do
@@ -83,6 +84,10 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: ()
       activeWs = ws;
       setClientSource({ clients: new Set([ws]) });  // broadcast sai por ESTE socket
       serveConnection(ws, { role: AGENT_ROLE, sendCaps: false }); // relay é a fonte do caps
+      // Versões concretas (claude-opus-4-8…): no dial não há WebSocketServer pro
+      // startModelsLoop do modo listen, então o agente busca e emite aqui — senão a
+      // UI fica só com os aliases (opus/sonnet/haiku) sem versão.
+      refreshModels().then((m) => { if (m.length) broadcast({ t: 'models', models: m }); }).catch(() => { /* sem token/rede */ });
     }
   };
 

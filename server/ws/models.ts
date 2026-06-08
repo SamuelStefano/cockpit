@@ -13,6 +13,15 @@ const POLL_MS = 60 * 60_000;
 let last: ModelInfo[] = [];
 export function getLastModels() { return last; }
 
+// Busca e memoiza a lista (sem broadcast). Usado pelo agente T3 (dial), que não tem
+// um WebSocketServer pra rodar o startModelsLoop do modo listen — ele chama isto e
+// emite o frame `models` pelo próprio socket de saída.
+export async function refreshModels(): Promise<ModelInfo[]> {
+  const m = await fetchModels();
+  if (m && m.length) last = m;
+  return last;
+}
+
 // A lista da Anthropic vem do mais novo pro mais antigo. Enxugamos pra não poluir
 // o seletor: no máximo as 2 versões mais recentes do Opus, e só a última de cada
 // um dos outros tipos (Sonnet, Haiku). Mantém a ordem original (novo primeiro).
