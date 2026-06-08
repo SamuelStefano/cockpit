@@ -1,4 +1,3 @@
-import type { WebSocketServer } from 'ws';
 import type { PlanUsage } from '../../shared/protocol';
 import { broadcast } from './broadcast';
 import { readOAuthToken, OAUTH_BETA } from '../oauth';
@@ -47,11 +46,11 @@ export async function fetchPlanUsage(): Promise<PlanUsage | null> {
   try { return mapPlanUsage(await res.json()); } catch { return null; }
 }
 
-export function startPlanUsageLoop(wss: WebSocketServer) {
+export function startPlanUsageLoop(hasClients: () => boolean) {
   const tick = async (force = false) => {
     // Prime uma vez no boot (force) pra a barra pintar no primeiro connect; depois
     // só poll quando há cliente, pra não bater no endpoint à toa.
-    if (!force && wss.clients.size === 0) return;
+    if (!force && !hasClients()) return;
     const u = await fetchPlanUsage();
     if (!u) return;
     last = u;

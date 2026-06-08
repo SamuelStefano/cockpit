@@ -5,9 +5,11 @@ import { join } from 'node:path';
 import { homedir, loadavg, cpus, freemem } from 'node:os';
 import type { Role } from './auth';
 import { serveConnection } from './ws/serve-connection';
-import { setClientSource, broadcast } from './ws/broadcast';
+import { setClientSource } from './ws/broadcast';
 import { killAllRuns } from './ws/runs';
-import { refreshModels } from './ws/models';
+import { startModelsLoop } from './ws/models';
+import { startPlanUsageLoop } from './ws/usage-plan';
+import { startStatsLoop } from './ws/stats-loop';
 
 // Entrypoint do AGENTE T3 (DR-023): em vez de escutar (attachWs), DISCA pro relay
 // e serve o MESMO protocolo pelo socket de saída. O relay encaminha os frames do
@@ -84,10 +86,9 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: ()
       activeWs = ws;
       setClientSource({ clients: new Set([ws]) });  // broadcast sai por ESTE socket
       serveConnection(ws, { role: AGENT_ROLE, sendCaps: false }); // relay é a fonte do caps
-      // Versões concretas (claude-opus-4-8…): no dial não há WebSocketServer pro
-      // startModelsLoop do modo listen, então o agente busca e emite aqui — senão a
-      // UI fica só com os aliases (opus/sonnet/haiku) sem versão.
-      refreshModels().then((m) => { if (m.length) broadcast({ t: 'models', models: m }); }).catch(() => { /* sem token/rede */ });
+      // bootstrap do serveConnection já replaya o último snapshot (models/plan-usage/
+      // stats) PRA ESTE socket; os loops periódicos (startLoops no runAgent) seguem
+      // emitindo via broadcast enquanto este socket for o activeWs.
     }
   };
 
@@ -174,6 +175,15 @@ export function runAgent(relayUrl: string): void {
     process.exit(1);
   }
   startHealthGuard();
+  // Loops periódicos (telemetria/usage/modelos) que o modo listen roda no attachWs.
+  // No dial não há WebSocketServer, então a "presença de cliente" é o socket ativo
+  // pro relay (activeWs). broadcast já sai por ele via setClientSource. Sem isto a
+  // UI nunca recebe stats/plan-usage atualizados (barra de usage e telemetria
+  // travadas em "carregando") nem as versões concretas dos modelos.
+  const hasClients = () => activeWs !== null;
+  startStatsLoop(hasClients);
+  startPlanUsageLoop(hasClients);
+  startModelsLoop(hasClients);
   let attempt = 0;
   const loop = () => {
     connect(

@@ -2,7 +2,7 @@ import type { ReactNode, CSSProperties } from 'react';
 
 export type IconName =
   | 'terminal' | 'plus' | 'search' | 'menu' | 'send' | 'arrowUp'
-  | 'chevronDown' | 'chevronRight' | 'chevronLeft' | 'check' | 'x' | 'square' | 'play'
+  | 'chevronDown' | 'chevronUp' | 'chevronRight' | 'chevronLeft' | 'check' | 'x' | 'square' | 'play'
   | 'rotate' | 'message' | 'pencil' | 'zap' | 'trash' | 'sparkles' | 'claude'
   | 'panelRight' | 'circle' | 'user' | 'copy' | 'command' | 'grip' | 'download' | 'paperclip' | 'clock' | 'star' | 'file' | 'tag'
   | 'shield' | 'shield-off';
@@ -16,6 +16,7 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
   send: <><path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7z" /></>,
   arrowUp: <><line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" /></>,
   chevronDown: <polyline points="6 9 12 15 18 9" />,
+  chevronUp: <polyline points="18 15 12 9 6 15" />,
   chevronRight: <polyline points="9 6 15 12 9 18" />,
   chevronLeft: <polyline points="15 6 9 12 15 18" />,
   check: <polyline points="20 6 9 17 4 12" />,

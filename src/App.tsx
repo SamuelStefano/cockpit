@@ -35,10 +35,13 @@ export function CockpitApp() {
     usageStats, onUsageList, health, onHealthList,
     attachments, onUpload, onRemoveAttachment,
     onSend: handleSend, onStop: handleStop, onNew: cockpitNew, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession,
-    onOpenFull,
+    onOpenFull, onOpenSummary,
   } = cockpit;
 
   const { route, nav } = useRoute();
+  // Default-deny: sem caps (ainda não chegou) = não-admin. No T3 o caps vem do
+  // relay (papel da conta no JWT); no loopback, do token/role local.
+  const isAdmin = caps?.role === 'admin';
 
   // Produto multi-conta (DR-023): quando o Supabase está ligado (deploy do relay),
   // a sessão vem do login e o access_token alimenta o WS. No loopback (Supabase
@@ -93,6 +96,12 @@ export function CockpitApp() {
     if (!activeSessionId && sessions.length) setActiveSessionId(sessions[0].id);
   }, [activeSessionId, sessions, setActiveSessionId]);
 
+  // Não-admin não fica preso na URL /admin (só redireciona quando caps já chegou,
+  // pra não chutar pra fora antes de saber o papel).
+  useEffect(() => {
+    if (route === '/admin' && caps && !isAdmin) nav('/');
+  }, [route, caps, isAdmin, nav]);
+
   // Reflete atividade no título da aba (visível com a aba em background no run
   // noturno): "▶N" rodando, "●N" com output novo não visto.
   useEffect(() => {
@@ -120,7 +129,7 @@ export function CockpitApp() {
   };
 
   const sessionsProps = { sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, stalled, updated, runStart, searchResults, onSearch };
-  const chatProps = { session: activeSession, messages, phase: viewPhase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, bypass, setBypass, model, setModel, models, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew: handleNew, attachments, onUpload, onRemoveAttachment, onEditUser: editUser, onQuote: quoteMsg, onOpenFull, truncated, onShowHelp: () => setHelp(true), focusSignal };
+  const chatProps = { session: activeSession, messages, phase: viewPhase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, bypass, setBypass, model, setModel, models, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew: handleNew, attachments, onUpload, onRemoveAttachment, onEditUser: editUser, onQuote: quoteMsg, onOpenFull, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
 
   // Gate de auth. Com Supabase ligado (relay): login por e-mail/senha; sem sessão,
@@ -156,7 +165,7 @@ export function CockpitApp() {
         onShowHelp={() => setHelp(true)}
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
-      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} onNew={handleNew} />
+      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} onNew={handleNew} isAdmin={isAdmin} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} />
 
       {quota && rate && <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} />}
       <OfflineNotice show={showOffline} />
@@ -170,7 +179,7 @@ export function CockpitApp() {
       ) : route === '/uso' ? (
         <Observatorio connected={conn.ws === 'connected'} usageStats={usageStats} onUsageList={onUsageList} sessions={sessions} rate={rate}
           onOpenSession={(id) => { setActiveSessionId(id); nav('/'); }} />
-      ) : route === '/admin' ? (
+      ) : route === '/admin' && isAdmin ? (
         <Admin health={health} stats={stats} onHealthList={onHealthList} />
       ) : route === '/docs' ? (
         <Docs />

@@ -93,7 +93,7 @@ function AvatarFace({ avatar, name, size }: { avatar: string; name: string; size
 
 // Menu de perfil no header: define nome (usado nas iniciais do chat) e faz
 // upload/limpa o avatar. Tudo local (data URL no localStorage), sem backend.
-export function ProfileMenu() {
+export function ProfileMenu({ onSignOut }: { onSignOut?: () => void } = {}) {
   const [avatar, setAvatar] = usePersisted<string>('user.avatar', '');
   const [name, setName] = usePersisted<string>('user.name', '');
   const [aiIcon, setAiIcon] = usePersisted<string>(AI_AVATAR_KEY, AI_AVATAR_DEFAULT);
@@ -191,6 +191,17 @@ export function ProfileMenu() {
               </div>
             )}
           </div>
+
+          {onSignOut && (
+            <div className="mt-3 border-t border-neutral-800 pt-3">
+              <button
+                onClick={() => { setOpen(false); onSignOut(); }}
+                className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-[12px] text-neutral-300 transition hover:border-red-500/40 hover:text-red-300"
+              >
+                <Icon name="x" size={12} /> Desconectar conta
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

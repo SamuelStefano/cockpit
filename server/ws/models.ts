@@ -1,4 +1,3 @@
-import type { WebSocketServer } from 'ws';
 import type { ModelInfo } from '../../shared/protocol';
 import { broadcast } from './broadcast';
 import { readOAuthToken, OAUTH_BETA } from '../oauth';
@@ -75,9 +74,9 @@ export async function fetchModels(): Promise<ModelInfo[] | null> {
   try { return mapModels(await res.json()); } catch { return null; }
 }
 
-export function startModelsLoop(wss: WebSocketServer) {
+export function startModelsLoop(hasClients: () => boolean) {
   const tick = async (force = false) => {
-    if (!force && wss.clients.size === 0) return;
+    if (!force && !hasClients()) return;
     const m = await fetchModels();
     if (!m || m.length === 0) return;
     last = m;

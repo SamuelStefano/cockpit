@@ -43,6 +43,7 @@ export interface ChatPanelProps {
   onEditUser?: (text: string) => void;
   onQuote?: (text: string) => void;
   onOpenFull?: (id: string) => void;
+  onOpenSummary?: (id: string) => void;
   truncated?: boolean;
   onShowHelp?: () => void;
   lastEnd?: string;
@@ -51,7 +52,7 @@ export interface ChatPanelProps {
   terminalRunning?: boolean;
 }
 
-export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, bypass, setBypass, model, setModel, models, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, onQuote, onOpenFull, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, bypass, setBypass, model, setModel, models, budget, setBudget, slashCommands, contextTokens, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, onQuote, onOpenFull, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -141,19 +142,25 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
           <ContextMeter tokens={contextTokens} onNew={onNew} />
           {!isEmpty && session && !session.id.startsWith('new-') && onOpenFull && (
             <button
-              onClick={() => { setFullLoaded(true); onOpenFull(session.id); }}
-              disabled={fullLoaded}
-              title={truncated && !fullLoaded
-                ? 'Esta sessão é longa: só as mensagens mais recentes foram carregadas. Clique para carregar o histórico completo (inclui anteriores a um /compact).'
-                : 'Recarrega todas as mensagens do arquivo, inclusive as anteriores a um /compact que somem do caminho ativo'}
-              className={`flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10.5px] transition disabled:opacity-50 ${
-                truncated && !fullLoaded
-                  ? 'border-amber-700/60 bg-amber-500/10 text-amber-300 hover:border-amber-600 hover:text-amber-200'
-                  : 'border-neutral-800 text-neutral-500 hover:border-neutral-700 hover:text-neutral-300'
+              onClick={() => {
+                if (fullLoaded) { setFullLoaded(false); onOpenSummary?.(session.id); }
+                else { setFullLoaded(true); onOpenFull(session.id); }
+              }}
+              title={fullLoaded
+                ? 'Histórico completo carregado. Clique para voltar à visão resumida (só as mensagens recentes).'
+                : truncated
+                  ? 'Esta sessão é longa: só as mensagens mais recentes foram carregadas. Clique para carregar o histórico completo (inclui anteriores a um /compact).'
+                  : 'Recarrega todas as mensagens do arquivo, inclusive as anteriores a um /compact que somem do caminho ativo'}
+              className={`flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10.5px] transition ${
+                fullLoaded
+                  ? 'border-orange-700/60 bg-orange-500/10 text-orange-300 hover:border-orange-600 hover:text-orange-200'
+                  : truncated
+                    ? 'border-amber-700/60 bg-amber-500/10 text-amber-300 hover:border-amber-600 hover:text-amber-200'
+                    : 'border-neutral-800 text-neutral-500 hover:border-neutral-700 hover:text-neutral-300'
               }`}
             >
-              <Icon name="message" size={11} />
-              {fullLoaded ? 'histórico completo' : truncated ? 'carregar antigas' : 'ver tudo'}
+              <Icon name={fullLoaded ? 'chevronUp' : 'message'} size={11} />
+              {fullLoaded ? 'mostrar resumido' : truncated ? 'carregar antigas' : 'ver tudo'}
             </button>
           )}
           {!isEmpty && <ExportMenu title={session?.title || 'sessao'} messages={messages} />}

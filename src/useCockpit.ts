@@ -85,6 +85,7 @@ export interface Cockpit {
   onDelete: (id: string) => void;
   onUnhide: (id: string) => void;
   onOpenFull: (id: string) => void;
+  onOpenSummary: (id: string) => void;
 }
 
 export function useCockpit(): Cockpit {
@@ -814,6 +815,14 @@ export function useCockpit(): Cockpit {
     send({ t: 'open-full', sessionId: id });
   }, [send]);
 
+  // Volta do histórico completo pro resumido (só o caminho ativo, capado em
+  // historyLimit). É o inverso de onOpenFull — sem isto o botão "ver tudo" era
+  // mão-única (carregava tudo e não dava pra recolher).
+  const onOpenSummary = useCallback((id: string) => {
+    if (!id || id.startsWith('new-')) return;
+    send({ t: 'open', sessionId: id });
+  }, [send]);
+
   const messages = threads[activeId] || [];
   const phase = phases[activeId] || 'idle';
   // Sessões com run vivo (pra dot pulsante no sidebar) — útil em run noturno
@@ -912,5 +921,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, models, budget, setBudget: changeBudget, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, models, budget, setBudget: changeBudget, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
 }

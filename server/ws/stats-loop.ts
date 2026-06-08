@@ -1,4 +1,3 @@
-import type { WebSocketServer } from 'ws';
 import { collect } from '../stats';
 import { broadcast } from './broadcast';
 import { markStatsAt } from './runs';
@@ -38,10 +37,10 @@ export function evalSaturation(
   return { state, saturated: { cpu: cpuSat, mem: memSat, seconds: Math.round((now - since) / 1000) } };
 }
 
-export function startStatsLoop(wss: WebSocketServer) {
+export function startStatsLoop(hasClients: () => boolean) {
   let sat: SatState = { cpuHotSince: 0, memHotSince: 0 };
   const tick = async () => {
-    if (wss.clients.size === 0) return;
+    if (!hasClients()) return;
     try {
       const stats = await collect();
       const now = Date.now();

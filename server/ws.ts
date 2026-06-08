@@ -58,9 +58,10 @@ export function attachWs(server: Server) {
     serveConnection(ws, { role });
   });
 
-  startStatsLoop(wss);
-  startPlanUsageLoop(wss);
-  startModelsLoop(wss);
+  const hasClients = () => wss.clients.size > 0;
+  startStatsLoop(hasClients);
+  startPlanUsageLoop(hasClients);
+  startModelsLoop(hasClients);
   probeSlashCommands();
   return wss;
 }

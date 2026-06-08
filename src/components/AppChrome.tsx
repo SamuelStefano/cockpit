@@ -50,20 +50,25 @@ interface HeaderProps {
   onPalette: () => void;
   planUsage: PlanUsage | null;
   onNew: () => void;
+  isAdmin: boolean;
+  onSignOut?: () => void;
 }
 
-const NAV: { to: Route; label: string }[] = [
+const NAV: { to: Route; label: string; adminOnly?: boolean }[] = [
   { to: '/', label: 'chat' },
   { to: '/contextos', label: 'contextos' },
   { to: '/skills', label: 'skills' },
   { to: '/uso', label: 'uso' },
-  { to: '/admin', label: 'admin' },
+  { to: '/admin', label: 'admin', adminOnly: true },
   { to: '/docs', label: 'docs' },
 ];
 
+// A aba admin some pra quem não é admin (default-deny: sem caps = não-admin).
+const navFor = (isAdmin: boolean) => NAV.filter((n) => !n.adminOnly || isAdmin);
+
 // Em telas estreitas as 6 abas não cabem no header (eram cortadas). Aqui viram um
 // dropdown compacto que mostra a rota atual e abre a lista ao toque.
-function RouteMenu({ route, nav }: { route: Route; nav: (to: Route) => void }) {
+function RouteMenu({ route, nav, isAdmin }: { route: Route; nav: (to: Route) => void; isAdmin: boolean }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -72,7 +77,8 @@ function RouteMenu({ route, nav }: { route: Route; nav: (to: Route) => void }) {
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
-  const current = NAV.find((n) => n.to === route) ?? NAV[0];
+  const items = navFor(isAdmin);
+  const current = items.find((n) => n.to === route) ?? items[0];
   return (
     <div ref={wrapRef} className="relative md:hidden">
       <button
@@ -84,7 +90,7 @@ function RouteMenu({ route, nav }: { route: Route; nav: (to: Route) => void }) {
       </button>
       {open && (
         <div className="absolute left-0 top-full z-50 mt-1 w-36 rounded-lg border border-neutral-800 bg-neutral-900 p-1 shadow-2xl">
-          {NAV.map((n) => (
+          {items.map((n) => (
             <button
               key={n.to}
               onClick={() => { nav(n.to); setOpen(false); }}
@@ -100,7 +106,7 @@ function RouteMenu({ route, nav }: { route: Route; nav: (to: Route) => void }) {
   );
 }
 
-export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsage, onNew }: HeaderProps) {
+export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsage, onNew, isAdmin, onSignOut }: HeaderProps) {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex items-center gap-2.5">
@@ -120,7 +126,7 @@ export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsag
           <span className="font-mono text-[14px] font-semibold lowercase tracking-tight text-neutral-100 transition hover:text-white">Deck</span>
         </button>
         <nav className="ml-1 hidden items-center gap-0.5 rounded-lg border border-neutral-800 bg-neutral-900/60 p-0.5 md:flex">
-          {NAV.map((n) => (
+          {navFor(isAdmin).map((n) => (
             <button
               key={n.to}
               onClick={() => nav(n.to)}
@@ -131,7 +137,7 @@ export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsag
             </button>
           ))}
         </nav>
-        <RouteMenu route={route} nav={nav} />
+        <RouteMenu route={route} nav={nav} isAdmin={isAdmin} />
       </div>
 
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
@@ -149,7 +155,7 @@ export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsag
         <div className="flex items-center rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1">
           <ConnDot label="ws" state={conn.ws} compact={isMobile} />
         </div>
-        <ProfileMenu />
+        <ProfileMenu onSignOut={onSignOut} />
       </div>
     </header>
   );
