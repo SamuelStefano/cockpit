@@ -1,10 +1,11 @@
 import { Icon } from '../primitives';
 import { ModeToggle, ModelPicker, BypassToggle } from './Toolbar';
-import type { PermMode, ModelInfo, Caps } from '../../../shared/protocol';
+import type { PermMode, ModelInfo, Caps, SkillMeta } from '../../../shared/protocol';
 import type { Attachment } from '../../useCockpit';
 import { useChatInput } from './useChatInput';
 import { isLocalSlash, slashHint } from './slash';
 import { MicButton } from './MicButton';
+import { SkillPicker } from './SkillPicker';
 
 export { ChatEmpty } from './ChatEmpty';
 export { classifySlash, type SlashAction } from './slash';
@@ -25,6 +26,9 @@ interface ChatInputProps {
   models: ModelInfo[];
   budget: number;
   setBudget: (n: number) => void;
+  skills: SkillMeta[];
+  selectedSkills: string[];
+  setSelectedSkills: (ids: string[]) => void;
   slashCommands: string[];
   attachments: Attachment[];
   onUpload: (file: File) => void;
@@ -40,7 +44,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, budget, setBudget, attachments, onRemoveAttachment, queued, onCancelQueue } = props;
+  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, budget, setBudget, skills, selectedSkills, setSelectedSkills, attachments, onRemoveAttachment, queued, onCancelQueue } = props;
   const hasAtt = attachments.length > 0;
   const { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic } = useChatInput({ ...props, hasAtt });
   return (
@@ -61,6 +65,7 @@ export function ChatInput(props: ChatInputProps) {
           </span>
         )}
         <div className="ml-auto flex items-center gap-2">
+          <SkillPicker skills={skills} selected={selectedSkills} setSelected={setSelectedSkills} />
           <ModelPicker model={model} setModel={setModel} models={models} budget={budget} setBudget={setBudget} disabled={false} />
         </div>
       </div>

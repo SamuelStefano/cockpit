@@ -4,7 +4,7 @@ import type { Role } from '../auth';
 import { listSessions, listArchived } from '../sessions/index';
 import { searchSessions } from '../sessions/search';
 import { listContexts, readContext } from '../contexts';
-import { listSkills, readSkill } from '../skills';
+import { listSkills, readSkill, resolveSkillDeny } from '../skills';
 import { saveAttachment } from '../attachments';
 import { usageStats } from '../db';
 import { hideSession, unhideSession, purgeSession, setTitle, setNote } from '../store';
@@ -148,12 +148,15 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'send': {
+      // Skills selecionadas pela UI viram regras de negação das NÃO-selecionadas
+      // (Skill(id)). Resolvido aqui (async) e passado adiante; vazio = todas ativas.
+      const disallowedSkills = await resolveSkillDeny(msg.skills);
       // Sessão ocupada → triador decide o destino (esperar/responder/prioridade/
       // juntar). Livre → roda direto como antes.
       if (threads.has(msg.sessionKey)) {
-        void routeSend(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.maxBudgetUsd, msg.bypass, role);
+        void routeSend(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.maxBudgetUsd, msg.bypass, role, disallowedSkills);
       } else {
-        startRun(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.maxBudgetUsd, msg.bypass, role);
+        startRun(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.maxBudgetUsd, msg.bypass, role, disallowedSkills);
       }
       return;
     }

@@ -18,7 +18,7 @@ vi.mock('../sessions/parse', () => parse);
 vi.mock('../sessions/index', () => ({ listSessions: vi.fn(async () => []), listArchived: vi.fn(async () => []) }));
 vi.mock('../sessions/search', () => ({ searchSessions: vi.fn(async () => []) }));
 vi.mock('../contexts', () => ({ listContexts: vi.fn(async () => []), readContext: vi.fn() }));
-vi.mock('../skills', () => ({ listSkills: vi.fn(async () => []), readSkill: vi.fn() }));
+vi.mock('../skills', () => ({ listSkills: vi.fn(async () => []), readSkill: vi.fn(), resolveSkillDeny: vi.fn(async () => []) }));
 vi.mock('../attachments', () => ({ saveAttachment: vi.fn() }));
 vi.mock('../db', () => ({ usageStats: vi.fn(() => ({})) }));
 vi.mock('../store', () => ({
@@ -38,22 +38,23 @@ describe('send routing (the #130 role seam)', () => {
     mode: 'auto', model: 'opus', maxBudgetUsd: 5, bypass: false, ...over,
   } as ClientMsg);
 
-  it('routes a FREE session to startRun, threading the role through as the last arg', async () => {
+  it('routes a FREE session to startRun, threading the role through (disallowedSkills is the last arg)', async () => {
     await handle(ws, msg(), 'admin');
     expect(runs.startRun).toHaveBeenCalledOnce();
     expect(runs.routeSend).not.toHaveBeenCalled();
     const args = runs.startRun.mock.calls[0];
     expect(args[0]).toBe(ws);
     expect(args[1]).toBe('k1');
-    expect(args[args.length - 1]).toBe('admin'); // role reaches the engine
+    expect(args.at(-2)).toBe('admin'); // role reaches the engine
+    expect(args.at(-1)).toEqual([]); // resolved skill-deny rules trail the role
   });
 
   it('routes a BUSY session to routeSend (triage), also threading the role', async () => {
     runs.threads.set('k1', { handle: { kill: vi.fn() } });
     await handle(ws, msg(), 'student');
     expect(runs.routeSend).toHaveBeenCalledOnce();
+    expect(runs.routeSend.mock.calls[0].at(-2)).toBe('student');
     expect(runs.startRun).not.toHaveBeenCalled();
-    expect(runs.routeSend.mock.calls[0].at(-1)).toBe('student');
   });
 });
 

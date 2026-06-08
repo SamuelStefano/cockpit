@@ -36,6 +36,31 @@ export async function listSkills(): Promise<SkillMeta[]> {
   return metas.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+// Regras de permissão p/ NEGAR as skills não-selecionadas no `claude -p` (não há
+// flag nativa de "use só estas"; o caminho confiável é --disallowedTools). Recebe
+// os ids SELECIONADOS pela UI e a lista completa; devolve `Skill(...)` pra cada
+// skill de FORA da seleção. Seleção vazia = []: nada negado = todas ativas (default).
+// Puro/testável (lista injetada). As regras entram num arg space-joined, então só
+// emite identificadores sem espaço (id é slug; name idem quando bate o SLUG_RE).
+export function skillDenyRules(selected: string[] | undefined, all: SkillMeta[]): string[] {
+  if (!selected || selected.length === 0) return [];
+  const keep = new Set(selected);
+  const rules = new Set<string>();
+  for (const s of all) {
+    if (keep.has(s.id)) continue;
+    if (SLUG_RE.test(s.id)) rules.add(`Skill(${s.id})`);
+    if (s.name && s.name !== s.id && SLUG_RE.test(s.name)) rules.add(`Skill(${s.name})`);
+  }
+  return [...rules];
+}
+
+// Resolve as regras de negação lendo a lista de skills do disco. Conveniência
+// async pro dispatch; a lógica pura vive em skillDenyRules.
+export async function resolveSkillDeny(selected: string[] | undefined): Promise<string[]> {
+  if (!selected || selected.length === 0) return [];
+  return skillDenyRules(selected, await listSkills());
+}
+
 export async function readSkill(id: string): Promise<{ name: string; body: string } | null> {
   if (!SLUG_RE.test(id)) return null;
   const dir = resolve(CONFIG.skillsDir);

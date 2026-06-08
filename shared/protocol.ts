@@ -194,7 +194,10 @@ export interface AdminHealth {
 export interface AccountSummary { id: string; email: string; isAdmin: boolean; agentOnline: boolean }
 
 export type ClientMsg =
-  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; msgId?: string; mode?: PermMode; model?: string; maxBudgetUsd?: number; bypass?: boolean }
+  // skills = ids das skills SELECIONADAS p/ este prompt (subconjunto de SkillMeta.id).
+  // Vazio/ausente = todas ativas (default fail-open). O backend nega via permission
+  // rule as NÃO-selecionadas (--disallowedTools Skill(id)); ver buildArgs.
+  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; msgId?: string; mode?: PermMode; model?: string; maxBudgetUsd?: number; bypass?: boolean; skills?: string[] }
   | { t: 'accounts-list' }
   | { t: 'set-admin'; accountId: string; admin: boolean }
   | { t: 'stop'; sessionKey: string }

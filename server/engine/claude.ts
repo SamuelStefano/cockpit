@@ -29,6 +29,7 @@ export interface RunOpts {
   maxBudgetUsd?: number;       // teto de gasto por run (--max-budget-usd)
   bypass?: boolean;            // pedido explícito de bypass; só vale se bypassAllowed
   role?: Role;                 // role do ator (seam Fase 2); gate do bypass
+  disallowedSkills?: string[]; // regras Skill(...) das skills NÃO-selecionadas (ver skillDenyRules)
   onEvent: (ev: ClaudeEvent) => void;
   onError: (msg: string) => void;
   onClose: () => void;
@@ -50,10 +51,10 @@ export interface RunHandle {
 // - env mínimo (não vaza segredo do processo pai)
 // - cwd isolado
 // - detached pra matar a árvore no stop
-export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'maxBudgetUsd' | 'bypass' | 'role'>;
+export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills'>;
 
 export function buildArgs(opts: BuildArgsOpts): { args: string[] } | { error: string } {
-  const { prompt, resumeId, mode, model, maxBudgetUsd, bypass, role } = opts;
+  const { prompt, resumeId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills } = opts;
   const { permissionMode, allow } = resolveMode(mode, { bypass, role });
 
   const args = [
@@ -71,7 +72,10 @@ export function buildArgs(opts: BuildArgsOpts): { args: string[] } | { error: st
     args.push('--max-budget-usd', String(maxBudgetUsd));
   }
   if (allow.length) args.push('--allowedTools', allow.join(' '));
-  if (CONFIG.disallowedTools.length) args.push('--disallowedTools', CONFIG.disallowedTools.join(' '));
+  // Kill-switch de tools (config) + skills não-selecionadas (por-prompt) entram no
+  // MESMO --disallowedTools (uma flag só; rules space-separated).
+  const deny = [...CONFIG.disallowedTools, ...(disallowedSkills ?? [])];
+  if (deny.length) args.push('--disallowedTools', deny.join(' '));
   if (resumeId) {
     if (!UUID_RE.test(resumeId)) return { error: 'sessionId inválido' };
     args.push('--resume', resumeId);
@@ -80,9 +84,9 @@ export function buildArgs(opts: BuildArgsOpts): { args: string[] } | { error: st
 }
 
 export function run(opts: RunOpts): RunHandle {
-  const { prompt, resumeId, mode, model, maxBudgetUsd, bypass, role, onEvent, onError, onClose } = opts;
+  const { prompt, resumeId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, onEvent, onError, onClose } = opts;
 
-  const built = buildArgs({ prompt, resumeId, mode, model, maxBudgetUsd, bypass, role });
+  const built = buildArgs({ prompt, resumeId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills });
   if ('error' in built) {
     onError(built.error);
     onClose();

@@ -49,6 +49,8 @@ export interface Cockpit {
   models: ModelInfo[];
   budget: number;
   setBudget: (n: number) => void;
+  selectedSkills: string[];
+  setSelectedSkills: (ids: string[]) => void;
   slashCommands: string[];
   term: TermApi;
   discoveredTerms: string[];
@@ -144,6 +146,10 @@ export function useCockpit(): Cockpit {
   const [budget, setBudget] = useState<number>(() => loadPref<number>('budget', 0)); // 0 = sem teto
   const budgetRef = useRef<number>(budget);
   const [slashCommands, setSlashCommands] = useState<string[]>(() => loadPref<string[]>('slashCommands', []));
+  // Skills selecionadas p/ os próximos prompts (ids). Vazio = todas ativas (default).
+  // Persiste como pref global, igual modelo/teto; o ref deixa o onSend ler o atual.
+  const [selectedSkills, setSelectedSkills] = useState<string[]>(() => loadPref<string[]>('selectedSkills', []));
+  const selectedSkillsRef = useRef<string[]>(selectedSkills);
   // sessionId -> mtime já visto. Sessão cujo mtime no servidor avançou além do
   // visto = "atualizada" (produziu output enquanto você não olhava — run noturno).
   const [seen, setSeen] = useState<Record<string, number>>(() => loadPref<Record<string, number>>('seen', {}));
@@ -615,6 +621,7 @@ export function useCockpit(): Cockpit {
       send({ t: 'list' });
       send({ t: 'list-archived' });
       send({ t: 'usage-list' });
+      send({ t: 'skill-list' }); // popula o seletor de skills do composer
       reattach();
     };
     ws.onmessage = (ev) => {
@@ -715,7 +722,9 @@ export function useCockpit(): Cockpit {
     // loopback). O backend reimpõe via bypassAllowed — isto é só pra não anunciar
     // um pedido que seria recusado.
     const bypassWire = capsRef.current?.canBypass && bypassRef.current ? true : undefined;
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: modelRef.current, maxBudgetUsd: budgetRef.current > 0 ? budgetRef.current : undefined, bypass: bypassWire });
+    // skills só vai no fio quando o usuário restringiu (subconjunto); vazio = todas.
+    const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
+    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: modelRef.current, maxBudgetUsd: budgetRef.current > 0 ? budgetRef.current : undefined, bypass: bypassWire, skills: skillsWire });
   }, [send, updateThread]);
 
   const onUpload = useCallback((file: File) => {
@@ -740,6 +749,7 @@ export function useCockpit(): Cockpit {
   const changeBypass = useCallback((b: boolean) => { bypassRef.current = b; setBypass(b); }, []);
   const changeModel = useCallback((m: string) => { modelRef.current = m; setModel(m); savePref('model', m); }, []);
   const changeBudget = useCallback((n: number) => { const v = Number.isFinite(n) && n > 0 ? n : 0; budgetRef.current = v; setBudget(v); savePref('budget', v); }, []);
+  const changeSelectedSkills = useCallback((ids: string[]) => { selectedSkillsRef.current = ids; setSelectedSkills(ids); savePref('selectedSkills', ids); }, []);
 
   // Busca por conteúdo: dispara no backend (grep) e guarda o termo p/ descartar
   // respostas atrasadas. <2 chars limpa os resultados.
@@ -967,5 +977,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, models, budget, setBudget: changeBudget, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, models, budget, setBudget: changeBudget, selectedSkills, setSelectedSkills: changeSelectedSkills, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
 }
