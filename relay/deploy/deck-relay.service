@@ -1,0 +1,40 @@
+# systemd unit do relay T3, endurecida (squad de deploy, DR-023/024). Roda como um
+# usuário sem privilégio numa VPS isolada. O sandbox bloqueia exec/escrita-executável
+# — defesa-em-profundidade caso o relay seja comprometido (não deve nem conseguir
+# dropar um shell). Coloque em /etc/systemd/system/deck-relay.service e ajuste paths.
+
+[Unit]
+Description=Deck T3 relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=relay
+WorkingDirectory=/opt/deck-relay
+# Carrega SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, COCKPIT_ROOT_EMAILS, RELAY_PORT.
+EnvironmentFile=/opt/deck-relay/.env
+ExecStart=/usr/bin/npx tsx relay/src/main.ts
+Restart=always
+RestartSec=3
+
+# --- Sandbox (endurecimento) ---
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+CapabilityBoundingSet=
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @debug @mount @reboot @swap
+
+[Install]
+WantedBy=multi-user.target
