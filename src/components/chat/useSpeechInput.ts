@@ -53,7 +53,18 @@ export function useSpeechInput(value: string, setValue: (v: string) => void) {
   const stop = () => {
     const rec = recRef.current;
     if (!rec) return;
-    try { rec.stop(); } catch { recRef.current = null; setListening(false); }
+    try {
+      rec.stop();
+      // Alguns engines (Chrome com stop() sem áudio capturado, ou permissão em
+      // revogação) não disparam onresult-final NEM onend — aí recRef/listening
+      // ficariam presos. Fallback: se ESTE rec ainda estiver ativo em ~1.5s,
+      // força a limpeza. Guardado por identidade pra não derrubar um start() que
+      // já substituiu o rec nesse meio-tempo (toggle rápido off→on).
+      setTimeout(() => { if (recRef.current === rec) { hardStop(); setListening(false); } }, 1500);
+    } catch {
+      rec.onresult = null; rec.onend = null; rec.onerror = null;
+      recRef.current = null; setListening(false);
+    }
   };
 
   const start = () => {
