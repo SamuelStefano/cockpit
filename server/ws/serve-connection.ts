@@ -43,7 +43,7 @@ export function serveConnection(ws: WebSocket, opts: { role: Role; sendCaps?: bo
   // Reconnect mid-run (#10): replaya o snapshot acumulado SÓ pra ESTE socket,
   // pra a UI reconstruir o turno em voo. Os deltas seguintes chegam via broadcast.
   for (const [key, thread] of threads) {
-    send(ws, { t: 'replay', sessionKey: key, text: thread.text, thinking: thread.thinking, tools: thread.tools });
+    send(ws, { t: 'replay', sessionKey: key, text: thread.text, thinking: thread.thinking, tools: thread.tools, startedAt: thread.startedAt });
   }
   collect().then((stats) => send(ws, { t: 'stats', stats })).catch(() => {});
 

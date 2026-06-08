@@ -17,17 +17,20 @@ export function nextRecall(
   dir: 'up' | 'down',
 ): RecallState | null {
   if (!history.length) return null;
+  // Índice preso a um histórico ANTERIOR (troca de sessão encolhe o array): trata
+  // como sem-recall pra reiniciar pela cauda do histórico atual, não indexar fora.
+  const active = histIdx !== null && histIdx < history.length ? histIdx : null;
   if (dir === 'up') {
-    if (histIdx === null) {
-      if (value !== '') return null; // ↑ num campo com texto = cursor normal
+    if (active === null) {
+      if (value !== '' && histIdx === null) return null; // ↑ num campo digitado = cursor normal
       const last = history.length - 1;
       return { histIdx: last, value: history[last] };
     }
-    const idx = Math.max(0, histIdx - 1);
+    const idx = Math.max(0, active - 1);
     return { histIdx: idx, value: history[idx] };
   }
-  if (histIdx === null) return null; // ↓ sem recall ativo = cursor normal
-  const next = histIdx + 1;
+  if (active === null) return null; // ↓ sem recall ativo (ou índice obsoleto) = cursor normal
+  const next = active + 1;
   if (next >= history.length) return { histIdx: null, value: '' };
   return { histIdx: next, value: history[next] };
 }

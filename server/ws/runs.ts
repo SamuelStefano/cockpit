@@ -11,12 +11,14 @@ import { classify, quickAnswer, killSideRuns } from '../engine/triage';
 export interface Thread {
   handle: RunHandle;
   prompt: string;       // instrução em execução — contexto p/ o triador do próximo prompt
+  startedAt: number;    // ts do início do turno; replayado no reconnect pra o cronômetro não reiniciar do zero após F5
   sessionId?: string;
   costUsd?: number;     // custo real do turno (result.total_cost_usd, ground-truth)
   durationMs?: number;
   numTurns?: number;
   endReason?: string;   // result.subtype: success | error_max_budget | error_max_turns | ...
   model?: string;       // modelo EFETIVO do turno (message.model do CLI); pode divergir do pedido sob --fallback-model
+  stopped?: boolean;    // turno foi morto por stop do usuário — o 'done' do onClose não deve notificar "turno concluído"
   // Snapshot acumulado p/ replay no reconnect (#10). Os frames vão por broadcast.
   text: string;
   thinking: string;
@@ -69,6 +71,11 @@ const stopEpoch = new Map<string, number>();
 export function onStop(sessionKey: string): void {
   pending.delete(sessionKey);
   stopEpoch.set(sessionKey, (stopEpoch.get(sessionKey) ?? 0) + 1);
+  // Marca o thread vivo: seu onClose vai emitir 'done' (limpa o phase em todos os
+  // clientes), mas com stopped=true pra o cliente NÃO disparar notificação de
+  // "turno concluído" — o usuário interrompeu de propósito. Flag morre com o thread.
+  const t = threads.get(sessionKey);
+  if (t) t.stopped = true;
 }
 
 export function admitRun(liveRuns: number, replacing: boolean, cap = CONFIG.maxConcurrentRuns): boolean {
@@ -117,7 +124,7 @@ export function startRun(ws: WebSocket, sessionKey: string, prompt: string, resu
   }
   if (replacing) threads.get(sessionKey)!.handle.kill();
 
-  const thread: Thread = { handle: { kill: () => {} }, prompt, sessionId: resumeId, text: '', thinking: '', tools: [], toolStart: new Map() };
+  const thread: Thread = { handle: { kill: () => {} }, prompt, startedAt: Date.now(), sessionId: resumeId, text: '', thinking: '', tools: [], toolStart: new Map() };
   threads.set(sessionKey, thread);
   // Eco da mensagem do usuário a todos os clientes ANTES do 'started' (bolha do
   // usuário aparece antes da do assistente). Só quando o cliente mandou msgId — o
@@ -141,7 +148,7 @@ export function startRun(ws: WebSocket, sessionKey: string, prompt: string, resu
       // (re-send que matou o anterior), o onClose do antigo NÃO deve mandar um
       // 'done' prematuro nem apagar a entrada do novo run.
       if (threads.get(sessionKey) !== thread) return;
-      broadcast({ t: 'done', sessionKey, sessionId: thread.sessionId ?? '', costUsd: thread.costUsd, durationMs: thread.durationMs, numTurns: thread.numTurns, endReason: thread.endReason, model: thread.model });
+      broadcast({ t: 'done', sessionKey, sessionId: thread.sessionId ?? '', costUsd: thread.costUsd, durationMs: thread.durationMs, numTurns: thread.numTurns, endReason: thread.endReason, model: thread.model, stopped: thread.stopped });
       // Resumo IA do que a sessão fez, atualizado ao fim do turno (pedido do Samuel).
       // Fire-and-forget: best-effort, nunca bloqueia/derruba o fechamento do run.
       if (thread.sessionId) void summarize(thread.sessionId);

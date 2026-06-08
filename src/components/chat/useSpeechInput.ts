@@ -46,11 +46,20 @@ export function useSpeechInput(value: string, setValue: (v: string) => void) {
     recRef.current = null;
     try { rec.stop(); } catch { /* já parou */ }
   };
-  const stop = () => { hardStop(); setListening(false); };
+  // Stop pedido pelo usuário: NÃO destacar handlers. O engine ainda dispara um
+  // onresult final no stop() (o último trecho que estava como interim vira
+  // isFinal); destacar antes perderia essas palavras. O onend então zera recRef
+  // e o listening. Só o unmount/toggle-restart usa hardStop (solta o mic já).
+  const stop = () => {
+    const rec = recRef.current;
+    if (!rec) return;
+    try { rec.stop(); } catch { recRef.current = null; setListening(false); }
+  };
 
   const start = () => {
     const Ctor = speechCtor();
-    if (!Ctor || recRef.current) return;
+    if (!Ctor) return;
+    if (recRef.current) hardStop();
     const rec = new Ctor();
     rec.lang = SPEECH_LANG;
     rec.continuous = true;

@@ -61,7 +61,10 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
   const [atBottom, setAtBottom] = useState(true);
   const [queued, setQueued] = useState('');
   const [fullLoaded, setFullLoaded] = useState(false);
-  useEffect(() => { setFullLoaded(false); }, [session?.id]);
+  // Troca de sessão zera o estado preso à anterior. A fila (queued) é "manda
+  // quando ESTA sessão liberar"; sem limpar, ao trocar pra uma sessão idle o
+  // efeito de flush dispararia o texto enfileirado na sessão ERRADA.
+  useEffect(() => { setFullLoaded(false); setQueued(''); }, [session?.id]);
   const streaming = phase === 'streaming';
   const disabled = phase !== 'idle';
   const sentHistory = useMemo(

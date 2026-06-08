@@ -34,4 +34,14 @@ describe('nextRecall', () => {
   it('down past the end clears (back to a fresh field)', () => {
     expect(nextRecall(H, 2, 'third', 'down')).toEqual({ histIdx: null, value: '' });
   });
+
+  it('up with an index stale from a longer prior history restarts at the new tail', () => {
+    const shorter = ['only'];
+    expect(nextRecall(shorter, 5, 'leftover', 'up')).toEqual({ histIdx: 0, value: 'only' });
+  });
+
+  it('down with a stale out-of-range index falls through instead of indexing past the end', () => {
+    const shorter = ['only'];
+    expect(nextRecall(shorter, 5, 'leftover', 'down')).toBeNull();
+  });
 });

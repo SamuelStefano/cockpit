@@ -351,6 +351,12 @@ export function useCockpit(): Cockpit {
         // Reconstrói (ou sobrescreve) o bubble e segue recebendo deltas ao vivo.
         const key = resolveKey(migratedTo.current, msg.sessionKey);
         inFlight.current.add(key);
+        // Reload mid-run zera runStartRef; sem semear daqui, o efeito do cronômetro
+        // cravaria Date.now() e o card mostraria 0s pra um turno que já roda há min.
+        if (msg.startedAt && runStartRef.current[key] === undefined) {
+          runStartRef.current[key] = msg.startedAt;
+          setRunStart((r) => ({ ...r, [key]: msg.startedAt! }));
+        }
         const blocks: Block[] = [];
         if (msg.thinking) blocks.push({ type: 'thinking', text: msg.thinking });
         if (msg.text) blocks.push({ type: 'text', md: msg.text });
@@ -555,6 +561,9 @@ export function useCockpit(): Cockpit {
         }
         send({ t: 'usage-list' }); // atualiza o burn chip após cada turno
         send({ t: 'list' });       // mtime avança -> badge "atualizada" em sessão não-ativa
+        // Stop do usuário também fecha o turno via 'done' (limpa o phase), mas é
+        // interrupção deliberada — não notificar "turno concluído".
+        if (msg.stopped) return;
         const id = msg.sessionId ?? key;
         notifyTurnDone(
           sessionsRef.current.find((s) => s.id === id || s.id === key)?.title ?? '',
@@ -939,10 +948,13 @@ export function useCockpit(): Cockpit {
     for (const ok in migratedTo.current) if (drop.includes(migratedTo.current[ok])) delete migratedTo.current[ok];
   }, [activeId, running]);
 
-  // Watchdog: enquanto algo roda, tica a cada 20s pra recomputar "quietas".
+  // Watchdog: enquanto algo roda, tica a cada 5s pra recomputar "quietas". O dot
+  // só APARECE via este tick (sessão parada não muda phases→running, então o memo
+  // não recomputa sozinho); 20s deixava o sinal até 20s atrasado. 5s aperta isso
+  // sem custo — só re-renderiza enquanto há run vivo.
   useEffect(() => {
     if (running.size === 0) return;
-    const id = setInterval(() => setClockTick((n) => n + 1), 20_000);
+    const id = setInterval(() => setClockTick((n) => n + 1), 5_000);
     return () => clearInterval(id);
   }, [running.size]);
   // Sessão viva mas sem nenhum frame há >2min = "quieta" (tool longo, rate-limit

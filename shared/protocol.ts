@@ -267,7 +267,7 @@ export type ServerMsg =
   | { t: 'triage'; sessionKey: string; msgId?: string; action: TriageAction; reason: string }
   | { t: 'quick-answer'; sessionKey: string; id: string; text: string; ts: number }
   | { t: 'started'; sessionKey: string }
-  | { t: 'replay'; sessionKey: string; text: string; thinking: string; tools: ToolCall[] }
+  | { t: 'replay'; sessionKey: string; text: string; thinking: string; tools: ToolCall[]; startedAt?: number }
   | { t: 'system'; sessionKey: string; sessionId: string }
   | { t: 'slash-commands'; items: string[] }
   | { t: 'delta'; sessionKey: string; text: string }
@@ -286,5 +286,5 @@ export type ServerMsg =
   | { t: 'term-replay'; termId: string; data: string }
   | { t: 'term-exit'; termId: string }
   | { t: 'terms'; ids: string[] }
-  | { t: 'done'; sessionKey: string; sessionId: string; costUsd?: number; durationMs?: number; numTurns?: number; endReason?: string; model?: string }
+  | { t: 'done'; sessionKey: string; sessionId: string; costUsd?: number; durationMs?: number; numTurns?: number; endReason?: string; model?: string; stopped?: boolean }
   | { t: 'error'; sessionKey?: string; message: string };
