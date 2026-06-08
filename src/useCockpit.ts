@@ -170,9 +170,11 @@ export function useCockpit(): Cockpit {
   // callback (que reabriria o socket a cada digitação).
   const tokenRef = useRef<string>(loadPref<string>('auth.token', ''));
   const [authRequired, setAuthRequired] = useState(false);
-  // Relay T3: a VPS pareada está atendendo? Default true — no loopback (sem relay)
-  // estes frames nunca chegam, então o dashboard de pareamento nunca aparece.
-  const [agentOnline, setAgentOnline] = useState(true);
+  // Relay T3: a VPS pareada está atendendo? No loopback (sem relay) estes frames
+  // nunca chegam — default true, senão o dashboard de pareamento apareceria à toa.
+  // No modo relay default FALSE: só depois do agent-online é que o chrome aparece;
+  // senão a tela de pareamento era pulada antes de a VPS confirmar que atende.
+  const [agentOnline, setAgentOnline] = useState(!SUPABASE_ENABLED);
 
   useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
   const threadsRef = useRef<Record<string, Message[]>>(threads);
@@ -681,7 +683,18 @@ export function useCockpit(): Cockpit {
     setAuthRequired(false);
     retryDelay.current = 1500;
     if (retry.current) { clearTimeout(retry.current); retry.current = null; }
-    try { wsRef.current?.close(); } catch { /* noop */ }
+    // Derruba o socket anterior NEUTRALIZANDO o onclose antes — senão o close
+    // dispara scheduleRetry e reabre uma conexão com a credencial recém-trocada
+    // (no sign-out, vazia), gerando churn de reconnect-rejeitado.
+    const prev = wsRef.current;
+    if (prev) {
+      prev.onopen = prev.onmessage = prev.onerror = prev.onclose = null;
+      try { prev.close(); } catch { /* noop */ }
+      wsRef.current = null;
+    }
+    // Sign-out no modo relay (token vazio): fica desconectado, não rediscar — o
+    // relay rejeitaria sem credencial e o gate de login assume.
+    if (SUPABASE_ENABLED && !t) { setConn({ ws: 'down', sse: 'down' }); return; }
     connect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connect]);

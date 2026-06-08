@@ -1,7 +1,7 @@
 import type { WebSocket } from 'ws';
 import type { ClientMsg } from '../../shared/protocol';
 import { openTerm, detachTerm, inputTerm, resizeTerm, closeTerm, listTerms } from '../terminals';
-import { send } from './broadcast';
+import { send, BACKPRESSURE_BYTES } from './broadcast';
 
 export type TermHandle = { onData: (d: string) => void; onExit: () => void };
 
@@ -14,7 +14,14 @@ export function handleTerm(
   switch (msg.t) {
     case 'term-open': {
       if (myTerms.has(msg.termId)) return true; // já anexado nesta conexão
-      const onData = (data: string) => send(ws, { t: 'term-data', termId: msg.termId, data });
+      // Backpressure: term-data é alta-frequência e reconstruível (tmux repinta no
+      // reattach). Num socket lento (celular em wifi ruim) o buffer do ws cresce sem
+      // freio até estourar a heap. Acima do teto, dropa pra ESTE socket — uma lacuna
+      // momentânea na tela é preferível ao OOM; o scrollback volta no próximo replay.
+      const onData = (data: string) => {
+        if (ws.bufferedAmount > BACKPRESSURE_BYTES) return;
+        send(ws, { t: 'term-data', termId: msg.termId, data });
+      };
       const onExit = () => { send(ws, { t: 'term-exit', termId: msg.termId }); myTerms.delete(msg.termId); };
       const onReplay = (data: string) => send(ws, { t: 'term-replay', termId: msg.termId, data });
       const ok = openTerm(msg.termId, msg.cols, msg.rows, onData, onExit, onReplay);
