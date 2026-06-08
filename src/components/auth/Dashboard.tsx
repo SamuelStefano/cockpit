@@ -32,7 +32,7 @@ export function Dashboard({ token, onSignOut }: { token: string; onSignOut: () =
 
   useEffect(() => { void fetchCode(); }, [fetchCode]);
 
-  const cmd = code ? `npx @deck/agent --pair=${code}` : '';
+  const cmd = code ? `curl -fsSL https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh | bash -s -- ${code}` : '';
 
   return (
     <div className="flex h-full flex-1 items-center justify-center bg-neutral-950 px-4">
@@ -50,6 +50,8 @@ export function Dashboard({ token, onSignOut }: { token: string; onSignOut: () =
         <p className="mb-4 mt-4 text-[13px] leading-relaxed text-neutral-400">
           O Deck que você vê é a tela; o cérebro roda na sua VPS. Cole o comando abaixo no terminal da sua
           VPS (com o <span className="font-mono text-neutral-300">claude</span> CLI já logado) e aguarde — a tela troca sozinha quando conectar.
+          O script clona o repo, instala as dependências e pareia. Pra controle total na sua própria box (terminais e admin),
+          rode com <span className="font-mono text-neutral-300">DECK_AGENT_ROLE=admin</span> antes do <span className="font-mono text-neutral-300">bash</span>.
         </p>
 
         <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-3">
