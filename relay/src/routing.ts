@@ -64,6 +64,10 @@ export class Registry {
       if (s.readyState !== undefined && s.readyState !== OPEN) continue;
       s.send(data); n++;
     }
+    if (process.env.DECK_RELAY_DEBUG) {
+      let t = '?'; try { t = (JSON.parse(data) as { t?: string }).t ?? '?'; } catch { /* */ }
+      console.error(`[relay][debug] toBrowsers ${t} -> ${n}/${b.browsers.size} browsers (acct ${accountId.slice(0, 8)})`);
+    }
     return n;
   }
 

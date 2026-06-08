@@ -17,10 +17,13 @@ import { killAllRuns } from './ws/runs';
 const DIR = process.env.DECK_AGENT_DIR || join(homedir(), '.deck-agent');
 const ID_FILE = join(DIR, 'identity.json');
 
-// Role do engine pro agente do fellow no MVP: 'student' = chat (send/stop/sessões/
-// contexts) SEM term-*/bypass/admin (allowlist do authz). É o "least-capability"
-// em runtime até o compile-out (T1) remover term-*/bypass do build fisicamente.
-const AGENT_ROLE: Role = 'student';
+// Role do engine deste agente. Default 'student' = least-capability (chat/sessões/
+// contexts SEM term-*/bypass/admin) — seguro pra box de fellow. O DONO da própria
+// box opta por 'admin' via DECK_AGENT_ROLE pra ter controle total (terminais,
+// admin, etc): roteamento é por-conta, então só a conta dona alcança este agente.
+// Sem isto, o relay anuncia caps de root/admin pro browser mas o agente nega tudo
+// ("sem permissão" em term-open/admin/…).
+const AGENT_ROLE: Role = process.env.DECK_AGENT_ROLE === 'admin' ? 'admin' : 'student';
 
 export interface Identity { agentId: string; privateKeyPem: string; publicKey: string }
 

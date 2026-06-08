@@ -532,8 +532,12 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'error': {
-        // Resolve a key migrada antes do fallback p/ a sessão ativa.
-        const key = (msg.sessionKey && migratedTo.current[msg.sessionKey]) || msg.sessionKey || activeRef.current; // erro sem key (top-level) não pode travar o spinner
+        // Erro escopado a um turno (tem sessionKey) → encerra ESSE turno e mostra.
+        // Erro sem key (top-level: authz negada, rate-limit) NÃO pode tocar o turno
+        // ativo: o `delete runMsg.current` matava o ponteiro da bolha em voo e os
+        // deltas seguintes eram descartados em patchRunMsg ("conectou mas não chega
+        // resposta"). Keyless → só notifica, sem mexer no estado de nenhum run.
+        const key = (msg.sessionKey && migratedTo.current[msg.sessionKey]) || msg.sessionKey;
         if (key) {
           inFlight.current.delete(key);
           reconcileTools(key);
@@ -549,6 +553,8 @@ export function useCockpit(): Cockpit {
               setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === key })));
             },
           );
+        } else {
+          notifyTurnError(sessionsRef.current.find((s) => s.id === activeRef.current)?.title ?? '', msg.message);
         }
         return;
       }
