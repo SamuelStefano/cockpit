@@ -77,7 +77,13 @@ export function Dashboard({ token, onSignOut }: { token: string; onSignOut: () =
           aguardando o agente conectar…
         </div>
 
-        <div className="mt-5 flex items-center justify-between border-t border-neutral-800 pt-4">
+        <p className="mt-4 rounded-lg border border-neutral-800 bg-neutral-950/60 px-3 py-2 text-[11px] leading-relaxed text-neutral-500">
+          <span className="font-medium text-neutral-400">Beta · relay confiável.</span> Por enquanto o relay é
+          operado pela DevFellowship — ele encaminha sua sessão pra sua VPS, mas tecnicamente vê o tráfego.
+          A verificação ponta-a-ponta (relay sem poder forjar comandos) entra antes de abrir pra VPSs de terceiros.
+        </p>
+
+        <div className="mt-4 flex items-center justify-between border-t border-neutral-800 pt-4">
           <button onClick={fetchCode} disabled={busy} className="text-[11.5px] text-neutral-500 transition hover:text-neutral-300 disabled:opacity-50">
             gerar novo código
           </button>
