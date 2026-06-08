@@ -68,6 +68,35 @@ export function CockpitApp() {
     return () => clearTimeout(id);
   }, [conn.ws]);
 
+  // Ejeção pro Dashboard de pareamento só quando faz sentido. Em T3 o relay
+  // anuncia agent-offline a cada reconexão do agent (ex: o terminate por buffer
+  // encalhado do fix do relay) — com o WS do SPA seguindo CONNECTED. Sem carência,
+  // cada flap jogava o usuário na tela de pareamento e voltava, sumindo header
+  // (perfil) + usage juntos, sem nem banner de offline. Latch: nunca pareado →
+  // mostra na hora; já esteve online → segura ~8s pra atravessar o flap.
+  const everOnline = useRef(false);
+  const [ejectPairing, setEjectPairing] = useState(false);
+  useEffect(() => {
+    if (agentOnline) { everOnline.current = true; setEjectPairing(false); return; }
+    if (!everOnline.current) { setEjectPairing(true); return; }
+    const id = setTimeout(() => setEjectPairing(true), 8000);
+    return () => clearTimeout(id);
+  }, [agentOnline]);
+
+  // Troca de conta (sign-out → sign-in em outra) NÃO remonta o CockpitApp, então o
+  // latch everOnline herdaria o pareamento da conta anterior e mostraria o chrome
+  // dela pra uma conta nova ainda não-pareada. Ao mudar o user id, zera o latch e
+  // volta pro pareamento até o agent da nova conta anunciar online.
+  const prevUid = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const uid = sbAuth.session?.user.id;
+    if (prevUid.current !== undefined && uid !== prevUid.current) {
+      everOnline.current = false;
+      setEjectPairing(!!uid);
+    }
+    prevUid.current = uid;
+  }, [sbAuth.session?.user.id]);
+
   const [isMobile, setIsMobile] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [termSheet, setTermSheet] = useState(false);
@@ -148,7 +177,7 @@ export function CockpitApp() {
   if (SUPABASE_ENABLED) {
     if (!sbAuth.loading && !sbAuth.session) return gateShell(<SupabaseAuthGate auth={sbAuth} />);
     // Logado mas a VPS ainda não atende → dashboard de pareamento ("conecte sua VPS").
-    if (sbAuth.session && !agentOnline) return gateShell(<Dashboard token={sbAuth.session.access_token} onSignOut={sbAuth.signOut} />);
+    if (sbAuth.session && ejectPairing) return gateShell(<Dashboard token={sbAuth.session.access_token} onSignOut={sbAuth.signOut} />);
   } else if (authRequired) {
     return gateShell(<AuthGate onSubmit={submitToken} />);
   }

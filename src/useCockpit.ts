@@ -464,7 +464,13 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'usage-stats': {
-        setUsageStats(msg.stats);
+        // O server devolve EMPTY_STATS (tudo zero) quando o SQLite está em lock
+        // (db.usageStats() cai no fallback). Não apaga um painel já populado por
+        // causa de um snapshot vazio transitório — só substitui se vier dado real
+        // ou se ainda não temos nada. Vazio = sem amostras, sessões e série.
+        const s = msg.stats;
+        const empty = s.totalSamples === 0 && s.sessions.length === 0 && s.series.length === 0;
+        setUsageStats((prev) => (empty && prev && prev.totalSamples > 0 ? prev : s));
         return;
       }
       case 'health': {
