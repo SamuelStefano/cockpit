@@ -562,12 +562,26 @@ export function useCockpit(): Cockpit {
   }, [updateThread, patchRunMsg, migrateKey, reconcileTools, send, onTermData, onTermReplay, onTermExit, onTerms]);
 
   const connect = useCallback(() => {
+    // Fecha+neutraliza o socket anterior ANTES de abrir outro. Sem isto, sockets
+    // antigos ainda OPEN seguem com onmessage→onServer ativos: cada frame do relay
+    // é processado 1× por socket vivo (terminal e deltas TRIPLICAM). E o onclose de
+    // um socket velho dispararia outro connect, acumulando ainda mais.
+    const prev = wsRef.current;
+    if (prev) {
+      prev.onopen = prev.onmessage = prev.onerror = null;
+      prev.onclose = null;                       // o velho não re-agenda reconnect
+      try { prev.close(); } catch { /* noop */ }
+    }
     setConn((c) => ({ ...c, ws: 'reconnecting', sse: 'reconnecting' }));
     let ws: WebSocket;
     try { ws = new WebSocket(wsUrlWithToken(tokenRef.current)); } catch { scheduleRetry(); return; }
     wsRef.current = ws;
 
+    // Guarda de geração: só o socket ATUAL (wsRef.current) reage. Um evento tardio
+    // de um socket que já foi substituído não pode mexer no estado nem reconectar.
+    const isCurrent = () => wsRef.current === ws;
     ws.onopen = () => {
+      if (!isCurrent()) return;
       retryDelay.current = 1500; // reconectou — zera o backoff
       setAuthRequired(false); // token válido (ou gate desligado)
       setConn({ ws: 'connected', sse: 'connected' });
@@ -577,18 +591,20 @@ export function useCockpit(): Cockpit {
       reattach();
     };
     ws.onmessage = (ev) => {
+      if (!isCurrent()) return;
       let m: ServerMsg;
       try { m = JSON.parse(String(ev.data)) as ServerMsg; } catch { return; }
       onServer(m);
     };
     ws.onclose = (ev) => {
+      if (!isCurrent()) return;
       setConn({ ws: 'down', sse: 'down' });
       // 4401 = servidor exige token e o nosso falta/está errado. NÃO re-tenta em
       // loop: mostra o login. Qualquer outro código = queda de rede → backoff.
       if (ev.code === 4401) { setAuthRequired(true); return; }
       scheduleRetry();
     };
-    ws.onerror = () => { try { ws.close(); } catch { /* noop */ } };
+    ws.onerror = () => { if (isCurrent()) { try { ws.close(); } catch { /* noop */ } } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [send, onServer, reattach]);
 
