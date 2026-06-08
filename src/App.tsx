@@ -14,6 +14,7 @@ import { useCockpit } from './useCockpit';
 import { useRoute } from './useRoute';
 import { SUPABASE_ENABLED } from './lib/supabase';
 import { useSupabaseAuth } from './lib/useSupabaseAuth';
+import { useProfileHydration } from './lib/profile';
 import { SupabaseAuthGate } from './components/auth/SupabaseAuthGate';
 import { Dashboard } from './components/auth/Dashboard';
 import { setTitleBase } from './lib/notify';
@@ -49,6 +50,7 @@ export function CockpitApp() {
   // a sessão vem do login e o access_token alimenta o WS. No loopback (Supabase
   // desligado) este hook fica inerte e o gate de token de sempre vale.
   const sbAuth = useSupabaseAuth((token) => submitToken(token ?? ''));
+  useProfileHydration(sbAuth.session?.user.id);
 
   const { rowRef, leftW, rightW, leftCollapsed, setLeftCollapsed, rightCollapsed, setRightCollapsed, startDrag } = usePanelResize();
   const { terminals, activeTermId, setActiveTermId, handleAddTerm, handleCloseTerm, attachable, attachExisting, runningTerm } = useTerminalTabs(term, discoveredTerms, listTerms);
@@ -196,7 +198,7 @@ export function CockpitApp() {
         onShowHelp={() => setHelp(true)}
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
-      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} onNew={handleNew} isAdmin={isAdmin} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} />
+      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} onNew={handleNew} isAdmin={isAdmin} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} />
 
       {quota && rate && <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} />}
       <OfflineNotice show={showOffline} />

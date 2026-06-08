@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from './primitives';
 import { usePersisted } from '../lib/persist';
+import { useProfile } from '../lib/profile';
 import { initials } from './avatar.initials';
 import { AI_AVATAR_KEY, AI_AVATAR_DEFAULT, AI_AVATARS, findAiAvatar } from './aiAvatar';
 
@@ -93,10 +94,8 @@ function AvatarFace({ avatar, name, size }: { avatar: string; name: string; size
 
 // Menu de perfil no header: define nome (usado nas iniciais do chat) e faz
 // upload/limpa o avatar. Tudo local (data URL no localStorage), sem backend.
-export function ProfileMenu({ onSignOut }: { onSignOut?: () => void } = {}) {
-  const [avatar, setAvatar] = usePersisted<string>('user.avatar', '');
-  const [name, setName] = usePersisted<string>('user.name', '');
-  const [aiIcon, setAiIcon] = usePersisted<string>(AI_AVATAR_KEY, AI_AVATAR_DEFAULT);
+export function ProfileMenu({ userId, onSignOut }: { userId?: string; onSignOut?: () => void } = {}) {
+  const { name, avatar, aiIcon, setName, setAvatar, setAiIcon, synced } = useProfile(userId);
   const [open, setOpen] = useState(false);
   const [iconOpen, setIconOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -135,7 +134,7 @@ export function ProfileMenu({ onSignOut }: { onSignOut?: () => void } = {}) {
             </span>
             <div className="min-w-0">
               <p className="truncate text-[13px] font-medium text-neutral-200">{name || 'Sem nome'}</p>
-              <p className="text-[11px] text-neutral-500">Perfil local</p>
+              <p className="text-[11px] text-neutral-500">{synced ? 'Sincronizado' : 'Perfil local'}</p>
             </div>
           </div>
           <label className="mt-3 block text-[11px] font-medium text-neutral-500">Nome</label>

@@ -51,6 +51,7 @@ interface HeaderProps {
   planUsage: PlanUsage | null;
   onNew: () => void;
   isAdmin: boolean;
+  userId?: string;
   onSignOut?: () => void;
 }
 
@@ -106,7 +107,7 @@ function RouteMenu({ route, nav, isAdmin }: { route: Route; nav: (to: Route) => 
   );
 }
 
-export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsage, onNew, isAdmin, onSignOut }: HeaderProps) {
+export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsage, onNew, isAdmin, userId, onSignOut }: HeaderProps) {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex items-center gap-2.5">
@@ -155,7 +156,7 @@ export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsag
         <div className="flex items-center rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1">
           <ConnDot label="ws" state={conn.ws} compact={isMobile} />
         </div>
-        <ProfileMenu onSignOut={onSignOut} />
+        <ProfileMenu userId={userId} onSignOut={onSignOut} />
       </div>
     </header>
   );

@@ -26,6 +26,15 @@ export function savePref<T>(key: string, value: T): void {
 // sincronia no mesmo render, sem precisar de reload.
 const listeners = new Map<string, Set<(v: unknown) => void>>();
 
+// Escrita por um produtor de FORA do React (ex: hidratação do perfil vinda do
+// Supabase): grava o cache e notifica TODOS os usePersisted daquela key, então a
+// UI reflete o valor remoto sem reload. savePref sozinho não avisa os hooks.
+export function setPref<T>(key: string, value: T): void {
+  savePref(key, value);
+  const set = listeners.get(key);
+  if (set) for (const fn of set) fn(value);
+}
+
 function subscribe(key: string, fn: (v: unknown) => void): () => void {
   let set = listeners.get(key);
   if (!set) { set = new Set(); listeners.set(key, set); }
