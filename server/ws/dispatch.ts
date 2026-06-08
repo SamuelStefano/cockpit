@@ -66,7 +66,9 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'search': {
-      send(ws, { t: 'search-results', q: msg.q, items: await searchSessions(msg.q) });
+      // msg vem de JSON.parse cru: q não-string faria searchSessions().trim() lançar.
+      const q = typeof msg.q === 'string' ? msg.q : '';
+      send(ws, { t: 'search-results', q, items: await searchSessions(q) });
       return;
     }
     case 'ctx-list': {

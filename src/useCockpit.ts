@@ -240,6 +240,15 @@ export function useCockpit(): Cockpit {
     // criaria DUAS linhas com o mesmo id. Renomeia a local e remove a duplicata
     // do servidor (a local carrega o estado em voo, então fica preferida).
     setSessions((prev) => dedupById(prev.map((s) => (s.id === oldKey ? { ...s, id: newId } : s))));
+    // O baseline de "visto" também migra: senão a entrada `new-…` ficava órfã pra
+    // sempre no `seen` persistido (mergeSeen preserva todo `new-`), vazando no
+    // localStorage a cada sessão nova; e a sessão migrada perdia o baseline (re-badge).
+    setSeen((prev) => {
+      if (!(oldKey in prev)) return prev;
+      const next = moveKey(prev, oldKey, newId);
+      savePref('seen', next);
+      return next;
+    });
   }, []);
 
   const onServer = useCallback((msg: ServerMsg) => {

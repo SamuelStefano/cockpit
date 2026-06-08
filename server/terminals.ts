@@ -10,6 +10,10 @@ import { spawn } from 'node:child_process';
 
 const NAME_RE = /^[a-zA-Z0-9_-]{1,32}$/;
 const MAX_BUFFER = 200_000; // ~200KB de scrollback pra replay no attach
+// Teto de PTYs/sessões tmux vivas: cada termId único spawna um node-pty. Sem cap,
+// um cliente abrindo ids distintos em loop esgota PIDs/memória do host (o rate
+// limiter freia a CADÊNCIA, não o TOTAL). Reanexar a um existente sempre passa.
+const MAX_TERMS = 50;
 
 // Sequências de RESPOSTA do terminal (não de tecla). O xterm.js auto-responde a
 // queries de Device Attributes (CSI c / CSI > c) e Status Report (CSI n) com
@@ -88,6 +92,7 @@ export function openTerm(
 
   let t = terms.get(id);
   if (!t) {
+    if (terms.size >= MAX_TERMS) return false; // teto de PTYs vivos; cliente recebe term-exit
     const p = ptySpawn('tmux', ['new-session', '-A', '-s', sessionName(id)], {
       name: 'xterm-256color',
       cols: clampDim(cols, 80),

@@ -7,8 +7,21 @@
 export interface Sock {
   send(data: string): void;
   readyState?: number;
+  bufferedAmount?: number;
 }
 const OPEN = 1; // WebSocket.OPEN
+
+// Backpressure: numa aba lenta-mas-aberta o buffer do ws cresce sem limite até
+// estourar a heap. Espelha broadcast.ts — frames de alta frequência e
+// reconstruíveis (delta/thinking/stats) são pulados PRA AQUELA aba quando o buffer
+// passa do teto; o snapshot do thread replaya no próximo reconnect. Frames de ciclo
+// de vida sempre vão. Só parseia o tipo quando uma aba está de fato congestionada,
+// mantendo o caminho quente limpo.
+const BACKPRESSURE_BYTES = 4 * 1024 * 1024;
+const DROPPABLE: ReadonlySet<string> = new Set(['delta', 'thinking', 'stats']);
+function frameType(data: string): string {
+  try { return (JSON.parse(data) as { t?: string }).t ?? '?'; } catch { return '?'; }
+}
 
 interface Bucket {
   agent: Sock | null;        // o agente (VPS) pareado daquela conta — no máx 1 ativo
@@ -71,8 +84,13 @@ export class Registry {
     const b = this.byAccount.get(accountId);
     if (!b) return 0;
     let n = 0;
+    let dropChecked = false, droppable = false;
     for (const s of b.browsers) {
       if (s.readyState !== undefined && s.readyState !== OPEN) continue;
+      if (s.bufferedAmount !== undefined && s.bufferedAmount > BACKPRESSURE_BYTES) {
+        if (!dropChecked) { droppable = DROPPABLE.has(frameType(data)); dropChecked = true; }
+        if (droppable) continue;
+      }
       s.send(data); n++;
     }
     if (process.env.DECK_RELAY_DEBUG) {
