@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Session, Message, Block } from './data/mock';
-import type { ClientMsg, ServerMsg, SysStats, PermMode, ModelInfo, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth, Caps, PlanUsage } from '../shared/protocol';
+import type { ClientMsg, ServerMsg, SysStats, PermMode, ModelInfo, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth, Caps, PlanUsage, AccountSummary } from '../shared/protocol';
 import { loadPref, savePref } from './lib/persist';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
 import { wsUrlWithToken, newId, metaToSession, dedupById, mergeSeen } from './cockpit/session';
@@ -8,6 +8,7 @@ import { computeStalled, computeUpdated } from './cockpit/signals';
 import { upsertTool, appendDelta, appendThinking } from './cockpit/blocks';
 import { selectEvictions } from './cockpit/evict';
 import { resolveKey, moveKey } from './cockpit/migrate';
+import { mergeHistory } from './cockpit/history';
 import { useTerminals, type TermApi } from './cockpit/useTerminals';
 
 export interface ContextDoc { id: string; title: string; body: string }
@@ -73,6 +74,15 @@ export interface Cockpit {
   onUsageList: () => void;
   health: AdminHealth | null;
   onHealthList: () => void;
+  accounts: AccountSummary[];
+  onAccountsList: () => void;
+  onSetAdmin: (accountId: string, admin: boolean) => void;
+  adminOp: { ok: boolean; message: string } | null;
+  onEnvSet: (name: string, value: string) => void;
+  onEnvUnset: (name: string) => void;
+  onMcpAdd: (name: string, opts: { command?: string; url?: string }) => void;
+  onMcpRemove: (name: string) => void;
+  onCliInstall: (name: string) => void;
   attachments: Attachment[];
   onUpload: (file: File) => void;
   onRemoveAttachment: (path: string) => void;
@@ -116,6 +126,9 @@ export function useCockpit(): Cockpit {
   const [openSkill, setOpenSkill] = useState<SkillDoc | null>(null);
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
   const [health, setHealth] = useState<AdminHealth | null>(null);
+  const [accounts, setAccounts] = useState<AccountSummary[]>([]);
+  const [adminOp, setAdminOp] = useState<{ ok: boolean; message: string } | null>(null);
+  const adminOpTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const attachmentsRef = useRef<Attachment[]>([]);
   const [mode, setMode] = useState<PermMode>(() => loadPref<PermMode>('mode', 'auto'));
@@ -249,7 +262,7 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'history': {
-        setThreads((prev) => ({ ...prev, [msg.sessionId]: msg.messages }));
+        setThreads((prev) => ({ ...prev, [msg.sessionId]: mergeHistory(msg.messages, prev[msg.sessionId] ?? []) }));
         resumeId.current[msg.sessionId] = msg.sessionId;
         if (msg.tokens) setUsage((u) => ({ ...u, [msg.sessionId]: msg.tokens! }));
         // `open` capa o caminho ativo em historyLimit e dropa as mais antigas; o
@@ -451,6 +464,18 @@ export function useCockpit(): Cockpit {
         setHealth(msg.health);
         return;
       }
+      case 'accounts': {
+        setAccounts(msg.accounts);
+        return;
+      }
+      case 'admin-op': {
+        setAdminOp({ ok: msg.ok, message: msg.message });
+        // Auto-limpa o banner: sem isto um "salvo"/erro fica preso no painel até a
+        // próxima op ou reload (a UI nunca reseta o estado). Erro fica mais tempo.
+        if (adminOpTimer.current) clearTimeout(adminOpTimer.current);
+        adminOpTimer.current = setTimeout(() => setAdminOp(null), msg.ok ? 4000 : 8000);
+        return;
+      }
       case 'uploaded': {
         const next = [...attachmentsRef.current, { name: msg.name, path: msg.path }];
         attachmentsRef.current = next;
@@ -637,6 +662,7 @@ export function useCockpit(): Cockpit {
     connect();
     return () => {
       if (retry.current) clearTimeout(retry.current);
+      if (adminOpTimer.current) clearTimeout(adminOpTimer.current);
       wsRef.current?.close();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -721,6 +747,16 @@ export function useCockpit(): Cockpit {
   const onSkillClose = useCallback(() => setOpenSkill(null), []);
   const onUsageList = useCallback(() => send({ t: 'usage-list' }), [send]);
   const onHealthList = useCallback(() => send({ t: 'admin-health' }), [send]);
+  // Painel admin de contas (T3): listar usuários e ligar/desligar admin. Tratado
+  // NO RELAY (service-role); o gate de papel é lá. No loopback estes frames não têm
+  // handler e a UI fica escondida (só aparece com Supabase ligado).
+  const onAccountsList = useCallback(() => send({ t: 'accounts-list' }), [send]);
+  const onSetAdmin = useCallback((accountId: string, admin: boolean) => send({ t: 'set-admin', accountId, admin }), [send]);
+  const onEnvSet = useCallback((name: string, value: string) => send({ t: 'admin-env-set', name, value }), [send]);
+  const onEnvUnset = useCallback((name: string) => send({ t: 'admin-env-unset', name }), [send]);
+  const onMcpAdd = useCallback((name: string, opts: { command?: string; url?: string }) => send({ t: 'admin-mcp-add', name, command: opts.command, url: opts.url }), [send]);
+  const onMcpRemove = useCallback((name: string) => send({ t: 'admin-mcp-remove', name }), [send]);
+  const onCliInstall = useCallback((name: string) => send({ t: 'admin-cli-install', name }), [send]);
 
   const onStop = useCallback((sessionKey?: string) => {
     const key = sessionKey ?? activeRef.current;
@@ -921,5 +957,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, models, budget, setBudget: changeBudget, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, models, budget, setBudget: changeBudget, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
 }

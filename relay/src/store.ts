@@ -45,6 +45,25 @@ export function supabaseStore(cfg: StoreConfig): RelayStore {
       return row?.is_admin === true;
     },
 
+    async listAccounts() {
+      const res = await f(`${base}/account?select=id,email,is_admin&order=created_at.asc`, { headers });
+      if (!res.ok) return [];
+      const rows = (await res.json()) as { id: string; email: string; is_admin: boolean }[];
+      return rows.map((r) => ({ id: r.id, email: r.email, isAdmin: r.is_admin === true }));
+    },
+
+    // Service-role escreve is_admin (a trigger guard_privileged_columns bloqueia
+    // qualquer outro papel). O gate de QUEM pode chamar isto é no relay (root-only).
+    async setAdmin(accountId, admin) {
+      const enc = encodeURIComponent(accountId);
+      const res = await f(`${base}/account?id=eq.${enc}`, {
+        method: 'PATCH',
+        headers: { ...headers, prefer: 'return=minimal' },
+        body: JSON.stringify({ is_admin: admin }),
+      });
+      return res.ok;
+    },
+
     async markAgentSeen(agentId) {
       const enc = encodeURIComponent(agentId);
       // Best-effort: nunca derruba o fluxo de auth se o PATCH falhar.

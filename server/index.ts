@@ -6,12 +6,14 @@ import { attachWs, killAllRuns, runStats } from './ws';
 import { makeStatic } from './static';
 import { sweepAttachments } from './attachments';
 import { checkpointWal, sweepUsage } from './db';
+import { loadManagedEnv } from './admin-ops';
 import { CONFIG } from './config';
 
 const distDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 
 async function main() {
   await mkdir(CONFIG.workdir, { recursive: true }); // cwd isolado (DR-004 #4)
+  await loadManagedEnv(); // tokens gerenciados (#162) p/ o spawn herdar
 
   const serveStatic = makeStatic(distDir);
 

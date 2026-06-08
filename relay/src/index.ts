@@ -5,7 +5,7 @@ import {
   makeJwks, verifyJwtSignature, validateClaims, makeChallenge, verifyAgentSignature,
   type JwksFn, type Identity,
 } from './verify';
-import { parseRootEmails, canSeeAllAccounts, type AccountRole } from '../../shared/identity';
+import { parseRootEmails, canSeeAllAccounts, canGrantAdmin, type AccountRole } from '../../shared/identity';
 
 // Relay T3 (DR-023): roteador WS stateless e autenticado. NÃO spawna nada (a
 // fronteira é garantida pelo boundary.test) e NÃO guarda chave de assinatura — só
@@ -20,6 +20,12 @@ export interface RelayStore {
   agentById(agentId: string): Promise<{ accountId: string; publicKey: string } | null>;
   // is_admin da conta (pra resolver role admin); root vem do env, não daqui.
   isAdmin(accountId: string): Promise<boolean>;
+  // Todas as contas (painel admin: listar usuários). Service-role; só root/admin
+  // chamam via relay. lastSeen = agente VPS mais recente da conta.
+  listAccounts(): Promise<Array<{ id: string; email: string; isAdmin: boolean }>>;
+  // Liga/desliga is_admin de uma conta (só root concede — canGrantAdmin). Via
+  // service-role (o guard de coluna no Postgres só deixa o service-role escrever).
+  setAdmin(accountId: string, admin: boolean): Promise<boolean>;
   markAgentSeen(agentId: string): Promise<void>;
   // Pairing: cria código (devolve texto plano 1x), consome atômico (→ accountId),
   // registra o agente pareado (→ agentId).
@@ -115,10 +121,38 @@ export function createRelay(cfg: RelayConfig) {
     // privilegiado com a capacidade que o agente reportou — o gate real é no agente.
     ws.send(capsFrame(id.role, accountId));
     if (!registry.hasAgent(accountId)) ws.send(JSON.stringify({ t: 'agent-offline' }));
-    ws.on('message', (data) => {
+    ws.on('message', async (data) => {
+      const s = data.toString();
+      // Frames de administração de CONTA (T3): tratados NO RELAY (só ele tem a
+      // service-role do Supabase). Gate por papel da conta vindo do JWT — nunca
+      // do frame. Não são repassados ao agente (que não tem acesso ao banco).
+      if (s.includes('"accounts-list"') || s.includes('"set-admin"')) {
+        let m: { t?: string; accountId?: string; admin?: boolean } = {};
+        try { m = JSON.parse(s); } catch { return; }
+        if (m.t === 'accounts-list') {
+          if (!canSeeAllAccounts(id.role)) return;           // default-deny
+          const rows = await cfg.store.listAccounts();
+          ws.send(JSON.stringify({
+            t: 'accounts',
+            accounts: rows.map((a) => ({ ...a, agentOnline: registry.hasAgent(a.id) })),
+          }));
+          return;
+        }
+        if (m.t === 'set-admin' && typeof m.accountId === 'string' && typeof m.admin === 'boolean') {
+          if (!canGrantAdmin(id.role)) return;                // só root concede admin
+          await cfg.store.setAdmin(m.accountId, m.admin);
+          const rows = await cfg.store.listAccounts();
+          ws.send(JSON.stringify({
+            t: 'accounts',
+            accounts: rows.map((a) => ({ ...a, agentOnline: registry.hasAgent(a.id) })),
+          }));
+          return;
+        }
+        return;
+      }
       // Roteia opaco pro agente DAQUELA conta. A autenticidade fim-a-fim do frame
       // (assinatura, T5) é verificada NO AGENTE, não aqui — o relay não confia em si.
-      if (!registry.toAgent(accountId, data.toString())) ws.send(JSON.stringify({ t: 'agent-offline' }));
+      if (!registry.toAgent(accountId, s)) ws.send(JSON.stringify({ t: 'agent-offline' }));
     });
     ws.on('close', () => registry.removeBrowser(accountId, ws));
   });

@@ -12,6 +12,7 @@ import { killAllRuns } from './ws/runs';
 import { startModelsLoop } from './ws/models';
 import { startPlanUsageLoop } from './ws/usage-plan';
 import { startStatsLoop } from './ws/stats-loop';
+import { loadManagedEnv } from './admin-ops';
 
 // Entrypoint do AGENTE T3 (DR-023): em vez de escutar (attachWs), DISCA pro relay
 // e serve o MESMO protocolo pelo socket de saída. O relay encaminha os frames do
@@ -181,6 +182,7 @@ export function runAgent(relayUrl: string): void {
     process.exit(1);
   }
   startHealthGuard();
+  void loadManagedEnv(); // tokens gerenciados (#162) p/ o spawn herdar
   // Loops periódicos (telemetria/usage/modelos) que o modo listen roda no attachWs.
   // No dial não há WebSocketServer, então a "presença de cliente" é o socket ativo
   // pro relay (activeWs). broadcast já sai por ele via setClientSource. Sem isto a

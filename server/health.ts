@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import type { AdminHealth, CliInfo, McpInfo, PluginInfo } from '../shared/protocol';
 import { CONFIG } from './config';
 import { collect } from './stats';
+import { managedEnv, INSTALLABLE } from './admin-ops';
 
 const run = promisify(execFile);
 
@@ -89,7 +90,7 @@ async function sshKeys(): Promise<number> {
 }
 
 export async function collectHealth(): Promise<AdminHealth> {
-  const [claudeAuth, mcpRaw, sshConfig, pluginsRaw, ssh, cli, tmux, sessions, memories, skills, sys] = await Promise.all([
+  const [claudeAuth, mcpRaw, sshConfig, pluginsRaw, ssh, cli, tmux, sessions, memories, skills, sys, managed] = await Promise.all([
     exists(join(homedir(), '.claude', '.credentials.json')),
     readFile(join(homedir(), '.claude.json'), 'utf8').catch(() => ''),
     readFile(join(homedir(), '.ssh', 'config'), 'utf8').catch(() => ''),
@@ -101,8 +102,12 @@ export async function collectHealth(): Promise<AdminHealth> {
     countDir(CONFIG.memoryDir, (n) => n.endsWith('.md')),
     countDir(CONFIG.skillsDir, () => true),
     collect(),
+    managedEnv(),
   ]);
   const mcp = mcpInfoFrom(mcpRaw);
+  // Nomes de token gerenciados (~/.deck-agent/env.json) entram na lista junto aos
+  // do ambiente do processo — sobrevivem ao restart do backend (process.env não).
+  const envTokens = Array.from(new Set([...tokenEnvNames(process.env), ...Object.keys(managed)])).sort();
   return {
     claudeAuth,
     mcpServers: mcp.map((m) => m.name),
@@ -110,7 +115,8 @@ export async function collectHealth(): Promise<AdminHealth> {
     sshKeys: ssh,
     sshHosts: parseSshHosts(sshConfig),
     clis: cli,
-    envTokens: tokenEnvNames(process.env),
+    installable: INSTALLABLE,
+    envTokens,
     tmuxSessions: tmux,
     plugins: pluginsFrom(pluginsRaw),
     sessions,

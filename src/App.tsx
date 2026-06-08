@@ -33,6 +33,8 @@ export function CockpitApp() {
     contexts, openContext, onCtxList, onCtxOpen, onCtxClose,
     skills, openSkill, onSkillList, onSkillOpen, onSkillClose,
     usageStats, onUsageList, health, onHealthList,
+    accounts, onAccountsList, onSetAdmin,
+    adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall,
     attachments, onUpload, onRemoveAttachment,
     onSend: handleSend, onStop: handleStop, onNew: cockpitNew, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession,
     onOpenFull, onOpenSummary,
@@ -180,7 +182,9 @@ export function CockpitApp() {
         <Observatorio connected={conn.ws === 'connected'} usageStats={usageStats} onUsageList={onUsageList} sessions={sessions} rate={rate}
           onOpenSession={(id) => { setActiveSessionId(id); nav('/'); }} />
       ) : route === '/admin' && isAdmin ? (
-        <Admin health={health} stats={stats} onHealthList={onHealthList} />
+        <Admin health={health} stats={stats} onHealthList={onHealthList}
+          accounts={accounts} onAccountsList={onAccountsList} onSetAdmin={onSetAdmin} isRoot={caps?.role === 'root'}
+          adminOp={adminOp} onEnvSet={onEnvSet} onEnvUnset={onEnvUnset} onMcpAdd={onMcpAdd} onMcpRemove={onMcpRemove} onCliInstall={onCliInstall} />
       ) : route === '/docs' ? (
         <Docs />
       ) : isMobile ? (

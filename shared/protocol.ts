@@ -173,6 +173,7 @@ export interface AdminHealth {
   sshKeys: number;             // chaves privadas em ~/.ssh
   sshHosts: string[];          // aliases Host do ~/.ssh/config (sem chave/host real)
   clis: CliInfo[];             // CLIs no PATH (git/gh/docker/tmux/…)
+  installable: string[];       // CLIs que o admin pode instalar (allow-list npm-global)
   envTokens: string[];         // NOMES de env que parecem token/segredo (nunca valor)
   tmuxSessions: string[];      // sessões tmux ativas
   plugins: PluginInfo[];       // plugins instalados (~/.claude/plugins), sem segredo
@@ -188,8 +189,14 @@ export interface AdminHealth {
   disk: { used: number; total: number };
 }
 
+// Conta no painel admin (T3). agentOnline = a VPS daquela conta está pareada agora.
+// is_admin é flag de banco (setada só por root); root vem do ENV, não aparece aqui.
+export interface AccountSummary { id: string; email: string; isAdmin: boolean; agentOnline: boolean }
+
 export type ClientMsg =
   | { t: 'send'; sessionKey: string; sessionId?: string; text: string; msgId?: string; mode?: PermMode; model?: string; maxBudgetUsd?: number; bypass?: boolean }
+  | { t: 'accounts-list' }
+  | { t: 'set-admin'; accountId: string; admin: boolean }
   | { t: 'stop'; sessionKey: string }
   | { t: 'list' }
   | { t: 'open'; sessionId: string }
@@ -206,6 +213,14 @@ export type ClientMsg =
   | { t: 'skill-open'; id: string }
   | { t: 'usage-list' }
   | { t: 'admin-health' }
+  // Admin write-ops no host (#162, DR-023). Gated por role admin (authorize) e —
+  // p/ cli-install (RCE) — por loopback (CONFIG.localOnly) no dispatch. Valor de
+  // token nunca volta; só o nome aparece em health.envTokens.
+  | { t: 'admin-env-set'; name: string; value: string }
+  | { t: 'admin-env-unset'; name: string }
+  | { t: 'admin-mcp-add'; name: string; command?: string; url?: string }
+  | { t: 'admin-mcp-remove'; name: string }
+  | { t: 'admin-cli-install'; name: string }
   | { t: 'upload'; sessionKey: string; name: string; dataB64: string }
   | { t: 'term-open'; termId: string; cols: number; rows: number }
   | { t: 'term-input'; termId: string; data: string }
@@ -261,6 +276,8 @@ export type ServerMsg =
   | { t: 'compact'; sessionKey: string; trigger?: string; preTokens?: number }
   | { t: 'usage-stats'; stats: UsageStats }
   | { t: 'health'; health: AdminHealth }
+  | { t: 'admin-op'; ok: boolean; message: string }
+  | { t: 'accounts'; accounts: AccountSummary[] }
   | { t: 'stats'; stats: SysStats }
   | { t: 'term-data'; termId: string; data: string }
   | { t: 'term-replay'; termId: string; data: string }

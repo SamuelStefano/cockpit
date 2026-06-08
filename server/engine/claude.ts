@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import type { ClaudeEvent } from './events';
 import { CONFIG } from '../config';
+import { managedEnvSync } from '../admin-ops';
 import type { Role } from '../auth';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -190,13 +191,16 @@ export function resolveMode(
   }
 }
 
-// env curto: PATH + HOME + idioma. Nada de tokens/SUPABASE_*/Infisical.
+// env curto: PATH + HOME + idioma + tokens GERENCIADOS pelo admin (#162). Nada de
+// SUPABASE_*/Infisical herdados do processo — só o que o dono colocou de propósito
+// via painel admin (~/.deck-agent/env.json) entra, pro agente usar nas tools.
 function minimalEnv(): NodeJS.ProcessEnv {
   return {
     PATH: process.env.PATH,
     HOME: process.env.HOME,
     LANG: process.env.LANG ?? 'en_US.UTF-8',
     TERM: 'dumb',
+    ...managedEnvSync(),
   };
 }
 

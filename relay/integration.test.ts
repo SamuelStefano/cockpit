@@ -67,6 +67,7 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
     const store: RelayStore = {
       async agentById(id) { return id === 'ag-A' ? { accountId: 'accA', publicKey: A.pub } : null; },
       async isAdmin() { return false; },
+      async listAccounts() { return []; }, async setAdmin() { return true; },
       async markAgentSeen() {}, async createPairingCode() { return 'x'; },
       async consumePairingCode() { return null; }, async createAgent() { return null; },
     };
@@ -99,9 +100,53 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
     expect(off.t).toBe('agent-offline'); // conta B isolada, sem agente pareado
   });
 
+  it('gates account admin frames by role (root toggles, fellow denied)', async () => {
+    const setCalls: Array<{ id: string; admin: boolean }> = [];
+    const rows = [
+      { id: 'accA', email: 'a@x', isAdmin: false },
+      { id: 'accB', email: 'b@x', isAdmin: true },
+    ];
+    const store: RelayStore = {
+      async agentById() { return null; }, async isAdmin() { return false; },
+      async listAccounts() { return rows.map((r) => ({ ...r })); },
+      async setAdmin(id, admin) { setCalls.push({ id, admin }); const r = rows.find((x) => x.id === id); if (r) r.isAdmin = admin; return true; },
+      async markAgentSeen() {}, async createPairingCode() { return 'x'; },
+      async consumePairingCode() { return null; }, async createAgent() { return null; },
+    };
+    const relay = createRelay({
+      iss: 't', jwksUrl: 'http://x', rootEmails: '', store,
+      resolveIdentity: async (tok) => tok?.startsWith('R') ? { accountId: 'accR', email: 'r@x', role: 'root' }
+        : tok?.startsWith('F') ? { accountId: 'accF', email: 'f@x', role: 'fellow' } : null,
+    });
+    server = relay.server;
+    await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
+    const url = `ws://127.0.0.1:${(server!.address() as AddressInfo).port}`;
+
+    // Root: lista contas e alterna admin (recebe a lista de volta).
+    const root = new WebSocket(`${url}/ws?token=R1`); sockets.push(root);
+    const waitR = collect(root);
+    await waitR((m) => m.t === 'caps');
+    root.send(JSON.stringify({ t: 'accounts-list' }));
+    const list = await waitR((m) => m.t === 'accounts');
+    expect(list.accounts).toHaveLength(2);
+    root.send(JSON.stringify({ t: 'set-admin', accountId: 'accA', admin: true }));
+    await waitR((m) => m.t === 'accounts' && m.accounts.some((a: { id: string; isAdmin: boolean }) => a.id === 'accA' && a.isAdmin));
+    expect(setCalls).toEqual([{ id: 'accA', admin: true }]);
+
+    // Fellow: accounts-list não responde, set-admin não chama o store.
+    const fellow = new WebSocket(`${url}/ws?token=F1`); sockets.push(fellow);
+    const waitF = collect(fellow);
+    await waitF((m) => m.t === 'caps');
+    fellow.send(JSON.stringify({ t: 'set-admin', accountId: 'accB', admin: false }));
+    fellow.send(JSON.stringify({ t: 'accounts-list' }));
+    await expect(waitF((m) => m.t === 'accounts', 600)).rejects.toThrow();
+    expect(setCalls).toEqual([{ id: 'accA', admin: true }]); // fellow não escreveu nada
+  });
+
   it('rejects a browser with no/invalid identity (default-deny)', async () => {
     const store: RelayStore = {
       async agentById() { return null; }, async isAdmin() { return false; },
+      async listAccounts() { return []; }, async setAdmin() { return true; },
       async markAgentSeen() {}, async createPairingCode() { return 'x'; },
       async consumePairingCode() { return null; }, async createAgent() { return null; },
     };

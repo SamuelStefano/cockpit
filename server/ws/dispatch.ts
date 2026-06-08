@@ -10,6 +10,8 @@ import { usageStats } from '../db';
 import { hideSession, unhideSession, purgeSession, setTitle, setNote } from '../store';
 import { parseSession, parseFullSession } from '../sessions/parse';
 import { collectHealth } from '../health';
+import { setEnv, unsetEnv, addMcp, removeMcp, installCli } from '../admin-ops';
+import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
 import { threads, startRun, routeSend, onStop } from './runs';
 
@@ -90,6 +92,44 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'admin-health': {
+      send(ws, { t: 'health', health: await collectHealth() });
+      return;
+    }
+    // Admin write-ops (#162). authorize() já garante role admin (default-deny);
+    // re-emite health depois de cada escrita p/ a UI refletir na hora.
+    case 'admin-env-set': {
+      const r = await setEnv(msg.name, msg.value);
+      send(ws, { t: 'admin-op', ok: r.ok, message: r.message });
+      send(ws, { t: 'health', health: await collectHealth() });
+      return;
+    }
+    case 'admin-env-unset': {
+      const r = await unsetEnv(msg.name);
+      send(ws, { t: 'admin-op', ok: r.ok, message: r.message });
+      send(ws, { t: 'health', health: await collectHealth() });
+      return;
+    }
+    case 'admin-mcp-add': {
+      const r = await addMcp(msg.name, { command: msg.command, url: msg.url });
+      send(ws, { t: 'admin-op', ok: r.ok, message: r.message });
+      send(ws, { t: 'health', health: await collectHealth() });
+      return;
+    }
+    case 'admin-mcp-remove': {
+      const r = await removeMcp(msg.name);
+      send(ws, { t: 'admin-op', ok: r.ok, message: r.message });
+      send(ws, { t: 'health', health: await collectHealth() });
+      return;
+    }
+    case 'admin-cli-install': {
+      // RCE → só loopback (box do dono). Fora do loopback (agente na VPS federada)
+      // a instalação é negada mesmo pro admin.
+      if (!CONFIG.localOnly) {
+        send(ws, { t: 'admin-op', ok: false, message: 'instalação só no loopback' });
+        return;
+      }
+      const r = await installCli(msg.name);
+      send(ws, { t: 'admin-op', ok: r.ok, message: r.message });
       send(ws, { t: 'health', health: await collectHealth() });
       return;
     }
