@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import type { PermMode } from '../../../shared/protocol';
 import { classifySlash } from './slash';
 import { nextRecall } from './recall';
+import { useSpeechInput } from './useSpeechInput';
 
 const MAX_UPLOAD = 15_000_000;
 
@@ -33,6 +34,10 @@ export function useChatInput(args: UseChatInputArgs) {
   const { disabled, onSend, onStop, value, setValue, setMode, setModel, slashCommands, hasAtt, onUpload, focusSignal, onQueue, history, pendingConfirm, onNew, onShowHelp } = args;
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Ditado por voz escreve direto no composer (value/setValue). Mora aqui pra o
+  // textarea poder ficar readOnly enquanto grava (não dá pra digitar e ditar ao
+  // mesmo tempo: o próximo trecho reconhecido sobrescreveria o que foi digitado).
+  const mic = useSpeechInput(value, setValue);
   // Sobe vários arquivos respeitando o teto (espelha o backend); retorna quantos
   // passaram pra o caller decidir se houve upload (ex: paste consome o evento).
   const uploadFiles = (files: File[]): number => {
@@ -195,5 +200,5 @@ export function useChatInput(args: UseChatInputArgs) {
     if (histIdx !== null) setHistIdx(null); // digitar sai do modo recall
     fitHeight(e.target);
   };
-  return { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste };
+  return { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic };
 }
