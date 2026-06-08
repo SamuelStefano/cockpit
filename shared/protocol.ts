@@ -217,7 +217,9 @@ export type ClientMsg =
 // Capabilities da conexão (DR-011). role = papel do ator (hoje sempre admin em
 // loopback; Fase 2 vem do token). canBypass = se o servidor permite o toggle de
 // bypass (env opt-in + admin + loopback). A UI só mostra o switch quando true.
-export type Caps = { role: 'admin' | 'student'; canBypass: boolean };
+// role: engine Role no loopback ('admin'|'student'); AccountRole no T3
+// ('root'|'admin'|'fellow'). Privilegiado = 'admin'|'root'.
+export type Caps = { role: 'root' | 'admin' | 'fellow' | 'student'; canBypass: boolean };
 
 export type ServerMsg =
   | { t: 'caps'; caps: Caps }

@@ -5,7 +5,7 @@ import {
   makeJwks, verifyJwtSignature, validateClaims, makeChallenge, verifyAgentSignature,
   type JwksFn, type Identity,
 } from './verify';
-import { parseRootEmails } from '../../shared/identity';
+import { parseRootEmails, canSeeAllAccounts, type AccountRole } from '../../shared/identity';
 
 // Relay T3 (DR-023): roteador WS stateless e autenticado. NÃO spawna nada (a
 // fronteira é garantida pelo boundary.test) e NÃO guarda chave de assinatura — só
@@ -49,6 +49,17 @@ export function createRelay(cfg: RelayConfig) {
   const registry = new Registry();
   const roots = parseRootEmails(cfg.rootEmails);
   const jwks: JwksFn = makeJwks(cfg.jwksUrl);
+
+  // canBypass é capacidade LOCAL do agente (allowBypass + localOnly + role admin do
+  // agente); o relay não tem como saber, então o agente reporta via 'agent-caps'.
+  // O relay só CASA com o papel admin do browser — nunca concede sozinho (red line:
+  // bypass = RCE root). A aplicação real continua no agente (bypassAllowed).
+  const agentBypass = new Map<string, boolean>();
+  type BrowserSock = WebSocket & { _role?: AccountRole };
+  // Privilegiado = root/admin (canSeeAllAccounts). canBypass só pra esses E se o
+  // agente reportou capacidade local; o agente reaplica o gate de qualquer forma.
+  const capsFrame = (role: AccountRole, accountId: string) =>
+    JSON.stringify({ t: 'caps', caps: { role, canBypass: canSeeAllAccounts(role) && (agentBypass.get(accountId) ?? false) } });
 
   // Resolve a identidade de um JWT (Authorization: Bearer ou ?token=). Usado pelo
   // HTTP de pairing e pelo path do browser. O override (cfg.resolveIdentity) é só
@@ -98,10 +109,11 @@ export function createRelay(cfg: RelayConfig) {
     const id = await identityFrom(tokenFromUrl(req.url));
     if (!id) { ws.close(4401, 'auth'); return; }            // default-deny (red line #10)
     const accountId = id.accountId;
+    (ws as BrowserSock)._role = id.role;                     // pra reemitir caps no agent-caps
     registry.addBrowser(accountId, ws);
-    // caps autoritativo do relay (papel da conta vem do JWT). canBypass=false: bypass
-    // é local-only do agente, nunca concedido via relay.
-    ws.send(JSON.stringify({ t: 'caps', caps: { role: id.role, canBypass: false } }));
+    // caps autoritativo do relay (papel da conta vem do JWT). canBypass casa o papel
+    // privilegiado com a capacidade que o agente reportou — o gate real é no agente.
+    ws.send(capsFrame(id.role, accountId));
     if (!registry.hasAgent(accountId)) ws.send(JSON.stringify({ t: 'agent-offline' }));
     ws.on('message', (data) => {
       // Roteia opaco pro agente DAQUELA conta. A autenticidade fim-a-fim do frame
@@ -156,13 +168,30 @@ export function createRelay(cfg: RelayConfig) {
         }
         ws.close(4401, 'auth required'); return;
       }
+      // Frame de controle do agente: 'agent-caps' reporta a capacidade LOCAL (bypass).
+      // É consumido aqui (não repassado) e reemite caps pra cada aba já conectada,
+      // casando o papel privilegiado dela com a capacidade real do agente.
+      const s = raw.toString();
+      if (s.includes('"agent-caps"')) {
+        let m: { t?: string; canBypass?: boolean } = {};
+        try { m = JSON.parse(s); } catch { /* repassa abaixo */ }
+        if (m.t === 'agent-caps') {
+          agentBypass.set(st.accountId, !!m.canBypass);
+          registry.eachBrowser(st.accountId, (b) => {
+            const role = (b as BrowserSock)._role;
+            if (role) b.send(capsFrame(role, st.accountId));
+          });
+          return;
+        }
+      }
       // Autenticado: frame do agente → as abas DAQUELA conta (escopo por conta).
-      registry.toBrowsers(st.accountId, raw.toString());
+      registry.toBrowsers(st.accountId, s);
     });
     ws.on('close', () => {
       clearTimeout(authTimer);
       if (st.authed) {
         registry.unbindAgent(st.accountId, ws);
+        agentBypass.delete(st.accountId);
         registry.toBrowsers(st.accountId, JSON.stringify({ t: 'agent-offline' }));
       }
     });

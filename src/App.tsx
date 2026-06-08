@@ -41,7 +41,7 @@ export function CockpitApp() {
   const { route, nav } = useRoute();
   // Default-deny: sem caps (ainda não chegou) = não-admin. No T3 o caps vem do
   // relay (papel da conta no JWT); no loopback, do token/role local.
-  const isAdmin = caps?.role === 'admin';
+  const isAdmin = caps?.role === 'admin' || caps?.role === 'root';
 
   // Produto multi-conta (DR-023): quando o Supabase está ligado (deploy do relay),
   // a sessão vem do login e o access_token alimenta o WS. No loopback (Supabase

@@ -4,6 +4,8 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync } from 'n
 import { join } from 'node:path';
 import { homedir, loadavg, cpus, freemem } from 'node:os';
 import type { Role } from './auth';
+import { capsFor } from './auth';
+import { CONFIG } from './config';
 import { serveConnection } from './ws/serve-connection';
 import { setClientSource } from './ws/broadcast';
 import { killAllRuns } from './ws/runs';
@@ -89,6 +91,10 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: ()
       // bootstrap do serveConnection já replaya o último snapshot (models/plan-usage/
       // stats) PRA ESTE socket; os loops periódicos (startLoops no runAgent) seguem
       // emitindo via broadcast enquanto este socket for o activeWs.
+      // canBypass é capacidade LOCAL do agente (allowBypass + localOnly + role admin):
+      // o relay sozinho não sabe disso e força false. Reporta a real pro relay casar
+      // com o papel do browser — o bypass continua aplicado SÓ aqui (bypassAllowed).
+      ws.send(JSON.stringify({ t: 'agent-caps', canBypass: capsFor(AGENT_ROLE, CONFIG).canBypass }));
     }
   };
 

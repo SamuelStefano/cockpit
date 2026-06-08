@@ -45,6 +45,17 @@ export class Registry {
 
   hasAgent(accountId: string): boolean { return !!this.byAccount.get(accountId)?.agent; }
 
+  // Itera as abas abertas de uma conta (pra reemitir caps quando o agente reporta
+  // sua capacidade real depois que a aba já conectou). Escopo por conta, sem fan-out.
+  eachBrowser(accountId: string, fn: (sock: Sock) => void): void {
+    const b = this.byAccount.get(accountId);
+    if (!b) return;
+    for (const s of b.browsers) {
+      if (s.readyState !== undefined && s.readyState !== OPEN) continue;
+      fn(s);
+    }
+  }
+
   // Frame de um browser → o agente DAQUELA conta. Retorna false se não há agente
   // pareado/online (a UI mostra "agente offline"). Nunca alcança outra conta.
   toAgent(accountId: string, data: string): boolean {
