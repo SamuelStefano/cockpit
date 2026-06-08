@@ -61,7 +61,20 @@ export function createRelay(cfg: RelayConfig) {
     return validateClaims(payload, { iss: cfg.iss, nowSec: Math.floor(nowMs() / 1000), rootEmails: roots, isAdmin });
   }
 
+  // CORS: o SPA (Vercel) chama /pair/new cross-origin com Authorization. O browser
+  // dispara preflight OPTIONS e exige ACAO na resposta. A fronteira de segurança
+  // aqui é o JWT (não o CORS), então refletimos a Origin do chamador.
+  const setCors = (req: IncomingMessage, res: import('node:http').ServerResponse) => {
+    res.setHeader('access-control-allow-origin', req.headers.origin ?? '*');
+    res.setHeader('vary', 'Origin');
+    res.setHeader('access-control-allow-methods', 'POST, OPTIONS');
+    res.setHeader('access-control-allow-headers', 'authorization, content-type');
+    res.setHeader('access-control-max-age', '600');
+  };
+
   const server = createServer(async (req, res) => {
+    setCors(req, res);
+    if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
     // POST /pair/new — o browser logado pede um código de pareamento (JWT no header).
     if (req.method === 'POST' && (req.url ?? '').split('?')[0] === '/pair/new') {
       const auth = req.headers.authorization ?? '';
