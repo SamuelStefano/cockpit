@@ -2,7 +2,7 @@ import { WebSocket } from 'ws';
 import { generateKeyPairSync, createPrivateKey, sign as edSign } from 'node:crypto';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
+import { homedir, loadavg, cpus, freemem } from 'node:os';
 import type { Role } from './auth';
 import { serveConnection } from './ws/serve-connection';
 import { setClientSource } from './ws/broadcast';
@@ -88,7 +88,17 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: ()
   ws.on('close', () => { if (activeWs === ws) { setClientSource(null); activeWs = null; } onClose(); });
   ws.on('error', () => { /* o 'close' cuida do reconnect */ });
 
-  const beat = setInterval(() => { try { ws.ping(); } catch { /* indo embora */ } }, 30_000);
+  // Health check do link: ping a cada 30s E checa o pong. Sem checar o pong um
+  // socket meio-aberto (relay reiniciou, NAT dropou, laptop dormiu) fica "vivo"
+  // pra sempre engolindo frames. Se não veio pong desde o último ping, o link
+  // está morto → terminate() → dispara o 'close' → reconnect com backoff.
+  let alive = true;
+  ws.on('pong', () => { alive = true; });
+  const beat = setInterval(() => {
+    if (!alive) { try { ws.terminate(); } catch { /* indo embora */ } return; }
+    alive = false;
+    try { ws.ping(); } catch { /* indo embora */ }
+  }, 30_000);
   beat.unref();
   ws.on('close', () => clearInterval(beat));
   return ws;
@@ -121,12 +131,41 @@ export function pairAgent(relayUrl: string, code: string): Promise<void> {
   });
 }
 
+// Memória disponível em MB. Lê MemAvailable do /proc (Linux, o que conta pra OOM);
+// cai pra os.freemem() em FS sem /proc.
+function availableMemMb(): number {
+  try {
+    const m = readFileSync('/proc/meminfo', 'utf8').match(/MemAvailable:\s+(\d+)\s+kB/);
+    if (m) return Math.round(Number(m[1]) / 1024);
+  } catch { /* sem /proc */ }
+  return Math.round(freemem() / 1048576);
+}
+
+// Health check de RECURSO da VPS do fellow. O agente roda `claude -p` local: um run
+// desgovernado pode estourar a RAM/CPU e TRAVAR a box (foi o medo do Samuel). A cada
+// 60s, se o load passar de 4x os cores OU a memória cair abaixo de 120MB, mata os
+// runs em andamento (killAllRuns) pra liberar a box ANTES do OOM-killer agir. O
+// socket fica vivo; só os runs caem. unref() pra não segurar o processo.
+export function startHealthGuard(): void {
+  const cores = cpus().length || 1;
+  const timer = setInterval(() => {
+    const load1 = loadavg()[0];
+    const memMb = availableMemMb();
+    if (load1 > cores * 4 || memMb < 120) {
+      console.error(`[agent] health: pressão (load1=${load1.toFixed(2)} mem=${memMb}MB) — matando runs pra não travar a VPS`);
+      killAllRuns();
+    }
+  }, 60_000);
+  timer.unref();
+}
+
 export function runAgent(relayUrl: string): void {
   const id = loadIdentity();
   if (!id?.agentId) {
     console.error('[agent] não pareado. Rode o pairing (npx @deck/agent --pair=CÓDIGO) primeiro.');
     process.exit(1);
   }
+  startHealthGuard();
   let attempt = 0;
   const loop = () => {
     connect(
