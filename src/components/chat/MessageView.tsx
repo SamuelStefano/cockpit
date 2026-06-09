@@ -7,6 +7,7 @@ import type { Message } from '../../data/mock';
 import type { TriageAction } from '../../../shared/protocol';
 import { messageToText } from '../../lib/export';
 import { AssistantBlocks } from './AssistantBlocks';
+import { ThinkingDots } from './Thinking';
 import { CopyTextButton, QuoteButton, CopyMessageButton } from './MessageActions';
 
 export type { DiffRow } from './diff';
@@ -17,11 +18,12 @@ interface MessageRowProps {
   msg: Message;
   caretOnLast: boolean;
   modelLabel?: string;
+  thinking?: boolean;
   onEditUser?: (text: string) => void;
   onQuote?: (text: string) => void;
 }
 
-export function MessageRow({ msg, caretOnLast, modelLabel, onEditUser, onQuote }: MessageRowProps) {
+export function MessageRow({ msg, caretOnLast, modelLabel, thinking, onEditUser, onQuote }: MessageRowProps) {
   const [userName] = usePersisted<string>('user.name', '');
   if (msg.role === 'user') {
     return (
@@ -67,6 +69,7 @@ export function MessageRow({ msg, caretOnLast, modelLabel, onEditUser, onQuote }
           </div>
         )}
         <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} />
+        {thinking && <ThinkingDots />}
         {hasText && !caretOnLast && (
           <div className="mt-1 flex items-center gap-2 opacity-100 transition group-hover/msg:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100">
             <CopyMessageButton blocks={msg.blocks} />
