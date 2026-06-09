@@ -241,6 +241,7 @@ export type ClientMsg =
   | { t: 'skill-list' }
   | { t: 'skill-open'; id: string }
   | { t: 'usage-list' }
+  | { t: 'refresh-models' }
   | { t: 'admin-health' }
   // Admin write-ops no host (#162, DR-023). Gated por role admin (authorize) e —
   // p/ cli-install (RCE) — por loopback (CONFIG.localOnly) no dispatch. Valor de

@@ -25,6 +25,7 @@ interface ChatInputProps {
   model: string;
   setModel: (m: string) => void;
   models: ModelInfo[];
+  onRefreshModels: () => void;
   skills: SkillMeta[];
   selectedSkills: string[];
   setSelectedSkills: (ids: string[]) => void;
@@ -46,7 +47,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, skills, selectedSkills, setSelectedSkills, attachments, onRemoveAttachment, queued, onCancelQueueAt, onMoveQueued, paused = false, quotaResetsAt } = props;
+  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, onRefreshModels, skills, selectedSkills, setSelectedSkills, attachments, onRemoveAttachment, queued, onCancelQueueAt, onMoveQueued, paused = false, quotaResetsAt } = props;
   const hasAtt = attachments.length > 0;
   const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
   const { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic } = useChatInput({ ...props, hasAtt });
@@ -56,7 +57,7 @@ export function ChatInput(props: ChatInputProps) {
         mode={mode} setMode={setMode} disabled={disabled} caps={caps}
         bypass={bypass} setBypass={setBypass} skills={skills}
         selectedSkills={selectedSkills} setSelectedSkills={setSelectedSkills}
-        model={model} setModel={setModel} models={models}
+        model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels}
       />
       {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} />}
       {queued.length > 0 && <QueuedBanner queued={queued} onCancelQueueAt={onCancelQueueAt} onMove={onMoveQueued} />}

@@ -48,6 +48,7 @@ export interface Cockpit {
   model: string;
   setModel: (m: string) => void;
   models: ModelInfo[];
+  onRefreshModels: () => void;
   selectedSkills: string[];
   setSelectedSkills: (ids: string[]) => void;
   slashCommands: string[];
@@ -859,6 +860,7 @@ export function useCockpit(): Cockpit {
   const onSkillOpen = useCallback((id: string) => send({ t: 'skill-open', id }), [send]);
   const onSkillClose = useCallback(() => setOpenSkill(null), []);
   const onUsageList = useCallback(() => send({ t: 'usage-list' }), [send]);
+  const onRefreshModels = useCallback(() => send({ t: 'refresh-models' }), [send]);
   const onHealthList = useCallback(() => send({ t: 'admin-health' }), [send]);
   // Painel admin de contas (T3): listar usuários e ligar/desligar admin. Tratado
   // NO RELAY (service-role); o gate de papel é lá. No loopback estes frames não têm
@@ -1076,5 +1078,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, selectedSkills, setSelectedSkills: changeSelectedSkills, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, selectedSkills, setSelectedSkills: changeSelectedSkills, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
 }

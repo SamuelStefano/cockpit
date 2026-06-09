@@ -14,6 +14,7 @@ import { setEnv, unsetEnv, addMcp, removeMcp, installCli } from '../admin-ops';
 import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
 import { threads, startRun, routeSend, onStop } from './runs';
+import { refreshModels } from './models';
 
 export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
   switch (msg.t) {
@@ -91,6 +92,13 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'usage-list': {
       send(ws, { t: 'usage-stats', stats: usageStats() });
+      return;
+    }
+    case 'refresh-models': {
+      // Puxa /v1/models na hora (em vez de esperar o poll horário) e re-broadcasta
+      // a lista nova pra todos, pra um modelo recém-lançado aparecer no seletor.
+      const models = await refreshModels();
+      if (models.length) broadcast({ t: 'models', models });
       return;
     }
     case 'admin-health': {

@@ -1,6 +1,7 @@
 import type { ModelInfo } from '../../../shared/protocol';
 import { prettyModel, modelFamily, normalizeModelId } from './toolbar.format';
 import { usePersisted } from '../../lib/persist';
+import { Icon } from '../primitives';
 
 const ADD = '__add__';
 
@@ -22,9 +23,10 @@ function withFamilies(models: ModelInfo[]): ModelInfo[] {
   return [...models, ...extra];
 }
 
-export function ModelPicker({ model, setModel, models, disabled }: {
+export function ModelPicker({ model, setModel, models, onRefreshModels, disabled }: {
   model: string; setModel: (m: string) => void;
   models: ModelInfo[];
+  onRefreshModels: () => void;
   disabled: boolean;
 }) {
   const [customIds, setCustomIds] = usePersisted<string[]>('customModels', []);
@@ -63,6 +65,15 @@ export function ModelPicker({ model, setModel, models, disabled }: {
         {list.map((o) => <option key={o.id} value={o.id}>{prettyModel(o.id, o.displayName)}</option>)}
         <option value={ADD}>+ outro modelo…</option>
       </select>
+      <button
+        type="button"
+        onClick={onRefreshModels}
+        disabled={disabled}
+        title="Buscar modelos novos da Anthropic agora"
+        className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md border border-neutral-800 bg-neutral-950 text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-200 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <Icon name="rotate" size={12} />
+      </button>
     </label>
   );
 }
