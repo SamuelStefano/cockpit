@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ctxTokens, num, diffOf, planOf, extractCommand, recToMessage, activeChain, type Rec } from './parse';
+import { ctxTokens, num, diffOf, planOf, questionsOf, extractCommand, recToMessage, activeChain, type Rec } from './parse';
 
 describe('num', () => {
   it('passes through finite non-negative numbers', () => {
@@ -68,6 +68,42 @@ describe('planOf', () => {
   it('ignores blank or wrong tools', () => {
     expect(planOf('ExitPlanMode', { plan: '   ' })).toBeUndefined();
     expect(planOf('Edit', { plan: 'x' })).toBeUndefined();
+  });
+});
+
+describe('questionsOf', () => {
+  const input = {
+    questions: [
+      {
+        question: 'Qual abordagem?',
+        header: 'Abordagem',
+        multiSelect: false,
+        options: [
+          { label: 'A', description: 'desc A' },
+          { label: 'B' },
+        ],
+      },
+    ],
+  };
+  it('extracts AskUserQuestion questions', () => {
+    const q = questionsOf('AskUserQuestion', input);
+    expect(q).toHaveLength(1);
+    expect(q![0].question).toBe('Qual abordagem?');
+    expect(q![0].header).toBe('Abordagem');
+    expect(q![0].multiSelect).toBe(false);
+    expect(q![0].options).toEqual([
+      { label: 'A', description: 'desc A' },
+      { label: 'B', description: undefined },
+    ]);
+  });
+  it('ignores wrong tool or bad shape', () => {
+    expect(questionsOf('Edit', input)).toBeUndefined();
+    expect(questionsOf('AskUserQuestion', {})).toBeUndefined();
+    expect(questionsOf('AskUserQuestion', { questions: [] })).toBeUndefined();
+  });
+  it('drops questions without text or options', () => {
+    expect(questionsOf('AskUserQuestion', { questions: [{ question: '', options: [{ label: 'X' }] }] })).toBeUndefined();
+    expect(questionsOf('AskUserQuestion', { questions: [{ question: 'q', options: [] }] })).toBeUndefined();
   });
 });
 

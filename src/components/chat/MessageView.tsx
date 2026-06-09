@@ -21,9 +21,11 @@ interface MessageRowProps {
   thinking?: boolean;
   onEditUser?: (text: string) => void;
   onQuote?: (text: string) => void;
+  answerable?: boolean;
+  onAnswer?: (text: string) => void;
 }
 
-export function MessageRow({ msg, caretOnLast, modelLabel, thinking, onEditUser, onQuote }: MessageRowProps) {
+export function MessageRow({ msg, caretOnLast, modelLabel, thinking, onEditUser, onQuote, answerable, onAnswer }: MessageRowProps) {
   const [userName] = usePersisted<string>('user.name', '');
   if (msg.role === 'user') {
     return (
@@ -68,7 +70,7 @@ export function MessageRow({ msg, caretOnLast, modelLabel, thinking, onEditUser,
             <Icon name="zap" size={10} /> resposta rápida (paralela)
           </div>
         )}
-        <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} />
+        <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} answerable={answerable} onAnswer={onAnswer} />
         {thinking && <ThinkingDots />}
         {hasText && !caretOnLast && (
           <div className="mt-1 flex items-center gap-2 opacity-100 transition group-hover/msg:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100">

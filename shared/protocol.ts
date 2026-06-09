@@ -8,6 +8,18 @@ export interface ToolDiff {
   new: string;
 }
 
+// AskUserQuestion: o modelo pergunta com opções. Como o engine roda `claude -p`
+// single-shot (stdin ignorado), NÃO dá pra responder no meio do turno — a UI
+// renderiza as opções e a escolha vira o PRÓXIMO prompt (resume). Espelha o
+// schema do tool: cada pergunta tem header curto, texto e 2-4 opções.
+export interface ToolQuestionOption { label: string; description?: string }
+export interface ToolQuestion {
+  question: string;
+  header: string;
+  multiSelect: boolean;
+  options: ToolQuestionOption[];
+}
+
 export interface ToolCall {
   id: string; // = tool_use_id (correlação running -> done; squad H1)
   name: string;
@@ -19,6 +31,7 @@ export interface ToolCall {
   expanded?: boolean;
   diff?: ToolDiff; // Edit/Write: antes/depois p/ render de diff colorido
   markdown?: string; // corpo rico (ex: plano do ExitPlanMode) renderizado como md
+  questions?: ToolQuestion[]; // AskUserQuestion: perguntas com opções clicáveis
   output: string[];
 }
 

@@ -1,10 +1,15 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Icon, Markdown, CodeBlock } from '../primitives';
 import { usePersisted } from '../../lib/persist';
 import type { Block } from '../../data/mock';
 import { ToolCallCard } from './ToolCallCard';
 import { ToolGroupCard } from './ToolGroupCard';
+import { AskQuestionCard } from './AskQuestionCard';
 import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT } from '../../lib/prefs';
+
+function isQuestion(t: { name?: string; questions?: unknown[] }) {
+  return t.name === 'AskUserQuestion' && !!t.questions?.length;
+}
 
 function ThinkingCard({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
@@ -37,6 +42,9 @@ function ThinkingCard({ text }: { text: string }) {
 interface AssistantBlocksProps {
   blocks: Block[];
   caretOnLast: boolean;
+  // answerable = última mensagem assistant + turno ocioso → AskUserQuestion clicável.
+  answerable?: boolean;
+  onAnswer?: (text: string) => void;
 }
 
 // Agrupa blocos de ferramenta CONSECUTIVOS num só item (renderiza como grupo) e
@@ -65,16 +73,29 @@ function groupBlocks(blocks: Block[]): Item[] {
   return items;
 }
 
-export function AssistantBlocks({ blocks, caretOnLast }: AssistantBlocksProps) {
+export function AssistantBlocks({ blocks, caretOnLast, answerable = false, onAnswer }: AssistantBlocksProps) {
   const [showTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   const lastIdx = blocks.length - 1;
   return (
     <div className="space-y-1">
       {groupBlocks(blocks).map((it) => {
         if (it.kind === 'tools') {
-          if (!showTools) return null;
-          if (it.tools.length === 1) return <ToolCallCard key={it.i} tool={it.tools[0]} />;
-          return <ToolGroupCard key={it.i} tools={it.tools} />;
+          // AskUserQuestion sempre renderiza (mesmo com tools ocultas): é uma ação
+          // que o usuário PRECISA ver pra desbloquear o turno. Demais tools seguem o
+          // toggle showTools.
+          const questions = it.tools.filter(isQuestion);
+          const rest = it.tools.filter((t) => !isQuestion(t));
+          const cards: ReactNode[] = [];
+          questions.forEach((t, qi) => {
+            cards.push(
+              <AskQuestionCard key={`${it.i}-q${qi}`} tool={t} answerable={answerable} onAnswer={onAnswer} />,
+            );
+          });
+          if (showTools && rest.length) {
+            if (rest.length === 1) cards.push(<ToolCallCard key={`${it.i}-t`} tool={rest[0]} />);
+            else cards.push(<ToolGroupCard key={`${it.i}-g`} tools={rest} />);
+          }
+          return cards.length ? <div key={it.i} className="space-y-1">{cards}</div> : null;
         }
         const b = it.block;
         const isLast = it.i === lastIdx;
