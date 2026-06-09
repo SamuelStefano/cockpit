@@ -3,6 +3,7 @@ import { Icon, Markdown } from '../primitives';
 import { usePersisted } from '../../lib/persist';
 import type { ToolCall } from '../../data/mock';
 import { DiffView } from './DiffView';
+import { TodoPanel } from './TodoPanel';
 import { CopyTextButton } from './MessageActions';
 
 interface ToolCallCardProps {
@@ -90,6 +91,7 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
         </div>
       ))}
       {tool.diff && <DiffView diff={tool.diff} />}
+      {tool.todos && tool.todos.length > 0 && <TodoPanel todos={tool.todos} />}
       {tool.markdown && (
         <div className="px-3 pb-2">
           <div className="rounded-md border border-neutral-800 bg-[#0c0c0c] px-3 py-2 text-[13px] leading-relaxed text-neutral-300">

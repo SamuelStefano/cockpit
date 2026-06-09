@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ctxTokens, num, diffOf, planOf, questionsOf, extractCommand, recToMessage, activeChain, type Rec } from './parse';
+import { ctxTokens, num, diffOf, planOf, questionsOf, todosOf, extractCommand, recToMessage, activeChain, type Rec } from './parse';
 
 describe('num', () => {
   it('passes through finite non-negative numbers', () => {
@@ -104,6 +104,33 @@ describe('questionsOf', () => {
   it('drops questions without text or options', () => {
     expect(questionsOf('AskUserQuestion', { questions: [{ question: '', options: [{ label: 'X' }] }] })).toBeUndefined();
     expect(questionsOf('AskUserQuestion', { questions: [{ question: 'q', options: [] }] })).toBeUndefined();
+  });
+});
+
+describe('todosOf', () => {
+  const input = {
+    todos: [
+      { content: 'Ler arquivo', status: 'completed' },
+      { content: 'Rodar testes', status: 'in_progress', activeForm: 'Rodando testes' },
+      { content: 'Abrir PR', status: 'pending' },
+    ],
+  };
+  it('extracts TodoWrite todos', () => {
+    const t = todosOf('TodoWrite', input);
+    expect(t).toHaveLength(3);
+    expect(t![0]).toEqual({ content: 'Ler arquivo', status: 'completed', activeForm: undefined });
+    expect(t![1]).toEqual({ content: 'Rodar testes', status: 'in_progress', activeForm: 'Rodando testes' });
+    expect(t![2].status).toBe('pending');
+  });
+  it('coerces unknown status to pending', () => {
+    const t = todosOf('TodoWrite', { todos: [{ content: 'X', status: 'weird' }] });
+    expect(t![0].status).toBe('pending');
+  });
+  it('ignores wrong tool or bad shape', () => {
+    expect(todosOf('Edit', input)).toBeUndefined();
+    expect(todosOf('TodoWrite', {})).toBeUndefined();
+    expect(todosOf('TodoWrite', { todos: [] })).toBeUndefined();
+    expect(todosOf('TodoWrite', { todos: [{ content: '', status: 'pending' }] })).toBeUndefined();
   });
 });
 

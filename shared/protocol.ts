@@ -32,7 +32,14 @@ export interface ToolCall {
   diff?: ToolDiff; // Edit/Write: antes/depois p/ render de diff colorido
   markdown?: string; // corpo rico (ex: plano do ExitPlanMode) renderizado como md
   questions?: ToolQuestion[]; // AskUserQuestion: perguntas com opções clicáveis
+  todos?: ToolTodo[]; // TodoWrite: lista de tarefas (pending/in_progress/completed)
   output: string[];
+}
+
+export interface ToolTodo {
+  content: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  activeForm?: string; // forma gerúndio mostrada enquanto in_progress ("Rodando testes")
 }
 
 export interface TextBlock {

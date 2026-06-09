@@ -22,6 +22,7 @@ export function upsertTool(blocks: Block[], tool: ToolCall): Block[] {
       diff: tool.diff ?? prev.diff,
       markdown: tool.markdown ?? prev.markdown,
       questions: tool.questions ?? prev.questions,
+      todos: tool.todos ?? prev.todos,
     };
     const next = blocks.slice();
     next[i] = { type: 'tool', tool: merged };
