@@ -18,3 +18,21 @@ export function costToday(series: DailyUsage[], now: number = Date.now()): numbe
   const start = startOfDay(now);
   return series.filter((d) => d.day >= start).reduce((a, d) => a + d.cost, 0);
 }
+
+export function relTime(ts: number, now: number = Date.now()): string {
+  const m = Math.floor((now - ts) / 60_000);
+  if (m < 1) return 'agora';
+  if (m < 60) return `${m}min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
+}
+
+export function relReset(ts: number, now: number = Date.now()): string {
+  const d = ts - now;
+  if (d <= 0) return 'agora';
+  const m = Math.ceil(d / 60_000);
+  if (m < 60) return `${m}min`;
+  const h = Math.floor(m / 60);
+  return `${h}h${String(m % 60).padStart(2, '0')}`;
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fmtNum, usd, startOfDay, costToday } from './observatorio.format';
+import { fmtNum, usd, startOfDay, costToday, relTime, relReset } from './observatorio.format';
 import type { DailyUsage } from '../../shared/protocol';
 
 describe('fmtNum', () => {
@@ -35,4 +35,19 @@ describe('costToday', () => {
   it('returns 0 with no series', () => {
     expect(costToday([], now)).toBe(0);
   });
+});
+
+describe('relTime', () => {
+  const now = 1_000_000_000_000;
+  it('shows agora under a minute', () => expect(relTime(now - 30_000, now)).toBe('agora'));
+  it('shows minutes under an hour', () => expect(relTime(now - 5 * 60_000, now)).toBe('5min'));
+  it('shows hours under a day', () => expect(relTime(now - 3 * 3_600_000, now)).toBe('3h'));
+  it('shows days past a day', () => expect(relTime(now - 2 * 86_400_000, now)).toBe('2d'));
+});
+
+describe('relReset', () => {
+  const now = 1_000_000_000_000;
+  it('shows agora when already past', () => expect(relReset(now - 1000, now)).toBe('agora'));
+  it('shows minutes under an hour', () => expect(relReset(now + 5 * 60_000, now)).toBe('5min'));
+  it('pads minutes inside hours', () => expect(relReset(now + (2 * 60 + 5) * 60_000, now)).toBe('2h05'));
 });
