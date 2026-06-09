@@ -11,9 +11,16 @@ const runs = vi.hoisted(() => ({
 }));
 const bc = vi.hoisted(() => ({ send: vi.fn(), broadcast: vi.fn() }));
 const parse = vi.hoisted(() => ({ parseSession: vi.fn(), parseFullSession: vi.fn() }));
+const cfg = vi.hoisted(() => ({ CONFIG: { localOnly: true } }));
+const admin = vi.hoisted(() => ({
+  setEnv: vi.fn(), unsetEnv: vi.fn(), removeMcp: vi.fn(), installCli: vi.fn(),
+  addMcp: vi.fn(async () => ({ ok: true, message: 'ok' })),
+}));
 
 vi.mock('./runs', () => runs);
 vi.mock('./broadcast', () => bc);
+vi.mock('../config', () => cfg);
+vi.mock('../admin-ops', () => admin);
 vi.mock('../sessions/parse', () => parse);
 vi.mock('../sessions/index', () => ({ listSessions: vi.fn(async () => []), listArchived: vi.fn(async () => []) }));
 vi.mock('../sessions/search', () => ({ searchSessions: vi.fn(async () => []) }));
@@ -30,7 +37,7 @@ vi.mock('../health', () => ({ collectHealth: vi.fn(async () => ({})) }));
 import { handle } from './dispatch';
 
 const ws = {} as WebSocket;
-beforeEach(() => { vi.clearAllMocks(); runs.threads.clear(); });
+beforeEach(() => { vi.clearAllMocks(); runs.threads.clear(); cfg.CONFIG.localOnly = true; });
 
 describe('send routing (the #130 role seam)', () => {
   const msg = (over: Partial<ClientMsg> = {}): ClientMsg => ({
@@ -99,6 +106,27 @@ describe('open / open-full invalid session', () => {
     parse.parseFullSession.mockResolvedValue({ messages: [{ role: 'user' }], tokens: 7 });
     await handle(ws, { t: 'open-full', sessionId: 's1' } as ClientMsg);
     expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'history', full: true, tokens: 7 }));
+  });
+});
+
+describe('admin-mcp-add stdio loopback gate', () => {
+  it('blocks a stdio MCP (arbitrary command → RCE) when not loopback', async () => {
+    cfg.CONFIG.localOnly = false;
+    await handle(ws, { t: 'admin-mcp-add', name: 'evil', command: 'bash -c pwn' } as ClientMsg);
+    expect(admin.addMcp).not.toHaveBeenCalled();
+    expect(bc.send).toHaveBeenCalledWith(ws, { t: 'admin-op', ok: false, message: 'MCP stdio só no loopback' });
+  });
+
+  it('allows a url MCP (http, no subprocess) even when not loopback', async () => {
+    cfg.CONFIG.localOnly = false;
+    await handle(ws, { t: 'admin-mcp-add', name: 'remote', url: 'https://mcp.example/sse' } as ClientMsg);
+    expect(admin.addMcp).toHaveBeenCalledOnce();
+  });
+
+  it('allows a stdio MCP on the loopback box (owner)', async () => {
+    cfg.CONFIG.localOnly = true;
+    await handle(ws, { t: 'admin-mcp-add', name: 'local', command: 'node mcp.js' } as ClientMsg);
+    expect(admin.addMcp).toHaveBeenCalledOnce();
   });
 });
 
