@@ -1,7 +1,7 @@
 import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { join, resolve } from 'node:path';
-import type { Block, Message, ToolCall, ToolDiff, ToolQuestion } from '../../shared/protocol';
+import type { Block, Message, ToolCall, ToolDiff, ToolQuestion, ToolTodo } from '../../shared/protocol';
 import { CONFIG } from '../config';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -169,6 +169,7 @@ export function recToMessage(r: Rec): Message | null {
           diff: diffOf(c.name, c.input),
           markdown: planOf(c.name, c.input),
           questions: questionsOf(c.name, c.input),
+          todos: todosOf(c.name, c.input),
           output: [],
         };
         blocks.push({ type: 'tool', tool });
@@ -258,4 +259,24 @@ export function questionsOf(name: unknown, input: unknown): ToolQuestion[] | und
     questions.push({ question, header, multiSelect: o.multiSelect === true, options });
   }
   return questions.length ? questions : undefined;
+}
+
+// TodoWrite carrega input.todos[] (cada uma: content/status/activeForm). Extrai pra
+// render do painel de tarefas no card (sem isto, TodoWrite virava card genérico sem
+// a lista de itens). Status fora do enum vira 'pending' (JSONL não-confiável).
+export function todosOf(name: unknown, input: unknown): ToolTodo[] | undefined {
+  if (name !== 'TodoWrite' || !input || typeof input !== 'object') return undefined;
+  const raw = (input as Record<string, unknown>).todos;
+  if (!Array.isArray(raw)) return undefined;
+  const todos: ToolTodo[] = [];
+  for (const t of raw) {
+    if (!t || typeof t !== 'object') continue;
+    const o = t as Record<string, unknown>;
+    const content = typeof o.content === 'string' ? o.content : '';
+    if (!content) continue;
+    const status = o.status === 'in_progress' || o.status === 'completed' ? o.status : 'pending';
+    const activeForm = typeof o.activeForm === 'string' && o.activeForm ? o.activeForm : undefined;
+    todos.push({ content, status, activeForm });
+  }
+  return todos.length ? todos : undefined;
 }
