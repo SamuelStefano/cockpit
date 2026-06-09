@@ -108,14 +108,17 @@ export const CONFIG = {
   // WebFetch/WebSearch entram pré-aprovados: como o `claude -p` roda com stdin
   // ignorado (sem control protocol), tool fora da allow-list é negada sem ter
   // como pedir aprovação — então read-only de rede precisa estar listada pra
-  // funcionar. Bloqueio via COCKPIT_DISALLOWED_TOOLS continua valendo (precede).
-  allowedTools: (process.env.COCKPIT_ALLOWED_TOOLS ?? 'Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch')
+  // funcionar. AskUserQuestion idem: fora da allow-list o CLI nega a pergunta em
+  // silêncio e o card de escolha nunca aparece (a UI já trata via --resume).
+  // Bloqueio via COCKPIT_DISALLOWED_TOOLS continua valendo (precede).
+  allowedTools: (process.env.COCKPIT_ALLOWED_TOOLS ?? 'Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch,AskUserQuestion')
     .split(',').map((s) => s.trim()).filter(Boolean),
 
   // Modo Auto: edita/lê sem shell. Mesma allow-list SEM Bash — o agente trabalha
   // arquivos sozinho mas não roda comandos arbitrários. WebFetch/WebSearch
-  // (read-only de rede) entram pra não travar pesquisa/leitura de página.
-  allowedToolsAuto: (process.env.COCKPIT_ALLOWED_TOOLS_AUTO ?? 'Read,Edit,Write,Glob,Grep,WebFetch,WebSearch')
+  // (read-only de rede) e AskUserQuestion (pergunta ao usuário) entram pra não
+  // travar pesquisa/leitura nem o fluxo de escolha.
+  allowedToolsAuto: (process.env.COCKPIT_ALLOWED_TOOLS_AUTO ?? 'Read,Edit,Write,Glob,Grep,WebFetch,WebSearch,AskUserQuestion')
     .split(',').map((s) => s.trim()).filter(Boolean),
 
   // Kill-switch DURO: tools aqui são negadas em TODOS os modos (precede a allow-list
