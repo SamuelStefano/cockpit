@@ -31,16 +31,17 @@ function useElapsed(startedAt?: number): number {
   return secs;
 }
 
-// Linha discreta "Xs · N.Nk tok" enquanto o turno roda. Tokens só aparecem quando
-// já há gasto medido (>0); o tempo a partir de 3s pra não piscar à toa.
+// Linha discreta "Xs · N.Nk tok" enquanto o turno roda. Mostra o tempo desde 1s
+// (igual ao terminal, que conta do início) e os tokens assim que a saída começa
+// a fazer streaming (estimativa ao vivo ~4 chars/token).
 export function LiveStatsLine({ live }: { live: LiveTurn }) {
   const secs = useElapsed(live.startedAt);
   const parts: string[] = [];
-  if (secs >= 3) parts.push(fmtElapsed(secs));
-  if (live.tokens > 0) parts.push(`${fmtTokensK(live.tokens)} tok`);
+  if (secs >= 1) parts.push(fmtElapsed(secs));
+  if (live.tokens > 0) parts.push(`~${fmtTokensK(live.tokens)} tok`);
   if (!parts.length) return null;
   return (
-    <span className="text-[11px] tabular-nums text-neutral-600" title="Turno em andamento: tempo decorrido · tokens gastos neste turno">
+    <span className="text-[11px] tabular-nums text-neutral-600" title="Turno em andamento: tempo decorrido · estimativa de tokens de saída neste turno">
       {parts.join(' · ')}
     </span>
   );

@@ -122,6 +122,7 @@ export function useCockpit(): Cockpit {
   const usageRef = useRef<Record<string, number>>({}); // espelho de `usage` p/ ler o contexto no início do turno sem depender do closure stale
   const turnBaseRef = useRef<Record<string, number>>({}); // sessionKey -> contexto no início do turno; o gasto AO VIVO do turno = contexto atual - base
   const [liveTurn, setLiveTurn] = useState<Record<string, number>>({}); // sessionKey -> tokens gastos NESTE turno (ao vivo), pro indicador estilo terminal
+  const liveCharsRef = useRef<Record<string, number>>({}); // sessionKey -> chars de saída (texto+thinking) que já fizeram streaming neste turno; o CLI só reporta usage no fim, então estimamos os tokens AO VIVO daqui (~4 chars/token)
   const [truncated, setTruncated] = useState<Record<string, boolean>>({}); // sessionKey -> open dropou histórico antigo
   const [turnStats, setTurnStats] = useState<Record<string, TurnStats>>({}); // sessionKey -> custo/duração reais do último turno
   const [interrupted, setInterrupted] = useState<Record<string, string>>({}); // sessionKey -> endReason (budget/max_turns) p/ oferecer "continuar"
@@ -202,6 +203,16 @@ export function useCockpit(): Cockpit {
     if (!mid) return;
     updateThread(key, (prev) => prev.map((m) => (m.id === mid && m.role === 'assistant' ? { ...m, blocks: fn(m.blocks) } : m)));
   }, [updateThread]);
+
+  // Ticker AO VIVO de tokens do turno (estilo terminal). O CLI só reporta usage no
+  // fim, então estimamos a saída pelos chars que fazem streaming (~4 chars/token).
+  // O número real do turno é carimbado na bolha no `done` (turnTokens).
+  const bumpLiveTokens = useCallback((key: string, text: string) => {
+    if (!text) return;
+    liveCharsRef.current[key] = (liveCharsRef.current[key] || 0) + text.length;
+    const est = Math.ceil(liveCharsRef.current[key] / 4);
+    setLiveTurn((l) => (l[key] === est ? l : { ...l, [key]: est }));
+  }, []);
 
   // Turno encerrado (done/error/stop) sem o tool_result de uma ferramenta em voo:
   // o card ficaria girando "running" pra sempre. Marca as órfãs como encerradas.
@@ -366,6 +377,7 @@ export function useCockpit(): Cockpit {
         // Início do turno: fixa a base de contexto pra medir o gasto AO VIVO deste
         // turno (delta) no indicador estilo terminal. Zera o contador exibido.
         turnBaseRef.current[key] = usageRef.current[key] || 0;
+        liveCharsRef.current[key] = 0;
         setLiveTurn((l) => ({ ...l, [key]: 0 }));
         return;
       }
@@ -410,6 +422,7 @@ export function useCockpit(): Cockpit {
         lastActivity.current[key] = Date.now();
         if (!stopping.current.has(key)) setPhases((p) => ({ ...p, [key]: 'streaming' }));
         patchRunMsg(key, (b) => appendDelta(b, msg.text));
+        bumpLiveTokens(key, msg.text);
         return;
       }
       case 'thinking': {
@@ -417,6 +430,7 @@ export function useCockpit(): Cockpit {
         lastActivity.current[key] = Date.now();
         if (!stopping.current.has(key)) setPhases((p) => ({ ...p, [key]: 'streaming' }));
         patchRunMsg(key, (b) => appendThinking(b, msg.text));
+        bumpLiveTokens(key, msg.text);
         return;
       }
       case 'tool': {
@@ -451,10 +465,10 @@ export function useCockpit(): Cockpit {
         const key = resolveKey(migratedTo.current, msg.sessionKey);
         usageRef.current[key] = msg.tokens;
         setUsage((u) => ({ ...u, [key]: msg.tokens }));
-        // Gasto ao vivo do turno = quanto o contexto cresceu desde o início dele.
-        // Sem base (turno herdado de reconnect) cai em 0 — não inventa número.
-        const base = turnBaseRef.current[key];
-        if (base !== undefined) setLiveTurn((l) => ({ ...l, [key]: Math.max(0, msg.tokens - base) }));
+        // `usage` é a janela de contexto cumulativa, reportada pelo CLI só no fim
+        // do turno (junto do assistant). NÃO alimenta o ticker ao vivo — esse vem
+        // da estimativa por streaming (bumpLiveTokens); o número real do turno é
+        // carimbado na bolha no `done` (turnTokens → TurnStatsLine).
         return;
       }
       case 'compact': {
@@ -464,7 +478,9 @@ export function useCockpit(): Cockpit {
         const key = resolveKey(migratedTo.current, msg.sessionKey);
         usageRef.current[key] = 0;
         turnBaseRef.current[key] = 0;
+        liveCharsRef.current[key] = 0;
         setUsage((u) => ({ ...u, [key]: 0 }));
+        setLiveTurn((l) => ({ ...l, [key]: 0 }));
         return;
       }
       case 'session-summary': {
@@ -567,6 +583,7 @@ export function useCockpit(): Cockpit {
         }
         delete runMsg.current[key];
         delete turnBaseRef.current[key];
+        delete liveCharsRef.current[key];
         setLiveTurn((l) => { if (!(key in l)) return l; const n = { ...l }; delete n[key]; return n; });
         setPhases((p) => ({ ...p, [key]: 'idle' }));
         if (msg.costUsd !== undefined || msg.durationMs !== undefined) {
@@ -630,6 +647,7 @@ export function useCockpit(): Cockpit {
           reconcileTools(key);
           delete runMsg.current[key];
           delete turnBaseRef.current[key];
+          delete liveCharsRef.current[key];
           setLiveTurn((l) => { if (!(key in l)) return l; const n = { ...l }; delete n[key]; return n; });
           setPhases((p) => ({ ...p, [key]: 'idle' }));
           updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ ${msg.message}` }], error: true }]);
