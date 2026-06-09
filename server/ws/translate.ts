@@ -97,6 +97,13 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       if (Number.isFinite(r.total_cost_usd) && r.total_cost_usd >= 0) thread.costUsd = r.total_cost_usd;
       if (typeof r.duration_ms === 'number') thread.durationMs = r.duration_ms;
       if (typeof r.num_turns === 'number') thread.numTurns = r.num_turns;
+      // Total faturável do turno: input+output+cache do result.usage. É o que o
+      // prompt realmente consumiu (≠ ctxTokens, que é só o fill da janela).
+      const u = r.usage;
+      if (u && typeof u === 'object') {
+        const t = num(u.input_tokens) + num(u.output_tokens) + num(u.cache_read_input_tokens) + num(u.cache_creation_input_tokens);
+        if (t > 0) thread.turnTokens = t;
+      }
       if (typeof r.subtype === 'string') thread.endReason = r.subtype;
       capture(thread, ev);
       return;

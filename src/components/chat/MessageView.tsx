@@ -4,7 +4,7 @@ import { ClaudeAvatar } from '../ClaudeAvatar';
 import { UserAvatar } from '../UserAvatar';
 import { usePersisted } from '../../lib/persist';
 import type { Message } from '../../data/mock';
-import type { TriageAction } from '../../../shared/protocol';
+import type { TriageAction, TurnBubbleStats } from '../../../shared/protocol';
 import { messageToText } from '../../lib/export';
 import { AssistantBlocks } from './AssistantBlocks';
 import { ThinkingDots } from './Thinking';
@@ -76,6 +76,7 @@ export function MessageRow({ msg, caretOnLast, modelLabel, thinking, onEditUser,
           <div className="mt-1 flex items-center gap-2 opacity-100 transition group-hover/msg:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100">
             <CopyMessageButton blocks={msg.blocks} />
             {onQuote && <QuoteButton onClick={() => onQuote(messageToText(msg.blocks))} withLabel />}
+            {msg.stats && <TurnStatsLine stats={msg.stats} />}
             {msg.ts && <time className="text-[10px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
           </div>
         )}
@@ -102,6 +103,35 @@ function TriageBadge({ action, reason }: { action: TriageAction; reason: string 
       <Icon name={m.icon} size={10} /> {m.label}
     </span>
   );
+}
+
+// Stat discreta do turno sob a bolha: tokens · tempo · custo. Ground-truth do
+// result do CLI (#185) — ajuda a entender o que cada prompt gastou de verdade.
+function TurnStatsLine({ stats }: { stats: TurnBubbleStats }) {
+  const parts: string[] = [];
+  if (stats.tokens) parts.push(`${fmtTokens(stats.tokens)} tok`);
+  if (stats.durationMs) parts.push(fmtDuration(stats.durationMs));
+  if (typeof stats.costUsd === 'number') parts.push(`$${stats.costUsd < 0.01 ? stats.costUsd.toFixed(4) : stats.costUsd.toFixed(3)}`);
+  if (!parts.length) return null;
+  return (
+    <span className="text-[10px] tabular-nums text-neutral-600" title="Gasto do turno (tokens faturáveis · tempo · custo)">
+      {parts.join(' · ')}
+    </span>
+  );
+}
+
+function fmtTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}
+
+function fmtDuration(ms: number): string {
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return rem ? `${m}m ${rem}s` : `${m}m`;
 }
 
 // Horário do turno (HH:MM). Mostra dia quando não é hoje.
