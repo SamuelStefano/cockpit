@@ -18,9 +18,10 @@ interface ChatInputToolbarProps {
   model: string;
   setModel: (m: string) => void;
   models: ModelInfo[];
+  onRefreshModels: () => void;
 }
 
-export function ChatInputToolbar({ mode, setMode, disabled, caps, bypass, setBypass, skills, selectedSkills, setSelectedSkills, model, setModel, models }: ChatInputToolbarProps) {
+export function ChatInputToolbar({ mode, setMode, disabled, caps, bypass, setBypass, skills, selectedSkills, setSelectedSkills, model, setModel, models, onRefreshModels }: ChatInputToolbarProps) {
   return (
     <div className="mb-2 flex flex-wrap items-center gap-2">
       <ModeToggle mode={mode} setMode={setMode} disabled={disabled} />
@@ -39,7 +40,7 @@ export function ChatInputToolbar({ mode, setMode, disabled, caps, bypass, setByp
       )}
       <div className="ml-auto flex items-center gap-2">
         <SkillPicker skills={skills} selected={selectedSkills} setSelected={setSelectedSkills} />
-        <ModelPicker model={model} setModel={setModel} models={models} disabled={disabled} />
+        <ModelPicker model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} disabled={disabled} />
       </div>
     </div>
   );

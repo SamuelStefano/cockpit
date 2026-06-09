@@ -14,6 +14,7 @@ import type { Role } from '../auth';
 const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   'send', 'stop', 'list', 'open', 'open-full', 'search',
   'ctx-list', 'ctx-open', 'skill-list', 'skill-open', 'usage-list', 'upload',
+  'refresh-models',
 ]);
 
 export function authorize(role: Role, t: ClientMsg['t']): boolean {
