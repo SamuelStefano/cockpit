@@ -68,9 +68,9 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-5">
             {messages.map((m, i) => (
-              <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === messages.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} onEditUser={onEditUser} onQuote={onQuote} />
+              <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === messages.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} thinking={phase === 'thinking' && i === messages.length - 1 && m.role === 'assistant'} onEditUser={onEditUser} onQuote={onQuote} />
             ))}
-            {phase === 'thinking' && <Thinking />}
+            {phase === 'thinking' && messages[messages.length - 1]?.role !== 'assistant' && <Thinking />}
           </div>
         )}
       </div>
