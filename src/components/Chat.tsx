@@ -3,6 +3,7 @@ import { MessageRow, Thinking } from './chat/MessageView';
 import { ChatEmpty, ChatInput } from './chat/ChatInput';
 import { ChatHeader } from './chat/ChatHeader';
 import { TurnBanners } from './chat/TurnBanners';
+import { ClaudeAuthBanner } from './chat/ClaudeAuthBanner';
 import { useChatPanel, type Phase } from './chat/useChatPanel';
 import type { Session, Message } from '../data/mock';
 import type { PermMode, ModelInfo, TurnStats, Caps, SkillMeta } from '../../shared/protocol';
@@ -22,6 +23,7 @@ export interface ChatPanelProps {
   mode: PermMode;
   setMode: (m: PermMode) => void;
   caps: Caps | null;
+  claudeReady?: boolean;
   bypass: boolean;
   setBypass: (b: boolean) => void;
   model: string;
@@ -50,7 +52,7 @@ export interface ChatPanelProps {
   isMobile?: boolean;
 }
 
-export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, bypass, setBypass, model, setModel, models, skills, selectedSkills, setSelectedSkills, slashCommands, contextTokens, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, onQuote, onOpenFull, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, skills, selectedSkills, setSelectedSkills, slashCommands, contextTokens, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, onQuote, onOpenFull, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false }: ChatPanelProps) {
   const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend });
 
   return (
@@ -61,6 +63,8 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         fullLoaded={c.fullLoaded} truncated={truncated} onOpenFull={onOpenFull} onOpenSummary={onOpenSummary}
         setFullLoaded={c.setFullLoaded} onTerminal={onTerminal} terminalRunning={terminalRunning}
       />
+
+      {!claudeReady && <ClaudeAuthBanner onTerminal={onTerminal} />}
 
       <div ref={c.scrollRef} onScroll={c.onScroll} className="print-thread scroll-thin flex-1 overflow-y-auto">
         {c.isEmpty && phase === 'idle' ? (

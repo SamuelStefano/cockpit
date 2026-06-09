@@ -241,6 +241,11 @@ export type Caps = { role: 'root' | 'admin' | 'fellow' | 'student'; canBypass: b
 
 export type ServerMsg =
   | { t: 'caps'; caps: Caps }
+  // Esta box tem uma conta Anthropic conectada (OAuth ou ANTHROPIC_API_KEY)? Sem
+  // isso o `claude` nem inicia, então a UI avisa que nada vai rodar até conectar.
+  // É fato do ENGINE (a VPS), não do viewer — por isso vai à parte do caps, que
+  // o agente T3 não reanuncia.
+  | { t: 'claude-auth'; ready: boolean }
   // Relay T3 (DR-023): a VPS pareada da conta está online/offline. O browser usa
   // pra mostrar o dashboard de pareamento quando não há agente atendendo.
   | { t: 'agent-online' }

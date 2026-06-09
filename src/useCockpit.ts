@@ -42,6 +42,7 @@ export interface Cockpit {
   mode: PermMode;
   setMode: (m: PermMode) => void;
   caps: Caps | null;
+  claudeReady: boolean;
   bypass: boolean;
   setBypass: (b: boolean) => void;
   model: string;
@@ -136,6 +137,9 @@ export function useCockpit(): Cockpit {
   const modeRef = useRef<PermMode>(mode);
   const [caps, setCaps] = useState<Caps | null>(null);
   const capsRef = useRef<Caps | null>(null);
+  // Default true: só mostramos o aviso quando o backend confirma ready:false, pra
+  // não piscar um alerta assustador antes da 1ª mensagem (ou com backend antigo).
+  const [claudeReady, setClaudeReady] = useState<boolean>(true);
   const [bypass, setBypass] = useState<boolean>(false); // nunca persistido: opt-in por sessão, default off
   const bypassRef = useRef<boolean>(false);
   const [model, setModel] = useState<string>(() => loadPref<string>('model', 'opus'));
@@ -259,6 +263,7 @@ export function useCockpit(): Cockpit {
         if (!msg.caps.canBypass) { bypassRef.current = false; setBypass(false); }
         return;
       }
+      case 'claude-auth': { setClaudeReady(msg.ready); return; }
       case 'agent-online': { setAgentOnline(true); return; }
       case 'agent-offline': { setAgentOnline(false); return; }
       case 'sessions': {
@@ -1018,5 +1023,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, bypass, setBypass: changeBypass, model, setModel: changeModel, models, selectedSkills, setSelectedSkills: changeSelectedSkills, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, selectedSkills, setSelectedSkills: changeSelectedSkills, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
 }
