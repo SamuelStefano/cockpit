@@ -28,6 +28,21 @@ describe('upsertTool', () => {
     const [b] = upsertTool(running, tool({ status: 'done', output: [] })) as [{ type: 'tool'; tool: ToolCall }];
     expect(b.tool.output).toEqual(['keep']);
   });
+
+  it('aplica o diff que chega no 2º emit e o preserva até o done', () => {
+    const diff = { path: 'a.ts', old: 'x', new: 'y' };
+    // 1º emit (content_block_start): input vazio, sem diff
+    let blocks = upsertTool([], tool({ name: 'Edit', label: 'Edit' }));
+    // 2º emit (assistant completo): traz o diff
+    blocks = upsertTool(blocks, tool({ name: 'Edit', label: 'Edit', diff }));
+    let b = (blocks[0] as { type: 'tool'; tool: ToolCall }).tool;
+    expect(b.diff).toEqual(diff);
+    // done (tool_result): sem diff, não pode apagar
+    blocks = upsertTool(blocks, tool({ name: 'tool', label: 'tool', command: '', status: 'done', output: ['ok'] }));
+    b = (blocks[0] as { type: 'tool'; tool: ToolCall }).tool;
+    expect(b.diff).toEqual(diff);
+    expect(b.status).toBe('done');
+  });
 });
 
 describe('appendDelta', () => {
