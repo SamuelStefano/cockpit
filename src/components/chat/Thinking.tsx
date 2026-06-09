@@ -38,7 +38,7 @@ export function LiveStatsLine({ live }: { live: LiveTurn }) {
   const secs = useElapsed(live.startedAt);
   const parts: string[] = [];
   if (secs >= 1) parts.push(fmtElapsed(secs));
-  if (live.tokens > 0) parts.push(`~${fmtTokensK(live.tokens)} tok`);
+  if (live.tokens > 0) parts.push(`~${fmtTokensK(live.tokens)} tokens`);
   if (!parts.length) return null;
   return (
     <span className="text-[11px] tabular-nums text-neutral-600" title="Turno em andamento: tempo decorrido · estimativa de tokens de saída neste turno">

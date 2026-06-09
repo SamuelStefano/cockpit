@@ -101,8 +101,12 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       // prompt realmente consumiu (≠ ctxTokens, que é só o fill da janela).
       const u = r.usage;
       if (u && typeof u === 'object') {
-        const t = num(u.input_tokens) + num(u.output_tokens) + num(u.cache_read_input_tokens) + num(u.cache_creation_input_tokens);
+        const inp = num(u.input_tokens);
+        const out = num(u.output_tokens);
+        const t = inp + out + num(u.cache_read_input_tokens) + num(u.cache_creation_input_tokens);
         if (t > 0) thread.turnTokens = t;
+        if (inp > 0) thread.inputTokens = inp;
+        if (out > 0) thread.outputTokens = out;
       }
       if (typeof r.subtype === 'string') thread.endReason = r.subtype;
       capture(thread, ev);

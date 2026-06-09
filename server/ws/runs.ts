@@ -17,6 +17,8 @@ export interface Thread {
   durationMs?: number;
   numTurns?: number;
   turnTokens?: number;  // total faturável do turno (input+output+cache do result.usage), p/ stat discreta na bolha
+  inputTokens?: number;
+  outputTokens?: number;
   endReason?: string;   // result.subtype: success | error_max_budget | error_max_turns | ...
   model?: string;       // modelo EFETIVO do turno (message.model do CLI); pode divergir do pedido sob --fallback-model
   stopped?: boolean;    // turno foi morto por stop do usuário — o 'done' do onClose não deve notificar "turno concluído"
@@ -149,7 +151,7 @@ export function startRun(ws: WebSocket, sessionKey: string, prompt: string, resu
       // (re-send que matou o anterior), o onClose do antigo NÃO deve mandar um
       // 'done' prematuro nem apagar a entrada do novo run.
       if (threads.get(sessionKey) !== thread) return;
-      broadcast({ t: 'done', sessionKey, sessionId: thread.sessionId ?? '', costUsd: thread.costUsd, durationMs: thread.durationMs, numTurns: thread.numTurns, turnTokens: thread.turnTokens, endReason: thread.endReason, model: thread.model, stopped: thread.stopped });
+      broadcast({ t: 'done', sessionKey, sessionId: thread.sessionId ?? '', costUsd: thread.costUsd, durationMs: thread.durationMs, numTurns: thread.numTurns, turnTokens: thread.turnTokens, inputTokens: thread.inputTokens, outputTokens: thread.outputTokens, endReason: thread.endReason, model: thread.model, stopped: thread.stopped });
       // Resumo IA do que a sessão fez, atualizado ao fim do turno (pedido do Samuel).
       // Fire-and-forget: best-effort, nunca bloqueia/derruba o fechamento do run.
       if (thread.sessionId) void summarize(thread.sessionId);

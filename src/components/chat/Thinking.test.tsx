@@ -20,7 +20,7 @@ describe('LiveStatsLine', () => {
   it('mostra os tokens estimados assim que há saída (sem esperar 3s)', () => {
     const startedAt = Date.now();
     const { container } = render(<LiveStatsLine live={{ tokens: 1200, startedAt }} />);
-    expect(container.textContent).toContain('~1.2k tok');
+    expect(container.textContent).toContain('~1.2k tokens');
   });
 
   it('mostra o tempo a partir de 1s', () => {
@@ -36,7 +36,7 @@ describe('LiveStatsLine', () => {
     const { container } = render(<LiveStatsLine live={{ tokens: 5000, startedAt }} />);
     act(() => vi.advanceTimersByTime(2000));
     expect(container.textContent).toContain('2s');
-    expect(container.textContent).toContain('~5.0k tok');
+    expect(container.textContent).toContain('~5.0k tokens');
     expect(container.textContent).toContain('·');
   });
 });

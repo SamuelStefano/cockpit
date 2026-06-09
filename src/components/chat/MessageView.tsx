@@ -112,7 +112,11 @@ function TriageBadge({ action, reason }: { action: TriageAction; reason: string 
 // result do CLI (#185) — ajuda a entender o que cada prompt gastou de verdade.
 function TurnStatsLine({ stats }: { stats: TurnBubbleStats }) {
   const parts: string[] = [];
-  if (stats.tokens) parts.push(`${fmtTokens(stats.tokens)} tok`);
+  if (stats.inputTokens !== undefined && stats.outputTokens !== undefined) {
+    parts.push(`${fmtTokens(stats.inputTokens)} in · ${fmtTokens(stats.outputTokens)} out`);
+  } else if (stats.tokens) {
+    parts.push(`${fmtTokens(stats.tokens)} tokens`);
+  }
   if (stats.durationMs) parts.push(fmtDuration(stats.durationMs));
   if (typeof stats.costUsd === 'number') parts.push(`$${stats.costUsd < 0.01 ? stats.costUsd.toFixed(4) : stats.costUsd.toFixed(3)}`);
   if (!parts.length) return null;

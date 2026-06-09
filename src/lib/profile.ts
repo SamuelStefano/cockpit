@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { supabase, SUPABASE_ENABLED } from './supabase';
-import { usePersisted, loadPref, savePref, setPref } from './persist';
+import { usePersisted, loadPref, setPref } from './persist';
 import { AI_AVATAR_KEY, AI_AVATAR_DEFAULT } from '../components/aiAvatar';
 
 // Perfil do usuário (nome, avatar, ícone da IA). Antes só no localStorage, então
@@ -50,18 +50,21 @@ export function useProfile(userId?: string) {
   return { name, avatar, aiIcon, setName, setAvatar, setAiIcon, synced };
 }
 
-// Hidratação na conexão/login. Busca a row da conta e sobrescreve o cache local
-// (remoto vence) pra refletir o perfil em qualquer device. Troca de conta limpa o
-// cache antes (não vaza o perfil da conta anterior). Migração one-time: se o
-// remoto está vazio e havia perfil local (uso prévio no loopback), sobe o local.
+// Hidratação na conexão/login. Funde o perfil remoto da conta com o cache local.
+// Regra por-COLUNA: o remoto vence QUANDO tem valor; um campo remoto nulo NUNCA
+// apaga o local (senão um valor recém-setado some no refresh enquanto o write não
+// pegou — era o bug). O que existe só no local sobe pro remoto (cura o write que
+// falhou e a migração do perfil de loopback pra primeira conta). Troca de conta
+// REAL (uid concreto → outro uid concreto) limpa o cache antes, pra não vazar o
+// perfil da conta anterior; um blip transitório de uid→undefined (refresh de
+// sessão) NÃO conta como troca e não zera nada.
 export function useProfileHydration(userId: string | undefined): void {
   const prevUid = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!SUPABASE_ENABLED || !supabase) return;
     const uid = userId;
-    const switched = prevUid.current !== undefined && uid !== prevUid.current;
-    prevUid.current = uid;
-    // Troca de conta (ou logout): descarta o perfil cacheado da conta anterior.
+    const switched = prevUid.current != null && uid != null && uid !== prevUid.current;
+    if (uid != null) prevUid.current = uid;
     if (switched) {
       setPref(NAME_KEY, '');
       setPref(AVATAR_KEY, '');
@@ -78,28 +81,33 @@ export function useProfileHydration(userId: string | undefined): void {
         .maybeSingle();
       if (cancelled || error || !data) return;
 
-      const remoteEmpty = data.display_name == null && data.avatar_url == null && data.ai_avatar == null;
-      // Flag GLOBAL (não por-uid): o perfil de loopback é "sem dono" e só pode subir
-      // pra PRIMEIRA conta logada neste navegador. Depois disso o cache é sempre
-      // escopado à conta, então jamais subimos o cache de uma conta pra outra.
-      const everSynced = loadPref<boolean>('profile.everSynced', false);
       const localName = loadPref<string>(NAME_KEY, '');
       const localAvatar = loadPref<string>(AVATAR_KEY, '');
       const localIcon = loadPref<string>(AI_AVATAR_KEY, AI_AVATAR_DEFAULT);
 
-      if (remoteEmpty && !everSynced && (localName || localAvatar)) {
-        // Migração one-time do perfil de loopback pra primeira conta (mantém o local).
+      const name = data.display_name ?? (localName || null);
+      const avatar = data.avatar_url ?? (localAvatar || null);
+      const icon = data.ai_avatar ?? (localIcon !== AI_AVATAR_DEFAULT ? localIcon : null);
+
+      if (cancelled) return;
+      setPref(NAME_KEY, name ?? '');
+      setPref(AVATAR_KEY, avatar ?? '');
+      setPref(AI_AVATAR_KEY, icon ?? AI_AVATAR_DEFAULT);
+
+      // Cura o remoto quando ele estava sem algo que temos no local (write que
+      // falhou antes, ou perfil de loopback subindo pra primeira conta). A troca de
+      // conta já limpou o local acima, então isto só carrega valores DESTA conta.
+      const remoteMissing =
+        (data.display_name == null && name != null) ||
+        (data.avatar_url == null && avatar != null) ||
+        (data.ai_avatar == null && icon != null);
+      if (remoteMissing) {
         await supabase!.from('account').update({
-          display_name: localName || null,
-          avatar_url: localAvatar || null,
-          ai_avatar: localIcon || null,
+          display_name: name,
+          avatar_url: avatar,
+          ai_avatar: icon,
         }).eq('id', uid);
-      } else if (!cancelled) {
-        setPref(NAME_KEY, data.display_name ?? '');
-        setPref(AVATAR_KEY, data.avatar_url ?? '');
-        setPref(AI_AVATAR_KEY, data.ai_avatar ?? AI_AVATAR_DEFAULT);
       }
-      savePref('profile.everSynced', true);
     })();
     return () => { cancelled = true; };
   }, [userId]);
