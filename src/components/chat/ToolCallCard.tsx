@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Icon, Markdown } from '../primitives';
+import { usePersisted } from '../../lib/persist';
 import type { ToolCall } from '../../data/mock';
 import { DiffView } from './DiffView';
 import { CopyTextButton } from './MessageActions';
@@ -10,6 +11,7 @@ interface ToolCallCardProps {
 
 export function ToolCallCard({ tool }: ToolCallCardProps) {
   const [open, setOpen] = useState(!!tool.expanded);
+  const [showShellCmd, setShowShellCmd] = usePersisted('showShellCmd', true);
   const { status } = tool;
   const lines = tool.output || [];
 
@@ -58,16 +60,35 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
           </div>
         </div>
       </div>
-      {tool.command && (
+      {tool.command && (isShell && !showShellCmd ? (
+        <div className="px-3 pb-2">
+          <button
+            onClick={() => setShowShellCmd(true)}
+            title="Comandos de shell ocultos. Clique para voltar a mostrá-los."
+            className="flex items-center gap-1.5 rounded-md border border-dashed border-neutral-800 px-2.5 py-1 font-mono text-[11px] text-neutral-600 transition hover:border-neutral-700 hover:text-neutral-400"
+          >
+            <span className="select-none text-orange-500/50">$</span> comando oculto · mostrar
+          </button>
+        </div>
+      ) : (
         <div className="px-3 pb-2">
           <div className="flex items-center gap-2 rounded-md border border-neutral-800 bg-[#0c0c0c] px-2.5 py-1.5">
             {isShell
               ? <span className="select-none font-mono text-[11px] text-orange-500/70">$</span>
               : <Icon name="file" size={12} className="shrink-0 text-neutral-500" />}
             <code className="scroll-thin overflow-x-auto whitespace-nowrap font-mono text-[11.5px] text-neutral-300">{tool.command}</code>
+            {isShell && (
+              <button
+                onClick={() => setShowShellCmd(false)}
+                title="Ocultar comandos de shell por padrão"
+                className="ml-auto shrink-0 text-neutral-600 transition hover:text-neutral-300"
+              >
+                <Icon name="x" size={12} />
+              </button>
+            )}
           </div>
         </div>
-      )}
+      ))}
       {tool.diff && <DiffView diff={tool.diff} />}
       {tool.markdown && (
         <div className="px-3 pb-2">
