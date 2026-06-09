@@ -1,4 +1,4 @@
-import { Icon } from '../primitives';
+import { Icon, Button } from '../primitives';
 
 interface SessionsEmptyStateProps {
   hasSessions: boolean;
@@ -17,9 +17,9 @@ export function SessionsEmptyState({ hasSessions, query, tagFilter, onNew, onClo
         </div>
         <p className="text-[12.5px] font-medium text-neutral-400">Nenhuma sessão ainda</p>
         <p className="mt-1 text-[11.5px] leading-snug text-neutral-600">Crie uma para começar a conversar com o agente.</p>
-        <button onClick={() => { onNew(); onCloseMobile?.(); }} className="mt-3 flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-[12px] font-semibold text-neutral-950 transition hover:bg-orange-400">
-          <Icon name="plus" size={14} /> Criar sessão
-        </button>
+        <Button size="sm" icon="plus" className="mt-3" onClick={() => { onNew(); onCloseMobile?.(); }}>
+          Criar sessão
+        </Button>
       </div>
     );
   }
