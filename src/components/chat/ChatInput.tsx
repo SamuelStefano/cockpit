@@ -67,9 +67,8 @@ export function ChatInput(props: ChatInputProps) {
       <div className="flex items-end gap-2 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 transition focus-within:border-orange-500/50">
         <button
           onClick={() => fileRef.current?.click()}
-          disabled={disabled}
-          title="Anexar arquivo — ou arraste e solte / cole (Ctrl+V)"
-          className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200 disabled:cursor-not-allowed disabled:opacity-50"
+          title="Anexar arquivo — ou arraste e solte / cole (Ctrl+V). Vai junto no próximo envio."
+          className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200"
         >
           <Icon name="paperclip" size={15} />
         </button>

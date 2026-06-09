@@ -42,7 +42,7 @@ export function useChatInput(args: UseChatInputArgs) {
     for (const f of files) { if (f.size > 15_000_000) continue; onUpload(f); n++; }
     return n;
   };
-  const dnd = useComposerDnd(disabled, uploadFiles);
+  const dnd = useComposerDnd(uploadFiles);
   const { sel, setSel, matches, showPalette, setDismissed } = useSlashPalette(disabled, value, slashCommands);
   const { histIdx, setHistIdx, recall } = useComposerRecall(history, setValue, taRef);
   const complete = (cmd: string) => {
@@ -87,7 +87,8 @@ export function useChatInput(args: UseChatInputArgs) {
       if (taRef.current) taRef.current.style.height = 'auto';
       return;
     }
-    // Enquanto ocupado, anexos ficam fora da fila (são por-sessão); só texto.
+    // Ocupado: enfileira só o texto, mas os anexos pendentes (attachmentsRef)
+    // embarcam no próximo envio real — inclusive nesta mensagem quando a fila drenar.
     if (disabled) {
       if (!v) return;
       onQueue(v); setValue('');
