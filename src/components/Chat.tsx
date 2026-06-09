@@ -5,6 +5,7 @@ import { ChatHeader } from './chat/ChatHeader';
 import { TurnBanners } from './chat/TurnBanners';
 import { ClaudeAuthBanner } from './chat/ClaudeAuthBanner';
 import { useChatPanel, type Phase } from './chat/useChatPanel';
+import { useFileDrop } from './chat/useFileDrop';
 import type { Session, Message } from '../data/mock';
 import type { PermMode, ModelInfo, TurnStats, Caps, SkillMeta } from '../../shared/protocol';
 import type { Attachment } from '../useCockpit';
@@ -61,9 +62,22 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
   // Stats AO VIVO do turno (estilo terminal): tokens gastos + tempo decorrido,
   // enquanto o turno roda. Some no `done` (phase volta a idle).
   const live = phase === 'thinking' || phase === 'streaming' ? { tokens: liveTurnTokens ?? 0, startedAt: turnStartedAt } : undefined;
+  // Drop em qualquer lugar do chat (não só no composer): teto de 15MB espelha o
+  // backend. O composer tem seu próprio drop com stopPropagation, então soltar lá
+  // não dispara este também.
+  const panelDnd = useFileDrop((files) => { let n = 0; for (const f of files) { if (f.size > 15_000_000) continue; onUpload(f); n++; } return n; });
 
   return (
-    <div className="relative flex h-full flex-col bg-neutral-900">
+    <div
+      className="relative flex h-full flex-col bg-neutral-900"
+      onDragEnter={panelDnd.onDragEnter} onDragOver={panelDnd.onDragOver}
+      onDragLeave={panelDnd.onDragLeave} onDrop={panelDnd.onDrop}
+    >
+      {panelDnd.dragging && (
+        <div className="pointer-events-none absolute inset-2 z-50 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-orange-500/60 bg-neutral-950/85 text-[14px] font-medium text-orange-300 backdrop-blur-sm">
+          <Icon name="paperclip" size={22} /> Solte os arquivos pra anexar
+        </div>
+      )}
       <ChatHeader
         session={session} messages={messages} isEmpty={c.isEmpty} isMobile={isMobile}
         contextTokens={contextTokens} lastTurn={lastTurn} onNew={onNew}
