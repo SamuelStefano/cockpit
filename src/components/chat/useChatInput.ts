@@ -75,23 +75,24 @@ export function useChatInput(args: UseChatInputArgs) {
       // Expande num prompt pronto e envia ao Claude (modo 'auto': lê/grava memória,
       // sem shell). Ocupado entra na fila; livre vai direto com o modeOverride.
       case 'prompt':
-        if (disabled) onQueue(a.text);
+        if (disabled || paused) onQueue(a.text);
         else onSend(a.text, a.mode);
         break;
     }
     return true;
   };
   const submit = () => {
-    if (paused) return; // teto do plano atingido: composer travado até resetar
     const v = value.trim();
     if (v.startsWith('/') && runSlash(v)) {
       setValue('');
       if (taRef.current) taRef.current.style.height = 'auto';
       return;
     }
-    // Ocupado: enfileira só o texto, mas os anexos pendentes (attachmentsRef)
-    // embarcam no próximo envio real — inclusive nesta mensagem quando a fila drenar.
-    if (disabled) {
+    // Ocupado OU teto do plano atingido: enfileira só o texto. Pausado, a fila não
+    // drena (gate em useChatPanel), mas tudo que for digitado fica guardado e sai
+    // sozinho quando a janela resetar — em vez de travar o composer e perder o texto.
+    // Os anexos pendentes (attachmentsRef) embarcam no próximo envio real.
+    if (disabled || paused) {
       if (!v) return;
       onQueue(v); setValue('');
     } else {
