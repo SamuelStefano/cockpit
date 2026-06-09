@@ -536,8 +536,13 @@ export function useCockpit(): Cockpit {
         // Carimba o modelo EFETIVO do turno na bolha (revela --fallback-model e
         // evita rotular bolhas antigas com o modelo atual ao trocar mid-thread).
         const aid = runMsg.current[key];
-        if (aid && msg.model) {
-          updateThread(key, (prev) => prev.map((m) => (m.id === aid && m.role === 'assistant' ? { ...m, model: msg.model } : m)));
+        if (aid && (msg.model || msg.costUsd !== undefined || msg.durationMs !== undefined || msg.turnTokens !== undefined)) {
+          // Carimba modelo + stats do turno (gasto/tempo/tokens) na bolha pra
+          // exibição discreta. stats só existe quando o result trouxe algum número.
+          const stats = (msg.costUsd !== undefined || msg.durationMs !== undefined || msg.turnTokens !== undefined)
+            ? { costUsd: msg.costUsd, durationMs: msg.durationMs, tokens: msg.turnTokens }
+            : undefined;
+          updateThread(key, (prev) => prev.map((m) => (m.id === aid && m.role === 'assistant' ? { ...m, ...(msg.model ? { model: msg.model } : {}), ...(stats ? { stats } : {}) } : m)));
         }
         delete runMsg.current[key];
         setPhases((p) => ({ ...p, [key]: 'idle' }));
