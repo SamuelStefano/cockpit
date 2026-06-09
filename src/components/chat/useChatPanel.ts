@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { usePersisted } from '../../lib/persist';
 import { prettyModel } from './toolbar.format';
 import type { Session, Message } from '../../data/mock';
 import type { PermMode, ModelInfo } from '../../../shared/protocol';
@@ -18,18 +19,39 @@ interface Args {
 export function useChatPanel({ session, messages, phase, models, model, lastEnd, onSend }: Args) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
+  const flushingRef = useRef(false);
   const [atBottom, setAtBottom] = useState(true);
   const [promptAbove, setPromptAbove] = useState(false);
-  const [queued, setQueued] = useState<string[]>([]);
+  const [queuedMap, setQueuedMap] = usePersisted<Record<string, string[]>>('queued', {});
   const [fullLoaded, setFullLoaded] = useState(false);
-  // Troca de sessão zera o estado preso à anterior. A fila (queued) é "manda
-  // quando ESTA sessão liberar"; sem limpar, ao trocar pra uma sessão idle o
-  // efeito de flush dispararia o texto enfileirado na sessão ERRADA.
-  useEffect(() => { setFullLoaded(false); setQueued([]); }, [session?.id]);
+  const sid = session?.id ?? null;
+  // Fila POR SESSÃO e persistida em localStorage: "manda quando ESTA sessão
+  // liberar". Sair da sessão ou fechar o site NÃO pode perder o que foi digitado;
+  // só trocamos qual fila está ativa. flushingRef reseta na troca pra não travar a
+  // próxima sessão com a trava herdada da anterior.
+  const queued = useMemo(() => (sid ? queuedMap[sid] ?? [] : []), [queuedMap, sid]);
+  useEffect(() => { setFullLoaded(false); flushingRef.current = false; }, [sid]);
 
-  const enqueue = (text: string) => setQueued((q) => [...q, text]);
-  const clearQueue = () => setQueued([]);
-  const cancelQueueAt = (i: number) => setQueued((q) => q.filter((_, idx) => idx !== i));
+  const setQueuedFor = (updater: (q: string[]) => string[]) => {
+    if (!sid) return;
+    setQueuedMap((m) => {
+      const next = updater(m[sid] ?? []);
+      if (next.length === 0) { const { [sid]: _drop, ...rest } = m; return rest; }
+      return { ...m, [sid]: next };
+    });
+  };
+  const enqueue = (text: string) => setQueuedFor((q) => [...q, text]);
+  const clearQueue = () => setQueuedFor(() => []);
+  const cancelQueueAt = (i: number) => setQueuedFor((q) => q.filter((_, idx) => idx !== i));
+  // Reordenar: -1 sobe, +1 desce. A fila drena sempre do topo, então a ordem aqui
+  // é a ordem de envio.
+  const moveQueuedItem = (i: number, dir: -1 | 1) => setQueuedFor((q) => {
+    const j = i + dir;
+    if (j < 0 || j >= q.length) return q;
+    const copy = [...q];
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+    return copy;
+  });
 
   const streaming = phase === 'streaming';
   const disabled = phase !== 'idle';
@@ -55,15 +77,15 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   // re-roda o efeito ainda com phase==='idle' (a prop só vira 'thinking' quando o
   // servidor emite 'started'); sem a trava, a fila inteira sairia de uma vez. O
   // ref reseta quando o turno começa, liberando o próximo no idle seguinte.
-  const flushingRef = useRef(false);
   useEffect(() => {
+    if (!sid) return;
     if (phase !== 'idle') { flushingRef.current = false; return; }
     if (flushingRef.current || queued.length === 0) return;
     flushingRef.current = true;
     const [next, ...rest] = queued;
-    setQueued(rest);
+    setQueuedFor(() => rest);
     onSend(next);
-  }, [phase, queued, onSend]);
+  }, [phase, queued, onSend, sid]);
 
   // Id do prompt mais recente do usuário — alvo do botão "voltar ao meu prompt".
   const lastUserId = useMemo(() => {
@@ -133,7 +155,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
 
   return {
     scrollRef, atBottom, promptAbove, onScroll, scrollToBottom, scrollToLastPrompt,
-    queued, enqueue, clearQueue, cancelQueueAt, fullLoaded, setFullLoaded,
+    queued, enqueue, clearQueue, cancelQueueAt, moveQueuedItem, fullLoaded, setFullLoaded,
     streaming, disabled, isEmpty,
     sentHistory, modelLabel, labelFor,
     planPending, failed, retryLast, bannerConfirm,

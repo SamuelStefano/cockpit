@@ -36,6 +36,7 @@ interface ChatInputProps {
   queued: string[];
   onQueue: (text: string) => void;
   onCancelQueueAt: (i: number) => void;
+  onMoveQueued: (i: number, dir: -1 | 1) => void;
   history: string[];
   pendingConfirm?: () => void;
   onNew: () => void;
@@ -43,7 +44,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, skills, selectedSkills, setSelectedSkills, attachments, onRemoveAttachment, queued, onCancelQueueAt } = props;
+  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, skills, selectedSkills, setSelectedSkills, attachments, onRemoveAttachment, queued, onCancelQueueAt, onMoveQueued } = props;
   const hasAtt = attachments.length > 0;
   const { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic } = useChatInput({ ...props, hasAtt });
   return (
@@ -55,7 +56,7 @@ export function ChatInput(props: ChatInputProps) {
         model={model} setModel={setModel} models={models}
       />
       {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} />}
-      {queued.length > 0 && <QueuedBanner queued={queued} onCancelQueueAt={onCancelQueueAt} />}
+      {queued.length > 0 && <QueuedBanner queued={queued} onCancelQueueAt={onCancelQueueAt} onMove={onMoveQueued} />}
       <input ref={fileRef} type="file" multiple onChange={pick} className="hidden" />
       <div className="relative" onDragEnter={onDragEnter} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
       {dragging && (

@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { useChatPanel, type Phase } from './useChatPanel';
 import type { Session, Message } from '../../data/mock';
+
+// A fila agora persiste por sessão em localStorage; limpa entre casos pra isolar.
+beforeEach(() => localStorage.clear());
 
 function setup(initialPhase: Phase, onSend = vi.fn()) {
   const props = {
@@ -53,5 +56,29 @@ describe('useChatPanel fila', () => {
     act(() => hook.result.current.enqueue('c'));
     act(() => hook.result.current.cancelQueueAt(1));
     expect(hook.result.current.queued).toEqual(['a', 'c']);
+  });
+
+  it('moveQueuedItem reordena (sobe/desce) e ignora as bordas', () => {
+    const { hook } = setup('thinking');
+    act(() => hook.result.current.enqueue('a'));
+    act(() => hook.result.current.enqueue('b'));
+    act(() => hook.result.current.enqueue('c'));
+    act(() => hook.result.current.moveQueuedItem(2, -1)); // c sobe
+    expect(hook.result.current.queued).toEqual(['a', 'c', 'b']);
+    act(() => hook.result.current.moveQueuedItem(0, -1)); // topo não sobe
+    expect(hook.result.current.queued).toEqual(['a', 'c', 'b']);
+  });
+
+  it('persiste a fila por sessão: trocar de sessão e voltar não perde itens', () => {
+    const onSend = vi.fn();
+    const base = { messages: [] as Message[], phase: 'thinking' as Phase, models: [], model: 'opus', onSend };
+    const hook = renderHook((p: { session: Session }) => useChatPanel({ ...base, session: p.session }), {
+      initialProps: { session: { id: 's1' } as Session },
+    });
+    act(() => hook.result.current.enqueue('na s1'));
+    act(() => hook.rerender({ session: { id: 's2' } as Session }));
+    expect(hook.result.current.queued).toEqual([]); // s2 tem fila própria
+    act(() => hook.rerender({ session: { id: 's1' } as Session }));
+    expect(hook.result.current.queued).toEqual(['na s1']); // s1 preservada
   });
 });
