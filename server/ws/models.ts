@@ -24,11 +24,15 @@ export async function refreshModels(): Promise<ModelInfo[]> {
 // A lista da Anthropic vem do mais novo pro mais antigo. Enxugamos pra não poluir
 // o seletor: no máximo as 2 versões mais recentes do Opus, e só a última de cada
 // um dos outros tipos (Sonnet, Haiku). Mantém a ordem original (novo primeiro).
+// Famílias NOVAS (ex: um futuro `claude-fable-*`) aparecem sozinhas, com o cap
+// padrão — assim o app acompanha lançamentos da Anthropic sem mexer no código.
 const FAMILY_CAP: Record<string, number> = { opus: 2, sonnet: 1, haiku: 1 };
+const DEFAULT_CAP = 2;
 
 function familyOf(id: string): string | null {
   for (const fam of Object.keys(FAMILY_CAP)) if (id.includes(fam)) return fam;
-  return null;
+  const m = id.match(/claude-([a-z]+)/i); // família desconhecida = palavra após "claude-"
+  return m ? m[1].toLowerCase() : null;
 }
 
 export function limitModels(models: ModelInfo[]): ModelInfo[] {
@@ -37,8 +41,9 @@ export function limitModels(models: ModelInfo[]): ModelInfo[] {
   for (const m of models) {
     const fam = familyOf(m.id);
     if (!fam) continue;
+    const cap = FAMILY_CAP[fam] ?? DEFAULT_CAP;
     const n = seen[fam] ?? 0;
-    if (n >= FAMILY_CAP[fam]) continue;
+    if (n >= cap) continue;
     seen[fam] = n + 1;
     out.push(m);
   }
