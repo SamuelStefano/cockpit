@@ -85,14 +85,27 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         )}
       </div>
 
-      {!c.atBottom && !c.isEmpty && (
-        <button
-          onClick={c.scrollToBottom}
-          title="Ir para o fim"
-          className="fade-up absolute bottom-[84px] left-1/2 z-20 flex h-8 w-8 -translate-x-1/2 items-center justify-center rounded-full border border-neutral-700 bg-neutral-800 text-neutral-300 shadow-lg shadow-black/40 transition hover:bg-neutral-700 hover:text-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
-        >
-          <Icon name="chevronDown" size={16} />
-        </button>
+      {!c.isEmpty && (c.promptAbove || !c.atBottom) && (
+        <div className="fade-up absolute bottom-[84px] left-1/2 z-20 flex -translate-x-1/2 items-center gap-2">
+          {c.promptAbove && (
+            <button
+              onClick={c.scrollToLastPrompt}
+              title="Voltar ao meu prompt"
+              className="flex h-8 items-center gap-1.5 rounded-full border border-neutral-700 bg-neutral-800 px-3 text-[12px] font-medium text-neutral-300 shadow-lg shadow-black/40 transition hover:border-orange-500/40 hover:bg-neutral-700 hover:text-orange-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
+            >
+              <Icon name="arrowUp" size={13} /> meu prompt
+            </button>
+          )}
+          {!c.atBottom && (
+            <button
+              onClick={c.scrollToBottom}
+              title="Ir para o fim"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-700 bg-neutral-800 text-neutral-300 shadow-lg shadow-black/40 transition hover:bg-neutral-700 hover:text-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
+            >
+              <Icon name="chevronDown" size={16} />
+            </button>
+          )}
+        </div>
       )}
 
       <TurnBanners phase={phase} failed={c.failed} planPending={c.planPending} lastEnd={lastEnd} retryLast={c.retryLast} onSend={onSend} />

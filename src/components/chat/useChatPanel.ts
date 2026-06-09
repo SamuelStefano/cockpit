@@ -19,6 +19,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
+  const [promptAbove, setPromptAbove] = useState(false);
   const [queued, setQueued] = useState<string[]>([]);
   const [fullLoaded, setFullLoaded] = useState(false);
   // Troca de sessão zera o estado preso à anterior. A fila (queued) é "manda
@@ -64,23 +65,46 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
     onSend(next);
   }, [phase, queued, onSend]);
 
-  const onScroll = () => {
+  // Id do prompt mais recente do usuário — alvo do botão "voltar ao meu prompt".
+  const lastUserId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].role === 'user') return messages[i].id;
+    return null;
+  }, [messages]);
+
+  const lastPromptNode = () => {
+    const el = scrollRef.current;
+    if (!el || !lastUserId) return null;
+    return el.querySelector<HTMLElement>(`[data-mid="${CSS.escape(lastUserId)}"]`);
+  };
+
+  // Recalcula as duas afordâncias de scroll a partir da geometria atual: se o fim
+  // está à vista (pin) e se o prompt do usuário rolou pra cima da janela (mostra o
+  // botão de voltar — vale tanto rolando pra baixo quanto preso no fim de uma
+  // resposta longa).
+  const recompute = () => {
     const el = scrollRef.current;
     if (!el) return;
     const near = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     pinnedRef.current = near;
     setAtBottom(near);
+    const node = lastPromptNode();
+    setPromptAbove(!!node && node.getBoundingClientRect().bottom < el.getBoundingClientRect().top + 4);
   };
+
+  const onScroll = () => recompute();
 
   const scrollToBottom = () => {
     const el = scrollRef.current;
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   };
 
+  const scrollToLastPrompt = () => lastPromptNode()?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
   useEffect(() => {
     const el = scrollRef.current;
     if (el && pinnedRef.current) el.scrollTop = el.scrollHeight;
-  }, [messages, phase]);
+    recompute();
+  }, [messages, phase, lastUserId]);
 
   const planPending = phase === 'idle' && (() => {
     const last = messages[messages.length - 1];
@@ -108,7 +132,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
         : undefined;
 
   return {
-    scrollRef, atBottom, onScroll, scrollToBottom,
+    scrollRef, atBottom, promptAbove, onScroll, scrollToBottom, scrollToLastPrompt,
     queued, enqueue, clearQueue, cancelQueueAt, fullLoaded, setFullLoaded,
     streaming, disabled, isEmpty,
     sentHistory, modelLabel, labelFor,

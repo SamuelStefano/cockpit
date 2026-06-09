@@ -30,7 +30,7 @@ export function MessageRow({ msg, caretOnLast, modelLabel, thinking, live, onEdi
   const [userName] = usePersisted<string>('user.name', '');
   if (msg.role === 'user') {
     return (
-      <div className="fade-up group/u flex items-start justify-end gap-2.5">
+      <div data-mid={msg.id} className="fade-up group/u flex items-start justify-end gap-2.5">
         <div className="mt-1 flex shrink-0 items-center gap-0.5 opacity-100 transition group-hover/u:opacity-100 sm:opacity-0 sm:group-hover/u:opacity-100">
           {msg.ts && <time className="mr-1 text-[10px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
           <CopyTextButton text={msg.text} />
