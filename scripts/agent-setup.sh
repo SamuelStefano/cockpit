@@ -2,9 +2,10 @@
 # Setup do agente Deck (T3, DR-023): bootstrap completo numa VPS zerada — instala
 # git, curl, Node 20+, build tools e o Claude CLI se faltarem, clona/atualiza o
 # repo, instala as deps nativas (node-pty, better-sqlite3), pareia ao relay com o
-# código e sobe o agente. O agente reusa o backend inteiro (serveConnection), por
-# isso precisa do repo — não dá pra ser um npx fino sem publicar. A chave Ed25519
-# nasce e fica nesta box.
+# código e sobe o agente como serviço systemd (auto-restart, sobrevive a reboot;
+# fallback nohup sem systemd). O agente reusa o backend inteiro (serveConnection),
+# por isso precisa do repo — não dá pra ser um npx fino sem publicar. A chave
+# Ed25519 nasce e fica nesta box.
 #
 # Uso (a partir do Dashboard):
 #   curl -fsSL https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh | bash -s -- CÓDIGO
@@ -144,5 +145,56 @@ if [ -n "$CODE" ]; then
   DECK_RELAY_URL="$RELAY" npx tsx server/agent.ts --pair="$CODE"
 fi
 
-echo "[deck] subindo agente (role=${DECK_AGENT_ROLE:-student}) — a tela troca sozinha quando conectar."
-exec env DECK_RELAY_URL="$RELAY" npx tsx server/agent.ts
+# Persistência: instala um serviço systemd pra o agente sobreviver ao fechamento
+# do SSH e a reboots, com auto-restart. Sem systemd (ou sem root/sudo p/ escrever
+# a unit), cai pro nohup — sobrevive ao SSH mas NÃO ao reboot.
+SERVICE="deck-agent"
+RUN_USER="$(id -un)"
+NODE_BIN="$(dirname "$(command -v node)")"
+NPX_BIN="$(command -v npx)"
+ROLE="${DECK_AGENT_ROLE:-student}"
+
+can_systemd() {
+  command -v systemctl >/dev/null 2>&1 || return 1
+  [ "$(id -u)" -eq 0 ] || [ -n "$SUDO" ] || return 1
+  $SUDO systemctl list-units >/dev/null 2>&1 || return 1
+  return 0
+}
+
+if can_systemd; then
+  echo "[deck] instalando serviço systemd ($SERVICE) — auto-restart e sobrevive a reboot…"
+  $SUDO tee "/etc/systemd/system/$SERVICE.service" >/dev/null <<EOF
+[Unit]
+Description=Deck Agent (T3 relay)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=$RUN_USER
+WorkingDirectory=$SRC_DIR
+Environment=HOME=$HOME
+Environment=PATH=$NODE_BIN:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=DECK_RELAY_URL=$RELAY
+Environment=DECK_AGENT_ROLE=$ROLE
+ExecStart=$NPX_BIN tsx server/agent.ts
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  $SUDO systemctl daemon-reload
+  $SUDO systemctl enable "$SERVICE" >/dev/null 2>&1 || true
+  $SUDO systemctl restart "$SERVICE"
+  echo "[deck] agente rodando como serviço (role=$ROLE) — a tela troca sozinha quando conectar."
+  echo "[deck] logs:    $SUDO journalctl -u $SERVICE -f"
+  echo "[deck] parar:   $SUDO systemctl stop $SERVICE"
+else
+  echo "[deck] systemd indisponível — subindo com nohup (sobrevive ao SSH, NÃO a reboot)."
+  cd "$SRC_DIR"
+  nohup env DECK_RELAY_URL="$RELAY" DECK_AGENT_ROLE="$ROLE" npx tsx server/agent.ts \
+    >"$SRC_DIR/agent.log" 2>&1 &
+  echo "[deck] agente rodando (PID $!, role=$ROLE) — a tela troca sozinha quando conectar."
+  echo "[deck] logs: tail -f $SRC_DIR/agent.log"
+fi

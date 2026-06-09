@@ -19,12 +19,16 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
-  const [queued, setQueued] = useState('');
+  const [queued, setQueued] = useState<string[]>([]);
   const [fullLoaded, setFullLoaded] = useState(false);
   // Troca de sessão zera o estado preso à anterior. A fila (queued) é "manda
   // quando ESTA sessão liberar"; sem limpar, ao trocar pra uma sessão idle o
   // efeito de flush dispararia o texto enfileirado na sessão ERRADA.
-  useEffect(() => { setFullLoaded(false); setQueued(''); }, [session?.id]);
+  useEffect(() => { setFullLoaded(false); setQueued([]); }, [session?.id]);
+
+  const enqueue = (text: string) => setQueued((q) => [...q, text]);
+  const clearQueue = () => setQueued([]);
+  const cancelQueueAt = (i: number) => setQueued((q) => q.filter((_, idx) => idx !== i));
 
   const streaming = phase === 'streaming';
   const disabled = phase !== 'idle';
@@ -45,13 +49,19 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
     [models, modelLabel],
   );
 
-  // Fila stop-aware: mensagem digitada durante o turno dispara sozinha no idle.
+  // Fila stop-aware: mensagens digitadas durante o turno disparam sozinhas no
+  // idle, UMA por vez e em ordem. flushingRef trava o re-disparo: setQueued(rest)
+  // re-roda o efeito ainda com phase==='idle' (a prop só vira 'thinking' quando o
+  // servidor emite 'started'); sem a trava, a fila inteira sairia de uma vez. O
+  // ref reseta quando o turno começa, liberando o próximo no idle seguinte.
+  const flushingRef = useRef(false);
   useEffect(() => {
-    if (phase === 'idle' && queued) {
-      const text = queued;
-      setQueued('');
-      onSend(text);
-    }
+    if (phase !== 'idle') { flushingRef.current = false; return; }
+    if (flushingRef.current || queued.length === 0) return;
+    flushingRef.current = true;
+    const [next, ...rest] = queued;
+    setQueued(rest);
+    onSend(next);
   }, [phase, queued, onSend]);
 
   const onScroll = () => {
@@ -99,7 +109,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
 
   return {
     scrollRef, atBottom, onScroll, scrollToBottom,
-    queued, setQueued, fullLoaded, setFullLoaded,
+    queued, enqueue, clearQueue, cancelQueueAt, fullLoaded, setFullLoaded,
     streaming, disabled, isEmpty,
     sentHistory, modelLabel, labelFor,
     planPending, failed, retryLast, bannerConfirm,
