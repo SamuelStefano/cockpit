@@ -105,12 +105,17 @@ export const CONFIG = {
 
   // Tools pré-aprovadas no modo Executar (acceptEdits). Allow-list nomeada,
   // não bypass. Override por env COCKPIT_ALLOWED_TOOLS (separado por vírgula).
-  allowedTools: (process.env.COCKPIT_ALLOWED_TOOLS ?? 'Bash,Read,Edit,Write,Glob,Grep')
+  // WebFetch/WebSearch entram pré-aprovados: como o `claude -p` roda com stdin
+  // ignorado (sem control protocol), tool fora da allow-list é negada sem ter
+  // como pedir aprovação — então read-only de rede precisa estar listada pra
+  // funcionar. Bloqueio via COCKPIT_DISALLOWED_TOOLS continua valendo (precede).
+  allowedTools: (process.env.COCKPIT_ALLOWED_TOOLS ?? 'Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch')
     .split(',').map((s) => s.trim()).filter(Boolean),
 
   // Modo Auto: edita/lê sem shell. Mesma allow-list SEM Bash — o agente trabalha
-  // arquivos sozinho mas não roda comandos arbitrários.
-  allowedToolsAuto: (process.env.COCKPIT_ALLOWED_TOOLS_AUTO ?? 'Read,Edit,Write,Glob,Grep')
+  // arquivos sozinho mas não roda comandos arbitrários. WebFetch/WebSearch
+  // (read-only de rede) entram pra não travar pesquisa/leitura de página.
+  allowedToolsAuto: (process.env.COCKPIT_ALLOWED_TOOLS_AUTO ?? 'Read,Edit,Write,Glob,Grep,WebFetch,WebSearch')
     .split(',').map((s) => s.trim()).filter(Boolean),
 
   // Kill-switch DURO: tools aqui são negadas em TODOS os modos (precede a allow-list
