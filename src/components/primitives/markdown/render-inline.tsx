@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { tokenizeInline } from './tokenize-inline';
+import { WikiLink } from './wikilink-context';
 
 // Allowlist de esquema pra href de link markdown. O conteúdo vem do modelo / saída
 // de tool (não-confiável): um `[clique](javascript:...)` viraria âncora que executa
@@ -22,11 +23,7 @@ export function renderInline(text: string, keyBase: string): ReactNode[] {
         nodes.push(<span key={key}>{t.value}</span>);
         break;
       case 'wikilink':
-        nodes.push(
-          <span key={key} className="rounded bg-orange-500/10 px-1 py-px font-medium text-orange-300/90 ring-1 ring-inset ring-orange-500/20">
-            {t.value}
-          </span>
-        );
+        nodes.push(<WikiLink key={key} value={t.value} />);
         break;
       case 'bold':
         nodes.push(<strong key={key} className="font-semibold text-neutral-100">{t.value}</strong>);
