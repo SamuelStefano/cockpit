@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shortModel, turnStatParts, contextMeter, CONTEXT_LIMIT } from './toolbar.format';
+import { shortModel, prettyModel, modelFamily, turnStatParts, contextMeter, CONTEXT_LIMIT } from './toolbar.format';
 
 describe('shortModel', () => {
   it('maps full CLI model names to short aliases', () => {
@@ -11,6 +11,42 @@ describe('shortModel', () => {
   it('returns "" for undefined and passes through unknown names', () => {
     expect(shortModel(undefined)).toBe('');
     expect(shortModel('gpt-9')).toBe('gpt-9');
+  });
+});
+
+describe('modelFamily', () => {
+  it('detects family from concrete id and alias', () => {
+    expect(modelFamily('claude-opus-4-8')).toBe('opus');
+    expect(modelFamily('opus')).toBe('opus');
+    expect(modelFamily('claude-sonnet-4-6')).toBe('sonnet');
+    expect(modelFamily('haiku')).toBe('haiku');
+  });
+  it('returns null for unknown/empty', () => {
+    expect(modelFamily(undefined)).toBeNull();
+    expect(modelFamily('gpt-9')).toBeNull();
+  });
+});
+
+describe('prettyModel', () => {
+  it('derives "Family X.Y" from concrete id', () => {
+    expect(prettyModel('claude-opus-4-8')).toBe('Opus 4.8');
+    expect(prettyModel('claude-sonnet-4-6')).toBe('Sonnet 4.6');
+    expect(prettyModel('claude-haiku-4-5-20251001')).toBe('Haiku 4.5');
+  });
+  it('capitalizes bare aliases without inventing a version', () => {
+    expect(prettyModel('opus')).toBe('Opus');
+    expect(prettyModel('sonnet')).toBe('Sonnet');
+  });
+  it('prefers a friendly API display_name over the id', () => {
+    expect(prettyModel('claude-opus-4-8', 'Claude Opus 4.8')).toBe('Claude Opus 4.8');
+  });
+  it('ignores display_name when it is just the raw id echoed back', () => {
+    expect(prettyModel('claude-opus-4-8', 'claude-opus-4-8')).toBe('Opus 4.8');
+  });
+  it('falls through for unknown models and empty input', () => {
+    expect(prettyModel(undefined)).toBe('');
+    expect(prettyModel('gpt-9')).toBe('gpt-9');
+    expect(prettyModel('gpt-9', 'GPT-9')).toBe('GPT-9');
   });
 });
 
