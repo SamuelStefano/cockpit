@@ -13,10 +13,11 @@ interface Args {
   models: ModelInfo[];
   model: string;
   lastEnd?: string;
+  paused?: boolean;
   onSend: (text: string, modeOverride?: PermMode) => void;
 }
 
-export function useChatPanel({ session, messages, phase, models, model, lastEnd, onSend }: Args) {
+export function useChatPanel({ session, messages, phase, models, model, lastEnd, paused = false, onSend }: Args) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const flushingRef = useRef(false);
@@ -79,13 +80,16 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   // ref reseta quando o turno começa, liberando o próximo no idle seguinte.
   useEffect(() => {
     if (!sid) return;
+    // Teto do plano atingido: NÃO drena a fila (senão dispara tudo e falha sem
+    // resposta). Quando a janela reseta, `paused` cai e o flush retoma sozinho.
+    if (paused) return;
     if (phase !== 'idle') { flushingRef.current = false; return; }
     if (flushingRef.current || queued.length === 0) return;
     flushingRef.current = true;
     const [next, ...rest] = queued;
     setQueuedFor(() => rest);
     onSend(next);
-  }, [phase, queued, onSend, sid]);
+  }, [phase, queued, onSend, sid, paused]);
 
   // Id do prompt mais recente do usuário — alvo do botão "voltar ao meu prompt".
   const lastUserId = useMemo(() => {

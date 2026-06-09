@@ -25,10 +25,11 @@ interface UseChatInputArgs {
   pendingConfirm?: () => void;
   onNew: () => void;
   onShowHelp?: () => void;
+  paused?: boolean;
 }
 
 export function useChatInput(args: UseChatInputArgs) {
-  const { disabled, onSend, onStop, value, setValue, setMode, setModel, slashCommands, hasAtt, onUpload, focusSignal, onQueue, history, pendingConfirm, onNew, onShowHelp } = args;
+  const { disabled, onSend, onStop, value, setValue, setMode, setModel, slashCommands, hasAtt, onUpload, focusSignal, onQueue, history, pendingConfirm, onNew, onShowHelp, paused } = args;
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   // Ditado por voz escreve direto no composer (value/setValue). Mora aqui pra o
@@ -81,6 +82,7 @@ export function useChatInput(args: UseChatInputArgs) {
     return true;
   };
   const submit = () => {
+    if (paused) return; // teto do plano atingido: composer travado até resetar
     const v = value.trim();
     if (v.startsWith('/') && runSlash(v)) {
       setValue('');
@@ -137,7 +139,7 @@ export function useChatInput(args: UseChatInputArgs) {
     }
     // Composição vazia + banner pendente: Enter confirma o banner em vez de ser
     // um submit no-op. Só quando idle (com run em curso a barra vira stop/queue).
-    if (e.key === 'Enter' && !e.shiftKey && !disabled && !value.trim() && !hasAtt && pendingConfirm) {
+    if (e.key === 'Enter' && !e.shiftKey && !disabled && !paused && !value.trim() && !hasAtt && pendingConfirm) {
       e.preventDefault(); pendingConfirm(); return;
     }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); setHistIdx(null); submit(); }

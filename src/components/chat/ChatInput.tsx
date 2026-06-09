@@ -37,6 +37,8 @@ interface ChatInputProps {
   onQueue: (text: string) => void;
   onCancelQueueAt: (i: number) => void;
   onMoveQueued: (i: number, dir: -1 | 1) => void;
+  paused?: boolean;
+  quotaResetsAt?: number | null;
   history: string[];
   pendingConfirm?: () => void;
   onNew: () => void;
@@ -44,8 +46,9 @@ interface ChatInputProps {
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, skills, selectedSkills, setSelectedSkills, attachments, onRemoveAttachment, queued, onCancelQueueAt, onMoveQueued } = props;
+  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, skills, selectedSkills, setSelectedSkills, attachments, onRemoveAttachment, queued, onCancelQueueAt, onMoveQueued, paused = false, quotaResetsAt } = props;
   const hasAtt = attachments.length > 0;
+  const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
   const { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic } = useChatInput({ ...props, hasAtt });
   return (
     <div className="shrink-0 border-t border-neutral-800 bg-neutral-900/60 px-3 py-3 backdrop-blur">
@@ -57,6 +60,12 @@ export function ChatInput(props: ChatInputProps) {
       />
       {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} />}
       {queued.length > 0 && <QueuedBanner queued={queued} onCancelQueueAt={onCancelQueueAt} onMove={onMoveQueued} />}
+      {paused && (
+        <div className="mb-2 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/[0.07] px-2.5 py-2 text-[12px] leading-snug text-red-200">
+          <Icon name="clock" size={13} className="mt-0.5 shrink-0 text-red-400" />
+          <span>Tokens do plano esgotados — chat pausado{resetLabel ? ` até ${resetLabel}` : ''}. Nada é perdido: a fila retoma sozinha quando a janela resetar.</span>
+        </div>
+      )}
       <input ref={fileRef} type="file" multiple onChange={pick} className="hidden" />
       <div className="relative" onDragEnter={onDragEnter} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
       {dragging && (
@@ -81,8 +90,8 @@ export function ChatInput(props: ChatInputProps) {
           onChange={grow}
           onKeyDown={onKey}
           onPaste={onPaste}
-          readOnly={mic.listening}
-          placeholder={mic.listening ? 'Ouvindo… fale agora' : disabled ? 'Próxima mensagem (envia ao terminar)…' : 'Pergunte ou peça um comando…  (↵ envia, ⇧↵ quebra linha)'}
+          readOnly={mic.listening || paused}
+          placeholder={paused ? 'Tokens esgotados — aguardando reset…' : mic.listening ? 'Ouvindo… fale agora' : disabled ? 'Próxima mensagem (envia ao terminar)…' : 'Pergunte ou peça um comando…  (↵ envia, ⇧↵ quebra linha)'}
           className="scroll-thin max-h-[140px] w-full resize-none bg-transparent py-1 text-[14px] leading-relaxed text-neutral-100 placeholder-neutral-600 outline-none"
         />
         {disabled ? (
@@ -97,9 +106,9 @@ export function ChatInput(props: ChatInputProps) {
         ) : (
           <button
             onClick={submit}
-            disabled={!value.trim() && !hasAtt}
+            disabled={paused || (!value.trim() && !hasAtt)}
             className={`mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40
-              ${value.trim() || hasAtt
+              ${!paused && (value.trim() || hasAtt)
                 ? 'bg-orange-500 text-neutral-950 hover:bg-orange-400'
                 : 'bg-neutral-800 text-neutral-600'}`}
           >
