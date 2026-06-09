@@ -1,7 +1,7 @@
 import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { join, resolve } from 'node:path';
-import type { Block, Message, ToolCall, ToolDiff } from '../../shared/protocol';
+import type { Block, Message, ToolCall, ToolDiff, ToolQuestion } from '../../shared/protocol';
 import { CONFIG } from '../config';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -168,6 +168,7 @@ export function recToMessage(r: Rec): Message | null {
           status: 'done',
           diff: diffOf(c.name, c.input),
           markdown: planOf(c.name, c.input),
+          questions: questionsOf(c.name, c.input),
           output: [],
         };
         blocks.push({ type: 'tool', tool });
@@ -228,4 +229,33 @@ export function planOf(name: unknown, input: unknown): string | undefined {
   if (name !== 'ExitPlanMode' || !input || typeof input !== 'object') return undefined;
   const plan = (input as Record<string, unknown>).plan;
   return typeof plan === 'string' && plan.trim() ? plan : undefined;
+}
+
+// AskUserQuestion carrega input.questions[] (cada uma: question/header/multiSelect/
+// options[{label,description}]). O `claude -p` é single-shot com stdin ignorado, então
+// a resposta não pode voltar no mesmo turno — extraímos as perguntas pra render de
+// botões clicáveis e a escolha vira o PRÓXIMO prompt (resume continua). Sem isto, o
+// card aparecia vazio e o usuário ficava travado num turno que espera input que nunca chega.
+export function questionsOf(name: unknown, input: unknown): ToolQuestion[] | undefined {
+  if (name !== 'AskUserQuestion' || !input || typeof input !== 'object') return undefined;
+  const raw = (input as Record<string, unknown>).questions;
+  if (!Array.isArray(raw)) return undefined;
+  const questions: ToolQuestion[] = [];
+  for (const q of raw) {
+    if (!q || typeof q !== 'object') continue;
+    const o = q as Record<string, unknown>;
+    const question = typeof o.question === 'string' ? o.question : '';
+    const header = typeof o.header === 'string' ? o.header : '';
+    if (!question) continue;
+    const opts = Array.isArray(o.options) ? o.options : [];
+    const options = opts
+      .filter((op): op is Record<string, unknown> => !!op && typeof op === 'object' && typeof (op as Record<string, unknown>).label === 'string')
+      .map((op) => ({
+        label: op.label as string,
+        description: typeof op.description === 'string' ? op.description : undefined,
+      }));
+    if (!options.length) continue;
+    questions.push({ question, header, multiSelect: o.multiSelect === true, options });
+  }
+  return questions.length ? questions : undefined;
 }

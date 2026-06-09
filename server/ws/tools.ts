@@ -1,5 +1,5 @@
 import type { ToolCall } from '../../shared/protocol';
-import { diffOf, planOf, extractCommand } from '../sessions/parse';
+import { diffOf, planOf, questionsOf, extractCommand } from '../sessions/parse';
 import { broadcast } from './broadcast';
 import type { Thread } from './runs';
 
@@ -64,6 +64,7 @@ export function emitTool(thread: Thread, sessionKey: string, block: any, status:
     status,
     diff: diffOf(block.name, block.input),
     markdown: planOf(block.name, block.input),
+    questions: questionsOf(block.name, block.input),
     output: [],
   };
   snapshotTool(thread, tool);
