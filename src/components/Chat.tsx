@@ -112,7 +112,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
 
       <TurnBanners phase={phase} failed={c.failed} planPending={c.planPending} lastEnd={lastEnd} retryLast={c.retryLast} onSend={onSend} />
 
-      <ChatInput disabled={c.disabled} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
+      <ChatInput disabled={c.disabled} onSend={onSend} onStop={() => { c.clearQueue(); onStop(); }} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
         caps={caps} bypass={bypass} setBypass={setBypass}
         model={model} setModel={setModel} models={models}
         skills={skills} selectedSkills={selectedSkills} setSelectedSkills={setSelectedSkills} slashCommands={slashCommands}
