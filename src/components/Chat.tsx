@@ -34,6 +34,8 @@ export interface ChatPanelProps {
   setSelectedSkills: (ids: string[]) => void;
   slashCommands: string[];
   contextTokens: number;
+  liveTurnTokens?: number;
+  turnStartedAt?: number;
   lastTurn?: TurnStats;
   onNew: () => void;
   attachments: Attachment[];
@@ -52,8 +54,11 @@ export interface ChatPanelProps {
   isMobile?: boolean;
 }
 
-export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, skills, selectedSkills, setSelectedSkills, slashCommands, contextTokens, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, onQuote, onOpenFull, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, skills, selectedSkills, setSelectedSkills, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, onQuote, onOpenFull, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false }: ChatPanelProps) {
   const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend });
+  // Stats AO VIVO do turno (estilo terminal): tokens gastos + tempo decorrido,
+  // enquanto o turno roda. Some no `done` (phase volta a idle).
+  const live = phase === 'thinking' || phase === 'streaming' ? { tokens: liveTurnTokens ?? 0, startedAt: turnStartedAt } : undefined;
 
   return (
     <div className="relative flex h-full flex-col bg-neutral-900">
@@ -72,9 +77,10 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-5">
             {messages.map((m, i) => (
-              <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === messages.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} thinking={phase === 'thinking' && i === messages.length - 1 && m.role === 'assistant'} onEditUser={onEditUser} onQuote={onQuote} answerable={phase === 'idle' && i === messages.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} />
+              <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === messages.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} thinking={phase === 'thinking' && i === messages.length - 1 && m.role === 'assistant'} live={i === messages.length - 1 && m.role === 'assistant' ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} answerable={phase === 'idle' && i === messages.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} />
+
             ))}
-            {phase === 'thinking' && messages[messages.length - 1]?.role !== 'assistant' && <Thinking />}
+            {phase === 'thinking' && messages[messages.length - 1]?.role !== 'assistant' && <Thinking live={live} />}
           </div>
         )}
       </div>
