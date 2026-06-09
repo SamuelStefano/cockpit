@@ -112,6 +112,12 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'admin-mcp-add': {
+      // MCP stdio = subprocesso arbitrário que o `claude` spawna depois → RCE.
+      // Mesmo gate do cli-install: stdio só no loopback. URL (http) pode remoto.
+      if (msg.command && !CONFIG.localOnly) {
+        send(ws, { t: 'admin-op', ok: false, message: 'MCP stdio só no loopback' });
+        return;
+      }
       const r = await addMcp(msg.name, { command: msg.command, url: msg.url });
       send(ws, { t: 'admin-op', ok: r.ok, message: r.message });
       send(ws, { t: 'health', health: await collectHealth() });
