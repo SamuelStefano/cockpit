@@ -56,4 +56,14 @@ describe('mapModels', () => {
   it('drops models with no known family', () => {
     expect(limitModels([{ id: 'gpt-4o', displayName: 'gpt' }])).toEqual([]);
   });
+
+  it('surfaces a brand-new claude family automatically (cap 2)', () => {
+    const out = limitModels([
+      { id: 'claude-fable-5-20260601', displayName: 'Fable 5' },
+      { id: 'claude-fable-5-mini', displayName: 'Fable 5 mini' },
+      { id: 'claude-fable-4', displayName: 'Fable 4' },
+      { id: 'claude-opus-4-8', displayName: 'Opus 4.8' },
+    ]).map((m) => m.id);
+    expect(out).toEqual(['claude-fable-5-20260601', 'claude-fable-5-mini', 'claude-opus-4-8']);
+  });
 });
