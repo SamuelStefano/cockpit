@@ -52,10 +52,12 @@ export interface ChatPanelProps {
   onTerminal?: () => void;
   terminalRunning?: boolean;
   isMobile?: boolean;
+  quotaPaused?: boolean;
+  quotaResetsAt?: number | null;
 }
 
-export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, skills, selectedSkills, setSelectedSkills, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, onQuote, onOpenFull, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false }: ChatPanelProps) {
-  const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend });
+export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, skills, selectedSkills, setSelectedSkills, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, onQuote, onOpenFull, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, quotaPaused = false, quotaResetsAt = null }: ChatPanelProps) {
+  const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, paused: quotaPaused });
   // Stats AO VIVO do turno (estilo terminal): tokens gastos + tempo decorrido,
   // enquanto o turno roda. Some no `done` (phase volta a idle).
   const live = phase === 'thinking' || phase === 'streaming' ? { tokens: liveTurnTokens ?? 0, startedAt: turnStartedAt } : undefined;
@@ -115,7 +117,8 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         model={model} setModel={setModel} models={models}
         skills={skills} selectedSkills={selectedSkills} setSelectedSkills={setSelectedSkills} slashCommands={slashCommands}
         attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} focusSignal={focusSignal}
-        queued={c.queued} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp} />
+        queued={c.queued} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
+        paused={quotaPaused} quotaResetsAt={quotaResetsAt} />
     </div>
   );
 }

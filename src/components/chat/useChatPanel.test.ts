@@ -69,6 +69,19 @@ describe('useChatPanel fila', () => {
     expect(hook.result.current.queued).toEqual(['a', 'c', 'b']);
   });
 
+  it('pausado (teto do plano): NÃO drena a fila mesmo em idle; retoma ao despausar', () => {
+    const onSend = vi.fn();
+    const base = { session: { id: 's1' } as Session, messages: [] as Message[], models: [], model: 'opus', onSend };
+    const hook = renderHook((p: { phase: Phase; paused: boolean }) => useChatPanel({ ...base, phase: p.phase, paused: p.paused }), {
+      initialProps: { phase: 'thinking' as Phase, paused: true },
+    });
+    act(() => hook.result.current.enqueue('msg1'));
+    act(() => hook.rerender({ phase: 'idle', paused: true }));
+    expect(onSend).not.toHaveBeenCalled(); // pausado: segura a fila
+    act(() => hook.rerender({ phase: 'idle', paused: false }));
+    expect(onSend).toHaveBeenCalledWith('msg1'); // despausou: retoma sozinho
+  });
+
   it('persiste a fila por sessão: trocar de sessão e voltar não perde itens', () => {
     const onSend = vi.fn();
     const base = { messages: [] as Message[], phase: 'thinking' as Phase, models: [], model: 'opus', onSend };
