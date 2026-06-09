@@ -1,29 +1,25 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { MobileLayout } from './components/Mobile';
-import { DesktopLayout } from './app/DesktopLayout';
+import { useState, useMemo, useEffect } from 'react';
 import { StatusBar } from './components/StatusBar';
-import { Header, QuotaBanner, OfflineNotice, AuthGate } from './components/AppChrome';
-import { Contextos } from './routes/Contextos';
-import { Skills } from './routes/Skills';
-import { Observatorio } from './routes/Observatorio';
-import { Admin } from './routes/Admin';
-import { Docs } from './routes/Docs';
+import { Header } from './components/chrome/Header';
+import { QuotaBanner } from './components/chrome/QuotaBanner';
+import { OfflineNotice } from './components/chrome/OfflineNotice';
 import { CommandPalette } from './components/CommandPalette';
 import { ShortcutsHelp } from './components/ShortcutsHelp';
+import { RouteContent } from './app/RouteContent';
 import { useCockpit } from './useCockpit';
 import { useRoute } from './useRoute';
 import { SUPABASE_ENABLED } from './lib/supabase';
 import { useSupabaseAuth } from './lib/useSupabaseAuth';
 import { useProfileHydration } from './lib/profile';
-import { SupabaseAuthGate } from './components/auth/SupabaseAuthGate';
-import { Dashboard } from './components/auth/Dashboard';
-import { setTitleBase } from './lib/notify';
+import { resolveAuthGate } from './app/AuthGateView';
 import { relReset } from './lib/time';
 import { usePanelResize } from './app/usePanelResize';
 import { useTerminalTabs } from './app/useTerminalTabs';
 import { useGlobalShortcuts } from './app/useGlobalShortcuts';
-
-// --- CockpitApp ------------------------------------------------------------
+import { useIsMobile } from './app/useIsMobile';
+import { useTabTitle } from './app/useTabTitle';
+import { useOfflineLatch } from './app/useOfflineLatch';
+import { usePairingEject } from './app/usePairingEject';
 
 export function CockpitApp() {
   const cockpit = useCockpit();
@@ -31,11 +27,7 @@ export function CockpitApp() {
     sessions, loading, activeId: activeSessionId, setActiveId: setActiveSessionId,
     messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, mode, setMode, caps, bypass, setBypass, model, setModel, models, selectedSkills, setSelectedSkills, slashCommands, term, discoveredTerms, listTerms,
     archived, onUnhide: handleUnhide, contextTokens, usage, truncated, lastTurn, lastEnd, searchResults, onSearch,
-    contexts, openContext, onCtxList, onCtxOpen, onCtxClose,
-    skills, openSkill, onSkillList, onSkillOpen, onSkillClose,
-    usageStats, onUsageList, health, onHealthList,
-    accounts, onAccountsList, onSetAdmin,
-    adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall,
+    skills, usageStats,
     attachments, onUpload, onRemoveAttachment,
     onSend: handleSend, onStop: handleStop, onNew: cockpitNew, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession,
     onOpenFull, onOpenSummary,
@@ -60,46 +52,11 @@ export function CockpitApp() {
   // O CLI não envia % de uso; 'allowed' = longe do teto, então não pisca à toa.
   const quota = !!rate && rate.status !== 'allowed' && !quotaClosed;
 
-  // Só alarma depois de ~6s offline (atravessa o flap reconnecting↔down sem piscar).
-  const offlineSince = useRef<number | null>(null);
-  const [showOffline, setShowOffline] = useState(false);
-  useEffect(() => {
-    if (conn.ws === 'connected') { offlineSince.current = null; setShowOffline(false); return; }
-    if (offlineSince.current == null) offlineSince.current = Date.now();
-    const id = setTimeout(() => setShowOffline(true), Math.max(0, 6000 - (Date.now() - offlineSince.current)));
-    return () => clearTimeout(id);
-  }, [conn.ws]);
+  const showOffline = useOfflineLatch(conn.ws);
+  const ejectPairing = usePairingEject(agentOnline, sbAuth.session?.user.id);
+  const isMobile = useIsMobile();
+  useTabTitle(running, updated);
 
-  // Ejeção pro Dashboard de pareamento só quando faz sentido. Em T3 o relay
-  // anuncia agent-offline a cada reconexão do agent (ex: o terminate por buffer
-  // encalhado do fix do relay) — com o WS do SPA seguindo CONNECTED. Sem carência,
-  // cada flap jogava o usuário na tela de pareamento e voltava, sumindo header
-  // (perfil) + usage juntos, sem nem banner de offline. Latch: nunca pareado →
-  // mostra na hora; já esteve online → segura ~8s pra atravessar o flap.
-  const everOnline = useRef(false);
-  const [ejectPairing, setEjectPairing] = useState(false);
-  useEffect(() => {
-    if (agentOnline) { everOnline.current = true; setEjectPairing(false); return; }
-    if (!everOnline.current) { setEjectPairing(true); return; }
-    const id = setTimeout(() => setEjectPairing(true), 8000);
-    return () => clearTimeout(id);
-  }, [agentOnline]);
-
-  // Troca de conta (sign-out → sign-in em outra) NÃO remonta o CockpitApp, então o
-  // latch everOnline herdaria o pareamento da conta anterior e mostraria o chrome
-  // dela pra uma conta nova ainda não-pareada. Ao mudar o user id, zera o latch e
-  // volta pro pareamento até o agent da nova conta anunciar online.
-  const prevUid = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    const uid = sbAuth.session?.user.id;
-    if (prevUid.current !== undefined && uid !== prevUid.current) {
-      everOnline.current = false;
-      setEjectPairing(!!uid);
-    }
-    prevUid.current = uid;
-  }, [sbAuth.session?.user.id]);
-
-  const [isMobile, setIsMobile] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [termSheet, setTermSheet] = useState(false);
   const [palette, setPalette] = useState(false);
@@ -135,25 +92,7 @@ export function CockpitApp() {
     if (route === '/admin' && caps && !isAdmin) nav('/');
   }, [route, caps, isAdmin, nav]);
 
-  // Reflete atividade no título da aba (visível com a aba em background no run
-  // noturno): "▶N" rodando, "●N" com output novo não visto.
-  useEffect(() => {
-    const parts: string[] = [];
-    if (running.size) parts.push(`▶${running.size}`);
-    if (updated.size) parts.push(`●${updated.size}`);
-    setTitleBase((parts.length ? parts.join(' ') + ' — ' : '') + 'Deck');
-  }, [running, updated]);
-
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 1023px)');
-    const apply = () => setIsMobile(mq.matches);
-    apply();
-    mq.addEventListener('change', apply);
-    return () => mq.removeEventListener('change', apply);
-  }, []);
-
   const activeSession = sessions.find((s) => s.id === activeSessionId) || archived.find((s) => s.id === activeSessionId) || null;
-  const viewPhase = phase;
 
   const handleNew = () => {
     cockpitNew();
@@ -162,27 +101,11 @@ export function CockpitApp() {
   };
 
   const sessionsProps = { sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, stalled, updated, runStart, searchResults, onSearch };
-  const chatProps = { session: activeSession, messages, phase: viewPhase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, bypass, setBypass, model, setModel, models, skills, selectedSkills, setSelectedSkills, slashCommands, contextTokens, lastTurn, lastEnd, onNew: handleNew, attachments, onUpload, onRemoveAttachment, onEditUser: editUser, onQuote: quoteMsg, onOpenFull, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile };
+  const chatProps = { session: activeSession, messages, phase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, bypass, setBypass, model, setModel, models, skills, selectedSkills, setSelectedSkills, slashCommands, contextTokens, lastTurn, lastEnd, onNew: handleNew, attachments, onUpload, onRemoveAttachment, onEditUser: editUser, onQuote: quoteMsg, onOpenFull, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
 
-  // Gate de auth. Com Supabase ligado (relay): login por e-mail/senha; sem sessão,
-  // nada do app aparece. Sem Supabase (loopback): o gate de token de sempre (DR-011
-  // Fase 2), quando o servidor exige token e o nosso falta/errou.
-  const gateShell = (node: React.ReactNode) => (
-    <div
-      className="flex h-full flex-col bg-neutral-950"
-      style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
-    >
-      {node}
-    </div>
-  );
-  if (SUPABASE_ENABLED) {
-    if (!sbAuth.loading && !sbAuth.session) return gateShell(<SupabaseAuthGate auth={sbAuth} />);
-    // Logado mas a VPS ainda não atende → dashboard de pareamento ("conecte sua VPS").
-    if (sbAuth.session && ejectPairing) return gateShell(<Dashboard token={sbAuth.session.access_token} onSignOut={sbAuth.signOut} />);
-  } else if (authRequired) {
-    return gateShell(<AuthGate onSubmit={submitToken} />);
-  }
+  const gate = resolveAuthGate({ sbAuth, ejectPairing, authRequired, submitToken });
+  if (gate) return gate;
 
   return (
     <div
@@ -191,7 +114,7 @@ export function CockpitApp() {
     >
       <CommandPalette
         open={palette} onClose={() => setPalette(false)}
-        route={route} nav={nav} onNew={handleNew}
+        nav={nav} onNew={handleNew}
         mode={mode} setMode={setMode}
         sessions={sessions} onSelectSession={setActiveSessionId}
         running={running} onStop={handleStop} onFocusComposer={() => setFocusSignal((n) => n + 1)}
@@ -203,42 +126,13 @@ export function CockpitApp() {
       {quota && rate && <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} />}
       <OfflineNotice show={showOffline} />
 
-      {route === '/contextos' ? (
-        <Contextos connected={conn.ws === 'connected'} contexts={contexts} openContext={openContext}
-          onCtxList={onCtxList} onCtxOpen={onCtxOpen} onCtxClose={onCtxClose} />
-      ) : route === '/skills' ? (
-        <Skills connected={conn.ws === 'connected'} skills={skills} openSkill={openSkill}
-          onSkillList={onSkillList} onSkillOpen={onSkillOpen} onSkillClose={onSkillClose} />
-      ) : route === '/uso' ? (
-        <Observatorio connected={conn.ws === 'connected'} usageStats={usageStats} onUsageList={onUsageList} sessions={sessions} rate={rate}
-          onOpenSession={(id) => { setActiveSessionId(id); nav('/'); }} />
-      ) : route === '/admin' && isAdmin ? (
-        <Admin health={health} stats={stats} onHealthList={onHealthList}
-          accounts={accounts} onAccountsList={onAccountsList} onSetAdmin={onSetAdmin} isRoot={caps?.role === 'root'}
-          adminOp={adminOp} onEnvSet={onEnvSet} onEnvUnset={onEnvUnset} onMcpAdd={onMcpAdd} onMcpRemove={onMcpRemove} onCliInstall={onCliInstall} />
-      ) : route === '/docs' ? (
-        <Docs />
-      ) : isMobile ? (
-        <MobileLayout
-          sessionsProps={sessionsProps}
-          chatProps={chatProps}
-          termProps={termProps}
-          drawer={drawer} setDrawer={setDrawer}
-          termSheet={termSheet} setTermSheet={setTermSheet}
-          runningTerm={runningTerm}
-        />
-      ) : (
-        <DesktopLayout
-          sessionsProps={sessionsProps}
-          chatProps={chatProps}
-          termProps={termProps}
-          rowRef={rowRef}
-          leftW={leftW} rightW={rightW}
-          leftCollapsed={leftCollapsed} setLeftCollapsed={setLeftCollapsed}
-          rightCollapsed={rightCollapsed} setRightCollapsed={setRightCollapsed}
-          startDrag={startDrag}
-        />
-      )}
+      <RouteContent
+        route={route} isMobile={isMobile} isAdmin={isAdmin} connected={conn.ws === 'connected'}
+        cockpit={cockpit} sessionsProps={sessionsProps} chatProps={chatProps} termProps={termProps}
+        onOpenSession={(id) => { setActiveSessionId(id); nav('/'); }}
+        layout={{ rowRef, leftW, rightW, leftCollapsed, setLeftCollapsed, rightCollapsed, setRightCollapsed, startDrag }}
+        mobile={{ drawer, setDrawer, termSheet, setTermSheet, runningTerm }}
+      />
 
       <StatusBar stats={stats} rate={rate} planReset={planUsage?.resetsAt ?? null} ctxTokens={contextTokens} lastTurn={lastTurn} />
     </div>

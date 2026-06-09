@@ -3,75 +3,13 @@ import { Icon, Badge } from '../components/primitives';
 import { ContextModal, TYPE_TONE } from '../components/ContextModal';
 import type { ContextMeta } from '../../shared/protocol';
 import type { ContextDoc } from '../useCockpit';
-import { relPast } from '../lib/time';
 import { countByType, filterContexts } from './contextos.filter';
+import { ContextChip } from './contextos/ContextChip';
+import { ContextCard } from './contextos/ContextCard';
+import { ContextOffline } from './contextos/ContextOffline';
+import { ContextEmpty } from './contextos/ContextEmpty';
 
 const TYPES = ['user', 'project', 'feedback', 'reference', 'memory'] as const;
-
-const CHIP_ACTIVE: Record<string, string> = {
-  orange: 'border-orange-500/40 bg-orange-500/15 text-orange-300',
-  green: 'border-green-500/40 bg-green-500/15 text-green-300',
-  yellow: 'border-yellow-500/40 bg-yellow-500/15 text-yellow-300',
-  red: 'border-red-500/40 bg-red-500/15 text-red-300',
-  neutral: 'border-neutral-600 bg-neutral-800 text-neutral-200',
-};
-
-function Chip({ active, onClick, label, count, tone }: { active: boolean; onClick: () => void; label: string; count: number; tone: string }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition
-        ${active ? (CHIP_ACTIVE[tone] ?? CHIP_ACTIVE.neutral) : 'border-neutral-800 text-neutral-500 hover:border-neutral-700 hover:text-neutral-300'}`}
-    >
-      {label} <span className="tabular-nums opacity-60">{count}</span>
-    </button>
-  );
-}
-
-function Card({ c, onClick }: { c: ContextMeta; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="group relative flex flex-col rounded-xl border border-neutral-800 bg-neutral-900/40 p-3.5 text-left transition hover:-translate-y-px hover:border-orange-500/40 hover:bg-orange-500/[0.05] hover:shadow-lg hover:shadow-black/30"
-    >
-      <div className="mb-1.5 flex items-center justify-between gap-2">
-        <Badge tone={TYPE_TONE[c.type] ?? 'neutral'}>{c.type}</Badge>
-        <span className="shrink-0 text-[10px] tabular-nums text-neutral-600">{relPast(c.mtime)}</span>
-      </div>
-      <h3 className="mb-1 line-clamp-1 text-[13px] font-medium text-neutral-200 group-hover:text-orange-300">{c.title}</h3>
-      <p className="line-clamp-3 text-[12px] leading-snug text-neutral-500">{c.description || '—'}</p>
-    </button>
-  );
-}
-
-function Offline() {
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center px-4 text-center">
-      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl border border-neutral-800 bg-neutral-900 text-neutral-600">
-        <Icon name="circle" size={20} />
-      </div>
-      <p className="text-[13px] font-medium text-neutral-300">Backend local indisponível</p>
-      <p className="mt-1 max-w-sm text-[12px] leading-snug text-neutral-600">
-        Os contextos vivem na sua máquina (<span className="font-mono">memory/</span>) e só aparecem com o backend do Deck
-        rodando em <span className="font-mono">127.0.0.1</span>. Numa URL pública não há conexão com eles.
-      </p>
-    </div>
-  );
-}
-
-function Empty({ query }: { query: string }) {
-  return (
-    <div className="mt-16 flex flex-col items-center px-4 text-center">
-      <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-neutral-800 bg-neutral-900 text-neutral-600">
-        <Icon name="sparkles" size={18} />
-      </div>
-      <p className="text-[12.5px] font-medium text-neutral-400">{query ? 'Nada encontrado' : 'Nenhum contexto ainda'}</p>
-      <p className="mt-1 text-[11.5px] leading-snug text-neutral-600">
-        {query ? <>Nada para «{query}»</> : 'As memórias do agente aparecem aqui assim que forem criadas.'}
-      </p>
-    </div>
-  );
-}
 
 interface Props {
   connected: boolean;
@@ -127,22 +65,22 @@ export function Contextos({ connected, contexts, openContext, onCtxList, onCtxOp
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          <Chip active={filter === null} onClick={() => setFilter(null)} label="todos" count={contexts.length} tone="neutral" />
+          <ContextChip active={filter === null} onClick={() => setFilter(null)} label="todos" count={contexts.length} tone="neutral" />
           {TYPES.map((t) => (counts[t] ? (
-            <Chip key={t} active={filter === t} onClick={() => setFilter(filter === t ? null : t)} label={t} count={counts[t]} tone={TYPE_TONE[t]} />
+            <ContextChip key={t} active={filter === t} onClick={() => setFilter(filter === t ? null : t)} label={t} count={counts[t]} tone={TYPE_TONE[t]} />
           ) : null))}
         </div>
       </div>
 
       {!connected ? (
-        <Offline />
+        <ContextOffline />
       ) : (
         <div className="scroll-thin flex-1 overflow-y-auto p-4">
           {filtered.length === 0 ? (
-            <Empty query={query} />
+            <ContextEmpty query={query} />
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {filtered.map((c) => <Card key={c.id} c={c} onClick={() => onCtxOpen(c.id)} />)}
+              {filtered.map((c) => <ContextCard key={c.id} c={c} onClick={() => onCtxOpen(c.id)} />)}
             </div>
           )}
         </div>

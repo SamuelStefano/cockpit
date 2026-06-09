@@ -1,10 +1,12 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef } from 'react';
 import type { PermMode } from '../../../shared/protocol';
 import { classifySlash } from './slash';
 import { nextRecall } from './recall';
 import { useSpeechInput } from './useSpeechInput';
-
-const MAX_UPLOAD = 15_000_000;
+import { fitHeight } from './fit-height';
+import { useComposerDnd } from './useComposerDnd';
+import { useSlashPalette } from './useSlashPalette';
+import { useComposerRecall } from './useComposerRecall';
 
 interface UseChatInputArgs {
   disabled: boolean;
@@ -25,11 +27,6 @@ interface UseChatInputArgs {
   onShowHelp?: () => void;
 }
 
-const fitHeight = (el: HTMLTextAreaElement) => {
-  el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 140) + 'px';
-};
-
 export function useChatInput(args: UseChatInputArgs) {
   const { disabled, onSend, onStop, value, setValue, setMode, setModel, slashCommands, hasAtt, onUpload, focusSignal, onQueue, history, pendingConfirm, onNew, onShowHelp } = args;
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -42,50 +39,12 @@ export function useChatInput(args: UseChatInputArgs) {
   // passaram pra o caller decidir se houve upload (ex: paste consome o evento).
   const uploadFiles = (files: File[]): number => {
     let n = 0;
-    for (const f of files) { if (f.size > MAX_UPLOAD) continue; onUpload(f); n++; }
+    for (const f of files) { if (f.size > 15_000_000) continue; onUpload(f); n++; }
     return n;
   };
-  // Drag-and-drop: contador de profundidade pra o overlay não piscar quando o
-  // cursor passa sobre filhos (dragenter/leave borbulham).
-  const [dragging, setDragging] = useState(false);
-  const dragDepth = useRef(0);
-  const onDragEnter = (e: React.DragEvent) => {
-    if (disabled || !e.dataTransfer?.types.includes('Files')) return;
-    e.preventDefault(); dragDepth.current += 1; setDragging(true);
-  };
-  const onDragOver = (e: React.DragEvent) => {
-    if (disabled || !e.dataTransfer?.types.includes('Files')) return;
-    e.preventDefault();
-  };
-  const onDragLeave = (e: React.DragEvent) => {
-    if (!dragging) return;
-    e.preventDefault(); dragDepth.current -= 1; if (dragDepth.current <= 0) { dragDepth.current = 0; setDragging(false); }
-  };
-  const onDrop = (e: React.DragEvent) => {
-    dragDepth.current = 0; setDragging(false);
-    if (disabled) return;
-    const files = Array.from(e.dataTransfer?.files ?? []);
-    if (files.length) { e.preventDefault(); uploadFiles(files); }
-  };
-  // Colar imagem/arquivo do clipboard (print screen, copiar arquivo) vira anexo.
-  const onPaste = (e: React.ClipboardEvent) => {
-    if (disabled) return;
-    const files = Array.from(e.clipboardData?.files ?? []);
-    if (files.length && uploadFiles(files) > 0) e.preventDefault();
-  };
-  const [sel, setSel] = useState(0);
-  // "/" sozinho lista tudo; espaços continuam filtrando (comandos multi-palavra
-  // como "model opus"/"effort low"). Newline = mensagem de verdade, não comando.
-  const slashOpen = !disabled && value.startsWith('/') && !value.includes('\n');
-  const slashQuery = slashOpen ? value.slice(1).toLowerCase() : '';
-  const matches = useMemo(
-    () => (slashOpen ? slashCommands.filter((c) => c.toLowerCase().includes(slashQuery)).slice(0, 8) : []),
-    [slashOpen, slashQuery, slashCommands],
-  );
-  const [dismissed, setDismissed] = useState(false);
-  const showPalette = matches.length > 0 && !dismissed;
-  // Esc dispensa a palette mas preserva o texto; digitar de novo a traz de volta.
-  useEffect(() => { setSel(0); setDismissed(false); }, [slashQuery, slashOpen]);
+  const dnd = useComposerDnd(disabled, uploadFiles);
+  const { sel, setSel, matches, showPalette, setDismissed } = useSlashPalette(disabled, value, slashCommands);
+  const { histIdx, setHistIdx, recall } = useComposerRecall(history, setValue, taRef);
   const complete = (cmd: string) => {
     setValue('/' + cmd + ' ');
     requestAnimationFrame(() => {
@@ -142,19 +101,6 @@ export function useChatInput(args: UseChatInputArgs) {
     uploadFiles(Array.from(e.target.files ?? [])); // teto de 15MB espelha o backend
     e.target.value = '';
   };
-  // Recall estilo shell: ↑ no campo vazio puxa o último prompt enviado; ↑/↓
-  // navegam o histórico; ↓ abaixo do fim limpa. Histórico = msgs do usuário.
-  const [histIdx, setHistIdx] = useState<number | null>(null);
-  const recall = (idx: number) => {
-    setHistIdx(idx);
-    setValue(history[idx]);
-    requestAnimationFrame(() => {
-      const el = taRef.current;
-      if (!el) return;
-      el.setSelectionRange(el.value.length, el.value.length);
-      fitHeight(el);
-    });
-  };
   const onKey = (e: React.KeyboardEvent) => {
     // IME em composição (dead key de acento, candidato CJK): o Enter/Tab confirma
     // o candidato, não envia a mensagem. Sem isto, digitar "ã" via ~+a no Linux
@@ -200,5 +146,5 @@ export function useChatInput(args: UseChatInputArgs) {
     if (histIdx !== null) setHistIdx(null); // digitar sai do modo recall
     fitHeight(e.target);
   };
-  return { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic };
+  return { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, ...dnd, mic };
 }

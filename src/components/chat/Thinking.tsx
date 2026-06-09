@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ClaudeAvatar } from '../Avatar';
+import { ClaudeAvatar } from '../ClaudeAvatar';
 
 function fmtElapsed(secs: number): string {
   if (secs < 60) return `${secs}s`;

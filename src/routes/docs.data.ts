@@ -59,7 +59,7 @@ export const FILEMAP: { group: string; tone: string; files: { path: string; what
   {
     group: 'Frontend · componentes', tone: 'text-violet-300 border-violet-500/30 bg-violet-500/10',
     files: [
-      { path: 'src/components/AppChrome.tsx', what: 'Header, barra de uso do plano, menu de rotas mobile e avisos (offline, quota).' },
+      { path: 'src/components/chrome/', what: 'Header, barra de uso do plano, menu de rotas mobile e avisos (offline, quota) — um arquivo por peça.' },
       { path: 'src/components/Chat.tsx', what: 'Painel de chat: thread, banners (plano/falha/retomar), botão de terminal, scroll.' },
       { path: 'src/components/Sessions.tsx', what: 'Lista de sessões com busca, ações (favoritar/arquivar/excluir) e seção de arquivadas.' },
       { path: 'src/components/Terminals.tsx', what: 'Painel de terminais com abas, montando o xterm por aba.' },

@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
-import { Icon, Badge } from '../primitives';
+import { Badge } from '../primitives';
 import type { Session } from '../../data/mock';
 import { Highlight } from './Highlight';
 import { SessionRowTags } from './SessionRowTags';
-import { SessionRowActions } from './SessionRowActions';
+import { SessionStatusDot } from './SessionStatusDot';
+import { SessionRowMeta } from './SessionRowMeta';
+import { RunStatus } from './RunStatus';
 import { useSessionRow } from './useSessionRow';
+import { useLongPress } from './useLongPress';
 import { isIdle } from './row-meta';
 
 export interface SessionRowProps {
@@ -33,28 +35,15 @@ export interface SessionRowProps {
 
 export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated, runStart, pinned, tags = [], onTogglePin, onAddTag, onRemoveTag, onFilterTag, onSelect, onRename, onDescribe, onClose, onDelete, onStop }: SessionRowProps) {
   const { editing, setEditing, draft, setDraft, descEditing, setDescEditing, descDraft, setDescDraft, tagging, setTagging, tagDraft, setTagDraft, inputRef, descRef, tagRef, commit, commitDesc, commitTag } = useSessionRow({ s, onAddTag, onRename, onDescribe });
-  // Mobile: segurar o dedo (long-press) abre o menu de ações, sem precisar mirar
-  // no grip. O timer dispara em 450ms; um toque curto só seleciona a sessão.
-  const [actionsOpen, setActionsOpen] = useState(false);
-  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressed = useRef(false);
-  const clearPress = () => { if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null; } };
-  const onTouchStart = () => {
-    longPressed.current = false;
-    clearPress();
-    pressTimer.current = setTimeout(() => { longPressed.current = true; setActionsOpen(true); }, 450);
-  };
+  const { open: actionsOpen, setOpen: setActionsOpen, consumeTap, handlers } = useLongPress(() => {});
 
   return (
     <div
       role="button"
       tabIndex={0}
       aria-pressed={active}
-      onClick={() => { if (longPressed.current) { longPressed.current = false; return; } onSelect(s.id); }}
-      onTouchStart={onTouchStart}
-      onTouchMove={clearPress}
-      onTouchEnd={clearPress}
-      onTouchCancel={clearPress}
+      onClick={() => { if (consumeTap()) return; onSelect(s.id); }}
+      {...handlers}
       onKeyDown={(e) => {
         if (e.target !== e.currentTarget) return; // tecla foi pra um botão/input interno
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(s.id); }
@@ -83,58 +72,30 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
           <span
             className={`flex min-w-0 items-center gap-1.5 truncate text-left text-[12.5px] font-medium leading-tight ${active ? 'text-neutral-100' : 'text-neutral-300'}`}
           >
-            {running && !stalled && (
-              <span className="relative flex h-1.5 w-1.5 shrink-0" title="Sessão trabalhando agora">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-green-400" />
-              </span>
-            )}
-            {running && stalled && (
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" title="Trabalhando, mas sem output há alguns minutos (tool longo, rate-limit ou travada)" />
-            )}
-            {!running && updated && (
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-orange-400" title="Novo output desde a última vez que você abriu" />
-            )}
+            <SessionStatusDot running={running} stalled={stalled} updated={updated} />
             <span className={`truncate ${!running && updated && !active ? 'text-neutral-100' : ''}`}><Highlight text={s.title} term={highlight} /></span>
           </span>
         )}
         {!editing && (
-          <div className="flex shrink-0 items-center gap-1">
-            {cost !== undefined && cost > 0 && (
-              <span className="hidden text-[9.5px] tabular-nums text-emerald-500/70 sm:inline" title="Custo estimado acumulado desta sessão">
-                ${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(2)}
-              </span>
-            )}
-            <span className="hidden text-[10px] tabular-nums text-neutral-600 sm:inline">{s.relative}</span>
-            {pinned && (
-              <span title="Sessão fixada" className="text-orange-400">
-                <Icon name="star" size={11} />
-              </span>
-            )}
-            {onAddTag && (
-              <button
-                onClick={(e) => { e.stopPropagation(); setTagging(!tagging); }}
-                title="Adicionar etiqueta"
-                className="block rounded p-0.5 text-neutral-500 transition hover:bg-neutral-800 hover:text-sky-300 sm:hidden sm:group-hover:block"
-              >
-                <Icon name="tag" size={12} />
-              </button>
-            )}
-            <SessionRowActions
-              pinned={!!pinned}
-              running={!!running}
-              canStop={!!onStop}
-              canDescribe={!!onDescribe}
-              open={actionsOpen}
-              onOpenChange={setActionsOpen}
-              onTogglePin={onTogglePin ? () => onTogglePin(s.id) : undefined}
-              onRename={() => { setDraft(s.title); setEditing(true); }}
-              onDescribe={() => { setDescDraft(s.summary || ''); setDescEditing(true); }}
-              onStop={onStop ? () => onStop(s.id) : undefined}
-              onArchive={() => onClose(s.id)}
-              onDelete={() => (onDelete ?? onClose)(s.id)}
-            />
-          </div>
+          <SessionRowMeta
+            relative={s.relative}
+            cost={cost}
+            pinned={!!pinned}
+            running={!!running}
+            tagging={tagging}
+            canTag={!!onAddTag}
+            canStop={!!onStop}
+            canDescribe={!!onDescribe}
+            actionsOpen={actionsOpen}
+            setActionsOpen={setActionsOpen}
+            setTagging={setTagging}
+            onTogglePin={onTogglePin ? () => onTogglePin(s.id) : undefined}
+            onRename={() => { setDraft(s.title); setEditing(true); }}
+            onDescribe={() => { setDescDraft(s.summary || ''); setDescEditing(true); }}
+            onStop={onStop ? () => onStop(s.id) : undefined}
+            onArchive={() => onClose(s.id)}
+            onDelete={() => (onDelete ?? onClose)(s.id)}
+          />
         )}
       </div>
       {!editing && (descEditing ? (
@@ -177,31 +138,4 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
       )}
     </div>
   );
-}
-
-// Status do turno em voo no card do sidebar: cronômetro próprio (1s) só enquanto
-// a sessão roda, então só a(s) linha(s) ativa(s) re-renderizam — não a lista toda.
-function RunStatus({ start, stalled }: { start?: number; stalled: boolean }) {
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setTick((n) => n + 1), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const elapsed = start ? fmtElapsed(Math.max(0, Date.now() - start)) : null;
-  return (
-    <div className="mt-1.5 flex items-center gap-1.5 text-[10px] font-medium">
-      <span className={stalled ? 'text-amber-400' : 'text-green-400'}>
-        {stalled ? 'sem resposta há um tempo' : 'trabalhando'}
-      </span>
-      {elapsed && <span className="tabular-nums text-neutral-500">· {elapsed}</span>}
-    </div>
-  );
-}
-
-function fmtElapsed(ms: number): string {
-  const s = Math.floor(ms / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ${s % 60}s`;
-  return `${Math.floor(m / 60)}h ${m % 60}m`;
 }
