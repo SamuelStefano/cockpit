@@ -134,7 +134,7 @@ export function CockpitApp() {
         mobile={{ drawer, setDrawer, termSheet, setTermSheet, runningTerm }}
       />
 
-      <StatusBar stats={stats} rate={rate} planReset={planUsage?.resetsAt ?? null} ctxTokens={contextTokens} lastTurn={lastTurn} />
+      <StatusBar stats={stats} rate={rate} ctxTokens={contextTokens} lastTurn={lastTurn} />
     </div>
   );
 }
