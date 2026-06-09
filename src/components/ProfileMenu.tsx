@@ -2,11 +2,14 @@ import { Icon } from './primitives';
 import { AvatarFace } from './avatar/AvatarFace';
 import { AiIconPicker } from './avatar/AiIconPicker';
 import { useProfileMenu } from './avatar/useProfileMenu';
+import { usePersisted } from '../lib/persist';
+import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT } from '../lib/prefs';
 
 // Menu de perfil no header: define nome (usado nas iniciais do chat) e faz
 // upload/limpa o avatar. Tudo local (data URL no localStorage), sem backend.
 export function ProfileMenu({ userId, onSignOut }: { userId?: string; onSignOut?: () => void } = {}) {
   const { name, avatar, aiIcon, setName, setAvatar, setAiIcon, synced, open, setOpen, iconOpen, setIconOpen, fileRef, wrapRef, onFile } = useProfileMenu(userId);
+  const [showTools, setShowTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
 
   return (
     <div ref={wrapRef} className="relative">
@@ -54,6 +57,20 @@ export function ProfileMenu({ userId, onSignOut }: { userId?: string; onSignOut?
           <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
 
           <AiIconPicker open={iconOpen} onToggle={() => setIconOpen((o) => !o)} selected={aiIcon} onSelect={setAiIcon} />
+
+          <button
+            onClick={() => setShowTools((v) => !v)}
+            className="mt-3 flex w-full items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-left transition hover:border-neutral-700"
+          >
+            <Icon name="terminal" size={13} className="shrink-0 text-neutral-400" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[12px] text-neutral-200">Mostrar ferramentas</span>
+              <span className="block text-[10.5px] text-neutral-500">Bash, Read, Grep… no chat</span>
+            </span>
+            <span className={`relative h-4 w-7 shrink-0 rounded-full transition ${showTools ? 'bg-orange-500/80' : 'bg-neutral-700'}`}>
+              <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all ${showTools ? 'left-3.5' : 'left-0.5'}`} />
+            </span>
+          </button>
 
           {onSignOut && (
             <div className="mt-3 border-t border-neutral-800 pt-3">

@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { Icon, Markdown, CodeBlock } from '../primitives';
+import { usePersisted } from '../../lib/persist';
 import type { Block } from '../../data/mock';
 import { ToolCallCard } from './ToolCallCard';
+import { ToolGroupCard } from './ToolGroupCard';
+import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT } from '../../lib/prefs';
 
 function ThinkingCard({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
@@ -36,15 +39,48 @@ interface AssistantBlocksProps {
   caretOnLast: boolean;
 }
 
+// Agrupa blocos de ferramenta CONSECUTIVOS num só item (renderiza como grupo) e
+// preserva a ordem dos demais blocos. Texto/thinking entre tools quebram o grupo.
+type Item =
+  | { kind: 'block'; block: Block; i: number }
+  | { kind: 'tools'; tools: Extract<Block, { type: 'tool' }>['tool'][]; i: number };
+
+function groupBlocks(blocks: Block[]): Item[] {
+  const items: Item[] = [];
+  let run: Extract<Block, { type: 'tool' }>['tool'][] = [];
+  let runStart = 0;
+  const flush = () => {
+    if (run.length) { items.push({ kind: 'tools', tools: run, i: runStart }); run = []; }
+  };
+  blocks.forEach((b, i) => {
+    if (b.type === 'tool') {
+      if (!run.length) runStart = i;
+      run.push(b.tool);
+    } else {
+      flush();
+      items.push({ kind: 'block', block: b, i });
+    }
+  });
+  flush();
+  return items;
+}
+
 export function AssistantBlocks({ blocks, caretOnLast }: AssistantBlocksProps) {
+  const [showTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
+  const lastIdx = blocks.length - 1;
   return (
     <div className="space-y-1">
-      {blocks.map((b, i) => {
-        const isLast = i === blocks.length - 1;
-        if (b.type === 'text') return <Markdown key={i} md={b.md} caret={caretOnLast && isLast} />;
-        if (b.type === 'code') return <CodeBlock key={i} code={b.code} lang={b.lang} />;
-        if (b.type === 'tool') return <ToolCallCard key={i} tool={b.tool} />;
-        if (b.type === 'thinking') return <ThinkingCard key={i} text={b.text} />;
+      {groupBlocks(blocks).map((it) => {
+        if (it.kind === 'tools') {
+          if (!showTools) return null;
+          if (it.tools.length === 1) return <ToolCallCard key={it.i} tool={it.tools[0]} />;
+          return <ToolGroupCard key={it.i} tools={it.tools} />;
+        }
+        const b = it.block;
+        const isLast = it.i === lastIdx;
+        if (b.type === 'text') return <Markdown key={it.i} md={b.md} caret={caretOnLast && isLast} />;
+        if (b.type === 'code') return <CodeBlock key={it.i} code={b.code} lang={b.lang} />;
+        if (b.type === 'thinking') return <ThinkingCard key={it.i} text={b.text} />;
         return null;
       })}
     </div>
