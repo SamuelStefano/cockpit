@@ -1,7 +1,8 @@
 import { SessionsPanel, type SessionsPanelProps } from '../components/Sessions';
 import { ChatPanel, type ChatPanelProps } from '../components/Chat';
 import { TerminalsPanel, type TerminalsPanelProps } from '../components/Terminals';
-import { CollapsedRail, CollapseBtn } from '../components/AppChrome';
+import { CollapsedRail } from '../components/chrome/CollapsedRail';
+import { CollapseBtn } from '../components/chrome/CollapseBtn';
 
 export interface DesktopLayoutProps {
   sessionsProps: SessionsPanelProps;
