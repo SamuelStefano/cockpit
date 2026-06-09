@@ -1,4 +1,5 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { execFile } from 'node:child_process';
@@ -44,6 +45,18 @@ export function managedEnvSync(): Record<string, string> {
 
 export async function loadManagedEnv(): Promise<void> {
   cache = await managedEnv();
+}
+
+// Há uma conta Anthropic conectada nesta box? O `claude` aceita login OAuth
+// (~/.claude/.credentials.json) OU uma key via env. Cobrimos os dois e o token
+// gerenciado (#162). Síncrono: lê o cache do env e existsSync — chamado a cada
+// connect pra avisar a UI quando nada vai rodar.
+export function claudeReady(): boolean {
+  if (process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN) return true;
+  if (cache.ANTHROPIC_API_KEY || cache.ANTHROPIC_AUTH_TOKEN) return true;
+  const home = homedir();
+  return existsSync(join(home, '.claude', '.credentials.json'))
+    || existsSync(join(home, '.config', 'anthropic', 'credentials'));
 }
 
 export async function setEnv(name: string, value: string): Promise<{ ok: boolean; message: string }> {

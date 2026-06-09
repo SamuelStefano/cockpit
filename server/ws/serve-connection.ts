@@ -7,6 +7,7 @@ import { detachTerm } from '../terminals';
 import { send } from './broadcast';
 import { CONFIG } from '../config';
 import { capsFor } from '../auth';
+import { claudeReady } from '../admin-ops';
 import { getSlashCommands } from './slash';
 import { getLastRate } from './rate';
 import { threads } from './runs';
@@ -31,6 +32,9 @@ export function serveConnection(ws: WebSocket, opts: { role: Role; sendCaps?: bo
   // JWT). O agente NÃO reanuncia caps — senão sobrescreveria o papel do viewer com
   // o papel-de-engine 'student'. busy/replay/stats seguem (estado de engine).
   if (sendCaps) send(ws, { t: 'caps', caps: capsFor(role, CONFIG) });
+  // Fato do engine (a box) — vai sempre, inclusive no dial T3, pra a UI avisar
+  // que nada roda até conectar uma conta Anthropic aqui.
+  send(ws, { t: 'claude-auth', ready: claudeReady() });
   send(ws, { t: 'busy', keys: [...threads.keys()] });
   const slash = getSlashCommands();
   if (slash.length) send(ws, { t: 'slash-commands', items: slash });
