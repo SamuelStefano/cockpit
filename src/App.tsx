@@ -53,7 +53,7 @@ export function CockpitApp() {
   const quota = !!rate && rate.status !== 'allowed' && !quotaClosed;
 
   const showOffline = useOfflineLatch(conn.ws);
-  const ejectPairing = usePairingEject(agentOnline, sbAuth.session?.user.id);
+  const ejectPairing = usePairingEject(agentOnline, sbAuth.session?.user.id, conn.ws === 'connected');
   const isMobile = useIsMobile();
   useTabTitle(running, updated);
 
