@@ -1,4 +1,5 @@
 import type { ModelInfo } from '../../../shared/protocol';
+import { prettyModel, modelFamily } from './toolbar.format';
 
 // Versão concreta do agente por sessão (ex: Opus 4.8), puxada de /v1/models pelo
 // backend. Repassada como --model (id validado por allow-list no servidor). Sem
@@ -27,8 +28,12 @@ export function ModelPicker({ model, setModel, models, disabled }: {
   const tag = 'text-[9px] font-semibold uppercase tracking-wide text-neutral-600';
   const opts = models.length ? withFamilies(models) : FALLBACK_MODELS;
   // Garante que o modelo atual apareça na lista mesmo que não esteja em /v1/models
-  // (alias persistido, modelo descontinuado) — senão o select renderiza vazio.
-  const list = opts.some((o) => o.id === model) ? opts : [{ id: model, displayName: model }, ...opts];
+  // (modelo descontinuado) — senão o select renderiza vazio. Mas se já existe uma
+  // versão concreta da MESMA família (ex: 'opus' salvo e 'claude-opus-4-8' na lista),
+  // não duplicamos — o useCockpit promove o alias pro id concreto no frame 'models'.
+  const fam = modelFamily(model);
+  const covered = opts.some((o) => o.id === model) || (fam && opts.some((o) => modelFamily(o.id) === fam));
+  const list = covered ? opts : [{ id: model, displayName: model }, ...opts];
   return (
     <label className="inline-flex items-center gap-1" title="Versão do agente desta sessão">
       <span className={tag}>versão</span>
@@ -38,7 +43,7 @@ export function ModelPicker({ model, setModel, models, disabled }: {
         onChange={(e) => setModel(e.target.value)}
         className={sel}
       >
-        {list.map((o) => <option key={o.id} value={o.id}>{o.displayName}</option>)}
+        {list.map((o) => <option key={o.id} value={o.id}>{prettyModel(o.id, o.displayName)}</option>)}
       </select>
     </label>
   );

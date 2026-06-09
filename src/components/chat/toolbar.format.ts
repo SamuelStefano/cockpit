@@ -14,6 +14,29 @@ export function shortModel(m?: string): string {
   return m;
 }
 
+// Família de um id de modelo, pra dedupe alias-vs-concreto no seletor.
+export function modelFamily(m?: string): 'opus' | 'sonnet' | 'haiku' | null {
+  if (!m) return null;
+  const lo = m.toLowerCase();
+  if (lo.includes('opus')) return 'opus';
+  if (lo.includes('sonnet')) return 'sonnet';
+  if (lo.includes('haiku')) return 'haiku';
+  return null;
+}
+
+// Rótulo legível com versão: "claude-opus-4-8" -> "Opus 4.8". Alias puro sem
+// versão ("opus") -> "Opus". Prefere o display_name da API quando ele é amigável
+// (não é só o id cru repetido). Não-Claude cai no id/displayName original.
+export function prettyModel(id?: string, displayName?: string): string {
+  if (displayName && displayName !== id) return displayName;
+  if (!id) return '';
+  const fam = modelFamily(id);
+  if (!fam) return displayName || id;
+  const cap = fam[0].toUpperCase() + fam.slice(1);
+  const v = id.toLowerCase().match(/(?:opus|sonnet|haiku)-(\d+)-(\d+)/);
+  return v ? `${cap} ${v[1]}.${v[2]}` : cap;
+}
+
 export function turnStatParts(stats?: TurnStats): { parts: string[]; model: string } | null {
   if (!stats || (stats.costUsd === undefined && stats.durationMs === undefined)) return null;
   const parts: string[] = [];

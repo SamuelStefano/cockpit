@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { shortModel } from './toolbar.format';
+import { prettyModel } from './toolbar.format';
 import type { Session, Message } from '../../data/mock';
 import type { PermMode, ModelInfo } from '../../../shared/protocol';
 
@@ -39,13 +39,13 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
     [messages],
   );
   const modelLabel = useMemo(
-    () => models.find((m) => m.id === model)?.displayName || model,
+    () => prettyModel(model, models.find((m) => m.id === model)?.displayName),
     [models, model],
   );
   // Rótulo POR bolha: usa o modelo carimbado naquele turno (done/JSONL) e cai
   // pro modelo atual da sessão só quando a bolha não tem modelo (sessão antiga).
   const labelFor = useMemo(
-    () => (id?: string) => (id ? models.find((m) => m.id === id)?.displayName || shortModel(id) : modelLabel),
+    () => (id?: string) => (id ? prettyModel(id, models.find((m) => m.id === id)?.displayName) : modelLabel),
     [models, modelLabel],
   );
 
