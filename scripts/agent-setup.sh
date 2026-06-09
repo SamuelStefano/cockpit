@@ -21,6 +21,56 @@ REPO="https://github.com/SamuelStefano/cockpit.git"
 command -v git >/dev/null  || { echo "[deck] git não encontrado — instale git"; exit 1; }
 command -v node >/dev/null || { echo "[deck] node não encontrado — instale Node 20+"; exit 1; }
 
+# node-pty e better-sqlite3 são módulos nativos: quando não há prebuild para a ABI
+# do Node instalado, o npm cai pro node-gyp, que exige make + compilador C/C++ +
+# python3. Sem isso o install morre com "not found: make". Detecta e instala antes.
+have_build_tools() {
+  command -v make >/dev/null 2>&1 || return 1
+  command -v cc >/dev/null 2>&1 || command -v gcc >/dev/null 2>&1 || command -v g++ >/dev/null 2>&1 || return 1
+  command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1 || return 1
+  return 0
+}
+
+install_build_tools() {
+  local sudo=""
+  if [ "$(id -u)" -ne 0 ]; then
+    command -v sudo >/dev/null 2>&1 && sudo="sudo"
+  fi
+  if command -v apt-get >/dev/null 2>&1; then
+    $sudo apt-get update -y && $sudo apt-get install -y build-essential python3
+  elif command -v dnf >/dev/null 2>&1; then
+    $sudo dnf groupinstall -y "Development Tools" && $sudo dnf install -y python3
+  elif command -v yum >/dev/null 2>&1; then
+    $sudo yum groupinstall -y "Development Tools" && $sudo yum install -y python3
+  elif command -v apk >/dev/null 2>&1; then
+    $sudo apk add --no-cache build-base python3
+  elif command -v pacman >/dev/null 2>&1; then
+    $sudo pacman -Sy --noconfirm base-devel python
+  elif command -v zypper >/dev/null 2>&1; then
+    $sudo zypper install -y -t pattern devel_basis && $sudo zypper install -y python3
+  else
+    return 1
+  fi
+}
+
+if ! have_build_tools; then
+  echo "[deck] ferramentas de build ausentes (make/compilador/python3) — necessárias p/ node-pty e better-sqlite3"
+  echo "[deck] tentando instalar automaticamente…"
+  if install_build_tools && have_build_tools; then
+    echo "[deck] ferramentas de build instaladas."
+  else
+    cat <<'EOF'
+[deck] não consegui instalar as ferramentas de build automaticamente.
+Instale manualmente e rode o setup de novo:
+  Debian/Ubuntu:  sudo apt-get install -y build-essential python3
+  Fedora/RHEL:    sudo dnf groupinstall -y "Development Tools" && sudo dnf install -y python3
+  Alpine:         sudo apk add build-base python3
+  Arch:           sudo pacman -S base-devel python
+EOF
+    exit 1
+  fi
+fi
+
 if [ -d "$SRC_DIR/.git" ]; then
   echo "[deck] atualizando repo em $SRC_DIR…"
   git -C "$SRC_DIR" pull --ff-only
