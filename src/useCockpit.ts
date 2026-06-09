@@ -56,6 +56,8 @@ export interface Cockpit {
   listTerms: () => void;
   archived: Session[];
   contextTokens: number;
+  liveTurnTokens: number;
+  turnStartedAt?: number;
   usage: Record<string, number>;
   truncated: boolean;
   lastTurn?: TurnStats;
@@ -117,6 +119,9 @@ export function useCockpit(): Cockpit {
   const [stats, setStats] = useState<SysStats | null>(null);
   const [archived, setArchived] = useState<Session[]>([]);
   const [usage, setUsage] = useState<Record<string, number>>({}); // sessionKey -> tokens de contexto
+  const usageRef = useRef<Record<string, number>>({}); // espelho de `usage` p/ ler o contexto no início do turno sem depender do closure stale
+  const turnBaseRef = useRef<Record<string, number>>({}); // sessionKey -> contexto no início do turno; o gasto AO VIVO do turno = contexto atual - base
+  const [liveTurn, setLiveTurn] = useState<Record<string, number>>({}); // sessionKey -> tokens gastos NESTE turno (ao vivo), pro indicador estilo terminal
   const [truncated, setTruncated] = useState<Record<string, boolean>>({}); // sessionKey -> open dropou histórico antigo
   const [turnStats, setTurnStats] = useState<Record<string, TurnStats>>({}); // sessionKey -> custo/duração reais do último turno
   const [interrupted, setInterrupted] = useState<Record<string, string>>({}); // sessionKey -> endReason (budget/max_turns) p/ oferecer "continuar"
@@ -358,6 +363,10 @@ export function useCockpit(): Cockpit {
         runMsg.current[key] = id;
         updateThread(key, (prev) => [...prev, { id, role: 'assistant', blocks: [], ts: Date.now() }]);
         setPhases((p) => ({ ...p, [key]: 'thinking' }));
+        // Início do turno: fixa a base de contexto pra medir o gasto AO VIVO deste
+        // turno (delta) no indicador estilo terminal. Zera o contador exibido.
+        turnBaseRef.current[key] = usageRef.current[key] || 0;
+        setLiveTurn((l) => ({ ...l, [key]: 0 }));
         return;
       }
       case 'replay': {
@@ -440,7 +449,12 @@ export function useCockpit(): Cockpit {
       }
       case 'usage': {
         const key = resolveKey(migratedTo.current, msg.sessionKey);
+        usageRef.current[key] = msg.tokens;
         setUsage((u) => ({ ...u, [key]: msg.tokens }));
+        // Gasto ao vivo do turno = quanto o contexto cresceu desde o início dele.
+        // Sem base (turno herdado de reconnect) cai em 0 — não inventa número.
+        const base = turnBaseRef.current[key];
+        if (base !== undefined) setLiveTurn((l) => ({ ...l, [key]: Math.max(0, msg.tokens - base) }));
         return;
       }
       case 'compact': {
@@ -448,6 +462,8 @@ export function useCockpit(): Cockpit {
         // repopula com o tamanho real pós-compactação (DR-012). "Ver tudo" recupera
         // o pré-compactação — nada é perdido na verdade.
         const key = resolveKey(migratedTo.current, msg.sessionKey);
+        usageRef.current[key] = 0;
+        turnBaseRef.current[key] = 0;
         setUsage((u) => ({ ...u, [key]: 0 }));
         return;
       }
@@ -550,6 +566,8 @@ export function useCockpit(): Cockpit {
           updateThread(key, (prev) => prev.map((m) => (m.id === aid && m.role === 'assistant' ? { ...m, ...(msg.model ? { model: msg.model } : {}), ...(stats ? { stats } : {}) } : m)));
         }
         delete runMsg.current[key];
+        delete turnBaseRef.current[key];
+        setLiveTurn((l) => { if (!(key in l)) return l; const n = { ...l }; delete n[key]; return n; });
         setPhases((p) => ({ ...p, [key]: 'idle' }));
         if (msg.costUsd !== undefined || msg.durationMs !== undefined) {
           setTurnStats((t) => ({ ...t, [key]: { costUsd: msg.costUsd, durationMs: msg.durationMs, numTurns: msg.numTurns, model: msg.model } }));
@@ -611,6 +629,8 @@ export function useCockpit(): Cockpit {
           stopping.current.delete(key);
           reconcileTools(key);
           delete runMsg.current[key];
+          delete turnBaseRef.current[key];
+          setLiveTurn((l) => { if (!(key in l)) return l; const n = { ...l }; delete n[key]; return n; });
           setPhases((p) => ({ ...p, [key]: 'idle' }));
           updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ ${msg.message}` }], error: true }]);
           notifyTurnError(
@@ -1016,6 +1036,8 @@ export function useCockpit(): Cockpit {
   );
   const draft = drafts[activeId] || '';
   const contextTokens = usage[activeId] || 0;
+  const liveTurnTokens = liveTurn[activeId] || 0;
+  const turnStartedAt = runStart[activeId];
   const lastTurn = turnStats[activeId];
   const lastEnd = interrupted[activeId];
   const setDraft = useCallback((v: string) => setDrafts((d) => ({ ...d, [activeRef.current]: v })), []);
@@ -1028,5 +1050,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, selectedSkills, setSelectedSkills: changeSelectedSkills, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, selectedSkills, setSelectedSkills: changeSelectedSkills, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
 }

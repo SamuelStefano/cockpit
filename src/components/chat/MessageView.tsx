@@ -7,7 +7,7 @@ import type { Message } from '../../data/mock';
 import type { TriageAction, TurnBubbleStats } from '../../../shared/protocol';
 import { messageToText } from '../../lib/export';
 import { AssistantBlocks } from './AssistantBlocks';
-import { ThinkingDots } from './Thinking';
+import { ThinkingDots, LiveStatsLine, type LiveTurn } from './Thinking';
 import { CopyTextButton, QuoteButton, CopyMessageButton } from './MessageActions';
 
 export type { DiffRow } from './diff';
@@ -19,13 +19,14 @@ interface MessageRowProps {
   caretOnLast: boolean;
   modelLabel?: string;
   thinking?: boolean;
+  live?: LiveTurn;
   onEditUser?: (text: string) => void;
   onQuote?: (text: string) => void;
   answerable?: boolean;
   onAnswer?: (text: string) => void;
 }
 
-export function MessageRow({ msg, caretOnLast, modelLabel, thinking, onEditUser, onQuote, answerable, onAnswer }: MessageRowProps) {
+export function MessageRow({ msg, caretOnLast, modelLabel, thinking, live, onEditUser, onQuote, answerable, onAnswer }: MessageRowProps) {
   const [userName] = usePersisted<string>('user.name', '');
   if (msg.role === 'user') {
     return (
@@ -71,7 +72,9 @@ export function MessageRow({ msg, caretOnLast, modelLabel, thinking, onEditUser,
           </div>
         )}
         <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} answerable={answerable} onAnswer={onAnswer} />
-        {thinking && <ThinkingDots />}
+        {thinking && <ThinkingDots live={live} />}
+        {/* Em streaming (texto saindo, sem controles ainda) mantém os stats ao vivo visíveis. */}
+        {!thinking && caretOnLast && live && <div className="mt-1"><LiveStatsLine live={live} /></div>}
         {hasText && !caretOnLast && (
           <div className="mt-1 flex items-center gap-2 opacity-100 transition group-hover/msg:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100">
             <CopyMessageButton blocks={msg.blocks} />
