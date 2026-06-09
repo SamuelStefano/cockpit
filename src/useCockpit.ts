@@ -577,7 +577,7 @@ export function useCockpit(): Cockpit {
           // Carimba modelo + stats do turno (gasto/tempo/tokens) na bolha pra
           // exibição discreta. stats só existe quando o result trouxe algum número.
           const stats = (msg.costUsd !== undefined || msg.durationMs !== undefined || msg.turnTokens !== undefined)
-            ? { costUsd: msg.costUsd, durationMs: msg.durationMs, tokens: msg.turnTokens }
+            ? { costUsd: msg.costUsd, durationMs: msg.durationMs, tokens: msg.turnTokens, inputTokens: msg.inputTokens, outputTokens: msg.outputTokens }
             : undefined;
           updateThread(key, (prev) => prev.map((m) => (m.id === aid && m.role === 'assistant' ? { ...m, ...(msg.model ? { model: msg.model } : {}), ...(stats ? { stats } : {}) } : m)));
         }

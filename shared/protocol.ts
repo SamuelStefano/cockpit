@@ -89,7 +89,7 @@ export interface AssistantMessage {
 // Métricas do turno carimbadas na bolha do assistant (ground-truth do result do
 // CLI). tokens = total faturável do turno (input+output+cache); o usage ao vivo
 // mostra só o FILL da janela, não o que o prompt gastou.
-export interface TurnBubbleStats { costUsd?: number; durationMs?: number; tokens?: number }
+export interface TurnBubbleStats { costUsd?: number; durationMs?: number; tokens?: number; inputTokens?: number; outputTokens?: number }
 
 export type Message = UserMessage | AssistantMessage;
 
@@ -310,5 +310,5 @@ export type ServerMsg =
   | { t: 'term-replay'; termId: string; data: string }
   | { t: 'term-exit'; termId: string }
   | { t: 'terms'; ids: string[] }
-  | { t: 'done'; sessionKey: string; sessionId: string; costUsd?: number; durationMs?: number; numTurns?: number; turnTokens?: number; endReason?: string; model?: string; stopped?: boolean }
+  | { t: 'done'; sessionKey: string; sessionId: string; costUsd?: number; durationMs?: number; numTurns?: number; turnTokens?: number; inputTokens?: number; outputTokens?: number; endReason?: string; model?: string; stopped?: boolean }
   | { t: 'error'; sessionKey?: string; message: string };

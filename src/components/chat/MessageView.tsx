@@ -73,8 +73,6 @@ export function MessageRow({ msg, caretOnLast, modelLabel, thinking, live, onEdi
         )}
         <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} answerable={answerable} onAnswer={onAnswer} />
         {thinking && <ThinkingDots live={live} />}
-        {/* Em streaming (texto saindo, sem controles ainda) mantém os stats ao vivo visíveis. */}
-        {!thinking && caretOnLast && live && <div className="mt-1"><LiveStatsLine live={live} /></div>}
         {hasText && !caretOnLast && (
           <div className="mt-1 flex items-center gap-2 opacity-100 transition group-hover/msg:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100">
             <CopyMessageButton blocks={msg.blocks} />
@@ -112,7 +110,11 @@ function TriageBadge({ action, reason }: { action: TriageAction; reason: string 
 // result do CLI (#185) — ajuda a entender o que cada prompt gastou de verdade.
 function TurnStatsLine({ stats }: { stats: TurnBubbleStats }) {
   const parts: string[] = [];
-  if (stats.tokens) parts.push(`${fmtTokens(stats.tokens)} tok`);
+  if (stats.inputTokens !== undefined && stats.outputTokens !== undefined) {
+    parts.push(`${fmtTokens(stats.inputTokens)} in · ${fmtTokens(stats.outputTokens)} out`);
+  } else if (stats.tokens) {
+    parts.push(`${fmtTokens(stats.tokens)} tokens`);
+  }
   if (stats.durationMs) parts.push(fmtDuration(stats.durationMs));
   if (typeof stats.costUsd === 'number') parts.push(`$${stats.costUsd < 0.01 ? stats.costUsd.toFixed(4) : stats.costUsd.toFixed(3)}`);
   if (!parts.length) return null;
