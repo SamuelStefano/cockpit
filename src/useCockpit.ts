@@ -806,7 +806,10 @@ export function useCockpit(): Cockpit {
     // Add otimista (feedback instantâneo, sem round-trip). O servidor ecoa esta
     // mensagem com o MESMO msgId pra todos os clientes; este aqui deduplica por id.
     const msgId = newId('u');
-    updateThread(key, (prev) => [...prev, { id: msgId, role: 'user', text, ts: Date.now() }]);
+    // Bolha otimista usa o texto decorado (com linhas `[anexo:]`): parseAttachments
+    // mostra os chips na hora, igual ao reload do JSONL. Com `text` limpo os anexos
+    // só apareciam após F5.
+    updateThread(key, (prev) => [...prev, { id: msgId, role: 'user', text: wire, ts: Date.now() }]);
     setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: text, relative: 'agora' } : s)));
     setDrafts((d) => ({ ...d, [key]: '' }));
     // bypass só vai no fio quando o servidor anunciou a capacidade (admin + env +
