@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Setup do agente Deck (T3, DR-023): clona/atualiza o repo, instala deps nativas
-# (node-pty, better-sqlite3), pareia ao relay com o código e sobe o agente.
-# O agente reusa o backend inteiro (serveConnection), por isso precisa do repo —
-# não dá pra ser um npx fino sem publicar. A chave Ed25519 nasce e fica nesta box.
+# Setup do agente Deck (T3, DR-023): bootstrap completo numa VPS zerada — instala
+# git, curl, Node 20+, build tools e o Claude CLI se faltarem, clona/atualiza o
+# repo, instala as deps nativas (node-pty, better-sqlite3), pareia ao relay com o
+# código e sobe o agente. O agente reusa o backend inteiro (serveConnection), por
+# isso precisa do repo — não dá pra ser um npx fino sem publicar. A chave Ed25519
+# nasce e fica nesta box.
 #
 # Uso (a partir do Dashboard):
 #   curl -fsSL https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh | bash -s -- CÓDIGO
@@ -18,8 +20,58 @@ RELAY="${DECK_RELAY_URL:-wss://deck-relay.devfellowship.com}"
 SRC_DIR="${DECK_SRC_DIR:-$HOME/.deck-src}"
 REPO="https://github.com/SamuelStefano/cockpit.git"
 
-command -v git >/dev/null  || { echo "[deck] git não encontrado — instale git"; exit 1; }
-command -v node >/dev/null || { echo "[deck] node não encontrado — instale Node 20+"; exit 1; }
+# Bootstrap pra VPS zerada: instala TUDO que falta (git, curl, Node 20+, build
+# tools, Claude CLI) antes de clonar/buildar. Funciona em Debian/Ubuntu, Fedora/
+# RHEL, Alpine, Arch e openSUSE. Roda como root direto; senão usa sudo.
+SUDO=""
+if [ "$(id -u)" -ne 0 ]; then
+  command -v sudo >/dev/null 2>&1 && SUDO="sudo"
+fi
+
+# Instala pacotes "simples" (mesmo nome em toda distro): git, curl.
+pm_install() {
+  if command -v apt-get >/dev/null 2>&1; then $SUDO apt-get update -y && $SUDO apt-get install -y "$@"
+  elif command -v dnf >/dev/null 2>&1;   then $SUDO dnf install -y "$@"
+  elif command -v yum >/dev/null 2>&1;   then $SUDO yum install -y "$@"
+  elif command -v apk >/dev/null 2>&1;   then $SUDO apk add --no-cache "$@"
+  elif command -v pacman >/dev/null 2>&1;then $SUDO pacman -Sy --noconfirm "$@"
+  elif command -v zypper >/dev/null 2>&1;then $SUDO zypper install -y "$@"
+  else return 1; fi
+}
+
+ensure_cmd() { # ensure_cmd <comando> <pacote>
+  command -v "$1" >/dev/null 2>&1 && return 0
+  echo "[deck] instalando $2…"
+  pm_install "$2" || { echo "[deck] não consegui instalar $2 automaticamente — instale manualmente e rode de novo"; exit 1; }
+}
+
+# git + curl (curl é necessário pro instalador do Node).
+ensure_cmd curl curl
+ensure_cmd git git
+
+# Node 20+: se ausente ou velho, instala via NodeSource (apt/dnf), repo da distro
+# (apk/pacman) ou nvm como último recurso.
+node_major() { command -v node >/dev/null 2>&1 && node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0; }
+install_node() {
+  if command -v apt-get >/dev/null 2>&1; then
+    curl -fsSL https://deb.nodesource.com/setup_20.x | $SUDO bash - && $SUDO apt-get install -y nodejs
+  elif command -v dnf >/dev/null 2>&1 || command -v yum >/dev/null 2>&1; then
+    curl -fsSL https://rpm.nodesource.com/setup_20.x | $SUDO bash - && pm_install nodejs
+  elif command -v apk >/dev/null 2>&1 || command -v pacman >/dev/null 2>&1 || command -v zypper >/dev/null 2>&1; then
+    pm_install nodejs npm
+  else
+    export NVM_DIR="$HOME/.nvm"
+    curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+    # shellcheck disable=SC1091
+    . "$NVM_DIR/nvm.sh" && nvm install 20 && nvm use 20
+  fi
+}
+if [ "$(node_major)" -lt 20 ]; then
+  echo "[deck] Node 20+ ausente — instalando…"
+  install_node
+  command -v node >/dev/null 2>&1 || { echo "[deck] falha ao instalar o Node — instale Node 20+ manualmente e rode de novo"; exit 1; }
+  echo "[deck] Node $(node -v) instalado."
+fi
 
 # node-pty e better-sqlite3 são módulos nativos: quando não há prebuild para a ABI
 # do Node instalado, o npm cai pro node-gyp, que exige make + compilador C/C++ +
@@ -32,22 +84,18 @@ have_build_tools() {
 }
 
 install_build_tools() {
-  local sudo=""
-  if [ "$(id -u)" -ne 0 ]; then
-    command -v sudo >/dev/null 2>&1 && sudo="sudo"
-  fi
   if command -v apt-get >/dev/null 2>&1; then
-    $sudo apt-get update -y && $sudo apt-get install -y build-essential python3
+    $SUDO apt-get update -y && $SUDO apt-get install -y build-essential python3
   elif command -v dnf >/dev/null 2>&1; then
-    $sudo dnf groupinstall -y "Development Tools" && $sudo dnf install -y python3
+    $SUDO dnf groupinstall -y "Development Tools" && $SUDO dnf install -y python3
   elif command -v yum >/dev/null 2>&1; then
-    $sudo yum groupinstall -y "Development Tools" && $sudo yum install -y python3
+    $SUDO yum groupinstall -y "Development Tools" && $SUDO yum install -y python3
   elif command -v apk >/dev/null 2>&1; then
-    $sudo apk add --no-cache build-base python3
+    $SUDO apk add --no-cache build-base python3
   elif command -v pacman >/dev/null 2>&1; then
-    $sudo pacman -Sy --noconfirm base-devel python
+    $SUDO pacman -Sy --noconfirm base-devel python
   elif command -v zypper >/dev/null 2>&1; then
-    $sudo zypper install -y -t pattern devel_basis && $sudo zypper install -y python3
+    $SUDO zypper install -y -t pattern devel_basis && $SUDO zypper install -y python3
   else
     return 1
   fi
@@ -69,6 +117,14 @@ Instale manualmente e rode o setup de novo:
 EOF
     exit 1
   fi
+fi
+
+# Claude Code CLI: o backend do agente roda `claude` por baixo. Instala global se faltar.
+if ! command -v claude >/dev/null 2>&1; then
+  echo "[deck] instalando Claude Code CLI…"
+  npm install -g @anthropic-ai/claude-code 2>/dev/null \
+    || $SUDO npm install -g @anthropic-ai/claude-code \
+    || echo "[deck] aviso: não consegui instalar o Claude CLI global — faça 'npm i -g @anthropic-ai/claude-code' manualmente"
 fi
 
 if [ -d "$SRC_DIR/.git" ]; then
