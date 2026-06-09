@@ -37,6 +37,14 @@ export function prettyModel(id?: string, displayName?: string): string {
   return v ? `${cap} ${v[1]}.${v[2]}` : cap;
 }
 
+// Espelha a validação do servidor (engine/claude.ts): alias puro ou id concreto
+// `claude-<...>`. Deixa o usuário usar um modelo recém-lançado na hora, sem esperar
+// o /v1/models da conta refletir. Normaliza pra minúsculo e sem espaços.
+export function normalizeModelId(raw: string): string | null {
+  const m = raw.trim().toLowerCase();
+  return /^(opus|sonnet|haiku|claude-[a-z0-9-]+)$/.test(m) ? m : null;
+}
+
 export function turnStatParts(stats?: TurnStats): { parts: string[]; model: string } | null {
   if (!stats || (stats.costUsd === undefined && stats.durationMs === undefined)) return null;
   const parts: string[] = [];

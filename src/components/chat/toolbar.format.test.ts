@@ -1,5 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { shortModel, prettyModel, modelFamily, turnStatParts, contextMeter, CONTEXT_LIMIT } from './toolbar.format';
+import { shortModel, prettyModel, modelFamily, turnStatParts, contextMeter, CONTEXT_LIMIT, normalizeModelId } from './toolbar.format';
+
+describe('normalizeModelId', () => {
+  it('aceita aliases e ids claude-* (normalizando)', () => {
+    expect(normalizeModelId('opus')).toBe('opus');
+    expect(normalizeModelId('  Claude-Opus-5  ')).toBe('claude-opus-5');
+    expect(normalizeModelId('claude-mythos-1')).toBe('claude-mythos-1');
+  });
+  it('rejeita lixo e id sem prefixo claude-', () => {
+    expect(normalizeModelId('mythos')).toBeNull();
+    expect(normalizeModelId('gpt-4o')).toBeNull();
+    expect(normalizeModelId('')).toBeNull();
+    expect(normalizeModelId('claude opus')).toBeNull();
+  });
+});
 
 describe('shortModel', () => {
   it('maps full CLI model names to short aliases', () => {
