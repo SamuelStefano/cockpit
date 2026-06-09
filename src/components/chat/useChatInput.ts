@@ -4,7 +4,7 @@ import { classifySlash } from './slash';
 import { nextRecall } from './recall';
 import { useSpeechInput } from './useSpeechInput';
 import { fitHeight } from './fit-height';
-import { useComposerDnd } from './useComposerDnd';
+import { useFileDrop } from './useFileDrop';
 import { useSlashPalette } from './useSlashPalette';
 import { useComposerRecall } from './useComposerRecall';
 
@@ -43,7 +43,7 @@ export function useChatInput(args: UseChatInputArgs) {
     for (const f of files) { if (f.size > 15_000_000) continue; onUpload(f); n++; }
     return n;
   };
-  const dnd = useComposerDnd(uploadFiles);
+  const dnd = useFileDrop(uploadFiles, true);
   const { sel, setSel, matches, showPalette, setDismissed } = useSlashPalette(disabled, value, slashCommands);
   const { histIdx, setHistIdx, recall } = useComposerRecall(history, setValue, taRef);
   const complete = (cmd: string) => {
