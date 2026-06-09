@@ -115,7 +115,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         model={model} setModel={setModel} models={models}
         skills={skills} selectedSkills={selectedSkills} setSelectedSkills={setSelectedSkills} slashCommands={slashCommands}
         attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} focusSignal={focusSignal}
-        queued={c.queued} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp} />
+        queued={c.queued} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp} />
     </div>
   );
 }
