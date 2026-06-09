@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Session, Message, Block } from './data/mock';
 import type { ClientMsg, ServerMsg, SysStats, PermMode, ModelInfo, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth, Caps, PlanUsage, AccountSummary } from '../shared/protocol';
-import { loadPref, savePref } from './lib/persist';
+import { loadPref, savePref, setPref } from './lib/persist';
 import { SUPABASE_ENABLED } from './lib/supabase';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
 import { wsUrlWithToken, newId, metaToSession, dedupById, mergeSeen } from './cockpit/session';
@@ -267,6 +267,11 @@ export function useCockpit(): Cockpit {
       savePref('seen', next);
       return next;
     });
+    // A fila do composer (useChatPanel) é persistida por session.id na key 'queued'.
+    // Sem migrar, o que foi enfileirado na sessão `new-…` ficava órfão e sumia da
+    // tela quando a key migrava pro sessionId do Claude. setPref avisa o usePersisted.
+    const q = loadPref<Record<string, string[]>>('queued', {});
+    if (oldKey in q) setPref('queued', moveKey(q, oldKey, newId));
   }, []);
 
   const onServer = useCallback((msg: ServerMsg) => {
