@@ -1,5 +1,5 @@
 import { Icon } from '../primitives';
-import { ClaudeAvatar } from '../Avatar';
+import { ClaudeAvatar } from '../ClaudeAvatar';
 
 interface ChatEmptyProps {
   onPrompt: (text: string) => void;

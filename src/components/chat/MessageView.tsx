@@ -1,6 +1,7 @@
 import { Icon } from '../primitives';
 import type { IconName } from '../primitives/Icon';
-import { ClaudeAvatar, UserAvatar } from '../Avatar';
+import { ClaudeAvatar } from '../ClaudeAvatar';
+import { UserAvatar } from '../UserAvatar';
 import { usePersisted } from '../../lib/persist';
 import type { Message } from '../../data/mock';
 import type { TriageAction } from '../../../shared/protocol';
