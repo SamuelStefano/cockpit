@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from '../components/primitives';
 import type { AccountSummary } from '../../shared/protocol';
+import { AdminConfirm } from './AdminConfirm';
 
 // Gestão de contas do painel admin (T3). Lista todos os usuários (root/admin veem)
 // e liga/desliga o flag admin (só root concede — o relay reaplica o gate). No
@@ -15,6 +16,13 @@ interface AdminAccountsProps {
 
 export function AdminAccounts({ accounts, onAccountsList, onSetAdmin, canGrant }: AdminAccountsProps) {
   useEffect(() => { onAccountsList(); }, [onAccountsList]);
+  const [pending, setPending] = useState<AccountSummary | null>(null);
+
+  const runPending = () => {
+    if (!pending) return;
+    onSetAdmin(pending.id, !pending.isAdmin);
+    setPending(null);
+  };
 
   return (
     <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
@@ -44,7 +52,7 @@ export function AdminAccounts({ accounts, onAccountsList, onSetAdmin, canGrant }
               )}
               {canGrant ? (
                 <button
-                  onClick={() => onSetAdmin(a.id, !a.isAdmin)}
+                  onClick={() => setPending(a)}
                   className="rounded-md border border-neutral-800 bg-neutral-900/60 px-2 py-0.5 text-[11px] text-neutral-300 transition-colors hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
                 >
                   {a.isAdmin ? 'Remover admin' : 'Tornar admin'}
@@ -57,6 +65,20 @@ export function AdminAccounts({ accounts, onAccountsList, onSetAdmin, canGrant }
 
       {!canGrant && (
         <p className="mt-3 text-[11px] text-neutral-600">Só o root concede/revoga admin.</p>
+      )}
+
+      {pending && (
+        <AdminConfirm
+          heading={pending.isAdmin ? 'Remover admin?' : 'Tornar admin?'}
+          icon="shield"
+          tone={pending.isAdmin ? 'danger' : 'accent'}
+          cta={pending.isAdmin ? 'Remover' : 'Tornar admin'}
+          body={pending.isAdmin
+            ? <>A conta <span className="font-mono text-neutral-200">{pending.email}</span> perde acesso ao painel admin e às ações sensíveis.</>
+            : <>A conta <span className="font-mono text-neutral-200">{pending.email}</span> ganha acesso ao painel admin e às ações de host.</>}
+          onConfirm={runPending}
+          onCancel={() => setPending(null)}
+        />
       )}
     </div>
   );
