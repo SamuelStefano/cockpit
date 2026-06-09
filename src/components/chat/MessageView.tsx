@@ -73,8 +73,6 @@ export function MessageRow({ msg, caretOnLast, modelLabel, thinking, live, onEdi
         )}
         <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} answerable={answerable} onAnswer={onAnswer} />
         {thinking && <ThinkingDots live={live} />}
-        {/* Em streaming (texto saindo, sem controles ainda) mantém os stats ao vivo visíveis. */}
-        {!thinking && caretOnLast && live && <div className="mt-1"><LiveStatsLine live={live} /></div>}
         {hasText && !caretOnLast && (
           <div className="mt-1 flex items-center gap-2 opacity-100 transition group-hover/msg:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100">
             <CopyMessageButton blocks={msg.blocks} />

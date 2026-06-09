@@ -77,7 +77,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-5">
             {messages.map((m, i) => (
-              <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === messages.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} thinking={phase === 'thinking' && i === messages.length - 1 && m.role === 'assistant'} live={i === messages.length - 1 && m.role === 'assistant' ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} answerable={phase === 'idle' && i === messages.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} />
+              <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === messages.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} thinking={phase !== 'idle' && i === messages.length - 1 && m.role === 'assistant'} live={i === messages.length - 1 && m.role === 'assistant' ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} answerable={phase === 'idle' && i === messages.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} />
 
             ))}
             {phase === 'thinking' && messages[messages.length - 1]?.role !== 'assistant' && <Thinking live={live} />}
