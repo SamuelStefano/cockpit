@@ -4,18 +4,18 @@ import { relReset } from '../lib/time';
 import { CONTEXT_LIMIT, ctxPct } from '../lib/format';
 import { fmtBytes, meterTone } from './statusBar.format';
 
-// Stats do Claude na barra inferior: sempre visível, em todo layout. Reset do
-// limite, % de contexto + tokens, duração do último turno (prompt→prompt).
-function ClaudeStats({ rate, planReset, ctxTokens, lastTurn }: {
+// Stats do Claude na barra inferior: sempre visível, em todo layout. % de
+// contexto + tokens, duração do último turno e — só quando rate-limited — aviso
+// de reset. O reset normal da janela de 5h vive no header (UsageBar, #183), então
+// aqui o reset aparece apenas como AVISO amarelo quando o CLI passa do limite.
+function ClaudeStats({ rate, ctxTokens, lastTurn }: {
   rate: { resetsAt: number; status: string } | null;
-  planReset?: number | null;
   ctxTokens: number;
   lastTurn?: TurnStats;
 }) {
   const [, force] = useState(0);
-  // Reset vem do rate-limit do CLI (pós-turno) OU do uso de plano (polled, vale
-  // antes do 1º prompt) — assim "reset" aparece desde o boot, não só após enviar.
-  const resetsAt = rate?.resetsAt || planReset || 0;
+  const limited = !!rate && rate.status !== 'allowed';
+  const resetsAt = limited ? rate!.resetsAt : 0;
   useEffect(() => {
     if (!resetsAt) return;
     const id = setInterval(() => force((n) => (n + 1) % 1e6), 30_000);
@@ -23,10 +23,9 @@ function ClaudeStats({ rate, planReset, ctxTokens, lastTurn }: {
   }, [resetsAt]);
   const parts: { k: string; node: React.ReactNode }[] = [];
   if (resetsAt) {
-    const limited = !!rate && rate.status !== 'allowed';
     parts.push({ k: 'rst', node: (
-      <span className={`font-mono text-[10.5px] tabular-nums ${limited ? 'text-yellow-400' : 'text-neutral-300'}`} title={`Limite Claude: ${rate?.status ?? 'allowed'} — reseta em ${relReset(resetsAt)}`}>
-        <span className="text-neutral-500">reset</span> {relReset(resetsAt)}
+      <span className="font-mono text-[10.5px] tabular-nums text-yellow-400" title={`Limite Claude: ${rate?.status} — reseta em ${relReset(resetsAt)}`}>
+        <span className="text-neutral-500">limite reseta</span> {relReset(resetsAt)}
       </span>
     ) });
   }
@@ -88,13 +87,12 @@ function Meter({ label, pct, detail }: MeterProps) {
 interface StatusBarProps {
   stats: SysStats | null;
   rate?: { resetsAt: number; status: string } | null;
-  planReset?: number | null;
   ctxTokens?: number;
   lastTurn?: TurnStats;
 }
 
-export function StatusBar({ stats, rate = null, planReset = null, ctxTokens = 0, lastTurn }: StatusBarProps) {
-  const claude = <ClaudeStats rate={rate} planReset={planReset} ctxTokens={ctxTokens} lastTurn={lastTurn} />;
+export function StatusBar({ stats, rate = null, ctxTokens = 0, lastTurn }: StatusBarProps) {
+  const claude = <ClaudeStats rate={rate} ctxTokens={ctxTokens} lastTurn={lastTurn} />;
   if (!stats) {
     return (
       <footer className="flex h-7 shrink-0 items-center gap-3 overflow-x-auto border-t border-neutral-800 bg-neutral-950 px-3 text-[10.5px] text-neutral-600">
