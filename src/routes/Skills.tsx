@@ -101,8 +101,8 @@ export function Skills({ connected, skills, openSkill, onSkillList, onSkillOpen,
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return skills;
-    return skills.filter((s) => (s.name + ' ' + s.description).toLowerCase().includes(q));
+    const matched = q ? skills.filter((s) => (s.name + ' ' + s.description).toLowerCase().includes(q)) : skills;
+    return [...matched].sort((a, b) => b.mtime - a.mtime);
   }, [skills, query]);
 
   return (

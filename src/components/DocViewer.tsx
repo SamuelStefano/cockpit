@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Icon, Markdown, splitFences } from './primitives';
+import { Icon, Markdown, splitFences, WikilinkContext, type WikilinkResolver } from './primitives';
 import { headingSlug } from './primitives/markdown/slug';
 import { useCopied } from '../lib/useCopied';
 
@@ -31,13 +31,14 @@ function plainHeading(text: string): string {
 // bottom-sheet de largura cheia, sem rail. Toggle de markdown cru. Esc fecha.
 export function DocViewer({
   title, badges, actions, body,
-  onClose,
+  onClose, onWikilink,
 }: {
   title: ReactNode;
   badges?: ReactNode;
   actions?: ReactNode;
   body: string;
   onClose: () => void;
+  onWikilink?: WikilinkResolver;
 }) {
   const [raw, setRaw] = useState(false);
   const [active, setActive] = useState<string | null>(null);
@@ -117,7 +118,11 @@ export function DocViewer({
             {raw ? (
               <pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-relaxed text-neutral-400">{body}</pre>
             ) : (
-              <div className="mx-auto max-w-[74ch]"><Markdown md={body} /></div>
+              <div className="mx-auto max-w-[74ch]">
+                <WikilinkContext.Provider value={onWikilink ?? null}>
+                  <Markdown md={body} />
+                </WikilinkContext.Provider>
+              </div>
             )}
           </div>
         </div>

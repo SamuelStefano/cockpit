@@ -5,3 +5,4 @@ export { Skeleton } from './Skeleton';
 export { Markdown } from './Markdown';
 export { CodeBlock } from './CodeBlock';
 export { splitFences } from './markdown/split-fences';
+export { WikilinkContext, type WikilinkResolver } from './markdown/wikilink-context';

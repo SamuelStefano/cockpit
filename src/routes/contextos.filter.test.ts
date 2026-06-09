@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { countByType, filterContexts } from './contextos.filter';
+import { countByType, filterContexts, resolveWikilink } from './contextos.filter';
 import type { ContextMeta } from '../../shared/protocol';
 
 const ctx = (over: Partial<ContextMeta>): ContextMeta => ({
@@ -40,5 +40,34 @@ describe('filterContexts', () => {
   it('combines type and query', () => {
     expect(filterContexts(items, 'roadmap', 'project').map((c) => c.id)).toEqual(['a']);
     expect(filterContexts(items, 'roadmap', 'feedback')).toEqual([]);
+  });
+
+  it('sorts by recency (mtime desc)', () => {
+    const dated: ContextMeta[] = [
+      ctx({ id: 'old', mtime: 100 }),
+      ctx({ id: 'new', mtime: 300 }),
+      ctx({ id: 'mid', mtime: 200 }),
+    ];
+    expect(filterContexts(dated, '', null).map((c) => c.id)).toEqual(['new', 'mid', 'old']);
+  });
+});
+
+describe('resolveWikilink', () => {
+  const linkItems: ContextMeta[] = [
+    ctx({ id: 'user_role', title: 'User role' }),
+    ctx({ id: 'note-42', title: 'PR learnings' }),
+  ];
+
+  it('matches by id ignoring separators and case', () => {
+    expect(resolveWikilink(linkItems, 'User-Role')).toBe('user_role');
+  });
+
+  it('matches by title when no id matches', () => {
+    expect(resolveWikilink(linkItems, 'pr learnings')).toBe('note-42');
+  });
+
+  it('returns null for an unknown target or empty name', () => {
+    expect(resolveWikilink(linkItems, 'nope')).toBeNull();
+    expect(resolveWikilink(linkItems, '   ')).toBeNull();
   });
 });

@@ -12,10 +12,11 @@ export const TYPE_TONE: Record<string, 'orange' | 'green' | 'yellow' | 'red' | '
   memory: 'red',
 };
 
-export function ContextModal({ doc, type, onClose }: { doc: ContextDoc; type?: string; onClose: () => void }) {
+export function ContextModal({ doc, type, onClose, onWikilink }: { doc: ContextDoc; type?: string; onClose: () => void; onWikilink?: (name: string) => void }) {
   return (
     <DocViewer
       onClose={onClose}
+      onWikilink={onWikilink}
       title={<span className="truncate text-[13px] font-semibold text-neutral-200">{doc.title}</span>}
       badges={type ? <Badge tone={TYPE_TONE[type] ?? 'neutral'}>{type}</Badge> : null}
       actions={<CopyDocAction text={doc.body} />}

@@ -3,7 +3,7 @@ import { Icon, Badge } from '../components/primitives';
 import { ContextModal, TYPE_TONE } from '../components/ContextModal';
 import type { ContextMeta } from '../../shared/protocol';
 import type { ContextDoc } from '../useCockpit';
-import { countByType, filterContexts } from './contextos.filter';
+import { countByType, filterContexts, resolveWikilink } from './contextos.filter';
 import { ContextChip } from './contextos/ContextChip';
 import { ContextCard } from './contextos/ContextCard';
 import { ContextOffline } from './contextos/ContextOffline';
@@ -43,6 +43,11 @@ export function Contextos({ connected, contexts, openContext, onCtxList, onCtxOp
   const filtered = useMemo(() => filterContexts(contexts, query, filter), [contexts, query, filter]);
 
   const openType = openContext ? contexts.find((c) => c.id === openContext.id)?.type : undefined;
+
+  const openWikilink = (name: string) => {
+    const id = resolveWikilink(contexts, name);
+    if (id) onCtxOpen(id);
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-neutral-950">
@@ -86,7 +91,7 @@ export function Contextos({ connected, contexts, openContext, onCtxList, onCtxOp
         </div>
       )}
 
-      {openContext && <ContextModal doc={openContext} type={openType} onClose={onCtxClose} />}
+      {openContext && <ContextModal doc={openContext} type={openType} onClose={onCtxClose} onWikilink={openWikilink} />}
     </div>
   );
 }
