@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { CONTEXT_LIMIT, ctxPct, fmtCost } from './format';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { CONTEXT_LIMIT, ctxPct, fmtCost, fmtReset } from './format';
 
 describe('ctxPct', () => {
   it('is zero at zero tokens', () => {
@@ -31,5 +31,28 @@ describe('fmtCost', () => {
   it('drops decimals from one hundred dollars', () => {
     expect(fmtCost(100)).toBe('$100');
     expect(fmtCost(1234.6)).toBe('$1235');
+  });
+});
+
+describe('fmtReset', () => {
+  afterEach(() => vi.useRealTimers());
+  const at = (now: number) => { vi.useFakeTimers(); vi.setSystemTime(now); };
+
+  it('is empty for null or zero', () => {
+    expect(fmtReset(null)).toBe('');
+    expect(fmtReset(0)).toBe('');
+  });
+  it('says "em instantes" when already past', () => {
+    at(10_000);
+    expect(fmtReset(5_000)).toBe('em instantes');
+  });
+  it('formats sub-hour windows in minutes', () => {
+    at(0);
+    expect(fmtReset(30 * 60_000)).toBe('em 30min');
+  });
+  it('formats hours, dropping zero minutes', () => {
+    at(0);
+    expect(fmtReset(2 * 60 * 60_000)).toBe('em 2h');
+    expect(fmtReset((2 * 60 + 15) * 60_000)).toBe('em 2h15min');
   });
 });
