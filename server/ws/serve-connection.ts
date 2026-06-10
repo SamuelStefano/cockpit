@@ -14,7 +14,7 @@ import { threads } from './runs';
 import { handle } from './dispatch';
 import { handleTerm, type TermHandle } from './terminal-handler';
 import { createRateLimiter } from './guard';
-import { getLastPlanUsage } from './usage-plan';
+import { getLastPlanUsage, requestPlanUsageRefresh } from './usage-plan';
 import { getLastModels } from './models';
 import { authorize } from './authz';
 
@@ -41,7 +41,10 @@ export function serveConnection(ws: WebSocket, opts: { role: Role; sendCaps?: bo
   const rate = getLastRate();
   if (rate) send(ws, { t: 'rate', ...rate });
   const planUsage = getLastPlanUsage();
+  // Sem snapshot ainda (boot recente, ou o prime/poll falhou): pede um agora pra a
+  // barra não ficar em "—" até o próximo poll de 60s. O broadcast atende este socket.
   if (planUsage) send(ws, { t: 'plan-usage', usage: planUsage });
+  else requestPlanUsageRefresh();
   const models = getLastModels();
   if (models.length) send(ws, { t: 'models', models });
   // Reconnect mid-run (#10): replaya o snapshot acumulado SÓ pra ESTE socket,

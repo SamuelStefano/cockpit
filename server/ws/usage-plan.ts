@@ -9,6 +9,10 @@ import { readOAuthToken, OAUTH_BETA } from '../oauth';
 // pelo CLI (que faz o refresh sozinho).
 const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 const POLL_MS = 60_000;
+// Falha transitória (rede/token sendo renovado) não pode deixar a barra em "—"
+// por 60s até o próximo poll — retenta rápido algumas vezes antes de desistir.
+const RETRY_MS = 8_000;
+const RETRY_MAX = 3;
 
 let last: PlanUsage | null = null;
 export function getLastPlanUsage() { return last; }
@@ -46,16 +50,33 @@ export async function fetchPlanUsage(): Promise<PlanUsage | null> {
   try { return mapPlanUsage(await res.json()); } catch { return null; }
 }
 
+let refreshing = false;
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function doFetch(): Promise<boolean> {
+  const u = await fetchPlanUsage();
+  if (!u) return false;
+  last = u;
+  broadcast({ t: 'plan-usage', usage: u });
+  return true;
+}
+
+// Pede um snapshot AGORA (connect novo, ou poll). Single-flight: chamadas
+// concorrentes coalescem. Em falha, agenda retries rápidos antes do próximo poll.
+export function requestPlanUsageRefresh(attempt = 0): void {
+  if (refreshing) return;
+  refreshing = true;
+  void doFetch()
+    .then((ok) => {
+      refreshing = false;
+      if (ok || attempt >= RETRY_MAX || retryTimer) return;
+      retryTimer = setTimeout(() => { retryTimer = null; requestPlanUsageRefresh(attempt + 1); }, RETRY_MS);
+      retryTimer.unref?.();
+    })
+    .catch(() => { refreshing = false; });
+}
+
 export function startPlanUsageLoop(hasClients: () => boolean) {
-  const tick = async (force = false) => {
-    // Prime uma vez no boot (force) pra a barra pintar no primeiro connect; depois
-    // só poll quando há cliente, pra não bater no endpoint à toa.
-    if (!force && !hasClients()) return;
-    const u = await fetchPlanUsage();
-    if (!u) return;
-    last = u;
-    broadcast({ t: 'plan-usage', usage: u });
-  };
-  tick(true);
-  setInterval(() => tick(), POLL_MS).unref();
+  requestPlanUsageRefresh(); // prime no boot pra a barra pintar no 1º connect
+  setInterval(() => { if (hasClients()) requestPlanUsageRefresh(); }, POLL_MS).unref();
 }

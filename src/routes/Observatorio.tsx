@@ -10,6 +10,7 @@ import { Trend } from './observatorio/Trend';
 import { RateWindow } from './observatorio/RateWindow';
 import { UsageTable } from './observatorio/UsageTable';
 import { UsageSkeleton } from './observatorio/UsageSkeleton';
+import { useUsageRetry } from './observatorio/useUsageRetry';
 
 interface Props {
   connected: boolean;
@@ -22,6 +23,9 @@ interface Props {
 
 export function Observatorio({ connected, usageStats, onUsageList, sessions, rate, onOpenSession }: Props) {
   useEffect(() => { if (connected) onUsageList(); }, [connected, onUsageList]);
+  // Resposta perdida (reconnect do relay) deixava o skeleton pra sempre — repete
+  // o pedido enquanto não chegou nada.
+  useUsageRetry(connected, usageStats !== null, onUsageList);
 
   const known = useMemo(() => new Set(sessions.map((s) => s.id)), [sessions]);
   const titleOf = useMemo(() => {
