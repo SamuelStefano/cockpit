@@ -43,7 +43,7 @@ export interface ChatPanelProps {
   attachments: Attachment[];
   onUpload: (file: File) => void;
   onRemoveAttachment: (path: string) => void;
-  onEditUser?: (text: string) => void;
+  onEditUser?: (id: string, text: string) => void;
   onQuote?: (text: string) => void;
   onOpenFull?: (id: string) => void;
   onOpenSummary?: (id: string) => void;

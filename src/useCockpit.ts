@@ -92,6 +92,7 @@ export interface Cockpit {
   onUpload: (file: File) => void;
   onRemoveAttachment: (path: string) => void;
   onSend: (text: string, modeOverride?: PermMode) => void;
+  onEditUser: (msgId: string, text: string) => void;
   onStop: (sessionKey?: string) => void;
   onNew: () => void;
   onRename: (id: string, title: string) => void;
@@ -884,6 +885,29 @@ export function useCockpit(): Cockpit {
     setPhases((p) => ({ ...p, [key]: 'idle' }));
   }, [send, reconcileTools]);
 
+  // Editar mensagem do usuário: substitui no lugar e reenvia, em vez de enfileirar
+  // uma nova bolha no fim. Reusa o MESMO msgId — o eco 'user' do servidor deduplica
+  // por id, então a bolha não duplica. Turno em voo é parado antes (o servidor trata
+  // "stop → send" como turno novo, não triagem), e as respostas à versão antiga,
+  // que ficam obsoletas, são descartadas.
+  const editUser = useCallback((msgId: string, text: string) => {
+    const key = activeRef.current;
+    const clean = text.trim();
+    if (!key || !clean) return;
+    if (inFlight.current.has(key)) onStop(key);
+    inFlight.current.add(key);
+    stopping.current.delete(key);
+    updateThread(key, (prev) => {
+      const idx = prev.findIndex((m) => m.id === msgId && m.role === 'user');
+      if (idx === -1) return prev;
+      return [...prev.slice(0, idx), { ...prev[idx], text: clean, triage: undefined, ts: Date.now() }];
+    });
+    setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: clean, relative: 'agora' } : s)));
+    const bypassWire = capsRef.current?.canBypass && bypassRef.current ? true : undefined;
+    const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
+    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: clean, msgId, mode: modeRef.current, model: modelRef.current, bypass: bypassWire, skills: skillsWire });
+  }, [send, updateThread, onStop]);
+
   const onNew = useCallback(() => {
     const id = newId('new-');
     const s: Session = { id, title: 'Nova sessão', relative: 'agora', snippet: 'Sem mensagens ainda', mtime: Date.now(), hasTerminal: false, active: true };
@@ -1078,5 +1102,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, selectedSkills, setSelectedSkills: changeSelectedSkills, slashCommands, term, discoveredTerms, listTerms, onSend, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, selectedSkills, setSelectedSkills: changeSelectedSkills, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
 }
