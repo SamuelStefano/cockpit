@@ -1,4 +1,4 @@
-import { Icon } from './primitives';
+import { Button, Icon } from './primitives';
 import { AvatarFace } from './avatar/AvatarFace';
 import { AiIconPicker } from './avatar/AiIconPicker';
 import { useProfileMenu } from './avatar/useProfileMenu';
@@ -8,7 +8,7 @@ import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT } from '../lib/prefs';
 // Menu de perfil no header: define nome (usado nas iniciais do chat) e faz
 // upload/limpa o avatar. Tudo local (data URL no localStorage), sem backend.
 export function ProfileMenu({ userId, onSignOut }: { userId?: string; onSignOut?: () => void } = {}) {
-  const { name, avatar, aiIcon, setName, setAvatar, setAiIcon, synced, open, setOpen, iconOpen, setIconOpen, fileRef, wrapRef, onFile } = useProfileMenu(userId);
+  const { name, avatar, aiIcon, setName, setAvatar, setAiIcon, synced, open, setOpen, iconOpen, setIconOpen, uploadError, fileRef, wrapRef, onFile } = useProfileMenu(userId);
   const [showTools, setShowTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
 
   return (
@@ -21,7 +21,7 @@ export function ProfileMenu({ userId, onSignOut }: { userId?: string; onSignOut?
         <AvatarFace avatar={avatar} name={name} size={32} />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1.5 w-60 rounded-xl border border-neutral-800 bg-neutral-900 p-3 shadow-2xl">
+        <div className="absolute right-0 top-full z-50 mt-1.5 w-60 max-w-[calc(100vw-1rem)] rounded-xl border border-neutral-800 bg-neutral-900 p-3 shadow-2xl">
           <div className="flex items-center gap-2.5">
             <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-neutral-700 bg-neutral-950">
               <AvatarFace avatar={avatar} name={name} size={40} />
@@ -34,31 +34,29 @@ export function ProfileMenu({ userId, onSignOut }: { userId?: string; onSignOut?
           <label className="mt-3 block text-[11px] font-medium text-neutral-500">Nome</label>
           <input
             value={name}
+            maxLength={40}
             onChange={(e) => setName(e.target.value)}
             placeholder="Seu nome"
             className="mt-1 w-full rounded-lg border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-[12.5px] text-neutral-200 outline-none transition focus:border-orange-500/40"
           />
           <div className="mt-2.5 flex gap-2">
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-[12px] text-neutral-300 transition hover:border-neutral-700"
-            >
-              <Icon name="paperclip" size={12} /> Trocar imagem
-            </button>
+            <Button variant="outline" size="sm" icon="paperclip" className="grow" onClick={() => fileRef.current?.click()}>
+              Trocar imagem
+            </Button>
             {avatar && (
-              <button
-                onClick={() => setAvatar('')}
-                className="rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-[12px] text-neutral-400 transition hover:border-red-500/40 hover:text-red-300"
-              >
+              <Button variant="danger" size="sm" onClick={() => setAvatar('')}>
                 Limpar
-              </button>
+              </Button>
             )}
           </div>
+          {uploadError && <p role="alert" className="mt-1.5 text-[11px] text-red-400">{uploadError}</p>}
           <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
 
           <AiIconPicker open={iconOpen} onToggle={() => setIconOpen((o) => !o)} selected={aiIcon} onSelect={setAiIcon} />
 
           <button
+            role="switch"
+            aria-checked={showTools}
             onClick={() => setShowTools((v) => !v)}
             className="mt-3 flex w-full items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-left transition hover:border-neutral-700"
           >
@@ -74,12 +72,9 @@ export function ProfileMenu({ userId, onSignOut }: { userId?: string; onSignOut?
 
           {onSignOut && (
             <div className="mt-3 border-t border-neutral-800 pt-3">
-              <button
-                onClick={() => { setOpen(false); onSignOut(); }}
-                className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-[12px] text-neutral-300 transition hover:border-red-500/40 hover:text-red-300"
-              >
-                <Icon name="x" size={12} /> Desconectar conta
-              </button>
+              <Button variant="danger" size="sm" icon="x" className="w-full" onClick={() => { setOpen(false); onSignOut?.(); }}>
+                Desconectar conta
+              </Button>
             </div>
           )}
         </div>
