@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Icon } from '../primitives';
 import type { IconName } from '../primitives/Icon';
+import { shouldDropUp } from './menu-flip';
 
 interface SessionRowActionsProps {
   pinned: boolean;
@@ -32,6 +33,13 @@ export function SessionRowActions({ pinned, running, canStop, canDescribe, onTog
   const open = openProp ?? openInternal;
   const setOpen = (v: boolean) => { onOpenChange ? onOpenChange(v) : setOpenInternal(v); };
   const ref = useRef<HTMLDivElement>(null);
+  const [dropUp, setDropUp] = useState(false);
+
+  // Layout effect: mede e decide o lado ANTES do paint — sem flash do menu
+  // abrindo pro lado errado por um frame.
+  useLayoutEffect(() => {
+    if (open && ref.current) setDropUp(shouldDropUp(ref.current.getBoundingClientRect().bottom, window.innerHeight));
+  }, [open]);
 
   // Fecha ao clicar fora ou apertar Esc.
   useEffect(() => {
@@ -67,7 +75,7 @@ export function SessionRowActions({ pinned, running, canStop, canDescribe, onTog
         <div
           role="menu"
           onClick={(e) => e.stopPropagation()}
-          className="absolute right-0 top-[120%] z-20 w-40 overflow-hidden rounded-lg border border-neutral-700 bg-neutral-900 py-1 shadow-xl shadow-black/40"
+          className={`absolute right-0 z-20 w-44 overflow-hidden rounded-lg border border-neutral-700 bg-neutral-900 py-1 shadow-xl shadow-black/40 ${dropUp ? 'bottom-[120%]' : 'top-[120%]'}`}
         >
           {items.map((it) => (
             <button

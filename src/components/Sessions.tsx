@@ -1,4 +1,4 @@
-import { Icon } from './primitives';
+import { Button, Icon } from './primitives';
 import type { Session } from '../data/mock';
 import { groupByRecency } from './sessions/group-by-recency';
 import { SessionRow } from './sessions/SessionRow';
@@ -74,12 +74,9 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
       </div>
 
       <div className="shrink-0 px-2.5 pt-2.5">
-        <button
-          onClick={() => { onNew(); onCloseMobile?.(); }}
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-900 py-2 text-[12.5px] font-medium text-neutral-200 transition hover:border-orange-500/40 hover:bg-orange-500/[0.06] hover:text-orange-300"
-        >
-          <Icon name="plus" size={15} /> Nova sessão
-        </button>
+        <Button variant="outline" icon="plus" className="w-full" onClick={() => { onNew(); onCloseMobile?.(); }}>
+          Nova sessão
+        </Button>
       </div>
 
       <TagFilterBar allTags={allTags} tagFilter={tagFilter} setTagFilter={setTagFilter} clearFilter={() => setTagFilter(null)} />
@@ -100,6 +97,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
                 {g.label === 'Fixadas' && <Icon name="star" size={9} className="mr-1 inline -translate-y-px text-orange-400/80" />}
                 {g.label === 'Trabalhando agora' && <span className="mr-1 inline-block h-1.5 w-1.5 -translate-y-px rounded-full bg-green-400" />}
                 {g.label}
+                <span className="ml-1 font-normal text-neutral-500">· {g.items.length}</span>
               </div>
               {g.items.map((s) => renderRow(s))}
             </div>

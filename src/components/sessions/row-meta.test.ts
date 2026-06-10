@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ctxPercent, ctxTone, isIdle, fmtRunElapsed, CTX_WINDOW } from './row-meta';
+import { ctxPercent, ctxWarn, isIdle, fmtRunElapsed, CTX_WINDOW } from './row-meta';
 
 describe('ctxPercent', () => {
   it('returns null when there is no context reading', () => {
@@ -18,12 +18,19 @@ describe('ctxPercent', () => {
   });
 });
 
-describe('ctxTone', () => {
-  it('escalates tone with usage', () => {
-    expect(ctxTone(10)).toContain('sky');
-    expect(ctxTone(60)).toContain('amber');
-    expect(ctxTone(85)).toContain('red');
-    expect(ctxTone(100)).toContain('red');
+describe('ctxWarn', () => {
+  it('silent below 70%', () => {
+    expect(ctxWarn(undefined)).toBeNull();
+    expect(ctxWarn(0)).toBeNull();
+    expect(ctxWarn(CTX_WINDOW * 0.5)).toBeNull();
+    expect(ctxWarn(CTX_WINDOW * 0.69)).toBeNull();
+  });
+
+  it('yellow from 70%, red from 90%', () => {
+    expect(ctxWarn(CTX_WINDOW * 0.7)).toEqual({ pct: 70, tone: 'yellow' });
+    expect(ctxWarn(CTX_WINDOW * 0.89)).toEqual({ pct: 89, tone: 'yellow' });
+    expect(ctxWarn(CTX_WINDOW * 0.9)).toEqual({ pct: 90, tone: 'red' });
+    expect(ctxWarn(CTX_WINDOW * 2)).toEqual({ pct: 100, tone: 'red' });
   });
 });
 
