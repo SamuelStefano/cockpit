@@ -45,9 +45,11 @@ export function MessageRow({ msg, caretOnLast, modelLabel, thinking, live, onEdi
         <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} answerable={answerable} onAnswer={onAnswer} />
         {thinking && <ThinkingDots live={live} />}
         {hasText && !caretOnLast && (
-          <div className="mt-1 flex items-center gap-2 opacity-100 transition group-hover/msg:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100">
-            <CopyMessageButton blocks={msg.blocks} />
-            {onQuote && <QuoteButton onClick={() => onQuote(messageToText(msg.blocks))} withLabel />}
+          <div className="mt-1 flex items-center gap-2">
+            <div className="flex items-center gap-2 opacity-100 transition group-hover/msg:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100">
+              <CopyMessageButton blocks={msg.blocks} />
+              {onQuote && <QuoteButton onClick={() => onQuote(messageToText(msg.blocks))} withLabel />}
+            </div>
             {msg.stats && <TurnStatsLine stats={msg.stats} />}
             {msg.ts && <time className="text-[10px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
           </div>
