@@ -67,16 +67,22 @@ export function MessageRow({ msg, caretOnLast, modelLabel, thinking, live, onEdi
 // result do CLI (#185) — ajuda a entender o que cada prompt gastou de verdade.
 function TurnStatsLine({ stats }: { stats: TurnBubbleStats }) {
   const parts: string[] = [];
-  if (stats.inputTokens !== undefined && stats.outputTokens !== undefined) {
-    parts.push(`${fmtTokens(stats.inputTokens)} in · ${fmtTokens(stats.outputTokens)} out`);
-  } else if (stats.tokens) {
+  // O total (stats.tokens) inclui cache read/creation — é o que consome a quota.
+  // input_tokens sozinho é minúsculo (o grosso do prompt entra como cache) e já
+  // enganou: a bolha mostrava "200 in" enquanto o turno queimava dezenas de k.
+  if (stats.tokens) {
     parts.push(`${fmtTokens(stats.tokens)} tokens`);
+  } else if (stats.inputTokens !== undefined && stats.outputTokens !== undefined) {
+    parts.push(`${fmtTokens(stats.inputTokens)} in · ${fmtTokens(stats.outputTokens)} out`);
   }
   if (stats.durationMs) parts.push(fmtDuration(stats.durationMs));
   if (typeof stats.costUsd === 'number') parts.push(`$${stats.costUsd < 0.01 ? stats.costUsd.toFixed(4) : stats.costUsd.toFixed(3)}`);
   if (!parts.length) return null;
+  const inOut = stats.inputTokens !== undefined && stats.outputTokens !== undefined
+    ? ` — ${fmtTokens(stats.inputTokens)} in · ${fmtTokens(stats.outputTokens)} out (sem cache)`
+    : '';
   return (
-    <span className="text-[10px] tabular-nums text-neutral-600" title="Gasto do turno (tokens faturáveis · tempo · custo)">
+    <span className="text-[10px] tabular-nums text-neutral-600" title={`Gasto do turno: total faturável incl. cache · tempo · custo${inOut}`}>
       {parts.join(' · ')}
     </span>
   );
