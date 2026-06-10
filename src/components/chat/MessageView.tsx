@@ -25,11 +25,13 @@ interface MessageRowProps {
   answerable?: boolean;
   onAnswer?: (text: string) => void;
   onOpenAttachment?: (path: string, name: string) => void;
+  attThumbs?: Record<string, string>;
+  onAttThumb?: (path: string) => void;
 }
 
-export function MessageRow({ msg, caretOnLast, modelLabel, thinking, live, onEditUser, onQuote, answerable, onAnswer, onOpenAttachment }: MessageRowProps) {
+export function MessageRow({ msg, caretOnLast, modelLabel, thinking, live, onEditUser, onQuote, answerable, onAnswer, onOpenAttachment, attThumbs, onAttThumb }: MessageRowProps) {
   if (msg.role === 'user') {
-    return <UserMessageRow msg={msg} onEditUser={onEditUser} onQuote={onQuote} onOpenAttachment={onOpenAttachment} />;
+    return <UserMessageRow msg={msg} onEditUser={onEditUser} onQuote={onQuote} onOpenAttachment={onOpenAttachment} attThumbs={attThumbs} onAttThumb={onAttThumb} />;
   }
   if (msg.role === 'compact') {
     return <CompactDivider msg={msg} />;

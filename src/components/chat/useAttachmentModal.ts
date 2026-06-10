@@ -1,23 +1,14 @@
 import { useEffect, useMemo } from 'react';
 import type { AttachmentPreview } from '../../useCockpit';
 import { attachmentKind, type AttachmentKind } from '../../lib/attachment-kind';
+import { b64ToObjectUrl } from '../../lib/blob-url';
 
 // O conteúdo chega como base64 pela WS (não há endpoint HTTP de arquivos no
 // backend); vira blob URL pra <img>/<video> renderizarem sem estourar o atributo
 // src com data-URI gigante. Revoga no cleanup pra não vazar memória.
 export function useAttachmentModal(att: AttachmentPreview, onClose: () => void): { kind: AttachmentKind; url: string | null } {
   const { kind, mime } = attachmentKind(att.name);
-  const url = useMemo(() => {
-    if (!att.dataB64) return null;
-    try {
-      const bin = atob(att.dataB64);
-      const bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      return URL.createObjectURL(new Blob([bytes], { type: mime }));
-    } catch {
-      return null;
-    }
-  }, [att.dataB64, mime]);
+  const url = useMemo(() => (att.dataB64 ? b64ToObjectUrl(att.dataB64, mime) : null), [att.dataB64, mime]);
 
   useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
 

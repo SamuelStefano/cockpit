@@ -11,6 +11,7 @@ import { selectEvictions } from './cockpit/evict';
 import { resolveKey, moveKey } from './cockpit/migrate';
 import { mergeHistory } from './cockpit/history';
 import { useTerminals, type TermApi } from './cockpit/useTerminals';
+import { addThumb, shouldRequestThumb } from './lib/att-thumb-cache';
 
 export interface ContextDoc { id: string; title: string; body: string }
 export interface SkillDoc { id: string; name: string; body: string }
@@ -97,6 +98,8 @@ export interface Cockpit {
   attPreview: AttachmentPreview | null;
   onAttOpen: (path: string, name: string) => void;
   onAttClose: () => void;
+  attThumbs: Record<string, string>;
+  onAttThumb: (path: string) => void;
   onSend: (text: string, modeOverride?: PermMode) => void;
   onEditUser: (msgId: string, text: string) => void;
   onStop: (sessionKey?: string) => void;
@@ -152,6 +155,12 @@ export function useCockpit(): Cockpit {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const attachmentsRef = useRef<Attachment[]>([]);
   const [attPreview, setAttPreview] = useState<AttachmentPreview | null>(null);
+  const [attThumbs, setAttThumbs] = useState<Record<string, string>>({});
+  const attThumbsRef = useRef<Record<string, string>>({});
+  const thumbPending = useRef<Set<string>>(new Set());
+  // Paths já pedidos NÃO re-pedem mesmo se expulsos do cache — evita livelock
+  // de eviction quando as imagens montadas somam mais que o teto do cache.
+  const thumbRequested = useRef<Set<string>>(new Set());
   const [mode, setMode] = useState<PermMode>(() => loadPref<PermMode>('mode', 'auto'));
   const modeRef = useRef<PermMode>(mode);
   const [caps, setCaps] = useState<Caps | null>(null);
@@ -585,6 +594,13 @@ export function useCockpit(): Cockpit {
         // No sucesso o servidor manda o nome original (sem o prefixo ts-hex do
         // disco) — preferimos ele; no erro vem o path cru, então fica o do chip.
         setAttPreview((prev) => (prev && prev.path === msg.path ? { ...prev, name: msg.error ? prev.name : msg.name, dataB64: msg.dataB64, error: msg.error } : prev));
+        // Só resposta pedida pelo CHIP entra no cache de thumbnails (delete
+        // retorna true). Abrir um pdf/vídeo grande no modal não pode poluir o
+        // cache e expulsar as thumbs de imagem. Erro também não entra.
+        if (thumbPending.current.delete(msg.path) && msg.dataB64 && !msg.error) {
+          attThumbsRef.current = addThumb(attThumbsRef.current, msg.path, msg.dataB64);
+          setAttThumbs(attThumbsRef.current);
+        }
         return;
       }
       case 'term-data': {
@@ -731,6 +747,9 @@ export function useCockpit(): Cockpit {
       if (!isCurrent()) return;
       retryDelay.current = 1500; // reconectou — zera o backoff
       setAuthRequired(false); // token válido (ou gate desligado)
+      // Pedidos de thumb que morreram com o socket anterior podem re-pedir.
+      for (const p of thumbPending.current) thumbRequested.current.delete(p);
+      thumbPending.current.clear();
       setConn({ ws: 'connected', sse: 'connected' });
       send({ t: 'list' });
       send({ t: 'list-archived' });
@@ -894,6 +913,12 @@ export function useCockpit(): Cockpit {
     send({ t: 'att-open', path });
   }, [send]);
   const onAttClose = useCallback(() => setAttPreview(null), []);
+  const onAttThumb = useCallback((path: string) => {
+    if (!shouldRequestThumb(attThumbsRef.current, thumbPending.current, thumbRequested.current, path)) return;
+    thumbRequested.current.add(path);
+    thumbPending.current.add(path);
+    send({ t: 'att-open', path });
+  }, [send]);
   const onCtxList = useCallback(() => send({ t: 'ctx-list' }), [send]);
   const onCtxOpen = useCallback((id: string) => send({ t: 'ctx-open', id }), [send]);
   const onCtxClose = useCallback(() => setOpenContext(null), []);
@@ -1142,5 +1167,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, selectedSkills, setSelectedSkills: changeSelectedSkills, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, selectedSkills, setSelectedSkills: changeSelectedSkills, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
 }
