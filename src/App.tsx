@@ -8,6 +8,7 @@ import { ShortcutsHelp } from './components/ShortcutsHelp';
 import { RouteContent } from './app/RouteContent';
 import { useCockpit } from './useCockpit';
 import { useRoute } from './useRoute';
+import { loadPref } from './lib/persist';
 import { SUPABASE_ENABLED } from './lib/supabase';
 import { useSupabaseAuth } from './lib/useSupabaseAuth';
 import { useProfileHydration } from './lib/profile';
@@ -80,8 +81,13 @@ export function CockpitApp() {
     return m;
   }, [usageStats]);
 
+  // Pós-F5 restaura a última sessão aberta (persistida); só cai na mais recente
+  // se a salva não existir mais (apagada/arquivada) ou se for o 1º acesso.
   useEffect(() => {
-    if (!activeSessionId && sessions.length) setActiveSessionId(sessions[0].id);
+    if (activeSessionId || !sessions.length) return;
+    const saved = loadPref('activeId', '');
+    const pick = saved && sessions.some((s) => s.id === saved) ? saved : sessions[0].id;
+    setActiveSessionId(pick);
   }, [activeSessionId, sessions, setActiveSessionId]);
 
   // Não-admin não fica preso na URL /admin (só redireciona quando caps já chegou,
