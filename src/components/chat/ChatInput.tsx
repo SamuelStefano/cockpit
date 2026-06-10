@@ -60,6 +60,12 @@ export function ChatInput(props: ChatInputProps) {
         model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels}
       />
       {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} />}
+      {mic.error && (
+        <div className="mb-2 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/[0.07] px-2.5 py-2 text-[12px] leading-snug text-red-200">
+          <Icon name="mic" size={13} className="mt-0.5 shrink-0 text-red-400" />
+          <span>{mic.error}</span>
+        </div>
+      )}
       {queued.length > 0 && <QueuedBanner queued={queued} onCancelQueueAt={onCancelQueueAt} onMove={onMoveQueued} />}
       {paused && (
         <div className="mb-2 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/[0.07] px-2.5 py-2 text-[12px] leading-snug text-red-200">

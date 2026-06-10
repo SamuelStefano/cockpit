@@ -1,19 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { joinTranscript, SPEECH_LANG } from './speech';
+import { speechErrorMessage, isFatalSpeechError } from './speech-errors';
 
 // Tipos mínimos da Web Speech API (não vêm no lib.dom de todo target). Só o que
 // usamos: ditado contínuo com resultados parciais e final por trecho.
 interface SpeechResult { 0: { transcript: string }; isFinal: boolean }
 interface SpeechResultEvent { resultIndex: number; results: ArrayLike<SpeechResult> }
+interface SpeechErrorEvent { error: string }
 interface SpeechRecognition {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
   start(): void;
   stop(): void;
+  abort?(): void;
   onresult: ((e: SpeechResultEvent) => void) | null;
   onend: (() => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((e: SpeechErrorEvent) => void) | null;
 }
 type SpeechCtor = new () => SpeechRecognition;
 
@@ -22,62 +25,63 @@ function speechCtor(): SpeechCtor | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
+// Limite de reinícios encadeados que falham na largada (engine que dispara
+// onend/onerror em <800ms sem captar nada). Acima disso, desiste — senão o
+// celular fica num loop de start/erro queimando bateria e mic.
+const MAX_FAST_FAILS = 3;
+
 // Ditado por voz que escreve no composer. O texto falado é apensado ao que já
 // estava digitado quando começou (baseRef), com os trechos finais acumulados +
-// o parcial ao vivo. Degrada limpo onde o browser não suporta (iOS Safari,
-// Firefox): `supported=false` → o botão de mic some.
+// o parcial ao vivo. Degrada limpo onde o browser não suporta (Firefox, webviews):
+// `supported=false` → o botão de mic some.
+//
+// Mobile: o engine do Android encerra o reconhecimento a cada pausa de fala
+// (dispara onend mesmo com `continuous=true`), então o ditado parecia "não
+// funcionar" — ligava e desligava sozinho. Aqui a INTENÇÃO do usuário (wantRef)
+// é separada do ciclo de vida do engine: enquanto o usuário quer ditar, cada
+// onend reinicia o reconhecimento. Erros de permissão (not-allowed) são fatais e
+// param com mensagem; transitórios (no-speech/network/aborted) só reiniciam.
 export function useSpeechInput(value: string, setValue: (v: string) => void) {
   const supported = useMemo(() => speechCtor() !== null, []);
   const [listening, setListening] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const recRef = useRef<SpeechRecognition | null>(null);
-  const baseRef = useRef('');     // texto do composer no instante do start
-  const finalRef = useRef('');    // trechos já finalizados nesta gravação
+  const wantRef = useRef(false);         // o usuário quer ditar (sobrevive a reinícios)
+  const baseRef = useRef('');            // texto do composer no instante do start
+  const finalRef = useRef('');           // trechos já finalizados (acumula entre reinícios)
+  const lastErrorRef = useRef<string | null>(null);
+  const startedAtRef = useRef(0);
+  const gotResultRef = useRef(false);
+  const fastFailRef = useRef(0);
   // setValue muda a cada render (closure); o ref deixa o onresult sempre usar o atual.
   const setValueRef = useRef(setValue);
   setValueRef.current = setValue;
 
-  // Encerra o reconhecimento e SOLTA o mic sem mexer em estado React (seguro no
-  // unmount). Destaca os handlers e zera recRef SÍNCRONO pra um start() logo em
-  // seguida (toggle rápido off→on) não ser engolido pelo onend assíncrono.
-  const hardStop = () => {
+  // Solta o mic e destaca handlers SÍNCRONO, sem mexer em estado React (seguro no
+  // unmount). Não altera wantRef — quem decide parar de vez é o caller.
+  const detach = () => {
     const rec = recRef.current;
     if (!rec) return;
     rec.onresult = null; rec.onend = null; rec.onerror = null;
     recRef.current = null;
     try { rec.stop(); } catch { /* já parou */ }
   };
-  // Stop pedido pelo usuário: NÃO destacar handlers. O engine ainda dispara um
-  // onresult final no stop() (o último trecho que estava como interim vira
-  // isFinal); destacar antes perderia essas palavras. O onend então zera recRef
-  // e o listening. Só o unmount/toggle-restart usa hardStop (solta o mic já).
-  const stop = () => {
-    const rec = recRef.current;
-    if (!rec) return;
-    try {
-      rec.stop();
-      // Alguns engines (Chrome com stop() sem áudio capturado, ou permissão em
-      // revogação) não disparam onresult-final NEM onend — aí recRef/listening
-      // ficariam presos. Fallback: se ESTE rec ainda estiver ativo em ~1.5s,
-      // força a limpeza. Guardado por identidade pra não derrubar um start() que
-      // já substituiu o rec nesse meio-tempo (toggle rápido off→on).
-      setTimeout(() => { if (recRef.current === rec) { hardStop(); setListening(false); } }, 1500);
-    } catch {
-      rec.onresult = null; rec.onend = null; rec.onerror = null;
-      recRef.current = null; setListening(false);
-    }
-  };
 
-  const start = () => {
+  // Cria e inicia UM reconhecimento. Chamado no start do usuário e em cada
+  // reinício automático (onend com wantRef ainda ligado). Mantém finalRef pra não
+  // perder o que já foi ditado nos trechos anteriores.
+  const begin = () => {
     const Ctor = speechCtor();
     if (!Ctor) return;
-    if (recRef.current) hardStop();
     const rec = new Ctor();
     rec.lang = SPEECH_LANG;
     rec.continuous = true;
     rec.interimResults = true;
-    baseRef.current = value;
-    finalRef.current = '';
+    startedAtRef.current = Date.now();
+    gotResultRef.current = false;
     rec.onresult = (e) => {
+      gotResultRef.current = true;
+      fastFailRef.current = 0;
       let interim = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const r = e.results[i];
@@ -86,16 +90,73 @@ export function useSpeechInput(value: string, setValue: (v: string) => void) {
       }
       setValueRef.current(joinTranscript(baseRef.current, finalRef.current + interim));
     };
-    rec.onend = () => { recRef.current = null; setListening(false); };
-    rec.onerror = () => { recRef.current = null; setListening(false); };
+    rec.onerror = (e) => { lastErrorRef.current = e?.error ?? 'unknown'; };
+    rec.onend = () => {
+      recRef.current = null;
+      const err = lastErrorRef.current;
+      lastErrorRef.current = null;
+      // Parada fatal (permissão negada/indisponível): some o botão de ditar não,
+      // mas mostra o porquê e zera a intenção.
+      if (err && isFatalSpeechError(err)) {
+        wantRef.current = false;
+        setError(speechErrorMessage(err));
+        setListening(false);
+        return;
+      }
+      // Encerramento normal por pausa de fala (Android) ou transitório: reinicia
+      // enquanto o usuário ainda quer ditar. Guarda contra loop de falha-na-largada.
+      if (wantRef.current) {
+        const quick = Date.now() - startedAtRef.current < 800;
+        if (quick && !gotResultRef.current) {
+          fastFailRef.current += 1;
+          if (fastFailRef.current >= MAX_FAST_FAILS) {
+            wantRef.current = false;
+            setError(speechErrorMessage(err ?? 'no-speech'));
+            setListening(false);
+            return;
+          }
+        }
+        begin();
+        return;
+      }
+      setListening(false);
+    };
     recRef.current = rec;
-    setListening(true);
-    try { rec.start(); } catch { recRef.current = null; setListening(false); }
+    try {
+      rec.start();
+    } catch {
+      // start() lança se chamado duas vezes rápido; o onend do anterior cuida do retry.
+      recRef.current = null;
+    }
   };
 
-  // Desmontou no meio da gravação? Encerra o reconhecimento pra não vazar o mic
-  // (sem setState — o componente já foi).
-  useEffect(() => () => hardStop(), []);
+  const start = () => {
+    if (!speechCtor()) return;
+    detach();
+    setError(null);
+    baseRef.current = value;
+    finalRef.current = '';
+    fastFailRef.current = 0;
+    lastErrorRef.current = null;
+    wantRef.current = true;
+    setListening(true);
+    begin();
+  };
 
-  return { supported, listening, start, stop, toggle: () => (listening ? stop() : start()) };
+  // Stop pedido pelo usuário: zera a intenção ANTES de parar o engine pra o onend
+  // não reiniciar. stop() (não abort) deixa o engine emitir o último trecho interim
+  // como final antes de encerrar.
+  const stop = () => {
+    wantRef.current = false;
+    const rec = recRef.current;
+    if (!rec) { setListening(false); return; }
+    try { rec.stop(); } catch { detach(); setListening(false); }
+    // Fallback: engine que não dispara onend após stop() deixaria listening preso.
+    setTimeout(() => { if (recRef.current === rec || recRef.current === null) { if (!wantRef.current) setListening(false); } }, 1500);
+  };
+
+  // Desmontou no meio da gravação? Encerra o reconhecimento pra não vazar o mic.
+  useEffect(() => () => { wantRef.current = false; detach(); }, []);
+
+  return { supported, listening, error, start, stop, toggle: () => (listening ? stop() : start()) };
 }
