@@ -98,7 +98,18 @@ export interface AssistantMessage {
 // mostra só o FILL da janela, não o que o prompt gastou.
 export interface TurnBubbleStats { costUsd?: number; durationMs?: number; tokens?: number; inputTokens?: number; outputTokens?: number }
 
-export type Message = UserMessage | AssistantMessage;
+// Marca inline na thread onde o CLI auto-compactou o contexto (DR-012). Não é
+// turno: é um divisor que explica o salto no medidor e que o pré-compactação está
+// em "ver tudo". preTokens = tamanho da janela antes do corte.
+export interface CompactMessage {
+  id: string;
+  role: 'compact';
+  trigger?: string; // 'auto' | 'manual' (/compact)
+  preTokens?: number;
+  ts?: number;
+}
+
+export type Message = UserMessage | AssistantMessage | CompactMessage;
 
 export interface SessionMeta {
   id: string;

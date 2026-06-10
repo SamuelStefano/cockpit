@@ -2,7 +2,7 @@
 // Aqui ficam só os tipos/seed de TERMINAL (Fase posterior ainda em mock).
 export type {
   ToolCall, ToolQuestion, ToolQuestionOption, ToolTodo, TextBlock, CodeBlock, ToolBlock, Block,
-  UserMessage, AssistantMessage, Message,
+  UserMessage, AssistantMessage, CompactMessage, Message,
 } from '../../shared/protocol';
 
 export interface Session {

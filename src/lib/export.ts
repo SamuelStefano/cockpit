@@ -9,6 +9,10 @@ export function threadToMarkdown(title: string, messages: Message[]): string {
       out.push('## 🧑 Você', '', m.text.trim(), '');
       continue;
     }
+    if (m.role === 'compact') {
+      out.push('---', '', '> 🗜️ Conversa compactada', '');
+      continue;
+    }
     out.push('## 🤖 Claude', '');
     for (const b of m.blocks) {
       if (b.type === 'text') out.push(b.md.trim(), '');
@@ -83,6 +87,8 @@ export async function threadToPdf(title: string, messages: Message[]) {
     if (m.role === 'user') {
       write('Você', 11, [180, 90, 0], 'bold');
       write(m.text.trim(), 10.5, [40, 40, 40]);
+    } else if (m.role === 'compact') {
+      write('— Conversa compactada —', 9.5, [120, 120, 120], 'bold');
     } else {
       write('Claude', 11, [120, 80, 200], 'bold');
       for (const b of m.blocks) {
