@@ -11,8 +11,12 @@ export function ctxPercent(ctx: number | undefined): number | null {
   return Math.min(100, Math.round((ctx / CTX_WINDOW) * 100));
 }
 
-export function ctxTone(pct: number): string {
-  return pct >= 85 ? 'bg-red-500' : pct >= 60 ? 'bg-amber-500' : 'bg-sky-500/70';
+// Alerta discreto de contexto no card: só aparece quando a sessão está de fato
+// perto do teto (o progressbar permanente foi removido a pedido — #140).
+export function ctxWarn(ctx: number | undefined): { pct: number; tone: 'yellow' | 'red' } | null {
+  const pct = ctxPercent(ctx);
+  if (pct === null || pct < 70) return null;
+  return { pct, tone: pct >= 90 ? 'red' : 'yellow' };
 }
 
 // Ociosa = sem atividade recente E não rodando agora. Pin não importa aqui (uma

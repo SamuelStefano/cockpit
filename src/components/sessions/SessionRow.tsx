@@ -7,7 +7,7 @@ import { SessionRowMeta } from './SessionRowMeta';
 import { RunStatus } from './RunStatus';
 import { useSessionRow } from './useSessionRow';
 import { useLongPress } from './useLongPress';
-import { isIdle } from './row-meta';
+import { ctxWarn, isIdle } from './row-meta';
 
 export interface SessionRowProps {
   s: Session;
@@ -36,6 +36,7 @@ export interface SessionRowProps {
 export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated, runStart, pinned, tags = [], onTogglePin, onAddTag, onRemoveTag, onFilterTag, onSelect, onRename, onDescribe, onClose, onDelete, onStop }: SessionRowProps) {
   const { editing, setEditing, draft, setDraft, descEditing, setDescEditing, descDraft, setDescDraft, tagging, setTagging, tagDraft, setTagDraft, inputRef, descRef, tagRef, commit, commitDesc, commitTag } = useSessionRow({ s, onAddTag, onRename, onDescribe });
   const { open: actionsOpen, setOpen: setActionsOpen, consumeTap, handlers } = useLongPress(() => {});
+  const warn = ctxWarn(ctx);
 
   return (
     <div
@@ -122,6 +123,11 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
       {!editing && isIdle(s.mtime, !!running) && (
         <div className="mt-1.5">
           <Badge tone="neutral">ociosa</Badge>
+        </div>
+      )}
+      {!editing && warn && (
+        <div className="mt-1.5">
+          <Badge tone={warn.tone}>contexto {warn.pct}%</Badge>
         </div>
       )}
       {s.hasTerminal && !editing && (
