@@ -29,7 +29,7 @@ export function CockpitApp() {
     archived, onUnhide: handleUnhide, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated, lastTurn, lastEnd, searchResults, onSearch,
     skills, usageStats,
     attachments, onUpload, onRemoveAttachment,
-    onSend: handleSend, onStop: handleStop, onNew: cockpitNew, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession,
+    onSend: handleSend, onEditUser: editUser, onStop: handleStop, onNew: cockpitNew, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession,
     onOpenFull, onOpenSummary,
   } = cockpit;
 
@@ -64,8 +64,6 @@ export function CockpitApp() {
   const [focusSignal, setFocusSignal] = useState(0);
 
   useGlobalShortcuts({ sessions, activeSessionId, setActiveSessionId, updated, nav, setPalette, setHelp });
-
-  const editUser = (text: string) => { setDraft(text); setFocusSignal((n) => n + 1); };
 
   // Citar uma mensagem: vira blockquote no topo do rascunho atual (trunca longos).
   const quoteMsg = (text: string) => {

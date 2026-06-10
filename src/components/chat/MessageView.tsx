@@ -1,15 +1,13 @@
 import { Icon } from '../primitives';
-import type { IconName } from '../primitives/Icon';
 import { ClaudeAvatar } from '../ClaudeAvatar';
-import { UserAvatar } from '../UserAvatar';
-import { usePersisted } from '../../lib/persist';
 import type { Message } from '../../data/mock';
-import type { TriageAction, TurnBubbleStats } from '../../../shared/protocol';
+import type { TurnBubbleStats } from '../../../shared/protocol';
 import { messageToText } from '../../lib/export';
-import { parseAttachments } from '../../lib/parse-attachments';
 import { AssistantBlocks } from './AssistantBlocks';
 import { ThinkingDots, LiveStatsLine, type LiveTurn } from './Thinking';
-import { CopyTextButton, QuoteButton, CopyMessageButton } from './MessageActions';
+import { QuoteButton, CopyMessageButton } from './MessageActions';
+import { UserMessageRow } from './UserMessageRow';
+import { fmtTokens, fmtDuration, fmtClock } from './message-format';
 
 export type { DiffRow } from './diff';
 export { lineDiff } from './diff';
@@ -21,56 +19,15 @@ interface MessageRowProps {
   modelLabel?: string;
   thinking?: boolean;
   live?: LiveTurn;
-  onEditUser?: (text: string) => void;
+  onEditUser?: (id: string, text: string) => void;
   onQuote?: (text: string) => void;
   answerable?: boolean;
   onAnswer?: (text: string) => void;
 }
 
 export function MessageRow({ msg, caretOnLast, modelLabel, thinking, live, onEditUser, onQuote, answerable, onAnswer }: MessageRowProps) {
-  const [userName] = usePersisted<string>('user.name', '');
   if (msg.role === 'user') {
-    const { attachments, body } = parseAttachments(msg.text);
-    return (
-      <div data-mid={msg.id} className="fade-up group/u flex items-start justify-end gap-2.5">
-        <div className="mt-1 flex shrink-0 items-center gap-0.5 opacity-100 transition group-hover/u:opacity-100 sm:opacity-0 sm:group-hover/u:opacity-100">
-          {msg.ts && <time className="mr-1 text-[10px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
-          <CopyTextButton text={msg.text} />
-          {onQuote && <QuoteButton onClick={() => onQuote(msg.text)} />}
-          {onEditUser && (
-            <button
-              onClick={() => onEditUser(msg.text)}
-              title="Editar e reenviar"
-              className="flex h-6 w-6 items-center justify-center rounded-md text-neutral-600 transition hover:bg-neutral-800 hover:text-neutral-300"
-            >
-              <Icon name="pencil" size={12} />
-            </button>
-          )}
-        </div>
-        <div className="flex max-w-[82%] flex-col items-end gap-1">
-          <span className="max-w-[200px] truncate px-1 text-[11px] font-medium text-neutral-500">{userName || 'Você'}</span>
-          {attachments.length > 0 && (
-            <div className="flex flex-wrap justify-end gap-1.5">
-              {attachments.map((a) => (
-                <span key={a.path} title={a.path} className="inline-flex items-center gap-1 rounded-lg border border-neutral-700/60 bg-neutral-800/70 px-2 py-1 text-[11px] text-neutral-300">
-                  <Icon name="paperclip" size={11} className="shrink-0 text-neutral-500" />
-                  <span className="max-w-[160px] truncate">{a.name}</span>
-                </span>
-              ))}
-            </div>
-          )}
-          {body && (
-            <div className="w-full whitespace-pre-wrap break-words rounded-2xl rounded-br-md border border-neutral-700/60 bg-neutral-800 px-3.5 py-2.5 text-[14px] leading-relaxed text-neutral-100 shadow-sm shadow-black/20">
-              {body}
-            </div>
-          )}
-          {msg.triage && <TriageBadge action={msg.triage.action} reason={msg.triage.reason} />}
-        </div>
-        <div className="mt-0.5">
-          <UserAvatar size={28} />
-        </div>
-      </div>
-    );
+    return <UserMessageRow msg={msg} onEditUser={onEditUser} onQuote={onQuote} />;
   }
   const hasText = msg.blocks.some((b) => b.type === 'text' || b.type === 'code');
   return (
@@ -100,26 +57,6 @@ export function MessageRow({ msg, caretOnLast, modelLabel, thinking, live, onEdi
   );
 }
 
-// Selo da triagem sob a bolha do usuário (prompt enviado com o turno ocupado). O
-// `desc` explica o veredicto em geral (o que a triagem faz); o `reason` do servidor
-// explica por que ESTA mensagem caiu nele. O tooltip junta os dois.
-const TRIAGE_META: Record<TriageAction, { icon: IconName; label: string; cls: string; desc: string }> = {
-  wait: { icon: 'clock', label: 'na fila', cls: 'bg-amber-500/15 text-amber-300', desc: 'Enfileirado: roda assim que o turno atual terminar.' },
-  answer: { icon: 'zap', label: 'resposta rápida', cls: 'bg-sky-500/15 text-sky-300', desc: 'Respondido à parte por um subagente, sem tocar o turno em andamento.' },
-  priority: { icon: 'arrowUp', label: 'priorizado', cls: 'bg-rose-500/15 text-rose-300', desc: 'Urgente: o turno atual foi interrompido e este rodou na frente.' },
-  merge: { icon: 'sparkles', label: 'juntado ao anterior', cls: 'bg-violet-500/15 text-violet-300', desc: 'Complementa o pedido anterior — somado ao turno em andamento.' },
-};
-
-function TriageBadge({ action, reason }: { action: TriageAction; reason: string }) {
-  const m = TRIAGE_META[action];
-  const title = reason ? `${m.desc}\n\nPor quê: ${reason}` : m.desc;
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${m.cls}`} title={title}>
-      <Icon name={m.icon} size={10} /> {m.label}
-    </span>
-  );
-}
-
 // Stat discreta do turno sob a bolha: tokens · tempo · custo. Ground-truth do
 // result do CLI (#185) — ajuda a entender o que cada prompt gastou de verdade.
 function TurnStatsLine({ stats }: { stats: TurnBubbleStats }) {
@@ -137,28 +74,4 @@ function TurnStatsLine({ stats }: { stats: TurnBubbleStats }) {
       {parts.join(' · ')}
     </span>
   );
-}
-
-function fmtTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return String(n);
-}
-
-function fmtDuration(ms: number): string {
-  const s = Math.round(ms / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  const rem = s % 60;
-  return rem ? `${m}m ${rem}s` : `${m}m`;
-}
-
-// Horário do turno (HH:MM). Mostra dia quando não é hoje.
-function fmtClock(ts: number): string {
-  const d = new Date(ts);
-  const now = new Date();
-  const sameDay = d.toDateString() === now.toDateString();
-  const hm = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  if (sameDay) return hm;
-  return `${d.toLocaleDateString([], { day: '2-digit', month: '2-digit' })} ${hm}`;
 }
