@@ -202,6 +202,17 @@ describe('recToMessage', () => {
     const m = recToMessage({ uuid: 'u4', timestamp: 'not-a-date', message: { role: 'user', content: 'x' } } as any);
     expect(m?.ts).toBeUndefined();
   });
+
+  it('maps an isCompactSummary user record to a compact divider', () => {
+    const m = recToMessage({
+      uuid: 'c1',
+      timestamp: '2026-06-10T00:00:00.000Z',
+      isCompactSummary: true,
+      message: { role: 'user', content: 'This session is being continued from a previous conversation…' },
+    } as any);
+    expect(m).toMatchObject({ id: 'c1', role: 'compact', trigger: 'auto' });
+    expect(m?.ts).toBe(Date.parse('2026-06-10T00:00:00.000Z'));
+  });
 });
 
 describe('activeChain', () => {
