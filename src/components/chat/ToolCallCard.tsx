@@ -5,6 +5,7 @@ import type { ToolCall } from '../../data/mock';
 import { DiffView } from './DiffView';
 import { TodoPanel } from './TodoPanel';
 import { CopyTextButton } from './MessageActions';
+import { permissionDeniedTool } from './permission-deny';
 
 interface ToolCallCardProps {
   tool: ToolCall;
@@ -15,6 +16,7 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
   const [showShellCmd, setShowShellCmd] = usePersisted('showShellCmd', true);
   const { status } = tool;
   const lines = tool.output || [];
+  const deniedTool = status === 'error' ? permissionDeniedTool(lines) : null;
 
   const statusEl = {
     running: (
@@ -90,6 +92,18 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
           </div>
         </div>
       ))}
+      {deniedTool && (
+        <div className="px-3 pb-2">
+          <div className="flex items-start gap-2 rounded-md border border-amber-500/25 bg-amber-500/10 px-2.5 py-2 text-[12px] leading-relaxed text-amber-200">
+            <Icon name="shield" size={13} className="mt-0.5 shrink-0 text-amber-400" />
+            <span>
+              Permissão negada pra <code className="font-mono text-[11.5px] text-amber-100">{deniedTool}</code>.
+              O modo atual não deixa o agente usar essa ferramenta — troque no seletor de modo
+              junto ao campo de mensagem (Executar, ou Bypass se for admin) e reenvie.
+            </span>
+          </div>
+        </div>
+      )}
       {tool.diff && <DiffView diff={tool.diff} />}
       {tool.todos && tool.todos.length > 0 && <TodoPanel todos={tool.todos} />}
       {tool.markdown && (
