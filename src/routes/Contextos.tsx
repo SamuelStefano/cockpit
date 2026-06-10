@@ -52,12 +52,12 @@ export function Contextos({ connected, contexts, openContext, onCtxList, onCtxOp
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-neutral-950">
       <div className="shrink-0 border-b border-neutral-800/80 px-4 py-3">
-        <div className="mb-2.5 flex items-center justify-between gap-3">
+        <div className="mb-2.5 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <span className="font-mono text-[14px] font-semibold lowercase tracking-tight text-neutral-100">contextos</span>
             <Badge tone="neutral">{contexts.length}</Badge>
           </div>
-          <div className="flex w-full max-w-sm items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 focus-within:border-neutral-700 focus-within:ring-2 focus-within:ring-orange-500/15">
+          <div className="flex w-full items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 focus-within:border-neutral-700 focus-within:ring-2 focus-within:ring-orange-500/15 sm:max-w-sm">
             <Icon name="search" size={14} className="shrink-0 text-neutral-500" />
             <input
               ref={searchRef}
@@ -84,7 +84,7 @@ export function Contextos({ connected, contexts, openContext, onCtxList, onCtxOp
           {filtered.length === 0 ? (
             <ContextEmpty query={query} />
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filtered.map((c) => <ContextCard key={c.id} c={c} onClick={() => onCtxOpen(c.id)} />)}
             </div>
           )}
