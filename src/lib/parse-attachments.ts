@@ -8,11 +8,12 @@ export interface ParsedAttachment {
 
 const ANEXO_RE = /^\[anexo:\s*(.+?)\]$/;
 
-// O servidor salva como `<timestamp>-<random>-<nome-original>`; mostramos o nome
-// original pro usuário reconhecer o arquivo.
+// O servidor salva como `<ts base36>-<4 bytes hex>-<nome-original>`; mostramos o
+// nome original pro usuário reconhecer o arquivo. O ts é base36 (começa com
+// letra!), então o prefixo é [a-z0-9]+, não \d+ — a regex antiga nunca casava.
 function baseName(p: string): string {
   const seg = p.split('/').pop() ?? p;
-  return seg.replace(/^\d+-[a-z0-9]+-/i, '');
+  return seg.replace(/^[a-z0-9]+-[a-z0-9]+-/i, '');
 }
 
 export function parseAttachments(text: string): { attachments: ParsedAttachment[]; body: string } {

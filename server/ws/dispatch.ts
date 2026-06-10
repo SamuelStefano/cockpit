@@ -5,7 +5,7 @@ import { listSessions, listArchived } from '../sessions/index';
 import { searchSessions } from '../sessions/search';
 import { listContexts, readContext } from '../contexts';
 import { listSkills, readSkill, resolveSkillDeny } from '../skills';
-import { saveAttachment } from '../attachments';
+import { saveAttachment, readAttachment } from '../attachments';
 import { usageStats } from '../db';
 import { hideSession, unhideSession, purgeSession, setTitle, setNote } from '../store';
 import { parseSession, parseFullSession } from '../sessions/parse';
@@ -153,6 +153,12 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const r = await saveAttachment(msg.sessionKey, msg.name, msg.dataB64);
       if ('error' in r) send(ws, { t: 'error', message: r.error });
       else send(ws, { t: 'uploaded', name: msg.name, path: r.path });
+      return;
+    }
+    case 'att-open': {
+      const r = await readAttachment(msg.path);
+      if ('error' in r) send(ws, { t: 'attachment', path: msg.path, name: msg.path, error: r.error });
+      else send(ws, { t: 'attachment', path: msg.path, name: r.name, dataB64: r.dataB64 });
       return;
     }
     case 'stop': {

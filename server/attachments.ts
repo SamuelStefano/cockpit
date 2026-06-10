@@ -1,4 +1,4 @@
-import { mkdir, writeFile, readdir, stat, rm } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, readdir, stat, rm } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { CONFIG } from './config';
@@ -44,6 +44,30 @@ export async function saveAttachment(
   await mkdir(dir, { recursive: true });
   await writeFile(full, buf);
   return { path: join('attachments', key, fname) };
+}
+
+// Lê um anexo salvo pra preview no chat. Aceita só paths relativos no formato que
+// saveAttachment devolve ('attachments/<key>/<fname>') e revalida contra traversal
+// — o path chega cru do cliente via WS. error quando o sweep TTL já levou o arquivo.
+export async function readAttachment(
+  relPath: string,
+): Promise<{ name: string; dataB64: string } | { error: string }> {
+  if (typeof relPath !== 'string' || !relPath.startsWith('attachments/')) {
+    return { error: 'anexo inválido' };
+  }
+  const root = resolve(CONFIG.workdir, 'attachments');
+  const full = resolve(CONFIG.workdir, relPath);
+  if (!full.startsWith(root + '/')) return { error: 'anexo inválido' };
+  try {
+    const st = await stat(full);
+    if (!st.isFile() || st.size > CONFIG.maxUploadBytes) return { error: 'anexo indisponível' };
+    const buf = await readFile(full);
+    // Mesmo prefixo que saveAttachment gera (ts36-hex-nome) — devolve o nome original.
+    const name = basename(full).replace(/^[a-z0-9]+-[a-z0-9]+-/i, '') || basename(full);
+    return { name, dataB64: buf.toString('base64') };
+  } catch {
+    return { error: 'anexo indisponível (expirado?)' };
+  }
 }
 
 // Varre workdir/attachments e remove arquivos mais velhos que o TTL (anexos são

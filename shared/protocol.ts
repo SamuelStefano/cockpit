@@ -263,6 +263,7 @@ export type ClientMsg =
   | { t: 'admin-mcp-remove'; name: string }
   | { t: 'admin-cli-install'; name: string }
   | { t: 'upload'; sessionKey: string; name: string; dataB64: string }
+  | { t: 'att-open'; path: string }
   | { t: 'term-open'; termId: string; cols: number; rows: number }
   | { t: 'term-input'; termId: string; data: string }
   | { t: 'term-resize'; termId: string; cols: number; rows: number }
@@ -298,6 +299,9 @@ export type ServerMsg =
   | { t: 'skills'; items: SkillMeta[] }
   | { t: 'skill'; id: string; name: string; body: string }
   | { t: 'uploaded'; name: string; path: string }
+  // Conteúdo de um anexo p/ preview no chat (modal). error preenchido quando o
+  // arquivo já foi varrido pelo TTL ou o path é inválido — o modal mostra o aviso.
+  | { t: 'attachment'; path: string; name: string; dataB64?: string; error?: string }
   | { t: 'history'; sessionId: string; messages: Message[]; cursor?: string; tokens?: number; full?: boolean; truncated?: boolean }
   | { t: 'busy'; keys: string[] }
   // O JSONL da sessão mudou no disco (ex.: claude rodado direto no terminal).

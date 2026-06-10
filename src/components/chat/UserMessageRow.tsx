@@ -7,16 +7,18 @@ import { CopyTextButton, QuoteButton } from './MessageActions';
 import { TriageBadge } from './TriageBadge';
 import { fmtClock } from './message-format';
 import { parseAttachments } from '../../lib/parse-attachments';
+import { attachmentKind, attachmentIcon } from '../../lib/attachment-kind';
 
 interface UserMessageRowProps {
   msg: UserMessage;
   onEditUser?: (id: string, text: string) => void;
   onQuote?: (text: string) => void;
+  onOpenAttachment?: (path: string, name: string) => void;
 }
 
 // Bolha do usuário. A edição é inline (substitui no lugar) e o reenvio é tratado
 // pelo onEditUser do cockpit — não enfileira nova bolha no fim do thread.
-export function UserMessageRow({ msg, onEditUser, onQuote }: UserMessageRowProps) {
+export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment }: UserMessageRowProps) {
   const [userName] = usePersisted<string>('user.name', '');
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(msg.text);
@@ -89,10 +91,15 @@ export function UserMessageRow({ msg, onEditUser, onQuote }: UserMessageRowProps
         {attachments.length > 0 && (
           <div className="flex flex-wrap justify-end gap-1.5">
             {attachments.map((a) => (
-              <span key={a.path} title={a.path} className="inline-flex items-center gap-1 rounded-lg border border-neutral-700/60 bg-neutral-800/70 px-2 py-1 text-[11px] text-neutral-300">
-                <Icon name="paperclip" size={11} className="shrink-0 text-neutral-500" />
+              <button
+                key={a.path}
+                title={`Abrir ${a.name}`}
+                onClick={() => onOpenAttachment?.(a.path, a.name)}
+                className="inline-flex items-center gap-1 rounded-lg border border-neutral-700/60 bg-neutral-800/70 px-2 py-1 text-[11px] text-neutral-300 transition hover:border-orange-500/40 hover:text-orange-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
+              >
+                <Icon name={attachmentIcon(attachmentKind(a.name).kind)} size={11} className="shrink-0 text-neutral-500" />
                 <span className="max-w-[160px] truncate">{a.name}</span>
-              </span>
+              </button>
             ))}
           </div>
         )}

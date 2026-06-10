@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { safeSeg, saveAttachment } from './attachments';
+import { rm } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { safeSeg, saveAttachment, readAttachment } from './attachments';
+import { CONFIG } from './config';
 
 describe('safeSeg', () => {
   it('strips directory traversal down to the basename', () => {
@@ -36,5 +39,34 @@ describe('saveAttachment', () => {
     expect(await saveAttachment('s', null as unknown as string, 'aGk=')).toEqual(bad);
     expect(await saveAttachment('s', 'x.txt', 42 as unknown as string)).toEqual(bad);
     expect(await saveAttachment('s', 'x.txt', { b: 1 } as unknown as string)).toEqual(bad);
+  });
+});
+
+describe('readAttachment', () => {
+  it('rejects traversal and paths outside attachments/', async () => {
+    const bad = { error: 'anexo inválido' };
+    expect(await readAttachment('attachments/../secret')).toEqual(bad);
+    expect(await readAttachment('/etc/passwd')).toEqual(bad);
+    expect(await readAttachment('other/place/file.png')).toEqual(bad);
+    expect(await readAttachment(42 as unknown as string)).toEqual(bad);
+  });
+
+  it('reports unavailable when the file is gone (TTL sweep)', async () => {
+    expect(await readAttachment('attachments/nope/zzz-aaaa0000-x.png')).toEqual({
+      error: 'anexo indisponível (expirado?)',
+    });
+  });
+
+  it('round-trips a saved attachment and strips the disk prefix from the name', async () => {
+    const dataB64 = Buffer.from('conteudo de teste').toString('base64');
+    const saved = await saveAttachment('vitest-read', 'foto teste.png', dataB64);
+    expect('path' in saved).toBe(true);
+    if (!('path' in saved)) return;
+    try {
+      const r = await readAttachment(saved.path);
+      expect(r).toEqual({ name: 'foto_teste.png', dataB64 });
+    } finally {
+      await rm(resolve(CONFIG.workdir, 'attachments', 'vitest-read'), { recursive: true, force: true });
+    }
   });
 });

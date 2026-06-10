@@ -15,6 +15,7 @@ import { useTerminals, type TermApi } from './cockpit/useTerminals';
 export interface ContextDoc { id: string; title: string; body: string }
 export interface SkillDoc { id: string; name: string; body: string }
 export interface Attachment { name: string; path: string }
+export interface AttachmentPreview { path: string; name: string; dataB64?: string; error?: string }
 export type { TermApi };
 import type { ConnState } from './components/primitives';
 import type { Phase } from './components/Chat';
@@ -91,6 +92,9 @@ export interface Cockpit {
   attachments: Attachment[];
   onUpload: (file: File) => void;
   onRemoveAttachment: (path: string) => void;
+  attPreview: AttachmentPreview | null;
+  onAttOpen: (path: string, name: string) => void;
+  onAttClose: () => void;
   onSend: (text: string, modeOverride?: PermMode) => void;
   onEditUser: (msgId: string, text: string) => void;
   onStop: (sessionKey?: string) => void;
@@ -141,6 +145,7 @@ export function useCockpit(): Cockpit {
   const adminOpTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const attachmentsRef = useRef<Attachment[]>([]);
+  const [attPreview, setAttPreview] = useState<AttachmentPreview | null>(null);
   const [mode, setMode] = useState<PermMode>(() => loadPref<PermMode>('mode', 'auto'));
   const modeRef = useRef<PermMode>(mode);
   const [caps, setCaps] = useState<Caps | null>(null);
@@ -566,6 +571,14 @@ export function useCockpit(): Cockpit {
         setAttachments(next);
         return;
       }
+      case 'attachment': {
+        // Só preenche se o modal aberto ainda é o desse path — o usuário pode ter
+        // fechado ou aberto outro anexo enquanto o conteúdo viajava pela WS.
+        // No sucesso o servidor manda o nome original (sem o prefixo ts-hex do
+        // disco) — preferimos ele; no erro vem o path cru, então fica o do chip.
+        setAttPreview((prev) => (prev && prev.path === msg.path ? { ...prev, name: msg.error ? prev.name : msg.name, dataB64: msg.dataB64, error: msg.error } : prev));
+        return;
+      }
       case 'term-data': {
         onTermData(msg.termId, msg.data);
         return;
@@ -868,6 +881,11 @@ export function useCockpit(): Cockpit {
     send({ t: 'search', q });
   }, [send]);
 
+  const onAttOpen = useCallback((path: string, name: string) => {
+    setAttPreview({ path, name });
+    send({ t: 'att-open', path });
+  }, [send]);
+  const onAttClose = useCallback(() => setAttPreview(null), []);
   const onCtxList = useCallback(() => send({ t: 'ctx-list' }), [send]);
   const onCtxOpen = useCallback((id: string) => send({ t: 'ctx-open', id }), [send]);
   const onCtxClose = useCallback(() => setOpenContext(null), []);
@@ -1116,5 +1134,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, selectedSkills, setSelectedSkills: changeSelectedSkills, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, selectedSkills, setSelectedSkills: changeSelectedSkills, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
 }

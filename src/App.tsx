@@ -29,7 +29,7 @@ export function CockpitApp() {
     messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, selectedSkills, setSelectedSkills, slashCommands, term, discoveredTerms, listTerms,
     archived, onUnhide: handleUnhide, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated, lastTurn, lastEnd, searchResults, onSearch,
     skills, usageStats,
-    attachments, onUpload, onRemoveAttachment,
+    attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose,
     onSend: handleSend, onEditUser: editUser, onStop: handleStop, onNew: cockpitNew, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession,
     onOpenFull, onOpenSummary,
   } = cockpit;
@@ -108,7 +108,7 @@ export function CockpitApp() {
   // Pausa o envio perto do teto do plano (5h) pra não estourar e perder trabalho:
   // a fila persistida não dispara e o composer trava até a janela resetar.
   const quotaPaused = !!planUsage && planUsage.fiveHour >= 99.5;
-  const chatProps = { session: activeSession, messages, phase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, skills, selectedSkills, setSelectedSkills, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew: handleNew, attachments, onUpload, onRemoveAttachment, onEditUser: editUser, onQuote: quoteMsg, onOpenFull, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, quotaPaused, quotaResetsAt: planUsage?.resetsAt ?? null };
+  const chatProps = { session: activeSession, messages, phase, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, skills, selectedSkills, setSelectedSkills, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew: handleNew, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, onEditUser: editUser, onQuote: quoteMsg, onOpenFull, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, quotaPaused, quotaResetsAt: planUsage?.resetsAt ?? null };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
 
   const gate = resolveAuthGate({ sbAuth, ejectPairing, authRequired, submitToken });

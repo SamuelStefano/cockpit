@@ -24,11 +24,12 @@ interface MessageRowProps {
   onQuote?: (text: string) => void;
   answerable?: boolean;
   onAnswer?: (text: string) => void;
+  onOpenAttachment?: (path: string, name: string) => void;
 }
 
-export function MessageRow({ msg, caretOnLast, modelLabel, thinking, live, onEditUser, onQuote, answerable, onAnswer }: MessageRowProps) {
+export function MessageRow({ msg, caretOnLast, modelLabel, thinking, live, onEditUser, onQuote, answerable, onAnswer, onOpenAttachment }: MessageRowProps) {
   if (msg.role === 'user') {
-    return <UserMessageRow msg={msg} onEditUser={onEditUser} onQuote={onQuote} />;
+    return <UserMessageRow msg={msg} onEditUser={onEditUser} onQuote={onQuote} onOpenAttachment={onOpenAttachment} />;
   }
   if (msg.role === 'compact') {
     return <CompactDivider msg={msg} />;

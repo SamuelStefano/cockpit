@@ -8,7 +8,8 @@ import { useChatPanel, type Phase } from './chat/useChatPanel';
 import { useFileDrop } from './chat/useFileDrop';
 import type { Session, Message } from '../data/mock';
 import type { PermMode, ModelInfo, TurnStats, Caps, SkillMeta } from '../../shared/protocol';
-import type { Attachment } from '../useCockpit';
+import type { Attachment, AttachmentPreview } from '../useCockpit';
+import { AttachmentModal } from './chat/AttachmentModal';
 
 export type { Phase };
 
@@ -43,6 +44,9 @@ export interface ChatPanelProps {
   attachments: Attachment[];
   onUpload: (file: File) => void;
   onRemoveAttachment: (path: string) => void;
+  attPreview?: AttachmentPreview | null;
+  onAttOpen?: (path: string, name: string) => void;
+  onAttClose?: () => void;
   onEditUser?: (id: string, text: string) => void;
   onQuote?: (text: string) => void;
   onOpenFull?: (id: string) => void;
@@ -58,7 +62,7 @@ export interface ChatPanelProps {
   quotaResetsAt?: number | null;
 }
 
-export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, skills, selectedSkills, setSelectedSkills, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, onEditUser, onQuote, onOpenFull, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, quotaPaused = false, quotaResetsAt = null }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, skills, selectedSkills, setSelectedSkills, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, onEditUser, onQuote, onOpenFull, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, quotaPaused = false, quotaResetsAt = null }: ChatPanelProps) {
   const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, paused: quotaPaused });
   // Stats AO VIVO do turno (estilo terminal): tokens gastos + tempo decorrido,
   // enquanto o turno roda. Some no `done` (phase volta a idle).
@@ -94,7 +98,7 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-5">
             {messages.map((m, i) => (
-              <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === messages.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} thinking={phase !== 'idle' && i === messages.length - 1 && m.role === 'assistant'} live={i === messages.length - 1 && m.role === 'assistant' ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} answerable={phase === 'idle' && i === messages.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} />
+              <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === messages.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} thinking={phase !== 'idle' && i === messages.length - 1 && m.role === 'assistant'} live={i === messages.length - 1 && m.role === 'assistant' ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} answerable={phase === 'idle' && i === messages.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} onOpenAttachment={onAttOpen} />
 
             ))}
             {phase === 'thinking' && messages[messages.length - 1]?.role !== 'assistant' && <Thinking live={live} />}
@@ -134,6 +138,8 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} focusSignal={focusSignal}
         queued={c.queued} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
         paused={quotaPaused} quotaResetsAt={quotaResetsAt} />
+
+      {attPreview && onAttClose && <AttachmentModal att={attPreview} onClose={onAttClose} />}
     </div>
   );
 }
