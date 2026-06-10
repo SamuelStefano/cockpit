@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ctxTokens, num, diffOf, planOf, questionsOf, contentHasQuestion, todosOf, extractCommand, recToMessage, activeChain, type Rec } from './parse';
+import { ctxTokens, num, diffOf, planOf, questionsOf, contentHasQuestion, todosOf, extractCommand, recToMessage, activeChain, collectToolResults, capOutput, TOOL_OUTPUT_CAP, type Rec, type ToolResultRec } from './parse';
 
 describe('num', () => {
   it('passes through finite non-negative numbers', () => {
@@ -225,6 +225,123 @@ describe('recToMessage', () => {
     } as any);
     expect(m).toMatchObject({ id: 'c1', role: 'compact', trigger: 'auto' });
     expect(m?.ts).toBe(Date.parse('2026-06-10T00:00:00.000Z'));
+  });
+
+  it('hides synthetic isMeta user prompts (loop wakeups) instead of attributing them to the user', () => {
+    const m = recToMessage({
+      uuid: 'm1',
+      isMeta: true,
+      message: { role: 'user', content: '# Autonomous loop tick (dynamic pacing)\nRun the autonomous check…' },
+    } as any);
+    expect(m).toBeNull();
+  });
+
+  it('keeps isMeta assistant records untouched', () => {
+    const m = recToMessage({ uuid: 'a9', isMeta: true, message: { role: 'assistant', content: [{ type: 'text', text: 'oi' }] } } as any);
+    expect(m).toMatchObject({ role: 'assistant' });
+  });
+
+  it('pairs a tool_result with its tool_use: output, status, exit and duration', () => {
+    const results = new Map<string, ToolResultRec>([
+      ['t1', { output: ['{ "status": "error" }'], isErr: false, ts: Date.parse('2026-06-10T20:20:53.000Z') }],
+    ]);
+    const m = recToMessage({
+      uuid: 'a1',
+      timestamp: '2026-06-10T20:20:16.000Z',
+      message: { role: 'assistant', content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'curl …' } }] },
+    } as any, results);
+    const tool = (m as any).blocks[0].tool;
+    expect(tool.output).toEqual(['{ "status": "error" }']);
+    expect(tool.status).toBe('done');
+    expect(tool.exit).toBe(0);
+    expect(tool.durationMs).toBe(37_000);
+  });
+
+  it('marks the tool as error when the result has is_error', () => {
+    const results = new Map<string, ToolResultRec>([['t2', { output: ['boom'], isErr: true }]]);
+    const m = recToMessage({
+      uuid: 'a2',
+      message: { role: 'assistant', content: [{ type: 'tool_use', id: 't2', name: 'Bash', input: {} }] },
+    } as any, results);
+    const tool = (m as any).blocks[0].tool;
+    expect(tool.status).toBe('error');
+    expect(tool.exit).toBe(1);
+  });
+
+  it('leaves duration/exit undefined when no result exists (pruned run)', () => {
+    const m = recToMessage({
+      uuid: 'a3',
+      message: { role: 'assistant', content: [{ type: 'tool_use', id: 't3', name: 'Bash', input: {} }] },
+    } as any, new Map());
+    const tool = (m as any).blocks[0].tool;
+    expect(tool.output).toEqual([]);
+    expect(tool.exit).toBeUndefined();
+    expect(tool.durationMs).toBeUndefined();
+    expect(tool.status).toBe('done');
+  });
+
+  it('ignores a result timestamp older than the tool_use (clock skew)', () => {
+    const results = new Map<string, ToolResultRec>([['t4', { output: ['x'], isErr: false, ts: Date.parse('2026-06-10T00:00:00.000Z') }]]);
+    const m = recToMessage({
+      uuid: 'a4',
+      timestamp: '2026-06-10T00:00:01.000Z',
+      message: { role: 'assistant', content: [{ type: 'tool_use', id: 't4', name: 'Bash', input: {} }] },
+    } as any, results);
+    expect((m as any).blocks[0].tool.durationMs).toBeUndefined();
+  });
+});
+
+describe('collectToolResults', () => {
+  it('extracts string content split by lines, keyed by tool_use_id', () => {
+    const map = new Map<string, ToolResultRec>();
+    collectToolResults({
+      type: 'user',
+      timestamp: '2026-06-10T20:20:53.000Z',
+      message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: 'line1\nline2' }] },
+    } as any, map);
+    expect(map.get('t1')).toMatchObject({ output: ['line1', 'line2'], isErr: false });
+    expect(map.get('t1')?.ts).toBe(Date.parse('2026-06-10T20:20:53.000Z'));
+  });
+
+  it('extracts text blocks from array content and flags is_error', () => {
+    const map = new Map<string, ToolResultRec>();
+    collectToolResults({
+      type: 'user',
+      message: { role: 'user', content: [
+        { type: 'tool_result', tool_use_id: 't2', is_error: true, content: [{ type: 'text', text: 'err' }, { type: 'image' }] },
+      ] },
+    } as any, map);
+    expect(map.get('t2')).toMatchObject({ output: ['err'], isErr: true });
+  });
+
+  it('ignores non-user records, plain text content and results without tool_use_id', () => {
+    const map = new Map<string, ToolResultRec>();
+    collectToolResults({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_result', tool_use_id: 'x', content: 'y' }] } } as any, map);
+    collectToolResults({ type: 'user', message: { role: 'user', content: 'oi' } } as any, map);
+    collectToolResults({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', content: 'sem id' }] } } as any, map);
+    expect(map.size).toBe(0);
+  });
+
+  it('caps giant outputs with the shared truncation marker', () => {
+    const map = new Map<string, ToolResultRec>();
+    collectToolResults({
+      type: 'user',
+      message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't3', content: 'x'.repeat(TOOL_OUTPUT_CAP + 100) }] },
+    } as any, map);
+    const out = map.get('t3')!.output;
+    expect(out[out.length - 1]).toContain('truncada');
+    expect(out.join('\n').length).toBeLessThanOrEqual(TOOL_OUTPUT_CAP + 100);
+  });
+});
+
+describe('capOutput', () => {
+  it('passes small outputs through untouched', () => {
+    expect(capOutput(['a', 'b'])).toEqual(['a', 'b']);
+  });
+
+  it('truncates at the cap and appends the marker', () => {
+    const out = capOutput(['x'.repeat(TOOL_OUTPUT_CAP), 'overflow']);
+    expect(out[out.length - 1]).toContain('truncada');
   });
 });
 

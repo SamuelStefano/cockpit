@@ -1,28 +1,7 @@
 import type { ToolCall } from '../../shared/protocol';
-import { diffOf, planOf, questionsOf, todosOf, extractCommand } from '../sessions/parse';
+import { diffOf, planOf, questionsOf, todosOf, extractCommand, toolResultOutput } from '../sessions/parse';
 import { broadcast } from './broadcast';
 import type { Thread } from './runs';
-
-// Saída de tool (Read/Bash) pode trazer MBs (dump de arquivo/comando). Sem cap
-// ela infla o frame ao vivo, o snapshot retido em thread.tools E o payload de
-// replay no reconnect — o vetor real de OOM num run noturno (squad H2). A verdade
-// completa fica no JSONL; aqui só a cauda do card precisa caber.
-const TOOL_OUTPUT_CAP = 256 * 1024;
-function capOutput(lines: string[]): string[] {
-  let total = 0;
-  const out: string[] = [];
-  for (const ln of lines) {
-    if (total + ln.length > TOOL_OUTPUT_CAP) {
-      const room = TOOL_OUTPUT_CAP - total;
-      if (room > 0) out.push(ln.slice(0, room));
-      out.push('… (saída truncada — abra a sessão p/ ver tudo)');
-      break;
-    }
-    total += ln.length + 1;
-    out.push(ln);
-  }
-  return out;
-}
 
 // Teto de tools retidas por thread: um run de horas com centenas de tools não
 // pode crescer sem limite na memória (cada entrada é re-serializada no replay).
@@ -78,9 +57,7 @@ export function emitTool(thread: Thread, sessionKey: string, block: any, status:
 
 export function closeTool(thread: Thread, sessionKey: string, c: any) {
   const isErr = !!c.is_error;
-  const output = capOutput(Array.isArray(c.content)
-    ? c.content.filter((x: any) => x?.type === 'text').map((x: any) => x.text)
-    : typeof c.content === 'string' ? c.content.split('\n') : []);
+  const output = toolResultOutput(c);
   const id = c.tool_use_id ?? '';
   const start = thread.toolStart.get(id);
   if (start !== undefined) thread.toolStart.delete(id);

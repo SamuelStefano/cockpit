@@ -20,6 +20,59 @@ export interface Rec {
   leafUuid?: string;
   timestamp?: string;
   isCompactSummary?: boolean;
+  isMeta?: boolean;
+}
+
+// Resultado de tool extraído de um record user com tool_result, indexado por
+// tool_use_id pra parear com o tool_use do assistant correspondente.
+export interface ToolResultRec {
+  output: string[];
+  isErr: boolean;
+  ts?: number;
+}
+
+// Saída de tool pode trazer MBs (dump de arquivo/comando). Sem cap ela infla o
+// payload de replay/histórico — vetor real de OOM (squad H2). A verdade completa
+// fica no JSONL; aqui só a cauda do card precisa caber. Compartilhado com o
+// caminho ao vivo (ws/tools.ts) pra render idêntico.
+export const TOOL_OUTPUT_CAP = 256 * 1024;
+export function capOutput(lines: string[]): string[] {
+  let total = 0;
+  const out: string[] = [];
+  for (const ln of lines) {
+    if (total + ln.length > TOOL_OUTPUT_CAP) {
+      const room = TOOL_OUTPUT_CAP - total;
+      if (room > 0) out.push(ln.slice(0, room));
+      out.push('… (saída truncada — abra a sessão p/ ver tudo)');
+      break;
+    }
+    total += ln.length + 1;
+    out.push(ln);
+  }
+  return out;
+}
+
+// Linhas de saída de um bloco tool_result, já capadas. Única extração usada
+// tanto no replay (collectToolResults) quanto no ao vivo (ws/tools.ts closeTool)
+// pra render idêntico nos dois caminhos.
+export function toolResultOutput(c: any): string[] {
+  return capOutput(Array.isArray(c?.content)
+    ? c.content.filter((x: any) => x?.type === 'text').map((x: any) => String(x.text ?? ''))
+    : typeof c?.content === 'string' ? c.content.split('\n') : []);
+}
+
+// Os tool_results chegam como records USER (content: [{type:'tool_result',...}])
+// no turno seguinte ao tool_use. Sem coletá-los, todo card de tool do histórico
+// aparecia "done 0.0s" sem saída nenhuma (bug reportado: terminal mostra o curl,
+// app mostra card vazio). Mesma extração do closeTool ao vivo.
+export function collectToolResults(r: Rec, map: Map<string, ToolResultRec>): void {
+  if (r.type !== 'user' || !Array.isArray(r.message?.content)) return;
+  const t = r.timestamp ? Date.parse(r.timestamp) : NaN;
+  const ts = Number.isFinite(t) ? t : undefined;
+  for (const c of r.message.content as any[]) {
+    if (c?.type !== 'tool_result' || typeof c.tool_use_id !== 'string' || !c.tool_use_id) continue;
+    map.set(c.tool_use_id, { output: toolResultOutput(c), isErr: !!c.is_error, ts });
+  }
 }
 
 // Caminho ativo (user/assistant em ordem raiz→folha) a partir do leaf. O leaf vem
@@ -76,6 +129,7 @@ export async function parseSession(
   if (!path) return null;
 
   const byUuid = new Map<string, Rec>();
+  const results = new Map<string, ToolResultRec>();
   let leaf: string | undefined;
   let lastMsgUuid: string | undefined;
 
@@ -86,6 +140,7 @@ export async function parseSession(
     let r: Rec;
     try { r = JSON.parse(s) as Rec; } catch { continue; }
     if (r.type === 'last-prompt' && r.leafUuid) leaf = r.leafUuid;
+    collectToolResults(r, results);
     // indexa TODO record com uuid: o parentUuid de user/assistant pode apontar
     // pra um nó intermediário (attachment/system) — se só indexar user/assistant
     // a caminhada quebra no 1º intermediário e trunca o histórico (squad).
@@ -106,7 +161,7 @@ export async function parseSession(
   // em vez de apresentar um transcript parcial como se fosse completo (squad red-team).
   const truncated = chain.length > limit;
   const trimmed = chain.slice(-limit);
-  const messages = trimmed.map(recToMessage).filter((m): m is Message => m !== null);
+  const messages = trimmed.map((r) => recToMessage(r, results)).filter((m): m is Message => m !== null);
   const blocks = messages.flatMap((m) =>
     m.role === 'assistant' ? m.blocks : m.role === 'user' ? [{ type: 'text' as const, md: m.text }] : [],
   );
@@ -125,12 +180,14 @@ export async function parseFullSession(
   if (!path) return null;
 
   const recs: Rec[] = [];
+  const results = new Map<string, ToolResultRec>();
   const rl = createInterface({ input: createReadStream(path), crlfDelay: Infinity });
   for await (const line of rl) {
     const s = line.trim();
     if (!s) continue;
     let r: Rec;
     try { r = JSON.parse(s) as Rec; } catch { continue; }
+    collectToolResults(r, results);
     if (r.uuid && (r.type === 'user' || r.type === 'assistant')) recs.push(r);
   }
 
@@ -139,11 +196,11 @@ export async function parseFullSession(
     if (recs[i].type === 'assistant' && recs[i].message?.usage) { tokens = ctxTokens(recs[i].message!.usage); break; }
   }
 
-  const messages = recs.slice(-limit).map(recToMessage).filter((m): m is Message => m !== null);
+  const messages = recs.slice(-limit).map((r) => recToMessage(r, results)).filter((m): m is Message => m !== null);
   return { messages, tokens };
 }
 
-export function recToMessage(r: Rec): Message | null {
+export function recToMessage(r: Rec, results?: Map<string, ToolResultRec>): Message | null {
   if (!r.message) return null;
   const content = r.message.content;
   const t = r.timestamp ? Date.parse(r.timestamp) : NaN;
@@ -153,6 +210,10 @@ export function recToMessage(r: Rec): Message | null {
   if (r.isCompactSummary) {
     return { id: r.uuid ?? `compact-${ts ?? 0}`, role: 'compact', trigger: 'auto', ts };
   }
+  // Prompts sintéticos do harness (loop wakeup, hooks) vêm como user com isMeta —
+  // o terminal os esconde ("✻ Claude resuming /loop wakeup"). Renderizar como
+  // bolha atribuiria ao Samuel texto que ele nunca mandou (bug reportado).
+  if (r.isMeta && r.message.role === 'user') return null;
   if (r.message.role === 'user') {
     const text = typeof content === 'string'
       ? content
@@ -168,17 +229,21 @@ export function recToMessage(r: Rec): Message | null {
       if (c?.type === 'text' && c.text) blocks.push({ type: 'text', md: c.text });
       else if (c?.type === 'thinking' && c.thinking) blocks.push({ type: 'thinking', text: c.thinking });
       else if (c?.type === 'tool_use') {
+        const res = c.id ? results?.get(c.id) : undefined;
+        const durationMs = res?.ts !== undefined && ts !== undefined && res.ts >= ts ? res.ts - ts : undefined;
         const tool: ToolCall = {
           id: c.id ?? '',
           name: c.name ?? 'tool',
           label: c.name ?? 'tool',
           command: extractCommand(c.input),
-          status: 'done',
+          status: res?.isErr ? 'error' : 'done',
+          exit: res ? (res.isErr ? 1 : 0) : undefined,
+          durationMs,
           diff: diffOf(c.name, c.input),
           markdown: planOf(c.name, c.input),
           questions: questionsOf(c.name, c.input),
           todos: todosOf(c.name, c.input),
-          output: [],
+          output: res?.output ?? [],
         };
         blocks.push({ type: 'tool', tool });
       }
