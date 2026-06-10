@@ -49,8 +49,10 @@ export function Dashboard({ token, onSignOut }: { token: string; onSignOut: () =
 
         <p className="mb-4 mt-4 text-[13px] leading-relaxed text-neutral-400">
           O Deck que você vê é a tela; o cérebro roda na sua VPS. Cole o comando abaixo no terminal da sua
-          VPS (com o <span className="font-mono text-neutral-300">claude</span> CLI já logado) e aguarde — a tela troca sozinha quando conectar.
-          O script clona o repo, instala as dependências e pareia. Pra controle total na sua própria box (terminais e admin),
+          VPS e aguarde — a tela troca sozinha quando conectar. Funciona em VPS zerada: o script instala o que
+          faltar (Node, build tools, <span className="font-mono text-neutral-300">claude</span> CLI), clona o repo, pareia e deixa o agente como serviço.
+          Se o <span className="font-mono text-neutral-300">claude</span> nunca foi logado nessa máquina, rode <span className="font-mono text-neutral-300">claude</span> uma
+          vez depois pra fazer o login. Pra controle total na sua própria box (terminais e admin),
           rode com <span className="font-mono text-neutral-300">DECK_AGENT_ROLE=admin</span> antes do <span className="font-mono text-neutral-300">bash</span>.
         </p>
 

@@ -1,4 +1,7 @@
+import { CodeBlock } from '../../../components/primitives';
 import { Pill, SectionTitle, StepCard, Callout } from '../atoms';
+
+const SETUP_CMD = 'curl -fsSL https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh | bash -s -- CÓDIGO';
 
 export function Connect() {
   return (
@@ -11,11 +14,18 @@ export function Connect() {
           <span className="font-medium text-neutral-300"> “conectar sua VPS”</span> com um comando de uma linha e um código de pareamento.
         </StepCard>
         <StepCard step={2} title="Rode o agente na VPS">
-          No terminal da sua VPS — com o <Pill>claude</Pill> CLI já logado — cole o comando mostrado (<Pill>curl … agent-setup.sh | bash -s -- CÓDIGO</Pill>), que clona o repo, instala as dependências e pareia.
+          No terminal da sua VPS, cole o comando mostrado na tela (troque <Pill>CÓDIGO</Pill> pelo seu código de pareamento):
+          <CodeBlock code={SETUP_CMD} lang="bash" />
+          O script funciona numa <span className="font-medium text-neutral-300">VPS zerada</span>: instala o que faltar (git, Node 20+, ferramentas de build, o <Pill>claude</Pill> CLI),
+          clona o repo, compila as dependências, pareia e deixa o agente como serviço <span className="font-medium text-neutral-300">systemd</span> — sobrevive a reboot (sem systemd, cai pro nohup e sobrevive só ao fechamento do SSH).
           O agente gera um par de chaves <span className="font-medium text-neutral-300">Ed25519</span> que <span className="font-medium text-neutral-300">nasce e fica na sua máquina</span> (a privada nunca sai),
           disca o relay e se pareia à sua conta. A tela troca sozinha quando ele conecta.
         </StepCard>
-        <StepCard step={3} title="Use de qualquer lugar">
+        <StepCard step={3} title="Logue o Claude CLI (se for a primeira vez)">
+          O cérebro do Deck é o <Pill>claude</Pill> rodando na sua conta Anthropic. Se a VPS nunca teve o CLI logado,
+          rode <Pill>claude</Pill> uma vez no terminal e abra a URL que aparecer no seu navegador — só precisa fazer isso uma vez por máquina.
+        </StepCard>
+        <StepCard step={4} title="Use de qualquer lugar">
           Pronto. O app puxa o que vive na sua VPS — conta Claude, uso, contextos, skills, sessões.
           Do celular ou de outro PC, basta logar na mesma conta: o relay roteia <span className="font-medium text-neutral-300">por-conta</span>, então só você alcança o seu agente.
         </StepCard>

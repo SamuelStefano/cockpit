@@ -68,7 +68,7 @@ export function StepCard({ step, title, children }: { step: number; title: strin
         <span className="flex h-6 w-6 items-center justify-center rounded-md bg-orange-500/15 text-[11px] font-semibold text-orange-300">{step}</span>
         <h3 className="text-[14px] font-semibold text-neutral-100">{title}</h3>
       </div>
-      <p className="text-[13px] leading-relaxed text-neutral-400">{children}</p>
+      <div className="text-[13px] leading-relaxed text-neutral-400">{children}</div>
     </Card>
   );
 }
