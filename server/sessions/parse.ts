@@ -19,6 +19,7 @@ export interface Rec {
   message?: { role: string; content: unknown; usage?: Usage; model?: string };
   leafUuid?: string;
   timestamp?: string;
+  isCompactSummary?: boolean;
 }
 
 // Caminho ativo (user/assistant em ordem raiz→folha) a partir do leaf. O leaf vem
@@ -106,7 +107,9 @@ export async function parseSession(
   const truncated = chain.length > limit;
   const trimmed = chain.slice(-limit);
   const messages = trimmed.map(recToMessage).filter((m): m is Message => m !== null);
-  const blocks = messages.flatMap((m) => (m.role === 'assistant' ? m.blocks : [{ type: 'text' as const, md: m.text }]));
+  const blocks = messages.flatMap((m) =>
+    m.role === 'assistant' ? m.blocks : m.role === 'user' ? [{ type: 'text' as const, md: m.text }] : [],
+  );
   return { blocks, messages, tokens, truncated };
 }
 
@@ -145,6 +148,11 @@ export function recToMessage(r: Rec): Message | null {
   const content = r.message.content;
   const t = r.timestamp ? Date.parse(r.timestamp) : NaN;
   const ts = Number.isFinite(t) ? t : undefined;
+  // O CLI grava o sumário de auto-compactação como um user com isCompactSummary:
+  // vira divisor inline (DR-012), não a bolha gigante de "This session is being continued…".
+  if (r.isCompactSummary) {
+    return { id: r.uuid ?? `compact-${ts ?? 0}`, role: 'compact', trigger: 'auto', ts };
+  }
   if (r.message.role === 'user') {
     const text = typeof content === 'string'
       ? content
