@@ -70,15 +70,32 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       const usage = (ev as any).message?.usage;
       const tokens = ctxTokens(usage);
       if (tokens > 0) broadcast({ t: 'usage', sessionKey, tokens });
-      recordUsage({
-        sessionId: thread.sessionId ?? sessionKey,
-        ctxTokens: tokens,
-        outputTokens: num(usage?.output_tokens),
-        inputTokens: num(usage?.input_tokens),
-        cacheReadTokens: num(usage?.cache_read_input_tokens),
-        cacheCreationTokens: num(usage?.cache_creation_input_tokens),
-        model: (ev as any).message?.model,
-      });
+      // Quota real do turno: CADA chamada API re-lê o contexto inteiro (cache read)
+      // e tudo conta na cota. O result.usage reporta só a última chamada, então um
+      // turno com N tool-calls aparecia ~N× menor que o gasto verdadeiro (#381).
+      // Acumula aqui, com dedupe por message.id — a mesma chamada emite um evento
+      // assistant POR content block, todos com o mesmo id e o mesmo usage.
+      const msgId = (ev as any).message?.id;
+      if (usage && typeof msgId === 'string' && msgId !== thread.lastBilledMsgId) {
+        const billed = num(usage.input_tokens) + num(usage.output_tokens) + num(usage.cache_read_input_tokens) + num(usage.cache_creation_input_tokens);
+        if (billed > 0) {
+          thread.lastBilledMsgId = msgId;
+          thread.turnTokens = (thread.turnTokens ?? 0) + billed;
+          thread.inputTokens = (thread.inputTokens ?? 0) + num(usage.input_tokens);
+          thread.outputTokens = (thread.outputTokens ?? 0) + num(usage.output_tokens);
+          // Dentro do dedupe de propósito: gravar por EVENTO duplicava a linha no
+          // SQLite (~N blocos por chamada) e o SUM do observatório supercontava.
+          recordUsage({
+            sessionId: thread.sessionId ?? sessionKey,
+            ctxTokens: tokens,
+            outputTokens: num(usage.output_tokens),
+            inputTokens: num(usage.input_tokens),
+            cacheReadTokens: num(usage.cache_read_input_tokens),
+            cacheCreationTokens: num(usage.cache_creation_input_tokens),
+            model: (ev as any).message?.model,
+          });
+        }
+      }
       return;
     }
     case 'user': {
@@ -97,10 +114,10 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       if (Number.isFinite(r.total_cost_usd) && r.total_cost_usd >= 0) thread.costUsd = r.total_cost_usd;
       if (typeof r.duration_ms === 'number') thread.durationMs = r.duration_ms;
       if (typeof r.num_turns === 'number') thread.numTurns = r.num_turns;
-      // Total faturável do turno: input+output+cache do result.usage. É o que o
-      // prompt realmente consumiu (≠ ctxTokens, que é só o fill da janela).
+      // Fallback: se nenhum evento assistant trouxe usage (ex.: erro precoce),
+      // usa o result.usage — que cobre só a ÚLTIMA chamada API, não o turno todo.
       const u = r.usage;
-      if (u && typeof u === 'object') {
+      if (!thread.turnTokens && u && typeof u === 'object') {
         const inp = num(u.input_tokens);
         const out = num(u.output_tokens);
         const t = inp + out + num(u.cache_read_input_tokens) + num(u.cache_creation_input_tokens);

@@ -98,6 +98,40 @@ describe('translate', () => {
     expect(broadcast).not.toHaveBeenCalledWith(expect.objectContaining({ t: 'compact' }));
   });
 
+  it('accumulates billable tokens across distinct API calls of the turn', () => {
+    const t = register();
+    translate(KEY, t, { type: 'assistant', message: { id: 'msg_1', usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 1000, cache_creation_input_tokens: 100 } } } as never);
+    translate(KEY, t, { type: 'assistant', message: { id: 'msg_2', usage: { input_tokens: 20, output_tokens: 15, cache_read_input_tokens: 2000, cache_creation_input_tokens: 0 } } } as never);
+    expect(t.turnTokens).toBe(1115 + 2035);
+    expect(t.inputTokens).toBe(30);
+    expect(t.outputTokens).toBe(20);
+  });
+
+  it('dedupes assistant events sharing the same message.id (one per content block)', () => {
+    const t = register();
+    const ev = { type: 'assistant', message: { id: 'msg_dup', usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 1000 } } } as never;
+    translate(KEY, t, ev);
+    translate(KEY, t, ev);
+    translate(KEY, t, ev);
+    expect(t.turnTokens).toBe(1015);
+  });
+
+  it('keeps the accumulated turn total over the last-call-only result.usage', () => {
+    const t = register();
+    translate(KEY, t, { type: 'assistant', message: { id: 'msg_a', usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 5000 } } } as never);
+    translate(KEY, t, { type: 'assistant', message: { id: 'msg_b', usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 6000 } } } as never);
+    translate(KEY, t, { type: 'result', subtype: 'success', usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 6000 } } as never);
+    expect(t.turnTokens).toBe(5015 + 6015);
+  });
+
+  it('falls back to result.usage when no assistant event carried usage', () => {
+    const t = register();
+    translate(KEY, t, { type: 'result', subtype: 'success', usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 1000 } } as never);
+    expect(t.turnTokens).toBe(1015);
+    expect(t.inputTokens).toBe(10);
+    expect(t.outputTokens).toBe(5);
+  });
+
   it('appends streamed text and thinking deltas to the snapshot', () => {
     const t = register();
     translate(KEY, t, { type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'hel' } } } as never);
