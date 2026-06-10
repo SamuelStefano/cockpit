@@ -12,6 +12,7 @@ import { killAllRuns } from './ws/runs';
 import { startModelsLoop } from './ws/models';
 import { startPlanUsageLoop } from './ws/usage-plan';
 import { startStatsLoop } from './ws/stats-loop';
+import { startSessionsWatch } from './sessions/watch';
 import { loadManagedEnv } from './admin-ops';
 
 // Entrypoint do AGENTE T3 (DR-023): em vez de escutar (attachWs), DISCA pro relay
@@ -198,6 +199,7 @@ export function runAgent(relayUrl: string): void {
   startStatsLoop(hasClients);
   startPlanUsageLoop(hasClients);
   startModelsLoop(hasClients);
+  startSessionsWatch(hasClients);
   let attempt = 0;
   const loop = () => {
     connect(

@@ -300,6 +300,9 @@ export type ServerMsg =
   | { t: 'uploaded'; name: string; path: string }
   | { t: 'history'; sessionId: string; messages: Message[]; cursor?: string; tokens?: number; full?: boolean; truncated?: boolean }
   | { t: 'busy'; keys: string[] }
+  // O JSONL da sessão mudou no disco (ex.: claude rodado direto no terminal).
+  // Cliente com a sessão aberta re-puxa o histórico — sem F5.
+  | { t: 'session-touched'; sessionId: string }
   // Eco da mensagem do usuário pra TODOS os clientes (não só quem enviou): sem
   // isto, uma 2ª aba/dispositivo vendo a mesma sessão só recebe a resposta e a
   // bolha do usuário só aparece no F5 (lendo o JSONL). `id` casa o id otimista do
