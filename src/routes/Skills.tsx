@@ -1,76 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Icon, Badge } from '../components/primitives';
-import { DocViewer, DocAction, CopyDocAction } from '../components/DocViewer';
-import { download } from '../lib/export';
 import type { SkillMeta } from '../../shared/protocol';
 import type { SkillDoc } from '../useCockpit';
-
-function Card({ s, onClick }: { s: SkillMeta; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="group relative flex flex-col rounded-xl border border-neutral-800 bg-neutral-900/40 p-3.5 text-left transition hover:-translate-y-px hover:border-orange-500/40 hover:bg-orange-500/[0.05] hover:shadow-lg hover:shadow-black/30"
-    >
-      <div className="mb-1.5 flex items-center justify-between gap-2">
-        <span className="flex items-center gap-1.5">
-          <span className="flex h-5 w-5 items-center justify-center rounded-md bg-orange-500/15 text-orange-400">
-            <Icon name="sparkles" size={12} />
-          </span>
-          <Badge tone="neutral">skill</Badge>
-        </span>
-      </div>
-      <h3 className="mb-1 line-clamp-1 font-mono text-[13px] font-medium lowercase text-neutral-200 group-hover:text-orange-300">{s.name}</h3>
-      <p className="line-clamp-3 text-[12px] leading-snug text-neutral-500">{s.description || '—'}</p>
-    </button>
-  );
-}
-
-function SkillModal({ doc, onClose }: { doc: SkillDoc; onClose: () => void }) {
-  return (
-    <DocViewer
-      onClose={onClose}
-      title={<span className="truncate font-mono text-[13px] font-semibold lowercase text-neutral-200">{doc.name}</span>}
-      badges={<Badge tone="neutral">skill</Badge>}
-      actions={
-        <>
-          <CopyDocAction text={doc.body} />
-          <DocAction label=".md" icon="download" onClick={() => download(`${doc.id}.md`, 'text/markdown', doc.body)} />
-          <DocAction label=".json" icon="download" onClick={() => download(`${doc.id}.json`, 'application/json', JSON.stringify({ id: doc.id, name: doc.name, body: doc.body }, null, 2))} />
-        </>
-      }
-      body={doc.body}
-    />
-  );
-}
-
-function Offline() {
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center px-4 text-center">
-      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl border border-neutral-800 bg-neutral-900 text-neutral-600">
-        <Icon name="circle" size={20} />
-      </div>
-      <p className="text-[13px] font-medium text-neutral-300">Backend local indisponível</p>
-      <p className="mt-1 max-w-sm text-[12px] leading-snug text-neutral-600">
-        As skills vivem na sua máquina (<span className="font-mono">~/.claude/skills/</span>) e só aparecem com o backend do
-        Deck rodando em <span className="font-mono">127.0.0.1</span>.
-      </p>
-    </div>
-  );
-}
-
-function Empty({ query }: { query: string }) {
-  return (
-    <div className="mt-16 flex flex-col items-center px-4 text-center">
-      <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-neutral-800 bg-neutral-900 text-neutral-600">
-        <Icon name="sparkles" size={18} />
-      </div>
-      <p className="text-[12.5px] font-medium text-neutral-400">{query ? 'Nada encontrado' : 'Nenhuma skill ainda'}</p>
-      <p className="mt-1 text-[11.5px] leading-snug text-neutral-600">
-        {query ? <>Nada para «{query}»</> : 'As skills do agente aparecem aqui assim que forem criadas.'}
-      </p>
-    </div>
-  );
-}
+import { SkillCard } from './skills/SkillCard';
+import { SkillModal } from './skills/SkillModal';
+import { SkillsOffline } from './skills/SkillsOffline';
+import { SkillsEmpty } from './skills/SkillsEmpty';
 
 interface Props {
   connected: boolean;
@@ -108,12 +43,12 @@ export function Skills({ connected, skills, openSkill, onSkillList, onSkillOpen,
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-neutral-950">
       <div className="shrink-0 border-b border-neutral-800/80 px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <span className="font-mono text-[14px] font-semibold lowercase tracking-tight text-neutral-100">skills</span>
             <Badge tone="neutral">{skills.length}</Badge>
           </div>
-          <div className="flex w-full max-w-sm items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 focus-within:border-neutral-700 focus-within:ring-2 focus-within:ring-orange-500/15">
+          <div className="flex w-full items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 focus-within:border-neutral-700 focus-within:ring-2 focus-within:ring-orange-500/15 sm:max-w-sm">
             <Icon name="search" size={14} className="shrink-0 text-neutral-500" />
             <input
               ref={searchRef}
@@ -128,14 +63,14 @@ export function Skills({ connected, skills, openSkill, onSkillList, onSkillOpen,
       </div>
 
       {!connected ? (
-        <Offline />
+        <SkillsOffline />
       ) : (
         <div className="scroll-thin flex-1 overflow-y-auto p-4">
           {filtered.length === 0 ? (
-            <Empty query={query} />
+            <SkillsEmpty query={query} />
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {filtered.map((s) => <Card key={s.id} s={s} onClick={() => onSkillOpen(s.id)} />)}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {filtered.map((s) => <SkillCard key={s.id} s={s} onClick={() => onSkillOpen(s.id)} />)}
             </div>
           )}
         </div>
