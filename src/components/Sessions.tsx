@@ -33,13 +33,14 @@ export interface SessionsPanelProps {
   runStart?: Record<string, number>;
   searchResults?: Session[];
   onSearch?: (q: string) => void;
+  userId?: string;
 }
 
-export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, onRename, onDescribe, onClose, onDelete, onStop, archived = [], onUnhide, onCloseMobile, usage = {}, cost = {}, running, stalled, updated, runStart = {}, searchResults = [], onSearch }: SessionsPanelProps) {
+export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, onRename, onDescribe, onClose, onDelete, onStop, archived = [], onUnhide, onCloseMobile, usage = {}, cost = {}, running, stalled, updated, runStart = {}, searchResults = [], onSearch, userId }: SessionsPanelProps) {
   const {
     query, setQuery, confirmId, setConfirmId, deleteId, setDeleteId, pinned, togglePin,
     tagMap, tagFilter, setTagFilter, addTag, removeTag, allTags, searchRef, filtered,
-  } = useSessionsPanel({ sessions, searchResults, onSearch });
+  } = useSessionsPanel({ sessions, searchResults, onSearch, userId });
 
   const renderRow = (s: Session) => (
     <SessionRow key={s.id} s={s} active={s.id === activeId} highlight={query} ctx={usage[s.id]} cost={cost[s.id]}

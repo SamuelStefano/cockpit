@@ -12,6 +12,7 @@ import { loadPref } from './lib/persist';
 import { SUPABASE_ENABLED } from './lib/supabase';
 import { useSupabaseAuth } from './lib/useSupabaseAuth';
 import { useProfileHydration } from './lib/profile';
+import { useSessionPrefsHydration } from './lib/session-prefs';
 import { resolveAuthGate } from './app/AuthGateView';
 import { relReset } from './lib/time';
 import { usePanelResize } from './app/usePanelResize';
@@ -44,6 +45,7 @@ export function CockpitApp() {
   // desligado) este hook fica inerte e o gate de token de sempre vale.
   const sbAuth = useSupabaseAuth((token) => submitToken(token ?? ''));
   useProfileHydration(sbAuth.session?.user.id);
+  useSessionPrefsHydration(sbAuth.session?.user.id);
 
   const { rowRef, leftW, rightW, leftCollapsed, setLeftCollapsed, rightCollapsed, setRightCollapsed, startDrag } = usePanelResize();
   const { terminals, activeTermId, setActiveTermId, handleAddTerm, handleCloseTerm, attachable, attachExisting, runningTerm } = useTerminalTabs(term, discoveredTerms, listTerms);
@@ -104,7 +106,7 @@ export function CockpitApp() {
     nav('/');
   };
 
-  const sessionsProps = { sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, stalled, updated, runStart, searchResults, onSearch };
+  const sessionsProps = { sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, stalled, updated, runStart, searchResults, onSearch, userId: sbAuth.session?.user.id };
   // Pausa o envio perto do teto do plano (5h) pra não estourar e perder trabalho:
   // a fila persistida não dispara e o composer trava até a janela resetar.
   const quotaPaused = !!planUsage && planUsage.fiveHour >= 99.5;
