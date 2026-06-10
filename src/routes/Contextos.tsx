@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Icon, Badge } from '../components/primitives';
+import { Icon, Badge, SkeletonCards } from '../components/primitives';
 import { ContextModal, TYPE_TONE } from '../components/ContextModal';
 import type { ContextMeta } from '../../shared/protocol';
 import type { ContextDoc } from '../useCockpit';
@@ -14,13 +14,14 @@ const TYPES = ['user', 'project', 'feedback', 'reference', 'memory'] as const;
 interface Props {
   connected: boolean;
   contexts: ContextMeta[];
+  loaded: boolean;
   openContext: ContextDoc | null;
   onCtxList: () => void;
   onCtxOpen: (id: string) => void;
   onCtxClose: () => void;
 }
 
-export function Contextos({ connected, contexts, openContext, onCtxList, onCtxOpen, onCtxClose }: Props) {
+export function Contextos({ connected, contexts, loaded, openContext, onCtxList, onCtxOpen, onCtxClose }: Props) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -81,10 +82,12 @@ export function Contextos({ connected, contexts, openContext, onCtxList, onCtxOp
         <ContextOffline />
       ) : (
         <div className="scroll-thin flex-1 overflow-y-auto p-4">
-          {filtered.length === 0 ? (
+          {!loaded ? (
+            <SkeletonCards />
+          ) : filtered.length === 0 ? (
             <ContextEmpty query={query} />
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="stagger-fade grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filtered.map((c) => <ContextCard key={c.id} c={c} onClick={() => onCtxOpen(c.id)} />)}
             </div>
           )}

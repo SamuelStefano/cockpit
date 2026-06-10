@@ -61,6 +61,28 @@ body {
 @keyframes fadeUp { from { transform: translateY(7px); } to { transform: translateY(0); } }
 .fade-up { animation: fadeUp 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
 
+/* Entrada de rota/carga: fill default (none) de propósito — um transform persistido
+   viraria containing block e quebraria os modais fixed dentro das views. */
+@keyframes routeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.route-fade { animation: routeIn 0.3s cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* Cascata de cards: backwards segura o estado invisível só durante o delay;
+   depois da animação o elemento volta ao estilo natural (sem opacity travada). */
+.stagger-fade > * { animation: routeIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+.stagger-fade > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-fade > *:nth-child(2) { animation-delay: 35ms; }
+.stagger-fade > *:nth-child(3) { animation-delay: 70ms; }
+.stagger-fade > *:nth-child(4) { animation-delay: 105ms; }
+.stagger-fade > *:nth-child(5) { animation-delay: 140ms; }
+.stagger-fade > *:nth-child(6) { animation-delay: 175ms; }
+.stagger-fade > *:nth-child(7) { animation-delay: 210ms; }
+.stagger-fade > *:nth-child(8) { animation-delay: 245ms; }
+.stagger-fade > *:nth-child(n+9) { animation-delay: 280ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .route-fade, .stagger-fade > * { animation: none; }
+}
+
 @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes drawerIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }

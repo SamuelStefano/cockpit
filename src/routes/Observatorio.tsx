@@ -9,6 +9,7 @@ import { Empty } from './observatorio/Empty';
 import { Trend } from './observatorio/Trend';
 import { RateWindow } from './observatorio/RateWindow';
 import { UsageTable } from './observatorio/UsageTable';
+import { UsageSkeleton } from './observatorio/UsageSkeleton';
 
 interface Props {
   connected: boolean;
@@ -45,8 +46,9 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions, rat
         <Offline />
       ) : (
         <div className="scroll-thin flex-1 overflow-y-auto p-4">
+          {usageStats === null ? <UsageSkeleton /> : <>
           {rate && <RateWindow rate={rate} />}
-          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="stagger-fade mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <Stat label="custo estimado" value={usd(usageStats?.totalCost ?? 0)} icon="zap" />
             <Stat label="custo hoje" value={usd(costToday)} icon="clock" />
             <Stat label="média/sessão" value={usd(avgPerSession)} icon="message" />
@@ -62,6 +64,7 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions, rat
           ) : (
             <UsageTable rows={rows} known={known} titleOf={titleOf} onOpenSession={onOpenSession} />
           )}
+          </>}
         </div>
       )}
     </div>

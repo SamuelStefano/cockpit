@@ -67,11 +67,13 @@ export interface Cockpit {
   searchResults: Session[];
   onSearch: (q: string) => void;
   contexts: ContextMeta[];
+  ctxLoaded: boolean;
   openContext: ContextDoc | null;
   onCtxList: () => void;
   onCtxOpen: (id: string) => void;
   onCtxClose: () => void;
   skills: SkillMeta[];
+  skillsLoaded: boolean;
   openSkill: SkillDoc | null;
   onSkillList: () => void;
   onSkillOpen: (id: string) => void;
@@ -135,8 +137,12 @@ export function useCockpit(): Cockpit {
   const [searchResults, setSearchResults] = useState<Session[]>([]);
   const searchQ = useRef('');
   const [contexts, setContexts] = useState<ContextMeta[]>([]);
+  // Lista vazia ≠ "ainda não chegou": o flag separa skeleton (esperando o 1º
+  // snapshot) de estado vazio de verdade (zero contextos/skills no disco).
+  const [ctxLoaded, setCtxLoaded] = useState(false);
   const [openContext, setOpenContext] = useState<ContextDoc | null>(null);
   const [skills, setSkills] = useState<SkillMeta[]>([]);
+  const [skillsLoaded, setSkillsLoaded] = useState(false);
   const [openSkill, setOpenSkill] = useState<SkillDoc | null>(null);
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
   const [health, setHealth] = useState<AdminHealth | null>(null);
@@ -525,6 +531,7 @@ export function useCockpit(): Cockpit {
       }
       case 'contexts': {
         setContexts(msg.items);
+        setCtxLoaded(true);
         return;
       }
       case 'context': {
@@ -533,6 +540,7 @@ export function useCockpit(): Cockpit {
       }
       case 'skills': {
         setSkills(msg.items);
+        setSkillsLoaded(true);
         return;
       }
       case 'skill': {
@@ -1134,5 +1142,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, openContext, onCtxList, onCtxOpen, onCtxClose, skills, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, selectedSkills, setSelectedSkills: changeSelectedSkills, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
+  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, selectedSkills, setSelectedSkills: changeSelectedSkills, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
 }

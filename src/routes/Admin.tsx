@@ -5,6 +5,7 @@ import { AdminAccounts } from './AdminAccounts';
 import { AdminHostOps } from './AdminHostOps';
 import { AdminInventory } from './AdminInventory';
 import { AdminTabs, type AdminTab } from './AdminTabs';
+import { AdminHealthSkeleton } from './AdminHealthSkeleton';
 import { Stat } from './adminPrimitives';
 import { gb, clockTime, dur } from './adminFormat';
 import { SUPABASE_ENABLED } from '../lib/supabase';
@@ -100,9 +101,7 @@ export function Admin({ health, stats, onHealthList, accounts, onAccountsList, o
             )}
 
             {!health ? (
-              <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 px-4 py-8 text-center text-[12.5px] text-neutral-500">
-                Carregando health…
-              </div>
+              <AdminHealthSkeleton />
             ) : (
               <>
                 <AdminInventory health={health} />

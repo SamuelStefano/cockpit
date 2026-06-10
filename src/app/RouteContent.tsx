@@ -48,50 +48,60 @@ interface RouteContentProps {
 
 export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, sessionsProps, chatProps, termProps, onOpenSession, layout, mobile }: RouteContentProps) {
   const c = cockpit;
-  if (route === '/contextos') {
+  const view = (() => {
+    if (route === '/contextos') {
+      return (
+        <Contextos connected={connected} contexts={c.contexts} loaded={c.ctxLoaded} openContext={c.openContext}
+          onCtxList={c.onCtxList} onCtxOpen={c.onCtxOpen} onCtxClose={c.onCtxClose} />
+      );
+    }
+    if (route === '/skills') {
+      return (
+        <Skills connected={connected} skills={c.skills} loaded={c.skillsLoaded} openSkill={c.openSkill}
+          onSkillList={c.onSkillList} onSkillOpen={c.onSkillOpen} onSkillClose={c.onSkillClose} />
+      );
+    }
+    if (route === '/uso') {
+      return (
+        <Observatorio connected={connected} usageStats={c.usageStats} onUsageList={c.onUsageList} sessions={c.sessions} rate={c.rate}
+          onOpenSession={onOpenSession} />
+      );
+    }
+    if (route === '/admin' && isAdmin) {
+      return (
+        <Admin health={c.health} stats={c.stats} onHealthList={c.onHealthList}
+          accounts={c.accounts} onAccountsList={c.onAccountsList} onSetAdmin={c.onSetAdmin} isRoot={c.caps?.role === 'root'}
+          adminOp={c.adminOp} onEnvSet={c.onEnvSet} onEnvUnset={c.onEnvUnset} onMcpAdd={c.onMcpAdd} onMcpRemove={c.onMcpRemove} onCliInstall={c.onCliInstall} />
+      );
+    }
+    if (route === '/docs') return <Docs />;
+    if (route === '/ds') return <DesignSystem />;
+    if (isMobile) {
+      return (
+        <MobileLayout
+          sessionsProps={sessionsProps} chatProps={chatProps} termProps={termProps}
+          drawer={mobile.drawer} setDrawer={mobile.setDrawer}
+          termSheet={mobile.termSheet} setTermSheet={mobile.setTermSheet}
+          runningTerm={mobile.runningTerm}
+        />
+      );
+    }
     return (
-      <Contextos connected={connected} contexts={c.contexts} openContext={c.openContext}
-        onCtxList={c.onCtxList} onCtxOpen={c.onCtxOpen} onCtxClose={c.onCtxClose} />
-    );
-  }
-  if (route === '/skills') {
-    return (
-      <Skills connected={connected} skills={c.skills} openSkill={c.openSkill}
-        onSkillList={c.onSkillList} onSkillOpen={c.onSkillOpen} onSkillClose={c.onSkillClose} />
-    );
-  }
-  if (route === '/uso') {
-    return (
-      <Observatorio connected={connected} usageStats={c.usageStats} onUsageList={c.onUsageList} sessions={c.sessions} rate={c.rate}
-        onOpenSession={onOpenSession} />
-    );
-  }
-  if (route === '/admin' && isAdmin) {
-    return (
-      <Admin health={c.health} stats={c.stats} onHealthList={c.onHealthList}
-        accounts={c.accounts} onAccountsList={c.onAccountsList} onSetAdmin={c.onSetAdmin} isRoot={c.caps?.role === 'root'}
-        adminOp={c.adminOp} onEnvSet={c.onEnvSet} onEnvUnset={c.onEnvUnset} onMcpAdd={c.onMcpAdd} onMcpRemove={c.onMcpRemove} onCliInstall={c.onCliInstall} />
-    );
-  }
-  if (route === '/docs') return <Docs />;
-  if (route === '/ds') return <DesignSystem />;
-  if (isMobile) {
-    return (
-      <MobileLayout
+      <DesktopLayout
         sessionsProps={sessionsProps} chatProps={chatProps} termProps={termProps}
-        drawer={mobile.drawer} setDrawer={mobile.setDrawer}
-        termSheet={mobile.termSheet} setTermSheet={mobile.setTermSheet}
-        runningTerm={mobile.runningTerm}
+        rowRef={layout.rowRef} leftW={layout.leftW} rightW={layout.rightW}
+        leftCollapsed={layout.leftCollapsed} setLeftCollapsed={layout.setLeftCollapsed}
+        rightCollapsed={layout.rightCollapsed} setRightCollapsed={layout.setRightCollapsed}
+        startDrag={layout.startDrag}
       />
     );
-  }
+  })();
+
+  // key={route} remonta o wrapper a cada troca de rota → a animação de entrada
+  // roda de novo. As views já desmontavam na troca, então não há remontagem extra.
   return (
-    <DesktopLayout
-      sessionsProps={sessionsProps} chatProps={chatProps} termProps={termProps}
-      rowRef={layout.rowRef} leftW={layout.leftW} rightW={layout.rightW}
-      leftCollapsed={layout.leftCollapsed} setLeftCollapsed={layout.setLeftCollapsed}
-      rightCollapsed={layout.rightCollapsed} setRightCollapsed={layout.setRightCollapsed}
-      startDrag={layout.startDrag}
-    />
+    <div key={route} className="route-fade flex min-h-0 min-w-0 flex-1 flex-col">
+      {view}
+    </div>
   );
 }

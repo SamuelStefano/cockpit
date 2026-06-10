@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Icon, Badge } from '../components/primitives';
+import { Icon, Badge, SkeletonCards } from '../components/primitives';
 import type { SkillMeta } from '../../shared/protocol';
 import type { SkillDoc } from '../useCockpit';
 import { SkillCard } from './skills/SkillCard';
@@ -10,13 +10,14 @@ import { SkillsEmpty } from './skills/SkillsEmpty';
 interface Props {
   connected: boolean;
   skills: SkillMeta[];
+  loaded: boolean;
   openSkill: SkillDoc | null;
   onSkillList: () => void;
   onSkillOpen: (id: string) => void;
   onSkillClose: () => void;
 }
 
-export function Skills({ connected, skills, openSkill, onSkillList, onSkillOpen, onSkillClose }: Props) {
+export function Skills({ connected, skills, loaded, openSkill, onSkillList, onSkillOpen, onSkillClose }: Props) {
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -66,10 +67,12 @@ export function Skills({ connected, skills, openSkill, onSkillList, onSkillOpen,
         <SkillsOffline />
       ) : (
         <div className="scroll-thin flex-1 overflow-y-auto p-4">
-          {filtered.length === 0 ? (
+          {!loaded ? (
+            <SkeletonCards />
+          ) : filtered.length === 0 ? (
             <SkillsEmpty query={query} />
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="stagger-fade grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filtered.map((s) => <SkillCard key={s.id} s={s} onClick={() => onSkillOpen(s.id)} />)}
             </div>
           )}
