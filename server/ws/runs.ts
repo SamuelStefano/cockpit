@@ -16,9 +16,10 @@ export interface Thread {
   costUsd?: number;     // custo real do turno (result.total_cost_usd, ground-truth)
   durationMs?: number;
   numTurns?: number;
-  turnTokens?: number;  // total faturável do turno (input+output+cache do result.usage), p/ stat discreta na bolha
+  turnTokens?: number;  // total faturável do turno: soma de TODAS as chamadas API (input+output+cache), p/ stat discreta na bolha
   inputTokens?: number;
   outputTokens?: number;
+  lastBilledMsgId?: string; // dedupe do acúmulo: a mesma chamada API emite vários eventos assistant com o mesmo message.id
   endReason?: string;   // result.subtype: success | error_max_budget | error_max_turns | ...
   model?: string;       // modelo EFETIVO do turno (message.model do CLI); pode divergir do pedido sob --fallback-model
   stopped?: boolean;    // turno foi morto por stop do usuário — o 'done' do onClose não deve notificar "turno concluído"
