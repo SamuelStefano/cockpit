@@ -7,6 +7,7 @@ import { AssistantBlocks } from './AssistantBlocks';
 import { ThinkingDots, LiveStatsLine, type LiveTurn } from './Thinking';
 import { QuoteButton, CopyMessageButton } from './MessageActions';
 import { UserMessageRow } from './UserMessageRow';
+import { CompactDivider } from './CompactDivider';
 import { fmtTokens, fmtDuration, fmtClock } from './message-format';
 
 export type { DiffRow } from './diff';
@@ -28,6 +29,9 @@ interface MessageRowProps {
 export function MessageRow({ msg, caretOnLast, modelLabel, thinking, live, onEditUser, onQuote, answerable, onAnswer }: MessageRowProps) {
   if (msg.role === 'user') {
     return <UserMessageRow msg={msg} onEditUser={onEditUser} onQuote={onQuote} />;
+  }
+  if (msg.role === 'compact') {
+    return <CompactDivider msg={msg} />;
   }
   const hasText = msg.blocks.some((b) => b.type === 'text' || b.type === 'code');
   return (

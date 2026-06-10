@@ -488,6 +488,12 @@ export function useCockpit(): Cockpit {
         liveCharsRef.current[key] = 0;
         setUsage((u) => ({ ...u, [key]: 0 }));
         setLiveTurn((l) => ({ ...l, [key]: 0 }));
+        // Divisor visível na thread (estilo Claude Code) marcando ONDE compactou.
+        updateThread(key, (prev) => {
+          const last = prev[prev.length - 1];
+          if (last && last.role === 'compact') return prev;
+          return [...prev, { id: `compact-${Date.now()}`, role: 'compact', trigger: msg.trigger, preTokens: msg.preTokens, ts: Date.now() }];
+        });
         return;
       }
       case 'session-summary': {
