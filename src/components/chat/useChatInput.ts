@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { PermMode } from '../../../shared/protocol';
 import { classifySlash } from './slash';
 import { nextRecall } from './recall';
+import { suggestCompletion } from './suggest';
 import { useSpeechInput } from './useSpeechInput';
 import { fitHeight } from './fit-height';
 import { useFileDrop } from './useFileDrop';
@@ -46,6 +47,16 @@ export function useChatInput(args: UseChatInputArgs) {
   const dnd = useFileDrop(uploadFiles, true);
   const { sel, setSel, matches, showPalette, setDismissed } = useSlashPalette(disabled, value, slashCommands);
   const { histIdx, setHistIdx, recall } = useComposerRecall(history, setValue, taRef);
+  // Sugestão fantasma (cinza) a partir do histórico; só fora da palette de slash e
+  // do ditado. Aceita com Tab ou → (no fim do texto). Vazia = nada a sugerir.
+  const ghost = !showPalette && !mic.listening ? suggestCompletion(history, value) : '';
+  const acceptGhost = () => {
+    setValue(value + ghost);
+    requestAnimationFrame(() => {
+      const el = taRef.current;
+      if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); fitHeight(el); }
+    });
+  };
   const complete = (cmd: string) => {
     setValue('/' + cmd + ' ');
     requestAnimationFrame(() => {
@@ -127,6 +138,13 @@ export function useChatInput(args: UseChatInputArgs) {
       }
       if (e.key === 'Escape') { e.preventDefault(); setDismissed(true); return; }
     }
+    // Aceita a sugestão fantasma: Tab em qualquer ponto, → só com o cursor no fim
+    // (pra → ainda mover o cursor dentro do texto quando há seleção/posição no meio).
+    if (ghost) {
+      const el = taRef.current;
+      const atEnd = !el || (el.selectionStart === value.length && el.selectionEnd === value.length);
+      if (e.key === 'Tab' || (e.key === 'ArrowRight' && atEnd)) { e.preventDefault(); acceptGhost(); return; }
+    }
     // Esc com a composição vazia durante um turno = parar o run (atalho do botão stop).
     if (e.key === 'Escape' && disabled && !value) { e.preventDefault(); onStop(); return; }
     // Recall de histórico (↑/↓), só fora da palette de slash.
@@ -150,5 +168,5 @@ export function useChatInput(args: UseChatInputArgs) {
     if (histIdx !== null) setHistIdx(null); // digitar sai do modo recall
     fitHeight(e.target);
   };
-  return { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, ...dnd, mic };
+  return { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, ...dnd, mic, ghost };
 }
