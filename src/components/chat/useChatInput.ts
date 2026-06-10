@@ -3,6 +3,7 @@ import type { PermMode } from '../../../shared/protocol';
 import { classifySlash } from './slash';
 import { nextRecall } from './recall';
 import { suggestCompletion } from './suggest';
+import { loadPromptHistory, recordPrompt } from './prompt-history';
 import { useSpeechInput } from './useSpeechInput';
 import { fitHeight } from './fit-height';
 import { useFileDrop } from './useFileDrop';
@@ -47,9 +48,11 @@ export function useChatInput(args: UseChatInputArgs) {
   const dnd = useFileDrop(uploadFiles, true);
   const { sel, setSel, matches, showPalette, setDismissed } = useSlashPalette(disabled, value, slashCommands);
   const { histIdx, setHistIdx, recall } = useComposerRecall(history, setValue, taRef);
-  // Sugestão fantasma (cinza) a partir do histórico; só fora da palette de slash e
-  // do ditado. Aceita com Tab ou → (no fim do texto). Vazia = nada a sugerir.
-  const ghost = !showPalette && !mic.listening ? suggestCompletion(history, value) : '';
+  // Sugestão fantasma (cinza): histórico global persistido + sessão atual (sessão
+  // por último = prioridade, a varredura é do fim). Só com a sessão a sugestão
+  // quase nunca disparava — você teria que redigitar um prompt da MESMA conversa.
+  // Aceita com Tab, → (no fim do texto) ou toque no chip (mobile).
+  const ghost = !showPalette && !mic.listening ? suggestCompletion([...loadPromptHistory(), ...history], value) : '';
   const acceptGhost = () => {
     setValue(value + ghost);
     requestAnimationFrame(() => {
@@ -105,9 +108,11 @@ export function useChatInput(args: UseChatInputArgs) {
     // Os anexos pendentes (attachmentsRef) embarcam no próximo envio real.
     if (disabled || paused) {
       if (!v) return;
+      recordPrompt(v);
       onQueue(v); setValue('');
     } else {
       if (!v && !hasAtt) return;
+      recordPrompt(v);
       onSend(v); setValue('');
     }
     if (taRef.current) taRef.current.style.height = 'auto';
@@ -168,5 +173,5 @@ export function useChatInput(args: UseChatInputArgs) {
     if (histIdx !== null) setHistIdx(null); // digitar sai do modo recall
     fitHeight(e.target);
   };
-  return { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, ...dnd, mic, ghost };
+  return { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, ...dnd, mic, ghost, acceptGhost };
 }
