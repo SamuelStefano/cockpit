@@ -50,7 +50,7 @@ export function ChatInput(props: ChatInputProps) {
   const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, onRefreshModels, skills, selectedSkills, setSelectedSkills, attachments, onRemoveAttachment, queued, onCancelQueueAt, onMoveQueued, paused = false, quotaResetsAt } = props;
   const hasAtt = attachments.length > 0;
   const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
-  const { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic } = useChatInput({ ...props, hasAtt });
+  const { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic, ghost } = useChatInput({ ...props, hasAtt });
   return (
     <div className="shrink-0 border-t border-neutral-800 bg-neutral-900/60 px-3 py-3 backdrop-blur">
       <ChatInputToolbar
@@ -84,17 +84,24 @@ export function ChatInput(props: ChatInputProps) {
           <Icon name="paperclip" size={15} />
         </button>
         <MicButton mic={mic} />
-        <textarea
-          ref={taRef}
-          rows={1}
-          value={value}
-          onChange={grow}
-          onKeyDown={onKey}
-          onPaste={onPaste}
-          readOnly={mic.listening}
-          placeholder={paused ? 'Tokens esgotados — digite p/ enfileirar (envia ao resetar)…' : mic.listening ? 'Ouvindo… fale agora' : disabled ? 'Próxima mensagem (envia ao terminar)…' : 'Pergunte ou peça um comando…  (↵ envia, ⇧↵ quebra linha)'}
-          className="scroll-thin max-h-[140px] w-full resize-none bg-transparent py-1 text-[14px] leading-relaxed text-neutral-100 placeholder-neutral-600 outline-none"
-        />
+        <div className="relative min-w-0 flex-1">
+          {ghost && (
+            <div aria-hidden className="pointer-events-none absolute inset-0 max-h-[140px] overflow-hidden whitespace-pre-wrap break-words py-1 text-[14px] leading-relaxed text-neutral-600">
+              <span className="invisible">{value}</span>{ghost}<span className="ml-1 rounded border border-neutral-700 px-1 text-[9px] align-middle text-neutral-500">Tab</span>
+            </div>
+          )}
+          <textarea
+            ref={taRef}
+            rows={1}
+            value={value}
+            onChange={grow}
+            onKeyDown={onKey}
+            onPaste={onPaste}
+            readOnly={mic.listening}
+            placeholder={paused ? 'Tokens esgotados — digite p/ enfileirar (envia ao resetar)…' : mic.listening ? 'Ouvindo… fale agora' : disabled ? 'Próxima mensagem (envia ao terminar)…' : 'Pergunte ou peça um comando…  (↵ envia, ⇧↵ quebra linha)'}
+            className="scroll-thin relative max-h-[140px] w-full resize-none bg-transparent py-1 text-[14px] leading-relaxed text-neutral-100 placeholder-neutral-600 outline-none"
+          />
+        </div>
         {disabled ? (
           <button
             type="button"
