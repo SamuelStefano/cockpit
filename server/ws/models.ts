@@ -8,6 +8,12 @@ import { readOAuthToken, OAUTH_BETA } from '../oauth';
 // novos que a Anthropic disponibilize, sem o usuário reiniciar nada.
 const MODELS_URL = 'https://api.anthropic.com/v1/models?limit=100';
 const POLL_MS = 60 * 60_000;
+// Token OAuth do CLI é refrescado fora do nosso controle: no boot ele pode estar
+// num intervalo de refresh (file mid-write) e o fetch falha. Sem lista, a UI cai
+// no fallback opus/sonnet/haiku — então re-tenta rápido por alguns minutos em vez
+// de esperar o ciclo horário inteiro. Limitado pra não martelar a API se deslogado.
+const RETRY_MS = 30_000;
+const MAX_FAST_RETRIES = 12;
 
 let last: ModelInfo[] = [];
 export function getLastModels() { return last; }
@@ -80,12 +86,23 @@ export async function fetchModels(): Promise<ModelInfo[] | null> {
 }
 
 export function startModelsLoop(hasClients: () => boolean) {
+  let fastRetries = 0;
   const tick = async (force = false) => {
     if (!force && !hasClients()) return;
     const m = await fetchModels();
-    if (!m || m.length === 0) return;
-    last = m;
-    broadcast({ t: 'models', models: m });
+    if (m && m.length) {
+      last = m;
+      fastRetries = 0;
+      broadcast({ t: 'models', models: m });
+      return;
+    }
+    // Falhou e ainda nem temos uma lista: re-tenta rápido (token em refresh/rede)
+    // por ~6min antes de cair no poll horário, pra a versão real aparecer sem o
+    // usuário ter de clicar refresh nem reiniciar nada.
+    if (last.length === 0 && fastRetries < MAX_FAST_RETRIES) {
+      fastRetries++;
+      setTimeout(() => tick(true), RETRY_MS).unref();
+    }
   };
   tick(true);
   setInterval(() => tick(), POLL_MS).unref();
