@@ -11,6 +11,7 @@ import { startPlanUsageLoop } from './ws/usage-plan';
 import { startModelsLoop } from './ws/models';
 import { probeSlashCommands } from './ws/slash-probe';
 import { serveConnection } from './ws/serve-connection';
+import { startSessionsWatch } from './sessions/watch';
 
 export { runStats, killAllRuns } from './ws/runs';
 
@@ -62,6 +63,7 @@ export function attachWs(server: Server) {
   startStatsLoop(hasClients);
   startPlanUsageLoop(hasClients);
   startModelsLoop(hasClients);
+  startSessionsWatch(hasClients);
   probeSlashCommands();
   return wss;
 }

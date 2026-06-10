@@ -333,6 +333,12 @@ export function useCockpit(): Cockpit {
         });
         return;
       }
+      case 'session-touched': {
+        // Atividade de fora do app (claude no terminal): se a sessão está aberta
+        // e sem run DESTE app, re-puxa o histórico (mergeHistory deduplica).
+        if (activeRef.current === msg.sessionId && !inFlight.current.has(msg.sessionId)) send({ t: 'open', sessionId: msg.sessionId });
+        return;
+      }
       case 'user': {
         // Eco do servidor: o cliente que enviou já tem a bolha (add otimista) e
         // deduplica por id; uma 2ª aba/dispositivo não tem e anexa — é o que torna
