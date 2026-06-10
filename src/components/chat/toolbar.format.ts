@@ -3,38 +3,39 @@ import { CONTEXT_LIMIT, ctxPct } from '../../lib/format';
 
 export { CONTEXT_LIMIT };
 
-// Modelo efetivo do CLI ("claude-opus-4-..." -> "opus"); sob --fallback-model
-// pode divergir do escolhido no picker.
+// Modelo efetivo do CLI ("claude-opus-4-..." -> "opus", "claude-fable-5" ->
+// "fable"); sob --fallback-model pode divergir do escolhido no picker. Genérico
+// p/ qualquer família que a Anthropic lance, sem hardcode de opus/sonnet/haiku.
 export function shortModel(m?: string): string {
   if (!m) return '';
-  const lo = m.toLowerCase();
-  if (lo.includes('opus')) return 'opus';
-  if (lo.includes('sonnet')) return 'sonnet';
-  if (lo.includes('haiku')) return 'haiku';
-  return m;
+  const fam = m.toLowerCase().match(/^claude-([a-z]+)/);
+  return fam ? fam[1] : m;
 }
 
-// Família de um id de modelo, pra dedupe alias-vs-concreto no seletor.
-export function modelFamily(m?: string): 'opus' | 'sonnet' | 'haiku' | null {
+// Família de um id de modelo, pra dedupe alias-vs-concreto no seletor. Concreto
+// ("claude-fable-5") -> "fable"; alias puro ("opus") -> "opus"; não-Claude -> null.
+export function modelFamily(m?: string): string | null {
   if (!m) return null;
   const lo = m.toLowerCase();
-  if (lo.includes('opus')) return 'opus';
-  if (lo.includes('sonnet')) return 'sonnet';
-  if (lo.includes('haiku')) return 'haiku';
-  return null;
+  const concrete = lo.match(/^claude-([a-z]+)/);
+  if (concrete) return concrete[1];
+  return /^[a-z]+$/.test(lo) ? lo : null;
 }
 
-// Rótulo legível com versão: "claude-opus-4-8" -> "Opus 4.8". Alias puro sem
-// versão ("opus") -> "Opus". Prefere o display_name da API quando ele é amigável
-// (não é só o id cru repetido). Não-Claude cai no id/displayName original.
+// Rótulo legível com versão: "claude-opus-4-8" -> "Opus 4.8", "claude-fable-5" ->
+// "Fable 5". Alias puro ("opus") -> "Opus". Prefere o display_name da API quando
+// ele é amigável (não é só o id cru repetido). Não-Claude cai no id/displayName.
 export function prettyModel(id?: string, displayName?: string): string {
   if (displayName && displayName !== id) return displayName;
   if (!id) return '';
+  const lo = id.toLowerCase();
   const fam = modelFamily(id);
   if (!fam) return displayName || id;
   const cap = fam[0].toUpperCase() + fam.slice(1);
-  const v = id.toLowerCase().match(/(?:opus|sonnet|haiku)-(\d+)-(\d+)/);
-  return v ? `${cap} ${v[1]}.${v[2]}` : cap;
+  if (!lo.startsWith('claude-')) return cap;
+  const v = lo.match(new RegExp(`-${fam}-(\\d+)(?:-(\\d+))?`));
+  if (!v) return cap;
+  return v[2] ? `${cap} ${v[1]}.${v[2]}` : `${cap} ${v[1]}`;
 }
 
 // Espelha a validação do servidor (engine/claude.ts): alias puro ou id concreto

@@ -26,6 +26,10 @@ describe('shortModel', () => {
     expect(shortModel(undefined)).toBe('');
     expect(shortModel('gpt-9')).toBe('gpt-9');
   });
+
+  it('shortens a brand-new claude family (fable)', () => {
+    expect(shortModel('claude-fable-5')).toBe('fable');
+  });
 });
 
 describe('modelFamily', () => {
@@ -34,6 +38,9 @@ describe('modelFamily', () => {
     expect(modelFamily('opus')).toBe('opus');
     expect(modelFamily('claude-sonnet-4-6')).toBe('sonnet');
     expect(modelFamily('haiku')).toBe('haiku');
+  });
+  it('detects a brand-new claude family (fable)', () => {
+    expect(modelFamily('claude-fable-5')).toBe('fable');
   });
   it('returns null for unknown/empty', () => {
     expect(modelFamily(undefined)).toBeNull();
@@ -50,6 +57,10 @@ describe('prettyModel', () => {
   it('capitalizes bare aliases without inventing a version', () => {
     expect(prettyModel('opus')).toBe('Opus');
     expect(prettyModel('sonnet')).toBe('Sonnet');
+  });
+  it('labels a brand-new family with a single-part version (fable)', () => {
+    expect(prettyModel('claude-fable-5')).toBe('Fable 5');
+    expect(prettyModel('claude-fable-5', 'Claude Fable 5')).toBe('Claude Fable 5');
   });
   it('prefers a friendly API display_name over the id', () => {
     expect(prettyModel('claude-opus-4-8', 'Claude Opus 4.8')).toBe('Claude Opus 4.8');
