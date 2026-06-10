@@ -248,7 +248,7 @@ export function useCockpit(): Cockpit {
     if (oldKey in runStartRef.current) { runStartRef.current[newId] = runStartRef.current[oldKey]; delete runStartRef.current[oldKey]; }
     if (inFlight.current.has(oldKey)) { inFlight.current.delete(oldKey); inFlight.current.add(newId); }
     if (stopping.current.has(oldKey)) { stopping.current.delete(oldKey); stopping.current.add(newId); }
-    if (activeRef.current === oldKey) { activeRef.current = newId; setActiveIdState(newId); }
+    if (activeRef.current === oldKey) { activeRef.current = newId; setActiveIdState(newId); savePref('activeId', newId); }
     const move = <T,>(prev: Record<string, T>): Record<string, T> => moveKey(prev, oldKey, newId);
     setThreads(move);
     setPhases(move);
@@ -786,6 +786,8 @@ export function useCockpit(): Cockpit {
   const setActiveId = useCallback((id: string) => {
     activeRef.current = id;
     setActiveIdState(id);
+    // Sessão real (não rascunho local) vira a última ativa — sobrevive ao F5.
+    if (id && !id.startsWith('new-')) savePref('activeId', id);
     if (attachmentsRef.current.length) { attachmentsRef.current = []; setAttachments([]); }
     setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === id })));
     if (id && !id.startsWith('new-') && !opened.current.has(id)) {
