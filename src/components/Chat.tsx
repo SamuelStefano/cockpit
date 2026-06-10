@@ -102,15 +102,15 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
         )}
       </div>
 
-      {!c.isEmpty && (c.promptAbove || !c.atBottom) && (
+      {!c.isEmpty && !c.atBottom && (
         <div className="fade-up absolute bottom-[84px] left-1/2 z-20 flex -translate-x-1/2 items-center gap-2">
           {c.promptAbove && (
             <button
               onClick={c.scrollToLastPrompt}
               title="Voltar ao meu prompt"
-              className="flex h-8 items-center gap-1.5 rounded-full border border-neutral-700 bg-neutral-800 px-3 text-[12px] font-medium text-neutral-300 shadow-lg shadow-black/40 transition hover:border-orange-500/40 hover:bg-neutral-700 hover:text-orange-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
+              className="flex h-7 items-center gap-1 rounded-full border border-neutral-800/70 bg-neutral-900/60 px-2.5 text-[11px] font-medium text-neutral-500 opacity-60 backdrop-blur-sm transition hover:border-orange-500/30 hover:text-orange-200 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
             >
-              <Icon name="arrowUp" size={13} /> meu prompt
+              <Icon name="arrowUp" size={11} /> meu prompt
             </button>
           )}
           {!c.atBottom && (
