@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ctxTokens, num, diffOf, planOf, questionsOf, todosOf, extractCommand, recToMessage, activeChain, type Rec } from './parse';
+import { ctxTokens, num, diffOf, planOf, questionsOf, contentHasQuestion, todosOf, extractCommand, recToMessage, activeChain, type Rec } from './parse';
 
 describe('num', () => {
   it('passes through finite non-negative numbers', () => {
@@ -104,6 +104,19 @@ describe('questionsOf', () => {
   it('drops questions without text or options', () => {
     expect(questionsOf('AskUserQuestion', { questions: [{ question: '', options: [{ label: 'X' }] }] })).toBeUndefined();
     expect(questionsOf('AskUserQuestion', { questions: [{ question: 'q', options: [] }] })).toBeUndefined();
+  });
+});
+
+describe('contentHasQuestion', () => {
+  const q = { type: 'tool_use', name: 'AskUserQuestion', input: { questions: [{ question: 'q', options: [{ label: 'A' }] }] } };
+  it('detecta AskUserQuestion válida no conteúdo do assistant', () => {
+    expect(contentHasQuestion([{ type: 'text', text: 'oi' }, q])).toBe(true);
+  });
+  it('ignora conteúdo sem pergunta', () => {
+    expect(contentHasQuestion([{ type: 'text', text: 'oi' }])).toBe(false);
+    expect(contentHasQuestion([{ type: 'tool_use', name: 'Edit', input: {} }])).toBe(false);
+    expect(contentHasQuestion('texto')).toBe(false);
+    expect(contentHasQuestion(undefined)).toBe(false);
   });
 });
 

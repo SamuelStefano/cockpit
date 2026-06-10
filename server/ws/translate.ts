@@ -1,6 +1,6 @@
 import type { ClaudeEvent } from '../engine/events';
 import { recordUsage } from '../db';
-import { ctxTokens, num } from '../sessions/parse';
+import { ctxTokens, num, contentHasQuestion } from '../sessions/parse';
 import { broadcast } from './broadcast';
 import { applySlashCommands } from './slash';
 import { setLastRate } from './rate';
@@ -99,6 +99,15 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       // = gasto real do turno até aqui (incl. cache), pro ticker ao vivo bater com o
       // terminal em vez da estimativa por chars de saída (centenas).
       if (tokens > 0) broadcast({ t: 'usage', sessionKey, tokens, turnTokens: thread.turnTokens });
+      // AskUserQuestion: o `claude -p` (stdin ignorado) ficaria pendurado esperando o
+      // tool_result, a fase nunca voltava a idle e o card de escolha não destravava
+      // (answerable exige idle). Encerra o run agora — kill() é gracioso (não reporta
+      // "claude saiu"); a escolha do usuário vira o próximo prompt via --resume.
+      // stopped=true só pra não notificar "turno concluído" (o turno está aguardando você).
+      if (!thread.stopped && contentHasQuestion(content)) {
+        thread.stopped = true;
+        thread.handle.kill();
+      }
       return;
     }
     case 'user': {

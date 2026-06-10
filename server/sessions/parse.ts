@@ -245,6 +245,16 @@ export function planOf(name: unknown, input: unknown): string | undefined {
 // a resposta não pode voltar no mesmo turno — extraímos as perguntas pra render de
 // botões clicáveis e a escolha vira o PRÓXIMO prompt (resume continua). Sem isto, o
 // card aparecia vazio e o usuário ficava travado num turno que espera input que nunca chega.
+// O conteúdo do assistant traz uma AskUserQuestion pronta (com perguntas válidas)?
+// O turno precisa ENCERRAR aqui: o `claude -p` ficaria pendurado esperando um
+// tool_result que nunca chega (stdin ignorado), e o card de escolha só destrava
+// quando a fase volta a idle. Detecta pra o engine matar o run e a escolha virar
+// o próximo prompt via --resume.
+export function contentHasQuestion(content: unknown): boolean {
+  if (!Array.isArray(content)) return false;
+  return content.some((c: any) => c?.type === 'tool_use' && !!questionsOf(c?.name, c?.input)?.length);
+}
+
 export function questionsOf(name: unknown, input: unknown): ToolQuestion[] | undefined {
   if (name !== 'AskUserQuestion' || !input || typeof input !== 'object') return undefined;
   const raw = (input as Record<string, unknown>).questions;
