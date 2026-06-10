@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Icon } from '../components/primitives';
+import { Button, Icon } from '../components/primitives';
 import type { AdminHealth } from '../../shared/protocol';
 import { AdminConfirm } from './AdminConfirm';
 
@@ -18,8 +18,7 @@ interface AdminHostOpsProps {
   onCliInstall: (name: string) => void;
 }
 
-const inputCls = 'min-w-0 flex-1 rounded-md border border-neutral-800 bg-neutral-950 px-2.5 py-1 text-[12.5px] text-neutral-200 placeholder:text-neutral-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40';
-const btnCls = 'shrink-0 rounded-md border border-neutral-800 bg-neutral-900/60 px-2.5 py-1 text-[12px] text-neutral-300 transition-colors hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40 disabled:opacity-40';
+const inputCls = 'min-w-0 flex-1 rounded-md border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-[12.5px] text-neutral-200 placeholder:text-neutral-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40';
 
 export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall }: AdminHostOpsProps) {
   const [envName, setEnvName] = useState('');
@@ -65,10 +64,10 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
       )}
 
       <h3 className="mb-1.5 text-[11px] uppercase tracking-wider text-neutral-500">Tokens de ambiente</h3>
-      <div className="mb-2 flex gap-2">
+      <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
         <input className={inputCls} placeholder="NOME" value={envName} onChange={(e) => setEnvName(e.target.value)} />
         <input className={inputCls} type="password" placeholder="valor (não volta)" value={envValue} onChange={(e) => setEnvValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addEnv()} />
-        <button className={btnCls} onClick={addEnv} disabled={!envName.trim() || !envValue}>Salvar</button>
+        <Button variant="secondary" size="sm" onClick={addEnv} disabled={!envName.trim() || !envValue}>Salvar</Button>
       </div>
       {tokens.length > 0 && (
         <ul className="mb-3 flex flex-wrap gap-1.5">
@@ -82,10 +81,10 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
       )}
 
       <h3 className="mb-1.5 mt-2 text-[11px] uppercase tracking-wider text-neutral-500">Servidores MCP</h3>
-      <div className="mb-2 flex gap-2">
+      <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
         <input className={inputCls} placeholder="nome" value={mcpName} onChange={(e) => setMcpName(e.target.value)} />
         <input className={inputCls} placeholder="url http(s) ou comando stdio" value={mcpTarget} onChange={(e) => setMcpTarget(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addMcp()} />
-        <button className={btnCls} onClick={addMcp} disabled={!mcpName.trim() || !mcpTarget.trim()}>Adicionar</button>
+        <Button variant="secondary" size="sm" onClick={addMcp} disabled={!mcpName.trim() || !mcpTarget.trim()}>Adicionar</Button>
       </div>
       {mcps.length > 0 && (
         <ul className="mb-3 flex flex-wrap gap-1.5">
@@ -103,15 +102,16 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
           <h3 className="mb-1.5 mt-2 text-[11px] uppercase tracking-wider text-neutral-500">Instalar CLI <span className="text-neutral-600">(só loopback)</span></h3>
           <div className="flex flex-wrap gap-1.5">
             {installable.map((name) => (
-              <button
+              <Button
                 key={name}
+                variant="secondary"
+                size="sm"
+                icon={present.has(name) ? 'check' : 'rotate'}
                 onClick={() => onCliInstall(name)}
                 disabled={present.has(name)}
-                className={`${btnCls} flex items-center gap-1`}
               >
-                {present.has(name) ? <Icon name="check" size={11} /> : <Icon name="rotate" size={11} />}
                 {name}
-              </button>
+              </Button>
             ))}
           </div>
         </>

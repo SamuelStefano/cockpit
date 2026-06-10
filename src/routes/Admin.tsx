@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Icon } from '../components/primitives';
+import { Button, Icon } from '../components/primitives';
 import type { AdminHealth, SysStats, AccountSummary } from '../../shared/protocol';
 import { AdminAccounts } from './AdminAccounts';
 import { AdminHostOps } from './AdminHostOps';
@@ -58,13 +58,9 @@ export function Admin({ health, stats, onHealthList, accounts, onAccountsList, o
         <div className="mb-1 flex items-center gap-2">
           <Icon name="shield" size={17} className="text-orange-400" />
           <h1 className="text-[17px] font-semibold text-neutral-100">Admin</h1>
-          <button
-            onClick={onHealthList}
-            title="Atualizar agora"
-            className="ml-auto flex items-center gap-1.5 rounded-md border border-neutral-800 bg-neutral-900/60 px-2.5 py-1 text-[12px] text-neutral-300 transition-colors hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
-          >
-            <Icon name="rotate" size={12} /> Atualizar
-          </button>
+          <Button variant="secondary" size="sm" icon="rotate" title="Atualizar agora" className="ml-auto" onClick={onHealthList}>
+            Atualizar
+          </Button>
         </div>
         <p className="mb-5 text-[12.5px] text-neutral-500">
           Saúde e inventário da VPS, controle do host e contas. Ações sensíveis pedem confirmação e exigem role admin no relay.
