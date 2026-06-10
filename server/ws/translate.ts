@@ -69,7 +69,6 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       capture(thread, ev);
       const usage = (ev as any).message?.usage;
       const tokens = ctxTokens(usage);
-      if (tokens > 0) broadcast({ t: 'usage', sessionKey, tokens });
       // Quota real do turno: CADA chamada API re-lê o contexto inteiro (cache read)
       // e tudo conta na cota. O result.usage reporta só a última chamada, então um
       // turno com N tool-calls aparecia ~N× menor que o gasto verdadeiro (#381).
@@ -96,6 +95,10 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
           });
         }
       }
+      // Emite DEPOIS de acumular: `tokens` = janela de contexto (medidor); `turnTokens`
+      // = gasto real do turno até aqui (incl. cache), pro ticker ao vivo bater com o
+      // terminal em vez da estimativa por chars de saída (centenas).
+      if (tokens > 0) broadcast({ t: 'usage', sessionKey, tokens, turnTokens: thread.turnTokens });
       return;
     }
     case 'user': {

@@ -10,6 +10,7 @@ import { upsertTool, appendDelta, appendThinking } from './cockpit/blocks';
 import { selectEvictions } from './cockpit/evict';
 import { resolveKey, moveKey } from './cockpit/migrate';
 import { mergeHistory } from './cockpit/history';
+import { liveTokens } from './cockpit/live-tokens';
 import { useTerminals, type TermApi } from './cockpit/useTerminals';
 import { addThumb, shouldRequestThumb } from './lib/att-thumb-cache';
 
@@ -134,6 +135,7 @@ export function useCockpit(): Cockpit {
   const turnBaseRef = useRef<Record<string, number>>({}); // sessionKey -> contexto no início do turno; o gasto AO VIVO do turno = contexto atual - base
   const [liveTurn, setLiveTurn] = useState<Record<string, number>>({}); // sessionKey -> tokens gastos NESTE turno (ao vivo), pro indicador estilo terminal
   const liveCharsRef = useRef<Record<string, number>>({}); // sessionKey -> chars de saída (texto+thinking) que já fizeram streaming neste turno; o CLI só reporta usage no fim, então estimamos os tokens AO VIVO daqui (~4 chars/token)
+  const liveRealRef = useRef<Record<string, number>>({}); // sessionKey -> turnTokens REAL (incl. cache) reportado pelo server a cada chamada API; piso do ticker pra ele bater com o terminal (a estimativa por chars seria só centenas)
   const [truncated, setTruncated] = useState<Record<string, boolean>>({}); // sessionKey -> open dropou histórico antigo
   const [turnStats, setTurnStats] = useState<Record<string, TurnStats>>({}); // sessionKey -> custo/duração reais do último turno
   const [interrupted, setInterrupted] = useState<Record<string, string>>({}); // sessionKey -> endReason (budget/max_turns) p/ oferecer "continuar"
@@ -232,7 +234,7 @@ export function useCockpit(): Cockpit {
   const bumpLiveTokens = useCallback((key: string, text: string) => {
     if (!text) return;
     liveCharsRef.current[key] = (liveCharsRef.current[key] || 0) + text.length;
-    const est = Math.ceil(liveCharsRef.current[key] / 4);
+    const est = liveTokens(Math.ceil(liveCharsRef.current[key] / 4), liveRealRef.current[key] ?? 0);
     setLiveTurn((l) => (l[key] === est ? l : { ...l, [key]: est }));
   }, []);
 
@@ -411,6 +413,7 @@ export function useCockpit(): Cockpit {
         // turno (delta) no indicador estilo terminal. Zera o contador exibido.
         turnBaseRef.current[key] = usageRef.current[key] || 0;
         liveCharsRef.current[key] = 0;
+        liveRealRef.current[key] = 0;
         setLiveTurn((l) => ({ ...l, [key]: 0 }));
         return;
       }
@@ -498,10 +501,13 @@ export function useCockpit(): Cockpit {
         const key = resolveKey(migratedTo.current, msg.sessionKey);
         usageRef.current[key] = msg.tokens;
         setUsage((u) => ({ ...u, [key]: msg.tokens }));
-        // `usage` é a janela de contexto cumulativa, reportada pelo CLI só no fim
-        // do turno (junto do assistant). NÃO alimenta o ticker ao vivo — esse vem
-        // da estimativa por streaming (bumpLiveTokens); o número real do turno é
-        // carimbado na bolha no `done` (turnTokens → TurnStatsLine).
+        // `usage.tokens` é a janela de contexto. `turnTokens` é o gasto REAL do turno
+        // até aqui (incl. cache): vira o piso do ticker ao vivo pra ele bater com o
+        // terminal, em vez da estimativa por chars de saída (só centenas).
+        if (msg.turnTokens && msg.turnTokens > 0) {
+          liveRealRef.current[key] = msg.turnTokens;
+          setLiveTurn((l) => ((l[key] ?? 0) >= msg.turnTokens! ? l : { ...l, [key]: msg.turnTokens! }));
+        }
         return;
       }
       case 'compact': {
@@ -512,6 +518,7 @@ export function useCockpit(): Cockpit {
         usageRef.current[key] = 0;
         turnBaseRef.current[key] = 0;
         liveCharsRef.current[key] = 0;
+        liveRealRef.current[key] = 0; // senão o piso pré-compactação ressurge o ticker
         setUsage((u) => ({ ...u, [key]: 0 }));
         setLiveTurn((l) => ({ ...l, [key]: 0 }));
         // Divisor visível na thread (estilo Claude Code) marcando ONDE compactou.
@@ -640,6 +647,7 @@ export function useCockpit(): Cockpit {
         delete runMsg.current[key];
         delete turnBaseRef.current[key];
         delete liveCharsRef.current[key];
+        delete liveRealRef.current[key];
         setLiveTurn((l) => { if (!(key in l)) return l; const n = { ...l }; delete n[key]; return n; });
         setPhases((p) => ({ ...p, [key]: 'idle' }));
         if (msg.costUsd !== undefined || msg.durationMs !== undefined) {
@@ -704,6 +712,7 @@ export function useCockpit(): Cockpit {
           delete runMsg.current[key];
           delete turnBaseRef.current[key];
           delete liveCharsRef.current[key];
+          delete liveRealRef.current[key];
           setLiveTurn((l) => { if (!(key in l)) return l; const n = { ...l }; delete n[key]; return n; });
           setPhases((p) => ({ ...p, [key]: 'idle' }));
           updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ ${msg.message}` }], error: true }]);
