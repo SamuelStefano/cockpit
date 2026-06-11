@@ -17,3 +17,10 @@ export function suggestCompletion(history: string[], value: string): string {
   }
   return '';
 }
+
+// Versão EXIBIDA do ghost: sufixos longos quebram linha além da altura do
+// textarea e o overlay (overflow-hidden) clipa o chip de aceitar — invisível
+// no mobile. Limita o que aparece; o aceite (Tab/chip) completa o texto inteiro.
+export function clipGhost(ghost: string, max = 80): string {
+  return ghost.length > max ? ghost.slice(0, max).trimEnd() + '…' : ghost;
+}

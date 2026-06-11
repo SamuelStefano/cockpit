@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { suggestCompletion } from './suggest';
+import { suggestCompletion, clipGhost } from './suggest';
 
 describe('suggestCompletion', () => {
   const history = ['deploy para produção', 'rodar os testes', 'rodar o build'];
@@ -34,5 +34,34 @@ describe('suggestCompletion', () => {
 
   it('ignores history with no usable prefix', () => {
     expect(suggestCompletion([], 'rodar')).toBe('');
+  });
+});
+
+describe('clipGhost', () => {
+  it('returns short ghosts unchanged', () => {
+    expect(clipGhost(' para produção')).toBe(' para produção');
+  });
+
+  it('returns empty unchanged', () => {
+    expect(clipGhost('')).toBe('');
+  });
+
+  it('clips long ghosts at the limit with ellipsis', () => {
+    const long = 'a'.repeat(200);
+    expect(clipGhost(long)).toBe('a'.repeat(80) + '…');
+  });
+
+  it('trims trailing whitespace before the ellipsis', () => {
+    const ghost = 'x'.repeat(79) + ' y';
+    expect(clipGhost(ghost)).toBe('x'.repeat(79) + '…');
+  });
+
+  it('respects a custom max', () => {
+    expect(clipGhost('abcdef', 4)).toBe('abcd…');
+  });
+
+  it('does not clip at exactly the limit', () => {
+    const exact = 'a'.repeat(80);
+    expect(clipGhost(exact)).toBe(exact);
   });
 });

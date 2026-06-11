@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { PermMode } from '../../../shared/protocol';
 import { classifySlash } from './slash';
 import { nextRecall } from './recall';
-import { suggestCompletion } from './suggest';
+import { suggestCompletion, clipGhost } from './suggest';
 import { loadPromptHistory, recordPrompt } from './prompt-history';
 import { useSpeechInput } from './useSpeechInput';
 import { fitHeight } from './fit-height';
@@ -53,6 +53,7 @@ export function useChatInput(args: UseChatInputArgs) {
   // quase nunca disparava — você teria que redigitar um prompt da MESMA conversa.
   // Aceita com Tab, → (no fim do texto) ou toque no chip (mobile).
   const ghost = !showPalette && !mic.listening ? suggestCompletion([...loadPromptHistory(), ...history], value) : '';
+  const ghostShown = clipGhost(ghost);
   const acceptGhost = () => {
     setValue(value + ghost);
     requestAnimationFrame(() => {
@@ -173,5 +174,5 @@ export function useChatInput(args: UseChatInputArgs) {
     if (histIdx !== null) setHistIdx(null); // digitar sai do modo recall
     fitHeight(e.target);
   };
-  return { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, ...dnd, mic, ghost, acceptGhost };
+  return { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, ...dnd, mic, ghost, ghostShown, acceptGhost };
 }

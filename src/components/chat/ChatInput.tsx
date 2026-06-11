@@ -50,7 +50,7 @@ export function ChatInput(props: ChatInputProps) {
   const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, onRefreshModels, skills, selectedSkills, setSelectedSkills, attachments, onRemoveAttachment, queued, onCancelQueueAt, onMoveQueued, paused = false, quotaResetsAt } = props;
   const hasAtt = attachments.length > 0;
   const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
-  const { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic, ghost, acceptGhost } = useChatInput({ ...props, hasAtt });
+  const { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic, ghost, ghostShown, acceptGhost } = useChatInput({ ...props, hasAtt });
   return (
     <div className="shrink-0 border-t border-neutral-800 bg-neutral-900/60 px-3 py-3 backdrop-blur">
       <ChatInputToolbar
@@ -93,11 +93,11 @@ export function ChatInput(props: ChatInputProps) {
         <div className="relative min-w-0 flex-1">
           {ghost && (
             <div className="pointer-events-none absolute inset-0 max-h-[140px] overflow-hidden whitespace-pre-wrap break-words py-1 text-[14px] leading-relaxed text-neutral-600">
-              <span aria-hidden className="invisible">{value}</span><span aria-hidden>{ghost}</span>
+              <span aria-hidden className="invisible">{value}</span><span aria-hidden>{ghostShown}</span>
               {/* z-10 + pointer-events-auto: o chip fica clicável MESMO sob o textarea
                   (que pinta por cima do overlay) — no mobile não existe Tab. */}
               <button
-                type="button" tabIndex={-1} onClick={acceptGhost} aria-label={`Completar com: ${ghost}`}
+                type="button" tabIndex={-1} onClick={acceptGhost} aria-label={`Completar com: ${ghostShown}`}
                 onPointerDown={(e) => e.preventDefault()}
                 className="pointer-events-auto relative z-10 ml-1 rounded border border-neutral-700 px-1 text-[9px] align-middle text-neutral-500 transition before:absolute before:-inset-2 before:content-[''] hover:border-orange-500/40 hover:text-orange-200"
               >
