@@ -28,10 +28,11 @@ export function VpsConnectForm({ onDone }: { onDone?: () => void }) {
   return (
     <form onSubmit={save} className="space-y-3">
       <div>
-        <label className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-neutral-400">
+        <label htmlFor="vps-url" className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-neutral-400">
           <Icon name="terminal" size={12} /> Endereço do backend
         </label>
         <Input
+          id="vps-url"
           mono
           error={!!urlErr}
           value={url}
@@ -44,10 +45,11 @@ export function VpsConnectForm({ onDone }: { onDone?: () => void }) {
         {urlErr && <p className="mt-1.5 text-[11px] leading-relaxed text-red-300">{urlErr}</p>}
       </div>
       <div>
-        <label className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-neutral-400">
+        <label htmlFor="vps-token" className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-neutral-400">
           <Icon name="shield" size={12} /> Token <span className="text-neutral-600">(opcional)</span>
         </label>
         <Input
+          id="vps-token"
           type="password"
           value={token}
           onChange={(e) => setToken(e.target.value)}

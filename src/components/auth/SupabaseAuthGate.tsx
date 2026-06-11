@@ -59,14 +59,16 @@ export function SupabaseAuthGate({ auth }: { auth: AuthActions }) {
           ))}
         </div>
 
-        <label className="mb-1.5 block text-[11px] font-medium text-neutral-400">E-mail</label>
+        <label htmlFor="auth-email" className="mb-1.5 block text-[11px] font-medium text-neutral-400">E-mail</label>
         <Input
+          id="auth-email"
           type="email" value={email} onChange={(e) => setEmail(e.target.value)}
           autoComplete="email" inputMode="email" autoFocus placeholder="voce@exemplo.com"
           className="mb-3"
         />
-        <label className="mb-1.5 block text-[11px] font-medium text-neutral-400">Senha</label>
+        <label htmlFor="auth-password" className="mb-1.5 block text-[11px] font-medium text-neutral-400">Senha</label>
         <Input
+          id="auth-password"
           type="password" value={password} onChange={(e) => setPassword(e.target.value)}
           autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="••••••••"
         />

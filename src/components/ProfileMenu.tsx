@@ -31,8 +31,9 @@ export function ProfileMenu({ userId, onSignOut }: { userId?: string; onSignOut?
               <p className="text-[11px] text-neutral-500">{synced ? 'Sincronizado' : 'Perfil local'}</p>
             </div>
           </div>
-          <label className="mt-3 block text-[11px] font-medium text-neutral-500">Nome</label>
+          <label htmlFor="profile-name" className="mt-3 block text-[11px] font-medium text-neutral-500">Nome</label>
           <Input
+            id="profile-name"
             size="sm"
             className="mt-1"
             value={name}

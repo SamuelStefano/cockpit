@@ -58,6 +58,7 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
         <div className="flex w-full max-w-[82%] flex-col items-end gap-2">
           <textarea
             ref={ref}
+            aria-label="Editar mensagem"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {

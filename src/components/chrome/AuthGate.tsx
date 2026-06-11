@@ -22,10 +22,11 @@ export function AuthGate({ onSubmit }: { onSubmit: (token: string) => void }) {
             <div className="text-[11px] text-neutral-500">acesso restrito</div>
           </div>
         </div>
-        <label className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-neutral-400">
+        <label htmlFor="gate-token" className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-neutral-400">
           <Icon name="shield" size={12} /> Token de acesso
         </label>
         <Input
+          id="gate-token"
           type="password"
           value={token}
           onChange={(e) => setToken(e.target.value)}
