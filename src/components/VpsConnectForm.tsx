@@ -9,10 +9,17 @@ import { loadPref, savePref } from '../lib/persist';
 export function VpsConnectForm({ onDone }: { onDone?: () => void }) {
   const [url, setUrl] = useState(() => loadPref('ws.url', ''));
   const [token, setToken] = useState(() => loadPref('auth.token', ''));
+  const [urlErr, setUrlErr] = useState('');
 
   const save = (e: React.FormEvent) => {
     e.preventDefault();
-    savePref('ws.url', url.trim());
+    const u = url.trim();
+    // Endereço inválido + location.reload() = tela quebrada sem pista do motivo.
+    if (u && !/^wss?:\/\/.+/i.test(u)) {
+      setUrlErr('O endereço precisa começar com ws:// ou wss:// — se você tem uma URL http(s)://, troque o http por ws (ou https por wss).');
+      return;
+    }
+    savePref('ws.url', u);
     savePref('auth.token', token.trim());
     onDone?.();
     location.reload();
@@ -26,13 +33,14 @@ export function VpsConnectForm({ onDone }: { onDone?: () => void }) {
         </label>
         <input
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={(e) => { setUrl(e.target.value); setUrlErr(''); }}
           placeholder="wss://sua-vps.ts.net/ws"
           autoCapitalize="off"
           autoCorrect="off"
           spellCheck={false}
-          className="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 font-mono text-[12.5px] text-neutral-200 outline-none transition focus:border-orange-500/40"
+          className={`w-full rounded-lg border bg-neutral-950 px-3 py-2 font-mono text-[12.5px] text-neutral-200 outline-none transition ${urlErr ? 'border-red-500/50 focus:border-red-500/60' : 'border-neutral-800 focus:border-orange-500/40'}`}
         />
+        {urlErr && <p className="mt-1.5 text-[11px] leading-relaxed text-red-300">{urlErr}</p>}
       </div>
       <div>
         <label className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-neutral-400">

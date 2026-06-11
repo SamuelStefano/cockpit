@@ -62,7 +62,7 @@ export function SupabaseAuthGate({ auth }: { auth: AuthActions }) {
         <label className="mb-1.5 block text-[11px] font-medium text-neutral-400">E-mail</label>
         <input
           type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-          autoComplete="email" inputMode="email" autoFocus placeholder="voce@dfl.com"
+          autoComplete="email" inputMode="email" autoFocus placeholder="voce@exemplo.com"
           className="mb-3 w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-[13px] text-neutral-200 outline-none transition focus:border-orange-500/40"
         />
         <label className="mb-1.5 block text-[11px] font-medium text-neutral-400">Senha</label>

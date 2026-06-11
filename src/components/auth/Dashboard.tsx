@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Icon } from '../primitives';
 import { useCopied } from '../../lib/useCopied';
 import { relayHttpBase } from '../../cockpit/session';
@@ -13,24 +13,39 @@ export function Dashboard({ token, onSignOut }: { token: string; onSignOut: () =
   const [busy, setBusy] = useState(false);
   const [copied, copy] = useCopied();
 
+  const abortRef = useRef<AbortController | null>(null);
+
   const fetchCode = useCallback(async () => {
+    // Sem timeout/abort o relay travado deixava "gerando código…" girando pra sempre,
+    // e um unmount no meio do fetch (agente conectou) setava estado em componente morto.
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, 15_000);
     setBusy(true); setErr('');
     try {
       const res = await fetch(`${relayHttpBase()}/pair/new`, {
         method: 'POST',
         headers: { authorization: `Bearer ${token}` },
+        signal: ctrl.signal,
       });
       if (!res.ok) throw new Error('falha ao gerar código');
       const data = (await res.json()) as { code: string };
       setCode(data.code);
     } catch (e) {
-      setErr((e as Error).message ?? 'erro');
+      if (timedOut) setErr('o relay demorou pra responder — gere um novo código');
+      else if (!ctrl.signal.aborted) setErr((e as Error).message ?? 'erro');
     } finally {
-      setBusy(false);
+      clearTimeout(timer);
+      if (abortRef.current === ctrl) setBusy(false);
     }
   }, [token]);
 
-  useEffect(() => { void fetchCode(); }, [fetchCode]);
+  useEffect(() => {
+    void fetchCode();
+    return () => abortRef.current?.abort();
+  }, [fetchCode]);
 
   const cmd = code ? `curl -fsSL https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh | bash -s -- ${code}` : '';
 
