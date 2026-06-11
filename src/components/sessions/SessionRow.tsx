@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Badge } from '../primitives';
 import type { Session } from '../../data/mock';
 import { Highlight } from './Highlight';
@@ -37,9 +38,22 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
   const { editing, setEditing, draft, setDraft, descEditing, setDescEditing, descDraft, setDescDraft, tagging, setTagging, tagDraft, setTagDraft, inputRef, descRef, tagRef, commit, commitDesc, commitTag } = useSessionRow({ s, onAddTag, onRename, onDescribe });
   const { open: actionsOpen, setOpen: setActionsOpen, consumeTap, handlers } = useLongPress(() => {});
   const warn = ctxWarn(ctx);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const wasInlineEditing = useRef(false);
+
+  // Fechar a edição inline (Esc/Enter) desmonta o input e o foco cai pro body;
+  // devolve pro card. Só quando caiu pro body — clique em outro lugar (blur que
+  // também fecha) não deve ter o foco roubado.
+  useEffect(() => {
+    if (editing || descEditing || tagging) { wasInlineEditing.current = true; return; }
+    if (!wasInlineEditing.current) return;
+    wasInlineEditing.current = false;
+    if (document.activeElement === document.body) rowRef.current?.focus();
+  }, [editing, descEditing, tagging]);
 
   return (
     <div
+      ref={rowRef}
       role="button"
       tabIndex={0}
       aria-pressed={active}

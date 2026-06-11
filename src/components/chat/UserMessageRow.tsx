@@ -25,13 +25,23 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(msg.text);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const editBtnRef = useRef<HTMLButtonElement>(null);
+  const wasEditing = useRef(false);
 
   useEffect(() => {
-    if (!editing) return;
-    const el = ref.current;
-    if (!el) return;
-    el.focus();
-    el.setSelectionRange(el.value.length, el.value.length);
+    if (editing) {
+      wasEditing.current = true;
+      const el = ref.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+      return;
+    }
+    if (!wasEditing.current) return;
+    wasEditing.current = false;
+    // Esc/salvar desmontam o textarea e o foco cai pro body; devolve pro lápis.
+    // Só quando caiu pro body — clique em outro lugar não deve ter o foco roubado.
+    if (document.activeElement === document.body) editBtnRef.current?.focus();
   }, [editing]);
 
   const start = () => { setValue(msg.text); setEditing(true); };
@@ -70,12 +80,13 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
 
   return (
     <div data-mid={msg.id} className="fade-up group/u flex items-start justify-end gap-2.5">
-      <div className="mt-1 flex shrink-0 items-center gap-0.5 opacity-100 transition group-hover/u:opacity-100 sm:opacity-0 sm:group-hover/u:opacity-100">
+      <div className="mt-1 flex shrink-0 items-center gap-0.5 opacity-100 transition group-hover/u:opacity-100 sm:opacity-0 sm:focus-within:opacity-100 sm:group-hover/u:opacity-100">
         {msg.ts && <time className="mr-1 text-[10px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
         <CopyTextButton text={msg.text} />
         {onQuote && <QuoteButton onClick={() => onQuote(msg.text)} />}
         {onEditUser && (
           <button
+            ref={editBtnRef}
             onClick={start}
             title="Editar e reenviar"
             className={`flex h-6 w-6 items-center justify-center rounded-md text-neutral-600 transition hover:bg-neutral-800 hover:text-neutral-300 ${tokens.focusRing}`}
