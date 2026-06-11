@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { StatusBar } from './components/StatusBar';
 import { Header } from './components/chrome/Header';
 import { QuotaBanner } from './components/chrome/QuotaBanner';
@@ -69,12 +69,17 @@ export function CockpitApp() {
   useGlobalShortcuts({ sessions, activeSessionId, setActiveSessionId, updated, nav, setPalette, setHelp });
 
   // Citar uma mensagem: vira blockquote no topo do rascunho atual (trunca longos).
-  const quoteMsg = (text: string) => {
+  // Ref + useCallback: identidade estável pro memo do MessageRow (setDraft não
+  // aceita updater funcional — é keyed pela sessão ativa no hook).
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const quoteMsg = useCallback((text: string) => {
     const clipped = text.length > 280 ? text.slice(0, 280).trimEnd() + '…' : text;
     const quoted = clipped.split('\n').map((l) => '> ' + l).join('\n');
-    setDraft((draft ? draft.trimEnd() + '\n\n' : '') + quoted + '\n\n');
+    const cur = draftRef.current;
+    setDraft((cur ? cur.trimEnd() + '\n\n' : '') + quoted + '\n\n');
     setFocusSignal((n) => n + 1);
-  };
+  }, [setDraft]);
 
   // Custo estimado acumulado por sessão (do observatório) → chip no sidebar.
   const sessionCost = useMemo(() => {

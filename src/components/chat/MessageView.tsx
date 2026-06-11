@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Icon } from '../primitives';
 import { ClaudeAvatar } from '../ClaudeAvatar';
 import type { Message } from '../../data/mock';
@@ -29,7 +30,10 @@ interface MessageRowProps {
   onAttThumb?: (path: string) => void;
 }
 
-export function MessageRow({ msg, caretOnLast, modelLabel, thinking, live, onEditUser, onQuote, answerable, onAnswer, onOpenAttachment, attThumbs, onAttThumb }: MessageRowProps) {
+// memo: cada delta de streaming troca só a referência da ÚLTIMA mensagem
+// (patchRunMsg usa .map preservando as demais) — sem isto a thread inteira
+// re-renderiza a cada chunk.
+export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabel, thinking, live, onEditUser, onQuote, answerable, onAnswer, onOpenAttachment, attThumbs, onAttThumb }: MessageRowProps) {
   if (msg.role === 'user') {
     return <UserMessageRow msg={msg} onEditUser={onEditUser} onQuote={onQuote} onOpenAttachment={onOpenAttachment} attThumbs={attThumbs} onAttThumb={onAttThumb} />;
   }
@@ -64,7 +68,7 @@ export function MessageRow({ msg, caretOnLast, modelLabel, thinking, live, onEdi
       </div>
     </div>
   );
-}
+});
 
 // Stat discreta do turno sob a bolha: tokens · tempo · custo. Ground-truth do
 // result do CLI (#185) — ajuda a entender o que cada prompt gastou de verdade.
