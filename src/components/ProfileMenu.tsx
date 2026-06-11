@@ -1,4 +1,4 @@
-import { Button, Icon } from './primitives';
+import { Button, Icon, tokens } from './primitives';
 import { AvatarFace } from './avatar/AvatarFace';
 import { AiIconPicker } from './avatar/AiIconPicker';
 import { useProfileMenu } from './avatar/useProfileMenu';
@@ -58,7 +58,7 @@ export function ProfileMenu({ userId, onSignOut }: { userId?: string; onSignOut?
             role="switch"
             aria-checked={showTools}
             onClick={() => setShowTools((v) => !v)}
-            className="mt-3 flex w-full items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-left transition hover:border-neutral-700"
+            className={`mt-3 flex w-full items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-left transition hover:border-neutral-700 ${tokens.focusRing}`}
           >
             <Icon name="terminal" size={13} className="shrink-0 text-neutral-400" />
             <span className="min-w-0 flex-1">

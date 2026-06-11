@@ -18,8 +18,9 @@ export function ExportMenu({ title, messages }: { title: string; messages: Messa
     <div className="flex items-center gap-0.5">
       <button
         onClick={exportMd}
+        disabled={busy}
         title="Baixar conversa em Markdown"
-        className={`flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300 ${tokens.focusRing}`}
+        className={`flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300 disabled:opacity-50 ${tokens.focusRing}`}
       >
         <Icon name="download" size={13} /> .md
       </button>

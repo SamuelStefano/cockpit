@@ -65,8 +65,8 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
 
       <h3 className="mb-1.5 text-[11px] uppercase tracking-wider text-neutral-500">Tokens de ambiente</h3>
       <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-        <input className={inputCls} placeholder="NOME" value={envName} onChange={(e) => setEnvName(e.target.value)} />
-        <input className={inputCls} type="password" placeholder="valor (não volta)" value={envValue} onChange={(e) => setEnvValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addEnv()} />
+        <input className={inputCls} placeholder="NOME" aria-label="Nome do token de ambiente" value={envName} onChange={(e) => setEnvName(e.target.value)} />
+        <input className={inputCls} type="password" placeholder="valor (não volta)" aria-label="Valor do token de ambiente" value={envValue} onChange={(e) => setEnvValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addEnv()} />
         <Button variant="secondary" size="sm" onClick={addEnv} disabled={!envName.trim() || !envValue}>Salvar</Button>
       </div>
       {tokens.length > 0 && (
@@ -82,8 +82,8 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
 
       <h3 className="mb-1.5 mt-2 text-[11px] uppercase tracking-wider text-neutral-500">Servidores MCP</h3>
       <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-        <input className={inputCls} placeholder="nome" value={mcpName} onChange={(e) => setMcpName(e.target.value)} />
-        <input className={inputCls} placeholder="url http(s) ou comando stdio" value={mcpTarget} onChange={(e) => setMcpTarget(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addMcp()} />
+        <input className={inputCls} placeholder="nome" aria-label="Nome do servidor MCP" value={mcpName} onChange={(e) => setMcpName(e.target.value)} />
+        <input className={inputCls} placeholder="url http(s) ou comando stdio" aria-label="URL ou comando do servidor MCP" value={mcpTarget} onChange={(e) => setMcpTarget(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addMcp()} />
         <Button variant="secondary" size="sm" onClick={addMcp} disabled={!mcpName.trim() || !mcpTarget.trim()}>Adicionar</Button>
       </div>
       {mcps.length > 0 && (

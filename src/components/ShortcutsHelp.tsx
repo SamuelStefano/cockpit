@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Icon } from './primitives';
+import { Button, Icon } from './primitives';
 
 const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = [
   {
@@ -76,9 +76,7 @@ export function ShortcutsHelp({ open, onClose }: { open: boolean; onClose: () =>
           <span className="flex items-center gap-2 text-[13px] font-medium text-neutral-200">
             <Icon name="command" size={14} className="text-orange-400" /> Atalhos de teclado
           </span>
-          <button onClick={onClose} className="rounded-md p-1 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200">
-            <Icon name="x" size={16} />
-          </button>
+          <Button variant="ghost" square icon="x" onClick={onClose} title="Fechar (Esc)" />
         </div>
         <div className="scroll-thin max-h-[60vh] space-y-4 overflow-y-auto px-4 py-3.5">
           {GROUPS.map((g) => (

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Button, Icon, Markdown, splitFences, WikilinkContext, type WikilinkResolver } from './primitives';
+import { Button, Icon, Markdown, splitFences, tokens, WikilinkContext, type WikilinkResolver } from './primitives';
 import { headingSlug } from './primitives/markdown/slug';
 import { useCopied } from '../lib/useCopied';
 
@@ -102,7 +102,7 @@ export function DocViewer({
                   key={`${o.slug}-${oi}`}
                   onClick={() => jump(o.slug)}
                   style={{ paddingLeft: 8 + (o.level - 1) * 10 }}
-                  className={`block w-full truncate rounded-md py-1 pr-2 text-left text-[12px] leading-snug transition
+                  className={`block w-full truncate rounded-md py-1 pr-2 text-left text-[12px] leading-snug transition ${tokens.focusRing}
                     ${active === o.slug ? 'bg-orange-500/10 font-medium text-orange-300' : 'text-neutral-500 hover:bg-neutral-900 hover:text-neutral-300'}`}
                   title={plainHeading(o.text)}
                 >
@@ -135,7 +135,7 @@ export function DocAction({ label, icon, onClick }: { label: string; icon: 'copy
     <button
       onClick={onClick}
       title={label}
-      className="flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-900 px-2 py-1.5 text-[11px] font-medium text-neutral-400 transition hover:border-orange-500/40 hover:text-orange-300"
+      className={`flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-900 px-2 py-1.5 text-[11px] font-medium text-neutral-400 transition hover:border-orange-500/40 hover:text-orange-300 ${tokens.focusRing}`}
     >
       <Icon name={icon} size={12} /> {label}
     </button>

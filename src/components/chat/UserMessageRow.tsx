@@ -85,7 +85,7 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
         )}
       </div>
       <div className="flex max-w-[82%] flex-col items-end gap-1">
-        <span className="max-w-[200px] truncate px-1 text-[11px] font-medium text-neutral-500">{userName || 'Você'}</span>
+        <span className="max-w-[200px] truncate px-1 text-[11px] font-medium text-neutral-500" title={userName || 'Você'}>{userName || 'Você'}</span>
         {attachments.length > 0 && (
           <div className="flex flex-wrap justify-end gap-1.5">
             {attachments.map((a) => (

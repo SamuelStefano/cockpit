@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Icon } from '../components/primitives';
+import { Icon, tokens } from '../components/primitives';
 import { SECTIONS } from './docs.data';
 import { DocSections } from './docs/sections';
 
@@ -49,7 +49,7 @@ export function Docs() {
               <button
                 key={s.id}
                 onClick={() => jump(s.id)}
-                className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[12.5px] transition
+                className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[12.5px] transition ${tokens.focusRing}
                   ${active === s.id ? 'bg-orange-500/15 font-medium text-orange-300' : 'text-neutral-500 hover:bg-neutral-900 hover:text-neutral-300'}`}
               >
                 <Icon name={s.icon} size={14} className="shrink-0" />

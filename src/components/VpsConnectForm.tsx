@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Icon } from './primitives';
+import { Button, Icon } from './primitives';
 import { loadPref, savePref } from '../lib/persist';
 
 // Configuração do backend por dispositivo (#147). Um build único no Vercel não
@@ -54,12 +54,9 @@ export function VpsConnectForm({ onDone }: { onDone?: () => void }) {
           className="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-[13px] text-neutral-200 outline-none transition focus:border-orange-500/40"
         />
       </div>
-      <button
-        type="submit"
-        className="w-full rounded-lg bg-orange-500 px-3 py-2 text-[13px] font-medium text-neutral-950 transition hover:bg-orange-400"
-      >
+      <Button type="submit" className="w-full">
         Salvar e conectar
-      </button>
+      </Button>
       <p className="text-[11px] leading-relaxed text-neutral-600">
         Deixe o endereço em branco pra usar o servidor da mesma origem. O endereço e o token ficam salvos só neste navegador.
       </p>
