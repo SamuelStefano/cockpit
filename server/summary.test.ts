@@ -48,6 +48,15 @@ describe('transcriptText', () => {
   it('returns empty string for no usable content', () => {
     expect(transcriptText([])).toBe('');
   });
+
+  it('skips compact divider messages', () => {
+    const msgs: Message[] = [
+      { id: 'u1', role: 'user', text: 'oi' },
+      { id: 'c1', role: 'compact', trigger: 'auto' },
+      { id: 'a1', role: 'assistant', blocks: [{ type: 'text', md: 'olá' }] },
+    ];
+    expect(transcriptText(msgs)).toBe('Você: oi\nClaude: olá');
+  });
 });
 
 describe('summaryUserPrompt', () => {

@@ -43,7 +43,7 @@ export function transcriptText(messages: Message[], cap = TRANSCRIPT_CAP): strin
     if (m.role === 'user') {
       const t = m.text.trim();
       if (t) lines.push(`Você: ${t}`);
-    } else {
+    } else if (m.role === 'assistant') {
       const t = m.blocks
         .map((b) => (b.type === 'text' ? b.md : b.type === 'code' ? b.code : ''))
         .join(' ')
