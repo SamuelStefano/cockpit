@@ -15,12 +15,20 @@ export function SkillPicker({ skills, selected, setSelected }: {
   const [q, setQ] = useState('');
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  // Fecha ao clicar fora (desktop). No mobile o backdrop cobre isso.
+  // Fecha ao clicar fora (desktop; no mobile o backdrop cobre isso) e com Esc —
+  // todos os outros overlays fecham com Esc, este era o único que não.
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false); };
+    // defaultPrevented: se outro handler já consumiu o Esc (parar turno, paleta
+    // por cima), não fecha o picker junto no mesmo keypress.
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) setOpen(false); };
     document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      window.removeEventListener('keydown', onKey);
+    };
   }, [open]);
 
   const count = selected.length;
@@ -61,7 +69,7 @@ export function SkillPicker({ skills, selected, setSelected }: {
         <>
           {/* Backdrop só no mobile (bottom-sheet); no desktop o clique-fora resolve. */}
           <div className="fixed inset-0 z-30 bg-black/40 sm:hidden" onClick={() => setOpen(false)} />
-          <div className="fixed inset-x-0 bottom-0 z-40 max-h-[70vh] rounded-t-2xl border border-neutral-700 bg-neutral-900 shadow-xl shadow-black/50 sm:absolute sm:bottom-full sm:left-0 sm:inset-x-auto sm:mb-2 sm:max-h-80 sm:w-72 sm:rounded-lg">
+          <div role="dialog" aria-label="Escolher skills" className="fixed inset-x-0 bottom-0 z-40 max-h-[70vh] rounded-t-2xl border border-neutral-700 bg-neutral-900 shadow-xl shadow-black/50 sm:absolute sm:bottom-full sm:left-0 sm:inset-x-auto sm:mb-2 sm:max-h-80 sm:w-72 sm:rounded-lg">
             <div className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2">
               <Icon name="search" size={13} className="shrink-0 text-neutral-500" />
               <input

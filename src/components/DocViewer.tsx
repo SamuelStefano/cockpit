@@ -79,6 +79,9 @@ export function DocViewer({
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Visualizador de documento"
         onClick={(e) => e.stopPropagation()}
         className="fade-up relative flex max-h-[92vh] w-full flex-col rounded-t-2xl border border-neutral-800 bg-neutral-950 shadow-2xl sm:max-h-[88vh] sm:max-w-5xl sm:rounded-xl"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}

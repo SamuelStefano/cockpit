@@ -50,6 +50,9 @@ export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessi
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-[12vh] backdrop-blur-sm" onClick={onClose}>
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Paleta de comandos"
         className="w-full max-w-lg overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl shadow-black/50"
         onClick={(e) => e.stopPropagation()}
       >

@@ -69,6 +69,9 @@ export function ShortcutsHelp({ open, onClose }: { open: boolean; onClose: () =>
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Atalhos de teclado"
         onClick={(e) => e.stopPropagation()}
         className="fade-up w-full max-w-md overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl shadow-black/50"
       >

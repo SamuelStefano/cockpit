@@ -48,6 +48,9 @@ export function AttachmentModal({ att, onClose }: { att: AttachmentPreview; onCl
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={att.name}
         className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl shadow-black/50"
         onClick={(e) => e.stopPropagation()}
       >
