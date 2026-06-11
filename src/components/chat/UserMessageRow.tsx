@@ -62,6 +62,7 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return;
               if (e.key === 'Escape') { e.preventDefault(); cancel(); }
               else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); }
             }}

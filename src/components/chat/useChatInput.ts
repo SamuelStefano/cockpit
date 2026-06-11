@@ -126,7 +126,7 @@ export function useChatInput(args: UseChatInputArgs) {
     // IME em composição (dead key de acento, candidato CJK): o Enter/Tab confirma
     // o candidato, não envia a mensagem. Sem isto, digitar "ã" via ~+a no Linux
     // dispara um submit no meio da palavra.
-    if (e.nativeEvent.isComposing && (e.key === 'Enter' || e.key === 'Tab')) return;
+    if (e.nativeEvent.isComposing && (e.key === 'Enter' || e.key === 'Tab' || e.key === 'Escape')) return;
     if (showPalette) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => (s + 1) % matches.length); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => (s - 1 + matches.length) % matches.length); return; }

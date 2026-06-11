@@ -35,8 +35,9 @@ export function SessionRowTags({ id, tags, tagging, tagDraft, tagRef, setTagDraf
           onChange={(e) => setTagDraft(e.target.value)}
           onBlur={commitTag}
           onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return;
             if (e.key === 'Enter') commitTag();
-            if (e.key === 'Escape') { setTagDraft(''); setTagging(false); }
+            if (e.key === 'Escape') { e.preventDefault(); setTagDraft(''); setTagging(false); }
           }}
           onClick={(e) => e.stopPropagation()}
           placeholder="etiqueta…"

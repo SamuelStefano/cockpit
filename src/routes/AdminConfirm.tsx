@@ -17,6 +17,7 @@ export function AdminConfirm({
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.isComposing) return;
       if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); onCancel(); }
       else if (e.key === 'Enter') { e.preventDefault(); onConfirm(); }
     };

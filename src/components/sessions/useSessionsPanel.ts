@@ -58,7 +58,9 @@ export function useSessionsPanel({ sessions, searchResults, onSearch, userId }: 
       if ((e.metaKey || e.ctrlKey) && e.key === '/') {
         e.preventDefault();
         requestAnimationFrame(() => { searchRef.current?.focus(); searchRef.current?.select(); });
-      } else if (e.key === 'Escape' && document.activeElement === searchRef.current) {
+      } else if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing && document.activeElement === searchRef.current) {
+        // Consome o Esc: limpar a busca não deve fechar overlays no mesmo keypress.
+        e.preventDefault();
         setQuery('');
         searchRef.current?.blur();
       }

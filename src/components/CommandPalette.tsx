@@ -41,6 +41,8 @@ export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessi
   if (!open) return null;
 
   const onKey = (e: React.KeyboardEvent) => {
+    // IME compondo: Enter/Esc confirmam/cancelam o candidato, não a paleta.
+    if (e.nativeEvent.isComposing) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => Math.min(s + 1, filtered.length - 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)); }
     else if (e.key === 'Enter') { e.preventDefault(); filtered[sel]?.run(); }

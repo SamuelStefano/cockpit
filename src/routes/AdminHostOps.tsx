@@ -78,7 +78,7 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
       <h3 className="mb-1.5 text-[11px] uppercase tracking-wider text-neutral-500">Tokens de ambiente</h3>
       <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
         <Input size="sm" className="min-w-0 flex-1" placeholder="NOME" aria-label="Nome do token de ambiente" value={envName} onChange={(e) => setEnvName(e.target.value)} />
-        <Input size="sm" className="min-w-0 flex-1" type="password" placeholder="valor (não volta)" aria-label="Valor do token de ambiente" value={envValue} onChange={(e) => setEnvValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addEnv()} />
+        <Input size="sm" className="min-w-0 flex-1" type="password" placeholder="valor (não volta)" aria-label="Valor do token de ambiente" value={envValue} onChange={(e) => setEnvValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && addEnv()} />
         <Button variant="secondary" size="sm" onClick={addEnv} disabled={!envName.trim() || !envValue}>Salvar</Button>
       </div>
       {tokens.length > 0 && (
@@ -95,7 +95,7 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
       <h3 className="mb-1.5 mt-2 text-[11px] uppercase tracking-wider text-neutral-500">Servidores MCP</h3>
       <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
         <Input size="sm" className="min-w-0 flex-1" placeholder="nome" aria-label="Nome do servidor MCP" value={mcpName} onChange={(e) => setMcpName(e.target.value)} />
-        <Input size="sm" className="min-w-0 flex-1" placeholder="url http(s) ou comando stdio" aria-label="URL ou comando do servidor MCP" value={mcpTarget} onChange={(e) => setMcpTarget(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addMcp()} />
+        <Input size="sm" className="min-w-0 flex-1" placeholder="url http(s) ou comando stdio" aria-label="URL ou comando do servidor MCP" value={mcpTarget} onChange={(e) => setMcpTarget(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && addMcp()} />
         <Button variant="secondary" size="sm" onClick={addMcp} disabled={!mcpName.trim() || !mcpTarget.trim()}>Adicionar</Button>
       </div>
       {mcps.length > 0 && (

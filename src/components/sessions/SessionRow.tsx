@@ -77,8 +77,9 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commit}
             onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return;
               if (e.key === 'Enter') commit();
-              if (e.key === 'Escape') { setDraft(s.title); setEditing(false); }
+              if (e.key === 'Escape') { e.preventDefault(); setDraft(s.title); setEditing(false); }
             }}
             onClick={(e) => e.stopPropagation()}
             className="w-full rounded border border-orange-500/50 bg-neutral-950 px-1.5 py-0.5 text-[12.5px] font-medium text-neutral-100 outline-none ring-2 ring-orange-500/20"
@@ -120,8 +121,9 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
           onChange={(e) => setDescDraft(e.target.value)}
           onBlur={commitDesc}
           onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return;
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) commitDesc();
-            if (e.key === 'Escape') { setDescDraft(s.summary || ''); setDescEditing(false); }
+            if (e.key === 'Escape') { e.preventDefault(); setDescDraft(s.summary || ''); setDescEditing(false); }
           }}
           onClick={(e) => e.stopPropagation()}
           rows={2}
