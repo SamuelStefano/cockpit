@@ -1,13 +1,14 @@
 import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { join, resolve } from 'node:path';
-import type { Block, Message, ToolCall, ToolDiff, ToolQuestion, ToolTodo } from '../../shared/protocol';
+import type { Block, Message, ToolCall, ToolDiff, ToolQuestion, ToolTodo, TurnBubbleStats } from '../../shared/protocol';
 import { CONFIG } from '../config';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 interface Usage {
   input_tokens?: number;
+  output_tokens?: number;
   cache_creation_input_tokens?: number;
   cache_read_input_tokens?: number;
 }
@@ -16,7 +17,7 @@ export interface Rec {
   type: string;
   uuid?: string;
   parentUuid?: string | null;
-  message?: { role: string; content: unknown; usage?: Usage; model?: string };
+  message?: { role: string; content: unknown; usage?: Usage; model?: string; id?: string };
   leafUuid?: string;
   timestamp?: string;
   isCompactSummary?: boolean;
@@ -109,6 +110,76 @@ export function ctxTokens(u?: Usage): number {
   return num(u.input_tokens) + num(u.cache_creation_input_tokens) + num(u.cache_read_input_tokens);
 }
 
+// Um record user com TEXTO (prompt de verdade) abre um turno; users só de
+// tool_result são continuação do turno corrente, não fronteira. isMeta e
+// compact-summary têm texto e CONTAM como fronteira de propósito: cada um abre
+// chamada API própria — somar no turno anterior inflaria o gasto dele.
+function isTurnBoundary(r: Rec): boolean {
+  if (r.type !== 'user' || !r.message) return false;
+  const c = r.message.content;
+  if (typeof c === 'string') return !!c.trim();
+  if (Array.isArray(c)) return c.some((x: any) => x?.type === 'text' && typeof x?.text === 'string' && x.text.trim());
+  return false;
+}
+
+// Stats por turno reconstruídas do JSONL — espelho histórico do acumulador ao
+// vivo (ws/translate.ts). Sem isto a linha "Xk tokens · Ys" só existia durante
+// o run e SUMIA no re-fetch (open/open-full troca o thread inteiro) e nunca
+// aparecia pra turnos feitos no terminal. Chave do map = uuid do ÚLTIMO record
+// assistant do turno (onde a bolha mostra a linha). Dedupe por message.id: o
+// CLI grava um record por content block da MESMA chamada API, repetindo o usage
+// — somar todos multiplicaria o gasto. costUsd fica de fora (não existe no
+// JSONL; só no result do stream ao vivo).
+export function turnStats(recs: Rec[]): Map<string, TurnBubbleStats> {
+  const map = new Map<string, TurnBubbleStats>();
+  let tokens = 0, inputTokens = 0, outputTokens = 0;
+  let lastBilledMsgId: string | undefined;
+  let startTs: number | undefined;
+  let lastAssistant: Rec | undefined;
+  const flush = () => {
+    if (lastAssistant?.uuid && tokens > 0) {
+      const t = lastAssistant.timestamp ? Date.parse(lastAssistant.timestamp) : NaN;
+      const durationMs = startTs !== undefined && Number.isFinite(t) && t >= startTs ? t - startTs : undefined;
+      map.set(lastAssistant.uuid, { tokens, inputTokens, outputTokens, durationMs });
+    }
+    tokens = 0; inputTokens = 0; outputTokens = 0;
+    lastBilledMsgId = undefined; lastAssistant = undefined; startTs = undefined;
+  };
+  for (const r of recs) {
+    if (isTurnBoundary(r)) {
+      flush();
+      const t = r.timestamp ? Date.parse(r.timestamp) : NaN;
+      startTs = Number.isFinite(t) ? t : undefined;
+    } else if (r.type === 'assistant' && r.message) {
+      lastAssistant = r;
+      const u = r.message.usage;
+      const msgId = r.message.id;
+      // Sem message.id não dá pra deduplicar — ignora, espelhando o caminho ao
+      // vivo (translate.ts); somar cada record multiplicaria o usage repetido.
+      if (u && typeof msgId === 'string' && msgId !== lastBilledMsgId) {
+        lastBilledMsgId = msgId;
+        tokens += num(u.input_tokens) + num(u.output_tokens) + num(u.cache_read_input_tokens) + num(u.cache_creation_input_tokens);
+        inputTokens += num(u.input_tokens);
+        outputTokens += num(u.output_tokens);
+      }
+    }
+  }
+  flush();
+  return map;
+}
+
+// Anota cada bolha assistant que fecha um turno com as stats daquele turno.
+// O recToMessage pode ter dropado o último assistant (ex: só tool_use sem
+// resultado renderizável) — nesse caso a stat do turno fica sem dono e é
+// descartada, igual ao terminal quando o turno aborta.
+export function attachTurnStats(messages: Message[], stats: Map<string, TurnBubbleStats>): void {
+  for (const m of messages) {
+    if (m.role !== 'assistant') continue;
+    const s = stats.get(m.id);
+    if (s) m.stats = s;
+  }
+}
+
 // Resolve o caminho do JSONL com validação anti-traversal (squad High-1).
 export function sessionPath(sessionId: string): string | null {
   if (!UUID_RE.test(sessionId)) return null;
@@ -163,6 +234,7 @@ export async function parseSession(
   // tool_results) — contar pelo bruto inflava `truncated` e entregava menos
   // mensagens visíveis que o limit.
   const all = chain.map((r) => recToMessage(r, results)).filter((m): m is Message => m !== null);
+  attachTurnStats(all, turnStats(chain));
   const truncated = all.length > limit;
   const messages = all.slice(-limit);
   const blocks = messages.flatMap((m) =>
@@ -200,6 +272,7 @@ export async function parseFullSession(
   }
 
   const all = recs.map((r) => recToMessage(r, results)).filter((m): m is Message => m !== null);
+  attachTurnStats(all, turnStats(recs));
   return { messages: all.slice(-limit), tokens, truncated: all.length > limit };
 }
 

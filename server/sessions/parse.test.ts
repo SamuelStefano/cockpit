@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { ctxTokens, num, diffOf, planOf, questionsOf, contentHasQuestion, todosOf, extractCommand, labelOf, commandOf, recToMessage, activeChain, collectToolResults, capOutput, TOOL_OUTPUT_CAP, type Rec, type ToolResultRec } from './parse';
+import { ctxTokens, num, diffOf, planOf, questionsOf, contentHasQuestion, todosOf, extractCommand, labelOf, commandOf, recToMessage, activeChain, collectToolResults, capOutput, turnStats, attachTurnStats, TOOL_OUTPUT_CAP, type Rec, type ToolResultRec } from './parse';
+import type { Message } from '../../shared/protocol';
 
 describe('num', () => {
   it('passes through finite non-negative numbers', () => {
@@ -403,5 +404,85 @@ describe('activeChain', () => {
     const recs = [mk('a', 'b'), mk('b', 'a')];
     const chain = activeChain(index(recs), 'a', 'a');
     expect(chain.length).toBe(2);
+  });
+});
+
+describe('turnStats (S3: stats históricas por turno do JSONL)', () => {
+  const user = (uuid: string, text: string, ts?: string): Rec =>
+    ({ type: 'user', uuid, message: { role: 'user', content: text }, timestamp: ts });
+  const toolResultUser = (uuid: string): Rec =>
+    ({ type: 'user', uuid, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'x', content: 'ok' }] } });
+  const asst = (uuid: string, msgId: string | undefined, usage: Record<string, number> | undefined, ts?: string): Rec =>
+    ({ type: 'assistant', uuid, message: { role: 'assistant', content: [{ type: 'text', text: 'oi' }], usage, id: msgId }, timestamp: ts });
+
+  it('soma todas as chamadas API do turno e anexa no último assistant', () => {
+    const recs = [
+      user('u1', 'faz X', '2026-06-11T10:00:00.000Z'),
+      asst('a1', 'm1', { input_tokens: 10, output_tokens: 20, cache_read_input_tokens: 1000 }),
+      toolResultUser('tr1'),
+      asst('a2', 'm2', { input_tokens: 5, output_tokens: 30, cache_read_input_tokens: 2000 }, '2026-06-11T10:00:42.000Z'),
+    ];
+    const map = turnStats(recs);
+    expect(map.size).toBe(1);
+    expect(map.get('a2')).toEqual({ tokens: 3065, inputTokens: 15, outputTokens: 50, durationMs: 42000 });
+  });
+
+  it('deduplica records do mesmo message.id (um por content block, usage repetido)', () => {
+    const recs = [
+      user('u1', 'faz X'),
+      asst('a1', 'm1', { input_tokens: 10, output_tokens: 20 }),
+      asst('a2', 'm1', { input_tokens: 10, output_tokens: 20 }),
+    ];
+    expect(turnStats(recs).get('a2')).toMatchObject({ tokens: 30, inputTokens: 10, outputTokens: 20 });
+  });
+
+  it('separa turnos por user com texto; tool_result-only não é fronteira', () => {
+    const recs = [
+      user('u1', 'primeiro'),
+      asst('a1', 'm1', { input_tokens: 1, output_tokens: 2 }),
+      user('u2', 'segundo'),
+      asst('a2', 'm2', { input_tokens: 3, output_tokens: 4 }),
+      toolResultUser('tr1'),
+      asst('a3', 'm3', { input_tokens: 5, output_tokens: 6 }),
+    ];
+    const map = turnStats(recs);
+    expect(map.get('a1')).toMatchObject({ tokens: 3 });
+    expect(map.get('a3')).toMatchObject({ tokens: 18, inputTokens: 8, outputTokens: 10 });
+    expect(map.has('a2')).toBe(false);
+  });
+
+  it('sem usage nenhum no turno: não emite stat (tokens 0 = ruído)', () => {
+    const recs = [user('u1', 'oi'), asst('a1', 'm1', undefined)];
+    expect(turnStats(recs).size).toBe(0);
+  });
+
+  it('timestamps ausentes/invertidos: stat sai sem durationMs', () => {
+    const recs = [
+      user('u1', 'oi', '2026-06-11T10:00:10.000Z'),
+      asst('a1', 'm1', { input_tokens: 1, output_tokens: 1 }, '2026-06-11T10:00:05.000Z'),
+    ];
+    expect(turnStats(recs).get('a1')).toEqual({ tokens: 2, inputTokens: 1, outputTokens: 1, durationMs: undefined });
+  });
+
+  it('records sem message.id são ignorados (espelha o dedupe do caminho ao vivo)', () => {
+    const recs = [
+      user('u1', 'oi'),
+      asst('a1', undefined, { input_tokens: 1, output_tokens: 1 }),
+      asst('a2', undefined, { input_tokens: 1, output_tokens: 1 }),
+    ];
+    expect(turnStats(recs).size).toBe(0);
+  });
+});
+
+describe('attachTurnStats', () => {
+  it('anota só os assistants presentes no map e ignora os demais', () => {
+    const messages: Message[] = [
+      { id: 'u1', role: 'user', text: 'oi' },
+      { id: 'a1', role: 'assistant', blocks: [{ type: 'text', md: 'olá' }] },
+      { id: 'a2', role: 'assistant', blocks: [{ type: 'text', md: 'fim' }] },
+    ];
+    attachTurnStats(messages, new Map([['a2', { tokens: 100, inputTokens: 1, outputTokens: 2 }]]));
+    expect((messages[1] as any).stats).toBeUndefined();
+    expect((messages[2] as any).stats).toEqual({ tokens: 100, inputTokens: 1, outputTokens: 2 });
   });
 });
