@@ -15,6 +15,15 @@ export function AttachmentModal({ att, onClose }: { att: AttachmentPreview; onCl
         </div>
       );
     }
+    if (att.dataB64 && !url) {
+      // b64ToObjectUrl devolveu null (base64 corrompido): sem este branch o spinner girava pra sempre
+      return (
+        <div className="flex flex-col items-center gap-2 py-10 text-neutral-400">
+          <Icon name="x" size={22} className="text-red-400" />
+          <p className="text-[13px]">Não deu pra decodificar esse anexo.</p>
+        </div>
+      );
+    }
     if (!url) {
       return (
         <div className="flex flex-col items-center gap-2 py-10 text-neutral-500">

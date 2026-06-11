@@ -190,6 +190,7 @@ export function useCockpit(): Cockpit {
   const stopping = useRef<Set<string>>(new Set());        // sessionKeys parados pelo usuário: o kill leva até 5s (SIGTERM→SIGKILL) e frames tardios re-acenderiam o phase. Limpo no `done`/`error`.
   const resumeId = useRef<Record<string, string>>({});    // sessionKey -> claude sessionId p/ --resume
   const opened = useRef<Set<string>>(new Set());          // sessionKeys cujo histórico já foi pedido
+  const fullViewId = useRef<string | null>(null);         // sessão em "ver tudo": session-touched deve re-pedir open-full, não open
   const migratedTo = useRef<Record<string, string>>({});  // new-xxx -> claude sessionId já migrado (idempotência: 2º `done` não re-migra nem zera o thread)
   const activeRef = useRef('');
   const sessionsRef = useRef<Session[]>([]);
@@ -357,8 +358,12 @@ export function useCockpit(): Cockpit {
       }
       case 'session-touched': {
         // Atividade de fora do app (claude no terminal): se a sessão está aberta
-        // e sem run DESTE app, re-puxa o histórico (mergeHistory deduplica).
-        if (activeRef.current === msg.sessionId && !inFlight.current.has(msg.sessionId)) send({ t: 'open', sessionId: msg.sessionId });
+        // e sem run DESTE app, re-puxa o histórico (mergeHistory deduplica). Se o
+        // usuário está na visão completa, re-puxa o full — o 'open' simples
+        // revertia silenciosamente pro resumido com o botão preso em "mostrar resumido".
+        if (activeRef.current === msg.sessionId && !inFlight.current.has(msg.sessionId)) {
+          send({ t: fullViewId.current === msg.sessionId ? 'open-full' : 'open', sessionId: msg.sessionId });
+        }
         return;
       }
       case 'user': {
@@ -687,6 +692,7 @@ export function useCockpit(): Cockpit {
         notifyTurnDone(
           sessionsRef.current.find((s) => s.id === id || s.id === key)?.title ?? '',
           () => {
+            if (fullViewId.current !== id) fullViewId.current = null;
             activeRef.current = id;
             setActiveIdState(id);
             setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === id })));
@@ -720,6 +726,7 @@ export function useCockpit(): Cockpit {
             sessionsRef.current.find((s) => s.id === key)?.title ?? '',
             msg.message,
             () => {
+              if (fullViewId.current !== key) fullViewId.current = null;
               activeRef.current = key;
               setActiveIdState(key);
               setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === key })));
@@ -839,6 +846,9 @@ export function useCockpit(): Cockpit {
   }, []);
 
   const setActiveId = useCallback((id: string) => {
+    // Espelha o reset do fullLoaded no painel (useChatPanel zera na troca de sid):
+    // a visão completa é um modo transitório por visita, não preferência da sessão.
+    if (fullViewId.current !== id) fullViewId.current = null;
     activeRef.current = id;
     setActiveIdState(id);
     // Sessão real (não rascunho local) vira a última ativa — sobrevive ao F5.
@@ -895,8 +905,13 @@ export function useCockpit(): Cockpit {
       const b64 = res.includes(',') ? res.slice(res.indexOf(',') + 1) : res;
       send({ t: 'upload', sessionKey: key, name: file.name, dataB64: b64 });
     };
+    // Sem isto a falha de leitura (permissão, arquivo removido no meio) era muda:
+    // o anexo simplesmente não aparecia e o usuário mandava o prompt sem ele.
+    reader.onerror = reader.onabort = () => {
+      updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ Falha ao ler o arquivo "${file.name}" — tente anexar de novo.` }], error: true }]);
+    };
     reader.readAsDataURL(file);
-  }, [send]);
+  }, [send, updateThread]);
 
   const onRemoveAttachment = useCallback((path: string) => {
     const next = attachmentsRef.current.filter((a) => a.path !== path);
@@ -987,6 +1002,7 @@ export function useCockpit(): Cockpit {
     const s: Session = { id, title: 'Nova sessão', relative: 'agora', snippet: 'Sem mensagens ainda', mtime: Date.now(), hasTerminal: false, active: true };
     setSessions((prev) => [s, ...prev.map((x) => ({ ...x, active: false }))]);
     setThreads((prev) => ({ ...prev, [id]: [] }));
+    fullViewId.current = null;
     activeRef.current = id;
     setActiveIdState(id);
   }, []);
@@ -1014,6 +1030,7 @@ export function useCockpit(): Cockpit {
       const next = prev.filter((s) => s.id !== id);
       if (activeRef.current !== id) return next;
       const fb = next[0]?.id ?? '';
+      fullViewId.current = null;
       activeRef.current = fb;
       setActiveIdState(fb);
       if (fb && !fb.startsWith('new-') && !opened.current.has(fb)) {
@@ -1062,6 +1079,7 @@ export function useCockpit(): Cockpit {
   // mensagens antes de um /compact somem — este botão recupera tudo.
   const onOpenFull = useCallback((id: string) => {
     if (!id || id.startsWith('new-')) return;
+    fullViewId.current = id;
     send({ t: 'open-full', sessionId: id });
   }, [send]);
 
@@ -1070,6 +1088,7 @@ export function useCockpit(): Cockpit {
   // mão-única (carregava tudo e não dava pra recolher).
   const onOpenSummary = useCallback((id: string) => {
     if (!id || id.startsWith('new-')) return;
+    if (fullViewId.current === id) fullViewId.current = null;
     send({ t: 'open', sessionId: id });
   }, [send]);
 
