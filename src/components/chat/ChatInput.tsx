@@ -1,4 +1,4 @@
-import { Button, Icon } from '../primitives';
+import { Button, Icon, tokens } from '../primitives';
 import { ChatInputToolbar } from './ChatInputToolbar';
 import { AttachmentChips } from './AttachmentChips';
 import { QueuedBanner } from './QueuedBanner';
@@ -63,7 +63,16 @@ export function ChatInput(props: ChatInputProps) {
       {mic.error && (
         <div className="mb-2 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/[0.07] px-2.5 py-2 text-[12px] leading-snug text-red-200">
           <Icon name="mic" size={13} className="mt-0.5 shrink-0 text-red-400" />
-          <span>{mic.error}</span>
+          <span className="flex-1">{mic.error}</span>
+          <button
+            type="button"
+            onClick={mic.dismissError}
+            aria-label="Dispensar aviso"
+            title="Dispensar aviso"
+            className={`shrink-0 rounded p-0.5 text-red-300/70 transition hover:bg-red-500/15 hover:text-red-200 ${tokens.focusRing}`}
+          >
+            <Icon name="x" size={12} />
+          </button>
         </div>
       )}
       {queued.length > 0 && <QueuedBanner queued={queued} onCancelQueueAt={onCancelQueueAt} onMove={onMoveQueued} />}

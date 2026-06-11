@@ -158,5 +158,9 @@ export function useSpeechInput(value: string, setValue: (v: string) => void) {
   // Desmontou no meio da gravação? Encerra o reconhecimento pra não vazar o mic.
   useEffect(() => () => { wantRef.current = false; detach(); }, []);
 
-  return { supported, listening, error, start, stop, toggle: () => (listening ? stop() : start()) };
+  // Sem isto o aviso de erro só sumia ao iniciar OUTRO ditado — quem desistiu do
+  // mic ficava com o banner permanente no composer.
+  const dismissError = () => setError(null);
+
+  return { supported, listening, error, dismissError, start, stop, toggle: () => (listening ? stop() : start()) };
 }

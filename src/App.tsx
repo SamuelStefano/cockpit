@@ -103,6 +103,14 @@ export function CockpitApp() {
     if (route === '/admin' && caps && !isAdmin) nav('/');
   }, [route, caps, isAdmin, nav]);
 
+  // Drawer/terminal sheet são overlays do MobileLayout, que só monta na rota de
+  // chat — navegar desmonta o DOM mas o estado persistia, e o overlay reaparecia
+  // sozinho ao voltar pra '/'. Mudou de rota = fecha os dois.
+  useEffect(() => {
+    setDrawer(false);
+    setTermSheet(false);
+  }, [route]);
+
   const activeSession = sessions.find((s) => s.id === activeSessionId) || archived.find((s) => s.id === activeSessionId) || null;
 
   const handleNew = () => {
