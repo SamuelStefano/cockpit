@@ -1,6 +1,7 @@
 export { Icon, type IconName } from './Icon';
 export { Badge } from './Badge';
 export { Button } from './Button';
+export { Input } from './Input';
 export { EmptyState } from './EmptyState';
 export { tokens, type ToneColor } from './tokens';
 export { ConnDot, type ConnState } from './ConnDot';

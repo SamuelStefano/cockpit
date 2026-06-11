@@ -1,4 +1,4 @@
-import { Button, EmptyState, Badge } from '../components/primitives';
+import { Button, EmptyState, Badge, Input } from '../components/primitives';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -47,6 +47,14 @@ export function DesignSystem() {
           </Row>
           <Row label="loading"><Button loading>Salvando</Button><Button variant="secondary" loading>Carregando</Button></Row>
           <Row label="disabled"><Button disabled>Indisponível</Button><Button variant="danger" disabled>Excluir</Button></Row>
+        </Section>
+
+        <Section title="Input">
+          <Row label="md"><Input placeholder="voce@exemplo.com" /></Row>
+          <Row label="sm"><Input size="sm" placeholder="NOME_DO_TOKEN" /></Row>
+          <Row label="error"><Input error defaultValue="http://errado" /></Row>
+          <Row label="mono"><Input mono placeholder="wss://deck.exemplo.com" /></Row>
+          <Row label="password"><Input type="password" placeholder="••••••••" /></Row>
         </Section>
 
         <Section title="Badge">

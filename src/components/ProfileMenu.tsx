@@ -1,4 +1,4 @@
-import { Button, Icon, tokens } from './primitives';
+import { Button, Icon, Input, tokens } from './primitives';
 import { AvatarFace } from './avatar/AvatarFace';
 import { AiIconPicker } from './avatar/AiIconPicker';
 import { useProfileMenu } from './avatar/useProfileMenu';
@@ -32,12 +32,13 @@ export function ProfileMenu({ userId, onSignOut }: { userId?: string; onSignOut?
             </div>
           </div>
           <label className="mt-3 block text-[11px] font-medium text-neutral-500">Nome</label>
-          <input
+          <Input
+            size="sm"
+            className="mt-1"
             value={name}
             maxLength={40}
             onChange={(e) => setName(e.target.value)}
             placeholder="Seu nome"
-            className="mt-1 w-full rounded-lg border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-[12.5px] text-neutral-200 outline-none transition focus:border-orange-500/40"
           />
           <div className="mt-2.5 flex gap-2">
             <Button variant="outline" size="sm" icon="paperclip" className="grow" onClick={() => fileRef.current?.click()}>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Icon } from '../primitives';
+import { Icon, Input } from '../primitives';
 import { VpsConnectForm } from '../VpsConnectForm';
 
 // Tela de login (DR-011 Fase 2). Só aparece quando o servidor exige token
@@ -25,13 +25,12 @@ export function AuthGate({ onSubmit }: { onSubmit: (token: string) => void }) {
         <label className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-neutral-400">
           <Icon name="shield" size={12} /> Token de acesso
         </label>
-        <input
+        <Input
           type="password"
           value={token}
           onChange={(e) => setToken(e.target.value)}
           autoFocus
           placeholder="cole o token do servidor"
-          className="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-[13px] text-neutral-200 outline-none transition focus:border-orange-500/40"
         />
         <button
           type="submit"

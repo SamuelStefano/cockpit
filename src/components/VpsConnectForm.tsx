@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Icon } from './primitives';
+import { Button, Icon, Input } from './primitives';
 import { loadPref, savePref } from '../lib/persist';
 
 // Configuração do backend por dispositivo (#147). Um build único no Vercel não
@@ -31,14 +31,15 @@ export function VpsConnectForm({ onDone }: { onDone?: () => void }) {
         <label className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-neutral-400">
           <Icon name="terminal" size={12} /> Endereço do backend
         </label>
-        <input
+        <Input
+          mono
+          error={!!urlErr}
           value={url}
           onChange={(e) => { setUrl(e.target.value); setUrlErr(''); }}
           placeholder="wss://sua-vps.ts.net/ws"
           autoCapitalize="off"
           autoCorrect="off"
           spellCheck={false}
-          className={`w-full rounded-lg border bg-neutral-950 px-3 py-2 font-mono text-[12.5px] text-neutral-200 outline-none transition ${urlErr ? 'border-red-500/50 focus:border-red-500/60' : 'border-neutral-800 focus:border-orange-500/40'}`}
         />
         {urlErr && <p className="mt-1.5 text-[11px] leading-relaxed text-red-300">{urlErr}</p>}
       </div>
@@ -46,12 +47,11 @@ export function VpsConnectForm({ onDone }: { onDone?: () => void }) {
         <label className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-neutral-400">
           <Icon name="shield" size={12} /> Token <span className="text-neutral-600">(opcional)</span>
         </label>
-        <input
+        <Input
           type="password"
           value={token}
           onChange={(e) => setToken(e.target.value)}
           placeholder="COCKPIT_TOKEN do servidor"
-          className="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-[13px] text-neutral-200 outline-none transition focus:border-orange-500/40"
         />
       </div>
       <Button type="submit" className="w-full">

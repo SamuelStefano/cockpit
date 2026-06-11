@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Icon } from '../primitives';
+import { Icon, Input } from '../primitives';
 import { AuthIntro } from './AuthIntro';
 
 interface AuthActions {
@@ -60,16 +60,15 @@ export function SupabaseAuthGate({ auth }: { auth: AuthActions }) {
         </div>
 
         <label className="mb-1.5 block text-[11px] font-medium text-neutral-400">E-mail</label>
-        <input
+        <Input
           type="email" value={email} onChange={(e) => setEmail(e.target.value)}
           autoComplete="email" inputMode="email" autoFocus placeholder="voce@exemplo.com"
-          className="mb-3 w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-[13px] text-neutral-200 outline-none transition focus:border-orange-500/40"
+          className="mb-3"
         />
         <label className="mb-1.5 block text-[11px] font-medium text-neutral-400">Senha</label>
-        <input
+        <Input
           type="password" value={password} onChange={(e) => setPassword(e.target.value)}
           autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="••••••••"
-          className="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-[13px] text-neutral-200 outline-none transition focus:border-orange-500/40"
         />
 
         {auth.error && <p className="mt-3 rounded-md border border-red-500/30 bg-red-500/[0.12] px-3 py-2 text-[11.5px] text-red-200">{auth.error}</p>}
