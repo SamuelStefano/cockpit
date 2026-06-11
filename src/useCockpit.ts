@@ -1000,6 +1000,14 @@ export function useCockpit(): Cockpit {
     const key = activeRef.current;
     const clean = text.trim();
     if (!key || !clean) return;
+    // Mesmo guard do onSend: com WS fechado o send() descarta em silêncio — aqui
+    // seria pior, o thread já teria sido TRUNCADO no slice abaixo. Nada muda;
+    // o texto editado vai pro composer pra não se perder.
+    if (wsRef.current?.readyState !== WebSocket.OPEN) {
+      updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: '⚠️ Sem conexão com o servidor — a edição não foi aplicada. O texto editado foi pro composer.' }], error: true }]);
+      setDrafts((d) => ({ ...d, [key]: d[key] || clean }));
+      return;
+    }
     if (inFlight.current.has(key)) onStop(key);
     inFlight.current.add(key);
     stopping.current.delete(key);
