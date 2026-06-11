@@ -3,6 +3,10 @@ import { Icon } from '../primitives';
 import { useCopied } from '../../lib/useCopied';
 import { relayHttpBase } from '../../cockpit/session';
 
+// Erros com mensagem própria pro usuário; o resto (TypeError de rede, SyntaxError
+// de JSON) vira uma mensagem genérica em vez de vazar "Unexpected token" cru.
+class PairError extends Error {}
+
 // Dashboard de pareamento (DR-023): mostrado quando o usuário está logado mas a VPS
 // dele ainda não está atendendo (sem agente pareado/online). Pede um código de
 // pareamento ao relay e mostra o comando de 1 linha pra rodar na VPS. Quando o
@@ -30,12 +34,13 @@ export function Dashboard({ token, onSignOut }: { token: string; onSignOut: () =
         headers: { authorization: `Bearer ${token}` },
         signal: ctrl.signal,
       });
-      if (!res.ok) throw new Error('falha ao gerar código');
-      const data = (await res.json()) as { code: string };
+      if (!res.ok) throw new PairError('falha ao gerar código');
+      const data = (await res.json().catch(() => null)) as { code?: string } | null;
+      if (!data?.code) throw new PairError('resposta inválida do relay — tente de novo');
       setCode(data.code);
     } catch (e) {
       if (timedOut) setErr('o relay demorou pra responder — gere um novo código');
-      else if (!ctrl.signal.aborted) setErr((e as Error).message ?? 'erro');
+      else if (!ctrl.signal.aborted) setErr(e instanceof PairError ? e.message : 'não deu pra falar com o relay — verifique sua conexão');
     } finally {
       clearTimeout(timer);
       if (abortRef.current === ctrl) setBusy(false);

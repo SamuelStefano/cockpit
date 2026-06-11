@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Icon, Badge, SkeletonCards } from '../components/primitives';
+import { Icon, Badge, Button, EmptyState, SkeletonCards } from '../components/primitives';
+import { useLoadStalled } from '../lib/useLoadStalled';
 import type { SkillMeta } from '../../shared/protocol';
 import type { SkillDoc } from '../useCockpit';
 import { SkillCard } from './skills/SkillCard';
@@ -22,6 +23,7 @@ export function Skills({ connected, skills, loaded, openSkill, onSkillList, onSk
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { if (connected) onSkillList(); }, [connected, onSkillList]);
+  const { stalled, retry } = useLoadStalled(loaded, connected);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -68,7 +70,13 @@ export function Skills({ connected, skills, loaded, openSkill, onSkillList, onSk
       ) : (
         <div className="scroll-thin flex-1 overflow-y-auto p-4">
           {!loaded ? (
-            <SkeletonCards />
+            stalled ? (
+              <EmptyState icon="x" title="Não deu pra carregar as skills" description="O servidor não respondeu com a lista. Tente de novo.">
+                <Button icon="rotate" onClick={() => { retry(); onSkillList(); }}>Tentar de novo</Button>
+              </EmptyState>
+            ) : (
+              <SkeletonCards />
+            )
           ) : filtered.length === 0 ? (
             <SkillsEmpty query={query} />
           ) : (

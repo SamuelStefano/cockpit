@@ -76,7 +76,7 @@ export function ShortcutsHelp({ open, onClose }: { open: boolean; onClose: () =>
           <span className="flex items-center gap-2 text-[13px] font-medium text-neutral-200">
             <Icon name="command" size={14} className="text-orange-400" /> Atalhos de teclado
           </span>
-          <Button variant="ghost" square icon="x" onClick={onClose} title="Fechar (Esc)" />
+          <Button variant="ghost" size="sm" square icon="x" onClick={onClose} title="Fechar (Esc)" />
         </div>
         <div className="scroll-thin max-h-[60vh] space-y-4 overflow-y-auto px-4 py-3.5">
           {GROUPS.map((g) => (

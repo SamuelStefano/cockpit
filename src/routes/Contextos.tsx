@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Icon, Badge, SkeletonCards } from '../components/primitives';
+import { Icon, Badge, Button, EmptyState, SkeletonCards } from '../components/primitives';
+import { useLoadStalled } from '../lib/useLoadStalled';
 import { ContextModal, TYPE_TONE } from '../components/ContextModal';
 import type { ContextMeta } from '../../shared/protocol';
 import type { ContextDoc } from '../useCockpit';
@@ -27,6 +28,7 @@ export function Contextos({ connected, contexts, loaded, openContext, onCtxList,
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { if (connected) onCtxList(); }, [connected, onCtxList]);
+  const { stalled, retry } = useLoadStalled(loaded, connected);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -83,7 +85,13 @@ export function Contextos({ connected, contexts, loaded, openContext, onCtxList,
       ) : (
         <div className="scroll-thin flex-1 overflow-y-auto p-4">
           {!loaded ? (
-            <SkeletonCards />
+            stalled ? (
+              <EmptyState icon="x" title="Não deu pra carregar os contextos" description="O servidor não respondeu com a lista. Tente de novo.">
+                <Button icon="rotate" onClick={() => { retry(); onCtxList(); }}>Tentar de novo</Button>
+              </EmptyState>
+            ) : (
+              <SkeletonCards />
+            )
           ) : filtered.length === 0 ? (
             <ContextEmpty query={query} />
           ) : (
