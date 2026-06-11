@@ -695,6 +695,8 @@ export function useCockpit(): Cockpit {
             if (fullViewId.current !== id) fullViewId.current = null;
             activeRef.current = id;
             setActiveIdState(id);
+            if (attachmentsRef.current.length) { attachmentsRef.current = []; setAttachments([]); }
+            setAttPreview(null);
             setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === id })));
             if (id && !id.startsWith('new-') && !opened.current.has(id)) {
               opened.current.add(id);
@@ -729,6 +731,8 @@ export function useCockpit(): Cockpit {
               if (fullViewId.current !== key) fullViewId.current = null;
               activeRef.current = key;
               setActiveIdState(key);
+              if (attachmentsRef.current.length) { attachmentsRef.current = []; setAttachments([]); }
+              setAttPreview(null);
               setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === key })));
             },
           );
@@ -854,6 +858,9 @@ export function useCockpit(): Cockpit {
     // Sessão real (não rascunho local) vira a última ativa — sobrevive ao F5.
     if (id && !id.startsWith('new-')) savePref('activeId', id);
     if (attachmentsRef.current.length) { attachmentsRef.current = []; setAttachments([]); }
+    // Modal de preview é transitório da sessão: trocar via Alt+↑/↓ com ele aberto
+    // deixava o anexo da sessão anterior na tela da nova.
+    setAttPreview(null);
     setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === id })));
     if (id && !id.startsWith('new-') && !opened.current.has(id)) {
       opened.current.add(id);
@@ -1033,6 +1040,8 @@ export function useCockpit(): Cockpit {
       fullViewId.current = null;
       activeRef.current = fb;
       setActiveIdState(fb);
+      if (attachmentsRef.current.length) { attachmentsRef.current = []; setAttachments([]); }
+      setAttPreview(null);
       if (fb && !fb.startsWith('new-') && !opened.current.has(fb)) {
         opened.current.add(fb);
         send({ t: 'open', sessionId: fb });
