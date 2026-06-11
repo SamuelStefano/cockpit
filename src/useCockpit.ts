@@ -871,6 +871,16 @@ export function useCockpit(): Cockpit {
   const onSend = useCallback((text: string, modeOverride?: PermMode) => {
     const key = activeRef.current;
     if (!key) return;
+    // WS fechado: send() descartaria em silêncio DEPOIS do trabalho otimista —
+    // bolha na tela, composer limpo e o servidor nunca recebeu nada. Guard antes
+    // de qualquer mutação: avisa e devolve o texto pro composer.
+    if (wsRef.current?.readyState !== WebSocket.OPEN) {
+      updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: '⚠️ Sem conexão com o servidor — a mensagem não foi enviada. O texto voltou pro composer; tente de novo quando reconectar.' }], error: true }]);
+      // O submit do composer chama setValue('') logo após onSend; o microtask
+      // re-despacha o restore por último, senão o texto restaurado era apagado.
+      queueMicrotask(() => setDrafts((d) => ({ ...d, [key]: d[key] || text })));
+      return;
+    }
     // Turno em voo: NÃO bloqueia mais. O servidor tria o prompt (esperar/responder/
     // prioridade/juntar) — ver routeSend. A bolha do usuário entra otimista e o
     // 'started' do próximo turno (ou da prioridade) cria o bubble do assistente.
