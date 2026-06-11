@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Icon, Input } from '../components/primitives';
 import type { AdminHealth } from '../../shared/protocol';
 import { AdminConfirm } from './AdminConfirm';
@@ -24,6 +24,20 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
   const [mcpName, setMcpName] = useState('');
   const [mcpTarget, setMcpTarget] = useState('');
   const [pending, setPending] = useState<{ kind: 'env' | 'mcp'; name: string } | null>(null);
+  const [installing, setInstalling] = useState<string | null>(null);
+
+  // Instalar CLI demora (npm install -g); sem isto o botão aceitava double-click
+  // e disparava 2 instalações. O backend sempre responde com adminOp (ok ou erro),
+  // então a chegada de qualquer resultado rearma o botão.
+  useEffect(() => { setInstalling(null); }, [adminOp]);
+
+  // Backstop: se o WS cair no meio do npm install, o admin-op nunca chega e os
+  // botões ficariam presos em loading. 3min cobre a instalação mais lenta.
+  useEffect(() => {
+    if (!installing) return;
+    const t = setTimeout(() => setInstalling(null), 180_000);
+    return () => clearTimeout(t);
+  }, [installing]);
 
   const runPending = () => {
     if (!pending) return;
@@ -105,8 +119,9 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
                 variant="secondary"
                 size="sm"
                 icon={present.has(name) ? 'check' : 'rotate'}
-                onClick={() => onCliInstall(name)}
-                disabled={present.has(name)}
+                onClick={() => { setInstalling(name); onCliInstall(name); }}
+                disabled={present.has(name) || installing !== null}
+                loading={installing === name}
               >
                 {name}
               </Button>
