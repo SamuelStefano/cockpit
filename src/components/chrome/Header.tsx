@@ -25,7 +25,7 @@ export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsag
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex items-center gap-2.5">
         {isMobile && (
-          <button onClick={onMenu} className="-ml-1 rounded-md p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100">
+          <button onClick={onMenu} title="Abrir menu" aria-label="Abrir menu" className="-ml-1 rounded-md p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100">
             <Icon name="menu" size={18} />
           </button>
         )}
@@ -59,6 +59,7 @@ export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsag
         <button
           onClick={onPalette}
           title="Comandos (⌘K)"
+          aria-label="Comandos (⌘K)"
           className="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1.5 text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-300"
         >
           <Icon name="search" size={14} />

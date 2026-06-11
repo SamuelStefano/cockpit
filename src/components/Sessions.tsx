@@ -56,7 +56,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
         <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Sessões</span>
           {onCloseMobile && (
-            <button onClick={onCloseMobile} className="rounded-md p-1 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200 lg:hidden">
+            <button onClick={onCloseMobile} title="Fechar painel de sessões" aria-label="Fechar painel de sessões" className="rounded-md p-1 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200 lg:hidden">
               <Icon name="x" size={16} />
             </button>
           )}

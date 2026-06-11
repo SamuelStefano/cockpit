@@ -53,6 +53,7 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
           <button
             onClick={onAdd}
             title="Novo terminal"
+            aria-label="Novo terminal"
             className="flex shrink-0 items-center justify-center rounded-md p-1.5 text-neutral-500 transition hover:bg-neutral-900 hover:text-orange-400"
           >
             <Icon name="plus" size={14} />
@@ -74,7 +75,7 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
           )}
         </div>
         {onCloseMobile && (
-          <button onClick={onCloseMobile} className="mb-1.5 ml-1 rounded-md p-1.5 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200">
+          <button onClick={onCloseMobile} title="Fechar terminais" aria-label="Fechar terminais" className="mb-1.5 ml-1 rounded-md p-1.5 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200">
             <Icon name="chevronDown" size={16} />
           </button>
         )}
