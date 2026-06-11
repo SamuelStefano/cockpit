@@ -21,7 +21,7 @@ export function AttachmentChip({ path, name, thumbB64, onThumb, onOpen }: Attach
         className="group/thumb relative h-20 w-20 overflow-hidden rounded-xl border border-neutral-700/60 transition hover:border-orange-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
       >
         <img src={url} alt={name} className="h-full w-full object-cover" />
-        <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/80 to-transparent px-1.5 pb-1 pt-3 text-left text-[10px] text-neutral-200 transition sm:opacity-0 sm:group-hover/thumb:opacity-100">
+        <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/80 to-transparent px-1.5 pb-1 pt-3 text-left text-[10px] text-neutral-200 transition sm:opacity-0 sm:group-hover/thumb:opacity-100 sm:group-focus-visible/thumb:opacity-100">
           {name}
         </span>
       </button>

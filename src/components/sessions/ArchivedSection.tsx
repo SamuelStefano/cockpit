@@ -30,7 +30,7 @@ export function ArchivedSection({ archived, onUnhide, onDelete, onView }: { arch
                 ) : (
                   <span className="truncate text-[11.5px] font-medium text-neutral-400">{s.title}</span>
                 )}
-                <div className="flex shrink-0 items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+                <div className="flex shrink-0 items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                   <button
                     onClick={() => onUnhide(s.id)}
                     title="Restaurar sessão"

@@ -42,7 +42,7 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
                     aria-label="Fechar terminal"
                     title="Fechar terminal"
                     onClick={(e) => { e.stopPropagation(); onClose(t.id); }}
-                    className="-mr-1 ml-0.5 rounded p-1 text-neutral-600 transition hover:bg-neutral-800 hover:text-neutral-300 sm:opacity-0 sm:group-hover:opacity-100"
+                    className="-mr-1.5 ml-0.5 rounded p-1.5 text-neutral-600 transition hover:bg-neutral-800 hover:text-neutral-300 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100"
                   >
                     <Icon name="x" size={11} />
                   </span>
