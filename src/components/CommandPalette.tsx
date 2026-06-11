@@ -32,7 +32,10 @@ export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessi
 
   useEffect(() => { setSel(0); }, [q, open]);
   useEffect(() => {
-    if (open) { setQ(''); setTimeout(() => inputRef.current?.focus(), 0); }
+    if (!open) return;
+    setQ('');
+    const t = setTimeout(() => inputRef.current?.focus(), 0);
+    return () => clearTimeout(t);
   }, [open]);
 
   if (!open) return null;
