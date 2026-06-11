@@ -8,7 +8,7 @@ import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT } from '../lib/prefs';
 // Menu de perfil no header: define nome (usado nas iniciais do chat) e faz
 // upload/limpa o avatar. Tudo local (data URL no localStorage), sem backend.
 export function ProfileMenu({ userId, onSignOut }: { userId?: string; onSignOut?: () => void } = {}) {
-  const { name, avatar, aiIcon, setName, setAvatar, setAiIcon, synced, open, setOpen, iconOpen, setIconOpen, uploadError, fileRef, wrapRef, onFile } = useProfileMenu(userId);
+  const { name, avatar, aiIcon, setName, setAvatar, setAiIcon, synced, open, setOpen, iconOpen, setIconOpen, uploadError, uploading, fileRef, wrapRef, onFile } = useProfileMenu(userId);
   const [showTools, setShowTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
 
   return (
@@ -42,7 +42,7 @@ export function ProfileMenu({ userId, onSignOut }: { userId?: string; onSignOut?
             placeholder="Seu nome"
           />
           <div className="mt-2.5 flex gap-2">
-            <Button variant="outline" size="sm" icon="paperclip" className="grow" onClick={() => fileRef.current?.click()}>
+            <Button variant="outline" size="sm" icon="paperclip" className="grow" loading={uploading} onClick={() => fileRef.current?.click()}>
               Trocar imagem
             </Button>
             {avatar && (

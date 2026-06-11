@@ -8,6 +8,7 @@ export function useProfileMenu(userId?: string) {
   const [open, setOpen] = useState(false);
   const [iconOpen, setIconOpen] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -28,8 +29,12 @@ export function useProfileMenu(userId?: string) {
     const error = avatarFileError(file.type, file.size);
     if (error) { setUploadError(error); return; }
     setUploadError(null);
-    downscale(file).then(profile.setAvatar).catch(() => setUploadError('Não deu pra ler essa imagem.'));
+    setUploading(true);
+    downscale(file)
+      .then(profile.setAvatar)
+      .catch(() => setUploadError('Não deu pra ler essa imagem.'))
+      .finally(() => setUploading(false));
   };
 
-  return { ...profile, open, setOpen, iconOpen, setIconOpen, uploadError, fileRef, wrapRef, onFile };
+  return { ...profile, open, setOpen, iconOpen, setIconOpen, uploadError, uploading, fileRef, wrapRef, onFile };
 }
