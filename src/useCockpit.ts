@@ -367,6 +367,13 @@ export function useCockpit(): Cockpit {
         // revertia silenciosamente pro resumido com o botão preso em "mostrar resumido".
         if (activeRef.current === msg.sessionId && !inFlight.current.has(msg.sessionId)) {
           send({ t: fullViewId.current === msg.sessionId ? 'open-full' : 'open', sessionId: msg.sessionId });
+        } else if (activeRef.current !== msg.sessionId) {
+          // Sessão não-ativa: o thread cacheado ficou velho. Invalida o `opened`
+          // pra próxima ativação re-pedir o history — sem isto mensagem mandada
+          // pelo terminal só aparecia no F5, mesmo trocando de aba. Ativa+run em
+          // voo fica de fora: invalidar ali faria o re-open do reconnect dropar a
+          // bolha do stream (replay sem ts); o touch trailing pós-done já cobre.
+          opened.current.delete(msg.sessionId);
         }
         return;
       }
