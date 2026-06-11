@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Button, Icon, Markdown, splitFences, tokens, WikilinkContext, type WikilinkResolver } from './primitives';
+import { Button, Markdown, splitFences, tokens, WikilinkContext, type WikilinkResolver } from './primitives';
 import { headingSlug } from './primitives/markdown/slug';
 import { useCopied } from '../lib/useCopied';
 
@@ -132,13 +132,9 @@ export function DocViewer({
 // Botão de header reaproveitável (copiar/baixar).
 export function DocAction({ label, icon, onClick }: { label: string; icon: 'copy' | 'check' | 'download' | 'file'; onClick: () => void }) {
   return (
-    <button
-      onClick={onClick}
-      title={label}
-      className={`flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-900 px-2 py-1.5 text-[11px] font-medium text-neutral-400 transition hover:border-orange-500/40 hover:text-orange-300 ${tokens.focusRing}`}
-    >
-      <Icon name={icon} size={12} /> {label}
-    </button>
+    <Button variant="outline" size="sm" icon={icon} onClick={onClick} title={label}>
+      {label}
+    </Button>
   );
 }
 
