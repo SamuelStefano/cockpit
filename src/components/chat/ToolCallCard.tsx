@@ -42,13 +42,17 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
   // no campo command — `$` ali confunde, então usam ícone de arquivo.
   const kind = (tool.name || tool.label || '').toLowerCase();
   const isShell = kind === 'bash' || kind === 'shell' || kind === 'sh';
+  const isAgent = kind === 'task' || kind === 'agent';
   const headIcon = isShell ? 'terminal'
     : kind === 'read' ? 'file'
     : kind === 'edit' || kind === 'write' || kind === 'multiedit' || kind === 'notebookedit' ? 'pencil'
     : kind === 'grep' || kind === 'glob' || kind === 'websearch' || kind === 'webfetch' ? 'search'
-    : kind === 'task' ? 'sparkles'
-    : kind === 'todowrite' ? 'check'
+    : isAgent ? 'sparkles'
+    : kind === 'todowrite' || kind === 'taskcreate' || kind === 'taskupdate' ? 'check'
     : 'terminal';
+  // Subagent/task carregam um TÍTULO no command, não um path — o ícone de
+  // arquivo ali sugeria caminho e confundia.
+  const cmdIcon = isAgent || kind === 'taskcreate' || kind === 'taskupdate' ? headIcon : 'file';
 
   return (
     <div className={`my-2 overflow-hidden rounded-xl border ${ring} bg-neutral-900/70`}>
@@ -78,7 +82,7 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
           <div className="flex items-center gap-2 rounded-md border border-neutral-800 bg-[#0c0c0c] px-2.5 py-1.5">
             {isShell
               ? <span className="select-none font-mono text-[11px] text-orange-500/70">$</span>
-              : <Icon name="file" size={12} className="shrink-0 text-neutral-500" />}
+              : <Icon name={cmdIcon} size={12} className="shrink-0 text-neutral-500" />}
             <code className="scroll-thin overflow-x-auto whitespace-nowrap font-mono text-[11.5px] text-neutral-300">{tool.command}</code>
             {isShell && (
               <button

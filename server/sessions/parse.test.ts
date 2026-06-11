@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ctxTokens, num, diffOf, planOf, questionsOf, contentHasQuestion, todosOf, extractCommand, recToMessage, activeChain, collectToolResults, capOutput, TOOL_OUTPUT_CAP, type Rec, type ToolResultRec } from './parse';
+import { ctxTokens, num, diffOf, planOf, questionsOf, contentHasQuestion, todosOf, extractCommand, labelOf, commandOf, recToMessage, activeChain, collectToolResults, capOutput, TOOL_OUTPUT_CAP, type Rec, type ToolResultRec } from './parse';
 
 describe('num', () => {
   it('passes through finite non-negative numbers', () => {
@@ -168,6 +168,38 @@ describe('extractCommand', () => {
     expect(extractCommand(null)).toBe('');
     expect(extractCommand('str')).toBe('');
     expect(extractCommand({ other: 'x' })).toBe('');
+  });
+});
+
+describe('labelOf', () => {
+  it('enriches subagent label with subagent_type', () => {
+    expect(labelOf('Agent', { description: 'd', subagent_type: 'Explore' })).toBe('Agent · Explore');
+    expect(labelOf('Task', { subagent_type: 'general-purpose' })).toBe('Task · general-purpose');
+  });
+  it('keeps the plain name for other tools or missing type', () => {
+    expect(labelOf('Agent', { description: 'd' })).toBe('Agent');
+    expect(labelOf('Bash', { command: 'ls' })).toBe('Bash');
+    expect(labelOf('Read', null)).toBe('Read');
+  });
+  it('falls back to "tool" without a name', () => {
+    expect(labelOf(undefined, {})).toBe('tool');
+    expect(labelOf('', {})).toBe('tool');
+  });
+});
+
+describe('commandOf', () => {
+  it('TaskCreate shows the subject', () => {
+    expect(commandOf('TaskCreate', { subject: 'Corrigir fila', description: 'longa' })).toBe('Corrigir fila');
+  });
+  it('TaskUpdate shows id, status and subject when present', () => {
+    expect(commandOf('TaskUpdate', { taskId: '227', status: 'completed' })).toBe('#227 → completed');
+    expect(commandOf('TaskUpdate', { taskId: 3, status: 'in_progress', subject: 'Novo título' })).toBe('#3 → in_progress · Novo título');
+    expect(commandOf('TaskUpdate', { taskId: '8' })).toBe('#8');
+  });
+  it('falls back to extractCommand for other tools', () => {
+    expect(commandOf('Bash', { command: 'ls' })).toBe('ls');
+    expect(commandOf('Agent', { description: 'Revisar PR', subagent_type: 'Explore' })).toBe('Revisar PR');
+    expect(commandOf('TaskUpdate', null)).toBe('');
   });
 });
 

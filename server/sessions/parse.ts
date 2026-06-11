@@ -237,8 +237,8 @@ export function recToMessage(r: Rec, results?: Map<string, ToolResultRec>): Mess
         const tool: ToolCall = {
           id: c.id ?? '',
           name: c.name ?? 'tool',
-          label: c.name ?? 'tool',
-          command: extractCommand(c.input),
+          label: labelOf(c.name, c.input),
+          command: commandOf(c.name, c.input),
           status: res?.isErr ? 'error' : 'done',
           exit: res ? (res.isErr ? 1 : 0) : undefined,
           durationMs,
@@ -255,6 +255,35 @@ export function recToMessage(r: Rec, results?: Map<string, ToolResultRec>): Mess
     return { id: r.uuid!, role: 'assistant', blocks, ts, model: r.message.model };
   }
   return null;
+}
+
+// Subagent (Agent no app, Task no Claude Code stock) carrega o tipo no input —
+// sobe pro rótulo do card ("Agent · Explore"), como o terminal mostra. Sem isto
+// o card dizia só "Agent" e o usuário não sabia QUAL agente rodou.
+export function labelOf(name: unknown, input: unknown): string {
+  const n = typeof name === 'string' && name ? name : 'tool';
+  if ((n === 'Agent' || n === 'Task') && input && typeof input === 'object') {
+    const t = (input as Record<string, unknown>).subagent_type;
+    if (typeof t === 'string' && t) return `${n} · ${t}`;
+  }
+  return n;
+}
+
+// Linha de argumento por ferramenta. TaskCreate/TaskUpdate não têm nenhuma das
+// chaves genéricas (subject/taskId ficavam de fora) — o card aparecia vazio,
+// enquanto o terminal mostra o título da task. Demais tools seguem o fallback.
+export function commandOf(name: unknown, input: unknown): string {
+  if (input && typeof input === 'object') {
+    const o = input as Record<string, unknown>;
+    if (name === 'TaskCreate' && typeof o.subject === 'string' && o.subject) return o.subject;
+    if (name === 'TaskUpdate' && (typeof o.taskId === 'string' || typeof o.taskId === 'number')) {
+      const parts = [`#${o.taskId}`];
+      if (typeof o.status === 'string' && o.status) parts.push(`→ ${o.status}`);
+      if (typeof o.subject === 'string' && o.subject) parts.push(`· ${o.subject}`);
+      return parts.join(' ');
+    }
+  }
+  return extractCommand(input);
 }
 
 export function extractCommand(input: unknown): string {

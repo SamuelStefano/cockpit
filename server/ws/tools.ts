@@ -1,5 +1,5 @@
 import type { ToolCall } from '../../shared/protocol';
-import { diffOf, planOf, questionsOf, todosOf, extractCommand, toolResultOutput } from '../sessions/parse';
+import { diffOf, planOf, questionsOf, todosOf, labelOf, commandOf, toolResultOutput } from '../sessions/parse';
 import { broadcast } from './broadcast';
 import type { Thread } from './runs';
 
@@ -42,8 +42,8 @@ export function emitTool(thread: Thread, sessionKey: string, block: any, status:
   const tool: ToolCall = {
     id,
     name: block.name ?? 'tool',
-    label: block.name ?? 'tool',
-    command: extractCommand(block.input),
+    label: labelOf(block.name, block.input),
+    command: commandOf(block.name, block.input),
     status,
     diff: diffOf(block.name, block.input),
     markdown: planOf(block.name, block.input),
