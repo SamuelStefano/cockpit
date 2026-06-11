@@ -10,7 +10,7 @@ export function TurnStat({ stats }: { stats?: TurnStats }) {
   const { parts, model } = fmt;
   return (
     <span
-      title={`último turno (custo real do CLI)${stats?.numTurns ? ` · ${stats.numTurns} turnos` : ''}${stats?.model ? ` · modelo efetivo: ${stats.model}` : ''}`}
+      title={`último turno (custo real do CLI)${stats?.numTurns ? ` · ${stats.numTurns} turno${stats.numTurns === 1 ? '' : 's'}` : ''}${stats?.model ? ` · modelo efetivo: ${stats.model}` : ''}`}
       className="flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-950 px-1.5 py-0.5 text-[10.5px] tabular-nums text-neutral-400"
     >
       <Icon name="zap" size={10} className="text-emerald-400/70" />

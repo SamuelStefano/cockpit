@@ -24,6 +24,10 @@ describe('relReset', () => {
     expect(relReset(now + 90_000, now)).toBe('2min');
     expect(relReset(now + 89_000, now)).toBe('1min');
   });
+
+  it('clamps tiny positive diffs to 1min instead of 0min', () => {
+    expect(relReset(now + 10_000, now)).toBe('1min');
+  });
 });
 
 describe('relPast', () => {

@@ -17,7 +17,7 @@ export function fmtClock(ts: number): string {
   const d = new Date(ts);
   const now = new Date();
   const sameDay = d.toDateString() === now.toDateString();
-  const hm = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const hm = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   if (sameDay) return hm;
-  return `${d.toLocaleDateString([], { day: '2-digit', month: '2-digit' })} ${hm}`;
+  return `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${hm}`;
 }

@@ -13,7 +13,7 @@ export function ContextMeter({ tokens, onNew }: { tokens: number; onNew?: () => 
     <div className="flex items-center gap-2">
       <div
         className="flex items-center gap-1.5"
-        title={`contexto: ~${tokens.toLocaleString()} tokens de ~${CONTEXT_LIMIT.toLocaleString()} (${pct}%)`}
+        title={`contexto: ~${tokens.toLocaleString('pt-BR')} tokens de ~${CONTEXT_LIMIT.toLocaleString('pt-BR')} (${pct}%)`}
       >
         <div className="h-1.5 w-16 overflow-hidden rounded-full bg-neutral-800">
           <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />

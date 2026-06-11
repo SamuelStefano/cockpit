@@ -33,14 +33,14 @@ function ClaudeStats({ rate, ctxTokens, lastTurn }: {
     const pct = ctxPct(ctxTokens);
     const tone = pct >= 75 ? 'text-red-400' : pct >= 50 ? 'text-amber-400' : 'text-neutral-300';
     parts.push({ k: 'ctx', node: (
-      <span className={`font-mono text-[10.5px] tabular-nums ${tone}`} title={`Contexto: ~${ctxTokens.toLocaleString()} tokens (${pct}%)`}>
+      <span className={`font-mono text-[10.5px] tabular-nums ${tone}`} title={`Contexto: ~${ctxTokens.toLocaleString('pt-BR')} tokens (${pct}%)`}>
         <span className="text-neutral-500">ctx</span> {pct}% · {(ctxTokens / 1000).toFixed(0)}k
       </span>
     ) });
   }
   if (lastTurn?.durationMs !== undefined) {
     parts.push({ k: 'trn', node: (
-      <span className="font-mono text-[10.5px] tabular-nums text-neutral-300" title={`Último turno: ${(lastTurn.durationMs / 1000).toFixed(1)}s${lastTurn.numTurns ? ` · ${lastTurn.numTurns} turnos` : ''}`}>
+      <span className="font-mono text-[10.5px] tabular-nums text-neutral-300" title={`Último turno: ${(lastTurn.durationMs / 1000).toFixed(1)}s${lastTurn.numTurns ? ` · ${lastTurn.numTurns} turno${lastTurn.numTurns === 1 ? '' : 's'}` : ''}`}>
         <span className="text-neutral-500">turno</span> {(lastTurn.durationMs / 1000).toFixed(1)}s
       </span>
     ) });

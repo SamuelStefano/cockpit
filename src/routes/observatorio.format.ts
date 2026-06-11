@@ -28,11 +28,3 @@ export function relTime(ts: number, now: number = Date.now()): string {
   return `${Math.floor(h / 24)}d`;
 }
 
-export function relReset(ts: number, now: number = Date.now()): string {
-  const d = ts - now;
-  if (d <= 0) return 'agora';
-  const m = Math.ceil(d / 60_000);
-  if (m < 60) return `${m}min`;
-  const h = Math.floor(m / 60);
-  return `${h}h${String(m % 60).padStart(2, '0')}`;
-}

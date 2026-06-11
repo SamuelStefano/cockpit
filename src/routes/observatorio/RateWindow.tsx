@@ -1,5 +1,5 @@
 import { Icon } from '../../components/primitives';
-import { relReset } from '../observatorio.format';
+import { relReset } from '../../lib/time';
 
 // O CLI só manda { status, resetsAt } — NUNCA uma % de tokens. Então a barra é
 // categórica (longe/perto/no limite), não um percentual fabricado.
