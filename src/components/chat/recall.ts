@@ -22,7 +22,10 @@ export function nextRecall(
   const active = histIdx !== null && histIdx < history.length ? histIdx : null;
   if (dir === 'up') {
     if (active === null) {
-      if (value !== '' && histIdx === null) return null; // ↑ num campo digitado = cursor normal
+      // ↑ num campo digitado = cursor normal. Vale TAMBÉM com índice obsoleto
+      // (trocar de sessão preserva o histIdx velho): aqui o value é o rascunho
+      // da sessão nova — recallar por cima apagaria texto do usuário.
+      if (value !== '') return null;
       const last = history.length - 1;
       return { histIdx: last, value: history[last] };
     }

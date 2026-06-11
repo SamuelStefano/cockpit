@@ -35,9 +35,14 @@ describe('nextRecall', () => {
     expect(nextRecall(H, 2, 'third', 'down')).toEqual({ histIdx: null, value: '' });
   });
 
-  it('up with an index stale from a longer prior history restarts at the new tail', () => {
+  it('up with a stale index and an empty field restarts at the new tail', () => {
     const shorter = ['only'];
-    expect(nextRecall(shorter, 5, 'leftover', 'up')).toEqual({ histIdx: 0, value: 'only' });
+    expect(nextRecall(shorter, 5, '', 'up')).toEqual({ histIdx: 0, value: 'only' });
+  });
+
+  it('up with a stale index but a non-empty field falls through (protects the draft)', () => {
+    const shorter = ['only'];
+    expect(nextRecall(shorter, 5, 'draft da sessão nova', 'up')).toBeNull();
   });
 
   it('down with a stale out-of-range index falls through instead of indexing past the end', () => {

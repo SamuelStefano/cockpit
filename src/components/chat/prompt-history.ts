@@ -25,9 +25,12 @@ export function loadPromptHistory(): string[] {
 }
 
 export function recordPrompt(text: string): void {
-  const cur = loadPromptHistory();
-  const next = appendPrompt(cur, text);
-  if (next === cur) return;
+  // Relê o storage antes de gravar: outra aba pode ter registrado prompts desde
+  // o load, e gravar a partir do cache desta aba sobrescreveria o que ela salvou.
+  // Uma leitura por submit é barato; o cache continua poupando o parse por tecla.
+  cache = loadPref<string[]>(KEY, []);
+  const next = appendPrompt(cache, text);
+  if (next === cache) return;
   cache = next;
   savePref(KEY, next);
 }
