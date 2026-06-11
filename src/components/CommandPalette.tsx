@@ -64,6 +64,7 @@ export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessi
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={onKey}
             placeholder="Buscar comando ou sessão…"
+            aria-label="Buscar comando ou sessão"
             className="w-full bg-transparent py-3.5 text-[14px] text-neutral-100 placeholder-neutral-600 outline-none"
           />
           <kbd className="rounded border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[10px] text-neutral-500">esc</kbd>

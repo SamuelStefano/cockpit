@@ -109,6 +109,7 @@ export function ChatInput(props: ChatInputProps) {
           <textarea
             ref={taRef}
             rows={1}
+            aria-label="Escrever mensagem"
             value={value}
             onChange={grow}
             onKeyDown={onKey}

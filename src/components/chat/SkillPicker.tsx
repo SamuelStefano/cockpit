@@ -76,6 +76,7 @@ export function SkillPicker({ skills, selected, setSelected }: {
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Filtrar skills…"
+                aria-label="Filtrar skills"
                 autoFocus
                 className="w-full bg-transparent text-[12.5px] text-neutral-100 placeholder-neutral-600 outline-none"
               />

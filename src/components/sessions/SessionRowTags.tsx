@@ -30,6 +30,7 @@ export function SessionRowTags({ id, tags, tagging, tagDraft, tagRef, setTagDraf
       {tagging && (
         <input
           ref={tagRef}
+          aria-label="Adicionar etiqueta"
           value={tagDraft}
           onChange={(e) => setTagDraft(e.target.value)}
           onBlur={commitTag}

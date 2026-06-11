@@ -126,6 +126,7 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
           onClick={(e) => e.stopPropagation()}
           rows={2}
           placeholder="Descrição da sessão…"
+          aria-label="Editar descrição da sessão"
           className="mt-0.5 w-full resize-none rounded border border-orange-500/50 bg-neutral-950 px-1.5 py-1 text-[11.5px] leading-snug text-neutral-200 outline-none ring-2 ring-orange-500/20"
         />
       ) : (
