@@ -11,6 +11,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   icon?: IconName;
   iconRight?: boolean;
   loading?: boolean;
+  square?: boolean;
 }
 
 const variants: Record<ButtonVariant, string> = {
@@ -26,6 +27,11 @@ const sizes: Record<ButtonSize, string> = {
   md: 'h-8 gap-2 px-3 text-[13px]',
 };
 
+const squareSizes: Record<ButtonSize, string> = {
+  sm: 'h-7 w-7',
+  md: 'h-8 w-8',
+};
+
 const iconSize: Record<ButtonSize, number> = { sm: 13, md: 15 };
 
 export function Button({
@@ -35,6 +41,7 @@ export function Button({
   icon,
   iconRight = false,
   loading = false,
+  square = false,
   disabled,
   className = '',
   ...rest
@@ -47,7 +54,7 @@ export function Button({
   return (
     <button
       disabled={disabled || loading}
-      className={`inline-flex shrink-0 items-center justify-center rounded-lg font-medium leading-none transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40 disabled:opacity-50 disabled:pointer-events-none ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center rounded-lg font-medium leading-none transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40 disabled:opacity-50 disabled:pointer-events-none ${variants[variant]} ${square ? squareSizes[size] : sizes[size]} ${className}`}
       {...rest}
     >
       {glyph && !iconRight && glyph}

@@ -38,6 +38,13 @@ export function DesignSystem() {
         <Section title="Button — tamanhos & estados">
           <Row label="sm"><Button size="sm">Pequeno</Button><Button size="sm" variant="secondary" icon="plus">Novo</Button></Row>
           <Row label="md"><Button size="md">Médio</Button></Row>
+          <Row label="square">
+            <Button square icon="plus" title="Novo" />
+            <Button variant="secondary" square icon="copy" title="Copiar" />
+            <Button variant="outline" square icon="terminal" title="Terminal" />
+            <Button variant="ghost" square icon="x" title="Fechar" />
+            <Button variant="ghost" size="sm" square icon="x" title="Fechar (sm)" />
+          </Row>
           <Row label="loading"><Button loading>Salvando</Button><Button variant="secondary" loading>Carregando</Button></Row>
           <Row label="disabled"><Button disabled>Indisponível</Button><Button variant="danger" disabled>Excluir</Button></Row>
         </Section>

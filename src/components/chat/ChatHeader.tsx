@@ -1,4 +1,4 @@
-import { Icon, Badge, tokens } from '../primitives';
+import { Button, Icon, Badge, tokens } from '../primitives';
 import { ExportMenu } from './ExportMenu';
 import { TurnStat } from './TurnStat';
 import { ContextMeter } from './ContextMeter';
@@ -58,16 +58,11 @@ export function ChatHeader({ session, messages, isEmpty, isMobile, contextTokens
         )}
         {!isEmpty && !isMobile && <ExportMenu title={session?.title || 'sessao'} messages={messages} />}
         {onTerminal && (
-          <button
-            onClick={onTerminal}
-            title="Abrir terminais"
-            className={`relative flex h-7 w-7 items-center justify-center rounded-md border border-neutral-800 text-neutral-400 transition hover:border-neutral-700 hover:text-orange-300 ${tokens.focusRing}`}
-          >
-            <Icon name="terminal" size={14} />
+          <Button variant="outline" size="sm" square icon="terminal" onClick={onTerminal} title="Abrir terminais" className="relative">
             {terminalRunning && (
               <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-neutral-900 bg-green-500" style={{ boxShadow: '0 0 6px var(--ok)' }} />
             )}
-          </button>
+          </Button>
         )}
       </div>
     </div>

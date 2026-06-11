@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Icon, Markdown, splitFences, WikilinkContext, type WikilinkResolver } from './primitives';
+import { Button, Icon, Markdown, splitFences, WikilinkContext, type WikilinkResolver } from './primitives';
 import { headingSlug } from './primitives/markdown/slug';
 import { useCopied } from '../lib/useCopied';
 
@@ -89,9 +89,7 @@ export function DocViewer({
           <div className="flex shrink-0 items-center gap-1.5">
             <DocAction label={raw ? 'lido' : 'cru'} icon={raw ? 'check' : 'file'} onClick={() => setRaw((v) => !v)} />
             {actions}
-            <button onClick={onClose} title="Fechar (Esc)" className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200">
-              <Icon name="x" size={16} />
-            </button>
+            <Button variant="ghost" square icon="x" onClick={onClose} title="Fechar (Esc)" />
           </div>
         </div>
 
