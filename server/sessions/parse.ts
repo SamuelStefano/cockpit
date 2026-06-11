@@ -159,9 +159,12 @@ export async function parseSession(
   // O caminho ativo passou do cap → o slice dropou mensagens MAIS ANTIGAS sem
   // marcador. Sinaliza pro front avisar e oferecer o "ver tudo" (parseFullSession),
   // em vez de apresentar um transcript parcial como se fosse completo (squad red-team).
-  const truncated = chain.length > limit;
-  const trimmed = chain.slice(-limit);
-  const messages = trimmed.map((r) => recToMessage(r, results)).filter((m): m is Message => m !== null);
+  // Filtra ANTES de cortar: a chain inclui records que viram null (isMeta,
+  // tool_results) — contar pelo bruto inflava `truncated` e entregava menos
+  // mensagens visíveis que o limit.
+  const all = chain.map((r) => recToMessage(r, results)).filter((m): m is Message => m !== null);
+  const truncated = all.length > limit;
+  const messages = all.slice(-limit);
   const blocks = messages.flatMap((m) =>
     m.role === 'assistant' ? m.blocks : m.role === 'user' ? [{ type: 'text' as const, md: m.text }] : [],
   );
@@ -196,7 +199,7 @@ export async function parseFullSession(
     if (recs[i].type === 'assistant' && recs[i].message?.usage) { tokens = ctxTokens(recs[i].message!.usage); break; }
   }
 
-  const messages = recs.slice(-limit).map((r) => recToMessage(r, results)).filter((m): m is Message => m !== null);
+  const messages = recs.map((r) => recToMessage(r, results)).filter((m): m is Message => m !== null).slice(-limit);
   return { messages, tokens };
 }
 
