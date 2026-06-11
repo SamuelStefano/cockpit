@@ -4,6 +4,9 @@ import { ClaudeAvatar } from '../ClaudeAvatar';
 import type { Message } from '../../data/mock';
 import type { TurnBubbleStats } from '../../../shared/protocol';
 import { messageToText } from '../../lib/export';
+import { usePersisted } from '../../lib/persist';
+import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT } from '../../lib/prefs';
+import { hasVisibleAssistantContent } from './visible-blocks';
 import { AssistantBlocks } from './AssistantBlocks';
 import { ThinkingDots, LiveStatsLine, type LiveTurn } from './Thinking';
 import { QuoteButton, CopyMessageButton } from './MessageActions';
@@ -34,12 +37,17 @@ interface MessageRowProps {
 // (patchRunMsg usa .map preservando as demais) — sem isto a thread inteira
 // re-renderiza a cada chunk.
 export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabel, thinking, live, onEditUser, onQuote, answerable, onAnswer, onOpenAttachment, attThumbs, onAttThumb }: MessageRowProps) {
+  const [showTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   if (msg.role === 'user') {
     return <UserMessageRow msg={msg} onEditUser={onEditUser} onQuote={onQuote} onOpenAttachment={onOpenAttachment} attThumbs={attThumbs} onAttThumb={onAttThumb} />;
   }
   if (msg.role === 'compact') {
     return <CompactDivider msg={msg} />;
   }
+  // Tools ocultas podem deixar a mensagem sem NENHUM bloco renderizável — aí a
+  // linha inteira some, senão sobrava um rótulo "opus…" órfão por mensagem de
+  // ferramenta. Exceção: a linha do indicador de turno em curso (thinking).
+  if (!thinking && !hasVisibleAssistantContent(msg.blocks, showTools)) return null;
   const hasText = msg.blocks.some((b) => b.type === 'text' || b.type === 'code');
   return (
     <div className="fade-up group/msg flex gap-2.5">

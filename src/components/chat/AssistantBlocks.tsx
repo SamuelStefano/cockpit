@@ -6,10 +6,7 @@ import { ToolCallCard } from './ToolCallCard';
 import { ToolGroupCard } from './ToolGroupCard';
 import { AskQuestionCard } from './AskQuestionCard';
 import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT } from '../../lib/prefs';
-
-function isQuestion(t: { name?: string; questions?: unknown[] }) {
-  return t.name === 'AskUserQuestion' && !!t.questions?.length;
-}
+import { isQuestionTool as isQuestion } from './visible-blocks';
 
 function ThinkingCard({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
