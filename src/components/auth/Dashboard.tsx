@@ -109,7 +109,7 @@ export function Dashboard({ token, onSignOut }: { token: string; onSignOut: () =
 
         <div className="mt-4 flex items-center justify-between border-t border-neutral-800 pt-4">
           <button onClick={fetchCode} disabled={busy} className="text-[11.5px] text-neutral-500 transition hover:text-neutral-300 disabled:opacity-50">
-            gerar novo código
+            {busy ? 'gerando…' : 'gerar novo código'}
           </button>
           <button onClick={onSignOut} className="text-[11.5px] text-neutral-500 transition hover:text-neutral-300">sair</button>
         </div>

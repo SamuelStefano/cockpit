@@ -36,9 +36,13 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
                 <span className="h-1.5 w-1.5 rounded-full bg-green-500" style={{ boxShadow: '0 0 6px var(--ok)' }} />
                 {t.name}
                 {terminals.length > 1 && (
+                  // span (não button) — aninhar button em button é HTML inválido.
                   <span
+                    role="button"
+                    aria-label="Fechar terminal"
+                    title="Fechar terminal"
                     onClick={(e) => { e.stopPropagation(); onClose(t.id); }}
-                    className="-mr-1 ml-0.5 rounded p-0.5 text-neutral-600 opacity-0 transition hover:bg-neutral-800 hover:text-neutral-300 group-hover:opacity-100"
+                    className="-mr-1 ml-0.5 rounded p-1 text-neutral-600 transition hover:bg-neutral-800 hover:text-neutral-300 sm:opacity-0 sm:group-hover:opacity-100"
                   >
                     <Icon name="x" size={11} />
                   </span>

@@ -30,7 +30,7 @@ export function CommandPaletteResults({ filtered, sel, setSel }: CommandPaletteR
                   ${active ? 'bg-orange-500/15 text-orange-200' : 'text-neutral-300 hover:bg-neutral-800/60'}`}
               >
                 <Icon name={c.icon} size={15} className={active ? 'text-orange-400' : 'text-neutral-500'} />
-                <span className="flex-1 truncate">{c.label}</span>
+                <span className="flex-1 truncate" title={c.label}>{c.label}</span>
                 {c.hint && <span className="text-[11px] text-neutral-500">{c.hint}</span>}
               </button>
             );

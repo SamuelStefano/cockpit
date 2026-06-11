@@ -78,7 +78,7 @@ export function SupabaseAuthGate({ auth }: { auth: AuthActions }) {
           type="submit" disabled={busy || !email.trim() || !password}
           className="mt-4 w-full rounded-lg bg-orange-500 px-3 py-2 text-[13px] font-medium text-neutral-950 transition hover:bg-orange-400 disabled:opacity-50"
         >
-          {busy ? '…' : mode === 'login' ? 'Entrar' : 'Criar conta'}
+          {busy ? (mode === 'login' ? 'Entrando…' : 'Criando conta…') : mode === 'login' ? 'Entrar' : 'Criar conta'}
         </button>
         <p className="mt-3 text-[11px] leading-relaxed text-neutral-600">
           Depois de entrar, conecte sua VPS pra começar a usar o Deck na sua máquina.
