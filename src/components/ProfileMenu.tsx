@@ -8,7 +8,7 @@ import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT } from '../lib/prefs';
 // Menu de perfil no header: define nome (usado nas iniciais do chat) e faz
 // upload/limpa o avatar. Tudo local (data URL no localStorage), sem backend.
 export function ProfileMenu({ userId, onSignOut }: { userId?: string; onSignOut?: () => void } = {}) {
-  const { name, avatar, aiIcon, setName, setAvatar, setAiIcon, synced, open, setOpen, iconOpen, setIconOpen, uploadError, uploading, fileRef, wrapRef, onFile } = useProfileMenu(userId);
+  const { name, avatar, aiIcon, setName, setAvatar, setAiIcon, synced, syncFailed, open, setOpen, iconOpen, setIconOpen, uploadError, uploading, fileRef, wrapRef, onFile } = useProfileMenu(userId);
   const [showTools, setShowTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
 
   return (
@@ -28,7 +28,9 @@ export function ProfileMenu({ userId, onSignOut }: { userId?: string; onSignOut?
             </span>
             <div className="min-w-0">
               <p className="truncate text-[13px] font-medium text-neutral-200">{name || 'Sem nome'}</p>
-              <p className="text-[11px] text-neutral-500">{synced ? 'Sincronizado' : 'Perfil local'}</p>
+              <p className={`text-[11px] ${synced && syncFailed ? 'text-amber-400' : 'text-neutral-500'}`}>
+                {synced ? (syncFailed ? 'Salvo só neste device — não sincronizou' : 'Sincronizado') : 'Perfil local'}
+              </p>
             </div>
           </div>
           <label htmlFor="profile-name" className="mt-3 block text-[11px] font-medium text-neutral-500">Nome</label>

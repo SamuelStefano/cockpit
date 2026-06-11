@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase, SUPABASE_ENABLED } from './supabase';
 import { usePersisted, loadPref, setPref } from './persist';
 import { AI_AVATAR_KEY, AI_AVATAR_DEFAULT } from '../components/aiAvatar';
@@ -14,13 +14,14 @@ const AVATAR_KEY = 'user.avatar';
 
 // Push com debounce por coluna: digitar o nome não dispara um UPDATE por tecla.
 const pushTimers = new Map<string, ReturnType<typeof setTimeout>>();
-function pushRemote(userId: string, col: string, value: string): void {
+function pushRemote(userId: string, col: string, value: string, onResult: (ok: boolean) => void): void {
   const prev = pushTimers.get(col);
   if (prev) clearTimeout(prev);
-  pushTimers.set(col, setTimeout(() => {
+  pushTimers.set(col, setTimeout(async () => {
     pushTimers.delete(col);
     // RLS restringe ao próprio id; valor vazio limpa a coluna (null).
-    void supabase?.from('account').update({ [col]: value || null }).eq('id', userId);
+    const res = await supabase?.from('account').update({ [col]: value || null }).eq('id', userId);
+    onResult(!res?.error);
   }, 400));
 }
 
@@ -33,21 +34,25 @@ export function useProfile(userId?: string) {
   const [avatar, setAvatarLocal] = usePersisted<string>(AVATAR_KEY, '');
   const [aiIcon, setAiIconLocal] = usePersisted<string>(AI_AVATAR_KEY, AI_AVATAR_DEFAULT);
   const synced = SUPABASE_ENABLED && !!userId;
+  // O write remoto é silencioso (debounce + fire-and-forget); sem este flag o menu
+  // mostrava "Sincronizado" mesmo quando o UPDATE falhou e o valor só existia local.
+  const [syncFailed, setSyncFailed] = useState(false);
+  const onPush = useCallback((ok: boolean) => setSyncFailed(!ok), []);
 
   const setName = useCallback((v: string) => {
     setNameLocal(v);
-    if (synced) pushRemote(userId!, 'display_name', v);
-  }, [synced, userId, setNameLocal]);
+    if (synced) pushRemote(userId!, 'display_name', v, onPush);
+  }, [synced, userId, setNameLocal, onPush]);
   const setAvatar = useCallback((v: string) => {
     setAvatarLocal(v);
-    if (synced) pushRemote(userId!, 'avatar_url', v);
-  }, [synced, userId, setAvatarLocal]);
+    if (synced) pushRemote(userId!, 'avatar_url', v, onPush);
+  }, [synced, userId, setAvatarLocal, onPush]);
   const setAiIcon = useCallback((v: string) => {
     setAiIconLocal(v);
-    if (synced) pushRemote(userId!, 'ai_avatar', v);
-  }, [synced, userId, setAiIconLocal]);
+    if (synced) pushRemote(userId!, 'ai_avatar', v, onPush);
+  }, [synced, userId, setAiIconLocal, onPush]);
 
-  return { name, avatar, aiIcon, setName, setAvatar, setAiIcon, synced };
+  return { name, avatar, aiIcon, setName, setAvatar, setAiIcon, synced, syncFailed };
 }
 
 // Hidratação na conexão/login. Funde o perfil remoto da conta com o cache local.
