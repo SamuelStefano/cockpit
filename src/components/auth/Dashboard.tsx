@@ -15,7 +15,7 @@ export function Dashboard({ token, onSignOut }: { token: string; onSignOut: () =
   const [code, setCode] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
-  const [copied, copy] = useCopied();
+  const [copied, copy, copyFailed] = useCopied();
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -84,7 +84,7 @@ export function Dashboard({ token, onSignOut }: { token: string; onSignOut: () =
                 onClick={() => copy(cmd)}
                 className="shrink-0 rounded-md border border-neutral-700 px-2 py-1 text-[11px] text-neutral-300 transition hover:border-orange-500/40 hover:text-orange-300"
               >
-                {copied ? 'copiado' : 'copiar'}
+                {copied ? 'copiado' : copyFailed ? 'falhou — copie à mão' : 'copiar'}
               </button>
             </div>
           ) : (

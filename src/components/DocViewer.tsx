@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Button, Markdown, splitFences, tokens, WikilinkContext, type WikilinkResolver } from './primitives';
+import { Button, Markdown, splitFences, tokens, WikilinkContext, type IconName, type WikilinkResolver } from './primitives';
 import { headingSlug } from './primitives/markdown/slug';
 import { useCopied } from '../lib/useCopied';
 
@@ -135,7 +135,7 @@ export function DocViewer({
 }
 
 // Botão de header reaproveitável (copiar/baixar).
-export function DocAction({ label, icon, onClick }: { label: string; icon: 'copy' | 'check' | 'download' | 'file'; onClick: () => void }) {
+export function DocAction({ label, icon, onClick }: { label: string; icon: IconName; onClick: () => void }) {
   return (
     <Button variant="outline" size="sm" icon={icon} onClick={onClick} title={label}>
       {label}
@@ -145,6 +145,6 @@ export function DocAction({ label, icon, onClick }: { label: string; icon: 'copy
 
 // Botão "copiar" com feedback de estado, usado pelos dois viewers.
 export function CopyDocAction({ text }: { text: string }) {
-  const [copied, copy] = useCopied();
-  return <DocAction label={copied ? 'copiado!' : 'copiar'} icon={copied ? 'check' : 'copy'} onClick={() => copy(text)} />;
+  const [copied, copy, failed] = useCopied();
+  return <DocAction label={copied ? 'copiado!' : failed ? 'falhou' : 'copiar'} icon={copied ? 'check' : failed ? 'x' : 'copy'} onClick={() => copy(text)} />;
 }

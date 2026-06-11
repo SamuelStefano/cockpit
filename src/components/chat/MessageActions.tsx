@@ -4,14 +4,14 @@ import { messageToText } from '../../lib/export';
 import { useCopied } from '../../lib/useCopied';
 
 export function CopyTextButton({ text }: { text: string }) {
-  const [copied, copy] = useCopied();
+  const [copied, copy, failed] = useCopied();
   return (
     <button
       onClick={() => copy(text)}
-      title="Copiar mensagem"
-      className={`flex h-6 w-6 items-center justify-center rounded-md text-neutral-600 transition hover:bg-neutral-800 hover:text-neutral-300 ${tokens.focusRing}`}
+      title={failed ? 'Falha ao copiar' : 'Copiar mensagem'}
+      className={`flex h-6 w-6 items-center justify-center rounded-md transition hover:bg-neutral-800 ${failed ? 'text-red-400' : 'text-neutral-600 hover:text-neutral-300'} ${tokens.focusRing}`}
     >
-      <Icon name={copied ? 'check' : 'copy'} size={12} />
+      <Icon name={copied ? 'check' : failed ? 'x' : 'copy'} size={12} />
     </button>
   );
 }
@@ -40,14 +40,14 @@ export function QuoteButton({ onClick, withLabel }: { onClick: () => void; withL
 }
 
 export function CopyMessageButton({ blocks }: { blocks: Block[] }) {
-  const [copied, copy] = useCopied();
+  const [copied, copy, failed] = useCopied();
   return (
     <button
       onClick={() => copy(messageToText(blocks))}
-      title="Copiar resposta"
-      className={`flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300 ${tokens.focusRing}`}
+      title={failed ? 'Falha ao copiar' : 'Copiar resposta'}
+      className={`flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] transition hover:bg-neutral-800 ${failed ? 'text-red-400' : 'text-neutral-500 hover:text-neutral-300'} ${tokens.focusRing}`}
     >
-      <Icon name={copied ? 'check' : 'copy'} size={11} /> {copied ? 'copiado' : 'copiar'}
+      <Icon name={copied ? 'check' : failed ? 'x' : 'copy'} size={11} /> {copied ? 'copiado' : failed ? 'falhou' : 'copiar'}
     </button>
   );
 }

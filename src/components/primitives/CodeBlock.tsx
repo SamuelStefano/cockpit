@@ -65,7 +65,7 @@ interface CodeBlockProps {
 }
 
 export function CodeBlock({ code, lang }: CodeBlockProps) {
-  const [copied, copy] = useCopied(1200);
+  const [copied, copy, failed] = useCopied(1200);
   const save = () => {
     download(`snippet.${codeExt(lang || '')}`, 'text/plain', code);
   };
@@ -80,9 +80,9 @@ export function CodeBlock({ code, lang }: CodeBlockProps) {
           <button onClick={save} title="Baixar trecho" className="flex items-center gap-1 rounded px-2 py-1 text-[10px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300">
             <Icon name="download" size={11} />
           </button>
-          <button onClick={() => copy(code)} className="flex items-center gap-1 rounded px-2 py-1 text-[10px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300">
-            <Icon name={copied ? 'check' : 'copy'} size={11} />
-            {copied ? 'copiado' : 'copiar'}
+          <button onClick={() => copy(code)} className={`flex items-center gap-1 rounded px-2 py-1 text-[10px] transition hover:bg-neutral-800 ${failed ? 'text-red-400' : 'text-neutral-500 hover:text-neutral-300'}`}>
+            <Icon name={copied ? 'check' : failed ? 'x' : 'copy'} size={11} />
+            {copied ? 'copiado' : failed ? 'falhou' : 'copiar'}
           </button>
         </div>
       </div>

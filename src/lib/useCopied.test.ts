@@ -42,12 +42,16 @@ describe('useCopied', () => {
     expect(result.current[0]).toBe(true);
   });
 
-  it('não marca copied quando clipboard rejeita e execCommand falha', async () => {
+  it('marca failed quando clipboard rejeita e execCommand falha, e reseta após resetMs', async () => {
     const writeText = vi.fn(() => Promise.reject(new Error('denied')));
     vi.stubGlobal('navigator', { clipboard: { writeText } });
     document.execCommand = vi.fn(() => false);
-    const { result } = renderHook(() => useCopied());
+    const { result } = renderHook(() => useCopied(1000));
     await act(async () => { result.current[1]('x'); });
     expect(result.current[0]).toBe(false);
+    expect(result.current[2]).toBe(true);
+
+    act(() => vi.advanceTimersByTime(1000));
+    expect(result.current[2]).toBe(false);
   });
 });

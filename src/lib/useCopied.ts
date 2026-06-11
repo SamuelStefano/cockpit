@@ -23,24 +23,27 @@ function legacyCopy(text: string): boolean {
   return ok;
 }
 
-export function useCopied(resetMs = 1500): [boolean, (text: string) => void] {
-  const [copied, setCopied] = useState(false);
+export function useCopied(resetMs = 1500): [boolean, (text: string) => void, boolean] {
+  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
   const copy = useCallback((text: string) => {
-    const done = () => {
-      setCopied(true);
+    // `failed` dá feedback quando até o fallback falhou (permissão negada em
+    // contexto seguro sem gesto, iframe sandbox) — antes o clique era mudo e o
+    // usuário colava o conteúdo antigo do clipboard sem perceber.
+    const flash = (s: 'copied' | 'failed') => {
+      setState(s);
       if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => setCopied(false), resetMs);
+      timer.current = setTimeout(() => setState('idle'), resetMs);
     };
     if (navigator.clipboard) {
-      navigator.clipboard.writeText(text).then(done).catch(() => { if (legacyCopy(text)) done(); });
-    } else if (legacyCopy(text)) {
-      done();
+      navigator.clipboard.writeText(text).then(() => flash('copied')).catch(() => flash(legacyCopy(text) ? 'copied' : 'failed'));
+    } else {
+      flash(legacyCopy(text) ? 'copied' : 'failed');
     }
   }, [resetMs]);
 
-  return [copied, copy];
+  return [state === 'copied', copy, state === 'failed'];
 }
