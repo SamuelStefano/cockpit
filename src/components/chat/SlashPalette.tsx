@@ -9,7 +9,7 @@ interface SlashPaletteProps {
 
 export function SlashPalette({ matches, sel, setSel, complete }: SlashPaletteProps) {
   return (
-    <div className="scroll-thin absolute bottom-full left-0 z-30 mb-2 max-h-60 w-full overflow-auto rounded-lg border border-neutral-700 bg-neutral-900 py-1 shadow-xl shadow-black/50">
+    <div className="scroll-thin absolute bottom-full left-0 z-30 mb-2 max-h-60 w-full overscroll-contain overflow-auto rounded-lg border border-neutral-700 bg-neutral-900 py-1 shadow-xl shadow-black/50">
       {matches.map((c, i) => {
         const local = isLocalSlash(c);
         return (

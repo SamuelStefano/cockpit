@@ -83,7 +83,7 @@ export function AskQuestionCard({ tool, answerable, onAnswer }: AskQuestionCardP
                     className={`flex items-start gap-2 rounded-lg border px-2.5 py-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/40 ${
                       picked
                         ? 'border-sky-400/50 bg-sky-500/15'
-                        : 'border-neutral-800 bg-neutral-900/50 hover:border-neutral-700'
+                        : `border-neutral-800 bg-neutral-900/50 ${locked ? '' : 'hover:border-neutral-700'}`
                     } ${locked ? 'cursor-default opacity-80' : ''}`}
                   >
                     <span

@@ -21,7 +21,7 @@ export function AiIconPicker({ open, onToggle, selected, onSelect }: AiIconPicke
         <Icon name={open ? 'chevronDown' : 'chevronRight'} size={13} />
       </button>
       {open && (
-        <div className="scroll-thin mt-2 grid max-h-40 grid-cols-6 gap-1.5 overflow-y-auto">
+        <div className="scroll-thin mt-2 grid max-h-40 grid-cols-6 gap-1.5 overscroll-contain overflow-y-auto">
           {AI_AVATARS.map((a) => {
             const on = a.id === selected;
             return (

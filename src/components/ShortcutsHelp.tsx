@@ -78,7 +78,7 @@ export function ShortcutsHelp({ open, onClose }: { open: boolean; onClose: () =>
           </span>
           <Button variant="ghost" size="sm" square icon="x" onClick={onClose} title="Fechar (Esc)" />
         </div>
-        <div className="scroll-thin max-h-[60vh] space-y-4 overflow-y-auto px-4 py-3.5">
+        <div className="scroll-thin max-h-[60vh] space-y-4 overscroll-contain overflow-y-auto px-4 py-3.5">
           {GROUPS.map((g) => (
             <div key={g.title}>
               <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-neutral-600">{g.title}</div>

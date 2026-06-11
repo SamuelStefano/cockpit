@@ -95,7 +95,7 @@ export function DocViewer({
 
         <div className="flex min-h-0 flex-1">
           {hasOutline && !raw && (
-            <nav className="scroll-thin hidden w-56 shrink-0 overflow-y-auto border-r border-neutral-800/80 px-2 py-4 lg:block">
+            <nav className="scroll-thin hidden w-56 shrink-0 overscroll-contain overflow-y-auto border-r border-neutral-800/80 px-2 py-4 lg:block">
               <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-600">Nesta página</p>
               {outline.map((o, oi) => (
                 <button
@@ -112,7 +112,7 @@ export function DocViewer({
             </nav>
           )}
 
-          <div ref={scrollRef} className="scroll-thin flex-1 overflow-y-auto px-4 py-5 sm:px-7">
+          <div ref={scrollRef} className="scroll-thin flex-1 overscroll-contain overflow-y-auto px-4 py-5 sm:px-7">
             {raw ? (
               <pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-relaxed text-neutral-400">{body}</pre>
             ) : (

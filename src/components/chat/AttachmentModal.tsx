@@ -66,7 +66,7 @@ export function AttachmentModal({ att, onClose }: { att: AttachmentPreview; onCl
           )}
           <Button variant="ghost" size="sm" square icon="x" onClick={onClose} title="Fechar (Esc)" />
         </div>
-        <div className="flex min-h-[140px] items-center justify-center overflow-auto bg-neutral-950/60 p-4">
+        <div className="flex min-h-[140px] items-center justify-center overscroll-contain overflow-auto bg-neutral-950/60 p-4">
           {content}
         </div>
       </div>

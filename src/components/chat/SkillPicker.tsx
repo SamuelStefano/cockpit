@@ -80,7 +80,7 @@ export function SkillPicker({ skills, selected, setSelected }: {
                 </button>
               )}
             </div>
-            <div className="scroll-thin max-h-[calc(70vh-92px)] overflow-auto py-1 sm:max-h-56">
+            <div className="scroll-thin max-h-[calc(70vh-92px)] overscroll-contain overflow-auto py-1 sm:max-h-56">
               {filtered.map((s) => {
                 const on = selected.includes(s.id);
                 return (
