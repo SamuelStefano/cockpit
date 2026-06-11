@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Icon, Markdown } from '../primitives';
+import { Icon, Markdown, tokens } from '../primitives';
 import { usePersisted } from '../../lib/persist';
 import type { ToolCall } from '../../data/mock';
 import { DiffView } from './DiffView';
@@ -26,7 +26,7 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
     ),
     done: (
       <span className="flex items-center gap-1.5 text-[11px] font-medium text-green-400">
-        <Icon name="check" size={13} /> done {((tool.durationMs ?? 0) / 1000).toFixed(1)}s
+        <Icon name="check" size={13} /> done{tool.durationMs !== undefined && ` ${(tool.durationMs / 1000).toFixed(1)}s`}
       </span>
     ),
     error: (
@@ -68,7 +68,7 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
           <button
             onClick={() => setShowShellCmd(true)}
             title="Comandos de shell ocultos. Clique para voltar a mostrá-los."
-            className="flex items-center gap-1.5 rounded-md border border-dashed border-neutral-800 px-2.5 py-1 font-mono text-[11px] text-neutral-600 transition hover:border-neutral-700 hover:text-neutral-400"
+            className={`flex items-center gap-1.5 rounded-md border border-dashed border-neutral-800 px-2.5 py-1 font-mono text-[11px] text-neutral-600 transition hover:border-neutral-700 hover:text-neutral-400 ${tokens.focusRing}`}
           >
             <span className="select-none text-orange-500/50">$</span> comando oculto · mostrar
           </button>
@@ -84,7 +84,7 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
               <button
                 onClick={() => setShowShellCmd(false)}
                 title="Ocultar comandos de shell por padrão"
-                className="ml-auto shrink-0 text-neutral-600 transition hover:text-neutral-300"
+                className={`ml-auto shrink-0 rounded text-neutral-600 transition hover:text-neutral-300 ${tokens.focusRing}`}
               >
                 <Icon name="x" size={12} />
               </button>
@@ -118,7 +118,7 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
           <div className="flex items-center pr-2">
             <button
               onClick={() => setOpen(o => !o)}
-              className="flex flex-1 items-center gap-1.5 px-3 py-1.5 text-[11px] text-neutral-500 transition hover:text-neutral-300"
+              className={`flex flex-1 items-center gap-1.5 px-3 py-1.5 text-[11px] text-neutral-500 transition hover:text-neutral-300 ${tokens.focusRing}`}
             >
               <Icon name="chevronDown" size={13} className="transition-transform duration-200" style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
               {open ? 'ocultar output' : `mostrar output (${lines.length} linhas)`}

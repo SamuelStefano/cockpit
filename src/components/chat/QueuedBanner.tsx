@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Icon } from '../primitives';
+import { Icon, tokens } from '../primitives';
 
 // Fila do cliente: mensagens digitadas durante um turno, disparadas em ordem
 // quando a sessão libera. Cada item: ver completo (clique no texto), reordenar
@@ -11,7 +11,7 @@ export function QueuedBanner({ queued, onCancelQueueAt, onMove }: {
 }) {
   const [open, setOpen] = useState<Record<number, boolean>>({});
   const toggle = (i: number) => setOpen((o) => ({ ...o, [i]: !o[i] }));
-  const iconBtn = 'flex h-5 w-5 shrink-0 items-center justify-center rounded text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200 disabled:pointer-events-none disabled:opacity-30';
+  const iconBtn = `flex h-5 w-5 shrink-0 items-center justify-center rounded text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200 disabled:pointer-events-none disabled:opacity-30 ${tokens.focusRing}`;
   return (
     <div className="mb-2 rounded-lg border border-orange-500/30 bg-orange-500/[0.06] px-2.5 py-1.5">
       <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-orange-300/90">

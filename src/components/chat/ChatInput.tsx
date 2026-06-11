@@ -1,4 +1,4 @@
-import { Icon } from '../primitives';
+import { Icon, tokens } from '../primitives';
 import { ChatInputToolbar } from './ChatInputToolbar';
 import { AttachmentChips } from './AttachmentChips';
 import { QueuedBanner } from './QueuedBanner';
@@ -85,7 +85,7 @@ export function ChatInput(props: ChatInputProps) {
         <button
           onClick={() => fileRef.current?.click()}
           title="Anexar arquivo — ou arraste e solte / cole (Ctrl+V). Vai junto no próximo envio."
-          className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200"
+          className={`mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200 ${tokens.focusRing}`}
         >
           <Icon name="paperclip" size={15} />
         </button>

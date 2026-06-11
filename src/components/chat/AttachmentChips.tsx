@@ -1,4 +1,4 @@
-import { Icon } from '../primitives';
+import { Icon, tokens } from '../primitives';
 import type { Attachment } from '../../useCockpit';
 
 interface AttachmentChipsProps {
@@ -16,7 +16,7 @@ export function AttachmentChips({ attachments, onRemoveAttachment }: AttachmentC
           <button
             onClick={() => onRemoveAttachment(a.path)}
             title="Remover anexo"
-            className="flex h-4 w-4 items-center justify-center rounded text-neutral-500 transition hover:bg-neutral-700 hover:text-neutral-200"
+            className={`flex h-6 w-6 items-center justify-center rounded text-neutral-500 transition hover:bg-neutral-700 hover:text-neutral-200 ${tokens.focusRing}`}
           >
             <Icon name="x" size={11} />
           </button>

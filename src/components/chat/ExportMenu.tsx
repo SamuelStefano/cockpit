@@ -1,4 +1,4 @@
-import { Icon } from '../primitives';
+import { Icon, tokens } from '../primitives';
 import type { Message } from '../../data/mock';
 import { useState } from 'react';
 import { threadToMarkdown, threadToPdf, download, fileSlug } from '../../lib/export';
@@ -19,7 +19,7 @@ export function ExportMenu({ title, messages }: { title: string; messages: Messa
       <button
         onClick={exportMd}
         title="Baixar conversa em Markdown"
-        className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300"
+        className={`flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300 ${tokens.focusRing}`}
       >
         <Icon name="download" size={13} /> .md
       </button>
@@ -27,7 +27,7 @@ export function ExportMenu({ title, messages }: { title: string; messages: Messa
         onClick={exportPdf}
         disabled={busy}
         title="Baixar conversa em PDF"
-        className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300 disabled:opacity-50"
+        className={`flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300 disabled:opacity-50 ${tokens.focusRing}`}
       >
         <Icon name={busy ? 'rotate' : 'download'} size={13} className={busy ? 'spin' : ''} /> pdf
       </button>

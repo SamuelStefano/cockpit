@@ -80,7 +80,7 @@ export function AskQuestionCard({ tool, answerable, onAnswer }: AskQuestionCardP
                     key={oi}
                     onClick={() => toggle(qi, opt.label, q.multiSelect)}
                     disabled={locked}
-                    className={`flex items-start gap-2 rounded-lg border px-2.5 py-2 text-left transition ${
+                    className={`flex items-start gap-2 rounded-lg border px-2.5 py-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/40 ${
                       picked
                         ? 'border-sky-400/50 bg-sky-500/15'
                         : 'border-neutral-800 bg-neutral-900/50 hover:border-neutral-700'
@@ -110,7 +110,7 @@ export function AskQuestionCard({ tool, answerable, onAnswer }: AskQuestionCardP
           <button
             onClick={submit}
             disabled={!everyAnswered}
-            className="mt-1 inline-flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/15 px-3 py-1.5 text-[12px] font-medium text-sky-100 transition enabled:hover:bg-sky-500/25 disabled:cursor-not-allowed disabled:opacity-40"
+            className="mt-1 inline-flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/15 px-3 py-1.5 text-[12px] font-medium text-sky-100 transition enabled:hover:bg-sky-500/25 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/40"
           >
             <Icon name="check" size={13} /> Enviar resposta
           </button>

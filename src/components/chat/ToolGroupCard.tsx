@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Icon } from '../primitives';
+import { Icon, tokens } from '../primitives';
 import type { ToolCall } from '../../data/mock';
 import { ToolCallCard } from './ToolCallCard';
 
@@ -17,6 +17,7 @@ export function ToolGroupCard({ tools }: ToolGroupCardProps) {
   const anyError = tools.some((t) => t.status === 'error');
   const status: ToolCall['status'] = anyError ? 'error' : anyRunning ? 'running' : 'done';
   const totalMs = tools.reduce((s, t) => s + (t.durationMs ?? 0), 0);
+  const hasMs = tools.some((t) => t.durationMs !== undefined);
 
   const counts = new Map<string, number>();
   for (const t of tools) {
@@ -30,13 +31,13 @@ export function ToolGroupCard({ tools }: ToolGroupCardProps) {
     ? <span className="flex items-center gap-1 text-[10.5px] font-medium text-neutral-400"><Icon name="rotate" size={11} className="spin text-orange-400" /> rodando…</span>
     : status === 'error'
     ? <span className="flex items-center gap-1 text-[10.5px] font-medium text-red-400"><Icon name="x" size={12} /> {tools.filter((t) => t.status === 'error').length} falhou</span>
-    : <span className="flex items-center gap-1 text-[10.5px] font-medium text-green-400"><Icon name="check" size={12} /> {(totalMs / 1000).toFixed(1)}s</span>;
+    : <span className="flex items-center gap-1 text-[10.5px] font-medium text-green-400"><Icon name="check" size={12} /> {hasMs ? `${(totalMs / 1000).toFixed(1)}s` : 'ok'}</span>;
 
   return (
     <div className={`my-2 overflow-hidden rounded-xl border ${ring} bg-neutral-900/70`}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition hover:bg-neutral-900"
+        className={`flex w-full items-center gap-2.5 px-3 py-2 text-left transition hover:bg-neutral-900 ${tokens.focusRing}`}
       >
         <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${status === 'error' ? 'bg-red-500/15 text-red-400' : 'bg-neutral-800 text-orange-400'}`}>
           <Icon name="terminal" size={13} />

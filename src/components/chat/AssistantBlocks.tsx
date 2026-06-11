@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Icon, Markdown, CodeBlock } from '../primitives';
+import { Icon, Markdown, CodeBlock, tokens } from '../primitives';
 import { usePersisted } from '../../lib/persist';
 import type { Block } from '../../data/mock';
 import { ToolCallCard } from './ToolCallCard';
@@ -18,7 +18,7 @@ function ThinkingCard({ text }: { text: string }) {
       <button
         onClick={() => setOpen((o) => !o)}
         title="Pensamento interno do modelo (extended thinking) — não faz parte da resposta final"
-        className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-neutral-500 transition hover:text-neutral-300"
+        className={`flex w-full items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-neutral-500 transition hover:text-neutral-300 ${tokens.focusRing}`}
       >
         <Icon name="chevronRight" size={12} className={`transition-transform ${open ? 'rotate-90' : ''}`} />
         <Icon name="zap" size={11} className="text-violet-400/70" />
