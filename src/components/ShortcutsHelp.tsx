@@ -59,7 +59,8 @@ function Keys({ keys }: { keys: string[] }) {
 export function ShortcutsHelp({ open, onClose }: { open: boolean; onClose: () => void }) {
   useEffect(() => {
     if (!open) return;
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    // Um Esc fecha um overlay só: ignora keypress já consumido e marca o que consome.
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); onClose(); } };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [open, onClose]);

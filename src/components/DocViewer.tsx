@@ -47,7 +47,9 @@ export function DocViewer({
   const hasOutline = outline.length >= 3;
 
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    // defaultPrevented + preventDefault: um Esc fecha um overlay só — quem consome
+    // marca o evento e os listeners dos overlays de baixo ignoram o mesmo keypress.
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); onClose(); } };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [onClose]);

@@ -45,7 +45,7 @@ export function SessionRowActions({ pinned, running, canStop, canDescribe, onTog
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); setOpen(false); } };
     window.addEventListener('mousedown', onDown);
     window.addEventListener('keydown', onKey);
     return () => { window.removeEventListener('mousedown', onDown); window.removeEventListener('keydown', onKey); };

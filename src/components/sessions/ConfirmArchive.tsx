@@ -26,7 +26,7 @@ export function ConfirmArchive({ title, mode = 'archive', onConfirm, onCancel }:
   const c = COPY[mode];
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+      if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); onCancel(); }
       else if (e.key === 'Enter') { e.preventDefault(); onConfirm(); }
     };
     window.addEventListener('keydown', onKey);

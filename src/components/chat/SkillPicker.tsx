@@ -22,7 +22,7 @@ export function SkillPicker({ skills, selected, setSelected }: {
     const onDoc = (e: MouseEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false); };
     // defaultPrevented: se outro handler já consumiu o Esc (parar turno, paleta
     // por cima), não fecha o picker junto no mesmo keypress.
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); setOpen(false); } };
     document.addEventListener('mousedown', onDoc);
     window.addEventListener('keydown', onKey);
     return () => {
