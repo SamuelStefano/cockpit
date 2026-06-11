@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
-import { Badge } from '../components/primitives';
+import { Badge, Button, EmptyState } from '../components/primitives';
+import { useLoadStalled } from '../lib/useLoadStalled';
 import type { UsageStats } from '../../shared/protocol';
 import type { Session } from '../data/mock';
 import { fmtNum as fmt, usd, costToday as computeCostToday } from './observatorio.format';
@@ -26,6 +27,9 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions, rat
   // Resposta perdida (reconnect do relay) deixava o skeleton pra sempre — repete
   // o pedido enquanto não chegou nada.
   useUsageRetry(connected, usageStats !== null, onUsageList);
+  // Esgotadas as retentativas (5×2.5s = 12.5s), sem isto o skeleton girava pra
+  // sempre. 14s pro stall não sobrepor a última retentativa automática.
+  const { stalled, retry } = useLoadStalled(usageStats !== null, connected, 14_000);
 
   const known = useMemo(() => new Set(sessions.map((s) => s.id)), [sessions]);
   const titleOf = useMemo(() => {
@@ -50,7 +54,15 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions, rat
         <Offline />
       ) : (
         <div className="scroll-thin flex-1 overflow-y-auto p-4">
-          {usageStats === null ? <UsageSkeleton /> : <>
+          {usageStats === null ? (
+            stalled ? (
+              <EmptyState icon="x" title="Não deu pra carregar o uso" description="O servidor não respondeu com a telemetria. Tente de novo.">
+                <Button icon="rotate" onClick={() => { retry(); onUsageList(); }}>Tentar de novo</Button>
+              </EmptyState>
+            ) : (
+              <UsageSkeleton />
+            )
+          ) : <>
           {rate && <RateWindow rate={rate} />}
           <div className="stagger-fade mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <Stat label="custo estimado" value={usd(usageStats?.totalCost ?? 0)} icon="zap" />
