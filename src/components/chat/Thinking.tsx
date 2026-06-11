@@ -47,15 +47,43 @@ export function LiveStatsLine({ live }: { live: LiveTurn }) {
   );
 }
 
+// Estrelinha pulsante do terminal: a sequência cresce e encolhe (ping-pong),
+// igual ao spinner do Claude Code. Pura e exportada pra teste.
+const GLYPHS = ['·', '✢', '✳', '✶', '✻', '✽'] as const;
+export function spinnerGlyph(tick: number): string {
+  const period = (GLYPHS.length - 1) * 2;
+  const t = ((tick % period) + period) % period;
+  return GLYPHS[t < GLYPHS.length ? t : period - t];
+}
+
+// Verbos rotativos como no terminal — quebram a monotonia do "pensando…" fixo.
+export const SPINNER_VERBS = ['Pensando', 'Maquinando', 'Cozinhando', 'Tramando', 'Destilando', 'Garimpando', 'Orquestrando', 'Lapidando', 'Tecendo', 'Conjurando'] as const;
+export function spinnerVerb(i: number): string {
+  return SPINNER_VERBS[((i % SPINNER_VERBS.length) + SPINNER_VERBS.length) % SPINNER_VERBS.length];
+}
+
+function useSpinner(): { glyph: string; verb: string } {
+  // Verbo inicial aleatório pra turnos seguidos não abrirem sempre com o mesmo.
+  const [seed] = useState(() => Math.floor(Math.random() * SPINNER_VERBS.length));
+  const [tick, setTick] = useState(0);
+  const [verbI, setVerbI] = useState(0);
+  useEffect(() => {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const g = setInterval(() => setTick((t) => t + 1), 140);
+    const v = setInterval(() => setVerbI((i) => i + 1), 6000);
+    return () => { clearInterval(g); clearInterval(v); };
+  }, []);
+  return { glyph: spinnerGlyph(tick), verb: spinnerVerb(seed + verbI) };
+}
+
 export function ThinkingDots({ live }: { live?: LiveTurn }) {
+  const { glyph, verb } = useSpinner();
   return (
     <div className="flex items-center gap-2 pt-1.5">
-      <div className="flex items-center gap-1">
-        <span className="think-dot h-1.5 w-1.5 rounded-full bg-orange-400" style={{ animationDelay: '0ms' }} />
-        <span className="think-dot h-1.5 w-1.5 rounded-full bg-orange-400" style={{ animationDelay: '160ms' }} />
-        <span className="think-dot h-1.5 w-1.5 rounded-full bg-orange-400" style={{ animationDelay: '320ms' }} />
-      </div>
-      <span className="text-[12px] text-neutral-500">pensando…</span>
+      <span className="spinner-star inline-block w-4 text-center text-[15px] leading-none text-orange-400" aria-hidden>
+        {glyph}
+      </span>
+      <span className="text-[12px] text-neutral-500">{verb}…</span>
       {live ? <LiveStatsLine live={live} /> : <FallbackElapsed />}
     </div>
   );

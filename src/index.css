@@ -44,8 +44,9 @@ body {
   background: #d4d4d4; animation: caretBlink 1.1s steps(1) infinite;
 }
 
-@keyframes thinkDot { 0%, 60%, 100% { opacity: 0.25; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
-.think-dot { animation: thinkDot 1.2s ease-in-out infinite; }
+@keyframes starPulse { 0%, 100% { opacity: 0.55; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.08); } }
+.spinner-star { animation: starPulse 1.1s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .spinner-star { animation: none; } }
 
 @keyframes spin360 { to { transform: rotate(360deg); } }
 .spin { animation: spin360 0.7s linear infinite; }
