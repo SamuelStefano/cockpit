@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Icon, tokens } from '../primitives';
+import { remapOpen } from './queued-open';
 
 // Fila do cliente: mensagens digitadas durante um turno, disparadas em ordem
 // quando a sessão libera. Cada item: ver completo (clique no texto), reordenar
@@ -12,12 +13,20 @@ export function QueuedBanner({ queued, onCancelQueueAt, onMove }: {
   const [open, setOpen] = useState<Record<number, boolean>>({});
   const [flash, setFlash] = useState<number | null>(null);
   const toggle = (i: number) => setOpen((o) => ({ ...o, [i]: !o[i] }));
-  // O estado expandido é por índice; ao mover, troca junto pra acompanhar o item.
+  // O expandido é keyed por índice, mas QUALQUER mudança na fila (cancelar,
+  // drenar o topo, reordenar) desloca os índices — sem o remap a expansão
+  // pulava pro item vizinho. Remapear aqui cobre os três casos de uma vez.
+  // Layout effect: corrige antes do paint, senão 1 frame mostrava o vizinho expandido.
+  const prevQueued = useRef(queued);
+  useLayoutEffect(() => {
+    if (prevQueued.current === queued) return;
+    setOpen((o) => remapOpen(prevQueued.current, queued, o));
+    prevQueued.current = queued;
+  }, [queued]);
   // O flash dá feedback de pra onde o item foi (a lista reordena sem animação).
   const move = (i: number, dir: -1 | 1) => {
     const j = i + dir;
     onMove(i, dir);
-    setOpen((o) => ({ ...o, [i]: !!o[j], [j]: !!o[i] }));
     setFlash(j);
     window.setTimeout(() => setFlash((f) => (f === j ? null : f)), 700);
   };
