@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Icon } from '../primitives';
+import { Icon, tokens } from '../primitives';
 import type { ToolTodo } from '../../data/mock';
 
 interface TodoPanelProps {
@@ -31,7 +31,7 @@ export function TodoPanel({ todos }: TodoPanelProps) {
         {hidden > 0 && (
           <button
             onClick={() => setShowAll((s) => !s)}
-            className="mt-1.5 text-[11px] text-neutral-600 transition hover:text-neutral-400"
+            className={`mt-1.5 rounded text-[11px] text-neutral-600 transition hover:text-neutral-400 ${tokens.focusRing}`}
           >
             {showAll ? 'mostrar menos' : `mostrar todas (+${hidden})`}
           </button>

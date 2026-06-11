@@ -1,4 +1,4 @@
-import { Icon, Badge } from '../primitives';
+import { Icon, Badge, tokens } from '../primitives';
 import { ExportMenu } from './ExportMenu';
 import { TurnStat } from './TurnStat';
 import { ContextMeter } from './ContextMeter';
@@ -44,7 +44,7 @@ export function ChatHeader({ session, messages, isEmpty, isMobile, contextTokens
               : truncated
                 ? 'Esta sessão é longa: só as mensagens mais recentes foram carregadas. Clique para carregar o histórico completo (inclui anteriores a um /compact).'
                 : 'Recarrega todas as mensagens do arquivo, inclusive as anteriores a um /compact que somem do caminho ativo'}
-            className={`flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10.5px] transition ${
+            className={`flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10.5px] transition ${tokens.focusRing} ${
               fullLoaded
                 ? 'border-orange-700/60 bg-orange-500/10 text-orange-300 hover:border-orange-600 hover:text-orange-200'
                 : truncated
@@ -61,7 +61,7 @@ export function ChatHeader({ session, messages, isEmpty, isMobile, contextTokens
           <button
             onClick={onTerminal}
             title="Abrir terminais"
-            className="relative flex h-7 w-7 items-center justify-center rounded-md border border-neutral-800 text-neutral-400 transition hover:border-neutral-700 hover:text-orange-300"
+            className={`relative flex h-7 w-7 items-center justify-center rounded-md border border-neutral-800 text-neutral-400 transition hover:border-neutral-700 hover:text-orange-300 ${tokens.focusRing}`}
           >
             <Icon name="terminal" size={14} />
             {terminalRunning && (

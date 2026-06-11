@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Icon } from '../primitives';
+import { Button, Icon, tokens } from '../primitives';
 import { UserAvatar } from '../UserAvatar';
 import { usePersisted } from '../../lib/persist';
 import type { UserMessage } from '../../data/mock';
@@ -58,12 +58,8 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
             className="w-full resize-none rounded-2xl rounded-br-md border border-orange-500/40 bg-neutral-800 px-3.5 py-2.5 text-[14px] leading-relaxed text-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
           />
           <div className="flex items-center gap-2">
-            <button onClick={cancel} className="rounded-lg border border-neutral-700 px-3 py-1 text-[12px] font-medium text-neutral-300 transition hover:bg-neutral-800">
-              Cancelar
-            </button>
-            <button onClick={save} className="rounded-lg bg-orange-500 px-3 py-1 text-[12px] font-semibold text-neutral-950 transition hover:bg-orange-400">
-              Salvar e reenviar
-            </button>
+            <Button variant="outline" size="sm" onClick={cancel}>Cancelar</Button>
+            <Button size="sm" onClick={save}>Salvar e reenviar</Button>
           </div>
         </div>
       </div>
@@ -82,7 +78,7 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
           <button
             onClick={start}
             title="Editar e reenviar"
-            className="flex h-6 w-6 items-center justify-center rounded-md text-neutral-600 transition hover:bg-neutral-800 hover:text-neutral-300"
+            className={`flex h-6 w-6 items-center justify-center rounded-md text-neutral-600 transition hover:bg-neutral-800 hover:text-neutral-300 ${tokens.focusRing}`}
           >
             <Icon name="pencil" size={12} />
           </button>

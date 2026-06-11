@@ -28,7 +28,7 @@ export function QueuedBanner({ queued, onCancelQueueAt, onMove }: {
                 type="button"
                 onClick={() => toggle(i)}
                 title={expanded ? 'Recolher' : 'Ver completo'}
-                className={`flex-1 text-left text-[11.5px] leading-snug text-neutral-300 ${expanded ? 'whitespace-pre-wrap break-words' : 'truncate'}`}
+                className={`flex-1 rounded text-left text-[11.5px] leading-snug text-neutral-300 ${tokens.focusRing} ${expanded ? 'whitespace-pre-wrap break-words' : 'truncate'}`}
               >
                 {text}
               </button>

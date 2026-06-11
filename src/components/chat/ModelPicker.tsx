@@ -1,7 +1,7 @@
 import type { ModelInfo } from '../../../shared/protocol';
 import { prettyModel, modelFamily, normalizeModelId } from './toolbar.format';
 import { usePersisted } from '../../lib/persist';
-import { Icon } from '../primitives';
+import { Icon, tokens } from '../primitives';
 
 const ADD = '__add__';
 
@@ -70,7 +70,7 @@ export function ModelPicker({ model, setModel, models, onRefreshModels, disabled
         onClick={onRefreshModels}
         disabled={disabled}
         title="Buscar modelos novos da Anthropic agora"
-        className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md border border-neutral-800 bg-neutral-950 text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-200 disabled:cursor-not-allowed disabled:opacity-50"
+        className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md border border-neutral-800 bg-neutral-950 text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-200 disabled:cursor-not-allowed disabled:opacity-50 ${tokens.focusRing}`}
       >
         <Icon name="rotate" size={12} />
       </button>

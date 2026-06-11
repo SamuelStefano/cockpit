@@ -1,3 +1,4 @@
+import { tokens } from '../primitives';
 import type { PermMode } from '../../../shared/protocol';
 
 const ACTIVE_TONE: Record<PermMode, string> = {
@@ -23,7 +24,7 @@ export function ModeToggle({ mode, setMode, disabled }: { mode: PermMode; setMod
             disabled={disabled}
             onClick={() => setMode(o.v)}
             title={o.hint}
-            className={`rounded-md px-2 py-1 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-50
+            className={`rounded-md px-2 py-1 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${tokens.focusRing}
               ${active ? ACTIVE_TONE[o.v] : 'text-neutral-500 hover:text-neutral-300'}`}
           >
             {o.label}

@@ -1,4 +1,4 @@
-import { Icon } from '../primitives';
+import { Icon, tokens } from '../primitives';
 import type { AttachmentPreview } from '../../useCockpit';
 import { attachmentIcon } from '../../lib/attachment-kind';
 import { useAttachmentModal } from './useAttachmentModal';
@@ -50,7 +50,7 @@ export function AttachmentModal({ att, onClose }: { att: AttachmentPreview; onCl
               href={url}
               download={att.name}
               title="Baixar"
-              className="flex h-7 w-7 items-center justify-center rounded-md text-neutral-400 transition hover:bg-neutral-800 hover:text-neutral-200"
+              className={`flex h-7 w-7 items-center justify-center rounded-md text-neutral-400 transition hover:bg-neutral-800 hover:text-neutral-200 ${tokens.focusRing}`}
             >
               <Icon name="download" size={14} />
             </a>
@@ -58,7 +58,7 @@ export function AttachmentModal({ att, onClose }: { att: AttachmentPreview; onCl
           <button
             onClick={onClose}
             title="Fechar (Esc)"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-neutral-400 transition hover:bg-neutral-800 hover:text-neutral-200"
+            className={`flex h-7 w-7 items-center justify-center rounded-md text-neutral-400 transition hover:bg-neutral-800 hover:text-neutral-200 ${tokens.focusRing}`}
           >
             <Icon name="x" size={14} />
           </button>

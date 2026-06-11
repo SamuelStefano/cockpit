@@ -51,7 +51,7 @@ ssh -L PORTA:localhost:PORTA usuario@sua-vps</pre>
             {onTerminal && (
               <button
                 onClick={onTerminal}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-1.5 text-[12px] font-medium text-amber-100 transition hover:bg-amber-500/25"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-1.5 text-[12px] font-medium text-amber-100 transition hover:bg-amber-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
               >
                 <Icon name="terminal" size={13} /> Abrir terminal
               </button>

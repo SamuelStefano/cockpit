@@ -24,7 +24,7 @@ export function ContextMeter({ tokens, onNew }: { tokens: number; onNew?: () => 
         <button
           onClick={onNew}
           title="Contexto quase cheio — comece uma sessão nova para respostas mais rápidas e baratas"
-          className="flex items-center gap-1 rounded-md border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 text-[10.5px] font-medium text-red-300 transition hover:bg-red-500/20"
+          className="flex items-center gap-1 rounded-md border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 text-[10.5px] font-medium text-red-300 transition hover:bg-red-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40"
         >
           <Icon name="plus" size={11} /> nova sessão
         </button>

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Icon } from '../primitives';
+import { Icon, tokens } from '../primitives';
 import type { SkillMeta } from '../../../shared/protocol';
 
 // Seletor das skills ativas POR PROMPT. Multi-select num popover (bottom-sheet no
@@ -46,7 +46,7 @@ export function SkillPicker({ skills, selected, setSelected }: {
         type="button"
         onClick={() => setOpen((o) => !o)}
         title={active ? `${liveCount} skill(s) ativas neste prompt` : 'Escolher quais skills usar (vazio = todas)'}
-        className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-medium transition
+        className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-medium transition ${tokens.focusRing}
           ${active
             ? 'border-orange-500/50 bg-orange-500/15 text-orange-300 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.4)]'
             : 'border-neutral-800 bg-neutral-950 text-neutral-500 hover:text-neutral-300'}`}
@@ -74,7 +74,7 @@ export function SkillPicker({ skills, selected, setSelected }: {
               {count > 0 && (
                 <button
                   onClick={() => setSelected([])}
-                  className="shrink-0 rounded px-1.5 py-0.5 text-[10.5px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300"
+                  className={`shrink-0 rounded px-1.5 py-0.5 text-[10.5px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300 ${tokens.focusRing}`}
                 >
                   limpar
                 </button>
@@ -87,7 +87,7 @@ export function SkillPicker({ skills, selected, setSelected }: {
                   <button
                     key={s.id}
                     onClick={() => toggle(s.id)}
-                    className="flex w-full items-start gap-2.5 px-3 py-2 text-left transition hover:bg-neutral-800/60"
+                    className={`flex w-full items-start gap-2.5 px-3 py-2 text-left transition hover:bg-neutral-800/60 ${tokens.focusRing}`}
                   >
                     <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition
                       ${on ? 'border-orange-500 bg-orange-500 text-neutral-950' : 'border-neutral-600'}`}>

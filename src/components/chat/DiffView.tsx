@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Icon } from '../primitives';
+import { Icon, tokens } from '../primitives';
 import type { ToolDiff } from '../../../shared/protocol';
 import { lineDiff } from './diff';
 
@@ -12,7 +12,7 @@ export function DiffView({ diff }: { diff: ToolDiff }) {
     <div className="px-3 pb-2">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="mb-1 flex w-full items-center gap-1.5 text-[11px] text-neutral-500 transition hover:text-neutral-300"
+        className={`mb-1 flex w-full items-center gap-1.5 rounded text-[11px] text-neutral-500 transition hover:text-neutral-300 ${tokens.focusRing}`}
       >
         <Icon name="chevronDown" size={13} style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
         diff

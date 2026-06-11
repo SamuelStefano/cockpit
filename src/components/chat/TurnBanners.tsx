@@ -19,7 +19,7 @@ export function TurnBanners({ phase, failed, planPending, lastEnd, retryLast, on
         <span className="text-[12px] text-red-200/90">O turno falhou. Reenviar a última mensagem?</span>
         <button
           onClick={retryLast}
-          className="ml-auto rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-[11.5px] font-medium text-red-200 transition hover:bg-red-500/20"
+          className="ml-auto rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-[11.5px] font-medium text-red-200 transition hover:bg-red-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40"
         >
           Tentar novamente
         </button>
@@ -33,7 +33,7 @@ export function TurnBanners({ phase, failed, planPending, lastEnd, retryLast, on
         <span className="text-[12px] text-emerald-200/90">Plano pronto para execução.</span>
         <button
           onClick={() => onSend('Plano aprovado — prossiga com a implementação.', 'acceptEdits')}
-          className="ml-auto rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-[11.5px] font-medium text-emerald-200 transition hover:bg-emerald-500/20"
+          className="ml-auto rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-[11.5px] font-medium text-emerald-200 transition hover:bg-emerald-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
         >
           Aprovar &amp; executar
         </button>
@@ -49,7 +49,7 @@ export function TurnBanners({ phase, failed, planPending, lastEnd, retryLast, on
         </span>
         <button
           onClick={() => onSend('Continue de onde você parou e termine a tarefa.')}
-          className="ml-auto rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-[11.5px] font-medium text-amber-200 transition hover:bg-amber-500/20"
+          className="ml-auto rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-[11.5px] font-medium text-amber-200 transition hover:bg-amber-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
         >
           Continuar
         </button>
