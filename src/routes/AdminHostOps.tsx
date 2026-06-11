@@ -72,7 +72,7 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
           {tokens.map((t) => (
             <li key={t} className="flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-900/60 px-2 py-0.5 text-[11px] text-neutral-300">
               {t}
-              <button onClick={() => setPending({ kind: 'env', name: t })} title="Remover" className="text-neutral-600 hover:text-red-300"><Icon name="x" size={11} /></button>
+              <button onClick={() => setPending({ kind: 'env', name: t })} title={`Remover ${t}`} className="text-neutral-600 hover:text-red-300"><Icon name="x" size={11} /></button>
             </li>
           ))}
         </ul>
@@ -89,7 +89,7 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
           {mcps.map((m) => (
             <li key={m.name} className="flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-900/60 px-2 py-0.5 text-[11px] text-neutral-300">
               {m.name} <span className="text-neutral-600">{m.transport}</span>
-              <button onClick={() => setPending({ kind: 'mcp', name: m.name })} title="Remover" className="text-neutral-600 hover:text-red-300"><Icon name="x" size={11} /></button>
+              <button onClick={() => setPending({ kind: 'mcp', name: m.name })} title={`Remover ${m.name}`} className="text-neutral-600 hover:text-red-300"><Icon name="x" size={11} /></button>
             </li>
           ))}
         </ul>

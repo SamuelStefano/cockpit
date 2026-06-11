@@ -21,17 +21,17 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
   const statusEl = {
     running: (
       <span className="flex items-center gap-1.5 text-[11px] font-medium text-neutral-400">
-        <Icon name="rotate" size={12} className="spin text-orange-400" /> running…
+        <Icon name="rotate" size={12} className="spin text-orange-400" /> rodando…
       </span>
     ),
     done: (
       <span className="flex items-center gap-1.5 text-[11px] font-medium text-green-400">
-        <Icon name="check" size={13} /> done{tool.durationMs !== undefined && ` ${(tool.durationMs / 1000).toFixed(1)}s`}
+        <Icon name="check" size={13} /> ok{tool.durationMs !== undefined && ` ${(tool.durationMs / 1000).toFixed(1)}s`}
       </span>
     ),
     error: (
       <span className="flex items-center gap-1.5 text-[11px] font-medium text-red-400">
-        <Icon name="x" size={13} /> exit {tool.exit ?? 1}
+        <Icon name="x" size={13} /> falhou (exit {tool.exit ?? 1})
       </span>
     ),
   }[status];
