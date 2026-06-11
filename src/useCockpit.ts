@@ -212,9 +212,13 @@ export function useCockpit(): Cockpit {
   const threadsRef = useRef<Record<string, Message[]>>(threads);
   useEffect(() => { threadsRef.current = threads; }, [threads]);
 
-  const send = useCallback((m: ClientMsg) => {
+  // Retorna se o frame realmente saiu: com WS fechado o descarte é silencioso, e
+  // quem marca estado local condicionado ao envio (ex: opened) precisa saber.
+  const send = useCallback((m: ClientMsg): boolean => {
     const ws = wsRef.current;
-    if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify(m));
+    if (!ws || ws.readyState !== ws.OPEN) return false;
+    ws.send(JSON.stringify(m));
+    return true;
   }, []);
 
   const { term, onTermData, onTermReplay, onTermExit, onTerms, discovered: discoveredTerms, listTerms, reattach } = useTerminals(send);
@@ -698,10 +702,7 @@ export function useCockpit(): Cockpit {
             if (attachmentsRef.current.length) { attachmentsRef.current = []; setAttachments([]); }
             setAttPreview(null);
             setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === id })));
-            if (id && !id.startsWith('new-') && !opened.current.has(id)) {
-              opened.current.add(id);
-              send({ t: 'open', sessionId: id });
-            }
+            if (id && !id.startsWith('new-') && !opened.current.has(id) && send({ t: 'open', sessionId: id })) opened.current.add(id);
           },
         );
         return;
@@ -775,6 +776,10 @@ export function useCockpit(): Cockpit {
       send({ t: 'list-archived' });
       send({ t: 'usage-list' });
       send({ t: 'skill-list' }); // popula o seletor de skills do composer
+      // Sessão ativada enquanto o WS esteve fechado nunca recebeu o 'open' (frame
+      // descartado) — sem isto o thread visível ficava vazio até um F5.
+      const act = activeRef.current;
+      if (act && !act.startsWith('new-') && !opened.current.has(act) && send({ t: 'open', sessionId: act })) opened.current.add(act);
       reattach();
     };
     ws.onmessage = (ev) => {
@@ -862,10 +867,7 @@ export function useCockpit(): Cockpit {
     // deixava o anexo da sessão anterior na tela da nova.
     setAttPreview(null);
     setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === id })));
-    if (id && !id.startsWith('new-') && !opened.current.has(id)) {
-      opened.current.add(id);
-      send({ t: 'open', sessionId: id });
-    }
+    if (id && !id.startsWith('new-') && !opened.current.has(id) && send({ t: 'open', sessionId: id })) opened.current.add(id);
   }, [send]);
 
   const onSend = useCallback((text: string, modeOverride?: PermMode) => {
@@ -1060,10 +1062,7 @@ export function useCockpit(): Cockpit {
       setActiveIdState(fb);
       if (attachmentsRef.current.length) { attachmentsRef.current = []; setAttachments([]); }
       setAttPreview(null);
-      if (fb && !fb.startsWith('new-') && !opened.current.has(fb)) {
-        opened.current.add(fb);
-        send({ t: 'open', sessionId: fb });
-      }
+      if (fb && !fb.startsWith('new-') && !opened.current.has(fb) && send({ t: 'open', sessionId: fb })) opened.current.add(fb);
       return next.map((s) => ({ ...s, active: s.id === fb }));
     });
     setThreads((prev) => { const n = { ...prev }; delete n[id]; return n; });
