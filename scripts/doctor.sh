@@ -26,7 +26,7 @@ if [ -f "$LOG" ] && [ "$(stat -c%s "$LOG" 2>/dev/null || echo 0)" -gt 1048576 ];
 fi
 
 # Processos que NUNCA devem ser mortos por engano (prod + infra + sessões vivas).
-PROTECT='dist/|dockerd|containerd|docker-proxy|sshd|systemd|tmux:|/claude|claude$| claude |mcp-server|mcp\b|run-backend.sh|doctor.sh|server/index.ts|server/server.js|postgres|redis'
+PROTECT='dist/|dockerd|containerd|docker-proxy|sshd|systemd|tmux|/claude|claude$| claude |mcp-server|mcp\b|run-backend.sh|doctor.sh|server/index.ts|server/server.js|postgres|redis'
 
 # ── 1. CLI interativo pendurado = causa do freeze. Mata auth-CLIs que ficam
 #       esperando stdin. Deploy de verdade usa --token e termina rápido; qualquer
@@ -52,20 +52,36 @@ if [ "$code" != "200" ]; then
   fi
 fi
 
-# ── 3. Guarda de load. load1 alto e sustentado = storm. Em vez de matar prod,
-#       achamos o MAIOR vilão de CPU que NÃO está protegido e derrubamos só ele.
+# ── 3. Guarda de load. load1 alto = storm. No freeze de 2026-06-11 (load 130 em
+#       3 cores, thrash de swap/I/O) NENHUM processo tinha >50% de CPU — a vítima
+#       única falhou e a box ficou travada. Agora: tiro cirúrgico no top-3 de CPU
+#       não-protegido (barra baixa, 10%) e, se o load persistir por 2 ciclos do
+#       cron (~6 min) ou for extremo, último recurso pedido pelo Samuel:
+#       `tmux kill-server` — derruba TODAS as sessões de terminal (incluindo
+#       Claude rodando dentro) pra box voltar sem precisar de reboot na mão.
+STRIKES=/tmp/cockpit-doctor.strikes
 load1=$(awk '{print $1}' /proc/loadavg)
-thresh=$(awk -v c="$CORES" 'BEGIN{print c*4}')   # 4x cores (=12 em 3 cores)
+thresh=$(awk -v c="$CORES" 'BEGIN{print c*4}')    # 4x cores (=12 em 3 cores)
+extreme=$(awk -v c="$CORES" 'BEGIN{print c*16}')  # 16x cores (=48 em 3 cores)
 if awk -v l="$load1" -v t="$thresh" 'BEGIN{exit !(l>t)}'; then
-  log "high load1=$load1 (> $thresh)"
-  victim=$(ps -eo pid,pcpu,args --no-headers --sort=-pcpu 2>/dev/null \
+  strikes=$(( $(cat "$STRIKES" 2>/dev/null || echo 0) + 1 ))
+  echo "$strikes" >"$STRIKES"
+  log "high load1=$load1 (> $thresh) strike=$strikes"
+  victims=$(ps -eo pid,pcpu,args --no-headers --sort=-pcpu 2>/dev/null \
     | grep -vE "$PROTECT" \
-    | awk 'NR==1 && $2>50 {print $1}')
-  if [ -n "${victim:-}" ]; then
+    | awk 'NR<=3 && $2>10 {print $1}')
+  for victim in $victims; do
     vcmd=$(ps -o args= -p "$victim" 2>/dev/null)
     log "KILL runaway pid=$victim (load mitigation): $vcmd"
     kill -TERM "$victim" 2>/dev/null; sleep 2; kill -KILL "$victim" 2>/dev/null
+  done
+  if [ "$strikes" -ge 2 ] || awk -v l="$load1" -v x="$extreme" 'BEGIN{exit !(l>x)}'; then
+    log "ESCALATE: tmux kill-server (load1=$load1 strikes=$strikes) — derrubando todas as sessões de terminal"
+    tmux kill-server 2>/dev/null
+    rm -f "$STRIKES"
   fi
+else
+  rm -f "$STRIKES"
 fi
 
 # ── 4. Guarda de memória. Se disponível < 150MB, derruba o MAIOR consumidor não

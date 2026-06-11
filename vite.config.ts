@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -5,6 +6,13 @@ import react from '@vitejs/plugin-react';
 // do backend e expõe RCE com firewall off). strictPort evita fallback silencioso.
 export default defineConfig({
   plugins: [react()],
+  test: {
+    // VPS de 3 cores/3.7G roda tudo (Deck, terminais, prod DFL): o paralelismo
+    // default da suite saturou a box no freeze de 2026-06-11 (load 130). Um
+    // worker a menos que o total de cores deixa a box sempre respirando.
+    maxWorkers: 2,
+    minWorkers: 1,
+  },
   server: {
     host: '127.0.0.1',
     strictPort: true,
