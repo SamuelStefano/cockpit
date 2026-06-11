@@ -1,5 +1,5 @@
 import type { WebSocket } from 'ws';
-import type { ToolCall } from '../../shared/protocol';
+import type { ToolCall, ToolTodo } from '../../shared/protocol';
 import { run, type RunHandle } from '../engine/claude';
 import { CONFIG } from '../config';
 import type { Role } from '../auth';
@@ -28,6 +28,10 @@ export interface Thread {
   thinking: string;
   tools: ToolCall[];
   toolStart: Map<string, number>; // id -> início, p/ cravar duração no close; morre com o thread
+  // Registry da lista de tarefas do turno (TaskCreate/TaskUpdate): a lista é estado
+  // acumulado entre tools — cada mutação carimba um snapshot no card (ws/tools.ts).
+  tasks: Map<string, ToolTodo>;
+  taskCreates: Map<string, { subject: string; activeForm?: string }>; // tool_use id -> create aguardando o nº da task no result
 }
 
 export const threads = new Map<string, Thread>();
@@ -128,7 +132,7 @@ export function startRun(ws: WebSocket, sessionKey: string, prompt: string, resu
   }
   if (replacing) threads.get(sessionKey)!.handle.kill();
 
-  const thread: Thread = { handle: { kill: () => {} }, prompt, startedAt: Date.now(), sessionId: resumeId, text: '', thinking: '', tools: [], toolStart: new Map() };
+  const thread: Thread = { handle: { kill: () => {} }, prompt, startedAt: Date.now(), sessionId: resumeId, text: '', thinking: '', tools: [], toolStart: new Map(), tasks: new Map(), taskCreates: new Map() };
   threads.set(sessionKey, thread);
   // Eco da mensagem do usuário a todos os clientes ANTES do 'started' (bolha do
   // usuário aparece antes da do assistente). Só quando o cliente mandou msgId — o

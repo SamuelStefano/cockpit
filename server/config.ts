@@ -110,15 +110,17 @@ export const CONFIG = {
   // como pedir aprovação — então read-only de rede precisa estar listada pra
   // funcionar. AskUserQuestion idem: fora da allow-list o CLI nega a pergunta em
   // silêncio e o card de escolha nunca aparece (a UI já trata via --resume).
+  // Tools de task (TodoWrite/TaskCreate/TaskUpdate/TaskGet/TaskList) idem: negadas
+  // em silêncio, a lista de tarefas nunca nascia em runs do app — só no terminal.
   // Bloqueio via COCKPIT_DISALLOWED_TOOLS continua valendo (precede).
-  allowedTools: (process.env.COCKPIT_ALLOWED_TOOLS ?? 'Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch,AskUserQuestion')
+  allowedTools: (process.env.COCKPIT_ALLOWED_TOOLS ?? 'Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch,AskUserQuestion,TodoWrite,TaskCreate,TaskUpdate,TaskGet,TaskList')
     .split(',').map((s) => s.trim()).filter(Boolean),
 
   // Modo Auto: edita/lê sem shell. Mesma allow-list SEM Bash — o agente trabalha
   // arquivos sozinho mas não roda comandos arbitrários. WebFetch/WebSearch
   // (read-only de rede) e AskUserQuestion (pergunta ao usuário) entram pra não
   // travar pesquisa/leitura nem o fluxo de escolha.
-  allowedToolsAuto: (process.env.COCKPIT_ALLOWED_TOOLS_AUTO ?? 'Read,Edit,Write,Glob,Grep,WebFetch,WebSearch,AskUserQuestion')
+  allowedToolsAuto: (process.env.COCKPIT_ALLOWED_TOOLS_AUTO ?? 'Read,Edit,Write,Glob,Grep,WebFetch,WebSearch,AskUserQuestion,TodoWrite,TaskCreate,TaskUpdate,TaskGet,TaskList')
     .split(',').map((s) => s.trim()).filter(Boolean),
 
   // Kill-switch DURO: tools aqui são negadas em TODOS os modos (precede a allow-list

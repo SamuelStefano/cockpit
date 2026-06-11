@@ -6,7 +6,7 @@ import { ToolCallCard } from './ToolCallCard';
 import { ToolGroupCard } from './ToolGroupCard';
 import { AskQuestionCard } from './AskQuestionCard';
 import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT } from '../../lib/prefs';
-import { isQuestionTool as isQuestion } from './visible-blocks';
+import { isQuestionTool as isQuestion, isTodoTool } from './visible-blocks';
 
 function ThinkingCard({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
@@ -82,15 +82,23 @@ export function AssistantBlocks({ blocks, caretOnLast, answerable = false, onAns
           // toggle showTools.
           const questions = it.tools.filter(isQuestion);
           const rest = it.tools.filter((t) => !isQuestion(t));
+          // Tools com lista de tarefas também furam o toggle E o agrupamento: o
+          // ToolGroupCard não renderiza TodoPanel, então um snapshot dentro de um
+          // grupo sumia mesmo com tools visíveis.
+          const todoTools = rest.filter(isTodoTool);
+          const plain = rest.filter((t) => !isTodoTool(t));
           const cards: ReactNode[] = [];
           questions.forEach((t, qi) => {
             cards.push(
               <AskQuestionCard key={`${it.i}-q${qi}`} tool={t} answerable={answerable} onAnswer={onAnswer} />,
             );
           });
-          if (showTools && rest.length) {
-            if (rest.length === 1) cards.push(<ToolCallCard key={`${it.i}-t`} tool={rest[0]} />);
-            else cards.push(<ToolGroupCard key={`${it.i}-g`} tools={rest} />);
+          todoTools.forEach((t, ti) => {
+            cards.push(<ToolCallCard key={`${it.i}-todo${ti}`} tool={t} />);
+          });
+          if (showTools && plain.length) {
+            if (plain.length === 1) cards.push(<ToolCallCard key={`${it.i}-t`} tool={plain[0]} />);
+            else cards.push(<ToolGroupCard key={`${it.i}-g`} tools={plain} />);
           }
           return cards.length ? <div key={it.i} className="space-y-1">{cards}</div> : null;
         }

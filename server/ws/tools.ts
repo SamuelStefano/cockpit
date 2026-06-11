@@ -1,5 +1,5 @@
-import type { ToolCall } from '../../shared/protocol';
-import { diffOf, planOf, questionsOf, todosOf, labelOf, commandOf, toolResultOutput } from '../sessions/parse';
+import type { ToolCall, ToolTodo } from '../../shared/protocol';
+import { diffOf, planOf, questionsOf, todosOf, labelOf, commandOf, toolResultOutput, applyTaskUpdate, registerTaskCreate, taskSnapshot } from '../sessions/parse';
 import { broadcast } from './broadcast';
 import type { Thread } from './runs';
 
@@ -36,6 +36,20 @@ function snapshotTool(thread: Thread, tool: ToolCall) {
   }
 }
 
+// Lista de tarefas ao vivo: TaskUpdate muda o registry na hora; TaskCreate só
+// ganha o número da task no tool_result, então fica pendente até o closeTool.
+function liveTaskTodos(thread: Thread, id: string, block: any): ToolTodo[] | undefined {
+  if (!id || !block.input || typeof block.input !== 'object') return undefined;
+  if (block.name === 'TaskCreate') {
+    const subject = typeof block.input.subject === 'string' ? block.input.subject : '';
+    const activeForm = typeof block.input.activeForm === 'string' && block.input.activeForm ? block.input.activeForm : undefined;
+    if (subject) thread.taskCreates.set(id, { subject, activeForm });
+    return undefined;
+  }
+  if (block.name === 'TaskUpdate' && applyTaskUpdate(thread.tasks, block.input)) return taskSnapshot(thread.tasks);
+  return undefined;
+}
+
 export function emitTool(thread: Thread, sessionKey: string, block: any, status: ToolCall['status']) {
   const id = block.id ?? '';
   if (id && !thread.toolStart.has(id)) thread.toolStart.set(id, Date.now());
@@ -48,7 +62,7 @@ export function emitTool(thread: Thread, sessionKey: string, block: any, status:
     diff: diffOf(block.name, block.input),
     markdown: planOf(block.name, block.input),
     questions: questionsOf(block.name, block.input),
-    todos: todosOf(block.name, block.input),
+    todos: todosOf(block.name, block.input) ?? liveTaskTodos(thread, id, block),
     output: [],
   };
   snapshotTool(thread, tool);
@@ -61,6 +75,14 @@ export function closeTool(thread: Thread, sessionKey: string, c: any) {
   const id = c.tool_use_id ?? '';
   const start = thread.toolStart.get(id);
   if (start !== undefined) thread.toolStart.delete(id);
+  // TaskCreate pendente: o result traz o número da task ("Task #N created…") —
+  // registra e carimba o snapshot da lista no card que fecha.
+  let todos: ToolTodo[] | undefined;
+  const pc = thread.taskCreates.get(id);
+  if (pc) {
+    thread.taskCreates.delete(id);
+    if (registerTaskCreate(thread.tasks, pc, { output, isErr })) todos = taskSnapshot(thread.tasks);
+  }
   const tool: ToolCall = {
     id,
     name: 'tool',
@@ -71,6 +93,7 @@ export function closeTool(thread: Thread, sessionKey: string, c: any) {
     output,
     expanded: true,
     durationMs: start !== undefined ? Date.now() - start : undefined,
+    todos,
   };
   snapshotTool(thread, tool);
   broadcast({ t: 'tool', sessionKey, tool });
