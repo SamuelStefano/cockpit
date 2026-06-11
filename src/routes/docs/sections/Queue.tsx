@@ -18,6 +18,7 @@ export function Queue() {
           Passe o mouse sobre uma sessão na lista pra ver os botões: <span className="font-medium text-neutral-300">favoritar</span> (fixa no topo),
           <span className="font-medium text-neutral-300"> renomear</span>, <span className="font-medium text-neutral-300">arquivar</span> e <span className="font-medium text-neutral-300">excluir</span>.
           O arquivado some da lista mas continua no disco; o excluído é escondido do Deck — o histórico real em arquivo nunca é apagado de fato.
+          Arquivar e excluir pedem confirmação num modal seguro: Enter digitado num campo não confirma, e se a sessão sumir por outro dispositivo o modal fecha sozinho.
         </InfoCard>
         <InfoCard icon="sparkles" iconClass="text-violet-300" title="Resumo & contexto">
           Cada sessão mostra um título destilado pelo agente e um medidor de quanto da janela de contexto já foi usado.

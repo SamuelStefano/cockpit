@@ -78,7 +78,7 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
             onBlur={commit}
             onKeyDown={(e) => {
               if (e.nativeEvent.isComposing) return;
-              if (e.key === 'Enter') commit();
+              if (e.key === 'Enter') { e.preventDefault(); commit(); }
               if (e.key === 'Escape') { e.preventDefault(); setDraft(s.title); setEditing(false); }
             }}
             onClick={(e) => e.stopPropagation()}
@@ -122,7 +122,7 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
           onBlur={commitDesc}
           onKeyDown={(e) => {
             if (e.nativeEvent.isComposing) return;
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) commitDesc();
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); commitDesc(); }
             if (e.key === 'Escape') { e.preventDefault(); setDescDraft(s.summary || ''); setDescEditing(false); }
           }}
           onClick={(e) => e.stopPropagation()}

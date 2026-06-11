@@ -45,6 +45,18 @@ describe('useSessionRow', () => {
     expect(result.current.tagDraft).toBe('');
   });
 
+  it('commit vazio após rename remoto restaura o título ATUAL, não o do mount', () => {
+    const onRename = vi.fn();
+    const { result, rerender } = renderHook(({ s }) => useSessionRow({ s, onRename }), {
+      initialProps: { s: sess({ title: 'Antigo' }) },
+    });
+    rerender({ s: sess({ title: 'Renomeado remoto' }) });
+    act(() => { result.current.setEditing(true); result.current.setDraft('  '); });
+    act(() => result.current.commit());
+    expect(onRename).not.toHaveBeenCalled();
+    expect(result.current.draft).toBe('Renomeado remoto');
+  });
+
   it('commitTag vazio não adiciona tag', () => {
     const onAddTag = vi.fn();
     const { result } = renderHook(() => useSessionRow({ s: sess(), onRename: vi.fn(), onAddTag }));

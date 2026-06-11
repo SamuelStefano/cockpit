@@ -26,9 +26,14 @@ export function ConfirmArchive({ title, mode = 'archive', onConfirm, onCancel }:
   const c = COPY[mode];
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.isComposing) return;
-      if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); onCancel(); }
-      else if (e.key === 'Enter') { e.preventDefault(); onConfirm(); }
+      if (e.isComposing || e.defaultPrevented) return;
+      // Enter digitado num campo (rename inline, composer…) não pode confirmar
+      // uma ação destrutiva: o atalho só vale quando o foco está fora de inputs.
+      // Botão focado também fica de fora — o click nativo dele já age sozinho.
+      const t = e.target as HTMLElement | null;
+      const typing = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON' || t.isContentEditable);
+      if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+      else if (e.key === 'Enter' && !typing) { e.preventDefault(); onConfirm(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

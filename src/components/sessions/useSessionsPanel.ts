@@ -6,15 +6,25 @@ import { filterSessions } from './filter';
 
 interface UseSessionsPanelArgs {
   sessions: Session[];
+  archived?: Session[];
   searchResults: Session[];
   onSearch?: (q: string) => void;
   userId?: string;
 }
 
-export function useSessionsPanel({ sessions, searchResults, onSearch, userId }: UseSessionsPanelArgs) {
+export function useSessionsPanel({ sessions, archived = [], searchResults, onSearch, userId }: UseSessionsPanelArgs) {
   const [query, setQuery] = useState('');
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // Sessão sumiu (deletada/arquivada por outro cliente) com o modal aberto:
+  // fecha em vez de deixar um confirm órfão agindo num id que não existe mais.
+  useEffect(() => {
+    if (confirmId && !sessions.some((s) => s.id === confirmId)) setConfirmId(null);
+  }, [confirmId, sessions]);
+  useEffect(() => {
+    if (deleteId && !sessions.some((s) => s.id === deleteId) && !archived.some((s) => s.id === deleteId)) setDeleteId(null);
+  }, [deleteId, sessions, archived]);
   // Logado no produto multi-conta: além do cache local, empurra o estado completo
   // pro Supabase pra favoritos/tags seguirem a conta em outro device (a hidratação
   // em [[session-prefs.ts]] traz de volta no login). No loopback fica só local.
