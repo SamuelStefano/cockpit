@@ -40,7 +40,9 @@ export function ChatHeader({ session, messages, isEmpty, isMobile, contextTokens
               else { setFullLoaded(true); onOpenFull(session.id); }
             }}
             title={fullLoaded
-              ? 'Histórico completo carregado. Clique para voltar à visão resumida (só as mensagens recentes).'
+              ? truncated
+                ? 'Histórico completo carregado, mas a sessão é tão longa que ainda foi capado nas mais recentes. Clique para voltar à visão resumida.'
+                : 'Histórico completo carregado. Clique para voltar à visão resumida (só as mensagens recentes).'
               : truncated
                 ? 'Esta sessão é longa: só as mensagens mais recentes foram carregadas. Clique para carregar o histórico completo (inclui anteriores a um /compact).'
                 : 'Recarrega todas as mensagens do arquivo, inclusive as anteriores a um /compact que somem do caminho ativo'}

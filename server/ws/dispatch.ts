@@ -32,7 +32,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'open-full': {
       const parsed = await parseFullSession(msg.sessionId);
       if (!parsed) { send(ws, { t: 'error', message: 'sessão inválida' }); return; }
-      send(ws, { t: 'history', sessionId: msg.sessionId, messages: parsed.messages, tokens: parsed.tokens, full: true });
+      send(ws, { t: 'history', sessionId: msg.sessionId, messages: parsed.messages, tokens: parsed.tokens, full: true, truncated: parsed.truncated });
       return;
     }
     case 'hide': {

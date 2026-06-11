@@ -110,10 +110,12 @@ describe('parseFullSession (arquivo real)', () => {
     expect(out).not.toBeNull();
     expect(out!.messages.map((m) => m.id)).toEqual(['u1', 'a1', 'a2', 'a3']);
     expect(out!.tokens).toBe(15);
+    expect(out!.truncated).toBe(false);
   });
 
   it('limit corta mensagens visíveis, não records brutos', async () => {
     const out = await parseFullSession(SID, 2);
     expect(out!.messages.map((m) => m.id)).toEqual(['a2', 'a3']);
+    expect(out!.truncated).toBe(true);
   });
 });

@@ -178,7 +178,7 @@ export async function parseSession(
 export async function parseFullSession(
   sessionId: string,
   limit = CONFIG.historyLimit,
-): Promise<{ messages: Message[]; tokens: number } | null> {
+): Promise<{ messages: Message[]; tokens: number; truncated: boolean } | null> {
   const path = sessionPath(sessionId);
   if (!path) return null;
 
@@ -199,8 +199,8 @@ export async function parseFullSession(
     if (recs[i].type === 'assistant' && recs[i].message?.usage) { tokens = ctxTokens(recs[i].message!.usage); break; }
   }
 
-  const messages = recs.map((r) => recToMessage(r, results)).filter((m): m is Message => m !== null).slice(-limit);
-  return { messages, tokens };
+  const all = recs.map((r) => recToMessage(r, results)).filter((m): m is Message => m !== null);
+  return { messages: all.slice(-limit), tokens, truncated: all.length > limit };
 }
 
 export function recToMessage(r: Rec, results?: Map<string, ToolResultRec>): Message | null {

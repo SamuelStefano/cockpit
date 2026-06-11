@@ -103,9 +103,9 @@ describe('open / open-full invalid session', () => {
   });
 
   it('sends history with full:true for open-full on a valid session', async () => {
-    parse.parseFullSession.mockResolvedValue({ messages: [{ role: 'user' }], tokens: 7 });
+    parse.parseFullSession.mockResolvedValue({ messages: [{ role: 'user' }], tokens: 7, truncated: true });
     await handle(ws, { t: 'open-full', sessionId: 's1' } as ClientMsg);
-    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'history', full: true, tokens: 7 }));
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'history', full: true, tokens: 7, truncated: true }));
   });
 });
 

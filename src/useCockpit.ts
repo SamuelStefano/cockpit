@@ -331,9 +331,9 @@ export function useCockpit(): Cockpit {
         setThreads((prev) => ({ ...prev, [msg.sessionId]: mergeHistory(msg.messages, prev[msg.sessionId] ?? []) }));
         resumeId.current[msg.sessionId] = msg.sessionId;
         if (msg.tokens) setUsage((u) => ({ ...u, [msg.sessionId]: msg.tokens! }));
-        // `open` capa o caminho ativo em historyLimit e dropa as mais antigas; o
-        // full reload traz tudo. Marca/limpa pra UI avisar que falta histórico.
-        setTruncated((t) => ({ ...t, [msg.sessionId]: msg.full ? false : !!msg.truncated }));
+        // `open` capa o caminho ativo e o full reload capa o arquivo inteiro, ambos
+        // em historyLimit; o servidor manda `truncated` quando dropou as mais antigas.
+        setTruncated((t) => ({ ...t, [msg.sessionId]: !!msg.truncated }));
         return;
       }
       case 'busy': {
