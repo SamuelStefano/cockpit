@@ -28,6 +28,7 @@ export interface Cockpit {
   activeId: string;
   setActiveId: (id: string) => void;
   messages: Message[];
+  terminalBusy: boolean;
   phase: Phase;
   running: Set<string>;
   stalled: Set<string>;
@@ -183,6 +184,8 @@ export function useCockpit(): Cockpit {
   // sessionId -> mtime já visto. Sessão cujo mtime no servidor avançou além do
   // visto = "atualizada" (produziu output enquanto você não olhava — run noturno).
   const [seen, setSeen] = useState<Record<string, number>>(() => loadPref<Record<string, number>>('seen', {}));
+  // Sessão ativa com escrita vinda de FORA do app (claude no terminal) há <5s.
+  const [terminalBusyId, setTerminalBusyId] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const runMsg = useRef<Record<string, string>>({});      // sessionKey -> assistant msgId em voo
@@ -191,6 +194,7 @@ export function useCockpit(): Cockpit {
   const resumeId = useRef<Record<string, string>>({});    // sessionKey -> claude sessionId p/ --resume
   const opened = useRef<Set<string>>(new Set());          // sessionKeys cujo histórico já foi pedido
   const fullViewId = useRef<string | null>(null);         // sessão em "ver tudo": session-touched deve re-pedir open-full, não open
+  const extBusyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const migratedTo = useRef<Record<string, string>>({});  // new-xxx -> claude sessionId já migrado (idempotência: 2º `done` não re-migra nem zera o thread)
   const activeRef = useRef('');
   const sessionsRef = useRef<Session[]>([]);
@@ -367,6 +371,11 @@ export function useCockpit(): Cockpit {
         // revertia silenciosamente pro resumido com o botão preso em "mostrar resumido".
         if (activeRef.current === msg.sessionId && !inFlight.current.has(msg.sessionId)) {
           send({ t: fullViewId.current === msg.sessionId ? 'open-full' : 'open', sessionId: msg.sessionId });
+          // Escrita externa recente = turno do terminal em andamento: acende um
+          // indicador no chat (estrelinha) que apaga 5s após a última escrita.
+          setTerminalBusyId(msg.sessionId);
+          if (extBusyTimer.current) clearTimeout(extBusyTimer.current);
+          extBusyTimer.current = setTimeout(() => setTerminalBusyId(null), 5000);
         } else if (activeRef.current !== msg.sessionId) {
           // Sessão não-ativa: o thread cacheado ficou velho. Invalida o `opened`
           // pra próxima ativação re-pedir o history — sem isto mensagem mandada
@@ -856,6 +865,7 @@ export function useCockpit(): Cockpit {
     return () => {
       if (retry.current) clearTimeout(retry.current);
       if (adminOpTimer.current) clearTimeout(adminOpTimer.current);
+      if (extBusyTimer.current) clearTimeout(extBusyTimer.current);
       wsRef.current?.close();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1228,5 +1238,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, selectedSkills, setSelectedSkills: changeSelectedSkills, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
+  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, selectedSkills, setSelectedSkills: changeSelectedSkills, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
 }

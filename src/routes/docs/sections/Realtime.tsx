@@ -22,6 +22,10 @@ export function Realtime() {
           O ponto <Pill>ws</Pill> no cabeçalho mostra o estado do canal em tempo real. Se o backend ficar inacessível,
           um aviso honesto aparece em vez de o app parecer quebrado — e ele continua tentando reconectar.
         </InfoCard>
+        <InfoCard icon="terminal" iconClass="text-orange-300" title="Turnos do terminal, ao vivo">
+          Rodou o <Pill>claude</Pill> direto no terminal? O chat acompanha: as mensagens chegam em até ~2s mesmo com o turno
+          escrevendo sem parar, e a estrelinha acende no chat enquanto o terminal trabalha na sessão aberta.
+        </InfoCard>
       </div>
     </section>
   );

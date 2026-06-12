@@ -30,6 +30,30 @@ describe('createWatchHandler', () => {
     return { handler, touch, list };
   }
 
+  it('max-wait: escrita contínua não segura o touch pra sempre', () => {
+    const touch = vi.fn();
+    const handler = createWatchHandler({ hasClients: () => true, touch, list: vi.fn(), touchMs: 100, touchMaxWaitMs: 250, listMs: 300 });
+    for (let i = 0; i < 10; i++) {
+      handler(FILE);
+      vi.advanceTimersByTime(80);
+    }
+    expect(touch.mock.calls.length).toBeGreaterThanOrEqual(2);
+    vi.advanceTimersByTime(200);
+    expect(touch.mock.calls.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('max-wait: rajada curta continua sendo um touch só no trailing', () => {
+    const touch = vi.fn();
+    const handler = createWatchHandler({ hasClients: () => true, touch, list: vi.fn(), touchMs: 100, touchMaxWaitMs: 250, listMs: 300 });
+    handler(FILE);
+    vi.advanceTimersByTime(50);
+    handler(FILE);
+    vi.advanceTimersByTime(100);
+    expect(touch).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(500);
+    expect(touch).toHaveBeenCalledTimes(1);
+  });
+
   it('debounce trailing: rajada de escritas vira um touch só', () => {
     const { handler, touch } = make();
     handler(FILE);
