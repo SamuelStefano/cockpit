@@ -48,6 +48,23 @@ export function download(name: string, mime: string, data: string) {
   URL.revokeObjectURL(url);
 }
 
+// As fontes embutidas do jsPDF (helvetica/courier) são WinAnsi: qualquer char
+// fora do latin-1 (→, ✓, emoji, glyphs de spinner) vira lixo no PDF. Mapeia os
+// símbolos comuns pra equivalentes ASCII e descarta o resto.
+const PDF_MAP: Record<string, string> = {
+  '\u2192': '->', '\u2190': '<-', '\u2194': '<->', '\u2713': 'v', '\u2714': 'v', '\u2717': 'x', '\u2718': 'x',
+  '\u2022': '-', '\u00b7': '.', '\u2026': '...', '\u2013': '-', '\u2014': '--',
+  '\u2018': "'", '\u2019': "'", '\u201c': '"', '\u201d': '"',
+  '\u2265': '>=', '\u2264': '<=', '\u2260': '!=',
+  '\u2715': 'x', '\u2716': 'x', '\u273b': '*', '\u273d': '*', '\u2736': '*', '\u2733': '*', '\u2722': '*',
+  '\u2500': '-', '\u2502': '|', '\u251c': '|', '\u2514': '`', '\u2510': '.', '\u250c': '.', '\u2518': "'", '\u2570': '`', '\u256f': "'",
+};
+export function pdfSafe(text: string): string {
+  return text
+    .replace(/[\u2013-\u2767\u2190-\u21ff]/g, (c) => PDF_MAP[c] ?? '*')
+    .replace(/[^\x00-\xff]/g, '');
+}
+
 // PDF real (jspdf carregado sob demanda — fica fora do bundle inicial). Texto
 // fluido paginado, não o print do navegador. Cada turno vira blocos de linhas.
 export async function threadToPdf(title: string, messages: Message[]) {
@@ -67,7 +84,7 @@ export async function threadToPdf(title: string, messages: Message[]) {
     doc.setFontSize(size);
     doc.setTextColor(color[0], color[1], color[2]);
     const lh = size * 1.4;
-    for (const para of text.split('\n')) {
+    for (const para of pdfSafe(text).split('\n')) {
       // splitTextToSize descarta o whitespace inicial — preserva indentação de
       // código/listas aninhadas medindo o recuo e deslocando o x das linhas
       // (tab = 2 espaços). Continuações de uma linha longa herdam o mesmo recuo.

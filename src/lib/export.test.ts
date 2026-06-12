@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fileSlug, codeExt, threadToMarkdown, messageToText } from './export';
+import { pdfSafe, fileSlug, codeExt, threadToMarkdown, messageToText } from './export';
 import type { Message } from '../data/mock';
 
 describe('fileSlug', () => {
@@ -59,5 +59,26 @@ describe('threadToMarkdown', () => {
   it('collapses 3+ blank lines', () => {
     const md = threadToMarkdown('T', [{ id: 'u', role: 'user', text: 'a\n\n\n\nb' }]);
     expect(md).not.toMatch(/\n{3,}/);
+  });
+});
+
+describe('pdfSafe (fonte WinAnsi do jsPDF)', () => {
+  it('mapeia símbolos comuns pra ASCII', () => {
+    expect(pdfSafe('a → b ✓ feito • item… "aspas"')).toBe('a -> b v feito - item... "aspas"');
+  });
+  it('descarta emoji e CJK em vez de virar lixo', () => {
+    expect(pdfSafe('ok 🤖 日本')).toBe('ok  ');
+  });
+  it('glyph de spinner vira asterisco', () => {
+    expect(pdfSafe('✻ Pensando')).toBe('* Pensando');
+  });
+  it('latin-1 (acentos PT-BR) passa intacto', () => {
+    expect(pdfSafe('ação coração à é ç')).toBe('ação coração à é ç');
+  });
+});
+
+describe('pdfSafe box-drawing', () => {
+  it('árvore de output vira ASCII legível, não asteriscos', () => {
+    expect(pdfSafe('├── src\n└── dist')).toBe('|-- src\n`-- dist');
   });
 });
