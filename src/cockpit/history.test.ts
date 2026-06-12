@@ -73,11 +73,11 @@ describe('mergeHistory — stats do turno (S3: re-fetch apagava tokens/custo)', 
     expect((out[1] as any).stats).toEqual({ tokens: 500, durationMs: 9000, costUsd: 0.04 });
   });
 
-  it('órfã sem costUsd ou último assistant sem stats: nada herdado', () => {
+  it('órfã sem costUsd: nada herdado; último assistant SEM stats herda o custo mesmo assim', () => {
     const out1 = mergeHistory([a('uuid-1', { tokens: 100 })], [a('a-live', { tokens: 500 })]);
     expect((out1[0] as any).stats).toEqual({ tokens: 100 });
     const out2 = mergeHistory([a('uuid-1')], [a('a-live', { tokens: 500, costUsd: 0.04 })]);
-    expect((out2[0] as any).stats).toBeUndefined();
+    expect((out2[0] as any).stats).toEqual({ tokens: 0, inputTokens: 0, outputTokens: 0, costUsd: 0.04 });
   });
 
   it('último assistant já com costUsd próprio não é sobrescrito pela órfã', () => {

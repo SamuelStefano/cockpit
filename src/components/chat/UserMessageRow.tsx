@@ -24,6 +24,9 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
   const [userName] = usePersisted<string>('user.name', '');
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(msg.text);
+  // Eco do servidor pode substituir o texto otimista com o editor já aberto —
+  // sincroniza só quando NÃO está editando (não sobrescrever digitação).
+  useEffect(() => { if (!editing) setValue(msg.text); }, [msg.text, editing]);
   const ref = useRef<HTMLTextAreaElement>(null);
   const editBtnRef = useRef<HTMLButtonElement>(null);
   const wasEditing = useRef(false);

@@ -30,7 +30,7 @@ export function TodoPanel({ todos, header = true }: TodoPanelProps) {
         )}
         <ul className="flex flex-col gap-1">
           {shown.map((t, i) => (
-            <TodoRow key={i} todo={t} />
+            <TodoRow key={`${t.content}-${i}`} todo={t} />
           ))}
         </ul>
         {hidden > 0 && (

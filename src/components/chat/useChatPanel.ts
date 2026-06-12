@@ -31,7 +31,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   // só trocamos qual fila está ativa. flushingRef reseta na troca pra não travar a
   // próxima sessão com a trava herdada da anterior.
   const queued = useMemo(() => (sid ? queuedMap[sid] ?? [] : []), [queuedMap, sid]);
-  useEffect(() => { setFullLoaded(false); flushingRef.current = false; }, [sid]);
+  useEffect(() => { setFullLoaded(false); flushingRef.current = false; pinnedRef.current = true; setAtBottom(true); }, [sid]);
 
   const setQueuedFor = (updater: (q: string[]) => string[]) => {
     if (!sid) return;
@@ -128,8 +128,15 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (el && pinnedRef.current) el.scrollTop = el.scrollHeight;
+    let raf = 0;
+    if (el && pinnedRef.current) {
+      el.scrollTop = el.scrollHeight;
+      // Code block/imagem que expande após o paint deixava o scroll um pouco
+      // acima do fim — repete no próximo frame com a altura final.
+      raf = requestAnimationFrame(() => { if (scrollRef.current && pinnedRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; });
+    }
     recompute();
+    return () => { if (raf) cancelAnimationFrame(raf); };
   }, [messages, phase, lastUserId]);
 
   const planPending = phase === 'idle' && (() => {

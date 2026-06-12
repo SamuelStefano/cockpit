@@ -38,8 +38,8 @@ export function mergeHistory(incoming: Message[], local: Message[]): Message[] {
     for (let i = merged.length - 1; i >= 0; i--) {
       const m = merged[i];
       if (m.role !== 'assistant') continue;
-      if (m.stats && m.stats.costUsd === undefined) {
-        merged[i] = { ...m, stats: { ...m.stats, costUsd: orphan.stats!.costUsd } };
+      if (!m.stats || m.stats.costUsd === undefined) {
+        merged[i] = { ...m, stats: { ...(m.stats ?? { tokens: 0, inputTokens: 0, outputTokens: 0 }), costUsd: orphan.stats!.costUsd } };
       }
       break;
     }
