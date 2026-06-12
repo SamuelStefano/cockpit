@@ -9,7 +9,7 @@ import { TurnBanners } from './chat/TurnBanners';
 import { ClaudeAuthBanner } from './chat/ClaudeAuthBanner';
 import { useChatPanel, type Phase } from './chat/useChatPanel';
 import { useFileDrop } from './chat/useFileDrop';
-import type { Session, Message } from '../data/mock';
+import type { Session, Message, ToolTodo } from '../data/mock';
 import type { PermMode, ModelInfo, TurnStats, Caps, SkillMeta } from '../../shared/protocol';
 import type { Attachment, AttachmentPreview } from '../useCockpit';
 import { AttachmentModal } from './chat/AttachmentModal';
@@ -23,6 +23,9 @@ export interface ChatPanelProps {
   // Escrita externa (turno do terminal) na sessão ativa há <5s — acende a
   // estrelinha mesmo sem run do app (paridade com acompanhar pelo terminal).
   terminalBusy?: boolean;
+  // Estado corrente da lista de tarefas (arquivo inteiro, via frame history) —
+  // fallback do tray quando a janela visível não tem snapshot (pós-compact).
+  sessionTodos?: ToolTodo[];
   draft: string;
   setDraft: (v: string) => void;
   onSend: (text: string, modeOverride?: PermMode) => void;
@@ -70,7 +73,7 @@ export interface ChatPanelProps {
   quotaResetsAt?: number | null;
 }
 
-export function ChatPanel({ session, messages, phase, terminalBusy = false, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, skills, selectedSkills, setSelectedSkills, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onOpenFull, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, quotaPaused = false, quotaResetsAt = null }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, skills, selectedSkills, setSelectedSkills, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onOpenFull, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, quotaPaused = false, quotaResetsAt = null }: ChatPanelProps) {
   const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, paused: quotaPaused });
   // Stats AO VIVO do turno (estilo terminal): tokens gastos + tempo decorrido,
   // enquanto o turno roda. Some no `done` (phase volta a idle).
@@ -81,7 +84,13 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, draf
   const panelDnd = useFileDrop((files) => { let n = 0; for (const f of files) { if (f.size > 15_000_000) continue; onUpload(f); n++; } return n; });
   // Derivado memoizado: messages troca de referência a cada token streamado e a
   // varredura reversa só deve rodar quando a lista realmente muda.
-  const trayTodos = useMemo(() => latestTodos(messages), [messages]);
+  // Precedência do tray: com turno RODANDO os snapshots ao vivo (carimbados nos
+  // tool frames) são os mais novos; ocioso, o estado do arquivo inteiro (frame
+  // history) vence — um snapshot velho visível na chain não desatualiza o tray.
+  const trayTodos = useMemo(
+    () => (phase !== 'idle' ? latestTodos(messages) ?? sessionTodos : sessionTodos ?? latestTodos(messages)),
+    [messages, sessionTodos, phase],
+  );
 
   return (
     <div

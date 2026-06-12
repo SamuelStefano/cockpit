@@ -195,7 +195,7 @@ export function sessionPath(sessionId: string): string | null {
 export async function parseSession(
   sessionId: string,
   limit = CONFIG.historyLimit
-): Promise<{ blocks: Block[]; messages: Message[]; tokens: number; truncated: boolean } | null> {
+): Promise<{ blocks: Block[]; messages: Message[]; tokens: number; truncated: boolean; todos?: ToolTodo[] } | null> {
   const path = sessionPath(sessionId);
   if (!path) return null;
 
@@ -239,14 +239,18 @@ export async function parseSession(
   // mensagens visíveis que o limit.
   const mapped = chain.map((r) => recToMessage(r, results)).filter((m): m is Message => m !== null);
   attachTurnStats(mapped, turnStats(chain));
-  attachTaskTodos(mapped, taskTodos(chain, results));
+  // Registry de tarefas sobre o ARQUIVO inteiro (byUuid preserva a ordem), não
+  // só a chain: pós-compact os TaskCreate/TaskUpdate ficam no ramo podado e a
+  // chain devolvia zero snapshots — tray vazio em toda sessão compactada.
+  const todoMap = taskTodos([...byUuid.values()], results);
+  attachTaskTodos(mapped, todoMap);
   const all = weaveByTs(mapped, markers);
   const truncated = all.length > limit;
   const messages = all.slice(-limit);
   const blocks = messages.flatMap((m) =>
     m.role === 'assistant' ? m.blocks : m.role === 'user' ? [{ type: 'text' as const, md: m.text }] : [],
   );
-  return { blocks, messages, tokens, truncated };
+  return { blocks, messages, tokens, truncated, todos: finalTodos(todoMap) };
 }
 
 // Histórico COMPLETO em ordem de arquivo (não só o caminho ativo). Após /compact
@@ -256,7 +260,7 @@ export async function parseSession(
 export async function parseFullSession(
   sessionId: string,
   limit = CONFIG.historyLimit,
-): Promise<{ messages: Message[]; tokens: number; truncated: boolean } | null> {
+): Promise<{ messages: Message[]; tokens: number; truncated: boolean; todos?: ToolTodo[] } | null> {
   const path = sessionPath(sessionId);
   if (!path) return null;
 
@@ -283,9 +287,10 @@ export async function parseFullSession(
 
   const mapped = recs.map((r) => recToMessage(r, results)).filter((m): m is Message => m !== null);
   attachTurnStats(mapped, turnStats(recs));
-  attachTaskTodos(mapped, taskTodos(recs, results));
+  const todoMap = taskTodos(recs, results);
+  attachTaskTodos(mapped, todoMap);
   const all = weaveByTs(mapped, markers);
-  return { messages: all.slice(-limit), tokens, truncated: all.length > limit };
+  return { messages: all.slice(-limit), tokens, truncated: all.length > limit, todos: finalTodos(todoMap) };
 }
 
 // Slash command e saída de !comando chegam como user text com as tags XML do
@@ -594,6 +599,15 @@ export function taskTodos(recs: Rec[], results: Map<string, ToolResultRec>): Map
     }
   }
   return out;
+}
+
+// Snapshot FINAL do registry de tarefas do arquivo inteiro. A chain ativa
+// pós-compact perde os TaskCreate/TaskUpdate antigos (ramo podado) — o tray
+// precisa do estado corrente da sessão, não só do que está visível.
+export function finalTodos(map: Map<string, ToolTodo[]>): ToolTodo[] | undefined {
+  let last: ToolTodo[] | undefined;
+  for (const v of map.values()) last = v;
+  return last;
 }
 
 export function attachTaskTodos(messages: Message[], map: Map<string, ToolTodo[]>): void {

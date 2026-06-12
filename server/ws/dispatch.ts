@@ -26,13 +26,13 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'open': {
       const parsed = await parseSession(msg.sessionId);
       if (!parsed) { send(ws, { t: 'error', message: 'sessão inválida' }); return; }
-      send(ws, { t: 'history', sessionId: msg.sessionId, messages: parsed.messages, tokens: parsed.tokens, truncated: parsed.truncated });
+      send(ws, { t: 'history', sessionId: msg.sessionId, messages: parsed.messages, tokens: parsed.tokens, truncated: parsed.truncated, todos: parsed.todos });
       return;
     }
     case 'open-full': {
       const parsed = await parseFullSession(msg.sessionId);
       if (!parsed) { send(ws, { t: 'error', message: 'sessão inválida' }); return; }
-      send(ws, { t: 'history', sessionId: msg.sessionId, messages: parsed.messages, tokens: parsed.tokens, full: true, truncated: parsed.truncated });
+      send(ws, { t: 'history', sessionId: msg.sessionId, messages: parsed.messages, tokens: parsed.tokens, full: true, truncated: parsed.truncated, todos: parsed.todos });
       return;
     }
     case 'hide': {

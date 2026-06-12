@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import type { Session, Message, Block } from './data/mock';
+import type { Session, Message, Block, ToolTodo } from './data/mock';
 import type { ClientMsg, ServerMsg, SysStats, PermMode, ModelInfo, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth, Caps, PlanUsage, AccountSummary } from '../shared/protocol';
 import { loadPref, savePref, setPref } from './lib/persist';
 import { SUPABASE_ENABLED } from './lib/supabase';
@@ -29,6 +29,7 @@ export interface Cockpit {
   setActiveId: (id: string) => void;
   messages: Message[];
   terminalBusy: boolean;
+  sessionTodos?: ToolTodo[];
   phase: Phase;
   running: Set<string>;
   stalled: Set<string>;
@@ -186,6 +187,8 @@ export function useCockpit(): Cockpit {
   const [seen, setSeen] = useState<Record<string, number>>(() => loadPref<Record<string, number>>('seen', {}));
   // Sessão ativa com escrita vinda de FORA do app (claude no terminal) há <5s.
   const [terminalBusyId, setTerminalBusyId] = useState<string | null>(null);
+  // Snapshot corrente da lista de tarefas por sessão (vem no frame history).
+  const [sessionTodos, setSessionTodos] = useState<Record<string, ToolTodo[]>>({});
 
   const wsRef = useRef<WebSocket | null>(null);
   const runMsg = useRef<Record<string, string>>({});      // sessionKey -> assistant msgId em voo
@@ -340,6 +343,9 @@ export function useCockpit(): Cockpit {
         setThreads((prev) => ({ ...prev, [msg.sessionId]: mergeHistory(msg.messages, prev[msg.sessionId] ?? []) }));
         resumeId.current[msg.sessionId] = msg.sessionId;
         if (msg.tokens) setUsage((u) => ({ ...u, [msg.sessionId]: msg.tokens! }));
+        // Estado corrente da lista de tarefas do ARQUIVO inteiro (pós-compact a
+        // chain visível pode não ter nenhum snapshot) — alimenta o TaskTray.
+        setSessionTodos((prev) => (msg.todos ? { ...prev, [msg.sessionId]: msg.todos } : prev));
         // `open` capa o caminho ativo e o full reload capa o arquivo inteiro, ambos
         // em historyLimit; o servidor manda `truncated` quando dropou as mais antigas.
         setTruncated((t) => ({ ...t, [msg.sessionId]: !!msg.truncated }));
@@ -1238,5 +1244,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, selectedSkills, setSelectedSkills: changeSelectedSkills, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
+  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, selectedSkills, setSelectedSkills: changeSelectedSkills, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
 }

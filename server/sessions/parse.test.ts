@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ctxTokens, num, diffOf, planOf, questionsOf, contentHasQuestion, todosOf, extractCommand, labelOf, commandOf, recToMessage, activeChain, collectToolResults, capOutput, turnStats, attachTurnStats, registerTaskCreate, applyTaskUpdate, taskSnapshot, taskTodos, attachTaskTodos, cleanUserText, markerFromRec, weaveByTs, TOOL_OUTPUT_CAP, type Rec, type ToolResultRec, type TaskRegistry } from './parse';
+import { ctxTokens, num, diffOf, planOf, questionsOf, contentHasQuestion, todosOf, extractCommand, labelOf, commandOf, recToMessage, activeChain, collectToolResults, capOutput, turnStats, attachTurnStats, registerTaskCreate, applyTaskUpdate, taskSnapshot, taskTodos, attachTaskTodos, cleanUserText, markerFromRec, weaveByTs, finalTodos, TOOL_OUTPUT_CAP, type Rec, type ToolResultRec, type TaskRegistry } from './parse';
 import type { Message } from '../../shared/protocol';
 
 describe('num', () => {
@@ -623,5 +623,16 @@ describe('markerFromRec + weaveByTs (N2: pr-link e wakeup na timeline)', () => {
     ] as Message[];
     expect(weaveByTs(msgs, extras).map((m) => m.id)).toEqual(['m1', 'a', 'm2', 'b']);
     expect(weaveByTs(msgs, [])).toBe(msgs);
+  });
+});
+
+describe('finalTodos (tray pós-compact)', () => {
+  it('devolve o último snapshot do map (ordem do arquivo)', () => {
+    const map = new Map([
+      ['t1', [{ content: 'A', status: 'pending' as const }]],
+      ['t2', [{ content: 'A', status: 'completed' as const }]],
+    ]);
+    expect(finalTodos(map)).toEqual([{ content: 'A', status: 'completed' }]);
+    expect(finalTodos(new Map())).toBeUndefined();
   });
 });

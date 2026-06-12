@@ -307,7 +307,7 @@ export type ServerMsg =
   // Conteúdo de um anexo p/ preview no chat (modal). error preenchido quando o
   // arquivo já foi varrido pelo TTL ou o path é inválido — o modal mostra o aviso.
   | { t: 'attachment'; path: string; name: string; dataB64?: string; error?: string }
-  | { t: 'history'; sessionId: string; messages: Message[]; cursor?: string; tokens?: number; full?: boolean; truncated?: boolean }
+  | { t: 'history'; sessionId: string; messages: Message[]; cursor?: string; tokens?: number; full?: boolean; truncated?: boolean; todos?: ToolTodo[] }
   | { t: 'busy'; keys: string[] }
   // O JSONL da sessão mudou no disco (ex.: claude rodado direto no terminal).
   // Cliente com a sessão aberta re-puxa o histórico — sem F5.
