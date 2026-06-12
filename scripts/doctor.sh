@@ -26,7 +26,7 @@ if [ -f "$LOG" ] && [ "$(stat -c%s "$LOG" 2>/dev/null || echo 0)" -gt 1048576 ];
 fi
 
 # Processos que NUNCA devem ser mortos por engano (prod + infra + sessões vivas).
-PROTECT='dist/|dockerd|containerd|docker-proxy|sshd|systemd|tmux|/claude|claude$| claude |mcp-server|mcp\b|run-backend.sh|doctor.sh|server/index.ts|server/server.js|postgres|redis'
+PROTECT='dist/|dockerd|containerd|docker-proxy|sshd|systemd|tmux|/claude|claude$| claude |mcp-server|mcp\b|run-backend.sh|run-agent.sh|doctor.sh|server/index.ts|server/agent|server/server.js|postgres|redis'
 
 # ── 1. CLI interativo pendurado = causa do freeze. Mata auth-CLIs que ficam
 #       esperando stdin. Deploy de verdade usa --token e termina rápido; qualquer
@@ -50,6 +50,16 @@ if [ "$code" != "200" ]; then
   else
     log "supervisor alive; aguardando ele reerguer a :7777"
   fi
+fi
+
+# ── 2b. Agente T3 (ponte VPS↔relay). Sem ele o app não alcança a box ("não
+#       conecta de jeito nenhum", 2026-06-12 — o freeze matou a árvore inteira do
+#       run-agent.sh e nada o reerguia). O run-agent.sh tem flock próprio, então
+#       relançar com ele já vivo é no-op seguro.
+AGENT_SUPERVISOR=/home/samuel/cockpit/run-agent.sh
+if ! pgrep -f 'run-agent.sh' >/dev/null 2>&1; then
+  log "agent supervisor down -> starting $AGENT_SUPERVISOR"
+  nohup bash "$AGENT_SUPERVISOR" >>/tmp/deck-agent.out 2>&1 &
 fi
 
 # ── 3. Guarda de load. load1 alto = storm. No freeze de 2026-06-11 (load 130 em
