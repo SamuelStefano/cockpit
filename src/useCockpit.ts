@@ -123,6 +123,9 @@ export function useCockpit(): Cockpit {
   const [threads, setThreads] = useState<Record<string, Message[]>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>(() => loadPref('drafts', {} as Record<string, string>));
   const [phases, setPhases] = useState<Record<string, Phase>>({});
+  // Espelho síncrono pro handler do WS (closure estável não enxerga o state).
+  const phasesRef = useRef<Record<string, Phase>>({});
+  useEffect(() => { phasesRef.current = phases; }, [phases]);
   const lastActivity = useRef<Record<string, number>>({}); // sessionKey -> ts do último frame; alimenta o watchdog de "sessão quieta"
   const runStartRef = useRef<Record<string, number>>({}); // sessionKey -> ts em que o turno começou; alimenta o cronômetro do card
   const [runStart, setRunStart] = useState<Record<string, number>>({});
@@ -375,6 +378,15 @@ export function useCockpit(): Cockpit {
         // e sem run DESTE app, re-puxa o histórico (mergeHistory deduplica). Se o
         // usuário está na visão completa, re-puxa o full — o 'open' simples
         // revertia silenciosamente pro resumido com o botão preso em "mostrar resumido".
+        // Self-heal cirúrgico (squad): inFlight preso com phase JÁ idle é estado
+        // contraditório — o done/error foi processado (ou se perdeu num reconnect)
+        // mas a key ficou órfã, deixando a sessão surda pra session-touched pra
+        // sempre. Timeout por inatividade foi rejeitado: tool longa (build de 90s)
+        // não emite frame nenhum e seria falso positivo matando run vivo.
+        if (inFlight.current.has(msg.sessionId) && phasesRef.current[msg.sessionId] === 'idle') {
+          inFlight.current.delete(msg.sessionId);
+          stopping.current.delete(msg.sessionId);
+        }
         if (activeRef.current === msg.sessionId && !inFlight.current.has(msg.sessionId)) {
           send({ t: fullViewId.current === msg.sessionId ? 'open-full' : 'open', sessionId: msg.sessionId });
           // Escrita externa recente = turno do terminal em andamento: acende um
