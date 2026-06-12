@@ -1,7 +1,10 @@
+import { useMemo } from 'react';
 import { Icon } from './primitives';
 import { MessageRow, Thinking } from './chat/MessageView';
 import { ChatEmpty, ChatInput } from './chat/ChatInput';
 import { ChatHeader } from './chat/ChatHeader';
+import { TaskTray } from './chat/TaskTray';
+import { latestTodos } from './chat/task-tray';
 import { TurnBanners } from './chat/TurnBanners';
 import { ClaudeAuthBanner } from './chat/ClaudeAuthBanner';
 import { useChatPanel, type Phase } from './chat/useChatPanel';
@@ -73,6 +76,9 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
   // backend. O composer tem seu próprio drop com stopPropagation, então soltar lá
   // não dispara este também.
   const panelDnd = useFileDrop((files) => { let n = 0; for (const f of files) { if (f.size > 15_000_000) continue; onUpload(f); n++; } return n; });
+  // Derivado memoizado: messages troca de referência a cada token streamado e a
+  // varredura reversa só deve rodar quando a lista realmente muda.
+  const trayTodos = useMemo(() => latestTodos(messages), [messages]);
 
   return (
     <div
@@ -130,6 +136,8 @@ export function ChatPanel({ session, messages, phase, draft, setDraft, onSend, o
           )}
         </div>
       )}
+
+      {trayTodos && <TaskTray todos={trayTodos} />}
 
       <TurnBanners phase={phase} failed={c.failed} planPending={c.planPending} lastEnd={lastEnd} retryLast={c.retryLast} onSend={onSend} />
 

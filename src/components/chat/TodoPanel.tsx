@@ -4,11 +4,14 @@ import type { ToolTodo } from '../../data/mock';
 
 interface TodoPanelProps {
   todos: ToolTodo[];
+  // O TaskTray embute o painel sob um chip próprio com a mesma contagem —
+  // header={false} evita o "tarefas · n/m" duplicado.
+  header?: boolean;
 }
 
 const COLLAPSE_AFTER = 6;
 
-export function TodoPanel({ todos }: TodoPanelProps) {
+export function TodoPanel({ todos, header = true }: TodoPanelProps) {
   const [showAll, setShowAll] = useState(false);
   const done = todos.filter((t) => t.status === 'completed').length;
   const hidden = todos.length - COLLAPSE_AFTER;
@@ -19,10 +22,12 @@ export function TodoPanel({ todos }: TodoPanelProps) {
   return (
     <div className="px-3 pb-2">
       <div className="rounded-md border border-neutral-800 bg-[#0c0c0c] px-3 py-2">
-        <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-neutral-500">
-          <Icon name="check" size={12} className="text-orange-400" />
-          tarefas · {done}/{todos.length}
-        </div>
+        {header && (
+          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-neutral-500">
+            <Icon name="check" size={12} className="text-orange-400" />
+            tarefas · {done}/{todos.length}
+          </div>
+        )}
         <ul className="flex flex-col gap-1">
           {shown.map((t, i) => (
             <TodoRow key={i} todo={t} />
