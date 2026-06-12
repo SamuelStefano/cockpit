@@ -158,7 +158,10 @@ export function turnStats(recs: Rec[]): Map<string, TurnBubbleStats> {
       // vivo (translate.ts); somar cada record multiplicaria o usage repetido.
       if (u && typeof msgId === 'string' && msgId !== lastBilledMsgId) {
         lastBilledMsgId = msgId;
-        tokens += num(u.input_tokens) + num(u.output_tokens) + num(u.cache_read_input_tokens) + num(u.cache_creation_input_tokens);
+        // Cache READ fica de fora: é releitura do prefixo (barata e re-cobrada a
+        // cada chamada API) — somar inflava um turno comum pra "30M tokens".
+        // Conta o trabalho NOVO: input + cache creation + output.
+        tokens += num(u.input_tokens) + num(u.output_tokens) + num(u.cache_creation_input_tokens);
         inputTokens += num(u.input_tokens);
         outputTokens += num(u.output_tokens);
       }

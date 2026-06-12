@@ -415,7 +415,7 @@ describe('turnStats (S3: stats históricas por turno do JSONL)', () => {
   const asst = (uuid: string, msgId: string | undefined, usage: Record<string, number> | undefined, ts?: string): Rec =>
     ({ type: 'assistant', uuid, message: { role: 'assistant', content: [{ type: 'text', text: 'oi' }], usage, id: msgId }, timestamp: ts });
 
-  it('soma todas as chamadas API do turno e anexa no último assistant', () => {
+  it('soma as chamadas API do turno SEM cache read e anexa no último assistant', () => {
     const recs = [
       user('u1', 'faz X', '2026-06-11T10:00:00.000Z'),
       asst('a1', 'm1', { input_tokens: 10, output_tokens: 20, cache_read_input_tokens: 1000 }),
@@ -424,7 +424,7 @@ describe('turnStats (S3: stats históricas por turno do JSONL)', () => {
     ];
     const map = turnStats(recs);
     expect(map.size).toBe(1);
-    expect(map.get('a2')).toEqual({ tokens: 3065, inputTokens: 15, outputTokens: 50, durationMs: 42000 });
+    expect(map.get('a2')).toEqual({ tokens: 65, inputTokens: 15, outputTokens: 50, durationMs: 42000 });
   });
 
   it('deduplica records do mesmo message.id (um por content block, usage repetido)', () => {

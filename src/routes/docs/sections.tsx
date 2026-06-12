@@ -3,6 +3,7 @@ import { Overview } from './sections/Overview';
 import { Features } from './sections/Features';
 import { Queue } from './sections/Queue';
 import { Realtime } from './sections/Realtime';
+import { Context } from './sections/Context';
 import { Connect } from './sections/Connect';
 import { Resources } from './sections/Resources';
 import { Modes } from './sections/Modes';
@@ -22,6 +23,7 @@ export function DocSections({ year }: { year: number }) {
       <Features />
       <Queue />
       <Realtime />
+      <Context />
       <Connect />
       <Resources />
       <Modes />

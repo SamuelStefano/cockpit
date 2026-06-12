@@ -82,7 +82,7 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
 // result do CLI (#185) — ajuda a entender o que cada prompt gastou de verdade.
 function TurnStatsLine({ stats }: { stats: TurnBubbleStats }) {
   const parts: string[] = [];
-  // O total (stats.tokens) inclui cache read/creation — é o que consome a quota.
+  // O total (stats.tokens) = trabalho novo do turno (input + cache creation + output); cache read fica de fora.
   // input_tokens sozinho é minúsculo (o grosso do prompt entra como cache) e já
   // enganou: a bolha mostrava "200 in" enquanto o turno queimava dezenas de k.
   if (stats.tokens) {
@@ -94,7 +94,7 @@ function TurnStatsLine({ stats }: { stats: TurnBubbleStats }) {
   if (typeof stats.costUsd === 'number') parts.push(`$${stats.costUsd < 0.01 ? stats.costUsd.toFixed(4) : stats.costUsd.toFixed(3)}`);
   if (!parts.length) return null;
   const inOut = stats.inputTokens !== undefined && stats.outputTokens !== undefined
-    ? ` — ${fmtTokens(stats.inputTokens)} in · ${fmtTokens(stats.outputTokens)} out (sem cache)`
+    ? ` — ${fmtTokens(stats.inputTokens)} in · ${fmtTokens(stats.outputTokens)} out`
     : '';
   return (
     <span className="text-[10px] tabular-nums text-neutral-600" title={`Gasto do turno: total faturável incl. cache · tempo · custo${inOut}`}>

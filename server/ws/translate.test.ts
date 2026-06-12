@@ -98,11 +98,11 @@ describe('translate', () => {
     expect(broadcast).not.toHaveBeenCalledWith(expect.objectContaining({ t: 'compact' }));
   });
 
-  it('accumulates billable tokens across distinct API calls of the turn', () => {
+  it('accumulates new-work tokens (sem cache read) across distinct API calls of the turn', () => {
     const t = register();
     translate(KEY, t, { type: 'assistant', message: { id: 'msg_1', usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 1000, cache_creation_input_tokens: 100 } } } as never);
     translate(KEY, t, { type: 'assistant', message: { id: 'msg_2', usage: { input_tokens: 20, output_tokens: 15, cache_read_input_tokens: 2000, cache_creation_input_tokens: 0 } } } as never);
-    expect(t.turnTokens).toBe(1115 + 2035);
+    expect(t.turnTokens).toBe(115 + 35); // sem cache read
     expect(t.inputTokens).toBe(30);
     expect(t.outputTokens).toBe(20);
   });
@@ -113,7 +113,7 @@ describe('translate', () => {
     translate(KEY, t, ev);
     translate(KEY, t, ev);
     translate(KEY, t, ev);
-    expect(t.turnTokens).toBe(1015);
+    expect(t.turnTokens).toBe(15);
   });
 
   it('keeps the accumulated turn total over the last-call-only result.usage', () => {
@@ -121,13 +121,13 @@ describe('translate', () => {
     translate(KEY, t, { type: 'assistant', message: { id: 'msg_a', usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 5000 } } } as never);
     translate(KEY, t, { type: 'assistant', message: { id: 'msg_b', usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 6000 } } } as never);
     translate(KEY, t, { type: 'result', subtype: 'success', usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 6000 } } as never);
-    expect(t.turnTokens).toBe(5015 + 6015);
+    expect(t.turnTokens).toBe(15 + 15);
   });
 
   it('falls back to result.usage when no assistant event carried usage', () => {
     const t = register();
     translate(KEY, t, { type: 'result', subtype: 'success', usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 1000 } } as never);
-    expect(t.turnTokens).toBe(1015);
+    expect(t.turnTokens).toBe(15);
     expect(t.inputTokens).toBe(10);
     expect(t.outputTokens).toBe(5);
   });

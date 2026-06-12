@@ -81,7 +81,9 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       // assistant POR content block, todos com o mesmo id e o mesmo usage.
       const msgId = (ev as any).message?.id;
       if (usage && typeof msgId === 'string' && msgId !== thread.lastBilledMsgId) {
-        const billed = num(usage.input_tokens) + num(usage.output_tokens) + num(usage.cache_read_input_tokens) + num(usage.cache_creation_input_tokens);
+        // Sem cache read no total do turno (mesma régua do turnStats histórico):
+        // releitura de prefixo inflava o ticker pra dezenas de milhões.
+        const billed = num(usage.input_tokens) + num(usage.output_tokens) + num(usage.cache_creation_input_tokens);
         if (billed > 0) {
           thread.lastBilledMsgId = msgId;
           thread.turnTokens = (thread.turnTokens ?? 0) + billed;
@@ -137,7 +139,7 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       if (!thread.turnTokens && u && typeof u === 'object') {
         const inp = num(u.input_tokens);
         const out = num(u.output_tokens);
-        const t = inp + out + num(u.cache_read_input_tokens) + num(u.cache_creation_input_tokens);
+        const t = inp + out + num(u.cache_creation_input_tokens);
         if (t > 0) thread.turnTokens = t;
         if (inp > 0) thread.inputTokens = inp;
         if (out > 0) thread.outputTokens = out;
