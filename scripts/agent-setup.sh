@@ -198,3 +198,41 @@ else
   echo "[deck] agente rodando (PID $!, role=$ROLE) — a tela troca sozinha quando conectar."
   echo "[deck] logs: tail -f $SRC_DIR/agent.log"
 fi
+
+# Watchdog anti-travamento (vps-guard.sh, a cada 3 min): se a box travar de load
+# (thrash de swap/I/O — aconteceu em 2026-06-11, load 130), mata os vilões de CPU
+# e escala pra `tmux kill-server` se persistir — a VPS volta sozinha, sem reboot
+# na mão. Preferência: systemd timer (sobrevive a reboot); fallback: crontab.
+GUARD="$SRC_DIR/scripts/vps-guard.sh"
+chmod +x "$GUARD" 2>/dev/null || true
+if can_systemd; then
+  echo "[deck] instalando watchdog anti-travamento (deck-vps-guard.timer, a cada 3 min)…"
+  $SUDO tee /etc/systemd/system/deck-vps-guard.service >/dev/null <<EOF
+[Unit]
+Description=Deck VPS guard (anti-freeze watchdog)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env bash "$GUARD"
+EOF
+  $SUDO tee /etc/systemd/system/deck-vps-guard.timer >/dev/null <<EOF
+[Unit]
+Description=Roda o Deck VPS guard a cada 3 minutos
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=3min
+
+[Install]
+WantedBy=timers.target
+EOF
+  $SUDO systemctl daemon-reload
+  $SUDO systemctl enable --now deck-vps-guard.timer >/dev/null 2>&1 || true
+  echo "[deck] watchdog ativo — log em /tmp/vps-guard.log"
+elif command -v crontab >/dev/null 2>&1; then
+  echo "[deck] systemd indisponível — instalando watchdog via crontab…"
+  ( crontab -l 2>/dev/null | grep -v 'deck-vps-guard' || true; echo "*/3 * * * * /usr/bin/env bash \"$GUARD\" >/dev/null 2>&1 # deck-vps-guard" ) | crontab -
+  echo "[deck] watchdog ativo (cron) — log em /tmp/vps-guard.log"
+else
+  echo "[deck] aviso: sem systemd nem crontab — watchdog anti-travamento NÃO instalado."
+fi

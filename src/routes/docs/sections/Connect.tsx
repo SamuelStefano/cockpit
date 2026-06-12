@@ -18,6 +18,7 @@ export function Connect() {
           <CodeBlock code={SETUP_CMD} lang="bash" />
           O script funciona numa <span className="font-medium text-neutral-300">VPS zerada</span>: instala o que faltar (git, Node 20+, ferramentas de build, o <Pill>claude</Pill> CLI),
           clona o repo, compila as dependências, pareia e deixa o agente como serviço <span className="font-medium text-neutral-300">systemd</span> — sobrevive a reboot (sem systemd, cai pro nohup e sobrevive só ao fechamento do SSH).
+          Também instala um <span className="font-medium text-neutral-300">watchdog anti-travamento</span> (a cada 3 min): se a VPS travar de carga, ele mata os processos vilões e, persistindo, derruba as sessões de terminal (tmux) pra máquina voltar sozinha — sem reboot na mão.
           O agente gera um par de chaves <span className="font-medium text-neutral-300">Ed25519</span> que <span className="font-medium text-neutral-300">nasce e fica na sua máquina</span> (a privada nunca sai),
           disca o relay e se pareia à sua conta. A tela troca sozinha quando ele conecta.
         </StepCard>
