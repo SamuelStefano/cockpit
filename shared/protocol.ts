@@ -106,6 +106,11 @@ export interface CompactMessage {
   role: 'compact';
   trigger?: string; // 'auto' | 'manual' (/compact)
   preTokens?: number;
+  // Marcadores finos reusam o divisor: 'wakeup' (loop agendado acordou) e
+  // 'pr' (pull request aberto — label + url clicável). Sem kind = compactação.
+  kind?: 'wakeup' | 'pr';
+  label?: string;
+  url?: string;
   ts?: number;
 }
 
@@ -326,7 +331,7 @@ export type ServerMsg =
   | { t: 'rate'; resetsAt: number; status: string }
   | { t: 'plan-usage'; usage: PlanUsage }
   | { t: 'usage'; sessionKey: string; tokens: number; turnTokens?: number }
-  | { t: 'compact'; sessionKey: string; trigger?: string; preTokens?: number }
+  | { t: 'compact'; sessionKey: string; trigger?: string; preTokens?: number; kind?: 'wakeup' | 'pr'; label?: string }
   | { t: 'usage-stats'; stats: UsageStats }
   | { t: 'health'; health: AdminHealth }
   | { t: 'admin-op'; ok: boolean; message: string }

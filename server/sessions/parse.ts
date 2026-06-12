@@ -201,6 +201,8 @@ export async function parseSession(
 
   const byUuid = new Map<string, Rec>();
   const results = new Map<string, ToolResultRec>();
+  const markers: Message[] = [];
+  const seenPr = new Set<string>();
   let leaf: string | undefined;
   let lastMsgUuid: string | undefined;
 
@@ -217,6 +219,8 @@ export async function parseSession(
     // a caminhada quebra no 1º intermediário e trunca o histórico (squad).
     if (r.uuid) byUuid.set(r.uuid, r);
     if (r.uuid && (r.type === 'user' || r.type === 'assistant')) lastMsgUuid = r.uuid;
+    const marker = markerFromRec(r, seenPr);
+    if (marker) markers.push(marker);
   }
 
   const chain = activeChain(byUuid, leaf, lastMsgUuid);
@@ -233,9 +237,10 @@ export async function parseSession(
   // Filtra ANTES de cortar: a chain inclui records que viram null (isMeta,
   // tool_results) — contar pelo bruto inflava `truncated` e entregava menos
   // mensagens visíveis que o limit.
-  const all = chain.map((r) => recToMessage(r, results)).filter((m): m is Message => m !== null);
-  attachTurnStats(all, turnStats(chain));
-  attachTaskTodos(all, taskTodos(chain, results));
+  const mapped = chain.map((r) => recToMessage(r, results)).filter((m): m is Message => m !== null);
+  attachTurnStats(mapped, turnStats(chain));
+  attachTaskTodos(mapped, taskTodos(chain, results));
+  const all = weaveByTs(mapped, markers);
   const truncated = all.length > limit;
   const messages = all.slice(-limit);
   const blocks = messages.flatMap((m) =>
@@ -257,6 +262,8 @@ export async function parseFullSession(
 
   const recs: Rec[] = [];
   const results = new Map<string, ToolResultRec>();
+  const markers: Message[] = [];
+  const seenPr = new Set<string>();
   const rl = createInterface({ input: createReadStream(path), crlfDelay: Infinity });
   for await (const line of rl) {
     const s = line.trim();
@@ -265,6 +272,8 @@ export async function parseFullSession(
     try { r = JSON.parse(s) as Rec; } catch { continue; }
     collectToolResults(r, results);
     if (r.uuid && (r.type === 'user' || r.type === 'assistant')) recs.push(r);
+    const marker = markerFromRec(r, seenPr);
+    if (marker) markers.push(marker);
   }
 
   let tokens = 0;
@@ -272,10 +281,62 @@ export async function parseFullSession(
     if (recs[i].type === 'assistant' && recs[i].message?.usage) { tokens = ctxTokens(recs[i].message!.usage); break; }
   }
 
-  const all = recs.map((r) => recToMessage(r, results)).filter((m): m is Message => m !== null);
-  attachTurnStats(all, turnStats(recs));
-  attachTaskTodos(all, taskTodos(recs, results));
+  const mapped = recs.map((r) => recToMessage(r, results)).filter((m): m is Message => m !== null);
+  attachTurnStats(mapped, turnStats(recs));
+  attachTaskTodos(mapped, taskTodos(recs, results));
+  const all = weaveByTs(mapped, markers);
   return { messages: all.slice(-limit), tokens, truncated: all.length > limit };
+}
+
+// Slash command e saída de !comando chegam como user text com as tags XML do
+// harness — o terminal mostra "/model x" e a saída limpa; o app mostrava o XML
+// cru com códigos ANSI. null = nada renderizável (paridade: o terminal omite).
+export function cleanUserText(text: string): string | null {
+  if (text.includes('<command-name>')) {
+    const name = /<command-name>([^<]*)<\/command-name>/.exec(text)?.[1]?.trim() ?? '';
+    const args = /<command-args>([^<]*)<\/command-args>/.exec(text)?.[1]?.trim() ?? '';
+    const out = `${name}${args ? ' ' + args : ''}`.trim();
+    return out || null;
+  }
+  if (text.includes('<local-command-stdout>')) {
+    const m = /<local-command-stdout>([\s\S]*?)<\/local-command-stdout>/.exec(text);
+    const out = (m?.[1] ?? '').replace(/\u001b\[[0-9;]*m/g, '').trim();
+    return out || null;
+  }
+  return text;
+}
+
+// Registros que o terminal mostra e o app perdia: pr-link (sem uuid — dedup por
+// URL, fica a 1ª ocorrência) e o wakeup de loop agendado. Viram divisores finos
+// tecidos na timeline por timestamp (weaveByTs).
+export function markerFromRec(r: Rec, seenPr: Set<string>): Message | null {
+  const o = r as unknown as Record<string, unknown>;
+  const t = r.timestamp ? Date.parse(r.timestamp) : NaN;
+  const ts = Number.isFinite(t) ? t : undefined;
+  if (r.type === 'pr-link' && typeof o.prUrl === 'string' && o.prUrl) {
+    if (seenPr.has(o.prUrl)) return null;
+    seenPr.add(o.prUrl);
+    const num = typeof o.prNumber === 'number' ? `#${o.prNumber}` : '';
+    const repo = typeof o.prRepository === 'string' ? o.prRepository : '';
+    return { id: `pr-${o.prUrl}`, role: 'compact', kind: 'pr', label: `PR ${num}${repo ? ` · ${repo}` : ''}`.trim(), url: o.prUrl, ts };
+  }
+  if (r.type === 'system' && (o as any).subtype === 'scheduled_task_fire' && typeof o.content === 'string') {
+    return { id: r.uuid ?? `wake-${ts ?? 0}`, role: 'compact', kind: 'wakeup', label: o.content as string, ts };
+  }
+  return null;
+}
+
+export function weaveByTs(messages: Message[], extras: Message[]): Message[] {
+  if (!extras.length) return messages;
+  const out = [...messages];
+  for (const e of [...extras].sort((a, b) => (a.ts ?? 0) - (b.ts ?? 0))) {
+    let i = out.length;
+    for (let j = 0; j < out.length; j++) {
+      if ((out[j].ts ?? Infinity) > (e.ts ?? 0)) { i = j; break; }
+    }
+    out.splice(i, 0, e);
+  }
+  return out;
 }
 
 export function recToMessage(r: Rec, results?: Map<string, ToolResultRec>): Message | null {
@@ -298,8 +359,9 @@ export function recToMessage(r: Rec, results?: Map<string, ToolResultRec>): Mess
       : Array.isArray(content)
         ? content.filter((c: any) => c?.type === 'text').map((c: any) => c.text).join('\n')
         : '';
-    if (!text.trim()) return null;
-    return { id: r.uuid!, role: 'user', text, ts };
+    const cleaned = text.trim() ? cleanUserText(text) : null;
+    if (!cleaned) return null;
+    return { id: r.uuid!, role: 'user', text: cleaned, ts };
   }
   if (r.message.role === 'assistant' && Array.isArray(content)) {
     const blocks: Block[] = [];

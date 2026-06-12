@@ -549,8 +549,8 @@ export function useCockpit(): Cockpit {
         // Divisor visível na thread (estilo Claude Code) marcando ONDE compactou.
         updateThread(key, (prev) => {
           const last = prev[prev.length - 1];
-          if (last && last.role === 'compact') return prev;
-          return [...prev, { id: `compact-${Date.now()}`, role: 'compact', trigger: msg.trigger, preTokens: msg.preTokens, ts: Date.now() }];
+          if (!msg.kind && last && last.role === 'compact' && !last.kind) return prev;
+          return [...prev, { id: `compact-${Date.now()}`, role: 'compact', trigger: msg.trigger, preTokens: msg.preTokens, kind: msg.kind, label: msg.label, ts: Date.now() }];
         });
         return;
       }

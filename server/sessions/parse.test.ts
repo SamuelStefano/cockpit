@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ctxTokens, num, diffOf, planOf, questionsOf, contentHasQuestion, todosOf, extractCommand, labelOf, commandOf, recToMessage, activeChain, collectToolResults, capOutput, turnStats, attachTurnStats, registerTaskCreate, applyTaskUpdate, taskSnapshot, taskTodos, attachTaskTodos, TOOL_OUTPUT_CAP, type Rec, type ToolResultRec, type TaskRegistry } from './parse';
+import { ctxTokens, num, diffOf, planOf, questionsOf, contentHasQuestion, todosOf, extractCommand, labelOf, commandOf, recToMessage, activeChain, collectToolResults, capOutput, turnStats, attachTurnStats, registerTaskCreate, applyTaskUpdate, taskSnapshot, taskTodos, attachTaskTodos, cleanUserText, markerFromRec, weaveByTs, TOOL_OUTPUT_CAP, type Rec, type ToolResultRec, type TaskRegistry } from './parse';
 import type { Message } from '../../shared/protocol';
 
 describe('num', () => {
@@ -574,5 +574,54 @@ describe('taskTodos + attachTaskTodos (S6: snapshots por tool_use)', () => {
     const blocks = (messages[0] as any).blocks;
     expect(blocks[0].tool.todos).toEqual([{ content: 'Novo', status: 'pending' }]);
     expect(blocks[1].tool.todos).toEqual([{ content: 'Velho', status: 'pending' }]);
+  });
+});
+
+describe('cleanUserText (N2: slash e !comando como no terminal)', () => {
+  it('slash command vira "/cmd args" limpo', () => {
+    expect(cleanUserText('<command-name>/model</command-name>\n<command-message>model</command-message>\n<command-args>claude-fable-5</command-args>')).toBe('/model claude-fable-5');
+    expect(cleanUserText('<command-name>/clear</command-name>\n<command-args></command-args>')).toBe('/clear');
+  });
+
+  it('local-command-stdout vira a saída sem ANSI; vazio vira null', () => {
+    expect(cleanUserText('<local-command-stdout>[1mSet model to claude-fable-5[22m</local-command-stdout>')).toBe('Set model to claude-fable-5');
+    expect(cleanUserText('<local-command-stdout></local-command-stdout>')).toBeNull();
+  });
+
+  it('texto normal passa intacto', () => {
+    expect(cleanUserText('oi, tudo bem?')).toBe('oi, tudo bem?');
+  });
+});
+
+describe('markerFromRec + weaveByTs (N2: pr-link e wakeup na timeline)', () => {
+  it('pr-link vira divisor com label e url, dedup por URL', () => {
+    const seen = new Set<string>();
+    const rec = { type: 'pr-link', prNumber: 7, prUrl: 'https://github.com/x/y/pull/7', prRepository: 'x/y', timestamp: '2026-06-12T00:00:00.000Z' } as unknown as Rec;
+    const m = markerFromRec(rec, seen);
+    expect(m).toMatchObject({ role: 'compact', kind: 'pr', label: 'PR #7 · x/y', url: 'https://github.com/x/y/pull/7' });
+    expect(markerFromRec(rec, seen)).toBeNull();
+  });
+
+  it('scheduled_task_fire vira divisor wakeup com o texto do harness', () => {
+    const m = markerFromRec({ type: 'system', subtype: 'scheduled_task_fire', content: 'Claude resuming /loop wakeup', uuid: 'w1', timestamp: '2026-06-12T00:00:00.000Z' } as unknown as Rec, new Set());
+    expect(m).toMatchObject({ id: 'w1', role: 'compact', kind: 'wakeup', label: 'Claude resuming /loop wakeup' });
+  });
+
+  it('records comuns não viram marcador', () => {
+    expect(markerFromRec({ type: 'assistant' } as Rec, new Set())).toBeNull();
+    expect(markerFromRec({ type: 'system', subtype: 'turn_duration' } as unknown as Rec, new Set())).toBeNull();
+  });
+
+  it('weaveByTs insere por timestamp preservando a ordem das mensagens', () => {
+    const msgs = [
+      { id: 'a', role: 'user', text: '1', ts: 100 },
+      { id: 'b', role: 'assistant', blocks: [], ts: 300 },
+    ] as Message[];
+    const extras = [
+      { id: 'm2', role: 'compact', kind: 'pr', ts: 200 },
+      { id: 'm1', role: 'compact', kind: 'wakeup', ts: 50 },
+    ] as Message[];
+    expect(weaveByTs(msgs, extras).map((m) => m.id)).toEqual(['m1', 'a', 'm2', 'b']);
+    expect(weaveByTs(msgs, [])).toBe(msgs);
   });
 });

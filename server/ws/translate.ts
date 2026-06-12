@@ -40,6 +40,11 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
         const meta = (ev as any).compact_metadata ?? {};
         broadcast({ t: 'compact', sessionKey, trigger: meta.trigger, preTokens: meta.pre_tokens });
       }
+      // Loop agendado acordou (terminal mostra "✻ Claude resuming…"): vira um
+      // divisor fino no chat, senão a noite autônoma parece uma conversa contínua.
+      if ((ev as any).subtype === 'scheduled_task_fire' && typeof (ev as any).content === 'string') {
+        broadcast({ t: 'compact', sessionKey, kind: 'wakeup', label: (ev as any).content });
+      }
       if (thread.sessionId) broadcast({ t: 'system', sessionKey, sessionId: thread.sessionId });
       return;
     }
