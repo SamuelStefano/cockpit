@@ -152,7 +152,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'upload': {
       const r = await saveAttachment(msg.sessionKey, msg.name, msg.dataB64);
       if ('error' in r) send(ws, { t: 'error', message: r.error });
-      else send(ws, { t: 'uploaded', name: msg.name, path: r.path });
+      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text });
       return;
     }
     case 'att-open': {

@@ -1,8 +1,40 @@
 import { describe, it, expect } from 'vitest';
 import { rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { safeSeg, saveAttachment, readAttachment } from './attachments';
+import { deflateRawSync } from 'node:zlib';
+import { safeSeg, saveAttachment, readAttachment, extractDocxText } from './attachments';
 import { CONFIG } from './config';
+
+// Monta um .docx mínimo (1 entrada deflate: word/document.xml) sem dependência —
+// igual ao que um editor real gera, pra exercitar o parser de ZIP de verdade.
+function buildDocx(documentXml: string): Buffer {
+  const name = Buffer.from('word/document.xml');
+  const content = Buffer.from(documentXml);
+  const comp = deflateRawSync(content);
+  const local = Buffer.alloc(30);
+  local.writeUInt32LE(0x04034b50, 0);
+  local.writeUInt16LE(20, 4);
+  local.writeUInt16LE(8, 8);
+  local.writeUInt32LE(comp.length, 18);
+  local.writeUInt32LE(content.length, 22);
+  local.writeUInt16LE(name.length, 26);
+  const localBlock = Buffer.concat([local, name, comp]);
+  const central = Buffer.alloc(46);
+  central.writeUInt32LE(0x02014b50, 0);
+  central.writeUInt16LE(8, 10);
+  central.writeUInt32LE(comp.length, 20);
+  central.writeUInt32LE(content.length, 24);
+  central.writeUInt16LE(name.length, 28);
+  central.writeUInt32LE(0, 42);
+  const centralBlock = Buffer.concat([central, name]);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(1, 8);
+  eocd.writeUInt16LE(1, 10);
+  eocd.writeUInt32LE(centralBlock.length, 12);
+  eocd.writeUInt32LE(localBlock.length, 16);
+  return Buffer.concat([localBlock, centralBlock, eocd]);
+}
 
 describe('safeSeg', () => {
   it('strips directory traversal down to the basename', () => {
@@ -39,6 +71,54 @@ describe('saveAttachment', () => {
     expect(await saveAttachment('s', null as unknown as string, 'aGk=')).toEqual(bad);
     expect(await saveAttachment('s', 'x.txt', 42 as unknown as string)).toEqual(bad);
     expect(await saveAttachment('s', 'x.txt', { b: 1 } as unknown as string)).toEqual(bad);
+  });
+
+  it('returns extracted text inline for a .docx upload (chip stays on the original)', async () => {
+    const docx = buildDocx('<w:document><w:body><w:p><w:r><w:t>texto do documento</w:t></w:r></w:p></w:body></w:document>');
+    const saved = await saveAttachment('vitest-docx', 'proposta.docx', docx.toString('base64'));
+    try {
+      expect('path' in saved && saved.path.endsWith('proposta.docx')).toBe(true);
+      expect('text' in saved && saved.text).toBe('texto do documento');
+    } finally {
+      await rm(resolve(CONFIG.workdir, 'attachments', 'vitest-docx'), { recursive: true, force: true });
+    }
+  });
+
+  it('falls back to no text when a .docx-named file is not a real docx', async () => {
+    const saved = await saveAttachment('vitest-fakedocx', 'fake.docx', Buffer.from('not a zip').toString('base64'));
+    try {
+      expect('path' in saved).toBe(true);
+      expect('text' in saved).toBe(false);
+    } finally {
+      await rm(resolve(CONFIG.workdir, 'attachments', 'vitest-fakedocx'), { recursive: true, force: true });
+    }
+  });
+});
+
+describe('extractDocxText', () => {
+  it('extracts paragraphs, tabs and entities from a real docx zip', () => {
+    const xml = '<w:document><w:body>' +
+      '<w:p><w:r><w:t>Ol&#225; &amp; bem-vindo</w:t></w:r></w:p>' +
+      '<w:p><w:r><w:t>Col1</w:t><w:tab/><w:t>Col2</w:t></w:r></w:p>' +
+      '</w:body></w:document>';
+    expect(extractDocxText(buildDocx(xml))).toBe('Olá & bem-vindo\nCol1\tCol2');
+  });
+
+  it('separates table cells with a tab even without explicit w:tab', () => {
+    const xml = '<w:document><w:body><w:tbl><w:tr>' +
+      '<w:tc><w:p><w:r><w:t>A1</w:t></w:r></w:p></w:tc>' +
+      '<w:tc><w:p><w:r><w:t>B1</w:t></w:r></w:p></w:tc>' +
+      '</w:tr></w:tbl></w:body></w:document>';
+    expect(extractDocxText(buildDocx(xml))).toBe('A1\tB1');
+  });
+
+  it('drops invalid codepoints instead of throwing (lone surrogate)', () => {
+    const xml = '<w:document><w:body><w:p><w:r><w:t>a&#xD800;b</w:t></w:r></w:p></w:body></w:document>';
+    expect(extractDocxText(buildDocx(xml))).toBe('ab');
+  });
+
+  it('returns null for a buffer that is not a zip', () => {
+    expect(extractDocxText(Buffer.from('not a zip'))).toBeNull();
   });
 });
 
