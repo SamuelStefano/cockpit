@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseAttachments } from './parse-attachments';
+import { parseAttachments, attachmentTextBlock } from './parse-attachments';
 
 describe('parseAttachments', () => {
   it('separa marcadores de anexo do corpo e limpa o nome', () => {
@@ -26,5 +26,12 @@ describe('parseAttachments', () => {
       attachments: [{ path: 'a/1-z-só.png', name: 'só.png' }],
       body: '',
     });
+  });
+
+  it('descarta o bloco de texto inline do .docx e mantém o chip no original', () => {
+    const text = `[anexo: a/1-x-proposta.docx]\n${attachmentTextBlock('proposta.docx', 'linha 1\nlinha 2')}\n\nanalisa isso`;
+    const r = parseAttachments(text);
+    expect(r.attachments).toEqual([{ path: 'a/1-x-proposta.docx', name: 'proposta.docx' }]);
+    expect(r.body).toBe('analisa isso');
   });
 });

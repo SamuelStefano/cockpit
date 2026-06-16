@@ -13,10 +13,11 @@ import { mergeHistory } from './cockpit/history';
 import { liveTokens } from './cockpit/live-tokens';
 import { useTerminals, type TermApi } from './cockpit/useTerminals';
 import { addThumb, shouldRequestThumb } from './lib/att-thumb-cache';
+import { attachmentTextBlock } from './lib/parse-attachments';
 
 export interface ContextDoc { id: string; title: string; body: string }
 export interface SkillDoc { id: string; name: string; body: string }
-export interface Attachment { name: string; path: string }
+export interface Attachment { name: string; path: string; text?: string }
 export interface AttachmentPreview { path: string; name: string; dataB64?: string; error?: string }
 export type { TermApi };
 import type { ConnState } from './components/primitives';
@@ -633,7 +634,7 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'uploaded': {
-        const next = [...attachmentsRef.current, { name: msg.name, path: msg.path }];
+        const next = [...attachmentsRef.current, { name: msg.name, path: msg.path, text: msg.text }];
         attachmentsRef.current = next;
         setAttachments(next);
         return;
@@ -926,9 +927,11 @@ export function useCockpit(): Cockpit {
     stopping.current.delete(key); // novo prompt nesta sessão cancela o latch de stop
     requestNotifyPermission(); // 1ª vez: pede permissão (gesto do usuário)
     const atts = attachmentsRef.current;
-    // Anexos viram refs de path no início do prompt; o agente abre via Read.
+    // Anexos viram refs de path no início do prompt; o agente abre via Read. Pra
+    // .docx (binário que o Read não parseia) o texto extraído vai inline logo após
+    // o ref — o agente recebe o conteúdo direto e o chip segue no .docx original.
     const wire = atts.length
-      ? atts.map((a) => `[anexo: ${a.path}]`).join('\n') + '\n\n' + text
+      ? atts.map((a) => (a.text ? `[anexo: ${a.path}]\n${attachmentTextBlock(a.name, a.text)}` : `[anexo: ${a.path}]`)).join('\n') + '\n\n' + text
       : text;
     if (atts.length) { attachmentsRef.current = []; setAttachments([]); }
     setInterrupted((p) => { if (!(key in p)) return p; const n = { ...p }; delete n[key]; return n; });
