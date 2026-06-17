@@ -13,6 +13,7 @@
     "test": "vitest run",
     "smoke": "node scripts/smoke.mjs",
     "serve": "tsx server/index.ts",
+    "redeploy": "bash scripts/redeploy.sh",
     "fellow": "node scripts/serve-fellow.mjs",
     "preview": "vite preview"
   },

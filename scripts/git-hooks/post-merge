@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Auto-redeploy após `git pull`/merge no main que toque server/ ou shared/. Mesma
+# lógica do post-commit, mas o diff é o que o merge trouxe (ORIG_HEAD..HEAD).
+set -uo pipefail
+cd "$(git rev-parse --show-toplevel)" || exit 0
+
+[ "$(git rev-parse --abbrev-ref HEAD)" = "main" ] || exit 0
+
+changed=$(git diff --name-only ORIG_HEAD HEAD 2>/dev/null || echo '')
+echo "$changed" | grep -qE '^(server/|shared/)' || exit 0
+
+echo "[post-merge] pull no main tocou server/ — agendando redeploy"
+setsid bash scripts/redeploy.sh >>/tmp/cockpit-redeploy.log 2>&1 < /dev/null &
+exit 0

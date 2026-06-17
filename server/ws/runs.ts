@@ -16,7 +16,7 @@ export interface Thread {
   costUsd?: number;     // custo real do turno (result.total_cost_usd, ground-truth)
   durationMs?: number;
   numTurns?: number;
-  turnTokens?: number;  // total faturável do turno: soma de TODAS as chamadas API (input+output+cache), p/ stat discreta na bolha
+  turnTokens?: number;  // total faturável do turno: soma de TODAS as chamadas API (input+output+cache_creation, SEM cache read), p/ stat discreta na bolha
   inputTokens?: number;
   outputTokens?: number;
   lastBilledMsgId?: string; // dedupe do acúmulo: a mesma chamada API emite vários eventos assistant com o mesmo message.id

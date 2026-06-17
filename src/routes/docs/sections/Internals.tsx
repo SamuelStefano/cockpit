@@ -18,6 +18,11 @@ export function Internals() {
           Cada sessão é gravada em disco como histórico estruturado. O Deck apenas lê e lista esses arquivos —
           ele não reescreve o seu histórico real. Fechar a aba não perde nada: ao voltar, a conversa é recarregada.
         </InfoCard>
+        <InfoCard icon="rotate" iconClass="text-orange-400" size={13} title="Sempre no código mais novo">
+          O backend e o agente ficam sob supervisores que os reerguem se caírem. Quando o código do <Pill>main</Pill> muda
+          mexendo no servidor, um gatilho automático reinicia os dois na hora — então uma correção nunca fica presa num processo
+          rodando código de dias atrás (era a causa de "consertei mas continua igual").
+        </InfoCard>
         <InfoCard icon="shield" iconClass="text-orange-400" size={13} title="Privado por padrão">
           O servidor escuta só em <Pill>127.0.0.1</Pill> (a própria máquina), acessível remotamente apenas via rede privada.
           Chaves de API e tokens ficam no servidor e nunca são enviados pro navegador — só números calculados (uso, custo) e nomes de modelo chegam à tela.

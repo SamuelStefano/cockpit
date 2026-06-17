@@ -140,6 +140,10 @@ cd "$SRC_DIR"
 echo "[deck] instalando dependências (pode compilar node-pty/better-sqlite3)…"
 npm install
 
+# Auto-redeploy: hooks que reiniciam backend+agente quando o main muda tocando
+# server/ — pra nenhum fix ficar preso em processo rodando código velho.
+git config core.hooksPath scripts/git-hooks 2>/dev/null || true
+
 if [ -n "$CODE" ]; then
   echo "[deck] pareando ao relay…"
   DECK_RELAY_URL="$RELAY" npx tsx server/agent.ts --pair="$CODE"
