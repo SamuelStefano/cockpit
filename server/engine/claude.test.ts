@@ -64,10 +64,10 @@ describe('resolveMode', () => {
     expect(resolveMode('plan')).toEqual({ permissionMode: 'plan', allow: [] });
   });
 
-  it('auto mode uses the default permission with the shell-free allow-list', () => {
+  it('auto mode uses the default permission and now includes Bash (ciclo autônomo)', () => {
     const r = resolveMode('auto');
     expect(r.permissionMode).toBe('default');
-    expect(r.allow).not.toContain('Bash');
+    expect(r.allow).toContain('Bash');
   });
 
   it('acceptEdits mode allows the full edit tool-set', () => {

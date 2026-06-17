@@ -113,14 +113,17 @@ export const CONFIG = {
   // Tools de task (TodoWrite/TaskCreate/TaskUpdate/TaskGet/TaskList) idem: negadas
   // em silêncio, a lista de tarefas nunca nascia em runs do app — só no terminal.
   // Bloqueio via COCKPIT_DISALLOWED_TOOLS continua valendo (precede).
-  allowedTools: (process.env.COCKPIT_ALLOWED_TOOLS ?? 'Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch,AskUserQuestion,TodoWrite,TaskCreate,TaskUpdate,TaskGet,TaskList')
+  // BashOutput/KillShell acompanham o Bash: sem eles o agente abre um comando em
+  // background e é barrado ao ler/matar a saída, tendo que improvisar. NotebookEdit
+  // idem pra .ipynb. Negadas em silêncio no `claude -p` = atrito constante.
+  allowedTools: (process.env.COCKPIT_ALLOWED_TOOLS ?? 'Bash,BashOutput,KillShell,Read,Edit,Write,NotebookEdit,Glob,Grep,WebFetch,WebSearch,AskUserQuestion,TodoWrite,TaskCreate,TaskUpdate,TaskGet,TaskList')
     .split(',').map((s) => s.trim()).filter(Boolean),
 
-  // Modo Auto: edita/lê sem shell. Mesma allow-list SEM Bash — o agente trabalha
-  // arquivos sozinho mas não roda comandos arbitrários. WebFetch/WebSearch
-  // (read-only de rede) e AskUserQuestion (pergunta ao usuário) entram pra não
-  // travar pesquisa/leitura nem o fluxo de escolha.
-  allowedToolsAuto: (process.env.COCKPIT_ALLOWED_TOOLS_AUTO ?? 'Read,Edit,Write,Glob,Grep,WebFetch,WebSearch,AskUserQuestion,TodoWrite,TaskCreate,TaskUpdate,TaskGet,TaskList')
+  // Modo Auto: o agente roda o ciclo inteiro sozinho, então também precisa de
+  // Bash (antes barrado aqui — o agente tentava um comando e tinha que improvisar
+  // alternativa pior). Esta é a box do dono; o freio é COCKPIT_DISALLOWED_TOOLS,
+  // não tirar o shell. Mesmas companheiras de bash/notebook do modo Executar.
+  allowedToolsAuto: (process.env.COCKPIT_ALLOWED_TOOLS_AUTO ?? 'Bash,BashOutput,KillShell,Read,Edit,Write,NotebookEdit,Glob,Grep,WebFetch,WebSearch,AskUserQuestion,TodoWrite,TaskCreate,TaskUpdate,TaskGet,TaskList')
     .split(',').map((s) => s.trim()).filter(Boolean),
 
   // Kill-switch DURO: tools aqui são negadas em TODOS os modos (precede a allow-list
