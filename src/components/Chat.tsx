@@ -5,6 +5,7 @@ import { ChatEmpty, ChatInput } from './chat/ChatInput';
 import { ChatHeader } from './chat/ChatHeader';
 import { TaskTray } from './chat/TaskTray';
 import { latestTodos } from './chat/task-tray';
+import { clampToPendingQuestion } from '../cockpit/pending-question';
 import { TurnBanners } from './chat/TurnBanners';
 import { ClaudeAuthBanner } from './chat/ClaudeAuthBanner';
 import { useChatPanel, type Phase } from './chat/useChatPanel';
@@ -91,6 +92,11 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
     () => (phase !== 'idle' ? latestTodos(messages) ?? sessionTodos : sessionTodos ?? latestTodos(messages)),
     [messages, sessionTodos, phase],
   );
+  // Trava a exibição numa pergunta pendente do agente: o `claude -p` auto-resolve
+  // o AskUserQuestion e continua gerando — sem isto o card aparecia e "sumia"
+  // (enterrado pela continuação). Garante que a pergunta fica como última msg e
+  // respondível, independente da versão do backend (defesa no front).
+  const shown = useMemo(() => clampToPendingQuestion(messages), [messages]);
 
   return (
     <div
@@ -117,11 +123,11 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
           <ChatEmpty onPrompt={onPrompt} />
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-5">
-            {messages.map((m, i) => (
-              <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === messages.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} thinking={phase !== 'idle' && i === messages.length - 1 && m.role === 'assistant'} live={i === messages.length - 1 && m.role === 'assistant' ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} answerable={phase === 'idle' && i === messages.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} />
+            {shown.map((m, i) => (
+              <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === shown.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} thinking={phase !== 'idle' && i === shown.length - 1 && m.role === 'assistant'} live={i === shown.length - 1 && m.role === 'assistant' ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} answerable={phase === 'idle' && i === shown.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} />
 
             ))}
-            {(phase === 'thinking' && messages[messages.length - 1]?.role !== 'assistant' || phase === 'idle' && terminalBusy) && <Thinking live={live} />}
+            {(phase === 'thinking' && shown[shown.length - 1]?.role !== 'assistant' || phase === 'idle' && terminalBusy) && <Thinking live={live} />}
           </div>
         )}
       </div>
