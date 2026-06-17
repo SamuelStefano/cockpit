@@ -73,6 +73,18 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
     [models, modelLabel],
   );
 
+  // AskUserQuestion encerra o turno (kill no backend) e devolve phase pra idle — o
+  // mesmo idle que drena a fila. Sem esta trava o flush mandava a próxima mensagem
+  // e roubava o card de escolha (sumia o "Enviar resposta") antes de o usuário
+  // responder. Segura a fila enquanto a pergunta for a última mensagem; responder
+  // cria um novo turno e a retomada corre de carona no ciclo de fase seguinte.
+  const pendingQuestion = phase === 'idle' && (() => {
+    const last = messages[messages.length - 1];
+    return !!last && last.role === 'assistant' && last.blocks.some(
+      (b) => b.type === 'tool' && b.tool.name === 'AskUserQuestion' && (b.tool.questions?.length ?? 0) > 0,
+    );
+  })();
+
   // Fila stop-aware: mensagens digitadas durante o turno disparam sozinhas no
   // idle, UMA por vez e em ordem. flushingRef trava o re-disparo: setQueued(rest)
   // re-roda o efeito ainda com phase==='idle' (a prop só vira 'thinking' quando o
@@ -83,6 +95,8 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
     // Teto do plano atingido: NÃO drena a fila (senão dispara tudo e falha sem
     // resposta). Quando a janela reseta, `paused` cai e o flush retoma sozinho.
     if (paused) return;
+    // Pergunta de escolha aguardando resposta: segura a fila pra não roubar o card.
+    if (pendingQuestion) return;
     if (phase !== 'idle') { flushingRef.current = false; return; }
     if (flushingRef.current || queued.length === 0) return;
     flushingRef.current = true;

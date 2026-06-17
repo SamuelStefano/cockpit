@@ -82,6 +82,34 @@ describe('useChatPanel fila', () => {
     expect(onSend).toHaveBeenCalledWith('msg1'); // despausou: retoma sozinho
   });
 
+  it('AskUserQuestion pendente: segura a fila no idle; retoma quando deixa de ser a última msg', () => {
+    const ask: Message = {
+      id: 'a1', role: 'assistant',
+      blocks: [{ type: 'tool', tool: {
+        id: 't1', name: 'AskUserQuestion', label: 'AskUserQuestion', command: '',
+        status: 'done', output: [],
+        questions: [{ question: 'q?', header: 'H', multiSelect: false, options: [{ label: 'A' }] }],
+      } }],
+    };
+    const answer: Message = { id: 'u1', role: 'user', text: 'H: A' };
+    const onlyAsk: Message[] = [ask];
+    const asked: Message[] = [ask, answer];
+    const onSend = vi.fn();
+    const base = { session: { id: 's1' } as Session, models: [], model: 'opus', onSend };
+    const hook = renderHook(
+      (p: { phase: Phase; messages: Message[] }) => useChatPanel({ ...base, phase: p.phase, messages: p.messages }),
+      { initialProps: { phase: 'thinking' as Phase, messages: onlyAsk } },
+    );
+    act(() => hook.result.current.enqueue('msg1'));
+    // Turno encerra no AskUserQuestion (kill no backend): NÃO drena — a pergunta é a última msg.
+    act(() => hook.rerender({ phase: 'idle', messages: onlyAsk }));
+    expect(onSend).not.toHaveBeenCalled();
+    // Usuário responde → vira a última msg; novo turno roda e encerra → fila retoma.
+    act(() => hook.rerender({ phase: 'thinking', messages: asked }));
+    act(() => hook.rerender({ phase: 'idle', messages: asked }));
+    expect(onSend).toHaveBeenCalledWith('msg1');
+  });
+
   it('persiste a fila por sessão: trocar de sessão e voltar não perde itens', () => {
     const onSend = vi.fn();
     const base = { messages: [] as Message[], phase: 'thinking' as Phase, models: [], model: 'opus', onSend };
