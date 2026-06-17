@@ -517,6 +517,14 @@ export function useCockpit(): Cockpit {
         const key = resolveKey(migratedTo.current, msg.sessionKey);
         lastActivity.current[key] = Date.now();
         if (!stopping.current.has(key)) setPhases((p) => ({ ...p, [key]: 'streaming' }));
+        // Garante a bolha em voo: se um 'tool' chega antes do 'started' (ou o
+        // started se perdeu), patchRunMsg descartaria o frame e o card — inclusive
+        // o de AskUserQuestion — sumia. Cria a bolha pra o tool sempre anexar.
+        if (!runMsg.current[key]) {
+          const id = newId('a');
+          runMsg.current[key] = id;
+          updateThread(key, (prev) => [...prev, { id, role: 'assistant', blocks: [], ts: Date.now() }]);
+        }
         patchRunMsg(key, (b) => upsertTool(b, msg.tool));
         return;
       }

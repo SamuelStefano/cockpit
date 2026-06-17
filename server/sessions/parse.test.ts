@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ctxTokens, num, diffOf, planOf, questionsOf, contentHasQuestion, todosOf, extractCommand, labelOf, commandOf, recToMessage, activeChain, collectToolResults, capOutput, turnStats, attachTurnStats, registerTaskCreate, applyTaskUpdate, taskSnapshot, taskTodos, attachTaskTodos, cleanUserText, markerFromRec, weaveByTs, finalTodos, TOOL_OUTPUT_CAP, type Rec, type ToolResultRec, type TaskRegistry } from './parse';
+import { ctxTokens, num, diffOf, planOf, questionsOf, contentHasQuestion, todosOf, extractCommand, labelOf, commandOf, recToMessage, activeChain, collectToolResults, capOutput, turnStats, attachTurnStats, registerTaskCreate, applyTaskUpdate, taskSnapshot, taskTodos, attachTaskTodos, cleanUserText, markerFromRec, weaveByTs, finalTodos, truncateAtPendingQuestion, TOOL_OUTPUT_CAP, type Rec, type ToolResultRec, type TaskRegistry } from './parse';
 import type { Message } from '../../shared/protocol';
 
 describe('num', () => {
@@ -634,5 +634,24 @@ describe('finalTodos (tray pós-compact)', () => {
     ]);
     expect(finalTodos(map)).toEqual([{ content: 'A', status: 'completed' }]);
     expect(finalTodos(new Map())).toBeUndefined();
+  });
+});
+
+describe('truncateAtPendingQuestion (AskUserQuestion sem resposta)', () => {
+  const q = (id: string): Message => ({ id, role: 'assistant', blocks: [{ type: 'tool', tool: { id: id + 't', name: 'AskUserQuestion', label: 'x', command: '', status: 'done', output: [], questions: [{ question: 'Q?', header: 'H', multiSelect: false, options: [{ label: 'A' }] }] } }] });
+  const asst = (id: string): Message => ({ id, role: 'assistant', blocks: [{ type: 'text', md: 'continuacao' }] });
+  const user = (id: string): Message => ({ id, role: 'user', text: 'oi' });
+
+  it('corta a continuacao quando a pergunta nao tem prompt depois', () => {
+    const out = truncateAtPendingQuestion([user('u1'), q('a1'), asst('a2'), asst('a3')]);
+    expect(out.map((m) => m.id)).toEqual(['u1', 'a1']);
+  });
+  it('NAO corta quando o usuario ja respondeu (prompt apos a pergunta)', () => {
+    const msgs = [user('u1'), q('a1'), user('u2'), asst('a2')];
+    expect(truncateAtPendingQuestion(msgs)).toBe(msgs);
+  });
+  it('sem pergunta: devolve intacto', () => {
+    const msgs = [user('u1'), asst('a1')];
+    expect(truncateAtPendingQuestion(msgs)).toBe(msgs);
   });
 });

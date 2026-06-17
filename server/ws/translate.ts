@@ -14,6 +14,12 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
   // do run velho se intercalam com os do novo na mesma sessionKey (o onClose já
   // tem o guard equivalente pro 'done').
   if (threads.get(sessionKey) !== thread) return;
+  // Pós-pergunta: o `claude -p` auto-resolve o AskUserQuestion (tool_result falso) e
+  // CONTINUA gerando no mesmo turno — a pergunta era enterrada (deixava de ser a
+  // última mensagem) e o card nunca ficava respondível. Uma vez perguntado, descarta
+  // todo conteúdo subsequente (deltas/thinking/tools/assistant/tool_result); só o
+  // 'result' passa pra fechar o turno. A bolha congela na pergunta = respondível.
+  if (thread.questioned && (ev.type === 'stream_event' || ev.type === 'assistant' || ev.type === 'user')) return;
   switch (ev.type) {
     case 'rate_limit_event': {
       const info = (ev as any).rate_limit_info;
@@ -113,6 +119,7 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       // stopped=true só pra não notificar "turno concluído" (o turno está aguardando você).
       if (!thread.stopped && contentHasQuestion(content)) {
         thread.stopped = true;
+        thread.questioned = true;
         thread.handle.kill();
       }
       return;

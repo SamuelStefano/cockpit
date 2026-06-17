@@ -247,7 +247,7 @@ export async function parseSession(
   // chain devolvia zero snapshots — tray vazio em toda sessão compactada.
   const todoMap = taskTodos([...byUuid.values()], results);
   attachTaskTodos(mapped, todoMap);
-  const all = weaveByTs(mapped, markers);
+  const all = weaveByTs(truncateAtPendingQuestion(mapped), markers);
   const truncated = all.length > limit;
   const messages = all.slice(-limit);
   const blocks = messages.flatMap((m) =>
@@ -623,4 +623,20 @@ export function attachTaskTodos(messages: Message[], map: Map<string, ToolTodo[]
       if (snap) b.tool.todos = snap;
     }
   }
+}
+
+// AskUserQuestion sem resposta real depois: no `claude -p` a pergunta é
+// auto-resolvida e o turno CONTINUA (continuação baseada numa resposta falsa). No
+// reload isso enterrava a pergunta e o card não ficava respondível. Se uma pergunta
+// é o último assistant SEM nenhum prompt de usuário depois dela, corta a continuação
+// — a pergunta volta a ser a última mensagem (respondível), espelhando o ao vivo.
+function hasQuestionBlock(m: Message): boolean {
+  return m.role === 'assistant' && m.blocks.some((b) => b.type === 'tool' && b.tool.name === 'AskUserQuestion' && (b.tool.questions?.length ?? 0) > 0);
+}
+export function truncateAtPendingQuestion(messages: Message[]): Message[] {
+  const lastUser = messages.map((m) => m.role).lastIndexOf('user');
+  for (let i = messages.length - 1; i > lastUser; i--) {
+    if (hasQuestionBlock(messages[i])) return messages.slice(0, i + 1);
+  }
+  return messages;
 }
