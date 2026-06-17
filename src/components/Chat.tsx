@@ -151,7 +151,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
 
       {trayTodos && <TaskTray todos={trayTodos} />}
 
-      <TurnBanners phase={phase} failed={c.failed} planPending={c.planPending} lastEnd={lastEnd} retryLast={c.retryLast} onSend={onSend} />
+      <TurnBanners phase={phase} failed={c.failed} planPending={c.planPending} pendingQuestion={c.pendingQuestion} queuedCount={c.queued.length} lastEnd={lastEnd} retryLast={c.retryLast} onSend={onSend} />
 
       <ChatInput disabled={c.disabled} onSend={onSend} onStop={() => { c.clearQueue(); onStop(); }} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
         caps={caps} bypass={bypass} setBypass={setBypass}

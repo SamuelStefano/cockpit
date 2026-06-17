@@ -5,13 +5,16 @@ interface TurnBannersProps {
   phase: 'idle' | 'thinking' | 'streaming';
   failed: boolean;
   planPending: boolean;
+  pendingQuestion?: boolean;
+  queuedCount?: number;
   lastEnd?: string;
   retryLast: () => void;
   onSend: (text: string, modeOverride?: PermMode) => void;
 }
 
-// Precedência: falha > plano > corte de teto. Só um banner aparece por vez.
-export function TurnBanners({ phase, failed, planPending, lastEnd, retryLast, onSend }: TurnBannersProps) {
+// Precedência: falha > plano > pergunta segurando a fila > corte de teto. Só um
+// banner aparece por vez.
+export function TurnBanners({ phase, failed, planPending, pendingQuestion = false, queuedCount = 0, lastEnd, retryLast, onSend }: TurnBannersProps) {
   if (failed) {
     return (
       <div className="flex shrink-0 items-center gap-2 border-t border-red-500/30 bg-red-500/[0.06] px-4 py-2">
@@ -37,6 +40,16 @@ export function TurnBanners({ phase, failed, planPending, lastEnd, retryLast, on
         >
           Aprovar &amp; executar
         </button>
+      </div>
+    );
+  }
+  if (pendingQuestion && queuedCount > 0) {
+    return (
+      <div className="flex shrink-0 items-center gap-2 border-t border-violet-500/30 bg-violet-500/[0.06] px-4 py-2">
+        <Icon name="message" size={13} className="text-violet-400" />
+        <span className="text-[12px] text-violet-200/90">
+          Responda a pergunta acima pra continuar — {queuedCount} {queuedCount === 1 ? 'mensagem' : 'mensagens'} na fila aguardando.
+        </span>
       </div>
     );
   }

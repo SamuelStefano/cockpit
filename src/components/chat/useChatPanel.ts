@@ -183,6 +183,6 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
     queued, enqueue, clearQueue, cancelQueueAt, moveQueuedItem, fullLoaded, setFullLoaded,
     streaming, disabled, isEmpty,
     sentHistory, modelLabel, labelFor,
-    planPending, failed, retryLast, bannerConfirm,
+    planPending, pendingQuestion, failed, retryLast, bannerConfirm,
   };
 }
