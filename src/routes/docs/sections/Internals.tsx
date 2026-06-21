@@ -23,6 +23,11 @@ export function Internals() {
           mexendo no servidor, um gatilho automático reinicia os dois na hora — então uma correção nunca fica presa num processo
           rodando código de dias atrás (era a causa de "consertei mas continua igual").
         </InfoCard>
+        <InfoCard icon="clock" iconClass="text-orange-400" size={13} title="Sessões ociosas hibernam">
+          Sessão sem resposta há mais de 24h é encerrada automaticamente pra liberar a memória da VPS — mas
+          <Pill>sem perder nada</Pill>: o histórico fica salvo em disco e a conversa volta inteira com
+          <Pill>claude --resume</Pill>. Evita que várias janelas esquecidas travem a RAM.
+        </InfoCard>
         <InfoCard icon="shield" iconClass="text-orange-400" size={13} title="Privado por padrão">
           O servidor escuta só em <Pill>127.0.0.1</Pill> (a própria máquina), acessível remotamente apenas via rede privada.
           Chaves de API e tokens ficam no servidor e nunca são enviados pro navegador — só números calculados (uso, custo) e nomes de modelo chegam à tela.

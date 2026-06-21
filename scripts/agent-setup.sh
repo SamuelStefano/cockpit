@@ -240,3 +240,12 @@ elif command -v crontab >/dev/null 2>&1; then
 else
   echo "[deck] aviso: sem systemd nem crontab — watchdog anti-travamento NÃO instalado."
 fi
+
+# Hibernação de sessões Claude ociosas (>24h): libera RAM sem perder contexto
+# (retoma com `claude --resume`). Sessões esquecidas em janelas tmux seguram
+# ~300MB cada e enchem a RAM da VPS. Cron horário; complementa o watchdog.
+if command -v crontab >/dev/null 2>&1; then
+  HIB="$SRC_DIR/scripts/hibernate-idle.sh"
+  ( crontab -l 2>/dev/null | grep -v 'deck-hibernate' || true; echo "17 * * * * HIBERNATE_HOURS=24 /usr/bin/env bash \"$HIB\" >/dev/null 2>&1 # deck-hibernate" ) | crontab -
+  echo "[deck] hibernação de sessões ociosas ativa (cron horário) — log em /tmp/deck-hibernate.log"
+fi
