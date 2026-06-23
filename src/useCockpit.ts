@@ -500,10 +500,14 @@ export function useCockpit(): Cockpit {
         let mid = runMsg.current[key];
         if (!mid) { mid = newId('a'); runMsg.current[key] = mid; }
         const id = mid;
+        // ts no bubble de replay: sem ele, mergeHistory (ts >= lastTs) descartava a
+        // bolha do turno EM VOO quando o history/open chegava logo depois — F5 no meio
+        // do turno apagava a resposta viva e silenciava os deltas seguintes (RP#8).
+        const ts = msg.startedAt ?? Date.now();
         updateThread(key, (prev) =>
           prev.some((m) => m.id === id)
-            ? prev.map((m) => (m.id === id && m.role === 'assistant' ? { ...m, blocks } : m))
-            : [...prev, { id, role: 'assistant', blocks }],
+            ? prev.map((m) => (m.id === id && m.role === 'assistant' ? { ...m, blocks, ts } : m))
+            : [...prev, { id, role: 'assistant', blocks, ts }],
         );
         setPhases((p) => ({ ...p, [key]: blocks.some((b) => b.type === 'text') ? 'streaming' : 'thinking' }));
         return;

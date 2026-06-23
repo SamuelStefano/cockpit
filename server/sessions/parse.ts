@@ -1,4 +1,4 @@
-import { createReadStream } from 'node:fs';
+import { createReadStream, statSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { join, resolve } from 'node:path';
 import type { Block, Message, ToolCall, ToolDiff, ToolQuestion, ToolTodo, TurnBubbleStats } from '../../shared/protocol';
@@ -196,6 +196,28 @@ export function sessionPath(sessionId: string): string | null {
   return p;
 }
 
+// Cache de parse por (sessionId+mtime+size+limit): durante um turno do TERMINAL,
+// session-touched dispara e summarize()+open+list parseiam os MESMOS bytes em
+// rajada — re-ler/re-parsear o JSONL inteiro cada vez era o custo de CPU/RAM #13.
+// A chave inclui mtime+size, então QUALQUER mudança no arquivo invalida (nunca
+// stale). LRU pequeno: amortiza a rajada da mesma versão sem reter histórico.
+const PARSE_CACHE = new Map<string, unknown>();
+const PARSE_CACHE_MAX = 24;
+function parseKey(tag: string, path: string, limit: number): string | null {
+  try { const st = statSync(path); return `${tag}:${path}:${st.mtimeMs}:${st.size}:${limit}`; } catch { return null; }
+}
+function parseCacheGet<T>(key: string | null): T | undefined {
+  if (!key) return undefined;
+  const v = PARSE_CACHE.get(key);
+  if (v !== undefined) { PARSE_CACHE.delete(key); PARSE_CACHE.set(key, v); } // bump LRU
+  return v as T | undefined;
+}
+function parseCacheSet(key: string | null, val: unknown): void {
+  if (!key) return;
+  PARSE_CACHE.set(key, val);
+  if (PARSE_CACHE.size > PARSE_CACHE_MAX) { const k = PARSE_CACHE.keys().next().value; if (k !== undefined) PARSE_CACHE.delete(k); }
+}
+
 // Lê o JSONL e reconstrói o CAMINHO ATIVO (não-linear; squad C1):
 // 1. último last-prompt.leafUuid = leaf ativo
 // 2. indexa uuid -> record (só user/assistant)
@@ -206,6 +228,9 @@ export async function parseSession(
 ): Promise<{ blocks: Block[]; messages: Message[]; tokens: number; truncated: boolean; todos?: ToolTodo[] } | null> {
   const path = sessionPath(sessionId);
   if (!path) return null;
+  const ck = parseKey('S', path, limit);
+  const hit = parseCacheGet<{ blocks: Block[]; messages: Message[]; tokens: number; truncated: boolean; todos?: ToolTodo[] }>(ck);
+  if (hit) return hit;
 
   const byUuid = new Map<string, Rec>();
   const results = new Map<string, ToolResultRec>();
@@ -258,7 +283,9 @@ export async function parseSession(
   const blocks = messages.flatMap((m) =>
     m.role === 'assistant' ? m.blocks : m.role === 'user' ? [{ type: 'text' as const, md: m.text }] : [],
   );
-  return { blocks, messages, tokens, truncated, todos: finalTodos(todoMap) };
+  const out = { blocks, messages, tokens, truncated, todos: finalTodos(todoMap) };
+  parseCacheSet(ck, out);
+  return out;
 }
 
 // Histórico COMPLETO em ordem de arquivo (não só o caminho ativo). Após /compact
@@ -271,6 +298,9 @@ export async function parseFullSession(
 ): Promise<{ messages: Message[]; tokens: number; truncated: boolean; todos?: ToolTodo[] } | null> {
   const path = sessionPath(sessionId);
   if (!path) return null;
+  const ck = parseKey('F', path, limit);
+  const hit = parseCacheGet<{ messages: Message[]; tokens: number; truncated: boolean; todos?: ToolTodo[] }>(ck);
+  if (hit) return hit;
 
   const recs: Rec[] = [];
   const results = new Map<string, ToolResultRec>();
@@ -298,7 +328,9 @@ export async function parseFullSession(
   const todoMap = taskTodos(recs, results);
   attachTaskTodos(mapped, todoMap);
   const all = weaveByTs(mapped, markers);
-  return { messages: all.slice(-limit), tokens, truncated: all.length > limit, todos: finalTodos(todoMap) };
+  const out = { messages: all.slice(-limit), tokens, truncated: all.length > limit, todos: finalTodos(todoMap) };
+  parseCacheSet(ck, out);
+  return out;
 }
 
 // Slash command e saída de !comando chegam como user text com as tags XML do

@@ -344,7 +344,8 @@ describe('collectToolResults', () => {
         { type: 'tool_result', tool_use_id: 't2', is_error: true, content: [{ type: 'text', text: 'err' }, { type: 'image' }] },
       ] },
     } as any, map);
-    expect(map.get('t2')).toMatchObject({ output: ['err'], isErr: true });
+    // blocos image agora viram placeholder '[imagem]' (paridade c/ terminal) em vez de sumir
+    expect(map.get('t2')).toMatchObject({ output: ['err', '[imagem]'], isErr: true });
   });
 
   it('ignores non-user records, plain text content and results without tool_use_id', () => {
