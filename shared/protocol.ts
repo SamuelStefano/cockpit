@@ -185,6 +185,21 @@ export interface PlanUsage {
 // PermMode: é um flag separado (`bypass` no send) atrás do gate admin+env+loopback
 // (#94, DR-011), pra o safeMode continuar rejeitando bypass vindo como mode.
 export type PermMode = 'plan' | 'auto' | 'acceptEdits';
+
+// Cron do Deck: dispara um prompt em horário agendado (turno autônomo). Schedule
+// minimalista: intervalo (a cada N min) ou diário (minuto do dia, hora local).
+export interface CronSchedule { kind: 'interval' | 'daily'; everyMinutes?: number; atMinute?: number }
+export interface Cron {
+  id: string;
+  name: string;
+  prompt: string;
+  schedule: CronSchedule;
+  model?: string;
+  mode?: PermMode;
+  enabled: boolean;
+  lastRun?: number;
+  createdAt: number;
+}
 export interface TurnStats { costUsd?: number; durationMs?: number; numTurns?: number; model?: string }
 // Modelo concreto disponível na conta (de /v1/models). O cliente escolhe um id
 // específico (ex: claude-opus-4-8); aliases opus/sonnet/haiku ainda valem como

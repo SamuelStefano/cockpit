@@ -51,7 +51,7 @@ export function AttachmentModal({ att, onClose }: { att: AttachmentPreview; onCl
         role="dialog"
         aria-modal="true"
         aria-label={att.name}
-        className="flex max-h-[88dvh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl shadow-black/50"
+        className="scale-in flex max-h-[88dvh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl shadow-black/50"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 border-b border-neutral-800 px-4 py-2.5">

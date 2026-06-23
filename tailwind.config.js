@@ -11,6 +11,13 @@ export default {
       // saturação) espelhando o tema shadcn dos apps DFL (plans/learn/payments —
       // background 216°28%7%, card 215°21%11%, border 215°15%15%). Mesma cara
       // "GitHub-dark + laranja". Override central repinta todo `*-neutral-*` coeso.
+      // Cantos mais macios, igual ao learn (--radius 0.75rem, lg 1rem). Override
+      // central: `rounded-lg/xl` do app inteiro fica com o arredondado do learn.
+      borderRadius: {
+        lg: '0.75rem',
+        xl: '1rem',
+        '2xl': '1.25rem',
+      },
       colors: {
         neutral: {
           50: '#f0f3f6',
