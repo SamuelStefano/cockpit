@@ -1,5 +1,5 @@
 import type { WebSocket } from 'ws';
-import type { ToolCall, ToolTodo } from '../../shared/protocol';
+import type { ToolCall, ToolTodo, Cron } from '../../shared/protocol';
 import { run, type RunHandle } from '../engine/claude';
 import { CONFIG } from '../config';
 import type { Role } from '../auth';
@@ -120,20 +120,22 @@ export function killAllRuns(): void {
 
 const SESSION_KEY_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 
-export function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: string, msgId?: string, mode?: string, model?: string, maxBudgetUsd?: number, bypass?: boolean, role?: Role, disallowedSkills?: string[], mcps?: string[]) {
+// ws null = run sem cliente específico (cron agendado): erros vão por broadcast e
+// o stream do turno é broadcastado a todos os clientes como qualquer outro run.
+export function startRun(ws: WebSocket | null, sessionKey: string, prompt: string, resumeId?: string, msgId?: string, mode?: string, model?: string, maxBudgetUsd?: number, bypass?: boolean, role?: Role, disallowedSkills?: string[], mcps?: string[]) {
   // sessionKey é string crua do cliente usada como chave do mapa `threads` e
   // ecoada nos broadcasts; restringe a um slug (cobre uuid e as keys 'new-…').
   if (typeof sessionKey !== 'string' || !SESSION_KEY_RE.test(sessionKey)) {
-    send(ws, { t: 'error', message: 'sessão inválida' });
+    if (ws) send(ws, { t: 'error', message: 'sessão inválida' });
     return;
   }
   if (typeof prompt !== 'string' || Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) {
-    send(ws, { t: 'error', sessionKey, message: 'prompt grande demais' });
+    if (ws) send(ws, { t: 'error', sessionKey, message: 'prompt grande demais' });
     return;
   }
   const replacing = threads.has(sessionKey);
   if (!admitRun(threads.size, replacing)) {
-    send(ws, { t: 'error', sessionKey, message: 'limite de sessões simultâneas atingido' });
+    if (ws) send(ws, { t: 'error', sessionKey, message: 'limite de sessões simultâneas atingido' });
     return;
   }
   if (replacing) threads.get(sessionKey)!.handle.kill();
@@ -267,4 +269,14 @@ async function runQuickAnswer(sessionKey: string, prompt: string, epoch: number)
   if (!text) return;
   if ((stopEpoch.get(sessionKey) ?? 0) !== epoch) return;
   broadcast({ t: 'quick-answer', sessionKey, id: `qa-${Date.now().toString(36)}`, text, ts: Date.now() });
+}
+
+// Dispara um cron como turno autônomo (sem cliente). sessionKey estável por cron
+// (`cron-<id>`): runs repetidos do mesmo cron continuam visíveis como uma sessão.
+// Se a sessão do cron já estiver rodando (turno anterior não fechou), startRun
+// substitui (replacing) — não acumula. Novo turno (sem resume): cada disparo é
+// independente. O stream vai por broadcast pra qualquer cliente conectado.
+export function fireCron(cron: Cron): void {
+  if (!cron || typeof cron.prompt !== 'string' || !cron.prompt.trim()) return;
+  startRun(null, `cron-${cron.id}`, cron.prompt, undefined, `cron-${Date.now().toString(36)}`, cron.mode, cron.model);
 }

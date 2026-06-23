@@ -5,6 +5,8 @@ import { listSessions, listArchived } from '../sessions/index';
 import { searchSessions } from '../sessions/search';
 import { listContexts, readContext } from '../contexts';
 import { getNotes, saveNotes } from '../notes';
+import { getCrons, saveCron, deleteCron } from '../crons';
+import { fireCron } from './runs';
 import { listSkills, readSkill, resolveSkillDeny } from '../skills';
 import { saveAttachment, readAttachment } from '../attachments';
 import { usageStats } from '../db';
@@ -88,6 +90,32 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'notes-save': {
       await saveNotes(msg.text);
+      return;
+    }
+    case 'crons-get': {
+      send(ws, { t: 'crons', items: await getCrons() });
+      return;
+    }
+    case 'cron-save': {
+      const c = msg.cron;
+      // Validação mínima da borda (frame cru): só persiste um cron bem-formado.
+      if (!c || typeof c.id !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(c.id) ||
+          typeof c.prompt !== 'string' || !c.prompt.trim() ||
+          !c.schedule || (c.schedule.kind !== 'interval' && c.schedule.kind !== 'daily')) {
+        send(ws, { t: 'error', message: 'cron inválido' });
+        return;
+      }
+      send(ws, { t: 'crons', items: await saveCron(c) });
+      return;
+    }
+    case 'cron-delete': {
+      send(ws, { t: 'crons', items: await deleteCron(msg.id) });
+      return;
+    }
+    case 'cron-run': {
+      const all = await getCrons();
+      const c = all.find((x) => x.id === msg.id);
+      if (c) fireCron(c);
       return;
     }
     case 'skill-list': {

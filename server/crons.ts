@@ -63,7 +63,8 @@ export function isDue(c: Cron, now: number): boolean {
 
 // Loop do agendador: a cada CHECK_MS varre os crons e dispara os vencidos via o
 // callback `fire` (a camada WS chama startRun). Marca lastRun ao disparar pra não
-// repetir. Roda num processo só (o agente) pra não duplicar.
+// repetir. Roda SÓ no backend (onde vivem startRun/threads), nunca no agente-relay,
+// pra não duplicar disparos.
 const CHECK_MS = 30_000;
 export function startCronLoop(fire: (c: Cron) => void): void {
   const tick = async () => {

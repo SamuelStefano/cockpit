@@ -271,6 +271,10 @@ export type ClientMsg =
   | { t: 'ctx-open'; id: string }
   | { t: 'notes-get' }
   | { t: 'notes-save'; text: string }
+  | { t: 'crons-get' }
+  | { t: 'cron-save'; cron: Cron }
+  | { t: 'cron-delete'; id: string }
+  | { t: 'cron-run'; id: string }
   | { t: 'skill-list' }
   | { t: 'skill-open'; id: string }
   | { t: 'usage-list' }
@@ -318,6 +322,7 @@ export type ServerMsg =
   | { t: 'session-summary'; sessionId: string; summary: string }
   | { t: 'contexts'; items: ContextMeta[] }
   | { t: 'notes'; text: string }
+  | { t: 'crons'; items: Cron[] }
   | { t: 'context'; id: string; title: string; body: string }
   | { t: 'models'; models: ModelInfo[] }
   | { t: 'skills'; items: SkillMeta[] }

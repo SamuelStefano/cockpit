@@ -28,6 +28,11 @@ export function Internals() {
           <Pill>sem perder nada</Pill>: o histórico fica salvo em disco e a conversa volta inteira com
           <Pill>claude --resume</Pill>. Evita que várias janelas esquecidas travem a RAM.
         </InfoCard>
+        <InfoCard icon="clock" iconClass="text-orange-400" size={13} title="Crons — prompts agendados">
+          A aba <Pill>Crons</Pill> dispara prompts em horário marcado (diário num horário ou
+          a cada N minutos) como turnos autônomos. Cada disparo vira a sessão <Pill>cron-&lt;id&gt;</Pill>.
+          Pausável, com "rodar agora". O agendador roda no backend; persistido em <Pill>~/.cockpit/crons.json</Pill>.
+        </InfoCard>
         <InfoCard icon="pencil" iconClass="text-orange-400" size={13} title="Notas viram contexto">
           A aba <Pill>Notas</Pill> é um rascunho livre salvo automaticamente — joga ideias soltas, links, trechos.
           Quando acumular, o botão <b>Analisar com IA</b> manda tudo pro chat pra destilar num contexto/memória
