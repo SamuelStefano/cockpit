@@ -17,7 +17,7 @@ import { attachmentTextBlock } from './lib/parse-attachments';
 
 export interface ContextDoc { id: string; title: string; body: string }
 export interface SkillDoc { id: string; name: string; body: string }
-export interface Attachment { name: string; path: string; text?: string }
+export interface Attachment { name: string; path: string; text?: string; s3url?: string }
 export interface AttachmentPreview { path: string; name: string; dataB64?: string; error?: string }
 export type { TermApi };
 import type { ConnState } from './components/primitives';
@@ -662,7 +662,7 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'uploaded': {
-        const next = [...attachmentsRef.current, { name: msg.name, path: msg.path, text: msg.text }];
+        const next = [...attachmentsRef.current, { name: msg.name, path: msg.path, text: msg.text, s3url: msg.s3url }];
         attachmentsRef.current = next;
         setAttachments(next);
         return;

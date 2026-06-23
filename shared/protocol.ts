@@ -307,7 +307,7 @@ export type ServerMsg =
   | { t: 'models'; models: ModelInfo[] }
   | { t: 'skills'; items: SkillMeta[] }
   | { t: 'skill'; id: string; name: string; body: string }
-  | { t: 'uploaded'; name: string; path: string; text?: string }
+  | { t: 'uploaded'; name: string; path: string; text?: string; s3url?: string }
   // Conteúdo de um anexo p/ preview no chat (modal). error preenchido quando o
   // arquivo já foi varrido pelo TTL ou o path é inválido — o modal mostra o aviso.
   | { t: 'attachment'; path: string; name: string; dataB64?: string; error?: string }

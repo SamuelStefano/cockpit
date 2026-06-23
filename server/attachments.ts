@@ -3,6 +3,18 @@ import { basename, join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { inflateRawSync } from 'node:zlib';
 import { CONFIG } from './config';
+import { uploadToS3 } from './s3';
+
+// Content-type por extensão (imagens principalmente) — o S3 precisa do mime certo
+// pra o navegador renderizar inline em vez de baixar. Sem match → octet-stream.
+const MIME: Record<string, string> = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+  webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp', avif: 'image/avif',
+  pdf: 'application/pdf', mp4: 'video/mp4', webm: 'video/webm', mp3: 'audio/mpeg',
+};
+function mimeOf(name: string): string {
+  return MIME[(name.split('.').pop() ?? '').toLowerCase()] ?? 'application/octet-stream';
+}
 
 // Anexo LOCAL: grava o arquivo no workdir isolado do agente e devolve um path
 // RELATIVO ao cwd. O agente abre via Read (já na allow-list). Nenhuma credencial,
@@ -106,7 +118,7 @@ export async function saveAttachment(
   sessionKey: string,
   name: string,
   dataB64: string,
-): Promise<{ path: string; text?: string } | { error: string }> {
+): Promise<{ path: string; text?: string; s3url?: string } | { error: string }> {
   // O frame da WS é JSON.parse cru: os campos chegam sem validação de tipo. Um
   // dataB64 não-string faria Buffer.from lançar; sessionKey/name não-string
   // quebraria o basename. Recusa cedo em vez de cair no caminho de erro.
@@ -132,6 +144,12 @@ export async function saveAttachment(
   await writeFile(full, buf);
   const rel = join('attachments', key, fname);
 
+  // Espelha no S3 (edge fn DFL) p/ exibição remota/mobile sem round-trip no backend.
+  // Best-effort: se S3 estiver off/falhar, s3url fica undefined e o preview cai no
+  // thumb servido pelo backend (fluxo local intacto). O Read do agente usa o path local.
+  const s3 = await uploadToS3(buf, name, mimeOf(name));
+  const s3url = s3?.url;
+
   // .docx é um ZIP binário — nem o Read do agente nem o preview o parseiam. Extrai
   // o texto e devolve inline (o cliente embute no prompt): o agente recebe o
   // conteúdo direto, sem depender do Read, e o chip segue apontando pro .docx
@@ -139,10 +157,10 @@ export async function saveAttachment(
   // PDF o Read nativo já parseia.
   if (/\.docx$/i.test(name)) {
     const text = extractDocxText(buf);
-    if (text) return { path: rel, text: text.length > MAX_INLINE_TEXT ? text.slice(0, MAX_INLINE_TEXT) + '\n\n[…texto truncado]' : text };
+    if (text) return { path: rel, s3url, text: text.length > MAX_INLINE_TEXT ? text.slice(0, MAX_INLINE_TEXT) + '\n\n[…texto truncado]' : text };
     console.warn(`[attachments] extração de texto falhou para .docx: ${name}`);
   }
-  return { path: rel };
+  return { path: rel, s3url };
 }
 
 // Lê um anexo salvo pra preview no chat. Aceita só paths relativos no formato que
