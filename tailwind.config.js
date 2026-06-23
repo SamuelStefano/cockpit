@@ -19,18 +19,21 @@ export default {
         '2xl': '1.25rem',
       },
       colors: {
+        // Black moderno alaranjado (estética learn / Linear-Vercel dark): cool-neutral
+        // bem escuro, quase preto no fundo, com o acento laranja. Menos azulado que o
+        // GitHub-navy anterior — mais "black moderno" como o Samuel pediu.
         neutral: {
-          50: '#f0f3f6',
-          100: '#e6edf3',
-          200: '#cdd9e5',
-          300: '#afbac5',
-          400: '#8b949e',
-          500: '#6e7781',
-          600: '#444c56',
-          700: '#30363d',
-          800: '#21262d',
-          900: '#161b22',
-          950: '#0d1117',
+          50: '#f5f5f6',
+          100: '#e9e9ec',
+          200: '#d2d2d8',
+          300: '#a9a9b2',
+          400: '#82828c',
+          500: '#5b5b64',
+          600: '#3d3d44',
+          700: '#27272c',
+          800: '#19191d',
+          900: '#101013',
+          950: '#080809',
         },
       },
     },
