@@ -25,8 +25,13 @@ export const tokens = {
   },
   surface: {
     base: 'bg-neutral-900/60 border border-neutral-800',
-    raised: 'bg-neutral-950 border border-neutral-700',
+    // Elevado (popover/modal/menu): sombra suave dá profundidade sobre a atmosfera.
+    raised: 'bg-neutral-950 border border-neutral-700 shadow-lg shadow-black/40',
+    // Vidro: superfície translúcida com blur — pra sobrepor o glow do fundo.
+    glass: 'bg-neutral-900/70 border border-neutral-800 backdrop-blur-md',
   },
+  // Realce de acento (botão primário/destaques): gradiente quente em vez de chapado.
+  accentGradient: 'bg-gradient-to-b from-orange-500 to-orange-600',
 } as const;
 
 export type ToneColor = keyof typeof tokens.color;
