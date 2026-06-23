@@ -7,23 +7,23 @@ export default {
         sans: ['Geist', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['"Geist Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
-      // Tapa no visual: a escala `neutral` vira um carvão LEVEMENTE quente (hue ~35°,
-      // baixa saturação). Mesma luminosidade dos passos originais — contraste e layout
-      // não mudam, só o tom esquenta e passa a conversar com o acento laranja em vez do
-      // cinza plano. Override central = repinta todo `*-neutral-*` do app de forma coesa.
+      // Alinhamento DFL: a escala `neutral` vira um azul-frio escuro (hue ~215, baixa
+      // saturação) espelhando o tema shadcn dos apps DFL (plans/learn/payments —
+      // background 216°28%7%, card 215°21%11%, border 215°15%15%). Mesma cara
+      // "GitHub-dark + laranja". Override central repinta todo `*-neutral-*` coeso.
       colors: {
         neutral: {
-          50: '#faf9f8',
-          100: '#f2f0ee',
-          200: '#e4e1dd',
-          300: '#c6c1bb',
-          400: '#a09a92',
-          500: '#7a746c',
-          600: '#5a544d',
-          700: '#403b35',
-          800: '#2a2724',
-          900: '#1a1816',
-          950: '#100e0d',
+          50: '#f0f3f6',
+          100: '#e6edf3',
+          200: '#cdd9e5',
+          300: '#afbac5',
+          400: '#8b949e',
+          500: '#6e7781',
+          600: '#444c56',
+          700: '#30363d',
+          800: '#21262d',
+          900: '#161b22',
+          950: '#0d1117',
         },
       },
     },
