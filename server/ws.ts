@@ -1,6 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'node:http';
-import { setWss } from './ws/broadcast';
+import { setWss, BACKPRESSURE_BYTES } from './ws/broadcast';
 import { CONFIG } from './config';
 import { currentRole, roleFromToken } from './auth';
 import { originAllowed } from './ws/origin';
@@ -34,7 +34,11 @@ export function attachWs(server: Server) {
   const beat = setInterval(() => {
     for (const c of wss.clients) {
       const alive = (c as WebSocket & { isAlive?: boolean }).isAlive;
-      if (alive === false) { c.terminate(); continue; }
+      // Também termina socket OPEN-mas-entupido: entre dois pings (até 60s) um
+      // cliente meio-morto acumularia frames de ciclo de vida (não-dropáveis:
+      // started/tool/done/user) sem teto até OOM. O mesmo guard do dial mode
+      // (agent.ts MAX_BUFFERED) faltava aqui no listen mode (#6 da auditoria).
+      if (alive === false || c.bufferedAmount > BACKPRESSURE_BYTES) { c.terminate(); continue; }
       (c as WebSocket & { isAlive?: boolean }).isAlive = false;
       try { c.ping(); } catch { /* socket já indo embora */ }
     }

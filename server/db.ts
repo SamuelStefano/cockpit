@@ -32,6 +32,9 @@ function open(): Database.Database {
       model         TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_usage_session_ts ON usage_sample(session_id, ts);
+    -- Poda (sweepUsage) e a janela da dailySeries filtram por ts puro; o índice
+    -- acima começa por session_id → era full scan. Índice por ts resolve os dois.
+    CREATE INDEX IF NOT EXISTS idx_usage_ts ON usage_sample(ts);
   `);
   // Componentes de cobrança (cache_read é ~10% do preço): adicionados depois,
   // por isso migram via ALTER idempotente.
@@ -154,7 +157,11 @@ const RETAIN_DAYS = 90;
 export function sweepUsage(): void {
   try {
     const cutoff = Date.now() - RETAIN_DAYS * 24 * 60 * 60 * 1000;
-    open().prepare('DELETE FROM usage_sample WHERE ts < ?').run(cutoff);
+    const db = open();
+    db.prepare('DELETE FROM usage_sample WHERE ts < ?').run(cutoff);
+    // session_summary também crescia sem poda (1 linha por sessão, pra sempre).
+    // Descarta resumos não tocados há > RETAIN_DAYS (sessão antiga/sumida).
+    db.prepare('DELETE FROM session_summary WHERE updated_at < ?').run(cutoff);
   } catch { /* lock/disco — ignora, tenta no próximo sweep */ }
 }
 

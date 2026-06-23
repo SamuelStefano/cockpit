@@ -74,7 +74,7 @@ export function backoffMs(attempt: number): number {
 // NÃO pode zerar a fonte de um socket novo que já reconectou (race de reconnect).
 let activeWs: WebSocket | null = null;
 
-function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: () => void): WebSocket {
+function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: () => void, onAuthed: () => void): WebSocket {
   const ws = new WebSocket(`${relayUrl.replace(/\/$/, '')}/agent`);
   let ready = false;
 
@@ -86,6 +86,7 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: ()
     } else if (m.t === 'agent-ready') {
       if (ready) return;                            // idempotente: ignora 2º agent-ready
       ready = true;
+      onAuthed();                                   // backoff só zera após AUTH ok (não no TCP-open)
       ws.removeListener('message', onHandshake);    // serveConnection assume o loop
       activeWs = ws;
       setClientSource({ clients: new Set([ws]) });  // broadcast sai por ESTE socket
@@ -204,12 +205,13 @@ export function runAgent(relayUrl: string): void {
   const loop = () => {
     connect(
       relayUrl, id,
-      () => { attempt = 0; },                       // reset SÓ quando abre de fato (backoff cresce)
+      () => { /* TCP-open não zera o backoff: auth pode falhar logo após (4401) */ },
       () => {
         const wait = backoffMs(attempt++);
         console.error(`[agent] desconectado; reconectando em ${Math.round(wait / 1000)}s`);
         setTimeout(loop, wait);
       },
+      () => { attempt = 0; },                        // reset SÓ após auth ok (agent-ready) — evita martelar relay+DB numa rejeição
     );
   };
   loop();
