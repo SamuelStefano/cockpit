@@ -96,7 +96,11 @@ async function callAnthropic(key: string, transcript: string): Promise<string | 
 // duas gerações simultâneas pra mesma sessão.
 export async function summarize(sessionId: string): Promise<void> {
   if (!CONFIG.summaryEnabled || !sessionId || inFlight.has(sessionId)) return;
-  if (Date.now() - (lastAt.get(sessionId) ?? 0) < MIN_INTERVAL_MS) return;
+  const now = Date.now();
+  // Poda entradas velhas: passado o intervalo, não há mais throttle a aplicar —
+  // senão o Map cresce 1 entrada por sessão pra sempre. Barato (poucas sessões).
+  if (lastAt.size > 64) for (const [k, ts] of lastAt) if (now - ts > MIN_INTERVAL_MS) lastAt.delete(k);
+  if (now - (lastAt.get(sessionId) ?? 0) < MIN_INTERVAL_MS) return;
   const key = apiKey();
   if (!key) return;
   inFlight.add(sessionId);

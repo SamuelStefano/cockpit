@@ -170,8 +170,11 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
       // Fire-and-forget: best-effort, nunca bloqueia/derruba o fechamento do run.
       // Pula em stop do usuário (turno interrompido não vale uma chamada API paga) —
       // o throttle interno de summarize() cobre o resto da redução de gasto.
-      if (thread.sessionId && !thread.stopped) void summarize(thread.sessionId);
+      // Pula resumo em stop e em sessões de CRON (cron-<id>): turno autônomo agendado
+      // não vale uma chamada API de resumo a cada disparo.
+      if (thread.sessionId && !thread.stopped && !sessionKey.startsWith('cron-')) void summarize(thread.sessionId);
       threads.delete(sessionKey);
+      stopEpoch.delete(sessionKey); // época só vive enquanto há turno/triagem; senão vaza monotônico
       // Após AskUserQuestion o turno aguarda a RESPOSTA do usuário (próximo prompt) —
       // não drenar a fila aqui, senão um enfileirado fura na frente da resposta.
       if (!thread.questioned) drainPending(sessionKey, thread.sessionId);

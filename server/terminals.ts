@@ -92,7 +92,11 @@ export function openTerm(
 
   let t = terms.get(id);
   if (!t) {
-    if (terms.size >= MAX_TERMS) return false; // teto de PTYs vivos; cliente recebe term-exit
+    // Teto conta só terminais ANEXADOS (com listeners). PTYs detached ficam no mapa
+    // pro replay no reattach, mas não devem travar a criação de novos — 50 detached
+    // bloqueavam abrir qualquer terminal (#16). reattach a um detached não conta aqui.
+    const attached = [...terms.values()].filter((x) => x.data.size > 0).length;
+    if (attached >= MAX_TERMS) return false; // cliente recebe term-exit
     const p = ptySpawn('tmux', ['new-session', '-A', '-s', sessionName(id)], {
       name: 'xterm-256color',
       cols: clampDim(cols, 80),

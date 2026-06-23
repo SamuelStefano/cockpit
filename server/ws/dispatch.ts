@@ -99,7 +99,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'cron-save': {
       const c = msg.cron;
       // Validação mínima da borda (frame cru): só persiste um cron bem-formado.
-      if (!c || typeof c.id !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(c.id) ||
+      if (!c || typeof c.id !== 'string' || !/^[a-zA-Z0-9_-]{1,59}$/.test(c.id) ||
           typeof c.prompt !== 'string' || !c.prompt.trim() ||
           !c.schedule || (c.schedule.kind !== 'interval' && c.schedule.kind !== 'daily')) {
         send(ws, { t: 'error', message: 'cron inválido' });
