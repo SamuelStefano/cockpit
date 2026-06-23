@@ -2,6 +2,7 @@ import { MobileLayout } from '../components/Mobile';
 import { DesktopLayout } from './DesktopLayout';
 import { Contextos } from '../routes/Contextos';
 import { Skills } from '../routes/Skills';
+import { Notas } from '../routes/Notas';
 import { Observatorio } from '../routes/Observatorio';
 import { Admin } from '../routes/Admin';
 import { Docs } from '../routes/Docs';
@@ -42,11 +43,12 @@ interface RouteContentProps {
   chatProps: ChatPanelProps;
   termProps: TerminalsPanelProps;
   onOpenSession: (id: string) => void;
+  onAnalyzeNotes: (text: string) => void;
   layout: LayoutState;
   mobile: MobileState;
 }
 
-export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, sessionsProps, chatProps, termProps, onOpenSession, layout, mobile }: RouteContentProps) {
+export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, sessionsProps, chatProps, termProps, onOpenSession, onAnalyzeNotes, layout, mobile }: RouteContentProps) {
   const c = cockpit;
   const view = (() => {
     if (route === '/contextos') {
@@ -59,6 +61,12 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
       return (
         <Skills connected={connected} skills={c.skills} loaded={c.skillsLoaded} openSkill={c.openSkill}
           onSkillList={c.onSkillList} onSkillOpen={c.onSkillOpen} onSkillClose={c.onSkillClose} />
+      );
+    }
+    if (route === '/notas') {
+      return (
+        <Notas connected={connected} notes={c.notes} notesLoaded={c.notesLoaded}
+          onNotesGet={c.onNotesGet} onNotesSave={c.onNotesSave} onAnalyze={onAnalyzeNotes} />
       );
     }
     if (route === '/uso') {

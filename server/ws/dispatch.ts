@@ -4,6 +4,7 @@ import type { Role } from '../auth';
 import { listSessions, listArchived } from '../sessions/index';
 import { searchSessions } from '../sessions/search';
 import { listContexts, readContext } from '../contexts';
+import { getNotes, saveNotes } from '../notes';
 import { listSkills, readSkill, resolveSkillDeny } from '../skills';
 import { saveAttachment, readAttachment } from '../attachments';
 import { usageStats } from '../db';
@@ -79,6 +80,14 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'ctx-open': {
       const c = await readContext(msg.id);
       if (c) send(ws, { t: 'context', id: msg.id, title: c.title, body: c.body });
+      return;
+    }
+    case 'notes-get': {
+      send(ws, { t: 'notes', text: await getNotes() });
+      return;
+    }
+    case 'notes-save': {
+      await saveNotes(msg.text);
       return;
     }
     case 'skill-list': {

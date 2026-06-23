@@ -152,11 +152,16 @@ export function CockpitApp() {
         route={route} isMobile={isMobile} isAdmin={isAdmin} connected={conn.ws === 'connected'}
         cockpit={cockpit} sessionsProps={sessionsProps} chatProps={chatProps} termProps={termProps}
         onOpenSession={(id) => { setActiveSessionId(id); nav('/'); }}
+        onAnalyzeNotes={(text) => {
+          handleNew();
+          setDraft(`Analise estas anotações soltas e destile num contexto/memória estruturado e reutilizável (markdown bem organizado). Se fizer sentido, salve em memory/. Anotações:\n\n${text}`);
+          nav('/');
+        }}
         layout={{ rowRef, leftW, rightW, leftCollapsed, setLeftCollapsed, rightCollapsed, setRightCollapsed, startDrag }}
         mobile={{ drawer, setDrawer, termSheet, setTermSheet, runningTerm }}
       />
 
-      <StatusBar stats={stats} rate={rate} ctxTokens={contextTokens} lastTurn={lastTurn} />
+      {!isMobile && <StatusBar stats={stats} rate={rate} ctxTokens={contextTokens} lastTurn={lastTurn} />}
     </div>
   );
 }

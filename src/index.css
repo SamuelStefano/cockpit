@@ -21,6 +21,10 @@
 * { -webkit-tap-highlight-color: transparent; }
 
 html, body, #root { height: 100%; margin: 0; }
+/* Mobile: 100% resolve contra o viewport de layout, que NÃO encolhe com a url bar /
+   teclado no Safari/Chrome → o rodapé (compositor/StatusBar) era cortado sob a chrome
+   do navegador (a "scroll-y que não deveria"). dvh acompanha o viewport visível. */
+#root { height: 100dvh; }
 
 body {
   /* Atmosfera DFL: profundidade fria sutil sobre o navy escuro + um toque mínimo do

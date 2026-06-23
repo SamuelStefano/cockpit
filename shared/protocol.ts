@@ -254,6 +254,8 @@ export type ClientMsg =
   | { t: 'search'; q: string }
   | { t: 'ctx-list' }
   | { t: 'ctx-open'; id: string }
+  | { t: 'notes-get' }
+  | { t: 'notes-save'; text: string }
   | { t: 'skill-list' }
   | { t: 'skill-open'; id: string }
   | { t: 'usage-list' }
@@ -300,6 +302,7 @@ export type ServerMsg =
   | { t: 'search-results'; q: string; items: SessionMeta[] }
   | { t: 'session-summary'; sessionId: string; summary: string }
   | { t: 'contexts'; items: ContextMeta[] }
+  | { t: 'notes'; text: string }
   | { t: 'context'; id: string; title: string; body: string }
   | { t: 'models'; models: ModelInfo[] }
   | { t: 'skills'; items: SkillMeta[] }

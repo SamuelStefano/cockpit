@@ -85,7 +85,7 @@ export function DocViewer({
         aria-modal="true"
         aria-label="Visualizador de documento"
         onClick={(e) => e.stopPropagation()}
-        className="fade-up relative flex max-h-[92vh] w-full flex-col rounded-t-2xl border border-neutral-800 bg-neutral-950 shadow-2xl sm:max-h-[88vh] sm:max-w-5xl sm:rounded-xl"
+        className="fade-up relative flex max-h-[92dvh] w-full flex-col rounded-t-2xl border border-neutral-800 bg-neutral-950 shadow-2xl sm:max-h-[88dvh] sm:max-w-5xl sm:rounded-xl"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <div className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-neutral-700 sm:hidden" />
