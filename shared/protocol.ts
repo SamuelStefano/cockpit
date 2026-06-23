@@ -239,7 +239,7 @@ export type ClientMsg =
   // skills = ids das skills SELECIONADAS p/ este prompt (subconjunto de SkillMeta.id).
   // Vazio/ausente = todas ativas (default fail-open). O backend nega via permission
   // rule as NÃO-selecionadas (--disallowedTools Skill(id)); ver buildArgs.
-  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; msgId?: string; mode?: PermMode; model?: string; maxBudgetUsd?: number; bypass?: boolean; skills?: string[] }
+  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; msgId?: string; mode?: PermMode; model?: string; maxBudgetUsd?: number; bypass?: boolean; skills?: string[]; mcps?: string[] }
   | { t: 'accounts-list' }
   | { t: 'set-admin'; accountId: string; admin: boolean }
   | { t: 'stop'; sessionKey: string }
@@ -285,6 +285,7 @@ export type Caps = { role: 'root' | 'admin' | 'fellow' | 'student'; canBypass: b
 
 export type ServerMsg =
   | { t: 'caps'; caps: Caps }
+  | { t: 'mcp-servers'; servers: string[] }  // nomes dos MCP disponíveis (do ~/.claude.json), p/ o seletor por sessão; default = nenhum carregado
   // Esta box tem uma conta Anthropic conectada (OAuth ou ANTHROPIC_API_KEY)? Sem
   // isso o `claude` nem inicia, então a UI avisa que nada vai rodar até conectar.
   // É fato do ENGINE (a VPS), não do viewer — por isso vai à parte do caps, que

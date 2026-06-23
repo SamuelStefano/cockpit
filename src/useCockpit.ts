@@ -57,6 +57,9 @@ export interface Cockpit {
   onRefreshModels: () => void;
   selectedSkills: string[];
   setSelectedSkills: (ids: string[]) => void;
+  mcpServers: string[];
+  selectedMcps: string[];
+  setSelectedMcps: (ids: string[]) => void;
   slashCommands: string[];
   term: TermApi;
   discoveredTerms: string[];
@@ -186,6 +189,11 @@ export function useCockpit(): Cockpit {
   // Persiste como pref global, igual modelo/teto; o ref deixa o onSend ler o atual.
   const [selectedSkills, setSelectedSkills] = useState<string[]>(() => loadPref<string[]>('selectedSkills', []));
   const selectedSkillsRef = useRef<string[]>(selectedSkills);
+  // MCP por sessão: default VAZIO = nenhum MCP (--strict-mcp-config no backend).
+  // Cada server custa ~5-20k tokens/chamada; ligar só o necessário corta o gasto.
+  const [selectedMcps, setSelectedMcps] = useState<string[]>(() => loadPref<string[]>('selectedMcps', []));
+  const selectedMcpsRef = useRef<string[]>(selectedMcps);
+  const [mcpServers, setMcpServers] = useState<string[]>([]); // nomes disponíveis (mensagem mcp-servers no connect)
   // sessionId -> mtime já visto. Sessão cujo mtime no servidor avançou além do
   // visto = "atualizada" (produziu output enquanto você não olhava — run noturno).
   const [seen, setSeen] = useState<Record<string, number>>(() => loadPref<Record<string, number>>('seen', {}));
@@ -316,6 +324,7 @@ export function useCockpit(): Cockpit {
 
   const onServer = useCallback((msg: ServerMsg) => {
     switch (msg.t) {
+      case 'mcp-servers': { setMcpServers(msg.servers); return; }
       case 'caps': {
         capsRef.current = msg.caps;
         setCaps(msg.caps);
@@ -958,7 +967,8 @@ export function useCockpit(): Cockpit {
     const bypassWire = capsRef.current?.canBypass && bypassRef.current ? true : undefined;
     // skills só vai no fio quando o usuário restringiu (subconjunto); vazio = todas.
     const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: modelRef.current, bypass: bypassWire, skills: skillsWire });
+    const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
+    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: modelRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
   }, [send, updateThread]);
 
   const onUpload = useCallback((file: File) => {
@@ -988,6 +998,7 @@ export function useCockpit(): Cockpit {
   const changeBypass = useCallback((b: boolean) => { bypassRef.current = b; setBypass(b); }, []);
   const changeModel = useCallback((m: string) => { modelRef.current = m; setModel(m); savePref('model', m); }, []);
   const changeSelectedSkills = useCallback((ids: string[]) => { selectedSkillsRef.current = ids; setSelectedSkills(ids); savePref('selectedSkills', ids); }, []);
+  const changeSelectedMcps = useCallback((ids: string[]) => { selectedMcpsRef.current = ids; setSelectedMcps(ids); savePref('selectedMcps', ids); }, []);
 
   // Busca por conteúdo: dispara no backend (grep) e guarda o termo p/ descartar
   // respostas atrasadas. <2 chars limpa os resultados.
@@ -1067,7 +1078,8 @@ export function useCockpit(): Cockpit {
     setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: clean, relative: 'agora' } : s)));
     const bypassWire = capsRef.current?.canBypass && bypassRef.current ? true : undefined;
     const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: clean, msgId, mode: modeRef.current, model: modelRef.current, bypass: bypassWire, skills: skillsWire });
+    const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
+    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: clean, msgId, mode: modeRef.current, model: modelRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
   }, [send, updateThread, onStop]);
 
   const onNew = useCallback(() => {
@@ -1267,5 +1279,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, selectedSkills, setSelectedSkills: changeSelectedSkills, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
+  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
 }

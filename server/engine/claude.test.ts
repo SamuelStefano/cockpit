@@ -11,6 +11,20 @@ function valAfter(args: string[], flag: string): string | undefined {
   return i === -1 ? undefined : args[i + 1];
 }
 
+describe('buildArgs MCP', () => {
+  it('sempre passa --strict-mcp-config (default = nenhum MCP, corta ~37k tokens/chamada)', () => {
+    const args = argsOf({ prompt: 'oi' });
+    expect(args).toContain('--strict-mcp-config');
+    expect(args).not.toContain('--mcp-config');
+  });
+  it('inclui --mcp-config <path> quando há MCP escolhido pra sessão', () => {
+    const r = buildArgs({ prompt: 'oi' }, '/tmp/deck-mcp-abc.json');
+    if ('error' in r) throw new Error(r.error);
+    expect(r.args).toContain('--strict-mcp-config');
+    expect(valAfter(r.args, '--mcp-config')).toBe('/tmp/deck-mcp-abc.json');
+  });
+});
+
 describe('sanitize', () => {
   it('masks /home paths so secret paths never leak', () => {
     expect(sanitize('ENOENT at /home/samuel/.claude/secret.json')).toBe('ENOENT at <path>');

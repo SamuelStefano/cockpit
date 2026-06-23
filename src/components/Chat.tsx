@@ -45,6 +45,9 @@ export interface ChatPanelProps {
   skills: SkillMeta[];
   selectedSkills: string[];
   setSelectedSkills: (ids: string[]) => void;
+  mcpServers: string[];
+  selectedMcps: string[];
+  setSelectedMcps: (ids: string[]) => void;
   slashCommands: string[];
   contextTokens: number;
   liveTurnTokens?: number;
@@ -74,7 +77,7 @@ export interface ChatPanelProps {
   quotaResetsAt?: number | null;
 }
 
-export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, skills, selectedSkills, setSelectedSkills, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onOpenFull, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, quotaPaused = false, quotaResetsAt = null }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onOpenFull, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, quotaPaused = false, quotaResetsAt = null }: ChatPanelProps) {
   const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, paused: quotaPaused });
   // Stats AO VIVO do turno (estilo terminal): tokens gastos + tempo decorrido,
   // enquanto o turno roda. Some no `done` (phase volta a idle).
@@ -162,7 +165,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
       <ChatInput disabled={c.disabled} onSend={onSend} onStop={() => { c.clearQueue(); onStop(); }} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
         caps={caps} bypass={bypass} setBypass={setBypass}
         model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels}
-        skills={skills} selectedSkills={selectedSkills} setSelectedSkills={setSelectedSkills} slashCommands={slashCommands}
+        skills={skills} selectedSkills={selectedSkills} setSelectedSkills={setSelectedSkills} mcpServers={mcpServers} selectedMcps={selectedMcps} setSelectedMcps={setSelectedMcps} slashCommands={slashCommands}
         attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} focusSignal={focusSignal}
         queued={c.queued} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
         paused={quotaPaused} quotaResetsAt={quotaResetsAt} />

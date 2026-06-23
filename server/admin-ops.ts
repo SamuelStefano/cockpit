@@ -1,5 +1,5 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { execFile } from 'node:child_process';
@@ -41,6 +41,16 @@ export async function managedEnv(): Promise<Record<string, string>> {
 
 export function managedEnvSync(): Record<string, string> {
   return cache;
+}
+
+// Definições COMPLETAS dos MCP servers do ~/.claude.json (command/url/headers/env).
+// Síncrono pro spawn do claude (run() escreve um --mcp-config filtrado). Vazio se o
+// arquivo não existe/parseia. Os valores podem ter token — quem chama grava 0600.
+export function mcpServerDefsSync(): Record<string, unknown> {
+  try {
+    const j = JSON.parse(readFileSync(CLAUDE_JSON, 'utf8')) as { mcpServers?: Record<string, unknown> };
+    return j.mcpServers ?? {};
+  } catch { return {}; }
 }
 
 export async function loadManagedEnv(): Promise<void> {

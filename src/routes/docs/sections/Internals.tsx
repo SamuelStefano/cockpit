@@ -28,6 +28,11 @@ export function Internals() {
           <Pill>sem perder nada</Pill>: o histórico fica salvo em disco e a conversa volta inteira com
           <Pill>claude --resume</Pill>. Evita que várias janelas esquecidas travem a RAM.
         </InfoCard>
+        <InfoCard icon="command" iconClass="text-orange-400" size={13} title="MCP só quando você liga">
+          Por padrão o chat roda <Pill>sem MCP</Pill> — os servidores MCP carregam dezenas de definições de
+          ferramenta por mensagem (tokens à toa em conversa comum). No compositor há um seletor <b>MCP</b>:
+          ligue por sessão só os que aquela tarefa precisa (supabase, plans, etc.). Vazio = nenhum, mais barato.
+        </InfoCard>
         <InfoCard icon="shield" iconClass="text-orange-400" size={13} title="Privado por padrão">
           O servidor escuta só em <Pill>127.0.0.1</Pill> (a própria máquina), acessível remotamente apenas via rede privada.
           Chaves de API e tokens ficam no servidor e nunca são enviados pro navegador — só números calculados (uso, custo) e nomes de modelo chegam à tela.

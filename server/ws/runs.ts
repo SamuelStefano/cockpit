@@ -51,6 +51,7 @@ interface QueuedSend {
   bypass?: boolean;
   role?: Role;
   disallowedSkills?: string[];
+  mcps?: string[];
   merge?: boolean;
 }
 const pending = new Map<string, QueuedSend[]>();
@@ -115,7 +116,7 @@ export function killAllRuns(): void {
 
 const SESSION_KEY_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 
-export function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: string, msgId?: string, mode?: string, model?: string, maxBudgetUsd?: number, bypass?: boolean, role?: Role, disallowedSkills?: string[]) {
+export function startRun(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: string, msgId?: string, mode?: string, model?: string, maxBudgetUsd?: number, bypass?: boolean, role?: Role, disallowedSkills?: string[], mcps?: string[]) {
   // sessionKey é string crua do cliente usada como chave do mapa `threads` e
   // ecoada nos broadcasts; restringe a um slug (cobre uuid e as keys 'new-…').
   if (typeof sessionKey !== 'string' || !SESSION_KEY_RE.test(sessionKey)) {
@@ -150,6 +151,7 @@ export function startRun(ws: WebSocket, sessionKey: string, prompt: string, resu
     bypass,
     role,
     disallowedSkills,
+    mcps,
     onEvent: (ev) => translate(sessionKey, thread, ev),
     onError: (message) => broadcast({ t: 'error', sessionKey, message }),
     onClose: () => {
@@ -178,16 +180,16 @@ function drainPending(sessionKey: string, resumeId?: string) {
   if (arr.length === 0) pending.delete(sessionKey);
   const text = next.merge ? `Complemento do pedido anterior:\n\n${next.prompt}` : next.prompt;
   // msgId undefined: a bolha do usuário já foi ecoada no routeSend (não duplica).
-  startRun(next.ws, sessionKey, text, resumeId, undefined, next.mode, next.model, next.maxBudgetUsd, next.bypass, next.role, next.disallowedSkills);
+  startRun(next.ws, sessionKey, text, resumeId, undefined, next.mode, next.model, next.maxBudgetUsd, next.bypass, next.role, next.disallowedSkills, next.mcps);
 }
 
 // Roteia um prompt enviado com o turno da sessão OCUPADO. Ecoa a bolha do usuário
 // na hora, pede o veredito ao triador (haiku) e age conforme a decisão (auto).
-export async function routeSend(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: string, msgId?: string, mode?: string, model?: string, maxBudgetUsd?: number, bypass?: boolean, role?: Role, disallowedSkills?: string[]) {
+export async function routeSend(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: string, msgId?: string, mode?: string, model?: string, maxBudgetUsd?: number, bypass?: boolean, role?: Role, disallowedSkills?: string[], mcps?: string[]) {
   if (typeof sessionKey !== 'string' || !SESSION_KEY_RE.test(sessionKey)) { send(ws, { t: 'error', message: 'sessão inválida' }); return; }
   if (typeof prompt !== 'string' || Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) { send(ws, { t: 'error', sessionKey, message: 'prompt grande demais' }); return; }
   const cur = threads.get(sessionKey);
-  if (!cur) { startRun(ws, sessionKey, prompt, resumeId, msgId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills); return; } // corrida: turno fechou
+  if (!cur) { startRun(ws, sessionKey, prompt, resumeId, msgId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps); return; } // corrida: turno fechou
 
   // Bolha do usuário aparece já (antes da decisão da triagem, que leva ~alguns s).
   if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
@@ -203,8 +205,8 @@ export async function routeSend(ws: WebSocket, sessionKey: string, prompt: strin
   // mataria um run que nunca avaliamos (flap/queima de token), 'merge'/'wait'
   // enfileiraria contra outra linhagem. Re-checa identidade antes de agir.
   if (threads.get(sessionKey) !== cur) {
-    if (!threads.has(sessionKey)) startRun(ws, sessionKey, prompt, resumeId, undefined, mode, model, maxBudgetUsd, bypass, role, disallowedSkills);
-    else if (!enqueue(sessionKey, { ws, prompt, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, merge: false })) {
+    if (!threads.has(sessionKey)) startRun(ws, sessionKey, prompt, resumeId, undefined, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps);
+    else if (!enqueue(sessionKey, { ws, prompt, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, merge: false })) {
       broadcast({ t: 'error', sessionKey, message: 'fila de mensagens cheia' });
     }
     return;
@@ -216,14 +218,14 @@ export async function routeSend(ws: WebSocket, sessionKey: string, prompt: strin
     case 'priority':
       // Interrompe o turno atual e roda já. startRun mata o anterior (replacing).
       // msgId undefined: a bolha já foi ecoada acima.
-      startRun(ws, sessionKey, prompt, resumeId, undefined, mode, model, maxBudgetUsd, bypass, role, disallowedSkills);
+      startRun(ws, sessionKey, prompt, resumeId, undefined, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps);
       return;
     case 'answer':
       void runQuickAnswer(sessionKey, prompt);
       return;
     case 'merge':
     case 'wait':
-      if (!enqueue(sessionKey, { ws, prompt, msgId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, merge: verdict.action === 'merge' })) {
+      if (!enqueue(sessionKey, { ws, prompt, msgId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, merge: verdict.action === 'merge' })) {
         broadcast({ t: 'error', sessionKey, message: 'fila de mensagens cheia' });
       }
       return;

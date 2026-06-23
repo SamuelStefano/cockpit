@@ -1,8 +1,12 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
+import { writeFileSync, unlinkSync, readdirSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { ClaudeEvent } from './events';
 import { CONFIG } from '../config';
-import { managedEnvSync } from '../admin-ops';
+import { managedEnvSync, mcpServerDefsSync } from '../admin-ops';
 import type { Role } from '../auth';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -30,6 +34,7 @@ export interface RunOpts {
   bypass?: boolean;            // pedido explícito de bypass; só vale se bypassAllowed
   role?: Role;                 // role do ator (seam Fase 2); gate do bypass
   disallowedSkills?: string[]; // regras Skill(...) das skills NÃO-selecionadas (ver skillDenyRules)
+  mcps?: string[];             // MCP servers a CARREGAR neste turno. Default = NENHUM (strict-mcp-config). Cada server adiciona ~5-20k tokens de tool defs por chamada; carregar só os escolhidos corta o overhead que inflava a quota (vs terminal).
   onEvent: (ev: ClaudeEvent) => void;
   onError: (msg: string) => void;
   onClose: () => void;
@@ -53,7 +58,7 @@ export interface RunHandle {
 // - detached pra matar a árvore no stop
 export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills'>;
 
-export function buildArgs(opts: BuildArgsOpts): { args: string[] } | { error: string } {
+export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: string[] } | { error: string } {
   const { prompt, resumeId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills } = opts;
   const { permissionMode, allow } = resolveMode(mode, { bypass, role });
 
@@ -63,7 +68,13 @@ export function buildArgs(opts: BuildArgsOpts): { args: string[] } | { error: st
     '--include-partial-messages',
     '--verbose',
     '--permission-mode', permissionMode,
+    // Default ZERO MCP: --strict-mcp-config ignora os MCPs do ~/.claude.json (8
+    // servers = ~37k tokens de tool defs POR chamada). Só os escolhidos pela
+    // sessão entram, via um --mcp-config filtrado (escrito em run()). Chat sem MCP
+    // selecionado não paga esse overhead — era a maior diferença pro terminal.
+    '--strict-mcp-config',
   ];
+  if (mcpConfigPath) args.push('--mcp-config', mcpConfigPath);
   if (model && validModel(model)) args.push('--model', model);
   if (CONFIG.fallbackModel && validModel(CONFIG.fallbackModel) && CONFIG.fallbackModel !== model) {
     args.push('--fallback-model', CONFIG.fallbackModel);
@@ -86,8 +97,25 @@ export function buildArgs(opts: BuildArgsOpts): { args: string[] } | { error: st
 export function run(opts: RunOpts): RunHandle {
   const { prompt, resumeId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, onEvent, onError, onClose } = opts;
 
-  const built = buildArgs({ prompt, resumeId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills });
+  // MCP por sessão: escreve um config TEMPORÁRIO só com os servers escolhidos
+  // (definições completas lidas do ~/.claude.json). Sem seleção → sem arquivo →
+  // --strict-mcp-config sozinho = zero MCP. mode 600 (pode ter token nos headers).
+  let mcpConfigPath: string | undefined;
+  if (opts.mcps && opts.mcps.length) {
+    const all = mcpServerDefsSync();
+    const picked: Record<string, unknown> = {};
+    for (const name of opts.mcps) if (all[name]) picked[name] = all[name];
+    if (Object.keys(picked).length) {
+      mcpConfigPath = join(tmpdir(), `deck-mcp-${randomBytes(6).toString('hex')}.json`);
+      try { writeFileSync(mcpConfigPath, JSON.stringify({ mcpServers: picked }), { mode: 0o600 }); }
+      catch { mcpConfigPath = undefined; }
+    }
+  }
+  const cleanupMcp = () => { if (mcpConfigPath) { try { unlinkSync(mcpConfigPath); } catch { /* já removido */ } mcpConfigPath = undefined; } };
+
+  const built = buildArgs({ prompt, resumeId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills }, mcpConfigPath);
   if ('error' in built) {
+    cleanupMcp();
     onError(built.error);
     onClose();
     return { kill: () => {} };
@@ -140,6 +168,7 @@ export function run(opts: RunOpts): RunHandle {
     if (closed) return;
     closed = true;
     if (killTimer) { clearTimeout(killTimer); killTimer = undefined; }
+    cleanupMcp();
     onClose();
   };
   child.on('error', (err) => { onError(sanitize(err.message)); finish(); });
@@ -206,6 +235,20 @@ function minimalEnv(): NodeJS.ProcessEnv {
     TERM: 'dumb',
     ...managedEnvSync(),
   };
+}
+
+// Varre temp-configs de MCP órfãos (deck-mcp-*.json) que sobraram de um crash do
+// servidor ENTRE o write e o cleanup do run. Eles têm 0600 e podem conter token nos
+// headers — não devem acumular no /tmp. Chamado no boot + no sweep periódico; no
+// boot não há run vivo, e no periódico os vivos já foram lidos pelo claude no spawn
+// (o --mcp-config é lido uma vez), então apagar é seguro.
+export function sweepMcpConfigs(): void {
+  try {
+    const dir = tmpdir();
+    for (const f of readdirSync(dir)) {
+      if (/^deck-mcp-[0-9a-f]+\.json$/.test(f)) { try { unlinkSync(join(dir, f)); } catch { /* em uso/sumiu */ } }
+    }
+  } catch { /* tmp ilegível */ }
 }
 
 // nunca vazar caminho de segredo/stack cru pro cliente

@@ -29,6 +29,9 @@ interface ChatInputProps {
   skills: SkillMeta[];
   selectedSkills: string[];
   setSelectedSkills: (ids: string[]) => void;
+  mcpServers: string[];
+  selectedMcps: string[];
+  setSelectedMcps: (ids: string[]) => void;
   slashCommands: string[];
   attachments: Attachment[];
   onUpload: (file: File) => void;
@@ -47,7 +50,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, onRefreshModels, skills, selectedSkills, setSelectedSkills, attachments, onRemoveAttachment, queued, onCancelQueueAt, onMoveQueued, paused = false, quotaResetsAt } = props;
+  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, onRefreshModels, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, queued, onCancelQueueAt, onMoveQueued, paused = false, quotaResetsAt } = props;
   const hasAtt = attachments.length > 0;
   const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
   const { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic, ghost, ghostShown, acceptGhost } = useChatInput({ ...props, hasAtt });
@@ -57,6 +60,7 @@ export function ChatInput(props: ChatInputProps) {
         mode={mode} setMode={setMode} disabled={disabled} caps={caps}
         bypass={bypass} setBypass={setBypass} skills={skills}
         selectedSkills={selectedSkills} setSelectedSkills={setSelectedSkills}
+        mcpServers={mcpServers} selectedMcps={selectedMcps} setSelectedMcps={setSelectedMcps}
         model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels}
       />
       {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} />}
