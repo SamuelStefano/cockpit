@@ -187,7 +187,7 @@ export function useCockpit(): Cockpit {
   const [claudeReady, setClaudeReady] = useState<boolean>(true);
   const [bypass, setBypass] = useState<boolean>(false); // nunca persistido: opt-in por sessão, default off
   const bypassRef = useRef<boolean>(false);
-  const [model, setModel] = useState<string>(() => loadPref<string>('model', 'opus'));
+  const [model, setModel] = useState<string>(() => loadPref<string>('model', 'sonnet'));
   const modelRef = useRef<string>(model);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [slashCommands, setSlashCommands] = useState<string[]>(() => loadPref<string[]>('slashCommands', []));

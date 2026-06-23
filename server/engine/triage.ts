@@ -3,18 +3,40 @@ import { CONFIG } from '../config';
 import type { TriageVerdict, TriageAction } from '../../shared/protocol';
 
 // Triador de prompts: quando chega um prompt com o turno atual ocupado, um
-// claude headless barato (haiku, plan-mode = ZERO tools) decide o destino. Roda
-// como one-shot: sem stream, coleta o JSON final e mata a árvore. Fallback sempre
-// 'wait' — nunca perde o prompt nem mata um turno por erro de classificação.
+// claude headless barato (haiku, plan-mode) decide o destino. Roda como one-shot:
+// sem stream, coleta o JSON final e mata a árvore. Fallback sempre 'wait' — nunca
+// perde o prompt nem mata um turno por erro de classificação.
+//
+// IMPORTANTE: --strict-mcp-config. plan-mode NÃO impede o CARREGAMENTO das tool
+// defs de MCP, só a execução. Sem a flag, cada classify/quickAnswer haiku ingeria
+// ~37k tokens de defs dos ~8 MCPs do ~/.claude.json — transformava a triagem
+// "barata" em cara (espelha o run principal em claude.ts).
 
-const sideChildren = new Set<ChildProcess>();
+// Rastreio por sessionKey pra o stop poder matar SÓ os side-runs daquela sessão
+// (o stop antes só matava o thread principal; classify/quickAnswer seguiam vivos e
+// a quick-answer ainda fazia broadcast depois). Bucket '_' = sem sessão (shutdown).
+const sideChildren = new Map<string, Set<ChildProcess>>();
+function track(key: string, c: ChildProcess) {
+  let s = sideChildren.get(key); if (!s) { s = new Set(); sideChildren.set(key, s); }
+  s.add(c);
+}
+function untrack(key: string, c: ChildProcess) {
+  const s = sideChildren.get(key); if (s) { s.delete(c); if (!s.size) sideChildren.delete(key); }
+}
+function killSet(s: Set<ChildProcess>) {
+  for (const c of s) { try { if (c.pid) process.kill(-c.pid, 'SIGKILL'); } catch { /* já morto */ } }
+}
 
 // Mata one-shots em voo no shutdown (não deixa claude órfão como na storm de :7777).
 export function killSideRuns(): void {
-  for (const c of sideChildren) {
-    try { if (c.pid) process.kill(-c.pid, 'SIGKILL'); } catch { /* já morto */ }
-  }
+  for (const s of sideChildren.values()) killSet(s);
   sideChildren.clear();
+}
+
+// Mata só os side-runs de UMA sessão (stop do usuário) — triagem/quick-answer em voo.
+export function killSideRunsFor(sessionKey: string): void {
+  const s = sideChildren.get(sessionKey);
+  if (s) { killSet(s); sideChildren.delete(sessionKey); }
 }
 
 function miniEnv(): NodeJS.ProcessEnv {
@@ -22,14 +44,14 @@ function miniEnv(): NodeJS.ProcessEnv {
 }
 
 // Executa `claude -p` haiku plan-mode e devolve o campo .result (texto). '' em erro/timeout.
-function oneShot(prompt: string, timeoutMs: number, cap = 65536): Promise<string> {
+function oneShot(prompt: string, timeoutMs: number, cap = 65536, key = '_'): Promise<string> {
   return new Promise((resolve) => {
-    const args = ['-p', prompt, '--model', 'haiku', '--permission-mode', 'plan', '--output-format', 'json'];
+    const args = ['-p', prompt, '--model', 'haiku', '--permission-mode', 'plan', '--strict-mcp-config', '--output-format', 'json'];
     let child: ChildProcess;
     try {
       child = spawn('claude', args, { cwd: CONFIG.workdir, env: miniEnv(), shell: false, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
     } catch { resolve(''); return; }
-    sideChildren.add(child);
+    track(key, child);
     let out = '';
     child.stdout!.on('data', (d) => { out += String(d); if (out.length > cap) out = out.slice(-cap); });
     let done = false;
@@ -37,7 +59,7 @@ function oneShot(prompt: string, timeoutMs: number, cap = 65536): Promise<string
       if (done) return;
       done = true;
       clearTimeout(timer);
-      sideChildren.delete(child);
+      untrack(key, child);
       try { if (child.pid) process.kill(-child.pid, 'SIGKILL'); } catch { /* já morto */ }
       resolve(v);
     };
@@ -67,7 +89,7 @@ export function parseVerdict(raw: string): TriageVerdict {
   return fallback;
 }
 
-export async function classify(currentPrompt: string, currentWork: string, newPrompt: string): Promise<TriageVerdict> {
+export async function classify(currentPrompt: string, currentWork: string, newPrompt: string, sessionKey = '_'): Promise<TriageVerdict> {
   const p = [
     'Você é um TRIADOR de prompts. O assistente está NO MEIO de um turno e chegou um prompt novo.',
     'Classifique a relação do PROMPT_NOVO com o TRABALHO_ATUAL.',
@@ -82,10 +104,10 @@ export async function classify(currentPrompt: string, currentWork: string, newPr
     'Na dúvida use wait. priority SÓ se claramente urgente — interromper custa o turno em andamento.',
     'Responda SÓ com JSON, sem texto fora: {"action":"wait|answer|priority|merge","reason":"<=8 palavras"}',
   ].join('\n');
-  return parseVerdict(await oneShot(p, 20000, 8192));
+  return parseVerdict(await oneShot(p, 8000, 8192, sessionKey));
 }
 
-export async function quickAnswer(newPrompt: string): Promise<string> {
+export async function quickAnswer(newPrompt: string, sessionKey = '_'): Promise<string> {
   const p = 'Responda de forma curta e direta. A pessoa fez esta pergunta enquanto outra tarefa roda em paralelo, então seja conciso:\n\n' + newPrompt;
-  return (await oneShot(p, 60000, 262144)).trim();
+  return (await oneShot(p, 60000, 262144, sessionKey)).trim();
 }

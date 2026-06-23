@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { writeFileSync, unlinkSync, readdirSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
@@ -189,11 +189,28 @@ export function run(opts: RunOpts): RunHandle {
       };
       signal('SIGTERM');
       // Escalada: se o processo (ou um tool filho que ignora SIGTERM) não fechar
-      // em 5s, SIGKILL no grupo — senão vira zumbi segurando a sessão a noite
+      // em 4s, SIGKILL no grupo — senão vira zumbi segurando a sessão a noite
       // toda. O timer morre no 'close' (finish), evitando matar PID reciclado.
-      if (!killTimer) killTimer = setTimeout(() => signal('SIGKILL'), 5000);
+      // Além do grupo: varre a ÁRVORE de descendentes por ppid e mata cada um —
+      // tools (Bash longo, MCP stdio, subagentes) que chamaram setsid criam o
+      // próprio grupo e escapariam do process.kill(-pid). É o "stop não para" #22.
+      if (!killTimer) killTimer = setTimeout(() => { signal('SIGKILL'); if (child.pid) killTree(child.pid); }, 4000);
     },
   };
+}
+
+// Mata recursivamente a árvore de descendentes de um pid (por ppid via pgrep).
+// Best-effort/síncrono: caminho raro (escalada de stop); falhas são ignoradas.
+function killTree(pid: number): void {
+  let kids: number[] = [];
+  try {
+    kids = execFileSync('pgrep', ['-P', String(pid)], { encoding: 'utf8', timeout: 2000 })
+      .split('\n').map((s) => parseInt(s.trim(), 10)).filter((n) => Number.isInteger(n) && n > 0);
+  } catch { /* sem filhos ou pgrep ausente */ }
+  for (const k of kids) {
+    killTree(k);
+    try { process.kill(k, 'SIGKILL'); } catch { /* já morto */ }
+  }
 }
 
 // Mapeia o modo da UI → permission-mode do CLI + allow-list. 'bypassPermissions'

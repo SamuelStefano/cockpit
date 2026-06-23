@@ -12,7 +12,7 @@ import { applySlashCommands } from './slash';
 export function probeSlashCommands(): void {
   let child;
   try {
-    child = spawn('claude', ['-p', '.', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'plan'], {
+    child = spawn('claude', ['-p', '.', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'plan', '--strict-mcp-config'], {
       cwd: CONFIG.workdir,
       env: { PATH: process.env.PATH, HOME: process.env.HOME, LANG: process.env.LANG ?? 'en_US.UTF-8', TERM: 'dumb' },
       shell: false,

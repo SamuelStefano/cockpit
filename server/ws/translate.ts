@@ -19,7 +19,11 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
   // última mensagem) e o card nunca ficava respondível. Uma vez perguntado, descarta
   // todo conteúdo subsequente (deltas/thinking/tools/assistant/tool_result); só o
   // 'result' passa pra fechar o turno. A bolha congela na pergunta = respondível.
-  if (thread.questioned && (ev.type === 'stream_event' || ev.type === 'assistant' || ev.type === 'user')) return;
+  // ...e idem após STOP: entre o SIGTERM e o SIGKILL (até 5s) o `claude` ainda
+  // cospe NDJSON; sem este guard os deltas/tools pós-stop iam a broadcast e
+  // "reacendiam" o turno na UI. stopped cobre stop do usuário E o auto-stop da
+  // pergunta. Só o 'result'/'system' passam pra fechar o turno limpo.
+  if ((thread.questioned || thread.stopped) && (ev.type === 'stream_event' || ev.type === 'assistant' || ev.type === 'user')) return;
   switch (ev.type) {
     case 'rate_limit_event': {
       const info = (ev as any).rate_limit_info;

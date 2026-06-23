@@ -6,7 +6,7 @@ import type { Role } from '../auth';
 import { broadcast, send } from './broadcast';
 import { translate } from './translate';
 import { summarize } from '../summary';
-import { classify, quickAnswer, killSideRuns } from '../engine/triage';
+import { classify, quickAnswer, killSideRuns, killSideRunsFor } from '../engine/triage';
 
 export interface Thread {
   handle: RunHandle;
@@ -81,6 +81,10 @@ const stopEpoch = new Map<string, number>();
 export function onStop(sessionKey: string): void {
   pending.delete(sessionKey);
   stopEpoch.set(sessionKey, (stopEpoch.get(sessionKey) ?? 0) + 1);
+  // Side-runs (triagem/quick-answer haiku) NÃO viviam em `threads` — o stop só
+  // matava o turno principal e esses one-shots seguiam vivos, a quick-answer ainda
+  // fazia broadcast depois do stop. Mata os daquela sessão agora.
+  killSideRunsFor(sessionKey);
   // Marca o thread vivo: seu onClose vai emitir 'done' (limpa o phase em todos os
   // clientes), mas com stopped=true pra o cliente NÃO disparar notificação de
   // "turno concluído" — o usuário interrompeu de propósito. Flag morre com o thread.
@@ -162,9 +166,13 @@ export function startRun(ws: WebSocket, sessionKey: string, prompt: string, resu
       broadcast({ t: 'done', sessionKey, sessionId: thread.sessionId ?? '', costUsd: thread.costUsd, durationMs: thread.durationMs, numTurns: thread.numTurns, turnTokens: thread.turnTokens, inputTokens: thread.inputTokens, outputTokens: thread.outputTokens, endReason: thread.endReason, model: thread.model, stopped: thread.stopped });
       // Resumo IA do que a sessão fez, atualizado ao fim do turno (pedido do Samuel).
       // Fire-and-forget: best-effort, nunca bloqueia/derruba o fechamento do run.
-      if (thread.sessionId) void summarize(thread.sessionId);
+      // Pula em stop do usuário (turno interrompido não vale uma chamada API paga) —
+      // o throttle interno de summarize() cobre o resto da redução de gasto.
+      if (thread.sessionId && !thread.stopped) void summarize(thread.sessionId);
       threads.delete(sessionKey);
-      drainPending(sessionKey, thread.sessionId);
+      // Após AskUserQuestion o turno aguarda a RESPOSTA do usuário (próximo prompt) —
+      // não drenar a fila aqui, senão um enfileirado fura na frente da resposta.
+      if (!thread.questioned) drainPending(sessionKey, thread.sessionId);
     },
   });
 }
@@ -195,7 +203,7 @@ export async function routeSend(ws: WebSocket, sessionKey: string, prompt: strin
   if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
 
   const epoch = stopEpoch.get(sessionKey) ?? 0;
-  const verdict = await classify(cur.prompt, cur.text, prompt);
+  const verdict = await classify(cur.prompt, cur.text, prompt, sessionKey);
 
   // Stop durante o await da triagem → o usuário pediu silêncio; descarta.
   if ((stopEpoch.get(sessionKey) ?? 0) !== epoch) return;
@@ -221,7 +229,7 @@ export async function routeSend(ws: WebSocket, sessionKey: string, prompt: strin
       startRun(ws, sessionKey, prompt, resumeId, undefined, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps);
       return;
     case 'answer':
-      void runQuickAnswer(sessionKey, prompt);
+      void runQuickAnswer(sessionKey, prompt, epoch);
       return;
     case 'merge':
     case 'wait':
@@ -233,8 +241,12 @@ export async function routeSend(ws: WebSocket, sessionKey: string, prompt: strin
 }
 
 // Subagente responde direto, em bolha à parte, sem tocar o turno principal.
-async function runQuickAnswer(sessionKey: string, prompt: string) {
-  const text = await quickAnswer(prompt);
+// epoch capturado no routeSend: se um stop aconteceu durante o oneShot (até 60s),
+// a época muda e a resposta é descartada — senão a quick-answer pingava depois do
+// stop. O killSideRunsFor no onStop já mata o processo; o guard cobre a corrida.
+async function runQuickAnswer(sessionKey: string, prompt: string, epoch: number) {
+  const text = await quickAnswer(prompt, sessionKey);
   if (!text) return;
+  if ((stopEpoch.get(sessionKey) ?? 0) !== epoch) return;
   broadcast({ t: 'quick-answer', sessionKey, id: `qa-${Date.now().toString(36)}`, text, ts: Date.now() });
 }

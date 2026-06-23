@@ -22,6 +22,12 @@ const PROMPT_INSTR =
 
 let cachedKey: string | null | undefined; // undefined = não lido ainda; null = ausente
 const inFlight = new Set<string>();
+// Throttle por sessão: o resumo dispara no `done` de TODO turno. Em rajada (vários
+// turnos curtos) isso era uma chamada API paga por turno. Só re-resume se passou o
+// intervalo mínimo desde o último — a cauda da conversa não muda o bastante em
+// segundos pra justificar regerar. COCKPIT_SUMMARY=off continua como kill-switch.
+const lastAt = new Map<string, number>();
+const MIN_INTERVAL_MS = 90_000;
 
 function apiKey(): string | null {
   if (cachedKey !== undefined) return cachedKey;
@@ -90,9 +96,11 @@ async function callAnthropic(key: string, transcript: string): Promise<string | 
 // duas gerações simultâneas pra mesma sessão.
 export async function summarize(sessionId: string): Promise<void> {
   if (!CONFIG.summaryEnabled || !sessionId || inFlight.has(sessionId)) return;
+  if (Date.now() - (lastAt.get(sessionId) ?? 0) < MIN_INTERVAL_MS) return;
   const key = apiKey();
   if (!key) return;
   inFlight.add(sessionId);
+  lastAt.set(sessionId, Date.now());
   try {
     const parsed = await parseSession(sessionId);
     if (!parsed || parsed.messages.length === 0) return;
