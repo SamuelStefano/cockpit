@@ -78,7 +78,18 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       const content = (ev as any).message?.content;
       if (Array.isArray(content)) {
         for (const c of content) {
-          if (c?.type === 'tool_use') emitTool(thread, sessionKey, c, 'running');
+          if (c?.type === 'tool_use') { emitTool(thread, sessionKey, c, 'running'); continue; }
+          // Paridade: text/thinking que chegam SÓ no evento `assistant` final (sem
+          // deltas de stream — bloco curto, ou --include-partial-messages não cobriu)
+          // eram perdidos ao vivo. Emite o sufixo ainda não mostrado (includes()
+          // evita duplicar quando os deltas já entregaram).
+          if (c?.type === 'text' && typeof c.text === 'string' && c.text && !thread.text.includes(c.text)) {
+            thread.text = capTail(thread.text + c.text);
+            broadcast({ t: 'delta', sessionKey, text: c.text });
+          } else if (c?.type === 'thinking' && typeof c.thinking === 'string' && c.thinking && !thread.thinking.includes(c.thinking)) {
+            thread.thinking = capTail(thread.thinking + c.thinking);
+            broadcast({ t: 'thinking', sessionKey, text: c.thinking });
+          }
         }
       }
       capture(thread, ev);
@@ -156,6 +167,13 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
         if (out > 0) thread.outputTokens = out;
       }
       if (typeof r.subtype === 'string') thread.endReason = r.subtype;
+      // Paridade/rede de segurança: se nenhum delta/assistant trouxe texto (streaming
+      // falhou) mas o result carrega o texto final, emite agora. Guard de texto vazio
+      // evita duplicar no caminho normal; !stopped pra não reacender um turno parado.
+      if (!thread.stopped && !thread.text.trim() && typeof r.result === 'string' && r.result.trim()) {
+        thread.text = capTail(r.result);
+        broadcast({ t: 'delta', sessionKey, text: r.result });
+      }
       capture(thread, ev);
       return;
     }

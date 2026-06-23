@@ -57,8 +57,13 @@ export function capOutput(lines: string[]): string[] {
 // tanto no replay (collectToolResults) quanto no ao vivo (ws/tools.ts closeTool)
 // pra render idêntico nos dois caminhos.
 export function toolResultOutput(c: any): string[] {
+  // Paridade: blocos `image` (screenshots de Playwright, saída de tools que
+  // retornam imagem) eram filtrados → o card ficava vazio enquanto o terminal
+  // mostra a indicação. Emite um placeholder por imagem em vez de descartar.
   return capOutput(Array.isArray(c?.content)
-    ? c.content.filter((x: any) => x?.type === 'text').map((x: any) => String(x.text ?? ''))
+    ? c.content
+        .filter((x: any) => x?.type === 'text' || x?.type === 'image')
+        .map((x: any) => (x.type === 'image' ? '[imagem]' : String(x.text ?? '')))
     : typeof c?.content === 'string' ? c.content.split('\n') : []);
 }
 

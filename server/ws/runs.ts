@@ -184,11 +184,23 @@ export function startRun(ws: WebSocket, sessionKey: string, prompt: string, resu
 function drainPending(sessionKey: string, resumeId?: string) {
   const arr = pending.get(sessionKey);
   if (!arr || arr.length === 0) return;
-  const next = arr.shift()!;
+  const first = arr.shift()!;
+  // Coalesce: junta itens CONSECUTIVOS de mesma classe (merge/wait) e mesmos
+  // params de turno num único --resume — vários prompts enfileirados viravam N
+  // turnos sequenciais, cada um re-lendo o contexto e re-pensando (latência
+  // empilhada). Divergência de params impede merge seguro → para o batch.
+  const same = (a: QueuedSend, b: QueuedSend) =>
+    a.merge === b.merge && a.mode === b.mode && a.model === b.model &&
+    a.maxBudgetUsd === b.maxBudgetUsd && a.bypass === b.bypass && a.role === b.role &&
+    JSON.stringify(a.mcps) === JSON.stringify(b.mcps) &&
+    JSON.stringify(a.disallowedSkills) === JSON.stringify(b.disallowedSkills);
+  const batch = [first];
+  while (arr.length && same(first, arr[0])) batch.push(arr.shift()!);
   if (arr.length === 0) pending.delete(sessionKey);
-  const text = next.merge ? `Complemento do pedido anterior:\n\n${next.prompt}` : next.prompt;
+  const joined = batch.map((b) => b.prompt).join('\n\n');
+  const text = first.merge ? `Complemento do pedido anterior:\n\n${joined}` : joined;
   // msgId undefined: a bolha do usuário já foi ecoada no routeSend (não duplica).
-  startRun(next.ws, sessionKey, text, resumeId, undefined, next.mode, next.model, next.maxBudgetUsd, next.bypass, next.role, next.disallowedSkills, next.mcps);
+  startRun(first.ws, sessionKey, text, resumeId, undefined, first.mode, first.model, first.maxBudgetUsd, first.bypass, first.role, first.disallowedSkills, first.mcps);
 }
 
 // Roteia um prompt enviado com o turno da sessão OCUPADO. Ecoa a bolha do usuário
@@ -223,11 +235,17 @@ export async function routeSend(ws: WebSocket, sessionKey: string, prompt: strin
   broadcast({ t: 'triage', sessionKey, msgId, action: verdict.action, reason: verdict.reason });
 
   switch (verdict.action) {
-    case 'priority':
+    case 'priority': {
       // Interrompe o turno atual e roda já. startRun mata o anterior (replacing).
-      // msgId undefined: a bolha já foi ecoada acima.
-      startRun(ws, sessionKey, prompt, resumeId, undefined, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps);
+      // Carrega o progresso parcial do turno morto no prompt: o trabalho já pensado
+      // não estava no JSONL (turno interrompido), então sem isso o modelo re-derivava
+      // do zero (a "repetição de pensamento" reportada). msgId undefined: bolha já ecoada.
+      const carry = cur.text || cur.thinking
+        ? `Você estava no meio de: ${cur.prompt}\n\nProgresso até agora (não repita, continue daqui):\n${(cur.thinking || '').slice(-1500)}\n${(cur.text || '').slice(-1500)}\n\nNOVA INSTRUÇÃO URGENTE (priorize):\n${prompt}`
+        : prompt;
+      startRun(ws, sessionKey, carry, resumeId, undefined, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps);
       return;
+    }
     case 'answer':
       void runQuickAnswer(sessionKey, prompt, epoch);
       return;
