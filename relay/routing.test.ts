@@ -69,4 +69,23 @@ describe('Registry routing (per-account scoping)', () => {
     r.addBrowser('B', fakeSock());
     expect(r.stats()).toEqual({ accounts: 2, agents: 1, browsers: 2 });
   });
+
+  it('addBrowser sinaliza transição 0→1 e removeBrowser 1→0 (presença pro agente)', () => {
+    const r = new Registry();
+    const b1 = fakeSock(), b2 = fakeSock();
+    expect(r.addBrowser('A', b1)).toBe(true);   // primeira aba
+    expect(r.addBrowser('A', b2)).toBe(false);  // já tinha aba
+    expect(r.browserCount('A')).toBe(2);
+    expect(r.removeBrowser('A', b1)).toBe(false); // ainda sobra b2
+    expect(r.removeBrowser('A', b2)).toBe(true);  // última saiu
+    expect(r.browserCount('A')).toBe(0);
+  });
+
+  it('bindAgent devolve o socket anterior pra terminar (sem fantasma)', () => {
+    const r = new Registry();
+    const oldA = fakeSock(), newA = fakeSock();
+    expect(r.bindAgent('A', oldA)).toBeNull();   // não havia anterior
+    expect(r.bindAgent('A', newA)).toBe(oldA);   // devolve o velho pra o caller matar
+    expect(r.bindAgent('A', newA)).toBeNull();   // mesmo socket → nada a evictar
+  });
 });

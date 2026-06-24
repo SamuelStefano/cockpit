@@ -89,7 +89,9 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
     const waitA = collect(browserA);
     await waitA((m) => m.t === 'caps');
     browserA.send(JSON.stringify({ t: 'send', text: 'oi', sessionKey: 'k' }));
-    const echo = await waitA((m) => m.t === 'echo');
+    // filtra por saw==='send': o agente também ecoa os frames de presença
+    // (no-browsers no bind, browsers-present quando a 1ª aba conecta).
+    const echo = await waitA((m) => m.t === 'echo' && m.saw === 'send');
     expect(echo.saw).toBe('send'); // frame do browser chegou no agente da conta A e voltou
 
     // Browser da conta B (sem agente): recebe agent-offline, NUNCA vê o eco de A.

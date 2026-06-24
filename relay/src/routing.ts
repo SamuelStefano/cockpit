@@ -42,19 +42,46 @@ export class Registry {
     if (b && !b.agent && b.browsers.size === 0) this.byAccount.delete(accountId);
   }
 
-  bindAgent(accountId: string, sock: Sock): void { this.bucket(accountId).agent = sock; }
-
-  unbindAgent(accountId: string, sock: Sock): void {
-    const b = this.byAccount.get(accountId);
-    if (b && b.agent === sock) { b.agent = null; this.gc(accountId); }
+  // Faz bind do novo agente e DEVOLVE o socket anterior (se houver e for outro), pra
+  // o caller terminá-lo na hora — senão num reconnect o socket velho meio-aberto
+  // coexistia até o heartbeat (até 30s) ainda empurrando frames pros browsers.
+  bindAgent(accountId: string, sock: Sock): Sock | null {
+    const b = this.bucket(accountId);
+    const prev = b.agent && b.agent !== sock ? b.agent : null;
+    b.agent = sock;
+    return prev;
   }
 
-  addBrowser(accountId: string, sock: Sock): void { this.bucket(accountId).browsers.add(sock); }
-
-  removeBrowser(accountId: string, sock: Sock): void {
+  // Retorna true se ESTE sock era o agente vinculado e foi desvinculado. false se já
+  // havia sido substituído por um socket novo — o caller NÃO deve emitir agent-offline
+  // nem apagar o bypass (senão o close do socket velho derruba o agente novo).
+  unbindAgent(accountId: string, sock: Sock): boolean {
     const b = this.byAccount.get(accountId);
-    if (b) { b.browsers.delete(sock); this.gc(accountId); }
+    if (b && b.agent === sock) { b.agent = null; this.gc(accountId); return true; }
+    return false;
   }
+
+  // Retorna true se esta é a PRIMEIRA aba da conta (transição 0→1) — o caller avisa
+  // o agente que há browser olhando (liga os loops periódicos).
+  addBrowser(accountId: string, sock: Sock): boolean {
+    const b = this.bucket(accountId);
+    const wasEmpty = b.browsers.size === 0;
+    b.browsers.add(sock);
+    return wasEmpty;
+  }
+
+  // Retorna true se esta era a ÚLTIMA aba (transição 1→0) — o caller avisa o agente
+  // que ninguém está olhando (pausa os loops, economiza quota OAuth/CPU).
+  removeBrowser(accountId: string, sock: Sock): boolean {
+    const b = this.byAccount.get(accountId);
+    if (!b) return false;
+    const had = b.browsers.delete(sock);
+    const nowEmpty = had && b.browsers.size === 0;
+    this.gc(accountId);
+    return nowEmpty;
+  }
+
+  browserCount(accountId: string): number { return this.byAccount.get(accountId)?.browsers.size ?? 0; }
 
   hasAgent(accountId: string): boolean { return !!this.byAccount.get(accountId)?.agent; }
 
