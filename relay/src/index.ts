@@ -258,8 +258,10 @@ export function createRelay(cfg: RelayConfig) {
     });
     ws.on('close', () => {
       clearTimeout(authTimer);
-      if (st.authed) {
-        registry.unbindAgent(st.accountId, ws);
+      // Só emite agent-offline / apaga bypass se ESTE socket ainda era o agente
+      // vinculado. Socket VELHO substituído no rebind (eviction) → unbindAgent false →
+      // não derruba o agente NOVO nem manda offline espúrio logo após o online dele.
+      if (st.authed && registry.unbindAgent(st.accountId, ws)) {
         agentBypass.delete(st.accountId);
         registry.toBrowsers(st.accountId, JSON.stringify({ t: 'agent-offline' }));
       }

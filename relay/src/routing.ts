@@ -52,9 +52,13 @@ export class Registry {
     return prev;
   }
 
-  unbindAgent(accountId: string, sock: Sock): void {
+  // Retorna true se ESTE sock era o agente vinculado e foi desvinculado. false se já
+  // havia sido substituído por um socket novo — o caller NÃO deve emitir agent-offline
+  // nem apagar o bypass (senão o close do socket velho derruba o agente novo).
+  unbindAgent(accountId: string, sock: Sock): boolean {
     const b = this.byAccount.get(accountId);
-    if (b && b.agent === sock) { b.agent = null; this.gc(accountId); }
+    if (b && b.agent === sock) { b.agent = null; this.gc(accountId); return true; }
+    return false;
   }
 
   // Retorna true se esta é a PRIMEIRA aba da conta (transição 0→1) — o caller avisa

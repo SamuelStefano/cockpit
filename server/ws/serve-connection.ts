@@ -69,6 +69,12 @@ export function serveConnection(ws: WebSocket, opts: { role: Role; sendCaps?: bo
       msg = parsed as ClientMsg;
     } catch { return; }
     if (typeof msg.t !== 'string') return;
+    // Frames de CONTROLE do relay (presença de browser) chegam neste socket no modo
+    // dial e são tratados pelo listener dedicado em agent.ts. NÃO são ClientMsg do
+    // dispatch — ignora ANTES do authorize, senão o allowlist default-deny respondia
+    // 'sem permissão' (toast espúrio na aba a cada abrir/fechar) p/ agente student.
+    const ctrlT = msg.t as string;
+    if (ctrlT === 'browsers-present' || ctrlT === 'no-browsers') return;
     // Teto por conexão antes de qualquer trabalho: corta loop de frames (DoS).
     if (!limiter.allow(msg.t)) { send(ws, { t: 'error', message: 'muitas requisições' }); return; }
     // Checkpoint ÚNICO de autorização (default-deny), ANTES do handleTerm (que
