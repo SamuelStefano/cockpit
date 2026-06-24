@@ -1,8 +1,9 @@
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readdir, readFile, stat, mkdir, writeFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import type { SkillMeta } from '../shared/protocol';
 import { CONFIG } from './config';
 import { parseFrontmatter } from './frontmatter';
+import { importSlug, MAX_IMPORT_BYTES } from './contexts';
 
 // Surfacing READ-ONLY das skills do agente. Cada skill é um DIRETÓRIO em
 // CONFIG.skillsDir contendo um SKILL.md (com frontmatter name/description). O
@@ -70,5 +71,22 @@ export async function readSkill(id: string): Promise<{ name: string; body: strin
   try { raw = await readFile(full, 'utf8'); } catch { return null; }
   const fm = parseFrontmatter(raw.slice(0, 2000));
   return { name: fm.name || id.replace(/[-_]/g, ' '), body: raw };
+}
+
+// ESCRITA (compartilhamento): grava uma skill importada como imported-<slug>/SKILL.md
+// na própria conta. Mesmos guards do contexto (slug allow-listado + prefixo imported-
+// + anti-traversal + cap). body é o SKILL.md inteiro (com frontmatter).
+export async function installSkill(slug: string, _name: string, body: string): Promise<{ id: string } | { error: string }> {
+  if (typeof body !== 'string' || !body.trim()) return { error: 'conteúdo vazio' };
+  if (Buffer.byteLength(body) > MAX_IMPORT_BYTES) return { error: 'conteúdo grande demais' };
+  const id = importSlug(slug);
+  if (!SLUG_RE.test(id)) return { error: 'slug inválido' };
+  const dir = resolve(CONFIG.skillsDir);
+  const sdir = resolve(join(dir, id));
+  const full = resolve(join(sdir, 'SKILL.md'));
+  if (!sdir.startsWith(dir + '/') || !full.startsWith(sdir + '/') || basename(full) !== 'SKILL.md') return { error: 'caminho inválido' };
+  try { await mkdir(sdir, { recursive: true }); await writeFile(full, body, 'utf8'); }
+  catch { return { error: 'falha ao gravar' }; }
+  return { id };
 }
 

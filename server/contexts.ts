@@ -1,4 +1,4 @@
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readdir, readFile, stat, mkdir, writeFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import type { ContextMeta } from '../shared/protocol';
 import { CONFIG } from './config';
@@ -48,5 +48,32 @@ export async function readContext(id: string): Promise<{ title: string; body: st
   try { raw = await readFile(full, 'utf8'); } catch { return null; }
   const fm = parseFrontmatter(raw.slice(0, 2000));
   return { title: fm.name || id.replace(/[-_]/g, ' '), body: stripFrontmatter(raw) };
+}
+
+// Slug seguro pra anexo IMPORTADO: prefixo `imported-` (nunca colide/sobrescreve um
+// arquivo do próprio agente) + saneamento ao SLUG_RE.
+export const MAX_IMPORT_BYTES = 512 * 1024;
+export function importSlug(slug: string): string {
+  const base = String(slug || 'shared').replace(/[^a-zA-Z0-9_-]/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'shared';
+  return `imported-${base}`;
+}
+
+// ESCRITA (compartilhamento): grava um contexto importado no memoryDir da própria
+// conta. PRIMEIRO write path do surfacing — por isso os guards são rígidos: slug
+// allow-listado + prefixo imported- + anti-traversal + cap de tamanho. Vira um .md
+// normal lido pelo fluxo READ-ONLY depois.
+export async function installContext(slug: string, title: string, body: string): Promise<{ id: string } | { error: string }> {
+  if (typeof body !== 'string' || !body.trim()) return { error: 'conteúdo vazio' };
+  if (Buffer.byteLength(body) > MAX_IMPORT_BYTES) return { error: 'conteúdo grande demais' };
+  const id = importSlug(slug);
+  if (!SLUG_RE.test(id)) return { error: 'slug inválido' };
+  const dir = resolve(CONFIG.memoryDir);
+  const full = resolve(join(dir, `${id}.md`));
+  if (!full.startsWith(dir + '/') || basename(full) !== `${id}.md`) return { error: 'caminho inválido' };
+  const safeTitle = String(title || id).replace(/[\r\n]/g, ' ').slice(0, 120);
+  const fm = `---\nname: ${safeTitle}\ndescription: importado via compartilhamento\nmetadata:\n  type: reference\n---\n\n`;
+  try { await mkdir(dir, { recursive: true }); await writeFile(full, fm + body, 'utf8'); }
+  catch { return { error: 'falha ao gravar' }; }
+  return { id };
 }
 
