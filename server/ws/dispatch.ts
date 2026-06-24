@@ -8,7 +8,8 @@ import { getNotes, saveNotes } from '../notes';
 import { getCrons, saveCron, deleteCron } from '../crons';
 import { fireCron } from './runs';
 import { listSkills, readSkill, resolveSkillDeny } from '../skills';
-import { saveAttachment, readAttachment } from '../attachments';
+import { saveAttachment, saveAttachmentFromUrl, readAttachment } from '../attachments';
+import { s3Config } from '../s3';
 import { usageStats } from '../db';
 import { hideSession, unhideSession, purgeSession, setTitle, setNote } from '../store';
 import { parseSession, parseFullSession } from '../sessions/parse';
@@ -189,7 +190,22 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'upload': {
       const r = await saveAttachment(msg.sessionKey, msg.name, msg.dataB64);
       if ('error' in r) send(ws, { t: 'error', message: r.error });
-      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url });
+      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url, clientId: msg.clientId });
+      return;
+    }
+    // Upload direto na edge fn: o browser pede a config (URL+anon key, só após o gate
+    // de auth do WS — nunca hardcoded no bundle público) e sobe o arquivo por HTTP.
+    case 's3-config': {
+      const cfg = s3Config();
+      if (cfg) send(ws, { t: 's3-config', uploadUrl: cfg.uploadUrl, anonKey: cfg.anonKey });
+      return;
+    }
+    // O browser já subiu pro S3 e manda só a URL; o backend baixa pro workdir local
+    // (pro Read do agente). clientId ecoa pra o front casar com o chip otimista.
+    case 'attach-ref': {
+      const r = await saveAttachmentFromUrl(msg.sessionKey, msg.name, msg.s3url);
+      if ('error' in r) send(ws, { t: 'error', message: r.error });
+      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url, clientId: msg.clientId });
       return;
     }
     case 'att-open': {
