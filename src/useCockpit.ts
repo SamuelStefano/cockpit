@@ -1053,28 +1053,18 @@ export function useCockpit(): Cockpit {
         fail(`⚠️ Upload de "${file.name}" demorou demais — tente de novo.`);
       }
     }, 75_000);
-    const cfg = s3Config.current;
-    if (cfg) {
-      // Upload DIRETO na edge fn por HTTP: sai do frame WS (sem o cap de ~4MB do
-      // relay), vai pro S3 devfellowship, e a URL (durável) sobrevive ao reload. Só
-      // a URL volta pro backend (attach-ref) — ele baixa pro workdir pro Read do agente.
-      const form = new FormData();
-      form.append('file', file);
-      fetch(cfg.uploadUrl, { method: 'POST', headers: { authorization: `Bearer ${cfg.anonKey}`, apikey: cfg.anonKey }, body: form, signal: AbortSignal.timeout(60_000) })
-        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-        .then((j: { url?: string }) => {
-          if (!j?.url) throw new Error('sem url');
-          send({ t: 'attach-ref', sessionKey: key, name: file.name, s3url: j.url, clientId });
-        })
-        .catch(() => fail(`⚠️ Falha ao enviar "${file.name}" pro S3 — tente de novo.`));
-      return;
-    }
-    // Fallback (S3 off, ex: dev local): upload inline via WS, com o mesmo clientId.
+    // Upload em CHUNKS via WS: fatia o base64 em pedaços pequenos (cada frame bem
+    // abaixo do cap do relay), o backend remonta e sobe pro S3 server-side. Evita o
+    // upload direto browser→edge fn (travava por CORS/Cloudflare) e o cap de frame.
     const reader = new FileReader();
     reader.onload = () => {
       const res = String(reader.result);
       const b64 = res.includes(',') ? res.slice(res.indexOf(',') + 1) : res;
-      send({ t: 'upload', sessionKey: key, name: file.name, dataB64: b64, clientId });
+      const CHUNK = 700_000; // ~700KB de base64 por frame (folga sob o cap do relay)
+      const total = Math.max(1, Math.ceil(b64.length / CHUNK));
+      for (let seq = 0; seq < total; seq++) {
+        send({ t: 'upload-chunk', uploadId: clientId, sessionKey: key, name: file.name, seq, total, dataB64: b64.slice(seq * CHUNK, (seq + 1) * CHUNK), clientId });
+      }
     };
     reader.onerror = reader.onabort = () => fail(`⚠️ Falha ao ler o arquivo "${file.name}" — tente anexar de novo.`);
     reader.readAsDataURL(file);

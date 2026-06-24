@@ -8,7 +8,7 @@ import { getNotes, saveNotes } from '../notes';
 import { getCrons, saveCron, deleteCron } from '../crons';
 import { fireCron } from './runs';
 import { listSkills, readSkill, resolveSkillDeny } from '../skills';
-import { saveAttachment, saveAttachmentFromUrl, readAttachment } from '../attachments';
+import { saveAttachment, saveAttachmentFromUrl, addUploadChunk, readAttachment } from '../attachments';
 import { s3Config } from '../s3';
 import { usageStats } from '../db';
 import { hideSession, unhideSession, purgeSession, setTitle, setNote } from '../store';
@@ -189,6 +189,15 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'upload': {
       const r = await saveAttachment(msg.sessionKey, msg.name, msg.dataB64);
+      if ('error' in r) send(ws, { t: 'error', message: r.error });
+      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url, clientId: msg.clientId });
+      return;
+    }
+    // Upload em chunks via WS (caminho robusto): o backend remonta e sobe pro S3
+    // server-side. null = ainda faltam chunks (não responde).
+    case 'upload-chunk': {
+      const r = await addUploadChunk(msg.uploadId, msg.sessionKey, msg.name, msg.seq, msg.total, msg.dataB64);
+      if (r === null) return;
       if ('error' in r) send(ws, { t: 'error', message: r.error });
       else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url, clientId: msg.clientId });
       return;

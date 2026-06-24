@@ -289,6 +289,7 @@ export type ClientMsg =
   | { t: 'admin-mcp-remove'; name: string }
   | { t: 'admin-cli-install'; name: string }
   | { t: 'upload'; sessionKey: string; name: string; dataB64: string; clientId?: string }
+  | { t: 'upload-chunk'; uploadId: string; sessionKey: string; name: string; seq: number; total: number; dataB64: string; clientId?: string }
   | { t: 's3-config' }
   | { t: 'attach-ref'; sessionKey: string; name: string; s3url: string; clientId?: string }
   | { t: 'att-open'; path: string }

@@ -162,6 +162,39 @@ export async function saveAttachment(
   return { ...r, s3url: s3?.url };
 }
 
+// Upload em CHUNKS via WS: o browser fatia o base64 em pedaços (cada frame < cap do
+// relay) e o backend remonta. Evita o cap de frame do relay E o upload direto
+// browser→edge fn (que travava por CORS/Cloudflare). No último chunk, grava local
+// (Read do agente) + espelha no S3 server-side (caminho comprovado).
+interface ChunkUpload { sessionKey: string; name: string; total: number; parts: (string | undefined)[]; bytes: number; ts: number }
+const chunkUploads = new Map<string, ChunkUpload>();
+const CHUNK_TTL = 120_000;
+function sweepChunks(now: number): void { for (const [id, u] of chunkUploads) if (now - u.ts > CHUNK_TTL) chunkUploads.delete(id); }
+
+export async function addUploadChunk(
+  uploadId: string, sessionKey: string, name: string, seq: number, total: number, dataB64: string,
+): Promise<{ path: string; text?: string; s3url?: string } | { error: string } | null> {
+  if (typeof uploadId !== 'string' || !/^[\w-]{1,64}$/.test(uploadId)) return { error: 'upload inválido' };
+  if (typeof sessionKey !== 'string' || typeof name !== 'string' || typeof dataB64 !== 'string') return { error: 'upload inválido' };
+  if (!Number.isInteger(total) || total < 1 || total > 2000) return { error: 'upload inválido' };
+  if (!Number.isInteger(seq) || seq < 0 || seq >= total) return { error: 'upload inválido' };
+  const now = Date.now();
+  sweepChunks(now);
+  let u = chunkUploads.get(uploadId);
+  if (!u) { u = { sessionKey, name, total, parts: new Array(total), bytes: 0, ts: now }; chunkUploads.set(uploadId, u); }
+  if (u.parts[seq] === undefined) { u.parts[seq] = dataB64; u.bytes += dataB64.length; }
+  u.ts = now;
+  // Teto cedo (base64 ~+33%): aborta uploads grandes antes de remontar.
+  if (u.bytes > CONFIG.maxUploadBytes * 2) { chunkUploads.delete(uploadId); return { error: 'arquivo grande demais' }; }
+  if (u.parts.some((p) => p === undefined)) return null; // ainda faltam chunks
+  chunkUploads.delete(uploadId);
+  const buf = Buffer.from(u.parts.join(''), 'base64');
+  const r = await persistBuffer(sessionKey, name, buf);
+  if ('error' in r) return r;
+  const s3 = await uploadToS3(buf, name, mimeOf(name));
+  return { ...r, s3url: s3?.url };
+}
+
 const S3_HOST_RE = /^https:\/\/[a-z0-9.-]+\.s3[.a-z0-9-]*\.amazonaws\.com\/[\w./-]+$/i;
 
 // Upload DIRETO na edge fn: o browser já subiu o arquivo pro S3 (sem passar pelo
