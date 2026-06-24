@@ -871,6 +871,13 @@ export function useCockpit(): Cockpit {
       // 4401 = servidor exige token e o nosso falta/está errado. NÃO re-tenta em
       // loop: mostra o login. Qualquer outro código = queda de rede → backoff.
       if (ev.code === 4401) { setAuthRequired(true); return; }
+      // 1009 = frame grande demais (ex: anexo que estourou o maxPayload de um hop).
+      // O socket caía e reconectava sem explicação (parecia queda de rede em loop).
+      // Mostra erro claro e reconecta pra restaurar (o frame ofensor não é reenviado).
+      if (ev.code === 1009) {
+        const key = activeRef.current;
+        if (key) updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: '⚠️ Arquivo grande demais para enviar pela conexão — anexe um arquivo menor.' }], error: true }]);
+      }
       scheduleRetry();
     };
     ws.onerror = () => { if (isCurrent()) { try { ws.close(); } catch { /* noop */ } } };
