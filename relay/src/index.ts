@@ -107,7 +107,10 @@ export function createRelay(cfg: RelayConfig) {
     }
     res.writeHead(426); res.end('upgrade required');
   });
-  const wssBrowser = new WebSocketServer({ noServer: true, maxPayload: cfg.maxPayload ?? 4 * 1024 * 1024 });
+  // Upload vai INLINE como frame WS (base64, +33%). O hop browser→relay precisa
+  // acomodar o mesmo teto do agente/backend (32MB) — antes era 4MB e DERRUBAVA o
+  // socket (close 1009) em qualquer anexo >~3MB que todo o resto da cadeia aceitaria.
+  const wssBrowser = new WebSocketServer({ noServer: true, maxPayload: cfg.maxPayload ?? 32 * 1024 * 1024 });
   const wssAgent = new WebSocketServer({ noServer: true, maxPayload: cfg.maxPayload ?? 32 * 1024 * 1024 });
 
   // ── Browser path: JWT → accountId, route command frames to that account's agent.
