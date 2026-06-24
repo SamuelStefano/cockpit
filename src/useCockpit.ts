@@ -894,6 +894,12 @@ export function useCockpit(): Cockpit {
       // Mostra erro claro e reconecta pra restaurar (o frame ofensor não é reenviado).
       if (ev.code === 1009) {
         const key = activeRef.current;
+        // O frame que estourou era o upload inline (fallback WS) — tira o chip preso
+        // em "uploading" senão o spinner roda pra sempre.
+        if (attachmentsRef.current.some((a) => a.uploading)) {
+          attachmentsRef.current = attachmentsRef.current.filter((a) => !a.uploading);
+          setAttachments(attachmentsRef.current);
+        }
         if (key) updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: '⚠️ Arquivo grande demais para enviar pela conexão — anexe um arquivo menor.' }], error: true }]);
       }
       scheduleRetry();
@@ -1034,10 +1040,19 @@ export function useCockpit(): Cockpit {
     // Chip otimista na hora (com spinner) — antes só aparecia DEPOIS do ack do
     // servidor, sem feedback durante o upload. O 'uploaded' reconcilia pelo clientId.
     setAtts([...attachmentsRef.current, { name: file.name, path: clientId, clientId, uploading: true }]);
+    let done = false;
     const fail = (msg: string) => {
+      if (done) return; done = true;
       setAtts(attachmentsRef.current.filter((a) => a.clientId !== clientId));
       updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: msg }], error: true }]);
     };
+    // Watchdog: o chip NUNCA fica "carregando" pra sempre. Se em 75s ainda estiver
+    // uploading (fetch pendurado, sem ack do backend, relay dropou), some + erro.
+    setTimeout(() => {
+      if (!done && attachmentsRef.current.some((a) => a.clientId === clientId && a.uploading)) {
+        fail(`⚠️ Upload de "${file.name}" demorou demais — tente de novo.`);
+      }
+    }, 75_000);
     const cfg = s3Config.current;
     if (cfg) {
       // Upload DIRETO na edge fn por HTTP: sai do frame WS (sem o cap de ~4MB do
@@ -1045,7 +1060,7 @@ export function useCockpit(): Cockpit {
       // a URL volta pro backend (attach-ref) — ele baixa pro workdir pro Read do agente.
       const form = new FormData();
       form.append('file', file);
-      fetch(cfg.uploadUrl, { method: 'POST', headers: { authorization: `Bearer ${cfg.anonKey}`, apikey: cfg.anonKey }, body: form })
+      fetch(cfg.uploadUrl, { method: 'POST', headers: { authorization: `Bearer ${cfg.anonKey}`, apikey: cfg.anonKey }, body: form, signal: AbortSignal.timeout(60_000) })
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
         .then((j: { url?: string }) => {
           if (!j?.url) throw new Error('sem url');
