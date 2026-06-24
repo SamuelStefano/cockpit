@@ -114,53 +114,113 @@ export function extractDocxText(buf: Buffer): string | null {
   }
 }
 
+// Grava o buffer no workdir isolado (path RELATIVO pro Read do agente) + extrai
+// texto de .docx. Compartilhado pelo upload via WS (b64) e pelo upload direto na
+// edge fn (browser sobe pro S3, backend baixa pra cá). Valida tamanho e traversal.
+async function persistBuffer(
+  sessionKey: string,
+  name: string,
+  buf: Buffer,
+): Promise<{ path: string; text?: string } | { error: string }> {
+  if (buf.length === 0) return { error: 'arquivo vazio' };
+  if (buf.length > CONFIG.maxUploadBytes) return { error: 'arquivo grande demais' };
+  const key = safeSeg(sessionKey, 64, 'default');
+  // Sufixo aleatório além do timestamp: dois uploads no mesmo ms com o mesmo nome
+  // resolveriam pro mesmo path e o 2º sobrescreveria o 1º (Read apontaria errado).
+  const fname = `${Date.now().toString(36)}-${randomBytes(4).toString('hex')}-${safeSeg(name, 80, 'file')}`;
+  const root = resolve(CONFIG.workdir, 'attachments');
+  const dir = resolve(root, key);
+  const full = resolve(dir, fname);
+  if (!dir.startsWith(root + '/') || !full.startsWith(dir + '/')) return { error: 'nome inválido' };
+  await mkdir(dir, { recursive: true });
+  await writeFile(full, buf);
+  const rel = join('attachments', key, fname);
+  // .docx é um ZIP binário — extrai o texto e devolve inline (o agente recebe o
+  // conteúdo direto, sem depender do Read; o chip segue apontando pro .docx original).
+  if (/\.docx$/i.test(name)) {
+    const text = extractDocxText(buf);
+    if (text) return { path: rel, text: text.length > MAX_INLINE_TEXT ? text.slice(0, MAX_INLINE_TEXT) + '\n\n[…texto truncado]' : text };
+    console.warn(`[attachments] extração de texto falhou para .docx: ${name}`);
+  }
+  return { path: rel };
+}
+
 export async function saveAttachment(
   sessionKey: string,
   name: string,
   dataB64: string,
 ): Promise<{ path: string; text?: string; s3url?: string } | { error: string }> {
-  // O frame da WS é JSON.parse cru: os campos chegam sem validação de tipo. Um
-  // dataB64 não-string faria Buffer.from lançar; sessionKey/name não-string
-  // quebraria o basename. Recusa cedo em vez de cair no caminho de erro.
+  // O frame da WS é JSON.parse cru: os campos chegam sem validação de tipo.
   if (typeof sessionKey !== 'string' || typeof name !== 'string' || typeof dataB64 !== 'string') {
     return { error: 'anexo inválido' };
   }
   const buf = Buffer.from(dataB64, 'base64');
-  if (buf.length === 0) return { error: 'arquivo vazio' };
-  if (buf.length > CONFIG.maxUploadBytes) return { error: 'arquivo grande demais' };
-
-  const key = safeSeg(sessionKey, 64, 'default');
-  // Sufixo aleatório além do timestamp: dois uploads no mesmo ms com o mesmo nome
-  // resolveriam pro mesmo path e o 2º sobrescreveria o 1º (Read apontaria errado).
-  const fname = `${Date.now().toString(36)}-${randomBytes(4).toString('hex')}-${safeSeg(name, 80, 'file')}`;
-
-  const root = resolve(CONFIG.workdir, 'attachments');
-  const dir = resolve(root, key);
-  const full = resolve(dir, fname);
-  // anti-traversal: tudo tem de cair sob workdir/attachments
-  if (!dir.startsWith(root + '/') || !full.startsWith(dir + '/')) return { error: 'nome inválido' };
-
-  await mkdir(dir, { recursive: true });
-  await writeFile(full, buf);
-  const rel = join('attachments', key, fname);
-
-  // Espelha no S3 (edge fn DFL) p/ exibição remota/mobile sem round-trip no backend.
-  // Best-effort: se S3 estiver off/falhar, s3url fica undefined e o preview cai no
-  // thumb servido pelo backend (fluxo local intacto). O Read do agente usa o path local.
+  const r = await persistBuffer(sessionKey, name, buf);
+  if ('error' in r) return r;
+  // Espelha no S3 (best-effort): exibição remota/mobile sem round-trip no backend.
   const s3 = await uploadToS3(buf, name, mimeOf(name));
-  const s3url = s3?.url;
+  return { ...r, s3url: s3?.url };
+}
 
-  // .docx é um ZIP binário — nem o Read do agente nem o preview o parseiam. Extrai
-  // o texto e devolve inline (o cliente embute no prompt): o agente recebe o
-  // conteúdo direto, sem depender do Read, e o chip segue apontando pro .docx
-  // original (preview/download intactos). xlsx/pptx/outros binários seguem crus;
-  // PDF o Read nativo já parseia.
-  if (/\.docx$/i.test(name)) {
-    const text = extractDocxText(buf);
-    if (text) return { path: rel, s3url, text: text.length > MAX_INLINE_TEXT ? text.slice(0, MAX_INLINE_TEXT) + '\n\n[…texto truncado]' : text };
-    console.warn(`[attachments] extração de texto falhou para .docx: ${name}`);
+// Upload em CHUNKS via WS: o browser fatia o base64 em pedaços (cada frame < cap do
+// relay) e o backend remonta. Evita o cap de frame do relay E o upload direto
+// browser→edge fn (que travava por CORS/Cloudflare). No último chunk, grava local
+// (Read do agente) + espelha no S3 server-side (caminho comprovado).
+interface ChunkUpload { sessionKey: string; name: string; total: number; parts: (string | undefined)[]; bytes: number; ts: number }
+const chunkUploads = new Map<string, ChunkUpload>();
+const CHUNK_TTL = 120_000;
+function sweepChunks(now: number): void { for (const [id, u] of chunkUploads) if (now - u.ts > CHUNK_TTL) chunkUploads.delete(id); }
+
+export async function addUploadChunk(
+  uploadId: string, sessionKey: string, name: string, seq: number, total: number, dataB64: string,
+): Promise<{ path: string; text?: string; s3url?: string } | { error: string } | null> {
+  if (typeof uploadId !== 'string' || !/^[\w-]{1,64}$/.test(uploadId)) return { error: 'upload inválido' };
+  if (typeof sessionKey !== 'string' || typeof name !== 'string' || typeof dataB64 !== 'string') return { error: 'upload inválido' };
+  if (!Number.isInteger(total) || total < 1 || total > 2000) return { error: 'upload inválido' };
+  if (!Number.isInteger(seq) || seq < 0 || seq >= total) return { error: 'upload inválido' };
+  const now = Date.now();
+  sweepChunks(now);
+  let u = chunkUploads.get(uploadId);
+  if (!u) { u = { sessionKey, name, total, parts: new Array(total), bytes: 0, ts: now }; chunkUploads.set(uploadId, u); }
+  if (u.parts[seq] === undefined) { u.parts[seq] = dataB64; u.bytes += dataB64.length; }
+  u.ts = now;
+  // Teto cedo (base64 ~+33%): aborta uploads grandes antes de remontar.
+  if (u.bytes > CONFIG.maxUploadBytes * 2) { chunkUploads.delete(uploadId); return { error: 'arquivo grande demais' }; }
+  if (u.parts.some((p) => p === undefined)) return null; // ainda faltam chunks
+  chunkUploads.delete(uploadId);
+  const buf = Buffer.from(u.parts.join(''), 'base64');
+  const r = await persistBuffer(sessionKey, name, buf);
+  if ('error' in r) return r;
+  const s3 = await uploadToS3(buf, name, mimeOf(name));
+  return { ...r, s3url: s3?.url };
+}
+
+const S3_HOST_RE = /^https:\/\/[a-z0-9.-]+\.s3[.a-z0-9-]*\.amazonaws\.com\/[\w./-]+$/i;
+
+// Upload DIRETO na edge fn: o browser já subiu o arquivo pro S3 (sem passar pelo
+// WS/relay, sem cap de frame) e manda só a URL. O backend BAIXA do S3 pro workdir
+// local pra o Read do agente seguir funcionando como antes. s3url é a referência
+// durável (sobrevive a reload). Valida o host (só S3) contra SSRF.
+export async function saveAttachmentFromUrl(
+  sessionKey: string,
+  name: string,
+  s3url: string,
+): Promise<{ path: string; text?: string; s3url: string } | { error: string }> {
+  if (typeof sessionKey !== 'string' || typeof name !== 'string' || typeof s3url !== 'string') {
+    return { error: 'anexo inválido' };
   }
-  return { path: rel, s3url };
+  if (!S3_HOST_RE.test(s3url)) return { error: 'url de anexo inválida' };
+  let buf: Buffer;
+  try {
+    const res = await fetch(s3url, { signal: AbortSignal.timeout(30_000) });
+    if (!res.ok) return { error: `download do anexo falhou (${res.status})` };
+    const ab = await res.arrayBuffer();
+    if (ab.byteLength > CONFIG.maxUploadBytes) return { error: 'arquivo grande demais' };
+    buf = Buffer.from(ab);
+  } catch { return { error: 'download do anexo falhou' }; }
+  const r = await persistBuffer(sessionKey, name, buf);
+  if ('error' in r) return r;
+  return { ...r, s3url };
 }
 
 // Lê um anexo salvo pra preview no chat. Aceita só paths relativos no formato que

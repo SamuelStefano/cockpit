@@ -17,7 +17,7 @@ import { attachmentTextBlock } from './lib/parse-attachments';
 
 export interface ContextDoc { id: string; title: string; body: string }
 export interface SkillDoc { id: string; name: string; body: string }
-export interface Attachment { name: string; path: string; text?: string; s3url?: string }
+export interface Attachment { name: string; path: string; text?: string; s3url?: string; uploading?: boolean; clientId?: string }
 export interface AttachmentPreview { path: string; name: string; dataB64?: string; error?: string }
 export type { TermApi };
 import type { ConnState } from './components/primitives';
@@ -177,6 +177,16 @@ export function useCockpit(): Cockpit {
   const adminOpTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const attachmentsRef = useRef<Attachment[]>([]);
+  // Config do upload direto na edge fn (URL+anon key), entregue pelo backend no
+  // connect. null = S3 off → onUpload cai no fluxo via WS de sempre.
+  const s3Config = useRef<{ uploadUrl: string; anonKey: string } | null>(null);
+  // Helper: aplica uma mudança no array de anexos (estado + ref + persiste por sessão).
+  const setAtts = useCallback((next: Attachment[]) => {
+    attachmentsRef.current = next;
+    setAttachments(next);
+    const k = activeRef.current;
+    if (k) savePref(`pendingAtts:${k}`, next.filter((a) => !a.uploading));
+  }, []);
   const [attPreview, setAttPreview] = useState<AttachmentPreview | null>(null);
   const [attThumbs, setAttThumbs] = useState<Record<string, string>>({});
   const attThumbsRef = useRef<Record<string, string>>({});
@@ -675,10 +685,17 @@ export function useCockpit(): Cockpit {
         adminOpTimer.current = setTimeout(() => setAdminOp(null), msg.ok ? 4000 : 8000);
         return;
       }
+      case 's3-config': {
+        s3Config.current = { uploadUrl: msg.uploadUrl, anonKey: msg.anonKey };
+        return;
+      }
       case 'uploaded': {
-        const next = [...attachmentsRef.current, { name: msg.name, path: msg.path, text: msg.text, s3url: msg.s3url }];
-        attachmentsRef.current = next;
-        setAttachments(next);
+        const real: Attachment = { name: msg.name, path: msg.path, text: msg.text, s3url: msg.s3url };
+        const cur = attachmentsRef.current;
+        // Reconcilia o chip otimista (uploading) pelo clientId — substitui no lugar
+        // em vez de duplicar. Sem clientId (upload via WS antigo) só anexa.
+        const idx = msg.clientId ? cur.findIndex((a) => a.clientId === msg.clientId) : -1;
+        setAtts(idx >= 0 ? cur.map((a, i) => (i === idx ? real : a)) : [...cur, real]);
         return;
       }
       case 'attachment': {
@@ -776,7 +793,7 @@ export function useCockpit(): Cockpit {
             if (fullViewId.current !== id) fullViewId.current = null;
             activeRef.current = id;
             setActiveIdState(id);
-            if (attachmentsRef.current.length) { attachmentsRef.current = []; setAttachments([]); }
+            if (attachmentsRef.current.length) { setAtts([]); }
             setAttPreview(null);
             setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === id })));
             if (id && !id.startsWith('new-') && !opened.current.has(id) && send({ t: 'open', sessionId: id })) opened.current.add(id);
@@ -809,7 +826,7 @@ export function useCockpit(): Cockpit {
               if (fullViewId.current !== key) fullViewId.current = null;
               activeRef.current = key;
               setActiveIdState(key);
-              if (attachmentsRef.current.length) { attachmentsRef.current = []; setAttachments([]); }
+              if (attachmentsRef.current.length) { setAtts([]); }
               setAttPreview(null);
               setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === key })));
             },
@@ -853,6 +870,7 @@ export function useCockpit(): Cockpit {
       send({ t: 'list-archived' });
       send({ t: 'usage-list' });
       send({ t: 'skill-list' }); // popula o seletor de skills do composer
+      send({ t: 's3-config' });  // URL+anon key pra upload HTTP direto na edge fn
       // Sessão ativada enquanto o WS esteve fechado nunca recebeu o 'open' (frame
       // descartado) — sem isto o thread visível ficava vazio até um F5.
       const act = activeRef.current;
@@ -876,6 +894,12 @@ export function useCockpit(): Cockpit {
       // Mostra erro claro e reconecta pra restaurar (o frame ofensor não é reenviado).
       if (ev.code === 1009) {
         const key = activeRef.current;
+        // O frame que estourou era o upload inline (fallback WS) — tira o chip preso
+        // em "uploading" senão o spinner roda pra sempre.
+        if (attachmentsRef.current.some((a) => a.uploading)) {
+          attachmentsRef.current = attachmentsRef.current.filter((a) => !a.uploading);
+          setAttachments(attachmentsRef.current);
+        }
         if (key) updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: '⚠️ Arquivo grande demais para enviar pela conexão — anexe um arquivo menor.' }], error: true }]);
       }
       scheduleRetry();
@@ -947,7 +971,11 @@ export function useCockpit(): Cockpit {
     setActiveIdState(id);
     // Sessão real (não rascunho local) vira a última ativa — sobrevive ao F5.
     if (id && !id.startsWith('new-')) savePref('activeId', id);
-    if (attachmentsRef.current.length) { attachmentsRef.current = []; setAttachments([]); }
+    // Reidrata os anexos pendentes da sessão alvo (persistidos por sessão) em vez de
+    // só limpar — assim trocar de sessão / dar F5 não some com os anexos do composer.
+    const pend = id ? loadPref<Attachment[]>(`pendingAtts:${id}`, []) : [];
+    attachmentsRef.current = pend;
+    setAttachments(pend);
     // Modal de preview é transitório da sessão: trocar via Alt+↑/↓ com ele aberto
     // deixava o anexo da sessão anterior na tela da nova.
     setAttPreview(null);
@@ -975,14 +1003,16 @@ export function useCockpit(): Cockpit {
     if (!busy) inFlight.current.add(key);
     stopping.current.delete(key); // novo prompt nesta sessão cancela o latch de stop
     requestNotifyPermission(); // 1ª vez: pede permissão (gesto do usuário)
-    const atts = attachmentsRef.current;
+    // Só anexos JÁ confirmados entram no prompt — um chip 'uploading' tem path
+    // temporário (clientId) que o agente não conseguiria abrir.
+    const atts = attachmentsRef.current.filter((a) => !a.uploading);
     // Anexos viram refs de path no início do prompt; o agente abre via Read. Pra
     // .docx (binário que o Read não parseia) o texto extraído vai inline logo após
     // o ref — o agente recebe o conteúdo direto e o chip segue no .docx original.
     const wire = atts.length
       ? atts.map((a) => (a.text ? `[anexo: ${a.path}]\n${attachmentTextBlock(a.name, a.text)}` : `[anexo: ${a.path}]`)).join('\n') + '\n\n' + text
       : text;
-    if (atts.length) { attachmentsRef.current = []; setAttachments([]); }
+    if (atts.length) { setAtts([]); }
     setInterrupted((p) => { if (!(key in p)) return p; const n = { ...p }; delete n[key]; return n; });
     // Add otimista (feedback instantâneo, sem round-trip). O servidor ecoa esta
     // mensagem com o MESMO msgId pra todos os clientes; este aqui deduplica por id.
@@ -1006,25 +1036,43 @@ export function useCockpit(): Cockpit {
   const onUpload = useCallback((file: File) => {
     const key = activeRef.current;
     if (!key) return;
+    const clientId = newId('up');
+    // Chip otimista na hora (com spinner) — antes só aparecia DEPOIS do ack do
+    // servidor, sem feedback durante o upload. O 'uploaded' reconcilia pelo clientId.
+    setAtts([...attachmentsRef.current, { name: file.name, path: clientId, clientId, uploading: true }]);
+    let done = false;
+    const fail = (msg: string) => {
+      if (done) return; done = true;
+      setAtts(attachmentsRef.current.filter((a) => a.clientId !== clientId));
+      updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: msg }], error: true }]);
+    };
+    // Watchdog: o chip NUNCA fica "carregando" pra sempre. Se em 75s ainda estiver
+    // uploading (fetch pendurado, sem ack do backend, relay dropou), some + erro.
+    setTimeout(() => {
+      if (!done && attachmentsRef.current.some((a) => a.clientId === clientId && a.uploading)) {
+        fail(`⚠️ Upload de "${file.name}" demorou demais — tente de novo.`);
+      }
+    }, 75_000);
+    // Upload em CHUNKS via WS: fatia o base64 em pedaços pequenos (cada frame bem
+    // abaixo do cap do relay), o backend remonta e sobe pro S3 server-side. Evita o
+    // upload direto browser→edge fn (travava por CORS/Cloudflare) e o cap de frame.
     const reader = new FileReader();
     reader.onload = () => {
       const res = String(reader.result);
       const b64 = res.includes(',') ? res.slice(res.indexOf(',') + 1) : res;
-      send({ t: 'upload', sessionKey: key, name: file.name, dataB64: b64 });
+      const CHUNK = 700_000; // ~700KB de base64 por frame (folga sob o cap do relay)
+      const total = Math.max(1, Math.ceil(b64.length / CHUNK));
+      for (let seq = 0; seq < total; seq++) {
+        send({ t: 'upload-chunk', uploadId: clientId, sessionKey: key, name: file.name, seq, total, dataB64: b64.slice(seq * CHUNK, (seq + 1) * CHUNK), clientId });
+      }
     };
-    // Sem isto a falha de leitura (permissão, arquivo removido no meio) era muda:
-    // o anexo simplesmente não aparecia e o usuário mandava o prompt sem ele.
-    reader.onerror = reader.onabort = () => {
-      updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ Falha ao ler o arquivo "${file.name}" — tente anexar de novo.` }], error: true }]);
-    };
+    reader.onerror = reader.onabort = () => fail(`⚠️ Falha ao ler o arquivo "${file.name}" — tente anexar de novo.`);
     reader.readAsDataURL(file);
-  }, [send, updateThread]);
+  }, [send, updateThread, setAtts]);
 
   const onRemoveAttachment = useCallback((path: string) => {
-    const next = attachmentsRef.current.filter((a) => a.path !== path);
-    attachmentsRef.current = next;
-    setAttachments(next);
-  }, []);
+    setAtts(attachmentsRef.current.filter((a) => a.path !== path));
+  }, [setAtts]);
 
   const changeMode = useCallback((m: PermMode) => { modeRef.current = m; setMode(m); savePref('mode', m); }, []);
   const changeBypass = useCallback((b: boolean) => { bypassRef.current = b; setBypass(b); }, []);
@@ -1156,7 +1204,7 @@ export function useCockpit(): Cockpit {
       fullViewId.current = null;
       activeRef.current = fb;
       setActiveIdState(fb);
-      if (attachmentsRef.current.length) { attachmentsRef.current = []; setAttachments([]); }
+      if (attachmentsRef.current.length) { setAtts([]); }
       setAttPreview(null);
       if (fb && !fb.startsWith('new-') && !opened.current.has(fb) && send({ t: 'open', sessionId: fb })) opened.current.add(fb);
       return next.map((s) => ({ ...s, active: s.id === fb }));

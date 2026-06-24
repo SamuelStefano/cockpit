@@ -13,7 +13,7 @@ import type { Role } from '../auth';
 // (hide/unhide/purge/set-meta) nem listagem do arquivo (list-archived).
 const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   'send', 'stop', 'list', 'open', 'open-full', 'search',
-  'ctx-list', 'ctx-open', 'skill-list', 'skill-open', 'usage-list', 'upload', 'att-open',
+  'ctx-list', 'ctx-open', 'skill-list', 'skill-open', 'usage-list', 'upload', 'upload-chunk', 'att-open',
   'refresh-models',
 ]);
 

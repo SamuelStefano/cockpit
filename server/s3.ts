@@ -13,6 +13,15 @@ function anonKey(): string | undefined {
 
 export function s3Enabled(): boolean { return !!anonKey(); }
 
+// Config entregue ao browser autenticado (frame s3-config) pra ele subir o arquivo
+// DIRETO na edge fn por HTTP — sem passar o arquivo pelo frame WS (que estourava o
+// maxPayload do relay) e sem hardcodar a anon key no bundle (repo público). null se
+// o S3 não está configurado → o front cai no upload via WS de sempre.
+export function s3Config(): { uploadUrl: string; anonKey: string } | null {
+  const key = anonKey();
+  return key ? { uploadUrl: UPLOAD_URL, anonKey: key } : null;
+}
+
 export interface S3Result { url: string; path: string; name: string; type: string }
 
 // Sobe um buffer e devolve a URL pública S3. Best-effort: qualquer falha → null

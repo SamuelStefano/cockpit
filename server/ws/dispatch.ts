@@ -3,12 +3,13 @@ import type { ClientMsg } from '../../shared/protocol';
 import type { Role } from '../auth';
 import { listSessions, listArchived } from '../sessions/index';
 import { searchSessions } from '../sessions/search';
-import { listContexts, readContext } from '../contexts';
+import { listContexts, readContext, installContext } from '../contexts';
 import { getNotes, saveNotes } from '../notes';
 import { getCrons, saveCron, deleteCron } from '../crons';
 import { fireCron } from './runs';
-import { listSkills, readSkill, resolveSkillDeny } from '../skills';
-import { saveAttachment, readAttachment } from '../attachments';
+import { listSkills, readSkill, resolveSkillDeny, installSkill } from '../skills';
+import { saveAttachment, saveAttachmentFromUrl, addUploadChunk, readAttachment } from '../attachments';
+import { s3Config } from '../s3';
 import { usageStats } from '../db';
 import { hideSession, unhideSession, purgeSession, setTitle, setNote } from '../store';
 import { parseSession, parseFullSession } from '../sessions/parse';
@@ -127,6 +128,20 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       if (s) send(ws, { t: 'skill', id: msg.id, name: s.name, body: s.body });
       return;
     }
+    // Compartilhamento (write-path, admin-only via authz): grava um contexto/skill
+    // importado na própria conta. Guards (slug/imported-/anti-traversal/cap) nas fns.
+    case 'ctx-install': {
+      const r = await installContext(msg.slug, msg.title, msg.body);
+      send(ws, 'error' in r ? { t: 'install-result', kind: 'context', ok: false, error: r.error } : { t: 'install-result', kind: 'context', ok: true, id: r.id });
+      if (!('error' in r)) send(ws, { t: 'contexts', items: await listContexts() });
+      return;
+    }
+    case 'skill-install': {
+      const r = await installSkill(msg.slug, msg.title, msg.body);
+      send(ws, 'error' in r ? { t: 'install-result', kind: 'skill', ok: false, error: r.error } : { t: 'install-result', kind: 'skill', ok: true, id: r.id });
+      if (!('error' in r)) send(ws, { t: 'skills', items: await listSkills() });
+      return;
+    }
     case 'usage-list': {
       send(ws, { t: 'usage-stats', stats: usageStats() });
       return;
@@ -189,7 +204,31 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'upload': {
       const r = await saveAttachment(msg.sessionKey, msg.name, msg.dataB64);
       if ('error' in r) send(ws, { t: 'error', message: r.error });
-      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url });
+      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url, clientId: msg.clientId });
+      return;
+    }
+    // Upload em chunks via WS (caminho robusto): o backend remonta e sobe pro S3
+    // server-side. null = ainda faltam chunks (não responde).
+    case 'upload-chunk': {
+      const r = await addUploadChunk(msg.uploadId, msg.sessionKey, msg.name, msg.seq, msg.total, msg.dataB64);
+      if (r === null) return;
+      if ('error' in r) send(ws, { t: 'error', message: r.error });
+      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url, clientId: msg.clientId });
+      return;
+    }
+    // Upload direto na edge fn: o browser pede a config (URL+anon key, só após o gate
+    // de auth do WS — nunca hardcoded no bundle público) e sobe o arquivo por HTTP.
+    case 's3-config': {
+      const cfg = s3Config();
+      if (cfg) send(ws, { t: 's3-config', uploadUrl: cfg.uploadUrl, anonKey: cfg.anonKey });
+      return;
+    }
+    // O browser já subiu pro S3 e manda só a URL; o backend baixa pro workdir local
+    // (pro Read do agente). clientId ecoa pra o front casar com o chip otimista.
+    case 'attach-ref': {
+      const r = await saveAttachmentFromUrl(msg.sessionKey, msg.name, msg.s3url);
+      if ('error' in r) send(ws, { t: 'error', message: r.error });
+      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url, clientId: msg.clientId });
       return;
     }
     case 'att-open': {
