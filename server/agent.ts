@@ -73,6 +73,12 @@ export function backoffMs(attempt: number): number {
 // Socket cujo broadcast está ativo. Compare-and-clear: o 'close' do socket antigo
 // NÃO pode zerar a fonte de um socket novo que já reconectou (race de reconnect).
 let activeWs: WebSocket | null = null;
+// Presença de browser na conta (sinal do relay: browsers-present/no-browsers). Os
+// loops periódicos (stats 2s, plan-usage 60s, models) rodavam enquanto o agente
+// estivesse pareado, mesmo sem NENHUMA aba aberta — queimava quota OAuth/CPU 24/7.
+// Default true: se o relay for uma versão antiga (sem os frames), comporta como antes
+// (loops rodam) — sem regressão; só PAUSA quando o relay novo diz que ninguém olha.
+let browsersPresent = true;
 
 function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: () => void, onAuthed: () => void): WebSocket {
   const ws = new WebSocket(`${relayUrl.replace(/\/$/, '')}/agent`);
@@ -98,12 +104,22 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: ()
       // o relay sozinho não sabe disso e força false. Reporta a real pro relay casar
       // com o papel do browser — o bypass continua aplicado SÓ aqui (bypassAllowed).
       ws.send(JSON.stringify({ t: 'agent-caps', canBypass: capsFor(AGENT_ROLE, CONFIG).canBypass }));
+      // Listener adicional (coexiste com o do serveConnection): os frames de presença
+      // do relay alternam os loops periódicos. São control-only — o dispatch os ignora
+      // como tipo desconhecido, então não há conflito em receberem nos dois listeners.
+      ws.on('message', (raw: Buffer) => {
+        try {
+          const p = JSON.parse(raw.toString()) as { t?: string };
+          if (p.t === 'browsers-present') browsersPresent = true;
+          else if (p.t === 'no-browsers') browsersPresent = false;
+        } catch { /* não-JSON: ignora */ }
+      });
     }
   };
 
   ws.on('open', () => { onOpen(); ws.send(JSON.stringify({ t: 'agent-hello', agentId: id.agentId })); });
   ws.on('message', onHandshake);
-  ws.on('close', () => { if (activeWs === ws) { setClientSource(null); activeWs = null; } onClose(); });
+  ws.on('close', () => { if (activeWs === ws) { setClientSource(null); activeWs = null; browsersPresent = true; } onClose(); });
   ws.on('error', () => { /* o 'close' cuida do reconnect */ });
 
   // Health check do link: ping a cada 30s E checa o pong. Sem checar o pong um
@@ -196,7 +212,7 @@ export function runAgent(relayUrl: string): void {
   // pro relay (activeWs). broadcast já sai por ele via setClientSource. Sem isto a
   // UI nunca recebe stats/plan-usage atualizados (barra de usage e telemetria
   // travadas em "carregando") nem as versões concretas dos modelos.
-  const hasClients = () => activeWs !== null;
+  const hasClients = () => activeWs !== null && browsersPresent;
   startStatsLoop(hasClients);
   startPlanUsageLoop(hasClients);
   startModelsLoop(hasClients);

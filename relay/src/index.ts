@@ -116,15 +116,25 @@ export function createRelay(cfg: RelayConfig) {
     // do JWKS) terminar e o listener real ser anexado. Sem capturar, o `ws` descarta
     // esses frames (sem listener) e a aba nunca recebe `sessions` → sidebar vazio em
     // prod/relay. Bufferiza os frames pré-auth e os drena depois de autenticar.
+    // Teto do buffer pré-auth: um socket que nunca autentica (ou um atacante) podia
+    // despejar frames sem limite durante o await do JWKS até estourar a heap. Frames
+    // legítimos pré-auth são ~4 (list/usage/skill-list). Acima do teto, fecha.
     const early: string[] = [];
-    const buffer = (data: import('ws').RawData) => { early.push(data.toString()); };
+    let earlyBytes = 0;
+    const buffer = (data: import('ws').RawData) => {
+      const s = data.toString();
+      if (early.length >= 32 || earlyBytes + s.length > 256 * 1024) { try { ws.close(4413, 'pre-auth flood'); } catch { /* indo */ } return; }
+      earlyBytes += s.length;
+      early.push(s);
+    };
     ws.on('message', buffer);
 
     const id = await identityFrom(tokenFromUrl(req.url));
     if (!id) { ws.close(4401, 'auth'); return; }            // default-deny (red line #10)
     const accountId = id.accountId;
     (ws as BrowserSock)._role = id.role;                     // pra reemitir caps no agent-caps
-    registry.addBrowser(accountId, ws);
+    // Primeira aba da conta (0→1) → avisa o agente que há alguém olhando (liga loops).
+    if (registry.addBrowser(accountId, ws)) registry.toAgent(accountId, JSON.stringify({ t: 'browsers-present' }));
     // caps autoritativo do relay (papel da conta vem do JWT). canBypass casa o papel
     // privilegiado com a capacidade que o agente reportou — o gate real é no agente.
     ws.send(capsFrame(id.role, accountId));
@@ -169,7 +179,8 @@ export function createRelay(cfg: RelayConfig) {
     ws.off('message', buffer);
     ws.on('message', (data) => { void onFrame(data.toString()); });
     for (const s of early) void onFrame(s);   // drena na ordem de chegada
-    ws.on('close', () => registry.removeBrowser(accountId, ws));
+    // Última aba (1→0) → avisa o agente que ninguém está olhando (pausa loops).
+    ws.on('close', () => { if (registry.removeBrowser(accountId, ws)) registry.toAgent(accountId, JSON.stringify({ t: 'no-browsers' })); });
   });
 
   // ── Agent path: challenge-signature (Ed25519). Pubkey/conta vêm do Store.
@@ -208,11 +219,17 @@ export function createRelay(cfg: RelayConfig) {
           if (!st.challenge || !verifyAgentSignature(pub, `${st.challenge}.${st.agentId}`, m.sig)) { ws.close(4401, 'bad sig'); return; }
           st.authed = true;
           clearTimeout(authTimer);
-          registry.bindAgent(st.accountId, ws);
+          // Termina um socket de agente ANTERIOR da mesma conta (reconnect com o velho
+          // meio-aberto) — senão os dois coexistiam empurrando frames até o heartbeat.
+          const prevAgent = registry.bindAgent(st.accountId, ws);
+          if (prevAgent) { try { (prevAgent as WebSocket).terminate(); } catch { /* já indo */ } }
           await cfg.store.markAgentSeen(st.agentId);
           ws.send(JSON.stringify({ t: 'agent-ready' }));
           // Avisa as abas da conta que o agente ficou online.
           registry.toBrowsers(st.accountId, JSON.stringify({ t: 'agent-online' }));
+          // Estado inicial de presença pro agente recém-pareado: liga os loops só se
+          // já houver aba aberta (senão ficam pausados até a 1ª aba conectar).
+          ws.send(JSON.stringify({ t: registry.browserCount(st.accountId) > 0 ? 'browsers-present' : 'no-browsers' }));
           return;
         }
         ws.close(4401, 'auth required'); return;
