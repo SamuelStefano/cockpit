@@ -9,6 +9,7 @@ import { fitHeight } from './fit-height';
 import { useFileDrop } from './useFileDrop';
 import { useSlashPalette } from './useSlashPalette';
 import { useComposerRecall } from './useComposerRecall';
+import { pickFreshUploads } from './dedupe-uploads';
 
 interface UseChatInputArgs {
   disabled: boolean;
@@ -38,11 +39,16 @@ export function useChatInput(args: UseChatInputArgs) {
   // textarea poder ficar readOnly enquanto grava (não dá pra digitar e ditar ao
   // mesmo tempo: o próximo trecho reconhecido sobrescreveria o que foi digitado).
   const mic = useSpeechInput(value, setValue);
+  // Assinaturas recém-enviadas pra deduplicar o mesmo arquivo repetido (bug iOS).
+  const recentUploads = useRef<Map<string, number>>(new Map());
   // Sobe vários arquivos respeitando o teto (espelha o backend); retorna quantos
   // passaram pra o caller decidir se houve upload (ex: paste consome o evento).
   const uploadFiles = (files: File[]): number => {
     let n = 0;
-    for (const f of files) { if (f.size > 15_000_000) continue; onUpload(f); n++; }
+    for (const f of pickFreshUploads(files, recentUploads.current, Date.now())) {
+      if (f.size > 15_000_000) continue;
+      onUpload(f); n++;
+    }
     return n;
   };
   const dnd = useFileDrop(uploadFiles, true);
