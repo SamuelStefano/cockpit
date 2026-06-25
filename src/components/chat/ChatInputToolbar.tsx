@@ -1,10 +1,11 @@
 import { Icon } from '../primitives';
 import { ModeToggle } from './ModeToggle';
 import { ModelPicker } from './ModelPicker';
+import { EffortPicker } from './EffortPicker';
 import { BypassToggle } from './BypassToggle';
 import { SkillPicker } from './SkillPicker';
 import { McpPicker } from './McpPicker';
-import type { PermMode, ModelInfo, Caps, SkillMeta } from '../../../shared/protocol';
+import type { PermMode, Effort, ModelInfo, Caps, SkillMeta } from '../../../shared/protocol';
 
 interface ChatInputToolbarProps {
   mode: PermMode;
@@ -23,9 +24,11 @@ interface ChatInputToolbarProps {
   setModel: (m: string) => void;
   models: ModelInfo[];
   onRefreshModels: () => void;
+  effort: Effort;
+  setEffort: (e: Effort) => void;
 }
 
-export function ChatInputToolbar({ mode, setMode, disabled, caps, bypass, setBypass, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, model, setModel, models, onRefreshModels }: ChatInputToolbarProps) {
+export function ChatInputToolbar({ mode, setMode, disabled, caps, bypass, setBypass, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, model, setModel, models, onRefreshModels, effort, setEffort }: ChatInputToolbarProps) {
   return (
     <div className="mb-2 flex flex-wrap items-center gap-2">
       <ModeToggle mode={mode} setMode={setMode} disabled={disabled} />
@@ -45,6 +48,7 @@ export function ChatInputToolbar({ mode, setMode, disabled, caps, bypass, setByp
       <div className="ml-auto flex items-center gap-2">
         <McpPicker servers={mcpServers} selected={selectedMcps} setSelected={setSelectedMcps} />
         <SkillPicker skills={skills} selected={selectedSkills} setSelected={setSelectedSkills} />
+        <EffortPicker effort={effort} setEffort={setEffort} disabled={disabled} />
         <ModelPicker model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} disabled={disabled} />
       </div>
     </div>

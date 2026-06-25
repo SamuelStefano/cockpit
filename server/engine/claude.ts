@@ -35,11 +35,13 @@ export interface RunOpts {
   role?: Role;                 // role do ator (seam Fase 2); gate do bypass
   disallowedSkills?: string[]; // regras Skill(...) das skills NÃO-selecionadas (ver skillDenyRules)
   mcps?: string[];             // MCP servers a CARREGAR neste turno. Default = NENHUM (strict-mcp-config). Cada server adiciona ~5-20k tokens de tool defs por chamada; carregar só os escolhidos corta o overhead que inflava a quota (vs terminal).
+  effort?: string;             // nível de pensamento (--effort low|medium|high|xhigh|max). Sem isto o CLI usa o default da conta (alto) → thinking tokens caros em pedido simples. Default do Deck = low.
   onEvent: (ev: ClaudeEvent) => void;
   onError: (msg: string) => void;
   onClose: () => void;
 }
 
+const EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
 const MODELS = new Set(['opus', 'sonnet', 'haiku']);
 // id concreto vindo de /v1/models (ex: claude-opus-4-8). Ancorado e restrito a
 // [a-z0-9-] pra não virar vetor de injeção de flag no argv.
@@ -56,10 +58,10 @@ export interface RunHandle {
 // - env mínimo (não vaza segredo do processo pai)
 // - cwd isolado
 // - detached pra matar a árvore no stop
-export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills'>;
+export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills'>;
 
 export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: string[] } | { error: string } {
-  const { prompt, resumeId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills } = opts;
+  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills } = opts;
   const { permissionMode, allow } = resolveMode(mode, { bypass, role });
 
   const args = [
@@ -76,6 +78,9 @@ export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: 
   ];
   if (mcpConfigPath) args.push('--mcp-config', mcpConfigPath);
   if (model && validModel(model)) args.push('--model', model);
+  // Nível de pensamento. Sem a flag o CLI usa o default da conta (alto) e queima
+  // thinking tokens até em pedido simples — passar explícito (default low na UI) corta.
+  if (effort && EFFORTS.has(effort)) args.push('--effort', effort);
   if (CONFIG.fallbackModel && validModel(CONFIG.fallbackModel) && CONFIG.fallbackModel !== model) {
     args.push('--fallback-model', CONFIG.fallbackModel);
   }
@@ -95,7 +100,7 @@ export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: 
 }
 
 export function run(opts: RunOpts): RunHandle {
-  const { prompt, resumeId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, onEvent, onError, onClose } = opts;
+  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, onEvent, onError, onClose } = opts;
 
   // MCP por sessão: escreve um config TEMPORÁRIO só com os servers escolhidos
   // (definições completas lidas do ~/.claude.json). Sem seleção → sem arquivo →
@@ -113,7 +118,7 @@ export function run(opts: RunOpts): RunHandle {
   }
   const cleanupMcp = () => { if (mcpConfigPath) { try { unlinkSync(mcpConfigPath); } catch { /* já removido */ } mcpConfigPath = undefined; } };
 
-  const built = buildArgs({ prompt, resumeId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills }, mcpConfigPath);
+  const built = buildArgs({ prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills }, mcpConfigPath);
   if ('error' in built) {
     cleanupMcp();
     onError(built.error);

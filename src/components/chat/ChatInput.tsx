@@ -3,7 +3,7 @@ import { ChatInputToolbar } from './ChatInputToolbar';
 import { AttachmentChips } from './AttachmentChips';
 import { QueuedBanner } from './QueuedBanner';
 import { SlashPalette } from './SlashPalette';
-import type { PermMode, ModelInfo, Caps, SkillMeta } from '../../../shared/protocol';
+import type { PermMode, Effort, ModelInfo, Caps, SkillMeta } from '../../../shared/protocol';
 import type { Attachment } from '../../useCockpit';
 import { useChatInput } from './useChatInput';
 import { MicButton } from './MicButton';
@@ -26,6 +26,8 @@ interface ChatInputProps {
   setModel: (m: string) => void;
   models: ModelInfo[];
   onRefreshModels: () => void;
+  effort: Effort;
+  setEffort: (e: Effort) => void;
   skills: SkillMeta[];
   selectedSkills: string[];
   setSelectedSkills: (ids: string[]) => void;
@@ -50,7 +52,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, onRefreshModels, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, queued, onCancelQueueAt, onMoveQueued, paused = false, quotaResetsAt } = props;
+  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, queued, onCancelQueueAt, onMoveQueued, paused = false, quotaResetsAt } = props;
   const hasAtt = attachments.length > 0;
   const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
   const { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic, ghost, ghostShown, acceptGhost } = useChatInput({ ...props, hasAtt });
@@ -62,6 +64,7 @@ export function ChatInput(props: ChatInputProps) {
         selectedSkills={selectedSkills} setSelectedSkills={setSelectedSkills}
         mcpServers={mcpServers} selectedMcps={selectedMcps} setSelectedMcps={setSelectedMcps}
         model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels}
+        effort={effort} setEffort={setEffort}
       />
       {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} />}
       {mic.error && (

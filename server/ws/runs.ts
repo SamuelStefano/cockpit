@@ -52,6 +52,7 @@ interface QueuedSend {
   role?: Role;
   disallowedSkills?: string[];
   mcps?: string[];
+  effort?: string;
   merge?: boolean;
 }
 const pending = new Map<string, QueuedSend[]>();
@@ -122,7 +123,7 @@ const SESSION_KEY_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 
 // ws null = run sem cliente específico (cron agendado): erros vão por broadcast e
 // o stream do turno é broadcastado a todos os clientes como qualquer outro run.
-export function startRun(ws: WebSocket | null, sessionKey: string, prompt: string, resumeId?: string, msgId?: string, mode?: string, model?: string, maxBudgetUsd?: number, bypass?: boolean, role?: Role, disallowedSkills?: string[], mcps?: string[]) {
+export function startRun(ws: WebSocket | null, sessionKey: string, prompt: string, resumeId?: string, msgId?: string, mode?: string, model?: string, maxBudgetUsd?: number, bypass?: boolean, role?: Role, disallowedSkills?: string[], mcps?: string[], effort?: string) {
   // sessionKey é string crua do cliente usada como chave do mapa `threads` e
   // ecoada nos broadcasts; restringe a um slug (cobre uuid e as keys 'new-…').
   if (typeof sessionKey !== 'string' || !SESSION_KEY_RE.test(sessionKey)) {
@@ -153,6 +154,7 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
     resumeId,
     mode,
     model,
+    effort,
     maxBudgetUsd,
     bypass,
     role,
@@ -205,16 +207,16 @@ function drainPending(sessionKey: string, resumeId?: string) {
   const joined = batch.map((b) => b.prompt).join('\n\n');
   const text = first.merge ? `Complemento do pedido anterior:\n\n${joined}` : joined;
   // msgId undefined: a bolha do usuário já foi ecoada no routeSend (não duplica).
-  startRun(first.ws, sessionKey, text, resumeId, undefined, first.mode, first.model, first.maxBudgetUsd, first.bypass, first.role, first.disallowedSkills, first.mcps);
+  startRun(first.ws, sessionKey, text, resumeId, undefined, first.mode, first.model, first.maxBudgetUsd, first.bypass, first.role, first.disallowedSkills, first.mcps, first.effort);
 }
 
 // Roteia um prompt enviado com o turno da sessão OCUPADO. Ecoa a bolha do usuário
 // na hora, pede o veredito ao triador (haiku) e age conforme a decisão (auto).
-export async function routeSend(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: string, msgId?: string, mode?: string, model?: string, maxBudgetUsd?: number, bypass?: boolean, role?: Role, disallowedSkills?: string[], mcps?: string[]) {
+export async function routeSend(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: string, msgId?: string, mode?: string, model?: string, maxBudgetUsd?: number, bypass?: boolean, role?: Role, disallowedSkills?: string[], mcps?: string[], effort?: string) {
   if (typeof sessionKey !== 'string' || !SESSION_KEY_RE.test(sessionKey)) { send(ws, { t: 'error', message: 'sessão inválida' }); return; }
   if (typeof prompt !== 'string' || Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) { send(ws, { t: 'error', sessionKey, message: 'prompt grande demais' }); return; }
   const cur = threads.get(sessionKey);
-  if (!cur) { startRun(ws, sessionKey, prompt, resumeId, msgId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps); return; } // corrida: turno fechou
+  if (!cur) { startRun(ws, sessionKey, prompt, resumeId, msgId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort); return; } // corrida: turno fechou
 
   // Bolha do usuário aparece já (antes da decisão da triagem, que leva ~alguns s).
   if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
@@ -230,8 +232,8 @@ export async function routeSend(ws: WebSocket, sessionKey: string, prompt: strin
   // mataria um run que nunca avaliamos (flap/queima de token), 'merge'/'wait'
   // enfileiraria contra outra linhagem. Re-checa identidade antes de agir.
   if (threads.get(sessionKey) !== cur) {
-    if (!threads.has(sessionKey)) startRun(ws, sessionKey, prompt, resumeId, undefined, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps);
-    else if (!enqueue(sessionKey, { ws, prompt, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, merge: false })) {
+    if (!threads.has(sessionKey)) startRun(ws, sessionKey, prompt, resumeId, undefined, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort);
+    else if (!enqueue(sessionKey, { ws, prompt, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort, merge: false })) {
       broadcast({ t: 'error', sessionKey, message: 'fila de mensagens cheia' });
     }
     return;
@@ -248,7 +250,7 @@ export async function routeSend(ws: WebSocket, sessionKey: string, prompt: strin
       const carry = cur.text || cur.thinking
         ? `Você estava no meio de: ${cur.prompt}\n\nProgresso até agora (não repita, continue daqui):\n${(cur.thinking || '').slice(-1500)}\n${(cur.text || '').slice(-1500)}\n\nNOVA INSTRUÇÃO URGENTE (priorize):\n${prompt}`
         : prompt;
-      startRun(ws, sessionKey, carry, resumeId, undefined, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps);
+      startRun(ws, sessionKey, carry, resumeId, undefined, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort);
       return;
     }
     case 'answer':
@@ -256,7 +258,7 @@ export async function routeSend(ws: WebSocket, sessionKey: string, prompt: strin
       return;
     case 'merge':
     case 'wait':
-      if (!enqueue(sessionKey, { ws, prompt, msgId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, merge: verdict.action === 'merge' })) {
+      if (!enqueue(sessionKey, { ws, prompt, msgId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort, merge: verdict.action === 'merge' })) {
         broadcast({ t: 'error', sessionKey, message: 'fila de mensagens cheia' });
       }
       return;
@@ -281,5 +283,5 @@ async function runQuickAnswer(sessionKey: string, prompt: string, epoch: number)
 // independente. O stream vai por broadcast pra qualquer cliente conectado.
 export function fireCron(cron: Cron): void {
   if (!cron || typeof cron.prompt !== 'string' || !cron.prompt.trim()) return;
-  startRun(null, `cron-${cron.id}`, cron.prompt, undefined, `cron-${Date.now().toString(36)}`, cron.mode, cron.model);
+  startRun(null, `cron-${cron.id}`, cron.prompt, undefined, `cron-${Date.now().toString(36)}`, cron.mode, cron.model, undefined, undefined, undefined, undefined, undefined, 'low');
 }

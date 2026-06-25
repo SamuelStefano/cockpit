@@ -163,6 +163,15 @@ describe('buildArgs', () => {
     expect(argsOf({ prompt: 'x' })).not.toContain('--effort');
   });
 
+  it('allow-lists effort, dropping unknown levels', () => {
+    for (const e of ['low', 'medium', 'high', 'xhigh', 'max']) {
+      expect(valAfter(argsOf({ prompt: 'x', effort: e }), '--effort')).toBe(e);
+    }
+    for (const bad of ['turbo', 'LOW', 'evil; rm', '']) {
+      expect(argsOf({ prompt: 'x', effort: bad })).not.toContain('--effort');
+    }
+  });
+
   it('adds --resume for a valid uuid and aborts on a malformed one', () => {
     const ok = argsOf({ prompt: 'x', resumeId: '11111111-1111-1111-1111-111111111111' });
     expect(valAfter(ok, '--resume')).toBe('11111111-1111-1111-1111-111111111111');

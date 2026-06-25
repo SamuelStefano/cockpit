@@ -185,6 +185,8 @@ export interface PlanUsage {
 // PermMode: é um flag separado (`bypass` no send) atrás do gate admin+env+loopback
 // (#94, DR-011), pra o safeMode continuar rejeitando bypass vindo como mode.
 export type PermMode = 'plan' | 'auto' | 'acceptEdits';
+// Nível de pensamento (--effort do CLI). Default do Deck = 'low' (econômico).
+export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 // Cron do Deck: dispara um prompt em horário agendado (turno autônomo). Schedule
 // minimalista: intervalo (a cada N min) ou diário (minuto do dia, hora local).
@@ -254,7 +256,7 @@ export type ClientMsg =
   // skills = ids das skills SELECIONADAS p/ este prompt (subconjunto de SkillMeta.id).
   // Vazio/ausente = todas ativas (default fail-open). O backend nega via permission
   // rule as NÃO-selecionadas (--disallowedTools Skill(id)); ver buildArgs.
-  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; msgId?: string; mode?: PermMode; model?: string; maxBudgetUsd?: number; bypass?: boolean; skills?: string[]; mcps?: string[] }
+  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; msgId?: string; mode?: PermMode; model?: string; effort?: Effort; maxBudgetUsd?: number; bypass?: boolean; skills?: string[]; mcps?: string[] }
   | { t: 'accounts-list' }
   | { t: 'set-admin'; accountId: string; admin: boolean }
   | { t: 'stop'; sessionKey: string }

@@ -52,16 +52,17 @@ describe('send routing (the #130 role seam)', () => {
     const args = runs.startRun.mock.calls[0];
     expect(args[0]).toBe(ws);
     expect(args[1]).toBe('k1');
-    expect(args.at(-3)).toBe('admin'); // role reaches a engine (mcps é o último arg agora)
-    expect(args.at(-2)).toEqual([]); // resolved skill-deny rules
-    expect(args.at(-1)).toBeUndefined(); // mcps: nenhum selecionado neste msg
+    expect(args.at(-4)).toBe('admin'); // role reaches a engine (effort é o último arg agora)
+    expect(args.at(-3)).toEqual([]); // resolved skill-deny rules
+    expect(args.at(-2)).toBeUndefined(); // mcps: nenhum selecionado neste msg
+    expect(args.at(-1)).toBeUndefined(); // effort: não enviado neste msg
   });
 
   it('routes a BUSY session to routeSend (triage), also threading the role', async () => {
     runs.threads.set('k1', { handle: { kill: vi.fn() } });
     await handle(ws, msg(), 'student');
     expect(runs.routeSend).toHaveBeenCalledOnce();
-    expect(runs.routeSend.mock.calls[0].at(-3)).toBe('student');
+    expect(runs.routeSend.mock.calls[0].at(-4)).toBe('student');
     expect(runs.startRun).not.toHaveBeenCalled();
   });
 });

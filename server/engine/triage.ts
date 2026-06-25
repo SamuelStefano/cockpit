@@ -46,7 +46,7 @@ function miniEnv(): NodeJS.ProcessEnv {
 // Executa `claude -p` haiku plan-mode e devolve o campo .result (texto). '' em erro/timeout.
 function oneShot(prompt: string, timeoutMs: number, cap = 65536, key = '_'): Promise<string> {
   return new Promise((resolve) => {
-    const args = ['-p', prompt, '--model', 'haiku', '--permission-mode', 'plan', '--strict-mcp-config', '--output-format', 'json'];
+    const args = ['-p', prompt, '--model', 'haiku', '--effort', 'low', '--permission-mode', 'plan', '--strict-mcp-config', '--output-format', 'json'];
     let child: ChildProcess;
     try {
       child = spawn('claude', args, { cwd: CONFIG.workdir, env: miniEnv(), shell: false, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
