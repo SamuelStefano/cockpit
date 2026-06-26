@@ -1,30 +1,36 @@
-// iOS Safari com <input multiple> + fototeca às vezes entrega o MESMO arquivo
-// repetido no FileList (ou re-dispara o change), virando 4 anexos idênticos de uma
-// foto só. Deduplica por assinatura (nome+tamanho+data) dentro de uma janela curta —
-// cobre tanto o FileList repetido quanto re-disparos em sequência.
+// Um print colado / foto da fototeca às vezes chega repetido (mesmo FileList
+// repetido, re-disparo do change/paste, ou caminhos de upload concorrentes) e vira
+// vários anexos idênticos de um arquivo só. Deduplica por assinatura numa janela
+// curta. A assinatura é nome+tamanho (NÃO inclui lastModified: cópias do mesmo
+// arquivo podem vir com data jitterada e furariam o dedup).
 
-type FileLike = { name: string; size: number; lastModified: number };
+type FileLike = { name: string; size: number };
 
 export function fileSig(f: FileLike): string {
-  return `${f.name}:${f.size}:${f.lastModified}`;
+  return `${f.name}:${f.size}`;
 }
 
-// Retorna só os arquivos novos na janela e marca os aceitos em `seen` (com prune das
-// entradas vencidas pra o mapa não crescer sem fim).
+// true se o arquivo é novo na janela (e marca como visto); false se é repetido.
+// Faz prune das entradas vencidas pra o mapa não crescer sem fim.
+export function isFreshUpload(
+  seen: Map<string, number>,
+  sig: string,
+  now: number,
+  windowMs = 3000,
+): boolean {
+  for (const [k, t] of seen) if (now - t >= windowMs) seen.delete(k);
+  const last = seen.get(sig);
+  if (last !== undefined && now - last < windowMs) return false;
+  seen.set(sig, now);
+  return true;
+}
+
+// Filtra uma lista de arquivos mantendo só os novos na janela.
 export function pickFreshUploads<T extends FileLike>(
   files: T[],
   seen: Map<string, number>,
   now: number,
   windowMs = 3000,
 ): T[] {
-  for (const [k, t] of seen) if (now - t >= windowMs) seen.delete(k);
-  const out: T[] = [];
-  for (const f of files) {
-    const sig = fileSig(f);
-    const last = seen.get(sig);
-    if (last !== undefined && now - last < windowMs) continue;
-    seen.set(sig, now);
-    out.push(f);
-  }
-  return out;
+  return files.filter((f) => isFreshUpload(seen, fileSig(f), now, windowMs));
 }
