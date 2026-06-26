@@ -1,0 +1,9 @@
+# Linha pra ~/.ssh/authorized_keys do usuário do agente na VPS (uma linha só).
+# Trava a chave do desktop: SEM shell/pty/agent/X11, SEM forward local; só remote
+# forward (-R) no loopback da VPS, e todo comando vira `deck-tunnel relay` (que só
+# aceita pop/ready/list/hold — ver parseRelayCommand). Troque a chave pública pela
+# gerada pelo desktop-tunnel-setup.sh.
+#
+# permitlisten="127.0.0.1:*" : remote forward só no loopback (relay/terceiros não
+# alcançam) e em qualquer porta — o range de fallback (27100-27200) é coberto.
+restrict,permitlisten="127.0.0.1:*",command="/home/USER/.local/bin/deck-tunnel relay" ssh-ed25519 AAAA_SUBSTITUA_PELA_CHAVE_DO_DESKTOP deck-tunnel-desktop

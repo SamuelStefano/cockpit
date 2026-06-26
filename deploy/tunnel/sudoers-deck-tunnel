@@ -1,0 +1,6 @@
+# /etc/sudoers.d/deck-tunnel  (instalar com: visudo -cf antes; modo 0440)
+# Autonomia ESCOPADA do agente, NÃO root pleno. O caminho de túnel loopback (-R em
+# 127.0.0.1) não precisa de root — esta allowlist cobre só a gerência de um eventual
+# serviço de túnel e a abertura de porta no firewall, caso algum serviço passe a ser
+# exposto fora do loopback. Substitua USER pelo usuário do agente.
+USER ALL=(root) NOPASSWD: /usr/bin/systemctl start deck-tunnel*, /usr/bin/systemctl stop deck-tunnel*, /usr/bin/systemctl restart deck-tunnel*, /usr/bin/systemctl status deck-tunnel*, /usr/bin/systemctl is-active deck-tunnel*

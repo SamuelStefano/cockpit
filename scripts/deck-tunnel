@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Wrapper do CLI de túnel (server/tunnel.cli.ts). Instalado em ~/.local/bin/deck-tunnel
+# na VPS (link/cópia). É o alvo do forced-command da chave SSH do desktop e o comando
+# que eu (agente) chamo pra solicitar túnel.
+set -euo pipefail
+SRC_DIR="${DECK_SRC_DIR:-$HOME/.deck-src}"
+exec npx --prefix "$SRC_DIR" tsx "$SRC_DIR/server/tunnel.cli.ts" "$@"
