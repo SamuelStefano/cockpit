@@ -198,6 +198,7 @@ export interface Cron {
   schedule: CronSchedule;
   model?: string;
   mode?: PermMode;
+  effort?: Effort;
   enabled: boolean;
   lastRun?: number;
   createdAt: number;

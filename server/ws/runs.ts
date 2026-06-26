@@ -283,5 +283,5 @@ async function runQuickAnswer(sessionKey: string, prompt: string, epoch: number)
 // independente. O stream vai por broadcast pra qualquer cliente conectado.
 export function fireCron(cron: Cron): void {
   if (!cron || typeof cron.prompt !== 'string' || !cron.prompt.trim()) return;
-  startRun(null, `cron-${cron.id}`, cron.prompt, undefined, `cron-${Date.now().toString(36)}`, cron.mode, cron.model, undefined, undefined, undefined, undefined, undefined, 'low');
+  startRun(null, `cron-${cron.id}`, cron.prompt, undefined, `cron-${Date.now().toString(36)}`, cron.mode, cron.model, undefined, undefined, undefined, undefined, undefined, cron.effort || 'low');
 }

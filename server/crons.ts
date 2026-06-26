@@ -2,6 +2,9 @@ import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import type { Cron } from '../shared/protocol';
+import { nextRunAt, isDue } from '../shared/cron-schedule';
+
+export { nextRunAt, isDue };
 
 // Crons do Deck: dispara prompts agendados (turnos autônomos). Persistidos em
 // ~/.cockpit/crons.json. Schedule minimalista: intervalo (a cada N min) ou diário
@@ -55,32 +58,6 @@ function markRan(id: string, now: number): Promise<unknown> {
   });
 }
 
-const DAY = 86_400_000;
-function midnight(now: number): number { const d = new Date(now); d.setHours(0, 0, 0, 0); return d.getTime(); }
-
-// Próxima execução (pro display da UI). Intervalo: último + N min. Diário: o slot de
-// hoje se ainda não passou/não rodou, senão o de amanhã.
-export function nextRunAt(c: Cron, now: number): number {
-  if (c.schedule.kind === 'interval') {
-    const every = Math.max(1, c.schedule.everyMinutes ?? 60) * 60_000;
-    return (c.lastRun ?? c.createdAt) + every;
-  }
-  const at = Math.max(0, Math.min(1439, c.schedule.atMinute ?? 540)) * 60_000;
-  const today = midnight(now) + at;
-  const ranToday = !!c.lastRun && c.lastRun >= midnight(now);
-  return now < today && !ranToday ? today : today + DAY;
-}
-
-// Está vencido AGORA (deve disparar)?
-export function isDue(c: Cron, now: number): boolean {
-  if (!c.enabled) return false;
-  if (c.schedule.kind === 'interval') {
-    const every = Math.max(1, c.schedule.everyMinutes ?? 60) * 60_000;
-    return (c.lastRun ?? c.createdAt) + every <= now;
-  }
-  const slot = midnight(now) + Math.max(0, Math.min(1439, c.schedule.atMinute ?? 540)) * 60_000;
-  return now >= slot && (!c.lastRun || c.lastRun < slot);
-}
 
 // Loop do agendador: a cada CHECK_MS varre os crons e dispara os vencidos via o
 // callback `fire` (a camada WS chama startRun). Marca lastRun ao disparar pra não
