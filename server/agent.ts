@@ -7,7 +7,9 @@ import type { Role } from './auth';
 import { capsFor } from './auth';
 import { CONFIG } from './config';
 import { serveConnection } from './ws/serve-connection';
-import { setClientSource } from './ws/broadcast';
+import { setClientSource, broadcast } from './ws/broadcast';
+import { mcpServerDefsSync } from './admin-ops';
+import { getSlashCommands } from './ws/slash';
 import { killAllRuns } from './ws/runs';
 import { startModelsLoop } from './ws/models';
 import { startPlanUsageLoop } from './ws/usage-plan';
@@ -80,6 +82,17 @@ let activeWs: WebSocket | null = null;
 // (loops rodam) — sem regressão; só PAUSA quando o relay novo diz que ninguém olha.
 let browsersPresent = true;
 
+// Reemite os frames de bootstrap SEM loop próprio (mcp-servers, slash-commands) —
+// a lista de MCP vem do ~/.claude.json (admin-ops) e os slash do probe. Enviados
+// só no agent-ready; um browser que conecta depois precisa deles de novo.
+function reemitBootstrap(ws: WebSocket): void {
+  try {
+    ws.send(JSON.stringify({ t: 'mcp-servers', servers: Object.keys(mcpServerDefsSync()) }));
+    const slash = getSlashCommands();
+    if (slash.length) ws.send(JSON.stringify({ t: 'slash-commands', items: slash }));
+  } catch { /* socket indo embora */ }
+}
+
 function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: () => void, onAuthed: () => void): WebSocket {
   const ws = new WebSocket(`${relayUrl.replace(/\/$/, '')}/agent`);
   let ready = false;
@@ -110,7 +123,16 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: ()
       ws.on('message', (raw: Buffer) => {
         try {
           const p = JSON.parse(raw.toString()) as { t?: string };
-          if (p.t === 'browsers-present') browsersPresent = true;
+          if (p.t === 'browsers-present') {
+            const wasAbsent = !browsersPresent;
+            browsersPresent = true;
+            // Frames one-shot do bootstrap (mcp-servers, slash) foram enviados no
+            // agent-ready — possivelmente antes de QUALQUER browser conectar. Os
+            // loops periódicos cobrem stats/usage/models; estes não têm loop, então
+            // um browser que chega depois nunca os recebia (seletor de MCP vazio,
+            // slash sumido). Reemite na chegada de browser.
+            if (wasAbsent) reemitBootstrap(ws);
+          }
           else if (p.t === 'no-browsers') browsersPresent = false;
         } catch { /* não-JSON: ignora */ }
       });
@@ -217,6 +239,16 @@ export function runAgent(relayUrl: string): void {
   startPlanUsageLoop(hasClients);
   startModelsLoop(hasClients);
   startSessionsWatch(hasClients);
+  // Backstop relay-agnóstico: se o relay não emitir 'browsers-present' (versão
+  // antiga), a reemissão instantânea não dispara — rebroadcasta mcp-servers/slash
+  // periodicamente pra o seletor de MCP nunca ficar vazio num browser tardio.
+  const bootstrapTimer = setInterval(() => {
+    if (!hasClients()) return;
+    broadcast({ t: 'mcp-servers', servers: Object.keys(mcpServerDefsSync()) });
+    const slash = getSlashCommands();
+    if (slash.length) broadcast({ t: 'slash-commands', items: slash });
+  }, 60_000);
+  bootstrapTimer.unref();
   let attempt = 0;
   const loop = () => {
     connect(

@@ -184,9 +184,11 @@ export async function addUploadChunk(
   if (!u) { u = { sessionKey, name, total, parts: new Array(total), bytes: 0, ts: now }; chunkUploads.set(uploadId, u); }
   if (u.parts[seq] === undefined) { u.parts[seq] = dataB64; u.bytes += dataB64.length; }
   u.ts = now;
+  console.log(JSON.stringify({ src: 'DBG-chunk', uploadId: String(uploadId).slice(0, 10), seq, total, filled: u.parts.filter((p) => p !== undefined).length, name }));
   // Teto cedo (base64 ~+33%): aborta uploads grandes antes de remontar.
   if (u.bytes > CONFIG.maxUploadBytes * 2) { chunkUploads.delete(uploadId); return { error: 'arquivo grande demais' }; }
   if (u.parts.some((p) => p === undefined)) return null; // ainda faltam chunks
+  console.log(JSON.stringify({ src: 'DBG-finalize', uploadId: String(uploadId).slice(0, 10), total, name }));
   chunkUploads.delete(uploadId);
   const buf = Buffer.from(u.parts.join(''), 'base64');
   const r = await persistBuffer(sessionKey, name, buf);
