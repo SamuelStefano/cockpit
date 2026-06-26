@@ -277,8 +277,20 @@ export async function parseSession(
   // chain devolvia zero snapshots — tray vazio em toda sessão compactada.
   const todoMap = taskTodos([...byUuid.values()], results);
   attachTaskTodos(mapped, todoMap);
+  // Respostas FORA da cadeia ativa = ramo podado por compactação/edição de
+  // mensagem: o transcript linear (parentUuid leaf→raiz) as esconde, então o
+  // usuário reabre a sessão e "some" o que viu ao vivo. Sinaliza truncated pra o
+  // front oferecer "ver tudo" (parseFullSession costura o arquivo inteiro). Conta
+  // só assistant-com-message (respostas reais), não meta/tool_result, pra sessão
+  // linear normal não disparar falso-positivo.
+  const chainUuids = new Set<string>();
+  for (const r of chain) if (r.uuid) chainUuids.add(r.uuid);
+  let offChainAssistant = 0;
+  for (const r of byUuid.values()) {
+    if (r.type === 'assistant' && r.uuid && r.message && !chainUuids.has(r.uuid)) offChainAssistant++;
+  }
   const all = weaveByTs(truncateAtPendingQuestion(mapped), markers);
-  const truncated = all.length > limit;
+  const truncated = all.length > limit || offChainAssistant > 0;
   const messages = all.slice(-limit);
   const blocks = messages.flatMap((m) =>
     m.role === 'assistant' ? m.blocks : m.role === 'user' ? [{ type: 'text' as const, md: m.text }] : [],
