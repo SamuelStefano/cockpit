@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { joinTranscript, SPEECH_LANG } from './speech';
-import { speechErrorMessage, isFatalSpeechError } from './speech-errors';
+import { speechErrorMessage, isFatalSpeechError, noCaptureMessage } from './speech-errors';
 
 // Tipos mínimos da Web Speech API (não vêm no lib.dom de todo target). Só o que
 // usamos: ditado contínuo com resultados parciais e final por trecho.
@@ -30,6 +30,16 @@ function speechCtor(): SpeechCtor | null {
 // celular fica num loop de start/erro queimando bateria e mic.
 const MAX_FAST_FAILS = 3;
 
+// Quanto esperar por algum resultado antes de desistir quando o engine "ligou"
+// mas nunca capta (iOS standalone/webview, ou Safari precisando de ~2s). Sem
+// isto o mic fica pulsando pra sempre sem texto nem feedback.
+const NO_CAPTURE_MS = 8000;
+
+function iosStandalone(): boolean {
+  const nav = navigator as Navigator & { standalone?: boolean };
+  return /iP(hone|ad|od)/.test(navigator.userAgent) && nav.standalone === true;
+}
+
 // Ditado por voz que escreve no composer. O texto falado é apensado ao que já
 // estava digitado quando começou (baseRef), com os trechos finais acumulados +
 // o parcial ao vivo. Degrada limpo onde o browser não suporta (Firefox, webviews):
@@ -52,14 +62,21 @@ export function useSpeechInput(value: string, setValue: (v: string) => void) {
   const lastErrorRef = useRef<string | null>(null);
   const startedAtRef = useRef(0);
   const gotResultRef = useRef(false);
+  const everGotResultRef = useRef(false); // captou algo em qualquer ponto desta sessão de ditado
   const fastFailRef = useRef(0);
+  const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // setValue muda a cada render (closure); o ref deixa o onresult sempre usar o atual.
   const setValueRef = useRef(setValue);
   setValueRef.current = setValue;
 
   // Solta o mic e destaca handlers SÍNCRONO, sem mexer em estado React (seguro no
   // unmount). Não altera wantRef — quem decide parar de vez é o caller.
+  const clearWatchdog = () => {
+    if (watchdogRef.current) { clearTimeout(watchdogRef.current); watchdogRef.current = null; }
+  };
+
   const detach = () => {
+    clearWatchdog();
     const rec = recRef.current;
     if (!rec) return;
     rec.onresult = null; rec.onend = null; rec.onerror = null;
@@ -81,7 +98,9 @@ export function useSpeechInput(value: string, setValue: (v: string) => void) {
     gotResultRef.current = false;
     rec.onresult = (e) => {
       gotResultRef.current = true;
+      everGotResultRef.current = true;
       fastFailRef.current = 0;
+      clearWatchdog();
       let interim = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const r = e.results[i];
@@ -92,6 +111,7 @@ export function useSpeechInput(value: string, setValue: (v: string) => void) {
     };
     rec.onerror = (e) => { lastErrorRef.current = e?.error ?? 'unknown'; };
     rec.onend = () => {
+      clearWatchdog();
       recRef.current = null;
       const err = lastErrorRef.current;
       lastErrorRef.current = null;
@@ -127,6 +147,19 @@ export function useSpeechInput(value: string, setValue: (v: string) => void) {
     } catch {
       // start() lança se chamado duas vezes rápido; o onend do anterior cuida do retry.
       recRef.current = null;
+      return;
+    }
+    // Enquanto a sessão nunca captou nada, vigia: engine "ligado" sem onresult
+    // (iOS standalone/webview, ou Safari esperando ~2s) não pode pulsar pra sempre.
+    if (!everGotResultRef.current) {
+      clearWatchdog();
+      watchdogRef.current = setTimeout(() => {
+        if (!wantRef.current || everGotResultRef.current) return;
+        wantRef.current = false;
+        detach();
+        setError(noCaptureMessage(iosStandalone()));
+        setListening(false);
+      }, NO_CAPTURE_MS);
     }
   };
 
@@ -137,6 +170,7 @@ export function useSpeechInput(value: string, setValue: (v: string) => void) {
     baseRef.current = value;
     finalRef.current = '';
     fastFailRef.current = 0;
+    everGotResultRef.current = false;
     lastErrorRef.current = null;
     wantRef.current = true;
     setListening(true);
@@ -148,6 +182,7 @@ export function useSpeechInput(value: string, setValue: (v: string) => void) {
   // como final antes de encerrar.
   const stop = () => {
     wantRef.current = false;
+    clearWatchdog();
     const rec = recRef.current;
     if (!rec) { setListening(false); return; }
     try { rec.stop(); } catch { detach(); setListening(false); }
