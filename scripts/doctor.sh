@@ -31,7 +31,10 @@ PROTECT='dist/|dockerd|containerd|docker-proxy|sshd|systemd|tmux|/claude|claude$
 # ── 1. CLI interativo pendurado = causa do freeze. Mata auth-CLIs que ficam
 #       esperando stdin. Deploy de verdade usa --token e termina rápido; qualquer
 #       um destes vivo > 90s é prompt travado. Esta é a defesa principal.
-HUNG=$(ps -eo pid,etimes,args --no-headers 2>/dev/null | awk '
+#       CRÍTICO: filtra por $PROTECT ANTES de casar a regex. Sem isto, um
+#       `claude -p "<prompt>"` cujo prompt MENCIONA vercel/login/etc. (ex.: "skills
+#       estilo vercel") casava e a sessão era morta aos 90s — o agente ficava mudo.
+HUNG=$(ps -eo pid,etimes,args --no-headers 2>/dev/null | grep -vE "$PROTECT" | awk '
   $2 > 90 && /vercel|gh auth login| login( |$)|expo login|supabase login|npm login|wrangler login/ && !/--token|doctor.sh|grep|awk/ {print $1}')
 for pid in $HUNG; do
   cmd=$(ps -o args= -p "$pid" 2>/dev/null)
