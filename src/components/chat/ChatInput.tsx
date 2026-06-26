@@ -54,8 +54,9 @@ interface ChatInputProps {
 export function ChatInput(props: ChatInputProps) {
   const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, queued, onCancelQueueAt, onMoveQueued, paused = false, quotaResetsAt } = props;
   const hasAtt = attachments.length > 0;
+  const attUploading = attachments.some((a) => a.uploading);
   const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
-  const { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic, ghost, ghostShown, acceptGhost } = useChatInput({ ...props, hasAtt });
+  const { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic, ghost, ghostShown, acceptGhost } = useChatInput({ ...props, hasAtt, attUploading });
   return (
     <div className="shrink-0 border-t border-neutral-800 bg-neutral-900/60 px-3 py-3 backdrop-blur">
       <ChatInputToolbar
@@ -147,10 +148,12 @@ export function ChatInput(props: ChatInputProps) {
         ) : (
           <button
             onClick={submit}
-            disabled={paused ? !value.trim() : (!value.trim() && !hasAtt)}
-            title={paused ? 'Enfileirar — envia sozinho quando os tokens resetarem' : undefined}
+            disabled={attUploading || (paused ? !value.trim() : (!value.trim() && !hasAtt))}
+            title={attUploading ? 'Aguarde o anexo terminar de subir' : paused ? 'Enfileirar — envia sozinho quando os tokens resetarem' : undefined}
             className={`mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40
-              ${paused
+              ${attUploading
+                ? 'bg-neutral-800 text-neutral-600'
+                : paused
                 ? (value.trim() ? 'bg-amber-500/80 text-neutral-950 hover:bg-amber-400' : 'bg-neutral-800 text-neutral-600')
                 : (value.trim() || hasAtt) ? 'bg-orange-500 text-neutral-950 hover:bg-orange-400' : 'bg-neutral-800 text-neutral-600'}`}
           >
