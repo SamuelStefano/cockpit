@@ -181,4 +181,10 @@ describe('buildArgs', () => {
   it('grants no allowedTools in plan mode', () => {
     expect(argsOf({ prompt: 'x', mode: 'plan' })).not.toContain('--allowedTools');
   });
+
+  it('orders disallowedTools deterministically regardless of input order', () => {
+    const a = valAfter(argsOf({ prompt: 'x', disallowedSkills: ['Zeta', 'Alpha', 'Mu'] }), '--disallowedTools');
+    const b = valAfter(argsOf({ prompt: 'x', disallowedSkills: ['Mu', 'Zeta', 'Alpha'] }), '--disallowedTools');
+    expect(a).toBe(b);
+  });
 });

@@ -87,10 +87,13 @@ export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: 
   if (typeof maxBudgetUsd === 'number' && Number.isFinite(maxBudgetUsd) && maxBudgetUsd > 0) {
     args.push('--max-budget-usd', String(maxBudgetUsd));
   }
-  if (allow.length) args.push('--allowedTools', allow.join(' '));
+  // Ordem determinística (sorted): a seleção de skills/tools da UI chega em ordem
+  // variável entre turnos; ordenar evita reescrever a flag e bustar o prefixo
+  // cacheado da Anthropic a cada turno.
+  if (allow.length) args.push('--allowedTools', [...allow].sort().join(' '));
   // Kill-switch de tools (config) + skills não-selecionadas (por-prompt) entram no
   // MESMO --disallowedTools (uma flag só; rules space-separated).
-  const deny = [...CONFIG.disallowedTools, ...(disallowedSkills ?? [])];
+  const deny = [...new Set([...CONFIG.disallowedTools, ...(disallowedSkills ?? [])])].sort();
   if (deny.length) args.push('--disallowedTools', deny.join(' '));
   if (resumeId) {
     if (!UUID_RE.test(resumeId)) return { error: 'sessionId inválido' };

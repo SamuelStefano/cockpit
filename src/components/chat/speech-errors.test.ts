@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isFatalSpeechError, speechErrorMessage } from './speech-errors';
+import { isFatalSpeechError, speechErrorMessage, noCaptureMessage } from './speech-errors';
 
 describe('isFatalSpeechError', () => {
   it('permissão é fatal', () => {
@@ -21,5 +21,17 @@ describe('speechErrorMessage', () => {
 
   it('tem mensagem padrão para código desconhecido', () => {
     expect(speechErrorMessage('weird-code')).toMatch(/indisponível/i);
+  });
+});
+
+describe('noCaptureMessage', () => {
+  it('no iPhone standalone aponta o Safari como saída', () => {
+    expect(noCaptureMessage(true)).toMatch(/safari/i);
+  });
+
+  it('fora do standalone dá dica genérica, sem citar tela inicial', () => {
+    const msg = noCaptureMessage(false);
+    expect(msg).toMatch(/áudio/i);
+    expect(msg).not.toMatch(/tela inicial/i);
   });
 });

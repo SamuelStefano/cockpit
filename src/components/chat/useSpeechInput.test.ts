@@ -67,6 +67,25 @@ describe('useSpeechInput', () => {
     expect(FakeRecognition.instances.length).toBe(1);
   });
 
+  it('iOS travado: engine "ligado" sem nunca captar → desliga com aviso após o watchdog', () => {
+    const { result } = renderHook(() => useSpeechInput('', vi.fn()));
+    act(() => result.current.start());
+    expect(result.current.listening).toBe(true);
+    // onend nunca dispara (iOS standalone/webview): só o watchdog tira do limbo.
+    act(() => { vi.advanceTimersByTime(8000); });
+    expect(result.current.listening).toBe(false);
+    expect(result.current.error).not.toBeNull();
+    expect(last().stopped).toBe(true);
+  });
+
+  it('não dispara o watchdog depois de já ter captado algo', () => {
+    const { result } = renderHook(() => useSpeechInput('', vi.fn()));
+    act(() => result.current.start());
+    act(() => { last().fireFinal('oi'); });
+    act(() => { vi.advanceTimersByTime(8000); });
+    expect(result.current.listening).toBe(true);
+  });
+
   it('desiste após falhas seguidas na largada (sem captar nada)', () => {
     const { result } = renderHook(() => useSpeechInput('', vi.fn()));
     act(() => result.current.start());
