@@ -39,7 +39,7 @@ export function McpPicker({ servers, selected, setSelected }: {
     return servers.filter((s) => s.toLowerCase().includes(needle));
   }, [servers, q]);
 
-  if (servers.length === 0) return null;
+  const empty = servers.length === 0;
   const active = liveCount > 0;
 
   return (
@@ -63,7 +63,7 @@ export function McpPicker({ servers, selected, setSelected }: {
         <>
           <div className="fixed inset-0 z-30 bg-black/40 sm:hidden" onClick={() => setOpen(false)} />
           <div role="dialog" aria-label="Escolher MCP servers" className="fixed inset-x-0 bottom-0 z-40 max-h-[70vh] rounded-t-2xl border border-neutral-700 bg-neutral-900 shadow-xl shadow-black/50 sm:absolute sm:bottom-full sm:left-0 sm:inset-x-auto sm:mb-2 sm:max-h-80 sm:w-72 sm:rounded-lg">
-            <div className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2">
+            {!empty && <div className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2">
               <Icon name="search" size={13} className="shrink-0 text-neutral-500" />
               <input
                 value={q}
@@ -81,7 +81,7 @@ export function McpPicker({ servers, selected, setSelected }: {
                   limpar
                 </button>
               )}
-            </div>
+            </div>}
             <div className="scroll-thin max-h-[calc(70vh-92px)] overscroll-contain overflow-auto py-1 sm:max-h-56">
               {filtered.map((s) => {
                 const on = selected.includes(s);
@@ -100,7 +100,9 @@ export function McpPicker({ servers, selected, setSelected }: {
                 );
               })}
               {filtered.length === 0 && (
-                <p className="px-3 py-3 text-[11.5px] text-neutral-500">Nenhum MCP encontrado.</p>
+                <p className="px-3 py-3 text-[11.5px] text-neutral-500">
+                  {empty ? 'Nenhum MCP configurado nesta máquina. Adicione em Admin → MCP (ou no ~/.claude.json) e ele aparece aqui.' : 'Nenhum MCP encontrado.'}
+                </p>
               )}
             </div>
             <p className="border-t border-neutral-800 px-3 py-2 text-[10.5px] leading-snug text-neutral-500">

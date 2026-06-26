@@ -24,8 +24,8 @@ export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsag
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex items-center gap-2.5">
-        {isMobile && (
-          <button onClick={onMenu} title="Abrir menu" aria-label="Abrir menu" className="-ml-1 rounded-md p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100">
+        {isMobile && route === '/' && (
+          <button onClick={onMenu} title="Sessões" aria-label="Abrir sessões" className="-ml-1 rounded-md p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100">
             <Icon name="menu" size={18} />
           </button>
         )}
