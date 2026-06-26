@@ -21,6 +21,7 @@ interface UseChatInputArgs {
   setModel: (m: string) => void;
   slashCommands: string[];
   hasAtt: boolean;
+  attUploading?: boolean;
   onUpload: (file: File) => void;
   focusSignal: number;
   onQueue: (text: string) => void;
@@ -32,7 +33,7 @@ interface UseChatInputArgs {
 }
 
 export function useChatInput(args: UseChatInputArgs) {
-  const { disabled, onSend, onStop, value, setValue, setMode, setModel, slashCommands, hasAtt, onUpload, focusSignal, onQueue, history, pendingConfirm, onNew, onShowHelp, paused } = args;
+  const { disabled, onSend, onStop, value, setValue, setMode, setModel, slashCommands, hasAtt, attUploading, onUpload, focusSignal, onQueue, history, pendingConfirm, onNew, onShowHelp, paused } = args;
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   // Ditado por voz escreve direto no composer (value/setValue). Mora aqui pra o
@@ -103,6 +104,7 @@ export function useChatInput(args: UseChatInputArgs) {
     return true;
   };
   const submit = () => {
+    if (attUploading) return; // não envia com anexo ainda subindo (perderia o arquivo)
     const v = value.trim();
     if (v.startsWith('/') && runSlash(v)) {
       setValue('');
