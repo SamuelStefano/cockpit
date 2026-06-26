@@ -13,6 +13,7 @@ import { mergeHistory } from './cockpit/history';
 import { liveTokens } from './cockpit/live-tokens';
 import { useTerminals, type TermApi } from './cockpit/useTerminals';
 import { addThumb, shouldRequestThumb } from './lib/att-thumb-cache';
+import { fileSig, isFreshUpload } from './components/chat/dedupe-uploads';
 import { attachmentTextBlock } from './lib/parse-attachments';
 
 export interface ContextDoc { id: string; title: string; body: string }
@@ -179,6 +180,9 @@ export function useCockpit(): Cockpit {
   const adminOpTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const attachmentsRef = useRef<Attachment[]>([]);
+  // Assinaturas recém-enviadas: chokepoint único de dedup (todos os caminhos de
+  // anexo passam por onUpload). Mata o print/foto que chega repetido virando 4 chips.
+  const recentUploadSigs = useRef<Map<string, number>>(new Map());
   // Config do upload direto na edge fn (URL+anon key), entregue pelo backend no
   // connect. null = S3 off → onUpload cai no fluxo via WS de sempre.
   const s3Config = useRef<{ uploadUrl: string; anonKey: string } | null>(null);
@@ -1045,6 +1049,9 @@ export function useCockpit(): Cockpit {
   const onUpload = useCallback((file: File) => {
     const key = activeRef.current;
     if (!key) return;
+    // Mesmo arquivo chegando repetido (FileList duplicado do iOS, re-disparo de
+    // paste/change, caminhos concorrentes) só sobe uma vez dentro da janela.
+    if (!isFreshUpload(recentUploadSigs.current, fileSig(file), Date.now())) return;
     const clientId = newId('up');
     // Chip otimista na hora (com spinner) — antes só aparecia DEPOIS do ack do
     // servidor, sem feedback durante o upload. O 'uploaded' reconcilia pelo clientId.
