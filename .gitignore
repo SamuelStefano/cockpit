@@ -9,3 +9,6 @@ dist/
 _design_reference/
 cockpit-doc.pdf
 .vercel
+
+__pycache__/
+*.pyc
