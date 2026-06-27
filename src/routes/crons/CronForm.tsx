@@ -40,19 +40,19 @@ export function CronForm({ form, onCancel, now }: {
         className={`w-full ${field} px-3 py-2 text-sm placeholder-neutral-600`} />
       <textarea value={draft.prompt} onChange={(e) => set('prompt', e.target.value)} placeholder="Prompt a enviar…" rows={2}
         className={`scroll-thin w-full resize-none ${field} px-3 py-2 font-mono text-[13px] placeholder-neutral-600`} />
-      <div className="flex flex-wrap items-center gap-2 text-[13px]">
-        <select value={draft.kind} onChange={(e) => set('kind', e.target.value as 'interval' | 'daily')} className={field}>
+      <div className="grid grid-cols-2 gap-2 text-[13px] sm:flex sm:flex-wrap sm:items-center">
+        <select value={draft.kind} onChange={(e) => set('kind', e.target.value as 'interval' | 'daily')} className={`${field} w-full sm:w-auto`}>
           <option value="daily">Diário</option>
           <option value="interval">Intervalo</option>
         </select>
         {draft.kind === 'daily'
-          ? <input type="time" value={draft.time} onChange={(e) => set('time', e.target.value)} className={field} />
+          ? <input type="time" value={draft.time} onChange={(e) => set('time', e.target.value)} className={`${field} w-full sm:w-auto`} />
           : <span className="flex items-center gap-1 text-neutral-400">a cada <input type="number" min={1} value={draft.everyMinutes} onChange={(e) => set('everyMinutes', parseInt(e.target.value, 10) || 60)} className={`w-16 ${field}`} /> min</span>}
-        <select value={draft.mode} onChange={(e) => set('mode', e.target.value as typeof draft.mode)} className={field}>
+        <select value={draft.mode} onChange={(e) => set('mode', e.target.value as typeof draft.mode)} className={`${field} w-full sm:w-auto`}>
           <option value="plan">Planejar</option>
           <option value="acceptEdits">Executar</option>
         </select>
-        <select value={draft.model} onChange={(e) => set('model', e.target.value)} className={field}>
+        <select value={draft.model} onChange={(e) => set('model', e.target.value)} className={`${field} w-full sm:w-auto`}>
           <option value="">modelo padrão</option>
           <option value="sonnet">Sonnet</option>
           <option value="opus">Opus</option>

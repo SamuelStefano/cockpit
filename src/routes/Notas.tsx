@@ -29,7 +29,7 @@ export function Notas({ connected, notes, notesLoaded, onNotesGet, onNotesSave, 
   return (
     <div className="flex min-h-0 flex-1 flex-col px-4 py-5 sm:px-6">
       <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
-        <header className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <header className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div className="min-w-0">
             <h1 className="text-[19px] font-semibold tracking-tight text-neutral-100">Notas</h1>
             <p className="flex flex-wrap items-center gap-x-2 text-[12.5px] text-neutral-500">

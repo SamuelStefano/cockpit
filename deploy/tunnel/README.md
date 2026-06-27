@@ -18,12 +18,23 @@ um pedido** numa fila local; um daemon no desktop faz poll (via SSH), abre o tú
   claude mcp add http://127.0.0.1:PORT/mcp/    fecha sozinho após TTL
 ```
 
-## Componentes (F1, VPS)
+## Componentes
 
+**F1 — VPS:**
 - `server/tunnel.ts` — fila (arquivos JSON em `~/.deck-agent/tunnels/`) + fronteira
   `parseRelayCommand` (só pop/ready/list/hold).
 - `server/tunnel.cli.ts` — CLI `deck-tunnel` (`request`/`list`/`close`/`relay`).
-- `scripts/deck-tunnel` — wrapper instalado em `~/.local/bin/deck-tunnel`.
+- `scripts/deck-tunnel` — wrapper em `~/.local/bin/deck-tunnel` (instalado pelo
+  `agent-setup.sh`, então a capacidade vem no installer do Deck).
+
+**F2 — desktop:**
+- `scripts/deck-tunnel-daemon.py` — daemon cross-platform (python3 + OpenSSH). Poll →
+  abre `ssh -R` → marca `ready` → mata no TTL. Backoff em queda de SSH.
+- `scripts/desktop-tunnel-setup.sh` — installer (Linux/macOS/WSL): gera chave, grava
+  `~/.deck-tunnel/config`, sobe o daemon (systemd --user / launchd / nohup) e imprime
+  a linha de `authorized_keys`.
+- **Windows nativo:** rode o daemon com `python deck-tunnel-daemon.py` e registre no
+  Task Scheduler (ou use WSL com o installer). Keygen: `ssh-keygen -t ed25519`.
 
 ## Confiança
 

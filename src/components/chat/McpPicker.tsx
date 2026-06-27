@@ -62,7 +62,7 @@ export function McpPicker({ servers, selected, setSelected }: {
       {open && (
         <>
           <div className="fixed inset-0 z-30 bg-black/40 sm:hidden" onClick={() => setOpen(false)} />
-          <div role="dialog" aria-label="Escolher MCP servers" className="fixed inset-x-0 bottom-0 z-40 max-h-[70vh] rounded-t-2xl border border-neutral-700 bg-neutral-900 shadow-xl shadow-black/50 sm:absolute sm:bottom-full sm:left-0 sm:inset-x-auto sm:mb-2 sm:max-h-80 sm:w-72 sm:rounded-lg">
+          <div role="dialog" aria-label="Escolher MCP servers" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} className="fixed inset-x-0 bottom-0 z-40 max-h-[75dvh] rounded-t-2xl border border-neutral-700 bg-neutral-900 shadow-xl shadow-black/50 sm:absolute sm:bottom-full sm:left-0 sm:inset-x-auto sm:mb-2 sm:max-h-80 sm:w-72 sm:rounded-lg sm:pb-0">
             {!empty && <div className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2">
               <Icon name="search" size={13} className="shrink-0 text-neutral-500" />
               <input

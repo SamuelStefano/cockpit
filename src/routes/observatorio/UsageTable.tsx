@@ -11,8 +11,8 @@ interface UsageTableProps {
 export function UsageTable({ rows, known, titleOf, onOpenSession }: UsageTableProps) {
   const maxOut = Math.max(1, ...rows.map((r) => r.outputTokens));
   return (
-    <div className="overflow-hidden rounded-xl border border-neutral-800">
-      <table className="w-full text-[12.5px]">
+    <div className="scroll-thin overflow-x-auto rounded-xl border border-neutral-800">
+      <table className="w-full min-w-[32rem] text-[12.5px]">
         <thead>
           <tr className="border-b border-neutral-800 bg-neutral-900/40 text-left text-[11px] uppercase tracking-wider text-neutral-500">
             <th className="px-3 py-2 font-medium">sessão</th>

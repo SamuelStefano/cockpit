@@ -50,7 +50,7 @@ export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessi
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-[12vh] backdrop-blur-sm" onClick={onClose}>
+    <div style={{ paddingTop: 'calc(8vh + env(safe-area-inset-top))' }} className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 px-3 backdrop-blur-sm" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"

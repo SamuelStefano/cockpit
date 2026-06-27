@@ -32,8 +32,8 @@ export function AttachmentModal({ att, onClose }: { att: AttachmentPreview; onCl
         </div>
       );
     }
-    if (kind === 'image') return <img src={url} alt={att.name} className="max-h-[70vh] w-auto max-w-full rounded-lg object-contain" />;
-    if (kind === 'video') return <video src={url} controls className="max-h-[70vh] w-auto max-w-full rounded-lg" />;
+    if (kind === 'image') return <img src={url} alt={att.name} className="max-h-[70dvh] w-auto max-w-full rounded-lg object-contain" />;
+    if (kind === 'video') return <video src={url} controls className="max-h-[70dvh] w-auto max-w-full rounded-lg" />;
     if (kind === 'audio') return <audio src={url} controls className="w-full sm:min-w-[280px]" />;
     if (kind === 'pdf') return <iframe src={url} title={att.name} className="h-[70vh] w-full rounded-lg bg-white" />;
     return (

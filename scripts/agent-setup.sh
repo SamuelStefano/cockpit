@@ -144,6 +144,15 @@ npm install
 # server/ — pra nenhum fix ficar preso em processo rodando código velho.
 git config core.hooksPath scripts/git-hooks 2>/dev/null || true
 
+# CLI de túnel on-demand (deck-tunnel): wrapper em ~/.local/bin. Dá ao agente o verbo
+# `request` (solicitar túnel até o desktop) e é o alvo do forced-command da chave do
+# desktop (`relay`). Plano 20260626-deck-on-demand-tunnels.
+mkdir -p "$HOME/.local/bin"
+install -m 0755 "$SRC_DIR/scripts/deck-tunnel" "$HOME/.local/bin/deck-tunnel" 2>/dev/null \
+  || { cp "$SRC_DIR/scripts/deck-tunnel" "$HOME/.local/bin/deck-tunnel"; chmod 0755 "$HOME/.local/bin/deck-tunnel"; }
+case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc" ;; esac
+echo "[deck] deck-tunnel instalado em ~/.local/bin (túneis on-demand)."
+
 if [ -n "$CODE" ]; then
   echo "[deck] pareando ao relay…"
   DECK_RELAY_URL="$RELAY" npx tsx server/agent.ts --pair="$CODE"
