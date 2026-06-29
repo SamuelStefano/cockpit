@@ -2,6 +2,10 @@
 # Supervisor do agente T3. Disca pro relay e serve o protocolo. Reinicia se cair.
 # flock singleton: só UM agente por vez (senão brigam pelo mesmo agentId no relay).
 cd /home/samuel/cockpit
+# Overrides locais por-box (NÃO versionado). O agente é quem spawna o run e avalia
+# o gate de bypass, então a flag COCKPIT_ALLOW_BYPASS precisa estar AQUI (não só no
+# backend). Sem o arquivo, nada muda (default seguro).
+[ -f "$HOME/.cockpit-local.env" ] && source "$HOME/.cockpit-local.env"
 export DECK_RELAY_URL=wss://deck-relay.devfellowship.com
 # Esta é a box do DONO (Samuel) — role admin = controle total (terminais/admin).
 # Numa box de fellow, omitir (default 'student' = least-capability).
