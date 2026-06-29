@@ -204,6 +204,19 @@ export interface Cron {
   createdAt: number;
 }
 export interface TurnStats { costUsd?: number; durationMs?: number; numTurns?: number; model?: string }
+
+// Agente de FUNDO (Task/Agent lançado em background): espelha o terminal com
+// label + tempo decorrido + gasto de tokens ao vivo. tokens = cumulativo
+// faturável (input+output+cache_creation, SEM cache read). startedAt vem do 1º
+// evento do JSONL do agente; a UI tica o cronômetro client-side a partir dele.
+export interface BgAgent {
+  id: string;
+  label: string;
+  startedAt: number;
+  tokens: number;
+  status: 'running' | 'done' | 'failed';
+  durationMs: number;
+}
 // Modelo concreto disponível na conta (de /v1/models). O cliente escolhe um id
 // específico (ex: claude-opus-4-8); aliases opus/sonnet/haiku ainda valem como
 // fallback antes da lista carregar.
@@ -365,6 +378,9 @@ export type ServerMsg =
   | { t: 'rate'; resetsAt: number; status: string }
   | { t: 'plan-usage'; usage: PlanUsage }
   | { t: 'usage'; sessionKey: string; tokens: number; turnTokens?: number }
+  // Agentes de fundo ativos da sessão (label + tempo + tokens ao vivo). Cheap/
+  // droppable como o stats: só emitido em mudança e reconstruível no próximo tick.
+  | { t: 'bgAgents'; sessionKey: string; agents: BgAgent[] }
   | { t: 'compact'; sessionKey: string; trigger?: string; preTokens?: number; kind?: 'wakeup' | 'pr'; label?: string }
   | { t: 'usage-stats'; stats: UsageStats }
   | { t: 'health'; health: AdminHealth }
