@@ -44,9 +44,9 @@ function miniEnv(): NodeJS.ProcessEnv {
 }
 
 // Executa `claude -p` haiku plan-mode e devolve o campo .result (texto). '' em erro/timeout.
-function oneShot(prompt: string, timeoutMs: number, cap = 65536, key = '_'): Promise<string> {
+function oneShot(prompt: string, timeoutMs: number, cap = 65536, key = '_', effort = 'low'): Promise<string> {
   return new Promise((resolve) => {
-    const args = ['-p', prompt, '--model', 'haiku', '--effort', 'low', '--permission-mode', 'plan', '--strict-mcp-config', '--output-format', 'json'];
+    const args = ['-p', prompt, '--model', 'haiku', '--effort', effort, '--permission-mode', 'plan', '--strict-mcp-config', '--output-format', 'json'];
     let child: ChildProcess;
     try {
       child = spawn('claude', args, { cwd: CONFIG.workdir, env: miniEnv(), shell: false, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -98,13 +98,13 @@ export async function classify(currentPrompt: string, currentWork: string, newPr
     'PROMPT_NOVO: ' + JSON.stringify(newPrompt.slice(0, 600)),
     'AÇÕES:',
     '- answer: pergunta independente e trivial, dá pra responder SEM tocar no trabalho atual.',
-    '- wait: pode esperar o turno atual terminar (roda depois).',
-    '- priority: urgente, vale INTERROMPER o turno atual agora.',
-    '- merge: complementa/corrige o trabalho atual, deve ser tratado em seguida como continuação.',
-    'Na dúvida use wait. priority SÓ se claramente urgente — interromper custa o turno em andamento.',
+    '- merge: CORRIGE ou AJUSTA o próprio pedido em execução — troca um parâmetro/valor/escopo do TRABALHO_ATUAL. Ex: TRABALHO="arrume 5 invoices" + NOVO="na verdade são 4" → merge. Também "era X não Y", "também inclui Z", "ignora o item W". Vale mesmo se o novo prompt for CURTO. merge entra JÁ no turno em andamento e ajusta.',
+    '- priority: instrução NOVA e urgente (não é ajuste do pedido atual) que vale interromper o turno agora.',
+    '- wait: pedido SEPARADO/novo que NÃO mexe no trabalho atual e pode rodar depois.',
+    'REGRA: se o PROMPT_NOVO reescreve/corrige um valor do TRABALHO_ATUAL, é SEMPRE merge (nunca wait). Só use wait quando for outro assunto que dá pra deixar pra depois.',
     'Responda SÓ com JSON, sem texto fora: {"action":"wait|answer|priority|merge","reason":"<=8 palavras"}',
   ].join('\n');
-  return parseVerdict(await oneShot(p, 8000, 8192, sessionKey));
+  return parseVerdict(await oneShot(p, 18000, 8192, sessionKey, 'medium'));
 }
 
 export async function quickAnswer(newPrompt: string, sessionKey = '_'): Promise<string> {

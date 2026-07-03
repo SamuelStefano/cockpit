@@ -242,13 +242,20 @@ export async function routeSend(ws: WebSocket, sessionKey: string, prompt: strin
   broadcast({ t: 'triage', sessionKey, msgId, action: verdict.action, reason: verdict.reason });
 
   switch (verdict.action) {
-    case 'priority': {
-      // Interrompe o turno atual e roda já. startRun mata o anterior (replacing).
-      // Carrega o progresso parcial do turno morto no prompt: o trabalho já pensado
-      // não estava no JSONL (turno interrompido), então sem isso o modelo re-derivava
-      // do zero (a "repetição de pensamento" reportada). msgId undefined: bolha já ecoada.
+    case 'priority':
+    case 'merge': {
+      // AMBOS interrompem o turno atual e rodam já (startRun mata o anterior,
+      // replacing) carregando o progresso parcial — o trabalho já pensado não está
+      // no JSONL do turno interrompido, então sem o carry o modelo re-derivava do
+      // zero. priority = instrução urgente NOVA; merge = CORREÇÃO/ajuste do pedido
+      // atual ("na verdade são 4") — antes o merge só enfileirava e rodava depois do
+      // turno (virava fila); agora ele entra no turno em andamento como o Samuel
+      // esperava. msgId undefined: a bolha do usuário já foi ecoada acima.
+      const label = verdict.action === 'merge'
+        ? 'CORREÇÃO DO PEDIDO (ajuste isto no que você já está fazendo e continue de onde parou — não recomece do zero):'
+        : 'NOVA INSTRUÇÃO URGENTE (priorize):';
       const carry = cur.text || cur.thinking
-        ? `Você estava no meio de: ${cur.prompt}\n\nProgresso até agora (não repita, continue daqui):\n${(cur.thinking || '').slice(-1500)}\n${(cur.text || '').slice(-1500)}\n\nNOVA INSTRUÇÃO URGENTE (priorize):\n${prompt}`
+        ? `Você estava no meio de: ${cur.prompt}\n\nProgresso até agora (não repita, continue daqui):\n${(cur.thinking || '').slice(-1500)}\n${(cur.text || '').slice(-1500)}\n\n${label}\n${prompt}`
         : prompt;
       startRun(ws, sessionKey, carry, resumeId, undefined, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort);
       return;
@@ -256,9 +263,8 @@ export async function routeSend(ws: WebSocket, sessionKey: string, prompt: strin
     case 'answer':
       void runQuickAnswer(sessionKey, prompt, epoch);
       return;
-    case 'merge':
     case 'wait':
-      if (!enqueue(sessionKey, { ws, prompt, msgId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort, merge: verdict.action === 'merge' })) {
+      if (!enqueue(sessionKey, { ws, prompt, msgId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort, merge: false })) {
         broadcast({ t: 'error', sessionKey, message: 'fila de mensagens cheia' });
       }
       return;
