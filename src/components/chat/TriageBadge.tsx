@@ -9,7 +9,7 @@ const TRIAGE_META: Record<TriageAction, { icon: IconName; label: string; cls: st
   wait: { icon: 'clock', label: 'na fila', cls: 'bg-amber-500/15 text-amber-300', desc: 'Enfileirado: roda assim que o turno atual terminar.' },
   answer: { icon: 'zap', label: 'resposta rápida', cls: 'bg-sky-500/15 text-sky-300', desc: 'Respondido à parte por um subagente, sem tocar o turno em andamento.' },
   priority: { icon: 'arrowUp', label: 'priorizado', cls: 'bg-rose-500/15 text-rose-300', desc: 'Urgente: o turno atual foi interrompido e este rodou na frente.' },
-  merge: { icon: 'sparkles', label: 'juntado ao anterior', cls: 'bg-violet-500/15 text-violet-300', desc: 'Complementa o pedido anterior — somado ao turno em andamento.' },
+  merge: { icon: 'sparkles', label: 'correção aplicada', cls: 'bg-violet-500/15 text-violet-300', desc: 'Corrige/ajusta o pedido em execução — interrompe e retoma já com a correção.' },
 };
 
 export function TriageBadge({ action, reason }: { action: TriageAction; reason: string }) {

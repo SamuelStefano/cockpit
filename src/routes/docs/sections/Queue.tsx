@@ -5,7 +5,7 @@ const TRIAGE = [
   { box: 'border-emerald-500/25 bg-emerald-500/[0.06]', chip: 'bg-emerald-500/20 text-emerald-300', label: 'responder', body: 'Pergunta trivial e independente — é respondida na hora num balão lateral, sem atrapalhar o turno principal.' },
   { box: 'border-sky-500/25 bg-sky-500/[0.06]', chip: 'bg-sky-500/20 text-sky-300', label: 'enfileirar', body: 'Complementa o trabalho atual — fica na fila e é enviada sozinha assim que o turno termina.' },
   { box: 'border-amber-500/25 bg-amber-500/[0.06]', chip: 'bg-amber-500/20 text-amber-300', label: 'prioridade', body: 'Urgente ou corrige o rumo — interrompe o turno em andamento e entra na frente.' },
-  { box: 'border-violet-500/25 bg-violet-500/[0.06]', chip: 'bg-violet-500/20 text-violet-300', label: 'mesclar', body: 'É continuação do mesmo assunto — tratada como parte do turno atual.' },
+  { box: 'border-violet-500/25 bg-violet-500/[0.06]', chip: 'bg-violet-500/20 text-violet-300', label: 'corrigir', body: 'Corrige/ajusta um valor do pedido em execução ("na verdade são 4") — interrompe o turno e retoma já com o ajuste.' },
 ] as const;
 
 export function Queue() {

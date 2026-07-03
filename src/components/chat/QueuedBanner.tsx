@@ -5,9 +5,10 @@ import { remapOpen } from './queued-open';
 // Fila do cliente: mensagens digitadas durante um turno, disparadas em ordem
 // quando a sessão libera. Cada item: ver completo (clique no texto), reordenar
 // (drena sempre do topo) e cancelar só ele. A fila é persistida por sessão no hook.
-export function QueuedBanner({ queued, onCancelQueueAt, onMove }: {
+export function QueuedBanner({ queued, onCancelQueueAt, onPrioritize, onMove }: {
   queued: string[];
   onCancelQueueAt: (i: number) => void;
+  onPrioritize: (i: number) => void;
   onMove: (i: number, dir: -1 | 1) => void;
 }) {
   const [open, setOpen] = useState<Record<number, boolean>>({});
@@ -52,6 +53,9 @@ export function QueuedBanner({ queued, onCancelQueueAt, onMove }: {
                 {text}
               </button>
               <div className="flex shrink-0 items-center">
+                <button onClick={() => onPrioritize(i)} title="Corrigir agora — interrompe o turno e retoma já com isto" className={`${iconBtn} hover:text-orange-300`}>
+                  <Icon name="zap" size={12} />
+                </button>
                 <button onClick={() => move(i, -1)} disabled={i === 0} title="Subir na fila" className={iconBtn}>
                   <Icon name="chevronUp" size={12} />
                 </button>

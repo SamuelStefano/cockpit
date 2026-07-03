@@ -62,7 +62,7 @@ describe('send routing (the #130 role seam)', () => {
     runs.threads.set('k1', { handle: { kill: vi.fn() } });
     await handle(ws, msg(), 'student');
     expect(runs.routeSend).toHaveBeenCalledOnce();
-    expect(runs.routeSend.mock.calls[0].at(-4)).toBe('student');
+    expect(runs.routeSend.mock.calls[0].at(-5)).toBe('student'); // ...role, disallowedSkills, mcps, effort, force
     expect(runs.startRun).not.toHaveBeenCalled();
   });
 });

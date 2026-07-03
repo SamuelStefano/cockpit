@@ -170,7 +170,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
         effort={effort} setEffort={setEffort}
         skills={skills} selectedSkills={selectedSkills} setSelectedSkills={setSelectedSkills} mcpServers={mcpServers} selectedMcps={selectedMcps} setSelectedMcps={setSelectedMcps} slashCommands={slashCommands}
         attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} focusSignal={focusSignal}
-        queued={c.queued} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
+        queued={c.queued} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onPrioritizeQueued={c.prioritizeAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
         paused={quotaPaused} quotaResetsAt={quotaResetsAt} />
 
       {attPreview && onAttClose && <AttachmentModal att={attPreview} onClose={onAttClose} />}

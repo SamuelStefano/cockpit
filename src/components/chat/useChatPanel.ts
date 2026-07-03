@@ -14,7 +14,7 @@ interface Args {
   model: string;
   lastEnd?: string;
   paused?: boolean;
-  onSend: (text: string, modeOverride?: PermMode) => void;
+  onSend: (text: string, modeOverride?: PermMode, force?: 'priority') => void;
 }
 
 export function useChatPanel({ session, messages, phase, models, model, lastEnd, paused = false, onSend }: Args) {
@@ -44,6 +44,15 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   const enqueue = (text: string) => setQueuedFor((q) => [...q, text]);
   const clearQueue = () => setQueuedFor(() => []);
   const cancelQueueAt = (i: number) => setQueuedFor((q) => q.filter((_, idx) => idx !== i));
+  // "Corrigir agora": tira da fila local e MANDA JÁ com force='priority' — o servidor
+  // interrompe o turno em andamento e retoma com esta correção (pula o triador). É a
+  // válvula pro caso aba-única, em que a fila do cliente nunca chega ao triador.
+  const prioritizeAt = (i: number) => {
+    const text = queued[i];
+    if (text == null) return;
+    setQueuedFor((q) => q.filter((_, idx) => idx !== i));
+    onSend(text, undefined, 'priority');
+  };
   // Reordenar: -1 sobe, +1 desce. A fila drena sempre do topo, então a ordem aqui
   // é a ordem de envio.
   const moveQueuedItem = (i: number, dir: -1 | 1) => setQueuedFor((q) => {
@@ -180,7 +189,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
 
   return {
     scrollRef, atBottom, promptAbove, onScroll, scrollToBottom, scrollToLastPrompt,
-    queued, enqueue, clearQueue, cancelQueueAt, moveQueuedItem, fullLoaded, setFullLoaded,
+    queued, enqueue, clearQueue, cancelQueueAt, prioritizeAt, moveQueuedItem, fullLoaded, setFullLoaded,
     streaming, disabled, isEmpty,
     sentHistory, modelLabel, labelFor,
     planPending, pendingQuestion, failed, retryLast, bannerConfirm,

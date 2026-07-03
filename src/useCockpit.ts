@@ -119,7 +119,7 @@ export interface Cockpit {
   onAttClose: () => void;
   attThumbs: Record<string, string>;
   onAttThumb: (path: string) => void;
-  onSend: (text: string, modeOverride?: PermMode) => void;
+  onSend: (text: string, modeOverride?: PermMode, force?: 'priority') => void;
   onEditUser: (msgId: string, text: string) => void;
   onStop: (sessionKey?: string) => void;
   onNew: () => void;
@@ -996,7 +996,7 @@ export function useCockpit(): Cockpit {
     if (id && !id.startsWith('new-') && !opened.current.has(id) && send({ t: 'open', sessionId: id })) opened.current.add(id);
   }, [send]);
 
-  const onSend = useCallback((text: string, modeOverride?: PermMode) => {
+  const onSend = useCallback((text: string, modeOverride?: PermMode, force?: 'priority') => {
     const key = activeRef.current;
     if (!key) return;
     // WS fechado: send() descartaria em silêncio DEPOIS do trabalho otimista —
@@ -1043,7 +1043,7 @@ export function useCockpit(): Cockpit {
     // skills só vai no fio quando o usuário restringiu (subconjunto); vazio = todas.
     const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
     const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: modelRef.current, effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
+    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: modelRef.current, effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire, force });
   }, [send, updateThread]);
 
   const onUpload = useCallback((file: File) => {

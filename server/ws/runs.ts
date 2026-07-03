@@ -212,7 +212,7 @@ function drainPending(sessionKey: string, resumeId?: string) {
 
 // Roteia um prompt enviado com o turno da sessão OCUPADO. Ecoa a bolha do usuário
 // na hora, pede o veredito ao triador (haiku) e age conforme a decisão (auto).
-export async function routeSend(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: string, msgId?: string, mode?: string, model?: string, maxBudgetUsd?: number, bypass?: boolean, role?: Role, disallowedSkills?: string[], mcps?: string[], effort?: string) {
+export async function routeSend(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: string, msgId?: string, mode?: string, model?: string, maxBudgetUsd?: number, bypass?: boolean, role?: Role, disallowedSkills?: string[], mcps?: string[], effort?: string, force?: string) {
   if (typeof sessionKey !== 'string' || !SESSION_KEY_RE.test(sessionKey)) { send(ws, { t: 'error', message: 'sessão inválida' }); return; }
   if (typeof prompt !== 'string' || Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) { send(ws, { t: 'error', sessionKey, message: 'prompt grande demais' }); return; }
   const cur = threads.get(sessionKey);
@@ -222,7 +222,10 @@ export async function routeSend(ws: WebSocket, sessionKey: string, prompt: strin
   if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
 
   const epoch = stopEpoch.get(sessionKey) ?? 0;
-  const verdict = await classify(cur.prompt, cur.text, prompt, sessionKey);
+  // force='priority' (botão "corrigir agora" da fila): pula o triador e interrompe já.
+  const verdict = force === 'priority'
+    ? { action: 'priority' as const, reason: 'você pediu prioridade' }
+    : await classify(cur.prompt, cur.text, prompt, sessionKey);
 
   // Stop durante o await da triagem → o usuário pediu silêncio; descarta.
   if ((stopEpoch.get(sessionKey) ?? 0) !== epoch) return;
