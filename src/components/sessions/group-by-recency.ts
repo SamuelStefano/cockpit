@@ -15,7 +15,9 @@ export function groupByRecency(list: Session[], pinned: Set<string>, running?: S
     { label: '30 dias', items: [] },
     { label: 'Anteriores', items: [] },
   ];
-  for (const s of list) {
+  // mtime desc: a sessão recém-tocada (nova msg) sobe pro topo do seu balde, não fica
+  // no meio na posição antiga da lista do servidor.
+  for (const s of [...list].sort((a, b) => b.mtime - a.mtime)) {
     if (running?.has(s.id)) { buckets[0].items.push(s); continue; }
     if (pinned.has(s.id)) { buckets[1].items.push(s); continue; }
     if (s.mtime >= startOfToday) buckets[2].items.push(s);
