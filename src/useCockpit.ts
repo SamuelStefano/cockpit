@@ -370,8 +370,16 @@ export function useCockpit(): Cockpit {
       case 'agent-offline': { setAgentOnline(false); return; }
       case 'sessions': {
         setSessions((prev) => {
+          const prevById = new Map(prev.map((s) => [s.id, s]));
           const localOnly = prev.filter((s) => s.id.startsWith('new-'));
-          const fromServer = msg.items.map((m) => metaToSession(m, m.id === activeRef.current));
+          const fromServer = msg.items.map((m) => {
+            const sess = metaToSession(m, m.id === activeRef.current);
+            // Não deixa um re-list com o mtime ANTIGO do arquivo (a msg recém-enviada
+            // ainda não foi escrita no JSONL) rebaixar o mtime otimista — a sessão
+            // voltava do grupo "Hoje" pro "7 dias". Mantém o maior + o relative dele.
+            const p = prevById.get(m.id);
+            return p && p.mtime > sess.mtime ? { ...sess, mtime: p.mtime, relative: p.relative } : sess;
+          });
           return [...localOnly, ...fromServer];
         });
         // Baseline: sessão vista pela 1ª vez entra no `seen` com o mtime atual
