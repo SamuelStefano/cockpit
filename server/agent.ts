@@ -8,11 +8,12 @@ import { capsFor } from './auth';
 import { CONFIG } from './config';
 import { serveConnection } from './ws/serve-connection';
 import { setClientSource, broadcast } from './ws/broadcast';
-import { mcpServerDefsSync } from './admin-ops';
+import { mcpServerDefsSync, claudeReady } from './admin-ops';
 import { getSlashCommands } from './ws/slash';
-import { killAllRuns } from './ws/runs';
-import { startModelsLoop } from './ws/models';
-import { startPlanUsageLoop } from './ws/usage-plan';
+import { killAllRuns, threads } from './ws/runs';
+import { startModelsLoop, getLastModels } from './ws/models';
+import { startPlanUsageLoop, getLastPlanUsage, requestPlanUsageRefresh } from './ws/usage-plan';
+import { getLastRate } from './ws/rate';
 import { startStatsLoop } from './ws/stats-loop';
 import { startSessionsWatch } from './sessions/watch';
 import { loadManagedEnv } from './admin-ops';
@@ -82,14 +83,32 @@ let activeWs: WebSocket | null = null;
 // (loops rodam) — sem regressão; só PAUSA quando o relay novo diz que ninguém olha.
 let browsersPresent = true;
 
-// Reemite os frames de bootstrap SEM loop próprio (mcp-servers, slash-commands) —
-// a lista de MCP vem do ~/.claude.json (admin-ops) e os slash do probe. Enviados
-// só no agent-ready; um browser que conecta depois precisa deles de novo.
+// Reemite o bootstrap inteiro na chegada de um browser. No modo dial o
+// serveConnection só faz o bootstrap UMA vez (no agent-ready, antes de qualquer
+// aba). Um browser que abre/recarrega depois multiplexa no MESMO socket do agente
+// — não dispara novo serveConnection — então precisa receber tudo de novo aqui,
+// senão a barra de usage/telemetria/modelos/MCP fica vazia até o próximo poll (60s)
+// ou até um prompt. Os snapshots são leituras baratas de cache.
 function reemitBootstrap(ws: WebSocket): void {
   try {
-    ws.send(JSON.stringify({ t: 'mcp-servers', servers: Object.keys(mcpServerDefsSync()) }));
+    const s = (m: unknown) => ws.send(JSON.stringify(m));
+    s({ t: 'claude-auth', ready: claudeReady() });
+    s({ t: 'mcp-servers', servers: Object.keys(mcpServerDefsSync()) });
     const slash = getSlashCommands();
-    if (slash.length) ws.send(JSON.stringify({ t: 'slash-commands', items: slash }));
+    if (slash.length) s({ t: 'slash-commands', items: slash });
+    s({ t: 'busy', keys: [...threads.keys()] });
+    const rate = getLastRate();
+    if (rate) s({ t: 'rate', ...rate });
+    const usage = getLastPlanUsage();
+    if (usage) s({ t: 'plan-usage', usage });
+    else requestPlanUsageRefresh(); // sem cache ainda: busca agora, não espera o poll
+    const models = getLastModels();
+    if (models.length) s({ t: 'models', models });
+    // Reconecta no meio de um turno: replaya o snapshot acumulado pra reconstruir o
+    // turno em voo (o serveConnection só replaya no agent-ready).
+    for (const [key, thread] of threads) {
+      s({ t: 'replay', sessionKey: key, text: thread.text, thinking: thread.thinking, tools: thread.tools, startedAt: thread.startedAt });
+    }
   } catch { /* socket indo embora */ }
 }
 

@@ -6,6 +6,7 @@ import { SlashPalette } from './SlashPalette';
 import type { PermMode, Effort, ModelInfo, Caps, SkillMeta } from '../../../shared/protocol';
 import type { Attachment } from '../../useCockpit';
 import { useChatInput } from './useChatInput';
+import { composerMaxH } from './fit-height';
 import { MicButton } from './MicButton';
 
 export { ChatEmpty } from './ChatEmpty';
@@ -110,7 +111,7 @@ export function ChatInput(props: ChatInputProps) {
         <MicButton mic={mic} />
         <div className="relative min-w-0 flex-1">
           {ghost && (
-            <div className="pointer-events-none absolute inset-0 max-h-[140px] overflow-hidden whitespace-pre-wrap break-words py-1 text-[14px] leading-relaxed text-neutral-600">
+            <div style={{ maxHeight: composerMaxH() }} className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words py-1 text-[14px] leading-relaxed text-neutral-600">
               <span aria-hidden className="invisible">{value}</span><span aria-hidden>{ghostShown}</span>
               {/* z-10 + pointer-events-auto: o chip fica clicável MESMO sob o textarea
                   (que pinta por cima do overlay) — no mobile não existe Tab. */}
@@ -133,7 +134,8 @@ export function ChatInput(props: ChatInputProps) {
             onPaste={onPaste}
             readOnly={mic.listening}
             placeholder={paused ? 'Tokens esgotados — digite p/ enfileirar (envia ao resetar)…' : mic.listening ? 'Ouvindo… fale agora' : disabled ? 'Próxima mensagem (envia ao terminar)…' : 'Pergunte ou peça um comando…  (↵ envia, ⇧↵ quebra linha)'}
-            className="scroll-thin relative max-h-[140px] w-full resize-none bg-transparent py-1 text-[14px] leading-relaxed text-neutral-100 placeholder-neutral-600 outline-none"
+            style={{ maxHeight: composerMaxH() }}
+            className="scroll-thin relative w-full resize-none bg-transparent py-1 text-[14px] leading-relaxed text-neutral-100 placeholder-neutral-600 outline-none"
           />
         </div>
         {disabled ? (

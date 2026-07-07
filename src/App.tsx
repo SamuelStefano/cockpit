@@ -122,7 +122,22 @@ export function CockpitApp() {
   const sessionsProps = { sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, stalled, updated, runStart, searchResults, onSearch, userId: sbAuth.session?.user.id };
   // Pausa o envio perto do teto do plano (5h) pra não estourar e perder trabalho:
   // a fila persistida não dispara e o composer trava até a janela resetar.
-  const quotaPaused = !!planUsage && planUsage.fiveHour >= 99.5;
+  // Quando `resetsAt` passa, des-pausa NA HORA (a janela resetou) mesmo que o número
+  // de utilização no cliente ainda esteja stale ≥99.5 — senão a fila só drenava no
+  // próximo push do servidor (até 60s) e o usuário precisava dar F5. O timer abaixo
+  // força um re-render no instante do reset pra recomputar isto.
+  const [resetTick, setResetTick] = useState(0);
+  useEffect(() => {
+    void resetTick; // dep só pra reagendar após o disparo
+    const at = planUsage?.resetsAt;
+    if (!at) return;
+    const ms = at - Date.now();
+    if (ms <= 0) return;
+    const t = setTimeout(() => setResetTick((n) => n + 1), ms + 1000);
+    return () => clearTimeout(t);
+  }, [planUsage?.resetsAt, resetTick]);
+  const quotaResetPassed = !!planUsage?.resetsAt && planUsage.resetsAt <= Date.now();
+  const quotaPaused = !!planUsage && planUsage.fiveHour >= 99.5 && !quotaResetPassed;
   const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew: handleNew, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onOpenFull, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, quotaPaused, quotaResetsAt: planUsage?.resetsAt ?? null };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
 
