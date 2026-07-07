@@ -18,9 +18,21 @@ import type { GraphData, GraphMeta, GraphNode, GraphEdge } from '../shared/proto
 const GRAPHS_DIR = process.env.COCKPIT_GRAPHS_DIR ?? join(homedir(), '.cockpit', 'graphs');
 const SLUG_RE = /^[a-zA-Z0-9_-]{1,80}$/;
 
-// Extensões que o detector do graphify trata como "doc" e que exigiriam uma LLM
-// key (extração semântica). Excluí-las mantém o build 100% local/AST/sem custo.
-const DOC_EXCLUDES = ['*.md', '*.mdx', '*.yaml', '*.yml', '*.html', '*.txt', '*.rst'];
+// "global" é um id reservado: não é uma pasta em GRAPHS_DIR, é o merge de TODOS
+// os grafos via `graphify global add` (~/.graphify/global-graph.json). Cada
+// build bem-sucedido se auto-registra nele (ver buildGraph), então a view
+// "todos os apps" fica sempre atualizada sem passo manual.
+const GLOBAL_ID = 'global';
+function globalGraphPath(): string { return join(homedir(), '.graphify', 'global-graph.json'); }
+
+// Extensões que o detector do graphify trata como "doc"/"paper"/"image" e que
+// exigiriam uma LLM key (extração semântica). Excluí-las mantém o build 100%
+// local/AST/sem custo — cobre tanto docs (md/yaml/…) quanto assets estáticos
+// (favicon, logo) que apareceriam como "imagem" e travariam o build sem key.
+const DOC_EXCLUDES = [
+  '*.md', '*.mdx', '*.yaml', '*.yml', '*.html', '*.txt', '*.rst',
+  '*.png', '*.jpg', '*.jpeg', '*.gif', '*.webp', '*.svg', '*.pdf',
+];
 const MAX_WIRE_NODES = 4000; // teto do payload de viz (grafos gigantes não estouram o frame do relay)
 const MAX_WIRE_EDGES = 9000;
 
@@ -74,11 +86,10 @@ function runGraphify(args: string[], onLine?: (line: string) => void): Promise<{
   });
 }
 
-// Lê o graph.json (formato node-link do networkx) e projeta só o que a viz usa,
-// com teto de nós/arestas pra bounded payload. Estimativa de "peso" por nó pra
-// escolher os mais conectados quando corta.
-async function loadGraphData(id: string): Promise<GraphData | null> {
-  const p = graphJsonPath(id);
+// Lê um graph.json (formato node-link do networkx) por PATH direto e projeta só
+// o que a viz usa, com teto de nós/arestas pra bounded payload. `repo` (presente
+// só no merge global) vira campo no nó pra a UI distinguir de qual app é cada um.
+async function loadGraphDataFromPath(p: string): Promise<GraphData | null> {
   if (!(await isFile(p))) return null;
   let raw: string;
   try { raw = await readFile(p, 'utf8'); } catch { return null; }
@@ -102,6 +113,7 @@ async function loadGraphData(id: string): Promise<GraphData | null> {
     file: typeof n.source_file === 'string' ? n.source_file : undefined,
     loc: typeof n.source_location === 'string' ? n.source_location : undefined,
     fileType: typeof n.file_type === 'string' ? n.file_type : undefined,
+    repo: typeof n.repo === 'string' ? n.repo : undefined,
     deg: deg.get(String(n.id ?? '')) ?? 0,
   })).filter((n) => n.id);
 
@@ -134,32 +146,42 @@ async function loadGraphData(id: string): Promise<GraphData | null> {
   };
 }
 
+async function countNodesEdges(p: string): Promise<{ nodes: number; edges: number; mtime: number } | null> {
+  try {
+    const st = await stat(p);
+    // Conta nós/arestas sem carregar o JSON inteiro na memória duas vezes: um
+    // parse leve (o arquivo já está no page cache pós-build).
+    const g = JSON.parse(await readFile(p, 'utf8')) as { nodes?: unknown[]; links?: unknown[] };
+    return {
+      nodes: Array.isArray(g.nodes) ? g.nodes.length : 0,
+      edges: Array.isArray(g.links) ? g.links.length : 0,
+      mtime: st.mtimeMs,
+    };
+  } catch { return null; }
+}
+
 export async function listGraphs(): Promise<GraphMeta[]> {
-  let entries;
-  try { entries = await readdir(GRAPHS_DIR, { withFileTypes: true }); } catch { return []; }
+  let entries: import('node:fs').Dirent[] = [];
+  try { entries = await readdir(GRAPHS_DIR, { withFileTypes: true }); } catch { /* ainda sem grafos */ }
   const metas: GraphMeta[] = [];
   for (const e of entries) {
     if (!e.isDirectory() || !SLUG_RE.test(e.name)) continue;
-    const p = graphJsonPath(e.name);
-    if (!(await isFile(p))) continue;
-    let nodes = 0, edges = 0, mtime = 0;
-    try {
-      const st = await stat(p);
-      mtime = st.mtimeMs;
-      // Conta nós/arestas sem carregar o JSON inteiro na memória duas vezes:
-      // um parse leve (o arquivo já está no page cache pós-build).
-      const g = JSON.parse(await readFile(p, 'utf8')) as { nodes?: unknown[]; links?: unknown[] };
-      nodes = Array.isArray(g.nodes) ? g.nodes.length : 0;
-      edges = Array.isArray(g.links) ? g.links.length : 0;
-    } catch { continue; }
-    metas.push({ id: e.name, label: e.name.replace(/[-_]/g, ' '), nodes, edges, mtime });
+    const counts = await countNodesEdges(graphJsonPath(e.name));
+    if (!counts) continue;
+    metas.push({ id: e.name, label: e.name.replace(/[-_]/g, ' '), ...counts });
   }
-  return metas.sort((a, b) => b.mtime - a.mtime);
+  metas.sort((a, b) => b.mtime - a.mtime);
+  // "global" (todos os apps mesclados) sempre no topo quando existe — é a view
+  // de maior alavancagem pra economia de tokens (uma pergunta cruza N repos).
+  const globalCounts = await countNodesEdges(globalGraphPath());
+  if (globalCounts) metas.unshift({ id: GLOBAL_ID, label: 'todos os apps', ...globalCounts });
+  return metas;
 }
 
 export async function readGraph(id: string): Promise<GraphData | null> {
+  if (id === GLOBAL_ID) return loadGraphDataFromPath(globalGraphPath());
   if (!SLUG_RE.test(id)) return null;
-  return loadGraphData(id);
+  return loadGraphDataFromPath(graphJsonPath(id));
 }
 
 export interface BuildResult { ok: boolean; id?: string; error?: string }
@@ -180,12 +202,22 @@ export async function buildGraph(repo: string, onLine?: (line: string) => void):
   if (!(await isFile(graphJsonPath(slug)))) {
     return { ok: false, error: code === 0 ? 'build terminou sem gerar graph.json' : `graphify saiu com código ${code}` };
   }
+  // Auto-registra no grafo global (merge de todos os apps) — best-effort: se
+  // falhar, o grafo individual do repo continua válido, só a view "todos os
+  // apps" fica um passo atrás até o próximo build.
+  onLine?.(`graphify global add ${slug}`);
+  await runGraphify(['global', 'add', graphJsonPath(slug), '--as', slug], onLine);
   return { ok: true, id: slug };
 }
 
 export async function deleteGraph(id: string): Promise<boolean> {
+  if (id === GLOBAL_ID) return false; // derivado — se apaga sozinho quando o último repo sai
   if (!SLUG_RE.test(id)) return false;
-  try { await rm(graphDir(id), { recursive: true, force: true }); return true; } catch { return false; }
+  try {
+    await rm(graphDir(id), { recursive: true, force: true });
+    await runGraphify(['global', 'remove', id]);
+    return true;
+  } catch { return false; }
 }
 
 export interface QueryResult { answer: string; tokens: number }
@@ -194,9 +226,8 @@ export interface QueryResult { answer: string; tokens: number }
 // estimativa de tokens (chars/4) — a UI mostra o "custo" da resposta pro contraste
 // com ler os arquivos crus.
 export async function queryGraph(id: string, question: string): Promise<QueryResult | null> {
-  if (!SLUG_RE.test(id)) return null;
-  const p = graphJsonPath(id);
-  if (!(await isFile(p))) return null;
+  const p = id === GLOBAL_ID ? globalGraphPath() : (SLUG_RE.test(id) ? graphJsonPath(id) : null);
+  if (!p || !(await isFile(p))) return null;
   const q = question.trim().slice(0, 500);
   if (!q) return { answer: '', tokens: 0 };
   const { out } = await runGraphify(['query', q, '--graph', p, '--budget', '2000']);
@@ -204,4 +235,4 @@ export async function queryGraph(id: string, question: string): Promise<QueryRes
   return { answer, tokens: Math.round(answer.length / 4) };
 }
 
-export { GRAPHS_DIR };
+export { GRAPHS_DIR, GLOBAL_ID };

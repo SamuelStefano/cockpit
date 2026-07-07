@@ -265,6 +265,7 @@ export interface GraphNode {
   file?: string;
   loc?: string;
   fileType?: string;
+  repo?: string; // presente só no grafo global (merge de apps) — de qual app é o nó
   deg: number; // grau (nº de arestas) — dimensiona o raio e prioriza no corte
 }
 export interface GraphEdge { source: string; target: string; relation: string; confidence: 'EXTRACTED' | 'INFERRED' }

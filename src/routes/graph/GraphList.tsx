@@ -49,7 +49,10 @@ export function GraphList({ graphs, openId, building, onOpen, onDelete, onBuild 
                   }`}
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-mono text-[12.5px]">{g.label}</div>
+                    <div className="flex items-center gap-1.5 truncate font-mono text-[12.5px]">
+                      {g.id === 'global' && <Icon name="sparkles" size={12} className="shrink-0 text-orange-400" />}
+                      {g.label}
+                    </div>
                     <div className="mt-0.5 flex items-center gap-1.5 text-[10.5px] text-neutral-500">
                       <Badge tone="neutral">{g.nodes.toLocaleString('pt-BR')} nós</Badge>
                       <span>{g.edges.toLocaleString('pt-BR')} arestas</span>
