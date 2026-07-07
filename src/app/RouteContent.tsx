@@ -5,6 +5,7 @@ import { Skills } from '../routes/Skills';
 import { Notas } from '../routes/Notas';
 import { Crons } from '../routes/Crons';
 import { Observatorio } from '../routes/Observatorio';
+import { Graph } from '../routes/Graph';
 import { Admin } from '../routes/Admin';
 import { Docs } from '../routes/Docs';
 import { DesignSystem } from '../routes/DesignSystem';
@@ -80,6 +81,13 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
       return (
         <Observatorio connected={connected} usageStats={c.usageStats} onUsageList={c.onUsageList} sessions={c.sessions} rate={c.rate}
           onOpenSession={onOpenSession} />
+      );
+    }
+    if (route === '/graph' && isAdmin) {
+      return (
+        <Graph connected={connected} graphs={c.graphs} loaded={c.graphsLoaded} openId={c.graphOpenId} graph={c.graphData}
+          building={c.graphBuilding} buildLog={c.graphBuildLog} querying={c.graphQuerying} queryResult={c.graphQueryResult}
+          onGraphList={c.onGraphList} onGraphOpen={c.onGraphOpen} onGraphBuild={c.onGraphBuild} onGraphDelete={c.onGraphDelete} onGraphQuery={c.onGraphQuery} />
       );
     }
     if (route === '/admin' && isAdmin) {
