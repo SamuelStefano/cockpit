@@ -282,8 +282,24 @@ export function runAgent(relayUrl: string): void {
     );
   };
   loop();
-  process.on('SIGTERM', () => { killAllRuns(); process.exit(0); });
-  process.on('SIGINT', () => { killAllRuns(); process.exit(0); });
+  process.on('SIGTERM', gracefulShutdown);
+  process.on('SIGINT', gracefulShutdown);
+}
+
+// SIGTERM/SIGINT matam o processo inteiro (deploy, doctor, restart manual) — mas
+// threads ativas de QUALQUER sessão conectada (não só a que pediu o restart)
+// morrem juntas. handle.kill() é fire-and-forget: o child.on('close') que dispara
+// o 'done' do turno só roda num ciclo futuro do event loop, e process.exit(0)
+// logo em seguida não dá esse ciclo — o cliente nunca recebe o 'done'/'error',
+// fica com a bolha "pensando" pra sempre e não sabe que a run morreu (turno mudo).
+// Fix: avisa cada sessão com turno ativo ANTES de matar, e só sai depois de dar
+// tempo do frame de WS realmente sair pela rede.
+function gracefulShutdown(): void {
+  for (const sessionKey of threads.keys()) {
+    broadcast({ t: 'error', sessionKey, message: 'Agente reiniciado — turno interrompido. Mande de novo.' });
+  }
+  killAllRuns();
+  setTimeout(() => process.exit(0), 300);
 }
 
 // Execução direta: `tsx server/agent.ts [--pair=CÓDIGO]` (relay via DECK_RELAY_URL).
