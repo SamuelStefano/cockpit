@@ -1,13 +1,18 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { GraphData, GraphNode } from '../../../shared/protocol';
 import { communityColor } from './community-color';
+import { communityLayout, type Pt } from './graph-layout';
 
 // Motor de força em canvas, sem dependência externa. Simulação: repulsão via grid
 // espacial (O(n) aprox — não O(n²)), atração por mola nas arestas e gravidade fraca
 // pro centro. Interação: pan (arrasto no vazio), zoom (scroll), drag de nó, hover.
 // O componente GraphCanvas só monta o <canvas> e a moldura; toda a lógica mora aqui.
+//
+// Warm-start: ao abrir um grafo, a simulação roda "as cegas" (sem render, sem rAF)
+// até quase assentar ANTES do primeiro paint — a partir de um layout já agrupado
+// por comunidade (graph-layout.ts). Sem isso, nós conectados que nascem em lados
+// opostos do mapa "caminham" na tela por ~4s até se juntar (o bug reportado).
 
-interface Pt { x: number; y: number; vx: number; vy: number }
 interface View { tx: number; ty: number; scale: number }
 
 const REPULSION = 5200;
@@ -16,13 +21,18 @@ const SPRING_LEN = 42;
 const GRAVITY = 0.012;
 const DAMPING = 0.86;
 const CELL = 90; // célula do grid espacial (coords de mundo)
+const MAX_SPEED = 40; // clamp por-tick: nó isolado/outlier não pode "disparar" pela tela
+const WARM_START_BUDGET_MS = 500; // teto de tempo síncrono do pré-aquecimento (grafos gigantes não travam a UI)
+const WARM_START_MAX_TICKS = 320;
 
 function nodeRadius(n: GraphNode): number { return 3 + Math.sqrt(n.deg) * 1.6; }
+function clamp(v: number, lo: number, hi: number): number { return v < lo ? lo : v > hi ? hi : v; }
 
 export function useForceGraph(graph: GraphData | null, opts: { selectedId?: string; onSelect?: (n: GraphNode) => void }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const posRef = useRef<Map<string, Pt>>(new Map());
   const viewRef = useRef<View>({ tx: 0, ty: 0, scale: 1 });
+  const fitScaleRef = useRef(1); // escala do enquadramento inicial — rótulos de hub só aparecem acima disto
   const alphaRef = useRef(1);
   const rafRef = useRef(0);
   const dragRef = useRef<{ id?: string; panning?: boolean; lastX: number; lastY: number } | null>(null);
@@ -35,32 +45,6 @@ export function useForceGraph(graph: GraphData | null, opts: { selectedId?: stri
   selectedRef.current = opts.selectedId;
   const onSelectRef = useRef(opts.onSelect);
   onSelectRef.current = opts.onSelect;
-
-  // (Re)inicializa posições quando o grafo troca. Espalha em anel por índice pra
-  // dar um layout inicial sem sobreposição total antes de a simulação assentar.
-  useEffect(() => {
-    if (!graph) { nodesRef.current = []; edgesRef.current = []; posRef.current.clear(); return; }
-    nodesRef.current = graph.nodes;
-    edgesRef.current = graph.edges;
-    const nb = new Map<string, Set<string>>();
-    for (const e of graph.edges) {
-      (nb.get(e.source) ?? nb.set(e.source, new Set()).get(e.source)!).add(e.target);
-      (nb.get(e.target) ?? nb.set(e.target, new Set()).get(e.target)!).add(e.source);
-    }
-    neighborsRef.current = nb;
-    const pos = new Map<string, Pt>();
-    const n = graph.nodes.length;
-    graph.nodes.forEach((node, i) => {
-      const golden = i * 2.399963;
-      const r = 12 * Math.sqrt(i + 1);
-      pos.set(node.id, { x: Math.cos(golden) * r, y: Math.sin(golden) * r, vx: 0, vy: 0 });
-    });
-    posRef.current = pos;
-    alphaRef.current = 1;
-    fitView();
-    start();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graph]);
 
   const dpr = () => Math.min(window.devicePixelRatio || 1, 2);
 
@@ -83,6 +67,7 @@ export function useForceGraph(graph: GraphData | null, opts: { selectedId?: stri
     if (!isFinite(minX)) return;
     const w = maxX - minX || 1, h = maxY - minY || 1;
     const scale = Math.min(rect.width / (w * 1.15), rect.height / (h * 1.15), 2.5) || 1;
+    fitScaleRef.current = scale;
     viewRef.current = {
       scale,
       tx: rect.width / 2 - ((minX + maxX) / 2) * scale,
@@ -90,71 +75,58 @@ export function useForceGraph(graph: GraphData | null, opts: { selectedId?: stri
     };
   }, []);
 
-  const tick = useCallback(() => {
+  // Passo físico puro: muta posRef, sem render nem agendamento. Usado tanto pelo
+  // warm-start síncrono (sem tela) quanto pelo tick animado (com tela).
+  const stepPhysics = useCallback((alpha: number) => {
     const nodes = nodesRef.current, pos = posRef.current;
-    const alpha = alphaRef.current;
-    if (nodes.length) {
-      // Grid espacial: agrupa nós por célula, repulsão só entre vizinhos de célula.
-      const grid = new Map<string, string[]>();
-      for (const node of nodes) {
-        const p = pos.get(node.id)!;
-        const key = `${Math.floor(p.x / CELL)},${Math.floor(p.y / CELL)}`;
-        (grid.get(key) ?? grid.set(key, []).get(key)!).push(node.id);
-      }
-      for (const node of nodes) {
-        const p = pos.get(node.id)!;
-        let fx = 0, fy = 0;
-        const cx = Math.floor(p.x / CELL), cy = Math.floor(p.y / CELL);
-        for (let gx = cx - 1; gx <= cx + 1; gx++) {
-          for (let gy = cy - 1; gy <= cy + 1; gy++) {
-            const cell = grid.get(`${gx},${gy}`); if (!cell) continue;
-            for (const oid of cell) {
-              if (oid === node.id) continue;
-              const o = pos.get(oid)!;
-              let dx = p.x - o.x, dy = p.y - o.y;
-              let d2 = dx * dx + dy * dy;
-              if (d2 === 0) { dx = Math.cos(node.id.length) * 0.5; dy = 0.5; d2 = 0.5; }
-              if (d2 > CELL * CELL * 4) continue;
-              const f = REPULSION / d2;
-              const d = Math.sqrt(d2);
-              fx += (dx / d) * f; fy += (dy / d) * f;
-            }
+    if (!nodes.length) return;
+    const grid = new Map<string, string[]>();
+    for (const node of nodes) {
+      const p = pos.get(node.id)!;
+      const key = `${Math.floor(p.x / CELL)},${Math.floor(p.y / CELL)}`;
+      (grid.get(key) ?? grid.set(key, []).get(key)!).push(node.id);
+    }
+    for (const node of nodes) {
+      const p = pos.get(node.id)!;
+      let fx = 0, fy = 0;
+      const cx = Math.floor(p.x / CELL), cy = Math.floor(p.y / CELL);
+      for (let gx = cx - 1; gx <= cx + 1; gx++) {
+        for (let gy = cy - 1; gy <= cy + 1; gy++) {
+          const cell = grid.get(`${gx},${gy}`); if (!cell) continue;
+          for (const oid of cell) {
+            if (oid === node.id) continue;
+            const o = pos.get(oid)!;
+            let dx = p.x - o.x, dy = p.y - o.y;
+            let d2 = dx * dx + dy * dy;
+            if (d2 === 0) { dx = Math.cos(node.id.length) * 0.5; dy = 0.5; d2 = 0.5; }
+            if (d2 > CELL * CELL * 4) continue;
+            const f = REPULSION / d2;
+            const d = Math.sqrt(d2);
+            fx += (dx / d) * f; fy += (dy / d) * f;
           }
         }
-        fx -= p.x * GRAVITY; fy -= p.y * GRAVITY;
-        p.vx = (p.vx + fx * alpha) * DAMPING;
-        p.vy = (p.vy + fy * alpha) * DAMPING;
       }
-      // Atração das arestas (mola pro comprimento de repouso).
-      for (const e of edgesRef.current) {
-        const a = pos.get(e.source), b = pos.get(e.target);
-        if (!a || !b) continue;
-        const dx = b.x - a.x, dy = b.y - a.y;
-        const d = Math.hypot(dx, dy) || 1;
-        const f = (d - SPRING_LEN) * SPRING * alpha;
-        const ux = dx / d, uy = dy / d;
-        a.vx += ux * f; a.vy += uy * f;
-        b.vx -= ux * f; b.vy -= uy * f;
-      }
-      const dragId = dragRef.current?.id;
-      for (const node of nodes) {
-        if (node.id === dragId) continue; // nó arrastado é pinado
-        const p = pos.get(node.id)!;
-        p.x += p.vx; p.y += p.vy;
-      }
-      alphaRef.current = Math.max(0, alpha - 0.004);
+      fx -= p.x * GRAVITY; fy -= p.y * GRAVITY;
+      p.vx = clamp((p.vx + fx * alpha) * DAMPING, -MAX_SPEED, MAX_SPEED);
+      p.vy = clamp((p.vy + fy * alpha) * DAMPING, -MAX_SPEED, MAX_SPEED);
     }
-    render();
-    if (alphaRef.current > 0.02 || dragRef.current) rafRef.current = requestAnimationFrame(tick);
-    else rafRef.current = 0;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    for (const e of edgesRef.current) {
+      const a = pos.get(e.source), b = pos.get(e.target);
+      if (!a || !b) continue;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const f = (d - SPRING_LEN) * SPRING * alpha;
+      const ux = dx / d, uy = dy / d;
+      a.vx += ux * f; a.vy += uy * f;
+      b.vx -= ux * f; b.vy -= uy * f;
+    }
+    const dragId = dragRef.current?.id;
+    for (const node of nodes) {
+      if (node.id === dragId) continue; // nó arrastado é pinado
+      const p = pos.get(node.id)!;
+      p.x += p.vx; p.y += p.vy;
+    }
   }, []);
-
-  const start = useCallback(() => {
-    if (!rafRef.current) rafRef.current = requestAnimationFrame(tick);
-  }, [tick]);
-
-  const reheat = useCallback((a = 0.4) => { alphaRef.current = Math.max(alphaRef.current, a); start(); }, [start]);
 
   const render = useCallback(() => {
     const c = canvasRef.current; if (!c) return;
@@ -170,7 +142,6 @@ export function useForceGraph(graph: GraphData | null, opts: { selectedId?: stri
     const focusId = hoverId ?? selId;
     const nb = focusId ? neighborsRef.current.get(focusId) : undefined;
 
-    // Arestas
     ctx.lineWidth = 0.6 / v.scale;
     for (const e of edgesRef.current) {
       const a = pos.get(e.source), b = pos.get(e.target);
@@ -180,7 +151,6 @@ export function useForceGraph(graph: GraphData | null, opts: { selectedId?: stri
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
     }
 
-    // Nós
     for (const node of nodesRef.current) {
       const p = pos.get(node.id); if (!p) continue;
       const r = nodeRadius(node);
@@ -195,18 +165,75 @@ export function useForceGraph(graph: GraphData | null, opts: { selectedId?: stri
       ctx.globalAlpha = 1;
     }
 
-    // Rótulos: só nós grandes ou em foco, e só quando há zoom suficiente (anti-poluição).
+    // Rótulos: em foco sempre; hub (grau alto) só depois de zoom além do fit
+    // inicial (fitScaleRef * 1.6) — sem isso, grafos grandes nascem com centenas
+    // de labels sobrepostos (o "poluído" do screenshot original).
     ctx.fillStyle = 'rgba(230,237,243,0.92)';
     ctx.font = `${11 / v.scale}px ui-monospace, monospace`;
     ctx.textBaseline = 'middle';
+    const hubZoomGate = fitScaleRef.current * 1.6;
     for (const node of nodesRef.current) {
       const big = node.deg >= 10;
       const focus = node.id === focusId || (nb && nb.has(node.id));
-      if (!focus && (!big || v.scale < 0.6)) continue;
+      if (!focus && (!big || v.scale < hubZoomGate)) continue;
       const p = pos.get(node.id); if (!p) continue;
       ctx.fillText(node.label, p.x + nodeRadius(node) + 2 / v.scale, p.y);
     }
   }, []);
+
+  const tick = useCallback(() => {
+    const alpha = alphaRef.current;
+    if (nodesRef.current.length) {
+      stepPhysics(alpha);
+      alphaRef.current = Math.max(0, alpha - 0.004);
+    }
+    render();
+    if (alphaRef.current > 0.02 || dragRef.current) rafRef.current = requestAnimationFrame(tick);
+    else rafRef.current = 0;
+  }, [stepPhysics, render]);
+
+  const start = useCallback(() => {
+    if (!rafRef.current) rafRef.current = requestAnimationFrame(tick);
+  }, [tick]);
+
+  const reheat = useCallback((a = 0.4) => { alphaRef.current = Math.max(alphaRef.current, a); start(); }, [start]);
+
+  // Roda a física "às cegas" (sem tela) até quase assentar, partindo do layout já
+  // agrupado por comunidade. Decaimento de alpha mais agressivo que o tick animado
+  // — não precisa ser suave, ninguém está vendo. O resíduo de alpha vira uma
+  // cauda quase imperceptível no tick normal (poucos frames), então drag/hover
+  // continuam funcionando normalmente depois.
+  const warmStart = useCallback(() => {
+    const t0 = performance.now();
+    let alpha = 1;
+    let ticks = 0;
+    while (alpha > 0.05 && ticks < WARM_START_MAX_TICKS && performance.now() - t0 < WARM_START_BUDGET_MS) {
+      stepPhysics(alpha);
+      alpha = Math.max(0, alpha - 0.012);
+      ticks++;
+    }
+    alphaRef.current = alpha;
+  }, [stepPhysics]);
+
+  // (Re)inicializa quando o grafo troca: layout por comunidade, pré-aquece,
+  // enquadra e pinta o frame já quase-assentado ANTES do usuário ver algo mexer.
+  useEffect(() => {
+    if (!graph) { nodesRef.current = []; edgesRef.current = []; posRef.current.clear(); return; }
+    nodesRef.current = graph.nodes;
+    edgesRef.current = graph.edges;
+    const nb = new Map<string, Set<string>>();
+    for (const e of graph.edges) {
+      (nb.get(e.source) ?? nb.set(e.source, new Set()).get(e.source)!).add(e.target);
+      (nb.get(e.target) ?? nb.set(e.target, new Set()).get(e.target)!).add(e.source);
+    }
+    neighborsRef.current = nb;
+    posRef.current = communityLayout(graph.nodes);
+    warmStart();
+    fitView();
+    render();
+    start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graph]);
 
   // ---- interação ----
   const worldAt = (clientX: number, clientY: number) => {

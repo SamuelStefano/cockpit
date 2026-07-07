@@ -33,6 +33,7 @@ export function GraphCanvas({ graph, selectedId, onSelect }: Props) {
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: communityColor(hovered.community) }} />
             <span className="truncate font-mono text-[12.5px] text-neutral-100">{hovered.label}</span>
+            {hovered.repo && <span className="shrink-0 rounded bg-neutral-800 px-1.5 py-0.5 font-mono text-[10px] text-orange-300">{hovered.repo}</span>}
           </div>
           {hovered.file && (
             <div className="mt-1 truncate font-mono text-[11px] text-neutral-500">{hovered.file}{hovered.loc ? `:${hovered.loc}` : ''}</div>
