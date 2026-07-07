@@ -19,9 +19,43 @@ import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
 import { threads, startRun, routeSend, onStop } from './runs';
 import { refreshModels } from './models';
+import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph } from '../graph';
 
 export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
   switch (msg.t) {
+    case 'graph-list': {
+      send(ws, { t: 'graphs', items: await listGraphs() });
+      return;
+    }
+    case 'graph-open': {
+      const graph = await readGraph(msg.id);
+      if (!graph) { send(ws, { t: 'error', message: 'grafo não encontrado' }); return; }
+      send(ws, { t: 'graph-data', id: msg.id, graph });
+      return;
+    }
+    case 'graph-query': {
+      const res = await queryGraph(msg.id, msg.question);
+      if (!res) { send(ws, { t: 'error', message: 'grafo não encontrado' }); return; }
+      send(ws, { t: 'graph-query-result', id: msg.id, question: msg.question, answer: res.answer, tokens: res.tokens });
+      return;
+    }
+    case 'graph-build': {
+      // Progresso em streaming: o graphify loga o avanço da extração no stdout; cada
+      // linha vira um frame p/ a UI mostrar o build vivo. build é longo (spawn AST).
+      const result = await buildGraph(msg.repo, (line) => send(ws, { t: 'graph-build-progress', line }));
+      send(ws, { t: 'graph-build-done', ok: result.ok, id: result.id, error: result.error });
+      if (result.ok && result.id) {
+        send(ws, { t: 'graphs', items: await listGraphs() });
+        const graph = await readGraph(result.id);
+        if (graph) send(ws, { t: 'graph-data', id: result.id, graph });
+      }
+      return;
+    }
+    case 'graph-delete': {
+      await deleteGraph(msg.id);
+      send(ws, { t: 'graphs', items: await listGraphs() });
+      return;
+    }
     case 'list': {
       const items = await listSessions();
       send(ws, { t: 'sessions', items });

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Session, Message, Block, ToolTodo } from './data/mock';
-import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth, Caps, PlanUsage, AccountSummary, Cron } from '../shared/protocol';
+import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth, Caps, PlanUsage, AccountSummary, Cron, GraphMeta, GraphData } from '../shared/protocol';
 import { loadPref, savePref, setPref } from './lib/persist';
 import { SUPABASE_ENABLED } from './lib/supabase';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
@@ -18,6 +18,7 @@ import { attachmentTextBlock } from './lib/parse-attachments';
 
 export interface ContextDoc { id: string; title: string; body: string }
 export interface SkillDoc { id: string; name: string; body: string }
+export interface GraphQueryState { question: string; answer: string; tokens: number }
 export interface Attachment { name: string; path: string; text?: string; s3url?: string; uploading?: boolean; clientId?: string }
 export interface AttachmentPreview { path: string; name: string; dataB64?: string; error?: string }
 export type { TermApi };
@@ -98,6 +99,19 @@ export interface Cockpit {
   onSkillList: () => void;
   onSkillOpen: (id: string) => void;
   onSkillClose: () => void;
+  graphs: GraphMeta[];
+  graphsLoaded: boolean;
+  graphOpenId: string | null;
+  graphData: GraphData | null;
+  graphBuilding: boolean;
+  graphBuildLog: string[];
+  graphQuerying: boolean;
+  graphQueryResult: GraphQueryState | null;
+  onGraphList: () => void;
+  onGraphOpen: (id: string) => void;
+  onGraphBuild: (repo: string) => void;
+  onGraphDelete: (id: string) => void;
+  onGraphQuery: (question: string) => void;
   usageStats: UsageStats | null;
   onUsageList: () => void;
   health: AdminHealth | null;
@@ -173,6 +187,14 @@ export function useCockpit(): Cockpit {
   const [skills, setSkills] = useState<SkillMeta[]>([]);
   const [skillsLoaded, setSkillsLoaded] = useState(false);
   const [openSkill, setOpenSkill] = useState<SkillDoc | null>(null);
+  const [graphs, setGraphs] = useState<GraphMeta[]>([]);
+  const [graphsLoaded, setGraphsLoaded] = useState(false);
+  const [graphOpenId, setGraphOpenId] = useState<string | null>(null);
+  const [graphData, setGraphData] = useState<GraphData | null>(null);
+  const [graphBuilding, setGraphBuilding] = useState(false);
+  const [graphBuildLog, setGraphBuildLog] = useState<string[]>([]);
+  const [graphQuerying, setGraphQuerying] = useState(false);
+  const [graphQueryResult, setGraphQueryResult] = useState<GraphQueryState | null>(null);
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
   const [health, setHealth] = useState<AdminHealth | null>(null);
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
@@ -672,6 +694,31 @@ export function useCockpit(): Cockpit {
         setOpenSkill({ id: msg.id, name: msg.name, body: msg.body });
         return;
       }
+      case 'graphs': {
+        setGraphs(msg.items);
+        setGraphsLoaded(true);
+        return;
+      }
+      case 'graph-data': {
+        setGraphOpenId(msg.id);
+        setGraphData(msg.graph);
+        setGraphQueryResult(null); // resposta velha não vale pro grafo novo
+        return;
+      }
+      case 'graph-query-result': {
+        setGraphQueryResult({ question: msg.question, answer: msg.answer, tokens: msg.tokens });
+        setGraphQuerying(false);
+        return;
+      }
+      case 'graph-build-progress': {
+        setGraphBuildLog((prev) => [...prev.slice(-200), msg.line]);
+        return;
+      }
+      case 'graph-build-done': {
+        setGraphBuilding(false);
+        if (!msg.ok) setGraphBuildLog((prev) => [...prev, `erro: ${msg.error ?? 'falha no build'}`]);
+        return;
+      }
       case 'usage-stats': {
         // O server devolve EMPTY_STATS (tudo zero) quando o SQLite está em lock
         // (db.usageStats() cai no fallback). Não apaga um painel já populado por
@@ -1128,6 +1175,22 @@ export function useCockpit(): Cockpit {
   const onSkillList = useCallback(() => send({ t: 'skill-list' }), [send]);
   const onSkillOpen = useCallback((id: string) => send({ t: 'skill-open', id }), [send]);
   const onSkillClose = useCallback(() => setOpenSkill(null), []);
+  const onGraphList = useCallback(() => send({ t: 'graph-list' }), [send]);
+  const onGraphOpen = useCallback((id: string) => { setGraphQueryResult(null); send({ t: 'graph-open', id }); }, [send]);
+  const onGraphBuild = useCallback((repo: string) => {
+    setGraphBuildLog([]); setGraphBuilding(true);
+    send({ t: 'graph-build', repo });
+  }, [send]);
+  const onGraphDelete = useCallback((id: string) => {
+    setGraphData((prev) => (graphOpenId === id ? null : prev));
+    setGraphOpenId((prev) => (prev === id ? null : prev));
+    send({ t: 'graph-delete', id });
+  }, [send, graphOpenId]);
+  const onGraphQuery = useCallback((question: string) => {
+    if (!graphOpenId) return;
+    setGraphQuerying(true);
+    send({ t: 'graph-query', id: graphOpenId, question });
+  }, [send, graphOpenId]);
   const onUsageList = useCallback(() => send({ t: 'usage-list' }), [send]);
   const onRefreshModels = useCallback(() => send({ t: 'refresh-models' }), [send]);
   const onHealthList = useCallback(() => send({ t: 'admin-health' }), [send]);
@@ -1382,5 +1445,5 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, onCronsGet, onCronSave, onCronDelete, onCronRun, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
+  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, onCronsGet, onCronSave, onCronDelete, onCronRun, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphData, graphBuilding, graphBuildLog, graphQuerying, graphQueryResult, onGraphList, onGraphOpen, onGraphBuild, onGraphDelete, onGraphQuery, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
 }

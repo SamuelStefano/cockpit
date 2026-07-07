@@ -253,6 +253,31 @@ export interface AdminHealth {
 // is_admin é flag de banco (setada só por root); root vem do ENV, não aparece aqui.
 export interface AccountSummary { id: string; email: string; isAdmin: boolean; agentOnline: boolean }
 
+// Feature "graph" (rota /graph): knowledge graph de um repo via graphify (AST
+// tree-sitter, local). GraphMeta = card na lista; GraphData = payload projetado
+// pro renderizador canvas (só o que a viz usa, já com teto de nós/arestas).
+export interface GraphMeta { id: string; label: string; nodes: number; edges: number; mtime: number }
+export interface GraphNode {
+  id: string;
+  label: string;
+  community: number;
+  communityName?: string;
+  file?: string;
+  loc?: string;
+  fileType?: string;
+  deg: number; // grau (nº de arestas) — dimensiona o raio e prioriza no corte
+}
+export interface GraphEdge { source: string; target: string; relation: string; confidence: 'EXTRACTED' | 'INFERRED' }
+export interface GraphData {
+  directed: boolean;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  communities: { id: number; name: string }[];
+  truncated: boolean;   // true = a viz mostra um subconjunto (grafo maior que o teto)
+  totalNodes: number;
+  totalEdges: number;
+}
+
 export type ClientMsg =
   // skills = ids das skills SELECIONADAS p/ este prompt (subconjunto de SkillMeta.id).
   // Vazio/ausente = todas ativas (default fail-open). O backend nega via permission
@@ -303,7 +328,12 @@ export type ClientMsg =
   | { t: 'term-resize'; termId: string; cols: number; rows: number }
   | { t: 'term-detach'; termId: string }
   | { t: 'term-close'; termId: string }
-  | { t: 'term-list' };
+  | { t: 'term-list' }
+  | { t: 'graph-list' }
+  | { t: 'graph-build'; repo: string }
+  | { t: 'graph-open'; id: string }
+  | { t: 'graph-query'; id: string; question: string }
+  | { t: 'graph-delete'; id: string };
 
 // Capabilities da conexão (DR-011). role = papel do ator (hoje sempre admin em
 // loopback; Fase 2 vem do token). canBypass = se o servidor permite o toggle de
@@ -371,6 +401,11 @@ export type ServerMsg =
   | { t: 'admin-op'; ok: boolean; message: string }
   | { t: 'accounts'; accounts: AccountSummary[] }
   | { t: 'stats'; stats: SysStats }
+  | { t: 'graphs'; items: GraphMeta[] }
+  | { t: 'graph-data'; id: string; graph: GraphData }
+  | { t: 'graph-query-result'; id: string; question: string; answer: string; tokens: number }
+  | { t: 'graph-build-progress'; line: string }
+  | { t: 'graph-build-done'; ok: boolean; id?: string; error?: string }
   | { t: 'term-data'; termId: string; data: string }
   | { t: 'term-replay'; termId: string; data: string }
   | { t: 'term-exit'; termId: string }
