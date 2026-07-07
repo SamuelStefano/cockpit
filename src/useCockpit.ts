@@ -231,8 +231,13 @@ export function useCockpit(): Cockpit {
   const [claudeReady, setClaudeReady] = useState<boolean>(true);
   const [bypass, setBypass] = useState<boolean>(false); // nunca persistido: opt-in por sessão, default off
   const bypassRef = useRef<boolean>(false);
-  const [model, setModel] = useState<string>(() => loadPref<string>('model', 'sonnet'));
-  const modelRef = useRef<string>(model);
+  // Modelo por SESSÃO — nunca global: trocar a versão numa conversa não pode
+  // vazar pra as outras. defaultModel é só a semente (última escolhida) pra
+  // sessões NOVAS; modelBySession guarda o override real de cada conversa.
+  const [defaultModel, setDefaultModel] = useState<string>(() => loadPref<string>('model', 'sonnet'));
+  const defaultModelRef = useRef<string>(defaultModel);
+  const [modelBySession, setModelBySession] = useState<Record<string, string>>(() => loadPref<Record<string, string>>('modelBySession', {}));
+  const modelBySessionRef = useRef<Record<string, string>>(modelBySession);
   const [models, setModels] = useState<ModelInfo[]>([]);
   // Nível de pensamento (--effort). Default 'low': sem isto o CLI usa o default da
   // conta (alto) e queima thinking tokens até em pedido simples — maior driver de gasto.
@@ -605,18 +610,33 @@ export function useCockpit(): Cockpit {
       }
       case 'models': {
         setModels(msg.models);
-        // Se a sessão ainda está num alias cru (opus/sonnet/haiku), promove pra a
-        // versão concreta mais recente daquela família (ex: opus → claude-opus-4-8).
-        const cur = modelRef.current;
-        if (msg.models.length && !msg.models.some((m) => m.id === cur)) {
-          // alias cru → versão concreta da família; id antigo/deprecado (não-alias,
-          // fora da lista atual, ex: opus-4-7 salvo há meses, que seguia rodando e
-          // queimando ~5x) → cai pro Sonnet econômico em vez de persistir caro.
+        const list = msg.models;
+        if (!list.length) return;
+        // Se um modelo (default ou de alguma sessão) ainda está num alias cru
+        // (opus/sonnet/haiku) ou numa versão descontinuada, promove pra a concreta
+        // mais recente da família — sem isto uma sessão esquecida num id
+        // caro/depreciado (ex: opus-4-7 salvo há meses) seguiria queimando ~5x.
+        const promote = (cur: string): string => {
+          if (list.some((m) => m.id === cur)) return cur;
           const upgrade = ['opus', 'sonnet', 'haiku'].includes(cur)
-            ? msg.models.find((m) => m.id.includes(cur))
-            : (msg.models.find((m) => m.id.includes('sonnet')) ?? msg.models[0]);
-          if (upgrade) { modelRef.current = upgrade.id; setModel(upgrade.id); savePref('model', upgrade.id); }
+            ? list.find((m) => m.id.includes(cur))
+            : (list.find((m) => m.id.includes('sonnet')) ?? list[0]);
+          return upgrade ? upgrade.id : cur;
+        };
+        const nextDefault = promote(defaultModelRef.current);
+        if (nextDefault !== defaultModelRef.current) {
+          defaultModelRef.current = nextDefault;
+          setDefaultModel(nextDefault);
+          savePref('model', nextDefault);
         }
+        let changed = false;
+        const nextMap: Record<string, string> = {};
+        for (const [k, v] of Object.entries(modelBySessionRef.current)) {
+          const p = promote(v);
+          nextMap[k] = p;
+          if (p !== v) changed = true;
+        }
+        if (changed) { modelBySessionRef.current = nextMap; setModelBySession(nextMap); }
         return;
       }
       case 'usage': {
@@ -1090,7 +1110,7 @@ export function useCockpit(): Cockpit {
     // skills só vai no fio quando o usuário restringiu (subconjunto); vazio = todas.
     const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
     const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: modelRef.current, effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
+    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: modelBySessionRef.current[key] ?? defaultModelRef.current, effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
   }, [send, updateThread]);
 
   const onUpload = useCallback((file: File) => {
@@ -1139,7 +1159,18 @@ export function useCockpit(): Cockpit {
 
   const changeMode = useCallback((m: PermMode) => { modeRef.current = m; setMode(m); savePref('mode', m); }, []);
   const changeBypass = useCallback((b: boolean) => { bypassRef.current = b; setBypass(b); }, []);
-  const changeModel = useCallback((m: string) => { modelRef.current = m; setModel(m); savePref('model', m); }, []);
+  // Grava o override da sessão ATIVA (não vaza pra outras) e também atualiza o
+  // default — só serve de semente pra sessões NOVAS, não reabre as já existentes.
+  const changeModel = useCallback((m: string) => {
+    defaultModelRef.current = m;
+    setDefaultModel(m);
+    savePref('model', m);
+    const key = activeRef.current;
+    if (key) {
+      modelBySessionRef.current = { ...modelBySessionRef.current, [key]: m };
+      setModelBySession(modelBySessionRef.current);
+    }
+  }, []);
   const changeEffort = useCallback((e: Effort) => { effortRef.current = e; setEffort(e); savePref('effort', e); }, []);
   const changeSelectedSkills = useCallback((ids: string[]) => { selectedSkillsRef.current = ids; setSelectedSkills(ids); savePref('selectedSkills', ids); }, []);
   const changeSelectedMcps = useCallback((ids: string[]) => { selectedMcpsRef.current = ids; setSelectedMcps(ids); savePref('selectedMcps', ids); }, []);
@@ -1245,7 +1276,7 @@ export function useCockpit(): Cockpit {
     const bypassWire = capsRef.current?.canBypass && bypassRef.current ? true : undefined;
     const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
     const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: clean, msgId, mode: modeRef.current, model: modelRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
+    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: clean, msgId, mode: modeRef.current, model: modelBySessionRef.current[key] ?? defaultModelRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
   }, [send, updateThread, onStop]);
 
   const onNew = useCallback(() => {
@@ -1430,6 +1461,9 @@ export function useCockpit(): Cockpit {
     [sessions, seen, activeId, running]
   );
   const draft = drafts[activeId] || '';
+  // Modelo efetivo da sessão ativa: override próprio, ou o default (semente) se
+  // esta conversa nunca trocou de versão.
+  const model = modelBySession[activeId] ?? defaultModel;
   const contextTokens = usage[activeId] || 0;
   const liveTurnTokens = liveTurn[activeId] || 0;
   const turnStartedAt = runStart[activeId];
@@ -1444,6 +1478,14 @@ export function useCockpit(): Cockpit {
     for (const [k, v] of Object.entries(drafts)) if (v && !k.startsWith('new-')) keep[k] = v;
     savePref('drafts', keep);
   }, [drafts]);
+
+  // Override de modelo por sessão — mesma regra dos drafts: sessões `new-xxx` são
+  // efêmeras e não casam depois de um reload.
+  useEffect(() => {
+    const keep: Record<string, string> = {};
+    for (const [k, v] of Object.entries(modelBySession)) if (!k.startsWith('new-')) keep[k] = v;
+    savePref('modelBySession', keep);
+  }, [modelBySession]);
 
   return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, onCronsGet, onCronSave, onCronDelete, onCronRun, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphData, graphBuilding, graphBuildLog, graphQuerying, graphQueryResult, onGraphList, onGraphOpen, onGraphBuild, onGraphDelete, onGraphQuery, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
 }
