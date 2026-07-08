@@ -1,17 +1,22 @@
-import { Icon } from '../primitives';
+import { Icon, Button } from '../primitives';
 import type { GraphNode } from '../../../shared/protocol';
+import type { GraphNodeOp } from '../../useCockpit';
 import { communityColor, repoColor } from './community-color';
+
+export interface Neighbor { node: GraphNode; relation: string }
 
 interface Props {
   node: GraphNode;
-  neighbors: GraphNode[];
+  neighbors: Neighbor[];
   onSelectNeighbor: (n: GraphNode) => void;
   onClose: () => void;
+  onNodeOp: (op: GraphNodeOp, a: string) => void;
 }
 
-// Painel de detalhe do nó selecionado: identidade + vizinhos clicáveis (navegar
-// o grafo saltando de nó em nó). Vizinhos ordenados por grau (mais central 1º).
-export function GraphNodeDetail({ node, neighbors, onSelectNeighbor, onClose }: Props) {
+// Painel de detalhe do nó selecionado: identidade + ações (explicar/impacto via
+// graphify) + vizinhos clicáveis com a relação (navegar o grafo saltando de nó
+// em nó). Vizinhos ordenados por grau (mais central 1º).
+export function GraphNodeDetail({ node, neighbors, onSelectNeighbor, onClose, onNodeOp }: Props) {
   return (
     <div className="pointer-events-auto absolute left-3 top-3 flex max-h-[calc(100%-1.5rem)] w-64 flex-col rounded-lg border border-neutral-800 bg-neutral-900/95 shadow-xl backdrop-blur">
       <div className="flex items-start gap-2 border-b border-neutral-800/70 p-3">
@@ -29,11 +34,16 @@ export function GraphNodeDetail({ node, neighbors, onSelectNeighbor, onClose }: 
         </button>
       </div>
 
+      <div className="flex gap-1.5 border-b border-neutral-800/50 px-3 py-2">
+        <Button variant="ghost" size="sm" icon="sparkles" onClick={() => onNodeOp('explain', node.label)}>explicar</Button>
+        <Button variant="ghost" size="sm" icon="zap" onClick={() => onNodeOp('affected', node.label)}>impacto</Button>
+      </div>
+
       {neighbors.length > 0 && (
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
           <div className="mb-1 px-1 text-[10px] uppercase tracking-wide text-neutral-600">vizinhos</div>
           <ul className="flex flex-col gap-0.5">
-            {neighbors.map((n) => (
+            {neighbors.map(({ node: n, relation }) => (
               <li key={n.id}>
                 <button
                   onClick={() => onSelectNeighbor(n)}
@@ -41,6 +51,7 @@ export function GraphNodeDetail({ node, neighbors, onSelectNeighbor, onClose }: 
                 >
                   <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: n.repo ? repoColor(n.repo) : communityColor(n.community) }} />
                   <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-neutral-300">{n.label}</span>
+                  <span className="shrink-0 font-mono text-[9.5px] text-neutral-600">{relation}</span>
                 </button>
               </li>
             ))}

@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import type { GraphData, GraphNode } from '../../../shared/protocol';
 import type { ColorMode } from './useForceGraph';
 import type { RepoStat } from './GraphLegend';
+import type { Neighbor } from './GraphNodeDetail';
 
 // Estado + derivações da exploração de um grafo (cor, busca, foco de repo,
 // seleção). GraphCanvas só compõe: chama isto + o motor useForceGraph e passa
@@ -27,21 +28,23 @@ export function useGraphExplorer(graph: GraphData) {
   }, [graph]);
 
   const adjacency = useMemo(() => {
-    const adj = new Map<string, Set<string>>();
+    const adj = new Map<string, Map<string, string>>(); // nó → (vizinho → relação)
     for (const e of graph.edges) {
-      (adj.get(e.source) ?? adj.set(e.source, new Set()).get(e.source)!).add(e.target);
-      (adj.get(e.target) ?? adj.set(e.target, new Set()).get(e.target)!).add(e.source);
+      (adj.get(e.source) ?? adj.set(e.source, new Map()).get(e.source)!).set(e.target, e.relation);
+      (adj.get(e.target) ?? adj.set(e.target, new Map()).get(e.target)!).set(e.source, e.relation);
     }
     return adj;
   }, [graph]);
 
   const selectedNode = selectedId ? nodeById.get(selectedId) ?? null : null;
-  const neighbors = useMemo<GraphNode[]>(() => {
+  const neighbors = useMemo<Neighbor[]>(() => {
     if (!selectedId) return [];
-    const ids = adjacency.get(selectedId);
-    if (!ids) return [];
-    return [...ids].map((id) => nodeById.get(id)).filter((n): n is GraphNode => !!n)
-      .sort((a, b) => b.deg - a.deg).slice(0, 40);
+    const rels = adjacency.get(selectedId);
+    if (!rels) return [];
+    return [...rels.entries()]
+      .map(([id, relation]) => { const node = nodeById.get(id); return node ? { node, relation } : null; })
+      .filter((n): n is Neighbor => !!n)
+      .sort((a, b) => b.node.deg - a.node.deg).slice(0, 40);
   }, [selectedId, adjacency, nodeById]);
 
   const q = query.trim().toLowerCase();

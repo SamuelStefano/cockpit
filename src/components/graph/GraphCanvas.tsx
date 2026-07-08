@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { GraphData, GraphNode } from '../../../shared/protocol';
+import type { GraphNodeOp } from '../../useCockpit';
 import { useForceGraph } from './useForceGraph';
 import { useGraphExplorer } from './useGraphExplorer';
 import { communityColor, repoColor } from './community-color';
@@ -9,12 +10,22 @@ import { GraphNodeDetail } from './GraphNodeDetail';
 
 interface Props {
   graph: GraphData;
+  onNodeOp: (op: GraphNodeOp, a: string, b?: string) => void;
 }
 
-export function GraphCanvas({ graph }: Props) {
+export function GraphCanvas({ graph, onNodeOp }: Props) {
   const x = useGraphExplorer(graph);
+  // Clique num nó seleciona; shift+clique COM um nó já selecionado dispara o
+  // caminho entre os dois (a consulta `path` do graphify).
+  const onSelect = (n: GraphNode, mod?: { shiftKey?: boolean }) => {
+    if (mod?.shiftKey && x.selectedNode && x.selectedNode.id !== n.id) {
+      onNodeOp('path', x.selectedNode.label, n.label);
+      return;
+    }
+    x.selectNode(n);
+  };
   const { canvasRef, hovered, resetView, focusNode } = useForceGraph(graph, {
-    selectedId: x.selectedId, onSelect: x.selectNode,
+    selectedId: x.selectedId, onSelect,
     colorMode: x.colorMode, query: x.query, focusRepo: x.focusRepo,
   });
 
@@ -33,15 +44,17 @@ export function GraphCanvas({ graph }: Props) {
 
   return (
     <div className="relative min-h-0 flex-1 overflow-hidden bg-neutral-950">
-      <canvas ref={canvasRef} className="h-full w-full" style={{ cursor: 'grab' }} />
+      <canvas ref={canvasRef} className="h-full w-full" style={{ cursor: 'grab', touchAction: 'none' }} />
 
-      <div className="pointer-events-none absolute left-3 top-3 flex flex-col gap-1 text-[11px] text-neutral-500">
-        <span><span className="text-neutral-300">{graph.nodes.length.toLocaleString('pt-BR')}</span> nós · <span className="text-neutral-300">{graph.edges.length.toLocaleString('pt-BR')}</span> arestas · <span className="text-neutral-300">{x.hasRepos ? x.repos.length : graph.communities.length}</span> {x.hasRepos ? 'apps' : 'comunidades'}</span>
-        {graph.truncated && (
-          <span className="text-amber-500/80">mostrando os {graph.nodes.length.toLocaleString('pt-BR')} nós mais conectados de {graph.totalNodes.toLocaleString('pt-BR')}</span>
-        )}
-        <span className="text-neutral-600">arraste · scroll p/ zoom · clique num nó</span>
-      </div>
+      {!x.selectedNode && (
+        <div className="pointer-events-none absolute left-3 top-3 flex flex-col gap-1 text-[11px] text-neutral-500">
+          <span><span className="text-neutral-300">{graph.nodes.length.toLocaleString('pt-BR')}</span> nós · <span className="text-neutral-300">{graph.edges.length.toLocaleString('pt-BR')}</span> arestas · <span className="text-neutral-300">{x.hasRepos ? x.repos.length : graph.communities.length}</span> {x.hasRepos ? 'apps' : 'comunidades'}</span>
+          {graph.truncated && (
+            <span className="text-amber-500/80">mostrando os {graph.nodes.length.toLocaleString('pt-BR')} nós mais conectados de {graph.totalNodes.toLocaleString('pt-BR')}</span>
+          )}
+          <span className="text-neutral-600">arraste · scroll p/ zoom · clique num nó · shift+clique: caminho</span>
+        </div>
+      )}
 
       <GraphControls
         query={x.query} onQuery={x.setQuery} matchCount={x.matchCount}
@@ -54,7 +67,7 @@ export function GraphCanvas({ graph }: Props) {
       )}
 
       {x.selectedNode ? (
-        <GraphNodeDetail node={x.selectedNode} neighbors={x.neighbors} onSelectNeighbor={selectNeighbor} onClose={x.clearSelection} />
+        <GraphNodeDetail node={x.selectedNode} neighbors={x.neighbors} onSelectNeighbor={selectNeighbor} onClose={x.clearSelection} onNodeOp={onNodeOp} />
       ) : hovered ? (
         <div className="pointer-events-none absolute bottom-3 left-3 max-w-xs rounded-lg border border-neutral-800 bg-neutral-900/95 px-3 py-2 shadow-lg">
           <div className="flex items-center gap-2">

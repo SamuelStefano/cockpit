@@ -85,9 +85,9 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
     }
     if (route === '/graph' && isAdmin) {
       return (
-        <Graph connected={connected} graphs={c.graphs} loaded={c.graphsLoaded} openId={c.graphOpenId} graph={c.graphData}
-          building={c.graphBuilding} buildLog={c.graphBuildLog} querying={c.graphQuerying} queryResult={c.graphQueryResult}
-          onGraphList={c.onGraphList} onGraphOpen={c.onGraphOpen} onGraphBuild={c.onGraphBuild} onGraphDelete={c.onGraphDelete} onGraphQuery={c.onGraphQuery} />
+        <Graph connected={connected} graphs={c.graphs} loaded={c.graphsLoaded} openId={c.graphOpenId} opening={c.graphOpening} graph={c.graphData}
+          building={c.graphBuilding} buildLog={c.graphBuildLog} buildError={c.graphBuildError} querying={c.graphQuerying} queryResult={c.graphQueryResult} queryHistory={c.graphQueryHistory}
+          onGraphList={c.onGraphList} onGraphOpen={c.onGraphOpen} onGraphBuild={c.onGraphBuild} onClearBuildError={c.onClearBuildError} onGraphDelete={c.onGraphDelete} onGraphQuery={c.onGraphQuery} onGraphNodeOp={c.onGraphNodeOp} />
       );
     }
     if (route === '/admin' && isAdmin) {

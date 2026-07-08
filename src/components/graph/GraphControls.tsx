@@ -1,4 +1,4 @@
-import { Icon, Button } from '../primitives';
+import { Button, Input } from '../primitives';
 import type { ColorMode } from './useForceGraph';
 
 interface Props {
@@ -14,18 +14,14 @@ interface Props {
 export function GraphControls({ query, onQuery, matchCount, colorMode, onColorMode, showColorToggle, onReset }: Props) {
   return (
     <div className="pointer-events-auto absolute right-3 top-3 flex items-center gap-2">
-      <div className="flex items-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-900/95 px-2.5 py-1.5 shadow-lg backdrop-blur focus-within:border-orange-500/40">
-        <Icon name="search" size={13} className="shrink-0 text-neutral-500" />
-        <input
-          value={query}
+      <div className="w-44 shadow-lg">
+        <Input
+          icon="search" mono size="sm" value={query}
           onChange={(e) => onQuery(e.target.value)}
           placeholder="buscar nó…"
           aria-label="Buscar nó no grafo"
-          className="w-40 bg-transparent font-mono text-[12px] text-neutral-200 placeholder-neutral-600 outline-none"
+          suffix={matchCount !== null ? <span className={`font-mono text-[10.5px] ${matchCount ? 'text-orange-300' : 'text-neutral-600'}`}>{matchCount}</span> : undefined}
         />
-        {matchCount !== null && (
-          <span className={`shrink-0 font-mono text-[10.5px] ${matchCount ? 'text-orange-300' : 'text-neutral-600'}`}>{matchCount}</span>
-        )}
       </div>
 
       {showColorToggle && (

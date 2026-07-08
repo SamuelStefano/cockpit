@@ -55,6 +55,8 @@ export function DesignSystem() {
           <Row label="error"><Input error defaultValue="http://errado" /></Row>
           <Row label="mono"><Input mono placeholder="wss://deck.exemplo.com" /></Row>
           <Row label="password"><Input type="password" placeholder="••••••••" /></Row>
+          <Row label="icon"><Input icon="search" placeholder="buscar…" /></Row>
+          <Row label="suffix"><Input icon="search" mono size="sm" placeholder="buscar nó…" suffix={<span className="font-mono text-[10.5px] text-orange-300">58</span>} /></Row>
         </Section>
 
         <Section title="Badge">

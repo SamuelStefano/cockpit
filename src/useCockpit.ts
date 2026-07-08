@@ -18,7 +18,8 @@ import { attachmentTextBlock } from './lib/parse-attachments';
 
 export interface ContextDoc { id: string; title: string; body: string }
 export interface SkillDoc { id: string; name: string; body: string }
-export interface GraphQueryState { question: string; answer: string; tokens: number }
+export interface GraphQueryState { question: string; answer: string; tokens: number; miss: boolean }
+export type GraphNodeOp = 'explain' | 'affected' | 'path';
 export interface Attachment { name: string; path: string; text?: string; s3url?: string; uploading?: boolean; clientId?: string }
 export interface AttachmentPreview { path: string; name: string; dataB64?: string; error?: string }
 export type { TermApi };
@@ -102,16 +103,21 @@ export interface Cockpit {
   graphs: GraphMeta[];
   graphsLoaded: boolean;
   graphOpenId: string | null;
+  graphOpening: string | null;
   graphData: GraphData | null;
   graphBuilding: boolean;
   graphBuildLog: string[];
+  graphBuildError: string | null;
   graphQuerying: boolean;
   graphQueryResult: GraphQueryState | null;
+  graphQueryHistory: GraphQueryState[];
   onGraphList: () => void;
   onGraphOpen: (id: string) => void;
   onGraphBuild: (repo: string) => void;
+  onClearBuildError: () => void;
   onGraphDelete: (id: string) => void;
-  onGraphQuery: (question: string) => void;
+  onGraphQuery: (question: string, budget?: number) => void;
+  onGraphNodeOp: (op: GraphNodeOp, a: string, b?: string) => void;
   usageStats: UsageStats | null;
   onUsageList: () => void;
   health: AdminHealth | null;
@@ -190,11 +196,14 @@ export function useCockpit(): Cockpit {
   const [graphs, setGraphs] = useState<GraphMeta[]>([]);
   const [graphsLoaded, setGraphsLoaded] = useState(false);
   const [graphOpenId, setGraphOpenId] = useState<string | null>(null);
+  const [graphOpening, setGraphOpening] = useState<string | null>(null);
   const [graphData, setGraphData] = useState<GraphData | null>(null);
   const [graphBuilding, setGraphBuilding] = useState(false);
   const [graphBuildLog, setGraphBuildLog] = useState<string[]>([]);
+  const [graphBuildError, setGraphBuildError] = useState<string | null>(null);
   const [graphQuerying, setGraphQuerying] = useState(false);
   const [graphQueryResult, setGraphQueryResult] = useState<GraphQueryState | null>(null);
+  const [graphQueryHistory, setGraphQueryHistory] = useState<GraphQueryState[]>([]);
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
   const [health, setHealth] = useState<AdminHealth | null>(null);
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
@@ -717,13 +726,18 @@ export function useCockpit(): Cockpit {
       }
       case 'graph-data': {
         setGraphOpenId(msg.id);
+        setGraphOpening((cur) => (cur === msg.id ? null : cur));
         setGraphData(msg.graph);
         setGraphQueryResult(null); // resposta velha não vale pro grafo novo
+        setGraphQueryHistory([]);  // histórico é por-grafo
         return;
       }
       case 'graph-query-result': {
-        setGraphQueryResult({ question: msg.question, answer: msg.answer, tokens: msg.tokens });
+        const r = { question: msg.question, answer: msg.answer, tokens: msg.tokens, miss: msg.miss };
+        setGraphQueryResult(r);
         setGraphQuerying(false);
+        // histórico só de consultas que renderam algo (não-miss); dedup por pergunta, cap 8.
+        if (!r.miss) setGraphQueryHistory((prev) => [r, ...prev.filter((h) => h.question !== r.question)].slice(0, 8));
         return;
       }
       case 'graph-build-progress': {
@@ -732,7 +746,7 @@ export function useCockpit(): Cockpit {
       }
       case 'graph-build-done': {
         setGraphBuilding(false);
-        if (!msg.ok) setGraphBuildLog((prev) => [...prev, `erro: ${msg.error ?? 'falha no build'}`]);
+        if (!msg.ok) setGraphBuildError(msg.error ?? 'falha no build');
         return;
       }
       case 'usage-stats': {
@@ -942,6 +956,10 @@ export function useCockpit(): Cockpit {
       for (const p of thumbPending.current) thumbRequested.current.delete(p);
       thumbPending.current.clear();
       setConn({ ws: 'connected', sse: 'connected' });
+      // Build que estava em voo quando o socket caiu nunca recebe o 'done' — o
+      // botão ficaria "construindo…" pra sempre. Destrava e reconcilia via list.
+      setGraphBuilding((b) => { if (b) { setGraphBuildError('conexão caiu durante o build — verifique a lista'); send({ t: 'graph-list' }); } return false; });
+      setGraphOpening(null);
       send({ t: 'list' });
       send({ t: 'list-archived' });
       send({ t: 'usage-list' });
@@ -1205,20 +1223,26 @@ export function useCockpit(): Cockpit {
   const onSkillOpen = useCallback((id: string) => send({ t: 'skill-open', id }), [send]);
   const onSkillClose = useCallback(() => setOpenSkill(null), []);
   const onGraphList = useCallback(() => send({ t: 'graph-list' }), [send]);
-  const onGraphOpen = useCallback((id: string) => { setGraphQueryResult(null); send({ t: 'graph-open', id }); }, [send]);
+  const onGraphOpen = useCallback((id: string) => { setGraphQueryResult(null); setGraphOpening(id); send({ t: 'graph-open', id }); }, [send]);
   const onGraphBuild = useCallback((repo: string) => {
-    setGraphBuildLog([]); setGraphBuilding(true);
+    setGraphBuildLog([]); setGraphBuildError(null); setGraphBuilding(true);
     send({ t: 'graph-build', repo });
   }, [send]);
+  const onClearBuildError = useCallback(() => setGraphBuildError(null), []);
   const onGraphDelete = useCallback((id: string) => {
     setGraphData((prev) => (graphOpenId === id ? null : prev));
     setGraphOpenId((prev) => (prev === id ? null : prev));
     send({ t: 'graph-delete', id });
   }, [send, graphOpenId]);
-  const onGraphQuery = useCallback((question: string) => {
+  const onGraphQuery = useCallback((question: string, budget?: number) => {
     if (!graphOpenId) return;
     setGraphQuerying(true);
-    send({ t: 'graph-query', id: graphOpenId, question });
+    send({ t: 'graph-query', id: graphOpenId, question, budget });
+  }, [send, graphOpenId]);
+  const onGraphNodeOp = useCallback((op: GraphNodeOp, a: string, b?: string) => {
+    if (!graphOpenId) return;
+    setGraphQuerying(true);
+    send({ t: 'graph-node-op', id: graphOpenId, op, a, b });
   }, [send, graphOpenId]);
   const onUsageList = useCallback(() => send({ t: 'usage-list' }), [send]);
   const onRefreshModels = useCallback(() => send({ t: 'refresh-models' }), [send]);
@@ -1485,5 +1509,5 @@ export function useCockpit(): Cockpit {
     savePref('modelBySession', keep);
   }, [modelBySession]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, onCronsGet, onCronSave, onCronDelete, onCronRun, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphData, graphBuilding, graphBuildLog, graphQuerying, graphQueryResult, onGraphList, onGraphOpen, onGraphBuild, onGraphDelete, onGraphQuery, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
+  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, onCronsGet, onCronSave, onCronDelete, onCronRun, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
 }
