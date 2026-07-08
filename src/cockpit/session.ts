@@ -53,6 +53,24 @@ export function metaToSession(m: SessionMeta, active: boolean): Session {
   return { id: m.id, title: m.title, relative: m.relative, snippet: m.snippet, summary: m.summary, mtime: m.mtime, hasTerminal: false, active };
 }
 
+// Reconcilia o re-list do servidor com o estado local: preserva as sessões locais
+// `new-` (ainda não persistidas) e faz MAX-MERGE do mtime — quando este re-list foi
+// tirado o JSONL da mensagem recém-enviada pode não ter sido gravado, então o mtime
+// do servidor vem ATRÁS do otimista. Sem preservar o maior, a sessão que o usuário
+// acabou de mexer volta pro balde velho e "some" do topo até um F5 (group-by-recency
+// ordena/agrupa só por mtime). Quando o otimista vence, mantém também o relative/
+// snippet locais pra o card não mostrar um estado velho junto do mtime novo.
+export function mergeServerSessions(prev: Session[], items: SessionMeta[], activeId: string): Session[] {
+  const prevById = new Map(prev.map((s) => [s.id, s]));
+  const localOnly = prev.filter((s) => s.id.startsWith('new-'));
+  const fromServer = items.map((m) => {
+    const sess = metaToSession(m, m.id === activeId);
+    const p = prevById.get(m.id);
+    return p && p.mtime > sess.mtime ? { ...sess, mtime: p.mtime, relative: p.relative, snippet: p.snippet } : sess;
+  });
+  return [...localOnly, ...fromServer];
+}
+
 // Mantém a 1ª ocorrência de cada id, descartando duplicatas. Usado ao migrar a
 // key local (new-…→uuid) quando o `list` do servidor já trouxe a mesma sessão.
 export function dedupById<T extends { id: string }>(rows: T[]): T[] {

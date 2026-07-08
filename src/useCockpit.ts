@@ -4,7 +4,7 @@ import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, Conte
 import { loadPref, savePref, setPref } from './lib/persist';
 import { SUPABASE_ENABLED } from './lib/supabase';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
-import { wsUrlWithToken, newId, metaToSession, dedupById, mergeSeen } from './cockpit/session';
+import { wsUrlWithToken, newId, metaToSession, mergeServerSessions, dedupById, mergeSeen } from './cockpit/session';
 import { computeStalled, computeUpdated } from './cockpit/signals';
 import { upsertTool, appendDelta, appendThinking } from './cockpit/blocks';
 import { selectEvictions } from './cockpit/evict';
@@ -396,11 +396,7 @@ export function useCockpit(): Cockpit {
       case 'agent-online': { setAgentOnline(true); return; }
       case 'agent-offline': { setAgentOnline(false); return; }
       case 'sessions': {
-        setSessions((prev) => {
-          const localOnly = prev.filter((s) => s.id.startsWith('new-'));
-          const fromServer = msg.items.map((m) => metaToSession(m, m.id === activeRef.current));
-          return [...localOnly, ...fromServer];
-        });
+        setSessions((prev) => mergeServerSessions(prev, msg.items, activeRef.current));
         // Baseline: sessão vista pela 1ª vez entra no `seen` com o mtime atual
         // (não vira "atualizada" retroativamente). Só mtime que AVANÇA depois badgeia.
         setSeen((prev) => {
@@ -484,7 +480,7 @@ export function useCockpit(): Cockpit {
         updateThread(key, (prev) =>
           prev.some((m) => m.id === msg.id) ? prev : [...prev, { id: msg.id, role: 'user', text: msg.text, ts: msg.ts }],
         );
-        setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: msg.text, relative: 'agora' } : s)));
+        setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: msg.text, relative: 'agora', mtime: Math.max(s.mtime, msg.ts ?? Date.now()) } : s)));
         return;
       }
       case 'triage': {
@@ -1101,7 +1097,9 @@ export function useCockpit(): Cockpit {
     // mostra os chips na hora, igual ao reload do JSONL. Com `text` limpo os anexos
     // só apareciam após F5.
     updateThread(key, (prev) => [...prev, { id: msgId, role: 'user', text: wire, ts: Date.now() }]);
-    setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: text, relative: 'agora' } : s)));
+    // Bump do mtime junto do 'agora': o group-by-recency ordena/agrupa só por mtime.
+    // Sem isto o card mostrava "agora" mas ficava no balde/posição velha até um F5.
+    setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: text, relative: 'agora', mtime: Date.now() } : s)));
     setDrafts((d) => ({ ...d, [key]: '' }));
     // bypass só vai no fio quando o servidor anunciou a capacidade (admin + env +
     // loopback). O backend reimpõe via bypassAllowed — isto é só pra não anunciar
@@ -1272,7 +1270,7 @@ export function useCockpit(): Cockpit {
       if (idx === -1) return prev;
       return [...prev.slice(0, idx), { ...prev[idx], text: clean, triage: undefined, ts: Date.now() }];
     });
-    setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: clean, relative: 'agora' } : s)));
+    setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: clean, relative: 'agora', mtime: Date.now() } : s)));
     const bypassWire = capsRef.current?.canBypass && bypassRef.current ? true : undefined;
     const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
     const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
