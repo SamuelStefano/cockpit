@@ -592,6 +592,13 @@ describe('cleanUserText (N2: slash e !comando como no terminal)', () => {
   it('texto normal passa intacto', () => {
     expect(cleanUserText('oi, tudo bem?')).toBe('oi, tudo bem?');
   });
+
+  it('task-notification injetada pelo harness não vira bolha do usuário', () => {
+    expect(cleanUserText('<task-notification>\n<task-id>a194764d9e2569a7f</task-id>\n<status>completed</status>\n</task-notification>')).toBeNull();
+    expect(cleanUserText('  <task-notification><summary>x</summary></task-notification>')).toBeNull();
+    // não confundir com texto que apenas menciona a palavra
+    expect(cleanUserText('rodei uma task-notification manual')).toBe('rodei uma task-notification manual');
+  });
 });
 
 describe('markerFromRec + weaveByTs (N2: pr-link e wakeup na timeline)', () => {

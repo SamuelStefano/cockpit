@@ -349,6 +349,12 @@ export async function parseFullSession(
 // harness — o terminal mostra "/model x" e a saída limpa; o app mostrava o XML
 // cru com códigos ANSI. null = nada renderizável (paridade: o terminal omite).
 export function cleanUserText(text: string): string | null {
+  // Notificação de agente em background concluído: o harness injeta como record
+  // `user` de STRING (sem isMeta), então sem filtrar cada uma virava uma bolha de
+  // XML cru ("<task-notification><task-id>…") atribuída ao Samuel — numa sessão
+  // com muitos agentes o chat ficava "todo zoado". O terminal não mostra isso
+  // como fala do usuário; aqui também não é renderável.
+  if (/^\s*<task-notification>/.test(text)) return null;
   if (text.includes('<command-name>')) {
     const name = /<command-name>([^<]*)<\/command-name>/.exec(text)?.[1]?.trim() ?? '';
     const args = /<command-args>([^<]*)<\/command-args>/.exec(text)?.[1]?.trim() ?? '';
