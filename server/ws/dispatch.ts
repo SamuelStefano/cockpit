@@ -19,7 +19,7 @@ import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
 import { threads, startRun, routeSend, onStop } from './runs';
 import { refreshModels } from './models';
-import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph } from '../graph';
+import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 
 export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
   switch (msg.t) {
@@ -34,9 +34,16 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'graph-query': {
-      const res = await queryGraph(msg.id, msg.question);
+      const res = await queryGraph(msg.id, msg.question, msg.budget);
       if (!res) { send(ws, { t: 'error', message: 'grafo não encontrado' }); return; }
-      send(ws, { t: 'graph-query-result', id: msg.id, question: msg.question, answer: res.answer, tokens: res.tokens });
+      send(ws, { t: 'graph-query-result', id: msg.id, question: msg.question, answer: res.answer, tokens: res.tokens, miss: res.miss });
+      return;
+    }
+    case 'graph-node-op': {
+      const res = await nodeOp(msg.id, msg.op, msg.a, msg.b);
+      if (!res) { send(ws, { t: 'error', message: 'operação inválida no grafo' }); return; }
+      const label = msg.op === 'explain' ? `explicar ${msg.a}` : msg.op === 'affected' ? `impacto de ${msg.a}` : `caminho ${msg.a} → ${msg.b}`;
+      send(ws, { t: 'graph-query-result', id: msg.id, question: label, answer: res.answer, tokens: res.tokens, miss: res.miss });
       return;
     }
     case 'graph-build': {
@@ -52,7 +59,8 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'graph-delete': {
-      await deleteGraph(msg.id);
+      const ok = await deleteGraph(msg.id);
+      if (!ok) { send(ws, { t: 'error', message: 'não foi possível excluir o grafo' }); return; }
       send(ws, { t: 'graphs', items: await listGraphs() });
       return;
     }

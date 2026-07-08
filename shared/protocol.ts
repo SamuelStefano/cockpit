@@ -256,7 +256,7 @@ export interface AccountSummary { id: string; email: string; isAdmin: boolean; a
 // Feature "graph" (rota /graph): knowledge graph de um repo via graphify (AST
 // tree-sitter, local). GraphMeta = card na lista; GraphData = payload projetado
 // pro renderizador canvas (só o que a viz usa, já com teto de nós/arestas).
-export interface GraphMeta { id: string; label: string; nodes: number; edges: number; mtime: number }
+export interface GraphMeta { id: string; label: string; nodes: number; edges: number; mtime: number; ratio?: number }
 export interface GraphNode {
   id: string;
   label: string;
@@ -333,7 +333,8 @@ export type ClientMsg =
   | { t: 'graph-list' }
   | { t: 'graph-build'; repo: string }
   | { t: 'graph-open'; id: string }
-  | { t: 'graph-query'; id: string; question: string }
+  | { t: 'graph-query'; id: string; question: string; budget?: number }
+  | { t: 'graph-node-op'; id: string; op: 'explain' | 'affected' | 'path'; a: string; b?: string }
   | { t: 'graph-delete'; id: string };
 
 // Capabilities da conexão (DR-011). role = papel do ator (hoje sempre admin em
@@ -404,7 +405,7 @@ export type ServerMsg =
   | { t: 'stats'; stats: SysStats }
   | { t: 'graphs'; items: GraphMeta[] }
   | { t: 'graph-data'; id: string; graph: GraphData }
-  | { t: 'graph-query-result'; id: string; question: string; answer: string; tokens: number }
+  | { t: 'graph-query-result'; id: string; question: string; answer: string; tokens: number; miss: boolean }
   | { t: 'graph-build-progress'; line: string }
   | { t: 'graph-build-done'; ok: boolean; id?: string; error?: string }
   | { t: 'term-data'; termId: string; data: string }
