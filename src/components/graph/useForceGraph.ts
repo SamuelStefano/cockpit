@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { GraphData, GraphNode } from '../../../shared/protocol';
-import { communityColor } from './community-color';
+import { communityColor, repoColor } from './community-color';
 import { communityLayout, type Pt } from './graph-layout';
+
+export type ColorMode = 'community' | 'repo';
+export interface ForceGraphOpts {
+  selectedId?: string;
+  onSelect?: (n: GraphNode) => void;
+  colorMode?: ColorMode;
+  query?: string;        // busca: acende matches, esmaece o resto
+  focusRepo?: string | null; // legenda: isola um repo (esmaece os outros)
+}
 
 // Motor de força em canvas, sem dependência externa. Simulação: repulsão via grid
 // espacial (O(n) aprox — não O(n²)), atração por mola nas arestas e gravidade fraca
@@ -28,7 +37,7 @@ const WARM_START_MAX_TICKS = 320;
 function nodeRadius(n: GraphNode): number { return 3 + Math.sqrt(n.deg) * 1.6; }
 function clamp(v: number, lo: number, hi: number): number { return v < lo ? lo : v > hi ? hi : v; }
 
-export function useForceGraph(graph: GraphData | null, opts: { selectedId?: string; onSelect?: (n: GraphNode) => void }) {
+export function useForceGraph(graph: GraphData | null, opts: ForceGraphOpts) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const posRef = useRef<Map<string, Pt>>(new Map());
   const viewRef = useRef<View>({ tx: 0, ty: 0, scale: 1 });
@@ -45,6 +54,12 @@ export function useForceGraph(graph: GraphData | null, opts: { selectedId?: stri
   selectedRef.current = opts.selectedId;
   const onSelectRef = useRef(opts.onSelect);
   onSelectRef.current = opts.onSelect;
+  const colorModeRef = useRef<ColorMode>(opts.colorMode ?? 'community');
+  colorModeRef.current = opts.colorMode ?? 'community';
+  const queryRef = useRef<string>(opts.query ?? '');
+  queryRef.current = opts.query ?? '';
+  const focusRepoRef = useRef<string | null>(opts.focusRepo ?? null);
+  focusRepoRef.current = opts.focusRepo ?? null;
 
   const dpr = () => Math.min(window.devicePixelRatio || 1, 2);
 
@@ -128,6 +143,9 @@ export function useForceGraph(graph: GraphData | null, opts: { selectedId?: stri
     }
   }, []);
 
+  const nodeColor = (node: GraphNode, alpha = 1): string =>
+    colorModeRef.current === 'repo' && node.repo ? repoColor(node.repo, alpha) : communityColor(node.community, alpha);
+
   const render = useCallback(() => {
     const c = canvasRef.current; if (!c) return;
     const ctx = c.getContext('2d'); if (!ctx) return;
@@ -135,48 +153,78 @@ export function useForceGraph(graph: GraphData | null, opts: { selectedId?: stri
     const ratio = dpr();
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.clearRect(0, 0, c.width, c.height);
+    // Fundo com vinheta radial sutil — dá profundidade sem competir com os nós.
+    const cw = c.width / ratio, ch = c.height / ratio;
+    const bg = ctx.createRadialGradient(cw / 2, ch / 2, 0, cw / 2, ch / 2, Math.max(cw, ch) * 0.75);
+    bg.addColorStop(0, 'rgba(24,26,32,0.55)'); bg.addColorStop(1, 'rgba(10,10,12,0)');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, cw, ch);
     ctx.translate(v.tx, v.ty); ctx.scale(v.scale, v.scale);
 
     const hoverId = hoverIdRef.current;
     const selId = selectedRef.current;
     const focusId = hoverId ?? selId;
     const nb = focusId ? neighborsRef.current.get(focusId) : undefined;
+    const q = queryRef.current.trim().toLowerCase();
+    const focusRepo = focusRepoRef.current;
+
+    // Decide se um nó está "apagado" (esmaecido). Precedência: busca > foco de
+    // repo (legenda) > foco por hover/seleção. Busca acesa = match no label.
+    const isMatch = (node: GraphNode) => !!q && node.label.toLowerCase().includes(q);
+    const isDim = (node: GraphNode): boolean => {
+      if (q) return !isMatch(node);
+      if (focusRepo) return node.repo !== focusRepo;
+      if (focusId) return node.id !== focusId && !(nb && nb.has(node.id));
+      return false;
+    };
+    const anyFocus = !!(q || focusRepo || focusId);
 
     ctx.lineWidth = 0.6 / v.scale;
     for (const e of edgesRef.current) {
       const a = pos.get(e.source), b = pos.get(e.target);
       if (!a || !b) continue;
       const incident = focusId && (e.source === focusId || e.target === focusId);
-      ctx.strokeStyle = incident ? 'rgba(249,168,64,0.55)' : focusId ? 'rgba(120,120,130,0.05)' : 'rgba(120,120,130,0.14)';
+      ctx.strokeStyle = incident ? 'rgba(249,168,64,0.5)' : anyFocus ? 'rgba(120,120,130,0.04)' : 'rgba(120,120,130,0.13)';
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
     }
 
+    const hubGlow = 14; // grau a partir do qual o nó ganha glow (hub visualmente destacado)
     for (const node of nodesRef.current) {
       const p = pos.get(node.id); if (!p) continue;
       const r = nodeRadius(node);
-      const dimmed = focusId && node.id !== focusId && !(nb && nb.has(node.id));
-      ctx.globalAlpha = dimmed ? 0.25 : 1;
+      const dim = isDim(node);
+      const lit = !dim && (isMatch(node) || node.id === selId || node.id === hoverId || (anyFocus && !dim));
+      ctx.globalAlpha = dim ? 0.18 : 1;
+      // Glow: hubs sempre, e qualquer nó aceso (match/seleção/hover). shadowBlur é
+      // caro — só ligo onde importa, não nos milhares de nós comuns.
+      const glow = !dim && (node.deg >= hubGlow || lit);
+      // shadowBlur em unidades de mundo (escala com o zoom): mais forte no que
+      // está aceso pela busca/hover, sutil nos hubs comuns.
+      if (glow) { ctx.shadowColor = nodeColor(node, 0.9); ctx.shadowBlur = isMatch(node) || node.id === hoverId ? 16 : 6; }
       ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = communityColor(node.community);
+      ctx.fillStyle = nodeColor(node);
       ctx.fill();
-      if (node.id === selId || node.id === hoverId) {
-        ctx.lineWidth = 2 / v.scale; ctx.strokeStyle = '#fff'; ctx.stroke();
+      ctx.shadowBlur = 0;
+      if (node.id === selId || node.id === hoverId || isMatch(node)) {
+        ctx.lineWidth = (node.id === selId ? 2.5 : 1.5) / v.scale;
+        ctx.strokeStyle = node.id === selId ? '#fff' : 'rgba(255,255,255,0.75)';
+        ctx.stroke();
       }
       ctx.globalAlpha = 1;
     }
 
-    // Rótulos: em foco sempre; hub (grau alto) só depois de zoom além do fit
-    // inicial (fitScaleRef * 1.6) — sem isso, grafos grandes nascem com centenas
-    // de labels sobrepostos (o "poluído" do screenshot original).
-    ctx.fillStyle = 'rgba(230,237,243,0.92)';
+    // Rótulos: match de busca e nós em foco sempre; hub (grau alto) só depois de
+    // zoom além do fit inicial (evita centenas de labels sobrepostos ao abrir).
     ctx.font = `${11 / v.scale}px ui-monospace, monospace`;
     ctx.textBaseline = 'middle';
     const hubZoomGate = fitScaleRef.current * 1.6;
     for (const node of nodesRef.current) {
+      const match = isMatch(node);
+      const focus = node.id === focusId || (nb && nb.has(node.id)) || (focusRepo && node.repo === focusRepo);
       const big = node.deg >= 10;
-      const focus = node.id === focusId || (nb && nb.has(node.id));
-      if (!focus && (!big || v.scale < hubZoomGate)) continue;
+      if (!match && !focus && (!big || v.scale < hubZoomGate)) continue;
+      if (isDim(node)) continue;
       const p = pos.get(node.id); if (!p) continue;
+      ctx.fillStyle = match ? '#fff' : 'rgba(230,237,243,0.9)';
       ctx.fillText(node.label, p.x + nodeRadius(node) + 2 / v.scale, p.y);
     }
   }, []);
@@ -315,9 +363,22 @@ export function useForceGraph(graph: GraphData | null, opts: { selectedId?: stri
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => { render(); }, [opts.selectedId, render]);
+  // Repinta quando qualquer entrada visual muda (seleção, cor, busca, foco de repo).
+  useEffect(() => { render(); }, [opts.selectedId, opts.colorMode, opts.query, opts.focusRepo, render]);
 
   const resetView = useCallback(() => { fitView(); render(); }, [fitView, render]);
 
-  return { canvasRef, hovered, resetView };
+  // Centraliza a viewport num nó (usado pela busca e pelo clique em vizinho no
+  // painel de detalhe). Zoom confortável se estava muito afastado.
+  const focusNode = useCallback((id: string) => {
+    const c = canvasRef.current; const p = posRef.current.get(id);
+    if (!c || !p) return;
+    const rect = c.getBoundingClientRect();
+    const v = viewRef.current;
+    const target = Math.max(v.scale, fitScaleRef.current * 2.2);
+    viewRef.current = { scale: target, tx: rect.width / 2 - p.x * target, ty: rect.height / 2 - p.y * target };
+    render();
+  }, [render]);
+
+  return { canvasRef, hovered, resetView, focusNode };
 }

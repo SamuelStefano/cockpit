@@ -50,7 +50,7 @@ export function Graph(p: Props) {
               </div>
             ) : p.graph ? (
               <>
-                <GraphCanvas graph={p.graph} selectedId={undefined} />
+                <GraphCanvas graph={p.graph} />
                 <GraphQueryPanel querying={p.querying} result={p.queryResult} onQuery={p.onGraphQuery} />
               </>
             ) : (
