@@ -129,16 +129,21 @@ export function CockpitApp() {
   const [resetTick, setResetTick] = useState(0);
   useEffect(() => {
     void resetTick; // dep só pra reagendar após o disparo
-    const at = planUsage?.resetsAt;
-    if (!at) return;
-    const ms = at - Date.now();
-    if (ms <= 0) return;
+    // Reagenda no reset MAIS PRÓXIMO entre o teto do plano (5h) e o limite duro
+    // (rate) — o que vier primeiro des-pausa a fila na hora, sem esperar F5.
+    const candidates = [planUsage?.resetsAt, rate?.resetsAt].filter((n): n is number => !!n && n > Date.now());
+    if (!candidates.length) return;
+    const ms = Math.min(...candidates) - Date.now();
     const t = setTimeout(() => setResetTick((n) => n + 1), ms + 1000);
     return () => clearTimeout(t);
-  }, [planUsage?.resetsAt, resetTick]);
+  }, [planUsage?.resetsAt, rate?.resetsAt, resetTick]);
   const quotaResetPassed = !!planUsage?.resetsAt && planUsage.resetsAt <= Date.now();
-  const quotaPaused = !!planUsage && planUsage.fiveHour >= 99.5 && !quotaResetPassed;
-  const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew: handleNew, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onOpenFull, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, quotaPaused, quotaResetsAt: planUsage?.resetsAt ?? null };
+  // Limite DURO do CLI (rate_limit_event, status ≠ allowed): sinal preciso do teto
+  // real, independente do percentual estimado. Pausa a fila mesmo quando fiveHour
+  // ainda está <99.5 — senão a fila drenava e o prompt morria no limite (perdido).
+  const rateLimited = !!rate && rate.status !== 'allowed' && (!rate.resetsAt || rate.resetsAt > Date.now());
+  const quotaPaused = (!!planUsage && planUsage.fiveHour >= 99.5 && !quotaResetPassed) || rateLimited;
+  const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew: handleNew, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onOpenFull, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, quotaPaused, quotaResetsAt: planUsage?.resetsAt ?? rate?.resetsAt ?? null };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
 
   const gate = resolveAuthGate({ sbAuth, ejectPairing, authRequired, submitToken });
