@@ -29,6 +29,7 @@ export interface Thread {
   thinking: string;
   tools: ToolCall[];
   toolStart: Map<string, number>; // id -> início, p/ cravar duração no close; morre com o thread
+  taskNotifies: Map<string, number>; // task-id -> nº de notificações no turno, p/ detectar loop de subagente zumbi
   // Registry da lista de tarefas do turno (TaskCreate/TaskUpdate): a lista é estado
   // acumulado entre tools — cada mutação carimba um snapshot no card (ws/tools.ts).
   tasks: Map<string, ToolTodo>;
@@ -75,12 +76,11 @@ function enqueue(sessionKey: string, item: QueuedSend): boolean {
 // fallback "turno fechou → roda como novo" sobe a mensagem logo após o stop).
 const stopEpoch = new Map<string, number>();
 
-// Stop explícito do usuário deve significar silêncio. Sem isto: (a) o onClose do
-// turno morto chama drainPending e a mensagem enfileirada (wait/merge) sobe logo;
-// (b) uma mensagem em triagem no momento do stop vira novo turno ao resolver. A
-// limpeza da fila cobre (a); o bump de época cobre (b).
+// Stop cancela SÓ o turno atual — a fila é preservada e o próximo item sobe no
+// onClose (pedido do Samuel: cancelar um prompt não pode apagar a fila inteira).
+// O bump de época ainda descarta uma mensagem que estava EM TRIAGEM no instante do
+// stop (senão ela viraria um turno novo logo após o stop, furando o cancelamento).
 export function onStop(sessionKey: string): void {
-  pending.delete(sessionKey);
   stopEpoch.set(sessionKey, (stopEpoch.get(sessionKey) ?? 0) + 1);
   // Side-runs (triagem/quick-answer haiku) NÃO viviam em `threads` — o stop só
   // matava o turno principal e esses one-shots seguiam vivos, a quick-answer ainda
@@ -141,7 +141,7 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
   }
   if (replacing) threads.get(sessionKey)!.handle.kill();
 
-  const thread: Thread = { handle: { kill: () => {} }, prompt, startedAt: Date.now(), sessionId: resumeId, text: '', thinking: '', tools: [], toolStart: new Map(), tasks: new Map(), taskCreates: new Map() };
+  const thread: Thread = { handle: { kill: () => {} }, prompt, startedAt: Date.now(), sessionId: resumeId, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map() };
   threads.set(sessionKey, thread);
   // Eco da mensagem do usuário a todos os clientes ANTES do 'started' (bolha do
   // usuário aparece antes da do assistente). Só quando o cliente mandou msgId — o
