@@ -21,6 +21,11 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const flushingRef = useRef(false);
+  // Item recém-drenado que ainda NÃO virou turno (segue no idle). Se o limite bater
+  // antes do turno começar, ele foi tirado da fila mas nunca rodou — este ref deixa
+  // restaurá-lo na frente da fila em vez de perder (bug: "some ao expirar sessão").
+  const awaitingStartRef = useRef<string | null>(null);
+  const prevPausedRef = useRef(false);
   const [atBottom, setAtBottom] = useState(true);
   const [promptAbove, setPromptAbove] = useState(false);
   const [queuedMap, setQueuedMap] = usePersisted<Record<string, string[]>>('queued', {});
@@ -31,7 +36,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   // só trocamos qual fila está ativa. flushingRef reseta na troca pra não travar a
   // próxima sessão com a trava herdada da anterior.
   const queued = useMemo(() => (sid ? queuedMap[sid] ?? [] : []), [queuedMap, sid]);
-  useEffect(() => { setFullLoaded(false); flushingRef.current = false; pinnedRef.current = true; setAtBottom(true); }, [sid]);
+  useEffect(() => { setFullLoaded(false); flushingRef.current = false; awaitingStartRef.current = null; pinnedRef.current = true; setAtBottom(true); }, [sid]);
 
   const setQueuedFor = (updater: (q: string[]) => string[]) => {
     if (!sid) return;
@@ -90,17 +95,34 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   // re-roda o efeito ainda com phase==='idle' (a prop só vira 'thinking' quando o
   // servidor emite 'started'); sem a trava, a fila inteira sairia de uma vez. O
   // ref reseta quando o turno começa, liberando o próximo no idle seguinte.
+  // Limite bateu (paused vira true) com um item já drenado esperando virar turno:
+  // restaura na FRENTE da fila. Sem isto o item — removido no flush — morre no
+  // limite e o usuário perde o prompt. Fica seguro pelo `paused` até o reset.
+  useEffect(() => {
+    const justPaused = paused && !prevPausedRef.current;
+    prevPausedRef.current = paused;
+    if (justPaused && awaitingStartRef.current && sid) {
+      const item = awaitingStartRef.current;
+      awaitingStartRef.current = null;
+      flushingRef.current = false;
+      setQueuedFor((q) => [item, ...q]);
+    }
+  }, [paused, sid]);
+
   useEffect(() => {
     if (!sid) return;
-    // Teto do plano atingido: NÃO drena a fila (senão dispara tudo e falha sem
-    // resposta). Quando a janela reseta, `paused` cai e o flush retoma sozinho.
+    // Teto do plano OU limite duro (rate): NÃO drena a fila (senão dispara tudo e
+    // falha sem resposta). Quando a janela reseta, `paused` cai e o flush retoma.
     if (paused) return;
     // Pergunta de escolha aguardando resposta: segura a fila pra não roubar o card.
     if (pendingQuestion) return;
-    if (phase !== 'idle') { flushingRef.current = false; return; }
+    // Turno começou: o item drenado virou turno de verdade — não é mais recuperável
+    // pelo restore (limpa o await) e libera o flush do próximo.
+    if (phase !== 'idle') { flushingRef.current = false; awaitingStartRef.current = null; return; }
     if (flushingRef.current || queued.length === 0) return;
     flushingRef.current = true;
     const [next, ...rest] = queued;
+    awaitingStartRef.current = next;
     setQueuedFor(() => rest);
     onSend(next);
   }, [phase, queued, onSend, sid, paused]);
