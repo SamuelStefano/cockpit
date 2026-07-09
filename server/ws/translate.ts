@@ -5,6 +5,8 @@ import { broadcast } from './broadcast';
 import { applySlashCommands } from './slash';
 import { setLastRate } from './rate';
 import { emitTool, closeTool } from './tools';
+import { getLastRate } from './rate';
+import { parseTaskNotification, registerNotify } from './task-notify';
 import { threads, type Thread } from './runs';
 
 // Tradução evento NDJSON -> ServerMsg (squad C2/H1: tool por id de correlação).
@@ -141,6 +143,21 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
     }
     case 'user': {
       const content = (ev as any).message?.content;
+      // Notificação de subagente: nunca vira conteúdo de chat. Se o MESMO task-id
+      // repete (zumbi parado no limite re-notificando a cada retomada), o turno
+      // nunca fecha — encerra e emite UM banner de limite em vez de spam infinito.
+      const tn = parseTaskNotification(content);
+      if (tn) {
+        if (registerNotify(thread.taskNotifies, tn) === 'loop' && tn.status !== 'completed') {
+          thread.stopped = true; // suprime deltas remanescentes (guard no topo)
+          thread.endReason = 'task_loop';
+          broadcast({ t: 'error', sessionKey, message: 'Subagente em loop de notificação (provável limite de sessão) — turno encerrado.' });
+          const rate = getLastRate();
+          if (rate) broadcast({ t: 'rate', resetsAt: rate.resetsAt, status: rate.status });
+          thread.handle.kill();
+        }
+        return;
+      }
       if (Array.isArray(content)) {
         for (const c of content) {
           if (c?.type === 'tool_result') closeTool(thread, sessionKey, c);
