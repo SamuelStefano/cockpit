@@ -1,6 +1,7 @@
+import { useState, useRef, useEffect } from 'react';
 import type { Cron } from '../../../shared/protocol';
 import { scheduleLabel, nextRunAt } from '../../../shared/cron-schedule';
-import { Button, Icon, Badge } from '../../components/primitives';
+import { Button, Icon, Badge, toast } from '../../components/primitives';
 
 function fmtLast(ts?: number): string {
   if (!ts) return 'nunca rodou';
@@ -30,6 +31,21 @@ export function CronCard({ cron, now, editing, onRun, onToggle, onEdit, onDelete
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  // Excluir em dois estágios: 1º clique arma "confirmar?" por 3s; 2º clique dentro
+  // da janela executa. Evita exclusão acidental sem um modal.
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (confirmTimer.current) clearTimeout(confirmTimer.current); }, []);
+
+  const clickDelete = () => {
+    if (confirmTimer.current) clearTimeout(confirmTimer.current);
+    if (confirmDelete) { setConfirmDelete(false); onDelete(); return; }
+    setConfirmDelete(true);
+    confirmTimer.current = setTimeout(() => setConfirmDelete(false), 3000);
+  };
+
+  const run = () => { onRun(); toast('Cron disparado'); };
+
   return (
     <div className={`flex items-start gap-3 rounded-xl border bg-neutral-900/50 p-3 transition ${editing ? 'border-orange-500/40' : 'border-neutral-800 hover:border-neutral-700'}`}>
       <div className="min-w-0 flex-1">
@@ -50,10 +66,12 @@ export function CronCard({ cron, now, editing, onRun, onToggle, onEdit, onDelete
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-1">
-        <Button variant="ghost" size="sm" icon="play" title="Rodar agora" onClick={onRun} />
+        <Button variant="ghost" size="sm" icon="play" title="Rodar agora" onClick={run} />
         <Button variant="ghost" size="sm" icon="pencil" title="Editar" onClick={onEdit} />
         <Button variant="ghost" size="sm" icon={cron.enabled ? 'square' : 'play'} title={cron.enabled ? 'Pausar' : 'Ativar'} onClick={onToggle} />
-        <Button variant="ghost" size="sm" icon="trash" title="Excluir" onClick={onDelete} />
+        {confirmDelete
+          ? <Button variant="danger" size="sm" className="text-red-400" title="Confirmar exclusão" onClick={clickDelete}>confirmar?</Button>
+          : <Button variant="ghost" size="sm" icon="trash" title="Excluir" onClick={clickDelete} />}
       </div>
     </div>
   );

@@ -1,9 +1,10 @@
 import { useState, useRef } from 'react';
-import { Icon, Button, Badge, Input } from '../../components/primitives';
+import { Icon, Button, Badge, Input, Skeleton } from '../../components/primitives';
 import type { GraphMeta } from '../../../shared/protocol';
 
 interface Props {
   graphs: GraphMeta[];
+  loaded: boolean;
   openId: string | null;
   opening: string | null;
   building: boolean;
@@ -12,7 +13,7 @@ interface Props {
   onBuild: (repo: string) => void;
 }
 
-export function GraphList({ graphs, openId, opening, building, onOpen, onDelete, onBuild }: Props) {
+export function GraphList({ graphs, loaded, openId, opening, building, onOpen, onDelete, onBuild }: Props) {
   const [repo, setRepo] = useState('');
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -49,7 +50,11 @@ export function GraphList({ graphs, openId, opening, building, onOpen, onDelete,
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
-        {graphs.length === 0 ? (
+        {!loaded ? (
+          <div className="flex flex-col gap-1">
+            {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-[52px] w-full rounded-lg" />)}
+          </div>
+        ) : graphs.length === 0 ? (
           <p className="px-2 py-6 text-center text-[12px] text-neutral-600">nenhum grafo ainda</p>
         ) : (
           <ul className="flex flex-col gap-1">

@@ -19,6 +19,7 @@ interface AdminProps {
   stats: SysStats | null;
   onHealthList: () => void;
   accounts: AccountSummary[];
+  accountsLoaded: boolean;
   onAccountsList: () => void;
   onSetAdmin: (accountId: string, admin: boolean) => void;
   isRoot: boolean; // só root concede/revoga admin
@@ -30,7 +31,7 @@ interface AdminProps {
   onCliInstall: (name: string) => void;
 }
 
-export function Admin({ health, stats, onHealthList, accounts, onAccountsList, onSetAdmin, isRoot, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall }: AdminProps) {
+export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, isRoot, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall }: AdminProps) {
   const [updatedAt, setUpdatedAt] = useState(0);
   const [tab, setTab] = useState('overview');
   useEffect(() => {
@@ -70,7 +71,7 @@ export function Admin({ health, stats, onHealthList, accounts, onAccountsList, o
         <AdminTabs tabs={tabs} active={tab} onSelect={setTab} />
 
         {tab === 'accounts' && SUPABASE_ENABLED && (
-          <AdminAccounts accounts={accounts} onAccountsList={onAccountsList} onSetAdmin={onSetAdmin} canGrant={isRoot} />
+          <AdminAccounts accounts={accounts} loaded={accountsLoaded} onAccountsList={onAccountsList} onSetAdmin={onSetAdmin} canGrant={isRoot} />
         )}
 
         {tab === 'host' && (

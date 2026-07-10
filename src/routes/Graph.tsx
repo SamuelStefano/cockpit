@@ -58,7 +58,7 @@ export function Graph(p: Props) {
       ) : (
         <div className="flex min-h-0 flex-1">
           <GraphList
-            graphs={p.graphs} openId={p.openId} opening={p.opening} building={p.building}
+            graphs={p.graphs} loaded={p.loaded} openId={p.openId} opening={p.opening} building={p.building}
             onOpen={p.onGraphOpen} onDelete={p.onGraphDelete} onBuild={p.onGraphBuild}
           />
           <div className="flex min-h-0 flex-1 flex-col">

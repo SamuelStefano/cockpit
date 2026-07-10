@@ -1,4 +1,4 @@
-import { Button, EmptyState, Badge, Input } from '../components/primitives';
+import { Button, EmptyState, Badge, Input, toast } from '../components/primitives';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -24,7 +24,7 @@ export function DesignSystem() {
       <div className="mx-auto flex max-w-3xl flex-col gap-8">
         <header>
           <h2 className="text-[20px] font-semibold text-neutral-100">Design System</h2>
-          <p className="mt-1 text-[13px] text-neutral-500">Primitivos do Deck — Button, EmptyState, Badge e tokens.</p>
+          <p className="mt-1 text-[13px] text-neutral-500">Primitivos do Deck — Button, Input, Badge, Toast, EmptyState e tokens.</p>
         </header>
 
         <Section title="Button — variantes">
@@ -66,6 +66,16 @@ export function DesignSystem() {
             <Badge tone="green" dot>online</Badge>
             <Badge tone="red" dot>erro</Badge>
             <Badge tone="yellow">aviso</Badge>
+          </Row>
+        </Section>
+
+        <Section title="Toast">
+          <Row label="ok"><Button onClick={() => toast('Notas salvas')}>Disparar ok</Button></Row>
+          <Row label="error"><Button variant="danger" onClick={() => toast('Falha ao salvar', { tone: 'error' })}>Disparar erro</Button></Row>
+          <Row label="ação">
+            <Button variant="secondary" onClick={() => toast('Notas limpas', { action: { label: 'Desfazer', onClick: () => toast('Restaurado') }, durationMs: 8000 })}>
+              Com desfazer
+            </Button>
           </Row>
         </Section>
 

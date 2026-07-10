@@ -73,7 +73,7 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
     }
     if (route === '/crons') {
       return (
-        <Crons connected={connected} crons={c.crons}
+        <Crons connected={connected} crons={c.crons} loaded={c.cronsLoaded}
           onCronsGet={c.onCronsGet} onCronSave={c.onCronSave} onCronDelete={c.onCronDelete} onCronRun={c.onCronRun} />
       );
     }
@@ -93,7 +93,7 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
     if (route === '/admin' && isAdmin) {
       return (
         <Admin health={c.health} stats={c.stats} onHealthList={c.onHealthList}
-          accounts={c.accounts} onAccountsList={c.onAccountsList} onSetAdmin={c.onSetAdmin} isRoot={c.caps?.role === 'root'}
+          accounts={c.accounts} accountsLoaded={c.accountsLoaded} onAccountsList={c.onAccountsList} onSetAdmin={c.onSetAdmin} isRoot={c.caps?.role === 'root'}
           adminOp={c.adminOp} onEnvSet={c.onEnvSet} onEnvUnset={c.onEnvUnset} onMcpAdd={c.onMcpAdd} onMcpRemove={c.onMcpRemove} onCliInstall={c.onCliInstall} />
       );
     }

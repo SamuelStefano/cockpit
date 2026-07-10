@@ -5,6 +5,7 @@ import { QuotaBanner } from './components/chrome/QuotaBanner';
 import { OfflineNotice } from './components/chrome/OfflineNotice';
 import { CommandPalette } from './components/CommandPalette';
 import { ShortcutsHelp } from './components/ShortcutsHelp';
+import { Toaster } from './components/primitives';
 import { RouteContent } from './app/RouteContent';
 import { useCockpit } from './useCockpit';
 import { useRoute } from './useRoute';
@@ -182,6 +183,7 @@ export function CockpitApp() {
       />
 
       {!isMobile && <StatusBar stats={stats} rate={rate} ctxTokens={contextTokens} lastTurn={lastTurn} />}
+      <Toaster />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { toast } from '../../components/primitives';
 
 // Lógica do editor de notas: autosave com debounce, semente única ao carregar, flush
 // no unmount, contadores e salvamento manual (⌘S). A UI só renderiza.
@@ -30,6 +31,13 @@ export function useNotasEditor(notes: string, notesLoaded: boolean, onNotesGet: 
   // Flush no unmount pra não perder os últimos 700ms digitados.
   useEffect(() => () => { if (timer.current) { clearTimeout(timer.current); onNotesSave(latest.current); } }, [onNotesSave]);
 
+  // Limpar apaga tudo sem modal: guarda o texto anterior e oferece desfazer no toast.
+  const clear = useCallback(() => {
+    const prev = latest.current;
+    onChange('');
+    if (prev) toast('Notas limpas', { action: { label: 'Desfazer', onClick: () => onChange(prev) }, durationMs: 8000 });
+  }, [onChange]);
+
   const trimmed = text.trim();
   const counts = {
     chars: text.length,
@@ -37,5 +45,5 @@ export function useNotasEditor(notes: string, notesLoaded: boolean, onNotesGet: 
     lines: text ? text.split('\n').length : 0,
   };
 
-  return { text, saved, counts, onChange, flush, setText, clear: () => onChange('') };
+  return { text, saved, counts, onChange, flush, setText, clear };
 }

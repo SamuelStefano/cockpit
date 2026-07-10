@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Cron } from '../../shared/protocol';
-import { EmptyState } from '../components/primitives';
+import { EmptyState, Skeleton } from '../components/primitives';
 import { useCronForm } from './crons/useCronForm';
 import { CronForm } from './crons/CronForm';
 import { CronCard } from './crons/CronCard';
@@ -8,6 +8,7 @@ import { CronCard } from './crons/CronCard';
 interface Props {
   connected: boolean;
   crons: Cron[];
+  loaded: boolean;
   onCronsGet: () => void;
   onCronSave: (cron: Cron) => void;
   onCronDelete: (id: string) => void;
@@ -16,7 +17,7 @@ interface Props {
 
 // Agendador: dispara prompts em horário marcado (turnos autônomos). Cada cron vira
 // uma sessão `cron-<id>` no chat quando roda.
-export function Crons({ connected, crons, onCronsGet, onCronSave, onCronDelete, onCronRun }: Props) {
+export function Crons({ connected, crons, loaded, onCronsGet, onCronSave, onCronDelete, onCronRun }: Props) {
   const form = useCronForm(onCronSave);
   // Relógio que avança a cada 30s pra os "em Xmin" não congelarem na tela aberta.
   const [now, setNow] = useState(() => Date.now());
@@ -42,7 +43,9 @@ export function Crons({ connected, crons, onCronsGet, onCronSave, onCronDelete, 
 
         <CronForm form={form} onCancel={form.reset} now={now} />
 
-        {crons.length === 0
+        {!loaded && connected
+          ? <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[74px] w-full rounded-xl" />)}</div>
+          : crons.length === 0
           ? <EmptyState icon="clock" title="Nenhum cron" description="Crie um prompt agendado acima — ele dispara sozinho no horário." />
           : <div className="space-y-2">
               {crons.map((c) => (
