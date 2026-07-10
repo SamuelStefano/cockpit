@@ -9,7 +9,7 @@ import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT } from '../../lib/prefs';
 import { hasVisibleAssistantContent } from './visible-blocks';
 import { AssistantBlocks } from './AssistantBlocks';
 import { ThinkingDots, LiveStatsLine, type LiveTurn } from './Thinking';
-import { QuoteButton, CopyMessageButton, RegenerateButton } from './MessageActions';
+import { QuoteButton, CopyMessageButton, RegenerateButton, SpeakButton } from './MessageActions';
 import { UserMessageRow } from './UserMessageRow';
 import { CompactDivider } from './CompactDivider';
 import { fmtTokens, fmtDuration, fmtClock } from './message-format';
@@ -22,6 +22,8 @@ interface MessageRowProps {
   msg: Message;
   caretOnLast: boolean;
   modelLabel?: string;
+  // Só mostra o rótulo do modelo quando ele muda entre turnos (calculado no Chat).
+  showModelLabel?: boolean;
   thinking?: boolean;
   live?: LiveTurn;
   onEditUser?: (id: string, text: string) => void;
@@ -38,7 +40,7 @@ interface MessageRowProps {
 // memo: cada delta de streaming troca só a referência da ÚLTIMA mensagem
 // (patchRunMsg usa .map preservando as demais) — sem isto a thread inteira
 // re-renderiza a cada chunk.
-export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabel, thinking, live, onEditUser, onQuote, answerable, onAnswer, onRegenerate, onOpenAttachment, attThumbs, onAttThumb }: MessageRowProps) {
+export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabel, showModelLabel = true, thinking, live, onEditUser, onQuote, answerable, onAnswer, onRegenerate, onOpenAttachment, attThumbs, onAttThumb }: MessageRowProps) {
   const [showTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   if (msg.role === 'user') {
     return <UserMessageRow msg={msg} onEditUser={onEditUser} onQuote={onQuote} onOpenAttachment={onOpenAttachment} attThumbs={attThumbs} onAttThumb={onAttThumb} />;
@@ -53,11 +55,11 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
   const hasText = msg.blocks.some((b) => b.type === 'text' || b.type === 'code');
   return (
     <div className="fade-up group/msg flex gap-2.5">
-      <div className="mt-0.5">
+      <div className="mt-0.5" title={showModelLabel ? undefined : modelLabel}>
         <ClaudeAvatar size={28} />
       </div>
       <div className="min-w-0 flex-1 pt-0.5">
-        <span className="mb-0.5 block max-w-[260px] truncate px-0.5 text-[11px] font-medium text-orange-300/80">{modelLabel || 'Claude'}</span>
+        {showModelLabel && <span className="mb-0.5 block max-w-[260px] truncate px-0.5 text-[11px] font-medium text-orange-300/80">{modelLabel || 'Claude'}</span>}
         {msg.quick && (
           <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-300">
             <Icon name="zap" size={10} /> resposta rápida (paralela)
@@ -69,6 +71,7 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
           <div className="mt-1 flex items-center gap-2">
             <div className="flex items-center gap-2 opacity-100 transition group-hover/msg:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100">
               <CopyMessageButton blocks={msg.blocks} />
+              <SpeakButton blocks={msg.blocks} />
               {onRegenerate && <RegenerateButton onClick={onRegenerate} />}
               {onQuote && <QuoteButton onClick={() => onQuote(messageToText(msg.blocks))} withLabel />}
             </div>

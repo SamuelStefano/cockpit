@@ -1,4 +1,5 @@
 import { Button, Icon, Badge, tokens } from '../primitives';
+import { EditableTitle } from './EditableTitle';
 import { ExportMenu } from './ExportMenu';
 import { TurnStat } from './TurnStat';
 import { ContextMeter } from './ContextMeter';
@@ -20,13 +21,19 @@ interface ChatHeaderProps {
   setFullLoaded: (v: boolean) => void;
   onTerminal?: () => void;
   terminalRunning?: boolean;
+  onRename?: (id: string, title: string) => void;
 }
 
-export function ChatHeader({ session, messages, isEmpty, isMobile, contextTokens, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onOpenSummary, setFullLoaded, onTerminal, terminalRunning }: ChatHeaderProps) {
+export function ChatHeader({ session, messages, isEmpty, isMobile, contextTokens, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onOpenSummary, setFullLoaded, onTerminal, terminalRunning, onRename }: ChatHeaderProps) {
   return (
     <div className="flex shrink-0 items-center gap-2 border-b border-neutral-800 px-4 py-2.5">
       <Icon name="message" size={14} className="text-neutral-500" />
-      <span className="truncate text-[12.5px] font-medium text-neutral-300">{session ? session.title : 'Nova sessão'}</span>
+      <EditableTitle
+        id={session?.id}
+        title={session ? session.title : 'Nova sessão'}
+        editable={!!session && !session.id.startsWith('new-')}
+        onRename={onRename}
+      />
       {session?.hasTerminal && <Badge tone="green" dot className="ml-0.5">terminal</Badge>}
       {/* Cluster direito num só container: vários ml-auto irmãos se espalham
           (margens auto dividem o espaço livre); aqui só este wrapper empurra. */}
