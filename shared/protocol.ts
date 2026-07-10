@@ -413,4 +413,6 @@ export type ServerMsg =
   | { t: 'term-exit'; termId: string }
   | { t: 'terms'; ids: string[] }
   | { t: 'done'; sessionKey: string; sessionId: string; costUsd?: number; durationMs?: number; numTurns?: number; turnTokens?: number; inputTokens?: number; outputTokens?: number; endReason?: string; model?: string; stopped?: boolean }
+  // Tópicos de continuação sugeridos pós-turno (chips selecionáveis, estilo ChatGPT).
+  | { t: 'suggestions'; sessionKey: string; items: string[] }
   | { t: 'error'; sessionKey?: string; message: string };

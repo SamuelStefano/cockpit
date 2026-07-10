@@ -19,7 +19,7 @@ function MarkdownImpl({ md, caret = false }: MarkdownProps) {
     return { segs: s, lastProse: lp };
   }, [md]);
   return (
-    <div className="space-y-3 text-[14px] leading-relaxed text-neutral-300">
+    <div className="space-y-4 text-[15.5px] leading-7 text-neutral-300">
       {segs.map((s, si) =>
         s.t === 'code'
           ? <CodeBlock key={`seg${si}`} code={s.code} lang={s.lang || undefined} />

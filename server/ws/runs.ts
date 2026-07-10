@@ -7,6 +7,7 @@ import { broadcast, send } from './broadcast';
 import { translate } from './translate';
 import { summarize } from '../summary';
 import { classify, quickAnswer, killSideRuns, killSideRunsFor } from '../engine/triage';
+import { suggestFollowups } from '../engine/suggest';
 
 export interface Thread {
   handle: RunHandle;
@@ -175,6 +176,15 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
       // Pula resumo em stop e em sessões de CRON (cron-<id>): turno autônomo agendado
       // não vale uma chamada API de resumo a cada disparo.
       if (thread.sessionId && !thread.stopped && !sessionKey.startsWith('cron-')) void summarize(thread.sessionId);
+      // Chips de continuação (estilo ChatGPT): só em turno de usuário concluído de
+      // verdade (não stop, não cron, não AskUserQuestion pendente) e sem fila — um
+      // prompt enfileirado vai rodar já; sugerir tópicos agora seria ruído. Se um
+      // turno novo começar antes do haiku voltar, o resultado é descartado.
+      if (!thread.stopped && !thread.questioned && !sessionKey.startsWith('cron-') && !pending.get(sessionKey)?.length) {
+        void suggestFollowups(thread.prompt, thread.text, sessionKey).then((items) => {
+          if (items.length && !threads.has(sessionKey)) broadcast({ t: 'suggestions', sessionKey, items });
+        }).catch(() => {});
+      }
       threads.delete(sessionKey);
       stopEpoch.delete(sessionKey); // época só vive enquanto há turno/triagem; senão vaza monotônico
       // Após AskUserQuestion o turno aguarda a RESPOSTA do usuário (próximo prompt) —

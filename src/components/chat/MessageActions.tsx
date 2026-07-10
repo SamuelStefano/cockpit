@@ -39,6 +39,20 @@ export function QuoteButton({ onClick, withLabel }: { onClick: () => void; withL
   );
 }
 
+// Regenerar (paridade ChatGPT): reenvia o último prompt do usuário — só aparece
+// na última resposta com a sessão ociosa (regenerar msg antiga reescreveria o fim).
+export function RegenerateButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title="Gerar a resposta de novo (reenvia o último prompt)"
+      className={`flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300 ${tokens.focusRing}`}
+    >
+      <Icon name="rotate" size={11} /> regenerar
+    </button>
+  );
+}
+
 export function CopyMessageButton({ blocks }: { blocks: Block[] }) {
   const [copied, copy, failed] = useCopied();
   return (

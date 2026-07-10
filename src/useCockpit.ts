@@ -34,6 +34,9 @@ export interface Cockpit {
   messages: Message[];
   terminalBusy: boolean;
   sessionTodos?: ToolTodo[];
+  // Tópicos de continuação pós-turno da sessão ativa (chips estilo ChatGPT).
+  followups?: string[];
+  dismissFollowups: () => void;
   phase: Phase;
   running: Set<string>;
   stalled: Set<string>;
@@ -269,6 +272,9 @@ export function useCockpit(): Cockpit {
   const [terminalBusyId, setTerminalBusyId] = useState<string | null>(null);
   // Snapshot corrente da lista de tarefas por sessão (vem no frame history).
   const [sessionTodos, setSessionTodos] = useState<Record<string, ToolTodo[]>>({});
+  // Tópicos de continuação sugeridos pós-turno (chips estilo ChatGPT), por sessão.
+  // Efêmeros: somem ao enviar a próxima mensagem (novo turno gera novos).
+  const [followups, setFollowups] = useState<Record<string, string[]>>({});
 
   const wsRef = useRef<WebSocket | null>(null);
   const runMsg = useRef<Record<string, string>>({});      // sessionKey -> assistant msgId em voo
@@ -526,6 +532,8 @@ export function useCockpit(): Cockpit {
         runMsg.current[key] = id;
         updateThread(key, (prev) => [...prev, { id, role: 'assistant', blocks: [], ts: Date.now() }]);
         setPhases((p) => ({ ...p, [key]: 'thinking' }));
+        // Turno novo: os chips de continuação do turno anterior ficaram obsoletos.
+        setFollowups((f) => { if (!(key in f)) return f; const n = { ...f }; delete n[key]; return n; });
         // Início do turno: fixa a base de contexto pra medir o gasto AO VIVO deste
         // turno (delta) no indicador estilo terminal. Zera o contador exibido.
         turnBaseRef.current[key] = usageRef.current[key] || 0;
@@ -611,6 +619,14 @@ export function useCockpit(): Cockpit {
       }
       case 'plan-usage': {
         setPlanUsage(msg.usage);
+        return;
+      }
+      case 'suggestions': {
+        // Chips de continuação pós-turno. Chegou depois de um turno novo começar?
+        // O gate do servidor já descarta; aqui só ignora se a sessão está rodando.
+        const key = resolveKey(migratedTo.current, msg.sessionKey);
+        if (phasesRef.current[key] === 'thinking' || phasesRef.current[key] === 'streaming') return;
+        setFollowups((f) => ({ ...f, [key]: msg.items }));
         return;
       }
       case 'models': {
@@ -1492,6 +1508,10 @@ export function useCockpit(): Cockpit {
   const lastTurn = turnStats[activeId];
   const lastEnd = interrupted[activeId];
   const setDraft = useCallback((v: string) => setDrafts((d) => ({ ...d, [activeRef.current]: v })), []);
+  const dismissFollowups = useCallback(() => {
+    const key = activeRef.current;
+    setFollowups((f) => { if (!(key in f)) return f; const n = { ...f }; delete n[key]; return n; });
+  }, []);
 
   // Drafts não-enviados sobrevivem a reload. Só persiste sessões reais (uuid) e
   // não-vazias — keys `new-xxx` são efêmeras e não casam após reload.
@@ -1509,5 +1529,5 @@ export function useCockpit(): Cockpit {
     savePref('modelBySession', keep);
   }, [modelBySession]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, onCronsGet, onCronSave, onCronDelete, onCronRun, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
+  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, onCronsGet, onCronSave, onCronDelete, onCronRun, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
 }

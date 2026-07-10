@@ -9,7 +9,7 @@ import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT } from '../../lib/prefs';
 import { hasVisibleAssistantContent } from './visible-blocks';
 import { AssistantBlocks } from './AssistantBlocks';
 import { ThinkingDots, LiveStatsLine, type LiveTurn } from './Thinking';
-import { QuoteButton, CopyMessageButton } from './MessageActions';
+import { QuoteButton, CopyMessageButton, RegenerateButton } from './MessageActions';
 import { UserMessageRow } from './UserMessageRow';
 import { CompactDivider } from './CompactDivider';
 import { fmtTokens, fmtDuration, fmtClock } from './message-format';
@@ -28,6 +28,8 @@ interface MessageRowProps {
   onQuote?: (text: string) => void;
   answerable?: boolean;
   onAnswer?: (text: string) => void;
+  // Só na última resposta com a sessão ociosa: reenvia o último prompt.
+  onRegenerate?: () => void;
   onOpenAttachment?: (path: string, name: string) => void;
   attThumbs?: Record<string, string>;
   onAttThumb?: (path: string) => void;
@@ -36,7 +38,7 @@ interface MessageRowProps {
 // memo: cada delta de streaming troca só a referência da ÚLTIMA mensagem
 // (patchRunMsg usa .map preservando as demais) — sem isto a thread inteira
 // re-renderiza a cada chunk.
-export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabel, thinking, live, onEditUser, onQuote, answerable, onAnswer, onOpenAttachment, attThumbs, onAttThumb }: MessageRowProps) {
+export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabel, thinking, live, onEditUser, onQuote, answerable, onAnswer, onRegenerate, onOpenAttachment, attThumbs, onAttThumb }: MessageRowProps) {
   const [showTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   if (msg.role === 'user') {
     return <UserMessageRow msg={msg} onEditUser={onEditUser} onQuote={onQuote} onOpenAttachment={onOpenAttachment} attThumbs={attThumbs} onAttThumb={onAttThumb} />;
@@ -67,6 +69,7 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
           <div className="mt-1 flex items-center gap-2">
             <div className="flex items-center gap-2 opacity-100 transition group-hover/msg:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100">
               <CopyMessageButton blocks={msg.blocks} />
+              {onRegenerate && <RegenerateButton onClick={onRegenerate} />}
               {onQuote && <QuoteButton onClick={() => onQuote(messageToText(msg.blocks))} withLabel />}
             </div>
             {msg.stats && <TurnStatsLine stats={msg.stats} />}

@@ -7,6 +7,7 @@ import { TaskTray } from './chat/TaskTray';
 import { latestTodos } from './chat/task-tray';
 import { clampToPendingQuestion } from '../cockpit/pending-question';
 import { TurnBanners } from './chat/TurnBanners';
+import { FollowupChips } from './chat/FollowupChips';
 import { ClaudeAuthBanner } from './chat/ClaudeAuthBanner';
 import { useChatPanel, type Phase } from './chat/useChatPanel';
 import { useFileDrop } from './chat/useFileDrop';
@@ -27,6 +28,9 @@ export interface ChatPanelProps {
   // Estado corrente da lista de tarefas (arquivo inteiro, via frame history) —
   // fallback do tray quando a janela visível não tem snapshot (pós-compact).
   sessionTodos?: ToolTodo[];
+  // Tópicos de continuação pós-turno (chips estilo ChatGPT) + dispensa.
+  followups?: string[];
+  onDismissFollowups?: () => void;
   draft: string;
   setDraft: (v: string) => void;
   onSend: (text: string, modeOverride?: PermMode) => void;
@@ -79,7 +83,7 @@ export interface ChatPanelProps {
   quotaResetsAt?: number | null;
 }
 
-export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onOpenFull, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, quotaPaused = false, quotaResetsAt = null }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, followups, onDismissFollowups, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onOpenFull, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, quotaPaused = false, quotaResetsAt = null }: ChatPanelProps) {
   const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, paused: quotaPaused });
   // Stats AO VIVO do turno (estilo terminal): tokens gastos + tempo decorrido,
   // enquanto o turno roda. Some no `done` (phase volta a idle).
@@ -129,7 +133,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-5">
             {shown.map((m, i) => (
-              <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === shown.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} thinking={phase !== 'idle' && i === shown.length - 1 && m.role === 'assistant'} live={i === shown.length - 1 && m.role === 'assistant' ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} answerable={phase === 'idle' && i === shown.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} />
+              <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === shown.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} thinking={phase !== 'idle' && i === shown.length - 1 && m.role === 'assistant'} live={i === shown.length - 1 && m.role === 'assistant' ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} answerable={phase === 'idle' && i === shown.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} onRegenerate={phase === 'idle' && i === shown.length - 1 && m.role === 'assistant' ? c.retryLast : undefined} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} />
 
             ))}
             {(phase === 'thinking' && shown[shown.length - 1]?.role !== 'assistant' || phase === 'idle' && terminalBusy) && <Thinking live={live} />}
@@ -161,6 +165,12 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
       )}
 
       {trayTodos && <TaskTray todos={trayTodos} />}
+
+      {/* Chips só em repouso de verdade: sem turno, sem pergunta/plano pendente e
+          sem fila — nesses estados o banner correspondente é a ação principal. */}
+      {phase === 'idle' && !c.isEmpty && !c.pendingQuestion && !c.planPending && !c.failed && c.queued.length === 0 && followups && onDismissFollowups && (
+        <FollowupChips items={followups} onPick={onPrompt} onDismiss={onDismissFollowups} />
+      )}
 
       <TurnBanners phase={phase} failed={c.failed} planPending={c.planPending} pendingQuestion={c.pendingQuestion} queuedCount={c.queued.length} lastEnd={lastEnd} retryLast={c.retryLast} onSend={onSend} />
 
