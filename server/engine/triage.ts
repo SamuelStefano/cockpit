@@ -1,6 +1,16 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { CONFIG } from '../config';
+import { mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import type { TriageVerdict, TriageAction } from '../../shared/protocol';
+
+// Os one-shots (triagem + sugestões) rodam `claude -p`, que PERSISTE um JSONL de
+// sessão no projects-dir do cwd. Rodando no CONFIG.workdir, esses arquivos caíam na
+// MESMA pasta que o Deck lista → cada one-shot virava um "chat fantasma" na sidebar
+// (e o suggest roda a cada fim de turno = enxurrada). Isolando o cwd num dir
+// dedicado, o slug do projects-dir muda e o Deck nunca lista essas sessões efêmeras.
+const ONESHOT_CWD = join(homedir(), '.cockpit', 'oneshot');
+try { mkdirSync(ONESHOT_CWD, { recursive: true }); } catch { /* melhor esforço */ }
 
 // Triador de prompts: quando chega um prompt com o turno atual ocupado, um
 // claude headless barato (haiku, plan-mode) decide o destino. Roda como one-shot:
@@ -50,7 +60,7 @@ export function oneShot(prompt: string, timeoutMs: number, cap = 65536, key = '_
     const args = ['-p', prompt, '--model', 'haiku', '--effort', 'low', '--permission-mode', 'plan', '--strict-mcp-config', '--output-format', 'json'];
     let child: ChildProcess;
     try {
-      child = spawn('claude', args, { cwd: CONFIG.workdir, env: miniEnv(), shell: false, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+      child = spawn('claude', args, { cwd: ONESHOT_CWD, env: miniEnv(), shell: false, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
     } catch { resolve(''); return; }
     track(key, child);
     let out = '';
