@@ -45,6 +45,7 @@ export interface Cockpit {
   draft: string;
   setDraft: (v: string) => void;
   conn: { ws: ConnState; sse: ConnState };
+  reconnectNow: () => void;
   authRequired: boolean;
   agentOnline: boolean;
   submitToken: (token: string) => void;
@@ -982,16 +983,7 @@ export function useCockpit(): Cockpit {
       // botão ficaria "construindo…" pra sempre. Destrava e reconcilia via list.
       setGraphBuilding((b) => { if (b) { setGraphBuildError('conexão caiu durante o build — verifique a lista'); send({ t: 'graph-list' }); } return false; });
       setGraphOpening(null);
-      send({ t: 'list' });
-      send({ t: 'list-archived' });
-      send({ t: 'usage-list' });
-      send({ t: 'skill-list' }); // popula o seletor de skills do composer
-      send({ t: 's3-config' });  // URL+anon key pra upload HTTP direto na edge fn
-      // Sessão ativada enquanto o WS esteve fechado nunca recebeu o 'open' (frame
-      // descartado) — sem isto o thread visível ficava vazio até um F5.
-      const act = activeRef.current;
-      if (act && !act.startsWith('new-') && !opened.current.has(act) && send({ t: 'open', sessionId: act })) opened.current.add(act);
-      reattach();
+      reconcile();
     };
     ws.onmessage = (ev) => {
       if (!isCurrent()) return;
@@ -1034,6 +1026,34 @@ export function useCockpit(): Cockpit {
     retry.current = setTimeout(() => { retry.current = null; connect(); }, delay);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Re-lê o estado durável no (re)connect: sem isto um blip de socket (aba
+  // suspensa no mobile, wake-from-sleep) deixa o app com listas/uso velhos até um
+  // F5. O `sync` força o servidor a reemitir busy/rate/plan-usage/models (frames
+  // que o CLI só manda durante um run) sem depender de eventos perdidos.
+  const reconcile = useCallback(() => {
+    send({ t: 'list' });
+    send({ t: 'list-archived' });
+    send({ t: 'usage-list' });
+    send({ t: 'skill-list' }); // popula o seletor de skills do composer
+    send({ t: 's3-config' });  // URL+anon key pra upload HTTP direto na edge fn
+    send({ t: 'sync' });       // reemite o estado durável fresco (busy/rate/plan/models)
+    // Sessão ativada enquanto o WS esteve fechado nunca recebeu o 'open' (frame
+    // descartado) — sem isto o thread visível ficava vazio até um F5.
+    const act = activeRef.current;
+    if (act && !act.startsWith('new-') && !opened.current.has(act) && send({ t: 'open', sessionId: act })) opened.current.add(act);
+    reattach();
+  }, [send, reattach]);
+
+  // Reconexão proativa (visibilidade/rede): não espera o backoff. Socket morto em
+  // silêncio (mobile) reabre na hora; socket vivo só reconcilia o estado durável.
+  const reconnectNow = useCallback(() => {
+    retryDelay.current = 1500;
+    const ws = wsRef.current;
+    if (ws && ws.readyState === ws.OPEN) { reconcile(); return; }
+    if (retry.current) { clearTimeout(retry.current); retry.current = null; }
+    connect();
+  }, [connect, reconcile]);
 
   // Login: guarda o token e reconecta na hora com ele. Chamado pelo gate de auth e
   // por todo onAuthStateChange do Supabase. Se o token não mudou e já existe um
@@ -1535,5 +1555,5 @@ export function useCockpit(): Cockpit {
     savePref('modelBySession', keep);
   }, [modelBySession]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, cronsLoaded, onCronsGet, onCronSave, onCronDelete, onCronRun, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
+  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, cronsLoaded, onCronsGet, onCronSave, onCronDelete, onCronRun, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
 }

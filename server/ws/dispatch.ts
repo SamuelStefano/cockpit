@@ -19,6 +19,7 @@ import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
 import { threads, startRun, routeSend, onStop } from './runs';
 import { refreshModels } from './models';
+import { sendDurableSnapshot } from './snapshot';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 
 export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
@@ -67,6 +68,13 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'list': {
       const items = await listSessions();
       send(ws, { t: 'sessions', items });
+      return;
+    }
+    case 'sync': {
+      // Resume no mobile (aba suspensa/rede voltou): reemite o estado durável fresco
+      // pro socket que pediu, sem depender de eventos perdidos na suspensão.
+      send(ws, { t: 'sessions', items: await listSessions() });
+      sendDurableSnapshot(ws);
       return;
     }
     case 'open': {

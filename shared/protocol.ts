@@ -288,6 +288,9 @@ export type ClientMsg =
   | { t: 'set-admin'; accountId: string; admin: boolean }
   | { t: 'stop'; sessionKey: string }
   | { t: 'list' }
+  // Resume (mobile): reemite o estado durável (busy/rate/plan-usage/models +
+  // sessions) que o CLI só manda durante um run, sem depender de eventos perdidos.
+  | { t: 'sync' }
   | { t: 'open'; sessionId: string }
   | { t: 'open-full'; sessionId: string }
   | { t: 'hide'; sessionId: string }
