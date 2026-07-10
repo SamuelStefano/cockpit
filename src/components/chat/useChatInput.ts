@@ -39,7 +39,9 @@ export function useChatInput(args: UseChatInputArgs) {
   // Ditado por voz escreve direto no composer (value/setValue). Mora aqui pra o
   // textarea poder ficar readOnly enquanto grava (não dá pra digitar e ditar ao
   // mesmo tempo: o próximo trecho reconhecido sobrescreveria o que foi digitado).
-  const mic = useSpeechInput(value, setValue);
+  // Fallback de voz no mobile sem Web Speech API: foca o composer pra o usuário
+  // acionar o ditado do teclado nativo.
+  const mic = useSpeechInput(value, setValue, () => taRef.current?.focus());
   // Assinaturas recém-enviadas pra deduplicar o mesmo arquivo repetido (bug iOS).
   const recentUploads = useRef<Map<string, number>>(new Map());
   // Sobe vários arquivos respeitando o teto (espelha o backend); retorna quantos

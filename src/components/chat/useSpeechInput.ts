@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { joinTranscript, SPEECH_LANG } from './speech';
 import { speechErrorMessage, isFatalSpeechError } from './speech-errors';
+import { toast } from '../primitives';
+
+// Aparelho de toque (celular/tablet). Nesses, a Web Speech API costuma faltar
+// (iOS Safari/webviews) ou ser instável — mas o TECLADO nativo tem ditado ótimo.
+function isTouchMobile(): boolean {
+  if (typeof window === 'undefined') return false;
+  const coarse = window.matchMedia?.('(pointer: coarse)')?.matches ?? false;
+  return coarse || (navigator.maxTouchPoints ?? 0) > 0;
+}
 
 // Tipos mínimos da Web Speech API (não vêm no lib.dom de todo target). Só o que
 // usamos: ditado contínuo com resultados parciais e final por trecho.
@@ -41,8 +50,13 @@ const MAX_FAST_FAILS = 3;
 // é separada do ciclo de vida do engine: enquanto o usuário quer ditar, cada
 // onend reinicia o reconhecimento. Erros de permissão (not-allowed) são fatais e
 // param com mensagem; transitórios (no-speech/network/aborted) só reiniciam.
-export function useSpeechInput(value: string, setValue: (v: string) => void) {
-  const supported = useMemo(() => speechCtor() !== null, []);
+export function useSpeechInput(value: string, setValue: (v: string) => void, focusComposer?: () => void) {
+  // hasApi: Web Speech disponível (ditado in-app). No mobile sem API, ainda
+  // mostramos o mic mas ele encaminha pro ditado do TECLADO — senão o usuário
+  // "não conseguia falar por voz" no celular (o botão simplesmente sumia).
+  const hasApi = useMemo(() => speechCtor() !== null, []);
+  const keyboardMode = useMemo(() => !hasApi && isTouchMobile(), [hasApi]);
+  const supported = hasApi || keyboardMode;
   const [listening, setListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const recRef = useRef<SpeechRecognition | null>(null);
@@ -130,7 +144,16 @@ export function useSpeechInput(value: string, setValue: (v: string) => void) {
     }
   };
 
+  // Mobile sem Web Speech API: em vez de ditar in-app, foca o campo e orienta usar
+  // o microfone do teclado nativo (que é confiável no iOS/Android). Não tenta o
+  // engine (que falharia) — só desbloqueia o caminho que funciona.
+  const startKeyboard = () => {
+    focusComposer?.();
+    toast('Toque no 🎤 do teclado do celular pra ditar', { durationMs: 6000 });
+  };
+
   const start = () => {
+    if (keyboardMode) { startKeyboard(); return; }
     if (!speechCtor()) return;
     detach();
     setError(null);

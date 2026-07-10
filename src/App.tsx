@@ -65,6 +65,9 @@ export function CockpitApp() {
 
   const [drawer, setDrawer] = useState(false);
   const [termSheet, setTermSheet] = useState(false);
+  // Menu de rotas (mobile) controlado aqui pra ser mutuamente exclusivo com o
+  // drawer de sessões — abrir um fecha o outro, senão os dois overlays se sobrepõem.
+  const [routeMenuOpen, setRouteMenuOpen] = useState(false);
   const [palette, setPalette] = useState(false);
   const [help, setHelp] = useState(false);
   const [focusSignal, setFocusSignal] = useState(0);
@@ -112,6 +115,7 @@ export function CockpitApp() {
   useEffect(() => {
     setDrawer(false);
     setTermSheet(false);
+    setRouteMenuOpen(false);
   }, [route]);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || archived.find((s) => s.id === activeSessionId) || null;
@@ -166,7 +170,7 @@ export function CockpitApp() {
         onShowHelp={() => setHelp(true)}
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
-      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} onNew={handleNew} isAdmin={isAdmin} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} />
+      <Header conn={conn} isMobile={isMobile} onMenu={() => { setRouteMenuOpen(false); setDrawer(true); }} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} onNew={handleNew} isAdmin={isAdmin} routeMenuOpen={routeMenuOpen} setRouteMenuOpen={(v) => { if (v) setDrawer(false); setRouteMenuOpen(v); }} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} />
 
       {quota && rate && <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} />}
       <OfflineNotice show={showOffline} />
