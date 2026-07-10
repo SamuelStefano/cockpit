@@ -15,11 +15,12 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variants: Record<ButtonVariant, string> = {
-  primary: 'bg-orange-500 text-neutral-950 hover:bg-orange-400',
-  secondary: 'bg-neutral-800 text-neutral-200 hover:bg-neutral-700',
+  // Primário como jóia: gradiente quente + highlight interno no topo (btn-jewel).
+  primary: 'btn-jewel bg-gradient-to-b from-orange-500 to-orange-600 text-neutral-950 hover:from-orange-400 hover:to-orange-500',
+  secondary: 'bg-neutral-800 text-neutral-200 hover:bg-neutral-700 hairline',
   outline: 'border border-neutral-800 bg-neutral-900 text-neutral-200 hover:border-orange-500/40 hover:bg-orange-500/[0.06] hover:text-orange-300',
   ghost: 'bg-transparent text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100',
-  danger: 'bg-neutral-800 text-neutral-200 hover:bg-red-500/20 hover:text-red-400',
+  danger: 'bg-neutral-800 text-neutral-200 hover:bg-red-500/20 hover:text-red-400 hairline',
 };
 
 const sizes: Record<ButtonSize, string> = {

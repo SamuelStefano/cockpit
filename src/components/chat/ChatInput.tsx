@@ -99,7 +99,7 @@ export function ChatInput(props: ChatInputProps) {
         </div>
       )}
       {showPalette && <SlashPalette matches={matches} sel={sel} setSel={setSel} complete={complete} />}
-      <div className="flex items-end gap-2 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 transition focus-within:border-orange-500/50">
+      <div className="elev-1 flex items-end gap-2 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 transition focus-within:border-orange-500/50 focus-within:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05),0_0_0_3px_rgba(249,115,22,0.08),0_6px_20px_-6px_rgba(0,0,0,0.6)]">
         <Button
           variant="ghost"
           square
