@@ -5,6 +5,7 @@ import { listSessions, listArchived } from '../sessions/index';
 import { searchSessions } from '../sessions/search';
 import { listContexts, readContext, installContext } from '../contexts';
 import { getNotes, saveNotes } from '../notes';
+import { readPoints, createEntry, correctPoints, noteEntry, deleteEntry } from '../points';
 import { getCrons, saveCron, deleteCron } from '../crons';
 import { fireCron } from './runs';
 import { listSkills, readSkill, resolveSkillDeny, installSkill } from '../skills';
@@ -141,6 +142,54 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'notes-save': {
       await saveNotes(msg.text);
+      return;
+    }
+    case 'points-get': {
+      const { entries, total } = await readPoints();
+      send(ws, { t: 'points', entries, total });
+      return;
+    }
+    // Escrita by:user. Após appendar o evento, re-fold e broadcast pra TODOS os
+    // aparelhos (o agente appenda via CLI; todos atualizam ao vivo). Validação de
+    // borda (frame cru): points finito 0..100000, strings presentes.
+    case 'points-add': {
+      if (typeof msg.title !== 'string' || !msg.title.trim() || typeof msg.points !== 'number' || !Number.isFinite(msg.points) || msg.points < 0 || msg.points > 100_000) {
+        send(ws, { t: 'error', message: 'ponto inválido' });
+        return;
+      }
+      await createEntry({ title: msg.title.trim(), points: msg.points, description: typeof msg.description === 'string' ? msg.description : undefined, by: 'user' });
+      const p = await readPoints();
+      broadcast({ t: 'points', entries: p.entries, total: p.total });
+      return;
+    }
+    case 'points-correct': {
+      if (typeof msg.entryId !== 'string' || typeof msg.points !== 'number' || !Number.isFinite(msg.points) || msg.points < 0 || msg.points > 100_000) {
+        send(ws, { t: 'error', message: 'correção inválida' });
+        return;
+      }
+      await correctPoints(msg.entryId, msg.points, 'user');
+      const p = await readPoints();
+      broadcast({ t: 'points', entries: p.entries, total: p.total });
+      return;
+    }
+    case 'points-note': {
+      if (typeof msg.entryId !== 'string' || typeof msg.description !== 'string') {
+        send(ws, { t: 'error', message: 'nota inválida' });
+        return;
+      }
+      await noteEntry(msg.entryId, msg.description, 'user');
+      const p = await readPoints();
+      broadcast({ t: 'points', entries: p.entries, total: p.total });
+      return;
+    }
+    case 'points-delete': {
+      if (typeof msg.entryId !== 'string') {
+        send(ws, { t: 'error', message: 'id inválido' });
+        return;
+      }
+      await deleteEntry(msg.entryId, 'user');
+      const p = await readPoints();
+      broadcast({ t: 'points', entries: p.entries, total: p.total });
       return;
     }
     case 'crons-get': {

@@ -5,6 +5,7 @@ export const NAV: { to: Route; label: string; adminOnly?: boolean }[] = [
   { to: '/contextos', label: 'contextos' },
   { to: '/skills', label: 'skills' },
   { to: '/notas', label: 'notas' },
+  { to: '/pontos', label: 'pontos' },
   { to: '/crons', label: 'crons' },
   { to: '/uso', label: 'uso' },
   { to: '/graph', label: 'graph', adminOnly: true },

@@ -279,6 +279,41 @@ export interface GraphData {
   totalEdges: number;
 }
 
+// Pontos: ledger vivo de pontuação (story points). A IA registra ao terminar uma
+// task (evento create); o usuário corrige (correct) sem sobrescrever — o histórico
+// prevalece (append-only). PointsEvent = uma linha do ledger; PointsEntry = a
+// projeção dobrada (valor atual + trilha de procedência).
+export interface PointsEvent {
+  id: string;
+  entryId: string;
+  kind: 'create' | 'correct' | 'note' | 'delete';
+  title?: string;
+  points?: number;
+  description?: string;
+  by: 'agent' | 'user';
+  at: number;
+}
+export interface PointsHistoryItem {
+  kind: 'create' | 'correct' | 'note' | 'delete';
+  points?: number;
+  description?: string;
+  by: 'agent' | 'user';
+  at: number;
+}
+export interface PointsEntry {
+  entryId: string;
+  title: string;
+  points: number;          // valor ATUAL (último create/correct)
+  originalPoints: number;  // o do create
+  description?: string;
+  createdAt: number;
+  updatedAt: number;
+  by: 'agent' | 'user';    // quem CRIOU a entry
+  corrected: boolean;      // points !== originalPoints
+  history: PointsHistoryItem[];
+  deleted: boolean;        // sempre false no payload visível (deletadas somem do fold)
+}
+
 export type ClientMsg =
   // skills = ids das skills SELECIONADAS p/ este prompt (subconjunto de SkillMeta.id).
   // Vazio/ausente = todas ativas (default fail-open). O backend nega via permission
@@ -303,6 +338,11 @@ export type ClientMsg =
   | { t: 'ctx-open'; id: string }
   | { t: 'notes-get' }
   | { t: 'notes-save'; text: string }
+  | { t: 'points-get' }
+  | { t: 'points-add'; title: string; points: number; description?: string }
+  | { t: 'points-correct'; entryId: string; points: number }
+  | { t: 'points-note'; entryId: string; description: string }
+  | { t: 'points-delete'; entryId: string }
   | { t: 'ctx-install'; slug: string; title: string; body: string }
   | { t: 'skill-install'; slug: string; title: string; body: string }
   | { t: 'crons-get' }
@@ -365,6 +405,7 @@ export type ServerMsg =
   | { t: 'session-summary'; sessionId: string; summary: string }
   | { t: 'contexts'; items: ContextMeta[] }
   | { t: 'notes'; text: string }
+  | { t: 'points'; entries: PointsEntry[]; total: number }
   | { t: 'crons'; items: Cron[] }
   | { t: 'context'; id: string; title: string; body: string }
   | { t: 'models'; models: ModelInfo[] }

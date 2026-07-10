@@ -3,6 +3,7 @@ import { DesktopLayout } from './DesktopLayout';
 import { Contextos } from '../routes/Contextos';
 import { Skills } from '../routes/Skills';
 import { Notas } from '../routes/Notas';
+import { Pontos } from '../routes/Pontos';
 import { Crons } from '../routes/Crons';
 import { Observatorio } from '../routes/Observatorio';
 import { Graph } from '../routes/Graph';
@@ -69,6 +70,13 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
       return (
         <Notas connected={connected} notes={c.notes} notesLoaded={c.notesLoaded}
           onNotesGet={c.onNotesGet} onNotesSave={c.onNotesSave} onAnalyze={onAnalyzeNotes} />
+      );
+    }
+    if (route === '/pontos') {
+      return (
+        <Pontos connected={connected} points={c.points} total={c.pointsTotal} loaded={c.pointsLoaded}
+          onPointsGet={c.onPointsGet} onPointsAdd={c.onPointsAdd} onPointsCorrect={c.onPointsCorrect}
+          onPointsNote={c.onPointsNote} onPointsDelete={c.onPointsDelete} />
       );
     }
     if (route === '/crons') {

@@ -16,6 +16,7 @@ import { startPlanUsageLoop, getLastPlanUsage, requestPlanUsageRefresh } from '.
 import { getLastRate } from './ws/rate';
 import { startStatsLoop } from './ws/stats-loop';
 import { startSessionsWatch } from './sessions/watch';
+import { startPointsWatch } from './points-watch';
 import { loadManagedEnv } from './admin-ops';
 
 // Entrypoint do AGENTE T3 (DR-023): em vez de escutar (attachWs), DISCA pro relay
@@ -258,6 +259,7 @@ export function runAgent(relayUrl: string): void {
   startPlanUsageLoop(hasClients);
   startModelsLoop(hasClients);
   startSessionsWatch(hasClients);
+  startPointsWatch(hasClients);
   // Backstop relay-agnóstico: se o relay não emitir 'browsers-present' (versão
   // antiga), a reemissão instantânea não dispara — rebroadcasta mcp-servers/slash
   // periodicamente pra o seletor de MCP nunca ficar vazio num browser tardio.

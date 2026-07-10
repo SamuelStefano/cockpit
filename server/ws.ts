@@ -13,6 +13,7 @@ import { startModelsLoop } from './ws/models';
 import { probeSlashCommands } from './ws/slash-probe';
 import { serveConnection } from './ws/serve-connection';
 import { startSessionsWatch } from './sessions/watch';
+import { startPointsWatch } from './points-watch';
 
 export { runStats, killAllRuns } from './ws/runs';
 
@@ -69,6 +70,7 @@ export function attachWs(server: Server) {
   startPlanUsageLoop(hasClients);
   startModelsLoop(hasClients);
   startSessionsWatch(hasClients);
+  startPointsWatch(hasClients);
   probeSlashCommands();
   startCronLoop(fireCron); // agendador: dispara prompts agendados (turnos autônomos)
   return wss;

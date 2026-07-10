@@ -3,7 +3,7 @@ import { emitTool, closeTool } from './tools';
 import type { Thread } from './runs';
 
 function freshThread(): Thread {
-  return { handle: { kill: () => {} }, prompt: '', startedAt: 0, text: '', thinking: '', tools: [], toolStart: new Map(), tasks: new Map(), taskCreates: new Map() };
+  return { handle: { kill: () => {} }, prompt: '', startedAt: 0, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map() };
 }
 
 describe('snapshotTool merge (replay snapshot)', () => {
