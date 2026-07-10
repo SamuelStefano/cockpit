@@ -7,11 +7,11 @@ import { Icon } from '../components/primitives';
 export function Stat({ label, value, icon, tone }: { label: string; value: string; icon: Parameters<typeof Icon>[0]['name']; tone?: 'ok' | 'warn' }) {
   const color = tone === 'ok' ? 'text-emerald-400' : tone === 'warn' ? 'text-yellow-400' : 'text-neutral-100';
   return (
-    <div className="flex flex-col gap-1 rounded-xl border border-neutral-800 bg-neutral-900/40 px-4 py-3">
-      <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-neutral-500">
+    <div className="flex flex-col gap-1.5 rounded-xl border border-neutral-800 bg-neutral-900/40 px-4 py-3.5 hairline">
+      <span className="flex items-center gap-1.5 text-[10.5px] uppercase tracking-wide text-neutral-500">
         <Icon name={icon} size={12} /> {label}
       </span>
-      <span className={`font-mono text-[20px] font-semibold ${color}`}>{value}</span>
+      <span className={`font-mono text-[20px] font-semibold tabular-nums tracking-tight ${color}`}>{value}</span>
     </div>
   );
 }
@@ -34,7 +34,7 @@ export function Chip({ label, on = true, muted }: { label: string; on?: boolean;
 
 export function Inv({ icon, title, count, children }: { icon: Parameters<typeof Icon>[0]['name']; title: string; count: number; children: ReactNode }) {
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
+    <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
       <h3 className="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
         <Icon name={icon} size={12} /> {title} <span className="text-neutral-600">· {count}</span>
       </h3>

@@ -21,7 +21,7 @@ export function SectionTitle({ icon, kicker, title, desc }: { icon: IconName; ki
 
 export function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-2xl border border-neutral-800 bg-neutral-900/40 p-5 transition hover:border-neutral-700/80 ${className}`}>
+    <div className={`rounded-2xl border border-neutral-800 bg-neutral-900/40 p-5 transition hairline hover:border-neutral-700/80 ${className}`}>
       {children}
     </div>
   );

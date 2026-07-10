@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Icon, Button, Badge, Input, Skeleton } from '../../components/primitives';
+import { Icon, Button, Badge, Input, Skeleton, EmptyState } from '../../components/primitives';
 import type { GraphMeta } from '../../../shared/protocol';
 
 interface Props {
@@ -55,15 +55,15 @@ export function GraphList({ graphs, loaded, openId, opening, building, onOpen, o
             {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-[52px] w-full rounded-lg" />)}
           </div>
         ) : graphs.length === 0 ? (
-          <p className="px-2 py-6 text-center text-[12px] text-neutral-600">nenhum grafo ainda</p>
+          <EmptyState icon="sparkles" title="Nenhum grafo" description="Gere um grafo de um repositório acima." />
         ) : (
           <ul className="flex flex-col gap-1">
             {graphs.map((g) => (
               <li key={g.id} className="group relative">
                 <button
                   onClick={() => onOpen(g.id)}
-                  className={`flex w-full items-center gap-2 rounded-lg py-2 pl-2.5 pr-8 text-left transition-colors ${
-                    openId === g.id ? 'bg-orange-500/[0.10] text-orange-200' : 'text-neutral-300 hover:bg-neutral-900'
+                  className={`flex w-full items-center gap-2 rounded-lg border py-2 pl-2.5 pr-8 text-left transition-colors ${
+                    openId === g.id ? 'border-orange-500/40 bg-orange-500/15 text-orange-200' : 'border-transparent text-neutral-300 hover:bg-neutral-900'
                   }`}
                 >
                   <div className="min-w-0 flex-1">

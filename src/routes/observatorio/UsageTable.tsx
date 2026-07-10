@@ -33,7 +33,7 @@ export function UsageTable({ rows, known, titleOf, onOpenSession }: UsageTablePr
   );
 
   return (
-    <div className="overflow-hidden rounded-xl border border-neutral-800">
+    <div className="overflow-hidden rounded-xl border border-neutral-800 hairline">
       <table className="w-full text-[12.5px]">
         <thead>
           <tr className="border-b border-neutral-800 bg-neutral-900/40 text-left text-[11px] uppercase tracking-wider text-neutral-500">

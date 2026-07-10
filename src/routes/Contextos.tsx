@@ -57,7 +57,7 @@ export function Contextos({ connected, contexts, loaded, openContext, onCtxList,
       <div className="shrink-0 border-b border-neutral-800/80 px-4 py-3">
         <div className="mb-2.5 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[14px] font-semibold lowercase tracking-tight text-neutral-100">contextos</span>
+            <span className="font-mono text-[15px] font-semibold lowercase tracking-tight text-neutral-100">contextos</span>
             <Badge tone="neutral">{contexts.length}</Badge>
           </div>
           <div className="flex w-full items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 focus-within:border-neutral-700 focus-within:ring-2 focus-within:ring-orange-500/15 sm:max-w-sm">

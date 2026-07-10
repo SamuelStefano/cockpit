@@ -48,7 +48,7 @@ export function Skills({ connected, skills, loaded, openSkill, onSkillList, onSk
       <div className="shrink-0 border-b border-neutral-800/80 px-4 py-3">
         <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[14px] font-semibold lowercase tracking-tight text-neutral-100">skills</span>
+            <span className="font-mono text-[15px] font-semibold lowercase tracking-tight text-neutral-100">skills</span>
             <Badge tone="neutral">{skills.length}</Badge>
           </div>
           <div className="flex w-full items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 focus-within:border-neutral-700 focus-within:ring-2 focus-within:ring-orange-500/15 sm:max-w-sm">

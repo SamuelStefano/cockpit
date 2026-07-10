@@ -45,7 +45,7 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions, rat
     <div className="flex min-h-0 flex-1 flex-col bg-neutral-950">
       <div className="shrink-0 border-b border-neutral-800/80 px-4 py-3">
         <div className="flex items-center gap-2">
-          <span className="font-mono text-[14px] font-semibold lowercase tracking-tight text-neutral-100">uso</span>
+          <span className="font-mono text-[15px] font-semibold lowercase tracking-tight text-neutral-100">uso</span>
           <Badge tone="neutral">{rows.length} sessões</Badge>
         </div>
       </div>

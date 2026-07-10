@@ -22,7 +22,7 @@ export function Trend({ series }: { series: DailyUsage[] }) {
   const today = startOfDay(Date.now());
 
   return (
-    <div className="mb-4 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
+    <div className="mb-4 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
       <div className="mb-3 flex items-center justify-between gap-2">
         <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-neutral-500">
           <Icon name="zap" size={12} /> custo por dia
@@ -33,7 +33,7 @@ export function Trend({ series }: { series: DailyUsage[] }) {
               <button
                 key={p.id}
                 onClick={() => setPeriod(p.id)}
-                className={`rounded-md px-1.5 py-0.5 text-[10.5px] font-medium transition ${period === p.id ? 'bg-orange-500/15 text-orange-400' : 'text-neutral-500 hover:text-neutral-300'}`}
+                className={`rounded-md border px-1.5 py-0.5 text-[10.5px] font-medium transition ${period === p.id ? 'border-orange-500/40 bg-orange-500/15 text-orange-300' : 'border-transparent text-neutral-500 hover:text-neutral-300'}`}
               >
                 {p.label}
               </button>

@@ -54,7 +54,7 @@ export function Notas({ connected, notes, notesLoaded, onNotesGet, onNotesSave, 
         {!notesLoaded && connected ? (
           <div className="shimmer h-full flex-1 rounded-xl" />
         ) : preview ? (
-          <div className="scroll-thin min-h-0 w-full flex-1 overflow-y-auto rounded-xl border border-neutral-800 bg-neutral-900/60 p-4">
+          <div className="scroll-thin min-h-0 w-full flex-1 overflow-y-auto rounded-xl border border-neutral-800 bg-neutral-900/60 p-4 hairline">
             <Markdown md={text} />
           </div>
         ) : (

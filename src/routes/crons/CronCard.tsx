@@ -47,7 +47,7 @@ export function CronCard({ cron, now, editing, onRun, onToggle, onEdit, onDelete
   const run = () => { onRun(); toast('Cron disparado'); };
 
   return (
-    <div className={`flex items-start gap-3 rounded-xl border bg-neutral-900/50 p-3 transition ${editing ? 'border-orange-500/40' : 'border-neutral-800 hover:border-neutral-700'}`}>
+    <div className={`flex items-start gap-3 rounded-xl border bg-neutral-900/50 p-3 transition ${editing ? 'border-orange-500/40 glow-active' : 'border-neutral-800 hairline hover:border-neutral-700'}`}>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="truncate text-sm font-medium text-neutral-100">{cron.name}</span>

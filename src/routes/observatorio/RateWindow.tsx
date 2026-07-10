@@ -9,7 +9,7 @@ export function RateWindow({ rate }: { rate: { resetsAt: number; status: string 
   const tone = !limited ? 'bg-emerald-500' : fill >= 100 ? 'bg-red-500' : 'bg-amber-500';
   const label = !limited ? 'longe do limite' : fill >= 100 ? 'no limite' : 'perto do limite';
   return (
-    <div className="mb-4 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
+    <div className="mb-4 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
       <div className="mb-2 flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-neutral-500">
           <Icon name="clock" size={12} /> janela de limite · {label}

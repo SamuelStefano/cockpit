@@ -26,7 +26,7 @@ export function AdminAccounts({ accounts, loaded, onAccountsList, onSetAdmin, ca
   };
 
   return (
-    <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
+    <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
       <div className="mb-3 flex items-center gap-2">
         <h2 className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-neutral-400">
           <Icon name="user" size={12} /> Contas <span className="text-neutral-600">· {accounts.length}</span>

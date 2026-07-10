@@ -6,7 +6,7 @@ import { Dot, Chip, Inv } from './adminPrimitives';
 export function AdminInventory({ health }: { health: AdminHealth }) {
   return (
     <>
-      <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
+      <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
         <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-neutral-400">Vínculos</h2>
         <ul className="space-y-2 text-[13px]">
           <li className="flex items-center justify-between">

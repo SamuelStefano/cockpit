@@ -67,7 +67,7 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
   const present = new Set((health?.clis ?? []).filter((c) => c.present).map((c) => c.name));
 
   return (
-    <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
+    <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
       <h2 className="mb-3 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-neutral-400">
         <Icon name="zap" size={12} /> Controle do host
       </h2>
