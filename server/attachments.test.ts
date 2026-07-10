@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { deflateRawSync } from 'node:zlib';
-import { safeSeg, saveAttachment, readAttachment, extractDocxText } from './attachments';
+import { safeSeg, saveAttachment, readAttachment, extractDocxText, mimeOf } from './attachments';
 import { CONFIG } from './config';
 
 // Monta um .docx mínimo (1 entrada deflate: word/document.xml) sem dependência —
@@ -35,6 +35,19 @@ function buildDocx(documentXml: string): Buffer {
   eocd.writeUInt32LE(localBlock.length, 16);
   return Buffer.concat([localBlock, centralBlock, eocd]);
 }
+
+describe('mimeOf', () => {
+  it('nunca serve svg como image/svg+xml (stored-XSS no bucket S3 público)', () => {
+    expect(mimeOf('logo.svg')).toBe('application/octet-stream');
+    expect(mimeOf('a.SVG')).toBe('application/octet-stream');
+  });
+
+  it('mantém mimes raster e cai em octet-stream no desconhecido', () => {
+    expect(mimeOf('x.png')).toBe('image/png');
+    expect(mimeOf('x.jpeg')).toBe('image/jpeg');
+    expect(mimeOf('x.desconhecido')).toBe('application/octet-stream');
+  });
+});
 
 describe('safeSeg', () => {
   it('strips directory traversal down to the basename', () => {

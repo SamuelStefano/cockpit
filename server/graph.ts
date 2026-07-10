@@ -48,6 +48,12 @@ function pathFor(id: string): string | null {
   return SLUG_RE.test(id) ? graphJsonPath(id) : null;
 }
 
+// Arg de usuário que começa com '-' viraria FLAG do binário graphify: args em array
+// barram o shell, mas NÃO o parser de flags do próprio binário. Rejeita esse caso.
+export function rejectFlagLike(s: string): boolean {
+  return s.startsWith('-');
+}
+
 async function isFile(p: string): Promise<boolean> {
   try { return (await stat(p)).isFile(); } catch { return false; }
 }
@@ -321,6 +327,7 @@ export async function queryGraph(id: string, question: string, budget = 2000): P
   if (!p || !(await isFile(p))) return null;
   const q = question.trim().slice(0, 500);
   if (!q) return { answer: '', tokens: 0, miss: false };
+  if (rejectFlagLike(q)) return { answer: 'a consulta não pode começar com "-"', tokens: 0, miss: false };
   const b = Math.max(200, Math.min(8000, Math.round(budget)));
   const { out } = await runGraphify(['query', q, '--graph', p, '--budget', String(b)]);
   const answer = out.trim().slice(0, 40_000);
@@ -337,13 +344,13 @@ export async function nodeOp(id: string, op: NodeOp, a: string, b?: string): Pro
   const p = pathFor(id);
   if (!p || !(await isFile(p))) return null;
   const la = a.trim().slice(0, 200);
-  if (!la) return null;
+  if (!la || rejectFlagLike(la)) return null;
   let args: string[];
   if (op === 'explain') args = ['explain', la, '--graph', p];
   else if (op === 'affected') args = ['affected', la, '--graph', p];
   else {
     const lb = (b ?? '').trim().slice(0, 200);
-    if (!lb) return null;
+    if (!lb || rejectFlagLike(lb)) return null;
     args = ['path', la, lb, '--graph', p];
   }
   const { out } = await runGraphify(args);

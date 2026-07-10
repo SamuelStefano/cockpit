@@ -9,10 +9,13 @@ import { uploadToS3 } from './s3';
 // pra o navegador renderizar inline em vez de baixar. Sem match → octet-stream.
 const MIME: Record<string, string> = {
   png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
-  webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp', avif: 'image/avif',
+  webp: 'image/webp', bmp: 'image/bmp', avif: 'image/avif',
+  // svg NUNCA como image/svg+xml: o espelho é um bucket S3 público e compartilhado
+  // da DFL; um SVG com <script> serviria stored-XSS inline. Força download binário.
+  svg: 'application/octet-stream',
   pdf: 'application/pdf', mp4: 'video/mp4', webm: 'video/webm', mp3: 'audio/mpeg',
 };
-function mimeOf(name: string): string {
+export function mimeOf(name: string): string {
   return MIME[(name.split('.').pop() ?? '').toLowerCase()] ?? 'application/octet-stream';
 }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { projectGraph, nameCommunity } from './graph';
+import { projectGraph, nameCommunity, rejectFlagLike } from './graph';
 import type { GraphNode } from '../shared/protocol';
 
 function node(id: string, over: Partial<GraphNode> = {}): GraphNode {
@@ -42,6 +42,20 @@ describe('nameCommunity', () => {
       node('b', { file: 'lib/util.ts' }),
     ];
     expect(nameCommunity(members)).toBe('lib');
+  });
+});
+
+describe('rejectFlagLike', () => {
+  it('marca args que começam com "-" (anti flag-injection no graphify)', () => {
+    expect(rejectFlagLike('-rf')).toBe(true);
+    expect(rejectFlagLike('--graph')).toBe(true);
+    expect(rejectFlagLike('-')).toBe(true);
+  });
+
+  it('aceita termos e identificadores normais', () => {
+    expect(rejectFlagLike('queryGraph')).toBe(false);
+    expect(rejectFlagLike('server/ws/dispatch.ts')).toBe(false);
+    expect(rejectFlagLike('')).toBe(false);
   });
 });
 
