@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Badge } from '../primitives';
+import { usePersisted } from '../../lib/persist';
+import { SHOW_SESSION_DESC_KEY, SHOW_SESSION_DESC_DEFAULT } from '../../lib/prefs';
 import type { Session } from '../../data/mock';
 import { Highlight } from './Highlight';
 import { SessionRowTags } from './SessionRowTags';
@@ -36,6 +38,7 @@ export interface SessionRowProps {
 
 export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated, runStart, pinned, tags = [], onTogglePin, onAddTag, onRemoveTag, onFilterTag, onSelect, onRename, onDescribe, onClose, onDelete, onStop }: SessionRowProps) {
   const { editing, setEditing, draft, setDraft, descEditing, setDescEditing, descDraft, setDescDraft, tagging, setTagging, tagDraft, setTagDraft, inputRef, descRef, tagRef, commit, commitDesc, commitTag } = useSessionRow({ s, onAddTag, onRename, onDescribe });
+  const [showDesc] = usePersisted<boolean>(SHOW_SESSION_DESC_KEY, SHOW_SESSION_DESC_DEFAULT);
   const { open: actionsOpen, setOpen: setActionsOpen, consumeTap, handlers } = useLongPress(() => {});
   const warn = ctxWarn(ctx);
   const rowRef = useRef<HTMLDivElement>(null);
@@ -69,7 +72,7 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
           : 'border-transparent hover:border-neutral-800 hover:bg-neutral-900/70'}`}
     >
       {active && <span className="absolute left-0 top-2 bottom-2 w-[2.5px] rounded-full bg-orange-500" />}
-      <div className="mb-1 flex items-center justify-between gap-2">
+      <div className="mb-1 flex items-start justify-between gap-2">
         {editing ? (
           <input
             ref={inputRef}
@@ -86,10 +89,12 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
           />
         ) : (
           <span
-            className={`flex min-w-0 items-center gap-1.5 truncate text-left text-[12.5px] font-medium leading-tight ${active ? 'text-neutral-100' : 'text-neutral-300'}`}
+            className={`flex min-w-0 items-start gap-1.5 text-left text-[12.5px] font-medium leading-snug ${active ? 'text-neutral-100' : 'text-neutral-300'}`}
           >
-            <SessionStatusDot running={running} stalled={stalled} updated={updated} />
-            <span className={`truncate ${!running && updated && !active ? 'text-neutral-100' : ''}`}><Highlight text={s.title} term={highlight} /></span>
+            <span className="mt-[3px] shrink-0"><SessionStatusDot running={running} stalled={stalled} updated={updated} /></span>
+            {/* Título em até 2 linhas: um título longo mostra bem mais antes de
+                reticenciar do que o corte de 1 linha (os "…" que incomodavam). */}
+            <span className={`line-clamp-2 ${!running && updated && !active ? 'text-neutral-100' : ''}`}><Highlight text={s.title} term={highlight} /></span>
           </span>
         )}
         {!editing && (
@@ -131,9 +136,9 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
           aria-label="Editar descrição da sessão"
           className="mt-0.5 w-full resize-none rounded border border-orange-500/50 bg-neutral-950 px-1.5 py-1 text-[11.5px] leading-snug text-neutral-200 outline-none ring-2 ring-orange-500/20"
         />
-      ) : (
+      ) : showDesc ? (
         <p className="line-clamp-2 text-[11.5px] leading-snug text-neutral-500"><Highlight text={s.summary || s.snippet} term={highlight} /></p>
-      ))}
+      ) : null)}
       {!editing && running && (
         <RunStatus start={runStart} stalled={!!stalled} />
       )}
