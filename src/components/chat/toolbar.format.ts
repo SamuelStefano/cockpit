@@ -26,6 +26,9 @@ export function modelFamily(m?: string): string | null {
 // "Fable 5". Alias puro ("opus") -> "Opus". Prefere o display_name da API quando
 // ele é amigável (não é só o id cru repetido). Não-Claude cai no id/displayName.
 export function prettyModel(id?: string, displayName?: string): string {
+  // Pseudo-modelos do CLI (ex: "<synthetic>" em mensagens injetadas) não são
+  // versões reais — cai no rótulo genérico "Claude" em vez de vazar o token.
+  if (id?.startsWith('<')) return '';
   if (displayName && displayName !== id) return displayName;
   if (!id) return '';
   const lo = id.toLowerCase();

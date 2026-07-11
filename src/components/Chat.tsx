@@ -108,21 +108,6 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
   // respondível, independente da versão do backend (defesa no front).
   const shown = useMemo(() => clampToPendingQuestion(messages), [messages]);
 
-  // Rótulo do modelo só quando MUDA entre bolhas de assistente (paridade ChatGPT:
-  // não repete o modelo em toda resposta). True na 1ª bolha ou quando o modelo
-  // efetivo difere do da bolha de assistente anterior.
-  const showModelLabelFor = useMemo(() => {
-    const flags: Record<string, boolean> = {};
-    let prev: string | undefined;
-    for (const m of shown) {
-      if (m.role !== 'assistant') continue;
-      const eff = m.model || model;
-      flags[m.id] = prev === undefined || eff !== prev;
-      prev = eff;
-    }
-    return flags;
-  }, [shown, model]);
-
   return (
     <div
       className="relative flex h-full flex-col bg-neutral-900"
@@ -149,7 +134,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-5">
             {shown.map((m, i) => (
-              <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === shown.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} showModelLabel={m.role !== 'assistant' || (showModelLabelFor[m.id] ?? true)} thinking={phase !== 'idle' && i === shown.length - 1 && m.role === 'assistant'} live={i === shown.length - 1 && m.role === 'assistant' ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} answerable={phase === 'idle' && i === shown.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} onRegenerate={phase === 'idle' && i === shown.length - 1 && m.role === 'assistant' ? c.retryLast : undefined} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} />
+              <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === shown.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} showModelLabel thinking={phase !== 'idle' && i === shown.length - 1 && m.role === 'assistant'} live={i === shown.length - 1 && m.role === 'assistant' ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} answerable={phase === 'idle' && i === shown.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} onRegenerate={phase === 'idle' && i === shown.length - 1 && m.role === 'assistant' ? c.retryLast : undefined} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} />
 
             ))}
             {(phase === 'thinking' && shown[shown.length - 1]?.role !== 'assistant' || phase === 'idle' && terminalBusy) && <Thinking live={live} />}
