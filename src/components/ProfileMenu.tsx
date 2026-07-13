@@ -21,7 +21,7 @@ export function ProfileMenu({ userId, onSignOut }: { userId?: string; onSignOut?
         <AvatarFace avatar={avatar} name={name} size={32} />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1.5 w-60 max-w-[calc(100vw-1rem)] rounded-xl border border-neutral-800 bg-neutral-900 p-3 shadow-2xl">
+        <div className="fade-up absolute right-0 top-full z-50 mt-1.5 w-60 max-w-[calc(100vw-1rem)] rounded-xl border border-neutral-800 bg-neutral-900 p-3 shadow-2xl">
           <div className="flex items-center gap-2.5">
             <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-neutral-700 bg-neutral-950">
               <AvatarFace avatar={avatar} name={name} size={40} />
