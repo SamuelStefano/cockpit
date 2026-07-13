@@ -301,6 +301,10 @@ export function useCockpit(): Cockpit {
   const fullViewId = useRef<string | null>(null);         // sessão em "ver tudo": session-touched deve re-pedir open-full, não open
   const extBusyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const migratedTo = useRef<Record<string, string>>({});  // new-xxx -> claude sessionId já migrado (idempotência: 2º `done` não re-migra nem zera o thread)
+  // chave DE DISPLAY -> chave com que o SERVIDOR mantém o thread (o `t` que chega nos frames de run).
+  // Numa sessão nova o servidor keyeia o run por "new-xxx" e NUNCA re-keyea; o cliente migra activeRef pro
+  // sessionId real. Sem isto, o `stop` iria com o id real e o `threads.get()` do servidor daria miss → kill no-op.
+  const serverKey = useRef<Record<string, string>>({});
   const activeRef = useRef('');
   const sessionsRef = useRef<Session[]>([]);
   const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -384,6 +388,10 @@ export function useCockpit(): Cockpit {
     if (oldKey in runStartRef.current) { runStartRef.current[newId] = runStartRef.current[oldKey]; delete runStartRef.current[oldKey]; }
     if (inFlight.current.has(oldKey)) { inFlight.current.delete(oldKey); inFlight.current.add(newId); }
     if (stopping.current.has(oldKey)) { stopping.current.delete(oldKey); stopping.current.add(newId); }
+    // A chave de DISPLAY migra p/ o sessionId real, mas o servidor segue com o thread
+    // keyeado por oldKey — preserva ESSE valor sob a nova chave de display p/ o `stop` acertar.
+    serverKey.current[newId] = serverKey.current[oldKey] ?? oldKey;
+    delete serverKey.current[oldKey];
     if (activeRef.current === oldKey) { activeRef.current = newId; setActiveIdState(newId); savePref('activeId', newId); }
     const move = <T,>(prev: Record<string, T>): Record<string, T> => moveKey(prev, oldKey, newId);
     setThreads(move);
@@ -559,6 +567,7 @@ export function useCockpit(): Cockpit {
       case 'started': {
         // Frame tardio do turno antigo pode chegar keyed pelo `new-xxx` já migrado.
         const key = resolveKey(migratedTo.current, msg.sessionKey);
+        serverKey.current[key] = msg.sessionKey; // chave real do thread no servidor (p/ o `stop`)
         lastActivity.current[key] = Date.now();
         inFlight.current.add(key);
         if (runMsg.current[key]) return; // já em voo (reconnect) — não duplica bubble
@@ -580,6 +589,7 @@ export function useCockpit(): Cockpit {
         // Reconnect mid-run (#10): snapshot autoritativo do turno em voo.
         // Reconstrói (ou sobrescreve) o bubble e segue recebendo deltas ao vivo.
         const key = resolveKey(migratedTo.current, msg.sessionKey);
+        serverKey.current[key] = msg.sessionKey; // chave real do thread no servidor (p/ o `stop`)
         // Idem 'busy': um 'replay' pós-stop (o servidor reemite o thread vivo a
         // cada reconnect) não pode re-acender uma sessão que o usuário parou —
         // reconstruímos a bolha abaixo, mas sem revalidar inFlight/phase.
@@ -626,6 +636,7 @@ export function useCockpit(): Cockpit {
       }
       case 'delta': {
         const key = resolveKey(migratedTo.current, msg.sessionKey);
+        serverKey.current[key] = msg.sessionKey;
         lastActivity.current[key] = Date.now();
         if (!stopping.current.has(key)) setPhases((p) => ({ ...p, [key]: 'streaming' }));
         patchRunMsg(key, (b) => appendDelta(b, msg.text));
@@ -634,6 +645,7 @@ export function useCockpit(): Cockpit {
       }
       case 'thinking': {
         const key = resolveKey(migratedTo.current, msg.sessionKey);
+        serverKey.current[key] = msg.sessionKey;
         lastActivity.current[key] = Date.now();
         if (!stopping.current.has(key)) setPhases((p) => ({ ...p, [key]: 'streaming' }));
         patchRunMsg(key, (b) => appendThinking(b, msg.text));
@@ -642,6 +654,7 @@ export function useCockpit(): Cockpit {
       }
       case 'tool': {
         const key = resolveKey(migratedTo.current, msg.sessionKey);
+        serverKey.current[key] = msg.sessionKey;
         lastActivity.current[key] = Date.now();
         if (!stopping.current.has(key)) setPhases((p) => ({ ...p, [key]: 'streaming' }));
         // Garante a bolha em voo: se um 'tool' chega antes do 'started' (ou o
@@ -1355,7 +1368,10 @@ export function useCockpit(): Cockpit {
   const onStop = useCallback((sessionKey?: string) => {
     const key = sessionKey ?? activeRef.current;
     if (!key) return;
-    send({ t: 'stop', sessionKey: key });
+    // O servidor keyeia o thread pela chave com que o run começou ("new-xxx" numa
+    // sessão nova) e nunca re-keyea. Mandar a chave de display migrada (sessionId real)
+    // dava miss no `threads.get()` → kill no-op. Manda a chave real do servidor.
+    send({ t: 'stop', sessionKey: serverKey.current[key] ?? key });
     inFlight.current.delete(key);
     stopping.current.add(key);
     reconcileTools(key);
