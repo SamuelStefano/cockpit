@@ -6,10 +6,14 @@ import { Icon } from '../components/primitives';
 
 export function Stat({ label, value, icon, tone }: { label: string; value: string; icon: Parameters<typeof Icon>[0]['name']; tone?: 'ok' | 'warn' }) {
   const color = tone === 'ok' ? 'text-emerald-400' : tone === 'warn' ? 'text-yellow-400' : 'text-neutral-100';
+  const chip = tone === 'ok' ? 'bg-emerald-500/10 text-emerald-400/80' : tone === 'warn' ? 'bg-yellow-500/10 text-yellow-400/80' : 'bg-orange-500/10 text-orange-400/80';
   return (
-    <div className="flex flex-col gap-1.5 rounded-xl border border-neutral-800 bg-neutral-900/40 px-4 py-3.5 hairline">
+    <div className="hairline flex flex-col gap-2 rounded-xl border border-neutral-800 bg-neutral-900/40 px-4 py-3.5 transition hover:border-neutral-700 hover:bg-neutral-900/70">
       <span className="flex items-center gap-1.5 text-[10.5px] uppercase tracking-wide text-neutral-500">
-        <Icon name={icon} size={12} /> {label}
+        <span className={`flex h-4 w-4 items-center justify-center rounded-[5px] ${chip}`}>
+          <Icon name={icon} size={11} />
+        </span>
+        {label}
       </span>
       <span className={`font-mono text-[20px] font-semibold tabular-nums tracking-tight ${color}`}>{value}</span>
     </div>
