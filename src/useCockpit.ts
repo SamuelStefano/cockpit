@@ -458,7 +458,12 @@ export function useCockpit(): Cockpit {
         // Reconcilia a guarda síncrona: descarta keys que ficaram presas (envio
         // enquanto desconectado nunca recebeu started/done) e marca as vivas.
         for (const k of [...inFlight.current]) if (!live.has(k)) inFlight.current.delete(k);
-        for (const k of msg.keys) inFlight.current.add(k);
+        // Não reviver sessão que o usuário acabou de parar: o kill leva até ~5s
+        // (SIGTERM→SIGKILL) e o thread ainda consta vivo neste snapshot. Sem o
+        // latch `stopping`, um 'busy' pós-stop (disparado a cada reconnect por
+        // visibilidade/rede) re-acende inFlight+phase e o botão parar parece
+        // não funcionar — a key limpa sozinha no 'done' do kill.
+        for (const k of msg.keys) if (!stopping.current.has(k)) inFlight.current.add(k);
         // Turno que FECHOU enquanto o browser esteve desconectado: o done nunca
         // chegou, então runMsg aponta pra uma bolha truncada — o próximo 'started'
         // reusaria essa bolha ("já em voo") e o turno novo streamaria dentro do
@@ -474,7 +479,7 @@ export function useCockpit(): Cockpit {
         }
         setPhases((p) => {
           const n = { ...p };
-          for (const k of msg.keys) if (n[k] !== 'streaming') n[k] = 'thinking';
+          for (const k of msg.keys) if (n[k] !== 'streaming' && !stopping.current.has(k)) n[k] = 'thinking';
           for (const k of Object.keys(n)) {
             if (!live.has(k) && (n[k] === 'thinking' || n[k] === 'streaming')) n[k] = 'idle';
           }
@@ -575,7 +580,11 @@ export function useCockpit(): Cockpit {
         // Reconnect mid-run (#10): snapshot autoritativo do turno em voo.
         // Reconstrói (ou sobrescreve) o bubble e segue recebendo deltas ao vivo.
         const key = resolveKey(migratedTo.current, msg.sessionKey);
-        inFlight.current.add(key);
+        // Idem 'busy': um 'replay' pós-stop (o servidor reemite o thread vivo a
+        // cada reconnect) não pode re-acender uma sessão que o usuário parou —
+        // reconstruímos a bolha abaixo, mas sem revalidar inFlight/phase.
+        const revived = stopping.current.has(key);
+        if (!revived) inFlight.current.add(key);
         // O reconnect pode ter perdido o frame 'system'/'done' que carregava o
         // sessionId — sem re-semear aqui o próximo envio ia sem resume e o claude
         // abria uma conversa NOVA ("é como se fosse um novo prompt").
@@ -602,7 +611,7 @@ export function useCockpit(): Cockpit {
             ? prev.map((m) => (m.id === id && m.role === 'assistant' ? { ...m, blocks, ts } : m))
             : [...prev, { id, role: 'assistant', blocks, ts }],
         );
-        setPhases((p) => ({ ...p, [key]: blocks.some((b) => b.type === 'text') ? 'streaming' : 'thinking' }));
+        if (!revived) setPhases((p) => ({ ...p, [key]: blocks.some((b) => b.type === 'text') ? 'streaming' : 'thinking' }));
         return;
       }
       case 'system': {
