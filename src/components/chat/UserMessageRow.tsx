@@ -70,7 +70,7 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
               else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); }
             }}
             rows={Math.min(10, value.split('\n').length)}
-            className="w-full resize-none rounded-2xl rounded-br-md border border-orange-500/40 bg-neutral-800 px-3.5 py-2.5 text-[14px] leading-relaxed text-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
+            className="w-full resize-none rounded-2xl rounded-br-md border border-orange-500/40 bg-neutral-800 px-4 py-2.5 text-[15px] leading-7 text-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
           />
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={cancel}>Cancelar</Button>
@@ -110,7 +110,7 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
           </div>
         )}
         {body && (
-          <div className="hairline w-full whitespace-pre-wrap break-words rounded-2xl rounded-br-md border border-neutral-700/60 bg-neutral-800 px-3.5 py-2.5 text-[14px] leading-relaxed text-neutral-100 shadow-sm shadow-black/20">
+          <div className="hairline w-full whitespace-pre-wrap break-words rounded-2xl rounded-br-md border border-neutral-700/60 bg-neutral-800 px-4 py-2.5 text-[15px] leading-7 text-neutral-100 shadow-sm shadow-black/20">
             {body}
           </div>
         )}

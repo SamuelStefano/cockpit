@@ -132,7 +132,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
         {c.isEmpty && phase === 'idle' ? (
           <ChatEmpty onPrompt={onPrompt} />
         ) : (
-          <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-5">
+          <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6">
             {shown.map((m, i) => (
               <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === shown.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} showModelLabel thinking={phase !== 'idle' && i === shown.length - 1 && m.role === 'assistant'} live={i === shown.length - 1 && m.role === 'assistant' ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} answerable={phase === 'idle' && i === shown.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} onRegenerate={phase === 'idle' && i === shown.length - 1 && m.role === 'assistant' ? c.retryLast : undefined} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} />
 

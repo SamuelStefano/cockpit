@@ -22,7 +22,6 @@ interface MessageRowProps {
   msg: Message;
   caretOnLast: boolean;
   modelLabel?: string;
-  // Só mostra o rótulo do modelo quando ele muda entre turnos (calculado no Chat).
   showModelLabel?: boolean;
   thinking?: boolean;
   live?: LiveTurn;
@@ -68,7 +67,7 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
         <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} answerable={answerable} onAnswer={onAnswer} />
         {thinking && <ThinkingDots live={live} />}
         {hasText && !caretOnLast && (
-          <div className="mt-1 flex items-center gap-2">
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <div className="flex items-center gap-2 opacity-100 transition group-hover/msg:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100">
               <CopyMessageButton blocks={msg.blocks} />
               <SpeakButton blocks={msg.blocks} />
@@ -76,7 +75,7 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
               {onQuote && <QuoteButton onClick={() => onQuote(messageToText(msg.blocks))} withLabel />}
             </div>
             {msg.stats && <TurnStatsLine stats={msg.stats} />}
-            {msg.ts && <time className="text-[10px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
+            {msg.ts && <time className="whitespace-nowrap text-[10px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
           </div>
         )}
       </div>
@@ -103,7 +102,7 @@ function TurnStatsLine({ stats }: { stats: TurnBubbleStats }) {
     ? ` — ${fmtTokens(stats.inputTokens)} in · ${fmtTokens(stats.outputTokens)} out`
     : '';
   return (
-    <span className="text-[10px] tabular-nums text-neutral-600" title={`Gasto do turno: total faturável incl. cache · tempo · custo${inOut}`}>
+    <span className="whitespace-nowrap text-[10px] tabular-nums text-neutral-600" title={`Gasto do turno: total faturável incl. cache · tempo · custo${inOut}`}>
       {parts.join(' · ')}
     </span>
   );

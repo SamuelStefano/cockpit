@@ -74,7 +74,7 @@ export function AssistantBlocks({ blocks, caretOnLast, answerable = false, onAns
   const [showTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   const lastIdx = blocks.length - 1;
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       {groupBlocks(blocks).map((it) => {
         if (it.kind === 'tools') {
           // AskUserQuestion sempre renderiza (mesmo com tools ocultas): é uma ação
