@@ -26,12 +26,13 @@ export function Pontos({ connected, points, total, loaded, onPointsGet, onPoints
   return (
     <div className="scroll-thin flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-5 sm:px-6">
       <div className="mx-auto w-full max-w-3xl">
-        <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-[19px] font-semibold tracking-tight text-neutral-100">Pontos</h1>
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="hairline rounded-lg text-4xl font-semibold tabular-nums tracking-tight text-orange-400">{total}</span>
-              <span className="text-[12.5px] text-neutral-500">pts em {points.length} {points.length === 1 ? 'registro' : 'registros'}</span>
+        <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
+          <div className="relative">
+            <div aria-hidden className="pointer-events-none absolute -left-4 -top-2 h-24 w-40 rounded-full bg-orange-500/[0.08] blur-2xl" />
+            <h1 className="relative text-[13px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Pontos</h1>
+            <div className="relative mt-1 flex items-baseline gap-2.5">
+              <span className="bg-gradient-to-br from-orange-300 to-orange-500 bg-clip-text text-[56px] font-bold leading-none tabular-nums tracking-tight text-transparent drop-shadow-[0_2px_12px_rgba(249,115,22,0.25)]">{total}</span>
+              <span className="pb-1 text-[12.5px] text-neutral-500">pts em {points.length} {points.length === 1 ? 'registro' : 'registros'}</span>
             </div>
           </div>
           <Button variant="secondary" size="sm" onClick={() => setAdding((v) => !v)}>
