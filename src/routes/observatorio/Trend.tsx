@@ -43,19 +43,25 @@ export function Trend({ series }: { series: DailyUsage[] }) {
         </div>
       </div>
       <div className="flex h-24 items-end gap-1">
-        {shown.map((d) => {
-          const h = Math.max(2, Math.round((d.cost / max) * 100));
+        {shown.map((d, i) => {
+          // Escala sqrt: um dia outlier (ex.: $900) esmagava o resto pra 2px na
+          // escala linear. Altura em px absoluto: % não resolvia (pai sem altura
+          // definida) e todas as barras caíam no minHeight.
+          const h = Math.max(4, Math.round(Math.sqrt(d.cost / max) * 76));
           const isToday = d.day === today;
+          // Com muitas barras (período "tudo") os rótulos colidiam — mostra 1 a cada N.
+          const labelStep = Math.ceil(shown.length / 12);
+          const showLabel = i % labelStep === 0 || isToday;
           return (
             <div key={d.day} className="group/bar flex flex-1 flex-col items-center justify-end gap-1">
               <div className="relative flex w-full justify-center">
                 <div
                   className={`w-full max-w-[18px] rounded-sm transition-colors ${isToday ? 'bg-orange-500' : 'bg-orange-500/40 group-hover/bar:bg-orange-500/70'}`}
-                  style={{ height: `${h}%`, minHeight: '2px' }}
+                  style={{ height: `${h}px` }}
                   title={`${dayLabel(d.day)} · ${usd(d.cost)} · ${fmt(d.output)} out`}
                 />
               </div>
-              <span className="text-[8.5px] tabular-nums text-neutral-600">{new Date(d.day).getDate()}</span>
+              <span className={`text-[8.5px] tabular-nums ${isToday ? 'font-semibold text-orange-400' : 'text-neutral-600'} ${showLabel ? '' : 'invisible'}`}>{new Date(d.day).getDate()}</span>
             </div>
           );
         })}

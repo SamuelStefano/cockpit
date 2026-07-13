@@ -86,8 +86,9 @@ export function PointsCard({ entry, now, glow, onCorrect, onNote, onDelete }: Pr
             />
           ) : (
             <button onClick={() => { setPtsDraft(String(entry.points)); setEditPts(true); }} title="Corrigir pontos"
-              className="rounded-md px-1 text-2xl font-semibold tabular-nums tracking-tight text-neutral-100 transition hover:text-orange-300">
+              className="flex items-baseline gap-1 rounded-md px-1 text-2xl font-semibold tabular-nums tracking-tight text-neutral-100 transition hover:text-orange-300">
               {entry.points}
+              <span className="text-[10px] font-medium uppercase tracking-wide text-neutral-600">pts</span>
             </button>
           )}
           {confirmDelete

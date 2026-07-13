@@ -21,7 +21,7 @@ export function UsageTable({ rows, known, titleOf, onOpenSession }: UsageTablePr
     setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'desc' }));
 
   const SortHead = ({ label, sortKey, align = 'left' }: { label: ReactNode; sortKey: UsageSortKey; align?: 'left' | 'right' }) => (
-    <th className={`px-3 py-2 font-medium ${align === 'right' ? 'text-right' : ''}`}>
+    <th className={`px-2 py-2 font-medium sm:px-3 ${align === 'right' ? 'text-right' : ''}`}>
       <button
         onClick={() => toggle(sortKey)}
         className={`inline-flex items-center gap-1 uppercase tracking-wider transition-colors hover:text-neutral-300 ${sort.key === sortKey ? 'text-neutral-300' : ''}`}
@@ -37,11 +37,11 @@ export function UsageTable({ rows, known, titleOf, onOpenSession }: UsageTablePr
       <table className="w-full text-[12.5px]">
         <thead>
           <tr className="border-b border-neutral-800 bg-neutral-900/40 text-left text-[11px] uppercase tracking-wider text-neutral-500">
-            <th className="px-3 py-2 font-medium">sessão</th>
-            <th className="px-3 py-2 font-medium">contexto</th>
+            <th className="px-2 py-2 font-medium sm:px-3">sessão</th>
+            <th className="hidden px-3 py-2 font-medium md:table-cell">contexto</th>
             <SortHead label="saída" sortKey="output" />
             <SortHead label="custo" sortKey="cost" />
-            <th className="hidden px-3 py-2 font-medium sm:table-cell">amostras</th>
+            <th className="hidden px-3 py-2 font-medium lg:table-cell">amostras</th>
             <SortHead label="visto" sortKey="seen" align="right" />
           </tr>
         </thead>
