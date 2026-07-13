@@ -112,6 +112,9 @@ export interface CompactMessage {
   label?: string;
   url?: string;
   ts?: number;
+  // Nº de marcadores consecutivos coalescidos num divisor só (loop noturno gera
+  // dezenas de wakeups seguidos — empilhados viravam poluição visual).
+  count?: number;
 }
 
 export type Message = UserMessage | AssistantMessage | CompactMessage;
@@ -432,7 +435,7 @@ export type ServerMsg =
   | { t: 'triage'; sessionKey: string; msgId?: string; action: TriageAction; reason: string }
   | { t: 'quick-answer'; sessionKey: string; id: string; text: string; ts: number }
   | { t: 'started'; sessionKey: string }
-  | { t: 'replay'; sessionKey: string; text: string; thinking: string; tools: ToolCall[]; startedAt?: number }
+  | { t: 'replay'; sessionKey: string; text: string; thinking: string; tools: ToolCall[]; startedAt?: number; sessionId?: string }
   | { t: 'system'; sessionKey: string; sessionId: string }
   | { t: 'slash-commands'; items: string[] }
   | { t: 'delta'; sessionKey: string; text: string }

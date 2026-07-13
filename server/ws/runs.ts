@@ -264,7 +264,14 @@ export async function routeSend(ws: WebSocket, sessionKey: string, prompt: strin
       return;
     }
     case 'answer':
-      void runQuickAnswer(sessionKey, prompt, epoch);
+      // Fallback: haiku falhou/timeout (retorna '') → NÃO engolir a mensagem em
+      // silêncio; degrada pra 'wait' (responde quando o turno fechar).
+      void runQuickAnswer(sessionKey, prompt, epoch, () => {
+        if (!threads.has(sessionKey)) { startRun(ws, sessionKey, prompt, resumeId, undefined, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort); return; }
+        if (!enqueue(sessionKey, { ws, prompt, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort, merge: false })) {
+          broadcast({ t: 'error', sessionKey, message: 'fila de mensagens cheia' });
+        }
+      });
       return;
     case 'merge':
     case 'wait':
@@ -279,10 +286,10 @@ export async function routeSend(ws: WebSocket, sessionKey: string, prompt: strin
 // epoch capturado no routeSend: se um stop aconteceu durante o oneShot (até 60s),
 // a época muda e a resposta é descartada — senão a quick-answer pingava depois do
 // stop. O killSideRunsFor no onStop já mata o processo; o guard cobre a corrida.
-async function runQuickAnswer(sessionKey: string, prompt: string, epoch: number) {
+async function runQuickAnswer(sessionKey: string, prompt: string, epoch: number, onEmpty?: () => void) {
   const text = await quickAnswer(prompt, sessionKey);
-  if (!text) return;
   if ((stopEpoch.get(sessionKey) ?? 0) !== epoch) return;
+  if (!text) { onEmpty?.(); return; }
   broadcast({ t: 'quick-answer', sessionKey, id: `qa-${Date.now().toString(36)}`, text, ts: Date.now() });
 }
 

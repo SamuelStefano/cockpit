@@ -11,6 +11,13 @@ import { threads } from './runs';
 // sem duplicar.
 export function sendDurableSnapshot(ws: WebSocket) {
   send(ws, { t: 'busy', keys: [...threads.keys()] });
+  // Replay dos turnos EM VOO: um browser que reconecta (aba suspensa no mobile)
+  // enquanto outra aba segue viva não passa pelo reemit do agente (só dispara
+  // quando TODOS os browsers sumiram) — sem replay aqui o turno fica mudo e o
+  // sessionId se perde (próximo envio viraria conversa nova no claude).
+  for (const [key, thread] of threads) {
+    send(ws, { t: 'replay', sessionKey: key, text: thread.text, thinking: thread.thinking, tools: thread.tools, startedAt: thread.startedAt, sessionId: thread.sessionId });
+  }
   const rate = getLastRate();
   if (rate) send(ws, { t: 'rate', ...rate });
   const planUsage = getLastPlanUsage();

@@ -7,10 +7,13 @@ import { fmtTokens } from './message-format';
 export function CompactDivider({ msg }: { msg: CompactMessage }) {
   const manual = msg.trigger === 'manual';
   const detail = msg.preTokens ? `${fmtTokens(msg.preTokens)} tokens resumidos` : 'contexto resumido';
+  // Run consecutivo coalescido (loop noturno gera dezenas de marcadores seguidos):
+  // um divisor só com a contagem, em vez de uma parede de linhas.
+  const times = msg.count && msg.count > 1 ? <span className="tabular-nums text-neutral-500">×{msg.count}</span> : null;
   // O mesmo divisor fino marca compactação, wakeup de loop agendado e PR aberta
   // (kind) — paridade com as linhas avulsas que o terminal imprime.
   const body = msg.kind === 'wakeup' ? (
-    <><Icon name="zap" size={11} className="text-violet-400/80" />{msg.label ?? 'Claude retomou um loop agendado'}</>
+    <><Icon name="zap" size={11} className="text-violet-400/80" />{msg.label ?? 'Claude retomou um loop agendado'}{times}</>
   ) : msg.kind === 'pr' ? (
     <>
       <Icon name="arrowUp" size={11} className="text-orange-400/80" />
@@ -25,6 +28,7 @@ export function CompactDivider({ msg }: { msg: CompactMessage }) {
       <Icon name="sparkles" size={11} />
       {manual ? 'Conversa compactada' : 'Conversa compactada automaticamente'}
       <span className="text-neutral-600">· {detail}</span>
+      {times}
     </>
   );
   return (

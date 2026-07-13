@@ -459,6 +459,19 @@ export function useCockpit(): Cockpit {
         // enquanto desconectado nunca recebeu started/done) e marca as vivas.
         for (const k of [...inFlight.current]) if (!live.has(k)) inFlight.current.delete(k);
         for (const k of msg.keys) inFlight.current.add(k);
+        // Turno que FECHOU enquanto o browser esteve desconectado: o done nunca
+        // chegou, então runMsg aponta pra uma bolha truncada — o próximo 'started'
+        // reusaria essa bolha ("já em voo") e o turno novo streamaria dentro do
+        // texto velho. Solta o ponteiro e invalida o cache pra re-puxar o final
+        // perdido do history (a bolha truncada some no mergeHistory).
+        for (const k of Object.keys(runMsg.current)) {
+          if (live.has(k)) continue;
+          delete runMsg.current[k];
+          if (!k.startsWith('new-')) {
+            opened.current.delete(k);
+            if (activeRef.current === k && send({ t: fullViewId.current === k ? 'open-full' : 'open', sessionId: k })) opened.current.add(k);
+          }
+        }
         setPhases((p) => {
           const n = { ...p };
           for (const k of msg.keys) if (n[k] !== 'streaming') n[k] = 'thinking';
@@ -563,6 +576,10 @@ export function useCockpit(): Cockpit {
         // Reconstrói (ou sobrescreve) o bubble e segue recebendo deltas ao vivo.
         const key = resolveKey(migratedTo.current, msg.sessionKey);
         inFlight.current.add(key);
+        // O reconnect pode ter perdido o frame 'system'/'done' que carregava o
+        // sessionId — sem re-semear aqui o próximo envio ia sem resume e o claude
+        // abria uma conversa NOVA ("é como se fosse um novo prompt").
+        if (msg.sessionId) resumeId.current[key] = msg.sessionId;
         // Reload mid-run zera runStartRef; sem semear daqui, o efeito do cronômetro
         // cravaria Date.now() e o card mostraria 0s pra um turno que já roda há min.
         if (msg.startedAt && runStartRef.current[key] === undefined) {
@@ -1056,10 +1073,13 @@ export function useCockpit(): Cockpit {
     send({ t: 's3-config' });  // URL+anon key pra upload HTTP direto na edge fn
     send({ t: 'sync' });       // reemite o estado durável fresco (busy/rate/plan/models)
     send({ t: 'points-get' }); // ledger de pontos: atualiza ao vivo mesmo fora da rota
-    // Sessão ativada enquanto o WS esteve fechado nunca recebeu o 'open' (frame
-    // descartado) — sem isto o thread visível ficava vazio até um F5.
+    // Re-abre a sessão ativa SEMPRE (não só se nunca abriu): um turno que terminou
+    // enquanto o WS esteve fechado perdeu os deltas finais + o 'done' — sem re-puxar
+    // o history a resposta ficava congelada no meio da frase pra sempre ("o agente
+    // parou de me responder"). mergeHistory deduplica, então o re-open é barato e
+    // idempotente; respeita a visão completa pra não reverter pro resumido.
     const act = activeRef.current;
-    if (act && !act.startsWith('new-') && !opened.current.has(act) && send({ t: 'open', sessionId: act })) opened.current.add(act);
+    if (act && !act.startsWith('new-') && send({ t: fullViewId.current === act ? 'open-full' : 'open', sessionId: act })) opened.current.add(act);
     reattach();
   }, [send, reattach]);
 

@@ -6,6 +6,7 @@ import { ChatHeader } from './chat/ChatHeader';
 import { TaskTray } from './chat/TaskTray';
 import { latestTodos } from './chat/task-tray';
 import { clampToPendingQuestion } from '../cockpit/pending-question';
+import { coalesceCompacts } from './chat/coalesce-compacts';
 import { TurnBanners } from './chat/TurnBanners';
 import { FollowupChips } from './chat/FollowupChips';
 import { ClaudeAuthBanner } from './chat/ClaudeAuthBanner';
@@ -106,7 +107,9 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
   // o AskUserQuestion e continua gerando — sem isto o card aparecia e "sumia"
   // (enterrado pela continuação). Garante que a pergunta fica como última msg e
   // respondível, independente da versão do backend (defesa no front).
-  const shown = useMemo(() => clampToPendingQuestion(messages), [messages]);
+  // coalesceCompacts: colapsa runs de divisores (wakeup/compact) num só com ×N —
+  // sessões de loop noturno chegavam a ~100 linhas de "resumo" empilhadas.
+  const shown = useMemo(() => coalesceCompacts(clampToPendingQuestion(messages)), [messages]);
 
   return (
     <div
