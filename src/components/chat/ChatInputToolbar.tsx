@@ -45,7 +45,9 @@ export function ChatInputToolbar({ mode, setMode, disabled, caps, bypass, setByp
           <Icon name="zap" size={11} /> executa de verdade
         </span>
       )}
-      <div className="ml-auto flex items-center gap-2">
+      {/* min-w-0 + wrap interno: em 390px o cluster quebra em 2 linhas em vez de
+          estourar a tela (o select "versão" ficava cortado na borda direita). */}
+      <div className="ml-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-x-2 gap-y-1.5">
         <McpPicker servers={mcpServers} selected={selectedMcps} setSelected={setSelectedMcps} />
         <SkillPicker skills={skills} selected={selectedSkills} setSelected={setSelectedSkills} />
         <EffortPicker effort={effort} setEffort={setEffort} disabled={disabled} />

@@ -15,7 +15,7 @@ export function EffortPicker({ effort, setEffort, disabled }: {
   effort: Effort; setEffort: (e: Effort) => void; disabled: boolean;
 }) {
   const sel = 'rounded-md border border-neutral-800 bg-neutral-950 px-1.5 py-1 text-[11px] font-medium text-neutral-300 outline-none transition hover:border-neutral-700 focus:border-orange-500/40 disabled:cursor-not-allowed disabled:opacity-50';
-  const tag = 'text-[9px] font-semibold uppercase tracking-wide text-neutral-600';
+  const tag = 'hidden text-[9px] font-semibold uppercase tracking-wide text-neutral-600 sm:inline';
   return (
     <label className="inline-flex items-center gap-1" title="Nível de pensamento desta sessão — quanto maior, mais tokens (e custo).">
       <span className={tag}>pensar</span>

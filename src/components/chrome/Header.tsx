@@ -56,18 +56,18 @@ export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsag
         <RouteMenu route={route} nav={nav} isAdmin={isAdmin} open={routeMenuOpen} setOpen={setRouteMenuOpen} />
       </div>
 
-      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+      <div className="flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-3">
         <UsageBar usage={planUsage} compact={isMobile} />
         <button
           onClick={onPalette}
           title="Comandos (⌘K)"
           aria-label="Comandos (⌘K)"
-          className="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1.5 text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-300"
+          className={`flex shrink-0 items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/60 py-1.5 text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-300 ${isMobile ? 'px-2' : 'px-2.5'}`}
         >
           <Icon name="search" size={14} />
           {!isMobile && <kbd className="font-mono text-[10px] text-neutral-600">⌘K</kbd>}
         </button>
-        <div className="flex items-center rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1">
+        <div className={`flex shrink-0 items-center rounded-lg border border-neutral-800 bg-neutral-900/60 py-1 ${isMobile ? 'px-2' : 'px-2.5'}`}>
           <ConnDot label="ws" state={conn.ws} compact={isMobile} />
         </div>
         <ProfileMenu userId={userId} onSignOut={onSignOut} />

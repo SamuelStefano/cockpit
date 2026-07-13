@@ -18,9 +18,9 @@ export function UsageBar({ usage, compact }: { usage: PlanUsage | null; compact:
   return (
     <div
       title={title}
-      className="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1.5"
+      className={`flex shrink-0 items-center rounded-lg border border-neutral-800 bg-neutral-900/60 py-1.5 ${compact ? 'gap-1.5 px-2' : 'gap-2 px-2.5'}`}
     >
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Usage</span>
+      {!compact && <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Usage</span>}
       <div className={`${compact ? 'w-12' : 'w-20'} h-2 overflow-hidden rounded-full bg-neutral-800`}>
         <div className={`h-full rounded-full transition-all ${bar}`} style={{ width: `${pct ?? 0}%` }} />
       </div>
