@@ -31,7 +31,7 @@ export function Notas({ connected, notes, notesLoaded, onNotesGet, onNotesSave, 
       <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
         <header className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-[19px] font-semibold tracking-tight text-neutral-100">Notas</h1>
+            <h1 className="flex items-center gap-2 text-[19px] font-semibold tracking-tight text-neutral-100"><span aria-hidden className="h-4 w-1 rounded-full bg-gradient-to-b from-orange-400 to-orange-600" />Notas</h1>
             <p className="flex flex-wrap items-center gap-x-2 text-[12.5px] text-neutral-500">
               <span>Rascunho livre, salvo automaticamente.</span>
               {counts.chars > 0 && <span className="tabular-nums text-neutral-600">{counts.words} palavras · {counts.lines} linhas</span>}

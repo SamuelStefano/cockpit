@@ -34,7 +34,7 @@ export function Crons({ connected, crons, loaded, onCronsGet, onCronSave, onCron
     <div className="scroll-thin flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-5 sm:px-6">
       <div className="mx-auto w-full max-w-3xl">
         <header className="mb-4">
-          <h1 className="text-[19px] font-semibold tracking-tight text-neutral-100">Crons</h1>
+          <h1 className="flex items-center gap-2 text-[19px] font-semibold tracking-tight text-neutral-100"><span aria-hidden className="h-4 w-1 rounded-full bg-gradient-to-b from-orange-400 to-orange-600" />Crons</h1>
           <p className="text-[12.5px] text-neutral-500">
             Prompts agendados — disparam turnos autônomos no horário marcado.
             {crons.length > 0 && <span className="ml-1 tabular-nums text-neutral-600">{active} ativo{active === 1 ? '' : 's'} de {crons.length}.</span>}
