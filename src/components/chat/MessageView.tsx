@@ -66,6 +66,7 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
         )}
         <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} answerable={answerable} onAnswer={onAnswer} />
         {thinking && <ThinkingDots live={live} />}
+        {!caretOnLast && !thinking && msg.stats?.durationMs ? <ThoughtFor ms={msg.stats.durationMs} /> : null}
         {hasText && !caretOnLast && (
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <div className="flex items-center gap-2 opacity-100 transition group-hover/msg:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100">
@@ -95,15 +96,27 @@ function TurnStatsLine({ stats }: { stats: TurnBubbleStats }) {
   } else if (stats.inputTokens !== undefined && stats.outputTokens !== undefined) {
     parts.push(`${fmtTokens(stats.inputTokens)} in · ${fmtTokens(stats.outputTokens)} out`);
   }
-  if (stats.durationMs) parts.push(fmtDuration(stats.durationMs));
   if (typeof stats.costUsd === 'number') parts.push(`$${stats.costUsd < 0.01 ? stats.costUsd.toFixed(4) : stats.costUsd.toFixed(3)}`);
   if (!parts.length) return null;
   const inOut = stats.inputTokens !== undefined && stats.outputTokens !== undefined
     ? ` — ${fmtTokens(stats.inputTokens)} in · ${fmtTokens(stats.outputTokens)} out`
     : '';
   return (
-    <span className="whitespace-nowrap text-[10px] tabular-nums text-neutral-600" title={`Gasto do turno: total faturável incl. cache · tempo · custo${inOut}`}>
+    <span className="whitespace-nowrap text-[10px] tabular-nums text-neutral-600" title={`Gasto do turno: total faturável incl. cache · custo${inOut}`}>
       {parts.join(' · ')}
     </span>
+  );
+}
+
+// Tempo final do turno, estilo terminal ("pensou por X"). Fica logo abaixo da
+// resposta assim que o turno conclui — aparece mesmo em turnos só de ferramenta
+// (o gasto tokens/custo some quando não há texto, mas o tempo sempre fica).
+// Fonte: stats.durationMs = duration_ms do result do CLI (relógio do turno).
+function ThoughtFor({ ms }: { ms: number }) {
+  return (
+    <div className="mt-1 flex items-center gap-1.5 text-[11px] text-neutral-500" title="Tempo total deste turno (relógio do CLI)">
+      <span className="text-orange-400/70" aria-hidden>✻</span>
+      <span className="tabular-nums">Pensou por {fmtDuration(ms)}</span>
+    </div>
   );
 }
