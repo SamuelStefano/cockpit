@@ -228,6 +228,18 @@ export async function routeSend(ws: WebSocket, sessionKey: string, prompt: strin
   const cur = threads.get(sessionKey);
   if (!cur) { startRun(ws, sessionKey, prompt, resumeId, msgId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort); return; } // corrida: turno fechou
 
+  // Turno aguardando a resposta de um AskUserQuestion: o `claude -p` foi morto após
+  // a pergunta e o thread só existe até o processo fechar. O prompt que chega É a
+  // resposta — NÃO passa por triagem. O triador poderia classificar como wait/merge
+  // e enfileirar, mas o onClose do turno questioned pula o drainPending (senão um
+  // enfileirado furava na frente da resposta), então a resposta morreria calada
+  // (o bug recorrente). Vira o próximo turno já, retomando a conversa pelo sessionId
+  // capturado do turno que perguntou. startRun mata o thread moribundo (replacing).
+  if (cur.questioned) {
+    startRun(ws, sessionKey, prompt, cur.sessionId ?? resumeId, msgId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort);
+    return;
+  }
+
   // Bolha do usuário aparece já (antes da decisão da triagem, que leva ~alguns s).
   if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
 

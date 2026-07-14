@@ -18,6 +18,11 @@ describe('pendingQuestionIdx', () => {
   it('-1 quando não há pergunta', () => {
     expect(pendingQuestionIdx([user('u1'), asst('a1')])).toBe(-1);
   });
+  it('acha a pergunta mesmo com continuação vazada num balão posterior', () => {
+    // Continuação auto-resolvida vaza pra uma bolha nova: a pergunta NÃO é mais a
+    // última msg crua, mas segue pendente. O gate da fila/card não pode perdê-la.
+    expect(pendingQuestionIdx([user('u1'), asstQ('a1'), asst('a2')])).toBe(1);
+  });
 });
 
 describe('clampToPendingQuestion', () => {

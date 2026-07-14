@@ -5,7 +5,7 @@ import { ChatEmpty, ChatInput } from './chat/ChatInput';
 import { ChatHeader } from './chat/ChatHeader';
 import { TaskTray } from './chat/TaskTray';
 import { latestTodos } from './chat/task-tray';
-import { clampToPendingQuestion } from '../cockpit/pending-question';
+import { clampToPendingQuestion, pendingQuestionIdx } from '../cockpit/pending-question';
 import { coalesceCompacts } from './chat/coalesce-compacts';
 import { TurnBanners } from './chat/TurnBanners';
 import { FollowupChips } from './chat/FollowupChips';
@@ -110,6 +110,12 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
   // coalesceCompacts: colapsa runs de divisores (wakeup/compact) num só com ×N —
   // sessões de loop noturno chegavam a ~100 linhas de "resumo" empilhadas.
   const shown = useMemo(() => coalesceCompacts(clampToPendingQuestion(messages)), [messages]);
+  // Pergunta pendente: o card de escolha é respondível NA HORA, sem esperar a phase
+  // voltar a idle. O backend mata o `claude -p` da pergunta (SIGTERM→SIGKILL), e até
+  // o processo fechar a phase segue não-idle — antes o card ficava travado (spinner
+  // girando) e o usuário era forçado a mandar outro prompt, que virava a "resposta"
+  // errada. Com pergunta pendente o clamp garante que a última bolha É a pergunta.
+  const pendingQ = useMemo(() => pendingQuestionIdx(messages) !== -1, [messages]);
 
   return (
     <div
@@ -137,10 +143,10 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6">
             {shown.map((m, i) => (
-              <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === shown.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} showModelLabel thinking={phase !== 'idle' && i === shown.length - 1 && m.role === 'assistant'} live={i === shown.length - 1 && m.role === 'assistant' ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} answerable={phase === 'idle' && i === shown.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} onRegenerate={phase === 'idle' && i === shown.length - 1 && m.role === 'assistant' ? c.retryLast : undefined} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} />
+              <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === shown.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} showModelLabel thinking={phase !== 'idle' && !pendingQ && i === shown.length - 1 && m.role === 'assistant'} live={i === shown.length - 1 && m.role === 'assistant' && !pendingQ ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} answerable={(phase === 'idle' || pendingQ) && i === shown.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} onRegenerate={phase === 'idle' && !pendingQ && i === shown.length - 1 && m.role === 'assistant' ? c.retryLast : undefined} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} />
 
             ))}
-            {(phase === 'thinking' && shown[shown.length - 1]?.role !== 'assistant' || phase === 'idle' && terminalBusy) && <Thinking live={live} />}
+            {!pendingQ && (phase === 'thinking' && shown[shown.length - 1]?.role !== 'assistant' || phase === 'idle' && terminalBusy) && <Thinking live={live} />}
           </div>
         )}
       </div>

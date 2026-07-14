@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { usePersisted } from '../../lib/persist';
 import { prettyModel } from './toolbar.format';
+import { pendingQuestionIdx } from '../../cockpit/pending-question';
 import type { Session, Message } from '../../data/mock';
 import type { PermMode, ModelInfo } from '../../../shared/protocol';
 
@@ -81,14 +82,13 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   // AskUserQuestion encerra o turno (kill no backend) e devolve phase pra idle — o
   // mesmo idle que drena a fila. Sem esta trava o flush mandava a próxima mensagem
   // e roubava o card de escolha (sumia o "Enviar resposta") antes de o usuário
-  // responder. Segura a fila enquanto a pergunta for a última mensagem; responder
-  // cria um novo turno e a retomada corre de carona no ciclo de fase seguinte.
-  const pendingQuestion = phase === 'idle' && (() => {
-    const last = messages[messages.length - 1];
-    return !!last && last.role === 'assistant' && last.blocks.some(
-      (b) => b.type === 'tool' && b.tool.name === 'AskUserQuestion' && (b.tool.questions?.length ?? 0) > 0,
-    );
-  })();
+  // responder. Segura a fila enquanto houver pergunta pendente.
+  // pendingQuestionIdx (mesma régua do clamp de render): pega a última pergunta
+  // DEPOIS do último prompt do usuário, não só a última mensagem crua — se a
+  // continuação auto-resolvida vazar pra uma bolha nova, o check por "última msg"
+  // dava false e a fila drenava/roubava o card. E NÃO gateia por idle: durante o
+  // kill do backend a phase segue não-idle, mas a pergunta já está pendente.
+  const pendingQuestion = pendingQuestionIdx(messages) !== -1;
 
   // Fila stop-aware: mensagens digitadas durante o turno disparam sozinhas no
   // idle, UMA por vez e em ordem. flushingRef trava o re-disparo: setQueued(rest)
