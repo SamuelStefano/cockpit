@@ -26,6 +26,14 @@ export type { TermApi };
 import type { ConnState } from './components/primitives';
 import type { Phase } from './components/Chat';
 
+// Heartbeat app-level (watchdog de socket meio-aberto). Manda um ping a cada
+// HEARTBEAT_MS e força reconexão se ficar HEARTBEAT_STALE_MS sem NENHUM frame — um
+// socket vivo com browser aberto recebe stats a cada 2s, então o silêncio longo só
+// acontece num link morto (relay/NAT dropou sem FIN). STALE bem acima da cadência
+// de stats pra não reconectar à toa.
+const HEARTBEAT_MS = 15_000;
+const HEARTBEAT_STALE_MS = 40_000;
+
 export interface Cockpit {
   sessions: Session[];
   loading: boolean;
@@ -309,6 +317,9 @@ export function useCockpit(): Cockpit {
   const sessionsRef = useRef<Session[]>([]);
   const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryDelay = useRef(1500); // backoff exponencial, reset no connect bem-sucedido
+  const heartbeat = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastRecvAt = useRef(0); // ts do último frame recebido (QUALQUER tipo): alimenta o watchdog de socket meio-aberto
+  const connectRef = useRef<() => void>(() => {}); // aponta pro connect atual (o watchdog chama sem depender da ordem de declaração)
   // Token de auth (DR-011 Fase 2). Só é exigido quando o servidor tem COCKPIT_TOKEN
   // setado; aí uma conexão sem token (ou errado) volta com close code 4401 e a UI
   // pede o token. Guardado em ref pra o connect() ler o valor atual sem recriar o
@@ -1019,6 +1030,7 @@ export function useCockpit(): Cockpit {
       prev.onclose = null;                       // o velho não re-agenda reconnect
       try { prev.close(); } catch { /* noop */ }
     }
+    if (heartbeat.current) { clearInterval(heartbeat.current); heartbeat.current = null; }
     setConn((c) => ({ ...c, ws: 'reconnecting', sse: 'reconnecting' }));
     let ws: WebSocket;
     try { ws = new WebSocket(wsUrlWithToken(tokenRef.current)); } catch { scheduleRetry(); return; }
@@ -1040,9 +1052,29 @@ export function useCockpit(): Cockpit {
       setGraphBuilding((b) => { if (b) { setGraphBuildError('conexão caiu durante o build — verifique a lista'); send({ t: 'graph-list' }); } return false; });
       setGraphOpening(null);
       reconcile();
+      // Watchdog de socket meio-aberto (o "chat para e só volta com F5"): no desktop,
+      // aba visível, um socket que morre sem FIN (relay/NAT/idle-timeout) NÃO dispara
+      // onclose, visibilitychange nem online — nada reconectava. Aqui, a cada tick,
+      // mandamos um ping e checamos o silêncio: um socket vivo recebe stats a cada 2s,
+      // então HEARTBEAT_STALE_MS sem NENHUM frame = link morto → força socket novo
+      // (o único jeito de destravar sem F5). Não depende do relay ecoar o pong — a
+      // decisão é por "recebeu algo?", e o pong é só o nudge extra.
+      lastRecvAt.current = Date.now();
+      if (heartbeat.current) clearInterval(heartbeat.current);
+      heartbeat.current = setInterval(() => {
+        if (!isCurrent()) { if (heartbeat.current) { clearInterval(heartbeat.current); heartbeat.current = null; } return; }
+        if (Date.now() - lastRecvAt.current > HEARTBEAT_STALE_MS) {
+          retryDelay.current = 1500;
+          if (retry.current) { clearTimeout(retry.current); retry.current = null; }
+          connectRef.current();
+          return;
+        }
+        try { ws.send(JSON.stringify({ t: 'ping' })); } catch { /* socket indo embora */ }
+      }, HEARTBEAT_MS);
     };
     ws.onmessage = (ev) => {
       if (!isCurrent()) return;
+      lastRecvAt.current = Date.now(); // qualquer frame (incl. pong) prova o socket vivo
       let m: ServerMsg;
       try { m = JSON.parse(String(ev.data)) as ServerMsg; } catch { return; }
       onServer(m);
@@ -1071,6 +1103,7 @@ export function useCockpit(): Cockpit {
     ws.onerror = () => { if (isCurrent()) { try { ws.close(); } catch { /* noop */ } } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [send, onServer, reattach]);
+  connectRef.current = connect;
 
   const scheduleRetry = useCallback(() => {
     if (retry.current) return;
@@ -1152,6 +1185,7 @@ export function useCockpit(): Cockpit {
     if (!(SUPABASE_ENABLED && !tokenRef.current)) connect();
     return () => {
       if (retry.current) clearTimeout(retry.current);
+      if (heartbeat.current) clearInterval(heartbeat.current);
       if (adminOpTimer.current) clearTimeout(adminOpTimer.current);
       if (extBusyTimer.current) clearTimeout(extBusyTimer.current);
       wsRef.current?.close();

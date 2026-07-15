@@ -25,6 +25,12 @@ import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } fr
 
 export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
   switch (msg.t) {
+    case 'ping': {
+      // Ecoa o pong pro MESMO socket. Barato de propósito: o cliente usa o
+      // ida-e-volta pra detectar socket meio-aberto e reconectar sem F5.
+      send(ws, { t: 'pong' });
+      return;
+    }
     case 'graph-list': {
       send(ws, { t: 'graphs', items: await listGraphs() });
       return;
