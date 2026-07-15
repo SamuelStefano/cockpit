@@ -13,6 +13,7 @@ export interface Thread {
   handle: RunHandle;
   prompt: string;       // instrução em execução — contexto p/ o triador do próximo prompt
   startedAt: number;    // ts do início do turno; replayado no reconnect pra o cronômetro não reiniciar do zero após F5
+  lastFrameAt?: number; // ts do último frame NDJSON traduzido; o reaper mata quem fica mudo além do teto
   sessionId?: string;
   costUsd?: number;     // custo real do turno (result.total_cost_usd, ground-truth)
   durationMs?: number;
@@ -94,6 +95,25 @@ export function onStop(sessionKey: string): void {
   if (t) t.stopped = true;
 }
 
+// O servidor keyeia o thread pela chave com que o run COMEÇOU ("new-xxx" numa
+// sessão nova) e nunca re-keyea; o cliente migra o display pro sessionId real. Um
+// stop que chega com a chave migrada dava miss no `threads.get()` → kill no-op (o
+// bug "o botão não para"). O front já manda a chave certa (serverKey), mas isto é a
+// rede de segurança do lado do servidor: cai pro sessionId se a chave direta falhar.
+export function resolveThreadKey(sessionKey: string): string | undefined {
+  if (threads.has(sessionKey)) return sessionKey;
+  for (const [k, t] of threads) if (t.sessionId === sessionKey) return k;
+  return undefined;
+}
+
+// Ponto único de stop: resolve a chave real do thread ANTES de marcar/matar, pra
+// onStop (bump de época + limpa side-runs) e o kill acertarem o mesmo turno.
+export function stopSession(sessionKey: string): void {
+  const key = resolveThreadKey(sessionKey) ?? sessionKey;
+  onStop(key);
+  threads.get(key)?.handle.kill();
+}
+
 export function admitRun(liveRuns: number, replacing: boolean, cap = CONFIG.maxConcurrentRuns): boolean {
   return replacing || liveRuns < cap;
 }
@@ -118,6 +138,49 @@ export function killAllRuns(): void {
     try { t.handle.kill(); } catch { /* já morto */ }
   }
   killSideRuns(); // one-shots de triagem/quick-answer não vivem em `threads`
+}
+
+// Tetos do reaper: um turno mudo além de SILENCE_CAP (nenhum frame chegando —
+// "garimpando" eterno) ou vivo além de TOTAL_CAP (independente de frames) é
+// considerado travado e morto. SILENCE alto o bastante pra não matar um Bash/build
+// legítimo que fica quieto esperando o tool_result; TOTAL como rede final absoluta.
+export const REAPER_SILENCE_CAP_MS = 15 * 60_000;
+export const REAPER_TOTAL_CAP_MS = 45 * 60_000;
+
+// Pura (testável): decide quais chaves reapar. lastFrameAt ausente → usa startedAt
+// (turno que nunca emitiu frame conta silêncio desde o início).
+export function findStaleThreads(
+  now: number,
+  entries: Iterable<[string, { startedAt: number; lastFrameAt?: number }]>,
+  silenceCap = REAPER_SILENCE_CAP_MS,
+  totalCap = REAPER_TOTAL_CAP_MS,
+): string[] {
+  const stale: string[] = [];
+  for (const [key, t] of entries) {
+    const silentFor = now - (t.lastFrameAt ?? t.startedAt);
+    const aliveFor = now - t.startedAt;
+    if (silentFor >= silenceCap || aliveFor >= totalCap) stale.push(key);
+  }
+  return stale;
+}
+
+function reapStaleRuns(): void {
+  const stale = findStaleThreads(Date.now(), threads);
+  for (const key of stale) {
+    // Mesmo caminho de um stop do usuário: marca stopped (sem notificação de
+    // "concluído"), mata a árvore e deixa o onClose emitir 'done' → a UI cai pra
+    // idle e a fila daquela sessão finalmente drena (o prompt que "não enviava").
+    broadcast({ t: 'error', sessionKey: key, message: 'turno travado encerrado automaticamente' });
+    stopSession(key);
+  }
+}
+
+let reaperTimer: ReturnType<typeof setInterval> | null = null;
+// Varre a cada minuto. unref: o timer não segura o event loop no shutdown.
+export function startRunReaper(intervalMs = 60_000): void {
+  if (reaperTimer) return;
+  reaperTimer = setInterval(reapStaleRuns, intervalMs);
+  reaperTimer.unref?.();
 }
 
 const SESSION_KEY_RE = /^[a-zA-Z0-9_-]{1,64}$/;
