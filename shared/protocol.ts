@@ -325,6 +325,10 @@ export type ClientMsg =
   | { t: 'accounts-list' }
   | { t: 'set-admin'; accountId: string; admin: boolean }
   | { t: 'stop'; sessionKey: string }
+  // Heartbeat app-level: o cliente manda ping e espera pong. Um socket meio-aberto
+  // (relay/NAT dropou sem FIN, laptop dormiu) segue "OPEN" pro browser sem disparar
+  // onclose — o pong é o único sinal de que o ida-e-volta ainda vive.
+  | { t: 'ping' }
   | { t: 'list' }
   // Resume (mobile): reemite o estado durável (busy/rate/plan-usage/models +
   // sessions) que o CLI só manda durante um run, sem depender de eventos perdidos.
@@ -402,6 +406,7 @@ export type ServerMsg =
   // pra mostrar o dashboard de pareamento quando não há agente atendendo.
   | { t: 'agent-online' }
   | { t: 'agent-offline' }
+  | { t: 'pong' }  // resposta ao ping do cliente — prova que o socket ainda faz ida-e-volta
   | { t: 'sessions'; items: SessionMeta[] }
   | { t: 'archived'; items: SessionMeta[] }
   | { t: 'search-results'; q: string; items: SessionMeta[] }
