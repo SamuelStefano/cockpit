@@ -16,6 +16,9 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
   // do run velho se intercalam com os do novo na mesma sessionKey (o onClose já
   // tem o guard equivalente pro 'done').
   if (threads.get(sessionKey) !== thread) return;
+  // Sinal de vida do turno: qualquer frame carimba o relógio. O reaper mata um
+  // thread que fica sem frames além do teto de silêncio (garimpou 40min → morto).
+  thread.lastFrameAt = Date.now();
   // Pós-pergunta: o `claude -p` auto-resolve o AskUserQuestion (tool_result falso) e
   // CONTINUA gerando no mesmo turno — a pergunta era enterrada (deixava de ser a
   // última mensagem) e o card nunca ficava respondível. Uma vez perguntado, descarta

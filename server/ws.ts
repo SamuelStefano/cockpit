@@ -5,7 +5,7 @@ import { CONFIG } from './config';
 import { currentRole, roleFromToken } from './auth';
 import { originAllowed } from './ws/origin';
 import { tokenAllowed, tokenFromUrl } from './ws/token';
-import { runStats, killAllRuns, fireCron } from './ws/runs';
+import { runStats, killAllRuns, fireCron, startRunReaper } from './ws/runs';
 import { startCronLoop } from './crons';
 import { startStatsLoop } from './ws/stats-loop';
 import { startPlanUsageLoop } from './ws/usage-plan';
@@ -73,5 +73,6 @@ export function attachWs(server: Server) {
   startPointsWatch(hasClients);
   probeSlashCommands();
   startCronLoop(fireCron); // agendador: dispara prompts agendados (turnos autônomos)
+  startRunReaper(); // mata turno travado ("garimpando" eterno) → UI cai pra idle e a fila drena
   return wss;
 }

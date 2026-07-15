@@ -18,7 +18,7 @@ import { collectHealth } from '../health';
 import { setEnv, unsetEnv, addMcp, removeMcp, installCli } from '../admin-ops';
 import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
-import { threads, startRun, routeSend, onStop } from './runs';
+import { threads, startRun, routeSend, stopSession } from './runs';
 import { refreshModels } from './models';
 import { sendDurableSnapshot } from './snapshot';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
@@ -337,11 +337,10 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'stop': {
-      // Marca o stop ANTES do kill: limpa a fila (senão o onClose→drainPending
-      // sobe a mensagem enfileirada) e bumpa a época (descarta mensagem em
-      // triagem no momento do stop).
-      onStop(msg.sessionKey);
-      threads.get(msg.sessionKey)?.handle.kill();
+      // stopSession resolve a chave real do thread (o servidor keyeia pelo id de
+      // início e nunca re-keyea) antes de marcar o stop e matar — senão o
+      // threads.get() dava miss com a chave migrada e o kill virava no-op.
+      stopSession(msg.sessionKey);
       return;
     }
     case 'send': {

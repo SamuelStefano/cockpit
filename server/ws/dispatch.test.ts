@@ -3,12 +3,18 @@ import type { WebSocket } from 'ws';
 import type { ClientMsg } from '../../shared/protocol';
 
 // Mock every data-layer dependency so handle() routes against predictable stubs.
-const runs = vi.hoisted(() => ({
-  threads: new Map<string, { handle: { kill: ReturnType<typeof vi.fn> } }>(),
-  startRun: vi.fn(),
-  routeSend: vi.fn(() => Promise.resolve()),
-  onStop: vi.fn(),
-}));
+const runs = vi.hoisted(() => {
+  const threads = new Map<string, { handle: { kill: ReturnType<typeof vi.fn> } }>();
+  const onStop = vi.fn();
+  return {
+    threads,
+    startRun: vi.fn(),
+    routeSend: vi.fn(() => Promise.resolve()),
+    onStop,
+    // Espelha o real: resolve a chave (aqui a chave direta basta), marca o stop e mata.
+    stopSession: vi.fn((key: string) => { onStop(key); threads.get(key)?.handle.kill(); }),
+  };
+});
 const bc = vi.hoisted(() => ({ send: vi.fn(), broadcast: vi.fn() }));
 const parse = vi.hoisted(() => ({ parseSession: vi.fn(), parseFullSession: vi.fn() }));
 const cfg = vi.hoisted(() => ({ CONFIG: { localOnly: true } }));
