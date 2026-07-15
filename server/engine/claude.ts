@@ -192,13 +192,19 @@ export function run(opts: RunOpts): RunHandle {
         try { if (child.pid) process.kill(-child.pid, sig); }
         catch { try { child.kill(sig); } catch { /* já morto */ } }
       };
+      // Varre a ÁRVORE de descendentes AGORA, antes do SIGTERM — não só na escalada.
+      // Um tool que chamou setsid (Bash longo, subagente claude -p, MCP stdio) está
+      // em grupo próprio e escapa do process.kill(-pid). Se esperássemos os 4s, o
+      // SIGTERM abaixo já teria matado o claude e o tool seria REPARENTADO pro init
+      // (ppid=1) — o killTree por-ppid não o acharia mais e ele viraria órfão eterno
+      // queimando token/CPU. É o "stop não para na hora" que voltava após todo fix:
+      // o claude some mas o subagente/Bash segue vivo. Reapar com o claude ainda vivo
+      // (ppid intacto) é a única janela em que a árvore é alcançável.
+      if (child.pid) killTree(child.pid);
       signal('SIGTERM');
-      // Escalada: se o processo (ou um tool filho que ignora SIGTERM) não fechar
-      // em 4s, SIGKILL no grupo — senão vira zumbi segurando a sessão a noite
-      // toda. O timer morre no 'close' (finish), evitando matar PID reciclado.
-      // Além do grupo: varre a ÁRVORE de descendentes por ppid e mata cada um —
-      // tools (Bash longo, MCP stdio, subagentes) que chamaram setsid criam o
-      // próprio grupo e escapariam do process.kill(-pid). É o "stop não para" #22.
+      // Escalada final pro PRÓPRIO claude: se ele ignorar o SIGTERM, SIGKILL no grupo
+      // + nova varredura da árvore (pega tool spawnado entre o reap acima e agora).
+      // O timer morre no 'close' (finish), evitando matar PID reciclado.
       if (!killTimer) killTimer = setTimeout(() => { signal('SIGKILL'); if (child.pid) killTree(child.pid); }, 4000);
     },
   };
