@@ -1400,7 +1400,11 @@ export function useCockpit(): Cockpit {
   const onCliInstall = useCallback((name: string) => send({ t: 'admin-cli-install', name }), [send]);
 
   const onStop = useCallback((sessionKey?: string) => {
-    const key = sessionKey ?? activeRef.current;
+    // Guard: se um call-site fizer onClick={onStop}, o React passa o MouseEvent
+    // como 1º arg — serializá-lo no send() estoura "circular structure" e o stop
+    // nunca sai (o botão "não parava"). Só string é chave válida; o resto vira undefined.
+    const raw = typeof sessionKey === 'string' ? sessionKey : undefined;
+    const key = raw ?? activeRef.current;
     if (!key) return;
     // O servidor keyeia o thread pela chave com que o run começou ("new-xxx" numa
     // sessão nova) e nunca re-keyea. Mandar a chave de display migrada (sessionId real)

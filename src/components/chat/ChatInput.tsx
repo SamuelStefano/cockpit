@@ -141,7 +141,7 @@ export function ChatInput(props: ChatInputProps) {
         {disabled ? (
           <button
             type="button"
-            onClick={onStop}
+            onClick={() => onStop()}
             title="Interromper resposta"
             className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-800 text-neutral-200 transition hover:bg-red-500/20 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40"
           >
