@@ -53,8 +53,12 @@ export function CockpitApp() {
   const { terminals, activeTermId, setActiveTermId, handleAddTerm, handleCloseTerm, attachable, attachExisting, runningTerm } = useTerminalTabs(term, discoveredTerms, listTerms);
 
   const [quotaClosed, setQuotaClosed] = useState(false);
-  // Só alerta quando o próprio CLI sinaliza near-limit/limite (status !== 'allowed').
-  // O CLI não envia % de uso; 'allowed' = longe do teto, então não pisca à toa.
+  // O CLI manda 'allowed' (longe do teto), 'allowed_warning' (perto, mas AINDA
+  // PODE enviar) e 'rejected'/'limited' (teto batido, envio recusado). Só o
+  // rejeitado é bloqueio de verdade — tratar o warning como bloqueio travava o
+  // composer em ~90% (o usuário via 94% e não conseguia mandar um prompt simples).
+  const rateRejected = !!rate && rate.status !== 'allowed' && rate.status !== 'allowed_warning';
+  // Banner de aviso: aparece já no warning (heads-up), sem travar o envio.
   const quota = !!rate && rate.status !== 'allowed' && !quotaClosed;
 
   useLiveConnection({ wsState: conn.ws, reconnectNow });
@@ -145,10 +149,11 @@ export function CockpitApp() {
     return () => clearTimeout(t);
   }, [planUsage?.resetsAt, rate?.resetsAt, resetTick]);
   const quotaResetPassed = !!planUsage?.resetsAt && planUsage.resetsAt <= Date.now();
-  // Limite DURO do CLI (rate_limit_event, status ≠ allowed): sinal preciso do teto
-  // real, independente do percentual estimado. Pausa a fila mesmo quando fiveHour
-  // ainda está <99.5 — senão a fila drenava e o prompt morria no limite (perdido).
-  const rateLimited = !!rate && rate.status !== 'allowed' && (!rate.resetsAt || rate.resetsAt > Date.now());
+  // Limite DURO do CLI (rate_limit_event REJEITADO): sinal preciso do teto real,
+  // independente do percentual estimado. Pausa a fila mesmo quando fiveHour ainda
+  // está <99.5 — senão a fila drenava e o prompt morria no limite (perdido). O
+  // warning (perto do teto, mas ainda enviável) NÃO conta como limite duro.
+  const rateLimited = rateRejected && (!rate!.resetsAt || rate!.resetsAt > Date.now());
   const quotaPaused = (!!planUsage && planUsage.fiveHour >= 99.5 && !quotaResetPassed) || rateLimited;
   const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, followups, onDismissFollowups: dismissFollowups, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew: handleNew, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onRename: handleRename, onOpenFull, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, quotaPaused, quotaResetsAt: planUsage?.resetsAt ?? rate?.resetsAt ?? null };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
