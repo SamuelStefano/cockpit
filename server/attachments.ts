@@ -169,7 +169,13 @@ export async function saveAttachment(
 // relay) e o backend remonta. Evita o cap de frame do relay E o upload direto
 // browser→edge fn (que travava por CORS/Cloudflare). No último chunk, grava local
 // (Read do agente) + espelha no S3 server-side (caminho comprovado).
-interface ChunkUpload { sessionKey: string; name: string; total: number; parts: (string | undefined)[]; bytes: number; ts: number }
+// received: contador explícito de chunks recebidos. NÃO dá pra inferir "faltam
+// chunks" de `parts` via `.some(p => p === undefined)`: `new Array(total)` é um
+// array ESPARSO (buracos, não valores undefined) e `Array.prototype.some` PULA
+// buracos — retornava false já no 1º chunk, finalizando cada chunk como se fosse
+// o arquivo inteiro. Era o bug que partia uma imagem em duas metades (cada chunk
+// virava um .png no boundary do CHUNK do cliente).
+interface ChunkUpload { sessionKey: string; name: string; total: number; parts: string[]; received: number; bytes: number; ts: number }
 const chunkUploads = new Map<string, ChunkUpload>();
 const CHUNK_TTL = 120_000;
 function sweepChunks(now: number): void { for (const [id, u] of chunkUploads) if (now - u.ts > CHUNK_TTL) chunkUploads.delete(id); }
@@ -184,14 +190,12 @@ export async function addUploadChunk(
   const now = Date.now();
   sweepChunks(now);
   let u = chunkUploads.get(uploadId);
-  if (!u) { u = { sessionKey, name, total, parts: new Array(total), bytes: 0, ts: now }; chunkUploads.set(uploadId, u); }
-  if (u.parts[seq] === undefined) { u.parts[seq] = dataB64; u.bytes += dataB64.length; }
+  if (!u) { u = { sessionKey, name, total, parts: new Array(total).fill(''), received: 0, bytes: 0, ts: now }; chunkUploads.set(uploadId, u); }
+  if (u.parts[seq] === '') { u.parts[seq] = dataB64; u.bytes += dataB64.length; u.received++; }
   u.ts = now;
-  console.log(JSON.stringify({ src: 'DBG-chunk', uploadId: String(uploadId).slice(0, 10), seq, total, filled: u.parts.filter((p) => p !== undefined).length, name }));
   // Teto cedo (base64 ~+33%): aborta uploads grandes antes de remontar.
   if (u.bytes > CONFIG.maxUploadBytes * 2) { chunkUploads.delete(uploadId); return { error: 'arquivo grande demais' }; }
-  if (u.parts.some((p) => p === undefined)) return null; // ainda faltam chunks
-  console.log(JSON.stringify({ src: 'DBG-finalize', uploadId: String(uploadId).slice(0, 10), total, name }));
+  if (u.received < u.total) return null; // ainda faltam chunks
   chunkUploads.delete(uploadId);
   const buf = Buffer.from(u.parts.join(''), 'base64');
   const r = await persistBuffer(sessionKey, name, buf);

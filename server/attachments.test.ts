@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { deflateRawSync } from 'node:zlib';
-import { safeSeg, saveAttachment, readAttachment, extractDocxText, mimeOf } from './attachments';
+import { safeSeg, saveAttachment, readAttachment, addUploadChunk, extractDocxText, mimeOf } from './attachments';
 import { CONFIG } from './config';
 
 // Monta um .docx mínimo (1 entrada deflate: word/document.xml) sem dependência —
@@ -104,6 +104,49 @@ describe('saveAttachment', () => {
       expect('text' in saved).toBe(false);
     } finally {
       await rm(resolve(CONFIG.workdir, 'attachments', 'vitest-fakedocx'), { recursive: true, force: true });
+    }
+  });
+});
+
+describe('addUploadChunk', () => {
+  // Regressão: `new Array(total)` é esparso e `.some(p => p === undefined)` PULA
+  // buracos, então cada chunk finalizava como arquivo próprio — uma imagem virava
+  // duas metades no boundary do CHUNK do cliente. Remonta = UM arquivo só.
+  it('reassembles multi-chunk upload into a single file (not one per chunk)', async () => {
+    const original = Buffer.from('A'.repeat(300) + 'B'.repeat(300) + 'C'.repeat(300));
+    const b64 = original.toString('base64');
+    const third = Math.ceil(b64.length / 3);
+    const chunks = [b64.slice(0, third), b64.slice(third, 2 * third), b64.slice(2 * third)];
+    const id = 'up-vitest-reassemble';
+    try {
+      expect(await addUploadChunk(id, 'vitest-chunk', 'doc.bin', 0, 3, chunks[0])).toBeNull();
+      expect(await addUploadChunk(id, 'vitest-chunk', 'doc.bin', 1, 3, chunks[1])).toBeNull();
+      const done = await addUploadChunk(id, 'vitest-chunk', 'doc.bin', 2, 3, chunks[2]);
+      expect(done && 'path' in done).toBe(true);
+      if (!done || !('path' in done)) return;
+      const r = await readAttachment(done.path);
+      expect('dataB64' in r && Buffer.from(r.dataB64, 'base64').equals(original)).toBe(true);
+    } finally {
+      await rm(resolve(CONFIG.workdir, 'attachments', 'vitest-chunk'), { recursive: true, force: true });
+    }
+  });
+
+  it('tolerates out-of-order and duplicate chunks (idempotent per seq)', async () => {
+    const original = Buffer.from('x'.repeat(500) + 'y'.repeat(500));
+    const b64 = original.toString('base64');
+    const half = Math.ceil(b64.length / 2);
+    const parts = [b64.slice(0, half), b64.slice(half)];
+    const id = 'up-vitest-ooo';
+    try {
+      expect(await addUploadChunk(id, 'vitest-ooo', 'd.bin', 1, 2, parts[1])).toBeNull();
+      expect(await addUploadChunk(id, 'vitest-ooo', 'd.bin', 1, 2, parts[1])).toBeNull(); // duplicata não completa
+      const done = await addUploadChunk(id, 'vitest-ooo', 'd.bin', 0, 2, parts[0]);
+      expect(done && 'path' in done).toBe(true);
+      if (!done || !('path' in done)) return;
+      const r = await readAttachment(done.path);
+      expect('dataB64' in r && Buffer.from(r.dataB64, 'base64').equals(original)).toBe(true);
+    } finally {
+      await rm(resolve(CONFIG.workdir, 'attachments', 'vitest-ooo'), { recursive: true, force: true });
     }
   });
 });
