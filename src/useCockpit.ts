@@ -1213,6 +1213,19 @@ export function useCockpit(): Cockpit {
     if (id && !id.startsWith('new-') && !opened.current.has(id) && send({ t: 'open', sessionId: id })) opened.current.add(id);
   }, [send]);
 
+  // Congela na sessão o modelo com que o turno REALMENTE roda. Sem isto, uma
+  // conversa que herdou o default (sem override próprio) segue derivando o rótulo
+  // do defaultModel mutável — e trocar a versão em OUTRA conversa reetiqueta um
+  // turno em andamento (ex.: um turno sonnet passa a exibir "Fable 5").
+  const pinSessionModel = useCallback((key: string): string => {
+    const chosen = modelBySessionRef.current[key] ?? defaultModelRef.current;
+    if (modelBySessionRef.current[key] !== chosen) {
+      modelBySessionRef.current = { ...modelBySessionRef.current, [key]: chosen };
+      setModelBySession(modelBySessionRef.current);
+    }
+    return chosen;
+  }, []);
+
   const onSend = useCallback((text: string, modeOverride?: PermMode) => {
     const key = activeRef.current;
     if (!key) return;
@@ -1262,8 +1275,8 @@ export function useCockpit(): Cockpit {
     // skills só vai no fio quando o usuário restringiu (subconjunto); vazio = todas.
     const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
     const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: modelBySessionRef.current[key] ?? defaultModelRef.current, effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
-  }, [send, updateThread]);
+    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: pinSessionModel(key), effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
+  }, [send, updateThread, pinSessionModel]);
 
   const onUpload = useCallback((file: File) => {
     const key = activeRef.current;
@@ -1446,8 +1459,8 @@ export function useCockpit(): Cockpit {
     const bypassWire = capsRef.current?.canBypass && bypassRef.current ? true : undefined;
     const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
     const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: clean, msgId, mode: modeRef.current, model: modelBySessionRef.current[key] ?? defaultModelRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
-  }, [send, updateThread, onStop]);
+    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: clean, msgId, mode: modeRef.current, model: pinSessionModel(key), bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
+  }, [send, updateThread, onStop, pinSessionModel]);
 
   const onNew = useCallback(() => {
     const id = newId('new-');
