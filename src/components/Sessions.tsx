@@ -57,7 +57,10 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
     <div className="flex h-full flex-col bg-neutral-950">
       <div className="shrink-0 border-b border-neutral-800/80 p-2.5">
         <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Sessões</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+            Sessões
+            {sessions.length > 0 && <span className="ml-1.5 font-medium normal-case tracking-normal text-neutral-600 tabular-nums">{sessions.length}</span>}
+          </span>
           <div className="flex items-center gap-0.5">
             <button
               onClick={() => setShowDesc((v) => !v)}
@@ -75,7 +78,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 focus-within:border-neutral-700 focus-within:ring-2 focus-within:ring-orange-500/15">
+        <div className="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/80 px-2.5 py-1.5 transition-colors focus-within:border-orange-500/30 focus-within:bg-neutral-900 focus-within:ring-2 focus-within:ring-orange-500/15">
           <Icon name="search" size={14} className="shrink-0 text-neutral-500" />
           <input
             ref={searchRef}
@@ -109,11 +112,12 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
         ) : (
           groupByRecency(filtered, pinned, running).map((g) => (
             <div key={g.label} className="space-y-1">
-              <div className={`sticky top-0 z-[1] -mx-2.5 bg-neutral-950/95 px-3.5 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide backdrop-blur-sm ${g.label === 'Trabalhando agora' ? 'text-green-400/80' : 'text-neutral-600'}`}>
-                {g.label === 'Fixadas' && <Icon name="star" size={9} className="mr-1 inline -translate-y-px text-orange-400/80" />}
-                {g.label === 'Trabalhando agora' && <span className="mr-1 inline-block h-1.5 w-1.5 -translate-y-px rounded-full bg-green-400" />}
-                {g.label}
-                <span className="ml-1 font-normal text-neutral-500">· {g.items.length}</span>
+              <div className={`sticky top-0 z-[1] -mx-2.5 flex items-center gap-1.5 bg-neutral-950/95 px-3.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider backdrop-blur-sm ${g.label === 'Trabalhando agora' ? 'text-green-400/80' : 'text-neutral-500'}`}>
+                {g.label === 'Fixadas' && <Icon name="star" size={9} className="shrink-0 text-orange-400/80" />}
+                {g.label === 'Trabalhando agora' && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-green-400" />}
+                <span className="shrink-0">{g.label}</span>
+                <span className="shrink-0 font-medium text-neutral-600 tabular-nums">{g.items.length}</span>
+                <span className="h-px min-w-3 flex-1 bg-gradient-to-r from-neutral-800 to-transparent" />
               </div>
               {g.items.map((s) => renderRow(s))}
             </div>

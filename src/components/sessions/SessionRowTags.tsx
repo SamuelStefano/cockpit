@@ -15,8 +15,10 @@ interface SessionRowTagsProps {
 }
 
 export function SessionRowTags({ id, tags, tagging, tagDraft, tagRef, setTagDraft, setTagging, commitTag, onRemoveTag, onFilterTag }: SessionRowTagsProps) {
+  // Sem wrapper próprio: as etiquetas fluem na faixa de meta do card, junto dos
+  // badges de estado, em vez de abrir mais uma linha.
   return (
-    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+    <div className="contents">
       {tags.map((t) => (
         <span key={t} className="group/tag inline-flex items-center gap-0.5 rounded-full border border-sky-500/30 bg-sky-500/[0.08] px-1.5 py-px text-[9.5px] font-medium text-sky-300/90">
           <button onClick={(e) => { e.stopPropagation(); onFilterTag?.(t); }} title={`Filtrar por "${t}"`} className="hover:text-sky-200">#{t}</button>

@@ -6,13 +6,13 @@ export function ArchivedSection({ archived, onUnhide, onDelete, onView }: { arch
   const [open, setOpen] = useState(false);
   if (archived.length === 0) return null;
   return (
-    <div className="mt-2 border-t border-neutral-800/70 pt-2">
+    <div className="mt-3 border-t border-neutral-800/70 pt-2">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px] font-medium text-neutral-500 transition hover:text-neutral-300"
+        className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500 transition hover:bg-neutral-900 hover:text-neutral-300"
       >
-        <Icon name="chevronRight" size={13} className={`transition-transform ${open ? 'rotate-90' : ''}`} />
-        Arquivadas <span className="tabular-nums text-neutral-600">({archived.length})</span>
+        <Icon name="chevronRight" size={12} className={`shrink-0 transition-transform duration-150 ${open ? 'rotate-90' : ''}`} />
+        Arquivadas <span className="font-medium text-neutral-600 tabular-nums">{archived.length}</span>
       </button>
       {open && (
         <div className="mt-1 space-y-0.5">

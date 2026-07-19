@@ -1,5 +1,6 @@
 import { Icon } from '../primitives';
 import { SessionRowActions } from './SessionRowActions';
+import { fmtCost } from './row-meta';
 
 interface SessionRowMetaProps {
   relative: string;
@@ -25,8 +26,8 @@ export function SessionRowMeta({ relative, cost, pinned, running, tagging, canTa
   return (
     <div className="flex shrink-0 items-center gap-1">
       {cost !== undefined && cost > 0 && (
-        <span className="hidden text-[9.5px] tabular-nums text-emerald-500/70 sm:inline" title="Custo estimado acumulado desta sessão">
-          ${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(2)}
+        <span className="hidden text-[9.5px] tabular-nums text-emerald-500/50 sm:inline" title="Custo estimado acumulado desta sessão">
+          {fmtCost(cost)}
         </span>
       )}
       <span className="hidden text-[10px] tabular-nums text-neutral-600 sm:inline">{relative}</span>

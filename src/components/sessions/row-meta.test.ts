@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ctxPercent, ctxWarn, isIdle, fmtRunElapsed, CTX_WINDOW } from './row-meta';
+import { ctxPercent, ctxWarn, isIdle, fmtRunElapsed, fmtCost, CTX_WINDOW } from './row-meta';
 
 describe('ctxPercent', () => {
   it('returns null when there is no context reading', () => {
@@ -53,6 +53,14 @@ describe('isIdle', () => {
   it('treats exactly the threshold as not-yet-idle', () => {
     expect(isIdle(now - 7 * day, false, now)).toBe(false);
   });
+});
+
+describe('fmtCost', () => {
+  it('shows four decimals under a cent', () => expect(fmtCost(0.0042)).toBe('$0.0042'));
+  it('shows two decimals for everyday values', () => expect(fmtCost(3.5)).toBe('$3.50'));
+  it('rounds to whole dollars from $100', () => expect(fmtCost(197.77)).toBe('$198'));
+  it('compacts to k from $1000', () => expect(fmtCost(1911.21)).toBe('$1.9k'));
+  it('never renders "$1000": rounding boundary compacts too', () => expect(fmtCost(999.99)).toBe('$1.0k'));
 });
 
 describe('fmtRunElapsed', () => {
