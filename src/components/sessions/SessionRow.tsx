@@ -66,12 +66,12 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
         if (e.target !== e.currentTarget) return; // tecla foi pra um botão/input interno
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(s.id); }
       }}
-      className={`group relative cursor-pointer rounded-lg border px-2.5 py-2 transition outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40
+      className={`group relative cursor-pointer rounded-lg border px-3 py-2 transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40
         ${active
-          ? 'glow-active border-orange-500/40 bg-orange-500/[0.07]'
-          : 'border-transparent hover:border-neutral-800 hover:bg-neutral-900/70'}`}
+          ? 'glow-active border-orange-500/40 bg-gradient-to-r from-orange-500/[0.09] to-orange-500/[0.03]'
+          : 'border-transparent hover:border-neutral-800 hover:bg-neutral-900/80'}`}
     >
-      {active && <span className="absolute left-0 top-2 bottom-2 w-[2.5px] rounded-full bg-orange-500" />}
+      {active && <span className="absolute left-0 top-2.5 bottom-2.5 w-[3px] rounded-r-full bg-gradient-to-b from-orange-400 to-orange-600" />}
       <div className="mb-1 flex items-start justify-between gap-2">
         {editing ? (
           <input
@@ -89,7 +89,7 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
           />
         ) : (
           <span
-            className={`flex min-w-0 items-start gap-1.5 text-left text-[12.5px] font-medium leading-snug ${active ? 'text-neutral-100' : 'text-neutral-300'}`}
+            className={`flex min-w-0 items-start gap-1.5 text-left text-[13px] font-medium leading-snug tracking-[-0.01em] ${active ? 'text-neutral-50' : 'text-neutral-300 group-hover:text-neutral-200'}`}
           >
             <span className="mt-[3px] shrink-0"><SessionStatusDot running={running} stalled={stalled} updated={updated} /></span>
             {/* Título em até 2 linhas: um título longo mostra bem mais antes de
@@ -142,27 +142,21 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
       {!editing && running && (
         <RunStatus start={runStart} stalled={!!stalled} />
       )}
-      {!editing && isIdle(s.mtime, !!running) && (
-        <div className="mt-1.5">
-          <Badge tone="neutral">ociosa</Badge>
+      {/* Faixa única de meta: badges e etiquetas fluem juntos numa linha (com
+          wrap) — antes cada badge abria a própria linha e o card crescia torto. */}
+      {!editing && (warn || s.hasTerminal || isIdle(s.mtime, !!running) || tags.length > 0 || tagging) && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-1">
+          {warn && <Badge tone={warn.tone}>contexto {warn.pct}%</Badge>}
+          {s.hasTerminal && <Badge tone="green" dot>terminal</Badge>}
+          {isIdle(s.mtime, !!running) && <Badge tone="neutral">ociosa</Badge>}
+          {(tags.length > 0 || tagging) && (
+            <SessionRowTags
+              id={s.id} tags={tags} tagging={tagging} tagDraft={tagDraft} tagRef={tagRef}
+              setTagDraft={setTagDraft} setTagging={setTagging} commitTag={commitTag}
+              onRemoveTag={onRemoveTag} onFilterTag={onFilterTag}
+            />
+          )}
         </div>
-      )}
-      {!editing && warn && (
-        <div className="mt-1.5">
-          <Badge tone={warn.tone}>contexto {warn.pct}%</Badge>
-        </div>
-      )}
-      {s.hasTerminal && !editing && (
-        <div className="mt-1.5">
-          <Badge tone="green" dot>terminal ativo</Badge>
-        </div>
-      )}
-      {!editing && (tags.length > 0 || tagging) && (
-        <SessionRowTags
-          id={s.id} tags={tags} tagging={tagging} tagDraft={tagDraft} tagRef={tagRef}
-          setTagDraft={setTagDraft} setTagging={setTagging} commitTag={commitTag}
-          onRemoveTag={onRemoveTag} onFilterTag={onFilterTag}
-        />
       )}
     </div>
   );

@@ -12,7 +12,7 @@ export function SessionsEmptyState({ hasSessions, query, tagFilter, onNew, onClo
   if (!hasSessions) {
     return (
       <div className="mt-10 flex flex-col items-center px-4 text-center">
-        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-neutral-800 bg-neutral-900 text-neutral-600">
+        <div className="hairline mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-neutral-800 bg-gradient-to-b from-neutral-900 to-neutral-950 text-orange-500/60">
           <Icon name="message" size={18} />
         </div>
         <p className="text-[12.5px] font-medium text-neutral-400">Nenhuma sessão ainda</p>
