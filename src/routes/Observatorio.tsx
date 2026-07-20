@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { Badge, Button, EmptyState } from '../components/primitives';
+import { Badge, Button, EmptyState, RouteHeader } from '../components/primitives';
 import { useLoadStalled } from '../lib/useLoadStalled';
 import type { UsageStats } from '../../shared/protocol';
 import type { Session } from '../data/mock';
@@ -43,13 +43,7 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions, rat
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-neutral-950">
-      <div className="shrink-0 border-b border-neutral-800/80 px-4 py-3">
-        <div className="flex items-center gap-2">
-          <span aria-hidden className="h-3.5 w-1 rounded-full bg-gradient-to-b from-orange-400 to-orange-600" />
-          <span className="font-mono text-[15px] font-semibold lowercase tracking-tight text-neutral-100">uso</span>
-          <Badge tone="neutral">{rows.length} sessões</Badge>
-        </div>
-      </div>
+      <RouteHeader variant="bar" title="uso" badge={<Badge tone="neutral">{rows.length} sessões</Badge>} />
 
       {!connected ? (
         <Offline />

@@ -1,4 +1,4 @@
-import { Button, EmptyState, Badge, Input, toast } from '../components/primitives';
+import { Button, EmptyState, Badge, Input, RouteHeader, toast } from '../components/primitives';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -76,6 +76,41 @@ export function DesignSystem() {
             <Button variant="secondary" onClick={() => toast('Notas limpas', { action: { label: 'Desfazer', onClick: () => toast('Restaurado') }, durationMs: 8000 })}>
               Com desfazer
             </Button>
+          </Row>
+        </Section>
+
+        <Section title="RouteHeader">
+          <Row label="bar">
+            <div className="w-full overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950">
+              <RouteHeader
+                variant="bar"
+                title="contextos"
+                badge={<Badge tone="neutral">42</Badge>}
+                actions={<Button variant="ghost" size="sm" icon="search">Buscar</Button>}
+              >
+                <div className="flex gap-1.5">
+                  <Badge tone="orange">todos</Badge>
+                  <Badge tone="neutral">user</Badge>
+                  <Badge tone="neutral">project</Badge>
+                </div>
+              </RouteHeader>
+            </div>
+          </Row>
+          <Row label="page">
+            <div className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-4">
+              <RouteHeader
+                variant="page"
+                title="Crons"
+                icon="clock"
+                subtitle={
+                  <>
+                    <span>Prompts agendados — disparam turnos autônomos.</span>
+                    <span className="tabular-nums text-neutral-600">3 ativos de 5</span>
+                  </>
+                }
+                actions={<Button size="sm" icon="plus">Novo</Button>}
+              />
+            </div>
           </Row>
         </Section>
 

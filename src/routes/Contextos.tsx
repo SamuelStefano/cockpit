@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Icon, Badge, Button, EmptyState, SkeletonCards } from '../components/primitives';
+import { Icon, Badge, Button, EmptyState, SkeletonCards, RouteHeader } from '../components/primitives';
 import { useLoadStalled } from '../lib/useLoadStalled';
 import { ContextModal, TYPE_TONE } from '../components/ContextModal';
 import type { ContextMeta } from '../../shared/protocol';
@@ -54,14 +54,12 @@ export function Contextos({ connected, contexts, loaded, openContext, onCtxList,
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-neutral-950">
-      <div className="shrink-0 border-b border-neutral-800/80 px-4 py-3">
-        <div className="mb-2.5 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <span aria-hidden className="h-3.5 w-1 rounded-full bg-gradient-to-b from-orange-400 to-orange-600" />
-            <span className="font-mono text-[15px] font-semibold lowercase tracking-tight text-neutral-100">contextos</span>
-            <Badge tone="neutral">{contexts.length}</Badge>
-          </div>
-          <div className="flex w-full items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 focus-within:border-neutral-700 focus-within:ring-2 focus-within:ring-orange-500/15 sm:max-w-sm">
+      <RouteHeader
+        variant="bar"
+        title="contextos"
+        badge={<Badge tone="neutral">{contexts.length}</Badge>}
+        actions={
+          <div className="flex w-full items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 focus-within:border-neutral-700 focus-within:ring-2 focus-within:ring-orange-500/15 sm:w-80">
             <Icon name="search" size={14} className="shrink-0 text-neutral-500" />
             <input
               ref={searchRef}
@@ -73,14 +71,15 @@ export function Contextos({ connected, contexts, loaded, openContext, onCtxList,
             />
             <kbd className="hidden shrink-0 rounded border border-neutral-700 bg-neutral-950 px-1 py-px font-mono text-[9px] text-neutral-500 sm:block">⌘/</kbd>
           </div>
-        </div>
+        }
+      >
         <div className="flex flex-wrap items-center gap-1.5">
           <ContextChip active={filter === null} onClick={() => setFilter(null)} label="todos" count={contexts.length} tone="neutral" />
           {TYPES.map((t) => (counts[t] ? (
             <ContextChip key={t} active={filter === t} onClick={() => setFilter(filter === t ? null : t)} label={t} count={counts[t]} tone={TYPE_TONE[t]} />
           ) : null))}
         </div>
-      </div>
+      </RouteHeader>
 
       {!connected ? (
         <ContextOffline />

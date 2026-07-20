@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Icon, Badge, EmptyState, Markdown } from '../components/primitives';
+import { Button, Icon, Badge, EmptyState, Markdown, RouteHeader } from '../components/primitives';
 import { useNotasEditor } from './notas/useNotasEditor';
 
 interface Props {
@@ -29,27 +29,30 @@ export function Notas({ connected, notes, notesLoaded, onNotesGet, onNotesSave, 
   return (
     <div className="flex min-h-0 flex-1 flex-col px-4 py-5 sm:px-6">
       <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
-        <header className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="flex items-center gap-2 text-[19px] font-semibold tracking-tight text-neutral-100"><span aria-hidden className="h-4 w-1 rounded-full bg-gradient-to-b from-orange-400 to-orange-600" />Notas</h1>
-            <p className="flex flex-wrap items-center gap-x-2 text-[12.5px] text-neutral-500">
+        <RouteHeader
+          variant="page"
+          title="Notas"
+          subtitle={
+            <>
               <span>Rascunho livre, salvo automaticamente.</span>
               {counts.chars > 0 && <span className="tabular-nums text-neutral-600">{counts.words} palavras · {counts.lines} linhas</span>}
               <Badge tone={saved ? 'neutral' : 'orange'} dot>{saved ? 'salvo' : 'salvando…'}</Badge>
-            </p>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Button variant="ghost" size="sm" onClick={() => setPreview((p) => !p)} disabled={!text.trim()}
-              title={preview ? 'Voltar a editar' : 'Pré-visualizar markdown'}>
-              <Icon name={preview ? 'pencil' : 'file'} size={14} /> {preview ? 'Editar' : 'Prévia'}
-            </Button>
-            <Button variant="ghost" size="sm" icon={copied ? 'check' : 'copy'} title="Copiar tudo" onClick={copy} disabled={!text.trim()} />
-            <Button variant="ghost" size="sm" icon="trash" title="Limpar" onClick={clear} disabled={!text.trim()} />
-            <Button variant="primary" size="sm" onClick={() => onAnalyze(text)} disabled={!text.trim()}>
-              <Icon name="sparkles" size={14} /> Analisar com IA
-            </Button>
-          </div>
-        </header>
+            </>
+          }
+          actions={
+            <>
+              <Button variant="ghost" size="sm" onClick={() => setPreview((p) => !p)} disabled={!text.trim()}
+                title={preview ? 'Voltar a editar' : 'Pré-visualizar markdown'}>
+                <Icon name={preview ? 'pencil' : 'file'} size={14} /> {preview ? 'Editar' : 'Prévia'}
+              </Button>
+              <Button variant="ghost" size="sm" icon={copied ? 'check' : 'copy'} title="Copiar tudo" onClick={copy} disabled={!text.trim()} />
+              <Button variant="ghost" size="sm" icon="trash" title="Limpar" onClick={clear} disabled={!text.trim()} />
+              <Button variant="primary" size="sm" onClick={() => onAnalyze(text)} disabled={!text.trim()}>
+                <Icon name="sparkles" size={14} /> Analisar com IA
+              </Button>
+            </>
+          }
+        />
 
         {!notesLoaded && connected ? (
           <div className="shimmer h-full flex-1 rounded-xl" />

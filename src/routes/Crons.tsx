@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Cron } from '../../shared/protocol';
-import { EmptyState, Skeleton } from '../components/primitives';
+import { EmptyState, Skeleton, RouteHeader } from '../components/primitives';
 import { useCronForm } from './crons/useCronForm';
 import { CronForm } from './crons/CronForm';
 import { CronCard } from './crons/CronCard';
@@ -33,13 +33,16 @@ export function Crons({ connected, crons, loaded, onCronsGet, onCronSave, onCron
   return (
     <div className="scroll-thin flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-5 sm:px-6">
       <div className="mx-auto w-full max-w-3xl">
-        <header className="mb-4">
-          <h1 className="flex items-center gap-2 text-[19px] font-semibold tracking-tight text-neutral-100"><span aria-hidden className="h-4 w-1 rounded-full bg-gradient-to-b from-orange-400 to-orange-600" />Crons</h1>
-          <p className="text-[12.5px] text-neutral-500">
-            Prompts agendados — disparam turnos autônomos no horário marcado.
-            {crons.length > 0 && <span className="ml-1 tabular-nums text-neutral-600">{active} ativo{active === 1 ? '' : 's'} de {crons.length}.</span>}
-          </p>
-        </header>
+        <RouteHeader
+          variant="page"
+          title="Crons"
+          subtitle={
+            <>
+              <span>Prompts agendados — disparam turnos autônomos no horário marcado.</span>
+              {crons.length > 0 && <span className="tabular-nums text-neutral-600">{active} ativo{active === 1 ? '' : 's'} de {crons.length}</span>}
+            </>
+          }
+        />
 
         <CronForm form={form} onCancel={form.reset} now={now} />
 
