@@ -40,7 +40,7 @@ export function SessionRowMeta({ relative, cost, pinned, running, tagging, canTa
         <button
           onClick={(e) => { e.stopPropagation(); setTagging(!tagging); }}
           title="Adicionar etiqueta"
-          className="block rounded p-0.5 text-neutral-500 transition hover:bg-neutral-800 hover:text-sky-300 sm:hidden sm:group-hover:block"
+          className="block rounded p-0.5 text-neutral-500 transition hover:bg-neutral-800 hover:text-sky-300 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
         >
           <Icon name="tag" size={12} />
         </button>

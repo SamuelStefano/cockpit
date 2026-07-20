@@ -66,7 +66,7 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
         if (e.target !== e.currentTarget) return; // tecla foi pra um botão/input interno
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(s.id); }
       }}
-      className={`group relative cursor-pointer rounded-lg border px-3 py-2 transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40
+      className={`group relative cursor-pointer rounded-lg border px-3 py-2.5 transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40
         ${active
           ? 'glow-active border-orange-500/40 bg-gradient-to-r from-orange-500/[0.09] to-orange-500/[0.03]'
           : 'border-transparent hover:border-neutral-800 hover:bg-neutral-900/80'}`}
