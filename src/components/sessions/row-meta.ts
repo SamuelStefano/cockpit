@@ -35,6 +35,12 @@ export function fmtCost(cost: number): string {
   return `$${cost.toFixed(4)}`;
 }
 
+// Hora compacta pro canto do card: "22h atrás" → "22h". O sufixo repetido em
+// toda linha só roubava largura do título.
+export function shortRel(rel: string): string {
+  return rel.replace(/\s*atrás$/, '');
+}
+
 export function fmtRunElapsed(ms: number): string {
   const s = Math.floor(ms / 1000);
   if (s < 60) return `${s}s`;

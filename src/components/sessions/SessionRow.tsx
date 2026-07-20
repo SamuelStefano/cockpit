@@ -10,7 +10,7 @@ import { SessionRowMeta } from './SessionRowMeta';
 import { RunStatus } from './RunStatus';
 import { useSessionRow } from './useSessionRow';
 import { useLongPress } from './useLongPress';
-import { ctxWarn, isIdle } from './row-meta';
+import { ctxWarn, fmtCost, isIdle } from './row-meta';
 
 export interface SessionRowProps {
   s: Session;
@@ -66,13 +66,13 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
         if (e.target !== e.currentTarget) return; // tecla foi pra um botão/input interno
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(s.id); }
       }}
-      className={`group relative cursor-pointer rounded-lg border px-3 py-2.5 transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40
+      className={`group relative cursor-pointer rounded-xl border px-3.5 py-3 transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40
         ${active
           ? 'glow-active border-orange-500/40 bg-gradient-to-r from-orange-500/[0.09] to-orange-500/[0.03]'
           : 'border-transparent hover:border-neutral-800 hover:bg-neutral-900/80'}`}
     >
-      {active && <span className="absolute left-0 top-2.5 bottom-2.5 w-[3px] rounded-r-full bg-gradient-to-b from-orange-400 to-orange-600" />}
-      <div className="mb-1 flex items-start justify-between gap-2">
+      {active && <span className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full bg-gradient-to-b from-orange-400 to-orange-600" />}
+      <div className="mb-1.5 flex items-start justify-between gap-2">
         {editing ? (
           <input
             ref={inputRef}
@@ -89,7 +89,7 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
           />
         ) : (
           <span
-            className={`flex min-w-0 items-start gap-1.5 text-left text-[13px] font-medium leading-snug tracking-[-0.01em] ${active ? 'text-neutral-50' : 'text-neutral-300 group-hover:text-neutral-200'}`}
+            className={`flex min-w-0 items-start gap-1.5 text-left text-[13.5px] font-medium leading-snug tracking-[-0.01em] ${active ? 'text-neutral-50' : 'text-neutral-300 group-hover:text-neutral-200'}`}
           >
             <span className="mt-[3px] shrink-0"><SessionStatusDot running={running} stalled={stalled} updated={updated} /></span>
             {/* Título em até 2 linhas: um título longo mostra bem mais antes de
@@ -100,7 +100,6 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
         {!editing && (
           <SessionRowMeta
             relative={s.relative}
-            cost={cost}
             pinned={!!pinned}
             running={!!running}
             tagging={tagging}
@@ -137,15 +136,18 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
           className="mt-0.5 w-full resize-none rounded border border-orange-500/50 bg-neutral-950 px-1.5 py-1 text-[11.5px] leading-snug text-neutral-200 outline-none ring-2 ring-orange-500/20"
         />
       ) : showDesc ? (
-        <p className="line-clamp-2 text-[11.5px] leading-snug text-neutral-500"><Highlight text={s.summary || s.snippet} term={highlight} /></p>
+        <p className="line-clamp-2 text-[12px] leading-snug text-neutral-500"><Highlight text={s.summary || s.snippet} term={highlight} /></p>
       ) : null)}
       {!editing && running && (
         <RunStatus start={runStart} stalled={!!stalled} />
       )}
       {/* Faixa única de meta: badges e etiquetas fluem juntos numa linha (com
           wrap) — antes cada badge abria a própria linha e o card crescia torto. */}
-      {!editing && (warn || s.hasTerminal || isIdle(s.mtime, !!running) || tags.length > 0 || tagging) && (
-        <div className="mt-1.5 flex flex-wrap items-center gap-1">
+      {!editing && (warn || s.hasTerminal || isIdle(s.mtime, !!running) || tags.length > 0 || tagging || (cost !== undefined && cost > 0)) && (
+        <div className="mt-2 flex flex-wrap items-center gap-1">
+          {cost !== undefined && cost > 0 && (
+            <span className="text-[10px] tabular-nums text-emerald-500/50" title="Custo estimado acumulado desta sessão">{fmtCost(cost)}</span>
+          )}
           {warn && <Badge tone={warn.tone}>contexto {warn.pct}%</Badge>}
           {s.hasTerminal && <Badge tone="green" dot>terminal</Badge>}
           {isIdle(s.mtime, !!running) && <Badge tone="neutral">ociosa</Badge>}
