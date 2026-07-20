@@ -112,9 +112,9 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
         ) : (
           groupByRecency(filtered, pinned, running).map((g) => (
             <div key={g.label} className="space-y-1.5">
-              <div className={`sticky top-0 z-[1] -mx-2.5 flex items-center gap-1.5 bg-neutral-950/95 px-3.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider backdrop-blur-sm ${g.label === 'Trabalhando agora' ? 'text-green-400/80' : 'text-neutral-500'}`}>
+              <div className={`sticky top-0 z-[1] -mx-2.5 flex items-center gap-1.5 bg-neutral-950/95 px-3.5 pb-1 pt-2 font-mono text-[9.5px] font-medium uppercase tracking-[0.12em] backdrop-blur-sm ${g.label === 'Trabalhando agora' ? 'text-green-400/90' : 'text-neutral-500'}`}>
                 {g.label === 'Fixadas' && <Icon name="star" size={9} className="shrink-0 text-orange-400/80" />}
-                {g.label === 'Trabalhando agora' && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-green-400" />}
+                {g.label === 'Trabalhando agora' && <span className="breathe h-1.5 w-1.5 shrink-0 rounded-full bg-green-400" />}
                 <span className="shrink-0">{g.label}</span>
                 <span className="shrink-0 font-medium text-neutral-600 tabular-nums">{g.items.length}</span>
                 <span className="h-px min-w-3 flex-1 bg-gradient-to-r from-neutral-800 to-transparent" />

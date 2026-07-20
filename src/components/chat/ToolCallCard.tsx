@@ -62,7 +62,7 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate text-[12px] font-medium text-neutral-200">{tool.label}</span>
+            <span className="truncate font-mono text-[12px] font-medium text-neutral-200">{tool.label}</span>
             <span className="shrink-0">{statusEl}</span>
           </div>
         </div>

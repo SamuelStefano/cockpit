@@ -81,6 +81,12 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .spinner-star { animation: starPulse 1.1s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .spinner-star { animation: none; } }
 
+/* Respiração suave pros dots de "rodando/ao vivo" (sidebar, banners): presença
+   sem blink duro — só a opacidade pulsando devagar. */
+@keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+.breathe { animation: breathe 2.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .breathe { animation: none; } }
+
 @keyframes spin360 { to { transform: rotate(360deg); } }
 .spin { animation: spin360 0.7s linear infinite; }
 
