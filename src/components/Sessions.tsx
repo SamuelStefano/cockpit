@@ -1,8 +1,10 @@
 import { Button, Icon } from './primitives';
 import { usePersisted } from '../lib/persist';
-import { SHOW_SESSION_DESC_KEY, SHOW_SESSION_DESC_DEFAULT } from '../lib/prefs';
+import { SHOW_SESSION_DESC_KEY, SHOW_SESSION_DESC_DEFAULT, SESSIONS_GROUP_MODE_KEY, SESSIONS_GROUP_MODE_DEFAULT, type SessionsGroupMode } from '../lib/prefs';
 import type { Session } from '../data/mock';
 import { groupByRecency } from './sessions/group-by-recency';
+import { groupByTopic, type SessionGroup } from './sessions/group-by-topic';
+import { GroupModeToggle } from './sessions/GroupModeToggle';
 import { SessionRow } from './sessions/SessionRow';
 import { SessionSkeletonRow } from './sessions/SessionSkeletonRow';
 import { ArchivedSection } from './sessions/ArchivedSection';
@@ -44,6 +46,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
     tagMap, tagFilter, setTagFilter, addTag, removeTag, allTags, searchRef, filtered,
   } = useSessionsPanel({ sessions, archived, searchResults, onSearch, userId });
   const [showDesc, setShowDesc] = usePersisted<boolean>(SHOW_SESSION_DESC_KEY, SHOW_SESSION_DESC_DEFAULT);
+  const [groupMode, setGroupMode] = usePersisted<SessionsGroupMode>(SESSIONS_GROUP_MODE_KEY, SESSIONS_GROUP_MODE_DEFAULT);
 
   const renderRow = (s: Session) => (
     <SessionRow key={s.id} s={s} active={s.id === activeId} highlight={query} ctx={usage[s.id]} cost={cost[s.id]}
@@ -57,9 +60,9 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
     <div className="flex h-full flex-col bg-neutral-950">
       <div className="shrink-0 border-b border-neutral-800/80 p-2.5">
         <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+          <span className="font-mono text-[10.5px] font-medium uppercase tracking-[0.12em] text-neutral-400">
             Sessões
-            {sessions.length > 0 && <span className="ml-1.5 font-medium normal-case tracking-normal text-neutral-600 tabular-nums">{sessions.length}</span>}
+            {sessions.length > 0 && <span className="ml-1.5 tracking-normal text-neutral-600 tabular-nums">{sessions.length}</span>}
           </span>
           <div className="flex items-center gap-0.5">
             <button
@@ -98,6 +101,12 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
         </Button>
       </div>
 
+      {!query && allTags.length > 0 && (
+        <div className="shrink-0 px-2.5 pt-2.5">
+          <GroupModeToggle mode={groupMode} onChange={setGroupMode} />
+        </div>
+      )}
+
       <TagFilterBar allTags={allTags} tagFilter={tagFilter} setTagFilter={setTagFilter} clearFilter={() => setTagFilter(null)} />
 
       <div className="scroll-thin mt-2.5 flex-1 space-y-1.5 overflow-y-auto px-2.5 pb-3">
@@ -110,18 +119,26 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, on
         ) : query ? (
           filtered.map((s) => renderRow(s))
         ) : (
-          groupByRecency(filtered, pinned, running).map((g) => (
-            <div key={g.label} className="space-y-1.5">
-              <div className={`sticky top-0 z-[1] -mx-2.5 flex items-center gap-1.5 bg-neutral-950/95 px-3.5 pb-1 pt-2 font-mono text-[9.5px] font-medium uppercase tracking-[0.12em] backdrop-blur-sm ${g.label === 'Trabalhando agora' ? 'text-green-400/90' : 'text-neutral-500'}`}>
-                {g.label === 'Fixadas' && <Icon name="star" size={9} className="shrink-0 text-orange-400/80" />}
-                {g.label === 'Trabalhando agora' && <span className="breathe h-1.5 w-1.5 shrink-0 rounded-full bg-green-400" />}
-                <span className="shrink-0">{g.label}</span>
-                <span className="shrink-0 font-medium text-neutral-600 tabular-nums">{g.items.length}</span>
-                <span className="h-px min-w-3 flex-1 bg-gradient-to-r from-neutral-800 to-transparent" />
+          (groupMode === 'topic' && allTags.length > 0
+            ? groupByTopic(filtered, tagMap)
+            : (groupByRecency(filtered, pinned, running) as SessionGroup[])
+          ).map((g) => {
+            const isRunning = g.label === 'Trabalhando agora';
+            const isTag = !!g.topic && !g.untagged;
+            return (
+              <div key={g.label} className="space-y-1.5">
+                <div className={`sticky top-0 z-[1] -mx-2.5 flex items-center gap-1.5 bg-neutral-950/95 px-3.5 pb-1 pt-2 font-mono text-[9.5px] font-medium uppercase tracking-[0.12em] backdrop-blur-sm ${isRunning ? 'text-green-400/90' : isTag ? 'text-sky-300/70' : 'text-neutral-500'}`}>
+                  {g.label === 'Fixadas' && <Icon name="star" size={9} className="shrink-0 text-orange-400/80" />}
+                  {isRunning && <span className="breathe h-1.5 w-1.5 shrink-0 rounded-full bg-green-400" />}
+                  {isTag && <span className="shrink-0 text-sky-400/70">#</span>}
+                  <span className="truncate">{g.label}</span>
+                  <span className="shrink-0 font-medium text-neutral-600 tabular-nums">{g.items.length}</span>
+                  <span className={`h-px min-w-3 flex-1 bg-gradient-to-r to-transparent ${isTag ? 'from-sky-500/25' : 'from-neutral-800'}`} />
+                </div>
+                {g.items.map((s) => renderRow(s))}
               </div>
-              {g.items.map((s) => renderRow(s))}
-            </div>
-          ))
+            );
+          })
         )}
         {!loading && !query && onUnhide && <ArchivedSection archived={archived} onUnhide={onUnhide} onDelete={onDelete ? setDeleteId : undefined} onView={(id) => { onSelect(id); onCloseMobile && onCloseMobile(); }} />}
       </div>
