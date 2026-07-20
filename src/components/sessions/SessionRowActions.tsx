@@ -67,7 +67,7 @@ export function SessionRowActions({ pinned, running, canStop, canDescribe, onTog
         aria-haspopup="menu"
         aria-expanded={open}
         className={`rounded p-0.5 text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200
-          ${open ? 'bg-neutral-800 text-neutral-200' : 'block sm:hidden sm:group-hover:block'}`}
+          ${open ? 'bg-neutral-800 text-neutral-200' : 'sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100'}`}
       >
         <Icon name="grip" size={14} />
       </button>
