@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ctxPercent, ctxWarn, isIdle, fmtRunElapsed, fmtCost, CTX_WINDOW } from './row-meta';
+import { ctxPercent, ctxWarn, isIdle, fmtRunElapsed, fmtCost, shortRel, CTX_WINDOW } from './row-meta';
 
 describe('ctxPercent', () => {
   it('returns null when there is no context reading', () => {
@@ -61,6 +61,14 @@ describe('fmtCost', () => {
   it('rounds to whole dollars from $100', () => expect(fmtCost(197.77)).toBe('$198'));
   it('compacts to k from $1000', () => expect(fmtCost(1911.21)).toBe('$1.9k'));
   it('never renders "$1000": rounding boundary compacts too', () => expect(fmtCost(999.99)).toBe('$1.0k'));
+});
+
+describe('shortRel', () => {
+  it('drops the "atrás" suffix', () => expect(shortRel('22h atrás')).toBe('22h'));
+  it('keeps labels without the suffix', () => {
+    expect(shortRel('agora')).toBe('agora');
+    expect(shortRel('ontem')).toBe('ontem');
+  });
 });
 
 describe('fmtRunElapsed', () => {

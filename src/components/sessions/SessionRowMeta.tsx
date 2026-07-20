@@ -1,10 +1,9 @@
 import { Icon } from '../primitives';
 import { SessionRowActions } from './SessionRowActions';
-import { fmtCost } from './row-meta';
+import { shortRel } from './row-meta';
 
 interface SessionRowMetaProps {
   relative: string;
-  cost?: number;
   pinned: boolean;
   running: boolean;
   tagging: boolean;
@@ -22,15 +21,10 @@ interface SessionRowMetaProps {
   onDelete: () => void;
 }
 
-export function SessionRowMeta({ relative, cost, pinned, running, tagging, canTag, canStop, canDescribe, actionsOpen, setActionsOpen, setTagging, onTogglePin, onRename, onDescribe, onStop, onArchive, onDelete }: SessionRowMetaProps) {
+export function SessionRowMeta({ relative, pinned, running, tagging, canTag, canStop, canDescribe, actionsOpen, setActionsOpen, setTagging, onTogglePin, onRename, onDescribe, onStop, onArchive, onDelete }: SessionRowMetaProps) {
   return (
     <div className="flex shrink-0 items-center gap-1">
-      {cost !== undefined && cost > 0 && (
-        <span className="hidden text-[9.5px] tabular-nums text-emerald-500/50 sm:inline" title="Custo estimado acumulado desta sessão">
-          {fmtCost(cost)}
-        </span>
-      )}
-      <span className="hidden text-[10px] tabular-nums text-neutral-600 sm:inline">{relative}</span>
+      <span className="hidden text-[10.5px] tabular-nums text-neutral-600 sm:inline" title={relative}>{shortRel(relative)}</span>
       {pinned && (
         <span title="Sessão fixada" className="text-orange-400">
           <Icon name="star" size={11} />
