@@ -58,7 +58,7 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
         <ClaudeAvatar size={28} />
       </div>
       <div className="min-w-0 flex-1 pt-0.5">
-        {showModelLabel && <span className="mb-0.5 block max-w-[260px] truncate px-0.5 text-[11px] font-medium text-orange-300/80">{modelLabel || 'Claude'}</span>}
+        {showModelLabel && <span className="mb-0.5 block max-w-[260px] truncate px-0.5 font-mono text-[11px] font-medium tracking-tight text-orange-300/90">{modelLabel || 'Claude'}</span>}
         {msg.quick && (
           <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-300">
             <Icon name="zap" size={10} /> resposta rápida (paralela)

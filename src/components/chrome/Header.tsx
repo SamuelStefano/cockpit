@@ -36,7 +36,7 @@ export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsag
           title="Nova conversa"
           className="flex items-center gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
         >
-          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-orange-500 text-neutral-950 shadow-[0_0_12px_-1px_rgba(249,115,22,0.55)]">
+          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-orange-500 to-orange-700 text-neutral-950 shadow-[0_0_12px_-1px_rgba(249,115,22,0.55)]">
             <Icon name="terminal" size={14} stroke={2.4} />
           </span>
           <span className="font-mono text-[14px] font-semibold lowercase tracking-tight text-neutral-100 transition hover:text-white">Deck</span>
