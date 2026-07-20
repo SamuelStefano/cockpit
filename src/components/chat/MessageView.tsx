@@ -52,13 +52,23 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
   // ferramenta. Exceção: a linha do indicador de turno em curso (thinking).
   if (!thinking && !hasVisibleAssistantContent(msg.blocks, showTools)) return null;
   const hasText = msg.blocks.some((b) => b.type === 'text' || b.type === 'code');
+  // Cabeçalho (avatar + rótulo do modelo) só na PRIMEIRA mensagem de uma sequência
+  // do assistant — mensagens seguintes do mesmo turno alinham sem repetir o caranguejo
+  // nem o rótulo laranja (o que deixava a thread poluída). Continuação encosta na
+  // anterior (margem negativa) pra virar um bloco visual só.
+  const showFooter = !caretOnLast && !thinking && (msg.stats?.durationMs || hasText);
   return (
-    <div className="fade-up group/msg flex gap-2.5">
-      <div className="mt-0.5" title={showModelLabel ? undefined : modelLabel}>
-        <ClaudeAvatar size={28} />
+    <div className={`group/msg flex gap-2.5 ${showModelLabel ? 'fade-up' : '-mt-3.5'}`}>
+      <div className="w-7 shrink-0">
+        {showModelLabel && <div className="mt-0.5"><ClaudeAvatar size={28} /></div>}
       </div>
       <div className="min-w-0 flex-1 pt-0.5">
-        {showModelLabel && <span className="mb-0.5 block max-w-[260px] truncate px-0.5 font-mono text-[11px] font-medium tracking-tight text-orange-300/90">{modelLabel || 'Claude'}</span>}
+        {showModelLabel && (
+          <div className="mb-1.5 flex items-center gap-1.5 px-0.5">
+            <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 shadow-[0_0_5px_rgba(249,115,22,0.5)]" />
+            <span className="max-w-[260px] truncate font-mono text-[10.5px] font-medium tracking-tight text-neutral-400">{modelLabel || 'Claude'}</span>
+          </div>
+        )}
         {msg.quick && (
           <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-300">
             <Icon name="zap" size={10} /> resposta rápida (paralela)
@@ -66,17 +76,19 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
         )}
         <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} answerable={answerable} onAnswer={onAnswer} />
         {thinking && <ThinkingDots live={live} />}
-        {!caretOnLast && !thinking && msg.stats?.durationMs ? <ThoughtFor ms={msg.stats.durationMs} /> : null}
-        {hasText && !caretOnLast && (
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <div className="flex items-center gap-2 opacity-100 transition group-hover/msg:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100">
-              <CopyMessageButton blocks={msg.blocks} />
-              <SpeakButton blocks={msg.blocks} />
-              {onRegenerate && <RegenerateButton onClick={onRegenerate} />}
-              {onQuote && <QuoteButton onClick={() => onQuote(messageToText(msg.blocks))} withLabel />}
-            </div>
-            {msg.stats && <TurnStatsLine stats={msg.stats} />}
-            {msg.ts && <time className="whitespace-nowrap text-[10px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
+        {showFooter && (
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-neutral-600">
+            {hasText && (
+              <div className="flex items-center gap-2 opacity-100 transition group-hover/msg:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100">
+                <CopyMessageButton blocks={msg.blocks} />
+                <SpeakButton blocks={msg.blocks} />
+                {onRegenerate && <RegenerateButton onClick={onRegenerate} />}
+                {onQuote && <QuoteButton onClick={() => onQuote(messageToText(msg.blocks))} withLabel />}
+              </div>
+            )}
+            {msg.stats?.durationMs ? <ThoughtFor ms={msg.stats.durationMs} /> : null}
+            {hasText && msg.stats && <TurnStatsLine stats={msg.stats} />}
+            {hasText && msg.ts && <time className="whitespace-nowrap tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
           </div>
         )}
       </div>
@@ -114,9 +126,9 @@ function TurnStatsLine({ stats }: { stats: TurnBubbleStats }) {
 // Fonte: stats.durationMs = duration_ms do result do CLI (relógio do turno).
 function ThoughtFor({ ms }: { ms: number }) {
   return (
-    <div className="mt-1 flex items-center gap-1.5 text-[11px] text-neutral-500" title="Tempo total deste turno (relógio do CLI)">
+    <span className="flex items-center gap-1.5 text-neutral-500" title="Tempo total deste turno (relógio do CLI)">
       <span className="text-orange-400/70" aria-hidden>✻</span>
       <span className="tabular-nums">Pensou por {fmtDuration(ms)}</span>
-    </div>
+    </span>
   );
 }

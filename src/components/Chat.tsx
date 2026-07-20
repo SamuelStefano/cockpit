@@ -136,10 +136,18 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
           <ChatEmpty onPrompt={onPrompt} />
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6">
-            {shown.map((m, i) => (
-              <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === shown.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} showModelLabel thinking={phase !== 'idle' && i === shown.length - 1 && m.role === 'assistant'} live={i === shown.length - 1 && m.role === 'assistant' ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} answerable={phase === 'idle' && i === shown.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} onRegenerate={phase === 'idle' && i === shown.length - 1 && m.role === 'assistant' ? c.retryLast : undefined} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} />
-
-            ))}
+            {shown.map((m, i) => {
+              const isLast = i === shown.length - 1;
+              const label = m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel;
+              const prev = i > 0 ? shown[i - 1] : undefined;
+              const prevLabel = prev && prev.role === 'assistant' ? (prev.model ? c.labelFor(prev.model) : c.modelLabel) : null;
+              // Cabeçalho só quando abre uma nova sequência do assistant (msg anterior
+              // não é do assistant, ou o modelo mudou) — evita repetir avatar/rótulo.
+              const showId = m.role === 'assistant' && (!prev || prev.role !== 'assistant' || prevLabel !== label);
+              return (
+                <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && isLast && m.role === 'assistant'} modelLabel={label} showModelLabel={showId} thinking={phase !== 'idle' && isLast && m.role === 'assistant'} live={isLast && m.role === 'assistant' ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} answerable={phase === 'idle' && isLast && m.role === 'assistant'} onAnswer={onPrompt} onRegenerate={phase === 'idle' && isLast && m.role === 'assistant' ? c.retryLast : undefined} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} />
+              );
+            })}
             {(phase === 'thinking' && shown[shown.length - 1]?.role !== 'assistant' || phase === 'idle' && terminalBusy) && <Thinking live={live} />}
           </div>
         )}

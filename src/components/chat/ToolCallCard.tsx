@@ -36,7 +36,7 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
     ),
   }[status];
 
-  const ring = status === 'error' ? 'border-red-500/30' : status === 'running' ? 'border-orange-500/30' : 'border-neutral-800';
+  const ring = status === 'error' ? 'border-red-500/30' : status === 'running' ? 'border-orange-500/30' : 'border-neutral-800/70';
 
   // Bash mostra prompt `$`; ferramentas de arquivo (Read/Edit/…) trazem um path
   // no campo command — `$` ali confunde, então usam ícone de arquivo.
@@ -55,10 +55,10 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
   const cmdIcon = isAgent || kind === 'taskcreate' || kind === 'taskupdate' ? headIcon : 'file';
 
   return (
-    <div className={`my-2 overflow-hidden rounded-xl border ${ring} bg-neutral-900/70`}>
-      <div className="flex items-center gap-2.5 px-3 py-2">
-        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${status === 'error' ? 'bg-red-500/15 text-red-400' : 'bg-neutral-800 text-orange-400'}`}>
-          <Icon name={headIcon} size={13} />
+    <div className={`my-1.5 overflow-hidden rounded-xl border ${ring} bg-neutral-900/40`}>
+      <div className="flex items-center gap-2.5 px-2.5 py-1.5">
+        <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md ${status === 'error' ? 'bg-red-500/15 text-red-400' : 'bg-neutral-800/80 text-orange-400/90'}`}>
+          <Icon name={headIcon} size={12} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
