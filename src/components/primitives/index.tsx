@@ -3,6 +3,7 @@ export { Badge } from './Badge';
 export { Button } from './Button';
 export { Input } from './Input';
 export { EmptyState } from './EmptyState';
+export { RouteHeader } from './RouteHeader';
 export { tokens, type ToneColor } from './tokens';
 export { ConnDot, type ConnState } from './ConnDot';
 export { Skeleton } from './Skeleton';

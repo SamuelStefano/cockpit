@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Badge, Button, EmptyState, Icon, Skeleton } from '../components/primitives';
+import { Badge, Button, EmptyState, Icon, Skeleton, RouteHeader } from '../components/primitives';
 import { GraphCanvas } from '../components/graph/GraphCanvas';
 import { GraphList } from './graph/GraphList';
 import { GraphQueryPanel } from './graph/GraphQueryPanel';
@@ -34,11 +34,12 @@ export function Graph(p: Props) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-neutral-950">
-      <div className="flex shrink-0 items-center gap-2 border-b border-neutral-800/80 px-4 py-3">
-        <span className="font-mono text-[14px] font-semibold lowercase tracking-tight text-neutral-100">graph</span>
-        <Badge tone="neutral">{p.graphs.length}</Badge>
-        <span className="ml-1 text-[11.5px] text-neutral-600">knowledge graph do código · 100% local (tree-sitter)</span>
-      </div>
+      <RouteHeader
+        variant="bar"
+        title="graph"
+        badge={<Badge tone="neutral">{p.graphs.length}</Badge>}
+        subtitle="knowledge graph do código · 100% local (tree-sitter)"
+      />
 
       {p.buildError && (
         <div className="flex shrink-0 items-start gap-2 border-b border-red-500/20 bg-red-500/[0.06] px-4 py-2.5">
