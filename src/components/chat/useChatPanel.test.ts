@@ -7,10 +7,14 @@ import type { Session, Message } from '../../data/mock';
 // A fila agora persiste por sessão em localStorage; limpa entre casos pra isolar.
 beforeEach(() => localStorage.clear());
 
+// messages não-vazio: sessão real com history carregado. Vazio + id real agora
+// significa "estado desconhecido" e o flush segura a fila (guard anti-roubo).
+const loaded: Message[] = [{ id: 'm0', role: 'user', text: 'oi' } as Message];
+
 function setup(initialPhase: Phase, onSend = vi.fn()) {
   const props = {
     session: { id: 's1' } as Session,
-    messages: [] as Message[],
+    messages: loaded,
     phase: initialPhase,
     models: [],
     model: 'opus',
@@ -38,14 +42,14 @@ describe('useChatPanel fila', () => {
     // Turno termina → libera só a 1ª.
     act(() => hook.rerender({ phase: 'idle' }));
     expect(onSend).toHaveBeenCalledTimes(1);
-    expect(onSend).toHaveBeenLastCalledWith('msg1');
+    expect(onSend).toHaveBeenLastCalledWith('msg1', undefined, true);
     expect(hook.result.current.queued).toEqual(['msg2']);
 
     // Novo turno começa (msg1 rodando) e termina → libera a 2ª.
     act(() => hook.rerender({ phase: 'thinking' }));
     act(() => hook.rerender({ phase: 'idle' }));
     expect(onSend).toHaveBeenCalledTimes(2);
-    expect(onSend).toHaveBeenLastCalledWith('msg2');
+    expect(onSend).toHaveBeenLastCalledWith('msg2', undefined, true);
     expect(hook.result.current.queued).toEqual([]);
   });
 
@@ -71,7 +75,7 @@ describe('useChatPanel fila', () => {
 
   it('pausado (teto do plano): NÃO drena a fila mesmo em idle; retoma ao despausar', () => {
     const onSend = vi.fn();
-    const base = { session: { id: 's1' } as Session, messages: [] as Message[], models: [], model: 'opus', onSend };
+    const base = { session: { id: 's1' } as Session, messages: loaded, models: [], model: 'opus', onSend };
     const hook = renderHook((p: { phase: Phase; paused: boolean }) => useChatPanel({ ...base, phase: p.phase, paused: p.paused }), {
       initialProps: { phase: 'thinking' as Phase, paused: true },
     });
@@ -79,7 +83,7 @@ describe('useChatPanel fila', () => {
     act(() => hook.rerender({ phase: 'idle', paused: true }));
     expect(onSend).not.toHaveBeenCalled(); // pausado: segura a fila
     act(() => hook.rerender({ phase: 'idle', paused: false }));
-    expect(onSend).toHaveBeenCalledWith('msg1'); // despausou: retoma sozinho
+    expect(onSend).toHaveBeenCalledWith('msg1', undefined, true); // despausou: retoma sozinho
   });
 
   it('AskUserQuestion pendente: segura a fila no idle; retoma quando deixa de ser a última msg', () => {
@@ -107,7 +111,7 @@ describe('useChatPanel fila', () => {
     // Usuário responde → vira a última msg; novo turno roda e encerra → fila retoma.
     act(() => hook.rerender({ phase: 'thinking', messages: asked }));
     act(() => hook.rerender({ phase: 'idle', messages: asked }));
-    expect(onSend).toHaveBeenCalledWith('msg1');
+    expect(onSend).toHaveBeenCalledWith('msg1', undefined, true);
   });
 
   it('persiste a fila por sessão: trocar de sessão e voltar não perde itens', () => {

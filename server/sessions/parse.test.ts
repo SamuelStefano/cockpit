@@ -226,6 +226,17 @@ describe('recToMessage', () => {
     expect(recToMessage({ uuid: 'u3', message: { role: 'user', content: '   ' } } as any)).toBeNull();
   });
 
+  it('descarta o assistant "No response requested." injetado pelo resume pós-pergunta', () => {
+    expect(recToMessage({ uuid: 'g1', message: { role: 'assistant', content: [{ type: 'text', text: 'No response requested.' }] } } as any)).toBeNull();
+  });
+
+  it('mantém assistant que só MENCIONA "No response requested." junto de outro conteúdo', () => {
+    const m = recToMessage({ uuid: 'g2', message: { role: 'assistant', content: [
+      { type: 'text', text: 'No response requested.' }, { type: 'text', text: 'mas segue o jogo' },
+    ] } } as any);
+    expect(m).not.toBeNull();
+  });
+
   it('builds assistant blocks for text, thinking and tool_use', () => {
     const m = recToMessage({ uuid: 'a1', message: { role: 'assistant', content: [
       { type: 'text', text: 'hi' },

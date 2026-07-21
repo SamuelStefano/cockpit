@@ -1226,7 +1226,9 @@ export function useCockpit(): Cockpit {
     return chosen;
   }, []);
 
-  const onSend = useCallback((text: string, modeOverride?: PermMode) => {
+  // auto=true marca envio de automação (flush da fila do cliente): o servidor
+  // estaciona autos enquanto a sessão aguarda resposta de AskUserQuestion.
+  const onSend = useCallback((text: string, modeOverride?: PermMode, auto?: boolean) => {
     const key = activeRef.current;
     if (!key) return;
     // WS fechado: send() descartaria em silêncio DEPOIS do trabalho otimista —
@@ -1275,7 +1277,7 @@ export function useCockpit(): Cockpit {
     // skills só vai no fio quando o usuário restringiu (subconjunto); vazio = todas.
     const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
     const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: pinSessionModel(key), effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
+    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: pinSessionModel(key), effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire, auto: auto || undefined });
   }, [send, updateThread, pinSessionModel]);
 
   const onUpload = useCallback((file: File) => {

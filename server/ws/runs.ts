@@ -8,6 +8,7 @@ import { translate } from './translate';
 import { summarize } from '../summary';
 import { classify, quickAnswer, killSideRuns, killSideRunsFor } from '../engine/triage';
 import { suggestFollowups } from '../engine/suggest';
+import { awaitingAnswer } from './awaiting';
 
 export interface Thread {
   handle: RunHandle;
@@ -187,7 +188,7 @@ const SESSION_KEY_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 
 // ws null = run sem cliente específico (cron agendado): erros vão por broadcast e
 // o stream do turno é broadcastado a todos os clientes como qualquer outro run.
-export function startRun(ws: WebSocket | null, sessionKey: string, prompt: string, resumeId?: string, msgId?: string, mode?: string, model?: string, maxBudgetUsd?: number, bypass?: boolean, role?: Role, disallowedSkills?: string[], mcps?: string[], effort?: string) {
+export function startRun(ws: WebSocket | null, sessionKey: string, prompt: string, resumeId?: string, msgId?: string, mode?: string, model?: string, maxBudgetUsd?: number, bypass?: boolean, role?: Role, disallowedSkills?: string[], mcps?: string[], effort?: string, auto?: boolean) {
   // sessionKey é string crua do cliente usada como chave do mapa `threads` e
   // ecoada nos broadcasts; restringe a um slug (cobre uuid e as keys 'new-…').
   if (typeof sessionKey !== 'string' || !SESSION_KEY_RE.test(sessionKey)) {
@@ -198,6 +199,20 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
     if (ws) send(ws, { t: 'error', sessionKey, message: 'prompt grande demais' });
     return;
   }
+  // Latch pós-pergunta: o flush automático da fila do cliente decide com estado
+  // possivelmente vazio (history ainda não carregado) e chegava 1-2s depois do
+  // AskUserQuestion — o run novo substituía o turno perguntante e o card de escolha
+  // sumia. Estaciona o auto na fila do servidor; a RESPOSTA do usuário (send manual)
+  // limpa o latch e o onClose dela drena o estacionado na sequência.
+  if (auto && awaitingAnswer.has(sessionKey)) {
+    if (ws) {
+      if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
+      if (!enqueue(sessionKey, { ws, prompt, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort }))
+        send(ws, { t: 'error', sessionKey, message: 'fila de mensagens cheia' });
+    }
+    return;
+  }
+  if (!auto) awaitingAnswer.delete(sessionKey);
   const replacing = threads.has(sessionKey);
   if (!admitRun(threads.size, replacing)) {
     if (ws) send(ws, { t: 'error', sessionKey, message: 'limite de sessões simultâneas atingido' });

@@ -358,7 +358,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       if (threads.has(msg.sessionKey)) {
         void routeSend(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.maxBudgetUsd, msg.bypass, role, disallowedSkills, msg.mcps, msg.effort);
       } else {
-        startRun(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.maxBudgetUsd, msg.bypass, role, disallowedSkills, msg.mcps, msg.effort);
+        startRun(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.maxBudgetUsd, msg.bypass, role, disallowedSkills, msg.mcps, msg.effort, msg.auto === true);
       }
       return;
     }
