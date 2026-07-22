@@ -25,7 +25,7 @@ function tree(): DflProjectNode[] {
 
 describe('recomputeTotals', () => {
   it('sem exclusões espelha a árvore (open soma todas as done não faturadas)', () => {
-    const r = recomputeTotals(tree(), new Set());
+    const r = recomputeTotals(tree(), new Set(), 75);
     expect(r.totals.openPoints).toBe(9);
     expect(r.totals.amountOpenCents).toBe(67500);
     expect(r.totals.paidPoints).toBe(3);
@@ -34,7 +34,7 @@ describe('recomputeTotals', () => {
   });
 
   it('delivery off sai do "em aberto" e vira balde off; paid/todo intactos', () => {
-    const r = recomputeTotals(tree(), new Set(['d-audit']));
+    const r = recomputeTotals(tree(), new Set(['d-audit']), 75);
     expect(r.totals.openPoints).toBe(4);
     expect(r.totals.amountOpenCents).toBe(30000);
     expect(r.offPoints).toBe(5);
@@ -42,6 +42,13 @@ describe('recomputeTotals', () => {
     expect(r.totals.paidPoints).toBe(3);
     expect(r.totals.todoPoints).toBe(2);
     expect(r.totals.totalPoints).toBe(9);
+  });
+
+  it('valor do ponto recalcula aberto/off; paid mantém o faturado real', () => {
+    const r = recomputeTotals(tree(), new Set(['d-audit']), 80);
+    expect(r.totals.amountOpenCents).toBe(32000); // 4 pts × R$80
+    expect(r.offAmountCents).toBe(40000);         // 5 pts × R$80
+    expect(r.totals.paidAmountCents).toBe(22500); // histórico não muda
   });
 });
 
@@ -55,12 +62,17 @@ describe('sumDeliveries', () => {
     ] }],
   }];
 
-  it('soma só as selecionadas', () => {
-    const s = sumDeliveries(projects, new Set(['a', 'b']));
+  it('soma só as selecionadas (valor = pontos × valor do ponto)', () => {
+    const s = sumDeliveries(projects, new Set(['a', 'b']), 75);
     expect(s).toEqual({ count: 2, points: 9, amountCents: 67500 });
   });
 
+  it('valor do ponto muda o total da seleção', () => {
+    const s = sumDeliveries(projects, new Set(['a', 'b']), 100);
+    expect(s).toEqual({ count: 2, points: 9, amountCents: 90000 });
+  });
+
   it('vazio quando nada selecionado', () => {
-    expect(sumDeliveries(projects, new Set())).toEqual({ count: 0, points: 0, amountCents: 0 });
+    expect(sumDeliveries(projects, new Set(), 75)).toEqual({ count: 0, points: 0, amountCents: 0 });
   });
 });

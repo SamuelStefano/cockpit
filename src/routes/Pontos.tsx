@@ -8,6 +8,7 @@ import { recomputeTotals } from './pontos/pontosPrefs';
 import { PointsForm } from './pontos/PointsForm';
 import { PointsCard } from './pontos/PointsCard';
 import { FinanceSummaryBar } from './pontos/FinanceSummaryBar';
+import { PointValueBar } from './pontos/PointValueBar';
 import { SyncBar } from './pontos/SyncBar';
 import { DflTree } from './pontos/DflTree';
 import { DflInvoices } from './pontos/DflInvoices';
@@ -39,7 +40,7 @@ export function Pontos(props: Props) {
   const controls = usePontosControlsState();
   const [adding, setAdding] = useState(false);
   const projects = dflSnapshot?.projects ?? [];
-  const recomputed = dflSnapshot ? recomputeTotals(projects, controls.excluded) : null;
+  const recomputed = dflSnapshot ? recomputeTotals(projects, controls.excluded, controls.pointValue) : null;
   const totals = recomputed?.totals ?? dflSnapshot?.totals;
 
   return (
@@ -62,6 +63,7 @@ export function Pontos(props: Props) {
         </header>
 
         {tab !== 'ledger' && <SyncBar snapshot={dflSnapshot} syncing={dflSyncing} now={now} onSync={onDflSync} />}
+        {tab !== 'ledger' && totals && <PointValueBar />}
         {tab !== 'ledger' && totals && <FinanceSummaryBar totals={totals} offPoints={recomputed?.offPoints ?? 0} offAmountCents={recomputed?.offAmountCents ?? 0} />}
 
         <Tabs className="mb-4" active={tab} onChange={setTab} items={[

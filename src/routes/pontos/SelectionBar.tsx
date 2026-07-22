@@ -7,8 +7,8 @@ import { usePontosControls } from './pontosControls';
 // Barra da multi-seleção: mostra a soma das deliveries marcadas e as ações (gerar
 // invoice, limpar). Aparece só no modo seleção.
 export function SelectionBar({ projects, onGenerateInvoice }: { projects: DflProjectNode[]; onGenerateInvoice?: (ids: string[]) => void }) {
-  const { selected, clearSelected } = usePontosControls();
-  const s = sumDeliveries(projects, selected);
+  const { selected, clearSelected, pointValue } = usePontosControls();
+  const s = sumDeliveries(projects, selected, pointValue);
   return (
     <div className="sticky bottom-0 z-10 mt-2 flex items-center gap-3 rounded-xl border border-orange-500/30 bg-neutral-950/90 px-3.5 py-2.5 backdrop-blur">
       <div className="min-w-0 flex-1">
