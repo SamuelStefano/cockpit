@@ -73,6 +73,28 @@ describe('foldDflTree (puro)', () => {
     expect(s.totals.openPoints).toBe(4);
   });
 
+  it('epic legado (created_at < corte) conta done-sem-invoice como PAGO, não aberto', () => {
+    const s = foldDflTree(input({
+      epics: [{ id: 'epic1', name: 'Code Library', project_id: 'proj1', status: 'done', created_at: '2026-01-15T00:00:00Z' }],
+      tasks: [{ id: 'leg', name: 'Legado', status: 'done', points: 6, epic_id: 'epic1', delivery_id: 'del1' }],
+      invoices: [], invoiceItems: [],
+    }), 0);
+    expect(s.totals.openPoints).toBe(0);
+    expect(s.totals.paidPoints).toBe(6);
+    expect(s.totals.paidAmountCents).toBe(6 * 75 * 100);
+    expect(s.projects[0].epics[0].deliveries[0].tasks[0]).toMatchObject({ status: 'paid' });
+  });
+
+  it('epic recente (created_at >= corte) mantém done-sem-invoice como aberto', () => {
+    const s = foldDflTree(input({
+      epics: [{ id: 'epic1', name: 'B&I JUL', project_id: 'proj1', status: 'pending', created_at: '2026-07-22T00:00:00Z' }],
+      tasks: [{ id: 'jul', name: 'Julho', status: 'done', points: 4, epic_id: 'epic1', delivery_id: 'del1' }],
+      invoices: [], invoiceItems: [],
+    }), 0);
+    expect(s.totals.openPoints).toBe(4);
+    expect(s.totals.paidPoints).toBe(0);
+  });
+
   it('price_per_point ausente/zero cai no fallback 75', () => {
     const s = foldDflTree(input({
       deliveries: [{ id: 'del1', name: 'D', epic_id: 'epic1', status: 'x', price_per_point: null, transaction_id: null }],
