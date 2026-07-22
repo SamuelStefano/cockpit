@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Session, Message, Block, ToolTodo } from './data/mock';
-import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth, Caps, PlanUsage, AccountSummary, Cron, GraphMeta, GraphData, PointsEntry, DflPointsSnapshot } from '../shared/protocol';
+import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth, Caps, PlanUsage, AccountSummary, Cron, GraphMeta, GraphData, PointsEntry, DflPointsSnapshot, ParkedView } from '../shared/protocol';
 import { loadPref, savePref, setPref } from './lib/persist';
 import { SUPABASE_ENABLED } from './lib/supabase';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
@@ -177,6 +177,11 @@ export interface Cockpit {
   onUnhide: (id: string) => void;
   onOpenFull: (id: string) => void;
   onOpenSummary: (id: string) => void;
+  queue: ParkedView[];
+  queueAdd: (text: string) => void;
+  queueRemove: (sessionKey: string, id: string) => void;
+  queueMove: (sessionKey: string, id: string, dir: -1 | 1) => void;
+  queueClear: (sessionKey: string) => void;
 }
 
 export function useCockpit(): Cockpit {
@@ -223,6 +228,7 @@ export function useCockpit(): Cockpit {
   const [dflSnapshot, setDflSnapshot] = useState<DflPointsSnapshot | null>(null);
   const [dflLoaded, setDflLoaded] = useState(false);
   const [dflSyncing, setDflSyncing] = useState(false);
+  const [queue, setQueue] = useState<ParkedView[]>([]); // fila estacionada (servidor), broadcast dos queue-*
   const [openContext, setOpenContext] = useState<ContextDoc | null>(null);
   const [skills, setSkills] = useState<SkillMeta[]>([]);
   const [skillsLoaded, setSkillsLoaded] = useState(false);
@@ -432,16 +438,12 @@ export function useCockpit(): Cockpit {
       savePref('seen', next);
       return next;
     });
-    // A fila do composer (useChatPanel) é persistida por session.id na key 'queued'.
-    // Sem migrar, o que foi enfileirado na sessão `new-…` ficava órfão e sumia da
-    // tela quando a key migrava pro sessionId do Claude. setPref avisa o usePersisted.
-    const q = loadPref<Record<string, string[]>>('queued', {});
-    if (oldKey in q) setPref('queued', moveKey(q, oldKey, newId));
   }, []);
 
   const onServer = useCallback((msg: ServerMsg) => {
     switch (msg.t) {
       case 'mcp-servers': { setMcpServers(msg.servers); return; }
+      case 'queue': { setQueue(msg.items); return; }
       case 'caps': {
         capsRef.current = msg.caps;
         setCaps(msg.caps);
@@ -1146,6 +1148,7 @@ export function useCockpit(): Cockpit {
     send({ t: 's3-config' });  // URL+anon key pra upload HTTP direto na edge fn
     send({ t: 'sync' });       // reemite o estado durável fresco (busy/rate/plan/models)
     send({ t: 'points-get' }); // ledger de pontos: atualiza ao vivo mesmo fora da rota
+    send({ t: 'queue-get' });  // fila estacionada do servidor (drena com quota liberada)
     // Re-abre a sessão ativa SEMPRE (não só se nunca abriu): um turno que terminou
     // enquanto o WS esteve fechado perdeu os deltas finais + o 'done' — sem re-puxar
     // o history a resposta ficava congelada no meio da frase pra sempre ("o agente
@@ -1297,6 +1300,21 @@ export function useCockpit(): Cockpit {
     const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
     send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: pinSessionModel(key), effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire, auto: auto || undefined });
   }, [send, updateThread, pinSessionModel]);
+
+  // Fila ESTACIONADA (servidor): enfileira p/ drenar quando a quota liberar, mesmo
+  // com o browser fechado. Espelha os mesmos params de fio do onSend. O agente
+  // dispara cada item ao ficar ocioso + sob a quota — ver server/ws/parked.ts.
+  const queueAdd = useCallback((text: string) => {
+    const key = activeRef.current;
+    if (!key) return;
+    const bypassWire = capsRef.current?.canBypass && bypassRef.current ? true : undefined;
+    const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
+    const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
+    send({ t: 'queue-add', sessionKey: key, sessionId: resumeId.current[key], text, mode: modeRef.current, model: modelBySessionRef.current[key] ?? defaultModelRef.current, effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
+  }, [send]);
+  const queueRemove = useCallback((sessionKey: string, id: string) => { send({ t: 'queue-remove', sessionKey, id }); }, [send]);
+  const queueMove = useCallback((sessionKey: string, id: string, dir: -1 | 1) => { send({ t: 'queue-move', sessionKey, id, dir }); }, [send]);
+  const queueClear = useCallback((sessionKey: string) => { send({ t: 'queue-clear', sessionKey }); }, [send]);
 
   const onUpload = useCallback((file: File) => {
     const key = activeRef.current;
@@ -1696,5 +1714,5 @@ export function useCockpit(): Cockpit {
     savePref('modelBySession', keep);
   }, [modelBySession]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, cronsLoaded, onCronsGet, onCronSave, onCronDelete, onCronRun, points, pointsTotal, pointsLoaded, onPointsGet, onPointsAdd, onPointsCorrect, onPointsNote, onPointsDelete, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
+  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, cronsLoaded, onCronsGet, onCronSave, onCronDelete, onCronRun, points, pointsTotal, pointsLoaded, onPointsGet, onPointsAdd, onPointsCorrect, onPointsNote, onPointsDelete, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary, queue, queueAdd, queueRemove, queueMove, queueClear };
 }

@@ -1,165 +1,89 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, renderHook } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { renderHook } from '@testing-library/react';
 import { useChatPanel, type Phase } from './useChatPanel';
 import type { Session, Message } from '../../data/mock';
+import type { ParkedView } from '../../../shared/protocol';
 
-// A fila agora persiste por sessão em localStorage; limpa entre casos pra isolar.
-beforeEach(() => localStorage.clear());
-
-// messages não-vazio: sessão real com history carregado. Vazio + id real agora
-// significa "estado desconhecido" e o flush segura a fila (guard anti-roubo).
-const loaded: Message[] = [{ id: 'm0', role: 'user', text: 'oi' } as Message];
-
-function setup(initialPhase: Phase, onSend = vi.fn()) {
+// A fila agora vive no servidor (parked.json). O hook só espelha a prop `queue` e
+// delega add/remove/move/clear via callbacks — sem estado local nem drenagem cliente.
+function setup(queue: ParkedView[], sessionId = 's1') {
+  const queueAdd = vi.fn();
+  const queueRemove = vi.fn();
+  const queueMove = vi.fn();
+  const queueClear = vi.fn();
   const props = {
-    session: { id: 's1' } as Session,
-    messages: loaded,
-    phase: initialPhase,
+    session: { id: sessionId } as Session,
+    messages: [] as Message[],
+    phase: 'thinking' as Phase,
     models: [],
     model: 'opus',
-    onSend,
-    onStop: vi.fn(),
+    onSend: vi.fn(),
+    queue,
+    queueAdd,
+    queueRemove,
+    queueMove,
+    queueClear,
   };
-  const hook = renderHook((p: { phase: Phase }) => useChatPanel({ ...props, phase: p.phase }), {
-    initialProps: { phase: initialPhase },
+  const hook = renderHook((p: { queue: ParkedView[] }) => useChatPanel({ ...props, queue: p.queue }), {
+    initialProps: { queue },
   });
-  return { hook, onSend };
+  return { hook, queueAdd, queueRemove, queueMove, queueClear };
 }
 
-describe('useChatPanel fila', () => {
-  it('acumula múltiplas mensagens em vez de sobrescrever (não perde a 1ª)', () => {
-    const { hook } = setup('thinking');
-    act(() => hook.result.current.enqueue('msg1'));
-    act(() => hook.result.current.enqueue('msg2'));
-    expect(hook.result.current.queued).toEqual(['msg1', 'msg2']);
+const pv = (id: string, text: string, at: number, sessionKey = 's1'): ParkedView => ({ sessionKey, id, text, at });
+
+describe('useChatPanel fila (server-backed)', () => {
+  it('deriva `queued` da prop queue filtrando pela sessão e ordenando por `at`', () => {
+    const { hook } = setup([
+      pv('b', 'segundo', 200),
+      pv('a', 'primeiro', 100),
+      pv('x', 'outra sessão', 150, 's2'),
+    ]);
+    expect(hook.result.current.queued).toEqual(['primeiro', 'segundo']);
   });
 
-  it('dispara UMA por vez, em ordem, a cada transição pra idle', () => {
-    const { hook, onSend } = setup('thinking');
-    act(() => hook.result.current.enqueue('msg1'));
-    act(() => hook.result.current.enqueue('msg2'));
+  it('enqueue delega pro queueAdd (servidor decide a sessão ativa)', () => {
+    const { hook, queueAdd } = setup([]);
+    hook.result.current.enqueue('novo');
+    expect(queueAdd).toHaveBeenCalledWith('novo');
+  });
 
-    // Turno termina → libera só a 1ª.
-    act(() => hook.rerender({ phase: 'idle' }));
-    expect(onSend).toHaveBeenCalledTimes(1);
-    expect(onSend).toHaveBeenLastCalledWith('msg1', undefined, true);
-    expect(hook.result.current.queued).toEqual(['msg2']);
+  it('cancelQueueAt remove o item certo por sessionKey+id', () => {
+    const { hook, queueRemove } = setup([pv('a', 'primeiro', 100), pv('b', 'segundo', 200)]);
+    hook.result.current.cancelQueueAt(1);
+    expect(queueRemove).toHaveBeenCalledWith('s1', 'b');
+  });
 
-    // Novo turno começa (msg1 rodando) e termina → libera a 2ª.
-    act(() => hook.rerender({ phase: 'thinking' }));
-    act(() => hook.rerender({ phase: 'idle' }));
-    expect(onSend).toHaveBeenCalledTimes(2);
-    expect(onSend).toHaveBeenLastCalledWith('msg2', undefined, true);
+  it('moveQueuedItem move o item certo na direção pedida', () => {
+    const { hook, queueMove } = setup([pv('a', 'primeiro', 100), pv('b', 'segundo', 200)]);
+    hook.result.current.moveQueuedItem(0, 1);
+    expect(queueMove).toHaveBeenCalledWith('s1', 'a', 1);
+  });
+
+  it('clearQueue limpa a fila da sessão ativa', () => {
+    const { hook, queueClear } = setup([pv('a', 'primeiro', 100)]);
+    hook.result.current.clearQueue();
+    expect(queueClear).toHaveBeenCalledWith('s1');
+  });
+
+  it('sem sessão ativa: queued vazio e clear é no-op', () => {
+    const queueClear = vi.fn();
+    const hook = renderHook(() => useChatPanel({
+      session: null,
+      messages: [],
+      phase: 'idle',
+      models: [],
+      model: 'opus',
+      onSend: vi.fn(),
+      queue: [pv('a', 'x', 100)],
+      queueAdd: vi.fn(),
+      queueRemove: vi.fn(),
+      queueMove: vi.fn(),
+      queueClear,
+    }));
     expect(hook.result.current.queued).toEqual([]);
-  });
-
-  it('cancelQueueAt remove só o item indicado', () => {
-    const { hook } = setup('thinking');
-    act(() => hook.result.current.enqueue('a'));
-    act(() => hook.result.current.enqueue('b'));
-    act(() => hook.result.current.enqueue('c'));
-    act(() => hook.result.current.cancelQueueAt(1));
-    expect(hook.result.current.queued).toEqual(['a', 'c']);
-  });
-
-  it('moveQueuedItem reordena (sobe/desce) e ignora as bordas', () => {
-    const { hook } = setup('thinking');
-    act(() => hook.result.current.enqueue('a'));
-    act(() => hook.result.current.enqueue('b'));
-    act(() => hook.result.current.enqueue('c'));
-    act(() => hook.result.current.moveQueuedItem(2, -1)); // c sobe
-    expect(hook.result.current.queued).toEqual(['a', 'c', 'b']);
-    act(() => hook.result.current.moveQueuedItem(0, -1)); // topo não sobe
-    expect(hook.result.current.queued).toEqual(['a', 'c', 'b']);
-  });
-
-  it('pausado (teto do plano): NÃO drena a fila mesmo em idle; retoma ao despausar', () => {
-    const onSend = vi.fn();
-    const base = { session: { id: 's1' } as Session, messages: loaded, models: [], model: 'opus', onSend, onStop: vi.fn() };
-    const hook = renderHook((p: { phase: Phase; paused: boolean }) => useChatPanel({ ...base, phase: p.phase, paused: p.paused }), {
-      initialProps: { phase: 'thinking' as Phase, paused: true },
-    });
-    act(() => hook.result.current.enqueue('msg1'));
-    act(() => hook.rerender({ phase: 'idle', paused: true }));
-    expect(onSend).not.toHaveBeenCalled(); // pausado: segura a fila
-    act(() => hook.rerender({ phase: 'idle', paused: false }));
-    expect(onSend).toHaveBeenCalledWith('msg1', undefined, true); // despausou: retoma sozinho
-  });
-
-  it('AskUserQuestion pendente: segura a fila no idle; retoma quando deixa de ser a última msg', () => {
-    const ask: Message = {
-      id: 'a1', role: 'assistant',
-      blocks: [{ type: 'tool', tool: {
-        id: 't1', name: 'AskUserQuestion', label: 'AskUserQuestion', command: '',
-        status: 'done', output: [],
-        questions: [{ question: 'q?', header: 'H', multiSelect: false, options: [{ label: 'A' }] }],
-      } }],
-    };
-    const answer: Message = { id: 'u1', role: 'user', text: 'H: A' };
-    const onlyAsk: Message[] = [ask];
-    const asked: Message[] = [ask, answer];
-    const onSend = vi.fn();
-    const base = { session: { id: 's1' } as Session, models: [], model: 'opus', onSend, onStop: vi.fn() };
-    const hook = renderHook(
-      (p: { phase: Phase; messages: Message[] }) => useChatPanel({ ...base, phase: p.phase, messages: p.messages }),
-      { initialProps: { phase: 'thinking' as Phase, messages: onlyAsk } },
-    );
-    act(() => hook.result.current.enqueue('msg1'));
-    // Turno encerra no AskUserQuestion (kill no backend): NÃO drena — a pergunta é a última msg.
-    act(() => hook.rerender({ phase: 'idle', messages: onlyAsk }));
-    expect(onSend).not.toHaveBeenCalled();
-    // Usuário responde → vira a última msg; novo turno roda e encerra → fila retoma.
-    act(() => hook.rerender({ phase: 'thinking', messages: asked }));
-    act(() => hook.rerender({ phase: 'idle', messages: asked }));
-    expect(onSend).toHaveBeenCalledWith('msg1', undefined, true);
-  });
-
-  it('stop manual SEGURA a fila: cancelar não drena nem perde itens', () => {
-    const { hook, onSend } = setup('thinking');
-    act(() => hook.result.current.enqueue('msg1'));
-    act(() => hook.result.current.enqueue('msg2'));
-    // Usuário cancela o turno: phase vira idle na hora, mas a fila fica parada
-    // (antes o flush mandava msg1 pro turno ainda morrendo e ela sumia).
-    act(() => hook.result.current.stop());
-    act(() => hook.rerender({ phase: 'idle' }));
-    expect(onSend).not.toHaveBeenCalled();
-    expect(hook.result.current.queued).toEqual(['msg1', 'msg2']);
-    expect(hook.result.current.queueHeld).toBe(true);
-  });
-
-  it('retomar explícito solta a fila segurada', () => {
-    const { hook, onSend } = setup('thinking');
-    act(() => hook.result.current.enqueue('msg1'));
-    act(() => hook.result.current.stop());
-    act(() => hook.rerender({ phase: 'idle' }));
-    expect(onSend).not.toHaveBeenCalled();
-    act(() => hook.result.current.resumeQueue());
-    expect(onSend).toHaveBeenCalledWith('msg1', undefined, true);
-  });
-
-  it('envio manual (novo turno) solta a fila segurada pro idle seguinte', () => {
-    const { hook, onSend } = setup('thinking');
-    act(() => hook.result.current.enqueue('msg1'));
-    act(() => hook.result.current.stop());
-    act(() => hook.rerender({ phase: 'idle' }));
-    expect(onSend).not.toHaveBeenCalled();
-    // Usuário manda outro prompt na mão → turno novo roda e termina → fila retoma.
-    act(() => hook.rerender({ phase: 'thinking' }));
-    act(() => hook.rerender({ phase: 'idle' }));
-    expect(onSend).toHaveBeenCalledWith('msg1', undefined, true);
-  });
-
-  it('persiste a fila por sessão: trocar de sessão e voltar não perde itens', () => {
-    const onSend = vi.fn();
-    const base = { messages: [] as Message[], phase: 'thinking' as Phase, models: [], model: 'opus', onSend, onStop: vi.fn() };
-    const hook = renderHook((p: { session: Session }) => useChatPanel({ ...base, session: p.session }), {
-      initialProps: { session: { id: 's1' } as Session },
-    });
-    act(() => hook.result.current.enqueue('na s1'));
-    act(() => hook.rerender({ session: { id: 's2' } as Session }));
-    expect(hook.result.current.queued).toEqual([]); // s2 tem fila própria
-    act(() => hook.rerender({ session: { id: 's1' } as Session }));
-    expect(hook.result.current.queued).toEqual(['na s1']); // s1 preservada
+    hook.result.current.clearQueue();
+    expect(queueClear).not.toHaveBeenCalled();
   });
 });

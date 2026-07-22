@@ -22,6 +22,7 @@ import { setEnv, unsetEnv, addMcp, removeMcp, installCli } from '../admin-ops';
 import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
 import { threads, startRun, routeSend, stopSession } from './runs';
+import { addParked, removeParked, moveParked, clearParked, parkedView } from './parked';
 import { refreshModels } from './models';
 import { sendDurableSnapshot } from './snapshot';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
@@ -379,6 +380,46 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       } else {
         startRun(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.maxBudgetUsd, msg.bypass, role, disallowedSkills, msg.mcps, msg.effort, msg.auto === true);
       }
+      return;
+    }
+    // Fila estacionada (overnight/quota-out): persiste o prompt no servidor pro
+    // drainer disparar sozinho quando a sessão ficar ociosa E a quota voltar, sem
+    // depender do browser aberto. Mesma resolução de skills do 'send'. Broadcast do
+    // snapshot pra todos os aparelhos verem a fila mudar ao vivo.
+    case 'queue-add': {
+      const disallowedSkills = await resolveSkillDeny(msg.skills);
+      addParked(msg.sessionKey, {
+        prompt: msg.text,
+        resumeId: msg.sessionId,
+        mode: msg.mode,
+        model: msg.model,
+        effort: msg.effort,
+        maxBudgetUsd: msg.maxBudgetUsd,
+        bypass: msg.bypass,
+        role,
+        disallowedSkills,
+        mcps: msg.mcps,
+      });
+      broadcast({ t: 'queue', items: parkedView() });
+      return;
+    }
+    case 'queue-remove': {
+      removeParked(msg.sessionKey, msg.id);
+      broadcast({ t: 'queue', items: parkedView() });
+      return;
+    }
+    case 'queue-move': {
+      if (msg.dir === -1 || msg.dir === 1) moveParked(msg.sessionKey, msg.id, msg.dir);
+      broadcast({ t: 'queue', items: parkedView() });
+      return;
+    }
+    case 'queue-clear': {
+      clearParked(msg.sessionKey);
+      broadcast({ t: 'queue', items: parkedView() });
+      return;
+    }
+    case 'queue-get': {
+      send(ws, { t: 'queue', items: parkedView() });
       return;
     }
   }
