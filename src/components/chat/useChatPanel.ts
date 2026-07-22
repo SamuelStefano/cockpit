@@ -29,10 +29,11 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   const [promptAbove, setPromptAbove] = useState(false);
   const [fullLoaded, setFullLoaded] = useState(false);
   const sid = session?.id ?? null;
-  // Fila desta sessão (ordem de envio = ordem de chegada `at`). O drainer do servidor
-  // sempre drena do topo, então a ordem aqui é a ordem em que os prompts vão rodar.
+  // Fila desta sessão na ORDEM DO SERVIDOR (array em parked.json = ordem de envio;
+  // o drainer sempre drena do topo). NÃO reordenar por `at`: o move troca posições
+  // no array sem mexer no `at`, então ordenar por `at` desfazia o reordenamento.
   const parked = useMemo(
-    () => (sid ? queue.filter((q) => q.sessionKey === sid).sort((a, b) => a.at - b.at) : []),
+    () => (sid ? queue.filter((q) => q.sessionKey === sid) : []),
     [queue, sid],
   );
   const queued = useMemo(() => parked.map((p) => p.text), [parked]);
