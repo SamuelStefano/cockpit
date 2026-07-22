@@ -15,9 +15,10 @@ interface Args {
   lastEnd?: string;
   paused?: boolean;
   onSend: (text: string, modeOverride?: PermMode) => void;
+  onStop: () => void;
 }
 
-export function useChatPanel({ session, messages, phase, models, model, lastEnd, paused = false, onSend }: Args) {
+export function useChatPanel({ session, messages, phase, models, model, lastEnd, paused = false, onSend, onStop }: Args) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const flushingRef = useRef(false);
@@ -30,13 +31,31 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   const [promptAbove, setPromptAbove] = useState(false);
   const [queuedMap, setQueuedMap] = usePersisted<Record<string, string[]>>('queued', {});
   const [fullLoaded, setFullLoaded] = useState(false);
+  // Stop manual segura a fila. Sem isto o cancel vira idle na hora e o flush
+  // despachava o próximo item pra dentro do turno ainda morrendo (SIGTERM leva
+  // até 5s) — o prompt sumia sem rodar. Segura até o usuário mandar algo novo
+  // (novo turno solta) ou retomar explícito no banner.
+  const [queueHeld, setQueueHeld] = useState(false);
   const sid = session?.id ?? null;
   // Fila POR SESSÃO e persistida em localStorage: "manda quando ESTA sessão
   // liberar". Sair da sessão ou fechar o site NÃO pode perder o que foi digitado;
   // só trocamos qual fila está ativa. flushingRef reseta na troca pra não travar a
   // próxima sessão com a trava herdada da anterior.
   const queued = useMemo(() => (sid ? queuedMap[sid] ?? [] : []), [queuedMap, sid]);
-  useEffect(() => { setFullLoaded(false); flushingRef.current = false; awaitingStartRef.current = null; pinnedRef.current = true; setAtBottom(true); }, [sid]);
+  useEffect(() => { setFullLoaded(false); flushingRef.current = false; awaitingStartRef.current = null; pinnedRef.current = true; setAtBottom(true); setQueueHeld(false); }, [sid]);
+
+  const stop = () => { setQueueHeld(true); onStop(); };
+  const resumeQueue = () => setQueueHeld(false);
+
+  // Solta o hold só na transição idle→turno (envio manual do usuário). Não dá pra
+  // soltar em "phase !== 'idle'" seco: no instante do stop a phase ainda é a do
+  // turno morrendo e o hold morreria junto.
+  const prevPhaseRef = useRef(phase);
+  useEffect(() => {
+    const prev = prevPhaseRef.current;
+    prevPhaseRef.current = phase;
+    if (queueHeld && prev === 'idle' && phase !== 'idle') setQueueHeld(false);
+  }, [phase, queueHeld]);
 
   const setQueuedFor = (updater: (q: string[]) => string[]) => {
     if (!sid) return;
@@ -119,13 +138,14 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
     // Turno começou: o item drenado virou turno de verdade — não é mais recuperável
     // pelo restore (limpa o await) e libera o flush do próximo.
     if (phase !== 'idle') { flushingRef.current = false; awaitingStartRef.current = null; return; }
+    if (queueHeld) return;
     if (flushingRef.current || queued.length === 0) return;
     flushingRef.current = true;
     const [next, ...rest] = queued;
     awaitingStartRef.current = next;
     setQueuedFor(() => rest);
     onSend(next);
-  }, [phase, queued, onSend, sid, paused]);
+  }, [phase, queued, onSend, sid, paused, queueHeld]);
 
   // Id do prompt mais recente do usuário — alvo do botão "voltar ao meu prompt".
   const lastUserId = useMemo(() => {
@@ -202,7 +222,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
 
   return {
     scrollRef, atBottom, promptAbove, onScroll, scrollToBottom, scrollToLastPrompt,
-    queued, enqueue, clearQueue, cancelQueueAt, moveQueuedItem, fullLoaded, setFullLoaded,
+    queued, enqueue, clearQueue, cancelQueueAt, moveQueuedItem, queueHeld, stop, resumeQueue, fullLoaded, setFullLoaded,
     streaming, disabled, isEmpty,
     sentHistory, modelLabel, labelFor,
     planPending, pendingQuestion, failed, retryLast, bannerConfirm,

@@ -1,10 +1,10 @@
-// Teto do composer: cresce com o conteúdo até ~40% da viewport (como ChatGPT/Claude)
-// e só então rola por dentro — antes travava em 140px e um prompt grande escondia as
-// primeiras linhas. Clamp [160,420] pra não colar no topo em telas altas nem sumir
-// no mobile. Recalculado a cada chamada (cobre rotação/resize).
+// Teto do composer: cresce com o conteúdo até ~28% da viewport e depois rola por
+// dentro. Era 40%/420px — alto demais: comia o thread e engolia as afordâncias de
+// scroll. Clamp [120,260] pra não sumir no mobile nem dominar telas altas.
+// Recalculado a cada chamada (cobre rotação/resize).
 export const composerMaxH = (): number => {
   const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
-  return Math.min(Math.max(Math.round(vh * 0.4), 160), 420);
+  return Math.min(Math.max(Math.round(vh * 0.28), 120), 260);
 };
 
 export const fitHeight = (el: HTMLTextAreaElement) => {
