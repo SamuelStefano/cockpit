@@ -9,6 +9,7 @@ import { FinanceSummaryBar } from './pontos/FinanceSummaryBar';
 import { SyncBar } from './pontos/SyncBar';
 import { DflTree } from './pontos/DflTree';
 import { DflInvoices } from './pontos/DflInvoices';
+import { fmtPts } from './pontos/money';
 
 interface Props {
   connected: boolean;
@@ -45,7 +46,7 @@ export function Pontos(props: Props) {
             <h1 className="relative text-[13px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Pontos & Financeiro</h1>
             <div className="relative mt-1 flex items-baseline gap-2.5">
               <span className="bg-gradient-to-br from-orange-300 to-orange-500 bg-clip-text text-[44px] font-bold leading-none tabular-nums tracking-tight text-transparent drop-shadow-[0_2px_12px_rgba(249,115,22,0.25)]">
-                {totals ? totals.totalPoints : total}
+                {totals ? fmtPts(totals.totalPoints) : total}
               </span>
               <span className="pb-1 text-[12.5px] text-neutral-500">
                 {totals ? `pts no DFL · ${dflSnapshot!.projects.length} projetos` : `pts em ${points.length} ${points.length === 1 ? 'registro' : 'registros'}`}

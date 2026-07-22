@@ -8,6 +8,12 @@ export function brl(cents: number): string {
   return `${neg ? '-' : ''}R$ ${s},${c}`;
 }
 
+// Pontos com no máx. 1 casa, vírgula pt-BR: 491.38 → "491,4"; 20 → "20".
+export function fmtPts(n: number): string {
+  const r = Math.round(n * 10) / 10;
+  return Number.isInteger(r) ? String(r) : String(r).replace('.', ',');
+}
+
 // "2026-07" → "jul/26". Mês inválido cai no texto cru.
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 export function refMonth(ref: string): string {
