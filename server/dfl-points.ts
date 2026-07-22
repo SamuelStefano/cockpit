@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type {
   DflPointsSnapshot, DflProjectNode, DflEpicNode, DflDeliveryNode, DflTaskNode,
-  DflInvoice, DflTotals, DflTaskStatus,
+  DflInvoice, DflInvoiceItem, DflTotals, DflTaskStatus,
 } from '../shared/protocol';
 
 // Snapshot financeiro do DFL. A verdade é o DFL (work + payments); um sync roda
@@ -34,7 +34,7 @@ export interface DflRawInput {
   epics: { id: string; name: string; project_id: string | null; status: string; created_at?: string | null }[];
   projects: { id: string; name: string }[];
   invoices: { id: string; reference_month: string; status: string; total_points: number | null; total_amount_cents: number | null; paid_at: string | null; transaction_id: string | null }[];
-  invoiceItems: { invoice_id: string; source_id: string; points: number | null; amount_cents: number | null }[];
+  invoiceItems: { invoice_id: string; source_id: string; points: number | null; amount_cents: number | null; title?: string | null }[];
 }
 
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
@@ -51,11 +51,16 @@ export function foldDflTree(input: DflRawInput, syncedAt: number): DflPointsSnap
   const invById = new Map(input.invoices.map((i) => [i.id, i]));
 
   // task.id -> valor pago (cents) e pontos faturados, a partir dos itens de invoices pagas.
+  // itemsByInvoice: linhas de CADA fatura (paga ou não) pra o detalhe expansível na UI.
   const paidCentsByTask = new Map<string, number>();
+  const itemsByInvoice = new Map<string, DflInvoiceItem[]>();
   for (const it of input.invoiceItems) {
     const inv = invById.get(it.invoice_id);
-    if (!inv || inv.status !== 'paid') continue;
-    paidCentsByTask.set(it.source_id, (paidCentsByTask.get(it.source_id) ?? 0) + num(it.amount_cents));
+    if (!inv) continue;
+    if (inv.status === 'paid') paidCentsByTask.set(it.source_id, (paidCentsByTask.get(it.source_id) ?? 0) + num(it.amount_cents));
+    const arr = itemsByInvoice.get(it.invoice_id) ?? [];
+    arr.push({ title: it.title ?? 'Item', points: num(it.points), amountCents: num(it.amount_cents) });
+    itemsByInvoice.set(it.invoice_id, arr);
   }
 
   const deliveryById = new Map(input.deliveries.map((d) => [d.id, d]));
@@ -148,7 +153,7 @@ export function foldDflTree(input: DflRawInput, syncedAt: number): DflPointsSnap
   projectNodes.sort((a, b) => b.points - a.points);
 
   const invoices: DflInvoice[] = input.invoices
-    .map((i) => ({ id: i.id, referenceMonth: i.reference_month, status: i.status, totalPoints: num(i.total_points), totalAmountCents: num(i.total_amount_cents), paidAt: i.paid_at, transactionId: i.transaction_id }))
+    .map((i) => ({ id: i.id, referenceMonth: i.reference_month, status: i.status, totalPoints: num(i.total_points), totalAmountCents: num(i.total_amount_cents), paidAt: i.paid_at, transactionId: i.transaction_id, items: (itemsByInvoice.get(i.id) ?? []).sort((a, b) => b.points - a.points) }))
     .sort((a, b) => (a.referenceMonth < b.referenceMonth ? 1 : a.referenceMonth > b.referenceMonth ? -1 : 0));
 
   const totals: DflTotals = {

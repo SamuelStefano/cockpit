@@ -357,6 +357,11 @@ export interface DflProjectNode {
   points: number;
   amountCents: number;
 }
+export interface DflInvoiceItem {
+  title: string;
+  points: number;
+  amountCents: number;
+}
 export interface DflInvoice {
   id: string;
   referenceMonth: string;
@@ -365,6 +370,7 @@ export interface DflInvoice {
   totalAmountCents: number;
   paidAt?: string | null;
   transactionId?: string | null;
+  items: DflInvoiceItem[];   // linhas da fatura (source = task); pra detalhe expansível
 }
 export interface DflTotals {
   paidPoints: number;
