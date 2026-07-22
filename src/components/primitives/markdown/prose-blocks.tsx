@@ -19,10 +19,13 @@ export function proseBlocks(md: string, keyBase: string, caret: boolean): ReactN
 
     if (node.kind === 'heading') {
       const level = node.level;
-      const cls = level === 1 ? 'text-[17px] font-semibold text-neutral-100'
-        : level === 2 ? 'text-[15px] font-semibold text-neutral-100'
-        : level === 3 ? 'text-[14px] font-semibold text-neutral-200'
-        : 'text-[13px] font-semibold uppercase tracking-wide text-neutral-400';
+      // pt-* dá respiro ACIMA do heading (mais que o space-y do bloco) pra a seção
+      // se destacar como tópico. Tamanhos ficam acima do corpo (15.5px) — senão
+      // ##/### viram texto meio-negrito e o doc "perde os tópicos".
+      const cls = level === 1 ? 'pt-2 text-[20px] font-semibold text-neutral-50'
+        : level === 2 ? 'pt-2 text-[17px] font-semibold text-neutral-100'
+        : level === 3 ? 'pt-1 text-[16px] font-semibold text-neutral-200'
+        : 'pt-1 text-[12.5px] font-semibold uppercase tracking-wide text-neutral-400';
       return React.createElement(
         `h${level}`,
         { key: k, id: headingSlug(node.text), className: `scroll-mt-4 ${cls}` },
