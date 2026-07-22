@@ -3,6 +3,8 @@ import type { PointsEntry, DflPointsSnapshot } from '../../shared/protocol';
 import { Button, Icon, EmptyState, Skeleton, Tabs } from '../components/primitives';
 import { usePontos } from './pontos/usePontos';
 import { useDflPontos } from './pontos/useDflPontos';
+import { usePontosControlsState, PontosControlsProvider } from './pontos/pontosControls';
+import { recomputeTotals } from './pontos/pontosPrefs';
 import { PointsForm } from './pontos/PointsForm';
 import { PointsCard } from './pontos/PointsCard';
 import { FinanceSummaryBar } from './pontos/FinanceSummaryBar';
@@ -34,10 +36,14 @@ export function Pontos(props: Props) {
   const { connected, points, total, loaded, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync } = props;
   const { now, glowing, add, correct, note, remove } = usePontos(props);
   const { tab, setTab, hasDfl } = useDflPontos({ connected, snapshot: dflSnapshot, onDflGet });
+  const controls = usePontosControlsState();
   const [adding, setAdding] = useState(false);
-  const totals = dflSnapshot?.totals;
+  const projects = dflSnapshot?.projects ?? [];
+  const recomputed = dflSnapshot ? recomputeTotals(projects, controls.excluded) : null;
+  const totals = recomputed?.totals ?? dflSnapshot?.totals;
 
   return (
+    <PontosControlsProvider value={controls}>
     <div className="scroll-thin flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-5 sm:px-6">
       <div className="mx-auto w-full max-w-3xl">
         <header className="mb-4">
@@ -56,7 +62,7 @@ export function Pontos(props: Props) {
         </header>
 
         {tab !== 'ledger' && <SyncBar snapshot={dflSnapshot} syncing={dflSyncing} now={now} onSync={onDflSync} />}
-        {tab !== 'ledger' && totals && <FinanceSummaryBar totals={totals} />}
+        {tab !== 'ledger' && totals && <FinanceSummaryBar totals={totals} offPoints={recomputed?.offPoints ?? 0} offAmountCents={recomputed?.offAmountCents ?? 0} />}
 
         <Tabs className="mb-4" active={tab} onChange={setTab} items={[
           { id: 'arvore', label: 'Árvore', icon: 'grip', count: dflSnapshot?.projects.length },
@@ -67,7 +73,7 @@ export function Pontos(props: Props) {
         {tab === 'arvore' && (
           !dflLoaded && connected
             ? <TreeSkeleton />
-            : <DflTree projects={dflSnapshot?.projects ?? []} />
+            : <DflTree projects={projects} />
         )}
 
         {tab === 'faturas' && <DflInvoices invoices={dflSnapshot?.invoices ?? []} />}
@@ -99,6 +105,7 @@ export function Pontos(props: Props) {
         )}
       </div>
     </div>
+    </PontosControlsProvider>
   );
 }
 
