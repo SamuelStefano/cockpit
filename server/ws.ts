@@ -14,6 +14,7 @@ import { probeSlashCommands } from './ws/slash-probe';
 import { serveConnection } from './ws/serve-connection';
 import { startSessionsWatch } from './sessions/watch';
 import { startPointsWatch } from './points-watch';
+import { startDflPointsWatch } from './dfl-points-watch';
 
 export { runStats, killAllRuns } from './ws/runs';
 
@@ -71,6 +72,7 @@ export function attachWs(server: Server) {
   startModelsLoop(hasClients);
   startSessionsWatch(hasClients);
   startPointsWatch(hasClients);
+  startDflPointsWatch();
   probeSlashCommands();
   startCronLoop(fireCron); // agendador: dispara prompts agendados (turnos autônomos)
   startRunReaper(); // mata turno travado ("garimpando" eterno) → UI cai pra idle e a fila drena

@@ -24,4 +24,11 @@ describe('authorize', () => {
     expect(authorize('student', 'totally-new-msg' as never)).toBe(false);
     expect(authorize('admin', 'totally-new-msg' as never)).toBe(true);
   });
+
+  it('financeiro DFL é admin-only: student negado, admin liberado', () => {
+    for (const t of ['points-dfl-get', 'points-dfl-sync'] as const) {
+      expect(authorize('student', t)).toBe(false);
+      expect(authorize('admin', t)).toBe(true);
+    }
+  });
 });

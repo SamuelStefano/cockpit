@@ -77,6 +77,15 @@ export function useChatInput(args: UseChatInputArgs) {
       if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
     });
   };
+  // Draft que chega de FORA do grow (restaurado no refresh, troca de sessão,
+  // ditado): o textarea ficava em 1 linha escondendo o fim do texto. Ajusta a
+  // altura e rola pro fim; digitação normal não passa aqui (composer focado).
+  useEffect(() => {
+    const el = taRef.current;
+    if (!el || document.activeElement === el) return;
+    fitHeight(el);
+    el.scrollTop = el.scrollHeight;
+  }, [value]);
   useEffect(() => {
     if (focusSignal === 0) return;
     const el = taRef.current;

@@ -86,7 +86,7 @@ export interface ChatPanelProps {
 }
 
 export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, followups, onDismissFollowups, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onRename, onOpenFull, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, quotaPaused = false, quotaResetsAt = null }: ChatPanelProps) {
-  const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, paused: quotaPaused });
+  const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, onStop, paused: quotaPaused });
   // Stats AO VIVO do turno (estilo terminal): tokens gastos + tempo decorrido,
   // enquanto o turno roda. Some no `done` (phase volta a idle).
   const live = phase === 'thinking' || phase === 'streaming' ? { tokens: liveTurnTokens ?? 0, startedAt: turnStartedAt } : undefined;
@@ -131,6 +131,10 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
 
       {!claudeReady && <ClaudeAuthBanner onTerminal={onTerminal} />}
 
+      {/* Wrapper relativo: as afordâncias de scroll ancoram no fim da ÁREA DE
+          SCROLL, não do painel — antes (bottom fixo no painel) um composer alto
+          engolia os botões pra dentro do input. */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
       <div ref={c.scrollRef} onScroll={c.onScroll} className="print-thread scroll-thin flex-1 overflow-y-auto">
         {c.isEmpty && phase === 'idle' ? (
           <ChatEmpty onPrompt={onPrompt} />
@@ -146,7 +150,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
       </div>
 
       {!c.isEmpty && !c.atBottom && (
-        <div className="fade-up absolute bottom-[84px] left-1/2 z-20 flex -translate-x-1/2 items-center gap-2">
+        <div className="fade-up absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2">
           {c.promptAbove && (
             <button
               onClick={c.scrollToLastPrompt}
@@ -167,6 +171,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
           )}
         </div>
       )}
+      </div>
 
       {trayTodos && <TaskTray todos={trayTodos} />}
 
@@ -178,13 +183,13 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
 
       <TurnBanners phase={phase} failed={c.failed} planPending={c.planPending} pendingQuestion={c.pendingQuestion} queuedCount={c.queued.length} lastEnd={lastEnd} retryLast={c.retryLast} onSend={onSend} />
 
-      <ChatInput disabled={c.disabled} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
+      <ChatInput disabled={c.disabled} onSend={onSend} onStop={c.stop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
         caps={caps} bypass={bypass} setBypass={setBypass}
         model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels}
         effort={effort} setEffort={setEffort}
         skills={skills} selectedSkills={selectedSkills} setSelectedSkills={setSelectedSkills} mcpServers={mcpServers} selectedMcps={selectedMcps} setSelectedMcps={setSelectedMcps} slashCommands={slashCommands}
         attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} focusSignal={focusSignal}
-        queued={c.queued} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
+        queued={c.queued} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onMoveQueued={c.moveQueuedItem} queueHeld={c.queueHeld} onResumeQueue={c.resumeQueue} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
         paused={quotaPaused} quotaResetsAt={quotaResetsAt} />
 
       {attPreview && onAttClose && <AttachmentModal att={attPreview} onClose={onAttClose} />}
