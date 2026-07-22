@@ -15,6 +15,7 @@ const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   'send', 'stop', 'ping', 'list', 'sync', 'open', 'open-full', 'search',
   'ctx-list', 'ctx-open', 'skill-list', 'skill-open', 'usage-list', 'upload', 'upload-chunk', 'att-open',
   'refresh-models', 'points-get',
+  'queue-add', 'queue-remove', 'queue-move', 'queue-clear', 'queue-get',
 ]);
 
 export function authorize(role: Role, t: ClientMsg['t']): boolean {

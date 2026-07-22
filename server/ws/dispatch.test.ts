@@ -58,10 +58,11 @@ describe('send routing (the #130 role seam)', () => {
     const args = runs.startRun.mock.calls[0];
     expect(args[0]).toBe(ws);
     expect(args[1]).toBe('k1');
-    expect(args.at(-4)).toBe('admin'); // role reaches a engine (effort é o último arg agora)
-    expect(args.at(-3)).toEqual([]); // resolved skill-deny rules
-    expect(args.at(-2)).toBeUndefined(); // mcps: nenhum selecionado neste msg
-    expect(args.at(-1)).toBeUndefined(); // effort: não enviado neste msg
+    expect(args.at(-5)).toBe('admin'); // role reaches a engine
+    expect(args.at(-4)).toEqual([]); // resolved skill-deny rules
+    expect(args.at(-3)).toBeUndefined(); // mcps: nenhum selecionado neste msg
+    expect(args.at(-2)).toBeUndefined(); // effort: não enviado neste msg
+    expect(args.at(-1)).toBe(false); // auto: send manual
   });
 
   it('routes a BUSY session to routeSend (triage), also threading the role', async () => {

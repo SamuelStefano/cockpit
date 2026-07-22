@@ -10,7 +10,7 @@ import { serveConnection } from './ws/serve-connection';
 import { setClientSource, broadcast } from './ws/broadcast';
 import { mcpServerDefsSync, claudeReady } from './admin-ops';
 import { getSlashCommands } from './ws/slash';
-import { killAllRuns, threads } from './ws/runs';
+import { killAllRuns, threads, startParkedDrainer, startRunReaper } from './ws/runs';
 import { startModelsLoop, getLastModels } from './ws/models';
 import { startPlanUsageLoop, getLastPlanUsage, requestPlanUsageRefresh } from './ws/usage-plan';
 import { getLastRate } from './ws/rate';
@@ -262,6 +262,16 @@ export function runAgent(relayUrl: string): void {
   startSessionsWatch(hasClients);
   startPointsWatch(hasClients);
   startDflPointsWatch();
+  // Drainer da fila ESTACIONADA (overnight/quota-out): SÓ o agente liga (a trava
+  // drainerEnabled em runs.ts evita dreno dobrado com o index/loopback). Roda
+  // sem depender de browser aberto — é justamente o ponto: enfileirar à noite e
+  // acordar com tudo drenado quando a quota voltou.
+  startParkedDrainer();
+  // Reaper no agente também: um item drenado que trava mudo ("garimpando" eterno)
+  // deixaria a sessão ocupada pra sempre e travaria o resto da fila overnight. No
+  // modo listen isto roda no attachWs; no dial (agente) não rodava — sem ele o
+  // dreno automático não é robusto sem ninguém olhando.
+  startRunReaper();
   // Backstop relay-agnóstico: se o relay não emitir 'browsers-present' (versão
   // antiga), a reemissão instantânea não dispara — rebroadcasta mcp-servers/slash
   // periodicamente pra o seletor de MCP nunca ficar vazio num browser tardio.

@@ -8,6 +8,7 @@ import { emitTool, closeTool } from './tools';
 import { getLastRate } from './rate';
 import { parseTaskNotification, registerNotify } from './task-notify';
 import { threads, type Thread } from './runs';
+import { awaitingAnswer } from './awaiting';
 
 // Tradução evento NDJSON -> ServerMsg (squad C2/H1: tool por id de correlação).
 export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
@@ -84,6 +85,9 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       if (Array.isArray(content)) {
         for (const c of content) {
           if (c?.type === 'tool_use') { emitTool(thread, sessionKey, c, 'running'); continue; }
+          // Artefato do --resume pós-AskUserQuestion (mesmo filtro do parse.ts):
+          // não vira delta ao vivo — seria a "bolha fantasma".
+          if (c?.type === 'text' && c.text === 'No response requested.') continue;
           // Paridade: text/thinking que chegam SÓ no evento `assistant` final (sem
           // deltas de stream — bloco curto, ou --include-partial-messages não cobriu)
           // eram perdidos ao vivo. Emite o sufixo ainda não mostrado (includes()
@@ -140,6 +144,7 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       if (!thread.stopped && contentHasQuestion(content)) {
         thread.stopped = true;
         thread.questioned = true;
+        awaitingAnswer.add(sessionKey);
         thread.handle.kill();
       }
       return;

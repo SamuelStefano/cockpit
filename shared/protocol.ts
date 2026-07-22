@@ -180,6 +180,12 @@ export interface PlanUsage {
   resetsAt: number | null;  // epoch ms do reset da janela de 5h
 }
 
+// Fila ESTACIONADA (overnight/quota-out): prompt que o usuário enfileirou pra
+// rodar "quando der" — o drainer no servidor dispara sozinho quando a sessão fica
+// ociosa E a quota volta, sem depender do browser aberto. Projeção enviada ao
+// cliente: só o necessário pra a UI listar/gerenciar (params server-only não vazam).
+export interface ParkedView { sessionKey: string; id: string; text: string; at: number }
+
 // --- WebSocket protocol ----------------------------------------------------
 
 // Modo de permissão exposto na UI. 'plan' = só planeja (nada executa);
@@ -393,7 +399,10 @@ export type ClientMsg =
   // skills = ids das skills SELECIONADAS p/ este prompt (subconjunto de SkillMeta.id).
   // Vazio/ausente = todas ativas (default fail-open). O backend nega via permission
   // rule as NÃO-selecionadas (--disallowedTools Skill(id)); ver buildArgs.
-  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; msgId?: string; mode?: PermMode; model?: string; effort?: Effort; maxBudgetUsd?: number; bypass?: boolean; skills?: string[]; mcps?: string[] }
+  // auto = envio disparado por automação do cliente (flush de fila), não por ação
+  // direta do usuário: o servidor estaciona autos enquanto aguarda resposta de
+  // AskUserQuestion, senão o flush rouba o card de escolha.
+  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; msgId?: string; mode?: PermMode; model?: string; effort?: Effort; maxBudgetUsd?: number; bypass?: boolean; skills?: string[]; mcps?: string[]; auto?: boolean }
   | { t: 'accounts-list' }
   | { t: 'set-admin'; accountId: string; admin: boolean }
   | { t: 'stop'; sessionKey: string }
@@ -462,7 +471,15 @@ export type ClientMsg =
   | { t: 'graph-open'; id: string }
   | { t: 'graph-query'; id: string; question: string; budget?: number }
   | { t: 'graph-node-op'; id: string; op: 'explain' | 'affected' | 'path'; a: string; b?: string }
-  | { t: 'graph-delete'; id: string };
+  | { t: 'graph-delete'; id: string }
+  // Fila estacionada (overnight): mesma carga do 'send', mas o servidor persiste e
+  // o drainer dispara quando a sessão fica ociosa E a quota volta. queue-get pede o
+  // snapshot atual; add/remove/move/clear gerenciam a fila.
+  | { t: 'queue-add'; sessionKey: string; sessionId?: string; text: string; mode?: PermMode; model?: string; effort?: Effort; maxBudgetUsd?: number; bypass?: boolean; skills?: string[]; mcps?: string[] }
+  | { t: 'queue-remove'; sessionKey: string; id: string }
+  | { t: 'queue-move'; sessionKey: string; id: string; dir: -1 | 1 }
+  | { t: 'queue-clear'; sessionKey: string }
+  | { t: 'queue-get' };
 
 // Capabilities da conexão (DR-011). role = papel do ator (hoje sempre admin em
 // loopback; Fase 2 vem do token). canBypass = se o servidor permite o toggle de
@@ -547,4 +564,5 @@ export type ServerMsg =
   | { t: 'done'; sessionKey: string; sessionId: string; costUsd?: number; durationMs?: number; numTurns?: number; turnTokens?: number; inputTokens?: number; outputTokens?: number; endReason?: string; model?: string; stopped?: boolean }
   // Tópicos de continuação sugeridos pós-turno (chips selecionáveis, estilo ChatGPT).
   | { t: 'suggestions'; sessionKey: string; items: string[] }
+  | { t: 'queue'; items: ParkedView[] }
   | { t: 'error'; sessionKey?: string; message: string };
