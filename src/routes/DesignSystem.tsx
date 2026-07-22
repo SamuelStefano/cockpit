@@ -1,4 +1,5 @@
-import { Button, EmptyState, Badge, Input, toast } from '../components/primitives';
+import { useState } from 'react';
+import { Button, EmptyState, Badge, Input, toast, Stat, ProgressBar, Tabs } from '../components/primitives';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -19,12 +20,13 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 export function DesignSystem() {
+  const [tab, setTab] = useState<'arvore' | 'faturas' | 'ledger'>('arvore');
   return (
     <div className="scroll-thin h-full overflow-y-auto bg-neutral-950 px-8 py-8">
       <div className="mx-auto flex max-w-3xl flex-col gap-8">
         <header>
           <h2 className="text-[20px] font-semibold text-neutral-100">Design System</h2>
-          <p className="mt-1 text-[13px] text-neutral-500">Primitivos do Deck — Button, Input, Badge, Toast, EmptyState e tokens.</p>
+          <p className="mt-1 text-[13px] text-neutral-500">Primitivos do Deck — Button, Input, Badge, Stat, ProgressBar, Tabs, Toast, EmptyState e tokens.</p>
         </header>
 
         <Section title="Button — variantes">
@@ -77,6 +79,35 @@ export function DesignSystem() {
               Com desfazer
             </Button>
           </Row>
+        </Section>
+
+        <Section title="Stat">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <Stat label="Pago" value="274 pts" sub="R$ 20.567,50" icon="check" tone="green" />
+            <Stat label="Em aberto" value="197 pts" sub="R$ 12.417,23" icon="clock" tone="orange" />
+            <Stat label="A fazer" value="20 pts" sub="—" icon="square" tone="neutral" />
+          </div>
+        </Section>
+
+        <Section title="ProgressBar">
+          <Row label="segmentos">
+            <div className="w-full">
+              <ProgressBar segments={[
+                { value: 274, tone: 'green', label: 'pago' },
+                { value: 197, tone: 'orange', label: 'aberto' },
+                { value: 20, tone: 'neutral', label: 'a fazer' },
+              ]} />
+            </div>
+          </Row>
+        </Section>
+
+        <Section title="Tabs">
+          <Tabs items={[
+            { id: 'arvore', label: 'Árvore', icon: 'grip', count: 11 },
+            { id: 'faturas', label: 'Faturas', icon: 'file', count: 13 },
+            { id: 'ledger', label: 'Ledger', icon: 'star' },
+          ]} active={tab} onChange={setTab} />
+          <p className="mt-3 text-[12px] text-neutral-500">Aba ativa: <span className="text-orange-300">{tab}</span></p>
         </Section>
 
         <Section title="EmptyState">

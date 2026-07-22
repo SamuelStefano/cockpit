@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Session, Message, Block, ToolTodo } from './data/mock';
-import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth, Caps, PlanUsage, AccountSummary, Cron, GraphMeta, GraphData, PointsEntry } from '../shared/protocol';
+import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth, Caps, PlanUsage, AccountSummary, Cron, GraphMeta, GraphData, PointsEntry, DflPointsSnapshot } from '../shared/protocol';
 import { loadPref, savePref, setPref } from './lib/persist';
 import { SUPABASE_ENABLED } from './lib/supabase';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
@@ -115,6 +115,11 @@ export interface Cockpit {
   onPointsCorrect: (entryId: string, points: number) => void;
   onPointsNote: (entryId: string, description: string) => void;
   onPointsDelete: (entryId: string) => void;
+  dflSnapshot: DflPointsSnapshot | null;
+  dflLoaded: boolean;
+  dflSyncing: boolean;
+  onDflGet: () => void;
+  onDflSync: () => void;
   skills: SkillMeta[];
   skillsLoaded: boolean;
   openSkill: SkillDoc | null;
@@ -215,6 +220,9 @@ export function useCockpit(): Cockpit {
   const [points, setPoints] = useState<PointsEntry[]>([]);
   const [pointsTotal, setPointsTotal] = useState(0);
   const [pointsLoaded, setPointsLoaded] = useState(false);
+  const [dflSnapshot, setDflSnapshot] = useState<DflPointsSnapshot | null>(null);
+  const [dflLoaded, setDflLoaded] = useState(false);
+  const [dflSyncing, setDflSyncing] = useState(false);
   const [openContext, setOpenContext] = useState<ContextDoc | null>(null);
   const [skills, setSkills] = useState<SkillMeta[]>([]);
   const [skillsLoaded, setSkillsLoaded] = useState(false);
@@ -788,6 +796,16 @@ export function useCockpit(): Cockpit {
         setPoints(msg.entries);
         setPointsTotal(msg.total);
         setPointsLoaded(true);
+        return;
+      }
+      case 'points-dfl': {
+        setDflSnapshot(msg.snapshot);
+        setDflLoaded(true);
+        setDflSyncing(false);
+        return;
+      }
+      case 'points-dfl-syncing': {
+        setDflSyncing(true);
         return;
       }
       case 'contexts': {
@@ -1370,6 +1388,8 @@ export function useCockpit(): Cockpit {
   const onPointsCorrect = useCallback((entryId: string, pts: number) => send({ t: 'points-correct', entryId, points: pts }), [send]);
   const onPointsNote = useCallback((entryId: string, description: string) => send({ t: 'points-note', entryId, description }), [send]);
   const onPointsDelete = useCallback((entryId: string) => send({ t: 'points-delete', entryId }), [send]);
+  const onDflGet = useCallback(() => send({ t: 'points-dfl-get' }), [send]);
+  const onDflSync = useCallback(() => send({ t: 'points-dfl-sync' }), [send]);
   const onCtxList = useCallback(() => send({ t: 'ctx-list' }), [send]);
   const onCtxOpen = useCallback((id: string) => send({ t: 'ctx-open', id }), [send]);
   const onCtxClose = useCallback(() => setOpenContext(null), []);
@@ -1674,5 +1694,5 @@ export function useCockpit(): Cockpit {
     savePref('modelBySession', keep);
   }, [modelBySession]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, cronsLoaded, onCronsGet, onCronSave, onCronDelete, onCronRun, points, pointsTotal, pointsLoaded, onPointsGet, onPointsAdd, onPointsCorrect, onPointsNote, onPointsDelete, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
+  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, cronsLoaded, onCronsGet, onCronSave, onCronDelete, onCronRun, points, pointsTotal, pointsLoaded, onPointsGet, onPointsAdd, onPointsCorrect, onPointsNote, onPointsDelete, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
 }

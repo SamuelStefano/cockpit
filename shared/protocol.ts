@@ -317,6 +317,72 @@ export interface PointsEntry {
   deleted: boolean;        // sempre false no payload visível (deletadas somem do fold)
 }
 
+// Snapshot financeiro do DFL (schemas work + payments), derivado FORA do request
+// path por um sync que roda dfl-auth+PostgREST e escreve ~/.cockpit/dfl-points.json
+// já filtrado só pro Samuel. O Deck só LÊ o arquivo — nenhum segredo cruza pro
+// cliente. Árvore projeto›épico›delivery›task; cada task classificada em
+// pago/aberto/a-fazer pela reconciliação com invoice_items (source_id = task.id).
+export type DflTaskStatus = 'paid' | 'open' | 'todo';
+export interface DflTaskNode {
+  id: string;
+  name: string;
+  points: number;
+  status: DflTaskStatus;   // DERIVADO: pago (faturado) / aberto (done, não faturado) / a-fazer
+  rawStatus: string;       // status cru do DFL (done, to_do, …)
+  amountCents: number;     // pago = do invoice_item; aberto/a-fazer = points × price_per_point
+  ledgerEntryId?: string;  // reconciliação futura com o ledger local (points.jsonl)
+}
+export interface DflDeliveryNode {
+  id: string;
+  name: string;
+  status: string;
+  pricePerPoint: number;
+  transactionId?: string;
+  tasks: DflTaskNode[];
+  points: number;
+  amountCents: number;
+}
+export interface DflEpicNode {
+  id: string;
+  name: string;
+  status: string;
+  deliveries: DflDeliveryNode[];
+  points: number;
+  amountCents: number;
+}
+export interface DflProjectNode {
+  id: string;
+  name: string;
+  epics: DflEpicNode[];
+  points: number;
+  amountCents: number;
+}
+export interface DflInvoice {
+  id: string;
+  referenceMonth: string;
+  status: string;
+  totalPoints: number;
+  totalAmountCents: number;
+  paidAt?: string | null;
+  transactionId?: string | null;
+}
+export interface DflTotals {
+  paidPoints: number;
+  paidAmountCents: number;
+  openPoints: number;
+  amountOpenCents: number;
+  todoPoints: number;
+  totalPoints: number;
+}
+export interface DflPointsSnapshot {
+  projects: DflProjectNode[];
+  invoices: DflInvoice[];
+  totals: DflTotals;
+  pricePerPoint: number;   // referência default (fallback quando delivery não tem)
+  syncedAt: number;        // epoch ms do último sync bem-sucedido
+  stale: boolean;          // DERIVADO no server: sync velho demais
+}
+
 export type ClientMsg =
   // skills = ids das skills SELECIONADAS p/ este prompt (subconjunto de SkillMeta.id).
   // Vazio/ausente = todas ativas (default fail-open). O backend nega via permission
@@ -350,6 +416,11 @@ export type ClientMsg =
   | { t: 'points-correct'; entryId: string; points: number }
   | { t: 'points-note'; entryId: string; description: string }
   | { t: 'points-delete'; entryId: string }
+  // Snapshot financeiro DFL: owner-only por construção. NÃO entra no STUDENT_ALLOWED
+  // (authz default-deny) e a resposta é UNICAST send(ws), nunca broadcast global —
+  // dado financeiro não pode fazer fan-out cego. sync = pede refresh ao vivo agora.
+  | { t: 'points-dfl-get' }
+  | { t: 'points-dfl-sync' }
   | { t: 'ctx-install'; slug: string; title: string; body: string }
   | { t: 'skill-install'; slug: string; title: string; body: string }
   | { t: 'crons-get' }
@@ -414,6 +485,9 @@ export type ServerMsg =
   | { t: 'contexts'; items: ContextMeta[] }
   | { t: 'notes'; text: string }
   | { t: 'points'; entries: PointsEntry[]; total: number }
+  // snapshot = null quando o sync ainda não rodou (nada em ~/.cockpit/dfl-points.json).
+  | { t: 'points-dfl'; snapshot: DflPointsSnapshot | null }
+  | { t: 'points-dfl-syncing' }
   | { t: 'crons'; items: Cron[] }
   | { t: 'context'; id: string; title: string; body: string }
   | { t: 'models'; models: ModelInfo[] }
