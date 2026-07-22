@@ -34,13 +34,13 @@ function setup(queue: ParkedView[], sessionId = 's1') {
 const pv = (id: string, text: string, at: number, sessionKey = 's1'): ParkedView => ({ sessionKey, id, text, at });
 
 describe('useChatPanel fila (server-backed)', () => {
-  it('deriva `queued` da prop queue filtrando pela sessão e ordenando por `at`', () => {
+  it('deriva `queued` da prop queue filtrando pela sessão, na ordem do array (ordem de envio do servidor)', () => {
     const { hook } = setup([
       pv('b', 'segundo', 200),
       pv('a', 'primeiro', 100),
       pv('x', 'outra sessão', 150, 's2'),
     ]);
-    expect(hook.result.current.queued).toEqual(['primeiro', 'segundo']);
+    expect(hook.result.current.queued).toEqual(['segundo', 'primeiro']);
   });
 
   it('enqueue delega pro queueAdd (servidor decide a sessão ativa)', () => {

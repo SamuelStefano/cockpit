@@ -14,7 +14,7 @@ import { liveTokens } from './cockpit/live-tokens';
 import { useTerminals, type TermApi } from './cockpit/useTerminals';
 import { addThumb, shouldRequestThumb } from './lib/att-thumb-cache';
 import { fileSig, isFreshUpload } from './components/chat/dedupe-uploads';
-import { attachmentTextBlock } from './lib/parse-attachments';
+import { encodeAttachments } from './lib/parse-attachments';
 
 export interface ContextDoc { id: string; title: string; body: string }
 export interface SkillDoc { id: string; name: string; body: string }
@@ -1275,9 +1275,7 @@ export function useCockpit(): Cockpit {
     // Anexos viram refs de path no início do prompt; o agente abre via Read. Pra
     // .docx (binário que o Read não parseia) o texto extraído vai inline logo após
     // o ref — o agente recebe o conteúdo direto e o chip segue no .docx original.
-    const wire = atts.length
-      ? atts.map((a) => (a.text ? `[anexo: ${a.path}]\n${attachmentTextBlock(a.name, a.text)}` : `[anexo: ${a.path}]`)).join('\n') + '\n\n' + text
-      : text;
+    const wire = encodeAttachments(atts, text);
     if (atts.length) { setAtts([]); }
     setInterrupted((p) => { if (!(key in p)) return p; const n = { ...p }; delete n[key]; return n; });
     // Add otimista (feedback instantâneo, sem round-trip). O servidor ecoa esta
@@ -1307,10 +1305,15 @@ export function useCockpit(): Cockpit {
   const queueAdd = useCallback((text: string) => {
     const key = activeRef.current;
     if (!key) return;
+    // Os anexos confirmados são amarrados A ESTE item da fila (mesmo encode do onSend)
+    // e limpos na hora — senão a imagem vazava pro primeiro prompt que drenasse.
+    const atts = attachmentsRef.current.filter((a) => !a.uploading);
+    const wire = encodeAttachments(atts, text);
+    if (atts.length) { setAtts([]); }
     const bypassWire = capsRef.current?.canBypass && bypassRef.current ? true : undefined;
     const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
     const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
-    send({ t: 'queue-add', sessionKey: key, sessionId: resumeId.current[key], text, mode: modeRef.current, model: modelBySessionRef.current[key] ?? defaultModelRef.current, effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
+    send({ t: 'queue-add', sessionKey: key, sessionId: resumeId.current[key], text: wire, mode: modeRef.current, model: modelBySessionRef.current[key] ?? defaultModelRef.current, effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
   }, [send]);
   const queueRemove = useCallback((sessionKey: string, id: string) => { send({ t: 'queue-remove', sessionKey, id }); }, [send]);
   const queueMove = useCallback((sessionKey: string, id: string, dir: -1 | 1) => { send({ t: 'queue-move', sessionKey, id, dir }); }, [send]);

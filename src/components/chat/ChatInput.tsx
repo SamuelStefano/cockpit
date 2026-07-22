@@ -41,6 +41,7 @@ interface ChatInputProps {
   onRemoveAttachment: (path: string) => void;
   focusSignal: number;
   queued: string[];
+  queuedAtts?: number[];
   onQueue: (text: string) => void;
   onCancelQueueAt: (i: number) => void;
   onMoveQueued: (i: number, dir: -1 | 1) => void;
@@ -55,7 +56,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, queued, onCancelQueueAt, onMoveQueued, queueHeld = false, onResumeQueue, paused = false, quotaResetsAt } = props;
+  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, queued, queuedAtts, onCancelQueueAt, onMoveQueued, queueHeld = false, onResumeQueue, paused = false, quotaResetsAt } = props;
   const hasAtt = attachments.length > 0;
   const attUploading = attachments.some((a) => a.uploading);
   const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
@@ -86,7 +87,7 @@ export function ChatInput(props: ChatInputProps) {
           </button>
         </div>
       )}
-      {queued.length > 0 && <QueuedBanner queued={queued} onCancelQueueAt={onCancelQueueAt} onMove={onMoveQueued} held={queueHeld} onResume={onResumeQueue} />}
+      {queued.length > 0 && <QueuedBanner queued={queued} queuedAtts={queuedAtts} onCancelQueueAt={onCancelQueueAt} onMove={onMoveQueued} held={queueHeld} onResume={onResumeQueue} />}
       {paused && (
         <div className="mb-2 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/[0.07] px-2.5 py-2 text-[12px] leading-snug text-red-200">
           <Icon name="clock" size={13} className="mt-0.5 shrink-0 text-red-400" />
@@ -152,7 +153,7 @@ export function ChatInput(props: ChatInputProps) {
         ) : (
           <button
             onClick={submit}
-            disabled={attUploading || (paused ? !value.trim() : (!value.trim() && !hasAtt))}
+            disabled={attUploading || (!value.trim() && !hasAtt)}
             title={attUploading ? 'Aguarde o anexo terminar de subir' : paused ? 'Enfileirar — envia sozinho quando os tokens resetarem' : undefined}
             className={`mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40
               ${attUploading

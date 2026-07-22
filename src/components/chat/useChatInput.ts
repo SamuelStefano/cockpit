@@ -127,8 +127,8 @@ export function useChatInput(args: UseChatInputArgs) {
     // sozinho quando a janela resetar — em vez de travar o composer e perder o texto.
     // Os anexos pendentes (attachmentsRef) embarcam no próximo envio real.
     if (disabled || paused) {
-      if (!v) return;
-      recordPrompt(v);
+      if (!v && !hasAtt) return;
+      if (v) recordPrompt(v);
       onQueue(v); setValue('');
     } else {
       if (!v && !hasAtt) return;
