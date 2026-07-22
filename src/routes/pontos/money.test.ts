@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { brl, refMonth } from './money';
+import { brl, refMonth, fmtPts } from './money';
+
+describe('fmtPts', () => {
+  it('inteiro fica sem casa', () => {
+    expect(fmtPts(20)).toBe('20');
+    expect(fmtPts(0)).toBe('0');
+  });
+  it('fração arredonda pra 1 casa com vírgula', () => {
+    expect(fmtPts(491.38)).toBe('491,4');
+    expect(fmtPts(274.23)).toBe('274,2');
+    expect(fmtPts(1.5)).toBe('1,5');
+  });
+});
 
 describe('brl', () => {
   it('formata centavos em pt-BR', () => {
