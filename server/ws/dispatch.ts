@@ -6,6 +6,9 @@ import { searchSessions } from '../sessions/search';
 import { listContexts, readContext, installContext } from '../contexts';
 import { getNotes, saveNotes } from '../notes';
 import { readPoints, createEntry, correctPoints, noteEntry, deleteEntry } from '../points';
+import { readDflSnapshot } from '../dfl-points';
+import { registerFinanceClient } from './finance-clients';
+import { runDflSync } from '../dfl-sync-runner';
 import { getCrons, saveCron, deleteCron } from '../crons';
 import { fireCron } from './runs';
 import { listSkills, readSkill, resolveSkillDeny, installSkill } from '../skills';
@@ -196,6 +199,22 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       await deleteEntry(msg.entryId, 'user');
       const p = await readPoints();
       broadcast({ t: 'points', entries: p.entries, total: p.total });
+      return;
+    }
+    // Snapshot financeiro DFL: UNICAST (send), nunca broadcast. Só chega aqui quem
+    // passou pelo authorize (admin/root — points-dfl-* fora do STUDENT_ALLOWED).
+    // Registra o socket p/ receber PUSH quando o cron reescrever o arquivo.
+    case 'points-dfl-get': {
+      registerFinanceClient(ws);
+      send(ws, { t: 'points-dfl', snapshot: await readDflSnapshot() });
+      return;
+    }
+    // sync-now: dispara o fetcher como processo filho (token fora deste processo);
+    // o watcher empurra o resultado. Responde 'syncing' pra UI mostrar o estado.
+    case 'points-dfl-sync': {
+      registerFinanceClient(ws);
+      send(ws, { t: 'points-dfl-syncing' });
+      runDflSync().then((r) => { if (!r.ok) send(ws, { t: 'error', message: 'sync DFL falhou' }); }).catch(() => {});
       return;
     }
     case 'crons-get': {
