@@ -20,11 +20,18 @@ export function dflSnapshotFile(): string {
 export const STALE_MS = 35 * 60 * 1000;
 export const DEFAULT_PRICE_PER_POINT = 75;
 
+// Epics criados antes desta data são anteriores ao app de invoice — esse trabalho foi
+// pago fora do app. Uma task done-sem-invoice num epic legado conta como PAGA (estimada),
+// não aberta. Epic sem created_at (órfão) NÃO é legado: mantém o comportamento antigo.
+export const LEGACY_EPIC_CUTOFF = '2026-07-01';
+const isLegacyEpic = (createdAt?: string | null): boolean =>
+  typeof createdAt === 'string' && createdAt < LEGACY_EPIC_CUTOFF;
+
 // Linhas cruas do PostgREST (snake_case). O sync passa exatamente o que leu.
 export interface DflRawInput {
   tasks: { id: string; name: string; status: string; points: number | null; epic_id: string | null; delivery_id: string | null }[];
   deliveries: { id: string; name: string; epic_id: string | null; status: string; price_per_point: number | null; transaction_id: string | null }[];
-  epics: { id: string; name: string; project_id: string | null; status: string }[];
+  epics: { id: string; name: string; project_id: string | null; status: string; created_at?: string | null }[];
   projects: { id: string; name: string }[];
   invoices: { id: string; reference_month: string; status: string; total_points: number | null; total_amount_cents: number | null; paid_at: string | null; transaction_id: string | null }[];
   invoiceItems: { invoice_id: string; source_id: string; points: number | null; amount_cents: number | null }[];
@@ -75,6 +82,14 @@ export function foldDflTree(input: DflRawInput, syncedAt: number): DflPointsSnap
 
   for (const t of input.tasks) {
     const points = num(t.points);
+
+    const delId = t.delivery_id ?? NO_DELIVERY;
+    const del = t.delivery_id ? deliveryById.get(t.delivery_id) : undefined;
+    const epicId = del?.epic_id ?? t.epic_id ?? NO_EPIC;
+    const epic = epicId !== NO_EPIC ? epicById.get(epicId) : undefined;
+    const projId = epic?.project_id ?? NO_PROJECT;
+    const proj = projId !== NO_PROJECT ? projectById.get(projId) : undefined;
+
     const paidCents = paidCentsByTask.get(t.id);
     let status: DflTaskStatus;
     let amountCents: number;
@@ -83,21 +98,19 @@ export function foldDflTree(input: DflRawInput, syncedAt: number): DflPointsSnap
       amountCents = paidCents;
       paidPoints += points; paidAmountCents += paidCents;
     } else if (t.status === 'done') {
-      status = 'open';
       amountCents = Math.round(points * pricePerPoint(t.delivery_id) * 100);
-      openPoints += points; amountOpenCents += amountCents;
+      if (isLegacyEpic(epic?.created_at)) {
+        status = 'paid';
+        paidPoints += points; paidAmountCents += amountCents;
+      } else {
+        status = 'open';
+        openPoints += points; amountOpenCents += amountCents;
+      }
     } else {
       status = 'todo';
       amountCents = Math.round(points * pricePerPoint(t.delivery_id) * 100);
       todoPoints += points;
     }
-
-    const delId = t.delivery_id ?? NO_DELIVERY;
-    const del = t.delivery_id ? deliveryById.get(t.delivery_id) : undefined;
-    const epicId = del?.epic_id ?? t.epic_id ?? NO_EPIC;
-    const epic = epicId !== NO_EPIC ? epicById.get(epicId) : undefined;
-    const projId = epic?.project_id ?? NO_PROJECT;
-    const proj = projId !== NO_PROJECT ? projectById.get(projId) : undefined;
 
     let pAcc = projects.get(projId);
     if (!pAcc) { pAcc = { id: projId, name: proj?.name ?? 'Sem projeto', epics: new Map() }; projects.set(projId, pAcc); }
