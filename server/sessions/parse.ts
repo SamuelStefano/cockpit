@@ -425,6 +425,10 @@ export function recToMessage(r: Rec, results?: Map<string, ToolResultRec>): Mess
     return { id: r.uuid!, role: 'user', text: cleaned, ts };
   }
   if (r.message.role === 'assistant' && Array.isArray(content)) {
+    // Artefato do --resume pós-AskUserQuestion: o CLI injeta um assistant
+    // "No response requested." SEM isMeta — renderizava como bolha real do
+    // Claude logo depois da resposta do usuário (a "bolha fantasma").
+    if (content.length === 1 && (content[0] as any)?.type === 'text' && (content[0] as any).text === 'No response requested.') return null;
     const blocks: Block[] = [];
     for (const c of content as any[]) {
       if (c?.type === 'text' && c.text) blocks.push({ type: 'text', md: c.text });

@@ -14,7 +14,7 @@ interface Args {
   model: string;
   lastEnd?: string;
   paused?: boolean;
-  onSend: (text: string, modeOverride?: PermMode) => void;
+  onSend: (text: string, modeOverride?: PermMode, auto?: boolean) => void;
   onStop: () => void;
 }
 
@@ -135,6 +135,11 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
     if (paused) return;
     // Pergunta de escolha aguardando resposta: segura a fila pra não roubar o card.
     if (pendingQuestion) return;
+    // History ainda não carregado (reload/reconnect/2ª aba): `messages` vazio faz
+    // pendingQuestion computar false MESMO com pergunta pendente no JSONL — o flush
+    // disparava 1-2s depois do AskUserQuestion e consumia o card. Sessão real sem
+    // mensagens visíveis = estado desconhecido; espera o history chegar.
+    if (messages.length === 0 && !sid.startsWith('new-')) return;
     // Turno começou: o item drenado virou turno de verdade — não é mais recuperável
     // pelo restore (limpa o await) e libera o flush do próximo.
     if (phase !== 'idle') { flushingRef.current = false; awaitingStartRef.current = null; return; }
@@ -144,8 +149,10 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
     const [next, ...rest] = queued;
     awaitingStartRef.current = next;
     setQueuedFor(() => rest);
-    onSend(next);
-  }, [phase, queued, onSend, sid, paused, queueHeld]);
+    // auto=true: o servidor sabe que é flush de automação e estaciona se a sessão
+    // ainda aguarda resposta de AskUserQuestion (defesa server-side da mesma corrida).
+    onSend(next, undefined, true);
+  }, [phase, queued, onSend, sid, paused, pendingQuestion, messages.length, queueHeld]);
 
   // Id do prompt mais recente do usuário — alvo do botão "voltar ao meu prompt".
   const lastUserId = useMemo(() => {

@@ -387,7 +387,10 @@ export type ClientMsg =
   // skills = ids das skills SELECIONADAS p/ este prompt (subconjunto de SkillMeta.id).
   // Vazio/ausente = todas ativas (default fail-open). O backend nega via permission
   // rule as NÃO-selecionadas (--disallowedTools Skill(id)); ver buildArgs.
-  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; msgId?: string; mode?: PermMode; model?: string; effort?: Effort; maxBudgetUsd?: number; bypass?: boolean; skills?: string[]; mcps?: string[] }
+  // auto = envio disparado por automação do cliente (flush de fila), não por ação
+  // direta do usuário: o servidor estaciona autos enquanto aguarda resposta de
+  // AskUserQuestion, senão o flush rouba o card de escolha.
+  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; msgId?: string; mode?: PermMode; model?: string; effort?: Effort; maxBudgetUsd?: number; bypass?: boolean; skills?: string[]; mcps?: string[]; auto?: boolean }
   | { t: 'accounts-list' }
   | { t: 'set-admin'; accountId: string; admin: boolean }
   | { t: 'stop'; sessionKey: string }
