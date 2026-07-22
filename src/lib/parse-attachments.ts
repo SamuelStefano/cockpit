@@ -19,6 +19,18 @@ export function attachmentTextBlock(name: string, text: string): string {
   return `[anexo-texto: ${name}]\n${text}\n${TEXT_CLOSE}`;
 }
 
+// Codifica os anexos no wire (linhas `[anexo:]` + bloco de texto extraído) antes do
+// corpo. Fonte única do formato — onSend e a fila (queueAdd) usam a MESMA função pra
+// o anexo ficar amarrado ao prompt certo, não vazar pro próximo envio. Inverso de
+// parseAttachments.
+export function encodeAttachments(atts: { path: string; name: string; text?: string }[], text: string): string {
+  if (!atts.length) return text;
+  const head = atts
+    .map((a) => (a.text ? `[anexo: ${a.path}]\n${attachmentTextBlock(a.name, a.text)}` : `[anexo: ${a.path}]`))
+    .join('\n');
+  return `${head}\n\n${text}`;
+}
+
 // O servidor salva como `<ts base36>-<4 bytes hex>-<nome-original>`; mostramos o
 // nome original pro usuário reconhecer o arquivo. O ts é base36 (começa com
 // letra!), então o prefixo é [a-z0-9]+, não \d+ — a regex antiga nunca casava.

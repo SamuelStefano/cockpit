@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { prettyModel } from './toolbar.format';
 import type { Session, Message } from '../../data/mock';
 import type { PermMode, ModelInfo, ParkedView } from '../../../shared/protocol';
+import { parseAttachments } from '../../lib/parse-attachments';
 
 export type Phase = 'idle' | 'thinking' | 'streaming';
 
@@ -36,7 +37,11 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
     () => (sid ? queue.filter((q) => q.sessionKey === sid) : []),
     [queue, sid],
   );
-  const queued = useMemo(() => parked.map((p) => p.text), [parked]);
+  // O prompt estacionado carrega os anexos como linhas `[anexo:]` (amarrados a ELE).
+  // No banner mostramos só o corpo limpo + a contagem de anexos como badge.
+  const queuedParsed = useMemo(() => parked.map((p) => parseAttachments(p.text)), [parked]);
+  const queued = useMemo(() => queuedParsed.map((q) => q.body), [queuedParsed]);
+  const queuedAtts = useMemo(() => queuedParsed.map((q) => q.attachments.length), [queuedParsed]);
   useEffect(() => { setFullLoaded(false); pinnedRef.current = true; setAtBottom(true); }, [sid]);
 
   const enqueue = (text: string) => queueAdd(text);
@@ -149,7 +154,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
 
   return {
     scrollRef, atBottom, promptAbove, onScroll, scrollToBottom, scrollToLastPrompt,
-    queued, enqueue, clearQueue, cancelQueueAt, moveQueuedItem, fullLoaded, setFullLoaded,
+    queued, queuedAtts, enqueue, clearQueue, cancelQueueAt, moveQueuedItem, fullLoaded, setFullLoaded,
     streaming, disabled, isEmpty,
     sentHistory, modelLabel, labelFor,
     planPending, pendingQuestion, failed, retryLast, bannerConfirm,

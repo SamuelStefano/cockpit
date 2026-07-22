@@ -5,8 +5,9 @@ import { remapOpen } from './queued-open';
 // Fila do cliente: mensagens digitadas durante um turno, disparadas em ordem
 // quando a sessão libera. Cada item: ver completo (clique no texto), reordenar
 // (drena sempre do topo) e cancelar só ele. A fila é persistida por sessão no hook.
-export function QueuedBanner({ queued, onCancelQueueAt, onMove, held = false, onResume }: {
+export function QueuedBanner({ queued, queuedAtts, onCancelQueueAt, onMove, held = false, onResume }: {
   queued: string[];
+  queuedAtts?: number[];
   onCancelQueueAt: (i: number) => void;
   onMove: (i: number, dir: -1 | 1) => void;
   held?: boolean;
@@ -54,16 +55,22 @@ export function QueuedBanner({ queued, onCancelQueueAt, onMove, held = false, on
       <ul className="flex flex-col gap-1">
         {queued.map((text, i) => {
           const expanded = !!open[i];
+          const atts = queuedAtts?.[i] ?? 0;
           return (
             <li key={i} className={`flex items-start gap-1 rounded-md transition-colors duration-500 ${flash === i ? 'bg-orange-500/20' : ''}`}>
               <span className="mt-0.5 shrink-0 text-[10px] tabular-nums text-orange-400/50">{i + 1}.</span>
+              {atts > 0 && (
+                <span className="mt-0.5 flex shrink-0 items-center gap-0.5 text-[10px] tabular-nums text-orange-300/80" title={`${atts} anexo${atts > 1 ? 's' : ''} amarrado${atts > 1 ? 's' : ''} a este prompt`}>
+                  <Icon name="paperclip" size={10} />{atts > 1 ? atts : ''}
+                </span>
+              )}
               <button
                 type="button"
                 onClick={() => toggle(i)}
                 title={expanded ? 'Recolher' : 'Ver completo'}
-                className={`flex-1 rounded text-left text-[11.5px] leading-snug text-neutral-300 ${tokens.focusRing} ${expanded ? 'whitespace-pre-wrap break-words' : 'truncate'}`}
+                className={`flex-1 rounded text-left text-[11.5px] leading-snug ${tokens.focusRing} ${text ? 'text-neutral-300' : 'italic text-neutral-500'} ${expanded ? 'whitespace-pre-wrap break-words' : 'truncate'}`}
               >
-                {text}
+                {text || (atts > 0 ? 'anexo sem texto' : '')}
               </button>
               <div className="flex shrink-0 items-center">
                 <button onClick={() => move(i, -1)} disabled={i === 0} title="Subir na fila" className={iconBtn}>
