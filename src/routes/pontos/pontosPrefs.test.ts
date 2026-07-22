@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { recomputeTotals } from './pontosPrefs';
+import { recomputeTotals, sumDeliveries } from './pontosPrefs';
 import type { DflProjectNode } from '../../../shared/protocol';
 
 function tree(): DflProjectNode[] {
@@ -42,5 +42,25 @@ describe('recomputeTotals', () => {
     expect(r.totals.paidPoints).toBe(3);
     expect(r.totals.todoPoints).toBe(2);
     expect(r.totals.totalPoints).toBe(9);
+  });
+});
+
+describe('sumDeliveries', () => {
+  const projects: DflProjectNode[] = [{
+    id: 'p', name: 'P', points: 0, amountCents: 0,
+    epics: [{ id: 'e', name: 'E', status: '', points: 0, amountCents: 0, deliveries: [
+      { id: 'a', name: 'A', status: '', pricePerPoint: 75, points: 4, amountCents: 30000, tasks: [] },
+      { id: 'b', name: 'B', status: '', pricePerPoint: 75, points: 5, amountCents: 37500, tasks: [] },
+      { id: 'c', name: 'C', status: '', pricePerPoint: 75, points: 2, amountCents: 15000, tasks: [] },
+    ] }],
+  }];
+
+  it('soma só as selecionadas', () => {
+    const s = sumDeliveries(projects, new Set(['a', 'b']));
+    expect(s).toEqual({ count: 2, points: 9, amountCents: 67500 });
+  });
+
+  it('vazio quando nada selecionado', () => {
+    expect(sumDeliveries(projects, new Set())).toEqual({ count: 0, points: 0, amountCents: 0 });
   });
 });

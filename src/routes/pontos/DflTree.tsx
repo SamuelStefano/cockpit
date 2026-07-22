@@ -2,6 +2,8 @@ import { useState } from 'react';
 import type { DflProjectNode } from '../../../shared/protocol';
 import { Icon, EmptyState, ProgressBar } from '../../components/primitives';
 import { DflDelivery } from './DflDelivery';
+import { SelectionBar } from './SelectionBar';
+import { usePontosControls } from './pontosControls';
 import { brl, fmtPts } from './money';
 import { filterProjects, projectStatusPoints, redundantEpicHeader, type TreeFilter } from './treeFilter';
 
@@ -16,10 +18,12 @@ const FILTERS: { id: TreeFilter; label: string; on: string }[] = [
 // padrão (o resumo por chips basta); com filtro ativo abrem já expandidas.
 export function DflTree({ projects }: { projects: DflProjectNode[] }) {
   const [filter, setFilter] = useState<TreeFilter>('all');
+  const { selecting, setSelecting, clearSelected } = usePontosControls();
   if (!projects.length) {
     return <EmptyState icon="grip" title="Sem dados do DFL" description="Rode a sincronização pra puxar projetos, entregas e tarefas." />;
   }
   const shown = filterProjects(projects, filter);
+  const toggleSelecting = () => { setSelecting(!selecting); if (selecting) clearSelected(); };
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-1.5">
@@ -30,10 +34,16 @@ export function DflTree({ projects }: { projects: DflProjectNode[] }) {
             {f.label}
           </button>
         ))}
+        <button onClick={toggleSelecting}
+          className={`ml-auto rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+            selecting ? 'border-orange-500/40 bg-orange-500/15 text-orange-300' : 'border-neutral-800 bg-transparent text-neutral-500 hover:text-neutral-300'}`}>
+          {selecting ? 'concluir' : 'selecionar'}
+        </button>
       </div>
       {shown.length === 0
         ? <p className="py-8 text-center text-[12px] text-neutral-600">Nada com esse status.</p>
         : <div className="space-y-2.5">{shown.map((p) => <ProjectBlock key={p.id} project={p} expandAll={filter !== 'all'} />)}</div>}
+      {selecting && <SelectionBar projects={projects} />}
     </div>
   );
 }

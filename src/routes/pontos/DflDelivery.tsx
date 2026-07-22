@@ -11,13 +11,21 @@ import { usePontosControls } from './pontosControls';
 // do recebível (trabalho feito que ainda não pode ser faturado).
 export function DflDelivery({ delivery, defaultOpen = false }: { delivery: DflDeliveryNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
-  const { excluded, toggleExcluded } = usePontosControls();
+  const { excluded, toggleExcluded, selecting, selected, toggleSelected } = usePontosControls();
   const off = excluded.has(delivery.id);
+  const picked = selected.has(delivery.id);
   const c = deliveryCounts(delivery);
   const canToggle = c.open > 0;
   return (
-    <div className={`rounded-lg border bg-neutral-900/30 ${off ? 'border-neutral-800/50 opacity-55' : 'border-neutral-800/80'}`}>
+    <div className={`rounded-lg border bg-neutral-900/30 ${picked ? 'border-orange-500/40' : off ? 'border-neutral-800/50 opacity-55' : 'border-neutral-800/80'}`}>
       <div className="flex w-full items-center gap-2 px-2.5 py-2">
+        {selecting && (
+          <button onClick={() => toggleSelected(delivery.id)} title={picked ? 'Desmarcar' : 'Marcar'}
+            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition ${
+              picked ? 'border-orange-500 bg-orange-500 text-neutral-950' : 'border-neutral-600 text-transparent hover:border-neutral-400'}`}>
+            <Icon name="check" size={11} />
+          </button>
+        )}
         <button onClick={() => setOpen((v) => !v)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
           <Icon name={open ? 'chevronDown' : 'chevronRight'} size={12} className="shrink-0 text-neutral-600" />
           <span className={`min-w-0 flex-1 truncate text-[12.5px] ${off ? 'text-neutral-400 line-through' : 'text-neutral-200'}`}>{delivery.name}</span>
