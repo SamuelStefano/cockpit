@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { DflDeliveryNode } from '../../../shared/protocol';
 import { Badge, Icon } from '../../components/primitives';
-import { TaskRow } from './TaskRow';
+import { TaskCard } from './TaskCard';
 import { brl, fmtPts } from './money';
 import { deliveryCounts } from './treeFilter';
 import { usePontosControls } from './pontosControls';
@@ -49,10 +49,10 @@ export function DflDelivery({ delivery, defaultOpen = false }: { delivery: DflDe
         )}
       </div>
       {open && (
-        <div className="border-t border-neutral-800/60 px-2 py-1">
-          <div className="flex items-center justify-end px-2 py-1 text-[10.5px] tabular-nums text-neutral-600">{brl(delivery.pricePerPoint * 100)}/pt nesta delivery</div>
-          <div className="divide-y divide-neutral-800/40">
-            {delivery.tasks.map((t) => <TaskRow key={t.id} task={t} />)}
+        <div className="border-t border-neutral-800/60 px-2.5 pb-2.5 pt-1">
+          <div className="flex items-center justify-end py-1 text-[10.5px] tabular-nums text-neutral-600">{brl(delivery.pricePerPoint * 100)}/pt nesta delivery</div>
+          <div className="grid grid-cols-1 items-start gap-2 sm:grid-cols-2">
+            {delivery.tasks.map((t) => <TaskCard key={t.id} task={t} />)}
           </div>
         </div>
       )}
