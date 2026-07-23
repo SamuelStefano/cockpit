@@ -92,11 +92,11 @@ export function Pontos(props: Props) {
             </div>
             {adding && <PointsForm onAdd={add} onCancel={() => setAdding(false)} />}
             {!loaded && connected
-              ? <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[84px] w-full rounded-xl" />)}</div>
+              ? <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[132px] w-full rounded-xl" />)}</div>
               : points.length === 0
               ? <EmptyState icon="star" title="Nenhum ponto ainda"
                   description="Quando eu terminar uma task com pontuação, ela aparece aqui sozinha. Você também pode adicionar manualmente." />
-              : <div className="space-y-2">
+              : <div className="grid grid-cols-1 items-start gap-2.5 sm:grid-cols-2">
                   {points.map((e) => (
                     <PointsCard key={e.entryId} entry={e} now={now} glow={glowing.has(e.entryId)}
                       onCorrect={correct} onNote={note} onDelete={remove} />
