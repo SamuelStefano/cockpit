@@ -258,6 +258,10 @@ export function useCockpit(): Cockpit {
   const adminOpTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const attachmentsRef = useRef<Attachment[]>([]);
+  // Sessão de ORIGEM de cada upload em voo (clientId → sessionKey). O ack 'uploaded'
+  // pode chegar depois de trocar de sessão; sem isto o anexo caía na sessão ativa
+  // no momento (a imagem "vazava" pro chat aberto). Casa o ack de volta na origem.
+  const uploadOrigin = useRef<Map<string, string>>(new Map());
   // Assinaturas recém-enviadas: chokepoint único de dedup (todos os caminhos de
   // anexo passam por onUpload). Mata o print/foto que chega repetido virando 4 chips.
   const recentUploadSigs = useRef<Map<string, number>>(new Map());
@@ -902,11 +906,21 @@ export function useCockpit(): Cockpit {
       }
       case 'uploaded': {
         const real: Attachment = { name: msg.name, path: msg.path, text: msg.text, s3url: msg.s3url };
-        const cur = attachmentsRef.current;
-        // Reconcilia o chip otimista (uploading) pelo clientId — substitui no lugar
-        // em vez de duplicar. Sem clientId (upload via WS antigo) só anexa.
-        const idx = msg.clientId ? cur.findIndex((a) => a.clientId === msg.clientId) : -1;
-        setAtts(idx >= 0 ? cur.map((a, i) => (i === idx ? real : a)) : [...cur, real]);
+        const origin = msg.clientId ? uploadOrigin.current.get(msg.clientId) : undefined;
+        if (msg.clientId) uploadOrigin.current.delete(msg.clientId);
+        // O ack pode chegar quando o usuário já trocou de sessão (upload demora). O
+        // anexo pertence à sessão de ORIGEM do upload, não à ativa — senão a imagem
+        // "vaza" pro chat aberto no momento. Origem ativa (ou desconhecida): reconcilia
+        // o chip otimista in-place. Origem inativa: grava direto nos pendentes
+        // persistidos dela, pra reaparecer no composer certo quando o usuário voltar.
+        if (!origin || origin === activeRef.current) {
+          const cur = attachmentsRef.current;
+          const idx = msg.clientId ? cur.findIndex((a) => a.clientId === msg.clientId) : -1;
+          setAtts(idx >= 0 ? cur.map((a, i) => (i === idx ? real : a)) : [...cur, real]);
+        } else {
+          const prev = loadPref<Attachment[]>(`pendingAtts:${origin}`, []);
+          savePref(`pendingAtts:${origin}`, [...prev.filter((a) => a.path !== real.path), real]);
+        }
         return;
       }
       case 'attachment': {
@@ -1337,12 +1351,14 @@ export function useCockpit(): Cockpit {
     // paste/change, caminhos concorrentes) só sobe uma vez dentro da janela.
     if (!isFreshUpload(recentUploadSigs.current, fileSig(file), Date.now())) return;
     const clientId = newId('up');
+    uploadOrigin.current.set(clientId, key);
     // Chip otimista na hora (com spinner) — antes só aparecia DEPOIS do ack do
     // servidor, sem feedback durante o upload. O 'uploaded' reconcilia pelo clientId.
     setAtts([...attachmentsRef.current, { name: file.name, path: clientId, clientId, uploading: true }]);
     let done = false;
     const fail = (msg: string) => {
       if (done) return; done = true;
+      uploadOrigin.current.delete(clientId);
       setAtts(attachmentsRef.current.filter((a) => a.clientId !== clientId));
       updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: msg }], error: true }]);
     };
