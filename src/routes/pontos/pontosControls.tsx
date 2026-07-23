@@ -1,4 +1,10 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import type { DflTaskNode } from '../../../shared/protocol';
+
+export interface DflWriteApi {
+  onDflChange: (p: { taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string }) => Promise<{ ok: boolean; message?: string }>;
+  onDflInvoice: (p: { deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number }[] }) => Promise<{ ok: boolean; message?: string }>;
+}
 
 const KEY = 'deck:pontos:excludedDeliveries';
 const PV_KEY = 'deck:pontos:pointValue';
@@ -28,6 +34,9 @@ export interface PontosControls {
   clearSelected: () => void;
   pointValue: number;
   setPointValue: (v: number) => void;
+  selectedTask: DflTaskNode | null;
+  setSelectedTask: (t: DflTaskNode | null) => void;
+  write: DflWriteApi;
 }
 
 const Ctx = createContext<PontosControls | null>(null);
@@ -39,11 +48,12 @@ const toggle = (set: (fn: (prev: Set<string>) => Set<string>) => void) => (id: s
 // persistido; `selected`/`selecting` (multi-seleção pra somar/faturar) é efêmero.
 // Fica em contexto porque o resumo (topo) e as deliveries (fundo da árvore) leem o
 // mesmo estado sem prop drilling.
-export function usePontosControlsState(): PontosControls {
+export function usePontosControlsState(write: DflWriteApi): PontosControls {
   const [excluded, setExcluded] = useState<Set<string>>(load);
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pointValue, setPointValue] = useState<number>(loadPointValue);
+  const [selectedTask, setSelectedTask] = useState<DflTaskNode | null>(null);
   useEffect(() => {
     try { localStorage.setItem(KEY, JSON.stringify([...excluded])); } catch { /* modo privado: ignora */ }
   }, [excluded]);
@@ -56,6 +66,8 @@ export function usePontosControlsState(): PontosControls {
     selected, toggleSelected: toggle(setSelected),
     clearSelected: () => setSelected(new Set()),
     pointValue, setPointValue,
+    selectedTask, setSelectedTask,
+    write,
   };
 }
 

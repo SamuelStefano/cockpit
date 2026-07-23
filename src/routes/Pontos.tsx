@@ -3,7 +3,8 @@ import type { PointsEntry, DflPointsSnapshot } from '../../shared/protocol';
 import { Button, Icon, EmptyState, Skeleton, Tabs } from '../components/primitives';
 import { usePontos } from './pontos/usePontos';
 import { useDflPontos } from './pontos/useDflPontos';
-import { usePontosControlsState, PontosControlsProvider } from './pontos/pontosControls';
+import { usePontosControlsState, PontosControlsProvider, type DflWriteApi } from './pontos/pontosControls';
+import { TaskEditModal } from './pontos/TaskEditModal';
 import { recomputeTotals } from './pontos/pontosPrefs';
 import { PointsForm } from './pontos/PointsForm';
 import { PointsCard } from './pontos/PointsCard';
@@ -29,15 +30,17 @@ interface Props {
   dflSyncing: boolean;
   onDflGet: () => void;
   onDflSync: () => void;
+  onDflChange: DflWriteApi['onDflChange'];
+  onDflInvoice: DflWriteApi['onDflInvoice'];
 }
 
 // Centro de pontos + financeiro. Árvore/Faturas vêm do snapshot DFL (só-leitura,
 // owner-only); Ledger é o registro local que a IA alimenta e você corrige.
 export function Pontos(props: Props) {
-  const { connected, points, total, loaded, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync } = props;
+  const { connected, points, total, loaded, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync, onDflChange, onDflInvoice } = props;
   const { now, glowing, add, correct, note, remove } = usePontos(props);
   const { tab, setTab, hasDfl } = useDflPontos({ connected, snapshot: dflSnapshot, onDflGet });
-  const controls = usePontosControlsState();
+  const controls = usePontosControlsState({ onDflChange, onDflInvoice });
   const [adding, setAdding] = useState(false);
   const projects = dflSnapshot?.projects ?? [];
   const recomputed = dflSnapshot ? recomputeTotals(projects, controls.excluded, controls.pointValue) : null;
@@ -107,6 +110,7 @@ export function Pontos(props: Props) {
         )}
       </div>
     </div>
+    <TaskEditModal />
     </PontosControlsProvider>
   );
 }

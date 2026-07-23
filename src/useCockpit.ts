@@ -120,6 +120,8 @@ export interface Cockpit {
   dflSyncing: boolean;
   onDflGet: () => void;
   onDflSync: () => void;
+  onDflChange: (p: { taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string }) => Promise<{ ok: boolean; message?: string }>;
+  onDflInvoice: (p: { deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number }[] }) => Promise<{ ok: boolean; message?: string }>;
   skills: SkillMeta[];
   skillsLoaded: boolean;
   openSkill: SkillDoc | null;
@@ -228,6 +230,10 @@ export function useCockpit(): Cockpit {
   const [dflSnapshot, setDflSnapshot] = useState<DflPointsSnapshot | null>(null);
   const [dflLoaded, setDflLoaded] = useState(false);
   const [dflSyncing, setDflSyncing] = useState(false);
+  // Escritas DFL (mudar pontos / gerar fatura): request→response casado por reqId.
+  // O modal chama onDflChange/onDflInvoice e aguarda a Promise; o servidor responde
+  // com points-dfl-write e resolvemos o resolver pendente.
+  const dflWriteResolvers = useRef<Map<string, (r: { ok: boolean; message?: string }) => void>>(new Map());
   const [queue, setQueue] = useState<ParkedView[]>([]); // fila estacionada (servidor), broadcast dos queue-*
   const [openContext, setOpenContext] = useState<ContextDoc | null>(null);
   const [skills, setSkills] = useState<SkillMeta[]>([]);
@@ -808,6 +814,11 @@ export function useCockpit(): Cockpit {
       }
       case 'points-dfl-syncing': {
         setDflSyncing(true);
+        return;
+      }
+      case 'points-dfl-write': {
+        const resolve = dflWriteResolvers.current.get(msg.reqId);
+        if (resolve) { dflWriteResolvers.current.delete(msg.reqId); resolve({ ok: msg.ok, message: msg.message }); }
         return;
       }
       case 'contexts': {
@@ -1413,6 +1424,22 @@ export function useCockpit(): Cockpit {
   const onPointsDelete = useCallback((entryId: string) => send({ t: 'points-delete', entryId }), [send]);
   const onDflGet = useCallback(() => send({ t: 'points-dfl-get' }), [send]);
   const onDflSync = useCallback(() => send({ t: 'points-dfl-sync' }), [send]);
+  const dflWrite = useCallback((m: ClientMsg, reqId: string): Promise<{ ok: boolean; message?: string }> =>
+    new Promise((resolve) => {
+      dflWriteResolvers.current.set(reqId, resolve);
+      if (!send(m)) { dflWriteResolvers.current.delete(reqId); resolve({ ok: false, message: 'sem conexão com o backend' }); return; }
+      setTimeout(() => {
+        if (dflWriteResolvers.current.has(reqId)) { dflWriteResolvers.current.delete(reqId); resolve({ ok: false, message: 'tempo esgotado' }); }
+      }, 65_000);
+    }), [send]);
+  const onDflChange = useCallback((p: { taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string }) => {
+    const reqId = crypto.randomUUID();
+    return dflWrite({ t: 'points-dfl-change', reqId, ...p }, reqId);
+  }, [dflWrite]);
+  const onDflInvoice = useCallback((p: { deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number }[] }) => {
+    const reqId = crypto.randomUUID();
+    return dflWrite({ t: 'points-dfl-invoice', reqId, ...p }, reqId);
+  }, [dflWrite]);
   const onCtxList = useCallback(() => send({ t: 'ctx-list' }), [send]);
   const onCtxOpen = useCallback((id: string) => send({ t: 'ctx-open', id }), [send]);
   const onCtxClose = useCallback(() => setOpenContext(null), []);
@@ -1717,5 +1744,5 @@ export function useCockpit(): Cockpit {
     savePref('modelBySession', keep);
   }, [modelBySession]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, cronsLoaded, onCronsGet, onCronSave, onCronDelete, onCronRun, points, pointsTotal, pointsLoaded, onPointsGet, onPointsAdd, onPointsCorrect, onPointsNote, onPointsDelete, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary, queue, queueAdd, queueRemove, queueMove, queueClear };
+  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, cronsLoaded, onCronsGet, onCronSave, onCronDelete, onCronRun, points, pointsTotal, pointsLoaded, onPointsGet, onPointsAdd, onPointsCorrect, onPointsNote, onPointsDelete, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync, onDflChange, onDflInvoice, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary, queue, queueAdd, queueRemove, queueMove, queueClear };
 }

@@ -9,6 +9,7 @@ import { readPoints, createEntry, correctPoints, noteEntry, deleteEntry } from '
 import { readDflSnapshot } from '../dfl-points';
 import { registerFinanceClient } from './finance-clients';
 import { runDflSync } from '../dfl-sync-runner';
+import { runDflWrite } from '../dfl-write-runner';
 import { getCrons, saveCron, deleteCron } from '../crons';
 import { fireCron } from './runs';
 import { listSkills, readSkill, resolveSkillDeny, installSkill } from '../skills';
@@ -216,6 +217,26 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       registerFinanceClient(ws);
       send(ws, { t: 'points-dfl-syncing' });
       runDflSync().then((r) => { if (!r.ok) send(ws, { t: 'error', message: 'sync DFL falhou' }); }).catch(() => {});
+      return;
+    }
+    // Escritas no DFL prod (mudar pontos / gerar fatura). Gate DURO: só no loopback
+    // (box do dono) — o agente federado NUNCA escreve no financeiro do Samuel. Roda
+    // num processo filho (token fora deste processo) e, no sucesso, dispara um resync
+    // pra o snapshot refletir a mudança. Ação disparada por clique do usuário.
+    case 'points-dfl-change': {
+      if (!CONFIG.localOnly) { send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'change', ok: false, message: 'escrita DFL só no loopback' }); return; }
+      registerFinanceClient(ws);
+      const r = await runDflWrite({ kind: 'points-change', taskId: msg.taskId, taskName: msg.taskName, currentPoints: msg.currentPoints, newPoints: msg.newPoints, reason: msg.reason });
+      send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'change', ok: r.ok, message: r.ok ? undefined : r.error });
+      if (r.ok) runDflSync().catch(() => {});
+      return;
+    }
+    case 'points-dfl-invoice': {
+      if (!CONFIG.localOnly) { send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'invoice', ok: false, message: 'escrita DFL só no loopback' }); return; }
+      registerFinanceClient(ws);
+      const r = await runDflWrite({ kind: 'invoice-create', deliveryId: msg.deliveryId, deliveryName: msg.deliveryName, projectId: msg.projectId, projectName: msg.projectName, referenceMonth: msg.referenceMonth, pricePerPoint: msg.pricePerPoint, tasks: msg.tasks });
+      send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'invoice', ok: r.ok, message: r.ok ? undefined : r.error });
+      if (r.ok) runDflSync().catch(() => {});
       return;
     }
     case 'crons-get': {

@@ -436,6 +436,11 @@ export type ClientMsg =
   // dado financeiro não pode fazer fan-out cego. sync = pede refresh ao vivo agora.
   | { t: 'points-dfl-get' }
   | { t: 'points-dfl-sync' }
+  // Escritas no DFL prod: só chegam aqui via authorize (admin) E o handler exige
+  // localOnly (box do dono). Vão pelo caminho sancionado do DFL num processo filho —
+  // o token nunca cruza pro WS/cliente. reqId ecoa na resposta pra a UI casar.
+  | { t: 'points-dfl-change'; reqId: string; taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string }
+  | { t: 'points-dfl-invoice'; reqId: string; deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number }[] }
   | { t: 'ctx-install'; slug: string; title: string; body: string }
   | { t: 'skill-install'; slug: string; title: string; body: string }
   | { t: 'crons-get' }
@@ -511,6 +516,9 @@ export type ServerMsg =
   // snapshot = null quando o sync ainda não rodou (nada em ~/.cockpit/dfl-points.json).
   | { t: 'points-dfl'; snapshot: DflPointsSnapshot | null }
   | { t: 'points-dfl-syncing' }
+  // Resultado de uma escrita DFL (change/invoice). reqId casa com o pedido; a UI
+  // mostra sucesso/erro e um resync empurra o snapshot novo pelo watcher.
+  | { t: 'points-dfl-write'; reqId: string; kind: 'change' | 'invoice'; ok: boolean; message?: string }
   | { t: 'crons'; items: Cron[] }
   | { t: 'context'; id: string; title: string; body: string }
   | { t: 'models'; models: ModelInfo[] }
