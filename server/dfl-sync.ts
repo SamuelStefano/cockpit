@@ -66,7 +66,7 @@ export async function fetchDflBundle(creds: Creds): Promise<RawBundle> {
   const projects = projectIds.length ? await pgGet(creds, 'work', `projects?id=in.(${projectIds.join(',')})&select=id,name`) as DflRawInput['projects'] : [];
   const invoices = await pgGet(creds, 'payments', `invoices?fellow_user_id=eq.${FELLOW_ID}&select=id,reference_month,status,total_points,total_amount_cents,paid_at,transaction_id,fellow_user_id`) as RawInvoice[];
   const invoiceItems = invoices.length
-    ? await pgGet(creds, 'payments', `invoice_items?invoice_id=in.(${invoices.map((i) => i.id).join(',')})&select=invoice_id,source_id,points,amount_cents`) as DflRawInput['invoiceItems']
+    ? await pgGet(creds, 'payments', `invoice_items?invoice_id=in.(${invoices.map((i) => i.id).join(',')})&select=invoice_id,source_id,points,amount_cents,title`) as DflRawInput['invoiceItems']
     : [];
   return { tasks, deliveries, epics, projects, invoices, invoiceItems };
 }

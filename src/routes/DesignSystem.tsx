@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, EmptyState, Badge, Input, RouteHeader, toast, Stat, ProgressBar, Tabs } from '../components/primitives';
+import { Button, EmptyState, Badge, Input, RouteHeader, toast, Stat, ProgressBar, Tabs, Modal } from '../components/primitives';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -21,6 +21,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 export function DesignSystem() {
   const [tab, setTab] = useState<'arvore' | 'faturas' | 'ledger'>('arvore');
+  const [modalOpen, setModalOpen] = useState(false);
   return (
     <div className="scroll-thin h-full overflow-y-auto bg-neutral-950 px-8 py-8">
       <div className="mx-auto flex max-w-3xl flex-col gap-8">
@@ -143,6 +144,26 @@ export function DesignSystem() {
             { id: 'ledger', label: 'Ledger', icon: 'star' },
           ]} active={tab} onChange={setTab} />
           <p className="mt-3 text-[12px] text-neutral-500">Aba ativa: <span className="text-orange-300">{tab}</span></p>
+        </Section>
+
+        <Section title="Modal">
+          <Row label="dialog">
+            <Button variant="secondary" icon="grip" onClick={() => setModalOpen(true)}>Abrir modal</Button>
+            <Modal
+              open={modalOpen}
+              onClose={() => setModalOpen(false)}
+              title="Editar task"
+              icon="pencil"
+              footer={
+                <>
+                  <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Button>
+                  <Button onClick={() => setModalOpen(false)}>Salvar</Button>
+                </>
+              }
+            >
+              <p className="text-[13px] text-neutral-400">Overlay com backdrop, fecha no clique-fora e no Esc. Corpo rola; footer opcional pra ações.</p>
+            </Modal>
+          </Row>
         </Section>
 
         <Section title="EmptyState">

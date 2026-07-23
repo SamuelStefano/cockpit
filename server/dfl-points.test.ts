@@ -104,6 +104,18 @@ describe('foldDflTree (puro)', () => {
     expect(s.totals.amountOpenCents).toBe(2 * 75 * 100);
   });
 
+  it('anexa os itens da fatura (título/pontos/valor) ordenados por pontos desc', () => {
+    const s = foldDflTree(input({
+      invoiceItems: [
+        { invoice_id: 'inv1', source_id: 't-paid', points: 2, amount_cents: 15000, title: 'Item pequeno' },
+        { invoice_id: 'inv1', source_id: 't-open', points: 5, amount_cents: 37500, title: 'Item grande' },
+      ],
+    }), 0);
+    const items = s.invoices[0].items;
+    expect(items.map((i) => i.title)).toEqual(['Item grande', 'Item pequeno']);
+    expect(items[0]).toMatchObject({ points: 5, amountCents: 37500 });
+  });
+
   it('invoices ordenadas por reference_month desc', () => {
     const s = foldDflTree(input({
       invoices: [

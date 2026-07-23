@@ -8,6 +8,12 @@ export function brl(cents: number): string {
   return `${neg ? '-' : ''}R$ ${s},${c}`;
 }
 
+// Pontos × valor do ponto (R$) → centavos. Base do recebível recalculável quando
+// o usuário troca o valor do ponto na UI.
+export function centsFromPoints(points: number, pointValue: number): number {
+  return Math.round(points * pointValue * 100);
+}
+
 // Pontos com no máx. 1 casa, vírgula pt-BR: 491.38 → "491,4"; 20 → "20".
 export function fmtPts(n: number): string {
   const r = Math.round(n * 10) / 10;
