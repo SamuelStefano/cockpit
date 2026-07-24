@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Icon } from './primitives';
+import { subscribeRefine } from './primitives/livepreview/refine-bus';
 import { MessageRow, Thinking } from './chat/MessageView';
 import { ChatEmpty, ChatInput } from './chat/ChatInput';
 import { ChatHeader } from './chat/ChatHeader';
@@ -92,6 +93,9 @@ export interface ChatPanelProps {
 
 export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, followups, onDismissFollowups, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onRename, onOpenFull, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRemove, queueMove, queueClear }: ChatPanelProps) {
   const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueMove, queueClear });
+  // Modo iterativo: um refino pedido de dentro de um live preview vira o próximo
+  // prompt (o card não tem acesso ao compositor — publica no [[refine-bus]]).
+  useEffect(() => subscribeRefine((text) => onPrompt(`Refina a última tela/preview: ${text}`)), [onPrompt]);
   // Stats AO VIVO do turno (estilo terminal): tokens gastos + tempo decorrido,
   // enquanto o turno roda. Some no `done` (phase volta a idle).
   const live = phase === 'thinking' || phase === 'streaming' ? { tokens: liveTurnTokens ?? 0, startedAt: turnStartedAt } : undefined;

@@ -1,5 +1,20 @@
 import { useState } from 'react';
-import { Button, EmptyState, Badge, Input, RouteHeader, toast, Stat, ProgressBar, Tabs, Modal } from '../components/primitives';
+import { Button, EmptyState, Badge, Input, RouteHeader, toast, Stat, ProgressBar, Tabs, Modal, LivePreview } from '../components/primitives';
+
+const DEMO_PREVIEW = `import { useState } from 'react';
+
+export default function Contador() {
+  const [n, setN] = useState(0);
+  return (
+    <div className="flex flex-col items-center gap-3 p-4">
+      <div className="text-4xl font-bold text-orange-500">{n}</div>
+      <button onClick={() => setN(n + 1)}
+        className="rounded-lg bg-orange-500 px-4 py-2 font-medium text-white hover:bg-orange-600">
+        somar +1
+      </button>
+    </div>
+  );
+}`;
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -176,6 +191,14 @@ export function DesignSystem() {
               <Button icon="plus">Nova sessão</Button>
             </EmptyState>
           </div>
+        </Section>
+
+        <Section title="LivePreview — código rodando no chat">
+          <p className="mb-3 text-[12px] text-neutral-600">
+            Bloco <code className="text-orange-300">```preview</code> (componente React/TSX) ou{' '}
+            <code className="text-orange-300">```preview-html</code> vira tela viva num iframe sandbox. Toggle tela⇄código + input de refino.
+          </p>
+          <LivePreview lang="preview" code={DEMO_PREVIEW} />
         </Section>
       </div>
     </div>
