@@ -4,7 +4,7 @@ import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, Conte
 import { loadPref, savePref, setPref } from './lib/persist';
 import { SUPABASE_ENABLED } from './lib/supabase';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
-import { wsUrlWithToken, newId, metaToSession, mergeServerSessions, dedupById, mergeSeen } from './cockpit/session';
+import { wsUrlWithToken, newId, metaToSession, mergeServerSessions, dedupById, mergeSeen, isCronPing } from './cockpit/session';
 import { computeStalled, computeUpdated } from './cockpit/signals';
 import { upsertTool, appendDelta, appendThinking } from './cockpit/blocks';
 import { selectEvictions } from './cockpit/evict';
@@ -791,7 +791,7 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'search-results': {
-        if (msg.q === searchQ.current) setSearchResults(msg.items.map((m) => metaToSession(m, m.id === activeRef.current)));
+        if (msg.q === searchQ.current) setSearchResults(msg.items.filter((m) => !isCronPing(m)).map((m) => metaToSession(m, m.id === activeRef.current)));
         return;
       }
       case 'notes': {

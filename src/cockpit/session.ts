@@ -53,6 +53,17 @@ export function metaToSession(m: SessionMeta, active: boolean): Session {
   return { id: m.id, title: m.title, relative: m.relative, snippet: m.snippet, summary: m.summary, mtime: m.mtime, hasTerminal: false, active };
 }
 
+// Sessões-ping de reset de uso: crons diários que mandam só um "." (às vezes com
+// "não responder") só pra reiniciar a janela de rate-limit da conta. São ruído no
+// sidebar — o usuário não quer vê-las como conversas. Casa o TEXTO EXATO do ping
+// (título/snippet derivados da 1ª msg), não um "começa com ponto", pra não engolir
+// uma conversa real. Novas variantes de prompt de reset entram neste conjunto.
+const PING_TEXTS = new Set(['.', '. - nao responder', '. - não responder', '.- nao responder', '.- não responder']);
+export function isCronPing(m: { title?: string; snippet?: string }): boolean {
+  const t = (m.snippet || m.title || '').trim().toLowerCase();
+  return PING_TEXTS.has(t);
+}
+
 // Reconcilia o re-list do servidor com o estado local: preserva as sessões locais
 // `new-` (ainda não persistidas) e faz MAX-MERGE do mtime — quando este re-list foi
 // tirado o JSONL da mensagem recém-enviada pode não ter sido gravado, então o mtime
@@ -63,7 +74,7 @@ export function metaToSession(m: SessionMeta, active: boolean): Session {
 export function mergeServerSessions(prev: Session[], items: SessionMeta[], activeId: string): Session[] {
   const prevById = new Map(prev.map((s) => [s.id, s]));
   const localOnly = prev.filter((s) => s.id.startsWith('new-'));
-  const fromServer = items.map((m) => {
+  const fromServer = items.filter((m) => !isCronPing(m)).map((m) => {
     const sess = metaToSession(m, m.id === activeId);
     const p = prevById.get(m.id);
     return p && p.mtime > sess.mtime ? { ...sess, mtime: p.mtime, relative: p.relative, snippet: p.snippet } : sess;

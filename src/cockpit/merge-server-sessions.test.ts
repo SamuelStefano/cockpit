@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
-import { mergeServerSessions } from './session';
+import { mergeServerSessions, isCronPing } from './session';
 import type { Session } from '../data/mock';
 import type { SessionMeta } from '../../shared/protocol';
 
@@ -47,5 +47,32 @@ describe('mergeServerSessions', () => {
   it('sem estado local anterior, reflete o servidor tal qual', () => {
     const out = mergeServerSessions([], [meta({ mtime: 1000 })], 's1');
     expect(out[0].mtime).toBe(1000);
+  });
+
+  it('esconde do sidebar as sessões-ping de reset de uso (cron ". - nao responder")', () => {
+    const items = [
+      meta({ id: 'real', snippet: 'conversa de verdade' }),
+      meta({ id: 'ping1', title: '. - nao responder', snippet: '. - nao responder' }),
+      meta({ id: 'ping2', title: '.', snippet: '.' }),
+    ];
+    const out = mergeServerSessions([], items, 'x');
+    expect(out.map((s) => s.id)).toEqual(['real']);
+  });
+
+  it('NÃO esconde crons de conteúdo real (ex.: lembrete "100 reais para o ittalo")', () => {
+    const out = mergeServerSessions([], [meta({ id: 'lembrete', snippet: '100 reais para o ittalo' })], 'x');
+    expect(out.map((s) => s.id)).toEqual(['lembrete']);
+  });
+});
+
+describe('isCronPing', () => {
+  it('casa o texto exato do ping (com variações de acento/espaço), ignora o resto', () => {
+    expect(isCronPing({ snippet: '. - nao responder' })).toBe(true);
+    expect(isCronPing({ snippet: '. - não responder' })).toBe(true);
+    expect(isCronPing({ title: '.' })).toBe(true);
+    expect(isCronPing({ snippet: '  .  ' })).toBe(true);
+    expect(isCronPing({ snippet: '100 reais para o ittalo' })).toBe(false);
+    expect(isCronPing({ snippet: 'preciso responder isso' })).toBe(false);
+    expect(isCronPing({})).toBe(false);
   });
 });
