@@ -18,3 +18,16 @@ export function transpile(source: string): TranspileResult {
     return { error: err instanceof Error ? err.message : String(err) };
   }
 }
+
+// Só tira os tipos TS, SEM reescrever imports/exports em CommonJS. O juiz de
+// código (modo test) roda o resultado como statements soltos via new Function
+// (test/expect são globais injetados), então não pode haver referência a
+// `exports`/`module` que o transform 'imports' introduz.
+export function transpileBare(source: string): TranspileResult {
+  try {
+    const { code } = transform(source, { transforms: ['typescript'], production: true });
+    return { code };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+}

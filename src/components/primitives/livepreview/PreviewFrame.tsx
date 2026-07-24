@@ -1,8 +1,18 @@
 import type { ReactNode, RefObject } from 'react';
 import { IFRAME_HTML } from './iframeHtml';
 import { IFRAME_HTML_NATIVE } from './iframeHtmlNative';
+import { IFRAME_HTML_SVG } from './iframeHtmlSvg';
+import { IFRAME_HTML_TEST } from './iframeHtmlTest';
 import { PhoneFrame, PHONE_SCREEN } from './PhoneFrame';
 import type { Mode } from './useLivePreview';
+
+const SRCDOC: Record<Mode, string> = {
+  native: IFRAME_HTML_NATIVE,
+  svg: IFRAME_HTML_SVG,
+  test: IFRAME_HTML_TEST,
+  html: IFRAME_HTML,
+  react: IFRAME_HTML,
+};
 
 // Renderiza o iframe sandbox (origem opaca) e o envelope certo pro modo: telefone
 // no nativo, coluna fluida ou moldura de largura fixa (viewport) no web. `width`
@@ -17,8 +27,7 @@ export function PreviewFrame({
   overlay?: ReactNode;
 }) {
   const frame = (
-    <iframe ref={frameRef} title="live preview" sandbox="allow-scripts"
-      srcDoc={mode === 'native' ? IFRAME_HTML_NATIVE : IFRAME_HTML} />
+    <iframe ref={frameRef} title="live preview" sandbox="allow-scripts" srcDoc={SRCDOC[mode]} />
   );
 
   if (mode === 'native') {
