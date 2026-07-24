@@ -16,6 +16,28 @@ export default function Contador() {
   );
 }`;
 
+const DEMO_PREVIEW_NATIVE = `import { useState } from 'react';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+
+export default function App() {
+  const [n, setN] = useState(0);
+  return (
+    <View style={s.wrap}>
+      <Text style={s.num}>{n}</Text>
+      <Pressable style={s.btn} onPress={() => setN(n + 1)}>
+        <Text style={s.btnTxt}>somar +1</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  wrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, backgroundColor: '#0c0c0c' },
+  num: { fontSize: 48, fontWeight: '700', color: '#f97316' },
+  btn: { backgroundColor: '#f97316', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
+  btnTxt: { color: '#fff', fontWeight: '600' },
+});`;
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="border-b border-neutral-800 pb-8">
@@ -199,6 +221,14 @@ export function DesignSystem() {
             <code className="text-orange-300">```preview-html</code> vira tela viva num iframe sandbox. Toggle tela⇄código + input de refino.
           </p>
           <LivePreview lang="preview" code={DEMO_PREVIEW} />
+        </Section>
+
+        <Section title="LivePreview nativo — iPhone (react-native-web)">
+          <p className="mb-3 text-[12px] text-neutral-600">
+            Bloco <code className="text-orange-300">```preview-native</code> roda componente react-native de verdade
+            (View, Text, Pressable, StyleSheet) via react-native-web numa moldura de iPhone — sem macOS.
+          </p>
+          <LivePreview lang="preview-native" code={DEMO_PREVIEW_NATIVE} />
         </Section>
       </div>
     </div>

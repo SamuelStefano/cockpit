@@ -6,7 +6,7 @@ import { useShikiTokens, type ShToken } from './useShikiTokens';
 import { LivePreview } from './livepreview/LivePreview';
 
 // Linguagens que viram tela viva no chat em vez de bloco realçado.
-const PREVIEW_LANGS = new Set(['preview', 'preview-html']);
+const PREVIEW_LANGS = new Set(['preview', 'preview-html', 'preview-native']);
 
 function tokenStyle(t: ShToken) {
   const fs = t.fontStyle ?? 0;
