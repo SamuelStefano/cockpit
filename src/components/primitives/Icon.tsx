@@ -5,7 +5,8 @@ export type IconName =
   | 'chevronDown' | 'chevronUp' | 'chevronRight' | 'chevronLeft' | 'check' | 'x' | 'square' | 'play'
   | 'rotate' | 'message' | 'pencil' | 'zap' | 'trash' | 'sparkles' | 'claude'
   | 'panelRight' | 'circle' | 'user' | 'copy' | 'command' | 'grip' | 'download' | 'paperclip' | 'clock' | 'star' | 'file' | 'tag'
-  | 'shield' | 'shield-off' | 'mic' | 'image' | 'volume' | 'wrapText' | 'smartphone';
+  | 'shield' | 'shield-off' | 'mic' | 'image' | 'volume' | 'wrapText' | 'smartphone'
+  | 'monitor' | 'tablet' | 'maximize' | 'minimize' | 'code';
 
 const ICON_PATHS: Record<IconName, ReactNode> = {
   terminal: <><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></>,
@@ -48,6 +49,11 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
   volume: <><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></>,
   wrapText: <><line x1="3" y1="6" x2="21" y2="6" /><path d="M3 12h15a3 3 0 1 1 0 6h-4" /><polyline points="16 16 14 18 16 20" /><line x1="3" y1="18" x2="10" y2="18" /></>,
   smartphone: <><rect x="5" y="2" width="14" height="20" rx="2" /><line x1="12" y1="18" x2="12.01" y2="18" /></>,
+  monitor: <><rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></>,
+  tablet: <><rect x="4" y="2" width="16" height="20" rx="2" /><line x1="12" y1="18" x2="12.01" y2="18" /></>,
+  maximize: <><path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M21 8V5a2 2 0 0 0-2-2h-3" /><path d="M3 16v3a2 2 0 0 0 2 2h3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" /></>,
+  minimize: <><path d="M8 3v3a2 2 0 0 1-2 2H3" /><path d="M21 8h-3a2 2 0 0 1-2-2V3" /><path d="M3 16h3a2 2 0 0 1 2 2v3" /><path d="M16 21v-3a2 2 0 0 1 2-2h3" /></>,
+  code: <><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></>,
 };
 
 interface IconProps {

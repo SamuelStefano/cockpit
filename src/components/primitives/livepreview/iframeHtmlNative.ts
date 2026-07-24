@@ -24,6 +24,8 @@ export const IFRAME_HTML_NATIVE = [
   'function post(m){window.parent.postMessage(m,"*");}',
   'function msgOf(e){return String(e&&e.message?e.message:e);}',
   'function showErr(m){errEl.textContent=m;post({type:"deck:error",message:m});}',
+  'function fmtArg(v){if(typeof v==="string")return v;if(v instanceof Error)return v.message;try{var s=JSON.stringify(v);return s===undefined?String(v):s;}catch(e){return String(v);}}',
+  '["log","info","warn","error","debug"].forEach(function(level){var orig=console[level];console[level]=function(){var a=[];for(var i=0;i<arguments.length;i++)a.push(fmtArg(arguments[i]));post({type:"deck:log",level:level==="debug"?"log":level,text:a.join(" ")});if(orig)orig.apply(console,arguments);};});',
   'function reqShim(name){',
   '  if(name==="react")return React;',
   '  if(name==="react-dom"||name==="react-dom/client")return ReactDOM;',
