@@ -2,19 +2,21 @@ import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import type { Role } from '../auth';
-import type { PlanUsage, ParkedView } from '../../shared/protocol';
+import type { ParkedView } from '../../shared/protocol';
 import { CONFIG } from '../config';
 
 // Fila ESTACIONADA (overnight/quota-out), distinta da fila `pending` do runs.ts
 // (triagem in-turn, drenada no onClose). Aqui ficam os prompts que o usuário
 // enfileirou pra rodar "quando der" — seja porque um turno está ocupado, seja
-// porque a quota esgotou. O drainer (runs.ts) dispara cada item quando a sessão
-// fica ociosa E a quota está disponível E o teto por janela não estourou, SEM
-// depender do browser estar aberto naquela sessão (o bug: "preciso entrar na
-// sessão pra a fila enviar"). Persistida em disco pra sobreviver a restart/reboot
-// da VPS a noite toda.
+// porque a quota esgotou. O drainer (runs.ts) dispara cada item assim que a sessão
+// fica ociosa, SEM depender do browser aberto e SEM olhar a pontuação de uso: se o
+// usuário deixou na fila, VAI. A única trava é a pausa manual (setQueuePaused).
+// Persistida em disco pra sobreviver a restart/reboot da VPS a noite toda.
 
 const PARKED_PATH = process.env.COCKPIT_PARKED ?? join(homedir(), '.cockpit', 'parked.json');
+// Flag de pausa manual da fila (global). Arquivo próprio pra não colidir com o mapa
+// keyed-por-sessão do parked.json (uma sessão real casa o SESSION_KEY_RE).
+const PAUSE_PATH = process.env.COCKPIT_QUEUE_PAUSE ?? join(homedir(), '.cockpit', 'queue-paused.json');
 const SESSION_KEY_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 
 // Teto de itens por sessão (espelha MAX_PENDING): cada item segura um prompt até
@@ -170,52 +172,25 @@ export function parkedHeads(): { sessionKey: string; first: ParkedItem }[] {
   return out;
 }
 
-// --- pausa por quota (espelha o gate do cliente em App.tsx) -----------------
+// --- pausa manual da fila ---------------------------------------------------
 
-// Pura (testável): a janela está pausada? fiveHour>=99.5 e reset não passou, OU
-// um limite duro do CLI (rate.status !== 'allowed' com reset futuro).
-export function computePaused(
-  usage: PlanUsage | null | undefined,
-  rate: { resetsAt: number; status: string } | null | undefined,
-  now: number,
-): boolean {
-  const resetPassed = !!usage?.resetsAt && usage.resetsAt <= now;
-  const fiveHourOut = !!usage && usage.fiveHour >= 99.5 && !resetPassed;
-  const rateLimited = !!rate && rate.status !== 'allowed' && (!rate.resetsAt || rate.resetsAt > now);
-  return fiveHourOut || rateLimited;
+// Trava única do drainer: quando ligada, nenhum item dispara até o usuário retomar.
+// Substitui o antigo gate por quota/janela — a regra agora é "se está na fila, VAI"
+// (independente da pontuação de uso); só a pausa manual segura. Lida do disco a cada
+// chamada (fonte de verdade cross-process: o toggle pode chegar no index, o drainer
+// roda no agente). Arquivo minúsculo, custo irrelevante.
+export function isQueuePaused(): boolean {
+  try {
+    const o = JSON.parse(readFileSync(PAUSE_PATH, 'utf8'));
+    return !!o && typeof o === 'object' && (o as { paused?: unknown }).paused === true;
+  } catch {
+    return false;
+  }
 }
 
-// --- teto por janela (guard-rail escolhido pelo Samuel) ---------------------
-
-// Quantos itens o drainer pode disparar automaticamente por janela de 5h. Sem
-// isto, uma fila grande queimaria a quota inteira sozinha no reset. Reinicia a
-// contagem quando a janela reseta (resetsAt muda). Configurável por env.
-export const WINDOW_CAP = Math.max(1, Number(process.env.DECK_PARKED_WINDOW_CAP) || 25);
-let windowKey: number | null = null;
-let windowCount = 0;
-
-// Chave da janela atual = resetsAt do plano (muda a cada reset de 5h). null quando
-// ainda não há dado de usage; aí usamos uma chave estável pra não zerar à toa.
-function keyFor(usage: PlanUsage | null | undefined): number {
-  return usage?.resetsAt ?? 0;
+export function setQueuePaused(paused: boolean): void {
+  mkdirSync(dirname(PAUSE_PATH), { recursive: true });
+  const tmp = `${PAUSE_PATH}.${process.pid}.tmp`;
+  writeFileSync(tmp, JSON.stringify({ paused: paused === true }), 'utf8');
+  renameSync(tmp, PAUSE_PATH);
 }
-
-// Sob o teto? Reseta a contagem ao detectar janela nova (resetsAt diferente).
-export function underWindowCap(usage: PlanUsage | null | undefined): boolean {
-  const k = keyFor(usage);
-  if (k !== windowKey) { windowKey = k; windowCount = 0; }
-  return windowCount < WINDOW_CAP;
-}
-
-// Contabiliza um dreno na janela atual.
-export function noteWindowDrain(usage: PlanUsage | null | undefined): void {
-  const k = keyFor(usage);
-  if (k !== windowKey) { windowKey = k; windowCount = 0; }
-  windowCount++;
-}
-
-// Só p/ teste: estado do contador de janela.
-export function windowState(): { key: number | null; count: number; cap: number } {
-  return { key: windowKey, count: windowCount, cap: WINDOW_CAP };
-}
-export function resetWindowState(): void { windowKey = null; windowCount = 0; }

@@ -2,7 +2,7 @@ import type { ReactNode, CSSProperties } from 'react';
 
 export type IconName =
   | 'terminal' | 'plus' | 'search' | 'menu' | 'send' | 'arrowUp'
-  | 'chevronDown' | 'chevronUp' | 'chevronRight' | 'chevronLeft' | 'check' | 'x' | 'square' | 'play'
+  | 'chevronDown' | 'chevronUp' | 'chevronRight' | 'chevronLeft' | 'check' | 'x' | 'square' | 'play' | 'pause'
   | 'rotate' | 'message' | 'pencil' | 'zap' | 'trash' | 'sparkles' | 'claude'
   | 'panelRight' | 'circle' | 'user' | 'copy' | 'command' | 'grip' | 'download' | 'paperclip' | 'clock' | 'star' | 'file' | 'tag'
   | 'shield' | 'shield-off' | 'mic' | 'image' | 'volume' | 'wrapText' | 'smartphone'
@@ -24,6 +24,7 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
   x: <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>,
   square: <rect x="6" y="6" width="12" height="12" rx="1" />,
   play: <polygon points="6 4 20 12 6 20 6 4" />,
+  pause: <><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></>,
   rotate: <><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /></>,
   message: <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />,
   pencil: <><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" /></>,

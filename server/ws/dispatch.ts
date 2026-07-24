@@ -23,7 +23,7 @@ import { setEnv, unsetEnv, addMcp, removeMcp, installCli } from '../admin-ops';
 import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
 import { threads, startRun, routeSend, stopSession } from './runs';
-import { addParked, removeParked, moveParked, clearParked, parkedView } from './parked';
+import { addParked, removeParked, moveParked, clearParked, parkedView, isQueuePaused, setQueuePaused } from './parked';
 import { refreshModels } from './models';
 import { sendDurableSnapshot } from './snapshot';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
@@ -421,26 +421,31 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
         disallowedSkills,
         mcps: msg.mcps,
       });
-      broadcast({ t: 'queue', items: parkedView() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
       return;
     }
     case 'queue-remove': {
       removeParked(msg.sessionKey, msg.id);
-      broadcast({ t: 'queue', items: parkedView() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
       return;
     }
     case 'queue-move': {
       if (msg.dir === -1 || msg.dir === 1) moveParked(msg.sessionKey, msg.id, msg.dir);
-      broadcast({ t: 'queue', items: parkedView() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
       return;
     }
     case 'queue-clear': {
       clearParked(msg.sessionKey);
-      broadcast({ t: 'queue', items: parkedView() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      return;
+    }
+    case 'queue-set-paused': {
+      setQueuePaused(msg.paused === true);
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
       return;
     }
     case 'queue-get': {
-      send(ws, { t: 'queue', items: parkedView() });
+      send(ws, { t: 'queue', items: parkedView(), paused: isQueuePaused() });
       return;
     }
   }

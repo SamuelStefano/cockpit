@@ -9,9 +9,7 @@ import { summarize } from '../summary';
 import { classify, quickAnswer, killSideRuns, killSideRunsFor } from '../engine/triage';
 import { suggestFollowups } from '../engine/suggest';
 import { awaitingAnswer } from './awaiting';
-import { parkedHeads, shiftParked, computePaused, underWindowCap, noteWindowDrain } from './parked';
-import { getLastPlanUsage } from './usage-plan';
-import { getLastRate } from './rate';
+import { parkedHeads, shiftParked, isQueuePaused } from './parked';
 
 export interface Thread {
   handle: RunHandle;
@@ -195,24 +193,17 @@ export function startRunReaper(intervalMs = 60_000): void {
 // também respeita esta flag.
 let drainerEnabled = false;
 
-// Dispara os itens elegíveis: sessão OCIOSA (sem turno rodando) E quota disponível
-// (não pausado) E abaixo do teto por janela. Drena um item por sessão por passada;
-// o item que sobe deixa a sessão ocupada, então o resto da fila dela sai no próximo
-// tick (ou no gatilho do onClose). Roda no processo do agente — a fonte de quota
-// (getLastPlanUsage/getLastRate) está fresca lá (o loop de plan-usage roda no agente).
+// Dispara os itens elegíveis: sessão OCIOSA (sem turno rodando). Drena um item por
+// sessão por passada; o item que sobe deixa a sessão ocupada, então o resto da fila
+// dela sai no próximo tick (ou no gatilho do onClose). NÃO olha pontuação de uso: se
+// o usuário deixou na fila, VAI (regra do Samuel). A única trava é a pausa manual.
 function drainParked(): void {
   if (!drainerEnabled) return;
-  const usage = getLastPlanUsage();
-  const rate = getLastRate();
-  // Quota esgotada (janela cheia ou rate-limit duro do CLI) → nada dispara; espera
-  // a janela resetar. computePaused espelha o gate visual do cliente (App.tsx).
-  if (computePaused(usage, rate, Date.now())) return;
+  if (isQueuePaused()) return; // pausa manual do usuário: segura tudo até retomar
   for (const { sessionKey } of parkedHeads()) {
-    if (!underWindowCap(usage)) break; // teto da janela batido: para de drenar
     if (resolveThreadKey(sessionKey)) continue; // turno rodando: um por vez
     const item = shiftParked(sessionKey);
     if (!item) continue;
-    noteWindowDrain(usage);
     // ws null: run sem cliente específico (igual cron); o stream vai por broadcast.
     // resumeId = a sessão onde o item foi enfileirado, pra continuar a conversa.
     startRun(null, sessionKey, item.prompt, item.resumeId, undefined, item.mode, item.model, item.maxBudgetUsd, item.bypass, item.role, item.disallowedSkills, item.mcps, item.effort);
@@ -220,8 +211,8 @@ function drainParked(): void {
 }
 
 let parkedTimer: ReturnType<typeof setInterval> | null = null;
-// Liga o drainer (só no agente). Varre a cada 30s: quota volta / sessão fica ociosa
-// sem depender do browser aberto. unref: não segura o event loop no shutdown.
+// Liga o drainer (só no agente). Varre a cada 30s: dispara a fila assim que a sessão
+// fica ociosa, sem depender do browser aberto. unref: não segura o event loop no shutdown.
 export function startParkedDrainer(intervalMs = 30_000): void {
   drainerEnabled = true;
   if (parkedTimer) return;

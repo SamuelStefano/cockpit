@@ -8,14 +8,16 @@ import { join } from 'node:path';
 // leem/escrevem disco a cada chamada (fonte de verdade cross-process).
 const DIR = mkdtempSync(join(tmpdir(), 'parked-'));
 const PARKED_FILE = join(DIR, 'parked.json');
+const PAUSE_FILE = join(DIR, 'queue-paused.json');
 process.env.COCKPIT_PARKED = PARKED_FILE;
+process.env.COCKPIT_QUEUE_PAUSE = PAUSE_FILE;
 
 const mod = await import('./parked');
-const { addParked, removeParked, moveParked, shiftParked, parkedHeads, parkedView, clearParked, computePaused, underWindowCap, noteWindowDrain, windowState, resetWindowState, WINDOW_CAP } = mod;
+const { addParked, removeParked, moveParked, shiftParked, parkedHeads, parkedView, clearParked, isQueuePaused, setQueuePaused } = mod;
 
 beforeEach(() => {
   rmSync(PARKED_FILE, { force: true });
-  resetWindowState();
+  rmSync(PAUSE_FILE, { force: true });
 });
 afterAll(() => rmSync(DIR, { recursive: true, force: true }));
 
@@ -60,33 +62,14 @@ describe('parked fila (persistência)', () => {
   });
 });
 
-describe('computePaused', () => {
-  const now = 1_000_000;
-  it('fiveHour esgotado antes do reset = pausado', () => {
-    expect(computePaused({ fiveHour: 99.9, resetsAt: now + 1000 } as any, null, now)).toBe(true);
+describe('pausa manual da fila', () => {
+  it('default = não pausada (sem arquivo)', () => {
+    expect(isQueuePaused()).toBe(false);
   });
-  it('reset já passou = não pausado mesmo com fiveHour alto', () => {
-    expect(computePaused({ fiveHour: 99.9, resetsAt: now - 1 } as any, null, now)).toBe(false);
-  });
-  it('rate limitado com reset futuro = pausado', () => {
-    expect(computePaused(null, { resetsAt: now + 1000, status: 'rejected' }, now)).toBe(true);
-  });
-  it('tudo liberado = não pausado', () => {
-    expect(computePaused({ fiveHour: 10, resetsAt: now + 1000 } as any, { resetsAt: 0, status: 'allowed' }, now)).toBe(false);
-  });
-});
-
-describe('teto por janela', () => {
-  it('conta drenos até o teto e reseta ao trocar de janela', () => {
-    const w1 = { resetsAt: 111 } as any;
-    for (let i = 0; i < WINDOW_CAP; i++) {
-      expect(underWindowCap(w1)).toBe(true);
-      noteWindowDrain(w1);
-    }
-    expect(underWindowCap(w1)).toBe(false);
-    expect(windowState().count).toBe(WINDOW_CAP);
-    const w2 = { resetsAt: 222 } as any; // nova janela (resetsAt diferente)
-    expect(underWindowCap(w2)).toBe(true);
-    expect(windowState().count).toBe(0);
+  it('setQueuePaused(true) persiste e isQueuePaused reflete', () => {
+    setQueuePaused(true);
+    expect(isQueuePaused()).toBe(true);
+    setQueuePaused(false);
+    expect(isQueuePaused()).toBe(false);
   });
 });

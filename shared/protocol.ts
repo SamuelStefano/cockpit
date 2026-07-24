@@ -478,12 +478,14 @@ export type ClientMsg =
   | { t: 'graph-node-op'; id: string; op: 'explain' | 'affected' | 'path'; a: string; b?: string }
   | { t: 'graph-delete'; id: string }
   // Fila estacionada (overnight): mesma carga do 'send', mas o servidor persiste e
-  // o drainer dispara quando a sessão fica ociosa E a quota volta. queue-get pede o
-  // snapshot atual; add/remove/move/clear gerenciam a fila.
+  // o drainer dispara assim que a sessão fica ociosa (sem olhar quota). queue-get pede
+  // o snapshot atual; add/remove/move/clear gerenciam a fila; set-paused liga/desliga
+  // a pausa manual (única trava do drainer).
   | { t: 'queue-add'; sessionKey: string; sessionId?: string; text: string; mode?: PermMode; model?: string; effort?: Effort; maxBudgetUsd?: number; bypass?: boolean; skills?: string[]; mcps?: string[] }
   | { t: 'queue-remove'; sessionKey: string; id: string }
   | { t: 'queue-move'; sessionKey: string; id: string; dir: -1 | 1 }
   | { t: 'queue-clear'; sessionKey: string }
+  | { t: 'queue-set-paused'; paused: boolean }
   | { t: 'queue-get' };
 
 // Capabilities da conexão (DR-011). role = papel do ator (hoje sempre admin em
@@ -572,5 +574,5 @@ export type ServerMsg =
   | { t: 'done'; sessionKey: string; sessionId: string; costUsd?: number; durationMs?: number; numTurns?: number; turnTokens?: number; inputTokens?: number; outputTokens?: number; endReason?: string; model?: string; stopped?: boolean }
   // Tópicos de continuação sugeridos pós-turno (chips selecionáveis, estilo ChatGPT).
   | { t: 'suggestions'; sessionKey: string; items: string[] }
-  | { t: 'queue'; items: ParkedView[] }
+  | { t: 'queue'; items: ParkedView[]; paused: boolean }
   | { t: 'error'; sessionKey?: string; message: string };
