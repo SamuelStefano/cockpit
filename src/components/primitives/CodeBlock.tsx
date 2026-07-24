@@ -1,32 +1,13 @@
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { Icon } from './Icon';
 import { download, codeExt } from '../../lib/export';
 import { useCopied } from '../../lib/useCopied';
-import { useShikiTokens, type ShToken } from './useShikiTokens';
+import { useShikiTokens } from './useShikiTokens';
+import { renderTokens } from './shiki-render';
 import { LivePreview } from './livepreview/LivePreview';
 
 // Linguagens que viram tela viva no chat em vez de bloco realçado.
 const PREVIEW_LANGS = new Set(['preview', 'preview-html', 'preview-native']);
-
-function tokenStyle(t: ShToken) {
-  const fs = t.fontStyle ?? 0;
-  return {
-    color: t.color,
-    fontStyle: fs & 1 ? 'italic' : undefined,
-    fontWeight: fs & 2 ? 600 : undefined,
-    textDecoration: fs & 4 ? 'underline' : undefined,
-  } as const;
-}
-
-function renderTokens(lines: ShToken[][]): ReactNode[] {
-  return lines.map((line, i) => (
-    <div key={i}>
-      {line.length
-        ? line.map((t, j) => <span key={j} style={tokenStyle(t)}>{t.content}</span>)
-        : ' '}
-    </div>
-  ));
-}
 
 interface CodeBlockProps {
   code: string;

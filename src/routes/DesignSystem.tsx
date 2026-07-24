@@ -215,18 +215,23 @@ export function DesignSystem() {
           </div>
         </Section>
 
-        <Section title="LivePreview — código rodando no chat">
+        <Section title="Studio — código editável ao vivo">
           <p className="mb-3 text-[12px] text-neutral-600">
-            Bloco <code className="text-orange-300">```preview</code> (componente React/TSX) ou{' '}
-            <code className="text-orange-300">```preview-html</code> vira tela viva num iframe sandbox. Toggle tela⇄código + input de refino.
+            Bloco <code className="text-orange-300">```preview</code> (React/TSX) ou{' '}
+            <code className="text-orange-300">```preview-html</code> vira tela viva num iframe sandbox. Abra a aba{' '}
+            <span className="text-orange-300">código</span> e <strong className="text-neutral-400">digite</strong> — a tela
+            re-renderiza ao vivo. Barra: switcher de <span className="text-orange-300">viewport</span> (desktop/tablet/mobile),{' '}
+            <span className="text-orange-300">console</span> capturado do sandbox, <span className="text-orange-300">tela cheia</span>{' '}
+            (studio split editor↔preview) e copiar/baixar o código.
           </p>
           <LivePreview lang="preview" code={DEMO_PREVIEW} />
         </Section>
 
-        <Section title="LivePreview nativo — iPhone (react-native-web)">
+        <Section title="Studio nativo — iPhone editável (react-native-web)">
           <p className="mb-3 text-[12px] text-neutral-600">
-            Bloco <code className="text-orange-300">```preview-native</code> roda componente react-native de verdade
-            (View, Text, Pressable, StyleSheet) via react-native-web numa moldura de iPhone — sem macOS.
+            Bloco <code className="text-orange-300">```preview-native</code> roda react-native de verdade
+            (View, Text, Pressable, StyleSheet) via react-native-web numa moldura de iPhone — sem macOS. Também editável ao
+            vivo: digite na aba código e veja o app mudar na tela do telefone.
           </p>
           <LivePreview lang="preview-native" code={DEMO_PREVIEW_NATIVE} />
         </Section>
