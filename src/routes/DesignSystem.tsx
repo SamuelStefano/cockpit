@@ -38,6 +38,30 @@ const s = StyleSheet.create({
   btnTxt: { color: '#fff', fontWeight: '600' },
 });`;
 
+const DEMO_PREVIEW_SVG = `<svg width="180" height="180" viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg">
+  <rect x="30" y="30" width="120" height="120" rx="24" fill="#f97316">
+    <animate attributeName="rx" values="24;60;24" dur="2s" repeatCount="indefinite" />
+  </rect>
+  <circle cx="90" cy="90" r="26" fill="#0c0c0c" />
+</svg>`;
+
+const DEMO_PREVIEW_TEST = `function fib(n) {
+  return n < 2 ? n : fib(n - 1) + fib(n - 2);
+}
+
+test('fib base', () => {
+  expect(fib(0)).toBe(0);
+  expect(fib(1)).toBe(1);
+});
+
+test('fib(10) = 55', () => {
+  expect(fib(10)).toBe(55);
+});
+
+test('isso falha de propósito', () => {
+  expect(fib(5)).toBe(999);
+});`;
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="border-b border-neutral-800 pb-8">
@@ -234,6 +258,33 @@ export function DesignSystem() {
             vivo: digite na aba código e veja o app mudar na tela do telefone.
           </p>
           <LivePreview lang="preview-native" code={DEMO_PREVIEW_NATIVE} />
+        </Section>
+
+        <Section title="Studio SVG — vetor animado editável">
+          <p className="mb-3 text-[12px] text-neutral-600">
+            Bloco <code className="text-orange-300">```preview-svg</code> renderiza SVG cru (com <code className="text-orange-300">&lt;animate&gt;</code>,
+            SMIL ou CSS) centralizado sobre um xadrez de transparência. Edite os atributos e veja a animação mudar na hora.
+          </p>
+          <LivePreview lang="preview-svg" code={DEMO_PREVIEW_SVG} />
+        </Section>
+
+        <Section title="Juiz de código — testes verde/vermelho no sandbox">
+          <p className="mb-3 text-[12px] text-neutral-600">
+            Bloco <code className="text-orange-300">```preview-test</code> roda <code className="text-orange-300">test()</code> +{' '}
+            <code className="text-orange-300">expect()</code> (globais) dentro do sandbox e mostra cada asserção passando ou falhando,
+            com resumo <span className="text-neutral-400">N/N</span>. O terceiro test abaixo falha de propósito.
+          </p>
+          <LivePreview lang="preview-test" code={DEMO_PREVIEW_TEST} />
+        </Section>
+
+        <Section title="Playground — bancada completa em /play">
+          <p className="text-[12px] text-neutral-600">
+            Uma página inteira (<code className="text-orange-300">/play</code>) com editor ↔ preview lado a lado, seletor de linguagem
+            (React, HTML, iPhone, SVG, testes), templates prontos, switcher de dispositivo e console — construída com estes mesmos primitivos.
+          </p>
+          <a href="/play" className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-orange-500/15 px-3 py-1.5 text-[12px] font-medium text-orange-300 transition hover:bg-orange-500/25">
+            abrir playground →
+          </a>
         </Section>
       </div>
     </div>

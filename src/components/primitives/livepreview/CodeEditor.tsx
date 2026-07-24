@@ -8,7 +8,7 @@ import { renderTokens } from '../shiki-render';
 // vivo. Alinhamento depende de fonte/tamanho/leading/padding IDÊNTICOS nas duas
 // camadas — por isso as classes são compartilhadas em BASE.
 const BASE = 'font-mono text-[12.5px] leading-relaxed whitespace-pre';
-const LANG_FOR: Record<string, string> = { react: 'tsx', native: 'tsx', html: 'html' };
+const LANG_FOR: Record<string, string> = { react: 'tsx', native: 'tsx', html: 'html', svg: 'xml', test: 'tsx' };
 
 export function CodeEditor({ value, onChange, mode, heightClass = 'max-h-[640px] min-h-[140px]' }: { value: string; onChange: (v: string) => void; mode: string; heightClass?: string }) {
   const taRef = useRef<HTMLTextAreaElement>(null);

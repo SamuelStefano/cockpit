@@ -4,7 +4,7 @@ import { tokens } from '../tokens';
 import { download } from '../../../lib/export';
 import { useCopied } from '../../../lib/useCopied';
 import { requestRefine } from './refine-bus';
-import { useLivePreview, type Mode } from './useLivePreview';
+import { useLivePreview, modeOf, type Mode } from './useLivePreview';
 import { PreviewFrame } from './PreviewFrame';
 import { CodeEditor } from './CodeEditor';
 import { ConsolePanel } from './ConsolePanel';
@@ -13,12 +13,8 @@ import { VIEWPORTS } from './viewports';
 
 type Tab = 'preview' | 'code';
 
-function modeOf(lang: string): Mode {
-  if (lang === 'preview-html') return 'html';
-  if (lang === 'preview-native') return 'native';
-  return 'react';
-}
-const EXT: Record<Mode, string> = { html: 'html', react: 'tsx', native: 'tsx' };
+const EXT: Record<Mode, string> = { html: 'html', react: 'tsx', native: 'tsx', svg: 'svg', test: 'ts' };
+const LABEL: Record<Mode, string> = { html: ' · html', native: ' · iphone', svg: ' · svg', test: ' · testes', react: '' };
 
 // Renderiza código do assistente como TELA rodando num iframe sandbox (origem
 // opaca). O código é EDITÁVEL (aba código): digitar re-renderiza a tela ao vivo.
@@ -26,7 +22,7 @@ const EXT: Record<Mode, string> = { html: 'html', react: 'tsx', native: 'tsx' };
 // split), tabs tela/código. Rodapé: refino que devolve o pedido pro chat.
 export function LivePreview({ code, lang }: { code: string; lang: string }) {
   const mode = modeOf(lang);
-  const { ref, draft, setDraft, error, height, logs, dirty, reset, clearLogs } = useLivePreview(code, mode);
+  const { ref, draft, setDraft, error, height, logs, tests, dirty, reset, clearLogs } = useLivePreview(code, mode);
   const [tab, setTab] = useState<Tab>('preview');
   const [vp, setVp] = useState('fluid');
   const [showConsole, setShowConsole] = useState(false);
@@ -34,8 +30,10 @@ export function LivePreview({ code, lang }: { code: string; lang: string }) {
   const [refine, setRefine] = useState('');
   const [copied, copy] = useCopied(1200);
 
-  const width = mode === 'native' ? null : (VIEWPORTS.find((v) => v.id === vp)?.width ?? null);
-  const label = mode === 'native' ? ' · iphone' : mode === 'html' ? ' · html' : '';
+  const sized = mode === 'react' || mode === 'html'; // só web ganha viewport
+  const width = sized ? (VIEWPORTS.find((v) => v.id === vp)?.width ?? null) : null;
+  const label = LABEL[mode];
+  const passed = tests.filter((t) => t.pass).length;
   const submitRefine = () => { requestRefine(refine); setRefine(''); };
 
   const overlay = error && (
@@ -51,11 +49,14 @@ export function LivePreview({ code, lang }: { code: string; lang: string }) {
     <div className="my-1 overflow-hidden rounded-lg border border-orange-500/25 bg-[#0c0c0c]">
       <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-neutral-800 px-3 py-1.5">
         <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-orange-300/80">
-          <Icon name={mode === 'native' ? 'smartphone' : 'zap'} size={11} /> live preview{label}
+          <Icon name={mode === 'native' ? 'smartphone' : mode === 'test' ? 'terminal' : mode === 'svg' ? 'code' : 'zap'} size={11} /> live preview{label}
           {dirty && <span className="text-neutral-500">· editado</span>}
+          {mode === 'test' && tests.length > 0 && (
+            <span className={passed === tests.length ? 'text-green-400' : 'text-red-400'}>· {passed}/{tests.length} ✓</span>
+          )}
         </span>
         <div className="flex items-center gap-1">
-          {mode !== 'native' && (
+          {sized && (
             <div className="flex items-center gap-0.5 rounded-md bg-neutral-900 p-0.5">
               {VIEWPORTS.map((v) => (
                 <button key={v.id} onClick={() => setVp(v.id)} title={v.label} className={`rounded p-1 transition ${vp === v.id ? 'bg-neutral-800 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'}`}>

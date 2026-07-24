@@ -1,14 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { transpile } from './transpile';
+import { transpile, transpileBare } from './transpile';
 
-export type Mode = 'html' | 'react' | 'native';
+export type Mode = 'html' | 'react' | 'native' | 'svg' | 'test';
+
+// Mapeia a linguagem do bloco (```preview*) pro runtime do iframe.
+export function modeOf(lang: string): Mode {
+  if (lang === 'preview-html') return 'html';
+  if (lang === 'preview-native') return 'native';
+  if (lang === 'preview-svg') return 'svg';
+  if (lang === 'preview-test') return 'test';
+  return 'react';
+}
+
 export type LogLevel = 'log' | 'info' | 'warn' | 'error';
 export interface LogEntry { level: LogLevel; text: string; n: number }
+export interface TestResult { name: string; pass: boolean; error: string }
 type Payload = { type: 'deck:html'; html: string } | { type: 'deck:code'; code: string } | { error: string };
 
 function toPayload(src: string, mode: Mode): Payload {
-  if (mode === 'html') return { type: 'deck:html', html: src };
-  const r = transpile(src);
+  if (mode === 'html' || mode === 'svg') return { type: 'deck:html', html: src };
+  // O juiz roda statements soltos (test/expect globais) → transpile SEM CommonJS.
+  const r = mode === 'test' ? transpileBare(src) : transpile(src);
   if ('error' in r) return { error: r.error };
   return { type: 'deck:code', code: r.code };
 }
@@ -25,6 +37,7 @@ export function useLivePreview(code: string, mode: Mode, debounceMs = 160) {
   const [error, setError] = useState<string | null>(null);
   const [height, setHeight] = useState(180);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [tests, setTests] = useState<TestResult[]>([]);
   const lastExternal = useRef(code);
   const logSeq = useRef(0);
 
@@ -48,6 +61,7 @@ export function useLivePreview(code: string, mode: Mode, debounceMs = 160) {
     if ('error' in payload) { setError(payload.error); return; }
     setError(null);
     setLogs([]); // cada render é um console limpo
+    setTests([]);
     const msg = payload;
     const send = () => ref.current?.contentWindow?.postMessage(msg, '*');
     const onMsg = (e: MessageEvent) => {
@@ -59,6 +73,8 @@ export function useLivePreview(code: string, mode: Mode, debounceMs = 160) {
       else if (d.type === 'deck:log') {
         const entry: LogEntry = { level: d.level, text: String(d.text), n: logSeq.current++ };
         setLogs((l) => [...l, entry].slice(-100));
+      } else if (d.type === 'deck:test' && Array.isArray(d.results)) {
+        setTests(d.results.map((r: TestResult) => ({ name: String(r.name), pass: !!r.pass, error: String(r.error ?? '') })));
       }
     };
     window.addEventListener('message', onMsg);
@@ -69,5 +85,5 @@ export function useLivePreview(code: string, mode: Mode, debounceMs = 160) {
   const dirty = draft !== lastExternal.current;
   const reset = () => { setDraft(lastExternal.current); };
 
-  return { ref, draft, setDraft, error, height, logs, dirty, reset, clearLogs: () => setLogs([]) };
+  return { ref, draft, setDraft, error, height, logs, tests, dirty, reset, clearLogs: () => setLogs([]) };
 }

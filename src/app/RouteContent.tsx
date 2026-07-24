@@ -10,6 +10,7 @@ import { Graph } from '../routes/Graph';
 import { Admin } from '../routes/Admin';
 import { Docs } from '../routes/Docs';
 import { DesignSystem } from '../routes/DesignSystem';
+import { Playground } from '../routes/Playground';
 import type { SessionsPanelProps } from '../components/Sessions';
 import type { ChatPanelProps } from '../components/Chat';
 import type { TerminalsPanelProps } from '../components/Terminals';
@@ -109,6 +110,7 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
     }
     if (route === '/docs') return <Docs />;
     if (route === '/ds') return <DesignSystem />;
+    if (route === '/play') return <Playground />;
     if (isMobile) {
       return (
         <MobileLayout
