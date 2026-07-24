@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { DflProjectNode } from '../../../shared/protocol';
-import { Icon, EmptyState, ProgressBar } from '../../components/primitives';
+import { Icon, EmptyState, ProgressBar, Badge } from '../../components/primitives';
 import { DflDelivery } from './DflDelivery';
 import { SelectionBar } from './SelectionBar';
 import { usePontosControls } from './pontosControls';
@@ -42,34 +42,39 @@ export function DflTree({ projects }: { projects: DflProjectNode[] }) {
       </div>
       {shown.length === 0
         ? <p className="py-8 text-center text-[12px] text-neutral-600">Nada com esse status.</p>
-        : <div className="space-y-2.5">{shown.map((p) => <ProjectBlock key={p.id} project={p} expandAll={filter !== 'all'} />)}</div>}
+        : <div className="space-y-2">{shown.map((p) => <ProjectBlock key={`${p.id}:${filter}`} project={p} expandAll={filter !== 'all'} />)}</div>}
       {selecting && <SelectionBar projects={projects} />}
     </div>
   );
 }
 
+// Projeto quitado (nada aberto/a-fazer) nasce colapsado num one-liner — some da
+// vista o que já foi pago. Só projeto com trabalho em aberto (ou filtro ativo)
+// abre sozinho. Isso é o que tira a poluição da árvore.
 function ProjectBlock({ project, expandAll }: { project: DflProjectNode; expandAll: boolean }) {
-  const [open, setOpen] = useState(true);
   const sp = projectStatusPoints(project);
+  const active = sp.open > 0 || sp.todo > 0;
+  const [open, setOpen] = useState(expandAll || active);
   return (
-    <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/40 hairline">
+    <div className={`overflow-hidden rounded-xl border bg-neutral-900/40 hairline transition-colors ${
+      open ? 'border-neutral-800' : 'border-neutral-800/60'}`}>
       <button onClick={() => setOpen((v) => !v)} className="block w-full px-3.5 py-2.5 text-left">
         <div className="flex items-center gap-2">
           <Icon name={open ? 'chevronDown' : 'chevronRight'} size={13} className="shrink-0 text-neutral-500" />
-          <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-neutral-100">{project.name}</span>
-          <span className="shrink-0 text-[12.5px] font-semibold tabular-nums text-orange-300">{fmtPts(project.points)} pts</span>
-          <span className="w-24 shrink-0 text-right text-[12px] tabular-nums text-neutral-400">{brl(project.amountCents)}</span>
+          <span className={`min-w-0 flex-1 truncate text-[13.5px] font-semibold ${active ? 'text-neutral-100' : 'text-neutral-400'}`}>{project.name}</span>
+          {!active && <Badge tone="green">quitado</Badge>}
+          <span className={`shrink-0 text-[12.5px] font-semibold tabular-nums ${active ? 'text-orange-300' : 'text-neutral-500'}`}>{fmtPts(project.points)} pts</span>
+          <span className="w-24 shrink-0 text-right text-[12px] tabular-nums text-neutral-500">{brl(project.amountCents)}</span>
         </div>
-        <div className="mt-2 flex items-center gap-2 pl-[21px]">
-          <ProgressBar className="flex-1" segments={[
-            { value: sp.paid, tone: 'green', label: `pago: ${fmtPts(sp.paid)} pts` },
-            { value: sp.open, tone: 'orange', label: `aberto: ${fmtPts(sp.open)} pts` },
-            { value: sp.todo, tone: 'neutral', label: `a fazer: ${fmtPts(sp.todo)} pts` },
-          ]} />
-          <span className="shrink-0 text-[10.5px] tabular-nums text-neutral-600">
-            {fmtPts(sp.paid)} pago · {fmtPts(sp.open)} aberto{sp.todo > 0 ? ` · ${fmtPts(sp.todo)} a fazer` : ''}
-          </span>
-        </div>
+        {active && (
+          <div className="mt-2 pl-[21px]">
+            <ProgressBar segments={[
+              { value: sp.paid, tone: 'green', label: `pago: ${fmtPts(sp.paid)} pts` },
+              { value: sp.open, tone: 'orange', label: `aberto: ${fmtPts(sp.open)} pts` },
+              { value: sp.todo, tone: 'neutral', label: `a fazer: ${fmtPts(sp.todo)} pts` },
+            ]} />
+          </div>
+        )}
       </button>
       {open && (
         <div className="space-y-2 border-t border-neutral-800/70 px-3 pb-3 pt-2">
