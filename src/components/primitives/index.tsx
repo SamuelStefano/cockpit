@@ -14,6 +14,8 @@ export { Tabs, type TabItem } from './Tabs';
 export { SkeletonCards } from './SkeletonCards';
 export { Toaster } from './Toast';
 export { toast, type ToastTone, type ToastOptions } from './toast-bus';
+export { ConfettiHost } from './Confetti';
+export { fireConfetti, type ConfettiOptions } from './confetti-bus';
 export { Markdown } from './Markdown';
 export { CodeBlock } from './CodeBlock';
 export { LivePreview } from './livepreview/LivePreview';

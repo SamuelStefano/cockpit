@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { transpile, transpileBare } from './transpile';
+import { fireConfetti } from '../confetti-bus';
 
 export type Mode = 'html' | 'react' | 'native' | 'svg' | 'test';
 
@@ -40,6 +41,9 @@ export function useLivePreview(code: string, mode: Mode, debounceMs = 160) {
   const [tests, setTests] = useState<TestResult[]>([]);
   const lastExternal = useRef(code);
   const logSeq = useRef(0);
+  // Confetti só na TRANSIÇÃO pra tudo-verde (evita re-disparar a cada tecla numa
+  // suíte que já estava passando). Vermelho→verde comemora; verde→verde não.
+  const wasGreen = useRef(false);
 
   // Código novo do assistente (não uma edição local) → recarrega o rascunho.
   useEffect(() => {
@@ -74,7 +78,11 @@ export function useLivePreview(code: string, mode: Mode, debounceMs = 160) {
         const entry: LogEntry = { level: d.level, text: String(d.text), n: logSeq.current++ };
         setLogs((l) => [...l, entry].slice(-100));
       } else if (d.type === 'deck:test' && Array.isArray(d.results)) {
-        setTests(d.results.map((r: TestResult) => ({ name: String(r.name), pass: !!r.pass, error: String(r.error ?? '') })));
+        const results: TestResult[] = d.results.map((r: TestResult) => ({ name: String(r.name), pass: !!r.pass, error: String(r.error ?? '') }));
+        setTests(results);
+        const allGreen = results.length > 0 && results.every((r) => r.pass);
+        if (allGreen && !wasGreen.current) fireConfetti();
+        wasGreen.current = allGreen;
       }
     };
     window.addEventListener('message', onMsg);
