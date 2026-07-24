@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Icon } from '../components/primitives/Icon';
+import { toast } from '../components/primitives';
 import { download } from '../lib/export';
+import { buildShareUrl } from '../lib/playgroundShare';
 import { useCopied } from '../lib/useCopied';
 import { useLivePreview, type Mode } from '../components/primitives/livepreview/useLivePreview';
 import { CodeEditor } from '../components/primitives/livepreview/CodeEditor';
@@ -13,11 +15,18 @@ const EXT: Record<Mode, string> = { html: 'html', react: 'tsx', native: 'tsx', s
 // Studio do playground: editor à esquerda, tela viva à direita, console embaixo —
 // tudo ligado a um único useLivePreview (mesmo iframe/rascunho). Difere do card
 // do chat (LivePreview) por ser página cheia e sem o barramento de refino.
-export function PlaygroundStudio({ code, mode }: { code: string; mode: Mode }) {
+export function PlaygroundStudio({ code, mode, lang }: { code: string; mode: Mode; lang: string }) {
   const { ref, draft, setDraft, error, height, logs, tests, dirty, reset, clearLogs } = useLivePreview(code, mode);
   const [vp, setVp] = useState('fluid');
   const [showConsole, setShowConsole] = useState(false);
   const [copied, copy] = useCopied(1200);
+  const [linkCopied, copyLink, linkFailed] = useCopied(1400);
+
+  const share = () => {
+    const url = buildShareUrl(lang, draft);
+    copyLink(url);
+    toast(url.length > 2000 ? 'Link copiado (grande — código extenso)' : 'Link do playground copiado');
+  };
 
   const sized = mode === 'react' || mode === 'html';
   const width = sized ? (VIEWPORTS.find((v) => v.id === vp)?.width ?? null) : null;
@@ -54,6 +63,7 @@ export function PlaygroundStudio({ code, mode }: { code: string; mode: Mode }) {
             <Icon name="terminal" size={13} />
             {logs.length > 0 && !showConsole && <span className="absolute -right-0 -top-0 h-1.5 w-1.5 rounded-full bg-orange-400" />}
           </button>
+          <button onClick={share} title="Copiar link compartilhável" className={ctrl(linkCopied)}><Icon name={linkCopied ? 'check' : linkFailed ? 'x' : 'link'} size={13} /></button>
           <button onClick={() => copy(draft)} title="Copiar código" className={ctrl(false)}><Icon name={copied ? 'check' : 'copy'} size={13} /></button>
           <button onClick={() => download(`playground.${EXT[mode]}`, 'text/plain', draft)} title="Baixar código" className={ctrl(false)}><Icon name="download" size={13} /></button>
         </div>
