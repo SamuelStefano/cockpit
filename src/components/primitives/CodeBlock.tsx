@@ -3,6 +3,10 @@ import { Icon } from './Icon';
 import { download, codeExt } from '../../lib/export';
 import { useCopied } from '../../lib/useCopied';
 import { useShikiTokens, type ShToken } from './useShikiTokens';
+import { LivePreview } from './livepreview/LivePreview';
+
+// Linguagens que viram tela viva no chat em vez de bloco realçado.
+const PREVIEW_LANGS = new Set(['preview', 'preview-html']);
 
 function tokenStyle(t: ShToken) {
   const fs = t.fontStyle ?? 0;
@@ -30,6 +34,11 @@ interface CodeBlockProps {
 }
 
 export function CodeBlock({ code, lang }: CodeBlockProps) {
+  if (lang && PREVIEW_LANGS.has(lang)) return <LivePreview code={code} lang={lang} />;
+  return <HighlightedCode code={code} lang={lang} />;
+}
+
+function HighlightedCode({ code, lang }: CodeBlockProps) {
   const [copied, copy, failed] = useCopied(1200);
   const [wrap, setWrap] = useState(false);
   const tokens = useShikiTokens(code, lang);

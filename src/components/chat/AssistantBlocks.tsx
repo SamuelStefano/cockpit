@@ -76,6 +76,15 @@ export function AssistantBlocks({ blocks, caretOnLast, answerable = false, onAns
   return (
     <div className="space-y-2">
       {groupBlocks(blocks).map((it) => {
+        const node = renderItem(it);
+        // fade-up dispara uma vez na montagem (a key estável reusa o DOM), então
+        // cada bloco surge macio ao aparecer sem re-animar a cada token streamado.
+        return node && <div key={it.i} className="fade-up">{node}</div>;
+      })}
+    </div>
+  );
+
+  function renderItem(it: Item): ReactNode {
         if (it.kind === 'tools') {
           // AskUserQuestion sempre renderiza (mesmo com tools ocultas): é uma ação
           // que o usuário PRECISA ver pra desbloquear o turno. Demais tools seguem o
@@ -108,7 +117,5 @@ export function AssistantBlocks({ blocks, caretOnLast, answerable = false, onAns
         if (b.type === 'code') return <CodeBlock key={it.i} code={b.code} lang={b.lang} />;
         if (b.type === 'thinking') return <ThinkingCard key={it.i} text={b.text} />;
         return null;
-      })}
-    </div>
-  );
+  }
 }

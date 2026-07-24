@@ -16,5 +16,6 @@ export { Toaster } from './Toast';
 export { toast, type ToastTone, type ToastOptions } from './toast-bus';
 export { Markdown } from './Markdown';
 export { CodeBlock } from './CodeBlock';
+export { LivePreview } from './livepreview/LivePreview';
 export { splitFences } from './markdown/split-fences';
 export { WikilinkContext, type WikilinkResolver } from './markdown/wikilink-context';
