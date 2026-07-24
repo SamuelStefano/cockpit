@@ -3,6 +3,7 @@ import type { Cmd, IconName } from './commandPalette.types';
 import type { Route } from '../useRoute';
 import type { PermMode } from '../../shared/protocol';
 import type { Session } from '../data/mock';
+import { UI_SEEDS } from './paletteSeeds';
 
 const MODE_LABEL: Record<PermMode, string> = { plan: 'Planejar', auto: 'Auto', acceptEdits: 'Executar' };
 
@@ -17,11 +18,12 @@ interface PaletteCommandsArgs {
   running: Set<string>;
   onStop: (key?: string) => void;
   onFocusComposer: () => void;
+  onSeedComposer: (text: string) => void;
   onShowHelp: () => void;
 }
 
 export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
-  const { onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp } = args;
+  const { onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onSeedComposer, onShowHelp } = args;
   return useMemo<Cmd[]>(() => {
     const go = (to: Route) => () => { nav(to); onClose(); };
     const setM = (m: PermMode) => () => { setMode(m); onClose(); };
@@ -61,6 +63,14 @@ export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
         run: () => { onSelectSession(key); nav('/'); onClose(); },
       };
     });
+    const seeds: Cmd[] = UI_SEEDS.map((s) => ({
+      id: s.id,
+      label: s.label,
+      hint: '↵ envia',
+      icon: s.icon,
+      group: 'Gerar UI',
+      run: () => { nav('/'); onSeedComposer(s.prompt); onFocusComposer(); onClose(); },
+    }));
     const modes: Cmd[] = (['plan', 'auto', 'acceptEdits'] as PermMode[]).map((m) => ({
       id: `mode-${m}`,
       label: `Modo: ${MODE_LABEL[m]}`,
@@ -76,6 +86,6 @@ export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
       group: 'Sessões',
       run: () => { onSelectSession(s.id); nav('/'); onClose(); },
     }));
-    return [...nav_, ...actions, ...runningCmds, ...modes, ...sess];
-  }, [nav, onClose, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp]);
+    return [...nav_, ...actions, ...seeds, ...runningCmds, ...modes, ...sess];
+  }, [nav, onClose, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onSeedComposer, onShowHelp]);
 }

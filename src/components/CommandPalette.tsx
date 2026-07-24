@@ -19,15 +19,16 @@ interface CommandPaletteProps {
   running: Set<string>;
   onStop: (key?: string) => void;
   onFocusComposer: () => void;
+  onSeedComposer: (text: string) => void;
   onShowHelp: () => void;
 }
 
-export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp }: CommandPaletteProps) {
+export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onSeedComposer, onShowHelp }: CommandPaletteProps) {
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const commands = usePaletteCommands({ onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onShowHelp });
+  const commands = usePaletteCommands({ onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onSeedComposer, onShowHelp });
   const filtered = useMemo(() => filterCommands(commands, q), [q, commands]);
 
   useEffect(() => { setSel(0); }, [q, open]);

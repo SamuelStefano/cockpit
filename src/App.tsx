@@ -5,7 +5,7 @@ import { QuotaBanner } from './components/chrome/QuotaBanner';
 import { OfflineNotice } from './components/chrome/OfflineNotice';
 import { CommandPalette } from './components/CommandPalette';
 import { ShortcutsHelp } from './components/ShortcutsHelp';
-import { Toaster } from './components/primitives';
+import { Toaster, ConfettiHost } from './components/primitives';
 import { RouteContent } from './app/RouteContent';
 import { useCockpit } from './useCockpit';
 import { useRoute } from './useRoute';
@@ -173,6 +173,7 @@ export function CockpitApp() {
         mode={mode} setMode={setMode}
         sessions={sessions} onSelectSession={setActiveSessionId}
         running={running} onStop={handleStop} onFocusComposer={() => setFocusSignal((n) => n + 1)}
+        onSeedComposer={(text) => { setDraft(text); setFocusSignal((n) => n + 1); }}
         onShowHelp={() => setHelp(true)}
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
@@ -196,6 +197,7 @@ export function CockpitApp() {
 
       {!isMobile && <StatusBar stats={stats} rate={rate} ctxTokens={contextTokens} lastTurn={lastTurn} />}
       <Toaster />
+      <ConfettiHost />
     </div>
   );
 }

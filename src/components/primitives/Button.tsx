@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Icon, type IconName } from './Icon';
 
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
@@ -12,7 +12,10 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   iconRight?: boolean;
   loading?: boolean;
   square?: boolean;
+  ripple?: boolean;
 }
+
+interface Ink { id: number; x: number; y: number; d: number }
 
 const variants: Record<ButtonVariant, string> = {
   // Primário como jóia: gradiente quente + highlight interno no topo (btn-jewel).
@@ -43,24 +46,39 @@ export function Button({
   iconRight = false,
   loading = false,
   square = false,
+  ripple = false,
   disabled,
   className = '',
+  onPointerDown,
   ...rest
 }: ButtonProps) {
+  const [inks, setInks] = useState<Ink[]>([]);
   const glyph = loading ? (
     <Icon name="rotate" size={iconSize[size]} className="spin" />
   ) : icon ? (
     <Icon name={icon} size={iconSize[size]} />
   ) : null;
+  const spawnInk = (e: React.PointerEvent<HTMLButtonElement>) => {
+    onPointerDown?.(e);
+    if (!ripple || disabled || loading) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const id = Date.now() + Math.random();
+    setInks((p) => [...p, { id, x: e.clientX - r.left, y: e.clientY - r.top, d: Math.max(r.width, r.height) }]);
+    window.setTimeout(() => setInks((p) => p.filter((k) => k.id !== id)), 600);
+  };
   return (
     <button
       disabled={disabled || loading}
-      className={`inline-flex shrink-0 items-center justify-center rounded-lg font-medium leading-none transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40 disabled:opacity-50 disabled:pointer-events-none ${variants[variant]} ${square ? squareSizes[size] : sizes[size]} ${className}`}
+      onPointerDown={spawnInk}
+      className={`inline-flex shrink-0 items-center justify-center rounded-lg font-medium leading-none transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40 disabled:opacity-50 disabled:pointer-events-none ${ripple ? 'relative overflow-hidden' : ''} ${variants[variant]} ${square ? squareSizes[size] : sizes[size]} ${className}`}
       {...rest}
     >
       {glyph && !iconRight && glyph}
       {children}
       {glyph && iconRight && glyph}
+      {inks.map((k) => (
+        <span key={k.id} className="ripple-ink" style={{ left: k.x - k.d / 2, top: k.y - k.d / 2, width: k.d, height: k.d }} />
+      ))}
     </button>
   );
 }

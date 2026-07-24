@@ -135,6 +135,21 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 @keyframes drawerIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }
 
 @keyframes pulseRing { 0% { box-shadow: 0 0 0 0 var(--ring); } 70% { box-shadow: 0 0 0 5px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+/* Halo pulsante reusável (indicador "ao vivo"/atenção): usa --ring, herda o raio. */
+.pulse-ring { border-radius: inherit; animation: pulseRing 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+
+/* Ripple do Button: círculo que nasce no clique e some crescendo. A escala é
+   grande (12x) pra cobrir botões largos a partir de qualquer ponto. */
+@keyframes ripple { to { transform: scale(12); opacity: 0; } }
+.ripple-ink { position: absolute; border-radius: 9999px; background: rgba(255, 255, 255, 0.45); pointer-events: none; transform: scale(0); animation: ripple 0.6s ease-out; }
+
+/* Confetti: cada peça cai do topo com deriva horizontal e giro próprios (vars
+   inline). pointer-events-none no host pra nunca bloquear clique. */
+@keyframes confettiFall {
+  0% { opacity: 1; transform: translate3d(0, -12px, 0) rotate(0deg); }
+  100% { opacity: 0; transform: translate3d(var(--dx, 0px), 104vh, 0) rotate(var(--rot, 540deg)); }
+}
+.confetti-pc { position: absolute; top: 0; will-change: transform, opacity; animation: confettiFall var(--dur, 2.6s) cubic-bezier(0.25, 0.6, 0.4, 1) forwards; animation-delay: var(--delay, 0ms); }
 
 pre, code, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
 .resizer { transition: background 0.15s; }

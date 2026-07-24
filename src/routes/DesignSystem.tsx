@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Button, EmptyState, Badge, Input, RouteHeader, toast, Stat, ProgressBar, Tabs, Modal, LivePreview } from '../components/primitives';
+import { Button, EmptyState, Badge, Input, RouteHeader, toast, Stat, ProgressBar, Tabs, Modal, LivePreview, fireConfetti } from '../components/primitives';
+import { ThemePlayground } from './ds/ThemePlayground';
 
 const DEMO_PREVIEW = `import { useState } from 'react';
 
@@ -237,6 +238,31 @@ export function DesignSystem() {
               <Button icon="plus">Nova sessão</Button>
             </EmptyState>
           </div>
+        </Section>
+
+        <Section title="Micro-interações">
+          <p className="mb-3 text-[12px] text-neutral-600">
+            <code className="text-orange-300">ripple</code> no clique do Button, <code className="text-orange-300">confetti</code> via
+            barramento global (dispara em transição de suíte de testes vermelho→verde) e o anel de foco{' '}
+            <code className="text-orange-300">pulse-ring</code>. Tudo respeita <code className="text-orange-300">prefers-reduced-motion</code>.
+          </p>
+          <Row label="ripple"><Button ripple>Com ripple</Button><Button ripple variant="secondary" icon="copy">Copiar</Button></Row>
+          <Row label="confetti"><Button icon="star" onClick={() => fireConfetti()}>Soltar confetti</Button></Row>
+          <Row label="pulse-ring">
+            <span className="relative inline-flex h-9 w-9 items-center justify-center rounded-full bg-orange-500/15 text-orange-300">
+              <span className="pulse-ring absolute inset-0 ring-2 ring-orange-500/60" />
+              <span className="h-2.5 w-2.5 rounded-full bg-orange-500" />
+            </span>
+            <span className="text-[12px] text-neutral-600">indicador ao vivo</span>
+          </Row>
+        </Section>
+
+        <Section title="Theme playground — acento ao vivo">
+          <p className="mb-3 text-[12px] text-neutral-600">
+            Ajuste matiz, saturação, raio e densidade e veja os tokens (<code className="text-orange-300">--accent</code>,{' '}
+            <code className="text-orange-300">--ring</code>) mudarem no app inteiro em tempo real. Sai da rota → restaura o tema.
+          </p>
+          <ThemePlayground />
         </Section>
 
         <Section title="Studio — código editável ao vivo">
