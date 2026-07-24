@@ -42,14 +42,18 @@ export function ConfettiHost() {
   const seq = useRef(0);
 
   useEffect(() => {
-    const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    return subscribeConfetti((opts: Required<ConfettiOptions>) => {
-      if (reduce) return;
+    const timers = new Set<number>();
+    const unsub = subscribeConfetti((opts: Required<ConfettiOptions>) => {
+      // Lido a cada disparo (não no mount) pra respeitar toggle de SO em runtime.
+      if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       const id = ++seq.current;
       const pieces = makePieces(opts.count, opts.spread, () => ++seq.current);
-      setBursts((b) => [...b, { id, pieces }]);
-      window.setTimeout(() => setBursts((b) => b.filter((x) => x.id !== id)), 3800);
+      // Teto de 4 rajadas vivas: cliques repetidos não acumulam DOM sem limite.
+      setBursts((b) => [...b, { id, pieces }].slice(-4));
+      const t = window.setTimeout(() => { timers.delete(t); setBursts((b) => b.filter((x) => x.id !== id)); }, 3800);
+      timers.add(t);
     });
+    return () => { unsub(); for (const t of timers) clearTimeout(t); };
   }, []);
 
   if (!bursts.length) return null;

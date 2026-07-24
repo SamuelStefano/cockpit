@@ -127,7 +127,7 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .stagger-fade > *:nth-child(n+9) { animation-delay: 280ms; }
 
 @media (prefers-reduced-motion: reduce) {
-  .route-fade, .stagger-fade > * { animation: none; }
+  .route-fade, .stagger-fade > *, .pulse-ring, .ripple-ink, .confetti-pc { animation: none; }
 }
 
 @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
