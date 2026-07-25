@@ -10,7 +10,7 @@ import { serveConnection } from './ws/serve-connection';
 import { setClientSource, broadcast } from './ws/broadcast';
 import { mcpServerDefsSync, claudeReady } from './admin-ops';
 import { getSlashCommands } from './ws/slash';
-import { killAllRuns, threads, startParkedDrainer, startRunReaper } from './ws/runs';
+import { killAllRuns, threads, startParkedDrainer, startRunReaper, resumeOrphanRuns } from './ws/runs';
 import { startModelsLoop, getLastModels } from './ws/models';
 import { startPlanUsageLoop, getLastPlanUsage, requestPlanUsageRefresh } from './ws/usage-plan';
 import { getLastRate } from './ws/rate';
@@ -236,6 +236,11 @@ export function startHealthGuard(): void {
     const memMb = availableMemMb();
     if (load1 > cores * 4 || memMb < 120) {
       console.error(`[agent] health: pressão (load1=${load1.toFixed(2)} mem=${memMb}MB) — matando runs pra não travar a VPS`);
+      // Avisa antes de matar: sem isto o turno morria e a UI mostrava um turno
+      // concluído vazio (o mesmo "chat parou sozinho" que este lote está fechando).
+      for (const sessionKey of threads.keys()) {
+        broadcast({ t: 'error', sessionKey, message: 'A VPS ficou sob pressão e este turno foi interrompido pra não travar a máquina. Mande de novo.' });
+      }
       killAllRuns();
     }
   }, 60_000);
@@ -272,6 +277,11 @@ export function runAgent(relayUrl: string): void {
   // modo listen isto roda no attachWs; no dial (agente) não rodava — sem ele o
   // dreno automático não é robusto sem ninguém olhando.
   startRunReaper();
+  // Retomada dos turnos que o restart matou. Depois do startParkedDrainer (a flag
+  // drainerEnabled precisa estar ligada pra o turno retomado se re-registrar) e
+  // adiada um pouco: o relay ainda não conectou aqui, então o aviso de retomada se
+  // perderia — o cliente só recebe broadcast com o socket de pé.
+  setTimeout(resumeOrphanRuns, 15_000).unref();
   // Backstop relay-agnóstico: se o relay não emitir 'browsers-present' (versão
   // antiga), a reemissão instantânea não dispara — rebroadcasta mcp-servers/slash
   // periodicamente pra o seletor de MCP nunca ficar vazio num browser tardio.
@@ -310,9 +320,11 @@ export function runAgent(relayUrl: string): void {
 // tempo do frame de WS realmente sair pela rede.
 function gracefulShutdown(): void {
   for (const sessionKey of threads.keys()) {
-    broadcast({ t: 'error', sessionKey, message: 'Agente reiniciado — turno interrompido. Mande de novo.' });
+    broadcast({ t: 'error', sessionKey, message: 'Agente reiniciado — retomando este turno assim que ele voltar.' });
   }
-  killAllRuns();
+  // preserveLive: mantém os turnos no live-runs.json pra o boot retomá-los. Sem isto
+  // o onClose que chega dentro dos 300ms apaga o registro e o turno morre de vez.
+  killAllRuns({ preserveLive: true });
   setTimeout(() => process.exit(0), 300);
 }
 

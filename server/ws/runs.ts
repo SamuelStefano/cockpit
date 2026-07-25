@@ -10,9 +10,26 @@ import { classify, quickAnswer, killSideRuns, killSideRunsFor } from '../engine/
 import { suggestFollowups } from '../engine/suggest';
 import { awaitingAnswer } from './awaiting';
 import { parkedHeads, shiftParked, isQueuePaused } from './parked';
+import { markRunLive, clearRunLive, takeOrphanRuns } from './recover';
+import { recordIncident } from './incidents';
+
+// Config do turno, guardada no thread pra a retomada automática (morte silenciosa)
+// rodar com os MESMOS parâmetros — retomar em outro modelo/sem bypass mudaria o
+// comportamento no meio do trabalho.
+export interface RunParams {
+  mode?: string;
+  model?: string;
+  maxBudgetUsd?: number;
+  bypass?: boolean;
+  role?: Role;
+  disallowedSkills?: string[];
+  mcps?: string[];
+  effort?: string;
+}
 
 export interface Thread {
   handle: RunHandle;
+  params: RunParams;
   prompt: string;       // instrução em execução — contexto p/ o triador do próximo prompt
   startedAt: number;    // ts do início do turno; replayado no reconnect pra o cronômetro não reiniciar do zero após F5
   lastFrameAt?: number; // ts do último frame NDJSON traduzido; o reaper mata quem fica mudo além do teto
@@ -135,8 +152,19 @@ export function runStats(): { uptimeMs: number; activeRuns: number; lastStatsAt:
 // rodando órfão a noite toda — queimando token/CPU sem socket lendo o stdout,
 // e o run some pro cliente (threads é só memória). kill() já escala SIGTERM→
 // SIGKILL no grupo (detached), então isto encerra a árvore inteira.
-export function killAllRuns(): void {
+// preserveLive: no SHUTDOWN os turnos devem continuar no live-runs.json pra o boot
+// retomá-los (é o caso mais comum de turno morto: deploy). Na guarda de pressão o
+// processo segue vivo e o registro é limpo — retomar depois recriaria a pressão que
+// motivou o kill.
+let preserveLiveOnClose = false;
+export function killAllRuns(opts: { preserveLive?: boolean } = {}): void {
+  preserveLiveOnClose = !!opts.preserveLive;
   for (const t of threads.values()) {
+    // Kill NOSSO, não morte silenciosa: sem esta marca o onClose de cada turno veria
+    // "fechou sem result" e dispararia uma retomada automática por sessão — em cima
+    // do shutdown (processo saindo, claude detached e órfão) ou da guarda de pressão
+    // (ressuscitando justamente o que foi morto pra salvar a box).
+    t.stopped = true;
     try { t.handle.kill(); } catch { /* já morto */ }
   }
   killSideRuns(); // one-shots de triagem/quick-answer não vivem em `threads`
@@ -175,6 +203,46 @@ function reapStaleRuns(): void {
     broadcast({ t: 'error', sessionKey: key, message: 'turno travado encerrado automaticamente' });
     stopSession(key);
   }
+}
+
+// --- morte silenciosa do turno (o "chat simplesmente parou") -----------------
+
+// Todo turno normal termina com o evento `result` do `claude`, que carimba
+// endReason ('success' | 'error_max_budget' | ...). Fechar SEM result e sem stop
+// do usuário = o processo morreu no meio (crash, OOM-reap, queda de API) e ninguém
+// avisa: shouldReportExit engole o exit quando o code é 0/nosso kill, e a UI só
+// mostra o cronômetro — idêntico a um turno concluído. Foi o que aconteceu em
+// 2026-07-25T05:29Z: o turno rodou 10m35s, o último evento foi um tool_result e o
+// processo sumiu sem result. Este predicado é o detector.
+export function isSilentDeath(t: { stopped?: boolean; endReason?: string }): boolean {
+  return !t.stopped && !t.endReason;
+}
+
+// Uma retomada automática por incidente. Mais que isso vira loop de queima de
+// token quando a causa é permanente (quota estourada, API fora) — o teto garante
+// que a falha crônica apareça pro usuário em vez de rodar em círculos.
+export const AUTO_RESUME_CAP = 1;
+const autoResumes = new Map<string, number>();
+
+// Prompt da retomada: o JSONL sobrevive à morte do processo, então --resume
+// reconstrói o contexto inteiro e o turno continua de onde parou.
+const RESUME_PROMPT = 'O turno anterior foi interrompido por uma falha do processo. Continue exatamente de onde parou, sem repetir o trabalho já feito.';
+
+// Retoma o turno morto com a MESMA config. Silencioso quanto a corridas: se a fila
+// (pending/parked) ou o usuário já subiram um turno novo, não atropela.
+function autoResume(sessionKey: string, thread: Thread): void {
+  if (threads.has(sessionKey)) return;          // já há turno novo na sessão
+  if (awaitingAnswer.has(sessionKey)) return;   // turno aguarda resposta do usuário
+  if (!thread.sessionId) return;                // sem sessionId não há --resume possível
+  const tries = (autoResumes.get(sessionKey) ?? 0) + 1;
+  if (tries > AUTO_RESUME_CAP) {
+    broadcast({ t: 'error', sessionKey, message: 'A retomada automática também falhou — mande a mensagem de novo.' });
+    recordIncident({ kind: 'resume-exhausted', sessionKey, sessionId: thread.sessionId, detail: `${tries - 1} retomada(s) e o turno caiu de novo` });
+    return;
+  }
+  autoResumes.set(sessionKey, tries);
+  const p = thread.params;
+  startRun(null, sessionKey, RESUME_PROMPT, thread.sessionId, undefined, p.mode, p.model, p.maxBudgetUsd, p.bypass, p.role, p.disallowedSkills, p.mcps, p.effort);
 }
 
 let reaperTimer: ReturnType<typeof setInterval> | null = null;
@@ -220,6 +288,25 @@ export function startParkedDrainer(intervalMs = 30_000): void {
   parkedTimer.unref?.();
 }
 
+// Retoma no boot os turnos que o restart do agente matou. Sem isto o usuário fica
+// com o chat mudo até reclamar: os `claude -p` filhos morrem junto do agente e não
+// sobra ninguém pra perceber (o onClose nem chega a rodar). takeOrphanRuns já zera
+// o registro, então um crash-loop não re-dispara os mesmos turnos em cascata.
+export function resumeOrphanRuns(): void {
+  for (const o of takeOrphanRuns()) {
+    // Chaveia pelo sessionId, não pela key salva: uma sessão nova nasce com key
+    // 'new-…' e o mapeamento pro id real vive no cliente, que o restart derrubou —
+    // retomar na key velha viraria um chat fantasma que ninguém vê. Também dedupa
+    // contra a sessão que o usuário já reenviou na mão.
+    const key = o.sessionId;
+    if (!SESSION_KEY_RE.test(key) || threads.has(key)) continue;
+    broadcast({ t: 'error', sessionKey: key, message: 'O agente reiniciou e interrompeu este turno. Retomando de onde parou…' });
+    recordIncident({ kind: 'orphan-resume', sessionKey: key, sessionId: o.sessionId, detail: `turno órfão de restart, ${Math.round((Date.now() - o.startedAt) / 1000)}s de vida` });
+    const p = o.params ?? {};
+    startRun(null, key, RESUME_PROMPT, o.sessionId, undefined, p.mode, p.model, p.maxBudgetUsd, p.bypass, p.role, p.disallowedSkills, p.mcps, p.effort);
+  }
+}
+
 const SESSION_KEY_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 
 // ws null = run sem cliente específico (cron agendado): erros vão por broadcast e
@@ -256,7 +343,8 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
   }
   if (replacing) threads.get(sessionKey)!.handle.kill();
 
-  const thread: Thread = { handle: { kill: () => {} }, prompt, startedAt: Date.now(), sessionId: resumeId, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map() };
+  let live = false; // este turno já foi registrado no live-runs.json?
+  const thread: Thread = { handle: { kill: () => {} }, params: { mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort }, prompt, startedAt: Date.now(), sessionId: resumeId, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map() };
   threads.set(sessionKey, thread);
   // Eco da mensagem do usuário a todos os clientes ANTES do 'started' (bolha do
   // usuário aparece antes da do assistente). Só quando o cliente mandou msgId — o
@@ -275,13 +363,37 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
     role,
     disallowedSkills,
     mcps,
-    onEvent: (ev) => translate(sessionKey, thread, ev),
-    onError: (message) => broadcast({ t: 'error', sessionKey, message }),
+    onEvent: (ev) => {
+      translate(sessionKey, thread, ev);
+      // Registra o turno em disco assim que o sessionId aparece. É o que permite
+      // retomá-lo quando o PROCESSO INTEIRO morre (restart/OOM/deploy): aí o onClose
+      // não roda e a retomada em memória não existe mais. Só o agente escreve, pelo
+      // mesmo motivo do drainer: dois processos no mesmo arquivo = retomada dobrada.
+      if (!live && drainerEnabled && thread.sessionId) {
+        live = true;
+        markRunLive({ sessionKey, sessionId: thread.sessionId, params: thread.params, startedAt: thread.startedAt });
+      }
+    },
+    onError: (message) => {
+      broadcast({ t: 'error', sessionKey, message });
+      recordIncident({ kind: 'run-error', sessionKey, sessionId: thread.sessionId, detail: message.slice(0, 400) });
+    },
     onClose: () => {
       // Se este thread já foi substituído por um run mais novo na mesma key
       // (re-send que matou o anterior), o onClose do antigo NÃO deve mandar um
       // 'done' prematuro nem apagar a entrada do novo run.
       if (threads.get(sessionKey) !== thread) return;
+      if (live && !preserveLiveOnClose) clearRunLive(sessionKey); // fechou: não é mais órfão (salvo no shutdown, onde o boot retoma)
+      // Turno que morreu no meio sem dizer nada: avisa ANTES do 'done' (a bolha de
+      // erro entra acima do rodapé de conclusão) e retoma sozinho logo abaixo. Um
+      // fechamento saudável zera o contador pra a próxima falha ter direito a
+      // retomada — senão um incidente antigo consumiria a cota da sessão pra sempre.
+      const silent = isSilentDeath(thread);
+      if (silent) {
+        broadcast({ t: 'error', sessionKey, message: 'O turno caiu antes de terminar (o processo morreu sem resposta). Retomando de onde parou…' });
+        recordIncident({ kind: 'silent-death', sessionKey, sessionId: thread.sessionId, detail: `${Math.round((Date.now() - thread.startedAt) / 1000)}s vivo, ${thread.tools.length} tools, ${thread.text.length} chars de resposta` });
+      }
+      else autoResumes.delete(sessionKey);
       broadcast({ t: 'done', sessionKey, sessionId: thread.sessionId ?? '', costUsd: thread.costUsd, durationMs: thread.durationMs, numTurns: thread.numTurns, turnTokens: thread.turnTokens, inputTokens: thread.inputTokens, outputTokens: thread.outputTokens, endReason: thread.endReason, model: thread.model, stopped: thread.stopped });
       // Resumo IA do que a sessão fez, atualizado ao fim do turno (pedido do Samuel).
       // Fire-and-forget: best-effort, nunca bloqueia/derruba o fechamento do run.
@@ -310,6 +422,9 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
         // se drainPending subiu um turno, resolveThreadKey pega e drainParked pula.
         drainParked();
       }
+      // Por último: as filas têm prioridade sobre a retomada (o que o usuário mandou
+      // vale mais que continuar um turno morto), e autoResume só age se ninguém pegou.
+      if (silent) autoResume(sessionKey, thread);
     },
   });
 }

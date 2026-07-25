@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { WebSocket } from 'ws';
-import { admitRun, findStaleThreads, startRun, threads, REAPER_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './runs';
+import { admitRun, findStaleThreads, startRun, threads, isSilentDeath, killAllRuns, AUTO_RESUME_CAP, REAPER_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './runs';
 import { awaitingAnswer } from './awaiting';
+import { broadcast } from './broadcast';
 import { run } from '../engine/claude';
 
 vi.mock('../engine/claude', () => ({ run: vi.fn(() => ({ kill: vi.fn() })) }));
@@ -10,6 +11,7 @@ vi.mock('./translate', () => ({ translate: vi.fn() }));
 vi.mock('../summary', () => ({ summarize: vi.fn(async () => {}) }));
 vi.mock('../engine/triage', () => ({ classify: vi.fn(), quickAnswer: vi.fn(), killSideRuns: vi.fn(), killSideRunsFor: vi.fn() }));
 vi.mock('../engine/suggest', () => ({ suggestFollowups: vi.fn(async () => []) }));
+vi.mock('./incidents', () => ({ recordIncident: vi.fn() })); // teste não escreve no log real de incidentes
 
 describe('findStaleThreads', () => {
   const now = 1_000_000_000;
@@ -89,5 +91,95 @@ describe('startRun — latch awaitingAnswer (AskUserQuestion)', () => {
   it('send AUTO sem latch roda normalmente', () => {
     startRun(ws, 's3', 'fila normal', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, true);
     expect(run).toHaveBeenCalledOnce();
+  });
+});
+
+describe('morte silenciosa do turno — aviso + retomada automática', () => {
+  const ws = {} as WebSocket;
+  const closeLastRun = () => vi.mocked(run).mock.calls.at(-1)![0].onClose?.();
+  const errors = () => vi.mocked(broadcast).mock.calls.map((c) => c[0]).filter((m: any) => m.t === 'error');
+
+  beforeEach(() => {
+    threads.clear();
+    awaitingAnswer.clear();
+    vi.mocked(run).mockClear();
+    vi.mocked(broadcast).mockClear();
+  });
+
+  it('detecta só o fechamento sem result e sem stop', () => {
+    expect(isSilentDeath({})).toBe(true);
+    expect(isSilentDeath({ endReason: 'success' })).toBe(false);
+    expect(isSilentDeath({ endReason: 'error_max_budget' })).toBe(false);
+    expect(isSilentDeath({ stopped: true })).toBe(false);
+  });
+
+  it('avisa e retoma com os MESMOS parâmetros do turno morto', () => {
+    startRun(ws, 'k1', 'trabalho longo', 'sess-1', undefined, 'plan', 'opus', 5, true, 'admin', ['x'], ['mcp1'], 'high');
+    closeLastRun();
+    expect(errors()).toHaveLength(1);
+    expect(run).toHaveBeenCalledTimes(2);
+    const resumed = vi.mocked(run).mock.calls[1][0];
+    expect(resumed.resumeId).toBe('sess-1');
+    expect(resumed.prompt).toContain('Continue exatamente de onde parou');
+    expect(resumed).toMatchObject({ mode: 'plan', model: 'opus', maxBudgetUsd: 5, bypass: true, role: 'admin', effort: 'high' });
+  });
+
+  it('fechamento saudável não avisa nem retoma', () => {
+    startRun(ws, 'k2', 'trabalho', 'sess-2');
+    threads.get('k2')!.endReason = 'success';
+    closeLastRun();
+    expect(errors()).toHaveLength(0);
+    expect(run).toHaveBeenCalledOnce();
+  });
+
+  it('stop do usuário não vira retomada', () => {
+    startRun(ws, 'k3', 'trabalho', 'sess-3');
+    threads.get('k3')!.stopped = true;
+    closeLastRun();
+    expect(errors()).toHaveLength(0);
+    expect(run).toHaveBeenCalledOnce();
+  });
+
+  it('retoma no máximo AUTO_RESUME_CAP vezes seguidas', () => {
+    startRun(ws, 'k4', 'trabalho', 'sess-4');
+    for (let i = 0; i <= AUTO_RESUME_CAP + 1; i++) closeLastRun();
+    expect(run).toHaveBeenCalledTimes(1 + AUTO_RESUME_CAP);
+    expect(errors().at(-1)).toMatchObject({ message: expect.stringContaining('também falhou') });
+  });
+
+  it('turno saudável zera a cota — falha nova volta a ter direito a retomada', () => {
+    startRun(ws, 'k5', 'trabalho', 'sess-5');
+    closeLastRun();                                   // 1ª morte: retoma
+    expect(run).toHaveBeenCalledTimes(2);
+    threads.get('k5')!.endReason = 'success';
+    closeLastRun();                                   // fecha bem: zera
+    startRun(ws, 'k5', 'outro trabalho', 'sess-5');
+    closeLastRun();                                   // morte nova: retoma de novo
+    expect(vi.mocked(run).mock.calls.at(-1)![0].prompt).toContain('Continue exatamente de onde parou');
+  });
+
+  it('não retoma quando a sessão aguarda resposta do usuário', () => {
+    startRun(ws, 'k6', 'trabalho', 'sess-6');
+    awaitingAnswer.add('k6');
+    closeLastRun();
+    expect(run).toHaveBeenCalledOnce();
+  });
+
+  it('não retoma turno sem sessionId (sem --resume possível)', () => {
+    startRun(ws, 'k7', 'trabalho');
+    closeLastRun();
+    expect(run).toHaveBeenCalledOnce();
+  });
+
+  // Regressão: killAllRuns (shutdown / guarda de pressão) fechava o turno sem marcar
+  // stopped, então cada onClose parecia morte silenciosa e subia um turno novo — em
+  // cima do processo saindo ou da VPS sob pressão, uma retomada por sessão.
+  it('kill nosso (killAllRuns) não vira retomada automática', () => {
+    startRun(ws, 'k8', 'trabalho', 'sess-8');
+    startRun(ws, 'k9', 'outro', 'sess-9');
+    killAllRuns();
+    vi.mocked(run).mock.calls.forEach((c) => c[0].onClose?.());
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(errors()).toHaveLength(0);
   });
 });

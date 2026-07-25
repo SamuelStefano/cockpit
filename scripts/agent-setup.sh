@@ -249,3 +249,11 @@ if command -v crontab >/dev/null 2>&1; then
   ( crontab -l 2>/dev/null | grep -v 'deck-hibernate' || true; echo "17 * * * * HIBERNATE_HOURS=24 /usr/bin/env bash \"$HIB\" >/dev/null 2>&1 # deck-hibernate" ) | crontab -
   echo "[deck] hibernação de sessões ociosas ativa (cron horário) — log em /tmp/deck-hibernate.log"
 fi
+
+# Triador de incidentes: acorda uma IA quando um TURNO falha (o doctor cuida da box,
+# este cuida do app). Só gasta token se houver incidente novo no log.
+if command -v crontab >/dev/null 2>&1; then
+  TRIAGE="$SRC_DIR/scripts/incident-ai.sh"
+  ( crontab -l 2>/dev/null | grep -v 'deck-incident-ai' || true; echo "*/15 * * * * /usr/bin/env bash \"$TRIAGE\" >/dev/null 2>&1 # deck-incident-ai" ) | crontab -
+  echo "[deck] triador de incidentes ativo (cron 15min) — log em ~/.cockpit/incident-ai.log"
+fi
