@@ -41,8 +41,9 @@ export function Internals() {
           <Pill>claude --resume</Pill>. Evita que várias janelas esquecidas travem a RAM.
         </InfoCard>
         <InfoCard icon="clock" iconClass="text-orange-400" size={13} title="Crons — prompts agendados">
-          A aba <Pill>Crons</Pill> dispara prompts em horário marcado (diário num horário ou
-          a cada N minutos) como turnos autônomos. Cada disparo vira a sessão <Pill>cron-&lt;id&gt;</Pill>.
+          A aba <Pill>Crons</Pill> dispara prompts em horário marcado como turnos autônomos:
+          <Pill>diário</Pill> num horário, a cada <Pill>N minutos</Pill> ou <Pill>uma vez</Pill> numa data e
+          hora (esse se pausa sozinho depois de rodar). Cada disparo vira a sessão <Pill>cron-&lt;id&gt;</Pill>.
           Pausável, com "rodar agora". O agendador roda no backend; persistido em <Pill>~/.cockpit/crons.json</Pill>.
         </InfoCard>
         <InfoCard icon="pencil" iconClass="text-orange-400" size={13} title="Notas viram contexto">

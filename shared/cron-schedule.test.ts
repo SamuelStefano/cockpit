@@ -13,6 +13,9 @@ describe('scheduleLabel', () => {
   it('formata diário em HH:MM', () => {
     expect(scheduleLabel({ kind: 'daily', atMinute: 9 * 60 + 5 })).toBe('todo dia 09:05');
   });
+  it('formata uma vez com data e hora', () => {
+    expect(scheduleLabel({ kind: 'once', atMs: new Date(2026, 6, 25, 9, 59).getTime() })).toBe('uma vez em 25/07 09:59');
+  });
 });
 
 describe('nextRunAt', () => {
@@ -35,5 +38,24 @@ describe('isDue', () => {
   it('intervalo vencido dispara', () => {
     expect(isDue({ ...base, lastRun: NOON - 2 * 3_600_000 }, NOON)).toBe(true);
     expect(isDue({ ...base, lastRun: NOON - 10_000 }, NOON)).toBe(false);
+  });
+});
+
+describe('uma vez', () => {
+  const once = (atMs: number, over: Partial<Cron> = {}): Cron => ({ ...base, schedule: { kind: 'once', atMs }, ...over });
+
+  it('nextRunAt é o instante marcado', () => {
+    expect(nextRunAt(once(NOON + 60_000), NOON)).toBe(NOON + 60_000);
+  });
+  it('só dispara depois do instante marcado', () => {
+    expect(isDue(once(NOON + 1), NOON)).toBe(false);
+    expect(isDue(once(NOON), NOON)).toBe(true);
+  });
+  it('não repete depois de rodar', () => {
+    expect(isDue(once(NOON, { lastRun: NOON }), NOON + 3_600_000)).toBe(false);
+  });
+  it('reagendar pra frente volta a valer', () => {
+    const rescheduled = once(NOON + 3_600_000, { lastRun: NOON });
+    expect(isDue(rescheduled, NOON + 3_600_000)).toBe(true);
   });
 });

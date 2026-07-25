@@ -198,8 +198,9 @@ export type PermMode = 'plan' | 'auto' | 'acceptEdits';
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 // Cron do Deck: dispara um prompt em horário agendado (turno autônomo). Schedule
-// minimalista: intervalo (a cada N min) ou diário (minuto do dia, hora local).
-export interface CronSchedule { kind: 'interval' | 'daily'; everyMinutes?: number; atMinute?: number }
+// minimalista: intervalo (a cada N min), diário (minuto do dia, hora local) ou uma
+// vez só (`atMs`, timestamp absoluto — dispara e se auto-pausa).
+export interface CronSchedule { kind: 'interval' | 'daily' | 'once'; everyMinutes?: number; atMinute?: number; atMs?: number }
 export interface Cron {
   id: string;
   name: string;
