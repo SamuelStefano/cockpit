@@ -24,7 +24,9 @@ while true; do
   echo "[$(date -Is)] starting cockpit backend on :7777"
   # Mata um listener órfão na :7777 antes de subir, pra nunca cair no EADDRINUSE.
   fuser -k 7777/tcp 2>/dev/null && sleep 1
-  COCKPIT_PORT=7777 npx tsx server/index.ts
+  # 9>&-: o inner não herda o fd do flock. Se sobrevivesse ao supervisor (órfão de
+  # freeze/OOM) seguraria o lock e nenhum supervisor novo subiria.
+  COCKPIT_PORT=7777 npx tsx server/index.ts 9>&-
   echo "[$(date -Is)] backend exited ($?), restarting in 2s"
   sleep 2
 done

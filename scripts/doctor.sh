@@ -10,7 +10,11 @@
 set -uo pipefail
 
 LOG=/tmp/cockpit-doctor.log
-LOCK=/tmp/cockpit-doctor.lock
+# v2: o caminho antigo ficou envenenado — os supervisores de longa vida herdaram o
+# fd 8 e seguram aquele lock até morrerem. Trocar o caminho é o que reergue o
+# watchdog sem precisar reiniciar o agente (que mataria os turnos em voo). A causa
+# raiz está fechada com os `8>&-` nos spawns abaixo.
+LOCK=/tmp/cockpit-doctor.v2.lock
 HEALTH_URL="http://127.0.0.1:7777/healthz"
 SUPERVISOR=/home/samuel/cockpit/run-backend.sh
 CORES=$(nproc 2>/dev/null || echo 1)
@@ -49,7 +53,11 @@ if [ "$code" != "200" ]; then
   log "backend unhealthy (HTTP $code)"
   if ! pgrep -f 'run-backend.sh' >/dev/null 2>&1; then
     log "supervisor down -> starting $SUPERVISOR"
-    nohup bash "$SUPERVISOR" >/tmp/cockpit-backend.out 2>&1 &
+    # 8>&- é OBRIGATÓRIO: o supervisor é eterno e herdaria o fd do flock,
+    # segurando o lock pra sempre. Foi o que matou este watchdog por 14 dias
+    # (11→25/07/2026): o doctor pós-reboot subiu os supervisores, eles ficaram com
+    # o fd 8 aberto, e todo doctor seguinte caiu no `flock -n || exit 0` calado.
+    nohup bash "$SUPERVISOR" >/tmp/cockpit-backend.out 2>&1 8>&- &
   else
     log "supervisor alive; aguardando ele reerguer a :7777"
   fi
@@ -62,7 +70,7 @@ fi
 AGENT_SUPERVISOR=/home/samuel/cockpit/run-agent.sh
 if ! pgrep -f 'run-agent.sh' >/dev/null 2>&1; then
   log "agent supervisor down -> starting $AGENT_SUPERVISOR"
-  nohup bash "$AGENT_SUPERVISOR" >>/tmp/deck-agent.out 2>&1 &
+  nohup bash "$AGENT_SUPERVISOR" >>/tmp/deck-agent.out 2>&1 8>&- &   # 8>&-: ver nota em ── 2
 fi
 
 # ── 3. Guarda de load. load1 alto = storm. No freeze de 2026-06-11 (load 130 em
@@ -111,6 +119,27 @@ if [ "${avail_mb:-9999}" -lt 150 ]; then
     kill -TERM "$victim" 2>/dev/null; sleep 2; kill -KILL "$victim" 2>/dev/null
   fi
 fi
+
+# ── 4b. Órfãos de `claude -p`. Turno cujo pai (o agente) morreu fica com PPID 1:
+#       ninguém lê o stdout dele, o reaper em memória do runs.ts não o conhece mais
+#       (o mapa de threads nasce vazio no boot) e o $PROTECT acima blinda `claude`
+#       de todos os tiros genéricos — então ele simplesmente fica. Achei um de 8
+#       DIAS, 121MB e 77min de CPU, com um Bash travado pendurado. O alvo aqui é
+#       estreito de propósito e NÃO passa pelo $PROTECT: só argv `claude -p` (nunca
+#       a CLI interativa), só PPID 1 (pai morto = saída sem destino) e só acima de
+#       30min, folga enorme sobre o boot do agente retomando turno (15s).
+ORPHAN_MIN_AGE=1800
+orphans=$(ps -eo pid,ppid,etimes,args --no-headers 2>/dev/null \
+  | awk -v min="$ORPHAN_MIN_AGE" '$2==1 && $3>min && $4 ~ /(^|\/)claude$/ && $5=="-p" {print $1":"$3}')
+for entry in $orphans; do
+  pid=${entry%%:*}; age=${entry##*:}
+  log "KILL claude órfão pid=$pid (pai morto, ${age}s sem destino)"
+  # Grupo inteiro: o `claude` órfão é líder de sessão, e matar só ele deixaria a
+  # ferramenta em voo (bash do Bash tool) rodando reparentada.
+  kill -TERM "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null
+  sleep 2
+  kill -KILL "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null
+done
 
 # ── 5. Heartbeat (prova de vida). Uma linha por ciclo, leve, pra `tail` confirmar
 #       que o watchdog está vivo. Rotação acima evita o log crescer sem fim.

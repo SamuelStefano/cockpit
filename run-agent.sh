@@ -14,7 +14,9 @@ exec 9>/tmp/deck-agent.lock
 if ! flock -n 9; then echo "[$(date -Is)] outro agente já roda — saindo"; exit 0; fi
 while true; do
   echo "[$(date -Is)] starting deck agent -> $DECK_RELAY_URL"
-  npx tsx server/agent.ts
+  # 9>&-: o inner não herda o fd do flock. Se sobrevivesse ao supervisor (órfão de
+  # freeze/OOM) seguraria o lock e nenhum supervisor novo subiria.
+  npx tsx server/agent.ts 9>&-
   echo "[$(date -Is)] agent exited ($?), restarting in 2s"
   sleep 2
 done
