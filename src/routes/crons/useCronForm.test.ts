@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildSchedule, draftValid, toLocalInput, type CronDraft } from './useCronForm';
+import { buildSchedule, draftValid, enabledFor, toLocalInput, type CronDraft } from './useCronForm';
+import type { Cron } from '../../../shared/protocol';
 
 const draft = (over: Partial<CronDraft>): CronDraft => ({
   name: 'n', prompt: 'p', kind: 'daily', everyMinutes: 60, time: '09:00',
@@ -26,6 +27,23 @@ describe('draftValid', () => {
   it('uma vez exige data parseável', () => {
     expect(draftValid(draft({ kind: 'once', at: '' }))).toBe(false);
     expect(draftValid(draft({ kind: 'once' }))).toBe(true);
+  });
+});
+
+describe('enabledFor', () => {
+  const NOW = new Date(2026, 6, 25, 12, 0).getTime();
+  const fired: Cron = { id: 'o', name: 'n', prompt: 'p', schedule: { kind: 'once', atMs: NOW - 60_000 },
+    enabled: false, createdAt: 0, lastRun: NOW - 60_000 };
+
+  it('remarcar um "uma vez" já disparado pra frente re-arma', () => {
+    expect(enabledFor({ kind: 'once', atMs: NOW + 60_000 }, fired, NOW)).toBe(true);
+  });
+  it('"uma vez" no passado nasce pausado', () => {
+    expect(enabledFor({ kind: 'once', atMs: NOW - 1 }, null, NOW)).toBe(false);
+  });
+  it('recorrente preserva o enabled do original', () => {
+    expect(enabledFor({ kind: 'daily', atMinute: 540 }, { ...fired, enabled: false }, NOW)).toBe(false);
+    expect(enabledFor({ kind: 'daily', atMinute: 540 }, null, NOW)).toBe(true);
   });
 });
 

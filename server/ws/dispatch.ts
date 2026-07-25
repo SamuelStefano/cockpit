@@ -11,6 +11,7 @@ import { registerFinanceClient } from './finance-clients';
 import { runDflSync } from '../dfl-sync-runner';
 import { runDflWrite } from '../dfl-write-runner';
 import { getCrons, saveCron, deleteCron } from '../crons';
+import { scheduleValid } from '../../shared/cron-schedule';
 import { fireCron } from './runs';
 import { listSkills, readSkill, resolveSkillDeny, installSkill } from '../skills';
 import { saveAttachment, saveAttachmentFromUrl, addUploadChunk, readAttachment } from '../attachments';
@@ -247,8 +248,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const c = msg.cron;
       // Validação mínima da borda (frame cru): só persiste um cron bem-formado.
       if (!c || typeof c.id !== 'string' || !/^[a-zA-Z0-9_-]{1,59}$/.test(c.id) ||
-          typeof c.prompt !== 'string' || !c.prompt.trim() ||
-          !c.schedule || (c.schedule.kind !== 'interval' && c.schedule.kind !== 'daily')) {
+          typeof c.prompt !== 'string' || !c.prompt.trim() || !scheduleValid(c.schedule)) {
         send(ws, { t: 'error', message: 'cron inválido' });
         return;
       }

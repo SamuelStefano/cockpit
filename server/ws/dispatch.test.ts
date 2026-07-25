@@ -39,6 +39,10 @@ vi.mock('../store', () => ({
   purgeSession: vi.fn(async () => {}), setTitle: vi.fn(async () => {}), setNote: vi.fn(async () => {}),
 }));
 vi.mock('../health', () => ({ collectHealth: vi.fn(async () => ({})) }));
+const crons = vi.hoisted(() => ({
+  getCrons: vi.fn(async () => []), saveCron: vi.fn(async () => []), deleteCron: vi.fn(async () => []),
+}));
+vi.mock('../crons', () => crons);
 
 import { handle } from './dispatch';
 
@@ -136,6 +140,25 @@ describe('admin-mcp-add stdio loopback gate', () => {
     cfg.CONFIG.localOnly = true;
     await handle(ws, { t: 'admin-mcp-add', name: 'local', command: 'node mcp.js' } as ClientMsg);
     expect(admin.addMcp).toHaveBeenCalledOnce();
+  });
+});
+
+describe('cron-save boundary', () => {
+  const msg = (schedule: unknown): ClientMsg => ({
+    t: 'cron-save',
+    cron: { id: 'c1', name: 'n', prompt: 'p', schedule, enabled: true, createdAt: 0 },
+  } as ClientMsg);
+
+  it('persiste um "uma vez" com instante válido', async () => {
+    await handle(ws, msg({ kind: 'once', atMs: 1784973360000 }));
+    expect(crons.saveCron).toHaveBeenCalledOnce();
+  });
+
+  it('rejeita kind desconhecido e atMs lixo sem tocar o disco', async () => {
+    await handle(ws, msg({ kind: 'evil' }));
+    await handle(ws, msg({ kind: 'once', atMs: 'amanhã' }));
+    expect(crons.saveCron).not.toHaveBeenCalled();
+    expect(bc.send).toHaveBeenCalledWith(ws, { t: 'error', message: 'cron inválido' });
   });
 });
 

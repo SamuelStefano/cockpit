@@ -35,6 +35,14 @@ export function draftValid(d: CronDraft): boolean {
   return d.kind !== 'once' || Number.isFinite(new Date(d.at).getTime());
 }
 
+// Um "uma vez" vale pelo instante marcado: remarcar pra frente re-arma o que já
+// disparou (o servidor pausa ao rodar) e data no passado nasce pausada em vez de
+// disparar um turno autônomo nos próximos 30s por um ano digitado errado.
+export function enabledFor(s: CronSchedule, original: Cron | null, now: number): boolean {
+  if (s.kind === 'once') return (s.atMs ?? 0) > now;
+  return original?.enabled ?? true;
+}
+
 const empty = (): CronDraft => ({
   name: '', prompt: '', kind: 'daily', everyMinutes: 60, time: '09:00',
   at: toLocalInput(Date.now() + 3_600_000), model: '', mode: 'plan', effort: 'low',
@@ -74,15 +82,16 @@ export function useCronForm(onSave: (c: Cron) => void) {
 
   const submit = () => {
     if (!valid) return;
+    const schedule = buildSchedule(draft);
     onSave({
       id: draft.id ?? newId(),
       name: draft.name.trim(),
       prompt: draft.prompt.trim(),
-      schedule: buildSchedule(draft),
+      schedule,
       model: draft.model || undefined,
       mode: draft.mode,
       effort: draft.effort,
-      enabled: original?.enabled ?? true,
+      enabled: enabledFor(schedule, original, Date.now()),
       createdAt: original?.createdAt ?? Date.now(),
       lastRun: original?.lastRun,
     });

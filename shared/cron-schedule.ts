@@ -33,6 +33,17 @@ export function nextRunAt(c: Cron, now: number): number {
   return now < today && !ranToday ? today : today + DAY;
 }
 
+// Guarda de borda: o frame de `cron-save` vem cru do cliente, então a forma do
+// schedule é validada antes de persistir — um `atMs` não-numérico viraria NaN no
+// agendador (nunca dispara) e "Invalid Date" no card.
+export function scheduleValid(s: CronSchedule | undefined): boolean {
+  if (!s) return false;
+  if (s.kind === 'interval') return Number.isFinite(s.everyMinutes);
+  if (s.kind === 'daily') return Number.isFinite(s.atMinute);
+  if (s.kind === 'once') return Number.isFinite(s.atMs) && (s.atMs ?? 0) > 0;
+  return false;
+}
+
 // Está vencido AGORA (deve disparar)?
 export function isDue(c: Cron, now: number): boolean {
   if (!c.enabled) return false;

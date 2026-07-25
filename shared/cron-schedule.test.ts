@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { Cron } from './protocol';
-import { scheduleLabel, nextRunAt, isDue } from './cron-schedule';
+import type { Cron, CronSchedule } from './protocol';
+import { scheduleLabel, nextRunAt, isDue, scheduleValid } from './cron-schedule';
 
 const base: Cron = { id: 'x', name: 'n', prompt: 'p', schedule: { kind: 'interval', everyMinutes: 60 }, enabled: true, createdAt: 0 };
 const NOON = new Date('2026-06-25T12:00:00').getTime();
@@ -57,5 +57,20 @@ describe('uma vez', () => {
   it('reagendar pra frente volta a valer', () => {
     const rescheduled = once(NOON + 3_600_000, { lastRun: NOON });
     expect(isDue(rescheduled, NOON + 3_600_000)).toBe(true);
+  });
+});
+
+describe('scheduleValid', () => {
+  it('aceita os três kinds bem-formados', () => {
+    expect(scheduleValid({ kind: 'interval', everyMinutes: 60 })).toBe(true);
+    expect(scheduleValid({ kind: 'daily', atMinute: 0 })).toBe(true);
+    expect(scheduleValid({ kind: 'once', atMs: NOON })).toBe(true);
+  });
+  it('rejeita kind desconhecido e campo faltando ou não-numérico', () => {
+    expect(scheduleValid(undefined)).toBe(false);
+    expect(scheduleValid({ kind: 'evil' } as unknown as CronSchedule)).toBe(false);
+    expect(scheduleValid({ kind: 'once' })).toBe(false);
+    expect(scheduleValid({ kind: 'once', atMs: 'amanhã' as unknown as number })).toBe(false);
+    expect(scheduleValid({ kind: 'daily' })).toBe(false);
   });
 });
