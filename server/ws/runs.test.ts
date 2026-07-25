@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { WebSocket } from 'ws';
-import { admitRun, findStaleThreads, startRun, threads, isSilentDeath, killAllRuns, AUTO_RESUME_CAP, REAPER_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './runs';
+import { admitRun, findStaleThreads, startRun, threads, isSilentDeath, killAllRuns, resumeOrphanRuns, AUTO_RESUME_CAP, REAPER_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './runs';
+import { takeOrphanRuns } from './recover';
 import { awaitingAnswer } from './awaiting';
 import { broadcast } from './broadcast';
 import { run } from '../engine/claude';
@@ -12,6 +13,7 @@ vi.mock('../summary', () => ({ summarize: vi.fn(async () => {}) }));
 vi.mock('../engine/triage', () => ({ classify: vi.fn(), quickAnswer: vi.fn(), killSideRuns: vi.fn(), killSideRunsFor: vi.fn() }));
 vi.mock('../engine/suggest', () => ({ suggestFollowups: vi.fn(async () => []) }));
 vi.mock('./incidents', () => ({ recordIncident: vi.fn() })); // teste não escreve no log real de incidentes
+vi.mock('./recover', () => ({ markRunLive: vi.fn(), clearRunLive: vi.fn(), takeOrphanRuns: vi.fn(() => []) }));
 
 describe('findStaleThreads', () => {
   const now = 1_000_000_000;
@@ -181,5 +183,56 @@ describe('morte silenciosa do turno — aviso + retomada automática', () => {
     vi.mocked(run).mock.calls.forEach((c) => c[0].onClose?.());
     expect(run).toHaveBeenCalledTimes(2);
     expect(errors()).toHaveLength(0);
+  });
+});
+
+// resumeOrphanRuns dispara turno SEM usuário pedindo (roda no boot, lendo disco).
+// É o caminho mais arriscado do lote: um arquivo errado vira trabalho pago que
+// ninguém autorizou — daí testar chave, dedupe e passagem de params.
+describe('resumeOrphanRuns — turnos que o restart matou', () => {
+  const orphan = (over: Record<string, unknown> = {}) => ({
+    sessionKey: 'new-123', sessionId: 'sess-orfa', startedAt: Date.now() - 30_000,
+    params: { mode: 'plan', model: 'opus', maxBudgetUsd: 5, bypass: true, role: 'admin', effort: 'high' },
+    ...over,
+  });
+
+  beforeEach(() => {
+    threads.clear();
+    vi.mocked(run).mockClear();
+    vi.mocked(broadcast).mockClear();
+    vi.mocked(takeOrphanRuns).mockReturnValue([]);
+  });
+
+  it('retoma pelo sessionId (não pela key salva) com os params do turno morto', () => {
+    vi.mocked(takeOrphanRuns).mockReturnValue([orphan()] as never);
+    resumeOrphanRuns();
+    expect(run).toHaveBeenCalledOnce();
+    const c = vi.mocked(run).mock.calls[0][0];
+    expect(c.resumeId).toBe('sess-orfa');
+    expect(c.prompt).toContain('Continue exatamente de onde parou');
+    expect(c).toMatchObject({ mode: 'plan', model: 'opus', maxBudgetUsd: 5, bypass: true, role: 'admin', effort: 'high' });
+    // Chaveado pelo id real: a key 'new-123' só existia no cliente que o restart derrubou.
+    expect(threads.has('sess-orfa')).toBe(true);
+    expect(threads.has('new-123')).toBe(false);
+  });
+
+  it('avisa o usuário antes de retomar sozinho', () => {
+    vi.mocked(takeOrphanRuns).mockReturnValue([orphan()] as never);
+    resumeOrphanRuns();
+    expect(vi.mocked(broadcast).mock.calls.map((c) => c[0]).filter((m: any) => m.t === 'error')).toHaveLength(1);
+  });
+
+  it('ignora sessionId que não é chave válida (arquivo corrompido/editado)', () => {
+    vi.mocked(takeOrphanRuns).mockReturnValue([orphan({ sessionId: '../../etc/passwd' })] as never);
+    resumeOrphanRuns();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('não retoma sessão que o usuário já reenviou na mão', () => {
+    startRun({} as WebSocket, 'sess-orfa', 'reenviei na mão');
+    vi.mocked(run).mockClear();
+    vi.mocked(takeOrphanRuns).mockReturnValue([orphan()] as never);
+    resumeOrphanRuns();
+    expect(run).not.toHaveBeenCalled();
   });
 });
