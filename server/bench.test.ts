@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { insideRoot, buildBench } from './bench';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
+import { insideRoot, isDepsDir, buildBench } from './bench';
 
 describe('insideRoot', () => {
   it('accepts a file under the root', () => {
@@ -16,6 +18,24 @@ describe('insideRoot', () => {
 
   it('rejects the root itself (only files under it are importable)', () => {
     expect(insideRoot('/repo', '/repo')).toBe(false);
+  });
+});
+
+describe('isDepsDir', () => {
+  it('accepts a real node_modules directory', () => {
+    expect(isDepsDir(join(process.cwd(), 'node_modules'))).toBe(true);
+  });
+
+  it('rejects a directory that is not node_modules', () => {
+    expect(isDepsDir(homedir())).toBe(false);
+  });
+
+  it('rejects a path that does not exist', () => {
+    expect(isDepsDir('/nao/existe/node_modules')).toBe(false);
+  });
+
+  it('rejects a non-string', () => {
+    expect(isDepsDir(undefined)).toBe(false);
   });
 });
 
@@ -38,5 +58,15 @@ describe('buildBench', () => {
   it('refuses an unregistered slug', async () => {
     const res = await buildBench('nao-existe-mesmo', 'export default () => null;');
     expect(res).toMatchObject({ ok: false, error: expect.stringContaining('alvo desconhecido') });
+  });
+
+  // Liberar o `node_modules` de fora não pode virar "qualquer caminho serve".
+  it('still refuses a file outside both the root and the deps dir', async () => {
+    const res = await buildBench(
+      'itera-player',
+      "import x from '/etc/hostname';\nexport default () => x;",
+    );
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('fora do repo do bench');
   });
 });
