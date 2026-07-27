@@ -26,6 +26,7 @@ export const SECTIONS: Section[] = [
   { id: 'comandos', label: 'Comandos & atalhos', icon: 'command' },
   { id: 'modelos', label: 'Modelos', icon: 'claude' },
   { id: 'playground', label: 'Playground & modo App', icon: 'code' },
+  { id: 'bench', label: 'Bench (repo externo)', icon: 'grip' },
   { id: 'admin', label: 'Admin', icon: 'shield' },
   { id: 'bastidores', label: 'Por trás dos panos', icon: 'terminal' },
   { id: 'repo', label: 'Mapa do repositório', icon: 'file' },
@@ -73,6 +74,7 @@ export const FILEMAP: { group: string; tone: string; files: { path: string; what
       { path: 'src/components/StatusBar.tsx', what: 'Rodapé com telemetria da máquina (CPU/RAM/disco/load).' },
       { path: 'src/components/DocViewer.tsx', what: 'Visualizador de markdown reusado por Contextos e Skills.' },
       { path: 'src/components/primitives.tsx', what: 'Átomos de UI compartilhados: Icon, Badge, render de markdown.' },
+      { path: 'src/components/primitives/livepreview/', what: 'Preview ao vivo do chat: runtimes em iframe, estúdio do /play e o card do bench (```bench:<slug>) que roda componente de outro repo.' },
     ],
   },
   {
@@ -107,6 +109,7 @@ export const FILEMAP: { group: string; tone: string; files: { path: string; what
       { path: 'server/ws/slash.ts · slash-probe.ts', what: 'Detecta e resolve comandos com barra conhecidos pelo CLI.' },
       { path: 'server/ws/models.ts · usage-plan.ts', what: 'Catálogo de modelos da Anthropic e uso global do plano.' },
       { path: 'server/ws/rate.ts · guard.ts · origin.ts', what: 'Rate-limit, backpressure e checagem de origem do socket.' },
+      { path: 'server/bench.ts', what: 'Bench: compila um componente de outro repositório (esbuild + Tailwind do alvo) num bundle autocontido, confinado à raiz registrada em ~/.cockpit/bench.json.' },
     ],
   },
   {

@@ -24,6 +24,7 @@ export interface Attachment { name: string; path: string; text?: string; s3url?:
 export interface AttachmentPreview { path: string; name: string; dataB64?: string; error?: string }
 export type { TermApi };
 import type { ConnState } from './components/primitives';
+import { benchDispatch, failAllBenchPending, setBenchSender } from './components/primitives/livepreview/bench-bus';
 import type { Phase } from './components/Chat';
 
 // Heartbeat app-level (watchdog de socket meio-aberto). Manda um ping a cada
@@ -371,6 +372,9 @@ export function useCockpit(): Cockpit {
     ws.send(JSON.stringify(m));
     return true;
   }, []);
+
+  // O card do bench vive fundo na árvore do markdown e precisa falar com o WS.
+  useEffect(() => { setBenchSender(send); return () => setBenchSender(null); }, [send]);
 
   const { term, onTermData, onTermReplay, onTermExit, onTerms, discovered: discoveredTerms, listTerms, reattach } = useTerminals(send);
 
@@ -876,6 +880,11 @@ export function useCockpit(): Cockpit {
         if (!msg.ok) setGraphBuildError(msg.error ?? 'falha no build');
         return;
       }
+      case 'bench-bundle':
+      case 'bench-error': {
+        benchDispatch(msg);
+        return;
+      }
       case 'usage-stats': {
         // O server devolve EMPTY_STATS (tudo zero) quando o SQLite está em lock
         // (db.usageStats() cai no fallback). Não apaga um painel já populado por
@@ -1130,6 +1139,7 @@ export function useCockpit(): Cockpit {
     ws.onclose = (ev) => {
       if (!isCurrent()) return;
       setConn({ ws: 'down', sse: 'down' });
+      failAllBenchPending();
       // 4401 = servidor exige token e o nosso falta/está errado. NÃO re-tenta em
       // loop: mostra o login. Qualquer outro código = queda de rede → backoff.
       if (ev.code === 4401) { setAuthRequired(true); return; }

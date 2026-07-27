@@ -12,6 +12,7 @@ import { Search } from './sections/Search';
 import { Commands } from './sections/Commands';
 import { Models } from './sections/Models';
 import { Playground } from './sections/Playground';
+import { Bench } from './sections/Bench';
 import { Admin } from './sections/Admin';
 import { Internals } from './sections/Internals';
 import { RepoMap } from './sections/RepoMap';
@@ -33,6 +34,7 @@ export function DocSections({ year }: { year: number }) {
       <Commands />
       <Models />
       <Playground />
+      <Bench />
       <Admin />
       <Internals />
       <RepoMap />

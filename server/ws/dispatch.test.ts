@@ -4,7 +4,7 @@ import type { ClientMsg } from '../../shared/protocol';
 
 // Mock every data-layer dependency so handle() routes against predictable stubs.
 const runs = vi.hoisted(() => {
-  const threads = new Map<string, { handle: { kill: ReturnType<typeof vi.fn> } }>();
+  const threads = new Map<string, { handle: { kill: () => void } }>();
   const onStop = vi.fn();
   return {
     threads,
