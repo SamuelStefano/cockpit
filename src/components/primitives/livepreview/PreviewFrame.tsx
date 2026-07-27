@@ -18,16 +18,19 @@ const SRCDOC: Record<Mode, string> = {
 // no nativo, coluna fluida ou moldura de largura fixa (viewport) no web. `width`
 // só vale pro web — null = fluido (100%), número = moldura centralizada.
 export function PreviewFrame({
-  frameRef, mode, height, width, overlay,
+  frameRef, mode, height, width, overlay, srcDoc, title = 'live preview',
 }: {
   frameRef: RefObject<HTMLIFrameElement>;
   mode: Mode;
   height: number;
   width: number | null;
   overlay?: ReactNode;
+  /** Documento próprio (o bench tem o seu); sem isto vale o do modo. */
+  srcDoc?: string;
+  title?: string;
 }) {
   const frame = (
-    <iframe ref={frameRef} title="live preview" sandbox="allow-scripts" srcDoc={SRCDOC[mode]} />
+    <iframe ref={frameRef} title={title} sandbox="allow-scripts" srcDoc={srcDoc ?? SRCDOC[mode]} />
   );
 
   if (mode === 'native') {

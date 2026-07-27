@@ -478,6 +478,10 @@ export type ClientMsg =
   | { t: 'graph-query'; id: string; question: string; budget?: number }
   | { t: 'graph-node-op'; id: string; op: 'explain' | 'affected' | 'path'; a: string; b?: string }
   | { t: 'graph-delete'; id: string }
+  // Bench: compila um componente de outro repo num bundle autocontido pro iframe
+  // do chat. `repo` é SLUG de registro do servidor, nunca caminho — caminho vindo
+  // do cliente seria leitura arbitrária de arquivo.
+  | { t: 'bench-build'; buildId: string; repo: string; code: string }
   // Fila estacionada (overnight): mesma carga do 'send', mas o servidor persiste e
   // o drainer dispara assim que a sessão fica ociosa (sem olhar quota). queue-get pede
   // o snapshot atual; add/remove/move/clear gerenciam a fila; set-paused liga/desliga
@@ -568,6 +572,8 @@ export type ServerMsg =
   | { t: 'graph-query-result'; id: string; question: string; answer: string; tokens: number; miss: boolean }
   | { t: 'graph-build-progress'; line: string }
   | { t: 'graph-build-done'; ok: boolean; id?: string; error?: string }
+  | { t: 'bench-bundle'; buildId: string; js: string; css: string; ms: number }
+  | { t: 'bench-error'; buildId: string; error: string }
   | { t: 'term-data'; termId: string; data: string }
   | { t: 'term-replay'; termId: string; data: string }
   | { t: 'term-exit'; termId: string }

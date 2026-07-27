@@ -28,6 +28,7 @@ import { addParked, removeParked, moveParked, clearParked, parkedView, isQueuePa
 import { refreshModels } from './models';
 import { sendDurableSnapshot } from './snapshot';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
+import { buildBench } from '../bench';
 
 export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
   switch (msg.t) {
@@ -76,6 +77,12 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const ok = await deleteGraph(msg.id);
       if (!ok) { send(ws, { t: 'error', message: 'não foi possível excluir o grafo' }); return; }
       send(ws, { t: 'graphs', items: await listGraphs() });
+      return;
+    }
+    case 'bench-build': {
+      const res = await buildBench(msg.repo, msg.code);
+      if (!res.ok) { send(ws, { t: 'bench-error', buildId: msg.buildId, error: res.error ?? 'falha no build' }); return; }
+      send(ws, { t: 'bench-bundle', buildId: msg.buildId, js: res.js ?? '', css: res.css ?? '', ms: res.ms ?? 0 });
       return;
     }
     case 'list': {
