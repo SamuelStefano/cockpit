@@ -70,11 +70,12 @@ export function Button({
     <button
       disabled={disabled || loading}
       onPointerDown={spawnInk}
-      className={`inline-flex shrink-0 items-center justify-center rounded-lg font-medium leading-none transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40 disabled:opacity-50 disabled:pointer-events-none ${ripple ? 'relative overflow-hidden' : ''} ${variants[variant]} ${square ? squareSizes[size] : sizes[size]} ${className}`}
+      className={`inline-flex max-w-full shrink-0 items-center justify-center rounded-lg font-medium leading-none transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40 disabled:opacity-50 disabled:pointer-events-none ${ripple ? 'relative overflow-hidden' : ''} ${variants[variant]} ${square ? squareSizes[size] : sizes[size]} ${className}`}
       {...rest}
     >
       {glyph && !iconRight && glyph}
-      {children}
+      {/* Altura é fixa (leading-none): sem truncar, rótulo longo vaza pra fora da pílula. */}
+      {children != null && children !== false && <span className="min-w-0 truncate">{children}</span>}
       {glyph && iconRight && glyph}
       {inks.map((k) => (
         <span key={k.id} className="ripple-ink" style={{ left: k.x - k.d / 2, top: k.y - k.d / 2, width: k.d, height: k.d }} />
