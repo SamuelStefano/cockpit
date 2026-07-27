@@ -31,6 +31,23 @@ export function encodeAttachments(atts: { path: string; name: string; text?: str
   return `${head}\n\n${text}`;
 }
 
+// Troca só o corpo do wire, preservando os marcadores de anexo. Editar um item da
+// fila edita o texto que o usuário vê (o corpo limpo do parseAttachments); sem isto
+// a reescrita apagaria os anexos já amarrados àquele prompt.
+export function replaceBody(raw: string, body: string): string {
+  const head: string[] = [];
+  let openAt = -1;
+  for (const line of raw.split('\n')) {
+    if (openAt >= 0) { head.push(line); if (line === TEXT_CLOSE) openAt = -1; continue; }
+    if (TEXT_OPEN_RE.test(line)) { openAt = head.length; head.push(line); continue; }
+    if (ANEXO_RE.test(line)) head.push(line);
+  }
+  // Bloco sem fechamento engoliria o corpo antigo pro head e o reescrever passaria a
+  // empilhar corpo a cada edição — descarta o bloco truncado, como o parseAttachments.
+  if (openAt >= 0) head.length = openAt;
+  return head.length ? `${head.join('\n')}\n\n${body}` : body;
+}
+
 // O servidor salva como `<ts base36>-<4 bytes hex>-<nome-original>`; mostramos o
 // nome original pro usuário reconhecer o arquivo. O ts é base36 (começa com
 // letra!), então o prefixo é [a-z0-9]+, não \d+ — a regex antiga nunca casava.

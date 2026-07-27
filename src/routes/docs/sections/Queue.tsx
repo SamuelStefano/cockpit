@@ -24,6 +24,12 @@ export function Queue() {
           Cada sessão mostra um título destilado pelo agente e um medidor de quanto da janela de contexto já foi usado.
           Quando o contexto enche, o botão de <span className="font-medium text-neutral-300">nova sessão</span> dá um recomeço limpo sem perder o histórico antigo.
         </InfoCard>
+        <InfoCard icon="clock" iconClass="text-orange-300" title="Mexer na fila">
+          O bloco laranja acima do compositor lista o que está esperando. Em cada item dá pra <span className="font-medium text-neutral-300">ver completo</span>,
+          <span className="font-medium text-neutral-300"> editar</span> (lápis: abre um textarea ali mesmo — Enter salva, Shift+Enter quebra linha, Esc descarta),
+          <span className="font-medium text-neutral-300"> reordenar</span> e <span className="font-medium text-neutral-300">cancelar só ele</span>.
+          Editar troca apenas o texto: o item mantém a posição na fila e os anexos amarrados a ele.
+        </InfoCard>
       </div>
       <div className="mt-3">
         <Card className="border-orange-500/20">

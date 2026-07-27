@@ -488,6 +488,7 @@ export type ClientMsg =
   // a pausa manual (única trava do drainer).
   | { t: 'queue-add'; sessionKey: string; sessionId?: string; text: string; mode?: PermMode; model?: string; effort?: Effort; maxBudgetUsd?: number; bypass?: boolean; skills?: string[]; mcps?: string[] }
   | { t: 'queue-remove'; sessionKey: string; id: string }
+  | { t: 'queue-edit'; sessionKey: string; id: string; text: string }
   | { t: 'queue-move'; sessionKey: string; id: string; dir: -1 | 1 }
   | { t: 'queue-clear'; sessionKey: string }
   | { t: 'queue-set-paused'; paused: boolean }

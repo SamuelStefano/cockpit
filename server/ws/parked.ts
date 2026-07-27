@@ -129,6 +129,23 @@ export function removeParked(sessionKey: string, id: string): void {
   saveParked(map);
 }
 
+// Troca o texto de um item já enfileirado NO LUGAR: preserva posição, id, `at` e os
+// params com que ele foi criado (modelo/modo/bypass/skills). Remover e reenfileirar
+// jogaria o item pro fim da fila e perderia esse contexto. Mesmas guardas do add.
+// O item carrega o `role` de quem enfileirou, e o drainer roda com ele (inclusive
+// bypass): reescrever o texto de um item de admin sendo student seria execução
+// arbitrária com privilégio herdado, então só admin edita item de admin.
+export function editParked(sessionKey: string, id: string, prompt: string, role: Role): void {
+  if (!SESSION_KEY_RE.test(sessionKey)) return;
+  if (typeof prompt !== 'string' || !prompt.trim() || Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) return;
+  const map = loadParked();
+  const it = map[sessionKey]?.find((x) => x.id === id);
+  if (!it) return;
+  if (it.role === 'admin' && role !== 'admin') return;
+  it.prompt = prompt;
+  saveParked(map);
+}
+
 export function clearParked(sessionKey: string): void {
   const map = loadParked();
   if (!(sessionKey in map)) return;

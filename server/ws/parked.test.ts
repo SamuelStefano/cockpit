@@ -13,7 +13,7 @@ process.env.COCKPIT_PARKED = PARKED_FILE;
 process.env.COCKPIT_QUEUE_PAUSE = PAUSE_FILE;
 
 const mod = await import('./parked');
-const { addParked, removeParked, moveParked, shiftParked, parkedHeads, parkedView, clearParked, isQueuePaused, setQueuePaused } = mod;
+const { addParked, removeParked, editParked, moveParked, shiftParked, parkedHeads, parkedView, clearParked, isQueuePaused, setQueuePaused } = mod;
 
 beforeEach(() => {
   rmSync(PARKED_FILE, { force: true });
@@ -27,6 +27,36 @@ describe('parked fila (persistência)', () => {
     expect(id).toBeTruthy();
     const view = parkedView();
     expect(view).toEqual([{ sessionKey: 'sess1', id, text: 'oi', at: expect.any(Number) }]);
+  });
+
+  it('editParked troca o texto no lugar (mesma posição, id e `at`)', () => {
+    addParked('s', { prompt: 'a' });
+    const id = addParked('s', { prompt: 'b', model: 'opus' })!;
+    const before = parkedView().find((v) => v.id === id)!;
+    editParked('s', id, 'b corrigido', 'student');
+    const after = parkedView();
+    expect(after.map((v) => v.text)).toEqual(['a', 'b corrigido']);
+    expect(after[1].at).toBe(before.at);
+    // Os params com que o item foi criado sobrevivem à edição (o drainer usa eles).
+    expect(mod.parkedHeads()[0].first.prompt).toBe('a');
+    expect(shiftParked('s')?.prompt).toBe('a');
+    expect(shiftParked('s')?.model).toBe('opus');
+  });
+
+  it('editParked é no-op com chave inválida, id inexistente ou texto vazio', () => {
+    const id = addParked('s', { prompt: 'a' })!;
+    editParked('bad key!', id, 'x', 'admin');
+    editParked('s', 'pk-fantasma', 'x', 'admin');
+    editParked('s', id, '   ', 'admin');
+    expect(parkedView().map((v) => v.text)).toEqual(['a']);
+  });
+
+  it('student não reescreve item enfileirado por admin (herdaria o bypass)', () => {
+    const id = addParked('s', { prompt: 'a', role: 'admin', bypass: true })!;
+    editParked('s', id, 'rm -rf', 'student');
+    expect(parkedView().map((v) => v.text)).toEqual(['a']);
+    editParked('s', id, 'a revisado', 'admin');
+    expect(parkedView().map((v) => v.text)).toEqual(['a revisado']);
   });
 
   it('rejeita sessionKey inválida', () => {

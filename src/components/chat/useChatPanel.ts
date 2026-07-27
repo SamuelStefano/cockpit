@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { prettyModel } from './toolbar.format';
 import type { Session, Message } from '../../data/mock';
 import type { PermMode, ModelInfo, ParkedView } from '../../../shared/protocol';
-import { parseAttachments } from '../../lib/parse-attachments';
+import { parseAttachments, replaceBody } from '../../lib/parse-attachments';
 
 export type Phase = 'idle' | 'thinking' | 'streaming';
 
@@ -19,11 +19,12 @@ interface Args {
   queue: ParkedView[];
   queueAdd: (text: string) => void;
   queueRemove: (sessionKey: string, id: string) => void;
+  queueEdit: (sessionKey: string, id: string, text: string) => void;
   queueMove: (sessionKey: string, id: string, dir: -1 | 1) => void;
   queueClear: (sessionKey: string) => void;
 }
 
-export function useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueMove, queueClear }: Args) {
+export function useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear }: Args) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -47,6 +48,12 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   const enqueue = (text: string) => queueAdd(text);
   const clearQueue = () => { if (sid) queueClear(sid); };
   const cancelQueueAt = (i: number) => { const it = parked[i]; if (it) queueRemove(it.sessionKey, it.id); };
+  // Editar reescreve SÓ o corpo do item: os marcadores de anexo do wire original
+  // seguem amarrados a ele (o banner mostra o corpo limpo, não o wire).
+  const editQueuedAt = (i: number, body: string) => {
+    const it = parked[i];
+    if (it && body.trim()) queueEdit(it.sessionKey, it.id, replaceBody(it.text, body.trim()));
+  };
   // Reordenar: -1 sobe, +1 desce.
   const moveQueuedItem = (i: number, dir: -1 | 1) => { const it = parked[i]; if (it) queueMove(it.sessionKey, it.id, dir); };
 
@@ -154,7 +161,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
 
   return {
     scrollRef, atBottom, promptAbove, onScroll, scrollToBottom, scrollToLastPrompt,
-    queued, queuedAtts, enqueue, clearQueue, cancelQueueAt, moveQueuedItem, fullLoaded, setFullLoaded,
+    queued, queuedAtts, enqueue, clearQueue, cancelQueueAt, editQueuedAt, moveQueuedItem, fullLoaded, setFullLoaded,
     streaming, disabled, isEmpty,
     sentHistory, modelLabel, labelFor,
     planPending, pendingQuestion, failed, retryLast, bannerConfirm,

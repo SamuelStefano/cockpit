@@ -1,14 +1,15 @@
-import { useLayoutEffect, useRef, useState } from 'react';
 import { Icon, tokens } from '../primitives';
-import { remapOpen } from './queued-open';
+import { QueuedItem } from './QueuedItem';
+import { useQueuedBanner } from './useQueuedBanner';
 
 // Fila do cliente: mensagens digitadas durante um turno, disparadas em ordem
-// quando a sessão libera. Cada item: ver completo (clique no texto), reordenar
-// (drena sempre do topo) e cancelar só ele. A fila é persistida por sessão no hook.
-export function QueuedBanner({ queued, queuedAtts, onCancelQueueAt, onMove, held = false, onResume, paused = false, onTogglePause }: {
+// quando a sessão libera. Cada item: ver completo, editar, reordenar (drena sempre
+// do topo) e cancelar só ele. A fila vive no servidor (parked.json).
+export function QueuedBanner({ queued, queuedAtts, onCancelQueueAt, onEdit, onMove, held = false, onResume, paused = false, onTogglePause }: {
   queued: string[];
   queuedAtts?: number[];
   onCancelQueueAt: (i: number) => void;
+  onEdit: (i: number, text: string) => void;
   onMove: (i: number, dir: -1 | 1) => void;
   held?: boolean;
   onResume?: () => void;
@@ -17,27 +18,7 @@ export function QueuedBanner({ queued, queuedAtts, onCancelQueueAt, onMove, held
   paused?: boolean;
   onTogglePause?: () => void;
 }) {
-  const [open, setOpen] = useState<Record<number, boolean>>({});
-  const [flash, setFlash] = useState<number | null>(null);
-  const toggle = (i: number) => setOpen((o) => ({ ...o, [i]: !o[i] }));
-  // O expandido é keyed por índice, mas QUALQUER mudança na fila (cancelar,
-  // drenar o topo, reordenar) desloca os índices — sem o remap a expansão
-  // pulava pro item vizinho. Remapear aqui cobre os três casos de uma vez.
-  // Layout effect: corrige antes do paint, senão 1 frame mostrava o vizinho expandido.
-  const prevQueued = useRef(queued);
-  useLayoutEffect(() => {
-    if (prevQueued.current === queued) return;
-    setOpen((o) => remapOpen(prevQueued.current, queued, o));
-    prevQueued.current = queued;
-  }, [queued]);
-  // O flash dá feedback de pra onde o item foi (a lista reordena sem animação).
-  const move = (i: number, dir: -1 | 1) => {
-    const j = i + dir;
-    onMove(i, dir);
-    setFlash(j);
-    window.setTimeout(() => setFlash((f) => (f === j ? null : f)), 700);
-  };
-  const iconBtn = `flex h-5 w-5 shrink-0 items-center justify-center rounded text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200 disabled:pointer-events-none disabled:opacity-30 ${tokens.focusRing}`;
+  const q = useQueuedBanner(queued, onMove, onEdit);
   return (
     <div className="mb-2 rounded-lg border border-orange-500/30 bg-orange-500/[0.06] px-2.5 py-1.5">
       <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-orange-300/90">
@@ -71,39 +52,27 @@ export function QueuedBanner({ queued, queuedAtts, onCancelQueueAt, onMove, held
         </div>
       </div>
       <ul className="flex flex-col gap-1">
-        {queued.map((text, i) => {
-          const expanded = !!open[i];
-          const atts = queuedAtts?.[i] ?? 0;
-          return (
-            <li key={i} className={`flex items-start gap-1 rounded-md transition-colors duration-500 ${flash === i ? 'bg-orange-500/20' : ''}`}>
-              <span className="mt-0.5 shrink-0 text-[10px] tabular-nums text-orange-400/50">{i + 1}.</span>
-              {atts > 0 && (
-                <span className="mt-0.5 flex shrink-0 items-center gap-0.5 text-[10px] tabular-nums text-orange-300/80" title={`${atts} anexo${atts > 1 ? 's' : ''} amarrado${atts > 1 ? 's' : ''} a este prompt`}>
-                  <Icon name="paperclip" size={10} />{atts > 1 ? atts : ''}
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => toggle(i)}
-                title={expanded ? 'Recolher' : 'Ver completo'}
-                className={`flex-1 rounded text-left text-[11.5px] leading-snug ${tokens.focusRing} ${text ? 'text-neutral-300' : 'italic text-neutral-500'} ${expanded ? 'whitespace-pre-wrap break-words' : 'truncate'}`}
-              >
-                {text || (atts > 0 ? 'anexo sem texto' : '')}
-              </button>
-              <div className="flex shrink-0 items-center">
-                <button onClick={() => move(i, -1)} disabled={i === 0} title="Subir na fila" className={iconBtn}>
-                  <Icon name="chevronUp" size={12} />
-                </button>
-                <button onClick={() => move(i, 1)} disabled={i === queued.length - 1} title="Descer na fila" className={iconBtn}>
-                  <Icon name="chevronDown" size={12} />
-                </button>
-                <button onClick={() => onCancelQueueAt(i)} title="Cancelar esta mensagem na fila" className={iconBtn}>
-                  <Icon name="x" size={12} />
-                </button>
-              </div>
-            </li>
-          );
-        })}
+        {queued.map((text, i) => (
+          <QueuedItem
+            key={i}
+            index={i}
+            text={text}
+            atts={queuedAtts?.[i] ?? 0}
+            expanded={!!q.open[i]}
+            flash={q.flash === i}
+            first={i === 0}
+            last={i === queued.length - 1}
+            editing={q.editing === i}
+            draft={q.draft}
+            setDraft={q.setDraft}
+            onToggle={() => q.toggle(i)}
+            onStartEdit={() => q.startEdit(i)}
+            onCommit={q.commitEdit}
+            onCancelEdit={q.cancelEdit}
+            onMove={(dir) => q.move(i, dir)}
+            onRemove={() => onCancelQueueAt(i)}
+          />
+        ))}
       </ul>
     </div>
   );
