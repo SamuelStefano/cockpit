@@ -1,5 +1,23 @@
 import { describe, it, expect } from 'vitest';
-import { encodeShare, decodeShare } from './playgroundShare';
+import { encodeShare, decodeShare, buildShareUrl, isShareableLang } from './playgroundShare';
+
+describe('modo in-document', () => {
+  it('recusa código do modo App vindo de link', () => {
+    expect(decodeShare(encodeShare({ lang: 'app', code: 'fetch("/x")' }))).toBeNull();
+    expect(isShareableLang('app')).toBe(false);
+  });
+
+  it('não deixa montar um link do modo App', () => {
+    expect(() => buildShareUrl('app', 'qualquer')).toThrow();
+  });
+
+  it('mantém os runtimes de iframe compartilháveis', () => {
+    for (const lang of ['preview', 'preview-html', 'preview-native', 'preview-svg', 'preview-test']) {
+      expect(isShareableLang(lang)).toBe(true);
+      expect(decodeShare(encodeShare({ lang, code: 'x' }))).not.toBeNull();
+    }
+  });
+});
 
 describe('playgroundShare', () => {
   it('round-trips lang + code', () => {
@@ -30,8 +48,8 @@ describe('playgroundShare', () => {
     expect(decodeShare('A'.repeat(256 * 1024 + 1))).toBeNull();
   });
 
-  it('decoda mesmo com lang desconhecida (validação de lang é na rota)', () => {
+  it('rejeita lang desconhecida: só o que está na allowlist viaja por link', () => {
     const token = encodeShare({ lang: 'inexistente', code: 'x' });
-    expect(decodeShare(token)).toEqual({ lang: 'inexistente', code: 'x' });
+    expect(decodeShare(token)).toBeNull();
   });
 });

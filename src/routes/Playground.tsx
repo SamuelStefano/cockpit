@@ -4,7 +4,8 @@ import { Badge } from '../components/primitives';
 import { tokens } from '../components/primitives/tokens';
 import { modeOf } from '../components/primitives/livepreview/useLivePreview';
 import { PlaygroundStudio } from './PlaygroundStudio';
-import { LANGS, TEMPLATES } from './playground-templates';
+import { AppStudio } from './AppStudio';
+import { APP_LANG, LANGS, TEMPLATES } from './playground-templates';
 import { readShareFromLocation } from '../lib/playgroundShare';
 
 // Rota /play: bancada standalone pra editar código e ver rodando ao vivo em
@@ -18,11 +19,11 @@ export function Playground() {
     return s && LANGS.some((l) => l.id === s.lang) ? s : null;
   }, []);
   const [shared, setShared] = useState(initial);
-  const [langId, setLangId] = useState(initial?.lang ?? 'preview');
-  const [tplId, setTplId] = useState('react-counter');
+  const [langId, setLangId] = useState(initial?.lang ?? APP_LANG);
+  const [tplId, setTplId] = useState(TEMPLATES[0].id);
 
   const templatesForLang = TEMPLATES.filter((t) => t.lang === langId);
-  const active = TEMPLATES.find((t) => t.id === tplId) ?? templatesForLang[0];
+  const active = templatesForLang.find((t) => t.id === tplId) ?? templatesForLang[0];
   const mode = modeOf(langId);
   const code = shared ? shared.code : active.code;
   const studioKey = shared ? `shared:${langId}` : `${langId}:${tplId}`;
@@ -43,7 +44,9 @@ export function Playground() {
           <h1 className="text-sm font-semibold text-neutral-200">Playground</h1>
           {shared
             ? <Badge tone="orange" dot>aberto de link</Badge>
-            : <span className="hidden text-[11px] text-neutral-500 sm:inline">edite e veja rodar ao vivo — React, HTML, iPhone, SVG e testes</span>}
+            : <span className="hidden text-[11px] text-neutral-500 sm:inline">{langId === APP_LANG
+                ? 'mexa nos componentes reais do Deck e veja quebrar ao vivo'
+                : 'edite e veja rodar ao vivo — React, HTML, iPhone, SVG e testes'}</span>}
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-0.5 rounded-lg bg-neutral-900 p-0.5">
@@ -66,7 +69,9 @@ export function Playground() {
           )}
         </div>
       </div>
-      <PlaygroundStudio key={studioKey} code={code} mode={mode} lang={langId} />
+      {langId === APP_LANG
+        ? <AppStudio key={studioKey} code={code} />
+        : <PlaygroundStudio key={studioKey} code={code} mode={mode} lang={langId} />}
     </div>
   );
 }
