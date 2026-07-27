@@ -25,6 +25,7 @@ export const SECTIONS: Section[] = [
   { id: 'busca', label: 'Busca & navegação', icon: 'search' },
   { id: 'comandos', label: 'Comandos & atalhos', icon: 'command' },
   { id: 'modelos', label: 'Modelos', icon: 'claude' },
+  { id: 'playground', label: 'Playground & modo App', icon: 'code' },
   { id: 'admin', label: 'Admin', icon: 'shield' },
   { id: 'bastidores', label: 'Por trás dos panos', icon: 'terminal' },
   { id: 'repo', label: 'Mapa do repositório', icon: 'file' },

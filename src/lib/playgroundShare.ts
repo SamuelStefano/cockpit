@@ -10,6 +10,15 @@ const PREFIX = '#c=';
 // de decodar/transpilar, senão um payload gigante trava a main thread na montagem.
 // ~256 KB de token ≈ 192 KB de código — folgado pra qualquer snippet real.
 const MAX_TOKEN = 256 * 1024;
+// Allowlist, não denylist: modo novo nasce NÃO compartilhável. O modo App roda o
+// código NO DOCUMENTO do app — mesma origem, mesma sessão, mesma conexão do agente —
+// então aceitar código vindo de link seria execução arbitrária pra quem manda o link.
+// Só os runtimes de iframe viajam por URL: lá a origem é opaca.
+const SHAREABLE_LANGS = new Set(['preview', 'preview-html', 'preview-native', 'preview-svg', 'preview-test']);
+
+export function isShareableLang(lang: string): boolean {
+  return SHAREABLE_LANGS.has(lang);
+}
 
 function toBase64Url(bytes: Uint8Array): string {
   let bin = '';
@@ -34,7 +43,9 @@ export function decodeShare(token: string): SharePayload | null {
   if (!token || token.length > MAX_TOKEN) return null;
   try {
     const obj = JSON.parse(new TextDecoder().decode(fromBase64Url(token)));
-    if (obj && typeof obj.l === 'string' && typeof obj.c === 'string') return { lang: obj.l, code: obj.c };
+    if (obj && typeof obj.l === 'string' && typeof obj.c === 'string' && isShareableLang(obj.l)) {
+      return { lang: obj.l, code: obj.c };
+    }
   } catch {
     // token corrompido/truncado → trata como ausência de payload
   }
@@ -42,6 +53,7 @@ export function decodeShare(token: string): SharePayload | null {
 }
 
 export function buildShareUrl(lang: string, code: string): string {
+  if (!isShareableLang(lang)) throw new Error(`modo não compartilhável: ${lang}`);
   return `${location.origin}/play${PREFIX}${encodeShare({ lang, code })}`;
 }
 

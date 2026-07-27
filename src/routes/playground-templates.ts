@@ -1,9 +1,13 @@
 import type { IconName } from '../components/primitives/Icon';
+import { APP_TEMPLATES } from './app-sandbox-templates';
 
 // Linguagens do playground e seus starters. `lang` casa com PREVIEW_LANGS do
-// CodeBlock (modeOf mapeia pro runtime certo do iframe).
+// CodeBlock (modeOf mapeia pro runtime certo do iframe). `app` é a exceção: não
+// tem runtime de iframe, roda no próprio documento (AppStudio).
+export const APP_LANG = 'app';
 export interface Lang { id: string; label: string; icon: IconName }
 export const LANGS: Lang[] = [
+  { id: APP_LANG, label: 'App', icon: 'sparkles' },
   { id: 'preview', label: 'React', icon: 'zap' },
   { id: 'preview-html', label: 'HTML', icon: 'code' },
   { id: 'preview-native', label: 'iPhone', icon: 'smartphone' },
@@ -108,6 +112,7 @@ test('array contém', () => {
 });`;
 
 export const TEMPLATES: Template[] = [
+  ...APP_TEMPLATES.map((t) => ({ ...t, lang: APP_LANG })),
   { id: 'react-counter', label: 'contador', lang: 'preview', code: REACT_COUNTER },
   { id: 'react-card', label: 'card tailwind', lang: 'preview', code: REACT_CARD },
   { id: 'html-landing', label: 'landing', lang: 'preview-html', code: HTML_LANDING },
