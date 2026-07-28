@@ -1,12 +1,21 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { WebSocket } from 'ws';
-import { admitRun, findStaleThreads, startRun, threads, isSilentDeath, killAllRuns, resumeOrphanRuns, AUTO_RESUME_CAP, REAPER_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './runs';
+import { admitRun, findStaleThreads, startRun, threads, isSilentDeath, killAllRuns, resumeOrphanRuns, drainParked, startParkedDrainer, AUTO_RESUME_CAP, REAPER_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './runs';
 import { takeOrphanRuns } from './recover';
 import { awaitingAnswer } from './awaiting';
 import { broadcast } from './broadcast';
 import { run } from '../engine/claude';
+import { parkedHeads, shiftParked, unshiftParked, addParked, isQueuePaused, type ParkedItem } from './parked';
+import { quotaHold } from './quota';
 
 vi.mock('../engine/claude', () => ({ run: vi.fn(() => ({ kill: vi.fn() })) }));
+// Fila estacionada e teto de tokens mockados: o teste não pode ler/escrever o
+// parked.json real do usuário nem depender da quota da conta.
+vi.mock('./parked', () => ({
+  parkedHeads: vi.fn(() => []), shiftParked: vi.fn(), unshiftParked: vi.fn(),
+  addParked: vi.fn(), parkedView: vi.fn(() => []), isQueuePaused: vi.fn(() => false),
+}));
+vi.mock('./quota', async (orig) => ({ ...(await orig<typeof import('./quota')>()), quotaHold: vi.fn(() => 0) }));
 vi.mock('./broadcast', () => ({ broadcast: vi.fn(), send: vi.fn(), setWss: vi.fn() }));
 vi.mock('./translate', () => ({ translate: vi.fn() }));
 vi.mock('../summary', () => ({ summarize: vi.fn(async () => {}) }));
@@ -234,5 +243,85 @@ describe('resumeOrphanRuns — turnos que o restart matou', () => {
     vi.mocked(takeOrphanRuns).mockReturnValue([orphan()] as never);
     resumeOrphanRuns();
     expect(run).not.toHaveBeenCalled();
+  });
+});
+
+// Bug do Samuel: com os tokens esgotados a fila disparava assim mesmo, o turno
+// morria no limite e o prompt (já retirado do parked.json) sumia.
+describe('fila estacionada — teto de tokens', () => {
+  const ws = {} as WebSocket;
+  const item = (over: Partial<ParkedItem> = {}): ParkedItem => ({ id: 'pk-1', prompt: 'roda isso', at: 1, ...over });
+  const closeLastRun = () => vi.mocked(run).mock.calls.at(-1)![0].onClose?.();
+  const limited = () => vi.mocked(quotaHold).mockReturnValue(Date.now() + 60_000);
+
+  beforeEach(() => {
+    threads.clear();
+    awaitingAnswer.clear();
+    vi.mocked(run).mockClear();
+    vi.mocked(broadcast).mockClear();
+    vi.mocked(quotaHold).mockReturnValue(0);
+    vi.mocked(isQueuePaused).mockReturnValue(false);
+    vi.mocked(parkedHeads).mockReturnValue([]);
+    vi.mocked(shiftParked).mockReset();
+    vi.mocked(unshiftParked).mockClear();
+    vi.mocked(addParked).mockClear();
+    startParkedDrainer(3_600_000); // liga o drainer sem tick automático no teste
+  });
+
+  it('segura a fila enquanto os tokens estão esgotados', () => {
+    limited();
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's1', first: item() }]);
+    drainParked();
+    expect(shiftParked).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('drena assim que os tokens voltam', () => {
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's1', first: item() }]);
+    vi.mocked(shiftParked).mockReturnValue(item());
+    drainParked();
+    expect(run).toHaveBeenCalledOnce();
+    expect(vi.mocked(run).mock.calls[0][0].prompt).toBe('roda isso');
+  });
+
+  it('devolve pro topo da fila o item cujo turno morreu no limite', () => {
+    const it0 = item();
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's2', first: it0 }]);
+    vi.mocked(shiftParked).mockReturnValue(it0);
+    drainParked();
+    limited(); // a quota estourou durante o turno
+    closeLastRun();
+    expect(unshiftParked).toHaveBeenCalledWith('s2', it0);
+    expect(run).toHaveBeenCalledOnce(); // sem retomada automática em cima do limite
+  });
+
+  it('não devolve pra fila um turno que já produziu trabalho', () => {
+    const it0 = item();
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's3', first: it0 }]);
+    vi.mocked(shiftParked).mockReturnValue(it0);
+    drainParked();
+    threads.get('s3')!.text = 'terminei o que você pediu';
+    limited();
+    closeLastRun();
+    expect(unshiftParked).not.toHaveBeenCalled();
+  });
+
+  it('devolve pra fila o item que nem chegou a subir (teto de sessões)', () => {
+    const it0 = item();
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 'bad key!', first: it0 }]);
+    vi.mocked(shiftParked).mockReturnValue(it0);
+    drainParked();
+    expect(run).not.toHaveBeenCalled();
+    expect(unshiftParked).toHaveBeenCalledWith('bad key!', it0);
+  });
+
+  it('sem token, a fila in-turn vira estacionada em vez de disparar', () => {
+    awaitingAnswer.add('s4');
+    startRun(ws, 's4', 'item enfileirado', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, true);
+    startRun(ws, 's4', 'resposta do usuário');
+    limited();
+    closeLastRun();
+    expect(addParked).toHaveBeenCalledWith('s4', expect.objectContaining({ prompt: 'item enfileirado' }));
+    expect(run).toHaveBeenCalledOnce();
   });
 });

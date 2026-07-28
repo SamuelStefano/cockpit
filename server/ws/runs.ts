@@ -9,7 +9,8 @@ import { summarize } from '../summary';
 import { classify, quickAnswer, killSideRuns, killSideRunsFor } from '../engine/triage';
 import { suggestFollowups } from '../engine/suggest';
 import { awaitingAnswer } from './awaiting';
-import { parkedHeads, shiftParked, isQueuePaused } from './parked';
+import { parkedHeads, shiftParked, unshiftParked, addParked, parkedView, isQueuePaused, type ParkedItem } from './parked';
+import { quotaHold, burnedByQuota } from './quota';
 import { markRunLive, clearRunLive, takeOrphanRuns } from './recover';
 import { recordIncident } from './incidents';
 
@@ -45,6 +46,7 @@ export interface Thread {
   model?: string;       // modelo EFETIVO do turno (message.model do CLI); pode divergir do pedido sob --fallback-model
   stopped?: boolean;    // turno foi morto por stop do usuário — o 'done' do onClose não deve notificar "turno concluído"
   questioned?: boolean; // turno fez AskUserQuestion: o `claude -p` auto-resolve e CONTINUA gerando — suprime tudo que vier depois pra a pergunta ficar como última (respondível)
+  parked?: ParkedItem;  // item que a fila estacionada drenou neste turno; volta pra fila se o teto de tokens matar o turno sem consumi-lo
   // Snapshot acumulado p/ replay no reconnect (#10). Os frames vão por broadcast.
   text: string;
   thinking: string;
@@ -263,11 +265,12 @@ let drainerEnabled = false;
 
 // Dispara os itens elegíveis: sessão OCIOSA (sem turno rodando). Drena um item por
 // sessão por passada; o item que sobe deixa a sessão ocupada, então o resto da fila
-// dela sai no próximo tick (ou no gatilho do onClose). NÃO olha pontuação de uso: se
-// o usuário deixou na fila, VAI (regra do Samuel). A única trava é a pausa manual.
-function drainParked(): void {
+// dela sai no próximo tick (ou no gatilho do onClose). Travas: pausa manual e teto de
+// tokens — fora isso, se o usuário deixou na fila, VAI (regra do Samuel).
+export function drainParked(): void {
   if (!drainerEnabled) return;
   if (isQueuePaused()) return; // pausa manual do usuário: segura tudo até retomar
+  if (quotaHold()) return;     // sem token: o turno morreria no limite e o prompt seria queimado
   for (const { sessionKey } of parkedHeads()) {
     if (resolveThreadKey(sessionKey)) continue; // turno rodando: um por vez
     const item = shiftParked(sessionKey);
@@ -275,7 +278,17 @@ function drainParked(): void {
     // ws null: run sem cliente específico (igual cron); o stream vai por broadcast.
     // resumeId = a sessão onde o item foi enfileirado, pra continuar a conversa.
     startRun(null, sessionKey, item.prompt, item.resumeId, undefined, item.mode, item.model, item.maxBudgetUsd, item.bypass, item.role, item.disallowedSkills, item.mcps, item.effort);
+    // O run pode nem ter subido (teto de sessões simultâneas): sem isto o item já
+    // saiu do disco e o prompt sumia. Subiu = fica amarrado ao thread pra voltar
+    // pra fila se o teto de tokens matar o turno.
+    const th = threads.get(sessionKey);
+    if (th) th.parked = item;
+    else { unshiftParked(sessionKey, item); broadcastQueue(); }
   }
+}
+
+function broadcastQueue(): void {
+  broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
 }
 
 let parkedTimer: ReturnType<typeof setInterval> | null = null;
@@ -384,6 +397,17 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
       // 'done' prematuro nem apagar a entrada do novo run.
       if (threads.get(sessionKey) !== thread) return;
       if (live && !preserveLiveOnClose) clearRunLive(sessionKey); // fechou: não é mais órfão (salvo no shutdown, onde o boot retoma)
+      // Teto de tokens: um veredito só pro fechamento inteiro (devolver o item
+      // drenado, segurar as filas e não retomar em cima do limite).
+      const hold = quotaHold();
+      // Turno que subiu da fila e morreu no limite sem consumir o prompt: devolve o
+      // item pro topo em vez de perdê-lo (era o prompt "queimado" do bug).
+      const parked = thread.parked;
+      thread.parked = undefined;
+      if (parked && burnedByQuota({ limited: hold > 0, tools: thread.tools.length, text: thread.text })) {
+        unshiftParked(sessionKey, parked);
+        broadcastQueue();
+      }
       // Turno que morreu no meio sem dizer nada: avisa ANTES do 'done' (a bolha de
       // erro entra acima do rodapé de conclusão) e retoma sozinho logo abaixo. Um
       // fechamento saudável zera o contador pra a próxima falha ter direito a
@@ -416,15 +440,21 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
       // Após AskUserQuestion o turno aguarda a RESPOSTA do usuário (próximo prompt) —
       // não drenar a fila aqui, senão um enfileirado fura na frente da resposta.
       if (!thread.questioned) {
-        drainPending(sessionKey, thread.sessionId);
-        // Gatilho da fila estacionada: se a in-turn (pending) não pegou a sessão,
-        // dispara o próximo item overnight já, sem esperar o tick de 30s. Self-guard:
-        // se drainPending subiu um turno, resolveThreadKey pega e drainParked pula.
-        drainParked();
+        // Sem token, a fila in-turn (memória) não pode nem rodar nem esperar em RAM:
+        // vira fila ESTACIONADA (disco), que drena sozinha no reset.
+        if (hold) parkPending(sessionKey, thread.sessionId);
+        else {
+          drainPending(sessionKey, thread.sessionId);
+          // Gatilho da fila estacionada: se a in-turn (pending) não pegou a sessão,
+          // dispara o próximo item overnight já, sem esperar o tick de 30s. Self-guard:
+          // se drainPending subiu um turno, resolveThreadKey pega e drainParked pula.
+          drainParked();
+        }
       }
       // Por último: as filas têm prioridade sobre a retomada (o que o usuário mandou
       // vale mais que continuar um turno morto), e autoResume só age se ninguém pegou.
-      if (silent) autoResume(sessionKey, thread);
+      // Sem token não adianta retomar: o turno novo morreria no limite igual.
+      if (silent && !hold) autoResume(sessionKey, thread);
     },
   });
 }
@@ -453,6 +483,31 @@ function drainPending(sessionKey: string, resumeId?: string) {
   const text = first.merge ? `Complemento do pedido anterior:\n\n${joined}` : joined;
   // msgId undefined: a bolha do usuário já foi ecoada no routeSend (não duplica).
   startRun(first.ws, sessionKey, text, resumeId, undefined, first.mode, first.model, first.maxBudgetUsd, first.bypass, first.role, first.disallowedSkills, first.mcps, first.effort);
+}
+
+// Migra a fila in-turn pra fila estacionada quando os tokens acabam: os itens saem
+// da memória (que o restart do agente perderia) e passam a esperar o reset no disco,
+// no mesmo lugar que o usuário edita/reordena. Sem isto o onClose de um turno morto
+// no limite disparava o próximo item contra a mesma sessão sem token.
+function parkPending(sessionKey: string, resumeId?: string): void {
+  const arr = pending.get(sessionKey);
+  if (!arr || arr.length === 0) return;
+  pending.delete(sessionKey);
+  for (const it of arr) {
+    addParked(sessionKey, {
+      prompt: it.merge ? `Complemento do pedido anterior:\n\n${it.prompt}` : it.prompt,
+      resumeId,
+      mode: it.mode,
+      model: it.model,
+      effort: it.effort,
+      maxBudgetUsd: it.maxBudgetUsd,
+      bypass: it.bypass,
+      role: it.role,
+      disallowedSkills: it.disallowedSkills,
+      mcps: it.mcps,
+    });
+  }
+  broadcastQueue();
 }
 
 // Roteia um prompt enviado com o turno da sessão OCUPADO. Ecoa a bolha do usuário

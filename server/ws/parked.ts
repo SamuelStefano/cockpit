@@ -9,8 +9,8 @@ import { CONFIG } from '../config';
 // (triagem in-turn, drenada no onClose). Aqui ficam os prompts que o usuário
 // enfileirou pra rodar "quando der" — seja porque um turno está ocupado, seja
 // porque a quota esgotou. O drainer (runs.ts) dispara cada item assim que a sessão
-// fica ociosa, SEM depender do browser aberto e SEM olhar a pontuação de uso: se o
-// usuário deixou na fila, VAI. A única trava é a pausa manual (setQueuePaused).
+// fica ociosa, SEM depender do browser aberto. Travas: a pausa manual
+// (setQueuePaused) e o teto de tokens (ws/quota.ts) — fora isso, se está na fila, VAI.
 // Persistida em disco pra sobreviver a restart/reboot da VPS a noite toda.
 
 const PARKED_PATH = process.env.COCKPIT_PARKED ?? join(homedir(), '.cockpit', 'parked.json');
@@ -179,6 +179,19 @@ export function shiftParked(sessionKey: string): ParkedItem | undefined {
   return first;
 }
 
+// Devolve pro TOPO da fila um item já drenado (mesmo id, mesma posição). Usado
+// quando o turno que ele subiu morreu no teto de tokens sem consumir o prompt.
+export function unshiftParked(sessionKey: string, item: ParkedItem): void {
+  if (!SESSION_KEY_RE.test(sessionKey)) return;
+  const map = loadParked();
+  const arr = map[sessionKey] ?? [];
+  if (arr.some((x) => x.id === item.id) || arr.length >= MAX_PARKED) return;
+  if (!(sessionKey in map) && Object.keys(map).length >= MAX_SESSIONS) return;
+  arr.unshift(item);
+  map[sessionKey] = arr;
+  saveParked(map);
+}
+
 // Sessões com fila e o primeiro item de cada (candidatos a dreno neste tick).
 export function parkedHeads(): { sessionKey: string; first: ParkedItem }[] {
   const map = loadParked();
@@ -191,9 +204,9 @@ export function parkedHeads(): { sessionKey: string; first: ParkedItem }[] {
 
 // --- pausa manual da fila ---------------------------------------------------
 
-// Trava única do drainer: quando ligada, nenhum item dispara até o usuário retomar.
-// Substitui o antigo gate por quota/janela — a regra agora é "se está na fila, VAI"
-// (independente da pontuação de uso); só a pausa manual segura. Lida do disco a cada
+// Trava MANUAL do drainer: quando ligada, nenhum item dispara até o usuário retomar.
+// Independente do gate de tokens (ws/quota.ts), que é automático e some no reset.
+// Não há mais teto por janela/pontuação de uso. Lida do disco a cada
 // chamada (fonte de verdade cross-process: o toggle pode chegar no index, o drainer
 // roda no agente). Arquivo minúsculo, custo irrelevante.
 export function isQueuePaused(): boolean {

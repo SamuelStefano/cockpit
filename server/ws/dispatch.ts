@@ -437,7 +437,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'queue-edit': {
-      editParked(msg.sessionKey, msg.id, msg.text, role);
+      editParked(msg.sessionKey, msg.id, msg.text, role ?? 'student'); // sem role identificada = menor privilégio
       broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
       return;
     }

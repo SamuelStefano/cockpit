@@ -1,11 +1,12 @@
 import { Icon, tokens } from '../primitives';
 import { QueuedItem } from './QueuedItem';
 import { useQueuedBanner } from './useQueuedBanner';
+import { queueStatus, queueStatusIcon, queueStatusLabel } from './queue-status';
 
 // Fila do cliente: mensagens digitadas durante um turno, disparadas em ordem
 // quando a sessão libera. Cada item: ver completo, editar, reordenar (drena sempre
 // do topo) e cancelar só ele. A fila vive no servidor (parked.json).
-export function QueuedBanner({ queued, queuedAtts, onCancelQueueAt, onEdit, onMove, held = false, onResume, paused = false, onTogglePause }: {
+export function QueuedBanner({ queued, queuedAtts, onCancelQueueAt, onEdit, onMove, held = false, onResume, paused = false, onTogglePause, quotaHeld = false, resetLabel }: {
   queued: string[];
   queuedAtts?: number[];
   onCancelQueueAt: (i: number) => void;
@@ -17,17 +18,17 @@ export function QueuedBanner({ queued, queuedAtts, onCancelQueueAt, onEdit, onMo
   // distinta do `held` (espera transitória do cancelamento no cliente).
   paused?: boolean;
   onTogglePause?: () => void;
+  // Teto de tokens do plano: o drainer do servidor segura sozinho até o reset.
+  quotaHeld?: boolean;
+  resetLabel?: string | null;
 }) {
   const q = useQueuedBanner(queued, onMove, onEdit);
+  const status = queueStatus({ held, paused, quotaHeld });
   return (
     <div className="mb-2 rounded-lg border border-orange-500/30 bg-orange-500/[0.06] px-2.5 py-1.5">
       <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-orange-300/90">
-        <Icon name={held ? 'square' : paused ? 'pause' : 'clock'} size={12} className="shrink-0 text-orange-400/80" />
-        {held
-          ? `fila em espera (${queued.length}) — segurada pelo cancelamento`
-          : paused
-          ? `fila pausada (${queued.length}) — não vai enviar até retomar`
-          : queued.length === 1 ? 'na fila' : `${queued.length} na fila`}
+        <Icon name={queueStatusIcon(status)} size={12} className="shrink-0 text-orange-400/80" />
+        {queueStatusLabel(status, queued.length, resetLabel)}
         <div className="ml-auto flex items-center gap-1">
           {held && onResume && (
             <button
