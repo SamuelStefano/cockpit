@@ -289,8 +289,10 @@ export async function parseSession(
   for (const r of byUuid.values()) {
     if (r.type === 'assistant' && r.uuid && r.message && !chainUuids.has(r.uuid)) offChainAssistant++;
   }
-  const all = weaveByTs(truncateAtPendingQuestion(mapped), markers);
-  const truncated = all.length > limit || offChainAssistant > 0;
+  const visible = truncateAtPendingQuestion(mapped);
+  const inRange = markersInRange(visible, markers);
+  const all = weaveByTs(visible, inRange);
+  const truncated = all.length > limit || offChainAssistant > 0 || inRange.length < markers.length;
   const messages = all.slice(-limit);
   const blocks = messages.flatMap((m) =>
     m.role === 'assistant' ? m.blocks : m.role === 'user' ? [{ type: 'text' as const, md: m.text }] : [],
@@ -385,6 +387,19 @@ export function markerFromRec(r: Rec, seenPr: Set<string>): Message | null {
     return { id: r.uuid ?? `wake-${ts ?? 0}`, role: 'compact', kind: 'wakeup', label: o.content as string, ts };
   }
   return null;
+}
+
+// Os marcadores são varridos do ARQUIVO inteiro, mas a thread mostra só a cadeia
+// ativa. Pós-compactação sobravam centenas de PRs de dias atrás sem nenhuma
+// mensagem em volta — uma sessão real abria com 371 divisores para 36 mensagens,
+// e rolar pro prompt anterior virava impossível. Link fora do intervalo visível
+// não tem contexto; ele continua na thread completa ("ver tudo"). Marcador sem ts
+// também cai fora: weaveByTs o ancora em `?? 0`, ou seja, empilhado no topo da
+// thread — exatamente a parede que isso resolve.
+export function markersInRange(messages: Message[], markers: Message[]): Message[] {
+  const first = messages.find((m) => m.ts !== undefined)?.ts;
+  if (first === undefined) return markers;
+  return markers.filter((m) => m.ts !== undefined && m.ts >= first);
 }
 
 export function weaveByTs(messages: Message[], extras: Message[]): Message[] {

@@ -101,6 +101,8 @@ export interface TurnBubbleStats { costUsd?: number; durationMs?: number; tokens
 // Marca inline na thread onde o CLI auto-compactou o contexto (DR-012). Não é
 // turno: é um divisor que explica o salto no medidor e que o pré-compactação está
 // em "ver tudo". preTokens = tamanho da janela antes do corte.
+export interface PrLink { label: string; url: string }
+
 export interface CompactMessage {
   id: string;
   role: 'compact';
@@ -115,6 +117,9 @@ export interface CompactMessage {
   // Nº de marcadores consecutivos coalescidos num divisor só (loop noturno gera
   // dezenas de wakeups seguidos — empilhados viravam poluição visual).
   count?: number;
+  // Run de marcadores 'pr' coalescidos: cada link segue clicável, mas num divisor
+  // só. Um lote de PRs em sequência enchia a tela e escondia prompt e resposta.
+  prs?: PrLink[];
 }
 
 export type Message = UserMessage | AssistantMessage | CompactMessage;

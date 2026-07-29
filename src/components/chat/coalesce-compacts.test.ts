@@ -38,10 +38,32 @@ describe('coalesceCompacts', () => {
     expect((out[1] as CompactMessage).kind).toBe('wakeup');
   });
 
-  it('nunca colapsa divisores de PR (link distinto por item)', () => {
-    const msgs = [compact('p1', 'pr', { url: 'https://a' }), compact('p2', 'pr', { url: 'https://b' })];
+  it('junta run de PRs num divisor só, preservando cada link', () => {
+    const msgs = [
+      compact('p1', 'pr', { url: 'https://a', label: 'PR #1' }),
+      compact('p2', 'pr', { url: 'https://b', label: 'PR #2' }),
+    ];
     const out = coalesceCompacts(msgs);
-    expect(out).toHaveLength(2);
+    expect(out).toHaveLength(1);
+    expect((out[0] as CompactMessage).prs).toEqual([
+      { label: 'PR #1', url: 'https://a' },
+      { label: 'PR #2', url: 'https://b' },
+    ]);
+  });
+
+  it('PR isolada continua sem lista', () => {
+    const out = coalesceCompacts([compact('p1', 'pr', { url: 'https://a' })]);
+    expect((out[0] as CompactMessage).prs).toBeUndefined();
+  });
+
+  it('concatena listas de PR ao re-coalescer', () => {
+    const msgs = [
+      compact('p1', 'pr', { prs: [{ label: 'PR #1', url: 'https://a' }, { label: 'PR #2', url: 'https://b' }] }),
+      compact('p3', 'pr', { url: 'https://c', label: 'PR #3' }),
+    ];
+    const out = coalesceCompacts(msgs);
+    expect(out).toHaveLength(1);
+    expect((out[0] as CompactMessage).prs).toHaveLength(3);
   });
 
   it('mensagem no meio quebra o run', () => {

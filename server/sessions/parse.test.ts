@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ctxTokens, num, diffOf, planOf, questionsOf, contentHasQuestion, todosOf, extractCommand, labelOf, commandOf, recToMessage, activeChain, collectToolResults, capOutput, turnStats, attachTurnStats, registerTaskCreate, applyTaskUpdate, taskSnapshot, taskTodos, attachTaskTodos, cleanUserText, markerFromRec, weaveByTs, finalTodos, truncateAtPendingQuestion, TOOL_OUTPUT_CAP, type Rec, type ToolResultRec, type TaskRegistry } from './parse';
+import { ctxTokens, num, diffOf, planOf, questionsOf, contentHasQuestion, todosOf, extractCommand, labelOf, commandOf, recToMessage, activeChain, collectToolResults, capOutput, turnStats, attachTurnStats, registerTaskCreate, applyTaskUpdate, taskSnapshot, taskTodos, attachTaskTodos, cleanUserText, markerFromRec, weaveByTs, markersInRange, finalTodos, truncateAtPendingQuestion, TOOL_OUTPUT_CAP, type Rec, type ToolResultRec, type TaskRegistry } from './parse';
 import type { Message } from '../../shared/protocol';
 
 describe('num', () => {
@@ -635,6 +635,21 @@ describe('markerFromRec + weaveByTs (N2: pr-link e wakeup na timeline)', () => {
     ] as Message[];
     expect(weaveByTs(msgs, extras).map((m) => m.id)).toEqual(['m1', 'a', 'm2', 'b']);
     expect(weaveByTs(msgs, [])).toBe(msgs);
+  });
+
+  it('markersInRange descarta marcador anterior à 1ª visível e marcador sem ts', () => {
+    const msgs = [{ id: 'a', role: 'user', text: '1', ts: 100 }] as Message[];
+    const extras = [
+      { id: 'velho', role: 'compact', kind: 'pr', ts: 50 },
+      { id: 'novo', role: 'compact', kind: 'pr', ts: 150 },
+      { id: 'sem-ts', role: 'compact', kind: 'pr' },
+    ] as Message[];
+    expect(markersInRange(msgs, extras).map((m) => m.id)).toEqual(['novo']);
+  });
+
+  it('markersInRange sem mensagem com ts mantém tudo', () => {
+    const extras = [{ id: 'p', role: 'compact', kind: 'pr', ts: 50 }] as Message[];
+    expect(markersInRange([], extras)).toBe(extras);
   });
 });
 
