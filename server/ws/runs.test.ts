@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { WebSocket } from 'ws';
-import { admitRun, findStaleThreads, startRun, threads, isSilentDeath, killAllRuns, resumeOrphanRuns, AUTO_RESUME_CAP, REAPER_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './runs';
+import { admitRun, findStaleThreads, reapStaleRuns, startRun, threads, isSilentDeath, killAllRuns, resumeOrphanRuns, AUTO_RESUME_CAP, REAPER_SILENCE_CAP_MS, REAPER_TOOL_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './runs';
 import { takeOrphanRuns } from './recover';
+import { recordIncident } from './incidents';
 import { awaitingAnswer } from './awaiting';
 import { broadcast } from './broadcast';
 import { run } from '../engine/claude';
@@ -17,34 +18,61 @@ vi.mock('./recover', () => ({ markRunLive: vi.fn(), clearRunLive: vi.fn(), takeO
 
 describe('findStaleThreads', () => {
   const now = 1_000_000_000;
+  type Entry = [string, { startedAt: number; lastFrameAt?: number; openToolsAt?: number[] }];
+  const keys = (e: Entry[]) => findStaleThreads(now, e).map((v) => v.key);
 
   it('mata turno mudo além do teto de silêncio', () => {
-    const entries: [string, { startedAt: number; lastFrameAt?: number }][] = [
-      ['a', { startedAt: now - 60_000, lastFrameAt: now - REAPER_SILENCE_CAP_MS - 1 }],
-    ];
-    expect(findStaleThreads(now, entries)).toEqual(['a']);
+    const entries: Entry[] = [['a', { startedAt: now - 60_000, lastFrameAt: now - REAPER_SILENCE_CAP_MS - 1 }]];
+    expect(findStaleThreads(now, entries)).toEqual([{ key: 'a', reason: 'silence', ms: REAPER_SILENCE_CAP_MS + 1 }]);
   });
 
   it('preserva turno com frame recente', () => {
-    const entries: [string, { startedAt: number; lastFrameAt?: number }][] = [
-      ['a', { startedAt: now - REAPER_SILENCE_CAP_MS - 1, lastFrameAt: now - 1000 }],
-    ];
-    expect(findStaleThreads(now, entries)).toEqual([]);
+    const entries: Entry[] = [['a', { startedAt: now - REAPER_SILENCE_CAP_MS - 1, lastFrameAt: now - 1000 }]];
+    expect(keys(entries)).toEqual([]);
   });
 
-  it('mata turno vivo além do teto total mesmo com frames chegando', () => {
-    const entries: [string, { startedAt: number; lastFrameAt?: number }][] = [
-      ['a', { startedAt: now - REAPER_TOTAL_CAP_MS - 1, lastFrameAt: now - 500 }],
-    ];
-    expect(findStaleThreads(now, entries)).toEqual(['a']);
+  // A regressão que o Samuel sentiu como "o turno só roda com a janela aberta": o
+  // teto absoluto de 45min matava turno em pleno progresso.
+  it('preserva turno longo que segue emitindo frames', () => {
+    const entries: Entry[] = [['a', { startedAt: now - 3 * 60 * 60_000, lastFrameAt: now - 1000 }]];
+    expect(keys(entries)).toEqual([]);
+  });
+
+  it('poupa silêncio longo enquanto uma tool está em voo', () => {
+    const silent = now - REAPER_SILENCE_CAP_MS - 1;
+    expect(keys([['a', { startedAt: now - 60_000, lastFrameAt: silent, openToolsAt: [now - 60_000] }]])).toEqual([]);
+  });
+
+  it('mata tool travada além do teto de tool', () => {
+    const entries: Entry[] = [['a', { startedAt: now - 60_000, lastFrameAt: now - REAPER_TOOL_SILENCE_CAP_MS - 1, openToolsAt: [now - 1000, now - 2000] }]];
+    expect(findStaleThreads(now, entries)[0]).toMatchObject({ key: 'a', reason: 'tool' });
+  });
+
+  // toolStart é grudento: um tool_use sem tool_result deixa a chave lá pro resto do
+  // turno. Se "em voo" fosse só contagem, esse fantasma rebaixaria o teto de 15 pra
+  // 90min pra sempre — o turno travado sobreviveria 6x mais que devia.
+  it('ignora tool aberta há mais que o próprio teto de tool', () => {
+    const entries: Entry[] = [['a', { startedAt: now - 3 * 60 * 60_000, lastFrameAt: now - REAPER_SILENCE_CAP_MS - 1, openToolsAt: [now - REAPER_TOOL_SILENCE_CAP_MS - 1] }]];
+    expect(findStaleThreads(now, entries)[0]).toMatchObject({ key: 'a', reason: 'silence' });
+  });
+
+  it('mata turno além do teto total mesmo com frames chegando', () => {
+    const entries: Entry[] = [['a', { startedAt: now - REAPER_TOTAL_CAP_MS - 1, lastFrameAt: now - 500 }]];
+    expect(findStaleThreads(now, entries)[0]).toMatchObject({ key: 'a', reason: 'total' });
   });
 
   it('turno sem frame algum conta silêncio desde o início', () => {
-    const entries: [string, { startedAt: number; lastFrameAt?: number }][] = [
+    const entries: Entry[] = [
       ['fresh', { startedAt: now - 1000 }],
       ['old', { startedAt: now - REAPER_SILENCE_CAP_MS - 1 }],
     ];
-    expect(findStaleThreads(now, entries)).toEqual(['old']);
+    expect(keys(entries)).toEqual(['old']);
+  });
+
+  it('respeita tetos injetados', () => {
+    const entries: Entry[] = [['a', { startedAt: now - 5000, lastFrameAt: now - 4000 }]];
+    expect(keys(entries)).toEqual([]);
+    expect(findStaleThreads(now, entries, { silence: 3000 }).map((v) => v.key)).toEqual(['a']);
   });
 });
 
@@ -118,7 +146,12 @@ describe('morte silenciosa do turno — aviso + retomada automática', () => {
   it('avisa e retoma com os MESMOS parâmetros do turno morto', () => {
     startRun(ws, 'k1', 'trabalho longo', 'sess-1', undefined, 'plan', 'opus', 5, true, 'admin', ['x'], ['mcp1'], 'high');
     closeLastRun();
-    expect(errors()).toHaveLength(1);
+    // Constatação da morte + promessa de retomada (esta última só sai porque a
+    // retomada realmente aconteceu).
+    expect(errors().map((m: any) => m.message)).toEqual([
+      expect.stringContaining('caiu antes de terminar'),
+      'Retomando de onde parou…',
+    ]);
     expect(run).toHaveBeenCalledTimes(2);
     const resumed = vi.mocked(run).mock.calls[1][0];
     expect(resumed.resumeId).toBe('sess-1');
@@ -140,6 +173,16 @@ describe('morte silenciosa do turno — aviso + retomada automática', () => {
     closeLastRun();
     expect(errors()).toHaveLength(0);
     expect(run).toHaveBeenCalledOnce();
+  });
+
+  // Kill do reaper usa stopped (pra não notificar "concluído") mas NÃO é stop do
+  // usuário: antes o turno reapado morria sem retomada e sem ninguém ver.
+  it('turno reapado retoma sozinho', () => {
+    startRun(ws, 'k3b', 'trabalho longo', 'sess-3b');
+    Object.assign(threads.get('k3b')!, { stopped: true, reaped: 'silence' });
+    closeLastRun();
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(run).mock.calls[1][0].prompt).toContain('Continue exatamente de onde parou');
   });
 
   it('retoma no máximo AUTO_RESUME_CAP vezes seguidas', () => {
@@ -183,6 +226,66 @@ describe('morte silenciosa do turno — aviso + retomada automática', () => {
     vi.mocked(run).mock.calls.forEach((c) => c[0].onClose?.());
     expect(run).toHaveBeenCalledTimes(2);
     expect(errors()).toHaveLength(0);
+  });
+});
+
+// O reaper é quem matava turno saudável em 45min ("o turno só roda com a janela
+// aberta"). findStaleThreads cobre o veredito; aqui é a ligação com o mundo: o que
+// ele lê de `threads`, a marca `reaped` e o efeito no onClose.
+describe('reapStaleRuns — efeito sobre o turno vivo', () => {
+  const ws = {} as WebSocket;
+  const closeLastRun = () => vi.mocked(run).mock.calls.at(-1)![0].onClose?.();
+  const errors = () => vi.mocked(broadcast).mock.calls.map((c) => c[0]).filter((m: any) => m.t === 'error');
+  const age = (key: string, over: { startedAt?: number; lastFrameAt?: number }) => Object.assign(threads.get(key)!, over);
+
+  beforeEach(() => {
+    threads.clear();
+    awaitingAnswer.clear();
+    vi.mocked(run).mockClear();
+    vi.mocked(broadcast).mockClear();
+    vi.mocked(recordIncident).mockClear();
+  });
+
+  it('marca reaped, registra incidente e o onClose retoma o turno', () => {
+    startRun(ws, 'r1', 'trabalho longo', 'sess-r1');
+    age('r1', { lastFrameAt: Date.now() - REAPER_SILENCE_CAP_MS - 1 });
+    reapStaleRuns();
+    expect(threads.get('r1')).toMatchObject({ reaped: 'silence', stopped: true });
+    expect(recordIncident).toHaveBeenCalledWith(expect.objectContaining({ kind: 'reaped', sessionKey: 'r1' }));
+    // Constata a morte sem prometer nada — a promessa é do autoResume.
+    expect(errors()[0]).toMatchObject({ message: 'O turno ficou mudo tempo demais e foi encerrado.' });
+    closeLastRun();
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(run).mock.calls[1][0].prompt).toContain('Continue exatamente de onde parou');
+  });
+
+  // O thread só sai de `threads` no onClose, que pode nem vir se a tool travada
+  // segura o processo: sem a guarda, o reaper re-matava a mesma chave a cada minuto
+  // e empilhava bolha de erro + incidente pra sempre.
+  it('não reapa duas vezes a mesma chave', () => {
+    startRun(ws, 'r2', 'trabalho', 'sess-r2');
+    age('r2', { lastFrameAt: Date.now() - REAPER_SILENCE_CAP_MS - 1 });
+    reapStaleRuns();
+    reapStaleRuns();
+    expect(recordIncident).toHaveBeenCalledOnce();
+    expect(errors()).toHaveLength(1);
+  });
+
+  it('poupa turno mudo com tool em voo (teto de tool, não de silêncio)', () => {
+    startRun(ws, 'r3', 'build longo', 'sess-r3');
+    age('r3', { lastFrameAt: Date.now() - REAPER_SILENCE_CAP_MS - 1 });
+    threads.get('r3')!.toolStart.set('tool-1', Date.now() - 60_000);
+    reapStaleRuns();
+    expect(threads.get('r3')!.reaped).toBeUndefined();
+  });
+
+  it('teto total não retoma — é a rede final contra run desgovernado', () => {
+    startRun(ws, 'r4', 'trabalho', 'sess-r4');
+    age('r4', { startedAt: Date.now() - REAPER_TOTAL_CAP_MS - 1, lastFrameAt: Date.now() - 500 });
+    reapStaleRuns();
+    expect(threads.get('r4')!.reaped).toBe('total');
+    closeLastRun();
+    expect(run).toHaveBeenCalledOnce();
   });
 });
 

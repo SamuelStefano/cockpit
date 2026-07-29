@@ -44,6 +44,7 @@ export interface Thread {
   endReason?: string;   // result.subtype: success | error_max_budget | error_max_turns | ...
   model?: string;       // modelo EFETIVO do turno (message.model do CLI); pode divergir do pedido sob --fallback-model
   stopped?: boolean;    // turno foi morto por stop do usuário — o 'done' do onClose não deve notificar "turno concluído"
+  reaped?: StaleReason; // morto pelo reaper: usa stopped (sem notificar "concluído") MAS tem direito a retomada automática
   questioned?: boolean; // turno fez AskUserQuestion: o `claude -p` auto-resolve e CONTINUA gerando — suprime tudo que vier depois pra a pergunta ficar como última (respondível)
   // Snapshot acumulado p/ replay no reconnect (#10). Os frames vão por broadcast.
   text: string;
@@ -170,38 +171,76 @@ export function killAllRuns(opts: { preserveLive?: boolean } = {}): void {
   killSideRuns(); // one-shots de triagem/quick-answer não vivem em `threads`
 }
 
-// Tetos do reaper: um turno mudo além de SILENCE_CAP (nenhum frame chegando —
-// "garimpando" eterno) ou vivo além de TOTAL_CAP (independente de frames) é
-// considerado travado e morto. SILENCE alto o bastante pra não matar um Bash/build
-// legítimo que fica quieto esperando o tool_result; TOTAL como rede final absoluta.
+// Tetos do reaper. Só SILÊNCIO condena um turno, e o teto depende de haver tool em
+// voo: mudo SEM tool aberta = o modelo travou ("garimpando" eterno); mudo COM tool
+// aberta = build/teste/subagente longo, que fica minutos sem emitir frame e é
+// trabalho legítimo. O teto por TEMPO DE VIDA era 45min e matava turno saudável em
+// pleno progresso — o Deck existe pra disparar trabalho longo e fechar a aba, e sem
+// browser o frame de erro não chegava a ninguém: era o "o turno só roda com a
+// janela aberta". Fica só como rede final contra run desgovernado.
 export const REAPER_SILENCE_CAP_MS = 15 * 60_000;
-export const REAPER_TOTAL_CAP_MS = 45 * 60_000;
+export const REAPER_TOOL_SILENCE_CAP_MS = 90 * 60_000;
+export const REAPER_TOTAL_CAP_MS = 8 * 60 * 60_000;
 
-// Pura (testável): decide quais chaves reapar. lastFrameAt ausente → usa startedAt
-// (turno que nunca emitiu frame conta silêncio desde o início).
+export type StaleReason = 'silence' | 'tool' | 'total';
+export interface StaleVerdict { key: string; reason: StaleReason; ms: number }
+
+// Pura (testável): decide quais chaves reapar e por quê. lastFrameAt ausente → usa
+// startedAt (turno que nunca emitiu frame conta silêncio desde o início).
+// openToolsAt = quando cada tool AINDA ABERTA começou. Recebe os instantes, não a
+// contagem: um tool_use sem tool_result (subagente morto, parse perdido) ficaria
+// contado como "em voo" pelo resto do turno e rebaixaria o teto de silêncio de 15
+// pra 90min pra sempre. Tool aberta há mais que o teto dela não conta como trabalho.
 export function findStaleThreads(
   now: number,
-  entries: Iterable<[string, { startedAt: number; lastFrameAt?: number }]>,
-  silenceCap = REAPER_SILENCE_CAP_MS,
-  totalCap = REAPER_TOTAL_CAP_MS,
-): string[] {
-  const stale: string[] = [];
+  entries: Iterable<[string, { startedAt: number; lastFrameAt?: number; openToolsAt?: number[] }]>,
+  caps: { silence?: number; toolSilence?: number; total?: number } = {},
+): StaleVerdict[] {
+  const silenceCap = caps.silence ?? REAPER_SILENCE_CAP_MS;
+  const toolCap = caps.toolSilence ?? REAPER_TOOL_SILENCE_CAP_MS;
+  const totalCap = caps.total ?? REAPER_TOTAL_CAP_MS;
+  const stale: StaleVerdict[] = [];
   for (const [key, t] of entries) {
     const silentFor = now - (t.lastFrameAt ?? t.startedAt);
     const aliveFor = now - t.startedAt;
-    if (silentFor >= silenceCap || aliveFor >= totalCap) stale.push(key);
+    const busy = (t.openToolsAt ?? []).some((at) => now - at < toolCap);
+    if (silentFor >= (busy ? toolCap : silenceCap)) stale.push({ key, reason: busy ? 'tool' : 'silence', ms: silentFor });
+    else if (aliveFor >= totalCap) stale.push({ key, reason: 'total', ms: aliveFor });
   }
   return stale;
 }
 
-function reapStaleRuns(): void {
-  const stale = findStaleThreads(Date.now(), threads);
-  for (const key of stale) {
-    // Mesmo caminho de um stop do usuário: marca stopped (sem notificação de
-    // "concluído"), mata a árvore e deixa o onClose emitir 'done' → a UI cai pra
-    // idle e a fila daquela sessão finalmente drena (o prompt que "não enviava").
-    broadcast({ t: 'error', sessionKey: key, message: 'turno travado encerrado automaticamente' });
-    stopSession(key);
+// Só constata a morte. A promessa de retomada é do autoResume, que é quem sabe se
+// ela vai acontecer de fato (a fila do usuário tem prioridade e pode ganhar a
+// corrida) — prometer aqui virava mentira na tela.
+const REAP_MESSAGE: Record<StaleReason, string> = {
+  silence: 'O turno ficou mudo tempo demais e foi encerrado.',
+  tool: 'Uma ferramenta travou e o turno foi encerrado.',
+  total: 'O turno passou do tempo máximo de vida e foi encerrado.',
+};
+
+export function reapStaleRuns(): void {
+  const now = Date.now();
+  const snapshot = [...threads]
+    // Já marcado = kill em andamento (nosso ou do usuário). O thread só sai de
+    // `threads` no onClose, que pode demorar — ou não vir, se a tool travada segura
+    // o processo. Sem esta guarda o reaper re-mataria a mesma chave a cada passada,
+    // duplicando bolha de erro e incidente a cada minuto.
+    .filter(([, t]) => !t.reaped && !t.stopped)
+    .map(([key, t]) =>
+      [key, { startedAt: t.startedAt, lastFrameAt: t.lastFrameAt, openToolsAt: [...t.toolStart.values()] }] as [string, { startedAt: number; lastFrameAt?: number; openToolsAt: number[] }]);
+  for (const v of findStaleThreads(now, snapshot)) {
+    const thread = threads.get(v.key);
+    if (!thread) continue;
+    // Marca reaped ANTES do kill: o onClose usa a marca pra retomar o turno sozinho.
+    // Antes o reaper só passava por stopSession, então o turno ficava indistinguível
+    // de um stop do usuário — morria sem retomada, sem registro e (sem browser) sem
+    // ninguém pra ver o erro.
+    thread.reaped = v.reason;
+    console.error(`[reaper] ${v.key}: ${v.reason} há ${Math.round(v.ms / 1000)}s`);
+    recordIncident({ kind: 'reaped', sessionKey: v.key, sessionId: thread.sessionId, detail: `${v.reason} há ${Math.round(v.ms / 1000)}s, ${thread.tools.length} tools` });
+    broadcast({ t: 'error', sessionKey: v.key, message: REAP_MESSAGE[v.reason] });
+    stopSession(v.key);
   }
 }
 
@@ -241,6 +280,9 @@ function autoResume(sessionKey: string, thread: Thread): void {
     return;
   }
   autoResumes.set(sessionKey, tries);
+  // Avisa aqui, não em quem detectou a morte: só neste ponto a retomada é certa
+  // (passou das guardas de corrida acima e do teto de tentativas).
+  broadcast({ t: 'error', sessionKey, message: 'Retomando de onde parou…' });
   const p = thread.params;
   startRun(null, sessionKey, RESUME_PROMPT, thread.sessionId, undefined, p.mode, p.model, p.maxBudgetUsd, p.bypass, p.role, p.disallowedSkills, p.mcps, p.effort);
 }
@@ -342,6 +384,11 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
     return;
   }
   if (replacing) threads.get(sessionKey)!.handle.kill();
+  // Turno NOVO (não uma retomada nossa) devolve a cota de retomada da sessão. Só o
+  // fechamento saudável zerava, então um turno morto que não fechou saudável (ex.:
+  // reapado) deixava a cota gasta pra sempre e a próxima falha de verdade era
+  // recusada com "a retomada automática também falhou".
+  if (prompt !== RESUME_PROMPT) autoResumes.delete(sessionKey);
 
   let live = false; // este turno já foi registrado no live-runs.json?
   const thread: Thread = { handle: { kill: () => {} }, params: { mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort }, prompt, startedAt: Date.now(), sessionId: resumeId, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map() };
@@ -390,10 +437,10 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
       // retomada — senão um incidente antigo consumiria a cota da sessão pra sempre.
       const silent = isSilentDeath(thread);
       if (silent) {
-        broadcast({ t: 'error', sessionKey, message: 'O turno caiu antes de terminar (o processo morreu sem resposta). Retomando de onde parou…' });
+        broadcast({ t: 'error', sessionKey, message: 'O turno caiu antes de terminar (o processo morreu sem resposta).' });
         recordIncident({ kind: 'silent-death', sessionKey, sessionId: thread.sessionId, detail: `${Math.round((Date.now() - thread.startedAt) / 1000)}s vivo, ${thread.tools.length} tools, ${thread.text.length} chars de resposta` });
       }
-      else autoResumes.delete(sessionKey);
+      else if (!thread.reaped) autoResumes.delete(sessionKey);
       broadcast({ t: 'done', sessionKey, sessionId: thread.sessionId ?? '', costUsd: thread.costUsd, durationMs: thread.durationMs, numTurns: thread.numTurns, turnTokens: thread.turnTokens, inputTokens: thread.inputTokens, outputTokens: thread.outputTokens, endReason: thread.endReason, model: thread.model, stopped: thread.stopped });
       // Resumo IA do que a sessão fez, atualizado ao fim do turno (pedido do Samuel).
       // Fire-and-forget: best-effort, nunca bloqueia/derruba o fechamento do run.
@@ -424,7 +471,11 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
       }
       // Por último: as filas têm prioridade sobre a retomada (o que o usuário mandou
       // vale mais que continuar um turno morto), e autoResume só age se ninguém pegou.
-      if (silent) autoResume(sessionKey, thread);
+      // Turno reapado entra aqui junto da morte silenciosa: ele foi morto por NÓS, não
+      // pelo usuário, então tem que voltar sozinho (com o teto de 1 tentativa). Exceto
+      // 'total': esse teto existe justamente pra parar um run desgovernado — retomar
+      // dobraria a queima que o teto tentou conter.
+      if (silent || (thread.reaped && thread.reaped !== 'total')) autoResume(sessionKey, thread);
     },
   });
 }

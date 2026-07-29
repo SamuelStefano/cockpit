@@ -135,7 +135,7 @@ export function removeParked(sessionKey: string, id: string): void {
 // O item carrega o `role` de quem enfileirou, e o drainer roda com ele (inclusive
 // bypass): reescrever o texto de um item de admin sendo student seria execução
 // arbitrária com privilégio herdado, então só admin edita item de admin.
-export function editParked(sessionKey: string, id: string, prompt: string, role: Role): void {
+export function editParked(sessionKey: string, id: string, prompt: string, role?: Role): void {
   if (!SESSION_KEY_RE.test(sessionKey)) return;
   if (typeof prompt !== 'string' || !prompt.trim() || Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) return;
   const map = loadParked();

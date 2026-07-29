@@ -13,7 +13,7 @@ const INCIDENTS_PATH = process.env.COCKPIT_INCIDENTS ?? join(homedir(), '.cockpi
 const CAP_BYTES = 256 * 1024;
 const KEEP_LINES = 200;
 
-export type IncidentKind = 'silent-death' | 'orphan-resume' | 'run-error' | 'resume-exhausted';
+export type IncidentKind = 'silent-death' | 'orphan-resume' | 'run-error' | 'resume-exhausted' | 'reaped';
 
 export interface Incident {
   ts: string;
