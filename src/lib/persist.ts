@@ -21,6 +21,14 @@ export function savePref<T>(key: string, value: T): void {
   }
 }
 
+export function removePref(key: string): void {
+  try {
+    localStorage.removeItem(NS + key);
+  } catch {
+    /* best-effort */
+  }
+}
+
 // Pub/sub por chave: instâncias diferentes de usePersisted com a MESMA key
 // (ex: 'pinned' usado no sidebar e na navegação por teclado) se mantêm em
 // sincronia no mesmo render, sem precisar de reload.

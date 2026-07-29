@@ -15,6 +15,7 @@ import { useTerminals, type TermApi } from './cockpit/useTerminals';
 import { addThumb, shouldRequestThumb } from './lib/att-thumb-cache';
 import { fileSig, isFreshUpload } from './components/chat/dedupe-uploads';
 import { encodeAttachments } from './lib/parse-attachments';
+import { loadPendingAtts, savePendingAtts, addPendingAtt, movePendingAtts, clearPendingAtts } from './lib/pending-atts';
 
 export interface ContextDoc { id: string; title: string; body: string }
 export interface SkillDoc { id: string; name: string; body: string }
@@ -277,8 +278,7 @@ export function useCockpit(): Cockpit {
   const setAtts = useCallback((next: Attachment[]) => {
     attachmentsRef.current = next;
     setAttachments(next);
-    const k = activeRef.current;
-    if (k) savePref(`pendingAtts:${k}`, next.filter((a) => !a.uploading));
+    savePendingAtts(activeRef.current, next);
   }, []);
   const [attPreview, setAttPreview] = useState<AttachmentPreview | null>(null);
   const [attThumbs, setAttThumbs] = useState<Record<string, string>>({});
@@ -456,6 +456,24 @@ export function useCockpit(): Cockpit {
       savePref('seen', next);
       return next;
     });
+    // Anexo pendente também migra: um ack de upload em voo ainda aponta pra
+    // `new-xxx` e gravaria numa key morta, sumindo do composer.
+    movePendingAtts(oldKey, newId);
+    for (const [cid, k] of uploadOrigin.current) if (k === oldKey) uploadOrigin.current.set(cid, newId);
+  }, []);
+
+  // Único caminho de troca de sessão ativa — todo caminho que mexia no activeRef
+  // na mão (nova sessão, pulo pela notificação) esquecia de reidratar os anexos.
+  const focusSession = useCallback((id: string) => {
+    if (fullViewId.current !== id) fullViewId.current = null;
+    activeRef.current = id;
+    setActiveIdState(id);
+    const pend = loadPendingAtts(id);
+    attachmentsRef.current = pend;
+    setAttachments(pend);
+    // Preview é transitório da sessão: trocar com o modal aberto deixava o anexo
+    // da sessão anterior na tela da nova.
+    setAttPreview(null);
   }, []);
 
   const onServer = useCallback((msg: ServerMsg) => {
@@ -919,7 +937,10 @@ export function useCockpit(): Cockpit {
       }
       case 'uploaded': {
         const real: Attachment = { name: msg.name, path: msg.path, text: msg.text, s3url: msg.s3url };
-        const origin = msg.clientId ? uploadOrigin.current.get(msg.clientId) : undefined;
+        // uploadOrigin é in-memory e consumido no 1º ack; o sessionKey do servidor
+        // cobre reload e ack repetido (mas pode ser a key pré-migração).
+        const origin = (msg.clientId ? uploadOrigin.current.get(msg.clientId) : undefined)
+          ?? (msg.sessionKey ? resolveKey(migratedTo.current, msg.sessionKey) : undefined);
         if (msg.clientId) uploadOrigin.current.delete(msg.clientId);
         // O ack pode chegar quando o usuário já trocou de sessão (upload demora). O
         // anexo pertence à sessão de ORIGEM do upload, não à ativa — senão a imagem
@@ -931,8 +952,7 @@ export function useCockpit(): Cockpit {
           const idx = msg.clientId ? cur.findIndex((a) => a.clientId === msg.clientId) : -1;
           setAtts(idx >= 0 ? cur.map((a, i) => (i === idx ? real : a)) : [...cur, real]);
         } else {
-          const prev = loadPref<Attachment[]>(`pendingAtts:${origin}`, []);
-          savePref(`pendingAtts:${origin}`, [...prev.filter((a) => a.path !== real.path), real]);
+          addPendingAtt(origin, real);
         }
         return;
       }
@@ -1028,11 +1048,7 @@ export function useCockpit(): Cockpit {
         notifyTurnDone(
           sessionsRef.current.find((s) => s.id === id || s.id === key)?.title ?? '',
           () => {
-            if (fullViewId.current !== id) fullViewId.current = null;
-            activeRef.current = id;
-            setActiveIdState(id);
-            if (attachmentsRef.current.length) { setAtts([]); }
-            setAttPreview(null);
+            focusSession(id);
             setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === id })));
             if (id && !id.startsWith('new-') && !opened.current.has(id) && send({ t: 'open', sessionId: id })) opened.current.add(id);
           },
@@ -1061,11 +1077,7 @@ export function useCockpit(): Cockpit {
             sessionsRef.current.find((s) => s.id === key)?.title ?? '',
             msg.message,
             () => {
-              if (fullViewId.current !== key) fullViewId.current = null;
-              activeRef.current = key;
-              setActiveIdState(key);
-              if (attachmentsRef.current.length) { setAtts([]); }
-              setAttPreview(null);
+              focusSession(key);
               setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === key })));
             },
           );
@@ -1254,24 +1266,12 @@ export function useCockpit(): Cockpit {
   }, []);
 
   const setActiveId = useCallback((id: string) => {
-    // Espelha o reset do fullLoaded no painel (useChatPanel zera na troca de sid):
-    // a visão completa é um modo transitório por visita, não preferência da sessão.
-    if (fullViewId.current !== id) fullViewId.current = null;
-    activeRef.current = id;
-    setActiveIdState(id);
+    focusSession(id);
     // Sessão real (não rascunho local) vira a última ativa — sobrevive ao F5.
     if (id && !id.startsWith('new-')) savePref('activeId', id);
-    // Reidrata os anexos pendentes da sessão alvo (persistidos por sessão) em vez de
-    // só limpar — assim trocar de sessão / dar F5 não some com os anexos do composer.
-    const pend = id ? loadPref<Attachment[]>(`pendingAtts:${id}`, []) : [];
-    attachmentsRef.current = pend;
-    setAttachments(pend);
-    // Modal de preview é transitório da sessão: trocar via Alt+↑/↓ com ele aberto
-    // deixava o anexo da sessão anterior na tela da nova.
-    setAttPreview(null);
     setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === id })));
     if (id && !id.startsWith('new-') && !opened.current.has(id) && send({ t: 'open', sessionId: id })) opened.current.add(id);
-  }, [send]);
+  }, [send, focusSession]);
 
   // Congela na sessão o modelo com que o turno REALMENTE roda. Sem isto, uma
   // conversa que herdou o default (sem override próprio) segue derivando o rótulo
@@ -1569,10 +1569,8 @@ export function useCockpit(): Cockpit {
     const s: Session = { id, title: 'Nova sessão', relative: 'agora', snippet: 'Sem mensagens ainda', mtime: Date.now(), hasTerminal: false, active: true };
     setSessions((prev) => [s, ...prev.map((x) => ({ ...x, active: false }))]);
     setThreads((prev) => ({ ...prev, [id]: [] }));
-    fullViewId.current = null;
-    activeRef.current = id;
-    setActiveIdState(id);
-  }, []);
+    focusSession(id);
+  }, [focusSession]);
 
   const onRename = useCallback((id: string, title: string) => {
     setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)));
@@ -1597,11 +1595,7 @@ export function useCockpit(): Cockpit {
       const next = prev.filter((s) => s.id !== id);
       if (activeRef.current !== id) return next;
       const fb = next[0]?.id ?? '';
-      fullViewId.current = null;
-      activeRef.current = fb;
-      setActiveIdState(fb);
-      if (attachmentsRef.current.length) { setAtts([]); }
-      setAttPreview(null);
+      focusSession(fb);
       if (fb && !fb.startsWith('new-') && !opened.current.has(fb) && send({ t: 'open', sessionId: fb })) opened.current.add(fb);
       return next.map((s) => ({ ...s, active: s.id === fb }));
     });
@@ -1619,7 +1613,7 @@ export function useCockpit(): Cockpit {
     delete runStartRef.current[id];
     delete lastActivity.current[id];
     opened.current.delete(id);
-  }, [send]);
+  }, [send, focusSession]);
 
   const onClose = useCallback((id: string) => {
     if (id && !id.startsWith('new-')) send({ t: 'hide', sessionId: id });
@@ -1631,6 +1625,9 @@ export function useCockpit(): Cockpit {
   const onDelete = useCallback((id: string) => {
     if (id && !id.startsWith('new-')) send({ t: 'purge', sessionId: id });
     dropFromSidebar(id);
+    // Só na exclusão: arquivar é reversível (onUnhide traz a sessão de volta) e o
+    // composer dela tem que voltar com os anexos.
+    clearPendingAtts(id);
   }, [send, dropFromSidebar]);
 
   // Desarquivar: backend reenvia sessions + archived; some da lista de arquivadas

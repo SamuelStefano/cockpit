@@ -537,7 +537,9 @@ export type ServerMsg =
   | { t: 'models'; models: ModelInfo[] }
   | { t: 'skills'; items: SkillMeta[] }
   | { t: 'skill'; id: string; name: string; body: string }
-  | { t: 'uploaded'; name: string; path: string; text?: string; s3url?: string; clientId?: string }
+  // sessionKey ecoa a sessão que PEDIU o upload: o mapa clientId->sessão do front é
+  // in-memory e some no reload, e sem ele o ack tardio carimba o anexo no chat aberto.
+  | { t: 'uploaded'; name: string; path: string; text?: string; s3url?: string; clientId?: string; sessionKey?: string }
   | { t: 's3-config'; uploadUrl: string; anonKey: string }
   | { t: 'install-result'; kind: 'context' | 'skill'; ok: boolean; id?: string; error?: string }
   // Conteúdo de um anexo p/ preview no chat (modal). error preenchido quando o

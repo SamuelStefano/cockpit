@@ -357,7 +357,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'upload': {
       const r = await saveAttachment(msg.sessionKey, msg.name, msg.dataB64);
       if ('error' in r) send(ws, { t: 'error', message: r.error });
-      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url, clientId: msg.clientId });
+      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url, clientId: msg.clientId, sessionKey: msg.sessionKey });
       return;
     }
     // Upload em chunks via WS (caminho robusto): o backend remonta e sobe pro S3
@@ -366,7 +366,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const r = await addUploadChunk(msg.uploadId, msg.sessionKey, msg.name, msg.seq, msg.total, msg.dataB64);
       if (r === null) return;
       if ('error' in r) send(ws, { t: 'error', message: r.error });
-      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url, clientId: msg.clientId });
+      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url, clientId: msg.clientId, sessionKey: msg.sessionKey });
       return;
     }
     // Upload direto na edge fn: o browser pede a config (URL+anon key, só após o gate
@@ -381,7 +381,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'attach-ref': {
       const r = await saveAttachmentFromUrl(msg.sessionKey, msg.name, msg.s3url);
       if ('error' in r) send(ws, { t: 'error', message: r.error });
-      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url, clientId: msg.clientId });
+      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url, clientId: msg.clientId, sessionKey: msg.sessionKey });
       return;
     }
     case 'att-open': {
