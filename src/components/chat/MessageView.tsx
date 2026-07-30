@@ -1,7 +1,6 @@
 import { memo } from 'react';
 import { Icon } from '../primitives';
 import { ClaudeAvatar } from '../ClaudeAvatar';
-import type { Message } from '../../data/mock';
 import type { TurnBubbleStats } from '../../../shared/protocol';
 import { messageToText } from '../../lib/export';
 import { usePersisted } from '../../lib/persist';
@@ -12,6 +11,8 @@ import { ThinkingDots, LiveStatsLine, type LiveTurn } from './Thinking';
 import { QuoteButton, CopyMessageButton, RegenerateButton, SpeakButton } from './MessageActions';
 import { UserMessageRow } from './UserMessageRow';
 import { CompactDivider } from './CompactDivider';
+import { ToolGroupCard } from './ToolGroupCard';
+import type { ShownMessage } from './turn-tools';
 import { fmtTokens, fmtDuration, fmtClock } from './message-format';
 
 export type { DiffRow } from './diff';
@@ -19,7 +20,7 @@ export { lineDiff } from './diff';
 export { Thinking } from './Thinking';
 
 interface MessageRowProps {
-  msg: Message;
+  msg: ShownMessage;
   caretOnLast: boolean;
   modelLabel?: string;
   showModelLabel?: boolean;
@@ -47,10 +48,22 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
   if (msg.role === 'compact') {
     return <CompactDivider msg={msg} />;
   }
+  // Todas as ferramentas do turno numa caixa fechada só (sem avatar nem rótulo
+  // de modelo): a thread fica prompt + resposta, e o que a IA fez pra chegar lá
+  // continua a um clique.
+  if (msg.digest) {
+    return (
+      <div className="fade-up">
+        <ToolGroupCard tools={msg.digest} />
+        {thinking && <ThinkingDots live={live} />}
+      </div>
+    );
+  }
   // Tools ocultas podem deixar a mensagem sem NENHUM bloco renderizável — aí a
   // linha inteira some, senão sobrava um rótulo "opus…" órfão por mensagem de
-  // ferramenta. Exceção: a linha do indicador de turno em curso (thinking).
-  if (!thinking && !hasVisibleAssistantContent(msg.blocks, showTools)) return null;
+  // ferramenta. Exceções: o indicador de turno em curso (thinking) e o fecho de um
+  // turno que só usou ferramentas, onde só resta o "Pensou por X".
+  if (!thinking && !msg.stats?.durationMs && !hasVisibleAssistantContent(msg.blocks, showTools)) return null;
   const hasText = msg.blocks.some((b) => b.type === 'text' || b.type === 'code');
   return (
     <div className="fade-up group/msg flex gap-2.5">
