@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import type { Role } from '../auth';
 import type { ParkedView } from '../../shared/protocol';
 import { CONFIG } from '../config';
+import { recordIncident } from './incidents';
 
 // Fila ESTACIONADA (overnight/quota-out), distinta da fila `pending` do runs.ts
 // (triagem in-turn, drenada no onClose). Aqui ficam os prompts que o usuário
@@ -125,6 +126,9 @@ function withParkedLock<T>(fn: () => T): T {
   }
   // Sem o lock depois de ~1s, segue mesmo assim: perder a corrida é raro, não
   // executar a operação (enfileirar, devolver) perderia o prompt com certeza.
+  // Mas segue REGISTRADO — é a única janela em que a fila ainda pode perder um
+  // item, e ela não pode voltar a ser silenciosa como era o bug original.
+  if (fd === undefined) recordIncident({ kind: 'parked-lock-timeout', sessionKey: '-', detail: `lock preso ha >1s em ${LOCK_PATH}` });
   try {
     return fn();
   } finally {
@@ -243,8 +247,10 @@ export function unshiftParked(sessionKey: string, item: ParkedItem): number {
   return withParkedLock(() => {
     const map = loadParked();
     const arr = map[sessionKey] ?? [];
-    if (arr.some((x) => x.id === item.id) || arr.length >= MAX_PARKED) return 0;
-    if (!(sessionKey in map) && Object.keys(map).length >= MAX_SESSIONS) return 0;
+    if (arr.some((x) => x.id === item.id)) return 0;
+    // Devolução IGNORA os tetos de propósito: o item já estava na fila, e recusá-lo
+    // aqui apagaria um prompt do usuário pra respeitar um limite que existe só pra
+    // barrar acúmulo de itens NOVOS. O teto de attempts é o que impede repetição.
     const attempts = (item.attempts ?? 0) + 1;
     arr.unshift({ ...item, attempts });
     map[sessionKey] = arr;

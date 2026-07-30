@@ -123,6 +123,14 @@ describe('unshiftParked (devolução)', () => {
     expect(unshiftParked('s', item)).toBe(0);
     expect(parkedView()).toHaveLength(1);
   });
+
+  it('fila cheia não engole a devolução', () => {
+    for (let i = 0; i < 50; i++) addParked('s', { prompt: `p${i}` });
+    const item = shiftParked('s')!;
+    for (let i = 0; i < 2; i++) addParked('s', { prompt: `extra${i}` });
+    expect(unshiftParked('s', item)).toBe(1);
+    expect(parkedView()[0].id).toBe(item.id);
+  });
 });
 
 describe('lock cross-process', () => {
