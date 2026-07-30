@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, renameSync, openSync, closeSync, statSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import type { Role } from '../auth';
@@ -102,6 +102,39 @@ function saveParked(map: ParkedMap): void {
   renameSync(tmp, PARKED_PATH);
 }
 
+const LOCK_PATH = `${PARKED_PATH}.lock`;
+// Dono do lock que morreu no meio (deploy, OOM) não pode travar a fila pra sempre.
+const LOCK_STALE_MS = 5_000;
+
+// Ler-modificar-escrever acontece em DOIS processos: o drainer roda no agente e os
+// handlers queue-* podem rodar no index por loopback. Sem exclusão mútua a escrita
+// de um sobrescreve a do outro — e a escrita perdida é um prompt do usuário.
+function withParkedLock<T>(fn: () => T): T {
+  mkdirSync(dirname(PARKED_PATH), { recursive: true });
+  const sleeper = new Int32Array(new SharedArrayBuffer(4));
+  let fd: number | undefined;
+  for (let i = 0; i < 200 && fd === undefined; i++) {
+    try {
+      fd = openSync(LOCK_PATH, 'wx');
+    } catch {
+      try {
+        if (Date.now() - statSync(LOCK_PATH).mtimeMs > LOCK_STALE_MS) rmSync(LOCK_PATH, { force: true });
+      } catch { /* outro processo liberou entre o stat e o rm */ }
+      Atomics.wait(sleeper, 0, 0, 5);
+    }
+  }
+  // Sem o lock depois de ~1s, segue mesmo assim: perder a corrida é raro, não
+  // executar a operação (enfileirar, devolver) perderia o prompt com certeza.
+  try {
+    return fn();
+  } finally {
+    if (fd !== undefined) {
+      closeSync(fd);
+      rmSync(LOCK_PATH, { force: true });
+    }
+  }
+}
+
 export function parkedView(): ParkedView[] {
   const map = loadParked();
   const out: ParkedView[] = [];
@@ -119,25 +152,29 @@ function newParkedId(): string {
 export function addParked(sessionKey: string, item: Omit<ParkedItem, 'id' | 'at'>): string | null {
   if (!SESSION_KEY_RE.test(sessionKey)) return null;
   if (typeof item.prompt !== 'string' || Buffer.byteLength(item.prompt) > CONFIG.maxPromptBytes) return null;
-  const map = loadParked();
-  const arr = map[sessionKey] ?? [];
-  if (arr.length >= MAX_PARKED) return null;
-  if (!(sessionKey in map) && Object.keys(map).length >= MAX_SESSIONS) return null;
-  const id = newParkedId();
-  arr.push({ ...item, id, at: Date.now() });
-  map[sessionKey] = arr;
-  saveParked(map);
-  return id;
+  return withParkedLock(() => {
+    const map = loadParked();
+    const arr = map[sessionKey] ?? [];
+    if (arr.length >= MAX_PARKED) return null;
+    if (!(sessionKey in map) && Object.keys(map).length >= MAX_SESSIONS) return null;
+    const id = newParkedId();
+    arr.push({ ...item, id, at: Date.now() });
+    map[sessionKey] = arr;
+    saveParked(map);
+    return id;
+  });
 }
 
 export function removeParked(sessionKey: string, id: string): void {
-  const map = loadParked();
-  const arr = map[sessionKey];
-  if (!arr) return;
-  const next = arr.filter((x) => x.id !== id);
-  if (next.length === arr.length) return;
-  if (next.length) map[sessionKey] = next; else delete map[sessionKey];
-  saveParked(map);
+  withParkedLock(() => {
+    const map = loadParked();
+    const arr = map[sessionKey];
+    if (!arr) return;
+    const next = arr.filter((x) => x.id !== id);
+    if (next.length === arr.length) return;
+    if (next.length) map[sessionKey] = next; else delete map[sessionKey];
+    saveParked(map);
+  });
 }
 
 // Troca o texto de um item já enfileirado NO LUGAR: preserva posição, id, `at` e os
@@ -149,45 +186,53 @@ export function removeParked(sessionKey: string, id: string): void {
 export function editParked(sessionKey: string, id: string, prompt: string, role?: Role): void {
   if (!SESSION_KEY_RE.test(sessionKey)) return;
   if (typeof prompt !== 'string' || !prompt.trim() || Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) return;
-  const map = loadParked();
-  const it = map[sessionKey]?.find((x) => x.id === id);
-  if (!it) return;
-  if (it.role === 'admin' && role !== 'admin') return;
-  it.prompt = prompt;
-  saveParked(map);
+  withParkedLock(() => {
+    const map = loadParked();
+    const it = map[sessionKey]?.find((x) => x.id === id);
+    if (!it) return;
+    if (it.role === 'admin' && role !== 'admin') return;
+    it.prompt = prompt;
+    saveParked(map);
+  });
 }
 
 export function clearParked(sessionKey: string): void {
-  const map = loadParked();
-  if (!(sessionKey in map)) return;
-  delete map[sessionKey];
-  saveParked(map);
+  withParkedLock(() => {
+    const map = loadParked();
+    if (!(sessionKey in map)) return;
+    delete map[sessionKey];
+    saveParked(map);
+  });
 }
 
 // Reordena: dir -1 sobe, +1 desce. O drainer sempre drena do topo, então a ordem
 // aqui é a ordem de envio.
 export function moveParked(sessionKey: string, id: string, dir: -1 | 1): void {
-  const map = loadParked();
-  const arr = map[sessionKey];
-  if (!arr) return;
-  const i = arr.findIndex((x) => x.id === id);
-  if (i < 0) return;
-  const j = i + dir;
-  if (j < 0 || j >= arr.length) return;
-  [arr[i], arr[j]] = [arr[j], arr[i]];
-  map[sessionKey] = arr;
-  saveParked(map);
+  withParkedLock(() => {
+    const map = loadParked();
+    const arr = map[sessionKey];
+    if (!arr) return;
+    const i = arr.findIndex((x) => x.id === id);
+    if (i < 0) return;
+    const j = i + dir;
+    if (j < 0 || j >= arr.length) return;
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    map[sessionKey] = arr;
+    saveParked(map);
+  });
 }
 
 // Remove e devolve o primeiro item da sessão (o drainer chama ao disparar).
 export function shiftParked(sessionKey: string): ParkedItem | undefined {
-  const map = loadParked();
-  const arr = map[sessionKey];
-  if (!arr || arr.length === 0) return undefined;
-  const first = arr.shift()!;
-  if (arr.length) map[sessionKey] = arr; else delete map[sessionKey];
-  saveParked(map);
-  return first;
+  return withParkedLock(() => {
+    const map = loadParked();
+    const arr = map[sessionKey];
+    if (!arr || arr.length === 0) return undefined;
+    const first = arr.shift()!;
+    if (arr.length) map[sessionKey] = arr; else delete map[sessionKey];
+    saveParked(map);
+    return first;
+  });
 }
 
 // Devolve pro TOPO da fila um item já drenado (mesmo id, mesma posição). Usado
@@ -195,15 +240,17 @@ export function shiftParked(sessionKey: string): ParkedItem | undefined {
 // tentativas o item já acumulou — no teto o chamador pausa a fila.
 export function unshiftParked(sessionKey: string, item: ParkedItem): number {
   if (!SESSION_KEY_RE.test(sessionKey)) return 0;
-  const map = loadParked();
-  const arr = map[sessionKey] ?? [];
-  if (arr.some((x) => x.id === item.id) || arr.length >= MAX_PARKED) return 0;
-  if (!(sessionKey in map) && Object.keys(map).length >= MAX_SESSIONS) return 0;
-  const attempts = (item.attempts ?? 0) + 1;
-  arr.unshift({ ...item, attempts });
-  map[sessionKey] = arr;
-  saveParked(map);
-  return attempts;
+  return withParkedLock(() => {
+    const map = loadParked();
+    const arr = map[sessionKey] ?? [];
+    if (arr.some((x) => x.id === item.id) || arr.length >= MAX_PARKED) return 0;
+    if (!(sessionKey in map) && Object.keys(map).length >= MAX_SESSIONS) return 0;
+    const attempts = (item.attempts ?? 0) + 1;
+    arr.unshift({ ...item, attempts });
+    map[sessionKey] = arr;
+    saveParked(map);
+    return attempts;
+  });
 }
 
 // Sessões com fila e o primeiro item de cada (candidatos a dreno neste tick).
