@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync, renameSync, openSync, closeSync, statSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, renameSync, openSync, closeSync, statSync, fstatSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import type { Role } from '../auth';
@@ -114,7 +114,7 @@ function withParkedLock<T>(fn: () => T): T {
   mkdirSync(dirname(PARKED_PATH), { recursive: true });
   const sleeper = new Int32Array(new SharedArrayBuffer(4));
   let fd: number | undefined;
-  for (let i = 0; i < 200 && fd === undefined; i++) {
+  for (let i = 0; i < 100 && fd === undefined; i++) {
     try {
       fd = openSync(LOCK_PATH, 'wx');
     } catch {
@@ -124,17 +124,23 @@ function withParkedLock<T>(fn: () => T): T {
       Atomics.wait(sleeper, 0, 0, 5);
     }
   }
-  // Sem o lock depois de ~1s, segue mesmo assim: perder a corrida é raro, não
+  // Sem o lock depois de ~500ms, segue mesmo assim: perder a corrida é raro, não
   // executar a operação (enfileirar, devolver) perderia o prompt com certeza.
   // Mas segue REGISTRADO — é a única janela em que a fila ainda pode perder um
   // item, e ela não pode voltar a ser silenciosa como era o bug original.
-  if (fd === undefined) recordIncident({ kind: 'parked-lock-timeout', sessionKey: '-', detail: `lock preso ha >1s em ${LOCK_PATH}` });
+  if (fd === undefined) recordIncident({ kind: 'parked-lock-timeout', sessionKey: '-', detail: `lock preso ha >500ms em ${LOCK_PATH}` });
+  // Identidade do lock que EU criei. Se outro processo tiver me declarado morto e
+  // recriado o arquivo, o inode muda — e apagar às cegas no finally derrubaria o
+  // lock DELE, deixando um terceiro entrar enquanto ele escreve.
+  const ino = fd === undefined ? undefined : fstatSync(fd).ino;
   try {
     return fn();
   } finally {
     if (fd !== undefined) {
       closeSync(fd);
-      rmSync(LOCK_PATH, { force: true });
+      try {
+        if (statSync(LOCK_PATH).ino === ino) rmSync(LOCK_PATH, { force: true });
+      } catch { /* já removido por reclaim de outro processo */ }
     }
   }
 }
