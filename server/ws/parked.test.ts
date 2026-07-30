@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, writeFileSync, utimesSync } from 'node:fs';
+import { execFile } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
 
 // COCKPIT_PARKED é lido no import (const PARKED_PATH), então fixamos o caminho ANTES
 // de importar o módulo e isolamos os casos apagando esse arquivo entre eles — as ops
@@ -119,6 +123,48 @@ describe('unshiftParked (devolução)', () => {
     expect(unshiftParked('s', item)).toBe(0);
     expect(parkedView()).toHaveLength(1);
   });
+
+  it('fila cheia não engole a devolução', () => {
+    for (let i = 0; i < 50; i++) addParked('s', { prompt: `p${i}` });
+    const item = shiftParked('s')!;
+    for (let i = 0; i < 2; i++) addParked('s', { prompt: `extra${i}` });
+    expect(unshiftParked('s', item)).toBe(1);
+    expect(parkedView()[0].id).toBe(item.id);
+  });
+});
+
+describe('lock cross-process', () => {
+  const LOCK_FILE = `${PARKED_FILE}.lock`;
+
+  it('não deixa lock pra trás depois da operação', () => {
+    addParked('s', { prompt: 'a' });
+    shiftParked('s');
+    expect(existsSync(LOCK_FILE)).toBe(false);
+  });
+
+  it('lock órfão de processo morto não trava a fila pra sempre', () => {
+    writeFileSync(LOCK_FILE, '');
+    const velho = Date.now() / 1000 - 60;
+    utimesSync(LOCK_FILE, velho, velho);
+    expect(addParked('s', { prompt: 'a' })).toBeTruthy();
+    rmSync(LOCK_FILE, { force: true });
+  });
+
+  it('escrita concorrente de dois processos não perde item', async () => {
+    const script = join(DIR, 'writer.mts');
+    writeFileSync(
+      script,
+      `process.env.COCKPIT_PARKED = ${JSON.stringify(PARKED_FILE)};\n` +
+        `const m = await import(${JSON.stringify(resolve(HERE, 'parked.ts'))});\n` +
+        `for (let i = 0; i < 15; i++) m.addParked('s', { prompt: process.argv[2] + i });\n`,
+    );
+    const child = (tag: string) =>
+      new Promise<void>((ok, err) => {
+        execFile('npx', ['tsx', script, tag], { cwd: resolve(HERE, '../..') }, (e) => (e ? err(e) : ok()));
+      });
+    await Promise.all([child('a'), child('b')]);
+    expect(parkedView()).toHaveLength(30);
+  }, 60_000);
 });
 
 describe('pausa manual da fila', () => {
