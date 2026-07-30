@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Icon, tokens } from '../primitives';
 import type { ToolCall } from '../../data/mock';
 import { ToolCallCard } from './ToolCallCard';
@@ -12,6 +12,8 @@ interface ToolGroupCardProps {
 // polui o chat. O ToolCallCard solo segue pra grupos de 1.
 export function ToolGroupCard({ tools }: ToolGroupCardProps) {
   const [open, setOpen] = useState(false);
+  const everOpen = useRef(false);
+  everOpen.current ||= open;
 
   const anyRunning = tools.some((t) => t.status === 'running');
   const anyError = tools.some((t) => t.status === 'error');
@@ -31,7 +33,7 @@ export function ToolGroupCard({ tools }: ToolGroupCardProps) {
     + (kinds.length > 4 ? ` · +${kinds.length - 4}` : '');
   // Rodando, o nome do que está rodando agora vale mais que o resumo — é o único
   // sinal de vida enquanto a caixa está fechada.
-  const runningLabel = tools.filter((t) => t.status === 'running').slice(-1)[0]?.label;
+  const runningLabel = tools.filter((t) => t.status === 'running').slice(-1)[0]?.label || undefined;
 
   const ring = status === 'error' ? 'border-red-500/30' : status === 'running' ? 'border-orange-500/30' : 'border-neutral-800';
   const statusEl = status === 'running'
@@ -68,7 +70,9 @@ export function ToolGroupCard({ tools }: ToolGroupCardProps) {
       <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
         <div className="overflow-hidden">
           <div className="border-t border-neutral-800 px-3 pb-1.5 pt-0.5">
-            {tools.map((t) => <ToolCallCard key={t.id} tool={t} />)}
+            {/* Fechada, a caixa não monta os cards: um turno com dezenas de
+                ferramentas re-renderizaria todos a cada token do streaming. */}
+            {everOpen.current && tools.map((t) => <ToolCallCard key={t.id} tool={t} />)}
           </div>
         </div>
       </div>

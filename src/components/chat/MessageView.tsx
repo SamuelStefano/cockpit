@@ -61,8 +61,9 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
   }
   // Tools ocultas podem deixar a mensagem sem NENHUM bloco renderizável — aí a
   // linha inteira some, senão sobrava um rótulo "opus…" órfão por mensagem de
-  // ferramenta. Exceção: a linha do indicador de turno em curso (thinking).
-  if (!thinking && !hasVisibleAssistantContent(msg.blocks, showTools)) return null;
+  // ferramenta. Exceções: o indicador de turno em curso (thinking) e o fecho de um
+  // turno que só usou ferramentas, onde só resta o "Pensou por X".
+  if (!thinking && !msg.stats?.durationMs && !hasVisibleAssistantContent(msg.blocks, showTools)) return null;
   const hasText = msg.blocks.some((b) => b.type === 'text' || b.type === 'code');
   return (
     <div className="fade-up group/msg flex gap-2.5">

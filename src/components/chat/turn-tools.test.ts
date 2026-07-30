@@ -63,6 +63,27 @@ describe('collapseTurnTools', () => {
     expect(out.find((m) => m.digest)?.digest).toHaveLength(1);
   });
 
+  it('caixa antes do texto quando tudo veio na mesma bolha (caminho ao vivo)', () => {
+    const out = collapseTurnTools([
+      user('u1'),
+      assistant('a1', [{ type: 'text', md: 'vou olhar' }, { type: 'tool', tool: tool('t1') }, { type: 'text', md: 'achei' }]),
+    ], true);
+    expect(out.map((m) => m.id)).toEqual(['u1', 'digest:a1', 'a1']);
+    const kept = out[2];
+    expect(kept.role === 'assistant' && kept.blocks.map((b) => b.type)).toEqual(['text', 'text']);
+  });
+
+  it('mesma entrada devolve as mesmas referências (memo do MessageRow)', () => {
+    const msgs: Message[] = [
+      user('u1'),
+      assistant('a1', [{ type: 'text', md: 'oi' }, { type: 'tool', tool: tool('t1') }]),
+    ];
+    const a = collapseTurnTools(msgs, true);
+    const b = collapseTurnTools(msgs, true);
+    expect(b[1]).toBe(a[1]);
+    expect(b[2]).toBe(a[2]);
+  });
+
   it('com ferramentas ocultas devolve a thread intacta', () => {
     const msgs: Message[] = [user('u1'), assistant('a1', [{ type: 'tool', tool: tool('t1') }])];
     expect(collapseTurnTools(msgs, false)).toBe(msgs);
