@@ -13,8 +13,9 @@ vi.mock('../engine/claude', () => ({ run: vi.fn(() => ({ kill: vi.fn() })) }));
 // Fila estacionada e teto de tokens mockados: o teste não pode ler/escrever o
 // parked.json real do usuário nem depender da quota da conta.
 vi.mock('./parked', () => ({
-  parkedHeads: vi.fn(() => []), shiftParked: vi.fn(), unshiftParked: vi.fn(),
+  parkedHeads: vi.fn(() => []), shiftParked: vi.fn(), unshiftParked: vi.fn(() => 1),
   addParked: vi.fn(), parkedView: vi.fn(() => []), isQueuePaused: vi.fn(() => false),
+  setQueuePaused: vi.fn(), MAX_PARKED_ATTEMPTS: 3,
 }));
 vi.mock('./quota', async (orig) => ({ ...(await orig<typeof import('./quota')>()), quotaHold: vi.fn(() => 0) }));
 vi.mock('./broadcast', () => ({ broadcast: vi.fn(), send: vi.fn(), setWss: vi.fn() }));

@@ -38,15 +38,20 @@ export function quotaHold(now = Date.now()): number {
 }
 
 const QUOTA_TEXT = /usage limit|limit reached|out of (tokens|credits)|limite de uso|sem tokens|tokens esgotad/i;
+// O CLI que bate no teto imprime uma linha e sai. Um turno que EXPLICA limite de uso
+// pro usuário (resposta legítima que por acaso casa o regex) escreve muito mais que
+// isto — o tamanho é o que separa a bailout do assunto.
+const QUOTA_BAIL_MAX_CHARS = 400;
 
 // O turno que subiu da fila morreu no teto sem produzir nada? Então o prompt não
 // foi consumido e volta pra fila. Nunca devolve um turno que rodou tools ou
 // respondeu de verdade — reenviar aquilo duplicaria trabalho já feito.
 export function burnedByQuota(a: { limited: boolean; tools: number; text: string }): boolean {
-  // O texto vale SOZINHO. Gatear isto por `limited` era o furo que queimava o
-  // prompt: quando o CLI só imprime "usage limit reached" e sai, nenhum
-  // rate_limit_event chega, `quotaHold()` volta 0 e o item nunca voltava pra fila.
-  if (QUOTA_TEXT.test(a.text)) return true;
-  if (!a.limited) return false;
-  return a.tools === 0 && a.text.trim() === '';
+  if (a.tools > 0) return false;
+  const text = a.text.trim();
+  if (text === '') return a.limited;
+  // Sem rate_limit_event o texto é o único sinal, e era o furo que queimava o prompt:
+  // quando o CLI só imprime "usage limit reached" e sai, nenhum evento chega,
+  // `quotaHold()` volta 0 e o item nunca voltava pra fila.
+  return text.length <= QUOTA_BAIL_MAX_CHARS && QUOTA_TEXT.test(text);
 }

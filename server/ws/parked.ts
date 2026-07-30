@@ -38,7 +38,14 @@ export interface ParkedItem {
   disallowedSkills?: string[];
   mcps?: string[];
   at: number;
+  // Quantas vezes este item já voltou pra fila depois de um turno que não o consumiu.
+  attempts?: number;
 }
+
+// Teto de reenfileiramentos do MESMO item. Uma falha determinística (spawn quebrado,
+// crash na primeira linha) devolveria o item pra sempre e o drainer o redispararia a
+// cada 30s. No teto a fila inteira pausa: o prompt fica guardado e o usuário decide.
+export const MAX_PARKED_ATTEMPTS = 3;
 
 type ParkedMap = Record<string, ParkedItem[]>;
 
@@ -57,10 +64,11 @@ export function coerceItem(o: unknown): ParkedItem | null {
     effort: typeof r.effort === 'string' ? r.effort : undefined,
     maxBudgetUsd: typeof r.maxBudgetUsd === 'number' ? r.maxBudgetUsd : undefined,
     bypass: r.bypass === true ? true : undefined,
-    role: typeof r.role === 'string' ? (r.role as Role) : undefined,
+    role: r.role === 'admin' || r.role === 'student' ? (r.role as Role) : undefined,
     disallowedSkills: Array.isArray(r.disallowedSkills) ? r.disallowedSkills.filter((x): x is string => typeof x === 'string') : undefined,
     mcps: Array.isArray(r.mcps) ? r.mcps.filter((x): x is string => typeof x === 'string') : undefined,
     at: typeof r.at === 'number' ? r.at : Date.now(),
+    attempts: typeof r.attempts === 'number' ? r.attempts : undefined,
   };
 }
 
@@ -89,7 +97,8 @@ function saveParked(map: ParkedMap): void {
   mkdirSync(dirname(PARKED_PATH), { recursive: true });
   // Escrita atômica: tmp + rename, pra um crash no meio não corromper o arquivo.
   const tmp = `${PARKED_PATH}.${process.pid}.tmp`;
-  writeFileSync(tmp, JSON.stringify(map, null, 2), 'utf8');
+  // 0600: cada item carrega role/bypass com que o drainer vai reexecutá-lo.
+  writeFileSync(tmp, JSON.stringify(map, null, 2), { encoding: 'utf8', mode: 0o600 });
   renameSync(tmp, PARKED_PATH);
 }
 
@@ -182,16 +191,19 @@ export function shiftParked(sessionKey: string): ParkedItem | undefined {
 }
 
 // Devolve pro TOPO da fila um item já drenado (mesmo id, mesma posição). Usado
-// quando o turno que ele subiu morreu no teto de tokens sem consumir o prompt.
-export function unshiftParked(sessionKey: string, item: ParkedItem): void {
-  if (!SESSION_KEY_RE.test(sessionKey)) return;
+// quando o turno que ele subiu morreu sem consumir o prompt. Devolve quantas
+// tentativas o item já acumulou — no teto o chamador pausa a fila.
+export function unshiftParked(sessionKey: string, item: ParkedItem): number {
+  if (!SESSION_KEY_RE.test(sessionKey)) return 0;
   const map = loadParked();
   const arr = map[sessionKey] ?? [];
-  if (arr.some((x) => x.id === item.id) || arr.length >= MAX_PARKED) return;
-  if (!(sessionKey in map) && Object.keys(map).length >= MAX_SESSIONS) return;
-  arr.unshift(item);
+  if (arr.some((x) => x.id === item.id) || arr.length >= MAX_PARKED) return 0;
+  if (!(sessionKey in map) && Object.keys(map).length >= MAX_SESSIONS) return 0;
+  const attempts = (item.attempts ?? 0) + 1;
+  arr.unshift({ ...item, attempts });
   map[sessionKey] = arr;
   saveParked(map);
+  return attempts;
 }
 
 // Sessões com fila e o primeiro item de cada (candidatos a dreno neste tick).

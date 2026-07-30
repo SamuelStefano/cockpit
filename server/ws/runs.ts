@@ -9,7 +9,7 @@ import { summarize } from '../summary';
 import { classify, quickAnswer, killSideRuns, killSideRunsFor } from '../engine/triage';
 import { suggestFollowups } from '../engine/suggest';
 import { awaitingAnswer } from './awaiting';
-import { parkedHeads, shiftParked, unshiftParked, addParked, parkedView, isQueuePaused, type ParkedItem } from './parked';
+import { parkedHeads, shiftParked, unshiftParked, addParked, parkedView, isQueuePaused, setQueuePaused, MAX_PARKED_ATTEMPTS, type ParkedItem } from './parked';
 import { quotaHold, burnedByQuota } from './quota';
 import { markRunLive, clearRunLive, takeOrphanRuns } from './recover';
 import { recordIncident } from './incidents';
@@ -44,7 +44,8 @@ export interface Thread {
   lastBilledMsgId?: string; // dedupe do acúmulo: a mesma chamada API emite vários eventos assistant com o mesmo message.id
   endReason?: string;   // result.subtype: success | error_max_budget | error_max_turns | ...
   model?: string;       // modelo EFETIVO do turno (message.model do CLI); pode divergir do pedido sob --fallback-model
-  stopped?: boolean;    // turno foi morto por stop do usuário — o 'done' do onClose não deve notificar "turno concluído"
+  stopped?: boolean;    // turno foi morto (stop do usuário, reaper, guarda de pressão, shutdown) — o 'done' do onClose não deve notificar "turno concluído"
+  userStopped?: boolean; // o stop veio do USUÁRIO. Só ele impede o item de fila de voltar pra fila: kill nosso (OOM/deploy/reaper) não consumiu o prompt
   reaped?: StaleReason; // morto pelo reaper: usa stopped (sem notificar "concluído") MAS tem direito a retomada automática
   questioned?: boolean; // turno fez AskUserQuestion: o `claude -p` auto-resolve e CONTINUA gerando — suprime tudo que vier depois pra a pergunta ficar como última (respondível)
   parked?: ParkedItem;  // item que a fila estacionada drenou neste turno; volta pra fila se o teto de tokens matar o turno sem consumi-lo
@@ -114,7 +115,7 @@ export function onStop(sessionKey: string): void {
   // clientes), mas com stopped=true pra o cliente NÃO disparar notificação de
   // "turno concluído" — o usuário interrompeu de propósito. Flag morre com o thread.
   const t = threads.get(sessionKey);
-  if (t) t.stopped = true;
+  if (t) { t.stopped = true; t.userStopped = true; }
 }
 
 // O servidor keyeia o thread pela chave com que o run COMEÇOU ("new-xxx" numa
@@ -343,6 +344,19 @@ export function startParkedDrainer(intervalMs = 30_000): void {
   parkedTimer.unref?.();
 }
 
+// Devolve o item pro topo da fila. No teto de tentativas pausa a fila inteira: o
+// prompt continua guardado (nunca é descartado), mas para de ser redisparado a cada
+// 30s por uma falha que se repete.
+function requeueParked(sessionKey: string, item: ParkedItem): void {
+  const attempts = unshiftParked(sessionKey, item);
+  if (attempts >= MAX_PARKED_ATTEMPTS && !isQueuePaused()) {
+    setQueuePaused(true);
+    broadcast({ t: 'error', sessionKey, message: `Este item da fila falhou ${attempts}x sem produzir nada. A fila foi pausada e o prompt continua guardado.` });
+    recordIncident({ kind: 'parked-requeue-cap', sessionKey, detail: `item ${item.id} devolvido ${attempts}x` });
+  }
+  broadcastQueue();
+}
+
 // Retoma no boot os turnos que o restart do agente matou. Sem isto o usuário fica
 // com o chat mudo até reclamar: os `claude -p` filhos morrem junto do agente e não
 // sobra ninguém pra perceber (o onClose nem chega a rodar). takeOrphanRuns já zera
@@ -353,16 +367,16 @@ export function resumeOrphanRuns(): void {
     // 'new-…' e o mapeamento pro id real vive no cliente, que o restart derrubou —
     // retomar na key velha viraria um chat fantasma que ninguém vê. Também dedupa
     // contra a sessão que o usuário já reenviou na mão.
-    const key = o.sessionId;
-    if (!SESSION_KEY_RE.test(key) || threads.has(key)) continue;
     // Turno que subiu da fila e morreu antes de produzir qualquer coisa: o prompt do
     // usuário não foi consumido. Devolvê-lo pra fila vale mais que um "continue de
     // onde parou" genérico — não havia de onde continuar, e o drainer o redispara.
+    // Vem ANTES das guardas de retomada: elas descartariam o item junto do turno.
     if (o.parked) {
-      unshiftParked(o.sessionKey, o.parked);
-      broadcastQueue();
+      requeueParked(o.sessionKey, o.parked);
       continue;
     }
+    const key = o.sessionId;
+    if (!SESSION_KEY_RE.test(key) || threads.has(key)) continue;
     broadcast({ t: 'error', sessionKey: key, message: 'O agente reiniciou e interrompeu este turno. Retomando de onde parou…' });
     recordIncident({ kind: 'orphan-resume', sessionKey: key, sessionId: o.sessionId, detail: `turno órfão de restart, ${Math.round((Date.now() - o.startedAt) / 1000)}s de vida` });
     const p = o.params ?? {};
@@ -440,7 +454,10 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
       // mesmo motivo do drainer: dois processos no mesmo arquivo = retomada dobrada.
       if (!live && drainerEnabled && thread.sessionId) {
         live = true;
-        markRunLive({ sessionKey, sessionId: thread.sessionId, params: thread.params, startedAt: thread.startedAt, parked: thread.parked });
+        // O frame que traz o sessionId pode já vir com trabalho junto; nesse caso o
+        // item nem chega ao disco, senão um restart tardio reenviaria o que já rodou.
+        parkedConsumed = thread.tools.length > 0 || thread.text.trim() !== '';
+        markRunLive({ sessionKey, sessionId: thread.sessionId, params: thread.params, startedAt: thread.startedAt, parked: parkedConsumed ? undefined : thread.parked });
       }
       // O prompt da fila só fica no registro em disco enquanto o turno não produziu
       // NADA — aí uma morte do processo devolve o item pra fila. Assim que sai a
@@ -472,11 +489,11 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
       // Turno da fila que fechou sem NADA (nem tool, nem texto) não consumiu o prompt,
       // tenha sido teto de tokens ou morte silenciosa do processo. Devolver é sempre
       // melhor que perder: no pior caso o usuário vê o mesmo pedido rodar de novo.
-      // Stop do usuário é exceção: ele mandou parar, reenfileirar viraria loop.
-      const produced = thread.stopped || thread.tools.length > 0 || thread.text.trim() !== '';
+      // Stop do USUÁRIO é a exceção: ele mandou parar, reenfileirar viraria loop. Kill
+      // nosso (deploy, guarda de pressão, reaper) não consumiu o prompt e devolve.
+      const produced = thread.userStopped || thread.tools.length > 0 || thread.text.trim() !== '';
       if (parked && (!produced || burnedByQuota({ limited: hold > 0, tools: thread.tools.length, text: thread.text }))) {
-        unshiftParked(sessionKey, parked);
-        broadcastQueue();
+        requeueParked(sessionKey, parked);
       }
       // Turno que morreu no meio sem dizer nada: avisa ANTES do 'done' (a bolha de
       // erro entra acima do rodapé de conclusão) e retoma sozinho logo abaixo. Um

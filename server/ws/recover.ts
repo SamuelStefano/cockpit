@@ -62,14 +62,17 @@ export function clearRunLive(sessionKey: string): void {
 }
 
 // Pura (testável): quais órfãos merecem retomada. Descarta os velhos demais e
-// corta no teto, do mais recente pro mais antigo.
+// corta no teto, do mais recente pro mais antigo. Os tetos existem pra não DISPARAR
+// trabalho esquecido no boot; quem carrega item de fila escapa deles porque não vira
+// turno — volta pra fila, que já é o lugar onde um prompt espera sem prazo.
 export function pickOrphans(map: LiveMap, now: number, maxAgeMs = ORPHAN_MAX_AGE_MS, cap = ORPHAN_MAX_RESUMES): LiveRun[] {
-  return Object.values(map)
+  const all = Object.values(map)
     .filter((r) => r && typeof r.sessionKey === 'string' && typeof r.sessionId === 'string' && typeof r.startedAt === 'number')
-    .filter((r) => now - r.startedAt <= maxAgeMs)
-    .sort((a, b) => b.startedAt - a.startedAt)
-    .slice(0, cap)
-    .map((r) => ({ ...r, params: sanitize(r.params), parked: coerceItem(r.parked) ?? undefined }));
+    .map((r) => ({ ...r, params: sanitize(r.params), parked: coerceItem(r.parked) ?? undefined }))
+    .sort((a, b) => b.startedAt - a.startedAt);
+  const withParked = all.filter((r) => r.parked);
+  const resumable = all.filter((r) => !r.parked && now - r.startedAt <= maxAgeMs).slice(0, cap);
+  return [...withParked, ...resumable];
 }
 
 // Params vindos do disco vão direto pra um `claude -p` sem passar por authz (o boot

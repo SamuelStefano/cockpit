@@ -57,16 +57,25 @@ describe('burnedByQuota', () => {
 
   it('devolve quando o CLI respondeu que a quota acabou', () => {
     expect(burnedByQuota({ limited: true, tools: 0, text: 'Claude AI usage limit reached — resets at 5pm' })).toBe(true);
-    expect(burnedByQuota({ limited: true, tools: 2, text: 'Tokens esgotados nesta sessão' })).toBe(true);
   });
 
   it('devolve pelo texto mesmo sem rate_limit_event (o CLI só imprime e sai)', () => {
     expect(burnedByQuota({ limited: false, tools: 0, text: 'Claude usage limit reached. Resets at 10pm.' })).toBe(true);
-    expect(burnedByQuota({ limited: false, tools: 4, text: 'limite de uso atingido' })).toBe(true);
+    expect(burnedByQuota({ limited: false, tools: 0, text: 'limite de uso atingido' })).toBe(true);
   });
 
   it('preserva turno que produziu trabalho de verdade', () => {
     expect(burnedByQuota({ limited: true, tools: 3, text: '' })).toBe(false);
     expect(burnedByQuota({ limited: true, tools: 0, text: 'Pronto, apliquei a mudança.' })).toBe(false);
+  });
+
+  it('não devolve turno que rodou tool, mesmo com o texto do limite', () => {
+    expect(burnedByQuota({ limited: true, tools: 2, text: 'Tokens esgotados nesta sessão' })).toBe(false);
+    expect(burnedByQuota({ limited: false, tools: 9, text: 'corrigi o caso de limite de uso' })).toBe(false);
+  });
+
+  it('não confunde uma RESPOSTA sobre limite de uso com a bailout do CLI', () => {
+    const ensaio = `O limite de uso do plano funciona assim: ${'x'.repeat(500)}`;
+    expect(burnedByQuota({ limited: false, tools: 0, text: ensaio })).toBe(false);
   });
 });

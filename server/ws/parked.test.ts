@@ -13,7 +13,7 @@ process.env.COCKPIT_PARKED = PARKED_FILE;
 process.env.COCKPIT_QUEUE_PAUSE = PAUSE_FILE;
 
 const mod = await import('./parked');
-const { addParked, removeParked, editParked, moveParked, shiftParked, parkedHeads, parkedView, clearParked, isQueuePaused, setQueuePaused } = mod;
+const { addParked, removeParked, editParked, moveParked, shiftParked, unshiftParked, parkedHeads, parkedView, clearParked, isQueuePaused, setQueuePaused } = mod;
 
 beforeEach(() => {
   rmSync(PARKED_FILE, { force: true });
@@ -89,6 +89,35 @@ describe('parked fila (persistência)', () => {
     expect(parkedView().map((v) => v.text)).toEqual(['b']);
     clearParked('s');
     expect(parkedView()).toEqual([]);
+  });
+});
+
+describe('unshiftParked (devolução)', () => {
+  it('devolve pro topo preservando id e posição', () => {
+    const a = addParked('s', { prompt: 'a' })!;
+    addParked('s', { prompt: 'b' });
+    const first = shiftParked('s')!;
+    expect(unshiftParked('s', first)).toBe(1);
+    expect(parkedView().map((v) => v.text)).toEqual(['a', 'b']);
+    expect(parkedView()[0].id).toBe(a);
+  });
+
+  it('conta as tentativas pra o chamador poder cortar o loop', () => {
+    addParked('s', { prompt: 'a' });
+    let item = shiftParked('s')!;
+    expect(unshiftParked('s', item)).toBe(1);
+    item = shiftParked('s')!;
+    expect(unshiftParked('s', item)).toBe(2);
+    item = shiftParked('s')!;
+    expect(unshiftParked('s', item)).toBe(3);
+  });
+
+  it('não duplica item que já está na fila', () => {
+    addParked('s', { prompt: 'a' });
+    const item = shiftParked('s')!;
+    unshiftParked('s', item);
+    expect(unshiftParked('s', item)).toBe(0);
+    expect(parkedView()).toHaveLength(1);
   });
 });
 

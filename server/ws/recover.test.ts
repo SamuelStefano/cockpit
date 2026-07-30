@@ -36,6 +36,14 @@ describe('pickOrphans · item da fila', () => {
     expect(pickOrphans(map(withParked(item)), now)[0].parked).toMatchObject({ id: 'pk-1', prompt: 'arruma os exercícios', role: 'admin' });
   });
 
+  it('escapa dos tetos de retomada: item de fila não vira turno, volta pra fila', () => {
+    const velho = { ...mk('a', ORPHAN_MAX_AGE_MS + 60_000), parked: { id: 'pk-1', prompt: 'p', at: now } } as unknown as LiveRun;
+    const lotacao = Array.from({ length: ORPHAN_MAX_RESUMES + 2 }, (_, i) => mk(`s${i}`, i * 1000));
+    const picked = pickOrphans(map(velho, ...lotacao), now);
+    expect(picked.filter((r) => r.parked).map((r) => r.sessionKey)).toEqual(['a']);
+    expect(picked.filter((r) => !r.parked)).toHaveLength(ORPHAN_MAX_RESUMES);
+  });
+
   it('descarta item corrompido em vez de reexecutar lixo do disco', () => {
     expect(pickOrphans(map(withParked({ prompt: 'sem id' })), now)[0].parked).toBeUndefined();
     expect(pickOrphans(map(withParked('nao-e-objeto')), now)[0].parked).toBeUndefined();
