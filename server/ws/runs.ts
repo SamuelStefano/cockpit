@@ -355,6 +355,14 @@ export function resumeOrphanRuns(): void {
     // contra a sessão que o usuário já reenviou na mão.
     const key = o.sessionId;
     if (!SESSION_KEY_RE.test(key) || threads.has(key)) continue;
+    // Turno que subiu da fila e morreu antes de produzir qualquer coisa: o prompt do
+    // usuário não foi consumido. Devolvê-lo pra fila vale mais que um "continue de
+    // onde parou" genérico — não havia de onde continuar, e o drainer o redispara.
+    if (o.parked) {
+      unshiftParked(o.sessionKey, o.parked);
+      broadcastQueue();
+      continue;
+    }
     broadcast({ t: 'error', sessionKey: key, message: 'O agente reiniciou e interrompeu este turno. Retomando de onde parou…' });
     recordIncident({ kind: 'orphan-resume', sessionKey: key, sessionId: o.sessionId, detail: `turno órfão de restart, ${Math.round((Date.now() - o.startedAt) / 1000)}s de vida` });
     const p = o.params ?? {};
@@ -404,6 +412,7 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
   if (prompt !== RESUME_PROMPT) autoResumes.delete(sessionKey);
 
   let live = false; // este turno já foi registrado no live-runs.json?
+  let parkedConsumed = false; // o item de fila deste turno já saiu do registro em disco?
   const thread: Thread = { handle: { kill: () => {} }, params: { mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort }, prompt, startedAt: Date.now(), sessionId: resumeId, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map() };
   threads.set(sessionKey, thread);
   // Eco da mensagem do usuário a todos os clientes ANTES do 'started' (bolha do
@@ -431,7 +440,16 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
       // mesmo motivo do drainer: dois processos no mesmo arquivo = retomada dobrada.
       if (!live && drainerEnabled && thread.sessionId) {
         live = true;
-        markRunLive({ sessionKey, sessionId: thread.sessionId, params: thread.params, startedAt: thread.startedAt });
+        markRunLive({ sessionKey, sessionId: thread.sessionId, params: thread.params, startedAt: thread.startedAt, parked: thread.parked });
+      }
+      // O prompt da fila só fica no registro em disco enquanto o turno não produziu
+      // NADA — aí uma morte do processo devolve o item pra fila. Assim que sai a
+      // primeira tool/resposta, some do disco: um restart tardio reenviaria trabalho
+      // já feito. Em memória ele continua, porque o veredito de teto de tokens no
+      // onClose ainda pode devolvê-lo (ver burnedByQuota).
+      else if (live && thread.parked && !parkedConsumed && (thread.tools.length > 0 || thread.text.trim() !== '')) {
+        parkedConsumed = true;
+        if (thread.sessionId) markRunLive({ sessionKey, sessionId: thread.sessionId, params: thread.params, startedAt: thread.startedAt });
       }
     },
     onError: (message) => {
@@ -451,7 +469,12 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
       // item pro topo em vez de perdê-lo (era o prompt "queimado" do bug).
       const parked = thread.parked;
       thread.parked = undefined;
-      if (parked && burnedByQuota({ limited: hold > 0, tools: thread.tools.length, text: thread.text })) {
+      // Turno da fila que fechou sem NADA (nem tool, nem texto) não consumiu o prompt,
+      // tenha sido teto de tokens ou morte silenciosa do processo. Devolver é sempre
+      // melhor que perder: no pior caso o usuário vê o mesmo pedido rodar de novo.
+      // Stop do usuário é exceção: ele mandou parar, reenfileirar viraria loop.
+      const produced = thread.stopped || thread.tools.length > 0 || thread.text.trim() !== '';
+      if (parked && (!produced || burnedByQuota({ limited: hold > 0, tools: thread.tools.length, text: thread.text }))) {
         unshiftParked(sessionKey, parked);
         broadcastQueue();
       }

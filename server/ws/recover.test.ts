@@ -26,3 +26,18 @@ describe('pickOrphans', () => {
     expect(pickOrphans(dirty, now).map((r) => r.sessionKey)).toEqual(['ok']);
   });
 });
+
+describe('pickOrphans · item da fila', () => {
+  const withParked = (parked: unknown): LiveRun =>
+    ({ ...mk('a', 1000), parked } as unknown as LiveRun);
+
+  it('preserva o item de fila que o turno morto carregava', () => {
+    const item = { id: 'pk-1', prompt: 'arruma os exercícios', at: now, role: 'admin' };
+    expect(pickOrphans(map(withParked(item)), now)[0].parked).toMatchObject({ id: 'pk-1', prompt: 'arruma os exercícios', role: 'admin' });
+  });
+
+  it('descarta item corrompido em vez de reexecutar lixo do disco', () => {
+    expect(pickOrphans(map(withParked({ prompt: 'sem id' })), now)[0].parked).toBeUndefined();
+    expect(pickOrphans(map(withParked('nao-e-objeto')), now)[0].parked).toBeUndefined();
+  });
+});

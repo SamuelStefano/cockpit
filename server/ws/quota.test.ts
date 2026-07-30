@@ -60,6 +60,11 @@ describe('burnedByQuota', () => {
     expect(burnedByQuota({ limited: true, tools: 2, text: 'Tokens esgotados nesta sessão' })).toBe(true);
   });
 
+  it('devolve pelo texto mesmo sem rate_limit_event (o CLI só imprime e sai)', () => {
+    expect(burnedByQuota({ limited: false, tools: 0, text: 'Claude usage limit reached. Resets at 10pm.' })).toBe(true);
+    expect(burnedByQuota({ limited: false, tools: 4, text: 'limite de uso atingido' })).toBe(true);
+  });
+
   it('preserva turno que produziu trabalho de verdade', () => {
     expect(burnedByQuota({ limited: true, tools: 3, text: '' })).toBe(false);
     expect(burnedByQuota({ limited: true, tools: 0, text: 'Pronto, apliquei a mudança.' })).toBe(false);

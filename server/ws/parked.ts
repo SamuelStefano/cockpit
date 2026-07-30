@@ -42,7 +42,9 @@ export interface ParkedItem {
 
 type ParkedMap = Record<string, ParkedItem[]>;
 
-function coerceItem(o: unknown): ParkedItem | null {
+// Exportada porque o registro de turnos vivos (recover.ts) também guarda um item
+// destes em disco e precisa tipar campo a campo antes de reexecutá-lo.
+export function coerceItem(o: unknown): ParkedItem | null {
   if (!o || typeof o !== 'object') return null;
   const r = o as Record<string, unknown>;
   if (typeof r.id !== 'string' || typeof r.prompt !== 'string') return null;

@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, renameSync, unlinkSync } from '
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import type { RunParams } from './runs';
+import { coerceItem, type ParkedItem } from './parked';
 
 // Registro em disco dos turnos VIVOS. A retomada automática do runs.ts cobre o
 // turno que morre sozinho, mas não o caso em que o AGENTE inteiro cai (restart,
@@ -23,6 +24,11 @@ export interface LiveRun {
   sessionId: string;
   params: RunParams;
   startedAt: number;
+  // Item da fila estacionada que ESTE turno subiu, enquanto ele ainda não produziu
+  // nada. O drainer tira o item do parked.json antes de rodar, então sem isto uma
+  // morte do processo inteiro (deploy/OOM) levava o prompt junto: o boot só sabia
+  // retomar com "continue de onde parou", que não é o prompt do usuário.
+  parked?: ParkedItem;
 }
 
 type LiveMap = Record<string, LiveRun>;
@@ -63,7 +69,7 @@ export function pickOrphans(map: LiveMap, now: number, maxAgeMs = ORPHAN_MAX_AGE
     .filter((r) => now - r.startedAt <= maxAgeMs)
     .sort((a, b) => b.startedAt - a.startedAt)
     .slice(0, cap)
-    .map((r) => ({ ...r, params: sanitize(r.params) }));
+    .map((r) => ({ ...r, params: sanitize(r.params), parked: coerceItem(r.parked) ?? undefined }));
 }
 
 // Params vindos do disco vão direto pra um `claude -p` sem passar por authz (o boot
