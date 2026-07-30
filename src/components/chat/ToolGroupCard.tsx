@@ -24,7 +24,14 @@ export function ToolGroupCard({ tools }: ToolGroupCardProps) {
     const k = labelKind(t.name || t.label);
     counts.set(k, (counts.get(k) ?? 0) + 1);
   }
-  const breakdown = [...counts.entries()].map(([k, n]) => `${n} ${k}`).join(' · ');
+  // Turno longo usa dezenas de ferramentas: só os tipos mais usados cabem na
+  // linha, o resto vira "+N".
+  const kinds = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  const breakdown = kinds.slice(0, 4).map(([k, n]) => `${n} ${k}`).join(' · ')
+    + (kinds.length > 4 ? ` · +${kinds.length - 4}` : '');
+  // Rodando, o nome do que está rodando agora vale mais que o resumo — é o único
+  // sinal de vida enquanto a caixa está fechada.
+  const runningLabel = tools.filter((t) => t.status === 'running').slice(-1)[0]?.label;
 
   const ring = status === 'error' ? 'border-red-500/30' : status === 'running' ? 'border-orange-500/30' : 'border-neutral-800';
   const statusEl = status === 'running'
@@ -45,11 +52,11 @@ export function ToolGroupCard({ tools }: ToolGroupCardProps) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-[12px] font-medium text-neutral-200">
-              {tools.length} ações
+              {tools.length} {tools.length === 1 ? 'ação' : 'ações'}
             </span>
             <span className="shrink-0">{statusEl}</span>
           </div>
-          <span className="block truncate text-[10.5px] text-neutral-500">{breakdown}</span>
+          <span className="block truncate font-mono text-[10.5px] text-neutral-500">{runningLabel ?? breakdown}</span>
         </div>
         <Icon
           name="chevronDown"
