@@ -20,14 +20,20 @@ function Row({ w }: { w: PlanWindow }) {
 
 // Detalhe das quotas da conta. O header só cabe a janela de 5h; aqui saem todas
 // as que a conta expõe (semana geral, semana Opus/Sonnet, excedente).
-export function UsagePopover({ windows }: { windows: PlanWindow[] }) {
+export function UsagePopover({ windows, loading }: { windows: PlanWindow[]; loading: boolean }) {
   return (
-    <div className={`absolute right-0 top-full z-50 mt-1.5 w-60 overflow-hidden ${tokens.radius.md} ${tokens.surface.raised}`}>
+    <div
+      role="dialog"
+      aria-label="Uso do plano"
+      className={`absolute right-0 top-full z-50 mt-1.5 w-60 overflow-hidden ${tokens.radius.md} ${tokens.surface.raised}`}
+    >
       <div className="border-b border-neutral-800 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
         Uso do plano
       </div>
       {windows.length === 0 ? (
-        <div className="px-3 py-3 text-[11.5px] text-neutral-500">Lendo os limites da conta…</div>
+        <div className="px-3 py-3 text-[11.5px] text-neutral-500">
+          {loading ? 'Lendo os limites da conta…' : 'A conta não informou nenhum limite.'}
+        </div>
       ) : (
         <div className="divide-y divide-neutral-800/70">
           {windows.map((w) => <Row key={w.key} w={w} />)}

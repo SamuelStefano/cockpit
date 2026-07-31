@@ -9,7 +9,11 @@ export function useDismissable<T extends HTMLElement>() {
   useEffect(() => {
     if (!open) return;
     const onDown = (e: Event) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    // defaultPrevented: um Esc fecha um overlay só — sem isso o mesmo Esc que
+    // fecha este popover derrubaria junto a paleta/modal por baixo.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing) { e.preventDefault(); setOpen(false); }
+    };
     document.addEventListener('pointerdown', onDown);
     document.addEventListener('keydown', onKey);
     return () => { document.removeEventListener('pointerdown', onDown); document.removeEventListener('keydown', onKey); };

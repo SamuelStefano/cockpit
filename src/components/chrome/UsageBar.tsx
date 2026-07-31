@@ -39,7 +39,7 @@ export function UsageBar({ usage, compact }: { usage: PlanUsage | null; compact:
         </span>
         {reset && !compact && <span className="text-[10px] tabular-nums text-neutral-500">reset {reset}</span>}
       </button>
-      {open && <UsagePopover windows={usage?.windows ?? []} />}
+      {open && <UsagePopover windows={usage?.windows ?? []} loading={!usage} />}
     </div>
   );
 }

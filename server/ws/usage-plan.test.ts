@@ -45,4 +45,10 @@ describe('mapPlanUsage', () => {
     const u = mapPlanUsage({ five_hour: { utilization: 10 }, seven_day: { utilization: 2 }, seven_day_opus: {} });
     expect(u.windows.map((w) => w.key)).toEqual(['five_hour', 'seven_day']);
   });
+
+  it('descarta utilization NaN em vez de propagar NaN pra barra', () => {
+    const u = mapPlanUsage({ five_hour: { utilization: NaN } });
+    expect(u.windows).toEqual([]);
+    expect(u.fiveHour).toBe(0);
+  });
 });

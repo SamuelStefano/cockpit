@@ -18,7 +18,7 @@ let last: PlanUsage | null = null;
 export function getLastPlanUsage() { return last; }
 
 function pct(v: unknown): number {
-  const n = typeof v === 'number' ? v : 0;
+  const n = typeof v === 'number' && Number.isFinite(v) ? v : 0;
   return Math.max(0, Math.min(100, Math.round(n)));
 }
 
@@ -36,17 +36,20 @@ type RawWindow = { utilization?: number; resets_at?: string };
 
 export function mapPlanUsage(body: unknown): PlanUsage {
   const b = (body ?? {}) as Partial<Record<PlanWindowKey, RawWindow>>;
-  // `utilization` numérico é o que separa "a conta tem esse limite" de "esse
-  // limite não existe no plano" — sem o filtro, toda janela viraria 0%.
-  const windows = WINDOW_KEYS.filter((k) => typeof b?.[k]?.utilization === 'number').map((key) => ({
+  // `utilization` finito é o que separa "a conta tem esse limite" de "esse limite
+  // não existe no plano" — sem o filtro, toda janela viraria 0%.
+  const windows = WINDOW_KEYS.filter((k) => Number.isFinite(b?.[k]?.utilization)).map((key) => ({
     key,
     pct: pct(b[key]?.utilization),
     resetsAt: parseReset(b[key]?.resets_at),
   }));
+  // Os campos avulsos saem do MESMO array que o popover lê: header e detalhe não
+  // podem discordar sobre a mesma janela.
+  const find = (k: PlanWindowKey) => windows.find((w) => w.key === k);
   return {
-    fiveHour: pct(b?.five_hour?.utilization),
-    sevenDay: pct(b?.seven_day?.utilization),
-    resetsAt: parseReset(b?.five_hour?.resets_at),
+    fiveHour: find('five_hour')?.pct ?? 0,
+    sevenDay: find('seven_day')?.pct ?? 0,
+    resetsAt: find('five_hour')?.resetsAt ?? null,
     windows,
   };
 }
