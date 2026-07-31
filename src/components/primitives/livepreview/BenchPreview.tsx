@@ -83,7 +83,7 @@ export function BenchPreview({ code, repo }: { code: string; repo: string }) {
           overlay={error ? <ErrorOverlay message={error} /> : null}
         />
       )}
-      {showConsole && <ConsolePanel logs={logs} onClear={clearLogs} />}
+      {showConsole && !full && <ConsolePanel logs={logs} onClear={clearLogs} />}
 
       <FullscreenStudio
         open={full}

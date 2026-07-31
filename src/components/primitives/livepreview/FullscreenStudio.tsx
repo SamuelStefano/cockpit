@@ -20,7 +20,10 @@ export function FullscreenStudio({
   logs: LogEntry[];
   onClearLogs: () => void;
   title?: string;
-  /** Abre já sem o editor: tela do repo alvo costuma precisar da largura toda. */
+  /**
+   * Abre sem o editor e libera o botão de esconder/mostrar. É opt-in porque o
+   * botão flutua sobre o canto da tela — no live preview roubaria o clique ali.
+   */
   startWide?: boolean;
 }) {
   const [wide, setWide] = useState(startWide);
@@ -35,10 +38,14 @@ export function FullscreenStudio({
             </div>
           )}
           <div className="relative min-h-0 overflow-auto rounded-lg border border-neutral-800 bg-white">
-            <button onClick={() => setWide((w) => !w)} title={wide ? 'Mostrar editor' : 'Esconder editor (tela inteira)'}
-              className={`${ctrlBtn(false)} absolute right-2 top-2 z-10 bg-neutral-900/80`}>
-              <Icon name={wide ? 'code' : 'maximize'} size={12} />
-            </button>
+            {startWide && (
+              <button onClick={() => setWide((w) => !w)} aria-pressed={wide}
+                aria-label={wide ? 'Mostrar editor' : 'Esconder editor'}
+                title={wide ? 'Mostrar editor' : 'Esconder editor (tela inteira)'}
+                className={`${ctrlBtn(false)} absolute right-2 top-2 z-10 bg-neutral-900/80`}>
+                <Icon name={wide ? 'code' : 'maximize'} size={12} />
+              </button>
+            )}
             {frame}
           </div>
         </div>
