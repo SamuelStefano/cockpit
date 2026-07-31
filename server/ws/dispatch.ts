@@ -4,6 +4,7 @@ import type { Role } from '../auth';
 import { listSessions, listArchived } from '../sessions/index';
 import { searchSessions } from '../sessions/search';
 import { listContexts, readContext, installContext } from '../contexts';
+import { handoffSession } from '../handoff';
 import { getNotes, saveNotes } from '../notes';
 import { readPoints, createEntry, correctPoints, noteEntry, deleteEntry } from '../points';
 import { readDflSnapshot } from '../dfl-points';
@@ -166,6 +167,15 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'ctx-open': {
       const c = await readContext(msg.id);
       if (c) send(ws, { t: 'context', id: msg.id, title: c.title, body: c.body });
+      return;
+    }
+    case 'session-handoff': {
+      const r = await handoffSession(msg.sessionId);
+      if ('error' in r) { send(ws, { t: 'handoff-result', sessionId: msg.sessionId, ok: false, error: r.error }); return; }
+      send(ws, { t: 'handoff-result', sessionId: msg.sessionId, ok: true, contextId: r.contextId });
+      send(ws, { t: 'contexts', items: await listContexts() });
+      broadcast({ t: 'sessions', items: await listSessions() });
+      broadcast({ t: 'archived', items: await listArchived() });
       return;
     }
     case 'notes-get': {

@@ -25,6 +25,7 @@ export interface Attachment { name: string; path: string; text?: string; s3url?:
 export interface AttachmentPreview { path: string; name: string; dataB64?: string; error?: string }
 export type { TermApi };
 import type { ConnState } from './components/primitives';
+import { toast } from './components/primitives/toast-bus';
 import { benchDispatch, failAllBenchPending, setBenchSender } from './components/primitives/livepreview/bench-bus';
 import type { Phase } from './components/Chat';
 
@@ -174,6 +175,8 @@ export interface Cockpit {
   onEditUser: (msgId: string, text: string) => void;
   onStop: (sessionKey?: string) => void;
   onNew: () => void;
+  onHandoff: (sessionId: string) => void;
+  handoffBusy: boolean;
   onRename: (id: string, title: string) => void;
   onDescribe: (id: string, summary: string) => void;
   onClose: (id: string) => void;
@@ -487,6 +490,16 @@ export function useCockpit(): Cockpit {
     // da sessão anterior na tela da nova.
     setAttPreview(null);
   }, []);
+
+  const [handoffBusy, setHandoffBusy] = useState(false);
+
+  const onNew = useCallback(() => {
+    const id = newId('new-');
+    const s: Session = { id, title: 'Nova sessão', relative: 'agora', snippet: 'Sem mensagens ainda', mtime: Date.now(), hasTerminal: false, active: true };
+    setSessions((prev) => [s, ...prev.map((x) => ({ ...x, active: false }))]);
+    setThreads((prev) => ({ ...prev, [id]: [] }));
+    focusSession(id);
+  }, [focusSession]);
 
   const onServer = useCallback((msg: ServerMsg) => {
     switch (msg.t) {
@@ -882,6 +895,13 @@ export function useCockpit(): Cockpit {
         setOpenContext({ id: msg.id, title: msg.title, body: msg.body });
         return;
       }
+      case 'handoff-result': {
+        setHandoffBusy(false);
+        if (!msg.ok) { toast(msg.error || 'não consegui migrar a sessão', { tone: 'error', durationMs: 8000 }); return; }
+        onNew();
+        toast(`Contexto salvo em ${msg.contextId} — sessão arquivada`, { durationMs: 8000 });
+        return;
+      }
       case 'skills': {
         setSkills(msg.items);
         setSkillsLoaded(true);
@@ -1109,7 +1129,7 @@ export function useCockpit(): Cockpit {
         return;
       }
     }
-  }, [updateThread, patchRunMsg, migrateKey, reconcileTools, send, reopenMsg, onTermData, onTermReplay, onTermExit, onTerms]);
+  }, [updateThread, patchRunMsg, migrateKey, reconcileTools, send, reopenMsg, onTermData, onTermReplay, onTermExit, onTerms, onNew]);
 
   const connect = useCallback(() => {
     // Fecha+neutraliza o socket anterior ANTES de abrir outro. Sem isto, sockets
@@ -1494,6 +1514,14 @@ export function useCockpit(): Cockpit {
     const reqId = crypto.randomUUID();
     return dflWrite({ t: 'points-dfl-invoice', reqId, ...p }, reqId);
   }, [dflWrite]);
+  // Sessão `new-` ainda não tem JSONL no servidor: não há o que destilar nem
+  // arquivar, então o botão não dispara nada.
+  const onHandoff = useCallback((sessionId: string) => {
+    if (!sessionId || sessionId.startsWith('new-')) return;
+    setHandoffBusy(true);
+    send({ t: 'session-handoff', sessionId });
+  }, [send]);
+
   const onCtxList = useCallback(() => send({ t: 'ctx-list' }), [send]);
   const onCtxOpen = useCallback((id: string) => send({ t: 'ctx-open', id }), [send]);
   const onCtxClose = useCallback(() => setOpenContext(null), []);
@@ -1585,14 +1613,6 @@ export function useCockpit(): Cockpit {
     const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
     send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: clean, msgId, mode: modeRef.current, model: pinSessionModel(key), bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
   }, [send, updateThread, onStop, pinSessionModel]);
-
-  const onNew = useCallback(() => {
-    const id = newId('new-');
-    const s: Session = { id, title: 'Nova sessão', relative: 'agora', snippet: 'Sem mensagens ainda', mtime: Date.now(), hasTerminal: false, active: true };
-    setSessions((prev) => [s, ...prev.map((x) => ({ ...x, active: false }))]);
-    setThreads((prev) => ({ ...prev, [id]: [] }));
-    focusSession(id);
-  }, [focusSession]);
 
   const onRename = useCallback((id: string, title: string) => {
     setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)));
@@ -1803,5 +1823,5 @@ export function useCockpit(): Cockpit {
     savePref('modelBySession', keep);
   }, [modelBySession]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, cronsLoaded, onCronsGet, onCronSave, onCronDelete, onCronRun, points, pointsTotal, pointsLoaded, onPointsGet, onPointsAdd, onPointsCorrect, onPointsNote, onPointsDelete, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync, onDflChange, onDflInvoice, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused };
+  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, cronsLoaded, onCronsGet, onCronSave, onCronDelete, onCronRun, points, pointsTotal, pointsLoaded, onPointsGet, onPointsAdd, onPointsCorrect, onPointsNote, onPointsDelete, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync, onDflChange, onDflInvoice, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused };
 }
