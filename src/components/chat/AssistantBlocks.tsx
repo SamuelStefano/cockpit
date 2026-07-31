@@ -1,9 +1,8 @@
 import { useState, type ReactNode } from 'react';
 import { Icon, Markdown, CodeBlock, tokens } from '../primitives';
 import type { Block } from '../../data/mock';
-import { ToolCallCard } from './ToolCallCard';
 import { AskQuestionCard } from './AskQuestionCard';
-import { isQuestionTool as isQuestion, isTodoTool } from './visible-blocks';
+import { isQuestionTool as isQuestion } from './visible-blocks';
 
 function ThinkingCard({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
@@ -55,13 +54,11 @@ export function AssistantBlocks({ blocks, caretOnLast, answerable = false, onAns
   );
 
   function renderBlock(b: Block, i: number): ReactNode {
-    // As ferramentas comuns saíram daqui: collapseTurnTools junta as do turno
-    // inteiro numa caixa só. Sobram as duas que precisam ficar no fluxo —
-    // AskUserQuestion (o usuário tem que clicar pra desbloquear o turno) e a
-    // lista de tarefas (progresso que ele acompanha ao vivo).
+    // As ferramentas saíram daqui: collapseTurnTools junta as do turno inteiro
+    // numa caixa só. Sobra apenas AskUserQuestion — o turno só destrava se o
+    // usuário clicar. Progresso de tarefas fica na bandeja do rodapé.
     if (b.type === 'tool') {
       if (isQuestion(b.tool)) return <AskQuestionCard tool={b.tool} answerable={answerable} onAnswer={onAnswer} />;
-      if (isTodoTool(b.tool)) return <ToolCallCard tool={b.tool} />;
       return null;
     }
     if (b.type === 'text') return <Markdown md={b.md} caret={caretOnLast && i === lastIdx} />;
