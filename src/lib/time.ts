@@ -5,7 +5,10 @@ export function relReset(resetsAt: number, now: number = Date.now()): string {
   // max(1): sem o clamp, diff < 30s arredondaria pra "0min".
   const min = Math.max(1, Math.round(diff / 60000));
   if (min < 60) return `${min}min`;
-  return `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`;
+  const h = Math.floor(min / 60);
+  // Janela semanal reseta a dias de distância: "154h20" é ilegível.
+  if (h >= 24) return `${Math.floor(h / 24)}d${h % 24}h`;
+  return `${h}h${String(min % 60).padStart(2, '0')}`;
 }
 
 // Tempo decorrido desde um instante passado, rótulo curto ("agora"/"3h"/"2d"/"5sem").

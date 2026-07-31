@@ -197,6 +197,13 @@ export function DesignSystem() {
               ]} />
             </div>
           </Row>
+          <Row label="medidor (max)">
+            <div className="flex w-full flex-col gap-2">
+              <ProgressBar max={100} segments={[{ value: 34, tone: 'green' }]} />
+              <ProgressBar max={100} segments={[{ value: 78, tone: 'yellow' }]} />
+              <ProgressBar max={100} segments={[{ value: 96, tone: 'red' }]} />
+            </div>
+          </Row>
         </Section>
 
         <Section title="Tabs">
