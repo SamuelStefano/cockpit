@@ -468,6 +468,7 @@ export type ClientMsg =
   | { t: 'points-dfl-change'; reqId: string; taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string }
   | { t: 'points-dfl-invoice'; reqId: string; deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number }[] }
   | { t: 'ctx-install'; slug: string; title: string; body: string }
+  | { t: 'session-handoff'; sessionId: string }
   | { t: 'skill-install'; slug: string; title: string; body: string }
   | { t: 'crons-get' }
   | { t: 'cron-save'; cron: Cron }
@@ -562,6 +563,8 @@ export type ServerMsg =
   | { t: 'uploaded'; name: string; path: string; text?: string; s3url?: string; clientId?: string; sessionKey?: string }
   | { t: 's3-config'; uploadUrl: string; anonKey: string }
   | { t: 'install-result'; kind: 'context' | 'skill'; ok: boolean; id?: string; error?: string }
+  // Resultado do handoff de sessão lotada: contextId é o .md gravado em Contextos.
+  | { t: 'handoff-result'; sessionId: string; ok: boolean; contextId?: string; error?: string }
   // Conteúdo de um anexo p/ preview no chat (modal). error preenchido quando o
   // arquivo já foi varrido pelo TTL ou o path é inválido — o modal mostra o aviso.
   | { t: 'attachment'; path: string; name: string; dataB64?: string; error?: string }

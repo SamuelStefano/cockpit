@@ -29,7 +29,7 @@ const inFlight = new Set<string>();
 const lastAt = new Map<string, number>();
 const MIN_INTERVAL_MS = 90_000;
 
-function apiKey(): string | null {
+export function apiKey(): string | null {
   if (cachedKey !== undefined) return cachedKey;
   try {
     const txt = readFileSync(CRED_PATH, 'utf8');
