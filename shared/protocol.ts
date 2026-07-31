@@ -179,10 +179,24 @@ export interface UsageStats {
 // Uso do PLANO (claude.ai/settings/usage) — quota global da conta, NÃO contexto
 // de chat. utilization = % já consumida da janela. O backend lê isto do endpoint
 // OAuth; só os números chegam ao cliente — o token nunca sai do servidor.
+// Uma linha do painel de uso. A Anthropic devolve `limits[]` com um item por teto
+// ativo na conta — inclui tetos ESCOPADOS por modelo (ex.: "Fable"), que não têm
+// campo próprio no corpo da resposta e só existem dentro dessa lista.
+export interface PlanLimit {
+  id: string;
+  label: string;
+  pct: number;              // 0..100
+  resetsAt: number | null;  // epoch ms
+  severity: 'normal' | 'warning' | 'critical';
+  scoped: boolean;          // teto de um modelo específico, não da conta inteira
+}
+
 export interface PlanUsage {
   fiveHour: number;         // 0..100 — % consumida da janela de 5h (a que o usuário vê)
   sevenDay: number;         // 0..100 — % consumida da janela de 7 dias
   resetsAt: number | null;  // epoch ms do reset da janela de 5h
+  sevenDayResetsAt: number | null;
+  limits: PlanLimit[];
 }
 
 // Fila ESTACIONADA (overnight/quota-out): prompt que o usuário enfileirou pra

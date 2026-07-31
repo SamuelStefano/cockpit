@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { quotaHoldUntil, burnedByQuota, UNKNOWN_HOLD_MS, PLAN_FULL_PCT } from './quota';
+import type { PlanUsage } from '../../shared/protocol';
 
 const NOW = 1_800_000_000_000;
 const rate = (status: string, resetsAt: number, setAt = NOW) => ({ status, resetsAt, setAt });
+const plan = (fiveHour: number, resetsAt: number | null): PlanUsage => ({ fiveHour, sevenDay: 10, resetsAt, sevenDayResetsAt: null, limits: [] });
 
 describe('quotaHoldUntil', () => {
   it('libera sem sinal algum', () => {
@@ -28,21 +30,21 @@ describe('quotaHoldUntil', () => {
   });
 
   it('segura com o plano estourado e reset futuro', () => {
-    expect(quotaHoldUntil(null, { fiveHour: PLAN_FULL_PCT, sevenDay: 10, resetsAt: NOW + 5000 }, NOW)).toBe(NOW + 5000);
+    expect(quotaHoldUntil(null, plan(PLAN_FULL_PCT, NOW + 5000), NOW)).toBe(NOW + 5000);
   });
 
   it('não segura por utilização stale (reset já passou ou desconhecido)', () => {
-    expect(quotaHoldUntil(null, { fiveHour: 100, sevenDay: 10, resetsAt: NOW - 1 }, NOW)).toBe(0);
-    expect(quotaHoldUntil(null, { fiveHour: 100, sevenDay: 10, resetsAt: null }, NOW)).toBe(0);
+    expect(quotaHoldUntil(null, plan(100, NOW - 1), NOW)).toBe(0);
+    expect(quotaHoldUntil(null, plan(100, null), NOW)).toBe(0);
   });
 
   it('não segura abaixo do teto', () => {
-    expect(quotaHoldUntil(null, { fiveHour: 98, sevenDay: 10, resetsAt: NOW + 5000 }, NOW)).toBe(0);
+    expect(quotaHoldUntil(null, plan(98, NOW + 5000), NOW)).toBe(0);
   });
 
   it('fica com o reset mais distante entre os dois sinais', () => {
     const r = rate('rejected', NOW + 1000);
-    expect(quotaHoldUntil(r, { fiveHour: 100, sevenDay: 10, resetsAt: NOW + 9000 }, NOW)).toBe(NOW + 9000);
+    expect(quotaHoldUntil(r, plan(100, NOW + 9000), NOW)).toBe(NOW + 9000);
   });
 });
 
