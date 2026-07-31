@@ -114,8 +114,28 @@ describe('parseFullSession (arquivo real)', () => {
   });
 
   it('limit corta mensagens visíveis, não records brutos', async () => {
-    const out = await parseFullSession(SID, 2);
+    const out = await parseFullSession(SID, undefined, 2);
     expect(out!.messages.map((m) => m.id)).toEqual(['a2', 'a3']);
     expect(out!.truncated).toBe(true);
+  });
+
+  it('paginação por cursor: cada página busca só o que vem ANTES do que o cliente tem', async () => {
+    const p1 = await parseFullSession(SID, undefined, 2);
+    expect(p1!.messages.map((m) => m.id)).toEqual(['a2', 'a3']);
+    expect(p1!.truncated).toBe(true);
+    const p2 = await parseFullSession(SID, 'a2', 2);
+    expect(p2!.messages.map((m) => m.id)).toEqual(['u1', 'a1']);
+    expect(p2!.truncated).toBe(false);
+  });
+
+  it('cursor no começo da timeline devolve página vazia sem truncated (fim da paginação)', async () => {
+    const out = await parseFullSession(SID, 'u1', 2);
+    expect(out!.messages).toEqual([]);
+    expect(out!.truncated).toBe(false);
+  });
+
+  it('cursor desconhecido cai na última página em vez de devolver nada', async () => {
+    const out = await parseFullSession(SID, 'nao-existe', 2);
+    expect(out!.messages.map((m) => m.id)).toEqual(['a2', 'a3']);
   });
 });

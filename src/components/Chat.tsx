@@ -73,6 +73,7 @@ export interface ChatPanelProps {
   onQuote?: (text: string) => void;
   onRename?: (id: string, title: string) => void;
   onOpenFull?: (id: string) => void;
+  onLoadOlder?: (id: string) => void;
   onOpenSummary?: (id: string) => void;
   truncated?: boolean;
   onShowHelp?: () => void;
@@ -93,7 +94,7 @@ export interface ChatPanelProps {
   queueSetPaused: (v: boolean) => void;
 }
 
-export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, followups, onDismissFollowups, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onRename, onOpenFull, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, followups, onDismissFollowups, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused }: ChatPanelProps) {
   const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear });
   // Modo iterativo: um refino pedido de dentro de um live preview vira o próximo
   // prompt (o card não tem acesso ao compositor — publica no [[refine-bus]]).
@@ -130,7 +131,8 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
       <ChatHeader
         session={session} messages={messages} isEmpty={c.isEmpty} isMobile={isMobile}
         contextTokens={contextTokens} lastTurn={lastTurn} onNew={onNew}
-        fullLoaded={c.fullLoaded} truncated={truncated} onOpenFull={onOpenFull} onOpenSummary={onOpenSummary}
+        fullLoaded={c.fullLoaded} truncated={truncated} onOpenFull={onOpenFull} onLoadOlder={onLoadOlder} onOpenSummary={onOpenSummary}
+        beforeGrow={c.captureAnchor}
         setFullLoaded={c.setFullLoaded} onTerminal={onTerminal} terminalRunning={terminalRunning} onRename={onRename}
       />
 

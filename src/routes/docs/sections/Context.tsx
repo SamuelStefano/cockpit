@@ -14,7 +14,8 @@ export function Context() {
         </InfoCard>
         <InfoCard icon="sparkles" iconClass="text-violet-300" title="Compactação">
           Automática (perto do limite) ou manual (<Pill>/compact</Pill>). O divisor “Conversa compactada” marca o ponto na timeline;
-          nada se perde de verdade — o histórico completo continua no disco e aparece em <span className="font-medium text-neutral-300">“carregar antigas / ver tudo”</span>.
+          nada se perde de verdade — o histórico completo continua no disco. Ao reabrir a sessão o Deck já mostra a timeline
+          completa (não só a cadeia pós-compactação), e <span className="font-medium text-neutral-300">“carregar antigas”</span> pagina pra trás sem teto.
         </InfoCard>
         <InfoCard icon="zap" iconClass="text-orange-300" title="Tokens por turno (a régua certa)">
           O número embaixo de cada resposta = <span className="font-medium text-neutral-300">trabalho novo</span> do turno: entrada + escrita de cache + saída,

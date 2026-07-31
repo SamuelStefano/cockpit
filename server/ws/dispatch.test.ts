@@ -17,7 +17,7 @@ const runs = vi.hoisted(() => {
 });
 const bc = vi.hoisted(() => ({ send: vi.fn(), broadcast: vi.fn() }));
 const parse = vi.hoisted(() => ({ parseSession: vi.fn(), parseFullSession: vi.fn() }));
-const cfg = vi.hoisted(() => ({ CONFIG: { localOnly: true } }));
+const cfg = vi.hoisted(() => ({ CONFIG: { localOnly: true, historyLimit: 2000 } }));
 const admin = vi.hoisted(() => ({
   setEnv: vi.fn(), unsetEnv: vi.fn(), removeMcp: vi.fn(), installCli: vi.fn(),
   addMcp: vi.fn(async () => ({ ok: true, message: 'ok' })),
@@ -119,6 +119,49 @@ describe('open / open-full invalid session', () => {
     parse.parseFullSession.mockResolvedValue({ messages: [{ role: 'user' }], tokens: 7, truncated: true });
     await handle(ws, { t: 'open-full', sessionId: 's1' } as ClientMsg);
     expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'history', full: true, tokens: 7, truncated: true }));
+  });
+
+  it('repassa o cursor `before` ao parser e marca o frame como prepend', async () => {
+    parse.parseFullSession.mockResolvedValue({ messages: [], tokens: 0, truncated: false });
+    await handle(ws, { t: 'open-full', sessionId: 's1', before: 'uuid-9' } as ClientMsg);
+    expect(parse.parseFullSession).toHaveBeenCalledWith('s1', 'uuid-9');
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'history', prepend: true }));
+  });
+
+  it('ignora um cursor que não é string (entrada não confiável) e serve a última página', async () => {
+    parse.parseFullSession.mockResolvedValue({ messages: [], tokens: 0, truncated: false });
+    await handle(ws, { t: 'open-full', sessionId: 's1', before: { evil: 1 } } as unknown as ClientMsg);
+    expect(parse.parseFullSession).toHaveBeenCalledWith('s1', undefined);
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'history', prepend: false }));
+  });
+});
+
+describe('open com cadeia ativa colapsada (pós-/compact)', () => {
+  it('serve a timeline completa quando ela tem substancialmente mais mensagens', async () => {
+    parse.parseSession.mockResolvedValue({ messages: [{ role: 'user' }], tokens: 1, truncated: true });
+    parse.parseFullSession.mockResolvedValue({ messages: [{ role: 'user' }, { role: 'user' }, { role: 'user' }], tokens: 9, truncated: true });
+    await handle(ws, { t: 'open', sessionId: 's1' } as ClientMsg);
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'history', full: true, tokens: 9 }));
+  });
+
+  it('mantém a cadeia ativa quando a timeline completa não acrescenta quase nada', async () => {
+    parse.parseSession.mockResolvedValue({ messages: [{ role: 'user' }, { role: 'user' }], tokens: 1, truncated: true });
+    parse.parseFullSession.mockResolvedValue({ messages: [{ role: 'user' }, { role: 'user' }, { role: 'user' }], tokens: 9, truncated: false });
+    await handle(ws, { t: 'open', sessionId: 's1' } as ClientMsg);
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'history', tokens: 1 }));
+  });
+
+  it('não toca a timeline completa quando a cadeia ativa já está inteira', async () => {
+    parse.parseSession.mockResolvedValue({ messages: [{ role: 'user' }], tokens: 1, truncated: false });
+    await handle(ws, { t: 'open', sessionId: 's1' } as ClientMsg);
+    expect(parse.parseFullSession).not.toHaveBeenCalled();
+  });
+
+  it('respeita chainOnly: quem pediu "mostrar resumido" não recebe a timeline completa de volta', async () => {
+    parse.parseSession.mockResolvedValue({ messages: [{ role: 'user' }], tokens: 1, truncated: true });
+    await handle(ws, { t: 'open', sessionId: 's1', chainOnly: true } as ClientMsg);
+    expect(parse.parseFullSession).not.toHaveBeenCalled();
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'history', tokens: 1 }));
   });
 });
 

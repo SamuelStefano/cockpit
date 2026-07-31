@@ -53,7 +53,7 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
   // continua a um clique.
   if (msg.digest) {
     return (
-      <div className="fade-up">
+      <div data-mid={msg.id} className="fade-up">
         <ToolGroupCard tools={msg.digest} />
         {thinking && <ThinkingDots live={live} />}
       </div>
@@ -66,7 +66,10 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
   if (!thinking && !msg.stats?.durationMs && !hasVisibleAssistantContent(msg.blocks, showTools)) return null;
   const hasText = msg.blocks.some((b) => b.type === 'text' || b.type === 'code');
   return (
-    <div className="fade-up group/msg flex gap-2.5">
+    // data-mid em toda linha (não só nas do usuário): é a âncora que o
+    // "carregar antigas" usa pra reposicionar o scroll. Uma resposta longa pode
+    // ocupar a viewport inteira — sem âncora ali, a leitura saltava.
+    <div data-mid={msg.id} className="fade-up group/msg flex gap-2.5">
       <div className="mt-0.5" title={showModelLabel ? undefined : modelLabel}>
         <ClaudeAvatar size={28} />
       </div>

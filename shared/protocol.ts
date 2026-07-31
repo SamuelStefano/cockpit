@@ -420,8 +420,14 @@ export type ClientMsg =
   // Resume (mobile): reemite o estado durável (busy/rate/plan-usage/models +
   // sessions) que o CLI só manda durante um run, sem depender de eventos perdidos.
   | { t: 'sync' }
-  | { t: 'open'; sessionId: string }
-  | { t: 'open-full'; sessionId: string }
+  // `chainOnly` = o usuário PEDIU a visão resumida; sem ele o servidor pode servir
+  // a timeline completa quando a cadeia ativa colapsou (pós-/compact).
+  | { t: 'open'; sessionId: string; chainOnly?: boolean }
+  // `before` = id da mensagem mais antiga que o cliente já tem. O servidor devolve
+  // a página imediatamente ANTERIOR a ela e o cliente prepende — cada frame tem
+  // tamanho fixo, então dá pra paginar até o começo de uma sessão de 27k mensagens
+  // sem nunca mandar um payload gigante.
+  | { t: 'open-full'; sessionId: string; before?: string }
   | { t: 'hide'; sessionId: string }
   | { t: 'unhide'; sessionId: string }
   | { t: 'purge'; sessionId: string }
@@ -545,7 +551,9 @@ export type ServerMsg =
   // Conteúdo de um anexo p/ preview no chat (modal). error preenchido quando o
   // arquivo já foi varrido pelo TTL ou o path é inválido — o modal mostra o aviso.
   | { t: 'attachment'; path: string; name: string; dataB64?: string; error?: string }
-  | { t: 'history'; sessionId: string; messages: Message[]; cursor?: string; tokens?: number; full?: boolean; truncated?: boolean; todos?: ToolTodo[] }
+  // prepend = resposta a um open-full com `before`: são as mensagens ANTERIORES às
+  // que o cliente já tem, não um snapshot novo. O cliente concatena em vez de trocar.
+  | { t: 'history'; sessionId: string; messages: Message[]; prepend?: boolean; tokens?: number; full?: boolean; truncated?: boolean; todos?: ToolTodo[] }
   | { t: 'busy'; keys: string[] }
   // O JSONL da sessão mudou no disco (ex.: claude rodado direto no terminal).
   // Cliente com a sessão aberta re-puxa o histórico — sem F5.

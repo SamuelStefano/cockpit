@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mergeHistory } from './history';
+import { mergeHistory, prependHistory } from './history';
 import type { Message, TurnBubbleStats } from '../../shared/protocol';
 
 const u = (id: string, ts?: number): Message => ({ id, role: 'user', text: id, ts });
@@ -84,5 +84,40 @@ describe('mergeHistory — stats do turno (S3: re-fetch apagava tokens/custo)', 
     const local = [a('a-live', { tokens: 500, costUsd: 0.99 })];
     const out = mergeHistory([a('uuid-1', { tokens: 100, costUsd: 0.01 })], local);
     expect((out[0] as any).stats).toEqual({ tokens: 100, costUsd: 0.01 });
+  });
+});
+
+describe('paginação pra trás (carregar antigas)', () => {
+  it('prependHistory põe a página antiga na frente do que já está na tela', () => {
+    const older = [u('a', 10), u('b', 20)];
+    const local = [u('c', 30), u('d', 40)];
+    expect(prependHistory(older, local)).toEqual([u('a', 10), u('b', 20), u('c', 30), u('d', 40)]);
+  });
+
+  it('prependHistory dedup por id: sobreposição entre páginas não duplica', () => {
+    expect(prependHistory([u('a', 10), u('b', 20)], [u('b', 20), u('c', 30)]))
+      .toEqual([u('a', 10), u('b', 20), u('c', 30)]);
+  });
+
+  it('página vazia (chegou ao começo) mantém a tela intacta', () => {
+    const local = [u('c', 30)];
+    expect(prependHistory([], local)).toBe(local);
+  });
+
+  it('keepOlder: refresh da última página não encolhe a janela já paginada', () => {
+    const local = [u('a', 10), u('b', 20), u('c', 30), u('d', 40)];
+    const incoming = [u('c', 30), u('d', 40)]; // servidor só reemite a última página
+    expect(mergeHistory(incoming, local, true)).toEqual(local);
+  });
+
+  it('sem keepOlder o snapshot é autoritativo (visão resumida encolhe de propósito)', () => {
+    const local = [u('a', 10), u('b', 20), u('c', 30), u('d', 40)];
+    expect(mergeHistory([u('c', 30), u('d', 40)], local)).toEqual([u('c', 30), u('d', 40)]);
+  });
+
+  it('keepOlder com divisor sem ts no trecho antigo não perde o divisor', () => {
+    const divider: Message = { id: 'pr-1', role: 'compact', kind: 'pr', label: 'PR #1' };
+    const local = [u('a', 10), divider, u('b', 20), u('c', 30)];
+    expect(mergeHistory([u('b', 20), u('c', 30)], local, true)).toEqual(local);
   });
 });
