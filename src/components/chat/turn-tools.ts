@@ -1,5 +1,5 @@
 import type { Block, Message, ToolCall } from '../../data/mock';
-import { isQuestionTool, isTodoTool } from './visible-blocks';
+import { isQuestionTool } from './visible-blocks';
 
 // Mensagem sintética (só no cliente) que carrega TODAS as ferramentas de um
 // turno numa caixa só. Não vem do backend: é derivada da thread.
@@ -15,8 +15,9 @@ const digestCache = new WeakMap<Message, ShownMessage>();
 // Uma resposta longa vira dezenas de tool cards — o chat virava uma parede de
 // terminais e o que importa (o prompt e a resposta) sumia no meio. Aqui todas as
 // ferramentas do turno saem das bolhas e viram UMA caixa fechada, no topo do
-// trecho onde rodaram. Ficam de fora AskUserQuestion (o usuário precisa clicar) e
-// listas de tarefas (progresso que ele acompanha ao vivo).
+// trecho onde rodaram. Só AskUserQuestion fica de fora: o turno só destrava se o
+// usuário clicar. As listas de tarefas também entram na caixa — o progresso
+// continua visível na bandeja de tarefas do rodapé, que lê a thread crua.
 export function collapseTurnTools(messages: Message[], showTools: boolean): ShownMessage[] {
   if (!showTools) return messages;
   const out: ShownMessage[] = [];
@@ -39,7 +40,7 @@ export function collapseTurnTools(messages: Message[], showTools: boolean): Show
       out.push(m);
       return;
     }
-    const kept = m.blocks.filter((b) => b.type !== 'tool' || isQuestionTool(b.tool) || isTodoTool(b.tool));
+    const kept = m.blocks.filter((b) => b.type !== 'tool' || isQuestionTool(b.tool));
     if (kept.length === m.blocks.length) { out.push(m); return; }
     // Ao vivo o turno inteiro se acumula numa bolha só, então a caixa entra antes
     // dela: o texto do turno fica junto embaixo em vez de partido em duas bolhas.

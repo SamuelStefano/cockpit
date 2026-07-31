@@ -26,11 +26,11 @@ describe('dropInvisible', () => {
     expect(dropInvisible(msgs, false).map((m) => m.id)).toEqual(['u1', 'a1']);
   });
 
-  it('não remove AskUserQuestion nem lista de tarefas', () => {
+  it('não remove AskUserQuestion, mas lista de tarefas sai como tool comum', () => {
     const q = toolMsg('q1', { name: 'AskUserQuestion', questions: [{ question: 'q', header: 'h', multiSelect: false, options: [] }] });
     const t = toolMsg('t1', { todos: [{ content: 'x', status: 'pending' }] });
     const msgs = [q, t, textMsg('a1')];
-    expect(dropInvisible(msgs, false).map((m) => m.id)).toEqual(['q1', 't1', 'a1']);
+    expect(dropInvisible(msgs, false).map((m) => m.id)).toEqual(['q1', 'a1']);
   });
 
   it('deixa divisores de PR adjacentes para o coalesce', () => {

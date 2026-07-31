@@ -51,7 +51,7 @@ describe('collapseTurnTools', () => {
     expect(out.find((m) => m.digest)?.digest).toHaveLength(2);
   });
 
-  it('AskUserQuestion e lista de tarefas continuam no fluxo', () => {
+  it('só AskUserQuestion fica no fluxo — lista de tarefas entra na caixa', () => {
     const q = tool('q1', { name: 'AskUserQuestion', questions: [{ header: 'h', question: 'q?', options: [{ label: 'a', description: 'd' }], multiSelect: false }] });
     const todo = tool('td1', { name: 'TodoWrite', todos: [{ content: 'x', status: 'pending' }] });
     const out = collapseTurnTools([
@@ -59,8 +59,8 @@ describe('collapseTurnTools', () => {
       assistant('a1', [{ type: 'tool', tool: q }, { type: 'tool', tool: todo }, { type: 'tool', tool: tool('t1') }]),
     ], true);
     const kept = out.find((m) => m.id === 'a1');
-    expect(kept?.role === 'assistant' && kept.blocks).toHaveLength(2);
-    expect(out.find((m) => m.digest)?.digest).toHaveLength(1);
+    expect(kept?.role === 'assistant' && kept.blocks).toHaveLength(1);
+    expect(out.find((m) => m.digest)?.digest?.map((t) => t.id)).toEqual(['td1', 't1']);
   });
 
   it('caixa antes do texto quando tudo veio na mesma bolha (caminho ao vivo)', () => {
