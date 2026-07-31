@@ -28,21 +28,21 @@ describe('quotaHoldUntil', () => {
   });
 
   it('segura com o plano estourado e reset futuro', () => {
-    expect(quotaHoldUntil(null, { fiveHour: PLAN_FULL_PCT, sevenDay: 10, resetsAt: NOW + 5000 }, NOW)).toBe(NOW + 5000);
+    expect(quotaHoldUntil(null, { fiveHour: PLAN_FULL_PCT, sevenDay: 10, resetsAt: NOW + 5000, windows: [] }, NOW)).toBe(NOW + 5000);
   });
 
   it('não segura por utilização stale (reset já passou ou desconhecido)', () => {
-    expect(quotaHoldUntil(null, { fiveHour: 100, sevenDay: 10, resetsAt: NOW - 1 }, NOW)).toBe(0);
-    expect(quotaHoldUntil(null, { fiveHour: 100, sevenDay: 10, resetsAt: null }, NOW)).toBe(0);
+    expect(quotaHoldUntil(null, { fiveHour: 100, sevenDay: 10, resetsAt: NOW - 1, windows: [] }, NOW)).toBe(0);
+    expect(quotaHoldUntil(null, { fiveHour: 100, sevenDay: 10, resetsAt: null, windows: [] }, NOW)).toBe(0);
   });
 
   it('não segura abaixo do teto', () => {
-    expect(quotaHoldUntil(null, { fiveHour: 98, sevenDay: 10, resetsAt: NOW + 5000 }, NOW)).toBe(0);
+    expect(quotaHoldUntil(null, { fiveHour: 98, sevenDay: 10, resetsAt: NOW + 5000, windows: [] }, NOW)).toBe(0);
   });
 
   it('fica com o reset mais distante entre os dois sinais', () => {
     const r = rate('rejected', NOW + 1000);
-    expect(quotaHoldUntil(r, { fiveHour: 100, sevenDay: 10, resetsAt: NOW + 9000 }, NOW)).toBe(NOW + 9000);
+    expect(quotaHoldUntil(r, { fiveHour: 100, sevenDay: 10, resetsAt: NOW + 9000, windows: [] }, NOW)).toBe(NOW + 9000);
   });
 });
 

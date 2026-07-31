@@ -20,6 +20,12 @@ describe('relReset', () => {
     expect(relReset(now + (2 * 60 + 30) * 60000, now)).toBe('2h30');
   });
 
+  it('encurta para dias a partir de 24h (janela semanal)', () => {
+    expect(relReset(now + 23 * 3_600_000, now)).toBe('23h00');
+    expect(relReset(now + 24 * 3_600_000, now)).toBe('1d0h');
+    expect(relReset(now + (6 * 24 + 4) * 3_600_000, now)).toBe('6d4h');
+  });
+
   it('rounds to the nearest minute', () => {
     expect(relReset(now + 90_000, now)).toBe('2min');
     expect(relReset(now + 89_000, now)).toBe('1min');

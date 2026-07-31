@@ -183,6 +183,19 @@ export interface PlanUsage {
   fiveHour: number;         // 0..100 — % consumida da janela de 5h (a que o usuário vê)
   sevenDay: number;         // 0..100 — % consumida da janela de 7 dias
   resetsAt: number | null;  // epoch ms do reset da janela de 5h
+  windows: PlanWindow[];    // todas as janelas que a conta devolve, em ordem canônica
+}
+
+// A conta expõe um limite por escopo: a sessão de 5h, a semana toda, e (nos planos
+// com cap por família) a semana de Opus/Sonnet, mais o excedente pago. Só chegam
+// aqui as janelas que a conta REALMENTE devolve — plano sem cap de Opus não tem
+// `seven_day_opus`, e mostrar 0% ali seria inventar um limite que não existe.
+export type PlanWindowKey = 'five_hour' | 'seven_day' | 'seven_day_opus' | 'seven_day_sonnet' | 'overage';
+
+export interface PlanWindow {
+  key: PlanWindowKey;
+  pct: number;              // 0..100
+  resetsAt: number | null;  // epoch ms
 }
 
 // Fila ESTACIONADA (overnight/quota-out): prompt que o usuário enfileirou pra

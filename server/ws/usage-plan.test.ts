@@ -20,11 +20,35 @@ describe('mapPlanUsage', () => {
 
   it('defaults missing fields safely', () => {
     const u = mapPlanUsage({});
-    expect(u).toEqual({ fiveHour: 0, sevenDay: 0, resetsAt: null });
-    expect(mapPlanUsage(null)).toEqual({ fiveHour: 0, sevenDay: 0, resetsAt: null });
+    expect(u).toEqual({ fiveHour: 0, sevenDay: 0, resetsAt: null, windows: [] });
+    expect(mapPlanUsage(null)).toEqual({ fiveHour: 0, sevenDay: 0, resetsAt: null, windows: [] });
   });
 
   it('returns null resetsAt for an unparseable date', () => {
     expect(mapPlanUsage({ five_hour: { resets_at: 'not-a-date' } }).resetsAt).toBeNull();
+  });
+
+  it('lista as janelas na ordem canônica, com reset de cada uma', () => {
+    const u = mapPlanUsage({
+      seven_day_opus: { utilization: 71.2, resets_at: '2026-06-12T00:00:00Z' },
+      five_hour: { utilization: 54, resets_at: '2026-06-07T04:50:00Z' },
+      seven_day: { utilization: 33 },
+    });
+    expect(u.windows).toEqual([
+      { key: 'five_hour', pct: 54, resetsAt: Date.parse('2026-06-07T04:50:00Z') },
+      { key: 'seven_day', pct: 33, resetsAt: null },
+      { key: 'seven_day_opus', pct: 71, resetsAt: Date.parse('2026-06-12T00:00:00Z') },
+    ]);
+  });
+
+  it('omite janela que a conta não expõe em vez de mostrar 0%', () => {
+    const u = mapPlanUsage({ five_hour: { utilization: 10 }, seven_day: { utilization: 2 }, seven_day_opus: {} });
+    expect(u.windows.map((w) => w.key)).toEqual(['five_hour', 'seven_day']);
+  });
+
+  it('descarta utilization NaN em vez de propagar NaN pra barra', () => {
+    const u = mapPlanUsage({ five_hour: { utilization: NaN } });
+    expect(u.windows).toEqual([]);
+    expect(u.fiveHour).toBe(0);
   });
 });
