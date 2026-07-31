@@ -28,6 +28,11 @@ describe('usageRows', () => {
     expect(usageRows(null)).toEqual([]);
   });
 
+  it('survives a backend that predates the limits field', () => {
+    const legacy = { fiveHour: 19, sevenDay: 76, resetsAt: 1000, sevenDayResetsAt: 2000 } as PlanUsage;
+    expect(usageRows(legacy).map((r) => r.label)).toEqual(['Sessão (5h)', 'Semanal']);
+  });
+
   it('falls back to the two loose numbers when the account reports no limits', () => {
     expect(usageRows(base).map((r) => [r.label, r.pct, r.resetsAt])).toEqual([
       ['Sessão (5h)', 19, 1000],

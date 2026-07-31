@@ -22,11 +22,12 @@ export interface UsageRow {
 
 // A conta manda `limits[]` com um item por teto — inclusive os escopados por
 // modelo, que não existem em lugar nenhum fora dessa lista. Quando ela vem
-// vazia (conta sem tetos ativos, ou payload antigo) caímos nos dois números
-// soltos, pra o painel nunca abrir vazio.
+// vazia caímos nos dois números soltos, pra o painel nunca abrir vazio. O front
+// (Vercel) sobe antes do backend, então `limits` chega ausente até o servidor
+// atualizar — sem o `?.` a tela inteira quebra nessa janela.
 export function usageRows(usage: PlanUsage | null): UsageRow[] {
   if (!usage) return [];
-  if (usage.limits.length) {
+  if (usage.limits?.length) {
     return usage.limits.map((l) => ({
       id: l.id,
       label: l.label,
