@@ -417,6 +417,19 @@ describe('activeChain', () => {
     const chain = activeChain(index(recs), 'a', 'a');
     expect(chain.length).toBe(2);
   });
+
+  it('atravessa a compactação pelo logicalParentUuid', () => {
+    const boundary: Rec = { type: 'system', uuid: 'bd', parentUuid: null, logicalParentUuid: 'b' };
+    const recs = [mk('a', null), mk('b', 'a'), boundary, mk('sum', 'bd'), mk('c', 'sum')];
+    const chain = activeChain(index(recs), 'c', 'c');
+    expect(chain.map((r) => r.uuid)).toEqual(['a', 'b', 'sum', 'c']);
+  });
+
+  it('logicalParentUuid órfão não quebra a caminhada', () => {
+    const boundary: Rec = { type: 'system', uuid: 'bd', parentUuid: null, logicalParentUuid: 'sumiu' };
+    const chain = activeChain(index([boundary, mk('c', 'bd')]), 'c', 'c');
+    expect(chain.map((r) => r.uuid)).toEqual(['c']);
+  });
 });
 
 describe('turnStats (S3: stats históricas por turno do JSONL)', () => {

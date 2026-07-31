@@ -56,3 +56,29 @@ describe('parseSession — AskUserQuestion auto-resolvida (reload)', () => {
     expect(lastIsQuestion(full!.messages)).toBe(false);
   });
 });
+
+describe('parseSession — auto-compactação', () => {
+  const BOUNDARY = {
+    type: 'system', subtype: 'compact_boundary', uuid: 'bd', parentUuid: null, logicalParentUuid: 'a1',
+    sessionId: SID, timestamp: '2026-06-17T10:00:10.000Z',
+  };
+  const SUMMARY = {
+    type: 'user', uuid: 'sum', parentUuid: 'bd', isCompactSummary: true, sessionId: SID,
+    timestamp: '2026-06-17T10:00:11.000Z', message: { role: 'user', content: 'This session is being continued…' },
+  };
+  const AFTER = {
+    type: 'assistant', uuid: 'a9', parentUuid: 'sum', sessionId: SID, timestamp: '2026-06-17T10:00:12.000Z',
+    message: { role: 'assistant', model: 'claude-opus-4-8', content: [{ type: 'text', text: 'retomando' }] },
+  };
+  const PLAIN = {
+    type: 'assistant', uuid: 'a1', parentUuid: 'u1', sessionId: SID, timestamp: '2026-06-17T10:00:01.000Z',
+    message: { role: 'assistant', model: 'claude-opus-4-8', content: [{ type: 'text', text: 'ok' }] },
+  };
+
+  it('o prompt anterior à compactação continua visível', async () => {
+    write([USER, PLAIN, BOUNDARY, SUMMARY, AFTER, { type: 'last-prompt', leafUuid: 'a9' }]);
+    const r = await parseSession(SID);
+    expect(r!.messages.map((m) => m.role)).toEqual(['user', 'assistant', 'compact', 'assistant']);
+    expect(r!.messages[0]).toMatchObject({ role: 'user', text: 'faça X' });
+  });
+});
