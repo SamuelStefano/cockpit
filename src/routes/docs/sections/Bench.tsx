@@ -8,7 +8,9 @@ export function Bench() {
       <div className="grid gap-3 sm:grid-cols-3">
         <StepCard step={1} title="Registrar o repo">
           Cada alvo vive em <Pill>~/.cockpit/bench.json</Pill> com raiz, alias, css e content. O bloco cita um
-          <span className="font-medium text-neutral-300"> apelido</span>, nunca um caminho.
+          <span className="font-medium text-neutral-300"> apelido</span>, nunca um caminho. Apontar a raiz pra um
+          worktree deixa o bench numa branch própria; aí <Pill>deps</Pill> aponta o <Pill>node_modules</Pill> do
+          checkout principal.
         </StepCard>
         <StepCard step={2} title="Abrir o bloco">
           No chat, uma cerca <Pill>```bench:itera-player</Pill> com um componente que faz
@@ -30,8 +32,8 @@ export function Bench() {
           o app alvo sobe, e nada do bench sobrevive ao reload.
         </InfoCard>
         <InfoCard icon="terminal" iconClass="text-sky-300" title="Compilação confinada, e sem rede">
-          O bundler recusa qualquer arquivo fora da raiz registrada — sem isso, um import apontando pra um arquivo de
-          credencial seria embutido no bundle. E o documento roda com <Pill>connect-src 'none'</Pill>: código de uma
+          O bundler recusa qualquer arquivo fora da raiz registrada e do <Pill>deps</Pill> declarado — sem isso, um
+          import apontando pra um arquivo de credencial seria embutido no bundle. E o documento roda com <Pill>connect-src 'none'</Pill>: código de uma
           branch que não é sua não consegue mandar pra fora o que foi inlinado no build.
         </InfoCard>
         <InfoCard icon="clock" iconClass="text-amber-300" title="Build é caro, então tem folga">
