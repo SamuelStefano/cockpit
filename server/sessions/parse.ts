@@ -307,19 +307,21 @@ export async function parseSession(
   return out;
 }
 
-// Histórico COMPLETO em ordem de arquivo (não só o caminho ativo). Após /compact
-// o CLI ramifica de um summary e as mensagens antigas saem do caminho parentUuid —
-// some do parseSession. Esta variante devolve TODOS os user/assistant na ordem em
-// que foram gravados, pro viewer "ver tudo (inclui pré-compactação)". Capado no fim.
-export async function parseFullSession(
-  sessionId: string,
-  limit = CONFIG.historyLimit,
-): Promise<{ messages: Message[]; tokens: number; truncated: boolean; todos?: ToolTodo[] } | null> {
+type Timeline = { all: Message[]; tokens: number; todos?: ToolTodo[] };
+
+// Slot ÚNICO, fora do LRU de parse: a timeline sem cap de uma sessão de daily
+// driver passa de 25k mensagens (~48MB serializados) e 24 dessas no LRU derrubariam
+// a VPS. Uma só basta — a paginação acontece numa sessão de cada vez.
+let timelineCache: { key: string; val: Timeline } | null = null;
+
+// Timeline COMPLETA do arquivo, sem cap. Cacheada com chave sem limit pra a
+// paginação fatiar páginas sucessivas de graça: reler 90k linhas de JSONL a cada
+// "carregar mais antigas" custaria segundos.
+async function fullTimeline(sessionId: string): Promise<Timeline | null> {
   const path = sessionPath(sessionId);
   if (!path) return null;
-  const ck = parseKey('F', path, limit);
-  const hit = parseCacheGet<{ messages: Message[]; tokens: number; truncated: boolean; todos?: ToolTodo[] }>(ck);
-  if (hit) return hit;
+  const ck = parseKey('F', path, 0);
+  if (ck && timelineCache?.key === ck) return timelineCache.val;
 
   const recs: Rec[] = [];
   const results = new Map<string, ToolResultRec>();
@@ -346,10 +348,28 @@ export async function parseFullSession(
   attachTurnStats(mapped, turnStats(recs));
   const todoMap = taskTodos(recs, results);
   attachTaskTodos(mapped, todoMap);
-  const all = weaveByTs(mapped, markers);
-  const out = { messages: all.slice(-limit), tokens, truncated: all.length > limit, todos: finalTodos(todoMap) };
-  parseCacheSet(ck, out);
+  const out: Timeline = { all: weaveByTs(mapped, markers), tokens, todos: finalTodos(todoMap) };
+  if (ck) timelineCache = { key: ck, val: out };
   return out;
+}
+
+// Uma PÁGINA do histórico completo (não só o caminho ativo). Após /compact o CLI
+// ramifica de um summary e as mensagens antigas saem do caminho parentUuid — somem
+// do parseSession. Sem `before` devolve a última página; com `before` (id da mensagem
+// mais antiga que o cliente já tem) devolve a página imediatamente anterior, pra o
+// cliente prepender. Assim a página tem tamanho FIXO por mais fundo que se vá:
+// mandar a timeline inteira de uma sessão de daily driver seria um frame de ~48MB.
+export async function parseFullSession(
+  sessionId: string,
+  before?: string,
+  limit = CONFIG.historyLimit,
+): Promise<{ messages: Message[]; tokens: number; truncated: boolean; todos?: ToolTodo[] } | null> {
+  const t = await fullTimeline(sessionId);
+  if (!t) return null;
+  const at = before ? t.all.findIndex((m) => m.id === before) : -1;
+  const stop = at >= 0 ? at : t.all.length;
+  const start = Math.max(0, stop - Math.max(1, limit));
+  return { messages: t.all.slice(start, stop), tokens: t.tokens, truncated: start > 0, todos: t.todos };
 }
 
 // Slash command e saída de !comando chegam como user text com as tags XML do

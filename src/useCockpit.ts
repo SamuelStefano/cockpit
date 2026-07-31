@@ -9,7 +9,7 @@ import { computeStalled, computeUpdated } from './cockpit/signals';
 import { upsertTool, appendDelta, appendThinking } from './cockpit/blocks';
 import { selectEvictions } from './cockpit/evict';
 import { resolveKey, moveKey } from './cockpit/migrate';
-import { mergeHistory } from './cockpit/history';
+import { mergeHistory, prependHistory } from './cockpit/history';
 import { liveTokens } from './cockpit/live-tokens';
 import { useTerminals, type TermApi } from './cockpit/useTerminals';
 import { addThumb, shouldRequestThumb } from './lib/att-thumb-cache';
@@ -180,6 +180,7 @@ export interface Cockpit {
   onDelete: (id: string) => void;
   onUnhide: (id: string) => void;
   onOpenFull: (id: string) => void;
+  onLoadOlder: (id: string) => void;
   onOpenSummary: (id: string) => void;
   queue: ParkedView[];
   queueAdd: (text: string) => void;
@@ -335,7 +336,10 @@ export function useCockpit(): Cockpit {
   const stopping = useRef<Set<string>>(new Set());        // sessionKeys parados pelo usuário: o kill leva até 5s (SIGTERM→SIGKILL) e frames tardios re-acenderiam o phase. Limpo no `done`/`error`.
   const resumeId = useRef<Record<string, string>>({});    // sessionKey -> claude sessionId p/ --resume
   const opened = useRef<Set<string>>(new Set());          // sessionKeys cujo histórico já foi pedido
-  const fullViewId = useRef<string | null>(null);         // sessão em "ver tudo": session-touched deve re-pedir open-full, não open
+  // Visão escolhida por sessão. 'full' = "ver tudo"/paginou pra trás: as reaberturas
+  // automáticas (touch/reconnect) têm que re-pedir open-full, não open. 'chain' = o
+  // usuário voltou ao resumido de propósito, e o servidor não deve sobrepor.
+  const viewMode = useRef<Record<string, 'chain' | 'full'>>({});
   const extBusyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const migratedTo = useRef<Record<string, string>>({});  // new-xxx -> claude sessionId já migrado (idempotência: 2º `done` não re-migra nem zera o thread)
   // chave DE DISPLAY -> chave com que o SERVIDOR mantém o thread (o `t` que chega nos frames de run).
@@ -373,6 +377,15 @@ export function useCockpit(): Cockpit {
     ws.send(JSON.stringify(m));
     return true;
   }, []);
+
+  // Re-abertura automática (reconnect, session-touched, reconciliação de busy):
+  // preserva a visão escolhida. Traz sempre a última página; o mergeHistory com
+  // keepOlder mantém a janela profunda que o usuário já paginou.
+  const reopenMsg = useCallback((id: string): ClientMsg => (
+    viewMode.current[id] === 'full'
+      ? { t: 'open-full', sessionId: id }
+      : { t: 'open', sessionId: id, chainOnly: viewMode.current[id] === 'chain' }
+  ), []);
 
   // O card do bench vive fundo na árvore do markdown e precisa falar com o WS.
   useEffect(() => { setBenchSender(send); return () => setBenchSender(null); }, [send]);
@@ -465,7 +478,6 @@ export function useCockpit(): Cockpit {
   // Único caminho de troca de sessão ativa — todo caminho que mexia no activeRef
   // na mão (nova sessão, pulo pela notificação) esquecia de reidratar os anexos.
   const focusSession = useCallback((id: string) => {
-    if (fullViewId.current !== id) fullViewId.current = null;
     activeRef.current = id;
     setActiveIdState(id);
     const pend = loadPendingAtts(id);
@@ -504,15 +516,25 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'history': {
-        setThreads((prev) => ({ ...prev, [msg.sessionId]: mergeHistory(msg.messages, prev[msg.sessionId] ?? []) }));
+        setThreads((prev) => {
+          const local = prev[msg.sessionId] ?? [];
+          // `prepend` = página anterior pedida pelo "carregar antigas". Fora dela, o
+          // frame é snapshot da última página: em "ver tudo" (full) o keepOlder segura
+          // o que já foi paginado pra trás, senão o refresh encolhia a janela.
+          const next = msg.prepend ? prependHistory(msg.messages, local) : mergeHistory(msg.messages, local, !!msg.full);
+          return { ...prev, [msg.sessionId]: next };
+        });
         resumeId.current[msg.sessionId] = msg.sessionId;
         if (msg.tokens) setUsage((u) => ({ ...u, [msg.sessionId]: msg.tokens! }));
         // Estado corrente da lista de tarefas do ARQUIVO inteiro (pós-compact a
         // chain visível pode não ter nenhum snapshot) — alimenta o TaskTray.
         setSessionTodos((prev) => (msg.todos ? { ...prev, [msg.sessionId]: msg.todos } : prev));
-        // `open` capa o caminho ativo e o full reload capa o arquivo inteiro, ambos
-        // em historyLimit; o servidor manda `truncated` quando dropou as mais antigas.
-        setTruncated((t) => ({ ...t, [msg.sessionId]: !!msg.truncated }));
+        // `truncated` = ainda há conversa mais antiga além do que está na tela. Um
+        // refresh em "ver tudo" traz só a última página e diria `true` mesmo se o
+        // usuário já tivesse paginado até o começo — nesse caso o valor anterior é
+        // que vale (o thread local é mais fundo que a página recebida).
+        const deeper = !!msg.full && !msg.prepend && (threadsRef.current[msg.sessionId]?.length ?? 0) > msg.messages.length;
+        setTruncated((t) => ({ ...t, [msg.sessionId]: deeper ? !!t[msg.sessionId] : !!msg.truncated }));
         return;
       }
       case 'busy': {
@@ -539,7 +561,7 @@ export function useCockpit(): Cockpit {
           delete runMsg.current[k];
           if (!k.startsWith('new-')) {
             opened.current.delete(k);
-            if (activeRef.current === k && send({ t: fullViewId.current === k ? 'open-full' : 'open', sessionId: k })) opened.current.add(k);
+            if (activeRef.current === k && send(reopenMsg(k))) opened.current.add(k);
           }
         }
         setPhases((p) => {
@@ -567,7 +589,7 @@ export function useCockpit(): Cockpit {
           stopping.current.delete(msg.sessionId);
         }
         if (activeRef.current === msg.sessionId && !inFlight.current.has(msg.sessionId)) {
-          send({ t: fullViewId.current === msg.sessionId ? 'open-full' : 'open', sessionId: msg.sessionId });
+          send(reopenMsg(msg.sessionId));
           // Escrita externa recente = turno do terminal em andamento: acende um
           // indicador no chat (estrelinha) que apaga 5s após a última escrita.
           setTerminalBusyId(msg.sessionId);
@@ -1087,7 +1109,7 @@ export function useCockpit(): Cockpit {
         return;
       }
     }
-  }, [updateThread, patchRunMsg, migrateKey, reconcileTools, send, onTermData, onTermReplay, onTermExit, onTerms]);
+  }, [updateThread, patchRunMsg, migrateKey, reconcileTools, send, reopenMsg, onTermData, onTermReplay, onTermExit, onTerms]);
 
   const connect = useCallback(() => {
     // Fecha+neutraliza o socket anterior ANTES de abrir outro. Sem isto, sockets
@@ -1206,9 +1228,9 @@ export function useCockpit(): Cockpit {
     // parou de me responder"). mergeHistory deduplica, então o re-open é barato e
     // idempotente; respeita a visão completa pra não reverter pro resumido.
     const act = activeRef.current;
-    if (act && !act.startsWith('new-') && send({ t: fullViewId.current === act ? 'open-full' : 'open', sessionId: act })) opened.current.add(act);
+    if (act && !act.startsWith('new-') && send(reopenMsg(act))) opened.current.add(act);
     reattach();
-  }, [send, reattach]);
+  }, [send, reattach, reopenMsg]);
 
   // Reconexão proativa (visibilidade/rede): não espera o backoff. Socket morto em
   // silêncio (mobile) reabre na hora; socket vivo só reconcilia o estado durável.
@@ -1642,8 +1664,16 @@ export function useCockpit(): Cockpit {
   // mensagens antes de um /compact somem — este botão recupera tudo.
   const onOpenFull = useCallback((id: string) => {
     if (!id || id.startsWith('new-')) return;
-    fullViewId.current = id;
+    viewMode.current[id] = 'full';
     send({ t: 'open-full', sessionId: id });
+  }, [send]);
+
+  // Cada clique busca a página ANTERIOR à mensagem mais antiga na tela e prepende.
+  // Repetível até o começo da sessão, sem teto — e cada frame tem tamanho fixo.
+  const onLoadOlder = useCallback((id: string) => {
+    if (!id || id.startsWith('new-')) return;
+    viewMode.current[id] = 'full';
+    send({ t: 'open-full', sessionId: id, before: threadsRef.current[id]?.[0]?.id });
   }, [send]);
 
   // Volta do histórico completo pro resumido (só o caminho ativo, capado em
@@ -1651,8 +1681,8 @@ export function useCockpit(): Cockpit {
   // mão-única (carregava tudo e não dava pra recolher).
   const onOpenSummary = useCallback((id: string) => {
     if (!id || id.startsWith('new-')) return;
-    if (fullViewId.current === id) fullViewId.current = null;
-    send({ t: 'open', sessionId: id });
+    viewMode.current[id] = 'chain';
+    send({ t: 'open', sessionId: id, chainOnly: true });
   }, [send]);
 
   const messages = threads[activeId] || [];
@@ -1773,5 +1803,5 @@ export function useCockpit(): Cockpit {
     savePref('modelBySession', keep);
   }, [modelBySession]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, cronsLoaded, onCronsGet, onCronSave, onCronDelete, onCronRun, points, pointsTotal, pointsLoaded, onPointsGet, onPointsAdd, onPointsCorrect, onPointsNote, onPointsDelete, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync, onDflChange, onDflInvoice, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused };
+  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, cronsLoaded, onCronsGet, onCronSave, onCronDelete, onCronRun, points, pointsTotal, pointsLoaded, onPointsGet, onPointsAdd, onPointsCorrect, onPointsNote, onPointsDelete, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync, onDflChange, onDflInvoice, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused };
 }

@@ -7,7 +7,11 @@ import type { Message } from '../../shared/protocol';
 // Isto é o #165. mergeHistory mantém as mensagens locais em voo (id ausente no
 // snapshot E mais novas que ele) anexadas ao fim; quando persistirem, o próximo
 // snapshot já as inclui e o dedup por id evita duplicata.
-export function mergeHistory(incoming: Message[], local: Message[]): Message[] {
+// keepOlder: o snapshot é só a ÚLTIMA página de uma sessão que o usuário já paginou
+// pra trás. As locais anteriores à primeira mensagem que o snapshot repete são
+// histórico legítimo já carregado — sem isto, cada session-touched encolhia a janela
+// de volta pro fim e o scroll saltava.
+export function mergeHistory(incoming: Message[], local: Message[], keepOlder = false): Message[] {
   if (!local.length) return incoming;
   const byId = new Map(local.map((m) => [m.id, m]));
   // Stats do turno: o snapshot do JSONL não tem costUsd (só o stream ao vivo tem)
@@ -46,5 +50,20 @@ export function mergeHistory(incoming: Message[], local: Message[]): Message[] {
   }
   const lastTs = incoming.length ? (incoming[incoming.length - 1].ts ?? 0) : 0;
   const inflight = local.filter((m) => !ids.has(m.id) && m.ts !== undefined && m.ts >= lastTs);
-  return inflight.length ? [...merged, ...inflight] : merged;
+  const tail = inflight.length ? [...merged, ...inflight] : merged;
+  if (!keepOlder) return tail;
+  // Corta no PRIMEIRO id que o snapshot também tem: tudo antes é a janela profunda
+  // que o usuário abriu. Por posição, não por ts — divisores (compact/pr) podem não
+  // ter timestamp e sumiriam numa comparação numérica.
+  const cut = local.findIndex((m) => ids.has(m.id));
+  return cut > 0 ? [...local.slice(0, cut), ...tail] : tail;
+}
+
+// Página ANTERIOR à que o cliente já tem ("carregar antigas"): concatena na frente
+// em vez de trocar o thread. Sem isto, paginar pra trás jogaria fora tudo que já
+// estava na tela — o merge normal trata `incoming` como snapshot autoritativo.
+export function prependHistory(older: Message[], local: Message[]): Message[] {
+  if (!older.length) return local;
+  const ids = new Set(older.map((m) => m.id));
+  return [...older, ...local.filter((m) => !ids.has(m.id))];
 }

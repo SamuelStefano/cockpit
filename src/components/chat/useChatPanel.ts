@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { prettyModel } from './toolbar.format';
 import type { Session, Message } from '../../data/mock';
 import type { PermMode, ModelInfo, ParkedView } from '../../../shared/protocol';
@@ -121,6 +121,34 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
 
   const scrollToLastPrompt = () => lastPromptNode()?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
+  // Carregar mensagens antigas insere conteúdo ACIMA do que está à vista. O
+  // container mantém o scrollTop numérico, então a leitura pulava pro topo.
+  // Guardamos a linha do topo da viewport e sua distância pro topo; depois do
+  // paint reposicionamos por ela. Solta o pin no ato: senão o efeito de pin
+  // (que roda DEPOIS deste layout effect) jogaria tudo pro fim.
+  const anchorRef = useRef<{ id: string; top: number } | null>(null);
+
+  const captureAnchor = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const base = el.getBoundingClientRect().top;
+    for (const node of el.querySelectorAll<HTMLElement>('[data-mid]')) {
+      const top = node.getBoundingClientRect().top - base;
+      if (top >= 0) { anchorRef.current = { id: node.dataset.mid!, top }; break; }
+    }
+    pinnedRef.current = false;
+  };
+
+  useLayoutEffect(() => {
+    const a = anchorRef.current;
+    const el = scrollRef.current;
+    if (!a || !el) return;
+    anchorRef.current = null;
+    const node = el.querySelector<HTMLElement>(`[data-mid="${CSS.escape(a.id)}"]`);
+    if (!node) return;
+    el.scrollTop += node.getBoundingClientRect().top - el.getBoundingClientRect().top - a.top;
+  }, [messages]);
+
   useEffect(() => {
     const el = scrollRef.current;
     let raf = 0;
@@ -160,7 +188,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
         : undefined;
 
   return {
-    scrollRef, atBottom, promptAbove, onScroll, scrollToBottom, scrollToLastPrompt,
+    scrollRef, atBottom, promptAbove, onScroll, scrollToBottom, scrollToLastPrompt, captureAnchor,
     queued, queuedAtts, enqueue, clearQueue, cancelQueueAt, editQueuedAt, moveQueuedItem, fullLoaded, setFullLoaded,
     streaming, disabled, isEmpty,
     sentHistory, modelLabel, labelFor,

@@ -100,13 +100,26 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'open': {
       const parsed = await parseSession(msg.sessionId);
       if (!parsed) { send(ws, { t: 'error', message: 'sessão inválida' }); return; }
+      // Pós-/compact o CLI ramifica de um summary e o histórico anterior sai do
+      // caminho parentUuid: a cadeia ativa encolhe pra dezenas de mensagens numa
+      // sessão de milhares — é o "o chat mostra muito pouco". Quando a timeline
+      // completa tem substancialmente mais, ela é a visão honesta. `chainOnly` =
+      // o usuário pediu explicitamente o resumido, então não sobrepõe.
+      if (parsed.truncated && !msg.chainOnly) {
+        const full = await parseFullSession(msg.sessionId);
+        if (full && full.messages.length >= parsed.messages.length * 2) {
+          send(ws, { t: 'history', sessionId: msg.sessionId, messages: full.messages, tokens: full.tokens, full: true, truncated: full.truncated, todos: full.todos });
+          return;
+        }
+      }
       send(ws, { t: 'history', sessionId: msg.sessionId, messages: parsed.messages, tokens: parsed.tokens, truncated: parsed.truncated, todos: parsed.todos });
       return;
     }
     case 'open-full': {
-      const parsed = await parseFullSession(msg.sessionId);
+      const before = typeof msg.before === 'string' ? msg.before : undefined;
+      const parsed = await parseFullSession(msg.sessionId, before);
       if (!parsed) { send(ws, { t: 'error', message: 'sessão inválida' }); return; }
-      send(ws, { t: 'history', sessionId: msg.sessionId, messages: parsed.messages, tokens: parsed.tokens, full: true, truncated: parsed.truncated, todos: parsed.todos });
+      send(ws, { t: 'history', sessionId: msg.sessionId, messages: parsed.messages, tokens: parsed.tokens, full: true, prepend: !!before, truncated: parsed.truncated, todos: parsed.todos });
       return;
     }
     case 'hide': {
