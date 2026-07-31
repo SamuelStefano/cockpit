@@ -492,6 +492,14 @@ export function useCockpit(): Cockpit {
   }, []);
 
   const [handoffBusy, setHandoffBusy] = useState(false);
+  const handoffTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A resposta do handoff pode nunca chegar (socket cai, rate-limit/authz respondem
+  // um `error` sem sessionKey). Sem destravar aqui o botão fica "Migrando…" até um
+  // reload da página.
+  const endHandoff = useCallback(() => {
+    if (handoffTimer.current) { clearTimeout(handoffTimer.current); handoffTimer.current = null; }
+    setHandoffBusy(false);
+  }, []);
 
   const onNew = useCallback(() => {
     const id = newId('new-');
@@ -499,6 +507,7 @@ export function useCockpit(): Cockpit {
     setSessions((prev) => [s, ...prev.map((x) => ({ ...x, active: false }))]);
     setThreads((prev) => ({ ...prev, [id]: [] }));
     focusSession(id);
+    return id;
   }, [focusSession]);
 
   const onServer = useCallback((msg: ServerMsg) => {
@@ -896,9 +905,12 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'handoff-result': {
-        setHandoffBusy(false);
+        endHandoff();
         if (!msg.ok) { toast(msg.error || 'não consegui migrar a sessão', { tone: 'error', durationMs: 8000 }); return; }
-        onNew();
+        // Sem semear o rascunho o chat novo nasce vazio e o slug do contexto só
+        // existiria no toast — a migração não migraria nada de fato.
+        const fresh = onNew();
+        setDrafts((d) => ({ ...d, [fresh]: `Retome o trabalho a partir do contexto \`${msg.contextId}\`.` }));
         toast(`Contexto salvo em ${msg.contextId} — sessão arquivada`, { durationMs: 8000 });
         return;
       }
@@ -1098,6 +1110,7 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'error': {
+        endHandoff();
         // Erro escopado a um turno (tem sessionKey) → encerra ESSE turno e mostra.
         // Erro sem key (top-level: authz negada, rate-limit) NÃO pode tocar o turno
         // ativo: o `delete runMsg.current` matava o ponteiro da bolha em voo e os
@@ -1129,7 +1142,7 @@ export function useCockpit(): Cockpit {
         return;
       }
     }
-  }, [updateThread, patchRunMsg, migrateKey, reconcileTools, send, reopenMsg, onTermData, onTermReplay, onTermExit, onTerms, onNew]);
+  }, [updateThread, patchRunMsg, migrateKey, reconcileTools, send, reopenMsg, onTermData, onTermReplay, onTermExit, onTerms, onNew, endHandoff]);
 
   const connect = useCallback(() => {
     // Fecha+neutraliza o socket anterior ANTES de abrir outro. Sem isto, sockets
@@ -1195,6 +1208,7 @@ export function useCockpit(): Cockpit {
       if (!isCurrent()) return;
       setConn({ ws: 'down', sse: 'down' });
       failAllBenchPending();
+      endHandoff();
       // 4401 = servidor exige token e o nosso falta/está errado. NÃO re-tenta em
       // loop: mostra o login. Qualquer outro código = queda de rede → backoff.
       if (ev.code === 4401) { setAuthRequired(true); return; }
@@ -1519,6 +1533,9 @@ export function useCockpit(): Cockpit {
   const onHandoff = useCallback((sessionId: string) => {
     if (!sessionId || sessionId.startsWith('new-')) return;
     setHandoffBusy(true);
+    // Teto acima do timeout da API no servidor (60s): se nem erro voltar, destrava.
+    if (handoffTimer.current) clearTimeout(handoffTimer.current);
+    handoffTimer.current = setTimeout(() => { handoffTimer.current = null; setHandoffBusy(false); }, 90_000);
     send({ t: 'session-handoff', sessionId });
   }, [send]);
 

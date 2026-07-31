@@ -468,8 +468,6 @@ export type ClientMsg =
   | { t: 'points-dfl-change'; reqId: string; taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string }
   | { t: 'points-dfl-invoice'; reqId: string; deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number }[] }
   | { t: 'ctx-install'; slug: string; title: string; body: string }
-  // Sessão lotada: destila contexto + tarefas num .md de contexto e arquiva a
-  // sessão, pra recomeçar num chat limpo sem perder o fio.
   | { t: 'session-handoff'; sessionId: string }
   | { t: 'skill-install'; slug: string; title: string; body: string }
   | { t: 'crons-get' }

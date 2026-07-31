@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { handoffSlug, handoffPrompt, parseHandoffResponse, handoffDescription, handoffFile } from './handoff';
+import { handoffSlug, handoffPrompt, parseHandoffResponse, handoffDescription, handoffFile, headTail } from './handoff';
 import type { Message } from '../shared/protocol';
 
 const at = new Date('2026-07-31T23:30:00Z'); // 20:30 BRT do mesmo dia
@@ -43,6 +43,20 @@ describe('handoffDescription', () => {
 
   it('cai num rótulo genérico quando não há fala do usuário', () => {
     expect(handoffDescription([])).toBe('sessão migrada');
+  });
+});
+
+describe('headTail', () => {
+  it('devolve o texto inteiro quando cabe', () => {
+    expect(headTail('curto', 100)).toBe('curto');
+  });
+
+  it('preserva começo e fim, respeitando o teto', () => {
+    const text = `${'a'.repeat(500)}${'b'.repeat(500)}${'c'.repeat(500)}`;
+    const out = headTail(text, 100);
+    expect(out.startsWith('a'.repeat(40))).toBe(true);
+    expect(out.endsWith('c'.repeat(60))).toBe(true);
+    expect(out).toContain('trecho do meio omitido');
   });
 });
 

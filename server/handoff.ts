@@ -6,14 +6,13 @@ import { parseSession } from './sessions/parse';
 import { apiKey, transcriptText } from './summary';
 import { hideSession } from './store';
 
-// Handoff de sessão lotada: destila a conversa num .md de Contextos e arquiva a
-// sessão, pra o usuário recomeçar num chat limpo sem reenviar 150k tokens por
-// turno. Segundo write path do memoryDir (o 1º é installContext), então repete
-// os mesmos guards: slug allow-listado, prefixo próprio e anti-traversal.
+// Segundo write path do memoryDir (o 1º é installContext), então repete os mesmos
+// guards: slug allow-listado, prefixo próprio e anti-traversal.
 
 const SLUG_RE = /^[a-zA-Z0-9_-]{1,80}$/;
-const TRANSCRIPT_CAP = 24_000; // ~6k tokens de input: o handoff precisa de mais cauda que o resumo de uma linha
-const MAX_BODY_BYTES = 256 * 1024;
+const TRANSCRIPT_CAP = 24_000; // ~6k tokens de input
+const MAX_BODY_CHARS = 32_000;
+const inFlight = new Set<string>();
 
 const INSTR = [
   'Você está migrando uma sessão de trabalho lotada para um chat novo.',
@@ -35,6 +34,15 @@ function brtDay(at: Date): string {
 export function handoffSlug(sessionId: string, at = new Date()): string {
   const short = String(sessionId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) || 'sessao';
   return `handoff-${brtDay(at)}-${short}`;
+}
+
+// O briefing precisa das decisões do COMEÇO e do estado do FIM. Cortar só a cauda
+// (o que basta pro resumo de uma linha) descartaria justamente o que a migração
+// existe pra preservar.
+export function headTail(text: string, cap: number): string {
+  if (text.length <= cap) return text;
+  const head = Math.floor(cap * 0.4);
+  return `${text.slice(0, head)}\n\n[...trecho do meio omitido...]\n\n${text.slice(text.length - (cap - head))}`;
 }
 
 export function handoffPrompt(transcript: string): string {
@@ -82,29 +90,36 @@ async function callAnthropic(key: string, transcript: string): Promise<string | 
 export async function handoffSession(sessionId: string): Promise<{ contextId: string } | { error: string }> {
   const key = apiKey();
   if (!key) return { error: 'sem chave da API para destilar o contexto' };
-
-  const parsed = await parseSession(sessionId);
-  if (!parsed || parsed.messages.length === 0) return { error: 'sessão sem conversa para migrar' };
-  const transcript = transcriptText(parsed.messages, TRANSCRIPT_CAP);
-  if (!transcript) return { error: 'sessão sem conversa para migrar' };
-
-  let body: string | null;
-  try { body = await callAnthropic(key, transcript); }
-  catch { return { error: 'falha ao contatar a API' }; }
-  if (!body) return { error: 'não consegui destilar o contexto' };
-  if (Buffer.byteLength(body) > MAX_BODY_BYTES) body = body.slice(0, MAX_BODY_BYTES);
-
-  const id = handoffSlug(sessionId);
-  if (!SLUG_RE.test(id)) return { error: 'slug inválido' };
-  const dir = resolve(CONFIG.memoryDir);
-  const full = resolve(join(dir, `${id}.md`));
-  if (!full.startsWith(dir + '/') || basename(full) !== `${id}.md`) return { error: 'caminho inválido' };
-
+  // Cada handoff é uma chamada paga de ~6k tokens de input: sem este guard um
+  // cliente qualquer disparava N destilações da mesma sessão em paralelo.
+  if (inFlight.has(sessionId)) return { error: 'migração já em andamento' };
+  inFlight.add(sessionId);
   try {
-    await mkdir(dir, { recursive: true });
-    await writeFile(full, handoffFile(id, handoffDescription(parsed.messages), body), 'utf8');
-  } catch { return { error: 'falha ao gravar o contexto' }; }
+    const parsed = await parseSession(sessionId);
+    if (!parsed || parsed.messages.length === 0) return { error: 'sessão sem conversa para migrar' };
+    const transcript = headTail(transcriptText(parsed.messages, Infinity), TRANSCRIPT_CAP);
+    if (!transcript) return { error: 'sessão sem conversa para migrar' };
 
-  await hideSession(sessionId);
-  return { contextId: id };
+    let body: string | null;
+    try { body = await callAnthropic(key, transcript); }
+    catch { return { error: 'falha ao contatar a API' }; }
+    if (!body) return { error: 'não consegui destilar o contexto' };
+    body = body.slice(0, MAX_BODY_CHARS);
+
+    const id = handoffSlug(sessionId);
+    if (!SLUG_RE.test(id)) return { error: 'slug inválido' };
+    const dir = resolve(CONFIG.memoryDir);
+    const full = resolve(join(dir, `${id}.md`));
+    if (!full.startsWith(dir + '/') || basename(full) !== `${id}.md`) return { error: 'caminho inválido' };
+
+    try {
+      await mkdir(dir, { recursive: true });
+      await writeFile(full, handoffFile(id, handoffDescription(parsed.messages), body), 'utf8');
+    } catch { return { error: 'falha ao gravar o contexto' }; }
+
+    await hideSession(sessionId);
+    return { contextId: id };
+  } finally {
+    inFlight.delete(sessionId);
+  }
 }
