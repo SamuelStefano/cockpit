@@ -17,6 +17,7 @@ export interface Rec {
   type: string;
   uuid?: string;
   parentUuid?: string | null;
+  logicalParentUuid?: string | null;
   message?: { role: string; content: unknown; usage?: Usage; model?: string; id?: string };
   leafUuid?: string;
   timestamp?: string;
@@ -94,7 +95,11 @@ export function activeChain(byUuid: Map<string, Rec>, leaf: string | undefined, 
     guard.add(cur);
     const r = byUuid.get(cur)!;
     if (r.type === 'user' || r.type === 'assistant') chain.push(r);
-    cur = r.parentUuid ?? undefined;
+    // Na compactação o CLI corta o fio: o record `compact_boundary` nasce com
+    // parentUuid null e guarda o elo real em logicalParentUuid. Sem seguir esse
+    // elo a caminhada morria ali e TUDO antes da compactação — inclusive o
+    // prompt que abriu o turno — sumia da thread.
+    cur = r.parentUuid ?? r.logicalParentUuid ?? undefined;
   }
   chain.reverse();
   return chain;
