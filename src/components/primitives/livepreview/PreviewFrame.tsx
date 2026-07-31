@@ -18,7 +18,7 @@ const SRCDOC: Record<Mode, string> = {
 // no nativo, coluna fluida ou moldura de largura fixa (viewport) no web. `width`
 // só vale pro web — null = fluido (100%), número = moldura centralizada.
 export function PreviewFrame({
-  frameRef, mode, height, width, overlay, srcDoc, title = 'live preview',
+  frameRef, mode, height, width, overlay, srcDoc, title = 'live preview', fill = false,
 }: {
   frameRef: RefObject<HTMLIFrameElement>;
   mode: Mode;
@@ -28,6 +28,8 @@ export function PreviewFrame({
   /** Documento próprio (o bench tem o seu); sem isto vale o do modo. */
   srcDoc?: string;
   title?: string;
+  /** Ocupa a altura do container em vez da altura medida do conteúdo. */
+  fill?: boolean;
 }) {
   const frame = (
     <iframe ref={frameRef} title={title} sandbox="allow-scripts" srcDoc={srcDoc ?? SRCDOC[mode]} />
@@ -60,11 +62,15 @@ export function PreviewFrame({
     );
   }
 
+  // Em tela cheia a altura medida do conteúdo é teto, não alvo: a tela do repo
+  // alvo costuma ser mais alta que o card e ficaria cortada de novo.
+  const box = fill ? { height: '100%' } : { height };
+
   return (
-    <div className="relative bg-white">
+    <div className={`relative bg-white ${fill ? 'h-full' : ''}`}>
       {overlay}
-      <div className="[&>iframe]:block [&>iframe]:w-full [&>iframe]:border-0" style={{ height }}>
-        <div className="[&>iframe]:h-full" style={{ height }}>{frame}</div>
+      <div className="[&>iframe]:block [&>iframe]:w-full [&>iframe]:border-0" style={box}>
+        <div className="[&>iframe]:h-full" style={box}>{frame}</div>
       </div>
     </div>
   );

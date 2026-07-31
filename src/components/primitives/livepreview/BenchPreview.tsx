@@ -9,6 +9,7 @@ import { IFRAME_HTML_BENCH } from './iframeHtmlBench';
 import { CodeEditor } from './CodeEditor';
 import { ConsolePanel } from './ConsolePanel';
 import { ErrorOverlay, ctrlBtn } from './ErrorOverlay';
+import { FullscreenStudio } from './FullscreenStudio';
 import { PreviewFrame } from './PreviewFrame';
 import { VIEWPORTS } from './viewports';
 
@@ -22,6 +23,7 @@ export function BenchPreview({ code, repo }: { code: string; repo: string }) {
   const [tab, setTab] = useState<Tab>('preview');
   const [vp, setVp] = useState('fluid');
   const [showConsole, setShowConsole] = useState(false);
+  const [full, setFull] = useState(false);
   const [copied, copy] = useCopied(1200);
 
   const width = VIEWPORTS.find((v) => v.id === vp)?.width ?? null;
@@ -47,6 +49,7 @@ export function BenchPreview({ code, repo }: { code: string; repo: string }) {
             <Icon name="terminal" size={12} />
             {logs.length > 0 && !showConsole && <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-orange-400" />}
           </button>
+          {armed && <button onClick={() => setFull(true)} title="Abrir no studio (tela cheia)" className={ctrlBtn(false)}><Icon name="maximize" size={12} /></button>}
           {dirty && <button onClick={reset} title="Voltar ao código original" className={ctrlBtn(false)}><Icon name="rotate" size={12} /></button>}
           <button onClick={() => copy(draft)} title="Copiar código" className={ctrlBtn(false)}><Icon name={copied ? 'check' : 'copy'} size={12} /></button>
           <button onClick={() => download('bench.tsx', 'text/plain', draft)} title="Baixar código" className={ctrlBtn(false)}><Icon name="download" size={12} /></button>
@@ -67,6 +70,8 @@ export function BenchPreview({ code, repo }: { code: string; repo: string }) {
           </p>
           <Button size="sm" icon="play" onClick={arm}>compilar</Button>
         </div>
+      ) : full ? (
+        <div className="px-3 py-6 text-center font-mono text-[11px] text-neutral-600">aberto no studio…</div>
       ) : (
         <PreviewFrame
           frameRef={ref}
@@ -79,6 +84,28 @@ export function BenchPreview({ code, repo }: { code: string; repo: string }) {
         />
       )}
       {showConsole && <ConsolePanel logs={logs} onClear={clearLogs} />}
+
+      <FullscreenStudio
+        open={full}
+        onClose={() => setFull(false)}
+        title={`Bench — ${repo}`}
+        startWide
+        logs={logs}
+        onClearLogs={clearLogs}
+        editor={<CodeEditor value={draft} onChange={setDraft} mode="react" heightClass="h-full" />}
+        frame={
+          <PreviewFrame
+            frameRef={ref}
+            mode="react"
+            height={height}
+            width={null}
+            fill
+            srcDoc={IFRAME_HTML_BENCH}
+            title={`bench ${repo}`}
+            overlay={error ? <ErrorOverlay message={error} /> : null}
+          />
+        }
+      />
     </div>
   );
 }
