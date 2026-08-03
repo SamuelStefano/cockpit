@@ -163,6 +163,23 @@ describe('buildArgs', () => {
     expect(argsOf({ prompt: 'x' })).not.toContain('--effort');
   });
 
+  it('aceita o id nativo do provedor roteado (glm-4.6, qwen3-coder-plus, MiniMax-M2)', () => {
+    for (const m of ['glm-4.6', 'qwen3-coder-plus', 'MiniMax-M2', 'deepseek-chat', 'openai/gpt-oss-120b']) {
+      expect(valAfter(argsOf({ prompt: 'x', model: m }), '--model'), m).toBe(m);
+    }
+  });
+
+  it('nunca deixa o modelo virar flag no argv', () => {
+    for (const m of ['--dangerously-skip-permissions', '-p', ' glm', 'glm 4.6', '']) {
+      expect(argsOf({ prompt: 'x', model: m }), m).not.toContain('--model');
+    }
+  });
+
+  it('suprime --fallback-model fora da Anthropic (o nome não existe no outro provedor)', () => {
+    expect(argsOf({ prompt: 'x', model: 'claude-opus-4-8' })).toContain('--fallback-model');
+    expect(argsOf({ prompt: 'x', model: 'glm-4.6', nativeAnthropic: false })).not.toContain('--fallback-model');
+  });
+
   it('allow-lists effort, dropping unknown levels', () => {
     for (const e of ['low', 'medium', 'high', 'xhigh', 'max']) {
       expect(valAfter(argsOf({ prompt: 'x', effort: e }), '--effort')).toBe(e);

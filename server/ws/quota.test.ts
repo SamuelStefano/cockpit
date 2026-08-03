@@ -81,3 +81,15 @@ describe('burnedByQuota', () => {
     expect(burnedByQuota({ limited: false, tools: 0, text: ensaio })).toBe(false);
   });
 });
+
+describe('quotaHoldUntil com rota alternativa', () => {
+  it('não segura a fila quando o roteador já saiu do plano', () => {
+    const hold = quotaHoldUntil(rate('rate_limited', NOW + 3_600_000), plan(100, NOW + 3_600_000), NOW, false);
+    expect(hold).toBe(0);
+  });
+
+  it('segue segurando enquanto a rota ativa é o plano', () => {
+    const hold = quotaHoldUntil(rate('rate_limited', NOW + 3_600_000), null, NOW, true);
+    expect(hold).toBe(NOW + 3_600_000);
+  });
+});

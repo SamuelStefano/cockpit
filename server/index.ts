@@ -10,6 +10,8 @@ import { sweepAttachments } from './attachments';
 import { checkpointWal, sweepUsage } from './db';
 import { sweepMcpConfigs } from './engine/claude';
 import { loadManagedEnv } from './admin-ops';
+import { loadRouting } from './router/state';
+import { startRouteBroadcast } from './ws/routes';
 import { CONFIG } from './config';
 
 const distDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
@@ -17,6 +19,8 @@ const distDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 async function main() {
   await mkdir(CONFIG.workdir, { recursive: true }); // cwd isolado (DR-004 #4)
   await loadManagedEnv(); // tokens gerenciados (#162) p/ o spawn herdar
+  loadRouting();          // rota ativa + cooldowns; depois do env, que é de onde as chaves saem
+  startRouteBroadcast();
 
   const serveStatic = makeStatic(distDir);
 

@@ -1,6 +1,7 @@
 import type { PlanUsage } from '../../shared/protocol';
 import { getRateSnapshot, type RateSnapshot } from './rate';
 import { getLastPlanUsage, requestPlanUsageRefresh } from './usage-plan';
+import { hasFallbackRoute, isPlanRoute, switchOnPlanExhausted } from '../router/state';
 
 // Teto de tokens do plano: enquanto vale, NENHUMA fila drena. Sem este gate o
 // drainer disparava o prompt estacionado contra uma sessão sem token — o turno
@@ -14,8 +15,11 @@ export const PLAN_FULL_PCT = 99.5;
 // hold eterno deixaria a fila parada a noite toda (o oposto do bug que ela resolve).
 export const UNKNOWN_HOLD_MS = 30 * 60_000;
 
-// Epoch ms até quando a fila deve segurar; 0 = livre pra drenar.
-export function quotaHoldUntil(rate: RateSnapshot | null, usage: PlanUsage | null, now: number): number {
+// Epoch ms até quando a fila deve segurar; 0 = livre pra drenar. `planActive` falso
+// = o roteador já apontou pra outro provedor: rate e usage descrevem a conta OAuth
+// da Anthropic e não dizem nada sobre a cota de quem está rodando agora.
+export function quotaHoldUntil(rate: RateSnapshot | null, usage: PlanUsage | null, now: number, planActive = true): number {
+  if (!planActive) return 0;
   let until = 0;
   if (rate && !ALLOWED.has(rate.status)) {
     const t = rate.resetsAt > 0 ? rate.resetsAt : rate.setAt + UNKNOWN_HOLD_MS;
@@ -31,10 +35,22 @@ export function quotaHoldUntil(rate: RateSnapshot | null, usage: PlanUsage | nul
 
 // Hold ao vivo (sinais em memória do agente). Enquanto segura, pede um refresh do
 // usage pra soltar a fila assim que a janela virar, sem esperar o poll de 60s.
+//
+// Com o roteador ligado o teto do plano deixa de ser motivo pra dormir: em vez de
+// segurar a fila até o reset, troca pro melhor provedor disponível e segue drenando.
+// Só volta a segurar quando NÃO há pra onde ir — aí o hold antigo é o certo.
 export function quotaHold(now = Date.now()): number {
-  const until = quotaHoldUntil(getRateSnapshot(), getLastPlanUsage(), now);
-  if (until) requestPlanUsageRefresh();
+  const until = quotaHoldUntil(getRateSnapshot(), getLastPlanUsage(), now, isPlanRoute());
+  if (!until) return 0;
+  requestPlanUsageRefresh();
+  if (hasFallbackRoute(now) && switchOnPlanExhausted(until, now)) return 0;
   return until;
+}
+
+// Os sinais do plano indicam teto batido AGORA? Diferente de `quotaHold`: não olha
+// a rota ativa nem troca de provedor — é o fato cru que o classificador consome.
+export function planLimited(now = Date.now()): boolean {
+  return quotaHoldUntil(getRateSnapshot(), getLastPlanUsage(), now) > 0;
 }
 
 const QUOTA_TEXT = /usage limit|limit reached|out of (tokens|credits)|limite de uso|sem tokens|tokens esgotad/i;

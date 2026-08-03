@@ -10,7 +10,8 @@ import { classify, quickAnswer, killSideRuns, killSideRunsFor } from '../engine/
 import { suggestFollowups } from '../engine/suggest';
 import { awaitingAnswer } from './awaiting';
 import { parkedHeads, shiftParked, unshiftParked, addParked, parkedView, isQueuePaused, setQueuePaused, MAX_PARKED_ATTEMPTS, type ParkedItem } from './parked';
-import { quotaHold, burnedByQuota } from './quota';
+import { quotaHold, burnedByQuota, planLimited } from './quota';
+import { reportOutcome } from '../router/state';
 import { markRunLive, clearRunLive, takeOrphanRuns } from './recover';
 import { recordIncident } from './incidents';
 
@@ -49,6 +50,7 @@ export interface Thread {
   reaped?: StaleReason; // morto pelo reaper: usa stopped (sem notificar "concluído") MAS tem direito a retomada automática
   questioned?: boolean; // turno fez AskUserQuestion: o `claude -p` auto-resolve e CONTINUA gerando — suprime tudo que vier depois pra a pergunta ficar como última (respondível)
   parked?: ParkedItem;  // item que a fila estacionada drenou neste turno; volta pra fila se o teto de tokens matar o turno sem consumi-lo
+  lastError?: string;   // último erro reportado pelo processo; é o sinal que o roteador classifica pra decidir se troca de provedor
   // Snapshot acumulado p/ replay no reconnect (#10). Os frames vão por broadcast.
   text: string;
   thinking: string;
@@ -470,6 +472,7 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
       }
     },
     onError: (message) => {
+      thread.lastError = message;
       broadcast({ t: 'error', sessionKey, message });
       recordIncident({ kind: 'run-error', sessionKey, sessionId: thread.sessionId, detail: message.slice(0, 400) });
     },
@@ -479,6 +482,12 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
       // 'done' prematuro nem apagar a entrada do novo run.
       if (threads.get(sessionKey) !== thread) return;
       if (live && !preserveLiveOnClose) clearRunLive(sessionKey); // fechou: não é mais órfão (salvo no shutdown, onde o boot retoma)
+      // Veredito do roteador ANTES do hold: se o provedor atual esgotou, a troca
+      // acontece aqui e o `quotaHold()` abaixo já responde pela rota nova (livre).
+      // Stop do usuário não é falha de provedor — não pode abrir breaker nenhum.
+      if (!thread.userStopped) {
+        reportOutcome({ limited: planLimited(), tools: thread.tools.length, text: thread.text, error: thread.lastError });
+      }
       // Teto de tokens: um veredito só pro fechamento inteiro (devolver o item
       // drenado, segurar as filas e não retomar em cima do limite).
       const hold = quotaHold();

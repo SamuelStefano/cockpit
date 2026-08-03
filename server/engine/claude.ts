@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import type { ClaudeEvent } from './events';
 import { CONFIG } from '../config';
 import { managedEnvSync, mcpServerDefsSync } from '../admin-ops';
+import { routeEnv, routeIsNativeAnthropic, routeModel } from '../router/state';
 import type { Role } from '../auth';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -43,9 +44,10 @@ export interface RunOpts {
 
 const EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
 const MODELS = new Set(['opus', 'sonnet', 'haiku']);
-// id concreto vindo de /v1/models (ex: claude-opus-4-8). Ancorado e restrito a
-// [a-z0-9-] pra não virar vetor de injeção de flag no argv.
-const MODEL_ID_RE = /^claude-[a-z0-9-]+$/;
+// id concreto do provedor ativo: claude-opus-4-8, glm-4.6, qwen3-coder-plus,
+// MiniMax-M2. Ancorado, sem espaço e obrigado a começar com alfanumérico — é isso
+// que impede o valor de virar uma flag no argv.
+const MODEL_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$/;
 function validModel(m: string): boolean { return MODELS.has(m) || MODEL_ID_RE.test(m); }
 
 export interface RunHandle {
@@ -58,10 +60,13 @@ export interface RunHandle {
 // - env mínimo (não vaza segredo do processo pai)
 // - cwd isolado
 // - detached pra matar a árvore no stop
-export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills'>;
+export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills'>
+  // Rota ativa não é a Anthropic: `--fallback-model` fala nomes que só a Anthropic
+  // conhece e derrubaria o turno inteiro num provedor alternativo.
+  & { nativeAnthropic?: boolean };
 
 export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: string[] } | { error: string } {
-  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills } = opts;
+  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, nativeAnthropic = true } = opts;
   const { permissionMode, allow } = resolveMode(mode, { bypass, role });
 
   const args = [
@@ -81,7 +86,7 @@ export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: 
   // Nível de pensamento. Sem a flag o CLI usa o default da conta (alto) e queima
   // thinking tokens até em pedido simples — passar explícito (default low na UI) corta.
   if (effort && EFFORTS.has(effort)) args.push('--effort', effort);
-  if (CONFIG.fallbackModel && validModel(CONFIG.fallbackModel) && CONFIG.fallbackModel !== model) {
+  if (nativeAnthropic && CONFIG.fallbackModel && validModel(CONFIG.fallbackModel) && CONFIG.fallbackModel !== model) {
     args.push('--fallback-model', CONFIG.fallbackModel);
   }
   if (typeof maxBudgetUsd === 'number' && Number.isFinite(maxBudgetUsd) && maxBudgetUsd > 0) {
@@ -118,7 +123,12 @@ export function run(opts: RunOpts): RunHandle {
   }
   const cleanupMcp = () => { if (mcpConfigPath) { try { unlinkSync(mcpConfigPath); } catch { /* já removido */ } mcpConfigPath = undefined; } };
 
-  const built = buildArgs({ prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills }, mcpConfigPath);
+  // A rota ativa decide o nome do modelo: o alias da UI (opus/sonnet/haiku) vira o
+  // id nativo do provedor pra onde o roteador apontou.
+  const built = buildArgs({
+    prompt, resumeId, mode, model: routeModel(model), effort, maxBudgetUsd, bypass, role, disallowedSkills,
+    nativeAnthropic: routeIsNativeAnthropic(),
+  }, mcpConfigPath);
   if ('error' in built) {
     cleanupMcp();
     onError(built.error);
@@ -255,6 +265,9 @@ export function resolveMode(
 // env curto: PATH + HOME + idioma + tokens GERENCIADOS pelo admin (#162). Nada de
 // SUPABASE_*/Infisical herdados do processo — só o que o dono colocou de propósito
 // via painel admin (~/.deck-agent/env.json) entra, pro agente usar nas tools.
+// A rota entra por ÚLTIMO de propósito: se o roteador apontou pra outro provedor,
+// o ANTHROPIC_BASE_URL/token dele tem que vencer um valor solto no env gerenciado —
+// senão o turno sairia com a URL de um provedor e a chave de outro.
 function minimalEnv(): NodeJS.ProcessEnv {
   return {
     PATH: process.env.PATH,
@@ -262,6 +275,7 @@ function minimalEnv(): NodeJS.ProcessEnv {
     LANG: process.env.LANG ?? 'en_US.UTF-8',
     TERM: 'dumb',
     ...managedEnvSync(),
+    ...routeEnv(),
   };
 }
 

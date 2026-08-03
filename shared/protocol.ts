@@ -199,6 +199,34 @@ export interface PlanUsage {
   limits: PlanLimit[];
 }
 
+// Roteador multi-provedor: quando o plano esgota, o Deck troca o `claude` para
+// outro endpoint Anthropic-compat (Z.AI, Qwen, MiniMax…) em vez de dormir até o
+// reset. Projeção enviada ao cliente — a CREDENCIAL nunca sai do servidor, só o
+// NOME da env que a guarda (igual ao painel de tokens).
+export interface RouteView {
+  id: string;
+  label: string;
+  tier: string;                 // plan | free | cheap | paid
+  priority: number;             // menor tenta primeiro
+  enabled: boolean;
+  active: boolean;
+  configured: boolean;          // tem credencial na box
+  authEnv: string | null;       // nome da env, nunca o valor
+  cooldownUntil: number;        // epoch ms; 0 = disponível agora
+  lastKind: string | null;      // último motivo de falha
+  custom: boolean;
+  docsUrl: string;
+  note?: string;
+  models: string;
+  skip: string | null;          // por que não é elegível agora
+}
+
+export interface RoutesSnapshot {
+  enabled: boolean;
+  activeId: string;
+  routes: RouteView[];
+}
+
 // Fila ESTACIONADA (overnight/quota-out): prompt que o usuário enfileirou pra
 // rodar "quando der" — o drainer no servidor dispara sozinho quando a sessão fica
 // ociosa E a quota volta, sem depender do browser aberto. Projeção enviada ao
@@ -425,6 +453,14 @@ export type ClientMsg =
   | { t: 'send'; sessionKey: string; sessionId?: string; text: string; msgId?: string; mode?: PermMode; model?: string; effort?: Effort; maxBudgetUsd?: number; bypass?: boolean; skills?: string[]; mcps?: string[]; auto?: boolean }
   | { t: 'accounts-list' }
   | { t: 'set-admin'; accountId: string; admin: boolean }
+  // Roteador multi-provedor (admin). O valor da chave NUNCA passa por aqui — ela é
+  // cadastrada pelo painel de env (admin-env-set) e referenciada por nome.
+  | { t: 'routes-get' }
+  | { t: 'routes-enable'; on: boolean }
+  | { t: 'route-set'; id: string }
+  | { t: 'route-config'; id: string; enabled?: boolean; priority?: number }
+  | { t: 'route-custom-add'; id: string; label?: string; baseUrl: string; authEnv?: string; authMode?: 'api-key' | 'bearer'; model: string; smallModel?: string; priority?: number }
+  | { t: 'route-custom-remove'; id: string }
   | { t: 'stop'; sessionKey: string }
   // Heartbeat app-level: o cliente manda ping e espera pong. Um socket meio-aberto
   // (relay/NAT dropou sem FIN, laptop dormiu) segue "OPEN" pro browser sem disparar
@@ -593,6 +629,9 @@ export type ServerMsg =
   | { t: 'tool'; sessionKey: string; tool: ToolCall }
   | { t: 'rate'; resetsAt: number; status: string }
   | { t: 'plan-usage'; usage: PlanUsage }
+  | { t: 'routes'; snapshot: RoutesSnapshot }
+  // Troca de rota já feita: o cliente só avisa o usuário (banner/toast).
+  | { t: 'route-switch'; from: string; to: string; label: string; reason: string; kind: string; until: number }
   | { t: 'usage'; sessionKey: string; tokens: number; turnTokens?: number }
   | { t: 'compact'; sessionKey: string; trigger?: string; preTokens?: number; kind?: 'wakeup' | 'pr'; label?: string }
   | { t: 'usage-stats'; stats: UsageStats }

@@ -27,6 +27,7 @@ import { send, broadcast } from './broadcast';
 import { threads, startRun, routeSend, stopSession } from './runs';
 import { addParked, removeParked, editParked, moveParked, clearParked, parkedView, isQueuePaused, setQueuePaused } from './parked';
 import { refreshModels } from './models';
+import { handleRouteMsg } from './routes';
 import { sendDurableSnapshot } from './snapshot';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 import { buildBench } from '../bench';
@@ -331,6 +332,17 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'admin-health': {
       send(ws, { t: 'health', health: await collectHealth() });
+      return;
+    }
+    // Roteador multi-provedor. Admin-only pelo authorize (não entra no allowlist do
+    // student): quem troca a rota decide pra qual endpoint TODO prompt vai.
+    case 'routes-get':
+    case 'routes-enable':
+    case 'route-set':
+    case 'route-config':
+    case 'route-custom-add':
+    case 'route-custom-remove': {
+      handleRouteMsg(ws, msg);
       return;
     }
     // Admin write-ops (#162). authorize() já garante role admin (default-deny);

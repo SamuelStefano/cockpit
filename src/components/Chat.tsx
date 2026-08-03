@@ -14,7 +14,7 @@ import { SaturationBanner } from './chat/SaturationBanner';
 import { useChatPanel, type Phase } from './chat/useChatPanel';
 import { useFileDrop } from './chat/useFileDrop';
 import type { Session, Message, ToolTodo } from '../data/mock';
-import type { PermMode, Effort, ModelInfo, TurnStats, Caps, SkillMeta, ParkedView } from '../../shared/protocol';
+import type { PermMode, Effort, ModelInfo, TurnStats, Caps, SkillMeta, ParkedView, RoutesSnapshot } from '../../shared/protocol';
 import type { Attachment, AttachmentPreview } from '../useCockpit';
 import { AttachmentModal } from './chat/AttachmentModal';
 
@@ -87,6 +87,8 @@ export interface ChatPanelProps {
   isMobile?: boolean;
   quotaPaused?: boolean;
   quotaResetsAt?: number | null;
+  routes?: RoutesSnapshot | null;
+  onOpenRoutes?: () => void;
   queue: ParkedView[];
   queueAdd: (text: string) => void;
   queueRemove: (sessionKey: string, id: string) => void;
@@ -97,7 +99,7 @@ export interface ChatPanelProps {
   queueSetPaused: (v: boolean) => void;
 }
 
-export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, followups, onDismissFollowups, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, followups, onDismissFollowups, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, quotaPaused = false, quotaResetsAt = null, routes = null, onOpenRoutes, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused }: ChatPanelProps) {
   const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear });
   // Modo iterativo: um refino pedido de dentro de um live preview vira o próximo
   // prompt (o card não tem acesso ao compositor — publica no [[refine-bus]]).
@@ -205,7 +207,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
         attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} focusSignal={focusSignal}
         queued={c.queued} queuedAtts={c.queuedAtts} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onEditQueuedAt={c.editQueuedAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
         queuePaused={queuePaused} onToggleQueuePause={() => queueSetPaused(!queuePaused)}
-        paused={quotaPaused} quotaResetsAt={quotaResetsAt} />
+        paused={quotaPaused} quotaResetsAt={quotaResetsAt} routes={routes} onOpenRoutes={onOpenRoutes} />
 
       {attPreview && onAttClose && <AttachmentModal att={attPreview} onClose={onAttClose} />}
     </div>
