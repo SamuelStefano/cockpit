@@ -2,7 +2,7 @@ import type { WebSocket } from 'ws';
 import type { ClientMsg } from '../../shared/protocol';
 import { broadcast, send } from './broadcast';
 import {
-  activeProvider, addCustomProvider, allProviders, onRouteChange, removeCustomProvider,
+  addCustomProvider, allProviders, onRouteChange, removeCustomProvider,
   routesView, setActiveRoute, setOverride, setRoutingEnabled,
 } from '../router/state';
 
@@ -11,11 +11,6 @@ import {
 // socket — é o que mantém o router/ puro o bastante pra testar sem servidor.
 
 type RouteMsg = Extract<ClientMsg, { t: `route${string}` }>;
-
-export function isRouteMsg(t: string): boolean {
-  return t === 'routes-get' || t === 'routes-enable' || t === 'route-set'
-    || t === 'route-config' || t === 'route-custom-add' || t === 'route-custom-remove';
-}
 
 export function handleRouteMsg(ws: WebSocket, msg: RouteMsg): void {
   switch (msg.t) {
@@ -57,8 +52,4 @@ export function startRouteBroadcast(): void {
     broadcast({ t: 'route-switch', from: change.from, to: change.to, label, reason: change.reason, kind: change.kind, until: change.until });
     broadcastRoutes();
   });
-}
-
-export function activeRouteLabel(): string {
-  return activeProvider().label;
 }

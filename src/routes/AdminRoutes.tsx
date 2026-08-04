@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
 import { Button, Icon } from '../components/primitives';
-import type { ClientMsg, RoutesSnapshot } from '../../shared/protocol';
+import type { RoutesSnapshot } from '../../shared/protocol';
 import { sortRoutes } from './admin-routes';
 import { RouteRow } from './RouteRow';
 import { AdminRouteForm } from './AdminRouteForm';
+import type { CustomRouteAdd } from './useCustomRouteDraft';
 
 interface AdminRoutesProps {
   routes: RoutesSnapshot | null;
@@ -11,7 +12,7 @@ interface AdminRoutesProps {
   onRoutesEnable: (on: boolean) => void;
   onRouteSet: (id: string) => void;
   onRouteConfig: (id: string, patch: { enabled?: boolean; priority?: number }) => void;
-  onRouteCustomAdd: (r: Omit<Extract<ClientMsg, { t: 'route-custom-add' }>, 't'>) => void;
+  onRouteCustomAdd: CustomRouteAdd;
   onRouteCustomRemove: (id: string) => void;
 }
 

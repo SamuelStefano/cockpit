@@ -17,7 +17,9 @@ import { fileSig, isFreshUpload } from './components/chat/dedupe-uploads';
 import { encodeAttachments } from './lib/parse-attachments';
 import { loadPendingAtts, savePendingAtts, addPendingAtt, movePendingAtts, clearPendingAtts } from './lib/pending-atts';
 
-export interface RouteSwitchNotice { to: string; label: string; reason: string; at: number }
+// Aviso de uma troca já feita — some assim que vira toast. O estado que a UI lê de
+// verdade é o `routes`; isto é só o pulso.
+export interface RouteSwitchNotice { label: string; reason: string }
 export interface ContextDoc { id: string; title: string; body: string }
 export interface SkillDoc { id: string; name: string; body: string }
 export interface GraphQueryState { question: string; answer: string; tokens: number; miss: boolean }
@@ -794,7 +796,7 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'route-switch': {
-        setRouteSwitch({ to: msg.to, label: msg.label, reason: msg.reason, at: Date.now() });
+        setRouteSwitch({ label: msg.label, reason: msg.reason });
         return;
       }
       case 'suggestions': {

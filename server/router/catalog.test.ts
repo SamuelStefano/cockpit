@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CATALOG, PLAN_PROVIDER_ID, buildCustomProvider, findProvider, isNativeAnthropic, mapModel, slotOf, validateBaseUrl } from './catalog';
+import { CATALOG, PLAN_PROVIDER_ID, buildCustomProvider, findProvider, isNativeAnthropic, isSafeCustom, mapModel, slotOf, validateBaseUrl } from './catalog';
 
 describe('CATALOG', () => {
   it('tem ids únicos', () => {
@@ -57,6 +57,23 @@ describe('validateBaseUrl', () => {
   it('recusa lixo', () => {
     expect(validateBaseUrl('nao-e-url').ok).toBe(false);
   });
+
+  // Loopback disfarçado: o WHATWG normaliza decimal/octal/curto pra 127.0.0.1, mas
+  // o mapeado ::ffff: e o IPv6 link-local/ULA escapariam de um regex só de IPv4.
+  it('recusa loopback e privado disfarçado de IPv6, CGNAT e ponto final', () => {
+    for (const u of [
+      'https://[::1]/x', 'https://[::]/x', 'https://[::ffff:127.0.0.1]/x',
+      'https://[fd00::1]/x', 'https://[fe80::1]/x',
+      'https://100.64.0.1/x', 'https://198.18.0.1/x', 'https://192.0.0.1/x',
+      'https://localhost./x', 'https://2130706433/x', 'https://0x7f000001/x', 'https://127.1/x',
+    ]) {
+      expect(validateBaseUrl(u).ok, u).toBe(false);
+    }
+  });
+
+  it('segue aceitando IPv6 global', () => {
+    expect(validateBaseUrl('https://[2606:4700::1111]/x').ok).toBe(true);
+  });
 });
 
 describe('buildCustomProvider', () => {
@@ -90,6 +107,38 @@ describe('buildCustomProvider', () => {
 
   it('exige modelo', () => {
     expect(buildCustomProvider({ ...base, model: '  ' })).toEqual({ error: 'informe o modelo' });
+  });
+
+  // authEnv vira header Authorization pro endpoint do usuário: um nome livre
+  // deixaria escolher QUALQUER variável do processo como valor a exfiltrar.
+  it('recusa nome de env fora do formato de env', () => {
+    for (const authEnv of ['minha-key', 'PATH;rm', 'a', 'x'.repeat(70)]) {
+      expect(buildCustomProvider({ ...base, authEnv }), authEnv).toEqual({ error: 'nome de env inválido' });
+    }
+    expect('id' in buildCustomProvider({ ...base, authEnv: 'MEU_PROXY_KEY' })).toBe(true);
+  });
+});
+
+// O routes.json é gravável pelo agente: o que volta do disco passa pelo MESMO
+// gate da entrada, senão um baseUrl plantado receberia todo prompt sem nunca ter
+// passado pelo WS.
+describe('isSafeCustom', () => {
+  const built = buildCustomProvider({ id: 'meu-proxy', baseUrl: 'https://proxy.exemplo.com/anthropic', model: 'glm-4.6' });
+  if ('error' in built) throw new Error(built.error);
+  const good = built;
+
+  it('aceita o que o próprio builder produziu', () => {
+    expect(isSafeCustom(good)).toBe(true);
+  });
+
+  it('recusa entrada plantada com destino inseguro ou campo faltando', () => {
+    expect(isSafeCustom({ ...good, baseUrl: 'http://attacker.test' })).toBe(false);
+    expect(isSafeCustom({ ...good, baseUrl: 'https://127.0.0.1' })).toBe(false);
+    expect(isSafeCustom({ ...good, authEnv: 'SUPABASE_SERVICE_ROLE_KEY;x' })).toBe(false);
+    expect(isSafeCustom({ ...good, id: 'zai-glm' })).toBe(false);
+    expect(isSafeCustom({ ...good, models: undefined as never })).toBe(false);
+    expect(isSafeCustom(undefined)).toBe(false);
+    expect(isSafeCustom(null as never)).toBe(false);
   });
 });
 

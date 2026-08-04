@@ -31,20 +31,20 @@ describe('sortRoutes', () => {
 
 describe('routeStatus', () => {
   it('ativa ganha de tudo (inclusive de cooldown herdado)', () => {
-    expect(routeStatus(route({ id: 'x', active: true, cooldownUntil: NOW + 1000 }), NOW)).toBe('ativa');
+    expect(routeStatus(route({ id: 'x', active: true, skip: 'cooling' }))).toBe('ativa');
   });
 
-  it('desligada ganha de sem-credencial (a config é a razão mais próxima)', () => {
-    expect(routeStatus(route({ id: 'x', enabled: false, configured: false }), NOW)).toBe('desligada');
+  it('traduz cada motivo de skip do servidor', () => {
+    expect(routeStatus(route({ id: 'x', skip: 'disabled' }))).toBe('desligada');
+    expect(routeStatus(route({ id: 'x', skip: 'no-credential' }))).toBe('sem credencial');
+    expect(routeStatus(route({ id: 'x', skip: 'cooling' }))).toBe('cooldown');
+    expect(routeStatus(route({ id: 'x', skip: null }))).toBe('pronta');
   });
 
-  it('sem credencial aparece antes do cooldown', () => {
-    expect(routeStatus(route({ id: 'x', configured: false, cooldownUntil: NOW + 1000 }), NOW)).toBe('sem credencial');
-  });
-
-  it('cooldown só enquanto não venceu', () => {
-    expect(routeStatus(route({ id: 'x', cooldownUntil: NOW + 1 }), NOW)).toBe('cooldown');
-    expect(routeStatus(route({ id: 'x', cooldownUntil: NOW }), NOW)).toBe('pronta');
+  // O servidor pula por 'excluded' só em consultas internas (ex.: "existe fallback
+  // fora o plano?"); no snapshot da UI ele nunca chega — e é elegível de fato.
+  it('motivo desconhecido não inventa status', () => {
+    expect(routeStatus(route({ id: 'x', skip: 'excluded' }))).toBe('pronta');
   });
 });
 
@@ -85,8 +85,8 @@ describe('validateCustom', () => {
   });
 
   it('recusa id fora do formato', () => {
-    for (const id of ['A', 'x', '-abc', 'com espaço', 'ç', '']) {
-      expect(validateCustom({ ...ok, id }), id).toBe('id: minúsculas, números e hífen (2-32)');
+    for (const id of ['A', 'x', '-abc', '9abc', 'com espaço', 'ç', '']) {
+      expect(validateCustom({ ...ok, id }), id).toBe('id: começa com letra; minúsculas, números e hífen (2-32)');
     }
   });
 

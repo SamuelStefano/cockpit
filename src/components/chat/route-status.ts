@@ -46,10 +46,11 @@ export function routeBanner(snap: RoutesSnapshot | null, now = Date.now()): Rout
   return { label: active.label, tier: active.tier, detail, backAt };
 }
 
-// A composição fica pausada por teto de tokens SÓ quando não há para onde ir: com
-// uma rota alternativa ativa o turno roda normalmente, e travar o input aqui era
-// exatamente o bug que o roteador veio matar.
+// A composição fica pausada por teto de tokens SÓ quando não há para onde ir. Não
+// basta olhar a rota ativa: o servidor troca de provedor no momento em que o turno
+// dispara, então com um fallback pronto o campo tem que continuar liberado mesmo
+// enquanto o plano ainda é a rota corrente.
 export function quotaBlocksInput(snap: RoutesSnapshot | null): boolean {
-  const b = routeBanner(snap);
-  return b === null;
+  if (snap?.enabled && snap.hasFallback) return false;
+  return routeBanner(snap) === null;
 }

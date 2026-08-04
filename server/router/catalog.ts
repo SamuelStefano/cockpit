@@ -139,18 +139,25 @@ export interface CustomProviderInput {
 }
 
 const CUSTOM_ID_RE = /^[a-z][a-z0-9-]{1,31}$/;
+const CUSTOM_ENV_RE = /^[A-Z][A-Z0-9_]{1,63}$/;
 
 // baseUrl é o destino pra onde TODO prompt da sessão vai. Um endereço errado aqui
 // não é bug de UI, é exfiltração — por isso https obrigatório, sem credencial
 // embutida na URL e sem host privado (que serviria pra pivotar dentro da VPS).
-const PRIVATE_HOST_RE = /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|0\.|\[?::1\]?$|localhost$)/i;
+// Cobre também as faixas que o WHATWG normaliza pra forma canônica (0x7f000001 e
+// 127.1 viram 127.0.0.1) mais CGNAT, benchmark e o IPv6 não-global inteiro —
+// inclusive o ::ffff: mapeado, que é loopback disfarçado de IPv6.
+const PRIVATE_HOST_RE = /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|198\.1[89]\.|192\.0\.0\.|0\.|localhost$)/i;
+const PRIVATE_V6_RE = /^\[?(::1|::|::ffff:|fc|fd|fe[89ab])/i;
 
 export function validateBaseUrl(raw: string): { ok: true; url: string } | { ok: false; error: string } {
   let u: URL;
   try { u = new URL(raw); } catch { return { ok: false, error: 'URL inválida' }; }
   if (u.protocol !== 'https:') return { ok: false, error: 'só https é aceito' };
   if (u.username || u.password) return { ok: false, error: 'não coloque credencial na URL' };
-  if (PRIVATE_HOST_RE.test(u.hostname)) return { ok: false, error: 'host privado/loopback não é aceito' };
+  // Ponto final ("localhost.") é o mesmo host pro resolver, mas escaparia do regex.
+  const host = u.hostname.replace(/\.$/, '');
+  if (PRIVATE_HOST_RE.test(host) || PRIVATE_V6_RE.test(host)) return { ok: false, error: 'host privado/loopback não é aceito' };
   return { ok: true, url: u.toString().replace(/\/$/, '') };
 }
 
@@ -162,17 +169,33 @@ export function buildCustomProvider(input: CustomProviderInput): ProviderDef | {
   const model = (input.model ?? '').trim();
   if (!model) return { error: 'informe o modelo' };
   const small = (input.smallModel ?? '').trim() || model;
+  const authEnv = input.authEnv?.trim() || null;
+  if (authEnv && !CUSTOM_ENV_RE.test(authEnv)) return { error: 'nome de env inválido' };
   return {
     id: input.id,
     label: input.label?.trim() || input.id,
     tier: 'free',
     baseUrl: url.url,
-    authEnv: input.authEnv?.trim() || null,
+    authEnv,
     authMode: input.authMode ?? 'bearer',
     models: { opus: model, sonnet: model, haiku: small },
     priority: input.priority ?? 15,
     docsUrl: url.url,
   };
+}
+
+// Revalida um provedor próprio já gravado em disco: o arquivo de config é
+// gravável pelo agente, então o que voltou do disco nunca é mais confiável que o
+// que entrou pelo WS.
+export function isSafeCustom(p: ProviderDef | undefined): boolean {
+  if (!p || typeof p !== 'object') return false;
+  const built = buildCustomProvider({
+    id: String(p.id ?? ''),
+    baseUrl: String(p.baseUrl ?? ''),
+    model: p.models?.sonnet ?? '',
+    authEnv: p.authEnv ?? undefined,
+  });
+  return 'id' in built;
 }
 
 // Alias do Deck → id do provedor. Um id concreto da Anthropic (claude-opus-4-5)

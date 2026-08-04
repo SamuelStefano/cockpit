@@ -1,4 +1,4 @@
-import { Icon, Badge, tokens } from '../primitives';
+import { Icon, Badge, Button, tokens } from '../primitives';
 import { routeBanner, tierLabel, tierTone } from './route-status';
 import type { RoutesSnapshot } from '../../../shared/protocol';
 
@@ -14,13 +14,9 @@ export function RouteBanner({ routes, onOpenAdmin }: { routes: RoutesSnapshot | 
       <Badge tone={tierTone(view.tier)}>{tierLabel(view.tier)}</Badge>
       <span className={`min-w-0 truncate ${tokens.text.muted}`}>{view.detail}</span>
       {onOpenAdmin && (
-        <button
-          type="button"
-          onClick={onOpenAdmin}
-          className={`ml-auto shrink-0 rounded border border-neutral-700 px-1.5 py-0.5 text-[10px] transition hover:bg-neutral-800 ${tokens.focusRing}`}
-        >
+        <Button variant="ghost" size="sm" className="ml-auto shrink-0" onClick={onOpenAdmin}>
           rotas
-        </button>
+        </Button>
       )}
     </div>
   );

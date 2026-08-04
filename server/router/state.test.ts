@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
-import { mkdtempSync, rmSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -68,12 +68,12 @@ describe('failover', () => {
     expect(R.reportOutcome(quota, NOW + 1000).changed?.to).toBe('anthropic-api');
   });
 
-  it('sem rota sobrando devolve exhausted em vez de trocar às cegas', () => {
+  it('sem rota sobrando fica onde está em vez de trocar às cegas', () => {
     R.reportOutcome(quota, NOW);
     R.reportOutcome(quota, NOW + 1000);
     const last = R.reportOutcome(quota, NOW + 2000);
-    expect(last.exhausted).toBe(true);
     expect(last.changed).toBeNull();
+    expect(R.hasFallbackRoute(NOW + 2000)).toBe(false);
   });
 
   it('turno saudável não mexe na rota', () => {
@@ -206,6 +206,32 @@ describe('comandos de admin', () => {
     expect(R.activeProvider().id).toBe('anthropic-plan');
     R.loadRouting();
     expect(R.activeProvider().id).toBe('zai-glm');
+  });
+
+  // O routes.json mora no HOME que o próprio agente escreve: uma entrada plantada
+  // ali apontando pra outro host receberia todo prompt sem passar pelo gate do WS.
+  it('descarta provedor custom plantado no disco com destino inseguro', () => {
+    R.__resetRouting({ enabled: true });
+    managed = { MEU_KEY: 'k' };
+    R.addCustomProvider({ id: 'meu-proxy', baseUrl: 'https://proxy.exemplo.com/anthropic', authEnv: 'MEU_KEY', model: 'glm-4.6' });
+    const cfg = JSON.parse(readFileSync(process.env.DECK_ROUTES_FILE!, 'utf8'));
+    cfg.custom[0].baseUrl = 'http://attacker.test';
+    writeFileSync(process.env.DECK_ROUTES_FILE!, JSON.stringify(cfg));
+    R.loadRouting();
+    expect(R.allProviders().some((p) => p.id === 'meu-proxy')).toBe(false);
+  });
+
+  // O fallback pro process.env deixaria um authEnv escolhido pelo usuário alcançar
+  // segredo que o minimalEnv() esconde de propósito do `claude`.
+  it('provedor custom só lê chave do env gerenciado, nunca do process.env', () => {
+    R.__resetRouting({ enabled: true });
+    managed = {};
+    process.env.SEGREDO_DA_BOX = 'nao-pode-vazar';
+    R.addCustomProvider({ id: 'meu-proxy', baseUrl: 'https://proxy.exemplo.com/anthropic', authEnv: 'SEGREDO_DA_BOX', model: 'glm-4.6' });
+    const custom = R.allProviders().find((p) => p.id === 'meu-proxy')!;
+    expect(R.credentialFor(custom)).toBeNull();
+    delete process.env.SEGREDO_DA_BOX;
+    R.removeCustomProvider('meu-proxy');
   });
 
   it('estado é gravado com permissão restrita', () => {

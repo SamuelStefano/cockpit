@@ -6,13 +6,17 @@ export function sortRoutes(routes: RouteView[]): RouteView[] {
   return [...routes].sort((a, b) => a.priority - b.priority || a.label.localeCompare(b.label));
 }
 
-// Precedência do rótulo: o que impede de usar AGORA vem antes do que é só config.
-export function routeStatus(r: RouteView, now = Date.now()): RouteStatus {
+// O veredito de elegibilidade é do servidor (`skip`), que é quem realmente escolhe
+// a rota. Recalcular aqui a partir de enabled/configured/cooldown já divergiu uma
+// vez: a UI dizia "pronta" para um provedor que o seletor pulava.
+export function routeStatus(r: RouteView): RouteStatus {
   if (r.active) return 'ativa';
-  if (!r.enabled) return 'desligada';
-  if (!r.configured) return 'sem credencial';
-  if (r.cooldownUntil > now) return 'cooldown';
-  return 'pronta';
+  switch (r.skip) {
+    case 'disabled': return 'desligada';
+    case 'no-credential': return 'sem credencial';
+    case 'cooling': return 'cooldown';
+    default: return 'pronta';
+  }
 }
 
 export function statusTone(s: RouteStatus): 'green' | 'yellow' | 'red' | 'neutral' {
@@ -38,7 +42,9 @@ export interface CustomDraft { id: string; baseUrl: string; model: string; authE
 // mandar lixo pelo WS e explicar o erro na hora, não pra ser a barreira real.
 export function validateCustom(d: CustomDraft): string | null {
   const id = d.id.trim();
-  if (!/^[a-z0-9][a-z0-9-]{1,31}$/.test(id)) return 'id: minúsculas, números e hífen (2-32)';
+  // Mesmo recorte do servidor (catalog.ts): começar por letra. Divergir aqui só
+  // faria a UI aceitar um id que o WS devolve com erro.
+  if (!/^[a-z][a-z0-9-]{1,31}$/.test(id)) return 'id: começa com letra; minúsculas, números e hífen (2-32)';
   if (!d.model.trim()) return 'informe o modelo';
   let u: URL;
   try { u = new URL(d.baseUrl.trim()); } catch { return 'URL inválida'; }

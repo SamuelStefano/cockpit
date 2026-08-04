@@ -268,7 +268,7 @@ export function resolveMode(
 // A rota entra por ÚLTIMO de propósito: se o roteador apontou pra outro provedor,
 // o ANTHROPIC_BASE_URL/token dele tem que vencer um valor solto no env gerenciado —
 // senão o turno sairia com a URL de um provedor e a chave de outro.
-function minimalEnv(): NodeJS.ProcessEnv {
+export function minimalEnv(): NodeJS.ProcessEnv {
   return {
     PATH: process.env.PATH,
     HOME: process.env.HOME,

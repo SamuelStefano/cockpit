@@ -20,6 +20,7 @@ function snap(over: Partial<RoutesSnapshot> = {}): RoutesSnapshot {
       route({ id: 'anthropic-plan', label: 'Plano Anthropic', tier: 'plan', priority: 0 }),
       route({ id: 'qwen', label: 'Qwen Coder', active: true }),
     ],
+    hasFallback: false,
     ...over,
   };
 }
@@ -85,6 +86,16 @@ describe('quotaBlocksInput', () => {
 
   it('libera com rota alternativa ativa', () => {
     expect(quotaBlocksInput(snap())).toBe(false);
+  });
+
+  // A troca só acontece no servidor quando o turno dispara: travar o campo até lá
+  // deixaria o usuário sem escrever tendo um provedor pronto do outro lado.
+  it('libera ainda no plano quando existe fallback pronto', () => {
+    expect(quotaBlocksInput(snap({ activeId: 'anthropic-plan', hasFallback: true }))).toBe(false);
+  });
+
+  it('fallback não vale com o roteador desligado', () => {
+    expect(quotaBlocksInput(snap({ activeId: 'anthropic-plan', enabled: false, hasFallback: true }))).toBe(true);
   });
 });
 

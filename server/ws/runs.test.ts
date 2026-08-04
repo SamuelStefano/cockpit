@@ -8,6 +8,7 @@ import { broadcast } from './broadcast';
 import { run } from '../engine/claude';
 import { parkedHeads, shiftParked, unshiftParked, addParked, isQueuePaused, type ParkedItem } from './parked';
 import { quotaHold } from './quota';
+import { reportOutcome } from '../router/state';
 
 vi.mock('../engine/claude', () => ({ run: vi.fn(() => ({ kill: vi.fn() })) }));
 // Fila estacionada e teto de tokens mockados: o teste não pode ler/escrever o
@@ -25,6 +26,14 @@ vi.mock('../engine/triage', () => ({ classify: vi.fn(), quickAnswer: vi.fn(), ki
 vi.mock('../engine/suggest', () => ({ suggestFollowups: vi.fn(async () => []) }));
 vi.mock('./incidents', () => ({ recordIncident: vi.fn() })); // teste não escreve no log real de incidentes
 vi.mock('./recover', () => ({ markRunLive: vi.fn(), clearRunLive: vi.fn(), takeOrphanRuns: vi.fn(() => []) }));
+// Roteador mockado: fechar um turno de mentira não pode escrever o routes.json
+// real nem trocar a rota da máquina do usuário.
+vi.mock('../router/state', () => ({
+  reportOutcome: vi.fn(() => ({ kind: 'ok', changed: null })),
+  isPlanRoute: vi.fn(() => true),
+  hasFallbackRoute: vi.fn(() => false),
+  switchOnPlanExhausted: vi.fn(() => null),
+}));
 
 describe('findStaleThreads', () => {
   const now = 1_000_000_000;
@@ -427,5 +436,70 @@ describe('fila estacionada — teto de tokens', () => {
     closeLastRun();
     expect(addParked).toHaveBeenCalledWith('s4', expect.objectContaining({ prompt: 'item enfileirado' }));
     expect(run).toHaveBeenCalledOnce();
+  });
+});
+
+// O breaker do roteador só aprende pelo veredito do fim de turno: se `reportOutcome`
+// não for chamado aqui, nenhum provedor entra em cooldown e o failover nunca sai
+// do papel. E se for chamado no stop do usuário, um Ctrl-C vira "provedor falhou".
+describe('fim de turno — veredito do roteador', () => {
+  const ws = {} as WebSocket;
+  const closeLastRun = () => vi.mocked(run).mock.calls.at(-1)![0].onClose?.();
+
+  beforeEach(() => {
+    threads.clear();
+    awaitingAnswer.clear();
+    vi.mocked(run).mockClear();
+    vi.mocked(broadcast).mockClear();
+    vi.mocked(reportOutcome).mockClear();
+    vi.mocked(quotaHold).mockReturnValue(0);
+  });
+
+  it('reporta o turno fechado com o que ele produziu', () => {
+    startRun(ws, 'ro1', 'trabalho', 'sess-ro1');
+    const t = threads.get('ro1')!;
+    t.text = 'pronto';
+    t.tools.push({ id: 'x', name: 'Read', input: '', ts: 1 } as never);
+    t.endReason = 'success';
+    closeLastRun();
+    expect(reportOutcome).toHaveBeenCalledOnce();
+    expect(vi.mocked(reportOutcome).mock.calls[0][0]).toMatchObject({ tools: 1, text: 'pronto' });
+  });
+
+  it('stop do usuário não abre breaker de provedor nenhum', () => {
+    startRun(ws, 'ro2', 'trabalho', 'sess-ro2');
+    Object.assign(threads.get('ro2')!, { stopped: true, userStopped: true });
+    closeLastRun();
+    expect(reportOutcome).not.toHaveBeenCalled();
+  });
+
+  // Kill NOSSO (reaper, deploy, guarda de pressão) não é stop do usuário: continua
+  // valendo como sinal, senão um provedor que trava o turno nunca seria penalizado.
+  it('kill nosso segue reportando', () => {
+    startRun(ws, 'ro3', 'trabalho', 'sess-ro3');
+    Object.assign(threads.get('ro3')!, { stopped: true, reaped: 'silence' });
+    closeLastRun();
+    expect(reportOutcome).toHaveBeenCalledOnce();
+  });
+
+  it('leva o erro do turno junto (é o texto que classifica a falha)', () => {
+    startRun(ws, 'ro4', 'trabalho', 'sess-ro4');
+    threads.get('ro4')!.lastError = '429 rate_limit_error';
+    threads.get('ro4')!.endReason = 'error';
+    closeLastRun();
+    expect(vi.mocked(reportOutcome).mock.calls[0][0]).toMatchObject({ error: '429 rate_limit_error' });
+  });
+
+  // A ORDEM importa: o veredito troca a rota, e só depois o quotaHold decide se
+  // ainda há motivo pra segurar. Invertido, o hold responderia pela rota velha.
+  it('reporta antes de consultar o teto de tokens', () => {
+    const order: string[] = [];
+    vi.mocked(reportOutcome).mockImplementation(() => { order.push('outcome'); return { kind: 'ok', changed: null }; });
+    vi.mocked(quotaHold).mockImplementation(() => { order.push('hold'); return 0; });
+    startRun(ws, 'ro5', 'trabalho', 'sess-ro5');
+    threads.get('ro5')!.endReason = 'success';
+    closeLastRun();
+    expect(order.indexOf('outcome')).toBe(0);
+    expect(order).toContain('hold');
   });
 });

@@ -47,10 +47,12 @@ export function quotaHold(now = Date.now()): number {
   return until;
 }
 
-// Os sinais do plano indicam teto batido AGORA? Diferente de `quotaHold`: não olha
-// a rota ativa nem troca de provedor — é o fato cru que o classificador consome.
+// O turno que acabou de fechar bateu no teto? Diferente de `quotaHold`: não troca
+// de provedor, só reporta. Fora do plano é sempre falso — `rate`/`usage` descrevem
+// a conta OAuth da Anthropic, e atribuí-los ao provedor da vez abriria o breaker
+// DELE por um fato que não é dele (todo turno quieto na janela viraria rate_limit).
 export function planLimited(now = Date.now()): boolean {
-  return quotaHoldUntil(getRateSnapshot(), getLastPlanUsage(), now) > 0;
+  return isPlanRoute() && quotaHoldUntil(getRateSnapshot(), getLastPlanUsage(), now) > 0;
 }
 
 const QUOTA_TEXT = /usage limit|limit reached|out of (tokens|credits)|limite de uso|sem tokens|tokens esgotad/i;

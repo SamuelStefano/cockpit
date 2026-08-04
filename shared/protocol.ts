@@ -225,6 +225,10 @@ export interface RoutesSnapshot {
   enabled: boolean;
   activeId: string;
   routes: RouteView[];
+  // Existe rota alternativa pronta se o plano esgotar agora? O servidor só troca
+  // quando o turno dispara; sem este campo o cliente travaria o composer no teto
+  // do plano mesmo tendo pra onde ir.
+  hasFallback: boolean;
 }
 
 // Fila ESTACIONADA (overnight/quota-out): prompt que o usuário enfileirou pra

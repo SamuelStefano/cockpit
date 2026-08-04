@@ -4,7 +4,7 @@ import { join, dirname } from 'node:path';
 import type { RouteView, RoutesSnapshot } from '../../shared/protocol';
 import { managedEnvSync } from '../admin-ops';
 import {
-  CATALOG, PLAN_PROVIDER_ID, buildCustomProvider, findProvider, isNativeAnthropic, mapModel,
+  CATALOG, PLAN_PROVIDER_ID, buildCustomProvider, findProvider, isSafeCustom, isNativeAnthropic, mapModel,
   type CustomProviderInput, type ProviderDef,
 } from './catalog';
 import { classifyOutcome, failureSignal, parseResetHint, type FailureKind, type TurnOutcome } from './classify';
@@ -58,7 +58,9 @@ function readJson<T>(path: string, fallback: T): T {
 function writeJson(path: string, value: unknown): void {
   try {
     mkdirSync(dirname(path), { recursive: true });
-    const tmp = `${path}.tmp`;
+    // Sufixo único: backend e agente escrevem o mesmo arquivo, e um tmp fixo faz
+    // os dois writes se intercalarem antes do rename (config perdida).
+    const tmp = `${path}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`;
     writeFileSync(tmp, JSON.stringify(value, null, 2) + '\n', { mode: 0o600 });
     renameSync(tmp, path);
   } catch { /* disco cheio/somente-leitura: o estado em memória segue valendo */ }
@@ -70,7 +72,10 @@ export function loadRouting(): void {
     enabled: !!raw.enabled,
     activeId: typeof raw.activeId === 'string' ? raw.activeId : PLAN_PROVIDER_ID,
     overrides: raw.overrides ?? {},
-    custom: Array.isArray(raw.custom) ? raw.custom : [],
+    // O arquivo é gravável pelo agente (roda com este HOME): reconferir cada
+    // provedor próprio na leitura impede que um baseUrl http/interno plantado no
+    // disco passe a receber todo prompt sem nunca ter passado pelo gate do WS.
+    custom: (Array.isArray(raw.custom) ? raw.custom : []).filter(isSafeCustom),
   };
   breaker = prune(readJson<BreakerState>(STATE_FILE, {}), Date.now());
   if (!providerById(config.activeId)) config.activeId = PLAN_PROVIDER_ID;
@@ -86,7 +91,11 @@ function persistBreaker(): void { writeJson(STATE_FILE, breaker); }
 // summary.ts já usa — é onde a key pay-as-you-go da box mora hoje.
 export function credentialFor(provider: ProviderDef): string | null {
   if (!provider.authEnv) return null;
-  const managed = managedEnvSync()[provider.authEnv] ?? process.env[provider.authEnv];
+  // Provedor próprio só lê do env gerenciado: o fallback pro process.env deixaria
+  // um authEnv escolhido pelo usuário alcançar segredo que o minimalEnv() esconde
+  // de propósito do `claude` — e mandá-lo como bearer pro endpoint dele.
+  const custom = !findProvider(provider.id);
+  const managed = managedEnvSync()[provider.authEnv] ?? (custom ? undefined : process.env[provider.authEnv]);
   if (managed) return managed;
   if (provider.authEnv === 'ANTHROPIC_API_KEY') return readCredFile();
   return null;
@@ -200,15 +209,13 @@ function switchTo(to: RouteCandidate, kind: FailureKind | 'recover', reason: str
 export interface OutcomeResult {
   kind: FailureKind;
   changed: RouteChange | null;
-  // Nenhuma rota sobrou: quem chama volta a segurar a fila em vez de queimar prompt.
-  exhausted: boolean;
 }
 
 // Veredito do fim do turno: classifica, abre o breaker do provedor que falhou e
 // escolhe o próximo. Chamado uma vez por close de run.
 export function reportOutcome(o: TurnOutcome, now = Date.now()): OutcomeResult {
   const kind = classifyOutcome(o);
-  if (!config.enabled) return { kind, changed: null, exhausted: false };
+  if (!config.enabled) return { kind, changed: null };
 
   const activeId = config.activeId;
   if (kind === 'ok') {
@@ -217,7 +224,7 @@ export function reportOutcome(o: TurnOutcome, now = Date.now()): OutcomeResult {
     const cleaned = recordSuccess(breaker, activeId);
     if (cleaned !== breaker) { breaker = cleaned; persistBreaker(); }
     const back = shouldReturnTo(activeId, candidates(), selectOpts(now));
-    return { kind, changed: back ? switchTo(back, 'recover', `${back.provider.label} voltou a ficar disponível`, now) : null, exhausted: false };
+    return { kind, changed: back ? switchTo(back, 'recover', `${back.provider.label} voltou a ficar disponível`, now) : null };
   }
 
   const hint = parseResetHint(failureSignal(o), now);
@@ -225,8 +232,8 @@ export function reportOutcome(o: TurnOutcome, now = Date.now()): OutcomeResult {
   persistBreaker();
 
   const next = selectRoute(candidates(), selectOpts(now));
-  if (!next) return { kind, changed: null, exhausted: true };
-  return { kind, changed: switchTo(next, kind, describe(kind), now), exhausted: false };
+  if (!next) return { kind, changed: null };
+  return { kind, changed: switchTo(next, kind, describe(kind), now) };
 }
 
 function describe(kind: FailureKind): string {
@@ -277,12 +284,15 @@ export function setActiveRoute(id: string): { ok: boolean; message: string } {
   const p = providerById(id);
   if (!p) return { ok: false, message: 'provedor desconhecido' };
   if (!hasCredential(p)) return { ok: false, message: `falta a chave ${p.authEnv} no painel de env` };
+  const from = config.activeId;
   breaker = recordSuccess(breaker, id);
   persistBreaker();
   config.activeId = id;
   if (id !== PLAN_PROVIDER_ID) config.enabled = true;
   persistConfig();
-  listener?.({ from: id, to: id, kind: 'recover', reason: 'troca manual', until: 0 });
+  // Só avisa se mudou de verdade: reafirmar a rota atual disparava um toast de
+  // "trocou pra X" para uma troca que não houve.
+  if (from !== id) listener?.({ from, to: id, kind: 'recover', reason: 'troca manual', until: 0 });
   return { ok: true, message: `rota ativa: ${p.label}` };
 }
 
@@ -329,7 +339,7 @@ export function routesView(now = Date.now()): RoutesSnapshot {
       skip: skipReason(c, opts),
     }))
     .sort((a, b) => a.priority - b.priority);
-  return { enabled: config.enabled, activeId: config.activeId, routes };
+  return { enabled: config.enabled, activeId: config.activeId, routes, hasFallback: hasFallbackRoute(now) };
 }
 
 // Só para os testes: reinicia o módulo sem depender de reimport.

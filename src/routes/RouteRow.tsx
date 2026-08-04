@@ -1,4 +1,4 @@
-import { Badge, Button, Icon } from '../components/primitives';
+import { Badge, Button, Icon, tokens } from '../components/primitives';
 import type { RouteView } from '../../shared/protocol';
 import { routeStatus, statusTone, cooldownLabel } from './admin-routes';
 
@@ -11,15 +11,19 @@ export function RouteRow({ r, onSet, onConfig, onRemove }: {
   const status = routeStatus(r);
   const cool = cooldownLabel(r.cooldownUntil);
   return (
-    <li className="flex flex-wrap items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-2">
+    <li className={`flex flex-wrap items-center gap-2 px-2.5 py-2 ${tokens.radius.md} ${tokens.surface.base}`}>
       <span className="w-7 shrink-0 text-right font-mono text-[11px] text-neutral-600">{r.priority}</span>
       <span className="text-[12.5px] text-neutral-200">{r.label}</span>
       <Badge tone={statusTone(status)}>{status}{cool ? ` ${cool}` : ''}</Badge>
       {r.authEnv && !r.configured && <span className="font-mono text-[10.5px] text-neutral-600">falta {r.authEnv}</span>}
       <span className="min-w-0 flex-1 truncate font-mono text-[10.5px] text-neutral-600">{r.models}</span>
-      <a href={r.docsUrl} target="_blank" rel="noreferrer" title="Como pegar a chave" className="text-neutral-600 hover:text-orange-400">
-        <Icon name="file" size={12} />
-      </a>
+      {/* href vem de config em disco: só https vira link, senão um `javascript:`
+          plantado no arquivo executaria no painel admin. */}
+      {r.docsUrl.startsWith('https://') && (
+        <a href={r.docsUrl} target="_blank" rel="noreferrer" title="Como pegar a chave" className="text-neutral-600 hover:text-orange-400">
+          <Icon name="file" size={12} />
+        </a>
+      )}
       <Button
         variant="ghost" size="sm"
         title={r.enabled ? 'Tirar do rodízio' : 'Colocar no rodízio'}
@@ -31,9 +35,7 @@ export function RouteRow({ r, onSet, onConfig, onRemove }: {
         usar
       </Button>
       {r.custom && (
-        <button type="button" onClick={() => onRemove(r.id)} title={`Remover ${r.label}`} className="text-neutral-600 hover:text-red-300">
-          <Icon name="x" size={12} />
-        </button>
+        <Button variant="danger" size="sm" square icon="x" title={`Remover ${r.label}`} onClick={() => onRemove(r.id)} />
       )}
     </li>
   );
