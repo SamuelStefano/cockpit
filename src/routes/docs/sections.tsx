@@ -12,6 +12,7 @@ import { Search } from './sections/Search';
 import { Commands } from './sections/Commands';
 import { Models } from './sections/Models';
 import { Playground } from './sections/Playground';
+import { Graph } from './sections/Graph';
 import { Bench } from './sections/Bench';
 import { Admin } from './sections/Admin';
 import { Internals } from './sections/Internals';
@@ -34,6 +35,7 @@ export function DocSections({ year }: { year: number }) {
       <Commands />
       <Models />
       <Playground />
+      <Graph />
       <Bench />
       <Admin />
       <Internals />

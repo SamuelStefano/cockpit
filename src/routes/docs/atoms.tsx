@@ -4,6 +4,17 @@ import { RESOURCES, type IconName } from '../docs.data';
 // Átomos de layout da documentação. Puramente presentacionais — sem estado nem
 // dados do backend. Reusados pelas seções em ./sections.tsx.
 
+export function DocFigure({ src, alt, caption }: { src: string; alt: string; caption?: string }) {
+  return (
+    <figure className="my-5 overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900/40">
+      <img src={src} alt={alt} className="w-full object-cover" loading="lazy" decoding="async" />
+      {caption && (
+        <figcaption className="border-t border-neutral-800/60 px-4 py-2.5 text-[12px] text-neutral-500">{caption}</figcaption>
+      )}
+    </figure>
+  );
+}
+
 export function SectionTitle({ icon, kicker, title, desc }: { icon: IconName; kicker: string; title: string; desc: string }) {
   return (
     <div className="mb-6">

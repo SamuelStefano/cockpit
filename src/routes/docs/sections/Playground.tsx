@@ -1,4 +1,4 @@
-import { SectionTitle, InfoCard, Callout, Pill } from '../atoms';
+import { SectionTitle, InfoCard, Callout, Pill, DocFigure } from '../atoms';
 import { PlaygroundScope } from './PlaygroundScope';
 
 export function Playground() {
@@ -6,6 +6,7 @@ export function Playground() {
     <section id="playground" className="mb-14 scroll-mt-6">
       <SectionTitle icon="code" kicker="bancada" title="Playground & modo App"
         desc="Na aba /play você escreve código e vê o resultado na hora. O modo App — que agora é a aba padrão — vai além do preview: ele monta o seu componente dentro do próprio Deck, com os componentes de verdade do design system." />
+      <DocFigure src="/docs-play.jpg" alt="Playground mostrando editor de código à esquerda e preview ao vivo à direita" caption="Editor + live preview: escreva e veja o resultado na mesma tela. Aba React em iframe isolado." />
       <div className="grid gap-3 sm:grid-cols-2">
         <InfoCard icon="zap" title="Runtimes isolados (iframe)">
           As abas <span className="font-medium text-neutral-300">React, HTML, iPhone, SVG e Testes</span> continuam como sempre:
@@ -36,6 +37,7 @@ export function Playground() {
           cancelados quando você edita: nenhum loop de uma versão antiga fica batendo em segundo plano.
         </InfoCard>
       </div>
+      <DocFigure src="/docs-app.jpg" alt="Playground no runtime React mostrando componente contador com preview interativo" caption="Runtime React em iframe: cada edição recompila e atualiza o preview sem recarregar a página." />
       <Callout icon="shield-off" tone="red">
         <span className="font-medium">Modo App não é compartilhável por link ·</span> o permalink <Pill>#c=</Pill> do <Pill>/play</Pill> continua valendo
         para os runtimes de iframe (origem opaca), mas código in-document roda na origem do app, com a sua sessão e a sua conexão com o agente —

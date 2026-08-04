@@ -62,6 +62,8 @@ export function stepPhysics(nodes: GraphNode[], edges: Edge[], pos: Map<string, 
   for (const node of nodes) {
     if (node.id === dragId) continue; // nó arrastado é pinado
     const p = pos.get(node.id)!;
+    p.vx = clamp(p.vx, -MAX_SPEED, MAX_SPEED);
+    p.vy = clamp(p.vy, -MAX_SPEED, MAX_SPEED);
     p.x += p.vx; p.y += p.vy;
   }
 }
