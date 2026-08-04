@@ -34,6 +34,8 @@ const DEFAULT_CONFIG: RoutesConfig = { enabled: false, activeId: PLAN_PROVIDER_I
 let config: RoutesConfig = { ...DEFAULT_CONFIG };
 let breaker: BreakerState = {};
 let listener: ((change: RouteChange) => void) | null = null;
+let configRaw = '';
+let breakerRaw = '';
 
 export interface RouteChange {
   from: string;
@@ -53,21 +55,35 @@ function readJson<T>(path: string, fallback: T): T {
   try { return JSON.parse(readFileSync(path, 'utf8')) as T; } catch { return fallback; }
 }
 
+function readRaw(path: string): string {
+  try { return readFileSync(path, 'utf8'); } catch { return ''; }
+}
+
 // tmp+rename: o agente e o backend loopback escrevem no mesmo arquivo; sem isso um
 // crash no meio do write deixa JSON truncado e o roteador volta ao default no boot.
-function writeJson(path: string, value: unknown): void {
+// Devolve o texto gravado pra quem chama guardar como "última versão conhecida" —
+// é o que impede o sync() de reler (e desfazer) a própria escrita.
+function writeJson(path: string, value: unknown): string {
+  const text = JSON.stringify(value, null, 2) + '\n';
   try {
     mkdirSync(dirname(path), { recursive: true });
     // Sufixo único: backend e agente escrevem o mesmo arquivo, e um tmp fixo faz
     // os dois writes se intercalarem antes do rename (config perdida).
     const tmp = `${path}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`;
-    writeFileSync(tmp, JSON.stringify(value, null, 2) + '\n', { mode: 0o600 });
+    writeFileSync(tmp, text, { mode: 0o600 });
     renameSync(tmp, path);
   } catch { /* disco cheio/somente-leitura: o estado em memória segue valendo */ }
+  return text;
 }
 
 export function loadRouting(): void {
-  const raw = readJson<Partial<RoutesConfig>>(CONFIG_FILE, {});
+  readConfig();
+  readBreaker();
+}
+
+function readConfig(): void {
+  configRaw = readRaw(CONFIG_FILE);
+  const raw = parse<Partial<RoutesConfig>>(configRaw, {});
   config = {
     enabled: !!raw.enabled,
     activeId: typeof raw.activeId === 'string' ? raw.activeId : PLAN_PROVIDER_ID,
@@ -77,12 +93,30 @@ export function loadRouting(): void {
     // disco passe a receber todo prompt sem nunca ter passado pelo gate do WS.
     custom: (Array.isArray(raw.custom) ? raw.custom : []).filter(isSafeCustom),
   };
-  breaker = prune(readJson<BreakerState>(STATE_FILE, {}), Date.now());
   if (!providerById(config.activeId)) config.activeId = PLAN_PROVIDER_ID;
 }
 
-function persistConfig(): void { writeJson(CONFIG_FILE, config); }
-function persistBreaker(): void { writeJson(STATE_FILE, breaker); }
+function readBreaker(): void {
+  breakerRaw = readRaw(STATE_FILE);
+  breaker = prune(parse<BreakerState>(breakerRaw, {}), Date.now());
+}
+
+function parse<T>(raw: string, fallback: T): T {
+  try { return JSON.parse(raw) as T; } catch { return fallback; }
+}
+
+// Backend loopback e agente são PROCESSOS separados que compartilham este arquivo, e
+// quem spawna o `claude` é o agente. Sem reler, trocar a rota pela UI só mudava a
+// memória de quem atendeu o WS: o spawn seguia no provedor antigo até o restart.
+// Compara o texto cru, não o mtime: dois writes no mesmo milissegundo (que é o caso
+// quando os dois processos reagem ao mesmo evento) têm mtime idêntico.
+function sync(): void {
+  if (readRaw(CONFIG_FILE) !== configRaw) readConfig();
+  if (readRaw(STATE_FILE) !== breakerRaw) readBreaker();
+}
+
+function persistConfig(): void { configRaw = writeJson(CONFIG_FILE, config); }
+function persistBreaker(): void { breakerRaw = writeJson(STATE_FILE, breaker); }
 
 // --- credenciais ------------------------------------------------------------
 
@@ -115,6 +149,7 @@ function hasCredential(provider: ProviderDef): boolean {
 // --- candidatos -------------------------------------------------------------
 
 export function allProviders(): ProviderDef[] {
+  sync();
   return [...CATALOG, ...config.custom];
 }
 
@@ -142,18 +177,21 @@ function selectOpts(now: number, exclude?: string[]) {
 // --- rota ativa -------------------------------------------------------------
 
 export function activeProvider(): ProviderDef {
+  sync();
   return providerById(config.activeId) ?? CATALOG[0];
 }
 
-export function isRoutingEnabled(): boolean { return config.enabled; }
+export function isRoutingEnabled(): boolean { sync(); return config.enabled; }
 
 export function isPlanRoute(): boolean {
+  sync();
   return !config.enabled || activeProvider().id === PLAN_PROVIDER_ID;
 }
 
 // Existe pra onde ir se o plano acabar agora? É o que autoriza a fila a continuar
 // drenando no teto de tokens em vez de dormir até o reset.
 export function hasFallbackRoute(now = Date.now()): boolean {
+  sync();
   if (!config.enabled) return false;
   return !!selectRoute(candidates(), selectOpts(now, [PLAN_PROVIDER_ID]));
 }
@@ -161,6 +199,7 @@ export function hasFallbackRoute(now = Date.now()): boolean {
 // Env do provedor ativo, mesclado no minimalEnv do spawn. Vazio quando o roteador
 // está desligado ou a rota é o plano — nesse caso o CLI usa o OAuth como sempre.
 export function routeEnv(): Record<string, string> {
+  sync();
   if (!config.enabled) return {};
   const p = activeProvider();
   if (p.id === PLAN_PROVIDER_ID) return {};
@@ -185,12 +224,14 @@ export function routeEnv(): Record<string, string> {
 
 // Modelo efetivo pro `--model` deste turno, traduzido pro id do provedor ativo.
 export function routeModel(requested: string | undefined): string | undefined {
+  sync();
   if (!config.enabled) return requested;
   return mapModel(activeProvider(), requested);
 }
 
 // O `--fallback-model` do CLI só existe no vocabulário da Anthropic.
 export function routeIsNativeAnthropic(): boolean {
+  sync();
   return !config.enabled || isNativeAnthropic(activeProvider());
 }
 
@@ -214,6 +255,7 @@ export interface OutcomeResult {
 // Veredito do fim do turno: classifica, abre o breaker do provedor que falhou e
 // escolhe o próximo. Chamado uma vez por close de run.
 export function reportOutcome(o: TurnOutcome, now = Date.now()): OutcomeResult {
+  sync();
   const kind = classifyOutcome(o);
   if (!config.enabled) return { kind, changed: null };
 
@@ -249,6 +291,7 @@ function describe(kind: FailureKind): string {
 // O gate de quota do plano bateu (rate/usage-plan) mas o turno nem rodou: troca de
 // rota ANTES de disparar, para o drainer não precisar esperar um turno morrer.
 export function switchOnPlanExhausted(untilMs: number, now = Date.now()): RouteChange | null {
+  sync();
   if (!config.enabled || config.activeId !== PLAN_PROVIDER_ID) return null;
   breaker = recordFailure(breaker, PLAN_PROVIDER_ID, 'rate_limit', now, Math.max(0, untilMs - now));
   persistBreaker();
@@ -260,12 +303,14 @@ export function switchOnPlanExhausted(untilMs: number, now = Date.now()): RouteC
 // --- comandos de admin ------------------------------------------------------
 
 export function setRoutingEnabled(on: boolean): void {
+  sync();
   config.enabled = on;
   if (!on) config.activeId = PLAN_PROVIDER_ID;
   persistConfig();
 }
 
 export function setOverride(id: string, patch: RouteOverride): { ok: boolean; message: string } {
+  sync();
   if (!providerById(id)) return { ok: false, message: 'provedor desconhecido' };
   const cur = config.overrides[id] ?? {};
   const next: RouteOverride = { ...cur };
@@ -281,6 +326,7 @@ export function setOverride(id: string, patch: RouteOverride): { ok: boolean; me
 // Troca manual. Zera o breaker do alvo: o dono mandou ir pra lá, então a espera que
 // sobrou de uma falha antiga não pode barrar o pedido explícito dele.
 export function setActiveRoute(id: string): { ok: boolean; message: string } {
+  sync();
   const p = providerById(id);
   if (!p) return { ok: false, message: 'provedor desconhecido' };
   if (!hasCredential(p)) return { ok: false, message: `falta a chave ${p.authEnv} no painel de env` };
@@ -297,6 +343,7 @@ export function setActiveRoute(id: string): { ok: boolean; message: string } {
 }
 
 export function addCustomProvider(input: CustomProviderInput): { ok: boolean; message: string } {
+  sync();
   if (config.custom.some((c) => c.id === input.id)) return { ok: false, message: 'id já existe' };
   const built = buildCustomProvider(input);
   if ('error' in built) return { ok: false, message: built.error };
@@ -306,6 +353,7 @@ export function addCustomProvider(input: CustomProviderInput): { ok: boolean; me
 }
 
 export function removeCustomProvider(id: string): { ok: boolean; message: string } {
+  sync();
   const before = config.custom.length;
   config.custom = config.custom.filter((c) => c.id !== id);
   if (config.custom.length === before) return { ok: false, message: 'provedor custom não encontrado' };
@@ -318,6 +366,7 @@ export function removeCustomProvider(id: string): { ok: boolean; message: string
 // --- projeção pro cliente ---------------------------------------------------
 
 export function routesView(now = Date.now()): RoutesSnapshot {
+  sync();
   const opts = selectOpts(now);
   const customIds = new Set(config.custom.map((c) => c.id));
   const routes: RouteView[] = candidates()
@@ -347,4 +396,8 @@ export function __resetRouting(next?: Partial<RoutesConfig>): void {
   config = { ...DEFAULT_CONFIG, overrides: {}, custom: [], ...next };
   breaker = {};
   listener = null;
+  // Casa com o disco: senão o primeiro sync() logo em seguida releria o arquivo que
+  // sobrou do teste anterior e desfaria o reset.
+  configRaw = readRaw(CONFIG_FILE);
+  breakerRaw = readRaw(STATE_FILE);
 }

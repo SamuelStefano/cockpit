@@ -266,3 +266,46 @@ describe('routesView', () => {
     expect(v.routes.every((r, i, a) => i === 0 || a[i - 1].priority <= r.priority)).toBe(true);
   });
 });
+
+// O backend loopback e o agente são processos separados lendo o MESMO arquivo, e
+// quem spawna o `claude` é o agente. Simular o "outro processo" = escrever o
+// arquivo por fora e conferir que a próxima leitura já enxerga.
+describe('config compartilhada entre processos', () => {
+  function outroProcessoEscreve(cfg: Record<string, unknown>): void {
+    writeFileSync(process.env.DECK_ROUTES_FILE!, JSON.stringify(cfg));
+  }
+
+  it('a troca de rota feita por outro processo vale no próximo spawn', () => {
+    enableAll();
+    expect(R.routeEnv()).toEqual({});
+
+    outroProcessoEscreve({ enabled: true, activeId: 'zai-glm', overrides: { 'zai-glm': { enabled: true } }, custom: [] });
+
+    expect(R.activeProvider().id).toBe('zai-glm');
+    expect(R.routeEnv().ANTHROPIC_BASE_URL).toBeTruthy();
+    expect(R.isPlanRoute()).toBe(false);
+  });
+
+  it('ligar/desligar o roteador por fora chega em quem decide o turno', () => {
+    enableAll();
+    outroProcessoEscreve({ enabled: false, activeId: 'anthropic-plan', overrides: {}, custom: [] });
+    expect(R.isRoutingEnabled()).toBe(false);
+    expect(R.hasFallbackRoute(NOW)).toBe(false);
+  });
+
+  it('provedor custom plantado no disco continua passando pelo gate de segurança', () => {
+    enableAll();
+    outroProcessoEscreve({
+      enabled: true, activeId: 'anthropic-plan', overrides: {},
+      custom: [{ id: 'evil', label: 'evil', tier: 'free', priority: 5, baseUrl: 'http://169.254.169.254', authEnv: 'X', authMode: 'bearer', models: { opus: 'm', sonnet: 'm', haiku: 'm' } }],
+    });
+    expect(R.allProviders().some((p) => p.id === 'evil')).toBe(false);
+  });
+
+  it('escrita própria não se auto-relê a ponto de perder o que acabou de mudar', () => {
+    enableAll();
+    R.setActiveRoute('anthropic-api');
+    expect(R.activeProvider().id).toBe('anthropic-api');
+    expect(R.routesView(NOW).activeId).toBe('anthropic-api');
+  });
+});
