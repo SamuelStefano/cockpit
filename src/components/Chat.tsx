@@ -147,7 +147,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
           SCROLL, não do painel — antes (bottom fixo no painel) um composer alto
           engolia os botões pra dentro do input. */}
       <div className="relative flex min-h-0 flex-1 flex-col">
-      <div ref={c.scrollRef} onScroll={c.onScroll} className="print-thread scroll-thin flex-1 overflow-y-auto">
+      <div ref={c.scrollRef} onScroll={c.onScroll} className="print-thread scroll-thin flex-1 overflow-y-auto overflow-x-hidden">
         {c.isEmpty && phase === 'idle' ? (
           <ChatEmpty onPrompt={onPrompt} />
         ) : (

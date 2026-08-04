@@ -83,7 +83,7 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
             {isShell
               ? <span className="select-none font-mono text-[11px] text-orange-500/70">$</span>
               : <Icon name={cmdIcon} size={12} className="shrink-0 text-neutral-500" />}
-            <code className="scroll-thin overflow-x-auto whitespace-nowrap font-mono text-[11.5px] text-neutral-300">{tool.command}</code>
+            <code className="scroll-thin min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-[11.5px] text-neutral-300">{tool.command}</code>
             {isShell && (
               <button
                 onClick={() => setShowShellCmd(false)}
