@@ -16,6 +16,7 @@ import { useProfileHydration } from './lib/profile';
 import { useSessionPrefsHydration } from './lib/session-prefs';
 import { resolveAuthGate } from './app/AuthGateView';
 import { relReset } from './lib/time';
+import { quotaBlocksInput } from './components/chat/route-status';
 import { usePanelResize } from './app/usePanelResize';
 import { useTerminalTabs } from './app/useTerminalTabs';
 import { useGlobalShortcuts } from './app/useGlobalShortcuts';
@@ -24,6 +25,7 @@ import { useTabTitle } from './app/useTabTitle';
 import { useOfflineLatch } from './app/useOfflineLatch';
 import { usePairingEject } from './app/usePairingEject';
 import { useLiveConnection } from './app/useLiveConnection';
+import { useRouteSwitchToast } from './app/useRouteSwitchToast';
 
 export function CockpitApp() {
   const cockpit = useCockpit();
@@ -36,6 +38,7 @@ export function CockpitApp() {
     onSend: handleSend, onEditUser: editUser, onStop: handleStop, onNew: cockpitNew, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession,
     onOpenFull, onLoadOlder, onOpenSummary, onHandoff, handoffBusy,
     queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused,
+    routes, routeSwitch, dismissRouteSwitch,
   } = cockpit;
 
   const { route, nav } = useRoute();
@@ -67,6 +70,7 @@ export function CockpitApp() {
   const ejectPairing = usePairingEject(agentOnline, sbAuth.session?.user.id, conn.ws === 'connected');
   const isMobile = useIsMobile();
   useTabTitle(running, updated);
+  useRouteSwitchToast(routeSwitch, dismissRouteSwitch);
 
   const [drawer, setDrawer] = useState(false);
   const [termSheet, setTermSheet] = useState(false);
@@ -155,8 +159,10 @@ export function CockpitApp() {
   // está <99.5 — senão a fila drenava e o prompt morria no limite (perdido). O
   // warning (perto do teto, mas ainda enviável) NÃO conta como limite duro.
   const rateLimited = rateRejected && (!rate!.resetsAt || rate!.resetsAt > Date.now());
-  const quotaPaused = (!!planUsage && planUsage.fiveHour >= 99.5 && !quotaResetPassed) || rateLimited;
-  const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, followups, onDismissFollowups: dismissFollowups, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew: handleNew, onHandoff, handoffBusy, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onRename: handleRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, quotaPaused, quotaResetsAt: planUsage?.resetsAt ?? rate?.resetsAt ?? null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused };
+  // Com uma rota alternativa ativa o teto do plano deixa de ser bloqueio: o turno
+  // roda no outro provedor, então travar o composer aqui só puniria o usuário.
+  const quotaPaused = ((!!planUsage && planUsage.fiveHour >= 99.5 && !quotaResetPassed) || rateLimited) && quotaBlocksInput(routes);
+  const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, followups, onDismissFollowups: dismissFollowups, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew: handleNew, onHandoff, handoffBusy, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onRename: handleRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, routes, onOpenRoutes: () => nav('/admin'), quotaPaused, quotaResetsAt: planUsage?.resetsAt ?? rate?.resetsAt ?? null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
 
   const gate = resolveAuthGate({ sbAuth, ejectPairing, authRequired, submitToken });

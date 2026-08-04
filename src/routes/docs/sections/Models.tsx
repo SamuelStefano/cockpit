@@ -17,6 +17,12 @@ export function Models() {
           tokens e custo. O padrão é <span className="font-medium text-neutral-300">Baixo</span>: pedidos
           simples não gastam pensamento à toa. Suba pra Alto/Máximo só nas tarefas difíceis.
         </InfoCard>
+        <InfoCard icon="zap" title="Troca automática de provedor">
+          Quando os tokens do plano acabam, o Deck migra o turno sozinho para o próximo provedor
+          compatível que estiver ligado (Qwen, MiniMax, GLM, Kimi, DeepSeek…) e volta ao plano assim
+          que a janela reseta — nada de esperar a madrugada. O banner acima do campo mostra qual
+          provedor está no ar; a ordem, as chaves e provedores próprios ficam em Admin → Rotas.
+        </InfoCard>
       </div>
     </section>
   );

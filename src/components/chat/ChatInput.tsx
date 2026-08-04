@@ -2,8 +2,9 @@ import { Button, Icon, tokens } from '../primitives';
 import { ChatInputToolbar } from './ChatInputToolbar';
 import { AttachmentChips } from './AttachmentChips';
 import { QueuedBanner } from './QueuedBanner';
+import { RouteBanner } from './RouteBanner';
 import { SlashPalette } from './SlashPalette';
-import type { PermMode, Effort, ModelInfo, Caps, SkillMeta } from '../../../shared/protocol';
+import type { PermMode, Effort, ModelInfo, Caps, SkillMeta, RoutesSnapshot } from '../../../shared/protocol';
 import type { Attachment } from '../../useCockpit';
 import { useChatInput } from './useChatInput';
 import { composerMaxH } from './fit-height';
@@ -52,6 +53,8 @@ interface ChatInputProps {
   onToggleQueuePause?: () => void;
   paused?: boolean;
   quotaResetsAt?: number | null;
+  routes?: RoutesSnapshot | null;
+  onOpenRoutes?: () => void;
   history: string[];
   pendingConfirm?: () => void;
   onNew: () => void;
@@ -59,7 +62,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, queued, queuedAtts, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, onToggleQueuePause, paused = false, quotaResetsAt } = props;
+  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, queued, queuedAtts, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, onToggleQueuePause, paused = false, quotaResetsAt, routes = null, onOpenRoutes } = props;
   const hasAtt = attachments.length > 0;
   const attUploading = attachments.some((a) => a.uploading);
   const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
@@ -74,6 +77,7 @@ export function ChatInput(props: ChatInputProps) {
         model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels}
         effort={effort} setEffort={setEffort}
       />
+      <RouteBanner routes={routes} onOpenAdmin={onOpenRoutes} />
       {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} />}
       {mic.error && (
         <div className="mb-2 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/[0.07] px-2.5 py-2 text-[12px] leading-snug text-red-200">
