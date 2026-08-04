@@ -4,8 +4,6 @@ import { Icon } from '../primitives';
 // o servidor anuncia canBypass (admin + flag de env + loopback) — o caller já
 // gateia por isso. Default OFF; o backend reimpõe via bypassAllowed. Visual de
 // alerta: bypass = o agente roda QUALQUER comando sem pedir.
-// Não bloqueia com turno rodando: a flag entra no spawn, então desligar aqui não
-// desarma o turno em voo (pra isso é o Parar) — vale do próximo prompt em diante.
 export function BypassToggle({ on, setOn }: { on: boolean; setOn: (b: boolean) => void }) {
   return (
     <button
@@ -14,7 +12,7 @@ export function BypassToggle({ on, setOn }: { on: boolean; setOn: (b: boolean) =
       aria-checked={on}
       onClick={() => setOn(!on)}
       title={on
-        ? 'BYPASS LIGADO — o agente roda qualquer comando sem aprovação. Desligue quando terminar.'
+        ? 'BYPASS LIGADO — o agente roda qualquer comando sem aprovação. Desligar vale do próximo prompt (o turno em voo só para pelo Parar).'
         : 'Bypass de permissões (admin): o agente roda qualquer comando sem pedir. Use com cuidado.'}
       className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40
         ${on

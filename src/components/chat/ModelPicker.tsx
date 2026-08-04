@@ -23,8 +23,6 @@ function withFamilies(models: ModelInfo[]): ModelInfo[] {
   return [...models, ...extra];
 }
 
-// Não bloqueia com turno rodando: o `--model` é resolvido no envio, então trocar
-// aqui só afeta o PRÓXIMO prompt — o que já está em voo mantém o modelo dele.
 export function ModelPicker({ model, setModel, models, onRefreshModels }: {
   model: string; setModel: (m: string) => void;
   models: ModelInfo[];

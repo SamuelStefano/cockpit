@@ -11,8 +11,6 @@ const LEVELS: { id: Effort; label: string; hint: string }[] = [
   { id: 'max', label: 'Máximo', hint: 'pensamento máximo — mais caro' },
 ];
 
-// Não bloqueia com turno rodando: o valor é lido no envio, então só vale pro
-// PRÓXIMO prompt (ou pro que está sendo enfileirado) — nunca pro que já saiu.
 export function EffortPicker({ effort, setEffort }: {
   effort: Effort; setEffort: (e: Effort) => void;
 }) {

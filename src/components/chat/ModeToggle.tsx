@@ -7,8 +7,6 @@ const ACTIVE_TONE: Record<PermMode, string> = {
   acceptEdits: 'bg-orange-500/20 text-orange-300 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.4)]',
 };
 
-// Não bloqueia com turno rodando: o modo vira `--permission-mode` no spawn, então
-// trocar aqui só vale pro PRÓXIMO prompt — o que já está em voo não muda.
 export function ModeToggle({ mode, setMode }: { mode: PermMode; setMode: (m: PermMode) => void }) {
   const opts: { v: PermMode; label: string; hint: string }[] = [
     { v: 'plan', label: 'Planejar', hint: 'só descreve o plano — nada é executado' },
