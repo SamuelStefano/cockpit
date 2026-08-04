@@ -56,7 +56,7 @@ export function CronForm({ form, onCancel, now }: {
           <option value="opus">Opus</option>
           <option value="haiku">Haiku</option>
         </select>
-        <EffortPicker effort={draft.effort} setEffort={(e) => set('effort', e)} disabled={false} />
+        <EffortPicker effort={draft.effort} setEffort={(e) => set('effort', e)} />
       </div>
       <div className="flex items-center justify-between gap-2 pt-0.5">
         <span className="flex items-center gap-1.5 text-[11.5px] text-neutral-500">

@@ -70,7 +70,7 @@ export function ChatInput(props: ChatInputProps) {
   return (
     <div className="shrink-0 border-t border-neutral-800 bg-neutral-900/60 px-3 py-3 backdrop-blur">
       <ChatInputToolbar
-        mode={mode} setMode={setMode} disabled={disabled} caps={caps}
+        mode={mode} setMode={setMode} caps={caps}
         bypass={bypass} setBypass={setBypass} skills={skills}
         selectedSkills={selectedSkills} setSelectedSkills={setSelectedSkills}
         mcpServers={mcpServers} selectedMcps={selectedMcps} setSelectedMcps={setSelectedMcps}

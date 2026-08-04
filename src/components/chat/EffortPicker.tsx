@@ -11,17 +11,18 @@ const LEVELS: { id: Effort; label: string; hint: string }[] = [
   { id: 'max', label: 'Máximo', hint: 'pensamento máximo — mais caro' },
 ];
 
-export function EffortPicker({ effort, setEffort, disabled }: {
-  effort: Effort; setEffort: (e: Effort) => void; disabled: boolean;
+// Não bloqueia com turno rodando: o valor é lido no envio, então só vale pro
+// PRÓXIMO prompt (ou pro que está sendo enfileirado) — nunca pro que já saiu.
+export function EffortPicker({ effort, setEffort }: {
+  effort: Effort; setEffort: (e: Effort) => void;
 }) {
-  const sel = 'rounded-md border border-neutral-800 bg-neutral-950 px-1.5 py-1 text-[11px] font-medium text-neutral-300 outline-none transition hover:border-neutral-700 focus:border-orange-500/40 disabled:cursor-not-allowed disabled:opacity-50';
+  const sel = 'rounded-md border border-neutral-800 bg-neutral-950 px-1.5 py-1 text-[11px] font-medium text-neutral-300 outline-none transition hover:border-neutral-700 focus:border-orange-500/40';
   const tag = 'hidden text-[9px] font-semibold uppercase tracking-wide text-neutral-600 sm:inline';
   return (
-    <label className="inline-flex items-center gap-1" title="Nível de pensamento desta sessão — quanto maior, mais tokens (e custo).">
+    <label className="inline-flex items-center gap-1" title="Nível de pensamento do próximo prompt — quanto maior, mais tokens (e custo).">
       <span className={tag}>pensar</span>
       <select
         value={effort}
-        disabled={disabled}
         onChange={(e) => setEffort(e.target.value as Effort)}
         className={sel}
       >
