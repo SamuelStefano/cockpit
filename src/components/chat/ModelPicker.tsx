@@ -29,7 +29,7 @@ export function ModelPicker({ model, setModel, models, onRefreshModels }: {
   onRefreshModels: () => void;
 }) {
   const [customIds, setCustomIds] = usePersisted<string[]>('customModels', []);
-  const sel = 'max-w-[130px] rounded-md border border-neutral-800 bg-neutral-950 px-1.5 py-1 text-[11px] font-medium text-neutral-300 outline-none transition hover:border-neutral-700 focus:border-orange-500/40 sm:max-w-none';
+  const sel = 'max-w-[130px] rounded-md border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-[11px] font-medium text-neutral-300 outline-none transition hover:border-neutral-700 focus:border-orange-500/40 sm:max-w-none sm:px-1.5 sm:py-1';
   const tag = 'hidden text-[9px] font-semibold uppercase tracking-wide text-neutral-600 sm:inline';
   const base = models.length ? withFamilies(models) : FALLBACK_MODELS;
   // Modelos digitados à mão (ex: um recém-lançado ainda fora do /v1/models da conta),
@@ -53,7 +53,7 @@ export function ModelPicker({ model, setModel, models, onRefreshModels }: {
   };
 
   return (
-    <label className="inline-flex items-center gap-1" title="Versão do agente do próximo prompt">
+    <label className="inline-flex shrink-0 items-center gap-1" title="Versão do agente do próximo prompt">
       <span className={tag}>versão</span>
       <select
         value={model}
@@ -67,7 +67,7 @@ export function ModelPicker({ model, setModel, models, onRefreshModels }: {
         type="button"
         onClick={onRefreshModels}
         title="Buscar modelos novos da Anthropic agora"
-        className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md border border-neutral-800 bg-neutral-950 text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-200 ${tokens.focusRing}`}
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-neutral-800 bg-neutral-950 text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-200 sm:h-[22px] sm:w-[22px] ${tokens.focusRing}`}
       >
         <Icon name="rotate" size={12} />
       </button>

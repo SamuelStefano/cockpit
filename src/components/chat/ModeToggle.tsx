@@ -14,7 +14,7 @@ export function ModeToggle({ mode, setMode }: { mode: PermMode; setMode: (m: Per
     { v: 'auto', label: 'Auto', hint: 'edita e lê arquivos sozinho — sem rodar comandos no shell' },
   ];
   return (
-    <div className="inline-flex items-center rounded-lg border border-neutral-800 bg-neutral-950 p-0.5">
+    <div className="inline-flex shrink-0 items-center rounded-lg border border-neutral-800 bg-neutral-950 p-0.5">
       {opts.map((o) => {
         const active = mode === o.v;
         return (
@@ -23,7 +23,7 @@ export function ModeToggle({ mode, setMode }: { mode: PermMode; setMode: (m: Per
             type="button"
             onClick={() => setMode(o.v)}
             title={o.hint}
-            className={`rounded-md px-2 py-1 text-[11px] font-medium transition ${tokens.focusRing}
+            className={`whitespace-nowrap rounded-md px-2.5 py-1.5 text-[11px] font-medium transition sm:px-2 sm:py-1 ${tokens.focusRing}
               ${active ? ACTIVE_TONE[o.v] : 'text-neutral-500 hover:text-neutral-300'}`}
           >
             {o.label}

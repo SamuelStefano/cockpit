@@ -32,7 +32,10 @@ interface ChatInputToolbarProps {
 // preparar o próximo prompt enquanto o atual ainda responde.
 export function ChatInputToolbar({ mode, setMode, caps, bypass, setBypass, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, model, setModel, models, onRefreshModels, effort, setEffort }: ChatInputToolbarProps) {
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-2">
+    // No mobile o toolbar vira UMA linha com scroll-x (padrão dos chats grandes)
+    // em vez de empilhar 3 linhas; os popovers dos pickers escapam do clipping
+    // porque no mobile são bottom-sheets position:fixed.
+    <div className="scroll-none mb-2 flex items-center gap-2 overflow-x-auto sm:flex-wrap sm:overflow-x-visible">
       <ModeToggle mode={mode} setMode={setMode} />
       {caps?.canBypass && (
         <BypassToggle on={bypass} setOn={setBypass} />
@@ -47,9 +50,7 @@ export function ChatInputToolbar({ mode, setMode, caps, bypass, setBypass, skill
           <Icon name="zap" size={11} /> executa de verdade
         </span>
       )}
-      {/* min-w-0 + wrap interno: em 390px o cluster quebra em 2 linhas em vez de
-          estourar a tela (o select "versão" ficava cortado na borda direita). */}
-      <div className="ml-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-x-2 gap-y-1.5">
+      <div className="ml-auto flex shrink-0 items-center gap-x-2 sm:min-w-0 sm:max-w-full sm:flex-wrap sm:justify-end sm:gap-y-1.5">
         <McpPicker servers={mcpServers} selected={selectedMcps} setSelected={setSelectedMcps} />
         <SkillPicker skills={skills} selected={selectedSkills} setSelected={setSelectedSkills} />
         <EffortPicker effort={effort} setEffort={setEffort} />
