@@ -11,6 +11,7 @@ import { selectEvictions } from './cockpit/evict';
 import { resolveKey, moveKey } from './cockpit/migrate';
 import { mergeHistory, prependHistory } from './cockpit/history';
 import { liveTokens } from './cockpit/live-tokens';
+import { insertCompact } from './cockpit/insert-compact';
 import { useTerminals, type TermApi } from './cockpit/useTerminals';
 import { addThumb, shouldRequestThumb } from './lib/att-thumb-cache';
 import { fileSig, isFreshUpload } from './components/chat/dedupe-uploads';
@@ -862,12 +863,9 @@ export function useCockpit(): Cockpit {
         liveRealRef.current[key] = 0; // senão o piso pré-compactação ressurge o ticker
         setUsage((u) => ({ ...u, [key]: 0 }));
         setLiveTurn((l) => ({ ...l, [key]: 0 }));
-        // Divisor visível na thread (estilo Claude Code) marcando ONDE compactou.
-        updateThread(key, (prev) => {
-          const last = prev[prev.length - 1];
-          if (!msg.kind && last && last.role === 'compact' && !last.kind) return prev;
-          return [...prev, { id: `compact-${Date.now()}`, role: 'compact', trigger: msg.trigger, preTokens: msg.preTokens, kind: msg.kind, label: msg.label, ts: Date.now() }];
-        });
+        // Divisor visível na thread (estilo Claude Code) marcando ONDE compactou —
+        // inserido ANTES da bolha em voo pra não matar o render ao vivo do turno.
+        updateThread(key, (prev) => insertCompact(prev, { id: `compact-${Date.now()}`, role: 'compact', trigger: msg.trigger, preTokens: msg.preTokens, kind: msg.kind, label: msg.label, ts: Date.now() }, runMsg.current[key]));
         return;
       }
       case 'session-summary': {
