@@ -12,7 +12,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 // linha marcada no stdout do filho. Espelha runDflSync (leitura). Ver dfl-write.ts.
 export type DflWriteCmd =
   | { kind: 'points-change'; taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string }
-  | { kind: 'invoice-create'; deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number }[] };
+  | { kind: 'invoice-create'; deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number; deliveryId?: string; deliveryName?: string }[] };
 
 export async function runDflWrite(cmd: DflWriteCmd): Promise<{ ok: true; result: Record<string, unknown> } | { ok: false; error: string }> {
   try {
