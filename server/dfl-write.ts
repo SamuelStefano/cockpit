@@ -101,7 +101,17 @@ async function firePointsChange(cmd: PointsChangeCmd): Promise<Record<string, un
 
 // ---- invoice-create: INSERT PostgREST, espelho de useInvoiceCreation --------
 
-interface InvoiceTaskInput { id: string; title: string; points: number }
+// deliveryId/deliveryName por task: `metadata.delivery_id` não é informativo — o
+// gerador de invoice (billed-deliveries) usa ele pra esconder delivery já faturada,
+// então um invoice que junta tasks de duas deliveries precisa estampar a de cada uma,
+// senão a outra volta a parecer não faturada e é cobrada de novo.
+interface InvoiceTaskInput {
+  id: string;
+  title: string;
+  points: number;
+  deliveryId?: string;
+  deliveryName?: string;
+}
 interface InvoiceCreateCmd {
   kind: 'invoice-create';
   deliveryId: string;
@@ -169,7 +179,11 @@ async function createInvoice(cmd: InvoiceCreateCmd): Promise<Record<string, unkn
     const items = tasks.map((t) => ({
       invoice_id: invoiceId, source_type: 'task', source_id: uuidRe.test(t.id) ? t.id : undefined,
       title: t.title, points: t.points, amount_cents: toCents(t.points * ppp),
-      metadata: { project_id: projectId, points: t.points, value_per_point: ppp, delivery_id: deliveryId, delivery_name: cmd.deliveryName },
+      metadata: {
+        project_id: projectId, points: t.points, value_per_point: ppp,
+        delivery_id: t.deliveryId && uuidRe.test(t.deliveryId) ? t.deliveryId : deliveryId,
+        delivery_name: t.deliveryName ?? cmd.deliveryName,
+      },
       created_at: now,
     }));
     await pgFetch(creds, 'invoice_items', { schema: 'payments', method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(items) });

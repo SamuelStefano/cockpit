@@ -506,7 +506,7 @@ export type ClientMsg =
   // localOnly (box do dono). Vão pelo caminho sancionado do DFL num processo filho —
   // o token nunca cruza pro WS/cliente. reqId ecoa na resposta pra a UI casar.
   | { t: 'points-dfl-change'; reqId: string; taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string }
-  | { t: 'points-dfl-invoice'; reqId: string; deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number }[] }
+  | { t: 'points-dfl-invoice'; reqId: string; deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number; deliveryId?: string; deliveryName?: string }[] }
   | { t: 'ctx-install'; slug: string; title: string; body: string }
   | { t: 'session-handoff'; sessionId: string }
   | { t: 'skill-install'; slug: string; title: string; body: string }
