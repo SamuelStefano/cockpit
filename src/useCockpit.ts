@@ -1420,6 +1420,14 @@ export function useCockpit(): Cockpit {
   const queueAdd = useCallback((text: string) => {
     const key = activeRef.current;
     if (!key) return;
+    // Mesmo furo do onSend, e pior aqui: a fila não ecoa bolha nenhuma, então o
+    // descarte do send() com WS fechado sumia com o texto sem deixar rastro — o
+    // item nunca chegava ao parked.json e a fila parecia travada.
+    if (wsRef.current?.readyState !== WebSocket.OPEN) {
+      updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: '⚠️ Sem conexão com o servidor — o item não entrou na fila. O texto voltou pro composer; tente de novo quando reconectar.' }], error: true }]);
+      queueMicrotask(() => setDrafts((d) => ({ ...d, [key]: d[key] || text })));
+      return;
+    }
     // Os anexos confirmados são amarrados A ESTE item da fila (mesmo encode do onSend)
     // e limpos na hora — senão a imagem vazava pro primeiro prompt que drenasse.
     const atts = attachmentsRef.current.filter((a) => !a.uploading);
@@ -1429,7 +1437,7 @@ export function useCockpit(): Cockpit {
     const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
     const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
     send({ t: 'queue-add', sessionKey: key, sessionId: resumeId.current[key], text: wire, mode: modeRef.current, model: modelBySessionRef.current[key] ?? defaultModelRef.current, effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
-  }, [send]);
+  }, [send, updateThread]);
   const queueRemove = useCallback((sessionKey: string, id: string) => { send({ t: 'queue-remove', sessionKey, id }); }, [send]);
   const queueEdit = useCallback((sessionKey: string, id: string, text: string) => { send({ t: 'queue-edit', sessionKey, id, text }); }, [send]);
   const queueMove = useCallback((sessionKey: string, id: string, dir: -1 | 1) => { send({ t: 'queue-move', sessionKey, id, dir }); }, [send]);
