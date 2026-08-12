@@ -210,6 +210,18 @@ describe('buildArgs', () => {
   it('grants no allowedTools in plan mode', () => {
     expect(argsOf({ prompt: 'x', mode: 'plan' })).not.toContain('--allowedTools');
   });
+
+  it('ordena disallowedTools igual independente da ordem de entrada', () => {
+    const a = valAfter(argsOf({ prompt: 'x', disallowedSkills: ['Zeta', 'Alpha', 'Mu'] }), '--disallowedTools');
+    const b = valAfter(argsOf({ prompt: 'x', disallowedSkills: ['Mu', 'Zeta', 'Alpha'] }), '--disallowedTools');
+    expect(a).toBe(b);
+  });
+
+  it('não repete regra vinda do config e da seleção de skills', () => {
+    const v = valAfter(argsOf({ prompt: 'x', disallowedSkills: ['Alpha', 'Alpha'] }), '--disallowedTools');
+    const rules = (v ?? '').split(' ').filter(Boolean);
+    expect(new Set(rules).size).toBe(rules.length);
+  });
 });
 
 // O spawn é o único ponto onde a decisão do roteador vira comportamento: se o env
