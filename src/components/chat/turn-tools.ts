@@ -1,9 +1,6 @@
 import type { Block, Message, ToolCall } from '../../data/mock';
+import type { ShownMessage } from './shown';
 import { isQuestionTool } from './visible-blocks';
-
-// Mensagem sintética (só no cliente) que carrega TODAS as ferramentas de um
-// turno numa caixa só. Não vem do backend: é derivada da thread.
-export type ShownMessage = Message & { digest?: ToolCall[] };
 
 // O turno em curso chega por delta: a thread inteira é recalculada a cada chunk.
 // Sem estes caches toda bolha do histórico ganharia referência nova por token e o

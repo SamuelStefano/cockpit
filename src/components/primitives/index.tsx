@@ -2,6 +2,7 @@ export { Icon, type IconName } from './Icon';
 export { Badge } from './Badge';
 export { Button } from './Button';
 export { Input } from './Input';
+export { Switch } from './Switch';
 export { EmptyState } from './EmptyState';
 export { RouteHeader } from './RouteHeader';
 export { Modal } from './Modal';

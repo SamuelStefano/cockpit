@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, EmptyState, Badge, Input, RouteHeader, toast, Stat, ProgressBar, Tabs, Modal, LivePreview, fireConfetti, Icon } from '../components/primitives';
+import { Button, EmptyState, Badge, Input, Switch, RouteHeader, toast, Stat, ProgressBar, Tabs, Modal, LivePreview, fireConfetti, Icon } from '../components/primitives';
 import { ThemePlayground } from './ds/ThemePlayground';
 
 const DEMO_PREVIEW = `import { useState } from 'react';
@@ -122,6 +122,11 @@ export function DesignSystem() {
           <Row label="password"><Input type="password" placeholder="••••••••" /></Row>
           <Row label="icon"><Input icon="search" placeholder="buscar…" /></Row>
           <Row label="suffix"><Input icon="search" mono size="sm" placeholder="buscar nó…" suffix={<span className="font-mono text-[10.5px] text-orange-300">58</span>} /></Row>
+        </Section>
+
+        <Section title="Switch">
+          <Row label="on"><div className="w-64"><Switch checked onChange={() => {}} icon="terminal" label="Mostrar ferramentas" hint="Bash, Read, Grep… no chat" /></div></Row>
+          <Row label="off"><div className="w-64"><Switch checked={false} onChange={() => {}} icon="sparkles" label="Agrupar notas do agente" /></div></Row>
         </Section>
 
         <Section title="Badge">
