@@ -8,6 +8,7 @@ import { tokenAllowed, tokenFromUrl } from './ws/token';
 import { runStats, killAllRuns, fireCron, startRunReaper } from './ws/runs';
 import { startCronLoop } from './crons';
 import { startStatsLoop } from './ws/stats-loop';
+import { startBgAgentsLoop } from './ws/bg-agents';
 import { startPlanUsageLoop } from './ws/usage-plan';
 import { startModelsLoop } from './ws/models';
 import { probeSlashCommands } from './ws/slash-probe';
@@ -68,6 +69,7 @@ export function attachWs(server: Server) {
 
   const hasClients = () => wss.clients.size > 0;
   startStatsLoop(hasClients);
+  startBgAgentsLoop(hasClients);
   startPlanUsageLoop(hasClients);
   startModelsLoop(hasClients);
   startSessionsWatch(hasClients);

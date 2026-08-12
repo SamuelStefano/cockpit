@@ -26,6 +26,12 @@ export function Realtime() {
           Rodou o <Pill>claude</Pill> direto no terminal? O chat acompanha: as mensagens chegam em até ~2s mesmo com o turno
           escrevendo sem parar, e a estrelinha acende no chat enquanto o terminal trabalha na sessão aberta.
         </InfoCard>
+        <InfoCard icon="sparkles" iconClass="text-orange-300" title="Agentes de fundo">
+          Quando o agente lança um subagente em background (ferramenta Task/Agent), uma faixa logo acima do composer
+          mostra cada um ao vivo: rótulo, tempo decorrido e tokens gastos, atualizando sozinho — igual ao terminal.
+          Ao concluir, vira <Pill>✓ concluído</Pill> por alguns segundos e some. Enquanto isso o composer segue livre:
+          você pode digitar e enviar — a mensagem entra na fila e dispara quando o turno principal terminar.
+        </InfoCard>
       </div>
     </section>
   );

@@ -14,7 +14,8 @@ import { SaturationBanner } from './chat/SaturationBanner';
 import { useChatPanel, type Phase } from './chat/useChatPanel';
 import { useFileDrop } from './chat/useFileDrop';
 import type { Session, Message, ToolTodo } from '../data/mock';
-import type { PermMode, Effort, ModelInfo, TurnStats, Caps, SkillMeta, ParkedView, RoutesSnapshot } from '../../shared/protocol';
+import type { PermMode, Effort, ModelInfo, TurnStats, Caps, SkillMeta, BgAgent, ParkedView, RoutesSnapshot } from '../../shared/protocol';
+import { BackgroundAgents } from './chat/BackgroundAgents';
 import type { Attachment, AttachmentPreview } from '../useCockpit';
 import { AttachmentModal } from './chat/AttachmentModal';
 
@@ -60,6 +61,7 @@ export interface ChatPanelProps {
   contextTokens: number;
   liveTurnTokens?: number;
   turnStartedAt?: number;
+  bgAgents?: BgAgent[];
   lastTurn?: TurnStats;
   onNew: () => void;
   onHandoff?: (sessionId: string) => void;
@@ -100,7 +102,7 @@ export interface ChatPanelProps {
   queueRetry: (sessionKey: string, id: string) => void;
 }
 
-export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, followups, onDismissFollowups, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, quotaPaused = false, quotaResetsAt = null, routes = null, onOpenRoutes, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, followups, onDismissFollowups, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, quotaPaused = false, quotaResetsAt = null, routes = null, onOpenRoutes, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry }: ChatPanelProps) {
   const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry });
   // Modo iterativo: um refino pedido de dentro de um live preview vira o próximo
   // prompt (o card não tem acesso ao compositor — publica no [[refine-bus]]).
@@ -189,6 +191,8 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
       </div>
 
       {trayTodos && <TaskTray todos={trayTodos} />}
+
+      <BackgroundAgents agents={bgAgents} />
 
       {/* Chips só em repouso de verdade: sem turno, sem pergunta/plano pendente e
           sem fila — nesses estados o banner correspondente é a ação principal. */}
