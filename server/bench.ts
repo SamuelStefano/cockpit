@@ -1,7 +1,7 @@
 import { build as esbuild, type Plugin } from 'esbuild';
 import { readFile, mkdtemp, rm } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import { join, resolve, sep } from 'node:path';
+import { existsSync, statSync } from 'node:fs';
+import { basename, join, resolve, sep } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -18,6 +18,13 @@ export interface BenchTarget {
   root: string;
   /** Prefixo de import → diretório, relativo à raiz (ex.: `{"@": "src"}`). */
   alias?: Record<string, string>;
+  /**
+   * `node_modules` fora da raiz. Um worktree de git não tem deps próprias, e
+   * dar a ele um symlink não resolve: o esbuild resolve pelo caminho real, que
+   * cai fora da raiz e a trava rejeita. Declarar aqui é explícito e auditável —
+   * ao contrário de `preserveSymlinks`, que abriria a trava pra qualquer link.
+   */
+  deps?: string;
   /** Entrada de CSS do repo (Tailwind) — compilada com o tema do alvo. */
   css?: string;
   /** Globs de conteúdo pro Tailwind varrer classes. Relativos à raiz. */
@@ -42,12 +49,25 @@ const cssCache = new Map<string, { css: string; at: number }>();
 // cercas numa mensagem disparariam N em paralelo e derrubariam a box por memória.
 let queue: Promise<unknown> = Promise.resolve();
 
+// `deps` afrouxa a trava de leitura, então só vale um `node_modules` de verdade:
+// um `deps` digitado como `/home/samuel` abriria a home inteira pro bundle.
+export function isDepsDir(p: unknown): boolean {
+  if (typeof p !== 'string' || basename(resolve(p)) !== 'node_modules') return false;
+  try {
+    return statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 async function readRegistry(): Promise<Record<string, BenchTarget>> {
   try {
     const raw = JSON.parse(await readFile(REGISTRY, 'utf8')) as Record<string, BenchTarget>;
     const out: Record<string, BenchTarget> = {};
     for (const [slug, t] of Object.entries(raw)) {
-      if (BENCH_SLUG_RE.test(slug) && t && typeof t.root === 'string' && existsSync(t.root)) out[slug] = t;
+      if (!BENCH_SLUG_RE.test(slug) || !t || typeof t.root !== 'string' || !existsSync(t.root)) continue;
+      if (t.deps !== undefined && !isDepsDir(t.deps)) continue;
+      out[slug] = t;
     }
     return out;
   } catch {
@@ -73,12 +93,12 @@ export function insideRoot(root: string, p: string): boolean {
 // A trava é no onLoad, não no onResolve: aqui o caminho JÁ está resolvido, então
 // não precisamos reentrar no resolvedor (b.resolve por import estoura o serviço
 // do esbuild num repo do tamanho de um app real).
-function confine(root: string): Plugin {
+function confine(roots: string[]): Plugin {
   return {
     name: 'bench-confine',
     setup(b) {
       b.onLoad({ filter: /.*/ }, (args) => {
-        if (args.namespace !== 'file' || insideRoot(root, args.path)) return null;
+        if (args.namespace !== 'file' || roots.some((r) => insideRoot(r, args.path))) return null;
         return { errors: [{ text: `fora do repo do bench: ${args.path}` }] };
       });
     },
@@ -123,6 +143,7 @@ async function runBuild(slug: string, code: string): Promise<BenchResult> {
   if (!target) return { ok: false, error: `alvo desconhecido: ${slug}` };
 
   const root = resolve(target.root);
+  const deps = target.deps ? resolve(target.deps) : join(root, 'node_modules');
   const started = Date.now();
   try {
     const alias: Record<string, string> = {};
@@ -137,9 +158,9 @@ async function runBuild(slug: string, code: string): Promise<BenchResult> {
       outfile: 'bench.js',
       format: 'iife',
       absWorkingDir: root,
-      nodePaths: [join(root, 'node_modules')],
+      nodePaths: [deps],
       alias,
-      plugins: [virtualEntry(code, root), confine(root)],
+      plugins: [virtualEntry(code, root), confine([root, deps])],
       loader: { '.png': 'dataurl', '.jpg': 'dataurl', '.svg': 'dataurl', '.gif': 'dataurl', '.woff2': 'dataurl', '.css': 'css' },
       define: { 'process.env.NODE_ENV': '"production"' },
       jsx: 'automatic',
@@ -150,7 +171,7 @@ async function runBuild(slug: string, code: string): Promise<BenchResult> {
     const js = out.outputFiles.find((f) => f.path.endsWith('.js'))?.text ?? '';
     if (js.length > MAX_BUNDLE) return { ok: false, error: 'bundle grande demais' };
     const bundled = out.outputFiles.filter((f) => f.path.endsWith('.css')).map((f) => f.text).join('\n');
-    const css = [await themeCss(slug, target, root), bundled].filter(Boolean).join('\n');
+    const css = [await themeCss(slug, target, root, deps), bundled].filter(Boolean).join('\n');
     return { ok: true, js, css, ms: Date.now() - started };
   } catch (e) {
     return { ok: false, error: (e as Error).message.slice(0, 4000) };
@@ -159,14 +180,19 @@ async function runBuild(slug: string, code: string): Promise<BenchResult> {
 
 // O CSS do tema do alvo (Tailwind) muda pouco e custa ~1s: cache curto evita
 // pagar isso a cada tecla enquanto o código é editado ao vivo.
-async function themeCss(slug: string, target: BenchTarget, root: string): Promise<string> {
+async function themeCss(
+  slug: string,
+  target: BenchTarget,
+  root: string,
+  deps: string,
+): Promise<string> {
   if (!target.css) return '';
   const hit = cssCache.get(slug);
   if (hit && Date.now() - hit.at < CSS_TTL_MS) return hit.css;
   // Binário instalado no repo alvo, NUNCA `npx`: fora de TTY o npx baixa e executa
   // pacote sem perguntar, obedecendo o .npmrc daquele repo — uma branch de PR que
   // aponte o registry pra outro lugar viraria execução de código nesta máquina.
-  const bin = join(root, 'node_modules', '.bin', 'tailwindcss');
+  const bin = join(deps, '.bin', 'tailwindcss');
   if (!existsSync(bin)) return '';
   const content = (target.content ?? ['src/**/*.{ts,tsx}']).join(',');
   // `-o -` não escreve nada no stdout nesta versão da CLI do Tailwind; arquivo
@@ -177,7 +203,14 @@ async function themeCss(slug: string, target: BenchTarget, root: string): Promis
     await run(bin, ['-i', target.css, '-o', out, '--content', content, '--minify'], {
       cwd: root,
       timeout: 120_000,
-      env: { PATH: process.env.PATH ?? '', HOME: homedir(), npm_config_ignore_scripts: 'true' },
+      // O config do Tailwind do alvo importa plugins por nome; num worktree sem
+      // `node_modules` próprio o require só acha via NODE_PATH.
+      env: {
+        PATH: process.env.PATH ?? '',
+        HOME: homedir(),
+        NODE_PATH: deps,
+        npm_config_ignore_scripts: 'true',
+      },
     });
     const css = await readFile(out, 'utf8');
     cssCache.set(slug, { css, at: Date.now() });
