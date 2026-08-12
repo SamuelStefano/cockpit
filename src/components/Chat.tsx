@@ -7,6 +7,7 @@ import { ChatHeader } from './chat/ChatHeader';
 import { TaskTray } from './chat/TaskTray';
 import { latestTodos } from './chat/task-tray';
 import { useShownMessages } from './chat/useShownMessages';
+import { useCompacting } from './chat/useCompacting';
 import { TurnBanners } from './chat/TurnBanners';
 import { FollowupChips } from './chat/FollowupChips';
 import { ClaudeAuthBanner } from './chat/ClaudeAuthBanner';
@@ -109,7 +110,12 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
   useEffect(() => subscribeRefine((text) => onPrompt(`Refina a última tela/preview: ${text}`)), [onPrompt]);
   // Stats AO VIVO do turno (estilo terminal): tokens gastos + tempo decorrido,
   // enquanto o turno roda. Some no `done` (phase volta a idle).
-  const live = phase === 'thinking' || phase === 'streaming' ? { tokens: liveTurnTokens ?? 0, startedAt: turnStartedAt } : undefined;
+  const running = phase === 'thinking' || phase === 'streaming';
+  // Compactação não emite frame nenhum (o CLI só avisa depois): o silêncio longo
+  // com o contexto cheio é o que denuncia, e vira indicador ao vivo no lugar do
+  // "Pensando…" — antes o chat parecia travado por minutos.
+  const compactingSince = useCompacting(messages, running, contextTokens, quotaPaused);
+  const live = running ? { tokens: liveTurnTokens ?? 0, startedAt: turnStartedAt, compactingSince: compactingSince ?? undefined } : undefined;
   // Drop em qualquer lugar do chat (não só no composer): teto de 15MB espelha o
   // backend. O composer tem seu próprio drop com stopPropagation, então soltar lá
   // não dispara este também.

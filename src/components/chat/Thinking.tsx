@@ -1,17 +1,13 @@
 import { useState, useEffect } from 'react';
 import { ClaudeAvatar } from '../ClaudeAvatar';
+import { CompactingLine } from './CompactingLine';
+import { fmtElapsed, useElapsed } from './elapsed';
 
 // Stats AO VIVO do turno em andamento (estilo terminal): tempo decorrido + tokens
 // gastos NESTE turno. `startedAt` (ts do início do turno) sobrevive a remontagem
-// no reconnect; sem ele cai no relógio local do componente.
-export interface LiveTurn { tokens: number; startedAt?: number }
-
-function fmtElapsed(secs: number): string {
-  if (secs < 60) return `${secs}s`;
-  const m = Math.floor(secs / 60);
-  const s = secs % 60;
-  return `${m}m ${s}s`;
-}
+// no reconnect; sem ele cai no relógio local do componente. `compactingSince`
+// carimba quando o silêncio da compactação começou (ver [[compacting]]).
+export interface LiveTurn { tokens: number; startedAt?: number; compactingSince?: number }
 
 // Tokens compactos: 1.2k, 18k, 1.3M. Abaixo de 1000 mostra o número cru.
 export function fmtTokensK(n: number): string {
@@ -19,16 +15,6 @@ export function fmtTokensK(n: number): string {
   if (n >= 10_000) return `${Math.round(n / 1000)}k`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
   return `${n}`;
-}
-
-function useElapsed(startedAt?: number): number {
-  const [secs, setSecs] = useState(() => (startedAt ? Math.max(0, Math.floor((Date.now() - startedAt) / 1000)) : 0));
-  useEffect(() => {
-    const base = startedAt ?? Date.now();
-    const id = setInterval(() => setSecs(Math.max(0, Math.floor((Date.now() - base) / 1000))), 1000);
-    return () => clearInterval(id);
-  }, [startedAt]);
-  return secs;
 }
 
 // Linha discreta "Xs · N.Nk tok" enquanto o turno roda. Mostra o tempo desde 1s
@@ -78,6 +64,7 @@ function useSpinner(): { glyph: string; verb: string } {
 
 export function ThinkingDots({ live }: { live?: LiveTurn }) {
   const { glyph, verb } = useSpinner();
+  if (live?.compactingSince) return <CompactingLine since={live.compactingSince} />;
   return (
     <div className="flex items-center gap-2 pt-1.5">
       <span className="spinner-star inline-block w-4 text-center text-[15px] leading-none text-orange-400" aria-hidden>

@@ -90,6 +90,12 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .breathe { animation: breathe 2.4s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .breathe { animation: none; } }
 
+/* Barra indeterminada da compactação: sem progresso real pra reportar, o que
+   importa é provar movimento — o chat parecia congelado. */
+@keyframes sweep { 0% { transform: translateX(-110%); } 100% { transform: translateX(440%); } }
+.sweep { animation: sweep 1.7s cubic-bezier(0.45, 0, 0.35, 1) infinite; }
+@media (prefers-reduced-motion: reduce) { .sweep { animation: none; width: 100%; opacity: 0.6; } }
+
 @keyframes spin360 { to { transform: rotate(360deg); } }
 .spin { animation: spin360 0.7s linear infinite; }
 
