@@ -378,8 +378,9 @@ export async function parseFullSession(
 export function cleanUserText(text: string): string | null {
   // Notificação de subagente de background (XML do harness): o terminal a esconde;
   // como bolha atribuía ao Samuel um texto que ele nunca mandou e virava spam
-  // quando um agente zumbi re-notificava. Omite igual ao terminal.
-  if (text.includes('<task-notification>')) return null;
+  // quando um agente zumbi re-notificava. Ancorado no início pra não engolir uma
+  // mensagem de verdade que só cite a tag.
+  if (/^\s*<task-notification>/.test(text)) return null;
   if (text.includes('<command-name>')) {
     const name = /<command-name>([^<]*)<\/command-name>/.exec(text)?.[1]?.trim() ?? '';
     const args = /<command-args>([^<]*)<\/command-args>/.exec(text)?.[1]?.trim() ?? '';
