@@ -12,7 +12,8 @@ import { QuoteButton, CopyMessageButton, RegenerateButton, SpeakButton } from '.
 import { UserMessageRow } from './UserMessageRow';
 import { CompactDivider } from './CompactDivider';
 import { ToolGroupCard } from './ToolGroupCard';
-import type { ShownMessage } from './turn-tools';
+import { NarrationGroupCard } from './NarrationGroupCard';
+import type { ShownMessage } from './shown';
 import { fmtTokens, fmtDuration, fmtClock } from './message-format';
 
 export type { DiffRow } from './diff';
@@ -55,6 +56,16 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
     return (
       <div data-mid={msg.id} className="fade-up">
         <ToolGroupCard tools={msg.digest} />
+        {thinking && <ThinkingDots live={live} />}
+      </div>
+    );
+  }
+  // Mesma ideia da caixa de ferramentas, pro texto de bastidor: o turno narra o
+  // que vai fazer dezenas de vezes e só a última fala é a resposta.
+  if (msg.narration) {
+    return (
+      <div data-mid={msg.id} className="fade-up">
+        <NarrationGroupCard notes={msg.narration} />
         {thinking && <ThinkingDots live={live} />}
       </div>
     );

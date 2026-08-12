@@ -14,6 +14,15 @@ export function Profile() {
           Dentro do menu de perfil há um seletor escondido pro ícone do agente: o burst laranja da marca por padrão,
           ou um dos vários emojis divertidos (caranguejo, robô, alienígena, raposa…). Escolha um e ele passa a aparecer em todas as respostas.
         </InfoCard>
+        <InfoCard icon="terminal" title="Mostrar ferramentas">
+          Liga/desliga a caixa com o que o agente rodou no turno (Bash, Read, Grep…). Ligada, todas as ferramentas
+          do turno viram uma caixa fechada só — a thread fica prompt + resposta e o caminho continua a um clique.
+        </InfoCard>
+        <InfoCard icon="sparkles" title="Agrupar notas do agente">
+          Um turno longo narra o que vai fazer dezenas de vezes ("agora vou abrir a PR"). Com isso ligado esse bastidor
+          sai das bolhas e vira uma caixa "N notas do agente"; só a resposta final fica solta. Texto com lista, título,
+          código ou link nunca é tratado como nota, e o turno em andamento nunca é agrupado.
+        </InfoCard>
       </div>
     </section>
   );
