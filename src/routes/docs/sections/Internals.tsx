@@ -23,14 +23,27 @@ export function Internals() {
           mexendo no servidor, um gatilho automático reinicia os dois na hora — então uma correção nunca fica presa num processo
           rodando código de dias atrás (era a causa de "consertei mas continua igual").
         </InfoCard>
+        <InfoCard icon="rotate" iconClass="text-orange-400" size={13} title="Turno que cai volta sozinho">
+          Se o processo do turno morre antes de responder — queda, reinício do agente, falta de memória — o chat não fica mudo:
+          aparece um aviso e o turno é <b>retomado do ponto onde parou</b> com <Pill>--resume</Pill>, mantendo modelo, modo e orçamento.
+          Os turnos vivos ficam registrados em disco, então até um reinício do servidor é recuperado no próximo arranque.
+          A retomada tem teto: se falhar de novo, o Deck avisa em vez de insistir.
+        </InfoCard>
+        <InfoCard icon="shield" iconClass="text-orange-400" size={13} title="Uma IA vigia as falhas">
+          Toda falha de turno vira uma linha em <Pill>~/.cockpit/incidents.jsonl</Pill> — só fato estrutural (duração, nº de ferramentas),
+          nunca o texto da conversa. De 15 em 15 minutos, se houver incidente novo, um Claude headless acorda, investiga a causa raiz
+          e abre uma <b>PR com a correção</b>. Ele não pode reiniciar nada nem commitar na <Pill>main</Pill>: você revisa antes.
+          Sem incidente, não roda — custo zero quando está tudo bem.
+        </InfoCard>
         <InfoCard icon="clock" iconClass="text-orange-400" size={13} title="Sessões ociosas hibernam">
           Sessão sem resposta há mais de 24h é encerrada automaticamente pra liberar a memória da VPS — mas
           <Pill>sem perder nada</Pill>: o histórico fica salvo em disco e a conversa volta inteira com
           <Pill>claude --resume</Pill>. Evita que várias janelas esquecidas travem a RAM.
         </InfoCard>
         <InfoCard icon="clock" iconClass="text-orange-400" size={13} title="Crons — prompts agendados">
-          A aba <Pill>Crons</Pill> dispara prompts em horário marcado (diário num horário ou
-          a cada N minutos) como turnos autônomos. Cada disparo vira a sessão <Pill>cron-&lt;id&gt;</Pill>.
+          A aba <Pill>Crons</Pill> dispara prompts em horário marcado como turnos autônomos:
+          <Pill>diário</Pill> num horário, a cada <Pill>N minutos</Pill> ou <Pill>uma vez</Pill> numa data e
+          hora (esse se pausa sozinho depois de rodar). Cada disparo vira a sessão <Pill>cron-&lt;id&gt;</Pill>.
           Pausável, com "rodar agora". O agendador roda no backend; persistido em <Pill>~/.cockpit/crons.json</Pill>.
         </InfoCard>
         <InfoCard icon="pencil" iconClass="text-orange-400" size={13} title="Notas viram contexto">

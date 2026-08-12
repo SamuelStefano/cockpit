@@ -7,21 +7,25 @@ import { nextRunAt, isDue } from '../shared/cron-schedule';
 export { nextRunAt, isDue };
 
 // Crons do Deck: dispara prompts agendados (turnos autônomos). Persistidos em
-// ~/.cockpit/crons.json. Schedule minimalista: intervalo (a cada N min) ou diário
-// (minuto do dia, hora local do servidor). A matemática de agendamento é pura
+// ~/.cockpit/crons.json. Schedule minimalista: intervalo (a cada N min), diário
+// (minuto do dia, hora local do servidor) ou uma vez. A matemática de agendamento é pura
 // (recebe `now`) pra ser testável; o I/O é separado.
-const FILE = process.env.COCKPIT_CRONS ?? join(homedir(), '.cockpit', 'crons.json');
+// Path lido em runtime (não no load) pra ser testável via COCKPIT_CRONS.
+function cronsFile(): string {
+  return process.env.COCKPIT_CRONS ?? join(homedir(), '.cockpit', 'crons.json');
+}
 
 export async function getCrons(): Promise<Cron[]> {
-  try { const j = JSON.parse(await readFile(FILE, 'utf8')); return Array.isArray(j) ? j : []; } catch { return []; }
+  try { const j = JSON.parse(await readFile(cronsFile(), 'utf8')); return Array.isArray(j) ? j : []; } catch { return []; }
 }
 async function writeCrons(list: Cron[]): Promise<void> {
-  await mkdir(dirname(FILE), { recursive: true });
+  const file = cronsFile();
+  await mkdir(dirname(file), { recursive: true });
   // Atômico: escreve no .tmp e renomeia — um crash no meio do write não corrompe
   // o crons.json. Serializado pelo mutex abaixo (escritor único), então .tmp fixo basta.
-  const tmp = `${FILE}.tmp`;
+  const tmp = `${file}.tmp`;
   await writeFile(tmp, JSON.stringify(list, null, 2) + '\n', 'utf8');
-  await rename(tmp, FILE);
+  await rename(tmp, file);
 }
 
 // Mutex de escrita: saveCron/deleteCron/markRan fazem read-modify-write no MESMO
@@ -50,11 +54,16 @@ export function deleteCron(id: string): Promise<Cron[]> {
     return all;
   });
 }
-function markRan(id: string, now: number): Promise<unknown> {
+export function markRan(id: string, now: number): Promise<unknown> {
   return serialize(async () => {
     const all = await getCrons();
     const c = all.find((x) => x.id === id);
-    if (c) { c.lastRun = now; await writeCrons(all); }
+    if (!c) return;
+    c.lastRun = now;
+    // "uma vez" se auto-pausa ao disparar: fica no histórico sem contar como ativo
+    // nem exibir uma próxima execução que já passou.
+    if (c.schedule.kind === 'once') c.enabled = false;
+    await writeCrons(all);
   });
 }
 

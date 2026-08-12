@@ -1,7 +1,6 @@
 import { memo } from 'react';
 import { Icon } from '../primitives';
 import { ClaudeAvatar } from '../ClaudeAvatar';
-import type { Message } from '../../data/mock';
 import type { TurnBubbleStats } from '../../../shared/protocol';
 import { messageToText } from '../../lib/export';
 import { usePersisted } from '../../lib/persist';
@@ -9,9 +8,12 @@ import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT } from '../../lib/prefs';
 import { hasVisibleAssistantContent } from './visible-blocks';
 import { AssistantBlocks } from './AssistantBlocks';
 import { ThinkingDots, LiveStatsLine, type LiveTurn } from './Thinking';
-import { QuoteButton, CopyMessageButton } from './MessageActions';
+import { QuoteButton, CopyMessageButton, RegenerateButton, SpeakButton } from './MessageActions';
 import { UserMessageRow } from './UserMessageRow';
 import { CompactDivider } from './CompactDivider';
+import { ToolGroupCard } from './ToolGroupCard';
+import { NarrationGroupCard } from './NarrationGroupCard';
+import type { ShownMessage } from './shown';
 import { fmtTokens, fmtDuration, fmtClock } from './message-format';
 
 export type { DiffRow } from './diff';
@@ -19,15 +21,18 @@ export { lineDiff } from './diff';
 export { Thinking } from './Thinking';
 
 interface MessageRowProps {
-  msg: Message;
+  msg: ShownMessage;
   caretOnLast: boolean;
   modelLabel?: string;
+  showModelLabel?: boolean;
   thinking?: boolean;
   live?: LiveTurn;
   onEditUser?: (id: string, text: string) => void;
   onQuote?: (text: string) => void;
   answerable?: boolean;
   onAnswer?: (text: string) => void;
+  // Só na última resposta com a sessão ociosa: reenvia o último prompt.
+  onRegenerate?: () => void;
   onOpenAttachment?: (path: string, name: string) => void;
   attThumbs?: Record<string, string>;
   onAttThumb?: (path: string) => void;
@@ -36,7 +41,7 @@ interface MessageRowProps {
 // memo: cada delta de streaming troca só a referência da ÚLTIMA mensagem
 // (patchRunMsg usa .map preservando as demais) — sem isto a thread inteira
 // re-renderiza a cada chunk.
-export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabel, thinking, live, onEditUser, onQuote, answerable, onAnswer, onOpenAttachment, attThumbs, onAttThumb }: MessageRowProps) {
+export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabel, showModelLabel = true, thinking, live, onEditUser, onQuote, answerable, onAnswer, onRegenerate, onOpenAttachment, attThumbs, onAttThumb }: MessageRowProps) {
   const [showTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   if (msg.role === 'user') {
     return <UserMessageRow msg={msg} onEditUser={onEditUser} onQuote={onQuote} onOpenAttachment={onOpenAttachment} attThumbs={attThumbs} onAttThumb={onAttThumb} />;
@@ -44,18 +49,43 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
   if (msg.role === 'compact') {
     return <CompactDivider msg={msg} />;
   }
+  // Todas as ferramentas do turno numa caixa fechada só (sem avatar nem rótulo
+  // de modelo): a thread fica prompt + resposta, e o que a IA fez pra chegar lá
+  // continua a um clique.
+  if (msg.digest) {
+    return (
+      <div data-mid={msg.id} className="fade-up">
+        <ToolGroupCard tools={msg.digest} />
+        {thinking && <ThinkingDots live={live} />}
+      </div>
+    );
+  }
+  // Mesma ideia da caixa de ferramentas, pro texto de bastidor: o turno narra o
+  // que vai fazer dezenas de vezes e só a última fala é a resposta.
+  if (msg.narration) {
+    return (
+      <div data-mid={msg.id} className="fade-up">
+        <NarrationGroupCard notes={msg.narration} />
+        {thinking && <ThinkingDots live={live} />}
+      </div>
+    );
+  }
   // Tools ocultas podem deixar a mensagem sem NENHUM bloco renderizável — aí a
   // linha inteira some, senão sobrava um rótulo "opus…" órfão por mensagem de
-  // ferramenta. Exceção: a linha do indicador de turno em curso (thinking).
-  if (!thinking && !hasVisibleAssistantContent(msg.blocks, showTools)) return null;
+  // ferramenta. Exceções: o indicador de turno em curso (thinking) e o fecho de um
+  // turno que só usou ferramentas, onde só resta o "Pensou por X".
+  if (!thinking && !msg.stats?.durationMs && !hasVisibleAssistantContent(msg.blocks, showTools)) return null;
   const hasText = msg.blocks.some((b) => b.type === 'text' || b.type === 'code');
   return (
-    <div className="fade-up group/msg flex gap-2.5">
-      <div className="mt-0.5">
+    // data-mid em toda linha (não só nas do usuário): é a âncora que o
+    // "carregar antigas" usa pra reposicionar o scroll. Uma resposta longa pode
+    // ocupar a viewport inteira — sem âncora ali, a leitura saltava.
+    <div data-mid={msg.id} className="fade-up group/msg flex gap-2.5">
+      <div className="mt-0.5" title={showModelLabel ? undefined : modelLabel}>
         <ClaudeAvatar size={28} />
       </div>
       <div className="min-w-0 flex-1 pt-0.5">
-        <span className="mb-0.5 block max-w-[260px] truncate px-0.5 text-[11px] font-medium text-orange-300/80">{modelLabel || 'Claude'}</span>
+        {showModelLabel && <span className="mb-0.5 block max-w-[260px] truncate px-0.5 font-mono text-[11px] font-medium tracking-tight text-orange-300/90">{modelLabel || 'Claude'}</span>}
         {msg.quick && (
           <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-300">
             <Icon name="zap" size={10} /> resposta rápida (paralela)
@@ -63,14 +93,17 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
         )}
         <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} answerable={answerable} onAnswer={onAnswer} />
         {thinking && <ThinkingDots live={live} />}
+        {!caretOnLast && !thinking && msg.stats?.durationMs ? <ThoughtFor ms={msg.stats.durationMs} /> : null}
         {hasText && !caretOnLast && (
-          <div className="mt-1 flex items-center gap-2">
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <div className="flex items-center gap-2 opacity-100 transition group-hover/msg:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100">
               <CopyMessageButton blocks={msg.blocks} />
+              <SpeakButton blocks={msg.blocks} />
+              {onRegenerate && <RegenerateButton onClick={onRegenerate} />}
               {onQuote && <QuoteButton onClick={() => onQuote(messageToText(msg.blocks))} withLabel />}
             </div>
             {msg.stats && <TurnStatsLine stats={msg.stats} />}
-            {msg.ts && <time className="text-[10px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
+            {msg.ts && <time className="whitespace-nowrap text-[10px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
           </div>
         )}
       </div>
@@ -90,15 +123,27 @@ function TurnStatsLine({ stats }: { stats: TurnBubbleStats }) {
   } else if (stats.inputTokens !== undefined && stats.outputTokens !== undefined) {
     parts.push(`${fmtTokens(stats.inputTokens)} in · ${fmtTokens(stats.outputTokens)} out`);
   }
-  if (stats.durationMs) parts.push(fmtDuration(stats.durationMs));
   if (typeof stats.costUsd === 'number') parts.push(`$${stats.costUsd < 0.01 ? stats.costUsd.toFixed(4) : stats.costUsd.toFixed(3)}`);
   if (!parts.length) return null;
   const inOut = stats.inputTokens !== undefined && stats.outputTokens !== undefined
     ? ` — ${fmtTokens(stats.inputTokens)} in · ${fmtTokens(stats.outputTokens)} out`
     : '';
   return (
-    <span className="text-[10px] tabular-nums text-neutral-600" title={`Gasto do turno: total faturável incl. cache · tempo · custo${inOut}`}>
+    <span className="whitespace-nowrap text-[10px] tabular-nums text-neutral-600" title={`Gasto do turno: total faturável incl. cache · custo${inOut}`}>
       {parts.join(' · ')}
     </span>
+  );
+}
+
+// Tempo final do turno, estilo terminal ("pensou por X"). Fica logo abaixo da
+// resposta assim que o turno conclui — aparece mesmo em turnos só de ferramenta
+// (o gasto tokens/custo some quando não há texto, mas o tempo sempre fica).
+// Fonte: stats.durationMs = duration_ms do result do CLI (relógio do turno).
+function ThoughtFor({ ms }: { ms: number }) {
+  return (
+    <div className="mt-1 flex items-center gap-1.5 text-[11px] text-neutral-500" title="Tempo total deste turno (relógio do CLI)">
+      <span className="text-orange-400/70" aria-hidden>✻</span>
+      <span className="tabular-nums">Pensou por {fmtDuration(ms)}</span>
+    </div>
   );
 }

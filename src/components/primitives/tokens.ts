@@ -24,13 +24,18 @@ export const tokens = {
     accent: 'text-orange-400',
   },
   surface: {
-    base: 'bg-neutral-900/60 border border-neutral-800',
-    // Elevado (popover/modal/menu): sombra suave dá profundidade sobre a atmosfera.
-    raised: 'bg-neutral-950 border border-neutral-700 shadow-lg shadow-black/40',
+    // Card em repouso: hairline (luz no topo) dá profundidade sem sombra pesada.
+    base: 'bg-neutral-900/60 border border-neutral-800 hairline',
+    // Elevado (popover/modal/menu): escala de elevação com highlight interno.
+    raised: 'bg-neutral-950 border border-neutral-700 elev-2',
     // Vidro: superfície translúcida com blur — pra sobrepor o glow do fundo.
-    glass: 'bg-neutral-900/70 border border-neutral-800 backdrop-blur-md',
+    glass: 'bg-neutral-900/70 border border-neutral-800 backdrop-blur-md hairline',
   },
-  // Realce de acento (botão primário/destaques): gradiente quente em vez de chapado.
+  // Escala de elevação reusável (classes definidas no index.css).
+  elevation: { sm: 'elev-1', md: 'elev-2' },
+  // Item ativo/selecionado: aro + halo quente discretos (acento vira jóia).
+  activeGlow: 'glow-active',
+  // Realce de acento (botão primário/destaques): gradiente quente + brilho de jóia.
   accentGradient: 'bg-gradient-to-b from-orange-500 to-orange-600',
 } as const;
 

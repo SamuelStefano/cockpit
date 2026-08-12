@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Badge } from '../primitives';
+import { usePersisted } from '../../lib/persist';
+import { SHOW_SESSION_DESC_KEY, SHOW_SESSION_DESC_DEFAULT } from '../../lib/prefs';
 import type { Session } from '../../data/mock';
 import { Highlight } from './Highlight';
 import { SessionRowTags } from './SessionRowTags';
@@ -8,7 +10,7 @@ import { SessionRowMeta } from './SessionRowMeta';
 import { RunStatus } from './RunStatus';
 import { useSessionRow } from './useSessionRow';
 import { useLongPress } from './useLongPress';
-import { ctxWarn, isIdle } from './row-meta';
+import { ctxWarn, fmtCost, isIdle } from './row-meta';
 
 export interface SessionRowProps {
   s: Session;
@@ -36,6 +38,7 @@ export interface SessionRowProps {
 
 export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated, runStart, pinned, tags = [], onTogglePin, onAddTag, onRemoveTag, onFilterTag, onSelect, onRename, onDescribe, onClose, onDelete, onStop }: SessionRowProps) {
   const { editing, setEditing, draft, setDraft, descEditing, setDescEditing, descDraft, setDescDraft, tagging, setTagging, tagDraft, setTagDraft, inputRef, descRef, tagRef, commit, commitDesc, commitTag } = useSessionRow({ s, onAddTag, onRename, onDescribe });
+  const [showDesc] = usePersisted<boolean>(SHOW_SESSION_DESC_KEY, SHOW_SESSION_DESC_DEFAULT);
   const { open: actionsOpen, setOpen: setActionsOpen, consumeTap, handlers } = useLongPress(() => {});
   const warn = ctxWarn(ctx);
   const rowRef = useRef<HTMLDivElement>(null);
@@ -63,13 +66,13 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
         if (e.target !== e.currentTarget) return; // tecla foi pra um botão/input interno
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(s.id); }
       }}
-      className={`group relative cursor-pointer rounded-lg border px-2.5 py-2 transition outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40
+      className={`group relative cursor-pointer rounded-xl border px-3.5 py-3 transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40
         ${active
-          ? 'border-orange-500/40 bg-orange-500/[0.07]'
-          : 'border-transparent hover:border-neutral-800 hover:bg-neutral-900'}`}
+          ? 'glow-active border-orange-500/40 bg-gradient-to-r from-orange-500/[0.09] to-orange-500/[0.03]'
+          : 'border-transparent hover:border-neutral-800 hover:bg-neutral-900/80'}`}
     >
-      {active && <span className="absolute left-0 top-2 bottom-2 w-[2.5px] rounded-full bg-orange-500" />}
-      <div className="mb-1 flex items-center justify-between gap-2">
+      {active && <span className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full bg-gradient-to-b from-orange-400 to-orange-600" />}
+      <div className="mb-1.5 flex items-start justify-between gap-2">
         {editing ? (
           <input
             ref={inputRef}
@@ -86,16 +89,17 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
           />
         ) : (
           <span
-            className={`flex min-w-0 items-center gap-1.5 truncate text-left text-[12.5px] font-medium leading-tight ${active ? 'text-neutral-100' : 'text-neutral-300'}`}
+            className={`flex min-w-0 items-start gap-1.5 text-left text-[13.5px] font-medium leading-snug tracking-[-0.01em] ${active ? 'text-neutral-50' : 'text-neutral-300 group-hover:text-neutral-200'}`}
           >
-            <SessionStatusDot running={running} stalled={stalled} updated={updated} />
-            <span className={`truncate ${!running && updated && !active ? 'text-neutral-100' : ''}`}><Highlight text={s.title} term={highlight} /></span>
+            <span className="mt-[3px] shrink-0"><SessionStatusDot running={running} stalled={stalled} updated={updated} /></span>
+            {/* Título em até 2 linhas: um título longo mostra bem mais antes de
+                reticenciar do que o corte de 1 linha (os "…" que incomodavam). */}
+            <span className={`line-clamp-2 ${!running && updated && !active ? 'text-neutral-100' : ''}`}><Highlight text={s.title} term={highlight} /></span>
           </span>
         )}
         {!editing && (
           <SessionRowMeta
             relative={s.relative}
-            cost={cost}
             pinned={!!pinned}
             running={!!running}
             tagging={tagging}
@@ -131,33 +135,30 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
           aria-label="Editar descrição da sessão"
           className="mt-0.5 w-full resize-none rounded border border-orange-500/50 bg-neutral-950 px-1.5 py-1 text-[11.5px] leading-snug text-neutral-200 outline-none ring-2 ring-orange-500/20"
         />
-      ) : (
-        <p className="line-clamp-2 text-[11.5px] leading-snug text-neutral-500"><Highlight text={s.summary || s.snippet} term={highlight} /></p>
-      ))}
+      ) : showDesc ? (
+        <p className="line-clamp-2 text-[12px] leading-snug text-neutral-500"><Highlight text={s.summary || s.snippet} term={highlight} /></p>
+      ) : null)}
       {!editing && running && (
         <RunStatus start={runStart} stalled={!!stalled} />
       )}
-      {!editing && isIdle(s.mtime, !!running) && (
-        <div className="mt-1.5">
-          <Badge tone="neutral">ociosa</Badge>
+      {/* Faixa única de meta: badges e etiquetas fluem juntos numa linha (com
+          wrap) — antes cada badge abria a própria linha e o card crescia torto. */}
+      {!editing && (warn || s.hasTerminal || isIdle(s.mtime, !!running) || tags.length > 0 || tagging || (cost !== undefined && cost > 0)) && (
+        <div className="mt-2 flex flex-wrap items-center gap-1">
+          {cost !== undefined && cost > 0 && (
+            <span className="text-[10px] tabular-nums text-emerald-500/50" title="Custo estimado acumulado desta sessão">{fmtCost(cost)}</span>
+          )}
+          {warn && <Badge tone={warn.tone}>contexto {warn.pct}%</Badge>}
+          {s.hasTerminal && <Badge tone="green" dot>terminal</Badge>}
+          {isIdle(s.mtime, !!running) && <Badge tone="neutral">ociosa</Badge>}
+          {(tags.length > 0 || tagging) && (
+            <SessionRowTags
+              id={s.id} tags={tags} tagging={tagging} tagDraft={tagDraft} tagRef={tagRef}
+              setTagDraft={setTagDraft} setTagging={setTagging} commitTag={commitTag}
+              onRemoveTag={onRemoveTag} onFilterTag={onFilterTag}
+            />
+          )}
         </div>
-      )}
-      {!editing && warn && (
-        <div className="mt-1.5">
-          <Badge tone={warn.tone}>contexto {warn.pct}%</Badge>
-        </div>
-      )}
-      {s.hasTerminal && !editing && (
-        <div className="mt-1.5">
-          <Badge tone="green" dot>terminal ativo</Badge>
-        </div>
-      )}
-      {!editing && (tags.length > 0 || tagging) && (
-        <SessionRowTags
-          id={s.id} tags={tags} tagging={tagging} tagDraft={tagDraft} tagRef={tagRef}
-          setTagDraft={setTagDraft} setTagging={setTagging} commitTag={commitTag}
-          onRemoveTag={onRemoveTag} onFilterTag={onFilterTag}
-        />
       )}
     </div>
   );

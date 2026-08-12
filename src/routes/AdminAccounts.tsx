@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Badge, Button, Icon } from '../components/primitives';
+import { Badge, Button, Icon, Skeleton } from '../components/primitives';
 import type { AccountSummary } from '../../shared/protocol';
 import { AdminConfirm } from './AdminConfirm';
 
@@ -9,12 +9,13 @@ import { AdminConfirm } from './AdminConfirm';
 
 interface AdminAccountsProps {
   accounts: AccountSummary[];
+  loaded: boolean;
   onAccountsList: () => void;
   onSetAdmin: (accountId: string, admin: boolean) => void;
   canGrant: boolean; // root → pode alternar admin; admin → só lê
 }
 
-export function AdminAccounts({ accounts, onAccountsList, onSetAdmin, canGrant }: AdminAccountsProps) {
+export function AdminAccounts({ accounts, loaded, onAccountsList, onSetAdmin, canGrant }: AdminAccountsProps) {
   useEffect(() => { onAccountsList(); }, [onAccountsList]);
   const [pending, setPending] = useState<AccountSummary | null>(null);
 
@@ -25,7 +26,7 @@ export function AdminAccounts({ accounts, onAccountsList, onSetAdmin, canGrant }
   };
 
   return (
-    <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
+    <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
       <div className="mb-3 flex items-center gap-2">
         <h2 className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-neutral-400">
           <Icon name="user" size={12} /> Contas <span className="text-neutral-600">· {accounts.length}</span>
@@ -35,7 +36,11 @@ export function AdminAccounts({ accounts, onAccountsList, onSetAdmin, canGrant }
         </Button>
       </div>
 
-      {accounts.length === 0 ? (
+      {!loaded ? (
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-8 w-full rounded-lg" />)}
+        </div>
+      ) : accounts.length === 0 ? (
         <span className="text-[12px] text-neutral-600">nenhuma conta</span>
       ) : (
         <ul className="divide-y divide-neutral-800/70">

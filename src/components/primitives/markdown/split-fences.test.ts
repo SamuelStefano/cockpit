@@ -30,6 +30,11 @@ describe('splitFences', () => {
     expect(splitFences(md)).toEqual([{ t: 'code', lang: 'py', code: 'stillcode' }]);
   });
 
+  it('keeps the colon in a bench infotag', () => {
+    const md = '```bench:itera-player\n<X/>\n```';
+    expect(splitFences(md)).toEqual([{ t: 'code', lang: 'bench:itera-player', code: '<X/>' }]);
+  });
+
   it('omits whitespace-only prose segments', () => {
     const md = '```\nx\n```\n\n   ';
     expect(splitFences(md)).toEqual([{ t: 'code', lang: '', code: 'x' }]);

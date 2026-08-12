@@ -11,7 +11,6 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // `purged` = "excluída": some de TODA listagem (sidebar e arquivadas), mas o
 // JSONL no disco fica intacto — exclusão é só do cockpit, nunca apaga o history.
 interface Store { hidden: string[]; purged: string[]; titles: Record<string, string>; notes: Record<string, string> }
-let cache: Store | null = null;
 
 // Só pares com chave UUID e valor string entram nos overrides (anti-lixo no disco).
 function cleanMap(o: unknown): Record<string, string> {
@@ -24,32 +23,29 @@ function cleanMap(o: unknown): Record<string, string> {
   return out;
 }
 
+// Sempre lê do disco: o store tem DOIS escritores (server/index.ts e
+// server/agent.ts) e cachear em memória fazia o resumo de IA do agente commitar
+// um snapshot velho, apagando as sessões que o backend tinha arquivado.
 async function load(): Promise<Store> {
-  if (cache) return cache;
   try {
     const o = JSON.parse(await readFile(STORE_PATH, 'utf8'));
-    cache = {
+    return {
       hidden: Array.isArray(o.hidden) ? o.hidden.filter((x: unknown) => typeof x === 'string') : [],
       purged: Array.isArray(o.purged) ? o.purged.filter((x: unknown) => typeof x === 'string') : [],
       titles: cleanMap(o.titles),
       notes: cleanMap(o.notes),
     };
   } catch {
-    cache = { hidden: [], purged: [], titles: {}, notes: {} };
+    return { hidden: [], purged: [], titles: {}, notes: {} };
   }
-  return cache;
 }
 
-// Persiste o estado novo no disco e SÓ DEPOIS adota como cache. Se a escrita
-// falhar (disco cheio/permissão), o cache em memória segue casado com o disco —
-// senão a UI mostraria a sessão escondida que sumiria no próximo restart.
 async function commit(next: Store): Promise<void> {
   await mkdir(dirname(STORE_PATH), { recursive: true });
   // Escrita atômica: tmp + rename, pra um crash no meio não corromper o store.
   const tmp = `${STORE_PATH}.${process.pid}.tmp`;
   await writeFile(tmp, JSON.stringify(next, null, 2), 'utf8');
   await rename(tmp, STORE_PATH);
-  cache = next;
 }
 
 export async function hiddenSet(): Promise<Set<string>> {

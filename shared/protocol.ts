@@ -101,6 +101,8 @@ export interface TurnBubbleStats { costUsd?: number; durationMs?: number; tokens
 // Marca inline na thread onde o CLI auto-compactou o contexto (DR-012). Não é
 // turno: é um divisor que explica o salto no medidor e que o pré-compactação está
 // em "ver tudo". preTokens = tamanho da janela antes do corte.
+export interface PrLink { label: string; url: string }
+
 export interface CompactMessage {
   id: string;
   role: 'compact';
@@ -112,6 +114,12 @@ export interface CompactMessage {
   label?: string;
   url?: string;
   ts?: number;
+  // Nº de marcadores consecutivos coalescidos num divisor só (loop noturno gera
+  // dezenas de wakeups seguidos — empilhados viravam poluição visual).
+  count?: number;
+  // Run de marcadores 'pr' coalescidos: cada link segue clicável, mas num divisor
+  // só. Um lote de PRs em sequência enchia a tela e escondia prompt e resposta.
+  prs?: PrLink[];
 }
 
 export type Message = UserMessage | AssistantMessage | CompactMessage;
@@ -171,11 +179,65 @@ export interface UsageStats {
 // Uso do PLANO (claude.ai/settings/usage) — quota global da conta, NÃO contexto
 // de chat. utilization = % já consumida da janela. O backend lê isto do endpoint
 // OAuth; só os números chegam ao cliente — o token nunca sai do servidor.
+// Uma linha do painel de uso. A Anthropic devolve `limits[]` com um item por teto
+// ativo na conta — inclui tetos ESCOPADOS por modelo (ex.: "Fable"), que não têm
+// campo próprio no corpo da resposta e só existem dentro dessa lista.
+export interface PlanLimit {
+  id: string;
+  label: string;
+  pct: number;              // 0..100
+  resetsAt: number | null;  // epoch ms
+  severity: 'normal' | 'warning' | 'critical';
+  scoped: boolean;          // teto de um modelo específico, não da conta inteira
+}
+
 export interface PlanUsage {
   fiveHour: number;         // 0..100 — % consumida da janela de 5h (a que o usuário vê)
   sevenDay: number;         // 0..100 — % consumida da janela de 7 dias
   resetsAt: number | null;  // epoch ms do reset da janela de 5h
+  sevenDayResetsAt: number | null;
+  limits: PlanLimit[];
 }
+
+// Roteador multi-provedor: quando o plano esgota, o Deck troca o `claude` para
+// outro endpoint Anthropic-compat (Z.AI, Qwen, MiniMax…) em vez de dormir até o
+// reset. Projeção enviada ao cliente — a CREDENCIAL nunca sai do servidor, só o
+// NOME da env que a guarda (igual ao painel de tokens).
+export interface RouteView {
+  id: string;
+  label: string;
+  tier: string;                 // plan | free | cheap | paid
+  priority: number;             // menor tenta primeiro
+  enabled: boolean;
+  active: boolean;
+  configured: boolean;          // tem credencial na box
+  authEnv: string | null;       // nome da env, nunca o valor
+  cooldownUntil: number;        // epoch ms; 0 = disponível agora
+  lastKind: string | null;      // último motivo de falha
+  custom: boolean;
+  docsUrl: string;
+  note?: string;
+  models: string;
+  skip: string | null;          // por que não é elegível agora
+}
+
+export interface RoutesSnapshot {
+  enabled: boolean;
+  activeId: string;
+  routes: RouteView[];
+  // Existe rota alternativa pronta se o plano esgotar agora? O servidor só troca
+  // quando o turno dispara; sem este campo o cliente travaria o composer no teto
+  // do plano mesmo tendo pra onde ir.
+  hasFallback: boolean;
+}
+
+// Fila ESTACIONADA (overnight/quota-out): prompt que o usuário enfileirou pra
+// rodar "quando der" — o drainer no servidor dispara sozinho quando a sessão fica
+// ociosa E a quota volta, sem depender do browser aberto. Projeção enviada ao
+// cliente: só o necessário pra a UI listar/gerenciar (params server-only não vazam).
+// `held` = o item subiu, o turno morreu sem consumi-lo e ele bateu o teto de
+// tentativas: fica guardado mas para de ser redisparado até o usuário mandar retomar.
+export interface ParkedView { sessionKey: string; id: string; text: string; at: number; held?: boolean }
 
 // --- WebSocket protocol ----------------------------------------------------
 
@@ -189,8 +251,9 @@ export type PermMode = 'plan' | 'auto' | 'acceptEdits';
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 // Cron do Deck: dispara um prompt em horário agendado (turno autônomo). Schedule
-// minimalista: intervalo (a cada N min) ou diário (minuto do dia, hora local).
-export interface CronSchedule { kind: 'interval' | 'daily'; everyMinutes?: number; atMinute?: number }
+// minimalista: intervalo (a cada N min), diário (minuto do dia, hora local) ou uma
+// vez só (`atMs`, timestamp absoluto — dispara e se auto-pausa).
+export interface CronSchedule { kind: 'interval' | 'daily' | 'once'; everyMinutes?: number; atMinute?: number; atMs?: number }
 export interface Cron {
   id: string;
   name: string;
@@ -266,17 +329,174 @@ export interface AdminHealth {
 // is_admin é flag de banco (setada só por root); root vem do ENV, não aparece aqui.
 export interface AccountSummary { id: string; email: string; isAdmin: boolean; agentOnline: boolean }
 
+// Feature "graph" (rota /graph): knowledge graph de um repo via graphify (AST
+// tree-sitter, local). GraphMeta = card na lista; GraphData = payload projetado
+// pro renderizador canvas (só o que a viz usa, já com teto de nós/arestas).
+export interface GraphMeta { id: string; label: string; nodes: number; edges: number; mtime: number; ratio?: number }
+export interface GraphNode {
+  id: string;
+  label: string;
+  community: number;
+  communityName?: string;
+  file?: string;
+  loc?: string;
+  fileType?: string;
+  repo?: string; // presente só no grafo global (merge de apps) — de qual app é o nó
+  deg: number; // grau (nº de arestas) — dimensiona o raio e prioriza no corte
+}
+export interface GraphEdge { source: string; target: string; relation: string; confidence: 'EXTRACTED' | 'INFERRED' }
+export interface GraphData {
+  directed: boolean;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  communities: { id: number; name: string }[];
+  truncated: boolean;   // true = a viz mostra um subconjunto (grafo maior que o teto)
+  totalNodes: number;
+  totalEdges: number;
+}
+
+// Pontos: ledger vivo de pontuação (story points). A IA registra ao terminar uma
+// task (evento create); o usuário corrige (correct) sem sobrescrever — o histórico
+// prevalece (append-only). PointsEvent = uma linha do ledger; PointsEntry = a
+// projeção dobrada (valor atual + trilha de procedência).
+export interface PointsEvent {
+  id: string;
+  entryId: string;
+  kind: 'create' | 'correct' | 'note' | 'delete';
+  title?: string;
+  points?: number;
+  description?: string;
+  by: 'agent' | 'user';
+  at: number;
+}
+export interface PointsHistoryItem {
+  kind: 'create' | 'correct' | 'note' | 'delete';
+  points?: number;
+  description?: string;
+  by: 'agent' | 'user';
+  at: number;
+}
+export interface PointsEntry {
+  entryId: string;
+  title: string;
+  points: number;          // valor ATUAL (último create/correct)
+  originalPoints: number;  // o do create
+  description?: string;
+  createdAt: number;
+  updatedAt: number;
+  by: 'agent' | 'user';    // quem CRIOU a entry
+  corrected: boolean;      // points !== originalPoints
+  history: PointsHistoryItem[];
+  deleted: boolean;        // sempre false no payload visível (deletadas somem do fold)
+}
+
+// Snapshot financeiro do DFL (schemas work + payments), derivado FORA do request
+// path por um sync que roda dfl-auth+PostgREST e escreve ~/.cockpit/dfl-points.json
+// já filtrado só pro Samuel. O Deck só LÊ o arquivo — nenhum segredo cruza pro
+// cliente. Árvore projeto›épico›delivery›task; cada task classificada em
+// pago/aberto/a-fazer pela reconciliação com invoice_items (source_id = task.id).
+export type DflTaskStatus = 'paid' | 'open' | 'todo';
+export interface DflTaskNode {
+  id: string;
+  name: string;
+  points: number;
+  status: DflTaskStatus;   // DERIVADO: pago (faturado) / aberto (done, não faturado) / a-fazer
+  rawStatus: string;       // status cru do DFL (done, to_do, …)
+  amountCents: number;     // pago = do invoice_item; aberto/a-fazer = points × price_per_point
+  ledgerEntryId?: string;  // reconciliação futura com o ledger local (points.jsonl)
+}
+export interface DflDeliveryNode {
+  id: string;
+  name: string;
+  status: string;
+  pricePerPoint: number;
+  transactionId?: string;
+  tasks: DflTaskNode[];
+  points: number;
+  amountCents: number;
+}
+export interface DflEpicNode {
+  id: string;
+  name: string;
+  status: string;
+  deliveries: DflDeliveryNode[];
+  points: number;
+  amountCents: number;
+}
+export interface DflProjectNode {
+  id: string;
+  name: string;
+  epics: DflEpicNode[];
+  points: number;
+  amountCents: number;
+}
+export interface DflInvoiceItem {
+  title: string;
+  points: number;
+  amountCents: number;
+}
+export interface DflInvoice {
+  id: string;
+  referenceMonth: string;
+  status: string;
+  totalPoints: number;
+  totalAmountCents: number;
+  paidAt?: string | null;
+  transactionId?: string | null;
+  items: DflInvoiceItem[];   // linhas da fatura (source = task); pra detalhe expansível
+}
+export interface DflTotals {
+  paidPoints: number;
+  paidAmountCents: number;
+  openPoints: number;
+  amountOpenCents: number;
+  todoPoints: number;
+  totalPoints: number;
+}
+export interface DflPointsSnapshot {
+  projects: DflProjectNode[];
+  invoices: DflInvoice[];
+  totals: DflTotals;
+  pricePerPoint: number;   // referência default (fallback quando delivery não tem)
+  syncedAt: number;        // epoch ms do último sync bem-sucedido
+  stale: boolean;          // DERIVADO no server: sync velho demais
+}
+
 export type ClientMsg =
   // skills = ids das skills SELECIONADAS p/ este prompt (subconjunto de SkillMeta.id).
   // Vazio/ausente = todas ativas (default fail-open). O backend nega via permission
   // rule as NÃO-selecionadas (--disallowedTools Skill(id)); ver buildArgs.
-  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; msgId?: string; mode?: PermMode; model?: string; effort?: Effort; maxBudgetUsd?: number; bypass?: boolean; skills?: string[]; mcps?: string[] }
+  // auto = envio disparado por automação do cliente (flush de fila), não por ação
+  // direta do usuário: o servidor estaciona autos enquanto aguarda resposta de
+  // AskUserQuestion, senão o flush rouba o card de escolha.
+  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; msgId?: string; mode?: PermMode; model?: string; effort?: Effort; maxBudgetUsd?: number; bypass?: boolean; skills?: string[]; mcps?: string[]; auto?: boolean }
   | { t: 'accounts-list' }
   | { t: 'set-admin'; accountId: string; admin: boolean }
+  // Roteador multi-provedor (admin). O valor da chave NUNCA passa por aqui — ela é
+  // cadastrada pelo painel de env (admin-env-set) e referenciada por nome.
+  | { t: 'routes-get' }
+  | { t: 'routes-enable'; on: boolean }
+  | { t: 'route-set'; id: string }
+  | { t: 'route-config'; id: string; enabled?: boolean; priority?: number }
+  | { t: 'route-custom-add'; id: string; label?: string; baseUrl: string; authEnv?: string; authMode?: 'api-key' | 'bearer'; model: string; smallModel?: string; priority?: number }
+  | { t: 'route-custom-remove'; id: string }
   | { t: 'stop'; sessionKey: string }
+  // Heartbeat app-level: o cliente manda ping e espera pong. Um socket meio-aberto
+  // (relay/NAT dropou sem FIN, laptop dormiu) segue "OPEN" pro browser sem disparar
+  // onclose — o pong é o único sinal de que o ida-e-volta ainda vive.
+  | { t: 'ping' }
   | { t: 'list' }
-  | { t: 'open'; sessionId: string }
-  | { t: 'open-full'; sessionId: string }
+  // Resume (mobile): reemite o estado durável (busy/rate/plan-usage/models +
+  // sessions) que o CLI só manda durante um run, sem depender de eventos perdidos.
+  | { t: 'sync' }
+  // `chainOnly` = o usuário PEDIU a visão resumida; sem ele o servidor pode servir
+  // a timeline completa quando a cadeia ativa colapsou (pós-/compact).
+  | { t: 'open'; sessionId: string; chainOnly?: boolean }
+  // `before` = id da mensagem mais antiga que o cliente já tem. O servidor devolve
+  // a página imediatamente ANTERIOR a ela e o cliente prepende — cada frame tem
+  // tamanho fixo, então dá pra paginar até o começo de uma sessão de 27k mensagens
+  // sem nunca mandar um payload gigante.
+  | { t: 'open-full'; sessionId: string; before?: string }
   | { t: 'hide'; sessionId: string }
   | { t: 'unhide'; sessionId: string }
   | { t: 'purge'; sessionId: string }
@@ -287,7 +507,23 @@ export type ClientMsg =
   | { t: 'ctx-open'; id: string }
   | { t: 'notes-get' }
   | { t: 'notes-save'; text: string }
+  | { t: 'points-get' }
+  | { t: 'points-add'; title: string; points: number; description?: string }
+  | { t: 'points-correct'; entryId: string; points: number }
+  | { t: 'points-note'; entryId: string; description: string }
+  | { t: 'points-delete'; entryId: string }
+  // Snapshot financeiro DFL: owner-only por construção. NÃO entra no STUDENT_ALLOWED
+  // (authz default-deny) e a resposta é UNICAST send(ws), nunca broadcast global —
+  // dado financeiro não pode fazer fan-out cego. sync = pede refresh ao vivo agora.
+  | { t: 'points-dfl-get' }
+  | { t: 'points-dfl-sync' }
+  // Escritas no DFL prod: só chegam aqui via authorize (admin) E o handler exige
+  // localOnly (box do dono). Vão pelo caminho sancionado do DFL num processo filho —
+  // o token nunca cruza pro WS/cliente. reqId ecoa na resposta pra a UI casar.
+  | { t: 'points-dfl-change'; reqId: string; taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string }
+  | { t: 'points-dfl-invoice'; reqId: string; deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number; deliveryId?: string; deliveryName?: string }[] }
   | { t: 'ctx-install'; slug: string; title: string; body: string }
+  | { t: 'session-handoff'; sessionId: string }
   | { t: 'skill-install'; slug: string; title: string; body: string }
   | { t: 'crons-get' }
   | { t: 'cron-save'; cron: Cron }
@@ -316,7 +552,29 @@ export type ClientMsg =
   | { t: 'term-resize'; termId: string; cols: number; rows: number }
   | { t: 'term-detach'; termId: string }
   | { t: 'term-close'; termId: string }
-  | { t: 'term-list' };
+  | { t: 'term-list' }
+  | { t: 'graph-list' }
+  | { t: 'graph-build'; repo: string }
+  | { t: 'graph-open'; id: string }
+  | { t: 'graph-query'; id: string; question: string; budget?: number }
+  | { t: 'graph-node-op'; id: string; op: 'explain' | 'affected' | 'path'; a: string; b?: string }
+  | { t: 'graph-delete'; id: string }
+  // Bench: compila um componente de outro repo num bundle autocontido pro iframe
+  // do chat. `repo` é SLUG de registro do servidor, nunca caminho — caminho vindo
+  // do cliente seria leitura arbitrária de arquivo.
+  | { t: 'bench-build'; buildId: string; repo: string; code: string }
+  // Fila estacionada (overnight): mesma carga do 'send', mas o servidor persiste e
+  // o drainer dispara assim que a sessão fica ociosa (sem olhar quota). queue-get pede
+  // o snapshot atual; add/remove/move/clear gerenciam a fila; set-paused liga/desliga
+  // a pausa manual (única trava do drainer).
+  | { t: 'queue-add'; sessionKey: string; sessionId?: string; text: string; mode?: PermMode; model?: string; effort?: Effort; maxBudgetUsd?: number; bypass?: boolean; skills?: string[]; mcps?: string[] }
+  | { t: 'queue-remove'; sessionKey: string; id: string }
+  | { t: 'queue-edit'; sessionKey: string; id: string; text: string }
+  | { t: 'queue-move'; sessionKey: string; id: string; dir: -1 | 1 }
+  | { t: 'queue-clear'; sessionKey: string }
+  | { t: 'queue-set-paused'; paused: boolean }
+  | { t: 'queue-retry'; sessionKey: string; id: string }
+  | { t: 'queue-get' };
 
 // Capabilities da conexão (DR-011). role = papel do ator (hoje sempre admin em
 // loopback; Fase 2 vem do token). canBypass = se o servidor permite o toggle de
@@ -337,24 +595,38 @@ export type ServerMsg =
   // pra mostrar o dashboard de pareamento quando não há agente atendendo.
   | { t: 'agent-online' }
   | { t: 'agent-offline' }
+  | { t: 'pong' }  // resposta ao ping do cliente — prova que o socket ainda faz ida-e-volta
   | { t: 'sessions'; items: SessionMeta[] }
   | { t: 'archived'; items: SessionMeta[] }
   | { t: 'search-results'; q: string; items: SessionMeta[] }
   | { t: 'session-summary'; sessionId: string; summary: string }
   | { t: 'contexts'; items: ContextMeta[] }
   | { t: 'notes'; text: string }
+  | { t: 'points'; entries: PointsEntry[]; total: number }
+  // snapshot = null quando o sync ainda não rodou (nada em ~/.cockpit/dfl-points.json).
+  | { t: 'points-dfl'; snapshot: DflPointsSnapshot | null }
+  | { t: 'points-dfl-syncing' }
+  // Resultado de uma escrita DFL (change/invoice). reqId casa com o pedido; a UI
+  // mostra sucesso/erro e um resync empurra o snapshot novo pelo watcher.
+  | { t: 'points-dfl-write'; reqId: string; kind: 'change' | 'invoice'; ok: boolean; message?: string }
   | { t: 'crons'; items: Cron[] }
   | { t: 'context'; id: string; title: string; body: string }
   | { t: 'models'; models: ModelInfo[] }
   | { t: 'skills'; items: SkillMeta[] }
   | { t: 'skill'; id: string; name: string; body: string }
-  | { t: 'uploaded'; name: string; path: string; text?: string; s3url?: string; clientId?: string }
+  // sessionKey ecoa a sessão que PEDIU o upload: o mapa clientId->sessão do front é
+  // in-memory e some no reload, e sem ele o ack tardio carimba o anexo no chat aberto.
+  | { t: 'uploaded'; name: string; path: string; text?: string; s3url?: string; clientId?: string; sessionKey?: string }
   | { t: 's3-config'; uploadUrl: string; anonKey: string }
   | { t: 'install-result'; kind: 'context' | 'skill'; ok: boolean; id?: string; error?: string }
+  // Resultado do handoff de sessão lotada: contextId é o .md gravado em Contextos.
+  | { t: 'handoff-result'; sessionId: string; ok: boolean; contextId?: string; error?: string }
   // Conteúdo de um anexo p/ preview no chat (modal). error preenchido quando o
   // arquivo já foi varrido pelo TTL ou o path é inválido — o modal mostra o aviso.
   | { t: 'attachment'; path: string; name: string; dataB64?: string; error?: string }
-  | { t: 'history'; sessionId: string; messages: Message[]; cursor?: string; tokens?: number; full?: boolean; truncated?: boolean; todos?: ToolTodo[] }
+  // prepend = resposta a um open-full com `before`: são as mensagens ANTERIORES às
+  // que o cliente já tem, não um snapshot novo. O cliente concatena em vez de trocar.
+  | { t: 'history'; sessionId: string; messages: Message[]; prepend?: boolean; tokens?: number; full?: boolean; truncated?: boolean; todos?: ToolTodo[] }
   | { t: 'busy'; keys: string[] }
   // O JSONL da sessão mudou no disco (ex.: claude rodado direto no terminal).
   // Cliente com a sessão aberta re-puxa o histórico — sem F5.
@@ -369,7 +641,7 @@ export type ServerMsg =
   | { t: 'triage'; sessionKey: string; msgId?: string; action: TriageAction; reason: string }
   | { t: 'quick-answer'; sessionKey: string; id: string; text: string; ts: number }
   | { t: 'started'; sessionKey: string }
-  | { t: 'replay'; sessionKey: string; text: string; thinking: string; tools: ToolCall[]; startedAt?: number }
+  | { t: 'replay'; sessionKey: string; text: string; thinking: string; tools: ToolCall[]; startedAt?: number; sessionId?: string }
   | { t: 'system'; sessionKey: string; sessionId: string }
   | { t: 'slash-commands'; items: string[] }
   | { t: 'delta'; sessionKey: string; text: string }
@@ -377,6 +649,9 @@ export type ServerMsg =
   | { t: 'tool'; sessionKey: string; tool: ToolCall }
   | { t: 'rate'; resetsAt: number; status: string }
   | { t: 'plan-usage'; usage: PlanUsage }
+  | { t: 'routes'; snapshot: RoutesSnapshot }
+  // Troca de rota já feita: o cliente só avisa o usuário (banner/toast).
+  | { t: 'route-switch'; from: string; to: string; label: string; reason: string; kind: string; until: number }
   | { t: 'usage'; sessionKey: string; tokens: number; turnTokens?: number }
   // Agentes de fundo ativos da sessão (label + tempo + tokens ao vivo). Cheap/
   // droppable como o stats: só emitido em mudança e reconstruível no próximo tick.
@@ -387,9 +662,21 @@ export type ServerMsg =
   | { t: 'admin-op'; ok: boolean; message: string }
   | { t: 'accounts'; accounts: AccountSummary[] }
   | { t: 'stats'; stats: SysStats }
+  | { t: 'graphs'; items: GraphMeta[] }
+  | { t: 'graph-data'; id: string; graph: GraphData }
+  | { t: 'graph-query-result'; id: string; question: string; answer: string; tokens: number; miss: boolean }
+  | { t: 'graph-build-progress'; line: string }
+  | { t: 'graph-build-done'; ok: boolean; id?: string; error?: string }
+  | { t: 'bench-bundle'; buildId: string; js: string; css: string; ms: number }
+  | { t: 'bench-error'; buildId: string; error: string }
   | { t: 'term-data'; termId: string; data: string }
   | { t: 'term-replay'; termId: string; data: string }
   | { t: 'term-exit'; termId: string }
   | { t: 'terms'; ids: string[] }
   | { t: 'done'; sessionKey: string; sessionId: string; costUsd?: number; durationMs?: number; numTurns?: number; turnTokens?: number; inputTokens?: number; outputTokens?: number; endReason?: string; model?: string; stopped?: boolean }
+  // Tópicos de continuação sugeridos pós-turno (chips selecionáveis, estilo ChatGPT).
+  | { t: 'suggestions'; sessionKey: string; items: string[] }
+  | { t: 'queue'; items: ParkedView[]; paused: boolean }
+  // O enfileiramento foi recusado: devolve o texto pro cliente restaurar o composer.
+  | { t: 'queue-reject'; sessionKey: string; text: string; message: string }
   | { t: 'error'; sessionKey?: string; message: string };

@@ -1,35 +1,46 @@
 import { relReset } from '../../lib/time';
+import { tokens } from '../primitives';
+import { usageRows, toneOf } from './usage-rows';
+import { useUsagePanel } from './useUsagePanel';
+import { UsagePanel } from './UsagePanel';
 import type { PlanUsage } from '../../../shared/protocol';
+
+const BAR = { ok: 'bg-emerald-500', mid: 'bg-amber-500', high: 'bg-red-500' } as const;
+const TEXT = { ok: 'text-emerald-300', mid: 'text-amber-300', high: 'text-red-300' } as const;
 
 // Uso GLOBAL do plano (claude.ai/settings/usage) + tempo de reset. SEMPRE à vista
 // no header, em qualquer rota (#183): nunca some. Enquanto o número não chega do
 // poll OAuth, mostra placeholder ("—") em vez de sumir — assim o indicador é uma
-// âncora fixa, não algo que pisca pra fora ao sair do chat.
+// âncora fixa, não algo que pisca pra fora ao sair do chat. Clicar abre o detalhe
+// com a janela semanal e os tetos por modelo, que não cabem no chip.
 export function UsageBar({ usage, compact }: { usage: PlanUsage | null; compact: boolean }) {
+  const { open, setOpen, wrapRef } = useUsagePanel();
+  const rows = usageRows(usage);
   const pct = usage ? usage.fiveHour : null;
-  const high = pct !== null && pct >= 90;
-  const mid = pct !== null && pct >= 70;
-  const bar = pct === null ? 'bg-neutral-700' : high ? 'bg-red-500' : mid ? 'bg-amber-500' : 'bg-emerald-500';
-  const text = pct === null ? 'text-neutral-500' : high ? 'text-red-300' : mid ? 'text-amber-300' : 'text-emerald-300';
+  const tone = pct === null ? null : toneOf(pct);
+  const bar = tone === null ? 'bg-neutral-700' : BAR[tone];
+  const text = tone === null ? 'text-neutral-500' : TEXT[tone];
   const reset = usage && usage.resetsAt ? relReset(usage.resetsAt) : '';
-  const title = usage
-    ? `Uso do plano: ${pct}% da janela de 5h consumida${reset ? ` · reseta em ${reset}` : ''} · 7 dias: ${usage.sevenDay}%`
-    : 'Uso do plano: lendo da conta…';
+
   return (
-    <div
-      title={title}
-      className="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1.5"
-    >
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Usage</span>
-      <div className={`${compact ? 'w-12' : 'w-20'} h-2 overflow-hidden rounded-full bg-neutral-800`}>
-        <div className={`h-full rounded-full transition-all ${bar}`} style={{ width: `${pct ?? 0}%` }} />
-      </div>
-      <span className={`text-[11px] font-medium tabular-nums ${text}`}>{pct === null ? '—' : `${pct}%`}</span>
-      {reset && !compact && (
-        <span className="text-[10px] tabular-nums text-neutral-500" title="Reset da janela de 5h">
-          reset {reset}
-        </span>
-      )}
+    <div ref={wrapRef} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        title={usage ? 'Ver detalhe do uso do plano' : 'Uso do plano: lendo da conta…'}
+        className={`flex items-center border border-neutral-800 bg-neutral-900/60 py-1.5 transition-colors hover:border-neutral-700 hover:bg-neutral-900 ${tokens.radius.md} ${tokens.focusRing} ${compact ? 'gap-1.5 px-2' : 'gap-2 px-2.5'}`}
+      >
+        {!compact && <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Usage</span>}
+        <div className={`${compact ? 'w-12' : 'w-20'} h-2 overflow-hidden rounded-full bg-neutral-800`}>
+          <div className={`h-full rounded-full transition-all ${bar}`} style={{ width: `${pct ?? 0}%` }} />
+        </div>
+        <span className={`text-[11px] font-medium tabular-nums ${text}`}>{pct === null ? '—' : `${pct}%`}</span>
+        {reset && !compact && (
+          <span className="text-[10px] tabular-nums text-neutral-500">reset {reset}</span>
+        )}
+      </button>
+      {open && <UsagePanel rows={rows} />}
     </div>
   );
 }

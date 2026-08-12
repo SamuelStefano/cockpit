@@ -4,8 +4,15 @@ import type { Role } from '../auth';
 import { listSessions, listArchived } from '../sessions/index';
 import { searchSessions } from '../sessions/search';
 import { listContexts, readContext, installContext } from '../contexts';
+import { handoffSession } from '../handoff';
 import { getNotes, saveNotes } from '../notes';
+import { readPoints, createEntry, correctPoints, noteEntry, deleteEntry } from '../points';
+import { readDflSnapshot } from '../dfl-points';
+import { registerFinanceClient } from './finance-clients';
+import { runDflSync } from '../dfl-sync-runner';
+import { runDflWrite } from '../dfl-write-runner';
 import { getCrons, saveCron, deleteCron } from '../crons';
+import { scheduleValid } from '../../shared/cron-schedule';
 import { fireCron } from './runs';
 import { listSkills, readSkill, resolveSkillDeny, installSkill } from '../skills';
 import { saveAttachment, saveAttachmentFromUrl, addUploadChunk, readAttachment } from '../attachments';
@@ -17,26 +24,104 @@ import { collectHealth } from '../health';
 import { setEnv, unsetEnv, addMcp, removeMcp, installCli } from '../admin-ops';
 import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
-import { threads, startRun, routeSend, onStop } from './runs';
+import { threads, startRun, routeSend, stopSession, drainParked } from './runs';
+import { addParked, removeParked, editParked, moveParked, clearParked, retryParked, parkedView, isQueuePaused, setQueuePaused, REJECT_MESSAGE } from './parked';
 import { refreshModels } from './models';
+import { handleRouteMsg } from './routes';
+import { sendDurableSnapshot } from './snapshot';
+import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
+import { buildBench } from '../bench';
 
 export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
   switch (msg.t) {
+    case 'ping': {
+      // Ecoa o pong pro MESMO socket. Barato de propósito: o cliente usa o
+      // ida-e-volta pra detectar socket meio-aberto e reconectar sem F5.
+      send(ws, { t: 'pong' });
+      return;
+    }
+    case 'graph-list': {
+      send(ws, { t: 'graphs', items: await listGraphs() });
+      return;
+    }
+    case 'graph-open': {
+      const graph = await readGraph(msg.id);
+      if (!graph) { send(ws, { t: 'error', message: 'grafo não encontrado' }); return; }
+      send(ws, { t: 'graph-data', id: msg.id, graph });
+      return;
+    }
+    case 'graph-query': {
+      const res = await queryGraph(msg.id, msg.question, msg.budget);
+      if (!res) { send(ws, { t: 'error', message: 'grafo não encontrado' }); return; }
+      send(ws, { t: 'graph-query-result', id: msg.id, question: msg.question, answer: res.answer, tokens: res.tokens, miss: res.miss });
+      return;
+    }
+    case 'graph-node-op': {
+      const res = await nodeOp(msg.id, msg.op, msg.a, msg.b);
+      if (!res) { send(ws, { t: 'error', message: 'operação inválida no grafo' }); return; }
+      const label = msg.op === 'explain' ? `explicar ${msg.a}` : msg.op === 'affected' ? `impacto de ${msg.a}` : `caminho ${msg.a} → ${msg.b}`;
+      send(ws, { t: 'graph-query-result', id: msg.id, question: label, answer: res.answer, tokens: res.tokens, miss: res.miss });
+      return;
+    }
+    case 'graph-build': {
+      // Progresso em streaming: o graphify loga o avanço da extração no stdout; cada
+      // linha vira um frame p/ a UI mostrar o build vivo. build é longo (spawn AST).
+      const result = await buildGraph(msg.repo, (line) => send(ws, { t: 'graph-build-progress', line }));
+      send(ws, { t: 'graph-build-done', ok: result.ok, id: result.id, error: result.error });
+      if (result.ok && result.id) {
+        send(ws, { t: 'graphs', items: await listGraphs() });
+        const graph = await readGraph(result.id);
+        if (graph) send(ws, { t: 'graph-data', id: result.id, graph });
+      }
+      return;
+    }
+    case 'graph-delete': {
+      const ok = await deleteGraph(msg.id);
+      if (!ok) { send(ws, { t: 'error', message: 'não foi possível excluir o grafo' }); return; }
+      send(ws, { t: 'graphs', items: await listGraphs() });
+      return;
+    }
+    case 'bench-build': {
+      const res = await buildBench(msg.repo, msg.code);
+      if (!res.ok) { send(ws, { t: 'bench-error', buildId: msg.buildId, error: res.error ?? 'falha no build' }); return; }
+      send(ws, { t: 'bench-bundle', buildId: msg.buildId, js: res.js ?? '', css: res.css ?? '', ms: res.ms ?? 0 });
+      return;
+    }
     case 'list': {
       const items = await listSessions();
       send(ws, { t: 'sessions', items });
       return;
     }
+    case 'sync': {
+      // Resume no mobile (aba suspensa/rede voltou): reemite o estado durável fresco
+      // pro socket que pediu, sem depender de eventos perdidos na suspensão.
+      send(ws, { t: 'sessions', items: await listSessions() });
+      sendDurableSnapshot(ws);
+      return;
+    }
     case 'open': {
       const parsed = await parseSession(msg.sessionId);
       if (!parsed) { send(ws, { t: 'error', message: 'sessão inválida' }); return; }
+      // Pós-/compact o CLI ramifica de um summary e o histórico anterior sai do
+      // caminho parentUuid: a cadeia ativa encolhe pra dezenas de mensagens numa
+      // sessão de milhares — é o "o chat mostra muito pouco". Quando a timeline
+      // completa tem substancialmente mais, ela é a visão honesta. `chainOnly` =
+      // o usuário pediu explicitamente o resumido, então não sobrepõe.
+      if (parsed.truncated && !msg.chainOnly) {
+        const full = await parseFullSession(msg.sessionId);
+        if (full && full.messages.length >= parsed.messages.length * 2) {
+          send(ws, { t: 'history', sessionId: msg.sessionId, messages: full.messages, tokens: full.tokens, full: true, truncated: full.truncated, todos: full.todos });
+          return;
+        }
+      }
       send(ws, { t: 'history', sessionId: msg.sessionId, messages: parsed.messages, tokens: parsed.tokens, truncated: parsed.truncated, todos: parsed.todos });
       return;
     }
     case 'open-full': {
-      const parsed = await parseFullSession(msg.sessionId);
+      const before = typeof msg.before === 'string' ? msg.before : undefined;
+      const parsed = await parseFullSession(msg.sessionId, before);
       if (!parsed) { send(ws, { t: 'error', message: 'sessão inválida' }); return; }
-      send(ws, { t: 'history', sessionId: msg.sessionId, messages: parsed.messages, tokens: parsed.tokens, full: true, truncated: parsed.truncated, todos: parsed.todos });
+      send(ws, { t: 'history', sessionId: msg.sessionId, messages: parsed.messages, tokens: parsed.tokens, full: true, prepend: !!before, truncated: parsed.truncated, todos: parsed.todos });
       return;
     }
     case 'hide': {
@@ -85,12 +170,105 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       if (c) send(ws, { t: 'context', id: msg.id, title: c.title, body: c.body });
       return;
     }
+    case 'session-handoff': {
+      const r = await handoffSession(msg.sessionId);
+      if ('error' in r) { send(ws, { t: 'handoff-result', sessionId: msg.sessionId, ok: false, error: r.error }); return; }
+      send(ws, { t: 'handoff-result', sessionId: msg.sessionId, ok: true, contextId: r.contextId });
+      send(ws, { t: 'contexts', items: await listContexts() });
+      broadcast({ t: 'sessions', items: await listSessions() });
+      broadcast({ t: 'archived', items: await listArchived() });
+      return;
+    }
     case 'notes-get': {
       send(ws, { t: 'notes', text: await getNotes() });
       return;
     }
     case 'notes-save': {
       await saveNotes(msg.text);
+      return;
+    }
+    case 'points-get': {
+      const { entries, total } = await readPoints();
+      send(ws, { t: 'points', entries, total });
+      return;
+    }
+    // Escrita by:user. Após appendar o evento, re-fold e broadcast pra TODOS os
+    // aparelhos (o agente appenda via CLI; todos atualizam ao vivo). Validação de
+    // borda (frame cru): points finito 0..100000, strings presentes.
+    case 'points-add': {
+      if (typeof msg.title !== 'string' || !msg.title.trim() || typeof msg.points !== 'number' || !Number.isFinite(msg.points) || msg.points < 0 || msg.points > 100_000) {
+        send(ws, { t: 'error', message: 'ponto inválido' });
+        return;
+      }
+      await createEntry({ title: msg.title.trim(), points: msg.points, description: typeof msg.description === 'string' ? msg.description : undefined, by: 'user' });
+      const p = await readPoints();
+      broadcast({ t: 'points', entries: p.entries, total: p.total });
+      return;
+    }
+    case 'points-correct': {
+      if (typeof msg.entryId !== 'string' || typeof msg.points !== 'number' || !Number.isFinite(msg.points) || msg.points < 0 || msg.points > 100_000) {
+        send(ws, { t: 'error', message: 'correção inválida' });
+        return;
+      }
+      await correctPoints(msg.entryId, msg.points, 'user');
+      const p = await readPoints();
+      broadcast({ t: 'points', entries: p.entries, total: p.total });
+      return;
+    }
+    case 'points-note': {
+      if (typeof msg.entryId !== 'string' || typeof msg.description !== 'string') {
+        send(ws, { t: 'error', message: 'nota inválida' });
+        return;
+      }
+      await noteEntry(msg.entryId, msg.description, 'user');
+      const p = await readPoints();
+      broadcast({ t: 'points', entries: p.entries, total: p.total });
+      return;
+    }
+    case 'points-delete': {
+      if (typeof msg.entryId !== 'string') {
+        send(ws, { t: 'error', message: 'id inválido' });
+        return;
+      }
+      await deleteEntry(msg.entryId, 'user');
+      const p = await readPoints();
+      broadcast({ t: 'points', entries: p.entries, total: p.total });
+      return;
+    }
+    // Snapshot financeiro DFL: UNICAST (send), nunca broadcast. Só chega aqui quem
+    // passou pelo authorize (admin/root — points-dfl-* fora do STUDENT_ALLOWED).
+    // Registra o socket p/ receber PUSH quando o cron reescrever o arquivo.
+    case 'points-dfl-get': {
+      registerFinanceClient(ws);
+      send(ws, { t: 'points-dfl', snapshot: await readDflSnapshot() });
+      return;
+    }
+    // sync-now: dispara o fetcher como processo filho (token fora deste processo);
+    // o watcher empurra o resultado. Responde 'syncing' pra UI mostrar o estado.
+    case 'points-dfl-sync': {
+      registerFinanceClient(ws);
+      send(ws, { t: 'points-dfl-syncing' });
+      runDflSync().then((r) => { if (!r.ok) send(ws, { t: 'error', message: 'sync DFL falhou' }); }).catch(() => {});
+      return;
+    }
+    // Escritas no DFL prod (mudar pontos / gerar fatura). Gate DURO: só no loopback
+    // (box do dono) — o agente federado NUNCA escreve no financeiro do Samuel. Roda
+    // num processo filho (token fora deste processo) e, no sucesso, dispara um resync
+    // pra o snapshot refletir a mudança. Ação disparada por clique do usuário.
+    case 'points-dfl-change': {
+      if (!CONFIG.localOnly) { send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'change', ok: false, message: 'escrita DFL só no loopback' }); return; }
+      registerFinanceClient(ws);
+      const r = await runDflWrite({ kind: 'points-change', taskId: msg.taskId, taskName: msg.taskName, currentPoints: msg.currentPoints, newPoints: msg.newPoints, reason: msg.reason });
+      send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'change', ok: r.ok, message: r.ok ? undefined : r.error });
+      if (r.ok) runDflSync().catch(() => {});
+      return;
+    }
+    case 'points-dfl-invoice': {
+      if (!CONFIG.localOnly) { send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'invoice', ok: false, message: 'escrita DFL só no loopback' }); return; }
+      registerFinanceClient(ws);
+      const r = await runDflWrite({ kind: 'invoice-create', deliveryId: msg.deliveryId, deliveryName: msg.deliveryName, projectId: msg.projectId, projectName: msg.projectName, referenceMonth: msg.referenceMonth, pricePerPoint: msg.pricePerPoint, tasks: msg.tasks });
+      send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'invoice', ok: r.ok, message: r.ok ? undefined : r.error });
+      if (r.ok) runDflSync().catch(() => {});
       return;
     }
     case 'crons-get': {
@@ -101,8 +279,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const c = msg.cron;
       // Validação mínima da borda (frame cru): só persiste um cron bem-formado.
       if (!c || typeof c.id !== 'string' || !/^[a-zA-Z0-9_-]{1,59}$/.test(c.id) ||
-          typeof c.prompt !== 'string' || !c.prompt.trim() ||
-          !c.schedule || (c.schedule.kind !== 'interval' && c.schedule.kind !== 'daily')) {
+          typeof c.prompt !== 'string' || !c.prompt.trim() || !scheduleValid(c.schedule)) {
         send(ws, { t: 'error', message: 'cron inválido' });
         return;
       }
@@ -157,6 +334,17 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       send(ws, { t: 'health', health: await collectHealth() });
       return;
     }
+    // Roteador multi-provedor. Admin-only pelo authorize (não entra no allowlist do
+    // student): quem troca a rota decide pra qual endpoint TODO prompt vai.
+    case 'routes-get':
+    case 'routes-enable':
+    case 'route-set':
+    case 'route-config':
+    case 'route-custom-add':
+    case 'route-custom-remove': {
+      handleRouteMsg(ws, msg);
+      return;
+    }
     // Admin write-ops (#162). authorize() já garante role admin (default-deny);
     // re-emite health depois de cada escrita p/ a UI refletir na hora.
     case 'admin-env-set': {
@@ -204,7 +392,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'upload': {
       const r = await saveAttachment(msg.sessionKey, msg.name, msg.dataB64);
       if ('error' in r) send(ws, { t: 'error', message: r.error });
-      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url, clientId: msg.clientId });
+      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url, clientId: msg.clientId, sessionKey: msg.sessionKey });
       return;
     }
     // Upload em chunks via WS (caminho robusto): o backend remonta e sobe pro S3
@@ -213,7 +401,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const r = await addUploadChunk(msg.uploadId, msg.sessionKey, msg.name, msg.seq, msg.total, msg.dataB64);
       if (r === null) return;
       if ('error' in r) send(ws, { t: 'error', message: r.error });
-      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url, clientId: msg.clientId });
+      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url, clientId: msg.clientId, sessionKey: msg.sessionKey });
       return;
     }
     // Upload direto na edge fn: o browser pede a config (URL+anon key, só após o gate
@@ -228,7 +416,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'attach-ref': {
       const r = await saveAttachmentFromUrl(msg.sessionKey, msg.name, msg.s3url);
       if ('error' in r) send(ws, { t: 'error', message: r.error });
-      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url, clientId: msg.clientId });
+      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url, clientId: msg.clientId, sessionKey: msg.sessionKey });
       return;
     }
     case 'att-open': {
@@ -238,11 +426,10 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'stop': {
-      // Marca o stop ANTES do kill: limpa a fila (senão o onClose→drainPending
-      // sobe a mensagem enfileirada) e bumpa a época (descarta mensagem em
-      // triagem no momento do stop).
-      onStop(msg.sessionKey);
-      threads.get(msg.sessionKey)?.handle.kill();
+      // stopSession resolve a chave real do thread (o servidor keyeia pelo id de
+      // início e nunca re-keyea) antes de marcar o stop e matar — senão o
+      // threads.get() dava miss com a chave migrada e o kill virava no-op.
+      stopSession(msg.sessionKey);
       return;
     }
     case 'send': {
@@ -254,8 +441,75 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       if (threads.has(msg.sessionKey)) {
         void routeSend(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.maxBudgetUsd, msg.bypass, role, disallowedSkills, msg.mcps, msg.effort);
       } else {
-        startRun(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.maxBudgetUsd, msg.bypass, role, disallowedSkills, msg.mcps, msg.effort);
+        startRun(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.maxBudgetUsd, msg.bypass, role, disallowedSkills, msg.mcps, msg.effort, msg.auto === true);
       }
+      return;
+    }
+    // Fila estacionada (overnight/quota-out): persiste o prompt no servidor pro
+    // drainer disparar sozinho quando a sessão ficar ociosa E a quota voltar, sem
+    // depender do browser aberto. Mesma resolução de skills do 'send'. Broadcast do
+    // snapshot pra todos os aparelhos verem a fila mudar ao vivo.
+    case 'queue-add': {
+      const disallowedSkills = await resolveSkillDeny(msg.skills);
+      const r = addParked(msg.sessionKey, {
+        prompt: msg.text,
+        resumeId: msg.sessionId,
+        mode: msg.mode,
+        model: msg.model,
+        effort: msg.effort,
+        maxBudgetUsd: msg.maxBudgetUsd,
+        bypass: msg.bypass,
+        role,
+        disallowedSkills,
+        mcps: msg.mcps,
+      });
+      // Recusa muda apagava o prompt: o composer limpa o texto ao enfileirar e a
+      // fila não ecoa bolha nenhuma. Devolve o texto pro cliente com o motivo.
+      if ('reject' in r) {
+        send(ws, { t: 'queue-reject', sessionKey: msg.sessionKey, text: msg.text, message: REJECT_MESSAGE[r.reject] });
+        return;
+      }
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      // Enfileirar com a sessão já ociosa (turno morreu, quota voltou) esperava o
+      // tick de 30s à toa. No processo sem drainer isto é no-op.
+      drainParked();
+      return;
+    }
+    case 'queue-remove': {
+      removeParked(msg.sessionKey, msg.id);
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      return;
+    }
+    case 'queue-edit': {
+      editParked(msg.sessionKey, msg.id, msg.text, role ?? 'student'); // sem role identificada = menor privilégio
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      return;
+    }
+    case 'queue-move': {
+      if (msg.dir === -1 || msg.dir === 1) moveParked(msg.sessionKey, msg.id, msg.dir);
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      return;
+    }
+    case 'queue-clear': {
+      clearParked(msg.sessionKey);
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      return;
+    }
+    case 'queue-set-paused': {
+      setQueuePaused(msg.paused === true);
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      if (msg.paused !== true) drainParked(); // retomar não espera o próximo tick
+      return;
+    }
+    // Destrava o item que bateu o teto de tentativas e tenta de novo na hora.
+    case 'queue-retry': {
+      retryParked(msg.sessionKey, msg.id);
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      drainParked();
+      return;
+    }
+    case 'queue-get': {
+      send(ws, { t: 'queue', items: parkedView(), paused: isQueuePaused() });
       return;
     }
   }

@@ -12,9 +12,10 @@ import type { Role } from '../auth';
 // sem admin-health (recon), sem mutação de metadados de sessão alheia
 // (hide/unhide/purge/set-meta) nem listagem do arquivo (list-archived).
 const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
-  'send', 'stop', 'list', 'open', 'open-full', 'search',
+  'send', 'stop', 'ping', 'list', 'sync', 'open', 'open-full', 'search',
   'ctx-list', 'ctx-open', 'skill-list', 'skill-open', 'usage-list', 'upload', 'upload-chunk', 'att-open',
-  'refresh-models',
+  'refresh-models', 'points-get',
+  'queue-add', 'queue-remove', 'queue-edit', 'queue-move', 'queue-clear', 'queue-get', 'queue-set-paused',
 ]);
 
 export function authorize(role: Role, t: ClientMsg['t']): boolean {

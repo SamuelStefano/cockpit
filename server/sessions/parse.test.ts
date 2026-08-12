@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ctxTokens, num, diffOf, planOf, questionsOf, contentHasQuestion, todosOf, extractCommand, labelOf, commandOf, recToMessage, activeChain, collectToolResults, capOutput, turnStats, attachTurnStats, registerTaskCreate, applyTaskUpdate, taskSnapshot, taskTodos, attachTaskTodos, cleanUserText, markerFromRec, weaveByTs, finalTodos, truncateAtPendingQuestion, TOOL_OUTPUT_CAP, type Rec, type ToolResultRec, type TaskRegistry } from './parse';
+import { ctxTokens, num, diffOf, planOf, questionsOf, contentHasQuestion, todosOf, extractCommand, labelOf, commandOf, recToMessage, activeChain, collectToolResults, capOutput, turnStats, attachTurnStats, registerTaskCreate, applyTaskUpdate, taskSnapshot, taskTodos, attachTaskTodos, cleanUserText, markerFromRec, weaveByTs, markersInRange, finalTodos, truncateAtPendingQuestion, TOOL_OUTPUT_CAP, type Rec, type ToolResultRec, type TaskRegistry } from './parse';
 import type { Message } from '../../shared/protocol';
 
 describe('num', () => {
@@ -226,6 +226,17 @@ describe('recToMessage', () => {
     expect(recToMessage({ uuid: 'u3', message: { role: 'user', content: '   ' } } as any)).toBeNull();
   });
 
+  it('descarta o assistant "No response requested." injetado pelo resume pós-pergunta', () => {
+    expect(recToMessage({ uuid: 'g1', message: { role: 'assistant', content: [{ type: 'text', text: 'No response requested.' }] } } as any)).toBeNull();
+  });
+
+  it('mantém assistant que só MENCIONA "No response requested." junto de outro conteúdo', () => {
+    const m = recToMessage({ uuid: 'g2', message: { role: 'assistant', content: [
+      { type: 'text', text: 'No response requested.' }, { type: 'text', text: 'mas segue o jogo' },
+    ] } } as any);
+    expect(m).not.toBeNull();
+  });
+
   it('builds assistant blocks for text, thinking and tool_use', () => {
     const m = recToMessage({ uuid: 'a1', message: { role: 'assistant', content: [
       { type: 'text', text: 'hi' },
@@ -406,6 +417,19 @@ describe('activeChain', () => {
     const chain = activeChain(index(recs), 'a', 'a');
     expect(chain.length).toBe(2);
   });
+
+  it('atravessa a compactação pelo logicalParentUuid', () => {
+    const boundary: Rec = { type: 'system', uuid: 'bd', parentUuid: null, logicalParentUuid: 'b' };
+    const recs = [mk('a', null), mk('b', 'a'), boundary, mk('sum', 'bd'), mk('c', 'sum')];
+    const chain = activeChain(index(recs), 'c', 'c');
+    expect(chain.map((r) => r.uuid)).toEqual(['a', 'b', 'sum', 'c']);
+  });
+
+  it('logicalParentUuid órfão não quebra a caminhada', () => {
+    const boundary: Rec = { type: 'system', uuid: 'bd', parentUuid: null, logicalParentUuid: 'sumiu' };
+    const chain = activeChain(index([boundary, mk('c', 'bd')]), 'c', 'c');
+    expect(chain.map((r) => r.uuid)).toEqual(['c']);
+  });
 });
 
 describe('turnStats (S3: stats históricas por turno do JSONL)', () => {
@@ -579,6 +603,13 @@ describe('taskTodos + attachTaskTodos (S6: snapshots por tool_use)', () => {
 });
 
 describe('cleanUserText (N2: slash e !comando como no terminal)', () => {
+  it('task-notification injetada pelo harness não vira bolha do usuário', () => {
+    expect(cleanUserText('<task-notification>\n<task-id>a194764d9e2569a7f</task-id>\n<status>completed</status>\n</task-notification>')).toBeNull();
+    expect(cleanUserText('  <task-notification><summary>x</summary></task-notification>')).toBeNull();
+    expect(cleanUserText('rodei uma task-notification manual')).toBe('rodei uma task-notification manual');
+    expect(cleanUserText('olha o que voltou: <task-notification>x</task-notification>')).toBe('olha o que voltou: <task-notification>x</task-notification>');
+  });
+
   it('slash command vira "/cmd args" limpo', () => {
     expect(cleanUserText('<command-name>/model</command-name>\n<command-message>model</command-message>\n<command-args>claude-fable-5</command-args>')).toBe('/model claude-fable-5');
     expect(cleanUserText('<command-name>/clear</command-name>\n<command-args></command-args>')).toBe('/clear');
@@ -624,6 +655,21 @@ describe('markerFromRec + weaveByTs (N2: pr-link e wakeup na timeline)', () => {
     ] as Message[];
     expect(weaveByTs(msgs, extras).map((m) => m.id)).toEqual(['m1', 'a', 'm2', 'b']);
     expect(weaveByTs(msgs, [])).toBe(msgs);
+  });
+
+  it('markersInRange descarta marcador anterior à 1ª visível e marcador sem ts', () => {
+    const msgs = [{ id: 'a', role: 'user', text: '1', ts: 100 }] as Message[];
+    const extras = [
+      { id: 'velho', role: 'compact', kind: 'pr', ts: 50 },
+      { id: 'novo', role: 'compact', kind: 'pr', ts: 150 },
+      { id: 'sem-ts', role: 'compact', kind: 'pr' },
+    ] as Message[];
+    expect(markersInRange(msgs, extras).map((m) => m.id)).toEqual(['novo']);
+  });
+
+  it('markersInRange sem mensagem com ts mantém tudo', () => {
+    const extras = [{ id: 'p', role: 'compact', kind: 'pr', ts: 50 }] as Message[];
+    expect(markersInRange([], extras)).toBe(extras);
   });
 });
 

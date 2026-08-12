@@ -6,7 +6,7 @@ import { Dot, Chip, Inv } from './adminPrimitives';
 export function AdminInventory({ health }: { health: AdminHealth }) {
   return (
     <>
-      <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
+      <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
         <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-neutral-400">Vínculos</h2>
         <ul className="space-y-2 text-[13px]">
           <li className="flex items-center justify-between">
@@ -15,7 +15,11 @@ export function AdminInventory({ health }: { health: AdminHealth }) {
           </li>
           <li className="flex items-center justify-between">
             <span className="flex items-center gap-2 text-neutral-300"><Dot on={health.mcpServers.length > 0} /> Servidores MCP</span>
-            <span className="truncate pl-3 text-right text-neutral-500">{health.mcpServers.length ? health.mcpServers.join(', ') : 'nenhum'}</span>
+            {/* No mobile a lista inteira truncava ("dfl-payment…") — mostra só a contagem; a lista completa já está no card "Servidores MCP" abaixo. */}
+            <span className="pl-3 text-right text-neutral-500">
+              <span className="sm:hidden">{health.mcpServers.length || 'nenhum'}</span>
+              <span className="hidden sm:inline">{health.mcpServers.length ? health.mcpServers.join(', ') : 'nenhum'}</span>
+            </span>
           </li>
           <li className="flex items-center justify-between">
             <span className="flex items-center gap-2 text-neutral-300"><Dot on={health.sshKeys > 0} /> Chaves SSH</span>

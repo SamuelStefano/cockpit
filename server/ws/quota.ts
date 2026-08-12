@@ -1,0 +1,75 @@
+import type { PlanUsage } from '../../shared/protocol';
+import { getRateSnapshot, type RateSnapshot } from './rate';
+import { getLastPlanUsage, requestPlanUsageRefresh } from './usage-plan';
+import { hasFallbackRoute, isPlanRoute, switchOnPlanExhausted } from '../router/state';
+
+// Teto de tokens do plano: enquanto vale, NENHUMA fila drena. Sem este gate o
+// drainer disparava o prompt estacionado contra uma sessão sem token — o turno
+// morria no limite e o item já tinha saído do parked.json (prompt queimado).
+
+// Status do CLI que ainda permite enviar; qualquer outro é teto batido de verdade.
+const ALLOWED = new Set(['allowed', 'allowed_warning']);
+// Mesmo corte que o cliente usa pra pausar o composer (App.tsx).
+export const PLAN_FULL_PCT = 99.5;
+// rate_limit_event sem resetsAt: segura por uma janela curta, não pra sempre — um
+// hold eterno deixaria a fila parada a noite toda (o oposto do bug que ela resolve).
+export const UNKNOWN_HOLD_MS = 30 * 60_000;
+
+// Epoch ms até quando a fila deve segurar; 0 = livre pra drenar. `planActive` falso
+// = o roteador já apontou pra outro provedor: rate e usage descrevem a conta OAuth
+// da Anthropic e não dizem nada sobre a cota de quem está rodando agora.
+export function quotaHoldUntil(rate: RateSnapshot | null, usage: PlanUsage | null, now: number, planActive = true): number {
+  if (!planActive) return 0;
+  let until = 0;
+  if (rate && !ALLOWED.has(rate.status)) {
+    const t = rate.resetsAt > 0 ? rate.resetsAt : rate.setAt + UNKNOWN_HOLD_MS;
+    if (t > now) until = Math.max(until, t);
+  }
+  // A utilização só segura com reset FUTURO conhecido: o poll de usage pausa sem
+  // browser aberto, e um número stale em 100% travaria a fila indefinidamente.
+  if (usage && usage.fiveHour >= PLAN_FULL_PCT && usage.resetsAt && usage.resetsAt > now) {
+    until = Math.max(until, usage.resetsAt);
+  }
+  return until;
+}
+
+// Hold ao vivo (sinais em memória do agente). Enquanto segura, pede um refresh do
+// usage pra soltar a fila assim que a janela virar, sem esperar o poll de 60s.
+//
+// Com o roteador ligado o teto do plano deixa de ser motivo pra dormir: em vez de
+// segurar a fila até o reset, troca pro melhor provedor disponível e segue drenando.
+// Só volta a segurar quando NÃO há pra onde ir — aí o hold antigo é o certo.
+export function quotaHold(now = Date.now()): number {
+  const until = quotaHoldUntil(getRateSnapshot(), getLastPlanUsage(), now, isPlanRoute());
+  if (!until) return 0;
+  requestPlanUsageRefresh();
+  if (hasFallbackRoute(now) && switchOnPlanExhausted(until, now)) return 0;
+  return until;
+}
+
+// O turno que acabou de fechar bateu no teto? Diferente de `quotaHold`: não troca
+// de provedor, só reporta. Fora do plano é sempre falso — `rate`/`usage` descrevem
+// a conta OAuth da Anthropic, e atribuí-los ao provedor da vez abriria o breaker
+// DELE por um fato que não é dele (todo turno quieto na janela viraria rate_limit).
+export function planLimited(now = Date.now()): boolean {
+  return isPlanRoute() && quotaHoldUntil(getRateSnapshot(), getLastPlanUsage(), now) > 0;
+}
+
+const QUOTA_TEXT = /usage limit|limit reached|out of (tokens|credits)|limite de uso|sem tokens|tokens esgotad/i;
+// O CLI que bate no teto imprime uma linha e sai. Um turno que EXPLICA limite de uso
+// pro usuário (resposta legítima que por acaso casa o regex) escreve muito mais que
+// isto — o tamanho é o que separa a bailout do assunto.
+const QUOTA_BAIL_MAX_CHARS = 400;
+
+// O turno que subiu da fila morreu no teto sem produzir nada? Então o prompt não
+// foi consumido e volta pra fila. Nunca devolve um turno que rodou tools ou
+// respondeu de verdade — reenviar aquilo duplicaria trabalho já feito.
+export function burnedByQuota(a: { limited: boolean; tools: number; text: string }): boolean {
+  if (a.tools > 0) return false;
+  const text = a.text.trim();
+  if (text === '') return a.limited;
+  // Sem rate_limit_event o texto é o único sinal, e era o furo que queimava o prompt:
+  // quando o CLI só imprime "usage limit reached" e sai, nenhum evento chega,
+  // `quotaHold()` volta 0 e o item nunca voltava pra fila.
+  return text.length <= QUOTA_BAIL_MAX_CHARS && QUOTA_TEXT.test(text);
+}

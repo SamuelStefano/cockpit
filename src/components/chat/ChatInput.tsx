@@ -2,10 +2,12 @@ import { Button, Icon, tokens } from '../primitives';
 import { ChatInputToolbar } from './ChatInputToolbar';
 import { AttachmentChips } from './AttachmentChips';
 import { QueuedBanner } from './QueuedBanner';
+import { RouteBanner } from './RouteBanner';
 import { SlashPalette } from './SlashPalette';
-import type { PermMode, Effort, ModelInfo, Caps, SkillMeta } from '../../../shared/protocol';
+import type { PermMode, Effort, ModelInfo, Caps, SkillMeta, RoutesSnapshot } from '../../../shared/protocol';
 import type { Attachment } from '../../useCockpit';
 import { useChatInput } from './useChatInput';
+import { composerMaxH } from './fit-height';
 import { MicButton } from './MicButton';
 
 export { ChatEmpty } from './ChatEmpty';
@@ -40,11 +42,19 @@ interface ChatInputProps {
   onRemoveAttachment: (path: string) => void;
   focusSignal: number;
   queued: string[];
+  queuedAtts?: number[];
   onQueue: (text: string) => void;
   onCancelQueueAt: (i: number) => void;
+  onEditQueuedAt: (i: number, text: string) => void;
   onMoveQueued: (i: number, dir: -1 | 1) => void;
+  queueHeld?: boolean;
+  onResumeQueue?: () => void;
+  queuePaused?: boolean;
+  onToggleQueuePause?: () => void;
   paused?: boolean;
   quotaResetsAt?: number | null;
+  routes?: RoutesSnapshot | null;
+  onOpenRoutes?: () => void;
   history: string[];
   pendingConfirm?: () => void;
   onNew: () => void;
@@ -52,7 +62,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, queued, onCancelQueueAt, onMoveQueued, paused = false, quotaResetsAt } = props;
+  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, queued, queuedAtts, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, onToggleQueuePause, paused = false, quotaResetsAt, routes = null, onOpenRoutes } = props;
   const hasAtt = attachments.length > 0;
   const attUploading = attachments.some((a) => a.uploading);
   const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
@@ -60,13 +70,14 @@ export function ChatInput(props: ChatInputProps) {
   return (
     <div className="shrink-0 border-t border-neutral-800 bg-neutral-900/60 px-3 py-3 backdrop-blur">
       <ChatInputToolbar
-        mode={mode} setMode={setMode} disabled={disabled} caps={caps}
+        mode={mode} setMode={setMode} caps={caps}
         bypass={bypass} setBypass={setBypass} skills={skills}
         selectedSkills={selectedSkills} setSelectedSkills={setSelectedSkills}
         mcpServers={mcpServers} selectedMcps={selectedMcps} setSelectedMcps={setSelectedMcps}
         model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels}
         effort={effort} setEffort={setEffort}
       />
+      <RouteBanner routes={routes} onOpenAdmin={onOpenRoutes} />
       {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} />}
       {mic.error && (
         <div className="mb-2 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/[0.07] px-2.5 py-2 text-[12px] leading-snug text-red-200">
@@ -83,7 +94,7 @@ export function ChatInput(props: ChatInputProps) {
           </button>
         </div>
       )}
-      {queued.length > 0 && <QueuedBanner queued={queued} onCancelQueueAt={onCancelQueueAt} onMove={onMoveQueued} />}
+      {queued.length > 0 && <QueuedBanner queued={queued} queuedAtts={queuedAtts} onCancelQueueAt={onCancelQueueAt} onEdit={onEditQueuedAt} onMove={onMoveQueued} held={queueHeld} onResume={onResumeQueue} paused={queuePaused} onTogglePause={onToggleQueuePause} quotaHeld={paused} resetLabel={resetLabel} />}
       {paused && (
         <div className="mb-2 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/[0.07] px-2.5 py-2 text-[12px] leading-snug text-red-200">
           <Icon name="clock" size={13} className="mt-0.5 shrink-0 text-red-400" />
@@ -98,7 +109,7 @@ export function ChatInput(props: ChatInputProps) {
         </div>
       )}
       {showPalette && <SlashPalette matches={matches} sel={sel} setSel={setSel} complete={complete} />}
-      <div className="flex items-end gap-2 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 transition focus-within:border-orange-500/50">
+      <div className="elev-1 flex items-end gap-2 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 transition focus-within:border-orange-500/50 focus-within:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05),0_0_0_3px_rgba(249,115,22,0.08),0_6px_20px_-6px_rgba(0,0,0,0.6)]">
         <Button
           variant="ghost"
           square
@@ -110,7 +121,7 @@ export function ChatInput(props: ChatInputProps) {
         <MicButton mic={mic} />
         <div className="relative min-w-0 flex-1">
           {ghost && (
-            <div className="pointer-events-none absolute inset-0 max-h-[140px] overflow-hidden whitespace-pre-wrap break-words py-1 text-[14px] leading-relaxed text-neutral-600">
+            <div style={{ maxHeight: composerMaxH() }} className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words py-1 text-[15px] leading-7 text-neutral-600">
               <span aria-hidden className="invisible">{value}</span><span aria-hidden>{ghostShown}</span>
               {/* z-10 + pointer-events-auto: o chip fica clicável MESMO sob o textarea
                   (que pinta por cima do overlay) — no mobile não existe Tab. */}
@@ -133,13 +144,14 @@ export function ChatInput(props: ChatInputProps) {
             onPaste={onPaste}
             readOnly={mic.listening}
             placeholder={paused ? 'Tokens esgotados — digite p/ enfileirar (envia ao resetar)…' : mic.listening ? 'Ouvindo… fale agora' : disabled ? 'Próxima mensagem (envia ao terminar)…' : 'Pergunte ou peça um comando…  (↵ envia, ⇧↵ quebra linha)'}
-            className="scroll-thin relative max-h-[140px] w-full resize-none bg-transparent py-1 text-[14px] leading-relaxed text-neutral-100 placeholder-neutral-600 outline-none"
+            style={{ maxHeight: composerMaxH() }}
+            className="scroll-thin relative w-full resize-none bg-transparent py-1 text-[15px] leading-7 text-neutral-100 placeholder-neutral-600 outline-none"
           />
         </div>
         {disabled ? (
           <button
             type="button"
-            onClick={onStop}
+            onClick={() => onStop()}
             title="Interromper resposta"
             className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-800 text-neutral-200 transition hover:bg-red-500/20 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40"
           >
@@ -148,7 +160,7 @@ export function ChatInput(props: ChatInputProps) {
         ) : (
           <button
             onClick={submit}
-            disabled={attUploading || (paused ? !value.trim() : (!value.trim() && !hasAtt))}
+            disabled={attUploading || (!value.trim() && !hasAtt)}
             title={attUploading ? 'Aguarde o anexo terminar de subir' : paused ? 'Enfileirar — envia sozinho quando os tokens resetarem' : undefined}
             className={`mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40
               ${attUploading

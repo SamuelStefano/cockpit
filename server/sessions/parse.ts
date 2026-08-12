@@ -17,6 +17,7 @@ export interface Rec {
   type: string;
   uuid?: string;
   parentUuid?: string | null;
+  logicalParentUuid?: string | null;
   message?: { role: string; content: unknown; usage?: Usage; model?: string; id?: string };
   leafUuid?: string;
   timestamp?: string;
@@ -94,7 +95,11 @@ export function activeChain(byUuid: Map<string, Rec>, leaf: string | undefined, 
     guard.add(cur);
     const r = byUuid.get(cur)!;
     if (r.type === 'user' || r.type === 'assistant') chain.push(r);
-    cur = r.parentUuid ?? undefined;
+    // Na compactação o CLI corta o fio: o record `compact_boundary` nasce com
+    // parentUuid null e guarda o elo real em logicalParentUuid. Sem seguir esse
+    // elo a caminhada morria ali e TUDO antes da compactação — inclusive o
+    // prompt que abriu o turno — sumia da thread.
+    cur = r.parentUuid ?? r.logicalParentUuid ?? undefined;
   }
   chain.reverse();
   return chain;
@@ -289,8 +294,10 @@ export async function parseSession(
   for (const r of byUuid.values()) {
     if (r.type === 'assistant' && r.uuid && r.message && !chainUuids.has(r.uuid)) offChainAssistant++;
   }
-  const all = weaveByTs(truncateAtPendingQuestion(mapped), markers);
-  const truncated = all.length > limit || offChainAssistant > 0;
+  const visible = truncateAtPendingQuestion(mapped);
+  const inRange = markersInRange(visible, markers);
+  const all = weaveByTs(visible, inRange);
+  const truncated = all.length > limit || offChainAssistant > 0 || inRange.length < markers.length;
   const messages = all.slice(-limit);
   const blocks = messages.flatMap((m) =>
     m.role === 'assistant' ? m.blocks : m.role === 'user' ? [{ type: 'text' as const, md: m.text }] : [],
@@ -300,19 +307,21 @@ export async function parseSession(
   return out;
 }
 
-// Histórico COMPLETO em ordem de arquivo (não só o caminho ativo). Após /compact
-// o CLI ramifica de um summary e as mensagens antigas saem do caminho parentUuid —
-// some do parseSession. Esta variante devolve TODOS os user/assistant na ordem em
-// que foram gravados, pro viewer "ver tudo (inclui pré-compactação)". Capado no fim.
-export async function parseFullSession(
-  sessionId: string,
-  limit = CONFIG.historyLimit,
-): Promise<{ messages: Message[]; tokens: number; truncated: boolean; todos?: ToolTodo[] } | null> {
+type Timeline = { all: Message[]; tokens: number; todos?: ToolTodo[] };
+
+// Slot ÚNICO, fora do LRU de parse: a timeline sem cap de uma sessão de daily
+// driver passa de 25k mensagens (~48MB serializados) e 24 dessas no LRU derrubariam
+// a VPS. Uma só basta — a paginação acontece numa sessão de cada vez.
+let timelineCache: { key: string; val: Timeline } | null = null;
+
+// Timeline COMPLETA do arquivo, sem cap. Cacheada com chave sem limit pra a
+// paginação fatiar páginas sucessivas de graça: reler 90k linhas de JSONL a cada
+// "carregar mais antigas" custaria segundos.
+async function fullTimeline(sessionId: string): Promise<Timeline | null> {
   const path = sessionPath(sessionId);
   if (!path) return null;
-  const ck = parseKey('F', path, limit);
-  const hit = parseCacheGet<{ messages: Message[]; tokens: number; truncated: boolean; todos?: ToolTodo[] }>(ck);
-  if (hit) return hit;
+  const ck = parseKey('F', path, 0);
+  if (ck && timelineCache?.key === ck) return timelineCache.val;
 
   const recs: Rec[] = [];
   const results = new Map<string, ToolResultRec>();
@@ -339,16 +348,39 @@ export async function parseFullSession(
   attachTurnStats(mapped, turnStats(recs));
   const todoMap = taskTodos(recs, results);
   attachTaskTodos(mapped, todoMap);
-  const all = weaveByTs(mapped, markers);
-  const out = { messages: all.slice(-limit), tokens, truncated: all.length > limit, todos: finalTodos(todoMap) };
-  parseCacheSet(ck, out);
+  const out: Timeline = { all: weaveByTs(mapped, markers), tokens, todos: finalTodos(todoMap) };
+  if (ck) timelineCache = { key: ck, val: out };
   return out;
+}
+
+// Uma PÁGINA do histórico completo (não só o caminho ativo). Após /compact o CLI
+// ramifica de um summary e as mensagens antigas saem do caminho parentUuid — somem
+// do parseSession. Sem `before` devolve a última página; com `before` (id da mensagem
+// mais antiga que o cliente já tem) devolve a página imediatamente anterior, pra o
+// cliente prepender. Assim a página tem tamanho FIXO por mais fundo que se vá:
+// mandar a timeline inteira de uma sessão de daily driver seria um frame de ~48MB.
+export async function parseFullSession(
+  sessionId: string,
+  before?: string,
+  limit = CONFIG.historyLimit,
+): Promise<{ messages: Message[]; tokens: number; truncated: boolean; todos?: ToolTodo[] } | null> {
+  const t = await fullTimeline(sessionId);
+  if (!t) return null;
+  const at = before ? t.all.findIndex((m) => m.id === before) : -1;
+  const stop = at >= 0 ? at : t.all.length;
+  const start = Math.max(0, stop - Math.max(1, limit));
+  return { messages: t.all.slice(start, stop), tokens: t.tokens, truncated: start > 0, todos: t.todos };
 }
 
 // Slash command e saída de !comando chegam como user text com as tags XML do
 // harness — o terminal mostra "/model x" e a saída limpa; o app mostrava o XML
 // cru com códigos ANSI. null = nada renderizável (paridade: o terminal omite).
 export function cleanUserText(text: string): string | null {
+  // Notificação de subagente de background (XML do harness): o terminal a esconde;
+  // como bolha atribuía ao Samuel um texto que ele nunca mandou e virava spam
+  // quando um agente zumbi re-notificava. Ancorado no início pra não engolir uma
+  // mensagem de verdade que só cite a tag.
+  if (/^\s*<task-notification>/.test(text)) return null;
   if (text.includes('<command-name>')) {
     const name = /<command-name>([^<]*)<\/command-name>/.exec(text)?.[1]?.trim() ?? '';
     const args = /<command-args>([^<]*)<\/command-args>/.exec(text)?.[1]?.trim() ?? '';
@@ -381,6 +413,19 @@ export function markerFromRec(r: Rec, seenPr: Set<string>): Message | null {
     return { id: r.uuid ?? `wake-${ts ?? 0}`, role: 'compact', kind: 'wakeup', label: o.content as string, ts };
   }
   return null;
+}
+
+// Os marcadores são varridos do ARQUIVO inteiro, mas a thread mostra só a cadeia
+// ativa. Pós-compactação sobravam centenas de PRs de dias atrás sem nenhuma
+// mensagem em volta — uma sessão real abria com 371 divisores para 36 mensagens,
+// e rolar pro prompt anterior virava impossível. Link fora do intervalo visível
+// não tem contexto; ele continua na thread completa ("ver tudo"). Marcador sem ts
+// também cai fora: weaveByTs o ancora em `?? 0`, ou seja, empilhado no topo da
+// thread — exatamente a parede que isso resolve.
+export function markersInRange(messages: Message[], markers: Message[]): Message[] {
+  const first = messages.find((m) => m.ts !== undefined)?.ts;
+  if (first === undefined) return markers;
+  return markers.filter((m) => m.ts !== undefined && m.ts >= first);
 }
 
 export function weaveByTs(messages: Message[], extras: Message[]): Message[] {
@@ -421,6 +466,10 @@ export function recToMessage(r: Rec, results?: Map<string, ToolResultRec>): Mess
     return { id: r.uuid!, role: 'user', text: cleaned, ts };
   }
   if (r.message.role === 'assistant' && Array.isArray(content)) {
+    // Artefato do --resume pós-AskUserQuestion: o CLI injeta um assistant
+    // "No response requested." SEM isMeta — renderizava como bolha real do
+    // Claude logo depois da resposta do usuário (a "bolha fantasma").
+    if (content.length === 1 && (content[0] as any)?.type === 'text' && (content[0] as any).text === 'No response requested.') return null;
     const blocks: Block[] = [];
     for (const c of content as any[]) {
       if (c?.type === 'text' && c.text) blocks.push({ type: 'text', md: c.text });

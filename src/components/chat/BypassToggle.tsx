@@ -4,18 +4,17 @@ import { Icon } from '../primitives';
 // o servidor anuncia canBypass (admin + flag de env + loopback) — o caller já
 // gateia por isso. Default OFF; o backend reimpõe via bypassAllowed. Visual de
 // alerta: bypass = o agente roda QUALQUER comando sem pedir.
-export function BypassToggle({ on, setOn, disabled }: { on: boolean; setOn: (b: boolean) => void; disabled: boolean }) {
+export function BypassToggle({ on, setOn }: { on: boolean; setOn: (b: boolean) => void }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={on}
-      disabled={disabled}
       onClick={() => setOn(!on)}
       title={on
-        ? 'BYPASS LIGADO — o agente roda qualquer comando sem aprovação. Desligue quando terminar.'
+        ? 'BYPASS LIGADO — o agente roda qualquer comando sem aprovação. Desligar vale do próximo prompt (o turno em voo só para pelo Parar).'
         : 'Bypass de permissões (admin): o agente roda qualquer comando sem pedir. Use com cuidado.'}
-      className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 disabled:cursor-not-allowed disabled:opacity-50
+      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 sm:px-2 sm:py-1
         ${on
           ? 'border-red-500/50 bg-red-500/15 text-red-300 shadow-[inset_0_0_0_1px_rgba(239,68,68,0.4)]'
           : 'border-neutral-800 bg-neutral-950 text-neutral-500 hover:text-neutral-300'}`}

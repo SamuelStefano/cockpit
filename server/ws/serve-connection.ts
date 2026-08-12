@@ -9,13 +9,11 @@ import { CONFIG } from '../config';
 import { capsFor } from '../auth';
 import { claudeReady, mcpServerDefsSync } from '../admin-ops';
 import { getSlashCommands } from './slash';
-import { getLastRate } from './rate';
 import { threads } from './runs';
 import { handle } from './dispatch';
 import { handleTerm, type TermHandle } from './terminal-handler';
 import { createRateLimiter } from './guard';
-import { getLastPlanUsage, requestPlanUsageRefresh } from './usage-plan';
-import { getLastModels } from './models';
+import { sendDurableSnapshot } from './snapshot';
 import { authorize } from './authz';
 
 // Ciclo de vida de UMA conexão WS, independente do transporte. No modo listen
@@ -38,18 +36,10 @@ export function serveConnection(ws: WebSocket, opts: { role: Role; sendCaps?: bo
   // MCP disponíveis (nomes) p/ o seletor por sessão. Default no engine = nenhum
   // carregado (--strict-mcp-config); a sessão liga só o que precisa.
   send(ws, { t: 'mcp-servers', servers: Object.keys(mcpServerDefsSync()) });
-  send(ws, { t: 'busy', keys: [...threads.keys()] });
   const slash = getSlashCommands();
   if (slash.length) send(ws, { t: 'slash-commands', items: slash });
-  const rate = getLastRate();
-  if (rate) send(ws, { t: 'rate', ...rate });
-  const planUsage = getLastPlanUsage();
-  // Sem snapshot ainda (boot recente, ou o prime/poll falhou): pede um agora pra a
-  // barra não ficar em "—" até o próximo poll de 60s. O broadcast atende este socket.
-  if (planUsage) send(ws, { t: 'plan-usage', usage: planUsage });
-  else requestPlanUsageRefresh();
-  const models = getLastModels();
-  if (models.length) send(ws, { t: 'models', models });
+  // Estado durável (busy/rate/plan-usage/models) — mesmo helper que o `sync` usa.
+  sendDurableSnapshot(ws);
   // Reconnect mid-run (#10): replaya o snapshot acumulado SÓ pra ESTE socket,
   // pra a UI reconstruir o turno em voo. Os deltas seguintes chegam via broadcast.
   for (const [key, thread] of threads) {

@@ -8,7 +8,8 @@ export function splitFences(md: string): Array<{ t: 'code'; lang: string; code: 
   const flush = () => { if (prose.join('\n').trim()) segs.push({ t: 'prose', text: prose.join('\n') }); prose = []; };
   let i = 0;
   while (i < lines.length) {
-    const open = /^```([a-zA-Z0-9_+#.-]*)$/.exec(lines[i].trim());
+    // `:` está no conjunto por causa do bench (```bench:<slug>).
+    const open = /^```([a-zA-Z0-9_+#.:-]*)$/.exec(lines[i].trim());
     if (open) {
       flush();
       const code: string[] = [];

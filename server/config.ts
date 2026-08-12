@@ -61,9 +61,10 @@ export const CONFIG = {
   // baixíssimo: sessões de daily-driver têm milhares de records, então no reload
   // o usuário via só um pedacinho do fim ("só algumas mensagens aparecem"). O
   // history parseado NÃO carrega output de tool (só comando/diff), então o payload
-  // por mensagem é pequeno e 500 cabe folgado no loopback. Full-history/paginação
-  // (carregar anteriores) fica como evolução. Override por env.
-  historyLimit: Number(process.env.COCKPIT_HISTORY_LIMIT ?? 500),
+  // por mensagem é pequeno e 2000 cabe folgado no loopback — cobre o scrollback de
+  // quase toda sessão real ("rolar pra cima e ver as antigas"). Paginação por
+  // âncora (carregar sob demanda) fica como evolução. Override por env.
+  historyLimit: Number(process.env.COCKPIT_HISTORY_LIMIT ?? 2000),
 
   // Teto do prompt: evita ARG_MAX/DoS no spawn (argv -p).
   maxPromptBytes: 100_000,

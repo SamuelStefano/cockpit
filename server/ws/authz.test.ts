@@ -20,8 +20,21 @@ describe('authorize', () => {
     }
   });
 
+  it('student mexe na PRÓPRIA fila (add/remove/edit/move/clear)', () => {
+    for (const t of ['queue-add', 'queue-remove', 'queue-edit', 'queue-move', 'queue-clear', 'queue-get'] as const) {
+      expect(authorize('student', t)).toBe(true);
+    }
+  });
+
   it('default-deny: an unknown future message type is denied for student', () => {
     expect(authorize('student', 'totally-new-msg' as never)).toBe(false);
     expect(authorize('admin', 'totally-new-msg' as never)).toBe(true);
+  });
+
+  it('financeiro DFL é admin-only: student negado, admin liberado', () => {
+    for (const t of ['points-dfl-get', 'points-dfl-sync'] as const) {
+      expect(authorize('student', t)).toBe(false);
+      expect(authorize('admin', t)).toBe(true);
+    }
   });
 });

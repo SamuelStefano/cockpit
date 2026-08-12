@@ -11,6 +11,9 @@ import { Profile } from './sections/Profile';
 import { Search } from './sections/Search';
 import { Commands } from './sections/Commands';
 import { Models } from './sections/Models';
+import { Playground } from './sections/Playground';
+import { Graph } from './sections/Graph';
+import { Bench } from './sections/Bench';
 import { Admin } from './sections/Admin';
 import { Internals } from './sections/Internals';
 import { RepoMap } from './sections/RepoMap';
@@ -31,6 +34,9 @@ export function DocSections({ year }: { year: number }) {
       <Search />
       <Commands />
       <Models />
+      <Playground />
+      <Graph />
+      <Bench />
       <Admin />
       <Internals />
       <RepoMap />

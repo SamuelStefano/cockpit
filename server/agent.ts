@@ -8,14 +8,19 @@ import { capsFor } from './auth';
 import { CONFIG } from './config';
 import { serveConnection } from './ws/serve-connection';
 import { setClientSource, broadcast } from './ws/broadcast';
-import { mcpServerDefsSync } from './admin-ops';
+import { mcpServerDefsSync, claudeReady } from './admin-ops';
 import { getSlashCommands } from './ws/slash';
-import { killAllRuns } from './ws/runs';
-import { startModelsLoop } from './ws/models';
-import { startPlanUsageLoop } from './ws/usage-plan';
+import { killAllRuns, threads, startParkedDrainer, startRunReaper, resumeOrphanRuns } from './ws/runs';
+import { startModelsLoop, getLastModels } from './ws/models';
+import { startPlanUsageLoop, getLastPlanUsage, requestPlanUsageRefresh } from './ws/usage-plan';
+import { getLastRate } from './ws/rate';
 import { startStatsLoop } from './ws/stats-loop';
 import { startSessionsWatch } from './sessions/watch';
+import { startPointsWatch } from './points-watch';
+import { startDflPointsWatch } from './dfl-points-watch';
 import { loadManagedEnv } from './admin-ops';
+import { loadRouting } from './router/state';
+import { startRouteBroadcast } from './ws/routes';
 
 // Entrypoint do AGENTE T3 (DR-023): em vez de escutar (attachWs), DISCA pro relay
 // e serve o MESMO protocolo pelo socket de saída. O relay encaminha os frames do
@@ -82,14 +87,32 @@ let activeWs: WebSocket | null = null;
 // (loops rodam) — sem regressão; só PAUSA quando o relay novo diz que ninguém olha.
 let browsersPresent = true;
 
-// Reemite os frames de bootstrap SEM loop próprio (mcp-servers, slash-commands) —
-// a lista de MCP vem do ~/.claude.json (admin-ops) e os slash do probe. Enviados
-// só no agent-ready; um browser que conecta depois precisa deles de novo.
+// Reemite o bootstrap inteiro na chegada de um browser. No modo dial o
+// serveConnection só faz o bootstrap UMA vez (no agent-ready, antes de qualquer
+// aba). Um browser que abre/recarrega depois multiplexa no MESMO socket do agente
+// — não dispara novo serveConnection — então precisa receber tudo de novo aqui,
+// senão a barra de usage/telemetria/modelos/MCP fica vazia até o próximo poll (60s)
+// ou até um prompt. Os snapshots são leituras baratas de cache.
 function reemitBootstrap(ws: WebSocket): void {
   try {
-    ws.send(JSON.stringify({ t: 'mcp-servers', servers: Object.keys(mcpServerDefsSync()) }));
+    const s = (m: unknown) => ws.send(JSON.stringify(m));
+    s({ t: 'claude-auth', ready: claudeReady() });
+    s({ t: 'mcp-servers', servers: Object.keys(mcpServerDefsSync()) });
     const slash = getSlashCommands();
-    if (slash.length) ws.send(JSON.stringify({ t: 'slash-commands', items: slash }));
+    if (slash.length) s({ t: 'slash-commands', items: slash });
+    s({ t: 'busy', keys: [...threads.keys()] });
+    const rate = getLastRate();
+    if (rate) s({ t: 'rate', ...rate });
+    const usage = getLastPlanUsage();
+    if (usage) s({ t: 'plan-usage', usage });
+    else requestPlanUsageRefresh(); // sem cache ainda: busca agora, não espera o poll
+    const models = getLastModels();
+    if (models.length) s({ t: 'models', models });
+    // Reconecta no meio de um turno: replaya o snapshot acumulado pra reconstruir o
+    // turno em voo (o serveConnection só replaya no agent-ready).
+    for (const [key, thread] of threads) {
+      s({ t: 'replay', sessionKey: key, text: thread.text, thinking: thread.thinking, tools: thread.tools, startedAt: thread.startedAt, sessionId: thread.sessionId });
+    }
   } catch { /* socket indo embora */ }
 }
 
@@ -215,6 +238,11 @@ export function startHealthGuard(): void {
     const memMb = availableMemMb();
     if (load1 > cores * 4 || memMb < 120) {
       console.error(`[agent] health: pressão (load1=${load1.toFixed(2)} mem=${memMb}MB) — matando runs pra não travar a VPS`);
+      // Avisa antes de matar: sem isto o turno morria e a UI mostrava um turno
+      // concluído vazio (o mesmo "chat parou sozinho" que este lote está fechando).
+      for (const sessionKey of threads.keys()) {
+        broadcast({ t: 'error', sessionKey, message: 'A VPS ficou sob pressão e este turno foi interrompido pra não travar a máquina. Mande de novo.' });
+      }
       killAllRuns();
     }
   }, 60_000);
@@ -229,6 +257,11 @@ export function runAgent(relayUrl: string): void {
   }
   startHealthGuard();
   void loadManagedEnv(); // tokens gerenciados (#162) p/ o spawn herdar
+  // Roteador multi-provedor: é aqui que ele importa de verdade — o agente é quem
+  // drena a fila overnight, e a rota é o que decide se o teto do plano para tudo
+  // até o reset ou se a noite continua noutro provedor.
+  loadRouting();
+  startRouteBroadcast();
   // Loops periódicos (telemetria/usage/modelos) que o modo listen roda no attachWs.
   // No dial não há WebSocketServer, então a "presença de cliente" é o socket ativo
   // pro relay (activeWs). broadcast já sai por ele via setClientSource. Sem isto a
@@ -239,6 +272,23 @@ export function runAgent(relayUrl: string): void {
   startPlanUsageLoop(hasClients);
   startModelsLoop(hasClients);
   startSessionsWatch(hasClients);
+  startPointsWatch(hasClients);
+  startDflPointsWatch();
+  // Drainer da fila ESTACIONADA (overnight/quota-out): SÓ o agente liga (a trava
+  // drainerEnabled em runs.ts evita dreno dobrado com o index/loopback). Roda
+  // sem depender de browser aberto — é justamente o ponto: enfileirar à noite e
+  // acordar com tudo drenado quando a quota voltou.
+  startParkedDrainer();
+  // Reaper no agente também: um item drenado que trava mudo ("garimpando" eterno)
+  // deixaria a sessão ocupada pra sempre e travaria o resto da fila overnight. No
+  // modo listen isto roda no attachWs; no dial (agente) não rodava — sem ele o
+  // dreno automático não é robusto sem ninguém olhando.
+  startRunReaper();
+  // Retomada dos turnos que o restart matou. Depois do startParkedDrainer (a flag
+  // drainerEnabled precisa estar ligada pra o turno retomado se re-registrar) e
+  // adiada um pouco: o relay ainda não conectou aqui, então o aviso de retomada se
+  // perderia — o cliente só recebe broadcast com o socket de pé.
+  setTimeout(resumeOrphanRuns, 15_000).unref();
   // Backstop relay-agnóstico: se o relay não emitir 'browsers-present' (versão
   // antiga), a reemissão instantânea não dispara — rebroadcasta mcp-servers/slash
   // periodicamente pra o seletor de MCP nunca ficar vazio num browser tardio.
@@ -263,8 +313,26 @@ export function runAgent(relayUrl: string): void {
     );
   };
   loop();
-  process.on('SIGTERM', () => { killAllRuns(); process.exit(0); });
-  process.on('SIGINT', () => { killAllRuns(); process.exit(0); });
+  process.on('SIGTERM', gracefulShutdown);
+  process.on('SIGINT', gracefulShutdown);
+}
+
+// SIGTERM/SIGINT matam o processo inteiro (deploy, doctor, restart manual) — mas
+// threads ativas de QUALQUER sessão conectada (não só a que pediu o restart)
+// morrem juntas. handle.kill() é fire-and-forget: o child.on('close') que dispara
+// o 'done' do turno só roda num ciclo futuro do event loop, e process.exit(0)
+// logo em seguida não dá esse ciclo — o cliente nunca recebe o 'done'/'error',
+// fica com a bolha "pensando" pra sempre e não sabe que a run morreu (turno mudo).
+// Fix: avisa cada sessão com turno ativo ANTES de matar, e só sai depois de dar
+// tempo do frame de WS realmente sair pela rede.
+function gracefulShutdown(): void {
+  for (const sessionKey of threads.keys()) {
+    broadcast({ t: 'error', sessionKey, message: 'Agente reiniciado — retomando este turno assim que ele voltar.' });
+  }
+  // preserveLive: mantém os turnos no live-runs.json pra o boot retomá-los. Sem isto
+  // o onClose que chega dentro dos 300ms apaga o registro e o turno morre de vez.
+  killAllRuns({ preserveLive: true });
+  setTimeout(() => process.exit(0), 300);
 }
 
 // Execução direta: `tsx server/agent.ts [--pair=CÓDIGO]` (relay via DECK_RELAY_URL).

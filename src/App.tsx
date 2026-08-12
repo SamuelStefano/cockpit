@@ -5,6 +5,7 @@ import { QuotaBanner } from './components/chrome/QuotaBanner';
 import { OfflineNotice } from './components/chrome/OfflineNotice';
 import { CommandPalette } from './components/CommandPalette';
 import { ShortcutsHelp } from './components/ShortcutsHelp';
+import { Toaster, ConfettiHost } from './components/primitives';
 import { RouteContent } from './app/RouteContent';
 import { useCockpit } from './useCockpit';
 import { useRoute } from './useRoute';
@@ -15,6 +16,7 @@ import { useProfileHydration } from './lib/profile';
 import { useSessionPrefsHydration } from './lib/session-prefs';
 import { resolveAuthGate } from './app/AuthGateView';
 import { relReset } from './lib/time';
+import { quotaBlocksInput } from './components/chat/route-status';
 import { usePanelResize } from './app/usePanelResize';
 import { useTerminalTabs } from './app/useTerminalTabs';
 import { useGlobalShortcuts } from './app/useGlobalShortcuts';
@@ -22,17 +24,21 @@ import { useIsMobile } from './app/useIsMobile';
 import { useTabTitle } from './app/useTabTitle';
 import { useOfflineLatch } from './app/useOfflineLatch';
 import { usePairingEject } from './app/usePairingEject';
+import { useLiveConnection } from './app/useLiveConnection';
+import { useRouteSwitchToast } from './app/useRouteSwitchToast';
 
 export function CockpitApp() {
   const cockpit = useCockpit();
   const {
     sessions, loading, activeId: activeSessionId, setActiveId: setActiveSessionId,
-    messages, phase, terminalBusy, sessionTodos, running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, term, discoveredTerms, listTerms,
+    messages, phase, terminalBusy, sessionTodos, followups, dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, term, discoveredTerms, listTerms,
     archived, onUnhide: handleUnhide, contextTokens, liveTurnTokens, turnStartedAt, bgAgents, usage, truncated, lastTurn, lastEnd, searchResults, onSearch,
     skills, usageStats,
     attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb,
     onSend: handleSend, onEditUser: editUser, onStop: handleStop, onNew: cockpitNew, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession,
-    onOpenFull, onOpenSummary,
+    onOpenFull, onLoadOlder, onOpenSummary, onHandoff, handoffBusy,
+    queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry,
+    routes, routeSwitch, dismissRouteSwitch,
   } = cockpit;
 
   const { route, nav } = useRoute();
@@ -51,17 +57,26 @@ export function CockpitApp() {
   const { terminals, activeTermId, setActiveTermId, handleAddTerm, handleCloseTerm, attachable, attachExisting, runningTerm } = useTerminalTabs(term, discoveredTerms, listTerms);
 
   const [quotaClosed, setQuotaClosed] = useState(false);
-  // Só alerta quando o próprio CLI sinaliza near-limit/limite (status !== 'allowed').
-  // O CLI não envia % de uso; 'allowed' = longe do teto, então não pisca à toa.
+  // O CLI manda 'allowed' (longe do teto), 'allowed_warning' (perto, mas AINDA
+  // PODE enviar) e 'rejected'/'limited' (teto batido, envio recusado). Só o
+  // rejeitado é bloqueio de verdade — tratar o warning como bloqueio travava o
+  // composer em ~90% (o usuário via 94% e não conseguia mandar um prompt simples).
+  const rateRejected = !!rate && rate.status !== 'allowed' && rate.status !== 'allowed_warning';
+  // Banner de aviso: aparece já no warning (heads-up), sem travar o envio.
   const quota = !!rate && rate.status !== 'allowed' && !quotaClosed;
 
+  useLiveConnection({ wsState: conn.ws, reconnectNow });
   const showOffline = useOfflineLatch(conn.ws);
   const ejectPairing = usePairingEject(agentOnline, sbAuth.session?.user.id, conn.ws === 'connected');
   const isMobile = useIsMobile();
   useTabTitle(running, updated);
+  useRouteSwitchToast(routeSwitch, dismissRouteSwitch);
 
   const [drawer, setDrawer] = useState(false);
   const [termSheet, setTermSheet] = useState(false);
+  // Menu de rotas (mobile) controlado aqui pra ser mutuamente exclusivo com o
+  // drawer de sessões — abrir um fecha o outro, senão os dois overlays se sobrepõem.
+  const [routeMenuOpen, setRouteMenuOpen] = useState(false);
   const [palette, setPalette] = useState(false);
   const [help, setHelp] = useState(false);
   const [focusSignal, setFocusSignal] = useState(0);
@@ -109,6 +124,7 @@ export function CockpitApp() {
   useEffect(() => {
     setDrawer(false);
     setTermSheet(false);
+    setRouteMenuOpen(false);
   }, [route]);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || archived.find((s) => s.id === activeSessionId) || null;
@@ -122,8 +138,31 @@ export function CockpitApp() {
   const sessionsProps = { sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, stalled, updated, runStart, searchResults, onSearch, userId: sbAuth.session?.user.id };
   // Pausa o envio perto do teto do plano (5h) pra não estourar e perder trabalho:
   // a fila persistida não dispara e o composer trava até a janela resetar.
-  const quotaPaused = !!planUsage && planUsage.fiveHour >= 99.5;
-  const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew: handleNew, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onOpenFull, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, quotaPaused, quotaResetsAt: planUsage?.resetsAt ?? null };
+  // Quando `resetsAt` passa, des-pausa NA HORA (a janela resetou) mesmo que o número
+  // de utilização no cliente ainda esteja stale ≥99.5 — senão a fila só drenava no
+  // próximo push do servidor (até 60s) e o usuário precisava dar F5. O timer abaixo
+  // força um re-render no instante do reset pra recomputar isto.
+  const [resetTick, setResetTick] = useState(0);
+  useEffect(() => {
+    void resetTick; // dep só pra reagendar após o disparo
+    // Reagenda no reset MAIS PRÓXIMO entre o teto do plano (5h) e o limite duro
+    // (rate) — o que vier primeiro des-pausa a fila na hora, sem esperar F5.
+    const candidates = [planUsage?.resetsAt, rate?.resetsAt].filter((n): n is number => !!n && n > Date.now());
+    if (!candidates.length) return;
+    const ms = Math.min(...candidates) - Date.now();
+    const t = setTimeout(() => setResetTick((n) => n + 1), ms + 1000);
+    return () => clearTimeout(t);
+  }, [planUsage?.resetsAt, rate?.resetsAt, resetTick]);
+  const quotaResetPassed = !!planUsage?.resetsAt && planUsage.resetsAt <= Date.now();
+  // Limite DURO do CLI (rate_limit_event REJEITADO): sinal preciso do teto real,
+  // independente do percentual estimado. Pausa a fila mesmo quando fiveHour ainda
+  // está <99.5 — senão a fila drenava e o prompt morria no limite (perdido). O
+  // warning (perto do teto, mas ainda enviável) NÃO conta como limite duro.
+  const rateLimited = rateRejected && (!rate!.resetsAt || rate!.resetsAt > Date.now());
+  // Com uma rota alternativa ativa o teto do plano deixa de ser bloqueio: o turno
+  // roda no outro provedor, então travar o composer aqui só puniria o usuário.
+  const quotaPaused = ((!!planUsage && planUsage.fiveHour >= 99.5 && !quotaResetPassed) || rateLimited) && quotaBlocksInput(routes);
+  const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, followups, onDismissFollowups: dismissFollowups, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew: handleNew, onHandoff, handoffBusy, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onRename: handleRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, routes, onOpenRoutes: () => nav('/admin'), quotaPaused, quotaResetsAt: planUsage?.resetsAt ?? rate?.resetsAt ?? null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
 
   const gate = resolveAuthGate({ sbAuth, ejectPairing, authRequired, submitToken });
@@ -140,10 +179,11 @@ export function CockpitApp() {
         mode={mode} setMode={setMode}
         sessions={sessions} onSelectSession={setActiveSessionId}
         running={running} onStop={handleStop} onFocusComposer={() => setFocusSignal((n) => n + 1)}
+        onSeedComposer={(text) => { setDraft(text); setFocusSignal((n) => n + 1); }}
         onShowHelp={() => setHelp(true)}
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
-      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} onNew={handleNew} isAdmin={isAdmin} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} />
+      <Header conn={conn} isMobile={isMobile} onMenu={() => { setRouteMenuOpen(false); setDrawer(true); }} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} onNew={handleNew} isAdmin={isAdmin} routeMenuOpen={routeMenuOpen} setRouteMenuOpen={(v) => { if (v) setDrawer(false); setRouteMenuOpen(v); }} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} />
 
       {quota && rate && <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} />}
       <OfflineNotice show={showOffline} />
@@ -162,6 +202,8 @@ export function CockpitApp() {
       />
 
       {!isMobile && <StatusBar stats={stats} rate={rate} ctxTokens={contextTokens} lastTurn={lastTurn} />}
+      <Toaster />
+      <ConfettiHost />
     </div>
   );
 }

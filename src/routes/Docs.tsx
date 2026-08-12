@@ -49,8 +49,8 @@ export function Docs() {
               <button
                 key={s.id}
                 onClick={() => jump(s.id)}
-                className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[12.5px] transition ${tokens.focusRing}
-                  ${active === s.id ? 'bg-orange-500/15 font-medium text-orange-300' : 'text-neutral-500 hover:bg-neutral-900 hover:text-neutral-300'}`}
+                className={`flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left text-[12.5px] transition ${tokens.focusRing}
+                  ${active === s.id ? 'border-orange-500/40 bg-orange-500/15 font-medium text-orange-300' : 'border-transparent text-neutral-500 hover:bg-neutral-900 hover:text-neutral-300'}`}
               >
                 <Icon name={s.icon} size={14} className="shrink-0" />
                 {s.label}

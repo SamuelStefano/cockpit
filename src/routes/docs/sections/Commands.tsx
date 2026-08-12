@@ -47,10 +47,10 @@ export function Commands() {
             <li>• <span className="text-neutral-300">Citar</span>: passe o mouse numa mensagem e use o balão pra responder com citação.</li>
             <li>• <span className="text-neutral-300">Editar e reenviar</span> sua última mensagem substitui o turno no lugar.</li>
             <li>• <span className="text-neutral-300">Tray de tarefas</span> acima do composer colapsa no clique e reabre quando quiser.</li>
-            <li>• <span className="text-neutral-300">“carregar antigas”</span> no topo do chat traz o histórico pré-compactação.</li>
+            <li>• <span className="text-neutral-300">“carregar antigas”</span> no topo do chat traz o histórico pré-compactação — repita à vontade, cada clique vai mais fundo até o começo da sessão e a posição de leitura é mantida.</li>
             <li>• <span className="text-neutral-300">Endereço do backend por aparelho</span>: no aviso de backend offline, “configurar endereço” salva um override neste dispositivo.</li>
             <li>• <span className="text-neutral-300">Rota /ds na URL</span> abre a galeria viva do design system.</li>
-            <li>• <span className="text-neutral-300">Divisores finos</span> na timeline marcam compactação, PR aberta (link) e retomadas de loop.</li>
+            <li>• <span className="text-neutral-300">Divisores finos</span> na timeline marcam compactação, PR aberta (link) e retomadas de loop. Seguidos, viram um divisor só: wakeups contam ×N e PRs juntam os links numa linha. PRs anteriores ao trecho visível ficam em “carregar antigas”.</li>
           </ul>
         </Card>
       </div>

@@ -25,6 +25,22 @@ export function isIdle(mtime: number, running: boolean, now = Date.now()): boole
   return !running && now - mtime > IDLE_MS;
 }
 
+// Custo compacto pro chip do card: valores altos viram "$1.9k" — o número gigante
+// ("$1911.21") gritava mais que o título da sessão.
+export function fmtCost(cost: number): string {
+  // 999.5+ já compacta: senão o Math.round de baixo imprimia "$1000".
+  if (cost >= 999.5) return `$${(cost / 1000).toFixed(1)}k`;
+  if (cost >= 100) return `$${Math.round(cost)}`;
+  if (cost >= 0.01) return `$${cost.toFixed(2)}`;
+  return `$${cost.toFixed(4)}`;
+}
+
+// Hora compacta pro canto do card: "22h atrás" → "22h". O sufixo repetido em
+// toda linha só roubava largura do título.
+export function shortRel(rel: string): string {
+  return rel.replace(/\s*atrás$/, '');
+}
+
 export function fmtRunElapsed(ms: number): string {
   const s = Math.floor(ms / 1000);
   if (s < 60) return `${s}s`;

@@ -4,7 +4,8 @@ import type { ClientMsg } from '../../shared/protocol';
 // apertado que o global. Um loop de `search` (grep sobre centenas de MB) ou
 // `term-open` (spawn de tmux) sem freio é o vetor de DoS quando houver 2º ator.
 const HEAVY: ReadonlySet<ClientMsg['t']> = new Set([
-  'search', 'upload', 'term-open', 'send', 'list', 'list-archived', 'open', 'open-full',
+  'search', 'upload', 'term-open', 'send', 'list', 'list-archived', 'open', 'open-full', 'bench-build',
+  'session-handoff',
 ]);
 
 export interface Bucket { tokens: number; last: number }

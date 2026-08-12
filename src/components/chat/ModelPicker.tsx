@@ -23,15 +23,14 @@ function withFamilies(models: ModelInfo[]): ModelInfo[] {
   return [...models, ...extra];
 }
 
-export function ModelPicker({ model, setModel, models, onRefreshModels, disabled }: {
+export function ModelPicker({ model, setModel, models, onRefreshModels }: {
   model: string; setModel: (m: string) => void;
   models: ModelInfo[];
   onRefreshModels: () => void;
-  disabled: boolean;
 }) {
   const [customIds, setCustomIds] = usePersisted<string[]>('customModels', []);
-  const sel = 'rounded-md border border-neutral-800 bg-neutral-950 px-1.5 py-1 text-[11px] font-medium text-neutral-300 outline-none transition hover:border-neutral-700 focus:border-orange-500/40 disabled:cursor-not-allowed disabled:opacity-50';
-  const tag = 'text-[9px] font-semibold uppercase tracking-wide text-neutral-600';
+  const sel = 'max-w-[130px] rounded-md border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-[11px] font-medium text-neutral-300 outline-none transition hover:border-neutral-700 focus:border-orange-500/40 sm:max-w-none sm:px-1.5 sm:py-1';
+  const tag = 'hidden text-[9px] font-semibold uppercase tracking-wide text-neutral-600 sm:inline';
   const base = models.length ? withFamilies(models) : FALLBACK_MODELS;
   // Modelos digitados à mão (ex: um recém-lançado ainda fora do /v1/models da conta),
   // sem duplicar o que a lista ao vivo já trouxe.
@@ -54,11 +53,10 @@ export function ModelPicker({ model, setModel, models, onRefreshModels, disabled
   };
 
   return (
-    <label className="inline-flex items-center gap-1" title="Versão do agente desta sessão">
+    <label className="inline-flex shrink-0 items-center gap-1" title="Versão do agente do próximo prompt">
       <span className={tag}>versão</span>
       <select
         value={model}
-        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
         className={sel}
       >
@@ -68,9 +66,8 @@ export function ModelPicker({ model, setModel, models, onRefreshModels, disabled
       <button
         type="button"
         onClick={onRefreshModels}
-        disabled={disabled}
         title="Buscar modelos novos da Anthropic agora"
-        className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md border border-neutral-800 bg-neutral-950 text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-200 disabled:cursor-not-allowed disabled:opacity-50 ${tokens.focusRing}`}
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-neutral-800 bg-neutral-950 text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-200 sm:h-[22px] sm:w-[22px] ${tokens.focusRing}`}
       >
         <Icon name="rotate" size={12} />
       </button>

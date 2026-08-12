@@ -1,17 +1,7 @@
 import type { ReactNode } from 'react';
 import { tokenizeInline } from './tokenize-inline';
 import { WikiLink } from './wikilink-context';
-
-// Allowlist de esquema pra href de link markdown. O conteúdo vem do modelo / saída
-// de tool (não-confiável): um `[clique](javascript:...)` viraria âncora que executa
-// script no clique. Só http(s)/mailto e caminhos relativos passam; o resto perde o
-// href (vira texto puro). data: também fica de fora (data:text/html é vetor de XSS).
-function safeHref(url: string): string | undefined {
-  const u = url.trim();
-  if (/^(https?:|mailto:)/i.test(u)) return u;
-  if (/^[/#?]/.test(u) || /^[\w.-]+(\/|$)/.test(u)) return u; // relativo (sem esquema)
-  return undefined;
-}
+import { safeHref } from '../../../lib/safe-href';
 
 export function renderInline(text: string, keyBase: string): ReactNode[] {
   const nodes: ReactNode[] = [];

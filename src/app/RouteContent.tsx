@@ -3,11 +3,14 @@ import { DesktopLayout } from './DesktopLayout';
 import { Contextos } from '../routes/Contextos';
 import { Skills } from '../routes/Skills';
 import { Notas } from '../routes/Notas';
+import { Pontos } from '../routes/Pontos';
 import { Crons } from '../routes/Crons';
 import { Observatorio } from '../routes/Observatorio';
+import { Graph } from '../routes/Graph';
 import { Admin } from '../routes/Admin';
 import { Docs } from '../routes/Docs';
 import { DesignSystem } from '../routes/DesignSystem';
+import { Playground } from '../routes/Playground';
 import type { SessionsPanelProps } from '../components/Sessions';
 import type { ChatPanelProps } from '../components/Chat';
 import type { TerminalsPanelProps } from '../components/Terminals';
@@ -70,9 +73,18 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
           onNotesGet={c.onNotesGet} onNotesSave={c.onNotesSave} onAnalyze={onAnalyzeNotes} />
       );
     }
+    if (route === '/pontos') {
+      return (
+        <Pontos connected={connected} points={c.points} total={c.pointsTotal} loaded={c.pointsLoaded}
+          onPointsGet={c.onPointsGet} onPointsAdd={c.onPointsAdd} onPointsCorrect={c.onPointsCorrect}
+          onPointsNote={c.onPointsNote} onPointsDelete={c.onPointsDelete}
+          dflSnapshot={c.dflSnapshot} dflLoaded={c.dflLoaded} dflSyncing={c.dflSyncing}
+          onDflGet={c.onDflGet} onDflSync={c.onDflSync} onDflChange={c.onDflChange} onDflInvoice={c.onDflInvoice} />
+      );
+    }
     if (route === '/crons') {
       return (
-        <Crons connected={connected} crons={c.crons}
+        <Crons connected={connected} crons={c.crons} loaded={c.cronsLoaded}
           onCronsGet={c.onCronsGet} onCronSave={c.onCronSave} onCronDelete={c.onCronDelete} onCronRun={c.onCronRun} />
       );
     }
@@ -82,15 +94,26 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
           onOpenSession={onOpenSession} />
       );
     }
+    if (route === '/graph' && isAdmin) {
+      return (
+        <Graph connected={connected} graphs={c.graphs} loaded={c.graphsLoaded} openId={c.graphOpenId} opening={c.graphOpening} graph={c.graphData}
+          building={c.graphBuilding} buildLog={c.graphBuildLog} buildError={c.graphBuildError} querying={c.graphQuerying} queryResult={c.graphQueryResult} queryHistory={c.graphQueryHistory}
+          onGraphList={c.onGraphList} onGraphOpen={c.onGraphOpen} onGraphBuild={c.onGraphBuild} onClearBuildError={c.onClearBuildError} onGraphDelete={c.onGraphDelete} onGraphQuery={c.onGraphQuery} onGraphNodeOp={c.onGraphNodeOp} />
+      );
+    }
     if (route === '/admin' && isAdmin) {
       return (
         <Admin health={c.health} stats={c.stats} onHealthList={c.onHealthList}
-          accounts={c.accounts} onAccountsList={c.onAccountsList} onSetAdmin={c.onSetAdmin} isRoot={c.caps?.role === 'root'}
-          adminOp={c.adminOp} onEnvSet={c.onEnvSet} onEnvUnset={c.onEnvUnset} onMcpAdd={c.onMcpAdd} onMcpRemove={c.onMcpRemove} onCliInstall={c.onCliInstall} />
+          accounts={c.accounts} accountsLoaded={c.accountsLoaded} onAccountsList={c.onAccountsList} onSetAdmin={c.onSetAdmin} isRoot={c.caps?.role === 'root'}
+          adminOp={c.adminOp} onEnvSet={c.onEnvSet} onEnvUnset={c.onEnvUnset} onMcpAdd={c.onMcpAdd} onMcpRemove={c.onMcpRemove} onCliInstall={c.onCliInstall}
+          routes={c.routes} onRoutesGet={c.onRoutesGet} onRoutesEnable={c.onRoutesEnable}
+          onRouteSet={c.onRouteSet} onRouteConfig={c.onRouteConfig}
+          onRouteCustomAdd={c.onRouteCustomAdd} onRouteCustomRemove={c.onRouteCustomRemove} />
       );
     }
     if (route === '/docs') return <Docs />;
     if (route === '/ds') return <DesignSystem />;
+    if (route === '/play') return <Playground />;
     if (isMobile) {
       return (
         <MobileLayout

@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import type { ClaudeEvent } from './events';
 import { CONFIG } from '../config';
 import { managedEnvSync, mcpServerDefsSync } from '../admin-ops';
+import { routeEnv, routeIsNativeAnthropic, routeModel } from '../router/state';
 import type { Role } from '../auth';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -43,9 +44,10 @@ export interface RunOpts {
 
 const EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
 const MODELS = new Set(['opus', 'sonnet', 'haiku']);
-// id concreto vindo de /v1/models (ex: claude-opus-4-8). Ancorado e restrito a
-// [a-z0-9-] pra não virar vetor de injeção de flag no argv.
-const MODEL_ID_RE = /^claude-[a-z0-9-]+$/;
+// id concreto do provedor ativo: claude-opus-4-8, glm-4.6, qwen3-coder-plus,
+// MiniMax-M2. Ancorado, sem espaço e obrigado a começar com alfanumérico — é isso
+// que impede o valor de virar uma flag no argv.
+const MODEL_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$/;
 function validModel(m: string): boolean { return MODELS.has(m) || MODEL_ID_RE.test(m); }
 
 export interface RunHandle {
@@ -58,10 +60,13 @@ export interface RunHandle {
 // - env mínimo (não vaza segredo do processo pai)
 // - cwd isolado
 // - detached pra matar a árvore no stop
-export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills'>;
+export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills'>
+  // Rota ativa não é a Anthropic: `--fallback-model` fala nomes que só a Anthropic
+  // conhece e derrubaria o turno inteiro num provedor alternativo.
+  & { nativeAnthropic?: boolean };
 
 export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: string[] } | { error: string } {
-  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills } = opts;
+  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, nativeAnthropic = true } = opts;
   const { permissionMode, allow } = resolveMode(mode, { bypass, role });
 
   const args = [
@@ -81,16 +86,19 @@ export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: 
   // Nível de pensamento. Sem a flag o CLI usa o default da conta (alto) e queima
   // thinking tokens até em pedido simples — passar explícito (default low na UI) corta.
   if (effort && EFFORTS.has(effort)) args.push('--effort', effort);
-  if (CONFIG.fallbackModel && validModel(CONFIG.fallbackModel) && CONFIG.fallbackModel !== model) {
+  if (nativeAnthropic && CONFIG.fallbackModel && validModel(CONFIG.fallbackModel) && CONFIG.fallbackModel !== model) {
     args.push('--fallback-model', CONFIG.fallbackModel);
   }
   if (typeof maxBudgetUsd === 'number' && Number.isFinite(maxBudgetUsd) && maxBudgetUsd > 0) {
     args.push('--max-budget-usd', String(maxBudgetUsd));
   }
-  if (allow.length) args.push('--allowedTools', allow.join(' '));
+  // Ordem determinística: a seleção de skills/tools da UI chega em ordem variável
+  // entre turnos, e qualquer mudança na flag busta o prefixo cacheado da Anthropic
+  // — o turno inteiro volta a ser cobrado como cache write.
+  if (allow.length) args.push('--allowedTools', [...allow].sort().join(' '));
   // Kill-switch de tools (config) + skills não-selecionadas (por-prompt) entram no
   // MESMO --disallowedTools (uma flag só; rules space-separated).
-  const deny = [...CONFIG.disallowedTools, ...(disallowedSkills ?? [])];
+  const deny = [...new Set([...CONFIG.disallowedTools, ...(disallowedSkills ?? [])])].sort();
   if (deny.length) args.push('--disallowedTools', deny.join(' '));
   if (resumeId) {
     if (!UUID_RE.test(resumeId)) return { error: 'sessionId inválido' };
@@ -118,7 +126,12 @@ export function run(opts: RunOpts): RunHandle {
   }
   const cleanupMcp = () => { if (mcpConfigPath) { try { unlinkSync(mcpConfigPath); } catch { /* já removido */ } mcpConfigPath = undefined; } };
 
-  const built = buildArgs({ prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills }, mcpConfigPath);
+  // A rota ativa decide o nome do modelo: o alias da UI (opus/sonnet/haiku) vira o
+  // id nativo do provedor pra onde o roteador apontou.
+  const built = buildArgs({
+    prompt, resumeId, mode, model: routeModel(model), effort, maxBudgetUsd, bypass, role, disallowedSkills,
+    nativeAnthropic: routeIsNativeAnthropic(),
+  }, mcpConfigPath);
   if ('error' in built) {
     cleanupMcp();
     onError(built.error);
@@ -192,13 +205,19 @@ export function run(opts: RunOpts): RunHandle {
         try { if (child.pid) process.kill(-child.pid, sig); }
         catch { try { child.kill(sig); } catch { /* já morto */ } }
       };
+      // Varre a ÁRVORE de descendentes AGORA, antes do SIGTERM — não só na escalada.
+      // Um tool que chamou setsid (Bash longo, subagente claude -p, MCP stdio) está
+      // em grupo próprio e escapa do process.kill(-pid). Se esperássemos os 4s, o
+      // SIGTERM abaixo já teria matado o claude e o tool seria REPARENTADO pro init
+      // (ppid=1) — o killTree por-ppid não o acharia mais e ele viraria órfão eterno
+      // queimando token/CPU. É o "stop não para na hora" que voltava após todo fix:
+      // o claude some mas o subagente/Bash segue vivo. Reapar com o claude ainda vivo
+      // (ppid intacto) é a única janela em que a árvore é alcançável.
+      if (child.pid) killTree(child.pid);
       signal('SIGTERM');
-      // Escalada: se o processo (ou um tool filho que ignora SIGTERM) não fechar
-      // em 4s, SIGKILL no grupo — senão vira zumbi segurando a sessão a noite
-      // toda. O timer morre no 'close' (finish), evitando matar PID reciclado.
-      // Além do grupo: varre a ÁRVORE de descendentes por ppid e mata cada um —
-      // tools (Bash longo, MCP stdio, subagentes) que chamaram setsid criam o
-      // próprio grupo e escapariam do process.kill(-pid). É o "stop não para" #22.
+      // Escalada final pro PRÓPRIO claude: se ele ignorar o SIGTERM, SIGKILL no grupo
+      // + nova varredura da árvore (pega tool spawnado entre o reap acima e agora).
+      // O timer morre no 'close' (finish), evitando matar PID reciclado.
       if (!killTimer) killTimer = setTimeout(() => { signal('SIGKILL'); if (child.pid) killTree(child.pid); }, 4000);
     },
   };
@@ -249,13 +268,17 @@ export function resolveMode(
 // env curto: PATH + HOME + idioma + tokens GERENCIADOS pelo admin (#162). Nada de
 // SUPABASE_*/Infisical herdados do processo — só o que o dono colocou de propósito
 // via painel admin (~/.deck-agent/env.json) entra, pro agente usar nas tools.
-function minimalEnv(): NodeJS.ProcessEnv {
+// A rota entra por ÚLTIMO de propósito: se o roteador apontou pra outro provedor,
+// o ANTHROPIC_BASE_URL/token dele tem que vencer um valor solto no env gerenciado —
+// senão o turno sairia com a URL de um provedor e a chave de outro.
+export function minimalEnv(): NodeJS.ProcessEnv {
   return {
     PATH: process.env.PATH,
     HOME: process.env.HOME,
     LANG: process.env.LANG ?? 'en_US.UTF-8',
     TERM: 'dumb',
     ...managedEnvSync(),
+    ...routeEnv(),
   };
 }
 

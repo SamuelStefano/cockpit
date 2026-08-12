@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { isDue, nextRunAt } from './crons';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { isDue, nextRunAt, getCrons, saveCron, markRan } from './crons';
 import type { Cron } from '../shared/protocol';
 
 const base = (over: Partial<Cron>): Cron => ({
@@ -42,5 +45,24 @@ describe('cron daily', () => {
     const c = base({ schedule: { kind: 'daily', atMinute: 18 * 60 } }); // 18:00
     expect(isDue(c, noon)).toBe(false);
     expect(nextRunAt(c, noon)).toBe(midnight + 18 * 60 * 60_000);
+  });
+});
+
+describe('markRan', () => {
+  let dir: string;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'deck-crons-')); process.env.COCKPIT_CRONS = join(dir, 'crons.json'); });
+  afterEach(() => { delete process.env.COCKPIT_CRONS; try { rmSync(dir, { recursive: true, force: true }); } catch { /* ok */ } });
+
+  it('grava lastRun e mantém recorrentes ativos', async () => {
+    await saveCron(base({ id: 'r' }));
+    await markRan('r', 5000);
+    expect((await getCrons())[0]).toMatchObject({ lastRun: 5000, enabled: true });
+  });
+  it('pausa o "uma vez" ao disparar', async () => {
+    await saveCron(base({ id: 'o', schedule: { kind: 'once', atMs: 1000 } }));
+    await markRan('o', 1200);
+    const c = (await getCrons())[0];
+    expect(c).toMatchObject({ lastRun: 1200, enabled: false });
+    expect(isDue(c, 9_000_000)).toBe(false);
   });
 });

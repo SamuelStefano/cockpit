@@ -1,4 +1,4 @@
-import type { PlanUsage } from '../../shared/protocol';
+import type { PlanUsage, PlanLimit } from '../../shared/protocol';
 import { broadcast } from './broadcast';
 import { readOAuthToken, OAUTH_BETA } from '../oauth';
 
@@ -28,12 +28,60 @@ function parseReset(v: unknown): number | null {
   return Number.isFinite(t) ? t : null;
 }
 
+type RawLimit = {
+  kind?: string;
+  group?: string;
+  percent?: number;
+  severity?: string;
+  resets_at?: string;
+  scope?: { model?: { display_name?: string | null } | null } | null;
+};
+
+const KIND_LABEL: Record<string, string> = {
+  session: 'Sessão (5h)',
+  weekly_all: 'Semanal',
+  weekly_scoped: 'Semanal',
+};
+
+function severityOf(v: unknown): PlanLimit['severity'] {
+  return v === 'critical' || v === 'warning' ? v : 'normal';
+}
+
+// O teto por modelo (ex.: Fable) chega como `weekly_scoped` e só se identifica
+// pelo display_name dentro de `scope` — sem isso, duas linhas ficariam "Semanal".
+function labelOf(l: RawLimit): string {
+  const model = l.scope?.model?.display_name;
+  if (model) return model;
+  return KIND_LABEL[l.kind ?? ''] ?? l.kind ?? 'Limite';
+}
+
+function mapLimits(raw: unknown): PlanLimit[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((item, i) => {
+    const l = (item ?? {}) as RawLimit;
+    return {
+      id: `${l.kind ?? 'limit'}-${i}`,
+      label: labelOf(l),
+      pct: pct(l.percent),
+      resetsAt: parseReset(l.resets_at),
+      severity: severityOf(l.severity),
+      scoped: l.kind === 'weekly_scoped',
+    };
+  });
+}
+
 export function mapPlanUsage(body: unknown): PlanUsage {
-  const b = body as { five_hour?: { utilization?: number; resets_at?: string }; seven_day?: { utilization?: number } };
+  const b = body as {
+    five_hour?: { utilization?: number; resets_at?: string };
+    seven_day?: { utilization?: number; resets_at?: string };
+    limits?: unknown;
+  };
   return {
     fiveHour: pct(b?.five_hour?.utilization),
     sevenDay: pct(b?.seven_day?.utilization),
     resetsAt: parseReset(b?.five_hour?.resets_at),
+    sevenDayResetsAt: parseReset(b?.seven_day?.resets_at),
+    limits: mapLimits(b?.limits),
   };
 }
 

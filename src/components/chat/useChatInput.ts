@@ -39,7 +39,9 @@ export function useChatInput(args: UseChatInputArgs) {
   // Ditado por voz escreve direto no composer (value/setValue). Mora aqui pra o
   // textarea poder ficar readOnly enquanto grava (não dá pra digitar e ditar ao
   // mesmo tempo: o próximo trecho reconhecido sobrescreveria o que foi digitado).
-  const mic = useSpeechInput(value, setValue);
+  // Fallback de voz no mobile sem Web Speech API: foca o composer pra o usuário
+  // acionar o ditado do teclado nativo.
+  const mic = useSpeechInput(value, setValue, () => taRef.current?.focus());
   // Assinaturas recém-enviadas pra deduplicar o mesmo arquivo repetido (bug iOS).
   const recentUploads = useRef<Map<string, number>>(new Map());
   // Sobe vários arquivos respeitando o teto (espelha o backend); retorna quantos
@@ -75,6 +77,15 @@ export function useChatInput(args: UseChatInputArgs) {
       if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
     });
   };
+  // Draft que chega de FORA do grow (restaurado no refresh, troca de sessão,
+  // ditado): o textarea ficava em 1 linha escondendo o fim do texto. Ajusta a
+  // altura e rola pro fim; digitação normal não passa aqui (composer focado).
+  useEffect(() => {
+    const el = taRef.current;
+    if (!el || document.activeElement === el) return;
+    fitHeight(el);
+    el.scrollTop = el.scrollHeight;
+  }, [value]);
   useEffect(() => {
     if (focusSignal === 0) return;
     const el = taRef.current;
@@ -116,8 +127,8 @@ export function useChatInput(args: UseChatInputArgs) {
     // sozinho quando a janela resetar — em vez de travar o composer e perder o texto.
     // Os anexos pendentes (attachmentsRef) embarcam no próximo envio real.
     if (disabled || paused) {
-      if (!v) return;
-      recordPrompt(v);
+      if (!v && !hasAtt) return;
+      if (v) recordPrompt(v);
       onQueue(v); setValue('');
     } else {
       if (!v && !hasAtt) return;

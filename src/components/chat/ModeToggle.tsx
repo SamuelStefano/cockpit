@@ -7,24 +7,23 @@ const ACTIVE_TONE: Record<PermMode, string> = {
   acceptEdits: 'bg-orange-500/20 text-orange-300 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.4)]',
 };
 
-export function ModeToggle({ mode, setMode, disabled }: { mode: PermMode; setMode: (m: PermMode) => void; disabled: boolean }) {
+export function ModeToggle({ mode, setMode }: { mode: PermMode; setMode: (m: PermMode) => void }) {
   const opts: { v: PermMode; label: string; hint: string }[] = [
     { v: 'plan', label: 'Planejar', hint: 'só descreve o plano — nada é executado' },
     { v: 'acceptEdits', label: 'Executar', hint: 'o agente edita arquivos e roda comandos' },
     { v: 'auto', label: 'Auto', hint: 'edita e lê arquivos sozinho — sem rodar comandos no shell' },
   ];
   return (
-    <div className="inline-flex items-center rounded-lg border border-neutral-800 bg-neutral-950 p-0.5">
+    <div className="inline-flex shrink-0 items-center rounded-lg border border-neutral-800 bg-neutral-950 p-0.5">
       {opts.map((o) => {
         const active = mode === o.v;
         return (
           <button
             key={o.v}
             type="button"
-            disabled={disabled}
             onClick={() => setMode(o.v)}
             title={o.hint}
-            className={`rounded-md px-2 py-1 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${tokens.focusRing}
+            className={`whitespace-nowrap rounded-md px-2.5 py-1.5 text-[11px] font-medium transition sm:px-2 sm:py-1 ${tokens.focusRing}
               ${active ? ACTIVE_TONE[o.v] : 'text-neutral-500 hover:text-neutral-300'}`}
           >
             {o.label}

@@ -54,7 +54,7 @@ export function SkillPicker({ skills, selected, setSelected }: {
         type="button"
         onClick={() => setOpen((o) => !o)}
         title={active ? `${liveCount} skill(s) ativas neste prompt` : 'Escolher quais skills usar (vazio = todas)'}
-        className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-medium transition ${tokens.focusRing}
+        className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition sm:px-2 sm:py-1 ${tokens.focusRing}
           ${active
             ? 'border-orange-500/50 bg-orange-500/15 text-orange-300 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.4)]'
             : 'border-neutral-800 bg-neutral-950 text-neutral-500 hover:text-neutral-300'}`}

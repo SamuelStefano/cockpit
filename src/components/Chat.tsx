@@ -1,17 +1,20 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Icon } from './primitives';
+import { subscribeRefine } from './primitives/livepreview/refine-bus';
 import { MessageRow, Thinking } from './chat/MessageView';
 import { ChatEmpty, ChatInput } from './chat/ChatInput';
 import { ChatHeader } from './chat/ChatHeader';
 import { TaskTray } from './chat/TaskTray';
 import { latestTodos } from './chat/task-tray';
-import { clampToPendingQuestion } from '../cockpit/pending-question';
+import { useShownMessages } from './chat/useShownMessages';
 import { TurnBanners } from './chat/TurnBanners';
+import { FollowupChips } from './chat/FollowupChips';
 import { ClaudeAuthBanner } from './chat/ClaudeAuthBanner';
+import { SaturationBanner } from './chat/SaturationBanner';
 import { useChatPanel, type Phase } from './chat/useChatPanel';
 import { useFileDrop } from './chat/useFileDrop';
 import type { Session, Message, ToolTodo } from '../data/mock';
-import type { PermMode, Effort, ModelInfo, TurnStats, Caps, SkillMeta, BgAgent } from '../../shared/protocol';
+import type { PermMode, Effort, ModelInfo, TurnStats, Caps, SkillMeta, BgAgent, ParkedView, RoutesSnapshot } from '../../shared/protocol';
 import { BackgroundAgents } from './chat/BackgroundAgents';
 import type { Attachment, AttachmentPreview } from '../useCockpit';
 import { AttachmentModal } from './chat/AttachmentModal';
@@ -28,6 +31,9 @@ export interface ChatPanelProps {
   // Estado corrente da lista de tarefas (arquivo inteiro, via frame history) —
   // fallback do tray quando a janela visível não tem snapshot (pós-compact).
   sessionTodos?: ToolTodo[];
+  // Tópicos de continuação pós-turno (chips estilo ChatGPT) + dispensa.
+  followups?: string[];
+  onDismissFollowups?: () => void;
   draft: string;
   setDraft: (v: string) => void;
   onSend: (text: string, modeOverride?: PermMode) => void;
@@ -58,6 +64,8 @@ export interface ChatPanelProps {
   bgAgents?: BgAgent[];
   lastTurn?: TurnStats;
   onNew: () => void;
+  onHandoff?: (sessionId: string) => void;
+  handoffBusy?: boolean;
   attachments: Attachment[];
   onUpload: (file: File) => void;
   onRemoveAttachment: (path: string) => void;
@@ -68,7 +76,9 @@ export interface ChatPanelProps {
   onAttThumb?: (path: string) => void;
   onEditUser?: (id: string, text: string) => void;
   onQuote?: (text: string) => void;
+  onRename?: (id: string, title: string) => void;
   onOpenFull?: (id: string) => void;
+  onLoadOlder?: (id: string) => void;
   onOpenSummary?: (id: string) => void;
   truncated?: boolean;
   onShowHelp?: () => void;
@@ -79,10 +89,24 @@ export interface ChatPanelProps {
   isMobile?: boolean;
   quotaPaused?: boolean;
   quotaResetsAt?: number | null;
+  routes?: RoutesSnapshot | null;
+  onOpenRoutes?: () => void;
+  queue: ParkedView[];
+  queueAdd: (text: string) => void;
+  queueRemove: (sessionKey: string, id: string) => void;
+  queueEdit: (sessionKey: string, id: string, text: string) => void;
+  queueMove: (sessionKey: string, id: string, dir: -1 | 1) => void;
+  queueClear: (sessionKey: string) => void;
+  queuePaused: boolean;
+  queueSetPaused: (v: boolean) => void;
+  queueRetry: (sessionKey: string, id: string) => void;
 }
 
-export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onOpenFull, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, quotaPaused = false, quotaResetsAt = null }: ChatPanelProps) {
-  const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, paused: quotaPaused });
+export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, followups, onDismissFollowups, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, quotaPaused = false, quotaResetsAt = null, routes = null, onOpenRoutes, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry }: ChatPanelProps) {
+  const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry });
+  // Modo iterativo: um refino pedido de dentro de um live preview vira o próximo
+  // prompt (o card não tem acesso ao compositor — publica no [[refine-bus]]).
+  useEffect(() => subscribeRefine((text) => onPrompt(`Refina a última tela/preview: ${text}`)), [onPrompt]);
   // Stats AO VIVO do turno (estilo terminal): tokens gastos + tempo decorrido,
   // enquanto o turno roda. Some no `done` (phase volta a idle).
   const live = phase === 'thinking' || phase === 'streaming' ? { tokens: liveTurnTokens ?? 0, startedAt: turnStartedAt } : undefined;
@@ -99,11 +123,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
     () => (phase !== 'idle' ? latestTodos(messages) ?? sessionTodos : sessionTodos ?? latestTodos(messages)),
     [messages, sessionTodos, phase],
   );
-  // Trava a exibição numa pergunta pendente do agente: o `claude -p` auto-resolve
-  // o AskUserQuestion e continua gerando — sem isto o card aparecia e "sumia"
-  // (enterrado pela continuação). Garante que a pergunta fica como última msg e
-  // respondível, independente da versão do backend (defesa no front).
-  const shown = useMemo(() => clampToPendingQuestion(messages), [messages]);
+  const shown = useShownMessages(messages);
 
   return (
     <div
@@ -119,28 +139,35 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
       <ChatHeader
         session={session} messages={messages} isEmpty={c.isEmpty} isMobile={isMobile}
         contextTokens={contextTokens} lastTurn={lastTurn} onNew={onNew}
-        fullLoaded={c.fullLoaded} truncated={truncated} onOpenFull={onOpenFull} onOpenSummary={onOpenSummary}
-        setFullLoaded={c.setFullLoaded} onTerminal={onTerminal} terminalRunning={terminalRunning}
+        fullLoaded={c.fullLoaded} truncated={truncated} onOpenFull={onOpenFull} onLoadOlder={onLoadOlder} onOpenSummary={onOpenSummary}
+        beforeGrow={c.captureAnchor}
+        setFullLoaded={c.setFullLoaded} onTerminal={onTerminal} terminalRunning={terminalRunning} onRename={onRename}
       />
 
       {!claudeReady && <ClaudeAuthBanner onTerminal={onTerminal} />}
 
-      <div ref={c.scrollRef} onScroll={c.onScroll} className="print-thread scroll-thin flex-1 overflow-y-auto">
+      {/* Wrapper relativo: as afordâncias de scroll ancoram no fim da ÁREA DE
+          SCROLL, não do painel — antes (bottom fixo no painel) um composer alto
+          engolia os botões pra dentro do input. */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+      <div ref={c.scrollRef} onScroll={c.onScroll} className="print-thread scroll-thin flex-1 overflow-y-auto overflow-x-hidden">
         {c.isEmpty && phase === 'idle' ? (
           <ChatEmpty onPrompt={onPrompt} />
         ) : (
-          <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-5">
+          <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6">
             {shown.map((m, i) => (
-              <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === shown.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} thinking={phase !== 'idle' && i === shown.length - 1 && m.role === 'assistant'} live={i === shown.length - 1 && m.role === 'assistant' ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} answerable={phase === 'idle' && i === shown.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} />
+              <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === shown.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} showModelLabel thinking={phase !== 'idle' && !c.pendingQuestion && i === shown.length - 1 && m.role === 'assistant'} live={i === shown.length - 1 && m.role === 'assistant' && !c.pendingQuestion ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} answerable={(phase === 'idle' || c.pendingQuestion) && i === shown.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} onRegenerate={phase === 'idle' && !c.pendingQuestion && i === shown.length - 1 && m.role === 'assistant' ? c.retryLast : undefined} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} />
 
             ))}
-            {(phase === 'thinking' && shown[shown.length - 1]?.role !== 'assistant' || phase === 'idle' && terminalBusy) && <Thinking live={live} />}
+            {/* Sem bolha de assistente na cauda (ex: divisor recém-inserido) o turno
+                em voo ficaria sem nenhum sinal — vale pra streaming também. */}
+            {!c.pendingQuestion && (phase !== 'idle' && shown[shown.length - 1]?.role !== 'assistant' || phase === 'idle' && terminalBusy) && <Thinking live={live} />}
           </div>
         )}
       </div>
 
       {!c.isEmpty && !c.atBottom && (
-        <div className="fade-up absolute bottom-[84px] left-1/2 z-20 flex -translate-x-1/2 items-center gap-2">
+        <div className="fade-up absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2">
           {c.promptAbove && (
             <button
               onClick={c.scrollToLastPrompt}
@@ -161,21 +188,34 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
           )}
         </div>
       )}
+      </div>
 
       {trayTodos && <TaskTray todos={trayTodos} />}
 
       <BackgroundAgents agents={bgAgents} />
 
+      {/* Chips só em repouso de verdade: sem turno, sem pergunta/plano pendente e
+          sem fila — nesses estados o banner correspondente é a ação principal. */}
+      {phase === 'idle' && !c.isEmpty && !c.pendingQuestion && !c.planPending && !c.failed && c.queued.length === 0 && followups && onDismissFollowups && (
+        <FollowupChips items={followups} onPick={onPrompt} onDismiss={onDismissFollowups} />
+      )}
+
+      {phase === 'idle' && onHandoff && (
+        <SaturationBanner sessionId={session?.id} contextTokens={contextTokens} busy={handoffBusy} onHandoff={onHandoff} />
+      )}
+
       <TurnBanners phase={phase} failed={c.failed} planPending={c.planPending} pendingQuestion={c.pendingQuestion} queuedCount={c.queued.length} lastEnd={lastEnd} retryLast={c.retryLast} onSend={onSend} />
 
-      <ChatInput disabled={c.disabled} onSend={onSend} onStop={() => { c.clearQueue(); onStop(); }} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
+      <ChatInput disabled={c.disabled} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
         caps={caps} bypass={bypass} setBypass={setBypass}
         model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels}
         effort={effort} setEffort={setEffort}
         skills={skills} selectedSkills={selectedSkills} setSelectedSkills={setSelectedSkills} mcpServers={mcpServers} selectedMcps={selectedMcps} setSelectedMcps={setSelectedMcps} slashCommands={slashCommands}
         attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} focusSignal={focusSignal}
-        queued={c.queued} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
-        paused={quotaPaused} quotaResetsAt={quotaResetsAt} />
+        queued={c.queued} queuedAtts={c.queuedAtts} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onEditQueuedAt={c.editQueuedAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
+        queuePaused={queuePaused} onToggleQueuePause={() => queueSetPaused(!queuePaused)}
+        queueHeld={c.queueHeld} onResumeQueue={c.resumeQueue}
+        paused={quotaPaused} quotaResetsAt={quotaResetsAt} routes={routes} onOpenRoutes={onOpenRoutes} />
 
       {attPreview && onAttClose && <AttachmentModal att={attPreview} onClose={onAttClose} />}
     </div>

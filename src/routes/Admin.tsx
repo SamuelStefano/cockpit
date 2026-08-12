@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Icon } from '../components/primitives';
-import type { AdminHealth, SysStats, AccountSummary } from '../../shared/protocol';
+import { Button, Icon, RouteHeader } from '../components/primitives';
+import type { AdminHealth, SysStats, AccountSummary, RoutesSnapshot, ClientMsg } from '../../shared/protocol';
 import { AdminAccounts } from './AdminAccounts';
 import { AdminHostOps } from './AdminHostOps';
 import { AdminInventory } from './AdminInventory';
+import { AdminRoutes } from './AdminRoutes';
 import { AdminTabs, type AdminTab } from './AdminTabs';
 import { AdminHealthSkeleton } from './AdminHealthSkeleton';
 import { Stat } from './adminPrimitives';
@@ -19,6 +20,7 @@ interface AdminProps {
   stats: SysStats | null;
   onHealthList: () => void;
   accounts: AccountSummary[];
+  accountsLoaded: boolean;
   onAccountsList: () => void;
   onSetAdmin: (accountId: string, admin: boolean) => void;
   isRoot: boolean; // só root concede/revoga admin
@@ -28,9 +30,16 @@ interface AdminProps {
   onMcpAdd: (name: string, opts: { command?: string; url?: string }) => void;
   onMcpRemove: (name: string) => void;
   onCliInstall: (name: string) => void;
+  routes: RoutesSnapshot | null;
+  onRoutesGet: () => void;
+  onRoutesEnable: (on: boolean) => void;
+  onRouteSet: (id: string) => void;
+  onRouteConfig: (id: string, patch: { enabled?: boolean; priority?: number }) => void;
+  onRouteCustomAdd: (r: Omit<Extract<ClientMsg, { t: 'route-custom-add' }>, 't'>) => void;
+  onRouteCustomRemove: (id: string) => void;
 }
 
-export function Admin({ health, stats, onHealthList, accounts, onAccountsList, onSetAdmin, isRoot, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall }: AdminProps) {
+export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, isRoot, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, routes, onRoutesGet, onRoutesEnable, onRouteSet, onRouteConfig, onRouteCustomAdd, onRouteCustomRemove }: AdminProps) {
   const [updatedAt, setUpdatedAt] = useState(0);
   const [tab, setTab] = useState('overview');
   useEffect(() => {
@@ -44,6 +53,7 @@ export function Admin({ health, stats, onHealthList, accounts, onAccountsList, o
     const t: AdminTab[] = [{ id: 'overview', label: 'Visão geral', icon: 'zap' }];
     if (SUPABASE_ENABLED) t.push({ id: 'accounts', label: 'Contas', icon: 'user' });
     t.push({ id: 'host', label: 'Host', icon: 'terminal' });
+    t.push({ id: 'routes', label: 'Rotas', icon: 'zap' });
     return t;
   }, []);
 
@@ -56,21 +66,30 @@ export function Admin({ health, stats, onHealthList, accounts, onAccountsList, o
   return (
     <div className="scroll-thin h-full overflow-y-auto px-4 py-5 sm:px-6">
       <div className="mx-auto max-w-3xl">
-        <div className="mb-1 flex items-center gap-2">
-          <Icon name="shield" size={17} className="text-orange-400" />
-          <h1 className="text-[17px] font-semibold text-neutral-100">Admin</h1>
-          <Button variant="secondary" size="sm" icon="rotate" title="Atualizar agora" className="ml-auto" onClick={onHealthList}>
-            Atualizar
-          </Button>
-        </div>
-        <p className="mb-5 text-[12.5px] text-neutral-500">
-          Saúde e inventário da VPS, controle do host e contas. Ações sensíveis pedem confirmação e exigem role admin no relay.
-        </p>
+        <RouteHeader
+          variant="page"
+          title="Admin"
+          icon="shield"
+          subtitle="Saúde e inventário da VPS, controle do host e contas. Ações sensíveis pedem confirmação e exigem role admin no relay."
+          actions={
+            <Button variant="secondary" size="sm" icon="rotate" title="Atualizar agora" onClick={onHealthList}>
+              Atualizar
+            </Button>
+          }
+        />
 
         <AdminTabs tabs={tabs} active={tab} onSelect={setTab} />
 
         {tab === 'accounts' && SUPABASE_ENABLED && (
-          <AdminAccounts accounts={accounts} onAccountsList={onAccountsList} onSetAdmin={onSetAdmin} canGrant={isRoot} />
+          <AdminAccounts accounts={accounts} loaded={accountsLoaded} onAccountsList={onAccountsList} onSetAdmin={onSetAdmin} canGrant={isRoot} />
+        )}
+
+        {tab === 'routes' && (
+          <AdminRoutes
+            routes={routes} onRoutesGet={onRoutesGet} onRoutesEnable={onRoutesEnable}
+            onRouteSet={onRouteSet} onRouteConfig={onRouteConfig}
+            onRouteCustomAdd={onRouteCustomAdd} onRouteCustomRemove={onRouteCustomRemove}
+          />
         )}
 
         {tab === 'host' && (

@@ -1,5 +1,17 @@
-import { describe, it, expect } from 'vitest';
-import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit } from './claude';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+let managed: Record<string, string> = {};
+let route: Record<string, string> = {};
+vi.mock('../admin-ops', () => ({ managedEnvSync: () => managed, mcpServerDefsSync: () => ({}) }));
+vi.mock('../router/state', () => ({
+  routeEnv: () => route,
+  routeModel: (m?: string) => m,
+  routeIsNativeAnthropic: () => true,
+}));
+
+import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv } from './claude';
+
+beforeEach(() => { managed = {}; route = {}; });
 
 function argsOf(o: Parameters<typeof buildArgs>[0]): string[] {
   const r = buildArgs(o);
@@ -163,6 +175,23 @@ describe('buildArgs', () => {
     expect(argsOf({ prompt: 'x' })).not.toContain('--effort');
   });
 
+  it('aceita o id nativo do provedor roteado (glm-4.6, qwen3-coder-plus, MiniMax-M2)', () => {
+    for (const m of ['glm-4.6', 'qwen3-coder-plus', 'MiniMax-M2', 'deepseek-chat', 'openai/gpt-oss-120b']) {
+      expect(valAfter(argsOf({ prompt: 'x', model: m }), '--model'), m).toBe(m);
+    }
+  });
+
+  it('nunca deixa o modelo virar flag no argv', () => {
+    for (const m of ['--dangerously-skip-permissions', '-p', ' glm', 'glm 4.6', '']) {
+      expect(argsOf({ prompt: 'x', model: m }), m).not.toContain('--model');
+    }
+  });
+
+  it('suprime --fallback-model fora da Anthropic (o nome não existe no outro provedor)', () => {
+    expect(argsOf({ prompt: 'x', model: 'claude-opus-4-8' })).toContain('--fallback-model');
+    expect(argsOf({ prompt: 'x', model: 'glm-4.6', nativeAnthropic: false })).not.toContain('--fallback-model');
+  });
+
   it('allow-lists effort, dropping unknown levels', () => {
     for (const e of ['low', 'medium', 'high', 'xhigh', 'max']) {
       expect(valAfter(argsOf({ prompt: 'x', effort: e }), '--effort')).toBe(e);
@@ -180,5 +209,55 @@ describe('buildArgs', () => {
 
   it('grants no allowedTools in plan mode', () => {
     expect(argsOf({ prompt: 'x', mode: 'plan' })).not.toContain('--allowedTools');
+  });
+
+  it('ordena disallowedTools igual independente da ordem de entrada', () => {
+    const a = valAfter(argsOf({ prompt: 'x', disallowedSkills: ['Zeta', 'Alpha', 'Mu'] }), '--disallowedTools');
+    const b = valAfter(argsOf({ prompt: 'x', disallowedSkills: ['Mu', 'Zeta', 'Alpha'] }), '--disallowedTools');
+    expect(a).toBe(b);
+  });
+
+  it('não repete regra vinda do config e da seleção de skills', () => {
+    const v = valAfter(argsOf({ prompt: 'x', disallowedSkills: ['Alpha', 'Alpha'] }), '--disallowedTools');
+    const rules = (v ?? '').split(' ').filter(Boolean);
+    expect(new Set(rules).size).toBe(rules.length);
+  });
+});
+
+// O spawn é o único ponto onde a decisão do roteador vira comportamento: se o env
+// não sair com o BASE_URL/token do provedor escolhido, o turno inteiro continua
+// batendo na Anthropic e todo o resto do roteador é decoração.
+describe('minimalEnv', () => {
+  it('injeta o env da rota ativa', () => {
+    route = { ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic', ANTHROPIC_AUTH_TOKEN: 'k-zai' };
+    const env = minimalEnv();
+    expect(env.ANTHROPIC_BASE_URL).toBe('https://api.z.ai/api/anthropic');
+    expect(env.ANTHROPIC_AUTH_TOKEN).toBe('k-zai');
+  });
+
+  it('rota no plano não injeta nada da Anthropic', () => {
+    expect(minimalEnv().ANTHROPIC_BASE_URL).toBeUndefined();
+  });
+
+  // URL de um provedor com a chave de outro = turno morto em 401 (ou pior: chave
+  // vazada pro endpoint errado). A rota tem que vencer o env gerenciado.
+  it('rota vence o env gerenciado no conflito', () => {
+    managed = { ANTHROPIC_BASE_URL: 'https://api.moonshot.ai/anthropic', ANTHROPIC_API_KEY: 'k-antiga' };
+    route = { ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic', ANTHROPIC_API_KEY: 'k-zai' };
+    const env = minimalEnv();
+    expect(env.ANTHROPIC_BASE_URL).toBe('https://api.z.ai/api/anthropic');
+    expect(env.ANTHROPIC_API_KEY).toBe('k-zai');
+  });
+
+  it('token gerenciado sem conflito continua chegando no agente', () => {
+    managed = { DASHSCOPE_API_KEY: 'k-qwen' };
+    expect(minimalEnv().DASHSCOPE_API_KEY).toBe('k-qwen');
+  });
+
+  // O env herdado do processo não pode vazar pro `claude` (#162).
+  it('não herda segredo solto do processo', () => {
+    process.env.DECK_TEST_SEGREDO = 'nao-vaza';
+    expect(minimalEnv().DECK_TEST_SEGREDO).toBeUndefined();
+    delete process.env.DECK_TEST_SEGREDO;
   });
 });

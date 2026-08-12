@@ -3,13 +3,14 @@ import { translate } from './translate';
 import { threads, type Thread } from './runs';
 import { getLastRate } from './rate';
 import { broadcast } from './broadcast';
+import { awaitingAnswer } from './awaiting';
 
 vi.mock('./broadcast', () => ({ broadcast: vi.fn(), send: vi.fn(), setWss: vi.fn() }));
 
 const KEY = 'k';
 
 function freshThread(): Thread {
-  return { handle: { kill: () => {} }, prompt: '', startedAt: 0, text: '', thinking: '', tools: [], toolStart: new Map(), tasks: new Map(), taskCreates: new Map() };
+  return { handle: { kill: () => {} }, params: {}, prompt: '', startedAt: 0, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map() };
 }
 function register(): Thread {
   const t = freshThread();
@@ -17,7 +18,7 @@ function register(): Thread {
   return t;
 }
 
-beforeEach(() => { threads.clear(); vi.mocked(broadcast).mockClear(); });
+beforeEach(() => { threads.clear(); awaitingAnswer.clear(); vi.mocked(broadcast).mockClear(); });
 
 describe('translate', () => {
   it('drops frames from a run superseded on the same key', () => {
@@ -139,5 +140,24 @@ describe('translate', () => {
     translate(KEY, t, { type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'thinking_delta', thinking: 'hmm' } } } as never);
     expect(t.text).toBe('hello');
     expect(t.thinking).toBe('hmm');
+  });
+
+  it('AskUserQuestion arma o latch awaitingAnswer, marca questioned e mata o run', () => {
+    const t = register();
+    const kill = vi.fn();
+    t.handle.kill = kill;
+    const q = { type: 'tool_use', id: 'tq', name: 'AskUserQuestion', input: { questions: [{ question: 'qual?', options: [{ label: 'A' }, { label: 'B' }] }] } };
+    translate(KEY, t, { type: 'assistant', message: { content: [q] } } as never);
+    expect(t.questioned).toBe(true);
+    expect(t.stopped).toBe(true);
+    expect(awaitingAnswer.has(KEY)).toBe(true);
+    expect(kill).toHaveBeenCalled();
+  });
+
+  it('filtra o artefato "No response requested." do resume (bolha fantasma ao vivo)', () => {
+    const t = register();
+    translate(KEY, t, { type: 'assistant', message: { content: [{ type: 'text', text: 'No response requested.' }] } } as never);
+    expect(t.text).toBe('');
+    expect(vi.mocked(broadcast)).not.toHaveBeenCalledWith(expect.objectContaining({ t: 'delta' }));
   });
 });

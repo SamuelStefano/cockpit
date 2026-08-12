@@ -93,11 +93,30 @@ export async function unsetEnv(name: string): Promise<{ ok: boolean; message: st
 
 interface ClaudeJson { mcpServers?: Record<string, unknown>; [k: string]: unknown }
 
+// hostname do URL parser mantém os colchetes no IPv6 (ex.: '[::1]').
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
+
+// Valida a URL de um MCP http ANTES de gravar (SSRF/exfil): o `claude` depois abre
+// conexão pra o host que o cliente mandar. https obrigatório (http só em loopback),
+// e userinfo (user:pass@) proibido — não plantar credencial no ~/.claude.json.
+export function validateMcpUrl(raw: string): { ok: boolean; message: string } {
+  let u: URL;
+  try { u = new URL(raw); } catch { return { ok: false, message: 'url do MCP inválida' }; }
+  if (u.username || u.password) return { ok: false, message: 'url do MCP não pode conter credenciais' };
+  const loopback = LOOPBACK_HOSTS.has(u.hostname);
+  if (u.protocol !== 'https:' && !(u.protocol === 'http:' && loopback)) {
+    return { ok: false, message: 'url do MCP precisa ser https (http só em loopback)' };
+  }
+  return { ok: true, message: 'ok' };
+}
+
 export async function addMcp(name: string, opts: { command?: string; url?: string }): Promise<{ ok: boolean; message: string }> {
   if (!name.trim()) return { ok: false, message: 'nome do MCP vazio' };
   const j = await readJson<ClaudeJson>(CLAUDE_JSON, {});
   const servers = (j.mcpServers ??= {});
   if (opts.url) {
+    const v = validateMcpUrl(opts.url);
+    if (!v.ok) return v;
     servers[name] = { type: 'http', url: opts.url };
   } else if (opts.command) {
     const [cmd, ...args] = opts.command.split(/\s+/);

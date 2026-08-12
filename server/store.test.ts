@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -42,6 +42,16 @@ describe('store concurrency', () => {
     const set = await s.hiddenSet();
     expect(set.has(A)).toBe(false);
     expect(set.has(B)).toBe(true);
+  });
+
+  it('não sobrescreve o que outro processo gravou no disco', async () => {
+    const s = await freshStore();
+    await s.hideSession(A);
+    // Simula o outro escritor (o agente) commitando enquanto este cache está vivo.
+    await writeFile(process.env.COCKPIT_STORE!, JSON.stringify({ hidden: [A, B], purged: [], titles: {}, notes: {} }));
+    await s.setTitle(A, 'x');
+    const onDisk = JSON.parse(await readFile(process.env.COCKPIT_STORE!, 'utf8'));
+    expect(onDisk.hidden.sort()).toEqual([A, B].sort());
   });
 
   it('ignores non-UUID ids', async () => {

@@ -69,8 +69,13 @@ async function collectMetas(keep: (id: string, hidden: Set<string>) => boolean):
     }
     // Cópia rasa por listagem: o override NÃO é mutado no `meta` cacheado, senão
     // limpar o override depois não voltaria ao título derivado (ficaria grudado).
+    // `relative` é recalculado do mtime (estável) a cada listagem — se viesse do
+    // cache ficaria congelado no valor de quando a meta foi escaneada (ex: sessão
+    // vista logo após o último turno grava "agora" e nunca envelhece pra "5min
+    // atrás"/"1h atrás", já que o cache só invalida quando o mtime muda).
     metas.push({
       ...meta,
+      relative: relTime(meta.mtime),
       title: titleOv[id] ?? meta.title,
       summary: noteOv[id] ?? summaries.get(id),
     });
@@ -99,7 +104,7 @@ export async function metaForId(id: string): Promise<SessionMeta | null> {
   }
   const titleOv = await titleOverrides();
   const noteOv = await noteOverrides();
-  return { ...meta, title: titleOv[id] ?? meta.title, summary: noteOv[id] ?? getSummary(id) ?? undefined };
+  return { ...meta, relative: relTime(meta.mtime), title: titleOv[id] ?? meta.title, summary: noteOv[id] ?? getSummary(id) ?? undefined };
 }
 
 // Monta a SessionMeta a partir do cabeçalho escaneado — compartilhado pela

@@ -5,7 +5,10 @@ import { broadcast } from './broadcast';
 import { applySlashCommands } from './slash';
 import { setLastRate } from './rate';
 import { emitTool, closeTool } from './tools';
+import { getLastRate } from './rate';
+import { parseTaskNotification, registerNotify } from './task-notify';
 import { threads, type Thread } from './runs';
+import { awaitingAnswer } from './awaiting';
 
 // Tradução evento NDJSON -> ServerMsg (squad C2/H1: tool por id de correlação).
 export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
@@ -14,6 +17,9 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
   // do run velho se intercalam com os do novo na mesma sessionKey (o onClose já
   // tem o guard equivalente pro 'done').
   if (threads.get(sessionKey) !== thread) return;
+  // Sinal de vida do turno: qualquer frame carimba o relógio. O reaper mata um
+  // thread que fica sem frames além do teto de silêncio (garimpou 40min → morto).
+  thread.lastFrameAt = Date.now();
   // Pós-pergunta: o `claude -p` auto-resolve o AskUserQuestion (tool_result falso) e
   // CONTINUA gerando no mesmo turno — a pergunta era enterrada (deixava de ser a
   // última mensagem) e o card nunca ficava respondível. Uma vez perguntado, descarta
@@ -79,6 +85,9 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       if (Array.isArray(content)) {
         for (const c of content) {
           if (c?.type === 'tool_use') { emitTool(thread, sessionKey, c, 'running'); continue; }
+          // Artefato do --resume pós-AskUserQuestion (mesmo filtro do parse.ts):
+          // não vira delta ao vivo — seria a "bolha fantasma".
+          if (c?.type === 'text' && c.text === 'No response requested.') continue;
           // Paridade: text/thinking que chegam SÓ no evento `assistant` final (sem
           // deltas de stream — bloco curto, ou --include-partial-messages não cobriu)
           // eram perdidos ao vivo. Emite o sufixo ainda não mostrado (includes()
@@ -135,12 +144,28 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       if (!thread.stopped && contentHasQuestion(content)) {
         thread.stopped = true;
         thread.questioned = true;
+        awaitingAnswer.add(sessionKey);
         thread.handle.kill();
       }
       return;
     }
     case 'user': {
       const content = (ev as any).message?.content;
+      // Notificação de subagente: nunca vira conteúdo de chat. Se o MESMO task-id
+      // repete (zumbi parado no limite re-notificando a cada retomada), o turno
+      // nunca fecha — encerra e emite UM banner de limite em vez de spam infinito.
+      const tn = parseTaskNotification(content);
+      if (tn) {
+        if (registerNotify(thread.taskNotifies, tn) === 'loop' && tn.status !== 'completed') {
+          thread.stopped = true; // suprime deltas remanescentes (guard no topo)
+          thread.endReason = 'task_loop';
+          broadcast({ t: 'error', sessionKey, message: 'Subagente em loop de notificação (provável limite de sessão) — turno encerrado.' });
+          const rate = getLastRate();
+          if (rate) broadcast({ t: 'rate', resetsAt: rate.resetsAt, status: rate.status });
+          thread.handle.kill();
+        }
+        return;
+      }
       if (Array.isArray(content)) {
         for (const c of content) {
           if (c?.type === 'tool_result') closeTool(thread, sessionKey, c);

@@ -1,9 +1,9 @@
 import { Icon } from '../primitives';
 import { SessionRowActions } from './SessionRowActions';
+import { shortRel } from './row-meta';
 
 interface SessionRowMetaProps {
   relative: string;
-  cost?: number;
   pinned: boolean;
   running: boolean;
   tagging: boolean;
@@ -21,15 +21,10 @@ interface SessionRowMetaProps {
   onDelete: () => void;
 }
 
-export function SessionRowMeta({ relative, cost, pinned, running, tagging, canTag, canStop, canDescribe, actionsOpen, setActionsOpen, setTagging, onTogglePin, onRename, onDescribe, onStop, onArchive, onDelete }: SessionRowMetaProps) {
+export function SessionRowMeta({ relative, pinned, running, tagging, canTag, canStop, canDescribe, actionsOpen, setActionsOpen, setTagging, onTogglePin, onRename, onDescribe, onStop, onArchive, onDelete }: SessionRowMetaProps) {
   return (
     <div className="flex shrink-0 items-center gap-1">
-      {cost !== undefined && cost > 0 && (
-        <span className="hidden text-[9.5px] tabular-nums text-emerald-500/70 sm:inline" title="Custo estimado acumulado desta sessão">
-          ${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(2)}
-        </span>
-      )}
-      <span className="hidden text-[10px] tabular-nums text-neutral-600 sm:inline">{relative}</span>
+      <span className="hidden text-[10.5px] tabular-nums text-neutral-600 sm:inline" title={relative}>{shortRel(relative)}</span>
       {pinned && (
         <span title="Sessão fixada" className="text-orange-400">
           <Icon name="star" size={11} />
@@ -39,7 +34,7 @@ export function SessionRowMeta({ relative, cost, pinned, running, tagging, canTa
         <button
           onClick={(e) => { e.stopPropagation(); setTagging(!tagging); }}
           title="Adicionar etiqueta"
-          className="block rounded p-0.5 text-neutral-500 transition hover:bg-neutral-800 hover:text-sky-300 sm:hidden sm:group-hover:block"
+          className="block rounded p-1.5 text-neutral-500 transition hover:bg-neutral-800 hover:text-sky-300 sm:p-0.5 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
         >
           <Icon name="tag" size={12} />
         </button>

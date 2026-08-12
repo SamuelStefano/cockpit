@@ -1,4 +1,6 @@
-import { Button, Icon, Badge, tokens } from '../primitives';
+import { Button, Icon, Badge } from '../primitives';
+import { EditableTitle } from './EditableTitle';
+import { HistoryControls } from './HistoryControls';
 import { ExportMenu } from './ExportMenu';
 import { TurnStat } from './TurnStat';
 import { ContextMeter } from './ContextMeter';
@@ -16,17 +18,25 @@ interface ChatHeaderProps {
   fullLoaded: boolean;
   truncated?: boolean;
   onOpenFull?: (id: string) => void;
+  onLoadOlder?: (id: string) => void;
   onOpenSummary?: (id: string) => void;
   setFullLoaded: (v: boolean) => void;
+  beforeGrow?: () => void;
   onTerminal?: () => void;
   terminalRunning?: boolean;
+  onRename?: (id: string, title: string) => void;
 }
 
-export function ChatHeader({ session, messages, isEmpty, isMobile, contextTokens, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onOpenSummary, setFullLoaded, onTerminal, terminalRunning }: ChatHeaderProps) {
+export function ChatHeader({ session, messages, isEmpty, isMobile, contextTokens, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, onRename }: ChatHeaderProps) {
   return (
     <div className="flex shrink-0 items-center gap-2 border-b border-neutral-800 px-4 py-2.5">
       <Icon name="message" size={14} className="text-neutral-500" />
-      <span className="truncate text-[12.5px] font-medium text-neutral-300">{session ? session.title : 'Nova sessão'}</span>
+      <EditableTitle
+        id={session?.id}
+        title={session ? session.title : 'Nova sessão'}
+        editable={!!session && !session.id.startsWith('new-')}
+        onRename={onRename}
+      />
       {session?.hasTerminal && <Badge tone="green" dot className="ml-0.5">terminal</Badge>}
       {/* Cluster direito num só container: vários ml-auto irmãos se espalham
           (margens auto dividem o espaço livre); aqui só este wrapper empurra. */}
@@ -34,29 +44,11 @@ export function ChatHeader({ session, messages, isEmpty, isMobile, contextTokens
         <TurnStat stats={lastTurn} />
         {!isMobile && <ContextMeter tokens={contextTokens} onNew={onNew} />}
         {!isEmpty && session && !session.id.startsWith('new-') && onOpenFull && (
-          <button
-            onClick={() => {
-              if (fullLoaded) { setFullLoaded(false); onOpenSummary?.(session.id); }
-              else { setFullLoaded(true); onOpenFull(session.id); }
-            }}
-            title={fullLoaded
-              ? truncated
-                ? 'Histórico completo carregado, mas a sessão é tão longa que ainda foi capado nas mais recentes. Clique para voltar à visão resumida.'
-                : 'Histórico completo carregado. Clique para voltar à visão resumida (só as mensagens recentes).'
-              : truncated
-                ? 'Esta sessão é longa: só as mensagens mais recentes foram carregadas. Clique para carregar o histórico completo (inclui anteriores a um /compact).'
-                : 'Recarrega todas as mensagens do arquivo, inclusive as anteriores a um /compact que somem do caminho ativo'}
-            className={`flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10.5px] transition ${tokens.focusRing} ${
-              fullLoaded
-                ? 'border-orange-700/60 bg-orange-500/10 text-orange-300 hover:border-orange-600 hover:text-orange-200'
-                : truncated
-                  ? 'border-amber-700/60 bg-amber-500/10 text-amber-300 hover:border-amber-600 hover:text-amber-200'
-                  : 'border-neutral-800 text-neutral-500 hover:border-neutral-700 hover:text-neutral-300'
-            }`}
-          >
-            <Icon name={fullLoaded ? 'chevronUp' : 'message'} size={11} />
-            {fullLoaded ? 'mostrar resumido' : truncated ? 'carregar antigas' : 'ver tudo'}
-          </button>
+          <HistoryControls
+            sessionId={session.id} fullLoaded={fullLoaded} truncated={truncated}
+            onOpenFull={onOpenFull} onLoadOlder={onLoadOlder} onOpenSummary={onOpenSummary}
+            setFullLoaded={setFullLoaded} beforeGrow={beforeGrow}
+          />
         )}
         {!isEmpty && !isMobile && <ExportMenu title={session?.title || 'sessao'} messages={messages} />}
         {onTerminal && (

@@ -10,7 +10,6 @@ import type { PermMode, Effort, ModelInfo, Caps, SkillMeta } from '../../../shar
 interface ChatInputToolbarProps {
   mode: PermMode;
   setMode: (m: PermMode) => void;
-  disabled: boolean;
   caps: Caps | null;
   bypass: boolean;
   setBypass: (b: boolean) => void;
@@ -28,12 +27,18 @@ interface ChatInputToolbarProps {
   setEffort: (e: Effort) => void;
 }
 
-export function ChatInputToolbar({ mode, setMode, disabled, caps, bypass, setBypass, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, model, setModel, models, onRefreshModels, effort, setEffort }: ChatInputToolbarProps) {
+// Nenhum controle daqui é bloqueado por turno rodando: todos viram flag no spawn
+// do PRÓXIMO `claude -p`, então travá-los impedia justamente o caso normal —
+// preparar o próximo prompt enquanto o atual ainda responde.
+export function ChatInputToolbar({ mode, setMode, caps, bypass, setBypass, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, model, setModel, models, onRefreshModels, effort, setEffort }: ChatInputToolbarProps) {
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-2">
-      <ModeToggle mode={mode} setMode={setMode} disabled={disabled} />
+    // No mobile o toolbar vira UMA linha com scroll-x (padrão dos chats grandes)
+    // em vez de empilhar 3 linhas; os popovers dos pickers escapam do clipping
+    // porque no mobile são bottom-sheets position:fixed.
+    <div className="scroll-none mb-2 flex items-center gap-2 overflow-x-auto sm:flex-wrap sm:overflow-x-visible">
+      <ModeToggle mode={mode} setMode={setMode} />
       {caps?.canBypass && (
-        <BypassToggle on={bypass} setOn={setBypass} disabled={disabled} />
+        <BypassToggle on={bypass} setOn={setBypass} />
       )}
       {mode === 'auto' && (
         <span className="hidden items-center gap-1 text-[10.5px] text-amber-400/70 sm:flex">
@@ -45,11 +50,11 @@ export function ChatInputToolbar({ mode, setMode, disabled, caps, bypass, setByp
           <Icon name="zap" size={11} /> executa de verdade
         </span>
       )}
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex shrink-0 items-center gap-x-2 sm:min-w-0 sm:max-w-full sm:flex-wrap sm:justify-end sm:gap-y-1.5">
         <McpPicker servers={mcpServers} selected={selectedMcps} setSelected={setSelectedMcps} />
         <SkillPicker skills={skills} selected={selectedSkills} setSelected={setSelectedSkills} />
-        <EffortPicker effort={effort} setEffort={setEffort} disabled={disabled} />
-        <ModelPicker model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} disabled={disabled} />
+        <EffortPicker effort={effort} setEffort={setEffort} />
+        <ModelPicker model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} />
       </div>
     </div>
   );

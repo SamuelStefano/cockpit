@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { usePersisted } from '../../lib/persist';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { prettyModel } from './toolbar.format';
+import { pendingQuestionIdx } from '../../cockpit/pending-question';
 import type { Session, Message } from '../../data/mock';
-import type { PermMode, ModelInfo } from '../../../shared/protocol';
+import type { PermMode, ModelInfo, ParkedView } from '../../../shared/protocol';
+import { parseAttachments, replaceBody } from '../../lib/parse-attachments';
 
 export type Phase = 'idle' | 'thinking' | 'streaming';
 
@@ -13,46 +14,55 @@ interface Args {
   models: ModelInfo[];
   model: string;
   lastEnd?: string;
-  paused?: boolean;
   onSend: (text: string, modeOverride?: PermMode) => void;
+  // Fila ESTACIONADA do servidor (parked.json): drena sozinha quando a quota libera,
+  // mesmo com o browser fechado — o cliente só espelha e edita, não drena mais.
+  queue: ParkedView[];
+  queueAdd: (text: string) => void;
+  queueRemove: (sessionKey: string, id: string) => void;
+  queueEdit: (sessionKey: string, id: string, text: string) => void;
+  queueMove: (sessionKey: string, id: string, dir: -1 | 1) => void;
+  queueClear: (sessionKey: string) => void;
+  queueRetry: (sessionKey: string, id: string) => void;
 }
 
-export function useChatPanel({ session, messages, phase, models, model, lastEnd, paused = false, onSend }: Args) {
+export function useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry }: Args) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
-  const flushingRef = useRef(false);
   const [atBottom, setAtBottom] = useState(true);
   const [promptAbove, setPromptAbove] = useState(false);
-  const [queuedMap, setQueuedMap] = usePersisted<Record<string, string[]>>('queued', {});
   const [fullLoaded, setFullLoaded] = useState(false);
   const sid = session?.id ?? null;
-  // Fila POR SESSÃO e persistida em localStorage: "manda quando ESTA sessão
-  // liberar". Sair da sessão ou fechar o site NÃO pode perder o que foi digitado;
-  // só trocamos qual fila está ativa. flushingRef reseta na troca pra não travar a
-  // próxima sessão com a trava herdada da anterior.
-  const queued = useMemo(() => (sid ? queuedMap[sid] ?? [] : []), [queuedMap, sid]);
-  useEffect(() => { setFullLoaded(false); flushingRef.current = false; pinnedRef.current = true; setAtBottom(true); }, [sid]);
+  // Fila desta sessão na ORDEM DO SERVIDOR (array em parked.json = ordem de envio;
+  // o drainer sempre drena do topo). NÃO reordenar por `at`: o move troca posições
+  // no array sem mexer no `at`, então ordenar por `at` desfazia o reordenamento.
+  const parked = useMemo(
+    () => (sid ? queue.filter((q) => q.sessionKey === sid) : []),
+    [queue, sid],
+  );
+  // O prompt estacionado carrega os anexos como linhas `[anexo:]` (amarrados a ELE).
+  // No banner mostramos só o corpo limpo + a contagem de anexos como badge.
+  const queuedParsed = useMemo(() => parked.map((p) => parseAttachments(p.text)), [parked]);
+  const queued = useMemo(() => queuedParsed.map((q) => q.body), [queuedParsed]);
+  const queuedAtts = useMemo(() => queuedParsed.map((q) => q.attachments.length), [queuedParsed]);
+  useEffect(() => { setFullLoaded(false); pinnedRef.current = true; setAtBottom(true); }, [sid]);
 
-  const setQueuedFor = (updater: (q: string[]) => string[]) => {
-    if (!sid) return;
-    setQueuedMap((m) => {
-      const next = updater(m[sid] ?? []);
-      if (next.length === 0) { const { [sid]: _drop, ...rest } = m; return rest; }
-      return { ...m, [sid]: next };
-    });
+  const enqueue = (text: string) => queueAdd(text);
+  const clearQueue = () => { if (sid) queueClear(sid); };
+  const cancelQueueAt = (i: number) => { const it = parked[i]; if (it) queueRemove(it.sessionKey, it.id); };
+  // Editar reescreve SÓ o corpo do item: os marcadores de anexo do wire original
+  // seguem amarrados a ele (o banner mostra o corpo limpo, não o wire).
+  const editQueuedAt = (i: number, body: string) => {
+    const it = parked[i];
+    if (it && body.trim()) queueEdit(it.sessionKey, it.id, replaceBody(it.text, body.trim()));
   };
-  const enqueue = (text: string) => setQueuedFor((q) => [...q, text]);
-  const clearQueue = () => setQueuedFor(() => []);
-  const cancelQueueAt = (i: number) => setQueuedFor((q) => q.filter((_, idx) => idx !== i));
-  // Reordenar: -1 sobe, +1 desce. A fila drena sempre do topo, então a ordem aqui
-  // é a ordem de envio.
-  const moveQueuedItem = (i: number, dir: -1 | 1) => setQueuedFor((q) => {
-    const j = i + dir;
-    if (j < 0 || j >= q.length) return q;
-    const copy = [...q];
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-    return copy;
-  });
+  // Reordenar: -1 sobe, +1 desce.
+  const moveQueuedItem = (i: number, dir: -1 | 1) => { const it = parked[i]; if (it) queueMove(it.sessionKey, it.id, dir); };
+  // Item segurado pelo teto de tentativas: o drainer não o dispara mais até o
+  // usuário mandar retomar. Como a fila drena do topo, segurar o 1º trava esta
+  // sessão — é o que o banner precisa anunciar.
+  const queueHeld = parked.length > 0 && parked[0].held === true;
+  const resumeQueue = () => { const it = parked[0]; if (it) queueRetry(it.sessionKey, it.id); };
 
   const streaming = phase === 'streaming';
   const disabled = phase !== 'idle';
@@ -73,37 +83,13 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
     [models, modelLabel],
   );
 
-  // AskUserQuestion encerra o turno (kill no backend) e devolve phase pra idle — o
-  // mesmo idle que drena a fila. Sem esta trava o flush mandava a próxima mensagem
-  // e roubava o card de escolha (sumia o "Enviar resposta") antes de o usuário
-  // responder. Segura a fila enquanto a pergunta for a última mensagem; responder
-  // cria um novo turno e a retomada corre de carona no ciclo de fase seguinte.
-  const pendingQuestion = phase === 'idle' && (() => {
-    const last = messages[messages.length - 1];
-    return !!last && last.role === 'assistant' && last.blocks.some(
-      (b) => b.type === 'tool' && b.tool.name === 'AskUserQuestion' && (b.tool.questions?.length ?? 0) > 0,
-    );
-  })();
-
-  // Fila stop-aware: mensagens digitadas durante o turno disparam sozinhas no
-  // idle, UMA por vez e em ordem. flushingRef trava o re-disparo: setQueued(rest)
-  // re-roda o efeito ainda com phase==='idle' (a prop só vira 'thinking' quando o
-  // servidor emite 'started'); sem a trava, a fila inteira sairia de uma vez. O
-  // ref reseta quando o turno começa, liberando o próximo no idle seguinte.
-  useEffect(() => {
-    if (!sid) return;
-    // Teto do plano atingido: NÃO drena a fila (senão dispara tudo e falha sem
-    // resposta). Quando a janela reseta, `paused` cai e o flush retoma sozinho.
-    if (paused) return;
-    // Pergunta de escolha aguardando resposta: segura a fila pra não roubar o card.
-    if (pendingQuestion) return;
-    if (phase !== 'idle') { flushingRef.current = false; return; }
-    if (flushingRef.current || queued.length === 0) return;
-    flushingRef.current = true;
-    const [next, ...rest] = queued;
-    setQueuedFor(() => rest);
-    onSend(next);
-  }, [phase, queued, onSend, sid, paused]);
+  // Pergunta de escolha (AskUserQuestion) pendente. Mesma régua do clamp de render
+  // (pendingQuestionIdx): a última pergunta DEPOIS do último prompt do usuário, não
+  // a última mensagem crua — se a continuação auto-resolvida vazar pra uma bolha
+  // nova, o check por "última msg" dava false e o banner oferecia retomada por cima
+  // do card. E não gateia por `idle`: durante o kill do `claude -p` a phase segue
+  // não-idle, mas a pergunta já está pendente e precisa ser respondível.
+  const pendingQuestion = useMemo(() => pendingQuestionIdx(messages) !== -1, [messages]);
 
   // Id do prompt mais recente do usuário — alvo do botão "voltar ao meu prompt".
   const lastUserId = useMemo(() => {
@@ -139,6 +125,34 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   };
 
   const scrollToLastPrompt = () => lastPromptNode()?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // Carregar mensagens antigas insere conteúdo ACIMA do que está à vista. O
+  // container mantém o scrollTop numérico, então a leitura pulava pro topo.
+  // Guardamos a linha do topo da viewport e sua distância pro topo; depois do
+  // paint reposicionamos por ela. Solta o pin no ato: senão o efeito de pin
+  // (que roda DEPOIS deste layout effect) jogaria tudo pro fim.
+  const anchorRef = useRef<{ id: string; top: number } | null>(null);
+
+  const captureAnchor = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const base = el.getBoundingClientRect().top;
+    for (const node of el.querySelectorAll<HTMLElement>('[data-mid]')) {
+      const top = node.getBoundingClientRect().top - base;
+      if (top >= 0) { anchorRef.current = { id: node.dataset.mid!, top }; break; }
+    }
+    pinnedRef.current = false;
+  };
+
+  useLayoutEffect(() => {
+    const a = anchorRef.current;
+    const el = scrollRef.current;
+    if (!a || !el) return;
+    anchorRef.current = null;
+    const node = el.querySelector<HTMLElement>(`[data-mid="${CSS.escape(a.id)}"]`);
+    if (!node) return;
+    el.scrollTop += node.getBoundingClientRect().top - el.getBoundingClientRect().top - a.top;
+  }, [messages]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -179,8 +193,8 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
         : undefined;
 
   return {
-    scrollRef, atBottom, promptAbove, onScroll, scrollToBottom, scrollToLastPrompt,
-    queued, enqueue, clearQueue, cancelQueueAt, moveQueuedItem, fullLoaded, setFullLoaded,
+    scrollRef, atBottom, promptAbove, onScroll, scrollToBottom, scrollToLastPrompt, captureAnchor,
+    queued, queuedAtts, enqueue, clearQueue, cancelQueueAt, editQueuedAt, moveQueuedItem, queueHeld, resumeQueue, fullLoaded, setFullLoaded,
     streaming, disabled, isEmpty,
     sentHistory, modelLabel, labelFor,
     planPending, pendingQuestion, failed, retryLast, bannerConfirm,

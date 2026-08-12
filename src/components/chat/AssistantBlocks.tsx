@@ -1,12 +1,8 @@
 import { useState, type ReactNode } from 'react';
 import { Icon, Markdown, CodeBlock, tokens } from '../primitives';
-import { usePersisted } from '../../lib/persist';
 import type { Block } from '../../data/mock';
-import { ToolCallCard } from './ToolCallCard';
-import { ToolGroupCard } from './ToolGroupCard';
 import { AskQuestionCard } from './AskQuestionCard';
-import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT } from '../../lib/prefs';
-import { isQuestionTool as isQuestion, isTodoTool } from './visible-blocks';
+import { isQuestionTool as isQuestion } from './visible-blocks';
 
 function ThinkingCard({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
@@ -44,71 +40,30 @@ interface AssistantBlocksProps {
   onAnswer?: (text: string) => void;
 }
 
-// Agrupa blocos de ferramenta CONSECUTIVOS num só item (renderiza como grupo) e
-// preserva a ordem dos demais blocos. Texto/thinking entre tools quebram o grupo.
-type Item =
-  | { kind: 'block'; block: Block; i: number }
-  | { kind: 'tools'; tools: Extract<Block, { type: 'tool' }>['tool'][]; i: number };
-
-function groupBlocks(blocks: Block[]): Item[] {
-  const items: Item[] = [];
-  let run: Extract<Block, { type: 'tool' }>['tool'][] = [];
-  let runStart = 0;
-  const flush = () => {
-    if (run.length) { items.push({ kind: 'tools', tools: run, i: runStart }); run = []; }
-  };
-  blocks.forEach((b, i) => {
-    if (b.type === 'tool') {
-      if (!run.length) runStart = i;
-      run.push(b.tool);
-    } else {
-      flush();
-      items.push({ kind: 'block', block: b, i });
-    }
-  });
-  flush();
-  return items;
-}
-
 export function AssistantBlocks({ blocks, caretOnLast, answerable = false, onAnswer }: AssistantBlocksProps) {
-  const [showTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   const lastIdx = blocks.length - 1;
   return (
-    <div className="space-y-1">
-      {groupBlocks(blocks).map((it) => {
-        if (it.kind === 'tools') {
-          // AskUserQuestion sempre renderiza (mesmo com tools ocultas): é uma ação
-          // que o usuário PRECISA ver pra desbloquear o turno. Demais tools seguem o
-          // toggle showTools.
-          const questions = it.tools.filter(isQuestion);
-          const rest = it.tools.filter((t) => !isQuestion(t));
-          // Tools com lista de tarefas também furam o toggle E o agrupamento: o
-          // ToolGroupCard não renderiza TodoPanel, então um snapshot dentro de um
-          // grupo sumia mesmo com tools visíveis.
-          const todoTools = rest.filter(isTodoTool);
-          const plain = rest.filter((t) => !isTodoTool(t));
-          const cards: ReactNode[] = [];
-          questions.forEach((t, qi) => {
-            cards.push(
-              <AskQuestionCard key={`${it.i}-q${qi}`} tool={t} answerable={answerable} onAnswer={onAnswer} />,
-            );
-          });
-          todoTools.forEach((t, ti) => {
-            cards.push(<ToolCallCard key={`${it.i}-todo${ti}`} tool={t} />);
-          });
-          if (showTools && plain.length) {
-            if (plain.length === 1) cards.push(<ToolCallCard key={`${it.i}-t`} tool={plain[0]} />);
-            else cards.push(<ToolGroupCard key={`${it.i}-g`} tools={plain} />);
-          }
-          return cards.length ? <div key={it.i} className="space-y-1">{cards}</div> : null;
-        }
-        const b = it.block;
-        const isLast = it.i === lastIdx;
-        if (b.type === 'text') return <Markdown key={it.i} md={b.md} caret={caretOnLast && isLast} />;
-        if (b.type === 'code') return <CodeBlock key={it.i} code={b.code} lang={b.lang} />;
-        if (b.type === 'thinking') return <ThinkingCard key={it.i} text={b.text} />;
-        return null;
+    <div className="space-y-2">
+      {blocks.map((b, i) => {
+        const node = renderBlock(b, i);
+        // fade-up dispara uma vez na montagem (a key estável reusa o DOM), então
+        // cada bloco surge macio ao aparecer sem re-animar a cada token streamado.
+        return node && <div key={i} className="fade-up">{node}</div>;
       })}
     </div>
   );
+
+  function renderBlock(b: Block, i: number): ReactNode {
+    // As ferramentas saíram daqui: collapseTurnTools junta as do turno inteiro
+    // numa caixa só. Sobra apenas AskUserQuestion — o turno só destrava se o
+    // usuário clicar. Progresso de tarefas fica na bandeja do rodapé.
+    if (b.type === 'tool') {
+      if (isQuestion(b.tool)) return <AskQuestionCard tool={b.tool} answerable={answerable} onAnswer={onAnswer} />;
+      return null;
+    }
+    if (b.type === 'text') return <Markdown md={b.md} caret={caretOnLast && i === lastIdx} />;
+    if (b.type === 'code') return <CodeBlock code={b.code} lang={b.lang} />;
+    if (b.type === 'thinking') return <ThinkingCard text={b.text} />;
+    return null;
+  }
 }

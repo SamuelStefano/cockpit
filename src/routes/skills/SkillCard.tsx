@@ -5,7 +5,7 @@ export function SkillCard({ s, onClick }: { s: SkillMeta; onClick: () => void })
   return (
     <button
       onClick={onClick}
-      className="group relative flex flex-col rounded-xl border border-neutral-800 bg-neutral-900/40 p-3.5 text-left transition hover:-translate-y-px hover:border-orange-500/40 hover:bg-orange-500/[0.05] hover:shadow-lg hover:shadow-black/30"
+      className="group relative flex flex-col rounded-xl border border-neutral-800 bg-neutral-900/40 p-3.5 text-left transition hairline hover:-translate-y-px hover:border-orange-500/40 hover:bg-orange-500/[0.05] hover:shadow-lg hover:shadow-black/30"
     >
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <span className="flex items-center gap-1.5">

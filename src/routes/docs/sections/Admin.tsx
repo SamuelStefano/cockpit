@@ -19,6 +19,12 @@ export function Admin() {
           adicionar/remover <span className="font-medium text-neutral-300">servidores MCP</span> e instalar <span className="font-medium text-neutral-300">CLIs</span> na máquina.
           Tudo gated por admin — comandos rodam por argumentos (sem shell), não por concatenação de texto.
         </InfoCard>
+        <InfoCard icon="zap" title="Rotas de provedor">
+          Ordem dos provedores alternativos usados quando o plano bate no teto: ligar/desligar cada um,
+          forçar um manualmente e cadastrar provedor próprio (qualquer endpoint no formato da API
+          Anthropic). A chave em si mora em <span className="font-medium text-neutral-300">Tokens de ambiente</span> —
+          aqui aparece só o nome da variável.
+        </InfoCard>
         <InfoCard icon="shield" iconClass="text-amber-300" title="Token de acesso">
           Defina a variável <Pill>COCKPIT_TOKEN</Pill> no servidor e o Deck passa a exigir esse token na entrada (modo loopback/rede privada).
           Pelo relay, o acesso é por <span className="font-medium text-neutral-300">conta</span>. Em qualquer caso o token nunca é exposto: viaja só na conexão e fica no navegador.

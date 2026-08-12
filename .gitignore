@@ -9,3 +9,5 @@ dist/
 _design_reference/
 cockpit-doc.pdf
 .vercel
+graphify-out/
+.claude/

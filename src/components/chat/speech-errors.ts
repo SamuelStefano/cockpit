@@ -9,6 +9,15 @@ export function isFatalSpeechError(code: string): boolean {
   return FATAL.has(code);
 }
 
+// Nada foi captado mesmo com o engine "ligado". No iPhone o caso mais comum é o
+// app aberto pela tela inicial (standalone): a Web Speech API só capta no Safari,
+// não em webview/PWA — start() não falha, mas onresult nunca chega.
+export function noCaptureMessage(iosStandalone: boolean): string {
+  return iosStandalone
+    ? 'No iPhone o ditado só funciona no Safari, não no app aberto pela tela inicial.'
+    : 'Não captei áudio. Toque no microfone e fale; no iPhone, aguarde ~2s antes de falar.';
+}
+
 export function speechErrorMessage(code: string): string {
   switch (code) {
     case 'not-allowed':

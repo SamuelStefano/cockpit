@@ -1,28 +1,45 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Session, Message, Block, ToolTodo } from './data/mock';
-import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth, Caps, PlanUsage, AccountSummary, Cron, BgAgent } from '../shared/protocol';
+import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth, Caps, PlanUsage, AccountSummary, Cron, GraphMeta, GraphData, PointsEntry, DflPointsSnapshot, ParkedView, RoutesSnapshot, BgAgent } from '../shared/protocol';
 import { loadPref, savePref, setPref } from './lib/persist';
 import { SUPABASE_ENABLED } from './lib/supabase';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
-import { wsUrlWithToken, newId, metaToSession, dedupById, mergeSeen } from './cockpit/session';
+import { wsUrlWithToken, newId, metaToSession, mergeServerSessions, dedupById, mergeSeen, isCronPing } from './cockpit/session';
 import { computeStalled, computeUpdated } from './cockpit/signals';
 import { upsertTool, appendDelta, appendThinking } from './cockpit/blocks';
 import { selectEvictions } from './cockpit/evict';
 import { resolveKey, moveKey } from './cockpit/migrate';
-import { mergeHistory } from './cockpit/history';
+import { mergeHistory, prependHistory } from './cockpit/history';
 import { liveTokens } from './cockpit/live-tokens';
+import { insertCompact } from './cockpit/insert-compact';
 import { useTerminals, type TermApi } from './cockpit/useTerminals';
 import { addThumb, shouldRequestThumb } from './lib/att-thumb-cache';
 import { fileSig, isFreshUpload } from './components/chat/dedupe-uploads';
-import { attachmentTextBlock } from './lib/parse-attachments';
+import { encodeAttachments, parseAttachments } from './lib/parse-attachments';
+import { loadPendingAtts, savePendingAtts, addPendingAtt, movePendingAtts, clearPendingAtts } from './lib/pending-atts';
 
+// Aviso de uma troca já feita — some assim que vira toast. O estado que a UI lê de
+// verdade é o `routes`; isto é só o pulso.
+export interface RouteSwitchNotice { label: string; reason: string }
 export interface ContextDoc { id: string; title: string; body: string }
 export interface SkillDoc { id: string; name: string; body: string }
+export interface GraphQueryState { question: string; answer: string; tokens: number; miss: boolean }
+export type GraphNodeOp = 'explain' | 'affected' | 'path';
 export interface Attachment { name: string; path: string; text?: string; s3url?: string; uploading?: boolean; clientId?: string }
 export interface AttachmentPreview { path: string; name: string; dataB64?: string; error?: string }
 export type { TermApi };
 import type { ConnState } from './components/primitives';
+import { toast } from './components/primitives/toast-bus';
+import { benchDispatch, failAllBenchPending, setBenchSender } from './components/primitives/livepreview/bench-bus';
 import type { Phase } from './components/Chat';
+
+// Heartbeat app-level (watchdog de socket meio-aberto). Manda um ping a cada
+// HEARTBEAT_MS e força reconexão se ficar HEARTBEAT_STALE_MS sem NENHUM frame — um
+// socket vivo com browser aberto recebe stats a cada 2s, então o silêncio longo só
+// acontece num link morto (relay/NAT dropou sem FIN). STALE bem acima da cadência
+// de stats pra não reconectar à toa.
+const HEARTBEAT_MS = 15_000;
+const HEARTBEAT_STALE_MS = 40_000;
 
 export interface Cockpit {
   sessions: Session[];
@@ -32,6 +49,9 @@ export interface Cockpit {
   messages: Message[];
   terminalBusy: boolean;
   sessionTodos?: ToolTodo[];
+  // Tópicos de continuação pós-turno da sessão ativa (chips estilo ChatGPT).
+  followups?: string[];
+  dismissFollowups: () => void;
   phase: Phase;
   running: Set<string>;
   stalled: Set<string>;
@@ -40,6 +60,7 @@ export interface Cockpit {
   draft: string;
   setDraft: (v: string) => void;
   conn: { ws: ConnState; sse: ConnState };
+  reconnectNow: () => void;
   authRequired: boolean;
   agentOnline: boolean;
   submitToken: (token: string) => void;
@@ -89,21 +110,56 @@ export interface Cockpit {
   onNotesGet: () => void;
   onNotesSave: (text: string) => void;
   crons: Cron[];
+  cronsLoaded: boolean;
   onCronsGet: () => void;
   onCronSave: (cron: Cron) => void;
   onCronDelete: (id: string) => void;
   onCronRun: (id: string) => void;
+  points: PointsEntry[];
+  pointsTotal: number;
+  pointsLoaded: boolean;
+  onPointsGet: () => void;
+  onPointsAdd: (title: string, points: number, description?: string) => void;
+  onPointsCorrect: (entryId: string, points: number) => void;
+  onPointsNote: (entryId: string, description: string) => void;
+  onPointsDelete: (entryId: string) => void;
+  dflSnapshot: DflPointsSnapshot | null;
+  dflLoaded: boolean;
+  dflSyncing: boolean;
+  onDflGet: () => void;
+  onDflSync: () => void;
+  onDflChange: (p: { taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string }) => Promise<{ ok: boolean; message?: string }>;
+  onDflInvoice: (p: { deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number }[] }) => Promise<{ ok: boolean; message?: string }>;
   skills: SkillMeta[];
   skillsLoaded: boolean;
   openSkill: SkillDoc | null;
   onSkillList: () => void;
   onSkillOpen: (id: string) => void;
   onSkillClose: () => void;
+  graphs: GraphMeta[];
+  graphsLoaded: boolean;
+  graphOpenId: string | null;
+  graphOpening: string | null;
+  graphData: GraphData | null;
+  graphBuilding: boolean;
+  graphBuildLog: string[];
+  graphBuildError: string | null;
+  graphQuerying: boolean;
+  graphQueryResult: GraphQueryState | null;
+  graphQueryHistory: GraphQueryState[];
+  onGraphList: () => void;
+  onGraphOpen: (id: string) => void;
+  onGraphBuild: (repo: string) => void;
+  onClearBuildError: () => void;
+  onGraphDelete: (id: string) => void;
+  onGraphQuery: (question: string, budget?: number) => void;
+  onGraphNodeOp: (op: GraphNodeOp, a: string, b?: string) => void;
   usageStats: UsageStats | null;
   onUsageList: () => void;
   health: AdminHealth | null;
   onHealthList: () => void;
   accounts: AccountSummary[];
+  accountsLoaded: boolean;
   onAccountsList: () => void;
   onSetAdmin: (accountId: string, admin: boolean) => void;
   adminOp: { ok: boolean; message: string } | null;
@@ -112,6 +168,15 @@ export interface Cockpit {
   onMcpAdd: (name: string, opts: { command?: string; url?: string }) => void;
   onMcpRemove: (name: string) => void;
   onCliInstall: (name: string) => void;
+  routes: RoutesSnapshot | null;
+  routeSwitch: RouteSwitchNotice | null;
+  dismissRouteSwitch: () => void;
+  onRoutesGet: () => void;
+  onRoutesEnable: (on: boolean) => void;
+  onRouteSet: (id: string) => void;
+  onRouteConfig: (id: string, patch: { enabled?: boolean; priority?: number }) => void;
+  onRouteCustomAdd: (r: Omit<Extract<ClientMsg, { t: 'route-custom-add' }>, 't'>) => void;
+  onRouteCustomRemove: (id: string) => void;
   attachments: Attachment[];
   onUpload: (file: File) => void;
   onRemoveAttachment: (path: string) => void;
@@ -124,13 +189,25 @@ export interface Cockpit {
   onEditUser: (msgId: string, text: string) => void;
   onStop: (sessionKey?: string) => void;
   onNew: () => void;
+  onHandoff: (sessionId: string) => void;
+  handoffBusy: boolean;
   onRename: (id: string, title: string) => void;
   onDescribe: (id: string, summary: string) => void;
   onClose: (id: string) => void;
   onDelete: (id: string) => void;
   onUnhide: (id: string) => void;
   onOpenFull: (id: string) => void;
+  onLoadOlder: (id: string) => void;
   onOpenSummary: (id: string) => void;
+  queue: ParkedView[];
+  queueAdd: (text: string) => void;
+  queueRemove: (sessionKey: string, id: string) => void;
+  queueEdit: (sessionKey: string, id: string, text: string) => void;
+  queueMove: (sessionKey: string, id: string, dir: -1 | 1) => void;
+  queueClear: (sessionKey: string) => void;
+  queuePaused: boolean;
+  queueSetPaused: (v: boolean) => void;
+  queueRetry: (sessionKey: string, id: string) => void;
 }
 
 // Referência estável p/ sessão sem agentes de fundo — evita novo array a cada
@@ -154,6 +231,8 @@ export function useCockpit(): Cockpit {
   const [conn, setConn] = useState<{ ws: ConnState; sse: ConnState }>({ ws: 'reconnecting', sse: 'reconnecting' });
   const [rate, setRate] = useState<{ resetsAt: number; status: string } | null>(null);
   const [planUsage, setPlanUsage] = useState<PlanUsage | null>(null);
+  const [routes, setRoutes] = useState<RoutesSnapshot | null>(null);
+  const [routeSwitch, setRouteSwitch] = useState<RouteSwitchNotice | null>(null);
   const [stats, setStats] = useState<SysStats | null>(null);
   const [bgAgents, setBgAgents] = useState<Record<string, BgAgent[]>>({}); // sessionKey -> agentes de fundo ativos
   const [archived, setArchived] = useState<Session[]>([]);
@@ -175,17 +254,46 @@ export function useCockpit(): Cockpit {
   const [notes, setNotes] = useState('');
   const [notesLoaded, setNotesLoaded] = useState(false);
   const [crons, setCrons] = useState<Cron[]>([]);
+  const [cronsLoaded, setCronsLoaded] = useState(false);
+  const [points, setPoints] = useState<PointsEntry[]>([]);
+  const [pointsTotal, setPointsTotal] = useState(0);
+  const [pointsLoaded, setPointsLoaded] = useState(false);
+  const [dflSnapshot, setDflSnapshot] = useState<DflPointsSnapshot | null>(null);
+  const [dflLoaded, setDflLoaded] = useState(false);
+  const [dflSyncing, setDflSyncing] = useState(false);
+  // Escritas DFL (mudar pontos / gerar fatura): request→response casado por reqId.
+  // O modal chama onDflChange/onDflInvoice e aguarda a Promise; o servidor responde
+  // com points-dfl-write e resolvemos o resolver pendente.
+  const dflWriteResolvers = useRef<Map<string, (r: { ok: boolean; message?: string }) => void>>(new Map());
+  const [queue, setQueue] = useState<ParkedView[]>([]); // fila estacionada (servidor), broadcast dos queue-*
+  const [queuePaused, setQueuePausedState] = useState(false); // pausa manual da fila (servidor)
   const [openContext, setOpenContext] = useState<ContextDoc | null>(null);
   const [skills, setSkills] = useState<SkillMeta[]>([]);
   const [skillsLoaded, setSkillsLoaded] = useState(false);
   const [openSkill, setOpenSkill] = useState<SkillDoc | null>(null);
+  const [graphs, setGraphs] = useState<GraphMeta[]>([]);
+  const [graphsLoaded, setGraphsLoaded] = useState(false);
+  const [graphOpenId, setGraphOpenId] = useState<string | null>(null);
+  const [graphOpening, setGraphOpening] = useState<string | null>(null);
+  const [graphData, setGraphData] = useState<GraphData | null>(null);
+  const [graphBuilding, setGraphBuilding] = useState(false);
+  const [graphBuildLog, setGraphBuildLog] = useState<string[]>([]);
+  const [graphBuildError, setGraphBuildError] = useState<string | null>(null);
+  const [graphQuerying, setGraphQuerying] = useState(false);
+  const [graphQueryResult, setGraphQueryResult] = useState<GraphQueryState | null>(null);
+  const [graphQueryHistory, setGraphQueryHistory] = useState<GraphQueryState[]>([]);
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
   const [health, setHealth] = useState<AdminHealth | null>(null);
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
+  const [accountsLoaded, setAccountsLoaded] = useState(false);
   const [adminOp, setAdminOp] = useState<{ ok: boolean; message: string } | null>(null);
   const adminOpTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const attachmentsRef = useRef<Attachment[]>([]);
+  // Sessão de ORIGEM de cada upload em voo (clientId → sessionKey). O ack 'uploaded'
+  // pode chegar depois de trocar de sessão; sem isto o anexo caía na sessão ativa
+  // no momento (a imagem "vazava" pro chat aberto). Casa o ack de volta na origem.
+  const uploadOrigin = useRef<Map<string, string>>(new Map());
   // Assinaturas recém-enviadas: chokepoint único de dedup (todos os caminhos de
   // anexo passam por onUpload). Mata o print/foto que chega repetido virando 4 chips.
   const recentUploadSigs = useRef<Map<string, number>>(new Map());
@@ -196,8 +304,7 @@ export function useCockpit(): Cockpit {
   const setAtts = useCallback((next: Attachment[]) => {
     attachmentsRef.current = next;
     setAttachments(next);
-    const k = activeRef.current;
-    if (k) savePref(`pendingAtts:${k}`, next.filter((a) => !a.uploading));
+    savePendingAtts(activeRef.current, next);
   }, []);
   const [attPreview, setAttPreview] = useState<AttachmentPreview | null>(null);
   const [attThumbs, setAttThumbs] = useState<Record<string, string>>({});
@@ -215,8 +322,13 @@ export function useCockpit(): Cockpit {
   const [claudeReady, setClaudeReady] = useState<boolean>(true);
   const [bypass, setBypass] = useState<boolean>(false); // nunca persistido: opt-in por sessão, default off
   const bypassRef = useRef<boolean>(false);
-  const [model, setModel] = useState<string>(() => loadPref<string>('model', 'sonnet'));
-  const modelRef = useRef<string>(model);
+  // Modelo por SESSÃO — nunca global: trocar a versão numa conversa não pode
+  // vazar pra as outras. defaultModel é só a semente (última escolhida) pra
+  // sessões NOVAS; modelBySession guarda o override real de cada conversa.
+  const [defaultModel, setDefaultModel] = useState<string>(() => loadPref<string>('model', 'sonnet'));
+  const defaultModelRef = useRef<string>(defaultModel);
+  const [modelBySession, setModelBySession] = useState<Record<string, string>>(() => loadPref<Record<string, string>>('modelBySession', {}));
+  const modelBySessionRef = useRef<Record<string, string>>(modelBySession);
   const [models, setModels] = useState<ModelInfo[]>([]);
   // Nível de pensamento (--effort). Default 'low': sem isto o CLI usa o default da
   // conta (alto) e queima thinking tokens até em pedido simples — maior driver de gasto.
@@ -239,6 +351,9 @@ export function useCockpit(): Cockpit {
   const [terminalBusyId, setTerminalBusyId] = useState<string | null>(null);
   // Snapshot corrente da lista de tarefas por sessão (vem no frame history).
   const [sessionTodos, setSessionTodos] = useState<Record<string, ToolTodo[]>>({});
+  // Tópicos de continuação sugeridos pós-turno (chips estilo ChatGPT), por sessão.
+  // Efêmeros: somem ao enviar a próxima mensagem (novo turno gera novos).
+  const [followups, setFollowups] = useState<Record<string, string[]>>({});
 
   const wsRef = useRef<WebSocket | null>(null);
   const runMsg = useRef<Record<string, string>>({});      // sessionKey -> assistant msgId em voo
@@ -246,13 +361,23 @@ export function useCockpit(): Cockpit {
   const stopping = useRef<Set<string>>(new Set());        // sessionKeys parados pelo usuário: o kill leva até 5s (SIGTERM→SIGKILL) e frames tardios re-acenderiam o phase. Limpo no `done`/`error`.
   const resumeId = useRef<Record<string, string>>({});    // sessionKey -> claude sessionId p/ --resume
   const opened = useRef<Set<string>>(new Set());          // sessionKeys cujo histórico já foi pedido
-  const fullViewId = useRef<string | null>(null);         // sessão em "ver tudo": session-touched deve re-pedir open-full, não open
+  // Visão escolhida por sessão. 'full' = "ver tudo"/paginou pra trás: as reaberturas
+  // automáticas (touch/reconnect) têm que re-pedir open-full, não open. 'chain' = o
+  // usuário voltou ao resumido de propósito, e o servidor não deve sobrepor.
+  const viewMode = useRef<Record<string, 'chain' | 'full'>>({});
   const extBusyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const migratedTo = useRef<Record<string, string>>({});  // new-xxx -> claude sessionId já migrado (idempotência: 2º `done` não re-migra nem zera o thread)
+  // chave DE DISPLAY -> chave com que o SERVIDOR mantém o thread (o `t` que chega nos frames de run).
+  // Numa sessão nova o servidor keyeia o run por "new-xxx" e NUNCA re-keyea; o cliente migra activeRef pro
+  // sessionId real. Sem isto, o `stop` iria com o id real e o `threads.get()` do servidor daria miss → kill no-op.
+  const serverKey = useRef<Record<string, string>>({});
   const activeRef = useRef('');
   const sessionsRef = useRef<Session[]>([]);
   const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryDelay = useRef(1500); // backoff exponencial, reset no connect bem-sucedido
+  const heartbeat = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastRecvAt = useRef(0); // ts do último frame recebido (QUALQUER tipo): alimenta o watchdog de socket meio-aberto
+  const connectRef = useRef<() => void>(() => {}); // aponta pro connect atual (o watchdog chama sem depender da ordem de declaração)
   // Token de auth (DR-011 Fase 2). Só é exigido quando o servidor tem COCKPIT_TOKEN
   // setado; aí uma conexão sem token (ou errado) volta com close code 4401 e a UI
   // pede o token. Guardado em ref pra o connect() ler o valor atual sem recriar o
@@ -277,6 +402,18 @@ export function useCockpit(): Cockpit {
     ws.send(JSON.stringify(m));
     return true;
   }, []);
+
+  // Re-abertura automática (reconnect, session-touched, reconciliação de busy):
+  // preserva a visão escolhida. Traz sempre a última página; o mergeHistory com
+  // keepOlder mantém a janela profunda que o usuário já paginou.
+  const reopenMsg = useCallback((id: string): ClientMsg => (
+    viewMode.current[id] === 'full'
+      ? { t: 'open-full', sessionId: id }
+      : { t: 'open', sessionId: id, chainOnly: viewMode.current[id] === 'chain' }
+  ), []);
+
+  // O card do bench vive fundo na árvore do markdown e precisa falar com o WS.
+  useEffect(() => { setBenchSender(send); return () => setBenchSender(null); }, [send]);
 
   const { term, onTermData, onTermReplay, onTermExit, onTerms, discovered: discoveredTerms, listTerms, reattach } = useTerminals(send);
 
@@ -332,6 +469,10 @@ export function useCockpit(): Cockpit {
     if (oldKey in runStartRef.current) { runStartRef.current[newId] = runStartRef.current[oldKey]; delete runStartRef.current[oldKey]; }
     if (inFlight.current.has(oldKey)) { inFlight.current.delete(oldKey); inFlight.current.add(newId); }
     if (stopping.current.has(oldKey)) { stopping.current.delete(oldKey); stopping.current.add(newId); }
+    // A chave de DISPLAY migra p/ o sessionId real, mas o servidor segue com o thread
+    // keyeado por oldKey — preserva ESSE valor sob a nova chave de display p/ o `stop` acertar.
+    serverKey.current[newId] = serverKey.current[oldKey] ?? oldKey;
+    delete serverKey.current[oldKey];
     if (activeRef.current === oldKey) { activeRef.current = newId; setActiveIdState(newId); savePref('activeId', newId); }
     const move = <T,>(prev: Record<string, T>): Record<string, T> => moveKey(prev, oldKey, newId);
     setThreads(move);
@@ -353,16 +494,57 @@ export function useCockpit(): Cockpit {
       savePref('seen', next);
       return next;
     });
-    // A fila do composer (useChatPanel) é persistida por session.id na key 'queued'.
-    // Sem migrar, o que foi enfileirado na sessão `new-…` ficava órfão e sumia da
-    // tela quando a key migrava pro sessionId do Claude. setPref avisa o usePersisted.
-    const q = loadPref<Record<string, string[]>>('queued', {});
-    if (oldKey in q) setPref('queued', moveKey(q, oldKey, newId));
+    // Anexo pendente também migra: um ack de upload em voo ainda aponta pra
+    // `new-xxx` e gravaria numa key morta, sumindo do composer.
+    movePendingAtts(oldKey, newId);
+    for (const [cid, k] of uploadOrigin.current) if (k === oldKey) uploadOrigin.current.set(cid, newId);
   }, []);
+
+  // Único caminho de troca de sessão ativa — todo caminho que mexia no activeRef
+  // na mão (nova sessão, pulo pela notificação) esquecia de reidratar os anexos.
+  const focusSession = useCallback((id: string) => {
+    activeRef.current = id;
+    setActiveIdState(id);
+    const pend = loadPendingAtts(id);
+    attachmentsRef.current = pend;
+    setAttachments(pend);
+    // Preview é transitório da sessão: trocar com o modal aberto deixava o anexo
+    // da sessão anterior na tela da nova.
+    setAttPreview(null);
+  }, []);
+
+  const [handoffBusy, setHandoffBusy] = useState(false);
+  const handoffTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A resposta do handoff pode nunca chegar (socket cai, rate-limit/authz respondem
+  // um `error` sem sessionKey). Sem destravar aqui o botão fica "Migrando…" até um
+  // reload da página.
+  const endHandoff = useCallback(() => {
+    if (handoffTimer.current) { clearTimeout(handoffTimer.current); handoffTimer.current = null; }
+    setHandoffBusy(false);
+  }, []);
+
+  const onNew = useCallback(() => {
+    const id = newId('new-');
+    const s: Session = { id, title: 'Nova sessão', relative: 'agora', snippet: 'Sem mensagens ainda', mtime: Date.now(), hasTerminal: false, active: true };
+    setSessions((prev) => [s, ...prev.map((x) => ({ ...x, active: false }))]);
+    setThreads((prev) => ({ ...prev, [id]: [] }));
+    focusSession(id);
+    return id;
+  }, [focusSession]);
 
   const onServer = useCallback((msg: ServerMsg) => {
     switch (msg.t) {
       case 'mcp-servers': { setMcpServers(msg.servers); return; }
+      case 'queue': { setQueue(msg.items); setQueuePausedState(msg.paused); return; }
+      // Servidor recusou o enfileiramento (fila cheia, prompt grande demais): o
+      // composer já limpou o texto e a fila não ecoa bolha nenhuma — sem devolver
+      // aqui, o prompt sumia igual ao furo do WS fechado.
+      case 'queue-reject': {
+        updateThread(msg.sessionKey, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ O item não entrou na fila: ${msg.message}. O texto voltou pro composer.` }], error: true }]);
+        const body = parseAttachments(msg.text).body;
+        setDrafts((d) => ({ ...d, [msg.sessionKey]: d[msg.sessionKey] || body }));
+        return;
+      }
       case 'caps': {
         capsRef.current = msg.caps;
         setCaps(msg.caps);
@@ -375,11 +557,7 @@ export function useCockpit(): Cockpit {
       case 'agent-online': { setAgentOnline(true); return; }
       case 'agent-offline': { setAgentOnline(false); return; }
       case 'sessions': {
-        setSessions((prev) => {
-          const localOnly = prev.filter((s) => s.id.startsWith('new-'));
-          const fromServer = msg.items.map((m) => metaToSession(m, m.id === activeRef.current));
-          return [...localOnly, ...fromServer];
-        });
+        setSessions((prev) => mergeServerSessions(prev, msg.items, activeRef.current));
         // Baseline: sessão vista pela 1ª vez entra no `seen` com o mtime atual
         // (não vira "atualizada" retroativamente). Só mtime que AVANÇA depois badgeia.
         setSeen((prev) => {
@@ -391,15 +569,25 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'history': {
-        setThreads((prev) => ({ ...prev, [msg.sessionId]: mergeHistory(msg.messages, prev[msg.sessionId] ?? []) }));
+        setThreads((prev) => {
+          const local = prev[msg.sessionId] ?? [];
+          // `prepend` = página anterior pedida pelo "carregar antigas". Fora dela, o
+          // frame é snapshot da última página: em "ver tudo" (full) o keepOlder segura
+          // o que já foi paginado pra trás, senão o refresh encolhia a janela.
+          const next = msg.prepend ? prependHistory(msg.messages, local) : mergeHistory(msg.messages, local, !!msg.full);
+          return { ...prev, [msg.sessionId]: next };
+        });
         resumeId.current[msg.sessionId] = msg.sessionId;
         if (msg.tokens) setUsage((u) => ({ ...u, [msg.sessionId]: msg.tokens! }));
         // Estado corrente da lista de tarefas do ARQUIVO inteiro (pós-compact a
         // chain visível pode não ter nenhum snapshot) — alimenta o TaskTray.
         setSessionTodos((prev) => (msg.todos ? { ...prev, [msg.sessionId]: msg.todos } : prev));
-        // `open` capa o caminho ativo e o full reload capa o arquivo inteiro, ambos
-        // em historyLimit; o servidor manda `truncated` quando dropou as mais antigas.
-        setTruncated((t) => ({ ...t, [msg.sessionId]: !!msg.truncated }));
+        // `truncated` = ainda há conversa mais antiga além do que está na tela. Um
+        // refresh em "ver tudo" traz só a última página e diria `true` mesmo se o
+        // usuário já tivesse paginado até o começo — nesse caso o valor anterior é
+        // que vale (o thread local é mais fundo que a página recebida).
+        const deeper = !!msg.full && !msg.prepend && (threadsRef.current[msg.sessionId]?.length ?? 0) > msg.messages.length;
+        setTruncated((t) => ({ ...t, [msg.sessionId]: deeper ? !!t[msg.sessionId] : !!msg.truncated }));
         return;
       }
       case 'busy': {
@@ -410,10 +598,28 @@ export function useCockpit(): Cockpit {
         // Reconcilia a guarda síncrona: descarta keys que ficaram presas (envio
         // enquanto desconectado nunca recebeu started/done) e marca as vivas.
         for (const k of [...inFlight.current]) if (!live.has(k)) inFlight.current.delete(k);
-        for (const k of msg.keys) inFlight.current.add(k);
+        // Não reviver sessão que o usuário acabou de parar: o kill leva até ~5s
+        // (SIGTERM→SIGKILL) e o thread ainda consta vivo neste snapshot. Sem o
+        // latch `stopping`, um 'busy' pós-stop (disparado a cada reconnect por
+        // visibilidade/rede) re-acende inFlight+phase e o botão parar parece
+        // não funcionar — a key limpa sozinha no 'done' do kill.
+        for (const k of msg.keys) if (!stopping.current.has(k)) inFlight.current.add(k);
+        // Turno que FECHOU enquanto o browser esteve desconectado: o done nunca
+        // chegou, então runMsg aponta pra uma bolha truncada — o próximo 'started'
+        // reusaria essa bolha ("já em voo") e o turno novo streamaria dentro do
+        // texto velho. Solta o ponteiro e invalida o cache pra re-puxar o final
+        // perdido do history (a bolha truncada some no mergeHistory).
+        for (const k of Object.keys(runMsg.current)) {
+          if (live.has(k)) continue;
+          delete runMsg.current[k];
+          if (!k.startsWith('new-')) {
+            opened.current.delete(k);
+            if (activeRef.current === k && send(reopenMsg(k))) opened.current.add(k);
+          }
+        }
         setPhases((p) => {
           const n = { ...p };
-          for (const k of msg.keys) if (n[k] !== 'streaming') n[k] = 'thinking';
+          for (const k of msg.keys) if (n[k] !== 'streaming' && !stopping.current.has(k)) n[k] = 'thinking';
           for (const k of Object.keys(n)) {
             if (!live.has(k) && (n[k] === 'thinking' || n[k] === 'streaming')) n[k] = 'idle';
           }
@@ -436,7 +642,7 @@ export function useCockpit(): Cockpit {
           stopping.current.delete(msg.sessionId);
         }
         if (activeRef.current === msg.sessionId && !inFlight.current.has(msg.sessionId)) {
-          send({ t: fullViewId.current === msg.sessionId ? 'open-full' : 'open', sessionId: msg.sessionId });
+          send(reopenMsg(msg.sessionId));
           // Escrita externa recente = turno do terminal em andamento: acende um
           // indicador no chat (estrelinha) que apaga 5s após a última escrita.
           setTerminalBusyId(msg.sessionId);
@@ -463,7 +669,7 @@ export function useCockpit(): Cockpit {
         updateThread(key, (prev) =>
           prev.some((m) => m.id === msg.id) ? prev : [...prev, { id: msg.id, role: 'user', text: msg.text, ts: msg.ts }],
         );
-        setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: msg.text, relative: 'agora' } : s)));
+        setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: msg.text, relative: 'agora', mtime: Math.max(s.mtime, msg.ts ?? Date.now()) } : s)));
         return;
       }
       case 'triage': {
@@ -493,6 +699,7 @@ export function useCockpit(): Cockpit {
       case 'started': {
         // Frame tardio do turno antigo pode chegar keyed pelo `new-xxx` já migrado.
         const key = resolveKey(migratedTo.current, msg.sessionKey);
+        serverKey.current[key] = msg.sessionKey; // chave real do thread no servidor (p/ o `stop`)
         lastActivity.current[key] = Date.now();
         inFlight.current.add(key);
         if (runMsg.current[key]) return; // já em voo (reconnect) — não duplica bubble
@@ -500,6 +707,8 @@ export function useCockpit(): Cockpit {
         runMsg.current[key] = id;
         updateThread(key, (prev) => [...prev, { id, role: 'assistant', blocks: [], ts: Date.now() }]);
         setPhases((p) => ({ ...p, [key]: 'thinking' }));
+        // Turno novo: os chips de continuação do turno anterior ficaram obsoletos.
+        setFollowups((f) => { if (!(key in f)) return f; const n = { ...f }; delete n[key]; return n; });
         // Início do turno: fixa a base de contexto pra medir o gasto AO VIVO deste
         // turno (delta) no indicador estilo terminal. Zera o contador exibido.
         turnBaseRef.current[key] = usageRef.current[key] || 0;
@@ -512,7 +721,16 @@ export function useCockpit(): Cockpit {
         // Reconnect mid-run (#10): snapshot autoritativo do turno em voo.
         // Reconstrói (ou sobrescreve) o bubble e segue recebendo deltas ao vivo.
         const key = resolveKey(migratedTo.current, msg.sessionKey);
-        inFlight.current.add(key);
+        serverKey.current[key] = msg.sessionKey; // chave real do thread no servidor (p/ o `stop`)
+        // Idem 'busy': um 'replay' pós-stop (o servidor reemite o thread vivo a
+        // cada reconnect) não pode re-acender uma sessão que o usuário parou —
+        // reconstruímos a bolha abaixo, mas sem revalidar inFlight/phase.
+        const revived = stopping.current.has(key);
+        if (!revived) inFlight.current.add(key);
+        // O reconnect pode ter perdido o frame 'system'/'done' que carregava o
+        // sessionId — sem re-semear aqui o próximo envio ia sem resume e o claude
+        // abria uma conversa NOVA ("é como se fosse um novo prompt").
+        if (msg.sessionId) resumeId.current[key] = msg.sessionId;
         // Reload mid-run zera runStartRef; sem semear daqui, o efeito do cronômetro
         // cravaria Date.now() e o card mostraria 0s pra um turno que já roda há min.
         if (msg.startedAt && runStartRef.current[key] === undefined) {
@@ -535,7 +753,7 @@ export function useCockpit(): Cockpit {
             ? prev.map((m) => (m.id === id && m.role === 'assistant' ? { ...m, blocks, ts } : m))
             : [...prev, { id, role: 'assistant', blocks, ts }],
         );
-        setPhases((p) => ({ ...p, [key]: blocks.some((b) => b.type === 'text') ? 'streaming' : 'thinking' }));
+        if (!revived) setPhases((p) => ({ ...p, [key]: blocks.some((b) => b.type === 'text') ? 'streaming' : 'thinking' }));
         return;
       }
       case 'system': {
@@ -550,6 +768,7 @@ export function useCockpit(): Cockpit {
       }
       case 'delta': {
         const key = resolveKey(migratedTo.current, msg.sessionKey);
+        serverKey.current[key] = msg.sessionKey;
         lastActivity.current[key] = Date.now();
         if (!stopping.current.has(key)) setPhases((p) => ({ ...p, [key]: 'streaming' }));
         patchRunMsg(key, (b) => appendDelta(b, msg.text));
@@ -558,6 +777,7 @@ export function useCockpit(): Cockpit {
       }
       case 'thinking': {
         const key = resolveKey(migratedTo.current, msg.sessionKey);
+        serverKey.current[key] = msg.sessionKey;
         lastActivity.current[key] = Date.now();
         if (!stopping.current.has(key)) setPhases((p) => ({ ...p, [key]: 'streaming' }));
         patchRunMsg(key, (b) => appendThinking(b, msg.text));
@@ -566,6 +786,7 @@ export function useCockpit(): Cockpit {
       }
       case 'tool': {
         const key = resolveKey(migratedTo.current, msg.sessionKey);
+        serverKey.current[key] = msg.sessionKey;
         lastActivity.current[key] = Date.now();
         if (!stopping.current.has(key)) setPhases((p) => ({ ...p, [key]: 'streaming' }));
         // Garante a bolha em voo: se um 'tool' chega antes do 'started' (ou o
@@ -587,20 +808,51 @@ export function useCockpit(): Cockpit {
         setPlanUsage(msg.usage);
         return;
       }
+      case 'routes': {
+        setRoutes(msg.snapshot);
+        return;
+      }
+      case 'route-switch': {
+        setRouteSwitch({ label: msg.label, reason: msg.reason });
+        return;
+      }
+      case 'suggestions': {
+        // Chips de continuação pós-turno. Chegou depois de um turno novo começar?
+        // O gate do servidor já descarta; aqui só ignora se a sessão está rodando.
+        const key = resolveKey(migratedTo.current, msg.sessionKey);
+        if (phasesRef.current[key] === 'thinking' || phasesRef.current[key] === 'streaming') return;
+        setFollowups((f) => ({ ...f, [key]: msg.items }));
+        return;
+      }
       case 'models': {
         setModels(msg.models);
-        // Se a sessão ainda está num alias cru (opus/sonnet/haiku), promove pra a
-        // versão concreta mais recente daquela família (ex: opus → claude-opus-4-8).
-        const cur = modelRef.current;
-        if (msg.models.length && !msg.models.some((m) => m.id === cur)) {
-          // alias cru → versão concreta da família; id antigo/deprecado (não-alias,
-          // fora da lista atual, ex: opus-4-7 salvo há meses, que seguia rodando e
-          // queimando ~5x) → cai pro Sonnet econômico em vez de persistir caro.
+        const list = msg.models;
+        if (!list.length) return;
+        // Se um modelo (default ou de alguma sessão) ainda está num alias cru
+        // (opus/sonnet/haiku) ou numa versão descontinuada, promove pra a concreta
+        // mais recente da família — sem isto uma sessão esquecida num id
+        // caro/depreciado (ex: opus-4-7 salvo há meses) seguiria queimando ~5x.
+        const promote = (cur: string): string => {
+          if (list.some((m) => m.id === cur)) return cur;
           const upgrade = ['opus', 'sonnet', 'haiku'].includes(cur)
-            ? msg.models.find((m) => m.id.includes(cur))
-            : (msg.models.find((m) => m.id.includes('sonnet')) ?? msg.models[0]);
-          if (upgrade) { modelRef.current = upgrade.id; setModel(upgrade.id); savePref('model', upgrade.id); }
+            ? list.find((m) => m.id.includes(cur))
+            : (list.find((m) => m.id.includes('sonnet')) ?? list[0]);
+          return upgrade ? upgrade.id : cur;
+        };
+        const nextDefault = promote(defaultModelRef.current);
+        if (nextDefault !== defaultModelRef.current) {
+          defaultModelRef.current = nextDefault;
+          setDefaultModel(nextDefault);
+          savePref('model', nextDefault);
         }
+        let changed = false;
+        const nextMap: Record<string, string> = {};
+        for (const [k, v] of Object.entries(modelBySessionRef.current)) {
+          const p = promote(v);
+          nextMap[k] = p;
+          if (p !== v) changed = true;
+        }
+        if (changed) { modelBySessionRef.current = nextMap; setModelBySession(nextMap); }
         return;
       }
       case 'usage': {
@@ -627,12 +879,9 @@ export function useCockpit(): Cockpit {
         liveRealRef.current[key] = 0; // senão o piso pré-compactação ressurge o ticker
         setUsage((u) => ({ ...u, [key]: 0 }));
         setLiveTurn((l) => ({ ...l, [key]: 0 }));
-        // Divisor visível na thread (estilo Claude Code) marcando ONDE compactou.
-        updateThread(key, (prev) => {
-          const last = prev[prev.length - 1];
-          if (!msg.kind && last && last.role === 'compact' && !last.kind) return prev;
-          return [...prev, { id: `compact-${Date.now()}`, role: 'compact', trigger: msg.trigger, preTokens: msg.preTokens, kind: msg.kind, label: msg.label, ts: Date.now() }];
-        });
+        // Divisor visível na thread (estilo Claude Code) marcando ONDE compactou —
+        // inserido ANTES da bolha em voo pra não matar o render ao vivo do turno.
+        updateThread(key, (prev) => insertCompact(prev, { id: `compact-${Date.now()}`, role: 'compact', trigger: msg.trigger, preTokens: msg.preTokens, kind: msg.kind, label: msg.label, ts: Date.now() }, runMsg.current[key]));
         return;
       }
       case 'session-summary': {
@@ -656,7 +905,7 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'search-results': {
-        if (msg.q === searchQ.current) setSearchResults(msg.items.map((m) => metaToSession(m, m.id === activeRef.current)));
+        if (msg.q === searchQ.current) setSearchResults(msg.items.filter((m) => !isCronPing(m)).map((m) => metaToSession(m, m.id === activeRef.current)));
         return;
       }
       case 'notes': {
@@ -666,6 +915,28 @@ export function useCockpit(): Cockpit {
       }
       case 'crons': {
         setCrons(msg.items);
+        setCronsLoaded(true);
+        return;
+      }
+      case 'points': {
+        setPoints(msg.entries);
+        setPointsTotal(msg.total);
+        setPointsLoaded(true);
+        return;
+      }
+      case 'points-dfl': {
+        setDflSnapshot(msg.snapshot);
+        setDflLoaded(true);
+        setDflSyncing(false);
+        return;
+      }
+      case 'points-dfl-syncing': {
+        setDflSyncing(true);
+        return;
+      }
+      case 'points-dfl-write': {
+        const resolve = dflWriteResolvers.current.get(msg.reqId);
+        if (resolve) { dflWriteResolvers.current.delete(msg.reqId); resolve({ ok: msg.ok, message: msg.message }); }
         return;
       }
       case 'contexts': {
@@ -677,6 +948,16 @@ export function useCockpit(): Cockpit {
         setOpenContext({ id: msg.id, title: msg.title, body: msg.body });
         return;
       }
+      case 'handoff-result': {
+        endHandoff();
+        if (!msg.ok) { toast(msg.error || 'não consegui migrar a sessão', { tone: 'error', durationMs: 8000 }); return; }
+        // Sem semear o rascunho o chat novo nasce vazio e o slug do contexto só
+        // existiria no toast — a migração não migraria nada de fato.
+        const fresh = onNew();
+        setDrafts((d) => ({ ...d, [fresh]: `Retome o trabalho a partir do contexto \`${msg.contextId}\`.` }));
+        toast(`Contexto salvo em ${msg.contextId} — sessão arquivada`, { durationMs: 8000 });
+        return;
+      }
       case 'skills': {
         setSkills(msg.items);
         setSkillsLoaded(true);
@@ -684,6 +965,41 @@ export function useCockpit(): Cockpit {
       }
       case 'skill': {
         setOpenSkill({ id: msg.id, name: msg.name, body: msg.body });
+        return;
+      }
+      case 'graphs': {
+        setGraphs(msg.items);
+        setGraphsLoaded(true);
+        return;
+      }
+      case 'graph-data': {
+        setGraphOpenId(msg.id);
+        setGraphOpening((cur) => (cur === msg.id ? null : cur));
+        setGraphData(msg.graph);
+        setGraphQueryResult(null); // resposta velha não vale pro grafo novo
+        setGraphQueryHistory([]);  // histórico é por-grafo
+        return;
+      }
+      case 'graph-query-result': {
+        const r = { question: msg.question, answer: msg.answer, tokens: msg.tokens, miss: msg.miss };
+        setGraphQueryResult(r);
+        setGraphQuerying(false);
+        // histórico só de consultas que renderam algo (não-miss); dedup por pergunta, cap 8.
+        if (!r.miss) setGraphQueryHistory((prev) => [r, ...prev.filter((h) => h.question !== r.question)].slice(0, 8));
+        return;
+      }
+      case 'graph-build-progress': {
+        setGraphBuildLog((prev) => [...prev.slice(-200), msg.line]);
+        return;
+      }
+      case 'graph-build-done': {
+        setGraphBuilding(false);
+        if (!msg.ok) setGraphBuildError(msg.error ?? 'falha no build');
+        return;
+      }
+      case 'bench-bundle':
+      case 'bench-error': {
+        benchDispatch(msg);
         return;
       }
       case 'usage-stats': {
@@ -702,6 +1018,7 @@ export function useCockpit(): Cockpit {
       }
       case 'accounts': {
         setAccounts(msg.accounts);
+        setAccountsLoaded(true);
         return;
       }
       case 'admin-op': {
@@ -718,11 +1035,23 @@ export function useCockpit(): Cockpit {
       }
       case 'uploaded': {
         const real: Attachment = { name: msg.name, path: msg.path, text: msg.text, s3url: msg.s3url };
-        const cur = attachmentsRef.current;
-        // Reconcilia o chip otimista (uploading) pelo clientId — substitui no lugar
-        // em vez de duplicar. Sem clientId (upload via WS antigo) só anexa.
-        const idx = msg.clientId ? cur.findIndex((a) => a.clientId === msg.clientId) : -1;
-        setAtts(idx >= 0 ? cur.map((a, i) => (i === idx ? real : a)) : [...cur, real]);
+        // uploadOrigin é in-memory e consumido no 1º ack; o sessionKey do servidor
+        // cobre reload e ack repetido (mas pode ser a key pré-migração).
+        const origin = (msg.clientId ? uploadOrigin.current.get(msg.clientId) : undefined)
+          ?? (msg.sessionKey ? resolveKey(migratedTo.current, msg.sessionKey) : undefined);
+        if (msg.clientId) uploadOrigin.current.delete(msg.clientId);
+        // O ack pode chegar quando o usuário já trocou de sessão (upload demora). O
+        // anexo pertence à sessão de ORIGEM do upload, não à ativa — senão a imagem
+        // "vaza" pro chat aberto no momento. Origem ativa (ou desconhecida): reconcilia
+        // o chip otimista in-place. Origem inativa: grava direto nos pendentes
+        // persistidos dela, pra reaparecer no composer certo quando o usuário voltar.
+        if (!origin || origin === activeRef.current) {
+          const cur = attachmentsRef.current;
+          const idx = msg.clientId ? cur.findIndex((a) => a.clientId === msg.clientId) : -1;
+          setAtts(idx >= 0 ? cur.map((a, i) => (i === idx ? real : a)) : [...cur, real]);
+        } else {
+          addPendingAtt(origin, real);
+        }
         return;
       }
       case 'attachment': {
@@ -817,11 +1146,7 @@ export function useCockpit(): Cockpit {
         notifyTurnDone(
           sessionsRef.current.find((s) => s.id === id || s.id === key)?.title ?? '',
           () => {
-            if (fullViewId.current !== id) fullViewId.current = null;
-            activeRef.current = id;
-            setActiveIdState(id);
-            if (attachmentsRef.current.length) { setAtts([]); }
-            setAttPreview(null);
+            focusSession(id);
             setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === id })));
             if (id && !id.startsWith('new-') && !opened.current.has(id) && send({ t: 'open', sessionId: id })) opened.current.add(id);
           },
@@ -829,6 +1154,7 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'error': {
+        endHandoff();
         // Erro escopado a um turno (tem sessionKey) → encerra ESSE turno e mostra.
         // Erro sem key (top-level: authz negada, rate-limit) NÃO pode tocar o turno
         // ativo: o `delete runMsg.current` matava o ponteiro da bolha em voo e os
@@ -850,11 +1176,7 @@ export function useCockpit(): Cockpit {
             sessionsRef.current.find((s) => s.id === key)?.title ?? '',
             msg.message,
             () => {
-              if (fullViewId.current !== key) fullViewId.current = null;
-              activeRef.current = key;
-              setActiveIdState(key);
-              if (attachmentsRef.current.length) { setAtts([]); }
-              setAttPreview(null);
+              focusSession(key);
               setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === key })));
             },
           );
@@ -864,7 +1186,7 @@ export function useCockpit(): Cockpit {
         return;
       }
     }
-  }, [updateThread, patchRunMsg, migrateKey, reconcileTools, send, onTermData, onTermReplay, onTermExit, onTerms]);
+  }, [updateThread, patchRunMsg, migrateKey, reconcileTools, send, reopenMsg, onTermData, onTermReplay, onTermExit, onTerms, onNew, endHandoff]);
 
   const connect = useCallback(() => {
     // Fecha+neutraliza o socket anterior ANTES de abrir outro. Sem isto, sockets
@@ -877,6 +1199,7 @@ export function useCockpit(): Cockpit {
       prev.onclose = null;                       // o velho não re-agenda reconnect
       try { prev.close(); } catch { /* noop */ }
     }
+    if (heartbeat.current) { clearInterval(heartbeat.current); heartbeat.current = null; }
     setConn((c) => ({ ...c, ws: 'reconnecting', sse: 'reconnecting' }));
     let ws: WebSocket;
     try { ws = new WebSocket(wsUrlWithToken(tokenRef.current)); } catch { scheduleRetry(); return; }
@@ -893,19 +1216,34 @@ export function useCockpit(): Cockpit {
       for (const p of thumbPending.current) thumbRequested.current.delete(p);
       thumbPending.current.clear();
       setConn({ ws: 'connected', sse: 'connected' });
-      send({ t: 'list' });
-      send({ t: 'list-archived' });
-      send({ t: 'usage-list' });
-      send({ t: 'skill-list' }); // popula o seletor de skills do composer
-      send({ t: 's3-config' });  // URL+anon key pra upload HTTP direto na edge fn
-      // Sessão ativada enquanto o WS esteve fechado nunca recebeu o 'open' (frame
-      // descartado) — sem isto o thread visível ficava vazio até um F5.
-      const act = activeRef.current;
-      if (act && !act.startsWith('new-') && !opened.current.has(act) && send({ t: 'open', sessionId: act })) opened.current.add(act);
-      reattach();
+      // Build que estava em voo quando o socket caiu nunca recebe o 'done' — o
+      // botão ficaria "construindo…" pra sempre. Destrava e reconcilia via list.
+      setGraphBuilding((b) => { if (b) { setGraphBuildError('conexão caiu durante o build — verifique a lista'); send({ t: 'graph-list' }); } return false; });
+      setGraphOpening(null);
+      reconcile();
+      // Watchdog de socket meio-aberto (o "chat para e só volta com F5"): no desktop,
+      // aba visível, um socket que morre sem FIN (relay/NAT/idle-timeout) NÃO dispara
+      // onclose, visibilitychange nem online — nada reconectava. Aqui, a cada tick,
+      // mandamos um ping e checamos o silêncio: um socket vivo recebe stats a cada 2s,
+      // então HEARTBEAT_STALE_MS sem NENHUM frame = link morto → força socket novo
+      // (o único jeito de destravar sem F5). Não depende do relay ecoar o pong — a
+      // decisão é por "recebeu algo?", e o pong é só o nudge extra.
+      lastRecvAt.current = Date.now();
+      if (heartbeat.current) clearInterval(heartbeat.current);
+      heartbeat.current = setInterval(() => {
+        if (!isCurrent()) { if (heartbeat.current) { clearInterval(heartbeat.current); heartbeat.current = null; } return; }
+        if (Date.now() - lastRecvAt.current > HEARTBEAT_STALE_MS) {
+          retryDelay.current = 1500;
+          if (retry.current) { clearTimeout(retry.current); retry.current = null; }
+          connectRef.current();
+          return;
+        }
+        try { ws.send(JSON.stringify({ t: 'ping' })); } catch { /* socket indo embora */ }
+      }, HEARTBEAT_MS);
     };
     ws.onmessage = (ev) => {
       if (!isCurrent()) return;
+      lastRecvAt.current = Date.now(); // qualquer frame (incl. pong) prova o socket vivo
       let m: ServerMsg;
       try { m = JSON.parse(String(ev.data)) as ServerMsg; } catch { return; }
       onServer(m);
@@ -913,6 +1251,8 @@ export function useCockpit(): Cockpit {
     ws.onclose = (ev) => {
       if (!isCurrent()) return;
       setConn({ ws: 'down', sse: 'down' });
+      failAllBenchPending();
+      endHandoff();
       // 4401 = servidor exige token e o nosso falta/está errado. NÃO re-tenta em
       // loop: mostra o login. Qualquer outro código = queda de rede → backoff.
       if (ev.code === 4401) { setAuthRequired(true); return; }
@@ -934,6 +1274,7 @@ export function useCockpit(): Cockpit {
     ws.onerror = () => { if (isCurrent()) { try { ws.close(); } catch { /* noop */ } } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [send, onServer, reattach]);
+  connectRef.current = connect;
 
   const scheduleRetry = useCallback(() => {
     if (retry.current) return;
@@ -945,6 +1286,39 @@ export function useCockpit(): Cockpit {
     retry.current = setTimeout(() => { retry.current = null; connect(); }, delay);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Re-lê o estado durável no (re)connect: sem isto um blip de socket (aba
+  // suspensa no mobile, wake-from-sleep) deixa o app com listas/uso velhos até um
+  // F5. O `sync` força o servidor a reemitir busy/rate/plan-usage/models (frames
+  // que o CLI só manda durante um run) sem depender de eventos perdidos.
+  const reconcile = useCallback(() => {
+    send({ t: 'list' });
+    send({ t: 'list-archived' });
+    send({ t: 'usage-list' });
+    send({ t: 'skill-list' }); // popula o seletor de skills do composer
+    send({ t: 's3-config' });  // URL+anon key pra upload HTTP direto na edge fn
+    send({ t: 'sync' });       // reemite o estado durável fresco (busy/rate/plan/models)
+    send({ t: 'points-get' }); // ledger de pontos: atualiza ao vivo mesmo fora da rota
+    send({ t: 'queue-get' });  // fila estacionada do servidor (drena com quota liberada)
+    // Re-abre a sessão ativa SEMPRE (não só se nunca abriu): um turno que terminou
+    // enquanto o WS esteve fechado perdeu os deltas finais + o 'done' — sem re-puxar
+    // o history a resposta ficava congelada no meio da frase pra sempre ("o agente
+    // parou de me responder"). mergeHistory deduplica, então o re-open é barato e
+    // idempotente; respeita a visão completa pra não reverter pro resumido.
+    const act = activeRef.current;
+    if (act && !act.startsWith('new-') && send(reopenMsg(act))) opened.current.add(act);
+    reattach();
+  }, [send, reattach, reopenMsg]);
+
+  // Reconexão proativa (visibilidade/rede): não espera o backoff. Socket morto em
+  // silêncio (mobile) reabre na hora; socket vivo só reconcilia o estado durável.
+  const reconnectNow = useCallback(() => {
+    retryDelay.current = 1500;
+    const ws = wsRef.current;
+    if (ws && ws.readyState === ws.OPEN) { reconcile(); return; }
+    if (retry.current) { clearTimeout(retry.current); retry.current = null; }
+    connect();
+  }, [connect, reconcile]);
 
   // Login: guarda o token e reconecta na hora com ele. Chamado pelo gate de auth e
   // por todo onAuthStateChange do Supabase. Se o token não mudou e já existe um
@@ -983,6 +1357,7 @@ export function useCockpit(): Cockpit {
     if (!(SUPABASE_ENABLED && !tokenRef.current)) connect();
     return () => {
       if (retry.current) clearTimeout(retry.current);
+      if (heartbeat.current) clearInterval(heartbeat.current);
       if (adminOpTimer.current) clearTimeout(adminOpTimer.current);
       if (extBusyTimer.current) clearTimeout(extBusyTimer.current);
       wsRef.current?.close();
@@ -991,26 +1366,29 @@ export function useCockpit(): Cockpit {
   }, []);
 
   const setActiveId = useCallback((id: string) => {
-    // Espelha o reset do fullLoaded no painel (useChatPanel zera na troca de sid):
-    // a visão completa é um modo transitório por visita, não preferência da sessão.
-    if (fullViewId.current !== id) fullViewId.current = null;
-    activeRef.current = id;
-    setActiveIdState(id);
+    focusSession(id);
     // Sessão real (não rascunho local) vira a última ativa — sobrevive ao F5.
     if (id && !id.startsWith('new-')) savePref('activeId', id);
-    // Reidrata os anexos pendentes da sessão alvo (persistidos por sessão) em vez de
-    // só limpar — assim trocar de sessão / dar F5 não some com os anexos do composer.
-    const pend = id ? loadPref<Attachment[]>(`pendingAtts:${id}`, []) : [];
-    attachmentsRef.current = pend;
-    setAttachments(pend);
-    // Modal de preview é transitório da sessão: trocar via Alt+↑/↓ com ele aberto
-    // deixava o anexo da sessão anterior na tela da nova.
-    setAttPreview(null);
     setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === id })));
     if (id && !id.startsWith('new-') && !opened.current.has(id) && send({ t: 'open', sessionId: id })) opened.current.add(id);
-  }, [send]);
+  }, [send, focusSession]);
 
-  const onSend = useCallback((text: string, modeOverride?: PermMode) => {
+  // Congela na sessão o modelo com que o turno REALMENTE roda. Sem isto, uma
+  // conversa que herdou o default (sem override próprio) segue derivando o rótulo
+  // do defaultModel mutável — e trocar a versão em OUTRA conversa reetiqueta um
+  // turno em andamento (ex.: um turno sonnet passa a exibir "Fable 5").
+  const pinSessionModel = useCallback((key: string): string => {
+    const chosen = modelBySessionRef.current[key] ?? defaultModelRef.current;
+    if (modelBySessionRef.current[key] !== chosen) {
+      modelBySessionRef.current = { ...modelBySessionRef.current, [key]: chosen };
+      setModelBySession(modelBySessionRef.current);
+    }
+    return chosen;
+  }, []);
+
+  // auto=true marca envio de automação (flush da fila do cliente): o servidor
+  // estaciona autos enquanto a sessão aguarda resposta de AskUserQuestion.
+  const onSend = useCallback((text: string, modeOverride?: PermMode, auto?: boolean) => {
     const key = activeRef.current;
     if (!key) return;
     // WS fechado: send() descartaria em silêncio DEPOIS do trabalho otimista —
@@ -1036,9 +1414,7 @@ export function useCockpit(): Cockpit {
     // Anexos viram refs de path no início do prompt; o agente abre via Read. Pra
     // .docx (binário que o Read não parseia) o texto extraído vai inline logo após
     // o ref — o agente recebe o conteúdo direto e o chip segue no .docx original.
-    const wire = atts.length
-      ? atts.map((a) => (a.text ? `[anexo: ${a.path}]\n${attachmentTextBlock(a.name, a.text)}` : `[anexo: ${a.path}]`)).join('\n') + '\n\n' + text
-      : text;
+    const wire = encodeAttachments(atts, text);
     if (atts.length) { setAtts([]); }
     setInterrupted((p) => { if (!(key in p)) return p; const n = { ...p }; delete n[key]; return n; });
     // Add otimista (feedback instantâneo, sem round-trip). O servidor ecoa esta
@@ -1048,7 +1424,9 @@ export function useCockpit(): Cockpit {
     // mostra os chips na hora, igual ao reload do JSONL. Com `text` limpo os anexos
     // só apareciam após F5.
     updateThread(key, (prev) => [...prev, { id: msgId, role: 'user', text: wire, ts: Date.now() }]);
-    setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: text, relative: 'agora' } : s)));
+    // Bump do mtime junto do 'agora': o group-by-recency ordena/agrupa só por mtime.
+    // Sem isto o card mostrava "agora" mas ficava no balde/posição velha até um F5.
+    setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: text, relative: 'agora', mtime: Date.now() } : s)));
     setDrafts((d) => ({ ...d, [key]: '' }));
     // bypass só vai no fio quando o servidor anunciou a capacidade (admin + env +
     // loopback). O backend reimpõe via bypassAllowed — isto é só pra não anunciar
@@ -1057,8 +1435,39 @@ export function useCockpit(): Cockpit {
     // skills só vai no fio quando o usuário restringiu (subconjunto); vazio = todas.
     const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
     const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: modelRef.current, effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
+    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: pinSessionModel(key), effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire, auto: auto || undefined });
+  }, [send, updateThread, pinSessionModel]);
+
+  // Fila ESTACIONADA (servidor): enfileira p/ drenar quando a quota liberar, mesmo
+  // com o browser fechado. Espelha os mesmos params de fio do onSend. O agente
+  // dispara cada item ao ficar ocioso + sob a quota — ver server/ws/parked.ts.
+  const queueAdd = useCallback((text: string) => {
+    const key = activeRef.current;
+    if (!key) return;
+    // Mesmo furo do onSend, e pior aqui: a fila não ecoa bolha nenhuma, então o
+    // descarte do send() com WS fechado sumia com o texto sem deixar rastro — o
+    // item nunca chegava ao parked.json e a fila parecia travada.
+    if (wsRef.current?.readyState !== WebSocket.OPEN) {
+      updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: '⚠️ Sem conexão com o servidor — o item não entrou na fila. O texto voltou pro composer; tente de novo quando reconectar.' }], error: true }]);
+      queueMicrotask(() => setDrafts((d) => ({ ...d, [key]: d[key] || text })));
+      return;
+    }
+    // Os anexos confirmados são amarrados A ESTE item da fila (mesmo encode do onSend)
+    // e limpos na hora — senão a imagem vazava pro primeiro prompt que drenasse.
+    const atts = attachmentsRef.current.filter((a) => !a.uploading);
+    const wire = encodeAttachments(atts, text);
+    if (atts.length) { setAtts([]); }
+    const bypassWire = capsRef.current?.canBypass && bypassRef.current ? true : undefined;
+    const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
+    const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
+    send({ t: 'queue-add', sessionKey: key, sessionId: resumeId.current[key], text: wire, mode: modeRef.current, model: modelBySessionRef.current[key] ?? defaultModelRef.current, effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
   }, [send, updateThread]);
+  const queueRemove = useCallback((sessionKey: string, id: string) => { send({ t: 'queue-remove', sessionKey, id }); }, [send]);
+  const queueEdit = useCallback((sessionKey: string, id: string, text: string) => { send({ t: 'queue-edit', sessionKey, id, text }); }, [send]);
+  const queueMove = useCallback((sessionKey: string, id: string, dir: -1 | 1) => { send({ t: 'queue-move', sessionKey, id, dir }); }, [send]);
+  const queueClear = useCallback((sessionKey: string) => { send({ t: 'queue-clear', sessionKey }); }, [send]);
+  const queueSetPaused = useCallback((v: boolean) => { send({ t: 'queue-set-paused', paused: v }); }, [send]);
+  const queueRetry = useCallback((sessionKey: string, id: string) => { send({ t: 'queue-retry', sessionKey, id }); }, [send]);
 
   const onUpload = useCallback((file: File) => {
     const key = activeRef.current;
@@ -1067,12 +1476,14 @@ export function useCockpit(): Cockpit {
     // paste/change, caminhos concorrentes) só sobe uma vez dentro da janela.
     if (!isFreshUpload(recentUploadSigs.current, fileSig(file), Date.now())) return;
     const clientId = newId('up');
+    uploadOrigin.current.set(clientId, key);
     // Chip otimista na hora (com spinner) — antes só aparecia DEPOIS do ack do
     // servidor, sem feedback durante o upload. O 'uploaded' reconcilia pelo clientId.
     setAtts([...attachmentsRef.current, { name: file.name, path: clientId, clientId, uploading: true }]);
     let done = false;
     const fail = (msg: string) => {
       if (done) return; done = true;
+      uploadOrigin.current.delete(clientId);
       setAtts(attachmentsRef.current.filter((a) => a.clientId !== clientId));
       updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: msg }], error: true }]);
     };
@@ -1106,7 +1517,18 @@ export function useCockpit(): Cockpit {
 
   const changeMode = useCallback((m: PermMode) => { modeRef.current = m; setMode(m); savePref('mode', m); }, []);
   const changeBypass = useCallback((b: boolean) => { bypassRef.current = b; setBypass(b); }, []);
-  const changeModel = useCallback((m: string) => { modelRef.current = m; setModel(m); savePref('model', m); }, []);
+  // Grava o override da sessão ATIVA (não vaza pra outras) e também atualiza o
+  // default — só serve de semente pra sessões NOVAS, não reabre as já existentes.
+  const changeModel = useCallback((m: string) => {
+    defaultModelRef.current = m;
+    setDefaultModel(m);
+    savePref('model', m);
+    const key = activeRef.current;
+    if (key) {
+      modelBySessionRef.current = { ...modelBySessionRef.current, [key]: m };
+      setModelBySession(modelBySessionRef.current);
+    }
+  }, []);
   const changeEffort = useCallback((e: Effort) => { effortRef.current = e; setEffort(e); savePref('effort', e); }, []);
   const changeSelectedSkills = useCallback((ids: string[]) => { selectedSkillsRef.current = ids; setSelectedSkills(ids); savePref('selectedSkills', ids); }, []);
   const changeSelectedMcps = useCallback((ids: string[]) => { selectedMcpsRef.current = ids; setSelectedMcps(ids); savePref('selectedMcps', ids); }, []);
@@ -1136,12 +1558,68 @@ export function useCockpit(): Cockpit {
   const onCronSave = useCallback((cron: Cron) => send({ t: 'cron-save', cron }), [send]);
   const onCronDelete = useCallback((id: string) => send({ t: 'cron-delete', id }), [send]);
   const onCronRun = useCallback((id: string) => send({ t: 'cron-run', id }), [send]);
+  const onPointsGet = useCallback(() => send({ t: 'points-get' }), [send]);
+  const onPointsAdd = useCallback((title: string, pts: number, description?: string) => send({ t: 'points-add', title, points: pts, description }), [send]);
+  const onPointsCorrect = useCallback((entryId: string, pts: number) => send({ t: 'points-correct', entryId, points: pts }), [send]);
+  const onPointsNote = useCallback((entryId: string, description: string) => send({ t: 'points-note', entryId, description }), [send]);
+  const onPointsDelete = useCallback((entryId: string) => send({ t: 'points-delete', entryId }), [send]);
+  const onDflGet = useCallback(() => send({ t: 'points-dfl-get' }), [send]);
+  const onDflSync = useCallback(() => send({ t: 'points-dfl-sync' }), [send]);
+  const dflWrite = useCallback((m: ClientMsg, reqId: string): Promise<{ ok: boolean; message?: string }> =>
+    new Promise((resolve) => {
+      dflWriteResolvers.current.set(reqId, resolve);
+      if (!send(m)) { dflWriteResolvers.current.delete(reqId); resolve({ ok: false, message: 'sem conexão com o backend' }); return; }
+      setTimeout(() => {
+        if (dflWriteResolvers.current.has(reqId)) { dflWriteResolvers.current.delete(reqId); resolve({ ok: false, message: 'tempo esgotado' }); }
+      }, 65_000);
+    }), [send]);
+  const onDflChange = useCallback((p: { taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string }) => {
+    const reqId = crypto.randomUUID();
+    return dflWrite({ t: 'points-dfl-change', reqId, ...p }, reqId);
+  }, [dflWrite]);
+  const onDflInvoice = useCallback((p: { deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number }[] }) => {
+    const reqId = crypto.randomUUID();
+    return dflWrite({ t: 'points-dfl-invoice', reqId, ...p }, reqId);
+  }, [dflWrite]);
+  // Sessão `new-` ainda não tem JSONL no servidor: não há o que destilar nem
+  // arquivar, então o botão não dispara nada.
+  const onHandoff = useCallback((sessionId: string) => {
+    if (!sessionId || sessionId.startsWith('new-')) return;
+    setHandoffBusy(true);
+    // Teto acima do timeout da API no servidor (60s): se nem erro voltar, destrava.
+    if (handoffTimer.current) clearTimeout(handoffTimer.current);
+    handoffTimer.current = setTimeout(() => { handoffTimer.current = null; setHandoffBusy(false); }, 90_000);
+    send({ t: 'session-handoff', sessionId });
+  }, [send]);
+
   const onCtxList = useCallback(() => send({ t: 'ctx-list' }), [send]);
   const onCtxOpen = useCallback((id: string) => send({ t: 'ctx-open', id }), [send]);
   const onCtxClose = useCallback(() => setOpenContext(null), []);
   const onSkillList = useCallback(() => send({ t: 'skill-list' }), [send]);
   const onSkillOpen = useCallback((id: string) => send({ t: 'skill-open', id }), [send]);
   const onSkillClose = useCallback(() => setOpenSkill(null), []);
+  const onGraphList = useCallback(() => send({ t: 'graph-list' }), [send]);
+  const onGraphOpen = useCallback((id: string) => { setGraphQueryResult(null); setGraphOpening(id); send({ t: 'graph-open', id }); }, [send]);
+  const onGraphBuild = useCallback((repo: string) => {
+    setGraphBuildLog([]); setGraphBuildError(null); setGraphBuilding(true);
+    send({ t: 'graph-build', repo });
+  }, [send]);
+  const onClearBuildError = useCallback(() => setGraphBuildError(null), []);
+  const onGraphDelete = useCallback((id: string) => {
+    setGraphData((prev) => (graphOpenId === id ? null : prev));
+    setGraphOpenId((prev) => (prev === id ? null : prev));
+    send({ t: 'graph-delete', id });
+  }, [send, graphOpenId]);
+  const onGraphQuery = useCallback((question: string, budget?: number) => {
+    if (!graphOpenId) return;
+    setGraphQuerying(true);
+    send({ t: 'graph-query', id: graphOpenId, question, budget });
+  }, [send, graphOpenId]);
+  const onGraphNodeOp = useCallback((op: GraphNodeOp, a: string, b?: string) => {
+    if (!graphOpenId) return;
+    setGraphQuerying(true);
+    send({ t: 'graph-node-op', id: graphOpenId, op, a, b });
+  }, [send, graphOpenId]);
   const onUsageList = useCallback(() => send({ t: 'usage-list' }), [send]);
   const onRefreshModels = useCallback(() => send({ t: 'refresh-models' }), [send]);
   const onHealthList = useCallback(() => send({ t: 'admin-health' }), [send]);
@@ -1156,10 +1634,25 @@ export function useCockpit(): Cockpit {
   const onMcpRemove = useCallback((name: string) => send({ t: 'admin-mcp-remove', name }), [send]);
   const onCliInstall = useCallback((name: string) => send({ t: 'admin-cli-install', name }), [send]);
 
+  const onRoutesGet = useCallback(() => send({ t: 'routes-get' }), [send]);
+  const onRoutesEnable = useCallback((on: boolean) => send({ t: 'routes-enable', on }), [send]);
+  const onRouteSet = useCallback((id: string) => send({ t: 'route-set', id }), [send]);
+  const onRouteConfig = useCallback((id: string, patch: { enabled?: boolean; priority?: number }) => send({ t: 'route-config', id, ...patch }), [send]);
+  const onRouteCustomAdd = useCallback((r: Omit<Extract<ClientMsg, { t: 'route-custom-add' }>, 't'>) => send({ t: 'route-custom-add', ...r }), [send]);
+  const onRouteCustomRemove = useCallback((id: string) => send({ t: 'route-custom-remove', id }), [send]);
+  const dismissRouteSwitch = useCallback(() => setRouteSwitch(null), []);
+
   const onStop = useCallback((sessionKey?: string) => {
-    const key = sessionKey ?? activeRef.current;
+    // Guard: se um call-site fizer onClick={onStop}, o React passa o MouseEvent
+    // como 1º arg — serializá-lo no send() estoura "circular structure" e o stop
+    // nunca sai (o botão "não parava"). Só string é chave válida; o resto vira undefined.
+    const raw = typeof sessionKey === 'string' ? sessionKey : undefined;
+    const key = raw ?? activeRef.current;
     if (!key) return;
-    send({ t: 'stop', sessionKey: key });
+    // O servidor keyeia o thread pela chave com que o run começou ("new-xxx" numa
+    // sessão nova) e nunca re-keyea. Mandar a chave de display migrada (sessionId real)
+    // dava miss no `threads.get()` → kill no-op. Manda a chave real do servidor.
+    send({ t: 'stop', sessionKey: serverKey.current[key] ?? key });
     inFlight.current.delete(key);
     stopping.current.add(key);
     reconcileTools(key);
@@ -1192,22 +1685,12 @@ export function useCockpit(): Cockpit {
       if (idx === -1) return prev;
       return [...prev.slice(0, idx), { ...prev[idx], text: clean, triage: undefined, ts: Date.now() }];
     });
-    setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: clean, relative: 'agora' } : s)));
+    setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: clean, relative: 'agora', mtime: Date.now() } : s)));
     const bypassWire = capsRef.current?.canBypass && bypassRef.current ? true : undefined;
     const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
     const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: clean, msgId, mode: modeRef.current, model: modelRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
-  }, [send, updateThread, onStop]);
-
-  const onNew = useCallback(() => {
-    const id = newId('new-');
-    const s: Session = { id, title: 'Nova sessão', relative: 'agora', snippet: 'Sem mensagens ainda', mtime: Date.now(), hasTerminal: false, active: true };
-    setSessions((prev) => [s, ...prev.map((x) => ({ ...x, active: false }))]);
-    setThreads((prev) => ({ ...prev, [id]: [] }));
-    fullViewId.current = null;
-    activeRef.current = id;
-    setActiveIdState(id);
-  }, []);
+    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: clean, msgId, mode: modeRef.current, model: pinSessionModel(key), bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
+  }, [send, updateThread, onStop, pinSessionModel]);
 
   const onRename = useCallback((id: string, title: string) => {
     setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)));
@@ -1232,11 +1715,7 @@ export function useCockpit(): Cockpit {
       const next = prev.filter((s) => s.id !== id);
       if (activeRef.current !== id) return next;
       const fb = next[0]?.id ?? '';
-      fullViewId.current = null;
-      activeRef.current = fb;
-      setActiveIdState(fb);
-      if (attachmentsRef.current.length) { setAtts([]); }
-      setAttPreview(null);
+      focusSession(fb);
       if (fb && !fb.startsWith('new-') && !opened.current.has(fb) && send({ t: 'open', sessionId: fb })) opened.current.add(fb);
       return next.map((s) => ({ ...s, active: s.id === fb }));
     });
@@ -1254,7 +1733,7 @@ export function useCockpit(): Cockpit {
     delete runStartRef.current[id];
     delete lastActivity.current[id];
     opened.current.delete(id);
-  }, [send]);
+  }, [send, focusSession]);
 
   const onClose = useCallback((id: string) => {
     if (id && !id.startsWith('new-')) send({ t: 'hide', sessionId: id });
@@ -1266,6 +1745,9 @@ export function useCockpit(): Cockpit {
   const onDelete = useCallback((id: string) => {
     if (id && !id.startsWith('new-')) send({ t: 'purge', sessionId: id });
     dropFromSidebar(id);
+    // Só na exclusão: arquivar é reversível (onUnhide traz a sessão de volta) e o
+    // composer dela tem que voltar com os anexos.
+    clearPendingAtts(id);
   }, [send, dropFromSidebar]);
 
   // Desarquivar: backend reenvia sessions + archived; some da lista de arquivadas
@@ -1280,8 +1762,16 @@ export function useCockpit(): Cockpit {
   // mensagens antes de um /compact somem — este botão recupera tudo.
   const onOpenFull = useCallback((id: string) => {
     if (!id || id.startsWith('new-')) return;
-    fullViewId.current = id;
+    viewMode.current[id] = 'full';
     send({ t: 'open-full', sessionId: id });
+  }, [send]);
+
+  // Cada clique busca a página ANTERIOR à mensagem mais antiga na tela e prepende.
+  // Repetível até o começo da sessão, sem teto — e cada frame tem tamanho fixo.
+  const onLoadOlder = useCallback((id: string) => {
+    if (!id || id.startsWith('new-')) return;
+    viewMode.current[id] = 'full';
+    send({ t: 'open-full', sessionId: id, before: threadsRef.current[id]?.[0]?.id });
   }, [send]);
 
   // Volta do histórico completo pro resumido (só o caminho ativo, capado em
@@ -1289,8 +1779,8 @@ export function useCockpit(): Cockpit {
   // mão-única (carregava tudo e não dava pra recolher).
   const onOpenSummary = useCallback((id: string) => {
     if (!id || id.startsWith('new-')) return;
-    if (fullViewId.current === id) fullViewId.current = null;
-    send({ t: 'open', sessionId: id });
+    viewMode.current[id] = 'chain';
+    send({ t: 'open', sessionId: id, chainOnly: true });
   }, [send]);
 
   const messages = threads[activeId] || [];
@@ -1381,6 +1871,9 @@ export function useCockpit(): Cockpit {
     [sessions, seen, activeId, running]
   );
   const draft = drafts[activeId] || '';
+  // Modelo efetivo da sessão ativa: override próprio, ou o default (semente) se
+  // esta conversa nunca trocou de versão.
+  const model = modelBySession[activeId] ?? defaultModel;
   const contextTokens = usage[activeId] || 0;
   const liveTurnTokens = liveTurn[activeId] || 0;
   const turnStartedAt = runStart[activeId];
@@ -1388,6 +1881,10 @@ export function useCockpit(): Cockpit {
   const lastTurn = turnStats[activeId];
   const lastEnd = interrupted[activeId];
   const setDraft = useCallback((v: string) => setDrafts((d) => ({ ...d, [activeRef.current]: v })), []);
+  const dismissFollowups = useCallback(() => {
+    const key = activeRef.current;
+    setFollowups((f) => { if (!(key in f)) return f; const n = { ...f }; delete n[key]; return n; });
+  }, []);
 
   // Drafts não-enviados sobrevivem a reload. Só persiste sessões reais (uuid) e
   // não-vazias — keys `new-xxx` são efêmeras e não casam após reload.
@@ -1397,5 +1894,13 @@ export function useCockpit(): Cockpit {
     savePref('drafts', keep);
   }, [drafts]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], running, stalled, updated, runStart, draft, setDraft, conn, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, onCronsGet, onCronSave, onCronDelete, onCronRun, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, usageStats, onUsageList, health, onHealthList, accounts, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onOpenSummary };
+  // Override de modelo por sessão — mesma regra dos drafts: sessões `new-xxx` são
+  // efêmeras e não casam depois de um reload.
+  useEffect(() => {
+    const keep: Record<string, string> = {};
+    for (const [k, v] of Object.entries(modelBySession)) if (!k.startsWith('new-')) keep[k] = v;
+    savePref('modelBySession', keep);
+  }, [modelBySession]);
+
+  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, cronsLoaded, onCronsGet, onCronSave, onCronDelete, onCronRun, points, pointsTotal, pointsLoaded, onPointsGet, onPointsAdd, onPointsCorrect, onPointsNote, onPointsDelete, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync, onDflChange, onDflInvoice, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, routes, routeSwitch, dismissRouteSwitch, onRoutesGet, onRoutesEnable, onRouteSet, onRouteConfig, onRouteCustomAdd, onRouteCustomRemove, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry };
 }

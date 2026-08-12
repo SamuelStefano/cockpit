@@ -25,6 +25,9 @@ export const SECTIONS: Section[] = [
   { id: 'busca', label: 'Busca & navegação', icon: 'search' },
   { id: 'comandos', label: 'Comandos & atalhos', icon: 'command' },
   { id: 'modelos', label: 'Modelos', icon: 'claude' },
+  { id: 'playground', label: 'Playground & modo App', icon: 'code' },
+  { id: 'graph', label: 'Graph (knowledge graph)', icon: 'zap' },
+  { id: 'bench', label: 'Bench (repo externo)', icon: 'grip' },
   { id: 'admin', label: 'Admin', icon: 'shield' },
   { id: 'bastidores', label: 'Por trás dos panos', icon: 'terminal' },
   { id: 'repo', label: 'Mapa do repositório', icon: 'file' },
@@ -72,6 +75,7 @@ export const FILEMAP: { group: string; tone: string; files: { path: string; what
       { path: 'src/components/StatusBar.tsx', what: 'Rodapé com telemetria da máquina (CPU/RAM/disco/load).' },
       { path: 'src/components/DocViewer.tsx', what: 'Visualizador de markdown reusado por Contextos e Skills.' },
       { path: 'src/components/primitives.tsx', what: 'Átomos de UI compartilhados: Icon, Badge, render de markdown.' },
+      { path: 'src/components/primitives/livepreview/', what: 'Preview ao vivo do chat: runtimes em iframe, estúdio do /play e o card do bench (```bench:<slug>) que roda componente de outro repo.' },
     ],
   },
   {
@@ -106,6 +110,7 @@ export const FILEMAP: { group: string; tone: string; files: { path: string; what
       { path: 'server/ws/slash.ts · slash-probe.ts', what: 'Detecta e resolve comandos com barra conhecidos pelo CLI.' },
       { path: 'server/ws/models.ts · usage-plan.ts', what: 'Catálogo de modelos da Anthropic e uso global do plano.' },
       { path: 'server/ws/rate.ts · guard.ts · origin.ts', what: 'Rate-limit, backpressure e checagem de origem do socket.' },
+      { path: 'server/bench.ts', what: 'Bench: compila um componente de outro repositório (esbuild + Tailwind do alvo) num bundle autocontido, confinado à raiz registrada em ~/.cockpit/bench.json.' },
     ],
   },
   {
@@ -186,7 +191,7 @@ export const KEYS: { keys: string[]; desc: string }[] = [
 ];
 
 export const FEATURES: { icon: IconName; tone: string; title: string; body: ReactNode }[] = [
-  { icon: 'message', tone: 'text-orange-300 border-orange-500/30 bg-orange-500/10', title: 'Chat', body: 'A conversa principal com o agente. Cada sessão tem seu próprio modelo, modo e histórico. Anexe arquivos, cite mensagens, edite o que mandou e acompanhe o raciocínio e as ferramentas em tempo real. Enquanto o agente trabalha, uma estrelinha pulsante com verbos rotativos (como no terminal) indica o progresso. Cada resposta mostra o gasto do turno (tokens · tempo · custo) — inclusive turnos feitos direto no terminal, reconstruídos do histórico. A lista de tarefas do agente fica num tray fixo acima do composer (pendente/em andamento/concluída, como no terminal), sempre à vista, colapsável e atualizando ao vivo — além dos cards no histórico, visíveis mesmo com as ferramentas ocultas. Linhas que o terminal imprime fora da conversa — PR aberta (com link), retomada de loop agendado, compactação — viram divisores finos na timeline; comandos /slash aparecem limpos. Em sessões longas o app carrega só as mensagens recentes — o botão "carregar antigas" no topo traz o histórico completo (inclui o que veio antes de um /compact).' },
+  { icon: 'message', tone: 'text-orange-300 border-orange-500/30 bg-orange-500/10', title: 'Chat', body: 'A conversa principal com o agente. Cada sessão tem seu próprio modelo, modo e histórico. Anexe arquivos, cite mensagens, edite o que mandou e acompanhe o raciocínio e as ferramentas em tempo real. Todas as ferramentas de um turno ficam numa caixa fechada só ("N ações", com resumo por tipo e o que está rodando agora) — a thread fica prompt + resposta, e um clique abre comandos, saídas e diffs. AskUserQuestion e a lista de tarefas continuam no fluxo. Enquanto o agente trabalha, uma estrelinha pulsante com verbos rotativos (como no terminal) indica o progresso. Cada resposta mostra o gasto do turno (tokens · tempo · custo) — inclusive turnos feitos direto no terminal, reconstruídos do histórico. A lista de tarefas do agente fica num tray fixo acima do composer (pendente/em andamento/concluída, como no terminal), sempre à vista, colapsável e atualizando ao vivo — além dos cards no histórico, visíveis mesmo com as ferramentas ocultas. Linhas que o terminal imprime fora da conversa — PR aberta (com link), retomada de loop agendado, compactação — viram divisores finos na timeline; comandos /slash aparecem limpos. Em sessões longas o app carrega só as mensagens recentes — o botão "carregar antigas" no topo traz o histórico completo (inclui o que veio antes de um /compact).' },
   { icon: 'sparkles', tone: 'text-violet-300 border-violet-500/30 bg-violet-500/10', title: 'Contextos', body: 'A memória do agente em modo leitura. São arquivos markdown tipados (usuário, projeto, feedback, referência) que o agente escreve sozinho e consulta entre conversas. Aqui você vê e pesquisa tudo.' },
   { icon: 'star', tone: 'text-amber-300 border-amber-500/30 bg-amber-500/10', title: 'Skills', body: 'As habilidades instaladas — pacotes de instruções que o agente carrega sob demanda (ex.: spec-driven, squad-review). Visualize cada uma e compartilhe em markdown ou json.' },
   { icon: 'zap', tone: 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10', title: 'Uso', body: 'O observatório de consumo: custo estimado, tokens, número de turnos por sessão e a janela de rate-limit do plano. É onde você entende pra onde o orçamento está indo.' },

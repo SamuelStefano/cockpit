@@ -3,6 +3,13 @@
 # morrer (crash, OOM), reinicia após 2s. Loga em /tmp.
 cd /home/samuel/cockpit
 
+# Overrides locais por-box (NÃO versionado). É aqui que o DONO da box habilita
+# coisas perigosas-mas-intencionais sem ligar pra todo fellow. Ex.:
+# COCKPIT_ALLOW_BYPASS=1 → destrava o bypassPermissions pra sessões admin (o gate
+# ainda exige role admin + localOnly + toggle on; ver bypassAllowed). Sem este
+# arquivo, nada muda (default seguro).
+[ -f "$HOME/.cockpit-local.env" ] && source "$HOME/.cockpit-local.env"
+
 # Singleton via flock: só UM supervisor por vez. Sem isto, cada ./run-backend.sh
 # extra (entre sessões) vira mais um loop brigando pela :7777 — EADDRINUSE infinito
 # a cada 2s + storm de tsx que satura a CPU e engasga o WebSocket (causa real do
@@ -17,7 +24,9 @@ while true; do
   echo "[$(date -Is)] starting cockpit backend on :7777"
   # Mata um listener órfão na :7777 antes de subir, pra nunca cair no EADDRINUSE.
   fuser -k 7777/tcp 2>/dev/null && sleep 1
-  COCKPIT_PORT=7777 npx tsx server/index.ts
+  # 9>&-: o inner não herda o fd do flock. Se sobrevivesse ao supervisor (órfão de
+  # freeze/OOM) seguraria o lock e nenhum supervisor novo subiria.
+  COCKPIT_PORT=7777 npx tsx server/index.ts 9>&-
   echo "[$(date -Is)] backend exited ($?), restarting in 2s"
   sleep 2
 done

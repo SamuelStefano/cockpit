@@ -3,11 +3,15 @@ import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { attachWs, killAllRuns, runStats } from './ws';
+import { threads } from './ws/runs';
+import { broadcast } from './ws/broadcast';
 import { makeStatic } from './static';
 import { sweepAttachments } from './attachments';
 import { checkpointWal, sweepUsage } from './db';
 import { sweepMcpConfigs } from './engine/claude';
 import { loadManagedEnv } from './admin-ops';
+import { loadRouting } from './router/state';
+import { startRouteBroadcast } from './ws/routes';
 import { CONFIG } from './config';
 
 const distDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
@@ -15,6 +19,8 @@ const distDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 async function main() {
   await mkdir(CONFIG.workdir, { recursive: true }); // cwd isolado (DR-004 #4)
   await loadManagedEnv(); // tokens gerenciados (#162) p/ o spawn herdar
+  loadRouting();          // rota ativa + cooldowns; depois do env, que é de onde as chaves saem
+  startRouteBroadcast();
 
   const serveStatic = makeStatic(distDir);
 
@@ -51,6 +57,12 @@ async function main() {
   const shutdown = (code: number) => {
     if (closing) return;
     closing = true;
+    // Paridade com o gracefulShutdown do agent.ts (PR #390): sem este aviso, um
+    // restart local (tsx watch, supervisor, Ctrl-C) matava os turnos em voo SEM
+    // nenhum frame pro cliente — o chat "parava do nada" com o spinner eterno.
+    for (const sessionKey of threads.keys()) {
+      broadcast({ t: 'error', sessionKey, message: 'Servidor reiniciado — turno interrompido. Mande a mensagem de novo.' });
+    }
     killAllRuns();
     setTimeout(() => process.exit(code), 300);
   };
