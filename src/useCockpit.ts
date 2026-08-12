@@ -15,7 +15,7 @@ import { insertCompact } from './cockpit/insert-compact';
 import { useTerminals, type TermApi } from './cockpit/useTerminals';
 import { addThumb, shouldRequestThumb } from './lib/att-thumb-cache';
 import { fileSig, isFreshUpload } from './components/chat/dedupe-uploads';
-import { encodeAttachments } from './lib/parse-attachments';
+import { encodeAttachments, parseAttachments } from './lib/parse-attachments';
 import { loadPendingAtts, savePendingAtts, addPendingAtt, movePendingAtts, clearPendingAtts } from './lib/pending-atts';
 
 // Aviso de uma troca já feita — some assim que vira toast. O estado que a UI lê de
@@ -206,6 +206,7 @@ export interface Cockpit {
   queueClear: (sessionKey: string) => void;
   queuePaused: boolean;
   queueSetPaused: (v: boolean) => void;
+  queueRetry: (sessionKey: string, id: string) => void;
 }
 
 export function useCockpit(): Cockpit {
@@ -529,6 +530,15 @@ export function useCockpit(): Cockpit {
     switch (msg.t) {
       case 'mcp-servers': { setMcpServers(msg.servers); return; }
       case 'queue': { setQueue(msg.items); setQueuePausedState(msg.paused); return; }
+      // Servidor recusou o enfileiramento (fila cheia, prompt grande demais): o
+      // composer já limpou o texto e a fila não ecoa bolha nenhuma — sem devolver
+      // aqui, o prompt sumia igual ao furo do WS fechado.
+      case 'queue-reject': {
+        updateThread(msg.sessionKey, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ O item não entrou na fila: ${msg.message}. O texto voltou pro composer.` }], error: true }]);
+        const body = parseAttachments(msg.text).body;
+        setDrafts((d) => ({ ...d, [msg.sessionKey]: d[msg.sessionKey] || body }));
+        return;
+      }
       case 'caps': {
         capsRef.current = msg.caps;
         setCaps(msg.caps);
@@ -1443,6 +1453,7 @@ export function useCockpit(): Cockpit {
   const queueMove = useCallback((sessionKey: string, id: string, dir: -1 | 1) => { send({ t: 'queue-move', sessionKey, id, dir }); }, [send]);
   const queueClear = useCallback((sessionKey: string) => { send({ t: 'queue-clear', sessionKey }); }, [send]);
   const queueSetPaused = useCallback((v: boolean) => { send({ t: 'queue-set-paused', paused: v }); }, [send]);
+  const queueRetry = useCallback((sessionKey: string, id: string) => { send({ t: 'queue-retry', sessionKey, id }); }, [send]);
 
   const onUpload = useCallback((file: File) => {
     const key = activeRef.current;
@@ -1876,5 +1887,5 @@ export function useCockpit(): Cockpit {
     savePref('modelBySession', keep);
   }, [modelBySession]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, cronsLoaded, onCronsGet, onCronSave, onCronDelete, onCronRun, points, pointsTotal, pointsLoaded, onPointsGet, onPointsAdd, onPointsCorrect, onPointsNote, onPointsDelete, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync, onDflChange, onDflInvoice, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, routes, routeSwitch, dismissRouteSwitch, onRoutesGet, onRoutesEnable, onRouteSet, onRouteConfig, onRouteCustomAdd, onRouteCustomRemove, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused };
+  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, cronsLoaded, onCronsGet, onCronSave, onCronDelete, onCronRun, points, pointsTotal, pointsLoaded, onPointsGet, onPointsAdd, onPointsCorrect, onPointsNote, onPointsDelete, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync, onDflChange, onDflInvoice, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, routes, routeSwitch, dismissRouteSwitch, onRoutesGet, onRoutesEnable, onRouteSet, onRouteConfig, onRouteCustomAdd, onRouteCustomRemove, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry };
 }

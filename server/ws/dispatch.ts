@@ -24,8 +24,8 @@ import { collectHealth } from '../health';
 import { setEnv, unsetEnv, addMcp, removeMcp, installCli } from '../admin-ops';
 import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
-import { threads, startRun, routeSend, stopSession } from './runs';
-import { addParked, removeParked, editParked, moveParked, clearParked, parkedView, isQueuePaused, setQueuePaused } from './parked';
+import { threads, startRun, routeSend, stopSession, drainParked } from './runs';
+import { addParked, removeParked, editParked, moveParked, clearParked, retryParked, parkedView, isQueuePaused, setQueuePaused, REJECT_MESSAGE } from './parked';
 import { refreshModels } from './models';
 import { handleRouteMsg } from './routes';
 import { sendDurableSnapshot } from './snapshot';
@@ -451,7 +451,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     // snapshot pra todos os aparelhos verem a fila mudar ao vivo.
     case 'queue-add': {
       const disallowedSkills = await resolveSkillDeny(msg.skills);
-      addParked(msg.sessionKey, {
+      const r = addParked(msg.sessionKey, {
         prompt: msg.text,
         resumeId: msg.sessionId,
         mode: msg.mode,
@@ -463,7 +463,16 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
         disallowedSkills,
         mcps: msg.mcps,
       });
+      // Recusa muda apagava o prompt: o composer limpa o texto ao enfileirar e a
+      // fila não ecoa bolha nenhuma. Devolve o texto pro cliente com o motivo.
+      if ('reject' in r) {
+        send(ws, { t: 'queue-reject', sessionKey: msg.sessionKey, text: msg.text, message: REJECT_MESSAGE[r.reject] });
+        return;
+      }
       broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      // Enfileirar com a sessão já ociosa (turno morreu, quota voltou) esperava o
+      // tick de 30s à toa. No processo sem drainer isto é no-op.
+      drainParked();
       return;
     }
     case 'queue-remove': {
@@ -489,6 +498,14 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'queue-set-paused': {
       setQueuePaused(msg.paused === true);
       broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      if (msg.paused !== true) drainParked(); // retomar não espera o próximo tick
+      return;
+    }
+    // Destrava o item que bateu o teto de tentativas e tenta de novo na hora.
+    case 'queue-retry': {
+      retryParked(msg.sessionKey, msg.id);
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      drainParked();
       return;
     }
     case 'queue-get': {

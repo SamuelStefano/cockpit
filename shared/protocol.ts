@@ -235,7 +235,9 @@ export interface RoutesSnapshot {
 // rodar "quando der" — o drainer no servidor dispara sozinho quando a sessão fica
 // ociosa E a quota volta, sem depender do browser aberto. Projeção enviada ao
 // cliente: só o necessário pra a UI listar/gerenciar (params server-only não vazam).
-export interface ParkedView { sessionKey: string; id: string; text: string; at: number }
+// `held` = o item subiu, o turno morreu sem consumi-lo e ele bateu o teto de
+// tentativas: fica guardado mas para de ser redisparado até o usuário mandar retomar.
+export interface ParkedView { sessionKey: string; id: string; text: string; at: number; held?: boolean }
 
 // --- WebSocket protocol ----------------------------------------------------
 
@@ -558,6 +560,7 @@ export type ClientMsg =
   | { t: 'queue-move'; sessionKey: string; id: string; dir: -1 | 1 }
   | { t: 'queue-clear'; sessionKey: string }
   | { t: 'queue-set-paused'; paused: boolean }
+  | { t: 'queue-retry'; sessionKey: string; id: string }
   | { t: 'queue-get' };
 
 // Capabilities da conexão (DR-011). role = papel do ator (hoje sempre admin em
@@ -658,4 +661,6 @@ export type ServerMsg =
   // Tópicos de continuação sugeridos pós-turno (chips selecionáveis, estilo ChatGPT).
   | { t: 'suggestions'; sessionKey: string; items: string[] }
   | { t: 'queue'; items: ParkedView[]; paused: boolean }
+  // O enfileiramento foi recusado: devolve o texto pro cliente restaurar o composer.
+  | { t: 'queue-reject'; sessionKey: string; text: string; message: string }
   | { t: 'error'; sessionKey?: string; message: string };

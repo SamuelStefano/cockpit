@@ -13,6 +13,7 @@ function setup(queue: ParkedView[], sessionId = 's1') {
   const queueEdit = vi.fn();
   const queueMove = vi.fn();
   const queueClear = vi.fn();
+  const queueRetry = vi.fn();
   const props = {
     session: { id: sessionId } as Session,
     messages: [] as Message[],
@@ -26,11 +27,12 @@ function setup(queue: ParkedView[], sessionId = 's1') {
     queueEdit,
     queueMove,
     queueClear,
+    queueRetry,
   };
   const hook = renderHook((p: { queue: ParkedView[] }) => useChatPanel({ ...props, queue: p.queue }), {
     initialProps: { queue },
   });
-  return { hook, queueAdd, queueRemove, queueEdit, queueMove, queueClear };
+  return { hook, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry };
 }
 
 const pv = (id: string, text: string, at: number, sessionKey = 's1'): ParkedView => ({ sessionKey, id, text, at });
@@ -103,6 +105,7 @@ describe('useChatPanel fila (server-backed)', () => {
       queueEdit: vi.fn(),
       queueMove: vi.fn(),
       queueClear,
+      queueRetry: vi.fn(),
     }));
     expect(hook.result.current.queued).toEqual([]);
     hook.result.current.clearQueue();
