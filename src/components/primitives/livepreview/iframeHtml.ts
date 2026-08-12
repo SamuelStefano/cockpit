@@ -58,6 +58,16 @@ export const IFRAME_HTML = [
   '  errEl.textContent="";',
   '  if(root){root.unmount();root=null;}',
   '  mountEl.innerHTML=html;',
+  // `innerHTML` não executa <script> (spec HTML). Sem re-criar os nós, um
+  // preview-html interativo pinta a marcação e morre em silêncio: sem erro,
+  // sem log, só a casca estática na tela.
+  '  var ss=mountEl.querySelectorAll("script");',
+  '  for(var i=0;i<ss.length;i++){',
+  '    var o=ss[i],n=document.createElement("script");',
+  '    for(var j=0;j<o.attributes.length;j++)n.setAttribute(o.attributes[j].name,o.attributes[j].value);',
+  '    n.textContent=o.textContent;',
+  '    o.parentNode.replaceChild(n,o);',
+  '  }',
   '  requestAnimationFrame(function(){setTimeout(reportHeight,0);});',
   '}',
   'window.addEventListener("message",function(e){',
