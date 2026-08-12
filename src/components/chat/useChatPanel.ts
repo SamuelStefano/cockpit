@@ -1,5 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { prettyModel } from './toolbar.format';
+import { pendingQuestionIdx } from '../../cockpit/pending-question';
 import type { Session, Message } from '../../data/mock';
 import type { PermMode, ModelInfo, ParkedView } from '../../../shared/protocol';
 import { parseAttachments, replaceBody } from '../../lib/parse-attachments';
@@ -82,15 +83,13 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
     [models, modelLabel],
   );
 
-  // Pergunta de escolha (AskUserQuestion) como última mensagem: o drainer do servidor
-  // já segura a fila enquanto o turno tiver pergunta pendente; aqui só sinalizamos ao
-  // banner pra não oferecer retomada por cima do card de escolha.
-  const pendingQuestion = phase === 'idle' && (() => {
-    const last = messages[messages.length - 1];
-    return !!last && last.role === 'assistant' && last.blocks.some(
-      (b) => b.type === 'tool' && b.tool.name === 'AskUserQuestion' && (b.tool.questions?.length ?? 0) > 0,
-    );
-  })();
+  // Pergunta de escolha (AskUserQuestion) pendente. Mesma régua do clamp de render
+  // (pendingQuestionIdx): a última pergunta DEPOIS do último prompt do usuário, não
+  // a última mensagem crua — se a continuação auto-resolvida vazar pra uma bolha
+  // nova, o check por "última msg" dava false e o banner oferecia retomada por cima
+  // do card. E não gateia por `idle`: durante o kill do `claude -p` a phase segue
+  // não-idle, mas a pergunta já está pendente e precisa ser respondível.
+  const pendingQuestion = useMemo(() => pendingQuestionIdx(messages) !== -1, [messages]);
 
   // Id do prompt mais recente do usuário — alvo do botão "voltar ao meu prompt".
   const lastUserId = useMemo(() => {
