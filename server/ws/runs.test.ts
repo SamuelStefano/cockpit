@@ -7,6 +7,7 @@ import { awaitingAnswer } from './awaiting';
 import { broadcast } from './broadcast';
 import { run } from '../engine/claude';
 import { parkedHeads, shiftParked, unshiftParked, addParked, isQueuePaused, type ParkedItem } from './parked';
+import { resumableId } from './resume';
 import { quotaHold } from './quota';
 import { reportOutcome } from '../router/state';
 
@@ -15,9 +16,11 @@ vi.mock('../engine/claude', () => ({ run: vi.fn(() => ({ kill: vi.fn() })) }));
 // parked.json real do usuário nem depender da quota da conta.
 vi.mock('./parked', () => ({
   parkedHeads: vi.fn(() => []), shiftParked: vi.fn(), unshiftParked: vi.fn(() => 1),
-  addParked: vi.fn(), parkedView: vi.fn(() => []), isQueuePaused: vi.fn(() => false),
+  addParked: vi.fn(() => ({ id: 'pk-mock' })), parkedView: vi.fn(() => []), isQueuePaused: vi.fn(() => false),
   setQueuePaused: vi.fn(), MAX_PARKED_ATTEMPTS: 3,
 }));
+// Por padrão todo resumeId é vivo; o teste do transcript morto sobrescreve.
+vi.mock('./resume', () => ({ resumableId: vi.fn((id?: string) => id) }));
 vi.mock('./quota', async (orig) => ({ ...(await orig<typeof import('./quota')>()), quotaHold: vi.fn(() => 0) }));
 vi.mock('./broadcast', () => ({ broadcast: vi.fn(), send: vi.fn(), setWss: vi.fn() }));
 vi.mock('./translate', () => ({ translate: vi.fn() }));
@@ -426,6 +429,29 @@ describe('fila estacionada — teto de tokens', () => {
     drainParked();
     expect(run).not.toHaveBeenCalled();
     expect(unshiftParked).toHaveBeenCalledWith('bad key!', it0);
+  });
+
+  // O item segurado é o TOPO da fila e a fila drena do topo: sem o skip, o drainer
+  // redispararia pra sempre o item que já falhou 3x e nenhum item atrás dele sairia.
+  it('pula o item segurado sem travar o tick', () => {
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's5', first: item({ held: true }) }]);
+    drainParked();
+    expect(shiftParked).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  // resumeId apontando pra transcript apagado fazia o turno morrer na hora: 3 tentativas
+  // e o item ficava segurado sem ninguém entender por quê.
+  it('transcript morto vira turno novo em vez de falhar', () => {
+    vi.mocked(recordIncident).mockClear();
+    vi.mocked(resumableId).mockReturnValueOnce(undefined);
+    const it0 = item({ resumeId: 'sess-apagada' });
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's6', first: it0 }]);
+    vi.mocked(shiftParked).mockReturnValue(it0);
+    drainParked();
+    expect(run).toHaveBeenCalledOnce();
+    expect(vi.mocked(run).mock.calls[0][0].resumeId).toBeUndefined();
+    expect(recordIncident).toHaveBeenCalledWith(expect.objectContaining({ kind: 'parked-resume-morto', sessionKey: 's6' }));
   });
 
   it('sem token, a fila in-turn vira estacionada em vez de disparar', () => {

@@ -41,6 +41,8 @@ export interface ParkedItem {
   at: number;
   // Quantas vezes este item já voltou pra fila depois de um turno que não o consumiu.
   attempts?: number;
+  // Bateu o teto de tentativas: continua guardado, mas o drainer para de disparar.
+  held?: boolean;
 }
 
 // Teto de reenfileiramentos do MESMO item. Uma falha determinística (spawn quebrado,
@@ -70,6 +72,7 @@ export function coerceItem(o: unknown): ParkedItem | null {
     mcps: Array.isArray(r.mcps) ? r.mcps.filter((x): x is string => typeof x === 'string') : undefined,
     at: typeof r.at === 'number' ? r.at : Date.now(),
     attempts: typeof r.attempts === 'number' ? r.attempts : undefined,
+    held: r.held === true ? true : undefined,
   };
 }
 
@@ -149,7 +152,7 @@ export function parkedView(): ParkedView[] {
   const map = loadParked();
   const out: ParkedView[] = [];
   for (const [sessionKey, items] of Object.entries(map)) {
-    for (const it of items) out.push({ sessionKey, id: it.id, text: it.prompt, at: it.at });
+    for (const it of items) out.push({ sessionKey, id: it.id, text: it.prompt, at: it.at, ...(it.held ? { held: true } : {}) });
   }
   return out;
 }
@@ -158,20 +161,31 @@ function newParkedId(): string {
   return `pk-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// Enfileira. Retorna o id novo ou null (chave inválida, prompt grande, teto).
-export function addParked(sessionKey: string, item: Omit<ParkedItem, 'id' | 'at'>): string | null {
-  if (!SESSION_KEY_RE.test(sessionKey)) return null;
-  if (typeof item.prompt !== 'string' || Buffer.byteLength(item.prompt) > CONFIG.maxPromptBytes) return null;
+// Por que um enfileiramento foi recusado. O chamador PRECISA saber: o cliente já
+// limpou o composer quando mandou, então uma recusa muda apaga o texto do usuário.
+export type ParkedReject = 'sessao-invalida' | 'prompt-grande' | 'fila-cheia' | 'sessoes-demais';
+
+export const REJECT_MESSAGE: Record<ParkedReject, string> = {
+  'sessao-invalida': 'sessão inválida',
+  'prompt-grande': 'o texto passa do tamanho máximo de um prompt',
+  'fila-cheia': `a fila desta sessão está no teto de ${MAX_PARKED} itens`,
+  'sessoes-demais': `já há ${MAX_SESSIONS} sessões com fila`,
+};
+
+// Enfileira. Retorna o id novo ou o motivo da recusa.
+export function addParked(sessionKey: string, item: Omit<ParkedItem, 'id' | 'at'>): { id: string } | { reject: ParkedReject } {
+  if (!SESSION_KEY_RE.test(sessionKey)) return { reject: 'sessao-invalida' };
+  if (typeof item.prompt !== 'string' || Buffer.byteLength(item.prompt) > CONFIG.maxPromptBytes) return { reject: 'prompt-grande' };
   return withParkedLock(() => {
     const map = loadParked();
     const arr = map[sessionKey] ?? [];
-    if (arr.length >= MAX_PARKED) return null;
-    if (!(sessionKey in map) && Object.keys(map).length >= MAX_SESSIONS) return null;
+    if (arr.length >= MAX_PARKED) return { reject: 'fila-cheia' as const };
+    if (!(sessionKey in map) && Object.keys(map).length >= MAX_SESSIONS) return { reject: 'sessoes-demais' as const };
     const id = newParkedId();
     arr.push({ ...item, id, at: Date.now() });
     map[sessionKey] = arr;
     saveParked(map);
-    return id;
+    return { id };
   });
 }
 
@@ -258,10 +272,28 @@ export function unshiftParked(sessionKey: string, item: ParkedItem): number {
     // aqui apagaria um prompt do usuário pra respeitar um limite que existe só pra
     // barrar acúmulo de itens NOVOS. O teto de attempts é o que impede repetição.
     const attempts = (item.attempts ?? 0) + 1;
-    arr.unshift({ ...item, attempts });
+    // No teto, o item é SEGURADO (não descartado): o drainer para de redisparar só
+    // ele, e as outras sessões seguem drenando. Antes disto o teto pausava a fila
+    // INTEIRA — uma falha determinística de um item travava a fila de todo mundo,
+    // e o aviso ia por broadcast: com o browser fechado, ninguém via a pausa.
+    arr.unshift({ ...item, attempts, ...(attempts >= MAX_PARKED_ATTEMPTS ? { held: true } : {}) });
     map[sessionKey] = arr;
     saveParked(map);
     return attempts;
+  });
+}
+
+// Destrava um item segurado e zera as tentativas: o drainer volta a disparar.
+export function retryParked(sessionKey: string, id: string): boolean {
+  if (!SESSION_KEY_RE.test(sessionKey)) return false;
+  return withParkedLock(() => {
+    const map = loadParked();
+    const it = map[sessionKey]?.find((x) => x.id === id);
+    if (!it) return false;
+    delete it.held;
+    delete it.attempts;
+    saveParked(map);
+    return true;
   });
 }
 

@@ -9,7 +9,8 @@ import { summarize } from '../summary';
 import { classify, quickAnswer, killSideRuns, killSideRunsFor } from '../engine/triage';
 import { suggestFollowups } from '../engine/suggest';
 import { awaitingAnswer } from './awaiting';
-import { parkedHeads, shiftParked, unshiftParked, addParked, parkedView, isQueuePaused, setQueuePaused, MAX_PARKED_ATTEMPTS, type ParkedItem } from './parked';
+import { parkedHeads, shiftParked, unshiftParked, addParked, parkedView, isQueuePaused, MAX_PARKED_ATTEMPTS, REJECT_MESSAGE, type ParkedItem } from './parked';
+import { resumableId } from './resume';
 import { quotaHold, burnedByQuota, planLimited } from './quota';
 import { reportOutcome } from '../router/state';
 import { markRunLive, clearRunLive, takeOrphanRuns } from './recover';
@@ -316,13 +317,17 @@ export function drainParked(): void {
   if (!drainerEnabled) return;
   if (isQueuePaused()) return; // pausa manual do usuário: segura tudo até retomar
   if (quotaHold()) return;     // sem token: o turno morreria no limite e o prompt seria queimado
-  for (const { sessionKey } of parkedHeads()) {
+  for (const { sessionKey, first } of parkedHeads()) {
+    if (first.held) continue;                   // bateu o teto de tentativas: espera o usuário mandar retomar
     if (resolveThreadKey(sessionKey)) continue; // turno rodando: um por vez
     const item = shiftParked(sessionKey);
     if (!item) continue;
     // ws null: run sem cliente específico (igual cron); o stream vai por broadcast.
-    // resumeId = a sessão onde o item foi enfileirado, pra continuar a conversa.
-    startRun(null, sessionKey, item.prompt, item.resumeId, undefined, item.mode, item.model, item.maxBudgetUsd, item.bypass, item.role, item.disallowedSkills, item.mcps, item.effort);
+    // resumeId = a sessão onde o item foi enfileirado, pra continuar a conversa —
+    // se aquele transcript não existe mais, roda como turno novo em vez de morrer.
+    const resume = resumableId(item.resumeId);
+    if (item.resumeId && !resume) recordIncident({ kind: 'parked-resume-morto', sessionKey, sessionId: item.resumeId, detail: `item ${item.id} disparado como turno novo` });
+    startRun(null, sessionKey, item.prompt, resume, undefined, item.mode, item.model, item.maxBudgetUsd, item.bypass, item.role, item.disallowedSkills, item.mcps, item.effort);
     // O run pode nem ter subido (teto de sessões simultâneas): sem isto o item já
     // saiu do disco e o prompt sumia. Subiu = fica amarrado ao thread pra voltar
     // pra fila se o teto de tokens matar o turno.
@@ -344,6 +349,11 @@ export function startParkedDrainer(intervalMs = 30_000): void {
   if (parkedTimer) return;
   parkedTimer = setInterval(drainParked, intervalMs);
   parkedTimer.unref?.();
+  // Primeira passada logo no boot: o restart do agente (deploy, OOM) zera o tick, e
+  // sem isto a fila ficava parada até o primeiro intervalo mesmo com a sessão ociosa.
+  // Depois da retomada dos órfãos (15s), pra não subir um item numa sessão que o
+  // resumeOrphanRuns vai reocupar.
+  setTimeout(drainParked, Math.min(intervalMs, 16_000)).unref?.();
 }
 
 // Devolve o item pro topo da fila. No teto de tentativas pausa a fila inteira: o
@@ -351,9 +361,8 @@ export function startParkedDrainer(intervalMs = 30_000): void {
 // 30s por uma falha que se repete.
 function requeueParked(sessionKey: string, item: ParkedItem): void {
   const attempts = unshiftParked(sessionKey, item);
-  if (attempts >= MAX_PARKED_ATTEMPTS && !isQueuePaused()) {
-    setQueuePaused(true);
-    broadcast({ t: 'error', sessionKey, message: `Este item da fila falhou ${attempts}x sem produzir nada. A fila foi pausada e o prompt continua guardado.` });
+  if (attempts >= MAX_PARKED_ATTEMPTS) {
+    broadcast({ t: 'error', sessionKey, message: `Este item da fila falhou ${attempts}x sem produzir nada. Ele está guardado e segurado — use "retomar" na fila pra tentar de novo.` });
     recordIncident({ kind: 'parked-requeue-cap', sessionKey, detail: `item ${item.id} devolvido ${attempts}x` });
   }
   broadcastQueue();
@@ -594,7 +603,7 @@ function parkPending(sessionKey: string, resumeId?: string): void {
   if (!arr || arr.length === 0) return;
   pending.delete(sessionKey);
   for (const it of arr) {
-    addParked(sessionKey, {
+    const r = addParked(sessionKey, {
       prompt: it.merge ? `Complemento do pedido anterior:\n\n${it.prompt}` : it.prompt,
       resumeId,
       mode: it.mode,
@@ -606,6 +615,12 @@ function parkPending(sessionKey: string, resumeId?: string): void {
       disallowedSkills: it.disallowedSkills,
       mcps: it.mcps,
     });
+    // Recusa aqui apagaria um prompt que o usuário já mandou: a migração é a última
+    // parada dele (a fila in-turn vive só em memória). Avisa em vez de sumir.
+    if ('reject' in r) {
+      broadcast({ t: 'error', sessionKey, message: `Um prompt em espera não coube na fila (${REJECT_MESSAGE[r.reject]}) e foi perdido. Reenvie: ${it.prompt.slice(0, 120)}` });
+      recordIncident({ kind: 'parked-migrate-reject', sessionKey, detail: r.reject });
+    }
   }
   broadcastQueue();
 }

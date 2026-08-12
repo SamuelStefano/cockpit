@@ -32,7 +32,7 @@ describe('queueStatusLabel', () => {
 
   it('preserva os avisos de pausa e de espera', () => {
     expect(queueStatusLabel('paused', 2)).toContain('fila pausada (2)');
-    expect(queueStatusLabel('held', 2)).toContain('fila em espera (2)');
+    expect(queueStatusLabel('held', 2)).toContain('fila parada (2)');
   });
 });
 

@@ -22,9 +22,10 @@ interface Args {
   queueEdit: (sessionKey: string, id: string, text: string) => void;
   queueMove: (sessionKey: string, id: string, dir: -1 | 1) => void;
   queueClear: (sessionKey: string) => void;
+  queueRetry: (sessionKey: string, id: string) => void;
 }
 
-export function useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear }: Args) {
+export function useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry }: Args) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -56,6 +57,11 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   };
   // Reordenar: -1 sobe, +1 desce.
   const moveQueuedItem = (i: number, dir: -1 | 1) => { const it = parked[i]; if (it) queueMove(it.sessionKey, it.id, dir); };
+  // Item segurado pelo teto de tentativas: o drainer não o dispara mais até o
+  // usuário mandar retomar. Como a fila drena do topo, segurar o 1º trava esta
+  // sessão — é o que o banner precisa anunciar.
+  const queueHeld = parked.length > 0 && parked[0].held === true;
+  const resumeQueue = () => { const it = parked[0]; if (it) queueRetry(it.sessionKey, it.id); };
 
   const streaming = phase === 'streaming';
   const disabled = phase !== 'idle';
@@ -189,7 +195,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
 
   return {
     scrollRef, atBottom, promptAbove, onScroll, scrollToBottom, scrollToLastPrompt, captureAnchor,
-    queued, queuedAtts, enqueue, clearQueue, cancelQueueAt, editQueuedAt, moveQueuedItem, fullLoaded, setFullLoaded,
+    queued, queuedAtts, enqueue, clearQueue, cancelQueueAt, editQueuedAt, moveQueuedItem, queueHeld, resumeQueue, fullLoaded, setFullLoaded,
     streaming, disabled, isEmpty,
     sentHistory, modelLabel, labelFor,
     planPending, pendingQuestion, failed, retryLast, bannerConfirm,

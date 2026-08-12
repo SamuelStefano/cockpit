@@ -17,7 +17,13 @@ process.env.COCKPIT_PARKED = PARKED_FILE;
 process.env.COCKPIT_QUEUE_PAUSE = PAUSE_FILE;
 
 const mod = await import('./parked');
-const { addParked, removeParked, editParked, moveParked, shiftParked, unshiftParked, parkedHeads, parkedView, clearParked, isQueuePaused, setQueuePaused } = mod;
+const { addParked, retryParked, removeParked, editParked, moveParked, shiftParked, unshiftParked, parkedHeads, parkedView, clearParked, isQueuePaused, setQueuePaused } = mod;
+
+// addParked devolve { id } | { reject }; nos testes que só querem o id, isto encurta.
+const add = (key: string, item: Parameters<typeof addParked>[1]): string => {
+  const r = addParked(key, item);
+  return 'id' in r ? r.id : '';
+};
 
 beforeEach(() => {
   rmSync(PARKED_FILE, { force: true });
@@ -27,15 +33,15 @@ afterAll(() => rmSync(DIR, { recursive: true, force: true }));
 
 describe('parked fila (persistência)', () => {
   it('add/parkedView roundtrip com metadados', () => {
-    const id = addParked('sess1', { prompt: 'oi', model: 'opus' });
+    const id = add('sess1', { prompt: 'oi', model: 'opus' });
     expect(id).toBeTruthy();
     const view = parkedView();
     expect(view).toEqual([{ sessionKey: 'sess1', id, text: 'oi', at: expect.any(Number) }]);
   });
 
   it('editParked troca o texto no lugar (mesma posição, id e `at`)', () => {
-    addParked('s', { prompt: 'a' });
-    const id = addParked('s', { prompt: 'b', model: 'opus' })!;
+    add('s', { prompt: 'a' });
+    const id = add('s', { prompt: 'b', model: 'opus' });
     const before = parkedView().find((v) => v.id === id)!;
     editParked('s', id, 'b corrigido', 'student');
     const after = parkedView();
@@ -48,7 +54,7 @@ describe('parked fila (persistência)', () => {
   });
 
   it('editParked é no-op com chave inválida, id inexistente ou texto vazio', () => {
-    const id = addParked('s', { prompt: 'a' })!;
+    const id = add('s', { prompt: 'a' });
     editParked('bad key!', id, 'x', 'admin');
     editParked('s', 'pk-fantasma', 'x', 'admin');
     editParked('s', id, '   ', 'admin');
@@ -56,7 +62,7 @@ describe('parked fila (persistência)', () => {
   });
 
   it('student não reescreve item enfileirado por admin (herdaria o bypass)', () => {
-    const id = addParked('s', { prompt: 'a', role: 'admin', bypass: true })!;
+    const id = add('s', { prompt: 'a', role: 'admin', bypass: true });
     editParked('s', id, 'rm -rf', 'student');
     expect(parkedView().map((v) => v.text)).toEqual(['a']);
     editParked('s', id, 'a revisado', 'admin');
@@ -64,12 +70,12 @@ describe('parked fila (persistência)', () => {
   });
 
   it('rejeita sessionKey inválida', () => {
-    expect(addParked('bad key!', { prompt: 'x' })).toBeNull();
+    expect(addParked('bad key!', { prompt: 'x' })).toEqual({ reject: 'sessao-invalida' });
   });
 
   it('shiftParked drena FIFO e some do disco ao esvaziar', () => {
-    addParked('s', { prompt: 'a' });
-    addParked('s', { prompt: 'b' });
+    add('s', { prompt: 'a' });
+    add('s', { prompt: 'b' });
     expect(shiftParked('s')?.prompt).toBe('a');
     expect(shiftParked('s')?.prompt).toBe('b');
     expect(shiftParked('s')).toBeUndefined();
@@ -77,9 +83,9 @@ describe('parked fila (persistência)', () => {
   });
 
   it('moveParked reordena e respeita bordas', () => {
-    const a = addParked('s', { prompt: 'a' })!;
-    addParked('s', { prompt: 'b' })!;
-    const c = addParked('s', { prompt: 'c' })!;
+    const a = add('s', { prompt: 'a' });
+    add('s', { prompt: 'b' });
+    const c = add('s', { prompt: 'c' });
     moveParked('s', c, -1);
     expect(parkedView().map((v) => v.text)).toEqual(['a', 'c', 'b']);
     moveParked('s', a, -1); // topo não sobe
@@ -87,8 +93,8 @@ describe('parked fila (persistência)', () => {
   });
 
   it('removeParked tira só o item; clearParked zera a sessão', () => {
-    const a = addParked('s', { prompt: 'a' })!;
-    addParked('s', { prompt: 'b' });
+    const a = add('s', { prompt: 'a' });
+    add('s', { prompt: 'b' });
     removeParked('s', a);
     expect(parkedView().map((v) => v.text)).toEqual(['b']);
     clearParked('s');
@@ -98,8 +104,8 @@ describe('parked fila (persistência)', () => {
 
 describe('unshiftParked (devolução)', () => {
   it('devolve pro topo preservando id e posição', () => {
-    const a = addParked('s', { prompt: 'a' })!;
-    addParked('s', { prompt: 'b' });
+    const a = add('s', { prompt: 'a' });
+    add('s', { prompt: 'b' });
     const first = shiftParked('s')!;
     expect(unshiftParked('s', first)).toBe(1);
     expect(parkedView().map((v) => v.text)).toEqual(['a', 'b']);
@@ -107,7 +113,7 @@ describe('unshiftParked (devolução)', () => {
   });
 
   it('conta as tentativas pra o chamador poder cortar o loop', () => {
-    addParked('s', { prompt: 'a' });
+    add('s', { prompt: 'a' });
     let item = shiftParked('s')!;
     expect(unshiftParked('s', item)).toBe(1);
     item = shiftParked('s')!;
@@ -117,17 +123,39 @@ describe('unshiftParked (devolução)', () => {
   });
 
   it('não duplica item que já está na fila', () => {
-    addParked('s', { prompt: 'a' });
+    add('s', { prompt: 'a' });
     const item = shiftParked('s')!;
     unshiftParked('s', item);
     expect(unshiftParked('s', item)).toBe(0);
     expect(parkedView()).toHaveLength(1);
   });
 
+  it('no teto de tentativas o item fica SEGURADO (guardado, mas fora do dreno)', () => {
+    add('s', { prompt: 'a' });
+    let item = shiftParked('s')!;
+    unshiftParked('s', item);
+    expect(parkedView()[0].held).toBeUndefined();
+    item = shiftParked('s')!;
+    unshiftParked('s', item);
+    item = shiftParked('s')!;
+    expect(unshiftParked('s', item)).toBe(3);
+    expect(parkedView()[0].held).toBe(true);
+    expect(parkedHeads()[0].first.held).toBe(true);
+  });
+
+  it('retryParked destrava o item e zera as tentativas', () => {
+    const id = add('s', { prompt: 'a' });
+    for (let i = 0; i < 3; i++) unshiftParked('s', shiftParked('s')!);
+    expect(retryParked('s', id)).toBe(true);
+    expect(parkedView()[0].held).toBeUndefined();
+    expect(parkedHeads()[0].first.attempts).toBeUndefined();
+    expect(retryParked('s', 'pk-fantasma')).toBe(false);
+  });
+
   it('fila cheia não engole a devolução', () => {
-    for (let i = 0; i < 50; i++) addParked('s', { prompt: `p${i}` });
+    for (let i = 0; i < 50; i++) add('s', { prompt: `p${i}` });
     const item = shiftParked('s')!;
-    for (let i = 0; i < 2; i++) addParked('s', { prompt: `extra${i}` });
+    for (let i = 0; i < 2; i++) add('s', { prompt: `extra${i}` });
     expect(unshiftParked('s', item)).toBe(1);
     expect(parkedView()[0].id).toBe(item.id);
   });
@@ -137,7 +165,7 @@ describe('lock cross-process', () => {
   const LOCK_FILE = `${PARKED_FILE}.lock`;
 
   it('não deixa lock pra trás depois da operação', () => {
-    addParked('s', { prompt: 'a' });
+    add('s', { prompt: 'a' });
     shiftParked('s');
     expect(existsSync(LOCK_FILE)).toBe(false);
   });
@@ -146,7 +174,7 @@ describe('lock cross-process', () => {
     writeFileSync(LOCK_FILE, '');
     const velho = Date.now() / 1000 - 60;
     utimesSync(LOCK_FILE, velho, velho);
-    expect(addParked('s', { prompt: 'a' })).toBeTruthy();
+    expect(addParked('s', { prompt: 'a' })).toHaveProperty('id');
     rmSync(LOCK_FILE, { force: true });
   });
 
