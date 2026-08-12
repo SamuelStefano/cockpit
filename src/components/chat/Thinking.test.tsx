@@ -89,4 +89,11 @@ describe('ThinkingDots', () => {
     const after = container.querySelector('.spinner-star')!.textContent;
     expect(after).not.toBe(before);
   });
+
+  it('compactando troca o verbo pela barra em movimento', () => {
+    const { container } = render(<ThinkingDots live={{ tokens: 0, compactingSince: Date.now() - 5000 }} />);
+    expect(container.textContent).toContain('Compactando a conversa…');
+    expect(container.querySelector('.sweep')).not.toBeNull();
+    expect(SPINNER_VERBS.some((v) => container.textContent?.includes(`${v}…`))).toBe(false);
+  });
 });

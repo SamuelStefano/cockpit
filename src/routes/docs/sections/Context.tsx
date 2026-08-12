@@ -17,6 +17,12 @@ export function Context() {
           nada se perde de verdade — o histórico completo continua no disco. Ao reabrir a sessão o Deck já mostra a timeline
           completa (não só a cadeia pós-compactação), e <span className="font-medium text-neutral-300">“carregar antigas”</span> pagina pra trás sem teto.
         </InfoCard>
+        <InfoCard icon="sparkles" iconClass="text-orange-300" title="“Compactando a conversa…”">
+          Compactar leva minutos e o CLI não emite nada nesse meio-tempo — o chat parecia congelado no meio do turno.
+          Agora, quando o silêncio se estende com o contexto perto do teto e sem ferramenta aberta, o indicador de
+          “Pensando…” vira <span className="font-medium text-neutral-300">“Compactando a conversa…”</span> com barra em movimento e cronômetro.
+          Ele some sozinho no primeiro sinal de vida do turno.
+        </InfoCard>
         <InfoCard icon="zap" iconClass="text-orange-300" title="Tokens por turno (a régua certa)">
           O número embaixo de cada resposta = <span className="font-medium text-neutral-300">trabalho novo</span> do turno: entrada + escrita de cache + saída,
           somando todas as chamadas internas. <span className="font-medium text-neutral-300">Releitura de cache fica de fora</span> — cada chamada relê o prefixo
