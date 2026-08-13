@@ -245,9 +245,6 @@ export interface RouteView {
 
 export interface RoutesSnapshot {
   enabled: boolean;
-  // Cascata ligada: o turno tenta primeiro no provedor barato e refaz no plano se
-  // não entregar.
-  cascade: boolean;
   activeId: string;
   // Provedor onde a tentativa barata rodaria agora; null = nenhum elegível (sem
   // chave, em cooldown, ou o failover já jogou a rota ativa num barato).
@@ -506,7 +503,6 @@ export type ClientMsg =
   // cadastrada pelo painel de env (admin-env-set) e referenciada por nome.
   | { t: 'routes-get' }
   | { t: 'routes-enable'; on: boolean }
-  | { t: 'routes-cascade'; on: boolean }
   | { t: 'route-set'; id: string }
   | { t: 'route-config'; id: string; enabled?: boolean; priority?: number }
   | { t: 'route-custom-add'; id: string; label?: string; baseUrl: string; authEnv?: string; authMode?: 'api-key' | 'bearer'; model: string; smallModel?: string; priority?: number }
@@ -535,6 +531,9 @@ export type ClientMsg =
   // Lane de maratona: a sessão marcada roda trabalho longo e desacompanhado, com
   // teto de vida e de retomada próprios.
   | { t: 'set-marathon'; sessionKey: string; on: boolean }
+  // Cascata por sessão: só esta sessão tenta o provedor barato antes do plano. Por
+  // sessão, não global — ligar numa maratona não pode afetar nenhum outro chat.
+  | { t: 'set-cascade-session'; sessionKey: string; on: boolean }
   | { t: 'list-archived' }
   | { t: 'search'; q: string }
   | { t: 'ctx-list' }
@@ -689,6 +688,7 @@ export type ServerMsg =
   | { t: 'plan-usage'; usage: PlanUsage }
   | { t: 'routes'; snapshot: RoutesSnapshot }
   | { t: 'marathon'; keys: string[] }
+  | { t: 'cascade-sessions'; keys: string[] }
   // Troca de rota já feita: o cliente só avisa o usuário (banner/toast).
   | { t: 'route-switch'; from: string; to: string; label: string; reason: string; kind: string; until: number }
   | { t: 'usage'; sessionKey: string; tokens: number; turnTokens?: number }

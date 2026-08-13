@@ -3,7 +3,7 @@ import type { ClientMsg } from '../../shared/protocol';
 import { broadcast, send } from './broadcast';
 import {
   addCustomProvider, allProviders, onRouteChange, removeCustomProvider,
-  routesView, setActiveRoute, setCascadeEnabled, setOverride, setRoutingEnabled,
+  routesView, setActiveRoute, setOverride, setRoutingEnabled,
 } from '../router/state';
 
 // Borda WS do roteador: traduz as mensagens de admin e avisa os clientes quando a
@@ -19,9 +19,6 @@ export function handleRouteMsg(ws: WebSocket, msg: RouteMsg): void {
     case 'routes-enable':
       setRoutingEnabled(!!msg.on);
       return reply(ws, { ok: true, message: msg.on ? 'roteamento ligado' : 'roteamento desligado' });
-    case 'routes-cascade':
-      setCascadeEnabled(!!msg.on);
-      return reply(ws, { ok: true, message: msg.on ? 'cascata ligada' : 'cascata desligada' });
     case 'route-set':
       return reply(ws, setActiveRoute(String(msg.id)));
     case 'route-config':

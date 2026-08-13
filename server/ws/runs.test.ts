@@ -39,6 +39,9 @@ vi.mock('../router/state', () => ({
   switchOnPlanExhausted: vi.fn(() => null),
   cascadeRoute: vi.fn(() => null),
 }));
+// O pedido de cascata é por sessão agora; testes que exercitam a subida de tier
+// ligam explicitamente via mock em vez de depender de um toggle global.
+vi.mock('../router/cascade-session', () => ({ threadWantsCascade: vi.fn(() => true) }));
 
 describe('findStaleThreads', () => {
   const now = 1_000_000_000;

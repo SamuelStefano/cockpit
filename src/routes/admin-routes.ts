@@ -36,15 +36,15 @@ export function cooldownLabel(until: number, now = Date.now()): string | null {
   return rest ? `${h}h${String(rest).padStart(2, '0')}` : `${h}h`;
 }
 
-// A cascata ligada sem provedor barato elegível é um botão verde que não faz nada:
-// o turno segue inteiro no plano e o usuário acha que está economizando. O aviso
+// O toggle de cascata é por sessão (cada chat liga a sua) — não mora neste painel
+// global. Isto só informa o que uma sessão que ligar vai encontrar: sem provedor
+// barato elegível é um interruptor que a sessão liga sem efeito nenhum. O aviso
 // mora aqui pra ficar testável fora do React.
 export function cascadeHint(s: RoutesSnapshot | null): string {
-  if (!s?.cascade) return 'Cada turno vai direto pro modelo do plano.';
-  if (!s.enabled) return 'Sem efeito: o roteamento está desligado.';
+  if (!s?.enabled) return 'Sem efeito: o roteamento está desligado.';
   const cheap = s.routes.find((r) => r.id === s.cascadeId);
   if (!cheap) return 'Sem efeito agora: nenhum provedor barato elegível (falta chave ou está em cooldown).';
-  return `A primeira tentativa de cada turno roda no ${cheap.label}.`;
+  return `Sessões com cascata ligada tentam primeiro no ${cheap.label} e refazem no plano se não entregar.`;
 }
 
 export interface CustomDraft { id: string; baseUrl: string; model: string; authEnv: string }

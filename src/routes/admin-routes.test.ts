@@ -109,25 +109,21 @@ describe('validateCustom', () => {
 
 describe('cascadeHint', () => {
   const snap = (over: Partial<RoutesSnapshot> = {}): RoutesSnapshot => ({
-    enabled: true, cascade: true, cascadeId: 'zai', activeId: 'anthropic-plan', hasFallback: false,
+    enabled: true, cascadeId: 'zai', activeId: 'anthropic-plan', hasFallback: false,
     routes: [route({ id: 'zai', label: 'Z.AI GLM' })], ...over,
   });
 
-  it('sem snapshot ou com cascata desligada, avisa que tudo vai pro plano', () => {
-    expect(cascadeHint(null)).toContain('direto pro modelo do plano');
-    expect(cascadeHint(snap({ cascade: false }))).toContain('direto pro modelo do plano');
-  });
-
-  it('cascata ligada com o roteador desligado não faz nada', () => {
+  it('sem snapshot ou com o roteador desligado não faz nada', () => {
+    expect(cascadeHint(null)).toContain('roteamento está desligado');
     expect(cascadeHint(snap({ enabled: false }))).toContain('roteamento está desligado');
   });
 
-  // O caso que engana: botão verde, nenhum provedor elegível.
-  it('cascata ligada sem provedor elegível avisa que não faz nada', () => {
+  // O caso que engana: sessão liga a cascata, mas nenhum provedor elegível.
+  it('sem provedor elegível avisa que não faz nada', () => {
     expect(cascadeHint(snap({ cascadeId: null }))).toContain('nenhum provedor barato elegível');
   });
 
   it('nomeia o provedor que vai receber a primeira tentativa', () => {
-    expect(cascadeHint(snap())).toBe('A primeira tentativa de cada turno roda no Z.AI GLM.');
+    expect(cascadeHint(snap())).toBe('Sessões com cascata ligada tentam primeiro no Z.AI GLM e refazem no plano se não entregar.');
   });
 });
