@@ -10,6 +10,7 @@ export const NAV: { to: Route; label: string; adminOnly?: boolean }[] = [
   { to: '/uso', label: 'uso' },
   { to: '/play', label: 'playground' },
   { to: '/graph', label: 'graph', adminOnly: true },
+  { to: '/harness', label: 'harness', adminOnly: true },
   { to: '/admin', label: 'admin', adminOnly: true },
   { to: '/docs', label: 'docs' },
 ];

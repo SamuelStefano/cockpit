@@ -256,6 +256,64 @@ export interface RoutesSnapshot {
   hasFallback: boolean;
 }
 
+// Harness de orquestração próprio (motor separado da CLI, ver .sdd/cockpit/agent-harness).
+// Motor V1 = plain @anthropic-ai/sdk (DR-004). Seleção de modelo é SEMPRE explícita
+// (DR-003): 4 modos, e mesmo 'auto' é uma escolha por-task do usuário, nunca herança global.
+export type HarnessContext = 'pentest' | null;
+export type HarnessTier = 'simple' | 'medium' | 'complex';
+export type HarnessMode = 'auto' | 'model' | 'provider' | 'orchestrated';
+
+// auto: classificador sugere um modelo nativo por complexidade.
+// model: modelo nativo Anthropic específico, escolhido na mão.
+// provider: provedor terceiro do catálogo (OpenRouter etc.); o slot vem da complexidade.
+// orchestrated: executor barato + advisor forte (Opus/Fable) supervisionando (advisor tool).
+export type HarnessModelChoice =
+  | { mode: 'auto' }
+  | { mode: 'model'; model: string }
+  | { mode: 'provider'; providerId: string }
+  | { mode: 'orchestrated'; executor: string; advisor: string };
+
+export interface HarnessNativeModel { id: string; label: string; tier: HarnessTier }
+export interface HarnessProviderOption { id: string; label: string; tier: string; configured: boolean }
+// Catálogo que alimenta o seletor da UI (tudo selecionável — pedido do Samuel).
+export interface HarnessConfig {
+  nativeModels: HarnessNativeModel[];
+  providers: HarnessProviderOption[];
+  hasApiKey: boolean; // ANTHROPIC_API_KEY no env gerenciado — sem ela o modo nativo não roda
+}
+
+export interface HarnessTaskView {
+  id: string;
+  ts: number;
+  prompt: string;
+  context: HarnessContext;
+  mode: HarnessMode;
+  tier: HarnessTier;
+  tierReason: string;
+  model: string;         // modelo/label efetivo mostrado ao usuário
+  providerId?: string;   // provedor terceiro, quando houver (null = nativo Anthropic)
+  status: 'running' | 'done' | 'error';
+  resultText?: string;
+  costUsd?: number;
+  costApprox?: boolean;  // custo de provedor terceiro é estimado por tabela Anthropic — marca como aproximado
+  inputTokens?: number;
+  outputTokens?: number;
+  durationMs?: number;
+  error?: string;
+}
+
+export interface HarnessEvent {
+  kind: 'classified' | 'model-selected' | 'text' | 'done' | 'error';
+  tier?: HarnessTier;
+  reason?: string;
+  model?: string;
+  providerId?: string;
+  text?: string;
+  costUsd?: number;
+  costApprox?: boolean;
+  message?: string;
+}
+
 // Fila ESTACIONADA (overnight/quota-out): prompt que o usuário enfileirou pra
 // rodar "quando der" — o drainer no servidor dispara sozinho quando a sessão fica
 // ociosa E a quota volta, sem depender do browser aberto. Projeção enviada ao
@@ -503,6 +561,9 @@ export type ClientMsg =
   // cadastrada pelo painel de env (admin-env-set) e referenciada por nome.
   | { t: 'routes-get' }
   | { t: 'routes-enable'; on: boolean }
+  // Harness de orquestração próprio — motor à parte, ver shared HarnessTaskView.
+  | { t: 'harness-get' }
+  | { t: 'harness-run'; prompt: string; model: HarnessModelChoice; context?: HarnessContext }
   | { t: 'route-set'; id: string }
   | { t: 'route-config'; id: string; enabled?: boolean; priority?: number }
   | { t: 'route-custom-add'; id: string; label?: string; baseUrl: string; authEnv?: string; authMode?: 'api-key' | 'bearer'; model: string; smallModel?: string; priority?: number }
@@ -687,6 +748,10 @@ export type ServerMsg =
   | { t: 'rate'; resetsAt: number; status: string }
   | { t: 'plan-usage'; usage: PlanUsage }
   | { t: 'routes'; snapshot: RoutesSnapshot }
+  | { t: 'harness-config'; config: HarnessConfig }
+  | { t: 'harness-task'; task: HarnessTaskView }
+  | { t: 'harness-event'; taskId: string; event: HarnessEvent }
+  | { t: 'harness-tasks'; tasks: HarnessTaskView[] }
   | { t: 'marathon'; keys: string[] }
   | { t: 'cascade-sessions'; keys: string[] }
   // Troca de rota já feita: o cliente só avisa o usuário (banner/toast).
