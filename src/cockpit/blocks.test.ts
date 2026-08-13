@@ -43,6 +43,20 @@ describe('upsertTool', () => {
     expect(b.diff).toEqual(diff);
     expect(b.status).toBe('done');
   });
+
+  it('aplica o MCP App que chega num frame tardio e o preserva no done', () => {
+    const app = { uri: 'ui://x/v.html', html: '<!doctype html><html></html>' };
+    const running: Block[] = [{ type: 'tool', tool: tool({ name: 'mcp__x__y' }) }];
+    const late = upsertTool(running, tool({ name: 'mcp__x__y', app, appInput: { a: 1 } }));
+    const [withApp] = late as [{ type: 'tool'; tool: ToolCall }];
+    expect(withApp.tool.app).toEqual(app);
+    expect(withApp.tool.appInput).toEqual({ a: 1 });
+
+    const done = tool({ name: 'tool', label: 'tool', command: '', status: 'done', output: ['ok'] });
+    const [after] = upsertTool(late, done) as [{ type: 'tool'; tool: ToolCall }];
+    expect(after.tool.app).toEqual(app);
+    expect(after.tool.appInput).toEqual({ a: 1 });
+  });
 });
 
 describe('appendDelta', () => {

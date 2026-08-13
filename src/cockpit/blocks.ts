@@ -23,6 +23,11 @@ export function upsertTool(blocks: Block[], tool: ToolCall): Block[] {
       markdown: tool.markdown ?? prev.markdown,
       questions: tool.questions ?? prev.questions,
       todos: tool.todos ?? prev.todos,
+      // O MCP App chega num frame TARDIO (resolver o ui:// exige uma sessão MCP
+      // à parte). Sem carregar aqui, o merge por allow-list descartava o `app` e
+      // o card nunca renderizava, mesmo com o servidor resolvendo certo.
+      app: tool.app ?? prev.app,
+      appInput: tool.appInput ?? prev.appInput,
     };
     const next = blocks.slice();
     next[i] = { type: 'tool', tool: merged };
