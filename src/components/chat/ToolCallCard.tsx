@@ -3,6 +3,7 @@ import { Icon, Markdown, tokens } from '../primitives';
 import { usePersisted } from '../../lib/persist';
 import type { ToolCall } from '../../data/mock';
 import { DiffView } from './DiffView';
+import { McpAppFrame } from './McpAppFrame';
 import { TodoPanel } from './TodoPanel';
 import { CopyTextButton } from './MessageActions';
 import { permissionDeniedTool } from './permission-deny';
@@ -108,6 +109,7 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
           </div>
         </div>
       )}
+      {tool.app && <McpAppFrame tool={tool} />}
       {tool.diff && <DiffView diff={tool.diff} />}
       {tool.todos && tool.todos.length > 0 && <TodoPanel todos={tool.todos} />}
       {tool.markdown && (

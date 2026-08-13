@@ -20,6 +20,16 @@ export interface ToolQuestion {
   options: ToolQuestionOption[];
 }
 
+// MCP Apps (SEP-1865): uma tool MCP pode declarar `_meta.ui.resourceUri` apontando
+// pra um recurso `ui://` com HTML. O `claude -p` ACHATA esse bloco em texto antes de
+// chegar aqui (spike F0: `[Resource from srv at ui://…] <html>`), então o Deck lê o
+// recurso direto do server MCP, por fora do stream.
+export interface McpAppView {
+  uri: string;
+  html: string;
+  csp?: { connectDomains?: string[]; resourceDomains?: string[]; frameDomains?: string[] };
+}
+
 export interface ToolCall {
   id: string; // = tool_use_id (correlação running -> done; squad H1)
   name: string;
@@ -33,6 +43,8 @@ export interface ToolCall {
   markdown?: string; // corpo rico (ex: plano do ExitPlanMode) renderizado como md
   questions?: ToolQuestion[]; // AskUserQuestion: perguntas com opções clicáveis
   todos?: ToolTodo[]; // TodoWrite: lista de tarefas (pending/in_progress/completed)
+  app?: McpAppView; // MCP App: HTML sandboxed renderizado no lugar do card cru
+  appInput?: Record<string, unknown>; // argumentos da tool, entregues ao iframe
   output: string[];
 }
 

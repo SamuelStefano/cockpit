@@ -67,6 +67,7 @@ export interface Thread {
   // acumulado entre tools — cada mutação carimba um snapshot no card (ws/tools.ts).
   tasks: Map<string, ToolTodo>;
   taskCreates: Map<string, { subject: string; activeForm?: string }>; // tool_use id -> create aguardando o nº da task no result
+  appTried: Set<string>; // tool_use id já consultado por UI de MCP App — a busca é feita uma vez só por card
 }
 
 export const threads = new Map<string, Thread>();
@@ -484,7 +485,7 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
 
   let live = false; // este turno já foi registrado no live-runs.json?
   let parkedConsumed = false; // o item de fila deste turno já saiu do registro em disco?
-  const thread: Thread = { handle: { kill: () => {} }, params: { mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort }, prompt, startedAt: Date.now(), sessionId: resumeId, cascadeProvider: cascadeProvider ?? undefined, noCascade, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map() };
+  const thread: Thread = { handle: { kill: () => {} }, params: { mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort }, prompt, startedAt: Date.now(), sessionId: resumeId, cascadeProvider: cascadeProvider ?? undefined, noCascade, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set() };
   threads.set(sessionKey, thread);
   // Eco da mensagem do usuário a todos os clientes ANTES do 'started' (bolha do
   // usuário aparece antes da do assistente). Só quando o cliente mandou msgId — o

@@ -10,7 +10,7 @@ vi.mock('./broadcast', () => ({ broadcast: vi.fn(), send: vi.fn(), setWss: vi.fn
 const KEY = 'k';
 
 function freshThread(): Thread {
-  return { handle: { kill: () => {} }, params: {}, prompt: '', startedAt: 0, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map() };
+  return { handle: { kill: () => {} }, params: {}, prompt: '', startedAt: 0, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set() };
 }
 function register(): Thread {
   const t = freshThread();

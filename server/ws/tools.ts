@@ -1,7 +1,8 @@
 import type { ToolCall, ToolTodo } from '../../shared/protocol';
 import { diffOf, planOf, questionsOf, todosOf, labelOf, commandOf, toolResultOutput, applyTaskUpdate, registerTaskCreate, taskSnapshot } from '../sessions/parse';
 import { broadcast } from './broadcast';
-import type { Thread } from './runs';
+import { resolveApp, parseMcpToolName } from '../mcp/apps';
+import { threads, type Thread } from './runs';
 
 // Teto de tools retidas por thread: um run de horas com centenas de tools não
 // pode crescer sem limite na memória (cada entrada é re-serializada no replay).
@@ -25,6 +26,8 @@ function snapshotTool(thread: Thread, tool: ToolCall) {
       markdown: tool.markdown ?? prev.markdown,
       questions: tool.questions ?? prev.questions,
       todos: tool.todos ?? prev.todos,
+      app: tool.app ?? prev.app,
+      appInput: tool.appInput ?? prev.appInput,
     };
   }
   if (thread.tools.length > MAX_TOOLS) {
@@ -67,6 +70,45 @@ export function emitTool(thread: Thread, sessionKey: string, block: any, status:
   };
   snapshotTool(thread, tool);
   broadcast({ t: 'tool', sessionKey, tool });
+}
+
+// Resolve a UI de uma tool MCP fora do stream e re-emite o card com o app anexado.
+// Assíncrono de propósito: abrir sessão MCP pode subir um processo, e o turno não
+// pode esperar por isso. O upsert por id garante que o app se funde ao card já
+// mostrado (e ao 'done' que chegar antes ou depois).
+export async function attachApp(thread: Thread, sessionKey: string, block: any) {
+  const id = block.id ?? '';
+  const name = block.name ?? '';
+  if (!id || thread.appTried.has(id)) return;
+  // O nome da tool vem do modelo, que pode ter lido conteúdo hostil. Sem esta
+  // trava, um prompt injetado emitiria `mcp__<outro-server>__x` e faria o Deck
+  // abrir um MCP que a sessão NÃO escolheu — subindo processo e mandando os
+  // headers dele (que podem ter token) pro endpoint remoto. Só resolvemos UI dos
+  // servers que o usuário selecionou pra este turno.
+  const parsed = parseMcpToolName(name);
+  if (!parsed || !thread.params.mcps?.includes(parsed.server)) return;
+  thread.appTried.add(id);
+  let app;
+  try { app = await resolveApp(name); } catch { return; }
+  if (!app) return;
+  // O turno pode ter sido substituído/morto enquanto líamos o recurso.
+  if (threads.get(sessionKey) !== thread) return;
+  const i = thread.tools.findIndex((t) => t.id === id);
+  if (i === -1) return;
+  const tool: ToolCall = { ...thread.tools[i], app, appInput: appInputOf(block.input) };
+  snapshotTool(thread, tool);
+  broadcast({ t: 'tool', sessionKey, tool });
+}
+
+// Argumentos entregues ao iframe. Cap defensivo: um input gigante (query SQL longa)
+// não pode inflar o replay, e o widget não precisa dele para renderizar.
+const MAX_INPUT_BYTES = 16 * 1024;
+function appInputOf(input: unknown): Record<string, unknown> | undefined {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return undefined;
+  try {
+    if (Buffer.byteLength(JSON.stringify(input), 'utf8') > MAX_INPUT_BYTES) return undefined;
+  } catch { return undefined; }
+  return input as Record<string, unknown>;
 }
 
 export function closeTool(thread: Thread, sessionKey: string, c: any) {
