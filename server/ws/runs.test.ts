@@ -678,6 +678,29 @@ describe('fim de turno — subida de tier da cascata', () => {
     expect(run).toHaveBeenCalledOnce();
   });
 
+  // A tentativa barata pode gravar no transcript um id de mensagem que a Anthropic
+  // não aceita de volta (ex.: resposta de provider OpenRouter). Resumir o MESMO
+  // sessionId na refeitura reenvia esse id como previous_message_id e a sessão trava
+  // pra sempre com 400. A refeitura tem que forkar pra um id novo.
+  it('refeitura forka pra um sessionId novo em vez de resumir o da tentativa barata', () => {
+    startRun(ws, 'ca6', 'trabalho', 'sess-ca6');
+    threads.get('ca6')!.endReason = 'success';
+    closeLastRun();
+    const last = vi.mocked(run).mock.calls.at(-1)![0];
+    expect(last.resumeId).toBe('sess-ca6'); // ainda lê o transcript da tentativa barata
+    expect(last.forkId).toBeTruthy();
+    expect(last.forkId).not.toBe('sess-ca6'); // mas grava em outro lugar
+  });
+
+  it('sem sessionId ainda (tentativa barata morreu antes do 1º evento) não força fork', () => {
+    startRun(ws, 'ca7', 'trabalho'); // chat novo, sem resumeId
+    threads.get('ca7')!.sessionId = undefined;
+    threads.get('ca7')!.endReason = 'success';
+    closeLastRun();
+    const last = vi.mocked(run).mock.calls.at(-1)![0];
+    expect(last.forkId).toBeUndefined();
+  });
+
   it('stop do usuário não vira subida de tier', () => {
     startRun(ws, 'ca6', 'trabalho', 'sess-ca6');
     Object.assign(threads.get('ca6')!, { stopped: true, userStopped: true });
