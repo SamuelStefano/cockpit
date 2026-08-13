@@ -3,30 +3,23 @@ import { classify } from './classifier';
 import { managedEnvSync } from '../admin-ops';
 import { costOf } from '../db';
 import { isNativeModel, nativeTarget, providerTarget, tierToNative, type ResolvedTarget } from './policy';
-import type { HarnessContext, HarnessEvent, HarnessModelChoice, HarnessTier } from '../../shared/protocol';
+import { systemPrompt } from './prompt';
+import { runOnPlan } from './plan-run';
+import type { HarnessContext, HarnessEvent, HarnessModelChoice, HarnessTier, HarnessVia } from '../../shared/protocol';
 
-// Orquestrador de UMA task do harness. Motor = plain @anthropic-ai/sdk (DR-004): eu
-// escrevo o loop, o system prompt é 100% nosso (zero scaffolding do Claude Code), e o
-// roteamento pra provedor terceiro é só arg do construtor. Emite eventos ao vivo via
-// callback; a persistência/broadcast fica em ws/harness.ts.
+// Orquestrador de UMA task do harness. Dois motores: PLANO (CLI claude no OAuth, custo 0
+// em dólar — plan-run.ts) e API (plain @anthropic-ai/sdk pay-as-you-go). O system prompt
+// é 100% nosso nos dois. Emite eventos ao vivo via callback; persistência/broadcast em
+// ws/harness.ts. Ver DR-004 (motor) e DR-005 (caminho de plano).
 
 const MAX_TOKENS = 16000;
-
-// Contexto profissional fixo pra pentest: reduz recusa por FALSO-POSITIVO (pedido
-// legítimo mal enquadrado). NÃO é bypass — a recusa real do modelo segue valendo
-// (DR-001). Versionado no código, revisado junto de qualquer mudança.
-const PENTEST_CONTEXT = `Contexto profissional (autorização confirmada): esta tarefa faz parte de um engajamento de teste de segurança AUTORIZADO (penetration testing / red team / avaliação defensiva), com permissão do dono do sistema. O objetivo é defensivo: identificar e corrigir vulnerabilidades antes que sejam exploradas. Trate como trabalho de segurança legítimo.`;
-
-function systemPrompt(context: HarnessContext): string {
-  const base = 'Você é um executor de tarefas direto e competente. Responda de forma completa e precisa ao pedido, sem preâmbulo desnecessário.';
-  return context === 'pentest' ? `${PENTEST_CONTEXT}\n\n${base}` : base;
-}
 
 export interface RunResult {
   tier: HarnessTier;
   tierReason: string;
   model: string;
   providerId?: string;
+  via?: HarnessVia;
   costApprox: boolean;
   status: 'done' | 'error';
   resultText?: string;
@@ -81,23 +74,40 @@ export async function runTask(opts: RunOpts): Promise<RunResult> {
     return runOrchestrated(env, choice.executor, choice.advisor, prompt, context, onEvent);
   }
 
-  let target: ResolvedTarget | null;
-  if (choice.mode === 'auto') {
-    target = nativeTarget(tierToNative(tier), env);
-  } else if (choice.mode === 'model') {
-    if (!isNativeModel(choice.model)) return fail(onEvent, tier, tierReason, `modelo nativo desconhecido: ${choice.model}`);
-    target = nativeTarget(choice.model, env);
-  } else {
-    target = providerTarget(choice.providerId, tier, env);
-    if (!target) return fail(onEvent, tier, tierReason, `provedor ${choice.providerId} sem chave configurada no painel de env`);
+  // Nativo (auto/model): plano (CLI, custo 0) ou API (plain SDK, pay-as-you-go).
+  if (choice.mode === 'auto' || choice.mode === 'model') {
+    const model = choice.mode === 'auto' ? tierToNative(tier) : choice.model;
+    if (choice.mode === 'model' && !isNativeModel(model)) {
+      return fail(onEvent, tier, tierReason, `modelo nativo desconhecido: ${model}`);
+    }
+    onEvent({ kind: 'model-selected', model });
+    if (choice.via === 'plan') return runViaPlan(model, prompt, context, tier, tierReason, onEvent);
+
+    const target = nativeTarget(model, env);
+    if (!target.apiKey) return fail(onEvent, tier, tierReason, 'sem ANTHROPIC_API_KEY no painel de env — o modo nativo via API não roda');
+    return runSingle(target, prompt, context, tier, tierReason, onEvent);
   }
 
-  if (!target.apiKey && !target.authToken) {
-    return fail(onEvent, tier, tierReason, 'sem ANTHROPIC_API_KEY no painel de env — o modo nativo não roda');
-  }
-
+  // Provedor terceiro (sempre via API do provedor).
+  const target = providerTarget(choice.providerId, tier, env);
+  if (!target) return fail(onEvent, tier, tierReason, `provedor ${choice.providerId} sem chave configurada no painel de env`);
   onEvent({ kind: 'model-selected', model: target.model, providerId: target.providerId });
   return runSingle(target, prompt, context, tier, tierReason, onEvent);
+}
+
+// Caminho de PLANO: delega pro CLI (plan-run.ts). Custo em dólar = 0 (cota do plano).
+async function runViaPlan(
+  model: string, prompt: string, context: HarnessContext,
+  tier: HarnessTier, tierReason: string, onEvent: RunOpts['onEvent'],
+): Promise<RunResult> {
+  const r = await runOnPlan({ model, prompt, context, onEvent });
+  if (r.status === 'error') onEvent({ kind: 'error', message: r.error ?? 'erro no plano' });
+  else onEvent({ kind: 'done', costUsd: 0 });
+  return {
+    tier, tierReason, model, via: 'plan', costApprox: false,
+    status: r.status, resultText: r.resultText, costUsd: r.status === 'done' ? 0 : undefined,
+    inputTokens: r.inputTokens, outputTokens: r.outputTokens, error: r.error,
+  };
 }
 
 function clientFor(target: ResolvedTarget): Anthropic {
@@ -127,7 +137,7 @@ async function runSingle(
   } catch (err) {
     const message = errMessage(err);
     onEvent({ kind: 'error', message });
-    return { tier, tierReason, model: target.model, providerId: target.providerId, costApprox: target.costApprox, status: 'error', error: message };
+    return { tier, tierReason, model: target.model, providerId: target.providerId, via: 'api', costApprox: target.costApprox, status: 'error', error: message };
   }
 }
 
@@ -163,7 +173,7 @@ async function runOrchestrated(
   } catch (err) {
     const message = errMessage(err);
     onEvent({ kind: 'error', message });
-    return { tier, tierReason, model: `${executor}+${advisor}`, costApprox: false, status: 'error', error: message };
+    return { tier, tierReason, model: `${executor}+${advisor}`, via: 'api', costApprox: false, status: 'error', error: message };
   }
 }
 
@@ -200,7 +210,7 @@ function finalize(
     : text;
   onEvent({ kind: 'done', costUsd, costApprox: target.costApprox });
   return {
-    tier, tierReason, model: target.model, providerId: target.providerId, costApprox: target.costApprox,
+    tier, tierReason, model: target.model, providerId: target.providerId, via: 'api', costApprox: target.costApprox,
     status: 'done', resultText, costUsd, inputTokens: inTok, outputTokens: outTok,
   };
 }

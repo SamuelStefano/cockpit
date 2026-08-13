@@ -263,13 +263,17 @@ export type HarnessContext = 'pentest' | null;
 export type HarnessTier = 'simple' | 'medium' | 'complex';
 export type HarnessMode = 'auto' | 'model' | 'provider' | 'orchestrated';
 
+// via: 'plan' roda pelo CLI `claude` no OAuth do plano (zero custo em dólar, cota do
+// plano); 'api' roda pela API pay-as-you-go (custo em centavos, contexto enxuto).
+export type HarnessVia = 'plan' | 'api';
+
 // auto: classificador sugere um modelo nativo por complexidade.
 // model: modelo nativo Anthropic específico, escolhido na mão.
 // provider: provedor terceiro do catálogo (OpenRouter etc.); o slot vem da complexidade.
 // orchestrated: executor barato + advisor forte (Opus/Fable) supervisionando (advisor tool).
 export type HarnessModelChoice =
-  | { mode: 'auto' }
-  | { mode: 'model'; model: string }
+  | { mode: 'auto'; via: HarnessVia }
+  | { mode: 'model'; model: string; via: HarnessVia }
   | { mode: 'provider'; providerId: string }
   | { mode: 'orchestrated'; executor: string; advisor: string };
 
@@ -288,6 +292,7 @@ export interface HarnessTaskView {
   prompt: string;
   context: HarnessContext;
   mode: HarnessMode;
+  via?: HarnessVia;      // 'plan' rodou no plano (custo 0), 'api' pay-as-you-go
   tier: HarnessTier;
   tierReason: string;
   model: string;         // modelo/label efetivo mostrado ao usuário
