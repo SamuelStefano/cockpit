@@ -27,8 +27,9 @@ export async function handleHarnessMsg(ws: WebSocket, msg: HarnessMsg): Promise<
 async function runHarnessTask(prompt: string, choice: HarnessModelChoice, context: HarnessContext): Promise<void> {
   const id = randomUUID();
   const startedAt = Date.now();
+  const via = choice.mode === 'auto' || choice.mode === 'model' ? choice.via : undefined;
   const running: HarnessTaskView = {
-    id, ts: startedAt, prompt, context, mode: choice.mode,
+    id, ts: startedAt, prompt, context, mode: choice.mode, via,
     tier: 'medium', tierReason: '', model: '', status: 'running',
   };
   insertTask(running);
@@ -47,6 +48,7 @@ async function runHarnessTask(prompt: string, choice: HarnessModelChoice, contex
   const result = await runTask({ prompt, choice, context, onEvent });
   const final: HarnessTaskView = {
     ...running,
+    via: result.via ?? via,
     tier: result.tier,
     tierReason: result.tierReason,
     model: result.model || selectedModel,
