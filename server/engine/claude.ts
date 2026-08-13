@@ -37,6 +37,7 @@ export interface RunOpts {
   disallowedSkills?: string[]; // regras Skill(...) das skills NÃO-selecionadas (ver skillDenyRules)
   mcps?: string[];             // MCP servers a CARREGAR neste turno. Default = NENHUM (strict-mcp-config). Cada server adiciona ~5-20k tokens de tool defs por chamada; carregar só os escolhidos corta o overhead que inflava a quota (vs terminal).
   effort?: string;             // nível de pensamento (--effort low|medium|high|xhigh|max). Sem isto o CLI usa o default da conta (alto) → thinking tokens caros em pedido simples. Default do Deck = low.
+  providerId?: string;         // provedor SÓ deste spawn (tentativa barata da cascata). Ausente = rota ativa do roteador.
   onEvent: (ev: ClaudeEvent) => void;
   onError: (msg: string) => void;
   onClose: () => void;
@@ -108,7 +109,7 @@ export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: 
 }
 
 export function run(opts: RunOpts): RunHandle {
-  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, onEvent, onError, onClose } = opts;
+  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, providerId, onEvent, onError, onClose } = opts;
 
   // MCP por sessão: escreve um config TEMPORÁRIO só com os servers escolhidos
   // (definições completas lidas do ~/.claude.json). Sem seleção → sem arquivo →
@@ -129,8 +130,8 @@ export function run(opts: RunOpts): RunHandle {
   // A rota ativa decide o nome do modelo: o alias da UI (opus/sonnet/haiku) vira o
   // id nativo do provedor pra onde o roteador apontou.
   const built = buildArgs({
-    prompt, resumeId, mode, model: routeModel(model), effort, maxBudgetUsd, bypass, role, disallowedSkills,
-    nativeAnthropic: routeIsNativeAnthropic(),
+    prompt, resumeId, mode, model: routeModel(model, providerId), effort, maxBudgetUsd, bypass, role, disallowedSkills,
+    nativeAnthropic: routeIsNativeAnthropic(providerId),
   }, mcpConfigPath);
   if ('error' in built) {
     cleanupMcp();
@@ -141,7 +142,7 @@ export function run(opts: RunOpts): RunHandle {
 
   const child: ChildProcess = spawn('claude', built.args, {
     cwd: CONFIG.workdir,
-    env: minimalEnv(),
+    env: minimalEnv(providerId),
     shell: false,
     detached: true,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -271,14 +272,14 @@ export function resolveMode(
 // A rota entra por ÚLTIMO de propósito: se o roteador apontou pra outro provedor,
 // o ANTHROPIC_BASE_URL/token dele tem que vencer um valor solto no env gerenciado —
 // senão o turno sairia com a URL de um provedor e a chave de outro.
-export function minimalEnv(): NodeJS.ProcessEnv {
+export function minimalEnv(providerId?: string): NodeJS.ProcessEnv {
   return {
     PATH: process.env.PATH,
     HOME: process.env.HOME,
     LANG: process.env.LANG ?? 'en_US.UTF-8',
     TERM: 'dumb',
     ...managedEnvSync(),
-    ...routeEnv(),
+    ...routeEnv(providerId),
   };
 }
 

@@ -1,4 +1,4 @@
-import type { RouteView } from '../../shared/protocol';
+import type { RouteView, RoutesSnapshot } from '../../shared/protocol';
 
 export type RouteStatus = 'ativa' | 'cooldown' | 'sem credencial' | 'desligada' | 'pronta';
 
@@ -34,6 +34,17 @@ export function cooldownLabel(until: number, now = Date.now()): string | null {
   const h = Math.floor(min / 60);
   const rest = min % 60;
   return rest ? `${h}h${String(rest).padStart(2, '0')}` : `${h}h`;
+}
+
+// A cascata ligada sem provedor barato elegível é um botão verde que não faz nada:
+// o turno segue inteiro no plano e o usuário acha que está economizando. O aviso
+// mora aqui pra ficar testável fora do React.
+export function cascadeHint(s: RoutesSnapshot | null): string {
+  if (!s?.cascade) return 'Cada turno vai direto pro modelo do plano.';
+  if (!s.enabled) return 'Sem efeito: o roteamento está desligado.';
+  const cheap = s.routes.find((r) => r.id === s.cascadeId);
+  if (!cheap) return 'Sem efeito agora: nenhum provedor barato elegível (falta chave ou está em cooldown).';
+  return `A primeira tentativa de cada turno roda no ${cheap.label}.`;
 }
 
 export interface CustomDraft { id: string; baseUrl: string; model: string; authEnv: string }

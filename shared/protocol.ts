@@ -223,7 +223,13 @@ export interface RouteView {
 
 export interface RoutesSnapshot {
   enabled: boolean;
+  // Cascata ligada: o turno tenta primeiro no provedor barato e refaz no plano se
+  // não entregar.
+  cascade: boolean;
   activeId: string;
+  // Provedor onde a tentativa barata rodaria agora; null = nenhum elegível (sem
+  // chave, em cooldown, ou o failover já jogou a rota ativa num barato).
+  cascadeId: string | null;
   routes: RouteView[];
   // Existe rota alternativa pronta se o plano esgotar agora? O servidor só troca
   // quando o turno dispara; sem este campo o cliente travaria o composer no teto
@@ -476,6 +482,7 @@ export type ClientMsg =
   // cadastrada pelo painel de env (admin-env-set) e referenciada por nome.
   | { t: 'routes-get' }
   | { t: 'routes-enable'; on: boolean }
+  | { t: 'routes-cascade'; on: boolean }
   | { t: 'route-set'; id: string }
   | { t: 'route-config'; id: string; enabled?: boolean; priority?: number }
   | { t: 'route-custom-add'; id: string; label?: string; baseUrl: string; authEnv?: string; authMode?: 'api-key' | 'bearer'; model: string; smallModel?: string; priority?: number }

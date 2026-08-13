@@ -9,7 +9,7 @@ import { run } from '../engine/claude';
 import { parkedHeads, shiftParked, unshiftParked, addParked, isQueuePaused, type ParkedItem } from './parked';
 import { resumableId } from './resume';
 import { quotaHold } from './quota';
-import { reportOutcome } from '../router/state';
+import { reportOutcome, cascadeRoute } from '../router/state';
 
 vi.mock('../engine/claude', () => ({ run: vi.fn(() => ({ kill: vi.fn() })) }));
 // Fila estacionada e teto de tokens mockados: o teste não pode ler/escrever o
@@ -36,6 +36,7 @@ vi.mock('../router/state', () => ({
   isPlanRoute: vi.fn(() => true),
   hasFallbackRoute: vi.fn(() => false),
   switchOnPlanExhausted: vi.fn(() => null),
+  cascadeRoute: vi.fn(() => null),
 }));
 
 describe('findStaleThreads', () => {
@@ -553,5 +554,70 @@ describe('tetos da maratona', () => {
     const now = 73 * 60 * 60_000;
     const vivo = { startedAt: 0, lastFrameAt: now - 1, marathon: true };
     expect(findStaleThreads(now, [['a', vivo]])[0]).toMatchObject({ reason: 'total' });
+  });
+});
+
+// A cascata só vale a pena se a REFEITURA acontecer sozinha: um turno barato que
+// não entrega e para por aí é pior que não ter tentado — o usuário paga a espera e
+// ainda tem que remandar. Estes testes prendem o ciclo tentativa → refeitura.
+describe('fim de turno — subida de tier da cascata', () => {
+  const ws = {} as WebSocket;
+  const closeLastRun = () => vi.mocked(run).mock.calls.at(-1)![0].onClose?.();
+  const lastProvider = () => vi.mocked(run).mock.calls.at(-1)![0].providerId;
+
+  beforeEach(() => {
+    threads.clear();
+    awaitingAnswer.clear();
+    vi.mocked(run).mockClear();
+    vi.mocked(broadcast).mockClear();
+    vi.mocked(quotaHold).mockReturnValue(0);
+    vi.mocked(reportOutcome).mockReturnValue({ kind: 'ok', changed: null });
+    vi.mocked(cascadeRoute).mockReturnValue('zai-glm');
+  });
+
+  it('roda a tentativa no provedor barato', () => {
+    startRun(ws, 'ca1', 'trabalho', 'sess-ca1');
+    expect(lastProvider()).toBe('zai-glm');
+  });
+
+  it('turno barato vazio refaz no plano com o mesmo prompt', () => {
+    startRun(ws, 'ca2', 'trabalho', 'sess-ca2');
+    threads.get('ca2')!.endReason = 'success';
+    closeLastRun();
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(lastProvider()).toBeUndefined();
+    expect(vi.mocked(run).mock.calls.at(-1)![0].prompt).toBe('trabalho');
+  });
+
+  it('turno barato que entregou não refaz nada', () => {
+    startRun(ws, 'ca3', 'trabalho', 'sess-ca3');
+    Object.assign(threads.get('ca3')!, { text: 'pronto', endReason: 'success' });
+    closeLastRun();
+    expect(run).toHaveBeenCalledOnce();
+  });
+
+  it('a refeitura não volta pro barato quando ela também falha', () => {
+    startRun(ws, 'ca4', 'trabalho', 'sess-ca4');
+    threads.get('ca4')!.endReason = 'success';
+    closeLastRun();
+    expect(lastProvider()).toBeUndefined();
+    threads.get('ca4')!.endReason = 'success';
+    closeLastRun();
+    expect(run).toHaveBeenCalledTimes(2); // teto de subidas: para aqui
+  });
+
+  it('sem token no plano não adianta subir de tier', () => {
+    vi.mocked(quotaHold).mockReturnValue(Date.now() + 60_000);
+    startRun(ws, 'ca5', 'trabalho', 'sess-ca5');
+    threads.get('ca5')!.endReason = 'success';
+    closeLastRun();
+    expect(run).toHaveBeenCalledOnce();
+  });
+
+  it('stop do usuário não vira subida de tier', () => {
+    startRun(ws, 'ca6', 'trabalho', 'sess-ca6');
+    Object.assign(threads.get('ca6')!, { stopped: true, userStopped: true });
+    closeLastRun();
+    expect(run).toHaveBeenCalledOnce();
   });
 });

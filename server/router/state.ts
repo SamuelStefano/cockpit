@@ -24,12 +24,17 @@ export interface RouteOverride { enabled?: boolean; priority?: number }
 interface RoutesConfig {
   // Roteamento desligado = comportamento antigo (só o plano; fila segura no teto).
   enabled: boolean;
+  // Cascata: o turno TENTA primeiro no provedor barato e só refaz no plano se a
+  // tentativa não entregar. Separado do `enabled` de propósito — quem quer failover
+  // (trocar quando a cota acaba) não necessariamente quer pagar o retrabalho de uma
+  // tentativa barata que falha.
+  cascade: boolean;
   activeId: string;
   overrides: Record<string, RouteOverride>;
   custom: ProviderDef[];
 }
 
-const DEFAULT_CONFIG: RoutesConfig = { enabled: false, activeId: PLAN_PROVIDER_ID, overrides: {}, custom: [] };
+const DEFAULT_CONFIG: RoutesConfig = { enabled: false, cascade: false, activeId: PLAN_PROVIDER_ID, overrides: {}, custom: [] };
 
 let config: RoutesConfig = { ...DEFAULT_CONFIG };
 let breaker: BreakerState = {};
@@ -86,6 +91,7 @@ function readConfig(): void {
   const raw = parse<Partial<RoutesConfig>>(configRaw, {});
   config = {
     enabled: !!raw.enabled,
+    cascade: !!raw.cascade,
     activeId: typeof raw.activeId === 'string' ? raw.activeId : PLAN_PROVIDER_ID,
     overrides: raw.overrides ?? {},
     // O arquivo é gravável pelo agente (roda com este HOME): reconferir cada
@@ -196,12 +202,23 @@ export function hasFallbackRoute(now = Date.now()): boolean {
   return !!selectRoute(candidates(), selectOpts(now, [PLAN_PROVIDER_ID]));
 }
 
-// Env do provedor ativo, mesclado no minimalEnv do spawn. Vazio quando o roteador
-// está desligado ou a rota é o plano — nesse caso o CLI usa o OAuth como sempre.
-export function routeEnv(): Record<string, string> {
+// Provedor deste turno: o da cascata quando ela escolheu um, senão a rota ativa. O
+// override é por SPAWN e não mexe no activeId — a tentativa barata não pode deixar a
+// rota global apontada pro provedor barato depois que o turno acaba.
+function routeProvider(providerId?: string): ProviderDef {
+  if (providerId) {
+    const p = providerById(providerId);
+    if (p) return p;
+  }
+  return activeProvider();
+}
+
+// Env do provedor deste turno, mesclado no minimalEnv do spawn. Vazio quando o
+// roteador está desligado ou a rota é o plano — aí o CLI usa o OAuth como sempre.
+export function routeEnv(providerId?: string): Record<string, string> {
   sync();
   if (!config.enabled) return {};
-  const p = activeProvider();
+  const p = routeProvider(providerId);
   if (p.id === PLAN_PROVIDER_ID) return {};
   const env: Record<string, string> = {};
   if (p.baseUrl) env.ANTHROPIC_BASE_URL = p.baseUrl;
@@ -228,17 +245,37 @@ export function routeEnv(): Record<string, string> {
   return env;
 }
 
-// Modelo efetivo pro `--model` deste turno, traduzido pro id do provedor ativo.
-export function routeModel(requested: string | undefined): string | undefined {
+// Modelo efetivo pro `--model` deste turno, traduzido pro id do provedor da vez.
+export function routeModel(requested: string | undefined, providerId?: string): string | undefined {
   sync();
   if (!config.enabled) return requested;
-  return mapModel(activeProvider(), requested);
+  return mapModel(routeProvider(providerId), requested);
 }
 
 // O `--fallback-model` do CLI só existe no vocabulário da Anthropic.
-export function routeIsNativeAnthropic(): boolean {
+export function routeIsNativeAnthropic(providerId?: string): boolean {
   sync();
-  return !config.enabled || isNativeAnthropic(activeProvider());
+  return !config.enabled || isNativeAnthropic(routeProvider(providerId));
+}
+
+// Em qual provedor barato a PRIMEIRA tentativa deste turno deve rodar. null = roda
+// na rota ativa como sempre. Só vale a pena descer quando a rota ativa é o plano: se
+// o failover já jogou o Deck num provedor barato, a tentativa "barata" seria a mesma
+// coisa, e o `paid` fica de fora porque é o pay-as-you-go que existe pra ser último.
+export function cascadeRoute(now = Date.now()): string | null {
+  sync();
+  if (!config.enabled || !config.cascade) return null;
+  if (config.activeId !== PLAN_PROVIDER_ID) return null;
+  const cheap = candidates().filter((c) => c.provider.id !== PLAN_PROVIDER_ID && c.provider.tier !== 'paid');
+  return selectRoute(cheap, selectOpts(now))?.provider.id ?? null;
+}
+
+export function isCascadeEnabled(): boolean { sync(); return config.cascade; }
+
+export function setCascadeEnabled(on: boolean): void {
+  sync();
+  config.cascade = on;
+  persistConfig();
 }
 
 // --- decisão ----------------------------------------------------------------
@@ -394,7 +431,7 @@ export function routesView(now = Date.now()): RoutesSnapshot {
       skip: skipReason(c, opts),
     }))
     .sort((a, b) => a.priority - b.priority);
-  return { enabled: config.enabled, activeId: config.activeId, routes, hasFallback: hasFallbackRoute(now) };
+  return { enabled: config.enabled, cascade: config.cascade, activeId: config.activeId, routes, hasFallback: hasFallbackRoute(now), cascadeId: cascadeRoute(now) };
 }
 
 // Só para os testes: reinicia o módulo sem depender de reimport.

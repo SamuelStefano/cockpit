@@ -344,6 +344,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     // student): quem troca a rota decide pra qual endpoint TODO prompt vai.
     case 'routes-get':
     case 'routes-enable':
+    case 'routes-cascade':
     case 'route-set':
     case 'route-config':
     case 'route-custom-add':

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { sortRoutes, routeStatus, statusTone, cooldownLabel, validateCustom } from './admin-routes';
-import type { RouteView } from '../../shared/protocol';
+import { sortRoutes, routeStatus, statusTone, cooldownLabel, validateCustom, cascadeHint } from './admin-routes';
+import type { RouteView, RoutesSnapshot } from '../../shared/protocol';
 
 const NOW = 1_700_000_000_000;
 
@@ -104,5 +104,30 @@ describe('validateCustom', () => {
   it('recusa nome de env fora do padrão', () => {
     expect(validateCustom({ ...ok, authEnv: 'minha-key' })).toBe('env: MAIÚSCULAS_COM_UNDERLINE');
     expect(validateCustom({ ...ok, authEnv: '9KEY' })).toBe('env: MAIÚSCULAS_COM_UNDERLINE');
+  });
+});
+
+describe('cascadeHint', () => {
+  const snap = (over: Partial<RoutesSnapshot> = {}): RoutesSnapshot => ({
+    enabled: true, cascade: true, cascadeId: 'zai', activeId: 'anthropic-plan', hasFallback: false,
+    routes: [route({ id: 'zai', label: 'Z.AI GLM' })], ...over,
+  });
+
+  it('sem snapshot ou com cascata desligada, avisa que tudo vai pro plano', () => {
+    expect(cascadeHint(null)).toContain('direto pro modelo do plano');
+    expect(cascadeHint(snap({ cascade: false }))).toContain('direto pro modelo do plano');
+  });
+
+  it('cascata ligada com o roteador desligado não faz nada', () => {
+    expect(cascadeHint(snap({ enabled: false }))).toContain('roteamento está desligado');
+  });
+
+  // O caso que engana: botão verde, nenhum provedor elegível.
+  it('cascata ligada sem provedor elegível avisa que não faz nada', () => {
+    expect(cascadeHint(snap({ cascadeId: null }))).toContain('nenhum provedor barato elegível');
+  });
+
+  it('nomeia o provedor que vai receber a primeira tentativa', () => {
+    expect(cascadeHint(snap())).toBe('A primeira tentativa de cada turno roda no Z.AI GLM.');
   });
 });
