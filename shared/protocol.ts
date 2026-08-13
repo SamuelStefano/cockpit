@@ -180,8 +180,18 @@ export interface DailyUsage {
   cost: number;           // custo estimado no dia (USD)
 }
 
+// Quanto cada provedor da cascata gerou e custou. É o que responde "descer pro
+// barato valeu a pena?" — sem isto o /uso soma tudo na tabela de preço da Anthropic.
+export interface ProviderUsage {
+  providerId: string;
+  samples: number;
+  outputTokens: number;
+  costUsd: number;
+}
+
 export interface UsageStats {
   sessions: SessionUsage[];
+  providers: ProviderUsage[];
   totalOutput: number;
   totalSamples: number;
   totalCost: number;      // soma do custo estimado de todas as sessões
