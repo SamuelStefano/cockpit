@@ -19,6 +19,7 @@ import { escalationReason, ESCALATION_MESSAGE } from '../router/cascade';
 import { markRunLive, clearRunLive, takeOrphanRuns } from './recover';
 import { recordIncident } from './incidents';
 import { threadIsMarathon, MARATHON_TOTAL_CAP_MS, MARATHON_AUTO_RESUME_CAP } from './marathon';
+import { threadWantsCascade } from '../router/cascade-session';
 
 // Config do turno, guardada no thread pra a retomada automática (morte silenciosa)
 // rodar com os MESMOS parâmetros — retomar em outro modelo/sem bypass mudaria o
@@ -521,9 +522,10 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
   // Prompt novo do usuário devolve a cota de subida de tier. A refeitura (noCascade)
   // e a retomada não zeram: elas são a MESMA unidade de trabalho que já gastou uma.
   if (!noCascade && prompt !== RESUME_PROMPT) escalations.delete(sessionKey);
-  // Tentativa barata da cascata. Decidido por turno (não por sessão): a elegibilidade
-  // depende de chave e cooldown, que mudam entre um turno e o seguinte.
-  const cascadeProvider = noCascade ? null : cascadeRoute();
+  // Tentativa barata da cascata — só corre se ESTA sessão pediu (threadWantsCascade).
+  // A elegibilidade do provedor em si é decidida por turno, não por sessão: depende
+  // de chave e cooldown, que mudam entre um turno e o seguinte.
+  const cascadeProvider = noCascade || !threadWantsCascade(sessionKey, resumeId) ? null : cascadeRoute();
 
   let live = false; // este turno já foi registrado no live-runs.json?
   let parkedConsumed = false; // o item de fila deste turno já saiu do registro em disco?

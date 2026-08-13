@@ -15,7 +15,6 @@ const NOW = 1_700_000_000_000;
 function snap(over: Partial<RoutesSnapshot> = {}): RoutesSnapshot {
   return {
     enabled: true,
-    cascade: false,
     cascadeId: null,
     activeId: 'qwen',
     routes: [

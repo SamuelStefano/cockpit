@@ -174,8 +174,9 @@ export interface Cockpit {
   onRoutesGet: () => void;
   marathon: Set<string>;
   onToggleMarathon: (id: string, on: boolean) => void;
+  cascadeSessions: Set<string>;
+  onToggleCascadeSession: (id: string, on: boolean) => void;
   onRoutesEnable: (on: boolean) => void;
-  onRoutesCascade: (on: boolean) => void;
   onRouteSet: (id: string) => void;
   onRouteConfig: (id: string, patch: { enabled?: boolean; priority?: number }) => void;
   onRouteCustomAdd: (r: Omit<Extract<ClientMsg, { t: 'route-custom-add' }>, 't'>) => void;
@@ -237,6 +238,7 @@ export function useCockpit(): Cockpit {
   const [planUsage, setPlanUsage] = useState<PlanUsage | null>(null);
   const [routes, setRoutes] = useState<RoutesSnapshot | null>(null);
   const [marathon, setMarathon] = useState<Set<string>>(new Set());
+  const [cascadeSessions, setCascadeSessions] = useState<Set<string>>(new Set());
   const [routeSwitch, setRouteSwitch] = useState<RouteSwitchNotice | null>(null);
   const [stats, setStats] = useState<SysStats | null>(null);
   const [bgAgents, setBgAgents] = useState<Record<string, BgAgent[]>>({}); // sessionKey -> agentes de fundo ativos
@@ -819,6 +821,10 @@ export function useCockpit(): Cockpit {
       }
       case 'marathon': {
         setMarathon(new Set(msg.keys));
+        return;
+      }
+      case 'cascade-sessions': {
+        setCascadeSessions(new Set(msg.keys));
         return;
       }
       case 'route-switch': {
@@ -1646,7 +1652,6 @@ export function useCockpit(): Cockpit {
 
   const onRoutesGet = useCallback(() => send({ t: 'routes-get' }), [send]);
   const onRoutesEnable = useCallback((on: boolean) => send({ t: 'routes-enable', on }), [send]);
-  const onRoutesCascade = useCallback((on: boolean) => send({ t: 'routes-cascade', on }), [send]);
   const onRouteSet = useCallback((id: string) => send({ t: 'route-set', id }), [send]);
   const onRouteConfig = useCallback((id: string, patch: { enabled?: boolean; priority?: number }) => send({ t: 'route-config', id, ...patch }), [send]);
   const onRouteCustomAdd = useCallback((r: Omit<Extract<ClientMsg, { t: 'route-custom-add' }>, 't'>) => send({ t: 'route-custom-add', ...r }), [send]);
@@ -1708,6 +1713,13 @@ export function useCockpit(): Cockpit {
   const onToggleMarathon = useCallback((id: string, on: boolean) => {
     setMarathon((prev) => { const next = new Set(prev); on ? next.add(id) : next.delete(id); return next; });
     send({ t: 'set-marathon', sessionKey: id, on });
+  }, []);
+
+  // Cascata por sessão: mesma dança da maratona (otimista local, servidor manda de
+  // verdade). Ligar aqui só afeta ESTA sessão — nunca vaza pra outro chat.
+  const onToggleCascadeSession = useCallback((id: string, on: boolean) => {
+    setCascadeSessions((prev) => { const next = new Set(prev); on ? next.add(id) : next.delete(id); return next; });
+    send({ t: 'set-cascade-session', sessionKey: id, on });
   }, []);
 
   const onRename = useCallback((id: string, title: string) => {
@@ -1920,5 +1932,5 @@ export function useCockpit(): Cockpit {
     savePref('modelBySession', keep);
   }, [modelBySession]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, cronsLoaded, onCronsGet, onCronSave, onCronDelete, onCronRun, points, pointsTotal, pointsLoaded, onPointsGet, onPointsAdd, onPointsCorrect, onPointsNote, onPointsDelete, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync, onDflChange, onDflInvoice, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, routes, routeSwitch, dismissRouteSwitch, onRoutesGet, marathon, onToggleMarathon, onRoutesEnable, onRoutesCascade, onRouteSet, onRouteConfig, onRouteCustomAdd, onRouteCustomRemove, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg };
+  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, cronsLoaded, onCronsGet, onCronSave, onCronDelete, onCronRun, points, pointsTotal, pointsLoaded, onPointsGet, onPointsAdd, onPointsCorrect, onPointsNote, onPointsDelete, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync, onDflChange, onDflInvoice, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, routes, routeSwitch, dismissRouteSwitch, onRoutesGet, marathon, onToggleMarathon, cascadeSessions, onToggleCascadeSession, onRoutesEnable, onRouteSet, onRouteConfig, onRouteCustomAdd, onRouteCustomRemove, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg };
 }
