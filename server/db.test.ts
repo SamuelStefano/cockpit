@@ -75,6 +75,25 @@ describe('computeStats per-model pricing', () => {
     expect(s1.outputTokens).toBe(2_000_000);
     expect(s1.samples).toBe(2);
   });
+
+  it('não cobra tabela Anthropic por token que rodou em provedor free', async () => {
+    const { recordUsage, usageStats } = await freshDb();
+    recordUsage({ sessionId: 's1', ctxTokens: 1000, outputTokens: 1_000_000, model: 'claude-opus-4', provider: 'openrouter' });
+    const stats = usageStats();
+    expect(stats.totalCost).toBe(0);
+    expect(stats.sessions.find((s) => s.sessionId === 's1')!.outputTokens).toBe(1_000_000);
+  });
+
+  it('separa o gasto por provedor e trata amostra sem provedor como plano', async () => {
+    const { recordUsage, usageStats } = await freshDb();
+    recordUsage({ sessionId: 's1', ctxTokens: 1000, outputTokens: 1_000_000, model: 'claude-opus-4', provider: 'openrouter' });
+    recordUsage({ sessionId: 's1', ctxTokens: 1000, outputTokens: 2_000, model: 'claude-opus-4' });
+    const byId = new Map(usageStats().providers.map((p) => [p.providerId, p]));
+    expect(byId.get('openrouter')!.costUsd).toBe(0);
+    expect(byId.get('openrouter')!.outputTokens).toBe(1_000_000);
+    expect(byId.get('anthropic-plan')!.costUsd).toBeGreaterThan(0);
+    expect(byId.get('anthropic-plan')!.outputTokens).toBe(2_000);
+  });
 });
 
 describe('usageStats daily series', () => {
