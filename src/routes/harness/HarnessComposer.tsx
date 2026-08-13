@@ -50,6 +50,25 @@ export function HarnessComposer({ config, running, onRun }: Props) {
         ))}
       </div>
 
+      {d.nativeMode && (
+        <div>
+          <span className="mb-1 block text-[10.5px] font-medium uppercase tracking-[0.12em] text-neutral-500">Rodar no</span>
+          <div className="grid grid-cols-2 gap-1.5">
+            <Button variant={d.via === 'plan' ? 'primary' : 'secondary'} size="sm" icon="claude" onClick={() => d.setVia('plan')}>
+              Plano · grátis
+            </Button>
+            <Button variant={d.via === 'api' ? 'primary' : 'secondary'} size="sm" icon="zap" onClick={() => d.setVia('api')}>
+              API · centavos
+            </Button>
+          </div>
+          <p className="mt-1 text-[10.5px] leading-relaxed text-neutral-600">
+            {d.via === 'plan'
+              ? 'Roda pelo seu plano (cota que você já paga, US$0). Carrega ~10k tokens de scaffolding por task.'
+              : 'Roda na API pay-as-you-go (centavos por task, contexto enxuto).'}
+          </p>
+        </div>
+      )}
+
       {d.mode === 'auto' && (
         <p className="text-[11.5px] leading-relaxed text-neutral-500">
           Um classificador barato (Haiku) lê o prompt, sugere a complexidade e escolhe o modelo

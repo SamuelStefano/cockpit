@@ -30,6 +30,7 @@ export function HarnessFeed({ task, events }: Props) {
           {task.status === 'running' ? 'rodando' : errored ? 'erro' : 'concluída'}
         </Badge>
         <Badge tone="neutral">{task.mode}</Badge>
+        {task.via === 'plan' && <Badge tone="green">plano</Badge>}
         {task.model && <Badge tone="neutral">{task.model}</Badge>}
         {task.providerId && <Badge tone="yellow">{task.providerId}</Badge>}
         {task.tierReason && task.mode !== 'model' && <Badge tone={TIER_TONE[task.tier]}>{task.tier}</Badge>}
@@ -54,7 +55,9 @@ export function HarnessFeed({ task, events }: Props) {
 
       {task.status === 'done' && (
         <div className="grid grid-cols-3 gap-2">
-          <Stat label="custo" value={fmtCost(task.costUsd)} sub={task.costApprox ? 'estimado' : 'real'} icon="zap" tone={task.costUsd ? 'orange' : 'green'} />
+          {task.via === 'plan'
+            ? <Stat label="custo" value="plano" sub="US$0 · cota" icon="claude" tone="green" />
+            : <Stat label="custo" value={fmtCost(task.costUsd)} sub={task.costApprox ? 'estimado' : 'real'} icon="zap" tone={task.costUsd ? 'orange' : 'green'} />}
           <Stat label="tokens" value={((task.inputTokens ?? 0) + (task.outputTokens ?? 0)).toLocaleString('pt-BR')} sub={`${task.outputTokens ?? 0} saída`} icon="claude" />
           <Stat label="duração" value={`${((task.durationMs ?? 0) / 1000).toFixed(1)}s`} icon="clock" />
         </div>
