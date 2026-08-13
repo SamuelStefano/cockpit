@@ -334,7 +334,15 @@ function maybeEscalate(sessionKey: string, thread: Thread, failure: FailureKind,
   broadcast({ t: 'error', sessionKey, message: ESCALATION_MESSAGE[reason] });
   recordIncident({ kind: 'cascade-escalation', sessionKey, sessionId: thread.sessionId, detail: `${thread.cascadeProvider} não entregou (${reason})` });
   const p = thread.params;
-  startRun(null, sessionKey, thread.prompt, thread.sessionId, undefined, p.mode, p.model, p.maxBudgetUsd, p.bypass, p.role, p.disallowedSkills, p.mcps, p.effort, undefined, true);
+  // fork obrigatório: a tentativa barata pode ter gravado no transcript um `id` de
+  // mensagem fora do formato Anthropic (ex.: resposta de provider OpenRouter). Se a
+  // refeitura resumir esse MESMO sessionId, o Opus reenvia esse id como
+  // previous_message_id e a Anthropic recusa com 400 — a sessão fica irresumível pra
+  // sempre. `--fork-session` lê o transcript de thread.sessionId mas grava num id
+  // novo, então o dano da tentativa barata não se propaga. Sem sessionId ainda
+  // (tentativa barata morreu antes do 1º evento) não há o que forkar.
+  const forkId = thread.sessionId ? randomUUID() : undefined;
+  startRun(null, sessionKey, thread.prompt, thread.sessionId, undefined, p.mode, p.model, p.maxBudgetUsd, p.bypass, p.role, p.disallowedSkills, p.mcps, p.effort, undefined, true, forkId);
   return true;
 }
 
@@ -480,9 +488,11 @@ const SESSION_KEY_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 // o stream do turno é broadcastado a todos os clientes como qualquer outro run.
 // noCascade: este turno é a REFEITURA no modelo forte (ou uma retomada dela) e não
 // pode voltar pro provedor barato — senão a subida de tier andaria em círculo.
-// `forkId` só é usado no disparo em background: o turno lê o transcript do
-// `resumeId` mas grava nesse id novo, então a sessão original segue intocada. Não
-// é herdado pela retomada automática — retomar um fork continua o próprio fork.
+// `forkId`: o turno lê o transcript do `resumeId` mas grava nesse id novo, então a
+// sessão original segue intocada — usado no disparo em background (chat novo, isolado)
+// e na reescalada de tier da cascata (mesmo sessionKey, transcript trocado por baixo,
+// ver maybeEscalate). Não é herdado pela retomada automática — retomar um fork
+// continua o próprio fork.
 export function startRun(ws: WebSocket | null, sessionKey: string, prompt: string, resumeId?: string, msgId?: string, mode?: string, model?: string, maxBudgetUsd?: number, bypass?: boolean, role?: Role, disallowedSkills?: string[], mcps?: string[], effort?: string, auto?: boolean, noCascade?: boolean, forkId?: string) {
   // sessionKey é string crua do cliente usada como chave do mapa `threads` e
   // ecoada nos broadcasts; restringe a um slug (cobre uuid e as keys 'new-…').
