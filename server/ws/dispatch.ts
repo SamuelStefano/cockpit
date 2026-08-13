@@ -28,6 +28,7 @@ import { threads, startRun, routeSend, stopSession, drainParked, runParkedInBack
 import { addParked, removeParked, editParked, moveParked, clearParked, retryParked, parkedView, isQueuePaused, setQueuePaused, REJECT_MESSAGE } from './parked';
 import { refreshModels } from './models';
 import { handleRouteMsg } from './routes';
+import { handleHarnessMsg } from './harness';
 import { setMarathon, marathonKeys } from './marathon';
 import { setCascadeSession, cascadeSessionKeys } from '../router/cascade-session';
 import { sendDurableSnapshot } from './snapshot';
@@ -363,6 +364,13 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'route-custom-add':
     case 'route-custom-remove': {
       handleRouteMsg(ws, msg);
+      return;
+    }
+    // Harness de orquestração próprio (admin-only pelo authorize): motor separado da
+    // CLI, gasta a chave pay-as-you-go, seleção de modelo sempre explícita.
+    case 'harness-get':
+    case 'harness-run': {
+      void handleHarnessMsg(ws, msg);
       return;
     }
     // Admin write-ops (#162). authorize() já garante role admin (default-deny);

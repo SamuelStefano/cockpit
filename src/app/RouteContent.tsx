@@ -7,6 +7,7 @@ import { Pontos } from '../routes/Pontos';
 import { Crons } from '../routes/Crons';
 import { Observatorio } from '../routes/Observatorio';
 import { Graph } from '../routes/Graph';
+import { Harness } from '../routes/Harness';
 import { Admin } from '../routes/Admin';
 import { Docs } from '../routes/Docs';
 import { DesignSystem } from '../routes/DesignSystem';
@@ -99,6 +100,12 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
         <Graph connected={connected} graphs={c.graphs} loaded={c.graphsLoaded} openId={c.graphOpenId} opening={c.graphOpening} graph={c.graphData}
           building={c.graphBuilding} buildLog={c.graphBuildLog} buildError={c.graphBuildError} querying={c.graphQuerying} queryResult={c.graphQueryResult} queryHistory={c.graphQueryHistory}
           onGraphList={c.onGraphList} onGraphOpen={c.onGraphOpen} onGraphBuild={c.onGraphBuild} onClearBuildError={c.onClearBuildError} onGraphDelete={c.onGraphDelete} onGraphQuery={c.onGraphQuery} onGraphNodeOp={c.onGraphNodeOp} />
+      );
+    }
+    if (route === '/harness' && isAdmin) {
+      return (
+        <Harness connected={connected} config={c.harnessConfig} tasks={c.harnessTasks} events={c.harnessEvents}
+          onHarnessGet={c.onHarnessGet} onHarnessRun={c.onHarnessRun} />
       );
     }
     if (route === '/admin' && isAdmin) {

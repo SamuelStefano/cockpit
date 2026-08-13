@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Session, Message, Block, ToolTodo } from './data/mock';
-import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth, Caps, PlanUsage, AccountSummary, Cron, GraphMeta, GraphData, PointsEntry, DflPointsSnapshot, ParkedView, RoutesSnapshot, BgAgent } from '../shared/protocol';
+import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth, Caps, PlanUsage, AccountSummary, Cron, GraphMeta, GraphData, PointsEntry, DflPointsSnapshot, ParkedView, RoutesSnapshot, BgAgent, HarnessConfig, HarnessTaskView, HarnessEvent, HarnessModelChoice, HarnessContext } from '../shared/protocol';
 import { loadPref, savePref, setPref } from './lib/persist';
 import { SUPABASE_ENABLED } from './lib/supabase';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
@@ -181,6 +181,11 @@ export interface Cockpit {
   onRouteConfig: (id: string, patch: { enabled?: boolean; priority?: number }) => void;
   onRouteCustomAdd: (r: Omit<Extract<ClientMsg, { t: 'route-custom-add' }>, 't'>) => void;
   onRouteCustomRemove: (id: string) => void;
+  harnessConfig: HarnessConfig | null;
+  harnessTasks: HarnessTaskView[];
+  harnessEvents: Record<string, HarnessEvent[]>;
+  onHarnessGet: () => void;
+  onHarnessRun: (prompt: string, model: HarnessModelChoice, context: HarnessContext) => void;
   attachments: Attachment[];
   onUpload: (file: File) => void;
   onRemoveAttachment: (path: string) => void;
@@ -239,6 +244,9 @@ export function useCockpit(): Cockpit {
   const [routes, setRoutes] = useState<RoutesSnapshot | null>(null);
   const [marathon, setMarathon] = useState<Set<string>>(new Set());
   const [cascadeSessions, setCascadeSessions] = useState<Set<string>>(new Set());
+  const [harnessConfig, setHarnessConfig] = useState<HarnessConfig | null>(null);
+  const [harnessTasks, setHarnessTasks] = useState<HarnessTaskView[]>([]);
+  const [harnessEvents, setHarnessEvents] = useState<Record<string, HarnessEvent[]>>({});
   const [routeSwitch, setRouteSwitch] = useState<RouteSwitchNotice | null>(null);
   const [stats, setStats] = useState<SysStats | null>(null);
   const [bgAgents, setBgAgents] = useState<Record<string, BgAgent[]>>({}); // sessionKey -> agentes de fundo ativos
@@ -825,6 +833,26 @@ export function useCockpit(): Cockpit {
       }
       case 'cascade-sessions': {
         setCascadeSessions(new Set(msg.keys));
+        return;
+      }
+      case 'harness-config': {
+        setHarnessConfig(msg.config);
+        return;
+      }
+      case 'harness-tasks': {
+        setHarnessTasks(msg.tasks);
+        return;
+      }
+      case 'harness-task': {
+        // Upsert por id (running → done): mantém a ordem por ts desc.
+        setHarnessTasks((prev) => {
+          const rest = prev.filter((t) => t.id !== msg.task.id);
+          return [msg.task, ...rest].sort((a, b) => b.ts - a.ts);
+        });
+        return;
+      }
+      case 'harness-event': {
+        setHarnessEvents((prev) => ({ ...prev, [msg.taskId]: [...(prev[msg.taskId] ?? []), msg.event] }));
         return;
       }
       case 'route-switch': {
@@ -1658,6 +1686,9 @@ export function useCockpit(): Cockpit {
   const onRouteCustomRemove = useCallback((id: string) => send({ t: 'route-custom-remove', id }), [send]);
   const dismissRouteSwitch = useCallback(() => setRouteSwitch(null), []);
 
+  const onHarnessGet = useCallback(() => send({ t: 'harness-get' }), [send]);
+  const onHarnessRun = useCallback((prompt: string, model: HarnessModelChoice, context: HarnessContext) => send({ t: 'harness-run', prompt, model, context }), [send]);
+
   const onStop = useCallback((sessionKey?: string) => {
     // Guard: se um call-site fizer onClick={onStop}, o React passa o MouseEvent
     // como 1º arg — serializá-lo no send() estoura "circular structure" e o stop
@@ -1932,5 +1963,5 @@ export function useCockpit(): Cockpit {
     savePref('modelBySession', keep);
   }, [modelBySession]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, cronsLoaded, onCronsGet, onCronSave, onCronDelete, onCronRun, points, pointsTotal, pointsLoaded, onPointsGet, onPointsAdd, onPointsCorrect, onPointsNote, onPointsDelete, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync, onDflChange, onDflInvoice, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, routes, routeSwitch, dismissRouteSwitch, onRoutesGet, marathon, onToggleMarathon, cascadeSessions, onToggleCascadeSession, onRoutesEnable, onRouteSet, onRouteConfig, onRouteCustomAdd, onRouteCustomRemove, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg };
+  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, cronsLoaded, onCronsGet, onCronSave, onCronDelete, onCronRun, points, pointsTotal, pointsLoaded, onPointsGet, onPointsAdd, onPointsCorrect, onPointsNote, onPointsDelete, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync, onDflChange, onDflInvoice, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, routes, routeSwitch, dismissRouteSwitch, onRoutesGet, marathon, onToggleMarathon, cascadeSessions, onToggleCascadeSession, onRoutesEnable, onRouteSet, onRouteConfig, onRouteCustomAdd, onRouteCustomRemove, harnessConfig, harnessTasks, harnessEvents, onHarnessGet, onHarnessRun, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg };
 }
