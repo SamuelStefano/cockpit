@@ -23,6 +23,14 @@ export function Models() {
           que a janela reseta — nada de esperar a madrugada. O banner acima do campo mostra qual
           provedor está no ar; a ordem, as chaves e provedores próprios ficam em Admin → Rotas.
         </InfoCard>
+        <InfoCard icon="zap" title="Cascata: barato primeiro">
+          Com a <span className="font-medium text-neutral-300">cascata</span> ligada, o turno começa no
+          provedor mais barato disponível e só sobe para o plano se não entregar (erro, resposta vazia,
+          nenhuma ferramenta usada). É o oposto da troca automática: aquela reage a teto, esta economiza
+          por padrão. Em <span className="font-medium text-neutral-300">uso</span>, o quadro
+          <span className="font-medium text-neutral-300"> saída por provedor</span> mostra quanto de cada
+          turno rodou grátis — o que não aparecia antes, porque tudo era cobrado na tabela da Anthropic.
+        </InfoCard>
       </div>
     </section>
   );
