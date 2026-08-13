@@ -35,7 +35,7 @@ export function CockpitApp() {
     archived, onUnhide: handleUnhide, contextTokens, liveTurnTokens, turnStartedAt, bgAgents, usage, truncated, lastTurn, lastEnd, searchResults, onSearch,
     skills, usageStats,
     attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb,
-    onSend: handleSend, onEditUser: editUser, onStop: handleStop, onNew: cockpitNew, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession,
+    onSend: handleSend, onEditUser: editUser, onStop: handleStop, onNew: cockpitNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession,
     onOpenFull, onLoadOlder, onOpenSummary, onHandoff, handoffBusy,
     queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry,
     routes, routeSwitch, dismissRouteSwitch,
@@ -135,7 +135,7 @@ export function CockpitApp() {
     nav('/');
   };
 
-  const sessionsProps = { sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, stalled, updated, runStart, searchResults, onSearch, userId: sbAuth.session?.user.id };
+  const sessionsProps = { sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, stalled, updated, runStart, searchResults, onSearch, userId: sbAuth.session?.user.id };
   // Pausa o envio perto do teto do plano (5h) pra não estourar e perder trabalho:
   // a fila persistida não dispara e o composer trava até a janela resetar.
   // Quando `resetsAt` passa, des-pausa NA HORA (a janela resetou) mesmo que o número

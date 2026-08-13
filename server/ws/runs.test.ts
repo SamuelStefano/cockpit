@@ -529,3 +529,29 @@ describe('fim de turno — veredito do roteador', () => {
     expect(order).toContain('hold');
   });
 });
+
+// A maratona é a lane do prompt de 21h: o teto de VIDA de 8h a mataria em plena
+// produção, mas os tetos de silêncio têm que continuar valendo — na maratona
+// ninguém está olhando pra perceber que travou.
+describe('tetos da maratona', () => {
+  const T = 60_000;
+
+  it('turno comum morre no teto de vida; maratona não', () => {
+    const velho = { startedAt: 0, lastFrameAt: 9 * 60 * 60_000 };
+    const now = 9 * 60 * 60_000;
+    expect(findStaleThreads(now, [['a', velho]])).toEqual([{ key: 'a', reason: 'total', ms: now }]);
+    expect(findStaleThreads(now, [['a', { ...velho, marathon: true }]])).toEqual([]);
+  });
+
+  it('maratona muda ainda é reapada por silêncio', () => {
+    const now = 9 * 60 * 60_000;
+    const mudo = { startedAt: 0, lastFrameAt: now - 20 * T, marathon: true };
+    expect(findStaleThreads(now, [['a', mudo]])[0]).toMatchObject({ reason: 'silence' });
+  });
+
+  it('maratona também tem um fim: 72h', () => {
+    const now = 73 * 60 * 60_000;
+    const vivo = { startedAt: 0, lastFrameAt: now - 1, marathon: true };
+    expect(findStaleThreads(now, [['a', vivo]])[0]).toMatchObject({ reason: 'total' });
+  });
+});

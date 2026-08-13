@@ -28,6 +28,7 @@ import { threads, startRun, routeSend, stopSession, drainParked } from './runs';
 import { addParked, removeParked, editParked, moveParked, clearParked, retryParked, parkedView, isQueuePaused, setQueuePaused, REJECT_MESSAGE } from './parked';
 import { refreshModels } from './models';
 import { handleRouteMsg } from './routes';
+import { setMarathon, marathonKeys } from './marathon';
 import { sendDurableSnapshot } from './snapshot';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 import { buildBench } from '../bench';
@@ -153,6 +154,11 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       if (typeof msg.title === 'string') await setTitle(msg.sessionId, msg.title);
       if (typeof msg.summary === 'string') await setNote(msg.sessionId, msg.summary);
       broadcast({ t: 'sessions', items: await listSessions() });
+      return;
+    }
+    case 'set-marathon': {
+      setMarathon(msg.sessionKey, !!msg.on);
+      broadcast({ t: 'marathon', keys: marathonKeys() });
       return;
     }
     case 'search': {

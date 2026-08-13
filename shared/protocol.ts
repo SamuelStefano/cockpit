@@ -501,6 +501,9 @@ export type ClientMsg =
   | { t: 'unhide'; sessionId: string }
   | { t: 'purge'; sessionId: string }
   | { t: 'set-meta'; sessionId: string; title?: string; summary?: string }
+  // Lane de maratona: a sessão marcada roda trabalho longo e desacompanhado, com
+  // teto de vida e de retomada próprios.
+  | { t: 'set-marathon'; sessionKey: string; on: boolean }
   | { t: 'list-archived' }
   | { t: 'search'; q: string }
   | { t: 'ctx-list' }
@@ -650,6 +653,7 @@ export type ServerMsg =
   | { t: 'rate'; resetsAt: number; status: string }
   | { t: 'plan-usage'; usage: PlanUsage }
   | { t: 'routes'; snapshot: RoutesSnapshot }
+  | { t: 'marathon'; keys: string[] }
   // Troca de rota já feita: o cliente só avisa o usuário (banner/toast).
   | { t: 'route-switch'; from: string; to: string; label: string; reason: string; kind: string; until: number }
   | { t: 'usage'; sessionKey: string; tokens: number; turnTokens?: number }

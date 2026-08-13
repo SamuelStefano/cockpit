@@ -29,6 +29,8 @@ export interface SessionRowProps {
   onRemoveTag?: (id: string, tag: string) => void;
   onFilterTag?: (tag: string) => void;
   onSelect: (id: string) => void;
+  marathon?: boolean;
+  onToggleMarathon?: (id: string, on: boolean) => void;
   onRename: (id: string, title: string) => void;
   onDescribe?: (id: string, summary: string) => void;
   onClose: (id: string) => void;
@@ -36,7 +38,7 @@ export interface SessionRowProps {
   onStop?: (id: string) => void;
 }
 
-export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated, runStart, pinned, tags = [], onTogglePin, onAddTag, onRemoveTag, onFilterTag, onSelect, onRename, onDescribe, onClose, onDelete, onStop }: SessionRowProps) {
+export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated, runStart, pinned, tags = [], marathon, onToggleMarathon, onTogglePin, onAddTag, onRemoveTag, onFilterTag, onSelect, onRename, onDescribe, onClose, onDelete, onStop }: SessionRowProps) {
   const { editing, setEditing, draft, setDraft, descEditing, setDescEditing, descDraft, setDescDraft, tagging, setTagging, tagDraft, setTagDraft, inputRef, descRef, tagRef, commit, commitDesc, commitTag } = useSessionRow({ s, onAddTag, onRename, onDescribe });
   const [showDesc] = usePersisted<boolean>(SHOW_SESSION_DESC_KEY, SHOW_SESSION_DESC_DEFAULT);
   const { open: actionsOpen, setOpen: setActionsOpen, consumeTap, handlers } = useLongPress(() => {});
@@ -106,6 +108,8 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
             canTag={!!onAddTag}
             canStop={!!onStop}
             canDescribe={!!onDescribe}
+            marathon={!!marathon}
+            onToggleMarathon={onToggleMarathon ? () => onToggleMarathon(s.id, !marathon) : undefined}
             actionsOpen={actionsOpen}
             setActionsOpen={setActionsOpen}
             setTagging={setTagging}
