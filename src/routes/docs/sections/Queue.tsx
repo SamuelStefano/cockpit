@@ -30,6 +30,11 @@ export function Queue() {
           <span className="font-medium text-neutral-300"> reordenar</span> e <span className="font-medium text-neutral-300">cancelar só ele</span>.
           Editar troca apenas o texto: o item mantém a posição na fila e os anexos amarrados a ele.
         </InfoCard>
+        <InfoCard icon="zap" iconClass="text-orange-300" title="Disparar em paralelo">
+          O raio em cada item da fila roda ele <span className="font-medium text-neutral-300">agora</span>, num chat paralelo que herda o contexto deste —
+          sem esperar a vez dele e sem encostar no turno em andamento. Dá pra escolher o modelo só desse disparo (o seletor já vem no modelo com que o item foi enfileirado),
+          normalmente um mais barato. O item sai da fila e a conversa nova aparece na lista de sessões.
+        </InfoCard>
         <InfoCard icon="zap" iconClass="text-amber-300" title="Tokens esgotados">
           Com o teto do plano batido, a fila <span className="font-medium text-neutral-300">segura</span> tudo em vez de gastar um turno que morreria no limite —
           o bloco laranja mostra até que horas. Quando a janela reseta, os itens saem sozinhos, na ordem, mesmo com o browser fechado.

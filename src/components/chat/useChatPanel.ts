@@ -24,9 +24,10 @@ interface Args {
   queueMove: (sessionKey: string, id: string, dir: -1 | 1) => void;
   queueClear: (sessionKey: string) => void;
   queueRetry: (sessionKey: string, id: string) => void;
+  queueRunBg: (sessionKey: string, id: string, model?: string) => void;
 }
 
-export function useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry }: Args) {
+export function useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg }: Args) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -45,6 +46,9 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   const queuedParsed = useMemo(() => parked.map((p) => parseAttachments(p.text)), [parked]);
   const queued = useMemo(() => queuedParsed.map((q) => q.body), [queuedParsed]);
   const queuedAtts = useMemo(() => queuedParsed.map((q) => q.attachments.length), [queuedParsed]);
+  // Modelo com que cada item foi enfileirado: é daí que o seletor do disparo em
+  // background parte, pra não sugerir um modelo diferente do que o item já tinha.
+  const queuedModels = useMemo(() => parked.map((p) => p.model ?? model), [parked, model]);
   useEffect(() => { setFullLoaded(false); pinnedRef.current = true; setAtBottom(true); }, [sid]);
 
   const enqueue = (text: string) => queueAdd(text);
@@ -63,6 +67,12 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   // sessão — é o que o banner precisa anunciar.
   const queueHeld = parked.length > 0 && parked[0].held === true;
   const resumeQueue = () => { const it = parked[0]; if (it) queueRetry(it.sessionKey, it.id); };
+  // Roda o item AGORA num chat paralelo com o contexto deste chat, sem esperar a
+  // vez dele na fila nem interromper o turno em andamento.
+  const runQueuedInBgAt = (i: number, modelOverride?: string) => {
+    const it = parked[i];
+    if (it) queueRunBg(it.sessionKey, it.id, modelOverride);
+  };
 
   const streaming = phase === 'streaming';
   const disabled = phase !== 'idle';
@@ -194,7 +204,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
 
   return {
     scrollRef, atBottom, promptAbove, onScroll, scrollToBottom, scrollToLastPrompt, captureAnchor,
-    queued, queuedAtts, enqueue, clearQueue, cancelQueueAt, editQueuedAt, moveQueuedItem, queueHeld, resumeQueue, fullLoaded, setFullLoaded,
+    queued, queuedAtts, queuedModels, enqueue, clearQueue, cancelQueueAt, editQueuedAt, moveQueuedItem, queueHeld, resumeQueue, runQueuedInBgAt, fullLoaded, setFullLoaded,
     streaming, disabled, isEmpty,
     sentHistory, modelLabel, labelFor,
     planPending, pendingQuestion, failed, retryLast, bannerConfirm,

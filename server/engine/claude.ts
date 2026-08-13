@@ -38,6 +38,7 @@ export interface RunOpts {
   mcps?: string[];             // MCP servers a CARREGAR neste turno. Default = NENHUM (strict-mcp-config). Cada server adiciona ~5-20k tokens de tool defs por chamada; carregar só os escolhidos corta o overhead que inflava a quota (vs terminal).
   effort?: string;             // nível de pensamento (--effort low|medium|high|xhigh|max). Sem isto o CLI usa o default da conta (alto) → thinking tokens caros em pedido simples. Default do Deck = low.
   providerId?: string;         // provedor SÓ deste spawn (tentativa barata da cascata). Ausente = rota ativa do roteador.
+  forkId?: string;             // roda em cima do transcript do `resumeId` mas GRAVA neste id novo (--fork-session). Sem isto dois processos escreveriam o mesmo JSONL.
   onEvent: (ev: ClaudeEvent) => void;
   onError: (msg: string) => void;
   onClose: () => void;
@@ -61,13 +62,13 @@ export interface RunHandle {
 // - env mínimo (não vaza segredo do processo pai)
 // - cwd isolado
 // - detached pra matar a árvore no stop
-export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills'>
+export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills' | 'forkId'>
   // Rota ativa não é a Anthropic: `--fallback-model` fala nomes que só a Anthropic
   // conhece e derrubaria o turno inteiro num provedor alternativo.
   & { nativeAnthropic?: boolean };
 
 export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: string[] } | { error: string } {
-  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, nativeAnthropic = true } = opts;
+  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, nativeAnthropic = true } = opts;
   const { permissionMode, allow } = resolveMode(mode, { bypass, role });
 
   const args = [
@@ -104,12 +105,19 @@ export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: 
   if (resumeId) {
     if (!UUID_RE.test(resumeId)) return { error: 'sessionId inválido' };
     args.push('--resume', resumeId);
+    // Fork: lê o transcript do resumeId mas grava num id NOVO e conhecido de
+    // antemão. Sem o --session-id o CLI sorteia o id e o Deck não teria como
+    // amarrar o stream ao chat que vai nascer.
+    if (forkId) {
+      if (!UUID_RE.test(forkId)) return { error: 'sessionId inválido' };
+      args.push('--fork-session', '--session-id', forkId);
+    }
   }
   return { args };
 }
 
 export function run(opts: RunOpts): RunHandle {
-  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, providerId, onEvent, onError, onClose } = opts;
+  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, providerId, forkId, onEvent, onError, onClose } = opts;
 
   // MCP por sessão: escreve um config TEMPORÁRIO só com os servers escolhidos
   // (definições completas lidas do ~/.claude.json). Sem seleção → sem arquivo →
@@ -130,7 +138,7 @@ export function run(opts: RunOpts): RunHandle {
   // A rota ativa decide o nome do modelo: o alias da UI (opus/sonnet/haiku) vira o
   // id nativo do provedor pra onde o roteador apontou.
   const built = buildArgs({
-    prompt, resumeId, mode, model: routeModel(model, providerId), effort, maxBudgetUsd, bypass, role, disallowedSkills,
+    prompt, resumeId, mode, model: routeModel(model, providerId), effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId,
     nativeAnthropic: routeIsNativeAnthropic(providerId),
   }, mcpConfigPath);
   if ('error' in built) {

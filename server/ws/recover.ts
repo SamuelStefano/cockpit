@@ -29,6 +29,9 @@ export interface LiveRun {
   // morte do processo inteiro (deploy/OOM) levava o prompt junto: o boot só sabia
   // retomar com "continue de onde parou", que não é o prompt do usuário.
   parked?: ParkedItem;
+  // Sessão de onde o item saiu. No disparo avulso o turno roda com a chave do FORK,
+  // então devolver o item por `sessionKey` o jogaria numa fila fantasma.
+  parkedFrom?: string;
 }
 
 type LiveMap = Record<string, LiveRun>;
@@ -68,7 +71,7 @@ export function clearRunLive(sessionKey: string): void {
 export function pickOrphans(map: LiveMap, now: number, maxAgeMs = ORPHAN_MAX_AGE_MS, cap = ORPHAN_MAX_RESUMES): LiveRun[] {
   const all = Object.values(map)
     .filter((r) => r && typeof r.sessionKey === 'string' && typeof r.sessionId === 'string' && typeof r.startedAt === 'number')
-    .map((r) => ({ ...r, params: sanitize(r.params), parked: coerceItem(r.parked) ?? undefined }))
+    .map((r) => ({ ...r, params: sanitize(r.params), parked: coerceItem(r.parked) ?? undefined, parkedFrom: typeof r.parkedFrom === 'string' ? r.parkedFrom : undefined }))
     .sort((a, b) => b.startedAt - a.startedAt);
   const withParked = all.filter((r) => r.parked);
   const resumable = all.filter((r) => !r.parked && now - r.startedAt <= maxAgeMs).slice(0, cap);

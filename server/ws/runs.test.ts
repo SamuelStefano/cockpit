@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { WebSocket } from 'ws';
-import { admitRun, findStaleThreads, reapStaleRuns, startRun, threads, isSilentDeath, killAllRuns, resumeOrphanRuns, drainParked, startParkedDrainer, AUTO_RESUME_CAP, REAPER_SILENCE_CAP_MS, REAPER_TOOL_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './runs';
+import { admitRun, findStaleThreads, reapStaleRuns, startRun, threads, isSilentDeath, killAllRuns, resumeOrphanRuns, drainParked, runParkedInBackground, startParkedDrainer, AUTO_RESUME_CAP, REAPER_SILENCE_CAP_MS, REAPER_TOOL_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './runs';
 import { takeOrphanRuns } from './recover';
 import { recordIncident } from './incidents';
 import { awaitingAnswer } from './awaiting';
 import { broadcast } from './broadcast';
 import { run } from '../engine/claude';
-import { parkedHeads, shiftParked, unshiftParked, addParked, isQueuePaused, type ParkedItem } from './parked';
+import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takeParked, isQueuePaused, type ParkedItem } from './parked';
 import { resumableId } from './resume';
 import { quotaHold } from './quota';
 import { reportOutcome, cascadeRoute } from '../router/state';
@@ -16,6 +16,7 @@ vi.mock('../engine/claude', () => ({ run: vi.fn(() => ({ kill: vi.fn() })) }));
 // parked.json real do usuário nem depender da quota da conta.
 vi.mock('./parked', () => ({
   parkedHeads: vi.fn(() => []), shiftParked: vi.fn(), unshiftParked: vi.fn(() => 1),
+  findParked: vi.fn(() => null), takeParked: vi.fn(() => null),
   addParked: vi.fn(() => ({ id: 'pk-mock' })), parkedView: vi.fn(() => []), isQueuePaused: vi.fn(() => false),
   setQueuePaused: vi.fn(), MAX_PARKED_ATTEMPTS: 3,
 }));
@@ -463,6 +464,66 @@ describe('fila estacionada — teto de tokens', () => {
     closeLastRun();
     expect(addParked).toHaveBeenCalledWith('s4', expect.objectContaining({ prompt: 'item enfileirado' }));
     expect(run).toHaveBeenCalledOnce();
+  });
+});
+
+describe('disparo em background de um item da fila', () => {
+  const item = (over: Partial<ParkedItem> = {}): ParkedItem => ({ id: 'pk-9', prompt: 'roda isso', at: 1, resumeId: 'sess-pai', ...over });
+
+  beforeEach(() => {
+    threads.clear();
+    vi.mocked(run).mockClear();
+    vi.mocked(quotaHold).mockReturnValue(0);
+    vi.mocked(findParked).mockReset();
+    vi.mocked(takeParked).mockReset();
+    vi.mocked(unshiftParked).mockClear();
+    vi.mocked(resumableId).mockImplementation((id?: string) => id);
+  });
+
+  it('forka a sessão do chat: roda num id novo e o pai fica intocado', () => {
+    vi.mocked(findParked).mockReturnValue(item());
+    vi.mocked(takeParked).mockReturnValue(item());
+    const r = runParkedInBackground('s1', 'pk-9', 'admin');
+    expect('forkId' in r).toBe(true);
+    const forkId = (r as { forkId: string }).forkId;
+    const call = vi.mocked(run).mock.calls[0][0];
+    expect(call.resumeId).toBe('sess-pai');
+    expect(call.forkId).toBe(forkId);
+    expect(forkId).not.toBe('s1');
+    expect(threads.has('s1')).toBe(false);
+  });
+
+  it('o modelo escolhido na hora vence o que estava enfileirado', () => {
+    vi.mocked(findParked).mockReturnValue(item({ model: 'opus' }));
+    vi.mocked(takeParked).mockReturnValue(item({ model: 'opus' }));
+    runParkedInBackground('s1', 'pk-9', 'admin', 'haiku');
+    expect(vi.mocked(run).mock.calls[0][0].model).toBe('haiku');
+  });
+
+  // Devolver depois de recusar contaria uma tentativa falha que nunca houve, e no
+  // teto o item ficaria segurado por engano.
+  it('recusa ANTES de tirar da fila: sem quota, sem item, sem contexto', () => {
+    vi.mocked(quotaHold).mockReturnValue(Date.now() + 60_000);
+    expect(runParkedInBackground('s1', 'pk-9', 'admin')).toEqual({ reject: 'sem-quota' });
+    vi.mocked(quotaHold).mockReturnValue(0);
+
+    vi.mocked(findParked).mockReturnValue(null);
+    expect(runParkedInBackground('s1', 'pk-9', 'admin')).toEqual({ reject: 'sem-item' });
+
+    vi.mocked(findParked).mockReturnValue(item({ resumeId: undefined }));
+    vi.mocked(resumableId).mockReturnValue(undefined);
+    expect(runParkedInBackground('s1', 'pk-9', 'admin')).toEqual({ reject: 'sem-contexto' });
+
+    expect(takeParked).not.toHaveBeenCalled();
+    expect(unshiftParked).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('takeParked negado (item de admin, pedido de student) não roda nada', () => {
+    vi.mocked(findParked).mockReturnValue(item({ role: 'admin' }));
+    vi.mocked(takeParked).mockReturnValue(null);
+    expect(runParkedInBackground('s1', 'pk-9', 'student')).toEqual({ reject: 'sem-item' });
+    expect(run).not.toHaveBeenCalled();
   });
 });
 

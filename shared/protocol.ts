@@ -255,7 +255,9 @@ export interface RoutesSnapshot {
 // cliente: só o necessário pra a UI listar/gerenciar (params server-only não vazam).
 // `held` = o item subiu, o turno morreu sem consumi-lo e ele bateu o teto de
 // tentativas: fica guardado mas para de ser redisparado até o usuário mandar retomar.
-export interface ParkedView { sessionKey: string; id: string; text: string; at: number; held?: boolean }
+// `model` é o único param de execução que a UI expõe: o disparo em background
+// deixa trocá-lo, e sem ele o seletor não teria como partir do valor enfileirado.
+export interface ParkedView { sessionKey: string; id: string; text: string; at: number; held?: boolean; model?: string }
 
 // --- WebSocket protocol ----------------------------------------------------
 
@@ -596,6 +598,10 @@ export type ClientMsg =
   | { t: 'queue-clear'; sessionKey: string }
   | { t: 'queue-set-paused'; paused: boolean }
   | { t: 'queue-retry'; sessionKey: string; id: string }
+  // Dispara o item AGORA sem esperar a sessão liberar: o servidor forka o
+  // transcript do chat (--fork-session) e roda o prompt num chat paralelo, então o
+  // turno em andamento continua intacto. `model` sobrescreve só este disparo.
+  | { t: 'queue-run-bg'; sessionKey: string; id: string; model?: string }
   | { t: 'queue-get' };
 
 // Capabilities da conexão (DR-011). role = papel do ator (hoje sempre admin em

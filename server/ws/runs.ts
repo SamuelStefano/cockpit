@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { WebSocket } from 'ws';
 import type { ToolCall, ToolTodo, Cron } from '../../shared/protocol';
 import { run, type RunHandle } from '../engine/claude';
@@ -9,7 +10,7 @@ import { summarize } from '../summary';
 import { classify, quickAnswer, killSideRuns, killSideRunsFor } from '../engine/triage';
 import { suggestFollowups } from '../engine/suggest';
 import { awaitingAnswer } from './awaiting';
-import { parkedHeads, shiftParked, unshiftParked, addParked, parkedView, isQueuePaused, MAX_PARKED_ATTEMPTS, REJECT_MESSAGE, type ParkedItem } from './parked';
+import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takeParked, parkedView, isQueuePaused, MAX_PARKED_ATTEMPTS, REJECT_MESSAGE, type ParkedItem } from './parked';
 import { resumableId } from './resume';
 import { quotaHold, burnedByQuota, planLimited } from './quota';
 import { reportOutcome, cascadeRoute } from '../router/state';
@@ -54,6 +55,7 @@ export interface Thread {
   reaped?: StaleReason; // morto pelo reaper: usa stopped (sem notificar "concluído") MAS tem direito a retomada automática
   questioned?: boolean; // turno fez AskUserQuestion: o `claude -p` auto-resolve e CONTINUA gerando — suprime tudo que vier depois pra a pergunta ficar como última (respondível)
   parked?: ParkedItem;  // item que a fila estacionada drenou neste turno; volta pra fila se o teto de tokens matar o turno sem consumi-lo
+  parkedFrom?: string;  // sessão de onde o item saiu — no disparo avulso a chave do turno é a do FORK, e devolver por ela criaria uma fila fantasma
   lastError?: string;   // último erro reportado pelo processo; é o sinal que o roteador classifica pra decidir se troca de provedor
   cascadeProvider?: string; // este turno é a tentativa BARATA da cascata (id do provedor); se não entregar, o onClose refaz no plano
   noCascade?: boolean;      // turno preso ao tier forte; a retomada dele herda a trava pra não voltar ao barato
@@ -288,6 +290,9 @@ function autoResume(sessionKey: string, thread: Thread): void {
   if (threads.has(sessionKey)) return;          // já há turno novo na sessão
   if (awaitingAnswer.has(sessionKey)) return;   // turno aguarda resposta do usuário
   if (!thread.sessionId) return;                // sem sessionId não há --resume possível
+  // O fork já nasce com o sessionId cravado, antes de o CLI escrever o JSONL: se ele
+  // morreu cedo, `--resume` apontaria pra um transcript que não existe e morreria de novo.
+  if (!resumableId(thread.sessionId)) return;
   const tries = (autoResumes.get(sessionKey) ?? 0) + 1;
   const cap = threadIsMarathon(sessionKey, thread.sessionId) ? MARATHON_AUTO_RESUME_CAP : AUTO_RESUME_CAP;
   if (tries > cap) {
@@ -380,6 +385,40 @@ function broadcastQueue(): void {
   broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
 }
 
+export type BgRunReject = 'sem-item' | 'sem-contexto' | 'sem-quota' | 'sem-slot' | 'falhou';
+
+// Dispara UM item da fila agora, num chat paralelo, sem esperar a sessão liberar. O
+// turno em andamento não é tocado: o fork lê o transcript do chat e grava num id
+// novo, então os dois processos nunca escrevem o mesmo JSONL.
+// A ordem importa: tudo que pode recusar roda ANTES de tirar o item da fila —
+// devolver depois contaria uma tentativa falha que não houve e o item acabaria
+// segurado por engano no teto.
+export function runParkedInBackground(sessionKey: string, id: string, role?: Role, model?: string): { forkId: string } | { reject: BgRunReject } {
+  if (quotaHold()) return { reject: 'sem-quota' };
+  const peek = findParked(sessionKey, id);
+  if (!peek) return { reject: 'sem-item' };
+  // Sem transcript não há o que forkar, e rodar como turno novo perderia justamente
+  // o contexto que é o motivo do disparo.
+  const parent = resumableId(peek.resumeId);
+  if (!parent) return { reject: 'sem-contexto' };
+  // O fork nasce com chave nova, então nunca "substitui" um run: se o teto de
+  // concorrência já está cheio, o startRun recusaria depois do item já ter saído.
+  if (!admitRun(threads.size, false)) return { reject: 'sem-slot' };
+  const item = takeParked(sessionKey, id, role);
+  if (!item) return { reject: 'sem-item' };
+  const forkId = randomUUID();
+  startRun(null, forkId, item.prompt, parent, undefined, item.mode, model ?? item.model, item.maxBudgetUsd, item.bypass, item.role, item.disallowedSkills, item.mcps, item.effort, undefined, undefined, forkId);
+  // Spawn falhou depois do item já ter saído: devolve pro topo SEM contar tentativa
+  // (a falha é do disparo, não do prompt) pra ele não acabar segurado no teto.
+  const th = threads.get(forkId);
+  if (!th) { unshiftParked(sessionKey, item, false); broadcastQueue(); return { reject: 'falhou' }; }
+  // Amarra o item ao fork: se ele morrer sem consumir o prompt (teto de tokens,
+  // crash, deploy), o onClose devolve — pra fila da sessão ORIGINAL, não a do fork.
+  th.parked = item;
+  th.parkedFrom = sessionKey;
+  return { forkId };
+}
+
 let parkedTimer: ReturnType<typeof setInterval> | null = null;
 // Liga o drainer (só no agente). Varre a cada 30s: dispara a fila assim que a sessão
 // fica ociosa, sem depender do browser aberto. unref: não segura o event loop no shutdown.
@@ -422,7 +461,7 @@ export function resumeOrphanRuns(): void {
     // onde parou" genérico — não havia de onde continuar, e o drainer o redispara.
     // Vem ANTES das guardas de retomada: elas descartariam o item junto do turno.
     if (o.parked) {
-      requeueParked(o.sessionKey, o.parked);
+      requeueParked(o.parkedFrom ?? o.sessionKey, o.parked);
       continue;
     }
     const key = o.sessionId;
@@ -440,7 +479,10 @@ const SESSION_KEY_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 // o stream do turno é broadcastado a todos os clientes como qualquer outro run.
 // noCascade: este turno é a REFEITURA no modelo forte (ou uma retomada dela) e não
 // pode voltar pro provedor barato — senão a subida de tier andaria em círculo.
-export function startRun(ws: WebSocket | null, sessionKey: string, prompt: string, resumeId?: string, msgId?: string, mode?: string, model?: string, maxBudgetUsd?: number, bypass?: boolean, role?: Role, disallowedSkills?: string[], mcps?: string[], effort?: string, auto?: boolean, noCascade?: boolean) {
+// `forkId` só é usado no disparo em background: o turno lê o transcript do
+// `resumeId` mas grava nesse id novo, então a sessão original segue intocada. Não
+// é herdado pela retomada automática — retomar um fork continua o próprio fork.
+export function startRun(ws: WebSocket | null, sessionKey: string, prompt: string, resumeId?: string, msgId?: string, mode?: string, model?: string, maxBudgetUsd?: number, bypass?: boolean, role?: Role, disallowedSkills?: string[], mcps?: string[], effort?: string, auto?: boolean, noCascade?: boolean, forkId?: string) {
   // sessionKey é string crua do cliente usada como chave do mapa `threads` e
   // ecoada nos broadcasts; restringe a um slug (cobre uuid e as keys 'new-…').
   if (typeof sessionKey !== 'string' || !SESSION_KEY_RE.test(sessionKey)) {
@@ -485,7 +527,7 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
 
   let live = false; // este turno já foi registrado no live-runs.json?
   let parkedConsumed = false; // o item de fila deste turno já saiu do registro em disco?
-  const thread: Thread = { handle: { kill: () => {} }, params: { mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort }, prompt, startedAt: Date.now(), sessionId: resumeId, cascadeProvider: cascadeProvider ?? undefined, noCascade, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set() };
+  const thread: Thread = { handle: { kill: () => {} }, params: { mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort }, prompt, startedAt: Date.now(), sessionId: forkId ?? resumeId, cascadeProvider: cascadeProvider ?? undefined, noCascade, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set() };
   threads.set(sessionKey, thread);
   // Eco da mensagem do usuário a todos os clientes ANTES do 'started' (bolha do
   // usuário aparece antes da do assistente). Só quando o cliente mandou msgId — o
@@ -505,6 +547,7 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
     disallowedSkills,
     mcps,
     providerId: cascadeProvider ?? undefined,
+    forkId,
     onEvent: (ev) => {
       translate(sessionKey, thread, ev);
       // Registra o turno em disco assim que o sessionId aparece. É o que permite
@@ -516,7 +559,7 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
         // O frame que traz o sessionId pode já vir com trabalho junto; nesse caso o
         // item nem chega ao disco, senão um restart tardio reenviaria o que já rodou.
         parkedConsumed = thread.tools.length > 0 || thread.text.trim() !== '';
-        markRunLive({ sessionKey, sessionId: thread.sessionId, params: thread.params, startedAt: thread.startedAt, parked: parkedConsumed ? undefined : thread.parked });
+        markRunLive({ sessionKey, sessionId: thread.sessionId, params: thread.params, startedAt: thread.startedAt, parked: parkedConsumed ? undefined : thread.parked, parkedFrom: thread.parkedFrom });
       }
       // O prompt da fila só fica no registro em disco enquanto o turno não produziu
       // NADA — aí uma morte do processo devolve o item pra fila. Assim que sai a
@@ -563,7 +606,7 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
       // nosso (deploy, guarda de pressão, reaper) não consumiu o prompt e devolve.
       const produced = thread.userStopped || thread.tools.length > 0 || thread.text.trim() !== '';
       if (parked && (!produced || burnedByQuota({ limited: hold > 0, tools: thread.tools.length, text: thread.text }))) {
-        requeueParked(sessionKey, parked);
+        requeueParked(thread.parkedFrom ?? sessionKey, parked);
       }
       // Turno que morreu no meio sem dizer nada: avisa ANTES do 'done' (a bolha de
       // erro entra acima do rodapé de conclusão) e retoma sozinho logo abaixo. Um

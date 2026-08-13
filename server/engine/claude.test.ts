@@ -207,6 +207,15 @@ describe('buildArgs', () => {
     expect(buildArgs({ prompt: 'x', resumeId: '../etc/passwd' })).toEqual({ error: 'sessionId inválido' });
   });
 
+  it('forkId vira --fork-session --session-id, e só junto do --resume', () => {
+    const fork = argsOf({ prompt: 'x', resumeId: '11111111-1111-1111-1111-111111111111', forkId: '22222222-2222-2222-2222-222222222222' });
+    expect(fork).toContain('--fork-session');
+    expect(valAfter(fork, '--session-id')).toBe('22222222-2222-2222-2222-222222222222');
+    // Sem transcript pra forkar o flag não faz sentido: gravaria num id novo sem contexto.
+    expect(argsOf({ prompt: 'x', forkId: '22222222-2222-2222-2222-222222222222' })).not.toContain('--fork-session');
+    expect(buildArgs({ prompt: 'x', resumeId: '11111111-1111-1111-1111-111111111111', forkId: '../etc/passwd' })).toEqual({ error: 'sessionId inválido' });
+  });
+
   it('grants no allowedTools in plan mode', () => {
     expect(argsOf({ prompt: 'x', mode: 'plan' })).not.toContain('--allowedTools');
   });

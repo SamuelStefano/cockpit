@@ -48,3 +48,29 @@ describe('useQueuedBanner edição', () => {
     expect(hook.result.current.editing).toBeNull();
   });
 });
+
+describe('useQueuedBanner disparo em paralelo', () => {
+  it('toggleBg abre um item só e o segundo clique fecha', () => {
+    const { hook } = setup(['a', 'b']);
+    act(() => hook.result.current.toggleBg(1));
+    expect(hook.result.current.bgOpen).toBe(1);
+    act(() => hook.result.current.toggleBg(0));
+    expect(hook.result.current.bgOpen).toBe(0);
+    act(() => hook.result.current.toggleBg(0));
+    expect(hook.result.current.bgOpen).toBeNull();
+  });
+
+  it('o seletor segue o MESMO item quando a fila desloca', () => {
+    const { hook } = setup(['a', 'b']);
+    act(() => hook.result.current.toggleBg(1));
+    hook.rerender({ queued: ['b'] });
+    expect(hook.result.current.bgOpen).toBe(0);
+  });
+
+  it('o item disparado sumir da fila fecha o seletor', () => {
+    const { hook } = setup(['a', 'b']);
+    act(() => hook.result.current.toggleBg(1));
+    hook.rerender({ queued: ['a'] });
+    expect(hook.result.current.bgOpen).toBeNull();
+  });
+});
