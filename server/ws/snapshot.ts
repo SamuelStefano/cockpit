@@ -5,6 +5,7 @@ import { getLastPlanUsage, requestPlanUsageRefresh } from './usage-plan';
 import { getLastModels } from './models';
 import { threads } from './runs';
 import { routesView } from '../router/state';
+import { marathonKeys } from './marathon';
 
 // Estado durável que o CLI só emite DURANTE um run (busy/rate/plan-usage/models):
 // uma aba que suspendeu no mobile e voltou ficaria com o snapshot velho até um F5.
@@ -31,4 +32,5 @@ export function sendDurableSnapshot(ws: WebSocket) {
   // trocou de provedor no próximo evento de troca — ou seja, depois de já ter
   // rodado turnos inteiros noutro provedor sem avisar ninguém.
   send(ws, { t: 'routes', snapshot: routesView() });
+  send(ws, { t: 'marathon', keys: marathonKeys() });
 }

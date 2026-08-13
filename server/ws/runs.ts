@@ -15,6 +15,7 @@ import { quotaHold, burnedByQuota, planLimited } from './quota';
 import { reportOutcome } from '../router/state';
 import { markRunLive, clearRunLive, takeOrphanRuns } from './recover';
 import { recordIncident } from './incidents';
+import { threadIsMarathon, MARATHON_TOTAL_CAP_MS, MARATHON_AUTO_RESUME_CAP } from './marathon';
 
 // Config do turno, guardada no thread pra a retomada automática (morte silenciosa)
 // rodar com os MESMOS parâmetros — retomar em outro modelo/sem bypass mudaria o
@@ -199,7 +200,7 @@ export interface StaleVerdict { key: string; reason: StaleReason; ms: number }
 // pra 90min pra sempre. Tool aberta há mais que o teto dela não conta como trabalho.
 export function findStaleThreads(
   now: number,
-  entries: Iterable<[string, { startedAt: number; lastFrameAt?: number; openToolsAt?: number[] }]>,
+  entries: Iterable<[string, { startedAt: number; lastFrameAt?: number; openToolsAt?: number[]; marathon?: boolean }]>,
   caps: { silence?: number; toolSilence?: number; total?: number } = {},
 ): StaleVerdict[] {
   const silenceCap = caps.silence ?? REAPER_SILENCE_CAP_MS;
@@ -210,8 +211,11 @@ export function findStaleThreads(
     const silentFor = now - (t.lastFrameAt ?? t.startedAt);
     const aliveFor = now - t.startedAt;
     const busy = (t.openToolsAt ?? []).some((at) => now - at < toolCap);
+    // A maratona só abre mão do teto de VIDA. Os de silêncio seguem valendo: turno
+    // mudo está travado, não longo — e é justamente na maratona que ninguém olha.
+    const lifeCap = t.marathon ? MARATHON_TOTAL_CAP_MS : totalCap;
     if (silentFor >= (busy ? toolCap : silenceCap)) stale.push({ key, reason: busy ? 'tool' : 'silence', ms: silentFor });
-    else if (aliveFor >= totalCap) stale.push({ key, reason: 'total', ms: aliveFor });
+    else if (aliveFor >= lifeCap) stale.push({ key, reason: 'total', ms: aliveFor });
   }
   return stale;
 }
@@ -234,7 +238,7 @@ export function reapStaleRuns(): void {
     // duplicando bolha de erro e incidente a cada minuto.
     .filter(([, t]) => !t.reaped && !t.stopped)
     .map(([key, t]) =>
-      [key, { startedAt: t.startedAt, lastFrameAt: t.lastFrameAt, openToolsAt: [...t.toolStart.values()] }] as [string, { startedAt: number; lastFrameAt?: number; openToolsAt: number[] }]);
+      [key, { startedAt: t.startedAt, lastFrameAt: t.lastFrameAt, openToolsAt: [...t.toolStart.values()], marathon: threadIsMarathon(key, t.sessionId) }] as [string, { startedAt: number; lastFrameAt?: number; openToolsAt: number[]; marathon: boolean }]);
   for (const v of findStaleThreads(now, snapshot)) {
     const thread = threads.get(v.key);
     if (!thread) continue;
@@ -280,7 +284,8 @@ function autoResume(sessionKey: string, thread: Thread): void {
   if (awaitingAnswer.has(sessionKey)) return;   // turno aguarda resposta do usuário
   if (!thread.sessionId) return;                // sem sessionId não há --resume possível
   const tries = (autoResumes.get(sessionKey) ?? 0) + 1;
-  if (tries > AUTO_RESUME_CAP) {
+  const cap = threadIsMarathon(sessionKey, thread.sessionId) ? MARATHON_AUTO_RESUME_CAP : AUTO_RESUME_CAP;
+  if (tries > cap) {
     broadcast({ t: 'error', sessionKey, message: 'A retomada automática também falhou — mande a mensagem de novo.' });
     recordIncident({ kind: 'resume-exhausted', sessionKey, sessionId: thread.sessionId, detail: `${tries - 1} retomada(s) e o turno caiu de novo` });
     return;
@@ -530,12 +535,16 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
       // o throttle interno de summarize() cobre o resto da redução de gasto.
       // Pula resumo em stop e em sessões de CRON (cron-<id>): turno autônomo agendado
       // não vale uma chamada API de resumo a cada disparo.
-      if (thread.sessionId && !thread.stopped && !sessionKey.startsWith('cron-')) void summarize(thread.sessionId);
+      // Turno DESACOMPANHADO (cron agendado, maratona): ninguém vai ler o resumo nem
+      // clicar num chip de continuação entre um turno e o próximo, e cada um deles é
+      // uma chamada de API paga por turno fechado.
+      const unattended = sessionKey.startsWith('cron-') || threadIsMarathon(sessionKey, thread.sessionId);
+      if (thread.sessionId && !thread.stopped && !unattended) void summarize(thread.sessionId);
       // Chips de continuação (estilo ChatGPT): só em turno de usuário concluído de
       // verdade (não stop, não cron, não AskUserQuestion pendente) e sem fila — um
       // prompt enfileirado vai rodar já; sugerir tópicos agora seria ruído. Se um
       // turno novo começar antes do haiku voltar, o resultado é descartado.
-      if (!thread.stopped && !thread.questioned && !sessionKey.startsWith('cron-') && !pending.get(sessionKey)?.length) {
+      if (!thread.stopped && !thread.questioned && !unattended && !pending.get(sessionKey)?.length) {
         void suggestFollowups(thread.prompt, thread.text, sessionKey).then((items) => {
           if (items.length && !threads.has(sessionKey)) broadcast({ t: 'suggestions', sessionKey, items });
         }).catch(() => {});
