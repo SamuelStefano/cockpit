@@ -207,8 +207,14 @@ export function routeEnv(): Record<string, string> {
   if (p.baseUrl) env.ANTHROPIC_BASE_URL = p.baseUrl;
   const key = credentialFor(p);
   if (key) {
-    if (p.authMode === 'bearer') env.ANTHROPIC_AUTH_TOKEN = key;
-    else env.ANTHROPIC_API_KEY = key;
+    if (p.authMode === 'bearer') {
+      env.ANTHROPIC_AUTH_TOKEN = key;
+      // Vazio, não ausente: o minimalEnv() mescla o env gerenciado (que guarda a
+      // chave pay-as-you-go da Anthropic) ANTES da rota, então sem zerar aqui o CLI
+      // sairia mandando o x-api-key da Anthropic pro endpoint do outro provedor —
+      // e, no caso do OpenRouter, ainda voltaria a autenticar direto na Anthropic.
+      env.ANTHROPIC_API_KEY = '';
+    } else env.ANTHROPIC_API_KEY = key;
   }
   if (!isNativeAnthropic(p)) {
     // O CLI usa um modelo "pequeno" próprio pra tarefas internas (título, resumo).
