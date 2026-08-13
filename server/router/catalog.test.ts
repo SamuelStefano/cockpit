@@ -30,6 +30,55 @@ describe('CATALOG', () => {
   });
 });
 
+describe('openrouter', () => {
+  const or = findProvider('openrouter')!;
+
+  // O CLI só fala Anthropic Messages. O baseUrl tem que parar no prefixo em que o
+  // "Anthropic skin" mora (/api → /api/v1/messages): apontar pro /api/v1 nativo
+  // (formato OpenAI) devolveria 404 em todo turno.
+  it('aponta pro prefixo do skin Anthropic, não pro endpoint OpenAI', () => {
+    expect(or.baseUrl).toBe('https://openrouter.ai/api');
+    expect(or.baseUrl).not.toMatch(/chat\/completions|\/v1$/);
+  });
+
+  it('entra como rota grátis, entre o qwen e o z.ai', () => {
+    expect(or.tier).toBe('free');
+    expect(or.priority).toBeGreaterThan(findProvider('qwen-coder')!.priority);
+    expect(or.priority).toBeLessThan(findProvider('zai-glm')!.priority);
+  });
+
+  // A chave só existe como NOME de env; o valor mora fora do repo.
+  it('usa bearer e só nomeia a env da chave', () => {
+    expect(or.authEnv).toBe('OPENROUTER_API_KEY');
+    expect(or.authMode).toBe('bearer');
+    expect(JSON.stringify(or)).not.toMatch(/sk-or-/);
+  });
+
+  // Id de modelo inventado não falha no boot, falha no meio do turno com 404.
+  it('todo slot é um id :free de verdade e o haiku é o mais leve', () => {
+    for (const slot of ['opus', 'sonnet', 'haiku'] as const) {
+      expect(or.models[slot], slot).toMatch(/^[a-z0-9.-]+\/[a-z0-9.-]+:free$/);
+    }
+    expect(new Set(Object.values(or.models)).size).toBe(3);
+    expect(or.models.haiku).toBe('nvidia/nemotron-3.5-lightning:free');
+    expect(or.models.opus).toBe('nvidia/nemotron-3-ultra-550b-a55b:free');
+  });
+
+  // Samuel roda código de cliente neste app: o aviso de treinamento precisa estar
+  // na nota que a UI mostra, não só na cabeça de quem configurou.
+  it('avisa que o :free é treinado em cima do prompt', () => {
+    expect(or.note).toMatch(/trein/i);
+  });
+
+  // Sem slot dedicado o CLI pediria "claude-haiku" pro OpenRouter e morreria em 404.
+  it('traduz os alias do Deck pros ids do OpenRouter', () => {
+    expect(mapModel(or, 'opus')).toBe(or.models.opus);
+    expect(mapModel(or, 'claude-haiku-4-5-20251001')).toBe(or.models.haiku);
+    expect(mapModel(or, undefined)).toBe(or.models.sonnet);
+    expect(isNativeAnthropic(or)).toBe(false);
+  });
+});
+
 describe('validateBaseUrl', () => {
   it('aceita https público', () => {
     expect(validateBaseUrl('https://api.z.ai/api/anthropic')).toEqual({ ok: true, url: 'https://api.z.ai/api/anthropic' });

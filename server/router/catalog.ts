@@ -70,6 +70,27 @@ export const CATALOG: ProviderDef[] = [
     note: 'Trial gratuito de tokens; depois vira pago barato.',
   },
   {
+    id: 'openrouter',
+    label: 'OpenRouter (modelos free)',
+    tier: 'free',
+    // O OpenRouter é nativamente OpenAI (/api/v1/chat/completions), mas publica um
+    // "Anthropic skin" em /api/v1/messages — por isso o baseUrl para em /api e o CLI
+    // completa o resto do caminho sozinho, sem tradutor no meio.
+    baseUrl: 'https://openrouter.ai/api',
+    authEnv: 'OPENROUTER_API_KEY',
+    authMode: 'bearer',
+    // Só modelos com suporte a tools entram: sem tool use o `claude` não consegue
+    // ler/editar arquivo e o turno vira um chat inútil.
+    models: {
+      opus: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+      sonnet: 'nvidia/nemotron-3-super-120b-a12b:free',
+      haiku: 'nvidia/nemotron-3.5-lightning:free',
+    },
+    priority: 12,
+    docsUrl: 'https://openrouter.ai/docs/api/api-reference/anthropic-messages/create-a-message',
+    note: 'Modelos :free NÃO servem pra código de cliente: o free costuma ser roteado pra provedor que loga/treina em cima do prompt. Teto de 50 requisições/dia (1000 com US$10 de crédito).',
+  },
+  {
     id: 'zai-glm',
     label: 'Z.AI GLM',
     tier: 'cheap',

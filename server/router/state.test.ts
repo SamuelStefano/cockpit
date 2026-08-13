@@ -106,9 +106,27 @@ describe('env e modelo do provedor ativo', () => {
     const env = R.routeEnv();
     expect(env.ANTHROPIC_BASE_URL).toBe('https://api.z.ai/api/anthropic');
     expect(env.ANTHROPIC_AUTH_TOKEN).toBe('k-zai');
-    expect(env.ANTHROPIC_API_KEY).toBeUndefined();
     expect(env.ANTHROPIC_SMALL_FAST_MODEL).toBe('glm-4.5-air');
     expect(env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe('glm-4.6');
+  });
+
+  // Não basta "não setar": o minimalEnv() mescla o env gerenciado antes da rota, e
+  // lá mora a chave pay-as-you-go da Anthropic. Sem o vazio explícito ela ia junto,
+  // como x-api-key, pro endpoint de um terceiro.
+  it('rota bearer zera o x-api-key da Anthropic em vez de deixá-lo passar', () => {
+    R.reportOutcome(quota, NOW);
+    expect(R.routeEnv().ANTHROPIC_API_KEY).toBe('');
+  });
+
+  it('openrouter sai com o skin Anthropic, bearer e os modelos :free', () => {
+    managed = { OPENROUTER_API_KEY: 'sk-or-teste' };
+    R.setActiveRoute('openrouter');
+    const env = R.routeEnv();
+    expect(env.ANTHROPIC_BASE_URL).toBe('https://openrouter.ai/api');
+    expect(env.ANTHROPIC_AUTH_TOKEN).toBe('sk-or-teste');
+    expect(env.ANTHROPIC_API_KEY).toBe('');
+    expect(env.ANTHROPIC_SMALL_FAST_MODEL).toBe('nvidia/nemotron-3.5-lightning:free');
+    expect(R.routeModel('opus')).toBe('nvidia/nemotron-3-ultra-550b-a55b:free');
   });
 
   it('usa x-api-key quando o provedor é api-key e não manda baseUrl da Anthropic', () => {
