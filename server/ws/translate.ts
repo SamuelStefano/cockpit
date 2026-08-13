@@ -4,7 +4,7 @@ import { ctxTokens, num, contentHasQuestion } from '../sessions/parse';
 import { broadcast } from './broadcast';
 import { applySlashCommands } from './slash';
 import { setLastRate } from './rate';
-import { emitTool, closeTool } from './tools';
+import { emitTool, closeTool, attachApp } from './tools';
 import { getLastRate } from './rate';
 import { parseTaskNotification, registerNotify } from './task-notify';
 import { threads, type Thread } from './runs';
@@ -84,7 +84,14 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       const content = (ev as any).message?.content;
       if (Array.isArray(content)) {
         for (const c of content) {
-          if (c?.type === 'tool_use') { emitTool(thread, sessionKey, c, 'running'); continue; }
+          // Só aqui o `input` está completo: no content_block_start ele chega vazio
+          // e o CLI nunca acumula os input_json_delta. Por isso a UI de MCP App é
+          // resolvida no evento `assistant`, não no stream.
+          if (c?.type === 'tool_use') {
+            emitTool(thread, sessionKey, c, 'running');
+            void attachApp(thread, sessionKey, c);
+            continue;
+          }
           // Artefato do --resume pós-AskUserQuestion (mesmo filtro do parse.ts):
           // não vira delta ao vivo — seria a "bolha fantasma".
           if (c?.type === 'text' && c.text === 'No response requested.') continue;

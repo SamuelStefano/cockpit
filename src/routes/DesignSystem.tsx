@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button, EmptyState, Badge, Input, Switch, RouteHeader, toast, Stat, ProgressBar, Tabs, Modal, LivePreview, fireConfetti, Icon } from '../components/primitives';
 import { ThemePlayground } from './ds/ThemePlayground';
+import { McpAppDemo } from './ds/McpAppDemo';
 
 const DEMO_PREVIEW = `import { useState } from 'react';
 
@@ -91,6 +92,10 @@ export function DesignSystem() {
           <h2 className="text-[20px] font-semibold text-neutral-100">Design System</h2>
           <p className="mt-1 text-[13px] text-neutral-500">Primitivos do Deck — Button, Input, Badge, Stat, ProgressBar, Tabs, Toast, EmptyState e tokens.</p>
         </header>
+
+        <Section title="MCP App (SEP-1865)">
+          <Row label="widget"><div className="w-full"><McpAppDemo /></div></Row>
+        </Section>
 
         <Section title="Button — variantes">
           <Row label="primary"><Button>Enviar</Button><Button icon="play">Rodar</Button><Button iconRight icon="arrowUp">Próximo</Button></Row>
