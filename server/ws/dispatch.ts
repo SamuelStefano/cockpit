@@ -24,7 +24,7 @@ import { collectHealth } from '../health';
 import { setEnv, unsetEnv, addMcp, removeMcp, installCli } from '../admin-ops';
 import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
-import { threads, startRun, routeSend, stopSession, drainParked } from './runs';
+import { threads, startRun, routeSend, stopSession, drainParked, runParkedInBackground, type BgRunReject } from './runs';
 import { addParked, removeParked, editParked, moveParked, clearParked, retryParked, parkedView, isQueuePaused, setQueuePaused, REJECT_MESSAGE } from './parked';
 import { refreshModels } from './models';
 import { handleRouteMsg } from './routes';
@@ -32,6 +32,14 @@ import { setMarathon, marathonKeys } from './marathon';
 import { sendDurableSnapshot } from './snapshot';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 import { buildBench } from '../bench';
+
+const BG_RUN_MESSAGE: Record<BgRunReject, string> = {
+  'sem-item': 'este item não está mais na fila',
+  'sem-contexto': 'esta sessão ainda não tem contexto pra forkar',
+  'sem-quota': 'sem tokens agora: o turno morreria no limite',
+  'sem-slot': 'limite de sessões simultâneas atingido',
+  'falhou': 'não deu pra abrir o chat paralelo — o item voltou pra fila',
+};
 
 export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
   switch (msg.t) {
@@ -513,6 +521,14 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       retryParked(msg.sessionKey, msg.id);
       broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
       drainParked();
+      return;
+    }
+    // Tira o item da fila e roda AGORA num chat paralelo, forkando o contexto deste
+    // chat. Não espera a sessão liberar e não encosta no turno em andamento.
+    case 'queue-run-bg': {
+      const r = runParkedInBackground(msg.sessionKey, msg.id, role ?? 'student', typeof msg.model === 'string' ? msg.model : undefined);
+      if ('reject' in r) { send(ws, { t: 'error', sessionKey: msg.sessionKey, message: BG_RUN_MESSAGE[r.reject] }); return; }
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
       return;
     }
     case 'queue-get': {

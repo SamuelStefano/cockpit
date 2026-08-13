@@ -152,7 +152,7 @@ export function parkedView(): ParkedView[] {
   const map = loadParked();
   const out: ParkedView[] = [];
   for (const [sessionKey, items] of Object.entries(map)) {
-    for (const it of items) out.push({ sessionKey, id: it.id, text: it.prompt, at: it.at, ...(it.held ? { held: true } : {}) });
+    for (const it of items) out.push({ sessionKey, id: it.id, text: it.prompt, at: it.at, ...(it.held ? { held: true } : {}), ...(it.model ? { model: it.model } : {}) });
   }
   return out;
 }
@@ -186,6 +186,31 @@ export function addParked(sessionKey: string, item: Omit<ParkedItem, 'id' | 'at'
     map[sessionKey] = arr;
     saveParked(map);
     return { id };
+  });
+}
+
+// Espia um item sem tirá-lo da fila. Quem dispara fora do drainer precisa validar
+// (contexto, quota) ANTES de tirar: devolver depois de uma recusa contaria uma
+// tentativa falha que nunca houve e o item acabaria segurado por engano.
+export function findParked(sessionKey: string, id: string): ParkedItem | null {
+  return loadParked()[sessionKey]?.find((x) => x.id === id) ?? null;
+}
+
+// Tira UM item da fila e devolve ele inteiro (params inclusive), pra quem vai
+// executá-lo fora do drainer — que só sabe pegar o topo. Mesma guarda do
+// editParked: o item roda com o role/bypass de quem enfileirou, então disparar um
+// item de admin sendo student seria privilégio herdado.
+export function takeParked(sessionKey: string, id: string, role?: Role): ParkedItem | null {
+  return withParkedLock(() => {
+    const map = loadParked();
+    const arr = map[sessionKey];
+    const it = arr?.find((x) => x.id === id);
+    if (!arr || !it) return null;
+    if (it.role === 'admin' && role !== 'admin') return null;
+    const next = arr.filter((x) => x.id !== id);
+    if (next.length) map[sessionKey] = next; else delete map[sessionKey];
+    saveParked(map);
+    return it;
   });
 }
 
@@ -262,7 +287,10 @@ export function shiftParked(sessionKey: string): ParkedItem | undefined {
 // Devolve pro TOPO da fila um item já drenado (mesmo id, mesma posição). Usado
 // quando o turno que ele subiu morreu sem consumir o prompt. Devolve quantas
 // tentativas o item já acumulou — no teto o chamador pausa a fila.
-export function unshiftParked(sessionKey: string, item: ParkedItem): number {
+// `bump: false` devolve SEM contar tentativa: o disparo avulso tira o item antes
+// de spawnar, e uma falha ali não é o item falhando — contá-la o seguraria por
+// um erro que nunca foi dele.
+export function unshiftParked(sessionKey: string, item: ParkedItem, bump = true): number {
   if (!SESSION_KEY_RE.test(sessionKey)) return 0;
   return withParkedLock(() => {
     const map = loadParked();
@@ -271,7 +299,7 @@ export function unshiftParked(sessionKey: string, item: ParkedItem): number {
     // Devolução IGNORA os tetos de propósito: o item já estava na fila, e recusá-lo
     // aqui apagaria um prompt do usuário pra respeitar um limite que existe só pra
     // barrar acúmulo de itens NOVOS. O teto de attempts é o que impede repetição.
-    const attempts = (item.attempts ?? 0) + 1;
+    const attempts = (item.attempts ?? 0) + (bump ? 1 : 0);
     // No teto, o item é SEGURADO (não descartado): o drainer para de redisparar só
     // ele, e as outras sessões seguem drenando. Antes disto o teto pausava a fila
     // INTEIRA — uma falha determinística de um item travava a fila de todo mundo,

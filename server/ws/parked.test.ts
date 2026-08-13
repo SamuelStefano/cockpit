@@ -17,7 +17,7 @@ process.env.COCKPIT_PARKED = PARKED_FILE;
 process.env.COCKPIT_QUEUE_PAUSE = PAUSE_FILE;
 
 const mod = await import('./parked');
-const { addParked, retryParked, removeParked, editParked, moveParked, shiftParked, unshiftParked, parkedHeads, parkedView, clearParked, isQueuePaused, setQueuePaused } = mod;
+const { addParked, retryParked, removeParked, editParked, moveParked, shiftParked, unshiftParked, findParked, takeParked, parkedHeads, parkedView, clearParked, isQueuePaused, setQueuePaused } = mod;
 
 // addParked devolve { id } | { reject }; nos testes que só querem o id, isto encurta.
 const add = (key: string, item: Parameters<typeof addParked>[1]): string => {
@@ -36,7 +36,8 @@ describe('parked fila (persistência)', () => {
     const id = add('sess1', { prompt: 'oi', model: 'opus' });
     expect(id).toBeTruthy();
     const view = parkedView();
-    expect(view).toEqual([{ sessionKey: 'sess1', id, text: 'oi', at: expect.any(Number) }]);
+    // `model` vai junto: é a semente do seletor do disparo em background.
+    expect(view).toEqual([{ sessionKey: 'sess1', id, text: 'oi', at: expect.any(Number), model: 'opus' }]);
   });
 
   it('editParked troca o texto no lugar (mesma posição, id e `at`)', () => {
@@ -193,6 +194,40 @@ describe('lock cross-process', () => {
     await Promise.all([child('a'), child('b')]);
     expect(parkedView()).toHaveLength(30);
   }, 60_000);
+});
+
+describe('disparo avulso (findParked/takeParked)', () => {
+  it('findParked espia sem tirar da fila nem contar tentativa', () => {
+    const id = add('s', { prompt: 'a', model: 'opus' });
+    expect(findParked('s', id)?.prompt).toBe('a');
+    expect(findParked('s', id)?.model).toBe('opus');
+    expect(parkedView()).toHaveLength(1);
+    expect(findParked('s', 'pk-fantasma')).toBeNull();
+  });
+
+  it('takeParked tira o item do MEIO da fila, com os params intactos', () => {
+    add('s', { prompt: 'a' });
+    const id = add('s', { prompt: 'b', model: 'haiku', effort: 'low' });
+    add('s', { prompt: 'c' });
+    const it = takeParked('s', id, 'admin');
+    expect(it?.prompt).toBe('b');
+    expect(it?.model).toBe('haiku');
+    expect(it?.effort).toBe('low');
+    expect(parkedView().map((v) => v.text)).toEqual(['a', 'c']);
+  });
+
+  it('takeParked recusa item de admin quando quem pede é student (herdaria bypass)', () => {
+    const id = add('s', { prompt: 'a', role: 'admin', bypass: true });
+    expect(takeParked('s', id, 'student')).toBeNull();
+    expect(parkedView()).toHaveLength(1);
+    expect(takeParked('s', id, 'admin')?.prompt).toBe('a');
+  });
+
+  it('takeParked no último item apaga a chave da sessão', () => {
+    const id = add('s', { prompt: 'só' });
+    takeParked('s', id, 'admin');
+    expect(parkedView()).toEqual([]);
+  });
 });
 
 describe('pausa manual da fila', () => {

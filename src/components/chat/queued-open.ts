@@ -14,3 +14,11 @@ export function remapOpen(prev: string[], next: string[], open: Record<number, b
   }
   return out;
 }
+
+// Mesma régua pra um estado que aponta pra UM item só (edição, disparo avulso):
+// devolve o índice novo do item, ou null se ele saiu da fila.
+export function remapIndex(prev: string[], next: string[], i: number | null): number | null {
+  if (i === null) return null;
+  const [k] = Object.keys(remapOpen(prev, next, { [i]: true }));
+  return k === undefined ? null : Number(k);
+}

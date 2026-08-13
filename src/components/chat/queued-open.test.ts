@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { remapOpen } from './queued-open';
+import { remapOpen, remapIndex } from './queued-open';
 
 describe('remapOpen', () => {
   it('cancelar item antes do expandido desloca a expansão junto', () => {
@@ -28,5 +28,23 @@ describe('remapOpen', () => {
 
   it('fila inalterada preserva expansões', () => {
     expect(remapOpen(['a', 'b'], ['a', 'b'], { 0: true, 1: true })).toEqual({ 0: true, 1: true });
+  });
+});
+
+describe('remapIndex', () => {
+  it('null continua null', () => {
+    expect(remapIndex(['a'], ['a'], null)).toBeNull();
+  });
+
+  it('drenar o topo desloca o índice', () => {
+    expect(remapIndex(['a', 'b', 'c'], ['b', 'c'], 2)).toBe(1);
+  });
+
+  it('o próprio item sair devolve null', () => {
+    expect(remapIndex(['a', 'b'], ['a'], 1)).toBeNull();
+  });
+
+  it('reordenar acompanha o item', () => {
+    expect(remapIndex(['a', 'b'], ['b', 'a'], 0)).toBe(1);
   });
 });

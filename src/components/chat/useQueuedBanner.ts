@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import { remapOpen } from './queued-open';
+import { remapOpen, remapIndex } from './queued-open';
 
 // Estado do banner da fila: expansão, flash de reordenação e edição in-place. Tudo é
 // keyed por índice, mas QUALQUER mudança na fila (cancelar, drenar o topo, reordenar)
@@ -12,6 +12,7 @@ export function useQueuedBanner(
   const [open, setOpen] = useState<Record<number, boolean>>({});
   const [flash, setFlash] = useState<number | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
+  const [bgOpen, setBgOpen] = useState<number | null>(null);
   const [draft, setDraft] = useState('');
   const prevQueued = useRef(queued);
   // Layout effect: corrige antes do paint, senão 1 frame mostrava o vizinho expandido.
@@ -19,13 +20,10 @@ export function useQueuedBanner(
     if (prevQueued.current === queued) return;
     const prev = prevQueued.current;
     setOpen((o) => remapOpen(prev, queued, o));
-    // O textarea segue o MESMO item: se ele drenou ou foi cancelado a edição fecha,
-    // em vez de o rascunho pousar sobre o vizinho que herdou o índice.
-    setEditing((e) => {
-      if (e === null) return null;
-      const [k] = Object.keys(remapOpen(prev, queued, { [e]: true }));
-      return k === undefined ? null : Number(k);
-    });
+    // O textarea e o seletor de disparo seguem o MESMO item: se ele drenou ou foi
+    // cancelado, fecham — em vez de pousar sobre o vizinho que herdou o índice.
+    setEditing((e) => remapIndex(prev, queued, e));
+    setBgOpen((b) => remapIndex(prev, queued, b));
     prevQueued.current = queued;
   }, [queued]);
 
@@ -38,6 +36,7 @@ export function useQueuedBanner(
     window.setTimeout(() => setFlash((f) => (f === j ? null : f)), 700);
   };
 
+  const toggleBg = (i: number) => setBgOpen((b) => (b === i ? null : i));
   const startEdit = (i: number) => { setEditing(i); setDraft(queued[i] ?? ''); };
   const cancelEdit = () => setEditing(null);
   const commitEdit = () => {
@@ -47,5 +46,5 @@ export function useQueuedBanner(
     setEditing(null);
   };
 
-  return { open, toggle, flash, move, editing, draft, setDraft, startEdit, cancelEdit, commitEdit };
+  return { open, toggle, flash, move, editing, bgOpen, toggleBg, draft, setDraft, startEdit, cancelEdit, commitEdit };
 }

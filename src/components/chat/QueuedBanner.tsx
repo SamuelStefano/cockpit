@@ -1,3 +1,4 @@
+import type { ModelInfo } from '../../../shared/protocol';
 import { Icon, tokens } from '../primitives';
 import { QueuedItem } from './QueuedItem';
 import { useQueuedBanner } from './useQueuedBanner';
@@ -6,9 +7,14 @@ import { queueStatus, queueStatusIcon, queueStatusLabel } from './queue-status';
 // Fila do cliente: mensagens digitadas durante um turno, disparadas em ordem
 // quando a sessão libera. Cada item: ver completo, editar, reordenar (drena sempre
 // do topo) e cancelar só ele. A fila vive no servidor (parked.json).
-export function QueuedBanner({ queued, queuedAtts, onCancelQueueAt, onEdit, onMove, held = false, onResume, paused = false, onTogglePause, quotaHeld = false, resetLabel }: {
+export function QueuedBanner({ queued, queuedAtts, queuedModels, models, onRunBg, onCancelQueueAt, onEdit, onMove, held = false, onResume, paused = false, onTogglePause, quotaHeld = false, resetLabel }: {
   queued: string[];
   queuedAtts?: number[];
+  // Disparo em background: modelo com que cada item foi enfileirado + catálogo.
+  // Paralelo a `queued` (mesma origem, mesmo tamanho).
+  queuedModels: string[];
+  models: ModelInfo[];
+  onRunBg: (i: number, model: string) => void;
   onCancelQueueAt: (i: number) => void;
   onEdit: (i: number, text: string) => void;
   onMove: (i: number, dir: -1 | 1) => void;
@@ -72,6 +78,11 @@ export function QueuedBanner({ queued, queuedAtts, onCancelQueueAt, onEdit, onMo
             onCancelEdit={q.cancelEdit}
             onMove={(dir) => q.move(i, dir)}
             onRemove={() => onCancelQueueAt(i)}
+            bgModel={queuedModels[i]}
+            models={models}
+            bgOpen={q.bgOpen === i}
+            onToggleBg={() => q.toggleBg(i)}
+            onRunBg={(m) => onRunBg(i, m)}
           />
         ))}
       </ul>
