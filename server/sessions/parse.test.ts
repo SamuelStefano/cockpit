@@ -425,6 +425,18 @@ describe('activeChain', () => {
     expect(chain.map((r) => r.uuid)).toEqual(['a', 'b', 'sum', 'c']);
   });
 
+  it('estende até a folha real quando o leafUuid do last-prompt está defasado', () => {
+    const recs = [mk('a', null), mk('b', 'a'), mk('c', 'b', 'assistant'), mk('d', 'c', 'assistant')];
+    const chain = activeChain(index(recs), 'b', 'd');
+    expect(chain.map((r) => r.uuid)).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('não pula pra outro ramo quando a última mensagem não descende do leaf', () => {
+    const recs = [mk('a', null), mk('b', 'a'), mk('x', 'a')];
+    const chain = activeChain(index(recs), 'b', 'x');
+    expect(chain.map((r) => r.uuid)).toEqual(['a', 'b']);
+  });
+
   it('logicalParentUuid órfão não quebra a caminhada', () => {
     const boundary: Rec = { type: 'system', uuid: 'bd', parentUuid: null, logicalParentUuid: 'sumiu' };
     const chain = activeChain(index([boundary, mk('c', 'bd')]), 'c', 'c');
