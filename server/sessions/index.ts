@@ -7,7 +7,7 @@ import { allSummaries, getSummary } from '../db';
 
 const UUID_FILE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$/;
 
-export interface MetaScan { title: string; firstUser?: string; count: number; consumed: number }
+export interface MetaScan { title: string; firstUser?: string; count: number; consumed: number; lastTs?: number }
 
 // Cache em memória invalidado por mtime. Guarda `size` + o `scan` cru pra permitir
 // scan incremental: JSONL de sessão é append-only, então quando o arquivo só cresce
@@ -109,13 +109,18 @@ export async function metaForId(id: string): Promise<SessionMeta | null> {
 
 // Monta a SessionMeta a partir do cabeçalho escaneado — compartilhado pela
 // listagem e pela decoração de busca, pra os dois não divergirem nos defaults.
-export function metaFromHead(id: string, mtime: number, head: { title: string; firstUser?: string; count: number }, now = Date.now()): SessionMeta {
+export function metaFromHead(id: string, mtime: number, head: { title: string; firstUser?: string; count: number; lastTs?: number }, now = Date.now()): SessionMeta {
+  // Relógio de atividade = timestamp da ÚLTIMA mensagem do JSONL, não o mtime do
+  // arquivo: resumir/abrir uma sessão toca o arquivo sem escrever mensagem, e aí
+  // uma conversa de ontem aparecia como "30min atrás" e furava a ordem do sidebar.
+  // mtime só entra como fallback (JSONL sem timestamp legível).
+  const ts = head.lastTs ?? mtime;
   return {
     id,
     title: head.title || head.firstUser?.slice(0, 60) || 'Sem título',
-    relative: relTime(mtime, now),
+    relative: relTime(ts, now),
     snippet: head.firstUser?.slice(0, 120) || '',
-    mtime,
+    mtime: ts,
     count: head.count,
   };
 }
@@ -128,6 +133,7 @@ export function scanMetaText(text: string, prev?: MetaScan): MetaScan {
   let firstUser = prev?.firstUser;
   let count = prev?.count ?? 0;
   let consumed = prev?.consumed ?? 0;
+  let lastTs = prev?.lastTs;
   let i = 0;
   let nl: number;
   while ((nl = text.indexOf('\n', i)) >= 0) {
@@ -141,6 +147,8 @@ export function scanMetaText(text: string, prev?: MetaScan): MetaScan {
     if (o.type === 'ai-title' && o.aiTitle) title = o.aiTitle;
     else if (o.type === 'user' || o.type === 'assistant') {
       count++;
+      const ts = typeof o.timestamp === 'string' ? Date.parse(o.timestamp) : NaN;
+      if (!Number.isNaN(ts) && (lastTs === undefined || ts > lastTs)) lastTs = ts;
       if (!firstUser && o.type === 'user' && o.message) {
         const c = o.message.content;
         firstUser = typeof c === 'string'
@@ -149,7 +157,7 @@ export function scanMetaText(text: string, prev?: MetaScan): MetaScan {
       }
     }
   }
-  return { title, firstUser, count, consumed };
+  return { title, firstUser, count, consumed, lastTs };
 }
 
 // Lê do byte `prev.consumed` até EOF (full scan quando prev ausente) e funde com

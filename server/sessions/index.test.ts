@@ -41,6 +41,16 @@ describe('metaFromHead', () => {
     expect(m.title).toBe('x'.repeat(60));
     expect(m.snippet).toBe('x'.repeat(100));
   });
+  it('uses the last message timestamp instead of the file mtime', () => {
+    const m = metaFromHead('id', now, { title: 'T', count: 1, lastTs: now - 25 * 60 * 60_000 }, now);
+    expect(m.mtime).toBe(now - 25 * 60 * 60_000);
+    expect(m.relative).toBe('ontem');
+  });
+  it('falls back to the mtime when no message carries a timestamp', () => {
+    const m = metaFromHead('id', now - 60_000, { title: 'T', count: 1 }, now);
+    expect(m.mtime).toBe(now - 60_000);
+    expect(m.relative).toBe('1min atrás');
+  });
   it('falls back to "Sem título" with empty snippet when nothing is present', () => {
     const m = metaFromHead('id', 5, { title: '', count: 0 }, now);
     expect(m.title).toBe('Sem título');

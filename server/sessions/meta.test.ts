@@ -63,6 +63,17 @@ describe('scanMetaText', () => {
     expect(scanMetaText(text).consumed).toBe(Buffer.byteLength(text, 'utf8'));
   });
 
+  it('keeps the newest message timestamp', () => {
+    const at = (ts: string) => JSON.stringify({ type: 'assistant', timestamp: ts, message: { role: 'assistant', content: [] } });
+    const s = scanMetaText([at('2026-08-13T10:00:00.000Z'), at('2026-08-13T12:00:00.000Z')].join('\n') + '\n');
+    expect(s.lastTs).toBe(Date.parse('2026-08-13T12:00:00.000Z'));
+  });
+
+  it('ignores unparseable timestamps and records without one', () => {
+    const bad = JSON.stringify({ type: 'assistant', timestamp: 'nope', message: { role: 'assistant', content: [] } });
+    expect(scanMetaText([user('sem ts'), bad].join('\n') + '\n').lastTs).toBeUndefined();
+  });
+
   it('skips malformed JSON lines without counting them', () => {
     const text = ['not json', user('ok'), '{bad'].join('\n') + '\n';
     const s = scanMetaText(text);
