@@ -35,7 +35,7 @@ afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 describe('roteador desligado', () => {
   it('não injeta env nem troca de rota', () => {
-    expect(R.routeEnv()).toEqual({});
+    expect(R.routeEnv()).toEqual({ ANTHROPIC_API_KEY: '' }); // zera a chave gerenciada → força OAuth do plano
     expect(R.isPlanRoute()).toBe(true);
     expect(R.hasFallbackRoute(NOW)).toBe(false);
     expect(R.reportOutcome(quota, NOW).changed).toBeNull();
@@ -145,7 +145,7 @@ describe('env e modelo do provedor ativo', () => {
   });
 
   it('rota do plano não injeta nada', () => {
-    expect(R.routeEnv()).toEqual({});
+    expect(R.routeEnv()).toEqual({ ANTHROPIC_API_KEY: '' }); // zera a chave gerenciada → força OAuth do plano
     expect(R.routeIsNativeAnthropic()).toBe(true);
   });
 });
@@ -198,7 +198,7 @@ describe('comandos de admin', () => {
     R.setActiveRoute('zai-glm');
     R.setRoutingEnabled(false);
     expect(R.activeProvider().id).toBe('anthropic-plan');
-    expect(R.routeEnv()).toEqual({});
+    expect(R.routeEnv()).toEqual({ ANTHROPIC_API_KEY: '' }); // zera a chave gerenciada → força OAuth do plano
   });
 
   it('setOverride valida o provedor e limita a prioridade', () => {
@@ -295,7 +295,7 @@ describe('config compartilhada entre processos', () => {
 
   it('a troca de rota feita por outro processo vale no próximo spawn', () => {
     enableAll();
-    expect(R.routeEnv()).toEqual({});
+    expect(R.routeEnv()).toEqual({ ANTHROPIC_API_KEY: '' }); // zera a chave gerenciada → força OAuth do plano
 
     outroProcessoEscreve({ enabled: true, activeId: 'zai-glm', overrides: { 'zai-glm': { enabled: true } }, custom: [] });
 

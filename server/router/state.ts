@@ -207,13 +207,17 @@ function routeProvider(providerId?: string): ProviderDef {
   return activeProvider();
 }
 
-// Env do provedor deste turno, mesclado no minimalEnv do spawn. Vazio quando o
-// roteador está desligado ou a rota é o plano — aí o CLI usa o OAuth como sempre.
+// Env do provedor deste turno, mesclado no minimalEnv do spawn. Na rota do plano (ou
+// roteador desligado) o CLI tem que usar o OAuth — mas o minimalEnv mescla o env
+// gerenciado ANTES da rota, e se ele tiver ANTHROPIC_API_KEY (pay-as-you-go), a chave
+// VENCE o OAuth e o turno vai pra API paga sem querer. Zerar aqui (vazio, não ausente)
+// força o OAuth de volta. Mesmo motivo do bearer logo abaixo.
+const PLAN_ENV: Record<string, string> = { ANTHROPIC_API_KEY: '' };
 export function routeEnv(providerId?: string): Record<string, string> {
   sync();
-  if (!config.enabled) return {};
+  if (!config.enabled) return { ...PLAN_ENV };
   const p = routeProvider(providerId);
-  if (p.id === PLAN_PROVIDER_ID) return {};
+  if (p.id === PLAN_PROVIDER_ID) return { ...PLAN_ENV };
   const env: Record<string, string> = {};
   if (p.baseUrl) env.ANTHROPIC_BASE_URL = p.baseUrl;
   const key = credentialFor(p);
