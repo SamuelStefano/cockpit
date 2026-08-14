@@ -7,7 +7,7 @@ import { allSummaries, getSummary } from '../db';
 
 const UUID_FILE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$/;
 
-export interface MetaScan { title: string; firstUser?: string; count: number; consumed: number; lastTs?: number }
+export interface MetaScan { title: string; firstUser?: string; count: number; consumed: number; lastTs?: number; asked?: boolean; endsQ?: boolean }
 
 // Cache em memória invalidado por mtime. Guarda `size` + o `scan` cru pra permitir
 // scan incremental: JSONL de sessão é append-only, então quando o arquivo só cresce
@@ -109,7 +109,7 @@ export async function metaForId(id: string): Promise<SessionMeta | null> {
 
 // Monta a SessionMeta a partir do cabeçalho escaneado — compartilhado pela
 // listagem e pela decoração de busca, pra os dois não divergirem nos defaults.
-export function metaFromHead(id: string, mtime: number, head: { title: string; firstUser?: string; count: number; lastTs?: number }, now = Date.now()): SessionMeta {
+export function metaFromHead(id: string, mtime: number, head: { title: string; firstUser?: string; count: number; lastTs?: number; asked?: boolean; endsQ?: boolean }, now = Date.now()): SessionMeta {
   // Relógio de atividade = timestamp da ÚLTIMA mensagem do JSONL, não o mtime do
   // arquivo: resumir/abrir uma sessão toca o arquivo sem escrever mensagem, e aí
   // uma conversa de ontem aparecia como "30min atrás" e furava a ordem do sidebar.
@@ -122,6 +122,7 @@ export function metaFromHead(id: string, mtime: number, head: { title: string; f
     snippet: head.firstUser?.slice(0, 120) || '',
     mtime: ts,
     count: head.count,
+    waiting: head.asked || head.endsQ || undefined,
   };
 }
 
@@ -134,6 +135,8 @@ export function scanMetaText(text: string, prev?: MetaScan): MetaScan {
   let count = prev?.count ?? 0;
   let consumed = prev?.consumed ?? 0;
   let lastTs = prev?.lastTs;
+  let asked = prev?.asked ?? false;
+  let endsQ = prev?.endsQ ?? false;
   let i = 0;
   let nl: number;
   while ((nl = text.indexOf('\n', i)) >= 0) {
@@ -155,9 +158,44 @@ export function scanMetaText(text: string, prev?: MetaScan): MetaScan {
           ? c
           : Array.isArray(c) ? c.filter((x: any) => x?.type === 'text').map((x: any) => x.text).join(' ') : '';
       }
+      // Linha de subagente (isSidechain) nunca fala com o usuário: pergunta de
+      // sidechain é respondida pelo agente-pai, não vira "aguardando você".
+      if (o.isSidechain !== true) {
+        if (o.type === 'user') {
+          if (isUserPrompt(o)) { asked = false; endsQ = false; }
+        } else {
+          for (const b of assistantBlocks(o)) {
+            if (b?.type === 'tool_use' && b.name === 'AskUserQuestion') asked = true;
+            else if (b?.type === 'text' && typeof b.text === 'string' && b.text.trim()) endsQ = endsWithQuestion(b.text);
+          }
+        }
+      }
     }
   }
-  return { title, firstUser, count, consumed, lastTs };
+  return { title, firstUser, count, consumed, lastTs, asked, endsQ };
+}
+
+// Prompt DE VERDADE do usuário — o que zera o "aguardando você". Exclui
+// tool_result (o CLI grava resultado de ferramenta como linha `user`) e linha
+// meta/injetada (system-reminder, caveat): nenhum dos dois é resposta humana.
+function isUserPrompt(o: any): boolean {
+  if (o.isMeta === true || o.toolUseResult !== undefined) return false;
+  const c = o.message?.content;
+  if (typeof c === 'string') return c.trim().length > 0;
+  if (!Array.isArray(c)) return false;
+  return c.some((b: any) => b?.type === 'text' && typeof b.text === 'string' && b.text.trim().length > 0);
+}
+
+function assistantBlocks(o: any): any[] {
+  const c = o.message?.content;
+  if (Array.isArray(c)) return c;
+  return typeof c === 'string' ? [{ type: 'text', text: c }] : [];
+}
+
+// Fecho de turno em pergunta ("quer que eu faça X?"). Tolera pontuação de
+// fechamento depois do `?` (aspas, parênteses, markdown) pra não perder o sinal.
+function endsWithQuestion(text: string): boolean {
+  return /\?["'”’`)\]}*_]*$/.test(text.trim());
 }
 
 // Lê do byte `prev.consumed` até EOF (full scan quando prev ausente) e funde com

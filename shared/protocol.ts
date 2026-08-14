@@ -144,6 +144,9 @@ export interface SessionMeta {
   summary?: string; // resumo IA do que a sessão fez (gerado ao fim do turno)
   mtime: number;
   count: number;
+  // Turno parou numa pergunta ao usuário (AskUserQuestion pendente ou fecho em
+  // "?") sem prompt humano depois — agrupa a sessão em "Aguardando você".
+  waiting?: boolean;
 }
 
 // Memória do agente surfaceada read-only na aba Contextos.

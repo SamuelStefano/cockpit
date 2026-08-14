@@ -50,7 +50,7 @@ let _mid = 0;
 export const newId = (p: string) => `${p}${Date.now().toString(36)}${(_mid++).toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 
 export function metaToSession(m: SessionMeta, active: boolean): Session {
-  return { id: m.id, title: m.title, relative: m.relative, snippet: m.snippet, summary: m.summary, mtime: m.mtime, hasTerminal: false, active };
+  return { id: m.id, title: m.title, relative: m.relative, snippet: m.snippet, summary: m.summary, mtime: m.mtime, hasTerminal: false, active, waiting: m.waiting };
 }
 
 // Sessões-ping de reset de uso: crons diários que mandam só um "." (às vezes com
@@ -77,7 +77,9 @@ export function mergeServerSessions(prev: Session[], items: SessionMeta[], activ
   const fromServer = items.filter((m) => !isCronPing(m)).map((m) => {
     const sess = metaToSession(m, m.id === activeId);
     const p = prevById.get(m.id);
-    return p && p.mtime > sess.mtime ? { ...sess, mtime: p.mtime, relative: p.relative, snippet: p.snippet } : sess;
+    // `waiting` acompanha o otimista: quem acabou de responder no chat não pode
+    // continuar no balde "Aguardando você" só porque o JSONL ainda não gravou.
+    return p && p.mtime > sess.mtime ? { ...sess, mtime: p.mtime, relative: p.relative, snippet: p.snippet, waiting: p.waiting } : sess;
   });
   return [...localOnly, ...fromServer];
 }
