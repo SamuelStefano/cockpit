@@ -14,6 +14,7 @@ export interface Session {
   mtime: number;
   hasTerminal: boolean;
   active: boolean;
+  waiting?: boolean; // último turno parou numa pergunta e espera resposta sua
 }
 
 // Terminal real = PTY/tmux no backend; aqui só o metadado de aba.

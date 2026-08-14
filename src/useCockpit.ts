@@ -684,7 +684,7 @@ export function useCockpit(): Cockpit {
         updateThread(key, (prev) =>
           prev.some((m) => m.id === msg.id) ? prev : [...prev, { id: msg.id, role: 'user', text: msg.text, ts: msg.ts }],
         );
-        setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: msg.text, relative: 'agora', mtime: Math.max(s.mtime, msg.ts ?? Date.now()) } : s)));
+        setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: msg.text, relative: 'agora', mtime: Math.max(s.mtime, msg.ts ?? Date.now()), waiting: false } : s)));
         return;
       }
       case 'triage': {
@@ -1469,7 +1469,7 @@ export function useCockpit(): Cockpit {
     updateThread(key, (prev) => [...prev, { id: msgId, role: 'user', text: wire, ts: Date.now() }]);
     // Bump do mtime junto do 'agora': o group-by-recency ordena/agrupa só por mtime.
     // Sem isto o card mostrava "agora" mas ficava no balde/posição velha até um F5.
-    setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: text, relative: 'agora', mtime: Date.now() } : s)));
+    setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: text, relative: 'agora', mtime: Date.now(), waiting: false } : s)));
     setDrafts((d) => ({ ...d, [key]: '' }));
     // bypass só vai no fio quando o servidor anunciou a capacidade (admin + env +
     // loopback). O backend reimpõe via bypassAllowed — isto é só pra não anunciar
@@ -1732,7 +1732,7 @@ export function useCockpit(): Cockpit {
       if (idx === -1) return prev;
       return [...prev.slice(0, idx), { ...prev[idx], text: clean, triage: undefined, ts: Date.now() }];
     });
-    setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: clean, relative: 'agora', mtime: Date.now() } : s)));
+    setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: clean, relative: 'agora', mtime: Date.now(), waiting: false } : s)));
     const bypassWire = capsRef.current?.canBypass && bypassRef.current ? true : undefined;
     const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
     const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;

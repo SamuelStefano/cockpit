@@ -52,6 +52,37 @@ describe('groupByRecency', () => {
     expect(groups.map((g) => g.label)).toEqual(['Trabalhando agora']);
   });
 
+  it('groups waiting sessions right below the running ones, ahead of recency', () => {
+    const groups = groupByRecency(
+      [
+        session('hoje', startOfToday + 1000),
+        { ...session('perguntou', startOfToday - 90 * DAY), waiting: true },
+        session('rodando', startOfToday + 2000),
+      ],
+      new Set(),
+      new Set(['rodando']),
+    );
+    expect(groups.map((g) => g.label)).toEqual(['Trabalhando agora', 'Aguardando você', 'Hoje']);
+    expect(groups[1].items.map((s) => s.id)).toEqual(['perguntou']);
+  });
+
+  it('prefers running over waiting when the session went back to work', () => {
+    const groups = groupByRecency(
+      [{ ...session('x', startOfToday + 1000), waiting: true }],
+      new Set(),
+      new Set(['x']),
+    );
+    expect(groups.map((g) => g.label)).toEqual(['Trabalhando agora']);
+  });
+
+  it('prefers waiting over pinned', () => {
+    const groups = groupByRecency(
+      [{ ...session('p', startOfToday + 1000), waiting: true }],
+      new Set(['p']),
+    );
+    expect(groups.map((g) => g.label)).toEqual(['Aguardando você']);
+  });
+
   it('returns an empty array when there are no sessions', () => {
     expect(groupByRecency([], new Set())).toEqual([]);
   });
