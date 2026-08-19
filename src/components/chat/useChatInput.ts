@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { PermMode } from '../../../shared/protocol';
 import { classifySlash } from './slash';
 import { nextRecall } from './recall';
@@ -10,6 +10,7 @@ import { useFileDrop } from './useFileDrop';
 import { useSlashPalette } from './useSlashPalette';
 import { useComposerRecall } from './useComposerRecall';
 import { pickFreshUploads } from './dedupe-uploads';
+import { isVirtualKeyboardOnly } from './touch';
 
 interface UseChatInputArgs {
   disabled: boolean;
@@ -36,6 +37,7 @@ export function useChatInput(args: UseChatInputArgs) {
   const { disabled, onSend, onStop, value, setValue, setMode, setModel, slashCommands, hasAtt, attUploading, onUpload, focusSignal, onQueue, history, pendingConfirm, onNew, onShowHelp, paused } = args;
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const touch = useMemo(isVirtualKeyboardOnly, []);
   // Ditado por voz escreve direto no composer (value/setValue). Mora aqui pra o
   // textarea poder ficar readOnly enquanto grava (não dá pra digitar e ditar ao
   // mesmo tempo: o próximo trecho reconhecido sobrescreveria o que foi digitado).
@@ -181,6 +183,9 @@ export function useChatInput(args: UseChatInputArgs) {
       else recall(r.histIdx);
       return;
     }
+    // Teclado virtual não tem Shift+Enter usável: no toque o Enter quebra linha e
+    // o envio é só pelo botão.
+    if (e.key === 'Enter' && touch) return;
     // Composição vazia + banner pendente: Enter confirma o banner em vez de ser
     // um submit no-op. Só quando idle (com run em curso a barra vira stop/queue).
     if (e.key === 'Enter' && !e.shiftKey && !disabled && !paused && !value.trim() && !hasAtt && pendingConfirm) {
@@ -193,5 +198,5 @@ export function useChatInput(args: UseChatInputArgs) {
     if (histIdx !== null) setHistIdx(null); // digitar sai do modo recall
     fitHeight(e.target);
   };
-  return { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, ...dnd, mic, ghost, ghostShown, acceptGhost };
+  return { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, ...dnd, mic, ghost, ghostShown, acceptGhost, touch };
 }
