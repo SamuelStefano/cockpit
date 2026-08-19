@@ -2,14 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { joinTranscript, SPEECH_LANG } from './speech';
 import { speechErrorMessage, isFatalSpeechError, noCaptureMessage } from './speech-errors';
 import { toast } from '../primitives';
-
-// Aparelho de toque (celular/tablet). Nesses, a Web Speech API costuma faltar
-// (iOS Safari/webviews) ou ser instável — mas o TECLADO nativo tem ditado ótimo.
-function isTouchMobile(): boolean {
-  if (typeof window === 'undefined') return false;
-  const coarse = window.matchMedia?.('(pointer: coarse)')?.matches ?? false;
-  return coarse || (navigator.maxTouchPoints ?? 0) > 0;
-}
+// No toque a Web Speech API costuma faltar (iOS Safari/webviews) ou ser instável
+// — mas o TECLADO nativo tem ditado ótimo.
+import { isTouchMobile } from './touch';
 
 // Tipos mínimos da Web Speech API (não vêm no lib.dom de todo target). Só o que
 // usamos: ditado contínuo com resultados parciais e final por trecho.
