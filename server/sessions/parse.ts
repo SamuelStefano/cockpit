@@ -82,12 +82,28 @@ export function collectToolResults(r: Rec, map: Map<string, ToolResultRec>): voi
   }
 }
 
+function descendsFrom(byUuid: Map<string, Rec>, node: string, ancestor: string): boolean {
+  const guard = new Set<string>();
+  let cur: string | undefined = node;
+  while (cur && byUuid.has(cur) && !guard.has(cur)) {
+    if (cur === ancestor) return true;
+    guard.add(cur);
+    const r: Rec = byUuid.get(cur)!;
+    cur = r.parentUuid ?? r.logicalParentUuid ?? undefined;
+  }
+  return false;
+}
+
 // Caminho ativo (user/assistant em ordem raiz→folha) a partir do leaf. O leaf vem
 // do last-prompt.leafUuid, MAS ele pode apontar pra um uuid que não é record local
 // (resume cross-file / folha podada): nesse caso a caminhada nem entra e o
 // histórico voltaria VAZIO. Cai pro último user/assistant quando o leaf não existe.
 export function activeChain(byUuid: Map<string, Rec>, leaf: string | undefined, lastMsgUuid: string | undefined): Rec[] {
   if (!leaf || !byUuid.has(leaf)) leaf = lastMsgUuid ?? [...byUuid.keys()].pop();
+  // O last-prompt só é reescrito quando um prompt novo entra: no meio do turno o
+  // leafUuid fica defasado e amputa a cauda (texto final, pergunta, resultado).
+  // Se o último user/assistant descende do leaf, ele é a folha real do mesmo ramo.
+  else if (lastMsgUuid && lastMsgUuid !== leaf && descendsFrom(byUuid, lastMsgUuid, leaf)) leaf = lastMsgUuid;
   const chain: Rec[] = [];
   let cur: string | undefined = leaf;
   const guard = new Set<string>();
