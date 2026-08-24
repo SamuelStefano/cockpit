@@ -1,5 +1,6 @@
 import { Button, Icon, tokens } from '../primitives';
 import { ChatInputToolbar } from './ChatInputToolbar';
+import { ComposerActions } from './ComposerActions';
 import { AttachmentChips } from './AttachmentChips';
 import { QueuedBanner } from './QueuedBanner';
 import { RouteBanner } from './RouteBanner';
@@ -151,30 +152,15 @@ export function ChatInput(props: ChatInputProps) {
             className="scroll-thin relative w-full resize-none bg-transparent py-1 text-[15px] leading-7 text-neutral-100 placeholder-neutral-600 outline-none"
           />
         </div>
-        {disabled ? (
-          <button
-            type="button"
-            onClick={() => onStop()}
-            title="Interromper resposta"
-            className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-800 text-neutral-200 transition hover:bg-red-500/20 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40"
-          >
-            <Icon name="square" size={13} />
-          </button>
-        ) : (
-          <button
-            onClick={submit}
-            disabled={attUploading || (!value.trim() && !hasAtt)}
-            title={attUploading ? 'Aguarde o anexo terminar de subir' : paused ? 'Enfileirar — envia sozinho quando os tokens resetarem' : undefined}
-            className={`mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40
-              ${attUploading
-                ? 'bg-neutral-800 text-neutral-600'
-                : paused
-                ? (value.trim() ? 'bg-amber-500/80 text-neutral-950 hover:bg-amber-400' : 'bg-neutral-800 text-neutral-600')
-                : (value.trim() || hasAtt) ? 'bg-orange-500 text-neutral-950 hover:bg-orange-400' : 'bg-neutral-800 text-neutral-600'}`}
-          >
-            <Icon name={paused ? 'clock' : 'arrowUp'} size={paused ? 14 : 16} />
-          </button>
-        )}
+        <ComposerActions
+          busy={disabled}
+          paused={paused}
+          hasText={!!value.trim()}
+          hasAtt={hasAtt}
+          attUploading={attUploading}
+          onSubmit={submit}
+          onStop={onStop}
+        />
       </div>
       </div>
     </div>
