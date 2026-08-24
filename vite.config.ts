@@ -1,5 +1,6 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
+import { configDefaults } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 // squad M1: pinar host em 127.0.0.1 — NÃO usar --host na Fase 1 (anula o bind
@@ -12,6 +13,9 @@ export default defineConfig({
     // worker a menos que o total de cores deixa a box sempre respirando.
     maxWorkers: 2,
     minWorkers: 1,
+    // Worktree de agente é uma cópia do repo em commit antigo: a suite dele
+    // roda junto e falha por código que a main já corrigiu.
+    exclude: [...configDefaults.exclude, '.claude/worktrees/**'],
   },
   server: {
     host: '127.0.0.1',
