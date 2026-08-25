@@ -95,7 +95,7 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
           <span
             className={`flex min-w-0 items-start gap-1.5 text-left text-[13.5px] font-medium leading-snug tracking-[-0.01em] ${active ? 'text-neutral-50' : 'text-neutral-300 group-hover:text-neutral-200'}`}
           >
-            <span className="mt-[3px] shrink-0"><SessionStatusDot running={running} stalled={stalled} updated={updated} /></span>
+            <span className="mt-[3px] shrink-0"><SessionStatusDot running={running} stalled={stalled} updated={updated} waiting={s.waiting} /></span>
             {/* Título em até 2 linhas: um título longo mostra bem mais antes de
                 reticenciar do que o corte de 1 linha (os "…" que incomodavam). */}
             <span className={`line-clamp-2 ${!running && updated && !active ? 'text-neutral-100' : ''}`}><Highlight text={s.title} term={highlight} /></span>

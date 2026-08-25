@@ -25,6 +25,7 @@ import { setEnv, unsetEnv, addMcp, removeMcp, installCli } from '../admin-ops';
 import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
 import { threads, startRun, routeSend, stopSession, drainParked, runParkedInBackground, type BgRunReject } from './runs';
+import { clearAwaiting } from './awaiting';
 import { addParked, removeParked, editParked, moveParked, clearParked, retryParked, parkedView, isQueuePaused, setQueuePaused, REJECT_MESSAGE } from './parked';
 import { refreshModels } from './models';
 import { handleRouteMsg } from './routes';
@@ -533,6 +534,13 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'queue-retry': {
       retryParked(msg.sessionKey, msg.id);
       broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      drainParked();
+      return;
+    }
+    // Abre mão da pergunta pendente: a fila volta a drenar nesta sessão sem que o
+    // usuário responda o card.
+    case 'queue-force': {
+      clearAwaiting(msg.sessionKey);
       drainParked();
       return;
     }

@@ -10,11 +10,12 @@ interface TurnBannersProps {
   lastEnd?: string;
   retryLast: () => void;
   onSend: (text: string, modeOverride?: PermMode) => void;
+  onForceQueue?: () => void;
 }
 
 // Precedência: falha > plano > pergunta segurando a fila > corte de teto. Só um
 // banner aparece por vez.
-export function TurnBanners({ phase, failed, planPending, pendingQuestion = false, queuedCount = 0, lastEnd, retryLast, onSend }: TurnBannersProps) {
+export function TurnBanners({ phase, failed, planPending, pendingQuestion = false, queuedCount = 0, lastEnd, retryLast, onSend, onForceQueue }: TurnBannersProps) {
   if (failed) {
     return (
       <div className="flex shrink-0 items-center gap-2 border-t border-red-500/30 bg-red-500/[0.06] px-4 py-2">
@@ -50,6 +51,15 @@ export function TurnBanners({ phase, failed, planPending, pendingQuestion = fals
         <span className="text-[12px] text-violet-200/90">
           Responda a pergunta acima pra continuar — {queuedCount} {queuedCount === 1 ? 'mensagem' : 'mensagens'} na fila aguardando.
         </span>
+        {onForceQueue && (
+          <button
+            onClick={onForceQueue}
+            title="Descarta a pergunta e manda a fila mesmo assim"
+            className="ml-auto rounded-md border border-violet-500/40 bg-violet-500/10 px-2.5 py-1 text-[11.5px] font-medium text-violet-200 transition hover:bg-violet-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40"
+          >
+            Enviar mesmo assim
+          </button>
+        )}
       </div>
     );
   }

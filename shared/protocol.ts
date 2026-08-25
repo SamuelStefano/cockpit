@@ -676,6 +676,9 @@ export type ClientMsg =
   | { t: 'queue-clear'; sessionKey: string }
   | { t: 'queue-set-paused'; paused: boolean }
   | { t: 'queue-retry'; sessionKey: string; id: string }
+  // Descarta a pergunta pendente que está segurando a fila desta sessão e drena na
+  // hora. É o "mesmo assim" do usuário: sem isto, só a resposta dele destrava.
+  | { t: 'queue-force'; sessionKey: string }
   // Dispara o item AGORA sem esperar a sessão liberar: o servidor forka o
   // transcript do chat (--fork-session) e roda o prompt num chat paralelo, então o
   // turno em andamento continua intacto. `model` sobrescreve só este disparo.
