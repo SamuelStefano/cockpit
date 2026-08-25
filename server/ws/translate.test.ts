@@ -3,9 +3,20 @@ import { translate } from './translate';
 import { threads, type Thread } from './runs';
 import { getLastRate } from './rate';
 import { broadcast } from './broadcast';
-import { awaitingAnswer } from './awaiting';
+import { isAwaiting, clearAllAwaiting } from './awaiting';
 
 vi.mock('./broadcast', () => ({ broadcast: vi.fn(), send: vi.fn(), setWss: vi.fn() }));
+vi.mock('./awaiting', () => {
+  // Latch em memória: o teste não pode escrever o awaiting.json real do usuário
+  // (um latch preso ali travaria a fila da máquina depois da suíte).
+  const keys = new Set<string>();
+  return {
+    isAwaiting: (k: string) => keys.has(k),
+    setAwaiting: (k: string) => { keys.add(k); },
+    clearAwaiting: (k: string) => { keys.delete(k); },
+    clearAllAwaiting: () => { keys.clear(); },
+  };
+});
 
 const KEY = 'k';
 
@@ -18,7 +29,7 @@ function register(): Thread {
   return t;
 }
 
-beforeEach(() => { threads.clear(); awaitingAnswer.clear(); vi.mocked(broadcast).mockClear(); });
+beforeEach(() => { threads.clear(); clearAllAwaiting(); vi.mocked(broadcast).mockClear(); });
 
 describe('translate', () => {
   it('drops frames from a run superseded on the same key', () => {
@@ -142,7 +153,7 @@ describe('translate', () => {
     expect(t.thinking).toBe('hmm');
   });
 
-  it('AskUserQuestion arma o latch awaitingAnswer, marca questioned e mata o run', () => {
+  it('AskUserQuestion arma o latch de pergunta pendente, marca questioned e mata o run', () => {
     const t = register();
     const kill = vi.fn();
     t.handle.kill = kill;
@@ -150,7 +161,7 @@ describe('translate', () => {
     translate(KEY, t, { type: 'assistant', message: { content: [q] } } as never);
     expect(t.questioned).toBe(true);
     expect(t.stopped).toBe(true);
-    expect(awaitingAnswer.has(KEY)).toBe(true);
+    expect(isAwaiting(KEY)).toBe(true);
     expect(kill).toHaveBeenCalled();
   });
 

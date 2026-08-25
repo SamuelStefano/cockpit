@@ -8,7 +8,7 @@ import { emitTool, closeTool, attachApp } from './tools';
 import { getLastRate } from './rate';
 import { parseTaskNotification, registerNotify } from './task-notify';
 import { threads, type Thread } from './runs';
-import { awaitingAnswer } from './awaiting';
+import { setAwaiting } from './awaiting';
 import { activeProvider } from '../router/state';
 
 // Tradução evento NDJSON -> ServerMsg (squad C2/H1: tool por id de correlação).
@@ -155,7 +155,7 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       if (!thread.stopped && contentHasQuestion(content)) {
         thread.stopped = true;
         thread.questioned = true;
-        awaitingAnswer.add(sessionKey);
+        setAwaiting(sessionKey);
         thread.handle.kill();
       }
       return;
