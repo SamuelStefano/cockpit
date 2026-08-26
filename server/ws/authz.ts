@@ -19,6 +19,9 @@ const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   // Só antecipa um item que o próprio student enfileirou: o dispatch passa o role
   // adiante e takeParked recusa item de admin (herdaria bypass).
   'queue-run-bg',
+  // Só reordena e interrompe: o item continua rodando com o role de quem o
+  // enfileirou, e 'stop' o student já tem. Não concede privilégio novo.
+  'queue-run-now',
 ]);
 
 export function authorize(role: Role, t: ClientMsg['t']): boolean {

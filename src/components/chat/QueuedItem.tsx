@@ -29,11 +29,15 @@ interface Props {
   bgOpen: boolean;
   onToggleBg: () => void;
   onRunBg: (model: string) => void;
+  onRunNow: () => void;
+  // Fila pausada / sem quota / item segurado: o servidor recusaria o disparo, e
+  // aceitar o clique mataria o turno em andamento à toa.
+  nowBlocked: boolean;
 }
 
 // Uma linha da fila: ver completo, editar no lugar, reordenar e cancelar. Editar
 // mexe só no texto — o item mantém posição e os anexos amarrados a ele.
-export function QueuedItem({ index, text, atts, expanded, flash, first, last, editing, draft, setDraft, onToggle, onStartEdit, onCommit, onCancelEdit, onMove, onRemove, bgModel, models, bgOpen, onToggleBg, onRunBg }: Props) {
+export function QueuedItem({ index, text, atts, expanded, flash, first, last, editing, draft, setDraft, onToggle, onStartEdit, onCommit, onCancelEdit, onMove, onRemove, bgModel, models, bgOpen, onToggleBg, onRunBg, onRunNow, nowBlocked }: Props) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const bgId = `fila-bg-${index}`;
   useEffect(() => { if (editing) taRef.current?.focus(); }, [editing]);
@@ -82,6 +86,9 @@ export function QueuedItem({ index, text, atts, expanded, flash, first, last, ed
             <>
               <button type="button" onClick={onStartEdit} title="Editar esta mensagem na fila" className={iconBtn}>
                 <Icon name="pencil" size={12} />
+              </button>
+              <button type="button" onClick={onRunNow} disabled={nowBlocked} title="Rodar agora neste chat, interrompendo o turno em andamento" className={iconBtn}>
+                <Icon name="play" size={11} />
               </button>
               <button type="button" onClick={onToggleBg} aria-expanded={bgOpen} aria-controls={bgId} title="Rodar agora em paralelo, com o contexto deste chat" className={`${iconBtn} ${bgOpen ? 'text-orange-300' : ''}`}>
                 <Icon name="zap" size={12} />

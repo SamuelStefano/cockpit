@@ -17,7 +17,7 @@ process.env.COCKPIT_PARKED = PARKED_FILE;
 process.env.COCKPIT_QUEUE_PAUSE = PAUSE_FILE;
 
 const mod = await import('./parked');
-const { addParked, retryParked, removeParked, editParked, moveParked, shiftParked, unshiftParked, findParked, takeParked, parkedHeads, parkedView, clearParked, isQueuePaused, setQueuePaused } = mod;
+const { addParked, retryParked, removeParked, editParked, moveParked, promoteParked, shiftParked, unshiftParked, findParked, takeParked, parkedHeads, parkedView, clearParked, isQueuePaused, setQueuePaused } = mod;
 
 // addParked devolve { id } | { reject }; nos testes que só querem o id, isto encurta.
 const add = (key: string, item: Parameters<typeof addParked>[1]): string => {
@@ -227,6 +227,33 @@ describe('disparo avulso (findParked/takeParked)', () => {
     const id = add('s', { prompt: 'só' });
     takeParked('s', id, 'admin');
     expect(parkedView()).toEqual([]);
+  });
+});
+
+describe('promoteParked (furar a fila)', () => {
+  it('joga o item do fim pro topo preservando a ordem dos outros', () => {
+    add('s', { prompt: 'a' });
+    add('s', { prompt: 'b' });
+    const id = add('s', { prompt: 'c', model: 'haiku' });
+    expect(promoteParked('s', id)).toBe(true);
+    expect(parkedView().map((v) => v.text)).toEqual(['c', 'a', 'b']);
+    // Promover é reordenar, não reenfileirar: os params com que o item foi criado ficam.
+    expect(findParked('s', id)?.model).toBe('haiku');
+  });
+
+  it('item já no topo é no-op bem-sucedido', () => {
+    const id = add('s', { prompt: 'a' });
+    add('s', { prompt: 'b' });
+    expect(promoteParked('s', id)).toBe(true);
+    expect(parkedView().map((v) => v.text)).toEqual(['a', 'b']);
+  });
+
+  // O chamador mata o turno em andamento com base neste retorno: um false errado
+  // custaria o turno do usuário por um item que não existe mais.
+  it('retorna false pra id fantasma e pra sessão sem fila', () => {
+    add('s', { prompt: 'a' });
+    expect(promoteParked('s', 'pk-fantasma')).toBe(false);
+    expect(promoteParked('vazia', 'pk-1')).toBe(false);
   });
 });
 

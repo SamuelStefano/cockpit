@@ -24,7 +24,7 @@ import { collectHealth } from '../health';
 import { setEnv, unsetEnv, addMcp, removeMcp, installCli } from '../admin-ops';
 import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
-import { threads, startRun, routeSend, stopSession, drainParked, runParkedInBackground, type BgRunReject } from './runs';
+import { threads, startRun, routeSend, stopSession, drainParked, runParkedInBackground, runParkedNow, type BgRunReject, type NowRunReject } from './runs';
 import { addParked, removeParked, editParked, moveParked, clearParked, retryParked, parkedView, isQueuePaused, setQueuePaused, REJECT_MESSAGE } from './parked';
 import { refreshModels } from './models';
 import { handleRouteMsg } from './routes';
@@ -41,6 +41,13 @@ const BG_RUN_MESSAGE: Record<BgRunReject, string> = {
   'sem-quota': 'sem tokens agora: o turno morreria no limite',
   'sem-slot': 'limite de sessões simultâneas atingido',
   'falhou': 'não deu pra abrir o chat paralelo — o item voltou pra fila',
+};
+
+const NOW_RUN_MESSAGE: Record<NowRunReject, string> = {
+  'sem-item': 'este item não está mais na fila',
+  'segurado': 'este item está segurado no teto de tentativas: retome a fila primeiro',
+  'fila-pausada': 'a fila está pausada: retome antes de furar a fila',
+  'sem-quota': 'sem tokens agora: o turno morreria no limite',
 };
 
 export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
@@ -541,6 +548,15 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'queue-run-bg': {
       const r = runParkedInBackground(msg.sessionKey, msg.id, role ?? 'student', typeof msg.model === 'string' ? msg.model : undefined);
       if ('reject' in r) { send(ws, { t: 'error', sessionKey: msg.sessionKey, message: BG_RUN_MESSAGE[r.reject] }); return; }
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      return;
+    }
+    // Fura a fila: o item vai pro topo e o turno em andamento é interrompido pra
+    // ele subir no lugar. O broadcast do snapshot mostra a nova ordem; o turno que
+    // sobe vem do dreno no onClose do turno morto.
+    case 'queue-run-now': {
+      const r = runParkedNow(msg.sessionKey, msg.id);
+      if ('reject' in r) { send(ws, { t: 'error', sessionKey: msg.sessionKey, message: NOW_RUN_MESSAGE[r.reject] }); return; }
       broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
       return;
     }
