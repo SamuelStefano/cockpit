@@ -28,7 +28,7 @@ function Frame({ src, title, className, width }: { src: string; title: string; c
 // Abre um app que já está no ar (preview de PR, staging, dev server) dentro da bolha
 // do chat, navegável como se fosse localhost. Nada é compilado aqui: só embute a URL.
 export function SandboxPreview({ target }: { target: SandboxTarget }) {
-  const { vp, setVp, full, setFull, nonce, reload, width, src, proxied } = useSandboxPreview(target);
+  const { vp, setVp, full, setFull, nonce, reload, width, src, proxied, probing } = useSandboxPreview(target);
   const title = `sandbox ${target.host}`;
 
   return (
@@ -37,7 +37,12 @@ export function SandboxPreview({ target }: { target: SandboxTarget }) {
         <span className="flex min-w-0 items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-orange-300/80">
           <Icon name="monitor" size={11} className="shrink-0" />
           <span className="truncate" title={target.url}>sandbox · {target.host}</span>
-          {!proxied && <span className="shrink-0 normal-case tracking-normal text-neutral-600" title="Fora do proxy do Deck: o navegador trata o app como terceiro e bloqueia cookie de sessão.">· sem sessão</span>}
+          {!probing && !proxied && (
+            <span className="shrink-0 normal-case tracking-normal text-amber-400/70"
+              title="Sem o proxy do Deck o navegador trata o app como terceiro: cookie de sessão bloqueado e login não gruda. Rode `npm run redeploy` no cockpit.">
+              · sem sessão
+            </span>
+          )}
         </span>
         <div className="flex items-center gap-1">
           <div className="flex items-center gap-0.5 rounded-md bg-neutral-900 p-0.5">
@@ -56,7 +61,9 @@ export function SandboxPreview({ target }: { target: SandboxTarget }) {
         </div>
       </div>
 
-      {full ? (
+      {probing ? (
+        <div className="px-3 py-6 text-center font-mono text-[11px] text-neutral-600">preparando…</div>
+      ) : full ? (
         <div className="px-3 py-6 text-center font-mono text-[11px] text-neutral-600">aberto em tela cheia…</div>
       ) : (
         <div className="flex justify-center bg-white">
