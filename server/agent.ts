@@ -147,16 +147,21 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: ()
         try {
           const p = JSON.parse(raw.toString()) as { t?: string };
           if (p.t === 'browsers-present') {
-            const wasAbsent = !browsersPresent;
             browsersPresent = true;
             // Frames one-shot do bootstrap (mcp-servers, slash) foram enviados no
             // agent-ready — possivelmente antes de QUALQUER browser conectar. Os
             // loops periódicos cobrem stats/usage/models; estes não têm loop, então
             // um browser que chega depois nunca os recebia (seletor de MCP vazio,
             // slash sumido). Reemite na chegada de browser.
-            if (wasAbsent) reemitBootstrap(ws);
+            reemitBootstrap(ws);
           }
           else if (p.t === 'no-browsers') browsersPresent = false;
+          // Qualquer comando do cliente prova que há aba olhando. O relay só emite
+          // browsers-present na transição 0→1; um socket fantasma no registry dele
+          // faz a transição nunca acontecer e a flag fica presa em false — aí TODOS
+          // os loops periódicos param (hasClients) e o seletor de MCP fica vazio pra
+          // sempre. Autocura a partir do tráfego real.
+          else if (p.t) browsersPresent = true;
         } catch { /* não-JSON: ignora */ }
       });
     }
