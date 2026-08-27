@@ -32,7 +32,10 @@ async function main() {
     // pendurado-mas-vivo — se isto responde, o event loop não travou de vez.
     if (req.url === '/healthz') {
       res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ ok: true, ...runStats() }));
+      // sandboxProxy: o painel de preview só aponta o iframe pra `<slug>.localhost`
+      // se o backend em execução souber proxiar. Num backend velho esse host cai no
+      // estático e o iframe carregaria o próprio Deck dentro do chat.
+      res.end(JSON.stringify({ ok: true, sandboxProxy: true, ...runStats() }));
       return;
     }
     serveStatic(req, res).then((served) => {
