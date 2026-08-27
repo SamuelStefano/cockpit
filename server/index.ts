@@ -12,6 +12,7 @@ import { sweepMcpConfigs } from './engine/claude';
 import { loadManagedEnv } from './admin-ops';
 import { loadRouting } from './router/state';
 import { startRouteBroadcast } from './ws/routes';
+import { handleMcpRequest, isMcpPath } from './mcp/serve';
 import { CONFIG } from './config';
 
 const distDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
@@ -32,6 +33,14 @@ async function main() {
       res.end(JSON.stringify({ ok: true, ...runStats() }));
       return;
     }
+    // Superfície MCP read-only (contextos/sessões/skills) pra um agente externo.
+    // Antes do static: o serveStatic cai no index.html da SPA pra path
+    // desconhecido, e o cliente MCP receberia HTML no lugar de JSON-RPC.
+    if (isMcpPath(req.url)) {
+      handleMcpRequest(req, res).catch(() => { if (!res.headersSent) res.writeHead(500).end(); });
+      return;
+    }
+
     serveStatic(req, res).then((served) => {
       if (served) return;
       res.writeHead(200, { 'content-type': 'text/plain' });
