@@ -13,6 +13,7 @@ import { loadManagedEnv } from './admin-ops';
 import { loadRouting } from './router/state';
 import { startRouteBroadcast } from './ws/routes';
 import { CONFIG } from './config';
+import { sandboxUpstream, proxySandbox } from './sandbox-proxy';
 
 const distDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 
@@ -25,6 +26,8 @@ async function main() {
   const serveStatic = makeStatic(distDir);
 
   const server = createServer((req, res) => {
+    const sandbox = sandboxUpstream(req.headers.host);
+    if (sandbox) { proxySandbox(sandbox, req, res); return; }
     // Liveness: o supervisor (run-backend.sh) faz poll disto pra detectar backend
     // pendurado-mas-vivo — se isto responde, o event loop não travou de vez.
     if (req.url === '/healthz') {
