@@ -6,7 +6,9 @@ import { useShikiTokens } from './useShikiTokens';
 import { renderTokens } from './shiki-render';
 import { LivePreview } from './livepreview/LivePreview';
 import { BenchPreview } from './livepreview/BenchPreview';
+import { SandboxPreview } from './livepreview/SandboxPreview';
 import { BENCH_SLUG_RE } from '../../../shared/bench';
+import { parseSandboxTarget } from '../../../shared/sandbox-preview';
 
 // Linguagens que viram tela viva no chat em vez de bloco realçado.
 const PREVIEW_LANGS = new Set(['preview', 'preview-html', 'preview-native', 'preview-svg', 'preview-test']);
@@ -21,6 +23,11 @@ export function CodeBlock({ code, lang }: CodeBlockProps) {
   // ```bench:<slug> — o slug é resolvido pelo REGISTRO do servidor, não é caminho.
   const slug = lang?.startsWith('bench:') ? lang.slice(6) : '';
   if (slug && BENCH_SLUG_RE.test(slug)) return <BenchPreview code={code} repo={slug} />;
+  // ```sandbox — corpo é a URL de um app no ar. URL inválida cai no bloco de texto.
+  if (lang === 'sandbox') {
+    const target = parseSandboxTarget(code);
+    if (target) return <SandboxPreview target={target} />;
+  }
   return <HighlightedCode code={code} lang={lang} />;
 }
 
