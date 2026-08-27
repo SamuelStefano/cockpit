@@ -119,7 +119,11 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // sessão de milhares — é o "o chat mostra muito pouco". Quando a timeline
       // completa tem substancialmente mais, ela é a visão honesta. `chainOnly` =
       // o usuário pediu explicitamente o resumido, então não sobrepõe.
-      if (parsed.truncated && !msg.chainOnly) {
+      // As duas visões são capadas no MESMO historyLimit, então quando a cadeia já
+      // encheu mais da metade do cap o `>= 2x` abaixo é aritmeticamente inalcançável:
+      // parsear o arquivo inteiro de novo só pra descartar custava 4,5s de 9,6s no
+      // F5 da sessão de 438MB. Sem o atalho o cap alto (2000) desliga o benefício.
+      if (parsed.truncated && !msg.chainOnly && parsed.messages.length * 2 <= CONFIG.historyLimit) {
         const full = await parseFullSession(msg.sessionId);
         if (full && full.messages.length >= parsed.messages.length * 2) {
           send(ws, { t: 'history', sessionId: msg.sessionId, messages: full.messages, tokens: full.tokens, full: true, truncated: full.truncated, todos: full.todos });

@@ -157,6 +157,14 @@ describe('open com cadeia ativa colapsada (pós-/compact)', () => {
     expect(parse.parseFullSession).not.toHaveBeenCalled();
   });
 
+  it('não reparseia o arquivo quando a cadeia ativa já passou de metade do cap', async () => {
+    const chain = Array.from({ length: cfg.CONFIG.historyLimit }, () => ({ role: 'user' }));
+    parse.parseSession.mockResolvedValue({ messages: chain, tokens: 1, truncated: true });
+    await handle(ws, { t: 'open', sessionId: 's1' } as ClientMsg);
+    expect(parse.parseFullSession).not.toHaveBeenCalled();
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'history', tokens: 1 }));
+  });
+
   it('respeita chainOnly: quem pediu "mostrar resumido" não recebe a timeline completa de volta', async () => {
     parse.parseSession.mockResolvedValue({ messages: [{ role: 'user' }], tokens: 1, truncated: true });
     await handle(ws, { t: 'open', sessionId: 's1', chainOnly: true } as ClientMsg);

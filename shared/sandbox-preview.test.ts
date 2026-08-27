@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSandboxTarget } from './sandbox-preview';
+import { parseSandboxTarget, proxiedSandboxUrl } from './sandbox-preview';
 
 describe('parseSandboxTarget', () => {
   it('lê a url e o host', () => {
@@ -26,5 +26,25 @@ describe('parseSandboxTarget', () => {
     expect(parseSandboxTarget('')).toBeUndefined();
     expect(parseSandboxTarget('   \n')).toBeUndefined();
     expect(parseSandboxTarget('feat-x.preview.devfellowship.com')).toBeUndefined();
+  });
+});
+
+describe('proxiedSandboxUrl', () => {
+  const t = (url: string) => parseSandboxTarget(url)!;
+
+  it('serve o preview como subdomínio de localhost, preservando o caminho', () => {
+    expect(proxiedSandboxUrl(t('https://feat-x.preview.devfellowship.com/board?a=1#t'), 'localhost:7777'))
+      .toBe('http://feat-x.localhost:7777/board?a=1#t');
+  });
+
+  it('não proxya host fora do domínio de preview', () => {
+    expect(proxiedSandboxUrl(t('https://exemplo.com/'), 'localhost:7777')).toBeUndefined();
+    expect(proxiedSandboxUrl(t('https://a.b.preview.devfellowship.com/'), 'localhost:7777')).toBeUndefined();
+  });
+
+  it('não proxya quando o Deck não está em localhost', () => {
+    const target = t('https://feat-x.preview.devfellowship.com/');
+    expect(proxiedSandboxUrl(target, '127.0.0.1:7777')).toBeUndefined();
+    expect(proxiedSandboxUrl(target, 'deck.exemplo.com')).toBeUndefined();
   });
 });
