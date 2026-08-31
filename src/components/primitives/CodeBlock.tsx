@@ -1,12 +1,10 @@
-import { useState } from 'react';
+import { useState, Suspense, type ReactNode } from 'react';
 import { Icon } from './Icon';
 import { download, codeExt } from '../../lib/export';
 import { useCopied } from '../../lib/useCopied';
 import { useShikiTokens } from './useShikiTokens';
 import { renderTokens } from './shiki-render';
-import { LivePreview } from './livepreview/LivePreview';
-import { BenchPreview } from './livepreview/BenchPreview';
-import { SandboxPreview } from './livepreview/SandboxPreview';
+import { LivePreview, BenchPreview, SandboxPreview } from './lazyPreviews';
 import { BENCH_SLUG_RE } from '../../../shared/bench';
 import { parseSandboxTarget } from '../../../shared/sandbox-preview';
 
@@ -18,15 +16,21 @@ interface CodeBlockProps {
   lang?: string;
 }
 
+// Enquanto o chunk do preview desce, ocupa a MESMA altura mínima do iframe: sem isso
+// a mensagem cresce embaixo do cursor do usuário quando o preview aterrissa.
+const loadingPreview = (node: ReactNode) => (
+  <Suspense fallback={<div className="my-1 min-h-[180px] rounded-lg border border-neutral-800 bg-[#0c0c0c]" />}>{node}</Suspense>
+);
+
 export function CodeBlock({ code, lang }: CodeBlockProps) {
-  if (lang && PREVIEW_LANGS.has(lang)) return <LivePreview code={code} lang={lang} />;
+  if (lang && PREVIEW_LANGS.has(lang)) return loadingPreview(<LivePreview code={code} lang={lang} />);
   // ```bench:<slug> — o slug é resolvido pelo REGISTRO do servidor, não é caminho.
   const slug = lang?.startsWith('bench:') ? lang.slice(6) : '';
-  if (slug && BENCH_SLUG_RE.test(slug)) return <BenchPreview code={code} repo={slug} />;
+  if (slug && BENCH_SLUG_RE.test(slug)) return loadingPreview(<BenchPreview code={code} repo={slug} />);
   // ```sandbox — corpo é a URL de um app no ar. URL inválida cai no bloco de texto.
   if (lang === 'sandbox') {
     const target = parseSandboxTarget(code);
-    if (target) return <SandboxPreview target={target} />;
+    if (target) return loadingPreview(<SandboxPreview target={target} />);
   }
   return <HighlightedCode code={code} lang={lang} />;
 }

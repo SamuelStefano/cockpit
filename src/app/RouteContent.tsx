@@ -1,17 +1,11 @@
+import { Suspense } from 'react';
 import { MobileLayout } from '../components/Mobile';
 import { DesktopLayout } from './DesktopLayout';
-import { Contextos } from '../routes/Contextos';
-import { Skills } from '../routes/Skills';
-import { Notas } from '../routes/Notas';
-import { Pontos } from '../routes/Pontos';
-import { Crons } from '../routes/Crons';
-import { Observatorio } from '../routes/Observatorio';
-import { Graph } from '../routes/Graph';
-import { Harness } from '../routes/Harness';
-import { Admin } from '../routes/Admin';
-import { Docs } from '../routes/Docs';
-import { DesignSystem } from '../routes/DesignSystem';
-import { Playground } from '../routes/Playground';
+import { SkeletonCards } from '../components/primitives';
+import {
+  Contextos, Skills, Notas, Pontos, Crons, Observatorio,
+  Graph, Harness, Admin, Docs, DesignSystem, Playground,
+} from './lazyRoutes';
 import type { SessionsPanelProps } from '../components/Sessions';
 import type { ChatPanelProps } from '../components/Chat';
 import type { TerminalsPanelProps } from '../components/Terminals';
@@ -141,9 +135,14 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
 
   // key={route} remonta o wrapper a cada troca de rota → a animação de entrada
   // roda de novo. As views já desmontavam na troca, então não há remontagem extra.
+  //
+  // O Suspense fica DENTRO do wrapper com key={route}: por fora, o fallback trocaria
+  // o elemento que a animação de entrada usa como âncora e a rota piscaria duas vezes
+  // (skeleton, fade, conteúdo). Os layouts de chat não são lazy, então o fallback só
+  // aparece na primeira visita a uma rota.
   return (
     <div key={route} className="route-fade flex min-h-0 min-w-0 flex-1 flex-col">
-      {view}
+      <Suspense fallback={<div className="p-4"><SkeletonCards /></div>}>{view}</Suspense>
     </div>
   );
 }
