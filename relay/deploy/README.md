@@ -23,7 +23,13 @@ EOF
 chmod 600 /opt/deck-relay/.env
 ```
 
-## 3. Caddy + systemd
+## 3. Schema do `deck-relay`
+Aplicar `migrations/relay/*.sql` em ordem no SQL Editor do projeto Supabase. Sem
+isso não existem `account`/`agent`/`pairing_code`, e o relay sobe sem ter o que ler
+(login entra, pareamento não fecha). Ordem, conteúdo e como conferir o que já está
+aplicado: `migrations/README.md`.
+
+## 4. Caddy + systemd
 ```
 cp relay/deploy/Caddyfile /etc/caddy/Caddyfile   # ajuste o domínio
 systemctl restart caddy
@@ -31,14 +37,14 @@ cp relay/deploy/deck-relay.service /etc/systemd/system/
 systemctl daemon-reload && systemctl enable --now deck-relay
 ```
 
-## 4. Frontend (Vercel)
+## 5. Frontend (Vercel)
 Setar no projeto do Deck:
 - `VITE_SUPABASE_URL=https://ikxtdssxmcgipyfpwmar.supabase.co`
 - `VITE_SUPABASE_ANON_KEY=<anon key do deck-relay>`
 - `VITE_WS_URL=wss://relay.devfellowship.com/ws`
 Redeploy. O app passa a mostrar login → dashboard de pareamento.
 
-## 5. Parear sua VPS
+## 6. Parear sua VPS
 Na sua VPS (com `claude` CLI logado): pegue o código no dashboard e rode
 `DECK_RELAY_URL=wss://relay.devfellowship.com npx tsx server/agent.ts --pair=CÓDIGO`,
 depois `DECK_RELAY_URL=… npx tsx server/agent.ts` pra ficar online.

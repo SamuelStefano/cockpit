@@ -24,6 +24,21 @@ flock -n 8 || exit 0   # outro doctor rodando — não empilha
 
 log() { echo "[$(date -Is)] $*" >>"$LOG"; }
 
+# `pgrep -f` casa a linha de comando INTEIRA, então o padrão solto 'run-agent.sh'
+# casava três coisas que NÃO são o supervisor deste checkout:
+#   1. o earlyoom, que carrega o nome do script dentro do próprio --avoid — vivo
+#      desde 29/07/2026, o que deixou o watchdog do agente permanentemente cego
+#      (zero "agent supervisor down" no log, mesmo com o agente caído);
+#   2. o supervisor de outra worktree (/home/samuel/cockpit-usage/run-agent.sh);
+#   3. qualquer shell do próprio agente cujo comando mencione o arquivo.
+# Daí o padrão exigir a linha INTEIRA: no máximo um `bash`/`sh` na frente e o
+# caminho absoluto até o fim. Um `ls -la <caminho>` tem palavra a mais e não casa.
+# Errar pro lado do falso NEGATIVO é de graça: os dois supervisores têm flock
+# próprio, então relançar um já vivo sai no ato ("outro supervisor já segura o
+# lock"). O falso positivo é que era caro — o watchdog nunca reerguia nada.
+supervisor_re() { local p=${1//./\\.}; printf '^(([^ ]*/)?(bash|sh) )?%s$' "$p"; }
+supervisor_alive() { pgrep -f "$(supervisor_re "$1")" >/dev/null 2>&1; }
+
 # Rotação simples: trunca o log se passar de ~1MB (a box é pequena).
 if [ -f "$LOG" ] && [ "$(stat -c%s "$LOG" 2>/dev/null || echo 0)" -gt 1048576 ]; then
   tail -n 400 "$LOG" >"$LOG.tmp" 2>/dev/null && mv "$LOG.tmp" "$LOG"
@@ -51,7 +66,7 @@ done
 code=$(curl -sS -m 5 -o /dev/null -w '%{http_code}' "$HEALTH_URL" 2>/dev/null || echo 000)
 if [ "$code" != "200" ]; then
   log "backend unhealthy (HTTP $code)"
-  if ! pgrep -f 'run-backend.sh' >/dev/null 2>&1; then
+  if ! supervisor_alive "$SUPERVISOR"; then
     log "supervisor down -> starting $SUPERVISOR"
     # 8>&- é OBRIGATÓRIO: o supervisor é eterno e herdaria o fd do flock,
     # segurando o lock pra sempre. Foi o que matou este watchdog por 14 dias
@@ -68,7 +83,7 @@ fi
 #       run-agent.sh e nada o reerguia). O run-agent.sh tem flock próprio, então
 #       relançar com ele já vivo é no-op seguro.
 AGENT_SUPERVISOR=/home/samuel/cockpit/run-agent.sh
-if ! pgrep -f 'run-agent.sh' >/dev/null 2>&1; then
+if ! supervisor_alive "$AGENT_SUPERVISOR"; then
   log "agent supervisor down -> starting $AGENT_SUPERVISOR"
   nohup bash "$AGENT_SUPERVISOR" >>/tmp/deck-agent.out 2>&1 8>&- &   # 8>&-: ver nota em ── 2
 fi
