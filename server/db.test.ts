@@ -20,6 +20,17 @@ describe('priceOf', () => {
     expect(priceOf(null)).toEqual(priceOf('claude-sonnet-4'));
     expect(priceOf('gpt-4o')).toEqual(priceOf('claude-sonnet-4'));
   });
+
+  // fable está no seletor do harness (policy.ts) como tier 'complex', igual ao
+  // opus. Sem entrada própria caía no default sonnet e a chamada paga aparecia
+  // por ~1/5 do custo.
+  it('prices every model the harness offers by its declared tier', async () => {
+    const { NATIVE_MODELS } = await import('./harness/policy');
+    const byTier = { simple: 0.8, medium: 3, complex: 15 };
+    for (const m of NATIVE_MODELS) {
+      expect(priceOf(m.id).input, m.id).toBe(byTier[m.tier]);
+    }
+  });
 });
 
 describe('costOf', () => {

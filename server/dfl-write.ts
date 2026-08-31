@@ -39,19 +39,18 @@ async function refreshToken(): Promise<void> {
   try { await pexec('dfl-auth', ['refresh'], { timeout: 30_000 }); } catch { /* retry decide */ }
 }
 
-class HttpError extends Error { constructor(public status: number, msg: string) { super(msg); } }
-
-// Executa fn(creds); em 401 roda dfl-auth refresh e tenta UMA vez mais. NUNCA loga token.
-async function withAuth<T>(fn: (c: Creds) => Promise<T>): Promise<T> {
-  let creds = await loadCreds();
-  try {
-    return await fn(creds);
-  } catch (e) {
-    if (!(e instanceof HttpError) || e.status !== 401) throw e;
-    await refreshToken();
-    creds = await loadCreds();
-    return await fn(creds);
-  }
+// UMA requisição autenticada, com um retry após `dfl-auth refresh` no 401. NUNCA loga token.
+// O retry é POR REQUISIÇÃO de propósito: criar um invoice são cinco chamadas em
+// sequência, e reexecutar a SEQUÊNCIA inteira depois de um 401 no meio repetiria o
+// INSERT do invoice que a primeira tentativa já gravou — ele nasce 'submitted' e o
+// dedupe só apaga 'rejected'. Sobrariam duas faturas do mesmo mês, a primeira sem itens.
+async function authedFetch(build: (c: Creds) => { url: string; init: RequestInit }): Promise<Response> {
+  const first = build(await loadCreds());
+  const res = await fetch(first.url, first.init);
+  if (res.status !== 401) return res;
+  await refreshToken();
+  const retry = build(await loadCreds());
+  return fetch(retry.url, retry.init);
 }
 
 // ---- points-change: workflow BPMN sancionado -------------------------------
@@ -84,19 +83,17 @@ async function firePointsChange(cmd: PointsChangeCmd): Promise<Record<string, un
       },
     },
   };
-  return withAuth(async (creds) => {
-    const res = await fetch(
-      `${FLOWS_API}/engine-rest/process-definition/key/dfl.work.task_points_change_request/start?mode=sync`,
-      { method: 'POST', headers: { Authorization: `Bearer ${creds.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
-    );
-    if (!res.ok) throw new HttpError(res.status, `flows ${res.status}: ${(await res.text()).slice(0, 300)}`);
-    const j = await res.json() as Record<string, unknown>;
-    const vars = (j.variables ?? {}) as Record<string, unknown>;
-    const applied = vars.applied === true || j.current_node_id === 'end';
-    const rejected = j.current_node_id === 'end_rejected' || vars.applied === false;
-    if (!applied || rejected) throw new Error(`workflow não aplicou (node=${String(j.current_node_id ?? '?')})`);
-    return { applied: true, taskId: cmd.taskId, newPoints: Math.trunc(cmd.newPoints) };
-  });
+  const res = await authedFetch((creds) => ({
+    url: `${FLOWS_API}/engine-rest/process-definition/key/dfl.work.task_points_change_request/start?mode=sync`,
+    init: { method: 'POST', headers: { Authorization: `Bearer ${creds.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+  }));
+  if (!res.ok) throw new Error(`flows ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  const j = await res.json() as Record<string, unknown>;
+  const vars = (j.variables ?? {}) as Record<string, unknown>;
+  const applied = vars.applied === true || j.current_node_id === 'end';
+  const rejected = j.current_node_id === 'end_rejected' || vars.applied === false;
+  if (!applied || rejected) throw new Error(`workflow não aplicou (node=${String(j.current_node_id ?? '?')})`);
+  return { applied: true, taskId: cmd.taskId, newPoints: Math.trunc(cmd.newPoints) };
 }
 
 // ---- invoice-create: INSERT PostgREST, espelho de useInvoiceCreation --------
@@ -123,19 +120,22 @@ interface InvoiceCreateCmd {
   tasks: InvoiceTaskInput[];
 }
 
-async function pgFetch(creds: Creds, path: string, init: RequestInit & { schema: string }): Promise<unknown> {
+async function pgFetch(path: string, init: RequestInit & { schema: string }): Promise<unknown> {
   const { schema, ...rest } = init;
   const method = (rest.method ?? 'GET').toUpperCase();
   const profileHeader = method === 'GET' ? { 'Accept-Profile': schema } : { 'Content-Profile': schema };
-  const res = await fetch(`${creds.url}/rest/v1/${path}`, {
-    ...rest,
-    headers: {
-      apikey: creds.anonKey, Authorization: `Bearer ${creds.token}`,
-      'Content-Type': 'application/json', Accept: 'application/json',
-      ...profileHeader, ...(rest.headers as Record<string, string> | undefined),
+  const res = await authedFetch((creds) => ({
+    url: `${creds.url}/rest/v1/${path}`,
+    init: {
+      ...rest,
+      headers: {
+        apikey: creds.anonKey, Authorization: `Bearer ${creds.token}`,
+        'Content-Type': 'application/json', Accept: 'application/json',
+        ...profileHeader, ...(rest.headers as Record<string, string> | undefined),
+      },
     },
-  });
-  if (!res.ok) throw new HttpError(res.status, `PostgREST ${res.status} ${method} ${schema}/${path.split('?')[0]}: ${(await res.text()).slice(0, 300)}`);
+  }));
+  if (!res.ok) throw new Error(`PostgREST ${res.status} ${method} ${schema}/${path.split('?')[0]}: ${(await res.text()).slice(0, 300)}`);
   const txt = await res.text();
   return txt ? JSON.parse(txt) : null;
 }
@@ -154,42 +154,40 @@ async function createInvoice(cmd: InvoiceCreateCmd): Promise<Record<string, unkn
   const projectId = cmd.projectId && uuidRe.test(cmd.projectId) ? cmd.projectId : null;
   const deliveryId = uuidRe.test(cmd.deliveryId) ? cmd.deliveryId : null;
 
-  return withAuth(async (creds) => {
-    // dedupe faturas 'rejected' do mesmo fellow/mês/org (igual ao app)
-    const rejected = await pgFetch(creds,
-      `invoices?fellow_user_id=eq.${FELLOW_ID}&reference_month=eq.${cmd.referenceMonth}&organization_id=eq.${ORG_ID}&status=eq.rejected&select=id`,
-      { schema: 'payments' }) as { id: string }[];
-    if (rejected?.length) {
-      const ids = rejected.map((r) => r.id).join(',');
-      await pgFetch(creds, `invoice_items?invoice_id=in.(${ids})`, { schema: 'payments', method: 'DELETE' });
-      await pgFetch(creds, `invoices?id=in.(${ids})`, { schema: 'payments', method: 'DELETE' });
-    }
+  // dedupe faturas 'rejected' do mesmo fellow/mês/org (igual ao app)
+  const rejected = await pgFetch(
+    `invoices?fellow_user_id=eq.${FELLOW_ID}&reference_month=eq.${cmd.referenceMonth}&organization_id=eq.${ORG_ID}&status=eq.rejected&select=id`,
+    { schema: 'payments' }) as { id: string }[];
+  if (rejected?.length) {
+    const ids = rejected.map((r) => r.id).join(',');
+    await pgFetch(`invoice_items?invoice_id=in.(${ids})`, { schema: 'payments', method: 'DELETE' });
+    await pgFetch(`invoices?id=in.(${ids})`, { schema: 'payments', method: 'DELETE' });
+  }
 
-    const payload = {
-      fellow_user_id: FELLOW_ID, reference_month: cmd.referenceMonth, status: 'submitted',
-      total_amount_cents: totalAmountCents, total_points: totalPoints, description: title,
-      created_at: now, updated_at: now, submitted_at: now, submitted_by: FELLOW_ID, organization_id: ORG_ID,
-    };
-    const inserted = await pgFetch(creds, 'invoices?select=id', {
-      schema: 'payments', method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload),
-    }) as { id: string }[];
-    const invoiceId = inserted?.[0]?.id;
-    if (!invoiceId) throw new Error('INSERT invoice não retornou id');
+  const payload = {
+    fellow_user_id: FELLOW_ID, reference_month: cmd.referenceMonth, status: 'submitted',
+    total_amount_cents: totalAmountCents, total_points: totalPoints, description: title,
+    created_at: now, updated_at: now, submitted_at: now, submitted_by: FELLOW_ID, organization_id: ORG_ID,
+  };
+  const inserted = await pgFetch('invoices?select=id', {
+    schema: 'payments', method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload),
+  }) as { id: string }[];
+  const invoiceId = inserted?.[0]?.id;
+  if (!invoiceId) throw new Error('INSERT invoice não retornou id');
 
-    const items = tasks.map((t) => ({
-      invoice_id: invoiceId, source_type: 'task', source_id: uuidRe.test(t.id) ? t.id : undefined,
-      title: t.title, points: t.points, amount_cents: toCents(t.points * ppp),
-      metadata: {
-        project_id: projectId, points: t.points, value_per_point: ppp,
-        delivery_id: t.deliveryId && uuidRe.test(t.deliveryId) ? t.deliveryId : deliveryId,
-        delivery_name: t.deliveryName ?? cmd.deliveryName,
-      },
-      created_at: now,
-    }));
-    await pgFetch(creds, 'invoice_items', { schema: 'payments', method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(items) });
+  const items = tasks.map((t) => ({
+    invoice_id: invoiceId, source_type: 'task', source_id: uuidRe.test(t.id) ? t.id : undefined,
+    title: t.title, points: t.points, amount_cents: toCents(t.points * ppp),
+    metadata: {
+      project_id: projectId, points: t.points, value_per_point: ppp,
+      delivery_id: t.deliveryId && uuidRe.test(t.deliveryId) ? t.deliveryId : deliveryId,
+      delivery_name: t.deliveryName ?? cmd.deliveryName,
+    },
+    created_at: now,
+  }));
+  await pgFetch('invoice_items', { schema: 'payments', method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(items) });
 
-    return { invoiceId, totalPoints, totalAmountCents, referenceMonth: cmd.referenceMonth, deliveryName: cmd.deliveryName };
-  });
+  return { invoiceId, totalPoints, totalAmountCents, referenceMonth: cmd.referenceMonth, deliveryName: cmd.deliveryName };
 }
 
 // ---- entrypoint ------------------------------------------------------------
