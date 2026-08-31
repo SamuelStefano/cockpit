@@ -9,6 +9,7 @@ describe('resumableId', () => {
   beforeAll(() => {
     dir = mkdtempSync(join(tmpdir(), 'resume-'));
     writeFileSync(join(dir, 'sess-viva.jsonl'), '{}\n');
+    writeFileSync(join(dir, 'sess-vazia.jsonl'), '');
   });
   afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -18,6 +19,13 @@ describe('resumableId', () => {
 
   it('descarta o id sem transcript no disco', () => {
     expect(resumableId('sess-apagada', dir)).toBeUndefined();
+  });
+
+  // Transcript existe mas está zerado (sessão criada, processo morto antes de
+  // escrever). Existir não é ter o que retomar: o `--resume` morre igual e o item
+  // volta pra fila em loop até bater o teto.
+  it('descarta o id cujo transcript está vazio', () => {
+    expect(resumableId('sess-vazia', dir)).toBeUndefined();
   });
 
   it('descarta id vazio', () => {

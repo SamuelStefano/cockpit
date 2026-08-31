@@ -1,5 +1,5 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { execFile } from 'node:child_process';
@@ -57,16 +57,37 @@ export async function loadManagedEnv(): Promise<void> {
   cache = await managedEnv();
 }
 
+// O `.credentials.json` guarda MAIS de um login: os OAuth dos MCP servers ficam em
+// `mcpOAuth` e a conta Claude em `claudeAiOauth`. Quem só configurou um MCP tem o
+// arquivo sem nunca ter logado — daí não bastar existsSync. Token vencido sem
+// refreshToken também não é login: o CLI falha igual a não ter nenhum.
+function hasOauthLogin(path: string): boolean {
+  try {
+    const o = (JSON.parse(readFileSync(path, 'utf8')) as { claudeAiOauth?: Record<string, unknown> }).claudeAiOauth;
+    if (typeof o?.accessToken !== 'string' || !o.accessToken) return false;
+    return !(typeof o.expiresAt === 'number' && o.expiresAt < Date.now() && typeof o.refreshToken !== 'string');
+  } catch { return false; }
+}
+
 // Há uma conta Anthropic conectada nesta box? O `claude` aceita login OAuth
 // (~/.claude/.credentials.json) OU uma key via env. Cobrimos os dois e o token
-// gerenciado (#162). Síncrono: lê o cache do env e existsSync — chamado a cada
-// connect pra avisar a UI quando nada vai rodar.
-export function claudeReady(): boolean {
-  if (process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN) return true;
-  if (cache.ANTHROPIC_API_KEY || cache.ANTHROPIC_AUTH_TOKEN) return true;
-  const home = homedir();
-  return existsSync(join(home, '.claude', '.credentials.json'))
-    || existsSync(join(home, '.config', 'anthropic', 'credentials'));
+// gerenciado (#162). Síncrono: lê o cache do env e o disco — chamado a cada connect
+// pra avisar a UI quando nada vai rodar.
+//
+// Olha o CONTEÚDO, não só a existência: um arquivo de credencial vazio (criado por
+// um login interrompido — nesta box o ~/.config/anthropic/credentials tem 0 byte)
+// respondia "pronto" e o banner de login nunca aparecia. O usuário mandava o prompt,
+// o spawn morria sem explicação, e a única tela que sabia dizer o porquê ficava
+// escondida justamente no caso em que ela era necessária.
+export function claudeReady(home = homedir()): boolean {
+  if (process.env.ANTHROPIC_API_KEY?.trim() || process.env.ANTHROPIC_AUTH_TOKEN?.trim()) return true;
+  if (cache.ANTHROPIC_API_KEY?.trim() || cache.ANTHROPIC_AUTH_TOKEN?.trim()) return true;
+  return hasOauthLogin(join(home, '.claude', '.credentials.json'))
+    || nonEmptyFile(join(home, '.config', 'anthropic', 'credentials'));
+}
+
+function nonEmptyFile(path: string): boolean {
+  try { return statSync(path).size > 0; } catch { return false; }
 }
 
 export async function setEnv(name: string, value: string): Promise<{ ok: boolean; message: string }> {
