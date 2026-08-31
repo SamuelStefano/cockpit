@@ -21,21 +21,13 @@ describe('harness store', () => {
     S.insertTask({ ...running('b'), ts: 2000 });
     S.finishTask('a', {
       tier: 'complex', tierReason: 'multi-passo', model: 'claude-opus-4-8', status: 'done',
-      resultText: 'pronto', costUsd: 0.02, costApprox: false, inputTokens: 100, outputTokens: 50, durationMs: 4200,
+      resultText: 'pronto', costUsd: 0.02, inputTokens: 100, outputTokens: 50, durationMs: 4200,
     });
 
     const list = S.listTasks();
     expect(list.map((t) => t.id)).toEqual(['b', 'a']); // ordena por ts desc
     const a = list.find((t) => t.id === 'a')!;
     expect(a).toMatchObject({ status: 'done', model: 'claude-opus-4-8', tier: 'complex', resultText: 'pronto', costUsd: 0.02 });
-  });
-
-  it('grava provedor terceiro e custo aproximado', () => {
-    S.insertTask(running('c'));
-    S.finishTask('c', { tier: 'medium', tierReason: 'x', model: 'glm-4.6', providerId: 'zai-glm', status: 'done', costUsd: 0.001, costApprox: true });
-    const c = S.listTasks().find((t) => t.id === 'c')!;
-    expect(c.providerId).toBe('zai-glm');
-    expect(c.costApprox).toBe(true);
   });
 
   it('registra erro', () => {

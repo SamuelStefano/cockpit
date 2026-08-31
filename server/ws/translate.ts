@@ -9,7 +9,6 @@ import { getLastRate } from './rate';
 import { parseTaskNotification, registerNotify } from './task-notify';
 import { threads, type Thread } from './runs';
 import { setAwaiting } from './awaiting';
-import { activeProvider } from '../router/state';
 
 // Tradução evento NDJSON -> ServerMsg (squad C2/H1: tool por id de correlação).
 export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
@@ -137,9 +136,6 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
             cacheReadTokens: num(usage.cache_read_input_tokens),
             cacheCreationTokens: num(usage.cache_creation_input_tokens),
             model: (ev as any).message?.model,
-            // cascadeProvider só existe na tentativa barata; sem ele o turno rodou
-            // onde o roteador aponta agora, que é o mesmo lugar em que ele subiu.
-            provider: thread.cascadeProvider ?? activeProvider().id,
           });
         }
       }

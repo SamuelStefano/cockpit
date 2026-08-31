@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { classify } from './classifier';
 import { managedEnvSync } from '../admin-ops';
 import { costOf } from '../db';
-import { isNativeModel, nativeTarget, providerTarget, tierToNative, type ResolvedTarget } from './policy';
+import { isNativeModel, nativeTarget, tierToNative, type ResolvedTarget } from './policy';
 import { systemPrompt } from './prompt';
 import { runOnPlan } from './plan-run';
 import type { HarnessContext, HarnessEvent, HarnessModelChoice, HarnessTier, HarnessVia } from '../../shared/protocol';
@@ -18,9 +18,7 @@ export interface RunResult {
   tier: HarnessTier;
   tierReason: string;
   model: string;
-  providerId?: string;
   via?: HarnessVia;
-  costApprox: boolean;
   status: 'done' | 'error';
   resultText?: string;
   costUsd?: number;
@@ -43,7 +41,7 @@ function errMessage(err: unknown): string {
 
 function fail(onEvent: RunOpts['onEvent'], tier: HarnessTier, tierReason: string, message: string): RunResult {
   onEvent({ kind: 'error', message });
-  return { tier, tierReason, model: '', costApprox: false, status: 'error', error: message };
+  return { tier, tierReason, model: '', status: 'error', error: message };
 }
 
 export async function runTask(opts: RunOpts): Promise<RunResult> {
@@ -53,9 +51,9 @@ export async function runTask(opts: RunOpts): Promise<RunResult> {
   let tier: HarnessTier = 'medium';
   let tierReason = 'seleção manual';
 
-  // Classifica só quando a rota depende do tier (auto/provider). O classificador
+  // Classifica só no modo auto (é o tier que escolhe o modelo). O classificador
   // precisa da chave nativa.
-  if (choice.mode === 'auto' || choice.mode === 'provider') {
+  if (choice.mode === 'auto') {
     if (!env['ANTHROPIC_API_KEY']) {
       return fail(onEvent, tier, tierReason, 'sem ANTHROPIC_API_KEY no painel de env — o classificador não roda');
     }
@@ -65,33 +63,20 @@ export async function runTask(opts: RunOpts): Promise<RunResult> {
     onEvent({ kind: 'classified', tier, reason: tierReason });
   }
 
-  // Guard: pentest roda só em nativo Anthropic (requisito). Visível, não silencioso.
-  if (context === 'pentest' && choice.mode === 'provider') {
-    return fail(onEvent, tier, tierReason, 'tarefa de pentest roda só em modelo nativo Anthropic — desmarque o provedor terceiro');
-  }
-
   if (choice.mode === 'orchestrated') {
     return runOrchestrated(env, choice.executor, choice.advisor, prompt, context, onEvent);
   }
 
   // Nativo (auto/model): plano (CLI, custo 0) ou API (plain SDK, pay-as-you-go).
-  if (choice.mode === 'auto' || choice.mode === 'model') {
-    const model = choice.mode === 'auto' ? tierToNative(tier) : choice.model;
-    if (choice.mode === 'model' && !isNativeModel(model)) {
-      return fail(onEvent, tier, tierReason, `modelo nativo desconhecido: ${model}`);
-    }
-    onEvent({ kind: 'model-selected', model });
-    if (choice.via === 'plan') return runViaPlan(model, prompt, context, tier, tierReason, onEvent);
-
-    const target = nativeTarget(model, env);
-    if (!target.apiKey) return fail(onEvent, tier, tierReason, 'sem ANTHROPIC_API_KEY no painel de env — o modo nativo via API não roda');
-    return runSingle(target, prompt, context, tier, tierReason, onEvent);
+  const model = choice.mode === 'auto' ? tierToNative(tier) : choice.model;
+  if (choice.mode === 'model' && !isNativeModel(model)) {
+    return fail(onEvent, tier, tierReason, `modelo nativo desconhecido: ${model}`);
   }
+  onEvent({ kind: 'model-selected', model });
+  if (choice.via === 'plan') return runViaPlan(model, prompt, context, tier, tierReason, onEvent);
 
-  // Provedor terceiro (sempre via API do provedor).
-  const target = providerTarget(choice.providerId, tier, env);
-  if (!target) return fail(onEvent, tier, tierReason, `provedor ${choice.providerId} sem chave configurada no painel de env`);
-  onEvent({ kind: 'model-selected', model: target.model, providerId: target.providerId });
+  const target = nativeTarget(model, env);
+  if (!target.apiKey) return fail(onEvent, tier, tierReason, 'sem ANTHROPIC_API_KEY no painel de env — o modo nativo via API não roda');
   return runSingle(target, prompt, context, tier, tierReason, onEvent);
 }
 
@@ -104,20 +89,16 @@ async function runViaPlan(
   if (r.status === 'error') onEvent({ kind: 'error', message: r.error ?? 'erro no plano' });
   else onEvent({ kind: 'done', costUsd: 0 });
   return {
-    tier, tierReason, model, via: 'plan', costApprox: false,
+    tier, tierReason, model, via: 'plan',
     status: r.status, resultText: r.resultText, costUsd: r.status === 'done' ? 0 : undefined,
     inputTokens: r.inputTokens, outputTokens: r.outputTokens, error: r.error,
   };
 }
 
 function clientFor(target: ResolvedTarget): Anthropic {
-  // apiKey/authToken/baseURL explícitos (null bloqueia o fallback pro process.env, que
-  // pode ter credencial de outra rota). managedEnv é a fonte, não o ambiente do processo.
-  return new Anthropic({
-    apiKey: target.apiKey ?? null,
-    authToken: target.authToken ?? null,
-    baseURL: target.baseURL,
-  });
+  // apiKey explícita (null bloqueia o fallback pro process.env): managedEnv é a fonte,
+  // não o ambiente do processo.
+  return new Anthropic({ apiKey: target.apiKey ?? null });
 }
 
 async function runSingle(
@@ -137,7 +118,7 @@ async function runSingle(
   } catch (err) {
     const message = errMessage(err);
     onEvent({ kind: 'error', message });
-    return { tier, tierReason, model: target.model, providerId: target.providerId, via: 'api', costApprox: target.costApprox, status: 'error', error: message };
+    return { tier, tierReason, model: target.model, via: 'api', status: 'error', error: message };
   }
 }
 
@@ -169,11 +150,11 @@ async function runOrchestrated(
     });
     stream.on('text', (delta) => onEvent({ kind: 'text', text: delta }));
     const final = await stream.finalMessage();
-    return finalize(final, { model: `${executor}+${advisor}`, costApprox: false }, tier, tierReason, onEvent);
+    return finalize(final, { model: `${executor}+${advisor}` }, tier, tierReason, onEvent);
   } catch (err) {
     const message = errMessage(err);
     onEvent({ kind: 'error', message });
-    return { tier, tierReason, model: `${executor}+${advisor}`, via: 'api', costApprox: false, status: 'error', error: message };
+    return { tier, tierReason, model: `${executor}+${advisor}`, via: 'api', status: 'error', error: message };
   }
 }
 
@@ -190,7 +171,7 @@ interface FinalMessage {
 }
 
 function finalize(
-  final: FinalMessage, target: Pick<ResolvedTarget, 'model' | 'providerId' | 'costApprox'>,
+  final: FinalMessage, target: Pick<ResolvedTarget, 'model'>,
   tier: HarnessTier, tierReason: string, onEvent: RunOpts['onEvent'],
 ): RunResult {
   const text = final.content.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('');
@@ -202,15 +183,15 @@ function finalize(
     output: outTok,
     cacheRead: u.cache_read_input_tokens ?? 0,
     cacheCreation: u.cache_creation_input_tokens ?? 0,
-  }, target.providerId);
+  });
   // Recusa do modelo (stop_reason 'refusal') não é erro do harness: o turno fechou, o
   // modelo declinou. Mostra como resultado (sem contorno automático — DR-001).
   const resultText = final.stop_reason === 'refusal' && !text
     ? '(o modelo recusou esta tarefa por política — sem contorno automático)'
     : text;
-  onEvent({ kind: 'done', costUsd, costApprox: target.costApprox });
+  onEvent({ kind: 'done', costUsd });
   return {
-    tier, tierReason, model: target.model, providerId: target.providerId, via: 'api', costApprox: target.costApprox,
+    tier, tierReason, model: target.model, via: 'api',
     status: 'done', resultText, costUsd, inputTokens: inTok, outputTokens: outTok,
   };
 }

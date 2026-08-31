@@ -183,18 +183,8 @@ export interface DailyUsage {
   cost: number;           // custo estimado no dia (USD)
 }
 
-// Quanto cada provedor da cascata gerou e custou. É o que responde "descer pro
-// barato valeu a pena?" — sem isto o /uso soma tudo na tabela de preço da Anthropic.
-export interface ProviderUsage {
-  providerId: string;
-  samples: number;
-  outputTokens: number;
-  costUsd: number;
-}
-
 export interface UsageStats {
   sessions: SessionUsage[];
-  providers: ProviderUsage[];
   totalOutput: number;
   totalSamples: number;
   totalCost: number;      // soma do custo estimado de todas as sessões
@@ -224,47 +214,12 @@ export interface PlanUsage {
   limits: PlanLimit[];
 }
 
-// Roteador multi-provedor: quando o plano esgota, o Deck troca o `claude` para
-// outro endpoint Anthropic-compat (Z.AI, Qwen, MiniMax…) em vez de dormir até o
-// reset. Projeção enviada ao cliente — a CREDENCIAL nunca sai do servidor, só o
-// NOME da env que a guarda (igual ao painel de tokens).
-export interface RouteView {
-  id: string;
-  label: string;
-  tier: string;                 // plan | free | cheap | paid
-  priority: number;             // menor tenta primeiro
-  enabled: boolean;
-  active: boolean;
-  configured: boolean;          // tem credencial na box
-  authEnv: string | null;       // nome da env, nunca o valor
-  cooldownUntil: number;        // epoch ms; 0 = disponível agora
-  lastKind: string | null;      // último motivo de falha
-  custom: boolean;
-  docsUrl: string;
-  note?: string;
-  models: string;
-  skip: string | null;          // por que não é elegível agora
-}
-
-export interface RoutesSnapshot {
-  enabled: boolean;
-  activeId: string;
-  // Provedor onde a tentativa barata rodaria agora; null = nenhum elegível (sem
-  // chave, em cooldown, ou o failover já jogou a rota ativa num barato).
-  cascadeId: string | null;
-  routes: RouteView[];
-  // Existe rota alternativa pronta se o plano esgotar agora? O servidor só troca
-  // quando o turno dispara; sem este campo o cliente travaria o composer no teto
-  // do plano mesmo tendo pra onde ir.
-  hasFallback: boolean;
-}
-
 // Harness de orquestração próprio (motor separado da CLI, ver .sdd/cockpit/agent-harness).
 // Motor V1 = plain @anthropic-ai/sdk (DR-004). Seleção de modelo é SEMPRE explícita
 // (DR-003): 4 modos, e mesmo 'auto' é uma escolha por-task do usuário, nunca herança global.
 export type HarnessContext = 'pentest' | null;
 export type HarnessTier = 'simple' | 'medium' | 'complex';
-export type HarnessMode = 'auto' | 'model' | 'provider' | 'orchestrated';
+export type HarnessMode = 'auto' | 'model' | 'orchestrated';
 
 // via: 'plan' roda pelo CLI `claude` no OAuth do plano (zero custo em dólar, cota do
 // plano); 'api' roda pela API pay-as-you-go (custo em centavos, contexto enxuto).
@@ -272,20 +227,16 @@ export type HarnessVia = 'plan' | 'api';
 
 // auto: classificador sugere um modelo nativo por complexidade.
 // model: modelo nativo Anthropic específico, escolhido na mão.
-// provider: provedor terceiro do catálogo (OpenRouter etc.); o slot vem da complexidade.
 // orchestrated: executor barato + advisor forte (Opus/Fable) supervisionando (advisor tool).
 export type HarnessModelChoice =
   | { mode: 'auto'; via: HarnessVia }
   | { mode: 'model'; model: string; via: HarnessVia }
-  | { mode: 'provider'; providerId: string }
   | { mode: 'orchestrated'; executor: string; advisor: string };
 
 export interface HarnessNativeModel { id: string; label: string; tier: HarnessTier }
-export interface HarnessProviderOption { id: string; label: string; tier: string; configured: boolean }
 // Catálogo que alimenta o seletor da UI (tudo selecionável — pedido do Samuel).
 export interface HarnessConfig {
   nativeModels: HarnessNativeModel[];
-  providers: HarnessProviderOption[];
   hasApiKey: boolean; // ANTHROPIC_API_KEY no env gerenciado — sem ela o modo nativo não roda
 }
 
@@ -299,11 +250,9 @@ export interface HarnessTaskView {
   tier: HarnessTier;
   tierReason: string;
   model: string;         // modelo/label efetivo mostrado ao usuário
-  providerId?: string;   // provedor terceiro, quando houver (null = nativo Anthropic)
   status: 'running' | 'done' | 'error';
   resultText?: string;
   costUsd?: number;
-  costApprox?: boolean;  // custo de provedor terceiro é estimado por tabela Anthropic — marca como aproximado
   inputTokens?: number;
   outputTokens?: number;
   durationMs?: number;
@@ -315,10 +264,8 @@ export interface HarnessEvent {
   tier?: HarnessTier;
   reason?: string;
   model?: string;
-  providerId?: string;
   text?: string;
   costUsd?: number;
-  costApprox?: boolean;
   message?: string;
 }
 
@@ -565,17 +512,9 @@ export type ClientMsg =
   | { t: 'send'; sessionKey: string; sessionId?: string; text: string; msgId?: string; mode?: PermMode; model?: string; effort?: Effort; maxBudgetUsd?: number; bypass?: boolean; skills?: string[]; mcps?: string[]; auto?: boolean }
   | { t: 'accounts-list' }
   | { t: 'set-admin'; accountId: string; admin: boolean }
-  // Roteador multi-provedor (admin). O valor da chave NUNCA passa por aqui — ela é
-  // cadastrada pelo painel de env (admin-env-set) e referenciada por nome.
-  | { t: 'routes-get' }
-  | { t: 'routes-enable'; on: boolean }
   // Harness de orquestração próprio — motor à parte, ver shared HarnessTaskView.
   | { t: 'harness-get' }
   | { t: 'harness-run'; prompt: string; model: HarnessModelChoice; context?: HarnessContext }
-  | { t: 'route-set'; id: string }
-  | { t: 'route-config'; id: string; enabled?: boolean; priority?: number }
-  | { t: 'route-custom-add'; id: string; label?: string; baseUrl: string; authEnv?: string; authMode?: 'api-key' | 'bearer'; model: string; smallModel?: string; priority?: number }
-  | { t: 'route-custom-remove'; id: string }
   | { t: 'stop'; sessionKey: string }
   // Heartbeat app-level: o cliente manda ping e espera pong. Um socket meio-aberto
   // (relay/NAT dropou sem FIN, laptop dormiu) segue "OPEN" pro browser sem disparar
@@ -600,9 +539,6 @@ export type ClientMsg =
   // Lane de maratona: a sessão marcada roda trabalho longo e desacompanhado, com
   // teto de vida e de retomada próprios.
   | { t: 'set-marathon'; sessionKey: string; on: boolean }
-  // Cascata por sessão: só esta sessão tenta o provedor barato antes do plano. Por
-  // sessão, não global — ligar numa maratona não pode afetar nenhum outro chat.
-  | { t: 'set-cascade-session'; sessionKey: string; on: boolean }
   | { t: 'list-archived' }
   | { t: 'search'; q: string }
   | { t: 'ctx-list' }
@@ -762,15 +698,11 @@ export type ServerMsg =
   | { t: 'tool'; sessionKey: string; tool: ToolCall }
   | { t: 'rate'; resetsAt: number; status: string }
   | { t: 'plan-usage'; usage: PlanUsage }
-  | { t: 'routes'; snapshot: RoutesSnapshot }
   | { t: 'harness-config'; config: HarnessConfig }
   | { t: 'harness-task'; task: HarnessTaskView }
   | { t: 'harness-event'; taskId: string; event: HarnessEvent }
   | { t: 'harness-tasks'; tasks: HarnessTaskView[] }
   | { t: 'marathon'; keys: string[] }
-  | { t: 'cascade-sessions'; keys: string[] }
-  // Troca de rota já feita: o cliente só avisa o usuário (banner/toast).
-  | { t: 'route-switch'; from: string; to: string; label: string; reason: string; kind: string; until: number }
   | { t: 'usage'; sessionKey: string; tokens: number; turnTokens?: number }
   // Agentes de fundo ativos da sessão (label + tempo + tokens ao vivo). Cheap/
   // droppable como o stats: só emitido em mudança e reconstruível no próximo tick.

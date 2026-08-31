@@ -36,12 +36,8 @@ async function runHarnessTask(prompt: string, choice: HarnessModelChoice, contex
   broadcast({ t: 'harness-task', task: running });
 
   let selectedModel = '';
-  let selectedProvider: string | undefined;
   const onEvent = (e: HarnessEvent): void => {
-    if (e.kind === 'model-selected') {
-      if (e.model) selectedModel = e.model;
-      if (e.providerId) selectedProvider = e.providerId;
-    }
+    if (e.kind === 'model-selected' && e.model) selectedModel = e.model;
     broadcast({ t: 'harness-event', taskId: id, event: e });
   };
 
@@ -52,11 +48,9 @@ async function runHarnessTask(prompt: string, choice: HarnessModelChoice, contex
     tier: result.tier,
     tierReason: result.tierReason,
     model: result.model || selectedModel,
-    providerId: result.providerId ?? selectedProvider,
     status: result.status,
     resultText: result.resultText,
     costUsd: result.costUsd,
-    costApprox: result.costApprox,
     inputTokens: result.inputTokens,
     outputTokens: result.outputTokens,
     durationMs: Date.now() - startedAt,

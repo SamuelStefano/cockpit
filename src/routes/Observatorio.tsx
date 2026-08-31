@@ -10,7 +10,6 @@ import { Empty } from './observatorio/Empty';
 import { Trend } from './observatorio/Trend';
 import { RateWindow } from './observatorio/RateWindow';
 import { UsageTable } from './observatorio/UsageTable';
-import { ProviderSplit } from './observatorio/ProviderSplit';
 import { UsageSkeleton } from './observatorio/UsageSkeleton';
 import { useUsageRetry } from './observatorio/useUsageRetry';
 
@@ -68,8 +67,6 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions, rat
             <Stat label="amostras" value={fmt(usageStats?.totalSamples ?? 0)} icon="zap" />
             <Stat label="sessões ativas" value={String(rows.length)} icon="message" />
           </div>
-
-          {(usageStats?.providers?.length ?? 0) > 1 && <ProviderSplit providers={usageStats!.providers} />}
 
           {(usageStats?.series?.length ?? 0) > 0 && <Trend series={usageStats!.series} />}
 

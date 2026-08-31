@@ -9,10 +9,9 @@ interface Props {
   onRun: (prompt: string, draft: ReturnType<typeof useHarnessDraft>) => void;
 }
 
-const MODES: { id: HarnessMode; label: string; icon: 'zap' | 'claude' | 'link' | 'command' }[] = [
+const MODES: { id: HarnessMode; label: string; icon: 'zap' | 'claude' | 'command' }[] = [
   { id: 'auto', label: 'Auto', icon: 'zap' },
   { id: 'model', label: 'Modelo', icon: 'claude' },
-  { id: 'provider', label: 'Provedor', icon: 'link' },
   { id: 'orchestrated', label: 'Orquestrado', icon: 'command' },
 ];
 
@@ -24,7 +23,6 @@ const STRONG = [
 export function HarnessComposer({ config, running, onRun }: Props) {
   const d = useHarnessDraft(config);
   const native = config?.nativeModels ?? [];
-  const providers = config?.providers ?? [];
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
@@ -36,7 +34,7 @@ export function HarnessComposer({ config, running, onRun }: Props) {
         className="w-full resize-none rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2.5 text-[13px] leading-relaxed text-neutral-200 placeholder-neutral-600 outline-none transition focus:border-orange-500/40 focus:ring-2 focus:ring-orange-500/15"
       />
 
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-3 gap-1.5">
         {MODES.map((m) => (
           <Button
             key={m.id}
@@ -78,23 +76,6 @@ export function HarnessComposer({ config, running, onRun }: Props) {
       {d.mode === 'model' && (
         <ModelSelect label="Modelo nativo" value={d.model} onChange={d.setModel} models={native} />
       )}
-      {d.mode === 'provider' && (
-        <label className="block">
-          <span className="mb-1 block text-[10.5px] font-medium uppercase tracking-[0.12em] text-neutral-500">Provedor terceiro</span>
-          <select
-            value={d.providerId}
-            onChange={(e) => d.setProviderId(e.target.value)}
-            className="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-[12.5px] text-neutral-200 outline-none focus:border-orange-500/40 focus:ring-2 focus:ring-orange-500/15"
-          >
-            <option value="">selecione…</option>
-            {providers.map((p) => (
-              <option key={p.id} value={p.id} disabled={!p.configured}>
-                {p.label}{p.configured ? '' : ' (sem chave)'}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
       {d.mode === 'orchestrated' && (
         <div className="grid grid-cols-2 gap-2">
           <ModelSelect label="Executor (barato)" value={d.executor} onChange={d.setExecutor} models={native} />
@@ -106,7 +87,7 @@ export function HarnessComposer({ config, running, onRun }: Props) {
         checked={d.pentest}
         onChange={() => d.setPentest(!d.pentest)}
         label="Contexto de pentest autorizado"
-        hint="Enquadra a tarefa como teste de segurança legítimo · força modelo nativo"
+        hint="Enquadra a tarefa como teste de segurança legítimo"
         icon="shield"
       />
 

@@ -12,8 +12,6 @@ interface SessionRowMetaProps {
   canDescribe: boolean;
   marathon: boolean;
   onToggleMarathon?: () => void;
-  cascadeOn: boolean;
-  onToggleCascadeSession?: () => void;
   actionsOpen: boolean;
   setActionsOpen: (v: boolean) => void;
   setTagging: (v: boolean) => void;
@@ -25,7 +23,7 @@ interface SessionRowMetaProps {
   onDelete: () => void;
 }
 
-export function SessionRowMeta({ relative, pinned, running, tagging, canTag, canStop, canDescribe, marathon, onToggleMarathon, cascadeOn, onToggleCascadeSession, actionsOpen, setActionsOpen, setTagging, onTogglePin, onRename, onDescribe, onStop, onArchive, onDelete }: SessionRowMetaProps) {
+export function SessionRowMeta({ relative, pinned, running, tagging, canTag, canStop, canDescribe, marathon, onToggleMarathon, actionsOpen, setActionsOpen, setTagging, onTogglePin, onRename, onDescribe, onStop, onArchive, onDelete }: SessionRowMetaProps) {
   return (
     <div className="flex shrink-0 items-center gap-1">
       <span className="hidden text-[10.5px] tabular-nums text-neutral-600 sm:inline" title={relative}>{shortRel(relative)}</span>
@@ -37,11 +35,6 @@ export function SessionRowMeta({ relative, pinned, running, tagging, canTag, can
       {marathon && (
         <span title="Modo maratona: sem teto de 8h, retoma sozinha" className="text-sky-400">
           <Icon name="zap" size={11} />
-        </span>
-      )}
-      {cascadeOn && (
-        <span title="Cascata ligada nesta sessão: tenta o provedor barato antes do plano" className="text-emerald-400">
-          <Icon name="download" size={11} />
         </span>
       )}
       {canTag && (
@@ -60,8 +53,6 @@ export function SessionRowMeta({ relative, pinned, running, tagging, canTag, can
         canDescribe={canDescribe}
         marathon={marathon}
         onToggleMarathon={onToggleMarathon}
-        cascadeOn={cascadeOn}
-        onToggleCascadeSession={onToggleCascadeSession}
         open={actionsOpen}
         onOpenChange={setActionsOpen}
         onTogglePin={onTogglePin}

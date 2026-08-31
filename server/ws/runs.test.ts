@@ -9,7 +9,6 @@ import { run } from '../engine/claude';
 import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takeParked, promoteParked, isQueuePaused, type ParkedItem } from './parked';
 import { resumableId } from './resume';
 import { quotaHold } from './quota';
-import { reportOutcome, cascadeRoute } from '../router/state';
 
 vi.mock('../engine/claude', () => ({ run: vi.fn(() => ({ kill: vi.fn() })) }));
 // Fila estacionada e teto de tokens mockados: o teste não pode ler/escrever o
@@ -42,18 +41,6 @@ vi.mock('../engine/triage', () => ({ classify: vi.fn(), quickAnswer: vi.fn(), ki
 vi.mock('../engine/suggest', () => ({ suggestFollowups: vi.fn(async () => []) }));
 vi.mock('./incidents', () => ({ recordIncident: vi.fn() })); // teste não escreve no log real de incidentes
 vi.mock('./recover', () => ({ markRunLive: vi.fn(), clearRunLive: vi.fn(), takeOrphanRuns: vi.fn(() => []) }));
-// Roteador mockado: fechar um turno de mentira não pode escrever o routes.json
-// real nem trocar a rota da máquina do usuário.
-vi.mock('../router/state', () => ({
-  reportOutcome: vi.fn(() => ({ kind: 'ok', changed: null })),
-  isPlanRoute: vi.fn(() => true),
-  hasFallbackRoute: vi.fn(() => false),
-  switchOnPlanExhausted: vi.fn(() => null),
-  cascadeRoute: vi.fn(() => null),
-}));
-// O pedido de cascata é por sessão agora; testes que exercitam a subida de tier
-// ligam explicitamente via mock em vez de depender de um toggle global.
-vi.mock('../router/cascade-session', () => ({ threadWantsCascade: vi.fn(() => true) }));
 
 describe('findStaleThreads', () => {
   const now = 1_000_000_000;
@@ -656,71 +643,6 @@ describe('disparo imediato de um item da fila (furar a fila)', () => {
   });
 });
 
-// O breaker do roteador só aprende pelo veredito do fim de turno: se `reportOutcome`
-// não for chamado aqui, nenhum provedor entra em cooldown e o failover nunca sai
-// do papel. E se for chamado no stop do usuário, um Ctrl-C vira "provedor falhou".
-describe('fim de turno — veredito do roteador', () => {
-  const ws = {} as WebSocket;
-  const closeLastRun = () => vi.mocked(run).mock.calls.at(-1)![0].onClose?.();
-
-  beforeEach(() => {
-    threads.clear();
-    clearAllAwaiting();
-    vi.mocked(run).mockClear();
-    vi.mocked(broadcast).mockClear();
-    vi.mocked(reportOutcome).mockClear();
-    vi.mocked(quotaHold).mockReturnValue(0);
-  });
-
-  it('reporta o turno fechado com o que ele produziu', () => {
-    startRun(ws, 'ro1', 'trabalho', 'sess-ro1');
-    const t = threads.get('ro1')!;
-    t.text = 'pronto';
-    t.tools.push({ id: 'x', name: 'Read', input: '', ts: 1 } as never);
-    t.endReason = 'success';
-    closeLastRun();
-    expect(reportOutcome).toHaveBeenCalledOnce();
-    expect(vi.mocked(reportOutcome).mock.calls[0][0]).toMatchObject({ tools: 1, text: 'pronto' });
-  });
-
-  it('stop do usuário não abre breaker de provedor nenhum', () => {
-    startRun(ws, 'ro2', 'trabalho', 'sess-ro2');
-    Object.assign(threads.get('ro2')!, { stopped: true, userStopped: true });
-    closeLastRun();
-    expect(reportOutcome).not.toHaveBeenCalled();
-  });
-
-  // Kill NOSSO (reaper, deploy, guarda de pressão) não é stop do usuário: continua
-  // valendo como sinal, senão um provedor que trava o turno nunca seria penalizado.
-  it('kill nosso segue reportando', () => {
-    startRun(ws, 'ro3', 'trabalho', 'sess-ro3');
-    Object.assign(threads.get('ro3')!, { stopped: true, reaped: 'silence' });
-    closeLastRun();
-    expect(reportOutcome).toHaveBeenCalledOnce();
-  });
-
-  it('leva o erro do turno junto (é o texto que classifica a falha)', () => {
-    startRun(ws, 'ro4', 'trabalho', 'sess-ro4');
-    threads.get('ro4')!.lastError = '429 rate_limit_error';
-    threads.get('ro4')!.endReason = 'error';
-    closeLastRun();
-    expect(vi.mocked(reportOutcome).mock.calls[0][0]).toMatchObject({ error: '429 rate_limit_error' });
-  });
-
-  // A ORDEM importa: o veredito troca a rota, e só depois o quotaHold decide se
-  // ainda há motivo pra segurar. Invertido, o hold responderia pela rota velha.
-  it('reporta antes de consultar o teto de tokens', () => {
-    const order: string[] = [];
-    vi.mocked(reportOutcome).mockImplementation(() => { order.push('outcome'); return { kind: 'ok', changed: null }; });
-    vi.mocked(quotaHold).mockImplementation(() => { order.push('hold'); return 0; });
-    startRun(ws, 'ro5', 'trabalho', 'sess-ro5');
-    threads.get('ro5')!.endReason = 'success';
-    closeLastRun();
-    expect(order.indexOf('outcome')).toBe(0);
-    expect(order).toContain('hold');
-  });
-});
-
 // A maratona é a lane do prompt de 21h: o teto de VIDA de 8h a mataria em plena
 // produção, mas os tetos de silêncio têm que continuar valendo — na maratona
 // ninguém está olhando pra perceber que travou.
@@ -744,93 +666,5 @@ describe('tetos da maratona', () => {
     const now = 73 * 60 * 60_000;
     const vivo = { startedAt: 0, lastFrameAt: now - 1, marathon: true };
     expect(findStaleThreads(now, [['a', vivo]])[0]).toMatchObject({ reason: 'total' });
-  });
-});
-
-// A cascata só vale a pena se a REFEITURA acontecer sozinha: um turno barato que
-// não entrega e para por aí é pior que não ter tentado — o usuário paga a espera e
-// ainda tem que remandar. Estes testes prendem o ciclo tentativa → refeitura.
-describe('fim de turno — subida de tier da cascata', () => {
-  const ws = {} as WebSocket;
-  const closeLastRun = () => vi.mocked(run).mock.calls.at(-1)![0].onClose?.();
-  const lastProvider = () => vi.mocked(run).mock.calls.at(-1)![0].providerId;
-
-  beforeEach(() => {
-    threads.clear();
-    clearAllAwaiting();
-    vi.mocked(run).mockClear();
-    vi.mocked(broadcast).mockClear();
-    vi.mocked(quotaHold).mockReturnValue(0);
-    vi.mocked(reportOutcome).mockReturnValue({ kind: 'ok', changed: null });
-    vi.mocked(cascadeRoute).mockReturnValue('zai-glm');
-  });
-
-  it('roda a tentativa no provedor barato', () => {
-    startRun(ws, 'ca1', 'trabalho', 'sess-ca1');
-    expect(lastProvider()).toBe('zai-glm');
-  });
-
-  it('turno barato vazio refaz no plano com o mesmo prompt', () => {
-    startRun(ws, 'ca2', 'trabalho', 'sess-ca2');
-    threads.get('ca2')!.endReason = 'success';
-    closeLastRun();
-    expect(run).toHaveBeenCalledTimes(2);
-    expect(lastProvider()).toBeUndefined();
-    expect(vi.mocked(run).mock.calls.at(-1)![0].prompt).toBe('trabalho');
-  });
-
-  it('turno barato que entregou não refaz nada', () => {
-    startRun(ws, 'ca3', 'trabalho', 'sess-ca3');
-    Object.assign(threads.get('ca3')!, { text: 'pronto', endReason: 'success' });
-    closeLastRun();
-    expect(run).toHaveBeenCalledOnce();
-  });
-
-  it('a refeitura não volta pro barato quando ela também falha', () => {
-    startRun(ws, 'ca4', 'trabalho', 'sess-ca4');
-    threads.get('ca4')!.endReason = 'success';
-    closeLastRun();
-    expect(lastProvider()).toBeUndefined();
-    threads.get('ca4')!.endReason = 'success';
-    closeLastRun();
-    expect(run).toHaveBeenCalledTimes(2); // teto de subidas: para aqui
-  });
-
-  it('sem token no plano não adianta subir de tier', () => {
-    vi.mocked(quotaHold).mockReturnValue(Date.now() + 60_000);
-    startRun(ws, 'ca5', 'trabalho', 'sess-ca5');
-    threads.get('ca5')!.endReason = 'success';
-    closeLastRun();
-    expect(run).toHaveBeenCalledOnce();
-  });
-
-  // A tentativa barata pode gravar no transcript um id de mensagem que a Anthropic
-  // não aceita de volta (ex.: resposta de provider OpenRouter). Resumir o MESMO
-  // sessionId na refeitura reenvia esse id como previous_message_id e a sessão trava
-  // pra sempre com 400. A refeitura tem que forkar pra um id novo.
-  it('refeitura forka pra um sessionId novo em vez de resumir o da tentativa barata', () => {
-    startRun(ws, 'ca6', 'trabalho', 'sess-ca6');
-    threads.get('ca6')!.endReason = 'success';
-    closeLastRun();
-    const last = vi.mocked(run).mock.calls.at(-1)![0];
-    expect(last.resumeId).toBe('sess-ca6'); // ainda lê o transcript da tentativa barata
-    expect(last.forkId).toBeTruthy();
-    expect(last.forkId).not.toBe('sess-ca6'); // mas grava em outro lugar
-  });
-
-  it('sem sessionId ainda (tentativa barata morreu antes do 1º evento) não força fork', () => {
-    startRun(ws, 'ca7', 'trabalho'); // chat novo, sem resumeId
-    threads.get('ca7')!.sessionId = undefined;
-    threads.get('ca7')!.endReason = 'success';
-    closeLastRun();
-    const last = vi.mocked(run).mock.calls.at(-1)![0];
-    expect(last.forkId).toBeUndefined();
-  });
-
-  it('stop do usuário não vira subida de tier', () => {
-    startRun(ws, 'ca6', 'trabalho', 'sess-ca6');
-    Object.assign(threads.get('ca6')!, { stopped: true, userStopped: true });
-    closeLastRun();
-    expect(run).toHaveBeenCalledOnce();
   });
 });

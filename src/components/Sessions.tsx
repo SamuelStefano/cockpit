@@ -22,8 +22,6 @@ export interface SessionsPanelProps {
   onNew: () => void;
   marathon?: Set<string>;
   onToggleMarathon?: (id: string, on: boolean) => void;
-  cascadeSessions?: Set<string>;
-  onToggleCascadeSession?: (id: string, on: boolean) => void;
   onRename: (id: string, title: string) => void;
   onDescribe?: (id: string, summary: string) => void;
   onClose: (id: string) => void;
@@ -43,7 +41,7 @@ export interface SessionsPanelProps {
   userId?: string;
 }
 
-export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, marathon, onToggleMarathon, cascadeSessions, onToggleCascadeSession, onRename, onDescribe, onClose, onDelete, onStop, archived = [], onUnhide, onCloseMobile, usage = {}, cost = {}, running, stalled, updated, runStart = {}, searchResults = [], onSearch, userId }: SessionsPanelProps) {
+export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, marathon, onToggleMarathon, onRename, onDescribe, onClose, onDelete, onStop, archived = [], onUnhide, onCloseMobile, usage = {}, cost = {}, running, stalled, updated, runStart = {}, searchResults = [], onSearch, userId }: SessionsPanelProps) {
   const {
     query, setQuery, confirmId, setConfirmId, deleteId, setDeleteId, pinned, togglePin,
     tagMap, tagFilter, setTagFilter, addTag, removeTag, allTags, searchRef, filtered,
@@ -55,7 +53,6 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, ma
       running={running?.has(s.id)} stalled={stalled?.has(s.id)} updated={updated?.has(s.id)} runStart={runStart[s.id]} pinned={pinned.has(s.id)} onTogglePin={togglePin}
       tags={tagMap[s.id]} onAddTag={addTag} onRemoveTag={removeTag} onFilterTag={setTagFilter}
       marathon={marathon?.has(s.id)} onToggleMarathon={onToggleMarathon}
-      cascadeOn={cascadeSessions?.has(s.id)} onToggleCascadeSession={onToggleCascadeSession}
       onSelect={(id) => { onSelect(id); onCloseMobile && onCloseMobile(); }}
       onRename={onRename} onDescribe={onDescribe} onClose={setConfirmId} onDelete={onDelete ? setDeleteId : undefined} onStop={onStop} />
   );

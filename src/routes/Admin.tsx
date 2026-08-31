@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Icon, RouteHeader } from '../components/primitives';
-import type { AdminHealth, SysStats, AccountSummary, RoutesSnapshot, ClientMsg } from '../../shared/protocol';
+import type { AdminHealth, SysStats, AccountSummary } from '../../shared/protocol';
 import { AdminAccounts } from './AdminAccounts';
 import { AdminHostOps } from './AdminHostOps';
 import { AdminInventory } from './AdminInventory';
-import { AdminRoutes } from './AdminRoutes';
 import { AdminTabs, type AdminTab } from './AdminTabs';
 import { AdminHealthSkeleton } from './AdminHealthSkeleton';
 import { Stat } from './adminPrimitives';
@@ -30,16 +29,9 @@ interface AdminProps {
   onMcpAdd: (name: string, opts: { command?: string; url?: string }) => void;
   onMcpRemove: (name: string) => void;
   onCliInstall: (name: string) => void;
-  routes: RoutesSnapshot | null;
-  onRoutesGet: () => void;
-  onRoutesEnable: (on: boolean) => void;
-  onRouteSet: (id: string) => void;
-  onRouteConfig: (id: string, patch: { enabled?: boolean; priority?: number }) => void;
-  onRouteCustomAdd: (r: Omit<Extract<ClientMsg, { t: 'route-custom-add' }>, 't'>) => void;
-  onRouteCustomRemove: (id: string) => void;
 }
 
-export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, isRoot, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, routes, onRoutesGet, onRoutesEnable, onRouteSet, onRouteConfig, onRouteCustomAdd, onRouteCustomRemove }: AdminProps) {
+export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, isRoot, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall }: AdminProps) {
   const [updatedAt, setUpdatedAt] = useState(0);
   const [tab, setTab] = useState('overview');
   useEffect(() => {
@@ -53,7 +45,6 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
     const t: AdminTab[] = [{ id: 'overview', label: 'Visão geral', icon: 'zap' }];
     if (SUPABASE_ENABLED) t.push({ id: 'accounts', label: 'Contas', icon: 'user' });
     t.push({ id: 'host', label: 'Host', icon: 'terminal' });
-    t.push({ id: 'routes', label: 'Rotas', icon: 'zap' });
     return t;
   }, []);
 
@@ -82,14 +73,6 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
 
         {tab === 'accounts' && SUPABASE_ENABLED && (
           <AdminAccounts accounts={accounts} loaded={accountsLoaded} onAccountsList={onAccountsList} onSetAdmin={onSetAdmin} canGrant={isRoot} />
-        )}
-
-        {tab === 'routes' && (
-          <AdminRoutes
-            routes={routes} onRoutesGet={onRoutesGet} onRoutesEnable={onRoutesEnable}
-            onRouteSet={onRouteSet} onRouteConfig={onRouteConfig}
-            onRouteCustomAdd={onRouteCustomAdd} onRouteCustomRemove={onRouteCustomRemove}
-          />
         )}
 
         {tab === 'host' && (

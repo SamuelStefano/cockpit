@@ -1,17 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 let managed: Record<string, string> = {};
-let route: Record<string, string> = {};
 vi.mock('../admin-ops', () => ({ managedEnvSync: () => managed, mcpServerDefsSync: () => ({}) }));
-vi.mock('../router/state', () => ({
-  routeEnv: () => route,
-  routeModel: (m?: string) => m,
-  routeIsNativeAnthropic: () => true,
-}));
 
 import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv } from './claude';
 
-beforeEach(() => { managed = {}; route = {}; });
+beforeEach(() => { managed = {}; });
 
 function argsOf(o: Parameters<typeof buildArgs>[0]): string[] {
   const r = buildArgs(o);
@@ -175,8 +169,8 @@ describe('buildArgs', () => {
     expect(argsOf({ prompt: 'x' })).not.toContain('--effort');
   });
 
-  it('aceita o id nativo do provedor roteado (glm-4.6, qwen3-coder-plus, MiniMax-M2)', () => {
-    for (const m of ['glm-4.6', 'qwen3-coder-plus', 'MiniMax-M2', 'deepseek-chat', 'openai/gpt-oss-120b']) {
+  it('aceita o id concreto do modelo, não só o alias', () => {
+    for (const m of ['claude-opus-4-8', 'claude-sonnet-5', 'claude-haiku-4-5']) {
       expect(valAfter(argsOf({ prompt: 'x', model: m }), '--model'), m).toBe(m);
     }
   });
@@ -187,9 +181,8 @@ describe('buildArgs', () => {
     }
   });
 
-  it('suprime --fallback-model fora da Anthropic (o nome não existe no outro provedor)', () => {
+  it('sempre passa --fallback-model', () => {
     expect(argsOf({ prompt: 'x', model: 'claude-opus-4-8' })).toContain('--fallback-model');
-    expect(argsOf({ prompt: 'x', model: 'glm-4.6', nativeAnthropic: false })).not.toContain('--fallback-model');
   });
 
   it('allow-lists effort, dropping unknown levels', () => {
@@ -233,34 +226,18 @@ describe('buildArgs', () => {
   });
 });
 
-// O spawn é o único ponto onde a decisão do roteador vira comportamento: se o env
-// não sair com o BASE_URL/token do provedor escolhido, o turno inteiro continua
-// batendo na Anthropic e todo o resto do roteador é decoração.
 describe('minimalEnv', () => {
-  it('injeta o env da rota ativa', () => {
-    route = { ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic', ANTHROPIC_AUTH_TOKEN: 'k-zai' };
-    const env = minimalEnv();
-    expect(env.ANTHROPIC_BASE_URL).toBe('https://api.z.ai/api/anthropic');
-    expect(env.ANTHROPIC_AUTH_TOKEN).toBe('k-zai');
-  });
-
-  it('rota no plano não injeta nada da Anthropic', () => {
-    expect(minimalEnv().ANTHROPIC_BASE_URL).toBeUndefined();
-  });
-
-  // URL de um provedor com a chave de outro = turno morto em 401 (ou pior: chave
-  // vazada pro endpoint errado). A rota tem que vencer o env gerenciado.
-  it('rota vence o env gerenciado no conflito', () => {
-    managed = { ANTHROPIC_BASE_URL: 'https://api.moonshot.ai/anthropic', ANTHROPIC_API_KEY: 'k-antiga' };
-    route = { ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic', ANTHROPIC_API_KEY: 'k-zai' };
-    const env = minimalEnv();
-    expect(env.ANTHROPIC_BASE_URL).toBe('https://api.z.ai/api/anthropic');
-    expect(env.ANTHROPIC_API_KEY).toBe('k-zai');
+  // O CLI tem que rodar no OAuth da assinatura. Uma ANTHROPIC_API_KEY solta no env
+  // gerenciado venceria o OAuth e todo turno sairia cobrado por token sem ninguém
+  // pedir — por isso a chave é zerada (vazia, não ausente) por último.
+  it('zera ANTHROPIC_API_KEY mesmo se o env gerenciado trouxer uma', () => {
+    managed = { ANTHROPIC_API_KEY: 'k-solta' };
+    expect(minimalEnv().ANTHROPIC_API_KEY).toBe('');
   });
 
   it('token gerenciado sem conflito continua chegando no agente', () => {
-    managed = { DASHSCOPE_API_KEY: 'k-qwen' };
-    expect(minimalEnv().DASHSCOPE_API_KEY).toBe('k-qwen');
+    managed = { EXEMPLO_API_KEY: 'k-tool' };
+    expect(minimalEnv().EXEMPLO_API_KEY).toBe('k-tool');
   });
 
   // O env herdado do processo não pode vazar pro `claude` (#162).
