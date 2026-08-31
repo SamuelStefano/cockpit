@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { resolve } from 'node:path';
-import { resolveStaticPath } from './static';
+import { EventEmitter } from 'node:events';
+import type { ServerResponse } from 'node:http';
+import { resolveStaticPath, pipeFile } from './static';
 
 const root = resolve('/srv/dist');
 
@@ -28,5 +30,33 @@ describe('resolveStaticPath', () => {
   it('returns null on malformed percent-encoding instead of throwing', () => {
     expect(resolveStaticPath(root, '/%')).toBeNull();
     expect(resolveStaticPath(root, '/%E0%A4')).toBeNull();
+  });
+});
+
+function fakeRes() {
+  const res = new EventEmitter() as EventEmitter & { destroyed: boolean; destroy: () => void; write: () => boolean; end: () => void };
+  res.destroyed = false;
+  res.destroy = () => { res.destroyed = true; };
+  res.write = () => true;
+  res.end = () => {};
+  return res;
+}
+
+// Sem estes dois listeners o erro de leitura sobe como uncaughtException e o
+// backstop do index.ts derruba o backend inteiro por causa de um asset.
+describe('pipeFile', () => {
+  it('derruba a resposta em vez de lançar quando a leitura falha', async () => {
+    const res = fakeRes();
+    pipeFile(resolve(root, 'nao-existe.js'), res as unknown as ServerResponse);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(res.destroyed).toBe(true);
+  });
+
+  it('destrói o stream quando o cliente aborta, pra não vazar fd', async () => {
+    const res = fakeRes();
+    const stream = pipeFile(resolve(__dirname, 'static.ts'), res as unknown as ServerResponse);
+    res.emit('close');
+    await new Promise((r) => setTimeout(r, 20));
+    expect(stream.destroyed).toBe(true);
   });
 });

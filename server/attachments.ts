@@ -178,6 +178,10 @@ export async function saveAttachment(
 interface ChunkUpload { sessionKey: string; name: string; total: number; parts: string[]; received: number; bytes: number; ts: number }
 const chunkUploads = new Map<string, ChunkUpload>();
 const CHUNK_TTL = 120_000;
+// Cada upload em voo segura até ~2× maxUploadBytes de base64 em RAM pelo TTL
+// inteiro. O teto por upload já existia; sem teto de uploads SIMULTÂNEOS, abrir
+// vários uploadId diferentes multiplica isso sem freio.
+const MAX_ACTIVE_UPLOADS = 8;
 function sweepChunks(now: number): void { for (const [id, u] of chunkUploads) if (now - u.ts > CHUNK_TTL) chunkUploads.delete(id); }
 
 export async function addUploadChunk(
@@ -190,7 +194,11 @@ export async function addUploadChunk(
   const now = Date.now();
   sweepChunks(now);
   let u = chunkUploads.get(uploadId);
-  if (!u) { u = { sessionKey, name, total, parts: new Array(total).fill(''), received: 0, bytes: 0, ts: now }; chunkUploads.set(uploadId, u); }
+  if (!u) {
+    if (chunkUploads.size >= MAX_ACTIVE_UPLOADS) return { error: 'muitos uploads simultâneos' };
+    u = { sessionKey, name, total, parts: new Array(total).fill(''), received: 0, bytes: 0, ts: now };
+    chunkUploads.set(uploadId, u);
+  }
   if (u.parts[seq] === '') { u.parts[seq] = dataB64; u.bytes += dataB64.length; u.received++; }
   u.ts = now;
   // Teto cedo (base64 ~+33%): aborta uploads grandes antes de remontar.

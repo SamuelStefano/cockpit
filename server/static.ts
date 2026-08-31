@@ -1,4 +1,4 @@
-import { createReadStream } from 'node:fs';
+import { createReadStream, type ReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { join, resolve, extname, normalize } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -28,6 +28,19 @@ export function resolveStaticPath(root: string, url: string): string | null {
   return file;
 }
 
+// Os headers já foram pro fio quando o corpo começa a fluir, então um erro de
+// leitura no meio (arquivo trocado por um deploy, EIO) não tem mais como virar 500:
+// sem listener de 'error' ele sobe como uncaughtException e o backstop do index.ts
+// derruba o backend inteiro por causa de um asset. E sem destruir o stream quando o
+// cliente aborta, cada download interrompido vaza um fd.
+export function pipeFile(file: string, res: ServerResponse): ReadStream {
+  const stream = createReadStream(file);
+  stream.on('error', () => res.destroy());
+  res.on('close', () => stream.destroy());
+  stream.pipe(res);
+  return stream;
+}
+
 // Serve a SPA buildada (dist/) na MESMA porta do WS — um único bind 127.0.0.1
 // pra acesso via Tailscale.
 export function makeStatic(distRoot: string) {
@@ -53,7 +66,7 @@ export function makeStatic(distRoot: string) {
       'cache-control': immutable ? 'public, max-age=31536000, immutable' : 'no-cache',
     });
     if (req.method === 'HEAD') { res.end(); return true; }
-    createReadStream(file).pipe(res);
+    pipeFile(file, res);
     return true;
   };
 }
