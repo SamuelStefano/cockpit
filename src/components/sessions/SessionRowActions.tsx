@@ -10,8 +10,6 @@ interface SessionRowActionsProps {
   canDescribe: boolean;
   marathon: boolean;
   onToggleMarathon?: () => void;
-  cascadeOn: boolean;
-  onToggleCascadeSession?: () => void;
   onTogglePin?: () => void;
   onRename: () => void;
   onDescribe: () => void;
@@ -32,7 +30,7 @@ interface Item {
   danger?: boolean;
 }
 
-export function SessionRowActions({ pinned, running, canStop, canDescribe, marathon, onToggleMarathon, cascadeOn, onToggleCascadeSession, onTogglePin, onRename, onDescribe, onStop, onArchive, onDelete, open: openProp, onOpenChange }: SessionRowActionsProps) {
+export function SessionRowActions({ pinned, running, canStop, canDescribe, marathon, onToggleMarathon, onTogglePin, onRename, onDescribe, onStop, onArchive, onDelete, open: openProp, onOpenChange }: SessionRowActionsProps) {
   const [openInternal, setOpenInternal] = useState(false);
   const open = openProp ?? openInternal;
   const setOpen = (v: boolean) => { onOpenChange ? onOpenChange(v) : setOpenInternal(v); };
@@ -60,7 +58,6 @@ export function SessionRowActions({ pinned, running, canStop, canDescribe, marat
   items.push({ key: 'rename', label: 'Renomear', icon: 'pencil', run: onRename });
   if (canDescribe) items.push({ key: 'desc', label: 'Editar descrição', icon: 'message', run: onDescribe });
   if (onToggleMarathon) items.push({ key: 'marathon', label: marathon ? 'Sair da maratona' : 'Modo maratona', icon: 'zap', run: onToggleMarathon });
-  if (onToggleCascadeSession) items.push({ key: 'cascade', label: cascadeOn ? 'Desligar cascata' : 'Modo cascata (barato primeiro)', icon: 'download', run: onToggleCascadeSession });
   if (running && canStop && onStop) items.push({ key: 'stop', label: 'Parar turno', icon: 'square', run: onStop });
   items.push({ key: 'archive', label: 'Arquivar', icon: 'file', run: onArchive });
   items.push({ key: 'delete', label: 'Excluir', icon: 'trash', run: onDelete, danger: true });

@@ -2,8 +2,7 @@ import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { CONFIG } from './config';
-import { findProvider, PLAN_PROVIDER_ID } from './router/catalog';
-import type { ProviderUsage, SessionUsage, UsageStats } from '../shared/protocol';
+import type { SessionUsage, UsageStats } from '../shared/protocol';
 
 // SQLite local, single-writer, loopback-only. WAL pra leitura concorrente com o
 // loop de stats. Só time-series de uso por enquanto (one-way door: session_id
@@ -42,9 +41,6 @@ function open(): Database.Database {
   ensureColumn(db, 'usage_sample', 'input_tokens', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'usage_sample', 'cache_read_tokens', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'usage_sample', 'cache_creation_tokens', 'INTEGER NOT NULL DEFAULT 0');
-  // Com a cascata, turnos do mesmo modelo rodam em provedores de preço diferente:
-  // sem esta coluna o /uso cobrava tabela Anthropic por token que rodou de graça.
-  ensureColumn(db, 'usage_sample', 'provider', 'TEXT');
   // Resumo IA por sessão (1 frase), regerado ao fim do turno. Keyed por session_id
   // (upsert) — derivado do JSONL, descartável, jamais sobrescreve histórico real.
   db.exec(`
@@ -109,8 +105,7 @@ export interface CostTokens { input: number; output: number; cacheRead: number; 
 
 // Custo estimado (USD) de um conjunto de tokens pro modelo. Centraliza a fórmula
 // usada tanto no agregado por sessão quanto nos buckets diários do /uso.
-export function costOf(model: string | null, t: CostTokens, provider?: string | null): number {
-  if (provider && findProvider(provider)?.tier === 'free') return 0;
+export function costOf(model: string | null, t: CostTokens): number {
   const p = priceOf(model);
   return (t.input * p.input + t.cacheCreation * p.cacheWrite + t.cacheRead * p.cacheRead + t.output * p.output) / 1_000_000;
 }
@@ -123,7 +118,6 @@ export interface UsageInput {
   cacheReadTokens?: number;
   cacheCreationTokens?: number;
   model?: string;
-  provider?: string;
 }
 
 export function recordUsage(u: UsageInput): void {
@@ -135,20 +129,20 @@ export function recordUsage(u: UsageInput): void {
   try {
     open()
       .prepare(`INSERT INTO usage_sample
-        (session_id, ts, ctx_tokens, output_tokens, input_tokens, cache_read_tokens, cache_creation_tokens, model, provider)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        (session_id, ts, ctx_tokens, output_tokens, input_tokens, cache_read_tokens, cache_creation_tokens, model)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(
         u.sessionId, Date.now(),
         Math.round(u.ctxTokens), Math.round(u.outputTokens),
         Math.round(u.inputTokens ?? 0), Math.round(u.cacheReadTokens ?? 0), Math.round(u.cacheCreationTokens ?? 0),
-        u.model ?? null, u.provider ?? null,
+        u.model ?? null,
       );
   } catch {
     // disco cheio / DB lock — ignora; não derruba o turno
   }
 }
 
-const EMPTY_STATS: UsageStats = { sessions: [], providers: [], totalOutput: 0, totalSamples: 0, totalCost: 0, series: [] };
+const EMPTY_STATS: UsageStats = { sessions: [], totalOutput: 0, totalSamples: 0, totalCost: 0, series: [] };
 
 // Força um checkpoint TRUNCATE: zera o -wal quando o auto-checkpoint é starved
 // por um leitor de longa duração. Best-effort, chamado no sweep periódico.
@@ -185,7 +179,6 @@ function computeStats(): UsageStats {
     SELECT
       session_id                       AS sessionId,
       model                            AS model,
-      provider                         AS provider,
       COUNT(*)                         AS samples,
       SUM(output_tokens)               AS outputTokens,
       SUM(input_tokens)                AS inputTokens,
@@ -193,9 +186,9 @@ function computeStats(): UsageStats {
       SUM(cache_creation_tokens)       AS cacheCreationTokens,
       MAX(ts)                          AS lastTs
     FROM usage_sample
-    GROUP BY session_id, model, provider
+    GROUP BY session_id, model
   `).all() as Array<{
-    sessionId: string; model: string | null; provider: string | null; samples: number; outputTokens: number;
+    sessionId: string; model: string | null; samples: number; outputTokens: number;
     inputTokens: number; cacheReadTokens: number; cacheCreationTokens: number; lastTs: number;
   }>;
 
@@ -205,21 +198,13 @@ function computeStats(): UsageStats {
   `);
 
   const bySession = new Map<string, SessionUsage>();
-  const byProvider = new Map<string, ProviderUsage>();
   for (const r of rows) {
     const cost = costOf(r.model, {
       input: r.inputTokens ?? 0,
       output: r.outputTokens ?? 0,
       cacheRead: r.cacheReadTokens ?? 0,
       cacheCreation: r.cacheCreationTokens ?? 0,
-    }, r.provider);
-    // Amostra antiga (pré-coluna) rodou no plano por definição: a cascata não existia.
-    const pid = r.provider ?? PLAN_PROVIDER_ID;
-    const pu = byProvider.get(pid) ?? { providerId: pid, samples: 0, outputTokens: 0, costUsd: 0 };
-    pu.samples += r.samples;
-    pu.outputTokens += r.outputTokens ?? 0;
-    pu.costUsd += cost;
-    byProvider.set(pid, pu);
+    });
     const prev = bySession.get(r.sessionId);
     if (prev) {
       prev.outputTokens += r.outputTokens ?? 0;
@@ -243,7 +228,6 @@ function computeStats(): UsageStats {
 
   return {
     sessions,
-    providers: [...byProvider.values()].sort((a, b) => b.costUsd - a.costUsd || b.samples - a.samples),
     totalOutput: sessions.reduce((a, s) => a + s.outputTokens, 0),
     totalSamples: sessions.reduce((a, s) => a + s.samples, 0),
     totalCost: sessions.reduce((a, s) => a + s.costUsd, 0),
@@ -256,15 +240,15 @@ function dailySeries(days: number): { day: number; output: number; cost: number 
   const cutoff = Date.now() - days * 86_400_000;
   const rows = open().prepare(`
     SELECT ts, output_tokens AS output, input_tokens AS input,
-           cache_read_tokens AS cacheRead, cache_creation_tokens AS cacheCreation, model, provider
+           cache_read_tokens AS cacheRead, cache_creation_tokens AS cacheCreation, model
     FROM usage_sample WHERE ts >= ?
-  `).all(cutoff) as Array<{ ts: number; output: number; input: number; cacheRead: number; cacheCreation: number; model: string | null; provider: string | null }>;
+  `).all(cutoff) as Array<{ ts: number; output: number; input: number; cacheRead: number; cacheCreation: number; model: string | null }>;
 
   const buckets = new Map<number, { day: number; output: number; cost: number }>();
   for (const r of rows) {
     const d = new Date(r.ts); d.setHours(0, 0, 0, 0);
     const day = d.getTime();
-    const cost = costOf(r.model, { input: r.input, output: r.output, cacheRead: r.cacheRead, cacheCreation: r.cacheCreation }, r.provider);
+    const cost = costOf(r.model, { input: r.input, output: r.output, cacheRead: r.cacheRead, cacheCreation: r.cacheCreation });
     const b = buckets.get(day) ?? { day, output: 0, cost: 0 };
     b.output += r.output; b.cost += cost;
     buckets.set(day, b);

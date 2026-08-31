@@ -19,8 +19,6 @@ import { startSessionsWatch } from './sessions/watch';
 import { startPointsWatch } from './points-watch';
 import { startDflPointsWatch } from './dfl-points-watch';
 import { loadManagedEnv } from './admin-ops';
-import { loadRouting } from './router/state';
-import { startRouteBroadcast } from './ws/routes';
 
 // Entrypoint do AGENTE T3 (DR-023): em vez de escutar (attachWs), DISCA pro relay
 // e serve o MESMO protocolo pelo socket de saída. O relay encaminha os frames do
@@ -262,11 +260,6 @@ export function runAgent(relayUrl: string): void {
   }
   startHealthGuard();
   void loadManagedEnv(); // tokens gerenciados (#162) p/ o spawn herdar
-  // Roteador multi-provedor: é aqui que ele importa de verdade — o agente é quem
-  // drena a fila overnight, e a rota é o que decide se o teto do plano para tudo
-  // até o reset ou se a noite continua noutro provedor.
-  loadRouting();
-  startRouteBroadcast();
   // Loops periódicos (telemetria/usage/modelos) que o modo listen roda no attachWs.
   // No dial não há WebSocketServer, então a "presença de cliente" é o socket ativo
   // pro relay (activeWs). broadcast já sai por ele via setClientSource. Sem isto a

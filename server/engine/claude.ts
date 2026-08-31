@@ -7,7 +7,6 @@ import { join } from 'node:path';
 import type { ClaudeEvent } from './events';
 import { CONFIG } from '../config';
 import { managedEnvSync, mcpServerDefsSync } from '../admin-ops';
-import { routeEnv, routeIsNativeAnthropic, routeModel } from '../router/state';
 import type { Role } from '../auth';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -37,7 +36,6 @@ export interface RunOpts {
   disallowedSkills?: string[]; // regras Skill(...) das skills NÃO-selecionadas (ver skillDenyRules)
   mcps?: string[];             // MCP servers a CARREGAR neste turno. Default = NENHUM (strict-mcp-config). Cada server adiciona ~5-20k tokens de tool defs por chamada; carregar só os escolhidos corta o overhead que inflava a quota (vs terminal).
   effort?: string;             // nível de pensamento (--effort low|medium|high|xhigh|max). Sem isto o CLI usa o default da conta (alto) → thinking tokens caros em pedido simples. Default do Deck = low.
-  providerId?: string;         // provedor SÓ deste spawn (tentativa barata da cascata). Ausente = rota ativa do roteador.
   forkId?: string;             // roda em cima do transcript do `resumeId` mas GRAVA neste id novo (--fork-session). Sem isto dois processos escreveriam o mesmo JSONL.
   onEvent: (ev: ClaudeEvent) => void;
   onError: (msg: string) => void;
@@ -46,9 +44,8 @@ export interface RunOpts {
 
 const EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
 const MODELS = new Set(['opus', 'sonnet', 'haiku']);
-// id concreto do provedor ativo: claude-opus-4-8, glm-4.6, qwen3-coder-plus,
-// MiniMax-M2. Ancorado, sem espaço e obrigado a começar com alfanumérico — é isso
-// que impede o valor de virar uma flag no argv.
+// id concreto do modelo (claude-opus-4-8). Ancorado, sem espaço e obrigado a começar
+// com alfanumérico — é isso que impede o valor de virar uma flag no argv.
 const MODEL_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$/;
 function validModel(m: string): boolean { return MODELS.has(m) || MODEL_ID_RE.test(m); }
 
@@ -62,13 +59,10 @@ export interface RunHandle {
 // - env mínimo (não vaza segredo do processo pai)
 // - cwd isolado
 // - detached pra matar a árvore no stop
-export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills' | 'forkId'>
-  // Rota ativa não é a Anthropic: `--fallback-model` fala nomes que só a Anthropic
-  // conhece e derrubaria o turno inteiro num provedor alternativo.
-  & { nativeAnthropic?: boolean };
+export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills' | 'forkId'>;
 
 export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: string[] } | { error: string } {
-  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, nativeAnthropic = true } = opts;
+  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId } = opts;
   const { permissionMode, allow } = resolveMode(mode, { bypass, role });
 
   const args = [
@@ -88,7 +82,7 @@ export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: 
   // Nível de pensamento. Sem a flag o CLI usa o default da conta (alto) e queima
   // thinking tokens até em pedido simples — passar explícito (default low na UI) corta.
   if (effort && EFFORTS.has(effort)) args.push('--effort', effort);
-  if (nativeAnthropic && CONFIG.fallbackModel && validModel(CONFIG.fallbackModel) && CONFIG.fallbackModel !== model) {
+  if (CONFIG.fallbackModel && validModel(CONFIG.fallbackModel) && CONFIG.fallbackModel !== model) {
     args.push('--fallback-model', CONFIG.fallbackModel);
   }
   if (typeof maxBudgetUsd === 'number' && Number.isFinite(maxBudgetUsd) && maxBudgetUsd > 0) {
@@ -117,7 +111,7 @@ export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: 
 }
 
 export function run(opts: RunOpts): RunHandle {
-  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, providerId, forkId, onEvent, onError, onClose } = opts;
+  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, onEvent, onError, onClose } = opts;
 
   // MCP por sessão: escreve um config TEMPORÁRIO só com os servers escolhidos
   // (definições completas lidas do ~/.claude.json). Sem seleção → sem arquivo →
@@ -135,11 +129,8 @@ export function run(opts: RunOpts): RunHandle {
   }
   const cleanupMcp = () => { if (mcpConfigPath) { try { unlinkSync(mcpConfigPath); } catch { /* já removido */ } mcpConfigPath = undefined; } };
 
-  // A rota ativa decide o nome do modelo: o alias da UI (opus/sonnet/haiku) vira o
-  // id nativo do provedor pra onde o roteador apontou.
   const built = buildArgs({
-    prompt, resumeId, mode, model: routeModel(model, providerId), effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId,
-    nativeAnthropic: routeIsNativeAnthropic(providerId),
+    prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId,
   }, mcpConfigPath);
   if ('error' in built) {
     cleanupMcp();
@@ -150,7 +141,7 @@ export function run(opts: RunOpts): RunHandle {
 
   const child: ChildProcess = spawn('claude', built.args, {
     cwd: CONFIG.workdir,
-    env: minimalEnv(providerId),
+    env: minimalEnv(),
     shell: false,
     detached: true,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -277,17 +268,17 @@ export function resolveMode(
 // env curto: PATH + HOME + idioma + tokens GERENCIADOS pelo admin (#162). Nada de
 // SUPABASE_*/Infisical herdados do processo — só o que o dono colocou de propósito
 // via painel admin (~/.deck-agent/env.json) entra, pro agente usar nas tools.
-// A rota entra por ÚLTIMO de propósito: se o roteador apontou pra outro provedor,
-// o ANTHROPIC_BASE_URL/token dele tem que vencer um valor solto no env gerenciado —
-// senão o turno sairia com a URL de um provedor e a chave de outro.
-export function minimalEnv(providerId?: string): NodeJS.ProcessEnv {
+// ANTHROPIC_API_KEY é zerado por último (vazio, não ausente): o CLI tem que usar o
+// OAuth da assinatura, e uma chave solta no env gerenciado venceria o OAuth — todo
+// turno sairia cobrado por token sem ninguém pedir.
+export function minimalEnv(): NodeJS.ProcessEnv {
   return {
     PATH: process.env.PATH,
     HOME: process.env.HOME,
     LANG: process.env.LANG ?? 'en_US.UTF-8',
     TERM: 'dumb',
     ...managedEnvSync(),
-    ...routeEnv(providerId),
+    ANTHROPIC_API_KEY: '',
   };
 }
 

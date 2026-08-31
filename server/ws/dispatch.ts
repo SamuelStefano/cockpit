@@ -28,10 +28,8 @@ import { threads, startRun, routeSend, stopSession, drainParked, runParkedInBack
 import { clearAwaiting } from './awaiting';
 import { addParked, removeParked, editParked, moveParked, clearParked, retryParked, parkedView, isQueuePaused, setQueuePaused, REJECT_MESSAGE } from './parked';
 import { refreshModels } from './models';
-import { handleRouteMsg } from './routes';
 import { handleHarnessMsg } from './harness';
 import { setMarathon, marathonKeys } from './marathon';
-import { setCascadeSession, cascadeSessionKeys } from '../router/cascade-session';
 import { sendDurableSnapshot } from './snapshot';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 import { buildBench } from '../bench';
@@ -182,11 +180,6 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'set-marathon': {
       setMarathon(msg.sessionKey, !!msg.on);
       broadcast({ t: 'marathon', keys: marathonKeys() });
-      return;
-    }
-    case 'set-cascade-session': {
-      setCascadeSession(msg.sessionKey, !!msg.on);
-      broadcast({ t: 'cascade-sessions', keys: cascadeSessionKeys() });
       return;
     }
     case 'search': {
@@ -366,17 +359,6 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'admin-health': {
       send(ws, { t: 'health', health: await collectHealth() });
-      return;
-    }
-    // Roteador multi-provedor. Admin-only pelo authorize (não entra no allowlist do
-    // student): quem troca a rota decide pra qual endpoint TODO prompt vai.
-    case 'routes-get':
-    case 'routes-enable':
-    case 'route-set':
-    case 'route-config':
-    case 'route-custom-add':
-    case 'route-custom-remove': {
-      handleRouteMsg(ws, msg);
       return;
     }
     // Harness de orquestração próprio (admin-only pelo authorize): motor separado da

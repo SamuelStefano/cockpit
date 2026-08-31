@@ -12,14 +12,10 @@ import { suggestFollowups } from '../engine/suggest';
 import { isAwaiting, clearAwaiting } from './awaiting';
 import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takeParked, promoteParked, parkedView, isQueuePaused, MAX_PARKED_ATTEMPTS, REJECT_MESSAGE, type ParkedItem } from './parked';
 import { resumableId } from './resume';
-import { quotaHold, burnedByQuota, planLimited } from './quota';
-import { reportOutcome, cascadeRoute } from '../router/state';
-import type { FailureKind } from '../router/classify';
-import { escalationReason, ESCALATION_MESSAGE } from '../router/cascade';
+import { quotaHold, burnedByQuota } from './quota';
 import { markRunLive, clearRunLive, takeOrphanRuns } from './recover';
 import { recordIncident } from './incidents';
 import { threadIsMarathon, MARATHON_TOTAL_CAP_MS, MARATHON_AUTO_RESUME_CAP } from './marathon';
-import { threadWantsCascade } from '../router/cascade-session';
 
 // Config do turno, guardada no thread pra a retomada automática (morte silenciosa)
 // rodar com os MESMOS parâmetros — retomar em outro modelo/sem bypass mudaria o
@@ -57,9 +53,7 @@ export interface Thread {
   questioned?: boolean; // turno fez AskUserQuestion: o `claude -p` auto-resolve e CONTINUA gerando — suprime tudo que vier depois pra a pergunta ficar como última (respondível)
   parked?: ParkedItem;  // item que a fila estacionada drenou neste turno; volta pra fila se o teto de tokens matar o turno sem consumi-lo
   parkedFrom?: string;  // sessão de onde o item saiu — no disparo avulso a chave do turno é a do FORK, e devolver por ela criaria uma fila fantasma
-  lastError?: string;   // último erro reportado pelo processo; é o sinal que o roteador classifica pra decidir se troca de provedor
-  cascadeProvider?: string; // este turno é a tentativa BARATA da cascata (id do provedor); se não entregar, o onClose refaz no plano
-  noCascade?: boolean;      // turno preso ao tier forte; a retomada dele herda a trava pra não voltar ao barato
+  lastError?: string;   // último erro reportado pelo processo
   // Snapshot acumulado p/ replay no reconnect (#10). Os frames vão por broadcast.
   text: string;
   thinking: string;
@@ -306,44 +300,7 @@ function autoResume(sessionKey: string, thread: Thread): void {
   // (passou das guardas de corrida acima e do teto de tentativas).
   broadcast({ t: 'error', sessionKey, message: 'Retomando de onde parou…' });
   const p = thread.params;
-  startRun(null, sessionKey, RESUME_PROMPT, thread.sessionId, undefined, p.mode, p.model, p.maxBudgetUsd, p.bypass, p.role, p.disallowedSkills, p.mcps, p.effort, undefined, thread.noCascade);
-}
-
-// Subidas de tier já gastas por sessão. Zera no prompt novo do usuário (startRun).
-const escalations = new Map<string, number>();
-
-// Refaz o turno no plano quando a tentativa barata não entregou. Devolve true se
-// assumiu o fechamento — o autoResume não deve rodar depois, a refeitura JÁ é a
-// retomada, e num modelo melhor.
-function maybeEscalate(sessionKey: string, thread: Thread, failure: FailureKind, hold: number): boolean {
-  if (threads.has(sessionKey)) return false;         // fila ou usuário já subiram turno novo
-  if (isAwaiting(sessionKey)) return false;          // turno perguntou: quem responde é o usuário
-  if (hold) return false;                            // plano sem token: subir de tier morreria igual
-  const tries = escalations.get(sessionKey) ?? 0;
-  const reason = escalationReason({
-    tier: 'cheap',
-    failure,
-    tools: thread.tools.length,
-    text: thread.text,
-    endReason: thread.endReason,
-    userStopped: thread.userStopped,
-    escalations: tries,
-  });
-  if (!reason) return false;
-  escalations.set(sessionKey, tries + 1);
-  broadcast({ t: 'error', sessionKey, message: ESCALATION_MESSAGE[reason] });
-  recordIncident({ kind: 'cascade-escalation', sessionKey, sessionId: thread.sessionId, detail: `${thread.cascadeProvider} não entregou (${reason})` });
-  const p = thread.params;
-  // fork obrigatório: a tentativa barata pode ter gravado no transcript um `id` de
-  // mensagem fora do formato Anthropic (ex.: resposta de provider OpenRouter). Se a
-  // refeitura resumir esse MESMO sessionId, o Opus reenvia esse id como
-  // previous_message_id e a Anthropic recusa com 400 — a sessão fica irresumível pra
-  // sempre. `--fork-session` lê o transcript de thread.sessionId mas grava num id
-  // novo, então o dano da tentativa barata não se propaga. Sem sessionId ainda
-  // (tentativa barata morreu antes do 1º evento) não há o que forkar.
-  const forkId = thread.sessionId ? randomUUID() : undefined;
-  startRun(null, sessionKey, thread.prompt, thread.sessionId, undefined, p.mode, p.model, p.maxBudgetUsd, p.bypass, p.role, p.disallowedSkills, p.mcps, p.effort, undefined, true, forkId);
-  return true;
+  startRun(null, sessionKey, RESUME_PROMPT, thread.sessionId, undefined, p.mode, p.model, p.maxBudgetUsd, p.bypass, p.role, p.disallowedSkills, p.mcps, p.effort);
 }
 
 let reaperTimer: ReturnType<typeof setInterval> | null = null;
@@ -422,7 +379,7 @@ export function runParkedInBackground(sessionKey: string, id: string, role?: Rol
   const item = takeParked(sessionKey, id, role);
   if (!item) return { reject: 'sem-item' };
   const forkId = randomUUID();
-  startRun(null, forkId, item.prompt, parent, undefined, item.mode, model ?? item.model, item.maxBudgetUsd, item.bypass, item.role, item.disallowedSkills, item.mcps, item.effort, undefined, undefined, forkId);
+  startRun(null, forkId, item.prompt, parent, undefined, item.mode, model ?? item.model, item.maxBudgetUsd, item.bypass, item.role, item.disallowedSkills, item.mcps, item.effort, undefined, forkId);
   // Spawn falhou depois do item já ter saído: devolve pro topo SEM contar tentativa
   // (a falha é do disparo, não do prompt) pra ele não acabar segurado no teto.
   const th = threads.get(forkId);
@@ -516,14 +473,10 @@ const SESSION_KEY_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 
 // ws null = run sem cliente específico (cron agendado): erros vão por broadcast e
 // o stream do turno é broadcastado a todos os clientes como qualquer outro run.
-// noCascade: este turno é a REFEITURA no modelo forte (ou uma retomada dela) e não
-// pode voltar pro provedor barato — senão a subida de tier andaria em círculo.
 // `forkId`: o turno lê o transcript do `resumeId` mas grava nesse id novo, então a
-// sessão original segue intocada — usado no disparo em background (chat novo, isolado)
-// e na reescalada de tier da cascata (mesmo sessionKey, transcript trocado por baixo,
-// ver maybeEscalate). Não é herdado pela retomada automática — retomar um fork
-// continua o próprio fork.
-export function startRun(ws: WebSocket | null, sessionKey: string, prompt: string, resumeId?: string, msgId?: string, mode?: string, model?: string, maxBudgetUsd?: number, bypass?: boolean, role?: Role, disallowedSkills?: string[], mcps?: string[], effort?: string, auto?: boolean, noCascade?: boolean, forkId?: string) {
+// sessão original segue intocada — usado no disparo em background (chat novo, isolado).
+// Não é herdado pela retomada automática — retomar um fork continua o próprio fork.
+export function startRun(ws: WebSocket | null, sessionKey: string, prompt: string, resumeId?: string, msgId?: string, mode?: string, model?: string, maxBudgetUsd?: number, bypass?: boolean, role?: Role, disallowedSkills?: string[], mcps?: string[], effort?: string, auto?: boolean, forkId?: string) {
   // sessionKey é string crua do cliente usada como chave do mapa `threads` e
   // ecoada nos broadcasts; restringe a um slug (cobre uuid e as keys 'new-…').
   if (typeof sessionKey !== 'string' || !SESSION_KEY_RE.test(sessionKey)) {
@@ -559,17 +512,10 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
   // reapado) deixava a cota gasta pra sempre e a próxima falha de verdade era
   // recusada com "a retomada automática também falhou".
   if (prompt !== RESUME_PROMPT) autoResumes.delete(sessionKey);
-  // Prompt novo do usuário devolve a cota de subida de tier. A refeitura (noCascade)
-  // e a retomada não zeram: elas são a MESMA unidade de trabalho que já gastou uma.
-  if (!noCascade && prompt !== RESUME_PROMPT) escalations.delete(sessionKey);
-  // Tentativa barata da cascata — só corre se ESTA sessão pediu (threadWantsCascade).
-  // A elegibilidade do provedor em si é decidida por turno, não por sessão: depende
-  // de chave e cooldown, que mudam entre um turno e o seguinte.
-  const cascadeProvider = noCascade || !threadWantsCascade(sessionKey, resumeId) ? null : cascadeRoute();
 
   let live = false; // este turno já foi registrado no live-runs.json?
   let parkedConsumed = false; // o item de fila deste turno já saiu do registro em disco?
-  const thread: Thread = { handle: { kill: () => {} }, params: { mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort }, prompt, startedAt: Date.now(), sessionId: forkId ?? resumeId, cascadeProvider: cascadeProvider ?? undefined, noCascade, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set() };
+  const thread: Thread = { handle: { kill: () => {} }, params: { mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort }, prompt, startedAt: Date.now(), sessionId: forkId ?? resumeId, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set() };
   threads.set(sessionKey, thread);
   // Eco da mensagem do usuário a todos os clientes ANTES do 'started' (bolha do
   // usuário aparece antes da do assistente). Só quando o cliente mandou msgId — o
@@ -588,7 +534,6 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
     role,
     disallowedSkills,
     mcps,
-    providerId: cascadeProvider ?? undefined,
     forkId,
     onEvent: (ev) => {
       translate(sessionKey, thread, ev);
@@ -624,16 +569,6 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
       // 'done' prematuro nem apagar a entrada do novo run.
       if (threads.get(sessionKey) !== thread) return;
       if (live && !preserveLiveOnClose) clearRunLive(sessionKey); // fechou: não é mais órfão (salvo no shutdown, onde o boot retoma)
-      // Veredito do roteador ANTES do hold: se o provedor atual esgotou, a troca
-      // acontece aqui e o `quotaHold()` abaixo já responde pela rota nova (livre).
-      // Stop do usuário não é falha de provedor — não pode abrir breaker nenhum.
-      // O mesmo veredito serve às duas decisões: trocar de provedor (failover) e
-      // subir de tier (cascata). Classificar duas vezes daria respostas diferentes se
-      // o breaker mudasse no meio.
-      let failure: FailureKind = 'ok';
-      if (!thread.userStopped) {
-        failure = reportOutcome({ limited: planLimited(), tools: thread.tools.length, text: thread.text, error: thread.lastError }).kind;
-      }
       // Teto de tokens: um veredito só pro fechamento inteiro (devolver o item
       // drenado, segurar as filas e não retomar em cima do limite).
       const hold = quotaHold();
@@ -704,10 +639,6 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
       // 'total': esse teto existe justamente pra parar um run desgovernado — retomar
       // dobraria a queima que o teto tentou conter. E sem token não adianta retomar
       // nada: o turno novo morreria no limite igual.
-      // Cascata antes da retomada: se a tentativa barata não entregou, refazer no
-      // plano já é a retomada — e num modelo melhor. Retomar no barato primeiro só
-      // gastaria mais um turno pra chegar na mesma conclusão.
-      if (thread.cascadeProvider && maybeEscalate(sessionKey, thread, failure, hold)) return;
       if ((silent || (thread.reaped && thread.reaped !== 'total')) && !hold) autoResume(sessionKey, thread);
     },
   });
