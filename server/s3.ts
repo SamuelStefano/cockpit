@@ -24,6 +24,11 @@ export function s3Config(): { uploadUrl: string; anonKey: string } | null {
 
 export interface S3Result { url: string; path: string; name: string; type: string }
 
+// O fetch do Node não tem timeout default. O anexo só é respondido ao cliente DEPOIS
+// deste upload (addUploadChunk aguarda), então uma edge fn pendurada travaria o anexo
+// pra sempre — num espelho que é best-effort. Vencido o prazo, cai no fluxo local.
+const UPLOAD_TIMEOUT_MS = 30_000;
+
 // Sobe um buffer e devolve a URL pública S3. Best-effort: qualquer falha → null
 // (o chamador mantém o anexo local; S3 é um espelho pra exibição remota/mobile).
 export async function uploadToS3(buf: Uint8Array, name: string, type: string): Promise<S3Result | null> {
@@ -36,6 +41,7 @@ export async function uploadToS3(buf: Uint8Array, name: string, type: string): P
       method: 'POST',
       headers: { authorization: `Bearer ${key}`, apikey: key },
       body: form,
+      signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
     });
     if (!res.ok) return null;
     const j = await res.json() as Partial<S3Result>;

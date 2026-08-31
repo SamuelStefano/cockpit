@@ -1,9 +1,26 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
 
 let managed: Record<string, string> = {};
 vi.mock('../admin-ops', () => ({ managedEnvSync: () => managed, mcpServerDefsSync: () => ({}) }));
 
-import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv } from './claude';
+// `claude` é um binário REAL na máquina do Samuel: sem este mock os testes de run()
+// subiriam um turno de verdade e queimariam token.
+const spawned = vi.hoisted(() => ({ child: null as FakeChild | null }));
+vi.mock('node:child_process', () => ({
+  spawn: () => spawned.child,
+  execFileSync: () => '',
+}));
+
+class FakeChild extends EventEmitter {
+  pid = 7331;
+  stdout = new PassThrough();
+  stderr = new PassThrough();
+  kill = vi.fn();
+}
+
+import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run } from './claude';
 
 beforeEach(() => { managed = {}; });
 
@@ -245,5 +262,89 @@ describe('minimalEnv', () => {
     process.env.DECK_TEST_SEGREDO = 'nao-vaza';
     expect(minimalEnv().DECK_TEST_SEGREDO).toBeUndefined();
     delete process.env.DECK_TEST_SEGREDO;
+  });
+});
+
+describe('run: leitura do stream', () => {
+  let child: FakeChild;
+  const events: unknown[] = [];
+  const errors: string[] = [];
+  let closes = 0;
+  const start = () => run({ prompt: 'oi', onEvent: (e) => events.push(e), onError: (m) => errors.push(m), onClose: () => { closes += 1; } });
+
+  beforeEach(() => {
+    child = new FakeChild();
+    spawned.child = child;
+    events.length = 0; errors.length = 0; closes = 0;
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  const flush = () => new Promise((r) => setImmediate(r));
+
+  it('entrega cada linha JSON como evento', async () => {
+    start();
+    child.stdout.write(`${JSON.stringify({ type: 'assistant' })}\n`);
+    await flush();
+    expect(events).toEqual([{ type: 'assistant' }]);
+  });
+
+  it('ignora linha vazia e ruído não-JSON', async () => {
+    start();
+    child.stdout.write('\nruído do terminal\n');
+    await flush();
+    expect(events).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+
+  // O `result` chega ANTES do exit≠0 nos cortes esperados (budget/max-turns); depois
+  // dele o exit não é mais crash a reportar.
+  it('não reporta crash quando o result já veio antes do exit≠0', async () => {
+    start();
+    child.stdout.write(`${JSON.stringify({ type: 'result', subtype: 'error_max_budget' })}\n`);
+    await flush();
+    child.emit('close', 1);
+    expect(errors).toEqual([]);
+    expect(closes).toBe(1);
+  });
+
+  it('reporta o exit≠0 com a cauda do stderr quando não houve result', async () => {
+    start();
+    child.stderr.write('boom no CLI');
+    await flush();
+    child.emit('close', 127);
+    expect(errors[0]).toContain('claude saiu (127)');
+    expect(errors[0]).toContain('boom no CLI');
+  });
+
+  it('fecha uma vez só, mesmo com error e close no mesmo spawn', () => {
+    start();
+    child.emit('error', new Error('spawn claude ENOENT'));
+    child.emit('close', 1);
+    expect(closes).toBe(1);
+  });
+});
+
+// O backstop do index.ts chama shutdown(1) em uncaughtException: um erro de pipe não
+// tratado aqui derrubaria TODOS os chats por causa de um stop. E erro de pipe é o
+// caminho NORMAL — o kill() manda SIGKILL no grupo com a leitura em voo.
+describe('run: erro de pipe não pode derrubar o backend', () => {
+  let child: FakeChild;
+  beforeEach(() => {
+    child = new FakeChild();
+    spawned.child = child;
+    run({ prompt: 'oi', onEvent: () => {}, onError: () => {}, onClose: () => {} });
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  // Tratar só o stream NÃO basta: o readline reemite o erro do input na própria
+  // Interface, e 'error' sem listener num EventEmitter volta a ser throw.
+  it('absorve EPIPE no stdout sem propagar', () => {
+    expect(child.stdout.listenerCount('error')).toBeGreaterThan(0);
+    expect(() => child.stdout.emit('error', new Error('EPIPE'))).not.toThrow();
+  });
+
+  it('absorve ECONNRESET no stderr sem propagar', () => {
+    expect(child.stderr.listenerCount('error')).toBeGreaterThan(0);
+    expect(() => child.stderr.emit('error', new Error('ECONNRESET'))).not.toThrow();
   });
 });

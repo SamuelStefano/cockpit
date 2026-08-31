@@ -31,7 +31,18 @@ export function probeSlashCommands(): void {
   const timer = setTimeout(finish, 30_000);
   timer.unref();
 
+  // Um EPIPE/ECONNRESET no pipe (o finish() manda SIGKILL no grupo com a leitura em
+  // voo) subiria como uncaughtException — e o backstop do index.ts derruba o backend
+  // INTEIRO por causa de uma sonda opcional. Não basta tratar no stream: o readline
+  // REEMITE o erro do input na própria Interface, e 'error' sem listener no
+  // EventEmitter volta a ser throw. Os dois precisam de handler.
+  // O stderr também precisa ser drenado: pipe não lido enche em ~64KB e trava o filho.
+  child.stdout?.on('error', () => { clearTimeout(timer); finish(); });
+  child.stderr?.on('error', () => {});
+  child.stderr?.resume();
+
   const rl = createInterface({ input: child.stdout! });
+  rl.on('error', () => { clearTimeout(timer); finish(); });
   rl.on('line', (line) => {
     const s = line.trim();
     if (!s) return;

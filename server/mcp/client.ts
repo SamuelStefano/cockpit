@@ -19,7 +19,7 @@ function isHttp(d: unknown): d is HttpDef {
 // O `claude -p` herda todo o ambiente ao subir um MCP stdio; aqui montamos um env
 // mínimo + o env gerenciado do Deck, pra não vazar segredo do processo do backend
 // para um server que só precisa falar JSON-RPC.
-function stdioEnv(extra?: Record<string, string>): Record<string, string> {
+export function stdioEnv(extra?: Record<string, string>): Record<string, string> {
   const base: Record<string, string> = {};
   for (const k of ['PATH', 'HOME', 'LANG', 'TMPDIR']) {
     const v = process.env[k];
