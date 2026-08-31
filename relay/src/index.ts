@@ -150,9 +150,14 @@ export function createRelay(cfg: RelayConfig) {
       // Frames de administração de CONTA (T3): tratados NO RELAY (só ele tem a
       // service-role do Supabase). Gate por papel da conta vindo do JWT — nunca
       // do frame. Não são repassados ao agente (que não tem acesso ao banco).
-      if (s.includes('"accounts-list"') || s.includes('"set-admin"')) {
+      if (maybeControlFrame(s, 'accounts-list', 'set-admin')) {
         let m: { t?: string; accountId?: string; admin?: boolean } = {};
-        try { m = JSON.parse(s); } catch { return; }
+        try { m = JSON.parse(s); } catch { m = {}; }
+        // O pré-filtro é por SUBSTRING (evitar JSON.parse em todo frame, que chega a
+        // 32MB de base64 em upload). Ele acerta em qualquer frame que só MENCIONE o
+        // texto — um chat perguntando sobre "accounts-list". Se o `t` não for de
+        // administração, o frame CAI FORA daqui e segue pro agente; engolir aqui era
+        // uma mensagem sumindo em silêncio.
         if (m.t === 'accounts-list') {
           if (!canSeeAllAccounts(id.role)) return;           // default-deny
           const rows = await cfg.store.listAccounts();
@@ -172,7 +177,9 @@ export function createRelay(cfg: RelayConfig) {
           }));
           return;
         }
-        return;
+        // Frame de administração malformado/negado nunca é repassado: o agente não
+        // fala com o banco e não teria o que fazer com ele.
+        if (m.t === 'accounts-list' || m.t === 'set-admin') return;
       }
       // Roteia opaco pro agente DAQUELA conta. A autenticidade fim-a-fim do frame
       // (assinatura, T5) é verificada NO AGENTE, não aqui — o relay não confia em si.
@@ -241,7 +248,7 @@ export function createRelay(cfg: RelayConfig) {
       // É consumido aqui (não repassado) e reemite caps pra cada aba já conectada,
       // casando o papel privilegiado dela com a capacidade real do agente.
       const s = raw.toString();
-      if (s.includes('"agent-caps"')) {
+      if (maybeControlFrame(s, 'agent-caps')) {
         let m: { t?: string; canBypass?: boolean } = {};
         try { m = JSON.parse(s); } catch { /* repassa abaixo */ }
         if (m.t === 'agent-caps') {
@@ -297,6 +304,17 @@ export function createRelay(cfg: RelayConfig) {
   server.on('close', () => clearInterval(beat));
 
   return { server, registry };
+}
+
+// Pré-filtro BARATO: só decide se vale gastar um JSON.parse. Os frames de DADOS
+// chegam a 32MB (upload em base64, conteúdo de sessão) e parsear todos por causa de
+// um punhado de frames de controle — que têm dezenas de bytes — sairia caro. O teto
+// descarta os grandes sem varrer a string; quem passa daqui ainda tem o `t` conferido.
+const CONTROL_FRAME_MAX = 4096;
+
+export function maybeControlFrame(s: string, ...types: string[]): boolean {
+  if (s.length > CONTROL_FRAME_MAX) return false;
+  return types.some((t) => s.includes(`"${t}"`));
 }
 
 // new Date()/Date.now() ficam num único ponto pra não espalhar dependência de tempo.
