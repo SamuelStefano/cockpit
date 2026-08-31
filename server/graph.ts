@@ -61,11 +61,46 @@ async function isDir(p: string): Promise<boolean> {
   try { return (await stat(p)).isDirectory(); } catch { return false; }
 }
 
-function runGraphify(args: string[], onLine?: (line: string) => void): Promise<{ code: number; out: string }> {
+// O graphify é um binário EXTERNO: se ele travar (tree-sitter num arquivo
+// patológico, venv quebrada esperando stdin), a promessa nunca resolve. Isso não
+// prende só a chamada — prende o `finally` que devolve o single-flight de build,
+// e daí nenhum build roda mais até reiniciar o backend. Todo spawn tem teto.
+const QUERY_TIMEOUT_MS = 120_000;
+const BUILD_TIMEOUT_MS = 20 * 60_000; // AST de repo grande é lento; teto generoso, mas teto.
+const KILL_GRACE_MS = 3_000;
+
+export const GRAPHIFY_TIMEOUT = 'graphify: tempo esgotado';
+
+export function runGraphify(
+  args: string[],
+  onLine?: (line: string) => void,
+  timeoutMs = QUERY_TIMEOUT_MS,
+): Promise<{ code: number; out: string }> {
   return new Promise((resolvePromise) => {
     const child = spawn(graphifyBin(), args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
     let buf = '';
+    let done = false;
+    let killTimer: NodeJS.Timeout | undefined;
+    const clearTimers = () => { clearTimeout(timer); if (killTimer) clearTimeout(killTimer); };
+    // O 'close' do processo morto chega DEPOIS do settle do timeout: nesse segundo
+    // passe só resta desarmar o SIGKILL pendente, já não há promessa pra resolver.
+    const settle = (code: number, extra?: string) => {
+      clearTimers();
+      if (done) return;
+      done = true;
+      resolvePromise({ code, out: extra ? `${out}\n${extra}` : out });
+    };
+    // Resolve ANTES de matar: quem chamou não espera o processo morrer. SIGTERM
+    // primeiro (o graphify fecha os arquivos que abriu), SIGKILL se ele ignorar —
+    // sem a escalada, um processo travado de verdade fica pra sempre.
+    const timer = setTimeout(() => {
+      settle(-1, GRAPHIFY_TIMEOUT);
+      child.kill('SIGTERM');
+      killTimer = setTimeout(() => child.kill('SIGKILL'), KILL_GRACE_MS);
+      killTimer.unref?.();
+    }, timeoutMs);
+    timer.unref?.();
     const onChunk = (chunk: Buffer) => {
       const s = chunk.toString();
       out += s;
@@ -81,10 +116,10 @@ function runGraphify(args: string[], onLine?: (line: string) => void): Promise<{
     };
     child.stdout.on('data', onChunk);
     child.stderr.on('data', onChunk);
-    child.on('error', (e) => resolvePromise({ code: -1, out: `${out}\n${(e as Error).message}` }));
+    child.on('error', (e) => settle(-1, (e as Error).message));
     child.on('close', (code) => {
       if (buf.trim() && onLine) onLine(buf.trim());
-      resolvePromise({ code: code ?? -1, out });
+      settle(code ?? -1);
     });
   });
 }
@@ -281,12 +316,13 @@ export async function buildGraph(repo: string, onLine?: (line: string) => void):
     const excludes = DOC_EXCLUDES.flatMap((g) => ['--exclude', g]);
     const args = [abs, ...excludes, '--out', outDir];
     onLine?.(`graphify ${args.join(' ')}`);
-    const { code } = await runGraphify(args, onLine);
+    const { code, out } = await runGraphify(args, onLine, BUILD_TIMEOUT_MS);
     if (!(await isFile(graphJsonPath(slug)))) {
+      if (out.endsWith(GRAPHIFY_TIMEOUT)) return { ok: false, error: `build passou de ${BUILD_TIMEOUT_MS / 60_000} min e foi abortado` };
       return { ok: false, error: code === 0 ? 'build terminou sem gerar graph.json' : `graphify saiu com código ${code}` };
     }
     onLine?.(`graphify global add ${slug}`);
-    await runGraphify(['global', 'add', graphJsonPath(slug), '--as', slug], onLine);
+    await runGraphify(['global', 'add', graphJsonPath(slug), '--as', slug], onLine, BUILD_TIMEOUT_MS);
     // Benchmark de token real (best-effort, não bloqueia o done). Grava ratio no
     // benchmark.json pro card mostrar economia honesta em vez de heurística.
     void runBenchmark(slug);
@@ -332,7 +368,9 @@ export async function queryGraph(id: string, question: string, budget = 2000): P
   const { out } = await runGraphify(['query', q, '--graph', p, '--budget', String(b)]);
   const answer = out.trim().slice(0, 40_000);
   const miss = answer.startsWith(MISS_MARKER);
-  if (!miss) void saveResult(id, q, answer);
+  // Resposta abortada não vira memória: o `reflect` (cron) destila o memory-dir em
+  // lições, e gravar um timeout ali ensina o graphify a partir de lixo.
+  if (!miss && !answer.endsWith(GRAPHIFY_TIMEOUT)) void saveResult(id, q, answer);
   return { answer, tokens: Math.round(answer.length / 4), miss };
 }
 
