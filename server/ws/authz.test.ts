@@ -9,7 +9,7 @@ describe('authorize', () => {
   });
 
   it('student may read and drive own chat', () => {
-    for (const t of ['send', 'stop', 'list', 'open', 'open-full', 'search', 'ctx-list', 'ctx-open', 'skill-list', 'skill-open', 'usage-list', 'upload'] as const) {
+    for (const t of ['send', 'stop', 'list', 'open', 'open-full', 'search', 'ctx-list', 'ctx-open', 'skill-list', 'skill-open', 'usage-list', 'upload-chunk'] as const) {
       expect(authorize('student', t)).toBe(true);
     }
   });

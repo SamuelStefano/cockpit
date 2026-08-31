@@ -580,10 +580,7 @@ export type ClientMsg =
   | { t: 'admin-mcp-add'; name: string; command?: string; url?: string }
   | { t: 'admin-mcp-remove'; name: string }
   | { t: 'admin-cli-install'; name: string }
-  | { t: 'upload'; sessionKey: string; name: string; dataB64: string; clientId?: string }
   | { t: 'upload-chunk'; uploadId: string; sessionKey: string; name: string; seq: number; total: number; dataB64: string; clientId?: string }
-  | { t: 's3-config' }
-  | { t: 'attach-ref'; sessionKey: string; name: string; s3url: string; clientId?: string }
   | { t: 'att-open'; path: string }
   | { t: 'term-open'; termId: string; cols: number; rows: number }
   | { t: 'term-input'; termId: string; data: string }
@@ -666,7 +663,6 @@ export type ServerMsg =
   // sessionKey ecoa a sessão que PEDIU o upload: o mapa clientId->sessão do front é
   // in-memory e some no reload, e sem ele o ack tardio carimba o anexo no chat aberto.
   | { t: 'uploaded'; name: string; path: string; text?: string; s3url?: string; clientId?: string; sessionKey?: string }
-  | { t: 's3-config'; uploadUrl: string; anonKey: string }
   | { t: 'install-result'; kind: 'context' | 'skill'; ok: boolean; id?: string; error?: string }
   // Resultado do handoff de sessão lotada: contextId é o .md gravado em Contextos.
   | { t: 'handoff-result'; sessionId: string; ok: boolean; contextId?: string; error?: string }

@@ -118,8 +118,7 @@ export function extractDocxText(buf: Buffer): string | null {
 }
 
 // Grava o buffer no workdir isolado (path RELATIVO pro Read do agente) + extrai
-// texto de .docx. Compartilhado pelo upload via WS (b64) e pelo upload direto na
-// edge fn (browser sobe pro S3, backend baixa pra cá). Valida tamanho e traversal.
+// texto de .docx. Valida tamanho e traversal.
 async function persistBuffer(
   sessionKey: string,
   name: string,
@@ -146,23 +145,6 @@ async function persistBuffer(
     console.warn(`[attachments] extração de texto falhou para .docx: ${name}`);
   }
   return { path: rel };
-}
-
-export async function saveAttachment(
-  sessionKey: string,
-  name: string,
-  dataB64: string,
-): Promise<{ path: string; text?: string; s3url?: string } | { error: string }> {
-  // O frame da WS é JSON.parse cru: os campos chegam sem validação de tipo.
-  if (typeof sessionKey !== 'string' || typeof name !== 'string' || typeof dataB64 !== 'string') {
-    return { error: 'anexo inválido' };
-  }
-  const buf = Buffer.from(dataB64, 'base64');
-  const r = await persistBuffer(sessionKey, name, buf);
-  if ('error' in r) return r;
-  // Espelha no S3 (best-effort): exibição remota/mobile sem round-trip no backend.
-  const s3 = await uploadToS3(buf, name, mimeOf(name));
-  return { ...r, s3url: s3?.url };
 }
 
 // Upload em CHUNKS via WS: o browser fatia o base64 em pedaços (cada frame < cap do
@@ -204,36 +186,8 @@ export async function addUploadChunk(
   return { ...r, s3url: s3?.url };
 }
 
-const S3_HOST_RE = /^https:\/\/[a-z0-9.-]+\.s3[.a-z0-9-]*\.amazonaws\.com\/[\w./-]+$/i;
-
-// Upload DIRETO na edge fn: o browser já subiu o arquivo pro S3 (sem passar pelo
-// WS/relay, sem cap de frame) e manda só a URL. O backend BAIXA do S3 pro workdir
-// local pra o Read do agente seguir funcionando como antes. s3url é a referência
-// durável (sobrevive a reload). Valida o host (só S3) contra SSRF.
-export async function saveAttachmentFromUrl(
-  sessionKey: string,
-  name: string,
-  s3url: string,
-): Promise<{ path: string; text?: string; s3url: string } | { error: string }> {
-  if (typeof sessionKey !== 'string' || typeof name !== 'string' || typeof s3url !== 'string') {
-    return { error: 'anexo inválido' };
-  }
-  if (!S3_HOST_RE.test(s3url)) return { error: 'url de anexo inválida' };
-  let buf: Buffer;
-  try {
-    const res = await fetch(s3url, { signal: AbortSignal.timeout(30_000) });
-    if (!res.ok) return { error: `download do anexo falhou (${res.status})` };
-    const ab = await res.arrayBuffer();
-    if (ab.byteLength > CONFIG.maxUploadBytes) return { error: 'arquivo grande demais' };
-    buf = Buffer.from(ab);
-  } catch { return { error: 'download do anexo falhou' }; }
-  const r = await persistBuffer(sessionKey, name, buf);
-  if ('error' in r) return r;
-  return { ...r, s3url };
-}
-
 // Lê um anexo salvo pra preview no chat. Aceita só paths relativos no formato que
-// saveAttachment devolve ('attachments/<key>/<fname>') e revalida contra traversal
+// persistBuffer devolve ('attachments/<key>/<fname>') e revalida contra traversal
 // — o path chega cru do cliente via WS. error quando o sweep TTL já levou o arquivo.
 export async function readAttachment(
   relPath: string,
@@ -248,7 +202,7 @@ export async function readAttachment(
     const st = await stat(full);
     if (!st.isFile() || st.size > CONFIG.maxUploadBytes) return { error: 'anexo indisponível' };
     const buf = await readFile(full);
-    // Mesmo prefixo que saveAttachment gera (ts36-hex-nome) — devolve o nome original.
+    // Mesmo prefixo que persistBuffer gera (ts36-hex-nome) — devolve o nome original.
     const name = basename(full).replace(/^[a-z0-9]+-[a-z0-9]+-/i, '') || basename(full);
     return { name, dataB64: buf.toString('base64') };
   } catch {

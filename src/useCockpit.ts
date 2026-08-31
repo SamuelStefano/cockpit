@@ -297,9 +297,6 @@ export function useCockpit(): Cockpit {
   // Assinaturas recém-enviadas: chokepoint único de dedup (todos os caminhos de
   // anexo passam por onUpload). Mata o print/foto que chega repetido virando 4 chips.
   const recentUploadSigs = useRef<Map<string, number>>(new Map());
-  // Config do upload direto na edge fn (URL+anon key), entregue pelo backend no
-  // connect. null = S3 off → onUpload cai no fluxo via WS de sempre.
-  const s3Config = useRef<{ uploadUrl: string; anonKey: string } | null>(null);
   // Helper: aplica uma mudança no array de anexos (estado + ref + persiste por sessão).
   const setAtts = useCallback((next: Attachment[]) => {
     attachmentsRef.current = next;
@@ -1045,10 +1042,6 @@ export function useCockpit(): Cockpit {
         adminOpTimer.current = setTimeout(() => setAdminOp(null), msg.ok ? 4000 : 8000);
         return;
       }
-      case 's3-config': {
-        s3Config.current = { uploadUrl: msg.uploadUrl, anonKey: msg.anonKey };
-        return;
-      }
       case 'uploaded': {
         const real: Attachment = { name: msg.name, path: msg.path, text: msg.text, s3url: msg.s3url };
         // uploadOrigin é in-memory e consumido no 1º ack; o sessionKey do servidor
@@ -1312,7 +1305,6 @@ export function useCockpit(): Cockpit {
     send({ t: 'list-archived' });
     send({ t: 'usage-list' });
     send({ t: 'skill-list' }); // popula o seletor de skills do composer
-    send({ t: 's3-config' });  // URL+anon key pra upload HTTP direto na edge fn
     send({ t: 'sync' });       // reemite o estado durável fresco (busy/rate/plan/models)
     send({ t: 'points-get' }); // ledger de pontos: atualiza ao vivo mesmo fora da rota
     send({ t: 'queue-get' });  // fila estacionada do servidor (drena com quota liberada)
