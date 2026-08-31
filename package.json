@@ -12,6 +12,8 @@
     "build": "tsc --noEmit && tsc --noEmit -p tsconfig.server.json && tsc --noEmit -p tsconfig.relay.json && vite build",
     "test": "vitest run",
     "smoke": "node scripts/smoke.mjs",
+    "smoke:ui": "node scripts/smoke-ui.mjs",
+    "smoke:bench": "tsx scripts/smoke-bench.mts",
     "serve": "tsx server/index.ts",
     "redeploy": "bash scripts/redeploy.sh",
     "vendor:rnw": "node scripts/build-rnw-vendor.mjs",

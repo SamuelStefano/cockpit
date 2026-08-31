@@ -2,7 +2,11 @@
 // origem opaca (o MESMO documento que o chat usa) e INTERAGE com a tela. Prova o
 // elo inteiro — sem isto "compilou" não quer dizer "funciona no chat".
 //
-//   npx tsx scripts/smoke-bench.mts
+//   npm run smoke:bench
+//
+// Só local: depende do repo `itera-player` clonado e registrado em
+// ~/.cockpit/bench.json, então fica fora do CI — ao contrário de `npm run smoke:ui`,
+// que se basta com o build estático.
 import { chromium } from 'playwright';
 import { buildBench } from '../server/bench';
 import { IFRAME_HTML_BENCH } from '../src/components/primitives/livepreview/iframeHtmlBench';
