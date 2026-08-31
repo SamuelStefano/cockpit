@@ -13,7 +13,7 @@ const INCIDENTS_PATH = process.env.COCKPIT_INCIDENTS ?? join(homedir(), '.cockpi
 const CAP_BYTES = 256 * 1024;
 const KEEP_LINES = 200;
 
-export type IncidentKind = 'silent-death' | 'orphan-resume' | 'run-error' | 'resume-exhausted' | 'reaped' | 'parked-requeue-cap' | 'parked-lock-timeout' | 'parked-resume-morto' | 'parked-migrate-reject';
+export type IncidentKind = 'silent-death' | 'orphan-resume' | 'run-error' | 'resume-exhausted' | 'reaped' | 'parked-requeue-cap' | 'file-lock-timeout' | 'parked-resume-morto' | 'parked-migrate-reject';
 
 export interface Incident {
   ts: string;

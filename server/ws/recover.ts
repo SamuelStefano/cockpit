@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync, mkdirSync, renameSync, unlinkSync } from 'node:fs';
+import { withFileLock } from './file-lock';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import type { RunParams } from './runs';
@@ -51,17 +52,24 @@ function write(map: LiveMap): void {
   renameSync(tmp, LIVE_PATH);
 }
 
+// Mesma trava do parked.json, pelo mesmo motivo: agente e index escrevem aqui. Um
+// `markRunLive` perdido some com o único registro de que o turno estava vivo, e o
+// boot seguinte não o retoma — o turno morre com o processo, calado.
 export function markRunLive(entry: LiveRun): void {
-  const map = read();
-  map[entry.sessionKey] = entry;
-  write(map);
+  withFileLock(LIVE_PATH, () => {
+    const map = read();
+    map[entry.sessionKey] = entry;
+    write(map);
+  });
 }
 
 export function clearRunLive(sessionKey: string): void {
-  const map = read();
-  if (!(sessionKey in map)) return;
-  delete map[sessionKey];
-  write(map);
+  withFileLock(LIVE_PATH, () => {
+    const map = read();
+    if (!(sessionKey in map)) return;
+    delete map[sessionKey];
+    write(map);
+  });
 }
 
 // Pura (testável): quais órfãos merecem retomada. Descarta os velhos demais e
