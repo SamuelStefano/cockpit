@@ -9,7 +9,7 @@ const runs = vi.hoisted(() => {
   return {
     threads,
     startRun: vi.fn(),
-    routeSend: vi.fn(() => Promise.resolve()),
+    routeSend: vi.fn((_opts: unknown) => Promise.resolve()),
     onStop,
     // Espelha o real: resolve a chave (aqui a chave direta basta), marca o stop e mata.
     stopSession: vi.fn((key: string) => { onStop(key); threads.get(key)?.handle.kill(); }),
@@ -55,25 +55,29 @@ describe('send routing (the #130 role seam)', () => {
     mode: 'auto', model: 'opus', maxBudgetUsd: 5, bypass: false, ...over,
   } as ClientMsg);
 
-  it('routes a FREE session to startRun, threading the role through (disallowedSkills is the last arg)', async () => {
+  it('routes a FREE session to startRun, threading the role through', async () => {
     await handle(ws, msg(), 'admin');
     expect(runs.startRun).toHaveBeenCalledOnce();
     expect(runs.routeSend).not.toHaveBeenCalled();
-    const args = runs.startRun.mock.calls[0];
-    expect(args[0]).toBe(ws);
-    expect(args[1]).toBe('k1');
-    expect(args.at(-5)).toBe('admin'); // role reaches a engine
-    expect(args.at(-4)).toEqual([]); // resolved skill-deny rules
-    expect(args.at(-3)).toBeUndefined(); // mcps: nenhum selecionado neste msg
-    expect(args.at(-2)).toBeUndefined(); // effort: não enviado neste msg
-    expect(args.at(-1)).toBe(false); // auto: send manual
+    expect(runs.startRun.mock.calls[0][0]).toMatchObject({
+      ws,
+      sessionKey: 'k1',
+      prompt: 'hi',
+      resumeId: 's1',
+      msgId: 'm1',
+      role: 'admin',
+      disallowedSkills: [], // regras de negação resolvidas
+      mcps: undefined,      // nenhum selecionado neste msg
+      effort: undefined,    // não enviado neste msg
+      auto: false,          // send manual
+    });
   });
 
   it('routes a BUSY session to routeSend (triage), also threading the role', async () => {
     runs.threads.set('k1', { handle: { kill: vi.fn() } });
     await handle(ws, msg(), 'student');
     expect(runs.routeSend).toHaveBeenCalledOnce();
-    expect(runs.routeSend.mock.calls[0].at(-4)).toBe('student');
+    expect(runs.routeSend.mock.calls[0][0]).toMatchObject({ sessionKey: 'k1', role: 'student' });
     expect(runs.startRun).not.toHaveBeenCalled();
   });
 });

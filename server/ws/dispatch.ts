@@ -444,11 +444,23 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const disallowedSkills = await resolveSkillDeny(msg.skills);
       // Sessão ocupada → triador decide o destino (esperar/responder/prioridade/
       // juntar). Livre → roda direto como antes.
-      if (threads.has(msg.sessionKey)) {
-        detach(ws, routeSend(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.maxBudgetUsd, msg.bypass, role, disallowedSkills, msg.mcps, msg.effort), msg.sessionKey);
-      } else {
-        startRun(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.maxBudgetUsd, msg.bypass, role, disallowedSkills, msg.mcps, msg.effort, msg.auto === true);
-      }
+      const opts = {
+        ws,
+        sessionKey: msg.sessionKey,
+        prompt: msg.text,
+        resumeId: msg.sessionId,
+        msgId: msg.msgId,
+        mode: msg.mode,
+        model: msg.model,
+        maxBudgetUsd: msg.maxBudgetUsd,
+        bypass: msg.bypass,
+        role,
+        disallowedSkills,
+        mcps: msg.mcps,
+        effort: msg.effort,
+      };
+      if (threads.has(msg.sessionKey)) detach(ws, routeSend(opts), msg.sessionKey);
+      else startRun({ ...opts, auto: msg.auto === true });
       return;
     }
     // Fila estacionada (overnight/quota-out): persiste o prompt no servidor pro

@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync, renameSync, unlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
+import type { Role } from '../auth';
 import type { RunParams } from './runs';
 import { coerceItem, type ParkedItem } from './parked';
 
@@ -88,11 +89,15 @@ function sanitize(p: unknown): RunParams {
     model: typeof r.model === 'string' ? r.model : undefined,
     maxBudgetUsd: typeof r.maxBudgetUsd === 'number' ? r.maxBudgetUsd : undefined,
     bypass: r.bypass === true,
-    role: r.role === 'admin' || r.role === 'student' ? r.role : undefined,
+    role: r.role === 'admin' || r.role === 'student' ? (r.role as Role) : undefined,
     disallowedSkills: Array.isArray(r.disallowedSkills) ? r.disallowedSkills.filter((s): s is string => typeof s === 'string') : undefined,
     mcps: Array.isArray(r.mcps) ? r.mcps.filter((s): s is string => typeof s === 'string') : undefined,
     effort: typeof r.effort === 'string' ? r.effort : undefined,
-  };
+    // Todo campo do RunParams é opcional, então esquecer uma linha aqui compilaria
+    // — e o param sumiria calado no boot, fazendo a retomada rodar com config
+    // diferente da que o turno tinha (o oposto do que o RunParams promete). O
+    // `satisfies` exige a chave presente e transforma o esquecimento em erro.
+  } satisfies Record<keyof RunParams, unknown>;
 }
 
 // Lê os órfãos e ZERA o arquivo na mesma passada: o boot é a única chance de
