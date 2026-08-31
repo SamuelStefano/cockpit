@@ -28,11 +28,18 @@ export default defineConfig({
     rollupOptions: {
       output: {
         // Separa libs pesadas e estáveis em chunks próprios: o bundle do app
-        // (que muda a cada deploy) deixa de invalidar o cache do vendor, e some
-        // o aviso de chunk > 500KB. xterm só importa no painel de terminal.
+        // (que muda a cada deploy) deixa de invalidar o cache do vendor.
+        //
+        // manualChunks separa o ARQUIVO, não o CARREGAMENTO: se algo no grafo
+        // estático do entry importa a lib, o Vite emite `modulepreload` e o
+        // browser baixa o chunk em toda visita do mesmo jeito. Quem tira do
+        // caminho crítico é o import dinâmico — por isso o xterm só sai de fato
+        // do preload por causa do `lazy()` em Terminals.tsx.
         manualChunks: {
           react: ['react', 'react-dom'],
           xterm: ['@xterm/xterm', '@xterm/addon-fit'],
+          sucrase: ['sucrase'],
+          supabase: ['@supabase/supabase-js'],
         },
       },
     },

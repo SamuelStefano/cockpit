@@ -1,7 +1,14 @@
+import { lazy, Suspense } from 'react';
 import { Icon, tokens } from './primitives';
-import { XtermView } from './Xterm';
 import type { Terminal } from '../data/mock';
 import type { TermApi } from '../useCockpit';
+
+// xterm.js são 334 KB que só servem quando existe um terminal aberto. Importado
+// direto, ele entrava no grafo estático do entry e o Vite emitia um
+// `modulepreload` — ou seja, baixava em TODO carregamento da página, inclusive de
+// quem nunca abre o painel. O `lazy` é o que torna verdadeiro o chunk separado que
+// o manualChunks do vite.config já declarava.
+const XtermView = lazy(() => import('./Xterm').then((m) => ({ default: m.XtermView })));
 
 export interface TerminalsPanelProps {
   terminals: Terminal[];
@@ -85,7 +92,9 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
 
       <div className="relative min-h-0 flex-1">
         {active ? (
-          <XtermView key={active.id} id={active.id} term={term} />
+          <Suspense fallback={<div className="flex h-full items-center justify-center font-mono text-[12px] text-neutral-600">abrindo terminal…</div>}>
+            <XtermView key={active.id} id={active.id} term={term} />
+          </Suspense>
         ) : (
           <div className="flex h-full items-center justify-center text-[12px] text-neutral-600">nenhum terminal aberto</div>
         )}
