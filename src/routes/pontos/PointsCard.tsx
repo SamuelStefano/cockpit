@@ -2,7 +2,7 @@ import type { PointsEntry } from '../../../shared/protocol';
 import { Button, Icon, Badge } from '../../components/primitives';
 import { PointsHistory } from './PointsHistory';
 import { usePointsCard } from './usePointsCard';
-import { relTime } from './format';
+import { relPast } from '../../../shared/format';
 
 interface Props {
   entry: PointsEntry;
@@ -66,7 +66,7 @@ export function PointsCard({ entry, now, glow, onCorrect, onNote, onDelete }: Pr
           <Icon name={c.showHistory ? 'chevronDown' : 'chevronRight'} size={11} />
           histórico ({entry.history.length})
         </button>
-        <span className="ml-auto text-[11px] tabular-nums text-neutral-600">{relTime(entry.updatedAt, now)}</span>
+        <span className="ml-auto text-[11px] tabular-nums text-neutral-600">{relPast(entry.updatedAt, now)}</span>
       </div>
       {c.showHistory && <PointsHistory history={entry.history} />}
     </div>

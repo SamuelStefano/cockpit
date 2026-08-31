@@ -3,7 +3,8 @@ import { Badge, Button, EmptyState, RouteHeader } from '../components/primitives
 import { useLoadStalled } from '../lib/useLoadStalled';
 import type { UsageStats } from '../../shared/protocol';
 import type { Session } from '../data/mock';
-import { fmtNum as fmt, usd, costToday as computeCostToday } from './observatorio.format';
+import { fmtNum as fmt, costToday as computeCostToday } from './observatorio.format';
+import { fmtCost } from '../../shared/format';
 import { Stat } from './observatorio/Stat';
 import { Offline } from './observatorio/Offline';
 import { Empty } from './observatorio/Empty';
@@ -60,9 +61,9 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions, rat
           ) : <>
           {rate && <RateWindow rate={rate} />}
           <div className="stagger-fade mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            <Stat label="custo estimado" value={usd(usageStats?.totalCost ?? 0)} icon="zap" />
-            <Stat label="custo hoje" value={usd(costToday)} icon="clock" />
-            <Stat label="média/sessão" value={usd(avgPerSession)} icon="message" />
+            <Stat label="custo estimado" value={fmtCost(usageStats?.totalCost ?? 0)} icon="zap" />
+            <Stat label="custo hoje" value={fmtCost(costToday)} icon="clock" />
+            <Stat label="média/sessão" value={fmtCost(avgPerSession)} icon="message" />
             <Stat label="tokens de saída" value={fmt(usageStats?.totalOutput ?? 0)} icon="arrowUp" />
             <Stat label="amostras" value={fmt(usageStats?.totalSamples ?? 0)} icon="zap" />
             <Stat label="sessões ativas" value={String(rows.length)} icon="message" />

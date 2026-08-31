@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '../../components/primitives';
 import type { DailyUsage } from '../../../shared/protocol';
-import { fmtNum as fmt, usd, startOfDay } from '../observatorio.format';
+import { fmtNum as fmt, startOfDay } from '../observatorio.format';
+import { fmtCost } from '../../../shared/format';
 import { filterSeries, type TrendPeriod } from './trend-filter';
 
 const PERIODS: { id: TrendPeriod; label: string }[] = [
@@ -39,7 +40,7 @@ export function Trend({ series }: { series: DailyUsage[] }) {
               </button>
             ))}
           </div>
-          <span className="font-mono text-[11px] text-emerald-400/80">{usd(totalCost)}</span>
+          <span className="font-mono text-[11px] text-emerald-400/80">{fmtCost(totalCost)}</span>
         </div>
       </div>
       <div className="flex h-24 items-end gap-1">
@@ -58,7 +59,7 @@ export function Trend({ series }: { series: DailyUsage[] }) {
                 <div
                   className={`w-full max-w-[18px] rounded-sm transition-colors ${isToday ? 'bg-orange-500' : 'bg-orange-500/40 group-hover/bar:bg-orange-500/70'}`}
                   style={{ height: `${h}px` }}
-                  title={`${dayLabel(d.day)} · ${usd(d.cost)} · ${fmt(d.output)} out`}
+                  title={`${dayLabel(d.day)} · ${fmtCost(d.cost)} · ${fmt(d.output)} out`}
                 />
               </div>
               <span className={`text-[8.5px] tabular-nums ${isToday ? 'font-semibold text-orange-400' : 'text-neutral-600'} ${showLabel ? '' : 'invisible'}`}>{new Date(d.day).getDate()}</span>

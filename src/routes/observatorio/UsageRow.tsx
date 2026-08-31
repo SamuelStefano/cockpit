@@ -1,6 +1,7 @@
 import { Icon } from '../../components/primitives';
 import type { SessionUsage } from '../../../shared/protocol';
-import { fmtNum as fmt, usd, relTime } from '../observatorio.format';
+import { fmtNum as fmt } from '../observatorio.format';
+import { fmtCost, relPast } from '../../../shared/format';
 
 const CTX_WINDOW = 200_000;
 
@@ -45,9 +46,9 @@ export function UsageRow({ row, maxOut, title, openable, onOpen }: UsageRowProps
           <span className="font-mono text-[11px] text-neutral-400">{fmt(row.outputTokens)}</span>
         </div>
       </td>
-      <td className="px-2 py-2 font-mono text-[11px] text-emerald-400/80 sm:px-3">{usd(row.costUsd)}</td>
+      <td className="px-2 py-2 font-mono text-[11px] text-emerald-400/80 sm:px-3">{fmtCost(row.costUsd)}</td>
       <td className="hidden px-3 py-2 font-mono text-neutral-500 lg:table-cell">{row.samples}</td>
-      <td className="whitespace-nowrap px-2 py-2 text-right text-neutral-500 sm:px-3">{relTime(row.lastTs)}</td>
+      <td className="whitespace-nowrap px-2 py-2 text-right text-neutral-500 sm:px-3">{relPast(row.lastTs)}</td>
     </tr>
   );
 }

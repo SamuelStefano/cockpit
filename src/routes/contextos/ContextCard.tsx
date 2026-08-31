@@ -1,7 +1,7 @@
 import { Badge } from '../../components/primitives';
 import { TYPE_TONE } from '../../components/ContextModal';
 import type { ContextMeta } from '../../../shared/protocol';
-import { relPast } from '../../lib/time';
+import { relPast } from '../../../shared/format';
 
 export function ContextCard({ c, onClick }: { c: ContextMeta; onClick: () => void }) {
   return (
