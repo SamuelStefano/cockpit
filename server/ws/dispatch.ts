@@ -25,6 +25,7 @@ import { setEnv, unsetEnv, addMcp, removeMcp, installCli } from '../admin-ops';
 import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
 import { threads, startRun, routeSend, stopSession, drainParked, runParkedInBackground, runParkedNow, type BgRunReject, type NowRunReject } from './runs';
+import { clearAwaiting } from './awaiting';
 import { addParked, removeParked, editParked, moveParked, clearParked, retryParked, parkedView, isQueuePaused, setQueuePaused, REJECT_MESSAGE } from './parked';
 import { refreshModels } from './models';
 import { handleRouteMsg } from './routes';
@@ -48,6 +49,7 @@ const NOW_RUN_MESSAGE: Record<NowRunReject, string> = {
   'segurado': 'este item está segurado no teto de tentativas: retome a fila primeiro',
   'fila-pausada': 'a fila está pausada: retome antes de furar a fila',
   'sem-quota': 'sem tokens agora: o turno morreria no limite',
+  'aguardando-resposta': 'o turno está esperando sua resposta: responda o card ou use forçar a fila',
 };
 
 export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
@@ -125,7 +127,11 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // sessão de milhares — é o "o chat mostra muito pouco". Quando a timeline
       // completa tem substancialmente mais, ela é a visão honesta. `chainOnly` =
       // o usuário pediu explicitamente o resumido, então não sobrepõe.
-      if (parsed.truncated && !msg.chainOnly) {
+      // As duas visões são capadas no MESMO historyLimit, então quando a cadeia já
+      // encheu mais da metade do cap o `>= 2x` abaixo é aritmeticamente inalcançável:
+      // parsear o arquivo inteiro de novo só pra descartar custava 4,5s de 9,6s no
+      // F5 da sessão de 438MB. Sem o atalho o cap alto (2000) desliga o benefício.
+      if (parsed.truncated && !msg.chainOnly && parsed.messages.length * 2 <= CONFIG.historyLimit) {
         const full = await parseFullSession(msg.sessionId);
         if (full && full.messages.length >= parsed.messages.length * 2) {
           send(ws, { t: 'history', sessionId: msg.sessionId, messages: full.messages, tokens: full.tokens, full: true, truncated: full.truncated, todos: full.todos });
@@ -540,6 +546,13 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'queue-retry': {
       retryParked(msg.sessionKey, msg.id);
       broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      drainParked();
+      return;
+    }
+    // Abre mão da pergunta pendente: a fila volta a drenar nesta sessão sem que o
+    // usuário responda o card.
+    case 'queue-force': {
+      clearAwaiting(msg.sessionKey);
       drainParked();
       return;
     }

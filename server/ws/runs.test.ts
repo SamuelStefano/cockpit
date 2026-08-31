@@ -3,7 +3,7 @@ import type { WebSocket } from 'ws';
 import { admitRun, findStaleThreads, reapStaleRuns, startRun, threads, isSilentDeath, killAllRuns, resumeOrphanRuns, drainParked, runParkedInBackground, runParkedNow, startParkedDrainer, AUTO_RESUME_CAP, REAPER_SILENCE_CAP_MS, REAPER_TOOL_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './runs';
 import { takeOrphanRuns } from './recover';
 import { recordIncident } from './incidents';
-import { awaitingAnswer } from './awaiting';
+import { isAwaiting, setAwaiting, clearAllAwaiting } from './awaiting';
 import { broadcast } from './broadcast';
 import { run } from '../engine/claude';
 import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takeParked, promoteParked, isQueuePaused, type ParkedItem } from './parked';
@@ -25,6 +25,18 @@ vi.mock('./resume', () => ({ resumableId: vi.fn((id?: string) => id) }));
 vi.mock('./quota', async (orig) => ({ ...(await orig<typeof import('./quota')>()), quotaHold: vi.fn(() => 0) }));
 vi.mock('./broadcast', () => ({ broadcast: vi.fn(), send: vi.fn(), setWss: vi.fn() }));
 vi.mock('./translate', () => ({ translate: vi.fn() }));
+vi.mock('./awaiting', () => {
+  // Latch em memória: o teste não pode escrever o awaiting.json real do usuário
+  // (um latch preso ali travaria a fila da máquina depois da suíte).
+  const keys = new Set<string>();
+  return {
+    isAwaiting: (k: string) => keys.has(k),
+    setAwaiting: (k: string) => { keys.add(k); },
+    clearAwaiting: (k: string) => { keys.delete(k); },
+    clearAllAwaiting: () => { keys.clear(); },
+  };
+});
+
 vi.mock('../summary', () => ({ summarize: vi.fn(async () => {}) }));
 vi.mock('../engine/triage', () => ({ classify: vi.fn(), quickAnswer: vi.fn(), killSideRuns: vi.fn(), killSideRunsFor: vi.fn() }));
 vi.mock('../engine/suggest', () => ({ suggestFollowups: vi.fn(async () => []) }));
@@ -120,24 +132,24 @@ describe('admitRun', () => {
   });
 });
 
-describe('startRun — latch awaitingAnswer (AskUserQuestion)', () => {
+describe('startRun — latch de pergunta pendente (AskUserQuestion)', () => {
   const ws = {} as WebSocket;
-  beforeEach(() => { threads.clear(); awaitingAnswer.clear(); vi.mocked(run).mockClear(); });
+  beforeEach(() => { threads.clear(); clearAllAwaiting(); vi.mocked(run).mockClear(); });
 
   it('estaciona um send AUTO enquanto a sessão aguarda resposta da pergunta', () => {
-    awaitingAnswer.add('s1');
+    setAwaiting('s1');
     startRun(ws, 's1', 'flush da fila', undefined, 'm1', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, true);
     expect(run).not.toHaveBeenCalled();
     expect(threads.has('s1')).toBe(false);
-    expect(awaitingAnswer.has('s1')).toBe(true); // latch intacto até a resposta real
+    expect(isAwaiting('s1')).toBe(true); // latch intacto até a resposta real
   });
 
   it('send MANUAL limpa o latch, roda e o onClose drena o estacionado', () => {
-    awaitingAnswer.add('s2');
+    setAwaiting('s2');
     startRun(ws, 's2', 'auto estacionado', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, true);
     expect(run).not.toHaveBeenCalled();
     startRun(ws, 's2', 'minha resposta à pergunta');
-    expect(awaitingAnswer.has('s2')).toBe(false);
+    expect(isAwaiting('s2')).toBe(false);
     expect(run).toHaveBeenCalledOnce();
     // Fecha o turno da resposta: o item estacionado vira o próximo turno.
     vi.mocked(run).mock.calls[0][0].onClose?.();
@@ -158,7 +170,7 @@ describe('morte silenciosa do turno — aviso + retomada automática', () => {
 
   beforeEach(() => {
     threads.clear();
-    awaitingAnswer.clear();
+    clearAllAwaiting();
     vi.mocked(run).mockClear();
     vi.mocked(broadcast).mockClear();
   });
@@ -232,7 +244,7 @@ describe('morte silenciosa do turno — aviso + retomada automática', () => {
 
   it('não retoma quando a sessão aguarda resposta do usuário', () => {
     startRun(ws, 'k6', 'trabalho', 'sess-6');
-    awaitingAnswer.add('k6');
+    setAwaiting('k6');
     closeLastRun();
     expect(run).toHaveBeenCalledOnce();
   });
@@ -267,7 +279,7 @@ describe('reapStaleRuns — efeito sobre o turno vivo', () => {
 
   beforeEach(() => {
     threads.clear();
-    awaitingAnswer.clear();
+    clearAllAwaiting();
     vi.mocked(run).mockClear();
     vi.mocked(broadcast).mockClear();
     vi.mocked(recordIncident).mockClear();
@@ -377,7 +389,7 @@ describe('fila estacionada — teto de tokens', () => {
 
   beforeEach(() => {
     threads.clear();
-    awaitingAnswer.clear();
+    clearAllAwaiting();
     vi.mocked(run).mockClear();
     vi.mocked(broadcast).mockClear();
     vi.mocked(quotaHold).mockReturnValue(0);
@@ -445,6 +457,29 @@ describe('fila estacionada — teto de tokens', () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  // Bug do Samuel: o turno que pergunta é morto pra o card ficar respondível, a
+  // sessão fica ociosa e o drainer disparava o item da fila como se fosse a resposta
+  // — a pergunta virava passado e sumia sem nunca ter sido respondida.
+  it('não drena sessão que parou numa pergunta', () => {
+    setAwaiting('s7');
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's7', first: item() }]);
+    drainParked();
+    expect(shiftParked).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('volta a drenar depois que a pergunta é respondida', () => {
+    setAwaiting('s8');
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's8', first: item() }]);
+    vi.mocked(shiftParked).mockReturnValue(item());
+    drainParked();
+    expect(run).not.toHaveBeenCalled();
+    startRun(ws, 's8', 'resposta do usuário'); // send manual limpa o latch
+    threads.delete('s8');
+    drainParked();
+    expect(vi.mocked(run).mock.calls.at(-1)![0].prompt).toBe('roda isso');
+  });
+
   // resumeId apontando pra transcript apagado fazia o turno morrer na hora: 3 tentativas
   // e o item ficava segurado sem ninguém entender por quê.
   it('transcript morto vira turno novo em vez de falhar', () => {
@@ -460,7 +495,7 @@ describe('fila estacionada — teto de tokens', () => {
   });
 
   it('sem token, a fila in-turn vira estacionada em vez de disparar', () => {
-    awaitingAnswer.add('s4');
+    setAwaiting('s4');
     startRun(ws, 's4', 'item enfileirado', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, true);
     startRun(ws, 's4', 'resposta do usuário');
     limited();
@@ -540,7 +575,7 @@ describe('disparo imediato de um item da fila (furar a fila)', () => {
 
   beforeEach(() => {
     threads.clear();
-    awaitingAnswer.clear();
+    clearAllAwaiting();
     vi.mocked(run).mockClear();
     vi.mocked(quotaHold).mockReturnValue(0);
     vi.mocked(isQueuePaused).mockReturnValue(false);
@@ -574,7 +609,7 @@ describe('disparo imediato de um item da fila (furar a fila)', () => {
 
   // O turno em andamento é trabalho real: recusar DEPOIS de matá-lo custaria o turno
   // do usuário sem nada subir no lugar (o drainer ignora fila pausada e item segurado).
-  it('recusa ANTES de matar o turno: pausada, sem quota, segurado, fantasma', () => {
+  it('recusa ANTES de matar o turno: pausada, sem quota, segurado, fantasma, pergunta pendente', () => {
     const cases: [() => void, string][] = [
       [() => vi.mocked(isQueuePaused).mockReturnValue(true), 'fila-pausada'],
       [() => vi.mocked(quotaHold).mockReturnValue(Date.now() + 60_000), 'sem-quota'],
@@ -583,6 +618,7 @@ describe('disparo imediato de um item da fila (furar a fila)', () => {
     ];
     for (const [arm, reject] of cases) {
       threads.clear();
+      clearAllAwaiting();
       vi.mocked(run).mockClear();
       vi.mocked(isQueuePaused).mockReturnValue(false);
       vi.mocked(quotaHold).mockReturnValue(0);
@@ -595,6 +631,18 @@ describe('disparo imediato de um item da fila (furar a fila)', () => {
       expect(kill).not.toHaveBeenCalled();
       expect(promoteParked).not.toHaveBeenCalled();
     }
+  });
+
+  // O translate mata o run pra o card de escolha ficar respondível, então a sessão
+  // fica ociosa com o latch ligado. O drainer pula sessão nesse estado: promover
+  // deixaria o item no topo sem nada subir. Abrir mão do card é o queue-force.
+  it('turno esperando resposta: recusa em vez de promover pra ninguém drenar', () => {
+    setAwaiting('now5');
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 'now5', first: item() }]);
+    vi.mocked(shiftParked).mockReturnValue(item());
+    expect(runParkedNow('now5', 'pk-9')).toEqual({ reject: 'aguardando-resposta' });
+    expect(promoteParked).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
   });
 
   // promoteParked lê o disco: entre o findParked e ele, outro aparelho pode ter
@@ -617,7 +665,7 @@ describe('fim de turno — veredito do roteador', () => {
 
   beforeEach(() => {
     threads.clear();
-    awaitingAnswer.clear();
+    clearAllAwaiting();
     vi.mocked(run).mockClear();
     vi.mocked(broadcast).mockClear();
     vi.mocked(reportOutcome).mockClear();
@@ -709,7 +757,7 @@ describe('fim de turno — subida de tier da cascata', () => {
 
   beforeEach(() => {
     threads.clear();
-    awaitingAnswer.clear();
+    clearAllAwaiting();
     vi.mocked(run).mockClear();
     vi.mocked(broadcast).mockClear();
     vi.mocked(quotaHold).mockReturnValue(0);

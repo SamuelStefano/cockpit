@@ -16,6 +16,7 @@ import { serveConnection } from './ws/serve-connection';
 import { startSessionsWatch } from './sessions/watch';
 import { startPointsWatch } from './points-watch';
 import { startDflPointsWatch } from './dfl-points-watch';
+import { sandboxUpstream, proxySandboxUpgrade } from './sandbox-proxy';
 
 export { runStats, killAllRuns } from './ws/runs';
 
@@ -24,11 +25,24 @@ export function attachWs(server: Server) {
   // decodificar e o JSON.parse alocar de novo. O upload manda o arquivo inteiro
   // em base64 num frame só; o teto de 15MB do app só checa DEPOIS. 32MB cobre o
   // upload legítimo (15MB → ~20MB em base64) e corta o frame acidental de 100MB.
+  // noServer: o 'upgrade' é roteado no index.ts, que precisa desviar o HMR dos
+  // sandboxes proxiados antes de chegar aqui — com `server` o ws aborta com 400
+  // qualquer upgrade fora de /ws.
   const wss = new WebSocketServer({
-    server, path: '/ws', maxPayload: 32 * 1024 * 1024,
+    noServer: true, maxPayload: 32 * 1024 * 1024,
     verifyClient: (info: { origin: string }) => originAllowed(info.origin),
   });
   setWss(wss);
+
+  server.on('upgrade', (req, socket, head) => {
+    const upstream = sandboxUpstream(req.headers.host);
+    if (upstream) { proxySandboxUpgrade(upstream, req, socket, head); return; }
+    if (req.url?.split('?')[0] === '/ws') {
+      wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+      return;
+    }
+    socket.destroy();
+  });
 
   // Heartbeat ping/pong: um socket meio-aberto (laptop dormindo, sem FIN do TCP)
   // não dispara 'close' por horas — e o broadcast segue empurrando frames de

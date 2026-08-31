@@ -9,7 +9,7 @@ import { translate } from './translate';
 import { summarize } from '../summary';
 import { classify, quickAnswer, killSideRuns, killSideRunsFor } from '../engine/triage';
 import { suggestFollowups } from '../engine/suggest';
-import { awaitingAnswer } from './awaiting';
+import { isAwaiting, clearAwaiting } from './awaiting';
 import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takeParked, promoteParked, parkedView, isQueuePaused, MAX_PARKED_ATTEMPTS, REJECT_MESSAGE, type ParkedItem } from './parked';
 import { resumableId } from './resume';
 import { quotaHold, burnedByQuota, planLimited } from './quota';
@@ -289,7 +289,7 @@ const RESUME_PROMPT = 'O turno anterior foi interrompido por uma falha do proces
 // (pending/parked) ou o usuário já subiram um turno novo, não atropela.
 function autoResume(sessionKey: string, thread: Thread): void {
   if (threads.has(sessionKey)) return;          // já há turno novo na sessão
-  if (awaitingAnswer.has(sessionKey)) return;   // turno aguarda resposta do usuário
+  if (isAwaiting(sessionKey)) return;           // turno aguarda resposta do usuário
   if (!thread.sessionId) return;                // sem sessionId não há --resume possível
   // O fork já nasce com o sessionId cravado, antes de o CLI escrever o JSONL: se ele
   // morreu cedo, `--resume` apontaria pra um transcript que não existe e morreria de novo.
@@ -317,7 +317,7 @@ const escalations = new Map<string, number>();
 // retomada, e num modelo melhor.
 function maybeEscalate(sessionKey: string, thread: Thread, failure: FailureKind, hold: number): boolean {
   if (threads.has(sessionKey)) return false;         // fila ou usuário já subiram turno novo
-  if (awaitingAnswer.has(sessionKey)) return false;  // turno perguntou: quem responde é o usuário
+  if (isAwaiting(sessionKey)) return false;          // turno perguntou: quem responde é o usuário
   if (hold) return false;                            // plano sem token: subir de tier morreria igual
   const tries = escalations.get(sessionKey) ?? 0;
   const reason = escalationReason({
@@ -372,6 +372,12 @@ export function drainParked(): void {
   if (quotaHold()) return;     // sem token: o turno morreria no limite e o prompt seria queimado
   for (const { sessionKey, first } of parkedHeads()) {
     if (first.held) continue;                   // bateu o teto de tentativas: espera o usuário mandar retomar
+    // Turno parou numa pergunta: o translate mata o run pra o card ficar respondível,
+    // então a sessão fica ociosa e o drainer a via como livre. O item subia como se
+    // fosse a resposta — a pergunta virava passado (prompt humano depois dela) e o
+    // card sumia sem nunca ter sido respondido. Só a resposta do usuário (ou o
+    // queue-force) destrava.
+    if (isAwaiting(sessionKey)) continue;
     if (resolveThreadKey(sessionKey)) continue; // turno rodando: um por vez
     const item = shiftParked(sessionKey);
     if (!item) continue;
@@ -428,7 +434,7 @@ export function runParkedInBackground(sessionKey: string, id: string, role?: Rol
   return { forkId };
 }
 
-export type NowRunReject = 'sem-item' | 'segurado' | 'fila-pausada' | 'sem-quota';
+export type NowRunReject = 'sem-item' | 'segurado' | 'fila-pausada' | 'sem-quota' | 'aguardando-resposta';
 
 // Fura a fila: o item vai pro topo e o turno em andamento MORRE pra ele subir no
 // lugar. Não dispara o item aqui — só promove e mata; o onClose do turno morto já
@@ -439,6 +445,10 @@ export type NowRunReject = 'sem-item' | 'segurado' | 'fila-pausada' | 'sem-quota
 export function runParkedNow(sessionKey: string, id: string): { ok: true } | { reject: NowRunReject } {
   if (isQueuePaused()) return { reject: 'fila-pausada' };
   if (quotaHold()) return { reject: 'sem-quota' };
+  // Pergunta pendente: o drainer ignora a sessão até a resposta, então promover e
+  // matar o turno deixaria o item no topo sem nada subir. Recusa aqui em vez de
+  // limpar o latch: abrir mão do card é decisão explícita do usuário (queue-force).
+  if (isAwaiting(sessionKey)) return { reject: 'aguardando-resposta' };
   const peek = findParked(sessionKey, id);
   if (!peek) return { reject: 'sem-item' };
   if (peek.held) return { reject: 'segurado' }; // no teto de tentativas o drainer o ignora: retomar primeiro
@@ -529,7 +539,7 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
   // AskUserQuestion — o run novo substituía o turno perguntante e o card de escolha
   // sumia. Estaciona o auto na fila do servidor; a RESPOSTA do usuário (send manual)
   // limpa o latch e o onClose dela drena o estacionado na sequência.
-  if (auto && awaitingAnswer.has(sessionKey)) {
+  if (auto && isAwaiting(sessionKey)) {
     if (ws) {
       if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
       if (!enqueue(sessionKey, { ws, prompt, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort }))
@@ -537,7 +547,7 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
     }
     return;
   }
-  if (!auto) awaitingAnswer.delete(sessionKey);
+  if (!auto) clearAwaiting(sessionKey);
   const replacing = threads.has(sessionKey);
   if (!admitRun(threads.size, replacing)) {
     if (ws) send(ws, { t: 'error', sessionKey, message: 'limite de sessões simultâneas atingido' });

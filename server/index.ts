@@ -12,7 +12,9 @@ import { sweepMcpConfigs } from './engine/claude';
 import { loadManagedEnv } from './admin-ops';
 import { loadRouting } from './router/state';
 import { startRouteBroadcast } from './ws/routes';
+import { handleMcpRequest, isMcpPath } from './mcp/serve';
 import { CONFIG } from './config';
+import { sandboxUpstream, proxySandbox } from './sandbox-proxy';
 
 const distDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 
@@ -25,13 +27,26 @@ async function main() {
   const serveStatic = makeStatic(distDir);
 
   const server = createServer((req, res) => {
+    const sandbox = sandboxUpstream(req.headers.host);
+    if (sandbox) { proxySandbox(sandbox, req, res); return; }
     // Liveness: o supervisor (run-backend.sh) faz poll disto pra detectar backend
     // pendurado-mas-vivo — se isto responde, o event loop não travou de vez.
     if (req.url === '/healthz') {
       res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ ok: true, ...runStats() }));
+      // sandboxProxy: o painel de preview só aponta o iframe pra `<slug>.localhost`
+      // se o backend em execução souber proxiar. Num backend velho esse host cai no
+      // estático e o iframe carregaria o próprio Deck dentro do chat.
+      res.end(JSON.stringify({ ok: true, sandboxProxy: true, ...runStats() }));
       return;
     }
+    // Superfície MCP read-only (contextos/sessões/skills) pra um agente externo.
+    // Antes do static: o serveStatic cai no index.html da SPA pra path
+    // desconhecido, e o cliente MCP receberia HTML no lugar de JSON-RPC.
+    if (isMcpPath(req.url)) {
+      handleMcpRequest(req, res).catch(() => { if (!res.headersSent) res.writeHead(500).end(); });
+      return;
+    }
+
     serveStatic(req, res).then((served) => {
       if (served) return;
       res.writeHead(200, { 'content-type': 'text/plain' });

@@ -30,10 +30,17 @@ describe('ComposerActions', () => {
     expect(onStop).toHaveBeenCalledTimes(1);
   });
 
-  it('com run em curso e composer vazio, só o stop aparece', () => {
-    setup({ busy: true });
-    expect(queue()).toBeNull();
-    expect(stop()).not.toBeNull();
+  it('com run em curso o enfileirar fica no slot da direita, depois do stop', () => {
+    setup({ busy: true, hasText: true });
+    expect(stop()!.compareDocumentPosition(queue()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('com run em curso e composer vazio o enfileirar continua no lugar, só desabilitado', () => {
+    const { onSubmit } = setup({ busy: true });
+    expect(queue()).not.toBeNull();
+    expect((queue() as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(queue()!);
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it('só anexo (sem texto) já habilita enfileirar', () => {
