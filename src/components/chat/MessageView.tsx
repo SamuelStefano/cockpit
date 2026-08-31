@@ -17,7 +17,6 @@ import type { ShownMessage } from './shown';
 import { fmtTokens, fmtDuration, fmtClock } from './message-format';
 
 export type { DiffRow } from './diff';
-export { lineDiff } from './diff';
 export { Thinking } from './Thinking';
 
 interface MessageRowProps {

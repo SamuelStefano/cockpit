@@ -11,6 +11,15 @@ describe('classifySlash', () => {
   it('returns null for an unknown command (passes through to Claude)', () => {
     expect(classifySlash('/compact')).toBeNull();
     expect(classifySlash('/unknown thing')).toBeNull();
+    expect(classifySlash('/')).toBeNull();
+  });
+
+  // O /effort foi removido: se voltar a classificar, o comando deixa de chegar ao
+  // Claude — que hoje é quem o entende — e passa a ser engolido aqui em silêncio.
+  it('does not intercept /effort (command belongs to the CLI now)', () => {
+    for (const e of ['low', 'medium', 'high', 'xhigh', 'max', 'turbo']) {
+      expect(classifySlash(`/effort ${e}`)).toBeNull();
+    }
   });
 
   it('classifies help', () => {
@@ -40,11 +49,12 @@ describe('classifySlash', () => {
     const att = classifySlash('/attcontext');
     expect(att?.kind).toBe('prompt');
     expect(att && 'mode' in att && att.mode).toBe('auto');
-    expect(att && 'text' in att && att.text.length).toBeGreaterThan(0);
+    expect(att && 'text' in att && att.text).toContain('memória');
 
     const imp = classifySlash('/importgpt');
     expect(imp?.kind).toBe('prompt');
     expect(imp && 'mode' in imp && imp.mode).toBe('auto');
+    expect(imp && 'text' in imp && imp.text).toContain('conversations.json');
   });
 
   it('is case-insensitive on the command and model arg', () => {

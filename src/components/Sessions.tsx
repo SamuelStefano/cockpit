@@ -12,7 +12,6 @@ import { TagFilterBar } from './sessions/TagFilterBar';
 import { SessionsEmptyState } from './sessions/SessionsEmptyState';
 import { useSessionsPanel } from './sessions/useSessionsPanel';
 
-export { groupByRecency } from './sessions/group-by-recency';
 
 export interface SessionsPanelProps {
   sessions: Session[];

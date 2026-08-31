@@ -35,6 +35,10 @@ describe('splitFences', () => {
     expect(splitFences(md)).toEqual([{ t: 'code', lang: 'bench:itera-player', code: '<X/>' }]);
   });
 
+  it('captures a fence with no body as an empty code block', () => {
+    expect(splitFences('```\n```')).toEqual([{ t: 'code', lang: '', code: '' }]);
+  });
+
   it('omits whitespace-only prose segments', () => {
     const md = '```\nx\n```\n\n   ';
     expect(splitFences(md)).toEqual([{ t: 'code', lang: '', code: 'x' }]);

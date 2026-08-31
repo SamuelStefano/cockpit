@@ -11,7 +11,6 @@ import { composerMaxH } from './fit-height';
 import { MicButton } from './MicButton';
 
 export { ChatEmpty } from './ChatEmpty';
-export { classifySlash, type SlashAction } from './slash';
 
 interface ChatInputProps {
   disabled: boolean;

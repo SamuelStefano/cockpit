@@ -48,6 +48,17 @@ describe('lineDiff', () => {
     ]);
   });
 
+  // Invariante que os casos ponto-a-ponto não pegam: qualquer bug de ordenação no
+  // LCS ainda pode devolver as linhas certas em posições erradas, e aí o diff exibido
+  // não corresponde a nenhum dos dois arquivos.
+  it('reconstructs both sides exactly (del+ctx = old, add+ctx = new)', () => {
+    const oldT = 'one\ntwo\nthree\nfour';
+    const newT = 'one\ntwo-edited\nthree\nfive';
+    const rows = lineDiff(oldT, newT);
+    expect(rows.filter((r) => r.t !== 'add').map((r) => r.s).join('\n')).toBe(oldT);
+    expect(rows.filter((r) => r.t !== 'del').map((r) => r.s).join('\n')).toBe(newT);
+  });
+
   it('falls back to del-all then add-all above the 300-line cap', () => {
     const old = Array.from({ length: 301 }, (_, i) => `o${i}`).join('\n');
     const neu = Array.from({ length: 2 }, (_, i) => `n${i}`).join('\n');

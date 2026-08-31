@@ -7,9 +7,13 @@ describe('parseFrontmatter', () => {
     expect(fm).toEqual({ name: 'x', description: 'a: b', type: 'memory' });
   });
 
+  // Nos arquivos de memory reais o `type` vem ANINHADO sob `metadata:`, junto de
+  // outras chaves. O regex tolera indentação de propósito — não "consertar" pra só
+  // top-level, ou todo contexto de memória passa a ser lido sem tipo.
   it('tolerates indentation (nested keys under a parent)', () => {
-    const fm = parseFrontmatter('---\nmetadata:\n  type: memory\n---\n');
-    expect(fm.type).toBe('memory');
+    const fm = parseFrontmatter('---\nname: roadmap\ndescription: "x"\nmetadata: \n  node_type: memory\n  type: project\n  originSessionId: abc\n---\nbody');
+    expect(fm.name).toBe('roadmap');
+    expect(fm.type).toBe('project');
   });
 
   it('keeps the first value when a key repeats', () => {

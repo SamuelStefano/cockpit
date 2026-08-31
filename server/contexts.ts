@@ -4,7 +4,6 @@ import type { ContextMeta } from '../shared/protocol';
 import { CONFIG } from './config';
 import { parseFrontmatter, stripFrontmatter } from './frontmatter';
 
-export { parseFrontmatter, unquote, stripFrontmatter } from './frontmatter';
 
 // Surfacing READ-ONLY das memórias do agente (DR-005 D2a). Os .md vivem em
 // CONFIG.memoryDir e são escritos só pelo agente — o cockpit apenas LÊ. Nenhum
