@@ -271,6 +271,24 @@ export function moveParked(sessionKey: string, id: string, dir: -1 | 1): void {
   });
 }
 
+// Joga o item pro TOPO da fila. moveParked só troca com o vizinho: furar uma fila
+// de dez itens custaria nove mensagens, e cada troca é um broadcast que pisca na
+// UI. Retorna false quando o item sumiu da fila — o chamador desiste antes de
+// matar o turno em andamento por um item que não existe mais.
+export function promoteParked(sessionKey: string, id: string): boolean {
+  return withParkedLock(() => {
+    const map = loadParked();
+    const arr = map[sessionKey];
+    const i = arr ? arr.findIndex((x) => x.id === id) : -1;
+    if (!arr || i < 0) return false;
+    if (i === 0) return true;
+    arr.unshift(arr.splice(i, 1)[0]);
+    map[sessionKey] = arr;
+    saveParked(map);
+    return true;
+  });
+}
+
 // Remove e devolve o primeiro item da sessão (o drainer chama ao disparar).
 export function shiftParked(sessionKey: string): ParkedItem | undefined {
   return withParkedLock(() => {

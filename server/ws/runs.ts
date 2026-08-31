@@ -10,7 +10,7 @@ import { summarize } from '../summary';
 import { classify, quickAnswer, killSideRuns, killSideRunsFor } from '../engine/triage';
 import { suggestFollowups } from '../engine/suggest';
 import { isAwaiting, clearAwaiting } from './awaiting';
-import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takeParked, parkedView, isQueuePaused, MAX_PARKED_ATTEMPTS, REJECT_MESSAGE, type ParkedItem } from './parked';
+import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takeParked, promoteParked, parkedView, isQueuePaused, MAX_PARKED_ATTEMPTS, REJECT_MESSAGE, type ParkedItem } from './parked';
 import { resumableId } from './resume';
 import { quotaHold, burnedByQuota, planLimited } from './quota';
 import { reportOutcome, cascadeRoute } from '../router/state';
@@ -432,6 +432,30 @@ export function runParkedInBackground(sessionKey: string, id: string, role?: Rol
   th.parked = item;
   th.parkedFrom = sessionKey;
   return { forkId };
+}
+
+export type NowRunReject = 'sem-item' | 'segurado' | 'fila-pausada' | 'sem-quota' | 'aguardando-resposta';
+
+// Fura a fila: o item vai pro topo e o turno em andamento MORRE pra ele subir no
+// lugar. Não dispara o item aqui — só promove e mata; o onClose do turno morto já
+// chama drainParked, que agora encontra este item no topo. Disparar direto
+// competiria com esse dreno pelo mesmo item.
+// Tudo que pode recusar roda ANTES do stop: um item segurado ou uma fila pausada
+// não subiriam depois, e o usuário teria perdido o turno em andamento à toa.
+export function runParkedNow(sessionKey: string, id: string): { ok: true } | { reject: NowRunReject } {
+  if (isQueuePaused()) return { reject: 'fila-pausada' };
+  if (quotaHold()) return { reject: 'sem-quota' };
+  // Pergunta pendente: o drainer ignora a sessão até a resposta, então promover e
+  // matar o turno deixaria o item no topo sem nada subir. Recusa aqui em vez de
+  // limpar o latch: abrir mão do card é decisão explícita do usuário (queue-force).
+  if (isAwaiting(sessionKey)) return { reject: 'aguardando-resposta' };
+  const peek = findParked(sessionKey, id);
+  if (!peek) return { reject: 'sem-item' };
+  if (peek.held) return { reject: 'segurado' }; // no teto de tentativas o drainer o ignora: retomar primeiro
+  if (!promoteParked(sessionKey, id)) return { reject: 'sem-item' };
+  if (resolveThreadKey(sessionKey)) stopSession(sessionKey);
+  else drainParked(); // sessão já ociosa: nada pra matar, só não esperar o tick de 30s
+  return { ok: true };
 }
 
 let parkedTimer: ReturnType<typeof setInterval> | null = null;

@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { WebSocket } from 'ws';
-import { admitRun, findStaleThreads, reapStaleRuns, startRun, threads, isSilentDeath, killAllRuns, resumeOrphanRuns, drainParked, runParkedInBackground, startParkedDrainer, AUTO_RESUME_CAP, REAPER_SILENCE_CAP_MS, REAPER_TOOL_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './runs';
+import { admitRun, findStaleThreads, reapStaleRuns, startRun, threads, isSilentDeath, killAllRuns, resumeOrphanRuns, drainParked, runParkedInBackground, runParkedNow, startParkedDrainer, AUTO_RESUME_CAP, REAPER_SILENCE_CAP_MS, REAPER_TOOL_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './runs';
 import { takeOrphanRuns } from './recover';
 import { recordIncident } from './incidents';
 import { isAwaiting, setAwaiting, clearAllAwaiting } from './awaiting';
 import { broadcast } from './broadcast';
 import { run } from '../engine/claude';
-import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takeParked, isQueuePaused, type ParkedItem } from './parked';
+import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takeParked, promoteParked, isQueuePaused, type ParkedItem } from './parked';
 import { resumableId } from './resume';
 import { quotaHold } from './quota';
 import { reportOutcome, cascadeRoute } from '../router/state';
@@ -16,7 +16,7 @@ vi.mock('../engine/claude', () => ({ run: vi.fn(() => ({ kill: vi.fn() })) }));
 // parked.json real do usuário nem depender da quota da conta.
 vi.mock('./parked', () => ({
   parkedHeads: vi.fn(() => []), shiftParked: vi.fn(), unshiftParked: vi.fn(() => 1),
-  findParked: vi.fn(() => null), takeParked: vi.fn(() => null),
+  findParked: vi.fn(() => null), takeParked: vi.fn(() => null), promoteParked: vi.fn(() => true),
   addParked: vi.fn(() => ({ id: 'pk-mock' })), parkedView: vi.fn(() => []), isQueuePaused: vi.fn(() => false),
   setQueuePaused: vi.fn(), MAX_PARKED_ATTEMPTS: 3,
 }));
@@ -562,6 +562,97 @@ describe('disparo em background de um item da fila', () => {
     vi.mocked(takeParked).mockReturnValue(null);
     expect(runParkedInBackground('s1', 'pk-9', 'student')).toEqual({ reject: 'sem-item' });
     expect(run).not.toHaveBeenCalled();
+  });
+});
+
+// Furar a fila (estilo Cursor): o item escolhido vira o próximo turno e o que está
+// rodando agora morre pra dar lugar a ele.
+describe('disparo imediato de um item da fila (furar a fila)', () => {
+  const ws = {} as WebSocket;
+  const item = (over: Partial<ParkedItem> = {}): ParkedItem => ({ id: 'pk-9', prompt: 'esse aqui primeiro', at: 1, ...over });
+  const lastKill = () => vi.mocked(run).mock.results.at(-1)!.value.kill;
+  const closeLastRun = () => vi.mocked(run).mock.calls.at(-1)![0].onClose?.();
+
+  beforeEach(() => {
+    threads.clear();
+    clearAllAwaiting();
+    vi.mocked(run).mockClear();
+    vi.mocked(quotaHold).mockReturnValue(0);
+    vi.mocked(isQueuePaused).mockReturnValue(false);
+    vi.mocked(findParked).mockReturnValue(item());
+    vi.mocked(promoteParked).mockReturnValue(true);
+    vi.mocked(parkedHeads).mockReturnValue([]);
+    vi.mocked(shiftParked).mockReset();
+    startParkedDrainer(3_600_000);
+  });
+
+  it('promove o item e mata o turno em andamento; o dreno do onClose sobe justo ele', () => {
+    startRun(ws, 'now1', 'o que estava rodando');
+    const kill = lastKill();
+    expect(runParkedNow('now1', 'pk-9')).toEqual({ ok: true });
+    expect(promoteParked).toHaveBeenCalledWith('now1', 'pk-9');
+    expect(kill).toHaveBeenCalled();
+    // O item promovido é o topo, e o topo é o que o dreno do onClose pega.
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 'now1', first: item() }]);
+    vi.mocked(shiftParked).mockReturnValue(item());
+    closeLastRun();
+    expect(vi.mocked(run).mock.calls.at(-1)![0].prompt).toBe('esse aqui primeiro');
+  });
+
+  it('sessão ociosa: não há turno pra matar e o item dispara na hora', () => {
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 'now2', first: item() }]);
+    vi.mocked(shiftParked).mockReturnValue(item());
+    expect(runParkedNow('now2', 'pk-9')).toEqual({ ok: true });
+    expect(run).toHaveBeenCalledOnce();
+    expect(vi.mocked(run).mock.calls[0][0].prompt).toBe('esse aqui primeiro');
+  });
+
+  // O turno em andamento é trabalho real: recusar DEPOIS de matá-lo custaria o turno
+  // do usuário sem nada subir no lugar (o drainer ignora fila pausada e item segurado).
+  it('recusa ANTES de matar o turno: pausada, sem quota, segurado, fantasma, pergunta pendente', () => {
+    const cases: [() => void, string][] = [
+      [() => vi.mocked(isQueuePaused).mockReturnValue(true), 'fila-pausada'],
+      [() => vi.mocked(quotaHold).mockReturnValue(Date.now() + 60_000), 'sem-quota'],
+      [() => vi.mocked(findParked).mockReturnValue(item({ held: true })), 'segurado'],
+      [() => vi.mocked(findParked).mockReturnValue(null), 'sem-item'],
+    ];
+    for (const [arm, reject] of cases) {
+      threads.clear();
+      clearAllAwaiting();
+      vi.mocked(run).mockClear();
+      vi.mocked(isQueuePaused).mockReturnValue(false);
+      vi.mocked(quotaHold).mockReturnValue(0);
+      vi.mocked(findParked).mockReturnValue(item());
+      vi.mocked(promoteParked).mockClear();
+      arm();
+      startRun(ws, 'now3', 'o que estava rodando');
+      const kill = lastKill();
+      expect(runParkedNow('now3', 'pk-9')).toEqual({ reject });
+      expect(kill).not.toHaveBeenCalled();
+      expect(promoteParked).not.toHaveBeenCalled();
+    }
+  });
+
+  // O translate mata o run pra o card de escolha ficar respondível, então a sessão
+  // fica ociosa com o latch ligado. O drainer pula sessão nesse estado: promover
+  // deixaria o item no topo sem nada subir. Abrir mão do card é o queue-force.
+  it('turno esperando resposta: recusa em vez de promover pra ninguém drenar', () => {
+    setAwaiting('now5');
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 'now5', first: item() }]);
+    vi.mocked(shiftParked).mockReturnValue(item());
+    expect(runParkedNow('now5', 'pk-9')).toEqual({ reject: 'aguardando-resposta' });
+    expect(promoteParked).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  // promoteParked lê o disco: entre o findParked e ele, outro aparelho pode ter
+  // cancelado o item. Matar o turno aí deixaria a sessão vazia.
+  it('item some entre o espiar e o promover: não mata o turno', () => {
+    startRun(ws, 'now4', 'o que estava rodando');
+    const kill = lastKill();
+    vi.mocked(promoteParked).mockReturnValue(false);
+    expect(runParkedNow('now4', 'pk-9')).toEqual({ reject: 'sem-item' });
+    expect(kill).not.toHaveBeenCalled();
   });
 });
 

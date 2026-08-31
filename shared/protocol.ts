@@ -683,6 +683,10 @@ export type ClientMsg =
   // transcript do chat (--fork-session) e roda o prompt num chat paralelo, então o
   // turno em andamento continua intacto. `model` sobrescreve só este disparo.
   | { t: 'queue-run-bg'; sessionKey: string; id: string; model?: string }
+  // Fura a fila: joga o item pro topo e MATA o turno em andamento pra ele subir no
+  // lugar. Oposto do run-bg, que preserva o turno atual e roda em paralelo — aqui
+  // o usuário quer TROCAR o que está rodando agora.
+  | { t: 'queue-run-now'; sessionKey: string; id: string }
   | { t: 'queue-get' };
 
 // Capabilities da conexão (DR-011). role = papel do ator (hoje sempre admin em

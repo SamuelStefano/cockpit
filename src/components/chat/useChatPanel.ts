@@ -25,9 +25,10 @@ interface Args {
   queueClear: (sessionKey: string) => void;
   queueRetry: (sessionKey: string, id: string) => void;
   queueRunBg: (sessionKey: string, id: string, model?: string) => void;
+  queueRunNow: (sessionKey: string, id: string) => void;
 }
 
-export function useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg }: Args) {
+export function useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg, queueRunNow }: Args) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -72,6 +73,12 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   const runQueuedInBgAt = (i: number, modelOverride?: string) => {
     const it = parked[i];
     if (it) queueRunBg(it.sessionKey, it.id, modelOverride);
+  };
+  // Fura a fila: o item vai pro topo e o turno em andamento é interrompido pra ele
+  // subir no lugar (neste mesmo chat, não num paralelo como o disparo em bg).
+  const runQueuedNowAt = (i: number) => {
+    const it = parked[i];
+    if (it) queueRunNow(it.sessionKey, it.id);
   };
 
   const streaming = phase === 'streaming';
@@ -204,7 +211,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
 
   return {
     scrollRef, atBottom, promptAbove, onScroll, scrollToBottom, scrollToLastPrompt, captureAnchor,
-    queued, queuedAtts, queuedModels, enqueue, clearQueue, cancelQueueAt, editQueuedAt, moveQueuedItem, queueHeld, resumeQueue, runQueuedInBgAt, fullLoaded, setFullLoaded,
+    queued, queuedAtts, queuedModels, enqueue, clearQueue, cancelQueueAt, editQueuedAt, moveQueuedItem, queueHeld, resumeQueue, runQueuedInBgAt, runQueuedNowAt, fullLoaded, setFullLoaded,
     streaming, disabled, isEmpty,
     sentHistory, modelLabel, labelFor,
     planPending, pendingQuestion, failed, retryLast, bannerConfirm,

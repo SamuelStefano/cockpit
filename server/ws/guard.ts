@@ -5,7 +5,7 @@ import type { ClientMsg } from '../../shared/protocol';
 // `term-open` (spawn de tmux) sem freio é o vetor de DoS quando houver 2º ator.
 const HEAVY: ReadonlySet<ClientMsg['t']> = new Set([
   'search', 'upload', 'term-open', 'send', 'list', 'list-archived', 'open', 'open-full', 'bench-build',
-  'session-handoff', 'queue-run-bg',
+  'session-handoff', 'queue-run-bg', 'queue-run-now',
 ]);
 
 export interface Bucket { tokens: number; last: number }
