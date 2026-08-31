@@ -10,7 +10,8 @@ import { SessionRowMeta } from './SessionRowMeta';
 import { RunStatus } from './RunStatus';
 import { useSessionRow } from './useSessionRow';
 import { useLongPress } from './useLongPress';
-import { ctxWarn, fmtCost, isIdle } from './row-meta';
+import { ctxWarn, isIdle } from './row-meta';
+import { fmtCost } from '../../../shared/format';
 
 export interface SessionRowProps {
   s: Session;

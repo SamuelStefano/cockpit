@@ -1,6 +1,7 @@
 import { readdir, stat, open } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { SessionMeta } from '../../shared/protocol';
+import { relPast } from '../../shared/format';
 import { CONFIG } from '../config';
 import { hiddenSet, purgedSet, titleOverrides, noteOverrides } from '../store';
 import { allSummaries, getSummary } from '../db';
@@ -71,11 +72,11 @@ async function collectMetas(keep: (id: string, hidden: Set<string>) => boolean):
     // limpar o override depois não voltaria ao título derivado (ficaria grudado).
     // `relative` é recalculado do mtime (estável) a cada listagem — se viesse do
     // cache ficaria congelado no valor de quando a meta foi escaneada (ex: sessão
-    // vista logo após o último turno grava "agora" e nunca envelhece pra "5min
-    // atrás"/"1h atrás", já que o cache só invalida quando o mtime muda).
+    // vista logo após o último turno grava "agora" e nunca envelhece pra "5min"/"1h",
+    // já que o cache só invalida quando o mtime muda).
     metas.push({
       ...meta,
-      relative: relTime(meta.mtime),
+      relative: relPast(meta.mtime),
       title: titleOv[id] ?? meta.title,
       summary: noteOv[id] ?? summaries.get(id),
     });
@@ -104,7 +105,7 @@ export async function metaForId(id: string): Promise<SessionMeta | null> {
   }
   const titleOv = await titleOverrides();
   const noteOv = await noteOverrides();
-  return { ...meta, relative: relTime(meta.mtime), title: titleOv[id] ?? meta.title, summary: noteOv[id] ?? getSummary(id) ?? undefined };
+  return { ...meta, relative: relPast(meta.mtime), title: titleOv[id] ?? meta.title, summary: noteOv[id] ?? getSummary(id) ?? undefined };
 }
 
 // Monta a SessionMeta a partir do cabeçalho escaneado — compartilhado pela
@@ -118,7 +119,7 @@ export function metaFromHead(id: string, mtime: number, head: { title: string; f
   return {
     id,
     title: head.title || head.firstUser?.slice(0, 60) || 'Sem título',
-    relative: relTime(ts, now),
+    relative: relPast(ts, now),
     snippet: head.firstUser?.slice(0, 120) || '',
     mtime: ts,
     count: head.count,
@@ -218,15 +219,4 @@ async function scanMeta(path: string, prev?: MetaScan): Promise<MetaScan> {
   } finally {
     await fh.close();
   }
-}
-
-export function relTime(ms: number, now = Date.now()): string {
-  const diff = now - ms;
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return 'agora';
-  if (min < 60) return `${min}min atrás`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h}h atrás`;
-  const d = Math.floor(h / 24);
-  return d === 1 ? 'ontem' : `${d}d atrás`;
 }

@@ -1,30 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { metaForId, relTime, metaFromHead } from './index';
+import { metaForId, metaFromHead } from './index';
 
 const VALID = '12345678-1234-1234-1234-123456789abc';
-
-describe('relTime', () => {
-  const now = 1_000_000_000_000;
-  const ago = (ms: number) => now - ms;
-  it('reports "agora" under a minute', () => {
-    expect(relTime(ago(0), now)).toBe('agora');
-    expect(relTime(ago(59_000), now)).toBe('agora');
-  });
-  it('reports minutes under an hour', () => {
-    expect(relTime(ago(60_000), now)).toBe('1min atrás');
-    expect(relTime(ago(59 * 60_000), now)).toBe('59min atrás');
-  });
-  it('reports hours under a day', () => {
-    expect(relTime(ago(60 * 60_000), now)).toBe('1h atrás');
-    expect(relTime(ago(23 * 60 * 60_000), now)).toBe('23h atrás');
-  });
-  it('reports "ontem" at exactly one day', () => {
-    expect(relTime(ago(24 * 60 * 60_000), now)).toBe('ontem');
-  });
-  it('reports days past one day', () => {
-    expect(relTime(ago(2 * 24 * 60 * 60_000), now)).toBe('2d atrás');
-  });
-});
 
 describe('metaFromHead', () => {
   const now = 1_000_000_000_000;
@@ -44,12 +21,12 @@ describe('metaFromHead', () => {
   it('uses the last message timestamp instead of the file mtime', () => {
     const m = metaFromHead('id', now, { title: 'T', count: 1, lastTs: now - 25 * 60 * 60_000 }, now);
     expect(m.mtime).toBe(now - 25 * 60 * 60_000);
-    expect(m.relative).toBe('ontem');
+    expect(m.relative).toBe('1d');
   });
   it('falls back to the mtime when no message carries a timestamp', () => {
     const m = metaFromHead('id', now - 60_000, { title: 'T', count: 1 }, now);
     expect(m.mtime).toBe(now - 60_000);
-    expect(m.relative).toBe('1min atrás');
+    expect(m.relative).toBe('1min');
   });
   it('falls back to "Sem título" with empty snippet when nothing is present', () => {
     const m = metaFromHead('id', 5, { title: '', count: 0 }, now);

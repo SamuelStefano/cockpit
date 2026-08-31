@@ -1,17 +1,12 @@
 import { useState } from 'react';
 import { Badge, Icon, Markdown } from '../../components/primitives';
-import { relPast } from '../../lib/time';
+import { relPast } from '../../../shared/format';
 import type { HarnessTaskView } from '../../../shared/protocol';
+import { fmtTaskCost } from './task-cost';
 
 interface Props {
   tasks: HarnessTaskView[];
   activeId?: string;
-}
-
-function fmtCost(usd?: number): string {
-  if (usd == null) return '';
-  if (usd === 0) return 'grátis';
-  return usd < 0.01 ? `$${usd.toFixed(4)}` : `$${usd.toFixed(3)}`;
 }
 
 export function HarnessHistory({ tasks, activeId }: Props) {
@@ -33,7 +28,7 @@ export function HarnessHistory({ tasks, activeId }: Props) {
               <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${t.status === 'error' ? 'bg-red-400' : 'bg-green-400'}`} />
               <span className="min-w-0 flex-1 truncate text-[12px] text-neutral-300">{t.prompt}</span>
               {t.model && <Badge tone="neutral">{t.model}</Badge>}
-              {t.costUsd != null && <span className="shrink-0 text-[10.5px] tabular-nums text-neutral-500">{fmtCost(t.costUsd)}</span>}
+              {t.costUsd != null && <span className="shrink-0 text-[10.5px] tabular-nums text-neutral-500">{fmtTaskCost(t.costUsd)}</span>}
               <span className="shrink-0 text-[10.5px] tabular-nums text-neutral-600">{relPast(t.ts)}</span>
               <Icon name={open ? 'minimize' : 'maximize'} size={11} className="shrink-0 text-neutral-600" />
             </button>
