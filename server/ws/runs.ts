@@ -5,6 +5,7 @@ import { run, type RunHandle } from '../engine/claude';
 import { CONFIG } from '../config';
 import type { Role } from '../auth';
 import { broadcast, send } from './broadcast';
+import { detach } from './detach';
 import { translate } from './translate';
 import { summarize } from '../summary';
 import { classify, quickAnswer, killSideRuns, killSideRunsFor } from '../engine/triage';
@@ -747,12 +748,12 @@ export async function routeSend(ws: WebSocket, sessionKey: string, prompt: strin
     case 'answer':
       // Fallback: haiku falhou/timeout (retorna '') → NÃO engolir a mensagem em
       // silêncio; degrada pra 'wait' (responde quando o turno fechar).
-      void runQuickAnswer(sessionKey, prompt, epoch, () => {
+      detach(ws, runQuickAnswer(sessionKey, prompt, epoch, () => {
         if (!threads.has(sessionKey)) { startRun(ws, sessionKey, prompt, resumeId, undefined, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort); return; }
         if (!enqueue(sessionKey, { ws, prompt, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort, merge: false })) {
           broadcast({ t: 'error', sessionKey, message: 'fila de mensagens cheia' });
         }
-      });
+      }), sessionKey);
       return;
     case 'merge':
     case 'wait':
