@@ -92,7 +92,14 @@ export function HarnessComposer({ config, running, onRun }: Props) {
       />
 
       <div className="flex items-center justify-between gap-2">
-        {d.blocked ? <Badge tone="yellow">{d.blocked}</Badge> : <span className="text-[11px] text-neutral-600">tudo selecionável, nada roda sozinho</span>}
+        {/* O toggle de pentest NÃO se desarma depois de rodar (só o prompt é limpo), então
+            sem este aviso ao lado do botão a task seguinte sairia com o mesmo system prompt
+            sem ninguém perceber. */}
+        {d.blocked
+          ? <Badge tone="yellow">{d.blocked}</Badge>
+          : d.pentest
+            ? <Badge tone="orange"><Icon name="shield" size={9} />contexto de pentest ligado</Badge>
+            : <span className="text-[11px] text-neutral-600">tudo selecionável, nada roda sozinho</span>}
         <Button
           variant="primary"
           icon="play"
