@@ -7,7 +7,7 @@ import { setLastRate } from './rate';
 import { emitTool, closeTool, attachApp } from './tools';
 import { getLastRate } from './rate';
 import { parseTaskNotification, registerNotify } from './task-notify';
-import { threads, type Thread } from './runs';
+import { threads, type Thread } from './threads';
 import { setAwaiting } from './awaiting';
 
 // Tradução evento NDJSON -> ServerMsg (squad C2/H1: tool por id de correlação).

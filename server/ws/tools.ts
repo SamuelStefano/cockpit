@@ -2,7 +2,7 @@ import type { ToolCall, ToolTodo } from '../../shared/protocol';
 import { diffOf, planOf, questionsOf, todosOf, labelOf, commandOf, toolResultOutput, applyTaskUpdate, registerTaskCreate, taskSnapshot } from '../sessions/parse';
 import { broadcast } from './broadcast';
 import { resolveApp, parseMcpToolName } from '../mcp/apps';
-import { threads, type Thread } from './runs';
+import { threads, type Thread } from './threads';
 
 // Teto de tools retidas por thread: um run de horas com centenas de tools não
 // pode crescer sem limite na memória (cada entrada é re-serializada no replay).

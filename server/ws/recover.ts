@@ -3,7 +3,7 @@ import { withFileLock } from './file-lock';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import type { Role } from '../auth';
-import type { RunParams } from './runs';
+import type { RunParams } from './threads';
 import { coerceItem, type ParkedItem } from './parked';
 
 // Registro em disco dos turnos VIVOS. A retomada automática do runs.ts cobre o

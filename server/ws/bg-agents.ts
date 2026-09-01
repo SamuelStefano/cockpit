@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { projectSlug } from '../config';
 import { num } from '../sessions/parse';
 import { broadcast } from './broadcast';
-import { threads } from './runs';
+import { threads } from './threads';
 
 // Espelho do terminal pra agentes de FUNDO (Task/Agent lançados em background):
 // label + tempo decorrido + gasto de tokens ao vivo, com flip pra "done" no fim.

@@ -9,7 +9,7 @@ import { CONFIG } from '../config';
 import { capsFor } from '../auth';
 import { claudeReady, mcpServerDefsSync } from '../admin-ops';
 import { getSlashCommands } from './slash';
-import { threads } from './runs';
+import { threads } from './threads';
 import { handle } from './dispatch';
 import { handleTerm, type TermHandle } from './terminal-handler';
 import { createRateLimiter } from './guard';
