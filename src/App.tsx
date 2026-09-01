@@ -24,6 +24,8 @@ import { useTabTitle } from './app/useTabTitle';
 import { useOfflineLatch } from './app/useOfflineLatch';
 import { usePairingEject } from './app/usePairingEject';
 import { useLiveConnection } from './app/useLiveConnection';
+import { useQuotaGate } from './app/useQuotaGate';
+import { useOverlays } from './app/useOverlays';
 
 export function CockpitApp() {
   const cockpit = useCockpit();
@@ -54,13 +56,7 @@ export function CockpitApp() {
   const { terminals, activeTermId, setActiveTermId, handleAddTerm, handleCloseTerm, attachable, attachExisting, runningTerm } = useTerminalTabs(term, discoveredTerms, listTerms);
 
   const [quotaClosed, setQuotaClosed] = useState(false);
-  // O CLI manda 'allowed' (longe do teto), 'allowed_warning' (perto, mas AINDA
-  // PODE enviar) e 'rejected'/'limited' (teto batido, envio recusado). Só o
-  // rejeitado é bloqueio de verdade — tratar o warning como bloqueio travava o
-  // composer em ~90% (o usuário via 94% e não conseguia mandar um prompt simples).
-  const rateRejected = !!rate && rate.status !== 'allowed' && rate.status !== 'allowed_warning';
-  // Banner de aviso: aparece já no warning (heads-up), sem travar o envio.
-  const quota = !!rate && rate.status !== 'allowed' && !quotaClosed;
+  const quotaGate = useQuotaGate(planUsage, rate);
 
   useLiveConnection({ wsState: conn.ws, reconnectNow });
   const showOffline = useOfflineLatch(conn.ws);
@@ -68,13 +64,7 @@ export function CockpitApp() {
   const isMobile = useIsMobile();
   useTabTitle(running, updated);
 
-  const [drawer, setDrawer] = useState(false);
-  const [termSheet, setTermSheet] = useState(false);
-  // Menu de rotas (mobile) controlado aqui pra ser mutuamente exclusivo com o
-  // drawer de sessões — abrir um fecha o outro, senão os dois overlays se sobrepõem.
-  const [routeMenuOpen, setRouteMenuOpen] = useState(false);
-  const [palette, setPalette] = useState(false);
-  const [help, setHelp] = useState(false);
+  const { drawer, setDrawer, termSheet, setTermSheet, routeMenu, setRouteMenu, palette, setPalette, help, setHelp } = useOverlays(route);
   const [focusSignal, setFocusSignal] = useState(0);
 
   useGlobalShortcuts({ sessions, activeSessionId, setActiveSessionId, updated, nav, setPalette, setHelp });
@@ -114,15 +104,6 @@ export function CockpitApp() {
     if (route === '/admin' && caps && !isAdmin) nav('/');
   }, [route, caps, isAdmin, nav]);
 
-  // Drawer/terminal sheet são overlays do MobileLayout, que só monta na rota de
-  // chat — navegar desmonta o DOM mas o estado persistia, e o overlay reaparecia
-  // sozinho ao voltar pra '/'. Mudou de rota = fecha os dois.
-  useEffect(() => {
-    setDrawer(false);
-    setTermSheet(false);
-    setRouteMenuOpen(false);
-  }, [route]);
-
   const activeSession = sessions.find((s) => s.id === activeSessionId) || archived.find((s) => s.id === activeSessionId) || null;
 
   const handleNew = () => {
@@ -132,31 +113,7 @@ export function CockpitApp() {
   };
 
   const sessionsProps = { sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, stalled, updated, runStart, searchResults, onSearch, userId: sbAuth.session?.user.id };
-  // Pausa o envio perto do teto do plano (5h) pra não estourar e perder trabalho:
-  // a fila persistida não dispara e o composer trava até a janela resetar.
-  // Quando `resetsAt` passa, des-pausa NA HORA (a janela resetou) mesmo que o número
-  // de utilização no cliente ainda esteja stale ≥99.5 — senão a fila só drenava no
-  // próximo push do servidor (até 60s) e o usuário precisava dar F5. O timer abaixo
-  // força um re-render no instante do reset pra recomputar isto.
-  const [resetTick, setResetTick] = useState(0);
-  useEffect(() => {
-    void resetTick; // dep só pra reagendar após o disparo
-    // Reagenda no reset MAIS PRÓXIMO entre o teto do plano (5h) e o limite duro
-    // (rate) — o que vier primeiro des-pausa a fila na hora, sem esperar F5.
-    const candidates = [planUsage?.resetsAt, rate?.resetsAt].filter((n): n is number => !!n && n > Date.now());
-    if (!candidates.length) return;
-    const ms = Math.min(...candidates) - Date.now();
-    const t = setTimeout(() => setResetTick((n) => n + 1), ms + 1000);
-    return () => clearTimeout(t);
-  }, [planUsage?.resetsAt, rate?.resetsAt, resetTick]);
-  const quotaResetPassed = !!planUsage?.resetsAt && planUsage.resetsAt <= Date.now();
-  // Limite DURO do CLI (rate_limit_event REJEITADO): sinal preciso do teto real,
-  // independente do percentual estimado. Pausa a fila mesmo quando fiveHour ainda
-  // está <99.5 — senão a fila drenava e o prompt morria no limite (perdido). O
-  // warning (perto do teto, mas ainda enviável) NÃO conta como limite duro.
-  const rateLimited = rateRejected && (!rate!.resetsAt || rate!.resetsAt > Date.now());
-  const quotaPaused = (!!planUsage && planUsage.fiveHour >= 99.5 && !quotaResetPassed) || rateLimited;
-  const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, followups, onDismissFollowups: dismissFollowups, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew: handleNew, onHandoff, handoffBusy, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onRename: handleRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, quotaPaused, quotaResetsAt: planUsage?.resetsAt ?? rate?.resetsAt ?? null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
+  const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, followups, onDismissFollowups: dismissFollowups, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew: handleNew, onHandoff, handoffBusy, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onRename: handleRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
 
   const gate = resolveAuthGate({ sbAuth, ejectPairing, authRequired, submitToken });
@@ -177,9 +134,9 @@ export function CockpitApp() {
         onShowHelp={() => setHelp(true)}
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
-      <Header conn={conn} isMobile={isMobile} onMenu={() => { setRouteMenuOpen(false); setDrawer(true); }} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} onNew={handleNew} isAdmin={isAdmin} routeMenuOpen={routeMenuOpen} setRouteMenuOpen={(v) => { if (v) setDrawer(false); setRouteMenuOpen(v); }} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} />
+      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} onNew={handleNew} isAdmin={isAdmin} routeMenuOpen={routeMenu} setRouteMenuOpen={setRouteMenu} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} />
 
-      {quota && rate && <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} />}
+      {quotaGate.warn && !quotaClosed && rate && <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} />}
       <OfflineNotice show={showOffline} />
 
       <RouteContent

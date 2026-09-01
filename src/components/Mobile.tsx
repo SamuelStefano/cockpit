@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { SessionsPanel, type SessionsPanelProps } from './Sessions';
-import { ChatPanel, type ChatPanelProps } from './Chat';
+import { ChatPanel } from './Chat';
+import type { ChatPanelProps } from './chat/chat-panel-props';
 import { TerminalsPanel, type TerminalsPanelProps } from './Terminals';
 import type { Terminal } from '../data/mock';
 

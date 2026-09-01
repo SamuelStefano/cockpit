@@ -15,27 +15,18 @@ export function useSessionRow({ s, onAddTag, onRename, onDescribe }: UseSessionR
   const [descDraft, setDescDraft] = useState(s.summary || '');
   const [tagging, setTagging] = useState(false);
   const [tagDraft, setTagDraft] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
-  const descRef = useRef<HTMLTextAreaElement>(null);
-  const tagRef = useRef<HTMLInputElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const wasInlineEditing = useRef(false);
 
+  // Fechar a edição inline (Esc/Enter) desmonta o input e o foco cai pro body;
+  // devolve pro card. Só quando caiu pro body — clique em outro lugar (blur que
+  // também fecha) não deve ter o foco roubado.
   useEffect(() => {
-    if (tagging && tagRef.current) tagRef.current.focus();
-  }, [tagging]);
-
-  useEffect(() => {
-    if (editing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [editing]);
-
-  useEffect(() => {
-    if (descEditing && descRef.current) {
-      descRef.current.focus();
-      descRef.current.select();
-    }
-  }, [descEditing]);
+    if (editing || descEditing || tagging) { wasInlineEditing.current = true; return; }
+    if (!wasInlineEditing.current) return;
+    wasInlineEditing.current = false;
+    if (document.activeElement === document.body) rowRef.current?.focus();
+  }, [editing, descEditing, tagging]);
 
   const commitTag = () => {
     const v = tagDraft.trim().toLowerCase().replace(/\s+/g, '-').slice(0, 24);
@@ -63,7 +54,7 @@ export function useSessionRow({ s, onAddTag, onRename, onDescribe }: UseSessionR
     descDraft, setDescDraft,
     tagging, setTagging,
     tagDraft, setTagDraft,
-    inputRef, descRef, tagRef,
+    rowRef,
     commit, commitDesc, commitTag,
   };
 }
