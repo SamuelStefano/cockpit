@@ -5,6 +5,7 @@ import {
   makeJwks, verifyJwtSignature, validateClaims, makeChallenge, verifyAgentSignature,
   type JwksFn, type Identity,
 } from './verify';
+import { slidingWindow } from './throttle';
 import { parseRootEmails, canSeeAllAccounts, canGrantAdmin, type AccountRole } from '../../shared/identity';
 
 // Relay T3 (DR-023): roteador WS stateless e autenticado. NÃO spawna nada (a
@@ -55,6 +56,7 @@ export function createRelay(cfg: RelayConfig) {
   const registry = new Registry();
   const roots = parseRootEmails(cfg.rootEmails);
   const jwks: JwksFn = makeJwks(cfg.jwksUrl);
+  const pairThrottle = slidingWindow(5, 60_000);
 
   // canBypass é capacidade LOCAL do agente (allowBypass + localOnly + role admin do
   // agente); o relay não tem como saber, então o agente reporta via 'agent-caps'.
@@ -67,15 +69,23 @@ export function createRelay(cfg: RelayConfig) {
   const capsFrame = (role: AccountRole, accountId: string) =>
     JSON.stringify({ t: 'caps', caps: { role, canBypass: canSeeAllAccounts(role) && (agentBypass.get(accountId) ?? false) } });
 
-  // Resolve a identidade de um JWT (Authorization: Bearer ou ?token=). Usado pelo
-  // HTTP de pairing e pelo path do browser. O override (cfg.resolveIdentity) é só
-  // pra teste local; em prod é o caminho JWKS real abaixo.
+  // Resolve a identidade de um JWT. O override (cfg.resolveIdentity) é só pra teste
+  // local; em prod é o caminho JWKS real abaixo.
+  // Resolver identidade encosta na REDE (JWKS e `store.isAdmin` no PostgREST). Uma
+  // falha ali NÃO pode escapar como rejeição: os dois chamadores são handlers async
+  // de evento, então a rejeição vira unhandledRejection e o Node derruba o processo
+  // — um soluço do Supabase desconectaria TODAS as contas. Falhou = nega.
   async function identityFrom(token: string | null): Promise<Identity | null> {
-    if (cfg.resolveIdentity) return cfg.resolveIdentity(token);
-    if (!token) return null;
-    const payload = await verifyJwtSignature(token, jwks, cfg.iss);
-    const isAdmin = payload?.sub ? await cfg.store.isAdmin(String(payload.sub)) : false;
-    return validateClaims(payload, { iss: cfg.iss, nowSec: Math.floor(nowMs() / 1000), rootEmails: roots, isAdmin });
+    try {
+      if (cfg.resolveIdentity) return await cfg.resolveIdentity(token);
+      if (!token) return null;
+      const payload = await verifyJwtSignature(token, jwks, cfg.iss);
+      const isAdmin = payload?.sub ? await cfg.store.isAdmin(String(payload.sub)) : false;
+      return validateClaims(payload, { iss: cfg.iss, nowSec: Math.floor(nowMs() / 1000), rootEmails: roots, isAdmin });
+    } catch (e) {
+      console.error('[relay] identityFrom:', e);
+      return null;
+    }
   }
 
   // CORS: o SPA (Vercel) chama /pair/new cross-origin com Authorization. O browser
@@ -94,10 +104,15 @@ export function createRelay(cfg: RelayConfig) {
     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
     // POST /pair/new — o browser logado pede um código de pareamento (JWT no header).
     if (req.method === 'POST' && (req.url ?? '').split('?')[0] === '/pair/new') {
+      // Só header: JWT em query string vaza pro access log do Caddy (e pro Referer).
+      // O WS precisa de `?token=` porque o browser não deixa mandar header no
+      // handshake; aqui é um POST comum, então não há desculpa.
       const auth = req.headers.authorization ?? '';
-      const token = auth.startsWith('Bearer ') ? auth.slice(7) : tokenFromUrl(req.url);
-      const id = await identityFrom(token);
+      const id = auth.startsWith('Bearer ') ? await identityFrom(auth.slice(7)) : null;
       if (!id) { res.writeHead(401); res.end('auth'); return; }
+      // Cada código é uma linha nova no banco com TTL de 10min: sem teto, uma conta
+      // logada em loop enche a tabela de graça.
+      if (!pairThrottle(id.accountId)) { res.writeHead(429); res.end('slow down'); return; }
       try {
         const code = await cfg.store.createPairingCode(id.accountId);
         res.writeHead(200, { 'content-type': 'application/json' });
@@ -132,7 +147,14 @@ export function createRelay(cfg: RelayConfig) {
     };
     ws.on('message', buffer);
 
+    // Espelha o authTimer do agente: socket que não autenticou não fica pendurado
+    // ocupando slot. O caminho de auth é limitado (JWKS + store têm timeout), então
+    // este teto só dispara quando algo abaixo trava de vez.
+    const authTimer = setTimeout(() => { try { ws.close(4408, 'auth timeout'); } catch { /* indo */ } }, 20_000);
+    authTimer.unref?.();
+
     const id = await identityFrom(tokenFromUrl(req.url));
+    clearTimeout(authTimer);
     if (!id) { ws.close(4401, 'auth'); return; }            // default-deny (red line #10)
     const accountId = id.accountId;
     (ws as BrowserSock)._role = id.role;                     // pra reemitir caps no agent-caps
@@ -186,9 +208,12 @@ export function createRelay(cfg: RelayConfig) {
       if (!registry.toAgent(accountId, s)) ws.send(JSON.stringify({ t: 'agent-offline' }));
     };
 
+    // `onFrame` chama o store (accounts-list/set-admin). Rejeição solta num handler
+    // de evento = unhandledRejection = processo morto. Falhou = não responde.
+    const feed = (s: string) => { onFrame(s).catch((e) => console.error('[relay] browser frame:', e)); };
     ws.off('message', buffer);
-    ws.on('message', (data) => { void onFrame(data.toString()); });
-    for (const s of early) void onFrame(s);   // drena na ordem de chegada
+    ws.on('message', (data) => feed(data.toString()));
+    for (const s of early) feed(s);           // drena na ordem de chegada
     // Última aba (1→0) → avisa o agente que ninguém está olhando (pausa loops).
     ws.on('close', () => { if (registry.removeBrowser(accountId, ws)) registry.toAgent(accountId, JSON.stringify({ t: 'no-browsers' })); });
   });
@@ -201,7 +226,7 @@ export function createRelay(cfg: RelayConfig) {
     // se não autenticar em 15s.
     const authTimer = setTimeout(() => { if (!st.authed) { try { ws.close(4408, 'auth timeout'); } catch { /* indo */ } } }, 15_000);
     authTimer.unref?.();
-    ws.on('message', async (raw) => {
+    const onAgentFrame = async (raw: import('ws').RawData) => {
       let m: { t?: string; agentId?: string; sig?: string; code?: string; publicKey?: string } = {};
       try { m = JSON.parse(raw.toString()); } catch { return; }
       if (!st.authed) {
@@ -262,6 +287,15 @@ export function createRelay(cfg: RelayConfig) {
       }
       // Autenticado: frame do agente → as abas DAQUELA conta (escopo por conta).
       registry.toBrowsers(st.accountId, s);
+    };
+    // Todo o handshake (pair, agent-hello, agent-auth) aguarda o store. Rejeição
+    // solta aqui derrubaria o processo inteiro; fecha só ESTE socket — o agente
+    // reconecta com backoff.
+    ws.on('message', (raw) => {
+      onAgentFrame(raw).catch((e) => {
+        console.error('[relay] agent frame:', e);
+        try { ws.close(4500, 'store error'); } catch { /* indo */ }
+      });
     });
     ws.on('close', () => {
       clearTimeout(authTimer);
