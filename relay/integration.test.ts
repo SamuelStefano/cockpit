@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { AddressInfo } from 'node:net';
 import { generateKeyPairSync, sign as edSign } from 'node:crypto';
-import { createRelay, type RelayStore } from './src/index';
+import { createRelay, maybeControlFrame, type RelayStore } from './src/index';
 
 // Integração do relay ponta-a-ponta SEM claude: relay real + um "agente" que faz o
 // handshake Ed25519 de verdade e ecoa + um "browser". Prova roteamento por conta,
@@ -205,6 +205,40 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
     expect(setCalls).toEqual([{ id: 'accA', admin: true }]); // fellow não escreveu nada
   });
 
+  // Regressão: o pré-filtro de frame de admin é por SUBSTRING sobre o JSON cru.
+  // Aspas dentro de texto saem escapadas (\"), então o gatilho não é "mencionar" o
+  // nome: é qualquer CAMPO cujo valor seja exatamente `accounts-list`/`set-admin` —
+  // digitar isso no chat basta. O frame batia no pré-filtro, não casava com nenhum
+  // `t` de admin e era engolido em silêncio, sem nunca chegar ao agente.
+  it('routes a chat frame whose text is exactly an admin frame name', async () => {
+    const A = makeAgentKeys();
+    const store: RelayStore = {
+      async agentById(id) { return id === 'ag-A' ? { accountId: 'accA', publicKey: A.pub } : null; },
+      async isAdmin() { return false; },
+      async listAccounts() { return []; }, async setAdmin() { return true; },
+      async markAgentSeen() {}, async createPairingCode() { return 'x'; },
+      async consumePairingCode() { return null; }, async createAgent() { return null; },
+    };
+    const relay = createRelay({
+      iss: 't', jwksUrl: 'http://x', rootEmails: '', store,
+      resolveIdentity: async (tok) => tok?.startsWith('R') ? { accountId: 'accA', email: 'r@x', role: 'root' } : null,
+    });
+    server = relay.server;
+    await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
+    const url = `ws://127.0.0.1:${(server!.address() as AddressInfo).port}`;
+
+    const agentA = connectFakeAgent(url, 'ag-A', A.priv); sockets.push(agentA.ws);
+    await agentA.ready;
+
+    // Root de propósito: mesmo quem PODE administrar não pode ter o chat engolido.
+    const browser = new WebSocket(`${url}/ws?token=R1`); sockets.push(browser);
+    const wait = collect(browser);
+    await wait((m) => m.t === 'caps');
+    browser.send(JSON.stringify({ t: 'send', sessionKey: 'k', text: 'accounts-list' }));
+    const echo = await wait((m) => m.t === 'echo' && m.saw === 'send');
+    expect(echo.saw).toBe('send');
+  });
+
   it('rejects a browser with no/invalid identity (default-deny)', async () => {
     const store: RelayStore = {
       async agentById() { return null; }, async isAdmin() { return false; },
@@ -219,5 +253,25 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
     const ws = new WebSocket(`${url}/ws?token=whatever`); sockets.push(ws);
     const code = await new Promise<number>((resolve) => ws.on('close', (c) => resolve(c)));
     expect(code).toBe(4401); // default-deny
+  });
+});
+
+describe('maybeControlFrame (pré-filtro do JSON.parse)', () => {
+  it('acerta o frame de controle real', () => {
+    expect(maybeControlFrame(JSON.stringify({ t: 'accounts-list' }), 'accounts-list', 'set-admin')).toBe(true);
+    expect(maybeControlFrame(JSON.stringify({ t: 'agent-caps', canBypass: true }), 'agent-caps')).toBe(true);
+  });
+
+  it('é só uma heurística: casa com o valor de qualquer campo, não só com o `t`', () => {
+    // Por isso quem chama PRECISA conferir o `t` e deixar o frame seguir quando não bate.
+    expect(maybeControlFrame(JSON.stringify({ t: 'send', text: 'accounts-list' }), 'accounts-list', 'set-admin')).toBe(true);
+  });
+
+  it('não casa com aspas escapadas dentro de texto', () => {
+    expect(maybeControlFrame(JSON.stringify({ t: 'send', text: 'o "set-admin" faz o quê?' }), 'set-admin')).toBe(false);
+  });
+
+  it('descarta frame grande sem varrer a string (upload de 32MB não paga parse)', () => {
+    expect(maybeControlFrame(`{"t":"upload","d":"${'A'.repeat(5000)}"}`, 'upload')).toBe(false);
   });
 });
