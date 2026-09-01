@@ -1,8 +1,16 @@
-import { describe, it, expect, afterEach } from 'vitest';
-import { writeFileSync, rmSync } from 'node:fs';
+import { describe, it, expect, afterEach, beforeAll, afterAll, vi } from 'vitest';
+import { writeFileSync, rmSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+// projectsDir num temp, não o do CONFIG real: aquele resolve pro diretório de
+// sessões VIVO (~/.claude/projects/-home-<user>), então este teste escrevia um
+// JSONL falso no meio das sessões de verdade — e quebrava de saída em qualquer
+// máquina onde esse dir ainda não existe (foi assim que o CI estreou vermelho).
+const cfg = vi.hoisted(() => ({ CONFIG: { projectsDir: '', historyLimit: 500 } }));
+vi.mock('../config', () => cfg);
+
 import { parseSession, parseFullSession } from './parse';
-import { CONFIG } from '../config';
 
 // Integração end-to-end do reload: escreve um JSONL real com a estrutura EXATA que
 // o `claude -p` grava ao auto-resolver um AskUserQuestion (pergunta → tool_result
@@ -10,7 +18,13 @@ import { CONFIG } from '../config';
 // mensagem (respondível), não enterrada pela continuação. Reproduz o bug "apareceu
 // 1s e sumiu": o re-fetch trazia a continuação por cima da pergunta.
 const SID = 'feedfeed-0000-4000-8000-000000000abc';
-const FILE = join(CONFIG.projectsDir, `${SID}.jsonl`);
+let FILE = '';
+
+beforeAll(() => {
+  cfg.CONFIG.projectsDir = mkdtempSync(join(tmpdir(), 'deck-sessao-'));
+  FILE = join(cfg.CONFIG.projectsDir, `${SID}.jsonl`);
+});
+afterAll(() => rmSync(cfg.CONFIG.projectsDir, { recursive: true, force: true }));
 
 function write(lines: object[]) {
   writeFileSync(FILE, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');

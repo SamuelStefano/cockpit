@@ -1,7 +1,44 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
-import { insideRoot, isDepsDir, buildBench } from './bench';
+import { homedir, tmpdir } from 'node:os';
+
+// O registro do bench mora em `~/.cockpit/bench.json`, então sem isto o teste só
+// passa na máquina de quem tem o alvo registrado — foi como o CI estreou vermelho.
+// `os.homedir()` lê `$HOME` no POSIX, e o REGISTRY é resolvido no import: por isso
+// a home falsa é montada antes, e o módulo entra por import dinâmico.
+const HOME_REAL = process.env.HOME;
+let bench: typeof import('./bench');
+let insideRoot: typeof bench.insideRoot;
+let isDepsDir: typeof bench.isDepsDir;
+let buildBench: typeof bench.buildBench;
+let home = '';
+let root = '';
+let fora = '';
+
+beforeAll(async () => {
+  home = mkdtempSync(join(tmpdir(), 'deck-bench-home-'));
+  root = mkdtempSync(join(tmpdir(), 'deck-bench-repo-'));
+  mkdirSync(join(root, 'src'), { recursive: true });
+  mkdirSync(join(home, '.cockpit'), { recursive: true });
+  fora = join(mkdtempSync(join(tmpdir(), 'deck-bench-fora-')), 'segredo.ts');
+  writeFileSync(fora, 'export default "x";\n');
+  // `deps` aponta pro node_modules deste repo só pra o build achar react/react-dom;
+  // o alvo em si é o diretório temporário.
+  writeFileSync(
+    join(home, '.cockpit', 'bench.json'),
+    JSON.stringify({ 'alvo-teste': { root, deps: join(process.cwd(), 'node_modules') } }),
+  );
+  process.env.HOME = home;
+  bench = await import('./bench');
+  ({ insideRoot, isDepsDir, buildBench } = bench);
+});
+
+afterAll(() => {
+  if (HOME_REAL === undefined) delete process.env.HOME;
+  else process.env.HOME = HOME_REAL;
+  for (const d of [home, root, join(fora, '..')]) rmSync(d, { recursive: true, force: true });
+});
 
 describe('insideRoot', () => {
   it('accepts a file under the root', () => {
@@ -41,11 +78,11 @@ describe('isDepsDir', () => {
 
 describe('buildBench', () => {
   it('refuses empty code', async () => {
-    expect(await buildBench('itera-player', '   ')).toMatchObject({ ok: false });
+    expect(await buildBench('alvo-teste', '   ')).toMatchObject({ ok: false });
   });
 
   it('refuses code above the size cap', async () => {
-    const res = await buildBench('itera-player', 'x'.repeat(129 * 1024));
+    const res = await buildBench('alvo-teste', 'x'.repeat(129 * 1024));
     expect(res.ok).toBe(false);
     expect(res.error).toContain('128KB');
   });
@@ -63,8 +100,8 @@ describe('buildBench', () => {
   // Liberar o `node_modules` de fora não pode virar "qualquer caminho serve".
   it('still refuses a file outside both the root and the deps dir', async () => {
     const res = await buildBench(
-      'itera-player',
-      "import x from '/etc/hostname';\nexport default () => x;",
+      'alvo-teste',
+      `import x from '${fora}';\nexport default () => x;`,
     );
     expect(res.ok).toBe(false);
     expect(res.error).toContain('fora do repo do bench');
