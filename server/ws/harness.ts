@@ -41,21 +41,31 @@ async function runHarnessTask(prompt: string, choice: HarnessModelChoice, contex
     broadcast({ t: 'harness-event', taskId: id, event: e });
   };
 
-  const result = await runTask({ prompt, choice, context, onEvent });
-  const final: HarnessTaskView = {
-    ...running,
-    via: result.via ?? via,
-    tier: result.tier,
-    tierReason: result.tierReason,
-    model: result.model || selectedModel,
-    status: result.status,
-    resultText: result.resultText,
-    costUsd: result.costUsd,
-    inputTokens: result.inputTokens,
-    outputTokens: result.outputTokens,
-    durationMs: Date.now() - startedAt,
-    error: result.error,
-  };
+  // A task já está persistida como 'running': se o motor lançar, fechá-la como
+  // 'error' é obrigatório — senão ela fica eternamente girando na UI e o retry
+  // nunca é oferecido.
+  let final: HarnessTaskView;
+  try {
+    const result = await runTask({ prompt, choice, context, onEvent });
+    final = {
+      ...running,
+      via: result.via ?? via,
+      tier: result.tier,
+      tierReason: result.tierReason,
+      model: result.model || selectedModel,
+      status: result.status,
+      resultText: result.resultText,
+      costUsd: result.costUsd,
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
+      durationMs: Date.now() - startedAt,
+      error: result.error,
+    };
+  } catch (e) {
+    const message = String((e as Error)?.message ?? e);
+    final = { ...running, model: selectedModel, status: 'error', durationMs: Date.now() - startedAt, error: message };
+    onEvent({ kind: 'error', message });
+  }
   finishTask(id, final);
   broadcast({ t: 'harness-task', task: final });
 }

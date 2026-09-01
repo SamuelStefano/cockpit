@@ -24,6 +24,7 @@ import { collectHealth } from '../health';
 import { setEnv, unsetEnv, addMcp, removeMcp, installCli } from '../admin-ops';
 import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
+import { detach } from './detach';
 import { threads, startRun, routeSend, stopSession, drainParked, runParkedInBackground, runParkedNow, type BgRunReject, type NowRunReject } from './runs';
 import { clearAwaiting } from './awaiting';
 import { addParked, removeParked, editParked, moveParked, clearParked, retryParked, parkedView, isQueuePaused, setQueuePaused, REJECT_MESSAGE } from './parked';
@@ -365,7 +366,10 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     // CLI, gasta a chave pay-as-you-go, seleção de modelo sempre explícita.
     case 'harness-get':
     case 'harness-run': {
-      void handleHarnessMsg(ws, msg);
+      // Detached de propósito (o harness roda por minutos e não pode segurar o
+      // loop de mensagens), mas SEM catch a rejeição escapa do .catch da conexão
+      // e cai no unhandledRejection, que derruba o backend e mata TODOS os runs.
+      detach(ws, handleHarnessMsg(ws, msg));
       return;
     }
     // Admin write-ops (#162). authorize() já garante role admin (default-deny);
@@ -462,7 +466,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // Sessão ocupada → triador decide o destino (esperar/responder/prioridade/
       // juntar). Livre → roda direto como antes.
       if (threads.has(msg.sessionKey)) {
-        void routeSend(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.maxBudgetUsd, msg.bypass, role, disallowedSkills, msg.mcps, msg.effort);
+        detach(ws, routeSend(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.maxBudgetUsd, msg.bypass, role, disallowedSkills, msg.mcps, msg.effort), msg.sessionKey);
       } else {
         startRun(ws, msg.sessionKey, msg.text, msg.sessionId, msg.msgId, msg.mode, msg.model, msg.maxBudgetUsd, msg.bypass, role, disallowedSkills, msg.mcps, msg.effort, msg.auto === true);
       }
