@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { COMPACT_SILENCE_MS, frameFingerprint, isCompacting, silenceExplained } from './compacting';
 import { CONTEXT_LIMIT } from '../../lib/format';
-import type { Block, Message, ToolCall } from '../../data/mock';
+import type { Block, Message, ToolCall } from '../../data/types';
 
 const cheio = Math.round(CONTEXT_LIMIT * 0.9);
 const folgado = Math.round(CONTEXT_LIMIT * 0.4);

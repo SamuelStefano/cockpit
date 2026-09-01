@@ -1,4 +1,4 @@
-import type { Block } from '../../data/mock';
+import type { Block } from '../../data/types';
 import type { NarrationNote, ShownMessage } from './shown';
 import { isQuestionTool } from './visible-blocks';
 

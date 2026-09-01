@@ -1,6 +1,6 @@
 import { Icon } from './primitives';
 import { usePersisted } from '../lib/persist';
-import { initials } from './avatar.initials';
+import { initials } from './avatar/initials';
 
 // Avatar do usuário no chat: SÓ exibe (não troca a imagem ao clicar). A troca de
 // avatar vive no menu de perfil do header — clicar na bolha do chat não deve abrir

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { pdfSafe, fileSlug, codeExt, threadToMarkdown, messageToText } from './export';
-import type { Message } from '../data/mock';
+import type { Message } from '../data/types';
 
 describe('fileSlug', () => {
   it('lowercases and dasherizes', () => {

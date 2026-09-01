@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { collapseTurnNarration } from './turn-narration';
 import type { ShownMessage } from './shown';
-import type { Block, Message, ToolCall } from '../../data/mock';
+import type { Block, Message, ToolCall } from '../../data/types';
 
 const user = (id: string): Message => ({ id, role: 'user', text: 'oi' });
 const done = (id: string, blocks: Block[]): Message => ({ id, role: 'assistant', blocks, stats: { durationMs: 10 } });

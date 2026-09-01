@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import type { Session } from '../../data/mock';
+import type { Session } from '../../data/types';
 import { usePersisted } from '../../lib/persist';
 import { PINS_KEY, TAGS_KEY, syncEnabled, pushPinsRemote, pushTagsRemote } from '../../lib/session-prefs';
 import { filterSessions } from './filter';

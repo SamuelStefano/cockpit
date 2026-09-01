@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { SysStats, TurnStats } from '../../shared/protocol';
 import { relReset } from '../lib/time';
 import { CONTEXT_LIMIT, ctxPct } from '../lib/format';
-import { fmtBytes, meterTone } from './statusBar.format';
+import { fmtBytes, meterTone } from './status-bar-format';
 
 // Stats do Claude na barra inferior: sempre visível, em todo layout. % de
 // contexto + tokens, duração do último turno e — só quando rate-limited — aviso

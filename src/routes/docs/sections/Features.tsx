@@ -1,5 +1,5 @@
 import { SectionTitle, FeatureCard } from '../atoms';
-import { FEATURES } from '../../docs.data';
+import { FEATURES } from '../../docs-data';
 
 export function Features() {
   return (

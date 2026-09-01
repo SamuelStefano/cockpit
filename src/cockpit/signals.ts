@@ -1,4 +1,4 @@
-import type { Session } from '../data/mock';
+import type { Session } from '../data/types';
 
 // Sinais derivados do sidebar, puros e testáveis (extraídos do useCockpit).
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Registry, type Sock } from './src/routing';
+import { Registry, type Sock } from './routing';
 
 function fakeSock(): Sock & { sent: string[] } {
   const sent: string[] = [];

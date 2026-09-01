@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { hasVisibleAssistantContent, isQuestionTool } from './visible-blocks';
-import type { Block, ToolCall } from '../../data/mock';
+import type { Block, ToolCall } from '../../data/types';
 
 const tool = (over: Partial<ToolCall> = {}): Block => ({
   type: 'tool',

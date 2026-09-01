@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { filterCommands, groupByOrder } from './commandPalette.filter';
+import { filterCommands, groupByOrder } from './command-palette-filter';
 
 const cmds = [
   { label: 'Ir para Chat', group: 'Navegar' },

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Block, ToolCall } from '../data/mock';
+import type { Block, ToolCall } from '../data/types';
 import { upsertTool, appendDelta, appendThinking } from './blocks';
 
 const tool = (over: Partial<ToolCall> = {}): ToolCall => ({

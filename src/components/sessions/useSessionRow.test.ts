@@ -2,7 +2,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useSessionRow } from './useSessionRow';
-import type { Session } from '../../data/mock';
+import type { Session } from '../../data/types';
 
 const sess = (over: Partial<Session> = {}): Session => ({ id: 's1', title: 'Título', ...over }) as Session;
 

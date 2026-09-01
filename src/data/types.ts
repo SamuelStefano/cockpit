@@ -1,5 +1,5 @@
 // Tipos de chat = fonte única em shared/protocol (re-export p/ os componentes).
-// Aqui ficam só os tipos/seed de TERMINAL (Fase posterior ainda em mock).
+// Aqui ficam só os tipos de sessão/terminal do lado do cliente.
 export type {
   ToolCall, ToolQuestion, ToolQuestionOption, ToolTodo, TextBlock, CodeBlock, ToolBlock, Block,
   UserMessage, AssistantMessage, CompactMessage, PrLink, Message,

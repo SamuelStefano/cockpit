@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Icon, tokens } from '../primitives';
-import type { ToolTodo } from '../../data/mock';
+import type { ToolTodo } from '../../data/types';
 
 interface TodoPanelProps {
   todos: ToolTodo[];

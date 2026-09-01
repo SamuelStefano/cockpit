@@ -1,4 +1,4 @@
-import type { Block, ToolCall } from '../../data/mock';
+import type { Block, ToolCall } from '../../data/types';
 
 // AskUserQuestion sempre conta como visível: é uma ação que o usuário PRECISA
 // ver pra desbloquear o turno, mesmo com as tools ocultas.

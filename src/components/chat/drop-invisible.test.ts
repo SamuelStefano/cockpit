@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { dropInvisible } from './drop-invisible';
-import type { Message, ToolCall } from '../../data/mock';
+import type { Message, ToolCall } from '../../data/types';
 
 const tool = (extra?: Partial<ToolCall>): ToolCall =>
   ({ id: 't', name: 'Bash', label: 'Bash', command: 'ls', status: 'done', output: [], ...extra });

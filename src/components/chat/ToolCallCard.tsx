@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Icon, Markdown, tokens } from '../primitives';
 import { usePersisted } from '../../lib/persist';
-import type { ToolCall } from '../../data/mock';
+import type { ToolCall } from '../../data/types';
 import { DiffView } from './DiffView';
 import { McpAppFrame } from './McpAppFrame';
 import { TodoPanel } from './TodoPanel';

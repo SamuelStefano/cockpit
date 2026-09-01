@@ -1,4 +1,4 @@
-import type { Message } from '../data/mock';
+import type { Message } from '../data/types';
 
 // Pergunta pendente do agente (AskUserQuestion) ainda sem resposta do usuário.
 function asksQuestion(m: Message): boolean {

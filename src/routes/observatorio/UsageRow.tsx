@@ -1,6 +1,6 @@
 import { Icon } from '../../components/primitives';
 import type { SessionUsage } from '../../../shared/protocol';
-import { fmtNum as fmt } from '../observatorio.format';
+import { fmtNum as fmt } from '../observatorio-format';
 import { fmtCost, relPast } from '../../../shared/format';
 
 const CTX_WINDOW = 200_000;

@@ -7,7 +7,7 @@ import { collapseTurnNarration } from './turn-narration';
 import type { ShownMessage } from './shown';
 import { usePersisted } from '../../lib/persist';
 import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT, GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT } from '../../lib/prefs';
-import type { Message } from '../../data/mock';
+import type { Message } from '../../data/types';
 
 // A lista que a thread realmente renderiza, em ordem:
 // 1. clampToPendingQuestion trava numa pergunta pendente do agente — o `claude -p`

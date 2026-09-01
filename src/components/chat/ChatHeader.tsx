@@ -4,7 +4,7 @@ import { HistoryControls } from './HistoryControls';
 import { ExportMenu } from './ExportMenu';
 import { TurnStat } from './TurnStat';
 import { ContextMeter } from './ContextMeter';
-import type { Session, Message } from '../../data/mock';
+import type { Session, Message } from '../../data/types';
 import type { TurnStats } from '../../../shared/protocol';
 
 interface ChatHeaderProps {

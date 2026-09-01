@@ -1,7 +1,7 @@
 import { Badge } from '../primitives';
 import { usePersisted } from '../../lib/persist';
 import { SHOW_SESSION_DESC_KEY, SHOW_SESSION_DESC_DEFAULT } from '../../lib/prefs';
-import type { Session } from '../../data/mock';
+import type { Session } from '../../data/types';
 import { Highlight } from './Highlight';
 import { SessionRowTags } from './SessionRowTags';
 import { SessionStatusDot } from './SessionStatusDot';

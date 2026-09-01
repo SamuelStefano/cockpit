@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
-import { prettyModel } from './toolbar.format';
+import { prettyModel } from './toolbar-format';
 import { pendingQuestionIdx } from '../../cockpit/pending-question';
-import type { Session, Message } from '../../data/mock';
+import type { Session, Message } from '../../data/types';
 import type { PermMode, ModelInfo, ParkedView } from '../../../shared/protocol';
 import { parseAttachments, replaceBody } from '../../lib/parse-attachments';
 

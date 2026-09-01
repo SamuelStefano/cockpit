@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Icon } from './primitives';
-import { filterCommands } from './commandPalette.filter';
+import { filterCommands } from './command-palette-filter';
 import { usePaletteCommands } from './usePaletteCommands';
 import { CommandPaletteResults } from './CommandPaletteResults';
 import type { Route } from '../useRoute';
 import type { PermMode } from '../../shared/protocol';
-import type { Session } from '../data/mock';
+import type { Session } from '../data/types';
 
 interface CommandPaletteProps {
   open: boolean;

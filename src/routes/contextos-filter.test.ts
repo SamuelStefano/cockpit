@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { countByType, filterContexts, resolveWikilink } from './contextos.filter';
+import { countByType, filterContexts, resolveWikilink } from './contextos-filter';
 import type { ContextMeta } from '../../shared/protocol';
 
 const ctx = (over: Partial<ContextMeta>): ContextMeta => ({

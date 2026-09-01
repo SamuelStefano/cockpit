@@ -1,4 +1,4 @@
-import type { IconName } from './commandPalette.types';
+import type { IconName } from './command-palette-types';
 
 export interface UiSeed { id: string; label: string; icon: IconName; prompt: string }
 

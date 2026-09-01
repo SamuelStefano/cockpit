@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
 import { mergeServerSessions, isCronPing } from './session';
-import type { Session } from '../data/mock';
+import type { Session } from '../data/types';
 import type { SessionMeta } from '../../shared/protocol';
 
 const meta = (over: Partial<SessionMeta> = {}): SessionMeta => ({

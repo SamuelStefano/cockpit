@@ -1,4 +1,4 @@
-import type { Message, ToolCall } from '../../data/mock';
+import type { Message, ToolCall } from '../../data/types';
 
 // Uma nota de bastidor: texto que o agente escreveu no meio do turno pra narrar o
 // próximo passo, não a resposta final. Guarda o id da mensagem de origem + índice

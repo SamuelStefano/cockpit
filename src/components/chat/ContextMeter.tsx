@@ -1,5 +1,5 @@
 import { Icon } from '../primitives';
-import { contextMeter, CONTEXT_LIMIT } from './toolbar.format';
+import { contextMeter, CONTEXT_LIMIT } from './toolbar-format';
 
 // O medidor mostra quanto do contexto o último turno ocupou; perto do teto,
 // sugere abrir nova sessão.

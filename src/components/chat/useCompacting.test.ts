@@ -4,7 +4,7 @@ import { act, renderHook } from '@testing-library/react';
 import { useCompacting } from './useCompacting';
 import { COMPACT_SILENCE_MS } from './compacting';
 import { CONTEXT_LIMIT } from '../../lib/format';
-import type { Message } from '../../data/mock';
+import type { Message } from '../../data/types';
 
 const cheio = Math.round(CONTEXT_LIMIT * 0.9);
 const fala = (md: string): Message[] => [{ id: 'a1', role: 'assistant', blocks: [{ type: 'text', md }] }];

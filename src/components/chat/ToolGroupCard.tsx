@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Icon, tokens } from '../primitives';
-import type { ToolCall } from '../../data/mock';
+import type { ToolCall } from '../../data/types';
 import { ToolCallCard } from './ToolCallCard';
 
 interface ToolGroupCardProps {

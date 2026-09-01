@@ -1,6 +1,6 @@
 import { useEffect, type Dispatch, type SetStateAction } from 'react';
 import { usePersisted } from '../lib/persist';
-import type { Session } from '../data/mock';
+import type { Session } from '../data/types';
 import type { Route } from '../useRoute';
 
 interface Args {

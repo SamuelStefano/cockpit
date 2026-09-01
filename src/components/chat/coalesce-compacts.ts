@@ -1,4 +1,4 @@
-import type { Message, CompactMessage, PrLink } from '../../data/mock';
+import type { Message, CompactMessage, PrLink } from '../../data/types';
 
 // Colapsa runs consecutivos de divisores (role 'compact') do MESMO kind num
 // divisor único — sessões de loop noturno acumulam dezenas de wakeups seguidos e

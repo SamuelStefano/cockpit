@@ -1,6 +1,6 @@
 import { Icon } from '../../../components/primitives';
 import { Pill, Kbd, SectionTitle, Card } from '../atoms';
-import { SLASH, KEYS } from '../../docs.data';
+import { SLASH, KEYS } from '../../docs-data';
 
 export function Commands() {
   return (

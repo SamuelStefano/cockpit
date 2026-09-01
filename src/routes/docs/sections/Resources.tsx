@@ -1,5 +1,5 @@
 import { SectionTitle, ResourceRow, Callout } from '../atoms';
-import { RESOURCES } from '../../docs.data';
+import { RESOURCES } from '../../docs-data';
 
 export function Resources() {
   return (

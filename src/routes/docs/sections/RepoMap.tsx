@@ -1,5 +1,5 @@
 import { Icon } from '../../../components/primitives';
-import { FILEMAP } from '../../docs.data';
+import { FILEMAP } from '../../docs-data';
 import { SectionTitle, Card, Pill } from '../atoms';
 
 export function RepoMap() {

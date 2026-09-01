@@ -1,4 +1,4 @@
-import type { Block, ToolCall } from '../data/mock';
+import type { Block, ToolCall } from '../data/types';
 
 export function upsertTool(blocks: Block[], tool: ToolCall): Block[] {
   const i = blocks.findIndex((b) => b.type === 'tool' && b.tool.id === tool.id);

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Icon } from '../primitives';
-import type { Session } from '../../data/mock';
+import type { Session } from '../../data/types';
 
 export function ArchivedSection({ archived, onUnhide, onDelete, onView }: { archived: Session[]; onUnhide: (id: string) => void; onDelete?: (id: string) => void; onView?: (id: string) => void }) {
   const [open, setOpen] = useState(false);

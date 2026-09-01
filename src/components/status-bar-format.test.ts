@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fmtBytes, meterTone } from './statusBar.format';
+import { fmtBytes, meterTone } from './status-bar-format';
 
 describe('fmtBytes', () => {
   it('returns "0" for zero', () => {

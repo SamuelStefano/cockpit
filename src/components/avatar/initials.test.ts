@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { initials } from './avatar.initials';
+import { initials } from './initials';
 
 describe('initials', () => {
   it('returns "" for blank names', () => {

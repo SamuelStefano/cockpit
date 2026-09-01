@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { supabaseStore } from './src/store';
+import { supabaseStore } from './store';
 
 function fakeFetch(routes: Record<string, { ok?: boolean; body?: unknown }>) {
   const calls: { url: string; init?: RequestInit }[] = [];
