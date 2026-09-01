@@ -7,7 +7,7 @@ import {
   Graph, Harness, Admin, Docs, DesignSystem, Playground,
 } from './lazyRoutes';
 import type { SessionsPanelProps } from '../components/Sessions';
-import type { ChatPanelProps } from '../components/Chat';
+import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import type { TerminalsPanelProps } from '../components/Terminals';
 import type { Terminal } from '../data/mock';
 import type { useCockpit } from '../useCockpit';

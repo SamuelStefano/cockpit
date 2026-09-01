@@ -1,5 +1,6 @@
 import { SessionsPanel, type SessionsPanelProps } from '../components/Sessions';
-import { ChatPanel, type ChatPanelProps } from '../components/Chat';
+import { ChatPanel } from '../components/Chat';
+import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import { TerminalsPanel, type TerminalsPanelProps } from '../components/Terminals';
 import { CollapsedRail } from '../components/chrome/CollapsedRail';
 import { CollapseBtn } from '../components/chrome/CollapseBtn';

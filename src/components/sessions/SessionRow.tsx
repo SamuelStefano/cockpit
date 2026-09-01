@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react';
 import { Badge } from '../primitives';
 import { usePersisted } from '../../lib/persist';
 import { SHOW_SESSION_DESC_KEY, SHOW_SESSION_DESC_DEFAULT } from '../../lib/prefs';
@@ -9,6 +8,7 @@ import { SessionStatusDot } from './SessionStatusDot';
 import { SessionRowMeta } from './SessionRowMeta';
 import { RunStatus } from './RunStatus';
 import { useSessionRow } from './useSessionRow';
+import { InlineEdit } from './InlineEdit';
 import { useLongPress } from './useLongPress';
 import { ctxWarn, isIdle } from './row-meta';
 import { fmtCost } from '../../../shared/format';
@@ -40,22 +40,10 @@ export interface SessionRowProps {
 }
 
 export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated, runStart, pinned, tags = [], marathon, onToggleMarathon, onTogglePin, onAddTag, onRemoveTag, onFilterTag, onSelect, onRename, onDescribe, onClose, onDelete, onStop }: SessionRowProps) {
-  const { editing, setEditing, draft, setDraft, descEditing, setDescEditing, descDraft, setDescDraft, tagging, setTagging, tagDraft, setTagDraft, inputRef, descRef, tagRef, commit, commitDesc, commitTag } = useSessionRow({ s, onAddTag, onRename, onDescribe });
+  const { editing, setEditing, draft, setDraft, descEditing, setDescEditing, descDraft, setDescDraft, tagging, setTagging, tagDraft, setTagDraft, rowRef, commit, commitDesc, commitTag } = useSessionRow({ s, onAddTag, onRename, onDescribe });
   const [showDesc] = usePersisted<boolean>(SHOW_SESSION_DESC_KEY, SHOW_SESSION_DESC_DEFAULT);
   const { open: actionsOpen, setOpen: setActionsOpen, consumeTap, handlers } = useLongPress(() => {});
   const warn = ctxWarn(ctx);
-  const rowRef = useRef<HTMLDivElement>(null);
-  const wasInlineEditing = useRef(false);
-
-  // Fechar a edição inline (Esc/Enter) desmonta o input e o foco cai pro body;
-  // devolve pro card. Só quando caiu pro body — clique em outro lugar (blur que
-  // também fecha) não deve ter o foco roubado.
-  useEffect(() => {
-    if (editing || descEditing || tagging) { wasInlineEditing.current = true; return; }
-    if (!wasInlineEditing.current) return;
-    wasInlineEditing.current = false;
-    if (document.activeElement === document.body) rowRef.current?.focus();
-  }, [editing, descEditing, tagging]);
 
   return (
     <div
@@ -77,17 +65,10 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
       {active && <span className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full bg-gradient-to-b from-orange-400 to-orange-600" />}
       <div className="mb-1.5 flex items-start justify-between gap-2">
         {editing ? (
-          <input
-            ref={inputRef}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.nativeEvent.isComposing) return;
-              if (e.key === 'Enter') { e.preventDefault(); commit(); }
-              if (e.key === 'Escape') { e.preventDefault(); setDraft(s.title); setEditing(false); }
-            }}
-            onClick={(e) => e.stopPropagation()}
+          <InlineEdit
+            value={draft} onChange={setDraft} onCommit={commit}
+            onCancel={() => { setDraft(s.title); setEditing(false); }}
+            label="Editar título da sessão"
             className="w-full rounded border border-orange-500/50 bg-neutral-950 px-1.5 py-0.5 text-[12.5px] font-medium text-neutral-100 outline-none ring-2 ring-orange-500/20"
           />
         ) : (
@@ -124,20 +105,12 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
         )}
       </div>
       {!editing && (descEditing ? (
-        <textarea
-          ref={descRef}
-          value={descDraft}
-          onChange={(e) => setDescDraft(e.target.value)}
-          onBlur={commitDesc}
-          onKeyDown={(e) => {
-            if (e.nativeEvent.isComposing) return;
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); commitDesc(); }
-            if (e.key === 'Escape') { e.preventDefault(); setDescDraft(s.summary || ''); setDescEditing(false); }
-          }}
-          onClick={(e) => e.stopPropagation()}
-          rows={2}
+        <InlineEdit
+          multiline rows={2}
+          value={descDraft} onChange={setDescDraft} onCommit={commitDesc}
+          onCancel={() => { setDescDraft(s.summary || ''); setDescEditing(false); }}
           placeholder="Descrição da sessão…"
-          aria-label="Editar descrição da sessão"
+          label="Editar descrição da sessão"
           className="mt-0.5 w-full resize-none rounded border border-orange-500/50 bg-neutral-950 px-1.5 py-1 text-[11.5px] leading-snug text-neutral-200 outline-none ring-2 ring-orange-500/20"
         />
       ) : showDesc ? (
@@ -158,7 +131,7 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
           {isIdle(s.mtime, !!running) && <Badge tone="neutral">ociosa</Badge>}
           {(tags.length > 0 || tagging) && (
             <SessionRowTags
-              id={s.id} tags={tags} tagging={tagging} tagDraft={tagDraft} tagRef={tagRef}
+              id={s.id} tags={tags} tagging={tagging} tagDraft={tagDraft}
               setTagDraft={setTagDraft} setTagging={setTagging} commitTag={commitTag}
               onRemoveTag={onRemoveTag} onFilterTag={onFilterTag}
             />

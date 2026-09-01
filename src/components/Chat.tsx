@@ -4,6 +4,7 @@ import { subscribeRefine } from './primitives/livepreview/refine-bus';
 import { MessageRow, Thinking } from './chat/MessageView';
 import { ChatEmpty, ChatInput } from './chat/ChatInput';
 import { ChatHeader } from './chat/ChatHeader';
+import { ScrollAffordances } from './chat/ScrollAffordances';
 import { TaskTray } from './chat/TaskTray';
 import { latestTodos } from './chat/task-tray';
 import { useShownMessages } from './chat/useShownMessages';
@@ -14,95 +15,11 @@ import { ClaudeAuthBanner } from './chat/ClaudeAuthBanner';
 import { SaturationBanner } from './chat/SaturationBanner';
 import { useChatPanel, type Phase } from './chat/useChatPanel';
 import { useFileDrop } from './chat/useFileDrop';
-import type { Session, Message, ToolTodo } from '../data/mock';
-import type { PermMode, Effort, ModelInfo, TurnStats, Caps, SkillMeta, BgAgent, ParkedView } from '../../shared/protocol';
 import { BackgroundAgents } from './chat/BackgroundAgents';
-import type { Attachment, AttachmentPreview } from '../useCockpit';
 import { AttachmentModal } from './chat/AttachmentModal';
+import type { ChatPanelProps } from './chat/chat-panel-props';
 
 export type { Phase };
-
-export interface ChatPanelProps {
-  session: Session | null;
-  messages: Message[];
-  phase: Phase;
-  // Escrita externa (turno do terminal) na sessão ativa há <5s — acende a
-  // estrelinha mesmo sem run do app (paridade com acompanhar pelo terminal).
-  terminalBusy?: boolean;
-  // Estado corrente da lista de tarefas (arquivo inteiro, via frame history) —
-  // fallback do tray quando a janela visível não tem snapshot (pós-compact).
-  sessionTodos?: ToolTodo[];
-  // Tópicos de continuação pós-turno (chips estilo ChatGPT) + dispensa.
-  followups?: string[];
-  onDismissFollowups?: () => void;
-  draft: string;
-  setDraft: (v: string) => void;
-  onSend: (text: string, modeOverride?: PermMode) => void;
-  onPrompt: (text: string) => void;
-  onStop: () => void;
-  mode: PermMode;
-  setMode: (m: PermMode) => void;
-  caps: Caps | null;
-  claudeReady?: boolean;
-  bypass: boolean;
-  setBypass: (b: boolean) => void;
-  model: string;
-  setModel: (m: string) => void;
-  models: ModelInfo[];
-  onRefreshModels: () => void;
-  effort: Effort;
-  setEffort: (e: Effort) => void;
-  skills: SkillMeta[];
-  selectedSkills: string[];
-  setSelectedSkills: (ids: string[]) => void;
-  mcpServers: string[];
-  selectedMcps: string[];
-  setSelectedMcps: (ids: string[]) => void;
-  slashCommands: string[];
-  contextTokens: number;
-  liveTurnTokens?: number;
-  turnStartedAt?: number;
-  bgAgents?: BgAgent[];
-  lastTurn?: TurnStats;
-  onNew: () => void;
-  onHandoff?: (sessionId: string) => void;
-  handoffBusy?: boolean;
-  attachments: Attachment[];
-  onUpload: (file: File) => void;
-  onRemoveAttachment: (path: string) => void;
-  attPreview?: AttachmentPreview | null;
-  onAttOpen?: (path: string, name: string) => void;
-  onAttClose?: () => void;
-  attThumbs?: Record<string, string>;
-  onAttThumb?: (path: string) => void;
-  onEditUser?: (id: string, text: string) => void;
-  onQuote?: (text: string) => void;
-  onRename?: (id: string, title: string) => void;
-  onOpenFull?: (id: string) => void;
-  onLoadOlder?: (id: string) => void;
-  onOpenSummary?: (id: string) => void;
-  truncated?: boolean;
-  onShowHelp?: () => void;
-  lastEnd?: string;
-  focusSignal?: number;
-  onTerminal?: () => void;
-  terminalRunning?: boolean;
-  isMobile?: boolean;
-  quotaPaused?: boolean;
-  quotaResetsAt?: number | null;
-  queue: ParkedView[];
-  queueAdd: (text: string) => void;
-  queueRemove: (sessionKey: string, id: string) => void;
-  queueEdit: (sessionKey: string, id: string, text: string) => void;
-  queueMove: (sessionKey: string, id: string, dir: -1 | 1) => void;
-  queueClear: (sessionKey: string) => void;
-  queuePaused: boolean;
-  queueSetPaused: (v: boolean) => void;
-  queueRetry: (sessionKey: string, id: string) => void;
-  queueRunBg: (sessionKey: string, id: string, model?: string) => void;
-  queueRunNow: (sessionKey: string, id: string) => void;
-  queueForce: (sessionKey: string) => void;
-}
 
 export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, followups, onDismissFollowups, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce }: ChatPanelProps) {
   const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg, queueRunNow });
@@ -174,26 +91,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
       </div>
 
       {!c.isEmpty && !c.atBottom && (
-        <div className="fade-up absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2">
-          {c.promptAbove && (
-            <button
-              onClick={c.scrollToLastPrompt}
-              title="Voltar ao meu prompt"
-              className="flex h-7 items-center gap-1 rounded-full border border-neutral-800/70 bg-neutral-900/60 px-2.5 text-[11px] font-medium text-neutral-500 opacity-60 backdrop-blur-sm transition hover:border-orange-500/30 hover:text-orange-200 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
-            >
-              <Icon name="arrowUp" size={11} /> meu prompt
-            </button>
-          )}
-          {!c.atBottom && (
-            <button
-              onClick={c.scrollToBottom}
-              title="Ir para o fim"
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-700 bg-neutral-800 text-neutral-300 shadow-lg shadow-black/40 transition hover:bg-neutral-700 hover:text-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
-            >
-              <Icon name="chevronDown" size={16} />
-            </button>
-          )}
-        </div>
+        <ScrollAffordances promptAbove={c.promptAbove} onScrollToPrompt={c.scrollToLastPrompt} onScrollToBottom={c.scrollToBottom} />
       )}
       </div>
 

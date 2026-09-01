@@ -1,12 +1,11 @@
-import type { RefObject } from 'react';
 import { Icon } from '../primitives';
+import { InlineEdit } from './InlineEdit';
 
 interface SessionRowTagsProps {
   id: string;
   tags: string[];
   tagging: boolean;
   tagDraft: string;
-  tagRef: RefObject<HTMLInputElement>;
   setTagDraft: (v: string) => void;
   setTagging: (v: boolean) => void;
   commitTag: () => void;
@@ -14,7 +13,7 @@ interface SessionRowTagsProps {
   onFilterTag?: (tag: string) => void;
 }
 
-export function SessionRowTags({ id, tags, tagging, tagDraft, tagRef, setTagDraft, setTagging, commitTag, onRemoveTag, onFilterTag }: SessionRowTagsProps) {
+export function SessionRowTags({ id, tags, tagging, tagDraft, setTagDraft, setTagging, commitTag, onRemoveTag, onFilterTag }: SessionRowTagsProps) {
   // Sem wrapper próprio: as etiquetas fluem na faixa de meta do card, junto dos
   // badges de estado, em vez de abrir mais uma linha.
   return (
@@ -30,18 +29,10 @@ export function SessionRowTags({ id, tags, tagging, tagDraft, tagRef, setTagDraf
         </span>
       ))}
       {tagging && (
-        <input
-          ref={tagRef}
-          aria-label="Adicionar etiqueta"
-          value={tagDraft}
-          onChange={(e) => setTagDraft(e.target.value)}
-          onBlur={commitTag}
-          onKeyDown={(e) => {
-            if (e.nativeEvent.isComposing) return;
-            if (e.key === 'Enter') commitTag();
-            if (e.key === 'Escape') { e.preventDefault(); setTagDraft(''); setTagging(false); }
-          }}
-          onClick={(e) => e.stopPropagation()}
+        <InlineEdit
+          label="Adicionar etiqueta"
+          value={tagDraft} onChange={setTagDraft} onCommit={commitTag}
+          onCancel={() => { setTagDraft(''); setTagging(false); }}
           placeholder="etiqueta…"
           className="w-20 rounded-full border border-sky-500/40 bg-neutral-950 px-1.5 py-px text-[9.5px] text-sky-200 outline-none placeholder-neutral-600"
         />
