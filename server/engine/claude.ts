@@ -154,7 +154,15 @@ export function run(opts: RunOpts): RunHandle {
   // do banner correto de "teto atingido / Continuar". Visto o result, o exit não
   // é mais um crash a reportar.
   let sawResult = false;
+  // Erro nos pipes é ESPERADO no caminho normal: o kill() manda SIGKILL no grupo com
+  // a leitura em voo, e o pipe morre embaixo (EPIPE/ECONNRESET). Sem handler isso vira
+  // uncaughtException e o backstop do index.ts derruba o backend INTEIRO — todos os
+  // chats, por causa de um stop. Tratar só o stream não basta: o readline REEMITE o
+  // erro do input na própria Interface, e 'error' sem listener volta a ser throw.
+  // Nada a reportar: o close handler abaixo já decide o que o usuário vê.
   const rl = createInterface({ input: child.stdout! });
+  rl.on('error', () => {});
+  child.stdout!.on('error', () => {});
   rl.on('line', (line) => {
     const s = line.trim();
     if (!s) return;
@@ -172,6 +180,7 @@ export function run(opts: RunOpts): RunHandle {
   // que o erro de close usa (slice(-300)); o resto não serve pra nada.
   const STDERR_CAP = 8192;
   let stderr = '';
+  child.stderr!.on('error', () => {});
   child.stderr!.on('data', (d) => {
     stderr += String(d);
     if (stderr.length > STDERR_CAP) stderr = stderr.slice(-STDERR_CAP);

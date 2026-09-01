@@ -12,6 +12,11 @@ const INCIDENTS_PATH = process.env.COCKPIT_INCIDENTS ?? join(homedir(), '.cockpi
 // (e engole o disco da box, que é pequena).
 const CAP_BYTES = 256 * 1024;
 const KEEP_LINES = 200;
+// Teto por LINHA. O teto do arquivo é conferido ANTES do append, então um único
+// detail gordo (dump de stderr) passa por cima dele e vira prompt caro pro triador.
+// Os chamadores hoje truncam por conta própria; o teto mora aqui pra que um chamador
+// novo não precise lembrar.
+const MAX_DETAIL = 400;
 
 export type IncidentKind = 'silent-death' | 'orphan-resume' | 'run-error' | 'resume-exhausted' | 'reaped' | 'parked-requeue-cap' | 'parked-lock-timeout' | 'parked-resume-morto' | 'parked-migrate-reject';
 
@@ -33,7 +38,8 @@ export function recordIncident(i: Omit<Incident, 'ts'>): void {
   try {
     mkdirSync(dirname(INCIDENTS_PATH), { recursive: true });
     rotateIfBig();
-    appendFileSync(INCIDENTS_PATH, `${JSON.stringify({ ts: new Date().toISOString(), ...i })}\n`, 'utf8');
+    const detail = i.detail ? i.detail.slice(0, MAX_DETAIL) : undefined;
+    appendFileSync(INCIDENTS_PATH, `${JSON.stringify({ ts: new Date().toISOString(), ...i, detail })}\n`, 'utf8');
   } catch { /* log é diagnóstico, não crítico */ }
 }
 
