@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
+import { withFileLock } from './file-lock';
 
 // Sessões cujo último turno terminou em AskUserQuestion e aguardam a RESPOSTA do
 // usuário. Vive fora de runs.ts/translate.ts pra evitar import circular (runs →
@@ -37,17 +38,25 @@ export function isAwaiting(sessionKey: string): boolean {
   return load().has(sessionKey);
 }
 
+// Sob trava porque `load(); mutate; save()` roda nos DOIS processos (handlers no
+// index por loopback, drainer no agente): sem ela as duas escritas partem da mesma
+// versão e a segunda apaga a primeira. Perder um `setAwaiting` remove justamente o
+// latch que segura o flush da fila — o atropelo que este módulo existe pra evitar.
 export function setAwaiting(sessionKey: string): void {
-  const keys = load();
-  if (keys.has(sessionKey)) return;
-  keys.add(sessionKey);
-  save(keys);
+  withFileLock(AWAITING_PATH, () => {
+    const keys = load();
+    if (keys.has(sessionKey)) return;
+    keys.add(sessionKey);
+    save(keys);
+  });
 }
 
 export function clearAwaiting(sessionKey: string): void {
-  const keys = load();
-  if (!keys.delete(sessionKey)) return;
-  save(keys);
+  withFileLock(AWAITING_PATH, () => {
+    const keys = load();
+    if (!keys.delete(sessionKey)) return;
+    save(keys);
+  });
 }
 
 export function clearAllAwaiting(): void {

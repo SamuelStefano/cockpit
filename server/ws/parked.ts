@@ -1,10 +1,10 @@
-import { readFileSync, writeFileSync, mkdirSync, renameSync, openSync, closeSync, statSync, fstatSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import type { Role } from '../auth';
 import type { ParkedView } from '../../shared/protocol';
 import { CONFIG } from '../config';
-import { recordIncident } from './incidents';
+import { withFileLock } from './file-lock';
 
 // Fila ESTACIONADA (overnight/quota-out), distinta da fila `pending` do runs.ts
 // (triagem in-turn, drenada no onClose). Aqui ficam os prompts que o usuário
@@ -106,47 +106,10 @@ function saveParked(map: ParkedMap): void {
   renameSync(tmp, PARKED_PATH);
 }
 
-const LOCK_PATH = `${PARKED_PATH}.lock`;
-// Dono do lock que morreu no meio (deploy, OOM) não pode travar a fila pra sempre.
-const LOCK_STALE_MS = 5_000;
-
 // Ler-modificar-escrever acontece em DOIS processos: o drainer roda no agente e os
 // handlers queue-* podem rodar no index por loopback. Sem exclusão mútua a escrita
 // de um sobrescreve a do outro — e a escrita perdida é um prompt do usuário.
-function withParkedLock<T>(fn: () => T): T {
-  mkdirSync(dirname(PARKED_PATH), { recursive: true });
-  const sleeper = new Int32Array(new SharedArrayBuffer(4));
-  let fd: number | undefined;
-  for (let i = 0; i < 100 && fd === undefined; i++) {
-    try {
-      fd = openSync(LOCK_PATH, 'wx');
-    } catch {
-      try {
-        if (Date.now() - statSync(LOCK_PATH).mtimeMs > LOCK_STALE_MS) rmSync(LOCK_PATH, { force: true });
-      } catch { /* outro processo liberou entre o stat e o rm */ }
-      Atomics.wait(sleeper, 0, 0, 5);
-    }
-  }
-  // Sem o lock depois de ~500ms, segue mesmo assim: perder a corrida é raro, não
-  // executar a operação (enfileirar, devolver) perderia o prompt com certeza.
-  // Mas segue REGISTRADO — é a única janela em que a fila ainda pode perder um
-  // item, e ela não pode voltar a ser silenciosa como era o bug original.
-  if (fd === undefined) recordIncident({ kind: 'parked-lock-timeout', sessionKey: '-', detail: `lock preso ha >500ms em ${LOCK_PATH}` });
-  // Identidade do lock que EU criei. Se outro processo tiver me declarado morto e
-  // recriado o arquivo, o inode muda — e apagar às cegas no finally derrubaria o
-  // lock DELE, deixando um terceiro entrar enquanto ele escreve.
-  const ino = fd === undefined ? undefined : fstatSync(fd).ino;
-  try {
-    return fn();
-  } finally {
-    if (fd !== undefined) {
-      closeSync(fd);
-      try {
-        if (statSync(LOCK_PATH).ino === ino) rmSync(LOCK_PATH, { force: true });
-      } catch { /* já removido por reclaim de outro processo */ }
-    }
-  }
-}
+const withParkedLock = <T>(fn: () => T): T => withFileLock(PARKED_PATH, fn);
 
 export function parkedView(): ParkedView[] {
   const map = loadParked();

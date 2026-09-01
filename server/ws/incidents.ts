@@ -18,7 +18,7 @@ const KEEP_LINES = 200;
 // novo não precise lembrar.
 const MAX_DETAIL = 400;
 
-export type IncidentKind = 'silent-death' | 'orphan-resume' | 'run-error' | 'resume-exhausted' | 'reaped' | 'parked-requeue-cap' | 'parked-lock-timeout' | 'parked-resume-morto' | 'parked-migrate-reject';
+export type IncidentKind = 'silent-death' | 'orphan-resume' | 'run-error' | 'resume-exhausted' | 'reaped' | 'parked-requeue-cap' | 'file-lock-timeout' | 'parked-resume-morto' | 'parked-migrate-reject';
 
 export interface Incident {
   ts: string;
