@@ -1,5 +1,6 @@
 import { Badge, EmptyState, Icon, Markdown, Stat } from '../../components/primitives';
 import type { HarnessEvent, HarnessTaskView } from '../../../shared/protocol';
+import { fmtTaskCost } from './task-cost';
 
 interface Props {
   task: HarnessTaskView | null;
@@ -7,12 +8,6 @@ interface Props {
 }
 
 const TIER_TONE = { simple: 'green', medium: 'yellow', complex: 'orange' } as const;
-
-function fmtCost(usd?: number): string {
-  if (usd == null) return '—';
-  if (usd === 0) return 'grátis';
-  return usd < 0.01 ? `$${usd.toFixed(4)}` : `$${usd.toFixed(3)}`;
-}
 
 export function HarnessFeed({ task, events }: Props) {
   if (!task) {
@@ -56,7 +51,7 @@ export function HarnessFeed({ task, events }: Props) {
         <div className="grid grid-cols-3 gap-2">
           {task.via === 'plan'
             ? <Stat label="custo" value="plano" sub="US$0 · cota" icon="claude" tone="green" />
-            : <Stat label="custo" value={fmtCost(task.costUsd)} sub="estimado" icon="zap" tone={task.costUsd ? 'orange' : 'green'} />}
+            : <Stat label="custo" value={fmtTaskCost(task.costUsd)} sub="estimado" icon="zap" tone={task.costUsd ? 'orange' : 'green'} />}
           <Stat label="tokens" value={((task.inputTokens ?? 0) + (task.outputTokens ?? 0)).toLocaleString('pt-BR')} sub={`${task.outputTokens ?? 0} saída`} icon="claude" />
           <Stat label="duração" value={`${((task.durationMs ?? 0) / 1000).toFixed(1)}s`} icon="clock" />
         </div>
