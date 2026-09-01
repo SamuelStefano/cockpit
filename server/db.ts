@@ -98,6 +98,10 @@ export function priceOf(model: string | null): Price {
   if (m.includes('opus')) return PRICES.opus;
   if (m.includes('haiku')) return PRICES.haiku;
   if (m.includes('sonnet')) return PRICES.sonnet;
+  // fable é oferecido no seletor do harness (policy.ts) no MESMO tier do opus
+  // ('complex'). Sem esta linha caía no default sonnet e uma chamada paga aparecia
+  // por ~1/5 do custo — subestimar gasto real é pior que arredondar pra cima.
+  if (m.includes('fable')) return PRICES.opus;
   return DEFAULT_PRICE;
 }
 

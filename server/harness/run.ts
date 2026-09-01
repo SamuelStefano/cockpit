@@ -114,7 +114,7 @@ async function runSingle(
     });
     stream.on('text', (delta) => onEvent({ kind: 'text', text: delta }));
     const final = await stream.finalMessage();
-    return finalize(final, target, tier, tierReason, onEvent);
+    return finalize(final, target.model, target.model, tier, tierReason, onEvent);
   } catch (err) {
     const message = errMessage(err);
     onEvent({ kind: 'error', message });
@@ -150,7 +150,7 @@ async function runOrchestrated(
     });
     stream.on('text', (delta) => onEvent({ kind: 'text', text: delta }));
     const final = await stream.finalMessage();
-    return finalize(final, { model: `${executor}+${advisor}` }, tier, tierReason, onEvent);
+    return finalize(final, `${executor}+${advisor}`, executor, tier, tierReason, onEvent);
   } catch (err) {
     const message = errMessage(err);
     onEvent({ kind: 'error', message });
@@ -170,15 +170,19 @@ interface FinalMessage {
   stop_reason?: string | null;
 }
 
+// `model` é o RÓTULO exibido; `priceModel` é o que vai pra tabela de preço. Eles
+// divergem no orquestrado, onde o rótulo é "executor+advisor": `priceOf` casa por
+// SUBSTRING na ordem opus→haiku→sonnet, então um executor haiku com advisor opus
+// era cobrado a preço de opus (~19× o input). O preço sai do modelo que executou.
 function finalize(
-  final: FinalMessage, target: Pick<ResolvedTarget, 'model'>,
+  final: FinalMessage, model: string, priceModel: string,
   tier: HarnessTier, tierReason: string, onEvent: RunOpts['onEvent'],
 ): RunResult {
   const text = final.content.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('');
   const u = final.usage;
   const inTok = (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0);
   const outTok = u.output_tokens ?? 0;
-  const costUsd = costOf(target.model, {
+  const costUsd = costOf(priceModel, {
     input: u.input_tokens ?? 0,
     output: outTok,
     cacheRead: u.cache_read_input_tokens ?? 0,
@@ -191,7 +195,7 @@ function finalize(
     : text;
   onEvent({ kind: 'done', costUsd });
   return {
-    tier, tierReason, model: target.model, via: 'api',
+    tier, tierReason, model, via: 'api',
     status: 'done', resultText, costUsd, inputTokens: inTok, outputTokens: outTok,
   };
 }
