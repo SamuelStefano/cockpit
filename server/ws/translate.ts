@@ -1,6 +1,7 @@
 import type { ClaudeEvent } from '../engine/events';
 import { recordUsage } from '../db';
-import { ctxTokens, num, contentHasQuestion } from '../sessions/parse';
+import { ctxTokens, num } from '../sessions/records';
+import { contentHasQuestion } from '../sessions/tool-views';
 import { broadcast } from './broadcast';
 import { applySlashCommands } from './slash';
 import { setLastRate } from './rate';
