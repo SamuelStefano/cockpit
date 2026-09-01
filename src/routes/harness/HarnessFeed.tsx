@@ -28,7 +28,21 @@ export function HarnessFeed({ task, events }: Props) {
         {task.via === 'plan' && <Badge tone="green">plano</Badge>}
         {task.model && <Badge tone="neutral">{task.model}</Badge>}
         {task.tierReason && task.mode !== 'model' && <Badge tone={TIER_TONE[task.tier]}>{task.tier}</Badge>}
+        {task.context === 'pentest' && <Badge tone="orange"><Icon name="shield" size={9} />pentest</Badge>}
       </div>
+
+      {/* O contexto de pentest troca o system prompt da task (server/harness/prompt.ts).
+          Era gravado no banco e trafegado em HarnessTaskView.context, mas nenhuma tela
+          mostrava: depois de rodar não dava pra saber sob qual enquadramento a resposta
+          saiu — justamente o dado que importa numa task de segurança. */}
+      {task.context === 'pentest' && (
+        <div className="flex items-start gap-1.5 rounded-lg border border-orange-500/20 bg-orange-500/[0.06] px-3 py-2">
+          <Icon name="shield" size={12} className="mt-0.5 shrink-0 text-orange-400/80" />
+          <span className="text-[11.5px] leading-relaxed text-orange-200/70">
+            Rodou com o contexto de pentest autorizado no system prompt.
+          </span>
+        </div>
+      )}
 
       {task.tierReason && task.tierReason !== 'seleção manual' && (
         <div className="flex items-start gap-1.5 rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2">

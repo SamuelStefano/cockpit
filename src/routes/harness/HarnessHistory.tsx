@@ -27,6 +27,11 @@ export function HarnessHistory({ tasks, activeId }: Props) {
             >
               <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${t.status === 'error' ? 'bg-red-400' : 'bg-green-400'}`} />
               <span className="min-w-0 flex-1 truncate text-[12px] text-neutral-300">{t.prompt}</span>
+              {t.context === 'pentest' && (
+                <span title="Rodou com o contexto de pentest autorizado" className="shrink-0 text-orange-400/80">
+                  <Icon name="shield" size={11} />
+                </span>
+              )}
               {t.model && <Badge tone="neutral">{t.model}</Badge>}
               {t.costUsd != null && <span className="shrink-0 text-[10.5px] tabular-nums text-neutral-500">{fmtTaskCost(t.costUsd)}</span>}
               <span className="shrink-0 text-[10.5px] tabular-nums text-neutral-600">{relPast(t.ts)}</span>
