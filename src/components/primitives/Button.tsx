@@ -1,7 +1,7 @@
 import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Icon, type IconName } from './Icon';
 
-type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'dangerSolid';
 type ButtonSize = 'sm' | 'md';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -24,6 +24,9 @@ const variants: Record<ButtonVariant, string> = {
   outline: 'border border-neutral-800 bg-neutral-900 text-neutral-200 hover:border-orange-500/40 hover:bg-orange-500/[0.06] hover:text-orange-300',
   ghost: 'bg-transparent text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100',
   danger: 'bg-neutral-800 text-neutral-200 hover:bg-red-500/20 hover:text-red-400 hairline',
+  // Destrutivo já CONFIRMADO (CTA de modal): peso visual de primário. O `danger`
+  // discreto some entre os outros botões quando é a ação principal do diálogo.
+  dangerSolid: 'bg-red-500/90 text-white hover:bg-red-500',
 };
 
 const sizes: Record<ButtonSize, string> = {

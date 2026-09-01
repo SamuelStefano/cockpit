@@ -35,6 +35,15 @@ export const tokens = {
   elevation: { sm: 'elev-1', md: 'elev-2' },
   // Item ativo/selecionado: aro + halo quente discretos (acento vira jóia).
   activeGlow: 'glow-active',
+  // Halo externo do selo da marca (logo das telas de entrada).
+  accentGlow: 'shadow-[0_0_12px_-1px_rgba(249,115,22,0.55)]',
+  // Aro interno de 1px na cor do estado: marca "ligado" em toggle/chip sem somar
+  // 1px de borda ao layout (border mudaria a caixa e faria o item pular ao alternar).
+  insetRing: {
+    accent: 'shadow-[inset_0_0_0_1px_rgba(249,115,22,0.4)]',
+    warn: 'shadow-[inset_0_0_0_1px_rgba(245,158,11,0.4)]',
+    err: 'shadow-[inset_0_0_0_1px_rgba(239,68,68,0.4)]',
+  },
   // Realce de acento (botão primário/destaques): gradiente quente + brilho de jóia.
   accentGradient: 'bg-gradient-to-b from-orange-500 to-orange-600',
 } as const;

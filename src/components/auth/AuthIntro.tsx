@@ -1,4 +1,4 @@
-import { Icon } from '../primitives';
+import { BrandMark, Icon } from '../primitives';
 import type { IconName } from '../primitives';
 
 interface Feature {
@@ -35,15 +35,7 @@ const FEATURES: Feature[] = [
 export function AuthIntro() {
   return (
     <div className="hidden max-w-md flex-col justify-center lg:flex">
-      <div className="mb-5 flex items-center gap-2.5">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-neutral-950 shadow-[0_0_12px_-1px_rgba(249,115,22,0.55)]">
-          <Icon name="terminal" size={16} stroke={2.4} />
-        </span>
-        <div>
-          <div className="font-mono text-[17px] font-semibold lowercase tracking-tight text-neutral-100">deck</div>
-          <div className="text-[12px] text-neutral-500">o Claude Code da sua VPS, em qualquer tela</div>
-        </div>
-      </div>
+      <BrandMark title="deck" subtitle="o Claude Code da sua VPS, em qualquer tela" size="lg" className="mb-5" />
 
       <div className="space-y-4">
         {FEATURES.map((f) => (

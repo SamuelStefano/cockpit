@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Icon, Input } from '../primitives';
+import { BrandMark, Button, Icon, Input } from '../primitives';
 import { VpsConnectForm } from '../VpsConnectForm';
 
 // Tela de login (DR-011 Fase 2). Só aparece quando o servidor exige token
@@ -13,15 +13,7 @@ export function AuthGate({ onSubmit }: { onSubmit: (token: string) => void }) {
   return (
     <div className="flex h-full flex-1 items-center justify-center bg-neutral-950 px-4">
       <form onSubmit={submit} className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900/60 p-7 shadow-2xl">
-        <div className="mb-5 flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-neutral-950 shadow-[0_0_12px_-1px_rgba(249,115,22,0.55)]">
-            <Icon name="terminal" size={16} stroke={2.4} />
-          </span>
-          <div>
-            <div className="font-mono text-[15px] font-semibold lowercase tracking-tight text-neutral-100">deck</div>
-            <div className="text-[11px] text-neutral-500">acesso restrito</div>
-          </div>
-        </div>
+        <BrandMark title="deck" subtitle="acesso restrito" className="mb-5" />
         <label htmlFor="gate-token" className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-neutral-400">
           <Icon name="shield" size={12} /> Token de acesso
         </label>
@@ -33,13 +25,7 @@ export function AuthGate({ onSubmit }: { onSubmit: (token: string) => void }) {
           autoFocus
           placeholder="cole o token do servidor"
         />
-        <button
-          type="submit"
-          disabled={!token.trim()}
-          className="mt-3 w-full rounded-lg bg-orange-500 px-3 py-2 text-[13px] font-medium text-neutral-950 transition hover:bg-orange-400 disabled:opacity-50"
-        >
-          Entrar
-        </button>
+        <Button type="submit" disabled={!token.trim()} className="mt-3 w-full">Entrar</Button>
         <p className="mt-3 text-[11px] leading-relaxed text-neutral-600">
           Este Deck controla a VPS. O token vem da variável <span className="font-mono text-neutral-500">COCKPIT_TOKEN</span> do servidor
           e fica salvo só neste navegador.
