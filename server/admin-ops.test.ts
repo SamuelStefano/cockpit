@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { setEnv, addMcp, installCli, INSTALLABLE, validateMcpUrl } from './admin-ops';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { setEnv, addMcp, installCli, INSTALLABLE, validateMcpUrl, claudeReady } from './admin-ops';
 
 // Cobre os guards que rejeitam ANTES de tocar o disco (#162): validação de nome,
 // allow-list de instalação e exigência de alvo do MCP. As escritas reais (env.json,
@@ -50,5 +53,80 @@ describe('validateMcpUrl (SSRF/exfil no admin-mcp-add)', () => {
 
   it('rejeita url malformada', () => {
     expect(validateMcpUrl('not a url').ok).toBe(false);
+  });
+});
+
+// O banner de login é a ÚNICA tela que sabe explicar por que o turno morreu sem
+// produzir nada; ele só aparece quando claudeReady() diz false. Um falso "pronto"
+// esconde a explicação exatamente no caso em que ela é necessária.
+describe('claudeReady', () => {
+  let home = '';
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), 'ready-'));
+    mkdirSync(join(home, '.claude'), { recursive: true });
+    mkdirSync(join(home, '.config', 'anthropic'), { recursive: true });
+    vi.stubEnv('ANTHROPIC_API_KEY', '');
+    vi.stubEnv('ANTHROPIC_AUTH_TOKEN', '');
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  const writeCreds = (o: unknown) => writeFileSync(join(home, '.claude', '.credentials.json'), JSON.stringify(o));
+  const oauth = (extra: Record<string, unknown> = {}) => ({ claudeAiOauth: { accessToken: 'tok', refreshToken: 'ref', expiresAt: Date.now() + 60_000, ...extra } });
+
+  it('reconhece o login OAuth do CLI', () => {
+    writeCreds(oauth());
+    expect(claudeReady(home)).toBe(true);
+  });
+
+  it('não vê login em box sem credencial nenhuma', () => {
+    expect(claudeReady(home)).toBe(false);
+  });
+
+  it('recusa credencial de 0 byte', () => {
+    writeFileSync(join(home, '.config', 'anthropic', 'credentials'), '');
+    expect(claudeReady(home)).toBe(false);
+  });
+
+  // O caso que passava batido: quem configurou um MCP server tem o arquivo cheio de
+  // tokens de OAuth de MCP sem nunca ter logado na conta Claude.
+  it('recusa credentials.json que só tem OAuth de MCP', () => {
+    writeCreds({ mcpOAuth: { 'miro|abc': { accessToken: 'x' } } });
+    expect(claudeReady(home)).toBe(false);
+  });
+
+  it('recusa credentials.json corrompido', () => {
+    writeFileSync(join(home, '.claude', '.credentials.json'), '{ nao e json');
+    expect(claudeReady(home)).toBe(false);
+  });
+
+  it('recusa accessToken vazio', () => {
+    writeCreds(oauth({ accessToken: '' }));
+    expect(claudeReady(home)).toBe(false);
+  });
+
+  // Vencido AINDA é login: o CLI renova sozinho com o refreshToken.
+  it('aceita token vencido que tem refreshToken', () => {
+    writeCreds(oauth({ expiresAt: Date.now() - 60_000 }));
+    expect(claudeReady(home)).toBe(true);
+  });
+
+  it('recusa token vencido sem refreshToken', () => {
+    writeCreds({ claudeAiOauth: { accessToken: 'tok', expiresAt: Date.now() - 60_000 } });
+    expect(claudeReady(home)).toBe(false);
+  });
+
+  it('a key no env dispensa arquivo de credencial', () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'sk-ant-x');
+    expect(claudeReady(home)).toBe(true);
+  });
+
+  // Env setada como string em branco é sobra de `export ANTHROPIC_API_KEY=` num
+  // .bashrc — dizia "pronto" e o spawn morria com 401.
+  it('recusa key em branco no env', () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', '   ');
+    expect(claudeReady(home)).toBe(false);
   });
 });
