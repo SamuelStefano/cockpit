@@ -23,37 +23,37 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.116.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@supabase/supabase-js": "^2.107.0",
+    "@supabase/supabase-js": "^2.112.4",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
-    "better-sqlite3": "^12.10.0",
+    "better-sqlite3": "^12.11.1",
     "esbuild": "^0.21.5",
-    "jose": "^6.2.3",
+    "jose": "^6.2.10",
     "jspdf": "^4.2.1",
     "node-pty": "^1.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "shiki": "^4.3.1",
+    "shiki": "^4.4.3",
     "sucrase": "^3.35.1",
-    "tsx": "^4.22.4",
-    "ws": "^8.21.0"
+    "tsx": "^4.23.13",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
-    "@testing-library/react": "^16.3.2",
+    "@testing-library/react": "^16.3.3",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^25.9.1",
+    "@types/node": "^25.9.5",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.1",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^4.3.1",
-    "autoprefixer": "^10.4.20",
+    "autoprefixer": "^10.5.4",
     "jsdom": "^29.1.1",
     "playwright": "^1.60.0",
-    "postcss": "^8.4.49",
+    "postcss": "^8.5.26",
     "react-native-web": "^0.19.13",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.6.3",
     "vite": "^5.4.11",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.11"
   }
 }
