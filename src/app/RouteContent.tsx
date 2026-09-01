@@ -14,7 +14,7 @@ import type { useCockpit } from '../useCockpit';
 import type { Route } from '../useRoute';
 
 interface LayoutState {
-  rowRef: React.RefObject<HTMLDivElement>;
+  rowRef: React.RefObject<HTMLDivElement | null>;
   leftW: number;
   rightW: number;
   leftCollapsed: boolean;

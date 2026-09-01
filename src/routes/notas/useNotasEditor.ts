@@ -7,7 +7,7 @@ export function useNotasEditor(notes: string, notesLoaded: boolean, onNotesGet: 
   const [text, setText] = useState(notes);
   const [saved, setSaved] = useState(true);
   const seeded = useRef(false);
-  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const latest = useRef(text);
   latest.current = text;
 

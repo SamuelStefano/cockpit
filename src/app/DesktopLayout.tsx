@@ -9,7 +9,7 @@ export interface DesktopLayoutProps {
   sessionsProps: SessionsPanelProps;
   chatProps: ChatPanelProps;
   termProps: TerminalsPanelProps;
-  rowRef: React.RefObject<HTMLDivElement>;
+  rowRef: React.RefObject<HTMLDivElement | null>;
   leftW: number;
   rightW: number;
   leftCollapsed: boolean;
