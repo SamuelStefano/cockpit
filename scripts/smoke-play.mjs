@@ -22,7 +22,24 @@ try {
   await page.goto(`${BASE}/play`, { waitUntil: 'networkidle', timeout: 20000 });
   ok('/play carrega');
 
-  // React (template default) — o contador mostra "clique pra contar".
+  // App é a aba PADRÃO e a única que não usa iframe: o código é transpilado e
+  // avaliado na árvore React do próprio Deck (useAppSandbox), pra poder montar os
+  // componentes reais do design system. Como não tem iframe, ficou fora do smoke
+  // por anos — justamente o modo que abre primeiro.
+  const appH2 = () => page.locator('h2').first().innerText().catch(() => '');
+  if ((await appH2()).includes('Botões')) ok('App: tela do design system monta na árvore do Deck (sem iframe)');
+  else fail(`App não montou a tela padrão — "${(await appH2()).slice(0, 60)}"`);
+  const appTa = page.locator('textarea').first();
+  await appTa.focus();
+  await appTa.fill('export default function App(){ return <div><h2>APP_EDIT_OK</h2></div>; }');
+  await page.waitForTimeout(900);
+  if ((await appH2()).includes('APP_EDIT_OK')) ok('App: editar re-renderiza na árvore ao vivo');
+  else fail(`edição no modo App não refletiu — "${(await appH2()).slice(0, 60)}"`);
+
+  // Os runtimes abaixo vivem no iframe, então o smoke precisa sair do App
+  // explicitamente — sem isto ele esperava por um iframe que nunca ia existir e
+  // acusava o /play de quebrado por um modo que estava funcionando.
+  await page.getByRole('button', { name: 'React', exact: true }).first().click();
   const reactText = await frameText();
   if (reactText.includes('clique pra contar')) ok('React: template renderiza no preview');
   else fail(`React não renderizou — "${reactText.slice(0, 60)}"`);
