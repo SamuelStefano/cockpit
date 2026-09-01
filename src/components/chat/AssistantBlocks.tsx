@@ -7,7 +7,7 @@ import { isQuestionTool as isQuestion } from './visible-blocks';
 function ThinkingCard({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-lg border border-violet-500/15 bg-violet-500/[0.04]">
+    <div className="rounded-lg border border-violet-500/15 bg-violet-500/4">
       <button
         onClick={() => setOpen((o) => !o)}
         title="Pensamento interno do modelo (extended thinking) — não faz parte da resposta final"

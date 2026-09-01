@@ -9,7 +9,7 @@ export const PHONE_SCREEN = { width: 300, height: 620 };
 export function PhoneFrame({ children }: { children: ReactNode }) {
   return (
     <div className="flex justify-center bg-neutral-950 py-5">
-      <div className="relative rounded-[44px] border-[10px] border-neutral-800 bg-black shadow-2xl shadow-black/60"
+      <div className="relative rounded-[44px] border-10 border-neutral-800 bg-black shadow-2xl shadow-black/60"
         style={{ width: PHONE_SCREEN.width + 20, height: PHONE_SCREEN.height + 20 }}>
         <div className="absolute left-1/2 top-0 z-20 h-6 w-32 -translate-x-1/2 rounded-b-2xl bg-neutral-800" />
         <div className="h-full w-full overflow-hidden rounded-[34px] bg-white">{children}</div>

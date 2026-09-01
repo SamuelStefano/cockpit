@@ -9,7 +9,7 @@ export function ClaudeAvatar({ size = 28 }: { size?: number }) {
   const preset = findAiAvatar(id);
   return (
     <div
-      className="flex shrink-0 items-center justify-center rounded-full text-neutral-950 shadow-sm shadow-orange-500/25"
+      className="flex shrink-0 items-center justify-center rounded-full text-neutral-950 shadow-xs shadow-orange-500/25"
       style={{ width: size, height: size, background: preset.bg }}
     >
       {preset.emoji ? (

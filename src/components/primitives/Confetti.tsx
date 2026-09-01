@@ -58,7 +58,7 @@ export function ConfettiHost() {
 
   if (!bursts.length) return null;
   return (
-    <div className="pointer-events-none fixed inset-0 z-[60] overflow-hidden" aria-hidden="true">
+    <div className="pointer-events-none fixed inset-0 z-60 overflow-hidden" aria-hidden="true">
       {bursts.map((burst) =>
         burst.pieces.map((p) => (
           <span

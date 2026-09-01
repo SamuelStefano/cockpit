@@ -85,8 +85,8 @@ export function StepCard({ step, title, children }: { step: number; title: strin
 }
 
 const CALLOUT_TONES = {
-  amber: { box: 'border-amber-500/20 bg-amber-500/[0.06]', icon: 'text-amber-400/80', text: 'text-amber-200/80' },
-  sky: { box: 'border-sky-500/20 bg-sky-500/[0.06]', icon: 'text-sky-400/80', text: 'text-sky-200/80' },
+  amber: { box: 'border-amber-500/20 bg-amber-500/6', icon: 'text-amber-400/80', text: 'text-amber-200/80' },
+  sky: { box: 'border-sky-500/20 bg-sky-500/6', icon: 'text-sky-400/80', text: 'text-sky-200/80' },
   red: { box: 'border-red-500/25 bg-red-500/[0.07]', icon: 'text-red-400/80', text: 'text-red-200/80' },
 } as const;
 

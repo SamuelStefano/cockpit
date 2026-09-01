@@ -30,7 +30,7 @@ export function QueuedBgLauncher({ id, model, models, onRun, onCancel }: {
         value={chosen}
         onChange={(e) => setChosen(e.target.value)}
         aria-label="Modelo do agente em background"
-        className={`rounded border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-300 outline-none transition hover:border-neutral-700 focus:border-orange-500/40 sm:px-1.5 sm:py-0.5 sm:text-[10.5px] ${tokens.focusRing}`}
+        className={`rounded-sm border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-300 outline-hidden transition hover:border-neutral-700 focus:border-orange-500/40 sm:px-1.5 sm:py-0.5 sm:text-[10.5px] ${tokens.focusRing}`}
       >
         {list.map((o) => <option key={o.id} value={o.id}>{prettyModel(o.id, o.displayName)}</option>)}
       </select>

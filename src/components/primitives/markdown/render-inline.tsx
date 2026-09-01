@@ -26,7 +26,7 @@ export function renderInline(text: string, keyBase: string): ReactNode[] {
         break;
       case 'code':
         nodes.push(
-          <code key={key} className="rounded bg-neutral-800 px-1.5 py-0.5 font-mono text-[0.86em] text-orange-300">
+          <code key={key} className="rounded-sm bg-neutral-800 px-1.5 py-0.5 font-mono text-[0.86em] text-orange-300">
             {t.value}
           </code>
         );

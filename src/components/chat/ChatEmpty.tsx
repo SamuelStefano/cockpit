@@ -33,7 +33,7 @@ export function ChatEmpty({ onPrompt }: ChatEmptyProps) {
           <button
             key={t.label}
             onClick={() => onPrompt(t.prompt)}
-            className="group relative flex flex-col gap-2 overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/50 p-3.5 text-left transition hover:-translate-y-0.5 hover:border-orange-500/40 hover:bg-neutral-900 hover:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.7)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
+            className="group relative flex flex-col gap-2 overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/50 p-3.5 text-left transition hover:-translate-y-0.5 hover:border-orange-500/40 hover:bg-neutral-900 hover:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.7)] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40"
           >
             <span className="flex items-center justify-between">
               <span className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-600 transition group-hover:text-orange-400">

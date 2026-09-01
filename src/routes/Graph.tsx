@@ -42,7 +42,7 @@ export function Graph(p: Props) {
       />
 
       {p.buildError && (
-        <div className="flex shrink-0 items-start gap-2 border-b border-red-500/20 bg-red-500/[0.06] px-4 py-2.5">
+        <div className="flex shrink-0 items-start gap-2 border-b border-red-500/20 bg-red-500/6 px-4 py-2.5">
           <Badge tone="red">build falhou</Badge>
           <div className="min-w-0 flex-1">
             <div className="text-[12px] text-neutral-300">{p.buildError}</div>

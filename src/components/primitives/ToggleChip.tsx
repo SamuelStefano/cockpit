@@ -18,7 +18,7 @@ const onTone: Record<ChipTone, string> = {
 
 const ring: Record<ChipTone, string> = {
   accent: tokens.focusRing,
-  danger: 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40',
+  danger: 'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-red-500/40',
 };
 
 // Chip de liga/desliga da barra do compositor (skills, MCP, bypass). A geometria

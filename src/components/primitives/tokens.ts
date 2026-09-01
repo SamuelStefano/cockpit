@@ -16,7 +16,7 @@ export const tokens = {
     lg: 'rounded-xl',
     full: 'rounded-full',
   },
-  focusRing: 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40',
+  focusRing: 'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40',
   text: {
     primary: 'text-neutral-100',
     secondary: 'text-neutral-300',
@@ -45,7 +45,7 @@ export const tokens = {
     err: 'shadow-[inset_0_0_0_1px_rgba(239,68,68,0.4)]',
   },
   // Realce de acento (botão primário/destaques): gradiente quente + brilho de jóia.
-  accentGradient: 'bg-gradient-to-b from-orange-500 to-orange-600',
+  accentGradient: 'bg-linear-to-b from-orange-500 to-orange-600',
 } as const;
 
 export type ToneColor = keyof typeof tokens.color;

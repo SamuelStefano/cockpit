@@ -49,20 +49,20 @@ function HighlightedCode({ code, lang }: CodeBlockProps) {
           <button
             onClick={() => setWrap((w) => !w)}
             title={wrap ? 'Não quebrar linhas' : 'Quebrar linhas longas'}
-            className={`flex items-center gap-1 rounded px-2 py-1 text-[10px] transition hover:bg-neutral-800 ${wrap ? 'text-orange-300' : 'text-neutral-500 hover:text-neutral-300'}`}
+            className={`flex items-center gap-1 rounded-sm px-2 py-1 text-[10px] transition hover:bg-neutral-800 ${wrap ? 'text-orange-300' : 'text-neutral-500 hover:text-neutral-300'}`}
           >
             <Icon name="wrapText" size={11} />
           </button>
-          <button onClick={save} title="Baixar trecho" className="flex items-center gap-1 rounded px-2 py-1 text-[10px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300">
+          <button onClick={save} title="Baixar trecho" className="flex items-center gap-1 rounded-sm px-2 py-1 text-[10px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300">
             <Icon name="download" size={11} />
           </button>
-          <button onClick={() => copy(code)} className={`flex items-center gap-1 rounded px-2 py-1 text-[10px] transition hover:bg-neutral-800 ${failed ? 'text-red-400' : 'text-neutral-500 hover:text-neutral-300'}`}>
+          <button onClick={() => copy(code)} className={`flex items-center gap-1 rounded-sm px-2 py-1 text-[10px] transition hover:bg-neutral-800 ${failed ? 'text-red-400' : 'text-neutral-500 hover:text-neutral-300'}`}>
             <Icon name={copied ? 'check' : failed ? 'x' : 'copy'} size={11} />
             {copied ? 'copiado' : failed ? 'falhou' : 'copiar'}
           </button>
         </div>
       </div>
-      <pre className={`scroll-thin overflow-x-auto px-3 py-2.5 text-[12.5px] leading-relaxed ${wrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'}`}>
+      <pre className={`scroll-thin overflow-x-auto px-3 py-2.5 text-[12.5px] leading-relaxed ${wrap ? 'whitespace-pre-wrap wrap-break-word' : 'whitespace-pre'}`}>
         {/* Sem tokens (carregando/offline) = texto puro, sem flash nem erro. */}
         <code className="font-mono text-neutral-200">{tokens ? renderTokens(tokens) : code}</code>
       </pre>

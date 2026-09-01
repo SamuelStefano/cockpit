@@ -50,7 +50,7 @@ function Keys({ keys }: { keys: string[] }) {
   return (
     <span className="flex shrink-0 items-center gap-1">
       {keys.map((k) => (
-        <kbd key={k} className="rounded border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[10px] text-neutral-400">{k}</kbd>
+        <kbd key={k} className="rounded-sm border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[10px] text-neutral-400">{k}</kbd>
       ))}
     </span>
   );
@@ -68,7 +68,7 @@ export function ShortcutsHelp({ open, onClose }: { open: boolean; onClose: () =>
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
@@ -102,7 +102,7 @@ export function ShortcutsHelp({ open, onClose }: { open: boolean; onClose: () =>
               {SLASH.map((s) => (
                 <div key={s.cmd} className="flex items-center justify-between gap-3 rounded-md px-1 py-1">
                   <span className="text-[12.5px] text-neutral-300">{s.label}</span>
-                  <code className="shrink-0 rounded border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[10px] text-orange-300">{s.cmd}</code>
+                  <code className="shrink-0 rounded-sm border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[10px] text-orange-300">{s.cmd}</code>
                 </div>
               ))}
             </div>

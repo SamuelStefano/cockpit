@@ -13,7 +13,7 @@ interface Props {
 export function GraphLegend({ repos, focusRepo, onFocusRepo }: Props) {
   if (repos.length < 2) return null;
   return (
-    <div className="pointer-events-auto absolute bottom-3 right-3 max-h-[46%] w-52 overflow-y-auto rounded-lg border border-neutral-800 bg-neutral-900/95 p-2 shadow-lg backdrop-blur">
+    <div className="pointer-events-auto absolute bottom-3 right-3 max-h-[46%] w-52 overflow-y-auto rounded-lg border border-neutral-800 bg-neutral-900/95 p-2 shadow-lg backdrop-blur-sm">
       <div className="mb-1.5 px-1 text-[10px] uppercase tracking-wide text-neutral-600">{repos.length} apps</div>
       <ul className="flex flex-col gap-0.5">
         {repos.map((r) => {

@@ -53,7 +53,7 @@ export function AskQuestionCard({ tool, answerable, onAnswer }: AskQuestionCardP
   const locked = !answerable || sent;
 
   return (
-    <div className="my-2 overflow-hidden rounded-xl border border-sky-500/30 bg-sky-500/[0.06]">
+    <div className="my-2 overflow-hidden rounded-xl border border-sky-500/30 bg-sky-500/6">
       <div className="flex items-center gap-2.5 px-3 py-2">
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-sky-500/15 text-sky-300">
           <Icon name="message" size={13} />
@@ -67,7 +67,7 @@ export function AskQuestionCard({ tool, answerable, onAnswer }: AskQuestionCardP
         {questions.map((q: ToolQuestion, qi) => (
           <div key={qi} className="space-y-1.5">
             {q.header && (
-              <span className="inline-block rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-sky-300/90">
+              <span className="inline-block rounded-sm bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-sky-300/90">
                 {q.header}
               </span>
             )}
@@ -80,7 +80,7 @@ export function AskQuestionCard({ tool, answerable, onAnswer }: AskQuestionCardP
                     key={oi}
                     onClick={() => toggle(qi, opt.label, q.multiSelect)}
                     disabled={locked}
-                    className={`flex items-start gap-2 rounded-lg border px-2.5 py-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/40 ${
+                    className={`flex items-start gap-2 rounded-lg border px-2.5 py-2 text-left transition focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-sky-500/40 ${
                       picked
                         ? 'border-sky-400/50 bg-sky-500/15'
                         : `border-neutral-800 bg-neutral-900/50 ${locked ? '' : 'hover:border-neutral-700'}`
@@ -88,7 +88,7 @@ export function AskQuestionCard({ tool, answerable, onAnswer }: AskQuestionCardP
                   >
                     <span
                       className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center border text-sky-300 ${
-                        q.multiSelect ? 'rounded' : 'rounded-full'
+                        q.multiSelect ? 'rounded-sm' : 'rounded-full'
                       } ${picked ? 'border-sky-400 bg-sky-500/30' : 'border-neutral-600'}`}
                     >
                       {picked && <Icon name="check" size={11} />}
@@ -110,7 +110,7 @@ export function AskQuestionCard({ tool, answerable, onAnswer }: AskQuestionCardP
           <button
             onClick={submit}
             disabled={!everyAnswered}
-            className="mt-1 inline-flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/15 px-3 py-1.5 text-[12px] font-medium text-sky-100 transition enabled:hover:bg-sky-500/25 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/40"
+            className="mt-1 inline-flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/15 px-3 py-1.5 text-[12px] font-medium text-sky-100 transition enabled:hover:bg-sky-500/25 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-sky-500/40"
           >
             <Icon name="check" size={13} /> Enviar resposta
           </button>

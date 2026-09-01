@@ -14,13 +14,13 @@ export function AttachmentChips({ attachments, onRemoveAttachment }: AttachmentC
           {a.uploading
             ? <Icon name="rotate" size={11} className="spin shrink-0 text-orange-400" />
             : a.s3url && /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i.test(a.name)
-              ? <img src={a.s3url} alt={a.name} className="h-6 w-6 shrink-0 rounded object-cover" />
+              ? <img src={a.s3url} alt={a.name} className="h-6 w-6 shrink-0 rounded-sm object-cover" />
               : <Icon name="paperclip" size={11} />}
           <span className="max-w-[160px] truncate">{a.name}</span>
           <button
             onClick={() => onRemoveAttachment(a.path)}
             title="Remover anexo"
-            className={`flex h-6 w-6 items-center justify-center rounded text-neutral-500 transition hover:bg-neutral-700 hover:text-neutral-200 ${tokens.focusRing}`}
+            className={`flex h-6 w-6 items-center justify-center rounded-sm text-neutral-500 transition hover:bg-neutral-700 hover:text-neutral-200 ${tokens.focusRing}`}
           >
             <Icon name="x" size={11} />
           </button>

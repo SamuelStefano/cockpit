@@ -24,7 +24,7 @@ export function ConsolePanel({ logs, onClear }: { logs: LogEntry[]; onClear: () 
         </span>
         {logs.length > 0 && (
           <button onClick={onClear} title="Limpar console"
-            className="rounded px-1.5 py-0.5 text-[10px] text-neutral-600 transition hover:bg-neutral-800 hover:text-neutral-400">
+            className="rounded-sm px-1.5 py-0.5 text-[10px] text-neutral-600 transition hover:bg-neutral-800 hover:text-neutral-400">
             limpar
           </button>
         )}
@@ -34,7 +34,7 @@ export function ConsolePanel({ logs, onClear }: { logs: LogEntry[]; onClear: () 
           <div className="py-1.5 font-mono text-[11px] text-neutral-600">nenhum log — chame console.log() no código</div>
         ) : (
           logs.map((l) => (
-            <div key={l.n} className={`whitespace-pre-wrap break-words border-b border-neutral-900 py-0.5 font-mono text-[11.5px] leading-snug ${LEVEL_COLOR[l.level] ?? 'text-neutral-300'}`}>
+            <div key={l.n} className={`whitespace-pre-wrap wrap-break-word border-b border-neutral-900 py-0.5 font-mono text-[11.5px] leading-snug ${LEVEL_COLOR[l.level] ?? 'text-neutral-300'}`}>
               {l.text || ' '}
             </div>
           ))

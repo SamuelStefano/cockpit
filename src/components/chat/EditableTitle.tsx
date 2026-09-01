@@ -21,7 +21,7 @@ export function EditableTitle({ id, title, editable, onRename }: EditableTitlePr
           if (e.key === 'Enter') { e.preventDefault(); commit(); }
           else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
         }}
-        className="min-w-0 flex-1 rounded border border-orange-700/60 bg-neutral-800 px-1 py-0.5 text-[12.5px] font-medium text-neutral-100 outline-none"
+        className="min-w-0 flex-1 rounded-sm border border-orange-700/60 bg-neutral-800 px-1 py-0.5 text-[12.5px] font-medium text-neutral-100 outline-hidden"
       />
     );
   }
@@ -34,7 +34,7 @@ export function EditableTitle({ id, title, editable, onRename }: EditableTitlePr
     <button
       onClick={start}
       title="Renomear sessão"
-      className="min-w-0 truncate rounded px-1 py-0.5 text-left text-[12.5px] font-medium text-neutral-300 transition hover:bg-neutral-800 hover:text-neutral-100"
+      className="min-w-0 truncate rounded-sm px-1 py-0.5 text-left text-[12.5px] font-medium text-neutral-300 transition hover:bg-neutral-800 hover:text-neutral-100"
     >
       {title}
     </button>

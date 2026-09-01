@@ -16,7 +16,7 @@ export function ScrollAffordances({ promptAbove, onScrollToPrompt, onScrollToBot
           type="button"
           onClick={onScrollToPrompt}
           title="Voltar ao meu prompt"
-          className={`flex h-7 items-center gap-1 ${tokens.radius.full} border border-neutral-800/70 bg-neutral-900/60 px-2.5 text-[11px] font-medium text-neutral-500 opacity-60 backdrop-blur-sm transition hover:border-orange-500/30 hover:text-orange-200 hover:opacity-100 ${tokens.focusRing}`}
+          className={`flex h-7 items-center gap-1 ${tokens.radius.full} border border-neutral-800/70 bg-neutral-900/60 px-2.5 text-[11px] font-medium text-neutral-500 opacity-60 backdrop-blur-xs transition hover:border-orange-500/30 hover:text-orange-200 hover:opacity-100 ${tokens.focusRing}`}
         >
           <Icon name="arrowUp" size={11} /> meu prompt
         </button>

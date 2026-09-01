@@ -20,7 +20,7 @@ export function McpAppFrame({ tool }: { tool: ToolCall }) {
           <button
             onClick={() => setOpen((o) => !o)}
             title={open ? 'Ocultar o app' : 'Mostrar o app'}
-            className={`ml-auto shrink-0 rounded text-neutral-600 transition hover:text-neutral-300 ${tokens.focusRing}`}
+            className={`ml-auto shrink-0 rounded-sm text-neutral-600 transition hover:text-neutral-300 ${tokens.focusRing}`}
           >
             <Icon name="chevronDown" size={13} style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
           </button>

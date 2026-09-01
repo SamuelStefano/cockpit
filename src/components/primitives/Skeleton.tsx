@@ -3,5 +3,5 @@ interface SkeletonProps {
 }
 
 export function Skeleton({ className = '' }: SkeletonProps) {
-  return <div className={`shimmer rounded ${className}`} />;
+  return <div className={`shimmer rounded-sm ${className}`} />;
 }

@@ -36,7 +36,7 @@ export function TodoPanel({ todos, header = true }: TodoPanelProps) {
         {hidden > 0 && (
           <button
             onClick={() => setShowAll((s) => !s)}
-            className={`mt-1.5 rounded text-[11px] text-neutral-600 transition hover:text-neutral-400 ${tokens.focusRing}`}
+            className={`mt-1.5 rounded-sm text-[11px] text-neutral-600 transition hover:text-neutral-400 ${tokens.focusRing}`}
           >
             {showAll ? 'mostrar menos' : `mostrar todas (+${hidden})`}
           </button>

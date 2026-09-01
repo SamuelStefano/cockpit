@@ -31,7 +31,7 @@ export function Tabs<T extends string>({ items, active, onChange, className = ''
               {it.icon && <Icon name={it.icon} size={13} />}
               {it.label}
               {it.count != null && (
-                <span className={`rounded-full px-1.5 py-[1px] text-[10px] tabular-nums ${on ? 'bg-orange-500/15 text-orange-300' : 'bg-neutral-800 text-neutral-500'}`}>{it.count}</span>
+                <span className={`rounded-full px-1.5 py-px text-[10px] tabular-nums ${on ? 'bg-orange-500/15 text-orange-300' : 'bg-neutral-800 text-neutral-500'}`}>{it.count}</span>
               )}
             </button>
           );

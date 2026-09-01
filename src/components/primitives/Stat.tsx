@@ -14,9 +14,9 @@ interface StatProps {
 
 const tones: Record<StatTone, { value: string; icon: string; glow: string }> = {
   neutral: { value: 'text-neutral-100', icon: 'text-neutral-500', glow: '' },
-  orange: { value: 'text-orange-300', icon: 'text-orange-400', glow: 'bg-orange-500/[0.06]' },
-  green: { value: 'text-green-300', icon: 'text-green-400', glow: 'bg-green-500/[0.06]' },
-  yellow: { value: 'text-yellow-300', icon: 'text-yellow-400', glow: 'bg-yellow-500/[0.06]' },
+  orange: { value: 'text-orange-300', icon: 'text-orange-400', glow: 'bg-orange-500/6' },
+  green: { value: 'text-green-300', icon: 'text-green-400', glow: 'bg-green-500/6' },
+  yellow: { value: 'text-yellow-300', icon: 'text-yellow-400', glow: 'bg-yellow-500/6' },
 };
 
 export function Stat({ label, value, sub, icon, tone = 'neutral', className = '' }: StatProps) {

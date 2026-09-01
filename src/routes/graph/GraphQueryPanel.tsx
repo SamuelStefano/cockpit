@@ -59,7 +59,7 @@ export function GraphQueryPanel({ querying, result, history, onQuery }: Props) {
           <span className="text-[10px] uppercase tracking-wide text-neutral-600">recentes</span>
           {history.map((h) => (
             <button key={h.question} onClick={() => { setQ(h.question); run(h.question); }}
-              className="max-w-[220px] truncate rounded bg-neutral-900 px-1.5 py-0.5 font-mono text-[10.5px] text-neutral-400 hover:text-neutral-200">
+              className="max-w-[220px] truncate rounded-sm bg-neutral-900 px-1.5 py-0.5 font-mono text-[10.5px] text-neutral-400 hover:text-neutral-200">
               {h.question}
             </button>
           ))}
@@ -84,7 +84,7 @@ export function GraphQueryPanel({ querying, result, history, onQuery }: Props) {
                   </span>
                 )}
               </div>
-              <pre className="whitespace-pre-wrap break-words font-mono text-[11.5px] leading-relaxed text-neutral-300">{result.answer || '(sem resultado)'}</pre>
+              <pre className="whitespace-pre-wrap wrap-break-word font-mono text-[11.5px] leading-relaxed text-neutral-300">{result.answer || '(sem resultado)'}</pre>
             </>
           )}
         </div>

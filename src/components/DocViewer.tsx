@@ -79,7 +79,7 @@ export function DocViewer({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-xs" />
       <div
         role="dialog"
         aria-modal="true"
@@ -119,7 +119,7 @@ export function DocViewer({
 
           <div ref={scrollRef} className="scroll-thin flex-1 overscroll-contain overflow-y-auto px-4 py-5 sm:px-7">
             {raw ? (
-              <pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-relaxed text-neutral-400">{body}</pre>
+              <pre className="whitespace-pre-wrap wrap-break-word font-mono text-[12px] leading-relaxed text-neutral-400">{body}</pre>
             ) : (
               <div className="mx-auto max-w-[74ch]">
                 <WikilinkContext.Provider value={onWikilink ?? null}>

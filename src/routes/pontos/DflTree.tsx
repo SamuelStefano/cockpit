@@ -82,7 +82,7 @@ function ProjectBlock({ project, expandAll }: { project: DflProjectNode; expandA
             <div key={ep.id}>
               {!redundantEpicHeader(ep) && (
                 <div className="flex items-baseline gap-2 px-0.5 py-1">
-                  <span className="min-w-0 flex-1 truncate text-[10.5px] font-semibold uppercase tracking-[0.1em] text-neutral-500">{ep.name}</span>
+                  <span className="min-w-0 flex-1 truncate text-[10.5px] font-semibold uppercase tracking-widest text-neutral-500">{ep.name}</span>
                   <span className="shrink-0 text-[10.5px] tabular-nums text-neutral-600">{fmtPts(ep.points)} pts · {brl(ep.amountCents)}</span>
                 </div>
               )}

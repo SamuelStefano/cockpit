@@ -8,7 +8,7 @@ export type WikilinkResolver = (name: string) => void;
 
 export const WikilinkContext = createContext<WikilinkResolver | null>(null);
 
-const chip = 'rounded bg-orange-500/10 px-1 py-px font-medium text-orange-300/90 ring-1 ring-inset ring-orange-500/20';
+const chip = 'rounded-sm bg-orange-500/10 px-1 py-px font-medium text-orange-300/90 ring-1 ring-inset ring-orange-500/20';
 
 export function WikiLink({ value }: { value: string }) {
   const resolve = useContext(WikilinkContext);

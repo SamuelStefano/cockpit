@@ -28,7 +28,7 @@ export function AdminConfirm({
   const glyph = tone === 'danger' ? 'bg-red-500/15 text-red-400' : 'bg-orange-500/15 text-orange-400';
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onCancel}>
+    <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" onClick={onCancel}>
       <div role="dialog" aria-modal="true" aria-label={heading} className="w-full max-w-sm rounded-2xl border border-neutral-700 bg-neutral-900 p-4 shadow-2xl shadow-black/50" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start gap-3">
           <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${glyph}`}>

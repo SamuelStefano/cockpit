@@ -27,22 +27,22 @@ export function ClaudeAuthBanner({ onTerminal }: ClaudeAuthBannerProps) {
               <div>
                 <p className="text-[12px] font-medium text-amber-200/90">1. Login pelo terminal</p>
                 <p className="mt-1 text-[12px] leading-relaxed text-amber-100/70">
-                  Abra um terminal e rode <code className="rounded bg-black/30 px-1 py-0.5 text-amber-200">claude</code> — siga o login.
+                  Abra um terminal e rode <code className="rounded-sm bg-black/30 px-1 py-0.5 text-amber-200">claude</code> — siga o login.
                   Como você está numa VPS, o link de autorização volta para um endereço local
                   <em> da VPS</em>. Crie um túnel SSH no seu PC encaminhando a porta que o
-                  <code className="rounded bg-black/30 px-1 py-0.5 text-amber-200">claude</code> mostrar:
+                  <code className="rounded-sm bg-black/30 px-1 py-0.5 text-amber-200">claude</code> mostrar:
                 </p>
                 <pre className="mt-1.5 overflow-x-auto rounded-lg bg-black/40 px-3 py-2 text-[12px] text-amber-100">
 ssh -L PORTA:localhost:PORTA usuario@sua-vps</pre>
                 <p className="mt-1 text-[12px] leading-relaxed text-amber-100/70">
-                  Depois abra a URL no navegador do seu PC. Se o <code className="rounded bg-black/30 px-1 py-0.5 text-amber-200">claude</code> oferecer
+                  Depois abra a URL no navegador do seu PC. Se o <code className="rounded-sm bg-black/30 px-1 py-0.5 text-amber-200">claude</code> oferecer
                   colar um código, esse caminho dispensa o túnel.
                 </p>
               </div>
               <div>
                 <p className="text-[12px] font-medium text-amber-200/90">2. Ou um token de API</p>
                 <p className="mt-1 text-[12px] leading-relaxed text-amber-100/70">
-                  Um admin pode adicionar <code className="rounded bg-black/30 px-1 py-0.5 text-amber-200">ANTHROPIC_API_KEY</code> em
+                  Um admin pode adicionar <code className="rounded-sm bg-black/30 px-1 py-0.5 text-amber-200">ANTHROPIC_API_KEY</code> em
                   Admin → Tokens. Vale na hora, sem túnel.
                 </p>
               </div>
@@ -51,7 +51,7 @@ ssh -L PORTA:localhost:PORTA usuario@sua-vps</pre>
             {onTerminal && (
               <button
                 onClick={onTerminal}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-1.5 text-[12px] font-medium text-amber-100 transition hover:bg-amber-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-1.5 text-[12px] font-medium text-amber-100 transition hover:bg-amber-500/25 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-amber-500/40"
               >
                 <Icon name="terminal" size={13} /> Abrir terminal
               </button>

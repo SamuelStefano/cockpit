@@ -29,11 +29,11 @@ export function CompactDivider({ msg }: { msg: CompactMessage }) {
   // pertence à timeline, não é uma separação de seção.
   return (
     <div className="fade-up my-2 flex items-center gap-3 px-1" title={msg.kind ? undefined : 'O histórico anterior continua em “ver tudo”'}>
-      <span className="h-px flex-1 bg-gradient-to-r from-transparent to-neutral-800" />
-      <span className={`inline-flex items-center gap-1.5 rounded-full border border-neutral-800/70 bg-neutral-900/90 px-3 py-1 text-[10px] font-medium leading-none text-neutral-400 shadow-sm ${prs && prs.length > 1 ? 'flex-wrap justify-center' : ''}`}>
+      <span className="h-px flex-1 bg-linear-to-r from-transparent to-neutral-800" />
+      <span className={`inline-flex items-center gap-1.5 rounded-full border border-neutral-800/70 bg-neutral-900/90 px-3 py-1 text-[10px] font-medium leading-none text-neutral-400 shadow-xs ${prs && prs.length > 1 ? 'flex-wrap justify-center' : ''}`}>
         {body}
       </span>
-      <span className="h-px flex-1 bg-gradient-to-l from-transparent to-neutral-800" />
+      <span className="h-px flex-1 bg-linear-to-l from-transparent to-neutral-800" />
     </div>
   );
 }

@@ -48,7 +48,7 @@ export function CodeEditor({ value, onChange, mode, heightClass = 'max-h-[640px]
         spellCheck={false}
         autoCapitalize="off"
         autoCorrect="off"
-        className={`scroll-thin absolute inset-0 h-full w-full resize-none overflow-auto bg-transparent px-3 py-2.5 text-transparent caret-orange-400 outline-none ${BASE}`}
+        className={`scroll-thin absolute inset-0 h-full w-full resize-none overflow-auto bg-transparent px-3 py-2.5 text-transparent caret-orange-400 outline-hidden ${BASE}`}
       />
     </div>
   );

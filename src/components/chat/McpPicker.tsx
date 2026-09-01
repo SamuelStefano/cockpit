@@ -51,7 +51,7 @@ export function McpPicker({ servers, selected, setSelected }: {
         title={active ? `${liveCount} MCP ativo(s) neste prompt` : 'MCP desligado (economiza ~tokens). Clique pra ligar algum nesta sessão.'}
       >
         MCP
-        {active && <span className="rounded bg-orange-500/30 px-1 text-[10px] tabular-nums text-orange-200">{liveCount}</span>}
+        {active && <span className="rounded-sm bg-orange-500/30 px-1 text-[10px] tabular-nums text-orange-200">{liveCount}</span>}
         <Icon name="chevronDown" size={11} className={open ? 'rotate-180 transition' : 'transition'} />
       </ToggleChip>
 
@@ -67,12 +67,12 @@ export function McpPicker({ servers, selected, setSelected }: {
                 placeholder="Filtrar MCP…"
                 aria-label="Filtrar MCP servers"
                 autoFocus
-                className="w-full bg-transparent text-[12.5px] text-neutral-100 placeholder-neutral-600 outline-none"
+                className="w-full bg-transparent text-[12.5px] text-neutral-100 placeholder-neutral-600 outline-hidden"
               />
               {liveCount > 0 && (
                 <button
                   onClick={() => setSelected([])}
-                  className={`shrink-0 rounded px-1.5 py-0.5 text-[10.5px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300 ${tokens.focusRing}`}
+                  className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[10.5px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300 ${tokens.focusRing}`}
                 >
                   limpar
                 </button>

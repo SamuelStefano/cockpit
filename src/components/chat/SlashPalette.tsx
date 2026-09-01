@@ -23,7 +23,7 @@ export function SlashPalette({ matches, sel, setSel, complete }: SlashPalettePro
               <span className="text-neutral-600">/</span>{c}
             </span>
             {local && (
-              <span className="rounded bg-emerald-500/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-emerald-300/90">app</span>
+              <span className="rounded-sm bg-emerald-500/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-emerald-300/90">app</span>
             )}
             <span className="ml-auto truncate text-[10.5px] text-neutral-500">{slashHint(c)}</span>
           </button>

@@ -4,7 +4,7 @@ import { Button, Icon } from '../../components/primitives';
 import { EffortPicker } from '../../components/chat/EffortPicker';
 import { buildSchedule, type useCronForm } from './useCronForm';
 
-const field = 'rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-neutral-200 outline-none focus:border-orange-500/40';
+const field = 'rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-neutral-200 outline-hidden focus:border-orange-500/40';
 
 function fmtClock(ts: number): string {
   const d = new Date(ts);

@@ -10,7 +10,7 @@ interface SaturationBannerProps {
 
 const TONE = {
   warn: { dot: 'bg-orange-400', text: 'text-orange-300/80', border: 'border-orange-500/25', bg: 'bg-orange-500/[0.07]', body: 'text-orange-100/70' },
-  critical: { dot: 'bg-red-400', text: 'text-red-300/90', border: 'border-red-500/30', bg: 'bg-red-500/[0.08]', body: 'text-red-100/70' },
+  critical: { dot: 'bg-red-400', text: 'text-red-300/90', border: 'border-red-500/30', bg: 'bg-red-500/8', body: 'text-red-100/70' },
 };
 
 export function SaturationBanner({ sessionId, contextTokens, busy, onHandoff }: SaturationBannerProps) {
@@ -41,7 +41,7 @@ export function SaturationBanner({ sessionId, contextTokens, busy, onHandoff }: 
           onClick={dismiss}
           aria-label="Dispensar aviso de sessão lotada"
           title="Dispensar — volta a avisar se a janela ficar crítica"
-          className={`shrink-0 rounded p-0.5 text-neutral-600 transition hover:text-neutral-300 ${tokens.focusRing}`}
+          className={`shrink-0 rounded-sm p-0.5 text-neutral-600 transition hover:text-neutral-300 ${tokens.focusRing}`}
         >
           <Icon name="x" size={12} />
         </button>

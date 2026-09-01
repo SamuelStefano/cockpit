@@ -48,7 +48,7 @@ export function SandboxPreview({ target }: { target: SandboxTarget }) {
           <div className="flex items-center gap-0.5 rounded-md bg-neutral-900 p-0.5">
             {VIEWPORTS.map((v) => (
               <button key={v.id} onClick={() => setVp(v.id)} title={v.label} aria-pressed={vp === v.id}
-                className={`rounded p-1 transition ${vp === v.id ? 'bg-neutral-800 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'}`}>
+                className={`rounded-sm p-1 transition ${vp === v.id ? 'bg-neutral-800 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'}`}>
                 <Icon name={v.icon} size={11} />
               </button>
             ))}

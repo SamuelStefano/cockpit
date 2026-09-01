@@ -51,7 +51,7 @@ export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessi
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-[12vh] backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-[12vh] backdrop-blur-xs" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
@@ -68,9 +68,9 @@ export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessi
             onKeyDown={onKey}
             placeholder="Buscar comando ou sessão…"
             aria-label="Buscar comando ou sessão"
-            className="w-full bg-transparent py-3.5 text-[14px] text-neutral-100 placeholder-neutral-600 outline-none"
+            className="w-full bg-transparent py-3.5 text-[14px] text-neutral-100 placeholder-neutral-600 outline-hidden"
           />
-          <kbd className="rounded border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[10px] text-neutral-500">esc</kbd>
+          <kbd className="rounded-sm border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[10px] text-neutral-500">esc</kbd>
         </div>
         <div className="scroll-thin max-h-[52vh] overscroll-contain overflow-y-auto py-2">
           <CommandPaletteResults filtered={filtered} sel={sel} setSel={setSel} />
