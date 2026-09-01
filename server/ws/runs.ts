@@ -32,6 +32,30 @@ export interface RunParams {
   effort?: string;
 }
 
+// Lista única das chaves de RunParams. O `satisfies Record<keyof RunParams, 0>`
+// é o ponto: acrescentar um campo ao RunParams sem listá-lo aqui vira ERRO DE
+// COMPILAÇÃO. Antes esses campos eram copiados à mão em cada lugar que os
+// manuseia, e o comparador do coalesce (sameParams) já tinha esquecido o
+// `effort` — dois prompts com esforço diferente viravam um turno só, rodando com
+// o esforço do primeiro, calado.
+const RUN_PARAM_KEYS = Object.keys({
+  mode: 0, model: 0, maxBudgetUsd: 0, bypass: 0, role: 0,
+  disallowedSkills: 0, mcps: 0, effort: 0,
+} satisfies Record<keyof RunParams, 0>) as (keyof RunParams)[];
+
+// Extrai só a config do turno de um objeto maior (opções do startRun, item da
+// fila) — evita guardar `ws`/`prompt` no thread e no live-runs.json.
+function runParams(o: RunParams): RunParams {
+  const p: Record<string, unknown> = {};
+  for (const k of RUN_PARAM_KEYS) if (o[k] !== undefined) p[k] = o[k];
+  return p as RunParams;
+}
+
+// Dois turnos podem ser fundidos num só --resume? Só com config idêntica.
+function sameParams(a: RunParams, b: RunParams): boolean {
+  return RUN_PARAM_KEYS.every((k) => JSON.stringify(a[k]) === JSON.stringify(b[k]));
+}
+
 export interface Thread {
   handle: RunHandle;
   params: RunParams;
@@ -300,8 +324,7 @@ function autoResume(sessionKey: string, thread: Thread): void {
   // Avisa aqui, não em quem detectou a morte: só neste ponto a retomada é certa
   // (passou das guardas de corrida acima e do teto de tentativas).
   broadcast({ t: 'error', sessionKey, message: 'Retomando de onde parou…' });
-  const p = thread.params;
-  startRun(null, sessionKey, RESUME_PROMPT, thread.sessionId, undefined, p.mode, p.model, p.maxBudgetUsd, p.bypass, p.role, p.disallowedSkills, p.mcps, p.effort);
+  startRun({ ...thread.params, ws: null, sessionKey, prompt: RESUME_PROMPT, resumeId: thread.sessionId });
 }
 
 let reaperTimer: ReturnType<typeof setInterval> | null = null;
@@ -344,7 +367,7 @@ export function drainParked(): void {
     // se aquele transcript não existe mais, roda como turno novo em vez de morrer.
     const resume = resumableId(item.resumeId);
     if (item.resumeId && !resume) recordIncident({ kind: 'parked-resume-morto', sessionKey, sessionId: item.resumeId, detail: `item ${item.id} disparado como turno novo` });
-    startRun(null, sessionKey, item.prompt, resume, undefined, item.mode, item.model, item.maxBudgetUsd, item.bypass, item.role, item.disallowedSkills, item.mcps, item.effort);
+    startRun({ ...runParams(item), ws: null, sessionKey, prompt: item.prompt, resumeId: resume });
     // O run pode nem ter subido (teto de sessões simultâneas): sem isto o item já
     // saiu do disco e o prompt sumia. Subiu = fica amarrado ao thread pra voltar
     // pra fila se o teto de tokens matar o turno.
@@ -380,7 +403,7 @@ export function runParkedInBackground(sessionKey: string, id: string, role?: Rol
   const item = takeParked(sessionKey, id, role);
   if (!item) return { reject: 'sem-item' };
   const forkId = randomUUID();
-  startRun(null, forkId, item.prompt, parent, undefined, item.mode, model ?? item.model, item.maxBudgetUsd, item.bypass, item.role, item.disallowedSkills, item.mcps, item.effort, undefined, forkId);
+  startRun({ ...runParams(item), model: model ?? item.model, ws: null, sessionKey: forkId, prompt: item.prompt, resumeId: parent, forkId });
   // Spawn falhou depois do item já ter saído: devolve pro topo SEM contar tentativa
   // (a falha é do disparo, não do prompt) pra ele não acabar segurado no teto.
   const th = threads.get(forkId);
@@ -465,19 +488,32 @@ export function resumeOrphanRuns(): void {
     if (!SESSION_KEY_RE.test(key) || threads.has(key)) continue;
     broadcast({ t: 'error', sessionKey: key, message: 'O agente reiniciou e interrompeu este turno. Retomando de onde parou…' });
     recordIncident({ kind: 'orphan-resume', sessionKey: key, sessionId: o.sessionId, detail: `turno órfão de restart, ${Math.round((Date.now() - o.startedAt) / 1000)}s de vida` });
-    const p = o.params ?? {};
-    startRun(null, key, RESUME_PROMPT, o.sessionId, undefined, p.mode, p.model, p.maxBudgetUsd, p.bypass, p.role, p.disallowedSkills, p.mcps, p.effort);
+    startRun({ ...(o.params ?? {}), ws: null, sessionKey: key, prompt: RESUME_PROMPT, resumeId: o.sessionId });
   }
 }
 
 const SESSION_KEY_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 
-// ws null = run sem cliente específico (cron agendado): erros vão por broadcast e
-// o stream do turno é broadcastado a todos os clientes como qualquer outro run.
-// `forkId`: o turno lê o transcript do `resumeId` mas grava nesse id novo, então a
-// sessão original segue intocada — usado no disparo em background (chat novo, isolado).
-// Não é herdado pela retomada automática — retomar um fork continua o próprio fork.
-export function startRun(ws: WebSocket | null, sessionKey: string, prompt: string, resumeId?: string, msgId?: string, mode?: string, model?: string, maxBudgetUsd?: number, bypass?: boolean, role?: Role, disallowedSkills?: string[], mcps?: string[], effort?: string, auto?: boolean, forkId?: string) {
+export interface StartRunOptions extends RunParams {
+  // ws null = run sem cliente específico (cron agendado, dreno da fila): erros vão
+  // por broadcast e o stream é broadcastado a todos os clientes como qualquer run.
+  ws: WebSocket | null;
+  sessionKey: string;
+  prompt: string;
+  resumeId?: string;
+  msgId?: string;
+  // Prompt que o CLIENTE disparou sozinho (flush automático da fila dele), não um
+  // envio manual do usuário. Só ele respeita o latch de pergunta pendente.
+  auto?: boolean;
+  // O turno lê o transcript do `resumeId` mas grava nesse id novo, então a sessão
+  // original segue intocada — usado no disparo em background (chat novo, isolado).
+  // Não é herdado pela retomada automática: retomar um fork continua o próprio fork.
+  forkId?: string;
+}
+
+export function startRun(o: StartRunOptions) {
+  const { ws, sessionKey, prompt, resumeId, msgId, auto, forkId } = o;
+  const params = runParams(o);
   // sessionKey é string crua do cliente usada como chave do mapa `threads` e
   // ecoada nos broadcasts; restringe a um slug (cobre uuid e as keys 'new-…').
   if (typeof sessionKey !== 'string' || !SESSION_KEY_RE.test(sessionKey)) {
@@ -496,7 +532,7 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
   if (auto && isAwaiting(sessionKey)) {
     if (ws) {
       if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
-      if (!enqueue(sessionKey, { ws, prompt, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort }))
+      if (!enqueue(sessionKey, { ...params, ws, prompt }))
         send(ws, { t: 'error', sessionKey, message: 'fila de mensagens cheia' });
     }
     return;
@@ -516,7 +552,7 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
 
   let live = false; // este turno já foi registrado no live-runs.json?
   let parkedConsumed = false; // o item de fila deste turno já saiu do registro em disco?
-  const thread: Thread = { handle: { kill: () => {} }, params: { mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort }, prompt, startedAt: Date.now(), sessionId: forkId ?? resumeId, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set() };
+  const thread: Thread = { handle: { kill: () => {} }, params, prompt, startedAt: Date.now(), sessionId: forkId ?? resumeId, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set() };
   threads.set(sessionKey, thread);
   // Eco da mensagem do usuário a todos os clientes ANTES do 'started' (bolha do
   // usuário aparece antes da do assistente). Só quando o cliente mandou msgId — o
@@ -525,16 +561,9 @@ export function startRun(ws: WebSocket | null, sessionKey: string, prompt: strin
   broadcast({ t: 'started', sessionKey });
 
   thread.handle = run({
+    ...params,
     prompt,
     resumeId,
-    mode,
-    model,
-    effort,
-    maxBudgetUsd,
-    bypass,
-    role,
-    disallowedSkills,
-    mcps,
     forkId,
     onEvent: (ev) => {
       translate(sessionKey, thread, ev);
@@ -657,18 +686,14 @@ function drainPending(sessionKey: string, resumeId?: string) {
   // params de turno num único --resume — vários prompts enfileirados viravam N
   // turnos sequenciais, cada um re-lendo o contexto e re-pensando (latência
   // empilhada). Divergência de params impede merge seguro → para o batch.
-  const same = (a: QueuedSend, b: QueuedSend) =>
-    a.merge === b.merge && a.mode === b.mode && a.model === b.model &&
-    a.maxBudgetUsd === b.maxBudgetUsd && a.bypass === b.bypass && a.role === b.role &&
-    JSON.stringify(a.mcps) === JSON.stringify(b.mcps) &&
-    JSON.stringify(a.disallowedSkills) === JSON.stringify(b.disallowedSkills);
+  const same = (a: QueuedSend, b: QueuedSend) => a.merge === b.merge && sameParams(a, b);
   const batch = [first];
   while (arr.length && same(first, arr[0])) batch.push(arr.shift()!);
   if (arr.length === 0) pending.delete(sessionKey);
   const joined = batch.map((b) => b.prompt).join('\n\n');
   const text = first.merge ? `Complemento do pedido anterior:\n\n${joined}` : joined;
   // msgId undefined: a bolha do usuário já foi ecoada no routeSend (não duplica).
-  startRun(first.ws, sessionKey, text, resumeId, undefined, first.mode, first.model, first.maxBudgetUsd, first.bypass, first.role, first.disallowedSkills, first.mcps, first.effort);
+  startRun({ ...runParams(first), ws: first.ws, sessionKey, prompt: text, resumeId });
 }
 
 // Migra a fila in-turn pra fila estacionada quando os tokens acabam: os itens saem
@@ -681,16 +706,9 @@ function parkPending(sessionKey: string, resumeId?: string): void {
   pending.delete(sessionKey);
   for (const it of arr) {
     const r = addParked(sessionKey, {
+      ...runParams(it),
       prompt: it.merge ? `Complemento do pedido anterior:\n\n${it.prompt}` : it.prompt,
       resumeId,
-      mode: it.mode,
-      model: it.model,
-      effort: it.effort,
-      maxBudgetUsd: it.maxBudgetUsd,
-      bypass: it.bypass,
-      role: it.role,
-      disallowedSkills: it.disallowedSkills,
-      mcps: it.mcps,
     });
     // Recusa aqui apagaria um prompt que o usuário já mandou: a migração é a última
     // parada dele (a fila in-turn vive só em memória). Avisa em vez de sumir.
@@ -704,11 +722,21 @@ function parkPending(sessionKey: string, resumeId?: string): void {
 
 // Roteia um prompt enviado com o turno da sessão OCUPADO. Ecoa a bolha do usuário
 // na hora, pede o veredito ao triador (haiku) e age conforme a decisão (auto).
-export async function routeSend(ws: WebSocket, sessionKey: string, prompt: string, resumeId?: string, msgId?: string, mode?: string, model?: string, maxBudgetUsd?: number, bypass?: boolean, role?: Role, disallowedSkills?: string[], mcps?: string[], effort?: string) {
+export interface RouteSendOptions extends RunParams {
+  ws: WebSocket;
+  sessionKey: string;
+  prompt: string;
+  resumeId?: string;
+  msgId?: string;
+}
+
+export async function routeSend(o: RouteSendOptions) {
+  const { ws, sessionKey, prompt, resumeId, msgId } = o;
+  const params = runParams(o);
   if (typeof sessionKey !== 'string' || !SESSION_KEY_RE.test(sessionKey)) { send(ws, { t: 'error', message: 'sessão inválida' }); return; }
   if (typeof prompt !== 'string' || Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) { send(ws, { t: 'error', sessionKey, message: 'prompt grande demais' }); return; }
   const cur = threads.get(sessionKey);
-  if (!cur) { startRun(ws, sessionKey, prompt, resumeId, msgId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort); return; } // corrida: turno fechou
+  if (!cur) { startRun({ ...params, ws, sessionKey, prompt, resumeId, msgId }); return; } // corrida: turno fechou
 
   // Bolha do usuário aparece já (antes da decisão da triagem, que leva ~alguns s).
   if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
@@ -724,8 +752,8 @@ export async function routeSend(ws: WebSocket, sessionKey: string, prompt: strin
   // mataria um run que nunca avaliamos (flap/queima de token), 'merge'/'wait'
   // enfileiraria contra outra linhagem. Re-checa identidade antes de agir.
   if (threads.get(sessionKey) !== cur) {
-    if (!threads.has(sessionKey)) startRun(ws, sessionKey, prompt, resumeId, undefined, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort);
-    else if (!enqueue(sessionKey, { ws, prompt, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort, merge: false })) {
+    if (!threads.has(sessionKey)) startRun({ ...params, ws, sessionKey, prompt, resumeId });
+    else if (!enqueue(sessionKey, { ...params, ws, prompt, merge: false })) {
       broadcast({ t: 'error', sessionKey, message: 'fila de mensagens cheia' });
     }
     return;
@@ -742,22 +770,22 @@ export async function routeSend(ws: WebSocket, sessionKey: string, prompt: strin
       const carry = cur.text || cur.thinking
         ? `Você estava no meio de: ${cur.prompt}\n\nProgresso até agora (não repita, continue daqui):\n${(cur.thinking || '').slice(-1500)}\n${(cur.text || '').slice(-1500)}\n\nNOVA INSTRUÇÃO URGENTE (priorize):\n${prompt}`
         : prompt;
-      startRun(ws, sessionKey, carry, resumeId, undefined, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort);
+      startRun({ ...params, ws, sessionKey, prompt: carry, resumeId });
       return;
     }
     case 'answer':
       // Fallback: haiku falhou/timeout (retorna '') → NÃO engolir a mensagem em
       // silêncio; degrada pra 'wait' (responde quando o turno fechar).
       detach(ws, runQuickAnswer(sessionKey, prompt, epoch, () => {
-        if (!threads.has(sessionKey)) { startRun(ws, sessionKey, prompt, resumeId, undefined, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort); return; }
-        if (!enqueue(sessionKey, { ws, prompt, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort, merge: false })) {
+        if (!threads.has(sessionKey)) { startRun({ ...params, ws, sessionKey, prompt, resumeId }); return; }
+        if (!enqueue(sessionKey, { ...params, ws, prompt, merge: false })) {
           broadcast({ t: 'error', sessionKey, message: 'fila de mensagens cheia' });
         }
       }), sessionKey);
       return;
     case 'merge':
     case 'wait':
-      if (!enqueue(sessionKey, { ws, prompt, msgId, mode, model, maxBudgetUsd, bypass, role, disallowedSkills, mcps, effort, merge: verdict.action === 'merge' })) {
+      if (!enqueue(sessionKey, { ...params, ws, prompt, msgId, merge: verdict.action === 'merge' })) {
         broadcast({ t: 'error', sessionKey, message: 'fila de mensagens cheia' });
       }
       return;
@@ -782,5 +810,13 @@ async function runQuickAnswer(sessionKey: string, prompt: string, epoch: number,
 // independente. O stream vai por broadcast pra qualquer cliente conectado.
 export function fireCron(cron: Cron): void {
   if (!cron || typeof cron.prompt !== 'string' || !cron.prompt.trim()) return;
-  startRun(null, `cron-${cron.id}`, cron.prompt, undefined, `cron-${Date.now().toString(36)}`, cron.mode, cron.model, undefined, undefined, undefined, undefined, undefined, cron.effort || 'low');
+  startRun({
+    ws: null,
+    sessionKey: `cron-${cron.id}`,
+    prompt: cron.prompt,
+    msgId: `cron-${Date.now().toString(36)}`,
+    mode: cron.mode,
+    model: cron.model,
+    effort: cron.effort || 'low',
+  });
 }

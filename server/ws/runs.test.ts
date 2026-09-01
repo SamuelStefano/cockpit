@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { WebSocket } from 'ws';
-import { admitRun, findStaleThreads, reapStaleRuns, startRun, threads, isSilentDeath, killAllRuns, resumeOrphanRuns, drainParked, runParkedInBackground, runParkedNow, startParkedDrainer, AUTO_RESUME_CAP, REAPER_SILENCE_CAP_MS, REAPER_TOOL_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './runs';
+import { admitRun, findStaleThreads, reapStaleRuns, startRun, routeSend, threads, isSilentDeath, killAllRuns, resumeOrphanRuns, drainParked, runParkedInBackground, runParkedNow, startParkedDrainer, AUTO_RESUME_CAP, REAPER_SILENCE_CAP_MS, REAPER_TOOL_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './runs';
 import { takeOrphanRuns } from './recover';
 import { recordIncident } from './incidents';
 import { isAwaiting, setAwaiting, clearAllAwaiting } from './awaiting';
@@ -9,6 +9,7 @@ import { run } from '../engine/claude';
 import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takeParked, promoteParked, isQueuePaused, type ParkedItem } from './parked';
 import { resumableId } from './resume';
 import { quotaHold } from './quota';
+import { classify } from '../engine/triage';
 
 vi.mock('../engine/claude', () => ({ run: vi.fn(() => ({ kill: vi.fn() })) }));
 // Fila estacionada e teto de tokens mockados: o teste não pode ler/escrever o
@@ -125,7 +126,7 @@ describe('startRun — latch de pergunta pendente (AskUserQuestion)', () => {
 
   it('estaciona um send AUTO enquanto a sessão aguarda resposta da pergunta', () => {
     setAwaiting('s1');
-    startRun(ws, 's1', 'flush da fila', undefined, 'm1', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, true);
+    startRun({ ws, sessionKey: 's1', prompt: 'flush da fila', msgId: 'm1', auto: true });
     expect(run).not.toHaveBeenCalled();
     expect(threads.has('s1')).toBe(false);
     expect(isAwaiting('s1')).toBe(true); // latch intacto até a resposta real
@@ -133,9 +134,9 @@ describe('startRun — latch de pergunta pendente (AskUserQuestion)', () => {
 
   it('send MANUAL limpa o latch, roda e o onClose drena o estacionado', () => {
     setAwaiting('s2');
-    startRun(ws, 's2', 'auto estacionado', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, true);
+    startRun({ ws, sessionKey: 's2', prompt: 'auto estacionado', auto: true });
     expect(run).not.toHaveBeenCalled();
-    startRun(ws, 's2', 'minha resposta à pergunta');
+    startRun({ ws, sessionKey: 's2', prompt: 'minha resposta à pergunta' });
     expect(isAwaiting('s2')).toBe(false);
     expect(run).toHaveBeenCalledOnce();
     // Fecha o turno da resposta: o item estacionado vira o próximo turno.
@@ -145,8 +146,48 @@ describe('startRun — latch de pergunta pendente (AskUserQuestion)', () => {
   });
 
   it('send AUTO sem latch roda normalmente', () => {
-    startRun(ws, 's3', 'fila normal', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, true);
+    startRun({ ws, sessionKey: 's3', prompt: 'fila normal', auto: true });
     expect(run).toHaveBeenCalledOnce();
+  });
+});
+
+// O coalesce junta prompts CONSECUTIVOS da fila in-turn num único --resume, e só
+// pode fazer isso quando a config do turno é idêntica: o batch inteiro roda com a
+// config do PRIMEIRO. O comparador listava os params à mão e tinha esquecido o
+// `effort` — dois prompts com esforço diferente viravam um turno só, no esforço do
+// primeiro, sem nada no log. Agora ele deriva das chaves de RunParams.
+describe('coalesce da fila in-turn', () => {
+  const ws = {} as WebSocket;
+  const closeLast = () => vi.mocked(run).mock.calls.at(-1)![0].onClose?.();
+  const lastRun = () => vi.mocked(run).mock.calls.at(-1)![0];
+
+  beforeEach(() => {
+    threads.clear();
+    clearAllAwaiting();
+    vi.mocked(run).mockClear();
+    vi.mocked(classify).mockResolvedValue({ action: 'wait', reason: 'depois' });
+  });
+
+  it('funde prompts consecutivos de config idêntica', async () => {
+    startRun({ ws, sessionKey: 'c1', prompt: 'turno em andamento', effort: 'low' });
+    await routeSend({ ws, sessionKey: 'c1', prompt: 'primeiro', effort: 'low' });
+    await routeSend({ ws, sessionKey: 'c1', prompt: 'segundo', effort: 'low' });
+    closeLast();
+    expect(lastRun().prompt).toBe('primeiro\n\nsegundo');
+    expect(lastRun().effort).toBe('low');
+  });
+
+  it('não funde prompts de esforço diferente', async () => {
+    startRun({ ws, sessionKey: 'c2', prompt: 'turno em andamento', effort: 'low' });
+    await routeSend({ ws, sessionKey: 'c2', prompt: 'primeiro', effort: 'low' });
+    await routeSend({ ws, sessionKey: 'c2', prompt: 'segundo', effort: 'high' });
+    closeLast();
+    // Só o primeiro sobe; o de 'high' fica pro turno seguinte, no esforço dele.
+    expect(lastRun().prompt).toBe('primeiro');
+    expect(lastRun().effort).toBe('low');
+    closeLast();
+    expect(lastRun().prompt).toBe('segundo');
+    expect(lastRun().effort).toBe('high');
   });
 });
 
@@ -170,7 +211,7 @@ describe('morte silenciosa do turno — aviso + retomada automática', () => {
   });
 
   it('avisa e retoma com os MESMOS parâmetros do turno morto', () => {
-    startRun(ws, 'k1', 'trabalho longo', 'sess-1', undefined, 'plan', 'opus', 5, true, 'admin', ['x'], ['mcp1'], 'high');
+    startRun({ ws, sessionKey: 'k1', prompt: 'trabalho longo', resumeId: 'sess-1', mode: 'plan', model: 'opus', maxBudgetUsd: 5, bypass: true, role: 'admin', disallowedSkills: ['x'], mcps: ['mcp1'], effort: 'high' });
     closeLastRun();
     // Constatação da morte + promessa de retomada (esta última só sai porque a
     // retomada realmente aconteceu).
@@ -186,7 +227,7 @@ describe('morte silenciosa do turno — aviso + retomada automática', () => {
   });
 
   it('fechamento saudável não avisa nem retoma', () => {
-    startRun(ws, 'k2', 'trabalho', 'sess-2');
+    startRun({ ws, sessionKey: 'k2', prompt: 'trabalho', resumeId: 'sess-2' });
     threads.get('k2')!.endReason = 'success';
     closeLastRun();
     expect(errors()).toHaveLength(0);
@@ -194,7 +235,7 @@ describe('morte silenciosa do turno — aviso + retomada automática', () => {
   });
 
   it('stop do usuário não vira retomada', () => {
-    startRun(ws, 'k3', 'trabalho', 'sess-3');
+    startRun({ ws, sessionKey: 'k3', prompt: 'trabalho', resumeId: 'sess-3' });
     threads.get('k3')!.stopped = true;
     closeLastRun();
     expect(errors()).toHaveLength(0);
@@ -204,7 +245,7 @@ describe('morte silenciosa do turno — aviso + retomada automática', () => {
   // Kill do reaper usa stopped (pra não notificar "concluído") mas NÃO é stop do
   // usuário: antes o turno reapado morria sem retomada e sem ninguém ver.
   it('turno reapado retoma sozinho', () => {
-    startRun(ws, 'k3b', 'trabalho longo', 'sess-3b');
+    startRun({ ws, sessionKey: 'k3b', prompt: 'trabalho longo', resumeId: 'sess-3b' });
     Object.assign(threads.get('k3b')!, { stopped: true, reaped: 'silence' });
     closeLastRun();
     expect(run).toHaveBeenCalledTimes(2);
@@ -212,32 +253,32 @@ describe('morte silenciosa do turno — aviso + retomada automática', () => {
   });
 
   it('retoma no máximo AUTO_RESUME_CAP vezes seguidas', () => {
-    startRun(ws, 'k4', 'trabalho', 'sess-4');
+    startRun({ ws, sessionKey: 'k4', prompt: 'trabalho', resumeId: 'sess-4' });
     for (let i = 0; i <= AUTO_RESUME_CAP + 1; i++) closeLastRun();
     expect(run).toHaveBeenCalledTimes(1 + AUTO_RESUME_CAP);
     expect(errors().at(-1)).toMatchObject({ message: expect.stringContaining('também falhou') });
   });
 
   it('turno saudável zera a cota — falha nova volta a ter direito a retomada', () => {
-    startRun(ws, 'k5', 'trabalho', 'sess-5');
+    startRun({ ws, sessionKey: 'k5', prompt: 'trabalho', resumeId: 'sess-5' });
     closeLastRun();                                   // 1ª morte: retoma
     expect(run).toHaveBeenCalledTimes(2);
     threads.get('k5')!.endReason = 'success';
     closeLastRun();                                   // fecha bem: zera
-    startRun(ws, 'k5', 'outro trabalho', 'sess-5');
+    startRun({ ws, sessionKey: 'k5', prompt: 'outro trabalho', resumeId: 'sess-5' });
     closeLastRun();                                   // morte nova: retoma de novo
     expect(vi.mocked(run).mock.calls.at(-1)![0].prompt).toContain('Continue exatamente de onde parou');
   });
 
   it('não retoma quando a sessão aguarda resposta do usuário', () => {
-    startRun(ws, 'k6', 'trabalho', 'sess-6');
+    startRun({ ws, sessionKey: 'k6', prompt: 'trabalho', resumeId: 'sess-6' });
     setAwaiting('k6');
     closeLastRun();
     expect(run).toHaveBeenCalledOnce();
   });
 
   it('não retoma turno sem sessionId (sem --resume possível)', () => {
-    startRun(ws, 'k7', 'trabalho');
+    startRun({ ws, sessionKey: 'k7', prompt: 'trabalho' });
     closeLastRun();
     expect(run).toHaveBeenCalledOnce();
   });
@@ -246,8 +287,8 @@ describe('morte silenciosa do turno — aviso + retomada automática', () => {
   // stopped, então cada onClose parecia morte silenciosa e subia um turno novo — em
   // cima do processo saindo ou da VPS sob pressão, uma retomada por sessão.
   it('kill nosso (killAllRuns) não vira retomada automática', () => {
-    startRun(ws, 'k8', 'trabalho', 'sess-8');
-    startRun(ws, 'k9', 'outro', 'sess-9');
+    startRun({ ws, sessionKey: 'k8', prompt: 'trabalho', resumeId: 'sess-8' });
+    startRun({ ws, sessionKey: 'k9', prompt: 'outro', resumeId: 'sess-9' });
     killAllRuns();
     vi.mocked(run).mock.calls.forEach((c) => c[0].onClose?.());
     expect(run).toHaveBeenCalledTimes(2);
@@ -273,7 +314,7 @@ describe('reapStaleRuns — efeito sobre o turno vivo', () => {
   });
 
   it('marca reaped, registra incidente e o onClose retoma o turno', () => {
-    startRun(ws, 'r1', 'trabalho longo', 'sess-r1');
+    startRun({ ws, sessionKey: 'r1', prompt: 'trabalho longo', resumeId: 'sess-r1' });
     age('r1', { lastFrameAt: Date.now() - REAPER_SILENCE_CAP_MS - 1 });
     reapStaleRuns();
     expect(threads.get('r1')).toMatchObject({ reaped: 'silence', stopped: true });
@@ -289,7 +330,7 @@ describe('reapStaleRuns — efeito sobre o turno vivo', () => {
   // segura o processo: sem a guarda, o reaper re-matava a mesma chave a cada minuto
   // e empilhava bolha de erro + incidente pra sempre.
   it('não reapa duas vezes a mesma chave', () => {
-    startRun(ws, 'r2', 'trabalho', 'sess-r2');
+    startRun({ ws, sessionKey: 'r2', prompt: 'trabalho', resumeId: 'sess-r2' });
     age('r2', { lastFrameAt: Date.now() - REAPER_SILENCE_CAP_MS - 1 });
     reapStaleRuns();
     reapStaleRuns();
@@ -298,7 +339,7 @@ describe('reapStaleRuns — efeito sobre o turno vivo', () => {
   });
 
   it('poupa turno mudo com tool em voo (teto de tool, não de silêncio)', () => {
-    startRun(ws, 'r3', 'build longo', 'sess-r3');
+    startRun({ ws, sessionKey: 'r3', prompt: 'build longo', resumeId: 'sess-r3' });
     age('r3', { lastFrameAt: Date.now() - REAPER_SILENCE_CAP_MS - 1 });
     threads.get('r3')!.toolStart.set('tool-1', Date.now() - 60_000);
     reapStaleRuns();
@@ -306,7 +347,7 @@ describe('reapStaleRuns — efeito sobre o turno vivo', () => {
   });
 
   it('teto total não retoma — é a rede final contra run desgovernado', () => {
-    startRun(ws, 'r4', 'trabalho', 'sess-r4');
+    startRun({ ws, sessionKey: 'r4', prompt: 'trabalho', resumeId: 'sess-r4' });
     age('r4', { startedAt: Date.now() - REAPER_TOTAL_CAP_MS - 1, lastFrameAt: Date.now() - 500 });
     reapStaleRuns();
     expect(threads.get('r4')!.reaped).toBe('total');
@@ -358,7 +399,7 @@ describe('resumeOrphanRuns — turnos que o restart matou', () => {
   });
 
   it('não retoma sessão que o usuário já reenviou na mão', () => {
-    startRun({} as WebSocket, 'sess-orfa', 'reenviei na mão');
+    startRun({ ws: {} as WebSocket, sessionKey: 'sess-orfa', prompt: 'reenviei na mão' });
     vi.mocked(run).mockClear();
     vi.mocked(takeOrphanRuns).mockReturnValue([orphan()] as never);
     resumeOrphanRuns();
@@ -461,7 +502,7 @@ describe('fila estacionada — teto de tokens', () => {
     vi.mocked(shiftParked).mockReturnValue(item());
     drainParked();
     expect(run).not.toHaveBeenCalled();
-    startRun(ws, 's8', 'resposta do usuário'); // send manual limpa o latch
+    startRun({ ws, sessionKey: 's8', prompt: 'resposta do usuário' }); // send manual limpa o latch
     threads.delete('s8');
     drainParked();
     expect(vi.mocked(run).mock.calls.at(-1)![0].prompt).toBe('roda isso');
@@ -483,8 +524,8 @@ describe('fila estacionada — teto de tokens', () => {
 
   it('sem token, a fila in-turn vira estacionada em vez de disparar', () => {
     setAwaiting('s4');
-    startRun(ws, 's4', 'item enfileirado', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, true);
-    startRun(ws, 's4', 'resposta do usuário');
+    startRun({ ws, sessionKey: 's4', prompt: 'item enfileirado', auto: true });
+    startRun({ ws, sessionKey: 's4', prompt: 'resposta do usuário' });
     limited();
     closeLastRun();
     expect(addParked).toHaveBeenCalledWith('s4', expect.objectContaining({ prompt: 'item enfileirado' }));
@@ -574,7 +615,7 @@ describe('disparo imediato de um item da fila (furar a fila)', () => {
   });
 
   it('promove o item e mata o turno em andamento; o dreno do onClose sobe justo ele', () => {
-    startRun(ws, 'now1', 'o que estava rodando');
+    startRun({ ws, sessionKey: 'now1', prompt: 'o que estava rodando' });
     const kill = lastKill();
     expect(runParkedNow('now1', 'pk-9')).toEqual({ ok: true });
     expect(promoteParked).toHaveBeenCalledWith('now1', 'pk-9');
@@ -612,7 +653,7 @@ describe('disparo imediato de um item da fila (furar a fila)', () => {
       vi.mocked(findParked).mockReturnValue(item());
       vi.mocked(promoteParked).mockClear();
       arm();
-      startRun(ws, 'now3', 'o que estava rodando');
+      startRun({ ws, sessionKey: 'now3', prompt: 'o que estava rodando' });
       const kill = lastKill();
       expect(runParkedNow('now3', 'pk-9')).toEqual({ reject });
       expect(kill).not.toHaveBeenCalled();
@@ -635,7 +676,7 @@ describe('disparo imediato de um item da fila (furar a fila)', () => {
   // promoteParked lê o disco: entre o findParked e ele, outro aparelho pode ter
   // cancelado o item. Matar o turno aí deixaria a sessão vazia.
   it('item some entre o espiar e o promover: não mata o turno', () => {
-    startRun(ws, 'now4', 'o que estava rodando');
+    startRun({ ws, sessionKey: 'now4', prompt: 'o que estava rodando' });
     const kill = lastKill();
     vi.mocked(promoteParked).mockReturnValue(false);
     expect(runParkedNow('now4', 'pk-9')).toEqual({ reject: 'sem-item' });
