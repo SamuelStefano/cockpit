@@ -57,7 +57,7 @@ export function Trend({ series }: { series: DailyUsage[] }) {
             <div key={d.day} className="group/bar flex flex-1 flex-col items-center justify-end gap-1">
               <div className="relative flex w-full justify-center">
                 <div
-                  className={`w-full max-w-[18px] rounded-sm transition-colors ${isToday ? 'bg-orange-500' : 'bg-orange-500/40 group-hover/bar:bg-orange-500/70'}`}
+                  className={`w-full max-w-[18px] rounded-xs transition-colors ${isToday ? 'bg-orange-500' : 'bg-orange-500/40 group-hover/bar:bg-orange-500/70'}`}
                   style={{ height: `${h}px` }}
                   title={`${dayLabel(d.day)} · ${fmtCost(d.cost)} · ${fmt(d.output)} out`}
                 />

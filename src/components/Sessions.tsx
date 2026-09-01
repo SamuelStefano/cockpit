@@ -89,9 +89,9 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, ma
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar sessões…"
             aria-label="Buscar sessões"
-            className="w-full bg-transparent text-[12.5px] text-neutral-200 placeholder-neutral-600 outline-none"
+            className="w-full bg-transparent text-[12.5px] text-neutral-200 placeholder-neutral-600 outline-hidden"
           />
-          <kbd className="hidden shrink-0 rounded border border-neutral-700 bg-neutral-950 px-1 py-px font-mono text-[9px] text-neutral-500 sm:block">⌘/</kbd>
+          <kbd className="hidden shrink-0 rounded-sm border border-neutral-700 bg-neutral-950 px-1 py-px font-mono text-[9px] text-neutral-500 sm:block">⌘/</kbd>
         </div>
       </div>
 

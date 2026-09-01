@@ -19,9 +19,9 @@ interface Ink { id: number; x: number; y: number; d: number }
 
 const variants: Record<ButtonVariant, string> = {
   // Primário como jóia: gradiente quente + highlight interno no topo (btn-jewel).
-  primary: 'btn-jewel bg-gradient-to-b from-orange-500 to-orange-600 text-neutral-950 hover:from-orange-400 hover:to-orange-500',
+  primary: 'btn-jewel bg-linear-to-b from-orange-500 to-orange-600 text-neutral-950 hover:from-orange-400 hover:to-orange-500',
   secondary: 'bg-neutral-800 text-neutral-200 hover:bg-neutral-700 hairline',
-  outline: 'border border-neutral-800 bg-neutral-900 text-neutral-200 hover:border-orange-500/40 hover:bg-orange-500/[0.06] hover:text-orange-300',
+  outline: 'border border-neutral-800 bg-neutral-900 text-neutral-200 hover:border-orange-500/40 hover:bg-orange-500/6 hover:text-orange-300',
   ghost: 'bg-transparent text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100',
   danger: 'bg-neutral-800 text-neutral-200 hover:bg-red-500/20 hover:text-red-400 hairline',
   // Destrutivo já CONFIRMADO (CTA de modal): peso visual de primário. O `danger`
@@ -73,7 +73,7 @@ export function Button({
     <button
       disabled={disabled || loading}
       onPointerDown={spawnInk}
-      className={`inline-flex max-w-full shrink-0 items-center justify-center rounded-lg font-medium leading-none transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40 disabled:opacity-50 disabled:pointer-events-none ${ripple ? 'relative overflow-hidden' : ''} ${variants[variant]} ${square ? squareSizes[size] : sizes[size]} ${className}`}
+      className={`inline-flex max-w-full shrink-0 items-center justify-center rounded-lg font-medium leading-none transition focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40 disabled:opacity-50 disabled:pointer-events-none ${ripple ? 'relative overflow-hidden' : ''} ${variants[variant]} ${square ? squareSizes[size] : sizes[size]} ${className}`}
       {...rest}
     >
       {glyph && !iconRight && glyph}

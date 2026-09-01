@@ -67,7 +67,7 @@ export function Notas({ connected, notes, notesLoaded, onNotesGet, onNotesSave, 
             onKeyDown={onKey}
             placeholder="Joga aqui as ideias soltas, links, trechos… quando acumular, clica em 'Analisar com IA' pra virar um contexto estruturado. (⌘S salva na hora)"
             spellCheck={false}
-            className="scroll-thin min-h-0 w-full flex-1 resize-none rounded-xl border border-neutral-800 bg-neutral-900/60 p-4 font-mono text-[13px] leading-relaxed text-neutral-200 placeholder-neutral-600 outline-none transition focus:border-orange-500/40 focus:ring-2 focus:ring-orange-500/20"
+            className="scroll-thin min-h-0 w-full flex-1 resize-none rounded-xl border border-neutral-800 bg-neutral-900/60 p-4 font-mono text-[13px] leading-relaxed text-neutral-200 placeholder-neutral-600 outline-hidden transition focus:border-orange-500/40 focus:ring-2 focus:ring-orange-500/20"
           />
         )}
 

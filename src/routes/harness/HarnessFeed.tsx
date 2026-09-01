@@ -36,7 +36,7 @@ export function HarnessFeed({ task, events }: Props) {
           mostrava: depois de rodar não dava pra saber sob qual enquadramento a resposta
           saiu — justamente o dado que importa numa task de segurança. */}
       {task.context === 'pentest' && (
-        <div className="flex items-start gap-1.5 rounded-lg border border-orange-500/20 bg-orange-500/[0.06] px-3 py-2">
+        <div className="flex items-start gap-1.5 rounded-lg border border-orange-500/20 bg-orange-500/6 px-3 py-2">
           <Icon name="shield" size={12} className="mt-0.5 shrink-0 text-orange-400/80" />
           <span className="text-[11.5px] leading-relaxed text-orange-200/70">
             Rodou com o contexto de pentest autorizado no system prompt.
@@ -52,7 +52,7 @@ export function HarnessFeed({ task, events }: Props) {
       )}
 
       {errored ? (
-        <div className="rounded-lg border border-red-500/20 bg-red-500/[0.06] px-3 py-2.5 text-[12px] text-red-300">
+        <div className="rounded-lg border border-red-500/20 bg-red-500/6 px-3 py-2.5 text-[12px] text-red-300">
           {task.error}
         </div>
       ) : (

@@ -40,7 +40,7 @@ export function BenchPreview({ code, repo }: { code: string; repo: string }) {
         <div className="flex items-center gap-1">
           <div className="flex items-center gap-0.5 rounded-md bg-neutral-900 p-0.5">
             {VIEWPORTS.map((v) => (
-              <button key={v.id} onClick={() => setVp(v.id)} title={v.label} className={`rounded p-1 transition ${vp === v.id ? 'bg-neutral-800 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'}`}>
+              <button key={v.id} onClick={() => setVp(v.id)} title={v.label} className={`rounded-sm p-1 transition ${vp === v.id ? 'bg-neutral-800 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'}`}>
                 <Icon name={v.icon} size={11} />
               </button>
             ))}
@@ -55,7 +55,7 @@ export function BenchPreview({ code, repo }: { code: string; repo: string }) {
           <button onClick={() => download('bench.tsx', 'text/plain', draft)} title="Baixar código" className={ctrlBtn(false)}><Icon name="download" size={12} /></button>
           <div className="flex items-center gap-0.5 rounded-md bg-neutral-900 p-0.5">
             {(['preview', 'code'] as Tab[]).map((t) => (
-              <button key={t} onClick={() => setTab(t)} className={`rounded px-2 py-0.5 text-[10px] transition ${tab === t ? 'bg-neutral-800 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'} ${tokens.focusRing}`}>
+              <button key={t} onClick={() => setTab(t)} className={`rounded-sm px-2 py-0.5 text-[10px] transition ${tab === t ? 'bg-neutral-800 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'} ${tokens.focusRing}`}>
                 {t === 'preview' ? 'tela' : 'código'}
               </button>
             ))}

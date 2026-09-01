@@ -2,7 +2,7 @@ import { Icon } from '../../../components/primitives';
 
 export function Hero() {
   return (
-    <div className="mb-12 overflow-hidden rounded-3xl border border-neutral-800 bg-gradient-to-br from-orange-500/[0.08] via-neutral-900/40 to-neutral-950 p-7 sm:p-9">
+    <div className="mb-12 overflow-hidden rounded-3xl border border-neutral-800 bg-linear-to-br from-orange-500/8 via-neutral-900/40 to-neutral-950 p-7 sm:p-9">
       <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-[11px] font-medium text-orange-300">
         <Icon name="terminal" size={12} /> Deck
       </div>

@@ -32,7 +32,7 @@ export function UsageRow({ row, maxOut, title, openable, onOpen }: UsageRowProps
           </div>
           <span className="font-mono text-[11px] text-neutral-500">{fmt(row.ctxTokens)}</span>
           {fill >= 75 && (
-            <span title="Contexto quase cheio — considere uma nova sessão" className="flex items-center gap-0.5 rounded bg-red-500/10 px-1 text-[9.5px] font-medium text-red-400">
+            <span title="Contexto quase cheio — considere uma nova sessão" className="flex items-center gap-0.5 rounded-sm bg-red-500/10 px-1 text-[9.5px] font-medium text-red-400">
               <Icon name="zap" size={9} /> {fill}%
             </span>
           )}

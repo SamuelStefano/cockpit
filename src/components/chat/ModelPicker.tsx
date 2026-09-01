@@ -12,7 +12,7 @@ export function ModelPicker({ model, setModel, models, onRefreshModels }: {
   onRefreshModels: () => void;
 }) {
   const [customIds, setCustomIds] = usePersisted<string[]>('customModels', []);
-  const sel = 'max-w-[130px] rounded-md border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-[11px] font-medium text-neutral-300 outline-none transition hover:border-neutral-700 focus:border-orange-500/40 sm:max-w-none sm:px-1.5 sm:py-1';
+  const sel = 'max-w-[130px] rounded-md border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-[11px] font-medium text-neutral-300 outline-hidden transition hover:border-neutral-700 focus:border-orange-500/40 sm:max-w-none sm:px-1.5 sm:py-1';
   const tag = 'hidden text-[9px] font-semibold uppercase tracking-wide text-neutral-600 sm:inline';
   // Modelos digitados à mão (ex: um recém-lançado ainda fora do /v1/models da conta).
   const customOpts: ModelInfo[] = customIds.map((id) => ({ id, displayName: id }));

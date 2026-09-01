@@ -63,7 +63,7 @@ export function Docs() {
       {/* Conteúdo */}
       <div ref={scrollRef} className="scroll-thin flex-1 overflow-y-auto scroll-smooth">
         {/* Chips de navegação — só mobile */}
-        <div className="sticky top-0 z-10 border-b border-neutral-800/80 bg-neutral-950/90 px-4 py-2.5 backdrop-blur lg:hidden">
+        <div className="sticky top-0 z-10 border-b border-neutral-800/80 bg-neutral-950/90 px-4 py-2.5 backdrop-blur-sm lg:hidden">
           <div className="scroll-thin flex gap-1.5 overflow-x-auto">
             {SECTIONS.map((s) => (
               <button

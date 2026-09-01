@@ -24,7 +24,7 @@ export function PointsCard({ entry, now, glow, onCorrect, onNote, onDelete }: Pr
             autoFocus value={c.ptsDraft} onChange={(e) => c.setPtsDraft(e.target.value)} onBlur={c.savePts}
             onKeyDown={(e) => { if (e.key === 'Enter') c.savePts(); if (e.key === 'Escape') c.cancelPts(); }}
             inputMode="numeric"
-            className="w-20 rounded-md border border-orange-500/40 bg-neutral-950 px-1.5 py-0.5 text-3xl font-bold tabular-nums tracking-tight text-neutral-100 outline-none"
+            className="w-20 rounded-md border border-orange-500/40 bg-neutral-950 px-1.5 py-0.5 text-3xl font-bold tabular-nums tracking-tight text-neutral-100 outline-hidden"
           />
         ) : (
           <button onClick={c.startEditPts} title="Corrigir pontos"
@@ -50,7 +50,7 @@ export function PointsCard({ entry, now, glow, onCorrect, onNote, onDelete }: Pr
           autoFocus value={c.descDraft} onChange={(e) => c.setDescDraft(e.target.value)} onBlur={c.saveDesc}
           onKeyDown={(e) => { if (e.key === 'Enter') c.saveDesc(); if (e.key === 'Escape') c.cancelDesc(); }}
           placeholder="Descrição…"
-          className="mt-1 w-full rounded-md border border-neutral-800 bg-neutral-950 px-2 py-1 text-[12px] text-neutral-200 outline-none focus:border-orange-500/40"
+          className="mt-1 w-full rounded-md border border-neutral-800 bg-neutral-950 px-2 py-1 text-[12px] text-neutral-200 outline-hidden focus:border-orange-500/40"
         />
       ) : (
         <button onClick={c.startEditDesc}

@@ -28,7 +28,7 @@ export function TagFilterBar({ allTags, tagFilter, setTagFilter, clearFilter }: 
             className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium transition
               ${tagFilter === t
                 ? 'border-sky-500/60 bg-sky-500/20 text-sky-200'
-                : 'border-sky-500/20 bg-sky-500/[0.05] text-sky-300/70 hover:border-sky-500/45 hover:bg-sky-500/10 hover:text-sky-200'}`}
+                : 'border-sky-500/20 bg-sky-500/5 text-sky-300/70 hover:border-sky-500/45 hover:bg-sky-500/10 hover:text-sky-200'}`}
           >
             #{t}
           </button>

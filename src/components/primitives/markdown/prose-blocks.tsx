@@ -59,7 +59,7 @@ export function proseBlocks(md: string, keyBase: string, caret: boolean): ReactN
     if (node.kind === 'blockquote') {
       const qlines = node.lines;
       return (
-        <blockquote key={k} className="border-l-2 border-orange-500/40 pl-3 text-neutral-400 [text-wrap:pretty]">
+        <blockquote key={k} className="border-l-2 border-orange-500/40 pl-3 text-neutral-400 text-pretty">
           {qlines.map((l, li) => (
             <React.Fragment key={li}>{renderInline(l, `${k}-q${li}`)}{li < qlines.length - 1 && <br />}</React.Fragment>
           ))}
@@ -72,7 +72,7 @@ export function proseBlocks(md: string, keyBase: string, caret: boolean): ReactN
       const { items, ordered, task: isTask } = node;
       if (isTask) {
         return (
-          <ul key={k} className="space-y-1 [text-wrap:pretty]">
+          <ul key={k} className="space-y-1 text-pretty">
             {items.map((it, li) => (
               <li key={li} className="flex items-start gap-2" style={it.depth ? { marginLeft: it.depth * 16 } : undefined}>
                 {it.done === null ? (
@@ -90,7 +90,7 @@ export function proseBlocks(md: string, keyBase: string, caret: boolean): ReactN
       }
       const ListTag = ordered ? 'ol' : 'ul';
       return (
-        <ListTag key={k} className={`space-y-1 pl-5 [text-wrap:pretty] ${ordered ? 'list-decimal' : 'list-disc'} marker:text-neutral-500`}>
+        <ListTag key={k} className={`space-y-1 pl-5 text-pretty ${ordered ? 'list-decimal' : 'list-disc'} marker:text-neutral-500`}>
           {items.map((it, li) => (
             <li key={li} style={it.depth ? { marginLeft: it.depth * 16 } : undefined}>{renderInline(it.text, `${k}-i${li}`)}</li>
           ))}
@@ -99,7 +99,7 @@ export function proseBlocks(md: string, keyBase: string, caret: boolean): ReactN
     }
 
     return (
-      <p key={k} className="[text-wrap:pretty]">
+      <p key={k} className="text-pretty">
         {node.lines.map((line, li) => (
           <React.Fragment key={li}>
             {renderInline(line, `${k}-${li}`)}

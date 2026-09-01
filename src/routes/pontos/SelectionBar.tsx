@@ -14,7 +14,7 @@ export function SelectionBar({ projects }: { projects: DflProjectNode[] }) {
   const [confirming, setConfirming] = useState(false);
   const s = sumDeliveries(projects, selected, pointValue);
   return (
-    <div className="sticky bottom-0 z-10 mt-2 flex items-center gap-3 rounded-xl border border-orange-500/30 bg-neutral-950/90 px-3.5 py-2.5 backdrop-blur">
+    <div className="sticky bottom-0 z-10 mt-2 flex items-center gap-3 rounded-xl border border-orange-500/30 bg-neutral-950/90 px-3.5 py-2.5 backdrop-blur-sm">
       <div className="min-w-0 flex-1">
         <span className="text-[12.5px] font-semibold text-neutral-100">{s.count} {s.count === 1 ? 'delivery' : 'deliveries'}</span>
         <span className="ml-2 text-[12px] tabular-nums text-neutral-400">{fmtPts(s.points)} pts · {brl(s.amountCents)}</span>

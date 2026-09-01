@@ -10,7 +10,7 @@ interface ComposerActionsProps {
   onStop: () => void;
 }
 
-const btn = 'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2';
+const btn = 'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition focus-visible:outline-hidden focus-visible:ring-2';
 const idle = 'bg-neutral-800 text-neutral-600';
 
 export function ComposerActions({ busy, paused, hasText, hasAtt, attUploading, onSubmit, onStop }: ComposerActionsProps) {

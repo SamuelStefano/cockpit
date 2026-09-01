@@ -16,7 +16,7 @@ export function ModelSelect({ value, onChange, models, label }: Props) {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-[12.5px] text-neutral-200 outline-none transition focus:border-orange-500/40 focus:ring-2 focus:ring-orange-500/15"
+        className="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-[12.5px] text-neutral-200 outline-hidden transition focus:border-orange-500/40 focus:ring-2 focus:ring-orange-500/15"
       >
         {models.map((m) => (
           <option key={m.id} value={m.id}>{m.label}</option>

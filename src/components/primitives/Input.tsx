@@ -36,7 +36,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     return (
       <input
         ref={ref}
-        className={`w-full border bg-neutral-950 text-neutral-200 placeholder:text-neutral-600 outline-none transition ${sizes[size]} ${text} ${border} ${className}`}
+        className={`w-full border bg-neutral-950 text-neutral-200 placeholder:text-neutral-600 outline-hidden transition ${sizes[size]} ${text} ${border} ${className}`}
         {...rest}
       />
     );
@@ -52,7 +52,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       {icon && <Icon name={icon} size={iconSize} className="pointer-events-none absolute left-2.5 text-neutral-500" />}
       <input
         ref={ref}
-        className={`w-full bg-transparent text-neutral-200 placeholder:text-neutral-600 outline-none ${py} ${icon ? 'pl-8' : 'pl-3'} ${suffix ? 'pr-9' : 'pr-3'} ${text} ${className}`}
+        className={`w-full bg-transparent text-neutral-200 placeholder:text-neutral-600 outline-hidden ${py} ${icon ? 'pl-8' : 'pl-3'} ${suffix ? 'pr-9' : 'pr-3'} ${text} ${className}`}
         {...rest}
       />
       {suffix && <div className="absolute right-2.5 flex items-center">{suffix}</div>}

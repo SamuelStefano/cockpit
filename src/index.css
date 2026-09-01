@@ -1,10 +1,41 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* `source(none)` desliga a descoberta automática: ela varre o projeto inteiro e
+   `public/vendor/tailwind-play-cdn.js` (o Tailwind inteiro, 451 kB) é uma mina de
+   nome de classe — o CSS saía com utility que ninguém usa. As duas fontes abaixo
+   são o mesmo alcance do `content` que existia no tailwind.config.js. */
+@import 'tailwindcss' source(none);
+@import './palette.css';
+@source '../index.html';
+@source './**/*.{ts,tsx}';
+
+@theme {
+  --font-sans: Geist, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, monospace;
+
+  /* Cantos mais macios, igual ao learn (--radius 0.75rem, lg 1rem): o override
+     central deixa `rounded-lg/xl` do app inteiro com o arredondado do learn. */
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+
+  /* Black moderno alaranjado (estética learn / Linear-Vercel dark): cool-neutral
+     bem escuro, quase preto no fundo, com o acento laranja. Repintar a escala
+     `neutral` num lugar só mantém todo `*-neutral-*` do app coeso. */
+  --color-neutral-50: #f5f5f6;
+  --color-neutral-100: #e9e9ec;
+  --color-neutral-200: #d2d2d8;
+  --color-neutral-300: #a9a9b2;
+  --color-neutral-400: #82828c;
+  --color-neutral-500: #5b5b64;
+  --color-neutral-600: #3d3d44;
+  --color-neutral-700: #27272c;
+  --color-neutral-800: #19191d;
+  --color-neutral-900: #101013;
+  --color-neutral-950: #080809;
+}
 
 :root {
   color-scheme: dark;
-  /* Black moderno alaranjado (casa com o `neutral` remapeado no tailwind.config). */
+  /* Black moderno alaranjado (casa com o `neutral` remapeado no @theme acima). */
   --bg: #101013;
   --bg-deep: #080809;
   --term-bg: #050506;

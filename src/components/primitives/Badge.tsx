@@ -18,7 +18,7 @@ export function Badge({ children, tone = 'neutral', className = '', dot = false 
     yellow: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
   };
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-[1px] text-[10px] font-medium leading-none ${tones[tone]} ${className}`}>
+    <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-px text-[10px] font-medium leading-none ${tones[tone]} ${className}`}>
       {dot && <span className="h-1 w-1 rounded-full bg-current" />}
       {children}
     </span>

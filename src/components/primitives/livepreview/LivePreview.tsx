@@ -43,7 +43,7 @@ export function LivePreview({ code, lang }: { code: string; lang: string }) {
   );
   const editor = <CodeEditor value={draft} onChange={setDraft} mode={mode} />;
 
-  const ctrlBtn = (active: boolean) => `relative rounded p-1 transition ${active ? 'text-orange-200' : 'text-neutral-500 hover:text-neutral-300'}`;
+  const ctrlBtn = (active: boolean) => `relative rounded-sm p-1 transition ${active ? 'text-orange-200' : 'text-neutral-500 hover:text-neutral-300'}`;
 
   return (
     <div className="my-1 overflow-hidden rounded-lg border border-orange-500/25 bg-[#0c0c0c]">
@@ -59,7 +59,7 @@ export function LivePreview({ code, lang }: { code: string; lang: string }) {
           {sized && (
             <div className="flex items-center gap-0.5 rounded-md bg-neutral-900 p-0.5">
               {VIEWPORTS.map((v) => (
-                <button key={v.id} onClick={() => setVp(v.id)} title={v.label} className={`rounded p-1 transition ${vp === v.id ? 'bg-neutral-800 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'}`}>
+                <button key={v.id} onClick={() => setVp(v.id)} title={v.label} className={`rounded-sm p-1 transition ${vp === v.id ? 'bg-neutral-800 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'}`}>
                   <Icon name={v.icon} size={11} />
                 </button>
               ))}
@@ -73,7 +73,7 @@ export function LivePreview({ code, lang }: { code: string; lang: string }) {
           {dirty && <button onClick={reset} title="Voltar ao código original" className={ctrlBtn(false)}><Icon name="rotate" size={12} /></button>}
           <div className="flex items-center gap-0.5 rounded-md bg-neutral-900 p-0.5">
             {(['preview', 'code'] as Tab[]).map((t) => (
-              <button key={t} onClick={() => setTab(t)} className={`rounded px-2 py-0.5 text-[10px] transition ${tab === t ? 'bg-neutral-800 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'} ${tokens.focusRing}`}>
+              <button key={t} onClick={() => setTab(t)} className={`rounded-sm px-2 py-0.5 text-[10px] transition ${tab === t ? 'bg-neutral-800 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'} ${tokens.focusRing}`}>
                 {t === 'preview' ? 'tela' : 'código'}
               </button>
             ))}
@@ -92,7 +92,7 @@ export function LivePreview({ code, lang }: { code: string; lang: string }) {
         <Icon name="zap" size={11} className="shrink-0 text-neutral-600" />
         <input value={refine} onChange={(e) => setRefine(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submitRefine(); }}
           placeholder="refina esta tela… (ex: deixa mais escuro, adiciona um botão)"
-          className="min-w-0 flex-1 bg-transparent text-[12px] text-neutral-200 placeholder:text-neutral-600 focus:outline-none" />
+          className="min-w-0 flex-1 bg-transparent text-[12px] text-neutral-200 placeholder:text-neutral-600 focus:outline-hidden" />
         <button onClick={() => copy(draft)} title="Copiar código" className={ctrlBtn(false)}><Icon name={copied ? 'check' : 'copy'} size={12} /></button>
         <button onClick={() => download(`preview.${EXT[mode]}`, 'text/plain', draft)} title="Baixar código" className={ctrlBtn(false)}><Icon name="download" size={12} /></button>
         <button onClick={submitRefine} disabled={!refine.trim()}

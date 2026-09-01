@@ -69,7 +69,7 @@ export function ChatInput(props: ChatInputProps) {
   const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
   const { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic, ghost, ghostShown, acceptGhost, touch } = useChatInput({ ...props, hasAtt, attUploading });
   return (
-    <div className="shrink-0 border-t border-neutral-800 bg-neutral-900/60 px-3 py-3 backdrop-blur">
+    <div className="shrink-0 border-t border-neutral-800 bg-neutral-900/60 px-3 py-3 backdrop-blur-sm">
       <ChatInputToolbar
         mode={mode} setMode={setMode} caps={caps}
         bypass={bypass} setBypass={setBypass} skills={skills}
@@ -89,7 +89,7 @@ export function ChatInput(props: ChatInputProps) {
       <input ref={fileRef} type="file" multiple onChange={pick} className="hidden" />
       <div className="relative" onDragEnter={onDragEnter} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
       {dragging && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-orange-500/60 bg-neutral-950/85 text-[13px] font-medium text-orange-300 backdrop-blur-sm">
+        <div className="absolute inset-0 z-40 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-orange-500/60 bg-neutral-950/85 text-[13px] font-medium text-orange-300 backdrop-blur-xs">
           <Icon name="paperclip" size={15} /> Solte os arquivos pra anexar
         </div>
       )}
@@ -106,14 +106,14 @@ export function ChatInput(props: ChatInputProps) {
         <MicButton mic={mic} />
         <div className="relative min-w-0 flex-1">
           {ghost && (
-            <div style={{ maxHeight: composerMaxH() }} className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words py-1 text-[15px] leading-7 text-neutral-600">
+            <div style={{ maxHeight: composerMaxH() }} className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap wrap-break-word py-1 text-[15px] leading-7 text-neutral-600">
               <span aria-hidden className="invisible">{value}</span><span aria-hidden>{ghostShown}</span>
               {/* z-10 + pointer-events-auto: o chip fica clicável MESMO sob o textarea
                   (que pinta por cima do overlay) — no mobile não existe Tab. */}
               <button
                 type="button" tabIndex={-1} onClick={acceptGhost} aria-label={`Completar com: ${ghostShown}`}
                 onPointerDown={(e) => e.preventDefault()}
-                className="pointer-events-auto relative z-10 ml-1 rounded border border-neutral-700 px-1 text-[9px] align-middle text-neutral-500 transition before:absolute before:-inset-2 before:content-[''] hover:border-orange-500/40 hover:text-orange-200"
+                className="pointer-events-auto relative z-10 ml-1 rounded-sm border border-neutral-700 px-1 text-[9px] align-middle text-neutral-500 transition before:absolute before:-inset-2 before:content-[''] hover:border-orange-500/40 hover:text-orange-200"
               >
                 <span className="sm:hidden">tocar</span><span className="hidden sm:inline">Tab</span>
               </button>
@@ -131,7 +131,7 @@ export function ChatInput(props: ChatInputProps) {
             enterKeyHint={touch ? 'enter' : 'send'}
             placeholder={paused ? 'Tokens esgotados — digite p/ enfileirar (envia ao resetar)…' : mic.listening ? 'Ouvindo… fale agora' : disabled ? 'Próxima mensagem (envia ao terminar)…' : touch ? 'Pergunte ou peça um comando…' : 'Pergunte ou peça um comando…  (↵ envia, ⇧↵ quebra linha)'}
             style={{ maxHeight: composerMaxH() }}
-            className="scroll-thin relative w-full resize-none bg-transparent py-1 text-[15px] leading-7 text-neutral-100 placeholder-neutral-600 outline-none"
+            className="scroll-thin relative w-full resize-none bg-transparent py-1 text-[15px] leading-7 text-neutral-100 placeholder-neutral-600 outline-hidden"
           />
         </div>
         <ComposerActions

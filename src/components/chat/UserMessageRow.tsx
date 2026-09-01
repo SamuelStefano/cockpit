@@ -70,7 +70,7 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
               else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); }
             }}
             rows={Math.min(10, value.split('\n').length)}
-            className="w-full resize-none rounded-2xl rounded-br-md border border-orange-500/40 bg-neutral-800 px-4 py-2.5 text-[15px] leading-7 text-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
+            className="w-full resize-none rounded-2xl rounded-br-md border border-orange-500/40 bg-neutral-800 px-4 py-2.5 text-[15px] leading-7 text-neutral-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40"
           />
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={cancel}>Cancelar</Button>
@@ -87,7 +87,7 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
     <div data-mid={msg.id} className="fade-up group/u flex flex-wrap items-start justify-end gap-2.5 sm:flex-nowrap">
       {/* No mobile as ações vão pra linha própria ABAIXO da bolha (order-3): o
           thread tem overflow-x-hidden e ao lado da bolha elas eram clipadas. */}
-      <div className="order-3 mt-1 flex w-full shrink-0 items-center justify-end gap-0.5 opacity-100 transition group-hover/u:opacity-100 sm:order-none sm:w-auto sm:opacity-0 sm:focus-within:opacity-100 sm:group-hover/u:opacity-100">
+      <div className="order-3 mt-1 flex w-full shrink-0 items-center justify-end gap-0.5 opacity-100 transition group-hover/u:opacity-100 sm:order-0 sm:w-auto sm:opacity-0 sm:focus-within:opacity-100 sm:group-hover/u:opacity-100">
         {msg.ts && <time className="mr-1 text-[10px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
         <CopyTextButton text={msg.text} />
         {onQuote && <QuoteButton onClick={() => onQuote(msg.text)} />}
@@ -112,7 +112,7 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
           </div>
         )}
         {body && (
-          <div className="hairline w-full whitespace-pre-wrap break-words rounded-2xl rounded-br-md border border-neutral-700/60 bg-neutral-800 px-4 py-2.5 text-[15px] leading-7 text-neutral-100 shadow-sm shadow-black/20">
+          <div className="hairline w-full whitespace-pre-wrap wrap-break-word rounded-2xl rounded-br-md border border-neutral-700/60 bg-neutral-800 px-4 py-2.5 text-[15px] leading-7 text-neutral-100 shadow-xs shadow-black/20">
             {body}
           </div>
         )}

@@ -25,7 +25,7 @@ export function GraphControls({ query, onQuery, matchCount, colorMode, onColorMo
       </div>
 
       {showColorToggle && (
-        <div className="flex overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900/95 shadow-lg backdrop-blur">
+        <div className="flex overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900/95 shadow-lg backdrop-blur-sm">
           {(['repo', 'community'] as const).map((m) => (
             <button
               key={m}

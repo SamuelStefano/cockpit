@@ -32,7 +32,7 @@ export function QueuedBanner({ queued, queuedAtts, queuedModels, models, onRunBg
   const q = useQueuedBanner(queued, onMove, onEdit);
   const status = queueStatus({ held, paused, quotaHeld });
   return (
-    <div className="mb-2 rounded-lg border border-orange-500/30 bg-orange-500/[0.06] px-2.5 py-1.5">
+    <div className="mb-2 rounded-lg border border-orange-500/30 bg-orange-500/6 px-2.5 py-1.5">
       <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-orange-300/90">
         <Icon name={queueStatusIcon(status)} size={12} className="shrink-0 text-orange-400/80" />
         {queueStatusLabel(status, queued.length, resetLabel)}
@@ -42,7 +42,7 @@ export function QueuedBanner({ queued, queuedAtts, queuedModels, models, onRunBg
               type="button"
               onClick={onResume}
               title="Retomar a fila agora"
-              className={`flex h-5 items-center gap-1 rounded border border-orange-500/40 px-1.5 text-[10px] text-orange-300 transition hover:bg-orange-500/15 ${tokens.focusRing}`}
+              className={`flex h-5 items-center gap-1 rounded-sm border border-orange-500/40 px-1.5 text-[10px] text-orange-300 transition hover:bg-orange-500/15 ${tokens.focusRing}`}
             >
               <Icon name="play" size={9} /> retomar
             </button>
@@ -52,7 +52,7 @@ export function QueuedBanner({ queued, queuedAtts, queuedModels, models, onRunBg
               type="button"
               onClick={onTogglePause}
               title={paused ? 'Retomar o envio automático da fila' : 'Pausar a fila (nada é enviado até retomar)'}
-              className={`flex h-5 items-center gap-1 rounded border px-1.5 text-[10px] transition ${tokens.focusRing} ${paused ? 'border-orange-500/60 bg-orange-500/15 text-orange-200 hover:bg-orange-500/25' : 'border-orange-500/40 text-orange-300 hover:bg-orange-500/15'}`}
+              className={`flex h-5 items-center gap-1 rounded-sm border px-1.5 text-[10px] transition ${tokens.focusRing} ${paused ? 'border-orange-500/60 bg-orange-500/15 text-orange-200 hover:bg-orange-500/25' : 'border-orange-500/40 text-orange-300 hover:bg-orange-500/15'}`}
             >
               <Icon name={paused ? 'play' : 'pause'} size={9} /> {paused ? 'retomar' : 'pausar'}
             </button>

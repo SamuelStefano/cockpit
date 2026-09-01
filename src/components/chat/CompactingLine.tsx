@@ -17,7 +17,7 @@ export function CompactingLine({ since }: { since: number }) {
         <span className="text-[11px] tabular-nums text-neutral-600">{fmtElapsed(secs)}</span>
       </div>
       <div className="h-[3px] w-44 overflow-hidden rounded-full bg-neutral-800/80">
-        <span className="sweep block h-full w-1/4 rounded-full bg-gradient-to-r from-orange-500/30 via-orange-400 to-orange-500/30" />
+        <span className="sweep block h-full w-1/4 rounded-full bg-linear-to-r from-orange-500/30 via-orange-400 to-orange-500/30" />
       </div>
       <span className="text-[11px] leading-relaxed text-neutral-500">
         O contexto encheu e o agente está resumindo o histórico. Leva alguns minutos e o turno segue sozinho depois.

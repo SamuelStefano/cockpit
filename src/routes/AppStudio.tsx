@@ -54,7 +54,7 @@ export function AppStudio({ code }: { code: string }) {
         <div className="flex flex-wrap gap-1 border-b border-neutral-800 bg-neutral-900/40 px-3 py-2">
           <span className="mr-1 text-[11px] text-neutral-500">sem import, já em escopo:</span>
           {APP_SCOPE_NAMES.map((n) => (
-            <code key={n} className="rounded bg-neutral-800/80 px-1.5 py-0.5 font-mono text-[10.5px] text-neutral-300">{n}</code>
+            <code key={n} className="rounded-sm bg-neutral-800/80 px-1.5 py-0.5 font-mono text-[10.5px] text-neutral-300">{n}</code>
           ))}
         </div>
       )}

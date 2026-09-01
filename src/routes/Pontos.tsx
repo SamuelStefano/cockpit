@@ -52,10 +52,10 @@ export function Pontos(props: Props) {
       <div className="mx-auto w-full max-w-3xl">
         <header className="mb-4">
           <div className="relative">
-            <div aria-hidden className="pointer-events-none absolute -left-4 -top-2 h-24 w-40 rounded-full bg-orange-500/[0.08] blur-2xl" />
+            <div aria-hidden className="pointer-events-none absolute -left-4 -top-2 h-24 w-40 rounded-full bg-orange-500/8 blur-2xl" />
             <h1 className="relative text-[13px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Pontos & Financeiro</h1>
             <div className="relative mt-1 flex items-baseline gap-2.5">
-              <span className="bg-gradient-to-br from-orange-300 to-orange-500 bg-clip-text text-[44px] font-bold leading-none tabular-nums tracking-tight text-transparent drop-shadow-[0_2px_12px_rgba(249,115,22,0.25)]">
+              <span className="bg-linear-to-br from-orange-300 to-orange-500 bg-clip-text text-[44px] font-bold leading-none tabular-nums tracking-tight text-transparent drop-shadow-[0_2px_12px_rgba(249,115,22,0.25)]">
                 {totals ? fmtPts(totals.totalPoints) : total}
               </span>
               <span className="pb-1 text-[12.5px] text-neutral-500">

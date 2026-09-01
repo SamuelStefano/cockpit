@@ -9,4 +9,4 @@ export function ErrorOverlay({ message }: { message: string }) {
 }
 
 export const ctrlBtn = (active: boolean) =>
-  `relative rounded p-1 transition ${active ? 'text-orange-200' : 'text-neutral-500 hover:text-neutral-300'}`;
+  `relative rounded-sm p-1 transition ${active ? 'text-orange-200' : 'text-neutral-500 hover:text-neutral-300'}`;

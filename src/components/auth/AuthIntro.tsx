@@ -40,7 +40,7 @@ export function AuthIntro() {
       <div className="space-y-4">
         {FEATURES.map((f) => (
           <div key={f.title} className="flex gap-3">
-            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-orange-500/[0.12] text-orange-300">
+            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-orange-500/12 text-orange-300">
               <Icon name={f.icon} size={14} />
             </span>
             <div>
@@ -51,7 +51,7 @@ export function AuthIntro() {
         ))}
       </div>
 
-      <p className="mt-6 rounded-lg border border-sky-500/20 bg-sky-500/[0.06] px-3 py-2 text-[11px] leading-relaxed text-neutral-500">
+      <p className="mt-6 rounded-lg border border-sky-500/20 bg-sky-500/6 px-3 py-2 text-[11px] leading-relaxed text-neutral-500">
         <span className="font-medium text-neutral-400">Beta · relay confiável.</span> O relay encaminha sua sessão
         pra sua VPS. A verificação ponta-a-ponta entra antes de abrir pra máquinas de terceiros.
       </p>

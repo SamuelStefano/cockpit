@@ -57,19 +57,19 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
         if (e.target !== e.currentTarget) return; // tecla foi pra um botão/input interno
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(s.id); }
       }}
-      className={`group relative cursor-pointer rounded-xl border px-3.5 py-3 transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40
+      className={`group relative cursor-pointer rounded-xl border px-3.5 py-3 transition-all duration-150 outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40
         ${active
-          ? 'glow-active border-orange-500/40 bg-gradient-to-r from-orange-500/[0.09] to-orange-500/[0.03]'
+          ? 'glow-active border-orange-500/40 bg-linear-to-r from-orange-500/9 to-orange-500/3'
           : 'border-transparent hover:border-neutral-800 hover:bg-neutral-900/80'}`}
     >
-      {active && <span className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full bg-gradient-to-b from-orange-400 to-orange-600" />}
+      {active && <span className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full bg-linear-to-b from-orange-400 to-orange-600" />}
       <div className="mb-1.5 flex items-start justify-between gap-2">
         {editing ? (
           <InlineEdit
             value={draft} onChange={setDraft} onCommit={commit}
             onCancel={() => { setDraft(s.title); setEditing(false); }}
             label="Editar título da sessão"
-            className="w-full rounded border border-orange-500/50 bg-neutral-950 px-1.5 py-0.5 text-[12.5px] font-medium text-neutral-100 outline-none ring-2 ring-orange-500/20"
+            className="w-full rounded-sm border border-orange-500/50 bg-neutral-950 px-1.5 py-0.5 text-[12.5px] font-medium text-neutral-100 outline-hidden ring-2 ring-orange-500/20"
           />
         ) : (
           <span
@@ -111,7 +111,7 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
           onCancel={() => { setDescDraft(s.summary || ''); setDescEditing(false); }}
           placeholder="Descrição da sessão…"
           label="Editar descrição da sessão"
-          className="mt-0.5 w-full resize-none rounded border border-orange-500/50 bg-neutral-950 px-1.5 py-1 text-[11.5px] leading-snug text-neutral-200 outline-none ring-2 ring-orange-500/20"
+          className="mt-0.5 w-full resize-none rounded-sm border border-orange-500/50 bg-neutral-950 px-1.5 py-1 text-[11.5px] leading-snug text-neutral-200 outline-hidden ring-2 ring-orange-500/20"
         />
       ) : showDesc ? (
         <p className="line-clamp-2 text-[12px] leading-snug text-neutral-500"><Highlight text={s.summary || s.snippet} term={highlight} /></p>

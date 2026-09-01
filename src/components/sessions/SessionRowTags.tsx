@@ -19,7 +19,7 @@ export function SessionRowTags({ id, tags, tagging, tagDraft, setTagDraft, setTa
   return (
     <div className="contents">
       {tags.map((t) => (
-        <span key={t} className="group/tag inline-flex items-center gap-0.5 rounded-full border border-sky-500/30 bg-sky-500/[0.08] px-1.5 py-px text-[9.5px] font-medium text-sky-300/90">
+        <span key={t} className="group/tag inline-flex items-center gap-0.5 rounded-full border border-sky-500/30 bg-sky-500/8 px-1.5 py-px text-[9.5px] font-medium text-sky-300/90">
           <button onClick={(e) => { e.stopPropagation(); onFilterTag?.(t); }} title={`Filtrar por "${t}"`} className="hover:text-sky-200">#{t}</button>
           {onRemoveTag && (
             <button onClick={(e) => { e.stopPropagation(); onRemoveTag(id, t); }} title="Remover etiqueta" className="text-sky-400/50 hover:text-red-400">
@@ -34,7 +34,7 @@ export function SessionRowTags({ id, tags, tagging, tagDraft, setTagDraft, setTa
           value={tagDraft} onChange={setTagDraft} onCommit={commitTag}
           onCancel={() => { setTagDraft(''); setTagging(false); }}
           placeholder="etiqueta…"
-          className="w-20 rounded-full border border-sky-500/40 bg-neutral-950 px-1.5 py-px text-[9.5px] text-sky-200 outline-none placeholder-neutral-600"
+          className="w-20 rounded-full border border-sky-500/40 bg-neutral-950 px-1.5 py-px text-[9.5px] text-sky-200 outline-hidden placeholder-neutral-600"
         />
       )}
     </div>

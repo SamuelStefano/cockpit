@@ -34,7 +34,7 @@ export function ArchivedSection({ archived, onUnhide, onDelete, onView }: { arch
                   <button
                     onClick={() => onUnhide(s.id)}
                     title="Restaurar sessão"
-                    className="rounded px-1.5 py-0.5 text-[10.5px] font-medium text-neutral-500 transition hover:bg-neutral-800 hover:text-orange-300"
+                    className="rounded-sm px-1.5 py-0.5 text-[10.5px] font-medium text-neutral-500 transition hover:bg-neutral-800 hover:text-orange-300"
                   >
                     restaurar
                   </button>
@@ -42,7 +42,7 @@ export function ArchivedSection({ archived, onUnhide, onDelete, onView }: { arch
                     <button
                       onClick={() => onDelete(s.id)}
                       title="Excluir sessão"
-                      className="flex h-6 w-6 items-center justify-center rounded text-neutral-500 transition hover:bg-red-500/15 hover:text-red-400"
+                      className="flex h-6 w-6 items-center justify-center rounded-sm text-neutral-500 transition hover:bg-red-500/15 hover:text-red-400"
                     >
                       <Icon name="trash" size={13} />
                     </button>

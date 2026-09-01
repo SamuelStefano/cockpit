@@ -65,8 +65,8 @@ export function SupabaseAuthGate({ auth }: { auth: AuthActions }) {
           autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="••••••••"
         />
 
-        {auth.error && <p className="mt-3 rounded-md border border-red-500/30 bg-red-500/[0.12] px-3 py-2 text-[11.5px] text-red-200">{auth.error}</p>}
-        {info && <p className="mt-3 rounded-md border border-emerald-500/30 bg-emerald-500/[0.1] px-3 py-2 text-[11.5px] text-emerald-200">{info}</p>}
+        {auth.error && <p className="mt-3 rounded-md border border-red-500/30 bg-red-500/12 px-3 py-2 text-[11.5px] text-red-200">{auth.error}</p>}
+        {info && <p className="mt-3 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11.5px] text-emerald-200">{info}</p>}
 
         <Button type="submit" loading={busy} disabled={!email.trim() || !password} className="mt-4 w-full">
           {busy ? (mode === 'login' ? 'Entrando…' : 'Criando conta…') : mode === 'login' ? 'Entrar' : 'Criar conta'}

@@ -20,7 +20,7 @@ function AccentBar({ tall }: { tall?: boolean }) {
   return (
     <span
       aria-hidden
-      className={`${tall ? 'h-4' : 'h-3.5'} w-1 shrink-0 rounded-full bg-gradient-to-b from-orange-400 to-orange-600`}
+      className={`${tall ? 'h-4' : 'h-3.5'} w-1 shrink-0 rounded-full bg-linear-to-b from-orange-400 to-orange-600`}
     />
   );
 }

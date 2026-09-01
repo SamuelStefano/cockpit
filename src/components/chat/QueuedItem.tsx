@@ -3,7 +3,7 @@ import type { ModelInfo } from '../../../shared/protocol';
 import { Icon, tokens } from '../primitives';
 import { QueuedBgLauncher } from './QueuedBgLauncher';
 
-const iconBtn = `flex h-5 w-5 shrink-0 items-center justify-center rounded text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200 disabled:pointer-events-none disabled:opacity-30 ${tokens.focusRing}`;
+const iconBtn = `flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200 disabled:pointer-events-none disabled:opacity-30 ${tokens.focusRing}`;
 
 interface Props {
   index: number;
@@ -60,14 +60,14 @@ export function QueuedItem({ index, text, atts, expanded, flash, first, last, ed
               if (e.key === 'Escape') { e.preventDefault(); onCancelEdit(); }
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onCommit(); }
             }}
-            className={`flex-1 resize-none rounded border border-orange-500/40 bg-neutral-900 px-1.5 py-1 text-[11.5px] leading-snug text-neutral-200 ${tokens.focusRing}`}
+            className={`flex-1 resize-none rounded-sm border border-orange-500/40 bg-neutral-900 px-1.5 py-1 text-[11.5px] leading-snug text-neutral-200 ${tokens.focusRing}`}
           />
         ) : (
           <button
             type="button"
             onClick={onToggle}
             title={expanded ? 'Recolher' : 'Ver completo'}
-            className={`flex-1 rounded text-left text-[11.5px] leading-snug ${tokens.focusRing} ${text ? 'text-neutral-300' : 'italic text-neutral-500'} ${expanded ? 'whitespace-pre-wrap break-words' : 'truncate'}`}
+            className={`flex-1 rounded-sm text-left text-[11.5px] leading-snug ${tokens.focusRing} ${text ? 'text-neutral-300' : 'italic text-neutral-500'} ${expanded ? 'whitespace-pre-wrap wrap-break-word' : 'truncate'}`}
           >
             {text || (atts > 0 ? 'anexo sem texto' : '')}
           </button>
