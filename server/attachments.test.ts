@@ -149,6 +149,24 @@ describe('addUploadChunk', () => {
       await rm(resolve(CONFIG.workdir, 'attachments', 'vitest-ooo'), { recursive: true, force: true });
     }
   });
+
+  // O teto POR upload não limita quantos uploads ficam abertos ao mesmo tempo:
+  // cada uploadId novo segura os chunks em RAM até o TTL, então abrir muitos ids
+  // multiplica o consumo sem freio.
+  it('recusa abrir upload novo acima do teto de simultâneos', async () => {
+    const half = Buffer.from('z'.repeat(60)).toString('base64');
+    const ids = Array.from({ length: 8 }, (_, i) => `up-vitest-cap-${i}`);
+    try {
+      for (const id of ids) expect(await addUploadChunk(id, 'vitest-cap', 'c.bin', 0, 2, half)).toBeNull();
+      const over = await addUploadChunk('up-vitest-cap-over', 'vitest-cap', 'c.bin', 0, 2, half);
+      expect(over).toEqual({ error: 'muitos uploads simultâneos' });
+      // Um id JÁ aberto continua aceitando chunk — o teto barra abertura, não progresso.
+      expect(await addUploadChunk(ids[0], 'vitest-cap', 'c.bin', 1, 2, half)).not.toBeNull();
+    } finally {
+      for (const id of ids.slice(1)) await addUploadChunk(id, 'vitest-cap', 'c.bin', 1, 2, half);
+      await rm(resolve(CONFIG.workdir, 'attachments', 'vitest-cap'), { recursive: true, force: true });
+    }
+  });
 });
 
 describe('extractDocxText', () => {
