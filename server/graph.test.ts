@@ -1,6 +1,15 @@
-import { describe, it, expect } from 'vitest';
-import { projectGraph, nameCommunity, rejectFlagLike } from './graph';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { rm } from 'node:fs/promises';
+import { projectGraph, nameCommunity, rejectFlagLike, runGraphify, buildGraph, GRAPHIFY_TIMEOUT } from './graph';
 import type { GraphNode } from '../shared/protocol';
+
+// GRAPHS_DIR é lido no import do módulo; o hoisted roda antes dele. Sem isto o
+// buildGraph do teste faria rm -rf no diretório de grafos REAL do Samuel.
+const graphsDir = vi.hoisted(() => {
+  const d = `${process.env.TMPDIR ?? '/tmp'}/cockpit-vitest-graphs-${process.pid}`;
+  process.env.COCKPIT_GRAPHS_DIR = d;
+  return d;
+});
 
 function node(id: string, over: Partial<GraphNode> = {}): GraphNode {
   return { id, label: id, community: 0, deg: 0, ...over };
@@ -102,5 +111,54 @@ describe('projectGraph', () => {
   it('lida com entrada vazia/inválida', () => {
     expect(projectGraph(null).nodes).toHaveLength(0);
     expect(projectGraph({}).totalNodes).toBe(0);
+  });
+});
+
+// O graphify é um binário EXTERNO. Sem teto, um spawn travado nunca resolve — e
+// como o `finally` do buildGraph é quem devolve o single-flight, um build travado
+// bloqueava TODOS os builds seguintes até reiniciar o backend.
+describe('runGraphify (teto de tempo)', () => {
+  afterEach(() => { delete process.env.COCKPIT_GRAPHIFY_BIN; });
+
+  it('aborta o processo travado em vez de esperar pra sempre', async () => {
+    process.env.COCKPIT_GRAPHIFY_BIN = '/bin/sleep';
+    const t0 = Date.now();
+    const { code, out } = await runGraphify(['30'], undefined, 150);
+    expect(code).toBe(-1);
+    expect(out).toContain(GRAPHIFY_TIMEOUT);
+    expect(Date.now() - t0).toBeLessThan(3000); // resolveu no teto, não no sleep 30
+  });
+
+  it('não marca timeout no processo que termina dentro do teto', async () => {
+    process.env.COCKPIT_GRAPHIFY_BIN = '/bin/echo';
+    const { code, out } = await runGraphify(['pronto'], undefined, 5000);
+    expect(code).toBe(0);
+    expect(out).toContain('pronto');
+    expect(out).not.toContain(GRAPHIFY_TIMEOUT);
+  });
+});
+
+describe('buildGraph (single-flight)', () => {
+  afterEach(async () => {
+    delete process.env.COCKPIT_GRAPHIFY_BIN;
+    await rm(graphsDir, { recursive: true, force: true });
+  });
+
+  it('devolve o single-flight quando o build falha, aceitando o próximo', async () => {
+    process.env.COCKPIT_GRAPHIFY_BIN = '/bin/false';
+    const first = await buildGraph(__dirname);
+    expect(first.ok).toBe(false);
+    const second = await buildGraph(__dirname);
+    expect(second.ok).toBe(false);
+    // O que importa é NÃO ser "já existe um build em andamento": o lock foi devolvido.
+    expect(second.error).toBe(first.error);
+  });
+
+  it('recusa caminho que não é diretório antes de tocar o lock', async () => {
+    const r = await buildGraph(`${graphsDir}/nao-existe`);
+    expect(r.ok).toBe(false);
+    expect(r.error).toContain('não é um diretório');
+    process.env.COCKPIT_GRAPHIFY_BIN = '/bin/false';
+    expect((await buildGraph(__dirname)).error).not.toContain('em andamento');
   });
 });
