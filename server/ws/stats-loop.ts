@@ -1,6 +1,6 @@
 import { collect } from '../stats';
 import { broadcast } from './broadcast';
-import { markStatsAt } from './runs';
+import { markStatsAt } from './threads';
 
 // Um timer único: amostra a máquina e empurra pra todos os clientes abertos.
 // 2s é suave e mantém o delta de CPU significativo.

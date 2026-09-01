@@ -3,7 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { attachWs, killAllRuns, runStats } from './ws';
-import { threads } from './ws/runs';
+import { threads } from './ws/threads';
 import { broadcast } from './ws/broadcast';
 import { makeStatic } from './static';
 import { sweepAttachments } from './attachments';

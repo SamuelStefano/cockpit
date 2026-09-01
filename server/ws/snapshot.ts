@@ -3,7 +3,7 @@ import { send } from './broadcast';
 import { getLastRate } from './rate';
 import { getLastPlanUsage, requestPlanUsageRefresh } from './usage-plan';
 import { getLastModels } from './models';
-import { threads } from './runs';
+import { threads } from './threads';
 import { marathonKeys } from './marathon';
 
 // Estado durável que o CLI só emite DURANTE um run (busy/rate/plan-usage/models):

@@ -1,14 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import type { WebSocket } from 'ws';
-import type { ToolCall, ToolTodo, Cron } from '../../shared/protocol';
-import { run, type RunHandle } from '../engine/claude';
+import type { Cron } from '../../shared/protocol';
+import { run } from '../engine/claude';
 import { CONFIG } from '../config';
 import type { Role } from '../auth';
 import { broadcast, send } from './broadcast';
 import { detach } from './detach';
 import { translate } from './translate';
 import { summarize } from '../summary';
-import { classify, quickAnswer, killSideRuns, killSideRunsFor } from '../engine/triage';
+import { classify, quickAnswer } from '../engine/triage';
 import { suggestFollowups } from '../engine/suggest';
 import { isAwaiting, clearAwaiting } from './awaiting';
 import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takeParked, promoteParked, parkedView, isQueuePaused, MAX_PARKED_ATTEMPTS, REJECT_MESSAGE, type ParkedItem } from './parked';
@@ -16,270 +16,9 @@ import { resumableId } from './resume';
 import { quotaHold, burnedByQuota } from './quota';
 import { markRunLive, clearRunLive, takeOrphanRuns } from './recover';
 import { recordIncident } from './incidents';
-import { threadIsMarathon, MARATHON_TOTAL_CAP_MS, MARATHON_AUTO_RESUME_CAP } from './marathon';
-
-// Config do turno, guardada no thread pra a retomada automática (morte silenciosa)
-// rodar com os MESMOS parâmetros — retomar em outro modelo/sem bypass mudaria o
-// comportamento no meio do trabalho.
-export interface RunParams {
-  mode?: string;
-  model?: string;
-  maxBudgetUsd?: number;
-  bypass?: boolean;
-  role?: Role;
-  disallowedSkills?: string[];
-  mcps?: string[];
-  effort?: string;
-}
-
-// Lista única das chaves de RunParams. O `satisfies Record<keyof RunParams, 0>`
-// é o ponto: acrescentar um campo ao RunParams sem listá-lo aqui vira ERRO DE
-// COMPILAÇÃO. Antes esses campos eram copiados à mão em cada lugar que os
-// manuseia, e o comparador do coalesce (sameParams) já tinha esquecido o
-// `effort` — dois prompts com esforço diferente viravam um turno só, rodando com
-// o esforço do primeiro, calado.
-const RUN_PARAM_KEYS = Object.keys({
-  mode: 0, model: 0, maxBudgetUsd: 0, bypass: 0, role: 0,
-  disallowedSkills: 0, mcps: 0, effort: 0,
-} satisfies Record<keyof RunParams, 0>) as (keyof RunParams)[];
-
-// Extrai só a config do turno de um objeto maior (opções do startRun, item da
-// fila) — evita guardar `ws`/`prompt` no thread e no live-runs.json.
-function runParams(o: RunParams): RunParams {
-  const p: Record<string, unknown> = {};
-  for (const k of RUN_PARAM_KEYS) if (o[k] !== undefined) p[k] = o[k];
-  return p as RunParams;
-}
-
-// Dois turnos podem ser fundidos num só --resume? Só com config idêntica.
-function sameParams(a: RunParams, b: RunParams): boolean {
-  return RUN_PARAM_KEYS.every((k) => JSON.stringify(a[k]) === JSON.stringify(b[k]));
-}
-
-export interface Thread {
-  handle: RunHandle;
-  params: RunParams;
-  prompt: string;       // instrução em execução — contexto p/ o triador do próximo prompt
-  startedAt: number;    // ts do início do turno; replayado no reconnect pra o cronômetro não reiniciar do zero após F5
-  lastFrameAt?: number; // ts do último frame NDJSON traduzido; o reaper mata quem fica mudo além do teto
-  sessionId?: string;
-  costUsd?: number;     // custo real do turno (result.total_cost_usd, ground-truth)
-  durationMs?: number;
-  numTurns?: number;
-  turnTokens?: number;  // total faturável do turno: soma de TODAS as chamadas API (input+output+cache_creation, SEM cache read), p/ stat discreta na bolha
-  inputTokens?: number;
-  outputTokens?: number;
-  lastBilledMsgId?: string; // dedupe do acúmulo: a mesma chamada API emite vários eventos assistant com o mesmo message.id
-  endReason?: string;   // result.subtype: success | error_max_budget | error_max_turns | ...
-  model?: string;       // modelo EFETIVO do turno (message.model do CLI); pode divergir do pedido sob --fallback-model
-  stopped?: boolean;    // turno foi morto (stop do usuário, reaper, guarda de pressão, shutdown) — o 'done' do onClose não deve notificar "turno concluído"
-  userStopped?: boolean; // o stop veio do USUÁRIO. Só ele impede o item de fila de voltar pra fila: kill nosso (OOM/deploy/reaper) não consumiu o prompt
-  reaped?: StaleReason; // morto pelo reaper: usa stopped (sem notificar "concluído") MAS tem direito a retomada automática
-  questioned?: boolean; // turno fez AskUserQuestion: o `claude -p` auto-resolve e CONTINUA gerando — suprime tudo que vier depois pra a pergunta ficar como última (respondível)
-  parked?: ParkedItem;  // item que a fila estacionada drenou neste turno; volta pra fila se o teto de tokens matar o turno sem consumi-lo
-  parkedFrom?: string;  // sessão de onde o item saiu — no disparo avulso a chave do turno é a do FORK, e devolver por ela criaria uma fila fantasma
-  lastError?: string;   // último erro reportado pelo processo
-  // Snapshot acumulado p/ replay no reconnect (#10). Os frames vão por broadcast.
-  text: string;
-  thinking: string;
-  tools: ToolCall[];
-  toolStart: Map<string, number>; // id -> início, p/ cravar duração no close; morre com o thread
-  taskNotifies: Map<string, number>; // task-id -> nº de notificações no turno, p/ detectar loop de subagente zumbi
-  // Registry da lista de tarefas do turno (TaskCreate/TaskUpdate): a lista é estado
-  // acumulado entre tools — cada mutação carimba um snapshot no card (ws/tools.ts).
-  tasks: Map<string, ToolTodo>;
-  taskCreates: Map<string, { subject: string; activeForm?: string }>; // tool_use id -> create aguardando o nº da task no result
-  appTried: Set<string>; // tool_use id já consultado por UI de MCP App — a busca é feita uma vez só por card
-}
-
-export const threads = new Map<string, Thread>();
-
-// Fila de prompts triados como 'wait'/'merge' enquanto o turno da sessão rodava.
-// Drenada (sequencialmente) no onClose do turno atual — um turno por vez, mantendo
-// a invariante "1 runMsg por sessão" do cliente. merge marca p/ enquadrar como
-// continuação no drain.
-interface QueuedSend {
-  ws: WebSocket;
-  prompt: string;
-  msgId?: string;
-  mode?: string;
-  model?: string;
-  maxBudgetUsd?: number;
-  bypass?: boolean;
-  role?: Role;
-  disallowedSkills?: string[];
-  mcps?: string[];
-  effort?: string;
-  merge?: boolean;
-}
-const pending = new Map<string, QueuedSend[]>();
-
-// Teto da fila por sessão: sem isto, marteladas num turno ocupado enfileiram sem
-// limite — cada item segura um prompt (até maxPromptBytes) e um ws, a memória
-// cresce a noite toda. Acima do teto, recusa com erro em vez de acumular.
-const MAX_PENDING = 50;
-function enqueue(sessionKey: string, item: QueuedSend): boolean {
-  const arr = pending.get(sessionKey) ?? [];
-  if (arr.length >= MAX_PENDING) return false;
-  arr.push(item);
-  pending.set(sessionKey, arr);
-  return true;
-}
-
-// Época de stop por sessão: incrementa a cada stop explícito. routeSend captura a
-// época ANTES do await da triagem; se ela mudou quando o veredito chega, um stop
-// aconteceu no meio e a mensagem é descartada (senão o run avaliado some e o
-// fallback "turno fechou → roda como novo" sobe a mensagem logo após o stop).
-const stopEpoch = new Map<string, number>();
-
-// Stop cancela SÓ o turno atual — a fila é preservada e o próximo item sobe no
-// onClose (pedido do Samuel: cancelar um prompt não pode apagar a fila inteira).
-// O bump de época ainda descarta uma mensagem que estava EM TRIAGEM no instante do
-// stop (senão ela viraria um turno novo logo após o stop, furando o cancelamento).
-export function onStop(sessionKey: string): void {
-  stopEpoch.set(sessionKey, (stopEpoch.get(sessionKey) ?? 0) + 1);
-  // Side-runs (triagem/quick-answer haiku) NÃO viviam em `threads` — o stop só
-  // matava o turno principal e esses one-shots seguiam vivos, a quick-answer ainda
-  // fazia broadcast depois do stop. Mata os daquela sessão agora.
-  killSideRunsFor(sessionKey);
-  // Marca o thread vivo: seu onClose vai emitir 'done' (limpa o phase em todos os
-  // clientes), mas com stopped=true pra o cliente NÃO disparar notificação de
-  // "turno concluído" — o usuário interrompeu de propósito. Flag morre com o thread.
-  const t = threads.get(sessionKey);
-  if (t) { t.stopped = true; t.userStopped = true; }
-}
-
-// O servidor keyeia o thread pela chave com que o run COMEÇOU ("new-xxx" numa
-// sessão nova) e nunca re-keyea; o cliente migra o display pro sessionId real. Um
-// stop que chega com a chave migrada dava miss no `threads.get()` → kill no-op (o
-// bug "o botão não para"). O front já manda a chave certa (serverKey), mas isto é a
-// rede de segurança do lado do servidor: cai pro sessionId se a chave direta falhar.
-export function resolveThreadKey(sessionKey: string): string | undefined {
-  if (threads.has(sessionKey)) return sessionKey;
-  for (const [k, t] of threads) if (t.sessionId === sessionKey) return k;
-  return undefined;
-}
-
-// Ponto único de stop: resolve a chave real do thread ANTES de marcar/matar, pra
-// onStop (bump de época + limpa side-runs) e o kill acertarem o mesmo turno.
-export function stopSession(sessionKey: string): void {
-  const key = resolveThreadKey(sessionKey) ?? sessionKey;
-  onStop(key);
-  threads.get(key)?.handle.kill();
-}
-
-export function admitRun(liveRuns: number, replacing: boolean, cap = CONFIG.maxConcurrentRuns): boolean {
-  return replacing || liveRuns < cap;
-}
-
-const startedAt = Date.now();
-let lastStatsAt = 0;
-export function markStatsAt(now: number) { lastStatsAt = now; }
-
-// Saúde do processo pro /healthz: se o HTTP responde isto, o event loop não está
-// totalmente travado. activeRuns/lastStatsAt são informativos (supervisor decide).
-export function runStats(): { uptimeMs: number; activeRuns: number; lastStatsAt: number } {
-  return { uptimeMs: Date.now() - startedAt, activeRuns: threads.size, lastStatsAt };
-}
-
-// Mata toda a árvore de runs vivos. Chamado no shutdown do processo: sem isto,
-// um restart (tsx watch, OOM-reap, Ctrl-C) deixa cada `claude -p` detached
-// rodando órfão a noite toda — queimando token/CPU sem socket lendo o stdout,
-// e o run some pro cliente (threads é só memória). kill() já escala SIGTERM→
-// SIGKILL no grupo (detached), então isto encerra a árvore inteira.
-// preserveLive: no SHUTDOWN os turnos devem continuar no live-runs.json pra o boot
-// retomá-los (é o caso mais comum de turno morto: deploy). Na guarda de pressão o
-// processo segue vivo e o registro é limpo — retomar depois recriaria a pressão que
-// motivou o kill.
-let preserveLiveOnClose = false;
-export function killAllRuns(opts: { preserveLive?: boolean } = {}): void {
-  preserveLiveOnClose = !!opts.preserveLive;
-  for (const t of threads.values()) {
-    // Kill NOSSO, não morte silenciosa: sem esta marca o onClose de cada turno veria
-    // "fechou sem result" e dispararia uma retomada automática por sessão — em cima
-    // do shutdown (processo saindo, claude detached e órfão) ou da guarda de pressão
-    // (ressuscitando justamente o que foi morto pra salvar a box).
-    t.stopped = true;
-    try { t.handle.kill(); } catch { /* já morto */ }
-  }
-  killSideRuns(); // one-shots de triagem/quick-answer não vivem em `threads`
-}
-
-// Tetos do reaper. Só SILÊNCIO condena um turno, e o teto depende de haver tool em
-// voo: mudo SEM tool aberta = o modelo travou ("garimpando" eterno); mudo COM tool
-// aberta = build/teste/subagente longo, que fica minutos sem emitir frame e é
-// trabalho legítimo. O teto por TEMPO DE VIDA era 45min e matava turno saudável em
-// pleno progresso — o Deck existe pra disparar trabalho longo e fechar a aba, e sem
-// browser o frame de erro não chegava a ninguém: era o "o turno só roda com a
-// janela aberta". Fica só como rede final contra run desgovernado.
-export const REAPER_SILENCE_CAP_MS = 15 * 60_000;
-export const REAPER_TOOL_SILENCE_CAP_MS = 90 * 60_000;
-export const REAPER_TOTAL_CAP_MS = 8 * 60 * 60_000;
-
-export type StaleReason = 'silence' | 'tool' | 'total';
-export interface StaleVerdict { key: string; reason: StaleReason; ms: number }
-
-// Pura (testável): decide quais chaves reapar e por quê. lastFrameAt ausente → usa
-// startedAt (turno que nunca emitiu frame conta silêncio desde o início).
-// openToolsAt = quando cada tool AINDA ABERTA começou. Recebe os instantes, não a
-// contagem: um tool_use sem tool_result (subagente morto, parse perdido) ficaria
-// contado como "em voo" pelo resto do turno e rebaixaria o teto de silêncio de 15
-// pra 90min pra sempre. Tool aberta há mais que o teto dela não conta como trabalho.
-export function findStaleThreads(
-  now: number,
-  entries: Iterable<[string, { startedAt: number; lastFrameAt?: number; openToolsAt?: number[]; marathon?: boolean }]>,
-  caps: { silence?: number; toolSilence?: number; total?: number } = {},
-): StaleVerdict[] {
-  const silenceCap = caps.silence ?? REAPER_SILENCE_CAP_MS;
-  const toolCap = caps.toolSilence ?? REAPER_TOOL_SILENCE_CAP_MS;
-  const totalCap = caps.total ?? REAPER_TOTAL_CAP_MS;
-  const stale: StaleVerdict[] = [];
-  for (const [key, t] of entries) {
-    const silentFor = now - (t.lastFrameAt ?? t.startedAt);
-    const aliveFor = now - t.startedAt;
-    const busy = (t.openToolsAt ?? []).some((at) => now - at < toolCap);
-    // A maratona só abre mão do teto de VIDA. Os de silêncio seguem valendo: turno
-    // mudo está travado, não longo — e é justamente na maratona que ninguém olha.
-    const lifeCap = t.marathon ? MARATHON_TOTAL_CAP_MS : totalCap;
-    if (silentFor >= (busy ? toolCap : silenceCap)) stale.push({ key, reason: busy ? 'tool' : 'silence', ms: silentFor });
-    else if (aliveFor >= lifeCap) stale.push({ key, reason: 'total', ms: aliveFor });
-  }
-  return stale;
-}
-
-// Só constata a morte. A promessa de retomada é do autoResume, que é quem sabe se
-// ela vai acontecer de fato (a fila do usuário tem prioridade e pode ganhar a
-// corrida) — prometer aqui virava mentira na tela.
-const REAP_MESSAGE: Record<StaleReason, string> = {
-  silence: 'O turno ficou mudo tempo demais e foi encerrado.',
-  tool: 'Uma ferramenta travou e o turno foi encerrado.',
-  total: 'O turno passou do tempo máximo de vida e foi encerrado.',
-};
-
-export function reapStaleRuns(): void {
-  const now = Date.now();
-  const snapshot = [...threads]
-    // Já marcado = kill em andamento (nosso ou do usuário). O thread só sai de
-    // `threads` no onClose, que pode demorar — ou não vir, se a tool travada segura
-    // o processo. Sem esta guarda o reaper re-mataria a mesma chave a cada passada,
-    // duplicando bolha de erro e incidente a cada minuto.
-    .filter(([, t]) => !t.reaped && !t.stopped)
-    .map(([key, t]) =>
-      [key, { startedAt: t.startedAt, lastFrameAt: t.lastFrameAt, openToolsAt: [...t.toolStart.values()], marathon: threadIsMarathon(key, t.sessionId) }] as [string, { startedAt: number; lastFrameAt?: number; openToolsAt: number[]; marathon: boolean }]);
-  for (const v of findStaleThreads(now, snapshot)) {
-    const thread = threads.get(v.key);
-    if (!thread) continue;
-    // Marca reaped ANTES do kill: o onClose usa a marca pra retomar o turno sozinho.
-    // Antes o reaper só passava por stopSession, então o turno ficava indistinguível
-    // de um stop do usuário — morria sem retomada, sem registro e (sem browser) sem
-    // ninguém pra ver o erro.
-    thread.reaped = v.reason;
-    console.error(`[reaper] ${v.key}: ${v.reason} há ${Math.round(v.ms / 1000)}s`);
-    recordIncident({ kind: 'reaped', sessionKey: v.key, sessionId: thread.sessionId, detail: `${v.reason} há ${Math.round(v.ms / 1000)}s, ${thread.tools.length} tools` });
-    broadcast({ t: 'error', sessionKey: v.key, message: REAP_MESSAGE[v.reason] });
-    stopSession(v.key);
-  }
-}
+import { threadIsMarathon, MARATHON_AUTO_RESUME_CAP } from './marathon';
+import { threads, admitRun, resolveThreadKey, stopSession, stopEpochOf, clearStopEpoch, shouldPreserveLive, runParams, sameParams, type Thread, type RunParams } from './threads';
+import { enqueuePending, hasPending, takePendingBatch, takeAllPending, type QueuedSend } from './pending';
 
 // --- morte silenciosa do turno (o "chat simplesmente parou") -----------------
 
@@ -325,14 +64,6 @@ function autoResume(sessionKey: string, thread: Thread): void {
   // (passou das guardas de corrida acima e do teto de tentativas).
   broadcast({ t: 'error', sessionKey, message: 'Retomando de onde parou…' });
   startRun({ ...thread.params, ws: null, sessionKey, prompt: RESUME_PROMPT, resumeId: thread.sessionId });
-}
-
-let reaperTimer: ReturnType<typeof setInterval> | null = null;
-// Varre a cada minuto. unref: o timer não segura o event loop no shutdown.
-export function startRunReaper(intervalMs = 60_000): void {
-  if (reaperTimer) return;
-  reaperTimer = setInterval(reapStaleRuns, intervalMs);
-  reaperTimer.unref?.();
 }
 
 // --- drainer da fila ESTACIONADA (overnight/quota-out) ----------------------
@@ -532,7 +263,7 @@ export function startRun(o: StartRunOptions) {
   if (auto && isAwaiting(sessionKey)) {
     if (ws) {
       if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
-      if (!enqueue(sessionKey, { ...params, ws, prompt }))
+      if (!enqueuePending(sessionKey, { ...params, ws, prompt }))
         send(ws, { t: 'error', sessionKey, message: 'fila de mensagens cheia' });
     }
     return;
@@ -598,7 +329,7 @@ export function startRun(o: StartRunOptions) {
       // (re-send que matou o anterior), o onClose do antigo NÃO deve mandar um
       // 'done' prematuro nem apagar a entrada do novo run.
       if (threads.get(sessionKey) !== thread) return;
-      if (live && !preserveLiveOnClose) clearRunLive(sessionKey); // fechou: não é mais órfão (salvo no shutdown, onde o boot retoma)
+      if (live && !shouldPreserveLive()) clearRunLive(sessionKey); // fechou: não é mais órfão (salvo no shutdown, onde o boot retoma)
       // Teto de tokens: um veredito só pro fechamento inteiro (devolver o item
       // drenado, segurar as filas e não retomar em cima do limite).
       const hold = quotaHold();
@@ -641,13 +372,13 @@ export function startRun(o: StartRunOptions) {
       // verdade (não stop, não cron, não AskUserQuestion pendente) e sem fila — um
       // prompt enfileirado vai rodar já; sugerir tópicos agora seria ruído. Se um
       // turno novo começar antes do haiku voltar, o resultado é descartado.
-      if (!thread.stopped && !thread.questioned && !unattended && !pending.get(sessionKey)?.length) {
+      if (!thread.stopped && !thread.questioned && !unattended && !hasPending(sessionKey)) {
         void suggestFollowups(thread.prompt, thread.text, sessionKey).then((items) => {
           if (items.length && !threads.has(sessionKey)) broadcast({ t: 'suggestions', sessionKey, items });
         }).catch(() => {});
       }
       threads.delete(sessionKey);
-      stopEpoch.delete(sessionKey); // época só vive enquanto há turno/triagem; senão vaza monotônico
+      clearStopEpoch(sessionKey); // época só vive enquanto há turno/triagem; senão vaza monotônico
       // Após AskUserQuestion o turno aguarda a RESPOSTA do usuário (próximo prompt) —
       // não drenar a fila aqui, senão um enfileirado fura na frente da resposta.
       if (!thread.questioned) {
@@ -679,19 +410,9 @@ export function startRun(o: StartRunOptions) {
 // conversa via resumeId (sessionId do turno recém-fechado). merge enquadra como
 // complemento explícito.
 function drainPending(sessionKey: string, resumeId?: string) {
-  const arr = pending.get(sessionKey);
-  if (!arr || arr.length === 0) return;
-  const first = arr.shift()!;
-  // Coalesce: junta itens CONSECUTIVOS de mesma classe (merge/wait) e mesmos
-  // params de turno num único --resume — vários prompts enfileirados viravam N
-  // turnos sequenciais, cada um re-lendo o contexto e re-pensando (latência
-  // empilhada). Divergência de params impede merge seguro → para o batch.
-  const same = (a: QueuedSend, b: QueuedSend) => a.merge === b.merge && sameParams(a, b);
-  const batch = [first];
-  while (arr.length && same(first, arr[0])) batch.push(arr.shift()!);
-  if (arr.length === 0) pending.delete(sessionKey);
-  const joined = batch.map((b) => b.prompt).join('\n\n');
-  const text = first.merge ? `Complemento do pedido anterior:\n\n${joined}` : joined;
+  const batch = takePendingBatch(sessionKey);
+  if (!batch) return;
+  const { first, text } = batch;
   // msgId undefined: a bolha do usuário já foi ecoada no routeSend (não duplica).
   startRun({ ...runParams(first), ws: first.ws, sessionKey, prompt: text, resumeId });
 }
@@ -701,9 +422,8 @@ function drainPending(sessionKey: string, resumeId?: string) {
 // no mesmo lugar que o usuário edita/reordena. Sem isto o onClose de um turno morto
 // no limite disparava o próximo item contra a mesma sessão sem token.
 function parkPending(sessionKey: string, resumeId?: string): void {
-  const arr = pending.get(sessionKey);
-  if (!arr || arr.length === 0) return;
-  pending.delete(sessionKey);
+  const arr = takeAllPending(sessionKey);
+  if (arr.length === 0) return;
   for (const it of arr) {
     const r = addParked(sessionKey, {
       ...runParams(it),
@@ -741,11 +461,11 @@ export async function routeSend(o: RouteSendOptions) {
   // Bolha do usuário aparece já (antes da decisão da triagem, que leva ~alguns s).
   if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
 
-  const epoch = stopEpoch.get(sessionKey) ?? 0;
+  const epoch = stopEpochOf(sessionKey);
   const verdict = await classify(cur.prompt, cur.text, prompt, sessionKey);
 
   // Stop durante o await da triagem → o usuário pediu silêncio; descarta.
-  if ((stopEpoch.get(sessionKey) ?? 0) !== epoch) return;
+  if (stopEpochOf(sessionKey) !== epoch) return;
 
   // O turno avaliado pode ter fechado/sido substituído durante o await (~s) do
   // triador. Agir sobre o veredito agora atingiria o turno ERRADO: 'priority'
@@ -753,7 +473,7 @@ export async function routeSend(o: RouteSendOptions) {
   // enfileiraria contra outra linhagem. Re-checa identidade antes de agir.
   if (threads.get(sessionKey) !== cur) {
     if (!threads.has(sessionKey)) startRun({ ...params, ws, sessionKey, prompt, resumeId });
-    else if (!enqueue(sessionKey, { ...params, ws, prompt, merge: false })) {
+    else if (!enqueuePending(sessionKey, { ...params, ws, prompt, merge: false })) {
       broadcast({ t: 'error', sessionKey, message: 'fila de mensagens cheia' });
     }
     return;
@@ -778,14 +498,14 @@ export async function routeSend(o: RouteSendOptions) {
       // silêncio; degrada pra 'wait' (responde quando o turno fechar).
       detach(ws, runQuickAnswer(sessionKey, prompt, epoch, () => {
         if (!threads.has(sessionKey)) { startRun({ ...params, ws, sessionKey, prompt, resumeId }); return; }
-        if (!enqueue(sessionKey, { ...params, ws, prompt, merge: false })) {
+        if (!enqueuePending(sessionKey, { ...params, ws, prompt, merge: false })) {
           broadcast({ t: 'error', sessionKey, message: 'fila de mensagens cheia' });
         }
       }), sessionKey);
       return;
     case 'merge':
     case 'wait':
-      if (!enqueue(sessionKey, { ...params, ws, prompt, msgId, merge: verdict.action === 'merge' })) {
+      if (!enqueuePending(sessionKey, { ...params, ws, prompt, msgId, merge: verdict.action === 'merge' })) {
         broadcast({ t: 'error', sessionKey, message: 'fila de mensagens cheia' });
       }
       return;
@@ -798,7 +518,7 @@ export async function routeSend(o: RouteSendOptions) {
 // stop. O killSideRunsFor no onStop já mata o processo; o guard cobre a corrida.
 async function runQuickAnswer(sessionKey: string, prompt: string, epoch: number, onEmpty?: () => void) {
   const text = await quickAnswer(prompt, sessionKey);
-  if ((stopEpoch.get(sessionKey) ?? 0) !== epoch) return;
+  if (stopEpochOf(sessionKey) !== epoch) return;
   if (!text) { onEmpty?.(); return; }
   broadcast({ t: 'quick-answer', sessionKey, id: `qa-${Date.now().toString(36)}`, text, ts: Date.now() });
 }

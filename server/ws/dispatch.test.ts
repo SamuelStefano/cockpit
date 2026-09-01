@@ -3,13 +3,15 @@ import type { WebSocket } from 'ws';
 import type { ClientMsg } from '../../shared/protocol';
 
 // Mock every data-layer dependency so handle() routes against predictable stubs.
-const runs = vi.hoisted(() => {
+const runs = vi.hoisted(() => ({
+  startRun: vi.fn(),
+  routeSend: vi.fn((_opts: unknown) => Promise.resolve()),
+}));
+const reg = vi.hoisted(() => {
   const threads = new Map<string, { handle: { kill: () => void } }>();
   const onStop = vi.fn();
   return {
     threads,
-    startRun: vi.fn(),
-    routeSend: vi.fn((_opts: unknown) => Promise.resolve()),
     onStop,
     // Espelha o real: resolve a chave (aqui a chave direta basta), marca o stop e mata.
     stopSession: vi.fn((key: string) => { onStop(key); threads.get(key)?.handle.kill(); }),
@@ -24,6 +26,7 @@ const admin = vi.hoisted(() => ({
 }));
 
 vi.mock('./runs', () => runs);
+vi.mock('./threads', () => reg);
 vi.mock('./broadcast', () => bc);
 vi.mock('../config', () => cfg);
 vi.mock('../admin-ops', () => admin);
@@ -47,7 +50,7 @@ vi.mock('../crons', () => crons);
 import { handle } from './dispatch';
 
 const ws = {} as WebSocket;
-beforeEach(() => { vi.clearAllMocks(); runs.threads.clear(); cfg.CONFIG.localOnly = true; });
+beforeEach(() => { vi.clearAllMocks(); reg.threads.clear(); cfg.CONFIG.localOnly = true; });
 
 describe('send routing (the #130 role seam)', () => {
   const msg = (over: Partial<ClientMsg> = {}): ClientMsg => ({
@@ -74,7 +77,7 @@ describe('send routing (the #130 role seam)', () => {
   });
 
   it('routes a BUSY session to routeSend (triage), also threading the role', async () => {
-    runs.threads.set('k1', { handle: { kill: vi.fn() } });
+    reg.threads.set('k1', { handle: { kill: vi.fn() } });
     await handle(ws, msg(), 'student');
     expect(runs.routeSend).toHaveBeenCalledOnce();
     expect(runs.routeSend.mock.calls[0][0]).toMatchObject({ sessionKey: 'k1', role: 'student' });
@@ -85,7 +88,7 @@ describe('send routing (the #130 role seam)', () => {
 describe('stop', () => {
   it('kills the thread for the targeted session key only', async () => {
     const kill = vi.fn();
-    runs.threads.set('k1', { handle: { kill } });
+    reg.threads.set('k1', { handle: { kill } });
     await handle(ws, { t: 'stop', sessionKey: 'k1' } as ClientMsg);
     expect(kill).toHaveBeenCalledOnce();
   });
@@ -95,14 +98,14 @@ describe('stop', () => {
   });
 
   it('marks the stop (clears queue + bumps epoch) so no queued/in-triage message launches after stop', async () => {
-    runs.threads.set('k1', { handle: { kill: vi.fn() } });
+    reg.threads.set('k1', { handle: { kill: vi.fn() } });
     await handle(ws, { t: 'stop', sessionKey: 'k1' } as ClientMsg);
-    expect(runs.onStop).toHaveBeenCalledWith('k1');
+    expect(reg.onStop).toHaveBeenCalledWith('k1');
   });
 
   it('marks the stop even when no thread is live', async () => {
     await handle(ws, { t: 'stop', sessionKey: 'ghost' } as ClientMsg);
-    expect(runs.onStop).toHaveBeenCalledWith('ghost');
+    expect(reg.onStop).toHaveBeenCalledWith('ghost');
   });
 });
 

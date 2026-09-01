@@ -5,7 +5,9 @@ import { CONFIG } from './config';
 import { currentRole, roleFromToken } from './auth';
 import { originAllowed } from './ws/origin';
 import { tokenAllowed, tokenFromUrl } from './ws/token';
-import { runStats, killAllRuns, fireCron, startRunReaper } from './ws/runs';
+import { fireCron } from './ws/runs';
+import { startRunReaper } from './ws/reaper';
+import { runStats, killAllRuns } from './ws/threads';
 import { startCronLoop } from './crons';
 import { startStatsLoop } from './ws/stats-loop';
 import { startBgAgentsLoop } from './ws/bg-agents';
@@ -18,7 +20,7 @@ import { startPointsWatch } from './points-watch';
 import { startDflPointsWatch } from './dfl-points-watch';
 import { sandboxUpstream, proxySandboxUpgrade } from './sandbox-proxy';
 
-export { runStats, killAllRuns } from './ws/runs';
+export { runStats, killAllRuns } from './ws/threads';
 
 export function attachWs(server: Server) {
   // maxPayload: rejeita frames gigantes no transporte ANTES de o ws alocar/

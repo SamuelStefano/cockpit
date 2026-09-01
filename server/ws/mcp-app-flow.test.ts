@@ -12,7 +12,7 @@ vi.mock('../admin-ops', () => ({
 vi.mock('../db', () => ({ recordUsage: vi.fn() }));
 
 const { translate } = await import('./translate');
-const { threads, type: _t } = await import('./runs') as any;
+const { threads, type: _t } = await import('./threads') as any;
 const { broadcast } = await import('./broadcast');
 const { clearAppCache } = await import('../mcp/apps');
 

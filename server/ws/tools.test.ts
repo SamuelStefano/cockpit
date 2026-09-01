@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { emitTool, closeTool } from './tools';
-import type { Thread } from './runs';
+import type { Thread } from './threads';
 
 function freshThread(): Thread {
   return { handle: { kill: () => {} }, params: {}, prompt: '', startedAt: 0, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set() };

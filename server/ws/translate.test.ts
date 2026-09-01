@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { translate } from './translate';
-import { threads, type Thread } from './runs';
+import { threads, type Thread } from './threads';
 import { getLastRate } from './rate';
 import { broadcast } from './broadcast';
 import { isAwaiting, clearAllAwaiting } from './awaiting';
