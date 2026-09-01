@@ -57,6 +57,9 @@ custo por usuário fica plano (não centraliza inferência num servidor só).
 - **Pareamento**: o browser logado faz `POST /pair/new` → relay gera um código single-use/TTL.
   O usuário roda o agente com `--pair=CÓDIGO`; o agente apresenta código+pubkey; o relay
   consome o código (atômico) e registra o `agentId`. (`pairAgent` em `server/agent.ts`.)
+  O endpoint aceita o JWT **só** em `Authorization: Bearer` (query string vazaria o token
+  pro access log) e é limitado a 5 códigos/min por conta — cada código é uma linha nova
+  no banco, então sem teto uma conta logada em loop enche a tabela.
 
 ## Fluxo de uma mensagem
 
@@ -85,17 +88,27 @@ A box NÃO pode travar. Camadas:
     `killAllRuns()` pra liberar a VPS antes do OOM-killer (um `claude -p` desgovernado não trava a box).
   - **Processo**: supervisor `run-agent.sh` (flock singleton) reinicia o agente se ele morrer.
 - **Relay (`relay/src/index.ts`)**: heartbeat ping/pong nos dois servidores (browser+agent),
-  timeout de socket pré-auth (15s) e cap de tentativas — defesa contra exaustão.
+  timeout de socket pré-auth (agente 15s, browser 20s) e cap de tentativas — defesa contra exaustão.
+  - **Falha do store nega, não derruba.** Todo caminho de auth encosta na rede (JWKS +
+    PostgREST) dentro de um handler **async de evento**: uma rejeição solta ali vira
+    `unhandledRejection` e o Node mata o processo — o que desconectaria TODAS as contas por
+    causa de uma. Os três sítios (`identityFrom`, frame do browser, frame do agente) capturam:
+    identidade que falhou é identidade negada, frame de administração que falhou não responde,
+    socket de agente que falhou fecha `4500` e reconecta com backoff.
+  - **Timeout no store** (`relay/src/store.ts`, `AbortSignal.timeout(10s)`): sem ele um
+    PostgREST que aceita a conexão e nunca responde pendura o socket que espera por ele.
 
 ## Layout do repositório
 
 ```
 src/                 SPA React (deploy Vercel)
-  App.tsx            gate de login (Supabase) → Dashboard/Cockpit
-  useCockpit.ts      estado do cliente WS
-  cockpit/session.ts wsBase / buildWsUrl / relayHttpBase (deriva do VITE_WS_URL)
-  components/auth/    SupabaseAuthGate, Dashboard (pareamento + banner trusted-relay)
-  routes/            Admin, Contextos, Docs, Skills, Observatorio
+  App.tsx            monta o chrome; o gate de login sai de app/AuthGateView
+  app/               hooks e layout do shell (overlays, quota, atalhos, painéis, rotas lazy)
+  useCockpit.ts      bomba de mensagens do WS; os domínios saem em hooks (useTerminals, useNotes…)
+  cockpit/           estado do cliente fatiado (session, history, blocks, live-tokens…)
+  components/primitives/  design system (Button, Badge, Icon, tokens) — galeria em /ds
+  components/auth/   SupabaseAuthGate, Dashboard (pareamento + banner trusted-relay)
+  routes/            uma tela por rota (ver a lista de rotas no README)
 server/              backend Node/TS (roda local na VPS; e é a base do agent)
   index.ts           entry do backend local (:7777, /healthz, serve SPA buildada)
   agent.ts           AGENT T3: disca pro relay, health checks embutidos
@@ -106,6 +119,7 @@ relay/               relay T3 (roteador WS) — projeto isolado, sem driver de D
   src/verify.ts      JWKS, validateClaims, verifyAgentSignature (Ed25519)
   src/store.ts       adapter Supabase (service-role) p/ agentes e códigos de pareamento
   src/routing.ts     Registry por conta (sem fan-out global)
+  src/throttle.ts    janela deslizante em memória (rate limit do /pair/new)
   src/main.ts        entry runnable (lê env, listen 127.0.0.1)
   deploy/            Caddyfile, deck-relay.service (systemd endurecido), README
 run-backend.sh       supervisor do backend local (:7777)
@@ -142,7 +156,12 @@ npx tsc --noEmit                       # SPA
 npx tsc --noEmit -p tsconfig.server.json
 npx tsc --noEmit -p tsconfig.relay.json
 npx vitest run                         # testes (ao lado dos arquivos: *.test.ts)
-npm run build                          # build da SPA (vite)
+npm run build                          # os três typechecks + vite build
 ```
-Testes ficam **ao lado** do arquivo testado (ex.: `relay/src/verify.ts` + `relay/verify.test.ts`).
-O relay é provado ponta-a-ponta por `relay/integration.test.ts` (browser↔relay↔agent real, sem rede externa).
+Testes ficam **ao lado** do arquivo testado (ex.: `relay/src/throttle.ts` + `relay/src/throttle.test.ts`).
+O relay é provado ponta-a-ponta por `relay/integration.test.ts` (browser↔relay↔agent real, sem rede
+externa), que também instala um listener de `unhandledRejection` como asserção — é assim que a
+invariante "falha do store não derruba o processo" fica travada.
+`relay/boundary.test.ts` garante a fronteira: nenhum arquivo do relay importa nada capaz de spawnar.
+
+CI: job `gate` (typecheck + `vitest run`) e job `smoke` (playwright + `vite build`) a cada PR.
