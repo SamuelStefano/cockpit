@@ -12,7 +12,7 @@ import { runTool } from './tools';
 // do dono, via Tailscale) fala JSON-RPC nesta rota e lê os contextos e sessões
 // que só existem nesta box — sem copiar arquivo pra lugar nenhum.
 
-export { MCP_PATH, isMcpPath } from './auth';
+export { isMcpPath } from './auth';
 
 export function createMcpServer(): Server {
   const server = new Server({ name: 'deck', version: '1.0.0' }, { capabilities: { tools: {} } });

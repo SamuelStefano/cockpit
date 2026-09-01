@@ -24,6 +24,7 @@ describe('groupByRecency', () => {
       new Set(),
     );
     expect(groups.map((g) => g.label)).toEqual(['Hoje', 'Ontem', '7 dias', '30 dias', 'Anteriores']);
+    expect(groups.map((g) => g.items.map((s) => s.id))).toEqual([['today'], ['yest'], ['week'], ['month'], ['old']]);
   });
 
   it('routes running sessions to the top bucket regardless of mtime', () => {
