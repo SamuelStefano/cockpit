@@ -2,7 +2,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { projectSlug } from '../config';
-import { num } from '../sessions/parse';
+import { num } from '../sessions/records';
 import { broadcast } from './broadcast';
 import { threads } from './threads';
 

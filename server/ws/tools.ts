@@ -1,5 +1,6 @@
 import type { ToolCall, ToolTodo } from '../../shared/protocol';
-import { diffOf, planOf, questionsOf, todosOf, labelOf, commandOf, toolResultOutput, applyTaskUpdate, registerTaskCreate, taskSnapshot } from '../sessions/parse';
+import { diffOf, planOf, questionsOf, todosOf, labelOf, commandOf, toolResultOutput } from '../sessions/tool-views';
+import { applyTaskUpdate, registerTaskCreate, taskSnapshot } from '../sessions/tasks';
 import { broadcast } from './broadcast';
 import { resolveApp, parseMcpToolName } from '../mcp/apps';
 import { threads, type Thread } from './threads';
