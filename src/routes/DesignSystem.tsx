@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, EmptyState, Badge, Input, Switch, RouteHeader, toast, Stat, ProgressBar, Tabs, Modal, LivePreview, fireConfetti, Icon } from '../components/primitives';
+import { Button, EmptyState, Badge, BrandMark, Input, Switch, ToggleChip, RouteHeader, toast, Stat, ProgressBar, Tabs, Modal, LivePreview, fireConfetti, Icon } from '../components/primitives';
 import { ThemePlayground } from './ds/ThemePlayground';
 import { McpAppDemo } from './ds/McpAppDemo';
 
@@ -132,6 +132,22 @@ export function DesignSystem() {
         <Section title="Switch">
           <Row label="on"><div className="w-64"><Switch checked onChange={() => {}} icon="terminal" label="Mostrar ferramentas" hint="Bash, Read, Grep… no chat" /></div></Row>
           <Row label="off"><div className="w-64"><Switch checked={false} onChange={() => {}} icon="sparkles" label="Agrupar notas do agente" /></div></Row>
+        </Section>
+
+        <Section title="Button — destrutivo">
+          <Row label="danger"><Button variant="danger" icon="trash">remover</Button></Row>
+          <Row label="dangerSolid"><Button variant="dangerSolid" icon="trash">Remover token</Button></Row>
+        </Section>
+
+        <Section title="ToggleChip">
+          <Row label="accent"><ToggleChip on icon="sparkles">skills</ToggleChip></Row>
+          <Row label="off"><ToggleChip on={false} icon="command">MCP</ToggleChip></Row>
+          <Row label="danger"><ToggleChip on tone="danger" icon="shield-off">bypass</ToggleChip></Row>
+        </Section>
+
+        <Section title="BrandMark">
+          <Row label="md"><BrandMark title="deck" subtitle="acesso restrito" /></Row>
+          <Row label="lg"><BrandMark title="deck" subtitle="o Claude Code da sua VPS" size="lg" /></Row>
         </Section>
 
         <Section title="Badge">

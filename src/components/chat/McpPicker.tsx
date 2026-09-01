@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Icon, tokens } from '../primitives';
+import { Icon, ToggleChip, tokens } from '../primitives';
 
 // Seletor dos MCP servers ativos POR PROMPT. AO CONTRÁRIO das skills: vazio =
 // NENHUM MCP (default fail-CLOSED). Cada server adiciona ~5-20k tokens de
@@ -44,20 +44,16 @@ export function McpPicker({ servers, selected, setSelected }: {
 
   return (
     <div ref={wrapRef} className="relative inline-flex">
-      <button
-        type="button"
+      <ToggleChip
+        on={active}
+        icon="command"
         onClick={() => setOpen((o) => !o)}
         title={active ? `${liveCount} MCP ativo(s) neste prompt` : 'MCP desligado (economiza ~tokens). Clique pra ligar algum nesta sessão.'}
-        className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition sm:px-2 sm:py-1 ${tokens.focusRing}
-          ${active
-            ? 'border-orange-500/50 bg-orange-500/15 text-orange-300 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.4)]'
-            : 'border-neutral-800 bg-neutral-950 text-neutral-500 hover:text-neutral-300'}`}
       >
-        <Icon name="command" size={12} />
         MCP
         {active && <span className="rounded bg-orange-500/30 px-1 text-[10px] tabular-nums text-orange-200">{liveCount}</span>}
         <Icon name="chevronDown" size={11} className={open ? 'rotate-180 transition' : 'transition'} />
-      </button>
+      </ToggleChip>
 
       {open && (
         <>

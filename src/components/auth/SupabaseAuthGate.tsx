@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Icon, Input } from '../primitives';
+import { BrandMark, Button, Input } from '../primitives';
 import { AuthIntro } from './AuthIntro';
 
 interface AuthActions {
@@ -35,15 +35,7 @@ export function SupabaseAuthGate({ auth }: { auth: AuthActions }) {
     <div className="flex h-full flex-1 items-center justify-center gap-12 bg-neutral-950 px-4">
       <AuthIntro />
       <form onSubmit={submit} className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900/60 p-7 shadow-2xl">
-        <div className="mb-5 flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-neutral-950 shadow-[0_0_12px_-1px_rgba(249,115,22,0.55)]">
-            <Icon name="terminal" size={16} stroke={2.4} />
-          </span>
-          <div>
-            <div className="font-mono text-[15px] font-semibold lowercase tracking-tight text-neutral-100">deck</div>
-            <div className="text-[11px] text-neutral-500">{mode === 'login' ? 'entrar na sua conta' : 'criar conta'}</div>
-          </div>
-        </div>
+        <BrandMark title="deck" subtitle={mode === 'login' ? 'entrar na sua conta' : 'criar conta'} className="mb-5" />
 
         <div className="mb-4 flex gap-1 rounded-lg bg-neutral-950 p-1">
           {(['login', 'register'] as const).map((m) => (
@@ -76,12 +68,9 @@ export function SupabaseAuthGate({ auth }: { auth: AuthActions }) {
         {auth.error && <p className="mt-3 rounded-md border border-red-500/30 bg-red-500/[0.12] px-3 py-2 text-[11.5px] text-red-200">{auth.error}</p>}
         {info && <p className="mt-3 rounded-md border border-emerald-500/30 bg-emerald-500/[0.1] px-3 py-2 text-[11.5px] text-emerald-200">{info}</p>}
 
-        <button
-          type="submit" disabled={busy || !email.trim() || !password}
-          className="mt-4 w-full rounded-lg bg-orange-500 px-3 py-2 text-[13px] font-medium text-neutral-950 transition hover:bg-orange-400 disabled:opacity-50"
-        >
+        <Button type="submit" loading={busy} disabled={!email.trim() || !password} className="mt-4 w-full">
           {busy ? (mode === 'login' ? 'Entrando…' : 'Criando conta…') : mode === 'login' ? 'Entrar' : 'Criar conta'}
-        </button>
+        </Button>
         <p className="mt-3 text-[11px] leading-relaxed text-neutral-600">
           Depois de entrar, conecte sua VPS pra começar a usar o Deck na sua máquina.
         </p>

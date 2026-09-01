@@ -3,8 +3,8 @@ import type { PermMode } from '../../../shared/protocol';
 
 const ACTIVE_TONE: Record<PermMode, string> = {
   plan: 'bg-neutral-800 text-neutral-100',
-  auto: 'bg-amber-500/20 text-amber-300 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.4)]',
-  acceptEdits: 'bg-orange-500/20 text-orange-300 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.4)]',
+  auto: `bg-amber-500/20 text-amber-300 ${tokens.insetRing.warn}`,
+  acceptEdits: `bg-orange-500/20 text-orange-300 ${tokens.insetRing.accent}`,
 };
 
 export function ModeToggle({ mode, setMode }: { mode: PermMode; setMode: (m: PermMode) => void }) {

@@ -1,8 +1,10 @@
 export { Icon, type IconName } from './Icon';
 export { Badge } from './Badge';
+export { BrandMark } from './BrandMark';
 export { Button } from './Button';
 export { Input } from './Input';
 export { Switch } from './Switch';
+export { ToggleChip } from './ToggleChip';
 export { EmptyState } from './EmptyState';
 export { RouteHeader } from './RouteHeader';
 export { Modal } from './Modal';

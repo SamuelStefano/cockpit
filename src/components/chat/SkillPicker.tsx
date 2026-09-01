@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Icon, tokens } from '../primitives';
+import { Icon, ToggleChip, tokens } from '../primitives';
 import type { SkillMeta } from '../../../shared/protocol';
 
 // Seletor das skills ativas POR PROMPT. Multi-select num popover (bottom-sheet no
@@ -50,20 +50,16 @@ export function SkillPicker({ skills, selected, setSelected }: {
 
   return (
     <div ref={wrapRef} className="relative inline-flex">
-      <button
-        type="button"
+      <ToggleChip
+        on={active}
+        icon="sparkles"
         onClick={() => setOpen((o) => !o)}
         title={active ? `${liveCount} skill(s) ativas neste prompt` : 'Escolher quais skills usar (vazio = todas)'}
-        className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition sm:px-2 sm:py-1 ${tokens.focusRing}
-          ${active
-            ? 'border-orange-500/50 bg-orange-500/15 text-orange-300 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.4)]'
-            : 'border-neutral-800 bg-neutral-950 text-neutral-500 hover:text-neutral-300'}`}
       >
-        <Icon name="sparkles" size={12} />
         skills
         {active && <span className="rounded bg-orange-500/30 px-1 text-[10px] tabular-nums text-orange-200">{liveCount}</span>}
         <Icon name="chevronDown" size={11} className={open ? 'rotate-180 transition' : 'transition'} />
-      </button>
+      </ToggleChip>
 
       {open && (
         <>
