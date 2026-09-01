@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { AddressInfo } from 'node:net';
 import { generateKeyPairSync, sign as edSign } from 'node:crypto';
@@ -273,5 +273,143 @@ describe('maybeControlFrame (pré-filtro do JSON.parse)', () => {
 
   it('descarta frame grande sem varrer a string (upload de 32MB não paga parse)', () => {
     expect(maybeControlFrame(`{"t":"upload","d":"${'A'.repeat(5000)}"}`, 'upload')).toBe(false);
+  });
+});
+
+// Um store fora do ar (PostgREST caiu, rede piscou) rejeita as promises que os
+// handlers de evento do relay disparam. Em Node isso vira unhandledRejection e mata
+// o processo — no relay isso derruba TODA conta conectada, não só quem tropeçou.
+describe('relay: falha do store nega o socket sem derrubar o processo', () => {
+  let server: import('node:http').Server | null = null;
+  const sockets: WebSocket[] = [];
+  let rejections: unknown[] = [];
+  const onRejection = (e: unknown) => { rejections.push(e); };
+
+  beforeEach(() => { rejections = []; process.on('unhandledRejection', onRejection); });
+  afterEach(() => {
+    process.off('unhandledRejection', onRejection);
+    sockets.forEach((s) => { try { s.close(); } catch {} }); sockets.length = 0;
+    server?.close(); server = null;
+  });
+
+  // unhandledRejection só é emitido depois que a fila de microtasks drena.
+  const settle = () => new Promise<void>((r) => setTimeout(r, 50));
+
+  const brokenStore = (over: Partial<RelayStore> = {}): RelayStore => ({
+    async agentById() { return null; }, async isAdmin() { return false; },
+    async listAccounts() { return []; }, async setAdmin() { return true; },
+    async markAgentSeen() {}, async createPairingCode() { return 'code-1'; },
+    async consumePairingCode() { return null; }, async createAgent() { return null; },
+    ...over,
+  });
+
+  async function listen(cfg: Parameters<typeof createRelay>[0]) {
+    const relay = createRelay(cfg);
+    server = relay.server;
+    await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
+    const { port } = server!.address() as AddressInfo;
+    return { ws: `ws://127.0.0.1:${port}`, http: `http://127.0.0.1:${port}` };
+  }
+
+  it('browser: resolver identidade explodiu → fecha 4401 (default-deny)', async () => {
+    const url = await listen({
+      iss: 't', jwksUrl: 'http://x', rootEmails: '', store: brokenStore(),
+      resolveIdentity: async () => { throw new Error('PostgREST fora do ar'); },
+    });
+    const ws = new WebSocket(`${url.ws}/ws?token=A1`); sockets.push(ws);
+    const code = await new Promise<number>((r) => ws.on('close', (c) => r(c)));
+    expect(code).toBe(4401);          // erro NÃO vira acesso liberado
+    await settle();
+    expect(rejections).toEqual([]);
+  });
+
+  it('agente: agentById explodiu no handshake → fecha 4500, relay de pé', async () => {
+    const A = makeAgentKeys();
+    const url = await listen({
+      iss: 't', jwksUrl: 'http://x', rootEmails: '',
+      store: brokenStore({ async agentById() { throw new Error('PostgREST fora do ar'); } }),
+      resolveIdentity: async () => ({ accountId: 'accA', email: 'a@x', role: 'fellow' }),
+    });
+    const agent = connectFakeAgent(url.ws, 'ag-A', A.priv); sockets.push(agent.ws);
+    const code = await new Promise<number>((r) => agent.ws.on('close', (c) => r(c)));
+    expect(code).toBe(4500);
+    await settle();
+    expect(rejections).toEqual([]);
+
+    // O relay continua servindo: outra aba conecta e recebe caps normalmente.
+    const ws = new WebSocket(`${url.ws}/ws?token=A1`); sockets.push(ws);
+    const caps = await collect(ws)((m) => m.t === 'caps');
+    expect(caps.t).toBe('caps');
+  });
+
+  it('browser: listAccounts explodiu → só não responde; o socket segue roteando', async () => {
+    const A = makeAgentKeys();
+    const url = await listen({
+      iss: 't', jwksUrl: 'http://x', rootEmails: '',
+      store: brokenStore({
+        async agentById(id) { return id === 'ag-A' ? { accountId: 'accA', publicKey: A.pub } : null; },
+        async listAccounts() { throw new Error('PostgREST fora do ar'); },
+      }),
+      resolveIdentity: async () => ({ accountId: 'accA', email: 'a@x', role: 'root' }),
+    });
+    const agent = connectFakeAgent(url.ws, 'ag-A', A.priv); sockets.push(agent.ws);
+    await agent.ready;
+
+    const ws = new WebSocket(`${url.ws}/ws?token=R1`); sockets.push(ws);
+    const wait = collect(ws);
+    await wait((m) => m.t === 'caps');
+    ws.send(JSON.stringify({ t: 'accounts-list' }));
+    await settle();
+    expect(rejections).toEqual([]);
+    expect(ws.readyState).toBe(WebSocket.OPEN);
+
+    // Falha de um frame de administração não pode contaminar o chat.
+    ws.send(JSON.stringify({ t: 'send', sessionKey: 'k', text: 'oi' }));
+    const echo = await wait((m) => m.t === 'echo' && m.saw === 'send');
+    expect(echo.saw).toBe('send');
+  });
+});
+
+describe('POST /pair/new', () => {
+  let server: import('node:http').Server | null = null;
+  afterEach(() => { server?.close(); server = null; });
+
+  const store: RelayStore = {
+    async agentById() { return null; }, async isAdmin() { return false; },
+    async listAccounts() { return []; }, async setAdmin() { return true; },
+    async markAgentSeen() {}, async createPairingCode() { return 'code-1'; },
+    async consumePairingCode() { return null; }, async createAgent() { return null; },
+  };
+
+  async function listen() {
+    const relay = createRelay({
+      iss: 't', jwksUrl: 'http://x', rootEmails: '', store,
+      resolveIdentity: async (tok) => (tok === 'good' ? { accountId: 'accA', email: 'a@x', role: 'fellow' } : null),
+    });
+    server = relay.server;
+    await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
+    return `http://127.0.0.1:${(server!.address() as AddressInfo).port}`;
+  }
+
+  const pair = (base: string, init?: RequestInit) => fetch(`${base}/pair/new`, { method: 'POST', ...init });
+
+  it('emite o código com Bearer válido', async () => {
+    const base = await listen();
+    const res = await pair(base, { headers: { authorization: 'Bearer good' } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ code: 'code-1' });
+  });
+
+  it('recusa o JWT em query string (token vaza no access log)', async () => {
+    const base = await listen();
+    const res = await fetch(`${base}/pair/new?token=good`, { method: 'POST' });
+    expect(res.status).toBe(401);
+  });
+
+  it('barra a rajada: acima de 5 códigos por minuto responde 429', async () => {
+    const base = await listen();
+    const codes: number[] = [];
+    for (let i = 0; i < 7; i++) codes.push((await pair(base, { headers: { authorization: 'Bearer good' } })).status);
+    expect(codes).toEqual([200, 200, 200, 200, 200, 429, 429]);
   });
 });

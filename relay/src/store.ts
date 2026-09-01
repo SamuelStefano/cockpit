@@ -14,6 +14,11 @@ export interface StoreConfig {
   fetchImpl?: typeof fetch;
 }
 
+// Sem timeout, um PostgREST que aceita a conexão e nunca responde pendura o socket
+// que espera por ele (a aba no meio da auth, o agente no meio do handshake) até o
+// TCP desistir — minutos, com o pré-auth ocupando slot o tempo todo.
+const REQ_TIMEOUT_MS = 10_000;
+
 export function supabaseStore(cfg: StoreConfig): RelayStore {
   const f = cfg.fetchImpl ?? fetch;
   const base = `${cfg.url.replace(/\/$/, '')}/rest/v1`;
@@ -23,8 +28,15 @@ export function supabaseStore(cfg: StoreConfig): RelayStore {
     'content-type': 'application/json',
   };
 
+  const req = (path: string, init: RequestInit = {}) =>
+    f(`${base}${path}`, {
+      ...init,
+      headers: { ...headers, ...(init.headers as Record<string, string> | undefined) },
+      signal: AbortSignal.timeout(REQ_TIMEOUT_MS),
+    });
+
   async function getOne<T>(path: string): Promise<T | null> {
-    const res = await f(`${base}${path}`, { headers });
+    const res = await req(path);
     if (!res.ok) return null;
     const rows = (await res.json()) as T[];
     return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
@@ -46,7 +58,7 @@ export function supabaseStore(cfg: StoreConfig): RelayStore {
     },
 
     async listAccounts() {
-      const res = await f(`${base}/account?select=id,email,is_admin&order=created_at.asc`, { headers });
+      const res = await req('/account?select=id,email,is_admin&order=created_at.asc');
       if (!res.ok) return [];
       const rows = (await res.json()) as { id: string; email: string; is_admin: boolean }[];
       return rows.map((r) => ({ id: r.id, email: r.email, isAdmin: r.is_admin === true }));
@@ -56,9 +68,9 @@ export function supabaseStore(cfg: StoreConfig): RelayStore {
     // qualquer outro papel). O gate de QUEM pode chamar isto é no relay (root-only).
     async setAdmin(accountId, admin) {
       const enc = encodeURIComponent(accountId);
-      const res = await f(`${base}/account?id=eq.${enc}`, {
+      const res = await req(`/account?id=eq.${enc}`, {
         method: 'PATCH',
-        headers: { ...headers, prefer: 'return=minimal' },
+        headers: { prefer: 'return=minimal' },
         body: JSON.stringify({ is_admin: admin }),
       });
       return res.ok;
@@ -68,9 +80,9 @@ export function supabaseStore(cfg: StoreConfig): RelayStore {
       const enc = encodeURIComponent(agentId);
       // Best-effort: nunca derruba o fluxo de auth se o PATCH falhar.
       try {
-        await f(`${base}/agent?id=eq.${enc}`, {
+        await req(`/agent?id=eq.${enc}`, {
           method: 'PATCH',
-          headers: { ...headers, prefer: 'return=minimal' },
+          headers: { prefer: 'return=minimal' },
           body: JSON.stringify({ last_seen: new Date().toISOString() }),
         });
       } catch { /* ignore */ }
@@ -81,9 +93,9 @@ export function supabaseStore(cfg: StoreConfig): RelayStore {
     async createPairingCode(accountId, label = '') {
       const code = randomBytes(9).toString('base64url'); // ~12 chars
       const expires = new Date(Date.now() + PAIRING_TTL_MIN * 60_000).toISOString();
-      const res = await f(`${base}/pairing_code`, {
+      const res = await req('/pairing_code', {
         method: 'POST',
-        headers: { ...headers, prefer: 'return=minimal' },
+        headers: { prefer: 'return=minimal' },
         body: JSON.stringify({ account_id: accountId, code_hash: sha256(code), label, expires_at: expires }),
       });
       if (!res.ok) throw new Error('createPairingCode failed');
@@ -95,11 +107,11 @@ export function supabaseStore(cfg: StoreConfig): RelayStore {
     async consumePairingCode(code) {
       const hash = encodeURIComponent(sha256(code));
       const nowIso = encodeURIComponent(new Date().toISOString());
-      const res = await f(
-        `${base}/pairing_code?code_hash=eq.${hash}&used_at=is.null&expires_at=gt.${nowIso}`,
+      const res = await req(
+        `/pairing_code?code_hash=eq.${hash}&used_at=is.null&expires_at=gt.${nowIso}`,
         {
           method: 'PATCH',
-          headers: { ...headers, prefer: 'return=representation' },
+          headers: { prefer: 'return=representation' },
           body: JSON.stringify({ used_at: new Date().toISOString() }),
         },
       );
@@ -110,9 +122,9 @@ export function supabaseStore(cfg: StoreConfig): RelayStore {
 
     // Registra o agente pareado (pubkey nascida na VPS). Devolve o agentId gerado.
     async createAgent(accountId, publicKey, label = '') {
-      const res = await f(`${base}/agent`, {
+      const res = await req('/agent', {
         method: 'POST',
-        headers: { ...headers, prefer: 'return=representation' },
+        headers: { prefer: 'return=representation' },
         body: JSON.stringify({ account_id: accountId, public_key: publicKey, kind: 'vps', label }),
       });
       if (!res.ok) return null;
