@@ -5,6 +5,11 @@
 // `public/vendor/`, zero fetch externo em runtime), e renderiza o componente
 // transpilado a cada mensagem `deck:code`, ou HTML cru a cada `deck:html`.
 //
+// O React vendorado é 18 e fica em 18: o 19 não publica build UMD, e o iframe
+// carrega por <script>. Não acompanha a versão do app de propósito — o único
+// tráfego na fronteira é string (código e HTML), nunca elemento React, então as
+// duas instâncias não se encontram.
+//
 // Protocolo:
 //   pai → iframe  { type: 'deck:code', code }   componente React transpilado
 //   pai → iframe  { type: 'deck:html', html }   HTML cru

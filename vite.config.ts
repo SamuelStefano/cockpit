@@ -38,7 +38,10 @@ export default defineConfig({
         // caminho crítico é o import dinâmico — por isso o xterm só sai de fato
         // do preload por causa do `lazy()` em Terminals.tsx.
         manualChunks: {
-          react: ['react', 'react-dom'],
+          // `react-dom/client` precisa estar aqui: no 18 ele reexportava de
+          // `react-dom` e a lista pegava a árvore inteira por tabela; no 19 é
+          // entrada própria, e sem citá-la o React inteiro volta pro chunk do app.
+          react: ['react', 'react/jsx-runtime', 'react-dom', 'react-dom/client'],
           xterm: ['@xterm/xterm', '@xterm/addon-fit'],
           sucrase: ['sucrase'],
           supabase: ['@supabase/supabase-js'],

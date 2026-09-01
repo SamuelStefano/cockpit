@@ -20,7 +20,7 @@ const SRCDOC: Record<Mode, string> = {
 export function PreviewFrame({
   frameRef, mode, height, width, overlay, srcDoc, title = 'live preview', fill = false,
 }: {
-  frameRef: RefObject<HTMLIFrameElement>;
+  frameRef: RefObject<HTMLIFrameElement | null>;
   mode: Mode;
   height: number;
   width: number | null;
