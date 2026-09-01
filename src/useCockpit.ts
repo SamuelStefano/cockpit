@@ -1,27 +1,36 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Session, Message, Block, ToolTodo } from './data/mock';
-import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, ContextMeta, SkillMeta, UsageStats, TurnStats, AdminHealth, Caps, PlanUsage, AccountSummary, Cron, GraphMeta, GraphData, PointsEntry, DflPointsSnapshot, ParkedView, BgAgent, HarnessConfig, HarnessTaskView, HarnessEvent, HarnessModelChoice, HarnessContext } from '../shared/protocol';
+import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, TurnStats, Caps, PlanUsage, ParkedView, BgAgent } from '../shared/protocol';
 import { loadPref, savePref, setPref } from './lib/persist';
 import { SUPABASE_ENABLED } from './lib/supabase';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
 import { wsUrlWithToken, newId, metaToSession, mergeServerSessions, dedupById, mergeSeen, isCronPing } from './cockpit/session';
 import { computeStalled, computeUpdated } from './cockpit/signals';
 import { upsertTool, appendDelta, appendThinking } from './cockpit/blocks';
-import { selectEvictions } from './cockpit/evict';
+import { selectEvictions, pruneRefs } from './cockpit/evict';
 import { resolveKey, moveKey } from './cockpit/migrate';
 import { mergeHistory, prependHistory } from './cockpit/history';
 import { liveTokens } from './cockpit/live-tokens';
 import { insertCompact } from './cockpit/insert-compact';
 import { useTerminals, type TermApi } from './cockpit/useTerminals';
+import { useNotes, type Notes } from './cockpit/useNotes';
+import { useCrons, type Crons } from './cockpit/useCrons';
+import { usePoints, type Points } from './cockpit/usePoints';
+import { useContexts, type Contexts } from './cockpit/useContexts';
+import { useSkills, type Skills } from './cockpit/useSkills';
+import { useGraphs, type Graphs } from './cockpit/useGraphs';
+import { useAdmin, type Admin } from './cockpit/useAdmin';
+import { useHarness, type Harness } from './cockpit/useHarness';
 import { addThumb, shouldRequestThumb } from './lib/att-thumb-cache';
 import { fileSig, isFreshUpload } from './components/chat/dedupe-uploads';
 import { encodeAttachments, parseAttachments } from './lib/parse-attachments';
 import { loadPendingAtts, savePendingAtts, addPendingAtt, movePendingAtts, clearPendingAtts } from './lib/pending-atts';
 
-export interface ContextDoc { id: string; title: string; body: string }
-export interface SkillDoc { id: string; name: string; body: string }
-export interface GraphQueryState { question: string; answer: string; tokens: number; miss: boolean }
-export type GraphNodeOp = 'explain' | 'affected' | 'path';
+// Reexport: os domínios-folha migraram pra hooks próprios em ./cockpit, e os
+// consumidores importam estes tipos daqui há tempo.
+export type { ContextDoc } from './cockpit/useContexts';
+export type { SkillDoc } from './cockpit/useSkills';
+export type { GraphQueryState, GraphNodeOp } from './cockpit/useGraphs';
 export interface Attachment { name: string; path: string; text?: string; s3url?: string; uploading?: boolean; clientId?: string }
 export interface AttachmentPreview { path: string; name: string; dataB64?: string; error?: string }
 export type { TermApi };
@@ -38,7 +47,11 @@ import type { Phase } from './components/Chat';
 const HEARTBEAT_MS = 15_000;
 const HEARTBEAT_STALE_MS = 40_000;
 
-export interface Cockpit {
+// A superfície pública dos domínios-folha é a dos próprios hooks, menos os canais
+// internos: `onMsg` (dispatch) e `onGraphReconnect` (gancho do socket).
+type LeafApis = Omit<Notes & Crons & Points & Contexts & Skills & Graphs & Admin & Harness, 'onMsg' | 'onGraphReconnect'>;
+
+export interface Cockpit extends LeafApis {
   sessions: Session[];
   loading: boolean;
   activeId: string;
@@ -96,82 +109,8 @@ export interface Cockpit {
   lastEnd?: string;
   searchResults: Session[];
   onSearch: (q: string) => void;
-  contexts: ContextMeta[];
-  ctxLoaded: boolean;
-  openContext: ContextDoc | null;
-  onCtxList: () => void;
-  onCtxOpen: (id: string) => void;
-  onCtxClose: () => void;
-  notes: string;
-  notesLoaded: boolean;
-  onNotesGet: () => void;
-  onNotesSave: (text: string) => void;
-  crons: Cron[];
-  cronsLoaded: boolean;
-  onCronsGet: () => void;
-  onCronSave: (cron: Cron) => void;
-  onCronDelete: (id: string) => void;
-  onCronRun: (id: string) => void;
-  points: PointsEntry[];
-  pointsTotal: number;
-  pointsLoaded: boolean;
-  onPointsGet: () => void;
-  onPointsAdd: (title: string, points: number, description?: string) => void;
-  onPointsCorrect: (entryId: string, points: number) => void;
-  onPointsNote: (entryId: string, description: string) => void;
-  onPointsDelete: (entryId: string) => void;
-  dflSnapshot: DflPointsSnapshot | null;
-  dflLoaded: boolean;
-  dflSyncing: boolean;
-  onDflGet: () => void;
-  onDflSync: () => void;
-  onDflChange: (p: { taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string }) => Promise<{ ok: boolean; message?: string }>;
-  onDflInvoice: (p: { deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number }[] }) => Promise<{ ok: boolean; message?: string }>;
-  skills: SkillMeta[];
-  skillsLoaded: boolean;
-  openSkill: SkillDoc | null;
-  onSkillList: () => void;
-  onSkillOpen: (id: string) => void;
-  onSkillClose: () => void;
-  graphs: GraphMeta[];
-  graphsLoaded: boolean;
-  graphOpenId: string | null;
-  graphOpening: string | null;
-  graphData: GraphData | null;
-  graphBuilding: boolean;
-  graphBuildLog: string[];
-  graphBuildError: string | null;
-  graphQuerying: boolean;
-  graphQueryResult: GraphQueryState | null;
-  graphQueryHistory: GraphQueryState[];
-  onGraphList: () => void;
-  onGraphOpen: (id: string) => void;
-  onGraphBuild: (repo: string) => void;
-  onClearBuildError: () => void;
-  onGraphDelete: (id: string) => void;
-  onGraphQuery: (question: string, budget?: number) => void;
-  onGraphNodeOp: (op: GraphNodeOp, a: string, b?: string) => void;
-  usageStats: UsageStats | null;
-  onUsageList: () => void;
-  health: AdminHealth | null;
-  onHealthList: () => void;
-  accounts: AccountSummary[];
-  accountsLoaded: boolean;
-  onAccountsList: () => void;
-  onSetAdmin: (accountId: string, admin: boolean) => void;
-  adminOp: { ok: boolean; message: string } | null;
-  onEnvSet: (name: string, value: string) => void;
-  onEnvUnset: (name: string) => void;
-  onMcpAdd: (name: string, opts: { command?: string; url?: string }) => void;
-  onMcpRemove: (name: string) => void;
-  onCliInstall: (name: string) => void;
   marathon: Set<string>;
   onToggleMarathon: (id: string, on: boolean) => void;
-  harnessConfig: HarnessConfig | null;
-  harnessTasks: HarnessTaskView[];
-  harnessEvents: Record<string, HarnessEvent[]>;
-  onHarnessGet: () => void;
-  onHarnessRun: (prompt: string, model: HarnessModelChoice, context: HarnessContext) => void;
   attachments: Attachment[];
   onUpload: (file: File) => void;
   onRemoveAttachment: (path: string) => void;
@@ -230,9 +169,6 @@ export function useCockpit(): Cockpit {
   const [rate, setRate] = useState<{ resetsAt: number; status: string } | null>(null);
   const [planUsage, setPlanUsage] = useState<PlanUsage | null>(null);
   const [marathon, setMarathon] = useState<Set<string>>(new Set());
-  const [harnessConfig, setHarnessConfig] = useState<HarnessConfig | null>(null);
-  const [harnessTasks, setHarnessTasks] = useState<HarnessTaskView[]>([]);
-  const [harnessEvents, setHarnessEvents] = useState<Record<string, HarnessEvent[]>>({});
   const [stats, setStats] = useState<SysStats | null>(null);
   const [bgAgents, setBgAgents] = useState<Record<string, BgAgent[]>>({}); // sessionKey -> agentes de fundo ativos
   const [archived, setArchived] = useState<Session[]>([]);
@@ -247,47 +183,8 @@ export function useCockpit(): Cockpit {
   const [interrupted, setInterrupted] = useState<Record<string, string>>({}); // sessionKey -> endReason (budget/max_turns) p/ oferecer "continuar"
   const [searchResults, setSearchResults] = useState<Session[]>([]);
   const searchQ = useRef('');
-  const [contexts, setContexts] = useState<ContextMeta[]>([]);
-  // Lista vazia ≠ "ainda não chegou": o flag separa skeleton (esperando o 1º
-  // snapshot) de estado vazio de verdade (zero contextos/skills no disco).
-  const [ctxLoaded, setCtxLoaded] = useState(false);
-  const [notes, setNotes] = useState('');
-  const [notesLoaded, setNotesLoaded] = useState(false);
-  const [crons, setCrons] = useState<Cron[]>([]);
-  const [cronsLoaded, setCronsLoaded] = useState(false);
-  const [points, setPoints] = useState<PointsEntry[]>([]);
-  const [pointsTotal, setPointsTotal] = useState(0);
-  const [pointsLoaded, setPointsLoaded] = useState(false);
-  const [dflSnapshot, setDflSnapshot] = useState<DflPointsSnapshot | null>(null);
-  const [dflLoaded, setDflLoaded] = useState(false);
-  const [dflSyncing, setDflSyncing] = useState(false);
-  // Escritas DFL (mudar pontos / gerar fatura): request→response casado por reqId.
-  // O modal chama onDflChange/onDflInvoice e aguarda a Promise; o servidor responde
-  // com points-dfl-write e resolvemos o resolver pendente.
-  const dflWriteResolvers = useRef<Map<string, (r: { ok: boolean; message?: string }) => void>>(new Map());
   const [queue, setQueue] = useState<ParkedView[]>([]); // fila estacionada (servidor), broadcast dos queue-*
   const [queuePaused, setQueuePausedState] = useState(false); // pausa manual da fila (servidor)
-  const [openContext, setOpenContext] = useState<ContextDoc | null>(null);
-  const [skills, setSkills] = useState<SkillMeta[]>([]);
-  const [skillsLoaded, setSkillsLoaded] = useState(false);
-  const [openSkill, setOpenSkill] = useState<SkillDoc | null>(null);
-  const [graphs, setGraphs] = useState<GraphMeta[]>([]);
-  const [graphsLoaded, setGraphsLoaded] = useState(false);
-  const [graphOpenId, setGraphOpenId] = useState<string | null>(null);
-  const [graphOpening, setGraphOpening] = useState<string | null>(null);
-  const [graphData, setGraphData] = useState<GraphData | null>(null);
-  const [graphBuilding, setGraphBuilding] = useState(false);
-  const [graphBuildLog, setGraphBuildLog] = useState<string[]>([]);
-  const [graphBuildError, setGraphBuildError] = useState<string | null>(null);
-  const [graphQuerying, setGraphQuerying] = useState(false);
-  const [graphQueryResult, setGraphQueryResult] = useState<GraphQueryState | null>(null);
-  const [graphQueryHistory, setGraphQueryHistory] = useState<GraphQueryState[]>([]);
-  const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
-  const [health, setHealth] = useState<AdminHealth | null>(null);
-  const [accounts, setAccounts] = useState<AccountSummary[]>([]);
-  const [accountsLoaded, setAccountsLoaded] = useState(false);
-  const [adminOp, setAdminOp] = useState<{ ok: boolean; message: string } | null>(null);
-  const adminOpTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const attachmentsRef = useRef<Attachment[]>([]);
   // Sessão de ORIGEM de cada upload em voo (clientId → sessionKey). O ack 'uploaded'
@@ -399,6 +296,28 @@ export function useCockpit(): Cockpit {
     ws.send(JSON.stringify(m));
     return true;
   }, []);
+
+  // Domínios-folha: estado próprio, frames próprios e ações que só chamam `send`.
+  // Nada aqui toca sessão/turno, então cada um vive num hook e o switch abaixo só
+  // repassa o frame — `onMsg` devolve true quando reivindicou o tipo.
+  const notesApi = useNotes(send);
+  const cronsApi = useCrons(send);
+  const pointsApi = usePoints(send);
+  const contextsApi = useContexts(send);
+  const skillsApi = useSkills(send);
+  const graphsApi = useGraphs(send);
+  const adminApi = useAdmin(send);
+  const harnessApi = useHarness(send);
+  // O onServer é um callback estável (o socket guarda a 1ª referência); ler os
+  // handlers por ref evita recriá-lo — e reabrir o WS — a cada render.
+  const leafHandlers = useRef<((m: ServerMsg) => boolean)[]>([]);
+  leafHandlers.current = [notesApi.onMsg, cronsApi.onMsg, pointsApi.onMsg, contextsApi.onMsg, skillsApi.onMsg, graphsApi.onMsg, adminApi.onMsg, harnessApi.onMsg];
+  // Três domínios-folha também entram na reconciliação de reconnect. Referências
+  // estáveis (useCallback sobre `send`), então não recriam o `reconcile`.
+  const { onUsageList } = adminApi;
+  const { onSkillList } = skillsApi;
+  const { onPointsGet } = pointsApi;
+  const { onGraphReconnect } = graphsApi;
 
   // Re-abertura automática (reconnect, session-touched, reconciliação de busy):
   // preserva a visão escolhida. Traz sempre a última página; o mergeHistory com
@@ -530,6 +449,7 @@ export function useCockpit(): Cockpit {
   }, [focusSession]);
 
   const onServer = useCallback((msg: ServerMsg) => {
+    for (const h of leafHandlers.current) if (h(msg)) return;
     switch (msg.t) {
       case 'mcp-servers': { setMcpServers(msg.servers); return; }
       case 'queue': { setQueue(msg.items); setQueuePausedState(msg.paused); return; }
@@ -809,26 +729,6 @@ export function useCockpit(): Cockpit {
         setMarathon(new Set(msg.keys));
         return;
       }
-      case 'harness-config': {
-        setHarnessConfig(msg.config);
-        return;
-      }
-      case 'harness-tasks': {
-        setHarnessTasks(msg.tasks);
-        return;
-      }
-      case 'harness-task': {
-        // Upsert por id (running → done): mantém a ordem por ts desc.
-        setHarnessTasks((prev) => {
-          const rest = prev.filter((t) => t.id !== msg.task.id);
-          return [msg.task, ...rest].sort((a, b) => b.ts - a.ts);
-        });
-        return;
-      }
-      case 'harness-event': {
-        setHarnessEvents((prev) => ({ ...prev, [msg.taskId]: [...(prev[msg.taskId] ?? []), msg.event] }));
-        return;
-      }
       case 'suggestions': {
         // Chips de continuação pós-turno. Chegou depois de um turno novo começar?
         // O gate do servidor já descarta; aqui só ignora se a sessão está rodando.
@@ -921,46 +821,6 @@ export function useCockpit(): Cockpit {
         if (msg.q === searchQ.current) setSearchResults(msg.items.filter((m) => !isCronPing(m)).map((m) => metaToSession(m, m.id === activeRef.current)));
         return;
       }
-      case 'notes': {
-        setNotes(msg.text);
-        setNotesLoaded(true);
-        return;
-      }
-      case 'crons': {
-        setCrons(msg.items);
-        setCronsLoaded(true);
-        return;
-      }
-      case 'points': {
-        setPoints(msg.entries);
-        setPointsTotal(msg.total);
-        setPointsLoaded(true);
-        return;
-      }
-      case 'points-dfl': {
-        setDflSnapshot(msg.snapshot);
-        setDflLoaded(true);
-        setDflSyncing(false);
-        return;
-      }
-      case 'points-dfl-syncing': {
-        setDflSyncing(true);
-        return;
-      }
-      case 'points-dfl-write': {
-        const resolve = dflWriteResolvers.current.get(msg.reqId);
-        if (resolve) { dflWriteResolvers.current.delete(msg.reqId); resolve({ ok: msg.ok, message: msg.message }); }
-        return;
-      }
-      case 'contexts': {
-        setContexts(msg.items);
-        setCtxLoaded(true);
-        return;
-      }
-      case 'context': {
-        setOpenContext({ id: msg.id, title: msg.title, body: msg.body });
-        return;
-      }
       case 'handoff-result': {
         endHandoff();
         if (!msg.ok) { toast(msg.error || 'não consegui migrar a sessão', { tone: 'error', durationMs: 8000 }); return; }
@@ -971,75 +831,9 @@ export function useCockpit(): Cockpit {
         toast(`Contexto salvo em ${msg.contextId} — sessão arquivada`, { durationMs: 8000 });
         return;
       }
-      case 'skills': {
-        setSkills(msg.items);
-        setSkillsLoaded(true);
-        return;
-      }
-      case 'skill': {
-        setOpenSkill({ id: msg.id, name: msg.name, body: msg.body });
-        return;
-      }
-      case 'graphs': {
-        setGraphs(msg.items);
-        setGraphsLoaded(true);
-        return;
-      }
-      case 'graph-data': {
-        setGraphOpenId(msg.id);
-        setGraphOpening((cur) => (cur === msg.id ? null : cur));
-        setGraphData(msg.graph);
-        setGraphQueryResult(null); // resposta velha não vale pro grafo novo
-        setGraphQueryHistory([]);  // histórico é por-grafo
-        return;
-      }
-      case 'graph-query-result': {
-        const r = { question: msg.question, answer: msg.answer, tokens: msg.tokens, miss: msg.miss };
-        setGraphQueryResult(r);
-        setGraphQuerying(false);
-        // histórico só de consultas que renderam algo (não-miss); dedup por pergunta, cap 8.
-        if (!r.miss) setGraphQueryHistory((prev) => [r, ...prev.filter((h) => h.question !== r.question)].slice(0, 8));
-        return;
-      }
-      case 'graph-build-progress': {
-        setGraphBuildLog((prev) => [...prev.slice(-200), msg.line]);
-        return;
-      }
-      case 'graph-build-done': {
-        setGraphBuilding(false);
-        if (!msg.ok) setGraphBuildError(msg.error ?? 'falha no build');
-        return;
-      }
       case 'bench-bundle':
       case 'bench-error': {
         benchDispatch(msg);
-        return;
-      }
-      case 'usage-stats': {
-        // O server devolve EMPTY_STATS (tudo zero) quando o SQLite está em lock
-        // (db.usageStats() cai no fallback). Não apaga um painel já populado por
-        // causa de um snapshot vazio transitório — só substitui se vier dado real
-        // ou se ainda não temos nada. Vazio = sem amostras, sessões e série.
-        const s = msg.stats;
-        const empty = s.totalSamples === 0 && s.sessions.length === 0 && s.series.length === 0;
-        setUsageStats((prev) => (empty && prev && prev.totalSamples > 0 ? prev : s));
-        return;
-      }
-      case 'health': {
-        setHealth(msg.health);
-        return;
-      }
-      case 'accounts': {
-        setAccounts(msg.accounts);
-        setAccountsLoaded(true);
-        return;
-      }
-      case 'admin-op': {
-        setAdminOp({ ok: msg.ok, message: msg.message });
-        // Auto-limpa o banner: sem isto um "salvo"/erro fica preso no painel até a
-        // próxima op ou reload (a UI nunca reseta o estado). Erro fica mais tempo.
-        if (adminOpTimer.current) clearTimeout(adminOpTimer.current);
-        adminOpTimer.current = setTimeout(() => setAdminOp(null), msg.ok ? 4000 : 8000);
         return;
       }
       case 'uploaded': {
@@ -1225,10 +1019,7 @@ export function useCockpit(): Cockpit {
       for (const p of thumbPending.current) thumbRequested.current.delete(p);
       thumbPending.current.clear();
       setConn({ ws: 'connected', sse: 'connected' });
-      // Build que estava em voo quando o socket caiu nunca recebe o 'done' — o
-      // botão ficaria "construindo…" pra sempre. Destrava e reconcilia via list.
-      setGraphBuilding((b) => { if (b) { setGraphBuildError('conexão caiu durante o build — verifique a lista'); send({ t: 'graph-list' }); } return false; });
-      setGraphOpening(null);
+      onGraphReconnect();
       reconcile();
       // Watchdog de socket meio-aberto (o "chat para e só volta com F5"): no desktop,
       // aba visível, um socket que morre sem FIN (relay/NAT/idle-timeout) NÃO dispara
@@ -1282,7 +1073,7 @@ export function useCockpit(): Cockpit {
     };
     ws.onerror = () => { if (isCurrent()) { try { ws.close(); } catch { /* noop */ } } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [send, onServer, reattach]);
+  }, [send, onServer, reattach, onGraphReconnect]);
   connectRef.current = connect;
 
   const scheduleRetry = useCallback(() => {
@@ -1303,11 +1094,11 @@ export function useCockpit(): Cockpit {
   const reconcile = useCallback(() => {
     send({ t: 'list' });
     send({ t: 'list-archived' });
-    send({ t: 'usage-list' });
-    send({ t: 'skill-list' }); // popula o seletor de skills do composer
     send({ t: 'sync' });       // reemite o estado durável fresco (busy/rate/plan/models)
-    send({ t: 'points-get' }); // ledger de pontos: atualiza ao vivo mesmo fora da rota
     send({ t: 'queue-get' });  // fila estacionada do servidor (drena com quota liberada)
+    onUsageList();
+    onSkillList();  // popula o seletor de skills do composer
+    onPointsGet();  // ledger de pontos: atualiza ao vivo mesmo fora da rota
     // Re-abre a sessão ativa SEMPRE (não só se nunca abriu): um turno que terminou
     // enquanto o WS esteve fechado perdeu os deltas finais + o 'done' — sem re-puxar
     // o history a resposta ficava congelada no meio da frase pra sempre ("o agente
@@ -1316,7 +1107,7 @@ export function useCockpit(): Cockpit {
     const act = activeRef.current;
     if (act && !act.startsWith('new-') && send(reopenMsg(act))) opened.current.add(act);
     reattach();
-  }, [send, reattach, reopenMsg]);
+  }, [send, reattach, reopenMsg, onUsageList, onSkillList, onPointsGet]);
 
   // Reconexão proativa (visibilidade/rede): não espera o backoff. Socket morto em
   // silêncio (mobile) reabre na hora; socket vivo só reconcilia o estado durável.
@@ -1366,7 +1157,6 @@ export function useCockpit(): Cockpit {
     return () => {
       if (retry.current) clearTimeout(retry.current);
       if (heartbeat.current) clearInterval(heartbeat.current);
-      if (adminOpTimer.current) clearTimeout(adminOpTimer.current);
       if (extBusyTimer.current) clearTimeout(extBusyTimer.current);
       wsRef.current?.close();
     };
@@ -1563,35 +1353,6 @@ export function useCockpit(): Cockpit {
     thumbPending.current.add(path);
     send({ t: 'att-open', path });
   }, [send]);
-  const onNotesGet = useCallback(() => send({ t: 'notes-get' }), [send]);
-  const onNotesSave = useCallback((text: string) => send({ t: 'notes-save', text }), [send]);
-  const onCronsGet = useCallback(() => send({ t: 'crons-get' }), [send]);
-  const onCronSave = useCallback((cron: Cron) => send({ t: 'cron-save', cron }), [send]);
-  const onCronDelete = useCallback((id: string) => send({ t: 'cron-delete', id }), [send]);
-  const onCronRun = useCallback((id: string) => send({ t: 'cron-run', id }), [send]);
-  const onPointsGet = useCallback(() => send({ t: 'points-get' }), [send]);
-  const onPointsAdd = useCallback((title: string, pts: number, description?: string) => send({ t: 'points-add', title, points: pts, description }), [send]);
-  const onPointsCorrect = useCallback((entryId: string, pts: number) => send({ t: 'points-correct', entryId, points: pts }), [send]);
-  const onPointsNote = useCallback((entryId: string, description: string) => send({ t: 'points-note', entryId, description }), [send]);
-  const onPointsDelete = useCallback((entryId: string) => send({ t: 'points-delete', entryId }), [send]);
-  const onDflGet = useCallback(() => send({ t: 'points-dfl-get' }), [send]);
-  const onDflSync = useCallback(() => send({ t: 'points-dfl-sync' }), [send]);
-  const dflWrite = useCallback((m: ClientMsg, reqId: string): Promise<{ ok: boolean; message?: string }> =>
-    new Promise((resolve) => {
-      dflWriteResolvers.current.set(reqId, resolve);
-      if (!send(m)) { dflWriteResolvers.current.delete(reqId); resolve({ ok: false, message: 'sem conexão com o backend' }); return; }
-      setTimeout(() => {
-        if (dflWriteResolvers.current.has(reqId)) { dflWriteResolvers.current.delete(reqId); resolve({ ok: false, message: 'tempo esgotado' }); }
-      }, 65_000);
-    }), [send]);
-  const onDflChange = useCallback((p: { taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string }) => {
-    const reqId = crypto.randomUUID();
-    return dflWrite({ t: 'points-dfl-change', reqId, ...p }, reqId);
-  }, [dflWrite]);
-  const onDflInvoice = useCallback((p: { deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number }[] }) => {
-    const reqId = crypto.randomUUID();
-    return dflWrite({ t: 'points-dfl-invoice', reqId, ...p }, reqId);
-  }, [dflWrite]);
   // Sessão `new-` ainda não tem JSONL no servidor: não há o que destilar nem
   // arquivar, então o botão não dispara nada.
   const onHandoff = useCallback((sessionId: string) => {
@@ -1603,50 +1364,7 @@ export function useCockpit(): Cockpit {
     send({ t: 'session-handoff', sessionId });
   }, [send]);
 
-  const onCtxList = useCallback(() => send({ t: 'ctx-list' }), [send]);
-  const onCtxOpen = useCallback((id: string) => send({ t: 'ctx-open', id }), [send]);
-  const onCtxClose = useCallback(() => setOpenContext(null), []);
-  const onSkillList = useCallback(() => send({ t: 'skill-list' }), [send]);
-  const onSkillOpen = useCallback((id: string) => send({ t: 'skill-open', id }), [send]);
-  const onSkillClose = useCallback(() => setOpenSkill(null), []);
-  const onGraphList = useCallback(() => send({ t: 'graph-list' }), [send]);
-  const onGraphOpen = useCallback((id: string) => { setGraphQueryResult(null); setGraphOpening(id); send({ t: 'graph-open', id }); }, [send]);
-  const onGraphBuild = useCallback((repo: string) => {
-    setGraphBuildLog([]); setGraphBuildError(null); setGraphBuilding(true);
-    send({ t: 'graph-build', repo });
-  }, [send]);
-  const onClearBuildError = useCallback(() => setGraphBuildError(null), []);
-  const onGraphDelete = useCallback((id: string) => {
-    setGraphData((prev) => (graphOpenId === id ? null : prev));
-    setGraphOpenId((prev) => (prev === id ? null : prev));
-    send({ t: 'graph-delete', id });
-  }, [send, graphOpenId]);
-  const onGraphQuery = useCallback((question: string, budget?: number) => {
-    if (!graphOpenId) return;
-    setGraphQuerying(true);
-    send({ t: 'graph-query', id: graphOpenId, question, budget });
-  }, [send, graphOpenId]);
-  const onGraphNodeOp = useCallback((op: GraphNodeOp, a: string, b?: string) => {
-    if (!graphOpenId) return;
-    setGraphQuerying(true);
-    send({ t: 'graph-node-op', id: graphOpenId, op, a, b });
-  }, [send, graphOpenId]);
-  const onUsageList = useCallback(() => send({ t: 'usage-list' }), [send]);
   const onRefreshModels = useCallback(() => send({ t: 'refresh-models' }), [send]);
-  const onHealthList = useCallback(() => send({ t: 'admin-health' }), [send]);
-  // Painel admin de contas (T3): listar usuários e ligar/desligar admin. Tratado
-  // NO RELAY (service-role); o gate de papel é lá. No loopback estes frames não têm
-  // handler e a UI fica escondida (só aparece com Supabase ligado).
-  const onAccountsList = useCallback(() => send({ t: 'accounts-list' }), [send]);
-  const onSetAdmin = useCallback((accountId: string, admin: boolean) => send({ t: 'set-admin', accountId, admin }), [send]);
-  const onEnvSet = useCallback((name: string, value: string) => send({ t: 'admin-env-set', name, value }), [send]);
-  const onEnvUnset = useCallback((name: string) => send({ t: 'admin-env-unset', name }), [send]);
-  const onMcpAdd = useCallback((name: string, opts: { command?: string; url?: string }) => send({ t: 'admin-mcp-add', name, command: opts.command, url: opts.url }), [send]);
-  const onMcpRemove = useCallback((name: string) => send({ t: 'admin-mcp-remove', name }), [send]);
-  const onCliInstall = useCallback((name: string) => send({ t: 'admin-cli-install', name }), [send]);
-
-  const onHarnessGet = useCallback(() => send({ t: 'harness-get' }), [send]);
-  const onHarnessRun = useCallback((prompt: string, model: HarnessModelChoice, context: HarnessContext) => send({ t: 'harness-run', prompt, model, context }), [send]);
 
   const onStop = useCallback((sessionKey?: string) => {
     // Guard: se um call-site fizer onClick={onStop}, o React passa o MouseEvent
@@ -1838,12 +1556,11 @@ export function useCockpit(): Cockpit {
     setUsage((u) => (drop.some((k) => k in u) ? prune(u) : u));
     setTurnStats((t) => (drop.some((k) => k in t) ? prune(t) : t));
     setInterrupted((p) => (drop.some((k) => k in p) ? prune(p) : p));
-    for (const k of drop) {
-      delete lastActivity.current[k];
-      delete resumeId.current[k];
-      delete runMsg.current[k];
-      delete runStartRef.current[k];
-    }
+    pruneRefs([
+      lastActivity.current, resumeId.current, runMsg.current, runStartRef.current,
+      usageRef.current, turnBaseRef.current, liveCharsRef.current, liveRealRef.current,
+      serverKey.current, viewMode.current,
+    ], drop);
     // migratedTo é keyed pelo `new-xxx` (valor = id real); despejar o id real
     // tem que limpar o ponteiro por VALOR, senão o mapa cresce sem teto numa aba
     // de dias e um frame tardio `new-xxx` ressuscitaria a sessão já despejada.
@@ -1915,5 +1632,5 @@ export function useCockpit(): Cockpit {
     savePref('modelBySession', keep);
   }, [modelBySession]);
 
-  return { sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, contexts, ctxLoaded, openContext, onCtxList, onCtxOpen, onCtxClose, notes, notesLoaded, onNotesGet, onNotesSave, crons, cronsLoaded, onCronsGet, onCronSave, onCronDelete, onCronRun, points, pointsTotal, pointsLoaded, onPointsGet, onPointsAdd, onPointsCorrect, onPointsNote, onPointsDelete, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync, onDflChange, onDflInvoice, skills, skillsLoaded, openSkill, onSkillList, onSkillOpen, onSkillClose, graphs, graphsLoaded, graphOpenId, graphOpening, graphData, graphBuilding, graphBuildLog, graphBuildError, graphQuerying, graphQueryResult, graphQueryHistory, onGraphList, onGraphOpen, onGraphBuild, onClearBuildError, onGraphDelete, onGraphQuery, onGraphNodeOp, usageStats, onUsageList, health, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, marathon, onToggleMarathon, harnessConfig, harnessTasks, harnessEvents, onHarnessGet, onHarnessRun, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
+  return { ...notesApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
 }
