@@ -8,6 +8,8 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   test: {
+    // HOME descartável, sem credencial e sem rede externa — ver vitest.setup.ts.
+    setupFiles: ['./vitest.setup.ts'],
     // VPS de 3 cores/3.7G roda tudo (Deck, terminais, prod DFL): o paralelismo
     // default da suite saturou a box no freeze de 2026-06-11 (load 130). Um
     // worker a menos que o total de cores deixa a box sempre respirando.
