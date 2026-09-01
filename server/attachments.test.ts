@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { deflateRawSync } from 'node:zlib';
-import { safeSeg, saveAttachment, readAttachment, addUploadChunk, extractDocxText, mimeOf } from './attachments';
+import { safeSeg, readAttachment, addUploadChunk, extractDocxText, mimeOf } from './attachments';
 import { CONFIG } from './config';
 
 // Monta um .docx mínimo (1 entrada deflate: word/document.xml) sem dependência —
@@ -73,35 +73,41 @@ describe('safeSeg', () => {
   });
 });
 
-describe('saveAttachment', () => {
+// Upload de um arquivo inteiro num chunk só — o que o cliente manda pra qualquer
+// arquivo abaixo do CHUNK de 700KB dele.
+function upload(sessionKey: string, name: string, dataB64: string) {
+  return addUploadChunk(`u-${sessionKey}`, sessionKey, name, 0, 1, dataB64);
+}
+
+describe('addUploadChunk (arquivo em um chunk)', () => {
   it('rejects an empty file before touching disk', async () => {
-    expect(await saveAttachment('s', 'x.txt', '')).toEqual({ error: 'arquivo vazio' });
+    expect(await upload('s', 'x.txt', '')).toEqual({ error: 'arquivo vazio' });
   });
 
   it('rejects non-string fields before decoding (raw WS frame is untyped)', async () => {
-    const bad = { error: 'anexo inválido' };
-    expect(await saveAttachment(1 as unknown as string, 'x.txt', 'aGk=')).toEqual(bad);
-    expect(await saveAttachment('s', null as unknown as string, 'aGk=')).toEqual(bad);
-    expect(await saveAttachment('s', 'x.txt', 42 as unknown as string)).toEqual(bad);
-    expect(await saveAttachment('s', 'x.txt', { b: 1 } as unknown as string)).toEqual(bad);
+    const bad = { error: 'upload inválido' };
+    expect(await upload(1 as unknown as string, 'x.txt', 'aGk=')).toEqual(bad);
+    expect(await upload('s', null as unknown as string, 'aGk=')).toEqual(bad);
+    expect(await upload('s', 'x.txt', 42 as unknown as string)).toEqual(bad);
+    expect(await upload('s', 'x.txt', { b: 1 } as unknown as string)).toEqual(bad);
   });
 
   it('returns extracted text inline for a .docx upload (chip stays on the original)', async () => {
     const docx = buildDocx('<w:document><w:body><w:p><w:r><w:t>texto do documento</w:t></w:r></w:p></w:body></w:document>');
-    const saved = await saveAttachment('vitest-docx', 'proposta.docx', docx.toString('base64'));
+    const saved = await upload('vitest-docx', 'proposta.docx', docx.toString('base64'));
     try {
-      expect('path' in saved && saved.path.endsWith('proposta.docx')).toBe(true);
-      expect('text' in saved && saved.text).toBe('texto do documento');
+      expect(saved && 'path' in saved && saved.path.endsWith('proposta.docx')).toBe(true);
+      expect(saved && 'text' in saved && saved.text).toBe('texto do documento');
     } finally {
       await rm(resolve(CONFIG.workdir, 'attachments', 'vitest-docx'), { recursive: true, force: true });
     }
   });
 
   it('falls back to no text when a .docx-named file is not a real docx', async () => {
-    const saved = await saveAttachment('vitest-fakedocx', 'fake.docx', Buffer.from('not a zip').toString('base64'));
+    const saved = await upload('vitest-fakedocx', 'fake.docx', Buffer.from('not a zip').toString('base64'));
     try {
-      expect('path' in saved).toBe(true);
-      expect('text' in saved).toBe(false);
+      expect(saved && 'path' in saved).toBe(true);
+      expect(saved && 'text' in saved).toBe(false);
     } finally {
       await rm(resolve(CONFIG.workdir, 'attachments', 'vitest-fakedocx'), { recursive: true, force: true });
     }
@@ -213,9 +219,9 @@ describe('readAttachment', () => {
 
   it('round-trips a saved attachment and strips the disk prefix from the name', async () => {
     const dataB64 = Buffer.from('conteudo de teste').toString('base64');
-    const saved = await saveAttachment('vitest-read', 'foto teste.png', dataB64);
-    expect('path' in saved).toBe(true);
-    if (!('path' in saved)) return;
+    const saved = await upload('vitest-read', 'foto teste.png', dataB64);
+    expect(saved && 'path' in saved).toBe(true);
+    if (!saved || !('path' in saved)) return;
     try {
       const r = await readAttachment(saved.path);
       expect(r).toEqual({ name: 'foto_teste.png', dataB64 });

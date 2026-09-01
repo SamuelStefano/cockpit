@@ -29,7 +29,7 @@ beforeEach(() => {
 
 describe('handleTerm routing', () => {
   it('returns false for non-terminal messages so they fall through to authz/dispatch', () => {
-    for (const t of ['send', 'list', 'open', 'purge', 'upload'] as const) {
+    for (const t of ['send', 'list', 'open', 'purge', 'upload-chunk'] as const) {
       expect(handleTerm(ws, { t } as ClientMsg, new Map())).toBe(false);
     }
     expect(term.openTerm).not.toHaveBeenCalled();

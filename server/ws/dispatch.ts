@@ -15,8 +15,7 @@ import { getCrons, saveCron, deleteCron } from '../crons';
 import { scheduleValid } from '../../shared/cron-schedule';
 import { fireCron } from './runs';
 import { listSkills, readSkill, resolveSkillDeny, installSkill } from '../skills';
-import { saveAttachment, saveAttachmentFromUrl, addUploadChunk, readAttachment } from '../attachments';
-import { s3Config } from '../s3';
+import { addUploadChunk, readAttachment } from '../attachments';
 import { usageStats } from '../db';
 import { hideSession, unhideSession, purgeSession, setTitle, setNote } from '../store';
 import { parseSession, parseFullSession } from '../sessions/parse';
@@ -416,32 +415,12 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       send(ws, { t: 'health', health: await collectHealth() });
       return;
     }
-    case 'upload': {
-      const r = await saveAttachment(msg.sessionKey, msg.name, msg.dataB64);
-      if ('error' in r) send(ws, { t: 'error', message: r.error });
-      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url, clientId: msg.clientId, sessionKey: msg.sessionKey });
-      return;
-    }
-    // Upload em chunks via WS (caminho robusto): o backend remonta e sobe pro S3
-    // server-side. null = ainda faltam chunks (não responde).
+    // Único caminho de upload: o browser fatia o base64 em chunks (cada frame sob o
+    // cap do relay), o backend remonta e espelha no S3 server-side. null = ainda
+    // faltam chunks (não responde).
     case 'upload-chunk': {
       const r = await addUploadChunk(msg.uploadId, msg.sessionKey, msg.name, msg.seq, msg.total, msg.dataB64);
       if (r === null) return;
-      if ('error' in r) send(ws, { t: 'error', message: r.error });
-      else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url, clientId: msg.clientId, sessionKey: msg.sessionKey });
-      return;
-    }
-    // Upload direto na edge fn: o browser pede a config (URL+anon key, só após o gate
-    // de auth do WS — nunca hardcoded no bundle público) e sobe o arquivo por HTTP.
-    case 's3-config': {
-      const cfg = s3Config();
-      if (cfg) send(ws, { t: 's3-config', uploadUrl: cfg.uploadUrl, anonKey: cfg.anonKey });
-      return;
-    }
-    // O browser já subiu pro S3 e manda só a URL; o backend baixa pro workdir local
-    // (pro Read do agente). clientId ecoa pra o front casar com o chip otimista.
-    case 'attach-ref': {
-      const r = await saveAttachmentFromUrl(msg.sessionKey, msg.name, msg.s3url);
       if ('error' in r) send(ws, { t: 'error', message: r.error });
       else send(ws, { t: 'uploaded', name: msg.name, path: r.path, text: r.text, s3url: r.s3url, clientId: msg.clientId, sessionKey: msg.sessionKey });
       return;

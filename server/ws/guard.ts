@@ -3,8 +3,11 @@ import type { ClientMsg } from '../../shared/protocol';
 // Operações que tocam fs/spawn/grep — caras o bastante pra merecer um teto mais
 // apertado que o global. Um loop de `search` (grep sobre centenas de MB) ou
 // `term-open` (spawn de tmux) sem freio é o vetor de DoS quando houver 2º ator.
+// `upload-chunk` fica FORA de propósito: um anexo de 15MB vira ~29 frames em rajada
+// e o balde apertado (burst 15) derrubaria a metade final de todo arquivo grande.
+// O teto dele é outro: MAX_ACTIVE_UPLOADS + maxUploadBytes em attachments.ts.
 const HEAVY: ReadonlySet<ClientMsg['t']> = new Set([
-  'search', 'upload', 'term-open', 'send', 'list', 'list-archived', 'open', 'open-full', 'bench-build',
+  'search', 'term-open', 'send', 'list', 'list-archived', 'open', 'open-full', 'bench-build',
   'session-handoff', 'queue-run-bg', 'queue-run-now',
 ]);
 

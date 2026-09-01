@@ -13,7 +13,7 @@ import type { Role } from '../auth';
 // (hide/unhide/purge/set-meta) nem listagem do arquivo (list-archived).
 const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   'send', 'stop', 'ping', 'list', 'sync', 'open', 'open-full', 'search',
-  'ctx-list', 'ctx-open', 'skill-list', 'skill-open', 'usage-list', 'upload', 'upload-chunk', 'att-open',
+  'ctx-list', 'ctx-open', 'skill-list', 'skill-open', 'usage-list', 'upload-chunk', 'att-open',
   'refresh-models', 'points-get',
   'queue-add', 'queue-remove', 'queue-edit', 'queue-move', 'queue-clear', 'queue-get', 'queue-set-paused',
   // Só antecipa um item que o próprio student enfileirou: o dispatch passa o role
