@@ -1,96 +1,97 @@
-# cockpit
+# Deck
 
-> Painel web pessoal pra conversar com o Claude e operar terminais da VPS — em tempo real, com contexto que evolui a cada conversa.
+> Interface web pro **Claude CLI** que roda na sua própria máquina. Chat, terminais
+> ao vivo e contexto que evolui — do desktop ou do celular.
 
-Substitui o CLI do tmux por uma UI limpa: chat à esquerda, sessões salvas, terminais ao vivo à direita.
+O cérebro não fica num servidor nosso: é o binário `claude -p`, logado na **sua**
+conta, rodando na **sua** VPS. Cada pessoa traz a própria máquina e a própria
+assinatura, então o custo por usuário é plano.
 
----
-
-## A ideia
-
-Um **cockpit dev** único pra:
-
-- **Conversar com o Claude** numa UI boa (markdown, streaming, parar resposta).
-- **Ver e controlar terminais/tmux** da VPS sem decorar comandos.
-- **Salvar e evoluir contexto** — cada conversa aprimora a memória do projeto.
-- Tudo **em tempo real**, acessível do desktop ou do celular.
+Topologia, protocolo e modelo de segurança em detalhe: **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
 ---
 
-## Motor
+## O que dá pra fazer
 
-- **`claude -p` headless** no plano **Pro** → custo zero.
-- Streaming via `--output-format stream-json --include-partial-messages`.
-- Continuidade com `--resume <session_id>`.
-- Sessões persistidas como **JSONL** em `~/.claude/projects/...` (fonte da verdade).
+- **Conversar com o Claude** com streaming, markdown, parar/retomar resposta.
+- **Operar terminais** da VPS (tmux + xterm.js) sem decorar comando.
+- **Salvar e evoluir contexto** — sessões, notas, skills e docs viram memória do projeto.
+- Painéis de **uso/custo**, **crons**, **pontos**, **grafo** do repo e um **design system** vivo.
 
----
-
-## Tempo real
-
-- **WebSocket** multiplexado pro fluxo de terminais (xterm.js + node-pty).
-- **Stream** dos eventos do Claude direto na UI (tokens conforme chegam).
-- Terminais via `tmux new-session -A` → **sobrevivem** a restart do backend.
-- Indicadores de conexão (ws/sse) visíveis no header.
+Rotas: `/` `/contextos` `/skills` `/notas` `/pontos` `/crons` `/uso` `/graph`
+`/harness` `/admin` `/docs` `/ds` `/play`.
 
 ---
 
-## Segurança
+## Dois modos de rodar
 
-- **Acesso só via Tailscale** — zero porta pública exposta.
-- Terminais e o `claude` rodam como usuário **sem sudo** (`agentrun`).
-- A VPS guarda segredos e dados de produção → o painel **nunca** vira shell-as-a-service aberto.
-- Gate de segurança é a **Fase 0** do build, antes de qualquer feature.
+**Local** — backend na sua máquina, você acessa direto (Tailscale/loopback). É o
+modo mais simples e não depende de nada externo.
+
+**Remoto (T3)** — a SPA fica na Vercel, um **relay** roteia os frames por conta, e
+um **agent** na sua VPS disca pro relay. Serve pra abrir o Deck do celular sem expor
+porta nenhuma da sua máquina. O relay **não spawna nada** e roteia por `accountId`
+derivado do JWT no servidor — nunca por dado vindo do frame.
 
 ---
 
-## Contexto que evolui
+## Rodar local
 
-- **JSONL** = histórico bruto (read-only).
-- **SQLite** = índice, estado do tmux, cursor por device.
-- **Memória markdown** = contexto curado que melhora a cada conversa.
+```bash
+npm install
+npm run dev          # vite :5173 + backend :7777 (proxy /ws)
+```
+
+Produção em porta única:
+
+```bash
+npm run build        # typecheck (web + server + relay) + bundle em dist/
+npm run serve        # http://127.0.0.1:7777 serve a UI e o WS
+```
+
+O backend roda `claude -p` em `--permission-mode plan` por padrão e lê as sessões do
+CLI direto do JSONL em `~/.claude/projects/…` (fonte da verdade). Configuração em
+`.env` — veja **[.env.example](.env.example)** para a lista completa; o essencial é
+`COCKPIT_PORT`, `COCKPIT_WORKDIR` e `COCKPIT_PERMISSION_MODE`
+(`plan` | `default` | `acceptEdits`).
+
+`--dangerously-skip-permissions` fica atrás de `COCKPIT_ALLOW_BYPASS` **e** de papel
+admin **e** de acesso local: default-deny, desligado salvo decisão explícita.
+
+Se a SPA for servida separada do backend, aponte o WS no build:
+`VITE_WS_URL=wss://maquina.tailnet.ts.net/ws`.
 
 ---
 
 ## Stack
 
-`Vite` · `React 18` · `TypeScript` · `Tailwind v3` · fontes `Geist` / `Geist Mono`
-Backend: `Node` · `TypeScript` · `ws` · `tsx`. Bind `127.0.0.1:7777` (acesso via Tailscale).
+`Vite 5` · `React 18` · `TypeScript 5` · `Tailwind 3` · fontes `Geist` / `Geist Mono`
+Backend: `Node` · `tsx` · `ws` · `node-pty` · `better-sqlite3`. Bind `127.0.0.1:7777`.
+Auth do modo remoto: `Supabase` (JWT verificado por JWKS no relay).
 
-Paleta: base `neutral-900`, acento `orange-500`, status verde/vermelho/amarelo.
-
----
-
-## Rodar
-
-**Dev** (frontend + backend juntos, hot-reload):
-
-```bash
-npm install
-npm run dev          # vite :5173  +  backend :7777 (proxy /ws)
-```
-
-**Produção** (porta única, ideal pra Tailscale):
-
-```bash
-npm run build        # typecheck (web+server) + bundle em dist/
-npm run serve        # http://127.0.0.1:7777 serve a UI e o WS
-```
-
-O backend roda `claude -p` em `--permission-mode plan` (sem bypass) e lê as
-sessões do CLI direto do JSONL. Sobrescrevíveis por env: `COCKPIT_PORT`,
-`COCKPIT_WORKDIR`, `COCKPIT_PERMISSION_MODE` (`plan`|`default`|`acceptEdits`).
-
-A SPA aponta o WebSocket pra mesma origin por padrão. Se o front for servido
-separado do backend (ex: SPA estática num CDN, backend atrás de `tailscale
-serve`), defina `VITE_WS_URL` no build pra apontar pro host real do backend
-(ex: `VITE_WS_URL=wss://maquina.tailnet.ts.net/ws`).
+Base `neutral-900`, acento `orange-500`. Os primitivos de UI vivem em
+`src/components/primitives` e têm galeria viva em `/ds` — veja
+[CLAUDE.md](CLAUDE.md) antes de escrever tela nova.
 
 ---
 
-## Roadmap
+## Verificar
 
-1. **Fase 0** — gate de segurança (usuário sem sudo, Tailscale).
-2. **Fase 1** — chat-first: engine `claude -p` + streaming real.
-3. **Fase 2** — terminais ao vivo (tmux + WebSocket).
-4. **Fase 3** — contexto que evolui (memória + índice).
+```bash
+npx tsc --noEmit                          # SPA
+npx tsc --noEmit -p tsconfig.server.json  # backend + agent
+npx tsc --noEmit -p tsconfig.relay.json   # relay
+npx vitest run                            # suíte completa
+npx vite build
+```
+
+Teste fica **ao lado** do arquivo testado (`x.ts` + `x.test.ts`). O CI roda o mesmo
+`gate` (typecheck + testes) mais um `smoke` de UI a cada PR.
+
+---
+
+## Persistência
+
+- **JSONL** (`~/.claude/projects/…`) — histórico bruto do CLI, read-only.
+- **SQLite** — índice das sessões, estado do tmux, cursor por device.
+- **Markdown** — contexto curado que melhora a cada conversa.
