@@ -1,5 +1,5 @@
 import { Icon } from '../../components/primitives';
-import { RESOURCES, type IconName } from '../docs.data';
+import { RESOURCES, type IconName } from '../docs-data';
 
 // Átomos de layout da documentação. Puramente presentacionais — sem estado nem
 // dados do backend. Reusados pelas seções em ./sections.tsx.

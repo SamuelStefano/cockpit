@@ -4,7 +4,7 @@ import { useLoadStalled } from '../lib/useLoadStalled';
 import { ContextModal, TYPE_TONE } from '../components/ContextModal';
 import type { ContextMeta } from '../../shared/protocol';
 import type { ContextDoc } from '../useCockpit';
-import { countByType, filterContexts, resolveWikilink } from './contextos.filter';
+import { countByType, filterContexts, resolveWikilink } from './contextos-filter';
 import { ContextChip } from './contextos/ContextChip';
 import { ContextCard } from './contextos/ContextCard';
 import { ContextOffline } from './contextos/ContextOffline';

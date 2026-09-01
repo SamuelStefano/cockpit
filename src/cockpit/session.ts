@@ -1,4 +1,4 @@
-import type { Session } from '../data/mock';
+import type { Session } from '../data/types';
 import type { SessionMeta } from '../../shared/protocol';
 import { loadPref } from '../lib/persist';
 

@@ -1,4 +1,4 @@
-import type { CompactMessage } from '../../data/mock';
+import type { CompactMessage } from '../../data/types';
 import { Icon } from '../primitives';
 import { fmtTokens } from './message-format';
 import { PrGroup } from './PrGroup';

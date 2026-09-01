@@ -1,6 +1,6 @@
 import { Icon } from './primitives';
-import { groupByOrder } from './commandPalette.filter';
-import type { Cmd } from './commandPalette.types';
+import { groupByOrder } from './command-palette-filter';
+import type { Cmd } from './command-palette-types';
 
 interface CommandPaletteResultsProps {
   filtered: Cmd[];

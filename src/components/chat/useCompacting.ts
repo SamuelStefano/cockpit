@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Message } from '../../data/mock';
+import type { Message } from '../../data/types';
 import { frameFingerprint, isCompacting, silenceExplained } from './compacting';
 
 // Sem sinal de "começou a compactar" no protocolo, o relógio de vida do turno é a

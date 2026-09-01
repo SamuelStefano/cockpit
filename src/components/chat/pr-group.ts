@@ -1,4 +1,4 @@
-import type { PrLink } from '../../data/mock';
+import type { PrLink } from '../../data/types';
 
 export interface PrGroupView { repo: string | null; items: PrLink[] }
 

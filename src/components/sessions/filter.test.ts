@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { filterSessions } from './filter';
-import type { Session } from '../../data/mock';
+import type { Session } from '../../data/types';
 
 const s = (id: string, title: string, snippet = ''): Session => ({
   id, title, snippet, relative: '', mtime: 0, hasTerminal: false, active: false,

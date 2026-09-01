@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Icon, Markdown, CodeBlock, tokens } from '../primitives';
-import type { Block } from '../../data/mock';
+import type { Block } from '../../data/types';
 import { AskQuestionCard } from './AskQuestionCard';
 import { isQuestionTool as isQuestion } from './visible-blocks';
 

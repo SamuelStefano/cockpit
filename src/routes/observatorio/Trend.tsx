@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '../../components/primitives';
 import type { DailyUsage } from '../../../shared/protocol';
-import { fmtNum as fmt, startOfDay } from '../observatorio.format';
+import { fmtNum as fmt, startOfDay } from '../observatorio-format';
 import { fmtCost } from '../../../shared/format';
 import { filterSeries, type TrendPeriod } from './trend-filter';
 

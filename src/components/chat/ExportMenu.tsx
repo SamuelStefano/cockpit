@@ -1,5 +1,5 @@
 import { Icon, tokens } from '../primitives';
-import type { Message } from '../../data/mock';
+import type { Message } from '../../data/types';
 import { useState } from 'react';
 import { threadToMarkdown, threadToPdf, download, fileSlug } from '../../lib/export';
 

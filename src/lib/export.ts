@@ -1,4 +1,4 @@
-import type { Message, Block } from '../data/mock';
+import type { Message, Block } from '../data/types';
 
 // Serializa a thread em Markdown — 100% client-side, os dados já vivem no
 // messages[] do useCockpit. Sem backend, sem dep.

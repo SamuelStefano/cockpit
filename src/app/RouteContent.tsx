@@ -9,7 +9,7 @@ import {
 import type { SessionsPanelProps } from '../components/Sessions';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import type { TerminalsPanelProps } from '../components/Terminals';
-import type { Terminal } from '../data/mock';
+import type { Terminal } from '../data/types';
 import type { useCockpit } from '../useCockpit';
 import type { Route } from '../useRoute';
 

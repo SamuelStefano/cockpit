@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useSessionsPanel } from './useSessionsPanel';
-import type { Session } from '../../data/mock';
+import type { Session } from '../../data/types';
 
 const base = { sessions: [], searchResults: [] };
 

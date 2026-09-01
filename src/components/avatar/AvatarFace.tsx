@@ -1,5 +1,5 @@
 import { Icon } from '../primitives';
-import { initials } from '../avatar.initials';
+import { initials } from './initials';
 
 // Face não-interativa do avatar (sem file picker): usada como gatilho do menu de
 // perfil no header, onde o clique abre o popover em vez de escolher imagem.

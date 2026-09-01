@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { usePersisted } from '../lib/persist';
-import { TERMINALS_SEED, type Terminal } from '../data/mock';
+import { TERMINALS_SEED, type Terminal } from '../data/types';
 import type { TermApi } from '../useCockpit';
 
 let _tid = 100;

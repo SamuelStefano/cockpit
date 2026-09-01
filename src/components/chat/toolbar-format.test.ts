@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shortModel, prettyModel, modelFamily, turnStatParts, contextMeter, CONTEXT_LIMIT, normalizeModelId } from './toolbar.format';
+import { shortModel, prettyModel, modelFamily, turnStatParts, contextMeter, CONTEXT_LIMIT, normalizeModelId } from './toolbar-format';
 
 describe('normalizeModelId', () => {
   it('aceita aliases e ids claude-* (normalizando)', () => {

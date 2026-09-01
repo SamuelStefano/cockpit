@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { coalesceCompacts } from './coalesce-compacts';
-import type { Message, CompactMessage } from '../../data/mock';
+import type { Message, CompactMessage } from '../../data/types';
 
 const user = (id: string): Message => ({ id, role: 'user', text: 'oi' });
 const compact = (id: string, kind?: 'wakeup' | 'pr', extra?: Partial<CompactMessage>): CompactMessage =>

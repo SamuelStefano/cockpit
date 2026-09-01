@@ -3,7 +3,7 @@ import { SessionsPanel, type SessionsPanelProps } from './Sessions';
 import { ChatPanel } from './Chat';
 import type { ChatPanelProps } from './chat/chat-panel-props';
 import { TerminalsPanel, type TerminalsPanelProps } from './Terminals';
-import type { Terminal } from '../data/mock';
+import type { Terminal } from '../data/types';
 
 interface TerminalSheetProps {
   termProps: TerminalsPanelProps;

@@ -1,4 +1,4 @@
-import type { Block, Message, ToolCall } from '../../data/mock';
+import type { Block, Message, ToolCall } from '../../data/types';
 import type { ShownMessage } from './shown';
 import { isQuestionTool } from './visible-blocks';
 

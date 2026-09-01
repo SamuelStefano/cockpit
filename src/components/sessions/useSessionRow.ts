@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import type { Session } from '../../data/mock';
+import type { Session } from '../../data/types';
 
 interface UseSessionRowArgs {
   s: Session;

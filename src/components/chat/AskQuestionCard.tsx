@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Icon } from '../primitives';
-import type { ToolCall, ToolQuestion } from '../../data/mock';
+import type { ToolCall, ToolQuestion } from '../../data/types';
 
 interface AskQuestionCardProps {
   tool: ToolCall;

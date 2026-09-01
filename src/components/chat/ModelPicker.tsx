@@ -1,5 +1,5 @@
 import type { ModelInfo } from '../../../shared/protocol';
-import { prettyModel, normalizeModelId } from './toolbar.format';
+import { prettyModel, normalizeModelId } from './toolbar-format';
 import { modelOptions } from './model-options';
 import { usePersisted } from '../../lib/persist';
 import { Icon, tokens } from '../primitives';

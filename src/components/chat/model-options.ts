@@ -1,5 +1,5 @@
 import type { ModelInfo } from '../../../shared/protocol';
-import { modelFamily } from './toolbar.format';
+import { modelFamily } from './toolbar-format';
 
 // Versão concreta do agente, puxada de /v1/models pelo backend. Sem a lista
 // (boot/offline) cai nos aliases opus/sonnet/haiku, que o CLI aceita.

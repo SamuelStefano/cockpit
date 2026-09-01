@@ -1,5 +1,5 @@
 import { Icon, tokens } from '../primitives';
-import type { Block } from '../../data/mock';
+import type { Block } from '../../data/types';
 import { messageToText } from '../../lib/export';
 import { useCopied } from '../../lib/useCopied';
 import { useSpeech } from '../../lib/useSpeech';

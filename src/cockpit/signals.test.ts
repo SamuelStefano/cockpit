@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { computeStalled, computeUpdated, STALL_MS } from './signals';
-import type { Session } from '../data/mock';
+import type { Session } from '../data/types';
 
 const sess = (id: string, mtime: number): Session => ({
   id, title: id, relative: '', snippet: '', mtime, hasTerminal: false, active: false,

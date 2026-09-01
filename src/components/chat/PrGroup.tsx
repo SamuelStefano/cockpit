@@ -1,7 +1,7 @@
 import { Icon } from '../primitives';
 import { safeHref } from '../../lib/safe-href';
 import { prGroupView } from './pr-group';
-import type { PrLink } from '../../data/mock';
+import type { PrLink } from '../../data/types';
 
 // Run de PRs num divisor único: os links quebram linha em vez de virar uma linha
 // cheia por PR, que enterrava o prompt e a resposta em volta. Uma PR sozinha não

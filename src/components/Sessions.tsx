@@ -1,7 +1,7 @@
 import { Button, Icon } from './primitives';
 import { usePersisted } from '../lib/persist';
 import { SHOW_SESSION_DESC_KEY, SHOW_SESSION_DESC_DEFAULT } from '../lib/prefs';
-import type { Session } from '../data/mock';
+import type { Session } from '../data/types';
 import { groupByRecency } from './sessions/group-by-recency';
 import { SessionGroupHeader } from './sessions/SessionGroupHeader';
 import { SessionRow } from './sessions/SessionRow';

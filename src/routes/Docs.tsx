@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Icon, tokens } from '../components/primitives';
-import { SECTIONS } from './docs.data';
+import { SECTIONS } from './docs-data';
 import { DocSections } from './docs/sections';
 
 // Documentação do app, 100% client-side (conteúdo estático). Uma rota só, com
 // navegação por seções (scrollspy) à esquerda e cartões explicativos. Sem dados
 // do backend: é manual de uso, sempre disponível mesmo offline. O conteúdo vive
-// em ./docs/sections.tsx (texto) e ./docs.data.ts (dados); aqui fica só a casca
+// em ./docs/sections.tsx (texto) e ./docs-data.ts (dados); aqui fica só a casca
 // de layout — nav lateral, chips mobile e o scrollspy.
 
 export function Docs() {

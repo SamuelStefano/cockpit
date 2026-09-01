@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useGlobalShortcuts } from './useGlobalShortcuts';
-import type { Session } from '../data/mock';
+import type { Session } from '../data/types';
 
 const sess = (id: string): Session => ({ id }) as Session;
 

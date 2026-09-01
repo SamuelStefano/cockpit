@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button, Icon, tokens } from '../primitives';
 import { UserAvatar } from '../UserAvatar';
 import { usePersisted } from '../../lib/persist';
-import type { UserMessage } from '../../data/mock';
+import type { UserMessage } from '../../data/types';
 import { CopyTextButton, QuoteButton } from './MessageActions';
 import { TriageBadge } from './TriageBadge';
 import { fmtClock } from './message-format';

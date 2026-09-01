@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
-import type { Cmd, IconName } from './commandPalette.types';
+import type { Cmd, IconName } from './command-palette-types';
 import type { Route } from '../useRoute';
 import type { PermMode } from '../../shared/protocol';
-import type { Session } from '../data/mock';
+import type { Session } from '../data/types';
 import { UI_SEEDS } from './paletteSeeds';
 
 const MODE_LABEL: Record<PermMode, string> = { plan: 'Planejar', auto: 'Auto', acceptEdits: 'Executar' };

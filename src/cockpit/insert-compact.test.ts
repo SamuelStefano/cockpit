@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { insertCompact } from './insert-compact';
-import type { CompactMessage, Message } from '../data/mock';
+import type { CompactMessage, Message } from '../data/types';
 
 const user = (id: string): Message => ({ id, role: 'user', text: 'oi' });
 const asst = (id: string): Message => ({ id, role: 'assistant', blocks: [] });

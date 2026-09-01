@@ -1,4 +1,4 @@
-import type { Message } from '../../data/mock';
+import type { Message } from '../../data/types';
 import { hasVisibleAssistantContent } from './visible-blocks';
 
 // Tira da lista as mensagens que o MessageView renderiza como null (só-tool com

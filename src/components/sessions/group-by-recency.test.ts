@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { groupByRecency } from './group-by-recency';
-import type { Session } from '../../data/mock';
+import type { Session } from '../../data/types';
 
 const DAY = 86_400_000;
 const session = (id: string, mtime: number): Session => ({

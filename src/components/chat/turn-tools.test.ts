@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { collapseTurnTools } from './turn-tools';
-import type { Block, Message, ToolCall } from '../../data/mock';
+import type { Block, Message, ToolCall } from '../../data/types';
 
 const tool = (id: string, extra: Partial<ToolCall> = {}): ToolCall => ({
   id, name: 'Bash', label: 'Bash', command: 'ls', status: 'done', output: [], ...extra,

@@ -1,4 +1,4 @@
-import type { CompactMessage, Message } from '../data/mock';
+import type { CompactMessage, Message } from '../data/types';
 
 // O divisor NÃO pode ir pro fim da thread enquanto um turno está em voo: o pipeline
 // de render (`dropInvisible`/`collapseTurnTools`) só preserva uma bolha de assistente

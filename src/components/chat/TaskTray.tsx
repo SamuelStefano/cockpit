@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Icon, tokens } from '../primitives';
 import { usePersisted } from '../../lib/persist';
-import type { ToolTodo } from '../../data/mock';
+import type { ToolTodo } from '../../data/types';
 import { TodoPanel } from './TodoPanel';
 import { todoCounts } from './task-tray';
 

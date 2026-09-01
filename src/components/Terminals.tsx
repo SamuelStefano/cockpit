@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { Icon, tokens } from './primitives';
-import type { Terminal } from '../data/mock';
+import type { Terminal } from '../data/types';
 import type { TermApi } from '../useCockpit';
 
 // xterm.js são 334 KB que só servem quando existe um terminal aberto. Importado

@@ -1,4 +1,4 @@
-import type { Message, ToolTodo } from '../../data/mock';
+import type { Message, ToolTodo } from '../../data/types';
 
 // Última lista de tarefas da conversa: varre de trás pra frente e devolve o
 // snapshot mais recente (TaskCreate/TaskUpdate/TodoWrite carimbam um por

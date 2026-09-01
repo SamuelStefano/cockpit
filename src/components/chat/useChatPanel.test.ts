@@ -2,7 +2,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useChatPanel, type Phase } from './useChatPanel';
-import type { Session, Message } from '../../data/mock';
+import type { Session, Message } from '../../data/types';
 import type { ParkedView } from '../../../shared/protocol';
 
 // A fila agora vive no servidor (parked.json). O hook só espelha a prop `queue` e

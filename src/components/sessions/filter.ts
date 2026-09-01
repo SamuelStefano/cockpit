@@ -1,4 +1,4 @@
-import type { Session } from '../../data/mock';
+import type { Session } from '../../data/types';
 
 // Ordem/visibilidade da sidebar de sessões. Pura porque um erro aqui some com
 // sessões da lista (ou troca a ordem) sem estourar nada — bug calado caro:

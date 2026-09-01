@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ModelInfo } from '../../../shared/protocol';
 import { Button, tokens } from '../primitives';
-import { prettyModel } from './toolbar.format';
+import { prettyModel } from './toolbar-format';
 import { modelOptions } from './model-options';
 
 // Dispara um item da fila AGORA, num chat paralelo que herda o contexto deste. O

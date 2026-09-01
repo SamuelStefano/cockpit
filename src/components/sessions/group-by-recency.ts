@@ -1,4 +1,4 @@
-import type { Session } from '../../data/mock';
+import type { Session } from '../../data/types';
 
 // Agrupa as sessões por recência (estilo ChatGPT/Claude). Fixadas viram um grupo
 // próprio no topo; o resto cai num balde por mtime. Só roda fora da busca.

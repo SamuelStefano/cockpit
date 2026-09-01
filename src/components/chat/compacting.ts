@@ -1,4 +1,4 @@
-import type { Message } from '../../data/mock';
+import type { Message } from '../../data/types';
 import { ctxPct } from '../../lib/format';
 import { SATURATED_PCT } from './saturation';
 

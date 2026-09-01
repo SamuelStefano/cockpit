@@ -1,6 +1,6 @@
 import { Icon } from '../primitives';
 import type { TurnStats } from '../../../shared/protocol';
-import { turnStatParts } from './toolbar.format';
+import { turnStatParts } from './toolbar-format';
 
 // Custo/duração REAIS do último turno (result.total_cost_usd do CLI), não a
 // estimativa por preço de token. Ground-truth — some quando há um valor.

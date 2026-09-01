@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { latestTodos, todoCounts } from './task-tray';
-import type { Message, ToolTodo } from '../../data/mock';
+import type { Message, ToolTodo } from '../../data/types';
 
 const todo = (content: string, status: ToolTodo['status']): ToolTodo => ({ content, status });
 const toolMsg = (id: string, todos?: ToolTodo[]): Message =>

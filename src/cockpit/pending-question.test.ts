@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { pendingQuestionIdx, clampToPendingQuestion } from './pending-question';
-import type { Message } from '../data/mock';
+import type { Message } from '../data/types';
 
 const qBlock = { type: 'tool' as const, tool: { id: 'q', name: 'AskUserQuestion', label: 'x', command: '', status: 'done' as const, output: [], questions: [{ question: 'Q?', header: 'H', multiSelect: false, options: [{ label: 'A' }] }] } };
 const txt = (md: string) => ({ type: 'text' as const, md });

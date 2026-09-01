@@ -1,4 +1,4 @@
-import type { Session, Message, ToolTodo } from '../../data/mock';
+import type { Session, Message, ToolTodo } from '../../data/types';
 import type { PermMode, Effort, ModelInfo, TurnStats, Caps, SkillMeta, BgAgent, ParkedView } from '../../../shared/protocol';
 import type { Attachment, AttachmentPreview } from '../../useCockpit';
 import type { Phase } from './useChatPanel';

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { generateKeyPairSync, sign as edSign } from 'node:crypto';
-import { validateClaims, verifyAgentSignature, makeChallenge } from './src/verify';
-import { parseRootEmails } from '../shared/identity';
+import { validateClaims, verifyAgentSignature, makeChallenge } from './verify';
+import { parseRootEmails } from '../../shared/identity';
 
 const ISS = 'https://proj.supabase.co/auth/v1';
 const NOW = 1_800_000_000;
