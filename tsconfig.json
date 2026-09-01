@@ -11,6 +11,10 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
+    // Alguns testes ao lado da fonte são guards de build: leem o .tsx irmão com
+    // node:fs e conferem o que o bundler vai enxergar. Rodam em Node, mas moram
+    // no projeto do browser — sem declarar aqui, o TS 7 não acha `node:fs`.
+    "types": ["node"],
     "strict": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
