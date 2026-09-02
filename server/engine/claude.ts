@@ -5,6 +5,7 @@ import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ClaudeEvent } from './events';
+import { cliPath } from './cli-path';
 import { CONFIG } from '../config';
 import { managedEnvSync, mcpServerDefsSync } from '../admin-ops';
 import type { Role } from '../auth';
@@ -282,7 +283,7 @@ export function resolveMode(
 // turno sairia cobrado por token sem ninguém pedir.
 export function minimalEnv(): NodeJS.ProcessEnv {
   return {
-    PATH: process.env.PATH,
+    PATH: cliPath(),
     HOME: process.env.HOME,
     LANG: process.env.LANG ?? 'en_US.UTF-8',
     TERM: 'dumb',

@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { cliPath } from './cli-path';
 import type { TriageVerdict, TriageAction } from '../../shared/protocol';
 
 // Os one-shots (triagem + sugestões) rodam `claude -p`, que PERSISTE um JSONL de
@@ -50,7 +51,7 @@ export function killSideRunsFor(sessionKey: string): void {
 }
 
 function miniEnv(): NodeJS.ProcessEnv {
-  return { PATH: process.env.PATH, HOME: process.env.HOME, LANG: process.env.LANG ?? 'en_US.UTF-8', TERM: 'dumb' };
+  return { PATH: cliPath(), HOME: process.env.HOME, LANG: process.env.LANG ?? 'en_US.UTF-8', TERM: 'dumb' };
 }
 
 // Executa `claude -p` haiku plan-mode e devolve o campo .result (texto). '' em erro/timeout.
