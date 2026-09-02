@@ -26,6 +26,7 @@ import { usePairingEject } from './app/usePairingEject';
 import { useLiveConnection } from './app/useLiveConnection';
 import { useQuotaGate } from './app/useQuotaGate';
 import { useOverlays } from './app/useOverlays';
+import { useChatUrl } from './app/useChatUrl';
 
 export function CockpitApp() {
   const cockpit = useCockpit();
@@ -40,7 +41,15 @@ export function CockpitApp() {
     queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce,
   } = cockpit;
 
-  const { route, nav } = useRoute();
+  const { route, chatId, nav, navChat } = useRoute();
+  // Escolha explícita do usuário empilha history (voltar volta pro chat anterior);
+  // trocas derivadas passam pelo useChatUrl com replace.
+  const selectSession = useCallback((id: string) => {
+    setActiveSessionId(id);
+    if (id.startsWith('new-')) nav('/');
+    else navChat(id);
+  }, [setActiveSessionId, nav, navChat]);
+  useChatUrl({ route, chatId, navChat, activeId: activeSessionId, setActiveId: setActiveSessionId, sessions, archived });
   // Default-deny: sem caps (ainda não chegou) = não-admin. No T3 o caps vem do
   // relay (papel da conta no JWT); no loopback, do token/role local.
   const isAdmin = caps?.role === 'admin' || caps?.role === 'root';
@@ -67,7 +76,7 @@ export function CockpitApp() {
   const { drawer, setDrawer, termSheet, setTermSheet, routeMenu, setRouteMenu, palette, setPalette, help, setHelp } = useOverlays(route);
   const [focusSignal, setFocusSignal] = useState(0);
 
-  useGlobalShortcuts({ sessions, activeSessionId, setActiveSessionId, updated, nav, setPalette, setHelp });
+  useGlobalShortcuts({ sessions, activeSessionId, setActiveSessionId: selectSession, updated, nav, setPalette, setHelp });
 
   // Citar uma mensagem: vira blockquote no topo do rascunho atual (trunca longos).
   // Ref + useCallback: identidade estável pro memo do MessageRow (setDraft não
@@ -89,14 +98,15 @@ export function CockpitApp() {
     return m;
   }, [usageStats]);
 
-  // Pós-F5 restaura a última sessão aberta (persistida); só cai na mais recente
-  // se a salva não existir mais (apagada/arquivada) ou se for o 1º acesso.
+  // Pós-F5 restaura o chat da URL (/c/<id>), senão a última sessão aberta
+  // (persistida); só cai na mais recente se nenhuma existir mais ou no 1º acesso.
   useEffect(() => {
     if (activeSessionId || !sessions.length) return;
+    const has = (id: string) => !!id && (sessions.some((s) => s.id === id) || archived.some((s) => s.id === id));
     const saved = loadPref('activeId', '');
-    const pick = saved && sessions.some((s) => s.id === saved) ? saved : sessions[0].id;
+    const pick = has(chatId) ? chatId : has(saved) ? saved : sessions[0].id;
     setActiveSessionId(pick);
-  }, [activeSessionId, sessions, setActiveSessionId]);
+  }, [activeSessionId, sessions, archived, chatId, setActiveSessionId]);
 
   // Não-admin não fica preso na URL /admin (só redireciona quando caps já chegou,
   // pra não chutar pra fora antes de saber o papel).
@@ -112,7 +122,7 @@ export function CockpitApp() {
     nav('/');
   };
 
-  const sessionsProps = { sessions, loading, activeId: activeSessionId, onSelect: setActiveSessionId, onNew: handleNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, stalled, updated, runStart, searchResults, onSearch, userId: sbAuth.session?.user.id };
+  const sessionsProps = { sessions, loading, activeId: activeSessionId, onSelect: selectSession, onNew: handleNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, stalled, updated, runStart, searchResults, onSearch, userId: sbAuth.session?.user.id };
   const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, followups, onDismissFollowups: dismissFollowups, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew: handleNew, onHandoff, handoffBusy, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onRename: handleRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
 
@@ -128,7 +138,7 @@ export function CockpitApp() {
         open={palette} onClose={() => setPalette(false)}
         nav={nav} onNew={handleNew}
         mode={mode} setMode={setMode}
-        sessions={sessions} onSelectSession={setActiveSessionId}
+        sessions={sessions} onSelectSession={selectSession}
         running={running} onStop={handleStop} onFocusComposer={() => setFocusSignal((n) => n + 1)}
         onSeedComposer={(text) => { setDraft(text); setFocusSignal((n) => n + 1); }}
         onShowHelp={() => setHelp(true)}
@@ -142,7 +152,7 @@ export function CockpitApp() {
       <RouteContent
         route={route} isMobile={isMobile} isAdmin={isAdmin} connected={conn.ws === 'connected'}
         cockpit={cockpit} sessionsProps={sessionsProps} chatProps={chatProps} termProps={termProps}
-        onOpenSession={(id) => { setActiveSessionId(id); nav('/'); }}
+        onOpenSession={selectSession}
         onAnalyzeNotes={(text) => {
           handleNew();
           setDraft(`Analise estas anotações soltas e destile num contexto/memória estruturado e reutilizável (markdown bem organizado). Se fizer sentido, salve em memory/. Anotações:\n\n${text}`);

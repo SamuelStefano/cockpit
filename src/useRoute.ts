@@ -6,22 +6,44 @@ export type Route = '/' | '/contextos' | '/skills' | '/notas' | '/pontos' | '/cr
 
 const ROUTES: Route[] = ['/', '/contextos', '/skills', '/notas', '/pontos', '/crons', '/uso', '/graph', '/harness', '/admin', '/docs', '/ds', '/play'];
 
-function current(): Route {
-  const p = location.pathname as Route;
-  return ROUTES.includes(p) ? p : '/';
+// Chat aberto tem URL própria (/c/<sessionId>): link salvável, F5 sem perder a
+// conversa, duas abas em chats diferentes. A VIEW continua sendo '/', então o id
+// só alimenta a sessão ativa — nada remonta ao trocar de chat.
+const CHAT = '/c/';
+
+export interface RouteState { route: Route; chatId: string }
+
+export const chatPath = (id: string) => CHAT + encodeURIComponent(id);
+
+function current(): RouteState {
+  const p = location.pathname;
+  if (p.startsWith(CHAT)) {
+    const id = decodeURIComponent(p.slice(CHAT.length));
+    if (id) return { route: '/', chatId: id };
+  }
+  return { route: ROUTES.includes(p as Route) ? (p as Route) : '/', chatId: '' };
 }
 
 export function useRoute() {
-  const [route, setRoute] = useState<Route>(current());
+  const [state, setState] = useState<RouteState>(current);
   useEffect(() => {
-    const onPop = () => setRoute(current());
+    const onPop = () => setState(current());
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
   const nav = useCallback((to: Route) => {
-    if (to === current()) return;
+    if (location.pathname === to) return;
     history.pushState(null, '', to);
-    setRoute(to);
+    setState({ route: to, chatId: '' });
   }, []);
-  return { route, nav };
+  // replace=true pros ajustes DERIVADOS (rascunho new-xxx que virou sessionId
+  // real, F5 restaurando a última sessão): corrige a URL sem empilhar history.
+  const navChat = useCallback((id: string, replace = false) => {
+    const path = chatPath(id);
+    if (location.pathname === path) return;
+    if (replace) history.replaceState(null, '', path);
+    else history.pushState(null, '', path);
+    setState({ route: '/', chatId: id });
+  }, []);
+  return { route: state.route, chatId: state.chatId, nav, navChat };
 }

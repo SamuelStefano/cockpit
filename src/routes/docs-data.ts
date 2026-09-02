@@ -53,7 +53,7 @@ export const FILEMAP: { group: string; tone: string; files: { path: string; what
       { path: 'src/main.tsx', what: 'Bootstrap do React — monta o app na página.' },
       { path: 'src/App.tsx', what: 'Componente raiz: junta header, layouts, rotas e o estado global do cockpit.' },
       { path: 'src/useCockpit.ts', what: 'O cérebro do cliente: conexão WebSocket, sessões, envio de mensagens, telemetria, anexos.' },
-      { path: 'src/useRoute.ts', what: 'Roteador minúsculo entre as abas (/, /contextos, /skills, /uso, /admin, /docs).' },
+      { path: 'src/useRoute.ts', what: 'Roteador minúsculo entre as abas (/, /contextos, /skills, /uso, /admin, /docs) e o chat aberto (/c/<id>).' },
       { path: 'src/app/DesktopLayout.tsx', what: 'Layout de 3 painéis do desktop (sessões · chat · terminais), com recolher/redimensionar.' },
       { path: 'src/app/usePanelResize.ts', what: 'Lógica de arrastar pra redimensionar os painéis laterais.' },
       { path: 'src/app/useGlobalShortcuts.ts', what: 'Atalhos globais de teclado (⌘K, navegação entre sessões, Esc).' },
