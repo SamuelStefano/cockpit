@@ -1,29 +1,25 @@
-import { useEffect, useRef } from 'react';
 import { Icon, tokens } from '../primitives';
-import { usePersisted } from '../../lib/persist';
 import type { ToolTodo } from '../../data/types';
 import { TodoPanel } from './TodoPanel';
-import { todoCounts } from './task-tray';
+import { TaskTraySheet } from './TaskTraySheet';
+import { useTaskTray } from './useTaskTray';
 
 // Tray fixo de tarefas (paridade com o painel do terminal): a lista corrente
 // fica sempre à vista acima do composer, em vez de enterrada nos cards do
-// histórico. Colapsável a qualquer momento; quando TUDO conclui, colapsa
-// sozinho UMA vez (na transição) — o usuário ainda pode reabrir pra conferir.
-export function TaskTray({ todos }: { todos: ToolTodo[] }) {
-  const [collapsed, setCollapsed] = usePersisted<boolean>('chat.taskTray.collapsed', false);
-  const { done, total, allDone } = todoCounts(todos);
-  const prevAllDone = useRef(allDone);
-  useEffect(() => {
-    if (allDone && !prevAllDone.current) setCollapsed(true);
-    prevAllDone.current = allDone;
-  }, [allDone, setCollapsed]);
+// histórico. No desktop expande inline; no celular, em bottom sheet.
+export function TaskTray({ todos, isMobile = false, keyboardOpen = false }: {
+  todos: ToolTodo[];
+  isMobile?: boolean;
+  keyboardOpen?: boolean;
+}) {
+  const { done, total, allDone, collapsed, sheet, closeSheet, toggle } = useTaskTray({ todos, isMobile, keyboardOpen });
 
   return (
     <div className="border-t border-neutral-800/70 bg-neutral-950/60">
       <div className="mx-auto max-w-3xl px-4">
         <button
-          onClick={() => setCollapsed(!collapsed)}
-          aria-expanded={!collapsed}
+          onClick={toggle}
+          aria-expanded={isMobile ? sheet : !collapsed}
           aria-label={collapsed ? 'Mostrar tarefas' : 'Recolher tarefas'}
           className={`flex w-full items-center gap-1.5 py-1.5 text-[11px] font-medium text-neutral-500 transition hover:text-neutral-300 ${tokens.focusRing}`}
         >
@@ -43,6 +39,7 @@ export function TaskTray({ todos }: { todos: ToolTodo[] }) {
           </div>
         )}
       </div>
+      {sheet && <TaskTraySheet todos={todos} onClose={closeSheet} />}
     </div>
   );
 }

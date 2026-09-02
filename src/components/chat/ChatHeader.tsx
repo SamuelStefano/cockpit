@@ -1,4 +1,5 @@
 import { Button, Icon, Badge } from '../primitives';
+import { ChatHeaderCompact } from './ChatHeaderCompact';
 import { EditableTitle } from './EditableTitle';
 import { HistoryControls } from './HistoryControls';
 import { ExportMenu } from './ExportMenu';
@@ -25,9 +26,19 @@ interface ChatHeaderProps {
   onTerminal?: () => void;
   terminalRunning?: boolean;
   onRename?: (id: string, title: string) => void;
+  keyboardOpen?: boolean;
 }
 
-export function ChatHeader({ session, messages, isEmpty, isMobile, contextTokens, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, onRename }: ChatHeaderProps) {
+export function ChatHeader({ session, messages, isEmpty, isMobile, contextTokens, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, onRename, keyboardOpen = false }: ChatHeaderProps) {
+  if (keyboardOpen) {
+    return (
+      <ChatHeaderCompact
+        title={session ? session.title : 'Nova sessão'}
+        onTerminal={onTerminal}
+        terminalRunning={terminalRunning}
+      />
+    );
+  }
   return (
     <div className="flex shrink-0 items-center gap-2 border-b border-neutral-800 px-4 py-2.5">
       <Icon name="message" size={14} className="text-neutral-500" />

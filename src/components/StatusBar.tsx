@@ -89,15 +89,19 @@ interface StatusBarProps {
   rate?: { resetsAt: number; status: string } | null;
   ctxTokens?: number;
   lastTurn?: TurnStats;
+  // Slot do aviso de cota (QuotaBanner): a barra é o lugar dos avisos persistentes
+  // do desktop — nada mais flutua por cima do thread.
+  quota?: React.ReactNode;
 }
 
-export function StatusBar({ stats, rate = null, ctxTokens = 0, lastTurn }: StatusBarProps) {
+export function StatusBar({ stats, rate = null, ctxTokens = 0, lastTurn, quota }: StatusBarProps) {
   const claude = <ClaudeStats rate={rate} ctxTokens={ctxTokens} lastTurn={lastTurn} />;
   if (!stats) {
     return (
       <footer className="flex h-7 shrink-0 items-center gap-3 overflow-x-auto border-t border-neutral-800 bg-neutral-950 px-3 text-[10.5px] text-neutral-600">
         <span className="shrink-0 font-mono">lendo telemetria…</span>
         {claude}
+        {quota}
       </footer>
     );
   }
@@ -135,6 +139,7 @@ export function StatusBar({ stats, rate = null, ctxTokens = 0, lastTurn }: Statu
           carga alta {stats.saturated.seconds}s
         </span>
       )}
+      {quota}
     </footer>
   );
 }
