@@ -102,6 +102,57 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
     expect(off.t).toBe('agent-offline'); // conta B isolada, sem agente pareado
   });
 
+  // O teste acima só prova o lado positivo (B sem agente recebe agent-offline).
+  // Este trava a invariante de verdade: com DOIS agentes vivos, nem o frame de
+  // dados, nem o accountId/agentId forjado no corpo, nem o agent-caps cruzam de conta.
+  it('two live agents: data frames, spoofed ids and agent-caps never cross accounts', async () => {
+    const A = makeAgentKeys(), B = makeAgentKeys();
+    const store: RelayStore = {
+      async agentById(id) {
+        return id === 'ag-A' ? { accountId: 'accA', publicKey: A.pub }
+          : id === 'ag-B' ? { accountId: 'accB', publicKey: B.pub } : null;
+      },
+      async isAdmin() { return false; },
+      async listAccounts() { return []; }, async setAdmin() { return true; },
+      async markAgentSeen() {}, async createPairingCode() { return 'x'; },
+      async consumePairingCode() { return null; }, async createAgent() { return null; },
+    };
+    const relay = createRelay({
+      iss: 't', jwksUrl: 'http://x', rootEmails: '', store,
+      resolveIdentity: async (tok) => tok?.startsWith('A') ? { accountId: 'accA', email: 'a@x', role: 'admin' }
+        : tok?.startsWith('B') ? { accountId: 'accB', email: 'b@x', role: 'fellow' } : null,
+    });
+    server = relay.server;
+    await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
+    const url = `ws://127.0.0.1:${(server!.address() as AddressInfo).port}`;
+
+    const agentA = connectFakeAgent(url, 'ag-A', A.priv); sockets.push(agentA.ws);
+    const agentB = connectFakeAgent(url, 'ag-B', B.priv); sockets.push(agentB.ws);
+    await Promise.all([agentA.ready, agentB.ready]);
+
+    const browserA = new WebSocket(`${url}/ws?token=A1`); sockets.push(browserA);
+    const browserB = new WebSocket(`${url}/ws?token=B1`); sockets.push(browserB);
+    const waitA = collect(browserA), waitB = collect(browserB);
+    await Promise.all([waitA((m) => m.t === 'caps'), waitB((m) => m.t === 'caps')]);
+
+    // Frame de dados de A: só o agente de A ecoa, só a aba de A vê.
+    browserA.send(JSON.stringify({ t: 'send', text: 'oi', sessionKey: 'k' }));
+    await waitA((m) => m.t === 'echo' && m.saw === 'send');
+    await expect(waitB((m) => m.t === 'echo' && m.saw === 'send', 400)).rejects.toThrow();
+
+    // accountId/agentId FORJADOS no corpo: o roteamento sai do JWT, então o frame
+    // vai pro agente de B (que ecoa pra B) e o agente de A nunca o vê.
+    browserB.send(JSON.stringify({ t: 'spoof', accountId: 'accA', agentId: 'ag-A', sessionKey: 'k' }));
+    await waitB((m) => m.t === 'echo' && m.saw === 'spoof');
+    await expect(waitA((m) => m.t === 'echo' && m.saw === 'spoof', 400)).rejects.toThrow();
+
+    // agent-caps de B reemite caps SÓ pras abas de B (eachBrowser é por conta).
+    agentB.ws.send(JSON.stringify({ t: 'agent-caps', canBypass: true }));
+    await waitB((m) => m.t === 'caps' && m.caps.canBypass === false); // fellow nunca ganha bypass
+    // A é admin: se o caps de B vazasse pra A, chegaria com canBypass=true.
+    await expect(waitA((m) => m.t === 'caps' && m.caps.canBypass === true, 400)).rejects.toThrow();
+  });
+
   it('tells a newly-connected browser the agent is already online', async () => {
     const A = makeAgentKeys();
     const store: RelayStore = {
@@ -253,6 +304,25 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
     const ws = new WebSocket(`${url}/ws?token=whatever`); sockets.push(ws);
     const code = await new Promise<number>((resolve) => ws.on('close', (c) => resolve(c)));
     expect(code).toBe(4401); // default-deny
+  });
+});
+
+// O stub de identidade desliga o JWT inteiro; em produção ele não pode existir.
+describe('createRelay em produção', () => {
+  const store: RelayStore = {
+    async agentById() { return null; }, async isAdmin() { return false; },
+    async listAccounts() { return []; }, async setAdmin() { return true; },
+    async markAgentSeen() {}, async createPairingCode() { return 'x'; },
+    async consumePairingCode() { return null; }, async createAgent() { return null; },
+  };
+  it('recusa o stub de identidade com NODE_ENV=production', () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      expect(() => createRelay({ iss: 't', jwksUrl: 'http://x', rootEmails: '', store, resolveIdentity: async () => null })).toThrow(/produção/);
+      const r = createRelay({ iss: 't', jwksUrl: 'http://x', rootEmails: '', store });
+      r.server.close();
+    } finally { process.env.NODE_ENV = prev; }
   });
 });
 

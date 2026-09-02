@@ -33,6 +33,18 @@ describe('Registry routing (per-account scoping)', () => {
     expect(b1.sent).toEqual([]); // account B isolated
   });
 
+  // eachBrowser é a única outra iteração sobre abas (reemissão de caps no
+  // agent-caps): precisa do mesmo escopo por conta que toBrowsers.
+  it('eachBrowser visits only the same account open browsers', () => {
+    const r = new Registry();
+    const a1 = fakeSock(), a2 = fakeSock(), b1 = fakeSock(), closed = fakeSock(); closed.readyState = 3;
+    r.addBrowser('A', a1); r.addBrowser('A', a2); r.addBrowser('A', closed); r.addBrowser('B', b1);
+    const seen: Sock[] = [];
+    r.eachBrowser('A', (s) => seen.push(s));
+    expect(seen).toEqual([a1, a2]);
+    r.eachBrowser('C', () => { throw new Error('conta sem bucket não itera'); });
+  });
+
   it('skips sockets that are not OPEN', () => {
     const r = new Registry();
     const open = fakeSock(), closed = fakeSock(); closed.readyState = 3;

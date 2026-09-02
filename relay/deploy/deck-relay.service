@@ -14,6 +14,8 @@ User=relay
 WorkingDirectory=/opt/deck-relay
 # Carrega SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, COCKPIT_ROOT_EMAILS, RELAY_PORT.
 EnvironmentFile=/opt/deck-relay/.env
+# createRelay recusa o stub de identidade (só teste) quando NODE_ENV=production.
+Environment=NODE_ENV=production
 ExecStart=/usr/bin/npx tsx relay/src/main.ts
 Restart=always
 RestartSec=3
