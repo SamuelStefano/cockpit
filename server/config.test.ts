@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { safeMode, projectSlug } from './config';
+import { safeMode, projectSlug, positiveOrUndefined } from './config';
+
+describe('positiveOrUndefined', () => {
+  it('só aceita número finito positivo; resto vira undefined (sem teto)', () => {
+    expect(positiveOrUndefined('2.5')).toBe(2.5);
+    for (const bad of [undefined, '', '0', '-1', 'abc', 'Infinity']) expect(positiveOrUndefined(bad)).toBeUndefined();
+  });
+});
 
 describe('projectSlug', () => {
   it('mirrors the CLI: replaces path separators with dash', () => {

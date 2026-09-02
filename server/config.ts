@@ -74,6 +74,11 @@ export const CONFIG = {
   // uma key existente sempre passa; só barra abertura de NOVAS sessões além disto.
   maxConcurrentRuns: Number(process.env.COCKPIT_MAX_RUNS ?? 12),
 
+  // Teto de gasto por run (--max-budget-usd) imposto pelo SERVIDOR. O cliente pode
+  // pedir um teto menor, nunca maior; sem este env o run só tem teto se o cliente
+  // mandar um (comportamento de sempre na box do dono).
+  maxBudgetUsd: positiveOrUndefined(process.env.COCKPIT_MAX_BUDGET_USD),
+
   // Teto por anexo gravado no workdir (loopback-only, mas evita encher o disco).
   maxUploadBytes: 15_000_000,
 
@@ -133,6 +138,11 @@ export const CONFIG = {
   disallowedTools: (process.env.COCKPIT_DISALLOWED_TOOLS ?? '')
     .split(',').map((s) => s.trim()).filter(Boolean),
 };
+
+export function positiveOrUndefined(v: string | undefined): number | undefined {
+  const n = Number(v);
+  return v !== undefined && v !== '' && Number.isFinite(n) && n > 0 ? n : undefined;
+}
 
 // 'bypassPermissions' nunca entra: numa máquina com sudo NOPASSWD = RCE root.
 export function safeMode(v: string | undefined): 'plan' | 'default' | 'acceptEdits' {

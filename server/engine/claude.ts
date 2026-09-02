@@ -54,6 +54,30 @@ export interface RunHandle {
   kill: () => void;
 }
 
+// O teto do cliente é opcional e vem do frame: sem um teto do servidor, omitir o
+// campo = run sem limite. Com teto do servidor, o do cliente só pode apertar.
+export function effectiveBudget(requested: number | undefined, cap: number | undefined): number | undefined {
+  const want = typeof requested === 'number' && Number.isFinite(requested) && requested > 0 ? requested : undefined;
+  if (cap === undefined) return want;
+  return want === undefined ? cap : Math.min(want, cap);
+}
+
+// Servidor MCP stdio = subprocesso arbitrário que o `claude` spawna. O admin-mcp-add
+// já é admin-only por isso (dispatch), mas `msg.mcps` vem do cliente e resolve
+// contra o ~/.claude.json cru — que qualquer papel com Write alcança. Sem este
+// filtro o gate de admin era decorativo: student escrevia a definição e pedia o
+// nome no turno seguinte. Não-admin só carrega servers remotos (url).
+export function pickMcpDefs(all: Record<string, unknown>, names: string[], role: Role | undefined): Record<string, unknown> {
+  const picked: Record<string, unknown> = {};
+  for (const name of names) {
+    const def = all[name];
+    if (!def || typeof def !== 'object') continue;
+    if (role !== 'admin' && 'command' in def) continue;
+    picked[name] = def;
+  }
+  return picked;
+}
+
 // Spawn do claude headless com hardening DR-004:
 // - argv array, shell:false (sem command injection)
 // - --permission-mode plan (NÃO bypass) na Fase 1
@@ -86,9 +110,8 @@ export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: 
   if (CONFIG.fallbackModel && validModel(CONFIG.fallbackModel) && CONFIG.fallbackModel !== model) {
     args.push('--fallback-model', CONFIG.fallbackModel);
   }
-  if (typeof maxBudgetUsd === 'number' && Number.isFinite(maxBudgetUsd) && maxBudgetUsd > 0) {
-    args.push('--max-budget-usd', String(maxBudgetUsd));
-  }
+  const budget = effectiveBudget(maxBudgetUsd, CONFIG.maxBudgetUsd);
+  if (budget !== undefined) args.push('--max-budget-usd', String(budget));
   // Ordem determinística: a seleção de skills/tools da UI chega em ordem variável
   // entre turnos, e qualquer mudança na flag busta o prefixo cacheado da Anthropic
   // — o turno inteiro volta a ser cobrado como cache write.
@@ -119,9 +142,7 @@ export function run(opts: RunOpts): RunHandle {
   // --strict-mcp-config sozinho = zero MCP. mode 600 (pode ter token nos headers).
   let mcpConfigPath: string | undefined;
   if (opts.mcps && opts.mcps.length) {
-    const all = mcpServerDefsSync();
-    const picked: Record<string, unknown> = {};
-    for (const name of opts.mcps) if (all[name]) picked[name] = all[name];
+    const picked = pickMcpDefs(mcpServerDefsSync(), opts.mcps, role);
     if (Object.keys(picked).length) {
       mcpConfigPath = join(tmpdir(), `deck-mcp-${randomBytes(6).toString('hex')}.json`);
       try { writeFileSync(mcpConfigPath, JSON.stringify({ mcpServers: picked }), { mode: 0o600 }); }
@@ -281,13 +302,16 @@ export function resolveMode(
 // ANTHROPIC_API_KEY é zerado por último (vazio, não ausente): o CLI tem que usar o
 // OAuth da assinatura, e uma chave solta no env gerenciado venceria o OAuth — todo
 // turno sairia cobrado por token sem ninguém pedir.
+// PATH e HOME vêm DEPOIS do env gerenciado: setEnv aceita qualquer nome válido de
+// variável (PATH inclusive), e um PATH gerenciado na frente de cliPath() trocaria
+// qual binário `claude` roda.
 export function minimalEnv(): NodeJS.ProcessEnv {
   return {
-    PATH: cliPath(),
-    HOME: process.env.HOME,
     LANG: process.env.LANG ?? 'en_US.UTF-8',
     TERM: 'dumb',
     ...managedEnvSync(),
+    PATH: cliPath(),
+    HOME: process.env.HOME,
     ANTHROPIC_API_KEY: '',
   };
 }

@@ -20,7 +20,8 @@ class FakeChild extends EventEmitter {
   kill = vi.fn();
 }
 
-import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run } from './claude';
+import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run, effectiveBudget, pickMcpDefs } from './claude';
+import { CONFIG } from '../config';
 
 beforeEach(() => { managed = {}; });
 
@@ -178,6 +179,19 @@ describe('buildArgs', () => {
     }
   });
 
+  // Sem teto do servidor, omitir maxBudgetUsd era run sem limite: o teto era 100%
+  // do cliente. Com COCKPIT_MAX_BUDGET_USD o flag vai SEMPRE, e o cliente só aperta.
+  it('teto do servidor entra sempre e o cliente só pode apertar', () => {
+    const prev = CONFIG.maxBudgetUsd;
+    CONFIG.maxBudgetUsd = 3;
+    try {
+      expect(valAfter(argsOf({ prompt: 'x' }), '--max-budget-usd')).toBe('3');
+      expect(valAfter(argsOf({ prompt: 'x', maxBudgetUsd: 50 }), '--max-budget-usd')).toBe('3');
+      expect(valAfter(argsOf({ prompt: 'x', maxBudgetUsd: 1 }), '--max-budget-usd')).toBe('1');
+      expect(valAfter(argsOf({ prompt: 'x', maxBudgetUsd: -1 }), '--max-budget-usd')).toBe('3');
+    } finally { CONFIG.maxBudgetUsd = prev; }
+  });
+
   it('allow-lists model (alias or concrete claude-* id), dropping arbitrary values', () => {
     expect(valAfter(argsOf({ prompt: 'x', model: 'opus' }), '--model')).toBe('opus');
     expect(valAfter(argsOf({ prompt: 'x', model: 'claude-opus-4-8' }), '--model')).toBe('claude-opus-4-8');
@@ -243,6 +257,44 @@ describe('buildArgs', () => {
   });
 });
 
+describe('effectiveBudget', () => {
+  it('sem teto do servidor devolve o pedido válido ou nada', () => {
+    expect(effectiveBudget(5, undefined)).toBe(5);
+    expect(effectiveBudget(undefined, undefined)).toBeUndefined();
+    expect(effectiveBudget(0, undefined)).toBeUndefined();
+    expect(effectiveBudget(NaN, undefined)).toBeUndefined();
+  });
+  it('com teto do servidor: min(pedido, teto), e o teto quando não há pedido', () => {
+    expect(effectiveBudget(undefined, 2)).toBe(2);
+    expect(effectiveBudget(9, 2)).toBe(2);
+    expect(effectiveBudget(1, 2)).toBe(1);
+    expect(effectiveBudget(Infinity, 2)).toBe(2);
+  });
+});
+
+// msg.mcps vem do cliente e resolve contra o ~/.claude.json cru: sem o filtro por
+// papel, escrever uma definição stdio e pedir o nome no turno seguinte furava o gate
+// admin-only do admin-mcp-add (stdio = subprocesso arbitrário).
+describe('pickMcpDefs', () => {
+  const all = {
+    local: { command: 'npx', args: ['-y', 'x-mcp'] },
+    remote: { url: 'https://mcp.example.com/mcp', headers: { Authorization: 'Bearer t' } },
+    lixo: 'não é objeto',
+  };
+  it('admin carrega stdio e remoto', () => {
+    expect(Object.keys(pickMcpDefs(all, ['local', 'remote'], 'admin'))).toEqual(['local', 'remote']);
+  });
+  it('student só carrega remoto (url); stdio é descartado em silêncio', () => {
+    expect(Object.keys(pickMcpDefs(all, ['local', 'remote'], 'student'))).toEqual(['remote']);
+  });
+  it('sem papel identificado = menor privilégio', () => {
+    expect(Object.keys(pickMcpDefs(all, ['local'], undefined))).toEqual([]);
+  });
+  it('ignora nome desconhecido e definição que não é objeto', () => {
+    expect(pickMcpDefs(all, ['nada', 'lixo'], 'admin')).toEqual({});
+  });
+});
+
 describe('minimalEnv', () => {
   // O CLI tem que rodar no OAuth da assinatura. Uma ANTHROPIC_API_KEY solta no env
   // gerenciado venceria o OAuth e todo turno sairia cobrado por token sem ninguém
@@ -255,6 +307,15 @@ describe('minimalEnv', () => {
   it('token gerenciado sem conflito continua chegando no agente', () => {
     managed = { EXEMPLO_API_KEY: 'k-tool' };
     expect(minimalEnv().EXEMPLO_API_KEY).toBe('k-tool');
+  });
+
+  // setEnv aceita PATH como nome válido; se o env gerenciado vencesse, trocava o
+  // binário `claude` que o spawn resolve.
+  it('PATH e HOME gerenciados não sequestram o spawn', () => {
+    managed = { PATH: '/tmp/evil', HOME: '/tmp/evil-home' };
+    const env = minimalEnv();
+    expect(env.PATH).not.toBe('/tmp/evil');
+    expect(env.HOME).toBe(process.env.HOME);
   });
 
   // O env herdado do processo não pode vazar pro `claude` (#162).
