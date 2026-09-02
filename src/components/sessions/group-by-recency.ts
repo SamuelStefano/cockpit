@@ -5,9 +5,21 @@ import type { Session } from '../../data/types';
 export const WAITING_LABEL = 'Aguardando você';
 export const RUNNING_LABEL = 'Trabalhando agora';
 
-export function groupByRecency(list: Session[], pinned: Set<string>, running?: Set<string>): { label: string; items: Session[] }[] {
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+// Pergunta pendente é fila do dia, não arquivo morto: passadas 48h ela sai do topo
+// e volta pro balde cronológico (o ponto violeta na linha mantém o sinal).
+export const WAITING_WINDOW_MS = 48 * 60 * 60 * 1000;
+
+export interface GroupByRecencyOpts {
+  now: number;
+  pinned: Set<string>;
+  running?: Set<string>;
+  // Perguntas que o usuário mandou ignorar — ver [[useWaitingDismissed]].
+  dismissed?: Set<string>;
+}
+
+export function groupByRecency(list: Session[], { now, pinned, running, dismissed }: GroupByRecencyOpts): { label: string; items: Session[] }[] {
+  const ref = new Date(now);
+  const startOfToday = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate()).getTime();
   const day = 86_400_000;
   const buckets: { label: string; items: Session[] }[] = [
     { label: RUNNING_LABEL, items: [] },
@@ -23,7 +35,7 @@ export function groupByRecency(list: Session[], pinned: Set<string>, running?: S
     // Rodando vence "aguardando": o turno voltou a andar, a pergunta de antes já
     // não é o que te trava. Aguardando vence fixada — é a fila acionável do dia.
     if (running?.has(s.id)) { buckets[0].items.push(s); continue; }
-    if (s.waiting) { buckets[1].items.push(s); continue; }
+    if (s.waiting && s.mtime > now - WAITING_WINDOW_MS && !dismissed?.has(s.id)) { buckets[1].items.push(s); continue; }
     if (pinned.has(s.id)) { buckets[2].items.push(s); continue; }
     if (s.mtime >= startOfToday) buckets[3].items.push(s);
     else if (s.mtime >= startOfToday - day) buckets[4].items.push(s);

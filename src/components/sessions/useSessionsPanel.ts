@@ -3,6 +3,7 @@ import type { Session } from '../../data/types';
 import { usePersisted } from '../../lib/persist';
 import { PINS_KEY, TAGS_KEY, syncEnabled, pushPinsRemote, pushTagsRemote } from '../../lib/session-prefs';
 import { filterSessions } from './filter';
+import { useWaitingDismissed } from './useWaitingDismissed';
 
 interface UseSessionsPanelArgs {
   sessions: Session[];
@@ -60,6 +61,7 @@ export function useSessionsPanel({ sessions, archived = [], searchResults, onSea
     for (const arr of Object.values(tagMap)) for (const t of arr) set.add(t);
     return [...set].sort();
   }, [tagMap]);
+  const { dismissed: dismissedWaiting, dismissWaiting } = useWaitingDismissed(sessions);
   const searchRef = useRef<HTMLInputElement>(null);
 
   // ⌘/ foca a busca de sessões (⌘K virou o command palette). Esc limpa+desfoca.
@@ -98,6 +100,7 @@ export function useSessionsPanel({ sessions, archived = [], searchResults, onSea
     deleteId, setDeleteId,
     pinned, togglePin,
     tagMap, tagFilter, setTagFilter, addTag, removeTag, allTags,
+    dismissedWaiting, dismissWaiting,
     searchRef,
     filtered,
   };
