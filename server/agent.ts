@@ -257,7 +257,7 @@ export function startHealthGuard(): void {
 export function runAgent(relayUrl: string): void {
   const id = loadIdentity();
   if (!id?.agentId) {
-    console.error('[agent] não pareado. Rode o pairing (npx @deck/agent --pair=CÓDIGO) primeiro.');
+    console.error('[agent] não pareado. Gere um código no Deck e rode o instalador:\n  curl -fsSL https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh | bash -s -- CÓDIGO');
     process.exit(1);
   }
   startHealthGuard();
@@ -335,13 +335,19 @@ function gracefulShutdown(): void {
   setTimeout(() => process.exit(0), 300);
 }
 
-// Execução direta: `tsx server/agent.ts [--pair=CÓDIGO]` (relay via DECK_RELAY_URL).
+// Execução direta: `tsx server/agent.ts [--pair=CÓDIGO | --pair]` (relay via
+// DECK_RELAY_URL). Com `--pair` sem valor, o código vem de DECK_PAIR_CODE — argv é
+// legível por qualquer usuário local no `ps`. Só o flag explícito ativa o pairing:
+// um DECK_PAIR_CODE esquecido no ambiente não pode transformar o boot do agente
+// em re-pareamento.
 if (process.argv[1] && process.argv[1].endsWith('agent.ts')) {
   const url = process.env.DECK_RELAY_URL;
   if (!url) { console.error('[agent] defina DECK_RELAY_URL'); process.exit(1); }
-  const pairArg = process.argv.find((a) => a.startsWith('--pair='));
+  const pairArg = process.argv.find((a) => a === '--pair' || a.startsWith('--pair='));
   if (pairArg) {
-    pairAgent(url, pairArg.slice('--pair='.length))
+    const code = pairArg === '--pair' ? (process.env.DECK_PAIR_CODE ?? '') : pairArg.slice('--pair='.length);
+    if (!code) { console.error('[agent] --pair sem código: passe --pair=CÓDIGO ou defina DECK_PAIR_CODE'); process.exit(1); }
+    pairAgent(url, code)
       .then(() => process.exit(0))
       .catch((e) => { console.error('[agent]', e.message ?? e); process.exit(1); });
   } else {
