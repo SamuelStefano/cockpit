@@ -8,7 +8,12 @@ cd /home/samuel/cockpit
 # COCKPIT_ALLOW_BYPASS=1 → destrava o bypassPermissions pra sessões admin (o gate
 # ainda exige role admin + localOnly + toggle on; ver bypassAllowed). Sem este
 # arquivo, nada muda (default seguro).
+# `set -a` marca pra exportação tudo que o source definir: sem isto uma linha sem
+# `export` (COCKPIT_TOKEN=… é o caso real) fica só no shell do supervisor e NÃO chega
+# no processo do backend — o gate de auth do WS ficava desligado sem ninguém notar.
+set -a
 [ -f "$HOME/.cockpit-local.env" ] && source "$HOME/.cockpit-local.env"
+set +a
 
 # Singleton via flock: só UM supervisor por vez. Sem isto, cada ./run-backend.sh
 # extra (entre sessões) vira mais um loop brigando pela :7777 — EADDRINUSE infinito

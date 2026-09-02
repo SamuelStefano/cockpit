@@ -14,6 +14,12 @@ export function AdminInventory({ health }: { health: AdminHealth }) {
             <span className="text-neutral-500">{health.claudeAuth ? 'autenticado' : 'sem credencial'}</span>
           </li>
           <li className="flex items-center justify-between">
+            <span className="flex items-center gap-2 text-neutral-300"><Dot on={health.wsAuth} /> Token do WebSocket</span>
+            <span className={health.wsAuth ? 'text-neutral-500' : 'text-amber-400'}>
+              {health.wsAuth ? 'exigido' : 'sem token — só o loopback protege'}
+            </span>
+          </li>
+          <li className="flex items-center justify-between">
             <span className="flex items-center gap-2 text-neutral-300"><Dot on={health.mcpServers.length > 0} /> Servidores MCP</span>
             {/* No mobile a lista inteira truncava ("dfl-payment…") — mostra só a contagem; a lista completa já está no card "Servidores MCP" abaixo. */}
             <span className="pl-3 text-right text-neutral-500">
