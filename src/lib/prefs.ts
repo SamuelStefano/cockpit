@@ -12,3 +12,8 @@ export const GROUP_NOTES_DEFAULT = true;
 // Descrição (resumo IA/snippet) sob o título de cada sessão na sidebar: opcional.
 export const SHOW_SESSION_DESC_KEY = 'sessions.showDesc';
 export const SHOW_SESSION_DESC_DEFAULT = true;
+
+// Beep no fim do turno. Default DESLIGADO: som que toca sozinho num app que fica
+// aberto o dia todo irrita mais do que ajuda — quem quer, liga.
+export const NOTIFY_SOUND_KEY = 'notify.sound';
+export const NOTIFY_SOUND_DEFAULT = false;
