@@ -2,7 +2,6 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'node:http';
 import { setWss, BACKPRESSURE_BYTES } from './ws/broadcast';
 import { CONFIG } from './config';
-import { currentRole, roleFromToken } from './auth';
 import { originAllowed } from './ws/origin';
 import { tokenAllowed, tokenFromUrl } from './ws/token';
 import { fireCron } from './ws/runs';
@@ -74,13 +73,13 @@ export function attachWs(server: Server) {
       try { ws.close(4401, 'auth'); } catch { /* socket já indo embora */ }
       return;
     }
-    // Papel fixado por-conexão a partir do token (DR-011 Fase 2 / DR-014). Sem
-    // token configurado = loopback single-user → admin (currentRole). Com token,
-    // sai do token: o checkpoint authorize() consulta ESTE role, não um constante.
-    const role = CONFIG.authToken ? roleFromToken(CONFIG.authToken, tokenFromUrl(req.url)) : currentRole();
+    // Modo listen = dono da box. O token é gate de entrada, não identidade: quem
+    // passou por tokenAllowed apresentou O token, então não há segundo papel possível
+    // aqui (a antiga roleFromToken nunca devolvia 'student' por construção). Papel
+    // por conta vive no relay T3 (server/agent.ts + DECK_AGENT_ROLE).
     // O ciclo de vida da conexão (bootstrap + loop + cleanup) é agnóstico ao
     // transporte — o mesmo serveConnection serve o agente T3 que disca pro relay.
-    serveConnection(ws, { role });
+    serveConnection(ws, { role: 'admin' });
   });
 
   const hasClients = () => wss.clients.size > 0;
