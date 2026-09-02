@@ -16,6 +16,7 @@
     "smoke:bench": "tsx scripts/smoke-bench.mts",
     "serve": "tsx server/index.ts",
     "redeploy": "bash scripts/redeploy.sh",
+    "update": "bash scripts/deck-update.sh",
     "vendor:rnw": "node scripts/build-rnw-vendor.mjs",
     "fellow": "node scripts/serve-fellow.mjs",
     "preview": "vite preview"

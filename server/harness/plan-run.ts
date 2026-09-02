@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { systemPrompt } from './prompt';
+import { cliPath } from '../engine/cli-path';
 import type { HarnessContext, HarnessEvent } from '../../shared/protocol';
 
 // Motor de PLANO: roda a task pelo mesmo binário `claude` que o Deck já usa, com env
@@ -68,7 +69,7 @@ export function parsePlanEvent(obj: StreamObj):
 
 function planEnv(): NodeJS.ProcessEnv {
   // SEM ANTHROPIC_API_KEY: força o CLI a usar o OAuth do plano em vez de pay-as-you-go.
-  return { PATH: process.env.PATH, HOME: process.env.HOME, LANG: process.env.LANG ?? 'en_US.UTF-8', TERM: 'dumb' };
+  return { PATH: cliPath(), HOME: process.env.HOME, LANG: process.env.LANG ?? 'en_US.UTF-8', TERM: 'dumb' };
 }
 
 export function runOnPlan(opts: { model: string; prompt: string; context: HarnessContext; onEvent: (e: HarnessEvent) => void }): Promise<PlanResult> {
