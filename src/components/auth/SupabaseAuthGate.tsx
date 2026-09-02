@@ -1,55 +1,42 @@
-import { useState } from 'react';
 import { BrandMark, Button, Input } from '../primitives';
 import { AuthIntro } from './AuthIntro';
+import { AuthFeedback } from './AuthFeedback';
+import { AuthModeTabs } from './AuthModeTabs';
+import { useAuthGateForm, type AuthGateActions } from './useAuthGateForm';
 
-interface AuthActions {
-  error: string;
-  signIn: (email: string, password: string) => Promise<boolean>;
-  signUp: (email: string, password: string) => Promise<boolean>;
-  clearError: () => void;
-}
+const SUBTITLE = {
+  login: 'entrar na sua conta',
+  register: 'criar conta',
+  forgot: 'recuperar acesso',
+} as const;
 
-// Tela de login/registro do produto multi-conta (DR-023). Mesmo molde visual do
-// AuthGate de token (card escuro + laranja), mas com e-mail/senha via Supabase.
-// Presentacional: recebe as ações do useSupabaseAuth. Só aparece quando o Supabase
-// está ligado e não há sessão (App decide); no loopback nunca monta.
-export function SupabaseAuthGate({ auth }: { auth: AuthActions }) {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [info, setInfo] = useState('');
+const CTA = {
+  login: ['Entrar', 'Entrando…'],
+  register: ['Criar conta', 'Criando conta…'],
+  forgot: ['Enviar link', 'Enviando…'],
+} as const;
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim() || !password) return;
-    setBusy(true); setInfo('');
-    const ok = mode === 'login' ? await auth.signIn(email.trim(), password) : await auth.signUp(email.trim(), password);
-    setBusy(false);
-    if (ok && mode === 'register') setInfo('Conta criada. Se pedir confirmação, cheque seu e-mail.');
-  };
-
-  const switchMode = (m: 'login' | 'register') => { setMode(m); auth.clearError(); setInfo(''); };
+// Tela de login/registro/recuperação do produto multi-conta (DR-023). Mesmo molde
+// visual do AuthGate de token (card escuro + laranja), mas com e-mail/senha via
+// Supabase. Presentacional: recebe as ações do useSupabaseAuth. Só aparece quando o
+// Supabase está ligado e não há sessão (App decide); no loopback nunca monta.
+export function SupabaseAuthGate({ auth }: { auth: AuthGateActions }) {
+  const { mode, email, setEmail, password, setPassword, busy, info, canSubmit, submit, switchMode } = useAuthGateForm(auth);
+  const [label, busyLabel] = CTA[mode];
 
   return (
     <div className="flex h-full flex-1 items-center justify-center gap-12 bg-neutral-950 px-4">
       <AuthIntro />
       <form onSubmit={submit} className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900/60 p-7 shadow-2xl">
-        <BrandMark title="deck" subtitle={mode === 'login' ? 'entrar na sua conta' : 'criar conta'} className="mb-5" />
+        <BrandMark title="deck" subtitle={SUBTITLE[mode]} className="mb-5" />
 
-        <div className="mb-4 flex gap-1 rounded-lg bg-neutral-950 p-1">
-          {(['login', 'register'] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => switchMode(m)}
-              className={`flex-1 rounded-md px-2 py-1.5 text-[12px] font-medium transition
-                ${mode === m ? 'bg-orange-500/15 text-orange-300' : 'text-neutral-500 hover:text-neutral-300'}`}
-            >
-              {m === 'login' ? 'Entrar' : 'Criar conta'}
-            </button>
-          ))}
-        </div>
+        {mode === 'forgot' ? (
+          <p className="mb-4 text-[11.5px] leading-relaxed text-neutral-500">
+            Informe o e-mail da conta. Mandamos um link pra você definir uma senha nova.
+          </p>
+        ) : (
+          <AuthModeTabs mode={mode} onSelect={switchMode} />
+        )}
 
         <label htmlFor="auth-email" className="mb-1.5 block text-[11px] font-medium text-neutral-400">E-mail</label>
         <Input
@@ -58,22 +45,38 @@ export function SupabaseAuthGate({ auth }: { auth: AuthActions }) {
           autoComplete="email" inputMode="email" autoFocus placeholder="voce@exemplo.com"
           className="mb-3"
         />
-        <label htmlFor="auth-password" className="mb-1.5 block text-[11px] font-medium text-neutral-400">Senha</label>
-        <Input
-          id="auth-password"
-          type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-          autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="••••••••"
-        />
+        {mode !== 'forgot' && (
+          <>
+            <label htmlFor="auth-password" className="mb-1.5 block text-[11px] font-medium text-neutral-400">Senha</label>
+            <Input
+              id="auth-password"
+              type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="••••••••"
+            />
+          </>
+        )}
 
-        {auth.error && <p className="mt-3 rounded-md border border-red-500/30 bg-red-500/12 px-3 py-2 text-[11.5px] text-red-200">{auth.error}</p>}
-        {info && <p className="mt-3 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11.5px] text-emerald-200">{info}</p>}
+        <AuthFeedback error={auth.error} info={info} />
 
-        <Button type="submit" loading={busy} disabled={!email.trim() || !password} className="mt-4 w-full">
-          {busy ? (mode === 'login' ? 'Entrando…' : 'Criando conta…') : mode === 'login' ? 'Entrar' : 'Criar conta'}
+        <Button type="submit" loading={busy} disabled={!canSubmit} className="mt-4 w-full">
+          {busy ? busyLabel : label}
         </Button>
-        <p className="mt-3 text-[11px] leading-relaxed text-neutral-600">
-          Depois de entrar, conecte sua VPS pra começar a usar o Deck na sua máquina.
-        </p>
+
+        {mode === 'login' && (
+          <button type="button" onClick={() => switchMode('forgot')} className="mt-3 text-[11px] text-neutral-500 transition hover:text-orange-300">
+            Esqueci a senha
+          </button>
+        )}
+        {mode === 'forgot' && (
+          <Button type="button" variant="ghost" size="sm" icon="chevronLeft" className="mt-3 w-full" onClick={() => switchMode('login')}>
+            Voltar pro login
+          </Button>
+        )}
+        {mode !== 'forgot' && (
+          <p className="mt-3 text-[11px] leading-relaxed text-neutral-600">
+            Depois de entrar, conecte sua VPS pra começar a usar o Deck na sua máquina.
+          </p>
+        )}
       </form>
     </div>
   );

@@ -2,12 +2,20 @@ import { Button, Input, Switch } from './primitives';
 import { AvatarFace } from './avatar/AvatarFace';
 import { AiIconPicker } from './avatar/AiIconPicker';
 import { useProfileMenu } from './avatar/useProfileMenu';
+import { ChangePasswordForm } from './profile/ChangePasswordForm';
 import { usePersisted } from '../lib/persist';
 import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT, GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT, NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT } from '../lib/prefs';
 
-// Menu de perfil no header: define nome (usado nas iniciais do chat) e faz
-// upload/limpa o avatar. Tudo local (data URL no localStorage), sem backend.
-export function ProfileMenu({ userId, onSignOut }: { userId?: string; onSignOut?: () => void } = {}) {
+interface ProfileMenuProps {
+  userId?: string;
+  onSignOut?: () => void;
+  onChangePassword?: (password: string) => Promise<string | null>;
+}
+
+// Menu de perfil no header: define nome (usado nas iniciais do chat), faz
+// upload/limpa o avatar e, com conta Supabase, troca a senha. Perfil e toggles
+// vão pro cache local e sobem pra conta (ver lib/profile e lib/account-prefs).
+export function ProfileMenu({ userId, onSignOut, onChangePassword }: ProfileMenuProps = {}) {
   const { name, avatar, aiIcon, setName, setAvatar, setAiIcon, synced, syncFailed, open, setOpen, iconOpen, setIconOpen, uploadError, uploading, fileRef, wrapRef, onFile } = useProfileMenu(userId);
   const [showTools, setShowTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   const [groupNotes, setGroupNotes] = usePersisted<boolean>(GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT);
@@ -83,6 +91,8 @@ export function ProfileMenu({ userId, onSignOut }: { userId?: string; onSignOut?
               hint="Beep curto, só com a aba fora de foco"
             />
           </div>
+
+          {onChangePassword && <ChangePasswordForm onSubmit={onChangePassword} />}
 
           {onSignOut && (
             <div className="mt-3 border-t border-neutral-800 pt-3">

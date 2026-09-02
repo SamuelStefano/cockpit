@@ -183,6 +183,11 @@ modo listen — o listen é o dono da box, sempre `admin`.
    qualquer `admin`, não só root (`relay/src/store.ts`).
 4. Confirmar no Supabase `deck-relay` que troca de e-mail exige confirmação: root sai do claim
    `email` do JWT sem checar `email_verified` (`shared/identity.ts`).
+5. SMTP próprio no `deck-relay` e `<origem>/?reset=1` na lista de Redirect URLs. O app já tem
+   "esqueci a senha", mas o SMTP embutido do Supabase só manda pra membros do projeto e com teto
+   de poucos e-mails por hora — sem SMTP, o fellow que esquecer a senha continua trancado fora.
+6. Aplicar `migrations/relay/0004_account_prefs.sql` (coluna `prefs`): sem ela o sync de
+   preferências falha calado e cada aparelho segue com as suas.
 
 **Público externo / patrocinado (Centelha: pessoa sem box própria)** — bloqueado por:
 1. **Isolamento é infra, não código**: agente hospedado por terceiro exige container/VM por conta

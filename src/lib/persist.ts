@@ -21,6 +21,16 @@ export function savePref<T>(key: string, value: T): void {
   }
 }
 
+// Distingue "nunca setei" de "setei no valor default". A sincronização por conta
+// só semeia no servidor o que o usuário de fato escolheu neste aparelho.
+export function hasPref(key: string): boolean {
+  try {
+    return localStorage.getItem(NS + key) != null;
+  } catch {
+    return false;
+  }
+}
+
 export function removePref(key: string): void {
   try {
     localStorage.removeItem(NS + key);
@@ -43,11 +53,20 @@ export function setPref<T>(key: string, value: T): void {
   if (set) for (const fn of set) fn(value);
 }
 
-function subscribe(key: string, fn: (v: unknown) => void): () => void {
+export function subscribePref(key: string, fn: (v: unknown) => void): () => void {
   let set = listeners.get(key);
   if (!set) { set = new Set(); listeners.set(key, set); }
   set.add(fn);
   return () => { set!.delete(fn); };
+}
+
+// Escuta uma key SEM virar dono do valor — pra quem já guarda o estado em
+// useState/ref próprio (useCockpit) e só precisa saber que a hidratação da conta
+// trocou a pref debaixo dele.
+export function usePrefListener<T>(key: string, onChange: (v: T) => void): void {
+  const ref = useRef(onChange);
+  ref.current = onChange;
+  useEffect(() => subscribePref(key, (v) => ref.current(v as T)), [key]);
 }
 
 function broadcast(key: string, value: unknown, self: (v: unknown) => void): void {
@@ -59,7 +78,7 @@ function broadcast(key: string, value: unknown, self: (v: unknown) => void): voi
 export function usePersisted<T>(key: string, fallback: T): [T, Dispatch<SetStateAction<T>>] {
   const [value, setValue] = useState<T>(() => loadPref(key, fallback));
   const selfRef = useRef<(v: unknown) => void>((v) => setValue(v as T));
-  useEffect(() => subscribe(key, selfRef.current), [key]);
+  useEffect(() => subscribePref(key, selfRef.current), [key]);
   const set = useCallback<Dispatch<SetStateAction<T>>>((action) => {
     setValue((prev) => {
       const next = typeof action === 'function' ? (action as (p: T) => T)(prev) : action;

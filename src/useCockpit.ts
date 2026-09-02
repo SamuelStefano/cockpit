@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Session, Message, Block, ToolTodo } from './data/types';
 import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, TurnStats, Caps, PlanUsage, ParkedView, BgAgent } from '../shared/protocol';
-import { loadPref, savePref, setPref } from './lib/persist';
+import { loadPref, savePref, setPref, usePrefListener } from './lib/persist';
+import { MODE_KEY, MODEL_KEY, EFFORT_KEY } from './lib/account-prefs';
 import { SUPABASE_ENABLED } from './lib/supabase';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
 import { wsUrlWithToken, newId, metaToSession, mergeServerSessions, dedupById, mergeSeen, isCronPing } from './cockpit/session';
@@ -207,7 +208,7 @@ export function useCockpit(): Cockpit {
   // Paths já pedidos NÃO re-pedem mesmo se expulsos do cache — evita livelock
   // de eviction quando as imagens montadas somam mais que o teto do cache.
   const thumbRequested = useRef<Set<string>>(new Set());
-  const [mode, setMode] = useState<PermMode>(() => loadPref<PermMode>('mode', 'auto'));
+  const [mode, setMode] = useState<PermMode>(() => loadPref<PermMode>(MODE_KEY, 'auto'));
   const modeRef = useRef<PermMode>(mode);
   const [caps, setCaps] = useState<Caps | null>(null);
   const capsRef = useRef<Caps | null>(null);
@@ -219,15 +220,21 @@ export function useCockpit(): Cockpit {
   // Modelo por SESSÃO — nunca global: trocar a versão numa conversa não pode
   // vazar pra as outras. defaultModel é só a semente (última escolhida) pra
   // sessões NOVAS; modelBySession guarda o override real de cada conversa.
-  const [defaultModel, setDefaultModel] = useState<string>(() => loadPref<string>('model', 'sonnet'));
+  const [defaultModel, setDefaultModel] = useState<string>(() => loadPref<string>(MODEL_KEY, 'sonnet'));
   const defaultModelRef = useRef<string>(defaultModel);
   const [modelBySession, setModelBySession] = useState<Record<string, string>>(() => loadPref<Record<string, string>>('modelBySession', {}));
   const modelBySessionRef = useRef<Record<string, string>>(modelBySession);
   const [models, setModels] = useState<ModelInfo[]>([]);
   // Nível de pensamento (--effort). Default 'low': sem isto o CLI usa o default da
   // conta (alto) e queima thinking tokens até em pedido simples — maior driver de gasto.
-  const [effort, setEffort] = useState<Effort>(() => loadPref<Effort>('effort', 'low'));
+  const [effort, setEffort] = useState<Effort>(() => loadPref<Effort>(EFFORT_KEY, 'low'));
   const effortRef = useRef<Effort>(effort);
+  // Modo/modelo/esforço agora seguem a CONTA ([[account-prefs.ts]]): a hidratação
+  // escreve a pref de fora do React, e sem escutar o estado daqui continuaria no
+  // valor deste aparelho (o celular abriria em 'auto' depois de eu trocar no PC).
+  usePrefListener<PermMode>(MODE_KEY, (m) => { modeRef.current = m; setMode(m); });
+  usePrefListener<string>(MODEL_KEY, (m) => { defaultModelRef.current = m; setDefaultModel(m); });
+  usePrefListener<Effort>(EFFORT_KEY, (e) => { effortRef.current = e; setEffort(e); });
   const [slashCommands, setSlashCommands] = useState<string[]>(() => loadPref<string[]>('slashCommands', []));
   // Skills selecionadas p/ os próximos prompts (ids). Vazio = todas ativas (default).
   // Persiste como pref global, igual modelo/teto; o ref deixa o onSend ler o atual.
@@ -756,7 +763,7 @@ export function useCockpit(): Cockpit {
         if (nextDefault !== defaultModelRef.current) {
           defaultModelRef.current = nextDefault;
           setDefaultModel(nextDefault);
-          savePref('model', nextDefault);
+          setPref(MODEL_KEY, nextDefault);
         }
         let changed = false;
         const nextMap: Record<string, string> = {};
@@ -1316,21 +1323,23 @@ export function useCockpit(): Cockpit {
     setAtts(attachmentsRef.current.filter((a) => a.path !== path));
   }, [setAtts]);
 
-  const changeMode = useCallback((m: PermMode) => { modeRef.current = m; setMode(m); savePref('mode', m); }, []);
+  // setPref (não savePref) nas prefs de conta: só ele avisa os assinantes, e é o
+  // aviso que faz a sincronização empurrar a mudança pro Supabase.
+  const changeMode = useCallback((m: PermMode) => { modeRef.current = m; setMode(m); setPref(MODE_KEY, m); }, []);
   const changeBypass = useCallback((b: boolean) => { bypassRef.current = b; setBypass(b); }, []);
   // Grava o override da sessão ATIVA (não vaza pra outras) e também atualiza o
   // default — só serve de semente pra sessões NOVAS, não reabre as já existentes.
   const changeModel = useCallback((m: string) => {
     defaultModelRef.current = m;
     setDefaultModel(m);
-    savePref('model', m);
+    setPref(MODEL_KEY, m);
     const key = activeRef.current;
     if (key) {
       modelBySessionRef.current = { ...modelBySessionRef.current, [key]: m };
       setModelBySession(modelBySessionRef.current);
     }
   }, []);
-  const changeEffort = useCallback((e: Effort) => { effortRef.current = e; setEffort(e); savePref('effort', e); }, []);
+  const changeEffort = useCallback((e: Effort) => { effortRef.current = e; setEffort(e); setPref(EFFORT_KEY, e); }, []);
   const changeSelectedSkills = useCallback((ids: string[]) => { selectedSkillsRef.current = ids; setSelectedSkills(ids); savePref('selectedSkills', ids); }, []);
   const changeSelectedMcps = useCallback((ids: string[]) => { selectedMcpsRef.current = ids; setSelectedMcps(ids); savePref('selectedMcps', ids); }, []);
 

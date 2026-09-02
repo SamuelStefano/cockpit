@@ -23,9 +23,10 @@ interface HeaderProps {
   setRouteMenuOpen: (v: boolean) => void;
   userId?: string;
   onSignOut?: () => void;
+  onChangePassword?: (password: string) => Promise<string | null>;
 }
 
-export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsage, quotaWarn = false, quotaPaused = false, quotaResetsAt = null, onNew, isAdmin, routeMenuOpen, setRouteMenuOpen, userId, onSignOut }: HeaderProps) {
+export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsage, quotaWarn = false, quotaPaused = false, quotaResetsAt = null, onNew, isAdmin, routeMenuOpen, setRouteMenuOpen, userId, onSignOut, onChangePassword }: HeaderProps) {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex items-center gap-2.5">
@@ -73,7 +74,7 @@ export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsag
         <div className={`flex shrink-0 items-center rounded-lg border border-neutral-800 bg-neutral-900/60 py-1 ${isMobile ? 'px-2' : 'px-2.5'}`}>
           <ConnDot label="ws" state={conn.ws} compact={isMobile} />
         </div>
-        <ProfileMenu userId={userId} onSignOut={onSignOut} />
+        <ProfileMenu userId={userId} onSignOut={onSignOut} onChangePassword={onChangePassword} />
       </div>
     </header>
   );
