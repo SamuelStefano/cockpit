@@ -135,19 +135,65 @@ scripts/doctor.sh    watchdog do host (cron)
 - **Relay**: VPS dedicada. Caddy faz TLS (`deck-relay.devfellowship.com → 127.0.0.1:8800`),
   systemd `deck-relay.service` roda `npx tsx relay/src/main.ts`. Env em `.env.relay`
   (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `COCKPIT_ROOT_EMAILS`, `RELAY_PORT`). DNS Cloudflare grey-cloud.
-- **Agent**: na VPS do usuário. `--pair=CÓDIGO` (uma vez) → depois roda em loop via `run-agent.sh`
-  com `DECK_RELAY_URL=wss://deck-relay.devfellowship.com`. Requer o `claude` CLI logado na box.
+- **Agent**: na VPS do usuário. Caminho do fellow = `scripts/agent-setup.sh` (o one-liner que o
+  Dashboard mostra junto do código de pareamento): instala deps + Claude CLI, pareia com
+  `--pair=CÓDIGO`, sobe unit systemd `deck-agent` com `DECK_AGENT_ROLE=student` (default).
+  Requer o `claude` CLI **logado** na box — o setup não faz o login. `run-agent.sh` é o
+  supervisor da box do Samuel (path e `DECK_AGENT_ROLE=admin` fixos): não é o caminho do fellow.
 
 ## Modelo de segurança (estado atual)
 
 - **Trusted-relay beta**: hoje o relay é operado pela DevFellowship e tecnicamente VÊ o tráfego
-  (encaminha, mas poderia ler). A UI mostra um banner avisando.
+  (encaminha, mas poderia ler). A UI mostra um banner avisando. Concretamente, passam em claro
+  pelo relay: o texto do chat, `upload-chunk` (bytes do anexo) e `admin-env-set` (nome E valor
+  do token que o admin cola no painel — só admin manda isso, então hoje é exposição do próprio
+  Samuel, não de fellow). O JWT viaja na query string do WS (`?token=`) porque browser não manda
+  header no handshake: o Caddyfile do relay NÃO pode ganhar diretiva `log` sem redigir a query.
 - **T5 (assinatura e2e dos frames)**: NÃO construído. É **fast-follow obrigatório** antes de
-  abrir pra VPS de **terceiros** (relay não poder forjar comandos). Enquanto for só o Samuel na
-  própria box, o risco é **bounded-to-self** (único usuário, confia na própria infra) — aceitável só nesse escopo.
+  abrir pra VPS de **terceiros** (relay não poder forjar comandos). Pro público interno (relay
+  operado pela DFL, banner ligado) é aceitável; pro externo é gate.
 - **Co-location**: rodar o relay na MESMA box do backend é aceito só pro teste pessoal single-user.
   Antes de DFL/fellows: VPS separada pro relay + T5 ligado.
-- Role do engine no agente do fellow = `student` (chat/sessões/contexts; **sem** term-*/bypass/admin).
+- **Papel `student` NÃO é sandbox do LLM.** Ele limita a superfície do *Deck*: sem `term-*` (PTY
+  cru, fora do permission-model do CLI, fora do reaper/health guard), sem `admin-*` (escreve
+  `~/.claude.json`, `~/.deck-agent/env.json`, instala CLI, reinicia), sem bypass, sem metadados de
+  sessão alheia. Em `auto`/`acceptEdits` o `claude -p` do fellow tem Bash/Write **na própria box**
+  (`config.ts` allow-lists), e `Write` sem restrição de path alcança hooks de
+  `~/.claude/settings.json` (rodam fora de `allowedTools`) e o `~/.claude.json`. Tirar Bash da
+  allow-list seria teatro. A contenção real é **um processo/HOME por conta** (`server/auth.ts`).
+- **Isolamento entre contas** é por construção no T3 (um agente por conta; `relay/src/routing.ts`
+  só entrega pro bucket da conta) e travado em CI por `relay/integration.test.ts` ("two live
+  agents… never cross accounts"). Um processo servindo duas contas quebraria isso — não existe.
+- **Gates que o código impõe por papel** (agente): bypass (`bypassAllowed`, 4 condições), MCP stdio
+  só pra admin (`pickMcpDefs` — student só carrega server remoto), item de fila de admin só sai pela
+  mão de admin (`parked.ts`), teto de gasto por run do servidor (`COCKPIT_MAX_BUDGET_USD`, o cliente
+  só aperta).
+
+## Abrir pra outras contas — estado e gates (2026-09-02)
+
+O modelo multi-conta **já é o T3**: cada pessoa cria conta (signup aberto no SPA), pareia um agente
+na própria box e roda o `claude` logado na própria conta Anthropic. Não existe "ligar o login" no
+modo listen — o listen é o dono da box, sempre `admin`.
+
+**Público interno (fellows DFL, box própria)** — falta:
+1. `scripts/agent-setup.sh` endurecido (recusar root, watchdog e hooks de auto-redeploy opt-in,
+   sem reescrever crontab, `flock`, avisar que o `claude` precisa estar logado antes de daemonizar).
+2. Relay em produção atualizado com a main (deploy manual, `relay/deploy/README.md`).
+3. Decidir quem vira `admin` de conta: `accounts-list` devolve o e-mail de TODAS as contas pra
+   qualquer `admin`, não só root (`relay/src/store.ts`).
+4. Confirmar no Supabase `deck-relay` que troca de e-mail exige confirmação: root sai do claim
+   `email` do JWT sem checar `email_verified` (`shared/identity.ts`).
+
+**Público externo / patrocinado (Centelha: pessoa sem box própria)** — bloqueado por:
+1. **Isolamento é infra, não código**: agente hospedado por terceiro exige container/VM por conta
+   com HOME, `~/.claude` e login próprios. O engine zera `ANTHROPIC_API_KEY` e força o OAuth da box
+   (`claude.ts` `minimalEnv`), então um agente hospedado gasta a assinatura de *alguém* — de quem é
+   a conta Anthropic de um aluno patrocinado é decisão de política, não de código.
+2. **T5** (assinatura e2e dos frames).
+3. Teto de custo por conta: `COCKPIT_MAX_BUDGET_USD` por processo cobre o run; quota do plano
+   (`quota.ts`) é reativa ao sinal do CLI, não um orçamento. Orçamento por aluno = infra + política.
+4. Instalador `curl | bash` de repo pessoal não serve pra terceiro: publicar artefato versionado
+   com checksum.
 
 ## Build / test / verificação
 
