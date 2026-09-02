@@ -1,5 +1,11 @@
-import { describe, it, expect } from 'vitest';
-import { mapPlanUsage } from './usage-plan';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { mapPlanUsage, retryAfterMs } from './usage-plan';
+
+vi.mock('../oauth', () => ({ readOAuthToken: async () => 'token', OAUTH_BETA: 'beta' }));
+vi.mock('./broadcast', () => ({ broadcast: () => {} }));
 
 describe('mapPlanUsage', () => {
   it('maps the live shape from /api/oauth/usage', () => {
@@ -49,5 +55,106 @@ describe('mapPlanUsage', () => {
     expect(u.limits).toHaveLength(2);
     expect(u.limits[0].label).toBe('Limite');
     expect(u.limits[1].label).toBe('Semanal');
+  });
+});
+
+describe('retryAfterMs', () => {
+  it('reads a delay in seconds', () => {
+    expect(retryAfterMs('2385')).toBe(2_385_000);
+    expect(retryAfterMs(' 30 ')).toBe(30_000);
+  });
+
+  it('reads an HTTP-date relative to now', () => {
+    const now = Date.parse('2026-09-02T13:00:00Z');
+    expect(retryAfterMs('Wed, 02 Sep 2026 13:10:00 GMT', now)).toBe(600_000);
+  });
+
+  it('returns 0 when absent, junk or already past', () => {
+    expect(retryAfterMs(null)).toBe(0);
+    expect(retryAfterMs('depois')).toBe(0);
+    expect(retryAfterMs('Wed, 02 Sep 2026 12:00:00 GMT', Date.parse('2026-09-02T13:00:00Z'))).toBe(0);
+  });
+});
+
+describe('requestPlanUsageRefresh', () => {
+  let dir: string;
+  const ok = { five_hour: { utilization: 10 }, seven_day: { utilization: 5 } };
+
+  async function load() {
+    vi.resetModules();
+    process.env.COCKPIT_PLAN_USAGE = join(dir, 'plan-usage.json');
+    return import('./usage-plan');
+  }
+
+  const reply = (status: number, headers: Record<string, string> = {}) =>
+    ({ ok: status < 400, status, headers: new Headers(headers), json: async () => ok }) as unknown as Response;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'usage-plan-'));
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    rmSync(dir, { recursive: true, force: true });
+    delete process.env.COCKPIT_PLAN_USAGE;
+  });
+
+  it('coalesces a burst of refreshes into one request', async () => {
+    const fetchMock = vi.fn(async () => reply(200));
+    vi.stubGlobal('fetch', fetchMock);
+    const m = await load();
+    m.requestPlanUsageRefresh();
+    await vi.advanceTimersByTimeAsync(0);
+    m.requestPlanUsageRefresh();
+    m.requestPlanUsageRefresh();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(m.getLastPlanUsage()?.fiveHour).toBe(10);
+  });
+
+  it('honors Retry-After on 429 and stops touching the endpoint until it passes', async () => {
+    const fetchMock = vi.fn(async () => reply(429, { 'retry-after': '600' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const m = await load();
+    m.requestPlanUsageRefresh();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(m.planUsageCooldownUntil()).toBe(Date.now() + 600_000);
+
+    // Os retries rápidos de falha de rede NÃO podem valer aqui: cada tentativa
+    // dentro da janela renovava o bloqueio e a barra nunca voltava.
+    await vi.advanceTimersByTimeAsync(60_000);
+    m.requestPlanUsageRefresh();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(600_000);
+    m.requestPlanUsageRefresh();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('still retries fast on a network failure', async () => {
+    const fetchMock = vi.fn(async () => { throw new Error('offline'); });
+    vi.stubGlobal('fetch', fetchMock);
+    const m = await load();
+    m.requestPlanUsageRefresh();
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(8_000);
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it('reuses the last snapshot from disk when the boot fetch is blocked', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => reply(200)));
+    const first = await load();
+    first.requestPlanUsageRefresh();
+    await vi.advanceTimersByTimeAsync(0);
+
+    vi.stubGlobal('fetch', vi.fn(async () => reply(429, { 'retry-after': '2385' })));
+    const second = await load();
+    second.startPlanUsageLoop(() => false);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(second.getLastPlanUsage()?.fiveHour).toBe(10);
   });
 });
