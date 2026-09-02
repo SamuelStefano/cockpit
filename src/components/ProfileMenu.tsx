@@ -3,7 +3,7 @@ import { AvatarFace } from './avatar/AvatarFace';
 import { AiIconPicker } from './avatar/AiIconPicker';
 import { useProfileMenu } from './avatar/useProfileMenu';
 import { usePersisted } from '../lib/persist';
-import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT, GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT } from '../lib/prefs';
+import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT, GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT, NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT } from '../lib/prefs';
 
 // Menu de perfil no header: define nome (usado nas iniciais do chat) e faz
 // upload/limpa o avatar. Tudo local (data URL no localStorage), sem backend.
@@ -11,6 +11,7 @@ export function ProfileMenu({ userId, onSignOut }: { userId?: string; onSignOut?
   const { name, avatar, aiIcon, setName, setAvatar, setAiIcon, synced, syncFailed, open, setOpen, iconOpen, setIconOpen, uploadError, uploading, fileRef, wrapRef, onFile } = useProfileMenu(userId);
   const [showTools, setShowTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   const [groupNotes, setGroupNotes] = usePersisted<boolean>(GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT);
+  const [notifySound, setNotifySound] = usePersisted<boolean>(NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT);
 
   return (
     <div ref={wrapRef} className="relative">
@@ -73,6 +74,13 @@ export function ProfileMenu({ userId, onSignOut }: { userId?: string; onSignOut?
               icon="sparkles"
               label="Agrupar notas do agente"
               hint="Só a resposta final fica solta"
+            />
+            <Switch
+              checked={notifySound}
+              onChange={() => setNotifySound((v) => !v)}
+              icon="volume"
+              label="Som ao terminar o turno"
+              hint="Beep curto, só com a aba fora de foco"
             />
           </div>
 
