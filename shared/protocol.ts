@@ -144,8 +144,9 @@ export interface SessionMeta {
   summary?: string; // resumo IA do que a sessão fez (gerado ao fim do turno)
   mtime: number;
   count: number;
-  // Turno parou numa pergunta ao usuário (AskUserQuestion pendente ou fecho em
-  // "?") sem prompt humano depois — agrupa a sessão em "Aguardando você".
+  // Turno parou num AskUserQuestion pendente (sem tool_result nem prompt humano
+  // depois) — agrupa a sessão em "Aguardando você". Só o card conta: qualquer
+  // fecho em "?" marcava sessões ociosas e afogava a fila acionável.
   waiting?: boolean;
 }
 

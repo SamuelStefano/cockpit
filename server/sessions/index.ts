@@ -8,7 +8,7 @@ import { allSummaries, getSummary } from '../db';
 
 const UUID_FILE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$/;
 
-export interface MetaScan { title: string; firstUser?: string; count: number; consumed: number; lastTs?: number; asked?: boolean; endsQ?: boolean }
+export interface MetaScan { title: string; firstUser?: string; count: number; consumed: number; lastTs?: number; pendingAsk?: string }
 
 // Cache em memória invalidado por mtime. Guarda `size` + o `scan` cru pra permitir
 // scan incremental: JSONL de sessão é append-only, então quando o arquivo só cresce
@@ -110,7 +110,7 @@ export async function metaForId(id: string): Promise<SessionMeta | null> {
 
 // Monta a SessionMeta a partir do cabeçalho escaneado — compartilhado pela
 // listagem e pela decoração de busca, pra os dois não divergirem nos defaults.
-export function metaFromHead(id: string, mtime: number, head: { title: string; firstUser?: string; count: number; lastTs?: number; asked?: boolean; endsQ?: boolean }, now = Date.now()): SessionMeta {
+export function metaFromHead(id: string, mtime: number, head: { title: string; firstUser?: string; count: number; lastTs?: number; pendingAsk?: string }, now = Date.now()): SessionMeta {
   // Relógio de atividade = timestamp da ÚLTIMA mensagem do JSONL, não o mtime do
   // arquivo: resumir/abrir uma sessão toca o arquivo sem escrever mensagem, e aí
   // uma conversa de ontem aparecia como "30min atrás" e furava a ordem do sidebar.
@@ -123,7 +123,7 @@ export function metaFromHead(id: string, mtime: number, head: { title: string; f
     snippet: head.firstUser?.slice(0, 120) || '',
     mtime: ts,
     count: head.count,
-    waiting: head.asked || head.endsQ || undefined,
+    waiting: head.pendingAsk ? true : undefined,
   };
 }
 
@@ -136,8 +136,7 @@ export function scanMetaText(text: string, prev?: MetaScan): MetaScan {
   let count = prev?.count ?? 0;
   let consumed = prev?.consumed ?? 0;
   let lastTs = prev?.lastTs;
-  let asked = prev?.asked ?? false;
-  let endsQ = prev?.endsQ ?? false;
+  let pendingAsk = prev?.pendingAsk;
   let i = 0;
   let nl: number;
   while ((nl = text.indexOf('\n', i)) >= 0) {
@@ -163,17 +162,16 @@ export function scanMetaText(text: string, prev?: MetaScan): MetaScan {
       // sidechain é respondida pelo agente-pai, não vira "aguardando você".
       if (o.isSidechain !== true) {
         if (o.type === 'user') {
-          if (isUserPrompt(o)) { asked = false; endsQ = false; }
+          if (isUserPrompt(o) || answersAsk(o, pendingAsk)) pendingAsk = undefined;
         } else {
           for (const b of assistantBlocks(o)) {
-            if (b?.type === 'tool_use' && b.name === 'AskUserQuestion') asked = true;
-            else if (b?.type === 'text' && typeof b.text === 'string' && b.text.trim()) endsQ = endsWithQuestion(b.text);
+            if (b?.type === 'tool_use' && b.name === 'AskUserQuestion') pendingAsk = typeof b.id === 'string' ? b.id : 'pending';
           }
         }
       }
     }
   }
-  return { title, firstUser, count, consumed, lastTs, asked, endsQ };
+  return { title, firstUser, count, consumed, lastTs, pendingAsk };
 }
 
 // Prompt DE VERDADE do usuário — o que zera o "aguardando você". Exclui
@@ -187,16 +185,21 @@ function isUserPrompt(o: any): boolean {
   return c.some((b: any) => b?.type === 'text' && typeof b.text === 'string' && b.text.trim().length > 0);
 }
 
+// Resposta (ou recusa/erro) do card de escolha: o CLI grava como linha `user` com
+// tool_result do MESMO tool_use_id. Sem isso um AskUserQuestion respondido fora do
+// Deck — ou negado pelo headless — deixaria a sessão presa em "Aguardando você"
+// pra sempre, já que tool_result não conta como prompt humano.
+function answersAsk(o: any, pendingAsk?: string): boolean {
+  if (!pendingAsk) return false;
+  const c = o.message?.content;
+  if (!Array.isArray(c)) return false;
+  return c.some((b: any) => b?.type === 'tool_result' && b.tool_use_id === pendingAsk);
+}
+
 function assistantBlocks(o: any): any[] {
   const c = o.message?.content;
   if (Array.isArray(c)) return c;
   return typeof c === 'string' ? [{ type: 'text', text: c }] : [];
-}
-
-// Fecho de turno em pergunta ("quer que eu faça X?"). Tolera pontuação de
-// fechamento depois do `?` (aspas, parênteses, markdown) pra não perder o sinal.
-function endsWithQuestion(text: string): boolean {
-  return /\?["'”’`)\]}*_]*$/.test(text.trim());
 }
 
 // Lê do byte `prev.consumed` até EOF (full scan quando prev ausente) e funde com
