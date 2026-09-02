@@ -14,6 +14,9 @@ interface HeaderProps {
   nav: (to: Route) => void;
   onPalette: () => void;
   planUsage: PlanUsage | null;
+  quotaWarn?: boolean;
+  quotaPaused?: boolean;
+  quotaResetsAt?: number | null;
   onNew: () => void;
   isAdmin: boolean;
   routeMenuOpen: boolean;
@@ -22,7 +25,7 @@ interface HeaderProps {
   onSignOut?: () => void;
 }
 
-export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsage, onNew, isAdmin, routeMenuOpen, setRouteMenuOpen, userId, onSignOut }: HeaderProps) {
+export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsage, quotaWarn = false, quotaPaused = false, quotaResetsAt = null, onNew, isAdmin, routeMenuOpen, setRouteMenuOpen, userId, onSignOut }: HeaderProps) {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex items-center gap-2.5">
@@ -57,7 +60,7 @@ export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsag
       </div>
 
       <div className="flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-3">
-        <UsageBar usage={planUsage} compact={isMobile} />
+        <UsageBar usage={planUsage} compact={isMobile} warn={quotaWarn} paused={quotaPaused} quotaResetsAt={quotaResetsAt} />
         <button
           onClick={onPalette}
           title="Comandos (⌘K)"

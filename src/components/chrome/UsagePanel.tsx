@@ -34,7 +34,9 @@ function Row({ row }: { row: UsageRow }) {
   );
 }
 
-export function UsagePanel({ rows }: { rows: UsageRow[] }) {
+// `reset` vem do gate de cota (não das linhas): é o "quando volto a poder enviar"
+// que a pílula flutuante mostrava antes de sair do chat.
+export function UsagePanel({ rows, reset = '', warn = false }: { rows: UsageRow[]; reset?: string; warn?: boolean }) {
   return (
     <div
       role="dialog"
@@ -50,6 +52,11 @@ export function UsagePanel({ rows }: { rows: UsageRow[] }) {
             <Row key={row.id} row={row} />
           ))}
         </ul>
+      )}
+      {reset && (
+        <p className={`mt-3 border-t border-neutral-800 pt-2.5 text-[11px] tabular-nums ${warn ? 'text-amber-300/90' : 'text-neutral-500'}`}>
+          reseta {reset}
+        </p>
       )}
     </div>
   );

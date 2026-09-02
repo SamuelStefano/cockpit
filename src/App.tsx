@@ -20,6 +20,7 @@ import { usePanelResize } from './app/usePanelResize';
 import { useTerminalTabs } from './app/useTerminalTabs';
 import { useGlobalShortcuts } from './app/useGlobalShortcuts';
 import { useIsMobile } from './app/useIsMobile';
+import { useKeyboardOpen } from './app/useKeyboardOpen';
 import { useTabTitle } from './app/useTabTitle';
 import { useOfflineLatch } from './app/useOfflineLatch';
 import { usePairingEject } from './app/usePairingEject';
@@ -71,6 +72,9 @@ export function CockpitApp() {
   const showOffline = useOfflineLatch(conn.ws);
   const ejectPairing = usePairingEject(agentOnline, sbAuth.session?.user.id, conn.ws === 'connected');
   const isMobile = useIsMobile();
+  // Só o celular tem teclado por cima da tela; num desktop de janela baixa a
+  // heurística acertaria pelo motivo errado e mutilaria o chat à toa.
+  const keyboardOpen = useKeyboardOpen() && isMobile;
   useTabTitle(running, updated);
 
   const { drawer, setDrawer, termSheet, setTermSheet, routeMenu, setRouteMenu, palette, setPalette, help, setHelp } = useOverlays(route);
@@ -123,7 +127,7 @@ export function CockpitApp() {
   };
 
   const sessionsProps = { sessions, loading, activeId: activeSessionId, onSelect: selectSession, onNew: handleNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, stalled, updated, runStart, searchResults, onSearch, userId: sbAuth.session?.user.id };
-  const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, followups, onDismissFollowups: dismissFollowups, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew: handleNew, onHandoff, handoffBusy, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onRename: handleRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
+  const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, followups, onDismissFollowups: dismissFollowups, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew: handleNew, onHandoff, handoffBusy, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onRename: handleRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, keyboardOpen, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
 
   const gate = resolveAuthGate({ sbAuth, ejectPairing, authRequired, submitToken });
@@ -144,9 +148,8 @@ export function CockpitApp() {
         onShowHelp={() => setHelp(true)}
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
-      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} onNew={handleNew} isAdmin={isAdmin} routeMenuOpen={routeMenu} setRouteMenuOpen={setRouteMenu} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} />
+      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} quotaWarn={quotaGate.warn} quotaPaused={quotaGate.paused} quotaResetsAt={quotaGate.resetsAt} onNew={handleNew} isAdmin={isAdmin} routeMenuOpen={routeMenu} setRouteMenuOpen={setRouteMenu} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} />
 
-      {quotaGate.warn && !quotaClosed && rate && <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} />}
       <OfflineNotice show={showOffline} />
 
       <RouteContent
@@ -162,7 +165,14 @@ export function CockpitApp() {
         mobile={{ drawer, setDrawer, termSheet, setTermSheet, runningTerm }}
       />
 
-      {!isMobile && <StatusBar stats={stats} rate={rate} ctxTokens={contextTokens} lastTurn={lastTurn} />}
+      {/* O aviso de cota do desktop mora na StatusBar: no celular quem avisa é a
+          UsageBar do header — nada flutua sobre o thread (A1). */}
+      {!isMobile && (
+        <StatusBar
+          stats={stats} rate={rate} ctxTokens={contextTokens} lastTurn={lastTurn}
+          quota={quotaGate.warn && !quotaClosed && rate ? <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} /> : null}
+        />
+      )}
       <Toaster />
       <ConfettiHost />
     </div>
