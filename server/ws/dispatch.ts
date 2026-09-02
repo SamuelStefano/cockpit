@@ -523,7 +523,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'queue-remove': {
-      removeParked(msg.sessionKey, msg.id);
+      removeParked(msg.sessionKey, msg.id, role ?? 'student');
       broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
       return;
     }
@@ -538,7 +538,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'queue-clear': {
-      clearParked(msg.sessionKey);
+      clearParked(msg.sessionKey, role ?? 'student');
       broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
       return;
     }

@@ -177,12 +177,13 @@ export function takeParked(sessionKey: string, id: string, role?: Role): ParkedI
   });
 }
 
-export function removeParked(sessionKey: string, id: string): void {
+// Mesma guarda de take/edit: item de admin só sai da fila pela mão de admin.
+export function removeParked(sessionKey: string, id: string, role?: Role): void {
   withParkedLock(() => {
     const map = loadParked();
     const arr = map[sessionKey];
     if (!arr) return;
-    const next = arr.filter((x) => x.id !== id);
+    const next = arr.filter((x) => x.id !== id || (x.role === 'admin' && role !== 'admin'));
     if (next.length === arr.length) return;
     if (next.length) map[sessionKey] = next; else delete map[sessionKey];
     saveParked(map);
@@ -208,11 +209,13 @@ export function editParked(sessionKey: string, id: string, prompt: string, role?
   });
 }
 
-export function clearParked(sessionKey: string): void {
+export function clearParked(sessionKey: string, role?: Role): void {
   withParkedLock(() => {
     const map = loadParked();
-    if (!(sessionKey in map)) return;
-    delete map[sessionKey];
+    const arr = map[sessionKey];
+    if (!arr) return;
+    const kept = role === 'admin' ? [] : arr.filter((x) => x.role === 'admin');
+    if (kept.length) map[sessionKey] = kept; else delete map[sessionKey];
     saveParked(map);
   });
 }

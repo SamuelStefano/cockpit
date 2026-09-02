@@ -8,9 +8,12 @@ import type { Role } from '../auth';
 // concedida de propósito. Hoje é inerte (token único → role 'admin', que recebe
 // tudo); arma o corte real quando o role passar a sair do token por-usuário.
 //
-// student = só leitura + chat próprio. Sem terminal (term-* dá shell no host),
-// sem admin-health (recon), sem mutação de metadados de sessão alheia
-// (hide/unhide/purge/set-meta) nem listagem do arquivo (list-archived).
+// student = limita a superfície do DECK, não o LLM: sem PTY direto (term-* é shell
+// cru, fora do permission-model do CLI), sem admin-* (escreve ~/.claude.json,
+// env.json, instala CLI, reinicia), sem bypass, sem mutação de metadados de sessão
+// alheia (hide/unhide/purge/set-meta) nem listagem do arquivo (list-archived).
+// `send` continua rodando tools (Bash/Write inclusive) NA BOX DO AGENTE — a
+// contenção real é um processo/HOME por conta (server/auth.ts), não esta lista.
 const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   'send', 'stop', 'ping', 'list', 'sync', 'open', 'open-full', 'search',
   'ctx-list', 'ctx-open', 'skill-list', 'skill-open', 'usage-list', 'upload-chunk', 'att-open',

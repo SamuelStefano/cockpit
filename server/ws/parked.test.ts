@@ -98,7 +98,23 @@ describe('parked fila (persistência)', () => {
     add('s', { prompt: 'b' });
     removeParked('s', a);
     expect(parkedView().map((v) => v.text)).toEqual(['b']);
-    clearParked('s');
+    clearParked('s', 'admin');
+    expect(parkedView()).toEqual([]);
+  });
+
+  // Mesma guarda de take/edit: item de admin (pode carregar bypass) só sai pela mão
+  // de admin. Antes remove/clear não olhavam o papel e um student apagava a fila alheia.
+  it('student não remove nem limpa item de admin; os dele saem normalmente', () => {
+    const adm = add('s', { prompt: 'adm', role: 'admin', bypass: true });
+    const stu = add('s', { prompt: 'stu', role: 'student' });
+    removeParked('s', adm, 'student');
+    expect(parkedView().map((v) => v.text)).toEqual(['adm', 'stu']);
+    removeParked('s', stu, 'student');
+    expect(parkedView().map((v) => v.text)).toEqual(['adm']);
+    add('s', { prompt: 'stu2', role: 'student' });
+    clearParked('s', 'student');
+    expect(parkedView().map((v) => v.text)).toEqual(['adm']);
+    clearParked('s', 'admin');
     expect(parkedView()).toEqual([]);
   });
 });
