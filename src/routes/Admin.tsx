@@ -3,6 +3,7 @@ import { Button, Icon, RouteHeader } from '../components/primitives';
 import type { AdminHealth, SysStats, AccountSummary } from '../../shared/protocol';
 import { AdminAccounts } from './AdminAccounts';
 import { AdminHostOps } from './AdminHostOps';
+import { AdminDeckUpdate } from './AdminDeckUpdate';
 import { AdminInventory } from './AdminInventory';
 import { AdminTabs, type AdminTab } from './AdminTabs';
 import { AdminHealthSkeleton } from './AdminHealthSkeleton';
@@ -29,9 +30,11 @@ interface AdminProps {
   onMcpAdd: (name: string, opts: { command?: string; url?: string }) => void;
   onMcpRemove: (name: string) => void;
   onCliInstall: (name: string) => void;
+  onCliUpdate: () => void;
+  onDeckRestart: (mode: 'idle' | 'now') => void;
 }
 
-export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, isRoot, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall }: AdminProps) {
+export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, isRoot, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, onCliUpdate, onDeckRestart }: AdminProps) {
   const [updatedAt, setUpdatedAt] = useState(0);
   const [tab, setTab] = useState('overview');
   useEffect(() => {
@@ -75,6 +78,9 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
           <AdminAccounts accounts={accounts} loaded={accountsLoaded} onAccountsList={onAccountsList} onSetAdmin={onSetAdmin} canGrant={isRoot} />
         )}
 
+        {tab === 'host' && (
+          <AdminDeckUpdate health={health} adminOp={adminOp} onCliUpdate={onCliUpdate} onDeckRestart={onDeckRestart} />
+        )}
         {tab === 'host' && (
           <AdminHostOps
             health={health} adminOp={adminOp}

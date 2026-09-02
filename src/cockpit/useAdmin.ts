@@ -16,6 +16,8 @@ export interface Admin {
   onMcpAdd: (name: string, opts: { command?: string; url?: string }) => void;
   onMcpRemove: (name: string) => void;
   onCliInstall: (name: string) => void;
+  onCliUpdate: () => void;
+  onDeckRestart: (mode: 'idle' | 'now') => void;
   onMsg: (msg: ServerMsg) => boolean;
 }
 
@@ -81,6 +83,8 @@ export function useAdmin(send: (m: ClientMsg) => boolean): Admin {
     onMcpAdd: useCallback((name: string, opts: { command?: string; url?: string }) => { send({ t: 'admin-mcp-add', name, command: opts.command, url: opts.url }); }, [send]),
     onMcpRemove: useCallback((name: string) => { send({ t: 'admin-mcp-remove', name }); }, [send]),
     onCliInstall: useCallback((name: string) => { send({ t: 'admin-cli-install', name }); }, [send]),
+    onCliUpdate: useCallback(() => { send({ t: 'admin-cli-update' }); }, [send]),
+    onDeckRestart: useCallback((mode: 'idle' | 'now') => { send({ t: 'admin-deck-restart', mode }); }, [send]),
     onMsg,
   };
 }
