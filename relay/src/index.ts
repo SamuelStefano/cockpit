@@ -53,6 +53,12 @@ const tokenFromUrl = (url: string | undefined): string | null => {
 interface AgentState { agentId: string; accountId: string; challenge: string; authed: boolean }
 
 export function createRelay(cfg: RelayConfig) {
+  // O stub de identidade desliga a verificação de JWT inteira. Só o main.ts sobe em
+  // produção e ele nunca passa isto — mas uma linha errada num refactor abriria o
+  // relay pra qualquer token. A unit do systemd fixa NODE_ENV=production.
+  if (cfg.resolveIdentity && process.env.NODE_ENV === 'production') {
+    throw new Error('resolveIdentity é stub de teste: proibido em produção');
+  }
   const registry = new Registry();
   const roots = parseRootEmails(cfg.rootEmails);
   const jwks: JwksFn = makeJwks(cfg.jwksUrl);
