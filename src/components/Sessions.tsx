@@ -1,6 +1,6 @@
 import { Button, Icon } from './primitives';
 import { usePersisted } from '../lib/persist';
-import { SHOW_SESSION_DESC_KEY, SHOW_SESSION_DESC_DEFAULT } from '../lib/prefs';
+import { SHOW_SESSION_DESC_KEY, showSessionDescDefault } from '../lib/prefs';
 import type { Session } from '../data/types';
 import { groupByRecency } from './sessions/group-by-recency';
 import { SessionGroupHeader } from './sessions/SessionGroupHeader';
@@ -43,12 +43,13 @@ export interface SessionsPanelProps {
 export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, marathon, onToggleMarathon, onRename, onDescribe, onClose, onDelete, onStop, archived = [], onUnhide, onCloseMobile, usage = {}, cost = {}, running, stalled, updated, runStart = {}, searchResults = [], onSearch, userId }: SessionsPanelProps) {
   const {
     query, setQuery, confirmId, setConfirmId, deleteId, setDeleteId, pinned, togglePin,
-    tagMap, tagFilter, setTagFilter, addTag, removeTag, allTags, searchRef, filtered,
+    tagMap, tagFilter, setTagFilter, addTag, removeTag, allTags, dismissedWaiting, dismissWaiting, searchRef, filtered,
   } = useSessionsPanel({ sessions, archived, searchResults, onSearch, userId });
-  const [showDesc, setShowDesc] = usePersisted<boolean>(SHOW_SESSION_DESC_KEY, SHOW_SESSION_DESC_DEFAULT);
+  const [showDesc, setShowDesc] = usePersisted<boolean>(SHOW_SESSION_DESC_KEY, showSessionDescDefault());
 
   const renderRow = (s: Session) => (
     <SessionRow key={s.id} s={s} active={s.id === activeId} highlight={query} ctx={usage[s.id]} cost={cost[s.id]}
+      waitingDismissed={dismissedWaiting.has(s.id)} onDismissWaiting={dismissWaiting}
       running={running?.has(s.id)} stalled={stalled?.has(s.id)} updated={updated?.has(s.id)} runStart={runStart[s.id]} pinned={pinned.has(s.id)} onTogglePin={togglePin}
       tags={tagMap[s.id]} onAddTag={addTag} onRemoveTag={removeTag} onFilterTag={setTagFilter}
       marathon={marathon?.has(s.id)} onToggleMarathon={onToggleMarathon}
@@ -113,7 +114,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, ma
         ) : query ? (
           filtered.map((s) => renderRow(s))
         ) : (
-          groupByRecency(filtered, pinned, running).map((g) => (
+          groupByRecency(filtered, { now: Date.now(), pinned, running, dismissed: dismissedWaiting }).map((g) => (
             <div key={g.label} className="space-y-1.5">
               <SessionGroupHeader label={g.label} count={g.items.length} />
               {g.items.map((s) => renderRow(s))}

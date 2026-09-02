@@ -1,17 +1,15 @@
-import { Badge } from '../primitives';
 import { usePersisted } from '../../lib/persist';
-import { SHOW_SESSION_DESC_KEY, SHOW_SESSION_DESC_DEFAULT } from '../../lib/prefs';
+import { SHOW_SESSION_DESC_KEY, showSessionDescDefault } from '../../lib/prefs';
 import type { Session } from '../../data/types';
 import { Highlight } from './Highlight';
-import { SessionRowTags } from './SessionRowTags';
 import { SessionStatusDot } from './SessionStatusDot';
 import { SessionRowMeta } from './SessionRowMeta';
+import { SessionRowBadges } from './SessionRowBadges';
 import { RunStatus } from './RunStatus';
 import { useSessionRow } from './useSessionRow';
 import { InlineEdit } from './InlineEdit';
 import { useLongPress } from './useLongPress';
 import { ctxWarn, isIdle } from './row-meta';
-import { fmtCost } from '../../../shared/format';
 
 export interface SessionRowProps {
   s: Session;
@@ -37,11 +35,13 @@ export interface SessionRowProps {
   onClose: (id: string) => void;
   onDelete?: (id: string) => void;
   onStop?: (id: string) => void;
+  waitingDismissed?: boolean;
+  onDismissWaiting?: (id: string) => void;
 }
 
-export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated, runStart, pinned, tags = [], marathon, onToggleMarathon, onTogglePin, onAddTag, onRemoveTag, onFilterTag, onSelect, onRename, onDescribe, onClose, onDelete, onStop }: SessionRowProps) {
+export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated, runStart, pinned, tags = [], marathon, onToggleMarathon, onTogglePin, onAddTag, onRemoveTag, onFilterTag, onSelect, onRename, onDescribe, onClose, onDelete, onStop, waitingDismissed, onDismissWaiting }: SessionRowProps) {
   const { editing, setEditing, draft, setDraft, descEditing, setDescEditing, descDraft, setDescDraft, tagging, setTagging, tagDraft, setTagDraft, rowRef, commit, commitDesc, commitTag } = useSessionRow({ s, onAddTag, onRename, onDescribe });
-  const [showDesc] = usePersisted<boolean>(SHOW_SESSION_DESC_KEY, SHOW_SESSION_DESC_DEFAULT);
+  const [showDesc] = usePersisted<boolean>(SHOW_SESSION_DESC_KEY, showSessionDescDefault());
   const { open: actionsOpen, setOpen: setActionsOpen, consumeTap, handlers } = useLongPress(() => {});
   const warn = ctxWarn(ctx);
 
@@ -57,7 +57,7 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
         if (e.target !== e.currentTarget) return; // tecla foi pra um botão/input interno
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(s.id); }
       }}
-      className={`group relative cursor-pointer rounded-xl border px-3.5 py-3 transition-all duration-150 outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40
+      className={`group relative cursor-pointer rounded-xl border px-3.5 py-2 transition-all duration-150 outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40 lg:py-3
         ${active
           ? 'glow-active border-orange-500/40 bg-linear-to-r from-orange-500/9 to-orange-500/3'
           : 'border-transparent hover:border-neutral-800 hover:bg-neutral-900/80'}`}
@@ -76,9 +76,10 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
             className={`flex min-w-0 items-start gap-1.5 text-left text-[13.5px] font-medium leading-snug tracking-[-0.01em] ${active ? 'text-neutral-50' : 'text-neutral-300 group-hover:text-neutral-200'}`}
           >
             <span className="mt-[3px] shrink-0"><SessionStatusDot running={running} stalled={stalled} updated={updated} waiting={s.waiting} /></span>
-            {/* Título em até 2 linhas: um título longo mostra bem mais antes de
-                reticenciar do que o corte de 1 linha (os "…" que incomodavam). */}
-            <span className={`line-clamp-2 ${!running && updated && !active ? 'text-neutral-100' : ''}`}><Highlight text={s.title} term={highlight} /></span>
+            {/* Título em até 2 linhas no desktop: um título longo mostra bem mais
+                antes de reticenciar. No celular, 2 linhas × 99 sessões viram uma
+                lista de 5 itens por tela — ali vale mais ver mais sessões. */}
+            <span className={`line-clamp-1 lg:line-clamp-2 ${!running && updated && !active ? 'text-neutral-100' : ''}`}><Highlight text={s.title} term={highlight} /></span>
           </span>
         )}
         {!editing && (
@@ -91,6 +92,8 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
             canStop={!!onStop}
             canDescribe={!!onDescribe}
             marathon={!!marathon}
+            canDismissWaiting={!!s.waiting && !waitingDismissed}
+            onDismissWaiting={onDismissWaiting ? () => onDismissWaiting(s.id) : undefined}
             onToggleMarathon={onToggleMarathon ? () => onToggleMarathon(s.id, !marathon) : undefined}
             actionsOpen={actionsOpen}
             setActionsOpen={setActionsOpen}
@@ -121,22 +124,13 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
       )}
       {/* Faixa única de meta: badges e etiquetas fluem juntos numa linha (com
           wrap) — antes cada badge abria a própria linha e o card crescia torto. */}
-      {!editing && (warn || s.hasTerminal || isIdle(s.mtime, !!running) || tags.length > 0 || tagging || (cost !== undefined && cost > 0)) && (
-        <div className="mt-2 flex flex-wrap items-center gap-1">
-          {cost !== undefined && cost > 0 && (
-            <span className="text-[10px] tabular-nums text-emerald-500/50" title="Custo estimado acumulado desta sessão">{fmtCost(cost)}</span>
-          )}
-          {warn && <Badge tone={warn.tone}>contexto {warn.pct}%</Badge>}
-          {s.hasTerminal && <Badge tone="green" dot>terminal</Badge>}
-          {isIdle(s.mtime, !!running) && <Badge tone="neutral">ociosa</Badge>}
-          {(tags.length > 0 || tagging) && (
-            <SessionRowTags
-              id={s.id} tags={tags} tagging={tagging} tagDraft={tagDraft}
-              setTagDraft={setTagDraft} setTagging={setTagging} commitTag={commitTag}
-              onRemoveTag={onRemoveTag} onFilterTag={onFilterTag}
-            />
-          )}
-        </div>
+      {!editing && (
+        <SessionRowBadges
+          id={s.id} cost={cost} warn={warn} hasTerminal={s.hasTerminal} idle={isIdle(s.mtime, !!running)}
+          tags={tags} tagging={tagging} tagDraft={tagDraft}
+          setTagDraft={setTagDraft} setTagging={setTagging} commitTag={commitTag}
+          onRemoveTag={onRemoveTag} onFilterTag={onFilterTag}
+        />
       )}
     </div>
   );

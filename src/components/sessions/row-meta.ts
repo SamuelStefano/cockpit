@@ -13,7 +13,9 @@ export function ctxPercent(ctx: number | undefined): number | null {
 
 // Alerta discreto de contexto no card: só aparece quando a sessão está de fato
 // perto do teto (o progressbar permanente foi removido a pedido — #140).
-export function ctxWarn(ctx: number | undefined): { pct: number; tone: 'yellow' | 'red' } | null {
+export interface CtxWarn { pct: number; tone: 'yellow' | 'red' }
+
+export function ctxWarn(ctx: number | undefined): CtxWarn | null {
   const pct = ctxPercent(ctx);
   if (pct === null || pct < 70) return null;
   return { pct, tone: pct >= 90 ? 'red' : 'yellow' };

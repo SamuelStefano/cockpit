@@ -10,6 +10,8 @@ interface SessionRowMetaProps {
   canStop: boolean;
   canDescribe: boolean;
   marathon: boolean;
+  canDismissWaiting: boolean;
+  onDismissWaiting?: () => void;
   onToggleMarathon?: () => void;
   actionsOpen: boolean;
   setActionsOpen: (v: boolean) => void;
@@ -22,10 +24,12 @@ interface SessionRowMetaProps {
   onDelete: () => void;
 }
 
-export function SessionRowMeta({ relative, pinned, running, tagging, canTag, canStop, canDescribe, marathon, onToggleMarathon, actionsOpen, setActionsOpen, setTagging, onTogglePin, onRename, onDescribe, onStop, onArchive, onDelete }: SessionRowMetaProps) {
+export function SessionRowMeta({ relative, pinned, running, tagging, canTag, canStop, canDescribe, marathon, canDismissWaiting, onDismissWaiting, onToggleMarathon, actionsOpen, setActionsOpen, setTagging, onTogglePin, onRename, onDescribe, onStop, onArchive, onDelete }: SessionRowMetaProps) {
   return (
     <div className="flex shrink-0 items-center gap-1">
-      <span className="hidden text-[10.5px] tabular-nums text-neutral-600 sm:inline" title="Última atividade">{relative}</span>
+      {/* "Quando" também no celular: sem ele a linha não diz se a sessão é de hoje
+          ou de três dias atrás, que é a primeira coisa que se procura na lista. */}
+      <span className="text-[10.5px] tabular-nums text-neutral-600" title="Última atividade">{relative}</span>
       {pinned && (
         <span title="Sessão fixada" className="text-orange-400">
           <Icon name="star" size={11} />
@@ -51,6 +55,8 @@ export function SessionRowMeta({ relative, pinned, running, tagging, canTag, can
         canStop={canStop}
         canDescribe={canDescribe}
         marathon={marathon}
+        canDismissWaiting={canDismissWaiting}
+        onDismissWaiting={onDismissWaiting}
         onToggleMarathon={onToggleMarathon}
         open={actionsOpen}
         onOpenChange={setActionsOpen}
