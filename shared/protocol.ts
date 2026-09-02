@@ -341,6 +341,11 @@ export interface SysStats {
 export interface McpInfo { name: string; transport: string }
 export interface CliInfo { name: string; present: boolean }
 export interface PluginInfo { name: string; marketplace: string; version: string }
+// Versão do `claude` que o spawn do Deck resolve (não a do PATH do supervisor).
+export interface ClaudeCliInfo { version: string; path: string }
+// bootCommit = código em execução; headCommit = código no disco. Diferentes = o
+// processo está atrás da main e só um restart traz o fix pro ar.
+export interface DeckInfo { bootCommit: string; headCommit: string; inFlight: number; restartArmed: boolean }
 
 export interface AdminHealth {
   claudeAuth: boolean;         // ~/.claude/.credentials.json existe?
@@ -363,6 +368,8 @@ export interface AdminHealth {
   port: number;
   permissionMode: string;
   disk: { used: number; total: number };
+  claudeCli: ClaudeCliInfo;
+  deck: DeckInfo;
 }
 
 // Conta no painel admin (T3). agentOnline = a VPS daquela conta está pareada agora.
@@ -580,6 +587,10 @@ export type ClientMsg =
   | { t: 'admin-mcp-add'; name: string; command?: string; url?: string }
   | { t: 'admin-mcp-remove'; name: string }
   | { t: 'admin-cli-install'; name: string }
+  // Atualiza o CLI do Claude (`claude update`) e reinicia o Deck pelos scripts de
+  // deploy do repo. Só loopback: fora dele o admin não reinicia a box de um fellow.
+  | { t: 'admin-cli-update' }
+  | { t: 'admin-deck-restart'; mode: 'idle' | 'now' }
   | { t: 'upload-chunk'; uploadId: string; sessionKey: string; name: string; seq: number; total: number; dataB64: string; clientId?: string }
   | { t: 'att-open'; path: string }
   | { t: 'term-open'; termId: string; cols: number; rows: number }

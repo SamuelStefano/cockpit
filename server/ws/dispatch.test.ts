@@ -30,6 +30,11 @@ vi.mock('./threads', () => reg);
 vi.mock('./broadcast', () => bc);
 vi.mock('../config', () => cfg);
 vi.mock('../admin-ops', () => admin);
+const deck = vi.hoisted(() => ({
+  updateClaudeCli: vi.fn(async () => ({ ok: true, message: 'CLI 1 → 2' })),
+  restartDeck: vi.fn(async () => ({ ok: true, message: 'agendado' })),
+}));
+vi.mock('../deck-ops', () => deck);
 vi.mock('../sessions/parse', () => parse);
 vi.mock('../sessions/index', () => ({ listSessions: vi.fn(async () => []), listArchived: vi.fn(async () => []) }));
 vi.mock('../sessions/search', () => ({ searchSessions: vi.fn(async () => []) }));
@@ -198,6 +203,43 @@ describe('admin-mcp-add stdio loopback gate', () => {
     cfg.CONFIG.localOnly = true;
     await handle(ws, { t: 'admin-mcp-add', name: 'local', command: 'node mcp.js' } as ClientMsg);
     expect(admin.addMcp).toHaveBeenCalledOnce();
+  });
+});
+
+describe('admin-cli-update / admin-deck-restart', () => {
+  it('refuses both outside the loopback box', async () => {
+    cfg.CONFIG.localOnly = false;
+    await handle(ws, { t: 'admin-cli-update' } as ClientMsg);
+    await handle(ws, { t: 'admin-deck-restart', mode: 'now' } as ClientMsg);
+    expect(deck.updateClaudeCli).not.toHaveBeenCalled();
+    expect(deck.restartDeck).not.toHaveBeenCalled();
+    expect(bc.send).toHaveBeenCalledWith(ws, { t: 'admin-op', ok: false, message: 'atualização do CLI só no loopback' });
+    expect(bc.send).toHaveBeenCalledWith(ws, { t: 'admin-op', ok: false, message: 'restart do Deck só no loopback' });
+  });
+
+  it('updates the CLI and re-emits health', async () => {
+    await handle(ws, { t: 'admin-cli-update' } as ClientMsg);
+    expect(deck.updateClaudeCli).toHaveBeenCalledOnce();
+    expect(bc.send).toHaveBeenCalledWith(ws, { t: 'admin-op', ok: true, message: 'CLI 1 → 2' });
+    expect(bc.send.mock.calls[1][1]).toMatchObject({ t: 'health' });
+  });
+
+  it('idle restart awaits the script and re-emits health', async () => {
+    await handle(ws, { t: 'admin-deck-restart', mode: 'idle' } as ClientMsg);
+    expect(deck.restartDeck).toHaveBeenCalledWith('idle');
+    expect(bc.send).toHaveBeenCalledWith(ws, { t: 'admin-op', ok: true, message: 'agendado' });
+    expect(bc.send.mock.calls[1][1]).toMatchObject({ t: 'health' });
+  });
+
+  it('restart now answers BEFORE killing itself, and only then runs the script', async () => {
+    vi.useFakeTimers();
+    try {
+      await handle(ws, { t: 'admin-deck-restart', mode: 'now' } as ClientMsg);
+      expect(bc.send).toHaveBeenCalledWith(ws, { t: 'admin-op', ok: true, message: 'reiniciando agora — o Deck volta em alguns segundos' });
+      expect(deck.restartDeck).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(300);
+      expect(deck.restartDeck).toHaveBeenCalledWith('now');
+    } finally { vi.useRealTimers(); }
   });
 });
 

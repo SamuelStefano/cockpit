@@ -21,6 +21,7 @@ import { hideSession, unhideSession, purgeSession, setTitle, setNote } from '../
 import { parseSession, parseFullSession } from '../sessions/parse';
 import { collectHealth } from '../health';
 import { setEnv, unsetEnv, addMcp, removeMcp, installCli } from '../admin-ops';
+import { updateClaudeCli, restartDeck } from '../deck-ops';
 import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
 import { detach } from './detach';
@@ -412,6 +413,33 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
         return;
       }
       const r = await installCli(msg.name);
+      send(ws, { t: 'admin-op', ok: r.ok, message: r.message });
+      send(ws, { t: 'health', health: await collectHealth() });
+      return;
+    }
+    case 'admin-cli-update': {
+      if (!CONFIG.localOnly) {
+        send(ws, { t: 'admin-op', ok: false, message: 'atualização do CLI só no loopback' });
+        return;
+      }
+      const r = await updateClaudeCli();
+      send(ws, { t: 'admin-op', ok: r.ok, message: r.message });
+      send(ws, { t: 'health', health: await collectHealth() });
+      return;
+    }
+    case 'admin-deck-restart': {
+      if (!CONFIG.localOnly) {
+        send(ws, { t: 'admin-op', ok: false, message: 'restart do Deck só no loopback' });
+        return;
+      }
+      if (msg.mode === 'now') {
+        // O restart mata ESTE processo: responde antes, e dá um ciclo pro frame
+        // sair pela rede — senão a UI só vê o socket cair, sem saber por quê.
+        send(ws, { t: 'admin-op', ok: true, message: 'reiniciando agora — o Deck volta em alguns segundos' });
+        setTimeout(() => { restartDeck('now').catch(() => {}); }, 300);
+        return;
+      }
+      const r = await restartDeck('idle');
       send(ws, { t: 'admin-op', ok: r.ok, message: r.message });
       send(ws, { t: 'health', health: await collectHealth() });
       return;

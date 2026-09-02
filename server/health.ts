@@ -7,6 +7,7 @@ import type { AdminHealth, CliInfo, McpInfo, PluginInfo } from '../shared/protoc
 import { CONFIG } from './config';
 import { collect } from './stats';
 import { managedEnv, INSTALLABLE } from './admin-ops';
+import { claudeCliInfo, deckInfo } from './deck-ops';
 
 const run = promisify(execFile);
 
@@ -90,7 +91,7 @@ async function sshKeys(): Promise<number> {
 }
 
 export async function collectHealth(): Promise<AdminHealth> {
-  const [claudeAuth, mcpRaw, sshConfig, pluginsRaw, ssh, cli, tmux, sessions, memories, skills, sys, managed] = await Promise.all([
+  const [claudeAuth, mcpRaw, sshConfig, pluginsRaw, ssh, cli, tmux, sessions, memories, skills, sys, managed, claudeCli, deck] = await Promise.all([
     exists(join(homedir(), '.claude', '.credentials.json')),
     readFile(join(homedir(), '.claude.json'), 'utf8').catch(() => ''),
     readFile(join(homedir(), '.ssh', 'config'), 'utf8').catch(() => ''),
@@ -103,6 +104,8 @@ export async function collectHealth(): Promise<AdminHealth> {
     countDir(CONFIG.skillsDir, () => true),
     collect(),
     managedEnv(),
+    claudeCliInfo(),
+    deckInfo(),
   ]);
   const mcp = mcpInfoFrom(mcpRaw);
   // Nomes de token gerenciados (~/.deck-agent/env.json) entram na lista junto aos
@@ -129,5 +132,7 @@ export async function collectHealth(): Promise<AdminHealth> {
     port: CONFIG.port,
     permissionMode: CONFIG.permissionMode,
     disk: sys.disk,
+    claudeCli,
+    deck,
   };
 }
