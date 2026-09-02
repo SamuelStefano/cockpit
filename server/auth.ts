@@ -1,26 +1,14 @@
-// Seam de identidade (DR-011, Fase 1). Hoje o app é single-user em loopback: o
-// único ator que alcança 127.0.0.1:7777 É o dono, então currentRole() devolve
-// 'admin' constante. NÃO há contas/token ainda — o squad cravou que construir
-// multi-tenant agora é prematuro (zero segundo ator) E insuficiente (student só
-// roda com seguro num host isolado, fora desta box com prod). Esta função é o
-// gancho da Fase 2: quando houver token no handshake do WS, o role passa a sair
-// do token (por conexão), sem reescrever o engine — o gate de bypass já consulta
-// o role aqui.
+// Papel do ENGINE (authz de mensagens dentro de um processo). Distinto do papel
+// de CONTA do relay (shared/identity.ts: root/admin/fellow, derivado do JWT).
+//
+// Quem fixa o papel é o TRANSPORTE, nunca um token por-usuário aqui:
+// - modo listen (server/ws.ts, loopback :7777): sempre 'admin'. O único ator que
+//   alcança a porta é o dono da box; COCKPIT_TOKEN é um gate de entrada (tokenAllowed),
+//   não uma identidade — todo token que passa é o mesmo token.
+// - modo dial (server/agent.ts, relay T3): DECK_AGENT_ROLE, um processo por conta.
+// Uma segunda conta entra pelo relay (um agente por conta), não por um mapa
+// token→papel no listen — o isolamento é o processo/HOME, não a allowlist.
 export type Role = 'admin' | 'student';
-
-export function currentRole(): Role {
-  return 'admin';
-}
-
-// Deriva o papel da conexão a partir do token do handshake (DR-011 Fase 2 /
-// DR-014). Single-account hoje: o token configurado é do dono → 'admin'; qualquer
-// outra coisa → 'student' (sem capabilities perigosas). É o seam pra um mapa
-// token→role no futuro, sem reescrever o roteador. O compare em si NÃO é o gate
-// de auth (esse já rodou em tempo constante no upgrade do WS via tokenAllowed);
-// aqui é só atribuição de papel pós-autenticação.
-export function roleFromToken(expected: string, got: string | null): Role {
-  return expected !== '' && got === expected ? 'admin' : 'student';
-}
 
 // Capabilities anunciadas pra conexão no connect. canBypass espelha o gate do
 // engine (bypassAllowed): só true com flag de servidor + admin + deploy
