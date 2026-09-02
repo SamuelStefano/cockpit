@@ -148,7 +148,7 @@ export function CockpitApp() {
         onShowHelp={() => setHelp(true)}
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
-      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} quotaWarn={quotaGate.warn} quotaPaused={quotaGate.paused} quotaResetsAt={quotaGate.resetsAt} onNew={handleNew} isAdmin={isAdmin} routeMenuOpen={routeMenu} setRouteMenuOpen={setRouteMenu} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} />
+      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} quotaWarn={quotaGate.warn} quotaPaused={quotaGate.paused} quotaResetsAt={quotaGate.resetsAt} onNew={handleNew} isAdmin={isAdmin} routeMenuOpen={routeMenu} setRouteMenuOpen={setRouteMenu} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} onChangePassword={SUPABASE_ENABLED ? sbAuth.changePassword : undefined} />
 
       <OfflineNotice show={showOffline} />
 

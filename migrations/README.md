@@ -15,6 +15,7 @@ dashboard (Samuel é o único com acesso ao projeto).
 | `0001_init.sql` | Tabelas `account`, `agent`, `pairing_code`; RLS + policies; trigger de auto-provisionamento no signup; `guard_privileged_columns` (bloqueia `is_admin`/`used_at`/`revoked_at` fora do caminho service-role). |
 | `0002_profile.sql` | Perfil (`display_name`, `avatar_url`, `ai_avatar`) na `account` + policy de self-update. Aditivo. |
 | `0003_session_prefs.sql` | `pinned_sessions` e `session_tags` na `account`. Aditivo. |
+| `0004_account_prefs.sql` | `prefs jsonb` na `account` (modo, modelo, esforço, toggles de UI), com teto de 16 KB e checagem de objeto. Aditivo. **Ainda não aplicado.** |
 
 Todo arquivo é idempotente (`if not exists` / `create or replace` / `drop trigger
 if exists`), então rerodar é seguro — é assim que se confere o estado, já que não
@@ -26,7 +27,7 @@ Conferir se está tudo aplicado:
 select column_name from information_schema.columns
  where table_schema = 'public' and table_name = 'account';
 -- 0001: id, email, is_admin, created_at   0002: display_name, avatar_url, ai_avatar
--- 0003: pinned_sessions, session_tags
+-- 0003: pinned_sessions, session_tags   0004: prefs
 ```
 
 Migration nova: numerar em sequência, manter aditiva (o relay em produção fala com
