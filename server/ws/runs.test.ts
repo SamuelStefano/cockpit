@@ -370,6 +370,17 @@ describe('fila estacionada — teto de tokens', () => {
     expect(vi.mocked(run).mock.calls[0][0].prompt).toBe('roda isso');
   });
 
+  // Bug do Samuel: o item drenava e rodava, mas a fila não sumia da tela de quem não
+  // está na sessão — o drainer tirava do disco sem avisar os clientes. O 'started' do
+  // turno não mexe na lista de fila, então o broadcast do snapshot é o único sinal.
+  it('avisa os clientes que a fila mudou ao drenar um item', () => {
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's1', first: item() }]);
+    vi.mocked(shiftParked).mockReturnValue(item());
+    drainParked();
+    const queueMsgs = vi.mocked(broadcast).mock.calls.map((c) => c[0]).filter((m: any) => m.t === 'queue');
+    expect(queueMsgs.length).toBeGreaterThan(0);
+  });
+
   it('devolve pro topo da fila o item cujo turno morreu no limite', () => {
     const it0 = item();
     vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's2', first: it0 }]);

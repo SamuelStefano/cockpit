@@ -104,7 +104,11 @@ export function drainParked(): void {
     // pra fila se o teto de tokens matar o turno.
     const th = threads.get(sessionKey);
     if (th) th.parked = item;
-    else { unshiftParked(sessionKey, item); broadcastQueue(); }
+    else unshiftParked(sessionKey, item);
+    // O item saiu (ou voltou) do parked.json: sem este broadcast a fila drenada some
+    // do disco mas continua na tela de quem não está na sessão — o drainer roda com
+    // ws null e o 'started' do turno não mexe na lista de fila do cliente.
+    broadcastQueue();
   }
 }
 
