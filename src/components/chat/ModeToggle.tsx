@@ -11,7 +11,7 @@ export function ModeToggle({ mode, setMode }: { mode: PermMode; setMode: (m: Per
   const opts: { v: PermMode; label: string; hint: string }[] = [
     { v: 'plan', label: 'Planejar', hint: 'só descreve o plano — nada é executado' },
     { v: 'acceptEdits', label: 'Executar', hint: 'o agente edita arquivos e roda comandos' },
-    { v: 'auto', label: 'Auto', hint: 'edita e lê arquivos sozinho — sem rodar comandos no shell' },
+    { v: 'auto', label: 'Auto', hint: 'roda o ciclo sozinho — edita arquivos e usa o shell' },
   ];
   return (
     <div className="inline-flex shrink-0 items-center rounded-lg border border-neutral-800 bg-neutral-950 p-0.5">

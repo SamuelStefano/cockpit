@@ -1,15 +1,5 @@
 import type { Effort } from '../../../shared/protocol';
-
-// Nível de pensamento (--effort) por sessão, igual ao seletor dos chats do Claude.
-// Default 'low': sem effort explícito o CLI usa o default da conta (alto), que queima
-// thinking tokens até num pedido simples — o maior driver de gasto do Deck.
-const LEVELS: { id: Effort; label: string; hint: string }[] = [
-  { id: 'low', label: 'Baixo', hint: 'pensa pouco — mais barato e rápido' },
-  { id: 'medium', label: 'Médio', hint: 'equilíbrio entre custo e raciocínio' },
-  { id: 'high', label: 'Alto', hint: 'pensa bastante — tarefas difíceis' },
-  { id: 'xhigh', label: 'Muito alto', hint: 'raciocínio estendido — caro' },
-  { id: 'max', label: 'Máximo', hint: 'pensamento máximo — mais caro' },
-];
+import { EFFORT_LEVELS } from './effort-levels';
 
 export function EffortPicker({ effort, setEffort }: {
   effort: Effort; setEffort: (e: Effort) => void;
@@ -24,7 +14,7 @@ export function EffortPicker({ effort, setEffort }: {
         onChange={(e) => setEffort(e.target.value as Effort)}
         className={sel}
       >
-        {LEVELS.map((l) => <option key={l.id} value={l.id} title={l.hint}>{l.label}</option>)}
+        {EFFORT_LEVELS.map((l) => <option key={l.id} value={l.id} title={l.hint}>{l.label}</option>)}
       </select>
     </label>
   );

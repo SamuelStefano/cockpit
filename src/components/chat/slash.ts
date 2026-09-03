@@ -10,7 +10,7 @@ export const SLASH_HINTS: Record<string, string> = {
   'model sonnet': 'troca esta sessão pro Sonnet',
   'model haiku': 'troca esta sessão pro Haiku',
   plan: 'modo planejar — só descreve, não executa',
-  auto: 'modo auto — edita/lê arquivos, sem shell',
+  auto: 'modo auto — roda o ciclo sozinho, com shell',
   execute: 'modo executar — edita e roda comandos',
   attcontext: 'salva o contexto desta sessão na memória',
   importgpt: 'importa contextos do export do ChatGPT (anexe conversations.json)',
@@ -64,7 +64,7 @@ export function classifySlash(raw: string): SlashAction {
   if (cmd === 'auto') return { kind: 'mode', mode: 'auto' };
   if (cmd === 'execute') return { kind: 'mode', mode: 'acceptEdits' };
   // Comandos que expandem num prompt elaborado e rodam em modo 'auto' (lê/grava
-  // arquivos de memória, sem shell). O onSend recebe modeOverride='auto'.
+  // arquivos de memória sozinho). O onSend recebe modeOverride='auto'.
   if (cmd === 'attcontext') return { kind: 'prompt', text: ATTCONTEXT_PROMPT, mode: 'auto' };
   if (cmd === 'importgpt') return { kind: 'prompt', text: IMPORTGPT_PROMPT, mode: 'auto' };
   return null;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PermMode } from '../../../shared/protocol';
 import { classifySlash } from './slash';
 import { nextRecall } from './recall';
@@ -37,7 +37,12 @@ export function useChatInput(args: UseChatInputArgs) {
   const { disabled, onSend, onStop, value, setValue, setMode, setModel, slashCommands, hasAtt, attUploading, onUpload, focusSignal, onQueue, history, pendingConfirm, onNew, onShowHelp, paused } = args;
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Input separado do fileRef só pra `capture`: o mesmo input não pode oferecer
+  // "escolher arquivo" e "abrir a câmera" ao mesmo tempo.
+  const cameraRef = useRef<HTMLInputElement>(null);
   const touch = useMemo(isVirtualKeyboardOnly, []);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
   // Ditado por voz escreve direto no composer (value/setValue). Mora aqui pra o
   // textarea poder ficar readOnly enquanto grava (não dá pra digitar e ditar ao
   // mesmo tempo: o próximo trecho reconhecido sobrescreveria o que foi digitado).
@@ -107,8 +112,8 @@ export function useChatInput(args: UseChatInputArgs) {
       case 'new': onNew(); break;
       case 'model': setModel(a.model); break;
       case 'mode': setMode(a.mode); break;
-      // Expande num prompt pronto e envia ao Claude (modo 'auto': lê/grava memória,
-      // sem shell). Ocupado entra na fila; livre vai direto com o modeOverride.
+      // Expande num prompt pronto e envia ao Claude (modo 'auto': lê/grava memória).
+      // Ocupado entra na fila; livre vai direto com o modeOverride.
       case 'prompt':
         if (disabled || paused) onQueue(a.text);
         else onSend(a.text, a.mode);
@@ -198,5 +203,5 @@ export function useChatInput(args: UseChatInputArgs) {
     if (histIdx !== null) setHistIdx(null); // digitar sai do modo recall
     fitHeight(e.target);
   };
-  return { taRef, fileRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, ...dnd, mic, ghost, ghostShown, acceptGhost, touch };
+  return { taRef, fileRef, cameraRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, ...dnd, mic, ghost, ghostShown, acceptGhost, touch, settingsOpen, openSettings: () => setSettingsOpen(true), closeSettings };
 }

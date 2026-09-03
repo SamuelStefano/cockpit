@@ -123,7 +123,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
         queued={c.queued} queuedAtts={c.queuedAtts} queuedModels={c.queuedModels} onRunQueuedBg={c.runQueuedInBgAt} onRunQueuedNow={c.runQueuedNowAt} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onEditQueuedAt={c.editQueuedAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
         queuePaused={queuePaused} onToggleQueuePause={() => queueSetPaused(!queuePaused)}
         queueHeld={c.queueHeld} onResumeQueue={c.resumeQueue}
-        paused={quotaPaused} quotaResetsAt={quotaResetsAt} />
+        paused={quotaPaused} quotaResetsAt={quotaResetsAt} keyboardOpen={keyboardOpen} />
 
       {attPreview && onAttClose && <AttachmentModal att={attPreview} onClose={onAttClose} />}
     </div>
