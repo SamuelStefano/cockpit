@@ -8,6 +8,12 @@ Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/cockpit
 EnvironmentFile=/home/ubuntu/cockpit/.env.monitor
+# ProtectHome=read-only (abaixo) monta a home sem permissão de escrita, e o `npx` do
+# ExecStart precisa gravar no cache do npm antes de resolver o tsx — sem isto o
+# serviço não sobe NUNCA numa instalação limpa: crashloop em EROFS no _cacache.
+# Apontar o cache para dentro do único caminho gravável (ReadWritePaths, abaixo)
+# resolve sem afrouxar o sandbox.
+Environment=NPM_CONFIG_CACHE=/home/ubuntu/.deck-monitor/.npm-cache
 ExecStart=/usr/bin/env npx tsx monitor/main.ts
 Restart=always
 RestartSec=5
