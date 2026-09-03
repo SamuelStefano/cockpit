@@ -113,6 +113,10 @@ export async function collectHealth(): Promise<AdminHealth> {
   const envTokens = Array.from(new Set([...tokenEnvNames(process.env), ...Object.keys(managed)])).sort();
   return {
     claudeAuth,
+    // Só o fato (há token?), nunca o valor. Sem isto, um COCKPIT_TOKEN que não chegou
+    // ao processo (linha sem `export` no ~/.cockpit-local.env) deixava o gate do WS
+    // desligado em silêncio — o painel dizia tudo verde.
+    wsAuth: CONFIG.authToken !== '',
     mcpServers: mcp.map((m) => m.name),
     mcp,
     sshKeys: ssh,

@@ -349,6 +349,8 @@ export interface DeckInfo { bootCommit: string; headCommit: string; inFlight: nu
 
 export interface AdminHealth {
   claudeAuth: boolean;         // ~/.claude/.credentials.json existe?
+  wsAuth: boolean;             // COCKPIT_TOKEN configurado? false = WS aberto a quem alcançar a porta
+
   mcpServers: string[];        // nomes dos MCP configurados (chaves, sem segredo)
   mcp: McpInfo[];              // MCP com transporte (stdio/sse/http), sem segredo
   sshKeys: number;             // chaves privadas em ~/.ssh
