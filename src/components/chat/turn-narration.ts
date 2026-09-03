@@ -26,12 +26,12 @@ export function collapseTurnNarration(messages: ShownMessage[], on: boolean): Sh
   const pull = new Map<number, Set<number>>();
 
   for (const [start, end] of turnRanges(messages)) {
-    // Turno em voo nunca colapsa: a caixa nasceria no meio da leitura e o texto
-    // sumiria debaixo dela. Concluído = a bolha do fim recebeu as stats do
-    // `result`. Posição não serve como prova: dá pra enfileirar um prompt novo com
-    // o turno rodando, e aí a bolha viva deixa de ser a última da thread.
-    if (!settled(messages[end - 1])) continue;
     // O último texto do turno é a resposta; do resto, só o que parece bastidor.
+    // Inclui o turno EM VOO: o slice(0, -1) sempre deixa o bloco que está streamando
+    // solto, então a caixa nunca engole o texto que está sendo lido AGORA — só o
+    // bastidor já concluído (linhas antes de uma ferramenta) some pra dentro dela.
+    // Sem isto, um turno agêntico longo floodava o chat de "agora vou abrir a PR"
+    // até terminar, furando o "chat limpo" que o toggle promete.
     const notes = textHits(messages, start, end).slice(0, -1).filter((h) => isNarration(h.md));
     if (notes.length < MIN_NOTES) continue;
     cards.set(notes[0].mi, notes.map(noteOf));
@@ -60,10 +60,6 @@ export function collapseTurnNarration(messages: ShownMessage[], on: boolean): Sh
 }
 
 interface Hit { mi: number; bi: number; md: string; id: string; ts?: number }
-
-function settled(last: ShownMessage | undefined): boolean {
-  return !!last && last.role === 'assistant' && !!last.stats;
-}
 
 // Prompt do usuário e wakeup do /loop abrem turno novo; a bolha que recebeu as
 // stats do `result` FECHA o turno. Sem esse fecho a sessão de /loop viraria um

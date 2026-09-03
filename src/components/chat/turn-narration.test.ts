@@ -29,27 +29,30 @@ describe('collapseTurnNarration', () => {
     expect(out[2].role === 'assistant' && out[2].blocks).toEqual([text('pronto')]);
   });
 
-  it('não colapsa o turno em voo — nada de puxar texto debaixo da leitura', () => {
-    const msgs = [
+  it('colapsa o bastidor do turno EM VOO, deixando solto só o bloco que streama', () => {
+    // O flood do chat em turno agêntico longo: as linhas de bastidor já concluídas
+    // vão pra caixa na hora; o último bloco (o que está streamando) fica solto, então
+    // a caixa nunca engole o texto que está sendo lido agora.
+    const out = collapseTurnNarration([
       user('u1'),
       mid('a1', [text('vou abrir a PR')]),
       mid('a2', [text('lendo o README')]),
       mid('a3', [text('agora rodando os testes')]),
-    ];
-    expect(collapseTurnNarration(msgs, true)).toBe(msgs);
+    ], true);
+    expect(out.map((m) => m.id)).toEqual(['u1', 'notes:a1', 'a3']);
+    expect(out[1].narration?.map((n) => n.md)).toEqual(['vou abrir a PR', 'lendo o README']);
+    expect(out[2].role === 'assistant' && out[2].blocks).toEqual([text('agora rodando os testes')]);
   });
 
-  it('turno em voo com prompt já enfileirado continua em voo', () => {
-    // Dá pra mandar prompt novo com o turno rodando: a bolha viva deixa de ser a
-    // última da thread, mas segue sem stats — posição não prova conclusão.
-    const msgs = [
+  it('turno em voo com prompt já enfileirado também colapsa o bastidor', () => {
+    const out = collapseTurnNarration([
       user('u1'),
       mid('a1', [text('vou abrir a PR')]),
       mid('a2', [text('lendo o README')]),
       mid('a3', [text('agora rodando os testes')]),
       user('u2'),
-    ];
-    expect(collapseTurnNarration(msgs, true)).toBe(msgs);
+    ], true);
+    expect(out.map((m) => m.id)).toEqual(['u1', 'notes:a1', 'a3', 'u2']);
   });
 
   it('uma nota só continua inline', () => {
