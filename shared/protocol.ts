@@ -722,8 +722,11 @@ export type ServerMsg =
   // bolha do usuário p/ anexar o selo; quick-answer chega à parte quando answer.
   | { t: 'triage'; sessionKey: string; msgId?: string; action: TriageAction; reason: string }
   | { t: 'quick-answer'; sessionKey: string; id: string; text: string; ts: number }
-  | { t: 'started'; sessionKey: string }
-  | { t: 'replay'; sessionKey: string; text: string; thinking: string; tools: ToolCall[]; startedAt?: number; sessionId?: string }
+  // model = modelo PEDIDO no turno (alias/id); carimba a bolha na hora pra o label
+  // não cair no seletor vivo e mudar retroativamente ao trocar de modelo. O 'done'
+  // refina pro modelo EFETIVO (revela fallback silencioso, se houver).
+  | { t: 'started'; sessionKey: string; model?: string }
+  | { t: 'replay'; sessionKey: string; text: string; thinking: string; tools: ToolCall[]; startedAt?: number; sessionId?: string; model?: string }
   | { t: 'system'; sessionKey: string; sessionId: string }
   | { t: 'slash-commands'; items: string[] }
   | { t: 'delta'; sessionKey: string; text: string }

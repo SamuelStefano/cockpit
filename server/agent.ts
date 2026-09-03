@@ -111,7 +111,7 @@ function reemitBootstrap(ws: WebSocket): void {
     // Reconecta no meio de um turno: replaya o snapshot acumulado pra reconstruir o
     // turno em voo (o serveConnection só replaya no agent-ready).
     for (const [key, thread] of threads) {
-      s({ t: 'replay', sessionKey: key, text: thread.text, thinking: thread.thinking, tools: thread.tools, startedAt: thread.startedAt, sessionId: thread.sessionId });
+      s({ t: 'replay', sessionKey: key, text: thread.text, thinking: thread.thinking, tools: thread.tools, startedAt: thread.startedAt, sessionId: thread.sessionId, model: thread.model });
     }
   } catch { /* socket indo embora */ }
 }

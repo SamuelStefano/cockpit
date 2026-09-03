@@ -212,8 +212,8 @@ describe('buildArgs', () => {
     }
   });
 
-  it('sempre passa --fallback-model', () => {
-    expect(argsOf({ prompt: 'x', model: 'claude-opus-4-8' })).toContain('--fallback-model');
+  it('não passa --fallback-model por padrão (fallbackModel vazio = sem downgrade silencioso)', () => {
+    expect(argsOf({ prompt: 'x', model: 'claude-opus-4-8' })).not.toContain('--fallback-model');
   });
 
   it('allow-lists effort, dropping unknown levels', () => {

@@ -17,7 +17,7 @@ export function sendDurableSnapshot(ws: WebSocket) {
   // quando TODOS os browsers sumiram) — sem replay aqui o turno fica mudo e o
   // sessionId se perde (próximo envio viraria conversa nova no claude).
   for (const [key, thread] of threads) {
-    send(ws, { t: 'replay', sessionKey: key, text: thread.text, thinking: thread.thinking, tools: thread.tools, startedAt: thread.startedAt, sessionId: thread.sessionId });
+    send(ws, { t: 'replay', sessionKey: key, text: thread.text, thinking: thread.thinking, tools: thread.tools, startedAt: thread.startedAt, sessionId: thread.sessionId, model: thread.model });
   }
   const rate = getLastRate();
   if (rate) send(ws, { t: 'rate', ...rate });

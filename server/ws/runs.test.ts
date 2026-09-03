@@ -74,6 +74,15 @@ describe('startRun — latch de pergunta pendente (AskUserQuestion)', () => {
     startRun({ ws, sessionKey: 's3', prompt: 'fila normal', auto: true });
     expect(run).toHaveBeenCalledOnce();
   });
+
+  // Bug do label retroativo: a bolha em voo nascia sem modelo e o label caía no
+  // seletor vivo, mudando as bolhas antigas ao trocar de modelo. O 'started' passa
+  // a carregar o modelo pedido pra o cliente carimbar a bolha desde o início.
+  it('carimba o modelo pedido no frame started', () => {
+    startRun({ ws, sessionKey: 's4', prompt: 'oi', model: 'claude-opus-4-8' });
+    const started = vi.mocked(broadcast).mock.calls.map((c) => c[0]).find((m: any) => m.t === 'started' && m.sessionKey === 's4') as any;
+    expect(started?.model).toBe('claude-opus-4-8');
+  });
 });
 
 // O coalesce junta prompts CONSECUTIVOS da fila in-turn num único --resume, e só
