@@ -166,6 +166,18 @@ export interface SkillMeta {
   mtime: number;
 }
 
+// Referência de um drop privado (server/drop.ts). É o ÚNICO retorno do drop-put:
+// prova que o arquivo existe e casa (sha256), sem carregar o conteúdo — que não
+// pode entrar no estado do cliente nem no transcript.
+export interface DropRef {
+  slug: string;
+  path: string;
+  bytes: number;
+  sha256: string;
+  mtime: number;
+  expiresAt?: number;
+}
+
 // Uso/tokens por sessão (time-series agregada do SQLite) — observatório.
 export interface SessionUsage {
   sessionId: string;
@@ -554,6 +566,14 @@ export type ClientMsg =
   | { t: 'ctx-open'; id: string }
   | { t: 'notes-get' }
   | { t: 'notes-save'; text: string }
+  // Drop privado (admin-only, fora do STUDENT_ALLOWED): entrega segredo/script à
+  // box do agente sem passar pelo chat. `drop-put` responde SÓ a referência — o
+  // conteúdo nunca volta, senão ele entraria no estado do cliente e derrotaria o
+  // propósito. `drop-open` é o último recurso, explícito.
+  | { t: 'drop-put'; slug: string; content: string; ttlMs?: number }
+  | { t: 'drop-list' }
+  | { t: 'drop-open'; slug: string }
+  | { t: 'drop-rm'; slug: string }
   | { t: 'points-get' }
   | { t: 'points-add'; title: string; points: number; description?: string }
   | { t: 'points-correct'; entryId: string; points: number }
@@ -661,6 +681,10 @@ export type ServerMsg =
   | { t: 'session-summary'; sessionId: string; summary: string }
   | { t: 'contexts'; items: ContextMeta[] }
   | { t: 'notes'; text: string }
+  // `content` preenchido SÓ em resposta a drop-open. No put a referência viaja
+  // sozinha (caminho/bytes/sha256) — o segredo não volta pro cliente.
+  | { t: 'drop'; ref: DropRef; content?: string }
+  | { t: 'drops'; items: DropRef[] }
   | { t: 'points'; entries: PointsEntry[]; total: number }
   // snapshot = null quando o sync ainda não rodou (nada em ~/.cockpit/dfl-points.json).
   | { t: 'points-dfl'; snapshot: DflPointsSnapshot | null }

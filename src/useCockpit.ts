@@ -15,6 +15,7 @@ import { liveTokens } from './cockpit/live-tokens';
 import { insertCompact } from './cockpit/insert-compact';
 import { useTerminals, type TermApi } from './cockpit/useTerminals';
 import { useNotes, type Notes } from './cockpit/useNotes';
+import { useDrops, type Drops } from './cockpit/useDrops';
 import { useCrons, type Crons } from './cockpit/useCrons';
 import { usePoints, type Points } from './cockpit/usePoints';
 import { useContexts, type Contexts } from './cockpit/useContexts';
@@ -50,7 +51,7 @@ const HEARTBEAT_STALE_MS = 40_000;
 
 // A superfície pública dos domínios-folha é a dos próprios hooks, menos os canais
 // internos: `onMsg` (dispatch) e `onGraphReconnect` (gancho do socket).
-type LeafApis = Omit<Notes & Crons & Points & Contexts & Skills & Graphs & Admin & Harness, 'onMsg' | 'onGraphReconnect'>;
+type LeafApis = Omit<Notes & Drops & Crons & Points & Contexts & Skills & Graphs & Admin & Harness, 'onMsg' | 'onGraphReconnect'>;
 
 export interface Cockpit extends LeafApis {
   sessions: Session[];
@@ -308,6 +309,7 @@ export function useCockpit(): Cockpit {
   // Nada aqui toca sessão/turno, então cada um vive num hook e o switch abaixo só
   // repassa o frame — `onMsg` devolve true quando reivindicou o tipo.
   const notesApi = useNotes(send);
+  const dropsApi = useDrops(send);
   const cronsApi = useCrons(send);
   const pointsApi = usePoints(send);
   const contextsApi = useContexts(send);
@@ -318,7 +320,7 @@ export function useCockpit(): Cockpit {
   // O onServer é um callback estável (o socket guarda a 1ª referência); ler os
   // handlers por ref evita recriá-lo — e reabrir o WS — a cada render.
   const leafHandlers = useRef<((m: ServerMsg) => boolean)[]>([]);
-  leafHandlers.current = [notesApi.onMsg, cronsApi.onMsg, pointsApi.onMsg, contextsApi.onMsg, skillsApi.onMsg, graphsApi.onMsg, adminApi.onMsg, harnessApi.onMsg];
+  leafHandlers.current = [notesApi.onMsg, dropsApi.onMsg, cronsApi.onMsg, pointsApi.onMsg, contextsApi.onMsg, skillsApi.onMsg, graphsApi.onMsg, adminApi.onMsg, harnessApi.onMsg];
   // Três domínios-folha também entram na reconciliação de reconnect. Referências
   // estáveis (useCallback sobre `send`), então não recriam o `reconcile`.
   const { onUsageList } = adminApi;
@@ -1641,5 +1643,5 @@ export function useCockpit(): Cockpit {
     savePref('modelBySession', keep);
   }, [modelBySession]);
 
-  return { ...notesApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
+  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
 }

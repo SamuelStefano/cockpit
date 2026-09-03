@@ -6,6 +6,7 @@ import { searchSessions } from '../sessions/search';
 import { listContexts, readContext, installContext } from '../contexts';
 import { handoffSession } from '../handoff';
 import { getNotes, saveNotes } from '../notes';
+import { putDrop, listDrops, openDrop, removeDrop } from '../drop';
 import { readPoints, createEntry, correctPoints, noteEntry, deleteEntry } from '../points';
 import { readDflSnapshot } from '../dfl-points';
 import { registerFinanceClient } from './finance-clients';
@@ -214,6 +215,34 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'notes-save': {
       await saveNotes(msg.text);
+      return;
+    }
+    // Drop privado (admin-only pelo authorize). A resposta do put é a REFERÊNCIA,
+    // nunca o conteúdo: ecoar o segredo de volta o colocaria no estado do cliente
+    // e o traria pro transcript pela porta dos fundos. Unicast (send), sem
+    // broadcast — segredo não faz fan-out cego pros outros aparelhos.
+    case 'drop-put': {
+      const r = await putDrop(msg.slug, msg.content, msg.ttlMs);
+      if ('error' in r) { send(ws, { t: 'error', message: r.error }); return; }
+      send(ws, { t: 'drop', ref: r });
+      send(ws, { t: 'drops', items: await listDrops() });
+      return;
+    }
+    case 'drop-list': {
+      send(ws, { t: 'drops', items: await listDrops() });
+      return;
+    }
+    // Último recurso: só aqui o conteúdo volta, e só porque foi pedido de propósito.
+    case 'drop-open': {
+      const r = await openDrop(msg.slug);
+      if ('error' in r) { send(ws, { t: 'error', message: r.error }); return; }
+      send(ws, { t: 'drop', ref: r.ref, content: r.content });
+      return;
+    }
+    case 'drop-rm': {
+      const r = await removeDrop(msg.slug);
+      if ('error' in r) { send(ws, { t: 'error', message: r.error }); return; }
+      send(ws, { t: 'drops', items: await listDrops() });
       return;
     }
     case 'points-get': {
