@@ -181,11 +181,15 @@ modo listen — o listen é o dono da box, sempre `admin`.
 2. Relay em produção atualizado com a main (deploy manual, `relay/deploy/README.md`).
 3. Decidir quem vira `admin` de conta: `accounts-list` devolve o e-mail de TODAS as contas pra
    qualquer `admin`, não só root (`relay/src/store.ts`).
-4. **Ligar "Confirm email" no Supabase `deck-relay`.** `roleFromIdentity` (`shared/identity.ts`)
-   agora exige `email_verified` pra conceder root ou admin, lendo o claim de topo ou o
-   `user_metadata` (`emailVerified` em `relay/src/verify.ts`). É fail-closed: num projeto sem
-   confirmação de e-mail **ninguém** vira root nem admin — inclusive o dono. Se o painel de contas
-   sumir depois de um deploy, é este gate falando, e a correção é no Supabase, não no código.
+4. **Ligar "Confirm email" no Supabase `deck-relay` — e isto é o que protege, não o código.**
+   `roleFromIdentity` (`shared/identity.ts`) exige `email_verified` pra conceder root ou admin,
+   lendo o claim de topo ou o `user_metadata` (`emailVerified` em `relay/src/verify.ts`). **Mas o
+   GoTrue com autoconfirm (Confirm email OFF) já cria a conta confirmada**, então o claim vem
+   `true` e o gate deixa passar. Ou seja: com a confirmação desligada, quem souber um e-mail da
+   allowlist `COCKPIT_ROOT_EMAILS` ainda se cadastra com ele e vira root. A checagem no código é
+   defesa em profundidade — cobre o caso "sessão existe sem e-mail confirmado" e impede o relay de
+   confiar cegamente no claim —, **não substitui ligar a confirmação no projeto**. Enquanto o
+   cadastro for aberto e a confirmação estiver off, `COCKPIT_ROOT_EMAILS` é um segredo.
 5. SMTP próprio no `deck-relay` e `<origem>/?reset=1` na lista de Redirect URLs. O app já tem
    "esqueci a senha", mas o SMTP embutido do Supabase só manda pra membros do projeto e com teto
    de poucos e-mails por hora — sem SMTP, o fellow que esquecer a senha continua trancado fora.
