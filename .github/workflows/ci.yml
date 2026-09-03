@@ -23,9 +23,12 @@ jobs:
       - run: npm ci
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
-      # `build` = tsc dos 3 projetos (web, server, relay) + vite build.
+      # `build` = tsc dos 4 projetos (web, server, relay, monitor) + vite build.
       - run: npm run build
       - run: npm test
+      # Roda DEPOIS do build de propósito: o alvo mais importante é o dist/, que é
+      # literalmente o que o navegador baixa. Motivo em scripts/scan-secrets.ts.
+      - run: npm run scan:secrets
 
   smoke:
     runs-on: ubuntu-latest

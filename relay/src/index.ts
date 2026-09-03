@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage } from 'node:http';
+import { timingSafeEqual } from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Registry } from './routing';
 import {
@@ -41,6 +42,8 @@ export interface RelayConfig {
   rootEmails: string;     // CSV (COCKPIT_ROOT_EMAILS)
   store: RelayStore;
   maxPayload?: number;
+  // Segredo do /status detalhado (DECK_STATUS_TOKEN). Ausente = só o corpo público.
+  statusToken?: string;
   // Override da resolução de identidade do browser (default: JWT via JWKS). Existe
   // só pra TESTE de integração local (stub) — em prod fica undefined = JWKS real.
   resolveIdentity?: (token: string | null) => Promise<Identity | null>;
@@ -60,6 +63,7 @@ export function createRelay(cfg: RelayConfig) {
     throw new Error('resolveIdentity é stub de teste: proibido em produção');
   }
   const registry = new Registry();
+  const startedAt = nowMs();
   const roots = parseRootEmails(cfg.rootEmails);
   const jwks: JwksFn = makeJwks(cfg.jwksUrl);
   const pairThrottle = slidingWindow(5, 60_000);
@@ -124,6 +128,25 @@ export function createRelay(cfg: RelayConfig) {
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ code }));
       } catch { res.writeHead(500); res.end('error'); }
+      return;
+    }
+    // GET /status — sonda do monitor externo. O corpo PÚBLICO é deliberadamente
+    // pobre (vivo? há quanto tempo?): contagem de contas e de agentes online é dado
+    // de negócio e fica atrás do segredo. Sem DECK_STATUS_TOKEN configurado o detalhe
+    // não existe — default-deny, não "aberto por enquanto".
+    if (req.method === 'GET' && (req.url ?? '').split('?')[0] === '/status') {
+      const auth = req.headers.authorization ?? '';
+      const detailed = auth.startsWith('Bearer ') && secretEquals(cfg.statusToken, auth.slice(7));
+      const body: Record<string, unknown> = { ok: true, uptimeSec: Math.floor((nowMs() - startedAt) / 1000) };
+      if (detailed) {
+        const s = registry.stats();
+        body.accounts = s.accounts;
+        body.agents = s.agents;
+        body.browsers = s.browsers;
+        body.rssMb = Math.round(process.memoryUsage().rss / 1048576);
+      }
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      res.end(JSON.stringify(body));
       return;
     }
     res.writeHead(426); res.end('upgrade required');
@@ -359,3 +382,13 @@ export function maybeControlFrame(s: string, ...types: string[]): boolean {
 
 // new Date()/Date.now() ficam num único ponto pra não espalhar dependência de tempo.
 function nowMs(): number { return Date.now(); }
+
+// Comparação de segredo em tempo constante. `===` em string vaza o tamanho do
+// prefixo correto pelo tempo de resposta, e o /status é público — dá pra sondar à
+// vontade. Segredo não configurado nega sempre.
+export function secretEquals(expected: string | undefined, got: string): boolean {
+  if (!expected) return false;
+  const a = Buffer.from(expected), b = Buffer.from(got);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}

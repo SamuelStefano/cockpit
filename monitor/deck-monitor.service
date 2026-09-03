@@ -1,0 +1,29 @@
+[Unit]
+Description=Deck monitor externo (sonda o /status do relay)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/cockpit
+EnvironmentFile=/home/ubuntu/cockpit/.env.monitor
+ExecStart=/usr/bin/env npx tsx monitor/main.ts
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# O vigia não pode ser a causa da próxima queda da box que ele observa.
+MemoryMax=256M
+CPUQuota=25%
+
+# Ele só precisa ler o próprio código e escrever o histórico.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/ubuntu/.deck-monitor
+
+[Install]
+WantedBy=multi-user.target
