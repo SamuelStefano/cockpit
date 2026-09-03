@@ -14,11 +14,13 @@ export type AccountRole = 'root' | 'admin' | 'fellow';
 //   (email ausente/JWT inválido) — default-deny pro menor privilégio (red line #10).
 //
 // `emailVerified` é PRÉ-REQUISITO dos papéis privilegiados. O root sai do claim
-// `email` e o cadastro é aberto: sem esta trava, quem soubesse o email da allowlist
-// se cadastrava com ele e virava root sem nunca provar posse da caixa. Vale também
-// pro admin — troca de email não confirmada herdaria a flag. Fail-closed: claim
-// ausente conta como NÃO verificado, então um projeto sem confirmação de email só
-// produz fellow (o sintoma aparece antes do estrago).
+// `email` e o cadastro é aberto: sem esta trava, uma sessão com email não confirmado
+// carregaria root só por ter o endereço certo. Vale também pro admin — troca de email
+// não confirmada herdaria a flag. Fail-closed: claim ausente conta como NÃO verificado.
+//
+// ATENÇÃO ao limite disto: com "Confirm email" DESLIGADO no projeto, o GoTrue cria a
+// conta já confirmada e o claim chega `true` — o gate deixa passar. Quem protege a
+// allowlist é a confirmação ligada no Supabase; esta função é defesa em profundidade.
 export function roleFromIdentity(
   email: string | null | undefined,
   isAdmin: boolean,
