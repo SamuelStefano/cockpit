@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generateKeyPairSync, sign as edSign } from 'node:crypto';
-import { validateClaims, verifyAgentSignature, makeChallenge } from './verify';
+import { validateClaims, verifyAgentSignature, makeChallenge, emailVerified } from './verify';
 import { parseRootEmails } from '../../shared/identity';
 
 const ISS = 'https://proj.supabase.co/auth/v1';
@@ -8,7 +8,9 @@ const NOW = 1_800_000_000;
 
 describe('validateClaims', () => {
   const roots = parseRootEmails('boss@dfl.com');
-  const base = { iss: ISS, sub: 'uid-1', email: 'alice@dfl.com', aud: 'authenticated', exp: NOW + 3600 };
+  // email_verified é pré-requisito dos papéis privilegiados (o cadastro é aberto e o
+  // root sai do claim `email`), então a base dos testes já vem verificada.
+  const base = { iss: ISS, sub: 'uid-1', email: 'alice@dfl.com', aud: 'authenticated', exp: NOW + 3600, email_verified: true };
 
   it('accepts a well-formed token and resolves the account role', () => {
     const id = validateClaims(base, { iss: ISS, nowSec: NOW, rootEmails: roots, isAdmin: false });
@@ -70,5 +72,35 @@ describe('verifyAgentSignature (Ed25519)', () => {
 
   it('makeChallenge yields distinct values', () => {
     expect(makeChallenge()).not.toBe(makeChallenge());
+  });
+});
+
+describe('emailVerified (pré-requisito de papel privilegiado)', () => {
+  const roots = parseRootEmails('boss@dfl.com');
+  const opts = { iss: ISS, nowSec: NOW, rootEmails: roots, isAdmin: true };
+  const base = { iss: ISS, sub: 'uid-1', email: 'boss@dfl.com', aud: 'authenticated', exp: NOW + 3600 };
+
+  it('lê o claim de topo e o do user_metadata (formato do Supabase)', () => {
+    expect(emailVerified({ email_verified: true })).toBe(true);
+    expect(emailVerified({ user_metadata: { email_verified: true } })).toBe(true);
+  });
+
+  it('fail-closed: ausente, string ou tipo errado contam como não verificado', () => {
+    expect(emailVerified({})).toBe(false);
+    expect(emailVerified({ email_verified: 'true' })).toBe(false);
+    expect(emailVerified({ user_metadata: null })).toBe(false);
+    expect(emailVerified({ user_metadata: { email_verified: 'yes' } })).toBe(false);
+  });
+
+  // O ataque que isto fecha: cadastro aberto + root derivado do email = quem soubesse
+  // o email da allowlist virava root sem provar posse da caixa.
+  it('sem verificação, o email da allowlist NÃO vira root (cai pra fellow)', () => {
+    expect(validateClaims(base, opts)?.role).toBe('fellow');
+    expect(validateClaims({ ...base, email_verified: true }, opts)?.role).toBe('root');
+  });
+
+  it('sem verificação, a flag is_admin também não eleva', () => {
+    expect(validateClaims({ ...base, email: 'alice@dfl.com' }, opts)?.role).toBe('fellow');
+    expect(validateClaims({ ...base, email: 'alice@dfl.com', user_metadata: { email_verified: true } }, opts)?.role).toBe('admin');
   });
 });
