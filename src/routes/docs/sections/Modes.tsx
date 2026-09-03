@@ -12,7 +12,7 @@ export function Modes() {
         </Card>
         <Card className="border-amber-500/30">
           <div className="mb-2 inline-flex rounded-md bg-amber-500/20 px-2 py-1 text-[11px] font-medium text-amber-300">Auto</div>
-          <p className="text-[13px] leading-relaxed text-neutral-400">Edita e lê arquivos sozinho, mas não roda comandos no shell. Bom meio-termo pra mexer em código.</p>
+          <p className="text-[13px] leading-relaxed text-neutral-400">Roda o ciclo sozinho: edita arquivos e usa o shell. Só para pra pedir aprovação do que estiver fora da lista permitida.</p>
         </Card>
         <Card className="border-orange-500/30">
           <div className="mb-2 inline-flex rounded-md bg-orange-500/20 px-2 py-1 text-[11px] font-medium text-orange-300">Executar</div>

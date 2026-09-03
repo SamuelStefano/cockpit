@@ -282,7 +282,7 @@ export interface ParkedView { sessionKey: string; id: string; text: string; at: 
 // --- WebSocket protocol ----------------------------------------------------
 
 // Modo de permissão exposto na UI. 'plan' = só planeja (nada executa);
-// 'auto' = edita/lê arquivos sem shell (allow-list sem Bash);
+// 'auto' = roda o ciclo sozinho (allow-list COM Bash, permission-mode default);
 // 'acceptEdits' = agente edita E roda comandos. 'bypassPermissions' NÃO é um
 // PermMode: é um flag separado (`bypass` no send) atrás do gate admin+env+loopback
 // (#94, DR-011), pra o safeMode continuar rejeitando bypass vindo como mode.

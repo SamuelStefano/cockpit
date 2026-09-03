@@ -173,7 +173,7 @@ export const SLASH: { cmd: string; desc: string }[] = [
   { cmd: '/new ou /clear', desc: 'Começa uma sessão nova, limpa.' },
   { cmd: '/model opus', desc: 'Troca o agente desta sessão (opus · sonnet · haiku).' },
   { cmd: '/plan', desc: 'Entra no modo Planejar — só descreve, não executa.' },
-  { cmd: '/auto', desc: 'Modo Auto — edita e lê arquivos sozinho, sem shell.' },
+  { cmd: '/auto', desc: 'Modo Auto — roda o ciclo sozinho: edita arquivos e usa o shell.' },
   { cmd: '/execute', desc: 'Modo Executar — edita arquivos e roda comandos.' },
   { cmd: '/attcontext', desc: 'Destila o assunto desta sessão e salva na memória de contextos.' },
   { cmd: '/importgpt', desc: 'Importa contextos do export do ChatGPT — anexe o conversations.json e envie.' },

@@ -1,8 +1,7 @@
 import { Icon, tokens } from '../primitives';
+import type { Mic } from './mic-types';
 
-interface Mic { supported: boolean; listening: boolean; error: string | null; toggle: () => void }
-
-// Botão de ditado por voz ao lado do clipe. Gravando: vira vermelho e pulsa.
+// Botão de ditado por voz ao lado do clipe (desktop; no toque ele vive no `+`). Gravando: vira vermelho e pulsa.
 // Em browser sem Web Speech API (Firefox, webviews) não renderiza nada — sem
 // botão quebrado. A lógica vive no useSpeechInput (via useChatInput); aqui é só
 // a apresentação. Não desabilita com run em curso: ditar só escreve texto.

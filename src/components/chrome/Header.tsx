@@ -17,7 +17,6 @@ interface HeaderProps {
   quotaWarn?: boolean;
   quotaPaused?: boolean;
   quotaResetsAt?: number | null;
-  onNew: () => void;
   isAdmin: boolean;
   routeMenuOpen: boolean;
   setRouteMenuOpen: (v: boolean) => void;
@@ -26,7 +25,7 @@ interface HeaderProps {
   onChangePassword?: (password: string) => Promise<string | null>;
 }
 
-export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsage, quotaWarn = false, quotaPaused = false, quotaResetsAt = null, onNew, isAdmin, routeMenuOpen, setRouteMenuOpen, userId, onSignOut, onChangePassword }: HeaderProps) {
+export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsage, quotaWarn = false, quotaPaused = false, quotaResetsAt = null, isAdmin, routeMenuOpen, setRouteMenuOpen, userId, onSignOut, onChangePassword }: HeaderProps) {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex items-center gap-2.5">
@@ -35,9 +34,12 @@ export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsag
             <Icon name="menu" size={18} />
           </button>
         )}
+        {/* Só navega: criar sessão daqui era destrutivo de contexto e o logo fica
+            colado no hambúrguer no celular (toque acidental garantido). "Nova
+            sessão" segue no drawer, na paleta e no estado vazio do chat. */}
         <button
-          onClick={() => { nav('/'); onNew(); }}
-          title="Nova conversa"
+          onClick={() => nav('/')}
+          title="Ir pro chat"
           className={`flex items-center gap-2 rounded-md ${tokens.focusRing}`}
         >
           <span className={`flex h-6 w-6 items-center justify-center rounded-md bg-linear-to-br from-orange-500 to-orange-700 text-neutral-950 ${tokens.accentGlow}`}>
