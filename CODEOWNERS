@@ -1,0 +1,30 @@
+# Revisão obrigatória do dono nos caminhos onde um erro vira falha de segurança.
+#
+# Enquanto o repositório tem um mantenedor só, isto não muda nada no dia a dia. Ele
+# existe para o momento em que houver mais gente com acesso de escrita: aí a revisão
+# nestes caminhos deixa de ser hábito e passa a ser regra do GitHub.
+#
+# Para valer de verdade, o branch protection precisa ter "Require review from Code
+# Owners" ligado — ver scripts/setup-repo-protection.sh.
+
+*                               @SamuelStefano
+
+# Fronteira do relay: red lines do DR-023/024. O relay não pode ganhar capacidade de
+# execução, e o accountId não pode passar a vir do frame.
+/relay/                         @SamuelStefano
+
+# Autenticação, autorização e o gate de bypass (que é execução com privilégio).
+/server/auth.ts                 @SamuelStefano
+/server/ws/authz.ts             @SamuelStefano
+/server/ws/token.ts             @SamuelStefano
+/server/ws/origin.ts            @SamuelStefano
+/server/engine/claude.ts        @SamuelStefano
+/shared/identity.ts             @SamuelStefano
+
+# RLS e guards de coluna: um GRANT errado aqui abre a conta de todo mundo.
+/migrations/                    @SamuelStefano
+
+# Quem controla o CI controla o que é verificado antes de entrar na main.
+/.github/                       @SamuelStefano
+/scripts/scan-secrets.ts        @SamuelStefano
+/CODEOWNERS                     @SamuelStefano

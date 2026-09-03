@@ -22,6 +22,7 @@ const { server } = createRelay({
   jwksUrl: `${supabaseUrl}/auth/v1/.well-known/jwks.json`,
   rootEmails,
   store: supabaseStore({ url: supabaseUrl, serviceKey }),
+  statusToken: process.env.DECK_STATUS_TOKEN,
 });
 
 server.listen(port, host, () => {
