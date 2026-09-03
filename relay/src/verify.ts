@@ -28,7 +28,17 @@ export function validateClaims(
   if (!auds.includes('authenticated')) return null;
   if (typeof exp !== 'number' || exp <= opts.nowSec) return null;
   if (!sub || !email) return null;
-  return { accountId: sub, email, role: roleFromIdentity(email, opts.isAdmin, opts.rootEmails) };
+  const role = roleFromIdentity(email, opts.isAdmin, opts.rootEmails, emailVerified(claims));
+  return { accountId: sub, email, role };
+}
+
+// O Supabase põe `email_verified` em `user_metadata`; outros provedores usam o claim
+// de topo (OIDC). Lemos os dois e exigimos `true` literal — string "true", ausência
+// ou qualquer outro valor conta como não verificado (fail-closed).
+export function emailVerified(claims: Record<string, unknown>): boolean {
+  if (claims.email_verified === true) return true;
+  const meta = claims.user_metadata;
+  return !!meta && typeof meta === 'object' && (meta as { email_verified?: unknown }).email_verified === true;
 }
 
 // Wrapper com jose: verifica assinatura do JWT contra o JWKS (cacheado) e devolve os

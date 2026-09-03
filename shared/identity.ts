@@ -12,12 +12,21 @@ export type AccountRole = 'root' | 'admin' | 'fellow';
 // - admin: flag `account.is_admin`, setada SÓ por root via service-path.
 // - fellow: default, e o fallback de segurança quando a identidade falha
 //   (email ausente/JWT inválido) — default-deny pro menor privilégio (red line #10).
+//
+// `emailVerified` é PRÉ-REQUISITO dos papéis privilegiados. O root sai do claim
+// `email` e o cadastro é aberto: sem esta trava, quem soubesse o email da allowlist
+// se cadastrava com ele e virava root sem nunca provar posse da caixa. Vale também
+// pro admin — troca de email não confirmada herdaria a flag. Fail-closed: claim
+// ausente conta como NÃO verificado, então um projeto sem confirmação de email só
+// produz fellow (o sintoma aparece antes do estrago).
 export function roleFromIdentity(
   email: string | null | undefined,
   isAdmin: boolean,
   rootEmails: ReadonlySet<string>,
+  emailVerified: boolean,
 ): AccountRole {
   if (!email) return 'fellow';
+  if (emailVerified !== true) return 'fellow';
   if (rootEmails.has(email.trim().toLowerCase())) return 'root';
   if (isAdmin === true) return 'admin';
   return 'fellow';

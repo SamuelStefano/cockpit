@@ -5,32 +5,39 @@ describe('roleFromIdentity', () => {
   const roots = parseRootEmails('samuel@dfl.com, boss@dfl.com');
 
   it('returns root for an email in the allowlist (case/space-insensitive)', () => {
-    expect(roleFromIdentity('  Samuel@DFL.com ', false, roots)).toBe('root');
+    expect(roleFromIdentity('  Samuel@DFL.com ', false, roots, true)).toBe('root');
   });
 
   it('root beats the admin flag', () => {
-    expect(roleFromIdentity('samuel@dfl.com', false, roots)).toBe('root');
+    expect(roleFromIdentity('samuel@dfl.com', false, roots, true)).toBe('root');
   });
 
   it('returns admin when the is_admin flag is set and not root', () => {
-    expect(roleFromIdentity('alice@dfl.com', true, roots)).toBe('admin');
+    expect(roleFromIdentity('alice@dfl.com', true, roots, true)).toBe('admin');
   });
 
   it('returns fellow by default', () => {
-    expect(roleFromIdentity('bob@dfl.com', false, roots)).toBe('fellow');
+    expect(roleFromIdentity('bob@dfl.com', false, roots, true)).toBe('fellow');
   });
 
   it('fails closed to fellow when the email is missing (identity failure)', () => {
-    expect(roleFromIdentity(null, true, roots)).toBe('fellow');
-    expect(roleFromIdentity(undefined, true, roots)).toBe('fellow');
-    expect(roleFromIdentity('', true, roots)).toBe('fellow');
+    expect(roleFromIdentity(null, true, roots, true)).toBe('fellow');
+    expect(roleFromIdentity(undefined, true, roots, true)).toBe('fellow');
+    expect(roleFromIdentity('', true, roots, true)).toBe('fellow');
+  });
+
+  // O cadastro é aberto e o root sai do claim `email`: sem exigir email verificado,
+  // registrar-se com o email da allowlist bastava pra virar root.
+  it('email não verificado nunca vira root nem admin', () => {
+    expect(roleFromIdentity('samuel@dfl.com', false, roots, false)).toBe('fellow');
+    expect(roleFromIdentity('alice@dfl.com', true, roots, false)).toBe('fellow');
   });
 
   it('never mints root from the is_admin flag — only the env allowlist does', () => {
     // is_admin can elevate to admin, but NEVER to root, even with no allowlist.
-    expect(roleFromIdentity('intruder@evil.com', true, roots)).toBe('admin');
-    expect(roleFromIdentity('intruder@evil.com', true, new Set())).toBe('admin');
-    expect(roleFromIdentity('intruder@evil.com', true, roots)).not.toBe('root');
+    expect(roleFromIdentity('intruder@evil.com', true, roots, true)).toBe('admin');
+    expect(roleFromIdentity('intruder@evil.com', true, new Set(), true)).toBe('admin');
+    expect(roleFromIdentity('intruder@evil.com', true, roots, true)).not.toBe('root');
   });
 });
 
