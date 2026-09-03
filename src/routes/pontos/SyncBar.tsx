@@ -25,8 +25,8 @@ export function SyncBar({ snapshot, syncing, now, onSync }: Props) {
           ? stale ? 'Dados possivelmente desatualizados — sincronize.' : `Sincronizado ${quando === 'agora' ? 'agora' : `há ${quando}`}`
           : 'Sem snapshot local — sincronize pra puxar do DFL.'}
       </span>
-      <Button variant={stale ? 'secondary' : 'ghost'} size="sm" loading={syncing} onClick={onSync}>
-        <Icon name="rotate" size={13} /> {syncing ? 'sincronizando' : 'sincronizar agora'}
+      <Button variant={stale ? 'secondary' : 'ghost'} size="sm" icon="rotate" loading={syncing} onClick={onSync}>
+        {syncing ? 'sincronizando' : 'sincronizar agora'}
       </Button>
     </div>
   );

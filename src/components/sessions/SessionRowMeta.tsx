@@ -1,4 +1,4 @@
-import { Icon } from '../primitives';
+import { Icon, tokens } from '../primitives';
 import { SessionRowActions } from './SessionRowActions';
 
 interface SessionRowMetaProps {
@@ -44,7 +44,7 @@ export function SessionRowMeta({ relative, pinned, running, tagging, canTag, can
         <button
           onClick={(e) => { e.stopPropagation(); setTagging(!tagging); }}
           title="Adicionar etiqueta"
-          className="block rounded-sm p-1.5 text-neutral-500 transition hover:bg-neutral-800 hover:text-sky-300 sm:p-0.5 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
+          className={`block rounded-sm p-1.5 text-neutral-500 transition hover:bg-neutral-800 hover:text-sky-300 sm:p-0.5 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 ${tokens.touchBox}`}
         >
           <Icon name="tag" size={12} />
         </button>

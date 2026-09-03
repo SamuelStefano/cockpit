@@ -104,7 +104,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, ma
 
       <TagFilterBar allTags={allTags} tagFilter={tagFilter} setTagFilter={setTagFilter} clearFilter={() => setTagFilter(null)} />
 
-      <div className="scroll-thin mt-2.5 flex-1 space-y-1.5 overflow-y-auto px-2.5 pb-3">
+      <div className="scroll-thin mt-2.5 flex-1 space-y-1.5 overflow-y-auto overscroll-contain px-2.5 pb-3">
         {loading ? (
           <div className="space-y-1.5">
             {Array.from({ length: 4 }).map((_, i) => <SessionSkeletonRow key={i} />)}

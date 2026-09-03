@@ -1,4 +1,4 @@
-import { Icon } from '../primitives';
+import { Icon, tokens } from '../primitives';
 
 // Aviso de cota do DESKTOP, num slot da StatusBar. Era `absolute bottom-3 right-3
 // z-30` sobre o painel: com o teclado aberto no celular o viewport encolhe e a
@@ -13,7 +13,7 @@ export function QuotaBanner({ onClose, reset }: { onClose: () => void; reset: st
         onClick={onClose}
         title="Dispensar"
         aria-label="Dispensar aviso de uso"
-        className="shrink-0 rounded-sm p-0.5 text-yellow-200/50 transition hover:bg-yellow-500/10 hover:text-yellow-200"
+        className={`shrink-0 rounded-sm p-0.5 text-yellow-200/50 transition hover:bg-yellow-500/10 hover:text-yellow-200 ${tokens.touchTarget}`}
       >
         <Icon name="x" size={11} />
       </button>

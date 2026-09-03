@@ -64,8 +64,8 @@ export function CronForm({ form, onCancel, now }: {
         </span>
         <div className="flex items-center gap-1.5">
           {editing && <Button variant="ghost" size="sm" onClick={onCancel}>Cancelar</Button>}
-          <Button variant="primary" size="sm" onClick={() => submit()} disabled={!valid}>
-            <Icon name={editing ? 'check' : 'plus'} size={14} /> {editing ? 'Salvar' : 'Criar'}
+          <Button variant="primary" size="sm" icon={editing ? 'check' : 'plus'} onClick={() => submit()} disabled={!valid}>
+            {editing ? 'Salvar' : 'Criar'}
           </Button>
         </div>
       </div>

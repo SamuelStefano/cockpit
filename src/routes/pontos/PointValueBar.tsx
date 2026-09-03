@@ -25,8 +25,8 @@ export function PointValueBar() {
         <span className="text-[12px] text-neutral-400">Valor do ponto</span>
         <span className="text-[12.5px] font-semibold tabular-nums text-neutral-100">{brl(pointValue * 100)}</span>
         <span className="text-[11px] text-neutral-600">base do recebível</span>
-        <Button variant="ghost" size="sm" className="ml-auto" onClick={open}>
-          <Icon name="pencil" size={13} /> alterar
+        <Button variant="ghost" size="sm" icon="pencil" className="ml-auto" onClick={open}>
+          alterar
         </Button>
       </div>
     );

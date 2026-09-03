@@ -141,9 +141,16 @@ export function CockpitApp() {
   if (gate) return gate;
 
   return (
+    // Safe-area nos quatro lados: com `viewport-fit=cover` o notch em landscape
+    // come a lateral, e sem left/right o header e o composer ficam sob o entalhe.
     <div
       className="relative flex h-full flex-col bg-neutral-950"
-      style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+      style={{
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        paddingLeft: 'env(safe-area-inset-left)',
+        paddingRight: 'env(safe-area-inset-right)',
+      }}
     >
       <CommandPalette
         open={palette} onClose={() => setPalette(false)}
@@ -157,7 +164,10 @@ export function CockpitApp() {
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
       <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} quotaWarn={quotaGate.warn} quotaPaused={quotaGate.paused} quotaResetsAt={quotaGate.resetsAt} isAdmin={isAdmin} routeMenuOpen={routeMenu} setRouteMenuOpen={setRouteMenu} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} onChangePassword={SUPABASE_ENABLED ? sbAuth.changePassword : undefined} drops={dropApi} />
 
-      <OfflineNotice show={showOffline} />
+      {/* Âncora de altura zero no fluxo: o aviso pende daqui, logo abaixo do header. */}
+      <div className="relative z-40">
+        <OfflineNotice show={showOffline} />
+      </div>
 
       <RouteContent
         route={route} isMobile={isMobile} isAdmin={isAdmin} connected={conn.ws === 'connected'}

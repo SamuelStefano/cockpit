@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Icon } from '../primitives';
+import { Icon, tokens } from '../primitives';
 import { navFor } from './nav-routes';
 import type { Route } from '../../useRoute';
 
@@ -23,7 +23,7 @@ export function RouteMenu({ route, nav, isAdmin, open, setOpen }: { route: Route
     <div ref={wrapRef} className="relative md:hidden">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1 font-mono text-[11.5px] lowercase tracking-tight text-orange-300"
+        className={`flex items-center gap-1 rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1 font-mono text-[11.5px] lowercase tracking-tight text-orange-300 ${tokens.touchTarget}`}
       >
         {current.label}
         <Icon name="chevronDown" size={12} />

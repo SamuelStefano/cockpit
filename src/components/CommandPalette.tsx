@@ -51,7 +51,7 @@ export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessi
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-[12vh] backdrop-blur-xs" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-[12dvh] backdrop-blur-xs" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
@@ -72,7 +72,7 @@ export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessi
           />
           <kbd className="rounded-sm border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[10px] text-neutral-500">esc</kbd>
         </div>
-        <div className="scroll-thin max-h-[52vh] overscroll-contain overflow-y-auto py-2">
+        <div className="scroll-thin max-h-[52dvh] overscroll-contain overflow-y-auto py-2">
           <CommandPaletteResults filtered={filtered} sel={sel} setSel={setSel} />
         </div>
       </div>

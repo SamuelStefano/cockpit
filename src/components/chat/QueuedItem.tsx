@@ -3,7 +3,10 @@ import type { ModelInfo } from '../../../shared/protocol';
 import { Icon, tokens } from '../primitives';
 import { QueuedBgLauncher } from './QueuedBgLauncher';
 
-const iconBtn = `flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200 disabled:pointer-events-none disabled:opacity-30 ${tokens.focusRing}`;
+// Seis ações lado a lado: no dedo a caixa real vira 40px (`touchBox`) e a barra
+// desce pra própria linha — as seis não cabem ao lado do texto em 390px, e a
+// área invisível do `touchTarget` roubaria o toque do botão vizinho.
+const iconBtn = `flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200 disabled:pointer-events-none disabled:opacity-30 ${tokens.focusRing} ${tokens.touchBox}`;
 
 interface Props {
   index: number;
@@ -43,7 +46,7 @@ export function QueuedItem({ index, text, atts, expanded, flash, first, last, ed
   useEffect(() => { if (editing) taRef.current?.focus(); }, [editing]);
   return (
     <li className={`rounded-md transition-colors duration-500 ${flash ? 'bg-orange-500/20' : ''}`}>
-      <div className="flex items-start gap-1">
+      <div className="flex items-start gap-1 pointer-coarse:flex-wrap">
         <span className="mt-0.5 shrink-0 text-[10px] tabular-nums text-orange-400/50">{index + 1}.</span>
         {atts > 0 && (
           <span className="mt-0.5 flex shrink-0 items-center gap-0.5 text-[10px] tabular-nums text-orange-300/80" title={`${atts} anexo${atts > 1 ? 's' : ''} amarrado${atts > 1 ? 's' : ''} a este prompt`}>
@@ -72,7 +75,7 @@ export function QueuedItem({ index, text, atts, expanded, flash, first, last, ed
             {text || (atts > 0 ? 'anexo sem texto' : '')}
           </button>
         )}
-        <div className="flex shrink-0 items-center">
+        <div className="flex shrink-0 items-center pointer-coarse:w-full pointer-coarse:justify-end">
           {editing ? (
             <>
               <button type="button" onClick={onCommit} title="Salvar (Enter)" className={iconBtn}>
