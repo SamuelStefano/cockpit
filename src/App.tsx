@@ -40,6 +40,7 @@ export function CockpitApp() {
     onSend: handleSend, onEditUser: editUser, onStop: handleStop, onNew: cockpitNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession,
     onOpenFull, onLoadOlder, onOpenSummary, onHandoff, handoffBusy,
     queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce,
+    drops, dropsLoaded, lastDrop, onDropList, onDropPut, onDropRm,
   } = cockpit;
 
   const { route, chatId, nav, navChat } = useRoute();
@@ -54,6 +55,12 @@ export function CockpitApp() {
   // Default-deny: sem caps (ainda não chegou) = não-admin. No T3 o caps vem do
   // relay (papel da conta no JWT); no loopback, do token/role local.
   const isAdmin = caps?.role === 'admin' || caps?.role === 'root';
+  // Drop privado só existe pra admin (drop-* fora do STUDENT_ALLOWED): sem isso a
+  // UI ofereceria um botão que o servidor responde com 'sem permissão'.
+  const dropApi = useMemo(
+    () => (isAdmin ? { drops, dropsLoaded, lastDrop, onDropList, onDropPut, onDropRm } : undefined),
+    [isAdmin, drops, dropsLoaded, lastDrop, onDropList, onDropPut, onDropRm],
+  );
 
   // Produto multi-conta (DR-023): quando o Supabase está ligado (deploy do relay),
   // a sessão vem do login e o access_token alimenta o WS. No loopback (Supabase
@@ -148,7 +155,7 @@ export function CockpitApp() {
         onShowHelp={() => setHelp(true)}
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
-      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} quotaWarn={quotaGate.warn} quotaPaused={quotaGate.paused} quotaResetsAt={quotaGate.resetsAt} isAdmin={isAdmin} routeMenuOpen={routeMenu} setRouteMenuOpen={setRouteMenu} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} onChangePassword={SUPABASE_ENABLED ? sbAuth.changePassword : undefined} />
+      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} quotaWarn={quotaGate.warn} quotaPaused={quotaGate.paused} quotaResetsAt={quotaGate.resetsAt} isAdmin={isAdmin} routeMenuOpen={routeMenu} setRouteMenuOpen={setRouteMenu} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} onChangePassword={SUPABASE_ENABLED ? sbAuth.changePassword : undefined} drops={dropApi} />
 
       <OfflineNotice show={showOffline} />
 

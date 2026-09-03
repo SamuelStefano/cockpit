@@ -31,6 +31,13 @@ describe('authorize', () => {
     expect(authorize('admin', 'totally-new-msg' as never)).toBe(true);
   });
 
+  it('drop privado é admin-only: student negado nos 4 frames', () => {
+    for (const t of ['drop-put', 'drop-list', 'drop-open', 'drop-rm'] as const) {
+      expect(authorize('student', t)).toBe(false);
+      expect(authorize('admin', t)).toBe(true);
+    }
+  });
+
   it('financeiro DFL é admin-only: student negado, admin liberado', () => {
     for (const t of ['points-dfl-get', 'points-dfl-sync'] as const) {
       expect(authorize('student', t)).toBe(false);

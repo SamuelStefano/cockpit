@@ -8,6 +8,7 @@ import { Connect } from './sections/Connect';
 import { Resources } from './sections/Resources';
 import { Modes } from './sections/Modes';
 import { Profile } from './sections/Profile';
+import { Drop } from './sections/Drop';
 import { Search } from './sections/Search';
 import { Commands } from './sections/Commands';
 import { Models } from './sections/Models';
@@ -31,6 +32,7 @@ export function DocSections({ year }: { year: number }) {
       <Resources />
       <Modes />
       <Profile />
+      <Drop />
       <Search />
       <Commands />
       <Models />

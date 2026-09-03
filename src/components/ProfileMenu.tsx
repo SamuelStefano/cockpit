@@ -3,6 +3,8 @@ import { AvatarFace } from './avatar/AvatarFace';
 import { AiIconPicker } from './avatar/AiIconPicker';
 import { useProfileMenu } from './avatar/useProfileMenu';
 import { ChangePasswordForm } from './profile/ChangePasswordForm';
+import { DropButton } from './drop/DropButton';
+import type { DropApi } from '../cockpit/useDrops';
 import { usePersisted } from '../lib/persist';
 import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT, GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT, NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT } from '../lib/prefs';
 
@@ -10,12 +12,14 @@ interface ProfileMenuProps {
   userId?: string;
   onSignOut?: () => void;
   onChangePassword?: (password: string) => Promise<string | null>;
+  // Ausente pra quem não é admin: os frames drop-* ficam fora do STUDENT_ALLOWED.
+  drops?: DropApi;
 }
 
 // Menu de perfil no header: define nome (usado nas iniciais do chat), faz
 // upload/limpa o avatar e, com conta Supabase, troca a senha. Perfil e toggles
 // vão pro cache local e sobem pra conta (ver lib/profile e lib/account-prefs).
-export function ProfileMenu({ userId, onSignOut, onChangePassword }: ProfileMenuProps = {}) {
+export function ProfileMenu({ userId, onSignOut, onChangePassword, drops }: ProfileMenuProps = {}) {
   const { name, avatar, aiIcon, setName, setAvatar, setAiIcon, synced, syncFailed, open, setOpen, iconOpen, setIconOpen, uploadError, uploading, fileRef, wrapRef, onFile } = useProfileMenu(userId);
   const [showTools, setShowTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   const [groupNotes, setGroupNotes] = usePersisted<boolean>(GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT);
@@ -91,6 +95,8 @@ export function ProfileMenu({ userId, onSignOut, onChangePassword }: ProfileMenu
               hint="Beep curto, só com a aba fora de foco"
             />
           </div>
+
+          {drops && <DropButton api={drops} />}
 
           {onChangePassword && <ChangePasswordForm onSubmit={onChangePassword} />}
 

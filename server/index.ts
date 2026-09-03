@@ -9,6 +9,7 @@ import { makeStatic } from './static';
 import { sweepAttachments } from './attachments';
 import { checkpointWal, sweepUsage } from './db';
 import { sweepMcpConfigs } from './engine/claude';
+import { sweepDrops } from './drop';
 import { loadManagedEnv } from './admin-ops';
 import { handleMcpRequest, isMcpPath } from './mcp/serve';
 import { CONFIG } from './config';
@@ -53,7 +54,7 @@ async function main() {
   attachWs(server);
 
   // Limpeza de anexos velhos: na subida + a cada 6h (daily driver fica de pé).
-  const sweep = () => { sweepAttachments().catch(() => {}); sweepUsage(); checkpointWal(); sweepMcpConfigs(); };
+  const sweep = () => { sweepAttachments().catch(() => {}); sweepUsage(); checkpointWal(); sweepMcpConfigs(); sweepDrops().catch(() => {}); };
   sweep();
   setInterval(sweep, 6 * 60 * 60 * 1000).unref();
 

@@ -22,6 +22,7 @@ export const SECTIONS: Section[] = [
   { id: 'recursos', label: 'Recursos da máquina', icon: 'zap' },
   { id: 'modos', label: 'Modos & permissões', icon: 'shield' },
   { id: 'perfil', label: 'Perfil & aparência', icon: 'user' },
+  { id: 'drop', label: 'Drop privado', icon: 'shield' },
   { id: 'busca', label: 'Busca & navegação', icon: 'search' },
   { id: 'comandos', label: 'Comandos & atalhos', icon: 'command' },
   { id: 'modelos', label: 'Modelos', icon: 'claude' },
@@ -131,6 +132,7 @@ export const FILEMAP: { group: string; tone: string; files: { path: string; what
       { path: 'server/terminals.ts', what: 'Cria e gerencia os PTYs (shells reais) da VPS.' },
       { path: 'server/auth.ts · oauth.ts', what: 'Credenciais e uso do plano via OAuth (chaves nunca chegam ao cliente).' },
       { path: 'server/attachments.ts · config.ts', what: 'Anexos enviados e configuração/ambiente mínimo do processo.' },
+      { path: 'server/drop.ts', what: 'Drop privado: grava segredo/script em ~/.deck-drop (0600 em dir 0700) sem ecoar o conteúdo — fora do S3 e do prompt.' },
     ],
   },
 ];
