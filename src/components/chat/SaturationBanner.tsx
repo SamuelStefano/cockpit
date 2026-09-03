@@ -41,7 +41,7 @@ export function SaturationBanner({ sessionId, contextTokens, busy, onHandoff }: 
           onClick={dismiss}
           aria-label="Dispensar aviso de sessão lotada"
           title="Dispensar — volta a avisar se a janela ficar crítica"
-          className={`shrink-0 rounded-sm p-0.5 text-neutral-600 transition hover:text-neutral-300 ${tokens.focusRing}`}
+          className={`shrink-0 rounded-sm p-0.5 text-neutral-600 transition hover:text-neutral-300 ${tokens.focusRing} ${tokens.touchTarget}`}
         >
           <Icon name="x" size={12} />
         </button>

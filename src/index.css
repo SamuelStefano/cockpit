@@ -51,6 +51,18 @@
 
 * { -webkit-tap-highlight-color: transparent; }
 
+/* O viewport voltou a permitir pinch-zoom (acessibilidade — `user-scalable=no` saiu).
+   O preço no iOS é o zoom automático ao focar campo com fonte < 16px, que só volta
+   com pinça manual. Piso de 16px no dedo mata a causa. Regra fora de @layer de
+   propósito: as utilities `text-[12.5px]` estão em camada e ganhariam por cascata. */
+@media (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+  textarea, select { font-size: 16px; }
+  /* Overlay que espelha um textarea (fantasma de autocomplete do composer) tem de
+     subir junto: com fontes diferentes o texto espelhado sai do lugar. */
+  :has(> textarea) > .absolute { font-size: 16px; }
+}
+
 html, body, #root { height: 100%; margin: 0; }
 /* Mobile: 100% resolve contra o viewport de layout, que NÃO encolhe com a url bar /
    teclado no Safari/Chrome → o rodapé (compositor/StatusBar) era cortado sob a chrome

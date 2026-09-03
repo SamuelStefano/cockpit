@@ -4,11 +4,13 @@ import { VpsConnectForm } from '../VpsConnectForm';
 
 // Aviso honesto quando o backend não responde por alguns segundos (caso clássico:
 // front no Vercel sem túnel pro backend loopback). Evita a sensação de "app quebrado".
+// Ancora no wrapper de altura zero que o App monta logo abaixo do header: o `top`
+// mágico de 58px saía do lugar quando a safe-area do iPhone empurrava o header.
 export function OfflineNotice({ show }: { show: boolean }) {
   const [showConnect, setShowConnect] = useState(false);
   if (!show) return null;
   return (
-    <div className="fade-up pointer-events-none absolute left-1/2 top-[58px] z-40 w-[min(92vw,30rem)] -translate-x-1/2">
+    <div className="fade-up pointer-events-none absolute left-1/2 top-2.5 z-40 w-[min(92vw,30rem)] -translate-x-1/2">
       <div className="pointer-events-auto rounded-lg border border-red-500/30 bg-red-500/12 px-3 py-2 shadow-2xl shadow-black/40 backdrop-blur-md">
         <div className="flex items-start gap-2.5">
           <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-red-500/15 text-red-400">

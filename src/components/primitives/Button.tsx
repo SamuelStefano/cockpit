@@ -73,11 +73,13 @@ export function Button({
     <button
       disabled={disabled || loading}
       onPointerDown={spawnInk}
-      className={`inline-flex max-w-full shrink-0 items-center justify-center rounded-lg font-medium leading-none transition focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40 disabled:opacity-50 disabled:pointer-events-none ${ripple ? 'relative overflow-hidden' : ''} ${variants[variant]} ${square ? squareSizes[size] : sizes[size]} ${className}`}
+      className={`inline-flex max-w-full shrink-0 items-center justify-center whitespace-nowrap rounded-lg font-medium leading-none transition focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40 disabled:opacity-50 disabled:pointer-events-none ${ripple ? 'relative overflow-hidden' : ''} ${variants[variant]} ${square ? squareSizes[size] : sizes[size]} ${className}`}
       {...rest}
     >
       {glyph && !iconRight && glyph}
-      {/* Altura é fixa (leading-none): sem truncar, rótulo longo vaza pra fora da pílula. */}
+      {/* Altura é fixa (leading-none): sem truncar, rótulo longo vaza pra fora da pílula.
+          Glifo vem pela prop `icon`, nunca dentro do rótulo: o preflight deixa `svg`
+          como bloco e um ícone aqui dentro quebraria o texto pra segunda linha. */}
       {children != null && children !== false && <span className="min-w-0 truncate">{children}</span>}
       {glyph && iconRight && glyph}
       {inks.map((k) => (

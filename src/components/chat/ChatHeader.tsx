@@ -51,7 +51,9 @@ export function ChatHeader({ session, messages, isEmpty, isMobile, contextTokens
       {session?.hasTerminal && <Badge tone="green" dot className="ml-0.5">terminal</Badge>}
       {/* Cluster direito num só container: vários ml-auto irmãos se espalham
           (margens auto dividem o espaço livre); aqui só este wrapper empurra. */}
-      <div className="ml-auto flex items-center gap-2">
+      {/* gap maior no dedo: os alvos de 40px do cluster se sobrepõem com 8px de
+          folga entre botões de 28px, e o toque na borda ia pro vizinho. */}
+      <div className="ml-auto flex items-center gap-2 pointer-coarse:gap-3">
         <TurnStat stats={lastTurn} />
         {!isMobile && <ContextMeter tokens={contextTokens} onNew={onNew} />}
         {!isEmpty && session && !session.id.startsWith('new-') && onOpenFull && (

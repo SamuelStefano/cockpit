@@ -26,7 +26,7 @@ export function renderInline(text: string, keyBase: string): ReactNode[] {
         break;
       case 'code':
         nodes.push(
-          <code key={key} className="rounded-sm bg-neutral-800 px-1.5 py-0.5 font-mono text-[0.86em] text-orange-300">
+          <code key={key} className="rounded-sm bg-neutral-800 px-1.5 py-0.5 font-mono text-[0.86em] text-orange-300 [overflow-wrap:anywhere]">
             {t.value}
           </code>
         );
@@ -47,7 +47,7 @@ export function renderInline(text: string, keyBase: string): ReactNode[] {
             <span key={key}>{t.label}</span>
           ) : (
             <a key={key} href={href} target="_blank" rel="noreferrer"
-              className="text-orange-400 underline decoration-orange-400/40 underline-offset-2 transition hover:decoration-orange-400">
+              className="[overflow-wrap:anywhere] text-orange-400 underline decoration-orange-400/40 underline-offset-2 transition hover:decoration-orange-400">
               {t.label}
             </a>
           )

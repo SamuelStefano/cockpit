@@ -38,7 +38,12 @@ export function resolveAuthGate({ sbAuth, ejectPairing, authRequired, submitToke
   return (
     <div
       className="flex h-full flex-col bg-neutral-950"
-      style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+      style={{
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        paddingLeft: 'env(safe-area-inset-left)',
+        paddingRight: 'env(safe-area-inset-right)',
+      }}
     >
       {node}
     </div>

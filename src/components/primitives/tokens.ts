@@ -46,6 +46,14 @@ export const tokens = {
   },
   // Realce de acento (botão primário/destaques): gradiente quente + brilho de jóia.
   accentGradient: 'bg-linear-to-b from-orange-500 to-orange-600',
+  // Alvo de toque de 40px (brief do design-kit) sem inchar o ícone: a área sensível
+  // é um pseudo-elemento centrado, só no dedo. Não serve pra botão colado em outro
+  // a menos de 40px de centro a centro — ali a área roubaria o toque do vizinho.
+  touchTarget: "relative pointer-coarse:before:absolute pointer-coarse:before:left-1/2 pointer-coarse:before:top-1/2 pointer-coarse:before:h-10 pointer-coarse:before:w-10 pointer-coarse:before:-translate-x-1/2 pointer-coarse:before:-translate-y-1/2 pointer-coarse:before:content-['']",
+  // Mesma meta de 40px quando o vizinho está a menos de 40px: aqui a caixa REAL
+  // cresce (ícone centrado, sem fundo novo), porque a área invisível do
+  // `touchTarget` roubaria o toque do botão ao lado.
+  touchBox: 'pointer-coarse:flex pointer-coarse:h-10 pointer-coarse:w-10 pointer-coarse:items-center pointer-coarse:justify-center',
 } as const;
 
 export type ToneColor = keyof typeof tokens.color;

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Icon } from '../primitives';
+import { Icon, tokens } from '../primitives';
 import type { IconName } from '../primitives/Icon';
 import { shouldDropUp } from './menu-flip';
 
@@ -72,7 +72,7 @@ export function SessionRowActions({ pinned, running, canStop, canDescribe, marat
         title="Ações"
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`rounded p-1.5 text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200 sm:p-0.5
+        className={`rounded p-1.5 text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200 sm:p-0.5 ${tokens.touchBox}
           ${open ? 'bg-neutral-800 text-neutral-200' : 'sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100'}`}
       >
         <Icon name="grip" size={14} />

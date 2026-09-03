@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { PointsEntry, DflPointsSnapshot } from '../../shared/protocol';
-import { Button, Icon, EmptyState, Skeleton, Tabs } from '../components/primitives';
+import { Button, EmptyState, Skeleton, Tabs } from '../components/primitives';
 import { usePontos } from './pontos/usePontos';
 import { useDflPontos } from './pontos/useDflPontos';
 import { usePontosControlsState, PontosControlsProvider, type DflWriteApi } from './pontos/pontosControls';
@@ -86,8 +86,8 @@ export function Pontos(props: Props) {
         {tab === 'ledger' && (
           <div>
             <div className="mb-3 flex justify-end">
-              <Button variant="secondary" size="sm" onClick={() => setAdding((v) => !v)}>
-                <Icon name="plus" size={14} /> adicionar manual
+              <Button variant="secondary" size="sm" icon="plus" onClick={() => setAdding((v) => !v)}>
+                adicionar manual
               </Button>
             </div>
             {adding && <PointsForm onAdd={add} onCancel={() => setAdding(false)} />}

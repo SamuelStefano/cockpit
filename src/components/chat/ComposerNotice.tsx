@@ -20,7 +20,7 @@ export function ComposerNotice({ icon, children, onDismiss }: ComposerNoticeProp
           onClick={onDismiss}
           aria-label="Dispensar aviso"
           title="Dispensar aviso"
-          className={`shrink-0 rounded-sm p-0.5 text-red-300/70 transition hover:bg-red-500/15 hover:text-red-200 ${tokens.focusRing}`}
+          className={`shrink-0 rounded-sm p-0.5 text-red-300/70 transition hover:bg-red-500/15 hover:text-red-200 ${tokens.focusRing} ${tokens.touchTarget}`}
         >
           <Icon name="x" size={12} />
         </button>

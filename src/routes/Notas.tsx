@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Icon, Badge, EmptyState, Markdown, RouteHeader } from '../components/primitives';
+import { Button, Badge, EmptyState, Markdown, RouteHeader } from '../components/primitives';
 import { useNotasEditor } from './notas/useNotasEditor';
 
 interface Props {
@@ -41,14 +41,14 @@ export function Notas({ connected, notes, notesLoaded, onNotesGet, onNotesSave, 
           }
           actions={
             <>
-              <Button variant="ghost" size="sm" onClick={() => setPreview((p) => !p)} disabled={!text.trim()}
+              <Button variant="ghost" size="sm" icon={preview ? 'pencil' : 'file'} onClick={() => setPreview((p) => !p)} disabled={!text.trim()}
                 title={preview ? 'Voltar a editar' : 'Pré-visualizar markdown'}>
-                <Icon name={preview ? 'pencil' : 'file'} size={14} /> {preview ? 'Editar' : 'Prévia'}
+                {preview ? 'Editar' : 'Prévia'}
               </Button>
               <Button variant="ghost" size="sm" icon={copied ? 'check' : 'copy'} title="Copiar tudo" onClick={copy} disabled={!text.trim()} />
               <Button variant="ghost" size="sm" icon="trash" title="Limpar" onClick={clear} disabled={!text.trim()} />
-              <Button variant="primary" size="sm" onClick={() => onAnalyze(text)} disabled={!text.trim()}>
-                <Icon name="sparkles" size={14} /> Analisar com IA
+              <Button variant="primary" size="sm" icon="sparkles" onClick={() => onAnalyze(text)} disabled={!text.trim()}>
+                Analisar com IA
               </Button>
             </>
           }
