@@ -289,7 +289,10 @@ export function startRun(o: StartRunOptions) {
   // usuário aparece antes da do assistente). Só quando o cliente mandou msgId — o
   // dedup no remetente depende de casar o id otimista dele.
   if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
-  broadcast({ t: 'started', sessionKey });
+  // Carimba o modelo PEDIDO na bolha desde o start: sem isto a bolha em voo ficava
+  // sem modelo e o label caía no seletor vivo, mudando retroativamente ao trocar de
+  // modelo. O 'done' refina pro efetivo (revela fallback silencioso).
+  broadcast({ t: 'started', sessionKey, model: params.model });
 
   thread.handle = run({
     ...params,

@@ -52,10 +52,13 @@ export const CONFIG = {
   // qualquer env solto de armar bypass (= RCE root) por engano.
   permissionMode: safeMode(process.env.COCKPIT_PERMISSION_MODE),
 
-  // Modelo de fallback quando o primário está sobrecarregado (overload). Resiliência
-  // pra runs longos/noturnos: o CLI cai pra cá em vez de abortar. Validado contra a
-  // allow-list de modelos no engine. Vazio = sem fallback.
-  fallbackModel: process.env.COCKPIT_FALLBACK_MODEL ?? 'sonnet',
+  // Modelo de fallback quando o primário está sobrecarregado (overload). O CLI cai
+  // pra cá em vez de abortar. Validado contra a allow-list de modelos no engine.
+  // Default VAZIO (sem fallback): com 'sonnet' cravado, TODO turno de Opus levava
+  // --fallback-model sonnet e caía pro Sonnet em silêncio no primeiro overload — o
+  // chat trocava de modelo sozinho e a qualidade despencava sem ninguém pedir. Quem
+  // quiser resiliência de run noturno liga de propósito via COCKPIT_FALLBACK_MODEL.
+  fallbackModel: process.env.COCKPIT_FALLBACK_MODEL ?? '',
 
   // Quantas mensagens (user/assistant) do fim da sessão o history devolve. 60 era
   // baixíssimo: sessões de daily-driver têm milhares de records, então no reload

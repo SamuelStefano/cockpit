@@ -631,7 +631,9 @@ export function useCockpit(): Cockpit {
         if (runMsg.current[key]) return; // já em voo (reconnect) — não duplica bubble
         const id = newId('a');
         runMsg.current[key] = id;
-        updateThread(key, (prev) => [...prev, { id, role: 'assistant', blocks: [], ts: Date.now() }]);
+        // Carimba o modelo pedido na bolha desde já: sem isto o label caía no seletor
+        // vivo e mudava retroativamente ao trocar de modelo. O 'done' refina pro efetivo.
+        updateThread(key, (prev) => [...prev, { id, role: 'assistant', blocks: [], ts: Date.now(), ...(msg.model ? { model: msg.model } : {}) }]);
         setPhases((p) => ({ ...p, [key]: 'thinking' }));
         // Turno novo: os chips de continuação do turno anterior ficaram obsoletos.
         setFollowups((f) => { if (!(key in f)) return f; const n = { ...f }; delete n[key]; return n; });
@@ -674,10 +676,11 @@ export function useCockpit(): Cockpit {
         // bolha do turno EM VOO quando o history/open chegava logo depois — F5 no meio
         // do turno apagava a resposta viva e silenciava os deltas seguintes (RP#8).
         const ts = msg.startedAt ?? Date.now();
+        const stampModel = msg.model ? { model: msg.model } : {};
         updateThread(key, (prev) =>
           prev.some((m) => m.id === id)
-            ? prev.map((m) => (m.id === id && m.role === 'assistant' ? { ...m, blocks, ts } : m))
-            : [...prev, { id, role: 'assistant', blocks, ts }],
+            ? prev.map((m) => (m.id === id && m.role === 'assistant' ? { ...m, blocks, ts, ...stampModel } : m))
+            : [...prev, { id, role: 'assistant', blocks, ts, ...stampModel }],
         );
         if (!revived) setPhases((p) => ({ ...p, [key]: blocks.some((b) => b.type === 'text') ? 'streaming' : 'thinking' }));
         return;
