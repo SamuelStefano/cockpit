@@ -89,7 +89,16 @@ export function useShikiTokens(code: string, lang?: string): ShToken[][] | null 
   const [tokens, setTokens] = useState<ShToken[][] | null>(null);
   useEffect(() => {
     let alive = true;
-    tokenize(code, lang || '').then((t) => { if (alive && t) setTokens(t); });
+    // `typeof window` não é paranoia: no vitest cada arquivo tem seu ambiente, o
+    // highlighter é uma promessa de MÓDULO (compartilhada entre arquivos) e o
+    // import dinâmico do shiki costuma resolver depois que o jsdom do arquivo que
+    // o disparou já foi derrubado. Aí o setState cai num React sem `window` e vira
+    // unhandled error atribuído a um arquivo aleatório — a flake que derrubou o CI
+    // três vezes, apontando ora AppStudio, ora CodeBlock. `alive` sozinho não pega:
+    // sem unmount (o teste acaba sem cleanup) ele continua true.
+    tokenize(code, lang || '').then((t) => {
+      if (alive && t && typeof window !== 'undefined') setTokens(t);
+    });
     return () => { alive = false; };
   }, [code, lang]);
   return tokens;
