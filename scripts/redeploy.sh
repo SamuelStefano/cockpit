@@ -73,6 +73,16 @@ restart_inner "server/agent.ts" "agente"
 
 [ -n "${REDEPLOY_DRY_RUN:-}" ] && exit 0
 
+# Carimbo do commit que acabou de subir. É o que permite ao doctor.sh detectar
+# DRIFT (processo rodando código velho) sem adivinhar: comparar este arquivo com o
+# HEAD é barato e não depende de ninguém lembrar de rodar o deploy.
+# Existe por causa de 04/09/2026: o fix #519 foi commitado às 22:17 e o backend
+# seguiu rodando o código das 19:33 a noite toda, porque o deploy-when-idle exige
+# ZERO `claude -p` vivo e desiste depois de 1h — numa box com sessão sempre viva
+# ele nunca entrava. O fix estava no disco durante o incidente que ele previne.
+mkdir -p "$HOME/.cockpit"
+git -C "$ROOT" rev-parse HEAD > "$HOME/.cockpit/running-commit" 2>/dev/null || true
+
 # Espera o supervisor reerguer a porta (até ~20s) pra o redeploy ser observável.
 for i in $(seq 1 10); do
   sleep 2

@@ -15,7 +15,10 @@ REPO=/home/samuel/cockpit
 LOG="$HOME/.cockpit/deploy-when-idle.log"
 LOCK=/tmp/deck-deploy-when-idle.lock
 MAX_WAIT=${MAX_WAIT:-3600}   # teto duro: nenhum watcher deste repo vira órfão eterno
-STEP=20
+# Passo da sondagem. O gatilho por DRIFT (doctor.sh, passo 4c) aperta pra 5s: numa
+# box com turno quase sempre vivo a janela ociosa é curta, e sondar de 20 em 20
+# segundos passava batido por ela — o watcher rodava o tempo todo sem nunca pegar.
+STEP=${STEP:-20}
 
 mkdir -p "$(dirname "$LOG")"
 exec 9>"$LOCK"
@@ -46,4 +49,8 @@ while [ "$waited" -lt "$MAX_WAIT" ]; do
   exit 0
 done
 
-log "ABORT: ${MAX_WAIT}s sem janela ociosa; $target NÃO foi ativado (rode scripts/redeploy.sh na mão)"
+# Desistir aqui deixou de ser definitivo: o doctor.sh compara o
+# ~/.cockpit/running-commit com o HEAD a cada 3 min e re-arma este watcher enquanto
+# houver drift. Antes o ABORT era o fim da linha e o fix ficava no disco (04/09/2026,
+# o #519 esperou 6h e o incidente aconteceu no meio).
+log "sem janela ociosa em ${MAX_WAIT}s; $target ainda não ativado — o doctor re-arma em até 3min"

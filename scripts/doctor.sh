@@ -156,6 +156,25 @@ for entry in $orphans; do
   kill -KILL "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null
 done
 
+# ── 4c. DRIFT de código. O `deploy-when-idle.sh` só entra quando NENHUM `claude -p`
+#       está vivo e desiste após 1h. Numa box com sessão sempre viva ele nunca
+#       entra: em 04/09/2026 o fix #519 ficou 6h no disco enquanto o backend rodava
+#       o código de antes — e o incidente que ele previne aconteceu nessas 6h.
+#       Aqui o doctor só RE-ARMA o watcher a cada 3 min (o flock dele impede
+#       empilhar), com MAX_WAIT curto. Não mata nada: quem reinicia é o
+#       deploy-when-idle, e só quando a box abre uma janela de verdade.
+RUNNING_COMMIT="$HOME/.cockpit/running-commit"
+REPO=/home/samuel/cockpit
+head_commit=$(git -C "$REPO" rev-parse HEAD 2>/dev/null || echo "")
+running=$(cat "$RUNNING_COMMIT" 2>/dev/null || echo "")
+if [ -n "$head_commit" ] && [ "$running" != "$head_commit" ]; then
+  # Tree suja = alguém editando; subir código pela metade é pior que o drift.
+  if [ -z "$(git -C "$REPO" status --porcelain 2>/dev/null)" ]; then
+    log "drift de codigo: rodando ${running:-desconhecido} != HEAD $head_commit; armando deploy-when-idle"
+    MAX_WAIT=150 STEP=5 nohup bash "$REPO/scripts/deploy-when-idle.sh" >/dev/null 2>&1 8>&- &
+  fi
+fi
+
 # ── 5. Heartbeat (prova de vida). Uma linha por ciclo, leve, pra `tail` confirmar
 #       que o watchdog está vivo. Rotação acima evita o log crescer sem fim.
 log "ok load1=$load1 mem=${avail_mb}MB healthz=$code"
