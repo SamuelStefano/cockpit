@@ -20,7 +20,11 @@ import { resetCooldownState, resetColdInflight, acquireCold, COOLDOWN_AFTER_RESE
 const usageRow = vi.hoisted(() => ({ value: null as { ctxTokens: number; ts: number; model: string | null } | null }));
 vi.mock('../db', () => ({ lastUsageOf: () => usageRow.value }));
 
-vi.mock('../engine/claude', () => ({ run: vi.fn(() => ({ kill: vi.fn() })) }));
+vi.mock('../engine/claude', () => ({
+  run: vi.fn(() => ({ kill: vi.fn() })),
+  // Sem MCP configurado no teste: a expansão do sentinel devolve a seleção como veio.
+  resolveMcpSelection: (names?: string[]) => names,
+}));
 // Fila estacionada e teto de tokens mockados: o teste não pode ler/escrever o
 // parked.json real do usuário nem depender da quota da conta.
 vi.mock('./parked', () => ({
@@ -715,19 +719,36 @@ describe('gate de contexto', () => {
     startParkedDrainer(3_600_000);
   });
 
-  it('recusa o turno numa sessão acima do teto duro, sem spawnar', () => {
+  // O teto duro é uma trava contra a MÁQUINA se retomar sozinha, não contra o
+  // Samuel: barrar o composer deixava a sessão sem saída além de migrar.
+  it('recusa o turno automático numa sessão acima do teto duro, sem spawnar', () => {
     setCtx(779_566);
-    startRun({ ws, sessionKey: 'gg', prompt: 'manda bala em tudo ai', resumeId: 'sess-gigante', msgId: 'm1' });
+    startRun({ ws: null, sessionKey: 'gg', prompt: 'dreno da fila', resumeId: 'sess-gigante' });
     expect(run).not.toHaveBeenCalled();
     expect(threads.has('gg')).toBe(false);
     expect(recordIncident).toHaveBeenCalledWith(expect.objectContaining({ kind: 'ctx-hard' }));
   });
 
-  it('a recusa devolve o texto e o msgId pro cliente (a bolha otimista não fica órfã)', () => {
+  it('o flush automático do cliente também é barrado no teto duro', () => {
     setCtx(779_566);
-    startRun({ ws, sessionKey: 'gg', prompt: 'meu prompt', resumeId: 'sess-gigante', msgId: 'm1' });
+    startRun({ ws, sessionKey: 'gg', prompt: 'auto', resumeId: 'sess-gigante', auto: true });
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('o envio MANUAL passa acima do teto duro (avisa, não tranca)', () => {
+    setCtx(779_566);
+    startRun({ ws, sessionKey: 'gg', prompt: 'quero continuar mesmo assim', resumeId: 'sess-gigante', msgId: 'm1' });
+    expect(run).toHaveBeenCalledOnce();
+    expect(threads.has('gg')).toBe(true);
+    expect(recordIncident).not.toHaveBeenCalledWith(expect.objectContaining({ kind: 'ctx-hard' }));
+  });
+
+  it('a recusa devolve o texto e o msgId pro cliente (a bolha otimista não fica órfã)', () => {
+    setCtx(120_000);
+    startRun({ ws, sessionKey: 'a', prompt: 'primeiro', resumeId: 'sess-a' });
+    startRun({ ws, sessionKey: 'gg', prompt: 'meu prompt', resumeId: 'sess-b', msgId: 'm1' });
     expect(send).toHaveBeenCalledWith(ws, expect.objectContaining({
-      t: 'send-reject', reason: 'ctx-hard', text: 'meu prompt', msgId: 'm1',
+      t: 'send-reject', reason: 'cold-busy', text: 'meu prompt', msgId: 'm1',
     }));
   });
 
@@ -739,12 +760,10 @@ describe('gate de contexto', () => {
     expect(run).toHaveBeenCalledTimes(2);
   });
 
-  // A saída do 'hard' é o botão Migrar (frame `session-handoff` -> server/handoff.ts),
-  // que destila pela API e NÃO passa pelo startRun. Recusar aqui não tranca o usuário.
+  // A saída barata do 'hard' é o botão Migrar (frame `session-handoff` ->
+  // server/handoff.ts), que destila pela API e NÃO passa pelo startRun.
   it('a sessão nova que nasce depois da migração passa normalmente', () => {
     setCtx(779_566);
-    startRun({ ws, sessionKey: 'gg', prompt: 'travado', resumeId: 'sess-gigante' });
-    expect(run).not.toHaveBeenCalled();
     startRun({ ws, sessionKey: 'gg', prompt: 'continuando o trabalho pelo contexto migrado' });
     expect(run).toHaveBeenCalledOnce();
   });

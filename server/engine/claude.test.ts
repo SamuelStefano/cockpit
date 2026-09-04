@@ -3,7 +3,8 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 
 let managed: Record<string, string> = {};
-vi.mock('../admin-ops', () => ({ managedEnvSync: () => managed, mcpServerDefsSync: () => ({}) }));
+let mcpDefs: Record<string, unknown> = {};
+vi.mock('../admin-ops', () => ({ managedEnvSync: () => managed, mcpServerDefsSync: () => mcpDefs }));
 
 // `claude` é um binário REAL na máquina do Samuel: sem este mock os testes de run()
 // subiriam um turno de verdade e queimariam token.
@@ -20,7 +21,8 @@ class FakeChild extends EventEmitter {
   kill = vi.fn();
 }
 
-import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run, effectiveBudget, pickMcpDefs, validModel } from './claude';
+import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run, effectiveBudget, pickMcpDefs, resolveMcpSelection, validModel } from './claude';
+import { ALL_MCPS } from '../../shared/mcp';
 import { CONFIG } from '../config';
 
 beforeEach(() => { managed = {}; });
@@ -320,6 +322,27 @@ describe('pickMcpDefs', () => {
   });
   it('ignora nome desconhecido e definição que não é objeto', () => {
     expect(pickMcpDefs(all, ['nada', 'lixo'], 'admin')).toEqual({});
+  });
+});
+
+// "Permitir todos os MCPs" manda o sentinel '*' e o servidor expande no envio —
+// nomes fixados no cliente envelheciam a cada MCP novo.
+describe('resolveMcpSelection', () => {
+  beforeEach(() => {
+    mcpDefs = { local: { command: 'npx' }, remote: { url: 'https://mcp.example.com/mcp' } };
+  });
+  afterEach(() => { mcpDefs = {}; });
+
+  it('expande o sentinel na lista da máquina', () => {
+    expect(resolveMcpSelection([ALL_MCPS], 'admin')).toEqual(['local', 'remote']);
+  });
+  it('a expansão respeita o papel (não-admin não ganha stdio pelo atalho)', () => {
+    expect(resolveMcpSelection([ALL_MCPS], 'student')).toEqual(['remote']);
+  });
+  it('seleção explícita e vazia passam intactas', () => {
+    expect(resolveMcpSelection(['remote'], 'admin')).toEqual(['remote']);
+    expect(resolveMcpSelection([], 'admin')).toEqual([]);
+    expect(resolveMcpSelection(undefined, 'admin')).toBeUndefined();
   });
 });
 

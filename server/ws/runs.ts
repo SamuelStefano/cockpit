@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { WebSocket } from 'ws';
 import type { Cron } from '../../shared/protocol';
-import { run } from '../engine/claude';
+import { run, resolveMcpSelection } from '../engine/claude';
 import { CONFIG } from '../config';
 import type { Role } from '../auth';
 import { broadcast, send } from './broadcast';
@@ -335,6 +335,11 @@ function rejectRun(a: { ws: WebSocket | null; sessionKey: string; prompt: string
 export function startRun(o: StartRunOptions) {
   const { ws, sessionKey, prompt, resumeId, msgId, auto, forkId } = o;
   const params = runParams(o);
+  // "Permitir todos os MCPs" chega como o sentinel '*' e é expandido AQUI, não no
+  // cliente: a lista concreta fica no thread (retomada, tools.ts, sameParams) já
+  // filtrada pelo role, e um MCP adicionado hoje vale no próximo turno.
+  const mcps = resolveMcpSelection(params.mcps, params.role);
+  if (mcps) params.mcps = mcps;
   // sessionKey é string crua do cliente usada como chave do mapa `threads` e
   // ecoada nos broadcasts; restringe a um slug (cobre uuid e as keys 'new-…').
   if (typeof sessionKey !== 'string' || !SESSION_KEY_RE.test(sessionKey)) {
@@ -350,11 +355,15 @@ export function startRun(o: StartRunOptions) {
   // aqui não pode virar `pending` (esperaria a vez pra ser recusado de novo) nem
   // ocupar slot. Vem depois das validações de forma porque precisa do sessionId.
   //
-  // A saída do estado 'hard' é o handoff que JÁ existe (server/handoff.ts, frame
-  // `session-handoff`): ele destila pela API e nunca passa por aqui. Por isso o
-  // gate não precisa de exceção — recusar o turno não tranca o usuário.
+  // O teto DURO ('hard') só barra turno que a máquina disparou sozinha — retomada
+  // automática, dreno da fila, cron. Foi isso que queimou a janela em 04/09; o
+  // Samuel digitando nunca foi o problema. Barrar o envio manual transformava o
+  // aviso em porta trancada: a sessão só aceitava migrar, e migrar é decisão dele.
+  // Quem avisa no manual é o SaturationBanner + o custo do envio no composer.
+  const manual = !!ws && !auto;
   const verdict = ctxVerdict({ sessionId: resumeId, sessionKey, usage: getLastPlanUsage() });
-  if (verdict.kind === 'hard' || verdict.kind === 'quota' || verdict.kind === 'cold-busy') {
+  const blocking = verdict.kind === 'quota' || verdict.kind === 'cold-busy' || (verdict.kind === 'hard' && !manual);
+  if (blocking) {
     rejectRun({ ws, sessionKey, prompt, msgId, verdict });
     return;
   }
