@@ -1,5 +1,6 @@
-import type { Cron } from '../../../shared/protocol';
+import type { Cron, PlanUsage } from '../../../shared/protocol';
 import { nextRunAt } from '../../../shared/cron-schedule';
+import { resetPresets } from '../../../shared/quota-reset';
 import { Button, Icon } from '../../components/primitives';
 import { EffortPicker } from '../../components/chat/EffortPicker';
 import { buildSchedule, type useCronForm } from './useCronForm';
@@ -15,9 +16,10 @@ function fmtClock(ts: number): string {
 
 // Formulário de criação/edição de cron. A prévia de "próxima execução" materializa o
 // draft num Cron tentativo e roda a mesma matemática do scheduler (shared).
-export function CronForm({ form, onCancel, now }: {
+export function CronForm({ form, onCancel, now, planUsage }: {
   form: ReturnType<typeof useCronForm>;
   onCancel: () => void;
+  planUsage?: PlanUsage | null;
   now: number;
 }) {
   const { draft, set, editing, valid, submit } = form;
@@ -45,6 +47,9 @@ export function CronForm({ form, onCancel, now }: {
         </select>
         {draft.kind === 'daily' && <input type="time" value={draft.time} onChange={(e) => set('time', e.target.value)} className={field} />}
         {draft.kind === 'once' && <input type="datetime-local" value={draft.at} onChange={(e) => set('at', e.target.value)} className={field} />}
+        {draft.kind === 'once' && resetPresets(planUsage ?? null, now).map((p) => (
+          <Button key={p.window} variant="ghost" size="sm" onClick={() => form.applyResetPreset(p.atMs)}>{p.label}</Button>
+        ))}
         {draft.kind === 'interval' && <span className="flex items-center gap-1 text-neutral-400">a cada <input type="number" min={1} value={draft.everyMinutes} onChange={(e) => set('everyMinutes', parseInt(e.target.value, 10) || 60)} className={`w-16 ${field}`} /> min</span>}
         <select value={draft.mode} onChange={(e) => set('mode', e.target.value as typeof draft.mode)} className={field}>
           <option value="plan">Planejar</option>

@@ -80,6 +80,11 @@ export function useCronForm(onSave: (c: Cron) => void) {
   const reset = () => { setDraft(empty()); setOriginal(null); };
   const startEdit = (c: Cron) => { setDraft(toDraft(c)); setOriginal(c); };
 
+  // Agenda pro instante em que a cota volta. Troca o `kind` junto: o preset só faz
+  // sentido como one-shot, e deixar o usuário lembrar de mudar o seletor antes era
+  // o passo em que o agendamento silenciosamente virava outra coisa.
+  const applyResetPreset = (atMs: number) => setDraft((d) => ({ ...d, kind: 'once', at: toLocalInput(atMs) }));
+
   const submit = () => {
     if (!valid) return;
     const schedule = buildSchedule(draft);
@@ -98,5 +103,5 @@ export function useCronForm(onSave: (c: Cron) => void) {
     reset();
   };
 
-  return { draft, set, editing, valid, reset, startEdit, submit };
+  return { draft, set, editing, valid, reset, startEdit, submit, applyResetPreset };
 }
