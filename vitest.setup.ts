@@ -36,3 +36,18 @@ globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
   }
   return realFetch(input, init);
 }) as typeof fetch;
+
+// Desmonta o que cada teste renderizou. Sem isto os componentes ficam montados até
+// o fim do ARQUIVO e, como o ambiente é derrubado logo depois, todo trabalho async
+// pendente (timer de debounce, import dinâmico do shiki) acorda num mundo sem
+// `window` e o setState vira `ReferenceError` — a "flake" que derrubava o CI
+// apontando ora AppStudio, ora CodeBlock. A limpeza automática do testing-library
+// só se registra sozinha com `globals: true`, e o projeto roda com globals off.
+//
+// Guardado por `document`: este setup também roda nos arquivos de ambiente node
+// (server/, relay/), onde o testing-library não tem o que limpar.
+if (typeof document !== 'undefined') {
+  const { afterEach } = await import('vitest');
+  const { cleanup } = await import('@testing-library/react');
+  afterEach(cleanup);
+}

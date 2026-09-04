@@ -8,8 +8,11 @@ const session = (id: string, mtime: number): Session => ({
   id, mtime, title: id, relative: '', snippet: '', hasTerminal: false, active: false,
 });
 
-// Boundaries are relative to the start of today, so anchor offsets off "now".
-const now = Date.now();
+// `now` é FIXO, não `Date.now()`. A função é pura e recebe o `now` — amarrar ao
+// relógio da máquina só cria falha por horário: com `now - 1h` rodando às 00:42, o
+// "hoje" cai em "Ontem" e o CI ficava vermelho toda madrugada entre 00:00 e 01:00.
+// Meio-dia deixa folga pros dois lados em qualquer fuso.
+const now = new Date(2026, 5, 15, 12, 0, 0).getTime();
 const startOfToday = new Date(new Date(now).getFullYear(), new Date(now).getMonth(), new Date(now).getDate()).getTime();
 const opts = (extra: Partial<Parameters<typeof groupByRecency>[1]> = {}) => ({ now, pinned: new Set<string>(), ...extra });
 
