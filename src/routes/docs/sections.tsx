@@ -4,6 +4,7 @@ import { Features } from './sections/Features';
 import { Queue } from './sections/Queue';
 import { Realtime } from './sections/Realtime';
 import { Context } from './sections/Context';
+import { TokenEconomy } from './sections/TokenEconomy';
 import { Connect } from './sections/Connect';
 import { Resources } from './sections/Resources';
 import { Modes } from './sections/Modes';
@@ -28,6 +29,7 @@ export function DocSections({ year }: { year: number }) {
       <Queue />
       <Realtime />
       <Context />
+      <TokenEconomy />
       <Connect />
       <Resources />
       <Modes />
