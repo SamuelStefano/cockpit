@@ -13,6 +13,7 @@ import { TurnBanners } from './chat/TurnBanners';
 import { FollowupChips } from './chat/FollowupChips';
 import { ClaudeAuthBanner } from './chat/ClaudeAuthBanner';
 import { SaturationBanner } from './chat/SaturationBanner';
+import { SendCostNotice } from './chat/SendCostNotice';
 import { useChatPanel, type Phase } from './chat/useChatPanel';
 import { useFileDrop } from './chat/useFileDrop';
 import { BackgroundAgents } from './chat/BackgroundAgents';
@@ -21,7 +22,7 @@ import type { ChatPanelProps } from './chat/chat-panel-props';
 
 export type { Phase };
 
-export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, followups, onDismissFollowups, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, keyboardOpen = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, followups, onDismissFollowups, draft, setDraft, onSend, onPrompt, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, keyboardOpen = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce }: ChatPanelProps) {
   const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg, queueRunNow });
   // Modo iterativo: um refino pedido de dentro de um live preview vira o próximo
   // prompt (o card não tem acesso ao compositor — publica no [[refine-bus]]).
@@ -111,6 +112,11 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
       {!keyboardOpen && phase === 'idle' && onHandoff && (
         <SaturationBanner sessionId={session?.id} contextTokens={contextTokens} busy={handoffBusy} onHandoff={onHandoff} />
       )}
+
+      {/* Preço do próximo envio. Fica em repouso e com o teclado fechado, junto do
+          banner de saturação: os dois respondem perguntas diferentes (a sessão está
+          cheia? / quanto custa mandar agora?) e só juntos explicam o gasto. */}
+      {!keyboardOpen && phase === 'idle' && <SendCostNotice cost={sendCost ?? null} />}
 
       <TurnBanners phase={phase} failed={c.failed} planPending={c.planPending} pendingQuestion={c.pendingQuestion} queuedCount={c.queued.length} lastEnd={lastEnd} retryLast={c.retryLast} onSend={onSend} onForceQueue={session ? () => queueForce(session.id) : undefined} />
 
