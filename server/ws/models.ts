@@ -1,6 +1,8 @@
 import type { ModelInfo } from '../../shared/protocol';
 import { broadcast } from './broadcast';
 import { readOAuthToken, OAUTH_BETA } from '../oauth';
+import { CONFIG } from '../config';
+import { isLongContextModel } from '../../shared/long-context';
 
 // Modelos concretos disponíveis na conta (claude-opus-4-8, etc). Lê o token OAuth
 // do CLI e consulta /v1/models. SEGURANÇA: o token NUNCA sai do servidor — só a
@@ -29,13 +31,16 @@ export async function refreshModels(): Promise<ModelInfo[]> {
 
 // A lista vai INTEIRA pro seletor, na ordem da Anthropic (novo primeiro) — pedido
 // do Samuel (2026-06-10): "puxe igual aos da anthropic, inclusive os novos". Só
-// filtramos ids não-Claude, que o validador de --model do servidor recusaria.
+// filtramos ids não-Claude, que o validador de --model do servidor recusaria, e as
+// variantes [1m] (ver shared/long-context.ts).
 export function mapModels(body: unknown): ModelInfo[] {
   const b = body as { data?: Array<{ id?: unknown; display_name?: unknown }> };
   if (!Array.isArray(b?.data)) return [];
+  const allow1m = CONFIG.allowLongContext;
   const out: ModelInfo[] = [];
   for (const m of b.data) {
     if (typeof m?.id !== 'string' || !/^claude-/.test(m.id)) continue;
+    if (!allow1m && isLongContextModel(m.id)) continue;
     const displayName = typeof m.display_name === 'string' && m.display_name ? m.display_name : m.id;
     out.push({ id: m.id, displayName });
   }

@@ -55,6 +55,18 @@ describe('least privilege do motor de plano', () => {
     expect(args[args.indexOf('--permission-mode') + 1]).toBe('default');
   });
 
+  // As duas flags acima bloqueiam ESCRITA mas não leitura: medido em 04/09/2026,
+  // um canário em /tmp voltou inteiro na resposta do filho. Como daqui sai texto
+  // que vira contexto, leitura é o vetor de exfiltração — a negação explícita é
+  // que fecha. Sem este teste a regressão é silenciosa.
+  it('nega explicitamente as tools de leitura e rede', () => {
+    vi.mocked(spawn).mockReturnValue(fakeChild() as never);
+    void runOnPlan({ model: 'claude-haiku-4-5-20251001', prompt: 'p', context: null, onEvent: () => {} });
+    const args = vi.mocked(spawn).mock.calls.at(-1)![1] as string[];
+    const deny = (args[args.indexOf('--disallowedTools') + 1] ?? '').split(' ');
+    for (const t of ['Read', 'Bash', 'Glob', 'Grep', 'WebFetch', 'WebSearch']) expect(deny).toContain(t);
+  });
+
   // O OAuth do plano so vale sem chave de API no env; uma chave herdada trocaria a
   // cota da assinatura por cobranca pay-as-you-go silenciosa.
   it('nao vaza ANTHROPIC_API_KEY pro CLI', () => {

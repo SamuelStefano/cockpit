@@ -90,8 +90,15 @@ export function runOnPlan(opts: { model: string; prompt: string; context: Harnes
     // nesse texto rodaria sem nenhuma confirmação. O motor só precisa devolver TEXTO.
     // Testado: o modelo recusou a injeção — mas recusa é julgamento do modelo, não
     // fronteira, e least privilege não depende de o modelo acertar toda vez.
+    //
+    // 04/09/2026: medido que estas duas flags sozinhas NÃO fecham. Elas bloqueiam
+    // escrita (`touch` não criou arquivo), mas o filho continua LENDO arquivo
+    // arbitrário — um canário em /tmp voltou inteiro no texto da resposta. E o
+    // texto da resposta é justamente o que sai daqui. Só a negação explícita por
+    // tool bloqueou a leitura.
     '--allowed-tools', '',
     '--permission-mode', 'default',
+    '--disallowedTools', 'Read Bash Glob Grep WebFetch WebSearch Edit Write NotebookEdit Task',
     '--model', model,
     '--system-prompt', systemPrompt(context),
   ];

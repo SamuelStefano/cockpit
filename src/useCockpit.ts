@@ -23,6 +23,7 @@ import { useSkills, type Skills } from './cockpit/useSkills';
 import { useGraphs, type Graphs } from './cockpit/useGraphs';
 import { useAdmin, type Admin } from './cockpit/useAdmin';
 import { useHarness, type Harness } from './cockpit/useHarness';
+import { stripLongContext } from '../shared/long-context';
 import { addThumb, shouldRequestThumb } from './lib/att-thumb-cache';
 import { fileSig, isFreshUpload } from './components/chat/dedupe-uploads';
 import { encodeAttachments, parseAttachments } from './lib/parse-attachments';
@@ -1187,8 +1188,12 @@ export function useCockpit(): Cockpit {
   // conversa que herdou o default (sem override próprio) segue derivando o rótulo
   // do defaultModel mutável — e trocar a versão em OUTRA conversa reetiqueta um
   // turno em andamento (ex.: um turno sonnet passa a exibir "Fable 5").
+  // Pin salvo em localStorage sobrevive ao deploy: uma sessão que ficou pinada num
+  // `[1m]` continuaria nele mesmo com o modelo já fora do seletor, e o servidor
+  // recusaria o argv (validModel) com o pin ainda gravado. Normaliza na leitura —
+  // é o único ponto por onde todo envio passa.
   const pinSessionModel = useCallback((key: string): string => {
-    const chosen = modelBySessionRef.current[key] ?? defaultModelRef.current;
+    const chosen = stripLongContext(modelBySessionRef.current[key] ?? defaultModelRef.current);
     if (modelBySessionRef.current[key] !== chosen) {
       modelBySessionRef.current = { ...modelBySessionRef.current, [key]: chosen };
       setModelBySession(modelBySessionRef.current);
