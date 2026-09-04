@@ -80,7 +80,8 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
     if (route === '/crons') {
       return (
         <Crons connected={connected} crons={c.crons} loaded={c.cronsLoaded}
-          onCronsGet={c.onCronsGet} onCronSave={c.onCronSave} onCronDelete={c.onCronDelete} onCronRun={c.onCronRun} />
+          onCronsGet={c.onCronsGet} onCronSave={c.onCronSave} onCronDelete={c.onCronDelete} onCronRun={c.onCronRun}
+          planUsage={c.planUsage} />
       );
     }
     if (route === '/uso') {
