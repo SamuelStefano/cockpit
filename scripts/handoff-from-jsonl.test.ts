@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { transcriptTail, factsFrom, buildPrompt, capAtLine, HANDOFF_INSTR } from './handoff-from-jsonl.mts';
+import { transcriptTail, factsFrom, buildPrompt, capAtLine, HANDOFF_INSTR } from './handoff-from-jsonl.mjs';
 import type { Message, ToolCall } from '../shared/protocol';
 
 function user(text: string): Message { return { id: text, role: 'user', text }; }
 function tool(t: Partial<ToolCall>): Message {
   return {
     id: 'a', role: 'assistant',
-    blocks: [{ type: 'tool', tool: { id: 't', name: 'Edit', label: '', command: '', status: 'done', ...t } }],
+    blocks: [{ type: 'tool', tool: { id: 't', name: 'Edit', label: '', command: '', status: 'done', output: [], ...t } }],
   };
 }
 
