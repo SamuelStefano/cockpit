@@ -23,10 +23,11 @@ function envInt(raw: string | undefined, def: number): number {
 // aqui ele só rotula o turno como caro; quem oferece a migração é o banner.
 export const CTX_SOFT = envInt(process.env.COCKPIT_CTX_SOFT, 160_000);
 
-// Acima disto o Deck RECUSA continuar a sessão. É o 92% em que o banner já vira
-// 'critical': o aviso existia e foi ignorado nas quatro sessões de 04/09 — banner
-// é sugestão, isto é fronteira. A saída continua sendo o botão Migrar, que destila
-// pela API (server/handoff.ts) e não passa pelo startRun.
+// Acima disto o Deck recusa continuar a sessão SOZINHO — retomada automática,
+// dreno da fila, cron. É o 92% em que o banner já vira 'critical'. O envio MANUAL
+// passa: o teto duro barrando o composer virava sessão trancada (runs.ts, `manual`).
+// A saída barata continua sendo o botão Migrar, que destila pela API
+// (server/handoff.ts) e não passa pelo startRun.
 export const CTX_HARD = envInt(process.env.COCKPIT_CTX_HARD, 184_000);
 
 // Piso pra um envio contar como "cold-start grande" e disputar o semáforo. Abaixo

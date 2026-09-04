@@ -10,6 +10,7 @@ import { CONFIG } from '../config';
 import { managedEnvSync, mcpServerDefsSync } from '../admin-ops';
 import type { Role } from '../auth';
 import { isLongContextModel } from '../../shared/long-context';
+import { ALL_MCPS } from '../../shared/mcp';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -77,6 +78,19 @@ export function effectiveBudget(requested: number | undefined, cap: number | und
 // contra o ~/.claude.json cru — que qualquer papel com Write alcança. Sem este
 // filtro o gate de admin era decorativo: student escrevia a definição e pedia o
 // nome no turno seguinte. Não-admin só carrega servers remotos (url).
+// O cliente não manda a lista expandida porque ela envelhece: um MCP adicionado
+// depois entraria só no próximo reload da aba. Quem expande é o servidor, no
+// startRun, contra o ~/.claude.json do momento.
+//
+// Resolve o sentinel numa lista concreta de nomes (já filtrada pelo role, igual ao
+// pickMcpDefs). Tudo daqui pra frente — thread.params.mcps, tools.ts, sameParams —
+// enxerga nomes reais, nunca o '*'.
+export function resolveMcpSelection(names: string[] | undefined, role: Role | undefined): string[] | undefined {
+  if (!names?.length || !names.includes(ALL_MCPS)) return names;
+  const all = mcpServerDefsSync();
+  return Object.keys(pickMcpDefs(all, Object.keys(all), role));
+}
+
 export function pickMcpDefs(all: Record<string, unknown>, names: string[], role: Role | undefined): Record<string, unknown> {
   const picked: Record<string, unknown> = {};
   for (const name of names) {
