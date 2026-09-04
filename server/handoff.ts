@@ -4,6 +4,7 @@ import type { Message } from '../shared/protocol';
 import { CONFIG } from './config';
 import { parseSession } from './sessions/parse';
 import { apiKey, transcriptText } from './summary';
+import { runOnPlan } from './harness/plan-run';
 import { hideSession } from './store';
 
 // Segundo write path do memoryDir (o 1º é installContext), então repete os mesmos
@@ -70,6 +71,24 @@ export function handoffFile(slug: string, description: string, body: string, at 
   return `---\nname: ${slug}\ndescription: ${safe}\nmetadata:\n  type: reference\n---\n\n> Migrado de uma sessão lotada em ${when} (BRT).\n\n${body}\n`;
 }
 
+// Destila pelo PLANO (OAuth da assinatura, custo em dólar = 0), com a API só como
+// fallback pra quem tiver chave. A conta de API do Samuel está sem saldo e a
+// destilação morria em "sem chave" antes mesmo de tentar — sendo que o Deck já roda
+// o CLI no plano pro harness. Reusa `runOnPlan` em vez de abrir um segundo spawner.
+export async function distill(transcript: string): Promise<string | null> {
+  const r = await runOnPlan({
+    model: CONFIG.summaryModel,
+    prompt: handoffPrompt(transcript),
+    context: null,
+    onEvent: () => { /* handoff não streama: só o texto final interessa */ },
+  });
+  const text = r.status === 'done' ? r.resultText?.trim() : '';
+  if (text) return text;
+  const key = apiKey();
+  if (!key) return null;
+  return callAnthropic(key, transcript);
+}
+
 async function callAnthropic(key: string, transcript: string): Promise<string | null> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -88,9 +107,7 @@ async function callAnthropic(key: string, transcript: string): Promise<string | 
 // Só arquiva DEPOIS de gravar o contexto: se a destilação falhar, o usuário fica
 // com a sessão intacta em vez de perder o fio.
 export async function handoffSession(sessionId: string): Promise<{ contextId: string } | { error: string }> {
-  const key = apiKey();
-  if (!key) return { error: 'sem chave da API para destilar o contexto' };
-  // Cada handoff é uma chamada paga de ~6k tokens de input: sem este guard um
+  // Cada handoff gasta ~6k tokens de input da COTA DO PLANO: sem este guard um
   // cliente qualquer disparava N destilações da mesma sessão em paralelo.
   if (inFlight.has(sessionId)) return { error: 'migração já em andamento' };
   inFlight.add(sessionId);
@@ -101,8 +118,8 @@ export async function handoffSession(sessionId: string): Promise<{ contextId: st
     if (!transcript) return { error: 'sessão sem conversa para migrar' };
 
     let body: string | null;
-    try { body = await callAnthropic(key, transcript); }
-    catch { return { error: 'falha ao contatar a API' }; }
+    try { body = await distill(transcript); }
+    catch { return { error: 'falha ao destilar o contexto' }; }
     if (!body) return { error: 'não consegui destilar o contexto' };
     body = body.slice(0, MAX_BODY_CHARS);
 
