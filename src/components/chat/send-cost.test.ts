@@ -41,3 +41,16 @@ describe('composerCost', () => {
     expect(r.cost.pctOfWindow).toBeGreaterThan(NOTICE_PCT);
   });
 });
+
+// Num F5 o mapa de lastUsageAt nasce vazio. Sem fallback, toda sessão aparecia
+// fria logo após recarregar — falso positivo que ensina a ignorar o aviso.
+describe('composerCost — temperatura desconhecida', () => {
+  it('sem lastUsageAt trata como frio (o caso do incidente: sessão parada há horas)', () => {
+    const r = composerCost({ ctxTokens: 681_362, planUsage: null, now: NOW })!;
+    expect(r.cost.cold).toBe(true);
+  });
+
+  it('com o mtime recente da sessão, não grita', () => {
+    expect(composerCost({ ctxTokens: 681_362, lastUsageAt: NOW - 20_000, planUsage: null, now: NOW })).toBeNull();
+  });
+});
