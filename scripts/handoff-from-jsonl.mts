@@ -96,10 +96,15 @@ export function buildPrompt(transcript: string, facts: { files: string[]; prs: s
   return `${HANDOFF_INSTR}\n\n## Arquivos tocados (apurado das tool calls, use como verdade)\n${f}\n\n## PRs citadas\n${p}\n\n## Cauda do transcript\n${transcript}`;
 }
 
-function parseApiResponse(json: unknown): string | null {
-  const blocks = (json as { content?: Array<{ type?: string; text?: string }> })?.content;
-  if (!Array.isArray(blocks)) return null;
-  const raw = blocks.filter((b) => b?.type === 'text').map((b) => b.text ?? '').join('').trim();
+// `stop_reason: 'max_tokens'` = a resposta foi CORTADA no meio. Sem checar isso, um
+// handoff truncado era gravado como se estivesse completo — o mesmo defeito que o
+// capAtLine existe pra evitar, só que sem o aviso. Devolve null e o chamador cai no
+// fallback, que é melhor que um handoff que mente por omissão.
+export function parseApiResponse(json: unknown): string | null {
+  const o = json as { content?: Array<{ type?: string; text?: string }>; stop_reason?: string };
+  if (o?.stop_reason === 'max_tokens') return null;
+  if (!Array.isArray(o?.content)) return null;
+  const raw = o.content.filter((b) => b?.type === 'text').map((b) => b.text ?? '').join('').trim();
   return raw || null;
 }
 
@@ -109,7 +114,9 @@ async function viaApi(key: string, prompt: string): Promise<string | null> {
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
     body: JSON.stringify({
       model: CONFIG.summaryModel,
-      max_tokens: 1500,
+      // Teto de saída com folga sobre os ~4.5k chars pedidos na instrução (~1.5k
+      // tokens em português): apertado, a resposta vinha cortada no meio.
+      max_tokens: 3000,
       messages: [{ role: 'user', content: prompt }],
     }),
     signal: AbortSignal.timeout(90_000),
@@ -160,8 +167,12 @@ export async function handoffFor(sessionId: string): Promise<{ path: string; cha
   if (!parsed || parsed.messages.length === 0) return { error: 'transcript vazio' };
 
   const prompt = buildPrompt(transcriptTail(parsed.messages), factsFrom(parsed.messages));
+  // `?? viaCli` só cobre o retorno null; um throw da rede escapava e derrubava o
+  // lote inteiro, sem nem tentar o fallback que existe pra exatamente esse caso.
   const key = apiKey();
-  const body = key ? (await viaApi(key, prompt)) ?? (await viaCli(prompt)) : await viaCli(prompt);
+  let body: string | null = null;
+  if (key) { try { body = await viaApi(key, prompt); } catch { body = null; } }
+  if (!body) body = await viaCli(prompt);
   if (!body || body.length < MIN_HANDOFF_CHARS) return { error: 'modelo devolveu handoff vazio/curto' };
 
   // O handoff vira prefixo de prompt da próxima sessão: um segredo que passou pelo

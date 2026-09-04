@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { transcriptTail, factsFrom, buildPrompt, capAtLine, HANDOFF_INSTR } from './handoff-from-jsonl.mjs';
+import { transcriptTail, factsFrom, buildPrompt, capAtLine, parseApiResponse, HANDOFF_INSTR } from './handoff-from-jsonl.mjs';
 import type { Message, ToolCall } from '../shared/protocol';
 
 function user(text: string): Message { return { id: text, role: 'user', text }; }
@@ -69,5 +69,27 @@ describe('buildPrompt', () => {
   it('injeta os fatos apurados antes do transcript', () => {
     const p = buildPrompt('Você: marcador-do-transcript', { files: ['/a.ts'], prs: ['#1'] });
     expect(p.indexOf('/a.ts')).toBeLessThan(p.indexOf('marcador-do-transcript'));
+  });
+});
+
+// Resposta cortada no teto de saída era gravada como handoff completo — e esse
+// texto vira prefixo de prompt da próxima sessão.
+describe('parseApiResponse', () => {
+  it('recusa resposta cortada no max_tokens', () => {
+    expect(parseApiResponse({ stop_reason: 'max_tokens', content: [{ type: 'text', text: 'metade do han' }] })).toBeNull();
+  });
+
+  it('aceita resposta que terminou sozinha', () => {
+    expect(parseApiResponse({ stop_reason: 'end_turn', content: [{ type: 'text', text: 'completo' }] })).toBe('completo');
+  });
+
+  it('junta os blocos de texto e ignora o resto', () => {
+    expect(parseApiResponse({ content: [{ type: 'text', text: 'a' }, { type: 'thinking' }, { type: 'text', text: 'b' }] })).toBe('ab');
+  });
+
+  it('devolve null em corpo malformado ou vazio', () => {
+    expect(parseApiResponse({})).toBeNull();
+    expect(parseApiResponse(null)).toBeNull();
+    expect(parseApiResponse({ content: [{ type: 'text', text: '  ' }] })).toBeNull();
   });
 });
