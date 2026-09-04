@@ -1642,7 +1642,12 @@ export function useCockpit(): Cockpit {
   // Recalculado a cada render: o cache esfria com o RELÓGIO, não com um evento —
   // sem re-render o aviso não apareceria numa aba parada, que é exatamente o
   // cenário de 04/09 (sessões ociosas há horas recebendo prompt).
-  const sendCost = composerCost({ ctxTokens: contextTokens, lastUsageAt: lastUsageAt[activeId], planUsage, now: Date.now() });
+  // Fallback pro `mtime` da sessão (mtime do JSONL = última atividade real): num
+  // F5 o mapa de lastUsageAt nasce vazio, e sem isto TODA sessão aparecia como
+  // cache frio logo após recarregar a página. Aviso que grita à toa é aviso que se
+  // aprende a ignorar — e este existe justamente pra ser levado a sério.
+  const lastAt = lastUsageAt[activeId] ?? sessions.find((s) => s.id === activeId)?.mtime;
+  const sendCost = composerCost({ ctxTokens: contextTokens, lastUsageAt: lastAt, planUsage, now: Date.now() });
   const liveTurnTokens = liveTurn[activeId] || 0;
   const turnStartedAt = runStart[activeId];
   const activeBgAgents = bgAgents[activeId] ?? EMPTY_AGENTS;
