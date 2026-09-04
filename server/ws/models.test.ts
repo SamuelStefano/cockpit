@@ -1,5 +1,21 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { mapModels } from './models';
+import { CONFIG } from '../config';
+
+afterEach(() => { CONFIG.allowLongContext = false; });
+
+describe('mapModels — variantes de 1M', () => {
+  it('esconde [1m] do seletor por padrão (incidente 04/09/2026)', () => {
+    const m = mapModels({ data: [{ id: 'claude-opus-5[1m]' }, { id: 'claude-opus-5' }] });
+    expect(m.map((x) => x.id)).toEqual(['claude-opus-5']);
+  });
+
+  it('devolve [1m] com COCKPIT_ALLOW_1M ligado', () => {
+    CONFIG.allowLongContext = true;
+    const m = mapModels({ data: [{ id: 'claude-opus-5[1m]' }, { id: 'claude-opus-5' }] });
+    expect(m.map((x) => x.id)).toEqual(['claude-opus-5[1m]', 'claude-opus-5']);
+  });
+});
 
 describe('mapModels', () => {
   it('maps the live shape from /v1/models', () => {

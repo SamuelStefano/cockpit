@@ -9,6 +9,7 @@ import { cliPath } from './cli-path';
 import { CONFIG } from '../config';
 import { managedEnvSync, mcpServerDefsSync } from '../admin-ops';
 import type { Role } from '../auth';
+import { isLongContextModel } from '../../shared/long-context';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -48,7 +49,16 @@ const MODELS = new Set(['opus', 'sonnet', 'haiku']);
 // id concreto do modelo (claude-opus-4-8). Ancorado, sem espaço e obrigado a começar
 // com alfanumérico — é isso que impede o valor de virar uma flag no argv.
 const MODEL_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$/;
-function validModel(m: string): boolean { return MODELS.has(m) || MODEL_ID_RE.test(m); }
+// Segunda barreira contra `[1m]` (a primeira é o filtro do seletor em ws/models.ts):
+// o `model` chega do frame do cliente e um pin salvo em localStorage sobrevive ao
+// deploy. Sem isto, a sessão que já estava pinada em opus-5[1m] continuava nela.
+// Nota: `[` e `]` não passam no MODEL_ID_RE, então hoje isso só vale pros aliases
+// que a Anthropic possa expor no futuro — a checagem é explícita pra não depender
+// desse acidente do charset.
+export function validModel(m: string): boolean {
+  if (!CONFIG.allowLongContext && isLongContextModel(m)) return false;
+  return MODELS.has(m) || MODEL_ID_RE.test(m);
+}
 
 export interface RunHandle {
   kill: () => void;

@@ -95,6 +95,12 @@ export const CONFIG = {
   summaryEnabled: process.env.COCKPIT_SUMMARY !== 'off',
   summaryModel: process.env.COCKPIT_SUMMARY_MODEL ?? 'claude-haiku-4-5-20251001',
 
+  // Variantes de janela de 1M (`claude-opus-5[1m]`) no seletor e no argv. Default
+  // FALSE: uma sessão nelas para de compactar e chega a ~800k de contexto, onde
+  // cada prompt com cache frio custa ~14% da janela de 5h (incidente de 04/09/2026,
+  // ver .sdd/cockpit/quota-guard/). Opt-in consciente do dono.
+  allowLongContext: process.env.COCKPIT_ALLOW_1M === '1',
+
   // Gate DURO do bypassPermissions (#94, DR-011). Default FALSE: numa máquina com
   // sudo NOPASSWD + grupo docker + containers DFL prod na mesma box, bypass = RCE
   // root. Mesmo ligado, só vale com role admin E loopback (ver bypassAllowed no

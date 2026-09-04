@@ -20,7 +20,7 @@ class FakeChild extends EventEmitter {
   kill = vi.fn();
 }
 
-import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run, effectiveBudget, pickMcpDefs } from './claude';
+import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run, effectiveBudget, pickMcpDefs, validModel } from './claude';
 import { CONFIG } from '../config';
 
 beforeEach(() => { managed = {}; });
@@ -254,6 +254,34 @@ describe('buildArgs', () => {
     const v = valAfter(argsOf({ prompt: 'x', disallowedSkills: ['Alpha', 'Alpha'] }), '--disallowedTools');
     const rules = (v ?? '').split(' ').filter(Boolean);
     expect(new Set(rules).size).toBe(rules.length);
+  });
+});
+
+describe('validModel — variantes de 1M', () => {
+  afterEach(() => { CONFIG.allowLongContext = false; });
+
+  it('recusa [1m] por padrão, mesmo com o pin velho do cliente', () => {
+    expect(validModel('claude-opus-5[1m]')).toBe(false);
+    expect(validModel('claude-fable-5-1[1m]')).toBe(false);
+  });
+
+  it('aceita o id base e os aliases', () => {
+    for (const m of ['claude-opus-5', 'opus', 'sonnet', 'haiku']) expect(validModel(m)).toBe(true);
+  });
+
+  it('aceita [1m] com COCKPIT_ALLOW_1M ligado', () => {
+    CONFIG.allowLongContext = true;
+    // O MODEL_ID_RE não aceita colchete: com o opt-in ligado o gate de 1M sai da
+    // frente, mas o id continua barrado pelo charset — a flag não é um bypass do
+    // validador, só do veto específico.
+    expect(validModel('claude-opus-5[1m]')).toBe(false);
+    expect(validModel('claude-opus-5')).toBe(true);
+  });
+});
+
+describe('buildArgs — modelo [1m] não vai pro argv', () => {
+  it('omite --model quando o pin é [1m]', () => {
+    expect(argsOf({ prompt: 'x', model: 'claude-opus-5[1m]' })).not.toContain('--model');
   });
 });
 
