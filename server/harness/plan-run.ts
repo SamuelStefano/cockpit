@@ -83,6 +83,15 @@ export function runOnPlan(opts: { model: string; prompt: string; context: Harnes
     '--verbose',
     '--strict-mcp-config',
     '--exclude-dynamic-system-prompt-sections',
+    // O prompt carrega texto que o Deck NÃO produziu — transcript de sessão, que por
+    // sua vez pode conter README, página web ou comentário de PR que o agente leu.
+    // Sem restrição o CLI nasce com todas as tools, e o HOME herdado traz o
+    // `defaultMode: bypassPermissions` do settings do usuário: uma instrução plantada
+    // nesse texto rodaria sem nenhuma confirmação. O motor só precisa devolver TEXTO.
+    // Testado: o modelo recusou a injeção — mas recusa é julgamento do modelo, não
+    // fronteira, e least privilege não depende de o modelo acertar toda vez.
+    '--allowed-tools', '',
+    '--permission-mode', 'default',
     '--model', model,
     '--system-prompt', systemPrompt(context),
   ];
