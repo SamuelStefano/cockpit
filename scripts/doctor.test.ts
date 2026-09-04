@@ -105,3 +105,84 @@ describe('doctor.sh · o padrão solto não volta', () => {
     expect(fonte).toContain('supervisor_alive "$AGENT_SUPERVISOR"');
   });
 });
+
+// Passo 4c: drift de código. O gatilho é uma comparação de string entre o
+// ~/.cockpit/running-commit (carimbado pelo redeploy.sh) e o HEAD do repo — o
+// teste exercita essa lógica isolada, sem disparar deploy de verdade.
+describe('doctor.sh · drift de código re-arma o deploy', () => {
+  // Reproduz o bloco do doctor com os caminhos parametrizados, pra rodar num repo
+  // de mentira. Mantém a MESMA ordem de guardas do script.
+  const bloco = `
+    head_commit=$(git -C "$REPO" rev-parse HEAD 2>/dev/null || echo "")
+    running=$(cat "$RUNNING_COMMIT" 2>/dev/null || echo "")
+    if [ -n "$head_commit" ] && [ "$running" != "$head_commit" ]; then
+      if [ -z "$(git -C "$REPO" status --porcelain 2>/dev/null)" ]; then echo ARMA; else echo TREE_SUJO; fi
+    else echo NADA; fi
+  `;
+
+  function repoDeMentira(): string {
+    const dir = mkdtempSync(join(tmpdir(), 'doctor-drift-'));
+    execFileSync('git', ['init', '-q', dir]);
+    execFileSync('git', ['-C', dir, 'config', 'user.email', 't@t'], { stdio: 'ignore' });
+    execFileSync('git', ['-C', dir, 'config', 'user.name', 't'], { stdio: 'ignore' });
+    writeFileSync(join(dir, 'a.txt'), 'um');
+    execFileSync('git', ['-C', dir, 'add', '.'], { stdio: 'ignore' });
+    execFileSync('git', ['-C', dir, 'commit', '-qm', 'um'], { stdio: 'ignore' });
+    return dir;
+  }
+
+  function rodar(repo: string, running: string): string {
+    // FORA do repo: escrever o carimbo dentro dele sujaria o working tree e o
+    // teste cairia sempre na guarda de tree suja.
+    const f = join(tmpdir(), `running-commit-${Math.random().toString(36).slice(2)}`);
+    criados.push(f);
+    writeFileSync(f, running);
+    return execFileSync('bash', ['-c', bloco], {
+      encoding: 'utf8', env: { ...process.env, REPO: repo, RUNNING_COMMIT: f },
+    }).trim();
+  }
+
+  const criados: string[] = [];
+  afterAll(() => criados.forEach((d) => rmSync(d, { recursive: true, force: true })));
+
+  it('arma quando o processo roda commit diferente do HEAD', () => {
+    const repo = repoDeMentira(); criados.push(repo);
+    expect(rodar(repo, 'commitvelho')).toBe('ARMA');
+  });
+
+  it('não arma quando o commit rodando é o HEAD', () => {
+    const repo = repoDeMentira(); criados.push(repo);
+    const head = execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+    expect(rodar(repo, head)).toBe('NADA');
+  });
+
+  // Subir código pela metade é pior que conviver com o drift por mais 3 minutos.
+  it('não arma com o working tree sujo', () => {
+    const repo = repoDeMentira(); criados.push(repo);
+    writeFileSync(join(repo, 'a.txt'), 'editando');
+    expect(rodar(repo, 'commitvelho')).toBe('TREE_SUJO');
+  });
+
+  // Primeira execução depois do deploy deste passo: o arquivo ainda não existe.
+  // Tratar como drift é o certo — é exatamente o estado "não sei o que está rodando".
+  it('arma quando o carimbo ainda não existe', () => {
+    const repo = repoDeMentira(); criados.push(repo);
+    const out = execFileSync('bash', ['-c', bloco], {
+      encoding: 'utf8', env: { ...process.env, REPO: repo, RUNNING_COMMIT: join(tmpdir(), 'nao-existe-mesmo') },
+    }).trim();
+    expect(out).toBe('ARMA');
+  });
+});
+
+// O redeploy tem que CARIMBAR o commit, senão o passo 4c dispara pra sempre.
+describe('redeploy.sh · carimba o commit que subiu', () => {
+  const src = readFileSync(new URL('./redeploy.sh', import.meta.url).pathname, 'utf8');
+
+  it('escreve o HEAD em ~/.cockpit/running-commit', () => {
+    expect(src).toMatch(/rev-parse HEAD > "\$HOME\/\.cockpit\/running-commit"/);
+  });
+
+  it('carimba DEPOIS do dry-run sair, pra ensaio não mentir sobre o que está no ar', () => {
+    expect(src.indexOf('REDEPLOY_DRY_RUN')).toBeLessThan(src.indexOf('running-commit'));
+  });
+});

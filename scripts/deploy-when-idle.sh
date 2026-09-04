@@ -46,4 +46,8 @@ while [ "$waited" -lt "$MAX_WAIT" ]; do
   exit 0
 done
 
-log "ABORT: ${MAX_WAIT}s sem janela ociosa; $target NÃO foi ativado (rode scripts/redeploy.sh na mão)"
+# Desistir aqui deixou de ser definitivo: o doctor.sh compara o
+# ~/.cockpit/running-commit com o HEAD a cada 3 min e re-arma este watcher enquanto
+# houver drift. Antes o ABORT era o fim da linha e o fix ficava no disco (04/09/2026,
+# o #519 esperou 6h e o incidente aconteceu no meio).
+log "sem janela ociosa em ${MAX_WAIT}s; $target ainda não ativado — o doctor re-arma em até 3min"
