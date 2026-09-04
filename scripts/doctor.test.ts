@@ -186,3 +186,19 @@ describe('redeploy.sh · carimba o commit que subiu', () => {
     expect(src.indexOf('REDEPLOY_DRY_RUN')).toBeLessThan(src.indexOf('running-commit'));
   });
 });
+
+// Numa box com turno quase sempre vivo a janela ociosa dura poucos segundos: com
+// STEP fixo em 20s o watcher rodava sem nunca pegar uma. O gatilho por drift
+// aperta a sondagem.
+describe('deploy-when-idle.sh · passo de sondagem', () => {
+  const src = readFileSync(new URL('./deploy-when-idle.sh', import.meta.url).pathname, 'utf8');
+  const doctor = readFileSync(new URL('./doctor.sh', import.meta.url).pathname, 'utf8');
+
+  it('STEP tem default mas aceita override', () => {
+    expect(src).toMatch(/STEP=\$\{STEP:-20\}/);
+  });
+
+  it('o doctor aperta o passo ao armar por drift', () => {
+    expect(doctor).toMatch(/MAX_WAIT=150 STEP=5 nohup bash/);
+  });
+});

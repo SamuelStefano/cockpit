@@ -171,7 +171,7 @@ if [ -n "$head_commit" ] && [ "$running" != "$head_commit" ]; then
   # Tree suja = alguém editando; subir código pela metade é pior que o drift.
   if [ -z "$(git -C "$REPO" status --porcelain 2>/dev/null)" ]; then
     log "drift de codigo: rodando ${running:-desconhecido} != HEAD $head_commit; armando deploy-when-idle"
-    MAX_WAIT=150 nohup bash "$REPO/scripts/deploy-when-idle.sh" >/dev/null 2>&1 8>&- &
+    MAX_WAIT=150 STEP=5 nohup bash "$REPO/scripts/deploy-when-idle.sh" >/dev/null 2>&1 8>&- &
   fi
 fi
 
