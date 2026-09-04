@@ -6,12 +6,19 @@ import { reapStaleRuns, REAPER_SILENCE_CAP_MS, REAPER_TOOL_SILENCE_CAP_MS, REAPE
 import { takeOrphanRuns } from './recover';
 import { recordIncident } from './incidents';
 import { isAwaiting, setAwaiting, clearAllAwaiting } from './awaiting';
-import { broadcast } from './broadcast';
+import { broadcast, send } from './broadcast';
 import { run } from '../engine/claude';
 import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takeParked, promoteParked, isQueuePaused, type ParkedItem } from './parked';
 import { resumableId } from './resume';
 import { quotaHold } from './quota';
 import { classify } from '../engine/triage';
+import { resetCooldownState, resetColdInflight, acquireCold, COOLDOWN_AFTER_RESET_MS } from './ctx-guard';
+
+// O gate de contexto lê a última amostra de uso do SQLite. No teste isso tem que
+// ser determinístico: sem mock ele consultaria o cockpit.db real do Samuel e o
+// veredito mudaria conforme o histórico da máquina.
+const usageRow = vi.hoisted(() => ({ value: null as { ctxTokens: number; ts: number; model: string | null } | null }));
+vi.mock('../db', () => ({ lastUsageOf: () => usageRow.value }));
 
 vi.mock('../engine/claude', () => ({ run: vi.fn(() => ({ kill: vi.fn() })) }));
 // Fila estacionada e teto de tokens mockados: o teste não pode ler/escrever o
@@ -360,6 +367,11 @@ describe('fila estacionada — teto de tokens', () => {
     vi.mocked(shiftParked).mockReset();
     vi.mocked(unshiftParked).mockClear();
     vi.mocked(addParked).mockClear();
+    // Estado de módulo do ctx-guard: o cooldown pós-reset e o semáforo de
+    // cold-start sobrevivem entre testes. Sem zerar, o `limited()` de um teste
+    // arma o cooldown e o dreno do teste SEGUINTE não sai.
+    resetCooldownState();
+    resetColdInflight();
     startParkedDrainer(3_600_000); // liga o drainer sem tick automático no teste
   });
 
@@ -671,5 +683,137 @@ describe('disparo imediato de um item da fila (furar a fila)', () => {
     vi.mocked(promoteParked).mockReturnValue(false);
     expect(runParkedNow('now4', 'pk-9')).toEqual({ reject: 'sem-item' });
     expect(kill).not.toHaveBeenCalled();
+  });
+});
+
+// Gate de contexto (ws/ctx-guard.ts). Incidente de 04/09/2026: quatro sessões de
+// 631k–780k tokens receberam prompt com cache frio em 3min29s e a janela de 5h foi
+// de ~20% a 100%. Nenhuma guarda existente via isso — o quotaHold só age em 100%.
+describe('gate de contexto', () => {
+  const ws = { send: vi.fn() } as unknown as WebSocket;
+  const item = (over: Partial<ParkedItem> = {}): ParkedItem => ({ id: 'pk-1', prompt: 'roda isso', at: 1, ...over });
+  const closeLastRun = () => vi.mocked(run).mock.calls.at(-1)![0].onClose?.();
+  const setCtx = (ctxTokens: number, ageMs = 3 * 60 * 60_000) => {
+    usageRow.value = { ctxTokens, ts: Date.now() - ageMs, model: 'claude-opus-5' };
+  };
+
+  beforeEach(() => {
+    threads.clear();
+    clearAllAwaiting();
+    usageRow.value = null;
+    resetCooldownState();
+    resetColdInflight();
+    vi.mocked(run).mockClear();
+    vi.mocked(broadcast).mockClear();
+    vi.mocked(recordIncident).mockClear();
+    vi.mocked(quotaHold).mockReturnValue(0);
+    vi.mocked(isQueuePaused).mockReturnValue(false);
+    vi.mocked(parkedHeads).mockReturnValue([]);
+    vi.mocked(shiftParked).mockReset();
+    vi.mocked(unshiftParked).mockClear();
+    vi.mocked(addParked).mockClear();
+    startParkedDrainer(3_600_000);
+  });
+
+  it('recusa o turno numa sessão acima do teto duro, sem spawnar', () => {
+    setCtx(779_566);
+    startRun({ ws, sessionKey: 'gg', prompt: 'manda bala em tudo ai', resumeId: 'sess-gigante', msgId: 'm1' });
+    expect(run).not.toHaveBeenCalled();
+    expect(threads.has('gg')).toBe(false);
+    expect(recordIncident).toHaveBeenCalledWith(expect.objectContaining({ kind: 'ctx-hard' }));
+  });
+
+  it('a recusa devolve o texto e o msgId pro cliente (a bolha otimista não fica órfã)', () => {
+    setCtx(779_566);
+    startRun({ ws, sessionKey: 'gg', prompt: 'meu prompt', resumeId: 'sess-gigante', msgId: 'm1' });
+    expect(send).toHaveBeenCalledWith(ws, expect.objectContaining({
+      t: 'send-reject', reason: 'ctx-hard', text: 'meu prompt', msgId: 'm1',
+    }));
+  });
+
+  it('sessão nova e sessão pequena passam', () => {
+    startRun({ ws, sessionKey: 'nova', prompt: 'oi' });
+    expect(run).toHaveBeenCalledOnce();
+    setCtx(50_000);
+    startRun({ ws, sessionKey: 'peq', prompt: 'oi', resumeId: 'sess-peq' });
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  // A saída do 'hard' é o botão Migrar (frame `session-handoff` -> server/handoff.ts),
+  // que destila pela API e NÃO passa pelo startRun. Recusar aqui não tranca o usuário.
+  it('a sessão nova que nasce depois da migração passa normalmente', () => {
+    setCtx(779_566);
+    startRun({ ws, sessionKey: 'gg', prompt: 'travado', resumeId: 'sess-gigante' });
+    expect(run).not.toHaveBeenCalled();
+    startRun({ ws, sessionKey: 'gg', prompt: 'continuando o trabalho pelo contexto migrado' });
+    expect(run).toHaveBeenCalledOnce();
+  });
+
+  it('segura o segundo cold-start grande e solta no fechamento do primeiro', () => {
+    setCtx(120_000);
+    startRun({ ws, sessionKey: 'a', prompt: 'primeiro', resumeId: 'sess-a' });
+    expect(run).toHaveBeenCalledOnce();
+    startRun({ ws, sessionKey: 'b', prompt: 'segundo', resumeId: 'sess-b', msgId: 'm2' });
+    expect(run).toHaveBeenCalledOnce(); // recusado: cold-busy
+    expect(send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'send-reject', reason: 'cold-busy' }));
+    closeLastRun();
+    startRun({ ws, sessionKey: 'b', prompt: 'segundo', resumeId: 'sess-b' });
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  it('cache quente não disputa o semáforo (é o caso barato)', () => {
+    setCtx(700_000, 30_000);
+    acquireCold('outra');
+    setCtx(120_000, 30_000);
+    startRun({ ws, sessionKey: 'quente', prompt: 'oi', resumeId: 'sess-q' });
+    expect(run).toHaveBeenCalledOnce();
+  });
+
+  // Entre o teto brando e o duro o turno PASSA: quem avisa é o SaturationBanner do
+  // cliente (80% da janela). O servidor só barra no duro — travar antes tiraria do
+  // Samuel a chance de terminar o que estava fazendo.
+  it('deixa passar entre o teto brando e o duro', () => {
+    setCtx(170_000);
+    startRun({ ws, sessionKey: 'meio', prompt: 'termina isso', resumeId: 'sess-meio' });
+    expect(run).toHaveBeenCalledOnce();
+  });
+
+  it('não retoma sozinho uma sessão acima do teto (o auto-resume de 04/09 às 05:50)', () => {
+    startRun({ ws, sessionKey: 'orfa', prompt: 'trabalho', resumeId: 'sess-gigante' });
+    threads.get('orfa')!.sessionId = 'sess-gigante';
+    setCtx(631_342);
+    closeLastRun(); // morte silenciosa: sem endReason e sem stop
+    expect(run).toHaveBeenCalledOnce(); // só o turno original; nenhuma retomada
+    expect(recordIncident).toHaveBeenCalledWith(expect.objectContaining({ kind: 'resume-ctx-cap' }));
+  });
+
+  it('o drainer deixa o item na fila em vez de gastar tentativa numa sessão travada', () => {
+    setCtx(779_566);
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's1', first: item({ resumeId: 'sess-gigante' }) }]);
+    drainParked();
+    expect(shiftParked).not.toHaveBeenCalled();
+    expect(unshiftParked).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('o drainer espera o cooldown depois que a janela vira', () => {
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's1', first: item() }]);
+    vi.mocked(shiftParked).mockReturnValue(item());
+    vi.mocked(quotaHold).mockReturnValue(Date.now() + 60_000);
+    drainParked();                              // segurado: arma a transição
+    vi.mocked(quotaHold).mockReturnValue(0);
+    drainParked();                              // janela virou: ainda no cooldown
+    expect(run).not.toHaveBeenCalled();
+    vi.setSystemTime(Date.now() + COOLDOWN_AFTER_RESET_MS + 1);
+    drainParked();
+    expect(run).toHaveBeenCalledOnce();
+    vi.useRealTimers();
+  });
+
+  it('o fork em background respeita o teto (foram 3 agentes de uma sessão de 780k)', () => {
+    setCtx(779_566);
+    vi.mocked(findParked).mockReturnValue(item({ resumeId: 'sess-gigante' }));
+    expect(runParkedInBackground('s1', 'pk-1')).toEqual({ reject: 'ctx-cheio' });
+    expect(run).not.toHaveBeenCalled();
   });
 });

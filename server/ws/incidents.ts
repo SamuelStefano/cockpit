@@ -18,7 +18,11 @@ const KEEP_LINES = 200;
 // novo não precise lembrar.
 const MAX_DETAIL = 400;
 
-export type IncidentKind = 'silent-death' | 'orphan-resume' | 'run-error' | 'resume-exhausted' | 'reaped' | 'parked-requeue-cap' | 'file-lock-timeout' | 'parked-resume-morto' | 'parked-migrate-reject';
+export type IncidentKind = 'silent-death' | 'orphan-resume' | 'run-error' | 'resume-exhausted' | 'reaped' | 'parked-requeue-cap' | 'file-lock-timeout' | 'parked-resume-morto' | 'parked-migrate-reject'
+  // Gate de contexto (ws/ctx-guard.ts): sessão grande demais pra continuar, e
+  // retomada automática cancelada pelo mesmo motivo. Viram incidente porque
+  // exigem ação humana (handoff) — sem isso somem numa bolha de chat.
+  | 'ctx-hard' | 'resume-ctx-cap';
 
 export interface Incident {
   ts: string;

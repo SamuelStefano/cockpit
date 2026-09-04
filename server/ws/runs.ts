@@ -14,6 +14,11 @@ import { isAwaiting, clearAwaiting } from './awaiting';
 import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takeParked, promoteParked, parkedView, isQueuePaused, MAX_PARKED_ATTEMPTS, REJECT_MESSAGE, type ParkedItem } from './parked';
 import { resumableId } from './resume';
 import { quotaHold, burnedByQuota } from './quota';
+import { getLastPlanUsage } from './usage-plan';
+import {
+  ctxVerdict, verdictMessage, costFor, isBigColdStart, acquireCold, releaseCold,
+  noteQuotaTransition, inResetCooldown, type Verdict,
+} from './ctx-guard';
 import { markRunLive, clearRunLive, takeOrphanRuns } from './recover';
 import { recordIncident } from './incidents';
 import { threadIsMarathon, MARATHON_AUTO_RESUME_CAP } from './marathon';
@@ -52,6 +57,15 @@ function autoResume(sessionKey: string, thread: Thread): void {
   // O fork já nasce com o sessionId cravado, antes de o CLI escrever o JSONL: se ele
   // morreu cedo, `--resume` apontaria pra um transcript que não existe e morreria de novo.
   if (!resumableId(thread.sessionId)) return;
+  // Retomar sessão gigante é o pior gasto possível: cache frio garantido (o
+  // processo morreu) sobre o contexto inteiro. Em 04/09 uma sessão de 631k
+  // auto-retomou e comeu 0,77M sozinha. Aqui a retomada para e o usuário decide.
+  if (ctxVerdict({ sessionId: thread.sessionId, usage: getLastPlanUsage() }).kind === 'hard') {
+    const c = costFor(thread.sessionId);
+    broadcast({ t: 'error', sessionKey, message: `O turno caiu, mas esta sessão está com ~${Math.round(c.ctxTokens / 1000)}k de contexto: retomar custaria ~${c.pctOfWindow}% da janela. Faça o handoff em vez de retomar.` });
+    recordIncident({ kind: 'resume-ctx-cap', sessionKey, sessionId: thread.sessionId, detail: `${c.ctxTokens} tokens; retomada automática cancelada` });
+    return;
+  }
   const tries = (autoResumes.get(sessionKey) ?? 0) + 1;
   const cap = threadIsMarathon(sessionKey, thread.sessionId) ? MARATHON_AUTO_RESUME_CAP : AUTO_RESUME_CAP;
   if (tries > cap) {
@@ -87,8 +101,18 @@ export const MAX_DRAIN_PER_PASS = 1;
 // tokens — fora isso, se o usuário deixou na fila, VAI (regra do Samuel).
 export function drainParked(): void {
   if (!drainerEnabled) return;
+  // A transição hold>0 -> 0 é lida ANTES da pausa manual: com a fila pausada
+  // durante um reset, o cooldown nunca armava e o primeiro dreno após retomar
+  // subia em cima da janela recém-virada.
+  const hold = quotaHold();
+  noteQuotaTransition(hold);
   if (isQueuePaused()) return; // pausa manual do usuário: segura tudo até retomar
-  if (quotaHold()) return;     // sem token: o turno morreria no limite e o prompt seria queimado
+  if (hold) return;            // sem token: o turno morreria no limite e o prompt seria queimado
+  // Janela recém-virada: em 04/09 uma sessão de 631k subiu 1 MINUTO após o reset e
+  // já tinha comido 0,77M do ciclo novo quando o Samuel abriu o Deck. O #519
+  // espalha a fila pelo tick de 30s; este cooldown dá ao poll de usage (60s) tempo
+  // de trazer o número novo antes do primeiro disparo.
+  if (inResetCooldown()) return;
   let fired = 0;
   for (const { sessionKey, first } of parkedHeads()) {
     if (fired >= MAX_DRAIN_PER_PASS) break;
@@ -104,6 +128,15 @@ export function drainParked(): void {
     // queue-force) destrava.
     if (isAwaiting(sessionKey)) continue;
     if (resolveThreadKey(sessionKey)) continue; // turno rodando: um por vez
+    // Veredito ANTES do shift: um item devolvido pelo `unshiftParked` lá embaixo
+    // conta tentativa, e uma sessão travada em 'hard' esgotaria MAX_PARKED_ATTEMPTS
+    // em minutos — o prompt acabaria `held` por uma condição que não é culpa dele.
+    // Deixando na fila, ele sobe sozinho assim que o handoff baratear a sessão.
+    const pre = ctxVerdict({ sessionId: first.resumeId, sessionKey, usage: getLastPlanUsage() });
+    if (pre.kind !== 'ok' && pre.kind !== 'soft') {
+      if (pre.kind === 'hard') broadcast({ t: 'error', sessionKey, message: verdictMessage(pre) });
+      continue;
+    }
     const item = shiftParked(sessionKey);
     if (!item) continue;
     // ws null: run sem cliente específico (igual cron); o stream vai por broadcast.
@@ -131,7 +164,7 @@ function broadcastQueue(): void {
   broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
 }
 
-export type BgRunReject = 'sem-item' | 'sem-contexto' | 'sem-quota' | 'sem-slot' | 'falhou';
+export type BgRunReject = 'sem-item' | 'sem-contexto' | 'sem-quota' | 'sem-slot' | 'falhou' | 'ctx-cheio';
 
 // Dispara UM item da fila agora, num chat paralelo, sem esperar a sessão liberar. O
 // turno em andamento não é tocado: o fork lê o transcript do chat e grava num id
@@ -143,6 +176,12 @@ export function runParkedInBackground(sessionKey: string, id: string, role?: Rol
   if (quotaHold()) return { reject: 'sem-quota' };
   const peek = findParked(sessionKey, id);
   if (!peek) return { reject: 'sem-item' };
+  // O fork LÊ o transcript inteiro do pai: é cold-start do tamanho da sessão de
+  // origem, não um turno novo barato. Passa pelo mesmo gate — em 04/09 foram três
+  // background agents disparados de uma sessão de 780k, todos mortos no 429.
+  const v = ctxVerdict({ sessionId: peek.resumeId, usage: getLastPlanUsage() });
+  if (v.kind === 'hard') return { reject: 'ctx-cheio' };
+  if (v.kind === 'quota' || v.kind === 'cold-busy') return { reject: 'sem-quota' };
   // Sem transcript não há o que forkar, e rodar como turno novo perderia justamente
   // o contexto que é o motivo do disparo.
   const parent = resumableId(peek.resumeId);
@@ -236,6 +275,15 @@ export function resumeOrphanRuns(): void {
     }
     const key = o.sessionId;
     if (!SESSION_KEY_RE.test(key) || threads.has(key)) continue;
+    // Mesma regra do autoResume: o restart do agente derruba TODOS os turnos de
+    // uma vez, então retomar sem olhar o tamanho é exatamente a rajada de
+    // cold-starts simultâneos do incidente, só que disparada pelo deploy.
+    if (ctxVerdict({ sessionId: o.sessionId, usage: getLastPlanUsage() }).kind === 'hard') {
+      const c = costFor(o.sessionId);
+      broadcast({ t: 'error', sessionKey: key, message: `O agente reiniciou e interrompeu este turno. Esta sessão está com ~${Math.round(c.ctxTokens / 1000)}k de contexto — não vou retomar sozinho (custaria ~${c.pctOfWindow}% da janela). Faça o handoff.` });
+      recordIncident({ kind: 'resume-ctx-cap', sessionKey: key, sessionId: o.sessionId, detail: `${c.ctxTokens} tokens; retomada de órfão cancelada` });
+      continue;
+    }
     broadcast({ t: 'error', sessionKey: key, message: 'O agente reiniciou e interrompeu este turno. Retomando de onde parou…' });
     recordIncident({ kind: 'orphan-resume', sessionKey: key, sessionId: o.sessionId, detail: `turno órfão de restart, ${Math.round((Date.now() - o.startedAt) / 1000)}s de vida` });
     startRun({ ...(o.params ?? {}), ws: null, sessionKey: key, prompt: RESUME_PROMPT, resumeId: o.sessionId });
@@ -261,6 +309,29 @@ export interface StartRunOptions extends RunParams {
   forkId?: string;
 }
 
+// Recusa do gate de contexto. Com cliente: devolve o texto pro composer (a bolha
+// otimista já está na tela, então o msgId vai junto pra ela ser removida). Sem
+// cliente (drainer, cron, retomada): vira erro por broadcast + incidente, porque
+// não há composer pra devolver — quem chamou é que decide o destino do item.
+function rejectRun(a: { ws: WebSocket | null; sessionKey: string; prompt: string; msgId?: string; verdict: Verdict }): void {
+  const { ws, sessionKey, prompt, msgId, verdict } = a;
+  const message = verdictMessage(verdict);
+  const reason = verdict.kind === 'hard' ? 'ctx-hard' : verdict.kind === 'quota' ? 'quota-insufficient' : 'cold-busy';
+  if (ws) {
+    send(ws, {
+      t: 'send-reject', sessionKey, reason, text: prompt, msgId, message,
+      ctxTokens: verdict.cost.ctxTokens, pctOfWindow: verdict.cost.pctOfWindow,
+    });
+  } else {
+    broadcast({ t: 'error', sessionKey, message });
+  }
+  // Só o hard vira incidente: ele exige ação humana (handoff) e some do radar se
+  // ficar só numa bolha. quota/cold-busy são transitórios e o próprio tick resolve.
+  if (verdict.kind === 'hard') {
+    recordIncident({ kind: 'ctx-hard', sessionKey, detail: `${verdict.cost.ctxTokens} tokens de contexto; envio custaria ~${verdict.cost.pctOfWindow}% da janela` });
+  }
+}
+
 export function startRun(o: StartRunOptions) {
   const { ws, sessionKey, prompt, resumeId, msgId, auto, forkId } = o;
   const params = runParams(o);
@@ -274,6 +345,20 @@ export function startRun(o: StartRunOptions) {
     if (ws) send(ws, { t: 'error', sessionKey, message: 'prompt grande demais' });
     return;
   }
+
+  // Gate de CONTEXTO — antes do latch de pergunta e do admitRun: um envio recusado
+  // aqui não pode virar `pending` (esperaria a vez pra ser recusado de novo) nem
+  // ocupar slot. Vem depois das validações de forma porque precisa do sessionId.
+  //
+  // A saída do estado 'hard' é o handoff que JÁ existe (server/handoff.ts, frame
+  // `session-handoff`): ele destila pela API e nunca passa por aqui. Por isso o
+  // gate não precisa de exceção — recusar o turno não tranca o usuário.
+  const verdict = ctxVerdict({ sessionId: resumeId, sessionKey, usage: getLastPlanUsage() });
+  if (verdict.kind === 'hard' || verdict.kind === 'quota' || verdict.kind === 'cold-busy') {
+    rejectRun({ ws, sessionKey, prompt, msgId, verdict });
+    return;
+  }
+
   // Latch pós-pergunta: o flush automático da fila do cliente decide com estado
   // possivelmente vazio (history ainda não carregado) e chegava 1-2s depois do
   // AskUserQuestion — o run novo substituía o turno perguntante e o card de escolha
@@ -299,6 +384,15 @@ export function startRun(o: StartRunOptions) {
   // reapado) deixava a cota gasta pra sempre e a próxima falha de verdade era
   // recusada com "a retomada automática também falhou".
   if (prompt !== RESUME_PROMPT) autoResumes.delete(sessionKey);
+
+  // Cold-start grande ocupa o semáforo até o onClose. Sem isto o gate acima veria
+  // sempre zero em voo e os quatro envios de 04/09 passariam iguais.
+  // `else releaseCold`: no caminho `replacing` o onClose do turno morto sai cedo
+  // (o thread do mapa já é outro) e nunca soltaria a chave. Se o turno novo não é
+  // cold-start, ela vazaria e travaria a fila pra sempre.
+  const holdsCold = isBigColdStart(verdict.cost);
+  if (holdsCold) acquireCold(sessionKey);
+  else releaseCold(sessionKey);
 
   let live = false; // este turno já foi registrado no live-runs.json?
   let parkedConsumed = false; // o item de fila deste turno já saiu do registro em disco?
@@ -351,6 +445,9 @@ export function startRun(o: StartRunOptions) {
       // (re-send que matou o anterior), o onClose do antigo NÃO deve mandar um
       // 'done' prematuro nem apagar a entrada do novo run.
       if (threads.get(sessionKey) !== thread) return;
+      // ANTES de qualquer dreno: o próximo item veria o semáforo ocupado por um
+      // turno que já fechou e cairia em cold-busy à toa.
+      if (holdsCold) releaseCold(sessionKey);
       if (live && !shouldPreserveLive()) clearRunLive(sessionKey); // fechou: não é mais órfão (salvo no shutdown, onde o boot retoma)
       // Teto de tokens: um veredito só pro fechamento inteiro (devolver o item
       // drenado, segurar as filas e não retomar em cima do limite).
