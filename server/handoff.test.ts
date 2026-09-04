@@ -1,6 +1,13 @@
-import { describe, it, expect } from 'vitest';
-import { handoffSlug, handoffPrompt, parseHandoffResponse, handoffDescription, handoffFile, headTail } from './handoff';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { distill, handoffSlug, handoffPrompt, parseHandoffResponse, handoffDescription, handoffFile, headTail } from './handoff';
 import type { Message } from '../shared/protocol';
+import { runOnPlan } from './harness/plan-run';
+import { apiKey } from './summary';
+
+vi.mock('./harness/plan-run', () => ({ runOnPlan: vi.fn() }));
+vi.mock('./summary', async (orig) => ({ ...(await orig<typeof import('./summary')>()), apiKey: vi.fn() }));
+const fetchMock = vi.fn();
+vi.stubGlobal('fetch', fetchMock);
 
 const at = new Date('2026-07-31T23:30:00Z'); // 20:30 BRT do mesmo dia
 
@@ -75,5 +82,44 @@ describe('handoffFile', () => {
     expect(md).toContain('description: trabalho no deck');
     expect(md).toContain('type: reference');
     expect(md).toContain('## Contexto');
+  });
+});
+
+describe('distill — plano primeiro, API só como fallback', () => {
+  beforeEach(() => {
+    vi.mocked(runOnPlan).mockReset();
+    vi.mocked(apiKey).mockReset();
+    fetchMock.mockReset();
+  });
+
+  // O ponto da mudança: a conta de API está sem saldo e a destilação morria antes de
+  // tentar. A cota do plano já paga o CLI que o Deck roda no harness.
+  it('destila pelo plano sem tocar na API', async () => {
+    vi.mocked(runOnPlan).mockResolvedValue({ status: 'done', resultText: '## Contexto\nok', inputTokens: 1, outputTokens: 1 });
+    expect(await distill('transcript')).toBe('## Contexto\nok');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(apiKey).not.toHaveBeenCalled();
+  });
+
+  it('sem chave de API, o plano falhando devolve null em vez de estourar', async () => {
+    vi.mocked(runOnPlan).mockResolvedValue({ status: 'error', inputTokens: 0, outputTokens: 0, error: 'x' });
+    vi.mocked(apiKey).mockReturnValue(null);
+    expect(await distill('transcript')).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('cai pra API quando o plano falha e existe chave', async () => {
+    vi.mocked(runOnPlan).mockResolvedValue({ status: 'error', inputTokens: 0, outputTokens: 0, error: 'x' });
+    vi.mocked(apiKey).mockReturnValue('sk-ant-x');
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ content: [{ type: 'text', text: 'da api' }] }) });
+    expect(await distill('transcript')).toBe('da api');
+  });
+
+  // Resposta vazia do plano é falha: gravar um contexto em branco arquivaria a sessão
+  // e o usuário perderia o fio, que é justamente o que o handoff existe pra evitar.
+  it('trata resposta vazia do plano como falha', async () => {
+    vi.mocked(runOnPlan).mockResolvedValue({ status: 'done', resultText: '   ', inputTokens: 1, outputTokens: 1 });
+    vi.mocked(apiKey).mockReturnValue(null);
+    expect(await distill('transcript')).toBeNull();
   });
 });
