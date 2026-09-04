@@ -471,6 +471,19 @@ export function useCockpit(): Cockpit {
         setDrafts((d) => ({ ...d, [msg.sessionKey]: d[msg.sessionKey] || body }));
         return;
       }
+      // Gate de contexto recusou o turno antes do spawn. Mesma dívida do
+      // queue-reject: o composer já limpou o texto e a bolha otimista já está na
+      // tela esperando resposta. Sem isto o prompt some e a bolha fica órfã.
+      case 'send-reject': {
+        updateThread(msg.sessionKey, (prev) => {
+          const semOrfa = msg.msgId ? prev.filter((m) => !(m.id === msg.msgId && m.role === 'user')) : prev;
+          return [...semOrfa, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ ${msg.message}` }], error: true }];
+        });
+        const body = parseAttachments(msg.text).body;
+        setDrafts((d) => ({ ...d, [msg.sessionKey]: d[msg.sessionKey] || body }));
+        inFlight.current.delete(msg.sessionKey);
+        return;
+      }
       case 'caps': {
         capsRef.current = msg.caps;
         setCaps(msg.caps);

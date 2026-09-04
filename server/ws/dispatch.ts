@@ -43,6 +43,7 @@ const BG_RUN_MESSAGE: Record<BgRunReject, string> = {
   'sem-quota': 'sem tokens agora: o turno morreria no limite',
   'sem-slot': 'limite de sessões simultâneas atingido',
   'falhou': 'não deu pra abrir o chat paralelo — o item voltou pra fila',
+  'ctx-cheio': 'a sessão de origem está grande demais: o fork leria o contexto inteiro. Faça o handoff antes',
 };
 
 const NOW_RUN_MESSAGE: Record<NowRunReject, string> = {

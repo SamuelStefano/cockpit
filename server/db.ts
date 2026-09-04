@@ -146,6 +146,21 @@ export function recordUsage(u: UsageInput): void {
   }
 }
 
+// Última amostra de uma sessão: contexto atual + quando foi usado. É o que o gate
+// de contexto (ws/ctx-guard.ts) precisa pra decidir ANTES de spawnar — o `ts` diz
+// se o prefixo ainda está quente, e é o `ctx_tokens` que separa um envio de 0,07M
+// de um de 0,86M. Best-effort: sem amostra (sessão nova) devolve null e o gate
+// trata como envio barato.
+export function lastUsageOf(sessionId: string): { ctxTokens: number; ts: number; model: string | null } | null {
+  if (!sessionId) return null;
+  try {
+    const r = open()
+      .prepare('SELECT ctx_tokens AS ctxTokens, ts, model FROM usage_sample WHERE session_id = ? ORDER BY ts DESC LIMIT 1')
+      .get(sessionId) as { ctxTokens: number; ts: number; model: string | null } | undefined;
+    return r ?? null;
+  } catch { return null; }
+}
+
 const EMPTY_STATS: UsageStats = { sessions: [], totalOutput: 0, totalSamples: 0, totalCost: 0, series: [] };
 
 // Força um checkpoint TRUNCATE: zera o -wal quando o auto-checkpoint é starved

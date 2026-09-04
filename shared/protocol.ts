@@ -766,4 +766,9 @@ export type ServerMsg =
   | { t: 'queue'; items: ParkedView[]; paused: boolean }
   // O enfileiramento foi recusado: devolve o texto pro cliente restaurar o composer.
   | { t: 'queue-reject'; sessionKey: string; text: string; message: string }
+  // Turno RECUSADO antes do spawn pelo gate de contexto (ws/ctx-guard.ts): sessão
+  // grande demais, envio que não cabe na janela, ou outro cold-start em voo. Leva
+  // o texto de volta (o composer já limpou) e o msgId da bolha otimista pra ela
+  // não ficar órfã esperando uma resposta que nunca vem.
+  | { t: 'send-reject'; sessionKey: string; reason: 'ctx-hard' | 'quota-insufficient' | 'cold-busy'; text: string; msgId?: string; message: string; ctxTokens: number; pctOfWindow: number }
   | { t: 'error'; sessionKey?: string; message: string };
