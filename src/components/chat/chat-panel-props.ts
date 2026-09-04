@@ -1,3 +1,4 @@
+import type { ComposerCost } from './send-cost';
 import type { Session, Message, ToolTodo } from '../../data/types';
 import type { PermMode, Effort, ModelInfo, TurnStats, Caps, SkillMeta, BgAgent, ParkedView } from '../../../shared/protocol';
 import type { Attachment, AttachmentPreview } from '../../useCockpit';
@@ -41,6 +42,7 @@ export interface ChatPanelProps {
   setSelectedMcps: (ids: string[]) => void;
   slashCommands: string[];
   contextTokens: number;
+  sendCost?: ComposerCost | null;
   liveTurnTokens?: number;
   turnStartedAt?: number;
   bgAgents?: BgAgent[];

@@ -24,6 +24,7 @@ import { useGraphs, type Graphs } from './cockpit/useGraphs';
 import { useAdmin, type Admin } from './cockpit/useAdmin';
 import { useHarness, type Harness } from './cockpit/useHarness';
 import { stripLongContext } from '../shared/long-context';
+import { composerCost, type ComposerCost } from './components/chat/send-cost';
 import { addThumb, shouldRequestThumb } from './lib/att-thumb-cache';
 import { fileSig, isFreshUpload } from './components/chat/dedupe-uploads';
 import { encodeAttachments, parseAttachments } from './lib/parse-attachments';
@@ -103,6 +104,7 @@ export interface Cockpit extends LeafApis {
   listTerms: () => void;
   archived: Session[];
   contextTokens: number;
+  sendCost: ComposerCost | null;
   liveTurnTokens: number;
   turnStartedAt?: number;
   bgAgents: BgAgent[];
@@ -161,6 +163,7 @@ export function useCockpit(): Cockpit {
   const [threads, setThreads] = useState<Record<string, Message[]>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>(() => loadPref('drafts', {} as Record<string, string>));
   const [phases, setPhases] = useState<Record<string, Phase>>({});
+  const [lastUsageAt, setLastUsageAt] = useState<Record<string, number>>({});
   // Espelho síncrono pro handler do WS (closure estável não enxerga o state).
   const phasesRef = useRef<Record<string, Phase>>({});
   useEffect(() => { phasesRef.current = phases; }, [phases]);
@@ -798,6 +801,10 @@ export function useCockpit(): Cockpit {
         const key = resolveKey(migratedTo.current, msg.sessionKey);
         usageRef.current[key] = msg.tokens;
         setUsage((u) => ({ ...u, [key]: msg.tokens }));
+        // Quando o prefixo desta sessão foi usado pela última vez. É o proxy de
+        // temperatura do cache no cliente: o servidor decide pelo `ts` da amostra
+        // no SQLite, gravada por ESTE mesmo evento, então os dois convergem.
+        setLastUsageAt((m) => ({ ...m, [key]: Date.now() }));
         // `usage.tokens` é a janela de contexto. `turnTokens` é o gasto REAL do turno
         // até aqui (incl. cache): vira o piso do ticker ao vivo pra ele bater com o
         // terminal, em vez da estimativa por chars de saída (só centenas).
@@ -1637,6 +1644,15 @@ export function useCockpit(): Cockpit {
   // esta conversa nunca trocou de versão.
   const model = modelBySession[activeId] ?? defaultModel;
   const contextTokens = usage[activeId] || 0;
+  // Recalculado a cada render: o cache esfria com o RELÓGIO, não com um evento —
+  // sem re-render o aviso não apareceria numa aba parada, que é exatamente o
+  // cenário de 04/09 (sessões ociosas há horas recebendo prompt).
+  // Fallback pro `mtime` da sessão (mtime do JSONL = última atividade real): num
+  // F5 o mapa de lastUsageAt nasce vazio, e sem isto TODA sessão aparecia como
+  // cache frio logo após recarregar a página. Aviso que grita à toa é aviso que se
+  // aprende a ignorar — e este existe justamente pra ser levado a sério.
+  const lastAt = lastUsageAt[activeId] ?? sessions.find((s) => s.id === activeId)?.mtime;
+  const sendCost = composerCost({ ctxTokens: contextTokens, lastUsageAt: lastAt, planUsage, now: Date.now() });
   const liveTurnTokens = liveTurn[activeId] || 0;
   const turnStartedAt = runStart[activeId];
   const activeBgAgents = bgAgents[activeId] ?? EMPTY_AGENTS;
@@ -1664,5 +1680,5 @@ export function useCockpit(): Cockpit {
     savePref('modelBySession', keep);
   }, [modelBySession]);
 
-  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
+  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
 }
