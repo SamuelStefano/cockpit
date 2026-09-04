@@ -74,6 +74,13 @@ function autoResume(sessionKey: string, thread: Thread): void {
 // também respeita esta flag.
 let drainerEnabled = false;
 
+// Teto de disparos por passada. O `quotaHold` é binário (só segura em 100%), então
+// sem este teto a virada da janela soltava TODA sessão estacionada na mesma passada:
+// 5 sessões Opus subiram em 21ms logo após um reset e torraram o ciclo novo em
+// segundos. Um por passada espalha a fila pelo tick de 30s e devolve ao hold a chance
+// de reagir antes do próximo disparo.
+export const MAX_DRAIN_PER_PASS = 1;
+
 // Dispara os itens elegíveis: sessão OCIOSA (sem turno rodando). Drena um item por
 // sessão por passada; o item que sobe deixa a sessão ocupada, então o resto da fila
 // dela sai no próximo tick (ou no gatilho do onClose). Travas: pausa manual e teto de
@@ -82,7 +89,13 @@ export function drainParked(): void {
   if (!drainerEnabled) return;
   if (isQueuePaused()) return; // pausa manual do usuário: segura tudo até retomar
   if (quotaHold()) return;     // sem token: o turno morreria no limite e o prompt seria queimado
+  let fired = 0;
   for (const { sessionKey, first } of parkedHeads()) {
+    if (fired >= MAX_DRAIN_PER_PASS) break;
+    // Reavaliado a cada disparo: o turno que acabou de subir pode ter estourado a
+    // janela, e o teto lido só no topo do dreno deixaria o resto da fila subir em
+    // cima de uma quota que já acabou.
+    if (quotaHold()) break;
     if (first.held) continue;                   // bateu o teto de tentativas: espera o usuário mandar retomar
     // Turno parou numa pergunta: o translate mata o run pra o card ficar respondível,
     // então a sessão fica ociosa e o drainer a via como livre. O item subia como se
@@ -103,7 +116,9 @@ export function drainParked(): void {
     // saiu do disco e o prompt sumia. Subiu = fica amarrado ao thread pra voltar
     // pra fila se o teto de tokens matar o turno.
     const th = threads.get(sessionKey);
-    if (th) th.parked = item;
+    // Só conta o que virou turno de verdade: um item devolvido não gastou quota, e
+    // gastar o teto da passada com ele seguraria a fila sem motivo.
+    if (th) { th.parked = item; fired++; }
     else unshiftParked(sessionKey, item);
     // O item saiu (ou voltou) do parked.json: sem este broadcast a fila drenada some
     // do disco mas continua na tela de quem não está na sessão — o drainer roda com

@@ -390,6 +390,51 @@ describe('fila estacionada — teto de tokens', () => {
     expect(queueMsgs.length).toBeGreaterThan(0);
   });
 
+  // Regressão real (03/09, 19:50): a janela de 5h virou e o dreno soltou 5 sessões
+  // Opus em 21ms, torrando o ciclo novo em segundos. O `quotaHold` é binário (só
+  // segura em 100%), então sem teto por passada a virada da janela vira estouro.
+  it('dispara no máximo um item por passada, mesmo com várias sessões na fila', () => {
+    vi.mocked(parkedHeads).mockReturnValue([
+      { sessionKey: 's1', first: item({ id: 'pk-1' }) },
+      { sessionKey: 's2', first: item({ id: 'pk-2' }) },
+      { sessionKey: 's3', first: item({ id: 'pk-3' }) },
+      { sessionKey: 's4', first: item({ id: 'pk-4' }) },
+      { sessionKey: 's5', first: item({ id: 'pk-5' }) },
+    ]);
+    vi.mocked(shiftParked).mockImplementation((k: string) => item({ id: `pk-${k}` }));
+    drainParked();
+    expect(run).toHaveBeenCalledOnce();
+    expect(shiftParked).toHaveBeenCalledOnce();
+  });
+
+  // O teto lido só no topo do dreno deixava o resto da fila subir em cima de uma
+  // quota que o turno recém-disparado já tinha estourado.
+  it('para de drenar se a quota estourar durante a passada', () => {
+    vi.mocked(parkedHeads).mockReturnValue([
+      { sessionKey: 's1', first: item({ id: 'pk-1' }) },
+      { sessionKey: 's2', first: item({ id: 'pk-2' }) },
+    ]);
+    vi.mocked(shiftParked).mockImplementation((k: string) => item({ id: `pk-${k}` }));
+    drainParked();
+    expect(run).toHaveBeenCalledOnce();
+    limited(); // o turno que subiu estourou a janela
+    drainParked();
+    expect(run).toHaveBeenCalledOnce(); // a 2ª sessão não sobe
+  });
+
+  // Sessão pulada não gastou quota: contá-la no teto seguraria a fila sem nenhum
+  // turno ter subido, trocando o estouro por uma fila parada.
+  it('não gasta o teto da passada com sessão pulada', () => {
+    vi.mocked(parkedHeads).mockReturnValue([
+      { sessionKey: 's1', first: item({ id: 'pk-1', held: true }) }, // segurada: pulada
+      { sessionKey: 's2', first: item({ id: 'pk-2' }) },
+    ]);
+    vi.mocked(shiftParked).mockImplementation((k: string) => item({ id: `pk-${k}` }));
+    drainParked();
+    expect(run).toHaveBeenCalledOnce();
+    expect(vi.mocked(shiftParked).mock.calls[0][0]).toBe('s2'); // s2 teve a vez
+  });
+
   it('devolve pro topo da fila o item cujo turno morreu no limite', () => {
     const it0 = item();
     vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's2', first: it0 }]);
