@@ -65,6 +65,16 @@ export function costFor(sessionId: string | undefined, now = Date.now()): SendCo
 const coldInflight = new Set<string>();
 
 export function acquireCold(sessionKey: string): void { coldInflight.add(sessionKey); }
+
+// Quantos cold-starts em voo IGNORANDO uma chave. Sem isso a sessão disputava o
+// semáforo consigo mesma: interromper o próprio turno (triagem 'priority') passa
+// pelo startRun de novo, e nos primeiros segundos — antes do turno gravar a
+// primeira amostra de uso — a sessão ainda parece fria. O usuário levava
+// "cold-busy" tentando redirecionar o próprio trabalho.
+function coldInflightExcept(sessionKey?: string): number {
+  if (!sessionKey) return coldInflight.size;
+  return coldInflight.size - (coldInflight.has(sessionKey) ? 1 : 0);
+}
 export function releaseCold(sessionKey: string): void { coldInflight.delete(sessionKey); }
 export function coldInflightCount(): number { return coldInflight.size; }
 export function resetColdInflight(): void { coldInflight.clear(); }
@@ -98,6 +108,9 @@ export type Verdict =
 
 export interface VerdictInput {
   sessionId?: string;
+  // Chave do turno que está sendo avaliado. Só serve pro semáforo não contar o
+  // próprio turno da sessão como concorrente.
+  sessionKey?: string;
   usage: PlanUsage | null;
   now?: number;
 }
@@ -112,7 +125,7 @@ export function ctxVerdict(i: VerdictInput): Verdict {
 
   if (ctx >= CTX_HARD) return { kind: 'hard', cost };
   if (!fitsInWindow(cost, i.usage?.fiveHour ?? null, costOpts)) return { kind: 'quota', cost };
-  if (isBigColdStart(cost) && coldInflight.size >= MAX_COLD_INFLIGHT) return { kind: 'cold-busy', cost };
+  if (isBigColdStart(cost) && coldInflightExcept(i.sessionKey) >= MAX_COLD_INFLIGHT) return { kind: 'cold-busy', cost };
   if (ctx >= CTX_SOFT) return { kind: 'soft', cost };
   return { kind: 'ok', cost };
 }

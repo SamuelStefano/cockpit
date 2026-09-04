@@ -130,3 +130,29 @@ describe('cooldown pós-reset', () => {
     expect(inResetCooldown(NOW + COOLDOWN_AFTER_RESET_MS + 2)).toBe(false);
   });
 });
+
+// Interromper o próprio turno (triagem 'priority') passa pelo startRun de novo. Se
+// o semáforo contasse a própria sessão, o usuário levava 'cold-busy' tentando
+// redirecionar o trabalho dele — nos primeiros segundos, antes da primeira amostra
+// de uso, a sessão ainda parece fria.
+describe('semáforo não bloqueia a própria sessão', () => {
+  it('deixa a sessão que já segura o semáforo subir turno novo', () => {
+    setSample(700_000);
+    acquireCold('minha');
+    expect(ctxVerdict({ sessionId: 's', sessionKey: 'minha', usage: usage(10), now: NOW }).kind).toBe('hard');
+    setSample(120_000);
+    expect(ctxVerdict({ sessionId: 's', sessionKey: 'minha', usage: usage(10), now: NOW }).kind).toBe('ok');
+  });
+
+  it('mas continua bloqueando uma sessão diferente', () => {
+    setSample(120_000);
+    acquireCold('outra');
+    expect(ctxVerdict({ sessionId: 's', sessionKey: 'minha', usage: usage(10), now: NOW }).kind).toBe('cold-busy');
+  });
+
+  it('sem sessionKey o comportamento não muda', () => {
+    setSample(120_000);
+    acquireCold('outra');
+    expect(ctxVerdict({ sessionId: 's', usage: usage(10), now: NOW }).kind).toBe('cold-busy');
+  });
+});

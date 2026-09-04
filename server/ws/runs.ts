@@ -101,9 +101,12 @@ export const MAX_DRAIN_PER_PASS = 1;
 // tokens — fora isso, se o usuário deixou na fila, VAI (regra do Samuel).
 export function drainParked(): void {
   if (!drainerEnabled) return;
-  if (isQueuePaused()) return; // pausa manual do usuário: segura tudo até retomar
+  // A transição hold>0 -> 0 é lida ANTES da pausa manual: com a fila pausada
+  // durante um reset, o cooldown nunca armava e o primeiro dreno após retomar
+  // subia em cima da janela recém-virada.
   const hold = quotaHold();
-  noteQuotaTransition(hold);   // hold>0 -> 0 é o reset: arma o cooldown
+  noteQuotaTransition(hold);
+  if (isQueuePaused()) return; // pausa manual do usuário: segura tudo até retomar
   if (hold) return;            // sem token: o turno morreria no limite e o prompt seria queimado
   // Janela recém-virada: em 04/09 uma sessão de 631k subiu 1 MINUTO após o reset e
   // já tinha comido 0,77M do ciclo novo quando o Samuel abriu o Deck. O #519
@@ -129,7 +132,7 @@ export function drainParked(): void {
     // conta tentativa, e uma sessão travada em 'hard' esgotaria MAX_PARKED_ATTEMPTS
     // em minutos — o prompt acabaria `held` por uma condição que não é culpa dele.
     // Deixando na fila, ele sobe sozinho assim que o handoff baratear a sessão.
-    const pre = ctxVerdict({ sessionId: first.resumeId, usage: getLastPlanUsage() });
+    const pre = ctxVerdict({ sessionId: first.resumeId, sessionKey, usage: getLastPlanUsage() });
     if (pre.kind !== 'ok' && pre.kind !== 'soft') {
       if (pre.kind === 'hard') broadcast({ t: 'error', sessionKey, message: verdictMessage(pre) });
       continue;
@@ -350,7 +353,7 @@ export function startRun(o: StartRunOptions) {
   // A saída do estado 'hard' é o handoff que JÁ existe (server/handoff.ts, frame
   // `session-handoff`): ele destila pela API e nunca passa por aqui. Por isso o
   // gate não precisa de exceção — recusar o turno não tranca o usuário.
-  const verdict = ctxVerdict({ sessionId: resumeId, usage: getLastPlanUsage() });
+  const verdict = ctxVerdict({ sessionId: resumeId, sessionKey, usage: getLastPlanUsage() });
   if (verdict.kind === 'hard' || verdict.kind === 'quota' || verdict.kind === 'cold-busy') {
     rejectRun({ ws, sessionKey, prompt, msgId, verdict });
     return;
