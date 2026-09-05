@@ -22,14 +22,15 @@ export function sendDurableSnapshot(ws: WebSocket) {
   const rate = getLastRate();
   if (rate) send(ws, { t: 'rate', ...rate });
   const planUsage = getLastPlanUsage();
-  // Sem snapshot ainda: pede um agora pra a barra não ficar em "—" até o próximo poll.
-  if (planUsage) send(ws, { t: 'plan-usage', usage: planUsage, blockedUntil: planUsageBlockedUntil() });
-  else {
-    // Bloqueado e sem número: o cliente precisa saber que é bloqueio, não espera.
-    const blockedUntil = planUsageBlockedUntil();
-    if (blockedUntil) send(ws, { t: 'plan-usage', usage: null, blockedUntil });
-    requestPlanUsageRefresh();
-  }
+  const blockedUntil = planUsageBlockedUntil();
+  // Manda o que tem (inclusive nada + o bloqueio: o cliente precisa distinguir
+  // "recusado pela conta" de "ainda carregando").
+  if (planUsage || blockedUntil) send(ws, { t: 'plan-usage', usage: planUsage, blockedUntil: blockedUntil || null });
+  // E SEMPRE pede um refresh, não só quando falta número: o poll é de 5min e
+  // ninguém pola com o browser fechado, então quem abre o deck de manhã caía num
+  // snapshot da noite anterior e esperava até 5min por um número atual. O
+  // single-flight, o MIN_GAP e o cooldown já seguram o abuso deste pedido.
+  requestPlanUsageRefresh();
   const models = getLastModels();
   if (models.length) send(ws, { t: 'models', models });
   send(ws, { t: 'marathon', keys: marathonKeys() });

@@ -26,6 +26,11 @@ const COOLDOWN_FALLBACK_MS = 5 * 60_000;
 // junta chamadas SIMULTÂNEAS, então em rajada isso virava dezenas de requests por
 // minuto e o próprio endpoint nos derrubava com 429.
 const MIN_GAP_MS = 15_000;
+// Sem timeout, um fetch pendurado deixa `refreshing` ligado PRA SEMPRE e toda
+// chamada seguinte volta na primeira linha: a barra nunca mais carregaria, sem
+// erro nenhum aparecendo. O abort transforma o pendurado numa falha normal, que
+// os retries rápidos já sabem tratar.
+const FETCH_TIMEOUT_MS = 15_000;
 // Snapshot em disco: reiniciar o Deck no meio de um 429 longo (o Retry-After da
 // Anthropic chega a ~40min) deixava a barra em "—" até o bloqueio passar, porque
 // o último valor só existia na memória do processo morto. Vale enquanto for
@@ -161,14 +166,23 @@ export type FetchOutcome =
   | { kind: 'rate'; waitMs: number }
   | { kind: 'fail' };
 
+// AbortController explícito (e não AbortSignal.timeout) porque o timer daqui
+// precisa ser o mesmo que o teste controla.
+async function withTimeout(run: (signal: AbortSignal) => Promise<Response>): Promise<Response> {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
+  try { return await run(ac.signal); } finally { clearTimeout(timer); }
+}
+
 export async function fetchPlanUsage(): Promise<FetchOutcome> {
   const token = await readOAuthToken();
   if (!token) return { kind: 'fail' };
   let res: Response;
   try {
-    res = await fetch(USAGE_URL, {
+    res = await withTimeout((signal) => fetch(USAGE_URL, {
       headers: { authorization: `Bearer ${token}`, 'anthropic-beta': OAUTH_BETA },
-    });
+      signal,
+    }));
   } catch { return { kind: 'fail' }; }
   if (res.status === 429 || res.status === 529) {
     return { kind: 'rate', waitMs: retryAfterMs(res.headers.get('retry-after')) || COOLDOWN_FALLBACK_MS };

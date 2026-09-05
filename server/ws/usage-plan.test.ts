@@ -243,3 +243,28 @@ describe('borrowedSnapshot', () => {
     expect(borrowedSnapshot(null, 0, now)).toBeNull();
   });
 });
+
+describe('fetch pendurado', () => {
+  it('aborta por timeout em vez de travar o refresh pra sempre', async () => {
+    // Um fetch que nunca resolve deixava `refreshing` ligado e TODA chamada
+    // seguinte voltava na primeira linha — a barra morria calada.
+    vi.useFakeTimers();
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.resetModules();
+    const m = await import('./usage-plan');
+    m.requestPlanUsageRefresh();
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(fetchMock.mock.calls[0][1]?.signal).toBeTruthy();
+
+    // Destravou: a próxima rodada consegue sair.
+    await vi.advanceTimersByTimeAsync(60_000);
+    m.requestPlanUsageRefresh();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(1);
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+});
