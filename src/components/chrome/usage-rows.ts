@@ -11,6 +11,14 @@ export function toneOf(pct: number, severity: PlanLimit['severity'] = 'normal'):
   return 'ok';
 }
 
+// Snapshot cuja janela de 5h já virou é do ciclo ANTERIOR: o percentual de lá não
+// descreve mais nada. Enquanto o poll não traz o novo (o endpoint de usage vive
+// 429 e o bloqueio dura minutos), a barra assume que não sabe — "0%" com
+// convicção é pior que "—", porque some com o único sinal de que algo travou.
+export function isStalePlanUsage(usage: PlanUsage | null, now = Date.now()): boolean {
+  return !!usage?.resetsAt && usage.resetsAt <= now;
+}
+
 export interface UsageRow {
   id: string;
   label: string;

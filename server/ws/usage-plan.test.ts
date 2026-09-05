@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtempSync, rmSync } from 'node:fs';
-import { mapPlanUsage, retryAfterMs } from './usage-plan';
+import { mapPlanUsage, retryAfterMs, rateCooldownMs, borrowedSnapshot, RATE_PAD_MAX_MS } from './usage-plan';
 
 vi.mock('../oauth', () => ({ readOAuthToken: async () => 'token', OAUTH_BETA: 'beta' }));
 vi.mock('./broadcast', () => ({ broadcast: () => {} }));
@@ -120,7 +120,7 @@ describe('requestPlanUsageRefresh', () => {
     m.requestPlanUsageRefresh();
     await vi.advanceTimersByTimeAsync(0);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(m.planUsageCooldownUntil()).toBe(Date.now() + 600_000);
+    expect(m.planUsageCooldownUntil()).toBe(Date.now() + 600_000 + 300_000);
 
     // Os retries rápidos de falha de rede NÃO podem valer aqui: cada tentativa
     // dentro da janela renovava o bloqueio e a barra nunca voltava.
@@ -129,7 +129,7 @@ describe('requestPlanUsageRefresh', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    await vi.advanceTimersByTimeAsync(600_000);
+    await vi.advanceTimersByTimeAsync(900_000);
     m.requestPlanUsageRefresh();
     await vi.advanceTimersByTimeAsync(0);
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -156,5 +156,40 @@ describe('requestPlanUsageRefresh', () => {
     second.startPlanUsageLoop(() => false);
     await vi.advanceTimersByTimeAsync(0);
     expect(second.getLastPlanUsage()?.fiveHour).toBe(10);
+  });
+});
+
+describe('rateCooldownMs', () => {
+  it('respeita o Retry-After no primeiro 429', () => {
+    expect(rateCooldownMs(600_000, 1)).toBe(600_000 + 300_000);
+  });
+
+  it('soma folga crescente a cada 429 seguido — voltar no segundo exato renovava a punição', () => {
+    expect(rateCooldownMs(600_000, 3)).toBe(600_000 + 900_000);
+  });
+
+  it('a folga tem teto: a barra precisa voltar sozinha algum dia', () => {
+    expect(rateCooldownMs(600_000, 99)).toBe(600_000 + RATE_PAD_MAX_MS);
+  });
+});
+
+describe('borrowedSnapshot', () => {
+  const usage = { fiveHour: 42, sevenDay: 7, resetsAt: null, sevenDayResetsAt: null, limits: [] };
+  const now = 1_000_000;
+
+  it('adota o snapshot fresco do processo irmão', () => {
+    expect(borrowedSnapshot({ ts: now - 60_000, usage }, 0, now)).toEqual(usage);
+  });
+
+  it('nunca adota o que ele mesmo escreveu — senão nunca mais buscaria nada', () => {
+    expect(borrowedSnapshot({ ts: now - 60_000, usage }, now - 60_000, now)).toBeNull();
+  });
+
+  it('snapshot velho não serve de lease: o irmão pode ter morrido', () => {
+    expect(borrowedSnapshot({ ts: now - 10 * 60_000, usage }, 0, now)).toBeNull();
+  });
+
+  it('sem arquivo, sem lease', () => {
+    expect(borrowedSnapshot(null, 0, now)).toBeNull();
   });
 });

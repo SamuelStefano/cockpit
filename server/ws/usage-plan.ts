@@ -11,7 +11,10 @@ import { readOAuthToken, OAUTH_BETA } from '../oauth';
 // pro cliente. O arquivo é relido a cada poll pra pegar o token já renovado
 // pelo CLI (que faz o refresh sozinho).
 const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
-const POLL_MS = 60_000;
+// 5min, não 60s: o endpoint tem orçamento BEM curto e cada 429 custa ~10min de
+// cegueira (Retry-After da Anthropic). Pollar de minuto em minuto não deixava a
+// barra mais fresca — deixava ela bloqueada quase o tempo todo.
+const POLL_MS = 5 * 60_000;
 // Falha transitória (rede/token sendo renovado) não pode deixar a barra em "—"
 // por 60s até o próximo poll — retenta rápido algumas vezes antes de desistir.
 const RETRY_MS = 8_000;
@@ -29,25 +32,49 @@ const MIN_GAP_MS = 15_000;
 // recente — número velho demais na barra engana mais do que ajuda.
 const CACHE_PATH = process.env.COCKPIT_PLAN_USAGE ?? join(homedir(), '.cockpit', 'plan-usage.json');
 const CACHE_TTL_MS = 30 * 60_000;
+// O arquivo também é o rendez-vous entre os DOIS processos que pollam (ws.ts e
+// agent.ts): quem acha ali um snapshot fresco de OUTRO processo adota em vez de
+// ir à rede. Sem isso eram dois pollers independentes gastando o mesmo orçamento
+// e se derrubando por 429 — a barra ficava velha justamente por pedir demais.
+const LEASE_MS = 4 * 60_000;
 
 let last: PlanUsage | null = null;
 export function getLastPlanUsage() { return last; }
 
+interface CacheEntry { ts: number; usage: PlanUsage }
+
+// ts do último snapshot que ESTE processo escreveu: sem isso ele adotaria o
+// próprio arquivo pra sempre e nunca mais buscaria nada.
+let ownWriteTs = 0;
+
 function saveCache(usage: PlanUsage): void {
   try {
     mkdirSync(dirname(CACHE_PATH), { recursive: true });
+    ownWriteTs = Date.now();
     const tmp = `${CACHE_PATH}.${process.pid}.tmp`;
-    writeFileSync(tmp, JSON.stringify({ ts: Date.now(), usage }), 'utf8');
+    writeFileSync(tmp, JSON.stringify({ ts: ownWriteTs, usage }), 'utf8');
     renameSync(tmp, CACHE_PATH);
   } catch { /* cache é conforto, não pode derrubar o poll */ }
 }
 
-function loadCache(): PlanUsage | null {
+function readCacheEntry(): CacheEntry | null {
   try {
     const o = JSON.parse(readFileSync(CACHE_PATH, 'utf8'));
-    if (typeof o?.ts !== 'number' || Date.now() - o.ts > CACHE_TTL_MS) return null;
-    return o.usage as PlanUsage;
+    if (typeof o?.ts !== 'number') return null;
+    return { ts: o.ts, usage: o.usage as PlanUsage };
   } catch { return null; }
+}
+
+function loadCache(): PlanUsage | null {
+  const e = readCacheEntry();
+  if (!e || Date.now() - e.ts > CACHE_TTL_MS) return null;
+  return e.usage;
+}
+
+// Snapshot recente escrito pelo processo irmão, ou null se não houver.
+export function borrowedSnapshot(entry: CacheEntry | null, ownTs: number, now: number): PlanUsage | null {
+  if (!entry || entry.ts === ownTs) return null;
+  return now - entry.ts < LEASE_MS ? entry.usage : null;
 }
 
 function pct(v: unknown): number {
@@ -154,17 +181,38 @@ let refreshing = false;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let cooldownUntil = 0;
 let lastAttempt = 0;
+let rateStreak = 0;
+
+// Teto do castigo acumulado: mesmo apanhando em sequência, uma hora sem sequer
+// tentar já é o suficiente — mais que isso a barra nunca voltaria sozinha.
+export const RATE_PAD_MAX_MS = 30 * 60_000;
+const RATE_PAD_STEP_MS = 5 * 60_000;
+
+// Respeita o Retry-After da Anthropic e SOMA uma folga que cresce a cada 429
+// seguido: voltar no segundo exato em que o bloqueio vence é o que renovava a
+// punição sem parar (era o estado em que a barra vivia).
+export function rateCooldownMs(waitMs: number, streak: number): number {
+  return waitMs + Math.min(streak * RATE_PAD_STEP_MS, RATE_PAD_MAX_MS);
+}
 
 export function planUsageCooldownUntil() { return cooldownUntil; }
 
 async function doFetch(): Promise<FetchOutcome['kind']> {
+  const borrowed = borrowedSnapshot(readCacheEntry(), ownWriteTs, Date.now());
+  if (borrowed) {
+    last = borrowed;
+    broadcast({ t: 'plan-usage', usage: borrowed });
+    return 'ok';
+  }
   const r = await fetchPlanUsage();
   if (r.kind === 'ok') {
+    rateStreak = 0;
     last = r.usage;
     saveCache(r.usage);
     broadcast({ t: 'plan-usage', usage: r.usage });
   } else if (r.kind === 'rate') {
-    cooldownUntil = Date.now() + r.waitMs;
+    rateStreak += 1;
+    cooldownUntil = Date.now() + rateCooldownMs(r.waitMs, rateStreak);
   }
   return r.kind;
 }
