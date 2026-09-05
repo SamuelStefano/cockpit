@@ -15,6 +15,7 @@ interface HeaderProps {
   nav: (to: Route) => void;
   onPalette: () => void;
   planUsage: PlanUsage | null;
+  planBlockedUntil?: number | null;
   quotaWarn?: boolean;
   quotaPaused?: boolean;
   quotaResetsAt?: number | null;
@@ -27,7 +28,7 @@ interface HeaderProps {
   drops?: DropApi;
 }
 
-export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsage, quotaWarn = false, quotaPaused = false, quotaResetsAt = null, isAdmin, routeMenuOpen, setRouteMenuOpen, userId, onSignOut, onChangePassword, drops }: HeaderProps) {
+export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsage, planBlockedUntil = null, quotaWarn = false, quotaPaused = false, quotaResetsAt = null, isAdmin, routeMenuOpen, setRouteMenuOpen, userId, onSignOut, onChangePassword, drops }: HeaderProps) {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex items-center gap-2.5">
@@ -65,7 +66,7 @@ export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsag
       </div>
 
       <div className="flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-3">
-        <UsageBar usage={planUsage} compact={isMobile} warn={quotaWarn} paused={quotaPaused} quotaResetsAt={quotaResetsAt} />
+        <UsageBar usage={planUsage} compact={isMobile} warn={quotaWarn} paused={quotaPaused} quotaResetsAt={quotaResetsAt} blockedUntil={planBlockedUntil} />
         <button
           onClick={onPalette}
           title="Comandos (⌘K)"

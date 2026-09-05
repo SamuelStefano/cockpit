@@ -80,6 +80,8 @@ export interface Cockpit extends LeafApis {
   submitToken: (token: string) => void;
   rate: { resetsAt: number; status: string } | null;
   planUsage: PlanUsage | null;
+  // Até quando a conta recusa a leitura do uso (429); null = sem bloqueio.
+  planBlockedUntil: number | null;
   stats: SysStats | null;
   mode: PermMode;
   setMode: (m: PermMode) => void;
@@ -174,6 +176,8 @@ export function useCockpit(): Cockpit {
   const [conn, setConn] = useState<{ ws: ConnState; sse: ConnState }>({ ws: 'reconnecting', sse: 'reconnecting' });
   const [rate, setRate] = useState<{ resetsAt: number; status: string } | null>(null);
   const [planUsage, setPlanUsage] = useState<PlanUsage | null>(null);
+  // Instante até quando a conta recusa a leitura do uso (429) — ver [[UsagePanel]].
+  const [planBlockedUntil, setPlanBlockedUntil] = useState<number | null>(null);
   const [marathon, setMarathon] = useState<Set<string>>(new Set());
   const [stats, setStats] = useState<SysStats | null>(null);
   const [bgAgents, setBgAgents] = useState<Record<string, BgAgent[]>>({}); // sessionKey -> agentes de fundo ativos
@@ -752,6 +756,7 @@ export function useCockpit(): Cockpit {
       }
       case 'plan-usage': {
         setPlanUsage(msg.usage);
+        setPlanBlockedUntil(msg.blockedUntil ?? null);
         return;
       }
       case 'marathon': {
@@ -1680,5 +1685,5 @@ export function useCockpit(): Cockpit {
     savePref('modelBySession', keep);
   }, [modelBySession]);
 
-  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, archived, contextTokens, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
+  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, stats, archived, contextTokens, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
 }

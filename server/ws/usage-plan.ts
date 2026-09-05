@@ -197,6 +197,16 @@ export function rateCooldownMs(waitMs: number, streak: number): number {
 
 export function planUsageCooldownUntil() { return cooldownUntil; }
 
+// Bloqueio ATIVO (0 quando já venceu). O cliente precisa disto pra distinguir
+// "ainda não li" de "a conta recusou e eu só tento de novo às tantas".
+export function planUsageBlockedUntil(now = Date.now()): number {
+  return cooldownUntil > now ? cooldownUntil : 0;
+}
+
+function emit(): void {
+  broadcast({ t: 'plan-usage', usage: last, blockedUntil: planUsageBlockedUntil() || null });
+}
+
 let lastAdoptedTs = 0;
 
 // Pega o snapshot do processo irmão, se houver um mais novo. Devolve true quando
@@ -208,7 +218,7 @@ function adoptShared(now: number): boolean {
   if (!usage) return false;
   lastAdoptedTs = entry.ts;
   last = usage;
-  broadcast({ t: 'plan-usage', usage });
+  emit();
   return true;
 }
 
@@ -218,10 +228,12 @@ async function doFetch(): Promise<FetchOutcome['kind']> {
     rateStreak = 0;
     last = r.usage;
     saveCache(r.usage);
-    broadcast({ t: 'plan-usage', usage: r.usage });
+    emit();
   } else if (r.kind === 'rate') {
     rateStreak += 1;
     cooldownUntil = Date.now() + rateCooldownMs(r.waitMs, rateStreak);
+    // Avisa o bloqueio: sem isto a barra ficava em "—" parecendo estar carregando.
+    emit();
   }
   return r.kind;
 }

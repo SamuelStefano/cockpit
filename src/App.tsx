@@ -33,7 +33,7 @@ export function CockpitApp() {
   const cockpit = useCockpit();
   const {
     sessions, loading, activeId: activeSessionId, setActiveId: setActiveSessionId,
-    messages, phase, terminalBusy, sessionTodos, followups, dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, stats, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, term, discoveredTerms, listTerms,
+    messages, phase, terminalBusy, sessionTodos, followups, dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, stats, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, term, discoveredTerms, listTerms,
     archived, onUnhide: handleUnhide, contextTokens, sendCost, liveTurnTokens, turnStartedAt, bgAgents, usage, truncated, lastTurn, lastEnd, searchResults, onSearch,
     skills, usageStats,
     attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb,
@@ -162,7 +162,7 @@ export function CockpitApp() {
         onShowHelp={() => setHelp(true)}
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
-      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} quotaWarn={quotaGate.warn} quotaPaused={quotaGate.paused} quotaResetsAt={quotaGate.resetsAt} isAdmin={isAdmin} routeMenuOpen={routeMenu} setRouteMenuOpen={setRouteMenu} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} onChangePassword={SUPABASE_ENABLED ? sbAuth.changePassword : undefined} drops={dropApi} />
+      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(true)} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} planBlockedUntil={planBlockedUntil} quotaWarn={quotaGate.warn} quotaPaused={quotaGate.paused} quotaResetsAt={quotaGate.resetsAt} isAdmin={isAdmin} routeMenuOpen={routeMenu} setRouteMenuOpen={setRouteMenu} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} onChangePassword={SUPABASE_ENABLED ? sbAuth.changePassword : undefined} drops={dropApi} />
 
       {/* Âncora de altura zero no fluxo: o aviso pende daqui, logo abaixo do header. */}
       <div className="relative z-40">
