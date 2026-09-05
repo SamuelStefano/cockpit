@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { relPast, fmtCost } from './format';
+import { relPast, fmtCost, fmtStamp } from './format';
 
 const now = Date.UTC(2026, 0, 15, 12, 0, 0);
 const ago = (ms: number) => now - ms;
@@ -113,5 +113,15 @@ describe('fmtCost', () => {
   it('nunca imprime três casas em valor alto', () => {
     expect(fmtCost(1911.21)).not.toBe('$1911.210');
     expect(fmtCost(12.5)).not.toBe('$12.500');
+  });
+});
+
+describe('fmtStamp', () => {
+  it('dia/mes hora:min no ano corrente', () => {
+    expect(fmtStamp(new Date(2026, 7, 12, 9, 5).getTime(), now)).toBe('12/08 09:05');
+  });
+
+  it('acrescenta o ano quando o instante nao e do ano corrente', () => {
+    expect(fmtStamp(new Date(2025, 11, 31, 23, 59).getTime(), now)).toBe('31/12/2025 23:59');
   });
 });
