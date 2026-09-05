@@ -40,9 +40,11 @@ export interface SessionRowProps {
   onDismissWaiting?: (id: string) => void;
   // Título se confunde com o de outra sessão da lista — ver [[ambiguous]].
   ambiguous?: boolean;
+  // Linha dentro de um bloco de estado (rodando/aguardando) — ver [[SessionGroup]].
+  inGroup?: boolean;
 }
 
-export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated, runStart, pinned, tags = [], marathon, onToggleMarathon, onTogglePin, onAddTag, onRemoveTag, onFilterTag, onSelect, onRename, onDescribe, onClose, onDelete, onStop, waitingDismissed, onDismissWaiting, ambiguous }: SessionRowProps) {
+export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated, runStart, pinned, tags = [], marathon, onToggleMarathon, onTogglePin, onAddTag, onRemoveTag, onFilterTag, onSelect, onRename, onDescribe, onClose, onDelete, onStop, waitingDismissed, onDismissWaiting, ambiguous, inGroup }: SessionRowProps) {
   const { editing, setEditing, draft, setDraft, descEditing, setDescEditing, descDraft, setDescDraft, tagging, setTagging, tagDraft, setTagDraft, rowRef, commit, commitDesc, commitTag } = useSessionRow({ s, onAddTag, onRename, onDescribe });
   const [showDesc] = usePersisted<boolean>(SHOW_SESSION_DESC_KEY, showSessionDescDefault());
   const { open: actionsOpen, setOpen: setActionsOpen, consumeTap, handlers } = useLongPress(() => {});
@@ -60,10 +62,17 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
         if (e.target !== e.currentTarget) return; // tecla foi pra um botão/input interno
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(s.id); }
       }}
-      className={`group relative cursor-pointer rounded-xl border px-3.5 py-2 transition-all duration-150 outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40 lg:py-3
+      className={`group relative cursor-pointer border px-3.5 py-2 transition-all duration-150 outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40 lg:py-3
+        ${inGroup ? 'rounded-lg' : 'rounded-xl'}
         ${active
-          ? 'glow-active border-orange-500/40 bg-linear-to-r from-orange-500/9 to-orange-500/3'
-          : 'border-transparent hover:border-neutral-800 hover:bg-neutral-900/80'}`}
+          // Dentro da caixa de estado o ativo NÃO ganha aro nem halo laranja: o
+          // aro bateria de frente com a borda verde/violeta do bloco, e duas
+          // curvas concêntricas a 1.5px uma da outra é o que ficava feio. Ali a
+          // seleção é só a barra da esquerda + um realce neutro de superfície.
+          ? inGroup
+            ? 'border-transparent bg-neutral-100/8'
+            : 'glow-active border-orange-500/40 bg-linear-to-r from-orange-500/9 to-orange-500/3'
+          : `border-transparent ${inGroup ? 'hover:bg-neutral-100/5' : 'hover:border-neutral-800 hover:bg-neutral-900/80'}`}`}
     >
       {active && <span className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full bg-linear-to-b from-orange-400 to-orange-600" />}
       <div className="mb-1 flex items-start justify-between gap-1">
