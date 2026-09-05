@@ -1,7 +1,7 @@
 import type { WebSocket } from 'ws';
 import { send } from './broadcast';
 import { getLastRate } from './rate';
-import { getLastPlanUsage, requestPlanUsageRefresh } from './usage-plan';
+import { getLastPlanUsage, requestPlanUsageRefresh, planUsageBlockedUntil } from './usage-plan';
 import { getLastModels } from './models';
 import { threads } from './threads';
 import { marathonKeys } from './marathon';
@@ -23,8 +23,13 @@ export function sendDurableSnapshot(ws: WebSocket) {
   if (rate) send(ws, { t: 'rate', ...rate });
   const planUsage = getLastPlanUsage();
   // Sem snapshot ainda: pede um agora pra a barra não ficar em "—" até o próximo poll.
-  if (planUsage) send(ws, { t: 'plan-usage', usage: planUsage });
-  else requestPlanUsageRefresh();
+  if (planUsage) send(ws, { t: 'plan-usage', usage: planUsage, blockedUntil: planUsageBlockedUntil() });
+  else {
+    // Bloqueado e sem número: o cliente precisa saber que é bloqueio, não espera.
+    const blockedUntil = planUsageBlockedUntil();
+    if (blockedUntil) send(ws, { t: 'plan-usage', usage: null, blockedUntil });
+    requestPlanUsageRefresh();
+  }
   const models = getLastModels();
   if (models.length) send(ws, { t: 'models', models });
   send(ws, { t: 'marathon', keys: marathonKeys() });

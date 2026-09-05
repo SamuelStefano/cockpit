@@ -733,7 +733,9 @@ export type ServerMsg =
   | { t: 'thinking'; sessionKey: string; text: string }
   | { t: 'tool'; sessionKey: string; tool: ToolCall }
   | { t: 'rate'; resetsAt: number; status: string }
-  | { t: 'plan-usage'; usage: PlanUsage }
+  // `blockedUntil` = a conta recusou a leitura (429) e o servidor não vai tentar
+  // de novo antes desse instante. Sem ele a barra em "—" parecia estar carregando.
+  | { t: 'plan-usage'; usage: PlanUsage | null; blockedUntil?: number | null }
   | { t: 'harness-config'; config: HarnessConfig }
   | { t: 'harness-task'; task: HarnessTaskView }
   | { t: 'harness-event'; taskId: string; event: HarnessEvent }

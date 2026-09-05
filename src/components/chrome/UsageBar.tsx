@@ -21,9 +21,11 @@ interface UsageBarProps {
   warn?: boolean;
   paused?: boolean;
   quotaResetsAt?: number | null;
+  // 429 no endpoint de usage: até quando o servidor não vai tentar de novo.
+  blockedUntil?: number | null;
 }
 
-export function UsageBar({ usage, compact, warn = false, paused = false, quotaResetsAt = null }: UsageBarProps) {
+export function UsageBar({ usage, compact, warn = false, paused = false, quotaResetsAt = null, blockedUntil = null }: UsageBarProps) {
   const { open, setOpen, wrapRef } = useUsagePanel();
   const rows = usageRows(usage);
   const stale = isStalePlanUsage(usage);
@@ -53,7 +55,7 @@ export function UsageBar({ usage, compact, warn = false, paused = false, quotaRe
           <span className="text-[10px] tabular-nums text-neutral-500">reset {reset}</span>
         )}
       </button>
-      {open && <UsagePanel rows={rows} reset={gateReset} warn={warn || paused} />}
+      {open && <UsagePanel rows={rows} reset={gateReset} warn={warn || paused} blockedUntil={blockedUntil} />}
     </div>
   );
 }
