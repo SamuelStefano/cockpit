@@ -5,7 +5,7 @@ import { SHOW_SESSION_DESC_KEY, showSessionDescDefault } from '../lib/prefs';
 import type { Session } from '../data/types';
 import { groupByRecency } from './sessions/group-by-recency';
 import { ambiguousIds } from './sessions/ambiguous';
-import { SessionGroup } from './sessions/SessionGroup';
+import { SessionGroup, isStateGroup } from './sessions/SessionGroup';
 import { SessionRow } from './sessions/SessionRow';
 import { SessionSkeletonRow } from './sessions/SessionSkeletonRow';
 import { ArchivedSection } from './sessions/ArchivedSection';
@@ -50,9 +50,9 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, ma
   const [showDesc, setShowDesc] = usePersisted<boolean>(SHOW_SESSION_DESC_KEY, showSessionDescDefault());
   const ambiguous = useMemo(() => ambiguousIds(filtered), [filtered]);
 
-  const renderRow = (s: Session) => (
+  const renderRow = (s: Session, inGroup = false) => (
     <SessionRow key={s.id} s={s} active={s.id === activeId} highlight={query} ctx={usage[s.id]} cost={cost[s.id]}
-      ambiguous={ambiguous.has(s.id)}
+      ambiguous={ambiguous.has(s.id)} inGroup={inGroup}
       waitingDismissed={dismissedWaiting.has(s.id)} onDismissWaiting={dismissWaiting}
       running={running?.has(s.id)} stalled={stalled?.has(s.id)} updated={updated?.has(s.id)} runStart={runStart[s.id]} pinned={pinned.has(s.id)} onTogglePin={togglePin}
       tags={tagMap[s.id]} onAddTag={addTag} onRemoveTag={removeTag} onFilterTag={setTagFilter}
@@ -120,7 +120,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, ma
         ) : (
           groupByRecency(filtered, { now: Date.now(), pinned, running, dismissed: dismissedWaiting }).map((g) => (
             <SessionGroup key={g.label} label={g.label} count={g.items.length}>
-              {g.items.map((s) => renderRow(s))}
+              {g.items.map((s) => renderRow(s, isStateGroup(g.label)))}
             </SessionGroup>
           ))
         )}

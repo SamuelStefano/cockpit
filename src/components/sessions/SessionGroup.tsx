@@ -11,6 +11,12 @@ const BLOCK: Record<string, string> = {
   [WAITING_LABEL]: 'border-violet-500/25 bg-violet-500/8',
 };
 
+// A linha precisa saber se está dentro da caixa: lá ela larga o próprio aro
+// (ver [[SessionRow]]), senão o laranja do ativo bate no verde/violeta do bloco.
+export function isStateGroup(label: string): boolean {
+  return label in BLOCK;
+}
+
 export function SessionGroup({ label, count, children }: { label: string; count: number; children: ReactNode }) {
   const block = BLOCK[label];
   if (!block) {
