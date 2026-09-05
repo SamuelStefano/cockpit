@@ -19,6 +19,17 @@ export function relPast(then: number, now: number = Date.now()): string {
   return `${Math.floor(d / 7)}sem`;
 }
 
+// Data/hora absoluta curta: "12/08 14:30" (ano só quando não é o corrente).
+// Serve o caso em que o relativo NÃO desempata — duas sessões de título parecido
+// marcadas "3d" são indistinguíveis; o horário decide qual é qual.
+export function fmtStamp(then: number, now: number = Date.now()): string {
+  const d = new Date(then);
+  const p = (n: number) => String(n).padStart(2, '0');
+  const day = `${p(d.getDate())}/${p(d.getMonth() + 1)}`;
+  const year = d.getFullYear() === new Date(now).getFullYear() ? '' : `/${d.getFullYear()}`;
+  return `${day}${year} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 // Custo em USD, precisão decrescente conforme o valor cresce.
 export function fmtCost(usd: number): string {
   if (!(usd > 0)) return '$0';
