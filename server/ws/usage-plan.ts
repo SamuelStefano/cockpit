@@ -197,13 +197,22 @@ export function rateCooldownMs(waitMs: number, streak: number): number {
 
 export function planUsageCooldownUntil() { return cooldownUntil; }
 
+let lastAdoptedTs = 0;
+
+// Pega o snapshot do processo irmão, se houver um mais novo. Devolve true quando
+// adotou — aí esta rodada não precisa de rede nenhuma.
+function adoptShared(now: number): boolean {
+  const entry = readCacheEntry();
+  if (!entry || entry.ts === lastAdoptedTs) return false;
+  const usage = borrowedSnapshot(entry, ownWriteTs, now);
+  if (!usage) return false;
+  lastAdoptedTs = entry.ts;
+  last = usage;
+  broadcast({ t: 'plan-usage', usage });
+  return true;
+}
+
 async function doFetch(): Promise<FetchOutcome['kind']> {
-  const borrowed = borrowedSnapshot(readCacheEntry(), ownWriteTs, Date.now());
-  if (borrowed) {
-    last = borrowed;
-    broadcast({ t: 'plan-usage', usage: borrowed });
-    return 'ok';
-  }
   const r = await fetchPlanUsage();
   if (r.kind === 'ok') {
     rateStreak = 0;
@@ -224,6 +233,10 @@ async function doFetch(): Promise<FetchOutcome['kind']> {
 export function requestPlanUsageRefresh(attempt = 0): void {
   if (refreshing) return;
   const now = Date.now();
+  // O lease do irmão é checado ANTES do cooldown: o castigo do 429 é deste
+  // processo, não do dado. Ficar 40min cego com um snapshot fresco no disco ao
+  // lado é exatamente o estado que este arquivo existe pra evitar.
+  if (adoptShared(now)) return;
   if (now < cooldownUntil) return;
   if (attempt === 0 && now - lastAttempt < MIN_GAP_MS) return;
   lastAttempt = now;

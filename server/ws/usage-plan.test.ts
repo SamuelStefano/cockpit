@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { mapPlanUsage, retryAfterMs, rateCooldownMs, borrowedSnapshot, RATE_PAD_MAX_MS } from './usage-plan';
 
 vi.mock('../oauth', () => ({ readOAuthToken: async () => 'token', OAUTH_BETA: 'beta' }));
@@ -156,6 +156,56 @@ describe('requestPlanUsageRefresh', () => {
     second.startPlanUsageLoop(() => false);
     await vi.advanceTimersByTimeAsync(0);
     expect(second.getLastPlanUsage()?.fiveHour).toBe(10);
+  });
+});
+
+describe('lease entre os dois processos que pollam', () => {
+  let dir: string;
+  const other = { ts: 0, usage: { fiveHour: 42, sevenDay: 7, resetsAt: null, sevenDayResetsAt: null, limits: [] } };
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'usage-lease-'));
+    process.env.COCKPIT_PLAN_USAGE = join(dir, 'plan-usage.json');
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+    delete process.env.COCKPIT_PLAN_USAGE;
+    vi.unstubAllGlobals();
+  });
+
+  async function load() {
+    vi.resetModules();
+    return import('./usage-plan');
+  }
+
+  const writeOther = () => writeFileSync(process.env.COCKPIT_PLAN_USAGE!, JSON.stringify({ ...other, ts: Date.now() }), 'utf8');
+
+  it('adota o snapshot do irmão em vez de ir à rede', async () => {
+    const fetchMock = vi.fn(async () => { throw new Error('não deveria buscar'); });
+    vi.stubGlobal('fetch', fetchMock);
+    writeOther();
+    const m = await load();
+    m.requestPlanUsageRefresh();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(m.getLastPlanUsage()?.fiveHour).toBe(42);
+  });
+
+  it('adota mesmo em cooldown de 429 — o castigo é do processo, não do dado', async () => {
+    const fetchMock = vi.fn(async () => ({ ok: false, status: 429, headers: new Headers({ 'retry-after': '600' }), json: async () => ({}) }) as unknown as Response);
+    vi.stubGlobal('fetch', fetchMock);
+    const m = await load();
+    m.requestPlanUsageRefresh();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(m.planUsageCooldownUntil()).toBeGreaterThan(Date.now());
+    expect(m.getLastPlanUsage()).toBeNull();
+
+    writeOther();
+    m.requestPlanUsageRefresh();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(m.getLastPlanUsage()?.fiveHour).toBe(42);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 
