@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toneOf, usageRows } from './usage-rows';
+import { toneOf, usageRows, isStalePlanUsage } from './usage-rows';
 import type { PlanUsage } from '../../../shared/protocol';
 
 const base: PlanUsage = { fiveHour: 19, sevenDay: 76, resetsAt: 1000, sevenDayResetsAt: 2000, limits: [] };
@@ -52,5 +52,20 @@ describe('usageRows', () => {
     expect(rows.map((r) => r.label)).toEqual(['Sessão (5h)', 'Semanal', 'Fable']);
     expect(rows[1].tone).toBe('mid');
     expect(rows[2].scoped).toBe(true);
+  });
+});
+
+describe('isStalePlanUsage', () => {
+  it('janela de 5h já vencida = número do ciclo anterior', () => {
+    expect(isStalePlanUsage({ ...base, resetsAt: 500 }, 1000)).toBe(true);
+  });
+
+  it('janela em curso vale', () => {
+    expect(isStalePlanUsage({ ...base, resetsAt: 2000 }, 1000)).toBe(false);
+  });
+
+  it('sem resetsAt não dá pra afirmar que venceu', () => {
+    expect(isStalePlanUsage({ ...base, resetsAt: null }, 1000)).toBe(false);
+    expect(isStalePlanUsage(null, 1000)).toBe(false);
   });
 });

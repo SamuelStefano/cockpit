@@ -1,6 +1,6 @@
 import { relReset } from '../../lib/time';
 import { tokens } from '../primitives';
-import { usageRows, toneOf } from './usage-rows';
+import { usageRows, toneOf, isStalePlanUsage } from './usage-rows';
 import { quotaBorder } from './quota-tone';
 import { useUsagePanel } from './useUsagePanel';
 import { UsagePanel } from './UsagePanel';
@@ -26,11 +26,12 @@ interface UsageBarProps {
 export function UsageBar({ usage, compact, warn = false, paused = false, quotaResetsAt = null }: UsageBarProps) {
   const { open, setOpen, wrapRef } = useUsagePanel();
   const rows = usageRows(usage);
-  const pct = usage ? usage.fiveHour : null;
+  const stale = isStalePlanUsage(usage);
+  const pct = usage && !stale ? usage.fiveHour : null;
   const tone = pct === null ? null : toneOf(pct);
   const bar = tone === null ? 'bg-neutral-700' : BAR[tone];
   const text = tone === null ? 'text-neutral-500' : TEXT[tone];
-  const reset = usage && usage.resetsAt ? relReset(usage.resetsAt) : '';
+  const reset = usage && usage.resetsAt && !stale ? relReset(usage.resetsAt) : '';
   const gateReset = quotaResetsAt ? relReset(quotaResetsAt) : '';
 
   return (
@@ -39,7 +40,7 @@ export function UsageBar({ usage, compact, warn = false, paused = false, quotaRe
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        title={paused ? `Cota esgotada${gateReset ? ` — reseta ${gateReset}` : ''}` : warn ? `Uso próximo do limite${gateReset ? ` — reseta ${gateReset}` : ''}` : usage ? 'Ver detalhe do uso do plano' : 'Uso do plano: lendo da conta…'}
+        title={paused ? `Cota esgotada${gateReset ? ` — reseta ${gateReset}` : ''}` : warn ? `Uso próximo do limite${gateReset ? ` — reseta ${gateReset}` : ''}` : stale ? 'Uso do plano: a janela virou e o número novo ainda não chegou da conta' : usage ? 'Ver detalhe do uso do plano' : 'Uso do plano: lendo da conta…'}
         className={`flex items-center border bg-neutral-900/60 py-1.5 transition-colors hover:bg-neutral-900 ${quotaBorder(warn, paused)} ${tokens.radius.md} ${tokens.focusRing} ${compact ? 'gap-1.5 px-2' : 'gap-2 px-2.5'}`}
       >
         {paused && <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-red-400" />}
