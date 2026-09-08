@@ -19,6 +19,16 @@ export function isStalePlanUsage(usage: PlanUsage | null, now = Date.now()): boo
   return !!usage?.resetsAt && usage.resetsAt <= now;
 }
 
+// Leitura VELHA (o poll é de 5min; acima disto algo travou — 429, agente fora do
+// ar, sem browser). Não é motivo pra esconder o número, é motivo pra parar de
+// apresentá-lo como se fosse de agora: um "0%" verde e confiante de uma hora
+// atrás é a pior das saídas, porque some com o sinal de que o poll parou.
+export const READ_STALE_MS = 12 * 60_000;
+
+export function isOldReading(readAt: number | null | undefined, now = Date.now()): boolean {
+  return !!readAt && now - readAt > READ_STALE_MS;
+}
+
 export interface UsageRow {
   id: string;
   label: string;

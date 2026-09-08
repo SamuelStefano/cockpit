@@ -1,6 +1,6 @@
-import { relReset } from '../../lib/time';
+import { relReset, relAge } from '../../lib/time';
 import { tokens } from '../primitives';
-import { usageRows, toneOf, isStalePlanUsage } from './usage-rows';
+import { usageRows, toneOf, isStalePlanUsage, isOldReading } from './usage-rows';
 import { quotaBorder } from './quota-tone';
 import { useUsagePanel } from './useUsagePanel';
 import { UsagePanel } from './UsagePanel';
@@ -23,19 +23,26 @@ interface UsageBarProps {
   quotaResetsAt?: number | null;
   // 429 no endpoint de usage: até quando o servidor não vai tentar de novo.
   blockedUntil?: number | null;
+  // Quando o número foi lido da conta. Leitura velha é mostrada como velha.
+  readAt?: number | null;
   // Pede um número fresco ao servidor (abertura do painel + enquanto ele fica aberto).
   onRefresh?: () => void;
 }
 
-export function UsageBar({ usage, compact, warn = false, paused = false, quotaResetsAt = null, blockedUntil = null, onRefresh }: UsageBarProps) {
+export function UsageBar({ usage, compact, warn = false, paused = false, quotaResetsAt = null, blockedUntil = null, readAt = null, onRefresh }: UsageBarProps) {
   const { open, setOpen, wrapRef } = useUsagePanel(onRefresh);
   const rows = usageRows(usage);
   const stale = isStalePlanUsage(usage);
+  // Janela virada = o número não descreve mais nada, some. Leitura só VELHA
+  // continua na tela: ela ainda é o melhor palpite, só não pode se passar por
+  // atual — vai em cinza e com a idade no lugar do "reset em".
+  const old = isOldReading(readAt);
   const pct = usage && !stale ? usage.fiveHour : null;
-  const tone = pct === null ? null : toneOf(pct);
+  const tone = pct === null || old ? null : toneOf(pct);
   const bar = tone === null ? 'bg-neutral-700' : BAR[tone];
   const text = tone === null ? 'text-neutral-500' : TEXT[tone];
-  const reset = usage && usage.resetsAt && !stale ? relReset(usage.resetsAt) : '';
+  const age = old && readAt ? relAge(readAt) : '';
+  const reset = usage && usage.resetsAt && !stale && !old ? relReset(usage.resetsAt) : '';
   const gateReset = quotaResetsAt ? relReset(quotaResetsAt) : '';
 
   return (
@@ -44,7 +51,7 @@ export function UsageBar({ usage, compact, warn = false, paused = false, quotaRe
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        title={paused ? `Cota esgotada${gateReset ? ` — reseta ${gateReset}` : ''}` : warn ? `Uso próximo do limite${gateReset ? ` — reseta ${gateReset}` : ''}` : stale ? 'Uso do plano: a janela virou e o número novo ainda não chegou da conta' : usage ? 'Ver detalhe do uso do plano' : 'Uso do plano: lendo da conta…'}
+        title={paused ? `Cota esgotada${gateReset ? ` — reseta ${gateReset}` : ''}` : warn ? `Uso próximo do limite${gateReset ? ` — reseta ${gateReset}` : ''}` : stale ? 'Uso do plano: a janela virou e o número novo ainda não chegou da conta' : old ? `Uso do plano: número lido há ${age} — a leitura nova não chegou` : usage ? 'Ver detalhe do uso do plano' : 'Uso do plano: lendo da conta…'}
         className={`flex items-center border bg-neutral-900/60 py-1.5 transition-colors hover:bg-neutral-900 ${quotaBorder(warn, paused)} ${tokens.radius.md} ${tokens.focusRing} ${compact ? 'gap-1.5 px-2' : 'gap-2 px-2.5'}`}
       >
         {paused && <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-red-400" />}
@@ -56,8 +63,11 @@ export function UsageBar({ usage, compact, warn = false, paused = false, quotaRe
         {reset && !compact && (
           <span className="text-[10px] tabular-nums text-neutral-500">reset {reset}</span>
         )}
+        {age && !compact && (
+          <span className="text-[10px] tabular-nums text-neutral-600">há {age}</span>
+        )}
       </button>
-      {open && <UsagePanel rows={rows} reset={gateReset} warn={warn || paused} blockedUntil={blockedUntil} />}
+      {open && <UsagePanel rows={rows} reset={gateReset} warn={warn || paused} blockedUntil={blockedUntil} readAt={readAt} />}
     </div>
   );
 }

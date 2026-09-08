@@ -34,7 +34,7 @@ import { refreshModels } from './models';
 import { handleHarnessMsg } from './harness';
 import { setMarathon, marathonKeys } from './marathon';
 import { sendDurableSnapshot } from './snapshot';
-import { getLastPlanUsage, requestPlanUsageRefresh, planUsageBlockedUntil } from './usage-plan';
+import { getLastPlanUsage, requestPlanUsageRefresh, planUsageBlockedUntil, getPlanUsageReadAt } from './usage-plan';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 import { buildBench } from '../bench';
 
@@ -124,7 +124,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'plan-usage-get': {
       // Abrir o painel de uso: repinta o último número na hora e pede um fresco.
       // O single-flight/MIN_GAP/cooldown do usage-plan seguram o abuso do clique.
-      send(ws, { t: 'plan-usage', usage: getLastPlanUsage(), blockedUntil: planUsageBlockedUntil() || null });
+      send(ws, { t: 'plan-usage', usage: getLastPlanUsage(), blockedUntil: planUsageBlockedUntil() || null, readAt: getPlanUsageReadAt() || null });
       requestPlanUsageRefresh();
       return;
     }

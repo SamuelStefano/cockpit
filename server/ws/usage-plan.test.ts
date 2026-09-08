@@ -173,6 +173,37 @@ describe('requestPlanUsageRefresh', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  // Era o buraco que mantinha o bloqueio vivo: cooldown só na memória, então cada
+  // restart do Deck (e o Samuel reinicia várias vezes num Retry-After de 1h) ia
+  // bater no endpoint no boot e renovar o castigo.
+  it('o castigo de 429 sobrevive ao restart do processo', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => reply(429, { 'retry-after': '3371' })));
+    const first = await load();
+    first.requestPlanUsageRefresh();
+    await vi.advanceTimersByTimeAsync(0);
+
+    const fetchMock = vi.fn(async () => reply(200));
+    vi.stubGlobal('fetch', fetchMock);
+    const second = await load();               // "restart": memória zerada
+    second.startPlanUsageLoop(() => true);     // prime do boot
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(second.planUsageBlockedUntil()).toBeGreaterThan(Date.now());
+  });
+
+  it('uma leitura boa limpa o castigo gravado', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => reply(429, { 'retry-after': '1' })));
+    const m = await load();
+    m.requestPlanUsageRefresh();
+    await vi.advanceTimersByTimeAsync(0);
+    vi.stubGlobal('fetch', vi.fn(async () => reply(200)));
+    await vi.advanceTimersByTimeAsync(6 * 60_000);   // vence o Retry-After + o pad
+    m.requestPlanUsageRefresh();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(m.getPlanUsageReadAt()).toBe(Date.now());
+    expect(m.planUsageBlockedUntil()).toBe(0);
+  });
+
   it('com turno vivo pola em 3min; ocioso, só a cada 5min', async () => {
     const fetchMock = vi.fn(async () => reply(200));
     vi.stubGlobal('fetch', fetchMock);
