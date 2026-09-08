@@ -545,6 +545,9 @@ export type ClientMsg =
   // Resume (mobile): reemite o estado durável (busy/rate/plan-usage/models +
   // sessions) que o CLI só manda durante um run, sem depender de eventos perdidos.
   | { t: 'sync' }
+  // Só o uso do plano, sem o resto do snapshot: o `sync` varre o diretório de
+  // sessões inteiro, caro demais pra abrir um popover.
+  | { t: 'plan-usage-get' }
   // `chainOnly` = o usuário PEDIU a visão resumida; sem ele o servidor pode servir
   // a timeline completa quando a cadeia ativa colapsou (pós-/compact).
   | { t: 'open'; sessionId: string; chainOnly?: boolean }

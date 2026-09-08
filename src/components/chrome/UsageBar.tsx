@@ -23,10 +23,12 @@ interface UsageBarProps {
   quotaResetsAt?: number | null;
   // 429 no endpoint de usage: até quando o servidor não vai tentar de novo.
   blockedUntil?: number | null;
+  // Pede um número fresco ao servidor (abertura do painel + enquanto ele fica aberto).
+  onRefresh?: () => void;
 }
 
-export function UsageBar({ usage, compact, warn = false, paused = false, quotaResetsAt = null, blockedUntil = null }: UsageBarProps) {
-  const { open, setOpen, wrapRef } = useUsagePanel();
+export function UsageBar({ usage, compact, warn = false, paused = false, quotaResetsAt = null, blockedUntil = null, onRefresh }: UsageBarProps) {
+  const { open, setOpen, wrapRef } = useUsagePanel(onRefresh);
   const rows = usageRows(usage);
   const stale = isStalePlanUsage(usage);
   const pct = usage && !stale ? usage.fiveHour : null;

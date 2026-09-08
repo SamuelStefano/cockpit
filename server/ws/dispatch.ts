@@ -34,6 +34,7 @@ import { refreshModels } from './models';
 import { handleHarnessMsg } from './harness';
 import { setMarathon, marathonKeys } from './marathon';
 import { sendDurableSnapshot } from './snapshot';
+import { getLastPlanUsage, requestPlanUsageRefresh, planUsageBlockedUntil } from './usage-plan';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 import { buildBench } from '../bench';
 
@@ -43,7 +44,6 @@ const BG_RUN_MESSAGE: Record<BgRunReject, string> = {
   'sem-quota': 'sem tokens agora: o turno morreria no limite',
   'sem-slot': 'limite de sessões simultâneas atingido',
   'falhou': 'não deu pra abrir o chat paralelo — o item voltou pra fila',
-  'ctx-cheio': 'a sessão de origem está grande demais: o fork leria o contexto inteiro. Faça o handoff antes',
 };
 
 const NOW_RUN_MESSAGE: Record<NowRunReject, string> = {
@@ -119,6 +119,13 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // pro socket que pediu, sem depender de eventos perdidos na suspensão.
       send(ws, { t: 'sessions', items: await listSessions() });
       sendDurableSnapshot(ws);
+      return;
+    }
+    case 'plan-usage-get': {
+      // Abrir o painel de uso: repinta o último número na hora e pede um fresco.
+      // O single-flight/MIN_GAP/cooldown do usage-plan seguram o abuso do clique.
+      send(ws, { t: 'plan-usage', usage: getLastPlanUsage(), blockedUntil: planUsageBlockedUntil() || null });
+      requestPlanUsageRefresh();
       return;
     }
     case 'open': {
