@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { relReset } from './time';
+import { relReset, relAge } from './time';
 
 describe('relReset', () => {
   const now = 1_000_000_000_000;
@@ -34,5 +34,20 @@ describe('relReset', () => {
     expect(relReset(now + 24 * 3600_000, now)).toBe('1d0h');
     expect(relReset(now + (2 * 24 + 14) * 3600_000, now)).toBe('2d14h');
     expect(relReset(now + 167 * 3600_000, now)).toBe('6d23h');
+  });
+});
+
+describe('relAge', () => {
+  const now = Date.parse('2026-09-08T15:00:00Z');
+  it('rotula a idade da leitura em passos curtos', () => {
+    expect(relAge(now - 20_000, now)).toBe('agora');
+    expect(relAge(now - 42 * 60_000, now)).toBe('42min');
+    expect(relAge(now - 90 * 60_000, now)).toBe('1h30');
+    expect(relAge(now - 50 * 60 * 60_000, now)).toBe('2d');
+  });
+
+  // Relógio do browser atrás do servidor: sem o clamp virava "-3min".
+  it('nunca volta idade negativa', () => {
+    expect(relAge(now + 60_000, now)).toBe('agora');
   });
 });

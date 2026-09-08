@@ -740,7 +740,9 @@ export type ServerMsg =
   | { t: 'rate'; resetsAt: number; status: string }
   // `blockedUntil` = a conta recusou a leitura (429) e o servidor não vai tentar
   // de novo antes desse instante. Sem ele a barra em "—" parecia estar carregando.
-  | { t: 'plan-usage'; usage: PlanUsage | null; blockedUntil?: number | null }
+  // `readAt` = quando o número foi lido da conta. Sem ele o cliente não distingue
+  // uma leitura de agora de uma de uma hora atrás, e pinta as duas igual.
+  | { t: 'plan-usage'; usage: PlanUsage | null; blockedUntil?: number | null; readAt?: number | null }
   | { t: 'harness-config'; config: HarnessConfig }
   | { t: 'harness-task'; task: HarnessTaskView }
   | { t: 'harness-event'; taskId: string; event: HarnessEvent }

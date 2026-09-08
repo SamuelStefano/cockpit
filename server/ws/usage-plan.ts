@@ -57,33 +57,64 @@ const LEASE_MS = 4 * 60_000;
 let last: PlanUsage | null = null;
 export function getLastPlanUsage() { return last; }
 
-interface CacheEntry { ts: number; usage: PlanUsage }
+// QUANDO o número em `last` foi lido da conta. A barra precisa disto pra não
+// apresentar uma leitura de uma hora atrás como se fosse de agora: "0%" verde e
+// confiante era pior que não mostrar nada.
+let lastReadAt = 0;
+export function getPlanUsageReadAt() { return lastReadAt; }
+
+// `cooldownUntil`/`rateStreak` moram no arquivo, não só na memória: eram estado
+// do PROCESSO, então todo restart do Deck esquecia o bloqueio e ia bater no
+// endpoint na hora (prime do boot + refresh de cada connect) — que é exatamente
+// o "insistir SÓ renova a punição". Quem reinicia o Deck várias vezes durante um
+// Retry-After de ~1h nunca saía do castigo.
+interface CacheEntry { ts: number; usage: PlanUsage; cooldownUntil?: number; rateStreak?: number }
 
 // ts do último snapshot que ESTE processo escreveu: sem isso ele adotaria o
 // próprio arquivo pra sempre e nunca mais buscaria nada.
 let ownWriteTs = 0;
 
-function saveCache(usage: PlanUsage): void {
+function writeCache(entry: CacheEntry): void {
   try {
     mkdirSync(dirname(CACHE_PATH), { recursive: true });
-    ownWriteTs = Date.now();
     const tmp = `${CACHE_PATH}.${process.pid}.tmp`;
-    writeFileSync(tmp, JSON.stringify({ ts: ownWriteTs, usage }), 'utf8');
+    writeFileSync(tmp, JSON.stringify(entry), 'utf8');
     renameSync(tmp, CACHE_PATH);
   } catch { /* cache é conforto, não pode derrubar o poll */ }
+}
+
+function saveCache(usage: PlanUsage): void {
+  ownWriteTs = Date.now();
+  // Leitura boa zera o castigo em disco também: senão o cooldown de um 429 antigo
+  // continuaria barrando o processo irmão depois de a janela já ter voltado.
+  writeCache({ ts: ownWriteTs, usage });
+}
+
+// 429: preserva o ts da ÚLTIMA LEITURA (a idade do número não pode ser falsificada
+// por um erro) e grava só o castigo.
+function saveRateState(until: number, streak: number): void {
+  const prev = readCacheEntry();
+  writeCache({ ts: prev?.ts ?? 0, usage: prev?.usage ?? last ?? ({} as PlanUsage), cooldownUntil: until, rateStreak: streak });
+}
+
+// Castigo gravado em disco (por este processo numa vida anterior, ou pelo irmão).
+function persistedRate(): { until: number; streak: number } {
+  const e = readCacheEntry();
+  return { until: typeof e?.cooldownUntil === 'number' ? e.cooldownUntil : 0, streak: typeof e?.rateStreak === 'number' ? e.rateStreak : 0 };
 }
 
 function readCacheEntry(): CacheEntry | null {
   try {
     const o = JSON.parse(readFileSync(CACHE_PATH, 'utf8'));
     if (typeof o?.ts !== 'number') return null;
-    return { ts: o.ts, usage: o.usage as PlanUsage };
+    return { ts: o.ts, usage: o.usage as PlanUsage, cooldownUntil: o.cooldownUntil, rateStreak: o.rateStreak };
   } catch { return null; }
 }
 
 function loadCache(): PlanUsage | null {
   const e = readCacheEntry();
-  if (!e || Date.now() - e.ts > CACHE_TTL_MS) return null;
+  if (!e || !e.usage || Date.now() - e.ts > CACHE_TTL_MS) return null;
+  lastReadAt = e.ts;
   return e.usage;
 }
 
@@ -225,11 +256,14 @@ export function planUsageCooldownUntil() { return cooldownUntil; }
 // Bloqueio ATIVO (0 quando já venceu). O cliente precisa disto pra distinguir
 // "ainda não li" de "a conta recusou e eu só tento de novo às tantas".
 export function planUsageBlockedUntil(now = Date.now()): number {
-  return cooldownUntil > now ? cooldownUntil : 0;
+  // Também olha o disco: logo após um restart a memória ainda não sabe do bloqueio
+  // e o painel diria "lendo da conta…" durante a hora inteira de castigo.
+  const until = Math.max(cooldownUntil, persistedRate().until);
+  return until > now ? until : 0;
 }
 
 function emit(): void {
-  broadcast({ t: 'plan-usage', usage: last, blockedUntil: planUsageBlockedUntil() || null });
+  broadcast({ t: 'plan-usage', usage: last, blockedUntil: planUsageBlockedUntil() || null, readAt: lastReadAt || null });
 }
 
 let lastAdoptedTs = 0;
@@ -243,6 +277,7 @@ function adoptShared(now: number): boolean {
   if (!usage) return false;
   lastAdoptedTs = entry.ts;
   last = usage;
+  lastReadAt = entry.ts;
   emit();
   return true;
 }
@@ -252,11 +287,13 @@ async function doFetch(): Promise<FetchOutcome['kind']> {
   if (r.kind === 'ok') {
     rateStreak = 0;
     last = r.usage;
+    lastReadAt = Date.now();
     saveCache(r.usage);
     emit();
   } else if (r.kind === 'rate') {
-    rateStreak += 1;
+    rateStreak = Math.max(rateStreak, persistedRate().streak) + 1;
     cooldownUntil = Date.now() + rateCooldownMs(r.waitMs, rateStreak);
+    saveRateState(cooldownUntil, rateStreak);
     // Avisa o bloqueio: sem isto a barra ficava em "—" parecendo estar carregando.
     emit();
   }
@@ -274,6 +311,11 @@ export function requestPlanUsageRefresh(attempt = 0): void {
   // processo, não do dado. Ficar 40min cego com um snapshot fresco no disco ao
   // lado é exatamente o estado que este arquivo existe pra evitar.
   if (adoptShared(now)) return;
+  // Castigo do disco junto com o da memória: o do processo some no restart, e
+  // reiniciar o Deck durante um Retry-After de 1h voltava a bater no endpoint na
+  // hora — renovando o bloqueio que já estava correndo.
+  const disk = persistedRate();
+  if (disk.until > cooldownUntil) { cooldownUntil = disk.until; rateStreak = Math.max(rateStreak, disk.streak); }
   if (now < cooldownUntil) return;
   if (attempt === 0 && now - lastAttempt < MIN_GAP_MS) return;
   lastAttempt = now;
@@ -302,6 +344,8 @@ export function notePlanUsageChanged(): void {
 
 export function startPlanUsageLoop(hasClients: () => boolean, hasActiveRun: () => boolean = () => false) {
   last ??= loadCache(); // barra pinta o último valor conhecido mesmo se o fetch estiver bloqueado
+  const disk = persistedRate();
+  if (disk.until > cooldownUntil) { cooldownUntil = disk.until; rateStreak = disk.streak; }
   requestPlanUsageRefresh(); // prime no boot pra a barra pintar no 1º connect
   // Um tick só, na cadência curta: com turno vivo ele busca sempre; ocioso, deixa
   // passar até fechar os 5min. Dois setInterval separados se sobreporiam e o
