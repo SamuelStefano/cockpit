@@ -19,7 +19,7 @@ const POLL_MS = 5 * 60_000;
 // barra velha justamente na hora em que ela importa (era o "só atualiza com F5").
 // O que derrubava o endpoint em 429 era pollar de minuto em minuto o DIA INTEIRO;
 // aqui a cadência curta vale só nos minutos de turno vivo com browser aberto.
-const ACTIVE_POLL_MS = 90_000;
+const ACTIVE_POLL_MS = 180_000;
 // A Anthropic contabiliza o turno alguns segundos DEPOIS do processo fechar: um
 // refresh só no instante do 'done' repinta o número de antes do turno.
 const SETTLE_MS = 25_000;
@@ -41,10 +41,13 @@ const MIN_GAP_MS = 15_000;
 const FETCH_TIMEOUT_MS = 15_000;
 // Snapshot em disco: reiniciar o Deck no meio de um 429 longo (o Retry-After da
 // Anthropic chega a ~40min) deixava a barra em "—" até o bloqueio passar, porque
-// o último valor só existia na memória do processo morto. Vale enquanto for
-// recente — número velho demais na barra engana mais do que ajuda.
+// o último valor só existia na memória do processo morto.
 const CACHE_PATH = process.env.COCKPIT_PLAN_USAGE ?? join(homedir(), '.cockpit', 'plan-usage.json');
-const CACHE_TTL_MS = 30 * 60_000;
+// Precisa ser MAIOR que o bloqueio típico: com 30min o snapshot morria antes do
+// Retry-After (visto em 3371s = 56min) e o restart caía num buraco — cache
+// expirado de um lado, endpoint recusando do outro, barra cinza sem explicação.
+// Número velho não engana: o painel carimba "última leitura" quando há bloqueio.
+const CACHE_TTL_MS = 90 * 60_000;
 // O arquivo também é o rendez-vous entre os DOIS processos que pollam (ws.ts e
 // agent.ts): quem acha ali um snapshot fresco de OUTRO processo adota em vez de
 // ir à rede. Sem isso eram dois pollers independentes gastando o mesmo orçamento
@@ -287,13 +290,13 @@ export function requestPlanUsageRefresh(attempt = 0): void {
 
 let settleTimer: ReturnType<typeof setTimeout> | null = null;
 
-// O uso ACABOU de mudar (turno fechou). Busca agora e de novo depois do settle:
-// `attempt: 1` pula o MIN_GAP de propósito (o refresh imediato é a "primeira ida"
-// e sem isso o segundo seria descartado), mas o cooldown de 429 continua valendo.
+// O uso ACABOU de mudar (turno fechou). UMA ida só, depois do settle: buscar no
+// instante do 'done' volta com o número de antes do turno (a conta contabiliza
+// com atraso), então seriam dois requests pra um número útil. O orçamento do
+// endpoint é curto — ele responde 429 com Retry-After de quase uma hora.
 export function notePlanUsageChanged(): void {
-  requestPlanUsageRefresh();
   if (settleTimer) return;
-  settleTimer = setTimeout(() => { settleTimer = null; requestPlanUsageRefresh(1); }, SETTLE_MS);
+  settleTimer = setTimeout(() => { settleTimer = null; requestPlanUsageRefresh(); }, SETTLE_MS);
   settleTimer.unref?.();
 }
 
