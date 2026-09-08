@@ -211,7 +211,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'session-handoff': {
       const r = await handoffSession(msg.sessionId);
       if ('error' in r) { send(ws, { t: 'handoff-result', sessionId: msg.sessionId, ok: false, error: r.error }); return; }
-      send(ws, { t: 'handoff-result', sessionId: msg.sessionId, ok: true, contextId: r.contextId });
+      send(ws, { t: 'handoff-result', sessionId: msg.sessionId, ok: true, contextId: r.contextId, fromTitle: r.fromTitle });
       send(ws, { t: 'contexts', items: await listContexts() });
       broadcast({ t: 'sessions', items: await listSessions() });
       broadcast({ t: 'archived', items: await listArchived() });

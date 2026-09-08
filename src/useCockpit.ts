@@ -386,6 +386,13 @@ export function useCockpit(): Cockpit {
   // o `list` (reconnect) trouxer a mesma sessão já persistida no JSONL.
   // Migra-se no `done` (não no meio): assim nenhum delta/tool em voo (ainda
   // keyed por `new-xxx`) fica órfão.
+  // Título que a sessão nova ainda não pode persistir: enquanto ela é `new-…` não
+  // existe JSONL nem uuid, então o set-meta só sai quando a chave migra pro id real.
+  const pendingTitle = useRef<Record<string, string>>({});
+  // Ponte pro onSend, que é definido bem depois deste handler: a migração precisa
+  // DISPARAR o prompt de retomada, não só deixá-lo no composer.
+  const sendPromptRef = useRef<(text: string) => void>(() => {});
+
   const migrateKey = useCallback((oldKey: string, newId: string) => {
     if (oldKey === newId || !oldKey.startsWith('new-')) return;
     // Idempotência: o servidor pode emitir `done` duas vezes p/ o mesmo turno.
@@ -432,7 +439,11 @@ export function useCockpit(): Cockpit {
     // `new-xxx` e gravaria numa key morta, sumindo do composer.
     movePendingAtts(oldKey, newId);
     for (const [cid, k] of uploadOrigin.current) if (k === oldKey) uploadOrigin.current.set(cid, newId);
-  }, []);
+    // Agora a sessão tem id real: persiste o título herdado da migração, senão o
+    // próximo `list` sobrescreve com o derivado da 1ª fala (o prompt de retomada).
+    const title = pendingTitle.current[oldKey];
+    if (title) { delete pendingTitle.current[oldKey]; send({ t: 'set-meta', sessionId: newId, title }); }
+  }, [send]);
 
   // Único caminho de troca de sessão ativa — todo caminho que mexia no activeRef
   // na mão (nova sessão, pulo pela notificação) esquecia de reidratar os anexos.
@@ -866,7 +877,15 @@ export function useCockpit(): Cockpit {
         // Sem semear o rascunho o chat novo nasce vazio e o slug do contexto só
         // existiria no toast — a migração não migraria nada de fato.
         const fresh = onNew();
-        setDrafts((d) => ({ ...d, [fresh]: `Retome o trabalho a partir do contexto \`${msg.contextId}\`.` }));
+        // O chat novo se chama pelo TRABALHO, não pela primeira fala: sem isto o
+        // título virava "Retome o trabalho a partir do contexto handoff-2026…" em
+        // toda migração e não dava pra distinguir uma sessão da outra.
+        const title = msg.fromTitle?.trim() ? `${msg.fromTitle.trim()} (retomado)` : 'Sessão retomada';
+        setSessions((prev) => prev.map((x) => (x.id === fresh ? { ...x, title } : x)));
+        pendingTitle.current[fresh] = title;
+        // E JÁ RODA. Deixar só o rascunho fazia o usuário abrir o card e apertar
+        // enviar pra concluir uma migração que ele já tinha mandado fazer.
+        sendPromptRef.current(`Retome o trabalho a partir do contexto \`${msg.contextId}\`.`);
         toast(`Contexto salvo em ${msg.contextId} — sessão arquivada`, { durationMs: 8000 });
         return;
       }
@@ -1278,6 +1297,8 @@ export function useCockpit(): Cockpit {
     const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
     send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: pinSessionModel(key), effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire, auto: auto || undefined });
   }, [send, updateThread, pinSessionModel]);
+  // Fecha a ponte usada pelo handoff-result (declarado acima do onSend).
+  sendPromptRef.current = onSend;
 
   // Fila ESTACIONADA (servidor): enfileira p/ drenar quando a quota liberar, mesmo
   // com o browser fechado. Espelha os mesmos params de fio do onSend. O agente

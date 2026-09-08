@@ -705,7 +705,9 @@ export type ServerMsg =
   | { t: 'uploaded'; name: string; path: string; text?: string; s3url?: string; clientId?: string; sessionKey?: string }
   | { t: 'install-result'; kind: 'context' | 'skill'; ok: boolean; id?: string; error?: string }
   // Resultado do handoff de sessão lotada: contextId é o .md gravado em Contextos.
-  | { t: 'handoff-result'; sessionId: string; ok: boolean; contextId?: string; error?: string }
+  // `fromTitle` = título da sessão migrada, pra o chat novo se chamar pelo
+  // trabalho e não pela primeira fala (que é o prompt de retomada).
+  | { t: 'handoff-result'; sessionId: string; ok: boolean; contextId?: string; fromTitle?: string; error?: string }
   // Conteúdo de um anexo p/ preview no chat (modal). error preenchido quando o
   // arquivo já foi varrido pelo TTL ou o path é inválido — o modal mostra o aviso.
   | { t: 'attachment'; path: string; name: string; dataB64?: string; error?: string }

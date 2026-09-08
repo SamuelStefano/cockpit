@@ -161,18 +161,19 @@ describe('requestPlanUsageRefresh', () => {
   // Era o "só atualiza com F5": o turno fecha, o número muda e ninguém buscava
   // até o poll de 5min. E buscar só no instante do 'done' pega o valor de antes,
   // porque a Anthropic contabiliza o turno alguns segundos depois.
-  it('busca de novo depois do settle quando o turno fecha', async () => {
+  it('busca UMA vez, depois do settle, quando o turno fecha', async () => {
     const fetchMock = vi.fn(async () => reply(200));
     vi.stubGlobal('fetch', fetchMock);
     const m = await load();
     m.notePlanUsageChanged();
+    m.notePlanUsageChanged();  // dois turnos em sequência coalescem
     await vi.advanceTimersByTimeAsync(0);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled(); // no instante do 'done' o número ainda é o de antes
     await vi.advanceTimersByTimeAsync(30_000);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('com turno vivo pola em 90s; ocioso, só a cada 5min', async () => {
+  it('com turno vivo pola em 3min; ocioso, só a cada 5min', async () => {
     const fetchMock = vi.fn(async () => reply(200));
     vi.stubGlobal('fetch', fetchMock);
     const m = await load();
@@ -180,12 +181,12 @@ describe('requestPlanUsageRefresh', () => {
     m.startPlanUsageLoop(() => true, () => running);
     await vi.advanceTimersByTimeAsync(0);
     expect(fetchMock).toHaveBeenCalledTimes(1); // prime do boot
-    await vi.advanceTimersByTimeAsync(90_000);
+    await vi.advanceTimersByTimeAsync(180_000);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     running = false;
-    await vi.advanceTimersByTimeAsync(90_000 * 2);
+    await vi.advanceTimersByTimeAsync(180_000);
     expect(fetchMock).toHaveBeenCalledTimes(2); // ocioso: espera fechar os 5min
-    await vi.advanceTimersByTimeAsync(90_000 * 2);
+    await vi.advanceTimersByTimeAsync(180_000);
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });

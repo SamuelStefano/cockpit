@@ -3,6 +3,7 @@ import { basename, join, resolve } from 'node:path';
 import type { Message } from '../shared/protocol';
 import { CONFIG } from './config';
 import { parseSession } from './sessions/parse';
+import { metaForId } from './sessions/index';
 import { apiKey, transcriptText } from './summary';
 import { runOnPlan } from './harness/plan-run';
 import { hideSession } from './store';
@@ -106,7 +107,7 @@ async function callAnthropic(key: string, transcript: string): Promise<string | 
 
 // Só arquiva DEPOIS de gravar o contexto: se a destilação falhar, o usuário fica
 // com a sessão intacta em vez de perder o fio.
-export async function handoffSession(sessionId: string): Promise<{ contextId: string } | { error: string }> {
+export async function handoffSession(sessionId: string): Promise<{ contextId: string; fromTitle: string } | { error: string }> {
   // Cada handoff gasta ~6k tokens de input da COTA DO PLANO: sem este guard um
   // cliente qualquer disparava N destilações da mesma sessão em paralelo.
   if (inFlight.has(sessionId)) return { error: 'migração já em andamento' };
@@ -135,7 +136,11 @@ export async function handoffSession(sessionId: string): Promise<{ contextId: st
     } catch { return { error: 'falha ao gravar o contexto' }; }
 
     await hideSession(sessionId);
-    return { contextId: id };
+    // O título da sessão de ORIGEM viaja junto: sem ele o chat novo se chamava
+    // pela primeira fala ("Retome o trabalho a partir do contexto handoff-2026…")
+    // e não dava pra saber DE QUAL trabalho ele era continuação.
+    const from = await metaForId(sessionId);
+    return { contextId: id, fromTitle: from?.title ?? '' };
   } finally {
     inFlight.delete(sessionId);
   }
