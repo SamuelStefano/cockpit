@@ -14,7 +14,7 @@ import { isAwaiting, clearAwaiting } from './awaiting';
 import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takeParked, promoteParked, parkedView, isQueuePaused, MAX_PARKED_ATTEMPTS, REJECT_MESSAGE, type ParkedItem } from './parked';
 import { resumableId } from './resume';
 import { quotaHold, burnedByQuota } from './quota';
-import { getLastPlanUsage } from './usage-plan';
+import { getLastPlanUsage, notePlanUsageChanged } from './usage-plan';
 import {
   ctxVerdict, verdictMessage, costFor, isBigColdStart, acquireCold, releaseCold,
   noteQuotaTransition, inResetCooldown, type Verdict,
@@ -129,14 +129,17 @@ export function drainParked(): void {
     if (isAwaiting(sessionKey)) continue;
     if (resolveThreadKey(sessionKey)) continue; // turno rodando: um por vez
     // Veredito ANTES do shift: um item devolvido pelo `unshiftParked` lá embaixo
-    // conta tentativa, e uma sessão travada em 'hard' esgotaria MAX_PARKED_ATTEMPTS
-    // em minutos — o prompt acabaria `held` por uma condição que não é culpa dele.
-    // Deixando na fila, ele sobe sozinho assim que o handoff baratear a sessão.
+    // conta tentativa, e uma sessão travada aqui esgotaria MAX_PARKED_ATTEMPTS em
+    // minutos — o prompt acabaria `held` por uma condição que não é culpa dele.
+    // Deixando na fila, ele sobe sozinho quando a condição passar.
+    //
+    // O teto DURO de contexto NÃO barra a fila (regra do Samuel): item enfileirado
+    // é intenção explícita do usuário, igual ao envio manual. Antes ele virava um
+    // "erro, tente de novo" a cada tick numa sessão que só destravava com handoff.
+    // Só quota (sem janela) e cold-busy (transitório) seguram — e em silêncio, que
+    // o próximo tick resolve.
     const pre = ctxVerdict({ sessionId: first.resumeId, sessionKey, usage: getLastPlanUsage() });
-    if (pre.kind !== 'ok' && pre.kind !== 'soft') {
-      if (pre.kind === 'hard') broadcast({ t: 'error', sessionKey, message: verdictMessage(pre) });
-      continue;
-    }
+    if (pre.kind === 'quota' || pre.kind === 'cold-busy') continue;
     const item = shiftParked(sessionKey);
     if (!item) continue;
     // ws null: run sem cliente específico (igual cron); o stream vai por broadcast.
@@ -144,7 +147,7 @@ export function drainParked(): void {
     // se aquele transcript não existe mais, roda como turno novo em vez de morrer.
     const resume = resumableId(item.resumeId);
     if (item.resumeId && !resume) recordIncident({ kind: 'parked-resume-morto', sessionKey, sessionId: item.resumeId, detail: `item ${item.id} disparado como turno novo` });
-    startRun({ ...runParams(item), ws: null, sessionKey, prompt: item.prompt, resumeId: resume });
+    startRun({ ...runParams(item), ws: null, sessionKey, prompt: item.prompt, resumeId: resume, queued: true });
     // O run pode nem ter subido (teto de sessões simultâneas): sem isto o item já
     // saiu do disco e o prompt sumia. Subiu = fica amarrado ao thread pra voltar
     // pra fila se o teto de tokens matar o turno.
@@ -164,7 +167,7 @@ function broadcastQueue(): void {
   broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
 }
 
-export type BgRunReject = 'sem-item' | 'sem-contexto' | 'sem-quota' | 'sem-slot' | 'falhou' | 'ctx-cheio';
+export type BgRunReject = 'sem-item' | 'sem-contexto' | 'sem-quota' | 'sem-slot' | 'falhou';
 
 // Dispara UM item da fila agora, num chat paralelo, sem esperar a sessão liberar. O
 // turno em andamento não é tocado: o fork lê o transcript do chat e grava num id
@@ -177,10 +180,10 @@ export function runParkedInBackground(sessionKey: string, id: string, role?: Rol
   const peek = findParked(sessionKey, id);
   if (!peek) return { reject: 'sem-item' };
   // O fork LÊ o transcript inteiro do pai: é cold-start do tamanho da sessão de
-  // origem, não um turno novo barato. Passa pelo mesmo gate — em 04/09 foram três
-  // background agents disparados de uma sessão de 780k, todos mortos no 429.
+  // origem, não um turno novo barato. Ainda assim o teto de contexto não barra —
+  // clicar "rodar em background" num item da fila é intenção explícita, igual ao
+  // envio manual. Quota e cold-busy seguram (janela de verdade acabando).
   const v = ctxVerdict({ sessionId: peek.resumeId, usage: getLastPlanUsage() });
-  if (v.kind === 'hard') return { reject: 'ctx-cheio' };
   if (v.kind === 'quota' || v.kind === 'cold-busy') return { reject: 'sem-quota' };
   // Sem transcript não há o que forkar, e rodar como turno novo perderia justamente
   // o contexto que é o motivo do disparo.
@@ -192,7 +195,7 @@ export function runParkedInBackground(sessionKey: string, id: string, role?: Rol
   const item = takeParked(sessionKey, id, role);
   if (!item) return { reject: 'sem-item' };
   const forkId = randomUUID();
-  startRun({ ...runParams(item), model: model ?? item.model, ws: null, sessionKey: forkId, prompt: item.prompt, resumeId: parent, forkId });
+  startRun({ ...runParams(item), model: model ?? item.model, ws: null, sessionKey: forkId, prompt: item.prompt, resumeId: parent, forkId, queued: true });
   // Spawn falhou depois do item já ter saído: devolve pro topo SEM contar tentativa
   // (a falha é do disparo, não do prompt) pra ele não acabar segurado no teto.
   const th = threads.get(forkId);
@@ -307,6 +310,10 @@ export interface StartRunOptions extends RunParams {
   // original segue intocada — usado no disparo em background (chat novo, isolado).
   // Não é herdado pela retomada automática: retomar um fork continua o próprio fork.
   forkId?: string;
+  // Turno que veio da FILA do usuário (dreno estacionado, disparo em background).
+  // Roda sem cliente (ws null), mas o prompt é intenção explícita dele — então o
+  // teto duro de contexto não o barra, igual ao envio manual.
+  queued?: boolean;
 }
 
 // Recusa do gate de contexto. Com cliente: devolve o texto pro composer (a bolha
@@ -333,7 +340,7 @@ function rejectRun(a: { ws: WebSocket | null; sessionKey: string; prompt: string
 }
 
 export function startRun(o: StartRunOptions) {
-  const { ws, sessionKey, prompt, resumeId, msgId, auto, forkId } = o;
+  const { ws, sessionKey, prompt, resumeId, msgId, auto, forkId, queued } = o;
   const params = runParams(o);
   // "Permitir todos os MCPs" chega como o sentinel '*' e é expandido AQUI, não no
   // cliente: a lista concreta fica no thread (retomada, tools.ts, sameParams) já
@@ -355,14 +362,17 @@ export function startRun(o: StartRunOptions) {
   // aqui não pode virar `pending` (esperaria a vez pra ser recusado de novo) nem
   // ocupar slot. Vem depois das validações de forma porque precisa do sessionId.
   //
-  // O teto DURO ('hard') só barra turno que a máquina disparou sozinha — retomada
-  // automática, dreno da fila, cron. Foi isso que queimou a janela em 04/09; o
-  // Samuel digitando nunca foi o problema. Barrar o envio manual transformava o
-  // aviso em porta trancada: a sessão só aceitava migrar, e migrar é decisão dele.
-  // Quem avisa no manual é o SaturationBanner + o custo do envio no composer.
-  const manual = !!ws && !auto;
+  // O teto DURO ('hard') só barra turno que a MÁQUINA disparou sozinha — retomada
+  // automática, cron. Foi isso que queimou a janela em 04/09; o Samuel digitando
+  // nunca foi o problema. Barrar o envio manual transformava o aviso em porta
+  // trancada: a sessão só aceitava migrar, e migrar é decisão dele.
+  // A FILA conta como intenção dele também: um item enfileirado é um prompt que
+  // ele escreveu e mandou rodar, só que mais tarde. Antes ele apanhava de "erro,
+  // tente de novo" a cada tick do dreno. Quem avisa continua sendo o
+  // SaturationBanner + o custo do envio no composer.
+  const intentional = (!!ws && !auto) || !!queued;
   const verdict = ctxVerdict({ sessionId: resumeId, sessionKey, usage: getLastPlanUsage() });
-  const blocking = verdict.kind === 'quota' || verdict.kind === 'cold-busy' || (verdict.kind === 'hard' && !manual);
+  const blocking = verdict.kind === 'quota' || verdict.kind === 'cold-busy' || (verdict.kind === 'hard' && !intentional);
   if (blocking) {
     rejectRun({ ws, sessionKey, prompt, msgId, verdict });
     return;
@@ -484,6 +494,9 @@ export function startRun(o: StartRunOptions) {
         recordIncident({ kind: 'silent-death', sessionKey, sessionId: thread.sessionId, detail: `${Math.round((Date.now() - thread.startedAt) / 1000)}s vivo, ${thread.tools.length} tools, ${thread.text.length} chars de resposta` });
       }
       else if (!thread.reaped) autoResumes.delete(sessionKey);
+      // O turno que acabou de fechar é EXATAMENTE o que moveu a barra de uso.
+      // Sem este gatilho o número só chegava no próximo poll (ou num F5).
+      notePlanUsageChanged();
       broadcast({ t: 'done', sessionKey, sessionId: thread.sessionId ?? '', costUsd: thread.costUsd, durationMs: thread.durationMs, numTurns: thread.numTurns, turnTokens: thread.turnTokens, inputTokens: thread.inputTokens, outputTokens: thread.outputTokens, endReason: thread.endReason, model: thread.model, stopped: thread.stopped });
       // Resumo IA do que a sessão fez, atualizado ao fim do turno (pedido do Samuel).
       // Fire-and-forget: best-effort, nunca bloqueia/derruba o fechamento do run.

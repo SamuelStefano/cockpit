@@ -806,13 +806,27 @@ describe('gate de contexto', () => {
     expect(recordIncident).toHaveBeenCalledWith(expect.objectContaining({ kind: 'resume-ctx-cap' }));
   });
 
-  it('o drainer deixa o item na fila em vez de gastar tentativa numa sessão travada', () => {
+  // Regra do Samuel: item na fila é prompt que ELE escreveu, só que pra rodar
+  // depois. O teto duro barra o que a máquina dispara sozinha (auto-resume, cron),
+  // não isso — antes a fila virava um "erro, tente de novo" a cada tick do dreno.
+  it('o drainer dispara a fila mesmo acima do teto duro de contexto', () => {
     setCtx(779_566);
     vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's1', first: item({ resumeId: 'sess-gigante' }) }]);
+    vi.mocked(shiftParked).mockReturnValue(item({ resumeId: 'sess-gigante' }));
+    drainParked();
+    expect(run).toHaveBeenCalledOnce();
+    expect(unshiftParked).not.toHaveBeenCalled();
+  });
+
+  it('o drainer deixa o item na fila, sem erro, quando outro cold-start grande está em voo', () => {
+    setCtx(120_000);
+    acquireCold('outra-sessao');
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's1', first: item({ resumeId: 'sess-fria' }) }]);
     drainParked();
     expect(shiftParked).not.toHaveBeenCalled();
     expect(unshiftParked).not.toHaveBeenCalled();
     expect(run).not.toHaveBeenCalled();
+    expect(vi.mocked(broadcast).mock.calls.map((c) => c[0]).filter((m: any) => m.t === 'error')).toEqual([]);
   });
 
   it('o drainer espera o cooldown depois que a janela vira', () => {
@@ -829,10 +843,13 @@ describe('gate de contexto', () => {
     vi.useRealTimers();
   });
 
-  it('o fork em background respeita o teto (foram 3 agentes de uma sessão de 780k)', () => {
+  // Mesmo princípio do dreno: clicar "rodar em background" num item da fila é
+  // intenção explícita. Só quota e cold-busy recusam.
+  it('o fork em background roda acima do teto duro (a fila é pedido do usuário)', () => {
     setCtx(779_566);
     vi.mocked(findParked).mockReturnValue(item({ resumeId: 'sess-gigante' }));
-    expect(runParkedInBackground('s1', 'pk-1')).toEqual({ reject: 'ctx-cheio' });
-    expect(run).not.toHaveBeenCalled();
+    vi.mocked(takeParked).mockReturnValue(item({ resumeId: 'sess-gigante' }));
+    expect(runParkedInBackground('s1', 'pk-1')).toHaveProperty('forkId');
+    expect(run).toHaveBeenCalledOnce();
   });
 });

@@ -269,7 +269,7 @@ export function runAgent(relayUrl: string): void {
   // travadas em "carregando") nem as versões concretas dos modelos.
   const hasClients = () => activeWs !== null && browsersPresent;
   startStatsLoop(hasClients);
-  startPlanUsageLoop(hasClients);
+  startPlanUsageLoop(hasClients, () => threads.size > 0);
   startModelsLoop(hasClients);
   startSessionsWatch(hasClients);
   startPointsWatch(hasClients);

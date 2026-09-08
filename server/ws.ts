@@ -6,7 +6,7 @@ import { originAllowed } from './ws/origin';
 import { tokenAllowed, tokenFromUrl } from './ws/token';
 import { fireCron } from './ws/runs';
 import { startRunReaper } from './ws/reaper';
-import { runStats, killAllRuns } from './ws/threads';
+import { runStats, killAllRuns, threads } from './ws/threads';
 import { startCronLoop } from './crons';
 import { startStatsLoop } from './ws/stats-loop';
 import { startBgAgentsLoop } from './ws/bg-agents';
@@ -85,7 +85,7 @@ export function attachWs(server: Server) {
   const hasClients = () => wss.clients.size > 0;
   startStatsLoop(hasClients);
   startBgAgentsLoop(hasClients);
-  startPlanUsageLoop(hasClients);
+  startPlanUsageLoop(hasClients, () => threads.size > 0);
   startModelsLoop(hasClients);
   startSessionsWatch(hasClients);
   startPointsWatch(hasClients);

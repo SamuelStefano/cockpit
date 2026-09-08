@@ -93,6 +93,7 @@ export interface Cockpit extends LeafApis {
   setModel: (m: string) => void;
   models: ModelInfo[];
   onRefreshModels: () => void;
+  onRefreshPlanUsage: () => void;
   effort: Effort;
   setEffort: (e: Effort) => void;
   selectedSkills: string[];
@@ -1409,6 +1410,9 @@ export function useCockpit(): Cockpit {
   }, [send]);
 
   const onRefreshModels = useCallback(() => send({ t: 'refresh-models' }), [send]);
+  // Abrir o painel de uso pede um número fresco na hora: o poll é de 5min e sem
+  // isto abrir o popover mostrava o valor da última leitura sem dizer que era velho.
+  const onRefreshPlanUsage = useCallback(() => send({ t: 'plan-usage-get' }), [send]);
 
   const onStop = useCallback((sessionKey?: string) => {
     // Guard: se um call-site fizer onClick={onStop}, o React passa o MouseEvent
@@ -1685,5 +1689,5 @@ export function useCockpit(): Cockpit {
     savePref('modelBySession', keep);
   }, [modelBySession]);
 
-  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, stats, archived, contextTokens, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
+  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, stats, archived, contextTokens, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
 }

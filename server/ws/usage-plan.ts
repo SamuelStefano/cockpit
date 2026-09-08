@@ -15,6 +15,14 @@ const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 // cegueira (Retry-After da Anthropic). Pollar de minuto em minuto não deixava a
 // barra mais fresca — deixava ela bloqueada quase o tempo todo.
 const POLL_MS = 5 * 60_000;
+// ENQUANTO um turno roda o número muda a cada minuto, e o poll de 5min deixava a
+// barra velha justamente na hora em que ela importa (era o "só atualiza com F5").
+// O que derrubava o endpoint em 429 era pollar de minuto em minuto o DIA INTEIRO;
+// aqui a cadência curta vale só nos minutos de turno vivo com browser aberto.
+const ACTIVE_POLL_MS = 90_000;
+// A Anthropic contabiliza o turno alguns segundos DEPOIS do processo fechar: um
+// refresh só no instante do 'done' repinta o número de antes do turno.
+const SETTLE_MS = 25_000;
 // Falha transitória (rede/token sendo renovado) não pode deixar a barra em "—"
 // por 60s até o próximo poll — retenta rápido algumas vezes antes de desistir.
 const RETRY_MS = 8_000;
@@ -277,8 +285,30 @@ export function requestPlanUsageRefresh(attempt = 0): void {
     .catch(() => { refreshing = false; });
 }
 
-export function startPlanUsageLoop(hasClients: () => boolean) {
+let settleTimer: ReturnType<typeof setTimeout> | null = null;
+
+// O uso ACABOU de mudar (turno fechou). Busca agora e de novo depois do settle:
+// `attempt: 1` pula o MIN_GAP de propósito (o refresh imediato é a "primeira ida"
+// e sem isso o segundo seria descartado), mas o cooldown de 429 continua valendo.
+export function notePlanUsageChanged(): void {
+  requestPlanUsageRefresh();
+  if (settleTimer) return;
+  settleTimer = setTimeout(() => { settleTimer = null; requestPlanUsageRefresh(1); }, SETTLE_MS);
+  settleTimer.unref?.();
+}
+
+export function startPlanUsageLoop(hasClients: () => boolean, hasActiveRun: () => boolean = () => false) {
   last ??= loadCache(); // barra pinta o último valor conhecido mesmo se o fetch estiver bloqueado
   requestPlanUsageRefresh(); // prime no boot pra a barra pintar no 1º connect
-  setInterval(() => { if (hasClients()) requestPlanUsageRefresh(); }, POLL_MS).unref();
+  // Um tick só, na cadência curta: com turno vivo ele busca sempre; ocioso, deixa
+  // passar até fechar os 5min. Dois setInterval separados se sobreporiam e o
+  // ocioso dobraria o gasto durante o turno.
+  let lastIdlePoll = Date.now();
+  setInterval(() => {
+    if (!hasClients()) return;
+    const now = Date.now();
+    if (!hasActiveRun() && now - lastIdlePoll < POLL_MS) return;
+    lastIdlePoll = now;
+    requestPlanUsageRefresh();
+  }, ACTIVE_POLL_MS).unref();
 }
