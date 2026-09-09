@@ -48,6 +48,15 @@ export const CONFIG = {
   // pede o token. Single-account — o token É a identidade hoje.
   authToken: process.env.COCKPIT_TOKEN ?? '',
 
+  // Token SÓ da rota /mcp (superfície read-only). Existe porque o token do WS
+  // destrava o app inteiro — terminal, spawn, send — e o do MCP vive em texto
+  // puro no `mcp.json` do Cursor, numa máquina que não é esta. Reusar um só
+  // fazia o vazamento do arquivo de config valer o Deck todo.
+  // Vazio = cai no COCKPIT_TOKEN (compatibilidade com quem já usa). Setar este
+  // encolhe o estrago pro que a rota de fato expõe: leitura de contexto/sessão.
+  // A recíproca NÃO vale: o WS nunca aceita o token do MCP.
+  mcpToken: process.env.COCKPIT_MCP_TOKEN ?? '',
+
   // DR-004 #1: plan-mode na Fase 1 (NÃO bypassPermissions). Allow-list trava
   // qualquer env solto de armar bypass (= RCE root) por engano.
   permissionMode: safeMode(process.env.COCKPIT_PERMISSION_MODE),

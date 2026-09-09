@@ -14,6 +14,7 @@ import {
   TRANSCRIPT_DEFAULT,
   TRANSCRIPT_MAX,
 } from './format';
+import { mcpLimiter } from './limit';
 
 // Execução das tools MCP: dá a um cliente externo (Cursor, outro agente) o MESMO
 // surfacing read-only que a aba Contextos/Skills e o sidebar de sessões já
@@ -26,6 +27,12 @@ import {
 // gasta menos contexto que um objeto serializado. Lança quando o alvo não existe
 // — o caller traduz pra isError do protocolo.
 export async function runTool(name: string, args: Record<string, unknown>): Promise<string> {
+  // Balde das tools CARAS (grep/scan/parse de transcript). Cobrado aqui e não na
+  // borda HTTP porque o nome da tool só aparece depois do parse do JSON-RPC.
+  // Lança: o caller já traduz erro em isError, então o cliente lê o motivo em vez
+  // de tomar um socket fechado.
+  if (!mcpLimiter.allowTool(name)) throw new Error(`'${name}' excedeu o limite de chamadas — tente de novo em alguns segundos`);
+
   switch (name) {
     case 'contexts_list':
       return formatContexts(await listContexts());
