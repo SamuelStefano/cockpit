@@ -5,6 +5,8 @@ const user = (text: string) => JSON.stringify({ type: 'user', message: { role: '
 const asst = JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [] } });
 const aiTitle = (t: string) => JSON.stringify({ type: 'ai-title', aiTitle: t });
 const asstText = (text: string) => JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text }] } });
+const ask = (id: string) => JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', name: 'AskUserQuestion', id }] } });
+const answer = (id: string) => JSON.stringify({ type: 'user', toolUseResult: {}, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: 'Café' }] } });
 
 describe('scanMetaText', () => {
   it('counts user/assistant records and grabs the first user text', () => {
@@ -75,45 +77,45 @@ describe('scanMetaText', () => {
     expect(scanMetaText([user('sem ts'), bad].join('\n') + '\n').lastTs).toBeUndefined();
   });
 
-  it('flags a turn that ended asking the user something', () => {
-    const text = [user('e aí?'), asstText('Achei dois caminhos. Quer que eu siga pelo primeiro?')].join('\n') + '\n';
-    const s = scanMetaText(text);
-    expect(s.endsQ).toBe(true);
-  });
-
   it('flags a pending AskUserQuestion', () => {
-    const ask = JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', name: 'AskUserQuestion' }] } });
-    expect(scanMetaText([user('vai'), ask].join('\n') + '\n').asked).toBe(true);
+    expect(scanMetaText([user('vai'), ask('toolu_1')].join('\n') + '\n').pendingAsk).toBe('toolu_1');
   });
 
-  it('clears the waiting state when the user answers', () => {
-    const ask = JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', name: 'AskUserQuestion' }] } });
-    const s = scanMetaText([user('vai'), ask, user('pode seguir')].join('\n') + '\n');
-    expect(s.asked).toBe(false);
-    expect(s.endsQ).toBe(false);
+  it('does not flag a turn that merely ended with a question mark', () => {
+    const text = [user('e aí?'), asstText('Achei dois caminhos. Quer que eu siga pelo primeiro?')].join('\n') + '\n';
+    expect(scanMetaText(text).pendingAsk).toBeUndefined();
   });
 
-  it('does not treat a tool_result or a meta line as the user answering', () => {
-    const ask = JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', name: 'AskUserQuestion' }] } });
+  it('clears the waiting state when the user answers with a new prompt', () => {
+    const s = scanMetaText([user('vai'), ask('toolu_1'), user('pode seguir')].join('\n') + '\n');
+    expect(s.pendingAsk).toBeUndefined();
+  });
+
+  it('clears the waiting state when the card is answered as a tool_result', () => {
+    const s = scanMetaText([user('vai'), ask('toolu_1'), answer('toolu_1')].join('\n') + '\n');
+    expect(s.pendingAsk).toBeUndefined();
+  });
+
+  it('keeps waiting when the tool_result belongs to another tool_use', () => {
+    const s = scanMetaText([user('vai'), ask('toolu_1'), answer('toolu_outro')].join('\n') + '\n');
+    expect(s.pendingAsk).toBe('toolu_1');
+  });
+
+  it('does not treat a tool output or a meta line as the user answering', () => {
     const toolResult = JSON.stringify({ type: 'user', toolUseResult: { ok: true }, message: { role: 'user', content: [{ type: 'text', text: 'saída' }] } });
     const meta = JSON.stringify({ type: 'user', isMeta: true, message: { role: 'user', content: 'system-reminder' } });
-    expect(scanMetaText([ask, toolResult, meta].join('\n') + '\n').asked).toBe(true);
+    expect(scanMetaText([ask('toolu_1'), toolResult, meta].join('\n') + '\n').pendingAsk).toBe('toolu_1');
   });
 
   it('ignores subagent lines — a sidechain question is not for the user', () => {
-    const sub = JSON.stringify({ type: 'assistant', isSidechain: true, message: { role: 'assistant', content: [{ type: 'text', text: 'qual arquivo?' }] } });
-    expect(scanMetaText([user('vai'), sub].join('\n') + '\n').endsQ).toBe(false);
-  });
-
-  it('does not flag a turn that ended in a statement', () => {
-    const text = [asstText('Perguntei antes? Sim. Agora está pronto.')].join('\n') + '\n';
-    expect(scanMetaText(text).endsQ).toBe(false);
+    const sub = JSON.stringify({ type: 'assistant', isSidechain: true, message: { role: 'assistant', content: [{ type: 'tool_use', name: 'AskUserQuestion', id: 'toolu_sub' }] } });
+    expect(scanMetaText([user('vai'), sub].join('\n') + '\n').pendingAsk).toBeUndefined();
   });
 
   it('carries the waiting state across an incremental scan', () => {
     const head = user('vai') + '\n';
-    const tail = asstText('Sigo assim?') + '\n';
-    expect(scanMetaText(tail, scanMetaText(head)).endsQ).toBe(true);
+    const tail = ask('toolu_1') + '\n';
+    expect(scanMetaText(tail, scanMetaText(head)).pendingAsk).toBe('toolu_1');
   });
 
   it('skips malformed JSON lines without counting them', () => {
