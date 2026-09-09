@@ -3,7 +3,8 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { CONFIG } from '../config';
-import { mcpAuthorized } from './auth';
+import { mcpAuthorized, mcpSecret } from './auth';
+import { mcpLimiter } from './limit';
 import { MCP_TOOLS } from './format';
 import { runTool } from './tools';
 
@@ -35,10 +36,20 @@ export function createMcpServer(): Server {
 }
 
 export async function handleMcpRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  if (!mcpAuthorized(CONFIG.authToken, req.headers.authorization)) {
-    const reason = CONFIG.authToken ? 'token inválido' : 'COCKPIT_TOKEN não configurado no servidor';
+  const secret = mcpSecret(CONFIG.authToken, CONFIG.mcpToken);
+  if (!mcpAuthorized(secret, req.headers.authorization)) {
+    const reason = secret ? 'token inválido' : 'COCKPIT_MCP_TOKEN/COCKPIT_TOKEN não configurado no servidor';
     res.writeHead(401, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ error: reason }));
+    return;
+  }
+
+  // Freio ANTES do parse do corpo: uma rajada não pode custar o SDK inteiro.
+  // Depois do auth de propósito — quem não tem token leva 401, e o balde não
+  // gasta com desconhecido (senão um anônimo esvaziaria o do dono).
+  if (!mcpLimiter.allowRequest()) {
+    res.writeHead(429, { 'content-type': 'application/json', 'retry-after': '1' });
+    res.end(JSON.stringify({ error: 'muitas requisições' }));
     return;
   }
 

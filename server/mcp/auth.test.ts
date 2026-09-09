@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bearerToken, isMcpPath, mcpAuthorized } from './auth';
+import { bearerToken, isMcpPath, mcpAuthorized, mcpSecret } from './auth';
 
 describe('bearerToken', () => {
   it('extracts the token from a Bearer header, case-insensitively', () => {
@@ -47,5 +47,28 @@ describe('isMcpPath', () => {
     expect(isMcpPath('/mcp/extra')).toBe(false);
     expect(isMcpPath('/')).toBe(false);
     expect(isMcpPath(undefined)).toBe(false);
+  });
+});
+
+// O token do WS destrava o app inteiro (terminal, spawn, send) e o do MCP vive em
+// texto puro no mcp.json de outra máquina. Um token só fazia o vazamento daquele
+// arquivo valer o Deck todo.
+describe('mcpSecret', () => {
+  it('prefere o token dedicado do MCP', () => {
+    expect(mcpSecret('do-ws', 'do-mcp')).toBe('do-mcp');
+  });
+
+  it('cai no token do WS quando não há dedicado (compatibilidade)', () => {
+    expect(mcpSecret('do-ws', '')).toBe('do-ws');
+  });
+
+  it('sem nenhum dos dois a rota continua fechada', () => {
+    expect(mcpSecret('', '')).toBe('');
+    expect(mcpAuthorized(mcpSecret('', ''), 'Bearer qualquer')).toBe(false);
+  });
+
+  // A recíproca não existe de propósito: quem tem o token do MCP não fala com o WS.
+  it('o token do MCP não serve pro gate do WS', () => {
+    expect(mcpAuthorized(mcpSecret('do-ws', 'do-mcp'), 'Bearer do-ws')).toBe(false);
   });
 });

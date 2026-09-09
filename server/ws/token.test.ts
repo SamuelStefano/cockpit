@@ -26,4 +26,18 @@ describe('tokenAllowed', () => {
     expect(tokenAllowed('secret', 'secre')).toBe(false);
     expect(tokenAllowed('secret', 'secrett')).toBe(false);
   });
+
+  // O `a.length !== b.length` que existia antes do timingSafeEqual respondia mais
+  // rápido que uma comparação de mesmo tamanho — oráculo do TAMANHO do token. A
+  // rota /mcp pôs essa comparação na frente da rede.
+  it('não vaza o tamanho: token de qualquer tamanho passa pelo mesmo caminho', () => {
+    expect(tokenAllowed('secret', 'x')).toBe(false);
+    expect(tokenAllowed('secret', 'x'.repeat(4096))).toBe(false);
+    expect(tokenAllowed('a'.repeat(4096), 'a'.repeat(4096))).toBe(true);
+  });
+
+  it('compara bytes, não a string normalizada (unicode)', () => {
+    expect(tokenAllowed('café', 'café')).toBe(true);
+    expect(tokenAllowed('café', 'cafe')).toBe(false);
+  });
 });

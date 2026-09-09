@@ -11,10 +11,17 @@ export function bearerToken(header: string | undefined): string {
   return m ? m[1] : '';
 }
 
+// Qual segredo governa a rota. COCKPIT_MCP_TOKEN quando existe; senão o do WS,
+// pra não quebrar quem já configurou. Separado do `mcpAuthorized` porque a
+// escolha é a parte que importa auditar.
+export function mcpSecret(wsToken: string, mcpToken: string): string {
+  return mcpToken || wsToken;
+}
+
 // Default-DENY, ao contrário do gate do WS: tokenAllowed() libera quando não há
 // token configurado porque o WS nasceu loopback-only. Esta rota existe pra ser
-// alcançada de FORA da box (Tailscale), então sem COCKPIT_TOKEN ela não abre —
-// senão quem chegasse na porta leria o histórico inteiro sem apresentar nada.
+// alcançada de FORA da box (Tailscale), então sem token ela não abre — senão
+// quem chegasse na porta leria o histórico inteiro sem apresentar nada.
 export function mcpAuthorized(expected: string, header: string | undefined): boolean {
   if (!expected) return false;
   return tokenAllowed(expected, bearerToken(header));
