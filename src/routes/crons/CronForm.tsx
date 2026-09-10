@@ -1,26 +1,23 @@
-import type { Cron, PlanUsage } from '../../../shared/protocol';
+import type { Cron, ModelInfo, PlanUsage } from '../../../shared/protocol';
 import { nextRunAt } from '../../../shared/cron-schedule';
 import { resetPresets } from '../../../shared/quota-reset';
 import { Button, Icon } from '../../components/primitives';
 import { EffortPicker } from '../../components/chat/EffortPicker';
 import { buildSchedule, type useCronForm } from './useCronForm';
+import { modelOptions } from '../../components/chat/model-options';
+import { prettyModel } from '../../components/chat/toolbar-format';
+import { fmtClock } from './cron-format';
 
 const field = 'rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-neutral-200 outline-hidden focus:border-orange-500/40';
 
-function fmtClock(ts: number): string {
-  const d = new Date(ts);
-  const sameDay = d.toDateString() === new Date().toDateString();
-  const t = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  return sameDay ? `hoje ${t}` : `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${t}`;
-}
-
 // Formulário de criação/edição de cron. A prévia de "próxima execução" materializa o
 // draft num Cron tentativo e roda a mesma matemática do scheduler (shared).
-export function CronForm({ form, onCancel, now, planUsage }: {
+export function CronForm({ form, onCancel, now, planUsage, models }: {
   form: ReturnType<typeof useCronForm>;
   onCancel: () => void;
   planUsage?: PlanUsage | null;
   now: number;
+  models: ModelInfo[];
 }) {
   const { draft, set, editing, valid, submit } = form;
   const preview: Cron = {
@@ -57,15 +54,15 @@ export function CronForm({ form, onCancel, now, planUsage }: {
         </select>
         <select value={draft.model} onChange={(e) => set('model', e.target.value)} className={field}>
           <option value="">modelo padrão</option>
-          <option value="sonnet">Sonnet</option>
-          <option value="opus">Opus</option>
-          <option value="haiku">Haiku</option>
+          {modelOptions(models, draft.model).filter((o) => o.id !== '').map((o) => (
+            <option key={o.id} value={o.id}>{prettyModel(o.id, o.displayName)}</option>
+          ))}
         </select>
         <EffortPicker effort={draft.effort} setEffort={(e) => set('effort', e)} />
       </div>
       <div className="flex items-center justify-between gap-2 pt-0.5">
         <span className="flex items-center gap-1.5 text-[11.5px] text-neutral-500">
-          <Icon name="clock" size={12} /> próxima: <span className="tabular-nums text-neutral-400">{valid ? fmtClock(nextRunAt(preview, now)) : '—'}</span>
+          <Icon name="clock" size={12} /> próxima: <span className="tabular-nums text-neutral-400">{valid ? fmtClock(nextRunAt(preview, now), now) : '—'} BRT</span>
         </span>
         <div className="flex items-center gap-1.5">
           {editing && <Button variant="ghost" size="sm" onClick={onCancel}>Cancelar</Button>}

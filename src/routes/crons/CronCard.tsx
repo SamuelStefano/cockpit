@@ -2,12 +2,9 @@ import { useState, useRef, useEffect } from 'react';
 import type { Cron } from '../../../shared/protocol';
 import { scheduleLabel, nextRunAt } from '../../../shared/cron-schedule';
 import { Button, Icon, Badge, toast } from '../../components/primitives';
+import { prettyModel } from '../../components/chat/toolbar-format';
+import { fmtLast } from './cron-format';
 
-function fmtLast(ts?: number): string {
-  if (!ts) return 'nunca rodou';
-  const d = new Date(ts);
-  return `último: ${d.toLocaleDateString('pt-BR')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
 
 // "em 2h 5min" / "em 40s" / "agora". now passado de fora pra ser determinístico.
 function fmtIn(target: number, now: number): string {
@@ -60,7 +57,7 @@ export function CronCard({ cron, now, editing, onRun, onToggle, onEdit, onDelete
         <p className="mt-1 line-clamp-2 text-[12px] text-neutral-400">{cron.prompt}</p>
         <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-neutral-600">
           <span>{fmtLast(cron.lastRun)}</span>
-          {cron.model && <span>· {cron.model}</span>}
+          {cron.model && <span title={cron.model}>· {prettyModel(cron.model)}</span>}
           {cron.mode === 'acceptEdits' && <span>· executa</span>}
           {cron.effort && cron.effort !== 'low' && <span>· pensar: {cron.effort}</span>}
         </p>

@@ -2,8 +2,10 @@ import type { ModelInfo } from '../../../shared/protocol';
 import { modelFamily } from './toolbar-format';
 
 // Versão concreta do agente, puxada de /v1/models pelo backend. Sem a lista
-// (boot/offline) cai nos aliases opus/sonnet/haiku, que o CLI aceita.
+// (boot/offline) cai nos aliases opus/sonnet/haiku, que o CLI aceita. Fable has no
+// CLI alias, so it is listed by its concrete id or it never shows up offline.
 export const FALLBACK_MODELS: ModelInfo[] = [
+  { id: 'claude-fable-5-1', displayName: 'Fable 5.1' },
   { id: 'opus', displayName: 'Opus' },
   { id: 'sonnet', displayName: 'Sonnet' },
   { id: 'haiku', displayName: 'Haiku' },

@@ -67,6 +67,22 @@ export function markRan(id: string, now: number): Promise<unknown> {
   });
 }
 
+// Manual "run now": records lastRun so the card shows it ran and an interval
+// restarts its countdown. A one-shot is left alone, since marking it would pause
+// it and drop the run still scheduled for later.
+export function runCronNow(id: string, fire: (c: Cron) => void, now = Date.now()): Promise<Cron[] | null> {
+  return serialize(async () => {
+    const all = await getCrons();
+    const c = all.find((x) => x.id === id);
+    if (!c) return null;
+    if (c.schedule.kind !== 'once') {
+      c.lastRun = now;
+      await writeCrons(all);
+    }
+    try { fire(c); } catch { /* the list is already persisted */ }
+    return all;
+  });
+}
 
 // Loop do agendador: a cada CHECK_MS varre os crons e dispara os vencidos via o
 // callback `fire` (a camada WS chama startRun). Marca lastRun ao disparar pra não
