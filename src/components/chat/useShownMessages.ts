@@ -4,6 +4,7 @@ import { coalesceCompacts } from './coalesce-compacts';
 import { dropInvisible } from './drop-invisible';
 import { collapseTurnTools } from './turn-tools';
 import { collapseTurnNarration } from './turn-narration';
+import { mergeThinking } from './merge-thinking';
 import type { ShownMessage } from './shown';
 import { usePersisted } from '../../lib/persist';
 import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT, GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT } from '../../lib/prefs';
@@ -20,16 +21,18 @@ import type { Message } from '../../data/types';
 //    numa caixa fechada só, pra thread ficar prompt + resposta.
 // 5. collapseTurnNarration faz o mesmo com o texto de bastidor — precisa rodar
 //    DEPOIS do passo 4, que já tirou as ferramentas do meio do texto.
+// 6. mergeThinking junta as bolhas que sobraram só com pensamento — roda por
+//    último porque os passos 4 e 5 é que as esvaziam até restar só o thinking.
 export function useShownMessages(messages: Message[]): ShownMessage[] {
   const [showTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   const [groupNotes] = usePersisted<boolean>(GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT);
   // messages troca de referência a cada token streamado; a cadeia só deve rodar
   // quando a lista (ou a preferência) realmente muda.
   return useMemo(
-    () => collapseTurnNarration(
+    () => mergeThinking(collapseTurnNarration(
       collapseTurnTools(coalesceCompacts(dropInvisible(clampToPendingQuestion(messages), showTools)), showTools),
       groupNotes,
-    ),
+    )),
     [messages, showTools, groupNotes],
   );
 }
