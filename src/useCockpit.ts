@@ -134,6 +134,8 @@ export interface Cockpit extends LeafApis {
   onNew: () => void;
   onHandoff: (sessionId: string) => void;
   handoffBusy: boolean;
+  onFunnel: (sessionIds: string[]) => void;
+  funnelBusy: boolean;
   onRename: (id: string, title: string) => void;
   onDescribe: (id: string, summary: string) => void;
   onClose: (id: string) => void;
@@ -474,6 +476,13 @@ export function useCockpit(): Cockpit {
   const endHandoff = useCallback(() => {
     if (handoffTimer.current) { clearTimeout(handoffTimer.current); handoffTimer.current = null; }
     setHandoffBusy(false);
+  }, []);
+
+  const [funnelBusy, setFunnelBusy] = useState(false);
+  const funnelTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const endFunnel = useCallback(() => {
+    if (funnelTimer.current) { clearTimeout(funnelTimer.current); funnelTimer.current = null; }
+    setFunnelBusy(false);
   }, []);
 
   const onNew = useCallback(() => {
@@ -903,6 +912,13 @@ export function useCockpit(): Cockpit {
         toast(`Contexto salvo em ${msg.contextId} — sessão arquivada`, { durationMs: 8000 });
         return;
       }
+      case 'funnel-result': {
+        endFunnel();
+        if (!msg.ok) { toast(msg.error || 'não consegui afunilar as sessões', { tone: 'error', durationMs: 8000 }); return; }
+        const n = msg.archived ?? 0;
+        toast(msg.contextId ? `${n} sessões arquivadas — dossiê em ${msg.contextId}` : `${n} sessões vazias arquivadas`, { durationMs: 9000 });
+        return;
+      }
       case 'bench-bundle':
       case 'bench-error': {
         benchDispatch(msg);
@@ -1061,7 +1077,7 @@ export function useCockpit(): Cockpit {
         return;
       }
     }
-  }, [updateThread, patchRunMsg, migrateKey, claimedByLocal, reconcileTools, send, reopenMsg, onTermData, onTermReplay, onTermExit, onTerms, onNew, endHandoff]);
+  }, [updateThread, patchRunMsg, migrateKey, claimedByLocal, reconcileTools, send, reopenMsg, onTermData, onTermReplay, onTermExit, onTerms, onNew, endHandoff, endFunnel]);
 
   const connect = useCallback(() => {
     // Fecha+neutraliza o socket anterior ANTES de abrir outro. Sem isto, sockets
@@ -1444,6 +1460,17 @@ export function useCockpit(): Cockpit {
     send({ t: 'session-handoff', sessionId });
   }, [send]);
 
+  // Afunilar: uma destilação só sobre N sessões paradas, seguida do arquivamento
+  // delas. Mesmo teto de tempo do handoff, mais folgado — o prompt é ~10x maior.
+  const onFunnel = useCallback((sessionIds: string[]) => {
+    const ids = sessionIds.filter((id) => id && !id.startsWith('new-'));
+    if (!ids.length) return;
+    setFunnelBusy(true);
+    if (funnelTimer.current) clearTimeout(funnelTimer.current);
+    funnelTimer.current = setTimeout(() => { funnelTimer.current = null; setFunnelBusy(false); }, 300_000);
+    send({ t: 'sessions-funnel', sessionIds: ids });
+  }, [send]);
+
   const onRefreshModels = useCallback(() => send({ t: 'refresh-models' }), [send]);
   // Abrir o painel de uso pede um número fresco na hora: o poll é de 5min e sem
   // isto abrir o popover mostrava o valor da última leitura sem dizer que era velho.
@@ -1724,5 +1751,5 @@ export function useCockpit(): Cockpit {
     savePref('modelBySession', keep);
   }, [modelBySession]);
 
-  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, stats, archived, contextTokens, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
+  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, stats, archived, contextTokens, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
 }

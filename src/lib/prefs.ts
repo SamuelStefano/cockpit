@@ -32,3 +32,8 @@ export function showSessionDescDefault(): boolean {
 // em que foi ignorada. Guardar o mtime (e não um `true`) é o que permite soltar a
 // sessão de volta pro topo quando chega uma pergunta NOVA.
 export const WAITING_DISMISSED_KEY = 'waitingDismissed';
+
+// Corte de "parada" do afunilamento, em dias. 7 é o default: uma semana sem toque
+// já é sessão que ninguém reabre, e ainda deixa a semana corrente inteira de fora.
+export const FUNNEL_IDLE_KEY = 'sessions.funnelIdleDays';
+export const FUNNEL_IDLE_DEFAULT = 7;

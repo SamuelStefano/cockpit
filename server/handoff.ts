@@ -29,7 +29,7 @@ const INSTR = [
 
 // Dia em BRT: a VPS roda em UTC, e um handoff feito às 22h de Maringá cairia no
 // dia seguinte se o slug saísse do ISO cru.
-function brtDay(at: Date): string {
+export function brtDay(at: Date): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(at).replace(/-/g, '');
 }
 
@@ -76,10 +76,10 @@ export function handoffFile(slug: string, description: string, body: string, at 
 // fallback pra quem tiver chave. A conta de API do Samuel está sem saldo e a
 // destilação morria em "sem chave" antes mesmo de tentar — sendo que o Deck já roda
 // o CLI no plano pro harness. Reusa `runOnPlan` em vez de abrir um segundo spawner.
-export async function distill(transcript: string): Promise<string | null> {
+export async function distillPrompt(prompt: string, maxTokens = 2000): Promise<string | null> {
   const r = await runOnPlan({
     model: CONFIG.summaryModel,
-    prompt: handoffPrompt(transcript),
+    prompt,
     context: null,
     onEvent: () => { /* handoff não streama: só o texto final interessa */ },
   });
@@ -87,17 +87,21 @@ export async function distill(transcript: string): Promise<string | null> {
   if (text) return text;
   const key = apiKey();
   if (!key) return null;
-  return callAnthropic(key, transcript);
+  return callAnthropic(key, prompt, maxTokens);
 }
 
-async function callAnthropic(key: string, transcript: string): Promise<string | null> {
+export function distill(transcript: string): Promise<string | null> {
+  return distillPrompt(handoffPrompt(transcript));
+}
+
+async function callAnthropic(key: string, prompt: string, maxTokens: number): Promise<string | null> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
     body: JSON.stringify({
       model: CONFIG.summaryModel,
-      max_tokens: 2000,
-      messages: [{ role: 'user', content: handoffPrompt(transcript) }],
+      max_tokens: maxTokens,
+      messages: [{ role: 'user', content: prompt }],
     }),
     signal: AbortSignal.timeout(60_000),
   });
