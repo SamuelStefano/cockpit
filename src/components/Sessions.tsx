@@ -140,7 +140,8 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, ma
       {onFunnel && (
         <FunnelModal
           open={funnel.open} onClose={() => funnel.setOpen(false)}
-          candidates={funnel.candidates} idleDays={funnel.idleDays} setIdleDays={funnel.setIdleDays}
+          candidates={funnel.candidates} excluded={funnel.excluded} onToggle={funnel.toggle} selected={funnel.selected}
+          idleDays={funnel.idleDays} setIdleDays={funnel.setIdleDays}
           now={funnel.now} busy={funnelBusy} onRun={onFunnel}
         />
       )}
