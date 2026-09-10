@@ -5,6 +5,7 @@ import { listSessions, listArchived } from '../sessions/index';
 import { searchSessions } from '../sessions/search';
 import { listContexts, readContext, installContext } from '../contexts';
 import { handoffSession } from '../handoff';
+import { funnelSessions } from '../funnel';
 import { getNotes, saveNotes } from '../notes';
 import { putDrop, listDrops, openDrop, removeDrop } from '../drop';
 import { readPoints, createEntry, correctPoints, noteEntry, deleteEntry } from '../points';
@@ -212,6 +213,16 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const r = await handoffSession(msg.sessionId);
       if ('error' in r) { send(ws, { t: 'handoff-result', sessionId: msg.sessionId, ok: false, error: r.error }); return; }
       send(ws, { t: 'handoff-result', sessionId: msg.sessionId, ok: true, contextId: r.contextId, fromTitle: r.fromTitle });
+      send(ws, { t: 'contexts', items: await listContexts() });
+      broadcast({ t: 'sessions', items: await listSessions() });
+      broadcast({ t: 'archived', items: await listArchived() });
+      return;
+    }
+    case 'sessions-funnel': {
+      const ids = Array.isArray(msg.sessionIds) ? msg.sessionIds : [];
+      const r = await funnelSessions(ids);
+      if ('error' in r) { send(ws, { t: 'funnel-result', ok: false, error: r.error }); return; }
+      send(ws, { t: 'funnel-result', ok: true, contextId: r.contextId, archived: r.archived, empty: r.empty });
       send(ws, { t: 'contexts', items: await listContexts() });
       broadcast({ t: 'sessions', items: await listSessions() });
       broadcast({ t: 'archived', items: await listArchived() });
