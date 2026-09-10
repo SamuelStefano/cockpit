@@ -13,6 +13,9 @@ import { ConfirmArchive } from './sessions/ConfirmArchive';
 import { TagFilterBar } from './sessions/TagFilterBar';
 import { SessionsEmptyState } from './sessions/SessionsEmptyState';
 import { useSessionsPanel } from './sessions/useSessionsPanel';
+import { useFunnel } from './sessions/useFunnel';
+import { FunnelModal } from './sessions/FunnelModal';
+import { FUNNEL_MIN_OFFER } from './sessions/stale';
 
 
 export interface SessionsPanelProps {
@@ -40,13 +43,16 @@ export interface SessionsPanelProps {
   searchResults?: Session[];
   onSearch?: (q: string) => void;
   userId?: string;
+  onFunnel?: (ids: string[]) => void;
+  funnelBusy?: boolean;
 }
 
-export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, marathon, onToggleMarathon, onRename, onDescribe, onClose, onDelete, onStop, archived = [], onUnhide, onCloseMobile, usage = {}, cost = {}, running, stalled, updated, runStart = {}, searchResults = [], onSearch, userId }: SessionsPanelProps) {
+export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, marathon, onToggleMarathon, onRename, onDescribe, onClose, onDelete, onStop, archived = [], onUnhide, onCloseMobile, usage = {}, cost = {}, running, stalled, updated, runStart = {}, searchResults = [], onSearch, userId, onFunnel, funnelBusy }: SessionsPanelProps) {
   const {
     query, setQuery, confirmId, setConfirmId, deleteId, setDeleteId, pinned, togglePin,
     tagMap, tagFilter, setTagFilter, addTag, removeTag, allTags, dismissedWaiting, dismissWaiting, searchRef, filtered,
   } = useSessionsPanel({ sessions, archived, searchResults, onSearch, userId });
+  const funnel = useFunnel({ sessions, pinned, running, activeId, busy: funnelBusy });
   const [showDesc, setShowDesc] = usePersisted<boolean>(SHOW_SESSION_DESC_KEY, showSessionDescDefault());
   const ambiguous = useMemo(() => ambiguousIds(filtered), [filtered]);
 
@@ -104,6 +110,11 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, ma
         <Button variant="outline" icon="plus" className="w-full" onClick={() => { onNew(); onCloseMobile?.(); }}>
           Nova sessão
         </Button>
+        {onFunnel && !query && funnel.candidates.length >= FUNNEL_MIN_OFFER && (
+          <Button variant="ghost" size="sm" icon="sparkles" className="mt-1.5 w-full" loading={funnelBusy} onClick={() => funnel.setOpen(true)}>
+            Afunilar {funnel.candidates.length} paradas
+          </Button>
+        )}
       </div>
 
       <TagFilterBar allTags={allTags} tagFilter={tagFilter} setTagFilter={setTagFilter} clearFilter={() => setTagFilter(null)} />
@@ -126,6 +137,13 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, ma
         )}
         {!loading && !query && onUnhide && <ArchivedSection archived={archived} onUnhide={onUnhide} onDelete={onDelete ? setDeleteId : undefined} onView={(id) => { onSelect(id); onCloseMobile && onCloseMobile(); }} />}
       </div>
+      {onFunnel && (
+        <FunnelModal
+          open={funnel.open} onClose={() => funnel.setOpen(false)}
+          candidates={funnel.candidates} idleDays={funnel.idleDays} setIdleDays={funnel.setIdleDays}
+          now={funnel.now} busy={funnelBusy} onRun={onFunnel}
+        />
+      )}
       {confirmId && (
         <ConfirmArchive
           title={sessions.find((s) => s.id === confirmId)?.title || 'esta sessão'}

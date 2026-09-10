@@ -595,6 +595,9 @@ export type ClientMsg =
   | { t: 'points-dfl-invoice'; reqId: string; deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number; deliveryId?: string; deliveryName?: string }[] }
   | { t: 'ctx-install'; slug: string; title: string; body: string }
   | { t: 'session-handoff'; sessionId: string }
+  // Afunilamento em lote: destila as sessões paradas num contexto só e arquiva.
+  // A lista vem da UI (que sabe favoritas/rodando); o servidor ainda a capa.
+  | { t: 'sessions-funnel'; sessionIds: string[] }
   | { t: 'skill-install'; slug: string; title: string; body: string }
   | { t: 'crons-get' }
   | { t: 'cron-save'; cron: Cron }
@@ -709,6 +712,9 @@ export type ServerMsg =
   // `fromTitle` = título da sessão migrada, pra o chat novo se chamar pelo
   // trabalho e não pela primeira fala (que é o prompt de retomada).
   | { t: 'handoff-result'; sessionId: string; ok: boolean; contextId?: string; fromTitle?: string; error?: string }
+  // Resultado do afunilamento: contextId é o dossiê gravado em Contextos (ausente
+  // quando nenhuma das sessões tinha conversa), archived = quantas saíram do sidebar.
+  | { t: 'funnel-result'; ok: boolean; contextId?: string; archived?: number; empty?: number; error?: string }
   // Conteúdo de um anexo p/ preview no chat (modal). error preenchido quando o
   // arquivo já foi varrido pelo TTL ou o path é inválido — o modal mostra o aviso.
   | { t: 'attachment'; path: string; name: string; dataB64?: string; error?: string }

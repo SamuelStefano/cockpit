@@ -2,6 +2,7 @@ import { Hero } from './sections/Hero';
 import { Overview } from './sections/Overview';
 import { Features } from './sections/Features';
 import { Queue } from './sections/Queue';
+import { Funnel } from './sections/Funnel';
 import { Realtime } from './sections/Realtime';
 import { Context } from './sections/Context';
 import { TokenEconomy } from './sections/TokenEconomy';
@@ -27,6 +28,7 @@ export function DocSections({ year }: { year: number }) {
       <Overview />
       <Features />
       <Queue />
+      <Funnel />
       <Realtime />
       <Context />
       <TokenEconomy />
