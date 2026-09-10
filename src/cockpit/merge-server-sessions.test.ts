@@ -38,6 +38,13 @@ describe('mergeServerSessions', () => {
     expect(out.map((s) => s.id)).toEqual(['new-abc', 's1']);
   });
 
+  it('omite a linha do servidor cujo uuid já pertence a uma sessão local new- em voo', () => {
+    const prev = [sess({ id: 'new-abc', mtime: 9000 })];
+    const items = [meta({ id: 'uuid-1', mtime: 9100 }), meta({ id: 's1', mtime: 1000 })];
+    const out = mergeServerSessions(prev, items, 'new-abc', new Set(['uuid-1']));
+    expect(out.map((s) => s.id)).toEqual(['new-abc', 's1']);
+  });
+
   it('marca a sessão ativa', () => {
     const out = mergeServerSessions([], [meta({ id: 's1' }), meta({ id: 's2' })], 's2');
     expect(out.find((s) => s.id === 's2')?.active).toBe(true);

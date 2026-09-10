@@ -395,6 +395,12 @@ export function useCockpit(): Cockpit {
   // DISPARAR o prompt de retomada, não só deixá-lo no composer.
   const sendPromptRef = useRef<(text: string) => void>(() => {});
 
+  const claimedByLocal = useCallback((): Set<string> => {
+    const out = new Set<string>();
+    for (const [k, v] of Object.entries(resumeId.current)) if (k.startsWith('new-') && !migratedTo.current[k]) out.add(v);
+    return out;
+  }, []);
+
   const migrateKey = useCallback((oldKey: string, newId: string) => {
     if (oldKey === newId || !oldKey.startsWith('new-')) return;
     // Idempotência: o servidor pode emitir `done` duas vezes p/ o mesmo turno.
@@ -518,7 +524,7 @@ export function useCockpit(): Cockpit {
       case 'agent-online': { setAgentOnline(true); return; }
       case 'agent-offline': { setAgentOnline(false); return; }
       case 'sessions': {
-        setSessions((prev) => mergeServerSessions(prev, msg.items, activeRef.current));
+        setSessions((prev) => mergeServerSessions(prev, msg.items, activeRef.current, claimedByLocal()));
         // Baseline: sessão vista pela 1ª vez entra no `seen` com o mtime atual
         // (não vira "atualizada" retroativamente). Só mtime que AVANÇA depois badgeia.
         setSeen((prev) => {
@@ -722,7 +728,12 @@ export function useCockpit(): Cockpit {
       }
       case 'system': {
         const key = resolveKey(migratedTo.current, msg.sessionKey);
-        if (msg.sessionId) resumeId.current[key] = msg.sessionId;
+        if (msg.sessionId) {
+          resumeId.current[key] = msg.sessionId;
+          // O `list` pode ter chegado antes deste frame e já ter trazido o uuid
+          // como linha própria — some com ela; a local `new-` segue como a única.
+          if (key.startsWith('new-')) setSessions((prev) => (prev.some((s) => s.id === msg.sessionId) ? prev.filter((s) => s.id !== msg.sessionId) : prev));
+        }
         return;
       }
       case 'slash-commands': {
@@ -1050,7 +1061,7 @@ export function useCockpit(): Cockpit {
         return;
       }
     }
-  }, [updateThread, patchRunMsg, migrateKey, reconcileTools, send, reopenMsg, onTermData, onTermReplay, onTermExit, onTerms, onNew, endHandoff]);
+  }, [updateThread, patchRunMsg, migrateKey, claimedByLocal, reconcileTools, send, reopenMsg, onTermData, onTermReplay, onTermExit, onTerms, onNew, endHandoff]);
 
   const connect = useCallback(() => {
     // Fecha+neutraliza o socket anterior ANTES de abrir outro. Sem isto, sockets

@@ -18,7 +18,6 @@ export function SessionGroupHeader({ label, count, inset = false }: { label: str
   return (
     <div className={`flex items-center gap-1.5 font-mono text-[9.5px] font-medium uppercase tracking-[0.12em] ${box} ${TONE[label] ?? 'text-neutral-500'}`}>
       {label === RUNNING_LABEL && <span className="breathe h-1.5 w-1.5 shrink-0 rounded-full bg-green-400" />}
-      {label === WAITING_LABEL && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />}
       {label === 'Fixadas' && <Icon name="star" size={9} className="shrink-0 text-orange-400/80" />}
       <span className="shrink-0">{label}</span>
       <span className={`shrink-0 font-medium tabular-nums ${inset ? 'text-current opacity-60' : 'text-neutral-600'}`}>{count}</span>

@@ -1,6 +1,7 @@
 import { Badge, Icon, tokens } from '../primitives';
 import { SessionRowTags } from './SessionRowTags';
 import type { CtxWarn } from './row-meta';
+import { STATUS_TEXT, type RowStatus } from './row-status';
 import { fmtCost } from '../../../shared/format';
 
 interface SessionRowBadgesProps {
@@ -8,6 +9,8 @@ interface SessionRowBadgesProps {
   relative: string;
   // Data/hora absoluta, só quando o relativo não desempata (título ambíguo).
   stamp?: string;
+  // Estado vivo (rodando/travada/aguardando) ocupa o slot do "quando".
+  status?: RowStatus | null;
   pinned: boolean;
   marathon: boolean;
   canTag: boolean;
@@ -33,7 +36,7 @@ const COST_FLOOR = 1;
 // sidebar de ~200px o relógio e os botões na linha do título comiam metade da
 // largura e deixavam todo título em "Handoff retomado…" / "Retoma do contexto…" —
 // duas sessões diferentes que ficavam idênticas na tela. Rodapé = título inteiro.
-export function SessionRowBadges({ id, relative, stamp, pinned, marathon, canTag, cost, warn, hasTerminal, idle, tags, tagging, tagDraft, setTagDraft, setTagging, commitTag, onRemoveTag, onFilterTag }: SessionRowBadgesProps) {
+export function SessionRowBadges({ id, relative, stamp, status, pinned, marathon, canTag, cost, warn, hasTerminal, idle, tags, tagging, tagDraft, setTagDraft, setTagging, commitTag, onRemoveTag, onFilterTag }: SessionRowBadgesProps) {
   const showCost = cost !== undefined && cost >= COST_FLOOR;
 
   return (
@@ -71,7 +74,11 @@ export function SessionRowBadges({ id, relative, stamp, pinned, marathon, canTag
             <Icon name="zap" size={11} />
           </span>
         )}
-        <span className="text-[10.5px] tabular-nums text-neutral-600" title={stamp ? `Última atividade: ${stamp}` : 'Última atividade'}>{stamp ?? relative}</span>
+        {status ? (
+          <span className={`text-[10.5px] font-medium tabular-nums ${STATUS_TEXT[status.tone]}`} title={status.title}>{status.text}</span>
+        ) : (
+          <span className="text-[10.5px] tabular-nums text-neutral-600" title={stamp ? `Última atividade: ${stamp}` : 'Última atividade'}>{stamp ?? relative}</span>
+        )}
       </span>
     </div>
   );

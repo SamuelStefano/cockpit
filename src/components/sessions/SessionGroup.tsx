@@ -2,24 +2,22 @@ import type { ReactNode } from 'react';
 import { SessionGroupHeader } from './SessionGroupHeader';
 import { RUNNING_LABEL, WAITING_LABEL } from './group-by-recency';
 
-// Grupo de ESTADO (rodando / aguardando você) não é um recorte de tempo como
-// "Hoje": é fila acionável. Com o mesmo cabeçalho-hairline dos outros ele
-// disputava atenção de igual pra igual com os rótulos de data e a fila sumia no
-// meio da lista. Aqui vira um bloco tingido, com começo e fim visíveis.
-const BLOCK: Record<string, string> = {
-  [RUNNING_LABEL]: 'border-green-500/20 bg-green-500/6',
-  [WAITING_LABEL]: 'border-violet-500/25 bg-violet-500/8',
+// Grupo de ESTADO (rodando / aguardando você) é fila acionável, não recorte de
+// tempo. Em vez de uma caixa tingida (que brigava com o aro do card ativo e
+// pesava a lista), o grupo ganha só um fio colorido à esquerda: a cor diz o
+// estado, o cabeçalho diz o nome, e os cards seguem iguais aos demais.
+const RULE: Record<string, string> = {
+  [RUNNING_LABEL]: 'border-green-400/50',
+  [WAITING_LABEL]: 'border-violet-400/50',
 };
 
-// A linha precisa saber se está dentro da caixa: lá ela larga o próprio aro
-// (ver [[SessionRow]]), senão o laranja do ativo bate no verde/violeta do bloco.
 export function isStateGroup(label: string): boolean {
-  return label in BLOCK;
+  return label in RULE;
 }
 
 export function SessionGroup({ label, count, children }: { label: string; count: number; children: ReactNode }) {
-  const block = BLOCK[label];
-  if (!block) {
+  const rule = RULE[label];
+  if (!rule) {
     return (
       <div className="space-y-1.5">
         <SessionGroupHeader label={label} count={count} />
@@ -28,7 +26,7 @@ export function SessionGroup({ label, count, children }: { label: string; count:
     );
   }
   return (
-    <section aria-label={label} className={`space-y-1 rounded-xl border p-1.5 ${block}`}>
+    <section aria-label={label} className={`space-y-1.5 border-l-2 pl-2 ${rule}`}>
       <SessionGroupHeader label={label} count={count} inset />
       {children}
     </section>
