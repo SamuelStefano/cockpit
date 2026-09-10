@@ -13,7 +13,7 @@ import { readDflSnapshot } from '../dfl-points';
 import { registerFinanceClient } from './finance-clients';
 import { runDflSync } from '../dfl-sync-runner';
 import { runDflWrite } from '../dfl-write-runner';
-import { getCrons, saveCron, deleteCron } from '../crons';
+import { getCrons, saveCron, deleteCron, runCronNow } from '../crons';
 import { scheduleValid } from '../../shared/cron-schedule';
 import { fireCron } from './runs';
 import { listSkills, readSkill, resolveSkillDeny, installSkill } from '../skills';
@@ -368,9 +368,9 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'cron-run': {
-      const all = await getCrons();
-      const c = all.find((x) => x.id === msg.id);
-      if (c) fireCron(c);
+      const items = await runCronNow(msg.id, fireCron);
+      if (items) send(ws, { t: 'crons', items });
+      else send(ws, { t: 'error', message: 'cron não encontrado' });
       return;
     }
     case 'skill-list': {

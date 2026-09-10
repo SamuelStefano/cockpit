@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { isDue, nextRunAt, getCrons, saveCron, markRan } from './crons';
+import { isDue, nextRunAt, getCrons, saveCron, markRan, runCronNow } from './crons';
 import type { Cron } from '../shared/protocol';
 
 const base = (over: Partial<Cron>): Cron => ({
@@ -29,22 +29,56 @@ describe('cron interval', () => {
   });
 });
 
-describe('cron daily', () => {
-  // 2026-06-23T12:00 local
-  const noon = new Date(2026, 5, 23, 12, 0, 0).getTime();
-  const midnight = new Date(2026, 5, 23, 0, 0, 0).getTime();
+describe('cron daily (Brasília)', () => {
+  // Explicit UTC instants: the schedule is anchored to UTC-3 whatever the host timezone.
+  const at = (iso: string) => new Date(iso).getTime();
+  const noonBrt = at('2026-06-23T15:00:00Z');
+  const midnightBrt = at('2026-06-23T03:00:00Z');
   it('vence quando o slot de hoje já passou e não rodou hoje', () => {
-    const c = base({ schedule: { kind: 'daily', atMinute: 9 * 60 } }); // 09:00
-    expect(isDue(c, noon)).toBe(true);
+    const c = base({ schedule: { kind: 'daily', atMinute: 9 * 60 } });
+    expect(isDue(c, noonBrt)).toBe(true);
   });
   it('NÃO vence se já rodou hoje após o slot', () => {
-    const c = base({ schedule: { kind: 'daily', atMinute: 9 * 60 }, lastRun: midnight + 9 * 60 * 60_000 + 1000 });
-    expect(isDue(c, noon)).toBe(false);
+    const c = base({ schedule: { kind: 'daily', atMinute: 9 * 60 }, lastRun: midnightBrt + 9 * 60 * 60_000 + 1000 });
+    expect(isDue(c, noonBrt)).toBe(false);
   });
   it('NÃO vence antes do slot', () => {
-    const c = base({ schedule: { kind: 'daily', atMinute: 18 * 60 } }); // 18:00
-    expect(isDue(c, noon)).toBe(false);
-    expect(nextRunAt(c, noon)).toBe(midnight + 18 * 60 * 60_000);
+    const c = base({ schedule: { kind: 'daily', atMinute: 18 * 60 } });
+    expect(isDue(c, noonBrt)).toBe(false);
+    expect(nextRunAt(c, noonBrt)).toBe(midnightBrt + 18 * 60 * 60_000);
+  });
+  it('a "07:00" cron fires at 10:00 UTC, not at 07:00 UTC', () => {
+    const c = base({ schedule: { kind: 'daily', atMinute: 7 * 60 } });
+    expect(isDue(c, at('2026-09-10T07:00:30Z'))).toBe(false);
+    expect(isDue(c, at('2026-09-10T10:00:30Z'))).toBe(true);
+  });
+});
+
+describe('runCronNow', () => {
+  let dir: string;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'deck-crons-run-')); process.env.COCKPIT_CRONS = join(dir, 'crons.json'); });
+  afterEach(() => { delete process.env.COCKPIT_CRONS; try { rmSync(dir, { recursive: true, force: true }); } catch { /* ok */ } });
+
+  it('records lastRun, fires, and returns the updated list', async () => {
+    await saveCron(base({ id: 'r' }));
+    const fired: string[] = [];
+    const items = await runCronNow('r', (c) => fired.push(c.id), 7000);
+    expect(fired).toEqual(['r']);
+    expect(items?.[0]).toMatchObject({ lastRun: 7000, enabled: true });
+    expect((await getCrons())[0].lastRun).toBe(7000);
+  });
+  it('leaves a one-shot armed for its scheduled time', async () => {
+    await saveCron(base({ id: 'o', schedule: { kind: 'once', atMs: 9_000_000 } }));
+    await runCronNow('o', () => {}, 7000);
+    const c = (await getCrons())[0];
+    expect(c).toMatchObject({ enabled: true });
+    expect(c.lastRun).toBeUndefined();
+    expect(isDue(c, 9_000_001)).toBe(true);
+  });
+  it('returns null for an unknown id without firing', async () => {
+    let fired = false;
+    expect(await runCronNow('missing', () => { fired = true; })).toBeNull();
+    expect(fired).toBe(false);
   });
 });
 

@@ -42,7 +42,7 @@ export function Internals() {
         </InfoCard>
         <InfoCard icon="clock" iconClass="text-orange-400" size={13} title="Crons — prompts agendados">
           A aba <Pill>Crons</Pill> dispara prompts em horário marcado como turnos autônomos:
-          <Pill>diário</Pill> num horário, a cada <Pill>N minutos</Pill> ou <Pill>uma vez</Pill> numa data e
+          <Pill>diário</Pill> num horário de Brasília, a cada <Pill>N minutos</Pill> ou <Pill>uma vez</Pill> numa data e
           hora (esse se pausa sozinho depois de rodar). Cada disparo vira a sessão <Pill>cron-&lt;id&gt;</Pill>.
           Pausável, com "rodar agora". O agendador roda no backend; persistido em <Pill>~/.cockpit/crons.json</Pill>.
         </InfoCard>

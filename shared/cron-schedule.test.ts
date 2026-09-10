@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Cron, CronSchedule } from './protocol';
-import { scheduleLabel, nextRunAt, isDue, scheduleValid } from './cron-schedule';
+import { scheduleLabel, nextRunAt, isDue, scheduleValid, midnightInTz } from './cron-schedule';
 
 const base: Cron = { id: 'x', name: 'n', prompt: 'p', schedule: { kind: 'interval', everyMinutes: 60 }, enabled: true, createdAt: 0 };
 const NOON = new Date('2026-06-25T12:00:00').getTime();
@@ -72,5 +72,26 @@ describe('scheduleValid', () => {
     expect(scheduleValid({ kind: 'once' })).toBe(false);
     expect(scheduleValid({ kind: 'once', atMs: 'amanhã' as unknown as number })).toBe(false);
     expect(scheduleValid({ kind: 'daily' })).toBe(false);
+  });
+});
+
+describe('Brasília anchoring', () => {
+  const at = (iso: string) => new Date(iso).getTime();
+  const daily = (atMinute: number, over: Partial<Cron> = {}): Cron => ({ ...base, schedule: { kind: 'daily', atMinute }, ...over });
+
+  it('midnight is 03:00 UTC, including late evening in Brasília', () => {
+    expect(midnightInTz(at('2026-09-10T12:00:00Z'))).toBe(at('2026-09-10T03:00:00Z'));
+    expect(midnightInTz(at('2026-09-11T02:30:00Z'))).toBe(at('2026-09-10T03:00:00Z'));
+  });
+  it('the next 07:00 run from 05:00 BRT is 10:00 UTC the same day', () => {
+    expect(nextRunAt(daily(7 * 60), at('2026-09-10T08:00:00Z'))).toBe(at('2026-09-10T10:00:00Z'));
+  });
+  it('a 01:00 BRT cron after 23:30 BRT runs at 04:00 UTC, not a day later', () => {
+    expect(nextRunAt(daily(60), at('2026-09-10T02:30:00Z'))).toBe(at('2026-09-10T04:00:00Z'));
+  });
+  it('does not fire twice in the same Brasília day', () => {
+    const ran = daily(7 * 60, { lastRun: at('2026-09-10T10:00:05Z') });
+    expect(isDue(ran, at('2026-09-11T02:59:00Z'))).toBe(false);
+    expect(isDue(ran, at('2026-09-11T10:00:05Z'))).toBe(true);
   });
 });
