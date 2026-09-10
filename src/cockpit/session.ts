@@ -71,10 +71,14 @@ export function isCronPing(m: { title?: string; snippet?: string }): boolean {
 // acabou de mexer volta pro balde velho e "some" do topo até um F5 (group-by-recency
 // ordena/agrupa só por mtime). Quando o otimista vence, mantém também o relative/
 // snippet locais pra o card não mostrar um estado velho junto do mtime novo.
-export function mergeServerSessions(prev: Session[], items: SessionMeta[], activeId: string): Session[] {
+// `claimed` = uuids que uma sessão local `new-` já recebeu no `system` do 1º turno
+// mas ainda não migrou (a migração espera o `done`). O JSONL nasce no início do
+// turno, então o re-list traz esse uuid como linha própria — e a mesma conversa
+// aparecia duas vezes: a `new-` no bloco "trabalhando" e a uuid em "Hoje".
+export function mergeServerSessions(prev: Session[], items: SessionMeta[], activeId: string, claimed?: ReadonlySet<string>): Session[] {
   const prevById = new Map(prev.map((s) => [s.id, s]));
   const localOnly = prev.filter((s) => s.id.startsWith('new-'));
-  const fromServer = items.filter((m) => !isCronPing(m)).map((m) => {
+  const fromServer = items.filter((m) => !isCronPing(m) && !claimed?.has(m.id)).map((m) => {
     const sess = metaToSession(m, m.id === activeId);
     const p = prevById.get(m.id);
     // `waiting` acompanha o otimista: quem acabou de responder no chat não pode

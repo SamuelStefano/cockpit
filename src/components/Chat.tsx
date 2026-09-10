@@ -5,6 +5,8 @@ import { MessageRow, Thinking } from './chat/MessageView';
 import { ChatEmpty, ChatInput } from './chat/ChatInput';
 import { ChatHeader } from './chat/ChatHeader';
 import { ScrollAffordances } from './chat/ScrollAffordances';
+import { ChatTopics } from './chat/ChatTopics';
+import { useChatTopics } from './chat/useChatTopics';
 import { TaskTray } from './chat/TaskTray';
 import { latestTodos } from './chat/task-tray';
 import { useShownMessages } from './chat/useShownMessages';
@@ -49,6 +51,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
     [messages, sessionTodos, phase],
   );
   const shown = useShownMessages(messages);
+  const topics = useChatTopics(c.scrollRef, messages);
 
   return (
     <div
@@ -80,7 +83,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
         {c.isEmpty && phase === 'idle' ? (
           <ChatEmpty onPrompt={onPrompt} />
         ) : (
-          <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6">
+          <div className={`mx-auto flex max-w-3xl flex-col gap-6 py-6 pl-4 ${topics.topics.length > 0 ? 'pr-9' : 'pr-4'}`}>
             {shown.map((m, i) => (
               <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === shown.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} showModelLabel thinking={phase !== 'idle' && !c.pendingQuestion && i === shown.length - 1 && m.role === 'assistant'} live={i === shown.length - 1 && m.role === 'assistant' && !c.pendingQuestion ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} answerable={(phase === 'idle' || c.pendingQuestion) && i === shown.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} onRegenerate={phase === 'idle' && !c.pendingQuestion && i === shown.length - 1 && m.role === 'assistant' ? c.retryLast : undefined} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} />
 
@@ -91,6 +94,8 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
           </div>
         )}
       </div>
+
+      {!c.isEmpty && <ChatTopics topics={topics.topics} activeId={topics.activeId} open={topics.open} setOpen={topics.setOpen} onJump={topics.jumpTo} />}
 
       {!c.isEmpty && !c.atBottom && (
         <ScrollAffordances promptAbove={c.promptAbove} onScrollToPrompt={c.scrollToLastPrompt} onScrollToBottom={c.scrollToBottom} />
