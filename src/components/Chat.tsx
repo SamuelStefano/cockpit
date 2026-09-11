@@ -130,7 +130,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
         model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels}
         effort={effort} setEffort={setEffort}
         skills={skills} selectedSkills={selectedSkills} setSelectedSkills={setSelectedSkills} mcpServers={mcpServers} selectedMcps={selectedMcps} setSelectedMcps={setSelectedMcps} slashCommands={slashCommands}
-        attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} focusSignal={focusSignal}
+        attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} onOpenAttachment={onAttOpen} focusSignal={focusSignal}
         queued={c.queued} queuedAtts={c.queuedAtts} queuedModels={c.queuedModels} onRunQueuedBg={c.runQueuedInBgAt} onRunQueuedNow={c.runQueuedNowAt} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onEditQueuedAt={c.editQueuedAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
         queuePaused={queuePaused} onToggleQueuePause={() => queueSetPaused(!queuePaused)}
         queueHeld={c.queueHeld} onResumeQueue={c.resumeQueue}

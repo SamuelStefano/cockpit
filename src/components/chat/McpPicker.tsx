@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { Icon, ToggleChip, tokens } from '../primitives';
 import { ALL_MCPS, isAllMcps } from '../../../shared/mcp';
 import { PickerSheet } from './PickerSheet';
+import { isInsidePickerSheet } from './picker-sheet-dom';
 
 // Seletor dos MCP servers ativos POR PROMPT. AO CONTRÁRIO das skills: vazio =
 // NENHUM MCP (default fail-CLOSED). Cada server adiciona ~5-20k tokens de
@@ -23,7 +24,7 @@ export function McpPicker({ servers, selected, setSelected }: {
 
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e: MouseEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false); };
+    const onDoc = (e: MouseEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node) && !isInsidePickerSheet(e.target)) setOpen(false); };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing) { e.preventDefault(); setOpen(false); } };
     document.addEventListener('mousedown', onDoc);
     window.addEventListener('keydown', onKey);

@@ -24,6 +24,13 @@ describe('SkillPicker', () => {
     expect(setSelected).toHaveBeenCalledWith(['s1', 's11']);
   });
 
+  it('shows only the skill names, without descriptions', () => {
+    setup();
+    const dialog = screen.getByRole('dialog', { name: 'Escolher skills' });
+    expect(dialog.textContent).toContain('Skill 0');
+    expect(dialog.textContent).not.toContain('Uma descrição bem longa');
+  });
+
   it('has a close button and a "Pronto" button so the sheet can be left on mobile', () => {
     setup();
     expect(screen.getByRole('dialog', { name: 'Escolher skills' })).toBeTruthy();
