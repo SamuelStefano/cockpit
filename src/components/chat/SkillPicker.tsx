@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { Icon, ToggleChip, tokens } from '../primitives';
 import type { SkillMeta } from '../../../shared/protocol';
 import { PickerSheet } from './PickerSheet';
+import { isInsidePickerSheet } from './picker-sheet-dom';
 
 // Seletor das skills ativas POR PROMPT. Multi-select num popover (bottom-sheet no
 // mobile). Vazio = todas ativas (default fail-open): o backend só NEGA as não
@@ -20,7 +21,7 @@ export function SkillPicker({ skills, selected, setSelected }: {
   // todos os outros overlays fecham com Esc, este era o único que não.
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e: MouseEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false); };
+    const onDoc = (e: MouseEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node) && !isInsidePickerSheet(e.target)) setOpen(false); };
     // defaultPrevented: se outro handler já consumiu o Esc (parar turno, paleta
     // por cima), não fecha o picker junto no mesmo keypress.
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing) { e.preventDefault(); setOpen(false); } };
@@ -79,16 +80,14 @@ export function SkillPicker({ skills, selected, setSelected }: {
                 key={s.id}
                 onClick={() => toggle(s.id)}
                 aria-pressed={on}
-                className={`flex w-full items-start gap-2.5 px-3 py-2 text-left transition hover:bg-neutral-800/60 ${tokens.focusRing}`}
+                title={s.description || undefined}
+                className={`flex w-full items-center gap-2.5 px-3 py-2 text-left transition hover:bg-neutral-800/60 ${tokens.focusRing}`}
               >
-                <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition
+                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition
                   ${on ? 'border-orange-500 bg-orange-500 text-neutral-950' : 'border-neutral-600'}`}>
                   {on && <Icon name="check" size={11} />}
                 </span>
-                <span className="min-w-0 flex-1">
-                  <span className={`block text-[12.5px] font-medium ${on ? 'text-orange-200' : 'text-neutral-200'}`}>{s.name}</span>
-                  {s.description && <span className="line-clamp-2 block text-[10.5px] text-neutral-500">{s.description}</span>}
-                </span>
+                <span className={`min-w-0 flex-1 truncate text-[12.5px] font-medium ${on ? 'text-orange-200' : 'text-neutral-200'}`}>{s.name}</span>
               </button>
             );
           })}

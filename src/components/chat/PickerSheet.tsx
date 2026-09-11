@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon, tokens } from '../primitives';
 import { isTouchMobile } from './touch';
 
@@ -6,6 +7,10 @@ import { isTouchMobile } from './touch';
 // no desktop. A lista rola sozinha (flex + min-h-0) em vez de um max-height em
 // `vh` — com o teclado virtual aberto o `vh` não encolhe e o fim da lista ficava
 // atrás do teclado, sem chegar nos últimos itens.
+//
+// No celular sai por portal: aberto de dentro da folha de ajustes, o `fixed` herdava
+// o composer (backdrop-blur vira containing block) e a lista era cortada em cima e
+// embaixo — o título da primeira skill e o fim da última sumiam.
 export function PickerSheet({ label, query, setQuery, placeholder, onClear, onClose, footer, children }: {
   label: string;
   query: string;
@@ -17,13 +22,14 @@ export function PickerSheet({ label, query, setQuery, placeholder, onClear, onCl
   children: ReactNode;
 }) {
   const touch = isTouchMobile();
-  return (
+  const sheet = (
     <>
-      <div className="fixed inset-0 z-30 bg-black/40 sm:hidden" onClick={onClose} />
+      <div data-picker-sheet="" className="fixed inset-0 z-40 bg-black/40 sm:hidden" onClick={onClose} />
       <div
+        data-picker-sheet=""
         role="dialog"
         aria-label={label}
-        className="fixed inset-x-0 bottom-0 z-40 flex max-h-[70dvh] flex-col rounded-t-2xl border border-neutral-700 bg-neutral-900 pb-[env(safe-area-inset-bottom)] shadow-xl shadow-black/50 sm:absolute sm:bottom-full sm:left-0 sm:inset-x-auto sm:mb-2 sm:max-h-80 sm:w-72 sm:rounded-lg sm:pb-0"
+        className="fixed inset-x-0 bottom-0 z-50 flex max-h-[70dvh] flex-col rounded-t-2xl border border-neutral-700 bg-neutral-900 pb-[env(safe-area-inset-bottom)] shadow-xl shadow-black/50 sm:absolute sm:bottom-full sm:left-0 sm:inset-x-auto sm:mb-2 sm:max-h-80 sm:w-72 sm:rounded-lg sm:pb-0"
       >
         <div className="flex shrink-0 items-center gap-2 border-b border-neutral-800 px-3 py-2">
           <Icon name="search" size={13} className="shrink-0 text-neutral-500" />
@@ -69,4 +75,5 @@ export function PickerSheet({ label, query, setQuery, placeholder, onClear, onCl
       </div>
     </>
   );
+  return touch && typeof document !== 'undefined' ? createPortal(sheet, document.body) : sheet;
 }

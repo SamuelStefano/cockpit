@@ -29,13 +29,14 @@ import { addThumb, shouldRequestThumb } from './lib/att-thumb-cache';
 import { fileSig, isFreshUpload } from './components/chat/dedupe-uploads';
 import { encodeAttachments, parseAttachments } from './lib/parse-attachments';
 import { loadPendingAtts, savePendingAtts, addPendingAtt, movePendingAtts, clearPendingAtts } from './lib/pending-atts';
+import { digestFile, rememberSent, markDuplicates, SENT_HASHES_KEY, type SentHashes, type DupKind } from './lib/sent-attachments';
 
 // Reexport: os domínios-folha migraram pra hooks próprios em ./cockpit, e os
 // consumidores importam estes tipos daqui há tempo.
 export type { ContextDoc } from './cockpit/useContexts';
 export type { SkillDoc } from './cockpit/useSkills';
 export type { GraphQueryState, GraphNodeOp } from './cockpit/useGraphs';
-export interface Attachment { name: string; path: string; text?: string; s3url?: string; uploading?: boolean; clientId?: string }
+export interface Attachment { name: string; path: string; text?: string; s3url?: string; uploading?: boolean; clientId?: string; hash?: string; dup?: DupKind }
 export interface AttachmentPreview { path: string; name: string; dataB64?: string; error?: string }
 export type { TermApi };
 import type { ConnState } from './components/primitives';
@@ -209,6 +210,17 @@ export function useCockpit(): Cockpit {
   // Assinaturas recém-enviadas: chokepoint único de dedup (todos os caminhos de
   // anexo passam por onUpload). Mata o print/foto que chega repetido virando 4 chips.
   const recentUploadSigs = useRef<Map<string, number>>(new Map());
+  // Hash de conteúdo por upload em voo (clientId → hash): o ack 'uploaded' troca o
+  // chip otimista pelo real e sem isto o hash se perdia na troca.
+  const uploadHashes = useRef<Map<string, string>>(new Map());
+  const [sentHashes, setSentHashes] = useState<SentHashes>(() => loadPref<SentHashes>(SENT_HASHES_KEY, {}));
+  const noteSent = useCallback((key: string, atts: Attachment[]) => {
+    setSentHashes((prev) => {
+      const next = rememberSent(prev, key, atts.map((a) => a.hash ?? ''));
+      if (next !== prev) savePref(SENT_HASHES_KEY, next);
+      return next;
+    });
+  }, []);
   // Helper: aplica uma mudança no array de anexos (estado + ref + persiste por sessão).
   const setAtts = useCallback((next: Attachment[]) => {
     attachmentsRef.current = next;
@@ -935,7 +947,8 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'uploaded': {
-        const real: Attachment = { name: msg.name, path: msg.path, text: msg.text, s3url: msg.s3url };
+        const real: Attachment = { name: msg.name, path: msg.path, text: msg.text, s3url: msg.s3url, hash: msg.clientId ? uploadHashes.current.get(msg.clientId) : undefined };
+        if (msg.clientId) uploadHashes.current.delete(msg.clientId);
         // uploadOrigin é in-memory e consumido no 1º ack; o sessionKey do servidor
         // cobre reload e ack repetido (mas pode ser a key pré-migração).
         const origin = (msg.clientId ? uploadOrigin.current.get(msg.clientId) : undefined)
@@ -1315,7 +1328,7 @@ export function useCockpit(): Cockpit {
     // .docx (binário que o Read não parseia) o texto extraído vai inline logo após
     // o ref — o agente recebe o conteúdo direto e o chip segue no .docx original.
     const wire = encodeAttachments(atts, text);
-    if (atts.length) { setAtts([]); }
+    if (atts.length) { noteSent(key, atts); setAtts([]); }
     setInterrupted((p) => { if (!(key in p)) return p; const n = { ...p }; delete n[key]; return n; });
     // Add otimista (feedback instantâneo, sem round-trip). O servidor ecoa esta
     // mensagem com o MESMO msgId pra todos os clientes; este aqui deduplica por id.
@@ -1336,7 +1349,7 @@ export function useCockpit(): Cockpit {
     const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
     const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
     send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: pinSessionModel(key), effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire, auto: auto || undefined });
-  }, [send, updateThread, pinSessionModel]);
+  }, [send, updateThread, pinSessionModel, noteSent]);
   // Fecha a ponte usada pelo handoff-result (declarado acima do onSend).
   sendPromptRef.current = onSend;
 
@@ -1358,12 +1371,12 @@ export function useCockpit(): Cockpit {
     // e limpos na hora — senão a imagem vazava pro primeiro prompt que drenasse.
     const atts = attachmentsRef.current.filter((a) => !a.uploading);
     const wire = encodeAttachments(atts, text);
-    if (atts.length) { setAtts([]); }
+    if (atts.length) { noteSent(key, atts); setAtts([]); }
     const bypassWire = capsRef.current?.canBypass && bypassRef.current ? true : undefined;
     const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
     const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
     send({ t: 'queue-add', sessionKey: key, sessionId: resumeId.current[key], text: wire, mode: modeRef.current, model: modelBySessionRef.current[key] ?? defaultModelRef.current, effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
-  }, [send, updateThread]);
+  }, [send, updateThread, noteSent]);
   const queueRemove = useCallback((sessionKey: string, id: string) => { send({ t: 'queue-remove', sessionKey, id }); }, [send]);
   const queueEdit = useCallback((sessionKey: string, id: string, text: string) => { send({ t: 'queue-edit', sessionKey, id, text }); }, [send]);
   const queueMove = useCallback((sessionKey: string, id: string, dir: -1 | 1) => { send({ t: 'queue-move', sessionKey, id, dir }); }, [send]);
@@ -1385,6 +1398,12 @@ export function useCockpit(): Cockpit {
     // Chip otimista na hora (com spinner) — antes só aparecia DEPOIS do ack do
     // servidor, sem feedback durante o upload. O 'uploaded' reconcilia pelo clientId.
     setAtts([...attachmentsRef.current, { name: file.name, path: clientId, clientId, uploading: true }]);
+    void digestFile(file).then((hash) => {
+      if (!hash) return;
+      uploadHashes.current.set(clientId, hash);
+      const cur = attachmentsRef.current;
+      if (cur.some((a) => a.clientId === clientId)) setAtts(cur.map((a) => (a.clientId === clientId ? { ...a, hash } : a)));
+    });
     let done = false;
     const fail = (msg: string) => {
       if (done) return; done = true;
@@ -1761,5 +1780,7 @@ export function useCockpit(): Cockpit {
     savePref('modelBySession', keep);
   }, [modelBySession]);
 
-  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, stats, archived, contextTokens, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
+  const attachmentsView = useMemo(() => markDuplicates(attachments, sentHashes[activeId]), [attachments, sentHashes, activeId]);
+
+  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, stats, archived, contextTokens, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
 }
