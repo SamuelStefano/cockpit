@@ -4,6 +4,8 @@ import { EmptyState, Skeleton, RouteHeader } from '../components/primitives';
 import { useCronForm } from './crons/useCronForm';
 import { CronForm } from './crons/CronForm';
 import { CronCard } from './crons/CronCard';
+import { CronTimeline } from './crons/CronTimeline';
+import { upcomingSlots } from './crons/cron-timeline';
 
 interface Props {
   connected: boolean;
@@ -59,6 +61,8 @@ export function Crons({ connected, crons, loaded, onCronsGet, onCronSave, onCron
         <div ref={formRef}>
           <CronForm form={form} onCancel={form.reset} now={now} planUsage={planUsage} models={models} />
         </div>
+
+        {loaded && <CronTimeline slots={upcomingSlots(crons, now)} now={now} />}
 
         {!loaded && connected
           ? <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[74px] w-full rounded-xl" />)}</div>
