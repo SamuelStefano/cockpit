@@ -68,6 +68,37 @@ restart_inner() {
   done
 }
 
+# The backend serves dist/ straight from disk, but nothing rebuilt it: on 11/09/2026
+# the server already ran #544 (Fable in the cron model picker) while the UI was still
+# the 10/09 bundle. Build aside and merge additively, since an open tab still lazy-loads
+# its old hashed chunks, then swap index.html last. A failed build keeps the old UI.
+build_frontend() {
+  local out="$ROOT/dist" tmp entry name
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/deck-dist.XXXXXX") || return 1
+  if ! (cd "$ROOT" && npx vite build --outDir "$tmp" --emptyOutDir >/dev/null 2>&1) || [ ! -s "$tmp/index.html" ]; then
+    echo "[redeploy] frontend: vite build falhou, dist/ anterior mantido"
+    rm -rf -- "$tmp"
+    return 1
+  fi
+  mkdir -p "$out"
+  for entry in "$tmp"/*; do
+    name=$(basename "$entry")
+    [ "$name" = index.html ] && continue
+    if [ -d "$entry" ]; then
+      mkdir -p "$out/$name" && cp -r "$entry/." "$out/$name/"
+    else
+      cp "$entry" "$out/$name.new" && mv -f "$out/$name.new" "$out/$name"
+    fi
+  done
+  cp "$tmp/index.html" "$out/index.html.new" && mv -f "$out/index.html.new" "$out/index.html"
+  # Chunks rewritten by this build get a fresh mtime; only orphans age out.
+  find "$out/assets" -type f -mtime +7 -delete 2>/dev/null
+  rm -rf -- "$tmp"
+  echo "[redeploy] frontend: dist/ atualizado"
+}
+
+[ -z "${REDEPLOY_DRY_RUN:-}" ] && build_frontend
+
 restart_inner "server/index.ts" "backend"
 restart_inner "server/agent.ts" "agente"
 
