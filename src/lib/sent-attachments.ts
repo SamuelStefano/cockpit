@@ -21,7 +21,12 @@ function fnv1a(bytes: Uint8Array): string {
   return `fnv-${(h >>> 0).toString(16)}-${bytes.length}`;
 }
 
+// O upload já lê o arquivo inteiro como base64; hashear um vídeo grande dobraria
+// a memória no celular. Acima disto fica sem aviso de repetido.
+export const MAX_DIGEST_BYTES = 64 * 1024 * 1024;
+
 export async function digestFile(file: Blob): Promise<string | undefined> {
+  if (file.size > MAX_DIGEST_BYTES) return undefined;
   try {
     const buf = await file.arrayBuffer();
     if (globalThis.crypto?.subtle) {

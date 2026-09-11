@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { digestFile, rememberSent, markDuplicates } from './sent-attachments';
+import { describe, it, expect, vi } from 'vitest';
+import { digestFile, rememberSent, markDuplicates, MAX_DIGEST_BYTES } from './sent-attachments';
 
 describe('digestFile', () => {
   it('same content gives the same digest regardless of name', async () => {
@@ -9,6 +9,13 @@ describe('digestFile', () => {
     expect(a).toBeTruthy();
     expect(a).toBe(b);
     expect(a).not.toBe(c);
+  });
+
+  it('skips files above the digest cap without reading them', async () => {
+    const arrayBuffer = vi.fn();
+    const huge = { size: MAX_DIGEST_BYTES + 1, arrayBuffer } as unknown as Blob;
+    expect(await digestFile(huge)).toBeUndefined();
+    expect(arrayBuffer).not.toHaveBeenCalled();
   });
 });
 

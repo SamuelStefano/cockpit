@@ -75,5 +75,8 @@ export function PickerSheet({ label, query, setQuery, placeholder, onClear, onCl
       </div>
     </>
   );
-  return touch && typeof document !== 'undefined' ? createPortal(sheet, document.body) : sheet;
+  // Largura, não toque: iPad e notebook com tela sensível passam do `sm` e usam o
+  // popover ancorado (`sm:absolute`), que no <body> iria parar fora do lugar.
+  const narrow = typeof window !== 'undefined' && (window.matchMedia?.('(max-width: 639.98px)')?.matches ?? false);
+  return narrow ? createPortal(sheet, document.body) : sheet;
 }
