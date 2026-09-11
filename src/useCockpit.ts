@@ -521,6 +521,16 @@ export function useCockpit(): Cockpit {
         inFlight.current.delete(msg.sessionKey);
         return;
       }
+      // Sem `error`: um aviso de erro por último acendia o banner "O turno falhou",
+      // e reenviar dali batia no mesmo gate.
+      case 'send-parked': {
+        updateThread(msg.sessionKey, (prev) => {
+          const semOrfa = msg.msgId ? prev.filter((m) => !(m.id === msg.msgId && m.role === 'user')) : prev;
+          return [...semOrfa, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⏳ ${msg.message}` }] }];
+        });
+        inFlight.current.delete(msg.sessionKey);
+        return;
+      }
       case 'caps': {
         capsRef.current = msg.caps;
         setCaps(msg.caps);
