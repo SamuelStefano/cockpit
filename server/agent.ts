@@ -14,7 +14,7 @@ import { startParkedDrainer, resumeOrphanRuns } from './ws/runs';
 import { startRunReaper } from './ws/reaper';
 import { killAllRuns, threads } from './ws/threads';
 import { startModelsLoop, getLastModels } from './ws/models';
-import { startPlanUsageLoop, getLastPlanUsage, requestPlanUsageRefresh } from './ws/usage-plan';
+import { startPlanUsageLoop, planUsageFrame, requestPlanUsageRefresh } from './ws/usage-plan';
 import { getLastRate } from './ws/rate';
 import { startStatsLoop } from './ws/stats-loop';
 import { startSessionsWatch } from './sessions/watch';
@@ -103,9 +103,11 @@ function reemitBootstrap(ws: WebSocket): void {
     s({ t: 'busy', keys: [...threads.keys()] });
     const rate = getLastRate();
     if (rate) s({ t: 'rate', ...rate });
-    const usage = getLastPlanUsage();
-    if (usage) s({ t: 'plan-usage', usage });
-    else requestPlanUsageRefresh(); // sem cache ainda: busca agora, não espera o poll
+    const planFrame = planUsageFrame();
+    if (planFrame) s(planFrame);
+    // Always ask, like the listen bootstrap: single-flight, MIN_GAP and the 429
+    // cooldown already hold the request back.
+    requestPlanUsageRefresh();
     const models = getLastModels();
     if (models.length) s({ t: 'models', models });
     // Reconecta no meio de um turno: replaya o snapshot acumulado pra reconstruir o
