@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { StatusBar } from './components/StatusBar';
+import { memorizePrompt } from './components/chat/memorize';
 import { Header } from './components/chrome/Header';
 import { QuotaBanner } from './components/chrome/QuotaBanner';
 import { OfflineNotice } from './components/chrome/OfflineNotice';
@@ -101,6 +102,11 @@ export function CockpitApp() {
     setDraft((cur ? cur.trimEnd() + '\n\n' : '') + quoted + '\n\n');
     setFocusSignal((n) => n + 1);
   }, [setDraft]);
+  const memorizeMsg = useCallback((text: string) => {
+    const cur = draftRef.current;
+    setDraft((cur ? cur.trimEnd() + '\n\n' : '') + memorizePrompt(text) + '\n\n');
+    setFocusSignal((n) => n + 1);
+  }, [setDraft]);
 
   // Custo estimado acumulado por sessão (do observatório) → chip no sidebar.
   const sessionCost = useMemo(() => {
@@ -134,7 +140,7 @@ export function CockpitApp() {
   };
 
   const sessionsProps = { sessions, loading, activeId: activeSessionId, onSelect: selectSession, onNew: handleNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, stalled, updated, runStart, searchResults, onSearch, userId: sbAuth.session?.user.id, onFunnel, funnelBusy };
-  const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, followups, onDismissFollowups: dismissFollowups, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew: handleNew, onHandoff, handoffBusy, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onRename: handleRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, keyboardOpen, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
+  const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, followups, onDismissFollowups: dismissFollowups, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onStop: handleStop, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew: handleNew, onHandoff, handoffBusy, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onMemorize: memorizeMsg, onRename: handleRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, keyboardOpen, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
 
   const gate = resolveAuthGate({ sbAuth, ejectPairing, authRequired, submitToken });

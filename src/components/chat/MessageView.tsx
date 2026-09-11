@@ -8,7 +8,7 @@ import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT } from '../../lib/prefs';
 import { hasVisibleAssistantContent } from './visible-blocks';
 import { AssistantBlocks } from './AssistantBlocks';
 import { ThinkingDots, LiveStatsLine, type LiveTurn } from './Thinking';
-import { QuoteButton, CopyMessageButton, RegenerateButton, SpeakButton } from './MessageActions';
+import { QuoteButton, CopyMessageButton, RegenerateButton, SpeakButton, MemorizeButton } from './MessageActions';
 import { UserMessageRow } from './UserMessageRow';
 import { CompactDivider } from './CompactDivider';
 import { ToolGroupCard } from './ToolGroupCard';
@@ -28,6 +28,7 @@ interface MessageRowProps {
   live?: LiveTurn;
   onEditUser?: (id: string, text: string) => void;
   onQuote?: (text: string) => void;
+  onMemorize?: (text: string) => void;
   answerable?: boolean;
   onAnswer?: (text: string) => void;
   // Só na última resposta com a sessão ociosa: reenvia o último prompt.
@@ -40,7 +41,7 @@ interface MessageRowProps {
 // memo: cada delta de streaming troca só a referência da ÚLTIMA mensagem
 // (patchRunMsg usa .map preservando as demais) — sem isto a thread inteira
 // re-renderiza a cada chunk.
-export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabel, showModelLabel = true, thinking, live, onEditUser, onQuote, answerable, onAnswer, onRegenerate, onOpenAttachment, attThumbs, onAttThumb }: MessageRowProps) {
+export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabel, showModelLabel = true, thinking, live, onEditUser, onQuote, onMemorize, answerable, onAnswer, onRegenerate, onOpenAttachment, attThumbs, onAttThumb }: MessageRowProps) {
   const [showTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   if (msg.role === 'user') {
     return <UserMessageRow msg={msg} onEditUser={onEditUser} onQuote={onQuote} onOpenAttachment={onOpenAttachment} attThumbs={attThumbs} onAttThumb={onAttThumb} />;
@@ -95,11 +96,12 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
         {!caretOnLast && !thinking && msg.stats?.durationMs ? <ThoughtFor ms={msg.stats.durationMs} /> : null}
         {hasText && !caretOnLast && (
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <div className="flex items-center gap-2 opacity-100 transition group-hover/msg:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100">
+            <div className="flex flex-wrap items-center gap-x-2 opacity-100 transition group-hover/msg:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100">
               <CopyMessageButton blocks={msg.blocks} />
               <SpeakButton blocks={msg.blocks} />
               {onRegenerate && <RegenerateButton onClick={onRegenerate} />}
               {onQuote && <QuoteButton onClick={() => onQuote(messageToText(msg.blocks))} withLabel />}
+              {onMemorize && <MemorizeButton onClick={() => onMemorize(messageToText(msg.blocks))} />}
             </div>
             {msg.stats && <TurnStatsLine stats={msg.stats} />}
             {msg.ts && <time className="whitespace-nowrap text-[10px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}

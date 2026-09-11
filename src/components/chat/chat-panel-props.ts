@@ -60,6 +60,7 @@ export interface ChatPanelProps {
   onAttThumb?: (path: string) => void;
   onEditUser?: (id: string, text: string) => void;
   onQuote?: (text: string) => void;
+  onMemorize?: (text: string) => void;
   onRename?: (id: string, title: string) => void;
   onOpenFull?: (id: string) => void;
   onLoadOlder?: (id: string) => void;
