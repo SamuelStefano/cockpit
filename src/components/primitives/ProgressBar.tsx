@@ -1,6 +1,7 @@
 export interface ProgressSegment {
   value: number;
-  tone: 'orange' | 'green' | 'yellow' | 'neutral';
+  // track = room left against a fixed total: takes width but shows the empty rail.
+  tone: 'orange' | 'green' | 'yellow' | 'neutral' | 'track';
   label?: string;
 }
 
@@ -14,6 +15,7 @@ const fills: Record<ProgressSegment['tone'], string> = {
   orange: 'bg-orange-500/80',
   yellow: 'bg-yellow-500/70',
   neutral: 'bg-neutral-600',
+  track: 'bg-transparent',
 };
 
 // Barra segmentada: cada segmento ocupa proporção do total. Total zero → trilho vazio.

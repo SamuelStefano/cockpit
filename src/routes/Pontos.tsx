@@ -14,6 +14,8 @@ import { SyncBar } from './pontos/SyncBar';
 import { DflTree } from './pontos/DflTree';
 import { DflInvoices } from './pontos/DflInvoices';
 import { fmtPts } from './pontos/money';
+import { MonthCapBar } from './pontos/MonthCapBar';
+import { monthCap } from './pontos/month-cap';
 
 interface Props {
   connected: boolean;
@@ -68,6 +70,7 @@ export function Pontos(props: Props) {
         {tab !== 'ledger' && <SyncBar snapshot={dflSnapshot} syncing={dflSyncing} now={now} onSync={onDflSync} />}
         {tab !== 'ledger' && totals && <PointValueBar />}
         {tab !== 'ledger' && totals && <FinanceSummaryBar totals={totals} offPoints={recomputed?.offPoints ?? 0} offAmountCents={recomputed?.offAmountCents ?? 0} />}
+        {tab !== 'ledger' && dflSnapshot && totals && <MonthCapBar cap={monthCap(dflSnapshot.invoices, totals.amountOpenCents, now)} />}
 
         <Tabs className="mb-4" active={tab} onChange={setTab} items={[
           { id: 'arvore', label: 'Árvore', icon: 'grip', count: dflSnapshot?.projects.length },
