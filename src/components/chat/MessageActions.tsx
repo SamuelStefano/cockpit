@@ -54,6 +54,18 @@ export function RegenerateButton({ onClick }: { onClick: () => void }) {
   );
 }
 
+export function MemorizeButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title="Levar esta resposta pro compositor como pedido de memória durável"
+      className={`flex items-center gap-1 rounded-md px-2 py-1.5 text-[10.5px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300 sm:px-1.5 sm:py-0.5 ${tokens.focusRing}`}
+    >
+      <Icon name="sparkles" size={11} /> memorizar
+    </button>
+  );
+}
+
 // Ler em voz alta (Web Speech API, custo zero): fala a resposta em pt-BR; 2º
 // clique interrompe. Não renderiza onde speechSynthesis não existe.
 export function SpeakButton({ blocks }: { blocks: Block[] }) {
