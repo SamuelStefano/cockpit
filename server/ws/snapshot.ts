@@ -1,7 +1,7 @@
 import type { WebSocket } from 'ws';
 import { send } from './broadcast';
 import { getLastRate } from './rate';
-import { getLastPlanUsage, requestPlanUsageRefresh, planUsageBlockedUntil, getPlanUsageReadAt } from './usage-plan';
+import { requestPlanUsageRefresh, planUsageFrame } from './usage-plan';
 import { getLastModels } from './models';
 import { threads } from './threads';
 import { marathonKeys } from './marathon';
@@ -21,11 +21,10 @@ export function sendDurableSnapshot(ws: WebSocket) {
   }
   const rate = getLastRate();
   if (rate) send(ws, { t: 'rate', ...rate });
-  const planUsage = getLastPlanUsage();
-  const blockedUntil = planUsageBlockedUntil();
   // Manda o que tem (inclusive nada + o bloqueio: o cliente precisa distinguir
   // "recusado pela conta" de "ainda carregando").
-  if (planUsage || blockedUntil) send(ws, { t: 'plan-usage', usage: planUsage, blockedUntil: blockedUntil || null, readAt: getPlanUsageReadAt() || null });
+  const planFrame = planUsageFrame();
+  if (planFrame) send(ws, planFrame);
   // E SEMPRE pede um refresh, não só quando falta número: o poll é de 5min e
   // ninguém pola com o browser fechado, então quem abre o deck de manhã caía num
   // snapshot da noite anterior e esperava até 5min por um número atual. O

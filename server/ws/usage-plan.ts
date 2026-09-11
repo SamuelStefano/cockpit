@@ -262,8 +262,21 @@ export function planUsageBlockedUntil(now = Date.now()): number {
   return until > now ? until : 0;
 }
 
+export interface PlanUsageFrame { t: 'plan-usage'; usage: PlanUsage | null; blockedUntil: number | null; readAt: number | null }
+
+// One frame for the broadcast, the listen bootstrap and the relay re-bootstrap. The
+// relay path used to send `usage` alone: every browser that (re)connected through it
+// had its 429 block and reading age reset to null — a stale number shown as fresh —
+// and got nothing at all when the agent had no number yet during a cooldown.
+export function planUsageFrame(now = Date.now()): PlanUsageFrame | null {
+  const blockedUntil = planUsageBlockedUntil(now);
+  if (!last && !blockedUntil) return null;
+  return { t: 'plan-usage', usage: last, blockedUntil: blockedUntil || null, readAt: lastReadAt || null };
+}
+
 function emit(): void {
-  broadcast({ t: 'plan-usage', usage: last, blockedUntil: planUsageBlockedUntil() || null, readAt: lastReadAt || null });
+  const frame = planUsageFrame();
+  if (frame) broadcast(frame);
 }
 
 let lastAdoptedTs = 0;
