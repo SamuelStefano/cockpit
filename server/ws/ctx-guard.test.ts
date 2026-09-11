@@ -58,6 +58,12 @@ describe('ctxVerdict', () => {
     expect(ctxVerdict({ sessionId: 's', usage: usage(99.4), now: NOW }).kind).toBe('quota');
   });
 
+  it('leitura de uma janela que já virou não segura a fila', () => {
+    setSample(CTX_SOFT - 1);
+    const stale = { ...usage(99.4), resetsAt: NOW - 60_000 };
+    expect(ctxVerdict({ sessionId: 's', usage: stale, now: NOW }).kind).toBe('ok');
+  });
+
   it('sem leitura de cota não trava', () => {
     setSample(CTX_SOFT - 1);
     expect(ctxVerdict({ sessionId: 's', usage: null, now: NOW }).kind).toBe('ok');

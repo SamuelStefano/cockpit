@@ -24,7 +24,7 @@ export function SendCostNotice({ cost }: SendCostNoticeProps) {
         <Icon name="zap" size={12} className={`mt-0.5 shrink-0 ${tone.icon}`} />
         <span className="flex-1">
           {grave
-            ? `Este envio custa ${cost.label} e não cabe no que sobrou da janela — o servidor vai recusar.`
+            ? `Este envio custa ${cost.label} e não cabe no que sobrou da janela — vai pra fila e roda quando a janela virar.`
             : `Próximo envio: ${cost.label}.`}
           {cost.cost.cold && !grave && ' Migrar a sessão sai mais barato que continuar.'}
         </span>

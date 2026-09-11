@@ -787,4 +787,7 @@ export type ServerMsg =
   // o texto de volta (o composer já limpou) e o msgId da bolha otimista pra ela
   // não ficar órfã esperando uma resposta que nunca vem.
   | { t: 'send-reject'; sessionKey: string; reason: 'ctx-hard' | 'quota-insufficient' | 'cold-busy'; text: string; msgId?: string; message: string; ctxTokens: number; pctOfWindow: number }
+  // O gate barrou por quota/cold-busy e o prompt foi pra fila estacionada: a bolha
+  // otimista sai (o item aparece na fila) e o composer NÃO recebe o texto de volta.
+  | { t: 'send-parked'; sessionKey: string; msgId?: string; message: string }
   | { t: 'error'; sessionKey?: string; message: string };

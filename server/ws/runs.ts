@@ -339,6 +339,23 @@ function rejectRun(a: { ws: WebSocket | null; sessionKey: string; prompt: string
   }
 }
 
+// Envio COM cliente que não cabe agora (janela no fim, outro cold-start subindo)
+// vai pra fila estacionada em vez de voltar como erro: o drainer já segura quota e
+// cold-busy e dispara quando couber. Recusar quebrava a fila deixada pro próximo
+// batch — a 99% o composer ainda não pausa (99,5), cada envio e cada item do dreno
+// in-turn virava "O turno falhou" e o texto se perdia no draft.
+function parkRejected(o: StartRunOptions, verdict: Verdict): boolean {
+  if (!o.ws || o.forkId || (verdict.kind !== 'quota' && verdict.kind !== 'cold-busy')) return false;
+  const r = addParked(o.sessionKey, { ...runParams(o), prompt: o.prompt, resumeId: o.resumeId });
+  if ('reject' in r) return false;
+  const message = verdict.kind === 'quota'
+    ? `Este envio custaria ~${verdict.cost.pctOfWindow}% da janela e não cabe no que sobrou — entrou na fila e roda sozinho quando a janela virar.`
+    : 'Outra sessão grande está subindo agora — o prompt entrou na fila e roda assim que ela assentar.';
+  send(o.ws, { t: 'send-parked', sessionKey: o.sessionKey, msgId: o.msgId, message });
+  broadcastQueue();
+  return true;
+}
+
 export function startRun(o: StartRunOptions) {
   const { ws, sessionKey, prompt, resumeId, msgId, auto, forkId, queued } = o;
   const params = runParams(o);
@@ -374,6 +391,7 @@ export function startRun(o: StartRunOptions) {
   const verdict = ctxVerdict({ sessionId: resumeId, sessionKey, usage: getLastPlanUsage() });
   const blocking = verdict.kind === 'quota' || verdict.kind === 'cold-busy' || (verdict.kind === 'hard' && !intentional);
   if (blocking) {
+    if (parkRejected(o, verdict)) return;
     rejectRun({ ws, sessionKey, prompt, msgId, verdict });
     return;
   }

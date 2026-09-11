@@ -125,7 +125,11 @@ export function ctxVerdict(i: VerdictInput): Verdict {
   const ctx = sample?.ctxTokens ?? 0;
 
   if (ctx >= CTX_HARD) return { kind: 'hard', cost };
-  if (!fitsInWindow(cost, i.usage?.fiveHour ?? null, costOpts)) return { kind: 'quota', cost };
+  // Leitura de uma janela que já virou não vale: o poll de usage pausa sem browser
+  // aberto, e um 99% congelado seguraria a fila estacionada a noite inteira.
+  const u = i.usage;
+  const fiveHour = u && (!u.resetsAt || u.resetsAt > now) ? u.fiveHour : null;
+  if (!fitsInWindow(cost, fiveHour, costOpts)) return { kind: 'quota', cost };
   if (isBigColdStart(cost) && coldInflightExcept(i.sessionKey) >= MAX_COLD_INFLIGHT) return { kind: 'cold-busy', cost };
   if (ctx >= CTX_SOFT) return { kind: 'soft', cost };
   return { kind: 'ok', cost };

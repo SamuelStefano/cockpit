@@ -11,6 +11,7 @@ import { run } from '../engine/claude';
 import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takeParked, promoteParked, isQueuePaused, type ParkedItem } from './parked';
 import { resumableId } from './resume';
 import { quotaHold } from './quota';
+import { getLastPlanUsage } from './usage-plan';
 import { classify } from '../engine/triage';
 import { resetCooldownState, resetColdInflight, acquireCold, COOLDOWN_AFTER_RESET_MS } from './ctx-guard';
 
@@ -36,6 +37,7 @@ vi.mock('./parked', () => ({
 // Por padrão todo resumeId é vivo; o teste do transcript morto sobrescreve.
 vi.mock('./resume', () => ({ resumableId: vi.fn((id?: string) => id) }));
 vi.mock('./quota', async (orig) => ({ ...(await orig<typeof import('./quota')>()), quotaHold: vi.fn(() => 0) }));
+vi.mock('./usage-plan', async (orig) => ({ ...(await orig<typeof import('./usage-plan')>()), getLastPlanUsage: vi.fn(() => null) }));
 vi.mock('./broadcast', () => ({ broadcast: vi.fn(), send: vi.fn(), setWss: vi.fn() }));
 vi.mock('./translate', () => ({ translate: vi.fn() }));
 vi.mock('./awaiting', () => {
@@ -744,12 +746,48 @@ describe('gate de contexto', () => {
   });
 
   it('a recusa devolve o texto e o msgId pro cliente (a bolha otimista não fica órfã)', () => {
-    setCtx(120_000);
-    startRun({ ws, sessionKey: 'a', prompt: 'primeiro', resumeId: 'sess-a' });
-    startRun({ ws, sessionKey: 'gg', prompt: 'meu prompt', resumeId: 'sess-b', msgId: 'm1' });
+    setCtx(779_566);
+    startRun({ ws, sessionKey: 'gg', prompt: 'meu prompt', resumeId: 'sess-b', msgId: 'm1', auto: true });
     expect(send).toHaveBeenCalledWith(ws, expect.objectContaining({
-      t: 'send-reject', reason: 'cold-busy', text: 'meu prompt', msgId: 'm1',
+      t: 'send-reject', reason: 'ctx-hard', text: 'meu prompt', msgId: 'm1',
     }));
+  });
+
+  // Bug de 11/09/2026: a 99% o composer ainda envia (pausa só em 99,5) e o gate
+  // recusava com "não cabe no que sobrou" — o banner "O turno falhou" aparecia e a
+  // fila deixada pro próximo batch nunca chegava ao parked.json.
+  it('envio que não cabe na janela vai pra fila em vez de falhar', () => {
+    vi.mocked(send).mockClear();
+    vi.mocked(getLastPlanUsage).mockReturnValue({ fiveHour: 99 } as never);
+    setCtx(50_000);
+    startRun({ ws, sessionKey: 'fim', prompt: 'roda no próximo batch', resumeId: 'sess-fim', msgId: 'm9', model: 'claude-opus-5' });
+    expect(run).not.toHaveBeenCalled();
+    expect(addParked).toHaveBeenCalledWith('fim', expect.objectContaining({ prompt: 'roda no próximo batch', resumeId: 'sess-fim', model: 'claude-opus-5' }));
+    expect(send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'send-parked', msgId: 'm9' }));
+    expect(send).not.toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'send-reject' }));
+    vi.mocked(getLastPlanUsage).mockReturnValue(null);
+  });
+
+  it('item da fila in-turn que não cabe na janela também vai pra fila', () => {
+    startRun({ ws, sessionKey: 'dr', prompt: 'turno atual', resumeId: 'sess-dr' });
+    vi.mocked(classify).mockResolvedValueOnce({ action: 'wait', reason: '' } as never);
+    return routeSend({ ws, sessionKey: 'dr', prompt: 'depois deste', resumeId: 'sess-dr' }).then(() => {
+      vi.mocked(getLastPlanUsage).mockReturnValue({ fiveHour: 99.2 } as never);
+      setCtx(50_000);
+      closeLastRun();
+      expect(addParked).toHaveBeenCalledWith('dr', expect.objectContaining({ prompt: 'depois deste' }));
+      expect(run).toHaveBeenCalledOnce();
+      vi.mocked(getLastPlanUsage).mockReturnValue(null);
+    });
+  });
+
+  it('se a fila recusar o item, volta pro composer como antes', () => {
+    vi.mocked(getLastPlanUsage).mockReturnValue({ fiveHour: 99 } as never);
+    vi.mocked(addParked).mockReturnValueOnce({ reject: 'cheia' } as never);
+    setCtx(50_000);
+    startRun({ ws, sessionKey: 'fim', prompt: 'x', resumeId: 'sess-fim', msgId: 'm9' });
+    expect(send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'send-reject', reason: 'quota-insufficient', text: 'x' }));
+    vi.mocked(getLastPlanUsage).mockReturnValue(null);
   });
 
   it('sessão nova e sessão pequena passam', () => {
@@ -773,8 +811,8 @@ describe('gate de contexto', () => {
     startRun({ ws, sessionKey: 'a', prompt: 'primeiro', resumeId: 'sess-a' });
     expect(run).toHaveBeenCalledOnce();
     startRun({ ws, sessionKey: 'b', prompt: 'segundo', resumeId: 'sess-b', msgId: 'm2' });
-    expect(run).toHaveBeenCalledOnce(); // recusado: cold-busy
-    expect(send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'send-reject', reason: 'cold-busy' }));
+    expect(run).toHaveBeenCalledOnce(); // segurado: cold-busy vai pra fila
+    expect(send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'send-parked', msgId: 'm2' }));
     closeLastRun();
     startRun({ ws, sessionKey: 'b', prompt: 'segundo', resumeId: 'sess-b' });
     expect(run).toHaveBeenCalledTimes(2);
