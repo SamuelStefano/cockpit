@@ -165,6 +165,8 @@ done
 #       deploy-when-idle, e só quando a box abre uma janela de verdade.
 RUNNING_COMMIT="$HOME/.cockpit/running-commit"
 REPO=/home/samuel/cockpit
+# A merge on GitHub has to reach the checkout before the drift check can see it.
+pulled=$(bash "$REPO/scripts/pull-merged-main.sh" 2>/dev/null) && [ -n "$pulled" ] && log "$pulled (merge no GitHub)"
 head_commit=$(git -C "$REPO" rev-parse HEAD 2>/dev/null || echo "")
 running=$(cat "$RUNNING_COMMIT" 2>/dev/null || echo "")
 if [ -n "$head_commit" ] && [ "$running" != "$head_commit" ]; then
