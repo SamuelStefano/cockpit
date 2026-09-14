@@ -78,8 +78,11 @@ export function ChatInput(props: ChatInputProps) {
   // existe abaixo de `sm` — janela de desktop baixa dispara o keyboardOpen e ficaria
   // sem barra E sem sheet.
   const compact = keyboardOpen && touch;
+  // `relative z-20` na casca: o header sticky do CodeBlock é z-10 no contexto
+  // raiz e pintava POR CIMA dos popovers do composer (MCP/skills), cobrindo
+  // itens da lista. O composer precisa de um contexto próprio acima dele.
   return (
-    <div className="shrink-0 border-t border-neutral-800 bg-neutral-900/60 px-3 py-3 backdrop-blur-sm">
+    <div className="relative z-20 shrink-0 border-t border-neutral-800 bg-neutral-900/60 px-3 py-3 backdrop-blur-sm">
       {!compact && <ChatInputToolbar mode={mode} setMode={setMode} onOpenSettings={openSettings} {...settings} />}
       {settingsOpen && <ComposerSettingsSheet onClose={closeSettings} {...settings} />}
       {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} onOpen={onOpenAttachment} />}
