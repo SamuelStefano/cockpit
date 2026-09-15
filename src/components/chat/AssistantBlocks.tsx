@@ -2,6 +2,8 @@ import { useState, type ReactNode } from 'react';
 import { Icon, Markdown, CodeBlock, tokens } from '../primitives';
 import type { Block } from '../../data/types';
 import { AskQuestionCard } from './AskQuestionCard';
+import { WorkflowReviewCard } from './WorkflowReviewCard';
+import { isWorkflowReview } from './permission-deny';
 import { isQuestionTool as isQuestion } from './visible-blocks';
 
 function ThinkingCard({ text }: { text: string }) {
@@ -38,9 +40,11 @@ interface AssistantBlocksProps {
   // answerable = última mensagem assistant + turno ocioso → AskUserQuestion clicável.
   answerable?: boolean;
   onAnswer?: (text: string) => void;
+  reviewable?: boolean;
+  onApproveWorkflow?: (text: string) => void;
 }
 
-export function AssistantBlocks({ blocks, caretOnLast, answerable = false, onAnswer }: AssistantBlocksProps) {
+export function AssistantBlocks({ blocks, caretOnLast, answerable = false, onAnswer, reviewable = false, onApproveWorkflow }: AssistantBlocksProps) {
   const lastIdx = blocks.length - 1;
   return (
     <div className="space-y-2">
@@ -59,6 +63,7 @@ export function AssistantBlocks({ blocks, caretOnLast, answerable = false, onAns
     // usuário clicar. Progresso de tarefas fica na bandeja do rodapé.
     if (b.type === 'tool') {
       if (isQuestion(b.tool)) return <AskQuestionCard tool={b.tool} answerable={answerable} onAnswer={onAnswer} />;
+      if (isWorkflowReview(b.tool)) return <WorkflowReviewCard tool={b.tool} reviewable={reviewable} onApprove={onApproveWorkflow} />;
       return null;
     }
     if (b.type === 'text') return <Markdown md={b.md} caret={caretOnLast && i === lastIdx} />;

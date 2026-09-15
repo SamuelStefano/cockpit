@@ -1,9 +1,14 @@
 import type { Block, ToolCall } from '../../data/types';
+import { isWorkflowReview } from './permission-deny';
 
 // AskUserQuestion sempre conta como visível: é uma ação que o usuário PRECISA
 // ver pra desbloquear o turno, mesmo com as tools ocultas.
 export function isQuestionTool(t: ToolCall): boolean {
   return t.name === 'AskUserQuestion' && !!t.questions?.length;
+}
+
+export function isPinnedTool(t: ToolCall): boolean {
+  return isQuestionTool(t) || isWorkflowReview(t);
 }
 
 // Com as tools ocultas (toggle no menu do perfil), uma mensagem só-de-tools não
@@ -12,5 +17,5 @@ export function isQuestionTool(t: ToolCall): boolean {
 export function hasVisibleAssistantContent(blocks: Block[], showTools: boolean): boolean {
   // Fail-open: só tool é ocultável — um tipo de bloco futuro continua visível
   // por padrão em vez de sumir a linha inteira em silêncio.
-  return blocks.some((b) => b.type !== 'tool' || showTools || isQuestionTool(b.tool));
+  return blocks.some((b) => b.type !== 'tool' || showTools || isPinnedTool(b.tool));
 }

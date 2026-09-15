@@ -21,6 +21,7 @@ export interface ChatPanelProps {
   setDraft: (v: string) => void;
   onSend: (text: string, modeOverride?: PermMode) => void;
   onPrompt: (text: string) => void;
+  onApproveWorkflow?: (text: string) => void;
   onStop: () => void;
   mode: PermMode;
   setMode: (m: PermMode) => void;

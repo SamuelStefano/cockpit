@@ -39,6 +39,7 @@ export interface RunOpts {
   disallowedSkills?: string[]; // regras Skill(...) das skills NÃO-selecionadas (ver skillDenyRules)
   mcps?: string[];             // MCP servers a CARREGAR neste turno. Default = NENHUM (strict-mcp-config). Cada server adiciona ~5-20k tokens de tool defs por chamada; carregar só os escolhidos corta o overhead que inflava a quota (vs terminal).
   effort?: string;             // nível de pensamento (--effort low|medium|high|xhigh|max). Sem isto o CLI usa o default da conta (alto) → thinking tokens caros em pedido simples. Default do Deck = low.
+  allowWorkflow?: boolean;
   forkId?: string;             // roda em cima do transcript do `resumeId` mas GRAVA neste id novo (--fork-session). Sem isto dois processos escreveriam o mesmo JSONL.
   onEvent: (ev: ClaudeEvent) => void;
   onError: (msg: string) => void;
@@ -108,11 +109,13 @@ export function pickMcpDefs(all: Record<string, unknown>, names: string[], role:
 // - env mínimo (não vaza segredo do processo pai)
 // - cwd isolado
 // - detached pra matar a árvore no stop
-export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills' | 'forkId'>;
+export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills' | 'forkId' | 'allowWorkflow'>;
 
 export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: string[] } | { error: string } {
-  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId } = opts;
-  const { permissionMode, allow } = resolveMode(mode, { bypass, role });
+  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow } = opts;
+  const resolved = resolveMode(mode, { bypass, role });
+  const { permissionMode } = resolved;
+  const allow = withWorkflowGrant(resolved, allowWorkflow);
 
   const args = [
     '-p', prompt,
@@ -159,7 +162,7 @@ export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: 
 }
 
 export function run(opts: RunOpts): RunHandle {
-  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, onEvent, onError, onClose } = opts;
+  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, onEvent, onError, onClose } = opts;
 
   // MCP por sessão: escreve um config TEMPORÁRIO só com os servers escolhidos
   // (definições completas lidas do ~/.claude.json). Sem seleção → sem arquivo →
@@ -176,7 +179,7 @@ export function run(opts: RunOpts): RunHandle {
   const cleanupMcp = () => { if (mcpConfigPath) { try { unlinkSync(mcpConfigPath); } catch { /* já removido */ } mcpConfigPath = undefined; } };
 
   const built = buildArgs({
-    prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId,
+    prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow,
   }, mcpConfigPath);
   if ('error' in built) {
     cleanupMcp();
@@ -318,6 +321,14 @@ export function resolveMode(
         allow: CONFIG.permissionMode === 'acceptEdits' ? CONFIG.allowedTools : [],
       };
   }
+}
+
+// Workflow.checkPermissions always answers `ask`, and `claude -p` has no prompt to
+// show, so the call is denied with "Review dynamic workflow before running". The
+// user approves in the Deck card and the next turn carries a whole-tool allow rule.
+export function withWorkflowGrant(r: { permissionMode: string; allow: string[] }, allowWorkflow?: boolean): string[] {
+  if (!allowWorkflow || r.permissionMode === 'plan' || r.allow.includes('Workflow')) return r.allow;
+  return [...r.allow, 'Workflow'];
 }
 
 // env curto: PATH + HOME + idioma + tokens GERENCIADOS pelo admin (#162). Nada de

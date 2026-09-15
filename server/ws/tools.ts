@@ -1,5 +1,5 @@
 import type { ToolCall, ToolTodo } from '../../shared/protocol';
-import { diffOf, planOf, questionsOf, todosOf, labelOf, commandOf, toolResultOutput } from '../sessions/tool-views';
+import { diffOf, planOf, questionsOf, todosOf, labelOf, commandOf, toolResultOutput, workflowOf } from '../sessions/tool-views';
 import { applyTaskUpdate, registerTaskCreate, taskSnapshot } from '../sessions/tasks';
 import { broadcast } from './broadcast';
 import { resolveApp, parseMcpToolName } from '../mcp/apps';
@@ -27,6 +27,7 @@ function snapshotTool(thread: Thread, tool: ToolCall) {
       markdown: tool.markdown ?? prev.markdown,
       questions: tool.questions ?? prev.questions,
       todos: tool.todos ?? prev.todos,
+      workflow: tool.workflow ?? prev.workflow,
       app: tool.app ?? prev.app,
       appInput: tool.appInput ?? prev.appInput,
     };
@@ -67,6 +68,7 @@ export function emitTool(thread: Thread, sessionKey: string, block: any, status:
     markdown: planOf(block.name, block.input),
     questions: questionsOf(block.name, block.input),
     todos: todosOf(block.name, block.input) ?? liveTaskTodos(thread, id, block),
+    workflow: workflowOf(block.name, block.input),
     output: [],
   };
   snapshotTool(thread, tool);

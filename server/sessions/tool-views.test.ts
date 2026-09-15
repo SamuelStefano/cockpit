@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { diffOf, planOf, questionsOf, contentHasQuestion, todosOf, extractCommand, labelOf, commandOf, capOutput, TOOL_OUTPUT_CAP } from './tool-views';
+import { diffOf, planOf, questionsOf, contentHasQuestion, todosOf, extractCommand, labelOf, commandOf, capOutput, TOOL_OUTPUT_CAP, workflowOf } from './tool-views';
 
 describe('diffOf', () => {
   it('extracts Edit old/new', () => {
@@ -175,5 +175,29 @@ describe('capOutput', () => {
   it('truncates at the cap and appends the marker', () => {
     const out = capOutput(['x'.repeat(TOOL_OUTPUT_CAP), 'overflow']);
     expect(out[out.length - 1]).toContain('truncada');
+  });
+});
+
+describe('workflowOf', () => {
+  const script = 'export const meta = { name: "audit", description: "Audit open PRs", phases: [] }\nreturn 1';
+
+  it('extracts the script and the meta description', () => {
+    expect(workflowOf('Workflow', { script })).toEqual({ name: undefined, description: 'Audit open PRs', script, scriptPath: undefined });
+  });
+
+  it('keeps named and path-based invocations', () => {
+    expect(workflowOf('Workflow', { name: 'review' })?.name).toBe('review');
+    expect(workflowOf('Workflow', { scriptPath: '/tmp/wf.js' })?.scriptPath).toBe('/tmp/wf.js');
+  });
+
+  it('caps huge scripts', () => {
+    const big = `${script}\n${'x'.repeat(70 * 1024)}`;
+    expect(workflowOf('Workflow', { script: big })!.script!.length).toBeLessThan(big.length);
+  });
+
+  it('ignores other tools and empty input', () => {
+    expect(workflowOf('Bash', { script })).toBeUndefined();
+    expect(workflowOf('Workflow', {})).toBeUndefined();
+    expect(workflowOf('Workflow', null)).toBeUndefined();
   });
 });

@@ -535,6 +535,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
         disallowedSkills,
         mcps: msg.mcps,
         effort: msg.effort,
+        allowWorkflow: msg.allowWorkflow === true ? true : undefined,
       };
       if (threads.has(msg.sessionKey)) detach(ws, routeSend(opts), msg.sessionKey);
       else startRun({ ...opts, auto: msg.auto === true });

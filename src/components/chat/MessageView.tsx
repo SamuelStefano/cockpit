@@ -31,6 +31,8 @@ interface MessageRowProps {
   onMemorize?: (text: string) => void;
   answerable?: boolean;
   onAnswer?: (text: string) => void;
+  reviewable?: boolean;
+  onApproveWorkflow?: (text: string) => void;
   // Só na última resposta com a sessão ociosa: reenvia o último prompt.
   onRegenerate?: () => void;
   onOpenAttachment?: (path: string, name: string) => void;
@@ -41,7 +43,7 @@ interface MessageRowProps {
 // memo: cada delta de streaming troca só a referência da ÚLTIMA mensagem
 // (patchRunMsg usa .map preservando as demais) — sem isto a thread inteira
 // re-renderiza a cada chunk.
-export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabel, showModelLabel = true, thinking, live, onEditUser, onQuote, onMemorize, answerable, onAnswer, onRegenerate, onOpenAttachment, attThumbs, onAttThumb }: MessageRowProps) {
+export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabel, showModelLabel = true, thinking, live, onEditUser, onQuote, onMemorize, answerable, onAnswer, reviewable, onApproveWorkflow, onRegenerate, onOpenAttachment, attThumbs, onAttThumb }: MessageRowProps) {
   const [showTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   if (msg.role === 'user') {
     return <UserMessageRow msg={msg} onEditUser={onEditUser} onQuote={onQuote} onOpenAttachment={onOpenAttachment} attThumbs={attThumbs} onAttThumb={onAttThumb} />;
@@ -91,7 +93,7 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
             <Icon name="zap" size={10} /> resposta rápida (paralela)
           </div>
         )}
-        <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} answerable={answerable} onAnswer={onAnswer} />
+        <AssistantBlocks blocks={msg.blocks} caretOnLast={caretOnLast} answerable={answerable} onAnswer={onAnswer} reviewable={reviewable} onApproveWorkflow={onApproveWorkflow} />
         {thinking && <ThinkingDots live={live} />}
         {!caretOnLast && !thinking && msg.stats?.durationMs ? <ThoughtFor ms={msg.stats.durationMs} /> : null}
         {hasText && !caretOnLast && (

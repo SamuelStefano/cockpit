@@ -63,6 +63,17 @@ describe('collapseTurnTools', () => {
     expect(out.find((m) => m.digest)?.digest?.map((t) => t.id)).toEqual(['td1', 't1']);
   });
 
+  it('keeps a denied workflow review out of the tools box', () => {
+    const wf = tool('wf1', { name: 'Workflow', status: 'error', output: ['Review dynamic workflow before running'] });
+    const out = collapseTurnTools([
+      user('u1'),
+      assistant('a1', [{ type: 'tool', tool: wf }, { type: 'tool', tool: tool('t1') }]),
+    ], true);
+    const kept = out.find((m) => m.id === 'a1');
+    expect(kept?.role === 'assistant' && kept.blocks.map((b) => b.type === 'tool' && b.tool.id)).toEqual(['wf1']);
+    expect(out.find((m) => m.digest)?.digest?.map((t) => t.id)).toEqual(['t1']);
+  });
+
   it('caixa antes do texto quando tudo veio na mesma bolha (caminho ao vivo)', () => {
     const out = collapseTurnTools([
       user('u1'),
