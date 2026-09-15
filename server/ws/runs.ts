@@ -17,7 +17,8 @@ import { quotaHold, burnedByQuota } from './quota';
 import { getLastPlanUsage, notePlanUsageChanged } from './usage-plan';
 import {
   ctxVerdict, verdictMessage, costFor, isBigColdStart, acquireCold, releaseCold,
-  noteQuotaTransition, inResetCooldown, type Verdict,
+  noteQuotaTransition, inResetCooldown, blocksAuto, noteCeilingWarned, clearCeilingWarn,
+  type Verdict,
 } from './ctx-guard';
 import { markRunLive, clearRunLive, takeOrphanRuns } from './recover';
 import { recordIncident } from './incidents';
@@ -60,7 +61,7 @@ function autoResume(sessionKey: string, thread: Thread): void {
   // Retomar sessão gigante é o pior gasto possível: cache frio garantido (o
   // processo morreu) sobre o contexto inteiro. Em 04/09 uma sessão de 631k
   // auto-retomou e comeu 0,77M sozinha. Aqui a retomada para e o usuário decide.
-  if (ctxVerdict({ sessionId: thread.sessionId, usage: getLastPlanUsage() }).kind === 'hard') {
+  if (blocksAuto(ctxVerdict({ sessionId: thread.sessionId, usage: getLastPlanUsage() }).kind)) {
     const c = costFor(thread.sessionId);
     broadcast({ t: 'error', sessionKey, message: `O turno caiu, mas esta sessão está com ~${Math.round(c.ctxTokens / 1000)}k de contexto: retomar custaria ~${c.pctOfWindow}% da janela. Faça o handoff em vez de retomar.` });
     recordIncident({ kind: 'resume-ctx-cap', sessionKey, sessionId: thread.sessionId, detail: `${c.ctxTokens} tokens; retomada automática cancelada` });
@@ -281,7 +282,7 @@ export function resumeOrphanRuns(): void {
     // Mesma regra do autoResume: o restart do agente derruba TODOS os turnos de
     // uma vez, então retomar sem olhar o tamanho é exatamente a rajada de
     // cold-starts simultâneos do incidente, só que disparada pelo deploy.
-    if (ctxVerdict({ sessionId: o.sessionId, usage: getLastPlanUsage() }).kind === 'hard') {
+    if (blocksAuto(ctxVerdict({ sessionId: o.sessionId, usage: getLastPlanUsage() }).kind)) {
       const c = costFor(o.sessionId);
       broadcast({ t: 'error', sessionKey: key, message: `O agente reiniciou e interrompeu este turno. Esta sessão está com ~${Math.round(c.ctxTokens / 1000)}k de contexto — não vou retomar sozinho (custaria ~${c.pctOfWindow}% da janela). Faça o handoff.` });
       recordIncident({ kind: 'resume-ctx-cap', sessionKey: key, sessionId: o.sessionId, detail: `${c.ctxTokens} tokens; retomada de órfão cancelada` });
@@ -323,7 +324,9 @@ export interface StartRunOptions extends RunParams {
 function rejectRun(a: { ws: WebSocket | null; sessionKey: string; prompt: string; msgId?: string; verdict: Verdict }): void {
   const { ws, sessionKey, prompt, msgId, verdict } = a;
   const message = verdictMessage(verdict);
-  const reason = verdict.kind === 'hard' ? 'ctx-hard' : verdict.kind === 'quota' ? 'quota-insufficient' : 'cold-busy';
+  const reason = verdict.kind === 'hard' ? 'ctx-hard'
+    : verdict.kind === 'ceiling' ? 'ctx-ceiling'
+    : verdict.kind === 'quota' ? 'quota-insufficient' : 'cold-busy';
   if (ws) {
     send(ws, {
       t: 'send-reject', sessionKey, reason, text: prompt, msgId, message,
@@ -334,7 +337,7 @@ function rejectRun(a: { ws: WebSocket | null; sessionKey: string; prompt: string
   }
   // Só o hard vira incidente: ele exige ação humana (handoff) e some do radar se
   // ficar só numa bolha. quota/cold-busy são transitórios e o próprio tick resolve.
-  if (verdict.kind === 'hard') {
+  if (verdict.kind === 'hard' || verdict.kind === 'ceiling') {
     recordIncident({ kind: 'ctx-hard', sessionKey, detail: `${verdict.cost.ctxTokens} tokens de contexto; envio custaria ~${verdict.cost.pctOfWindow}% da janela` });
   }
 }
@@ -387,14 +390,24 @@ export function startRun(o: StartRunOptions) {
   // ele escreveu e mandou rodar, só que mais tarde. Antes ele apanhava de "erro,
   // tente de novo" a cada tick do dreno. Quem avisa continua sendo o
   // SaturationBanner + o custo do envio no composer.
+  // O TETO ('ceiling') é o único que barra também o intencional — e só na primeira
+  // vez: a recusa arma o latch, e o reenvio dentro da janela de confirmação passa.
+  // É o freio pro que o dado de 30 dias mostrou (21% do gasto acima de 400k), sem
+  // voltar a trancar a sessão como o hard trancava.
   const intentional = (!!ws && !auto) || !!queued;
   const verdict = ctxVerdict({ sessionId: resumeId, sessionKey, usage: getLastPlanUsage() });
-  const blocking = verdict.kind === 'quota' || verdict.kind === 'cold-busy' || (verdict.kind === 'hard' && !intentional);
+  const blocking = verdict.kind === 'quota' || verdict.kind === 'cold-busy'
+    || verdict.kind === 'ceiling'
+    || (verdict.kind === 'hard' && !intentional);
   if (blocking) {
+    if (verdict.kind === 'ceiling' && intentional) noteCeilingWarned(sessionKey);
     if (parkRejected(o, verdict)) return;
     rejectRun({ ws, sessionKey, prompt, msgId, verdict });
     return;
   }
+  // Consome a confirmação: o próximo envio desta sessão vê o aviso de novo. Sem
+  // isto um "reenviar" liberava os 5 minutos inteiros.
+  clearCeilingWarn(sessionKey);
 
   // Latch pós-pergunta: o flush automático da fila do cliente decide com estado
   // possivelmente vazio (history ainda não carregado) e chegava 1-2s depois do

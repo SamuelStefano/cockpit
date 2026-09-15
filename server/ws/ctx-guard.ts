@@ -18,6 +18,14 @@ function envInt(raw: string | undefined, def: number): number {
   return Number.isFinite(n) && n > 0 ? n : def;
 }
 
+// Igual ao envInt, mas 0 é valor VÁLIDO (desliga o gate). Só o teto de confirmação
+// usa isto: os outros gates não têm "desligado" como estado desejável.
+function envIntOrOff(raw: string | undefined, def: number): number {
+  if (raw === undefined || raw === '') return def;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : def;
+}
+
 // Aviso: a UI já mostra o SaturationBanner a partir de 80% da janela de 200k
 // (src/components/chat/saturation.ts). Este é o MESMO ponto, do lado do servidor —
 // aqui ele só rotula o turno como caro; quem oferece a migração é o banner.
@@ -29,6 +37,20 @@ export const CTX_SOFT = envInt(process.env.COCKPIT_CTX_SOFT, 160_000);
 // A saída barata continua sendo o botão Migrar, que destila pela API
 // (server/handoff.ts) e não passa pelo startRun.
 export const CTX_HARD = envInt(process.env.COCKPIT_CTX_HARD, 184_000);
+
+// Teto ACIMA do hard, onde nem a intenção explícita passa de primeira. Medição de
+// 14/09/2026 no cockpit.db (30 dias): 97% dos 5,97B tokens de entrada são cache
+// read — contexto relido — e 2.063 chamadas acima de 400k valem 21% de tudo. O
+// hard não pegava nenhuma delas: ele só barra turno automático, e a premissa de
+// que "o Samuel digitando nunca foi o problema" é justamente o que o dado desmente.
+// Não vira porta trancada (o motivo de o hard deixar o manual passar): o primeiro
+// envio é recusado com o número na cara e o REENVIO em CEILING_CONFIRM_MS passa.
+// 0 desliga.
+export const CTX_CEILING = envIntOrOff(process.env.COCKPIT_CTX_CEILING, 400_000);
+
+// Validade do aviso de teto. Curto de propósito: confirmar é pra ser uma decisão
+// daquele envio, não um passe permanente pra sessão.
+export const CEILING_CONFIRM_MS = envInt(process.env.COCKPIT_CEILING_CONFIRM_MS, 5 * 60_000);
 
 // Piso pra um envio contar como "cold-start grande" e disputar o semáforo. Abaixo
 // disso o cache frio custa pouco e serializar só atrasaria o usuário à toa.
@@ -98,14 +120,59 @@ export function inResetCooldown(now = Date.now()): boolean {
 
 export function resetCooldownState(): void { lastResetAt = 0; wasHeld = false; }
 
+// --- confirmação do teto ---------------------------------------------------
+
+// sessionKey -> quando o aviso de teto foi mostrado. Só o REENVIO dentro da
+// validade passa, então isto é um latch de intenção, não um cache de permissão.
+const ceilingWarned = new Map<string, number>();
+
+// Teto de entradas: o mapa só cresce (uma chave por sessão avisada) e o processo
+// fica dias de pé. Poda as expiradas antes de inserir; se ainda assim estourar,
+// derruba a mais velha.
+const MAX_CEILING_WARNS = 200;
+
+export function noteCeilingWarned(sessionKey: string, now = Date.now()): void {
+  for (const [k, at] of ceilingWarned) if (now - at > CEILING_CONFIRM_MS) ceilingWarned.delete(k);
+  if (ceilingWarned.size >= MAX_CEILING_WARNS) {
+    const oldest = [...ceilingWarned.entries()].sort((a, b) => a[1] - b[1])[0];
+    if (oldest) ceilingWarned.delete(oldest[0]);
+  }
+  ceilingWarned.set(sessionKey, now);
+}
+
+export function ceilingConfirmed(sessionKey: string | undefined, now = Date.now()): boolean {
+  if (!sessionKey) return false;
+  const at = ceilingWarned.get(sessionKey);
+  if (at === undefined) return false;
+  if (now - at > CEILING_CONFIRM_MS) { ceilingWarned.delete(sessionKey); return false; }
+  return true;
+}
+
+// Consome o latch. Chamado quando o envio confirmado de fato sai: sem isto a
+// sessão ficaria liberada por CEILING_CONFIRM_MS inteiros, e o 3º, 4º e 5º envio
+// entrariam sem ver o número de novo — que é justamente o gasto que se quer frear.
+export function clearCeilingWarn(sessionKey: string): void { ceilingWarned.delete(sessionKey); }
+
+export function resetCeilingWarns(): void { ceilingWarned.clear(); }
+
 // --- veredito --------------------------------------------------------------
 
 export type Verdict =
   | { kind: 'ok'; cost: SendCost }
   | { kind: 'soft'; cost: SendCost }        // segue, mas oferece handoff no fim
   | { kind: 'hard'; cost: SendCost }        // sessão grande demais pra continuar
+  | { kind: 'ceiling'; cost: SendCost }     // acima do teto: nem intencional passa sem reenviar
   | { kind: 'quota'; cost: SendCost }       // não cabe no que sobrou da janela
   | { kind: 'cold-busy'; cost: SendCost };  // outro cold-start grande em voo
+
+// Vereditos que BARRAM turno disparado pela máquina (retomada automática, órfão de
+// restart, cron). Existe porque `=== 'hard'` espalhado pelos call sites passou a
+// mentir quando o `ceiling` entrou na frente dele: uma sessão de 500k devolve
+// 'ceiling', e o teste literal por 'hard' deixaria a retomada automática passar —
+// exatamente o gasto que o gate nasceu pra impedir.
+export function blocksAuto(kind: Verdict['kind']): boolean {
+  return kind === 'hard' || kind === 'ceiling';
+}
 
 export interface VerdictInput {
   sessionId?: string;
@@ -124,6 +191,9 @@ export function ctxVerdict(i: VerdictInput): Verdict {
   const cost = estimateSendCost(sample, now, costOpts);
   const ctx = sample?.ctxTokens ?? 0;
 
+  // Antes do hard: acima do teto o veredito precisa ser o mais forte, senão o
+  // envio intencional cairia no 'hard' (que deixa passar) sem nunca ver o aviso.
+  if (CTX_CEILING > 0 && ctx >= CTX_CEILING && !ceilingConfirmed(i.sessionKey, now)) return { kind: 'ceiling', cost };
   if (ctx >= CTX_HARD) return { kind: 'hard', cost };
   // Leitura de uma janela que já virou não vale: o poll de usage pausa sem browser
   // aberto, e um 99% congelado seguraria a fila estacionada a noite inteira.
@@ -144,6 +214,9 @@ export function isBigColdStart(cost: SendCost): boolean {
 export function verdictMessage(v: Verdict): string {
   const k = Math.round(v.cost.ctxTokens / 1000);
   switch (v.kind) {
+    case 'ceiling':
+      return `Esta sessão está com ~${k}k de contexto — cada mensagem relê tudo isso e custa ~${v.cost.pctOfWindow}% da janela. ` +
+        `Migrar para um chat novo resolve de vez. Se for mesmo pra continuar aqui, **reenvie** que eu deixo passar.`;
     case 'hard':
       return `Esta sessão está com ~${k}k de contexto (teto ${Math.round(CTX_HARD / 1000)}k). ` +
         `Continuar custaria ~${v.cost.pctOfWindow}% da janela por mensagem. Use "Migrar para um chat novo" — ` +

@@ -6,7 +6,8 @@ vi.mock('../db', () => ({ lastUsageOf: () => sample.row }));
 import {
   ctxVerdict, acquireCold, releaseCold, resetColdInflight, coldInflightCount,
   noteQuotaTransition, inResetCooldown, resetCooldownState, isBigColdStart, costFor,
-  CTX_HARD, CTX_SOFT, COOLDOWN_AFTER_RESET_MS,
+  blocksAuto, noteCeilingWarned, clearCeilingWarn, resetCeilingWarns,
+  CTX_HARD, CTX_SOFT, CTX_CEILING, CEILING_CONFIRM_MS, COOLDOWN_AFTER_RESET_MS,
 } from './ctx-guard';
 import type { PlanUsage } from '../../shared/protocol';
 
@@ -24,6 +25,7 @@ beforeEach(() => {
   sample.row = null;
   resetColdInflight();
   resetCooldownState();
+  resetCeilingWarns();
 });
 
 describe('ctxVerdict', () => {
@@ -42,14 +44,21 @@ describe('ctxVerdict', () => {
   });
 
   it('no hard recusa — é o estado das 4 sessões de 04/09', () => {
-    for (const ctx of [631_342, 681_362, 779_566, CTX_HARD]) {
+    for (const ctx of [CTX_HARD, CTX_CEILING - 1]) {
       setSample(ctx);
       expect(ctxVerdict({ sessionId: 's', usage: usage(10), now: NOW }).kind).toBe('hard');
     }
   });
 
+  it('as 3 maiores sessões de 04/09 agora batem no teto, não no hard', () => {
+    for (const ctx of [631_342, 681_362, 779_566]) {
+      setSample(ctx);
+      expect(ctxVerdict({ sessionId: 's', usage: usage(10), now: NOW }).kind).toBe('ceiling');
+    }
+  });
+
   it('hard vence quota — o problema é o tamanho, não a janela', () => {
-    setSample(779_566);
+    setSample(CTX_CEILING - 1);
     expect(ctxVerdict({ sessionId: 's', usage: usage(99), now: NOW }).kind).toBe('hard');
   });
 
@@ -67,6 +76,63 @@ describe('ctxVerdict', () => {
   it('sem leitura de cota não trava', () => {
     setSample(CTX_SOFT - 1);
     expect(ctxVerdict({ sessionId: 's', usage: null, now: NOW }).kind).toBe('ok');
+  });
+});
+
+describe('teto de contexto (ceiling)', () => {
+  it('recusa o primeiro envio acima do teto', () => {
+    setSample(CTX_CEILING);
+    expect(ctxVerdict({ sessionId: 's', sessionKey: 'k', usage: usage(10), now: NOW }).kind).toBe('ceiling');
+  });
+
+  it('reenvio dentro da validade passa — não é porta trancada', () => {
+    setSample(500_000);
+    expect(ctxVerdict({ sessionId: 's', sessionKey: 'k', usage: usage(10), now: NOW }).kind).toBe('ceiling');
+    noteCeilingWarned('k', NOW);
+    // Cai no hard, que deixa passar o envio intencional — é o que runs.ts avalia.
+    expect(ctxVerdict({ sessionId: 's', sessionKey: 'k', usage: usage(10), now: NOW }).kind).toBe('hard');
+  });
+
+  it('confirmação expira', () => {
+    setSample(500_000);
+    noteCeilingWarned('k', NOW);
+    const later = NOW + CEILING_CONFIRM_MS + 1;
+    expect(ctxVerdict({ sessionId: 's', sessionKey: 'k', usage: usage(10), now: later }).kind).toBe('ceiling');
+  });
+
+  it('confirmação é por sessão, não global', () => {
+    setSample(500_000);
+    noteCeilingWarned('k', NOW);
+    expect(ctxVerdict({ sessionId: 's', sessionKey: 'outra', usage: usage(10), now: NOW }).kind).toBe('ceiling');
+  });
+
+  it('consumir a confirmação faz o próximo envio ver o aviso de novo', () => {
+    setSample(500_000);
+    noteCeilingWarned('k', NOW);
+    clearCeilingWarn('k');
+    expect(ctxVerdict({ sessionId: 's', sessionKey: 'k', usage: usage(10), now: NOW }).kind).toBe('ceiling');
+  });
+
+  it('sem sessionKey nunca confirma — turno da máquina não se autoriza sozinho', () => {
+    setSample(500_000);
+    noteCeilingWarned('k', NOW);
+    expect(ctxVerdict({ sessionId: 's', usage: usage(10), now: NOW }).kind).toBe('ceiling');
+  });
+
+  it('blocksAuto pega hard E ceiling — senão a retomada automática escaparia', () => {
+    expect(blocksAuto('hard')).toBe(true);
+    expect(blocksAuto('ceiling')).toBe(true);
+    expect(blocksAuto('ok')).toBe(false);
+    expect(blocksAuto('soft')).toBe(false);
+    expect(blocksAuto('quota')).toBe(false);
+    expect(blocksAuto('cold-busy')).toBe(false);
+  });
+
+  it('abaixo do teto o veredito continua sendo o de antes', () => {
+    setSample(CTX_CEILING - 1);
+    expect(ctxVerdict({ sessionId: 's', sessionKey: 'k', usage: usage(10), now: NOW }).kind).toBe('hard');
+    setSample(CTX_SOFT + 1);
+    expect(ctxVerdict({ sessionId: 's', sessionKey: 'k', usage: usage(10), now: NOW }).kind).toBe('soft');
   });
 });
 
