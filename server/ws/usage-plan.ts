@@ -29,11 +29,20 @@ const RETRY_MS = 8_000;
 const RETRY_MAX = 3;
 // 429 sem Retry-After legível: espera cega antes de tocar no endpoint de novo.
 const COOLDOWN_FALLBACK_MS = 5 * 60_000;
-// Piso entre duas idas à rede. `requestPlanUsageRefresh` é chamado a cada connect
-// novo (snapshot) e a cada checagem de hold da fila (quota) — o single-flight só
-// junta chamadas SIMULTÂNEAS, então em rajada isso virava dezenas de requests por
-// minuto e o próprio endpoint nos derrubava com 429.
-const MIN_GAP_MS = 15_000;
+// Floor between two network reads, SHARED by both polling processes through the
+// cache file. `requestPlanUsageRefresh` fires on every connect, every panel open,
+// every queue hold check and every turn end; the single-flight only merges
+// SIMULTANEOUS calls, so a busy hour (crons + a phone reconnecting) still reached
+// the endpoint dozens of times and it answered 429.
+export const GAP_MIN_MS = 60_000;
+// The endpoint's budget is unknown, so the gap adapts: every 429 doubles it, a
+// run of clean reads halves it back. Blindness is spent on SPACING, not on
+// punishment pads — a 60s Retry-After used to become 6, 11, 16 minutes of
+// "the account refused", which is what made the panel useless.
+export const GAP_MAX_MS = 15 * 60_000;
+const GAP_RELAX_AFTER = 6;
+// Small slack after Retry-After so we never land on the exact second the block ends.
+export const RATE_JITTER_MS = 20_000;
 // Sem timeout, um fetch pendurado deixa `refreshing` ligado PRA SEMPRE e toda
 // chamada seguinte volta na primeira linha: a barra nunca mais carregaria, sem
 // erro nenhum aparecendo. O abort transforma o pendurado numa falha normal, que
@@ -63,12 +72,18 @@ export function getLastPlanUsage() { return last; }
 let lastReadAt = 0;
 export function getPlanUsageReadAt() { return lastReadAt; }
 
-// `cooldownUntil`/`rateStreak` moram no arquivo, não só na memória: eram estado
-// do PROCESSO, então todo restart do Deck esquecia o bloqueio e ia bater no
-// endpoint na hora (prime do boot + refresh de cada connect) — que é exatamente
-// o "insistir SÓ renova a punição". Quem reinicia o Deck várias vezes durante um
-// Retry-After de ~1h nunca saía do castigo.
-interface CacheEntry { ts: number; usage: PlanUsage; cooldownUntil?: number; rateStreak?: number }
+// `cooldownUntil`, `attemptTs` and `gapMs` live in the file, not only in memory:
+// they are ACCOUNT state shared by the two processes that poll (ws.ts and
+// agent.ts) and must survive a restart — a Deck restarted during a Retry-After
+// used to hit the endpoint at boot and renew the block.
+interface CacheEntry {
+  ts: number;
+  usage: PlanUsage;
+  cooldownUntil?: number;
+  attemptTs?: number;
+  gapMs?: number;
+  okStreak?: number;
+}
 
 // ts do último snapshot que ESTE processo escreveu: sem isso ele adotaria o
 // próprio arquivo pra sempre e nunca mais buscaria nada.
@@ -83,31 +98,33 @@ function writeCache(entry: CacheEntry): void {
   } catch { /* cache é conforto, não pode derrubar o poll */ }
 }
 
+// Merge a partial state into the file: a 429 must not erase the last good number
+// (the reading's age cannot be faked by an error) and a good read must not erase
+// the learned gap.
+function patchCache(patch: Partial<CacheEntry>): void {
+  const prev = readCacheEntry();
+  writeCache({ ts: prev?.ts ?? 0, usage: prev?.usage ?? last ?? ({} as PlanUsage), ...(prev ?? {}), ...patch });
+}
+
 function saveCache(usage: PlanUsage): void {
   ownWriteTs = Date.now();
-  // Leitura boa zera o castigo em disco também: senão o cooldown de um 429 antigo
-  // continuaria barrando o processo irmão depois de a janela já ter voltado.
-  writeCache({ ts: ownWriteTs, usage });
+  // A good read also clears the block on disk, or the sibling process would keep
+  // honoring a cooldown from a window that has already turned.
+  patchCache({ ts: ownWriteTs, usage, cooldownUntil: undefined, okStreak, gapMs });
 }
 
-// 429: preserva o ts da ÚLTIMA LEITURA (a idade do número não pode ser falsificada
-// por um erro) e grava só o castigo.
-function saveRateState(until: number, streak: number): void {
-  const prev = readCacheEntry();
-  writeCache({ ts: prev?.ts ?? 0, usage: prev?.usage ?? last ?? ({} as PlanUsage), cooldownUntil: until, rateStreak: streak });
-}
-
-// Castigo gravado em disco (por este processo numa vida anterior, ou pelo irmão).
-function persistedRate(): { until: number; streak: number } {
+// Account-level state written by this process in an earlier life, or by the sibling.
+function persistedRate(): { until: number; attemptTs: number; gapMs: number; okStreak: number } {
   const e = readCacheEntry();
-  return { until: typeof e?.cooldownUntil === 'number' ? e.cooldownUntil : 0, streak: typeof e?.rateStreak === 'number' ? e.rateStreak : 0 };
+  const num = (v: unknown, dflt: number) => (typeof v === 'number' && Number.isFinite(v) ? v : dflt);
+  return { until: num(e?.cooldownUntil, 0), attemptTs: num(e?.attemptTs, 0), gapMs: num(e?.gapMs, GAP_MIN_MS), okStreak: num(e?.okStreak, 0) };
 }
 
 function readCacheEntry(): CacheEntry | null {
   try {
     const o = JSON.parse(readFileSync(CACHE_PATH, 'utf8'));
     if (typeof o?.ts !== 'number') return null;
-    return { ts: o.ts, usage: o.usage as PlanUsage, cooldownUntil: o.cooldownUntil, rateStreak: o.rateStreak };
+    return { ts: o.ts, usage: o.usage as PlanUsage, cooldownUntil: o.cooldownUntil, attemptTs: o.attemptTs, gapMs: o.gapMs, okStreak: o.okStreak };
   } catch { return null; }
 }
 
@@ -237,21 +254,33 @@ let refreshing = false;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let cooldownUntil = 0;
 let lastAttempt = 0;
-let rateStreak = 0;
+let gapMs = GAP_MIN_MS;
+let okStreak = 0;
 
-// Teto do castigo acumulado: mesmo apanhando em sequência, uma hora sem sequer
-// tentar já é o suficiente — mais que isso a barra nunca voltaria sozinha.
-export const RATE_PAD_MAX_MS = 30 * 60_000;
-const RATE_PAD_STEP_MS = 5 * 60_000;
+// Next gap after a 429: double, capped.
+export function widenGap(gap: number): number {
+  return Math.min(GAP_MAX_MS, Math.max(GAP_MIN_MS, gap) * 2);
+}
 
-// Respeita o Retry-After da Anthropic e SOMA uma folga que cresce a cada 429
-// seguido: voltar no segundo exato em que o bloqueio vence é o que renovava a
-// punição sem parar (era o estado em que a barra vivia).
-export function rateCooldownMs(waitMs: number, streak: number): number {
-  return waitMs + Math.min(streak * RATE_PAD_STEP_MS, RATE_PAD_MAX_MS);
+// Next gap after a clean read: halve once enough reads went through in a row.
+export function relaxGap(gap: number, streak: number): { gapMs: number; okStreak: number } {
+  if (streak < GAP_RELAX_AFTER) return { gapMs: gap, okStreak: streak };
+  return { gapMs: Math.max(GAP_MIN_MS, Math.floor(gap / 2)), okStreak: 0 };
 }
 
 export function planUsageCooldownUntil() { return cooldownUntil; }
+export function planUsageGapMs() { return gapMs; }
+
+// Pull the shared state from disk into memory (restart, or the sibling learned
+// something first). Memory only ever moves towards the stricter value.
+function syncFromDisk(): void {
+  const disk = persistedRate();
+  if (disk.until > cooldownUntil) cooldownUntil = disk.until;
+  if (disk.attemptTs > lastAttempt) lastAttempt = disk.attemptTs;
+  if (disk.gapMs > gapMs) { gapMs = disk.gapMs; okStreak = disk.okStreak; }
+}
+
+const hhmm = (t: number) => new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
 // Bloqueio ATIVO (0 quando já venceu). O cliente precisa disto pra distinguir
 // "ainda não li" de "a conta recusou e eu só tento de novo às tantas".
@@ -281,34 +310,42 @@ function emit(): void {
 
 let lastAdoptedTs = 0;
 
-// Pega o snapshot do processo irmão, se houver um mais novo. Devolve true quando
-// adotou — aí esta rodada não precisa de rede nenhuma.
+// A fresh snapshot from the sibling process means this round needs no network at
+// all — every time, not only the first time we see it. Returning false once it had
+// been adopted sent the second process to the endpoint anyway, so the lease only
+// saved one request per sibling write and both pollers kept spending the budget.
 function adoptShared(now: number): boolean {
   const entry = readCacheEntry();
-  if (!entry || entry.ts === lastAdoptedTs) return false;
   const usage = borrowedSnapshot(entry, ownWriteTs, now);
-  if (!usage) return false;
-  lastAdoptedTs = entry.ts;
-  last = usage;
-  lastReadAt = entry.ts;
-  emit();
+  if (!entry || !usage) return false;
+  if (entry.ts !== lastAdoptedTs) {
+    lastAdoptedTs = entry.ts;
+    last = usage;
+    lastReadAt = entry.ts;
+    emit();
+  }
   return true;
 }
 
 async function doFetch(): Promise<FetchOutcome['kind']> {
   const r = await fetchPlanUsage();
   if (r.kind === 'ok') {
-    rateStreak = 0;
+    ({ gapMs, okStreak } = relaxGap(gapMs, okStreak + 1));
     last = r.usage;
     lastReadAt = Date.now();
     saveCache(r.usage);
+    console.log(`[usage] 200 5h=${r.usage.fiveHour}% 7d=${r.usage.sevenDay}% gap=${Math.round(gapMs / 1000)}s`);
     emit();
   } else if (r.kind === 'rate') {
-    rateStreak = Math.max(rateStreak, persistedRate().streak) + 1;
-    cooldownUntil = Date.now() + rateCooldownMs(r.waitMs, rateStreak);
-    saveRateState(cooldownUntil, rateStreak);
-    // Avisa o bloqueio: sem isto a barra ficava em "—" parecendo estar carregando.
+    gapMs = widenGap(gapMs);
+    okStreak = 0;
+    cooldownUntil = Date.now() + r.waitMs + RATE_JITTER_MS;
+    patchCache({ cooldownUntil, gapMs, okStreak });
+    console.log(`[usage] 429 retry-after=${Math.round(r.waitMs / 1000)}s → next try ${hhmm(cooldownUntil)}, gap=${Math.round(gapMs / 1000)}s`);
+    // Announce the block: without this the bar sat at "—" looking like it was loading.
     emit();
+  } else {
+    console.log('[usage] read failed (network/token)');
   }
   return r.kind;
 }
@@ -324,14 +361,13 @@ export function requestPlanUsageRefresh(attempt = 0): void {
   // processo, não do dado. Ficar 40min cego com um snapshot fresco no disco ao
   // lado é exatamente o estado que este arquivo existe pra evitar.
   if (adoptShared(now)) return;
-  // Castigo do disco junto com o da memória: o do processo some no restart, e
-  // reiniciar o Deck durante um Retry-After de 1h voltava a bater no endpoint na
-  // hora — renovando o bloqueio que já estava correndo.
-  const disk = persistedRate();
-  if (disk.until > cooldownUntil) { cooldownUntil = disk.until; rateStreak = Math.max(rateStreak, disk.streak); }
+  // Disk state beats memory: the process forgets on restart, and the sibling may
+  // have just been told to back off.
+  syncFromDisk();
   if (now < cooldownUntil) return;
-  if (attempt === 0 && now - lastAttempt < MIN_GAP_MS) return;
+  if (attempt === 0 && now - lastAttempt < gapMs) return;
   lastAttempt = now;
+  if (attempt === 0) patchCache({ attemptTs: now });
   refreshing = true;
   void doFetch()
     .then((kind) => {
@@ -357,8 +393,7 @@ export function notePlanUsageChanged(): void {
 
 export function startPlanUsageLoop(hasClients: () => boolean, hasActiveRun: () => boolean = () => false) {
   last ??= loadCache(); // barra pinta o último valor conhecido mesmo se o fetch estiver bloqueado
-  const disk = persistedRate();
-  if (disk.until > cooldownUntil) { cooldownUntil = disk.until; rateStreak = disk.streak; }
+  syncFromDisk();
   requestPlanUsageRefresh(); // prime no boot pra a barra pintar no 1º connect
   // Um tick só, na cadência curta: com turno vivo ele busca sempre; ocioso, deixa
   // passar até fechar os 5min. Dois setInterval separados se sobreporiam e o
