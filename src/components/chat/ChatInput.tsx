@@ -87,6 +87,7 @@ export function ChatInput(props: ChatInputProps) {
       {settingsOpen && <ComposerSettingsSheet onClose={closeSettings} {...settings} />}
       {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} onOpen={onOpenAttachment} />}
       {mic.error && <ComposerNotice icon="mic" onDismiss={mic.dismissError}>{mic.error}</ComposerNotice>}
+      {mic.hint && <ComposerNotice icon="mic" tone="info" onDismiss={mic.dismissHint}>{mic.hint}</ComposerNotice>}
       {queued.length > 0 && <QueuedBanner queued={queued} queuedAtts={queuedAtts} queuedModels={queuedModels} models={models} onRunBg={onRunQueuedBg} onRunNow={onRunQueuedNow} onCancelQueueAt={onCancelQueueAt} onEdit={onEditQueuedAt} onMove={onMoveQueued} held={queueHeld} onResume={onResumeQueue} paused={queuePaused} onTogglePause={onToggleQueuePause} quotaHeld={paused} resetLabel={resetLabel} />}
       {paused && (
         <ComposerNotice icon="clock">

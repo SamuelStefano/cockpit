@@ -18,6 +18,10 @@ export function noCaptureMessage(iosStandalone: boolean): string {
     : 'Não captei áudio. Toque no microfone e fale; no iPhone, aguarde ~2s antes de falar.';
 }
 
+// Caminho do teclado nativo no celular. Um só texto pra quando não há engine e pra
+// quando o engine falhou — o usuário não precisa saber a diferença, só onde tocar.
+export const KEYBOARD_DICTATION_HINT = 'Toque no 🎤 do teclado do celular pra ditar.';
+
 export function speechErrorMessage(code: string): string {
   switch (code) {
     case 'not-allowed':
