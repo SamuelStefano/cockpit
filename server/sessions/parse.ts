@@ -6,7 +6,7 @@ import {
   type Rec, type ToolResultRec,
 } from './records';
 import { attachTaskTodos, finalTodos, taskTodos } from './tasks';
-import { commandOf, diffOf, labelOf, planOf, questionsOf, todosOf } from './tool-views';
+import { commandOf, diffOf, labelOf, planOf, questionsOf, todosOf, workflowOf } from './tool-views';
 
 // Um record user com TEXTO (prompt de verdade) abre um turno; users só de
 // tool_result são continuação do turno corrente, não fronteira. isMeta e
@@ -299,6 +299,7 @@ export function recToMessage(r: Rec, results?: Map<string, ToolResultRec>): Mess
           markdown: planOf(c.name, c.input),
           questions: questionsOf(c.name, c.input),
           todos: todosOf(c.name, c.input),
+          workflow: workflowOf(c.name, c.input),
           output: res?.output ?? [],
         };
         blocks.push({ type: 'tool', tool });

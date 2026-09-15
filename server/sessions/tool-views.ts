@@ -1,4 +1,4 @@
-import type { ToolDiff, ToolQuestion, ToolTodo } from '../../shared/protocol';
+import type { ToolDiff, ToolQuestion, ToolTodo, ToolWorkflow } from '../../shared/protocol';
 
 // Extratores puros de `tool_use.input` → o que o card mostra. Ficam fora do parse
 // porque o caminho AO VIVO (ws/tools.ts) usa exatamente os mesmos: o render tem que
@@ -174,4 +174,21 @@ export function todosOf(name: unknown, input: unknown): ToolTodo[] | undefined {
     todos.push({ content, status, activeForm });
   }
   return todos.length ? todos : undefined;
+}
+
+const META_DESCRIPTION_RE = /export\s+const\s+meta\s*=\s*\{[\s\S]*?\bdescription\s*:\s*(["'`])((?:\\.|(?!\1)[^\\])*)\1/;
+const WORKFLOW_SCRIPT_CAP = 64 * 1024;
+
+export function workflowOf(name: unknown, input: unknown): ToolWorkflow | undefined {
+  if (name !== 'Workflow' || !input || typeof input !== 'object') return undefined;
+  const o = input as Record<string, unknown>;
+  const str = (v: unknown) => (typeof v === 'string' && v ? v : undefined);
+  const script = str(o.script);
+  const view: ToolWorkflow = {
+    name: str(o.name),
+    description: (script && META_DESCRIPTION_RE.exec(script)?.[2]) || str(o.description),
+    script: script && script.length > WORKFLOW_SCRIPT_CAP ? `${script.slice(0, WORKFLOW_SCRIPT_CAP)}\n…` : script,
+    scriptPath: str(o.scriptPath),
+  };
+  return view.name || view.script || view.scriptPath ? view : undefined;
 }

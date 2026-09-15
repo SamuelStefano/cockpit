@@ -22,6 +22,7 @@ export function upsertTool(blocks: Block[], tool: ToolCall): Block[] {
       diff: tool.diff ?? prev.diff,
       markdown: tool.markdown ?? prev.markdown,
       questions: tool.questions ?? prev.questions,
+      workflow: tool.workflow ?? prev.workflow,
       todos: tool.todos ?? prev.todos,
       // O MCP App chega num frame TARDIO (resolver o ui:// exige uma sessão MCP
       // à parte). Sem carregar aqui, o merge por allow-list descartava o `app` e

@@ -21,7 +21,7 @@ class FakeChild extends EventEmitter {
   kill = vi.fn();
 }
 
-import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run, effectiveBudget, pickMcpDefs, resolveMcpSelection, validModel } from './claude';
+import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run, effectiveBudget, pickMcpDefs, resolveMcpSelection, validModel, withWorkflowGrant } from './claude';
 import { ALL_MCPS } from '../../shared/mcp';
 import { CONFIG } from '../config';
 
@@ -458,5 +458,35 @@ describe('run: erro de pipe não pode derrubar o backend', () => {
   it('absorve ECONNRESET no stderr sem propagar', () => {
     expect(child.stderr.listenerCount('error')).toBeGreaterThan(0);
     expect(() => child.stderr.emit('error', new Error('ECONNRESET'))).not.toThrow();
+  });
+});
+
+describe('withWorkflowGrant', () => {
+  it('adds Workflow to the allow-list only when approved', () => {
+    expect(withWorkflowGrant({ permissionMode: 'default', allow: ['Bash'] }, true)).toEqual(['Bash', 'Workflow']);
+    expect(withWorkflowGrant({ permissionMode: 'default', allow: ['Bash'] }, false)).toEqual(['Bash']);
+    expect(withWorkflowGrant({ permissionMode: 'default', allow: ['Bash'] })).toEqual(['Bash']);
+  });
+
+  it('never grants in plan mode', () => {
+    expect(withWorkflowGrant({ permissionMode: 'plan', allow: [] }, true)).toEqual([]);
+  });
+
+  it('does not duplicate an existing grant', () => {
+    expect(withWorkflowGrant({ permissionMode: 'default', allow: ['Workflow'] }, true)).toEqual(['Workflow']);
+  });
+});
+
+describe('buildArgs workflow approval', () => {
+  it('puts Workflow in --allowedTools for the approved turn', () => {
+    expect(valAfter(argsOf({ prompt: 'go', mode: 'auto', allowWorkflow: true }), '--allowedTools')?.split(' ')).toContain('Workflow');
+  });
+
+  it('leaves Workflow out without approval', () => {
+    expect(valAfter(argsOf({ prompt: 'go', mode: 'auto' }), '--allowedTools')?.split(' ')).not.toContain('Workflow');
+  });
+
+  it('keeps plan mode without an allow-list', () => {
+    expect(argsOf({ prompt: 'go', mode: 'plan', allowWorkflow: true })).not.toContain('--allowedTools');
   });
 });

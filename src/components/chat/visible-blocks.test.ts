@@ -31,6 +31,12 @@ describe('hasVisibleAssistantContent', () => {
     expect(hasVisibleAssistantContent([question], false)).toBe(true);
   });
 
+  it('keeps a pending workflow review visible with tools hidden', () => {
+    const review = tool({ name: 'Workflow', status: 'error', output: ['Review dynamic workflow before running'] });
+    expect(hasVisibleAssistantContent([review], false)).toBe(true);
+    expect(hasVisibleAssistantContent([tool({ name: 'Workflow' })], false)).toBe(false);
+  });
+
   it('lista vazia não é visível', () => {
     expect(hasVisibleAssistantContent([], true)).toBe(false);
   });

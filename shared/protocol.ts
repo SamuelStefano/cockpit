@@ -43,9 +43,17 @@ export interface ToolCall {
   markdown?: string; // corpo rico (ex: plano do ExitPlanMode) renderizado como md
   questions?: ToolQuestion[]; // AskUserQuestion: perguntas com opções clicáveis
   todos?: ToolTodo[]; // TodoWrite: lista de tarefas (pending/in_progress/completed)
+  workflow?: ToolWorkflow;
   app?: McpAppView; // MCP App: HTML sandboxed renderizado no lugar do card cru
   appInput?: Record<string, unknown>; // argumentos da tool, entregues ao iframe
   output: string[];
+}
+
+export interface ToolWorkflow {
+  name?: string;
+  description?: string;
+  script?: string;
+  scriptPath?: string;
 }
 
 export interface ToolTodo {
@@ -531,7 +539,7 @@ export type ClientMsg =
   // auto = envio disparado por automação do cliente (flush de fila), não por ação
   // direta do usuário: o servidor estaciona autos enquanto aguarda resposta de
   // AskUserQuestion, senão o flush rouba o card de escolha.
-  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; msgId?: string; mode?: PermMode; model?: string; effort?: Effort; maxBudgetUsd?: number; bypass?: boolean; skills?: string[]; mcps?: string[]; auto?: boolean }
+  | { t: 'send'; sessionKey: string; sessionId?: string; text: string; msgId?: string; mode?: PermMode; model?: string; effort?: Effort; maxBudgetUsd?: number; bypass?: boolean; skills?: string[]; mcps?: string[]; auto?: boolean; allowWorkflow?: boolean }
   | { t: 'accounts-list' }
   | { t: 'set-admin'; accountId: string; admin: boolean }
   // Harness de orquestração próprio — motor à parte, ver shared HarnessTaskView.

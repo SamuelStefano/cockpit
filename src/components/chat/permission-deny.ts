@@ -10,3 +10,18 @@ export function permissionDeniedTool(output: string[]): string | null {
   }
   return null;
 }
+
+export const WORKFLOW_REVIEW_DENIAL = 'Review dynamic workflow before running';
+
+export function isWorkflowReview(tool: { name: string; status: string; output?: string[] }): boolean {
+  return tool.name === 'Workflow'
+    && tool.status === 'error'
+    && (tool.output ?? []).some((line) => line.includes(WORKFLOW_REVIEW_DENIAL));
+}
+
+export function workflowApprovalPrompt(tool: { workflow?: { name?: string; description?: string; scriptPath?: string } }): string {
+  const w = tool.workflow;
+  const target = w?.name ?? w?.description ?? w?.scriptPath;
+  const label = target ? ` "${target}"` : '';
+  return `I reviewed and approved the workflow${label}. Run the same Workflow call again now, unchanged.`;
+}

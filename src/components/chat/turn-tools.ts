@@ -1,6 +1,6 @@
 import type { Block, Message, ToolCall } from '../../data/types';
 import type { ShownMessage } from './shown';
-import { isQuestionTool } from './visible-blocks';
+import { isPinnedTool } from './visible-blocks';
 
 // O turno em curso chega por delta: a thread inteira é recalculada a cada chunk.
 // Sem estes caches toda bolha do histórico ganharia referência nova por token e o
@@ -37,7 +37,7 @@ export function collapseTurnTools(messages: Message[], showTools: boolean): Show
       out.push(m);
       return;
     }
-    const kept = m.blocks.filter((b) => b.type !== 'tool' || isQuestionTool(b.tool));
+    const kept = m.blocks.filter((b) => b.type !== 'tool' || isPinnedTool(b.tool));
     if (kept.length === m.blocks.length) { out.push(m); return; }
     // Ao vivo o turno inteiro se acumula numa bolha só, então a caixa entra antes
     // dela: o texto do turno fica junto embaixo em vez de partido em duas bolhas.
