@@ -21,6 +21,7 @@ import {
 } from './ctx-guard';
 import { markRunLive, clearRunLive, takeOrphanRuns } from './recover';
 import { recordIncident } from './incidents';
+import { authHold, isAuthFailure, markAuthBroken, AUTH_MESSAGE } from './auth-health';
 import { threadIsMarathon, MARATHON_AUTO_RESUME_CAP } from './marathon';
 import { threads, admitRun, resolveThreadKey, stopSession, stopEpochOf, clearStopEpoch, shouldPreserveLive, runParams, sameParams, type Thread, type RunParams } from './threads';
 import { enqueuePending, hasPending, takePendingBatch, takeAllPending, type QueuedSend } from './pending';
@@ -107,6 +108,7 @@ export function drainParked(): void {
   const hold = quotaHold();
   noteQuotaTransition(hold);
   if (isQueuePaused()) return; // pausa manual do usuário: segura tudo até retomar
+  if (authHold()) return;      // dead OAuth login: every fired prompt would die until /login
   if (hold) return;            // sem token: o turno morreria no limite e o prompt seria queimado
   // Janela recém-virada: em 04/09 uma sessão de 631k subiu 1 MINUTO após o reset e
   // já tinha comido 0,77M do ciclo novo quando o Samuel abriu o Deck. O #519
@@ -472,10 +474,13 @@ export function startRun(o: StartRunOptions) {
         if (thread.sessionId) markRunLive({ sessionKey, sessionId: thread.sessionId, params: thread.params, startedAt: thread.startedAt });
       }
     },
-    onError: (message) => {
+    onError: (raw) => {
+      const auth = isAuthFailure(raw);
+      const message = auth ? AUTH_MESSAGE : raw;
       thread.lastError = message;
       broadcast({ t: 'error', sessionKey, message });
-      recordIncident({ kind: 'run-error', sessionKey, sessionId: thread.sessionId, detail: message.slice(0, 400) });
+      if (auth) markAuthBroken(sessionKey);
+      else recordIncident({ kind: 'run-error', sessionKey, sessionId: thread.sessionId, detail: message.slice(0, 400) });
     },
     onClose: () => {
       // Se este thread já foi substituído por um run mais novo na mesma key
@@ -499,7 +504,13 @@ export function startRun(o: StartRunOptions) {
       // Stop do USUÁRIO é a exceção: ele mandou parar, reenfileirar viraria loop. Kill
       // nosso (deploy, guarda de pressão, reaper) não consumiu o prompt e devolve.
       const produced = thread.userStopped || thread.tools.length > 0 || thread.text.trim() !== '';
-      if (parked && (!produced || burnedByQuota({ limited: hold > 0, tools: thread.tools.length, text: thread.text }))) {
+      // The CLI prints the auth bailout as the turn's only text: nothing was consumed.
+      const authBurned = !thread.userStopped && thread.tools.length === 0 && isAuthFailure(thread.text);
+      if (authBurned && thread.lastError !== AUTH_MESSAGE) {
+        markAuthBroken(sessionKey);
+        broadcast({ t: 'error', sessionKey, message: AUTH_MESSAGE });
+      }
+      if (parked && (!produced || authBurned || burnedByQuota({ limited: hold > 0, tools: thread.tools.length, text: thread.text }))) {
         requeueParked(thread.parkedFrom ?? sessionKey, parked);
       }
       // Turno que morreu no meio sem dizer nada: avisa ANTES do 'done' (a bolha de
@@ -543,7 +554,7 @@ export function startRun(o: StartRunOptions) {
       if (!thread.questioned) {
         // Sem token, a fila in-turn (memória) não pode nem rodar nem esperar em RAM:
         // vira fila ESTACIONADA (disco), que drena sozinha no reset.
-        if (hold) parkPending(sessionKey, thread.sessionId);
+        if (hold || authBurned) parkPending(sessionKey, thread.sessionId);
         else {
           drainPending(sessionKey, thread.sessionId);
           // Gatilho da fila estacionada: se a in-turn (pending) não pegou a sessão,

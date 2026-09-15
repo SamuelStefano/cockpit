@@ -59,6 +59,13 @@ new=$(( total - seen ))
 # Não analisa o mundo: as 20 últimas bastam pra caracterizar o padrão.
 [ "$new" -gt 20 ] && new=20
 batch=$(tail -n "$new" "$INCIDENTS")
+# A dead OAuth login needs a human /login, not a code fix: waking the triager on it
+# only burns API credit.
+batch=$(printf '%s\n' "$batch" | grep -v '"kind":"auth-expired"')
+if [ -z "$batch" ]; then
+  echo "$total" >"$STATE"
+  exit 0
+fi
 log "$new incidente(s) novo(s); acordando o triador"
 
 CREDS="${COCKPIT_ANTHROPIC_CREDENTIALS:-$HOME/.config/anthropic/credentials}"
