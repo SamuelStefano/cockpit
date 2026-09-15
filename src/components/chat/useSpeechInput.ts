@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { joinTranscript, SPEECH_LANG } from './speech';
-import { speechErrorMessage, isFatalSpeechError, noCaptureMessage } from './speech-errors';
-import { toast } from '../primitives';
+import { speechErrorMessage, isFatalSpeechError, noCaptureMessage, KEYBOARD_DICTATION_HINT } from './speech-errors';
+import { rememberEngineFailure, hasRecentEngineFailure } from './speech-fallback';
 // No toque a Web Speech API costuma faltar (iOS Safari/webviews) ou ser instável
 // — mas o TECLADO nativo tem ditado ótimo.
 import { isTouchMobile } from './touch';
@@ -21,6 +21,7 @@ interface SpeechRecognition {
   onresult: ((e: SpeechResultEvent) => void) | null;
   onend: (() => void) | null;
   onerror: ((e: SpeechErrorEvent) => void) | null;
+  onaudiostart?: (() => void) | null;
 }
 type SpeechCtor = new () => SpeechRecognition;
 
@@ -37,7 +38,15 @@ const MAX_FAST_FAILS = 3;
 // Quanto esperar por algum resultado quando o engine "ligou" mas nunca capta
 // (iOS standalone/webview, ou Safari precisando de ~2s). Sem isto o mic pulsa
 // pra sempre sem texto nem feedback.
-const NO_CAPTURE_MS = 8000;
+export const NO_CAPTURE_MS = 8000;
+
+// Depois que o mic de fato abriu (onaudiostart) o engine está vivo e só falta o
+// servidor responder: no Android com rede ruim 8s cortava o ditado no meio do
+// prompt de permissão ou da primeira frase. Aqui a espera é mais folgada.
+export const NO_CAPTURE_AFTER_AUDIO_MS = 20000;
+
+// Engine que não dispara onend depois de stop(): solta o mic à força.
+const STOP_GRACE_MS = 1500;
 
 function iosStandalone(): boolean {
   const nav = navigator as Navigator & { standalone?: boolean };
@@ -55,15 +64,21 @@ function iosStandalone(): boolean {
 // é separada do ciclo de vida do engine: enquanto o usuário quer ditar, cada
 // onend reinicia o reconhecimento. Erros de permissão (not-allowed) são fatais e
 // param com mensagem; transitórios (no-speech/network/aborted) só reiniciam.
+//
+// No toque NENHUMA falha do engine pode deixar o usuário sem caminho de ditar:
+// webkitSpeechRecognition EXISTE no iOS standalone e em webviews Android, mas
+// nunca capta (ou devolve not-allowed). Qualquer falha ali vira modo teclado —
+// foca o composer e orienta o 🎤 do teclado nativo, que funciona.
 export function useSpeechInput(value: string, setValue: (v: string) => void, focusComposer?: () => void) {
-  // hasApi: Web Speech disponível (ditado in-app). No mobile sem API, ainda
-  // mostramos o mic mas ele encaminha pro ditado do TECLADO — senão o usuário
-  // "não conseguia falar por voz" no celular (o botão simplesmente sumia).
   const hasApi = useMemo(() => speechCtor() !== null, []);
-  const keyboardMode = useMemo(() => !hasApi && isTouchMobile(), [hasApi]);
-  const supported = hasApi || keyboardMode;
+  const touch = useMemo(isTouchMobile, []);
+  // Modo teclado de saída: sem API, iOS pela tela inicial (nunca capta) ou engine
+  // que já falhou por aqui recentemente — não faz o usuário esperar 8s de novo.
+  const [keyboardMode, setKeyboardMode] = useState(() => touch && (!hasApi || iosStandalone() || hasRecentEngineFailure()));
+  const supported = hasApi || touch;
   const [listening, setListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hint, setHint] = useState<string | null>(null);
   const recRef = useRef<SpeechRecognition | null>(null);
   const wantRef = useRef(false);         // o usuário quer ditar (sobrevive a reinícios)
   const baseRef = useRef('');            // texto do composer no instante do start
@@ -86,9 +101,38 @@ export function useSpeechInput(value: string, setValue: (v: string) => void, foc
   const detach = () => {
     const rec = recRef.current;
     if (!rec) return;
-    rec.onresult = null; rec.onend = null; rec.onerror = null;
+    rec.onresult = null; rec.onend = null; rec.onerror = null; rec.onaudiostart = null;
     recRef.current = null;
     try { rec.stop(); } catch { /* já parou */ }
+  };
+
+  // Caminho do teclado nativo: foca o campo e orienta usar o microfone do teclado
+  // (confiável no iOS/Android). O aviso mora DENTRO do composer, não em toast:
+  // toast fixo no rodapé fica atrás do teclado virtual no iOS.
+  const startKeyboard = () => {
+    focusComposer?.();
+    setHint(KEYBOARD_DICTATION_HINT);
+  };
+
+  // O engine in-app falhou de vez. No toque degrada pro teclado (e lembra, pra
+  // próxima abertura não repetir a espera); no desktop mostra o porquê.
+  const giveUp = (message: string) => {
+    wantRef.current = false;
+    clearWatchdog();
+    detach();
+    setListening(false);
+    if (!touch) { setError(message); return; }
+    rememberEngineFailure();
+    setKeyboardMode(true);
+    startKeyboard();
+  };
+
+  const armWatchdog = (ms: number) => {
+    clearWatchdog();
+    watchdogRef.current = setTimeout(() => {
+      if (!wantRef.current || everGotResultRef.current) return;
+      giveUp(noCaptureMessage(iosStandalone()));
+    }, ms);
   };
 
   // Cria e inicia UM reconhecimento. Chamado no start do usuário e em cada
@@ -105,16 +149,10 @@ export function useSpeechInput(value: string, setValue: (v: string) => void, foc
     gotResultRef.current = false;
     // Enquanto a sessão nunca captou nada, vigia: engine "ligado" sem onresult
     // (iOS standalone/webview, ou Safari esperando ~2s) não pode pulsar pra sempre.
-    if (!everGotResultRef.current) {
-      clearWatchdog();
-      watchdogRef.current = setTimeout(() => {
-        if (!wantRef.current || everGotResultRef.current) return;
-        wantRef.current = false;
-        detach();
-        setError(noCaptureMessage(iosStandalone()));
-        setListening(false);
-      }, NO_CAPTURE_MS);
-    }
+    if (!everGotResultRef.current) armWatchdog(NO_CAPTURE_MS);
+    rec.onaudiostart = () => {
+      if (!everGotResultRef.current && wantRef.current) armWatchdog(NO_CAPTURE_AFTER_AUDIO_MS);
+    };
     rec.onresult = (e) => {
       gotResultRef.current = true;
       everGotResultRef.current = true;
@@ -129,60 +167,42 @@ export function useSpeechInput(value: string, setValue: (v: string) => void, foc
       setValueRef.current(joinTranscript(baseRef.current, finalRef.current + interim));
     };
     rec.onerror = (e) => { lastErrorRef.current = e?.error ?? 'unknown'; };
-    rec.onend = () => {
+    const ended = () => {
       recRef.current = null;
       const err = lastErrorRef.current;
       lastErrorRef.current = null;
-      // Parada fatal (permissão negada/indisponível): some o botão de ditar não,
-      // mas mostra o porquê e zera a intenção.
-      if (err && isFatalSpeechError(err)) {
-        wantRef.current = false;
-        clearWatchdog();
-        setError(speechErrorMessage(err));
-        setListening(false);
-        return;
-      }
+      // Parada fatal (permissão negada/indisponível): não adianta reiniciar.
+      if (err && isFatalSpeechError(err)) { giveUp(speechErrorMessage(err)); return; }
       // Encerramento normal por pausa de fala (Android) ou transitório: reinicia
       // enquanto o usuário ainda quer ditar. Guarda contra loop de falha-na-largada.
       if (wantRef.current) {
         const quick = Date.now() - startedAtRef.current < 800;
         if (quick && !gotResultRef.current) {
           fastFailRef.current += 1;
-          if (fastFailRef.current >= MAX_FAST_FAILS) {
-            wantRef.current = false;
-            clearWatchdog();
-            setError(speechErrorMessage(err ?? 'no-speech'));
-            setListening(false);
-            return;
-          }
+          if (fastFailRef.current >= MAX_FAST_FAILS) { giveUp(speechErrorMessage(err ?? 'no-speech')); return; }
         }
         begin();
         return;
       }
       setListening(false);
     };
+    rec.onend = ended;
     recRef.current = rec;
     try {
       rec.start();
     } catch {
-      // start() lança se chamado duas vezes rápido; o onend do anterior cuida do retry.
-      recRef.current = null;
+      // start() lançou (engine ocupado/indisponível): sem onend ninguém reiniciaria
+      // e o composer ficava readOnly pra sempre. Trata como largada falha.
+      rec.onresult = null; rec.onend = null; rec.onerror = null; rec.onaudiostart = null;
+      ended();
     }
   };
 
-  // Mobile sem Web Speech API: em vez de ditar in-app, foca o campo e orienta usar
-  // o microfone do teclado nativo (que é confiável no iOS/Android). Não tenta o
-  // engine (que falharia) — só desbloqueia o caminho que funciona.
-  const startKeyboard = () => {
-    focusComposer?.();
-    toast('Toque no 🎤 do teclado do celular pra ditar', { durationMs: 6000 });
-  };
-
   const start = () => {
-    if (keyboardMode) { startKeyboard(); return; }
-    if (!speechCtor()) return;
+    if (keyboardMode || !speechCtor()) { startKeyboard(); return; }
     detach();
     setError(null);
+    setHint(null);
     baseRef.current = value;
     finalRef.current = '';
     fastFailRef.current = 0;
@@ -202,17 +222,31 @@ export function useSpeechInput(value: string, setValue: (v: string) => void, foc
     clearWatchdog();
     const rec = recRef.current;
     if (!rec) { setListening(false); return; }
-    try { rec.stop(); } catch { detach(); setListening(false); }
-    // Fallback: engine que não dispara onend após stop() deixaria listening preso.
-    setTimeout(() => { if (recRef.current === rec || recRef.current === null) { if (!wantRef.current) setListening(false); } }, 1500);
+    try { rec.stop(); } catch { detach(); setListening(false); return; }
+    // Engine que não dispara onend após stop() deixaria listening preso E o mic
+    // aberto (onresult tardio escreveria no composer depois do "parar").
+    setTimeout(() => {
+      if (wantRef.current) return;
+      if (recRef.current === rec) detach();
+      setListening(false);
+    }, STOP_GRACE_MS);
   };
 
   // Desmontou no meio da gravação? Encerra o reconhecimento pra não vazar o mic.
   useEffect(() => () => { wantRef.current = false; clearWatchdog(); detach(); }, []);
 
+  // A dica do teclado some sozinha quando o texto muda (o usuário já achou o 🎤
+  // ou preferiu digitar) — não precisa fechar à mão.
+  const hintValueRef = useRef(value);
+  useEffect(() => {
+    if (hint && value !== hintValueRef.current) setHint(null);
+    hintValueRef.current = value;
+  }, [value, hint]);
+
   // Sem isto o aviso de erro só sumia ao iniciar OUTRO ditado — quem desistiu do
   // mic ficava com o banner permanente no composer.
   const dismissError = () => setError(null);
+  const dismissHint = () => setHint(null);
 
-  return { supported, listening, error, dismissError, start, stop, toggle: () => (listening ? stop() : start()) };
+  return { supported, keyboardMode, listening, error, hint, dismissError, dismissHint, start, stop, toggle: () => (listening ? stop() : start()) };
 }

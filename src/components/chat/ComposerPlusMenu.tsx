@@ -7,7 +7,8 @@ const item = `flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[13px]
 // No toque, clipe e microfone ocupavam dois slots de 32px na base do composer.
 // Viram um `+` só, com o mini-menu que todo app de mensagem tem. A câmera é um
 // input separado (`capture`) porque o seletor de arquivo genérico do Android não
-// abre a câmera traseira direto.
+// abre a câmera traseira direto. Gravando, o `+` vira o mic pulsando — e aí um
+// toque PARA o ditado direto, em vez de abrir o menu pra procurar "Parar".
 export function ComposerPlusMenu({ mic, onAttach, onPhoto }: {
   mic: Mic;
   onAttach: () => void;
@@ -18,8 +19,8 @@ export function ComposerPlusMenu({ mic, onAttach, onPhoto }: {
     <div ref={wrapRef} className="relative shrink-0">
       <button
         type="button"
-        onClick={toggle}
-        aria-label="Anexar, fotografar ou ditar"
+        onClick={mic.listening ? mic.toggle : toggle}
+        aria-label={mic.listening ? 'Parar de ditar' : 'Anexar, fotografar ou ditar'}
         aria-expanded={open}
         title={mic.error ?? 'Anexar arquivo, tirar foto ou ditar'}
         className={`mb-0.5 flex h-8 w-8 items-center justify-center rounded-lg transition ${tokens.focusRing}
