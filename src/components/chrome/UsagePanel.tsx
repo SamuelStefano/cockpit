@@ -51,7 +51,7 @@ export function UsagePanel({ rows, reset = '', warn = false, blockedUntil = null
     >
       <p className="mb-3 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Uso do plano</p>
       {rows.length === 0 ? (
-        <p className="text-[12px] text-neutral-500">{blocked ? `A conta recusou a leitura do uso. Tento de novo em ${blocked}.` : 'Lendo da conta…'}</p>
+        <p className="text-[12px] text-neutral-500">{blocked ? `A conta limitou as consultas de uso. Próxima leitura em ${blocked}.` : 'Lendo da conta…'}</p>
       ) : (
         <ul className="flex flex-col gap-3">
           {rows.map((row) => (
@@ -61,7 +61,7 @@ export function UsagePanel({ rows, reset = '', warn = false, blockedUntil = null
       )}
       {rows.length > 0 && (blocked ? (
         <p className="mt-3 border-t border-neutral-800 pt-2.5 text-[11px] text-amber-300/80">
-          lido há {age || 'pouco'} — a conta recusou a releitura, tento em {blocked}
+          número de há {age || 'pouco'} · a conta pediu pausa, próxima leitura em {blocked}
         </p>
       ) : age && (
         <p className="mt-3 border-t border-neutral-800 pt-2.5 text-[11px] text-neutral-500">lido há {age}</p>

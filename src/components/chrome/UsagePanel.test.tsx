@@ -8,9 +8,9 @@ import type { PlanUsage } from '../../../shared/protocol';
 const base: PlanUsage = { fiveHour: 19, sevenDay: 76, resetsAt: 1000, sevenDayResetsAt: 2000, limits: [] };
 
 describe('UsagePanel bloqueado', () => {
-  it('diz que a conta recusou, em vez de fingir que está lendo', () => {
+  it('says the account limited the reads instead of pretending to load', () => {
     const html = renderToStaticMarkup(<UsagePanel rows={[]} blockedUntil={Date.now() + 10 * 60_000} />);
-    expect(html).toContain('recusou a leitura');
+    expect(html).toContain('limitou as consultas');
     expect(html).not.toContain('Lendo da conta');
   });
 
@@ -19,13 +19,13 @@ describe('UsagePanel bloqueado', () => {
     expect(html).toContain('Lendo da conta');
   });
 
-  it('com número em mão, diz a idade dele e o quanto falta pra tentar de novo', () => {
+  it('with a number in hand, shows its age and when the next read is due', () => {
     const rows = usageRows(base);
     const html = renderToStaticMarkup(
       <UsagePanel rows={rows} blockedUntil={Date.now() + 10 * 60_000} readAt={Date.now() - 42 * 60_000} />,
     );
-    expect(html).toContain('lido há 42min');
-    expect(html).toContain('tento em 10min');
+    expect(html).toContain('número de há 42min');
+    expect(html).toContain('próxima leitura em 10min');
   });
 
   // Sem bloqueio o poll também para (agente fora do ar, browser fechado) e o

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { mapPlanUsage, retryAfterMs, rateCooldownMs, borrowedSnapshot, RATE_PAD_MAX_MS } from './usage-plan';
+import { mapPlanUsage, retryAfterMs, borrowedSnapshot, widenGap, relaxGap, GAP_MIN_MS, GAP_MAX_MS, RATE_JITTER_MS } from './usage-plan';
 
 vi.mock('../oauth', () => ({ readOAuthToken: async () => 'token', OAUTH_BETA: 'beta' }));
 vi.mock('./broadcast', () => ({ broadcast: () => {} }));
@@ -120,7 +120,7 @@ describe('requestPlanUsageRefresh', () => {
     m.requestPlanUsageRefresh();
     await vi.advanceTimersByTimeAsync(0);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(m.planUsageCooldownUntil()).toBe(Date.now() + 600_000 + 300_000);
+    expect(m.planUsageCooldownUntil()).toBe(Date.now() + 600_000 + RATE_JITTER_MS);
 
     // Os retries rápidos de falha de rede NÃO podem valer aqui: cada tentativa
     // dentro da janela renovava o bloqueio e a barra nunca voltava.
@@ -197,7 +197,7 @@ describe('requestPlanUsageRefresh', () => {
     m.requestPlanUsageRefresh();
     await vi.advanceTimersByTimeAsync(0);
     vi.stubGlobal('fetch', vi.fn(async () => reply(200)));
-    await vi.advanceTimersByTimeAsync(6 * 60_000);   // vence o Retry-After + o pad
+    await vi.advanceTimersByTimeAsync(6 * 60_000);   // past Retry-After, jitter and the widened gap
     m.requestPlanUsageRefresh();
     await vi.advanceTimersByTimeAsync(0);
     expect(m.getPlanUsageReadAt()).toBe(Date.now());
@@ -220,6 +220,59 @@ describe('requestPlanUsageRefresh', () => {
     await vi.advanceTimersByTimeAsync(180_000);
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
+  // A 60s Retry-After used to cost 6 minutes of "the account refused" (5min pad
+  // per consecutive 429, up to 30min). The block now ends with Retry-After plus a
+  // small jitter; the memory of the 429 lives in the SPACING between reads.
+  it('a 429 widens the gap between reads instead of padding the block', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => reply(429, { 'retry-after': '60' })));
+    const m = await load();
+    m.requestPlanUsageRefresh();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(m.planUsageCooldownUntil()).toBe(Date.now() + 60_000 + RATE_JITTER_MS);
+    expect(m.planUsageGapMs()).toBe(GAP_MIN_MS * 2);
+
+    const fetchMock = vi.fn(async () => reply(200));
+    vi.stubGlobal('fetch', fetchMock);
+    await vi.advanceTimersByTimeAsync(90_000);
+    m.requestPlanUsageRefresh();          // block is over, but the widened gap still holds
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(60_000);
+    m.requestPlanUsageRefresh();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('the widened gap is shared with the sibling process through the file', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => reply(429, { 'retry-after': '1' })));
+    const first = await load();
+    first.requestPlanUsageRefresh();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(first.planUsageGapMs()).toBe(GAP_MIN_MS * 2);
+
+    const fetchMock = vi.fn(async () => reply(200));
+    vi.stubGlobal('fetch', fetchMock);
+    const second = await load();
+    await vi.advanceTimersByTimeAsync(60_000);   // block over; a fresh process would read now
+    second.requestPlanUsageRefresh();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).not.toHaveBeenCalled();     // but it inherited the 2min gap from disk
+    expect(second.planUsageGapMs()).toBe(GAP_MIN_MS * 2);
+  });
+
+  it('two processes share one attempt clock: the second does not read right after the first', async () => {
+    const fetchMock = vi.fn(async () => reply(429, { 'retry-after': '0' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const first = await load();
+    first.requestPlanUsageRefresh();
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(RATE_JITTER_MS + 1_000);
+    const second = await load();
+    second.requestPlanUsageRefresh();               // 21s after the first attempt, below the gap
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
 });
 
 describe('lease entre os dois processos que pollam', () => {
@@ -270,19 +323,34 @@ describe('lease entre os dois processos que pollam', () => {
     expect(m.getLastPlanUsage()?.fiveHour).toBe(42);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+  // Adopting only ONCE per sibling write sent every later call to the network,
+  // even with a fresh snapshot sitting on disk — both processes kept polling.
+  it('keeps skipping the network while the sibling snapshot is fresh', async () => {
+    const fetchMock = vi.fn(async () => { throw new Error('should not fetch'); });
+    vi.stubGlobal('fetch', fetchMock);
+    writeOther();
+    const m = await load();
+    m.requestPlanUsageRefresh();
+    await new Promise((r) => setTimeout(r, 0));
+    m.requestPlanUsageRefresh();
+    m.requestPlanUsageRefresh();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(m.getLastPlanUsage()?.fiveHour).toBe(42);
+  });
+
 });
 
-describe('rateCooldownMs', () => {
-  it('respeita o Retry-After no primeiro 429', () => {
-    expect(rateCooldownMs(600_000, 1)).toBe(600_000 + 300_000);
+describe('adaptive gap', () => {
+  it('doubles on a 429 and never exceeds the ceiling', () => {
+    expect(widenGap(GAP_MIN_MS)).toBe(GAP_MIN_MS * 2);
+    expect(widenGap(GAP_MAX_MS)).toBe(GAP_MAX_MS);
   });
 
-  it('soma folga crescente a cada 429 seguido — voltar no segundo exato renovava a punição', () => {
-    expect(rateCooldownMs(600_000, 3)).toBe(600_000 + 900_000);
-  });
-
-  it('a folga tem teto: a barra precisa voltar sozinha algum dia', () => {
-    expect(rateCooldownMs(600_000, 99)).toBe(600_000 + RATE_PAD_MAX_MS);
+  it('halves back after a run of clean reads, never below the floor', () => {
+    expect(relaxGap(GAP_MIN_MS * 4, 3)).toEqual({ gapMs: GAP_MIN_MS * 4, okStreak: 3 });
+    expect(relaxGap(GAP_MIN_MS * 4, 6)).toEqual({ gapMs: GAP_MIN_MS * 2, okStreak: 0 });
+    expect(relaxGap(GAP_MIN_MS, 6)).toEqual({ gapMs: GAP_MIN_MS, okStreak: 0 });
   });
 });
 
