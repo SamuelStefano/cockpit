@@ -14,6 +14,7 @@ import { startParkedDrainer, resumeOrphanRuns } from './ws/runs';
 import { startRunReaper } from './ws/reaper';
 import { killAllRuns, threads } from './ws/threads';
 import { startModelsLoop, getLastModels } from './ws/models';
+import { startAuthKeepAlive } from './ws/auth-health';
 import { startPlanUsageLoop, planUsageFrame, requestPlanUsageRefresh } from './ws/usage-plan';
 import { getLastRate } from './ws/rate';
 import { startStatsLoop } from './ws/stats-loop';
@@ -273,6 +274,7 @@ export function runAgent(relayUrl: string): void {
   startStatsLoop(hasClients);
   startPlanUsageLoop(hasClients, () => threads.size > 0);
   startModelsLoop(hasClients);
+  startAuthKeepAlive();
   startSessionsWatch(hasClients);
   startPointsWatch(hasClients);
   startDflPointsWatch();

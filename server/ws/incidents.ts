@@ -22,7 +22,9 @@ export type IncidentKind = 'silent-death' | 'orphan-resume' | 'run-error' | 'res
   // Gate de contexto (ws/ctx-guard.ts): sessão grande demais pra continuar, e
   // retomada automática cancelada pelo mesmo motivo. Viram incidente porque
   // exigem ação humana (handoff) — sem isso somem numa bolha de chat.
-  | 'ctx-hard' | 'resume-ctx-cap';
+  | 'ctx-hard' | 'resume-ctx-cap'
+  // Dead OAuth login (ws/auth-health.ts): needs a human /login, not a code fix.
+  | 'auth-expired';
 
 export interface Incident {
   ts: string;
