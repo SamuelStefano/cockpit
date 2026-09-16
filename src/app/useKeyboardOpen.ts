@@ -10,8 +10,20 @@ const RATIO = 0.75;
 // caso — e também o fallback de quem não tem a API.
 const SHORT = '(max-height: 500px)';
 
+// Celular deitado também tem menos de 500px de altura, sem teclado nenhum — a
+// query sozinha escondia toolbar, followups e agentes em background em landscape.
+// Teclado só abre com um campo de texto focado, então a query exige esse foco.
+// `(orientation: portrait)` não serviria: com resizes-content a janela vira
+// "landscape" justamente quando o teclado abre.
+function editableFocused(): boolean {
+  const el = document.activeElement;
+  if (!(el instanceof HTMLElement)) return false;
+  if (el instanceof HTMLTextAreaElement || el.isContentEditable) return true;
+  return el instanceof HTMLInputElement && !['button', 'checkbox', 'radio', 'range', 'color', 'file', 'submit', 'reset'].includes(el.type);
+}
+
 export function keyboardOpen(): boolean {
-  const short = window.matchMedia(SHORT).matches;
+  const short = window.matchMedia(SHORT).matches && editableFocused();
   const vv = window.visualViewport;
   if (!vv) return short;
   return short || vv.height < window.innerHeight * RATIO;
@@ -29,10 +41,14 @@ export function useKeyboardOpen(): boolean {
     mq.addEventListener('change', apply);
     vv?.addEventListener('resize', apply);
     vv?.addEventListener('scroll', apply);
+    document.addEventListener('focusin', apply);
+    document.addEventListener('focusout', apply);
     return () => {
       mq.removeEventListener('change', apply);
       vv?.removeEventListener('resize', apply);
       vv?.removeEventListener('scroll', apply);
+      document.removeEventListener('focusin', apply);
+      document.removeEventListener('focusout', apply);
     };
   }, []);
   return open;
