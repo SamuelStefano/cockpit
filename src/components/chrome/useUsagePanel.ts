@@ -1,24 +1,27 @@
 import { useEffect, useRef, useState } from 'react';
 
 // De quanto em quanto o painel ABERTO repede o número. O servidor tem
-// single-flight + piso de 15s entre idas à rede, então o custo real é o do poll
-// dele, não o deste tick.
-const OPEN_REFRESH_MS = 30_000;
+// single-flight, espaçamento e orçamento por hora, então o custo real é decidido
+// lá, não por este tick — ele só garante que a leitura cai enquanto alguém olha.
+export const OPEN_REFRESH_MS = 15_000;
 
-export function useUsagePanel(onRefresh?: () => void) {
+export function useUsagePanel(onRefresh?: (force?: boolean) => void) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   // Ref pra o efeito não remontar (e re-disparar o refresh) a cada render do pai.
   const refreshRef = useRef(onRefresh);
   refreshRef.current = onRefresh;
 
-  // Painel aberto = o usuário está OLHANDO o número: pede fresco na abertura e
-  // segue pedindo enquanto ficar aberto, em vez de esperar o poll de 5min.
+  // Abrir = o usuário CLICOU pra ver: lê agora, sem esperar o espaçamento do poll.
+  // Enquanto fica aberto segue pedindo; voltar do background (celular) também
+  // conta como "acabei de olhar", senão o painel mostrava o número de antes da tela apagar.
   useEffect(() => {
     if (!open) return;
-    refreshRef.current?.();
+    refreshRef.current?.(true);
     const id = setInterval(() => refreshRef.current?.(), OPEN_REFRESH_MS);
-    return () => clearInterval(id);
+    const onVisible = () => { if (document.visibilityState === 'visible') refreshRef.current?.(true); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
   }, [open]);
 
   useEffect(() => {

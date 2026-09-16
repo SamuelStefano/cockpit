@@ -556,7 +556,8 @@ export type ClientMsg =
   | { t: 'sync' }
   // Só o uso do plano, sem o resto do snapshot: o `sync` varre o diretório de
   // sessões inteiro, caro demais pra abrir um popover.
-  | { t: 'plan-usage-get' }
+  // `force` = o usuário clicou: ler agora, sem esperar o espaçamento do poll.
+  | { t: 'plan-usage-get'; force?: boolean }
   // `chainOnly` = o usuário PEDIU a visão resumida; sem ele o servidor pode servir
   // a timeline completa quando a cadeia ativa colapsou (pós-/compact).
   | { t: 'open'; sessionId: string; chainOnly?: boolean }
@@ -757,7 +758,9 @@ export type ServerMsg =
   // de novo antes desse instante. Sem ele a barra em "—" parecia estar carregando.
   // `readAt` = quando o número foi lido da conta. Sem ele o cliente não distingue
   // uma leitura de agora de uma de uma hora atrás, e pinta as duas igual.
-  | { t: 'plan-usage'; usage: PlanUsage | null; blockedUntil?: number | null; readAt?: number | null }
+  // `nextReadAt` = quando o servidor volta a poder ler (429 ou orçamento da hora
+  // esgotado). Sem ele um clique que não trouxe número novo parecia botão quebrado.
+  | { t: 'plan-usage'; usage: PlanUsage | null; blockedUntil?: number | null; readAt?: number | null; nextReadAt?: number | null }
   | { t: 'harness-config'; config: HarnessConfig }
   | { t: 'harness-task'; task: HarnessTaskView }
   | { t: 'harness-event'; taskId: string; event: HarnessEvent }

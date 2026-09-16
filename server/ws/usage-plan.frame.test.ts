@@ -49,5 +49,24 @@ describe('planUsageFrame', () => {
     expect(frame?.usage).toMatchObject({ sevenDay: 63 });
     expect(frame?.readAt).toBe(readAt);
     expect(frame?.blockedUntil).toBe(blockedUntil);
+    expect(frame?.nextReadAt).toBe(blockedUntil);
+  });
+
+  it('reports the exhausted hour budget as nextReadAt without a 429 block', async () => {
+    const now = Date.now();
+    const attempts = Array.from({ length: 24 }, (_, i) => now - 30 * 60_000 + i * 1_000);
+    writeFileSync(cachePath, JSON.stringify({ ts: now - 60_000, usage, attempts, budget: 24 }));
+    const mod = await import('./usage-plan');
+    mod.startPlanUsageLoop(() => false);
+
+    const frame = mod.planUsageFrame(now);
+
+    expect(frame?.blockedUntil).toBeNull();
+    expect(frame?.nextReadAt).toBe(attempts[0] + 60 * 60_000);
+  });
+
+  it('answers a direct request even with nothing to show yet', async () => {
+    const mod = await import('./usage-plan');
+    expect(mod.planUsageFrame(Date.now(), true)).toMatchObject({ t: 'plan-usage', usage: null, blockedUntil: null, readAt: null });
   });
 });

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { mapPlanUsage, retryAfterMs, borrowedSnapshot, widenGap, relaxGap, GAP_MIN_MS, GAP_MAX_MS, RATE_JITTER_MS } from './usage-plan';
+import { mapPlanUsage, retryAfterMs, borrowedSnapshot, widenGap, relaxGap, pruneAttempts, budgetNextReadAt, shrinkBudget, growBudget, idleSpacingMs, GAP_MIN_MS, GAP_MAX_MS, RATE_JITTER_MS, BUDGET_DEFAULT, BUDGET_MIN, BUDGET_MAX, BUDGET_WINDOW_MS } from './usage-plan';
 
 vi.mock('../oauth', () => ({ readOAuthToken: async () => 'token', OAUTH_BETA: 'beta' }));
 vi.mock('./broadcast', () => ({ broadcast: () => {} }));
@@ -204,7 +204,9 @@ describe('requestPlanUsageRefresh', () => {
     expect(m.planUsageBlockedUntil()).toBe(0);
   });
 
-  it('com turno vivo pola em 3min; ocioso, só a cada 5min', async () => {
+  // The loop asks every 15s; with a turn alive it reads at the tight spacing,
+  // idle it waits the budget-derived spacing so half the hour stays in reserve.
+  it('with a turn alive reads at the tight spacing; idle, at the budget-derived spacing', async () => {
     const fetchMock = vi.fn(async () => reply(200));
     vi.stubGlobal('fetch', fetchMock);
     const m = await load();
@@ -212,32 +214,98 @@ describe('requestPlanUsageRefresh', () => {
     m.startPlanUsageLoop(() => true, () => running);
     await vi.advanceTimersByTimeAsync(0);
     expect(fetchMock).toHaveBeenCalledTimes(1); // prime do boot
-    await vi.advanceTimersByTimeAsync(180_000);
+    await vi.advanceTimersByTimeAsync(GAP_MIN_MS);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     running = false;
-    await vi.advanceTimersByTimeAsync(180_000);
-    expect(fetchMock).toHaveBeenCalledTimes(2); // ocioso: espera fechar os 5min
-    await vi.advanceTimersByTimeAsync(180_000);
+    await vi.advanceTimersByTimeAsync(idleSpacingMs(BUDGET_DEFAULT) - GAP_MIN_MS);
+    expect(fetchMock).toHaveBeenCalledTimes(2); // idle: not yet
+    await vi.advanceTimersByTimeAsync(GAP_MIN_MS);
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
+
+  it('a click reads right away, ignoring the spacing', async () => {
+    const fetchMock = vi.fn(async () => reply(200));
+    vi.stubGlobal('fetch', fetchMock);
+    const m = await load();
+    m.requestPlanUsageRefresh();
+    await vi.advanceTimersByTimeAsync(1_000);
+    m.requestPlanUsageRefresh();                    // poll: inside the spacing, skipped
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    m.requestPlanUsageRefresh({ mode: 'force' });   // click: goes out
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('a click never touches the endpoint during a 429 block', async () => {
+    const fetchMock = vi.fn(async () => reply(429, { 'retry-after': '600' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const m = await load();
+    m.requestPlanUsageRefresh({ mode: 'force' });
+    await vi.advanceTimersByTimeAsync(0);
+    m.requestPlanUsageRefresh({ mode: 'force' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(m.planUsageNextReadAt()).toBe(m.planUsageCooldownUntil());
+  });
+
+  it('the hour budget stops reads and reports when the next slot opens', async () => {
+    const fetchMock = vi.fn(async () => reply(200));
+    vi.stubGlobal('fetch', fetchMock);
+    const m = await load();
+    const start = Date.now();
+    for (let i = 0; i < BUDGET_MAX + 5; i++) {
+      m.requestPlanUsageRefresh({ mode: 'force' });
+      await vi.advanceTimersByTimeAsync(1_000);
+    }
+    // Clean reads earn slots back along the way, so the hour closes at the
+    // runtime budget, not at the default — and never above the ceiling.
+    const spent = m.planUsageBudget();
+    expect(spent).toBeGreaterThanOrEqual(BUDGET_DEFAULT);
+    expect(spent).toBeLessThanOrEqual(BUDGET_MAX);
+    expect(fetchMock).toHaveBeenCalledTimes(spent);
+    expect(m.planUsageNextReadAt()).toBe(start + BUDGET_WINDOW_MS); // oldest stamp leaves the hour
+    expect(m.planUsageBlockedUntil()).toBe(0);                      // no 429 involved
+
+    await vi.advanceTimersByTimeAsync(BUDGET_WINDOW_MS);
+    m.requestPlanUsageRefresh({ mode: 'force' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(spent + 1);
+  });
+
+  it('the budget is shared with the sibling process through the file', async () => {
+    const fetchMock = vi.fn(async () => reply(200));
+    vi.stubGlobal('fetch', fetchMock);
+    const first = await load();
+    for (let i = 0; i < BUDGET_MAX + 5; i++) {
+      first.requestPlanUsageRefresh({ mode: 'force' });
+      await vi.advanceTimersByTimeAsync(1_000);
+    }
+    const spent = fetchMock.mock.calls.length;
+    const second = await load();
+    second.requestPlanUsageRefresh({ mode: 'force' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(spent);
+  });
+
   // A 60s Retry-After used to cost 6 minutes of "the account refused" (5min pad
   // per consecutive 429, up to 30min). The block now ends with Retry-After plus a
   // small jitter; the memory of the 429 lives in the SPACING between reads.
   it('a 429 widens the gap between reads instead of padding the block', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => reply(429, { 'retry-after': '60' })));
+    vi.stubGlobal('fetch', vi.fn(async () => reply(429, { 'retry-after': '10' })));
     const m = await load();
     m.requestPlanUsageRefresh();
     await vi.advanceTimersByTimeAsync(0);
-    expect(m.planUsageCooldownUntil()).toBe(Date.now() + 60_000 + RATE_JITTER_MS);
+    expect(m.planUsageCooldownUntil()).toBe(Date.now() + 10_000 + RATE_JITTER_MS);
     expect(m.planUsageGapMs()).toBe(GAP_MIN_MS * 2);
 
     const fetchMock = vi.fn(async () => reply(200));
     vi.stubGlobal('fetch', fetchMock);
-    await vi.advanceTimersByTimeAsync(90_000);
+    await vi.advanceTimersByTimeAsync(40_000);
     m.requestPlanUsageRefresh();          // block is over, but the widened gap still holds
     await vi.advanceTimersByTimeAsync(0);
     expect(fetchMock).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(60_000);
+    await vi.advanceTimersByTimeAsync(GAP_MIN_MS);
     m.requestPlanUsageRefresh();
     await vi.advanceTimersByTimeAsync(0);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -253,10 +321,10 @@ describe('requestPlanUsageRefresh', () => {
     const fetchMock = vi.fn(async () => reply(200));
     vi.stubGlobal('fetch', fetchMock);
     const second = await load();
-    await vi.advanceTimersByTimeAsync(60_000);   // block over; a fresh process would read now
+    await vi.advanceTimersByTimeAsync(GAP_MIN_MS + 15_000);   // block over; a fresh process would read now
     second.requestPlanUsageRefresh();
     await vi.advanceTimersByTimeAsync(0);
-    expect(fetchMock).not.toHaveBeenCalled();     // but it inherited the 2min gap from disk
+    expect(fetchMock).not.toHaveBeenCalled();     // but it inherited the doubled gap from disk
     expect(second.planUsageGapMs()).toBe(GAP_MIN_MS * 2);
   });
 
@@ -351,6 +419,45 @@ describe('adaptive gap', () => {
     expect(relaxGap(GAP_MIN_MS * 4, 3)).toEqual({ gapMs: GAP_MIN_MS * 4, okStreak: 3 });
     expect(relaxGap(GAP_MIN_MS * 4, 6)).toEqual({ gapMs: GAP_MIN_MS * 2, okStreak: 0 });
     expect(relaxGap(GAP_MIN_MS, 6)).toEqual({ gapMs: GAP_MIN_MS, okStreak: 0 });
+  });
+});
+
+describe('hour budget', () => {
+  const now = 10 * BUDGET_WINDOW_MS;
+  const stamps = (n: number, from = now - 30 * 60_000) => Array.from({ length: n }, (_, i) => from + i * 60_000);
+
+  it('keeps only the stamps inside the rolling hour, oldest first', () => {
+    const list = [now - BUDGET_WINDOW_MS, now - 1_000, now - BUDGET_WINDOW_MS + 1, now + 5_000];
+    expect(pruneAttempts(list, now)).toEqual([now - BUDGET_WINDOW_MS + 1, now - 1_000]);
+  });
+
+  it('allows a read below the budget and points at the oldest stamp otherwise', () => {
+    expect(budgetNextReadAt(stamps(5), 6, now)).toBe(0);
+    const full = stamps(6);
+    expect(budgetNextReadAt(full, 6, now)).toBe(full[0] + BUDGET_WINDOW_MS);
+  });
+
+  it('a 429 after a heavy hour keeps 3/4 of what the hour accepted', () => {
+    expect(shrinkBudget(BUDGET_DEFAULT, stamps(31), now)).toBe(23);
+    expect(shrinkBudget(BUDGET_DEFAULT, stamps(40, now - 45 * 60_000), now)).toBe(BUDGET_DEFAULT); // never grows on a 429
+    expect(shrinkBudget(BUDGET_DEFAULT, stamps(12), now)).toBe(9);
+    expect(shrinkBudget(8, stamps(12), now)).toBe(8); // already under what the hour accepted
+    expect(BUDGET_MIN).toBeLessThanOrEqual(Math.floor(12 * 0.75)); // the floor never beats real evidence
+  });
+
+  it('a 429 right after a block ended is punishment carry-over, not budget information', () => {
+    expect(shrinkBudget(BUDGET_DEFAULT, stamps(2), now)).toBe(BUDGET_DEFAULT);
+  });
+
+  it('clean reads earn a slot back, up to the ceiling', () => {
+    expect(growBudget(20, 5)).toEqual({ budget: 20, budgetStreak: 5 });
+    expect(growBudget(20, 20)).toEqual({ budget: 21, budgetStreak: 0 });
+    expect(growBudget(BUDGET_MAX, 20)).toEqual({ budget: BUDGET_MAX, budgetStreak: 0 });
+  });
+
+  it('idle spacing keeps half the budget in reserve', () => {
+    expect(idleSpacingMs(24)).toBe(5 * 60_000);
+    expect(idleSpacingMs(6)).toBe(20 * 60_000);
   });
 });
 
