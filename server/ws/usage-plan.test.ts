@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { mapPlanUsage, retryAfterMs, borrowedSnapshot, widenGap, relaxGap, pruneAttempts, budgetNextReadAt, shrinkBudget, growBudget, healRate, idleSpacingMs, GAP_MIN_MS, GAP_MAX_MS, RATE_JITTER_MS, BUDGET_DEFAULT, BUDGET_MIN, BUDGET_MAX, BUDGET_WINDOW_MS } from './usage-plan';
+import { mapPlanUsage, retryAfterMs, borrowedSnapshot, widenGap, relaxGap, pruneAttempts, budgetNextReadAt, shrinkBudget, growBudget, healRate, idleSpacingMs, paceMs, GAP_MIN_MS, GAP_MAX_MS, RATE_JITTER_MS, BUDGET_DEFAULT, BUDGET_MIN, BUDGET_MAX, BUDGET_WINDOW_MS } from './usage-plan';
 
 vi.mock('../oauth', () => ({ readOAuthToken: async () => 'token', OAUTH_BETA: 'beta' }));
 vi.mock('./broadcast', () => ({ broadcast: () => {} }));
@@ -206,7 +206,8 @@ describe('requestPlanUsageRefresh', () => {
 
   // The loop asks every 15s; with a turn alive it reads at the tight spacing,
   // idle it waits the budget-derived spacing so half the hour stays in reserve.
-  it('with a turn alive reads at the tight spacing; idle, at the budget-derived spacing', async () => {
+  it('with a turn alive reads at the budget pace; idle, at double it', async () => {
+    const pace = paceMs(BUDGET_DEFAULT);
     const fetchMock = vi.fn(async () => reply(200));
     vi.stubGlobal('fetch', fetchMock);
     const m = await load();
@@ -214,12 +215,16 @@ describe('requestPlanUsageRefresh', () => {
     m.startPlanUsageLoop(() => true, () => running);
     await vi.advanceTimersByTimeAsync(0);
     expect(fetchMock).toHaveBeenCalledTimes(1); // prime do boot
+    // Even with a turn alive the read waits the pace: the tight 30s spacing is
+    // what burst two reads into the endpoint and bought an hour of silence.
+    await vi.advanceTimersByTimeAsync(pace - GAP_MIN_MS);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(GAP_MIN_MS);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     running = false;
-    await vi.advanceTimersByTimeAsync(idleSpacingMs(BUDGET_DEFAULT) - GAP_MIN_MS);
+    await vi.advanceTimersByTimeAsync(idleSpacingMs(BUDGET_DEFAULT) - pace);
     expect(fetchMock).toHaveBeenCalledTimes(2); // idle: not yet
-    await vi.advanceTimersByTimeAsync(GAP_MIN_MS);
+    await vi.advanceTimersByTimeAsync(pace);
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
@@ -302,10 +307,10 @@ describe('requestPlanUsageRefresh', () => {
     const fetchMock = vi.fn(async () => reply(200));
     vi.stubGlobal('fetch', fetchMock);
     await vi.advanceTimersByTimeAsync(40_000);
-    m.requestPlanUsageRefresh();          // block is over, but the widened gap still holds
+    m.requestPlanUsageRefresh();          // block is over, but the spacing still holds
     await vi.advanceTimersByTimeAsync(0);
     expect(fetchMock).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(GAP_MIN_MS);
+    await vi.advanceTimersByTimeAsync(paceMs(BUDGET_DEFAULT));
     m.requestPlanUsageRefresh();
     await vi.advanceTimersByTimeAsync(0);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -438,7 +443,7 @@ describe('hour budget', () => {
   });
 
   it('a 429 after a heavy hour keeps 3/4 of what the hour accepted', () => {
-    expect(shrinkBudget(BUDGET_DEFAULT, stamps(31), now)).toBe(23);
+    expect(shrinkBudget(31, stamps(31), now)).toBe(23);
     expect(shrinkBudget(BUDGET_DEFAULT, stamps(40, now - 45 * 60_000), now)).toBe(BUDGET_DEFAULT); // never grows on a 429
     expect(shrinkBudget(BUDGET_DEFAULT, stamps(12), now)).toBe(9);
     expect(shrinkBudget(8, stamps(12), now)).toBe(8); // already under what the hour accepted
@@ -450,19 +455,30 @@ describe('hour budget', () => {
   });
 
   it('clean reads earn a slot back, up to the ceiling', () => {
-    expect(growBudget(20, 2)).toEqual({ budget: 20, budgetStreak: 2 });
-    expect(growBudget(20, 3)).toEqual({ budget: 21, budgetStreak: 0 });
+    expect(growBudget(10, 2)).toEqual({ budget: 10, budgetStreak: 2 });
+    expect(growBudget(10, 3)).toEqual({ budget: 11, budgetStreak: 0 });
     expect(growBudget(BUDGET_MAX, 3)).toEqual({ budget: BUDGET_MAX, budgetStreak: 0 });
   });
 
-  it('a clean rolling hour undoes the punishment instead of waiting for the streak', () => {
+  it('a clean rolling hour earns ONE slot back, never a jump to the default', () => {
     expect(healRate(9, now - 30 * 60_000, now)).toBeNull();
-    expect(healRate(9, now - BUDGET_WINDOW_MS, now)).toEqual({ budget: BUDGET_DEFAULT, gapMs: GAP_MIN_MS });
-    // A budget earned above the default survives the heal.
-    expect(healRate(BUDGET_MAX, 0, now)).toEqual({ budget: BUDGET_MAX, gapMs: GAP_MIN_MS });
+    // The jump to BUDGET_DEFAULT with a 30s gap is what bought the hour-long
+    // blackouts: it spent the 429's lesson and burst on the very next tick.
+    expect(healRate(9, now - BUDGET_WINDOW_MS, now)).toEqual({ budget: 10, gapMs: paceMs(10), rateAt: now });
+    expect(healRate(BUDGET_MAX, now - BUDGET_WINDOW_MS, now)?.budget).toBe(BUDGET_MAX);
   });
 
-  it('idle spacing keeps half the budget in reserve', () => {
+  it('a heal moves the clock, so a clean hour cannot heal on every read', () => {
+    const first = healRate(9, now - BUDGET_WINDOW_MS, now)!;
+    expect(healRate(first.budget, first.rateAt, now + 60_000)).toBeNull();
+  });
+
+  it('an account that never answered 429 has nothing to heal', () => {
+    expect(healRate(BUDGET_MAX, 0, now)).toBeNull();
+  });
+
+  it('the pace spreads the budget over the hour and idle keeps half in reserve', () => {
+    expect(paceMs(12)).toBe(5 * 60_000);
     expect(idleSpacingMs(24)).toBe(5 * 60_000);
     expect(idleSpacingMs(6)).toBe(20 * 60_000);
   });

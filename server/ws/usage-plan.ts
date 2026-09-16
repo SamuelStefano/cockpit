@@ -20,10 +20,23 @@ const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 // asks often so the reads land where someone is looking (panel open, turn
 // running, a click) instead of on a fixed 5-minute clock nobody was watching.
 export const BUDGET_WINDOW_MS = 60 * 60_000;
-export const BUDGET_DEFAULT = 24;
+// 16/09/2026: the panel was blind for hours at a time and the file explains why —
+// the budget CHASED the ceiling. It grew until the account answered 429, and the
+// Retry-After for that refusal is ~one hour. So the steady state was: a few minutes
+// of numbers, an hour of nothing, repeat. A read every ~5 minutes is all a usage
+// bar needs, and the hour that was refused had been clean for 57 minutes at exactly
+// that pace. The budget now aims at that rate instead of probing for the limit.
+export const BUDGET_DEFAULT = 12;
 export const BUDGET_MIN = 6;
-// 31 in an hour was refused; the ceiling stays under what was seen to fail.
-export const BUDGET_MAX = 28;
+export const BUDGET_MAX = 14;
+
+// Sustainable spacing implied by a budget: the hour's reads spread evenly. What
+// the account punishes is a BURST — the 429 of 19:12 came after two reads landed
+// 45s apart, while the previous 13 reads of that same hour, ~4,5min apart, all
+// went through. So this is a floor on every automatic read, not just the idle one.
+export function paceMs(budget: number): number {
+  return Math.round(BUDGET_WINDOW_MS / Math.max(1, budget));
+}
 // A 429 after a heavy hour teaches the real budget: keep 3/4 of what the hour
 // had actually accepted. A 429 right after a block ended (1–2 stamps in the
 // window) is the previous punishment still running, not budget information.
@@ -48,7 +61,7 @@ export const GAP_MIN_MS = 30_000;
 // Idle spacing (browser open, nobody looking, no turn) keeps half the hour's
 // budget in reserve, so a dashboard left open cannot drain what a click needs.
 export function idleSpacingMs(budget: number): number {
-  return Math.round((BUDGET_WINDOW_MS / Math.max(1, budget)) * 2);
+  return paceMs(budget) * 2;
 }
 // On top of the budget the gap still adapts: every 429 doubles it, a run of
 // clean reads halves it back. Blindness is spent on SPACING, not on punishment
@@ -304,11 +317,16 @@ export function widenGap(gap: number): number {
 // learned state only ever healed by streak — a lone 429 pinned the budget at 9/h,
 // which spaces idle reads 13min apart, and the panel showed a number from half an
 // hour ago. Clean hour = back to the default pace.
-export function healRate(current: number, lastRateAt: number, now: number): { budget: number; gapMs: number } | null {
-  if (now - lastRateAt < BUDGET_WINDOW_MS) return null;
-  // Never below what the streak already earned: a budget grown past the default
-  // is evidence too, and must not be thrown away by the heal.
-  return { budget: Math.max(current, BUDGET_DEFAULT), gapMs: GAP_MIN_MS };
+// Returns the new `rateAt` too, so a heal only fires ONCE per clean hour. Jumping
+// straight back to the default was the accelerator behind the hour-long blackouts:
+// it threw away everything the 429 had taught AND reset the spacing to 30s, so the
+// very next tick burst two reads into the endpoint and bought another hour of
+// silence. A clean hour now earns one slot, the same way a streak of clean reads
+// does, and the spacing stays at the pace that budget can actually sustain.
+export function healRate(current: number, lastRateAt: number, now: number): { budget: number; gapMs: number; rateAt: number } | null {
+  if (!lastRateAt || now - lastRateAt < BUDGET_WINDOW_MS) return null;
+  const budget = Math.min(BUDGET_MAX, current + 1);
+  return { budget, gapMs: paceMs(budget), rateAt: now };
 }
 
 // Next gap after a clean read: halve once enough reads went through in a row.
@@ -423,7 +441,7 @@ async function doFetch(): Promise<FetchOutcome['kind']> {
     ({ gapMs, okStreak } = relaxGap(gapMs, okStreak + 1));
     ({ budget, budgetStreak } = growBudget(budget, budgetStreak + 1));
     const healed = healRate(budget, lastRateAt, Date.now());
-    if (healed) ({ budget, gapMs } = healed);
+    if (healed) ({ budget, gapMs, rateAt: lastRateAt } = healed);
     last = r.usage;
     lastReadAt = Date.now();
     saveCache(r.usage);
@@ -467,14 +485,22 @@ export function requestPlanUsageRefresh(opts: RefreshOpts = {}): void {
   // lado é exatamente o estado que este arquivo existe pra evitar. A click still
   // adopts a snapshot younger than the tightest spacing: the network would not
   // return a different number, it would only spend a slot.
-  if (adoptShared(now, mode === 'force' ? GAP_MIN_MS : LEASE_MS)) return;
   // Disk state beats memory: the process forgets on restart, and the sibling may
-  // have just been told to back off.
+  // have just been told to back off. Runs BEFORE the lease so the adoption window
+  // is measured against the budget the sibling actually learned.
   syncFromDisk();
+  // A snapshot stays adoptable for a whole pace interval, not a fixed 4min: with
+  // reads 5min apart the old lease expired first and BOTH processes went to the
+  // network in the same interval, quietly doubling the real rate against a budget
+  // each of them believed it was respecting.
+  if (adoptShared(now, mode === 'force' ? GAP_MIN_MS : Math.max(LEASE_MS, paceMs(budget)))) return;
   if (now < cooldownUntil) return;
   if (attempt === 0) {
     if (budgetNextReadAt(attempts, budget, now) > now) return;
-    const spacing = mode === 'force' ? 0 : mode === 'idle' ? Math.max(gapMs, idleSpacingMs(budget)) : gapMs;
+    // The budget is a bucket and a bucket can be drained in a burst — which is the
+    // one thing the account refuses. The pace floor spends it evenly instead. Only
+    // a click (`force`) skips it; nobody is punished for asking once.
+    const spacing = mode === 'force' ? 0 : mode === 'idle' ? Math.max(gapMs, idleSpacingMs(budget)) : Math.max(gapMs, paceMs(budget));
     if (now - lastAttempt < spacing) return;
     // Retries of a network failure never reached the account; only the first
     // try of a round is a stamp against the budget.
