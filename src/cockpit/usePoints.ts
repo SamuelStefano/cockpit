@@ -14,6 +14,10 @@ export interface DflInvoice {
   tasks: { id: string; title: string; points: number }[];
 }
 
+export interface PontosAgentTasks {
+  note: string; epicCapCents: number; monthCapCents: number; pointValue: number;
+}
+
 export interface Points {
   points: PointsEntry[];
   pointsTotal: number;
@@ -30,6 +34,7 @@ export interface Points {
   onDflSync: () => void;
   onDflChange: (p: DflChange) => Promise<DflWriteResult>;
   onDflInvoice: (p: DflInvoice) => Promise<DflWriteResult>;
+  onPontosAgent: (p: PontosAgentTasks) => Promise<DflWriteResult>;
   onMsg: (msg: ServerMsg) => boolean;
 }
 
@@ -102,6 +107,12 @@ export function usePoints(send: (m: ClientMsg) => boolean): Points {
     onDflInvoice: useCallback((p: DflInvoice) => {
       const reqId = crypto.randomUUID();
       return dflWrite({ t: 'points-dfl-invoice', reqId, ...p }, reqId);
+    }, [dflWrite]),
+    // O servidor responde assim que o turno ARRANCA (não quando termina): a
+    // promessa é "agente disparado", e o trabalho dele aparece na sessão.
+    onPontosAgent: useCallback((p: PontosAgentTasks) => {
+      const reqId = crypto.randomUUID();
+      return dflWrite({ t: 'pontos-agent-tasks', reqId, ...p }, reqId);
     }, [dflWrite]),
     onMsg,
   };

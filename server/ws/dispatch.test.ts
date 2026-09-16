@@ -269,3 +269,40 @@ describe('purge broadcasts to all clients', () => {
     expect(bc.broadcast.mock.calls.some((c) => c[0].t === 'sessions')).toBe(true);
   });
 });
+
+describe('pontos-agent-tasks (botão "criar tasks com agente")', () => {
+  const msg = (over: Record<string, unknown> = {}): ClientMsg => ({
+    t: 'pontos-agent-tasks', reqId: 'r1', note: 'lesson studio',
+    epicCapCents: 500_000, monthCapCents: 400_000, pointValue: 75, ...over,
+  } as ClientMsg);
+
+  it('abre um turno autônomo com o prompt que carrega os dois tetos', async () => {
+    await handle(ws, msg(), 'admin');
+    expect(runs.startRun).toHaveBeenCalledOnce();
+    const opts = runs.startRun.mock.calls[0][0] as { ws: unknown; sessionKey: string; prompt: string; mode: string };
+    expect(opts.ws).toBeNull();
+    expect(opts.sessionKey).toMatch(/^pontos-agent-/);
+    expect(opts.mode).toBe('acceptEdits');
+    expect(opts.prompt).toContain('R$ 5.000,00');
+    expect(opts.prompt).toContain('R$ 4.000,00');
+    expect(opts.prompt).toContain('lesson studio');
+  });
+
+  it('responde ok com a sessão pra a UI mandar ele acompanhar', async () => {
+    await handle(ws, msg(), 'admin');
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'points-dfl-write', reqId: 'r1', kind: 'agent', ok: true }));
+  });
+
+  it('fora do loopback não dispara nada', async () => {
+    cfg.CONFIG.localOnly = false;
+    await handle(ws, msg(), 'admin');
+    expect(runs.startRun).not.toHaveBeenCalled();
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ kind: 'agent', ok: false }));
+  });
+
+  it('recusa nota grande demais em vez de estourar o teto de prompt', async () => {
+    await handle(ws, msg({ note: 'x'.repeat(9000) }), 'admin');
+    expect(runs.startRun).not.toHaveBeenCalled();
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ kind: 'agent', ok: false, message: 'nota grande demais' }));
+  });
+});
