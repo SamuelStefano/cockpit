@@ -33,7 +33,7 @@ export function quotaHoldUntil(rate: RateSnapshot | null, usage: PlanUsage | nul
 // usage pra soltar a fila assim que a janela virar, sem esperar o poll de 60s.
 export function quotaHold(now = Date.now()): number {
   const until = quotaHoldUntil(getRateSnapshot(), getLastPlanUsage(), now);
-  if (until) requestPlanUsageRefresh();
+  if (until) requestPlanUsageRefresh({ mode: 'idle' });
   return until;
 }
 

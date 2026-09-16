@@ -25,11 +25,13 @@ interface UsageBarProps {
   blockedUntil?: number | null;
   // Quando o número foi lido da conta. Leitura velha é mostrada como velha.
   readAt?: number | null;
-  // Pede um número fresco ao servidor (abertura do painel + enquanto ele fica aberto).
-  onRefresh?: () => void;
+  // Quando o servidor volta a poder ler (429 ou orçamento da hora esgotado).
+  nextReadAt?: number | null;
+  // Pede um número fresco ao servidor; `force` = clique, lê sem esperar o poll.
+  onRefresh?: (force?: boolean) => void;
 }
 
-export function UsageBar({ usage, compact, warn = false, paused = false, quotaResetsAt = null, blockedUntil = null, readAt = null, onRefresh }: UsageBarProps) {
+export function UsageBar({ usage, compact, warn = false, paused = false, quotaResetsAt = null, blockedUntil = null, readAt = null, nextReadAt = null, onRefresh }: UsageBarProps) {
   const { open, setOpen, wrapRef } = useUsagePanel(onRefresh);
   const rows = usageRows(usage);
   const stale = isStalePlanUsage(usage);
@@ -67,7 +69,7 @@ export function UsageBar({ usage, compact, warn = false, paused = false, quotaRe
           <span className="text-[10px] tabular-nums text-neutral-600">há {age}</span>
         )}
       </button>
-      {open && <UsagePanel rows={rows} reset={gateReset} warn={warn || paused} blockedUntil={blockedUntil} readAt={readAt} />}
+      {open && <UsagePanel rows={rows} reset={gateReset} warn={warn || paused} blockedUntil={blockedUntil} readAt={readAt} nextReadAt={nextReadAt} />}
     </div>
   );
 }

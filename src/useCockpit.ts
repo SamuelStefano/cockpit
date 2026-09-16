@@ -95,7 +95,9 @@ export interface Cockpit extends LeafApis {
   setModel: (m: string) => void;
   models: ModelInfo[];
   onRefreshModels: () => void;
-  onRefreshPlanUsage: () => void;
+  onRefreshPlanUsage: (force?: boolean) => void;
+  // Quando o servidor volta a poder ler o uso (429 ou orçamento da hora esgotado).
+  planNextReadAt: number | null;
   effort: Effort;
   setEffort: (e: Effort) => void;
   selectedSkills: string[];
@@ -185,6 +187,7 @@ export function useCockpit(): Cockpit {
   // Instante até quando a conta recusa a leitura do uso (429) — ver [[UsagePanel]].
   const [planBlockedUntil, setPlanBlockedUntil] = useState<number | null>(null);
   const [planReadAt, setPlanReadAt] = useState<number | null>(null);
+  const [planNextReadAt, setPlanNextReadAt] = useState<number | null>(null);
   const [marathon, setMarathon] = useState<Set<string>>(new Set());
   const [stats, setStats] = useState<SysStats | null>(null);
   const [bgAgents, setBgAgents] = useState<Record<string, BgAgent[]>>({}); // sessionKey -> agentes de fundo ativos
@@ -815,6 +818,7 @@ export function useCockpit(): Cockpit {
         setPlanUsage(msg.usage);
         setPlanBlockedUntil(msg.blockedUntil ?? null);
         setPlanReadAt(msg.readAt ?? null);
+        setPlanNextReadAt(msg.nextReadAt ?? null);
         return;
       }
       case 'marathon': {
@@ -1505,7 +1509,7 @@ export function useCockpit(): Cockpit {
   const onRefreshModels = useCallback(() => send({ t: 'refresh-models' }), [send]);
   // Abrir o painel de uso pede um número fresco na hora: o poll é de 5min e sem
   // isto abrir o popover mostrava o valor da última leitura sem dizer que era velho.
-  const onRefreshPlanUsage = useCallback(() => send({ t: 'plan-usage-get' }), [send]);
+  const onRefreshPlanUsage = useCallback((force = false) => send(force ? { t: 'plan-usage-get', force: true } : { t: 'plan-usage-get' }), [send]);
 
   const onStop = useCallback((sessionKey?: string) => {
     // Guard: se um call-site fizer onClick={onStop}, o React passa o MouseEvent
@@ -1784,5 +1788,5 @@ export function useCockpit(): Cockpit {
 
   const attachmentsView = useMemo(() => markDuplicates(attachments, sentHashes[activeId]), [attachments, sentHashes, activeId]);
 
-  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, stats, archived, contextTokens, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
+  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
 }

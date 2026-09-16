@@ -36,10 +36,14 @@ function Row({ row }: { row: UsageRow }) {
 
 // `reset` vem do gate de cota (não das linhas): é o "quando volto a poder enviar"
 // que a pílula flutuante mostrava antes de sair do chat.
-export function UsagePanel({ rows, reset = '', warn = false, blockedUntil = null, readAt = null }: { rows: UsageRow[]; reset?: string; warn?: boolean; blockedUntil?: number | null; readAt?: number | null }) {
+export function UsagePanel({ rows, reset = '', warn = false, blockedUntil = null, readAt = null, nextReadAt = null }: { rows: UsageRow[]; reset?: string; warn?: boolean; blockedUntil?: number | null; readAt?: number | null; nextReadAt?: number | null }) {
+  const now = Date.now();
   // Bloqueio da conta não é carregamento: "Lendo da conta…" pra sempre escondia
   // que o servidor tinha DESISTIDO de tentar até uma hora marcada.
-  const blocked = blockedUntil && blockedUntil > Date.now() ? relReset(blockedUntil) : '';
+  const blocked = blockedUntil && blockedUntil > now ? relReset(blockedUntil) : '';
+  // Orçamento da hora gasto (sem 429): o clique não trouxe número novo e precisa
+  // dizer quando volta a trazer, senão parece botão quebrado.
+  const budgetWait = !blocked && nextReadAt && nextReadAt > now ? relReset(nextReadAt) : '';
   // Idade da leitura mesmo SEM bloqueio: o poll também para quando o agente cai ou
   // o browser fica fechado, e aí o número velho não tinha nada que o denunciasse.
   const age = readAt ? relAge(readAt) : '';
@@ -62,6 +66,10 @@ export function UsagePanel({ rows, reset = '', warn = false, blockedUntil = null
       {rows.length > 0 && (blocked ? (
         <p className="mt-3 border-t border-neutral-800 pt-2.5 text-[11px] text-amber-300/80">
           número de há {age || 'pouco'} · a conta pediu pausa, próxima leitura em {blocked}
+        </p>
+      ) : budgetWait ? (
+        <p className="mt-3 border-t border-neutral-800 pt-2.5 text-[11px] text-neutral-500">
+          lido há {age || 'pouco'} · leituras da hora esgotadas, próxima em {budgetWait}
         </p>
       ) : age && (
         <p className="mt-3 border-t border-neutral-800 pt-2.5 text-[11px] text-neutral-500">lido há {age}</p>
