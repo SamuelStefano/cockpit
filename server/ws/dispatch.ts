@@ -13,6 +13,7 @@ import { readDflSnapshot } from '../dfl-points';
 import { registerFinanceClient } from './finance-clients';
 import { runDflSync } from '../dfl-sync-runner';
 import { runDflWrite } from '../dfl-write-runner';
+import { buildAgentTasksPrompt, agentSessionKey, MAX_NOTE_BYTES } from '../pontos-agent';
 import { getCrons, saveCron, deleteCron, runCronNow } from '../crons';
 import { scheduleValid } from '../../shared/cron-schedule';
 import { fireCron } from './runs';
@@ -347,6 +348,33 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const r = await runDflWrite({ kind: 'invoice-create', deliveryId: msg.deliveryId, deliveryName: msg.deliveryName, projectId: msg.projectId, projectName: msg.projectName, referenceMonth: msg.referenceMonth, pricePerPoint: msg.pricePerPoint, tasks: msg.tasks });
       send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'invoice', ok: r.ok, message: r.ok ? undefined : r.error });
       if (r.ok) runDflSync().catch(() => {});
+      return;
+    }
+    // Botão "criar tasks com agente": não escreve no DFL daqui — abre um turno
+    // autônomo (mesmo caminho do cron) com o prompt que carrega as duas regras de
+    // teto. Mesmo gate de loopback das escritas: o agente federado não dispara
+    // turno que mexe no financeiro do Samuel.
+    case 'pontos-agent-tasks': {
+      if (!CONFIG.localOnly) { send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'agent', ok: false, message: 'agente de tasks só no loopback' }); return; }
+      const note = typeof msg.note === 'string' ? msg.note : '';
+      if (Buffer.byteLength(note) > MAX_NOTE_BYTES) { send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'agent', ok: false, message: 'nota grande demais' }); return; }
+      const sessionKey = agentSessionKey(Date.now());
+      startRun({
+        ws: null,
+        sessionKey,
+        prompt: buildAgentTasksPrompt({
+          note,
+          epicCapCents: msg.epicCapCents,
+          monthCapCents: msg.monthCapCents,
+          pointValue: msg.pointValue,
+        }),
+        msgId: `pontos-${Date.now().toString(36)}`,
+        // Turno sem cliente atrelado: sem acceptEdits ele para no primeiro pedido
+        // de permissão e ninguém está lá pra aprovar. Não é bypass.
+        mode: 'acceptEdits',
+        effort: 'medium',
+      });
+      send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'agent', ok: true, message: sessionKey });
       return;
     }
     case 'crons-get': {

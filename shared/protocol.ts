@@ -602,6 +602,10 @@ export type ClientMsg =
   // o token nunca cruza pro WS/cliente. reqId ecoa na resposta pra a UI casar.
   | { t: 'points-dfl-change'; reqId: string; taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string }
   | { t: 'points-dfl-invoice'; reqId: string; deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number; deliveryId?: string; deliveryName?: string }[] }
+  // Botão "criar tasks com agente": dispara um turno autônomo que registra o
+  // trabalho no DFL. Não escreve nada sozinho aqui — quem escreve é o agente,
+  // pelas tools dele. Os tetos viajam junto pra o prompt citar o valor vigente.
+  | { t: 'pontos-agent-tasks'; reqId: string; note: string; epicCapCents: number; monthCapCents: number; pointValue: number }
   | { t: 'ctx-install'; slug: string; title: string; body: string }
   | { t: 'session-handoff'; sessionId: string }
   // Afunilamento em lote: destila as sessões paradas num contexto só e arquiva.
@@ -707,7 +711,7 @@ export type ServerMsg =
   | { t: 'points-dfl-syncing' }
   // Resultado de uma escrita DFL (change/invoice). reqId casa com o pedido; a UI
   // mostra sucesso/erro e um resync empurra o snapshot novo pelo watcher.
-  | { t: 'points-dfl-write'; reqId: string; kind: 'change' | 'invoice'; ok: boolean; message?: string }
+  | { t: 'points-dfl-write'; reqId: string; kind: 'change' | 'invoice' | 'agent'; ok: boolean; message?: string }
   | { t: 'crons'; items: Cron[] }
   | { t: 'context'; id: string; title: string; body: string }
   | { t: 'models'; models: ModelInfo[] }

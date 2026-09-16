@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import type { DflProjectNode } from '../../../shared/protocol';
-import { Icon, EmptyState, ProgressBar, Badge } from '../../components/primitives';
-import { DflDelivery } from './DflDelivery';
+import { Icon, EmptyState, ProgressBar, Badge, Button } from '../../components/primitives';
+import { DflEpic } from './DflEpic';
 import { SelectionBar } from './SelectionBar';
+import { AgentTasksModal } from './AgentTasksModal';
 import { usePontosControls } from './pontosControls';
 import { brl, fmtPts } from './money';
-import { filterProjects, projectStatusPoints, redundantEpicHeader, type TreeFilter } from './treeFilter';
+import { filterProjects, projectStatusPoints, type TreeFilter } from './treeFilter';
 
 const FILTERS: { id: TreeFilter; label: string; on: string }[] = [
   { id: 'all', label: 'Todos', on: 'border-neutral-600 bg-neutral-800 text-neutral-100' },
@@ -18,9 +19,18 @@ const FILTERS: { id: TreeFilter; label: string; on: string }[] = [
 // padrão (o resumo por chips basta); com filtro ativo abrem já expandidas.
 export function DflTree({ projects }: { projects: DflProjectNode[] }) {
   const [filter, setFilter] = useState<TreeFilter>('all');
+  const [agent, setAgent] = useState(false);
   const { selecting, setSelecting, clearSelected } = usePontosControls();
   if (!projects.length) {
-    return <EmptyState icon="grip" title="Sem dados do DFL" description="Rode a sincronização pra puxar projetos, entregas e tarefas." />;
+    return (
+      <>
+        <EmptyState icon="grip" title="Sem dados do DFL" description="Rode a sincronização pra puxar projetos, entregas e tarefas." />
+        <div className="mt-3 flex justify-center">
+          <Button variant="secondary" size="sm" icon="zap" onClick={() => setAgent(true)}>criar tasks com agente</Button>
+        </div>
+        {agent && <AgentTasksModal onClose={() => setAgent(false)} />}
+      </>
+    );
   }
   const shown = filterProjects(projects, filter);
   const toggleSelecting = () => { setSelecting(!selecting); if (selecting) clearSelected(); };
@@ -34,12 +44,17 @@ export function DflTree({ projects }: { projects: DflProjectNode[] }) {
             {f.label}
           </button>
         ))}
+        <button onClick={() => setAgent(true)}
+          className="ml-auto rounded-full border border-neutral-800 bg-transparent px-2.5 py-1 text-[11px] font-medium text-neutral-500 transition hover:text-neutral-300">
+          criar tasks com agente
+        </button>
         <button onClick={toggleSelecting}
-          className={`ml-auto rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+          className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
             selecting ? 'border-orange-500/40 bg-orange-500/15 text-orange-300' : 'border-neutral-800 bg-transparent text-neutral-500 hover:text-neutral-300'}`}>
           {selecting ? 'concluir' : 'selecionar'}
         </button>
       </div>
+      {agent && <AgentTasksModal onClose={() => setAgent(false)} />}
       {shown.length === 0
         ? <p className="py-8 text-center text-[12px] text-neutral-600">Nada com esse status.</p>
         : <div className="space-y-2">{shown.map((p) => <ProjectBlock key={`${p.id}:${filter}`} project={p} expandAll={filter !== 'all'} />)}</div>}
@@ -78,20 +93,7 @@ function ProjectBlock({ project, expandAll }: { project: DflProjectNode; expandA
       </button>
       {open && (
         <div className="space-y-2 border-t border-neutral-800/70 px-3 pb-3 pt-2">
-          {project.epics.map((ep) => (
-            <div key={ep.id}>
-              {!redundantEpicHeader(ep) && (
-                <div className="flex items-baseline gap-2 px-0.5 py-1">
-                  <span className="min-w-0 flex-1 truncate text-[10.5px] font-semibold uppercase tracking-widest text-neutral-500">{ep.name}</span>
-                  <span className="shrink-0 text-[10.5px] tabular-nums text-neutral-600">{fmtPts(ep.points)} pts · {brl(ep.amountCents)}</span>
-                </div>
-              )}
-              <div className="space-y-1.5">
-                {/* key inclui o modo: trocar o filtro remonta e reaplica o defaultOpen */}
-                {ep.deliveries.map((d) => <DflDelivery key={`${d.id}:${expandAll}`} delivery={d} defaultOpen={expandAll} />)}
-              </div>
-            </div>
-          ))}
+          {project.epics.map((ep) => <DflEpic key={ep.id} epic={ep} expandAll={expandAll} />)}
         </div>
       )}
     </div>

@@ -15,7 +15,7 @@ import { DflTree } from './pontos/DflTree';
 import { DflInvoices } from './pontos/DflInvoices';
 import { fmtPts } from './pontos/money';
 import { MonthCapBar } from './pontos/MonthCapBar';
-import { monthCap } from './pontos/month-cap';
+import { monthCap, currentMonthKey } from './pontos/month-cap';
 
 interface Props {
   connected: boolean;
@@ -34,15 +34,16 @@ interface Props {
   onDflSync: () => void;
   onDflChange: DflWriteApi['onDflChange'];
   onDflInvoice: DflWriteApi['onDflInvoice'];
+  onPontosAgent: DflWriteApi['onPontosAgent'];
 }
 
 // Centro de pontos + financeiro. Árvore/Faturas vêm do snapshot DFL (só-leitura,
 // owner-only); Ledger é o registro local que a IA alimenta e você corrige.
 export function Pontos(props: Props) {
-  const { connected, points, total, loaded, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync, onDflChange, onDflInvoice } = props;
+  const { connected, points, total, loaded, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync, onDflChange, onDflInvoice, onPontosAgent } = props;
   const { now, glowing, add, correct, note, remove } = usePontos(props);
   const { tab, setTab, hasDfl } = useDflPontos({ connected, snapshot: dflSnapshot, onDflGet });
-  const controls = usePontosControlsState({ onDflChange, onDflInvoice });
+  const controls = usePontosControlsState({ onDflChange, onDflInvoice, onPontosAgent });
   const [adding, setAdding] = useState(false);
   const projects = dflSnapshot?.projects ?? [];
   const recomputed = dflSnapshot ? recomputeTotals(projects, controls.excluded, controls.pointValue) : null;
@@ -70,7 +71,9 @@ export function Pontos(props: Props) {
         {tab !== 'ledger' && <SyncBar snapshot={dflSnapshot} syncing={dflSyncing} now={now} onSync={onDflSync} />}
         {tab !== 'ledger' && totals && <PointValueBar />}
         {tab !== 'ledger' && totals && <FinanceSummaryBar totals={totals} offPoints={recomputed?.offPoints ?? 0} offAmountCents={recomputed?.offAmountCents ?? 0} />}
-        {tab !== 'ledger' && dflSnapshot && totals && <MonthCapBar cap={monthCap(dflSnapshot.invoices, totals.amountOpenCents, now)} />}
+        {tab !== 'ledger' && dflSnapshot && totals && (
+          <MonthCapBar cap={monthCap(dflSnapshot.invoices, totals.amountOpenCents, now, controls.monthCapCents(currentMonthKey(now)))} />
+        )}
 
         <Tabs className="mb-4" active={tab} onChange={setTab} items={[
           { id: 'arvore', label: 'Árvore', icon: 'grip', count: dflSnapshot?.projects.length },

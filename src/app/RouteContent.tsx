@@ -74,7 +74,8 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
           onPointsGet={c.onPointsGet} onPointsAdd={c.onPointsAdd} onPointsCorrect={c.onPointsCorrect}
           onPointsNote={c.onPointsNote} onPointsDelete={c.onPointsDelete}
           dflSnapshot={c.dflSnapshot} dflLoaded={c.dflLoaded} dflSyncing={c.dflSyncing}
-          onDflGet={c.onDflGet} onDflSync={c.onDflSync} onDflChange={c.onDflChange} onDflInvoice={c.onDflInvoice} />
+          onDflGet={c.onDflGet} onDflSync={c.onDflSync} onDflChange={c.onDflChange} onDflInvoice={c.onDflInvoice}
+          onPontosAgent={c.onPontosAgent} />
       );
     }
     if (route === '/crons') {
