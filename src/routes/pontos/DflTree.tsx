@@ -6,6 +6,7 @@ import { SelectionBar } from './SelectionBar';
 import { AgentTasksModal } from './AgentTasksModal';
 import { usePontosControls } from './pontosControls';
 import { brl, fmtPts } from './money';
+import { epicCap, type EpicCap } from './epic-cap';
 import { filterProjects, projectStatusPoints, type TreeFilter } from './treeFilter';
 
 const FILTERS: { id: TreeFilter; label: string; on: string }[] = [
@@ -20,7 +21,7 @@ const FILTERS: { id: TreeFilter; label: string; on: string }[] = [
 export function DflTree({ projects }: { projects: DflProjectNode[] }) {
   const [filter, setFilter] = useState<TreeFilter>('all');
   const [agent, setAgent] = useState(false);
-  const { selecting, setSelecting, clearSelected } = usePontosControls();
+  const { selecting, setSelecting, clearSelected, pointValue, excluded } = usePontosControls();
   if (!projects.length) {
     return (
       <>
@@ -34,6 +35,9 @@ export function DflTree({ projects }: { projects: DflProjectNode[] }) {
   }
   const shown = filterProjects(projects, filter);
   const toggleSelecting = () => { setSelecting(!selecting); if (selecting) clearSelected(); };
+  // Tetos calculados sobre a árvore INTEIRA (antes do filtro) — ver DflEpic.
+  const caps = new Map<string, EpicCap>();
+  for (const p of projects) for (const ep of p.epics) caps.set(ep.id, epicCap(ep, { pointValue, excluded }));
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-1.5">
@@ -57,7 +61,7 @@ export function DflTree({ projects }: { projects: DflProjectNode[] }) {
       {agent && <AgentTasksModal onClose={() => setAgent(false)} />}
       {shown.length === 0
         ? <p className="py-8 text-center text-[12px] text-neutral-600">Nada com esse status.</p>
-        : <div className="space-y-2">{shown.map((p) => <ProjectBlock key={`${p.id}:${filter}`} project={p} expandAll={filter !== 'all'} />)}</div>}
+        : <div className="space-y-2">{shown.map((p) => <ProjectBlock key={`${p.id}:${filter}`} project={p} caps={caps} expandAll={filter !== 'all'} />)}</div>}
       {selecting && <SelectionBar projects={projects} />}
     </div>
   );
@@ -66,7 +70,7 @@ export function DflTree({ projects }: { projects: DflProjectNode[] }) {
 // Projeto quitado (nada aberto/a-fazer) nasce colapsado num one-liner — some da
 // vista o que já foi pago. Só projeto com trabalho em aberto (ou filtro ativo)
 // abre sozinho. Isso é o que tira a poluição da árvore.
-function ProjectBlock({ project, expandAll }: { project: DflProjectNode; expandAll: boolean }) {
+function ProjectBlock({ project, caps, expandAll }: { project: DflProjectNode; caps: Map<string, EpicCap>; expandAll: boolean }) {
   const sp = projectStatusPoints(project);
   const active = sp.open > 0 || sp.todo > 0;
   const [open, setOpen] = useState(expandAll || active);
@@ -93,7 +97,7 @@ function ProjectBlock({ project, expandAll }: { project: DflProjectNode; expandA
       </button>
       {open && (
         <div className="space-y-2 border-t border-neutral-800/70 px-3 pb-3 pt-2">
-          {project.epics.map((ep) => <DflEpic key={ep.id} epic={ep} expandAll={expandAll} />)}
+          {project.epics.map((ep) => <DflEpic key={ep.id} epic={ep} cap={caps.get(ep.id)} expandAll={expandAll} />)}
         </div>
       )}
     </div>
