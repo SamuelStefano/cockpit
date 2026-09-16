@@ -14,9 +14,9 @@ export type ArrowDir = 'up' | 'down' | 'right' | 'left';
 
 const DIRS: Record<string, ArrowDir> = { A: 'up', B: 'down', C: 'right', D: 'left' };
 
-// ESC [ A | ESC O A | ^[[A | ^[OA  (also matches the lone "[A" form? no: that is
-// legitimate text, so the ESC/caret prefix is required).
-const ANSI_ARROW_RE = /(?:\[|O|\^\[\[|\^\[O)([ABCD])/g;
+// ESC [ A | ESC O A | ^[[A | ^[OA. The ESC (or its caret rendering) is required on
+// purpose: a bare "[A" is legitimate text — `array[A]` must survive untouched.
+const ANSI_ARROW_RE = /(?:\x1b\[|\x1bO|\^\[\[|\^\[O)([ABCD])/g;
 
 export interface StrippedArrows {
   /** Field text with every arrow sequence removed. */
