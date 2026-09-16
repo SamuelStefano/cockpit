@@ -136,6 +136,12 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
 
   const onScroll = () => recompute();
 
+  // O ResizeObserver é registrado uma vez só; sem o espelho ele chamaria o
+  // `recompute` do primeiro render, cujo `lastUserId` já mudou — a afordância
+  // "meu prompt" apontaria pra mensagem errada depois que o teclado abre.
+  const recomputeRef = useRef(recompute);
+  recomputeRef.current = recompute;
+
   const scrollToBottom = () => {
     const el = scrollRef.current;
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
@@ -183,6 +189,24 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
     recompute();
     return () => { if (raf) cancelAnimationFrame(raf); };
   }, [messages, phase, lastUserId]);
+
+  // Teclado virtual encolhe o scroller sem mexer no scrollTop: nenhum scroll nem
+  // mensagem nova dispara, as últimas linhas somem atrás do teclado e `atBottom`
+  // fica preso em true (o botão "ir pro fim" nem aparece). Re-ancora no resize.
+  // Não entra em loop: mudar scrollTop não altera o tamanho da caixa observada.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      const cur = scrollRef.current;
+      if (!cur) return;
+      if (pinnedRef.current) cur.scrollTop = cur.scrollHeight;
+      recomputeRef.current();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const planPending = phase === 'idle' && (() => {
     const last = messages[messages.length - 1];

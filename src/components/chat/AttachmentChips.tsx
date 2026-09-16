@@ -32,7 +32,7 @@ export function AttachmentChips({ attachments, onRemoveAttachment, onOpen }: Att
           <button
             onClick={() => onRemoveAttachment(a.path)}
             title="Remover anexo"
-            className={`flex h-6 w-6 items-center justify-center rounded-sm text-neutral-500 transition hover:bg-neutral-700 hover:text-neutral-200 ${tokens.focusRing}`}
+            className={`flex h-6 w-6 items-center justify-center rounded-sm text-neutral-500 transition hover:bg-neutral-700 hover:text-neutral-200 ${tokens.focusRing} ${tokens.touchBox}`}
           >
             <Icon name="x" size={11} />
           </button>

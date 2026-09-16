@@ -51,6 +51,9 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
   // laranja de "tem output novo". Nunca os dois — era o que enchia a lista de pontos.
   const dot = status ? STATUS_DOT[status.tone] : !running && updated ? 'bg-orange-400' : null;
 
+  // No dedo, o toque longo que abre o menu começava a selecionar o título (iOS
+  // ainda sobe o callout de copiar): select-none no card, select-text nos campos
+  // de edição.
   return (
     <div
       ref={rowRef}
@@ -63,7 +66,7 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
         if (e.target !== e.currentTarget) return; // tecla foi pra um botão/input interno
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(s.id); }
       }}
-      className={`group relative cursor-pointer rounded-xl border px-3.5 py-2 transition-all duration-150 outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40 lg:py-3
+      className={`group relative cursor-pointer rounded-xl border px-3.5 py-2 transition-all duration-150 outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none] lg:py-3
         ${active
           ? 'glow-active border-orange-500/40 bg-linear-to-r from-orange-500/9 to-orange-500/3'
           : 'border-transparent hover:border-neutral-800 hover:bg-neutral-900/80'}`}
@@ -75,7 +78,7 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
             value={draft} onChange={setDraft} onCommit={commit}
             onCancel={() => { setDraft(s.title); setEditing(false); }}
             label="Editar título da sessão"
-            className="w-full rounded-sm border border-orange-500/50 bg-neutral-950 px-1.5 py-0.5 text-[12.5px] font-medium text-neutral-100 outline-hidden ring-2 ring-orange-500/20"
+            className="w-full select-text rounded-sm border border-orange-500/50 bg-neutral-950 px-1.5 py-0.5 text-[12.5px] font-medium text-neutral-100 outline-hidden ring-2 ring-orange-500/20"
           />
         ) : (
           <span
@@ -118,7 +121,7 @@ export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, 
           onCancel={() => { setDescDraft(s.summary || ''); setDescEditing(false); }}
           placeholder="Descrição da sessão…"
           label="Editar descrição da sessão"
-          className="mt-0.5 w-full resize-none rounded-sm border border-orange-500/50 bg-neutral-950 px-1.5 py-1 text-[11.5px] leading-snug text-neutral-200 outline-hidden ring-2 ring-orange-500/20"
+          className="mt-0.5 w-full select-text resize-none rounded-sm border border-orange-500/50 bg-neutral-950 px-1.5 py-1 text-[11.5px] leading-snug text-neutral-200 outline-hidden ring-2 ring-orange-500/20"
         />
       ) : showDesc || ambiguous ? (
         // Com o toggle de descrição desligado, a linha ambígua ainda mostra o

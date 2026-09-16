@@ -64,6 +64,9 @@
 }
 
 html, body, #root { height: 100%; margin: 0; }
+/* Pull-to-refresh do Chrome Android/Safari recarregava o Deck no meio de um turno:
+   o gesto vaza a partir de header, composer e banners (só a thread contém). */
+html, body { overscroll-behavior-y: none; }
 /* Mobile: 100% resolve contra o viewport de layout, que NÃO encolhe com a url bar /
    teclado no Safari/Chrome → o rodapé (compositor/StatusBar) era cortado sob a chrome
    do navegador (a "scroll-y que não deveria"). dvh acompanha o viewport visível. */

@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, tokens } from '../primitives';
+import { isVirtualKeyboardOnly } from './touch';
 import { UserAvatar } from '../UserAvatar';
 import { usePersisted } from '../../lib/persist';
 import type { UserMessage } from '../../data/types';
@@ -30,6 +31,9 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
   const ref = useRef<HTMLTextAreaElement>(null);
   const editBtnRef = useRef<HTMLButtonElement>(null);
   const wasEditing = useRef(false);
+  // Teclado virtual não tem Shift+Enter: no toque o Enter quebra linha e o reenvio
+  // é só pelo botão — mesma regra do composer.
+  const touch = useMemo(isVirtualKeyboardOnly, []);
 
   useEffect(() => {
     if (editing) {
@@ -67,7 +71,7 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
             onKeyDown={(e) => {
               if (e.nativeEvent.isComposing) return;
               if (e.key === 'Escape') { e.preventDefault(); cancel(); }
-              else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); }
+              else if (e.key === 'Enter' && !e.shiftKey && !touch) { e.preventDefault(); save(); }
             }}
             rows={Math.min(10, value.split('\n').length)}
             className="w-full resize-none rounded-2xl rounded-br-md border border-orange-500/40 bg-neutral-800 px-4 py-2.5 text-[15px] leading-7 text-neutral-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40"

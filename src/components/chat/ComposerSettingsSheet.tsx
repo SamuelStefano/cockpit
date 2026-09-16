@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { Icon, tokens } from '../primitives';
 import { ModelPicker } from './ModelPicker';
 import { EffortPicker } from './EffortPicker';
@@ -32,9 +33,13 @@ const label = 'text-[12.5px] font-medium text-neutral-300';
 // Tudo que saiu da barra no celular (A4): modelo, esforço, skills, MCP e bypass.
 // Bottom sheet no mesmo padrão do McpPicker. Só existe abaixo de `sm` — no desktop
 // a barra continua mostrando os pickers inline.
+//
+// Sai por portal como o PickerSheet: o `backdrop-blur` do composer vira containing
+// block pro `fixed`, e o backdrop `inset-0` cobria só a caixa do composer — a thread
+// não escurecia. `useDismiss` segue valendo (ref.contains olha o DOM real do portal).
 export function ComposerSettingsSheet({ onClose, caps, bypass, setBypass, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, model, setModel, models, onRefreshModels, effort, setEffort }: ComposerSettingsSheetProps) {
   const ref = useDismiss<HTMLDivElement>(true, onClose);
-  return (
+  const sheet = (
     <>
       <div className="fixed inset-0 z-30 bg-black/40 sm:hidden" onClick={onClose} />
       <div
@@ -78,4 +83,5 @@ export function ComposerSettingsSheet({ onClose, caps, bypass, setBypass, skills
       </div>
     </>
   );
+  return typeof document !== 'undefined' ? createPortal(sheet, document.body) : sheet;
 }
