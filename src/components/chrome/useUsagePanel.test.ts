@@ -30,6 +30,18 @@ describe('useUsagePanel', () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
+  // Mobile webviews may never emit mousedown; pointerdown is what closes the panel.
+  it('closes on pointerdown outside the wrapper, not on mousedown alone', () => {
+    const { result } = renderHook(() => useUsagePanel());
+    act(() => result.current.setOpen(true));
+
+    act(() => { document.body.dispatchEvent(new Event('mousedown', { bubbles: true })); });
+    expect(result.current.open).toBe(true);
+
+    act(() => { document.body.dispatchEvent(new Event('pointerdown', { bubbles: true })); });
+    expect(result.current.open).toBe(false);
+  });
+
   it('coming back to the foreground with the panel open forces a read', () => {
     const refresh = vi.fn();
     const { result } = renderHook(() => useUsagePanel(refresh));

@@ -71,10 +71,16 @@ export function MobileLayout({ sessionsProps, chatProps, termProps, drawer, setD
         <ChatPanel key={chatProps.session?.id ?? 'none'} {...chatProps} onTerminal={() => setTermSheet(true)} terminalRunning={!!runningTerm} />
       </div>
 
+      {/* fixed, não absolute: este wrapper é irmão do <header>, e com o drawer
+          absolute o header ficava 100% tocável por cima do backdrop (e o painel
+          de uso, z-50 no header, abria por baixo do drawer). */}
       {drawer && (
         <>
-          <div className="absolute inset-0 z-40 bg-black/60" style={{ animation: 'overlayIn 0.2s ease' }} onClick={() => setDrawer(false)} />
-          <div className="absolute inset-y-0 left-0 z-50 w-[82%] max-w-[330px] border-r border-neutral-800 shadow-2xl" style={{ animation: 'drawerIn 0.26s cubic-bezier(0.22,1,0.36,1)' }}>
+          <div className="fixed inset-0 z-40 bg-black/60" style={{ animation: 'overlayIn 0.2s ease' }} onClick={() => setDrawer(false)} />
+          <div
+            className="fixed inset-y-0 left-0 z-50 w-[82%] max-w-[330px] border-r border-neutral-800 bg-neutral-950 shadow-2xl"
+            style={{ animation: 'drawerIn 0.26s cubic-bezier(0.22,1,0.36,1)', paddingTop: 'env(safe-area-inset-top)', paddingLeft: 'env(safe-area-inset-left)' }}
+          >
             <SessionsPanel {...sessionsProps} onCloseMobile={() => setDrawer(false)} />
           </div>
         </>

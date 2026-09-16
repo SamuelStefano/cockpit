@@ -25,7 +25,9 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: (id: numbe
           {item.action.label}
         </button>
       )}
-      <button onClick={() => onDismiss(id)} aria-label="Fechar" className="shrink-0 text-neutral-600 hover:text-neutral-300">
+      {/* p-2 -m-2 em vez de tokens.touchTarget: o botão de ação fica a 12px e o
+          pseudo-elemento de 40px roubaria o toque dele. */}
+      <button onClick={() => onDismiss(id)} aria-label="Fechar" className="-m-2 shrink-0 p-2 text-neutral-600 hover:text-neutral-300">
         <Icon name="x" size={13} />
       </button>
     </div>

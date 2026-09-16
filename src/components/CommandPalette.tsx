@@ -70,7 +70,7 @@ export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessi
             aria-label="Buscar comando ou sessão"
             className="w-full bg-transparent py-3.5 text-[14px] text-neutral-100 placeholder-neutral-600 outline-hidden"
           />
-          <kbd className="rounded-sm border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[10px] text-neutral-500">esc</kbd>
+          <kbd className="hidden rounded-sm border sm:inline border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[10px] text-neutral-500">esc</kbd>
         </div>
         <div className="scroll-thin max-h-[52dvh] overscroll-contain overflow-y-auto py-2">
           <CommandPaletteResults filtered={filtered} sel={sel} setSel={setSel} />

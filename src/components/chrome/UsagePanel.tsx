@@ -47,11 +47,14 @@ export function UsagePanel({ rows, reset = '', warn = false, blockedUntil = null
   // Idade da leitura mesmo SEM bloqueio: o poll também para quando o agente cai ou
   // o browser fica fechado, e aí o número velho não tinha nada que o denunciasse.
   const age = readAt ? relAge(readAt) : '';
+  // No celular a barra fica a <256px da borda esquerda, então um painel w-64
+  // ancorado em right-0 começava fora da tela. Fixo à largura da tela, logo
+  // abaixo do header (3rem + safe-area); volta a ser dropdown a partir de sm.
   return (
     <div
       role="dialog"
       aria-label="Detalhe do uso do plano"
-      className={`absolute right-0 top-full z-50 mt-2 w-64 ${tokens.radius.lg} ${tokens.surface.raised} p-3.5`}
+      className={`fixed inset-x-3 top-[calc(3rem+env(safe-area-inset-top)+0.5rem)] z-50 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-64 ${tokens.radius.lg} ${tokens.surface.raised} p-3.5`}
     >
       <p className="mb-3 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Uso do plano</p>
       {rows.length === 0 ? (

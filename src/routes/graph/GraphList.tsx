@@ -34,7 +34,7 @@ export function GraphList({ graphs, loaded, openId, opening, building, onOpen, o
   };
 
   return (
-    <div className="flex w-60 shrink-0 flex-col border-r border-neutral-800/80 bg-neutral-950">
+    <div className="flex max-h-56 w-full shrink-0 flex-col border-b border-neutral-800/80 bg-neutral-950 lg:max-h-none lg:w-60 lg:border-b-0 lg:border-r">
       <div className="shrink-0 border-b border-neutral-800/60 p-3">
         <Input
           icon="plus" mono size="sm" value={repo}

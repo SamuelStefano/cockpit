@@ -31,8 +31,8 @@ export function GraphQueryPanel({ querying, result, history, onQuery }: Props) {
 
   return (
     <div className="flex shrink-0 flex-col border-t border-neutral-800/80 bg-neutral-950">
-      <div className="flex items-center gap-2 p-3">
-        <div className="flex-1">
+      <div className="flex flex-wrap items-center gap-2 p-3">
+        <div className="min-w-40 flex-1">
           <Input
             icon="search" value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -67,7 +67,7 @@ export function GraphQueryPanel({ querying, result, history, onQuery }: Props) {
       )}
 
       {result && (
-        <div className="max-h-56 overflow-y-auto border-t border-neutral-800/60 px-4 py-3">
+        <div className="max-h-40 overflow-y-auto border-t border-neutral-800/60 px-4 py-3 sm:max-h-56">
           {result.miss ? (
             <div>
               <div className="text-[12.5px] text-neutral-400">nenhum nó casou com esses termos</div>

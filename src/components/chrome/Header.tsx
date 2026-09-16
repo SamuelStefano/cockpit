@@ -11,6 +11,7 @@ interface HeaderProps {
   conn: { ws: ConnState; sse: ConnState };
   isMobile: boolean;
   onMenu: () => void;
+  menuOpen: boolean;
   route: Route;
   nav: (to: Route) => void;
   onPalette: () => void;
@@ -31,12 +32,12 @@ interface HeaderProps {
   drops?: DropApi;
 }
 
-export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsage, planBlockedUntil = null, planReadAt = null, planNextReadAt = null, onRefreshPlanUsage, quotaWarn = false, quotaPaused = false, quotaResetsAt = null, isAdmin, routeMenuOpen, setRouteMenuOpen, userId, onSignOut, onChangePassword, drops }: HeaderProps) {
+export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette, planUsage, planBlockedUntil = null, planReadAt = null, planNextReadAt = null, onRefreshPlanUsage, quotaWarn = false, quotaPaused = false, quotaResetsAt = null, isAdmin, routeMenuOpen, setRouteMenuOpen, userId, onSignOut, onChangePassword, drops }: HeaderProps) {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex items-center gap-2.5">
         {isMobile && route === '/' && (
-          <button onClick={onMenu} title="Sessões" aria-label="Abrir sessões" className="-ml-1 rounded-md p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100">
+          <button onClick={onMenu} title="Sessões" aria-label="Sessões" aria-expanded={menuOpen} className="-ml-1 rounded-md p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100">
             <Icon name="menu" size={18} />
           </button>
         )}
@@ -51,7 +52,10 @@ export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsag
           <span className={`flex h-6 w-6 items-center justify-center rounded-md bg-linear-to-br from-orange-500 to-orange-700 text-neutral-950 ${tokens.accentGlow}`}>
             <Icon name="terminal" size={14} stroke={2.4} />
           </span>
-          <span className="font-mono text-[14px] font-semibold lowercase tracking-tight text-neutral-100 transition hover:text-white">Deck</span>
+          {/* Em 360–390px o header não fecha a conta com o wordmark e o ConnDot
+              (a direita é shrink-0 e sozinha passa de 200px): os dois só voltam
+              a partir de sm. O estado "caiu" segue visível no OfflineNotice. */}
+          <span className="hidden font-mono text-[14px] font-semibold lowercase tracking-tight text-neutral-100 transition hover:text-white sm:inline">Deck</span>
         </button>
         <nav className="ml-1 hidden items-center gap-0.5 rounded-lg border border-neutral-800 bg-neutral-900/60 p-0.5 md:flex">
           {navFor(isAdmin).map((n) => (
@@ -79,7 +83,7 @@ export function Header({ conn, isMobile, onMenu, route, nav, onPalette, planUsag
           <Icon name="search" size={14} />
           {!isMobile && <kbd className="font-mono text-[10px] text-neutral-600">⌘K</kbd>}
         </button>
-        <div className={`flex shrink-0 items-center rounded-lg border border-neutral-800 bg-neutral-900/60 py-1 ${isMobile ? 'px-2' : 'px-2.5'}`}>
+        <div className={`hidden shrink-0 items-center rounded-lg border border-neutral-800 bg-neutral-900/60 py-1 sm:flex ${isMobile ? 'px-2' : 'px-2.5'}`}>
           <ConnDot label="ws" state={conn.ws} compact={isMobile} />
         </div>
         <ProfileMenu userId={userId} onSignOut={onSignOut} onChangePassword={onChangePassword} drops={drops} />

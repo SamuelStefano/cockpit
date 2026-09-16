@@ -57,12 +57,14 @@ export function Graph(p: Props) {
       {!p.connected ? (
         <EmptyState icon="circle" title="Desconectado" description="Reconecte pra listar e gerar grafos." />
       ) : (
-        <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-visible">
           <GraphList
             graphs={p.graphs} loaded={p.loaded} openId={p.openId} opening={p.opening} building={p.building}
             onOpen={p.onGraphOpen} onDelete={p.onGraphDelete} onBuild={p.onGraphBuild}
           />
-          <div className="flex min-h-0 flex-1 flex-col">
+          {/* Empilhado, o canvas precisa de altura própria: só flex-1 deixava o
+              painel de consulta comer tudo e o canvas ficar com 0px. */}
+          <div className="flex min-h-[20rem] flex-1 flex-col lg:min-h-0">
             {p.building ? (
               <div className="min-h-0 flex-1 overflow-y-auto bg-neutral-950 p-4">
                 <div className="mb-2 flex items-center gap-2 font-mono text-[12px] text-orange-300"><Icon name="rotate" size={13} className="animate-spin" /> construindo grafo…</div>
