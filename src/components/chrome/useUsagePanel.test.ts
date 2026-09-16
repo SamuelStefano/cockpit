@@ -33,6 +33,8 @@ describe('useUsagePanel', () => {
   // Mobile webviews may never emit mousedown; pointerdown is what closes the panel.
   it('closes on pointerdown outside the wrapper, not on mousedown alone', () => {
     const { result } = renderHook(() => useUsagePanel());
+    const wrap = document.body.appendChild(document.createElement('div'));
+    (result.current.wrapRef as React.MutableRefObject<HTMLDivElement | null>).current = wrap;
     act(() => result.current.setOpen(true));
 
     act(() => { document.body.dispatchEvent(new Event('mousedown', { bubbles: true })); });
