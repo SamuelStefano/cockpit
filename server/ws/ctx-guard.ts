@@ -38,8 +38,12 @@ export const CACHE_TTL_MS = envInt(process.env.COCKPIT_CACHE_TTL_MS, 5 * 60_000)
 export const WINDOW_WEIGHTED = envInt(process.env.COCKPIT_WINDOW_WEIGHTED, 6_800_000);
 
 // Um cold-start grande por vez. Não é performance: é que dois deles somam ~28% da
-// janela, e o segundo só descobre isso depois de pagar.
-export const MAX_COLD_INFLIGHT = 1;
+// janela, e o segundo só descobre isso depois de pagar. `0` desliga o semáforo —
+// faz sentido em plano com janela folgada (Max 20x), onde serializar só atrasa.
+export const MAX_COLD_INFLIGHT = (() => {
+  const n = Number(process.env.COCKPIT_MAX_COLD_INFLIGHT);
+  return Number.isInteger(n) && n >= 0 ? n : 1;
+})();
 
 // Depois que a janela vira, esperar antes de soltar a fila. Em 04/09 uma sessão de
 // 631k auto-retomou 1 MINUTO após o reset e comeu 0,77M do ciclo novo antes de o
@@ -130,7 +134,7 @@ export function ctxVerdict(i: VerdictInput): Verdict {
   const u = i.usage;
   const fiveHour = u && (!u.resetsAt || u.resetsAt > now) ? u.fiveHour : null;
   if (!fitsInWindow(cost, fiveHour, costOpts)) return { kind: 'quota', cost };
-  if (isBigColdStart(cost) && coldInflightExcept(i.sessionKey) >= MAX_COLD_INFLIGHT) return { kind: 'cold-busy', cost };
+  if (MAX_COLD_INFLIGHT > 0 && isBigColdStart(cost) && coldInflightExcept(i.sessionKey) >= MAX_COLD_INFLIGHT) return { kind: 'cold-busy', cost };
   if (ctx >= CTX_SOFT) return { kind: 'soft', cost };
   return { kind: 'ok', cost };
 }
