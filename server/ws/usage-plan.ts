@@ -29,7 +29,7 @@ export const BUDGET_MAX = 28;
 // window) is the previous punishment still running, not budget information.
 const BUDGET_LEARN_MIN_STAMPS = BUDGET_MIN * 2;
 // Clean reads earn the budget back one slot at a time.
-const BUDGET_GROW_AFTER = 20;
+const BUDGET_GROW_AFTER = 3;
 // How often the loop ASKS. Cheap: spacing and budget decide whether it reads.
 const TICK_MS = 15_000;
 // A Anthropic contabiliza o turno alguns segundos DEPOIS do processo fechar: um
@@ -102,6 +102,8 @@ interface CacheEntry {
   attempts?: number[];
   budget?: number;
   budgetStreak?: number;
+  // When the account last answered 429 — the clock the budget heals against.
+  rateAt?: number;
 }
 
 // ts do último snapshot que ESTE processo escreveu: sem isso ele adotaria o
@@ -129,10 +131,10 @@ function saveCache(usage: PlanUsage): void {
   ownWriteTs = Date.now();
   // A good read also clears the block on disk, or the sibling process would keep
   // honoring a cooldown from a window that has already turned.
-  patchCache({ ts: ownWriteTs, usage, cooldownUntil: undefined, okStreak, gapMs, budget, budgetStreak });
+  patchCache({ ts: ownWriteTs, usage, cooldownUntil: undefined, okStreak, gapMs, budget, budgetStreak, rateAt: lastRateAt });
 }
 
-interface PersistedRate { until: number; attemptTs: number; gapMs: number; okStreak: number; attempts: number[]; budget: number; budgetStreak: number }
+interface PersistedRate { until: number; attemptTs: number; gapMs: number; okStreak: number; attempts: number[]; budget: number; budgetStreak: number; rateAt: number }
 
 // Account-level state written by this process in an earlier life, or by the sibling.
 function persistedRate(): PersistedRate {
@@ -147,6 +149,7 @@ function persistedRate(): PersistedRate {
     attempts,
     budget: num(e?.budget, BUDGET_DEFAULT),
     budgetStreak: num(e?.budgetStreak, 0),
+    rateAt: num(e?.rateAt, 0),
   };
 }
 
@@ -154,7 +157,7 @@ function readCacheEntry(): CacheEntry | null {
   try {
     const o = JSON.parse(readFileSync(CACHE_PATH, 'utf8'));
     if (typeof o?.ts !== 'number') return null;
-    return { ts: o.ts, usage: o.usage as PlanUsage, cooldownUntil: o.cooldownUntil, attemptTs: o.attemptTs, gapMs: o.gapMs, okStreak: o.okStreak, attempts: o.attempts, budget: o.budget, budgetStreak: o.budgetStreak };
+    return { ts: o.ts, usage: o.usage as PlanUsage, cooldownUntil: o.cooldownUntil, attemptTs: o.attemptTs, gapMs: o.gapMs, okStreak: o.okStreak, attempts: o.attempts, budget: o.budget, budgetStreak: o.budgetStreak, rateAt: o.rateAt };
   } catch { return null; }
 }
 
@@ -289,10 +292,23 @@ let okStreak = 0;
 let attempts: number[] = [];
 let budget = BUDGET_DEFAULT;
 let budgetStreak = 0;
+let lastRateAt = 0;
 
 // Next gap after a 429: double, capped.
 export function widenGap(gap: number): number {
   return Math.min(GAP_MAX_MS, Math.max(GAP_MIN_MS, gap) * 2);
+}
+
+// A whole rolling hour without a single 429 means the punishment that taught the
+// small budget belongs to a window that has already turned. Without this the
+// learned state only ever healed by streak — a lone 429 pinned the budget at 9/h,
+// which spaces idle reads 13min apart, and the panel showed a number from half an
+// hour ago. Clean hour = back to the default pace.
+export function healRate(current: number, lastRateAt: number, now: number): { budget: number; gapMs: number } | null {
+  if (now - lastRateAt < BUDGET_WINDOW_MS) return null;
+  // Never below what the streak already earned: a budget grown past the default
+  // is evidence too, and must not be thrown away by the heal.
+  return { budget: Math.max(current, BUDGET_DEFAULT), gapMs: GAP_MIN_MS };
 }
 
 // Next gap after a clean read: halve once enough reads went through in a row.
@@ -341,6 +357,7 @@ function syncFromDisk(): void {
   attempts = pruneAttempts([...new Set([...attempts, ...disk.attempts])], Date.now());
   budget = disk.budget;
   budgetStreak = disk.budgetStreak;
+  if (disk.rateAt > lastRateAt) lastRateAt = disk.rateAt;
 }
 
 const hhmm = (t: number) => new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -405,6 +422,8 @@ async function doFetch(): Promise<FetchOutcome['kind']> {
   if (r.kind === 'ok') {
     ({ gapMs, okStreak } = relaxGap(gapMs, okStreak + 1));
     ({ budget, budgetStreak } = growBudget(budget, budgetStreak + 1));
+    const healed = healRate(budget, lastRateAt, Date.now());
+    if (healed) ({ budget, gapMs } = healed);
     last = r.usage;
     lastReadAt = Date.now();
     saveCache(r.usage);
@@ -416,8 +435,9 @@ async function doFetch(): Promise<FetchOutcome['kind']> {
     okStreak = 0;
     budget = shrinkBudget(budget, attempts, now);
     budgetStreak = 0;
+    lastRateAt = now;
     cooldownUntil = now + r.waitMs + RATE_JITTER_MS;
-    patchCache({ cooldownUntil, gapMs, okStreak, budget, budgetStreak });
+    patchCache({ cooldownUntil, gapMs, okStreak, budget, budgetStreak, rateAt: lastRateAt });
     console.log(`[usage] 429 retry-after=${Math.round(r.waitMs / 1000)}s → next try ${hhmm(cooldownUntil)}, gap=${Math.round(gapMs / 1000)}s budget=${budget}/h`);
     // Announce the block: without this the bar sat at "—" looking like it was loading.
     emit();
