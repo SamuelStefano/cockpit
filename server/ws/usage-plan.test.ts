@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { mapPlanUsage, retryAfterMs, borrowedSnapshot, widenGap, relaxGap, pruneAttempts, budgetNextReadAt, shrinkBudget, growBudget, idleSpacingMs, GAP_MIN_MS, GAP_MAX_MS, RATE_JITTER_MS, BUDGET_DEFAULT, BUDGET_MIN, BUDGET_MAX, BUDGET_WINDOW_MS } from './usage-plan';
+import { mapPlanUsage, retryAfterMs, borrowedSnapshot, widenGap, relaxGap, pruneAttempts, budgetNextReadAt, shrinkBudget, growBudget, healRate, idleSpacingMs, GAP_MIN_MS, GAP_MAX_MS, RATE_JITTER_MS, BUDGET_DEFAULT, BUDGET_MIN, BUDGET_MAX, BUDGET_WINDOW_MS } from './usage-plan';
 
 vi.mock('../oauth', () => ({ readOAuthToken: async () => 'token', OAUTH_BETA: 'beta' }));
 vi.mock('./broadcast', () => ({ broadcast: () => {} }));
@@ -450,9 +450,16 @@ describe('hour budget', () => {
   });
 
   it('clean reads earn a slot back, up to the ceiling', () => {
-    expect(growBudget(20, 5)).toEqual({ budget: 20, budgetStreak: 5 });
-    expect(growBudget(20, 20)).toEqual({ budget: 21, budgetStreak: 0 });
-    expect(growBudget(BUDGET_MAX, 20)).toEqual({ budget: BUDGET_MAX, budgetStreak: 0 });
+    expect(growBudget(20, 2)).toEqual({ budget: 20, budgetStreak: 2 });
+    expect(growBudget(20, 3)).toEqual({ budget: 21, budgetStreak: 0 });
+    expect(growBudget(BUDGET_MAX, 3)).toEqual({ budget: BUDGET_MAX, budgetStreak: 0 });
+  });
+
+  it('a clean rolling hour undoes the punishment instead of waiting for the streak', () => {
+    expect(healRate(9, now - 30 * 60_000, now)).toBeNull();
+    expect(healRate(9, now - BUDGET_WINDOW_MS, now)).toEqual({ budget: BUDGET_DEFAULT, gapMs: GAP_MIN_MS });
+    // A budget earned above the default survives the heal.
+    expect(healRate(BUDGET_MAX, 0, now)).toEqual({ budget: BUDGET_MAX, gapMs: GAP_MIN_MS });
   });
 
   it('idle spacing keeps half the budget in reserve', () => {
