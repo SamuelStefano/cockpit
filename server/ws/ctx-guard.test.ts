@@ -78,6 +78,17 @@ describe('semáforo de cold-start', () => {
     expect(ctxVerdict({ sessionId: 's', usage: usage(10), now: NOW }).kind).toBe('cold-busy');
   });
 
+  it('com o semáforo desligado (0) não segura ninguém', async () => {
+    vi.stubEnv('COCKPIT_MAX_COLD_INFLIGHT', '0');
+    vi.resetModules();
+    const fresh = await import('./ctx-guard');
+    vi.unstubAllEnvs();
+    setSample(120_000);
+    fresh.acquireCold('outra');
+    expect(fresh.MAX_COLD_INFLIGHT).toBe(0);
+    expect(fresh.ctxVerdict({ sessionId: 's', usage: usage(10), now: NOW }).kind).toBe('ok');
+  });
+
   it('não segura envio de cache QUENTE, mesmo em sessão grande', () => {
     setSample(120_000, 30_000);
     acquireCold('outra');
