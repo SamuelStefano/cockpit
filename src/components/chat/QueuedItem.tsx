@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { ModelInfo } from '../../../shared/protocol';
 import { Icon, tokens } from '../primitives';
 import { QueuedBgLauncher } from './QueuedBgLauncher';
+import { isVirtualKeyboardOnly } from './touch';
 
 // Seis ações lado a lado: no dedo a caixa real vira 40px (`touchBox`) e a barra
 // desce pra própria linha — as seis não cabem ao lado do texto em 390px, e a
@@ -43,6 +44,9 @@ interface Props {
 export function QueuedItem({ index, text, atts, expanded, flash, first, last, editing, draft, setDraft, onToggle, onStartEdit, onCommit, onCancelEdit, onMove, onRemove, bgModel, models, bgOpen, onToggleBg, onRunBg, onRunNow, nowBlocked }: Props) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const bgId = `fila-bg-${index}`;
+  // Teclado virtual não tem Shift+Enter: no toque o Enter quebra linha e salvar é
+  // só pelo botão — mesma regra do composer.
+  const touch = useMemo(isVirtualKeyboardOnly, []);
   useEffect(() => { if (editing) taRef.current?.focus(); }, [editing]);
   return (
     <li className={`rounded-md transition-colors duration-500 ${flash ? 'bg-orange-500/20' : ''}`}>
@@ -61,7 +65,7 @@ export function QueuedItem({ index, text, atts, expanded, flash, first, last, ed
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') { e.preventDefault(); onCancelEdit(); }
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onCommit(); }
+              if (e.key === 'Enter' && !e.shiftKey && !touch) { e.preventDefault(); onCommit(); }
             }}
             className={`flex-1 resize-none rounded-sm border border-orange-500/40 bg-neutral-900 px-1.5 py-1 text-[11.5px] leading-snug text-neutral-200 ${tokens.focusRing}`}
           />

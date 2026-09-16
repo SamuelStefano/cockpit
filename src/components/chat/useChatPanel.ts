@@ -184,6 +184,24 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
     return () => { if (raf) cancelAnimationFrame(raf); };
   }, [messages, phase, lastUserId]);
 
+  // Teclado virtual encolhe o scroller sem mexer no scrollTop: nenhum scroll nem
+  // mensagem nova dispara, as últimas linhas somem atrás do teclado e `atBottom`
+  // fica preso em true (o botão "ir pro fim" nem aparece). Re-ancora no resize.
+  // Não entra em loop: mudar scrollTop não altera o tamanho da caixa observada.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      const cur = scrollRef.current;
+      if (!cur) return;
+      if (pinnedRef.current) cur.scrollTop = cur.scrollHeight;
+      recompute();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const planPending = phase === 'idle' && (() => {
     const last = messages[messages.length - 1];
     return !!last && last.role === 'assistant' && last.blocks.some((b) => b.type === 'tool' && b.tool.name === 'ExitPlanMode');

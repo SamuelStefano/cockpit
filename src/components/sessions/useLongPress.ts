@@ -19,11 +19,17 @@ export function useLongPress(onLongPress: () => void, delay = 450) {
     longPressed.current = false;
     return true;
   };
+  // Android dispara `contextmenu` (e seleciona o título) no mesmo toque longo que
+  // abre o nosso menu. Só bloqueia com um toque em curso — o botão direito no
+  // desktop não passa por touchstart e segue livre.
+  const onContextMenu = (e: { preventDefault: () => void }) => {
+    if (pressTimer.current || longPressed.current) e.preventDefault();
+  };
 
   return {
     open,
     setOpen,
     consumeTap,
-    handlers: { onTouchStart, onTouchMove: clear, onTouchEnd: clear, onTouchCancel: clear },
+    handlers: { onTouchStart, onTouchMove: clear, onTouchEnd: clear, onTouchCancel: clear, onContextMenu },
   };
 }

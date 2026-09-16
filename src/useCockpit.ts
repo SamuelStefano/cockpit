@@ -1227,10 +1227,15 @@ export function useCockpit(): Cockpit {
 
   // Reconexão proativa (visibilidade/rede): não espera o backoff. Socket morto em
   // silêncio (mobile) reabre na hora; socket vivo só reconcilia o estado durável.
+  // "Vivo" é por frame recebido, não por readyState: voltando do background o
+  // socket meio-aberto ainda diz OPEN, o reconcile() sai por ele sem erro nem
+  // resposta, e o watchdog só derrubava ~30s depois. Um socket de verdade recebe
+  // stats a cada 2s — 5s mudo já é morto.
   const reconnectNow = useCallback(() => {
     retryDelay.current = 1500;
     const ws = wsRef.current;
-    if (ws && ws.readyState === ws.OPEN) { reconcile(); return; }
+    const alive = ws && ws.readyState === ws.OPEN && Date.now() - lastRecvAt.current <= 5_000;
+    if (alive) { reconcile(); return; }
     if (retry.current) { clearTimeout(retry.current); retry.current = null; }
     connect();
   }, [connect, reconcile]);
