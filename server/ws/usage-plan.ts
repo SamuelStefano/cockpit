@@ -465,8 +465,10 @@ async function doFetch(): Promise<FetchOutcome['kind']> {
   return r.kind;
 }
 
-// `idle`: browser open, nobody looking — reads spaced to keep budget in reserve.
-// `active`: someone is looking (panel open, turn running, connect) — tightest spacing.
+// `idle`: browser open, nobody looking — double the pace, keeping budget in reserve.
+// `active`: someone is looking (panel open, turn running, connect) — one read per
+// pace interval. It used to mean "tightest spacing" (30s); reading every 30s is what
+// walked the budget up to the ceiling and bought an hour of 429 every few hours.
 // `force`: the user clicked — no spacing at all; only the 429 block and the hour
 // budget can hold it, and both are reported back as `nextReadAt`.
 export type RefreshMode = 'idle' | 'active' | 'force';
