@@ -136,6 +136,12 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
 
   const onScroll = () => recompute();
 
+  // O ResizeObserver é registrado uma vez só; sem o espelho ele chamaria o
+  // `recompute` do primeiro render, cujo `lastUserId` já mudou — a afordância
+  // "meu prompt" apontaria pra mensagem errada depois que o teclado abre.
+  const recomputeRef = useRef(recompute);
+  recomputeRef.current = recompute;
+
   const scrollToBottom = () => {
     const el = scrollRef.current;
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
@@ -195,7 +201,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
       const cur = scrollRef.current;
       if (!cur) return;
       if (pinnedRef.current) cur.scrollTop = cur.scrollHeight;
-      recompute();
+      recomputeRef.current();
     });
     ro.observe(el);
     return () => ro.disconnect();
