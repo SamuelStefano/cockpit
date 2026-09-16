@@ -26,8 +26,8 @@ function InvoiceRow({ inv }: { inv: DflInvoice }) {
         <Icon name={open ? 'chevronDown' : 'chevronRight'} size={12} className={`shrink-0 ${canExpand ? 'text-neutral-600' : 'text-transparent'}`} />
         <span className="w-16 shrink-0 text-[13px] font-semibold tabular-nums text-neutral-100">{refMonth(inv.referenceMonth)}</span>
         <Badge tone={tone(inv.status)} dot>{inv.status}</Badge>
-        <span className="ml-auto shrink-0 text-[12px] tabular-nums text-neutral-500">{fmtPts(inv.totalPoints)} pts</span>
-        <span className="w-28 shrink-0 text-right text-[13px] font-medium tabular-nums text-neutral-200">{brl(inv.totalAmountCents)}</span>
+        <span className="ml-auto hidden shrink-0 text-[12px] tabular-nums text-neutral-500 sm:inline">{fmtPts(inv.totalPoints)} pts</span>
+        <span className="ml-auto min-w-[4.5rem] shrink-0 text-right text-[13px] font-medium tabular-nums text-neutral-200 sm:ml-0">{brl(inv.totalAmountCents)}</span>
       </button>
       {open && (
         <div className="border-t border-neutral-800/60 px-2.5 py-1 pl-8">

@@ -26,12 +26,14 @@ export function useUsagePanel(onRefresh?: (force?: boolean) => void) {
 
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e: MouseEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false); };
+    // pointerdown, não mousedown: em alguns webviews de celular o mousedown não
+    // chegava e o painel ficava aberto sob outro overlay (mesmo caso do RouteMenu).
+    const onDoc = (e: PointerEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false); };
     // Um Esc fecha um overlay só: ignora keypress já consumido e marca o que consome.
     const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing) { e.preventDefault(); setOpen(false); } };
-    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('pointerdown', onDoc);
     document.addEventListener('keydown', onEsc);
-    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onEsc); };
+    return () => { document.removeEventListener('pointerdown', onDoc); document.removeEventListener('keydown', onEsc); };
   }, [open]);
 
   return { open, setOpen, wrapRef };

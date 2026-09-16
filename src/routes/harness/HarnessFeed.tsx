@@ -62,7 +62,7 @@ export function HarnessFeed({ task, events }: Props) {
       )}
 
       {task.status === 'done' && (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           {task.via === 'plan'
             ? <Stat label="custo" value="plano" sub="US$0 · cota" icon="claude" tone="green" />
             : <Stat label="custo" value={fmtTaskCost(task.costUsd)} sub="estimado" icon="zap" tone={task.costUsd ? 'orange' : 'green'} />}

@@ -15,7 +15,7 @@ export function FinanceSummaryBar({ totals, offPoints = 0, offAmountCents = 0 }:
   const { paidPoints, paidAmountCents, openPoints, amountOpenCents, todoPoints } = totals;
   return (
     <div className="mb-4">
-      <div className="grid grid-cols-3 gap-2.5">
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
         <Stat label="Pago" value={`${fmtPts(paidPoints)} pts`} sub={brl(paidAmountCents)} icon="check" tone="green" />
         <Stat label="Em aberto" value={`${fmtPts(openPoints)} pts`} sub={brl(amountOpenCents)} icon="clock" tone="orange" />
         <Stat label="A fazer" value={`${fmtPts(todoPoints)} pts`} sub="estimativa futura" icon="square" tone="neutral" />
