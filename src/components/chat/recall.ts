@@ -8,6 +8,23 @@ export interface RecallState {
   value: string;
 }
 
+export interface Caret {
+  start: number;
+  end: number;
+}
+
+// Numa composição de VÁRIAS linhas a seta tem que mover o cursor entre as linhas,
+// não trocar a entrada do histórico. Só a primeira linha (↑) e a última (↓) caem
+// no recall — a mesma regra do shell. Seleção viva (start !== end) sempre deixa a
+// tecla passar: é ⇧+seta estendendo seleção.
+export function caretAllowsRecall(value: string, caret: Caret | null, dir: 'up' | 'down'): boolean {
+  if (!caret) return true; // sem cursor conhecido (ex: seta injetada como texto)
+  if (caret.start !== caret.end) return false;
+  return dir === 'up'
+    ? !value.slice(0, caret.start).includes('\n')
+    : !value.slice(caret.end).includes('\n');
+}
+
 // Próximo estado de recall pra um ↑/↓, ou null pra deixar a tecla cair no
 // comportamento normal do cursor (campo não-vazio sem recall, ou ↓ sem recall).
 export function nextRecall(
@@ -15,8 +32,10 @@ export function nextRecall(
   histIdx: number | null,
   value: string,
   dir: 'up' | 'down',
+  caret: Caret | null = null,
 ): RecallState | null {
   if (!history.length) return null;
+  if (!caretAllowsRecall(value, caret, dir)) return null;
   // Índice preso a um histórico ANTERIOR (troca de sessão encolhe o array): trata
   // como sem-recall pra reiniciar pela cauda do histórico atual, não indexar fora.
   const active = histIdx !== null && histIdx < history.length ? histIdx : null;

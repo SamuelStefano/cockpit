@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PermMode } from '../../../shared/protocol';
 import { classifySlash } from './slash';
-import { nextRecall } from './recall';
+import { nextRecall, type Caret } from './recall';
+import { stripAnsiArrows } from './ansi-keys';
 import { suggestCompletion, clipGhost } from './suggest';
 import { loadPromptHistory, recordPrompt } from './prompt-history';
 import { useSpeechInput } from './useSpeechInput';
@@ -144,6 +145,22 @@ export function useChatInput(args: UseChatInputArgs) {
     }
     if (taRef.current) taRef.current.style.height = 'auto';
   };
+  // Um passo de recall: `true` quando o histórico assumiu a tecla, `false` pra
+  // deixar o cursor fazer o trabalho normal. `caret` null = posição desconhecida.
+  const applyRecall = (dir: 'up' | 'down', current: string, caret: Caret | null): boolean => {
+    const r = nextRecall(history, histIdx, current, dir, caret);
+    if (!r) return false;
+    if (r.histIdx === null) {
+      setHistIdx(null);
+      setValue('');
+      if (taRef.current) taRef.current.style.height = 'auto';
+    } else recall(r.histIdx);
+    return true;
+  };
+  const caretOf = (): Caret | null => {
+    const el = taRef.current;
+    return el ? { start: el.selectionStart, end: el.selectionEnd } : null;
+  };
   const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
     uploadFiles(Array.from(e.target.files ?? [])); // teto de 15MB espelha o backend
     e.target.value = '';
@@ -179,13 +196,11 @@ export function useChatInput(args: UseChatInputArgs) {
     }
     // Esc com a composição vazia durante um turno = parar o run (atalho do botão stop).
     if (e.key === 'Escape' && disabled && !value) { e.preventDefault(); onStop(); return; }
-    // Recall de histórico (↑/↓), só fora da palette de slash.
-    if (history.length && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-      const r = nextRecall(history, histIdx, value, e.key === 'ArrowUp' ? 'up' : 'down');
-      if (!r) return; // cai no cursor normal
+    // Recall de histórico (↑/↓), só fora da palette de slash. Num texto de várias
+    // linhas a tecla cai no cursor (caretOf) em vez de trocar a mensagem.
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      if (!applyRecall(e.key === 'ArrowUp' ? 'up' : 'down', value, caretOf())) return; // cursor normal
       e.preventDefault();
-      if (r.histIdx === null) { setHistIdx(null); setValue(''); if (taRef.current) taRef.current.style.height = 'auto'; }
-      else recall(r.histIdx);
       return;
     }
     // Teclado virtual não tem Shift+Enter usável: no toque o Enter quebra linha e
@@ -199,7 +214,19 @@ export function useChatInput(args: UseChatInputArgs) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); setHistIdx(null); submit(); }
   };
   const grow = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setValue(e.target.value);
+    // Teclado que entrega a seta como TEXTO (sequência ANSI crua ou a notação
+    // "^[[A") nunca dispara o onKey: sem isto o `^[[A` ficava escrito na mensagem.
+    // Tira a sequência do texto e aplica o mesmo recall do teclado de verdade.
+    const { text, arrows, at } = stripAnsiArrows(e.target.value);
+    if (arrows.length) {
+      const dir = [...arrows].reverse().find((a) => a === 'up' || a === 'down') as 'up' | 'down' | undefined;
+      if (dir && applyRecall(dir, text, { start: at, end: at })) return;
+      setValue(text);
+      if (histIdx !== null) setHistIdx(null);
+      fitHeight(e.target);
+      return;
+    }
+    setValue(text);
     if (histIdx !== null) setHistIdx(null); // digitar sai do modo recall
     fitHeight(e.target);
   };
