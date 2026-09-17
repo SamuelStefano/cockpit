@@ -145,6 +145,13 @@ describe('memoryRunCap', () => {
     expect(memoryRunCap(0, 12)).toBe(1);
   });
 
+  it('counts live runs as already paid for: only the extra ones need free memory', () => {
+    // 3 alive, 1300MB left -> floor(900/350) = 2 more fit
+    expect(memoryRunCap(1300, 12, 3)).toBe(5);
+    // 3 alive, 600MB left -> no room for a 4th
+    expect(memoryRunCap(600, 12, 3)).toBe(3);
+  });
+
   it('never exceeds the configured base cap', () => {
     expect(memoryRunCap(100_000, 12)).toBe(12);
   });

@@ -215,7 +215,7 @@ export function runParkedInBackground(sessionKey: string, id: string, role?: Rol
   // O fork nasce com chave nova, então nunca "substitui" um run: se o teto de
   // concorrência já está cheio, o startRun recusaria depois do item já ter saído.
   // D5: teto reduzido dinamicamente pela memória livre no instante da admissão.
-  if (!admitRun(threads.size, false, memoryRunCap(readMemInfo().availMb, CONFIG.maxConcurrentRuns))) return { reject: 'sem-slot' };
+  if (!admitRun(threads.size, false, memoryRunCap(readMemInfo().availMb, CONFIG.maxConcurrentRuns, threads.size))) return { reject: 'sem-slot' };
   const item = takeParked(sessionKey, id, role);
   if (!item) return { reject: 'sem-item' };
   const forkId = randomUUID();
@@ -439,7 +439,7 @@ export function startRun(o: StartRunOptions) {
   // turno). `replacing` sempre passa (substituir a própria sessão nunca soma
   // uma sessão nova); a fila (parkRejected acima já tratou o gate de contexto)
   // segue intacta — o item recusado aqui só não sobe AGORA.
-  const effCap = memoryRunCap(readMemInfo().availMb, CONFIG.maxConcurrentRuns);
+  const effCap = memoryRunCap(readMemInfo().availMb, CONFIG.maxConcurrentRuns, threads.size);
   if (!admitRun(threads.size, replacing, effCap)) {
     if (ws) {
       const message = effCap < CONFIG.maxConcurrentRuns

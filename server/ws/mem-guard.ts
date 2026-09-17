@@ -99,9 +99,11 @@ export function nextResumeDelayMs(attempt: number): number | null {
   return delay;
 }
 
-// D5 admission cap: ~350MB per concurrent run plus a 400MB floor for the OS/agent
-// itself. Never below 1 (a starved box still has to let the one active chat
-// finish) and never above the operator's own configured ceiling.
-export function memoryRunCap(availMb: number, base: number): number {
-  return Math.min(base, Math.max(1, Math.floor((availMb - 400) / 350)));
+// D5 admission cap. MemAvailable already reflects the runs that are alive, so the
+// budget is "live runs + how many MORE fit" (~350MB each, 400MB kept for the
+// OS/agent). Never below 1 (a starved box still has to let one chat run) and never
+// above the operator's own configured ceiling.
+export function memoryRunCap(availMb: number, base: number, liveRuns = 0): number {
+  const extra = Math.max(0, Math.floor((availMb - 400) / 350));
+  return Math.min(base, Math.max(1, liveRuns + extra));
 }

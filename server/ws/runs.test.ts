@@ -1088,7 +1088,7 @@ describe('D5 — admissão de turno sensível à memória', () => {
   it('recusa com mensagem de memória quando o teto efetivo cai abaixo das sessões vivas', () => {
     startRun({ ws, sessionKey: 'm1', prompt: 'a', resumeId: 'sess-m1' });
     expect(threads.has('m1')).toBe(true);
-    // memoryRunCap(700, 12) = max(1, floor((700-400)/350)) = 1: com m1 já viva,
+    // memoryRunCap(700, 12, 1) = 1 viva + floor((700-400)/350) = 0 extra: com m1 já viva,
     // a sessão nova (não-replacing) não cabe.
     memInfoMock.value = { availMb: 700, swapFreeMb: 4000, swapTotalMb: 4096 };
     startRun({ ws, sessionKey: 'm2', prompt: 'b', resumeId: 'sess-m2' });
