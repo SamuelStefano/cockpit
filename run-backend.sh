@@ -3,18 +3,6 @@
 # morrer (crash, OOM), reinicia após 2s. Loga em /tmp.
 cd /home/samuel/cockpit
 
-# Overrides locais por-box (NÃO versionado). É aqui que o DONO da box habilita
-# coisas perigosas-mas-intencionais sem ligar pra todo fellow. Ex.:
-# COCKPIT_ALLOW_BYPASS=1 → destrava o bypassPermissions pra sessões admin (o gate
-# ainda exige role admin + localOnly + toggle on; ver bypassAllowed). Sem este
-# arquivo, nada muda (default seguro).
-# `set -a` marca pra exportação tudo que o source definir: sem isto uma linha sem
-# `export` (COCKPIT_TOKEN=… é o caso real) fica só no shell do supervisor e NÃO chega
-# no processo do backend — o gate de auth do WS ficava desligado sem ninguém notar.
-set -a
-[ -f "$HOME/.cockpit-local.env" ] && source "$HOME/.cockpit-local.env"
-set +a
-
 # Singleton via flock: só UM supervisor por vez. Sem isto, cada ./run-backend.sh
 # extra (entre sessões) vira mais um loop brigando pela :7777 — EADDRINUSE infinito
 # a cada 2s + storm de tsx que satura a CPU e engasga o WebSocket (causa real do
@@ -26,6 +14,22 @@ if ! flock -n 9; then
 fi
 
 while true; do
+  # Overrides locais por-box (NÃO versionado). É aqui que o DONO da box habilita
+  # coisas perigosas-mas-intencionais sem ligar pra todo fellow. Ex.:
+  # COCKPIT_ALLOW_BYPASS=1 → destrava o bypassPermissions pra sessões admin (o gate
+  # ainda exige role admin + localOnly + toggle on; ver bypassAllowed). Sem este
+  # arquivo, nada muda (default seguro).
+  # `set -a` marca pra exportação tudo que o source definir: sem isto uma linha sem
+  # `export` (COCKPIT_TOKEN=… é o caso real) fica só no shell do supervisor e NÃO chega
+  # no processo do backend — o gate de auth do WS ficava desligado sem ninguém notar.
+  #
+  # DENTRO do loop, não antes dele: o supervisor vive meses e o redeploy só mata o
+  # INNER. Lido uma vez só, variável acrescentada ao arquivo depois do boot do
+  # supervisor nunca chegava no processo (ver run-agent.sh, 16/09/2026).
+  set -a
+  # shellcheck disable=SC1091
+  [ -f "$HOME/.cockpit-local.env" ] && source "$HOME/.cockpit-local.env"
+  set +a
   echo "[$(date -Is)] starting cockpit backend on :7777"
   # Mata um listener órfão na :7777 antes de subir, pra nunca cair no EADDRINUSE.
   fuser -k 7777/tcp 2>/dev/null && sleep 1
