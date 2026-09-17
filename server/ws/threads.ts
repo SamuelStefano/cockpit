@@ -68,6 +68,8 @@ export interface Thread {
   parked?: ParkedItem;  // item que a fila estacionada drenou neste turno; volta pra fila se o teto de tokens matar o turno sem consumi-lo
   parkedFrom?: string;  // sessão de onde o item saiu — no disparo avulso a chave do turno é a do FORK, e devolver por ela criaria uma fila fantasma
   lastError?: string;   // último erro reportado pelo processo
+  lastExitCode?: number | null; // exit code do `claude saiu (N)` mais recente — insumo do gate de OOM (D1)
+  lastExitSignal?: string | null; // sinal do OS, quando disponível (SIGTERM/SIGKILL) — mesmo insumo
   // Snapshot acumulado p/ replay no reconnect (#10). Os frames vão por broadcast.
   text: string;
   thinking: string;

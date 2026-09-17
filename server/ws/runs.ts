@@ -21,6 +21,7 @@ import {
 } from './ctx-guard';
 import { markRunLive, clearRunLive, takeOrphanRuns } from './recover';
 import { recordIncident } from './incidents';
+import { readMemInfo, memoryVerdict, looksLikeOomKill, nextResumeDelayMs, memoryRunCap } from './mem-guard';
 import { authHold, isAuthFailure, markAuthBroken, AUTH_MESSAGE } from './auth-health';
 import { threadIsMarathon, MARATHON_AUTO_RESUME_CAP } from './marathon';
 import { threads, admitRun, resolveThreadKey, stopSession, stopEpochOf, clearStopEpoch, shouldPreserveLive, runParams, sameParams, type Thread, type RunParams } from './threads';
@@ -81,6 +82,23 @@ function autoResume(sessionKey: string, thread: Thread): void {
   startRun({ ...thread.params, ws: null, sessionKey, prompt: RESUME_PROMPT, resumeId: thread.sessionId });
 }
 
+// D2 — gate de memória na frente do autoResume: subir --resume com a memória
+// ainda estourada é o que queimava a única tentativa (AUTO_RESUME_CAP) em 5-10s,
+// no mesmo incidente que matou o turno. Enquanto a memória estiver 'low', espera
+// com backoff SEM contar tentativa — o cap real só é gasto quando a retomada
+// roda de fato. Todas as guardas de corrida (threads.has, isAwaiting, etc.) vivem
+// dentro de autoResume() e são reavaliadas do zero a cada disparo do timer.
+function maybeAutoResume(sessionKey: string, thread: Thread, backoffAttempt = 1): void {
+  if (memoryVerdict(readMemInfo()) === 'ok') { autoResume(sessionKey, thread); return; }
+  const delay = nextResumeDelayMs(backoffAttempt);
+  // Orçamento de espera (~30min) esgotado: desiste de esperar e tenta mesmo assim
+  // — cai no fluxo normal, que consome o cap de verdade e relata 'resume-exhausted'
+  // como sempre se a memória continuar ruim. Preso pra sempre seria pior que isso.
+  if (delay === null) { autoResume(sessionKey, thread); return; }
+  const timer = setTimeout(() => maybeAutoResume(sessionKey, thread, backoffAttempt + 1), delay);
+  timer.unref?.();
+}
+
 // --- drainer da fila ESTACIONADA (overnight/quota-out) ----------------------
 
 // Só o processo do AGENTE liga o drainer (startParkedDrainer). Sem esta trava, o
@@ -102,6 +120,9 @@ export const MAX_DRAIN_PER_PASS = 1;
 // tokens — fora isso, se o usuário deixou na fila, VAI (regra do Samuel).
 export function drainParked(): void {
   if (!drainerEnabled) return;
+  // D2 — memória apertada: não dispara (e não conta tentativa nenhuma, o item
+  // continua no topo). O próximo tick de 30s reavalia sozinho.
+  if (memoryVerdict(readMemInfo()) === 'low') return;
   // A transição hold>0 -> 0 é lida ANTES da pausa manual: com a fila pausada
   // durante um reset, o cooldown nunca armava e o primeiro dreno após retomar
   // subia em cima da janela recém-virada.
@@ -193,7 +214,8 @@ export function runParkedInBackground(sessionKey: string, id: string, role?: Rol
   if (!parent) return { reject: 'sem-contexto' };
   // O fork nasce com chave nova, então nunca "substitui" um run: se o teto de
   // concorrência já está cheio, o startRun recusaria depois do item já ter saído.
-  if (!admitRun(threads.size, false)) return { reject: 'sem-slot' };
+  // D5: teto reduzido dinamicamente pela memória livre no instante da admissão.
+  if (!admitRun(threads.size, false, memoryRunCap(readMemInfo().availMb, CONFIG.maxConcurrentRuns, threads.size))) return { reject: 'sem-slot' };
   const item = takeParked(sessionKey, id, role);
   if (!item) return { reject: 'sem-item' };
   const forkId = randomUUID();
@@ -413,8 +435,18 @@ export function startRun(o: StartRunOptions) {
   }
   if (!auto) clearAwaiting(sessionKey);
   const replacing = threads.has(sessionKey);
-  if (!admitRun(threads.size, replacing)) {
-    if (ws) send(ws, { t: 'error', sessionKey, message: 'limite de sessões simultâneas atingido' });
+  // D5: teto de concorrência efetivo = min(config, memória livre / ~350MB por
+  // turno). `replacing` sempre passa (substituir a própria sessão nunca soma
+  // uma sessão nova); a fila (parkRejected acima já tratou o gate de contexto)
+  // segue intacta — o item recusado aqui só não sobe AGORA.
+  const effCap = memoryRunCap(readMemInfo().availMb, CONFIG.maxConcurrentRuns, threads.size);
+  if (!admitRun(threads.size, replacing, effCap)) {
+    if (ws) {
+      const message = effCap < CONFIG.maxConcurrentRuns
+        ? 'A máquina está com pouca memória livre agora — espere a memória liberar e tente de novo.'
+        : 'limite de sessões simultâneas atingido';
+      send(ws, { t: 'error', sessionKey, message });
+    }
     return;
   }
   if (replacing) threads.get(sessionKey)!.handle.kill();
@@ -474,10 +506,11 @@ export function startRun(o: StartRunOptions) {
         if (thread.sessionId) markRunLive({ sessionKey, sessionId: thread.sessionId, params: thread.params, startedAt: thread.startedAt });
       }
     },
-    onError: (raw) => {
+    onError: (raw, exit) => {
       const auth = isAuthFailure(raw);
       const message = auth ? AUTH_MESSAGE : raw;
       thread.lastError = message;
+      if (exit) { thread.lastExitCode = exit.code; thread.lastExitSignal = exit.signal ?? null; }
       broadcast({ t: 'error', sessionKey, message });
       if (auth) markAuthBroken(sessionKey);
       else recordIncident({ kind: 'run-error', sessionKey, sessionId: thread.sessionId, detail: message.slice(0, 400) });
@@ -519,8 +552,23 @@ export function startRun(o: StartRunOptions) {
       // retomada — senão um incidente antigo consumiria a cota da sessão pra sempre.
       const silent = isSilentDeath(thread);
       if (silent) {
-        broadcast({ t: 'error', sessionKey, message: 'O turno caiu antes de terminar (o processo morreu sem resposta).' });
-        recordIncident({ kind: 'silent-death', sessionKey, sessionId: thread.sessionId, detail: `${Math.round((Date.now() - thread.startedAt) / 1000)}s vivo, ${thread.tools.length} tools, ${thread.text.length} chars de resposta` });
+        // D1 — classifica ANTES de avisar: exit 143/137 (ou sinal) com a máquina
+        // realmente apertada de memória no instante do fechamento é earlyoom/OOM
+        // killer, não um crash genérico. O usuário vê a causa real em vez de
+        // "processo morreu sem resposta" seguido de retomada imediata fadada a
+        // morrer de novo (era o resume-exhausted em 5-10s do postmortem).
+        const memInfo = readMemInfo();
+        const oom = looksLikeOomKill({
+          exitCode: thread.lastExitCode, signal: thread.lastExitSignal,
+          userStopped: thread.userStopped, reaped: !!thread.reaped, info: memInfo,
+        });
+        if (oom) {
+          broadcast({ t: 'error', sessionKey, message: 'A máquina ficou sem memória e o sistema matou este turno. Vou retomar quando a memória voltar.' });
+          recordIncident({ kind: 'oom-kill', sessionKey, sessionId: thread.sessionId, detail: `availMb=${memInfo.availMb} swapFreeMb=${memInfo.swapFreeMb} swapTotalMb=${memInfo.swapTotalMb}` });
+        } else {
+          broadcast({ t: 'error', sessionKey, message: 'O turno caiu antes de terminar (o processo morreu sem resposta).' });
+          recordIncident({ kind: 'silent-death', sessionKey, sessionId: thread.sessionId, detail: `${Math.round((Date.now() - thread.startedAt) / 1000)}s vivo, ${thread.tools.length} tools, ${thread.text.length} chars de resposta` });
+        }
       }
       else if (!thread.reaped) autoResumes.delete(sessionKey);
       // O turno que acabou de fechar é EXATAMENTE o que moveu a barra de uso.
@@ -570,7 +618,7 @@ export function startRun(o: StartRunOptions) {
       // 'total': esse teto existe justamente pra parar um run desgovernado — retomar
       // dobraria a queima que o teto tentou conter. E sem token não adianta retomar
       // nada: o turno novo morreria no limite igual.
-      if ((silent || (thread.reaped && thread.reaped !== 'total')) && !hold) autoResume(sessionKey, thread);
+      if ((silent || (thread.reaped && thread.reaped !== 'total')) && !hold) maybeAutoResume(sessionKey, thread);
     },
   });
 }

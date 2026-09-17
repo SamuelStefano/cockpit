@@ -42,7 +42,9 @@ export interface RunOpts {
   allowWorkflow?: boolean;
   forkId?: string;             // roda em cima do transcript do `resumeId` mas GRAVA neste id novo (--fork-session). Sem isto dois processos escreveriam o mesmo JSONL.
   onEvent: (ev: ClaudeEvent) => void;
-  onError: (msg: string) => void;
+  // exit/signal são passados quando o erro veio do close do processo (não de um
+  // spawn falho) — insumo do gate de OOM (D1, ws/mem-guard.ts looksLikeOomKill).
+  onError: (msg: string, exit?: { code: number | null; signal?: NodeJS.Signals | null }) => void;
   onClose: () => void;
 }
 
@@ -248,10 +250,10 @@ export function run(opts: RunOpts): RunHandle {
     onClose();
   };
   child.on('error', (err) => { onError(sanitize(err.message)); finish(); });
-  child.on('close', (code) => {
+  child.on('close', (code, signal) => {
     if (shouldReportExit(killed, code, sawResult)) {
       const tail = stderr.trim().slice(-300);
-      onError(sanitize(tail ? `claude saiu (${code}): ${tail}` : `claude saiu (${code})`));
+      onError(sanitize(tail ? `claude saiu (${code}): ${tail}` : `claude saiu (${code})`), { code, signal });
     }
     finish();
   });
