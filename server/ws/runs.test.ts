@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { WebSocket } from 'ws';
 import { startRun, routeSend, isSilentDeath, resumeOrphanRuns, drainParked, runParkedInBackground, runParkedNow, startParkedDrainer, AUTO_RESUME_CAP } from './runs';
 import { threads, killAllRuns } from './threads';
@@ -57,6 +57,14 @@ vi.mock('../engine/triage', () => ({ classify: vi.fn(), quickAnswer: vi.fn(), ki
 vi.mock('../engine/suggest', () => ({ suggestFollowups: vi.fn(async () => []) }));
 vi.mock('./incidents', () => ({ recordIncident: vi.fn() })); // teste não escreve no log real de incidentes
 vi.mock('./recover', () => ({ markRunLive: vi.fn(), clearRunLive: vi.fn(), takeOrphanRuns: vi.fn(() => []) }));
+// Memória mockada como "sempre ok" por padrão: sem isto os testes leriam o
+// /proc/meminfo REAL da box (que roda apertada de propósito) e o gate de D1/D2/D5
+// ficaria flaky. Os describes de D1/D2/D5 sobrescrevem os mocks que precisam.
+const memInfoMock = vi.hoisted(() => ({ value: { availMb: 100_000, swapFreeMb: 4000, swapTotalMb: 4096 } }));
+vi.mock('./mem-guard', async (orig) => ({
+  ...(await orig<typeof import('./mem-guard')>()),
+  readMemInfo: vi.fn(() => memInfoMock.value),
+}));
 
 describe('startRun — latch de pergunta pendente (AskUserQuestion)', () => {
   const ws = {} as WebSocket;
@@ -889,5 +897,219 @@ describe('gate de contexto', () => {
     vi.mocked(takeParked).mockReturnValue(item({ resumeId: 'sess-gigante' }));
     expect(runParkedInBackground('s1', 'pk-1')).toHaveProperty('forkId');
     expect(run).toHaveBeenCalledOnce();
+  });
+});
+
+const HEALTHY_MEM = { availMb: 100_000, swapFreeMb: 4000, swapTotalMb: 4096 };
+const STARVED_MEM = { availMb: 100, swapFreeMb: 50, swapTotalMb: 4096 };
+
+// D1 — o exit code/sinal sozinho não basta: só vira 'oom-kill' quando a máquina
+// também está apertada no instante do fechamento. Postmortem 17/09: exit 143 sem
+// este segundo sinal já virava "claude saiu (143)" pra crashes genuínos também.
+describe('D1 — morte silenciosa classificada como OOM kill', () => {
+  const ws = {} as WebSocket;
+  const closeLastRun = () => vi.mocked(run).mock.calls.at(-1)![0].onClose?.();
+  const errors = () => vi.mocked(broadcast).mock.calls.map((c) => c[0]).filter((m: any) => m.t === 'error');
+
+  beforeEach(() => {
+    threads.clear();
+    clearAllAwaiting();
+    vi.mocked(run).mockClear();
+    vi.mocked(broadcast).mockClear();
+    vi.mocked(recordIncident).mockClear();
+    vi.mocked(getLastPlanUsage).mockReturnValue(null);
+    usageRow.value = null;
+    resetCooldownState();
+    resetColdInflight();
+    memInfoMock.value = HEALTHY_MEM;
+  });
+
+  it('exit 143 + memória baixa vira incidente oom-kill com mensagem dedicada', () => {
+    startRun({ ws, sessionKey: 'oom1', prompt: 'trabalho', resumeId: 'sess-oom1' });
+    threads.get('oom1')!.lastExitCode = 143;
+    memInfoMock.value = STARVED_MEM;
+    closeLastRun();
+    expect(errors()[0]).toMatchObject({ message: expect.stringContaining('ficou sem memória') });
+    expect(vi.mocked(recordIncident)).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'oom-kill', sessionKey: 'oom1', detail: expect.stringContaining('availMb=100'),
+    }));
+  });
+
+  it('exit 137 (SIGKILL) + swap quase zerado também vira oom-kill', () => {
+    startRun({ ws, sessionKey: 'oom2', prompt: 'trabalho', resumeId: 'sess-oom2' });
+    threads.get('oom2')!.lastExitCode = 137;
+    memInfoMock.value = { availMb: 2000, swapFreeMb: 20, swapTotalMb: 4096 };
+    closeLastRun();
+    expect(errors()[0]).toMatchObject({ message: expect.stringContaining('ficou sem memória') });
+  });
+
+  it('exit code sem relação com OOM continua como silent-death genérico', () => {
+    startRun({ ws, sessionKey: 'oom3', prompt: 'trabalho', resumeId: 'sess-oom3' });
+    threads.get('oom3')!.lastExitCode = 1;
+    memInfoMock.value = STARVED_MEM;
+    closeLastRun();
+    expect(errors()[0]).toMatchObject({ message: expect.stringContaining('caiu antes de terminar') });
+    expect(vi.mocked(recordIncident)).toHaveBeenCalledWith(expect.objectContaining({ kind: 'silent-death' }));
+  });
+
+  it('exit 143 numa máquina saudável não vira oom-kill', () => {
+    startRun({ ws, sessionKey: 'oom4', prompt: 'trabalho', resumeId: 'sess-oom4' });
+    threads.get('oom4')!.lastExitCode = 143;
+    memInfoMock.value = HEALTHY_MEM;
+    closeLastRun();
+    expect(errors()[0]).toMatchObject({ message: expect.stringContaining('caiu antes de terminar') });
+    expect(vi.mocked(recordIncident)).toHaveBeenCalledWith(expect.objectContaining({ kind: 'silent-death' }));
+  });
+});
+
+// D2 — a retomada automática não pode subir com a memória ainda estourada (era o
+// resume-exhausted em 5-10s do postmortem). Espera com backoff sem gastar o cap.
+describe('D2 — autoResume espera a memória antes de retomar', () => {
+  const ws = {} as WebSocket;
+  const closeLastRun = () => vi.mocked(run).mock.calls.at(-1)![0].onClose?.();
+  const errors = () => vi.mocked(broadcast).mock.calls.map((c) => c[0]).filter((m: any) => m.t === 'error');
+
+  beforeEach(() => {
+    threads.clear();
+    clearAllAwaiting();
+    vi.mocked(run).mockClear();
+    vi.mocked(broadcast).mockClear();
+    vi.mocked(getLastPlanUsage).mockReturnValue(null);
+    usageRow.value = null;
+    resetCooldownState();
+    resetColdInflight();
+    memInfoMock.value = HEALTHY_MEM;
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('não dispara --resume enquanto a memória está low; sobe assim que ela volta, sem gastar o cap', () => {
+    memInfoMock.value = STARVED_MEM;
+    startRun({ ws, sessionKey: 'bk1', prompt: 'trabalho', resumeId: 'sess-bk1' });
+    closeLastRun();
+    expect(run).toHaveBeenCalledOnce(); // ainda não retomou
+
+    vi.advanceTimersByTime(30_000); // 1º passo do backoff: memória continua low
+    expect(run).toHaveBeenCalledOnce();
+
+    memInfoMock.value = HEALTHY_MEM; // memória volta antes do 2º passo
+    vi.advanceTimersByTime(60_000);
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(run).mock.calls[1][0].prompt).toContain('Continue exatamente de onde parou');
+  });
+
+  it('a retomada adiada ainda respeita AUTO_RESUME_CAP depois de rodar', () => {
+    memInfoMock.value = STARVED_MEM;
+    startRun({ ws, sessionKey: 'bk2', prompt: 'trabalho', resumeId: 'sess-bk2' });
+    closeLastRun();
+    memInfoMock.value = HEALTHY_MEM;
+    vi.advanceTimersByTime(30_000); // memória já ok no 1º passo -> retoma de verdade
+    expect(run).toHaveBeenCalledTimes(2);
+
+    closeLastRun(); // a retomada também morre — cap (1) já foi gasto
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(errors().at(-1)).toMatchObject({ message: expect.stringContaining('também falhou') });
+  });
+
+  it('reavalia threads.has/isAwaiting no disparo do timer, não no agendamento', () => {
+    memInfoMock.value = STARVED_MEM;
+    startRun({ ws, sessionKey: 'bk3', prompt: 'trabalho', resumeId: 'sess-bk3' });
+    closeLastRun();
+    memInfoMock.value = HEALTHY_MEM;
+    // Um turno novo sobe na sessão ANTES do backoff disparar — a retomada adiada
+    // não pode atropelá-lo quando o timer finalmente reavaliar.
+    startRun({ ws, sessionKey: 'bk3', prompt: 'novo pedido', resumeId: 'sess-bk3' });
+    const callsBefore = vi.mocked(run).mock.calls.length;
+    vi.advanceTimersByTime(30_000);
+    expect(vi.mocked(run).mock.calls.length).toBe(callsBefore); // nada novo disparou por cima
+  });
+});
+
+// D2 — o dreno da fila estacionada não pode subir turno novo com a memória
+// apertada: segura em silêncio (sem consumir tentativa) até o próximo tick.
+describe('D2 — drainParked segura durante memória apertada', () => {
+  const item = (over: Partial<ParkedItem> = {}): ParkedItem => ({ id: 'pk-mem', prompt: 'roda isso', at: 1, ...over });
+
+  beforeEach(() => {
+    threads.clear();
+    vi.mocked(run).mockClear();
+    vi.mocked(broadcast).mockClear();
+    vi.mocked(quotaHold).mockReturnValue(0);
+    vi.mocked(isQueuePaused).mockReturnValue(false);
+    vi.mocked(parkedHeads).mockReturnValue([]);
+    vi.mocked(shiftParked).mockReset();
+    vi.mocked(unshiftParked).mockClear();
+    usageRow.value = null;
+    resetCooldownState();
+    resetColdInflight();
+    memInfoMock.value = HEALTHY_MEM;
+    startParkedDrainer(3_600_000);
+  });
+
+  it('não dispara nem consome o item da fila quando a memória está low', () => {
+    memInfoMock.value = STARVED_MEM;
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's1', first: item() }]);
+    drainParked();
+    expect(run).not.toHaveBeenCalled();
+    expect(vi.mocked(shiftParked)).not.toHaveBeenCalled();
+    expect(vi.mocked(unshiftParked)).not.toHaveBeenCalled(); // não conta tentativa
+  });
+
+  it('volta a disparar assim que a memória normaliza', () => {
+    memInfoMock.value = STARVED_MEM;
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's1', first: item() }]);
+    drainParked();
+    expect(run).not.toHaveBeenCalled();
+
+    memInfoMock.value = HEALTHY_MEM;
+    vi.mocked(shiftParked).mockReturnValue(item());
+    drainParked();
+    expect(run).toHaveBeenCalledOnce();
+  });
+});
+
+// D5 — teto de concorrência dinâmico pela memória livre, avaliado na admissão.
+describe('D5 — admissão de turno sensível à memória', () => {
+  const ws = {} as WebSocket;
+
+  beforeEach(() => {
+    threads.clear();
+    clearAllAwaiting();
+    vi.mocked(run).mockClear();
+    vi.mocked(send).mockClear();
+    vi.mocked(getLastPlanUsage).mockReturnValue(null);
+    usageRow.value = null;
+    resetCooldownState();
+    resetColdInflight();
+    memInfoMock.value = HEALTHY_MEM;
+  });
+
+  it('recusa com mensagem de memória quando o teto efetivo cai abaixo das sessões vivas', () => {
+    startRun({ ws, sessionKey: 'm1', prompt: 'a', resumeId: 'sess-m1' });
+    expect(threads.has('m1')).toBe(true);
+    // memoryRunCap(700, 12) = max(1, floor((700-400)/350)) = 1: com m1 já viva,
+    // a sessão nova (não-replacing) não cabe.
+    memInfoMock.value = { availMb: 700, swapFreeMb: 4000, swapTotalMb: 4096 };
+    startRun({ ws, sessionKey: 'm2', prompt: 'b', resumeId: 'sess-m2' });
+    expect(threads.has('m2')).toBe(false);
+    expect(vi.mocked(send)).toHaveBeenCalledWith(ws, expect.objectContaining({
+      t: 'error', sessionKey: 'm2', message: expect.stringContaining('pouca memória'),
+    }));
+  });
+
+  it('substituir a própria sessão (replacing) é sempre admitido mesmo com memória mínima', () => {
+    startRun({ ws, sessionKey: 'm3', prompt: 'a', resumeId: 'sess-m3' });
+    memInfoMock.value = { availMb: 0, swapFreeMb: 0, swapTotalMb: 4096 };
+    startRun({ ws, sessionKey: 'm3', prompt: 'b', resumeId: 'sess-m3' });
+    expect(threads.has('m3')).toBe(true);
+    expect(vi.mocked(run)).toHaveBeenCalledTimes(2);
+  });
+
+  it('memória farta usa o teto normal de CONFIG.maxConcurrentRuns', () => {
+    memInfoMock.value = HEALTHY_MEM;
+    startRun({ ws, sessionKey: 'm4', prompt: 'a', resumeId: 'sess-m4' });
+    expect(threads.has('m4')).toBe(true);
+    expect(vi.mocked(send)).not.toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'error' }));
   });
 });

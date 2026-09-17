@@ -2,7 +2,7 @@ import { WebSocket } from 'ws';
 import { generateKeyPairSync, createPrivateKey, sign as edSign } from 'node:crypto';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
-import { homedir, loadavg, cpus, freemem } from 'node:os';
+import { homedir, loadavg, cpus } from 'node:os';
 import type { Role } from './auth';
 import { capsFor } from './auth';
 import { CONFIG } from './config';
@@ -11,6 +11,7 @@ import { setClientSource, broadcast } from './ws/broadcast';
 import { mcpServerDefsSync, claudeReady } from './admin-ops';
 import { getSlashCommands } from './ws/slash';
 import { startParkedDrainer, resumeOrphanRuns } from './ws/runs';
+import { readMemInfo } from './ws/mem-guard';
 import { startRunReaper } from './ws/reaper';
 import { killAllRuns, threads } from './ws/threads';
 import { startModelsLoop, getLastModels } from './ws/models';
@@ -224,14 +225,11 @@ export function pairAgent(relayUrl: string, code: string): Promise<void> {
   });
 }
 
-// Memória disponível em MB. Lê MemAvailable do /proc (Linux, o que conta pra OOM);
-// cai pra os.freemem() em FS sem /proc.
+// Memória disponível em MB: implementação única em ws/mem-guard.ts (readMemInfo),
+// reusada pelo gate de retomada/admissão (D1/D2/D5) pra não haver duas leituras
+// de /proc/meminfo divergindo entre si.
 function availableMemMb(): number {
-  try {
-    const m = readFileSync('/proc/meminfo', 'utf8').match(/MemAvailable:\s+(\d+)\s+kB/);
-    if (m) return Math.round(Number(m[1]) / 1024);
-  } catch { /* sem /proc */ }
-  return Math.round(freemem() / 1048576);
+  return readMemInfo().availMb;
 }
 
 // Health check de RECURSO da VPS do fellow. O agente roda `claude -p` local: um run

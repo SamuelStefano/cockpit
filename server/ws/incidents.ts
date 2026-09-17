@@ -24,7 +24,11 @@ export type IncidentKind = 'silent-death' | 'orphan-resume' | 'run-error' | 'res
   // exigem ação humana (handoff) — sem isso somem numa bolha de chat.
   | 'ctx-hard' | 'resume-ctx-cap'
   // Dead OAuth login (ws/auth-health.ts): needs a human /login, not a code fix.
-  | 'auth-expired';
+  | 'auth-expired'
+  // Memory gate (ws/mem-guard.ts, D1): a silent-death whose exit code/signal AND
+  // the box's memory state at close time look like earlyoom/kernel-OOM, not a
+  // generic crash — surfaced with a distinct user-facing message.
+  | 'oom-kill';
 
 export interface Incident {
   ts: string;
