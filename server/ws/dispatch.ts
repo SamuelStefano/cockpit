@@ -18,6 +18,7 @@ import { getCrons, saveCron, deleteCron, runCronNow } from '../crons';
 import { scheduleValid } from '../../shared/cron-schedule';
 import { fireCron } from './runs';
 import { listSkills, readSkill, resolveSkillDeny, installSkill } from '../skills';
+import { getRegistryCatalog, installFromRegistry } from '../skill-registry-runner';
 import { addUploadChunk, readAttachment } from '../attachments';
 import { usageStats } from '../db';
 import { hideSession, unhideSession, purgeSession, setTitle, setNote } from '../store';
@@ -423,6 +424,25 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const r = await installSkill(msg.slug, msg.title, msg.body);
       send(ws, 'error' in r ? { t: 'install-result', kind: 'skill', ok: false, error: r.error } : { t: 'install-result', kind: 'skill', ok: true, id: r.id });
       if (!('error' in r)) send(ws, { t: 'skills', items: await listSkills() });
+      return;
+    }
+    // DFL Skills registry (admin-only via authz). The registry is read by a child
+    // process that holds the DFL token; installs verify hashes and never overwrite.
+    case 'registry-get': {
+      try { send(ws, { t: 'registry', catalog: await getRegistryCatalog(!!msg.refresh) }); }
+      catch (e) { send(ws, { t: 'registry', catalog: null, error: (e as Error).message }); }
+      return;
+    }
+    case 'registry-install': {
+      const items = Array.isArray(msg.items) ? msg.items : [];
+      try {
+        const r = await installFromRegistry(items);
+        const error = r.failed.length ? r.failed.map((f) => `${f.slug}: ${f.error}`).join('; ') : undefined;
+        send(ws, { t: 'registry-install-result', reqId: msg.reqId, ok: r.failed.length === 0, installed: r.installed, skipped: r.skipped, error });
+      } catch (e) {
+        send(ws, { t: 'registry-install-result', reqId: msg.reqId, ok: false, installed: [], skipped: [], error: (e as Error).message });
+      }
+      send(ws, { t: 'skills', items: await listSkills() });
       return;
     }
     case 'usage-list': {
