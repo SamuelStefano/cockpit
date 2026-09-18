@@ -45,14 +45,14 @@ export function Skills(p: Props) {
   const registryBlocked = !registry && (registryLoading || registryError);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-neutral-950">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-neutral-950">
       <RouteHeader variant="bar" title="skills" badge={<Badge tone="neutral">{skills.length}</Badge>}
         actions={<SkillsSearch value={v.query} onChange={v.setQuery} inputRef={v.searchRef} />} />
       {!connected ? (
         <SkillsOffline />
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <Tabs items={tabs} active={v.tab} onChange={v.setTab} className="px-4"
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <Tabs items={tabs} active={v.tab} onChange={v.setTab} className="overflow-x-auto px-4"
             right={registry && <Button variant="ghost" size="sm" icon="rotate" loading={registryLoading} onClick={() => onRegistryGet(true)}>Registro</Button>} />
           <div className="scroll-thin flex-1 overflow-y-auto p-4">
             {v.tab === 'installed' ? (

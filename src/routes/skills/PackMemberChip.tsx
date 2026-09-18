@@ -13,7 +13,7 @@ export function PackMemberChip({ m, onOpen }: { m: PackMemberView; onOpen?: (id:
   const base = 'flex items-center gap-1.5 rounded-md border px-2 py-1 font-mono text-[11.5px] transition';
   const tone = m.installed
     ? 'border-neutral-700 bg-neutral-900 text-neutral-200 hover:border-orange-500/40'
-    : 'border-dashed border-neutral-800 text-neutral-500';
+    : 'border-dashed border-neutral-700 text-neutral-400';
   const body = (
     <>
       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${ROLE_DOT[m.role]}`} />

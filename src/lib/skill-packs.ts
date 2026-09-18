@@ -22,7 +22,8 @@ export interface PackView {
 
 export interface SkillGroup { label: string; items: SkillMeta[] }
 
-const LOCAL_GROUP = 'Locais';
+const OWNER_HANDLE = 'samuelstefano';
+const GROUP_ORDER = ['Suas', 'DFL', 'Locais'] as const;
 
 // A DFL skill that names no author is Tainan's (same rule as skills.devfellowship.com).
 export function skillAuthor(s: Pick<RegistrySkill, 'author' | 'source'>): string {
@@ -60,8 +61,9 @@ export function packView(pack: RegistryPack, installed: ReadonlySet<string>, cat
   };
 }
 
-// Installed skills: the packs they belong to first, then the rest grouped by the
-// registry's first category; a skill the registry does not know is "Locais".
+// Installed skills: the packs they belong to first, then the rest by origin — the
+// owner's own registry skills, the rest of the DFL registry, and local-only ones.
+// The registry's auto-derived categories are too noisy to group by.
 export function organizeInstalled(skills: SkillMeta[], catalog: RegistryCatalog | null): { packs: PackView[]; groups: SkillGroup[] } {
   const ids = new Set(skills.map((s) => s.id));
   const packs = (catalog?.packs ?? []).map((p) => packView(p, ids, catalog)).filter((v) => v.installedCount > 0);
@@ -71,12 +73,12 @@ export function organizeInstalled(skills: SkillMeta[], catalog: RegistryCatalog 
   for (const s of skills) {
     if (inPack.has(s.id)) continue;
     const reg = index.get(s.id);
-    const label = reg ? capitalize(reg.categories[0] ?? 'geral') : LOCAL_GROUP;
+    const label = !reg ? 'Locais' : skillAuthor(reg).toLowerCase() === OWNER_HANDLE ? 'Suas' : 'DFL';
     byGroup.set(label, [...(byGroup.get(label) ?? []), s]);
   }
   const groups = [...byGroup.entries()]
     .map(([label, items]) => ({ label, items: items.sort((a, b) => a.name.localeCompare(b.name)) }))
-    .sort((a, b) => (a.label === LOCAL_GROUP ? 1 : b.label === LOCAL_GROUP ? -1 : b.items.length - a.items.length || a.label.localeCompare(b.label)));
+    .sort((a, b) => GROUP_ORDER.indexOf(a.label as never) - GROUP_ORDER.indexOf(b.label as never));
   return { packs, groups };
 }
 
@@ -85,14 +87,10 @@ export function discoverSkills(catalog: RegistryCatalog | null, installed: Reado
   return (catalog?.skills ?? [])
     .filter((s) => !installed.has(s.slug))
     .filter((s) => !q || `${s.slug} ${s.name} ${s.description} ${s.tags.join(' ')}`.toLowerCase().includes(q))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => Number(b.tags.includes('core')) - Number(a.tags.includes('core')) || a.name.localeCompare(b.name));
 }
 
 export function matchesQuery(s: SkillMeta, query: string): boolean {
   const q = query.trim().toLowerCase();
   return !q || `${s.id} ${s.name} ${s.description}`.toLowerCase().includes(q);
-}
-
-function capitalize(s: string): string {
-  return s ? s[0].toUpperCase() + s.slice(1).replace(/-/g, ' ') : s;
 }

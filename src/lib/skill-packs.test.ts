@@ -10,7 +10,7 @@ const local = (id: string): SkillMeta => ({ id, name: id, description: '', mtime
 
 const CATALOG: RegistryCatalog = {
   fetchedAt: 0,
-  skills: [reg('director'), reg('studio'), reg('reel', { author: 'SamuelStefano' }), reg('launch'), reg('app-security', { categories: ['security'] })],
+  skills: [reg('director'), reg('studio'), reg('reel', { author: 'SamuelStefano' }), reg('launch', { tags: ['core'] }), reg('app-security', { author: 'SamuelStefano' }), reg('brand-voice')],
   packs: [{
     source: SRC, slug: 'short-form-visual', name: 'Short-form', description: '', root: 'director',
     members: [
@@ -40,11 +40,12 @@ describe('packView', () => {
 });
 
 describe('organizeInstalled', () => {
-  it('puts pack members under their pack and groups the rest, local skills last', () => {
-    const { packs, groups } = organizeInstalled([local('reel'), local('app-security'), local('my-own')], CATALOG);
+  it('puts pack members under their pack and groups the rest by origin: own, DFL, local', () => {
+    const { packs, groups } = organizeInstalled([local('my-own'), local('brand-voice'), local('reel'), local('app-security')], CATALOG);
     expect(packs.map((p) => p.pack.slug)).toEqual(['short-form-visual']);
     expect(groups).toEqual([
-      { label: 'Security', items: [local('app-security')] },
+      { label: 'Suas', items: [local('app-security')] },
+      { label: 'DFL', items: [local('brand-voice')] },
       { label: 'Locais', items: [local('my-own')] },
     ]);
   });
@@ -55,8 +56,8 @@ describe('organizeInstalled', () => {
 });
 
 describe('discoverSkills', () => {
-  it('shows only registry skills not installed, filtered by the query', () => {
-    expect(discoverSkills(CATALOG, new Set(['director']), '').map((s) => s.slug)).toEqual(['app-security', 'launch', 'reel', 'studio']);
+  it('shows registry skills not installed, core first, filtered by the query', () => {
+    expect(discoverSkills(CATALOG, new Set(['director']), '').map((s) => s.slug)).toEqual(['launch', 'app-security', 'brand-voice', 'reel', 'studio']);
     expect(discoverSkills(CATALOG, new Set(), 'secur').map((s) => s.slug)).toEqual(['app-security']);
   });
 });
