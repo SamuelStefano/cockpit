@@ -59,7 +59,9 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
     if (route === '/skills') {
       return (
         <Skills connected={connected} skills={c.skills} loaded={c.skillsLoaded} openSkill={c.openSkill}
-          onSkillList={c.onSkillList} onSkillOpen={c.onSkillOpen} onSkillClose={c.onSkillClose} />
+          registry={c.registry} registryLoading={c.registryLoading} registryError={c.registryError} installing={c.installing}
+          onSkillList={c.onSkillList} onSkillOpen={c.onSkillOpen} onSkillClose={c.onSkillClose}
+          onRegistryGet={c.onRegistryGet} onRegistryInstall={c.onRegistryInstall} />
       );
     }
     if (route === '/notas') {
