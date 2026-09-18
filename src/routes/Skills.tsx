@@ -1,93 +1,83 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { Icon, Badge, Button, EmptyState, SkeletonCards, RouteHeader } from '../components/primitives';
+import { useEffect } from 'react';
+import { Badge, Button, EmptyState, SkeletonCards, RouteHeader, Tabs } from '../components/primitives';
 import { useLoadStalled } from '../lib/useLoadStalled';
-import type { SkillMeta } from '../../shared/protocol';
+import type { RegistryCatalog, RegistryRef, SkillMeta } from '../../shared/protocol';
 import type { SkillDoc } from '../useCockpit';
-import { SkillCard } from './skills/SkillCard';
 import { SkillModal } from './skills/SkillModal';
 import { SkillsOffline } from './skills/SkillsOffline';
 import { SkillsEmpty } from './skills/SkillsEmpty';
+import { SkillsSearch } from './skills/SkillsSearch';
+import { InstalledView } from './skills/InstalledView';
+import { PacksView } from './skills/PacksView';
+import { DiscoverView } from './skills/DiscoverView';
+import { RegistryNotice } from './skills/RegistryNotice';
+import { useSkillsView, type SkillsTab } from './skills/useSkillsView';
 
 interface Props {
   connected: boolean;
   skills: SkillMeta[];
   loaded: boolean;
   openSkill: SkillDoc | null;
+  registry: RegistryCatalog | null;
+  registryLoading: boolean;
+  registryError: string | null;
+  installing: ReadonlySet<string>;
   onSkillList: () => void;
   onSkillOpen: (id: string) => void;
   onSkillClose: () => void;
+  onRegistryGet: (refresh?: boolean) => void;
+  onRegistryInstall: (key: string, items: RegistryRef[]) => void;
 }
 
-export function Skills({ connected, skills, loaded, openSkill, onSkillList, onSkillOpen, onSkillClose }: Props) {
-  const [query, setQuery] = useState('');
-  const searchRef = useRef<HTMLInputElement>(null);
+export function Skills(p: Props) {
+  const { connected, skills, loaded, registry, registryLoading, registryError, onSkillList, onRegistryGet } = p;
+  const v = useSkillsView(skills, registry);
 
   useEffect(() => { if (connected) onSkillList(); }, [connected, onSkillList]);
+  useEffect(() => { if (connected && !registry) onRegistryGet(); }, [connected, registry, onRegistryGet]);
   const { stalled, retry } = useLoadStalled(loaded, connected);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === '/') {
-        e.preventDefault();
-        searchRef.current?.focus();
-        searchRef.current?.select();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const matched = q ? skills.filter((s) => (s.name + ' ' + s.description).toLowerCase().includes(q)) : skills;
-    return [...matched].sort((a, b) => b.mtime - a.mtime);
-  }, [skills, query]);
+  const tabs: { id: SkillsTab; label: string; icon: 'sparkles' | 'layers' | 'search'; count?: number }[] = [
+    { id: 'installed', label: 'Instaladas', icon: 'sparkles', count: v.counts.installed },
+    { id: 'packs', label: 'Packs', icon: 'layers', count: v.counts.packs },
+    { id: 'discover', label: 'Descobrir', icon: 'search', count: v.counts.discover },
+  ];
+  const registryBlocked = !registry && (registryLoading || registryError);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-neutral-950">
-      <RouteHeader
-        variant="bar"
-        title="skills"
-        badge={<Badge tone="neutral">{skills.length}</Badge>}
-        actions={
-          <div className="flex w-full items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 focus-within:border-neutral-700 focus-within:ring-2 focus-within:ring-orange-500/15 sm:w-80">
-            <Icon name="search" size={14} className="shrink-0 text-neutral-500" />
-            <input
-              ref={searchRef}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar skills…"
-              aria-label="Buscar skills"
-              className="w-full bg-transparent text-[12.5px] text-neutral-200 placeholder-neutral-600 outline-hidden"
-            />
-            <kbd className="hidden shrink-0 rounded-sm border border-neutral-700 bg-neutral-950 px-1 py-px font-mono text-[9px] text-neutral-500 sm:block">⌘/</kbd>
-          </div>
-        }
-      />
-
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-neutral-950">
+      <RouteHeader variant="bar" title="skills" badge={<Badge tone="neutral">{skills.length}</Badge>}
+        actions={<SkillsSearch value={v.query} onChange={v.setQuery} inputRef={v.searchRef} />} />
       {!connected ? (
         <SkillsOffline />
       ) : (
-        <div className="scroll-thin flex-1 overflow-y-auto p-4">
-          {!loaded ? (
-            stalled ? (
-              <EmptyState icon="x" title="Não deu pra carregar as skills" description="O servidor não respondeu com a lista. Tente de novo.">
-                <Button icon="rotate" onClick={() => { retry(); onSkillList(); }}>Tentar de novo</Button>
-              </EmptyState>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <Tabs items={tabs} active={v.tab} onChange={v.setTab} className="overflow-x-auto px-4"
+            right={registry && <Button variant="ghost" size="sm" icon="rotate" loading={registryLoading} onClick={() => onRegistryGet(true)}>Registro</Button>} />
+          <div className="scroll-thin flex-1 overflow-y-auto p-4">
+            {v.tab === 'installed' ? (
+              !loaded ? (
+                stalled ? (
+                  <EmptyState icon="x" title="Não deu pra carregar as skills" description="O servidor não respondeu com a lista. Tente de novo.">
+                    <Button icon="rotate" onClick={() => { retry(); onSkillList(); }}>Tentar de novo</Button>
+                  </EmptyState>
+                ) : <SkeletonCards />
+              ) : v.installed.packs.length === 0 && v.installed.groups.length === 0 ? (
+                <SkillsEmpty query={v.query} />
+              ) : (
+                <InstalledView packs={v.installed.packs} groups={v.installed.groups} installing={p.installing} onInstall={p.onRegistryInstall} onOpen={p.onSkillOpen} />
+              )
+            ) : registryBlocked ? (
+              <RegistryNotice loading={registryLoading} error={registryError} onRetry={() => onRegistryGet(true)} />
+            ) : v.tab === 'packs' ? (
+              <PacksView packs={v.packs} installing={p.installing} onInstall={p.onRegistryInstall} onOpen={p.onSkillOpen} />
             ) : (
-              <SkeletonCards />
-            )
-          ) : filtered.length === 0 ? (
-            <SkillsEmpty query={query} />
-          ) : (
-            <div className="stagger-fade grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {filtered.map((s) => <SkillCard key={s.id} s={s} onClick={() => onSkillOpen(s.id)} />)}
-            </div>
-          )}
+              <DiscoverView skills={v.discover} installing={p.installing} onInstall={p.onRegistryInstall} />
+            )}
+          </div>
         </div>
       )}
-
-      {openSkill && <SkillModal doc={openSkill} onClose={onSkillClose} />}
+      {p.openSkill && <SkillModal doc={p.openSkill} onClose={p.onSkillClose} />}
     </div>
   );
 }

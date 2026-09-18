@@ -175,6 +175,45 @@ export interface SkillMeta {
   mtime: number;
 }
 
+// DFL Skills registry (skills.devfellowship.com), read server-side with the
+// owner's DFL session. Packs are a root skill plus the skills it routes to.
+export type PackRole = 'root' | 'required' | 'optional' | 'suggested';
+
+export interface RegistrySkill {
+  source: string;
+  slug: string;
+  name: string;
+  description: string;
+  author: string | null;
+  tags: string[];
+  categories: string[];
+  visibility: string;
+}
+
+export interface RegistryPackMember {
+  source: string;
+  slug: string;
+  role: PackRole;
+  published: boolean;
+}
+
+export interface RegistryPack {
+  source: string;
+  slug: string;
+  name: string;
+  description: string;
+  root: string;
+  members: RegistryPackMember[];
+}
+
+export interface RegistryCatalog {
+  skills: RegistrySkill[];
+  packs: RegistryPack[];
+  fetchedAt: number;
+}
+
+export interface RegistryRef { source: string; slug: string }
+
 // Referência de um drop privado (server/drop.ts). É o ÚNICO retorno do drop-put:
 // prova que o arquivo existe e casa (sha256), sem carregar o conteúdo — que não
 // pode entrar no estado do cliente nem no transcript.
@@ -618,6 +657,8 @@ export type ClientMsg =
   | { t: 'cron-run'; id: string }
   | { t: 'skill-list' }
   | { t: 'skill-open'; id: string }
+  | { t: 'registry-get'; refresh?: boolean }
+  | { t: 'registry-install'; reqId: string; items: RegistryRef[] }
   | { t: 'usage-list' }
   | { t: 'refresh-models' }
   | { t: 'admin-health' }
@@ -717,6 +758,8 @@ export type ServerMsg =
   | { t: 'models'; models: ModelInfo[] }
   | { t: 'skills'; items: SkillMeta[] }
   | { t: 'skill'; id: string; name: string; body: string }
+  | { t: 'registry'; catalog: RegistryCatalog | null; error?: string }
+  | { t: 'registry-install-result'; reqId: string; ok: boolean; installed: string[]; skipped: string[]; error?: string }
   // sessionKey ecoa a sessão que PEDIU o upload: o mapa clientId->sessão do front é
   // in-memory e some no reload, e sem ele o ack tardio carimba o anexo no chat aberto.
   | { t: 'uploaded'; name: string; path: string; text?: string; s3url?: string; clientId?: string; sessionKey?: string }
