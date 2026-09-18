@@ -34,7 +34,7 @@ export function Skills(p: Props) {
   const v = useSkillsView(skills, registry);
 
   useEffect(() => { if (connected) onSkillList(); }, [connected, onSkillList]);
-  useEffect(() => { if (connected && !registry) onRegistryGet(); }, [connected, registry, onRegistryGet]);
+  useEffect(() => { if (connected && !registry && !registryLoading && !registryError) onRegistryGet(); }, [connected, registry, registryLoading, registryError, onRegistryGet]);
   const { stalled, retry } = useLoadStalled(loaded, connected);
 
   const tabs: { id: SkillsTab; label: string; icon: 'sparkles' | 'layers' | 'search'; count?: number }[] = [

@@ -20,6 +20,10 @@ export interface Skills {
   onMsg: (msg: ServerMsg) => boolean;
 }
 
+// An older server does not know `registry-get` and never answers; without a
+// deadline the Packs tab would show a skeleton forever.
+const REGISTRY_TIMEOUT_MS = 25_000;
+
 function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
@@ -34,6 +38,7 @@ export function useSkills(send: (m: ClientMsg) => boolean): Skills {
   const [installing, setInstalling] = useState<ReadonlySet<string>>(new Set());
   // reqId -> the UI key (pack or skill) whose button shows the spinner.
   const pending = useRef(new Map<string, string>());
+  const registryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onMsg = useCallback((msg: ServerMsg) => {
     switch (msg.t) {
@@ -45,6 +50,7 @@ export function useSkills(send: (m: ClientMsg) => boolean): Skills {
         setOpenSkill({ id: msg.id, name: msg.name, body: msg.body });
         return true;
       case 'registry':
+        if (registryTimer.current) clearTimeout(registryTimer.current);
         setRegistryLoading(false);
         if (msg.catalog) { setRegistry(msg.catalog); setRegistryError(null); }
         else setRegistryError(msg.error ?? 'registro indisponível');
@@ -67,7 +73,17 @@ export function useSkills(send: (m: ClientMsg) => boolean): Skills {
 
   const onRegistryGet = useCallback((refresh?: boolean) => {
     setRegistryLoading(true);
-    send({ t: 'registry-get', refresh });
+    setRegistryError(null);
+    if (registryTimer.current) clearTimeout(registryTimer.current);
+    registryTimer.current = setTimeout(() => {
+      setRegistryLoading(false);
+      setRegistryError('O servidor não respondeu. Se o Deck acabou de atualizar, ele reinicia sozinho quando ficar ocioso.');
+    }, REGISTRY_TIMEOUT_MS);
+    if (!send({ t: 'registry-get', refresh })) {
+      clearTimeout(registryTimer.current);
+      setRegistryLoading(false);
+      setRegistryError('Sem conexão com o servidor.');
+    }
   }, [send]);
 
   const onRegistryInstall = useCallback((key: string, items: RegistryRef[]) => {
