@@ -42,7 +42,7 @@ interface Props {
 export function Pontos(props: Props) {
   const { connected, points, total, loaded, dflSnapshot, dflLoaded, dflSyncing, onDflGet, onDflSync, onDflChange, onDflInvoice, onPontosAgent } = props;
   const { now, glowing, add, correct, note, remove } = usePontos(props);
-  const { tab, setTab, hasDfl } = useDflPontos({ connected, snapshot: dflSnapshot, onDflGet });
+  const { tab, setTab } = useDflPontos({ connected, snapshot: dflSnapshot, onDflGet });
   const controls = usePontosControlsState({ onDflChange, onDflInvoice, onPontosAgent });
   const [adding, setAdding] = useState(false);
   const projects = dflSnapshot?.projects ?? [];
@@ -87,7 +87,11 @@ export function Pontos(props: Props) {
             : <DflTree projects={projects} />
         )}
 
-        {tab === 'faturas' && <DflInvoices invoices={dflSnapshot?.invoices ?? []} />}
+        {tab === 'faturas' && (
+          !dflLoaded && connected
+            ? <TreeSkeleton />
+            : <DflInvoices invoices={dflSnapshot?.invoices ?? []} />
+        )}
 
         {tab === 'ledger' && (
           <div>
@@ -109,10 +113,6 @@ export function Pontos(props: Props) {
                   ))}
                 </div>}
           </div>
-        )}
-
-        {!hasDfl && dflLoaded && tab === 'arvore' && (
-          <p className="mt-3 text-center text-[11.5px] text-neutral-600">Snapshot DFL vazio — clique em sincronizar.</p>
         )}
       </div>
     </div>

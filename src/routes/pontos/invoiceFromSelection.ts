@@ -1,4 +1,5 @@
 import type { DflProjectNode } from '../../../shared/protocol';
+import { currentMonthKey } from './month-cap';
 
 export interface InvoiceDraft {
   deliveryId: string;
@@ -12,7 +13,9 @@ export interface InvoiceDraft {
   amountCents: number;
 }
 
-const monthKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+// Mesmo mês de referência que a barra de teto usa (Brasília): com o mês do
+// navegador, uma fatura podia nascer no mês seguinte ao que o teto estava medindo.
+const monthKey = () => currentMonthKey(Date.now());
 
 // Traduz a multi-seleção de deliveries em rascunhos de fatura, um por delivery
 // (espelho do dfl-payments: uma invoice por delivery). Só entram tasks EM ABERTO
