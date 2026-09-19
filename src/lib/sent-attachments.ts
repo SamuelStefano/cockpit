@@ -58,3 +58,18 @@ export function markDuplicates<T extends { hash?: string }>(atts: T[], sent: str
     return a;
   });
 }
+
+// Desfaz o `rememberSent` de um envio que o servidor RECUSOU: nada chegou ao
+// agente, então marcar os anexos como já enviados faria o chip restaurado voltar
+// com o selo "já enviado" e o usuário removê-lo achando que era repetição.
+export function forgetSent(all: SentHashes, key: string, hashes: string[]): SentHashes {
+  const drop = new Set(hashes.filter(Boolean));
+  const cur = all[key];
+  if (!drop.size || !cur) return all;
+  const kept = cur.filter((h) => !drop.has(h));
+  if (kept.length === cur.length) return all;
+  const next = { ...all };
+  if (kept.length) next[key] = kept;
+  else delete next[key];
+  return next;
+}
