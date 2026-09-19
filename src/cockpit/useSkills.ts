@@ -23,6 +23,9 @@ export interface Skills {
 // An older server does not know `registry-get` and never answers; without a
 // deadline the Packs tab would show a skeleton forever.
 const REGISTRY_TIMEOUT_MS = 25_000;
+// Um socket que cai no meio da instalação nunca traz o resultado, e o botão ficava
+// em "instalando…" até o F5.
+const INSTALL_TIMEOUT_MS = 120_000;
 
 function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
@@ -39,6 +42,7 @@ export function useSkills(send: (m: ClientMsg) => boolean): Skills {
   // reqId -> the UI key (pack or skill) whose button shows the spinner.
   const pending = useRef(new Map<string, string>());
   const registryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const installTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
   const onMsg = useCallback((msg: ServerMsg) => {
     switch (msg.t) {
@@ -58,11 +62,16 @@ export function useSkills(send: (m: ClientMsg) => boolean): Skills {
       case 'registry-install-result': {
         const key = pending.current.get(msg.reqId);
         pending.current.delete(msg.reqId);
+        const timer = installTimers.current.get(msg.reqId);
+        if (timer) { clearTimeout(timer); installTimers.current.delete(msg.reqId); }
         if (key) setInstalling((prev) => { const next = new Set(prev); next.delete(key); return next; });
         if (msg.ok) {
           toast(msg.installed.length ? `${plural(msg.installed.length, 'skill instalada', 'skills instaladas')}` : 'Nada novo: já estava instalado');
         } else {
-          toast(`Falha ao instalar: ${msg.error ?? 'erro'}`, { tone: 'error' });
+          // Instalação parcial contada como falha pura fazia o usuário reinstalar o
+          // pacote inteiro achando que nada tinha entrado.
+          const parcial = msg.installed.length ? `${plural(msg.installed.length, 'skill instalada', 'skills instaladas')}, mas ` : '';
+          toast(`${parcial}falhou: ${msg.error ?? 'erro'}`, { tone: 'error' });
         }
         return true;
       }
@@ -95,7 +104,14 @@ export function useSkills(send: (m: ClientMsg) => boolean): Skills {
       pending.current.delete(reqId);
       setInstalling((prev) => { const next = new Set(prev); next.delete(key); return next; });
       toast('Sem conexão com o servidor', { tone: 'error' });
+      return;
     }
+    installTimers.current.set(reqId, setTimeout(() => {
+      installTimers.current.delete(reqId);
+      if (!pending.current.delete(reqId)) return;
+      setInstalling((prev) => { const next = new Set(prev); next.delete(key); return next; });
+      toast('A instalação não respondeu — recarregue o registro pra conferir o que entrou', { tone: 'error' });
+    }, INSTALL_TIMEOUT_MS));
   }, [send]);
 
   return {

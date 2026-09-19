@@ -77,13 +77,13 @@ export function Dashboard({ token, onSignOut }: { token: string; onSignOut: () =
               </Button>
             </div>
           ) : (
-            <div className="text-[12.5px] text-neutral-500">{busy ? 'gerando código…' : err || '—'}</div>
+            <div className="text-[12.5px] text-neutral-500">{busy ? 'gerando código…' : '—'}</div>
           )}
         </div>
 
-        {err && code === '' && (
-          <p className="mt-3 text-[11.5px] text-red-300">{err}</p>
-        )}
+        {/* Um só lugar pro erro: com o código já na tela, a falha de "gerar novo
+            código" não aparecia em lugar nenhum e o código velho seguia exibido. */}
+        {err && <p className="mt-3 text-[11.5px] text-red-300">{err}</p>}
 
         <div className="mt-4 flex items-center gap-2 text-[11.5px] text-neutral-500">
           <span className="flex h-2 w-2 animate-pulse rounded-full bg-amber-400" />
@@ -97,10 +97,10 @@ export function Dashboard({ token, onSignOut }: { token: string; onSignOut: () =
         </p>
 
         <div className="mt-4 flex items-center justify-between border-t border-neutral-800 pt-4">
-          <button onClick={fetchCode} disabled={busy} className="text-[11.5px] text-neutral-500 transition hover:text-neutral-300 disabled:opacity-50">
+          <Button variant="ghost" size="sm" onClick={fetchCode} disabled={busy} loading={busy}>
             {busy ? 'gerando…' : 'gerar novo código'}
-          </button>
-          <button onClick={onSignOut} className="text-[11.5px] text-neutral-500 transition hover:text-neutral-300">sair</button>
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onSignOut}>sair</Button>
         </div>
       </div>
     </div>

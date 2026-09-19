@@ -45,7 +45,9 @@ export function useDropForm(api: DropApi, open: boolean) {
     if (!SLUG_RE.test(nome) || nome.startsWith('.')) { setErro('nome: letras, números, . _ - (até 64, sem começar com ponto)'); return; }
     if (!content) { setErro('sem conteúdo pra gravar'); return; }
     if (new Blob([content]).size > MAX_BYTES) { setErro('conteúdo grande demais (máx. 1 MB)'); return; }
-    api.onDropPut(nome, content, ttlMs || undefined);
+    // Sem confirmar que o frame saiu, o segredo era apagado do textarea e nada tinha
+    // sido gravado — o usuário tinha que ir buscar o token de novo.
+    if (!api.onDropPut(nome, content, ttlMs || undefined)) { setErro('sem conexão — nada foi gravado'); return; }
     setEnviado(nome);
     setErro('');
     // Limpa o segredo do estado do React assim que o frame sai: deixá-lo no
@@ -57,6 +59,14 @@ export function useDropForm(api: DropApi, open: boolean) {
   // A referência só aparece quando é do put que ACABOU de sair — sem isso o
   // lastDrop de um envio anterior fingiria sucesso de um envio que falhou.
   const ref = enviado && api.lastDrop?.slug === enviado ? api.lastDrop : null;
+
+  // Recusa do servidor volta como frame de erro genérico, sem `drop`: sem este prazo
+  // o formulário ficava calado pra sempre, como se tivesse gravado.
+  useEffect(() => {
+    if (!enviado || ref) return;
+    const t = setTimeout(() => setErro(`sem confirmação do servidor pra "${enviado}" — confira a lista`), 8000);
+    return () => clearTimeout(t);
+  }, [enviado, ref]);
 
   return { slug, setSlug, content, setContent, ttlMs, setTtlMs, erro, fileRef, onFile, submit, ref };
 }
