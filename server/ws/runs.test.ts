@@ -625,22 +625,35 @@ describe('disparo imediato de um item da fila (furar a fila)', () => {
     vi.mocked(isQueuePaused).mockReturnValue(false);
     vi.mocked(findParked).mockReturnValue(item());
     vi.mocked(promoteParked).mockReturnValue(true);
+    vi.mocked(takeParked).mockReset();
     vi.mocked(parkedHeads).mockReturnValue([]);
     vi.mocked(shiftParked).mockReset();
     startParkedDrainer(3_600_000);
   });
 
-  it('promove o item e mata o turno em andamento; o dreno do onClose sobe justo ele', () => {
+  // Mata o turno e sobe o item NA HORA. Antes só promovia e contava com o dreno do
+  // onClose — que é no-op fora do processo do agente (drainerEnabled), e o Deck roda
+  // index e agente sobre o mesmo parked.json: pelo index o clique não subia nada.
+  it('mata o turno em andamento e sobe o item no lugar, sem depender do dreno', () => {
+    vi.mocked(takeParked).mockReturnValue(item());
     startRun({ ws, sessionKey: 'now1', prompt: 'o que estava rodando' });
     const kill = lastKill();
-    expect(runParkedNow('now1', 'pk-9')).toEqual({ ok: true });
-    expect(promoteParked).toHaveBeenCalledWith('now1', 'pk-9');
+    expect(runParkedNow('now1', 'pk-9', 'admin')).toEqual({ ok: true });
+    expect(takeParked).toHaveBeenCalledWith('now1', 'pk-9', 'admin');
     expect(kill).toHaveBeenCalled();
-    // O item promovido é o topo, e o topo é o que o dreno do onClose pega.
-    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 'now1', first: item() }]);
-    vi.mocked(shiftParked).mockReturnValue(item());
-    closeLastRun();
     expect(vi.mocked(run).mock.calls.at(-1)![0].prompt).toBe('esse aqui primeiro');
+    // Amarrado ao turno: se ele morrer sem consumir o prompt, o onClose devolve.
+    expect(threads.get('now1')?.parked?.id).toBe('pk-9');
+  });
+
+  // O item sai do disco ANTES do kill: sem isso o dreno do onClose competiria pelo
+  // mesmo item e os dois caminhos tentariam subi-lo.
+  it('recusa sem matar o turno quando o item some entre a espiada e a retirada', () => {
+    vi.mocked(takeParked).mockReturnValue(null);
+    startRun({ ws, sessionKey: 'now6', prompt: 'o que estava rodando' });
+    const kill = lastKill();
+    expect(runParkedNow('now6', 'pk-9', 'admin')).toEqual({ reject: 'sem-item' });
+    expect(kill).not.toHaveBeenCalled();
   });
 
   it('sessão ociosa: não há turno pra matar e o item dispara na hora', () => {
