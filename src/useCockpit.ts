@@ -10,6 +10,7 @@ import { computeStalled, computeUpdated } from './cockpit/signals';
 import { upsertTool, appendDelta, appendThinking } from './cockpit/blocks';
 import { selectEvictions, pruneRefs } from './cockpit/evict';
 import { resolveKey, moveKey } from './cockpit/migrate';
+import { addOffer, clearOffer, type ResumeOffers, type ResumeOfferView } from './cockpit/resume-offers';
 import { mergeHistory, prependHistory } from './cockpit/history';
 import { liveTokens } from './cockpit/live-tokens';
 import { insertCompact } from './cockpit/insert-compact';
@@ -166,6 +167,8 @@ export interface Cockpit extends LeafApis {
   queueRunBg: (sessionKey: string, id: string, model?: string) => void;
   queueRunNow: (sessionKey: string, id: string) => void;
   queueForce: (sessionKey: string) => void;
+  resumeOffer: ResumeOfferView | null;
+  resumeRun: (sessionKey: string) => void;
 }
 
 // Referência estável p/ sessão sem agentes de fundo — evita novo array a cada
@@ -294,6 +297,9 @@ export function useCockpit(): Cockpit {
   // Tópicos de continuação sugeridos pós-turno (chips estilo ChatGPT), por sessão.
   // Efêmeros: somem ao enviar a próxima mensagem (novo turno gera novos).
   const [followups, setFollowups] = useState<Record<string, string[]>>({});
+  // Turno que morreu e o servidor decidiu NÃO retomar sozinho: o motivo fica na
+  // tela com um botão de retomada até o próximo turno da sessão.
+  const [resumeOffers, setResumeOffers] = useState<ResumeOffers>({});
 
   const wsRef = useRef<WebSocket | null>(null);
   const runMsg = useRef<Record<string, string>>({});      // sessionKey -> assistant msgId em voo
@@ -719,9 +725,20 @@ export function useCockpit(): Cockpit {
         );
         return;
       }
+      // O servidor desistiu de retomar sozinho e explicou por quê. Vira bolha de
+      // aviso + banner com o botão de retomada (um clique = `--resume` real).
+      case 'resume-offer': {
+        const key = resolveKey(migratedTo.current, msg.sessionKey);
+        serverKey.current[key] = msg.sessionKey;
+        setResumeOffers((o) => addOffer(o, key, msg.reason, msg.message));
+        updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ ${msg.message}` }], error: true }]);
+        inFlight.current.delete(key);
+        return;
+      }
       case 'started': {
         // Frame tardio do turno antigo pode chegar keyed pelo `new-xxx` já migrado.
         const key = resolveKey(migratedTo.current, msg.sessionKey);
+        setResumeOffers((o) => clearOffer(o, key));
         serverKey.current[key] = msg.sessionKey; // chave real do thread no servidor (p/ o `stop`)
         lastActivity.current[key] = Date.now();
         inFlight.current.add(key);
@@ -1428,6 +1445,10 @@ export function useCockpit(): Cockpit {
   // começou (`new-xxx`), não sob a chave de display migrada — mesma tradução do
   // `stop`. Sem ela o clear caía numa chave que nunca existiu e a fila seguia presa.
   const queueForce = useCallback((sessionKey: string) => { send({ t: 'queue-force', sessionKey: serverKey.current[sessionKey] ?? sessionKey }); }, [send]);
+  const resumeRun = useCallback((sessionKey: string) => {
+    send({ t: 'resume-run', sessionKey: serverKey.current[sessionKey] ?? sessionKey });
+    setResumeOffers((o) => clearOffer(o, sessionKey));
+  }, [send]);
 
   const onUpload = useCallback((file: File) => {
     const key = activeRef.current;
@@ -1833,5 +1854,5 @@ export function useCockpit(): Cockpit {
 
   const attachmentsView = useMemo(() => markDuplicates(attachments, sentHashes[activeId]), [attachments, sentHashes, activeId]);
 
-  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce };
+  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun };
 }
