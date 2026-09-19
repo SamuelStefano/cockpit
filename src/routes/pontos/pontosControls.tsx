@@ -48,6 +48,9 @@ export interface PontosControls {
   selected: Set<string>;
   toggleSelected: (id: string) => void;
   clearSelected: () => void;
+  // Tira da seleção só os ids informados. A fatura parcial precisa disso: limpar
+  // tudo esconderia as deliveries que FALHARAM e o usuário perderia o retry.
+  deselect: (ids: string[]) => void;
   pointValue: number;
   setPointValue: (v: number) => void;
   monthCapCents: (month: string) => number;
@@ -87,6 +90,12 @@ export function usePontosControlsState(write: DflWriteApi): PontosControls {
     selecting, setSelecting,
     selected, toggleSelected: toggle(setSelected),
     clearSelected: () => setSelected(new Set()),
+    deselect: (ids: string[]) => setSelected((prev) => {
+      if (!ids.some((id) => prev.has(id))) return prev;
+      const next = new Set(prev);
+      for (const id of ids) next.delete(id);
+      return next;
+    }),
     pointValue, setPointValue,
     monthCapCents: (month: string) => monthCaps[month] ?? MONTHLY_CAP_CENTS,
     setMonthCapCents: (month: string, cents: number) => setMonthCaps((prev) => ({ ...prev, [month]: cents })),
