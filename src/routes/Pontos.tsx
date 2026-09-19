@@ -23,10 +23,10 @@ interface Props {
   total: number;
   loaded: boolean;
   onPointsGet: () => void;
-  onPointsAdd: (title: string, points: number, description?: string) => void;
-  onPointsCorrect: (entryId: string, points: number) => void;
-  onPointsNote: (entryId: string, description: string) => void;
-  onPointsDelete: (entryId: string) => void;
+  onPointsAdd: (title: string, points: number, description?: string) => boolean;
+  onPointsCorrect: (entryId: string, points: number) => boolean;
+  onPointsNote: (entryId: string, description: string) => boolean;
+  onPointsDelete: (entryId: string) => boolean;
   dflSnapshot: DflPointsSnapshot | null;
   dflLoaded: boolean;
   dflSyncing: boolean;

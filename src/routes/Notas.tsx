@@ -7,14 +7,15 @@ interface Props {
   notes: string;
   notesLoaded: boolean;
   onNotesGet: () => void;
-  onNotesSave: (text: string) => void;
+  onNotesSave: (text: string) => boolean;
   onAnalyze: (text: string) => void;
 }
 
 // Rascunho livre: anota coisas soltas ao longo do tempo (autosave) e, quando quiser,
 // manda a IA destilar tudo num contexto/memória estruturado.
 export function Notas({ connected, notes, notesLoaded, onNotesGet, onNotesSave, onAnalyze }: Props) {
-  const { text, saved, counts, onChange, flush, clear } = useNotasEditor(notes, notesLoaded, onNotesGet, onNotesSave, connected);
+  const { text, status, counts, onChange, flush, clear } = useNotasEditor(notes, notesLoaded, onNotesGet, onNotesSave, connected);
+  const statusBadge = { saved: { tone: 'neutral' as const, label: 'salvo' }, saving: { tone: 'orange' as const, label: 'salvando…' }, offline: { tone: 'red' as const, label: 'não salvo — sem conexão' } }[status];
   const [preview, setPreview] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -36,7 +37,7 @@ export function Notas({ connected, notes, notesLoaded, onNotesGet, onNotesSave, 
             <>
               <span>Rascunho livre, salvo automaticamente.</span>
               {counts.chars > 0 && <span className="tabular-nums text-neutral-600">{counts.words} palavras · {counts.lines} linhas</span>}
-              <Badge tone={saved ? 'neutral' : 'orange'} dot>{saved ? 'salvo' : 'salvando…'}</Badge>
+              <Badge tone={statusBadge.tone} dot>{statusBadge.label}</Badge>
             </>
           }
           actions={

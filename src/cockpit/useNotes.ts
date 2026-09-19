@@ -5,7 +5,9 @@ export interface Notes {
   notes: string;
   notesLoaded: boolean;
   onNotesGet: () => void;
-  onNotesSave: (text: string) => void;
+  // Devolve se o frame saiu de verdade: com o socket fechado o descarte é silencioso
+  // e o editor não pode dizer "salvo".
+  onNotesSave: (text: string) => boolean;
   onMsg: (msg: ServerMsg) => boolean;
 }
 
@@ -25,7 +27,7 @@ export function useNotes(send: (m: ClientMsg) => boolean): Notes {
     notes,
     notesLoaded,
     onNotesGet: useCallback(() => { send({ t: 'notes-get' }); }, [send]),
-    onNotesSave: useCallback((text: string) => { send({ t: 'notes-save', text }); }, [send]),
+    onNotesSave: useCallback((text: string) => send({ t: 'notes-save', text }), [send]),
     onMsg,
   };
 }

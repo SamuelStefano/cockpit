@@ -75,6 +75,13 @@ export function useGraphs(send: (m: ClientMsg) => boolean): Graphs {
         setGraphBuilding(false);
         if (!msg.ok) setGraphBuildError(msg.error ?? 'falha no build');
         return true;
+      // Abrir/consultar um grafo que sumiu é respondido com um `error` genérico e
+      // nenhum frame de grafo — sem destravar aqui, "abrindo grafo…" e "consultando…"
+      // giravam pra sempre. Não reivindica o frame: o toast global segue valendo.
+      case 'error':
+        setGraphOpening(null);
+        setGraphQuerying(false);
+        return false;
       default:
         return false;
     }

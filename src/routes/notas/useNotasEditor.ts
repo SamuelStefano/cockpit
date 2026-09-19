@@ -3,30 +3,41 @@ import { toast } from '../../components/primitives';
 
 // Lógica do editor de notas: autosave com debounce, semente única ao carregar, flush
 // no unmount, contadores e salvamento manual (⌘S). A UI só renderiza.
-export function useNotasEditor(notes: string, notesLoaded: boolean, onNotesGet: () => void, onNotesSave: (t: string) => void, connected: boolean) {
+export type NotasStatus = 'saved' | 'saving' | 'offline';
+
+export function useNotasEditor(notes: string, notesLoaded: boolean, onNotesGet: () => void, onNotesSave: (t: string) => boolean, connected: boolean) {
   const [text, setText] = useState(notes);
-  const [saved, setSaved] = useState(true);
+  const [status, setStatus] = useState<NotasStatus>('saved');
   const seeded = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const latest = useRef(text);
   latest.current = text;
+  const statusRef = useRef<NotasStatus>(status);
+  statusRef.current = status;
 
   useEffect(() => { if (connected) onNotesGet(); }, [connected, onNotesGet]);
   // Semeia o textarea uma vez (não atropela digitação se o servidor reenviar).
   useEffect(() => { if (notesLoaded && !seeded.current) { seeded.current = true; setText(notes); } }, [notesLoaded, notes]);
 
+  // O envio com socket fechado é descartado em silêncio: sem olhar o retorno, o
+  // editor anunciava "salvo" e o texto se perdia no reload.
+  const push = useCallback((v: string) => { setStatus(onNotesSave(v) ? 'saved' : 'offline'); }, [onNotesSave]);
+
   const flush = useCallback(() => {
     if (timer.current) { clearTimeout(timer.current); timer.current = undefined; }
-    onNotesSave(latest.current);
-    setSaved(true);
-  }, [onNotesSave]);
+    push(latest.current);
+  }, [push]);
 
   const onChange = useCallback((v: string) => {
     setText(v);
-    setSaved(false);
+    setStatus('saving');
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => { onNotesSave(v); setSaved(true); }, 700);
-  }, [onNotesSave]);
+    timer.current = setTimeout(() => push(v), 700);
+  }, [push]);
+
+  // Voltou a conexão com escrita pendente: reenvia sozinho em vez de esperar a
+  // próxima tecla.
+  useEffect(() => { if (connected && statusRef.current === 'offline') push(latest.current); }, [connected, push]);
 
   // Flush no unmount pra não perder os últimos 700ms digitados.
   useEffect(() => () => { if (timer.current) { clearTimeout(timer.current); onNotesSave(latest.current); } }, [onNotesSave]);
@@ -45,5 +56,5 @@ export function useNotasEditor(notes: string, notesLoaded: boolean, onNotesGet: 
     lines: text ? text.split('\n').length : 0,
   };
 
-  return { text, saved, counts, onChange, flush, setText, clear };
+  return { text, status, counts, onChange, flush, setText, clear };
 }
