@@ -8,9 +8,10 @@ import { fmtBytes, meterTone } from './status-bar-format';
 // contexto + tokens, duração do último turno e — só quando rate-limited — aviso
 // de reset. O reset normal da janela de 5h vive no header (UsageBar, #183), então
 // aqui o reset aparece apenas como AVISO amarelo quando o CLI passa do limite.
-function ClaudeStats({ rate, ctxTokens, lastTurn }: {
+function ClaudeStats({ rate, ctxTokens, ctxModel, lastTurn }: {
   rate: { resetsAt: number; status: string } | null;
   ctxTokens: number;
+  ctxModel?: string | null;
   lastTurn?: TurnStats;
 }) {
   const [, force] = useState(0);
@@ -30,7 +31,7 @@ function ClaudeStats({ rate, ctxTokens, lastTurn }: {
     ) });
   }
   if (ctxTokens > 0) {
-    const pct = ctxPct(ctxTokens);
+    const pct = ctxPct(ctxTokens, ctxModel);
     const tone = pct >= 75 ? 'text-red-400' : pct >= 50 ? 'text-amber-400' : 'text-neutral-300';
     parts.push({ k: 'ctx', node: (
       <span className={`font-mono text-[10.5px] tabular-nums ${tone}`} title={`Contexto: ~${ctxTokens.toLocaleString('pt-BR')} tokens (${pct}%)`}>
@@ -88,14 +89,15 @@ interface StatusBarProps {
   stats: SysStats | null;
   rate?: { resetsAt: number; status: string } | null;
   ctxTokens?: number;
+  ctxModel?: string | null;
   lastTurn?: TurnStats;
   // Slot do aviso de cota (QuotaBanner): a barra é o lugar dos avisos persistentes
   // do desktop — nada mais flutua por cima do thread.
   quota?: React.ReactNode;
 }
 
-export function StatusBar({ stats, rate = null, ctxTokens = 0, lastTurn, quota }: StatusBarProps) {
-  const claude = <ClaudeStats rate={rate} ctxTokens={ctxTokens} lastTurn={lastTurn} />;
+export function StatusBar({ stats, rate = null, ctxTokens = 0, ctxModel = null, lastTurn, quota }: StatusBarProps) {
+  const claude = <ClaudeStats rate={rate} ctxTokens={ctxTokens} ctxModel={ctxModel} lastTurn={lastTurn} />;
   if (!stats) {
     return (
       <footer className="flex h-7 shrink-0 items-center gap-3 overflow-x-auto border-t border-neutral-800 bg-neutral-950 px-3 text-[10.5px] text-neutral-600">

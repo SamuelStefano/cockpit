@@ -37,3 +37,10 @@ describe('fmtReset', () => {
     expect(fmtReset((2 * 60 + 15) * 60_000)).toBe('em 2h15min');
   });
 });
+
+describe('ctxPct — janela por variante do modelo', () => {
+  it('usa a janela de 1M quando o modelo é [1m]', () => {
+    expect(ctxPct(CONTEXT_LIMIT, 'claude-opus-5[1m]')).toBe(20);
+    expect(ctxPct(CONTEXT_LIMIT)).toBe(100);
+  });
+});

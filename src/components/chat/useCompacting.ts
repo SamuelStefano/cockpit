@@ -6,7 +6,7 @@ import { frameFingerprint, isCompacting, silenceExplained } from './compacting';
 // impressão digital do último frame: ela muda a cada delta/tool/bolha e re-arma o
 // efeito, então o instante capturado é o começo do silêncio. Devolve esse
 // instante (pro cronômetro) ou null.
-export function useCompacting(messages: Message[], running: boolean, contextTokens: number, quotaPaused = false): number | null {
+export function useCompacting(messages: Message[], running: boolean, contextTokens: number, quotaPaused = false, contextModel: string | null = null): number | null {
   const [silentSince, setSilentSince] = useState<number | null>(null);
   // Lido só na batida do relógio: a última bolha muda de forma sem ser frame novo
   // e não pode reiniciar a contagem.
@@ -23,13 +23,14 @@ export function useCompacting(messages: Message[], running: boolean, contextToke
         running: true,
         silentMs: Date.now() - from,
         contextTokens,
+        contextModel,
         quotaPaused,
         explained: silenceExplained(msgsRef.current),
       });
       setSilentSince(on ? from : null);
     }, 1000);
     return () => clearInterval(id);
-  }, [frame, running, contextTokens, quotaPaused]);
+  }, [frame, running, contextTokens, contextModel, quotaPaused]);
 
   return silentSince;
 }

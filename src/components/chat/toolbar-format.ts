@@ -57,8 +57,8 @@ export function turnStatParts(stats?: TurnStats): { parts: string[]; model: stri
   return { parts, model: shortModel(stats.model) };
 }
 
-export function contextMeter(tokens: number): { pct: number; high: boolean; mid: boolean; k: string } | null {
+export function contextMeter(tokens: number, model?: string | null): { pct: number; high: boolean; mid: boolean; k: string } | null {
   if (tokens <= 0) return null;
-  const pct = ctxPct(tokens);
+  const pct = ctxPct(tokens, model);
   return { pct, high: pct >= 75, mid: pct >= 50, k: (tokens / 1000).toFixed(0) };
 }

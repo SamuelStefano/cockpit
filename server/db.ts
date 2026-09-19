@@ -42,6 +42,11 @@ function open(): Database.Database {
   ensureColumn(db, 'usage_sample', 'input_tokens', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'usage_sample', 'cache_read_tokens', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'usage_sample', 'cache_creation_tokens', 'INTEGER NOT NULL DEFAULT 0');
+  // Modelo PEDIDO no turno (o id do seletor, com a marca `[1m]`). A coluna `model`
+  // guarda o id EFETIVO que a API devolve, e ele nunca carrega a variante — sem
+  // isto não há como saber que a sessão roda com janela de 1M, e o medidor pintava
+  // 210k como "contexto quase cheio".
+  ensureColumn(db, 'usage_sample', 'requested_model', 'TEXT');
   // Resumo IA por sessão (1 frase), regerado ao fim do turno. Keyed por session_id
   // (upsert) — derivado do JSONL, descartável, jamais sobrescreve histórico real.
   db.exec(`
@@ -123,6 +128,7 @@ export interface UsageInput {
   cacheReadTokens?: number;
   cacheCreationTokens?: number;
   model?: string;
+  requestedModel?: string;
 }
 
 export function recordUsage(u: UsageInput): void {
@@ -134,13 +140,13 @@ export function recordUsage(u: UsageInput): void {
   try {
     open()
       .prepare(`INSERT INTO usage_sample
-        (session_id, ts, ctx_tokens, output_tokens, input_tokens, cache_read_tokens, cache_creation_tokens, model)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+        (session_id, ts, ctx_tokens, output_tokens, input_tokens, cache_read_tokens, cache_creation_tokens, model, requested_model)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(
         u.sessionId, Date.now(),
         Math.round(u.ctxTokens), Math.round(u.outputTokens),
         Math.round(u.inputTokens ?? 0), Math.round(u.cacheReadTokens ?? 0), Math.round(u.cacheCreationTokens ?? 0),
-        u.model ?? null,
+        u.model ?? null, u.requestedModel ?? null,
       );
   } catch {
     // disco cheio / DB lock — ignora; não derruba o turno
@@ -152,12 +158,12 @@ export function recordUsage(u: UsageInput): void {
 // se o prefixo ainda está quente, e é o `ctx_tokens` que separa um envio de 0,07M
 // de um de 0,86M. Best-effort: sem amostra (sessão nova) devolve null e o gate
 // trata como envio barato.
-export function lastUsageOf(sessionId: string): { ctxTokens: number; ts: number; model: string | null } | null {
+export function lastUsageOf(sessionId: string): { ctxTokens: number; ts: number; model: string | null; requestedModel: string | null } | null {
   if (!sessionId) return null;
   try {
     const r = open()
-      .prepare('SELECT ctx_tokens AS ctxTokens, ts, model FROM usage_sample WHERE session_id = ? ORDER BY ts DESC LIMIT 1')
-      .get(sessionId) as { ctxTokens: number; ts: number; model: string | null } | undefined;
+      .prepare('SELECT ctx_tokens AS ctxTokens, ts, model, requested_model AS requestedModel FROM usage_sample WHERE session_id = ? ORDER BY ts DESC LIMIT 1')
+      .get(sessionId) as { ctxTokens: number; ts: number; model: string | null; requestedModel: string | null } | undefined;
     return r ?? null;
   } catch { return null; }
 }
@@ -213,7 +219,7 @@ function computeStats(): UsageStats {
   }>;
 
   const latest = open().prepare(`
-    SELECT ctx_tokens AS ctxTokens, model FROM usage_sample
+    SELECT ctx_tokens AS ctxTokens, model, requested_model AS requestedModel FROM usage_sample
     WHERE session_id = ? ORDER BY ts DESC LIMIT 1
   `);
 
@@ -234,15 +240,15 @@ function computeStats(): UsageStats {
     } else {
       bySession.set(r.sessionId, {
         sessionId: r.sessionId, ctxTokens: 0, outputTokens: r.outputTokens ?? 0,
-        samples: r.samples, lastTs: r.lastTs, model: null, costUsd: cost,
+        samples: r.samples, lastTs: r.lastTs, model: null, requestedModel: null, costUsd: cost,
       });
     }
   }
 
   const sessions: SessionUsage[] = [...bySession.values()]
     .map((s) => {
-      const l = latest.get(s.sessionId) as { ctxTokens: number; model: string | null } | undefined;
-      return { ...s, ctxTokens: l?.ctxTokens ?? 0, model: l?.model ?? null };
+      const l = latest.get(s.sessionId) as { ctxTokens: number; model: string | null; requestedModel: string | null } | undefined;
+      return { ...s, ctxTokens: l?.ctxTokens ?? 0, model: l?.model ?? null, requestedModel: l?.requestedModel ?? null };
     })
     .sort((a, b) => b.lastTs - a.lastTs);
 

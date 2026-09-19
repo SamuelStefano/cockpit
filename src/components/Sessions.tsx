@@ -35,6 +35,8 @@ export interface SessionsPanelProps {
   onUnhide?: (id: string) => void;
   onCloseMobile?: () => void;
   usage?: Record<string, number>;
+  // Modelo PEDIDO por sessão: o medidor do card mede sobre a janela dele.
+  usageModel?: Record<string, string>;
   cost?: Record<string, number>;
   running?: Set<string>;
   stalled?: Set<string>;
@@ -47,7 +49,7 @@ export interface SessionsPanelProps {
   funnelBusy?: boolean;
 }
 
-export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, marathon, onToggleMarathon, onRename, onDescribe, onClose, onDelete, onStop, archived = [], onUnhide, onCloseMobile, usage = {}, cost = {}, running, stalled, updated, runStart = {}, searchResults = [], onSearch, userId, onFunnel, funnelBusy }: SessionsPanelProps) {
+export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, marathon, onToggleMarathon, onRename, onDescribe, onClose, onDelete, onStop, archived = [], onUnhide, onCloseMobile, usage = {}, usageModel = {}, cost = {}, running, stalled, updated, runStart = {}, searchResults = [], onSearch, userId, onFunnel, funnelBusy }: SessionsPanelProps) {
   const {
     query, setQuery, confirmId, setConfirmId, deleteId, setDeleteId, pinned, togglePin,
     tagMap, tagFilter, setTagFilter, addTag, removeTag, allTags, dismissedWaiting, dismissWaiting, searchRef, filtered,
@@ -57,7 +59,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, ma
   const ambiguous = useMemo(() => ambiguousIds(filtered), [filtered]);
 
   const renderRow = (s: Session) => (
-    <SessionRow key={s.id} s={s} active={s.id === activeId} highlight={query} ctx={usage[s.id]} cost={cost[s.id]}
+    <SessionRow key={s.id} s={s} active={s.id === activeId} highlight={query} ctx={usage[s.id]} ctxModel={usageModel[s.id]} cost={cost[s.id]}
       ambiguous={ambiguous.has(s.id)} showDesc={showDesc}
       waitingDismissed={dismissedWaiting.has(s.id)} onDismissWaiting={dismissWaiting}
       running={running?.has(s.id)} stalled={stalled?.has(s.id)} updated={updated?.has(s.id)} runStart={runStart[s.id]} pinned={pinned.has(s.id)} onTogglePin={togglePin}
