@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { digestFile, rememberSent, markDuplicates } from './sent-attachments';
+import { digestFile, rememberSent, markDuplicates, forgetSent } from './sent-attachments';
 
 describe('digestFile', () => {
   it('same content gives the same digest regardless of name', async () => {
@@ -41,5 +41,24 @@ describe('markDuplicates', () => {
       ['x'],
     );
     expect(out.map((a) => a.dup)).toEqual(['sent', undefined, 'composer', undefined]);
+  });
+});
+
+describe('forgetSent', () => {
+  it('desmarca só as assinaturas do envio recusado', () => {
+    const all = rememberSent({}, 's1', ['h1', 'h2']);
+    expect(forgetSent(all, 's1', ['h1'])).toEqual({ s1: ['h2'] });
+  });
+
+  it('apaga a sessão quando nada sobra', () => {
+    const all = rememberSent({}, 's1', ['h1']);
+    expect(forgetSent(all, 's1', ['h1'])).toEqual({});
+  });
+
+  it('devolve o mesmo objeto quando não há o que desmarcar', () => {
+    const all = rememberSent({}, 's1', ['h1']);
+    expect(forgetSent(all, 's1', ['zzz'])).toBe(all);
+    expect(forgetSent(all, 's9', ['h1'])).toBe(all);
+    expect(forgetSent(all, 's1', [''])).toBe(all);
   });
 });

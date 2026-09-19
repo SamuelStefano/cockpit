@@ -43,3 +43,13 @@ export function movePendingAtts(oldKey: string, newKey: string): void {
   const paths = new Set(dest.map((a) => a.path));
   savePendingAtts(newKey, [...dest, ...prev.filter((a) => !paths.has(a.path))]);
 }
+
+// Devolve pro composer os anexos de um envio que o servidor RECUSOU. O usuário
+// pode ter anexado outra coisa no meio do caminho, então o que volta entra na
+// frente sem duplicar o que já está lá (mesmo `path` = mesmo arquivo no disco).
+export function restoreAttachments(current: Attachment[], restored: Attachment[]): Attachment[] {
+  if (!restored.length) return current;
+  const have = new Set(current.map((a) => a.path));
+  const back = restored.filter((a) => !have.has(a.path));
+  return back.length ? [...back, ...current] : current;
+}

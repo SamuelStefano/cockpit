@@ -29,8 +29,8 @@ import { composerCost, type ComposerCost } from './components/chat/send-cost';
 import { addThumb, shouldRequestThumb } from './lib/att-thumb-cache';
 import { fileSig, isFreshUpload } from './components/chat/dedupe-uploads';
 import { encodeAttachments, parseAttachments } from './lib/parse-attachments';
-import { loadPendingAtts, savePendingAtts, addPendingAtt, movePendingAtts, clearPendingAtts } from './lib/pending-atts';
-import { digestFile, rememberSent, markDuplicates, SENT_HASHES_KEY, type SentHashes, type DupKind } from './lib/sent-attachments';
+import { loadPendingAtts, savePendingAtts, addPendingAtt, movePendingAtts, clearPendingAtts, restoreAttachments } from './lib/pending-atts';
+import { digestFile, rememberSent, forgetSent, markDuplicates, SENT_HASHES_KEY, type SentHashes, type DupKind } from './lib/sent-attachments';
 
 // Reexport: os domínios-folha migraram pra hooks próprios em ./cockpit, e os
 // consumidores importam estes tipos daqui há tempo.
@@ -243,12 +243,30 @@ export function useCockpit(): Cockpit {
       return next;
     });
   }, []);
+  // Anexos de um envio que o servidor ainda não aceitou. Os chips são limpos no
+  // envio (senão a imagem vazaria pro próximo prompt), então sem este registro uma
+  // recusa devolvia só o texto e os anexos se perdiam.
+  const pendingAtts = useRef<Map<string, Attachment[]>>(new Map());
   // Helper: aplica uma mudança no array de anexos (estado + ref + persiste por sessão).
   const setAtts = useCallback((next: Attachment[]) => {
     attachmentsRef.current = next;
     setAttachments(next);
     savePendingAtts(activeRef.current, next);
   }, []);
+  // Envio recusado: os anexos voltam pro composer junto do texto e as assinaturas
+  // deixam de contar como enviadas (nada chegou ao agente).
+  const restorePendingAtts = useCallback((key: string) => {
+    const atts = pendingAtts.current.get(key);
+    if (!atts?.length) return;
+    pendingAtts.current.delete(key);
+    if (key === activeRef.current) setAtts(restoreAttachments(attachmentsRef.current, atts));
+    else savePendingAtts(key, restoreAttachments(loadPendingAtts(key), atts));
+    setSentHashes((prev) => {
+      const next = forgetSent(prev, key, atts.map((a) => a.hash ?? ''));
+      if (next !== prev) savePref(SENT_HASHES_KEY, next);
+      return next;
+    });
+  }, [setAtts]);
   const [attPreview, setAttPreview] = useState<AttachmentPreview | null>(null);
   const [attThumbs, setAttThumbs] = useState<Record<string, string>>({});
   const attThumbsRef = useRef<Record<string, string>>({});
@@ -555,6 +573,7 @@ export function useCockpit(): Cockpit {
         updateThread(msg.sessionKey, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ O item não entrou na fila: ${msg.message}. O texto voltou pro composer.` }], error: true }]);
         const body = parseAttachments(msg.text).body;
         setDrafts((d) => ({ ...d, [msg.sessionKey]: d[msg.sessionKey] || body }));
+        restorePendingAtts(msg.sessionKey);
         return;
       }
       // Gate de contexto recusou o turno antes do spawn. Mesma dívida do
@@ -567,12 +586,14 @@ export function useCockpit(): Cockpit {
         });
         const body = parseAttachments(msg.text).body;
         setDrafts((d) => ({ ...d, [msg.sessionKey]: d[msg.sessionKey] || body }));
+        restorePendingAtts(msg.sessionKey);
         inFlight.current.delete(msg.sessionKey);
         return;
       }
       // Sem `error`: um aviso de erro por último acendia o banner "O turno falhou",
       // e reenviar dali batia no mesmo gate.
       case 'send-parked': {
+        pendingAtts.current.delete(msg.sessionKey); // entrou na fila COM os anexos
         updateThread(msg.sessionKey, (prev) => {
           const semOrfa = msg.msgId ? prev.filter((m) => !(m.id === msg.msgId && m.role === 'user')) : prev;
           return [...semOrfa, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⏳ ${msg.message}` }] }];
@@ -746,6 +767,7 @@ export function useCockpit(): Cockpit {
         // Frame tardio do turno antigo pode chegar keyed pelo `new-xxx` já migrado.
         const key = resolveKey(migratedTo.current, msg.sessionKey);
         setResumeOffers((o) => clearOffer(o, key));
+        pendingAtts.current.delete(key); // o turno subiu: os anexos foram consumidos
         serverKey.current[key] = msg.sessionKey; // chave real do thread no servidor (p/ o `stop`)
         lastActivity.current[key] = Date.now();
         inFlight.current.add(key);
@@ -1155,7 +1177,7 @@ export function useCockpit(): Cockpit {
         return;
       }
     }
-  }, [updateThread, patchRunMsg, migrateKey, claimedByLocal, reconcileTools, send, reopenMsg, onTermData, onTermReplay, onTermExit, onTerms, onNew, endHandoff, endFunnel]);
+  }, [updateThread, patchRunMsg, migrateKey, claimedByLocal, reconcileTools, send, reopenMsg, onTermData, onTermReplay, onTermExit, onTerms, onNew, endHandoff, endFunnel, restorePendingAtts]);
 
   const connect = useCallback(() => {
     // Fecha+neutraliza o socket anterior ANTES de abrir outro. Sem isto, sockets
@@ -1388,6 +1410,11 @@ export function useCockpit(): Cockpit {
     // .docx (binário que o Read não parseia) o texto extraído vai inline logo após
     // o ref — o agente recebe o conteúdo direto e o chip segue no .docx original.
     const wire = encodeAttachments(atts, text);
+    // Amarrados a ESTE envio até o servidor aceitar: uma recusa devolve os chips
+    // junto do texto em vez de perder o arquivo.
+    // Sempre grava (mesmo vazio): um envio sem anexo tem que APAGAR o registro do
+    // envio anterior, senão uma recusa dele devolveria anexos de outro prompt.
+    pendingAtts.current.set(key, atts);
     if (atts.length) { noteSent(key, atts); setAtts([]); }
     setInterrupted((p) => { if (!(key in p)) return p; const n = { ...p }; delete n[key]; return n; });
     // Add otimista (feedback instantâneo, sem round-trip). O servidor ecoa esta
@@ -1432,6 +1459,9 @@ export function useCockpit(): Cockpit {
     // e limpos na hora — senão a imagem vazava pro primeiro prompt que drenasse.
     const atts = attachmentsRef.current.filter((a) => !a.uploading);
     const wire = encodeAttachments(atts, text);
+    // Sempre grava (mesmo vazio): um envio sem anexo tem que APAGAR o registro do
+    // envio anterior, senão uma recusa dele devolveria anexos de outro prompt.
+    pendingAtts.current.set(key, atts);
     if (atts.length) { noteSent(key, atts); setAtts([]); }
     const bypassWire = capsRef.current?.canBypass && bypassRef.current ? true : undefined;
     const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;

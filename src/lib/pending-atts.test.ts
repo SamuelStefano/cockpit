@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from 'vitest';
-import { loadPendingAtts, savePendingAtts, addPendingAtt, movePendingAtts, clearPendingAtts } from './pending-atts';
+import { loadPendingAtts, savePendingAtts, addPendingAtt, movePendingAtts, clearPendingAtts, restoreAttachments } from './pending-atts';
 import type { Attachment } from '../useCockpit';
 
 const att = (path: string, extra: Partial<Attachment> = {}): Attachment => ({ name: path, path, ...extra });
@@ -44,5 +44,24 @@ describe('pending-atts (anexos do composer por sessão)', () => {
     clearPendingAtts('a');
     expect(loadPendingAtts('a')).toEqual([]);
     expect(localStorage.length).toBe(0);
+  });
+});
+
+describe('restoreAttachments', () => {
+  const a = (path: string): Attachment => ({ name: path, path });
+
+  it('devolve os anexos recusados na frente do que já está no composer', () => {
+    expect(restoreAttachments([a('novo.png')], [a('recusado.png')]).map((x) => x.path))
+      .toEqual(['recusado.png', 'novo.png']);
+  });
+
+  it('não duplica um anexo que o usuário já reanexou', () => {
+    const current = [a('img.png')];
+    expect(restoreAttachments(current, [a('img.png')])).toBe(current);
+  });
+
+  it('nada a devolver devolve o mesmo array', () => {
+    const current = [a('img.png')];
+    expect(restoreAttachments(current, [])).toBe(current);
   });
 });
