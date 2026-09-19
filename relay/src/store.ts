@@ -99,7 +99,7 @@ export function supabaseStore(cfg: StoreConfig): RelayStore {
         body: JSON.stringify({ account_id: accountId, code_hash: sha256(code), label, expires_at: expires }),
       });
       if (!res.ok) throw new Error('createPairingCode failed');
-      return code;
+      return { code, expiresAt: expires };
     },
 
     // Consome o código (single-use, atômico via UPDATE filtrado RETURNING). Devolve

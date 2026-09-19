@@ -77,9 +77,11 @@ describe('supabaseStore pairing', () => {
   it('createPairingCode posts a hash + TTL and returns plaintext once', async () => {
     const { impl, calls } = fakeFetch({ '/pairing_code': { ok: true, body: [] } });
     const store = supabaseStore({ ...CFG, fetchImpl: impl });
-    const code = await store.createPairingCode('acc-1', 'my vps');
+    const { code, expiresAt } = await store.createPairingCode('acc-1', 'my vps');
     expect(typeof code).toBe('string');
     expect(code.length).toBeGreaterThan(8);
+    // O browser precisa do prazo pra mostrar a contagem regressiva do código.
+    expect(Date.parse(expiresAt)).toBeGreaterThan(Date.now());
     const body = JSON.parse(String(calls[0].init?.body));
     expect(body.account_id).toBe('acc-1');
     expect(body.code_hash).toMatch(/^[0-9a-f]{64}$/);   // sha256 hex, NOT the plaintext

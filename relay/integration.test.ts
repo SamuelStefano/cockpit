@@ -68,7 +68,7 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
       async agentById(id) { return id === 'ag-A' ? { accountId: 'accA', publicKey: A.pub } : null; },
       async isAdmin() { return false; },
       async listAccounts() { return []; }, async setAdmin() { return true; },
-      async markAgentSeen() {}, async createPairingCode() { return 'x'; },
+      async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
       async consumePairingCode() { return null; }, async createAgent() { return null; },
     };
     const relay = createRelay({
@@ -114,7 +114,7 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
       },
       async isAdmin() { return false; },
       async listAccounts() { return []; }, async setAdmin() { return true; },
-      async markAgentSeen() {}, async createPairingCode() { return 'x'; },
+      async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
       async consumePairingCode() { return null; }, async createAgent() { return null; },
     };
     const relay = createRelay({
@@ -159,7 +159,7 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
       async agentById(id) { return id === 'ag-A' ? { accountId: 'accA', publicKey: A.pub } : null; },
       async isAdmin() { return false; },
       async listAccounts() { return []; }, async setAdmin() { return true; },
-      async markAgentSeen() {}, async createPairingCode() { return 'x'; },
+      async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
       async consumePairingCode() { return null; }, async createAgent() { return null; },
     };
     const relay = createRelay({
@@ -186,7 +186,7 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
       async agentById(id) { return id === 'ag-A' ? { accountId: 'accA', publicKey: A.pub } : null; },
       async isAdmin() { return false; },
       async listAccounts() { return []; }, async setAdmin() { return true; },
-      async markAgentSeen() {}, async createPairingCode() { return 'x'; },
+      async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
       async consumePairingCode() { return null; }, async createAgent() { return null; },
     };
     const relay = createRelay({
@@ -223,7 +223,7 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
       async agentById() { return null; }, async isAdmin() { return false; },
       async listAccounts() { return rows.map((r) => ({ ...r })); },
       async setAdmin(id, admin) { setCalls.push({ id, admin }); const r = rows.find((x) => x.id === id); if (r) r.isAdmin = admin; return true; },
-      async markAgentSeen() {}, async createPairingCode() { return 'x'; },
+      async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
       async consumePairingCode() { return null; }, async createAgent() { return null; },
     };
     const relay = createRelay({
@@ -267,7 +267,7 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
       async agentById(id) { return id === 'ag-A' ? { accountId: 'accA', publicKey: A.pub } : null; },
       async isAdmin() { return false; },
       async listAccounts() { return []; }, async setAdmin() { return true; },
-      async markAgentSeen() {}, async createPairingCode() { return 'x'; },
+      async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
       async consumePairingCode() { return null; }, async createAgent() { return null; },
     };
     const relay = createRelay({
@@ -294,7 +294,7 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
     const store: RelayStore = {
       async agentById() { return null; }, async isAdmin() { return false; },
       async listAccounts() { return []; }, async setAdmin() { return true; },
-      async markAgentSeen() {}, async createPairingCode() { return 'x'; },
+      async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
       async consumePairingCode() { return null; }, async createAgent() { return null; },
     };
     const relay = createRelay({ iss: 't', jwksUrl: 'http://x', rootEmails: '', store, resolveIdentity: async () => null });
@@ -312,7 +312,7 @@ describe('createRelay em produção', () => {
   const store: RelayStore = {
     async agentById() { return null; }, async isAdmin() { return false; },
     async listAccounts() { return []; }, async setAdmin() { return true; },
-    async markAgentSeen() {}, async createPairingCode() { return 'x'; },
+    async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
     async consumePairingCode() { return null; }, async createAgent() { return null; },
   };
   it('recusa o stub de identidade com NODE_ENV=production', () => {
@@ -368,7 +368,7 @@ describe('relay: falha do store nega o socket sem derrubar o processo', () => {
   const brokenStore = (over: Partial<RelayStore> = {}): RelayStore => ({
     async agentById() { return null; }, async isAdmin() { return false; },
     async listAccounts() { return []; }, async setAdmin() { return true; },
-    async markAgentSeen() {}, async createPairingCode() { return 'code-1'; },
+    async markAgentSeen() {}, async createPairingCode() { return { code: 'code-1', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
     async consumePairingCode() { return null; }, async createAgent() { return null; },
     ...over,
   });
@@ -447,7 +447,7 @@ describe('POST /pair/new', () => {
   const store: RelayStore = {
     async agentById() { return null; }, async isAdmin() { return false; },
     async listAccounts() { return []; }, async setAdmin() { return true; },
-    async markAgentSeen() {}, async createPairingCode() { return 'code-1'; },
+    async markAgentSeen() {}, async createPairingCode() { return { code: 'code-1', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
     async consumePairingCode() { return null; }, async createAgent() { return null; },
   };
 
@@ -467,7 +467,7 @@ describe('POST /pair/new', () => {
     const base = await listen();
     const res = await pair(base, { headers: { authorization: 'Bearer good' } });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ code: 'code-1' });
+    expect(await res.json()).toMatchObject({ code: 'code-1', expiresAt: expect.any(String) });
   });
 
   it('recusa o JWT em query string (token vaza no access log)', async () => {
