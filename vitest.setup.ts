@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -11,6 +11,12 @@ import { join } from 'node:path';
 const home = mkdtempSync(join(tmpdir(), 'deck-test-home-'));
 process.env.HOME = home;
 process.env.USERPROFILE = home;
+// One throwaway home per test FILE and nothing removed them: 2018 of these sat in
+// /tmp on 18/09/2026.
+{
+  const { afterAll } = await import('vitest');
+  afterAll(() => { try { rmSync(home, { recursive: true, force: true }); } catch { /* best effort */ } });
+}
 
 // Credencial vinda do shell do dev (export no perfil) não é alcançada por HOME
 // descartável — some daqui explicitamente.
