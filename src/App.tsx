@@ -4,6 +4,7 @@ import { memorizePrompt } from './components/chat/memorize';
 import { Header } from './components/chrome/Header';
 import { QuotaBanner } from './components/chrome/QuotaBanner';
 import { OfflineNotice } from './components/chrome/OfflineNotice';
+import { UpdateNotice } from './components/chrome/UpdateNotice';
 import { CommandPalette } from './components/CommandPalette';
 import { ShortcutsHelp } from './components/ShortcutsHelp';
 import { Toaster, ConfettiHost } from './components/primitives';
@@ -24,6 +25,7 @@ import { useIsMobile } from './app/useIsMobile';
 import { useKeyboardOpen } from './app/useKeyboardOpen';
 import { useTabTitle } from './app/useTabTitle';
 import { useOfflineLatch } from './app/useOfflineLatch';
+import { useAppUpdate } from './app/useAppUpdate';
 import { usePairingEject } from './app/usePairingEject';
 import { useLiveConnection } from './app/useLiveConnection';
 import { useQuotaGate } from './app/useQuotaGate';
@@ -78,6 +80,8 @@ export function CockpitApp() {
 
   useLiveConnection({ wsState: conn.ws, reconnectNow });
   const showOffline = useOfflineLatch(conn.ws);
+  const [updateClosed, setUpdateClosed] = useState(false);
+  const { updateReady, applyUpdate } = useAppUpdate(conn.ws === 'connected');
   const ejectPairing = usePairingEject(agentOnline, sbAuth.session?.user.id, conn.ws === 'connected');
   const isMobile = useIsMobile();
   // Só o celular tem teclado por cima da tela; num desktop de janela baixa a
@@ -173,6 +177,9 @@ export function CockpitApp() {
       {/* Âncora de altura zero no fluxo: o aviso pende daqui, logo abaixo do header. */}
       <div className="relative z-40">
         <OfflineNotice show={showOffline} />
+        {/* Um de cada vez na mesma âncora, e offline ganha: sem servidor não há
+            versão nova pra buscar, e recarregar ali só daria página em branco. */}
+        <UpdateNotice show={updateReady && !updateClosed && !showOffline} onApply={applyUpdate} onDismiss={() => setUpdateClosed(true)} />
       </div>
 
       <RouteContent
