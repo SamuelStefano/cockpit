@@ -627,8 +627,11 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'queue-edit': {
-      editParked(msg.sessionKey, msg.id, msg.text, role ?? 'student'); // sem role identificada = menor privilégio
+      const ok = editParked(msg.sessionKey, msg.id, msg.text, role ?? 'student'); // sem role identificada = menor privilégio
       broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      // O textarea da fila já fechou quando isto chega: uma recusa calada levava o
+      // texto que o usuário acabou de digitar junto.
+      if (!ok) send(ws, { t: 'queue-error', sessionKey: msg.sessionKey, message: 'não deu pra editar este item da fila (ele pode já ter saído pra rodar)' });
       return;
     }
     case 'queue-move': {

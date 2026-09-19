@@ -133,3 +133,29 @@ describe('useChatPanel fila (server-backed)', () => {
     expect(queueClear).not.toHaveBeenCalled();
   });
 });
+
+describe('useChatPanel histórico do composer', () => {
+  it('recupera o prompt sem os marcadores de anexo do wire', () => {
+    const messages = [
+      { id: 'u1', role: 'user', text: '[anexo: attachments/s1/1-ab-foto.png]\nolha isso', ts: 1 },
+    ] as unknown as Message[];
+    const hook = renderHook(() => useChatPanel({
+      session: { id: 's1' } as Session,
+      messages,
+      phase: 'idle' as Phase,
+      models: [],
+      model: 'opus',
+      onSend: vi.fn(),
+      queue: [],
+      queueAdd: vi.fn(),
+      queueRemove: vi.fn(),
+      queueEdit: vi.fn(),
+      queueMove: vi.fn(),
+      queueClear: vi.fn(),
+      queueRetry: vi.fn(),
+      queueRunBg: vi.fn(),
+      queueRunNow: vi.fn(),
+    }));
+    expect(hook.result.current.sentHistory).toEqual(['olha isso']);
+  });
+});

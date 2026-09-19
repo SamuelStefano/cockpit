@@ -284,3 +284,15 @@ describe('pausa manual da fila', () => {
     expect(isQueuePaused()).toBe(false);
   });
 });
+
+describe('editParked — retorno', () => {
+  it('devolve false quando o item já saiu da fila', () => {
+    expect(editParked('s1', 'pk-fantasma', 'texto novo')).toBe(false);
+  });
+
+  it('devolve true quando troca o texto no lugar', () => {
+    const r = addParked('s1', { prompt: 'antigo' }) as { id: string };
+    expect(editParked('s1', r.id, 'novo')).toBe(true);
+    expect(parkedView().find((p) => p.id === r.id)?.text).toBe('novo');
+  });
+});

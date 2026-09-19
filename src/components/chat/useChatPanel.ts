@@ -89,8 +89,11 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   const disabled = phase !== 'idle';
   const isEmpty = messages.length === 0;
 
+  // Histórico do ↑ (e da sugestão fantasma) em CORPO LIMPO: `m.text` é o wire, com
+  // as linhas `[anexo:]`. Recuperar o prompt trazia os marcadores junto e o reenvio
+  // repontava pra um arquivo que já pode ter passado do TTL.
   const sentHistory = useMemo(
-    () => messages.filter((m) => m.role === 'user').map((m) => m.text).filter(Boolean),
+    () => messages.filter((m) => m.role === 'user').map((m) => parseAttachments(m.text).body).filter(Boolean),
     [messages],
   );
   const modelLabel = useMemo(
