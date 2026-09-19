@@ -26,10 +26,12 @@ export interface Points {
   dflLoaded: boolean;
   dflSyncing: boolean;
   onPointsGet: () => void;
-  onPointsAdd: (title: string, pts: number, description?: string) => void;
-  onPointsCorrect: (entryId: string, pts: number) => void;
-  onPointsNote: (entryId: string, description: string) => void;
-  onPointsDelete: (entryId: string) => void;
+  // Devolvem se o frame saiu: com o socket fechado o envio é descartado em silêncio
+  // e a rota não pode confirmar a escrita.
+  onPointsAdd: (title: string, pts: number, description?: string) => boolean;
+  onPointsCorrect: (entryId: string, pts: number) => boolean;
+  onPointsNote: (entryId: string, description: string) => boolean;
+  onPointsDelete: (entryId: string) => boolean;
   onDflGet: () => void;
   onDflSync: () => void;
   onDflChange: (p: DflChange) => Promise<DflWriteResult>;
@@ -94,10 +96,10 @@ export function usePoints(send: (m: ClientMsg) => boolean): Points {
     dflLoaded,
     dflSyncing,
     onPointsGet: useCallback(() => { send({ t: 'points-get' }); }, [send]),
-    onPointsAdd: useCallback((title: string, pts: number, description?: string) => { send({ t: 'points-add', title, points: pts, description }); }, [send]),
-    onPointsCorrect: useCallback((entryId: string, pts: number) => { send({ t: 'points-correct', entryId, points: pts }); }, [send]),
-    onPointsNote: useCallback((entryId: string, description: string) => { send({ t: 'points-note', entryId, description }); }, [send]),
-    onPointsDelete: useCallback((entryId: string) => { send({ t: 'points-delete', entryId }); }, [send]),
+    onPointsAdd: useCallback((title: string, pts: number, description?: string) => send({ t: 'points-add', title, points: pts, description }), [send]),
+    onPointsCorrect: useCallback((entryId: string, pts: number) => send({ t: 'points-correct', entryId, points: pts }), [send]),
+    onPointsNote: useCallback((entryId: string, description: string) => send({ t: 'points-note', entryId, description }), [send]),
+    onPointsDelete: useCallback((entryId: string) => send({ t: 'points-delete', entryId }), [send]),
     onDflGet: useCallback(() => { send({ t: 'points-dfl-get' }); }, [send]),
     onDflSync: useCallback(() => { send({ t: 'points-dfl-sync' }); }, [send]),
     onDflChange: useCallback((p: DflChange) => {

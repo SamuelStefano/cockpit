@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Modal, Button, Input, Badge, toast } from '../../components/primitives';
 import { usePontosControls } from './pontosControls';
 import { fmtPts } from './money';
+import { taskPointsEdit } from './task-points-edit';
 
 const statusMeta = {
   paid: { tone: 'green' as const, label: 'pago (faturado)' },
@@ -25,17 +26,15 @@ export function TaskEditModal() {
   if (!selectedTask) return null;
   const t = selectedTask;
   const m = statusMeta[t.status];
-  const parsed = Number(points.replace(',', '.'));
-  const valid = Number.isFinite(parsed) && parsed >= 0;
-  const changed = valid && Math.trunc(parsed) !== t.points;
+  const { next, valid, changed, willTruncate } = taskPointsEdit(points, t.points);
   const close = () => setSelectedTask(null);
 
   const save = async () => {
     if (!changed || saving) return;
     setSaving(true);
-    const r = await write.onDflChange({ taskId: t.id, taskName: t.name, currentPoints: t.points, newPoints: Math.trunc(parsed), reason });
+    const r = await write.onDflChange({ taskId: t.id, taskName: t.name, currentPoints: t.points, newPoints: next, reason });
     setSaving(false);
-    if (r.ok) { toast(`Pontos de "${t.name || 'task'}" atualizados pra ${Math.trunc(parsed)}`); close(); }
+    if (r.ok) { toast(`Pontos de "${t.name || 'task'}" atualizados pra ${next}`); close(); }
     else toast(r.message || 'Falha ao mudar pontos', { tone: 'error' });
   };
 
@@ -60,6 +59,7 @@ export function TaskEditModal() {
         <label className="flex flex-col gap-1.5">
           <span className="text-[12px] text-neutral-400">Pontos</span>
           <Input value={points} onChange={(e) => setPoints(e.target.value)} inputMode="numeric" error={!valid} />
+          {willTruncate && <span className="text-[11px] text-neutral-500">O DFL grava pontos inteiros — vai salvar {next}.</span>}
         </label>
         <label className="flex flex-col gap-1.5">
           <span className="text-[12px] text-neutral-400">Motivo <span className="text-neutral-600">(opcional)</span></span>

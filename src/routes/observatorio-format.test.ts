@@ -28,4 +28,17 @@ describe('costToday', () => {
   it('returns 0 with no series', () => {
     expect(costToday([], now)).toBe(0);
   });
+
+  it('counts the Brasília day the server bucketed, not the UTC one', () => {
+    const at = (iso: string) => new Date(iso).getTime();
+    const todayBrt = at('2026-09-19T03:00:00Z');
+    expect(startOfDay(at('2026-09-19T12:00:00Z'))).toBe(todayBrt);
+    const series = [{ day: todayBrt, cost: 3, output: 0 } as DailyUsage];
+    expect(costToday(series, at('2026-09-19T12:00:00Z'))).toBe(3);
+  });
+
+  it('a madrugada UTC ainda é o dia anterior em Brasília', () => {
+    const at = (iso: string) => new Date(iso).getTime();
+    expect(startOfDay(at('2026-09-20T02:00:00Z'))).toBe(at('2026-09-19T03:00:00Z'));
+  });
 });

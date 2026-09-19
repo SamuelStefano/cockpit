@@ -24,6 +24,10 @@ export function useTerminalTabs(term: TermApi, discoveredTerms: string[] = [], l
   // permite reanexar (as "branches" persistentes da VPS, visíveis de outro device).
   const attachable = discoveredTerms.filter((id) => !terminals.some((t) => t.id === id));
 
+  // Aba com sessão VIVA no servidor. Era `terminals[0]`, que existe sempre (a semente
+  // 'main'), então o ponto verde de "tem terminal rodando" ficava aceso pra sempre.
+  const runningTerm = terminals.find((t) => discoveredTerms.includes(t.id));
+
   const attachExisting = (id: string) => {
     // Sessão descoberta no servidor pode ser `term-NNN` acima do contador atual;
     // sobe o _tid pra um novo tab nunca colidir com ela (id/key duplicado).
@@ -36,19 +40,20 @@ export function useTerminalTabs(term: TermApi, discoveredTerms: string[] = [], l
 
   const handleAddTerm = () => {
     const id = nextId('term-');
-    const n = terminals.length + 1;
-    setTerminals((prev) => [...prev, { id, name: `shell ${n}` }]);
+    // Nome derivado do id monotônico: com `terminals.length + 1`, fechar uma aba do
+    // meio e criar outra repetia o nome de uma aba existente.
+    setTerminals((prev) => [...prev, { id, name: `shell ${id.replace('term-', '')}` }]);
     setActiveTermId(id);
   };
 
+  // Fora do updater do setTerminals: o React pode reexecutá-lo, e um setState de
+  // outro estado lá dentro não é puro.
   const handleCloseTerm = (id: string) => {
     term.kill(id);
-    setTerminals((prev) => {
-      const next = prev.filter((t) => t.id !== id);
-      if (id === activeTermId && next.length) setActiveTermId(next[0].id);
-      return next;
-    });
+    const next = terminals.filter((t) => t.id !== id);
+    setTerminals(next);
+    if (id === activeTermId && next.length) setActiveTermId(next[0].id);
   };
 
-  return { terminals, activeTermId, setActiveTermId, handleAddTerm, handleCloseTerm, attachable, attachExisting, runningTerm: terminals[0] };
+  return { terminals, activeTermId, setActiveTermId, handleAddTerm, handleCloseTerm, attachable, attachExisting, runningTerm };
 }

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Icon } from './primitives';
 import { groupByOrder } from './command-palette-filter';
 import type { Cmd } from './command-palette-types';
@@ -9,6 +10,11 @@ interface CommandPaletteResultsProps {
 }
 
 export function CommandPaletteResults({ filtered, sel, setSel }: CommandPaletteResultsProps) {
+  // Seta pra baixo movia só o índice: a seleção saía da janela rolável e o usuário
+  // navegava às cegas a partir do ~8º item.
+  const activeRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => { activeRef.current?.scrollIntoView?.({ block: 'nearest' }); }, [sel]);
+
   if (filtered.length === 0) {
     return <div className="px-4 py-8 text-center text-[13px] text-neutral-600">Nenhum comando encontrado</div>;
   }
@@ -24,6 +30,7 @@ export function CommandPaletteResults({ filtered, sel, setSel }: CommandPaletteR
             return (
               <button
                 key={c.id}
+                ref={active ? activeRef : undefined}
                 onMouseEnter={() => setSel(flatIndex(c))}
                 onClick={c.run}
                 className={`flex w-full items-center gap-3 px-4 py-2 text-left text-[13.5px] transition

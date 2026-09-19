@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Icon, RouteHeader } from '../components/primitives';
+import { Button, Icon, RouteHeader, toast } from '../components/primitives';
 import type { AdminHealth, SysStats, AccountSummary } from '../../shared/protocol';
 import { AdminAccounts } from './AdminAccounts';
 import { AdminHostOps } from './AdminHostOps';
@@ -43,6 +43,11 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
     return () => clearInterval(id);
   }, [onHealthList]);
   useEffect(() => { if (health) setUpdatedAt(Date.now()); }, [health]);
+  // O resultado da op é do painel inteiro, não só da aba Host: conceder/remover admin
+  // na aba Contas não dava sinal nenhum (nem sucesso, nem recusa do relay).
+  useEffect(() => { if (adminOp) toast(adminOp.message, { tone: adminOp.ok ? 'ok' : 'error' }); }, [adminOp]);
+  // …e a lista de contas não reflete a mudança sozinha.
+  useEffect(() => { if (adminOp?.ok && tab === 'accounts') onAccountsList(); }, [adminOp, tab, onAccountsList]);
 
   const tabs = useMemo<AdminTab[]>(() => {
     const t: AdminTab[] = [{ id: 'overview', label: 'Visão geral', icon: 'zap' }];

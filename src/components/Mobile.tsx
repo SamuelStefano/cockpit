@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { SessionsPanel, type SessionsPanelProps } from './Sessions';
 import { ChatPanel } from './Chat';
 import type { ChatPanelProps } from './chat/chat-panel-props';
@@ -65,6 +65,20 @@ export interface MobileLayoutProps {
 }
 
 export function MobileLayout({ sessionsProps, chatProps, termProps, drawer, setDrawer, termSheet, setTermSheet, runningTerm }: MobileLayoutProps) {
+  // Teclado físico (iPad, celular com Bluetooth): Esc fechava tudo menos as duas
+  // sobreposições daqui, que só saíam tocando no backdrop.
+  useEffect(() => {
+    if (!drawer && !termSheet) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.isComposing || e.defaultPrevented) return;
+      e.preventDefault();
+      if (termSheet) setTermSheet(false);
+      else setDrawer(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [drawer, termSheet, setDrawer, setTermSheet]);
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1">
@@ -79,7 +93,7 @@ export function MobileLayout({ sessionsProps, chatProps, termProps, drawer, setD
           <div className="fixed inset-0 z-40 bg-black/60" style={{ animation: 'overlayIn 0.2s ease' }} onClick={() => setDrawer(false)} />
           <div
             className="fixed inset-y-0 left-0 z-50 w-[82%] max-w-[330px] border-r border-neutral-800 bg-neutral-950 shadow-2xl"
-            style={{ animation: 'drawerIn 0.26s cubic-bezier(0.22,1,0.36,1)', paddingTop: 'env(safe-area-inset-top)', paddingLeft: 'env(safe-area-inset-left)' }}
+            style={{ animation: 'drawerIn 0.26s cubic-bezier(0.22,1,0.36,1)', paddingTop: 'env(safe-area-inset-top)', paddingLeft: 'env(safe-area-inset-left)', paddingBottom: 'env(safe-area-inset-bottom)' }}
           >
             <SessionsPanel {...sessionsProps} onCloseMobile={() => setDrawer(false)} />
           </div>

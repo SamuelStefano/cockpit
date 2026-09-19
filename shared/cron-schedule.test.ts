@@ -13,8 +13,11 @@ describe('scheduleLabel', () => {
   it('formata diário em HH:MM', () => {
     expect(scheduleLabel({ kind: 'daily', atMinute: 9 * 60 + 5 })).toBe('todo dia 09:05');
   });
-  it('formata uma vez com data e hora', () => {
-    expect(scheduleLabel({ kind: 'once', atMs: new Date(2026, 6, 25, 9, 59).getTime() })).toBe('uma vez em 25/07 09:59');
+  it('formata uma vez com data e hora de Brasília', () => {
+    expect(scheduleLabel({ kind: 'once', atMs: new Date('2026-07-25T12:59:00Z').getTime() })).toBe('uma vez em 25/07 09:59');
+  });
+  it('formata uma vez na virada do dia em Brasília', () => {
+    expect(scheduleLabel({ kind: 'once', atMs: new Date('2026-07-26T01:30:00Z').getTime() })).toBe('uma vez em 25/07 22:30');
   });
 });
 
@@ -88,6 +91,17 @@ describe('Brasília anchoring', () => {
   });
   it('a 01:00 BRT cron after 23:30 BRT runs at 04:00 UTC, not a day later', () => {
     expect(nextRunAt(daily(60), at('2026-09-10T02:30:00Z'))).toBe(at('2026-09-10T04:00:00Z'));
+  });
+  it('does not fire a slot older than the cron itself', () => {
+    const createdAt = at('2026-09-10T02:30:00Z');
+    const fresh = daily(60, { createdAt });
+    expect(isDue(fresh, createdAt + 30_000)).toBe(false);
+    expect(nextRunAt(fresh, createdAt + 30_000)).toBe(at('2026-09-10T04:00:00Z'));
+    expect(isDue(fresh, at('2026-09-10T04:00:01Z'))).toBe(true);
+  });
+  it('cron antigo sem createdAt continua disparando', () => {
+    const legacy = daily(60, { createdAt: undefined as unknown as number });
+    expect(isDue(legacy, at('2026-09-10T05:00:00Z'))).toBe(true);
   });
   it('does not fire twice in the same Brasília day', () => {
     const ran = daily(7 * 60, { lastRun: at('2026-09-10T10:00:05Z') });

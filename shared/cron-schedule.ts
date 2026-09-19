@@ -15,12 +15,15 @@ export function midnightInTz(now: number): number {
   return Math.floor((now + OFFSET_MS) / DAY) * DAY - OFFSET_MS;
 }
 
+// The card, the timeline and the form preview all read Brasília, so the one-shot label
+// does too — on a UTC host (the VPS) the old host-local label was three hours off.
+const onceLabel = (atMs: number) =>
+  new Intl.DateTimeFormat('pt-BR', {
+    timeZone: CRON_TZ, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).format(atMs).replace(',', '');
+
 export function scheduleLabel(s: CronSchedule): string {
-  if (s.kind === 'once') {
-    const d = new Date(s.atMs ?? 0);
-    const day = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-    return `uma vez em ${day} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  }
+  if (s.kind === 'once') return `uma vez em ${onceLabel(s.atMs ?? 0)}`;
   if (s.kind === 'interval') {
     const m = s.everyMinutes ?? 60;
     return m % 60 === 0 ? `a cada ${m / 60}h` : `a cada ${m}min`;
@@ -68,5 +71,9 @@ export function isDue(c: Cron, now: number): boolean {
     return (c.lastRun ?? c.createdAt) + every <= now;
   }
   const slot = midnightInTz(now) + Math.max(0, Math.min(1439, c.schedule.atMinute ?? 540)) * 60_000;
-  return now >= slot && (!c.lastRun || c.lastRun < slot);
+  // A slot older than the cron itself never belonged to it: creating a 01:00 cron at
+  // 23:30 used to fire an autonomous turn within the next tick, while the form preview
+  // promised the slot of the following day.
+  const born = Number.isFinite(c.createdAt) ? c.createdAt : 0;
+  return now >= slot && slot >= born && (!c.lastRun || c.lastRun < slot);
 }

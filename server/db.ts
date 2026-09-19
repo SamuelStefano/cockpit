@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { CONFIG } from './config';
 import type { SessionUsage, UsageStats } from '../shared/protocol';
+import { midnightInTz } from '../shared/cron-schedule';
 
 // SQLite local, single-writer, loopback-only. WAL pra leitura concorrente com o
 // loop de stats. Só time-series de uso por enquanto (one-way door: session_id
@@ -265,8 +266,9 @@ function dailySeries(days: number): { day: number; output: number; cost: number 
 
   const buckets = new Map<number, { day: number; output: number; cost: number }>();
   for (const r of rows) {
-    const d = new Date(r.ts); d.setHours(0, 0, 0, 0);
-    const day = d.getTime();
+    // Brasília, not the host day: the VPS runs in UTC, so a UTC bucket never matched
+    // the browser's "hoje" and /uso showed custo hoje = 0 with no bar marked as today.
+    const day = midnightInTz(r.ts);
     const cost = costOf(r.model, { input: r.input, output: r.output, cacheRead: r.cacheRead, cacheCreation: r.cacheCreation });
     const b = buckets.get(day) ?? { day, output: 0, cost: 0 };
     b.output += r.output; b.cost += cost;

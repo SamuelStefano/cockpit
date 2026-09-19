@@ -20,6 +20,12 @@ async function countDir(dir: string, filter: (name: string) => boolean): Promise
   return names.filter(filter).length;
 }
 
+// Uma skill é um DIRETÓRIO; contar entradas cruas somava README, .DS_Store e afins.
+async function countSubdirs(dir: string): Promise<number> {
+  const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+  return entries.filter((e) => e.isDirectory()).length;
+}
+
 export function mcpInfoFrom(raw: string): McpInfo[] {
   if (!raw) return [];
   try {
@@ -101,7 +107,7 @@ export async function collectHealth(): Promise<AdminHealth> {
     tmuxSessions(),
     countDir(CONFIG.projectsDir, (n) => n.endsWith('.jsonl')),
     countDir(CONFIG.memoryDir, (n) => n.endsWith('.md')),
-    countDir(CONFIG.skillsDir, () => true),
+    countSubdirs(CONFIG.skillsDir),
     collect(),
     managedEnv(),
     claudeCliInfo(),

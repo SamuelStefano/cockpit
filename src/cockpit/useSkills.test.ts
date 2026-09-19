@@ -10,7 +10,28 @@ const montar = () => {
   return { ...renderHook(() => useSkills(send)), enviados };
 };
 
+const toasts: { text: string; tone?: string }[] = [];
+vi.mock('../components/primitives/toast-bus', () => ({
+  toast: (text: string, opts?: { tone?: string }) => { toasts.push({ text, tone: opts?.tone }); },
+}));
+
 describe('useSkills', () => {
+  it('instalação parcial diz o que entrou junto com o que falhou', () => {
+    toasts.length = 0;
+    const { result, enviados } = montar();
+    act(() => { result.current.onRegistryInstall('pack-x', [{ slug: 'a', kind: 'skill' } as never]); });
+    const sent = enviados.at(-1) as { reqId: string };
+    expect(result.current.installing.has('pack-x')).toBe(true);
+    act(() => {
+      result.current.onMsg({ t: 'registry-install-result', reqId: sent.reqId, ok: false, installed: ['a', 'b'], skipped: [], error: 'c: boom' });
+    });
+    expect(result.current.installing.has('pack-x')).toBe(false);
+    const last = toasts.at(-1)!;
+    expect(last.tone).toBe('error');
+    expect(last.text).toContain('2 skills instaladas');
+    expect(last.text).toContain('c: boom');
+  });
+
   it('reivindica skills e marca loaded mesmo vazio', () => {
     const { result } = montar();
     expect(result.current.skillsLoaded).toBe(false);

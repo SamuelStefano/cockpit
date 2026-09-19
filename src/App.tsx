@@ -77,6 +77,10 @@ export function CockpitApp() {
 
   const [quotaClosed, setQuotaClosed] = useState(false);
   const quotaGate = useQuotaGate(planUsage, rate);
+  // Fechar o aviso vale pra ESTA janela de cota: sem o reset, quem fechou uma vez
+  // nunca mais era avisado (nem na janela seguinte) até dar F5.
+  const quotaWindow = rate?.resetsAt ?? null;
+  useEffect(() => { setQuotaClosed(false); }, [quotaWindow]);
 
   useLiveConnection({ wsState: conn.ws, reconnectNow });
   const showOffline = useOfflineLatch(conn.ws);

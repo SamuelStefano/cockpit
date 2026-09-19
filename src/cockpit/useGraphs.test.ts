@@ -122,6 +122,17 @@ describe('useGraphs', () => {
     expect(result.current.graphBuildError).toBe(null);
   });
 
+  it('erro do servidor destrava abertura e consulta sem engolir o frame', () => {
+    const { result } = montar();
+    act(() => { result.current.onGraphOpen('g1'); });
+    expect(result.current.graphOpening).toBe('g1');
+    let claimed = true;
+    act(() => { claimed = result.current.onMsg({ t: 'error', message: 'grafo não encontrado' }); });
+    expect(claimed).toBe(false);
+    expect(result.current.graphOpening).toBe(null);
+    expect(result.current.graphQuerying).toBe(false);
+  });
+
   it('devolve false pro que não é dele', () => {
     const { result } = montar();
     expect(result.current.onMsg({ t: 'skills', items: [] })).toBe(false);

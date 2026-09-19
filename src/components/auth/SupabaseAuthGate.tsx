@@ -63,9 +63,9 @@ export function SupabaseAuthGate({ auth }: { auth: AuthGateActions }) {
         </Button>
 
         {mode === 'login' && (
-          <button type="button" onClick={() => switchMode('forgot')} className="mt-3 text-[11px] text-neutral-500 transition hover:text-orange-300">
+          <Button type="button" variant="ghost" size="sm" className="mt-3 w-full" onClick={() => switchMode('forgot')}>
             Esqueci a senha
-          </button>
+          </Button>
         )}
         {mode === 'forgot' && (
           <Button type="button" variant="ghost" size="sm" icon="chevronLeft" className="mt-3 w-full" onClick={() => switchMode('login')}>

@@ -26,9 +26,9 @@ export function FinanceSummaryBar({ totals, offPoints = 0, offAmountCents = 0 }:
         </p>
       )}
       <ProgressBar className="mt-3" segments={[
-        { value: paidPoints, tone: 'green', label: `pago: ${paidPoints} pts` },
-        { value: openPoints, tone: 'orange', label: `aberto: ${openPoints} pts` },
-        { value: todoPoints, tone: 'neutral', label: `a fazer: ${todoPoints} pts` },
+        { value: paidPoints, tone: 'green', label: `pago: ${fmtPts(paidPoints)} pts` },
+        { value: openPoints, tone: 'orange', label: `aberto: ${fmtPts(openPoints)} pts` },
+        { value: todoPoints, tone: 'neutral', label: `a fazer: ${fmtPts(todoPoints)} pts` },
       ]} />
     </div>
   );

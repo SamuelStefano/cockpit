@@ -4,8 +4,7 @@ import { Modal, Button, Input, Badge, toast } from '../../components/primitives'
 import { usePontosControls } from './pontosControls';
 import { invoiceDraftsFromSelection } from './invoiceFromSelection';
 import { brl, fmtPts, refMonth } from './money';
-
-const currentMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+import { currentMonthKey } from './month-cap';
 
 // Confirmação de geração de fatura(s) a partir da seleção. Cada delivery vira UMA
 // fatura no DFL prod (status 'submitted' → revisão do admin → cobrança). Só tasks
@@ -13,7 +12,7 @@ const currentMonth = () => { const d = new Date(); return `${d.getFullYear()}-${
 // escrita real só acontece no clique de confirmar (ação do usuário).
 export function InvoiceConfirmModal({ projects, onClose }: { projects: DflProjectNode[]; onClose: () => void }) {
   const { selected, clearSelected, write } = usePontosControls();
-  const [month, setMonth] = useState(currentMonth());
+  const [month, setMonth] = useState(() => currentMonthKey(Date.now()));
   const [busy, setBusy] = useState(false);
   const monthValid = /^\d{4}-\d{2}$/.test(month);
   const drafts = useMemo(() => invoiceDraftsFromSelection(projects, selected, month), [projects, selected, month]);
