@@ -3,7 +3,8 @@ import { createInterface } from 'node:readline';
 import { writeFileSync, unlinkSync, readdirSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { ClaudeEvent } from './events';
 import { cliPath } from './cli-path';
 import { CONFIG } from '../config';
@@ -105,6 +106,30 @@ export function pickMcpDefs(all: Record<string, unknown>, names: string[], role:
   return picked;
 }
 
+// AskUserQuestion só existe no `claude -p` quando há --permission-prompt-tool. O gate
+// do CLI 2.1.274 é `isEnabled = !(naoInterativo && permissionPromptToolName vazio)`:
+// sem a flag o CLI nem REGISTRA a tool (some do `tools` do init e do ToolSearch), o
+// modelo não tem como emitir o tool_use e o card de escolha nunca nasce — por isso a
+// pergunta sumiu do Deck mesmo com AskUserQuestion na allow-list. A flag também
+// devolve EnterPlanMode/ExitPlanMode. O server por trás dela nega tudo: a allow-list
+// continua sendo o gate real (ver permission-mcp.mjs).
+export const PERMISSION_MCP_NAME = 'deck-permission';
+export const PERMISSION_PROMPT_TOOL = `mcp__${PERMISSION_MCP_NAME}__prompt`;
+
+export function permissionMcpDef(): Record<string, unknown> {
+  return {
+    type: 'stdio',
+    command: process.execPath,
+    args: [join(dirname(fileURLToPath(import.meta.url)), 'permission-mcp.mjs')],
+  };
+}
+
+// Escreve SEMPRE, mesmo sem MCP escolhido: o server de permissão precisa existir no
+// config pra flag apontar pra algo. `picked` nunca sobrescreve o nosso nome.
+export function mcpConfigBody(picked: Record<string, unknown>): string {
+  return JSON.stringify({ mcpServers: { ...picked, [PERMISSION_MCP_NAME]: permissionMcpDef() } });
+}
+
 // Spawn do claude headless com hardening DR-004:
 // - argv array, shell:false (sem command injection)
 // - --permission-mode plan (NÃO bypass) na Fase 1
@@ -131,7 +156,7 @@ export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: 
     // selecionado não paga esse overhead — era a maior diferença pro terminal.
     '--strict-mcp-config',
   ];
-  if (mcpConfigPath) args.push('--mcp-config', mcpConfigPath);
+  if (mcpConfigPath) args.push('--mcp-config', mcpConfigPath, '--permission-prompt-tool', PERMISSION_PROMPT_TOOL);
   if (model && validModel(model)) args.push('--model', model);
   // Nível de pensamento. Sem a flag o CLI usa o default da conta (alto) e queima
   // thinking tokens até em pedido simples — passar explícito (default low na UI) corta.
@@ -170,13 +195,11 @@ export function run(opts: RunOpts): RunHandle {
   // (definições completas lidas do ~/.claude.json). Sem seleção → sem arquivo →
   // --strict-mcp-config sozinho = zero MCP. mode 600 (pode ter token nos headers).
   let mcpConfigPath: string | undefined;
-  if (opts.mcps && opts.mcps.length) {
-    const picked = pickMcpDefs(mcpServerDefsSync(), opts.mcps, role);
-    if (Object.keys(picked).length) {
-      mcpConfigPath = join(tmpdir(), `deck-mcp-${randomBytes(6).toString('hex')}.json`);
-      try { writeFileSync(mcpConfigPath, JSON.stringify({ mcpServers: picked }), { mode: 0o600 }); }
-      catch { mcpConfigPath = undefined; }
-    }
+  {
+    const picked = opts.mcps?.length ? pickMcpDefs(mcpServerDefsSync(), opts.mcps, role) : {};
+    mcpConfigPath = join(tmpdir(), `deck-mcp-${randomBytes(6).toString('hex')}.json`);
+    try { writeFileSync(mcpConfigPath, mcpConfigBody(picked), { mode: 0o600 }); }
+    catch { mcpConfigPath = undefined; }
   }
   const cleanupMcp = () => { if (mcpConfigPath) { try { unlinkSync(mcpConfigPath); } catch { /* já removido */ } mcpConfigPath = undefined; } };
 
