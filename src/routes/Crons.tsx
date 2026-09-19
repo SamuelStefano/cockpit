@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Cron, ModelInfo, PlanUsage } from '../../shared/protocol';
-import { EmptyState, Skeleton, RouteHeader } from '../components/primitives';
+import { Button, EmptyState, Skeleton, RouteHeader } from '../components/primitives';
+import { useLoadStalled } from '../lib/useLoadStalled';
 import { useCronForm } from './crons/useCronForm';
 import { CronForm } from './crons/CronForm';
 import { CronCard } from './crons/CronCard';
@@ -37,6 +38,7 @@ export function Crons({ connected, crons, loaded, onCronsGet, onCronSave, onCron
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => { if (connected) onCronsGet(); }, [connected, onCronsGet]);
+  const { stalled, retry } = useLoadStalled(loaded, connected);
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(t);
@@ -58,14 +60,21 @@ export function Crons({ connected, crons, loaded, onCronsGet, onCronSave, onCron
           }
         />
 
+        {!connected ? (
+          <EmptyState icon="circle" title="Desconectado" description="Reconecte pra ver e agendar crons." />
+        ) : (<>
         <div ref={formRef}>
           <CronForm form={form} onCancel={form.reset} now={now} planUsage={planUsage} models={models} />
         </div>
 
         {loaded && <CronTimeline slots={upcomingSlots(crons, now)} now={now} />}
 
-        {!loaded && connected
-          ? <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[74px] w-full rounded-xl" />)}</div>
+        {!loaded
+          ? stalled
+            ? <EmptyState icon="x" title="Não deu pra carregar os crons" description="O servidor não respondeu com a lista. Tente de novo.">
+                <Button icon="rotate" onClick={() => { retry(); onCronsGet(); }}>Tentar de novo</Button>
+              </EmptyState>
+            : <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[74px] w-full rounded-xl" />)}</div>
           : crons.length === 0
           ? <EmptyState icon="clock" title="Nenhum cron" description="Crie um prompt agendado acima — ele dispara sozinho no horário." />
           : <div className="space-y-2">
@@ -82,6 +91,7 @@ export function Crons({ connected, crons, loaded, onCronsGet, onCronSave, onCron
                 />
               ))}
             </div>}
+        </>)}
       </div>
     </div>
   );
