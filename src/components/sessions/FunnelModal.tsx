@@ -57,7 +57,7 @@ export function FunnelModal({
       </div>
 
       <p className="mt-2 text-[11.5px] leading-relaxed text-neutral-600">
-        {kept > 0 ? `${kept} desmarcada${kept > 1 ? 's' : ''} fica${kept > 1 ? 'm' : ''} como está${kept > 1 ? 'o' : ''}. ` : 'Desmarque o que quer manter; fixe a sessão pra ela nunca entrar aqui. '}
+        {kept > 0 ? `${kept} desmarcada${kept > 1 ? 's' : ''} fica${kept > 1 ? 'm' : ''} como ${kept > 1 ? 'estão' : 'está'}. ` : 'Desmarque o que quer manter; fixe a sessão pra ela nunca entrar aqui. '}
         Favoritas, a sessão aberta, as que estão rodando e as que esperam resposta ficam de fora.
         Máximo de {FUNNEL_MAX} por rodada. Arquivar é reversível — elas continuam em "Arquivadas" e o histórico segue no disco.
       </p>

@@ -79,7 +79,7 @@ export function MobileLayout({ sessionsProps, chatProps, termProps, drawer, setD
           <div className="fixed inset-0 z-40 bg-black/60" style={{ animation: 'overlayIn 0.2s ease' }} onClick={() => setDrawer(false)} />
           <div
             className="fixed inset-y-0 left-0 z-50 w-[82%] max-w-[330px] border-r border-neutral-800 bg-neutral-950 shadow-2xl"
-            style={{ animation: 'drawerIn 0.26s cubic-bezier(0.22,1,0.36,1)', paddingTop: 'env(safe-area-inset-top)', paddingLeft: 'env(safe-area-inset-left)' }}
+            style={{ animation: 'drawerIn 0.26s cubic-bezier(0.22,1,0.36,1)', paddingTop: 'env(safe-area-inset-top)', paddingLeft: 'env(safe-area-inset-left)', paddingBottom: 'env(safe-area-inset-bottom)' }}
           >
             <SessionsPanel {...sessionsProps} onCloseMobile={() => setDrawer(false)} />
           </div>

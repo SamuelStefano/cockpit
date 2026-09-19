@@ -49,6 +49,26 @@ describe('useTerminalTabs', () => {
     expect(result.current.activeTermId).toBe('term-300');
   });
 
+  // A semente 'main' existe sempre, então `terminals[0]` deixava o ponto verde de
+  // "terminal rodando" aceso mesmo sem nenhuma sessão viva no servidor.
+  it('runningTerm só aponta pra aba com sessão viva no servidor', () => {
+    const { result: semSessao } = renderHook(() => useTerminalTabs(fakeTerm(), []));
+    expect(semSessao.current.runningTerm).toBeUndefined();
+    const { result: comSessao } = renderHook(() => useTerminalTabs(fakeTerm(), ['main']));
+    expect(comSessao.current.runningTerm?.id).toBe('main');
+  });
+
+  it('abas novas não repetem nome depois de fechar uma do meio', () => {
+    const { result } = renderHook(() => useTerminalTabs(fakeTerm()));
+    act(() => result.current.handleAddTerm());
+    act(() => result.current.handleAddTerm());
+    const meio = result.current.terminals[1].id;
+    act(() => result.current.handleCloseTerm(meio));
+    act(() => result.current.handleAddTerm());
+    const nomes = result.current.terminals.map((t) => t.name);
+    expect(new Set(nomes).size).toBe(nomes.length);
+  });
+
   it('handleCloseTerm mata o pty e reseleciona a primeira aba quando fecha a ativa', () => {
     const term = fakeTerm();
     const { result } = renderHook(() => useTerminalTabs(term));

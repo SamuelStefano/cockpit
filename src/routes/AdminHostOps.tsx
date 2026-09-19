@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Icon, Input, toast } from '../components/primitives';
+import { Button, Icon, Input } from '../components/primitives';
 import type { AdminHealth } from '../../shared/protocol';
 import { AdminConfirm } from './AdminConfirm';
 
@@ -30,9 +30,6 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
   // e disparava 2 instalações. O backend sempre responde com adminOp (ok ou erro),
   // então a chegada de qualquer resultado rearma o botão.
   useEffect(() => { setInstalling(null); }, [adminOp]);
-
-  // Resultado da op vira toast (some sozinho) em vez de banner fixo e ambíguo.
-  useEffect(() => { if (adminOp) toast(adminOp.message, { tone: adminOp.ok ? 'ok' : 'error' }); }, [adminOp]);
 
   // Backstop: se o WS cair no meio do npm install, o admin-op nunca chega e os
   // botões ficariam presos em loading. 3min cobre a instalação mais lenta.

@@ -18,8 +18,12 @@ export function AdminConfirm({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.isComposing) return;
+      // Mesma guarda do ConfirmArchive: Enter digitado num campo (ou num botão já
+      // focado) não pode confirmar sozinho uma ação destrutiva de admin.
+      const t = e.target as HTMLElement | null;
+      const typing = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON' || t.isContentEditable);
       if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); onCancel(); }
-      else if (e.key === 'Enter') { e.preventDefault(); onConfirm(); }
+      else if (e.key === 'Enter' && !typing) { e.preventDefault(); onConfirm(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
