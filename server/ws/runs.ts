@@ -231,7 +231,7 @@ export function runParkedInBackground(sessionKey: string, id: string, role?: Rol
   return { forkId };
 }
 
-export type NowRunReject = 'sem-item' | 'segurado' | 'fila-pausada' | 'sem-quota' | 'aguardando-resposta';
+export type NowRunReject = 'sem-item' | 'segurado' | 'fila-pausada' | 'sem-quota' | 'aguardando-resposta' | 'falhou';
 
 // Fura a fila: o item roda AGORA neste chat, no lugar do turno em andamento.
 // Tudo que pode recusar roda ANTES do stop: um item segurado ou uma fila pausada

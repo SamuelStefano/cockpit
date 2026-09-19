@@ -3,11 +3,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useChatPanel, type Phase } from './useChatPanel';
 import type { Session, Message } from '../../data/types';
-import type { ParkedView } from '../../../shared/protocol';
+import type { QueueItem } from '../../useCockpit';
 
 // A fila agora vive no servidor (parked.json). O hook só espelha a prop `queue` e
 // delega add/remove/move/clear via callbacks — sem estado local nem drenagem cliente.
-function setup(queue: ParkedView[], sessionId = 's1') {
+function setup(queue: QueueItem[], sessionId = 's1') {
   const queueAdd = vi.fn();
   const queueRemove = vi.fn();
   const queueEdit = vi.fn();
@@ -33,13 +33,13 @@ function setup(queue: ParkedView[], sessionId = 's1') {
     queueRunBg,
     queueRunNow,
   };
-  const hook = renderHook((p: { queue: ParkedView[] }) => useChatPanel({ ...props, queue: p.queue }), {
+  const hook = renderHook((p: { queue: QueueItem[] }) => useChatPanel({ ...props, queue: p.queue }), {
     initialProps: { queue },
   });
   return { hook, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg, queueRunNow };
 }
 
-const pv = (id: string, text: string, at: number, sessionKey = 's1'): ParkedView => ({ sessionKey, id, text, at });
+const pv = (id: string, text: string, at: number, sessionKey = 's1'): QueueItem => ({ sessionKey, key: sessionKey, id, text, at });
 
 describe('useChatPanel fila (server-backed)', () => {
   it('deriva `queued` da prop queue filtrando pela sessão, na ordem do array (ordem de envio do servidor)', () => {

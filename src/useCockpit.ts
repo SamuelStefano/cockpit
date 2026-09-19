@@ -38,6 +38,12 @@ export type { SkillDoc } from './cockpit/useSkills';
 export type { GraphQueryState, GraphNodeOp } from './cockpit/useGraphs';
 export interface Attachment { name: string; path: string; text?: string; s3url?: string; uploading?: boolean; clientId?: string; hash?: string; dup?: DupKind }
 export interface AttachmentPreview { path: string; name: string; dataB64?: string; error?: string }
+// O servidor guarda o item da fila sob a chave com que a sessão NASCEU (`new-xxx`
+// enquanto ela ainda não tem id real) e nunca re-keyea. O display migra pro
+// sessionId no primeiro `done`, então filtrar a fila por `sessionKey` cru fazia a
+// fila inteira sumir da tela — inclusive depois de furar a fila, que fecha um turno
+// e dispara a migração. `key` é a chave de DISPLAY; `sessionKey` segue sendo a do fio.
+export type QueueItem = ParkedView & { key: string };
 export type { TermApi };
 import type { ConnState } from './components/primitives';
 import { toast } from './components/primitives/toast-bus';
@@ -148,7 +154,7 @@ export interface Cockpit extends LeafApis {
   onOpenFull: (id: string) => void;
   onLoadOlder: (id: string) => void;
   onOpenSummary: (id: string) => void;
-  queue: ParkedView[];
+  queue: QueueItem[];
   queueAdd: (text: string) => void;
   queueRemove: (sessionKey: string, id: string) => void;
   queueEdit: (sessionKey: string, id: string, text: string) => void;
@@ -203,7 +209,7 @@ export function useCockpit(): Cockpit {
   const [interrupted, setInterrupted] = useState<Record<string, string>>({}); // sessionKey -> endReason (budget/max_turns) p/ oferecer "continuar"
   const [searchResults, setSearchResults] = useState<Session[]>([]);
   const searchQ = useRef('');
-  const [queue, setQueue] = useState<ParkedView[]>([]); // fila estacionada (servidor), broadcast dos queue-*
+  const [queue, setQueue] = useState<QueueItem[]>([]); // fila estacionada (servidor), broadcast dos queue-*
   const [queuePaused, setQueuePausedState] = useState(false); // pausa manual da fila (servidor)
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const attachmentsRef = useRef<Attachment[]>([]);
@@ -217,6 +223,9 @@ export function useCockpit(): Cockpit {
   // Hash de conteúdo por upload em voo (clientId → hash): o ack 'uploaded' troca o
   // chip otimista pelo real e sem isto o hash se perdia na troca.
   const uploadHashes = useRef<Map<string, string>>(new Map());
+  // clientIds cujo chip o usuário removeu ANTES do ack chegar: o ack não pode
+  // reinserir o anexo que ele acabou de cancelar.
+  const removedUploads = useRef<Set<string>>(new Set());
   const [sentHashes, setSentHashes] = useState<SentHashes>(() => loadPref<SentHashes>(SENT_HASHES_KEY, {}));
   const noteSent = useCallback((key: string, atts: Attachment[]) => {
     setSentHashes((prev) => {
@@ -514,7 +523,19 @@ export function useCockpit(): Cockpit {
     for (const h of leafHandlers.current) if (h(msg)) return;
     switch (msg.t) {
       case 'mcp-servers': { setMcpServers(msg.servers); return; }
-      case 'queue': { setQueue(msg.items); setQueuePausedState(msg.paused); return; }
+      case 'queue': {
+        setQueue(msg.items.map((i) => ({ ...i, key: resolveKey(migratedTo.current, i.sessionKey) })));
+        setQueuePausedState(msg.paused);
+        return;
+      }
+      // Recusa de uma AÇÃO da fila (furar a fila, rodar em paralelo). Vem separada
+      // do `error` de propósito: aquele encerra o turno da sessão, e a fila só
+      // enche COM turno rodando — recusar um disparo congelava a resposta em voo.
+      case 'queue-error': {
+        const key = resolveKey(migratedTo.current, msg.sessionKey);
+        updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ ${msg.message}` }], error: true }]);
+        return;
+      }
       // Servidor recusou o enfileiramento (fila cheia, prompt grande demais): o
       // composer já limpou o texto e a fila não ecoa bolha nenhuma — sem devolver
       // aqui, o prompt sumia igual ao furo do WS fechado.
@@ -967,6 +988,10 @@ export function useCockpit(): Cockpit {
         if (!origin || origin === activeRef.current) {
           const cur = attachmentsRef.current;
           const idx = msg.clientId ? cur.findIndex((a) => a.clientId === msg.clientId) : -1;
+          // Chip otimista sumido = o usuário clicou no X enquanto subia. Cair no
+          // append ressuscitava o anexo segundos depois e ele ia junto do próximo
+          // prompt — o cancelamento tem que ganhar do ack que estava a caminho.
+          if (idx < 0 && msg.clientId && removedUploads.current.has(msg.clientId)) { removedUploads.current.delete(msg.clientId); return; }
           setAtts(idx >= 0 ? cur.map((a, i) => (i === idx ? real : a)) : [...cur, real]);
         } else {
           addPendingAtt(origin, real);
@@ -1386,8 +1411,11 @@ export function useCockpit(): Cockpit {
     const bypassWire = capsRef.current?.canBypass && bypassRef.current ? true : undefined;
     const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
     const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
-    send({ t: 'queue-add', sessionKey: key, sessionId: resumeId.current[key], text: wire, mode: modeRef.current, model: modelBySessionRef.current[key] ?? defaultModelRef.current, effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
-  }, [send, updateThread, noteSent]);
+    // pinSessionModel, não o pin cru: um `[1m]` salvo em localStorage sobrevive ao
+    // deploy, o servidor descarta o argv inválido em silêncio (validModel) e o item
+    // rodava no modelo da conta sem ninguém avisar. Mesmo normalizador do onSend.
+    send({ t: 'queue-add', sessionKey: key, sessionId: resumeId.current[key], text: wire, mode: modeRef.current, model: pinSessionModel(key), effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
+  }, [send, updateThread, noteSent, pinSessionModel]);
   const queueRemove = useCallback((sessionKey: string, id: string) => { send({ t: 'queue-remove', sessionKey, id }); }, [send]);
   const queueEdit = useCallback((sessionKey: string, id: string, text: string) => { send({ t: 'queue-edit', sessionKey, id, text }); }, [send]);
   const queueMove = useCallback((sessionKey: string, id: string, dir: -1 | 1) => { send({ t: 'queue-move', sessionKey, id, dir }); }, [send]);
@@ -1396,7 +1424,10 @@ export function useCockpit(): Cockpit {
   const queueRetry = useCallback((sessionKey: string, id: string) => { send({ t: 'queue-retry', sessionKey, id }); }, [send]);
   const queueRunBg = useCallback((sessionKey: string, id: string, model?: string) => { send({ t: 'queue-run-bg', sessionKey, id, model }); }, [send]);
   const queueRunNow = useCallback((sessionKey: string, id: string) => { send({ t: 'queue-run-now', sessionKey, id }); }, [send]);
-  const queueForce = useCallback((sessionKey: string) => { send({ t: 'queue-force', sessionKey }); }, [send]);
+  // O latch de pergunta pendente é gravado no servidor sob a chave com que o TURNO
+  // começou (`new-xxx`), não sob a chave de display migrada — mesma tradução do
+  // `stop`. Sem ela o clear caía numa chave que nunca existiu e a fila seguia presa.
+  const queueForce = useCallback((sessionKey: string) => { send({ t: 'queue-force', sessionKey: serverKey.current[sessionKey] ?? sessionKey }); }, [send]);
 
   const onUpload = useCallback((file: File) => {
     const key = activeRef.current;
@@ -1447,6 +1478,12 @@ export function useCockpit(): Cockpit {
   }, [send, updateThread, setAtts]);
 
   const onRemoveAttachment = useCallback((path: string) => {
+    for (const a of attachmentsRef.current) {
+      if (a.path !== path || !a.clientId) continue;
+      removedUploads.current.add(a.clientId);
+      uploadOrigin.current.delete(a.clientId);
+      uploadHashes.current.delete(a.clientId);
+    }
     setAtts(attachmentsRef.current.filter((a) => a.path !== path));
   }, [setAtts]);
 
@@ -1526,7 +1563,10 @@ export function useCockpit(): Cockpit {
     // O servidor keyeia o thread pela chave com que o run começou ("new-xxx" numa
     // sessão nova) e nunca re-keyea. Mandar a chave de display migrada (sessionId real)
     // dava miss no `threads.get()` → kill no-op. Manda a chave real do servidor.
-    send({ t: 'stop', sessionKey: serverKey.current[key] ?? key });
+    // WS fechado: send() descarta calado e o turno segue vivo no servidor. Marcar
+    // idle aqui era pior que não fazer nada — o latch `stopping` faz o reconnect
+    // PULAR o 'busy'/'replay' da sessão, então o turno vivo ficava invisível.
+    if (!send({ t: 'stop', sessionKey: serverKey.current[key] ?? key })) return;
     inFlight.current.delete(key);
     stopping.current.add(key);
     reconcileTools(key);
