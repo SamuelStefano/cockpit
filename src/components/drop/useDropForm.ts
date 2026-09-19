@@ -22,7 +22,11 @@ export function useDropForm(api: DropApi, open: boolean) {
   const [enviado, setEnviado] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { if (open) api.onDropList(); }, [open, api]);
+  // Só a callback nas deps: o `api` ganha identidade nova a cada frame `drops`, e
+  // pedir a lista de novo por isso virava um laço infinito de drop-list enquanto o
+  // modal estivesse aberto.
+  const { onDropList } = api;
+  useEffect(() => { if (open) onDropList(); }, [open, onDropList]);
 
   const onFile = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];

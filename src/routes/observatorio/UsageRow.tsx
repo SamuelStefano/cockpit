@@ -18,6 +18,8 @@ export function UsageRow({ row, maxOut, title, openable, onOpen }: UsageRowProps
   return (
     <tr
       onClick={openable ? onOpen : undefined}
+      tabIndex={openable ? 0 : undefined}
+      onKeyDown={openable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } } : undefined}
       title={openable ? 'Abrir sessão no chat' : undefined}
       className={`border-b border-neutral-800/60 last:border-0 hover:bg-neutral-900/40 ${openable ? 'cursor-pointer' : ''}`}
     >
