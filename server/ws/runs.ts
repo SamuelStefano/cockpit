@@ -233,13 +233,17 @@ export function runParkedInBackground(sessionKey: string, id: string, role?: Rol
 
 export type NowRunReject = 'sem-item' | 'segurado' | 'fila-pausada' | 'sem-quota' | 'aguardando-resposta';
 
-// Fura a fila: o item vai pro topo e o turno em andamento MORRE pra ele subir no
-// lugar. Não dispara o item aqui — só promove e mata; o onClose do turno morto já
-// chama drainParked, que agora encontra este item no topo. Disparar direto
-// competiria com esse dreno pelo mesmo item.
+// Fura a fila: o item roda AGORA neste chat, no lugar do turno em andamento.
 // Tudo que pode recusar roda ANTES do stop: um item segurado ou uma fila pausada
 // não subiriam depois, e o usuário teria perdido o turno em andamento à toa.
-export function runParkedNow(sessionKey: string, id: string): { ok: true } | { reject: NowRunReject } {
+//
+// Quando ESTE processo é dono do turno, o item sobe AQUI, direto — antes o botão
+// só promovia e matava, e contava com o `drainParked` do onClose pra subir o item.
+// Esse dreno é um no-op fora do processo do agente (`drainerEnabled`), e o Deck roda
+// dois processos sobre o MESMO parked.json (index na :7777 + agente do relay): o
+// clique vindo pelo index matava o turno e não subia nada. O drainer do agente só
+// pegava o item no tick seguinte, com a UI do index sem ver turno nenhum.
+export function runParkedNow(sessionKey: string, id: string, role?: Role): { ok: true } | { reject: NowRunReject } {
   if (isQueuePaused()) return { reject: 'fila-pausada' };
   if (quotaHold()) return { reject: 'sem-quota' };
   // Pergunta pendente: o drainer ignora a sessão até a resposta, então promover e
@@ -249,9 +253,27 @@ export function runParkedNow(sessionKey: string, id: string): { ok: true } | { r
   const peek = findParked(sessionKey, id);
   if (!peek) return { reject: 'sem-item' };
   if (peek.held) return { reject: 'segurado' }; // no teto de tentativas o drainer o ignora: retomar primeiro
-  if (!promoteParked(sessionKey, id)) return { reject: 'sem-item' };
-  if (resolveThreadKey(sessionKey)) stopSession(sessionKey);
-  else drainParked(); // sessão já ociosa: nada pra matar, só não esperar o tick de 30s
+  // Sessão ociosa aqui: promove e deixa o drainer subir. Disparar direto seria
+  // apostar que nenhum outro processo tem turno vivo nesta sessão — e dois
+  // `claude -p --resume` no mesmo transcript se atropelam.
+  if (!resolveThreadKey(sessionKey)) {
+    if (!promoteParked(sessionKey, id)) return { reject: 'sem-item' };
+    drainParked();
+    return { ok: true };
+  }
+  // Tira o item ANTES de matar o turno: assim o dreno do onClose não compete por
+  // ele, e uma falha do spawn devolve o item SEM contar tentativa (igual ao
+  // disparo em background) — a falha é do disparo, não do prompt.
+  const item = takeParked(sessionKey, id, role);
+  if (!item) return { reject: 'sem-item' };
+  stopSession(sessionKey);
+  const resume = resumableId(item.resumeId);
+  if (item.resumeId && !resume) recordIncident({ kind: 'parked-resume-morto', sessionKey, sessionId: item.resumeId, detail: `item ${item.id} disparado como turno novo` });
+  startRun({ ...runParams(item), ws: null, sessionKey, prompt: item.prompt, resumeId: resume, queued: true });
+  const th = threads.get(sessionKey);
+  if (!th) { unshiftParked(sessionKey, item, false); broadcastQueue(); return { reject: 'falhou' }; }
+  th.parked = item;
+  broadcastQueue();
   return { ok: true };
 }
 
