@@ -31,7 +31,9 @@ export interface RelayStore {
   markAgentSeen(agentId: string): Promise<void>;
   // Pairing: cria código (devolve texto plano 1x), consome atômico (→ accountId),
   // registra o agente pareado (→ agentId).
-  createPairingCode(accountId: string, label?: string): Promise<string>;
+  // Devolve o código em texto plano UMA vez + quando ele expira, pra o browser
+  // mostrar a contagem regressiva em vez de "aguardando o agente…" pra sempre.
+  createPairingCode(accountId: string, label?: string): Promise<{ code: string; expiresAt: string }>;
   consumePairingCode(code: string): Promise<string | null>;
   createAgent(accountId: string, publicKey: string, label?: string): Promise<string | null>;
 }
@@ -124,9 +126,9 @@ export function createRelay(cfg: RelayConfig) {
       // logada em loop enche a tabela de graça.
       if (!pairThrottle(id.accountId)) { res.writeHead(429); res.end('slow down'); return; }
       try {
-        const code = await cfg.store.createPairingCode(id.accountId);
+        const { code, expiresAt } = await cfg.store.createPairingCode(id.accountId);
         res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ code }));
+        res.end(JSON.stringify({ code, expiresAt }));
       } catch { res.writeHead(500); res.end('error'); }
       return;
     }
