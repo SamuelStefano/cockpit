@@ -6,7 +6,17 @@ import type { ClientMsg } from '../../shared/protocol';
 const runs = vi.hoisted(() => ({
   startRun: vi.fn(),
   routeSend: vi.fn((_opts: unknown) => Promise.resolve()),
+  drainParked: vi.fn(),
+  runParkedNow: vi.fn(() => ({ ok: true as const })),
+  runParkedInBackground: vi.fn(() => ({ forkId: 'f1' })),
 }));
+const parked = vi.hoisted(() => ({
+  addParked: vi.fn(() => ({ id: 'pk-1' })), removeParked: vi.fn(), editParked: vi.fn(),
+  moveParked: vi.fn(), clearParked: vi.fn(), retryParked: vi.fn(),
+  parkedView: vi.fn(() => []), isQueuePaused: vi.fn(() => false), setQueuePaused: vi.fn(),
+  REJECT_MESSAGE: {} as Record<string, string>,
+}));
+const awaiting = vi.hoisted(() => ({ clearAwaiting: vi.fn() }));
 const reg = vi.hoisted(() => {
   const threads = new Map<string, { handle: { kill: () => void } }>();
   const onStop = vi.fn();
@@ -26,6 +36,8 @@ const admin = vi.hoisted(() => ({
 }));
 
 vi.mock('./runs', () => runs);
+vi.mock('./parked', () => parked);
+vi.mock('./awaiting', () => awaiting);
 vi.mock('./threads', () => reg);
 vi.mock('./broadcast', () => bc);
 vi.mock('../config', () => cfg);
@@ -304,5 +316,42 @@ describe('pontos-agent-tasks (botão "criar tasks com agente")', () => {
     await handle(ws, msg({ note: 'x'.repeat(9000) }), 'admin');
     expect(runs.startRun).not.toHaveBeenCalled();
     expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ kind: 'agent', ok: false, message: 'nota grande demais' }));
+  });
+});
+
+describe('ações da fila estacionada', () => {
+  beforeEach(() => {
+    runs.runParkedNow.mockReturnValue({ ok: true as const });
+    parked.parkedView.mockReturnValue([]);
+  });
+
+  // Recusar um disparo mandava um 'error' COM sessionKey, e o cliente trata isso
+  // como "este turno morreu": a resposta em voo congelava na tela. A fila só enche
+  // com turno rodando, então essa era a situação normal do clique.
+  it('recusa de furar a fila não vai pelo canal que encerra o turno', async () => {
+    runs.runParkedNow.mockReturnValue({ reject: 'sem-quota' } as never);
+    await handle(ws, { t: 'queue-run-now', sessionKey: 'k1', id: 'pk-1' } as ClientMsg, 'admin');
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'queue-error', sessionKey: 'k1' }));
+    expect(bc.send).not.toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'error' }));
+  });
+
+  it('recusa do disparo em paralelo idem', async () => {
+    runs.runParkedInBackground.mockReturnValue({ reject: 'sem-slot' } as never);
+    await handle(ws, { t: 'queue-run-bg', sessionKey: 'k1', id: 'pk-1' } as ClientMsg, 'admin');
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'queue-error', sessionKey: 'k1' }));
+    expect(bc.send).not.toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'error' }));
+  });
+
+  it('furar a fila leva o papel adiante (item de admin não sobe pela mão de student)', async () => {
+    await handle(ws, { t: 'queue-run-now', sessionKey: 'k1', id: 'pk-1' } as ClientMsg, 'student');
+    expect(runs.runParkedNow).toHaveBeenCalledWith('k1', 'pk-1', 'student');
+  });
+
+  // Sem o snapshot o clique em "enviar mesmo assim" não mudava nada na tela quando
+  // o dreno não subia nada — o botão parecia morto.
+  it('forçar a fila devolve o snapshot da fila', async () => {
+    await handle(ws, { t: 'queue-force', sessionKey: 'k1' } as ClientMsg, 'admin');
+    expect(awaiting.clearAwaiting).toHaveBeenCalledWith('k1');
+    expect(bc.broadcast).toHaveBeenCalledWith(expect.objectContaining({ t: 'queue' }));
   });
 });

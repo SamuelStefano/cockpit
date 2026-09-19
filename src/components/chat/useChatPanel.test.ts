@@ -3,11 +3,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useChatPanel, type Phase } from './useChatPanel';
 import type { Session, Message } from '../../data/types';
-import type { ParkedView } from '../../../shared/protocol';
+import type { QueueItem } from '../../useCockpit';
 
 // A fila agora vive no servidor (parked.json). O hook só espelha a prop `queue` e
 // delega add/remove/move/clear via callbacks — sem estado local nem drenagem cliente.
-function setup(queue: ParkedView[], sessionId = 's1') {
+function setup(queue: QueueItem[], sessionId = 's1') {
   const queueAdd = vi.fn();
   const queueRemove = vi.fn();
   const queueEdit = vi.fn();
@@ -33,13 +33,16 @@ function setup(queue: ParkedView[], sessionId = 's1') {
     queueRunBg,
     queueRunNow,
   };
-  const hook = renderHook((p: { queue: ParkedView[] }) => useChatPanel({ ...props, queue: p.queue }), {
+  const hook = renderHook((p: { queue: QueueItem[] }) => useChatPanel({ ...props, queue: p.queue }), {
     initialProps: { queue },
   });
   return { hook, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg, queueRunNow };
 }
 
-const pv = (id: string, text: string, at: number, sessionKey = 's1'): ParkedView => ({ sessionKey, id, text, at });
+const pv = (id: string, text: string, at: number, sessionKey = 's1'): QueueItem => ({ sessionKey, key: sessionKey, id, text, at });
+// Item enfileirado antes de a sessão ganhar id real: o servidor o guarda sob
+// `new-xxx` pra sempre, e o display já migrou pro sessionId.
+const migrated = (id: string, text: string, at: number, key: string): QueueItem => ({ sessionKey: 'new-abc', key, id, text, at });
 
 describe('useChatPanel fila (server-backed)', () => {
   it('deriva `queued` da prop queue filtrando pela sessão, na ordem do array (ordem de envio do servidor)', () => {
@@ -49,6 +52,18 @@ describe('useChatPanel fila (server-backed)', () => {
       pv('x', 'outra sessão', 150, 's2'),
     ]);
     expect(hook.result.current.queued).toEqual(['segundo', 'primeiro']);
+  });
+
+  // Bug do Samuel: com 2+ itens na fila, furar a fila fecha um turno, a sessão
+  // migra de `new-xxx` pro sessionId real e o resto da fila sumia da tela.
+  it('mostra o item guardado sob a chave pré-migração e escreve de volta na chave do fio', () => {
+    const { hook, queueRunNow } = setup([
+      migrated('a', 'primeiro', 100, 's1'),
+      migrated('b', 'segundo', 200, 's1'),
+    ]);
+    expect(hook.result.current.queued).toEqual(['primeiro', 'segundo']);
+    hook.result.current.runQueuedNowAt(1);
+    expect(queueRunNow).toHaveBeenCalledWith('new-abc', 'b');
   });
 
   it('enqueue delega pro queueAdd (servidor decide a sessão ativa)', () => {
@@ -116,5 +131,31 @@ describe('useChatPanel fila (server-backed)', () => {
     expect(hook.result.current.queued).toEqual([]);
     hook.result.current.clearQueue();
     expect(queueClear).not.toHaveBeenCalled();
+  });
+});
+
+describe('useChatPanel histórico do composer', () => {
+  it('recupera o prompt sem os marcadores de anexo do wire', () => {
+    const messages = [
+      { id: 'u1', role: 'user', text: '[anexo: attachments/s1/1-ab-foto.png]\nolha isso', ts: 1 },
+    ] as unknown as Message[];
+    const hook = renderHook(() => useChatPanel({
+      session: { id: 's1' } as Session,
+      messages,
+      phase: 'idle' as Phase,
+      models: [],
+      model: 'opus',
+      onSend: vi.fn(),
+      queue: [],
+      queueAdd: vi.fn(),
+      queueRemove: vi.fn(),
+      queueEdit: vi.fn(),
+      queueMove: vi.fn(),
+      queueClear: vi.fn(),
+      queueRetry: vi.fn(),
+      queueRunBg: vi.fn(),
+      queueRunNow: vi.fn(),
+    }));
+    expect(hook.result.current.sentHistory).toEqual(['olha isso']);
   });
 });

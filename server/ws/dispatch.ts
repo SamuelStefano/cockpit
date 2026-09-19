@@ -55,6 +55,7 @@ const NOW_RUN_MESSAGE: Record<NowRunReject, string> = {
   'fila-pausada': 'a fila está pausada: retome antes de furar a fila',
   'sem-quota': 'sem tokens agora: o turno morreria no limite',
   'aguardando-resposta': 'o turno está esperando sua resposta: responda o card ou use forçar a fila',
+  'falhou': 'não deu pra subir o item agora — ele voltou pra fila',
 };
 
 export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
@@ -626,8 +627,11 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'queue-edit': {
-      editParked(msg.sessionKey, msg.id, msg.text, role ?? 'student'); // sem role identificada = menor privilégio
+      const ok = editParked(msg.sessionKey, msg.id, msg.text, role ?? 'student'); // sem role identificada = menor privilégio
       broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      // O textarea da fila já fechou quando isto chega: uma recusa calada levava o
+      // texto que o usuário acabou de digitar junto.
+      if (!ok) send(ws, { t: 'queue-error', sessionKey: msg.sessionKey, message: 'não deu pra editar este item da fila (ele pode já ter saído pra rodar)' });
       return;
     }
     case 'queue-move': {
@@ -658,13 +662,17 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'queue-force': {
       clearAwaiting(msg.sessionKey);
       drainParked();
+      // Sem este snapshot o clique não mudava NADA na tela quando o dreno não
+      // subiu nada (outro processo é quem drena, ou a sessão não era a da vez):
+      // o banner seguia igual e o botão parecia morto.
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
       return;
     }
     // Tira o item da fila e roda AGORA num chat paralelo, forkando o contexto deste
     // chat. Não espera a sessão liberar e não encosta no turno em andamento.
     case 'queue-run-bg': {
       const r = runParkedInBackground(msg.sessionKey, msg.id, role ?? 'student', typeof msg.model === 'string' ? msg.model : undefined);
-      if ('reject' in r) { send(ws, { t: 'error', sessionKey: msg.sessionKey, message: BG_RUN_MESSAGE[r.reject] }); return; }
+      if ('reject' in r) { send(ws, { t: 'queue-error', sessionKey: msg.sessionKey, message: BG_RUN_MESSAGE[r.reject] }); return; }
       broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
       return;
     }
@@ -672,8 +680,8 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     // ele subir no lugar. O broadcast do snapshot mostra a nova ordem; o turno que
     // sobe vem do dreno no onClose do turno morto.
     case 'queue-run-now': {
-      const r = runParkedNow(msg.sessionKey, msg.id);
-      if ('reject' in r) { send(ws, { t: 'error', sessionKey: msg.sessionKey, message: NOW_RUN_MESSAGE[r.reject] }); return; }
+      const r = runParkedNow(msg.sessionKey, msg.id, role ?? 'student');
+      if ('reject' in r) { send(ws, { t: 'queue-error', sessionKey: msg.sessionKey, message: NOW_RUN_MESSAGE[r.reject] }); return; }
       broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
       return;
     }

@@ -840,6 +840,10 @@ export type ServerMsg =
   | { t: 'queue'; items: ParkedView[]; paused: boolean }
   // O enfileiramento foi recusado: devolve o texto pro cliente restaurar o composer.
   | { t: 'queue-reject'; sessionKey: string; text: string; message: string }
+  // Uma AÇÃO da fila foi recusada (furar a fila, rodar em paralelo). Separado do
+  // 'error' porque aquele encerra o turno da sessão no cliente, e essas ações são
+  // clicadas justamente COM um turno em voo — o aviso congelava a resposta viva.
+  | { t: 'queue-error'; sessionKey: string; message: string }
   // Turno RECUSADO antes do spawn pelo gate de contexto (ws/ctx-guard.ts): sessão
   // grande demais, envio que não cabe na janela, ou outro cold-start em voo. Leva
   // o texto de volta (o composer já limpou) e o msgId da bolha otimista pra ela

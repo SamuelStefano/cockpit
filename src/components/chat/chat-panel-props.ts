@@ -1,7 +1,7 @@
 import type { ComposerCost } from './send-cost';
 import type { Session, Message, ToolTodo } from '../../data/types';
-import type { PermMode, Effort, ModelInfo, TurnStats, Caps, SkillMeta, BgAgent, ParkedView } from '../../../shared/protocol';
-import type { Attachment, AttachmentPreview } from '../../useCockpit';
+import type { PermMode, Effort, ModelInfo, TurnStats, Caps, SkillMeta, BgAgent } from '../../../shared/protocol';
+import type { Attachment, AttachmentPreview, QueueItem } from '../../useCockpit';
 import type { Phase } from './useChatPanel';
 
 export interface ChatPanelProps {
@@ -78,7 +78,7 @@ export interface ChatPanelProps {
   keyboardOpen?: boolean;
   quotaPaused?: boolean;
   quotaResetsAt?: number | null;
-  queue: ParkedView[];
+  queue: QueueItem[];
   queueAdd: (text: string) => void;
   queueRemove: (sessionKey: string, id: string) => void;
   queueEdit: (sessionKey: string, id: string, text: string) => void;

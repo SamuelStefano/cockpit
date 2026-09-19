@@ -196,16 +196,20 @@ export function removeParked(sessionKey: string, id: string, role?: Role): void 
 // O item carrega o `role` de quem enfileirou, e o drainer roda com ele (inclusive
 // bypass): reescrever o texto de um item de admin sendo student seria execução
 // arbitrária com privilégio herdado, então só admin edita item de admin.
-export function editParked(sessionKey: string, id: string, prompt: string, role?: Role): void {
-  if (!SESSION_KEY_RE.test(sessionKey)) return;
-  if (typeof prompt !== 'string' || !prompt.trim() || Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) return;
-  withParkedLock(() => {
+// Devolve se a troca aconteceu: a edição é texto que o usuário acabou de digitar e
+// o cliente já fechou o textarea ao mandar. Falhar calado (item drenou, prompt
+// grande demais, item de outro papel) apagava esse texto sem dizer nada.
+export function editParked(sessionKey: string, id: string, prompt: string, role?: Role): boolean {
+  if (!SESSION_KEY_RE.test(sessionKey)) return false;
+  if (typeof prompt !== 'string' || !prompt.trim() || Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) return false;
+  return withParkedLock(() => {
     const map = loadParked();
     const it = map[sessionKey]?.find((x) => x.id === id);
-    if (!it) return;
-    if (it.role === 'admin' && role !== 'admin') return;
+    if (!it) return false;
+    if (it.role === 'admin' && role !== 'admin') return false;
     it.prompt = prompt;
     saveParked(map);
+    return true;
   });
 }
 

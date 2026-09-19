@@ -2,7 +2,8 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { prettyModel } from './toolbar-format';
 import { pendingQuestionIdx } from '../../cockpit/pending-question';
 import type { Session, Message } from '../../data/types';
-import type { PermMode, ModelInfo, ParkedView } from '../../../shared/protocol';
+import type { PermMode, ModelInfo } from '../../../shared/protocol';
+import type { QueueItem } from '../../useCockpit';
 import { parseAttachments, replaceBody } from '../../lib/parse-attachments';
 
 export type Phase = 'idle' | 'thinking' | 'streaming';
@@ -17,7 +18,7 @@ interface Args {
   onSend: (text: string, modeOverride?: PermMode) => void;
   // Fila ESTACIONADA do servidor (parked.json): drena sozinha quando a quota libera,
   // mesmo com o browser fechado — o cliente só espelha e edita, não drena mais.
-  queue: ParkedView[];
+  queue: QueueItem[];
   queueAdd: (text: string) => void;
   queueRemove: (sessionKey: string, id: string) => void;
   queueEdit: (sessionKey: string, id: string, text: string) => void;
@@ -38,8 +39,11 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   // Fila desta sessão na ORDEM DO SERVIDOR (array em parked.json = ordem de envio;
   // o drainer sempre drena do topo). NÃO reordenar por `at`: o move troca posições
   // no array sem mexer no `at`, então ordenar por `at` desfazia o reordenamento.
+  // Filtra por `key` (chave de DISPLAY, já migrada) e não por `sessionKey` (a chave
+  // do fio, que segue `new-xxx`): a sessão renomeia no 1º `done` e a fila inteira
+  // sumia da tela — inclusive ao furar a fila, que fecha um turno e migra a chave.
   const parked = useMemo(
-    () => (sid ? queue.filter((q) => q.sessionKey === sid) : []),
+    () => (sid ? queue.filter((q) => q.key === sid) : []),
     [queue, sid],
   );
   // O prompt estacionado carrega os anexos como linhas `[anexo:]` (amarrados a ELE).
@@ -85,8 +89,11 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   const disabled = phase !== 'idle';
   const isEmpty = messages.length === 0;
 
+  // Histórico do ↑ (e da sugestão fantasma) em CORPO LIMPO: `m.text` é o wire, com
+  // as linhas `[anexo:]`. Recuperar o prompt trazia os marcadores junto e o reenvio
+  // repontava pra um arquivo que já pode ter passado do TTL.
   const sentHistory = useMemo(
-    () => messages.filter((m) => m.role === 'user').map((m) => m.text).filter(Boolean),
+    () => messages.filter((m) => m.role === 'user').map((m) => parseAttachments(m.text).body).filter(Boolean),
     [messages],
   );
   const modelLabel = useMemo(
