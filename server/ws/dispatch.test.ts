@@ -53,7 +53,7 @@ vi.mock('../sessions/search', () => ({ searchSessions: vi.fn(async () => []) }))
 vi.mock('../contexts', () => ({ listContexts: vi.fn(async () => []), readContext: vi.fn() }));
 vi.mock('../skills', () => ({ listSkills: vi.fn(async () => []), readSkill: vi.fn(), resolveSkillDeny: vi.fn(async () => []) }));
 vi.mock('../attachments', () => ({ addUploadChunk: vi.fn(), readAttachment: vi.fn() }));
-vi.mock('../db', () => ({ usageStats: vi.fn(() => ({})) }));
+vi.mock('../db', () => ({ usageStats: vi.fn(() => ({})), lastUsageOf: vi.fn(() => null) }));
 vi.mock('../store', () => ({
   hideSession: vi.fn(async () => {}), unhideSession: vi.fn(async () => {}),
   purgeSession: vi.fn(async () => {}), setTitle: vi.fn(async () => {}), setNote: vi.fn(async () => {}),

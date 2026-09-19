@@ -44,6 +44,8 @@ export interface ChatPanelProps {
   setSelectedMcps: (ids: string[]) => void;
   slashCommands: string[];
   contextTokens: number;
+  // Modelo PEDIDO da sessão: decide se o medidor mede sobre 200k ou sobre 1M.
+  contextModel?: string | null;
   sendCost?: ComposerCost | null;
   liveTurnTokens?: number;
   turnStartedAt?: number;

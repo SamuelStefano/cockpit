@@ -14,11 +14,11 @@ export interface SaturationNotice {
 
 // Dispensa por sessão E por nível: quem fechou no amarelo volta a ver quando a
 // janela entra no vermelho — aí migrar deixou de ser sugestão e virou economia.
-export function useSaturationBanner(sessionId: string | undefined, contextTokens: number): SaturationNotice | null {
+export function useSaturationBanner(sessionId: string | undefined, contextTokens: number, contextModel?: string | null): SaturationNotice | null {
   const [dismissed, setDismissed] = usePersisted<Record<string, Level>>('satDismissed', {});
   const [expanded, setExpanded] = useState(false);
 
-  const sat = saturation(contextTokens);
+  const sat = saturation(contextTokens, contextModel);
   const level: Level | null = sat ? (sat.critical ? 'critical' : 'warn') : null;
 
   const dismiss = useCallback(() => {

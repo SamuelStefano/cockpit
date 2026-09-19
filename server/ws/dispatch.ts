@@ -20,7 +20,7 @@ import { fireCron } from './runs';
 import { listSkills, readSkill, resolveSkillDeny, installSkill } from '../skills';
 import { getRegistryCatalog, installFromRegistry } from '../skill-registry-runner';
 import { addUploadChunk, readAttachment } from '../attachments';
-import { usageStats } from '../db';
+import { usageStats, lastUsageOf } from '../db';
 import { hideSession, unhideSession, purgeSession, setTitle, setNote } from '../store';
 import { parseSession, parseFullSession } from '../sessions/parse';
 import { collectHealth } from '../health';
@@ -136,6 +136,9 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'open': {
       const parsed = await parseSession(msg.sessionId);
       if (!parsed) { send(ws, { t: 'error', message: 'sessão inválida' }); return; }
+      // Variante do modelo da última amostra: é o que diz se o medidor desta
+      // sessão vale sobre 200k ou sobre 1M. O JSONL não carrega a marca `[1m]`.
+      const model = lastUsageOf(msg.sessionId)?.requestedModel ?? undefined;
       // Pós-/compact o CLI ramifica de um summary e o histórico anterior sai do
       // caminho parentUuid: a cadeia ativa encolhe pra dezenas de mensagens numa
       // sessão de milhares — é o "o chat mostra muito pouco". Quando a timeline
@@ -148,18 +151,18 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       if (parsed.truncated && !msg.chainOnly && parsed.messages.length * 2 <= CONFIG.historyLimit) {
         const full = await parseFullSession(msg.sessionId);
         if (full && full.messages.length >= parsed.messages.length * 2) {
-          send(ws, { t: 'history', sessionId: msg.sessionId, messages: full.messages, tokens: full.tokens, full: true, truncated: full.truncated, todos: full.todos });
+          send(ws, { t: 'history', sessionId: msg.sessionId, messages: full.messages, tokens: full.tokens, model, full: true, truncated: full.truncated, todos: full.todos });
           return;
         }
       }
-      send(ws, { t: 'history', sessionId: msg.sessionId, messages: parsed.messages, tokens: parsed.tokens, truncated: parsed.truncated, todos: parsed.todos });
+      send(ws, { t: 'history', sessionId: msg.sessionId, messages: parsed.messages, tokens: parsed.tokens, model, truncated: parsed.truncated, todos: parsed.todos });
       return;
     }
     case 'open-full': {
       const before = typeof msg.before === 'string' ? msg.before : undefined;
       const parsed = await parseFullSession(msg.sessionId, before);
       if (!parsed) { send(ws, { t: 'error', message: 'sessão inválida' }); return; }
-      send(ws, { t: 'history', sessionId: msg.sessionId, messages: parsed.messages, tokens: parsed.tokens, full: true, prepend: !!before, truncated: parsed.truncated, todos: parsed.todos });
+      send(ws, { t: 'history', sessionId: msg.sessionId, messages: parsed.messages, tokens: parsed.tokens, model: lastUsageOf(msg.sessionId)?.requestedModel ?? undefined, full: true, prepend: !!before, truncated: parsed.truncated, todos: parsed.todos });
       return;
     }
     case 'hide': {

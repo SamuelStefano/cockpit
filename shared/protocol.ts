@@ -239,7 +239,9 @@ export interface SessionUsage {
   outputTokens: number;   // soma de saída (proxy de geração/custo)
   samples: number;
   lastTs: number;
-  model: string | null;
+  model: string | null;        // id EFETIVO devolvido pela API (nunca carrega a variante)
+  requestedModel: string | null; // id PEDIDO no seletor — só ele diz se a sessão roda `[1m]`
+
   costUsd: number;        // custo estimado (preço público aproximado por modelo)
 }
 
@@ -786,7 +788,7 @@ export type ServerMsg =
   | { t: 'attachment'; path: string; name: string; dataB64?: string; error?: string }
   // prepend = resposta a um open-full com `before`: são as mensagens ANTERIORES às
   // que o cliente já tem, não um snapshot novo. O cliente concatena em vez de trocar.
-  | { t: 'history'; sessionId: string; messages: Message[]; prepend?: boolean; tokens?: number; full?: boolean; truncated?: boolean; todos?: ToolTodo[] }
+  | { t: 'history'; sessionId: string; messages: Message[]; prepend?: boolean; tokens?: number; model?: string; full?: boolean; truncated?: boolean; todos?: ToolTodo[] }
   | { t: 'busy'; keys: string[] }
   // O JSONL da sessão mudou no disco (ex.: claude rodado direto no terminal).
   // Cliente com a sessão aberta re-puxa o histórico — sem F5.
@@ -823,7 +825,7 @@ export type ServerMsg =
   | { t: 'harness-event'; taskId: string; event: HarnessEvent }
   | { t: 'harness-tasks'; tasks: HarnessTaskView[] }
   | { t: 'marathon'; keys: string[] }
-  | { t: 'usage'; sessionKey: string; tokens: number; turnTokens?: number }
+  | { t: 'usage'; sessionKey: string; tokens: number; turnTokens?: number; model?: string }
   // Agentes de fundo ativos da sessão (label + tempo + tokens ao vivo). Cheap/
   // droppable como o stats: só emitido em mudança e reconstruível no próximo tick.
   | { t: 'bgAgents'; sessionKey: string; agents: BgAgent[] }

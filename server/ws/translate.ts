@@ -137,13 +137,14 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
             cacheReadTokens: num(usage.cache_read_input_tokens),
             cacheCreationTokens: num(usage.cache_creation_input_tokens),
             model: (ev as any).message?.model,
+            requestedModel: thread.params.model,
           });
         }
       }
       // Emite DEPOIS de acumular: `tokens` = janela de contexto (medidor); `turnTokens`
       // = gasto real do turno até aqui (incl. cache), pro ticker ao vivo bater com o
       // terminal em vez da estimativa por chars de saída (centenas).
-      if (tokens > 0) broadcast({ t: 'usage', sessionKey, tokens, turnTokens: thread.turnTokens });
+      if (tokens > 0) broadcast({ t: 'usage', sessionKey, tokens, turnTokens: thread.turnTokens, model: thread.params.model });
       // AskUserQuestion: o `claude -p` (stdin ignorado) ficaria pendurado esperando o
       // tool_result, a fase nunca voltava a idle e o card de escolha não destravava
       // (answerable exige idle). Encerra o run agora — kill() é gracioso (não reporta

@@ -14,18 +14,19 @@ export interface CompactingInput {
   running: boolean;
   silentMs: number;
   contextTokens: number;
+  contextModel?: string | null;
   quotaPaused: boolean;
   explained: boolean;
 }
 
-export function isCompacting({ running, silentMs, contextTokens, quotaPaused, explained }: CompactingInput): boolean {
+export function isCompacting({ running, silentMs, contextTokens, contextModel, quotaPaused, explained }: CompactingInput): boolean {
   // Quota estourada trava o turno pelo mesmo sintoma (silêncio) e já tem banner
   // próprio; sem este veto os dois avisos se contradizem na tela.
   if (!running || quotaPaused || explained) return false;
   if (silentMs < COMPACT_SILENCE_MS) return false;
   // O medidor acompanha o turno (vem de cada evento `assistant`), mas o corte é o
   // mesmo do banner de saturação — abaixo dele o CLI não tem por que compactar.
-  return ctxPct(contextTokens) >= SATURATED_PCT;
+  return ctxPct(contextTokens, contextModel) >= SATURATED_PCT;
 }
 
 // Silêncio com causa mais banal que compactação: ferramenta ainda aberta (um

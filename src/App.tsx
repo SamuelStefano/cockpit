@@ -37,7 +37,7 @@ export function CockpitApp() {
   const {
     sessions, loading, activeId: activeSessionId, setActiveId: setActiveSessionId,
     messages, phase, terminalBusy, sessionTodos, followups, dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, term, discoveredTerms, listTerms,
-    archived, onUnhide: handleUnhide, contextTokens, sendCost, liveTurnTokens, turnStartedAt, bgAgents, usage, truncated, lastTurn, lastEnd, searchResults, onSearch,
+    archived, onUnhide: handleUnhide, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents, usage, truncated, lastTurn, lastEnd, searchResults, onSearch,
     skills, usageStats,
     attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb,
     onSend: handleSend, onApproveWorkflow, onEditUser: editUser, onStop: handleStop, onNew: cockpitNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession,
@@ -147,8 +147,8 @@ export function CockpitApp() {
     nav('/');
   };
 
-  const sessionsProps = { sessions, loading, activeId: activeSessionId, onSelect: selectSession, onNew: handleNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, cost: sessionCost, running, stalled, updated, runStart, searchResults, onSearch, userId: sbAuth.session?.user.id, onFunnel, funnelBusy };
-  const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, followups, onDismissFollowups: dismissFollowups, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onApproveWorkflow, onStop: handleStop, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew: handleNew, onHandoff, handoffBusy, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onMemorize: memorizeMsg, onRename: handleRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, keyboardOpen, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer, resumeRun };
+  const sessionsProps = { sessions, loading, activeId: activeSessionId, onSelect: selectSession, onNew: handleNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, usageModel, cost: sessionCost, running, stalled, updated, runStart, searchResults, onSearch, userId: sbAuth.session?.user.id, onFunnel, funnelBusy };
+  const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, followups, onDismissFollowups: dismissFollowups, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onApproveWorkflow, onStop: handleStop, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, contextModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew: handleNew, onHandoff, handoffBusy, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onMemorize: memorizeMsg, onRename: handleRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, keyboardOpen, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer, resumeRun };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
 
   const gate = resolveAuthGate({ sbAuth, ejectPairing, authRequired, submitToken });
@@ -203,7 +203,7 @@ export function CockpitApp() {
           UsageBar do header — nada flutua sobre o thread (A1). */}
       {!isMobile && (
         <StatusBar
-          stats={stats} rate={rate} ctxTokens={contextTokens} lastTurn={lastTurn}
+          stats={stats} rate={rate} ctxTokens={contextTokens} ctxModel={contextModel} lastTurn={lastTurn}
           quota={quotaGate.warn && !quotaClosed && rate ? <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} /> : null}
         />
       )}

@@ -60,3 +60,21 @@ describe('fmtRunElapsed', () => {
   it('shows minutes and seconds under an hour', () => expect(fmtRunElapsed((3 * 60 + 12) * 1000)).toBe('3m 12s'));
   it('shows hours and minutes past an hour', () => expect(fmtRunElapsed((2 * 60 + 5) * 60_000)).toBe('2h 5m'));
 });
+
+// Regressão: o card media sempre sobre 200k, então uma sessão `[1m]` com 210k
+// entrava em alerta vermelho de "contexto quase cheio" com 21% da janela usada.
+describe('janela por variante do modelo', () => {
+  it('mede 210k sobre 1M numa sessão [1m]', () => {
+    expect(ctxPercent(210_000, 'claude-opus-5[1m]')).toBe(21);
+    expect(ctxWarn(210_000, 'claude-opus-5[1m]')).toBeNull();
+  });
+
+  it('mantém o alerta na sessão de janela padrão', () => {
+    expect(ctxPercent(210_000, 'claude-opus-5')).toBe(100);
+    expect(ctxWarn(210_000, 'claude-opus-5')).toEqual({ pct: 100, tone: 'red' });
+  });
+
+  it('sem modelo conhecido continua na janela padrão', () => {
+    expect(ctxPercent(CTX_WINDOW / 2)).toBe(50);
+  });
+});

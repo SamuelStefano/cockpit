@@ -24,7 +24,7 @@ import type { ChatPanelProps } from './chat/chat-panel-props';
 
 export type { Phase };
 
-export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, followups, onDismissFollowups, draft, setDraft, onSend, onPrompt, onApproveWorkflow, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onMemorize, onRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, keyboardOpen = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer = null, resumeRun }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, followups, onDismissFollowups, draft, setDraft, onSend, onPrompt, onApproveWorkflow, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, contextModel = null, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onMemorize, onRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, keyboardOpen = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer = null, resumeRun }: ChatPanelProps) {
   const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg, queueRunNow });
   // Modo iterativo: um refino pedido de dentro de um live preview vira o próximo
   // prompt (o card não tem acesso ao compositor — publica no [[refine-bus]]).
@@ -35,7 +35,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
   // Compactação não emite frame nenhum (o CLI só avisa depois): o silêncio longo
   // com o contexto cheio é o que denuncia, e vira indicador ao vivo no lugar do
   // "Pensando…" — antes o chat parecia travado por minutos.
-  const compactingSince = useCompacting(messages, running, contextTokens, quotaPaused);
+  const compactingSince = useCompacting(messages, running, contextTokens, quotaPaused, contextModel);
   const live = running ? { tokens: liveTurnTokens ?? 0, startedAt: turnStartedAt, compactingSince: compactingSince ?? undefined } : undefined;
   // Drop em qualquer lugar do chat (não só no composer): teto de 15MB espelha o
   // backend. O composer tem seu próprio drop com stopPropagation, então soltar lá
@@ -67,7 +67,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
       )}
       <ChatHeader
         session={session} messages={messages} isEmpty={c.isEmpty} isMobile={isMobile}
-        contextTokens={contextTokens} lastTurn={lastTurn} onNew={onNew}
+        contextTokens={contextTokens} contextModel={contextModel} lastTurn={lastTurn} onNew={onNew}
         fullLoaded={c.fullLoaded} truncated={truncated} onOpenFull={onOpenFull} onLoadOlder={onLoadOlder} onOpenSummary={onOpenSummary}
         beforeGrow={c.captureAnchor}
         setFullLoaded={c.setFullLoaded} onTerminal={onTerminal} terminalRunning={terminalRunning} onRename={onRename}
@@ -116,7 +116,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
       )}
 
       {!keyboardOpen && phase === 'idle' && onHandoff && (
-        <SaturationBanner sessionId={session?.id} contextTokens={contextTokens} busy={handoffBusy} onHandoff={onHandoff} />
+        <SaturationBanner sessionId={session?.id} contextTokens={contextTokens} contextModel={contextModel} busy={handoffBusy} onHandoff={onHandoff} />
       )}
 
       {/* Preço do próximo envio. Fica em repouso e com o teclado fechado, junto do

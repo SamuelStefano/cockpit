@@ -13,9 +13,9 @@ export interface Saturation {
   critical: boolean;
 }
 
-export function saturation(tokens: number): Saturation | null {
+export function saturation(tokens: number, model?: string | null): Saturation | null {
   if (!tokens || tokens <= 0) return null;
-  const pct = ctxPct(tokens);
+  const pct = ctxPct(tokens, model);
   if (pct < SATURATED_PCT) return null;
   return { pct, k: (tokens / 1000).toFixed(0), critical: pct >= CRITICAL_PCT };
 }

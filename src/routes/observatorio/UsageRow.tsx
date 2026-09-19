@@ -2,8 +2,9 @@ import { Icon } from '../../components/primitives';
 import type { SessionUsage } from '../../../shared/protocol';
 import { fmtNum as fmt } from '../observatorio-format';
 import { fmtCost, relPast } from '../../../shared/format';
+import { ctxPctOf } from '../../../shared/context-window';
 
-const CTX_WINDOW = 200_000;
+
 
 interface UsageRowProps {
   row: SessionUsage;
@@ -14,7 +15,9 @@ interface UsageRowProps {
 }
 
 export function UsageRow({ row, maxOut, title, openable, onOpen }: UsageRowProps) {
-  const fill = Math.min(100, Math.round((row.ctxTokens / CTX_WINDOW) * 100));
+  // Janela pelo modelo PEDIDO: só ele carrega a marca `[1m]` (o id efetivo da
+  // API nunca carrega), e sem isso uma sessão de 1M aparecia 100% vermelha.
+  const fill = ctxPctOf(row.ctxTokens, row.requestedModel);
   return (
     <tr
       onClick={openable ? onOpen : undefined}

@@ -118,6 +118,8 @@ export interface Cockpit extends LeafApis {
   listTerms: () => void;
   archived: Session[];
   contextTokens: number;
+  contextModel: string | null;
+  usageModel: Record<string, string>;
   sendCost: ComposerCost | null;
   liveTurnTokens: number;
   turnStartedAt?: number;
@@ -202,6 +204,10 @@ export function useCockpit(): Cockpit {
   const [bgAgents, setBgAgents] = useState<Record<string, BgAgent[]>>({}); // sessionKey -> agentes de fundo ativos
   const [archived, setArchived] = useState<Session[]>([]);
   const [usage, setUsage] = useState<Record<string, number>>({}); // sessionKey -> tokens de contexto
+  // sessionKey -> modelo PEDIDO no último turno. É o único lugar onde a marca
+  // `[1m]` sobrevive (o id efetivo da API não a carrega), e é o que decide se o
+  // medidor daquela sessão vale sobre 200k ou sobre 1M.
+  const [usageModel, setUsageModel] = useState<Record<string, string>>({});
   const usageRef = useRef<Record<string, number>>({}); // espelho de `usage` p/ ler o contexto no início do turno sem depender do closure stale
   const turnBaseRef = useRef<Record<string, number>>({}); // sessionKey -> contexto no início do turno; o gasto AO VIVO do turno = contexto atual - base
   const [liveTurn, setLiveTurn] = useState<Record<string, number>>({}); // sessionKey -> tokens gastos NESTE turno (ao vivo), pro indicador estilo terminal
@@ -608,6 +614,7 @@ export function useCockpit(): Cockpit {
         });
         resumeId.current[msg.sessionId] = msg.sessionId;
         if (msg.tokens) setUsage((u) => ({ ...u, [msg.sessionId]: msg.tokens! }));
+        if (msg.model) setUsageModel((m) => ({ ...m, [msg.sessionId]: msg.model! }));
         // Estado corrente da lista de tarefas do ARQUIVO inteiro (pós-compact a
         // chain visível pode não ter nenhum snapshot) — alimenta o TaskTray.
         setSessionTodos((prev) => (msg.todos ? { ...prev, [msg.sessionId]: msg.todos } : prev));
@@ -906,6 +913,7 @@ export function useCockpit(): Cockpit {
         const key = resolveKey(migratedTo.current, msg.sessionKey);
         usageRef.current[key] = msg.tokens;
         setUsage((u) => ({ ...u, [key]: msg.tokens }));
+        if (msg.model) setUsageModel((m) => (m[key] === msg.model ? m : { ...m, [key]: msg.model! }));
         // Quando o prefixo desta sessão foi usado pela última vez. É o proxy de
         // temperatura do cache no cliente: o servidor decide pelo `ts` da amostra
         // no SQLite, gravada por ESTE mesmo evento, então os dois convergem.
@@ -1816,6 +1824,7 @@ export function useCockpit(): Cockpit {
   // esta conversa nunca trocou de versão.
   const model = modelBySession[activeId] ?? defaultModel;
   const contextTokens = usage[activeId] || 0;
+  const contextModel = usageModel[activeId] ?? null;
   // Recalculado a cada render: o cache esfria com o RELÓGIO, não com um evento —
   // sem re-render o aviso não apareceria numa aba parada, que é exatamente o
   // cenário de 04/09 (sessões ociosas há horas recebendo prompt).
@@ -1854,5 +1863,5 @@ export function useCockpit(): Cockpit {
 
   const attachmentsView = useMemo(() => markDuplicates(attachments, sentHashes[activeId]), [attachments, sentHashes, activeId]);
 
-  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun };
+  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun };
 }

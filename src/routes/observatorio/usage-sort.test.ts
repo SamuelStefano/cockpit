@@ -3,7 +3,7 @@ import { sortUsage } from './usage-sort';
 import type { SessionUsage } from '../../../shared/protocol';
 
 const row = (id: string, costUsd: number, outputTokens: number, lastTs: number): SessionUsage => ({
-  sessionId: id, ctxTokens: 0, outputTokens, samples: 0, lastTs, model: null, costUsd,
+  sessionId: id, ctxTokens: 0, outputTokens, samples: 0, lastTs, model: null, requestedModel: null, costUsd,
 });
 
 const rows = [

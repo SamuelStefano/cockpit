@@ -15,6 +15,7 @@ export interface SessionRowProps {
   active: boolean;
   highlight?: string;
   ctx?: number;
+  ctxModel?: string | null;
   cost?: number;
   running?: boolean;
   stalled?: boolean;
@@ -41,11 +42,11 @@ export interface SessionRowProps {
   ambiguous?: boolean;
 }
 
-export function SessionRow({ s, active, highlight, ctx, cost, running, stalled, updated, runStart, pinned, tags = [], showDesc, marathon, onToggleMarathon, onTogglePin, onAddTag, onRemoveTag, onFilterTag, onSelect, onRename, onDescribe, onClose, onDelete, onStop, waitingDismissed, onDismissWaiting, ambiguous }: SessionRowProps) {
+export function SessionRow({ s, active, highlight, ctx, ctxModel, cost, running, stalled, updated, runStart, pinned, tags = [], showDesc, marathon, onToggleMarathon, onTogglePin, onAddTag, onRemoveTag, onFilterTag, onSelect, onRename, onDescribe, onClose, onDelete, onStop, waitingDismissed, onDismissWaiting, ambiguous }: SessionRowProps) {
   const { editing, setEditing, draft, setDraft, descEditing, setDescEditing, descDraft, setDescDraft, tagging, setTagging, tagDraft, setTagDraft, rowRef, commit, commitDesc, commitTag } = useSessionRow({ s, onAddTag, onRename, onDescribe });
   const { open: actionsOpen, setOpen: setActionsOpen, consumeTap, handlers } = useLongPress(() => {});
   const now = useRunClock(!!running);
-  const warn = ctxWarn(ctx);
+  const warn = ctxWarn(ctx, ctxModel);
   const status = rowStatus({ running, stalled, waiting: s.waiting, runStart, relative: s.relative, now });
   // Um sinal só por card: o estado (verde/âmbar/violeta) ou, sem estado, o
   // laranja de "tem output novo". Nunca os dois — era o que enchia a lista de pontos.

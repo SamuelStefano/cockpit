@@ -1,10 +1,11 @@
 import { Icon } from '../primitives';
-import { contextMeter, CONTEXT_LIMIT } from './toolbar-format';
+import { contextMeter } from './toolbar-format';
+import { contextWindowFor } from '../../lib/format';
 
 // O medidor mostra quanto do contexto o último turno ocupou; perto do teto,
 // sugere abrir nova sessão.
-export function ContextMeter({ tokens, onNew }: { tokens: number; onNew?: () => void }) {
-  const m = contextMeter(tokens);
+export function ContextMeter({ tokens, model, onNew }: { tokens: number; model?: string | null; onNew?: () => void }) {
+  const m = contextMeter(tokens, model);
   if (!m) return null;
   const { pct, high, mid, k } = m;
   const color = high ? 'bg-red-500' : mid ? 'bg-amber-500' : 'bg-neutral-600';
@@ -13,7 +14,7 @@ export function ContextMeter({ tokens, onNew }: { tokens: number; onNew?: () => 
     <div className="flex items-center gap-2">
       <div
         className="flex items-center gap-1.5"
-        title={`contexto: ~${tokens.toLocaleString('pt-BR')} tokens de ~${CONTEXT_LIMIT.toLocaleString('pt-BR')} (${pct}%)`}
+        title={`contexto: ~${tokens.toLocaleString('pt-BR')} tokens de ~${contextWindowFor(model).toLocaleString('pt-BR')} (${pct}%)`}
       >
         <div className="h-1.5 w-16 overflow-hidden rounded-full bg-neutral-800">
           <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
