@@ -6,6 +6,7 @@ import { mapPlanUsage, retryAfterMs, borrowedSnapshot, widenGap, relaxGap, prune
 
 vi.mock('../oauth', () => ({ readOAuthToken: async () => 'token', OAUTH_BETA: 'beta' }));
 vi.mock('./broadcast', () => ({ broadcast: () => {} }));
+vi.mock('./usage-headers', () => ({ fetchUsageFromHeaders: async () => null, mergeHeaderUsage: (p: unknown) => p }));
 
 describe('mapPlanUsage', () => {
   it('maps the live shape from /api/oauth/usage', () => {

@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import type { PlanUsage, PlanLimit } from '../../shared/protocol';
 import { broadcast } from './broadcast';
 import { readOAuthToken, OAUTH_BETA } from '../oauth';
+import { fetchUsageFromHeaders, mergeHeaderUsage } from './usage-headers';
 
 // Uso GLOBAL do plano (claude.ai/settings/usage). Lê o token OAuth do CLI
 // (~/.claude/.credentials.json) e consulta o endpoint de usage da Anthropic.
@@ -306,6 +307,10 @@ let attempts: number[] = [];
 let budget = BUDGET_DEFAULT;
 let budgetStreak = 0;
 let lastRateAt = 0;
+let lastFallbackAt = 0;
+
+// The log had no clock: nine refusals in a row looked like one bad minute.
+const log = (msg: string) => console.log(`[usage] ${new Date().toISOString()} ${msg}`);
 
 // Next gap after a 429: double, capped.
 export function widenGap(gap: number): number {
@@ -391,10 +396,10 @@ export function planUsageBlockedUntil(now = Date.now()): number {
 
 // Earliest instant the server will read again: the 429 block or the exhausted
 // hour budget, whichever ends later. 0 when a read could go out now.
-export function planUsageNextReadAt(now = Date.now()): number {
+export function planUsageNextReadAt(now = Date.now(), ignoreBlock = false): number {
   const disk = persistedRate();
   const fromBudget = budgetNextReadAt([...attempts, ...disk.attempts], Math.min(budget, disk.budget), now);
-  return Math.max(planUsageBlockedUntil(now), fromBudget > now ? fromBudget : 0);
+  return Math.max(ignoreBlock ? 0 : planUsageBlockedUntil(now), fromBudget > now ? fromBudget : 0);
 }
 
 export interface PlanUsageFrame { t: 'plan-usage'; usage: PlanUsage | null; blockedUntil: number | null; readAt: number | null; nextReadAt: number | null }
@@ -406,9 +411,13 @@ export interface PlanUsageFrame { t: 'plan-usage'; usage: PlanUsage | null; bloc
 // `always` = answer a direct request even with nothing to show (the panel is open
 // and waiting; silence there looks like a broken button).
 export function planUsageFrame(now = Date.now(), always = false): PlanUsageFrame | null {
-  const blockedUntil = planUsageBlockedUntil(now);
+  // A number read AFTER the refusal came from the headers fallback: the panel is not
+  // blind, so the endpoint's block is no longer something the user needs to hear about.
+  const rateAt = Math.max(lastRateAt, persistedRate().rateAt);
+  const covered = !!last && rateAt > 0 && lastReadAt >= rateAt && now - lastReadAt < GAP_MAX_MS;
+  const blockedUntil = covered ? 0 : planUsageBlockedUntil(now);
   if (!last && !blockedUntil && !always) return null;
-  return { t: 'plan-usage', usage: last, blockedUntil: blockedUntil || null, readAt: lastReadAt || null, nextReadAt: planUsageNextReadAt(now) || null };
+  return { t: 'plan-usage', usage: last, blockedUntil: blockedUntil || null, readAt: lastReadAt || null, nextReadAt: planUsageNextReadAt(now, covered) || null };
 }
 
 function emit(): void {
@@ -445,7 +454,7 @@ async function doFetch(): Promise<FetchOutcome['kind']> {
     last = r.usage;
     lastReadAt = Date.now();
     saveCache(r.usage);
-    console.log(`[usage] 200 5h=${r.usage.fiveHour}% 7d=${r.usage.sevenDay}% gap=${Math.round(gapMs / 1000)}s budget=${pruneAttempts(attempts, lastReadAt).length}/${budget}`);
+    log(`200 5h=${r.usage.fiveHour}% 7d=${r.usage.sevenDay}% gap=${Math.round(gapMs / 1000)}s budget=${pruneAttempts(attempts, lastReadAt).length}/${budget}`);
     emit();
   } else if (r.kind === 'rate') {
     const now = Date.now();
@@ -456,13 +465,36 @@ async function doFetch(): Promise<FetchOutcome['kind']> {
     lastRateAt = now;
     cooldownUntil = now + r.waitMs + RATE_JITTER_MS;
     patchCache({ cooldownUntil, gapMs, okStreak, budget, budgetStreak, rateAt: lastRateAt });
-    console.log(`[usage] 429 retry-after=${Math.round(r.waitMs / 1000)}s → next try ${hhmm(cooldownUntil)}, gap=${Math.round(gapMs / 1000)}s budget=${budget}/h`);
+    log(`429 retry-after=${Math.round(r.waitMs / 1000)}s → next try ${hhmm(cooldownUntil)}, gap=${Math.round(gapMs / 1000)}s budget=${budget}/h`);
     // Announce the block: without this the bar sat at "—" looking like it was loading.
     emit();
+    await doFallback();
   } else {
-    console.log('[usage] read failed (network/token)');
+    log('read failed (network/token)');
   }
   return r.kind;
+}
+
+// Reads the same account numbers from the /v1/messages headers while the usage
+// endpoint is refusing. Never clears the cooldown: the endpoint stays untouched
+// until its Retry-After ends, the panel just stops depending on it.
+async function doFallback(): Promise<void> {
+  lastFallbackAt = Date.now();
+  const h = await fetchUsageFromHeaders();
+  if (!h) { log('fallback failed (network/token/headers)'); return; }
+  last = mergeHeaderUsage(last ?? readCacheEntry()?.usage ?? null, h);
+  lastReadAt = Date.now();
+  ownWriteTs = lastReadAt;
+  patchCache({ ts: ownWriteTs, usage: last });
+  log(`headers 5h=${h.fiveHour}% 7d=${h.sevenDay}%`);
+  emit();
+}
+
+function requestFallback(mode: RefreshMode, now: number): void {
+  const spacing = mode === 'force' ? GAP_MIN_MS : mode === 'idle' ? idleSpacingMs(budget) : paceMs(budget);
+  if (now - Math.max(lastFallbackAt, lastReadAt) < spacing) return;
+  refreshing = true;
+  void doFallback().finally(() => { refreshing = false; });
 }
 
 // `idle`: browser open, nobody looking — double the pace, keeping budget in reserve.
@@ -496,7 +528,7 @@ export function requestPlanUsageRefresh(opts: RefreshOpts = {}): void {
   // network in the same interval, quietly doubling the real rate against a budget
   // each of them believed it was respecting.
   if (adoptShared(now, mode === 'force' ? GAP_MIN_MS : Math.max(LEASE_MS, paceMs(budget)))) return;
-  if (now < cooldownUntil) return;
+  if (now < cooldownUntil) { requestFallback(mode, now); return; }
   if (attempt === 0) {
     if (budgetNextReadAt(attempts, budget, now) > now) return;
     // The budget is a bucket and a bucket can be drained in a burst — which is the
