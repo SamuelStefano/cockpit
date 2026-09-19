@@ -6,6 +6,7 @@ import { attachWs, killAllRuns, runStats } from './ws';
 import { threads } from './ws/threads';
 import { broadcast } from './ws/broadcast';
 import { makeStatic } from './static';
+import { buildManifest } from './build-id';
 import { sweepAttachments } from './attachments';
 import { checkpointWal, sweepUsage } from './db';
 import { sweepMcpConfigs } from './engine/claude';
@@ -34,6 +35,16 @@ async function main() {
       // se o backend em execução souber proxiar. Num backend velho esse host cai no
       // estático e o iframe carregaria o próprio Deck dentro do chat.
       res.end(JSON.stringify({ ok: true, sandboxProxy: true, ...runStats() }));
+      return;
+    }
+    // Manifesto do bundle servido agora: a PWA instalada compara com o entry que
+    // ela própria carregou e oferece recarregar quando um deploy troca o hash.
+    // Sem auth de propósito — é o mesmo dado que qualquer um que carrega o app já
+    // recebe no index.html, e a PWA precisa dele antes de ter sessão.
+    if (req.url === '/api/build') {
+      const manifest = buildManifest(distDir);
+      res.writeHead(manifest ? 200 : 503, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      res.end(JSON.stringify(manifest ?? { error: 'sem build' }));
       return;
     }
     // Superfície MCP read-only (contextos/sessões/skills) pra um agente externo.
