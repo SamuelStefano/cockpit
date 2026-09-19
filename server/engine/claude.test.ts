@@ -21,7 +21,7 @@ class FakeChild extends EventEmitter {
   kill = vi.fn();
 }
 
-import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run, effectiveBudget, pickMcpDefs, resolveMcpSelection, validModel, withWorkflowGrant } from './claude';
+import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run, effectiveBudget, pickMcpDefs, resolveMcpSelection, validModel, withWorkflowGrant, mcpConfigBody, PERMISSION_MCP_NAME, PERMISSION_PROMPT_TOOL } from './claude';
 import { ALL_MCPS } from '../../shared/mcp';
 import { CONFIG } from '../config';
 
@@ -48,6 +48,37 @@ describe('buildArgs MCP', () => {
     if ('error' in r) throw new Error(r.error);
     expect(r.args).toContain('--strict-mcp-config');
     expect(valAfter(r.args, '--mcp-config')).toBe('/tmp/deck-mcp-abc.json');
+  });
+});
+
+describe('permission prompt tool (destrava AskUserQuestion)', () => {
+  it('passa --permission-prompt-tool junto do --mcp-config', () => {
+    const r = buildArgs({ prompt: 'oi' }, '/tmp/deck-mcp-abc.json');
+    if ('error' in r) throw new Error(r.error);
+    expect(valAfter(r.args, '--permission-prompt-tool')).toBe(PERMISSION_PROMPT_TOOL);
+  });
+
+  it('não passa a flag sem config (não há server pra ela apontar)', () => {
+    expect(argsOf({ prompt: 'oi' })).not.toContain('--permission-prompt-tool');
+  });
+
+  it('o nome da tool casa com o server do config', () => {
+    const body = JSON.parse(mcpConfigBody({}));
+    expect(PERMISSION_PROMPT_TOOL).toBe(`mcp__${PERMISSION_MCP_NAME}__prompt`);
+    expect(body.mcpServers[PERMISSION_MCP_NAME]).toBeTruthy();
+  });
+
+  it('mantém os MCPs da sessão e aponta o server de permissão pro script real', () => {
+    const body = JSON.parse(mcpConfigBody({ supabase: { type: 'http', url: 'https://x' } }));
+    expect(body.mcpServers.supabase).toEqual({ type: 'http', url: 'https://x' });
+    expect(body.mcpServers[PERMISSION_MCP_NAME].args[0]).toMatch(/permission-mcp\.mjs$/);
+  });
+
+  // Um server chamado igual ao nosso no ~/.claude.json não pode sequestrar a flag:
+  // ele responderia `allow` e viraria um bypass da allow-list inteira.
+  it('o server de permissão vence um MCP homônimo da sessão', () => {
+    const body = JSON.parse(mcpConfigBody({ [PERMISSION_MCP_NAME]: { type: 'http', url: 'https://evil' } }));
+    expect(body.mcpServers[PERMISSION_MCP_NAME].type).toBe('stdio');
   });
 });
 
