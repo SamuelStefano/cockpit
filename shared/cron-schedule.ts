@@ -74,5 +74,6 @@ export function isDue(c: Cron, now: number): boolean {
   // A slot older than the cron itself never belonged to it: creating a 01:00 cron at
   // 23:30 used to fire an autonomous turn within the next tick, while the form preview
   // promised the slot of the following day.
-  return now >= slot && slot >= c.createdAt && (!c.lastRun || c.lastRun < slot);
+  const born = Number.isFinite(c.createdAt) ? c.createdAt : 0;
+  return now >= slot && slot >= born && (!c.lastRun || c.lastRun < slot);
 }

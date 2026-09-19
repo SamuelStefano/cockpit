@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { priceOf, costOf } from './db';
+import { midnightInTz } from '../shared/cron-schedule';
 
 describe('priceOf', () => {
   it('matches each tier by substring of the model name', () => {
@@ -103,12 +104,10 @@ describe('usageStats daily series', () => {
     for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
   });
 
-  const dayStart = (offsetDays: number) => {
-    const d = new Date();
-    d.setHours(12, 0, 0, 0);
-    d.setDate(d.getDate() - offsetDays);
-    return d.getTime();
-  };
+  // Os buckets são dias de Brasília: a fixture usa meio-dia BRT pra não escorregar
+  // de dia quando a suite roda de madrugada UTC.
+  const dayKey = (offsetDays: number) => midnightInTz(Date.now()) - offsetDays * 86_400_000;
+  const dayStart = (offsetDays: number) => dayKey(offsetDays) + 12 * 3_600_000;
   const insert = (path: string, row: { ts: number; output: number; model: string }) => {
     const raw = new Database(path);
     raw.prepare(`INSERT INTO usage_sample
@@ -128,15 +127,15 @@ describe('usageStats daily series', () => {
     insert(path, { ts: yesterday + 1000, output: 1_000_000, model: 'claude-sonnet-4' });
 
     const series = usageStats().series;
-    const byDay = new Map(series.map((b) => [new Date(b.day).setHours(12, 0, 0, 0), b]));
+    const byDay = new Map(series.map((b) => [b.day, b]));
 
-    const todayBucket = byDay.get(today)!;
+    const todayBucket = byDay.get(dayKey(0))!;
     expect(todayBucket.output).toBeGreaterThanOrEqual(2_000_000);
     const todayModelCost = costOf('claude-opus-4', { input: 0, output: 1_000_000, cacheRead: 0, cacheCreation: 0 })
       + costOf('claude-3-5-haiku', { input: 0, output: 1_000_000, cacheRead: 0, cacheCreation: 0 });
     expect(todayBucket.cost).toBeGreaterThan(todayModelCost - 0.01);
 
-    const yBucket = byDay.get(yesterday)!;
+    const yBucket = byDay.get(dayKey(1))!;
     expect(yBucket.output).toBe(1_000_000);
     expect(yBucket.cost).toBeCloseTo(15, 6);
   });

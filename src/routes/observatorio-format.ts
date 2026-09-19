@@ -1,4 +1,5 @@
 import type { DailyUsage } from '../../shared/protocol';
+import { midnightInTz } from '../../shared/cron-schedule';
 
 export function fmtNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -6,9 +7,10 @@ export function fmtNum(n: number): string {
   return String(n);
 }
 
+// Os buckets do servidor são dias de Brasília; o "hoje" do cliente tem que ser o
+// mesmo dia, senão o navegador em BRT comparava com a meia-noite UTC e nada batia.
 export function startOfDay(now: number): number {
-  const d = new Date(now);
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  return midnightInTz(now);
 }
 
 export function costToday(series: DailyUsage[], now: number = Date.now()): number {

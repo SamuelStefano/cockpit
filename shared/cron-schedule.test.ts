@@ -99,6 +99,10 @@ describe('Brasília anchoring', () => {
     expect(nextRunAt(fresh, createdAt + 30_000)).toBe(at('2026-09-10T04:00:00Z'));
     expect(isDue(fresh, at('2026-09-10T04:00:01Z'))).toBe(true);
   });
+  it('cron antigo sem createdAt continua disparando', () => {
+    const legacy = daily(60, { createdAt: undefined as unknown as number });
+    expect(isDue(legacy, at('2026-09-10T05:00:00Z'))).toBe(true);
+  });
   it('does not fire twice in the same Brasília day', () => {
     const ran = daily(7 * 60, { lastRun: at('2026-09-10T10:00:05Z') });
     expect(isDue(ran, at('2026-09-11T02:59:00Z'))).toBe(false);
