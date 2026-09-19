@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { SessionsPanel, type SessionsPanelProps } from './Sessions';
 import { ChatPanel } from './Chat';
 import type { ChatPanelProps } from './chat/chat-panel-props';
@@ -65,6 +65,20 @@ export interface MobileLayoutProps {
 }
 
 export function MobileLayout({ sessionsProps, chatProps, termProps, drawer, setDrawer, termSheet, setTermSheet, runningTerm }: MobileLayoutProps) {
+  // Teclado físico (iPad, celular com Bluetooth): Esc fechava tudo menos as duas
+  // sobreposições daqui, que só saíam tocando no backdrop.
+  useEffect(() => {
+    if (!drawer && !termSheet) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.isComposing || e.defaultPrevented) return;
+      e.preventDefault();
+      if (termSheet) setTermSheet(false);
+      else setDrawer(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [drawer, termSheet, setDrawer, setTermSheet]);
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1">

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Icon } from '../primitives';
+import { Button, Icon } from '../primitives';
 
 type Mode = 'archive' | 'delete';
 
@@ -51,12 +51,8 @@ export function ConfirmArchive({ title, mode = 'archive', onConfirm, onCancel }:
           </div>
         </div>
         <div className="mt-4 flex items-center justify-end gap-2">
-          <button onClick={onCancel} className="rounded-lg border border-neutral-700 px-3 py-1.5 text-[12.5px] font-medium text-neutral-300 transition hover:bg-neutral-800">
-            Cancelar
-          </button>
-          <button onClick={onConfirm} className="rounded-lg bg-red-500/90 px-3 py-1.5 text-[12.5px] font-semibold text-white transition hover:bg-red-500">
-            {c.cta}
-          </button>
+          <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+          <Button variant="dangerSolid" onClick={onConfirm}>{c.cta}</Button>
         </div>
       </div>
     </div>
