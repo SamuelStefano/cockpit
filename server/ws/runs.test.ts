@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { WebSocket } from 'ws';
-import { startRun, routeSend, isSilentDeath, resumeOrphanRuns, drainParked, runParkedInBackground, runParkedNow, startParkedDrainer, AUTO_RESUME_CAP } from './runs';
+import { startRun, routeSend, isSilentDeath, resumeOrphanRuns, drainParked, runParkedInBackground, runParkedNow, startParkedDrainer, acceptResumeOffer, hasResumeOffer, AUTO_RESUME_CAP } from './runs';
 import { threads, killAllRuns } from './threads';
 import { reapStaleRuns, REAPER_SILENCE_CAP_MS, REAPER_TOOL_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './reaper';
 import { takeOrphanRuns } from './recover';
@@ -14,6 +14,7 @@ import { quotaHold } from './quota';
 import { getLastPlanUsage } from './usage-plan';
 import { classify } from '../engine/triage';
 import { resetCooldownState, resetColdInflight, acquireCold, COOLDOWN_AFTER_RESET_MS } from './ctx-guard';
+import { noteExternalKill, resetExternalKills, EXTERNAL_POLL_MS, EXTERNAL_QUIET_MS } from './kill-class';
 
 // O gate de contexto lê a última amostra de uso do SQLite. No teste isso tem que
 // ser determinístico: sem mock ele consultaria o cockpit.db real do Samuel e o
@@ -211,7 +212,9 @@ describe('morte silenciosa do turno — aviso + retomada automática', () => {
     startRun({ ws, sessionKey: 'k4', prompt: 'trabalho', resumeId: 'sess-4' });
     for (let i = 0; i <= AUTO_RESUME_CAP + 1; i++) closeLastRun();
     expect(run).toHaveBeenCalledTimes(1 + AUTO_RESUME_CAP);
-    expect(errors().at(-1)).toMatchObject({ message: expect.stringContaining('também falhou') });
+    // Esgotado ≠ perdido: o turno vira oferta de retomada com um clique.
+    const offer = vi.mocked(broadcast).mock.calls.map((c) => c[0]).filter((m: any) => m.t === 'resume-offer').at(-1);
+    expect(offer).toMatchObject({ sessionKey: 'k4', reason: 'exhausted' });
   });
 
   it('turno saudável zera a cota — falha nova volta a ter direito a retomada', () => {
@@ -965,13 +968,14 @@ describe('D1 — morte silenciosa classificada como OOM kill', () => {
     expect(vi.mocked(recordIncident)).toHaveBeenCalledWith(expect.objectContaining({ kind: 'silent-death' }));
   });
 
-  it('exit 143 numa máquina saudável não vira oom-kill', () => {
+  it('exit 143 numa máquina saudável é sinal EXTERNO, não oom-kill nem crash', () => {
+    resetExternalKills();
     startRun({ ws, sessionKey: 'oom4', prompt: 'trabalho', resumeId: 'sess-oom4' });
     threads.get('oom4')!.lastExitCode = 143;
     memInfoMock.value = HEALTHY_MEM;
     closeLastRun();
-    expect(errors()[0]).toMatchObject({ message: expect.stringContaining('caiu antes de terminar') });
-    expect(vi.mocked(recordIncident)).toHaveBeenCalledWith(expect.objectContaining({ kind: 'silent-death' }));
+    expect(errors()[0]).toMatchObject({ message: expect.stringContaining('fora do Deck') });
+    expect(vi.mocked(recordIncident)).toHaveBeenCalledWith(expect.objectContaining({ kind: 'external-kill' }));
   });
 });
 
@@ -1022,7 +1026,8 @@ describe('D2 — autoResume espera a memória antes de retomar', () => {
 
     closeLastRun(); // a retomada também morre — cap (1) já foi gasto
     expect(run).toHaveBeenCalledTimes(2);
-    expect(errors().at(-1)).toMatchObject({ message: expect.stringContaining('também falhou') });
+    const offer = vi.mocked(broadcast).mock.calls.map((c) => c[0]).filter((m: any) => m.t === 'resume-offer').at(-1);
+    expect(offer).toMatchObject({ sessionKey: 'bk2', reason: 'exhausted' });
   });
 
   it('reavalia threads.has/isAwaiting no disparo do timer, não no agendamento', () => {
@@ -1124,5 +1129,161 @@ describe('D5 — admissão de turno sensível à memória', () => {
     startRun({ ws, sessionKey: 'm4', prompt: 'a', resumeId: 'sess-m4' });
     expect(threads.has('m4')).toBe(true);
     expect(vi.mocked(send)).not.toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'error' }));
+  });
+});
+
+
+// D6 — SIGTERM EXTERNO (deploy, varredura do earlyoom, pkill) não é crash: o
+// processo não quebrou, alguém o matou, e quem matou costuma matar todos os
+// irmãos na mesma rajada. Retomar na hora entrega o --resume de volta à mesma
+// condição — foi a cadeia run-error "claude saiu (143)" -> silent-death ->
+// resume-exhausted de 17/09, com duas sessões mortas no mesmo minuto.
+describe('D6 — retomada após sinal externo', () => {
+  const ws = {} as WebSocket;
+  const closeLastRun = () => vi.mocked(run).mock.calls.at(-1)![0].onClose?.();
+  const msgs = (t: string) => vi.mocked(broadcast).mock.calls.map((c) => c[0]).filter((m: any) => m.t === t);
+  const killedExternally = (key: string, sessionId: string) => {
+    startRun({ ws, sessionKey: key, prompt: 'trabalho', resumeId: sessionId });
+    threads.get(key)!.lastExitCode = 143;
+    closeLastRun();
+  };
+
+  beforeEach(() => {
+    threads.clear();
+    clearAllAwaiting();
+    vi.mocked(run).mockClear();
+    vi.mocked(broadcast).mockClear();
+    vi.mocked(recordIncident).mockClear();
+    vi.mocked(quotaHold).mockReturnValue(0);
+    vi.mocked(getLastPlanUsage).mockReturnValue(null);
+    usageRow.value = null;
+    resetCooldownState();
+    resetColdInflight();
+    resetExternalKills();
+    vi.mocked(parkedHeads).mockReturnValue([]); // describes anteriores deixam a fila carregada
+    vi.mocked(isQueuePaused).mockReturnValue(false);
+    memInfoMock.value = HEALTHY_MEM;
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('não re-dispara na hora e diz que vai esperar a máquina assentar', () => {
+    killedExternally('ex1', 'sess-ex1');
+    expect(run).toHaveBeenCalledOnce();
+    expect(msgs('error').at(-1)).toMatchObject({ message: expect.stringContaining('assentar') });
+    expect(vi.mocked(recordIncident)).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'external-kill', sessionKey: 'ex1', detail: expect.stringContaining('exit=143'),
+    }));
+  });
+
+  it('retoma UMA vez depois que a rajada de kills para', () => {
+    killedExternally('ex2', 'sess-ex2');
+    vi.advanceTimersByTime(EXTERNAL_QUIET_MS + EXTERNAL_POLL_MS);
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(run).mock.calls[1][0]).toMatchObject({ resumeId: 'sess-ex2' });
+    expect(vi.mocked(run).mock.calls[1][0].prompt).toContain('Continue exatamente de onde parou');
+  });
+
+  it('um irmão morrendo no meio da espera empurra a janela em vez de correr com o deploy', () => {
+    killedExternally('ex3', 'sess-ex3');
+    vi.advanceTimersByTime(30_000);
+    noteExternalKill(); // outra sessão cai na 2ª leva do mesmo deploy
+    vi.advanceTimersByTime(30_000);
+    expect(run).toHaveBeenCalledOnce(); // 60s após a MORTE, mas só 30s de silêncio
+    vi.advanceTimersByTime(EXTERNAL_QUIET_MS);
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  it('a espera não gasta o teto de retomada automática', () => {
+    killedExternally('ex4', 'sess-ex4');
+    vi.advanceTimersByTime(EXTERNAL_QUIET_MS + EXTERNAL_POLL_MS);
+    expect(run).toHaveBeenCalledTimes(2); // a única tentativa do cap foi usada aqui
+    threads.get('ex4')!.lastExitCode = 1;
+    closeLastRun();
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(hasResumeOffer('ex4')).toBe(true);
+  });
+
+  it('desiste e OFERECE retomada quando os kills não param', () => {
+    killedExternally('ex5', 'sess-ex5');
+    for (let i = 0; i < 45 && vi.mocked(run).mock.calls.length === 1 && !hasResumeOffer('ex5'); i++) {
+      noteExternalKill();
+      vi.advanceTimersByTime(EXTERNAL_POLL_MS);
+    }
+    expect(run).toHaveBeenCalledOnce(); // nunca re-disparou em cima da rajada
+    expect(msgs('resume-offer').at(-1)).toMatchObject({ sessionKey: 'ex5', reason: 'external-kill', sessionId: 'sess-ex5' });
+    expect(vi.mocked(recordIncident)).toHaveBeenCalledWith(expect.objectContaining({ kind: 'external-kill-give-up' }));
+  });
+
+  it('turno novo na sessão cancela a espera em vez de atropelá-lo', () => {
+    killedExternally('ex6', 'sess-ex6');
+    startRun({ ws, sessionKey: 'ex6', prompt: 'outro pedido', resumeId: 'sess-ex6' });
+    const before = vi.mocked(run).mock.calls.length;
+    vi.advanceTimersByTime(EXTERNAL_QUIET_MS + EXTERNAL_POLL_MS);
+    expect(vi.mocked(run).mock.calls.length).toBe(before);
+  });
+});
+
+// Nenhum turno pode sumir em silêncio: toda desistência de retomada vira oferta
+// com motivo, e o clique do usuário vale um --resume de verdade.
+describe('oferta de retomada', () => {
+  const ws = {} as WebSocket;
+  const closeLastRun = () => vi.mocked(run).mock.calls.at(-1)![0].onClose?.();
+  const msgs = (t: string) => vi.mocked(broadcast).mock.calls.map((c) => c[0]).filter((m: any) => m.t === t);
+
+  beforeEach(() => {
+    threads.clear();
+    clearAllAwaiting();
+    vi.mocked(run).mockClear();
+    vi.mocked(broadcast).mockClear();
+    vi.mocked(recordIncident).mockClear();
+    vi.mocked(quotaHold).mockReturnValue(0);
+    vi.mocked(getLastPlanUsage).mockReturnValue(null);
+    usageRow.value = null;
+    resetCooldownState();
+    resetColdInflight();
+    resetExternalKills();
+    vi.mocked(parkedHeads).mockReturnValue([]); // describes anteriores deixam a fila carregada
+    vi.mocked(isQueuePaused).mockReturnValue(false);
+    memInfoMock.value = HEALTHY_MEM;
+  });
+
+  it('sem janela de token não retoma, mas deixa a oferta com o motivo', () => {
+    startRun({ ws, sessionKey: 'of1', prompt: 'trabalho', resumeId: 'sess-of1' });
+    vi.mocked(quotaHold).mockReturnValue(1);
+    closeLastRun();
+    expect(run).toHaveBeenCalledOnce();
+    expect(msgs('resume-offer').at(-1)).toMatchObject({ sessionKey: 'of1', reason: 'quota' });
+  });
+
+  it('teto de retomada esgotado vira oferta em vez de beco sem saída', () => {
+    startRun({ ws, sessionKey: 'of2', prompt: 'trabalho', resumeId: 'sess-of2' });
+    closeLastRun();          // 1ª morte -> retoma sozinho (crash genérico)
+    expect(run).toHaveBeenCalledTimes(2);
+    closeLastRun();          // a retomada também cai -> cap esgotado
+    expect(msgs('resume-offer').at(-1)).toMatchObject({ sessionKey: 'of2', reason: 'exhausted' });
+  });
+
+  it('o clique do usuário retoma com a config do turno morto', () => {
+    startRun({ ws, sessionKey: 'of3', prompt: 'trabalho', resumeId: 'sess-of3', model: 'opus', effort: 'high', mode: 'plan' });
+    vi.mocked(quotaHold).mockReturnValue(1);
+    closeLastRun();
+    vi.mocked(quotaHold).mockReturnValue(0);
+    expect(acceptResumeOffer('of3')).toBe(true);
+    const resumed = vi.mocked(run).mock.calls.at(-1)![0];
+    expect(resumed).toMatchObject({ resumeId: 'sess-of3', model: 'opus', effort: 'high', mode: 'plan' });
+    expect(resumed.prompt).toContain('Continue exatamente de onde parou');
+    expect(acceptResumeOffer('of3')).toBe(false); // oferta é de uso único
+  });
+
+  it('a oferta some quando um turno novo pega a sessão', () => {
+    startRun({ ws, sessionKey: 'of4', prompt: 'trabalho', resumeId: 'sess-of4' });
+    vi.mocked(quotaHold).mockReturnValue(1);
+    closeLastRun();
+    expect(hasResumeOffer('of4')).toBe(true);
+    vi.mocked(quotaHold).mockReturnValue(0);
+    startRun({ ws, sessionKey: 'of4', prompt: 'outro pedido', resumeId: 'sess-of4' });
+    expect(hasResumeOffer('of4')).toBe(false);
   });
 });

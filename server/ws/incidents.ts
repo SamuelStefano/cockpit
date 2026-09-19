@@ -28,7 +28,11 @@ export type IncidentKind = 'silent-death' | 'orphan-resume' | 'run-error' | 'res
   // Memory gate (ws/mem-guard.ts, D1): a silent-death whose exit code/signal AND
   // the box's memory state at close time look like earlyoom/kernel-OOM, not a
   // generic crash — surfaced with a distinct user-facing message.
-  | 'oom-kill';
+  | 'oom-kill'
+  // External SIGTERM/SIGKILL on a box with memory to spare (ws/kill-class.ts): a
+  // deploy, an earlyoom sweep or a manual pkill — NOT a crash. The turn is held
+  // until the kill wave stops; 'give-up' means it never stopped in time.
+  | 'external-kill' | 'external-kill-give-up';
 
 export interface Incident {
   ts: string;

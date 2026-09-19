@@ -144,6 +144,12 @@ export interface CompactMessage {
 
 export type Message = UserMessage | AssistantMessage | CompactMessage;
 
+// Por que o turno morto não foi retomado sozinho. 'external-kill' = sinal externo
+// (deploy, earlyoom, pkill) que ainda estava acontecendo; 'ctx-hard' = sessão
+// grande demais; 'exhausted' = a retomada automática já falhou; 'quota' = sem
+// janela de token pra o turno novo sobreviver.
+export type ResumeOfferReason = 'external-kill' | 'ctx-hard' | 'exhausted' | 'quota';
+
 export interface SessionMeta {
   id: string;
   title: string;
@@ -714,7 +720,11 @@ export type ClientMsg =
   // lugar. Oposto do run-bg, que preserva o turno atual e roda em paralelo — aqui
   // o usuário quer TROCAR o que está rodando agora.
   | { t: 'queue-run-now'; sessionKey: string; id: string }
-  | { t: 'queue-get' };
+  | { t: 'queue-get' }
+  // Aceita a oferta de retomada de um turno que morreu e NÃO foi retomado sozinho
+  // (sinal externo, teto de contexto, tentativas esgotadas, sem token). O servidor
+  // guarda a config do turno morto, então o clique vale um `--resume` de verdade.
+  | { t: 'resume-run'; sessionKey: string };
 
 // Capabilities da conexão (DR-011). role = papel do ator (hoje sempre admin em
 // loopback; Fase 2 vem do token). canBypass = se o servidor permite o toggle de
@@ -852,4 +862,8 @@ export type ServerMsg =
   // O gate barrou por quota/cold-busy e o prompt foi pra fila estacionada: a bolha
   // otimista sai (o item aparece na fila) e o composer NÃO recebe o texto de volta.
   | { t: 'send-parked'; sessionKey: string; msgId?: string; message: string }
+  // O turno morreu e o servidor decidiu NÃO retomar sozinho. Sem isto o turno
+  // sumia em silêncio (ou virava só mais uma bolha de erro sem saída): a UI mostra
+  // o motivo e um botão que manda `resume-run`.
+  | { t: 'resume-offer'; sessionKey: string; sessionId: string; reason: ResumeOfferReason; message: string }
   | { t: 'error'; sessionKey?: string; message: string };

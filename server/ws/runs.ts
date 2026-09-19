@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { WebSocket } from 'ws';
-import type { Cron } from '../../shared/protocol';
+import type { Cron, ResumeOfferReason } from '../../shared/protocol';
 import { run, resolveMcpSelection } from '../engine/claude';
 import { CONFIG } from '../config';
 import type { Role } from '../auth';
@@ -21,7 +21,11 @@ import {
 } from './ctx-guard';
 import { markRunLive, clearRunLive, takeOrphanRuns } from './recover';
 import { recordIncident } from './incidents';
-import { readMemInfo, memoryVerdict, looksLikeOomKill, nextResumeDelayMs, memoryRunCap } from './mem-guard';
+import { readMemInfo, memoryVerdict, nextResumeDelayMs, memoryRunCap } from './mem-guard';
+import {
+  classifyDeath, externalResumeGate, noteExternalKill, lastExternalKillAt,
+  EXTERNAL_POLL_MS, type DeathCause,
+} from './kill-class';
 import { authHold, isAuthFailure, markAuthBroken, AUTH_MESSAGE } from './auth-health';
 import { threadIsMarathon, MARATHON_AUTO_RESUME_CAP } from './marathon';
 import { threads, admitRun, resolveThreadKey, stopSession, stopEpochOf, clearStopEpoch, shouldPreserveLive, runParams, sameParams, type Thread, type RunParams } from './threads';
@@ -50,6 +54,39 @@ const autoResumes = new Map<string, number>();
 // reconstrói o contexto inteiro e o turno continua de onde parou.
 const RESUME_PROMPT = 'O turno anterior foi interrompido por uma falha do processo. Continue exatamente de onde parou, sem repetir o trabalho já feito.';
 
+// Ofertas de retomada em aberto: turno que morreu e NÃO foi retomado sozinho.
+// Guardar a config aqui é o que faz o botão da UI valer um `--resume` de verdade
+// em vez de um "reenvie a última mensagem" — o thread já saiu do mapa.
+interface ResumeOffer { sessionId: string; params: RunParams }
+const resumeOffers = new Map<string, ResumeOffer>();
+
+// Nenhum turno pode sumir em silêncio: toda desistência de retomada passa por
+// aqui, então a UI sempre recebe o motivo E um caminho de volta.
+function offerResume(sessionKey: string, thread: Thread, reason: ResumeOfferReason, message: string): void {
+  if (!thread.sessionId || !resumableId(thread.sessionId)) {
+    broadcast({ t: 'error', sessionKey, message });
+    return;
+  }
+  resumeOffers.set(sessionKey, { sessionId: thread.sessionId, params: thread.params });
+  broadcast({ t: 'resume-offer', sessionKey, sessionId: thread.sessionId, reason, message });
+}
+
+export function hasResumeOffer(sessionKey: string): boolean {
+  return resumeOffers.has(sessionKey);
+}
+
+// Clique do usuário na oferta. Retomar por vontade dele é intencional: não gasta
+// (nem consulta) o teto de retomada automática, que existe pra loop de máquina.
+export function acceptResumeOffer(sessionKey: string): boolean {
+  const offer = resumeOffers.get(sessionKey);
+  if (!offer) return false;
+  resumeOffers.delete(sessionKey);
+  if (threads.has(sessionKey)) return false;
+  autoResumes.delete(sessionKey);
+  startRun({ ...offer.params, ws: null, sessionKey, prompt: RESUME_PROMPT, resumeId: offer.sessionId, queued: true });
+  return true;
+}
+
 // Retoma o turno morto com a MESMA config. Silencioso quanto a corridas: se a fila
 // (pending/parked) ou o usuário já subiram um turno novo, não atropela.
 function autoResume(sessionKey: string, thread: Thread): void {
@@ -64,14 +101,14 @@ function autoResume(sessionKey: string, thread: Thread): void {
   // auto-retomou e comeu 0,77M sozinha. Aqui a retomada para e o usuário decide.
   if (ctxVerdict({ sessionId: thread.sessionId, usage: getLastPlanUsage() }).kind === 'hard') {
     const c = costFor(thread.sessionId);
-    broadcast({ t: 'error', sessionKey, message: `O turno caiu, mas esta sessão está com ~${Math.round(c.ctxTokens / 1000)}k de contexto: retomar custaria ~${c.pctOfWindow}% da janela. Faça o handoff em vez de retomar.` });
+    offerResume(sessionKey, thread, 'ctx-hard', `O turno caiu, mas esta sessão está com ~${Math.round(c.ctxTokens / 1000)}k de contexto: retomar custaria ~${c.pctOfWindow}% da janela. Faça o handoff — ou retome mesmo assim.`);
     recordIncident({ kind: 'resume-ctx-cap', sessionKey, sessionId: thread.sessionId, detail: `${c.ctxTokens} tokens; retomada automática cancelada` });
     return;
   }
   const tries = (autoResumes.get(sessionKey) ?? 0) + 1;
   const cap = threadIsMarathon(sessionKey, thread.sessionId) ? MARATHON_AUTO_RESUME_CAP : AUTO_RESUME_CAP;
   if (tries > cap) {
-    broadcast({ t: 'error', sessionKey, message: 'A retomada automática também falhou — mande a mensagem de novo.' });
+    offerResume(sessionKey, thread, 'exhausted', 'A retomada automática também falhou. O turno está guardado — retome quando quiser.');
     recordIncident({ kind: 'resume-exhausted', sessionKey, sessionId: thread.sessionId, detail: `${tries - 1} retomada(s) e o turno caiu de novo` });
     return;
   }
@@ -88,14 +125,44 @@ function autoResume(sessionKey: string, thread: Thread): void {
 // com backoff SEM contar tentativa — o cap real só é gasto quando a retomada
 // roda de fato. Todas as guardas de corrida (threads.has, isAwaiting, etc.) vivem
 // dentro de autoResume() e são reavaliadas do zero a cada disparo do timer.
-function maybeAutoResume(sessionKey: string, thread: Thread, backoffAttempt = 1): void {
+interface ResumeWait { waitedMs: number; backoffAttempt: number }
+
+function maybeAutoResume(sessionKey: string, thread: Thread, cause: DeathCause, wait: ResumeWait = { waitedMs: 0, backoffAttempt: 1 }): void {
+  // Um turno novo já pegou a sessão enquanto esperávamos: nada a retomar, e
+  // atropelá-lo seria pior que não retomar.
+  if (threads.has(sessionKey)) return;
+  // Sinal EXTERNO (deploy, varredura do earlyoom, pkill): o processo não quebrou,
+  // alguém o matou — e quem matou costuma matar todos os irmãos na mesma rajada e
+  // subir um processo novo em seguida. Re-disparar agora entrega o `--resume` de
+  // volta à mesma condição: foi assim que a única tentativa do AUTO_RESUME_CAP
+  // virou 'resume-exhausted' em 5s no incidente de 17/09. Espera a rajada PARAR
+  // (cada irmão que morre empurra a janela) sem contar tentativa nenhuma.
+  if (cause === 'external-signal') {
+    const gate = externalResumeGate({ lastKillAt: lastExternalKillAt(), now: Date.now(), waitedMs: wait.waitedMs });
+    if (gate === 'give-up') {
+      offerResume(sessionKey, thread, 'external-kill', 'Algo fora do Deck segue matando os turnos (deploy em loop ou o sistema sem memória). Não vou retomar sozinho em cima disso — retome quando a máquina assentar.');
+      recordIncident({ kind: 'external-kill-give-up', sessionKey, sessionId: thread.sessionId, detail: `${Math.round(wait.waitedMs / 1000)}s esperando a rajada parar` });
+      return;
+    }
+    if (gate === 'wait') {
+      const timer = setTimeout(
+        () => maybeAutoResume(sessionKey, thread, cause, { ...wait, waitedMs: wait.waitedMs + EXTERNAL_POLL_MS }),
+        EXTERNAL_POLL_MS,
+      );
+      timer.unref?.();
+      return;
+    }
+  }
   if (memoryVerdict(readMemInfo()) === 'ok') { autoResume(sessionKey, thread); return; }
-  const delay = nextResumeDelayMs(backoffAttempt);
+  const delay = nextResumeDelayMs(wait.backoffAttempt);
   // Orçamento de espera (~30min) esgotado: desiste de esperar e tenta mesmo assim
   // — cai no fluxo normal, que consome o cap de verdade e relata 'resume-exhausted'
   // como sempre se a memória continuar ruim. Preso pra sempre seria pior que isso.
   if (delay === null) { autoResume(sessionKey, thread); return; }
-  const timer = setTimeout(() => maybeAutoResume(sessionKey, thread, backoffAttempt + 1), delay);
+  const timer = setTimeout(
+    () => maybeAutoResume(sessionKey, thread, cause, { waitedMs: wait.waitedMs + delay, backoffAttempt: wait.backoffAttempt + 1 }),
+    delay,
+  );
   timer.unref?.();
 }
 
@@ -477,6 +544,9 @@ export function startRun(o: StartRunOptions) {
   // reapado) deixava a cota gasta pra sempre e a próxima falha de verdade era
   // recusada com "a retomada automática também falhou".
   if (prompt !== RESUME_PROMPT) autoResumes.delete(sessionKey);
+  // Turno novo na sessão: a oferta pendente do turno morto perdeu o sentido (e
+  // clicá-la depois atropelaria este run).
+  resumeOffers.delete(sessionKey);
 
   // Cold-start grande ocupa o semáforo até o onClose. Sem isto o gate acima veria
   // sempre zero em voo e os quatro envios de 04/09 passariam iguais.
@@ -573,6 +643,7 @@ export function startRun(o: StartRunOptions) {
       // fechamento saudável zera o contador pra a próxima falha ter direito a
       // retomada — senão um incidente antigo consumiria a cota da sessão pra sempre.
       const silent = isSilentDeath(thread);
+      let cause: DeathCause = 'crash';
       if (silent) {
         // D1 — classifica ANTES de avisar: exit 143/137 (ou sinal) com a máquina
         // realmente apertada de memória no instante do fechamento é earlyoom/OOM
@@ -580,13 +651,19 @@ export function startRun(o: StartRunOptions) {
         // "processo morreu sem resposta" seguido de retomada imediata fadada a
         // morrer de novo (era o resume-exhausted em 5-10s do postmortem).
         const memInfo = readMemInfo();
-        const oom = looksLikeOomKill({
+        cause = classifyDeath({
           exitCode: thread.lastExitCode, signal: thread.lastExitSignal,
           userStopped: thread.userStopped, reaped: !!thread.reaped, info: memInfo,
         });
-        if (oom) {
+        if (cause === 'oom') {
           broadcast({ t: 'error', sessionKey, message: 'A máquina ficou sem memória e o sistema matou este turno. Vou retomar quando a memória voltar.' });
           recordIncident({ kind: 'oom-kill', sessionKey, sessionId: thread.sessionId, detail: `availMb=${memInfo.availMb} swapFreeMb=${memInfo.swapFreeMb} swapTotalMb=${memInfo.swapTotalMb}` });
+        } else if (cause === 'external-signal') {
+          // Marca a rajada ANTES de qualquer espera: os irmãos que morrerem na
+          // mesma leva empurram a janela de silêncio uns dos outros.
+          noteExternalKill();
+          broadcast({ t: 'error', sessionKey, message: 'Algo fora do Deck matou este turno (deploy ou o sistema). Vou retomar assim que a máquina assentar.' });
+          recordIncident({ kind: 'external-kill', sessionKey, sessionId: thread.sessionId, detail: `exit=${thread.lastExitCode ?? '?'} signal=${thread.lastExitSignal ?? '-'} availMb=${memInfo.availMb}` });
         } else {
           broadcast({ t: 'error', sessionKey, message: 'O turno caiu antes de terminar (o processo morreu sem resposta).' });
           recordIncident({ kind: 'silent-death', sessionKey, sessionId: thread.sessionId, detail: `${Math.round((Date.now() - thread.startedAt) / 1000)}s vivo, ${thread.tools.length} tools, ${thread.text.length} chars de resposta` });
@@ -640,7 +717,12 @@ export function startRun(o: StartRunOptions) {
       // 'total': esse teto existe justamente pra parar um run desgovernado — retomar
       // dobraria a queima que o teto tentou conter. E sem token não adianta retomar
       // nada: o turno novo morreria no limite igual.
-      if ((silent || (thread.reaped && thread.reaped !== 'total')) && !hold) maybeAutoResume(sessionKey, thread);
+      if (silent || (thread.reaped && thread.reaped !== 'total')) {
+        // Sem token não adianta retomar nada (o turno novo morreria no limite
+        // igual), mas o turno também não pode sumir: vira oferta com o motivo.
+        if (hold) offerResume(sessionKey, thread, 'quota', 'O turno caiu e a janela de token acabou — retomar agora morreria no limite. Retome quando a janela virar.');
+        else maybeAutoResume(sessionKey, thread, cause);
+      }
     },
   });
 }

@@ -4,6 +4,10 @@ import type { PermMode } from '../../../shared/protocol';
 interface TurnBannersProps {
   phase: 'idle' | 'thinking' | 'streaming';
   failed: boolean;
+  // Turno morto que o servidor NÃO retomou sozinho: o motivo dele + um clique que
+  // vale `--resume` de verdade (reenviar a última mensagem perderia o progresso).
+  resumeOffer?: { message: string } | null;
+  onResume?: () => void;
   planPending: boolean;
   pendingQuestion?: boolean;
   queuedCount?: number;
@@ -13,9 +17,25 @@ interface TurnBannersProps {
   onForceQueue?: () => void;
 }
 
-// Precedência: falha > plano > pergunta segurando a fila > corte de teto. Só um
-// banner aparece por vez.
-export function TurnBanners({ phase, failed, planPending, pendingQuestion = false, queuedCount = 0, lastEnd, retryLast, onSend, onForceQueue }: TurnBannersProps) {
+// Precedência: retomada oferecida > falha > plano > pergunta segurando a fila >
+// corte de teto. Só um banner aparece por vez. A oferta vem na frente da falha
+// porque ela TAMBÉM acende o `failed` (a bolha é de erro), e "tentar novamente"
+// reenviaria a mensagem em vez de continuar o turno interrompido.
+export function TurnBanners({ phase, failed, resumeOffer = null, onResume, planPending, pendingQuestion = false, queuedCount = 0, lastEnd, retryLast, onSend, onForceQueue }: TurnBannersProps) {
+  if (resumeOffer && onResume) {
+    return (
+      <div className="flex shrink-0 items-center gap-2 border-t border-amber-500/30 bg-amber-500/6 px-4 py-2">
+        <Icon name="rotate" size={13} className="text-amber-400" />
+        <span className="text-[12px] text-amber-200/90">{resumeOffer.message}</span>
+        <button
+          onClick={onResume}
+          className="ml-auto shrink-0 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-[11.5px] font-medium text-amber-200 transition hover:bg-amber-500/20 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-amber-500/40"
+        >
+          Retomar o turno
+        </button>
+      </div>
+    );
+  }
   if (failed) {
     return (
       <div className="flex shrink-0 items-center gap-2 border-t border-red-500/30 bg-red-500/6 px-4 py-2">

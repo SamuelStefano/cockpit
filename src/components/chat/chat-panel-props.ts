@@ -2,6 +2,7 @@ import type { ComposerCost } from './send-cost';
 import type { Session, Message, ToolTodo } from '../../data/types';
 import type { PermMode, Effort, ModelInfo, TurnStats, Caps, SkillMeta, BgAgent } from '../../../shared/protocol';
 import type { Attachment, AttachmentPreview, QueueItem } from '../../useCockpit';
+import type { ResumeOfferView } from '../../cockpit/resume-offers';
 import type { Phase } from './useChatPanel';
 
 export interface ChatPanelProps {
@@ -90,4 +91,6 @@ export interface ChatPanelProps {
   queueRunBg: (sessionKey: string, id: string, model?: string) => void;
   queueRunNow: (sessionKey: string, id: string) => void;
   queueForce: (sessionKey: string) => void;
+  resumeOffer?: ResumeOfferView | null;
+  resumeRun?: (sessionKey: string) => void;
 }
