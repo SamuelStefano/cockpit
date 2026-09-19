@@ -40,6 +40,9 @@ function setup(queue: QueueItem[], sessionId = 's1') {
 }
 
 const pv = (id: string, text: string, at: number, sessionKey = 's1'): QueueItem => ({ sessionKey, key: sessionKey, id, text, at });
+// Item enfileirado antes de a sessão ganhar id real: o servidor o guarda sob
+// `new-xxx` pra sempre, e o display já migrou pro sessionId.
+const migrated = (id: string, text: string, at: number, key: string): QueueItem => ({ sessionKey: 'new-abc', key, id, text, at });
 
 describe('useChatPanel fila (server-backed)', () => {
   it('deriva `queued` da prop queue filtrando pela sessão, na ordem do array (ordem de envio do servidor)', () => {
@@ -49,6 +52,18 @@ describe('useChatPanel fila (server-backed)', () => {
       pv('x', 'outra sessão', 150, 's2'),
     ]);
     expect(hook.result.current.queued).toEqual(['segundo', 'primeiro']);
+  });
+
+  // Bug do Samuel: com 2+ itens na fila, furar a fila fecha um turno, a sessão
+  // migra de `new-xxx` pro sessionId real e o resto da fila sumia da tela.
+  it('mostra o item guardado sob a chave pré-migração e escreve de volta na chave do fio', () => {
+    const { hook, queueRunNow } = setup([
+      migrated('a', 'primeiro', 100, 's1'),
+      migrated('b', 'segundo', 200, 's1'),
+    ]);
+    expect(hook.result.current.queued).toEqual(['primeiro', 'segundo']);
+    hook.result.current.runQueuedNowAt(1);
+    expect(queueRunNow).toHaveBeenCalledWith('new-abc', 'b');
   });
 
   it('enqueue delega pro queueAdd (servidor decide a sessão ativa)', () => {
