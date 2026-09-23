@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { CARD_STATUSES, type CanvasCard, type CardStatus } from '../../../shared/canvas';
 import { Badge } from '../../components/primitives';
 import { cardRun } from './canvas-board';
-import { STATUS_LABEL } from './canvas-labels';
+import { STATUS_HINT, STATUS_LABEL } from './canvas-labels';
 import { KanbanCard } from './KanbanCard';
 
 interface Props {
@@ -31,7 +31,7 @@ export function Kanban(p: Props) {
             onDrop={(e) => { e.preventDefault(); setOver(null); const id = e.dataTransfer.getData('text/deck-card'); if (id) p.onMove(id, status); }}
             className={`flex min-h-0 flex-col rounded-xl border bg-neutral-950/60 ${over === status ? 'border-orange-500/60' : 'border-neutral-800'}`}
           >
-            <header className="flex items-center gap-2 px-2.5 py-2">
+            <header className="flex items-center gap-2 px-2.5 py-2" title={STATUS_HINT[status]}>
               <span className="text-[11.5px] font-semibold text-neutral-200">{STATUS_LABEL[status]}</span>
               <Badge>{cards.length}</Badge>
             </header>

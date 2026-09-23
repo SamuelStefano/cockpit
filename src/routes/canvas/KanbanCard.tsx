@@ -28,7 +28,7 @@ export const KanbanCard = memo(function KanbanCard({ card, run, sessions, select
         <Icon name={card.kind === 'content' ? 'sparkles' : 'zap'} size={12} className="mt-0.5 shrink-0 text-orange-400" />
         <span className="min-w-0 flex-1 text-[12px] font-medium leading-snug text-neutral-100">{card.title}</span>
         {run === 'running' && <Badge tone="green" dot>rodando</Badge>}
-        {run === 'review' && <Badge tone="yellow">revisar</Badge>}
+        {run === 'review' && <Badge tone="yellow">parece pronto</Badge>}
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[10px] text-neutral-500">
         {card.kind === 'content' && card.format && <Badge>{FORMAT_LABEL[card.format]}</Badge>}
@@ -41,7 +41,7 @@ export const KanbanCard = memo(function KanbanCard({ card, run, sessions, select
       </div>
       <div className="mt-1.5 flex gap-1" onClick={(e) => e.stopPropagation()}>
         {card.status === 'todo' && <Button size="sm" icon="play" onClick={() => onRun(card)}>rodar</Button>}
-        {run === 'review' && <Button size="sm" variant="secondary" icon="check" onClick={() => onReview(card.id)}>p/ revisão</Button>}
+        {run === 'review' && <Button size="sm" variant="secondary" icon="check" onClick={() => onReview(card.id)}>marcar como feito</Button>}
         <Button size="sm" variant="ghost" icon="pencil" onClick={() => onEdit(card.id)} title="editar" />
       </div>
     </div>
