@@ -8,6 +8,9 @@ import {
 
 export const POINTS_ERR = `pontos inválidos (0..${MAX_DRAFT_POINTS})`;
 
+// Ids from a raw WS frame or the CLI: only strings count.
+export const idList = (v: unknown): string[] => (Array.isArray(v) ? v.filter(isStr) : []);
+
 export function newTask(raw: { title: unknown; points: unknown; refs?: unknown; note?: unknown }, ctx: DraftCtx): DflDraftTask {
   const t = cleanTitle(raw.title);
   const p = cleanPoints(raw.points);
@@ -51,7 +54,7 @@ function deleteDelivery(d: DflDraft, id: string): DflDraft {
 
 function moveTasks(d: DflDraft, taskIds: string[], to: string): DflDraft {
   findDelivery(d, to);
-  const moving = new Set(taskIds);
+  const moving = new Set(idList(taskIds));
   const ordered = d.tasks.filter((t) => moving.has(t.id)).map((t) => t.id);
   return {
     ...d,
@@ -66,7 +69,7 @@ function moveTasks(d: DflDraft, taskIds: string[], to: string): DflDraft {
 function splitEpic(drafts: DflDraft[], op: Extract<DraftOp, { op: 'split-epic' }>, ctx: DraftCtx): DflDraft[] {
   const src = drafts.find((d) => d.id === op.id);
   if (!src) throw new Error(`épico ${op.id} não existe`);
-  const moving = new Set(op.taskIds.filter((id) => src.tasks.some((t) => t.id === id)));
+  const moving = new Set(idList(op.taskIds).filter((id) => src.tasks.some((t) => t.id === id)));
   if (!moving.size) throw new Error('escolha ao menos uma task pra mover');
   if (moving.size === src.tasks.length) throw new Error('o épico original ficaria vazio');
   const title = cleanTitle(op.title) ?? `${src.title} (parte 2)`;
@@ -75,10 +78,12 @@ function splitEpic(drafts: DflDraft[], op: Extract<DraftOp, { op: 'split-epic' }
     id: ctx.newId('ep'), title, status: 'draft', createdAt: ctx.now, tasks,
     deliveries: [{ id: ctx.newId('dl'), title: defaultDeliveryTitle(title), taskIds: tasks.map((t) => t.id) }],
   }, ctx);
+  // A delivery emptied by the split goes away, as long as one is left.
+  const left = src.deliveries.map((x) => ({ ...x, taskIds: x.taskIds.filter((id) => !moving.has(id)) }));
   const kept = settle({
     ...src,
     tasks: src.tasks.filter((t) => !moving.has(t.id)),
-    deliveries: src.deliveries.map((x) => ({ ...x, taskIds: x.taskIds.filter((id) => !moving.has(id)) })),
+    deliveries: left.some((x) => x.taskIds.length) ? left.filter((x) => x.taskIds.length) : left.slice(0, 1),
   }, ctx);
   return drafts.flatMap((d) => (d.id === src.id ? [kept, created] : [d]));
 }
@@ -89,7 +94,7 @@ export function applyDeliveryOp(drafts: DflDraft[], op: DraftOp, ctx: DraftCtx):
       return withEpic(drafts, op.epicId, ctx, (d) => {
         const id = ctx.newId('dl');
         const added = { ...d, deliveries: [...d.deliveries, { id, title: cleanTitle(op.title) ?? `${defaultDeliveryTitle(d.title)} ${d.deliveries.length + 1}`, taskIds: [] }] };
-        return op.taskIds?.length ? moveTasks(added, op.taskIds, id) : added;
+        return idList(op.taskIds).length ? moveTasks(added, op.taskIds ?? [], id) : added;
       });
     case 'rename-delivery': {
       const t = cleanTitle(op.title);

@@ -9,7 +9,7 @@
 //   deck-drafts add-epic "<title>"
 //   deck-drafts add-task <epicId> "<title>" <points> [refs...]
 //   deck-drafts set-status <id>[,<id>...] draft|dispatched|created   (epic, delivery or task ids)
-//   deck-drafts import <file.md>        (## Épico N — Title — X pt / ### Delivery / - Task — refs — pts)
+//   deck-drafts import <file.md|->      (## Épico N — Title — X pt / ### Delivery / - Task — refs — pts)
 //
 // Imports the pure shared modules straight from TS (native Node type stripping),
 // so validation is the same one the server runs. Honors COCKPIT_DFL_DRAFTS.
@@ -26,7 +26,7 @@ const USAGE = `uso:
   deck-drafts add-epic "<título>"
   deck-drafts add-task <epicId> "<título>" <pontos> [refs...]
   deck-drafts set-status <id>[,<id>...] draft|dispatched|created   (ids de épico, delivery ou task)
-  deck-drafts import <arquivo.md>   (## Épico — título — pts / ### delivery opcional / - task — refs — pts)`;
+  deck-drafts import <arquivo.md|->   (- = stdin; ## Épico — título — pts / ### delivery opcional / - task — refs — pts)`;
 
 const file = () => process.env.COCKPIT_DFL_DRAFTS || join(homedir(), '.cockpit', 'dfl-drafts.json');
 const newId = (prefix) => `${prefix}-${randomBytes(3).toString('hex')}`;
@@ -90,7 +90,8 @@ function setStatus([raw, status]) {
 function importMd([path]) {
   if (!path) die('arquivo obrigatório');
   let md;
-  try { md = readFileSync(path, 'utf8'); } catch { die(`não consegui ler ${path}`); }
+  // "-" reads stdin, so an agent can pipe a heredoc without writing a file.
+  try { md = readFileSync(path === '-' ? 0 : path, 'utf8'); } catch { die(`não consegui ler ${path}`); }
   const { epics, warnings } = parseDraftsMarkdown(md);
   if (!epics.length) die('nenhum "## Épico" encontrado');
   let drafts = load();

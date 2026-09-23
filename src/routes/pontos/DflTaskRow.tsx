@@ -9,7 +9,7 @@ const META: Record<DflTaskStatus, { tone: 'green' | 'orange' | 'neutral'; label:
   todo: { tone: 'neutral', label: 'a fazer' },
 };
 
-export const DFL_TASK_GRID = 'grid grid-cols-[64px_minmax(0,1fr)_52px] items-center gap-x-2.5 sm:grid-cols-[64px_minmax(0,1fr)_52px_80px]';
+const DFL_TASK_GRID = 'grid grid-cols-[64px_minmax(0,1fr)_52px] items-center gap-x-2.5 sm:grid-cols-[64px_minmax(0,1fr)_52px_80px]';
 
 // A DFL task as a table line with its live status. Click opens the points editor
 // (the sanctioned DFL workflow, not a direct write).

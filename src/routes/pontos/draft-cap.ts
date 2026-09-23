@@ -56,15 +56,20 @@ export function pendingTotals(drafts: DflDraft[], pointValue: number): DraftTota
   return { count, points, valueCents: centsFromPoints(points, pointValue), overCount };
 }
 
-// The tail of the epic (in delivery order) that no longer fits the cap: moving it
-// to a second epic leaves the first one at or under R$ 5k. Empty when the epic
-// fits, or when a single task alone is over (nothing sensible to move).
+// The smallest tail of the epic (in delivery order) whose move to a second epic
+// leaves the first at or under R$ 5k. Tasks already sent to the agent never move
+// (they may exist in DFL under this epic). Empty when the epic fits or when no
+// such split exists (one task alone over the cap, or only sent tasks left).
 export function suggestSplit(d: DflDraft, pointValue: number, capCents = EPIC_CAP_CENTS): string[] {
   const ordered = d.deliveries.flatMap((dl) => deliveryTasks(d, dl.id));
-  let acc = 0;
-  for (let i = 0; i < ordered.length; i++) {
-    acc += centsFromPoints(ordered[i].points, pointValue);
-    if (acc > capCents) return i === 0 ? [] : ordered.slice(i).map((t) => t.id);
+  let total = ordered.reduce((s, t) => s + centsFromPoints(t.points, pointValue), 0);
+  const move: string[] = [];
+  for (let i = ordered.length - 1; i >= 0 && total > capCents; i--) {
+    const t = ordered[i];
+    if (t.status !== 'draft') continue;
+    if (move.length === ordered.length - 1) break;
+    move.unshift(t.id);
+    total -= centsFromPoints(t.points, pointValue);
   }
-  return [];
+  return total <= capCents ? move : [];
 }

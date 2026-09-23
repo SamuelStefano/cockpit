@@ -418,7 +418,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
         ws: null,
         sessionKey,
         // 'drafts' = "Novo épico com agente": stages in the Deck, never in DFL.
-        prompt: msg.target === 'drafts' ? buildStageDraftsPrompt(req, now) : buildAgentTasksPrompt(req),
+        prompt: msg.target === 'drafts' ? buildStageDraftsPrompt(req) : buildAgentTasksPrompt(req),
         msgId: `pontos-${Date.now().toString(36)}`,
         // Turno sem cliente atrelado: sem acceptEdits ele para no primeiro pedido
         // de permissão e ninguém está lá pra aprovar. Não é bypass.

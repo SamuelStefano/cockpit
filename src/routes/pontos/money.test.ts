@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { brl, brlShort, refMonth, fmtPts, parseBrl, validBrl } from './money';
+import { brl, brlShort, reaisInt, refMonth, fmtPts, parseBrl, validBrl } from './money';
 
 describe('fmtPts', () => {
   it('inteiro fica sem casa', () => {
@@ -52,5 +52,6 @@ describe('brlShort', () => {
     expect(brlShort(180_000)).toBe('R$ 1.800');
     expect(brlShort(762_549)).toBe('R$ 7.625');
     expect(brlShort(-5_050)).toBe('-R$ 51');
+    expect(reaisInt(1_222_500)).toBe('12.225');
   });
 });

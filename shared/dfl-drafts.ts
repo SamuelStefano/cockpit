@@ -7,7 +7,7 @@ import {
   STATUSES, cleanPoints, cleanTitle, defaultDeliveryTitle,
   type DflDraft, type DflDraftTask, type DraftCtx, type DraftOp, type DraftStatus,
 } from './dfl-drafts-model.ts';
-import { POINTS_ERR, applyDeliveryOp, findDelivery, newTask, settle, withEpic } from './dfl-drafts-edit.ts';
+import { POINTS_ERR, applyDeliveryOp, findDelivery, idList, newTask, settle, withEpic } from './dfl-drafts-edit.ts';
 
 export * from './dfl-drafts-model.ts';
 
@@ -70,7 +70,7 @@ export function applyDraftOp(drafts: DflDraft[], op: DraftOp, ctx: DraftCtx): Df
     case 'delete-epic':
       return drafts.filter((d) => d.id !== op.id);
     case 'set-status':
-      return setStatus(drafts, Array.isArray(op.id) ? op.id : [op.id], op.status, ctx);
+      return setStatus(drafts, Array.isArray(op.id) ? idList(op.id) : idList([op.id]), op.status, ctx);
     case 'add-task':
       return withEpic(drafts, op.epicId, ctx, (d) => {
         const task = newTask(op, ctx);

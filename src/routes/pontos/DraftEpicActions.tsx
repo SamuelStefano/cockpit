@@ -15,7 +15,9 @@ export function DraftEpicActions({ e, onAddDelivery }: Props) {
       <ButtonGroup label="agente">
         <Button size="sm" icon="zap" onClick={e.createAll} disabled={e.pending === 0}
           title="Um agente cria épico, deliveries e tasks no DFL">
-          {partial ? `criar o restante no DFL (${e.pending})` : 'criar épico + deliveries + tasks'}
+          {partial
+            ? `criar o restante no DFL (${e.pending})`
+            : <><span className="hidden sm:inline">criar épico + deliveries + tasks</span><span className="sm:hidden">criar tudo no DFL</span></>}
         </Button>
       </ButtonGroup>
       <Button variant="ghost" size="sm" icon="plus" onClick={onAddDelivery}>delivery</Button>

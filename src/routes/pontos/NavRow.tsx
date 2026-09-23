@@ -1,6 +1,7 @@
 import { ProgressBar, tokens } from '../../components/primitives';
 import type { NavRow as Row, NavTone } from './nav-model';
-import { brlShort, fmtPts } from './money';
+import { fmtPts, reaisInt } from './money';
+import { NAV_COLS } from './nav-cols';
 
 interface Props {
   row: Row;
@@ -39,9 +40,9 @@ export function NavRow({ row, active, marked = 0, onSelect }: Props) {
       <span aria-hidden className={`h-1.5 w-1.5 shrink-0 rounded-full ${DOT[row.tone]}`} />
       <span className="min-w-0 flex-1 truncate text-[12.5px]">{row.title}</span>
       {marked > 0 && <span className="shrink-0 rounded bg-orange-500/20 px-1 font-mono text-[10px] text-orange-300">{marked}</span>}
-      <span className="w-10 shrink-0 text-right font-mono text-[11.5px] tabular-nums text-neutral-400">{fmtPts(row.points)}</span>
-      <span className="hidden w-[68px] shrink-0 text-right font-mono text-[11.5px] tabular-nums text-neutral-500 sm:block">{brlShort(row.valueCents)}</span>
-      <span className="w-7 shrink-0">
+      <span className={`${NAV_COLS.pt} font-mono text-[11.5px] tabular-nums text-neutral-400`}>{fmtPts(row.points)}</span>
+      <span className={`${NAV_COLS.brl} font-mono text-[11.5px] tabular-nums text-neutral-500`}>{reaisInt(row.valueCents)}</span>
+      <span className={NAV_COLS.cap}>
         <ProgressBar size="xs" segments={[
           { value: pct, tone: row.over ? 'yellow' : row.tone === 'paid' ? 'green' : 'orange' },
           { value: 100 - pct, tone: 'track' },

@@ -43,6 +43,10 @@ export function validBrl(v: string): boolean {
 
 // Dense columns (navigator, KPI strip): whole reais, no cents — "R$ 1.800".
 export function brlShort(cents: number): string {
-  const neg = cents < 0;
-  return `${neg ? '-' : ''}R$ ${Math.round(Math.abs(cents) / 100).toLocaleString('pt-BR')}`;
+  return cents < 0 ? `-R$ ${reaisInt(-cents)}` : `R$ ${reaisInt(cents)}`;
+}
+
+// A column already headed "R$" does not repeat the symbol on every line: "1.800".
+export function reaisInt(cents: number): string {
+  return Math.round(cents / 100).toLocaleString('pt-BR');
 }

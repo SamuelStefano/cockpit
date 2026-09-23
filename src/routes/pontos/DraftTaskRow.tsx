@@ -18,7 +18,7 @@ const validPoints = (v: string): boolean => {
   return Number.isFinite(n) && n >= 0 && n <= MAX_DRAFT_POINTS;
 };
 
-export const TASK_GRID = 'grid grid-cols-[14px_minmax(0,1fr)_52px_24px] items-center gap-x-2.5 sm:grid-cols-[14px_minmax(0,1fr)_auto_52px_24px]';
+const TASK_GRID = 'grid grid-cols-[14px_minmax(0,1fr)_52px_24px] items-center gap-x-2.5 sm:grid-cols-[14px_minmax(0,1fr)_auto_52px_24px]';
 
 // One task, one line: select, title (click to edit), PR chips, points (click to
 // edit), remove. Draggable onto another delivery.

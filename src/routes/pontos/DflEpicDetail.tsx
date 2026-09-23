@@ -42,7 +42,9 @@ export function DflEpicDetail({ epic, project }: Props) {
         )}
       />
       <div className="flex flex-col gap-2.5">
-        {epic.deliveries.map((d) => <DflDeliverySection key={d.id} delivery={d} />)}
+        {epic.deliveries.map((d) => (
+          <DflDeliverySection key={d.id} delivery={d} defaultOpen={n === 1 || d.tasks.some((t) => t.status !== 'paid')} />
+        ))}
       </div>
     </div>
   );

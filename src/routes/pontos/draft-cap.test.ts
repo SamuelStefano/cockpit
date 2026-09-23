@@ -47,4 +47,10 @@ describe('suggestSplit', () => {
     expect(suggestSplit(d('f', [10, 20]), 75)).toEqual([]);
     expect(suggestSplit(d('g', [80, 1]), 75)).toEqual([]);
   });
+
+  it('never moves a task already sent to the agent', () => {
+    const x = d('x', [40, 30, 2]);
+    x.tasks[2] = { ...x.tasks[2], status: 'dispatched' };
+    expect(suggestSplit(x, 75)).toEqual(['x1']);
+  });
 });

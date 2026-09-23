@@ -6,9 +6,8 @@ import type { AgentTasksRequest } from './pontos-agent';
 
 const brl = (cents: number): string => `R$ ${(cents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export function buildStageDraftsPrompt(req: AgentTasksRequest, now: number): string {
+export function buildStageDraftsPrompt(req: AgentTasksRequest): string {
   const note = req.note.trim();
-  const file = `/tmp/deck-drafts-${now.toString(36)}.md`;
   return `Monte no Deck (NÃO no DFL) a estrutura épico → deliveries → tasks do trabalho abaixo, pra eu revisar em /pontos antes de ir pro DFL.
 
 ## O que estruturar
@@ -25,13 +24,15 @@ ${note || '(Sem nota: descubra sozinho o que foi feito — varra as PRs mergeada
 ## Como gravar
 
 1. Rode \`~/bin/deck-drafts list\` e não repita título de épico que já está lá.
-2. Escreva ${file} neste formato:
+2. Grave tudo num comando só, passando o markdown pelo stdin (sem criar arquivo):
 
-   ## Épico 1 — <título do épico> — <total> pt
-   ### <título da delivery>        (opcional; sem ele vira "<épico> // Samuel")
-   - <título da task> — <refs de PR, ex. LS#577, campaigns#84> — <pontos>
+~/bin/deck-drafts import - <<'EOF'
+## Épico 1 — <título do épico> — <total> pt
+### <título da delivery>        (opcional; sem ele vira "<épico> // Samuel")
+- <título da task> — <refs de PR, ex. LS#577, campaigns#84> — <pontos>
+EOF
 
-3. Rode \`~/bin/deck-drafts import ${file}\` e confira os avisos.
+3. Confira os avisos que o import imprimir (linha ignorada, total do cabeçalho diferente da soma).
 
 NÃO use o MCP dfl-work pra escrever nada e NÃO gere fatura: criar no DFL é um clique meu depois da revisão.
 

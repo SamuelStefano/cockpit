@@ -59,9 +59,23 @@ describe('split-epic', () => {
     expect(d[1].tasks[0].points).toBe(30);
   });
 
+  it('drops a delivery the split emptied', () => {
+    let d = applyDraftOp(seed(), { op: 'add-delivery', epicId: 'ep-5', taskIds: ['tk-3'] }, { now: 1, newId: () => 'dl-b' });
+    d = applyDraftOp(d, { op: 'split-epic', id: 'ep-5', taskIds: ['tk-3'] }, { now: 9, newId: (p) => `${p}-z` });
+    expect(d[0].deliveries.map((x) => x.id)).toEqual(['dl-4']);
+  });
+
   it('refuses an empty selection or one that empties the source', () => {
     expect(() => applyDraftOp(seed(), { op: 'split-epic', id: 'ep-5', taskIds: [] }, ctx())).toThrow(/ao menos uma/);
     expect(() => applyDraftOp(seed(), { op: 'split-epic', id: 'ep-5', taskIds: ['tk-1', 'tk-2', 'tk-3'] }, ctx())).toThrow(/vazio/);
+  });
+});
+
+describe('raw frames', () => {
+  it('ignores non-string ids instead of misreading them', () => {
+    const bad = { op: 'move-tasks', epicId: 'ep-5', taskIds: 'tk-1', deliveryId: 'dl-4' } as never;
+    expect(applyDraftOp(seed(), bad, ctx())[0].deliveries[0].taskIds).toEqual(['tk-1', 'tk-2', 'tk-3']);
+    expect(() => applyDraftOp(seed(), { op: 'split-epic', id: 'ep-5', taskIds: 7 } as never, ctx())).toThrow(/ao menos uma/);
   });
 });
 

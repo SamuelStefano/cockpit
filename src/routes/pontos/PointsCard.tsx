@@ -17,18 +17,18 @@ export function PointsCard({ entry, now, glow, onCorrect, onNote, onDelete }: Pr
   const c = usePointsCard({ entry, onCorrect, onNote, onDelete });
 
   return (
-    <div className={`fade-up flex flex-col rounded-xl border bg-neutral-900/50 p-3.5 transition ${glow ? 'border-orange-500/40 glow-active' : 'border-neutral-800 hairline hover:border-neutral-700'}`}>
+    <div className={`fade-up flex flex-col rounded-lg border bg-neutral-900/50 p-3 transition ${glow ? 'border-orange-500/40 glow-active' : 'border-neutral-800 hairline hover:border-neutral-700'}`}>
       <div className="flex items-start justify-between gap-2">
         {c.editPts ? (
           <input
             autoFocus value={c.ptsDraft} onChange={(e) => c.setPtsDraft(e.target.value)} onBlur={c.savePts}
             onKeyDown={(e) => { if (e.key === 'Enter') c.savePts(); if (e.key === 'Escape') c.cancelPts(); }}
             inputMode="numeric"
-            className="w-20 rounded-md border border-orange-500/40 bg-neutral-950 px-1.5 py-0.5 text-3xl font-bold tabular-nums tracking-tight text-neutral-100 outline-hidden"
+            className="w-16 rounded-md border border-orange-500/40 bg-neutral-950 px-1.5 py-0.5 font-mono text-xl font-bold tabular-nums tracking-tight text-neutral-100 outline-hidden"
           />
         ) : (
           <button onClick={c.startEditPts} title="Corrigir pontos"
-            className="flex items-baseline gap-1 rounded-md text-3xl font-bold tabular-nums tracking-tight text-neutral-100 transition hover:text-orange-300">
+            className="flex items-baseline gap-1 rounded-md font-mono text-xl font-bold tabular-nums tracking-tight text-neutral-100 transition hover:text-orange-300">
             {entry.points}
             <span className="text-[10px] font-medium uppercase tracking-wide text-neutral-600">pt</span>
           </button>
@@ -43,7 +43,7 @@ export function PointsCard({ entry, now, glow, onCorrect, onNote, onDelete }: Pr
         </div>
       </div>
 
-      <p className="mt-2 line-clamp-2 text-sm font-medium leading-snug text-neutral-100">{entry.title || 'Sem título'}</p>
+      <p className="mt-1.5 line-clamp-2 text-[13px] font-medium leading-snug text-neutral-100">{entry.title || 'Sem título'}</p>
 
       {c.editDesc ? (
         <input
@@ -59,7 +59,7 @@ export function PointsCard({ entry, now, glow, onCorrect, onNote, onDelete }: Pr
         </button>
       )}
 
-      <div className="mt-auto flex flex-wrap items-center gap-2 pt-2.5">
+      <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
         {entry.corrected && <Badge tone="yellow">corrigido {entry.originalPoints}→{entry.points}</Badge>}
         <button onClick={c.toggleHistory}
           className="flex items-center gap-1 text-[11px] text-neutral-500 hover:text-neutral-300">
