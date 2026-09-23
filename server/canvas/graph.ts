@@ -4,7 +4,7 @@ import {
   cardNodeId, contextNodeId, sessionNodeId,
 } from '../../shared/canvas';
 import type { SessionRefs } from './refs';
-import { matchTopics, type MatchDoc } from './topics';
+import { createTopicMatcher, type MatchDoc } from './topics';
 
 export interface ContextDoc {
   id: string;
@@ -62,7 +62,10 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
   const ctxIds = new Set(input.contexts.map((c) => c.id));
   const sessionIds = new Set(input.sessions.map((s) => s.meta.id));
 
-  const matchDocs: MatchDoc[] = input.contexts.map((c) => ({ id: c.id, name: c.name, description: c.description, hub: c.id.startsWith('hub_') }));
+  // Built once per graph, not per session: the hub<->leaf vote map only
+  // depends on the memory corpus, which is the same for every session below.
+  const matchDocs: MatchDoc[] = input.contexts.map((c) => ({ id: c.id, name: c.name, description: c.description, hub: c.id.startsWith('hub_'), links: c.links }));
+  const matchTopics = createTopicMatcher(matchDocs);
 
   for (const { meta, archived } of input.sessions) {
     nodes.push({
@@ -76,8 +79,10 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
       if (ctxIds.has(ctx)) addEdge(sessionNodeId(meta.id), contextNodeId(ctx), kind);
     }
     const text = `${meta.title} ${meta.summary ?? ''} ${meta.snippet}`;
-    for (const { id: ctx, score } of matchTopics(refs.topics, text, matchDocs)) {
-      if (ctxIds.has(ctx) && !refs.contexts[ctx]) addEdge(sessionNodeId(meta.id), contextNodeId(ctx), 'topic', score / 15);
+    for (const { id: ctx, score } of matchTopics(refs.topics, text)) {
+      // A real memory tool call (read/write) is stronger evidence than any
+      // inference — never replaced by a topic guess for the same context.
+      if (ctxIds.has(ctx) && !refs.contexts[ctx]) addEdge(sessionNodeId(meta.id), contextNodeId(ctx), 'topic', score / 5);
     }
   }
 

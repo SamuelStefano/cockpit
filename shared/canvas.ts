@@ -83,7 +83,13 @@ export const CARD_MARKER_RE = /\[deck-card:([a-z0-9-]{4,40})\]/;
 // original home) because it is also needed by the canvas filter, which is pure
 // TS tested under Node — session.ts pulls in `location` at import time and
 // breaks outside a browser/jsdom environment.
-const PING_TEXTS = new Set(['.', '. - nao responder', '. - não responder', '.- nao responder', '.- não responder']);
+const PING_TEXTS = new Set([
+  '.', '. - nao responder', '. - não responder', '.- nao responder', '.- não responder',
+  // Bare variant (no leading "." at all), confirmed against real recent titles
+  // while building the canvas topic matcher: "Nao responder" / "Não responder"
+  // alone, same reset cron, just without the dot.
+  'nao responder', 'não responder',
+]);
 export function isCronPing(m: { title?: string; snippet?: string }): boolean {
   const t = (m.snippet || m.title || '').trim().toLowerCase();
   return PING_TEXTS.has(t);
