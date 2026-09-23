@@ -2,7 +2,8 @@
 // REGRA (squad L3): types-only — zero import de node:*/fs. O bundle do browser
 // importa este arquivo.
 
-import type { CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, CardStatus, TermStats } from './canvas';
+import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, CardStatus, TermStats } from './canvas';
+import type { AreaUsage } from './canvas-budget';
 import type { DflDraft, DraftOp } from './dfl-drafts';
 
 export interface ToolDiff {
@@ -714,6 +715,7 @@ export type ClientMsg =
   | { t: 'canvas-card-delete'; id: string }
   | { t: 'canvas-flow-save'; flow: CanvasFlow }
   | { t: 'canvas-flow-delete'; id: string }
+  | { t: 'canvas-budget-save'; area: string; budget: AreaBudget }
   // Bench: compila um componente de outro repo num bundle autocontido pro iframe
   // do chat. `repo` é SLUG de registro do servidor, nunca caminho — caminho vindo
   // do cliente seria leitura arbitrária de arquivo.
@@ -886,6 +888,13 @@ export type ServerMsg =
   // browser attached at all (a cron turn closing), so it must never touch
   // the generic global broadcast() every socket receives.
   | { t: 'canvas-card-status'; cardId: string; status: CardStatus }
+  // Server-initiated: the autopause loop stopped a running turn because its
+  // area stayed over budget. Same emitCanvasMsg (server/ws/canvas-clients.ts)
+  // as canvas-flow-failed — every canvas-open admin tab gets the toast, but
+  // canvas data (a session's title) never reaches a non-admin/canvas-closed
+  // socket.
+  | { t: 'canvas-budget-paused'; area: AreaId; sessionId: string; sessionTitle: string; reason: string }
+  | { t: 'canvas-area-usage'; usage: Partial<Record<AreaId, AreaUsage>> }
   | { t: 'graph-data'; id: string; graph: GraphData }
   | { t: 'graph-query-result'; id: string; question: string; answer: string; tokens: number; miss: boolean }
   | { t: 'graph-build-progress'; line: string }

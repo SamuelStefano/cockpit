@@ -1,5 +1,8 @@
 import type { WebSocketServer, WebSocket } from 'ws';
 import type { ServerMsg } from '../../shared/protocol';
+import type { Role } from '../auth';
+
+type RoleTaggedSocket = WebSocket & { role?: Role };
 
 // Fan-out: frames de um run vão pra TODOS os clientes abertos, não pra um socket
 // fixo. Sem isto, uma 2ª aba (ou um reconnect que cria o socket novo antes do
@@ -40,4 +43,22 @@ export function broadcast(msg: ServerMsg) {
 export function send(ws: WebSocket, msg: ServerMsg) {
   if (ws.readyState !== ws.OPEN) return;
   try { ws.send(JSON.stringify(msg)); } catch { /* socket fechou entre o check e o envio */ }
+}
+
+// Canvas frames answer the caller only (dispatch.ts's own comment on canvas-*):
+// broadcast() fans out regardless of role, and the graph/board carry memory
+// titles and session summaries a non-admin socket must never see. A
+// SERVER-INITIATED canvas event (nobody to `send` a reply to — e.g. the
+// autopause loop stopping a turn nobody asked it to stop) still needs to reach
+// every open admin tab, so it goes out here instead of a plain broadcast.
+// serveConnection tags `ws.role` at connection time (both the listen and the
+// dial/relay transport go through it).
+export function broadcastAdmin(msg: ServerMsg) {
+  if (!source) return;
+  const payload = JSON.stringify(msg);
+  for (const c of source.clients) {
+    if (c.readyState !== c.OPEN) continue;
+    if ((c as RoleTaggedSocket).role !== 'admin') continue;
+    try { c.send(payload); } catch { /* socket fechou no meio do loop */ }
+  }
 }

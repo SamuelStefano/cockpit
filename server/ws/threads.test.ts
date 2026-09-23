@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { admitRun, busyFrame, threads, onStop, stopSession, resolveThreadKey, stopEpochOf, clearStopEpoch, killAllRuns, runStats, type Thread } from './threads';
+import {
+  admitRun, busyFrame, threads, onStop, stopSession, onBudgetStop, stopSessionForBudget,
+  resolveThreadKey, stopEpochOf, clearStopEpoch, killAllRuns, runStats, type Thread,
+} from './threads';
 
 vi.mock('../engine/triage', () => ({ killSideRuns: vi.fn(), killSideRunsFor: vi.fn() }));
 
@@ -86,6 +89,27 @@ describe('stopSession', () => {
   it('sessão fantasma não quebra nem mata ninguém', () => {
     threads.set('k1', thread());
     stopSession('ghost');
+    expect(kill).not.toHaveBeenCalled();
+  });
+});
+
+describe('onBudgetStop / stopSessionForBudget', () => {
+  it('marca budgetStopped com o motivo, NUNCA userStopped', () => {
+    threads.set('k1', thread());
+    onBudgetStop('k1', 'cpu 120% > 100%');
+    expect(threads.get('k1')).toMatchObject({ stopped: true, budgetStopped: true, budgetStopReason: 'cpu 120% > 100%' });
+    expect(threads.get('k1')?.userStopped).toBeUndefined();
+  });
+
+  it('mata o turno pela chave migrada, como o stop normal', () => {
+    threads.set('new-a', thread('sid-1'));
+    stopSessionForBudget('sid-1', 'contexto 900k > 500k');
+    expect(kill).toHaveBeenCalledTimes(1);
+    expect(threads.get('new-a')).toMatchObject({ budgetStopped: true, budgetStopReason: 'contexto 900k > 500k' });
+  });
+
+  it('sessão fantasma não quebra nem mata ninguém', () => {
+    stopSessionForBudget('ghost', 'x');
     expect(kill).not.toHaveBeenCalled();
   });
 });

@@ -44,15 +44,17 @@ import { requestPlanUsageRefresh, planUsageFrame } from './usage-plan';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 import { buildBench } from '../bench';
 import { buildCanvas } from '../canvas/index';
-import { collectTermStats, hasInteractiveClaude } from '../canvas/term-stats';
+import { collectTermStats, hasInteractiveClaude, newCpuSamples, type CpuSamples } from '../canvas/term-stats';
 import {
   MAX_FLOWS, readBoard, readBoardChained, updateBoard, sanitizeCard, sanitizeFlow, sanitizePos, upsertCard, upsertFlow, removeCard, removeFlow,
-  checkFlowSave, mergePos,
+  checkFlowSave, mergePos, setBudget,
 } from '../canvas/board';
 import { activeFlowRuns } from '../canvas/flow-runs';
 import { startCanvasFlows } from '../canvas/flows';
-import { registerCanvasClient } from './canvas-clients';
+import { registerCanvasClient, emitCanvasMsg } from './canvas-clients';
 import type { CanvasBoard } from '../../shared/canvas';
+import { updateAreaCacheFromGraph, getAreaOf } from '../canvas/autopause-loop';
+import { areaUsageFromIds } from '../../shared/canvas-budget';
 
 // Registers the turn-closed listener once, at module load — both entry points
 // (server/index.ts, server/agent.ts) reach this file via ws/serve-connection.ts.
@@ -64,6 +66,20 @@ startCanvasFlows();
 // on the SAME frame as the board, not just the one-shot canvas-flow-run
 // broadcast it may have missed entirely.
 const boardFrame = (board: CanvasBoard) => ({ t: 'canvas-board' as const, board, flowRuns: activeFlowRuns() });
+
+// CPU samples for the canvas-term-stats POLL, keyed per SOCKET — not one
+// shared map. cpuPercent is a delta against the previous sample per key
+// (server/canvas/term-stats.ts); a map shared across every tab/connection let
+// one browser tab's 3s poll zero out another tab's delta whenever they landed
+// close together (review #595 point 5 — the same class of bug already fixed
+// once between the client poll and the autopause loop, just one layer finer).
+// WeakMap: a closed socket's samples are dropped for free, no cleanup needed.
+const dispatchTermSamplesBySocket = new WeakMap<WebSocket, CpuSamples>();
+function termSamplesFor(ws: WebSocket): CpuSamples {
+  let m = dispatchTermSamplesBySocket.get(ws);
+  if (!m) { m = newCpuSamples(); dispatchTermSamplesBySocket.set(ws, m); }
+  return m;
+}
 
 const BG_RUN_MESSAGE: Record<BgRunReject, string> = {
   'sem-item': 'este item não está mais na fila',
@@ -133,8 +149,25 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'canvas-term-stats': {
       const ids = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+      const sessions = ids(msg.sessions);
+      const terms = ids(msg.terms);
       const runs = [...threads].map(([key, t]) => ({ key, sessionId: t.sessionId, pid: t.handle.pid, startedAt: t.startedAt }));
-      send(ws, { t: 'canvas-term-stats', stats: await collectTermStats(ids(msg.sessions), ids(msg.terms), runs) });
+      const runningIds = [...new Set(runs.map((r) => r.sessionId).filter((s): s is string => !!s))];
+      // Stats cover this caller's own open ids (for the per-terminal bars) UNION
+      // every running session (for area usage below) — the union avoids a
+      // second collectTermStats pass for ids already in the caller's own set.
+      const statIds = [...new Set([...sessions, ...runningIds])];
+      const stats = await collectTermStats(statIds, terms, runs, termSamplesFor(ws));
+      const requested: Record<string, typeof stats[string]> = {};
+      for (const id of [...sessions, ...terms]) if (stats[id]) requested[id] = stats[id];
+      send(ws, { t: 'canvas-term-stats', stats: requested });
+      // Single source of truth (review #595 point 4): area usage is summed over
+      // EVERY running session (claude tree + tmux pane CPU, ctx tokens) — the
+      // exact same set autopause-loop.ts enforces against — never just this
+      // caller's own open windows. Display and enforcement can no longer
+      // disagree because they're now the same function over the same ids.
+      const usage = areaUsageFromIds(getAreaOf(), runningIds, stats);
+      send(ws, { t: 'canvas-area-usage', usage });
       return;
     }
     case 'canvas-get': {
@@ -146,7 +179,11 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // drag-end/card-save write and answer with a stale board (review #7).
       const board = await readBoardChained();
       send(ws, boardFrame(board));
-      send(ws, { t: 'canvas-graph', graph: await buildCanvas(board) });
+      const graph = await buildCanvas(board);
+      // Cheapest refresh point for the autopause loop's session->area cache
+      // (canvas/autopause-loop.ts): reuses this exact graph, no extra build.
+      updateAreaCacheFromGraph(graph);
+      send(ws, { t: 'canvas-graph', graph });
       return;
     }
     case 'canvas-pos': {
@@ -199,6 +236,11 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'canvas-flow-delete': {
       const board = await updateBoard((b) => removeFlow(b, String(msg.id ?? '')));
+      send(ws, boardFrame(board));
+      return;
+    }
+    case 'canvas-budget-save': {
+      const board = await updateBoard((b) => setBudget(b, String(msg.area ?? ''), msg.budget));
       send(ws, boardFrame(board));
       return;
     }

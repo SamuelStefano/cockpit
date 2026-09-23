@@ -56,6 +56,30 @@ describe('layoutCanvas', () => {
   });
 });
 
+describe('layoutCanvas areas', () => {
+  it('packs hubs of the same area next to each other, ahead of a lower-ranked area', () => {
+    // 'deck' outranks 'outros' (AREA_IDS order); a low-degree deck hub must
+    // still land before a high-degree unclassified one so the region stays
+    // contiguous instead of being split by degree.
+    const areaNodes = [
+      n('c:hub_deck', 'context', { hub: true, area: 'deck' }), n('c:deck_leaf', 'context', { area: 'deck' }),
+      n('c:hub_x', 'context', { hub: true }), n('c:x_leaf1', 'context'), n('c:x_leaf2', 'context'), n('c:x_leaf3', 'context'),
+    ];
+    const areaEdges: CanvasEdge[] = [
+      { source: 'c:hub_deck', target: 'c:deck_leaf', kind: 'link' },
+      { source: 'c:hub_x', target: 'c:x_leaf1', kind: 'link' },
+      { source: 'c:hub_x', target: 'c:x_leaf2', kind: 'link' },
+      { source: 'c:hub_x', target: 'c:x_leaf3', kind: 'link' },
+    ];
+    const p = layoutCanvas(areaNodes, areaEdges, {});
+    // Cluster boxes pack row-major (left to right, wrapping top to bottom), so
+    // processing order is exactly the lexicographic (y, x) order of the box
+    // centers — a same- or later-row position, never an earlier one.
+    const deck = p['c:hub_deck']; const x = p['c:hub_x'];
+    expect(deck.y < x.y || (deck.y === x.y && deck.x < x.x)).toBe(true);
+  });
+});
+
 describe('bounds', () => {
   it('covers node boxes', () => {
     expect(bounds([{ x: 0, y: 0 }, { x: 100, y: 50 }]).w).toBeGreaterThan(100);

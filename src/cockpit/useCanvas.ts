@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ClientMsg, ServerMsg } from '../../shared/protocol';
-import type { CanvasBoard, CanvasCard, CanvasFlow, CanvasGraph, CanvasPos, TermStats } from '../../shared/canvas';
+import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasGraph, CanvasPos, TermStats } from '../../shared/canvas';
+import { AREA_LABELS } from '../../shared/canvas';
+import type { AreaUsage } from '../../shared/canvas-budget';
 import { toast } from '../components/primitives';
 
 export interface CanvasApi {
@@ -25,12 +27,17 @@ export interface CanvasApi {
   // server-triggered card run is "rodando" until the sessions list catches
   // up on its own.
   canvasFlowRuns: Record<string, { key: string; at: number }>;
+  onCanvasBudgetSave: (area: AreaId, budget: AreaBudget) => void;
   canvasTermStats: Record<string, TermStats>;
   onCanvasTermStats: (sessions: string[], terms: string[]) => void;
+  // Server-authoritative per-area usage (same computation the autopause loop
+  // acts on), scoped to whatever ids the LAST onCanvasTermStats call asked
+  // about. The client never estimates this itself (review #595 point 8).
+  canvasAreaUsage: Partial<Record<AreaId, AreaUsage>>;
   onMsg: (msg: ServerMsg) => boolean;
 }
 
-const EMPTY_BOARD: CanvasBoard = { cards: [], pos: {}, flows: [] };
+const EMPTY_BOARD: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: {} };
 
 // server/ws/dispatch.ts runs message handlers unawaited and reads the board
 // outside any write chain: a `canvas-board` frame answering an earlier
@@ -59,6 +66,7 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
   const [canvasTermStats, setTermStats] = useState<Record<string, TermStats>>({});
   const [canvasFlowFired, setFlowFired] = useState<Record<string, number>>({});
   const [canvasFlowRuns, setFlowRuns] = useState<Record<string, { key: string; at: number }>>({});
+  const [canvasAreaUsage, setAreaUsage] = useState<Partial<Record<AreaId, AreaUsage>>>({});
   const loadingRef = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -83,6 +91,7 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
 
   const onMsg = useCallback((msg: ServerMsg) => {
     if (msg.t === 'canvas-term-stats') { setTermStats(msg.stats); return true; }
+    if (msg.t === 'canvas-area-usage') { setAreaUsage(msg.usage); return true; }
     if (msg.t === 'canvas-flow-fired') {
       setFlowFired((f) => ({ ...f, [msg.flowId]: msg.at }));
       // Server only ever sends this minimal event (never the whole board —
@@ -190,7 +199,9 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
           });
         for (const id of Object.keys(flowWriteAt.current)) if (now - flowWriteAt.current[id] >= WRITE_GRACE_MS) delete flowWriteAt.current[id];
         for (const id of Object.keys(flowDeleteWriteAt.current)) if (now - flowDeleteWriteAt.current[id] >= WRITE_GRACE_MS) delete flowDeleteWriteAt.current[id];
-        return { cards, pos, flows };
+        // Budgets have no optimistic-write grace window (see onCanvasBudgetSave):
+        // the incoming frame is always authoritative for them.
+        return { cards, pos, flows, budgets: msg.board.budgets };
       });
       return true;
     }
@@ -199,6 +210,12 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
     // normal handler downstream still needs to show it — just stop waiting
     // on a canvas-get that will now never get its graph frame.
     if (msg.t === 'error' && loadingRef.current) { setStale(true); settle(); }
+    // Server-initiated (the autopause loop, not a reply to anything this tab
+    // sent): a toast on whichever tab is open, wherever the stop happened.
+    if (msg.t === 'canvas-budget-paused') {
+      toast(`Área ${AREA_LABELS[msg.area]} estourou o orçamento: parou "${msg.sessionTitle}" (${msg.reason}).`, { tone: 'error', durationMs: 8000 });
+      return true;
+    }
     return false;
   }, [settle]);
 
@@ -267,10 +284,17 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
     send({ t: 'canvas-term-stats', sessions, terms });
   }, [send]);
 
+  // No optimistic update: unlike a card/pos drag, a budget edit is rare and
+  // its popover is already closed by the caller on submit — a brief round-trip
+  // before the chip updates is not the glitch a snapped-back drag would be.
+  const onCanvasBudgetSave = useCallback((area: AreaId, budget: AreaBudget) => {
+    send({ t: 'canvas-budget-save', area, budget });
+  }, [send]);
+
   return {
     canvasGraph, canvasBoard, canvasLoading, canvasLoadingSince, canvasStale,
     onCanvasGet, onCanvasPos, onCanvasPosReset, onCanvasCardSave, onCanvasCardDelete,
-    onCanvasFlowSave, onCanvasFlowDelete, canvasFlowFired, canvasFlowRuns,
-    canvasTermStats, onCanvasTermStats, onMsg,
+    onCanvasFlowSave, onCanvasFlowDelete, canvasFlowFired, canvasFlowRuns, onCanvasBudgetSave,
+    canvasTermStats, onCanvasTermStats, canvasAreaUsage, onMsg,
   };
 }

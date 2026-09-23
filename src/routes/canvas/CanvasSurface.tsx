@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import type { CanvasEdge, CanvasFlow, CanvasNode, CanvasPos, TermStats } from '../../../shared/canvas';
+import type { AreaId, CanvasEdge, CanvasFlow, CanvasNode, CanvasPos, TermStats } from '../../../shared/canvas';
+import type { BudgetStatus } from '../../../shared/canvas-budget';
+import { CanvasAreas } from './CanvasAreas';
+import type { AreaRect } from './canvas-areas';
 import { CanvasEdges } from './CanvasEdges';
 import { CanvasFlowArrows } from './CanvasFlowArrows';
 import { CanvasFlowPorts } from './CanvasFlowPorts';
@@ -44,6 +47,9 @@ interface Props {
   flowFired: Record<string, number>;
   onFlowCreate: (from: string, to: string) => void;
   onFlowClick: (id: string) => void;
+  areaRects: AreaRect[];
+  budgetStatus: Partial<Record<AreaId, BudgetStatus>>;
+  onEditBudget: (area: AreaId) => void;
   children?: React.ReactNode;
 }
 
@@ -153,6 +159,7 @@ export function CanvasSurface(p: Props) {
       onPointerCancel={(e) => { onNodeUp(); onPortUp(e); vp.onBackgroundUp(e); }}
     >
       <div className="absolute left-0 top-0 origin-top-left" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})` }}>
+        <CanvasAreas rects={p.areaRects} status={p.budgetStatus} onEditBudget={p.onEditBudget} />
         <CanvasEdges edges={p.edges} pos={pos} focus={focus} />
         {/* Arrows paint BELOW the nodes — pointer-events-none except a small
             midpoint chip, never a wide hit-band over the whole route, so a

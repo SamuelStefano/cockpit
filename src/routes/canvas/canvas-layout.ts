@@ -1,4 +1,4 @@
-import type { CanvasEdge, CanvasNode, CanvasPos } from '../../../shared/canvas';
+import { AREA_IDS, type CanvasEdge, type CanvasNode, type CanvasPos } from '../../../shared/canvas';
 
 // Deterministic first placement: hubs on a grid, their leaves in rings around
 // them, sessions orbiting the contexts they touched, cards above what they bind.
@@ -49,7 +49,10 @@ export function layoutCanvas(nodes: CanvasNode[], edges: CanvasEdge[], saved: Re
   const degree = (id: string) => nbrs.get(id)?.length ?? 0;
 
   const contexts = nodes.filter((n) => n.kind === 'context');
-  const hubs = contexts.filter((n) => n.hub).sort((a, b) => degree(b.id) - degree(a.id) || a.id.localeCompare(b.id));
+  // Area first, so every hub of the same work front packs into one contiguous
+  // region of the row/box grid below; degree/id only break ties within it.
+  const areaRank = (n: CanvasNode) => { const i = AREA_IDS.indexOf(n.area ?? 'outros'); return i < 0 ? AREA_IDS.length : i; };
+  const hubs = contexts.filter((n) => n.hub).sort((a, b) => areaRank(a) - areaRank(b) || degree(b.id) - degree(a.id) || a.id.localeCompare(b.id));
   const hubOf = new Map<string, string>();
   for (const e of edges) {
     if (e.kind !== 'link') continue;

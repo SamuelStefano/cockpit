@@ -4,6 +4,15 @@
 
 export type CanvasNodeKind = 'session' | 'context' | 'card' | 'shell';
 
+// Work-front grouping, derived from the memory graph (server/canvas/areas.ts)
+// and rendered as a colored region on the canvas. Capped at 6 so the map
+// never grows a 7th color nobody can tell apart from the other 6 at a glance.
+export type AreaId = 'dfl' | 'itera' | 'deck' | 'pessoal' | 'infra' | 'outros';
+export const AREA_IDS: readonly AreaId[] = ['dfl', 'itera', 'deck', 'pessoal', 'infra', 'outros'];
+export const AREA_LABELS: Record<AreaId, string> = {
+  dfl: 'DFL', itera: 'Itera', deck: 'Deck', pessoal: 'Pessoal', infra: 'Infra', outros: 'Outros',
+};
+
 export type CardStatus = 'todo' | 'doing' | 'review' | 'done';
 export const CARD_STATUSES: readonly CardStatus[] = ['todo', 'doing', 'review', 'done'];
 
@@ -36,6 +45,7 @@ export interface CanvasNode {
   path?: string; // absolute file of a context, so a prompt can point the agent at it
   count?: number; // session only: user+assistant turns, for the cron-ping/empty check
   waiting?: boolean; // session only: turn stopped on a pending AskUserQuestion
+  area?: AreaId; // set by server/canvas/areas.ts; absent = no hub/leaf evidence (client-only shell nodes stay unset too)
 }
 
 // 'card' = the agent actually ran on this session (marker-bound) or the card
@@ -87,10 +97,19 @@ export interface CanvasFlow {
   mcps?: string[];
 }
 
+// A ceiling on one area's live usage. Both fields optional (set only the one
+// you want enforced); autoPause is opt-in and off unless explicitly turned on.
+export interface AreaBudget {
+  ctxTokens?: number; // sum of contextTokens across the area's RUNNING sessions
+  cpu?: number;       // sum of cpu% across the area's RUNNING sessions (claude tree + tmux pane)
+  autoPause?: boolean;
+}
+
 export interface CanvasBoard {
   cards: CanvasCard[];
   pos: Record<string, CanvasPos>;
   flows: CanvasFlow[];
+  budgets: Partial<Record<AreaId, AreaBudget>>;
 }
 
 // A card-target flow's in-flight run — server/canvas/flow-runs.ts, transient

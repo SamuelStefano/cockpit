@@ -1,17 +1,17 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { WebSocketServer, WebSocket } from 'ws';
 import type { ServerMsg } from '../../shared/protocol';
-import { broadcast, send, setWss } from './broadcast';
+import { broadcast, broadcastAdmin, send, setWss } from './broadcast';
 
 const OPEN = 1;
 const CLOSED = 3;
 const OVER = 5 * 1024 * 1024; // above the 4 MiB backpressure cap
 
-type FakeClient = { readyState: number; OPEN: number; bufferedAmount: number; sent: string[]; send: (s: string) => void };
+type FakeClient = { readyState: number; OPEN: number; bufferedAmount: number; sent: string[]; send: (s: string) => void; role?: string };
 
-function client(readyState: number, bufferedAmount = 0): FakeClient {
+function client(readyState: number, bufferedAmount = 0, role?: string): FakeClient {
   const sent: string[] = [];
-  return { readyState, OPEN, bufferedAmount, sent, send: (s) => sent.push(s) };
+  return { readyState, OPEN, bufferedAmount, sent, role, send: (s) => sent.push(s) };
 }
 
 function wssWith(clients: FakeClient[]) {
@@ -63,6 +63,32 @@ describe('broadcast', () => {
     broadcast(delta);
     expect(slow.sent).toHaveLength(0);
     expect(fast.sent).toHaveLength(1);
+  });
+});
+
+describe('broadcastAdmin', () => {
+  beforeEach(() => setWss(null));
+
+  it('is a no-op when no server is registered', () => {
+    expect(() => broadcastAdmin(done)).not.toThrow();
+  });
+
+  it('sends only to sockets tagged role=admin', () => {
+    const admin = client(OPEN, 0, 'admin');
+    const student = client(OPEN, 0, 'student');
+    const untagged = client(OPEN, 0, undefined);
+    wssWith([admin, student, untagged]);
+    broadcastAdmin(done);
+    expect(admin.sent).toHaveLength(1);
+    expect(student.sent).toHaveLength(0);
+    expect(untagged.sent).toHaveLength(0);
+  });
+
+  it('skips a closed admin socket', () => {
+    const closedAdmin = client(CLOSED, 0, 'admin');
+    wssWith([closedAdmin]);
+    broadcastAdmin(done);
+    expect(closedAdmin.sent).toHaveLength(0);
   });
 });
 

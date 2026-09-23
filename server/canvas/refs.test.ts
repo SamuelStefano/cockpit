@@ -19,6 +19,14 @@ describe('scanRefsLine', () => {
     expect(r.contexts.a).toBe('write');
   });
 
+  it('counts every touch of a context regardless of kind (contextHits)', () => {
+    const r = emptyRefs();
+    scanRefsLine(toolLine('Write', { file_path: '/m/memory/a.md' }), r);
+    scanRefsLine(toolLine('Read', { file_path: '/m/memory/a.md' }), r);
+    scanRefsLine(toolLine('Read', { file_path: '/m/memory/a.md' }), r);
+    expect(r.contextHits).toEqual({ a: 3 });
+  });
+
   it('reads memory paths out of Bash commands', () => {
     const r = emptyRefs();
     scanRefsLine(toolLine('Bash', { command: 'cat ~/.claude/projects/x/memory/hub_dfl.md | head' }), r);

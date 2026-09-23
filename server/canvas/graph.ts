@@ -5,6 +5,7 @@ import {
 } from '../../shared/canvas';
 import type { SessionRefs } from './refs';
 import { createTopicMatcher, type MatchDoc } from './topics';
+import { classifyAreas } from './areas';
 
 export interface ContextDoc {
   id: string;
@@ -76,7 +77,14 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
     const refs = input.refs.get(meta.id);
     if (!refs) continue;
     for (const [ctx, kind] of Object.entries(refs.contexts)) {
-      if (ctxIds.has(ctx)) addEdge(sessionNodeId(meta.id), contextNodeId(ctx), kind);
+      if (!ctxIds.has(ctx)) continue;
+      // Weight by how many tool calls actually touched this context, when the
+      // scanner recorded it (refs.ts's contextHits — absent on an older cache
+      // entry, in which case this edge stays unweighted like before). Same cap
+      // shape as the topic scorer's own WEIGHT_CAP=5: a context hit 5+ times
+      // reads as maximally confident evidence, not linearly unbounded.
+      const hits = refs.contextHits?.[ctx];
+      addEdge(sessionNodeId(meta.id), contextNodeId(ctx), kind, hits ? hits / 5 : undefined);
     }
     const text = `${meta.title} ${meta.summary ?? ''} ${meta.snippet}`;
     for (const { id: ctx, score } of matchTopics(refs.topics, text)) {
@@ -122,6 +130,10 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
       if (sessionIds.has(sid)) addEdge(cardNodeId(card.id), sessionNodeId(sid), 'input');
     }
   }
+
+  // Areas by work front, last: needs the full hub/leaf/session edge set above.
+  const areas = classifyAreas(nodes, edges);
+  for (const n of nodes) { const a = areas.get(n.id); if (a) n.area = a; }
 
   return { nodes, edges, builtAt: input.now ?? Date.now() };
 }

@@ -119,7 +119,25 @@ async function readTail(file: string): Promise<string> {
 const SESSION_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const TERM_ID_RE = /^[a-zA-Z0-9_-]{1,32}$/;
 const MAX_IDS = 40;
-const prevTicks = new Map<string, { ticks: number; at: number }>();
+
+export type CpuSamples = Map<string, { ticks: number; at: number }>;
+
+// The client's 3s canvas-term-stats poll and the server's own autopause loop
+// (10s tick) both call this function, and cpuPercent is a DELTA against the
+// PREVIOUS sample per key. A single shared map made whichever caller ran last
+// overwrite the other's baseline — the loop's 10s tick would zero out (or
+// wildly skew) the very next 3s poll's reading, regressing the #589 analysis
+// bar. Each caller now owns its own sample store; collectTermStats no longer
+// has an implicit default so a caller can never forget to pass one and
+// silently share the shared store's samples with someone else.
+export function newCpuSamples(): CpuSamples {
+  return new Map();
+}
+
+// Belt-and-suspenders on top of the per-round "not asked" eviction below: a
+// caller whose `asked` set has a bug (or who simply stops calling) must not
+// leak samples forever.
+const SAMPLE_MAX_AGE_MS = 5 * 60_000;
 
 // Pure decision: does this pane's process tree contain a `claude` process?
 // True = someone (Deck's own "retomar" button, or by hand) resumed the watch
@@ -147,7 +165,9 @@ export async function hasInteractiveClaude(sessionId: string): Promise<boolean> 
 
 export interface RunPids { sessionId?: string; key: string; pid?: number; startedAt: number }
 
-export async function collectTermStats(sessions: string[], terms: string[], runs: RunPids[]): Promise<Record<string, TermStats>> {
+export async function collectTermStats(
+  sessions: string[], terms: string[], runs: RunPids[], samples: CpuSamples,
+): Promise<Record<string, TermStats>> {
   const sids = sessions.filter((s) => SESSION_UUID_RE.test(s)).slice(0, MAX_IDS);
   const tids = terms.filter((t) => TERM_ID_RE.test(t)).slice(0, MAX_IDS);
   const [rows, panes] = await Promise.all([readProcs(), panePids()]);
@@ -157,8 +177,8 @@ export async function collectTermStats(sessions: string[], terms: string[], runs
   const measure = (key: string, roots: number[]): Pick<TermStats, 'cpu' | 'rssMb' | 'procs'> => {
     const tree = treeOf(roots, rows);
     const ticks = tree.reduce((a, r) => a + r.ticks, 0);
-    const cpu = cpuPercent(prevTicks.get(key), ticks, now);
-    prevTicks.set(key, { ticks, at: now });
+    const cpu = cpuPercent(samples.get(key), ticks, now);
+    samples.set(key, { ticks, at: now });
     return { cpu: Math.round(cpu), rssMb: Math.round(tree.reduce((a, r) => a + r.rssKb, 0) / 1024), procs: tree.length };
   };
 
@@ -173,8 +193,10 @@ export async function collectTermStats(sessions: string[], terms: string[], runs
     const pane = panes.get(tid);
     out[tid] = measure(`t:${tid}`, pane ? [pane] : []);
   }
-  // Forget samples nobody asked for this round, so the map never grows unbounded.
+  // Forget samples nobody asked for this round (own store now, so this can no
+  // longer prune a different caller's entries), plus a max-age sweep as a
+  // second line of defense.
   const asked = new Set([...sids.map((s) => `s:${s}`), ...tids.map((t) => `t:${t}`)]);
-  for (const k of prevTicks.keys()) if (!asked.has(k)) prevTicks.delete(k);
+  for (const [k, v] of samples) if (!asked.has(k) || now - v.at > SAMPLE_MAX_AGE_MS) samples.delete(k);
   return out;
 }

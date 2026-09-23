@@ -28,6 +28,7 @@ import { startPointsWatch } from './points-watch';
 import { startDflPointsWatch } from './dfl-points-watch';
 import { startDflDraftsWatch } from './dfl-drafts-watch';
 import { loadManagedEnv } from './admin-ops';
+import { startAutoPauseLoop } from './canvas/autopause-loop';
 
 // Entrypoint do AGENTE T3 (DR-023): em vez de escutar (attachWs), DISCA pro relay
 // e serve o MESMO protocolo pelo socket de saída. O relay encaminha os frames do
@@ -282,6 +283,9 @@ export function runAgent(relayUrl: string): void {
   startPointsWatch(hasClients);
   startDflPointsWatch();
   startDflDraftsWatch();
+  // Só o agente liga (mesma trava de startParkedDrainer): o loop para/reenfileira
+  // turno, e dois processos fariam a mesma escrita compartilhada em corrida.
+  startAutoPauseLoop(); // canvas: para o turno mais pesado de uma área com orçamento estourado (opt-in por área)
   // Drainer da fila ESTACIONADA (overnight/quota-out): SÓ o agente liga (a trava
   // drainerEnabled em runs.ts evita dreno dobrado com o index/loopback). Roda
   // sem depender de browser aberto — é justamente o ponto: enfileirar à noite e

@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   checkFlowSave, claimFlowFire, emptyBoard, markCardDoing, mergePos, readBoard, readBoardChained, recordFlowFailure,
-  recordFlowSuccess, removeCard, removeFlow, sanitizeCard, sanitizeFlow, sanitizePos, updateBoard, upsertCard, upsertFlow,
+  recordFlowSuccess, removeCard, removeFlow, sanitizeBudget, sanitizeBudgets, sanitizeCard, sanitizeFlow, sanitizePos,
+  setBudget, updateBoard, upsertCard, upsertFlow,
 } from './board';
 
 // claimFlowFire takes a backoff curve injected by the caller (server/canvas/
@@ -240,5 +241,65 @@ describe('updateBoard', () => {
     await updateBoard((x) => upsertCard(x, b));
     const bak = JSON.parse(readFileSync(`${process.env.COCKPIT_CANVAS_BOARD!}.bak`, 'utf8'));
     expect(bak.cards.map((c: { id: string }) => c.id)).toEqual(['aaaa']);
+  });
+
+  // Review #595 point 13: #592 (flows) and this PR both extend CanvasBoard —
+  // a write from one feature must never clobber the other's field on disk.
+  it('a board round-trip keeps BOTH flows and budgets', async () => {
+    const flow = sanitizeFlow({ id: 'flow-1', from: 's:aaaa', to: 'k:bbbb', template: 't' }, undefined, 1)!;
+    await updateBoard((b) => upsertFlow(b, flow));
+    await updateBoard((b) => setBudget(b, 'dfl', { cpu: 40, autoPause: true }));
+    const board = await readBoard();
+    expect(board.flows.map((f) => f.id)).toEqual(['flow-1']);
+    expect(board.budgets).toEqual({ dfl: { cpu: 40, autoPause: true } });
+    // Same check straight off disk, bypassing the in-process chain entirely —
+    // proves the JSON itself carries both, not just in-memory bookkeeping.
+    const onDisk = JSON.parse(readFileSync(process.env.COCKPIT_CANVAS_BOARD!, 'utf8'));
+    expect(onDisk.flows).toHaveLength(1);
+    expect(onDisk.budgets).toEqual({ dfl: { cpu: 40, autoPause: true } });
+  });
+});
+
+describe('sanitizeBudget / sanitizeBudgets', () => {
+  it('keeps only finite, positive numbers and a strict-true autoPause', () => {
+    expect(sanitizeBudget({ ctxTokens: 100_000, cpu: 50, autoPause: true })).toEqual({ ctxTokens: 100_000, cpu: 50, autoPause: true });
+    expect(sanitizeBudget({ ctxTokens: -5, cpu: 'lots', autoPause: 'yes' })).toEqual({});
+    expect(sanitizeBudget({})).toEqual({});
+    expect(sanitizeBudget(null)).toEqual({});
+  });
+
+  it('caps an absurd number instead of storing it verbatim', () => {
+    expect(sanitizeBudget({ ctxTokens: 50_000_000 }).ctxTokens).toBe(5_000_000);
+    expect(sanitizeBudget({ cpu: 999_999 }).cpu).toBe(6400);
+  });
+
+  it('drops unknown area keys and empty entries', () => {
+    expect(sanitizeBudgets({ dfl: { cpu: 10 }, not_an_area: { cpu: 10 }, itera: {} })).toEqual({ dfl: { cpu: 10 } });
+    expect(sanitizeBudgets(null)).toEqual({});
+  });
+
+  it('an old board with no budgets field loads fine', () => {
+    expect(sanitizeBudgets(undefined)).toEqual({});
+  });
+});
+
+describe('setBudget', () => {
+  it('replaces one area wholesale, sanitized, without touching the others', () => {
+    let b = setBudget(emptyBoard(), 'dfl', { cpu: 40 });
+    b = setBudget(b, 'deck', { ctxTokens: 200_000, autoPause: true });
+    expect(b.budgets).toEqual({ dfl: { cpu: 40 }, deck: { ctxTokens: 200_000, autoPause: true } });
+    b = setBudget(b, 'dfl', { cpu: 80 });
+    expect(b.budgets).toEqual({ dfl: { cpu: 80 }, deck: { ctxTokens: 200_000, autoPause: true } });
+  });
+
+  it('an empty submission removes the area entry instead of leaving a husk', () => {
+    let b = setBudget(emptyBoard(), 'dfl', { cpu: 40 });
+    b = setBudget(b, 'dfl', {});
+    expect(b.budgets).toEqual({});
+  });
+
+  it('rejects an unknown area id, leaving the board untouched', () => {
+    const b = setBudget(emptyBoard(), 'not-an-area', { cpu: 40 });
+    expect(b.budgets).toEqual({});
   });
 });
