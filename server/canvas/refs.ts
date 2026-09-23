@@ -195,7 +195,8 @@ export function scanRefsLine(line: string, refs: SessionRefs): void {
   // to find the rare Edit/Write. Only a write-tool name (or a memory path,
   // handled above) earns the parse.
   const maybeWriteTool = line.includes('"tool_use"') && WRITE_TOOL_NAME_RE.test(line);
-  const maybeCard = !refs.cardId && line.includes('[deck-card:');
+  // NOT gated on `!refs.cardId` — see the overwrite below for why.
+  const maybeCard = line.includes('[deck-card:');
   const maybeResult = !!refs.pendingWrites && Object.keys(refs.pendingWrites).length > 0 && line.includes('"tool_result"');
   if (!maybeMemTool && !maybeWriteTool && !maybeCard && !maybeResult) return;
   let rec: { type?: string; timestamp?: string; message?: { content?: unknown } };
@@ -203,12 +204,18 @@ export function scanRefsLine(line: string, refs: SessionRefs): void {
   const content = rec.message?.content;
   if (rec.type === 'user') {
     if (maybeCard) {
-      // LAST match, not first: server/canvas/flows.ts injects an untrusted
-      // model result ahead of its own trailing marker when it builds a
-      // follow-up prompt, and that result can itself contain an echoed
-      // `[deck-card:...]` substring (quoted from an earlier turn). The first
-      // match in the string can be that echo; the marker this turn actually
-      // carries is always the last one.
+      // LAST match in THIS line wins (server/canvas/flows.ts's own trailing
+      // marker over an earlier echoed substring — same as card-sessions.ts's
+      // lastCardMarker) — but the assignment below ALSO overwrites any cardId
+      // a PRIOR line already set, so scanning top-to-bottom (chronological
+      // append order, resumed tail-first by server/canvas/index.ts) makes the
+      // LATEST marker across the WHOLE transcript win, not the first. That
+      // matters for two real cases: a session "continued" for a different
+      // card later than the one it launched for, and a FORK, whose
+      // transcript file is the parent's ENTIRE copied history (marker A,
+      // scanned first) followed by the fork's own new turn (marker B,
+      // scanned last) — a first-wins scan bound a fork of A's session to A
+      // even when its own prompt was for B (review #597 point 3).
       let m: RegExpMatchArray | undefined;
       for (const c of firstUserText(content).matchAll(new RegExp(CARD_MARKER_RE.source, 'g'))) m = c;
       if (m) refs.cardId = m[1];

@@ -12,7 +12,7 @@ import { usePersisted } from '../../lib/persist';
 import { computeAreaRects } from './canvas-areas';
 import { filterCanvas, type CanvasScope } from './canvas-filter';
 import { bounds, layoutCanvas } from './canvas-layout';
-import { boundSessions, mergeBoard, moveCard, newCardId, resolveSaveStatus } from './canvas-board';
+import { boundSessions, mergeBoard, moveCard, newCardId, resolveSaveStatus, stuckContinueCard } from './canvas-board';
 import { deriveSessionItems, doneRecentSessionIds, type LiveSessionInfo, type SessionKanbanItem } from './kanban-items';
 import { placeWindows, TERM_H, TERM_W, winKey } from './canvas-terms';
 
@@ -320,6 +320,27 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
   // fresh object every render; its own members are the real deps.
   [merged, p.board.cards, showAutomation, extraBoundIds, p.running, p.board.sessionStatus, turnStartedAt, liveSessions, p.interrupted]);
 
+  // A 'continue' reuse send runCard already moved to "doing" can still be
+  // refused by the SERVER after the fact — the double-writer guard
+  // (hasInteractiveClaude, #593) or a ctx/prompt-size gate that only exists
+  // server-side. p.canvasSendError is the exact correlation #593 already
+  // built for the canvas prompt bar's own restore-text flow (dispatch.ts
+  // 'send' → 'send-reject' → useCockpit.ts); reusing it here (session+text
+  // match, so an unrelated rejection in the same session never false-
+  // matches) is what moves the card OUT of "doing" instead of leaving it
+  // stuck there forever for a turn that never started (review #597 point 5).
+  // Never calls dismissCanvasSendError itself — the terminal window (if that
+  // session has one open) owns restoring the text into its own composer and
+  // dismissing from there; this effect only reacts, it doesn't consume.
+  useEffect(() => {
+    const stuck = stuckContinueCard(p.board.cards, p.canvasSendError, buildContinuePrompt);
+    if (!stuck) return;
+    delete pendingLaunch.current[stuck.id];
+    setPendingTick((t) => t + 1);
+    p.onCanvasCardSave(moveCard(stuck, 'todo', Date.now()));
+    toast(`O servidor recusou continuar essa sessão — "${stuck.title}" voltou pro ToDo: ${p.canvasSendError?.message}`, { tone: 'error', durationMs: 7000 });
+  }, [p.canvasSendError, p.board.cards, p]);
+
   const newDraft = useCallback((kind: CanvasCard['kind'], from: CanvasNode[]) => {
     const t = Date.now();
     const contexts = from.filter((n) => n.kind === 'context').map((n) => n.ref);
@@ -350,6 +371,20 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     setDraft(null);
   }, [p, draft, cardOf]);
 
+  // Shared by the native 'fork' reuse mode and the 'continue'→fork fallback
+  // below: forkId real chega depois via canvasForkRuns (absorvido acima);
+  // "doing" já entra pra useCardTerminalAutoOpen abrir o terminal assim que a
+  // edge marker-bound aparecer no grafo, igual a #593.
+  const runFork = useCallback((card: CanvasCard, sessionId: string, prompt: string, toastMsg: string, failMsg: string) => {
+    if (!p.onLaunchFork(sessionId, card.id, prompt)) {
+      toast(failMsg, { tone: 'error', durationMs: 6000 });
+      return;
+    }
+    p.onCanvasCardSave(moveCard(card, 'doing', Date.now()));
+    setDraft(null);
+    toast(toastMsg, { durationMs: 6000 });
+  }, [p]);
+
   const runCard = useCallback((card: CanvasCard) => {
     // Reuse: 'continue' sends into an existing session's own turn (onSendTo,
     // #593 — triaged server-side if it's busy); 'fork' starts a NEW session
@@ -358,6 +393,22 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     // — the target session already has that context, seeding it again would
     // just duplicate what it already read. 'new'/unset falls through below.
     const reuse = card.reuse;
+    // The target can have gone from idle to running SINCE the card was saved
+    // with mode 'continue' (CardReusePicker disables "continuar" on a running
+    // candidate, but that's only true at PICK time — a card can sit in ToDo
+    // for a while before "rodar" is actually clicked). Sending into a LIVE
+    // turn routes through server triage (#593 routeSend), which can decide
+    // 'priority' and KILL it — never right for an automated reuse pick, only
+    // for a human deliberately typing into the prompt bar. Fall back to fork
+    // instead: it never touches the live turn (review #597 point 4).
+    if (reuse?.mode === 'continue' && reuse.sessionId && p.running.has(reuse.sessionId)) {
+      runFork(
+        card, reuse.sessionId, buildContinuePrompt(card),
+        `Sessão em uso — forkado em vez de continuado: ${card.title}`,
+        'Sessão em uso e sem conexão pra forkar: nada disparado.',
+      );
+      return;
+    }
     if (reuse?.mode === 'continue' && reuse.sessionId) {
       const prompt = buildContinuePrompt(card);
       if (!p.onSendTo(reuse.sessionId, prompt)) {
@@ -372,17 +423,11 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
       return;
     }
     if (reuse?.mode === 'fork' && reuse.sessionId) {
-      const prompt = buildContinuePrompt(card);
-      if (!p.onLaunchFork(reuse.sessionId, card.id, prompt)) {
-        toast('Não deu pra forkar essa sessão: sem conexão com o servidor.', { tone: 'error', durationMs: 5000 });
-        return;
-      }
-      // forkId real chega depois via canvasForkRuns (absorvido acima); "doing"
-      // já entra pra useCardTerminalAutoOpen abrir o terminal assim que a
-      // edge marker-bound aparecer no grafo, igual a #593.
-      p.onCanvasCardSave(moveCard(card, 'doing', Date.now()));
-      setDraft(null);
-      toast(`Fork disparado: ${card.title}`, { durationMs: 5000 });
+      runFork(
+        card, reuse.sessionId, buildContinuePrompt(card),
+        `Fork disparado: ${card.title}`,
+        'Não deu pra forkar essa sessão: sem conexão com o servidor.',
+      );
       return;
     }
 
@@ -403,7 +448,7 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     p.onCanvasCardSave(moveCard(card, 'doing', Date.now()));
     setDraft(null);
     toast(`Agente disparado: ${card.title}`, { durationMs: 5000 });
-  }, [byId, p]);
+  }, [byId, p, runFork]);
 
   const setStatus = useCallback((id: string, status: CardStatus) => {
     const c = cardOf(id);

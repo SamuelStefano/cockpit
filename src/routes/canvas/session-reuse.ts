@@ -55,6 +55,14 @@ function formatAge(ms: number): string {
   return `há ${Math.round(h / 24)}d`;
 }
 
+// An UNKNOWN ctx (no TermStats fetched yet for this candidate) must never
+// read as "ok" — that would let the default silently fork into a session
+// nobody actually measured, which could be well past the hard cap (review
+// #597 point 2). Only a REAL number under the limit counts as headroom.
+export function headroomOk(ctxPctUsed: number | null): boolean {
+  return ctxPctUsed !== null && ctxPctUsed < HEADROOM_LIMIT_PCT;
+}
+
 export function buildReason(hitCount: number, cardTotal: number, ctxUsed: number | null, ageMs: number): string {
   const parts = [`tocou ${hitCount} de ${cardTotal} contexto${cardTotal === 1 ? '' : 's'}`];
   if (ctxUsed !== null) parts.push(`${ctxUsed}% de contexto`);
@@ -99,8 +107,8 @@ export function rankReuseCandidates(input: RankReuseInput): ReuseSuggestion[] {
   }
   return out
     .sort((a, b) => {
-      const aOk = a.ctxPctUsed === null || a.ctxPctUsed < HEADROOM_LIMIT_PCT;
-      const bOk = b.ctxPctUsed === null || b.ctxPctUsed < HEADROOM_LIMIT_PCT;
+      const aOk = headroomOk(a.ctxPctUsed);
+      const bOk = headroomOk(b.ctxPctUsed);
       if (aOk !== bOk) return aOk ? -1 : 1;
       if (b.overlapPct !== a.overlapPct) return b.overlapPct - a.overlapPct;
       return a.ageMs - b.ageMs;
@@ -112,12 +120,12 @@ export interface DefaultReuse { mode: 'new' | 'fork'; sessionId?: string }
 
 // The safe default: fork never touches the parent, so it's the "efficient
 // reuse" recommendation whenever the top candidate is actually relevant and
-// has headroom — 'continue' is never the DEFAULT (only ever a deliberate
-// pick in the UI), and a poor/no candidate falls back to a clean session.
+// has KNOWN headroom — 'continue' is never the DEFAULT (only ever a
+// deliberate pick in the UI). A poor candidate, or one whose context usage
+// hasn't been measured yet, falls back to a clean session (never guess).
 export function defaultReuseMode(top: ReuseSuggestion | undefined): DefaultReuse {
   if (!top) return { mode: 'new' };
-  const headroomOk = top.ctxPctUsed === null || top.ctxPctUsed < HEADROOM_LIMIT_PCT;
-  if (top.overlapPct >= MIN_OVERLAP_PCT && headroomOk) return { mode: 'fork', sessionId: top.sessionId };
+  if (top.overlapPct >= MIN_OVERLAP_PCT && headroomOk(top.ctxPctUsed)) return { mode: 'fork', sessionId: top.sessionId };
   return { mode: 'new' };
 }
 

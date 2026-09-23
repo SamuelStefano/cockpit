@@ -430,12 +430,16 @@ describe('canvas-card-fork (session-reuse.ts "fork")', () => {
     t: 'canvas-card-fork', parentSessionId: 'parent-1', cardId: 'card-1', text: 'siga daqui', ...over,
   } as ClientMsg);
 
-  it('parks then fires in background, answering the caller with the real forkId', async () => {
+  it('parks then fires in background WITHOUT attaching parent-queue recovery, answering the caller with the real forkId', async () => {
     await handle(ws, msg(), 'admin');
     expect(parked.addParked).toHaveBeenCalledWith('parent-1', expect.objectContaining({ prompt: 'siga daqui', resumeId: 'parent-1' }));
-    expect(runs.runParkedInBackground).toHaveBeenCalledWith('parent-1', 'pk-1', 'admin', undefined);
+    // attachRecovery=false (5th arg): a dead fork must never requeue this
+    // card's prompt into the PARENT session's own queue (review #597 point 1).
+    // enforceHardCtxCap=true (6th arg): review #597 point 2.
+    expect(runs.runParkedInBackground).toHaveBeenCalledWith('parent-1', 'pk-1', 'admin', undefined, false, true);
     expect(bc.send).toHaveBeenCalledWith(ws, { t: 'canvas-card-fork-ok', cardId: 'card-1', parentSessionId: 'parent-1', forkId: 'f1' });
     expect(bc.broadcast).toHaveBeenCalledWith(expect.objectContaining({ t: 'queue' }));
+    expect(parked.removeParked).not.toHaveBeenCalled();
   });
 
   it('a parking rejection never reaches runParkedInBackground', async () => {
@@ -445,11 +449,31 @@ describe('canvas-card-fork (session-reuse.ts "fork")', () => {
     expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'canvas-card-fork-reject', cardId: 'card-1', parentSessionId: 'parent-1' }));
   });
 
-  it('a background-run rejection still reports canvas-card-fork-reject (item stays parked)', async () => {
-    runs.runParkedInBackground.mockReturnValue({ reject: 'sem-quota' } as never);
+  // The whole point of #597 point 1: a rejection must never leave the item
+  // parked under the PARENT session — the passive drainer would later fire it
+  // as the parent's own next turn, silently running another card's prompt on
+  // the wrong session. Covers both reject shapes runParkedInBackground can
+  // return: pre-take (item still parked) and 'falhou' (item unshifted back).
+  it.each(['sem-contexto', 'sem-quota', 'sem-slot', 'falhou', 'ctx-grande'] as const)(
+    'a background-run rejection (%s) removes the item from the parent queue instead of leaving it for the passive drainer',
+    async (reject) => {
+      runs.runParkedInBackground.mockReturnValue({ reject } as never);
+      await handle(ws, msg(), 'admin');
+      expect(parked.removeParked).toHaveBeenCalledWith('parent-1', 'pk-1', 'admin');
+      expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'canvas-card-fork-reject', cardId: 'card-1' }));
+      expect(bc.broadcast).toHaveBeenCalledWith(expect.objectContaining({ t: 'queue' }));
+    },
+  );
+
+  // review #597 point 2: a fork target the ranking's own DEFAULT picked (not
+  // necessarily a session the user sized up themselves) must respect the
+  // hard ctx cap — never waved through as "explicit intent" the way a manual
+  // queue click is.
+  it('ctx-grande gets its own message, distinct from sem-quota', async () => {
+    runs.runParkedInBackground.mockReturnValue({ reject: 'ctx-grande' } as never);
     await handle(ws, msg(), 'admin');
-    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'canvas-card-fork-reject', cardId: 'card-1' }));
-    expect(bc.broadcast).toHaveBeenCalledWith(expect.objectContaining({ t: 'queue' }));
+    const call = bc.send.mock.calls.find((c) => c[1]?.t === 'canvas-card-fork-reject');
+    expect(call?.[1].message).toMatch(/grande demais/);
   });
 });
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CanvasEdge, CanvasNode, TermStats } from '../../../shared/canvas';
 import {
-  HEADROOM_LIMIT_PCT, MIN_OVERLAP_PCT, buildReason, contextsTouched, defaultReuseMode, overlapPct, rankReuseCandidates,
+  HEADROOM_LIMIT_PCT, MIN_OVERLAP_PCT, buildReason, contextsTouched, defaultReuseMode, headroomOk, overlapPct, rankReuseCandidates,
 } from './session-reuse';
 
 const session = (ref: string, over: Partial<CanvasNode> = {}): CanvasNode => ({
@@ -38,6 +38,19 @@ describe('buildReason', () => {
   });
 });
 
+describe('headroomOk', () => {
+  // review #597 point 2: an unknown ctx (no TermStats fetched for this
+  // candidate yet) must NEVER read as "ok" — that would let the default
+  // silently fork into a session nobody actually measured.
+  it('null (unknown) is never ok', () => {
+    expect(headroomOk(null)).toBe(false);
+  });
+  it('a real number under the limit is ok; at/above the limit is not', () => {
+    expect(headroomOk(HEADROOM_LIMIT_PCT - 1)).toBe(true);
+    expect(headroomOk(HEADROOM_LIMIT_PCT)).toBe(false);
+  });
+});
+
 describe('rankReuseCandidates', () => {
   const now = 10_000_000;
   const cardCtx = { contextIds: ['hub_deck', 'hub_dfl'] };
@@ -63,6 +76,22 @@ describe('rankReuseCandidates', () => {
     const out = rankReuseCandidates({ card: cardCtx, sessions, edges, running: new Set(), termStats, now });
     expect(out.map((c) => c.sessionId)).toEqual(['cool', 'hot']);
     expect(out[0].ctxPctUsed).toBeLessThan(HEADROOM_LIMIT_PCT);
+  });
+
+  // review #597 point 2: before the fix, a null ctx read as "ok" and could
+  // outrank (or tie with) a session with REAL, known-good headroom — a
+  // session nobody has measured must never look safer than one that is.
+  it('a known-good candidate outranks one with unknown ctx, even with lower overlap', () => {
+    const sessions = [session('unknown-ctx'), session('known-good')];
+    const edges = [
+      edge('s:unknown-ctx', 'c:hub_deck', 'read'), edge('s:unknown-ctx', 'c:hub_dfl', 'read'), // 100% overlap, no stats
+      edge('s:known-good', 'c:hub_deck', 'read'), // 50% overlap, real low ctx
+    ];
+    const termStats: Record<string, TermStats> = {
+      'known-good': { cpu: 0, rssMb: 0, procs: 0, contextTokens: 10_000, model: 'claude-sonnet-5' },
+    };
+    const out = rankReuseCandidates({ card: cardCtx, sessions, edges, running: new Set(), termStats, now });
+    expect(out.map((c) => c.sessionId)).toEqual(['known-good', 'unknown-ctx']);
   });
 
   it('within headroom, higher overlap wins; ties break on recency', () => {
@@ -101,6 +130,11 @@ describe('defaultReuseMode', () => {
   });
   it('high context usage -> new session even with full overlap', () => {
     const top = { sessionId: 'x', title: 'X', running: false, overlapPct: 100, ctxPctUsed: HEADROOM_LIMIT_PCT, ageMs: 0, reason: '' };
+    expect(defaultReuseMode(top)).toEqual({ mode: 'new' });
+  });
+  // review #597 point 2: unknown ctx must default to 'new', never guess a fork.
+  it('unknown ctx (null) -> new session even with full overlap', () => {
+    const top = { sessionId: 'x', title: 'X', running: false, overlapPct: 100, ctxPctUsed: null, ageMs: 0, reason: '' };
     expect(defaultReuseMode(top)).toEqual({ mode: 'new' });
   });
 });

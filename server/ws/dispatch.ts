@@ -87,6 +87,14 @@ const BG_RUN_MESSAGE: Record<BgRunReject, string> = {
   'sem-quota': 'sem tokens agora: o turno morreria no limite',
   'sem-slot': 'limite de sessões simultâneas atingido',
   'falhou': 'não deu pra abrir o chat paralelo — o item voltou pra fila',
+  'ctx-grande': 'essa sessão já está grande demais pra herdar — abra uma sessão nova em vez de fork',
+};
+// Mesmo dicionário, exceto 'falhou': um fork de card NUNCA deixa o item pra
+// trás na fila do pai (review #597 point 1 — removeParked roda em toda
+// recusa), então "voltou pra fila" mentiria aqui.
+const CANVAS_FORK_MESSAGE: Record<BgRunReject, string> = {
+  ...BG_RUN_MESSAGE,
+  'falhou': 'não deu pra abrir o chat paralelo — tente de novo',
 };
 
 const NOW_RUN_MESSAGE: Record<NowRunReject, string> = {
@@ -901,10 +909,15 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     // Fork imediato de um card do canvas (session-reuse.ts "fork"): mesma base
-    // de queue-add + queue-run-bg, fundida num round-trip só — o item nunca
-    // fica visível na fila do pai (nasce e roda na mesma chamada), e o cliente
-    // recebe o forkId de volta pra ligar o card e abrir o terminal sem esperar
-    // o próximo rebuild do grafo.
+    // de queue-add + queue-run-bg, fundida num round-trip só. AO CONTRÁRIO de
+    // 'queue-run-bg', uma recusa (ou uma morte do fork sem produzir nada)
+    // NUNCA deixa o item pra trás na fila do pai — ele é o prompt de OUTRO
+    // card, não um follow-up da sessão-mãe; se sobrasse ali, o dreno passivo
+    // (drainParked) acabaria mandando o prompt do card errado pro próximo
+    // turno ocioso da sessão-mãe (review #597 point 1). Por isso remove em
+    // toda rejeição e chama runParkedInBackground com attachRecovery=false
+    // (não amarra recuperação-por-fila a este fork: se ele morrer no meio, o
+    // prompt só some — nunca reaparece na fila de ninguém).
     case 'canvas-card-fork': {
       const disallowedSkills = await resolveSkillDeny(msg.skills);
       const parked = addParked(msg.parentSessionId, {
@@ -915,15 +928,22 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
         send(ws, { t: 'canvas-card-fork-reject', cardId: msg.cardId, parentSessionId: msg.parentSessionId, message: REJECT_MESSAGE[parked.reject] });
         return;
       }
-      const r = runParkedInBackground(msg.parentSessionId, parked.id, role, msg.model);
-      // Falhou: o item fica parado na fila do pai (mesmo comportamento de um
-      // 'queue-run-bg' recusado) em vez de sumir — o drainer ainda pode
-      // disparar quando a quota/slot liberar.
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      // attachRecovery=false: review #597 point 1. enforceHardCtxCap=true: a
+      // fork target picked by the ranking DEFAULT (not necessarily a session
+      // the user themselves sized up) must respect the same hard ctx cap a
+      // normal turn would — review #597 point 2.
+      const r = runParkedInBackground(msg.parentSessionId, parked.id, role, msg.model, false, true);
       if ('reject' in r) {
-        send(ws, { t: 'canvas-card-fork-reject', cardId: msg.cardId, parentSessionId: msg.parentSessionId, message: BG_RUN_MESSAGE[r.reject] });
+        // Recusa antes do take (sem-contexto/sem-quota/sem-slot/ctx-grande)
+        // deixa o item ainda parqueado; 'falhou' (spawn quebrou) o devolve com
+        // o MESMO id (unshiftParked preserva). Os dois casos: remove agora,
+        // sem exceção.
+        removeParked(msg.parentSessionId, parked.id, role);
+        broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+        send(ws, { t: 'canvas-card-fork-reject', cardId: msg.cardId, parentSessionId: msg.parentSessionId, message: CANVAS_FORK_MESSAGE[r.reject] });
         return;
       }
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
       send(ws, { t: 'canvas-card-fork-ok', cardId: msg.cardId, parentSessionId: msg.parentSessionId, forkId: r.forkId });
       return;
     }

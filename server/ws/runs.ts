@@ -289,7 +289,7 @@ function broadcastQueue(): void {
   broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
 }
 
-export type BgRunReject = 'sem-item' | 'sem-contexto' | 'sem-quota' | 'sem-slot' | 'falhou';
+export type BgRunReject = 'sem-item' | 'sem-contexto' | 'sem-quota' | 'sem-slot' | 'falhou' | 'ctx-grande';
 
 // Dispara UM item da fila agora, num chat paralelo, sem esperar a sessão liberar. O
 // turno em andamento não é tocado: o fork lê o transcript do chat e grava num id
@@ -297,7 +297,27 @@ export type BgRunReject = 'sem-item' | 'sem-contexto' | 'sem-quota' | 'sem-slot'
 // A ordem importa: tudo que pode recusar roda ANTES de tirar o item da fila —
 // devolver depois contaria uma tentativa falha que não houve e o item acabaria
 // segurado por engano no teto.
-export function runParkedInBackground(sessionKey: string, id: string, role?: Role, model?: string): { forkId: string } | { reject: BgRunReject } {
+// `attachRecovery` (default true, the normal "rodar em paralelo" queue click):
+// if the fork dies before producing anything, th.parked/parkedFrom makes
+// onClose's requeueParked put the prompt BACK on the PARENT session's own
+// queue — right for a queue item (it's the user's own follow-up for that
+// session). A canvas card-reuse fork (dispatch.ts 'canvas-card-fork') is NOT
+// that: its prompt is a DIFFERENT card's instruction that only happens to
+// start from this session's transcript, so requeueing it into the parent
+// would silently apply an unrelated card's prompt to this session's next
+// idle turn (review #597 point 1). false = a dead fork just drops the
+// prompt — no attach, no requeue anywhere.
+// `enforceHardCtxCap` (default false, the normal "rodar em paralelo" queue
+// click): a manual click fires a prompt the user wrote FOR that exact
+// session, explicit intent same as a manual send — the hard ctx cap never
+// blocked it on purpose (see comment below). A canvas fork's target is often
+// the RANKING's own default pick (session-reuse.ts) — the user may never
+// have looked at how big that session already is, so a cold-start onto an
+// already-hard-capped session must be blocked the same way a normal turn
+// would be (review #597 point 2), not waved through as "explicit intent".
+export function runParkedInBackground(
+  sessionKey: string, id: string, role?: Role, model?: string, attachRecovery = true, enforceHardCtxCap = false,
+): { forkId: string } | { reject: BgRunReject } {
   if (quotaHold()) return { reject: 'sem-quota' };
   const peek = findParked(sessionKey, id);
   if (!peek) return { reject: 'sem-item' };
@@ -306,6 +326,7 @@ export function runParkedInBackground(sessionKey: string, id: string, role?: Rol
   // clicar "rodar em background" num item da fila é intenção explícita, igual ao
   // envio manual. Quota e cold-busy seguram (janela de verdade acabando).
   const v = ctxVerdict({ sessionId: peek.resumeId, usage: getLastPlanUsage() });
+  if (enforceHardCtxCap && v.kind === 'hard') return { reject: 'ctx-grande' };
   if (v.kind === 'quota' || v.kind === 'cold-busy') return { reject: 'sem-quota' };
   // Sem transcript não há o que forkar, e rodar como turno novo perderia justamente
   // o contexto que é o motivo do disparo.
@@ -324,9 +345,12 @@ export function runParkedInBackground(sessionKey: string, id: string, role?: Rol
   const th = threads.get(forkId);
   if (!th) { unshiftParked(sessionKey, item, false); broadcastQueue(); return { reject: 'falhou' }; }
   // Amarra o item ao fork: se ele morrer sem consumir o prompt (teto de tokens,
-  // crash, deploy), o onClose devolve — pra fila da sessão ORIGINAL, não a do fork.
-  th.parked = item;
-  th.parkedFrom = sessionKey;
+  // crash, deploy), o onClose devolve — pra fila da sessão ORIGINAL, não a do
+  // fork. Só quando attachRecovery pede (ver comentário acima da função).
+  if (attachRecovery) {
+    th.parked = item;
+    th.parkedFrom = sessionKey;
+  }
   // Disparo explícito do usuário (clique em "rodar em background"), não o
   // dreno passivo — canvas/autopause.ts nunca para isto (review #595 point 1).
   th.parkedForced = true;
