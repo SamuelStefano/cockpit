@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
-  DEFAULT_FLOW_TEMPLATE, FLOW_MARKER_RE, cardNodeId, flowMarker, sessionNodeId,
-  type CanvasFlow, type CanvasNode, type ContentFormat,
+  AREA_LABELS, DEFAULT_FLOW_TEMPLATE, FLOW_MARKER_RE, cardNodeId, flowMarker, sessionNodeId,
+  type AreaId, type CanvasFlow, type CanvasNode, type ContentFormat,
 } from '../../shared/canvas';
 import { buildContentPrompt, buildTaskPrompt } from '../../shared/canvas-prompt';
 import { listContexts } from '../contexts';
@@ -16,7 +16,7 @@ import { bindCardSession, cardIdForSession, lastCardMarker, neutralizeMarkers } 
 import { cardIdFromRefsCache } from './index';
 import { claimFlowFire, markCardDoing, readBoardChained, recordFlowFailure, recordFlowSuccess, updateBoard } from './board';
 import { clearFlowRun, registerFlowRun } from './flow-runs';
-import { isAreaAdmissionBlocked } from './autopause-loop';
+import { blockedAreaFor } from './autopause-loop';
 import { onTurnClosed, type TurnClosed } from './turn-hooks';
 
 export { neutralizeMarkers };
@@ -42,6 +42,13 @@ export const MAX_RESULT_CHARS = 12_000;
 // source can be every few seconds.
 export const BACKOFF_BASE_MS = 60_000;
 export const BACKOFF_MAX_MS = 30 * 60_000;
+// A failure caused by the TARGET AREA sitting over budget (autopause's own
+// admission gate, isAreaAdmissionBlocked) is not "broken" the way a vanished
+// target or a hard concurrency cap is — the area is expected to come back
+// under budget within minutes on its own. Capping its backoff far below
+// BACKOFF_MAX_MS means the flow resumes soon after the area recovers instead
+// of sitting out the same ~30min ceiling a genuinely dead target earns.
+export const AREA_BLOCKED_BACKOFF_MAX_MS = 2 * 60_000;
 
 // --- pure: what fires, at what hop, with what text --------------------------
 
@@ -76,14 +83,15 @@ export function rateLimited(flow: Pick<CanvasFlow, 'lastFiredAt'>, now: number):
   return !!flow.lastFiredAt && now - flow.lastFiredAt < FLOW_RATE_LIMIT_MS;
 }
 
-export function backoffMs(failStreak: number): number {
+export function backoffMs(failStreak: number, areaBlocked?: boolean): number {
   if (failStreak <= 0) return 0;
-  return Math.min(BACKOFF_MAX_MS, BACKOFF_BASE_MS * 2 ** (failStreak - 1));
+  const cap = areaBlocked ? AREA_BLOCKED_BACKOFF_MAX_MS : BACKOFF_MAX_MS;
+  return Math.min(cap, BACKOFF_BASE_MS * 2 ** (failStreak - 1));
 }
 
-export function backedOff(flow: Pick<CanvasFlow, 'failStreak' | 'lastFailedAt'>, now: number): boolean {
+export function backedOff(flow: Pick<CanvasFlow, 'failStreak' | 'lastFailedAt' | 'lastFailAreaBlocked'>, now: number): boolean {
   if (!flow.failStreak || flow.lastFailedAt === undefined) return false;
-  return now - flow.lastFailedAt < backoffMs(flow.failStreak);
+  return now - flow.lastFailedAt < backoffMs(flow.failStreak, flow.lastFailAreaBlocked);
 }
 
 export interface FlowFire { flow: CanvasFlow; hop: number }
@@ -155,14 +163,21 @@ function safeParams(source: RunParams, flow: Pick<CanvasFlow, 'mode' | 'mcps'>):
   };
 }
 
+// Shared with CardDelivery below: `areaBlocked`, when set, is the AreaId that
+// refused admission — distinguishes "the target's area is over budget,
+// autoPause is on" from any other failure to deliver. fireFlow uses it to
+// name the area in a dedicated pt toast and to cap backoff much shorter
+// (AREA_BLOCKED_BACKOFF_MAX_MS) than a genuinely broken target earns.
+export interface DeliveryResult { delivered: boolean; areaBlocked?: AreaId }
+
 // Target `s:<uuid>`: continue the existing session. Delivery only counts once
 // a thread actually admitted (threads.get after the call — same check
 // runParkedInBackground uses at server/ws/runs.ts around admitRun): a
 // concurrency-cap rejection, a hard-context block, or an invalid sessionKey
 // all return from startRun/addParked/enqueuePending having done nothing.
-export async function deliverToSession(sessionId: string, prompt: string, source: RunParams, flow: CanvasFlow, hop: number): Promise<boolean> {
+export async function deliverToSession(sessionId: string, prompt: string, source: RunParams, flow: CanvasFlow, hop: number): Promise<DeliveryResult> {
   const resume = resumableId(sessionId);
-  if (!resume) return false; // transcript gone — nothing to continue
+  if (!resume) return { delivered: false }; // transcript gone — nothing to continue
   const params = safeParams(source, flow);
   const liveKey = resolveThreadKey(sessionId);
   if (liveKey) {
@@ -183,21 +198,22 @@ export async function deliverToSession(sessionId: string, prompt: string, source
     // queued turn eventually closes.
     if (isDrainerEnabled()) {
       const r = addParked(liveKey, { ...params, prompt, resumeId: resume });
-      return !('reject' in r);
+      return { delivered: !('reject' in r) };
     }
     // Queueing behind a session that's ALREADY live (attended right now, same
     // as a user reply landing mid-turn) is never area-gated — only admitting
     // brand-new unattended work is (review #595 second pass, point 2: "leave
     // the in-turn pending queue alone").
-    return enqueuePending(liveKey, { ...params, ws: null, prompt, merge: false });
+    return { delivered: enqueuePending(liveKey, { ...params, ws: null, prompt, merge: false }) };
   }
   // No live thread: this WOULD start a brand-new unattended turn. If the
   // target's area is over budget with autoPause on, treat it exactly like any
   // other failed delivery — fireFlow's caller already arms the backoff and
   // retries later, once the area (hopefully) isn't over anymore.
-  if (isAreaAdmissionBlocked(resume)) return false;
+  const blocked = blockedAreaFor(resume);
+  if (blocked) return { delivered: false, areaBlocked: blocked };
   startRun({ ws: null, sessionKey: resume, prompt, resumeId: resume, flowHop: hop, ...params });
-  return threads.has(resume);
+  return { delivered: threads.has(resume) };
 }
 
 async function resolveCardNodes(contextIds: string[], sessionIds: string[]): Promise<{ contexts: CanvasNode[]; sessions: CanvasNode[] }> {
@@ -226,7 +242,7 @@ async function resolveCardNodes(contextIds: string[], sessionIds: string[]): Pro
   return { contexts, sessions };
 }
 
-export interface CardDelivery { delivered: boolean; runKey?: string }
+export interface CardDelivery { delivered: boolean; runKey?: string; areaBlocked?: AreaId }
 
 // Target `k:<cardId>`: run the card as a brand new session, same prompt shape
 // runCard builds client-side (buildTaskPrompt/buildContentPrompt, which end
@@ -246,7 +262,8 @@ export async function deliverToCard(cardId: string, flow: CanvasFlow, result: st
   // any session the card is already bound to sits in a blocked area. No bound
   // session at all (a fresh card) has nothing to check against — fails open,
   // same as isAreaAdmissionBlocked's own default.
-  if (sessions.some((s) => isAreaAdmissionBlocked(s.ref))) return { delivered: false };
+  const blockedByBoundSession = sessions.map((s) => blockedAreaFor(s.ref)).find((a): a is AreaId => !!a);
+  if (blockedByBoundSession) return { delivered: false, areaBlocked: blockedByBoundSession };
   const basePrompt = card.kind === 'content'
     ? buildContentPrompt(card, (card.format ?? 'post') as ContentFormat, contexts, sessions, today())
     : buildTaskPrompt(card, contexts, sessions);
@@ -286,19 +303,26 @@ export async function fireFlow(flow: CanvasFlow, hop: number, result: string, pa
   const ref = flow.to.slice(2);
   let delivered = false;
   let runKey: string | undefined;
+  let areaBlocked: AreaId | undefined;
   if (flow.to.startsWith('s:')) {
-    delivered = await deliverToSession(ref, buildFlowPrompt(flow, result, hop), params, flow, hop);
+    const r = await deliverToSession(ref, buildFlowPrompt(flow, result, hop), params, flow, hop);
+    delivered = r.delivered;
+    areaBlocked = r.areaBlocked;
   } else {
     const r = await deliverToCard(ref, flow, result, hop, params);
     delivered = r.delivered;
     runKey = r.runKey;
+    areaBlocked = r.areaBlocked;
   }
 
   if (!delivered) {
     // Restore the EXACT prior fires/lastFiredAt (not just cleared) and arm
     // the exponential backoff for the next attempt — a flow that keeps
     // failing must wait longer each time, not retry on every source close.
-    await updateBoard((b) => recordFlowFailure(b, flow.id, now, prevFires, prevLastFiredAt, now));
+    // A block on the target's own AREA gets a much shorter cap
+    // (AREA_BLOCKED_BACKOFF_MAX_MS): the area is expected to recover in
+    // minutes, unlike a genuinely dead target.
+    await updateBoard((b) => recordFlowFailure(b, flow.id, now, prevFires, prevLastFiredAt, now, !!areaBlocked));
     if (prevFailStreak === 0) {
       // One toast for the START of a failure streak, not one per source turn
       // that closes while this flow keeps failing — that would spam.
@@ -307,9 +331,16 @@ export async function fireFlow(flow: CanvasFlow, hop: number, result: string, pa
       // (src/useCockpit.ts calls endHandoff() unconditionally, and
       // src/cockpit/useCanvas.ts marks the canvas stale if one lands mid a
       // canvas-get) — both wrong for a background flow failure.
-      emitCanvasMsg({ t: 'canvas-flow-failed', flowId: flow.id, message: `Fluxo do canvas não conseguiu entregar em ${flow.to} — vai tentar de novo com espera crescente.` });
+      //
+      // Area-blocked gets its OWN message (review: the generic "não
+      // conseguiu entregar" reads as a broken target, not a budget the user
+      // set on purpose) — never confused with a dead session/card.
+      const message = areaBlocked
+        ? `Fluxo do canvas segurado: área ${AREA_LABELS[areaBlocked]} está acima do orçamento — retoma sozinho quando ela normalizar.`
+        : `Fluxo do canvas não conseguiu entregar em ${flow.to} — vai tentar de novo com espera crescente.`;
+      emitCanvasMsg({ t: 'canvas-flow-failed', flowId: flow.id, message });
     }
-    console.error(`canvas flow ${flow.id}: delivery to ${flow.to} failed (streak ${prevFailStreak + 1})`);
+    console.error(`canvas flow ${flow.id}: delivery to ${flow.to} failed (streak ${prevFailStreak + 1}${areaBlocked ? `, área ${areaBlocked} bloqueada` : ''})`);
     return;
   }
 

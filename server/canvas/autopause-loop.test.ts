@@ -1,8 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { CanvasBoard, CanvasGraph, TermStats } from '../../shared/canvas';
+import { waitForPendingReadForTest, writeAreaAdmissionFile, type LastAreaEntry } from './area-admission';
 import {
-  getAreaOf, isAreaAdmissionBlocked, resetAreaCacheForTest, resetAutoPauseMemoryForTest,
-  resetTickInFlightForTest, runAutoPauseTick, updateAreaCacheFromGraph, type AutoPauseRun, type AutoPauseTickDeps,
+  LAST_AREA_OF_KEY_MAX, LAST_AREA_OF_KEY_STALE_MS, getAreaOf, isAreaAdmissionBlocked, pruneLastAreaOfKey,
+  resetAreaCacheForTest, resetAutoPauseMemoryForTest, resetTickInFlightForTest, runAutoPauseTick,
+  updateAreaCacheFromGraph, type AutoPauseRun, type AutoPauseTickDeps,
 } from './autopause-loop';
 import { newCpuSamples } from './term-stats';
 
@@ -196,6 +202,48 @@ describe('runAutoPauseTick', () => {
   });
 });
 
+// Review of #599: the loop used to write the cross-process admission file
+// unconditionally on EVERY tick (10s, forever), even with autopause never
+// triggered. These exercise the write-skip directly against a real file.
+describe('syncAdmissionState — writes the cross-process file only when needed', () => {
+  const prevEnv = process.env.COCKPIT_CANVAS_AREA_ADMISSION;
+  let admissionFile: string;
+  beforeEach(() => {
+    admissionFile = join(mkdtempSync(join(tmpdir(), 'canvas-area-admission-')), 'state.json');
+    process.env.COCKPIT_CANVAS_AREA_ADMISSION = admissionFile;
+  });
+  afterEach(() => { process.env.COCKPIT_CANVAS_AREA_ADMISSION = prevEnv; });
+
+  it('never writes across ticks when nothing is running (nothing blocked, key map never touched)', async () => {
+    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {} };
+    await runAutoPauseTick(deps({ board, runs: [], now: NOW }));
+    await expect(readFile(admissionFile, 'utf8')).rejects.toThrow();
+    await runAutoPauseTick(deps({ board, runs: [], now: NOW + 20_000 }));
+    await expect(readFile(admissionFile, 'utf8')).rejects.toThrow();
+  });
+
+  it('writes once an area goes over budget', async () => {
+    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {} };
+    const graph = graphWith(S1, 'dfl');
+    const stats = { [S1]: stat({ cpu: 90 }) };
+    await runAutoPauseTick(deps({ board, graph, stats, runs: [run()], now: NOW }));
+    const written = JSON.parse(await readFile(admissionFile, 'utf8'));
+    expect(written.blockedAreas).toEqual(['dfl']);
+  });
+
+  it('writes again once the blocked area clears, to actually publish the clear', async () => {
+    const overBoard: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {} };
+    const underBoard: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 1000, autoPause: true } }, sessionStatus: {} };
+    const graph = graphWith(S1, 'dfl');
+    const stats = { [S1]: stat({ cpu: 90 }) };
+    const runs = [run()];
+    await runAutoPauseTick(deps({ board: overBoard, graph, stats, runs, now: NOW }));
+    expect(JSON.parse(await readFile(admissionFile, 'utf8')).blockedAreas).toEqual(['dfl']);
+    await runAutoPauseTick(deps({ board: underBoard, graph, stats, runs, now: NOW + 1000 }));
+    expect(JSON.parse(await readFile(admissionFile, 'utf8')).blockedAreas).toEqual([]);
+  });
+});
+
 describe('area cache + admission gate', () => {
   it('isAreaAdmissionBlocked is false for an unknown session (fails open)', () => {
     expect(isAreaAdmissionBlocked(S2)).toBe(false);
@@ -219,6 +267,60 @@ describe('area cache + admission gate', () => {
   it('updateAreaCacheFromGraph feeds getAreaOf', () => {
     updateAreaCacheFromGraph(graphWith(S1, 'deck'));
     expect(getAreaOf().get(S1)).toBe('deck');
+  });
+
+  // Review: server/ws.ts's cron loop and a flow delivered from an index.ts
+  // turn run in a DIFFERENT OS process than this loop (agent.ts-only) — they
+  // used to read an always-empty blockedAreas Set. This simulates that: a
+  // "reader" that never ticks the loop itself, only ever reads the state
+  // another process (writeAreaAdmissionFile, direct — bypassing
+  // setAreaAdmissionState so isWriter never flips) left on disk.
+  it('a process that never ticks the loop still gets blocked after reading another process\'s state off disk', async () => {
+    updateAreaCacheFromGraph(graphWith(S1, 'dfl')); // this process's OWN canvas-get populated the session->area map
+    await writeAreaAdmissionFile({ blockedAreas: new Set(['dfl']), lastAreaOfKey: new Map() });
+    expect(isAreaAdmissionBlocked(S1)).toBe(false); // first call kicks off the (uncached) background read; still stale/empty synchronously
+    await waitForPendingReadForTest(); // deterministic: await the EXACT read just triggered, not a guessed sleep (was flaky — review of #599)
+    expect(isAreaAdmissionBlocked(S1)).toBe(true); // second call: reads the now-updated in-memory mirror (no new disk hit needed)
+  });
+});
+
+describe('pruneLastAreaOfKey', () => {
+  const entry = (area: LastAreaEntry['area'], at: number): LastAreaEntry => ({ area, at });
+
+  it('drops one-shot `new-<uuid>` keys outright — they never fire twice, pure leak to keep', () => {
+    const map = new Map([['new-abc123', entry('deck', 1000)], ['cron-x', entry('deck', 1000)]]);
+    const pruned = pruneLastAreaOfKey(map, 1000);
+    expect([...pruned.keys()]).toEqual(['cron-x']);
+  });
+
+  it('drops a key not refreshed in the last 24h', () => {
+    const now = 100_000_000;
+    const map = new Map([
+      ['cron-fresh', entry('deck', now - 1000)],
+      ['cron-dead', entry('deck', now - LAST_AREA_OF_KEY_STALE_MS - 1)],
+    ]);
+    const pruned = pruneLastAreaOfKey(map, now);
+    expect([...pruned.keys()]).toEqual(['cron-fresh']);
+  });
+
+  it('keeps a key exactly at the 24h boundary', () => {
+    const now = 100_000_000;
+    const map = new Map([['cron-x', entry('deck', now - LAST_AREA_OF_KEY_STALE_MS)]]);
+    expect([...pruneLastAreaOfKey(map, now).keys()]).toEqual(['cron-x']);
+  });
+
+  it('caps at LAST_AREA_OF_KEY_MAX, evicting the OLDEST by `at` (not by insertion/iteration order)', () => {
+    const now = 1_000_000;
+    const map = new Map<string, LastAreaEntry>();
+    // Insert newest-first on purpose — iteration/insertion order must NOT be
+    // mistaken for recency order (re-.set on an existing key doesn't reorder
+    // a Map, so a naive "drop the first N" would evict the wrong ones here).
+    for (let i = 0; i < LAST_AREA_OF_KEY_MAX + 10; i++) map.set(`cron-${i}`, entry('deck', now - i));
+    const pruned = pruneLastAreaOfKey(map, now);
+    expect(pruned.size).toBe(LAST_AREA_OF_KEY_MAX);
+    // The 10 oldest (highest `now - at`, i.e. the LAST 10 inserted here) are gone.
+    for (let i = LAST_AREA_OF_KEY_MAX; i < LAST_AREA_OF_KEY_MAX + 10; i++) expect(pruned.has(`cron-${i}`)).toBe(false);
+    expect(pruned.has('cron-0')).toBe(true); // the most recent survives
   });
 });
 

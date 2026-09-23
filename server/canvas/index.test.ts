@@ -1,11 +1,12 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync } from 'node:fs';
-import { mkdir, mkdtemp, rm, writeFile, appendFile, utimes, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile, appendFile, utimes, stat, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  __resetCanvasRefsCache, acquireBackfillLock, cardIdFromRefsCache, needsFullScan, releaseBackfillLock, sessionRefs,
-  unwrapCacheEntries, type RefsCache,
+  __peekCanvasRefsCacheForTest, __resetCanvasRefsCache, acquireBackfillLock, betterCacheEntry, cardIdFromRefsCache,
+  needsFullScan, releaseBackfillLock, saveCache, scheduleRefsCacheReload, sessionRefs, unwrapCacheEntries,
+  waitForLockRelease, waitForRefsCacheReloadForTest, type RefsCache,
 } from './index';
 import { emptyTopics, type SessionRefs } from './refs';
 
@@ -132,6 +133,20 @@ describe('sessionRefs — lazy backfill', () => {
     expect(refs).toBe(hit);
     expect(refs?.writes).toBeUndefined();
   });
+
+  // Fix: a session with NO cache entry at all is a normal single-file scan,
+  // not the multi-session "backfill" the lock exists to serialize — it must
+  // never be starved just because some OTHER process is mid-backfill.
+  it('DOES scan a brand-new session (no cache entry at all) even when allowFullScan=false', async () => {
+    const path = join(dir, 'sess6.jsonl');
+    await writeFile(path, editLine('e1', '/repo/a.ts', '2026-09-23T10:00:00Z') + '\n' + resultLine('e1') + '\n', 'utf8');
+    const cache: RefsCache = new Map(); // no entry for 'sess6' at all
+
+    const refs = await sessionRefs(cache, 'sess6', path, true, false);
+
+    expect(refs?.writes).toEqual({ '/repo/a.ts': Date.parse('2026-09-23T10:00:00Z') });
+    expect(cache.get('sess6')).toBeDefined(); // cached for next time too
+  });
 });
 
 describe('sessionRefs — failed backfill', () => {
@@ -215,5 +230,146 @@ describe('acquireBackfillLock / releaseBackfillLock', () => {
 
   it('release is a no-op when nothing is held', async () => {
     await expect(releaseBackfillLock()).resolves.toBeUndefined();
+  });
+
+  it('waitForLockRelease resolves true immediately when nothing is held', async () => {
+    await expect(waitForLockRelease(500, 50)).resolves.toBe(true);
+  });
+
+  it('waitForLockRelease resolves true once another process releases mid-wait', async () => {
+    expect(await acquireBackfillLock()).toBe(true);
+    setTimeout(() => { releaseBackfillLock(); }, 100);
+    await expect(waitForLockRelease(2000, 50)).resolves.toBe(true);
+  });
+
+  it('waitForLockRelease gives up and resolves false once its budget runs out on a lock that never frees', async () => {
+    expect(await acquireBackfillLock()).toBe(true);
+    await expect(waitForLockRelease(150, 50)).resolves.toBe(false);
+    await releaseBackfillLock();
+  });
+});
+
+describe('betterCacheEntry', () => {
+  const e = (over: Partial<SessionRefs & { size: number }>) => ({ contexts: {}, topics: emptyTopics(), consumed: 0, size: 0, ...over }) as SessionRefs & { size: number };
+
+  it('prefers the entry that HAS writes over one that does not, regardless of consumed', () => {
+    const withWrites = e({ writes: { '/a': 1 }, consumed: 5 });
+    const withoutWrites = e({ consumed: 500 }); // far more "read", but never backfilled
+    expect(betterCacheEntry(withWrites, withoutWrites)).toBe(withWrites);
+    expect(betterCacheEntry(withoutWrites, withWrites)).toBe(withWrites); // order-independent
+  });
+
+  it('when writes-presence ties, prefers the LARGER consumed (more of the transcript tail-scanned)', () => {
+    const a = e({ writes: {}, consumed: 100 });
+    const b = e({ writes: {}, consumed: 300 });
+    expect(betterCacheEntry(a, b)).toBe(b);
+    expect(betterCacheEntry(b, a)).toBe(b);
+  });
+});
+
+describe('saveCache — per-entry merge with whatever is already on disk', () => {
+  const prevEnv = process.env.COCKPIT_CANVAS_REFS;
+  beforeEach(() => { process.env.COCKPIT_CANVAS_REFS = join(dir, 'canvas-refs.json'); });
+  afterEach(() => { process.env.COCKPIT_CANVAS_REFS = prevEnv; });
+
+  const hit = (n: number) => ({ contexts: {}, topics: emptyTopics(), consumed: n, size: n }) as SessionRefs & { size: number };
+
+  it('merges in disk-only entries instead of dropping them when the in-memory map is smaller', async () => {
+    // Simulates the backfill winner's on-disk result...
+    await saveCache(new Map([['a', hit(1)], ['b', hit(2)], ['c', hit(3)]]));
+    // ...then the LOSER (older/smaller in-memory snapshot, never saw 'c') saves,
+    // WITHOUT naming 'c' (or anything) as pruned.
+    const loserCache: RefsCache = new Map([['a', hit(1)], ['b', hit(2)]]);
+    await saveCache(loserCache);
+
+    const onDisk = unwrapCacheEntries(JSON.parse(await readFile(process.env.COCKPIT_CANVAS_REFS!, 'utf8')));
+    expect(Object.keys(onDisk).sort()).toEqual(['a', 'b', 'c']); // 'c' survived
+  });
+
+  // Review of #599, point 1: buildCanvas prunes a session that's really gone
+  // (not in the live+archived list anymore) from its OWN in-memory map, THEN
+  // calls saveCache — the blind "add back whatever disk has that memory
+  // lacks" merge used to silently resurrect it on the very next checkpoint,
+  // because a deleted id looks EXACTLY like a disk-only id the OTHER process
+  // just hasn't caught up on yet. `prunedIds` disambiguates the two.
+  it('never resurrects an id this call explicitly pruned, even though disk still has it', async () => {
+    await saveCache(new Map([['alive', hit(1)], ['deleted', hit(2)]])); // disk starts with both
+    const afterPrune: RefsCache = new Map([['alive', hit(1)]]); // 'deleted' removed from memory on purpose
+    await saveCache(afterPrune, new Set(['deleted']));
+
+    const onDisk = unwrapCacheEntries(JSON.parse(await readFile(process.env.COCKPIT_CANVAS_REFS!, 'utf8')));
+    expect(Object.keys(onDisk)).toEqual(['alive']); // 'deleted' stays gone
+  });
+
+  it('for an id on BOTH sides, keeps the more complete entry (betterCacheEntry) instead of always trusting memory', async () => {
+    const backfilled = { ...hit(50), writes: { '/repo/a.ts': 1 } };
+    await saveCache(new Map([['s1', backfilled]])); // disk: the WINNER already backfilled this one
+    // This process's own (older, pre-backfill) view of the same session.
+    const staleMem: RefsCache = new Map([['s1', hit(10)]]);
+    await saveCache(staleMem); // no prunedIds — 's1' is a normal live session on both sides
+
+    const onDisk = unwrapCacheEntries(JSON.parse(await readFile(process.env.COCKPIT_CANVAS_REFS!, 'utf8')));
+    expect(onDisk.s1.writes).toEqual({ '/repo/a.ts': 1 }); // the backfilled (disk) version won, not the stale in-memory one
+  });
+
+  it('writes as-is when there is nothing on disk yet', async () => {
+    await saveCache(new Map([['a', hit(1)]]));
+    const onDisk = unwrapCacheEntries(JSON.parse(await readFile(process.env.COCKPIT_CANVAS_REFS!, 'utf8')));
+    expect(Object.keys(onDisk)).toEqual(['a']);
+  });
+});
+
+describe('scheduleRefsCacheReload / waitForRefsCacheReloadForTest', () => {
+  const prevEnv = process.env.COCKPIT_CANVAS_REFS;
+  beforeEach(() => {
+    process.env.COCKPIT_CANVAS_REFS = join(dir, 'canvas-refs.json');
+    __resetCanvasRefsCache();
+  });
+  afterEach(async () => {
+    await releaseBackfillLock(); // in case a test left it held
+    process.env.COCKPIT_CANVAS_REFS = prevEnv;
+  });
+
+  const hit = (over: Partial<SessionRefs & { size: number }> = {}) => ({ contexts: {}, topics: emptyTopics(), consumed: 0, size: 0, ...over }) as SessionRefs & { size: number };
+
+  it('merges the winner\'s on-disk result into memory once the lock frees, per entry', async () => {
+    await cardIdFromRefsCache('warm'); // primes the in-memory singleton off the (currently empty) file
+    await saveCache(new Map([['s1', hit({ writes: { '/a': 1 }, consumed: 200 })]])); // simulates the WINNER finishing its backfill on disk
+    expect(await acquireBackfillLock()).toBe(true); // simulates contention: someone (else) holds it right now
+    scheduleRefsCacheReload();
+    // Lock frees shortly after — the reload is polling for exactly this.
+    await releaseBackfillLock();
+    await waitForRefsCacheReloadForTest();
+
+    expect(__peekCanvasRefsCacheForTest('s1')?.writes).toEqual({ '/a': 1 });
+  });
+
+  it('never overwrites an entry THIS process tail-scanned further (larger consumed) with an older disk snapshot', async () => {
+    // This process's own in-memory singleton already advanced past what's
+    // on disk (e.g. it tail-scanned s1 itself while the lock was contested —
+    // sessionRefs's canResume path mutates this exact singleton in place).
+    await saveCache(new Map([['s1', hit({ consumed: 200 })]]));
+    await cardIdFromRefsCache('warm'); // primes the singleton from that file: s1 consumed=200
+    expect(__peekCanvasRefsCacheForTest('s1')?.consumed).toBe(200);
+    // Disk is now somehow BEHIND this process's memory (a stale snapshot).
+    await saveCache(new Map([['s1', hit({ consumed: 50 })]]));
+
+    expect(await acquireBackfillLock()).toBe(true);
+    scheduleRefsCacheReload();
+    await releaseBackfillLock();
+    await waitForRefsCacheReloadForTest();
+
+    // The reload must not regress this process's own better (higher consumed) entry.
+    expect(__peekCanvasRefsCacheForTest('s1')?.consumed).toBe(200);
+  });
+
+  it('does not stack a second poller while one is already in flight', async () => {
+    expect(await acquireBackfillLock()).toBe(true);
+    scheduleRefsCacheReload();
+    const first = waitForRefsCacheReloadForTest();
+    scheduleRefsCacheReload(); // no-op: a reload is already pending
+    expect(waitForRefsCacheReloadForTest()).toBe(first);
+    await releaseBackfillLock();
+    await first;
   });
 });

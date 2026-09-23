@@ -111,6 +111,13 @@ export interface CanvasFlow {
   // every source turn close. Reset to 0 on the next successful delivery.
   failStreak?: number;
   lastFailedAt?: number;
+  // Set alongside failStreak/lastFailedAt when the LAST failure was the
+  // target's area sitting over budget (server/canvas/flows.ts's
+  // isAreaAdmissionBlocked gate) — backoffMs uses a much shorter cap for this
+  // case (the area is expected to recover in minutes, not the ~30min ceiling
+  // a genuinely broken target deserves). Cleared on the next success, same as
+  // failStreak.
+  lastFailAreaBlocked?: boolean;
   mode?: 'plan' | 'auto' | 'acceptEdits';
   mcps?: string[];
 }
