@@ -2,6 +2,7 @@ import type { AreaId, CanvasGraph } from '../../shared/canvas';
 import { areaUsageFromIds, evaluateBudget } from '../../shared/canvas-budget';
 import { emitCanvasMsg } from '../ws/canvas-clients';
 import { threads, stopSessionForBudget } from '../ws/threads';
+import { getAreaAdmissionState, resetAreaAdmissionForTest, setAreaAdmissionState, writeAreaAdmissionFile } from './area-admission';
 import { readBoard } from './board';
 import { buildCanvas } from './index';
 import { collectTermStats, newCpuSamples, type RunPids } from './term-stats';
@@ -46,7 +47,11 @@ let areaCache = new Map<string, AreaCacheEntry>();
 let areaCacheAt = 0;
 // Areas currently over budget WITH autopause on, as of the last tick — read by
 // runs.ts's drainParked/fireCron to gate ADMISSION of new unattended work
-// instead of racing autopause's own stop→drain→stop loop.
+// instead of racing autopause's own stop→drain→stop loop. Mirrored into
+// server/canvas/area-admission.ts on every change (syncAdmissionState, below)
+// so a process OTHER than this one (server/ws.ts's cron loop, or a canvas
+// flow delivered from an index.ts turn — this loop only ever runs in the
+// agent process) sees the same verdict instead of an always-empty set.
 let blockedAreas = new Set<AreaId>();
 // A cron (or any sessionKey with no resumeId to classify directly — fireCron
 // never has one, a first-ever parked item might not either) has no session of
@@ -57,6 +62,17 @@ let blockedAreas = new Set<AreaId>();
 // landing in the same area gets a real, if lagging, classification instead of
 // never being gateable at all.
 let lastAreaOfKey = new Map<string, AreaId>();
+
+// Publishes the current blockedAreas/lastAreaOfKey both to THIS process's own
+// area-admission cache (so isAreaAdmissionBlocked, below, always reads
+// through the one shared module — no divergent local-vs-cross-process path)
+// and to disk, for every other process. Best-effort: a write failure (full
+// disk, permissions) must never break the loop itself — the file just goes
+// stale and readers fail open once past AREA_ADMISSION_TTL_MS.
+function syncAdmissionState(): void {
+  setAreaAdmissionState({ blockedAreas, lastAreaOfKey });
+  writeAreaAdmissionFile({ blockedAreas, lastAreaOfKey }).catch((err) => console.error('[canvas-autopause] falha ao persistir admissão entre processos:', err));
+}
 
 export function updateAreaCacheFromGraph(graph: CanvasGraph): void {
   const next = new Map<string, AreaCacheEntry>();
@@ -78,10 +94,19 @@ async function ensureAreaCache(build: () => Promise<CanvasGraph>): Promise<Map<s
 // across every firing (server/ws/runs.ts's fireCron), so its last known area
 // is a reasonable proxy even before this specific firing has a transcript.
 // Truly unknown (never seen before, on either signal) fails OPEN — admitted.
+//
+// blockedAreas/lastAreaOfKey are read through area-admission.ts's
+// getAreaAdmissionState(), never straight off this module's own vars: in the
+// loop's own process (the writer) that's the exact same data, mirrored
+// synchronously by syncAdmissionState on every tick; in ANY other process
+// (server/ws.ts's cron loop, or a flow delivered from an index.ts turn —
+// server/canvas/flows.ts registers on both entry points) it's the loop's
+// verdict read back off disk instead of an always-empty local Set/Map.
 export function isAreaAdmissionBlocked(sessionId: string | undefined, key?: string): boolean {
   let area = sessionId ? areaCache.get(sessionId)?.area : undefined;
-  if (!area && key) area = lastAreaOfKey.get(key);
-  return !!area && blockedAreas.has(area);
+  const { blockedAreas: blocked, lastAreaOfKey: crossProcessKeyMap } = getAreaAdmissionState();
+  if (!area && key) area = crossProcessKeyMap.get(key);
+  return !!area && blocked.has(area);
 }
 
 // Read by the canvas-term-stats dispatch handler to compute the SAME
@@ -105,6 +130,7 @@ export function startAutoPauseLoop(): void {
 export function resetAutoPauseMemoryForTest(): void { mem = emptyAutoPauseMemory(); }
 export function resetAreaCacheForTest(): void {
   areaCache = new Map(); areaCacheAt = 0; blockedAreas = new Set(); lastAreaOfKey = new Map();
+  resetAreaAdmissionForTest();
 }
 export function resetTickInFlightForTest(): void { tickInFlight = false; }
 
@@ -157,6 +183,7 @@ export async function runAutoPauseTick(deps: AutoPauseTickDeps): Promise<void> {
 function clearOverBudget(now: number): void {
   mem = decideAutoPause(now, new Set(), [], mem).mem;
   blockedAreas = new Set();
+  syncAdmissionState();
 }
 
 async function runTick(deps: AutoPauseTickDeps): Promise<void> {
@@ -187,6 +214,7 @@ async function runTick(deps: AutoPauseTickDeps): Promise<void> {
     if (status.overCpu || status.overCtx) { overAreas.add(area); overKind.set(area, status.overCpu ? 'cpu' : 'ctx'); }
   }
   blockedAreas = overAreas;
+  syncAdmissionState();
   if (!overAreas.size) { mem = decideAutoPause(now, overAreas, [], mem).mem; return; }
 
   const candidates: StopCandidate[] = [];

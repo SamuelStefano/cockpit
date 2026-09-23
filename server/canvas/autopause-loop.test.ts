@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { CanvasBoard, CanvasGraph, TermStats } from '../../shared/canvas';
+import { writeAreaAdmissionFile } from './area-admission';
 import {
   getAreaOf, isAreaAdmissionBlocked, resetAreaCacheForTest, resetAutoPauseMemoryForTest,
   resetTickInFlightForTest, runAutoPauseTick, updateAreaCacheFromGraph, type AutoPauseRun, type AutoPauseTickDeps,
@@ -219,6 +220,20 @@ describe('area cache + admission gate', () => {
   it('updateAreaCacheFromGraph feeds getAreaOf', () => {
     updateAreaCacheFromGraph(graphWith(S1, 'deck'));
     expect(getAreaOf().get(S1)).toBe('deck');
+  });
+
+  // Review: server/ws.ts's cron loop and a flow delivered from an index.ts
+  // turn run in a DIFFERENT OS process than this loop (agent.ts-only) — they
+  // used to read an always-empty blockedAreas Set. This simulates that: a
+  // "reader" that never ticks the loop itself, only ever reads the state
+  // another process (writeAreaAdmissionFile, direct — bypassing
+  // setAreaAdmissionState so isWriter never flips) left on disk.
+  it('a process that never ticks the loop still gets blocked after reading another process\'s state off disk', async () => {
+    updateAreaCacheFromGraph(graphWith(S1, 'dfl')); // this process's OWN canvas-get populated the session->area map
+    await writeAreaAdmissionFile({ blockedAreas: new Set(['dfl']), lastAreaOfKey: new Map() });
+    expect(isAreaAdmissionBlocked(S1)).toBe(false); // first call kicks off the (uncached) background read; still stale/empty synchronously
+    await new Promise((r) => setTimeout(r, 20)); // let that read land
+    expect(isAreaAdmissionBlocked(S1)).toBe(true); // second call: reads the now-updated in-memory mirror (no new disk hit needed)
   });
 });
 
