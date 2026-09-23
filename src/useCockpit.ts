@@ -14,6 +14,7 @@ import { addOffer, clearOffer, type ResumeOffers, type ResumeOfferView } from '.
 import { mergeHistory, prependHistory } from './cockpit/history';
 import { liveTokens } from './cockpit/live-tokens';
 import { insertCompact } from './cockpit/insert-compact';
+import { seedRunStart } from './cockpit/run-start';
 import { useTerminals, type TermApi } from './cockpit/useTerminals';
 import { useNotes, type Notes } from './cockpit/useNotes';
 import { useDrops, type Drops } from './cockpit/useDrops';
@@ -655,6 +656,10 @@ export function useCockpit(): Cockpit {
         // run vivo. Reconcilia o phases local — cobre sessões que ESTE cliente
         // não iniciou (run noturno, outra aba) e limpa keys que já terminaram.
         const live = new Set(msg.keys);
+        {
+          const seeded = seedRunStart(runStartRef.current, msg.startedAt, (k) => resolveKey(migratedTo.current, k));
+          if (seeded) { runStartRef.current = seeded; setRunStart({ ...seeded }); }
+        }
         // Reconcilia a guarda síncrona: descarta keys que ficaram presas (envio
         // enquanto desconectado nunca recebeu started/done) e marca as vivas.
         for (const k of [...inFlight.current]) if (!live.has(k)) inFlight.current.delete(k);
@@ -805,11 +810,11 @@ export function useCockpit(): Cockpit {
         // sessionId — sem re-semear aqui o próximo envio ia sem resume e o claude
         // abria uma conversa NOVA ("é como se fosse um novo prompt").
         if (msg.sessionId) resumeId.current[key] = msg.sessionId;
-        // Reload mid-run zera runStartRef; sem semear daqui, o efeito do cronômetro
-        // cravaria Date.now() e o card mostraria 0s pra um turno que já roda há min.
-        if (msg.startedAt && runStartRef.current[key] === undefined) {
-          runStartRef.current[key] = msg.startedAt;
-          setRunStart((r) => ({ ...r, [key]: msg.startedAt! }));
+        // Reload mid-run zera runStartRef e o efeito do cronômetro já cravou
+        // Date.now() quando o 'busy' acendeu a key: o início do servidor vence.
+        {
+          const seeded = msg.startedAt ? seedRunStart(runStartRef.current, { [key]: msg.startedAt }) : null;
+          if (seeded) { runStartRef.current = seeded; setRunStart({ ...seeded }); }
         }
         const blocks: Block[] = [];
         if (msg.thinking) blocks.push({ type: 'thinking', text: msg.thinking });

@@ -13,7 +13,7 @@ import { getSlashCommands } from './ws/slash';
 import { startParkedDrainer, resumeOrphanRuns } from './ws/runs';
 import { readMemInfo } from './ws/mem-guard';
 import { startRunReaper } from './ws/reaper';
-import { killAllRuns, threads } from './ws/threads';
+import { busyFrame, killAllRuns, threads } from './ws/threads';
 import { startModelsLoop, getLastModels } from './ws/models';
 import { startAuthKeepAlive } from './ws/auth-health';
 import { startPlanUsageLoop, planUsageFrame, requestPlanUsageRefresh } from './ws/usage-plan';
@@ -103,7 +103,7 @@ function reemitBootstrap(ws: WebSocket): void {
     s({ t: 'mcp-servers', servers: Object.keys(mcpServerDefsSync()) });
     const slash = getSlashCommands();
     if (slash.length) s({ t: 'slash-commands', items: slash });
-    s({ t: 'busy', keys: [...threads.keys()] });
+    s(busyFrame());
     const rate = getLastRate();
     if (rate) s({ t: 'rate', ...rate });
     const planFrame = planUsageFrame();

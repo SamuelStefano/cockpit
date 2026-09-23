@@ -85,6 +85,15 @@ export interface Thread {
 
 export const threads = new Map<string, Thread>();
 
+// Which keys run AND since when. The client stamps its own clock on any key it
+// sees running without a start, and `busy` lands before the per-thread replay:
+// without the server's start here, an F5 restarted every turn timer at zero.
+export function busyFrame(): { t: 'busy'; keys: string[]; startedAt: Record<string, number> } {
+  const startedAt: Record<string, number> = {};
+  for (const [key, t] of threads) startedAt[key] = t.startedAt;
+  return { t: 'busy', keys: [...threads.keys()], startedAt };
+}
+
 // Época de stop por sessão: incrementa a cada stop explícito. routeSend captura a
 // época ANTES do await da triagem; se ela mudou quando o veredito chega, um stop
 // aconteceu no meio e a mensagem é descartada (senão o run avaliado some e o

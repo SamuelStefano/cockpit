@@ -3,7 +3,7 @@ import { send } from './broadcast';
 import { getLastRate } from './rate';
 import { requestPlanUsageRefresh, planUsageFrame } from './usage-plan';
 import { getLastModels } from './models';
-import { threads } from './threads';
+import { busyFrame, threads } from './threads';
 import { marathonKeys } from './marathon';
 
 // Estado durável que o CLI só emite DURANTE um run (busy/rate/plan-usage/models):
@@ -11,7 +11,7 @@ import { marathonKeys } from './marathon';
 // Reemitido no bootstrap da conexão E no `sync` (resume) — mesmos getters/formato,
 // sem duplicar.
 export function sendDurableSnapshot(ws: WebSocket) {
-  send(ws, { t: 'busy', keys: [...threads.keys()] });
+  send(ws, busyFrame());
   // Replay dos turnos EM VOO: um browser que reconecta (aba suspensa no mobile)
   // enquanto outra aba segue viva não passa pelo reemit do agente (só dispara
   // quando TODOS os browsers sumiram) — sem replay aqui o turno fica mudo e o

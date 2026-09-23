@@ -804,7 +804,7 @@ export type ServerMsg =
   // prepend = resposta a um open-full com `before`: são as mensagens ANTERIORES às
   // que o cliente já tem, não um snapshot novo. O cliente concatena em vez de trocar.
   | { t: 'history'; sessionId: string; messages: Message[]; prepend?: boolean; tokens?: number; model?: string; full?: boolean; truncated?: boolean; todos?: ToolTodo[] }
-  | { t: 'busy'; keys: string[] }
+  | { t: 'busy'; keys: string[]; startedAt?: Record<string, number> } // startedAt: turn start per key, so a reload keeps the real elapsed time
   // O JSONL da sessão mudou no disco (ex.: claude rodado direto no terminal).
   // Cliente com a sessão aberta re-puxa o histórico — sem F5.
   | { t: 'session-touched'; sessionId: string }
