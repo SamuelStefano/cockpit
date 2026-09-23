@@ -2,7 +2,7 @@
 // REGRA (squad L3): types-only — zero import de node:*/fs. O bundle do browser
 // importa este arquivo.
 
-import type { CanvasBoard, CanvasCard, CanvasFlow, CanvasGraph, CanvasPos, TermStats } from './canvas';
+import type { CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, TermStats } from './canvas';
 import type { DflDraft, DraftOp } from './dfl-drafts';
 
 export interface ToolDiff {
@@ -857,7 +857,12 @@ export type ServerMsg =
   | { t: 'graphs'; items: GraphMeta[] }
   | { t: 'canvas-graph'; graph: CanvasGraph }
   | { t: 'canvas-term-stats'; stats: Record<string, TermStats> }
-  | { t: 'canvas-board'; board: CanvasBoard }
+  // flowRuns: every card-target flow run still live right now (server/canvas/
+  // flow-runs.ts) — a tab that (re)connects mid-run (F5, a second tab, opening
+  // /canvas after the flow already fired) gets this on the SAME frame as the
+  // board, so it doesn't have to have caught the one-shot canvas-flow-run
+  // broadcast to know the card is running.
+  | { t: 'canvas-board'; board: CanvasBoard; flowRuns: CanvasFlowRun[] }
   // A flow just delivered its result to its target — the UI pulses that arrow
   // and patches just this flow's counters, never the whole board (which would
   // leak every card's prompt and every other flow's template to every socket).
@@ -867,6 +872,13 @@ export type ServerMsg =
   // (useCanvasRoute's pendingLaunch), so the kanban shows the card "rodando"
   // and can stop it even though the browser never issued this run itself.
   | { t: 'canvas-flow-run'; flowId: string; runKey: string; cardId: string }
+  // A flow's delivery failed — ADMIN-ONLY (server/ws/canvas-clients.ts), never
+  // the generic keyless `{t:'error'}`: that frame makes every tab's handler
+  // call endHandoff() and, if a canvas-get is mid-flight, marks the canvas
+  // stale — both unrelated side effects a background flow failure must not
+  // trigger. One per failure STREAK (server/canvas/flows.ts), not one per
+  // source turn close.
+  | { t: 'canvas-flow-failed'; flowId: string; message: string }
   | { t: 'graph-data'; id: string; graph: GraphData }
   | { t: 'graph-query-result'; id: string; question: string; answer: string; tokens: number; miss: boolean }
   | { t: 'graph-build-progress'; line: string }

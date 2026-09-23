@@ -6,7 +6,7 @@ import {
 import { buildContentPrompt, buildTaskPrompt } from '../../shared/canvas-prompt';
 import { listContexts } from '../contexts';
 import { listArchived, listSessions } from '../sessions/index';
-import { broadcast } from '../ws/broadcast';
+import { emitCanvasMsg } from '../ws/canvas-clients';
 import { enqueuePending } from '../ws/pending';
 import { addParked } from '../ws/parked';
 import { resumableId } from '../ws/resume';
@@ -15,6 +15,7 @@ import { resolveThreadKey, threads, type RunParams } from '../ws/threads';
 import { bindCardSession, cardIdForSession, lastCardMarker, neutralizeMarkers } from './card-sessions';
 import { cardIdFromRefsCache } from './index';
 import { claimFlowFire, markCardDoing, readBoardChained, recordFlowFailure, recordFlowSuccess, updateBoard } from './board';
+import { clearFlowRun, registerFlowRun } from './flow-runs';
 import { onTurnClosed, type TurnClosed } from './turn-hooks';
 
 export { neutralizeMarkers };
@@ -237,6 +238,10 @@ export async function deliverToCard(cardId: string, flow: CanvasFlow, result: st
   startRun({ ws: null, sessionKey, prompt, flowHop: hop, ...safeParams(source, flow) });
   if (!threads.has(sessionKey)) return { delivered: false }; // admission refused (concurrency cap, ctx gate, ...): nothing started
   await updateBoard((b) => markCardDoing(b, cardId, Date.now()));
+  // Live until handleTurnClosed sees this exact sessionKey close (below) —
+  // read back by server/ws/dispatch.ts on every canvas-board answer, so a
+  // tab that (re)connects mid-run still sees the card running.
+  registerFlowRun(sessionKey, cardId, flow.id);
   return { delivered: true, runKey: sessionKey };
 }
 
@@ -280,7 +285,12 @@ export async function fireFlow(flow: CanvasFlow, hop: number, result: string, pa
     if (prevFailStreak === 0) {
       // One toast for the START of a failure streak, not one per source turn
       // that closes while this flow keeps failing — that would spam.
-      broadcast({ t: 'error', message: `Fluxo do canvas não conseguiu entregar em ${flow.to} — vai tentar de novo com espera crescente.` });
+      // ADMIN-ONLY, dedicated frame — never the generic keyless {t:'error'}:
+      // every tab's onMsg treats that as "the active turn/handoff broke"
+      // (src/useCockpit.ts calls endHandoff() unconditionally, and
+      // src/cockpit/useCanvas.ts marks the canvas stale if one lands mid a
+      // canvas-get) — both wrong for a background flow failure.
+      emitCanvasMsg({ t: 'canvas-flow-failed', flowId: flow.id, message: `Fluxo do canvas não conseguiu entregar em ${flow.to} — vai tentar de novo com espera crescente.` });
     }
     console.error(`canvas flow ${flow.id}: delivery to ${flow.to} failed (streak ${prevFailStreak + 1})`);
     return;
@@ -291,15 +301,19 @@ export async function fireFlow(flow: CanvasFlow, hop: number, result: string, pa
   // pulse/counter bump for a claim whose delivery never happened would lie
   // (and did, before this fix: the broadcast used to fire right after the
   // claim, ahead of the delivery attempt).
-  broadcast({ t: 'canvas-flow-fired', flowId: flow.id, at: now, fires });
+  emitCanvasMsg({ t: 'canvas-flow-fired', flowId: flow.id, at: now, fires });
   // Card targets start a session the browser never asked for — without this,
   // the kanban has no way to know it's running (or to stop it) until the
   // session shows up in the next natural sessions-list/graph refresh.
-  if (runKey) broadcast({ t: 'canvas-flow-run', flowId: flow.id, runKey, cardId: ref });
+  if (runKey) emitCanvasMsg({ t: 'canvas-flow-run', flowId: flow.id, runKey, cardId: ref });
 }
 
 export async function handleTurnClosed(t: TurnClosed): Promise<void> {
   try {
+    // Unconditional, before the ok/unattended gate below: whatever turn just
+    // closed under this sessionKey is OVER either way (clean, stopped, or
+    // crashed) — if it was a card-target flow run, it's no longer live.
+    clearFlowRun(t.sessionKey);
     if (!t.ok || t.unattended) return;
     // Cheap (no IO): warm the marker-based session→card binding on EVERY
     // clean close, not only once the board already has flows — a flow drawn

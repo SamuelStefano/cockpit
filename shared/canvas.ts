@@ -93,6 +93,17 @@ export interface CanvasBoard {
   flows: CanvasFlow[];
 }
 
+// A card-target flow's in-flight run — server/canvas/flow-runs.ts, transient
+// (process memory only, never persisted to the board file). Sent alongside
+// canvas-board so a tab that (re)connects mid-run — F5, a second tab, a
+// browser opened after the flow already fired — learns the card is running
+// without having missed the one-shot `canvas-flow-run` broadcast.
+export interface CanvasFlowRun {
+  runKey: string;
+  cardId: string;
+  flowId: string;
+}
+
 export const FLOW_ID_RE = /^[a-z0-9-]{4,40}$/;
 // Only a session or a card can sit at either end of a flow — never a context
 // or a shell, which server/canvas/flows.ts has no way to deliver a prompt to.

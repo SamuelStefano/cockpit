@@ -49,11 +49,21 @@ import {
   MAX_FLOWS, readBoard, readBoardChained, updateBoard, sanitizeCard, sanitizeFlow, sanitizePos, upsertCard, upsertFlow, removeCard, removeFlow,
   checkFlowSave, mergePos,
 } from '../canvas/board';
+import { activeFlowRuns } from '../canvas/flow-runs';
 import { startCanvasFlows } from '../canvas/flows';
+import { registerCanvasClient } from './canvas-clients';
+import type { CanvasBoard } from '../../shared/canvas';
 
 // Registers the turn-closed listener once, at module load — both entry points
 // (server/index.ts, server/agent.ts) reach this file via ws/serve-connection.ts.
 startCanvasFlows();
+
+// Every canvas-board answer folds in whatever card-target flow runs are live
+// right now (server/canvas/flow-runs.ts) — a tab that (re)connects mid-run
+// (F5, a second tab, /canvas opened after the flow already fired) needs this
+// on the SAME frame as the board, not just the one-shot canvas-flow-run
+// broadcast it may have missed entirely.
+const boardFrame = (board: CanvasBoard) => ({ t: 'canvas-board' as const, board, flowRuns: activeFlowRuns() });
 
 const BG_RUN_MESSAGE: Record<BgRunReject, string> = {
   'sem-item': 'este item não está mais na fila',
@@ -128,10 +138,14 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'canvas-get': {
+      // 'canvas-get' is already admin-only at authz.ts (not in
+      // STUDENT_ALLOWED) — registering here is enough for
+      // server/ws/canvas-clients.ts's admin-only push (canvas-flow-failed).
+      registerCanvasClient(ws);
       // Chained, not a plain readBoard(): otherwise this can race a concurrent
       // drag-end/card-save write and answer with a stale board (review #7).
       const board = await readBoardChained();
-      send(ws, { t: 'canvas-board', board });
+      send(ws, boardFrame(board));
       send(ws, { t: 'canvas-graph', graph: await buildCanvas(board) });
       return;
     }
@@ -144,7 +158,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     // role, and the graph carries every memory title and session summary.
     case 'canvas-pos-reset': {
       const board = await updateBoard((b) => ({ ...b, pos: {} }));
-      send(ws, { t: 'canvas-board', board });
+      send(ws, boardFrame(board));
       return;
     }
     case 'canvas-card-save': {
@@ -153,13 +167,13 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const card = sanitizeCard(msg.card, prev, now);
       if (!card) { send(ws, { t: 'error', message: 'card inválido' }); return; }
       const board = await updateBoard((b) => upsertCard(b, card));
-      send(ws, { t: 'canvas-board', board });
+      send(ws, boardFrame(board));
       send(ws, { t: 'canvas-graph', graph: await buildCanvas(board) });
       return;
     }
     case 'canvas-card-delete': {
       const board = await updateBoard((b) => removeCard(b, String(msg.id ?? '')));
-      send(ws, { t: 'canvas-board', board });
+      send(ws, boardFrame(board));
       send(ws, { t: 'canvas-graph', graph: await buildCanvas(board) });
       return;
     }
@@ -180,12 +194,12 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
         return upsertFlow(b, flow);
       });
       if (error) { send(ws, { t: 'error', message: error }); return; }
-      send(ws, { t: 'canvas-board', board });
+      send(ws, boardFrame(board));
       return;
     }
     case 'canvas-flow-delete': {
       const board = await updateBoard((b) => removeFlow(b, String(msg.id ?? '')));
-      send(ws, { t: 'canvas-board', board });
+      send(ws, boardFrame(board));
       return;
     }
     case 'bench-build': {

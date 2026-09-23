@@ -11,7 +11,7 @@ import type { TurnClosed } from './turn-hooks';
 
 const {
   mockThreads, admit, startRunMock, isDrainerEnabledMock, resolveThreadKeyMock, addParkedMock, enqueuePendingMock,
-  resumableIdMock, broadcastMock, listContextsMock, listSessionsMock, listArchivedMock, cardIdFromRefsCacheMock,
+  resumableIdMock, broadcastMock, emitCanvasMsgMock, listContextsMock, listSessionsMock, listArchivedMock, cardIdFromRefsCacheMock,
 } = vi.hoisted(() => {
   const mockThreads = new Map<string, { sessionId?: string }>();
   const admit = { next: true }; // controls whether the mocked startRun "admits" (threads.set) or refuses
@@ -24,6 +24,7 @@ const {
     enqueuePendingMock: vi.fn(() => true),
     resumableIdMock: vi.fn((id?: string) => id),
     broadcastMock: vi.fn(),
+    emitCanvasMsgMock: vi.fn(),
     listContextsMock: vi.fn(async () => [] as { id: string; title: string; description: string; mtime: number }[]),
     listSessionsMock: vi.fn(async () => [] as { id: string; title: string; snippet: string; mtime: number }[]),
     listArchivedMock: vi.fn(async () => [] as { id: string; title: string; snippet: string; mtime: number }[]),
@@ -43,6 +44,7 @@ vi.mock('../ws/parked', () => ({ addParked: (...a: unknown[]) => addParkedMock(.
 vi.mock('../ws/pending', () => ({ enqueuePending: (...a: unknown[]) => enqueuePendingMock(...(a as [])) }));
 vi.mock('../ws/resume', () => ({ resumableId: (id?: string) => resumableIdMock(id) }));
 vi.mock('../ws/broadcast', () => ({ broadcast: (m: unknown) => broadcastMock(m) }));
+vi.mock('../ws/canvas-clients', () => ({ emitCanvasMsg: (m: unknown) => emitCanvasMsgMock(m) }));
 vi.mock('../contexts', () => ({ listContexts: () => listContextsMock() }));
 vi.mock('../sessions/index', () => ({ listSessions: () => listSessionsMock(), listArchived: () => listArchivedMock() }));
 vi.mock('./index', async (importOriginal) => ({
@@ -52,6 +54,7 @@ vi.mock('./index', async (importOriginal) => ({
 
 import { __resetCardSessions, bindCardSession, cardIdForSession } from './card-sessions';
 import { sanitizeCard, sanitizeFlow, updateBoard, upsertCard, upsertFlow } from './board';
+import { __resetFlowRuns, activeFlowRuns, registerFlowRun } from './flow-runs';
 import {
   FLOW_RATE_LIMIT_MS, MAX_HOPS, buildFlowPrompt, deliverToCard, deliverToSession, fillTemplate, fireFlow,
   flowResult, handleTurnClosed, hopOfPrompt, neutralizeMarkers, rateLimited, selectFlowsToFire,
@@ -73,7 +76,8 @@ beforeEach(() => {
   mockThreads.clear();
   admit.next = true;
   __resetCardSessions();
-  for (const m of [startRunMock, isDrainerEnabledMock, resolveThreadKeyMock, addParkedMock, enqueuePendingMock, resumableIdMock, broadcastMock, listContextsMock, listSessionsMock, listArchivedMock, cardIdFromRefsCacheMock]) m.mockClear();
+  __resetFlowRuns();
+  for (const m of [startRunMock, isDrainerEnabledMock, resolveThreadKeyMock, addParkedMock, enqueuePendingMock, resumableIdMock, broadcastMock, emitCanvasMsgMock, listContextsMock, listSessionsMock, listArchivedMock, cardIdFromRefsCacheMock]) m.mockClear();
   isDrainerEnabledMock.mockReturnValue(false);
   resumableIdMock.mockImplementation((id?: string) => id);
   addParkedMock.mockReturnValue({ id: 'pk-1' });
@@ -265,6 +269,21 @@ describe('deliverToCard', () => {
     const board = await updateBoard((b) => b);
     expect(board.cards.find((c) => c.id === 'card1')?.status).toBe('todo');
   });
+
+  it('registers the new run in flow-runs.ts, so a reconnecting tab can learn it is live', async () => {
+    const card = sanitizeCard({ id: 'card1', title: 'Título' }, undefined, 1)!;
+    await updateBoard((b) => upsertCard(b, card));
+    const r = await deliverToCard('card1', flow({ id: 'flowX' }), 'result', 1, {});
+    expect(activeFlowRuns()).toEqual([{ runKey: r.runKey, cardId: 'card1', flowId: 'flowX' }]);
+  });
+
+  it('admission refused: does NOT register a flow run', async () => {
+    const card = sanitizeCard({ id: 'card1', title: 'Título' }, undefined, 1)!;
+    await updateBoard((b) => upsertCard(b, card));
+    admit.next = false;
+    await deliverToCard('card1', flow(), 'result', 1, {});
+    expect(activeFlowRuns()).toEqual([]);
+  });
 });
 
 describe('fireFlow', () => {
@@ -276,9 +295,9 @@ describe('fireFlow', () => {
     // The board write (the claim) happens regardless; the broadcast — which
     // the UI reads as "this flow just did something" — must not fire until
     // startRun actually admitted.
-    expect(broadcastMock).toHaveBeenCalledTimes(1);
-    expect(broadcastMock).toHaveBeenCalledWith({ t: 'canvas-flow-fired', flowId: 'abcd', at: expect.any(Number), fires: 1 });
-    expect(broadcastMock.mock.calls[0][0]).not.toHaveProperty('board');
+    expect(emitCanvasMsgMock).toHaveBeenCalledTimes(1);
+    expect(emitCanvasMsgMock).toHaveBeenCalledWith({ t: 'canvas-flow-fired', flowId: 'abcd', at: expect.any(Number), fires: 1 });
+    expect(emitCanvasMsgMock.mock.calls[0][0]).not.toHaveProperty('board');
     const board = await updateBoard((b) => b);
     expect(board.flows[0]).toMatchObject({ fires: 1 });
     expect(board.flows[0].lastFiredAt).toBeDefined();
@@ -288,7 +307,7 @@ describe('fireFlow', () => {
     const f = sanitizeFlow({ id: 'abcd', from: 's:a', to: 's:b', enabled: false }, undefined, 1)!;
     await updateBoard((b) => upsertFlow(b, f));
     await fireFlow(f, 1, 'resultado', {});
-    expect(broadcastMock).not.toHaveBeenCalled();
+    expect(emitCanvasMsgMock).not.toHaveBeenCalled();
     expect(startRunMock).not.toHaveBeenCalled();
   });
 
@@ -299,7 +318,7 @@ describe('fireFlow', () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     await fireFlow(f, 1, 'resultado', {});
     errSpy.mockRestore();
-    expect(broadcastMock.mock.calls.some((c) => (c[0] as { t: string }).t === 'canvas-flow-fired')).toBe(false);
+    expect(emitCanvasMsgMock.mock.calls.some((c) => (c[0] as { t: string }).t === 'canvas-flow-fired')).toBe(false);
   });
 
   it('restores the EXACT prior fires/lastFiredAt on a failed delivery, not just cleared — a real earlier fire must not look erased', async () => {
@@ -334,8 +353,11 @@ describe('fireFlow', () => {
     await fireFlow(f, 1, 'resultado', {}); // failure #1 -> failStreak 1, 1m backoff
     let board = await updateBoard((b) => b);
     expect(board.flows[0].failStreak).toBe(1);
-    const toastCount = () => broadcastMock.mock.calls.filter((c) => (c[0] as { t: string }).t === 'error').length;
+    // Dedicated admin-only channel, not the generic keyless broadcast({t:'error'})
+    // — see server/ws/canvas-clients.ts.
+    const toastCount = () => emitCanvasMsgMock.mock.calls.filter((c) => (c[0] as { t: string }).t === 'canvas-flow-failed').length;
     expect(toastCount()).toBe(1);
+    expect(broadcastMock.mock.calls.some((c) => (c[0] as { t: string }).t === 'error')).toBe(false);
 
     // Still inside the 1m backoff: claim itself is refused, no 2nd failure recorded.
     await fireFlow(board.flows[0], 1, 'resultado', {});
@@ -381,7 +403,7 @@ describe('fireFlow', () => {
     const cardFlow = sanitizeFlow({ id: 'abcd', from: 's:a', to: 'k:card1' }, undefined, 1)!;
     await updateBoard((b) => upsertFlow(b, cardFlow));
     await fireFlow(cardFlow, 1, 'resultado', {});
-    const runMsg = broadcastMock.mock.calls.map((c) => c[0]).find((m) => (m as { t: string }).t === 'canvas-flow-run') as
+    const runMsg = emitCanvasMsgMock.mock.calls.map((c) => c[0]).find((m) => (m as { t: string }).t === 'canvas-flow-run') as
       { t: string; flowId: string; runKey: string; cardId: string } | undefined;
     expect(runMsg).toMatchObject({ flowId: 'abcd', cardId: 'card1' });
     expect(runMsg?.runKey).toMatch(/^new-/);
@@ -390,9 +412,9 @@ describe('fireFlow', () => {
     resolveThreadKeyMock.mockReturnValue(undefined);
     const sessFlow = sanitizeFlow({ id: 'bbbb', from: 's:a', to: 's:b' }, undefined, 1)!;
     await updateBoard((b) => upsertFlow(b, sessFlow));
-    broadcastMock.mockClear();
+    emitCanvasMsgMock.mockClear();
     await fireFlow(sessFlow, 1, 'resultado', {});
-    expect(broadcastMock.mock.calls.some((c) => (c[0] as { t: string }).t === 'canvas-flow-run')).toBe(false);
+    expect(emitCanvasMsgMock.mock.calls.some((c) => (c[0] as { t: string }).t === 'canvas-flow-run')).toBe(false);
   });
 });
 
@@ -405,6 +427,22 @@ describe('handleTurnClosed', () => {
     await handleTurnClosed(base); // empty board
     expect(startRunMock).not.toHaveBeenCalled();
     expect(broadcastMock).not.toHaveBeenCalled();
+    expect(emitCanvasMsgMock).not.toHaveBeenCalled();
+  });
+
+  it('clears any live flow-run for this exact sessionKey unconditionally — the run is over whether the turn closed ok, failed, or was unattended', async () => {
+    // Unconditional means BEFORE the ok/unattended/no-flows gates, which all
+    // return early — a card-target run's OWN closing turn commonly fails
+    // isCleanTurnClose's stricter bar (e.g. stopped) and must still clear.
+    registerFlowRun('k', 'card1', 'flowX');
+    await handleTurnClosed({ ...base, ok: false });
+    expect(activeFlowRuns()).toEqual([]);
+  });
+
+  it('does not clear a DIFFERENT session/card\'s live flow run', async () => {
+    registerFlowRun('other-key', 'card2', 'flowY');
+    await handleTurnClosed({ ...base, ok: false }); // closes 'k', not 'other-key'
+    expect(activeFlowRuns()).toEqual([{ runKey: 'other-key', cardId: 'card2', flowId: 'flowY' }]);
   });
 
   it('fires a session-sourced flow end to end and delivers the (capped, de-fanged) result', async () => {
