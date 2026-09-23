@@ -46,18 +46,24 @@ export interface CanvasNode {
   count?: number; // session only: user+assistant turns, for the cron-ping/empty check
   waiting?: boolean; // session only: turn stopped on a pending AskUserQuestion
   area?: AreaId; // set by server/canvas/areas.ts; absent = no hub/leaf evidence (client-only shell nodes stay unset too)
+  // Session only: merged transcript-activity windows (ms epoch), newest last,
+  // capped server-side. Feeds the timeline's aliveAt(node, t) — a session is
+  // "alive" around any timestamp that falls in (or near) one of these.
+  activity?: [number, number][];
 }
 
 // 'card' = the agent actually ran on this session (marker-bound) or the card
 // links this context; 'input' = the user picked this session as prompt input,
 // which says nothing about who is running it or where "open session" should go.
-export type CanvasEdgeKind = 'read' | 'write' | 'link' | 'card' | 'topic' | 'input';
+// 'conflict' = two sessions wrote the same file (outside memory) close in time.
+export type CanvasEdgeKind = 'read' | 'write' | 'link' | 'card' | 'topic' | 'input' | 'conflict';
 
 export interface CanvasEdge {
   source: string;
   target: string;
   kind: CanvasEdgeKind;
   weight?: number; // 'topic' only: match strength, so the strongest guess can render bolder than a weak one
+  files?: string[]; // 'conflict' only: absolute paths both sessions wrote, newest first, capped
 }
 
 export interface CanvasGraph {

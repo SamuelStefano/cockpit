@@ -18,6 +18,7 @@ interface Props {
   stats?: TermStats;
   compact: boolean;
   zoom: number;
+  instant: boolean; // timeline is playing: skip the opacity transition (perf)
   onPointerDown: (e: React.PointerEvent, id: string) => void;
   onOpenTerm: (id: string) => void;
 }
@@ -39,7 +40,7 @@ function StateDot({ running, waiting, archived }: { running: boolean; waiting: b
   return <span className={`h-2 w-2 shrink-0 rounded-full ${archived ? 'bg-neutral-700' : 'bg-neutral-500'}`} title={archived ? 'arquivada' : 'idle'} />;
 }
 
-export const CanvasNodeCard = memo(function CanvasNodeCard({ node: n, pos, selected, dim, running, waiting, stats, compact, zoom, onPointerDown, onOpenTerm }: Props) {
+export const CanvasNodeCard = memo(function CanvasNodeCard({ node: n, pos, selected, dim, running, waiting, stats, compact, zoom, instant, onPointerDown, onOpenTerm }: Props) {
   const alert = n.kind === 'session' ? sessionAlert(waiting, stats) : null;
   const pct = stats ? ctxPct(stats) : null;
   return (
@@ -47,7 +48,8 @@ export const CanvasNodeCard = memo(function CanvasNodeCard({ node: n, pos, selec
       data-node={n.id}
       onPointerDown={(e) => onPointerDown(e, n.id)}
       style={{ transform: `translate(${pos.x}px, ${pos.y}px)`, width: NODE_W, height: compact ? undefined : NODE_H, minHeight: compact ? COMPACT_NODE_H : undefined }}
-      className={`absolute left-0 top-0 touch-none cursor-grab select-none rounded-xl border bg-neutral-900/95 shadow-lg shadow-black/40 transition-opacity active:cursor-grabbing
+      className={`absolute left-0 top-0 touch-none cursor-grab select-none rounded-xl border bg-neutral-900/95 shadow-lg shadow-black/40 active:cursor-grabbing
+        ${instant ? '' : 'transition-opacity'}
         ${frame(n, selected)} ${dim ? 'opacity-25' : ''} ${n.archived ? 'opacity-60' : ''}`}
     >
       <AlertRing kind={alert} />

@@ -2,6 +2,8 @@ import type { CanvasCard, CanvasFlow, CanvasNode } from '../../../shared/canvas'
 import { Badge, Button, Icon } from '../../components/primitives';
 import { STATUS_LABEL, STATUS_TONE } from './canvas-labels';
 
+export interface ConflictInfo { other: CanvasNode; files: string[] }
+
 interface Props {
   nodes: CanvasNode[];
   linked: (id: string) => CanvasNode[];
@@ -9,6 +11,7 @@ interface Props {
   card: (id: string) => CanvasCard | undefined;
   running: Set<string>;
   flows: CanvasFlow[];
+  conflictsOf: (id: string) => ConflictInfo[];
   onPick: (id: string) => void;
   onOpenSession: (id: string) => void;
   onOpenTerm: (nodeId: string) => void;
@@ -55,12 +58,34 @@ function Linked({ nodes, onPick }: { nodes: CanvasNode[]; onPick: (id: string) =
   );
 }
 
+function Conflicts({ items, onPick }: { items: ConflictInfo[]; onPick: (id: string) => void }) {
+  if (!items.length) return null;
+  return (
+    <div>
+      <div className="mb-1 flex items-center gap-1 text-[10.5px] font-medium uppercase tracking-wide text-red-400">
+        <Icon name="alertTriangle" size={11} /> Conflitos
+      </div>
+      <ul className="space-y-1">
+        {items.map(({ other, files }) => (
+          <li key={other.id}>
+            <button type="button" onClick={() => onPick(other.id)} className="block w-full rounded-md px-1.5 py-1 text-left hover:bg-neutral-800/70">
+              <span className="block truncate text-[11.5px] text-red-300">{other.title}</span>
+              {files.map((f) => <span key={f} className="block truncate font-mono text-[10px] text-neutral-500">{f}</span>)}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function CanvasInspector(p: Props) {
   const one = p.nodes.length === 1 ? p.nodes[0] : null;
   const card = one?.kind === 'card' ? p.card(one.ref) : undefined;
   const incoming = one ? p.flows.filter((f) => f.to === one.id) : [];
   const outgoing = one ? p.flows.filter((f) => f.from === one.id) : [];
   const pair = p.nodes.length === 2 && p.nodes.every((n) => n.kind === 'session' || n.kind === 'card') ? p.nodes : null;
+  const conflicts = one?.kind === 'session' ? p.conflictsOf(one.id) : [];
   return (
     <aside data-canvas-overlay className="absolute inset-x-3 bottom-16 top-auto z-10 flex max-h-[46vh] flex-col overflow-hidden rounded-2xl border border-neutral-700/80 bg-neutral-900/90 shadow-xl backdrop-blur-md sm:inset-x-auto sm:left-3 sm:top-3 sm:max-h-none sm:w-72">
       <div className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2">
@@ -80,6 +105,7 @@ export function CanvasInspector(p: Props) {
             {one.path && <p className="break-all font-mono text-[10px] text-neutral-600">{one.path}</p>}
           </div>
         )}
+        {one && <Conflicts items={conflicts} onPick={p.onPick} />}
         {one && (
           <div>
             <div className="mb-1 text-[10.5px] font-medium uppercase tracking-wide text-neutral-500">Ligações</div>

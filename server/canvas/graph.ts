@@ -6,6 +6,17 @@ import {
 import type { SessionRefs } from './refs';
 import { createTopicMatcher, type MatchDoc } from './topics';
 import { classifyAreas } from './areas';
+import { buildConflictEdges, type NoisyPathConfig } from './conflicts';
+
+// Same notion of "active" as the client's canvas-filter (scope=active): a
+// session with real signs of life right now, not just "touched sometime this
+// week". Duplicated rather than imported — canvas-filter.ts lives under
+// src/routes (a client module) and this is server-only.
+export const ACTIVE_WINDOW_MS = 48 * 3600_000;
+// Mirrors the client's canvas-timeline.ts TIMELINE_WINDOW_MS (same reason for
+// the duplication: that module lives under src/routes). Activity older than
+// this is trimmed from the payload — the timeline never scrubs past it.
+export const TIMELINE_TRIM_MS = 7 * 24 * 3600_000;
 
 export interface ContextDoc {
   id: string;
@@ -24,7 +35,13 @@ export interface GraphInput {
   refs: Map<string, SessionRefs>;
   contexts: ContextDoc[];
   cards: CanvasCard[];
+  running?: Set<string>; // session ids with a live thread right now
   now?: number;
+  // Real absolute dirs to exclude from conflict detection. Optional so
+  // existing fixtures/tests that never populate `writes` don't need to know
+  // about it — defaulted to "" below, which never matches any path.
+  memoryDir?: string;
+  tmpDir?: string;
 }
 
 // Wikilinks name memories by slug or by frontmatter name, with - and _ used
@@ -68,13 +85,28 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
   const matchDocs: MatchDoc[] = input.contexts.map((c) => ({ id: c.id, name: c.name, description: c.description, hub: c.id.startsWith('hub_'), links: c.links }));
   const matchTopics = createTopicMatcher(matchDocs);
 
+  const now = input.now ?? Date.now();
+  const running = input.running ?? new Set<string>();
+  const activeIds = new Set<string>();
+  const writesBySession: { id: string; writes: Record<string, number>; activity: [number, number][] }[] = [];
   for (const { meta, archived } of input.sessions) {
+    const refs = input.refs.get(meta.id);
+    // Trimmed to what the timeline can actually scrub to, and skipped for an
+    // archived session entirely — neither the timeline nor a conflict cares
+    // about one, so there's no reason to ship its activity payload at all.
+    const activity = !archived && refs?.activity?.length
+      ? refs.activity.filter(([, end]) => now - end < TIMELINE_TRIM_MS)
+      : undefined;
     nodes.push({
       id: sessionNodeId(meta.id), kind: 'session', ref: meta.id,
       title: meta.title, subtitle: (meta.summary || meta.snippet || '').slice(0, 220),
       mtime: meta.mtime, archived: archived || undefined, count: meta.count, waiting: meta.waiting || undefined,
+      activity: activity?.length ? activity : undefined,
     });
-    const refs = input.refs.get(meta.id);
+    if (running.has(meta.id) || meta.waiting || now - meta.mtime < ACTIVE_WINDOW_MS) activeIds.add(meta.id);
+    if (!archived && refs?.writes && Object.keys(refs.writes).length) {
+      writesBySession.push({ id: meta.id, writes: refs.writes, activity: refs.activity ?? [] });
+    }
     if (!refs) continue;
     for (const [ctx, kind] of Object.entries(refs.contexts)) {
       if (!ctxIds.has(ctx)) continue;
@@ -131,9 +163,17 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
     }
   }
 
-  // Areas by work front, last: needs the full hub/leaf/session edge set above.
+  const noisy: NoisyPathConfig = { memoryDir: input.memoryDir ?? '', tmpDir: input.tmpDir ?? '' };
+  for (const e of buildConflictEdges({ sessions: writesBySession, active: activeIds, noisy, now })) {
+    const key = `${e.source}>${e.target}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    edges.push(e);
+  }
+
+  // Areas by work front, last: needs the full hub/leaf/session/conflict edge set above.
   const areas = classifyAreas(nodes, edges);
   for (const n of nodes) { const a = areas.get(n.id); if (a) n.area = a; }
 
-  return { nodes, edges, builtAt: input.now ?? Date.now() };
+  return { nodes, edges, builtAt: now };
 }

@@ -193,6 +193,16 @@ export function admitRun(liveRuns: number, replacing: boolean, cap = CONFIG.maxC
   return replacing || liveRuns < cap;
 }
 
+// Real transcript-backed session ids with a live thread right now — feeds the
+// canvas graph's "is this session active" check (conflict edges, later the
+// timeline). A thread started under its `new-xxx` key before the migration
+// has no sessionId yet and is skipped: it cannot match any graph node either.
+export function runningSessionIds(): Set<string> {
+  const out = new Set<string>();
+  for (const t of threads.values()) if (t.sessionId) out.add(t.sessionId);
+  return out;
+}
+
 const startedAt = Date.now();
 let lastStatsAt = 0;
 export function markStatsAt(now: number) { lastStatsAt = now; }

@@ -138,4 +138,87 @@ describe('buildCanvasGraph', () => {
     });
     expect(g.edges).toEqual([{ source: `s:${S1}`, target: 'c:cockpit_ping_regression', kind: 'write' }]);
   });
+
+  it('carries merged activity intervals onto the session node', () => {
+    const g = buildCanvasGraph({
+      sessions: [{ meta: meta(S1), archived: false }],
+      refs: new Map([[S1, { contexts: {}, activity: [[10, 20]], consumed: 0 }]]),
+      contexts: [],
+      cards: [],
+      now: 1000, // within the 7d trim window of the [10, 20] interval
+    });
+    expect(g.nodes.find((n) => n.id === `s:${S1}`)?.activity).toEqual([[10, 20]]);
+  });
+
+  it('adds a conflict edge when two sessions with overlapping activity wrote the same file, one running', () => {
+    const path = '/home/u/repo/src/App.tsx';
+    const g = buildCanvasGraph({
+      sessions: [{ meta: meta(S1), archived: false }, { meta: meta(S2), archived: false }],
+      refs: new Map([
+        [S1, { contexts: {}, writes: { [path]: 1000 }, activity: [[0, 2_000_000]], consumed: 0 }],
+        [S2, { contexts: {}, writes: { [path]: 1000 + 60_000 }, activity: [[0, 2_000_000]], consumed: 0 }],
+      ]),
+      contexts: [],
+      cards: [],
+      running: new Set([S1]),
+      now: 2_000_000,
+    });
+    const conflict = g.edges.find((e) => e.kind === 'conflict');
+    expect(conflict).toMatchObject({ source: `s:${S1}`, target: `s:${S2}`, files: [path] });
+  });
+
+  it('does not add a conflict edge when neither session is active (running/waiting/recent)', () => {
+    const path = '/home/u/repo/src/App.tsx';
+    const g = buildCanvasGraph({
+      sessions: [{ meta: meta(S1), archived: false }, { meta: meta(S2), archived: false }],
+      refs: new Map([
+        [S1, { contexts: {}, writes: { [path]: 0 }, activity: [[0, 2000]], consumed: 0 }],
+        [S2, { contexts: {}, writes: { [path]: 1000 }, activity: [[0, 2000]], consumed: 0 }],
+      ]),
+      contexts: [],
+      cards: [],
+      now: 100 * 3600_000, // well past the 48h "recent" window from mtime 0
+    });
+    expect(g.edges.some((e) => e.kind === 'conflict')).toBe(false);
+  });
+
+  it('does not add a conflict edge for a write under memoryDir (noisy path wired through)', () => {
+    const path = '/home/u/.claude/projects/x/memory/hub_deck.md';
+    const g = buildCanvasGraph({
+      sessions: [{ meta: meta(S1), archived: false }, { meta: meta(S2), archived: false }],
+      refs: new Map([
+        [S1, { contexts: {}, writes: { [path]: 0 }, activity: [[0, 2000]], consumed: 0 }],
+        [S2, { contexts: {}, writes: { [path]: 1000 }, activity: [[0, 2000]], consumed: 0 }],
+      ]),
+      contexts: [],
+      cards: [],
+      running: new Set([S1]),
+      now: 2_000_000,
+      memoryDir: '/home/u/.claude/projects/x/memory',
+    });
+    expect(g.edges.some((e) => e.kind === 'conflict')).toBe(false);
+  });
+
+  it('trims a session\'s activity payload to intervals ending within the last 7 days', () => {
+    const sevenDays = 7 * 24 * 3600_000;
+    const now = 10 * sevenDays;
+    const g = buildCanvasGraph({
+      sessions: [{ meta: meta(S1), archived: false }],
+      refs: new Map([[S1, { contexts: {}, activity: [[0, 100], [now - 1000, now - 500]], consumed: 0 }]]),
+      contexts: [],
+      cards: [],
+      now,
+    });
+    expect(g.nodes.find((n) => n.id === `s:${S1}`)?.activity).toEqual([[now - 1000, now - 500]]);
+  });
+
+  it('never sends activity for an archived session', () => {
+    const g = buildCanvasGraph({
+      sessions: [{ meta: meta(S1), archived: true }],
+      refs: new Map([[S1, { contexts: {}, activity: [[10, 20]], consumed: 0 }]]),
+      contexts: [],
+      cards: [],
+    });
+    expect(g.nodes.find((n) => n.id === `s:${S1}`)?.activity).toBeUndefined();
+  });
 });
