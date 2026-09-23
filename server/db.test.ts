@@ -152,3 +152,48 @@ describe('usageStats daily series', () => {
     expect(days).toEqual([...days].sort((a, b) => a - b));
   });
 });
+
+describe('session_turn_outcome', () => {
+  const dirs: string[] = [];
+  async function freshDb() {
+    const dir = mkdtempSync(join(tmpdir(), 'cockpit-db-'));
+    dirs.push(dir);
+    process.env.COCKPIT_DB = join(dir, 'outcome.db');
+    vi.resetModules();
+    return import('./db');
+  }
+  afterEach(() => {
+    delete process.env.COCKPIT_DB;
+    for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
+
+  it('round-trips ok=true and ok=false', async () => {
+    const { setTurnOutcome, getTurnOutcome } = await freshDb();
+    setTurnOutcome('s1', true, 100);
+    setTurnOutcome('s2', false, 200);
+    expect(getTurnOutcome('s1')).toBe(true);
+    expect(getTurnOutcome('s2')).toBe(false);
+  });
+
+  it('an unknown session returns null, not false', async () => {
+    const { getTurnOutcome } = await freshDb();
+    expect(getTurnOutcome('never-seen')).toBeNull();
+  });
+
+  it('a second write replaces the first (upsert, not history)', async () => {
+    const { setTurnOutcome, getTurnOutcome } = await freshDb();
+    setTurnOutcome('s1', true, 100);
+    setTurnOutcome('s1', false, 200);
+    expect(getTurnOutcome('s1')).toBe(false);
+  });
+
+  it('allTurnOutcomes decorates every row in one map', async () => {
+    const { setTurnOutcome, allTurnOutcomes } = await freshDb();
+    setTurnOutcome('s1', true, 100);
+    setTurnOutcome('s2', false, 200);
+    const all = allTurnOutcomes();
+    expect(all.get('s1')).toBe(true);
+    expect(all.get('s2')).toBe(false);
+    expect(all.has('s3')).toBe(false);
+  });
+});

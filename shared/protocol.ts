@@ -166,6 +166,11 @@ export interface SessionMeta {
   // depois) — agrupa a sessão em "Aguardando você". Só o card conta: qualquer
   // fecho em "?" marcava sessões ociosas e afogava a fila acionável.
   waiting?: boolean;
+  // O ÚLTIMO turno fechado terminou limpo (server/ws/runs.ts isCleanTurnClose),
+  // persistido por server/sessions/turn-outcome.ts. undefined = nunca fechou
+  // um turno neste processo (sessão antiga, ou servidor reiniciado depois do
+  // último fecho) — tratado como "não sabemos", nunca como crash.
+  lastTurnOk?: boolean;
 }
 
 // Memória do agente surfaceada read-only na aba Contextos.
@@ -713,6 +718,9 @@ export type ClientMsg =
   | { t: 'canvas-pos-reset' }
   | { t: 'canvas-card-save'; card: CanvasCard }
   | { t: 'canvas-card-delete'; id: string }
+  // Kanban session item (src/routes/canvas/kanban-items.ts): user override on
+  // a session's derived status — drag onto a column or "marcar completo".
+  | { t: 'canvas-session-status'; sessionId: string; status: CardStatus }
   | { t: 'canvas-flow-save'; flow: CanvasFlow }
   | { t: 'canvas-flow-delete'; id: string }
   | { t: 'canvas-budget-save'; area: string; budget: AreaBudget }

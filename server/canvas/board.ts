@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import {
   type AreaBudget, type AreaId, type CanvasBoard, type CanvasCard, type CanvasFlow, type CanvasPos,
+  type CanvasSessionStatus, type CardStatus,
   AREA_IDS, CARD_ID_RE, CARD_STATUSES, CONTENT_FORMATS, FLOW_ID_RE, isFlowEndpoint,
 } from '../../shared/canvas';
 
@@ -27,7 +28,7 @@ const NODE_ID_RE = /^[scktw]:[A-Za-z0-9_-]{1,80}$/;
 const REF_RE = /^[A-Za-z0-9_-]{1,80}$/;
 
 export function emptyBoard(): CanvasBoard {
-  return { cards: [], pos: {}, flows: [], budgets: {} };
+  return { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {} };
 }
 
 const MAX_TOKENS_BUDGET = 5_000_000; // absurd-guard, not a real ceiling anyone would hit
@@ -261,6 +262,31 @@ export function mergePos(board: CanvasBoard, pos: Record<string, CanvasPos>): Ca
   return { ...board, pos: merged };
 }
 
+const MAX_SESSION_STATUS = 2000;
+
+// Same shape as sanitizeCard/sanitizeFlow: raw JSON, nothing trusted. `at` is
+// clamped to `now` — a client can't backdate an override to dodge the "a
+// newer turn wins" expiry rule (src/routes/canvas/kanban-items.ts
+// isOverrideActive) by claiming it happened before a turn that already ran.
+export function sanitizeSessionStatus(sessionId: string, raw: unknown, now: number): { sessionId: string; entry: CanvasSessionStatus } | null {
+  if (!REF_RE.test(sessionId)) return null;
+  const r = (raw ?? {}) as Record<string, unknown>;
+  if (!CARD_STATUSES.includes(r.status as CardStatus)) return null;
+  const at = typeof r.at === 'number' && Number.isFinite(r.at) ? Math.min(r.at, now) : now;
+  return { sessionId, entry: { status: r.status as CardStatus, at } };
+}
+
+// One override per session (a new drag replaces the old one outright — no
+// history kept); the map is capped like `pos`, oldest insertion evicted first,
+// so a runaway client can't bloat the file with session ids that never stop
+// accumulating.
+export function setSessionStatus(board: CanvasBoard, sessionId: string, entry: CanvasSessionStatus): CanvasBoard {
+  const sessionStatus = { ...board.sessionStatus, [sessionId]: entry };
+  const keys = Object.keys(sessionStatus);
+  if (keys.length > MAX_SESSION_STATUS) for (const k of keys.slice(0, keys.length - MAX_SESSION_STATUS)) delete sessionStatus[k];
+  return { ...board, sessionStatus };
+}
+
 // Only a missing file means "no board yet" — an unreadable one (EACCES,
 // EMFILE) or a corrupt one (JSON parse error after a hand edit) must NOT read
 // as empty, because updateBoard would then happily write that emptiness over
@@ -284,7 +310,16 @@ export async function readBoard(): Promise<CanvasBoard> {
   const flows = (Array.isArray(parsed.flows) ? parsed.flows : [])
     .map((f) => sanitizeFlow(f, f as CanvasFlow, now))
     .filter((f): f is CanvasFlow => !!f);
-  return { cards, pos: sanitizePos(parsed.pos), flows, budgets: sanitizeBudgets(parsed.budgets) };
+  // A board written before this feature existed has no `sessionStatus` key at
+  // all — degrades to {} instead of throwing, same defense `flows` already has.
+  const sessionStatus: Record<string, CanvasSessionStatus> = {};
+  if (parsed.sessionStatus && typeof parsed.sessionStatus === 'object') {
+    for (const [sid, v] of Object.entries(parsed.sessionStatus as Record<string, unknown>)) {
+      const clean = sanitizeSessionStatus(sid, v, now);
+      if (clean) sessionStatus[clean.sessionId] = clean.entry;
+    }
+  }
+  return { cards, pos: sanitizePos(parsed.pos), flows, budgets: sanitizeBudgets(parsed.budgets), sessionStatus };
 }
 
 // Every write goes through one chain: two quick frames (drag end + card save)

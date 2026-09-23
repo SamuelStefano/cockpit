@@ -7,6 +7,7 @@ import { threads } from './ws/threads';
 // Side effect only: registers the canvas "card → review" listener on
 // onTurnClosed (server/canvas/turn-hooks.ts) at import time.
 import './canvas/card-review';
+import './sessions/turn-outcome';
 import { broadcast } from './ws/broadcast';
 import { makeStatic } from './static';
 import { buildManifest } from './build-id';

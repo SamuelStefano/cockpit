@@ -8,6 +8,10 @@ interface Props {
   card: CanvasCard;
   run: CardRun;
   sessions: string[];
+  // Title/subtitle of the card's most recent bound session — the card IS the
+  // kanban item for that session (kanban-items.ts dedupes it out of the
+  // session-only list), so this is the only place its live summary shows up.
+  sessionSummary?: { title: string; subtitle: string };
   selected: boolean;
   onSelect: (id: string) => void;
   onRun: (card: CanvasCard) => void;
@@ -16,7 +20,7 @@ interface Props {
   onOpenSession: (id: string) => void;
 }
 
-export const KanbanCard = memo(function KanbanCard({ card, run, sessions, selected, onSelect, onRun, onEdit, onReview, onOpenSession }: Props) {
+export const KanbanCard = memo(function KanbanCard({ card, run, sessions, sessionSummary, selected, onSelect, onRun, onEdit, onReview, onOpenSession }: Props) {
   return (
     <div
       draggable
@@ -28,7 +32,7 @@ export const KanbanCard = memo(function KanbanCard({ card, run, sessions, select
         <Icon name={card.kind === 'content' ? 'sparkles' : 'zap'} size={12} className="mt-0.5 shrink-0 text-orange-400" />
         <span className="min-w-0 flex-1 text-[12px] font-medium leading-snug text-neutral-100">{card.title}</span>
         {run === 'running' && <Badge tone="green" dot>rodando</Badge>}
-        {run === 'review' && <Badge tone="yellow">revisar</Badge>}
+        {run === 'review' && <Badge tone="yellow">parece pronto</Badge>}
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[10px] text-neutral-500">
         {card.kind === 'content' && card.format && <Badge>{FORMAT_LABEL[card.format]}</Badge>}
@@ -39,9 +43,10 @@ export const KanbanCard = memo(function KanbanCard({ card, run, sessions, select
           </button>
         )}
       </div>
+      {sessionSummary && <p className="mt-1 line-clamp-1 text-[10px] text-neutral-500">{sessionSummary.title} — {sessionSummary.subtitle}</p>}
       <div className="mt-1.5 flex gap-1" onClick={(e) => e.stopPropagation()}>
         {card.status === 'todo' && <Button size="sm" icon="play" onClick={() => onRun(card)}>rodar</Button>}
-        {run === 'review' && <Button size="sm" variant="secondary" icon="check" onClick={() => onReview(card.id)}>p/ revisão</Button>}
+        {run === 'review' && <Button size="sm" variant="secondary" icon="check" onClick={() => onReview(card.id)}>marcar como feito</Button>}
         <Button size="sm" variant="ghost" icon="pencil" onClick={() => onEdit(card.id)} title="editar" />
       </div>
     </div>

@@ -40,7 +40,7 @@ describe('useCanvas — canvas-board flowRuns (reconnect visibility)', () => {
     act(() => {
       result.current.onMsg({
         t: 'canvas-board',
-        board: { cards: [], pos: {}, flows: [], budgets: {} },
+        board: { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {} },
         flowRuns: [{ runKey: 'new-abc', cardId: 'card1', flowId: 'flow1' }],
       } as ServerMsg);
     });
@@ -51,12 +51,12 @@ describe('useCanvas — canvas-board flowRuns (reconnect visibility)', () => {
     const { result } = renderHook(() => useCanvas(send));
     act(() => {
       result.current.onMsg({
-        t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {} },
+        t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {} },
         flowRuns: [{ runKey: 'new-abc', cardId: 'card1', flowId: 'flow1' }],
       } as ServerMsg);
     });
     act(() => {
-      result.current.onMsg({ t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {} }, flowRuns: [] } as ServerMsg);
+      result.current.onMsg({ t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {} }, flowRuns: [] } as ServerMsg);
     });
     expect(result.current.canvasFlowRuns.card1?.key).toBe('new-abc');
   });
@@ -65,17 +65,39 @@ describe('useCanvas — canvas-board flowRuns (reconnect visibility)', () => {
     const { result } = renderHook(() => useCanvas(send));
     act(() => {
       result.current.onMsg({
-        t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {} },
+        t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {} },
         flowRuns: [{ runKey: 'new-abc', cardId: 'card1', flowId: 'flow1' }],
       } as ServerMsg);
     });
     const before = result.current.canvasFlowRuns;
     act(() => {
       result.current.onMsg({
-        t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {} },
+        t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {} },
         flowRuns: [{ runKey: 'new-abc', cardId: 'card1', flowId: 'flow1' }],
       } as ServerMsg);
     });
     expect(result.current.canvasFlowRuns).toBe(before);
+  });
+});
+
+describe('useCanvas — onCanvasSessionStatus', () => {
+  it('applies the override optimistically and sends the wire frame', () => {
+    const localSend = vi.fn(() => true);
+    const { result } = renderHook(() => useCanvas(localSend));
+    act(() => { result.current.onCanvasSessionStatus('sid-1', 'done'); });
+    expect(result.current.canvasBoard.sessionStatus['sid-1']?.status).toBe('done');
+    expect(localSend).toHaveBeenCalledWith({ t: 'canvas-session-status', sessionId: 'sid-1', status: 'done' });
+  });
+
+  it('a stale canvas-board frame within the grace window does not clobber the optimistic override', () => {
+    const localSend = vi.fn(() => true);
+    const { result } = renderHook(() => useCanvas(localSend));
+    act(() => { result.current.onCanvasSessionStatus('sid-1', 'done'); });
+    act(() => {
+      result.current.onMsg({
+        t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {} }, flowRuns: [],
+      } as ServerMsg);
+    });
+    expect(result.current.canvasBoard.sessionStatus['sid-1']?.status).toBe('done');
   });
 });

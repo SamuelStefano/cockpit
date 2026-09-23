@@ -56,6 +56,20 @@ function open(): Database.Database {
       updated_at INTEGER NOT NULL
     );
   `);
+  // Resultado do ÚLTIMO turno fechado por sessão (server/canvas/turn-outcome.ts,
+  // registrado a cada `onTurnClosed`). `ok` é o MESMO isCleanTurnClose de
+  // server/ws/runs.ts — sem isto o kanban (src/routes/canvas/kanban-items.ts)
+  // não tem como distinguir "o agente terminou de verdade" de "o turno
+  // travou/caiu/foi parado", e mostrava os dois como Done. Descartável (igual
+  // session_summary): se a linha sumir, o pior caso é a sessão voltar a
+  // aparentar Done até o próximo turno.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS session_turn_outcome (
+      session_id TEXT PRIMARY KEY,
+      ok         INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+  `);
   return db;
 }
 
@@ -81,6 +95,31 @@ export function allSummaries(): Map<string, string> {
   try {
     const rows = open().prepare('SELECT session_id AS id, summary FROM session_summary').all() as Array<{ id: string; summary: string }>;
     return new Map(rows.map((r) => [r.id, r.summary]));
+  } catch { return new Map(); }
+}
+
+export function setTurnOutcome(sessionId: string, ok: boolean, at: number): void {
+  if (!sessionId) return;
+  try {
+    open()
+      .prepare(`INSERT INTO session_turn_outcome (session_id, ok, updated_at) VALUES (?, ?, ?)
+        ON CONFLICT(session_id) DO UPDATE SET ok = excluded.ok, updated_at = excluded.updated_at`)
+      .run(sessionId, ok ? 1 : 0, at);
+  } catch { /* lock/disco — descartável, ignora */ }
+}
+
+export function getTurnOutcome(sessionId: string): boolean | null {
+  try {
+    const r = open().prepare('SELECT ok FROM session_turn_outcome WHERE session_id = ?').get(sessionId) as { ok: number } | undefined;
+    return r ? r.ok === 1 : null;
+  } catch { return null; }
+}
+
+// Mapa id->ok, mesma forma de allSummaries — decora a listagem inteira sem N selects.
+export function allTurnOutcomes(): Map<string, boolean> {
+  try {
+    const rows = open().prepare('SELECT session_id AS id, ok FROM session_turn_outcome').all() as Array<{ id: string; ok: number }>;
+    return new Map(rows.map((r) => [r.id, r.ok === 1]));
   } catch { return new Map(); }
 }
 

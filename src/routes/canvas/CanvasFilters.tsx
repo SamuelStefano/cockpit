@@ -11,6 +11,8 @@ interface Props {
   onScope: (s: CanvasScope) => void;
   archived: boolean;
   onArchived: (v: boolean) => void;
+  showAutomation: boolean;
+  onShowAutomation: (v: boolean) => void;
   query: string;
   onQuery: (q: string) => void;
   loading: boolean;
@@ -40,9 +42,11 @@ export function CanvasFilters(p: Props) {
           </Badge>
         )}
         <Tabs items={MODES} active={p.mode} onChange={p.onMode} className="mx-2 border-b-0" />
-        <ToggleChip on={p.scope === 'active'} icon="zap" onClick={() => p.onScope('active')}>ativas (7d)</ToggleChip>
-        <ToggleChip on={p.scope === 'all'} icon="layers" onClick={() => p.onScope('all')}>todas</ToggleChip>
+        <ToggleChip on={p.scope === 'exec'} icon="zap" onClick={() => p.onScope('exec')} title="painel de execução: só o que está rodando, esperando você, aberto num terminal, ou recém-concluído">execução</ToggleChip>
+        <ToggleChip on={p.scope === 'active'} icon="clock" onClick={() => p.onScope('active')} title="tudo tocado nas últimas 48h">recentes</ToggleChip>
+        <ToggleChip on={p.scope === 'all'} icon="layers" onClick={() => p.onScope('all')}>tudo</ToggleChip>
         <ToggleChip on={p.archived} icon="clock" onClick={() => p.onArchived(!p.archived)}>arquivo</ToggleChip>
+        <ToggleChip on={p.showAutomation} icon="rotate" onClick={() => p.onShowAutomation(!p.showAutomation)} title="mostra sessões de automação (crons de reset, limpeza de memória, manutenção)">mostrar automações</ToggleChip>
         <div className="w-full sm:w-56">
           <Input size="sm" icon="search" placeholder="buscar sessão ou contexto" value={p.query} onChange={(e) => p.onQuery(e.target.value)} />
         </div>

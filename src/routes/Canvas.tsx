@@ -108,11 +108,19 @@ export function Canvas(p: CanvasRouteProps) {
   const maxNode = terms.maximized ? r.byId.get(terms.maximized) : undefined;
   const maxTarget = maxNode && termTarget(maxNode);
 
+  const sessionNodeOf = useCallback((sessionId: string) => {
+    const n = r.byId.get(`s:${sessionId}`);
+    return n ? { title: n.title, subtitle: n.subtitle } : undefined;
+  }, [r.byId]);
+
   const kanban = (
     <Kanban
-      cards={p.board.cards} selected={r.selected} running={p.running} sessionsOf={r.cardSessions}
-      onSelect={(id) => (r.mode === 'canvas' && p.graph ? focusNode(`k:${id}`) : r.editCard(id))} onMove={r.setStatus}
-      onRun={r.runCard} onEdit={r.editCard} onOpenSession={p.onOpenSession}
+      cards={p.board.cards} sessionItems={r.sessionItems} termStats={p.termStats}
+      selected={r.selected} running={p.running} sessionsOf={r.cardSessions} nodeOf={sessionNodeOf}
+      onSelect={(id) => (r.mode === 'canvas' && p.graph ? focusNode(`k:${id}`) : r.editCard(id))}
+      onSelectSession={(nodeId) => (r.mode === 'canvas' && p.graph ? focusNode(nodeId) : r.select(nodeId, false))}
+      onMove={r.setStatus} onRun={r.runCard} onEdit={r.editCard} onOpenSession={p.onOpenSession}
+      onOpenTerm={openTerm} onSessionStatus={r.onSessionStatus}
     />
   );
 
@@ -120,6 +128,7 @@ export function Canvas(p: CanvasRouteProps) {
     <div className="flex min-h-0 flex-1 flex-col bg-neutral-950">
       <CanvasFilters
         mode={r.mode} onMode={r.setMode} scope={r.scope} onScope={r.setScope} archived={r.archived} onArchived={r.setArchived}
+        showAutomation={r.showAutomation} onShowAutomation={r.setShowAutomation}
         query={r.query} onQuery={r.setQuery} loading={p.loading} onRefresh={p.onCanvasGet}
         onNewCard={() => r.newDraft('task', r.selectedNodes)}
         counts={{

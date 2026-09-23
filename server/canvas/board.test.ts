@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import {
   checkFlowSave, claimFlowFire, emptyBoard, markCardDoing, mergePos, readBoard, readBoardChained, recordFlowFailure,
   recordFlowSuccess, removeCard, removeFlow, sanitizeBudget, sanitizeBudgets, sanitizeCard, sanitizeFlow, sanitizePos,
-  setBudget, updateBoard, upsertCard, upsertFlow,
+  sanitizeSessionStatus, setBudget, setSessionStatus, updateBoard, upsertCard, upsertFlow,
 } from './board';
 
 // claimFlowFire takes a backoff curve injected by the caller (server/canvas/
@@ -189,6 +189,48 @@ describe('positions', () => {
     b = upsertCard(b, sanitizeCard({ id: 'abcd', title: 'a' }, undefined, 1)!);
     b = removeCard(b, 'abcd');
     expect(b).toEqual(emptyBoard());
+  });
+});
+
+describe('sessionStatus', () => {
+  it('rejects a bad session id or an invalid status', () => {
+    expect(sanitizeSessionStatus('../x', { status: 'done' }, 1)).toBeNull();
+    expect(sanitizeSessionStatus('abcd-1234', { status: 'weird' }, 1)).toBeNull();
+  });
+
+  it('defaults `at` to now and clamps a future-dated one down to now', () => {
+    expect(sanitizeSessionStatus('sid', { status: 'done' }, 1000)).toMatchObject({ sessionId: 'sid', entry: { status: 'done', at: 1000 } });
+    expect(sanitizeSessionStatus('sid', { status: 'done', at: 9999 }, 1000)).toMatchObject({ entry: { at: 1000 } });
+  });
+
+  it('a past `at` is kept as-is (readBoard preserving the original decision time)', () => {
+    expect(sanitizeSessionStatus('sid', { status: 'done', at: 500 }, 1000)).toMatchObject({ entry: { at: 500 } });
+  });
+
+  it('setSessionStatus is one override per session — a second write replaces, not accumulates', () => {
+    let b = setSessionStatus(emptyBoard(), 'sid', { status: 'done', at: 1 });
+    b = setSessionStatus(b, 'sid', { status: 'doing', at: 2 });
+    expect(b.sessionStatus).toEqual({ sid: { status: 'doing', at: 2 } });
+  });
+
+  it('round-trips through readBoard, keeping every other board field intact', async () => {
+    process.env.COCKPIT_CANVAS_BOARD = join(mkdtempSync(join(tmpdir(), 'canvas-')), 'b.json');
+    const card = sanitizeCard({ id: 'abcd', title: 'a' }, undefined, 1)!;
+    let b = upsertCard(emptyBoard(), card);
+    b = mergePos(b, { 'k:abcd': { x: 1, y: 1 } });
+    b = setSessionStatus(b, 'sid-1', { status: 'done', at: 5 });
+    await updateBoard(() => b);
+    const reloaded = await readBoard();
+    expect(reloaded.sessionStatus).toEqual({ 'sid-1': { status: 'done', at: 5 } });
+    expect(reloaded.cards.map((c) => c.id)).toEqual(['abcd']);
+    expect(reloaded.pos).toEqual({ 'k:abcd': { x: 1, y: 1 } });
+    expect(reloaded.flows).toEqual([]);
+  });
+
+  it('loads a pre-sessionStatus board (no key on disk) with sessionStatus: {}', async () => {
+    process.env.COCKPIT_CANVAS_BOARD = join(mkdtempSync(join(tmpdir(), 'canvas-')), 'b.json');
+    writeFileSync(process.env.COCKPIT_CANVAS_BOARD, JSON.stringify({ cards: [], pos: {}, flows: [] }));
+    await expect(readBoard()).resolves.toEqual(emptyBoard());
   });
 });
 

@@ -67,6 +67,93 @@ describe('filterCanvas', () => {
   });
 });
 
+describe('filterCanvas — exec scope', () => {
+  // `base.cards` carries a single 'todo' card ('k:open') with no edges of its
+  // own — every exec-scope assertion below inherits it as a seed (see the
+  // dedicated card tests further down), so most checks here use `toContain`/
+  // `not.toContain` rather than a full `toEqual` to stay focused on the
+  // session-seed behaviour under test.
+  it('keeps only running/waiting/windowed/done-recent sessions and their read/write contexts — no hub, no untouched leaf', () => {
+    const execNodes = [
+      ...nodes,
+      n('s:waits', 'session', { mtime: 0, waiting: true }),
+    ];
+    const execEdges: CanvasEdge[] = [...edges, { source: 's:waits', target: 'c:other', kind: 'read' }];
+    const r = filterCanvas(execNodes, execEdges, {
+      ...base, scope: 'exec', running: new Set(['old']), windowIds: new Set(['s:fresh']),
+    });
+    expect(ids(r)).toEqual(['c:leaf', 'c:other', 'k:open', 's:fresh', 's:old', 's:waits']);
+  });
+
+  it('a link/topic edge never pulls in a neighbour, only read/write', () => {
+    const withTopic: CanvasEdge[] = [...edges, { source: 's:fresh', target: 'c:other', kind: 'topic', weight: 1 }];
+    const r = filterCanvas(nodes, withTopic, { ...base, scope: 'exec', running: new Set(['fresh']) });
+    expect(ids(r)).not.toContain('c:other');
+  });
+
+  it('hides automation noise by default, shows it with showAutomation', () => {
+    const ping = [...nodes, n('s:ping', 'session', { title: '.', subtitle: '' })];
+    const hidden = filterCanvas(ping, edges, { ...base, scope: 'exec', running: new Set(['ping']) });
+    const shown = filterCanvas(ping, edges, { ...base, scope: 'exec', running: new Set(['ping']), showAutomation: true });
+    expect(ids(hidden)).not.toContain('s:ping');
+    expect(ids(shown)).toContain('s:ping');
+  });
+
+  it('a done-recent session (flagged by the caller) is kept even idle and old', () => {
+    const r = filterCanvas(nodes, edges, { ...base, scope: 'exec', doneRecentIds: new Set(['s:old']) });
+    expect(ids(r)).toContain('s:old');
+  });
+
+  it('an idle, non-windowed, non-done-recent session is dropped', () => {
+    const r = filterCanvas(nodes, edges, { ...base, scope: 'exec', cards: [] });
+    expect(ids(r)).toEqual([]);
+  });
+
+  it('prefers liveSessions.waiting over the (possibly stale) node — a session waiting per the live list is a seed', () => {
+    const stale = [...nodes, n('s:stale-wait', 'session', { mtime: 0, waiting: false })];
+    const r = filterCanvas(stale, edges, {
+      ...base, scope: 'exec', cards: [], liveSessions: new Map([['stale-wait', { waiting: true, mtime: 0 }]]),
+    });
+    expect(ids(r)).toContain('s:stale-wait');
+  });
+
+  it('a node marked waiting but the live list says otherwise is NOT a seed on that basis', () => {
+    const stale = [...nodes, n('s:stale-idle', 'session', { mtime: 0, waiting: true })];
+    const r = filterCanvas(stale, edges, {
+      ...base, scope: 'exec', cards: [], liveSessions: new Map([['stale-idle', { waiting: false, mtime: 0 }]]),
+    });
+    expect(ids(r)).not.toContain('s:stale-idle');
+  });
+
+  describe('cards', () => {
+    const cardNodes = [
+      n('k:todo', 'card', { status: 'todo' }), n('k:done', 'card', { status: 'done' }),
+      n('s:bound', 'session', { mtime: 0 }), n('c:card-ctx', 'context'),
+    ];
+    const cardEdges: CanvasEdge[] = [
+      { source: 'k:todo', target: 's:bound', kind: 'card' },
+      { source: 'k:todo', target: 'c:card-ctx', kind: 'card' },
+    ];
+    // filterCanvas's `openCards` comes from the CanvasCard business objects
+    // (o.cards), not from the graph node's own `.status` — both must agree
+    // for a card to act as a seed, same as every other scope.
+    const cardObjs = [
+      { id: 'todo', status: 'todo' } as CanvasCard,
+      { id: 'done', status: 'done' } as CanvasCard,
+    ];
+
+    it('a card not yet Completed is a seed, pulling in its bound session and linked context', () => {
+      const r = filterCanvas(cardNodes, cardEdges, { ...base, scope: 'exec', cards: cardObjs });
+      expect(ids(r)).toEqual(['c:card-ctx', 'k:todo', 's:bound']);
+    });
+
+    it('a Completed card is never a seed, nor is it pulled in by anything else', () => {
+      const r = filterCanvas(cardNodes, cardEdges, { ...base, scope: 'exec', cards: cardObjs });
+      expect(ids(r)).not.toContain('k:done');
+    });
+  });
+});
+
 describe('neighbors', () => {
   it('is undirected', () => {
     expect([...neighbors(edges, 'c:leaf')].sort()).toEqual(['c:hub_a', 's:fresh']);
