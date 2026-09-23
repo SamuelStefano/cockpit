@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import {
   type AreaBudget, type AreaId, type CanvasBoard, type CanvasCard, type CanvasFlow, type CanvasPos,
-  type CanvasSessionStatus, type CardStatus,
+  type CanvasSessionStatus, type CardReuse, type CardStatus,
   AREA_IDS, CARD_ID_RE, CARD_STATUSES, CONTENT_FORMATS, FLOW_ID_RE, isFlowEndpoint,
 } from '../../shared/canvas';
 
@@ -26,6 +26,22 @@ const MCP_NAME_RE = /^[A-Za-z0-9_-]{1,60}$/;
 const FLOW_MODES = new Set(['plan', 'auto', 'acceptEdits']);
 const NODE_ID_RE = /^[scktw]:[A-Za-z0-9_-]{1,80}$/;
 const REF_RE = /^[A-Za-z0-9_-]{1,80}$/;
+const REUSE_MODES = new Set(['new', 'continue', 'fork']);
+const SESSION_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+// `continue`/`fork` without a valid session uuid is meaningless (there's
+// nothing to send to or fork from) — drop back to no preference rather than
+// persist a mode the client can never act on. A forged/stale sessionId only
+// wastes a click later (onSendTo/canvas-card-fork both re-validate against
+// the real session), never a write.
+function sanitizeReuse(raw: unknown): CardReuse | undefined {
+  const r = raw as { mode?: unknown; sessionId?: unknown } | null | undefined;
+  if (!r || typeof r.mode !== 'string' || !REUSE_MODES.has(r.mode)) return undefined;
+  const mode = r.mode as CardReuse['mode'];
+  if (mode === 'new') return { mode };
+  if (typeof r.sessionId !== 'string' || !SESSION_UUID_RE.test(r.sessionId)) return undefined;
+  return { mode, sessionId: r.sessionId };
+}
 
 export function emptyBoard(): CanvasBoard {
   return { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {} };
@@ -90,6 +106,7 @@ export function sanitizeCard(raw: unknown, prev: CanvasCard | undefined, now: nu
     id: c.id, title, prompt: str(c.prompt, MAX_PROMPT), status, kind, format,
     contextIds: refs(c.contextIds), sessionIds: refs(c.sessionIds),
     createdAt: prev?.createdAt ?? now, updatedAt: now,
+    reuse: sanitizeReuse(c.reuse),
   };
 }
 

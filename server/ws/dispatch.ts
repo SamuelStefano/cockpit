@@ -900,5 +900,32 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       }
       return;
     }
+    // Fork imediato de um card do canvas (session-reuse.ts "fork"): mesma base
+    // de queue-add + queue-run-bg, fundida num round-trip só — o item nunca
+    // fica visível na fila do pai (nasce e roda na mesma chamada), e o cliente
+    // recebe o forkId de volta pra ligar o card e abrir o terminal sem esperar
+    // o próximo rebuild do grafo.
+    case 'canvas-card-fork': {
+      const disallowedSkills = await resolveSkillDeny(msg.skills);
+      const parked = addParked(msg.parentSessionId, {
+        prompt: msg.text, resumeId: msg.parentSessionId, mode: msg.mode, model: msg.model,
+        effort: msg.effort, maxBudgetUsd: msg.maxBudgetUsd, bypass: msg.bypass, role, disallowedSkills, mcps: msg.mcps,
+      });
+      if ('reject' in parked) {
+        send(ws, { t: 'canvas-card-fork-reject', cardId: msg.cardId, parentSessionId: msg.parentSessionId, message: REJECT_MESSAGE[parked.reject] });
+        return;
+      }
+      const r = runParkedInBackground(msg.parentSessionId, parked.id, role, msg.model);
+      // Falhou: o item fica parado na fila do pai (mesmo comportamento de um
+      // 'queue-run-bg' recusado) em vez de sumir — o drainer ainda pode
+      // disparar quando a quota/slot liberar.
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      if ('reject' in r) {
+        send(ws, { t: 'canvas-card-fork-reject', cardId: msg.cardId, parentSessionId: msg.parentSessionId, message: BG_RUN_MESSAGE[r.reject] });
+        return;
+      }
+      send(ws, { t: 'canvas-card-fork-ok', cardId: msg.cardId, parentSessionId: msg.parentSessionId, forkId: r.forkId });
+      return;
+    }
   }
 }

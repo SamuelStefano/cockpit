@@ -754,7 +754,14 @@ export type ClientMsg =
   // Aceita a oferta de retomada de um turno que morreu e NÃO foi retomado sozinho
   // (sinal externo, teto de contexto, tentativas esgotadas, sem token). O servidor
   // guarda a config do turno morto, então o clique vale um `--resume` de verdade.
-  | { t: 'resume-run'; sessionKey: string };
+  | { t: 'resume-run'; sessionKey: string }
+  // Card do canvas rodando em modo "fork" (session-reuse.ts): dispara AGORA num
+  // chat paralelo que herda o transcript inteiro de `parentSessionId`
+  // (--fork-session), sem tocar o turno do pai. Mesma base de queue-add +
+  // queue-run-bg (server/ws/dispatch.ts), só que num round-trip só — o cliente
+  // já sabe o cardId e precisa do forkId de volta pra ligar o card e abrir o
+  // terminal na hora.
+  | { t: 'canvas-card-fork'; parentSessionId: string; cardId: string; text: string; mode?: PermMode; model?: string; effort?: Effort; maxBudgetUsd?: number; bypass?: boolean; skills?: string[]; mcps?: string[] };
 
 // Capabilities da conexão (DR-011). role = papel do ator (hoje sempre admin em
 // loopback; Fase 2 vem do token). canBypass = se o servidor permite o toggle de
@@ -939,6 +946,12 @@ export type ServerMsg =
   // O gate barrou por quota/cold-busy e o prompt foi pra fila estacionada: a bolha
   // otimista sai (o item aparece na fila) e o composer NÃO recebe o texto de volta.
   | { t: 'send-parked'; sessionKey: string; msgId?: string; message: string }
+  // Resposta do 'canvas-card-fork': forkId é o id REAL da nova sessão (a mesma
+  // chave que server/engine/claude.ts grava via --session-id) — o cliente pode
+  // abrir o terminal e ligar o card nela na hora, sem esperar o próximo
+  // rebuild do grafo.
+  | { t: 'canvas-card-fork-ok'; cardId: string; parentSessionId: string; forkId: string }
+  | { t: 'canvas-card-fork-reject'; cardId: string; parentSessionId: string; message: string }
   // O turno morreu e o servidor decidiu NÃO retomar sozinho. Sem isto o turno
   // sumia em silêncio (ou virava só mais uma bolha de erro sem saída): a UI mostra
   // o motivo e um botão que manda `resume-run`.

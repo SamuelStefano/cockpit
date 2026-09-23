@@ -1,6 +1,7 @@
 import type { ClientMsg, Effort, PermMode } from '../../shared/protocol';
 
 type SendFrame = Extract<ClientMsg, { t: 'send' }>;
+type ForkFrame = Extract<ClientMsg, { t: 'canvas-card-fork' }>;
 
 // Pure wire-builder shared by onSend (the main composer) and onSendTo (the
 // canvas prompt bar) in useCockpit.ts — the ONLY place bypass/skills/mcps/
@@ -39,5 +40,20 @@ export function buildSendWire(
     mode: modeOverride ?? ctx.mode, model, effort: ctx.effort,
     bypass: bypassWire, skills: skillsWire, mcps: mcpsWire,
     auto: auto || undefined, allowWorkflow: allowWorkflow || undefined,
+  };
+}
+
+// Same ctx-resolution rule as buildSendWire, for the card-reuse "fork"
+// path (session-reuse.ts): a card forked into a parallel session must run
+// under the exact same bypass/skills/mcps/effort/mode the composer would
+// have used, never a source turn's own params (server/canvas/flows.ts
+// safeParams draws that same line for flow-delivered forks).
+export function buildForkWire(ctx: SendWireCtx, parentSessionId: string, cardId: string, text: string, model: string): ForkFrame {
+  const bypassWire = ctx.canBypass && ctx.bypassOn ? true : undefined;
+  const skillsWire = ctx.selectedSkills.length ? ctx.selectedSkills : undefined;
+  const mcpsWire = ctx.selectedMcps.length ? ctx.selectedMcps : undefined;
+  return {
+    t: 'canvas-card-fork', parentSessionId, cardId, text,
+    mode: ctx.mode, model, effort: ctx.effort, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire,
   };
 }

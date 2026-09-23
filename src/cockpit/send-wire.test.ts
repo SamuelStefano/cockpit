@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildSendWire, type SendWireCtx } from './send-wire';
+import { buildForkWire, buildSendWire, type SendWireCtx } from './send-wire';
 
 const ctx = (over: Partial<SendWireCtx> = {}): SendWireCtx => ({
   canBypass: false, bypassOn: false, selectedSkills: [], selectedMcps: [],
@@ -52,5 +52,22 @@ describe('buildSendWire', () => {
     const fromComposer = buildSendWire(shared, 'sess-9', 'sess-9', 'faz X', 'msg-a', 'sonnet');
     const fromCanvasBar = buildSendWire(shared, 'sess-9', 'sess-9', 'faz X', 'msg-b', 'sonnet');
     expect({ ...fromComposer, msgId: undefined }).toEqual({ ...fromCanvasBar, msgId: undefined });
+  });
+});
+
+describe('buildForkWire', () => {
+  it('builds a canvas-card-fork frame with the same ctx-resolution rules as buildSendWire', () => {
+    const wire = buildForkWire(ctx({ canBypass: true, bypassOn: true, selectedSkills: ['a'], selectedMcps: ['b'] }), 'parent-1', 'card-1', 'siga daqui', 'sonnet');
+    expect(wire).toEqual({
+      t: 'canvas-card-fork', parentSessionId: 'parent-1', cardId: 'card-1', text: 'siga daqui',
+      mode: 'auto', model: 'sonnet', effort: 'medium', bypass: true, skills: ['a'], mcps: ['b'],
+    });
+  });
+
+  it('bypass/skills/mcps stay off the wire with nothing selected', () => {
+    const wire = buildForkWire(ctx(), 'parent-1', 'card-1', 'x', 'opus');
+    expect(wire.bypass).toBeUndefined();
+    expect(wire.skills).toBeUndefined();
+    expect(wire.mcps).toBeUndefined();
   });
 });

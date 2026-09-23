@@ -48,6 +48,20 @@ export function buildTaskPrompt(card: Pick<CanvasCard, 'id' | 'title' | 'prompt'
   ].join('\n');
 }
 
+// Reuse ('continue'/'fork' card.reuse): the target session already has the
+// card's contexts/sessions — either it read them itself (continue) or it
+// inherited the parent's whole transcript (fork, --fork-session). Re-seeding
+// sourceLines() here would just duplicate what the session already read.
+// The marker still closes the loop: card-sessions.ts's bindCardSession reads
+// it off whatever turn it lands on, not just a session's first one.
+export function buildContinuePrompt(card: Pick<CanvasCard, 'id' | 'title' | 'prompt'>): string {
+  return [
+    card.prompt.trim() || card.title,
+    '',
+    cardMarker(card.id),
+  ].join('\n');
+}
+
 export function buildContentPrompt(
   card: Pick<CanvasCard, 'id' | 'title' | 'prompt'>, format: ContentFormat, contexts: CanvasNode[], sessions: CanvasNode[], date: string,
 ): string {
