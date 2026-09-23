@@ -63,6 +63,35 @@ export function moveCard(card: CanvasCard, status: CardStatus, now: number): Can
   return { ...card, status, updatedAt: now };
 }
 
+// A 'continue' reuse card useCanvasRoute.ts's runCard already moved to
+// "doing", whose send the SERVER refused AFTER the fact (double-writer
+// guard, a ctx/size gate that only exists server-side, ...) — #593's
+// canvasSendError already correlates the rejection back to the exact
+// sessionId+text that caused it; matching a card's own buildContinuePrompt
+// output against that text is what tells THIS card apart from an unrelated
+// rejection in the same session (review #597 point 5). Never returns a card
+// not currently "doing": a manual move or an already-recovered card is not
+// this effect's business to touch again.
+//
+// `err.at >= c.updatedAt` (review #597 follow-up point 1): the caller never
+// gets a guaranteed dismiss of `err` (no open terminal ever consumed it can
+// leave it sitting in state indefinitely), so without this an OLD rejection
+// would keep matching every later run of the SAME card+session+text —
+// including a run that then SUCCEEDED — and bounce it back to ToDo with a
+// false "recusado" toast. `moveCard` stamps `updatedAt` to `Date.now()` the
+// instant a run starts, always strictly before the server's own rejection
+// timestamp can arrive, so a genuinely-current rejection always satisfies
+// this; a stale one (from a PRIOR attempt, predating the current run) never does.
+export function stuckContinueCard(
+  cards: CanvasCard[], err: { sessionId: string; text: string; at: number } | null, buildContinuePrompt: (c: CanvasCard) => string,
+): CanvasCard | undefined {
+  if (!err) return undefined;
+  return cards.find((c) => (
+    c.status === 'doing' && c.reuse?.mode === 'continue' && c.reuse.sessionId === err.sessionId
+    && err.at >= c.updatedAt && buildContinuePrompt(c) === err.text
+  ));
+}
+
 // CardEditor's draft is a snapshot frozen at open time (useCanvasRoute's
 // `draft` state never re-syncs to later board updates). A server-side
 // auto-move (card-review.ts: doing→review on a clean turn close) can land

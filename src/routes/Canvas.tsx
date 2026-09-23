@@ -182,6 +182,8 @@ export function Canvas(p: CanvasRouteProps) {
       {r.draft && (
         <CardEditor
           key={r.draft.card.id} card={r.draft.card} isNew={r.draft.isNew} node={(id) => r.byId.get(id)}
+          sessions={r.merged.nodes.filter((n) => n.kind === 'session')} edges={r.merged.edges}
+          running={p.running} termStats={p.termStats} onCtxStats={p.onCanvasCtxStats}
           onSave={r.saveCard} onRun={r.runCard} onDelete={r.deleteCard} onClose={() => r.setDraft(null)}
         />
       )}

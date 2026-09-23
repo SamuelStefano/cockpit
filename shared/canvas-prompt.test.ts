@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { CanvasNode } from './canvas';
 import { CARD_MARKER_RE } from './canvas';
-import { buildContentPrompt, buildTaskPrompt } from './canvas-prompt';
+import { buildContentPrompt, buildContinuePrompt, buildTaskPrompt } from './canvas-prompt';
 
 const ctx: CanvasNode = { id: 'c:hub_deck', kind: 'context', ref: 'hub_deck', title: 'hub-deck', subtitle: '', mtime: 1, path: '/m/hub_deck.md' };
 const ses: CanvasNode = { id: 's:abc', kind: 'session', ref: 'abc', title: 'Fila', subtitle: 'corrigiu a fila', mtime: 1 };
@@ -26,5 +26,19 @@ describe('buildContentPrompt', () => {
     expect(p).toContain('~/deck-content/2026-09-23-semana-do-deck.md');
     expect(p).toContain('não publique');
     expect(CARD_MARKER_RE.exec(p)?.[1]).toBe('card-2');
+  });
+});
+
+describe('buildContinuePrompt', () => {
+  it('carries the marker but never re-seeds contexts/sessions', () => {
+    const p = buildContinuePrompt({ id: 'card-3', title: 'Continuar', prompt: 'siga daqui' });
+    expect(p).toContain('siga daqui');
+    expect(p).not.toContain('Contextos');
+    expect(p).not.toContain('Sessões relacionadas');
+    expect(CARD_MARKER_RE.exec(p)?.[1]).toBe('card-3');
+  });
+
+  it('falls back to the title when the prompt is empty', () => {
+    expect(buildContinuePrompt({ id: 'card-4', title: 'Só título', prompt: ' ' })).toContain('Só título\n');
   });
 });

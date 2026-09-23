@@ -714,6 +714,15 @@ export type ClientMsg =
   | { t: 'graph-delete'; id: string }
   | { t: 'canvas-get' }
   | { t: 'canvas-term-stats'; sessions: string[]; terms: string[] }
+  // A CardEditor reuse-pool lookup (session-reuse.ts): just the transcript
+  // TAIL's last usage for ids that mostly never had an open window — a
+  // SEPARATE, lightweight message on purpose, never 'canvas-term-stats'
+  // itself, so it can never touch that message's per-socket CPU sample store
+  // (collectTermStats' eviction sweep would otherwise drop the window
+  // poller's own entries every round this fires — review #597 follow-up
+  // point 2) or join running-session ids into an area-usage computation fed
+  // by zeroed cpu.
+  | { t: 'canvas-ctx-stats'; sessions: string[] }
   | { t: 'canvas-pos'; pos: Record<string, CanvasPos> }
   | { t: 'canvas-pos-reset' }
   | { t: 'canvas-card-save'; card: CanvasCard }
@@ -754,7 +763,14 @@ export type ClientMsg =
   // Aceita a oferta de retomada de um turno que morreu e NÃO foi retomado sozinho
   // (sinal externo, teto de contexto, tentativas esgotadas, sem token). O servidor
   // guarda a config do turno morto, então o clique vale um `--resume` de verdade.
-  | { t: 'resume-run'; sessionKey: string };
+  | { t: 'resume-run'; sessionKey: string }
+  // Card do canvas rodando em modo "fork" (session-reuse.ts): dispara AGORA num
+  // chat paralelo que herda o transcript inteiro de `parentSessionId`
+  // (--fork-session), sem tocar o turno do pai. Mesma base de queue-add +
+  // queue-run-bg (server/ws/dispatch.ts), só que num round-trip só — o cliente
+  // já sabe o cardId e precisa do forkId de volta pra ligar o card e abrir o
+  // terminal na hora.
+  | { t: 'canvas-card-fork'; parentSessionId: string; cardId: string; text: string; mode?: PermMode; model?: string; effort?: Effort; maxBudgetUsd?: number; bypass?: boolean; skills?: string[]; mcps?: string[] };
 
 // Capabilities da conexão (DR-011). role = papel do ator (hoje sempre admin em
 // loopback; Fase 2 vem do token). canBypass = se o servidor permite o toggle de
@@ -867,6 +883,7 @@ export type ServerMsg =
   | { t: 'graphs'; items: GraphMeta[] }
   | { t: 'canvas-graph'; graph: CanvasGraph }
   | { t: 'canvas-term-stats'; stats: Record<string, TermStats> }
+  | { t: 'canvas-ctx-stats'; stats: Record<string, Pick<TermStats, 'contextTokens' | 'model' | 'lastAt'>> }
   // flowRuns: every card-target flow run still live right now (server/canvas/
   // flow-runs.ts) — a tab that (re)connects mid-run (F5, a second tab, opening
   // /canvas after the flow already fired) gets this on the SAME frame as the
@@ -939,6 +956,12 @@ export type ServerMsg =
   // O gate barrou por quota/cold-busy e o prompt foi pra fila estacionada: a bolha
   // otimista sai (o item aparece na fila) e o composer NÃO recebe o texto de volta.
   | { t: 'send-parked'; sessionKey: string; msgId?: string; message: string }
+  // Resposta do 'canvas-card-fork': forkId é o id REAL da nova sessão (a mesma
+  // chave que server/engine/claude.ts grava via --session-id) — o cliente pode
+  // abrir o terminal e ligar o card nela na hora, sem esperar o próximo
+  // rebuild do grafo.
+  | { t: 'canvas-card-fork-ok'; cardId: string; parentSessionId: string; forkId: string }
+  | { t: 'canvas-card-fork-reject'; cardId: string; parentSessionId: string; message: string }
   // O turno morreu e o servidor decidiu NÃO retomar sozinho. Sem isto o turno
   // sumia em silêncio (ou virava só mais uma bolha de erro sem saída): a UI mostra
   // o motivo e um botão que manda `resume-run`.

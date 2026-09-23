@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { CARD_ID_RE, type CanvasCard, type CanvasGraph } from '../../../shared/canvas';
-import { boundSessions, capRecent, cardRun, mergeBoard, newCardId, newlyBoundSessions, resolveSaveStatus } from './canvas-board';
+import { boundSessions, capRecent, cardRun, mergeBoard, newCardId, newlyBoundSessions, resolveSaveStatus, stuckContinueCard } from './canvas-board';
 
 const card = (extra: Partial<CanvasCard> = {}): CanvasCard => ({
   id: 'card-1', title: 'T', prompt: 'P', status: 'todo', kind: 'task', contextIds: ['a'], sessionIds: [], createdAt: 1, updatedAt: 2, ...extra,
@@ -121,6 +121,56 @@ describe('newCardId', () => {
   it('matches the server id rule', () => {
     expect(CARD_ID_RE.test(newCardId(Date.now(), 0.5))).toBe(true);
     expect(CARD_ID_RE.test(newCardId(0, 0))).toBe(true);
+  });
+});
+
+describe('stuckContinueCard', () => {
+  const buildPrompt = (c: CanvasCard) => `PROMPT:${c.id}`;
+
+  it('no error -> undefined', () => {
+    expect(stuckContinueCard([card()], null, buildPrompt)).toBeUndefined();
+  });
+
+  it('matches a "doing" continue card by session AND prompt text, with a CURRENT-enough error', () => {
+    const c = card({ status: 'doing', reuse: { mode: 'continue', sessionId: 'sess-1' }, updatedAt: 100 });
+    const err = { sessionId: 'sess-1', text: 'PROMPT:card-1', at: 100 };
+    expect(stuckContinueCard([c], err, buildPrompt)).toBe(c);
+  });
+
+  it('never matches a card not currently "doing" (already recovered, or a manual move)', () => {
+    const c = card({ status: 'todo', reuse: { mode: 'continue', sessionId: 'sess-1' } });
+    const err = { sessionId: 'sess-1', text: 'PROMPT:card-1', at: 100 };
+    expect(stuckContinueCard([c], err, buildPrompt)).toBeUndefined();
+  });
+
+  it('never matches "fork" or "new" mode — those aren\'t sent via onSendTo', () => {
+    const fork = card({ status: 'doing', reuse: { mode: 'fork', sessionId: 'sess-1' }, updatedAt: 100 });
+    const err = { sessionId: 'sess-1', text: 'PROMPT:card-1', at: 100 };
+    expect(stuckContinueCard([fork], err, buildPrompt)).toBeUndefined();
+  });
+
+  it('an unrelated rejection in the SAME session (different text) never false-matches', () => {
+    const c = card({ status: 'doing', reuse: { mode: 'continue', sessionId: 'sess-1' }, updatedAt: 100 });
+    const err = { sessionId: 'sess-1', text: 'algo digitado à mão na barra do canvas', at: 100 };
+    expect(stuckContinueCard([c], err, buildPrompt)).toBeUndefined();
+  });
+
+  // Regression (review #597 follow-up point 1): an error the caller never
+  // got to dismiss (no open terminal on that session) sits in state forever.
+  // Without this guard, a LATER, genuinely successful re-run of the SAME
+  // card+session+text (moveCard always stamps a fresh, later updatedAt on
+  // every attempt) would still false-match the OLD rejection and bounce the
+  // card back to ToDo right after it started succeeding.
+  it('a STALE error (older than the card\'s current run) never matches', () => {
+    const c = card({ status: 'doing', reuse: { mode: 'continue', sessionId: 'sess-1' }, updatedAt: 200 });
+    const staleErr = { sessionId: 'sess-1', text: 'PROMPT:card-1', at: 100 }; // predates this run's updatedAt
+    expect(stuckContinueCard([c], staleErr, buildPrompt)).toBeUndefined();
+  });
+
+  it('an error at EXACTLY the run\'s updatedAt still matches (>=, not >)', () => {
+    const c = card({ status: 'doing', reuse: { mode: 'continue', sessionId: 'sess-1' }, updatedAt: 200 });
+    const err = { sessionId: 'sess-1', text: 'PROMPT:card-1', at: 200 };
+    expect(stuckContinueCard([c], err, buildPrompt)).toBe(c);
   });
 });
 

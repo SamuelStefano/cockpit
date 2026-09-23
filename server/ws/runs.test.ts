@@ -13,7 +13,7 @@ import { resumableId } from './resume';
 import { quotaHold } from './quota';
 import { getLastPlanUsage } from './usage-plan';
 import { classify } from '../engine/triage';
-import { resetCooldownState, resetColdInflight, acquireCold, COOLDOWN_AFTER_RESET_MS } from './ctx-guard';
+import { resetCooldownState, resetColdInflight, acquireCold, COOLDOWN_AFTER_RESET_MS, CTX_HARD } from './ctx-guard';
 import { noteExternalKill, resetExternalKills, EXTERNAL_POLL_MS, EXTERNAL_QUIET_MS } from './kill-class';
 
 // O gate de contexto lê a última amostra de uso do SQLite. No teste isso tem que
@@ -652,6 +652,25 @@ describe('disparo em background de um item da fila', () => {
     expect(threads.has('s1')).toBe(false);
   });
 
+  // review #597 point 1: um fork disparado pelo canvas (session-reuse.ts
+  // "fork") passa attachRecovery=false — se ele morrer sem produzir nada, o
+  // prompt (que é de OUTRO card) não pode reaparecer na fila da sessão-mãe.
+  it('attachRecovery=false não amarra th.parked/parkedFrom (default true amarra)', () => {
+    vi.mocked(findParked).mockReturnValue(item());
+    vi.mocked(takeParked).mockReturnValue(item());
+    const r1 = runParkedInBackground('s1', 'pk-9', 'admin', undefined, false);
+    const forkId1 = (r1 as { forkId: string }).forkId;
+    expect(threads.get(forkId1)?.parked).toBeUndefined();
+    expect(threads.get(forkId1)?.parkedFrom).toBeUndefined();
+
+    vi.mocked(findParked).mockReturnValue(item());
+    vi.mocked(takeParked).mockReturnValue(item());
+    const r2 = runParkedInBackground('s1', 'pk-9', 'admin');
+    const forkId2 = (r2 as { forkId: string }).forkId;
+    expect(threads.get(forkId2)?.parked).toEqual(item());
+    expect(threads.get(forkId2)?.parkedFrom).toBe('s1');
+  });
+
   it('o modelo escolhido na hora vence o que estava enfileirado', () => {
     vi.mocked(findParked).mockReturnValue(item({ model: 'opus' }));
     vi.mocked(takeParked).mockReturnValue(item({ model: 'opus' }));
@@ -676,6 +695,24 @@ describe('disparo em background de um item da fila', () => {
     expect(takeParked).not.toHaveBeenCalled();
     expect(unshiftParked).not.toHaveBeenCalled();
     expect(run).not.toHaveBeenCalled();
+  });
+
+  // review #597 point 2: um fork de card do canvas passa enforceHardCtxCap=true
+  // — ao contrário do clique manual "rodar em paralelo" (intenção explícita
+  // do usuário, nunca barrado pelo teto), o alvo de um fork pode ter sido
+  // escolhido pelo DEFAULT do ranking, sem o usuário ter olhado o tamanho.
+  it('enforceHardCtxCap barra sessão-mãe grande demais; sem a flag (default) segue igual antes', () => {
+    vi.mocked(findParked).mockReturnValue(item());
+    usageRow.value = { ctxTokens: CTX_HARD, ts: Date.now(), model: 'claude-opus-5' };
+
+    expect(runParkedInBackground('s1', 'pk-9', 'admin', undefined, true, true)).toEqual({ reject: 'ctx-grande' });
+    expect(takeParked).not.toHaveBeenCalled();
+
+    vi.mocked(takeParked).mockReturnValue(item());
+    const r = runParkedInBackground('s1', 'pk-9', 'admin');
+    expect('forkId' in r).toBe(true);
+
+    usageRow.value = null;
   });
 
   it('takeParked negado (item de admin, pedido de student) não roda nada', () => {

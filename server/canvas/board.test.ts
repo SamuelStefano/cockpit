@@ -30,6 +30,23 @@ describe('sanitizeCard', () => {
   it('drops format on task cards', () => {
     expect(sanitizeCard({ id: 'abcd', title: 'a', format: 'post' }, undefined, 1)?.format).toBeUndefined();
   });
+
+  const uuid = '12345678-1234-1234-1234-123456789abc';
+  it('accepts reuse.mode "new" with no sessionId required', () => {
+    expect(sanitizeCard({ id: 'abcd', title: 'a', reuse: { mode: 'new' } }, undefined, 1)?.reuse).toEqual({ mode: 'new' });
+  });
+  it('accepts continue/fork only with a valid session uuid', () => {
+    expect(sanitizeCard({ id: 'abcd', title: 'a', reuse: { mode: 'continue', sessionId: uuid } }, undefined, 1)?.reuse).toEqual({ mode: 'continue', sessionId: uuid });
+    expect(sanitizeCard({ id: 'abcd', title: 'a', reuse: { mode: 'fork', sessionId: uuid } }, undefined, 1)?.reuse).toEqual({ mode: 'fork', sessionId: uuid });
+  });
+  it('drops continue/fork without a valid uuid instead of persisting an unusable target', () => {
+    expect(sanitizeCard({ id: 'abcd', title: 'a', reuse: { mode: 'continue' } }, undefined, 1)?.reuse).toBeUndefined();
+    expect(sanitizeCard({ id: 'abcd', title: 'a', reuse: { mode: 'fork', sessionId: '../x' } }, undefined, 1)?.reuse).toBeUndefined();
+  });
+  it('drops an unknown mode or a non-object reuse', () => {
+    expect(sanitizeCard({ id: 'abcd', title: 'a', reuse: { mode: 'bogus' } }, undefined, 1)?.reuse).toBeUndefined();
+    expect(sanitizeCard({ id: 'abcd', title: 'a', reuse: 'nope' }, undefined, 1)?.reuse).toBeUndefined();
+  });
 });
 
 describe('sanitizeFlow', () => {

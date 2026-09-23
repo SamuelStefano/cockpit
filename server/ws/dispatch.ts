@@ -44,7 +44,7 @@ import { requestPlanUsageRefresh, planUsageFrame } from './usage-plan';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 import { buildBench } from '../bench';
 import { buildCanvas } from '../canvas/index';
-import { collectTermStats, hasInteractiveClaude, newCpuSamples, type CpuSamples } from '../canvas/term-stats';
+import { collectCtxOnly, collectTermStats, hasInteractiveClaude, newCpuSamples, type CpuSamples } from '../canvas/term-stats';
 import {
   MAX_FLOWS, readBoard, readBoardChained, updateBoard, sanitizeCard, sanitizeFlow, sanitizePos, upsertCard, upsertFlow, removeCard, removeFlow,
   checkFlowSave, mergePos, setBudget, sanitizeSessionStatus, setSessionStatus,
@@ -87,6 +87,14 @@ const BG_RUN_MESSAGE: Record<BgRunReject, string> = {
   'sem-quota': 'sem tokens agora: o turno morreria no limite',
   'sem-slot': 'limite de sessões simultâneas atingido',
   'falhou': 'não deu pra abrir o chat paralelo — o item voltou pra fila',
+  'ctx-grande': 'essa sessão já está grande demais pra herdar — abra uma sessão nova em vez de fork',
+};
+// Mesmo dicionário, exceto 'falhou': um fork de card NUNCA deixa o item pra
+// trás na fila do pai (review #597 point 1 — removeParked roda em toda
+// recusa), então "voltou pra fila" mentiria aqui.
+const CANVAS_FORK_MESSAGE: Record<BgRunReject, string> = {
+  ...BG_RUN_MESSAGE,
+  'falhou': 'não deu pra abrir o chat paralelo — tente de novo',
 };
 
 const NOW_RUN_MESSAGE: Record<NowRunReject, string> = {
@@ -168,6 +176,16 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // disagree because they're now the same function over the same ids.
       const usage = areaUsageFromIds(getAreaOf(), runningIds, stats);
       send(ws, { t: 'canvas-area-usage', usage });
+      return;
+    }
+    // CardEditor's reuse-pool lookup (session-reuse.ts) — deliberately NOT
+    // 'canvas-term-stats': collectCtxOnly never touches the per-socket CPU
+    // sample store or joins running-session ids into an area-usage
+    // computation (review #597 follow-up point 2 — see the ClientMsg comment).
+    case 'canvas-ctx-stats': {
+      const sessions = Array.isArray(msg.sessions) ? msg.sessions.filter((x): x is string => typeof x === 'string') : [];
+      const stats = await collectCtxOnly(sessions);
+      send(ws, { t: 'canvas-ctx-stats', stats });
       return;
     }
     case 'canvas-get': {
@@ -898,6 +916,45 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       if (!acceptResumeOffer(msg.sessionKey)) {
         send(ws, { t: 'queue-error', sessionKey: msg.sessionKey, message: 'Esta retomada não está mais disponível (a sessão já tem turno novo).' });
       }
+      return;
+    }
+    // Fork imediato de um card do canvas (session-reuse.ts "fork"): mesma base
+    // de queue-add + queue-run-bg, fundida num round-trip só. AO CONTRÁRIO de
+    // 'queue-run-bg', uma recusa (ou uma morte do fork sem produzir nada)
+    // NUNCA deixa o item pra trás na fila do pai — ele é o prompt de OUTRO
+    // card, não um follow-up da sessão-mãe; se sobrasse ali, o dreno passivo
+    // (drainParked) acabaria mandando o prompt do card errado pro próximo
+    // turno ocioso da sessão-mãe (review #597 point 1). Por isso remove em
+    // toda rejeição e chama runParkedInBackground com attachRecovery=false
+    // (não amarra recuperação-por-fila a este fork: se ele morrer no meio, o
+    // prompt só some — nunca reaparece na fila de ninguém).
+    case 'canvas-card-fork': {
+      const disallowedSkills = await resolveSkillDeny(msg.skills);
+      const parked = addParked(msg.parentSessionId, {
+        prompt: msg.text, resumeId: msg.parentSessionId, mode: msg.mode, model: msg.model,
+        effort: msg.effort, maxBudgetUsd: msg.maxBudgetUsd, bypass: msg.bypass, role, disallowedSkills, mcps: msg.mcps,
+      });
+      if ('reject' in parked) {
+        send(ws, { t: 'canvas-card-fork-reject', cardId: msg.cardId, parentSessionId: msg.parentSessionId, message: REJECT_MESSAGE[parked.reject] });
+        return;
+      }
+      // attachRecovery=false: review #597 point 1. enforceHardCtxCap=true: a
+      // fork target picked by the ranking DEFAULT (not necessarily a session
+      // the user themselves sized up) must respect the same hard ctx cap a
+      // normal turn would — review #597 point 2.
+      const r = runParkedInBackground(msg.parentSessionId, parked.id, role, msg.model, false, true);
+      if ('reject' in r) {
+        // Recusa antes do take (sem-contexto/sem-quota/sem-slot/ctx-grande)
+        // deixa o item ainda parqueado; 'falhou' (spawn quebrou) o devolve com
+        // o MESMO id (unshiftParked preserva). Os dois casos: remove agora,
+        // sem exceção.
+        removeParked(msg.parentSessionId, parked.id, role);
+        broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+        send(ws, { t: 'canvas-card-fork-reject', cardId: msg.cardId, parentSessionId: msg.parentSessionId, message: CANVAS_FORK_MESSAGE[r.reject] });
+        return;
+      }
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      send(ws, { t: 'canvas-card-fork-ok', cardId: msg.cardId, parentSessionId: msg.parentSessionId, forkId: r.forkId });
       return;
     }
   }

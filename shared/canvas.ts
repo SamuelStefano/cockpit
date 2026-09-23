@@ -19,6 +19,17 @@ export const CARD_STATUSES: readonly CardStatus[] = ['todo', 'doing', 'review', 
 export type ContentFormat = 'post' | 'thread' | 'changelog' | 'report' | 'reel' | 'daily';
 export const CONTENT_FORMATS: readonly ContentFormat[] = ['post', 'thread', 'changelog', 'report', 'reel', 'daily'];
 
+// How runCard launches this card's agent: a fresh session seeded with its
+// contexts/sessions (the default, `undefined` reads the same as 'new'), the
+// prompt sent into an ALREADY-running session (`continue`, its own turn — no
+// re-seeding, the session already has that context), or a NEW session forked
+// from one (`fork`, `--fork-session`: inherits the parent's whole transcript,
+// leaves the parent untouched). `sessionId` is required for continue/fork.
+export interface CardReuse {
+  mode: 'new' | 'continue' | 'fork';
+  sessionId?: string;
+}
+
 export interface CanvasCard {
   id: string;
   title: string;
@@ -30,6 +41,7 @@ export interface CanvasCard {
   sessionIds: string[];
   createdAt: number;
   updatedAt: number;
+  reuse?: CardReuse;
 }
 
 export interface CanvasNode {

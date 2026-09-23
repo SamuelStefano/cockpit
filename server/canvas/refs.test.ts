@@ -47,11 +47,27 @@ describe('scanRefsLine', () => {
     expect(r.contexts).toEqual({});
   });
 
-  it('binds the card from the first user message marker only', () => {
+  // review #597 point 3: a session "continued" for a different card later
+  // than the one it launched for must end up bound to the LATEST card, not
+  // the one its first turn happened to carry — consistent with card-
+  // sessions.ts's lastCardMarker, applied across the whole scan.
+  it('binds the card from the LAST user message marker, not the first', () => {
     const r = emptyRefs();
     scanRefsLine(JSON.stringify({ type: 'user', message: { content: 'do it\n[deck-card:abcd-12]' } }), r);
     scanRefsLine(JSON.stringify({ type: 'user', message: { content: '[deck-card:zzzz-99]' } }), r);
-    expect(r.cardId).toBe('abcd-12');
+    expect(r.cardId).toBe('zzzz-99');
+  });
+
+  // The concrete case that motivated the fix: forking session for card A
+  // copies A's whole transcript (marker A included) THEN appends the fork's
+  // own new turn for card B — scanning top-to-bottom must land on B, the
+  // turn that's actually this session's own, not the copied history's.
+  it('a fork of a card-A session, prompted for card B, binds to B (not the copied A marker)', () => {
+    const r = emptyRefs();
+    scanRefsLine(JSON.stringify({ type: 'user', message: { content: 'faça X\n[deck-card:card-a]' } }), r); // copied from the parent
+    scanRefsLine(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'ok' }] } }), r); // rest of the copied history
+    scanRefsLine(JSON.stringify({ type: 'user', message: { content: 'siga daqui\n[deck-card:card-b]' } }), r); // the fork's OWN turn
+    expect(r.cardId).toBe('card-b');
   });
 
   it('does not bind a card mentioned by the assistant', () => {
