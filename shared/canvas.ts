@@ -58,6 +58,19 @@ export function statusNeedsHumanConfirm(status: CardStatus): boolean {
   return status === 'review' || status === 'done';
 }
 
+// The other half of the same guard: `dev_completed`/`done` in DFL is a
+// FINISHED state — possibly already invoiced. Moving a linked card OUT of
+// it (dragging a Completed card back to ToDo/In progress, undoing a review)
+// must never silently REOPEN that task just because the new target status
+// itself (to_do/in_progress) carries no billing weight on its own. Any push
+// attempted while the task's last-known DFL status is one of these also
+// needs the human confirm gate, regardless of the target — server/canvas/
+// dfl-status-sync.ts's pushCardDflStatus checks this alongside
+// statusNeedsHumanConfirm before ever touching the network.
+export function dflStatusIsBillableFinished(rawStatus: string | undefined): boolean {
+  return rawStatus === 'dev_completed' || rawStatus === 'done';
+}
+
 // A card linked to a DFL task (opt-in, per card — CardEditor's "vincular à
 // task DFL"). `pending` is the status a write is (re)trying to push to DFL
 // (server-owned, cleared on success); `awaitingConfirm` means that push is

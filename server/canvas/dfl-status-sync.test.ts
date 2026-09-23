@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { CanvasBoard, CanvasCard, CardDflLink } from '../../shared/canvas';
+import { dflStatusIsBillableFinished, type CanvasBoard, type CanvasCard, type CardDflLink } from '../../shared/canvas';
 import type { DflPointsSnapshot, DflTaskNode } from '../../shared/protocol';
 
 // --- mocks for pushCardDflStatus's impure deps -------------------------------
@@ -165,6 +165,58 @@ describe('pushCardDflStatus — review/done need a human, todo/doing never touch
   });
 });
 
+// Coordinator follow-up: moving a linked card OUT of a billable/finished DFL
+// state (dev_completed/done) must need the SAME human confirm as reaching
+// one — even though the TARGET status (to_do/in_progress) carries no billing
+// weight on its own. Without this, dragging a "Completed" card back to ToDo
+// silently reopened a possibly-already-invoiced DFL task.
+describe('pushCardDflStatus — reopening a billable/finished DFL task needs confirm too (any target)', () => {
+  it('current DFL status "done", target "todo" (unconfirmed): never touches the network, only arms awaitingConfirm', async () => {
+    await linkedCard('card-1');
+    readDflSnapshotMock.mockResolvedValue(snapshotWithTask(baseTask({ id: TASK, rawStatus: 'done', updatedAt: 100 })));
+    await pushCardDflStatus('card-1', 'todo', TASK);
+    expect(runDflWriteMock).not.toHaveBeenCalled();
+    const board = await readBoard();
+    expect(board.cards[0].dfl?.pending).toBe('todo');
+    expect(board.cards[0].dfl?.awaitingConfirm).toBe(true);
+  });
+
+  it('current DFL status "dev_completed", target "doing" (unconfirmed): also gated', async () => {
+    await linkedCard('card-1');
+    readDflSnapshotMock.mockResolvedValue(snapshotWithTask(baseTask({ id: TASK, rawStatus: 'dev_completed', updatedAt: 100 })));
+    await pushCardDflStatus('card-1', 'doing', TASK);
+    expect(runDflWriteMock).not.toHaveBeenCalled();
+    const board = await readBoard();
+    expect(board.cards[0].dfl?.awaitingConfirm).toBe(true);
+  });
+
+  it('CONFIRMED reopen actually pushes (a human explicitly said so)', async () => {
+    await linkedCard('card-1');
+    readDflSnapshotMock.mockResolvedValue(snapshotWithTask(baseTask({ id: TASK, rawStatus: 'done', updatedAt: 100 })));
+    runDflWriteMock.mockResolvedValue({ ok: true, result: { taskId: TASK, status: 'to_do' } });
+    await pushCardDflStatus('card-1', 'todo', TASK, { confirmed: true });
+    expect(runDflWriteMock).toHaveBeenCalledWith({ kind: 'task-status', taskId: TASK, status: 'to_do' });
+    const board = await readBoard();
+    expect(board.cards[0].dfl?.pending).toBeUndefined();
+  });
+
+  it('current DFL status NOT finished (to_do): a todo/doing target pushes normally, unconfirmed', async () => {
+    await linkedCard('card-1');
+    readDflSnapshotMock.mockResolvedValue(snapshotWithTask(baseTask({ id: TASK, rawStatus: 'to_do', updatedAt: 100 })));
+    runDflWriteMock.mockResolvedValue({ ok: true, result: { taskId: TASK, status: 'in_progress' } });
+    await pushCardDflStatus('card-1', 'doing', TASK);
+    expect(runDflWriteMock).toHaveBeenCalledWith({ kind: 'task-status', taskId: TASK, status: 'in_progress' });
+  });
+
+  it('no local baseline at all (never synced yet): nothing to detect a reopen with, pushes normally', async () => {
+    await linkedCard('card-1');
+    readDflSnapshotMock.mockResolvedValue(null);
+    runDflWriteMock.mockResolvedValue({ ok: true, result: { taskId: TASK, status: 'in_progress' } });
+    await pushCardDflStatus('card-1', 'doing', TASK);
+    expect(runDflWriteMock).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('pushCardDflStatus — CONFIG.localOnly gate (review point 4)', () => {
   it('never calls the network, and never even touches the board, off the loopback box', async () => {
     await linkedCard('card-1');
@@ -212,6 +264,20 @@ describe('cancelPendingPush', () => {
     // Still the link-time stamp — setCardDflSynced from the now-superseded
     // call never runs, so it's never bumped to "now".
     expect(board.cards[0].dfl?.lastSyncedAt).toBe(1);
+  });
+});
+
+describe('dflStatusIsBillableFinished', () => {
+  it('true only for dev_completed/done — the two DFL statuses a reopen must be gated against', () => {
+    expect(dflStatusIsBillableFinished('dev_completed')).toBe(true);
+    expect(dflStatusIsBillableFinished('done')).toBe(true);
+  });
+  it('false for every other raw status, including undefined (no baseline)', () => {
+    expect(dflStatusIsBillableFinished('to_do')).toBe(false);
+    expect(dflStatusIsBillableFinished('in_progress')).toBe(false);
+    expect(dflStatusIsBillableFinished('blocked')).toBe(false);
+    expect(dflStatusIsBillableFinished('no_longer_needed')).toBe(false);
+    expect(dflStatusIsBillableFinished(undefined)).toBe(false);
   });
 });
 

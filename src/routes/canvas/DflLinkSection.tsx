@@ -40,8 +40,13 @@ export function DflLinkSection({ card, isDflArea, snapshot, onLink, onCreateLink
         </div>
         {card.dfl.awaitingConfirm && (
           <div className="mt-1.5 rounded-sm border border-yellow-500/30 bg-yellow-500/10 px-2 py-1.5">
+            {/* Two cases share this same gate (server/canvas/dfl-status-sync.ts):
+                reaching Done/Completed (billable), OR moving a card AWAY from
+                a status DFL already has as dev_completed/done — reopening a
+                possibly-invoiced task. Generic wording covers both without
+                the UI needing to know which one triggered it. */}
             <p className="text-[10.5px] text-yellow-300">
-              Status "{card.status === 'done' ? 'Completed' : 'Done'}" vira ponto faturável na DFL. Confirme pra sincronizar.
+              Essa mudança de status é faturável ou reabre uma task já concluída na DFL. Confirme pra sincronizar.
             </p>
             <Button size="xs" className="mt-1" onClick={() => onConfirmSync(card.id)}>confirmar sync</Button>
           </div>

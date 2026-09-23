@@ -1,5 +1,5 @@
 import {
-  CARD_STATUS_TO_DFL, cardStatusFromDfl, statusNeedsHumanConfirm,
+  CARD_STATUS_TO_DFL, cardStatusFromDfl, dflStatusIsBillableFinished, statusNeedsHumanConfirm,
   type CanvasBoard, type CanvasCard, type CardDflLink, type CardStatus,
 } from '../../shared/canvas';
 import type { DflPointsSnapshot, DflTaskNode } from '../../shared/protocol';
@@ -133,12 +133,22 @@ function fingerprintChanged(a: TaskFingerprint | undefined, b: TaskFingerprint |
 // blocks whatever caller triggered it (dispatch.ts's canvas-card-save,
 // card-review.ts's auto-move, or the explicit confirm handler).
 //
-// review/done (statusNeedsHumanConfirm) feed DFL's billing surface — an
-// AUTOMATIC caller (a drag to those columns, or the agent's own auto-move to
-// "review") never actually writes: it only arms `awaitingConfirm` and stops.
-// Only `confirmed: true` — set exclusively by the explicit
-// dfl-task-confirm-sync handler a human action drives — proceeds to the
-// network. todo/doing carry no billing weight and always push automatically.
+// Two INDEPENDENT reasons a push needs a human before it ever touches the
+// network, either one is enough:
+//  - the TARGET is review/done (statusNeedsHumanConfirm) — reaching a
+//    billable/finished state in the first place.
+//  - the task's CURRENT (last locally cached) DFL status is already
+//    dev_completed/done (dflStatusIsBillableFinished) — REOPENING a
+//    billable/finished task, e.g. dragging a Completed card back to ToDo, or
+//    undoing a review, even though the target itself (to_do/in_progress)
+//    carries no billing weight on its own. Without this check a card that
+//    DFL (or a prior confirmed push) had already marked `done` would get
+//    silently reopened the instant it moved anywhere else — possibly after
+//    that work was already invoiced.
+// An AUTOMATIC caller hitting either case never actually writes: it only
+// arms `awaitingConfirm` and stops. Only `confirmed: true` — set exclusively
+// by the explicit dfl-task-confirm-sync handler a human action drives —
+// proceeds to the network.
 export async function pushCardDflStatus(cardId: string, status: CardStatus, taskId: string, opts: { confirmed?: boolean } = {}): Promise<void> {
   // Same loopback-only gate as every other DFL write (server/ws/dispatch.ts's
   // points-dfl-change/-invoice/dfl-task-create-link): the federated agent box
@@ -149,14 +159,19 @@ export async function pushCardDflStatus(cardId: string, status: CardStatus, task
   generationByCard.set(cardId, generation);
   const superseded = () => generationByCard.get(cardId) !== generation;
 
-  if (statusNeedsHumanConfirm(status) && !opts.confirmed) {
+  // Fetched once, up front: doubles as the "is this a reopen?" check below
+  // AND the staleness baseline the retry loop compares against — a single
+  // local-cache read (never a live DFL query) covers both.
+  const baseline = await taskFingerprint(taskId);
+  const reopeningFinished = dflStatusIsBillableFinished(baseline?.rawStatus);
+
+  if ((statusNeedsHumanConfirm(status) || reopeningFinished) && !opts.confirmed) {
     await updateBoard((b) => setCardDflPending(b, cardId, status, { awaitingConfirm: true }));
     return;
   }
 
   await updateBoard((b) => setCardDflPending(b, cardId, status, {}));
   const dflStatus = CARD_STATUS_TO_DFL[status];
-  const baseline = await taskFingerprint(taskId);
 
   for (let attempt = 1; attempt <= MAX_PUSH_ATTEMPTS; attempt++) {
     if (superseded()) return;
