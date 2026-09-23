@@ -82,6 +82,14 @@ export interface Cockpit extends LeafApis {
   dismissCanvasSendError: () => void;
   onLaunchFork: (parentSessionId: string, cardId: string, text: string) => boolean;
   canvasForkRuns: Record<string, { key: string; at: number }>;
+  // A local run key (`new-<uuid>`, or a fork id) -> the real session id, known
+  // as EARLY as the first server frame that carries it (the 'system'/'replay'
+  // frame with sessionId — well before migrateKey's own 'done'-time migration,
+  // which is deliberately delayed for internal bookkeeping; see migratedTo).
+  // Read by useCanvasRoute.ts's extraBoundIds so a card's session stops
+  // doubling as its own standalone kanban item as soon as the id is known,
+  // not only once the turn closes.
+  pendingSessionIds: Record<string, string>;
   sessions: Session[];
   loading: boolean;
   activeId: string;
@@ -368,6 +376,26 @@ export function useCockpit(): Cockpit {
   const viewMode = useRef<Record<string, 'chain' | 'full'>>({});
   const extBusyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const migratedTo = useRef<Record<string, string>>({});  // new-xxx -> claude sessionId já migrado (idempotência: 2º `done` não re-migra nem zera o thread)
+  // State, só p/ consumidores de fora (useCanvasRoute extraBoundIds) que
+  // precisam de algo que dispare re-render — o resto deste hook lê
+  // migratedTo.current/resumeId.current direto, síncrono, sem esperar. NÃO é
+  // um espelho do migratedTo ref: aquele só ganha a entrada em migrateKey, no
+  // 'done' do turno (de propósito — ver o comentário de migrateKey sobre por
+  // que a migração INTERNA espera o turno fechar). Este state, ao contrário,
+  // é alimentado assim que o PRIMEIRO frame do servidor carrega o sessionId
+  // real ('system'/'replay', bem antes do 'done') — o card review #600 achou
+  // que sem isso a janela entre o card mostrar duas vezes (card + item solto
+  // do kanban) e o grafo pegar a aresta [deck-card:] era grande demais: o
+  // dedup do canvas não pode esperar a migração interna terminar.
+  const [pendingSessionIds, setPendingSessionIds] = useState<Record<string, string>>({});
+  // Called from EVERY frame that can carry the first sessionId for a local
+  // key ('system', 'replay') — a no-op once the pair is already known, so a
+  // chatty run's repeated 'replay' on every reconnect doesn't re-render the
+  // canvas each time for nothing.
+  const notePendingSessionId = useCallback((key: string, sessionId: string) => {
+    if (key === sessionId) return;
+    setPendingSessionIds((prev) => (prev[key] === sessionId ? prev : { ...prev, [key]: sessionId }));
+  }, []);
   // sessionId (E, se a triagem re-rotear, também a chave REAL do thread — ver
   // 'triage' abaixo) -> {msgId, texto, sessionId ORIGINAL da janela do canvas}.
   // `sessionId` no valor sobrevive ao alias: uma entrada guardada sob a chave
@@ -507,6 +535,10 @@ export function useCockpit(): Cockpit {
     // VAZIO) e re-migra, zerando o thread real — o chat some após o run.
     if (migratedTo.current[oldKey]) return;
     migratedTo.current[oldKey] = newId;
+    // Usually already known (notePendingSessionId ran off 'system'/'replay'
+    // well before this point) — set again here as a fallback for whatever
+    // reconnect edge case skipped both of those frames.
+    notePendingSessionId(oldKey, newId);
     resumeId.current[newId] = newId;
     delete resumeId.current[oldKey];
     // History já está local só se ESTE cliente criou a sessão (onNew) e viu o turno
@@ -558,7 +590,7 @@ export function useCockpit(): Cockpit {
     // próximo `list` sobrescreve com o derivado da 1ª fala (o prompt de retomada).
     const title = pendingTitle.current[oldKey];
     if (title) { delete pendingTitle.current[oldKey]; send({ t: 'set-meta', sessionId: newId, title }); }
-  }, [send, reopenMsg]);
+  }, [send, reopenMsg, notePendingSessionId]);
 
   // Único caminho de troca de sessão ativa — todo caminho que mexia no activeRef
   // na mão (nova sessão, pulo pela notificação) esquecia de reidratar os anexos.
@@ -885,6 +917,7 @@ export function useCockpit(): Cockpit {
         // abria uma conversa NOVA ("é como se fosse um novo prompt").
         if (msg.sessionId) {
           resumeId.current[key] = msg.sessionId;
+          notePendingSessionId(key, msg.sessionId);
           // F5/outro aparelho: sem a linha `new-` local, a sessão sumia do sidebar
           // até o fim do 1º turno (o `list` filtra o uuid reivindicado).
           if (key.startsWith('new-')) setSessions((prev) => adoptClaimedRow(prev, msg.sessionId!, key));
@@ -919,6 +952,7 @@ export function useCockpit(): Cockpit {
         const key = resolveKey(migratedTo.current, msg.sessionKey);
         if (msg.sessionId) {
           resumeId.current[key] = msg.sessionId;
+          notePendingSessionId(key, msg.sessionId);
           // O `list` pode ter chegado antes deste frame e já ter trazido o uuid
           // como linha própria — some com ela; a local `new-` segue como a única.
           if (key.startsWith('new-')) setSessions((prev) => adoptClaimedRow(prev, msg.sessionId!, key));
@@ -1273,7 +1307,7 @@ export function useCockpit(): Cockpit {
         return;
       }
     }
-  }, [updateThread, patchRunMsg, migrateKey, claimedByLocal, reconcileTools, send, reopenMsg, onTermData, onTermReplay, onTermExit, onTerms, onNew, endHandoff, endFunnel, restorePendingAtts]);
+  }, [updateThread, patchRunMsg, migrateKey, claimedByLocal, reconcileTools, send, reopenMsg, onTermData, onTermReplay, onTermExit, onTerms, onNew, endHandoff, endFunnel, restorePendingAtts, notePendingSessionId]);
 
   const connect = useCallback(() => {
     // Fecha+neutraliza o socket anterior ANTES de abrir outro. Sem isto, sockets
@@ -1829,6 +1863,13 @@ export function useCockpit(): Cockpit {
     delete migratedTo.current[id];
     // ...e o ponteiro por VALOR (entrada keyed pelo `new-xxx` cujo alvo é este id).
     for (const ok in migratedTo.current) if (migratedTo.current[ok] === id) delete migratedTo.current[ok];
+    setPendingSessionIds((prev) => {
+      if (!(id in prev) && !Object.values(prev).includes(id)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      for (const ok in next) if (next[ok] === id) delete next[ok];
+      return next;
+    });
     delete runStartRef.current[id];
     delete lastActivity.current[id];
     opened.current.delete(id);
@@ -2011,6 +2052,13 @@ export function useCockpit(): Cockpit {
     // tem que limpar o ponteiro por VALOR, senão o mapa cresce sem teto numa aba
     // de dias e um frame tardio `new-xxx` ressuscitaria a sessão já despejada.
     for (const ok in migratedTo.current) if (drop.includes(migratedTo.current[ok])) delete migratedTo.current[ok];
+    setPendingSessionIds((prev) => {
+      const stale = Object.keys(prev).filter((ok) => drop.includes(prev[ok]));
+      if (!stale.length) return prev;
+      const next = { ...prev };
+      for (const ok of stale) delete next[ok];
+      return next;
+    });
   }, [activeId, running]);
 
   // Watchdog: enquanto algo roda, tica a cada 5s pra recomputar "quietas". O dot
@@ -2090,5 +2138,5 @@ export function useCockpit(): Cockpit {
 
   const attachmentsView = useMemo(() => markDuplicates(attachments, sentHashes[activeId]), [attachments, sentHashes, activeId]);
 
-  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...canvasApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, interrupted, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onSendTo, canvasSendError, dismissCanvasSendError, onLaunchFork, canvasForkRuns, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, onLaunchAgent, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun };
+  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...canvasApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, interrupted, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onSendTo, canvasSendError, dismissCanvasSendError, onLaunchFork, canvasForkRuns, pendingSessionIds, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, onLaunchAgent, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun };
 }

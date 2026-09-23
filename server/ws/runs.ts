@@ -315,8 +315,14 @@ export type BgRunReject = 'sem-item' | 'sem-contexto' | 'sem-quota' | 'sem-slot'
 // have looked at how big that session already is, so a cold-start onto an
 // already-hard-capped session must be blocked the same way a normal turn
 // would be (review #597 point 2), not waved through as "explicit intent".
+// `flowHop` (undefined for the normal user-driven queue/canvas-card-fork
+// click): threaded onto the fork's OWN Thread.flowHop, same as startRun's own
+// param — without it, a fork born from a canvas flow's reuse delivery that
+// then crashes mid-turn auto-resumes with the chain depth reset to 0,
+// defeating MAX_HOPS on exactly the turn count a resume is supposed to
+// preserve (see selectFlowsToFire's own comment on Thread.flowHop).
 export function runParkedInBackground(
-  sessionKey: string, id: string, role?: Role, model?: string, attachRecovery = true, enforceHardCtxCap = false,
+  sessionKey: string, id: string, role?: Role, model?: string, attachRecovery = true, enforceHardCtxCap = false, flowHop?: number,
 ): { forkId: string } | { reject: BgRunReject } {
   if (quotaHold()) return { reject: 'sem-quota' };
   const peek = findParked(sessionKey, id);
@@ -339,7 +345,7 @@ export function runParkedInBackground(
   const item = takeParked(sessionKey, id, role);
   if (!item) return { reject: 'sem-item' };
   const forkId = randomUUID();
-  startRun({ ...runParams(item), model: model ?? item.model, ws: null, sessionKey: forkId, prompt: item.prompt, resumeId: parent, forkId, queued: true });
+  startRun({ ...runParams(item), model: model ?? item.model, ws: null, sessionKey: forkId, prompt: item.prompt, resumeId: parent, forkId, queued: true, flowHop });
   // Spawn falhou depois do item já ter saído: devolve pro topo SEM contar tentativa
   // (a falha é do disparo, não do prompt) pra ele não acabar segurado no teto.
   const th = threads.get(forkId);

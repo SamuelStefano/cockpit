@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { CanvasCard, CanvasEdge, CanvasNode } from '../../../shared/canvas';
-import { deriveSessionItems, deriveSessionStatus, doneRecentSessionIds, isOverrideActive } from './kanban-items';
+import {
+  deriveSessionItems, deriveSessionStatus, doneRecentSessionIds, isOverrideActive, resolvePendingBoundIds,
+} from './kanban-items';
 
 describe('isOverrideActive', () => {
   it('is false with no override', () => {
@@ -159,6 +161,48 @@ describe('deriveSessionItems', () => {
       showAutomation: false, liveSessions: new Map([['a', { waiting: true, mtime: 999 }]]),
     });
     expect(items[0]).toMatchObject({ status: 'doing', waitingOnUser: true, mtime: 999 });
+  });
+});
+
+describe('resolvePendingBoundIds', () => {
+  it('keeps the pending run key even with no migration yet', () => {
+    const ids = resolvePendingBoundIds(['new-abc'], {});
+    expect(ids).toEqual(new Set(['new-abc']));
+  });
+
+  it('adds the migrated real session id alongside the local key', () => {
+    const ids = resolvePendingBoundIds(['new-abc'], { 'new-abc': 'real-session-id' });
+    expect(ids).toEqual(new Set(['new-abc', 'real-session-id']));
+  });
+
+  it('a #592 flow run key resolves the same way as a client-launched one', () => {
+    const ids = resolvePendingBoundIds(['new-flow-1'], { 'new-flow-1': 'session-xyz' });
+    expect(ids.has('session-xyz')).toBe(true);
+  });
+
+  it('leaves an already-real key (continue reuse) untouched', () => {
+    const ids = resolvePendingBoundIds(['already-real-id'], {});
+    expect(ids).toEqual(new Set(['already-real-id']));
+  });
+
+  it('handles multiple pending keys independently', () => {
+    const ids = resolvePendingBoundIds(['new-a', 'new-b'], { 'new-a': 'real-a' });
+    expect(ids).toEqual(new Set(['new-a', 'real-a', 'new-b']));
+  });
+});
+
+describe('deriveSessionItems with a migrated pending session', () => {
+  const session = (id: string, extra: Partial<CanvasNode> = {}): CanvasNode => ({
+    id: `s:${id}`, kind: 'session', ref: id, title: `sessão ${id}`, subtitle: '', mtime: 10, count: 3, ...extra,
+  });
+
+  it('excludes the session once its `new-` run key has migrated to the real id (no graph edge yet)', () => {
+    const extraBoundIds = resolvePendingBoundIds(['new-abc'], { 'new-abc': 'real-session-id' });
+    const items = deriveSessionItems({
+      nodes: [session('real-session-id')], edges: [], cards: [], running: new Set(), overrides: {}, turnStartedAt: {},
+      showAutomation: false, extraBoundIds,
+    });
+    expect(items).toHaveLength(0);
   });
 });
 

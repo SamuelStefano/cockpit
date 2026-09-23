@@ -10,9 +10,9 @@ import type { TurnClosed } from './turn-hooks';
 // state they close over from throwing a TDZ error at import time.
 
 const {
-  mockThreads, admit, startRunMock, isDrainerEnabledMock, resolveThreadKeyMock, addParkedMock, enqueuePendingMock,
+  mockThreads, admit, startRunMock, isDrainerEnabledMock, resolveThreadKeyMock, addParkedMock, removeParkedMock, enqueuePendingMock,
   resumableIdMock, broadcastMock, emitCanvasMsgMock, listContextsMock, listSessionsMock, listArchivedMock, cardIdFromRefsCacheMock,
-  blockedAreaForMock,
+  blockedAreaForMock, runParkedInBackgroundMock, hasInteractiveClaudeMock,
 } = vi.hoisted(() => {
   const mockThreads = new Map<string, { sessionId?: string }>();
   const admit = { next: true }; // controls whether the mocked startRun "admits" (threads.set) or refuses
@@ -22,6 +22,7 @@ const {
     isDrainerEnabledMock: vi.fn(() => false),
     resolveThreadKeyMock: vi.fn((id: string) => (mockThreads.has(id) ? id : undefined)),
     addParkedMock: vi.fn(() => ({ id: 'pk-1' }) as { id: string } | { reject: string }),
+    removeParkedMock: vi.fn(),
     enqueuePendingMock: vi.fn(() => true),
     resumableIdMock: vi.fn((id?: string) => id),
     broadcastMock: vi.fn(),
@@ -30,19 +31,25 @@ const {
     listSessionsMock: vi.fn(async () => [] as { id: string; title: string; snippet: string; mtime: number }[]),
     listArchivedMock: vi.fn(async () => [] as { id: string; title: string; snippet: string; mtime: number }[]),
     cardIdFromRefsCacheMock: vi.fn(async (_id: string) => undefined as string | undefined),
-    blockedAreaForMock: vi.fn(() => undefined as string | undefined),
+    blockedAreaForMock: vi.fn((_id?: string) => undefined as string | undefined),
+    runParkedInBackgroundMock: vi.fn(() => ({ forkId: 'fork-1' }) as { forkId: string } | { reject: string }),
+    hasInteractiveClaudeMock: vi.fn(async (_id: string) => false),
   };
 });
 
 vi.mock('../ws/runs', () => ({
   startRun: (o: unknown) => startRunMock(o as never),
   isDrainerEnabled: () => isDrainerEnabledMock(),
+  runParkedInBackground: (...a: unknown[]) => runParkedInBackgroundMock(...(a as [])),
 }));
 vi.mock('../ws/threads', () => ({
   threads: mockThreads,
   resolveThreadKey: (id: string) => resolveThreadKeyMock(id),
 }));
-vi.mock('../ws/parked', () => ({ addParked: (...a: unknown[]) => addParkedMock(...(a as [])) }));
+vi.mock('../ws/parked', () => ({
+  addParked: (...a: unknown[]) => addParkedMock(...(a as [])),
+  removeParked: (...a: unknown[]) => removeParkedMock(...(a as [])),
+}));
 vi.mock('../ws/pending', () => ({ enqueuePending: (...a: unknown[]) => enqueuePendingMock(...(a as [])) }));
 vi.mock('../ws/resume', () => ({ resumableId: (id?: string) => resumableIdMock(id) }));
 vi.mock('../ws/broadcast', () => ({ broadcast: (m: unknown) => broadcastMock(m) }));
@@ -54,6 +61,7 @@ vi.mock('./index', async (importOriginal) => ({
   cardIdFromRefsCache: (id: string) => cardIdFromRefsCacheMock(id),
 }));
 vi.mock('./autopause-loop', () => ({ blockedAreaFor: (...a: unknown[]) => blockedAreaForMock(...(a as [])) }));
+vi.mock('./term-stats', () => ({ hasInteractiveClaude: (id: string) => hasInteractiveClaudeMock(id) }));
 
 import { __resetCardSessions, bindCardSession, cardIdForSession } from './card-sessions';
 import { sanitizeCard, sanitizeFlow, updateBoard, upsertCard, upsertFlow } from './board';
@@ -81,12 +89,18 @@ beforeEach(() => {
   admit.next = true;
   __resetCardSessions();
   __resetFlowRuns();
-  for (const m of [startRunMock, isDrainerEnabledMock, resolveThreadKeyMock, addParkedMock, enqueuePendingMock, resumableIdMock, broadcastMock, emitCanvasMsgMock, listContextsMock, listSessionsMock, listArchivedMock, cardIdFromRefsCacheMock, blockedAreaForMock]) m.mockClear();
+  for (const m of [
+    startRunMock, isDrainerEnabledMock, resolveThreadKeyMock, addParkedMock, removeParkedMock, enqueuePendingMock, resumableIdMock,
+    broadcastMock, emitCanvasMsgMock, listContextsMock, listSessionsMock, listArchivedMock, cardIdFromRefsCacheMock,
+    blockedAreaForMock, runParkedInBackgroundMock, hasInteractiveClaudeMock,
+  ]) m.mockClear();
   isDrainerEnabledMock.mockReturnValue(false);
   resumableIdMock.mockImplementation((id?: string) => id);
   addParkedMock.mockReturnValue({ id: 'pk-1' });
   enqueuePendingMock.mockReturnValue(true);
   blockedAreaForMock.mockReturnValue(undefined);
+  runParkedInBackgroundMock.mockReturnValue({ forkId: 'fork-1' });
+  hasInteractiveClaudeMock.mockResolvedValue(false);
 });
 
 // --- pure functions -----------------------------------------------------------
@@ -354,6 +368,143 @@ describe('deliverToCard', () => {
     admit.next = false;
     await deliverToCard('card1', flow(), 'result', 1, {});
     expect(activeFlowRuns()).toEqual([]);
+  });
+});
+
+describe('deliverToCard reuse modes (#597 continue/fork)', () => {
+  const SID = '11111111-1111-1111-1111-111111111111';
+  const reuseCard = (mode: 'continue' | 'fork') => sanitizeCard(
+    { id: 'card1', title: 'Título', prompt: 'continue isso', reuse: { mode, sessionId: SID } }, undefined, 1,
+  )!;
+
+  it('continue, target idle: sends into the existing session (startRun), never spawns a new one or parks a fork', async () => {
+    resolveThreadKeyMock.mockReturnValue(undefined);
+    const card = reuseCard('continue');
+    await updateBoard((b) => upsertCard(b, card));
+    const r = await deliverToCard('card1', flow({ id: 'abcd', template: 'contexto: {{result}}' }), 'RESULTADO', 2, {});
+    expect(r).toEqual({ delivered: true, runKey: SID });
+    expect(startRunMock).toHaveBeenCalledWith(expect.objectContaining({ sessionKey: SID, resumeId: SID, flowHop: 2 }));
+    expect(addParkedMock).not.toHaveBeenCalled();
+    expect(runParkedInBackgroundMock).not.toHaveBeenCalled();
+    const call = startRunMock.mock.calls.at(-1)![0] as { sessionKey: string; prompt: string };
+    expect(call.prompt).toContain('RESULTADO');
+    expect(call.prompt).toContain('[deck-card:card1]');
+    // Reuse never re-seeds contexts/sessions (buildContinuePrompt) — the
+    // target session already read them on an earlier turn.
+    expect(call.prompt).not.toContain('Contextos');
+    expect(call.prompt).not.toContain('Sessões relacionadas');
+    const board = await updateBoard((b) => b);
+    expect(board.cards.find((c) => c.id === 'card1')?.status).toBe('doing');
+    expect(activeFlowRuns()).toEqual([{ runKey: SID, cardId: 'card1', flowId: 'abcd' }]);
+  });
+
+  it('continue, target already running: falls back to fork instead of touching the live turn (review #597 point 4)', async () => {
+    resolveThreadKeyMock.mockImplementation((id: string) => (id === SID ? SID : undefined));
+    const card = reuseCard('continue');
+    await updateBoard((b) => upsertCard(b, card));
+    const r = await deliverToCard('card1', flow(), 'result', 1, {});
+    expect(r).toEqual({ delivered: true, runKey: 'fork-1' });
+    expect(startRunMock).not.toHaveBeenCalled();
+    expect(addParkedMock).toHaveBeenCalledWith(SID, expect.objectContaining({ resumeId: SID }));
+    // attachRecovery=false, enforceHardCtxCap=true — same as dispatch.ts's
+    // 'canvas-card-fork' handler (review #597 points 1 and 2).
+    expect(runParkedInBackgroundMock).toHaveBeenCalledWith(SID, 'pk-1', undefined, undefined, false, true, 1);
+  });
+
+  // hasInteractiveClaude awaits real I/O (a /proc scan) — a user send in that
+  // exact window can make the session go live AFTER the idle check passed.
+  // startRun on an already-live sessionKey takes the `replacing` branch and
+  // kills that fresh turn, which a background flow firing must never do.
+  it('continue, race — session goes live DURING the double-writer await: re-checked right before the spawn, falls back to fork instead of killing the new turn', async () => {
+    resolveThreadKeyMock.mockReturnValueOnce(undefined) // top-of-function idle check
+      .mockReturnValueOnce(SID); // re-check immediately before startRun: now live
+    const card = reuseCard('continue');
+    await updateBoard((b) => upsertCard(b, card));
+    const r = await deliverToCard('card1', flow(), 'result', 1, {});
+    expect(r).toEqual({ delivered: true, runKey: 'fork-1' });
+    expect(startRunMock).not.toHaveBeenCalled();
+    expect(runParkedInBackgroundMock).toHaveBeenCalled();
+  });
+
+  it('fork: area admission blocked on the PARENT session refuses (and reports areaBlocked) without parking or forking (fork used to skip this gate entirely)', async () => {
+    resolveThreadKeyMock.mockReturnValue(undefined);
+    blockedAreaForMock.mockImplementation((id) => (id === SID ? 'dfl' : undefined));
+    const card = reuseCard('fork');
+    await updateBoard((b) => upsertCard(b, card));
+    const r = await deliverToCard('card1', flow(), 'result', 1, {});
+    expect(r).toEqual({ delivered: false, areaBlocked: 'dfl' });
+    expect(addParkedMock).not.toHaveBeenCalled();
+    expect(runParkedInBackgroundMock).not.toHaveBeenCalled();
+  });
+
+  it('continue, running fallback to fork: the area gate still applies (same fork path as explicit fork mode)', async () => {
+    resolveThreadKeyMock.mockReturnValue(SID);
+    blockedAreaForMock.mockImplementation((id) => (id === SID ? 'dfl' : undefined));
+    const card = reuseCard('continue');
+    await updateBoard((b) => upsertCard(b, card));
+    const r = await deliverToCard('card1', flow(), 'result', 1, {});
+    expect(r).toEqual({ delivered: false, areaBlocked: 'dfl' });
+    expect(addParkedMock).not.toHaveBeenCalled();
+  });
+
+  it('fork mode always forks, even when the target is idle', async () => {
+    resolveThreadKeyMock.mockReturnValue(undefined);
+    const card = reuseCard('fork');
+    await updateBoard((b) => upsertCard(b, card));
+    const r = await deliverToCard('card1', flow(), 'result', 1, {});
+    expect(r).toEqual({ delivered: true, runKey: 'fork-1' });
+    expect(startRunMock).not.toHaveBeenCalled();
+    expect(runParkedInBackgroundMock).toHaveBeenCalled();
+  });
+
+  it('fork: runParkedInBackground refusing removes the parked item and reports no delivery (review #597 point 1)', async () => {
+    resolveThreadKeyMock.mockReturnValue(undefined);
+    runParkedInBackgroundMock.mockReturnValue({ reject: 'sem-slot' });
+    const card = reuseCard('fork');
+    await updateBoard((b) => upsertCard(b, card));
+    const r = await deliverToCard('card1', flow(), 'result', 1, {});
+    expect(r).toEqual({ delivered: false });
+    expect(removeParkedMock).toHaveBeenCalledWith(SID, 'pk-1', undefined);
+    expect(activeFlowRuns()).toEqual([]);
+  });
+
+  it('fork: addParked itself rejecting (queue full) never reaches runParkedInBackground or removeParked', async () => {
+    resolveThreadKeyMock.mockReturnValue(undefined);
+    addParkedMock.mockReturnValue({ reject: 'fila-cheia' });
+    const card = reuseCard('fork');
+    await updateBoard((b) => upsertCard(b, card));
+    const r = await deliverToCard('card1', flow(), 'result', 1, {});
+    expect(r).toEqual({ delivered: false });
+    expect(runParkedInBackgroundMock).not.toHaveBeenCalled();
+    expect(removeParkedMock).not.toHaveBeenCalled();
+  });
+
+  it('continue, idle, but a pane is already resumed interactively: the double-writer guard refuses without starting a run', async () => {
+    resolveThreadKeyMock.mockReturnValue(undefined);
+    hasInteractiveClaudeMock.mockResolvedValue(true);
+    const card = reuseCard('continue');
+    await updateBoard((b) => upsertCard(b, card));
+    const r = await deliverToCard('card1', flow(), 'result', 1, {});
+    expect(r).toEqual({ delivered: false });
+    expect(startRunMock).not.toHaveBeenCalled();
+  });
+
+  it('continue, idle, area admission blocked: refuses (reporting areaBlocked) without starting a run', async () => {
+    resolveThreadKeyMock.mockReturnValue(undefined);
+    blockedAreaForMock.mockReturnValue('dfl');
+    const card = reuseCard('continue');
+    await updateBoard((b) => upsertCard(b, card));
+    const r = await deliverToCard('card1', flow(), 'result', 1, {});
+    expect(r).toEqual({ delivered: false, areaBlocked: 'dfl' });
+    expect(startRunMock).not.toHaveBeenCalled();
+  });
+
+  it('a flow can opt a reuse target INTO a specific mode/mcps, but never into bypass (least-privilege params, same as deliverToSession)', async () => {
+    resolveThreadKeyMock.mockReturnValue(undefined);
+    const card = reuseCard('continue');
+    await updateBoard((b) => upsertCard(b, card));
+    await deliverToCard('card1', flow({ mode: 'acceptEdits', mcps: ['dfl-mcp'] }), 'result', 1, { bypass: true, mcps: ['everything'] });
+    expect(startRunMock).toHaveBeenCalledWith(expect.objectContaining({ mode: 'acceptEdits', mcps: ['dfl-mcp'], bypass: false }));
   });
 });
 

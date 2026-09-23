@@ -1,22 +1,23 @@
 import { randomUUID } from 'node:crypto';
 import {
   AREA_LABELS, DEFAULT_FLOW_TEMPLATE, FLOW_MARKER_RE, cardNodeId, flowMarker, sessionNodeId,
-  type AreaId, type CanvasFlow, type CanvasNode, type ContentFormat,
+  type AreaId, type CanvasCard, type CanvasFlow, type CanvasNode, type ContentFormat,
 } from '../../shared/canvas';
-import { buildContentPrompt, buildTaskPrompt } from '../../shared/canvas-prompt';
+import { buildContentPrompt, buildContinuePrompt, buildTaskPrompt } from '../../shared/canvas-prompt';
 import { listContexts } from '../contexts';
 import { listArchived, listSessions } from '../sessions/index';
 import { emitCanvasMsg } from '../ws/canvas-clients';
 import { enqueuePending } from '../ws/pending';
-import { addParked } from '../ws/parked';
+import { addParked, removeParked } from '../ws/parked';
 import { resumableId } from '../ws/resume';
-import { isDrainerEnabled, startRun } from '../ws/runs';
+import { isDrainerEnabled, runParkedInBackground, startRun } from '../ws/runs';
 import { resolveThreadKey, threads, type RunParams } from '../ws/threads';
 import { bindCardSession, cardIdForSession, lastCardMarker, neutralizeMarkers } from './card-sessions';
 import { cardIdFromRefsCache } from './index';
 import { claimFlowFire, markCardDoing, readBoardChained, recordFlowFailure, recordFlowSuccess, updateBoard } from './board';
 import { clearFlowRun, registerFlowRun } from './flow-runs';
 import { blockedAreaFor } from './autopause-loop';
+import { hasInteractiveClaude } from './term-stats';
 import { onTurnClosed, type TurnClosed } from './turn-hooks';
 
 export { neutralizeMarkers };
@@ -251,10 +252,7 @@ export interface CardDelivery { delivered: boolean; runKey?: string; areaBlocked
 // src/useCockpit.ts's migrateKey looks for on 'done' to fold the placeholder
 // into the real session id — a bare uuid key has no such reconciliation and
 // would leave an orphan bubble no sidebar entry ever matches.
-export async function deliverToCard(cardId: string, flow: CanvasFlow, result: string, hop: number, source: RunParams): Promise<CardDelivery> {
-  const board = await readBoardChained();
-  const card = board.cards.find((c) => c.id === cardId);
-  if (!card) return { delivered: false };
+async function deliverToNewSession(card: CanvasCard, flow: CanvasFlow, result: string, hop: number, source: RunParams): Promise<CardDelivery> {
   const { contexts, sessions } = await resolveCardNodes(card.contextIds, card.sessionIds);
   // A card has no area of its own (server/canvas/areas.ts never classifies
   // cards) — this ALWAYS starts a brand-new session (no live-thread branch to
@@ -271,12 +269,88 @@ export async function deliverToCard(cardId: string, flow: CanvasFlow, result: st
   const sessionKey = `new-${randomUUID()}`;
   startRun({ ws: null, sessionKey, prompt, flowHop: hop, ...safeParams(source, flow) });
   if (!threads.has(sessionKey)) return { delivered: false }; // admission refused (concurrency cap, ctx gate, ...): nothing started
-  await updateBoard((b) => markCardDoing(b, cardId, Date.now()));
-  // Live until handleTurnClosed sees this exact sessionKey close (below) —
-  // read back by server/ws/dispatch.ts on every canvas-board answer, so a
-  // tab that (re)connects mid-run still sees the card running.
-  registerFlowRun(sessionKey, cardId, flow.id);
   return { delivered: true, runKey: sessionKey };
+}
+
+// Target `k:<cardId>` whose card.reuse (#597 CardReusePicker) says 'continue'
+// or 'fork' instead of 'new': the session already has this card's contexts
+// (buildContinuePrompt skips the re-seed, same as runCard's own client-side
+// reuse branch), so this delivers through the SAME server primitives a manual
+// click already goes through — never a parallel reimplementation of what
+// "continue"/"fork" do to a session.
+async function deliverToReuseTarget(card: CanvasCard, flow: CanvasFlow, result: string, hop: number, source: RunParams): Promise<CardDelivery> {
+  const sessionId = card.reuse?.sessionId;
+  if (!sessionId) return { delivered: false };
+  const params = safeParams(source, flow);
+  const prompt = `${fillTemplate(flow.template, result)}\n\n${buildContinuePrompt(card)}\n\n${flowMarker(flow.id, hop)}`;
+
+  // Fork never touches the live turn, but it's still a brand-new unattended
+  // spawn on the PARENT session's own area — same gate deliverToNewSession
+  // applies to a card's bound sessions (review: fork skipped it entirely).
+  const viaFork = async (): Promise<CardDelivery> => {
+    const blockedArea = blockedAreaFor(sessionId);
+    if (blockedArea) return { delivered: false, areaBlocked: blockedArea };
+    const parked = addParked(sessionId, { ...params, prompt, resumeId: sessionId });
+    if ('reject' in parked) return { delivered: false };
+    // Same call dispatch.ts's 'canvas-card-fork' makes: attachRecovery=false
+    // (review #597 point 1 — a dead fork must never leak this card's prompt
+    // into the parent session's own queue) and enforceHardCtxCap=true (point
+    // 2 — an automated pick never gets the "explicit intent" waiver a manual
+    // click does). flowHop threaded through so a crashed fork's auto-resume
+    // keeps the chain depth instead of resetting to 0.
+    const r = runParkedInBackground(sessionId, parked.id, params.role, params.model, false, true, hop);
+    if ('reject' in r) {
+      removeParked(sessionId, parked.id, params.role);
+      return { delivered: false };
+    }
+    return { delivered: true, runKey: r.forkId };
+  };
+
+  // A 'continue' target can have gone from idle to running SINCE the card was
+  // saved — sending into a LIVE turn needs the human triage a real 'send'
+  // gets (routeSend), never right for an automated flow pick (useCanvasRoute.ts
+  // runCard's own rule, review #597 point 4). Fall back to the exact fork path
+  // 'fork' mode uses instead of ever touching the live turn.
+  if (card.reuse?.mode === 'fork' || resolveThreadKey(sessionId)) return viaFork();
+
+  // Not running: 'continue' is a send into an idle session — same
+  // resumability check and area-admission gate deliverToSession's own
+  // no-live-thread branch already applies, plus the double-writer guard
+  // dispatch.ts's 'send' case runs before ANY spawn (a pane resumed BY HAND
+  // has no thread in `threads` for resolveThreadKey above to have caught).
+  const resume = resumableId(sessionId);
+  if (!resume) return { delivered: false };
+  if (await hasInteractiveClaude(sessionId)) return { delivered: false };
+  const blockedArea = blockedAreaFor(resume);
+  if (blockedArea) return { delivered: false, areaBlocked: blockedArea };
+  // hasInteractiveClaude just awaited real I/O (a /proc scan) — a user could
+  // have sent into this session in that exact window, making it live. startRun
+  // on an already-live sessionKey takes the `replacing` branch and KILLS that
+  // fresh turn (`threads.get(sessionKey)!.handle.kill()`), which a background
+  // flow firing must never do. Re-check immediately before the spawn — not
+  // just once, before the await — and fall back to fork if it's live now.
+  if (resolveThreadKey(sessionId)) return viaFork();
+  startRun({ ws: null, sessionKey: resume, prompt, resumeId: resume, flowHop: hop, ...params });
+  return threads.has(resume) ? { delivered: true, runKey: resume } : { delivered: false };
+}
+
+export async function deliverToCard(cardId: string, flow: CanvasFlow, result: string, hop: number, source: RunParams): Promise<CardDelivery> {
+  const board = await readBoardChained();
+  const card = board.cards.find((c) => c.id === cardId);
+  if (!card) return { delivered: false };
+  const delivery = card.reuse?.mode === 'continue' || card.reuse?.mode === 'fork'
+    ? await deliverToReuseTarget(card, flow, result, hop, source)
+    : await deliverToNewSession(card, flow, result, hop, source);
+  // areaBlocked (#599) has to survive this early return too — fireFlow reads
+  // it off deliverToCard's own result to pick the dedicated toast/backoff,
+  // and a card target is exactly as area-gateable as an `s:` one.
+  if (!delivery.delivered || !delivery.runKey) return { delivered: false, areaBlocked: delivery.areaBlocked };
+  await updateBoard((b) => markCardDoing(b, cardId, Date.now()));
+  // Live until handleTurnClosed sees this exact runKey close (below) — read
+  // back by server/ws/dispatch.ts on every canvas-board answer, so a tab
+  // that (re)connects mid-run still sees the card running, reuse or not.
+  registerFlowRun(delivery.runKey, cardId, flow.id);
+  return delivery;
 }
 
 export async function fireFlow(flow: CanvasFlow, hop: number, result: string, params: RunParams): Promise<void> {
