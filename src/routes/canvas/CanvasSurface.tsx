@@ -42,8 +42,22 @@ export function CanvasSurface(p: Props) {
     fit(p.initialBounds, INITIAL_MIN_ZOOM);
   }, [p.nodes.length, p.initialBounds, fit]);
 
+  // `p.pos` gets a new identity on every layout recompute (any streamed token
+  // from any running agent touches `running`, which feeds `visible`), so a
+  // dep on it here re-centers on every frame — panning away or zooming out
+  // was undone before the user's hand left the trackpad. Center once per
+  // request (keyed on `req.n`) and read the current position through a ref.
+  const posRef = useRef(p.pos);
+  posRef.current = p.pos;
   const req = p.centerRequest;
-  useEffect(() => { if (req && p.pos[req.id]) centerOn(p.pos[req.id]); }, [req, p.pos, centerOn]);
+  const centeredN = useRef<number | null>(null);
+  useEffect(() => {
+    if (!req || centeredN.current === req.n) return;
+    const target = posRef.current[req.id];
+    if (!target) return;
+    centeredN.current = req.n;
+    centerOn(target);
+  }, [req, centerOn]);
 
   const focus = useMemo(() => {
     const out = new Set(p.selected);

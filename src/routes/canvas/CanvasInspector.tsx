@@ -35,7 +35,7 @@ export function CanvasInspector(p: Props) {
   const one = p.nodes.length === 1 ? p.nodes[0] : null;
   const card = one?.kind === 'card' ? p.card(one.ref) : undefined;
   return (
-    <aside className="absolute inset-x-3 bottom-16 top-auto z-10 flex max-h-[46vh] flex-col overflow-hidden rounded-2xl border border-neutral-700/80 bg-neutral-900/90 shadow-xl backdrop-blur-md sm:inset-x-auto sm:left-3 sm:top-3 sm:max-h-none sm:w-72">
+    <aside data-canvas-overlay className="absolute inset-x-3 bottom-16 top-auto z-10 flex max-h-[46vh] flex-col overflow-hidden rounded-2xl border border-neutral-700/80 bg-neutral-900/90 shadow-xl backdrop-blur-md sm:inset-x-auto sm:left-3 sm:top-3 sm:max-h-none sm:w-72">
       <div className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2">
         <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-neutral-100">{one ? one.title : `${p.nodes.length} selecionados`}</span>
         <Button variant="ghost" size="sm" icon="x" onClick={p.onClose} title="fechar" />

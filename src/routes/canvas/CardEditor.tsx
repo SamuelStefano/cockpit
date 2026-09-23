@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { CONTENT_FORMATS, type CanvasCard, type CanvasNode } from '../../../shared/canvas';
+import { CARD_STATUSES, CONTENT_FORMATS, type CanvasCard, type CanvasNode } from '../../../shared/canvas';
 import { FORMAT_LABEL } from '../../../shared/canvas-prompt';
 import { Button, Input, Modal, ToggleChip } from '../../components/primitives';
+import { STATUS_LABEL } from './canvas-labels';
 
 interface Props {
   card: CanvasCard;
@@ -50,6 +51,15 @@ export function CardEditor({ card: initial, isNew, node, onSave, onRun, onDelete
           <ToggleChip on={content} icon="sparkles" onClick={() => patch({ kind: 'content', format: card.format ?? 'post' })}>conteúdo</ToggleChip>
         </div>
         <Input autoFocus placeholder="título" value={card.title} onChange={(e) => patch({ title: e.target.value })} />
+        {!isNew && (
+          // O kanban só move card por HTML5 drag-and-drop, que não é confiável em
+          // toque — este é o único jeito de mudar status num celular.
+          <div className="flex flex-wrap gap-1.5">
+            {CARD_STATUSES.map((s) => (
+              <ToggleChip key={s} on={card.status === s} icon="check" onClick={() => patch({ status: s })}>{STATUS_LABEL[s]}</ToggleChip>
+            ))}
+          </div>
+        )}
         {content && (
           <div className="flex flex-wrap gap-1.5">
             {CONTENT_FORMATS.map((f) => <ToggleChip key={f} on={card.format === f} icon="file" onClick={() => patch({ format: f })}>{FORMAT_LABEL[f]}</ToggleChip>)}

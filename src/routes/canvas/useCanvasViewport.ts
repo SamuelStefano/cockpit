@@ -38,6 +38,10 @@ export function useCanvasViewport() {
     const el = ref.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
+      // Overlays (HUD, inspector) sit inside the surface and bubble their wheel
+      // events up here; a non-passive listener that always preventDefault()s
+      // pans the map instead of letting their own overflow-y-auto scroll.
+      if (e.target instanceof Element && e.target.closest('[data-canvas-overlay]')) return;
       e.preventDefault();
       const r = el.getBoundingClientRect();
       if (e.ctrlKey || e.metaKey) setView((v) => zoomAt(v, e.clientX - r.left, e.clientY - r.top, Math.exp(-Math.max(-60, Math.min(60, e.deltaY)) * 0.008)));

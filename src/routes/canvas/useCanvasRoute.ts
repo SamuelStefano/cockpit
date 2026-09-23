@@ -21,7 +21,7 @@ export interface CanvasRouteProps {
   onCanvasPosReset: () => void;
   onCanvasCardSave: (card: CanvasCard) => void;
   onCanvasCardDelete: (id: string) => void;
-  onLaunchAgent: (prompt: string, title: string) => string;
+  onLaunchAgent: (prompt: string, title: string) => string | null;
   onOpenSession: (id: string) => void;
 }
 
@@ -88,6 +88,29 @@ export function useCanvasRoute(p: CanvasRouteProps) {
 
   const cardOf = useCallback((id: string) => p.board.cards.find((c) => c.id === id), [p.board.cards]);
 
+  // A card-launched agent lives under its local `new-xxx` key for its whole
+  // first turn — the server graph only knows real transcript-backed session
+  // ids, so the card→session edge (and cardRun/"rodando") wouldn't show up
+  // until well after the turn ends. Bind the launched key to the card on the
+  // client and let it ride `p.running` directly; drop it once the turn is
+  // over (running no longer has it) past a short grace window that covers
+  // the round-trip before the server's own `started` frame arrives.
+  const pendingLaunch = useRef<Record<string, { key: string; addedAt: number }>>({});
+  const [pendingTick, setPendingTick] = useState(0);
+  const PENDING_LAUNCH_GRACE_MS = 4000;
+  useEffect(() => {
+    const rec = pendingLaunch.current;
+    let changed = false;
+    const now = Date.now();
+    for (const [cardId, { key, addedAt }] of Object.entries(rec)) {
+      if (p.running.has(key)) continue;
+      if (now - addedAt < PENDING_LAUNCH_GRACE_MS) continue;
+      delete rec[cardId];
+      changed = true;
+    }
+    if (changed) setPendingTick((t) => t + 1);
+  }, [p.running]);
+
   const newDraft = useCallback((kind: CanvasCard['kind'], from: CanvasNode[]) => {
     const t = Date.now();
     const contexts = from.filter((n) => n.kind === 'context').map((n) => n.ref);
@@ -118,7 +141,15 @@ export function useCanvasRoute(p: CanvasRouteProps) {
     const prompt = card.kind === 'content'
       ? buildContentPrompt(card, (card.format ?? 'post') as ContentFormat, contexts, sessions, today())
       : buildTaskPrompt(card, contexts, sessions);
-    p.onLaunchAgent(prompt, card.title);
+    const launchedKey = p.onLaunchAgent(prompt, card.title);
+    // WS fechado: onLaunchAgent já avisou na sessão nova. O card não pode
+    // pular pra "fazendo" nem anunciar um disparo que não saiu.
+    if (!launchedKey) {
+      toast('Não deu pra disparar o agente: sem conexão com o servidor.', { tone: 'error', durationMs: 5000 });
+      return;
+    }
+    pendingLaunch.current[card.id] = { key: launchedKey, addedAt: Date.now() };
+    setPendingTick((t) => t + 1);
     p.onCanvasCardSave(moveCard(card, 'doing', Date.now()));
     setDraft(null);
     toast(`Agente disparado: ${card.title}`, { durationMs: 5000 });
@@ -135,7 +166,13 @@ export function useCanvasRoute(p: CanvasRouteProps) {
     setDraft(null);
   }, [p]);
 
-  const cardSessions = useCallback((id: string) => boundSessions(merged.edges, id), [merged.edges]);
+  const cardSessions = useCallback((id: string) => {
+    const real = boundSessions(merged.edges, id);
+    const pending = pendingLaunch.current[id];
+    return pending && !real.includes(pending.key) ? [...real, pending.key] : real;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pendingTick forces a
+    // fresh callback identity when the pending map mutates; its value isn't read.
+  }, [merged.edges, pendingTick]);
 
   return {
     mode, setMode, scope, setScope, archived, setArchived, query, setQuery,
