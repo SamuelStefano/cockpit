@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ClientMsg, ServerMsg } from '../../shared/protocol';
 import type { CanvasBoard, CanvasCard, CanvasFlow, CanvasGraph, CanvasPos, TermStats } from '../../shared/canvas';
+import { toast } from '../components/primitives';
 
 export interface CanvasApi {
   canvasGraph: CanvasGraph | null;
@@ -97,10 +98,39 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
       setFlowRuns((r) => ({ ...r, [msg.cardId]: { key: msg.runKey, at: Date.now() } }));
       return true;
     }
+    if (msg.t === 'canvas-flow-failed') {
+      // Dedicated admin-only frame (server/ws/canvas-clients.ts), never the
+      // generic keyless {t:'error'}: that one makes every tab's onMsg call
+      // endHandoff() and, if it lands mid a canvas-get, marks the canvas
+      // stale — neither is right for a background flow failure. The toast
+      // lives here, not in a reducer-style board patch, because there's
+      // nothing to patch: this is a notification, not board state.
+      toast(msg.message, { tone: 'error', durationMs: 6000 });
+      return true;
+    }
     if (msg.t === 'canvas-graph') { setGraph(msg.graph); setStale(false); settle(); return true; }
     if (msg.t === 'canvas-board') {
       if (ackTimerRef.current) { clearTimeout(ackTimerRef.current); ackTimerRef.current = null; }
       const now = Date.now();
+      // Live flow runs the server already knows about — a tab that (re)connects
+      // mid-run (F5, a second tab, /canvas opened after the flow fired) would
+      // otherwise never see the card as running: canvas-flow-run is a one-shot
+      // broadcast at fire time, sent before this tab even existed. Merge by
+      // cardId, same shape the one-shot event already produces, so
+      // useCanvasRoute's pendingLaunch absorption (keyed on cardId->key) needs
+      // no separate code path for either source.
+      if (msg.flowRuns.length) {
+        setFlowRuns((r) => {
+          let changed = false;
+          const next = { ...r };
+          for (const run of msg.flowRuns) {
+            if (next[run.cardId]?.key === run.runKey) continue;
+            next[run.cardId] = { key: run.runKey, at: now };
+            changed = true;
+          }
+          return changed ? next : r;
+        });
+      }
       setBoard((prev) => {
         const pos = { ...msg.board.pos };
         for (const [id, at] of Object.entries(posWriteAt.current)) {
