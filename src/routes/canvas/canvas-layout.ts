@@ -51,7 +51,11 @@ export function layoutCanvas(nodes: CanvasNode[], edges: CanvasEdge[], saved: Re
     if (byId.get(e.source)?.hub && !byId.get(e.target)?.hub && !hubOf.has(e.target)) hubOf.set(e.target, e.source);
   }
   const members = new Map<string, CanvasNode[]>();
-  for (const c of contexts.filter((n) => !n.hub).sort((a, b) => b.mtime - a.mtime)) {
+  // Ordered by id, not mtime: a memory write bumps mtime on every save, which
+  // used to jump that leaf to ring slot 0 and shove every sibling in its
+  // cluster over on the very next graph refresh (canvas review #5). id has no
+  // reason to change once assigned, so a leaf keeps its slot for its whole life.
+  for (const c of contexts.filter((n) => !n.hub).sort((a, b) => a.id.localeCompare(b.id))) {
     const cluster = hubOf.get(c.id) ?? '';
     members.set(cluster, [...(members.get(cluster) ?? []), c]);
   }
@@ -74,10 +78,14 @@ export function layoutCanvas(nodes: CanvasNode[], edges: CanvasEdge[], saved: Re
   for (const h of hubs) out[h.id] = centerOf.get(h.id)!;
   for (const [cluster, list] of members) list.forEach((c, i) => { out[c.id] = ring(centerOf.get(cluster)!, i); });
 
-  const sessions = nodes.filter((n) => n.kind === 'session').sort((a, b) => b.mtime - a.mtime);
+  // Ordered by id too, for the same reason: any activity on a session bumps
+  // its mtime, which used to reshuffle its own orbit slot and, via `orbit`'s
+  // running counter, every OTHER session sharing the same anchor context.
+  const sessions = nodes.filter((n) => n.kind === 'session').sort((a, b) => a.id.localeCompare(b.id));
   const ctxOf = (id: string) => (nbrs.get(id) ?? []).filter((x) => out[x] && byId.get(x)?.kind === 'context');
   // Sessions with no memory trail form a compact block left of the clusters,
-  // newest first, so a hundred of them never stretch the map into a thin column.
+  // in the same stable order, so a hundred of them never stretch the map into
+  // a thin column and never trade places on their own.
   const orphans = sessions.filter((s) => !ctxOf(s.id).length);
   const orphanCols = Math.max(2, Math.ceil(Math.sqrt(orphans.length * 1.6)));
   const orphanX0 = -GAP * 3 - orphanCols * (NODE_W + 28);

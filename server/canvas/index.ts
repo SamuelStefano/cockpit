@@ -19,8 +19,13 @@ const SLUG_RE = /^[a-zA-Z0-9_-]{1,80}$/;
 function refsFile(): string {
   return process.env.COCKPIT_CANVAS_REFS ?? join(homedir(), '.cockpit', 'canvas-refs.json');
 }
-function archiveDir(): string {
-  return process.env.COCKPIT_MEMORY_ARCHIVE ?? join(homedir(), '.claude', 'memory-archive', 'handoffs');
+// The archive has 3 subdirs (`memory-gc`'s destinations); the "arquivo" toggle
+// used to only read `handoffs/` (a handful of files) and silently ignored
+// `stale/` and `full/` (the bulk of what gets archived), so most archived
+// contexts never showed up (canvas review #11).
+function archiveDirs(): string[] {
+  const base = process.env.COCKPIT_MEMORY_ARCHIVE ?? join(homedir(), '.claude', 'memory-archive');
+  return ['handoffs', 'stale', 'full'].map((d) => join(base, d));
 }
 
 type RefsCache = Map<string, SessionRefs & { size: number }>;
@@ -121,9 +126,19 @@ export function buildCanvas(board?: CanvasBoard): Promise<CanvasGraph> {
     const live_ = new Set(sessions.map((s) => s.meta.id));
     for (const id of c.keys()) if (!live_.has(id)) c.delete(id);
     await saveCache(c).catch(() => undefined);
-    const [mem, arch] = await Promise.all([readContextDir(CONFIG.memoryDir, false), readContextDir(archiveDir(), true)]);
+    const [mem, ...archByDir] = await Promise.all([
+      readContextDir(CONFIG.memoryDir, false),
+      ...archiveDirs().map((d) => readContextDir(d, true)),
+    ]);
     const memIds = new Set(mem.map((m) => m.id));
-    return buildCanvasGraph({ sessions, refs, contexts: [...mem, ...arch.filter((a) => !memIds.has(a.id))], cards: b.cards });
+    const arch: ContextDoc[] = [];
+    const seenArch = new Set<string>();
+    for (const doc of archByDir.flat()) {
+      if (memIds.has(doc.id) || seenArch.has(doc.id)) continue; // live memory wins; first archive subdir wins over a later duplicate
+      seenArch.add(doc.id);
+      arch.push(doc);
+    }
+    return buildCanvasGraph({ sessions, refs, contexts: [...mem, ...arch], cards: b.cards });
   })().finally(() => { inflight = null; });
   return inflight;
 }
