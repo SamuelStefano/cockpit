@@ -36,7 +36,7 @@ describe('usePoints', () => {
 
   it('claims staged drafts and sends draft ops as frames', () => {
     const { result, enviados } = montar();
-    act(() => { expect(result.current.onMsg({ t: 'drafts', items: [{ id: 'ep-1', title: 'E', status: 'draft', createdAt: 0, tasks: [] }] })).toBe(true); });
+    act(() => { expect(result.current.onMsg({ t: 'drafts', items: [{ id: 'ep-1', title: 'E', status: 'draft', createdAt: 0, tasks: [], deliveries: [] }] })).toBe(true); });
     expect(result.current.drafts).toHaveLength(1);
     expect(result.current.draftsLoaded).toBe(true);
     act(() => { expect(result.current.onDraftOp({ op: 'delete-epic', id: 'ep-1' })).toBe(true); });

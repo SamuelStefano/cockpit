@@ -13,7 +13,7 @@ export function draftsFile(): string {
   return process.env.COCKPIT_DFL_DRAFTS ?? join(homedir(), '.cockpit', 'dfl-drafts.json');
 }
 
-export function newDraftId(prefix: 'ep' | 'tk'): string {
+export function newDraftId(prefix: 'ep' | 'tk' | 'dl'): string {
   return `${prefix}-${randomBytes(3).toString('hex')}`;
 }
 

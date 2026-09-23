@@ -655,7 +655,8 @@ export type ClientMsg =
   // Botão "criar tasks com agente": dispara um turno autônomo que registra o
   // trabalho no DFL. Não escreve nada sozinho aqui — quem escreve é o agente,
   // pelas tools dele. Os tetos viajam junto pra o prompt citar o valor vigente.
-  | { t: 'pontos-agent-tasks'; reqId: string; note: string; epicCapCents: number; monthCapCents: number; pointValue: number }
+  // target 'drafts' = the agent stages the structure in the Deck (deck-drafts) instead.
+  | { t: 'pontos-agent-tasks'; reqId: string; note: string; epicCapCents: number; monthCapCents: number; pointValue: number; target?: 'dfl' | 'drafts' }
   // Staged DFL epics (~/.cockpit/dfl-drafts.json). Same class as the finance
   // snapshot: outside STUDENT_ALLOWED and pushed only to finance sockets. Nothing
   // here touches DFL — only the dispatched agent writes there.

@@ -16,6 +16,7 @@ import { registerFinanceClient, emitFinanceMsg } from './finance-clients';
 import { runDflSync } from '../dfl-sync-runner';
 import { runDflWrite } from '../dfl-write-runner';
 import { buildAgentTasksPrompt, agentSessionKey, MAX_NOTE_BYTES } from '../pontos-agent';
+import { buildStageDraftsPrompt } from '../pontos-stage-prompt';
 import { getCrons, saveCron, deleteCron, runCronNow } from '../crons';
 import { scheduleValid } from '../../shared/cron-schedule';
 import { fireCron } from './runs';
@@ -410,16 +411,14 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       if (!CONFIG.localOnly) { send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'agent', ok: false, message: 'agente de tasks só no loopback' }); return; }
       const note = typeof msg.note === 'string' ? msg.note : '';
       if (Buffer.byteLength(note) > MAX_NOTE_BYTES) { send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'agent', ok: false, message: 'nota grande demais' }); return; }
-      const sessionKey = agentSessionKey(Date.now());
+      const now = Date.now();
+      const sessionKey = agentSessionKey(now);
+      const req = { note, epicCapCents: msg.epicCapCents, monthCapCents: msg.monthCapCents, pointValue: msg.pointValue };
       startRun({
         ws: null,
         sessionKey,
-        prompt: buildAgentTasksPrompt({
-          note,
-          epicCapCents: msg.epicCapCents,
-          monthCapCents: msg.monthCapCents,
-          pointValue: msg.pointValue,
-        }),
+        // 'drafts' = "Novo épico com agente": stages in the Deck, never in DFL.
+        prompt: msg.target === 'drafts' ? buildStageDraftsPrompt(req) : buildAgentTasksPrompt(req),
         msgId: `pontos-${Date.now().toString(36)}`,
         // Turno sem cliente atrelado: sem acceptEdits ele para no primeiro pedido
         // de permissão e ninguém está lá pra aprovar. Não é bypass.

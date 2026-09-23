@@ -307,6 +307,13 @@ describe('pontos-agent-tasks (botão "criar tasks com agente")', () => {
     expect(opts.prompt).toContain('lesson studio');
   });
 
+  it('target drafts: o agente monta no Deck (deck-drafts), não no DFL', async () => {
+    await handle(ws, msg({ target: 'drafts' }), 'admin');
+    const opts = runs.startRun.mock.calls[0][0] as { prompt: string };
+    expect(opts.prompt).toContain('~/bin/deck-drafts import');
+    expect(opts.prompt).toContain('NÃO use o MCP dfl-work');
+  });
+
   it('responde ok com a sessão pra a UI mandar ele acompanhar', async () => {
     await handle(ws, msg(), 'admin');
     expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'points-dfl-write', reqId: 'r1', kind: 'agent', ok: true }));

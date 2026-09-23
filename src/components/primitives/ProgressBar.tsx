@@ -7,6 +7,8 @@ export interface ProgressSegment {
 
 interface ProgressBarProps {
   segments: ProgressSegment[];
+  // xs = hairline meter for dense rows (navigator, table cells).
+  size?: 'xs' | 'sm';
   className?: string;
 }
 
@@ -19,10 +21,10 @@ const fills: Record<ProgressSegment['tone'], string> = {
 };
 
 // Barra segmentada: cada segmento ocupa proporção do total. Total zero → trilho vazio.
-export function ProgressBar({ segments, className = '' }: ProgressBarProps) {
+export function ProgressBar({ segments, size = 'sm', className = '' }: ProgressBarProps) {
   const total = segments.reduce((s, x) => s + Math.max(0, x.value), 0);
   return (
-    <div className={`flex h-1.5 w-full overflow-hidden rounded-full bg-neutral-800 ${className}`}>
+    <div className={`flex ${size === 'xs' ? 'h-1' : 'h-1.5'} w-full overflow-hidden rounded-full bg-neutral-800 ${className}`}>
       {total > 0 && segments.map((s, i) => {
         const pct = (Math.max(0, s.value) / total) * 100;
         if (pct <= 0) return null;

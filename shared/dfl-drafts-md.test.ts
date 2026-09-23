@@ -40,6 +40,14 @@ describe('parseDraftsMarkdown', () => {
     expect(epics[0]).toMatchObject({ title: 'Só título', declaredPoints: null });
   });
 
+  it('groups tasks under ### deliveries; loose tasks form an untitled first delivery', () => {
+    const { epics } = parseDraftsMarkdown('## E — 4 pt\n- solta — 1\n### Front\n- a — 1\n- b — 1\n### Back\n- c — 1');
+    expect(epics[0].tasks.map((t) => t.title)).toEqual(['solta', 'a', 'b', 'c']);
+    expect(epics[0].deliveries.map((g) => [g.title, g.tasks.map((t) => t.title)])).toEqual([
+      [undefined, ['solta']], ['Front', ['a', 'b']], ['Back', ['c']],
+    ]);
+  });
+
   it('ignores bullets before the first epic', () => {
     expect(parseDraftsMarkdown('- solto — 3\n').epics).toEqual([]);
   });

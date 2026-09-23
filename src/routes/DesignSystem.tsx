@@ -4,6 +4,7 @@ import { Row } from './ds/Row';
 import { PrimitivesGallery } from './ds/PrimitivesGallery';
 import { CompositesGallery } from './ds/CompositesGallery';
 import { StudioGallery } from './ds/StudioGallery';
+import { DenseGallery } from './ds/DenseGallery';
 
 export function DesignSystem() {
   return (
@@ -20,6 +21,7 @@ export function DesignSystem() {
 
         <PrimitivesGallery />
         <CompositesGallery />
+        <DenseGallery />
         <StudioGallery />
       </div>
     </div>
