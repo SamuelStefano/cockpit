@@ -3,9 +3,10 @@ import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  checkFlowSave, claimFlowFire, emptyBoard, markCardDoing, mergePos, readBoard, readBoardChained, recordFlowFailure,
-  recordFlowSuccess, removeCard, removeFlow, sanitizeBudget, sanitizeBudgets, sanitizeCard, sanitizeFlow, sanitizePos,
-  sanitizeSessionStatus, setBudget, setSessionStatus, updateBoard, upsertCard, upsertFlow,
+  checkFlowSave, claimFlowFire, clearCardDflLink, emptyBoard, markCardDoing, mergePos, readBoard, readBoardChained,
+  recordFlowFailure, recordFlowSuccess, removeCard, removeFlow, sanitizeBudget, sanitizeBudgets, sanitizeCard,
+  sanitizeFlow, sanitizePos, sanitizeSessionStatus, setBudget, setCardDflLink, setCardDflPending, setCardDflSynced,
+  setSessionStatus, updateBoard, upsertCard, upsertFlow,
 } from './board';
 
 // claimFlowFire takes a backoff curve injected by the caller (server/canvas/
@@ -46,6 +47,58 @@ describe('sanitizeCard', () => {
   it('drops an unknown mode or a non-object reuse', () => {
     expect(sanitizeCard({ id: 'abcd', title: 'a', reuse: { mode: 'bogus' } }, undefined, 1)?.reuse).toBeUndefined();
     expect(sanitizeCard({ id: 'abcd', title: 'a', reuse: 'nope' }, undefined, 1)?.reuse).toBeUndefined();
+  });
+
+  it('dfl is SERVER-OWNED: a client claiming dfl.taskId on a fresh card save is ignored', () => {
+    expect(sanitizeCard({ id: 'abcd', title: 'a', dfl: { taskId: 'x' } }, undefined, 1)?.dfl).toBeUndefined();
+  });
+
+  it('dfl carries over from prev regardless of what the client sends this time', () => {
+    const prev = { dfl: { taskId: 't1', lastSyncedAt: 5 } } as never;
+    expect(sanitizeCard({ id: 'abcd', title: 'a', dfl: { taskId: 'forged' } }, prev, 1)?.dfl).toEqual({ taskId: 't1', lastSyncedAt: 5 });
+    expect(sanitizeCard({ id: 'abcd', title: 'a' }, prev, 1)?.dfl).toEqual({ taskId: 't1', lastSyncedAt: 5 });
+  });
+});
+
+describe('DFL card link mutators', () => {
+  const taskUuid = '12345678-1234-1234-1234-123456789abc';
+  const boardWithCard = () => upsertCard(emptyBoard(), sanitizeCard({ id: 'abcd', title: 'a' }, undefined, 1)!);
+
+  it('setCardDflLink attaches a valid uuid task id and stamps lastSyncedAt', () => {
+    const b = setCardDflLink(boardWithCard(), 'abcd', taskUuid, 100);
+    expect(b.cards[0].dfl).toEqual({ taskId: taskUuid, lastSyncedAt: 100 });
+  });
+
+  it('setCardDflLink rejects a non-uuid task id (never persists a bogus link)', () => {
+    const b = setCardDflLink(boardWithCard(), 'abcd', 'not-a-uuid', 100);
+    expect(b.cards[0].dfl).toBeUndefined();
+  });
+
+  it('setCardDflLink on a missing card is a no-op', () => {
+    const b = setCardDflLink(emptyBoard(), 'nope', taskUuid, 100);
+    expect(b.cards).toEqual([]);
+  });
+
+  it('clearCardDflLink drops the link and touches nothing else, never a no-op crash on an unlinked card', () => {
+    const linked = setCardDflLink(boardWithCard(), 'abcd', taskUuid, 100);
+    const cleared = clearCardDflLink(linked, 'abcd');
+    expect(cleared.cards[0].dfl).toBeUndefined();
+    expect(clearCardDflLink(boardWithCard(), 'abcd').cards[0].dfl).toBeUndefined();
+  });
+
+  it('setCardDflPending marks a pending status + error only on an already-linked card', () => {
+    const linked = setCardDflLink(boardWithCard(), 'abcd', taskUuid, 100);
+    const pending = setCardDflPending(linked, 'abcd', 'doing', 'timeout');
+    expect(pending.cards[0].dfl).toEqual({ taskId: taskUuid, lastSyncedAt: 100, pending: 'doing', error: 'timeout' });
+    // unlinked card: no dfl object to patch, stays untouched
+    expect(setCardDflPending(boardWithCard(), 'abcd', 'doing').cards[0].dfl).toBeUndefined();
+  });
+
+  it('setCardDflSynced clears pending/error and stamps a fresh lastSyncedAt', () => {
+    const linked = setCardDflLink(boardWithCard(), 'abcd', taskUuid, 100);
+    const pending = setCardDflPending(linked, 'abcd', 'doing', 'timeout');
+    const synced = setCardDflSynced(pending, 'abcd', 999);
+    expect(synced.cards[0].dfl).toEqual({ taskId: taskUuid, lastSyncedAt: 999 });
   });
 });
 

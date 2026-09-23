@@ -94,6 +94,16 @@ const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max
 const refs = (v: unknown) => (Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === 'string' && REF_RE.test(x)))].slice(0, MAX_LINKS) : []);
 
 // Frames arrive as raw JSON: every field is re-derived here, nothing is trusted.
+//
+// `dfl` is the ONE exception to "re-derived from this frame": it is
+// SERVER-OWNED, same rule as a flow's fires/lastFiredAt (sanitizeFlow above)
+// — always carried over from `prev`, NEVER read off the client's raw card.
+// Only server/ws/dispatch.ts's dfl-task-link / dfl-task-create-link /
+// dfl-task-unlink handlers (via setCardDflLink/clearCardDflLink below) and
+// the DFL status push/sync (server/canvas/dfl-status-sync.ts) are allowed to
+// set it — a client that forged `dfl.taskId` into a plain canvas-card-save
+// frame must never get a card that LOOKS linked without the server's own
+// area guard + snapshot-membership check ever running.
 export function sanitizeCard(raw: unknown, prev: CanvasCard | undefined, now: number): CanvasCard | null {
   const c = (raw ?? {}) as Record<string, unknown>;
   if (typeof c.id !== 'string' || !CARD_ID_RE.test(c.id)) return null;
@@ -107,7 +117,54 @@ export function sanitizeCard(raw: unknown, prev: CanvasCard | undefined, now: nu
     contextIds: refs(c.contextIds), sessionIds: refs(c.sessionIds),
     createdAt: prev?.createdAt ?? now, updatedAt: now,
     reuse: sanitizeReuse(c.reuse),
+    ...(prev?.dfl ? { dfl: prev.dfl } : {}),
   };
+}
+
+const TASK_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_DFL_ERROR = 300;
+
+// The 4 mutators below are the ONLY writers of CanvasCard.dfl — every one is
+// called from server code that already did its own validation (area guard,
+// snapshot membership, uuid) BEFORE reaching here; this layer just shapes
+// the stored value and caps the error string, same spirit as sanitizeCard.
+export function setCardDflLink(board: CanvasBoard, cardId: string, taskId: string, now: number): CanvasBoard {
+  if (!TASK_UUID_RE.test(taskId)) return board;
+  const i = board.cards.findIndex((c) => c.id === cardId);
+  if (i < 0) return board;
+  const cards = [...board.cards];
+  cards[i] = { ...cards[i], dfl: { taskId, lastSyncedAt: now } };
+  return { ...board, cards };
+}
+
+// Local-only: never contacts DFL, never deletes the task there (see
+// server/dfl-write.ts — there is no DELETE path on purpose).
+export function clearCardDflLink(board: CanvasBoard, cardId: string): CanvasBoard {
+  const i = board.cards.findIndex((c) => c.id === cardId);
+  if (i < 0 || !board.cards[i].dfl) return board;
+  const cards = [...board.cards];
+  const { dfl: _dfl, ...rest } = cards[i];
+  cards[i] = rest as CanvasCard;
+  return { ...board, cards };
+}
+
+// Optimistic marker while a status push is in flight/retrying — drives the
+// "sync pendente" badge. Only meaningful on an already-linked card.
+export function setCardDflPending(board: CanvasBoard, cardId: string, pending: CardStatus | undefined, error?: string): CanvasBoard {
+  const i = board.cards.findIndex((c) => c.id === cardId);
+  if (i < 0 || !board.cards[i].dfl) return board;
+  const cards = [...board.cards];
+  cards[i] = { ...cards[i], dfl: { ...cards[i].dfl!, pending, error: error ? error.slice(0, MAX_DFL_ERROR) : undefined } };
+  return { ...board, cards };
+}
+
+// A push that finally succeeded: clear pending/error, stamp lastSyncedAt.
+export function setCardDflSynced(board: CanvasBoard, cardId: string, now: number): CanvasBoard {
+  const i = board.cards.findIndex((c) => c.id === cardId);
+  if (i < 0 || !board.cards[i].dfl) return board;
+  const cards = [...board.cards];
+  cards[i] = { ...cards[i], dfl: { taskId: cards[i].dfl!.taskId, lastSyncedAt: now } };
+  return { ...board, cards };
 }
 
 const mcpList = (v: unknown) => (Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === 'string' && MCP_NAME_RE.test(x)))].slice(0, MAX_MCPS) : undefined);
