@@ -16,7 +16,7 @@ export interface DflInvoice {
 }
 
 export interface PontosAgentTasks {
-  note: string; epicCapCents: number; monthCapCents: number; pointValue: number;
+  note: string; epicCapCents: number; monthCapCents: number; pointValue: number; target?: 'dfl' | 'drafts';
 }
 
 export interface Points {

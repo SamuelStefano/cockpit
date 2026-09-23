@@ -8,8 +8,8 @@
 //   deck-drafts list
 //   deck-drafts add-epic "<title>"
 //   deck-drafts add-task <epicId> "<title>" <points> [refs...]
-//   deck-drafts set-status <epicId> draft|dispatched|created
-//   deck-drafts import <file.md>        (## Épico N — Title — X pt / - Task — refs — pts)
+//   deck-drafts set-status <id>[,<id>...] draft|dispatched|created   (epic, delivery or task ids)
+//   deck-drafts import <file.md>        (## Épico N — Title — X pt / ### Delivery / - Task — refs — pts)
 //
 // Imports the pure shared modules straight from TS (native Node type stripping),
 // so validation is the same one the server runs. Honors COCKPIT_DFL_DRAFTS.
@@ -25,8 +25,8 @@ const USAGE = `uso:
   deck-drafts list
   deck-drafts add-epic "<título>"
   deck-drafts add-task <epicId> "<título>" <pontos> [refs...]
-  deck-drafts set-status <epicId> draft|dispatched|created
-  deck-drafts import <arquivo.md>`;
+  deck-drafts set-status <id>[,<id>...] draft|dispatched|created   (ids de épico, delivery ou task)
+  deck-drafts import <arquivo.md>   (## Épico — título — pts / ### delivery opcional / - task — refs — pts)`;
 
 const file = () => process.env.COCKPIT_DFL_DRAFTS || join(homedir(), '.cockpit', 'dfl-drafts.json');
 const newId = (prefix) => `${prefix}-${randomBytes(3).toString('hex')}`;
@@ -59,6 +59,7 @@ function list() {
   if (!drafts.length) return process.stdout.write('(nenhum rascunho)\n');
   for (const d of drafts) {
     process.stdout.write(`${d.id}  [${d.status}]  ${d.title} — ${fmt(draftPoints(d))} pt (${d.tasks.length} tasks)\n`);
+    for (const dl of d.deliveries) process.stdout.write(`  ${dl.id}  ${dl.title} (${dl.taskIds.length} tasks)\n`);
   }
 }
 
@@ -77,9 +78,11 @@ function addTask([epicId, title, rawPoints, ...refs]) {
   process.stdout.write(`✓ task em ${epicId}: ${title} (${fmt(points)} pt)\n`);
 }
 
-function setStatus([id, status]) {
-  save(apply(load(), { op: 'set-status', id, status }));
-  process.stdout.write(`✓ ${id} → ${status}\n`);
+function setStatus([raw, status]) {
+  const ids = String(raw ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (!ids.length) die('id obrigatório');
+  save(apply(load(), { op: 'set-status', id: ids, status }));
+  process.stdout.write(`✓ ${ids.join(', ')} → ${status}\n`);
 }
 
 // Idempotent: an epic whose title is already staged is skipped, so re-running
@@ -95,7 +98,7 @@ function importMd([path]) {
   let added = 0;
   for (const e of epics) {
     if (seen.has(e.title)) { process.stdout.write(`· já existe: ${e.title}\n`); continue; }
-    drafts = apply(drafts, { op: 'add-epic', title: e.title, tasks: e.tasks });
+    drafts = apply(drafts, { op: 'add-epic', title: e.title, deliveries: e.deliveries });
     added++;
     process.stdout.write(`✓ ${drafts[drafts.length - 1].id}  ${e.title} — ${fmt(draftPoints(drafts[drafts.length - 1]))} pt\n`);
   }
