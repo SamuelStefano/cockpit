@@ -530,6 +530,10 @@ export interface DflTaskNode {
   rawStatus: string;       // status cru do DFL (done, to_do, …)
   amountCents: number;     // pago = do invoice_item; aberto/a-fazer = points × price_per_point
   ledgerEntryId?: string;  // reconciliação futura com o ledger local (points.jsonl)
+  // epoch ms de work.tasks.updated_at (quando o dado cru trouxe um valor parseável).
+  // Usado pelo sync Kanban<->DFL (server/canvas/dfl-status-sync.ts) pra decidir se
+  // uma mudança de status no DFL é mais nova que a última mudança local do card.
+  updatedAt?: number;
 }
 export interface DflDeliveryNode {
   id: string;
@@ -658,6 +662,15 @@ export type ClientMsg =
   // o token nunca cruza pro WS/cliente. reqId ecoa na resposta pra a UI casar.
   | { t: 'points-dfl-change'; reqId: string; taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string }
   | { t: 'points-dfl-invoice'; reqId: string; deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number; deliveryId?: string; deliveryName?: string }[] }
+  // Kanban<->DFL card link (opt-in, DFL-area cards only — server re-derives the
+  // card's area itself, never trusts the client). 'link' points a card at an
+  // EXISTING task (id comes from the already-fetched DflPointsSnapshot);
+  // 'create-link' creates a new task under a delivery THEN links it, in one
+  // sanctioned write. 'unlink' is always local-only — never deletes the DFL
+  // task. See server/canvas/dfl-link.ts.
+  | { t: 'dfl-task-link'; reqId: string; cardId: string; taskId: string }
+  | { t: 'dfl-task-create-link'; reqId: string; cardId: string; taskName: string; epicId: string; deliveryId: string }
+  | { t: 'dfl-task-unlink'; cardId: string }
   // Botão "criar tasks com agente": dispara um turno autônomo que registra o
   // trabalho no DFL. Não escreve nada sozinho aqui — quem escreve é o agente,
   // pelas tools dele. Os tetos viajam junto pra o prompt citar o valor vigente.
@@ -810,6 +823,9 @@ export type ServerMsg =
   // Resultado de uma escrita DFL (change/invoice). reqId casa com o pedido; a UI
   // mostra sucesso/erro e um resync empurra o snapshot novo pelo watcher.
   | { t: 'points-dfl-write'; reqId: string; kind: 'change' | 'invoice' | 'agent'; ok: boolean; message?: string }
+  // Resultado de dfl-task-link/dfl-task-create-link. reqId casa com o pedido;
+  // sucesso já vem acompanhado de um canvas-board com o card.dfl atualizado.
+  | { t: 'dfl-task-write'; reqId: string; ok: boolean; message?: string }
   | { t: 'crons'; items: Cron[] }
   | { t: 'context'; id: string; title: string; body: string }
   | { t: 'models'; models: ModelInfo[] }
@@ -919,6 +935,11 @@ export type ServerMsg =
   // canvas data (a session's title) never reaches a non-admin/canvas-closed
   // socket.
   | { t: 'canvas-budget-paused'; area: AreaId; sessionId: string; sessionTitle: string; reason: string }
+  // A Deck->DFL status push (server/canvas/dfl-status-sync.ts) exhausted its
+  // retries. Same emitCanvasMsg pattern as canvas-flow-failed: the card's
+  // `dfl.error`/`dfl.pending` (in the next canvas-board) is what drives the
+  // persistent "sync pendente" badge; this is only the one-shot toast.
+  | { t: 'canvas-dfl-sync-error'; cardId: string; message: string }
   | { t: 'canvas-area-usage'; usage: Partial<Record<AreaId, AreaUsage>> }
   | { t: 'graph-data'; id: string; graph: GraphData }
   | { t: 'graph-query-result'; id: string; question: string; answer: string; tokens: number; miss: boolean }

@@ -30,6 +30,38 @@ export interface CardReuse {
   sessionId?: string;
 }
 
+// Raw work.tasks status values (dfl-work MCP create_task/update_task schema) —
+// the ONLY 4 that map to a Deck CardStatus; 'no_longer_needed'/'blocked' have
+// no Deck equivalent and are left alone by the DFL->Deck sync (server/canvas/
+// dfl-status-sync.ts) rather than guessed at.
+export type DflTaskDbStatus = 'to_do' | 'in_progress' | 'dev_completed' | 'done' | 'no_longer_needed' | 'blocked';
+
+// Deck<->DFL status mapping, single source of truth for both sync directions.
+// review = "the agent said it's done, nobody confirmed" -> dev_completed is
+// the DFL status with the same meaning (dev finished, awaiting QA/review).
+export const CARD_STATUS_TO_DFL: Record<CardStatus, DflTaskDbStatus> = {
+  todo: 'to_do', doing: 'in_progress', review: 'dev_completed', done: 'done',
+};
+const DFL_TO_CARD_STATUS: Partial<Record<DflTaskDbStatus, CardStatus>> = {
+  to_do: 'todo', in_progress: 'doing', dev_completed: 'review', done: 'done',
+};
+export function cardStatusFromDfl(raw: string): CardStatus | undefined {
+  return DFL_TO_CARD_STATUS[raw as DflTaskDbStatus];
+}
+
+// A card linked to a DFL task (opt-in, per card — CardEditor's "vincular à
+// task DFL"). `pending` is the status a write is (re)trying to push to DFL
+// (server-owned, cleared on success); `error` is the last push failure
+// message, shown as a "sync pendente" badge until the next successful push
+// or a manual retry. Unlinking is always local-only — never deletes the DFL
+// task (see server/dfl-write.ts: no DELETE path exists on purpose).
+export interface CardDflLink {
+  taskId: string;
+  lastSyncedAt?: number;
+  pending?: CardStatus;
+  error?: string;
+}
+
 export interface CanvasCard {
   id: string;
   title: string;
@@ -42,6 +74,7 @@ export interface CanvasCard {
   createdAt: number;
   updatedAt: number;
   reuse?: CardReuse;
+  dfl?: CardDflLink;
 }
 
 export interface CanvasNode {
