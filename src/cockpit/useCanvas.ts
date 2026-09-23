@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ClientMsg, ServerMsg } from '../../shared/protocol';
-import type { CanvasBoard, CanvasCard, CanvasGraph, CanvasPos, TermStats } from '../../shared/canvas';
+import type { CanvasBoard, CanvasCard, CanvasFlow, CanvasGraph, CanvasPos, TermStats } from '../../shared/canvas';
 
 export interface CanvasApi {
   canvasGraph: CanvasGraph | null;
@@ -13,12 +13,17 @@ export interface CanvasApi {
   onCanvasPosReset: () => void;
   onCanvasCardSave: (card: CanvasCard) => void;
   onCanvasCardDelete: (id: string) => void;
+  onCanvasFlowSave: (flow: CanvasFlow) => void;
+  onCanvasFlowDelete: (id: string) => void;
+  // flowId -> ts of the last `canvas-flow-fired` broadcast, so the edge layer
+  // can pulse the arrow that just delivered a prompt server-side.
+  canvasFlowFired: Record<string, number>;
   canvasTermStats: Record<string, TermStats>;
   onCanvasTermStats: (sessions: string[], terms: string[]) => void;
   onMsg: (msg: ServerMsg) => boolean;
 }
 
-const EMPTY_BOARD: CanvasBoard = { cards: [], pos: {} };
+const EMPTY_BOARD: CanvasBoard = { cards: [], pos: {}, flows: [] };
 
 // server/ws/dispatch.ts runs message handlers unawaited and reads the board
 // outside any write chain: a `canvas-board` frame answering an earlier
@@ -45,12 +50,15 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
   const [canvasLoadingSince, setLoadingSince] = useState<number | null>(null);
   const [canvasStale, setStale] = useState(false);
   const [canvasTermStats, setTermStats] = useState<Record<string, TermStats>>({});
+  const [canvasFlowFired, setFlowFired] = useState<Record<string, number>>({});
   const loadingRef = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const posWriteAt = useRef<Record<string, number>>({});
   const cardWriteAt = useRef<Record<string, number>>({});
   const deleteWriteAt = useRef<Record<string, number>>({});
+  const flowWriteAt = useRef<Record<string, number>>({});
+  const flowDeleteWriteAt = useRef<Record<string, number>>({});
 
   const clearTimer = useCallback(() => {
     if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
@@ -67,6 +75,7 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
 
   const onMsg = useCallback((msg: ServerMsg) => {
     if (msg.t === 'canvas-term-stats') { setTermStats(msg.stats); return true; }
+    if (msg.t === 'canvas-flow-fired') { setFlowFired((f) => ({ ...f, [msg.flowId]: msg.at })); return true; }
     if (msg.t === 'canvas-graph') { setGraph(msg.graph); setStale(false); settle(); return true; }
     if (msg.t === 'canvas-board') {
       if (ackTimerRef.current) { clearTimeout(ackTimerRef.current); ackTimerRef.current = null; }
@@ -92,7 +101,24 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
           });
         for (const id of Object.keys(cardWriteAt.current)) if (now - cardWriteAt.current[id] >= WRITE_GRACE_MS) delete cardWriteAt.current[id];
         for (const id of Object.keys(deleteWriteAt.current)) if (now - deleteWriteAt.current[id] >= WRITE_GRACE_MS) delete deleteWriteAt.current[id];
-        return { cards, pos };
+        // Flows have no updatedAt (fires/lastFiredAt are server-bumped, not
+        // client-edited), so — same as pos — a write in flight simply wins
+        // over whatever this frame carries for that id.
+        let flows = msg.board.flows;
+        const prevFlowById = new Map(prev.flows.map((f) => [f.id, f]));
+        flows = flows
+          .map((f) => {
+            const at = flowWriteAt.current[f.id];
+            if (at === undefined || now - at >= WRITE_GRACE_MS) return f;
+            return prevFlowById.get(f.id) ?? f;
+          })
+          .filter((f) => {
+            const at = flowDeleteWriteAt.current[f.id];
+            return at === undefined || now - at >= WRITE_GRACE_MS;
+          });
+        for (const id of Object.keys(flowWriteAt.current)) if (now - flowWriteAt.current[id] >= WRITE_GRACE_MS) delete flowWriteAt.current[id];
+        for (const id of Object.keys(flowDeleteWriteAt.current)) if (now - flowDeleteWriteAt.current[id] >= WRITE_GRACE_MS) delete flowDeleteWriteAt.current[id];
+        return { cards, pos, flows };
       });
       return true;
     }
@@ -148,6 +174,23 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
     send({ t: 'canvas-card-delete', id });
   }, [send]);
 
+  const onCanvasFlowSave = useCallback((flow: CanvasFlow) => {
+    delete flowDeleteWriteAt.current[flow.id];
+    flowWriteAt.current[flow.id] = Date.now();
+    setBoard((b) => {
+      const i = b.flows.findIndex((f) => f.id === flow.id);
+      return { ...b, flows: i < 0 ? [flow, ...b.flows] : b.flows.map((f) => (f.id === flow.id ? flow : f)) };
+    });
+    send({ t: 'canvas-flow-save', flow });
+  }, [send]);
+
+  const onCanvasFlowDelete = useCallback((id: string) => {
+    delete flowWriteAt.current[id];
+    flowDeleteWriteAt.current[id] = Date.now();
+    setBoard((b) => ({ ...b, flows: b.flows.filter((f) => f.id !== id) }));
+    send({ t: 'canvas-flow-delete', id });
+  }, [send]);
+
   const onCanvasTermStats = useCallback((sessions: string[], terms: string[]) => {
     send({ t: 'canvas-term-stats', sessions, terms });
   }, [send]);
@@ -155,6 +198,7 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
   return {
     canvasGraph, canvasBoard, canvasLoading, canvasLoadingSince, canvasStale,
     onCanvasGet, onCanvasPos, onCanvasPosReset, onCanvasCardSave, onCanvasCardDelete,
+    onCanvasFlowSave, onCanvasFlowDelete, canvasFlowFired,
     canvasTermStats, onCanvasTermStats, onMsg,
   };
 }

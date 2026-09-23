@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { CanvasFlow } from '../../shared/canvas';
 import { EmptyState } from '../components/primitives';
 import { usePersisted } from '../lib/persist';
 import { neighbors } from './canvas/canvas-filter';
+import { newFlowId } from './canvas/canvas-board';
 import { CanvasFilters } from './canvas/CanvasFilters';
 import { CanvasHud } from './canvas/CanvasHud';
 import { CanvasInspector } from './canvas/CanvasInspector';
 import { CanvasLoadingState } from './canvas/CanvasLoadingState';
 import { CanvasSurface } from './canvas/CanvasSurface';
 import { CardEditor } from './canvas/CardEditor';
+import { FlowEditor } from './canvas/FlowEditor';
 import { Kanban } from './canvas/Kanban';
 import { KanbanDock } from './canvas/KanbanDock';
 import { CanvasAnalysis } from './canvas/CanvasAnalysis';
@@ -32,7 +35,22 @@ export function Canvas(p: CanvasRouteProps) {
   }, [select]);
   const linked = useCallback((id: string) => [...neighbors(r.merged.edges, id)].map((x) => r.byId.get(x)!).filter(Boolean), [r.merged.edges, r.byId]);
   const card = useCallback((id: string) => p.board.cards.find((c) => c.id === id), [p.board.cards]);
+  const node = useCallback((id: string) => r.byId.get(id), [r.byId]);
   const { blur } = terms;
+
+  // Flow editor: opened either by dragging a port onto another node
+  // (openFlowDraft) or by clicking an existing arrow/list entry (editFlow).
+  const [flowEdit, setFlowEdit] = useState<{ flow: CanvasFlow; isNew: boolean } | null>(null);
+  const openFlowDraft = useCallback((from: string, to: string) => {
+    const now = Date.now();
+    setFlowEdit({ isNew: true, flow: { id: newFlowId(now, Math.random()), from, to, template: '', enabled: true, createdAt: now, fires: 0 } });
+  }, []);
+  const editFlow = useCallback((id: string) => {
+    const f = p.board.flows.find((x) => x.id === id);
+    if (f) setFlowEdit({ flow: f, isNew: false });
+  }, [p.board.flows]);
+  const saveFlow = useCallback((flow: CanvasFlow) => { p.onCanvasFlowSave(flow); setFlowEdit(null); }, [p]);
+  const deleteFlow = useCallback((id: string) => { p.onCanvasFlowDelete(id); setFlowEdit(null); }, [p]);
   const clearAll = useCallback(() => { clearSelection(); blur(); }, [clearSelection, blur]);
 
   // Live sessions show up as terminals on their own; ghosts wait for a click.
@@ -95,14 +113,15 @@ export function Canvas(p: CanvasRouteProps) {
               onSelect={r.select} onClear={clearAll} onDrop={r.onDrop} onResetLayout={p.onCanvasPosReset}
               windows={r.windows} terms={terms} term={p.term} onOpenTerm={openTerm} onOpenChat={p.onOpenSession} onOpenRecent={openRecent}
               stats={p.termStats} analysisOn={analysisOn} onToggleAnalysis={() => setAnalysisOn(!analysisOn)}
+              flows={p.board.flows} flowFired={p.canvasFlowFired} onFlowCreate={openFlowDraft} onFlowClick={editFlow}
             >
               <CanvasHud sessions={p.sessions} running={p.running} onPick={(id) => focusNode(`s:${id}`)} />
               {r.selectedNodes.length > 0 && (
                 <CanvasInspector
-                  nodes={r.selectedNodes} linked={linked} card={card} running={p.running}
+                  nodes={r.selectedNodes} linked={linked} node={node} card={card} running={p.running} flows={p.board.flows}
                   onPick={focusNode} onOpenSession={p.onOpenSession} onOpenTerm={openTerm}
                   onNewCard={(kind) => r.newDraft(kind, r.selectedNodes)} onEditCard={r.editCard}
-                  onRunCard={r.runCard} onClose={r.clearSelection}
+                  onRunCard={r.runCard} onEditFlow={editFlow} onChainSelected={openFlowDraft} onClose={r.clearSelection}
                 />
               )}
               {analysisOn && (
@@ -120,6 +139,12 @@ export function Canvas(p: CanvasRouteProps) {
         <CardEditor
           key={r.draft.card.id} card={r.draft.card} isNew={r.draft.isNew} node={(id) => r.byId.get(id)}
           onSave={r.saveCard} onRun={r.runCard} onDelete={r.deleteCard} onClose={() => r.setDraft(null)}
+        />
+      )}
+      {flowEdit && (
+        <FlowEditor
+          key={flowEdit.flow.id} flow={flowEdit.flow} isNew={flowEdit.isNew} node={node}
+          onSave={saveFlow} onDelete={deleteFlow} onClose={() => setFlowEdit(null)}
         />
       )}
     </div>
