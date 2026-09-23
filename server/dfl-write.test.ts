@@ -192,3 +192,73 @@ describe('points-change: leitura do veredito do workflow', () => {
     expect(JSON.parse(calls[0].body!).variables.payload.new_points).toBe(5);
   });
 });
+
+const EPIC = '44444444-4444-4444-8444-444444444444';
+
+describe('task-create: comando de INSERT em work.tasks (mesmo canal sancionado que a UI DFL)', () => {
+  it('insere name/status/stage_id/owner_id/epic_id/delivery_id, NUNCA points/valor', async () => {
+    queue = [reply(201, [{ id: 'task-1', name: 'Nova task', status: 'to_do' }])];
+    const r = await runWrite({ kind: 'task-create', epicId: EPIC, deliveryId: DELIVERY, taskName: 'Nova task' });
+    expect(r).toMatchObject({ taskId: 'task-1', name: 'Nova task', status: 'to_do' });
+    expect(calls[0]).toMatchObject({ method: 'POST' });
+    expect(calls[0].url).toContain('/rest/v1/tasks');
+    const body = JSON.parse(calls[0].body!);
+    expect(body).toMatchObject({ name: 'Nova task', status: 'to_do', stage_id: 'execution', epic_id: EPIC, delivery_id: DELIVERY });
+    expect(body).not.toHaveProperty('points');
+    expect(body).not.toHaveProperty('amount_cents');
+    expect(typeof body.owner_id).toBe('string'); // identidade FIXA no server, não vem do comando
+  });
+
+  it('recusa epicId/deliveryId que não são uuid, sem tocar a rede', async () => {
+    await expect(runWrite({ kind: 'task-create', epicId: 'nope', deliveryId: DELIVERY, taskName: 'x' })).rejects.toThrow('epicId inválido');
+    await expect(runWrite({ kind: 'task-create', epicId: EPIC, deliveryId: 'nope', taskName: 'x' })).rejects.toThrow('deliveryId inválido');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('recusa um nome vazio (após trim) antes de tocar a rede', async () => {
+    await expect(runWrite({ kind: 'task-create', epicId: EPIC, deliveryId: DELIVERY, taskName: '   ' })).rejects.toThrow('taskName vazio');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('trunca o nome no teto (200 chars) em vez de deixar o PostgREST recusar', async () => {
+    queue = [reply(201, [{ id: 'task-1', name: 'x', status: 'to_do' }])];
+    await runWrite({ kind: 'task-create', epicId: EPIC, deliveryId: DELIVERY, taskName: 'a'.repeat(500) });
+    const body = JSON.parse(calls[0].body!);
+    expect(body.name).toHaveLength(200);
+  });
+
+  it('falha explicitamente quando o INSERT não devolve id', async () => {
+    queue = [reply(201, [])];
+    await expect(runWrite({ kind: 'task-create', epicId: EPIC, deliveryId: DELIVERY, taskName: 'x' })).rejects.toThrow('INSERT task não retornou id');
+  });
+});
+
+describe('task-status: comando de PATCH em work.tasks', () => {
+  it('faz PATCH só do status (+ updated_at), nunca points/valor', async () => {
+    queue = [reply(200, [{ id: TASK, status: 'in_progress' }])];
+    const r = await runWrite({ kind: 'task-status', taskId: TASK, status: 'in_progress' });
+    expect(r).toEqual({ taskId: TASK, status: 'in_progress' });
+    expect(calls[0]).toMatchObject({ method: 'PATCH' });
+    expect(calls[0].url).toContain(`tasks?id=eq.${TASK}`);
+    const body = JSON.parse(calls[0].body!);
+    expect(Object.keys(body).sort()).toEqual(['status', 'updated_at']);
+  });
+
+  it('recusa um status fora do enum de work.tasks', async () => {
+    await expect(runWrite({ kind: 'task-status', taskId: TASK, status: 'bogus' as never })).rejects.toThrow('status inválido');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('recusa taskId que não é uuid', async () => {
+    await expect(runWrite({ kind: 'task-status', taskId: 'nope', status: 'done' })).rejects.toThrow('taskId inválido');
+    expect(calls).toHaveLength(0);
+  });
+
+  // return=representation vazio: a linha não existe (id errado, ou RLS bloqueou
+  // silenciosamente) — nunca um "sucesso" mudo que deixaria o card achando que
+  // sincronizou quando na verdade nada mudou em work.tasks.
+  it('falha explicitamente quando o PATCH não acha a linha', async () => {
+    queue = [reply(200, [])];
+    await expect(runWrite({ kind: 'task-status', taskId: TASK, status: 'done' })).rejects.toThrow('PATCH task não achou a linha');
+  });
+});

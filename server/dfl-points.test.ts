@@ -52,6 +52,23 @@ describe('foldDflTree (puro)', () => {
     expect(s.totals.openPoints).toBe(8);
   });
 
+  it('propaga updated_at (parseável) como epoch ms em updatedAt, usado pelo sync Kanban<->DFL', () => {
+    const s = foldDflTree(input({
+      tasks: [{ id: 't-todo', name: 'Task', status: 'to_do', points: 2, epic_id: 'epic1', delivery_id: 'del1', updated_at: '2026-05-10T12:00:00.000Z' }],
+      invoiceItems: [],
+    }), 0);
+    const t = s.projects[0].epics[0].deliveries[0].tasks[0];
+    expect(t.updatedAt).toBe(Date.parse('2026-05-10T12:00:00.000Z'));
+  });
+
+  it('updated_at ausente ou não-parseável não vira updatedAt (undefined, não NaN)', () => {
+    const s = foldDflTree(input({
+      tasks: [{ id: 't-todo', name: 'Task', status: 'to_do', points: 2, epic_id: 'epic1', delivery_id: 'del1' }],
+      invoiceItems: [],
+    }), 0);
+    expect(s.projects[0].epics[0].deliveries[0].tasks[0].updatedAt).toBeUndefined();
+  });
+
   it('monta a árvore projeto›épico›delivery›task', () => {
     const s = foldDflTree(input(), 0);
     expect(s.projects).toHaveLength(1);
