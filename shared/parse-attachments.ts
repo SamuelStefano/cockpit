@@ -69,3 +69,12 @@ export function parseAttachments(text: string): { attachments: ParsedAttachment[
   }
   return { attachments, body: rest.join('\n').trim() };
 }
+
+// Texto do prompt sem os marcadores `[anexo: …]` nem o texto extraído do anexo:
+// sem isto o título/snippet de uma sessão aberta com anexo virava o path cru.
+// Prompt só de anexo cai pro nome dos arquivos.
+export function promptPreview(raw: string): string {
+  const { attachments, body } = parseAttachments(raw);
+  if (body) return body;
+  return attachments.length ? `Anexo: ${attachments.map((a) => a.name).join(', ')}` : '';
+}

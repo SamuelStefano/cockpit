@@ -1,5 +1,5 @@
 import type { Message } from '../../data/types';
-import { parseAttachments } from '../../lib/parse-attachments';
+import { parseAttachments } from '../../../shared/parse-attachments';
 
 export interface ChatTopic {
   id: string;

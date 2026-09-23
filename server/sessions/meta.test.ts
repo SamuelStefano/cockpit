@@ -16,6 +16,11 @@ describe('scanMetaText', () => {
     expect(s.firstUser).toBe('hello');
   });
 
+  it('strips attachment markers from the first user text', () => {
+    const s = scanMetaText(user('[anexo: attachments/k/mf1-ab12-shot.png]\n\ncorrige o bug') + '\n');
+    expect(s.firstUser).toBe('corrige o bug');
+  });
+
   it('takes the last ai-title and ignores non-message records', () => {
     const text = [aiTitle('old'), user('hi'), aiTitle('new'), JSON.stringify({ type: 'summary' })].join('\n') + '\n';
     const s = scanMetaText(text);

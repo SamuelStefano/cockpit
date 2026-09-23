@@ -2,6 +2,7 @@ import { readdir, stat, open } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { SessionMeta } from '../../shared/protocol';
 import { relPast } from '../../shared/format';
+import { promptPreview } from '../../shared/parse-attachments';
 import { CONFIG } from '../config';
 import { hiddenSet, purgedSet, titleOverrides, noteOverrides } from '../store';
 import { allSummaries, getSummary, allTurnOutcomes, getTurnOutcome } from '../db';
@@ -159,9 +160,9 @@ export function scanMetaText(text: string, prev?: MetaScan): MetaScan {
       if (!Number.isNaN(ts) && (lastTs === undefined || ts > lastTs)) lastTs = ts;
       if (!firstUser && o.type === 'user' && o.message) {
         const c = o.message.content;
-        firstUser = typeof c === 'string'
+        firstUser = promptPreview(typeof c === 'string'
           ? c
-          : Array.isArray(c) ? c.filter((x: any) => x?.type === 'text').map((x: any) => x.text).join(' ') : '';
+          : Array.isArray(c) ? c.filter((x: any) => x?.type === 'text').map((x: any) => x.text).join(' ') : '');
       }
       // Linha de subagente (isSidechain) nunca fala com o usuário: pergunta de
       // sidechain é respondida pelo agente-pai, não vira "aguardando você".
