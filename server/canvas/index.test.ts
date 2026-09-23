@@ -1,11 +1,11 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync } from 'node:fs';
-import { mkdir, mkdtemp, rm, writeFile, appendFile, utimes, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile, appendFile, utimes, stat, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  __resetCanvasRefsCache, acquireBackfillLock, cardIdFromRefsCache, needsFullScan, releaseBackfillLock, sessionRefs,
-  unwrapCacheEntries, type RefsCache,
+  __resetCanvasRefsCache, acquireBackfillLock, cardIdFromRefsCache, needsFullScan, releaseBackfillLock, saveCache,
+  sessionRefs, unwrapCacheEntries, waitForLockRelease, type RefsCache,
 } from './index';
 import { emptyTopics, type SessionRefs } from './refs';
 
@@ -132,6 +132,20 @@ describe('sessionRefs — lazy backfill', () => {
     expect(refs).toBe(hit);
     expect(refs?.writes).toBeUndefined();
   });
+
+  // Fix: a session with NO cache entry at all is a normal single-file scan,
+  // not the multi-session "backfill" the lock exists to serialize — it must
+  // never be starved just because some OTHER process is mid-backfill.
+  it('DOES scan a brand-new session (no cache entry at all) even when allowFullScan=false', async () => {
+    const path = join(dir, 'sess6.jsonl');
+    await writeFile(path, editLine('e1', '/repo/a.ts', '2026-09-23T10:00:00Z') + '\n' + resultLine('e1') + '\n', 'utf8');
+    const cache: RefsCache = new Map(); // no entry for 'sess6' at all
+
+    const refs = await sessionRefs(cache, 'sess6', path, true, false);
+
+    expect(refs?.writes).toEqual({ '/repo/a.ts': Date.parse('2026-09-23T10:00:00Z') });
+    expect(cache.get('sess6')).toBeDefined(); // cached for next time too
+  });
 });
 
 describe('sessionRefs — failed backfill', () => {
@@ -215,5 +229,55 @@ describe('acquireBackfillLock / releaseBackfillLock', () => {
 
   it('release is a no-op when nothing is held', async () => {
     await expect(releaseBackfillLock()).resolves.toBeUndefined();
+  });
+
+  it('waitForLockRelease resolves true immediately when nothing is held', async () => {
+    await expect(waitForLockRelease(500, 50)).resolves.toBe(true);
+  });
+
+  it('waitForLockRelease resolves true once another process releases mid-wait', async () => {
+    expect(await acquireBackfillLock()).toBe(true);
+    setTimeout(() => { releaseBackfillLock(); }, 100);
+    await expect(waitForLockRelease(2000, 50)).resolves.toBe(true);
+  });
+
+  it('waitForLockRelease gives up and resolves false once its budget runs out on a lock that never frees', async () => {
+    expect(await acquireBackfillLock()).toBe(true);
+    await expect(waitForLockRelease(150, 50)).resolves.toBe(false);
+    await releaseBackfillLock();
+  });
+});
+
+describe('saveCache — never clobber a bigger cache already on disk', () => {
+  const prevEnv = process.env.COCKPIT_CANVAS_REFS;
+  beforeEach(() => { process.env.COCKPIT_CANVAS_REFS = join(dir, 'canvas-refs.json'); });
+  afterEach(() => { process.env.COCKPIT_CANVAS_REFS = prevEnv; });
+
+  const hit = (n: number) => ({ contexts: {}, topics: emptyTopics(), consumed: n, size: n }) as SessionRefs & { size: number };
+
+  it('merges in disk-only entries instead of dropping them when the in-memory map is smaller', async () => {
+    // Simulates the backfill winner's on-disk result...
+    await saveCache(new Map([['a', hit(1)], ['b', hit(2)], ['c', hit(3)]]));
+    // ...then the LOSER (older/smaller in-memory snapshot, never saw 'c') saves.
+    const loserCache: RefsCache = new Map([['a', hit(1)], ['b', hit(2)]]);
+    await saveCache(loserCache);
+
+    const onDisk = unwrapCacheEntries(JSON.parse(await readFile(process.env.COCKPIT_CANVAS_REFS!, 'utf8')));
+    expect(Object.keys(onDisk).sort()).toEqual(['a', 'b', 'c']); // 'c' survived
+  });
+
+  it('a genuinely smaller save (real deletions) is NOT blocked when the in-memory map already has just as many, or more, entries', async () => {
+    await saveCache(new Map([['a', hit(1)], ['b', hit(2)]]));
+    // Same size (2), 'b' replaced by 'c' — a real prune/replace, not staleness.
+    await saveCache(new Map([['a', hit(1)], ['c', hit(3)]]));
+
+    const onDisk = unwrapCacheEntries(JSON.parse(await readFile(process.env.COCKPIT_CANVAS_REFS!, 'utf8')));
+    expect(Object.keys(onDisk).sort()).toEqual(['a', 'c']); // 'b' really is gone, not resurrected
+  });
+
+  it('writes as-is when there is nothing on disk yet', async () => {
+    await saveCache(new Map([['a', hit(1)]]));
+    const onDisk = unwrapCacheEntries(JSON.parse(await readFile(process.env.COCKPIT_CANVAS_REFS!, 'utf8')));
+    expect(Object.keys(onDisk)).toEqual(['a']);
   });
 });
