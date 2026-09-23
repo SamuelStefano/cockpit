@@ -67,6 +67,44 @@ describe('filterCanvas', () => {
   });
 });
 
+describe('filterCanvas — exec scope', () => {
+  it('keeps only running/waiting/windowed/done-recent sessions and their read/write contexts — no hub, no untouched leaf, no open card', () => {
+    const execNodes = [
+      ...nodes,
+      n('s:waits', 'session', { mtime: 0, waiting: true }),
+    ];
+    const execEdges: CanvasEdge[] = [...edges, { source: 's:waits', target: 'c:other', kind: 'read' }];
+    const r = filterCanvas(execNodes, execEdges, {
+      ...base, scope: 'exec', running: new Set(['old']), windowIds: new Set(['s:fresh']),
+    });
+    expect(ids(r)).toEqual(['c:leaf', 'c:other', 's:fresh', 's:old', 's:waits']);
+  });
+
+  it('a link/topic edge never pulls in a neighbour, only read/write', () => {
+    const withTopic: CanvasEdge[] = [...edges, { source: 's:fresh', target: 'c:other', kind: 'topic', weight: 1 }];
+    const r = filterCanvas(nodes, withTopic, { ...base, scope: 'exec', running: new Set(['fresh']) });
+    expect(ids(r)).not.toContain('c:other');
+  });
+
+  it('hides automation noise by default, shows it with showAutomation', () => {
+    const ping = [...nodes, n('s:ping', 'session', { title: '.', subtitle: '' })];
+    const hidden = filterCanvas(ping, edges, { ...base, scope: 'exec', running: new Set(['ping']) });
+    const shown = filterCanvas(ping, edges, { ...base, scope: 'exec', running: new Set(['ping']), showAutomation: true });
+    expect(ids(hidden)).not.toContain('s:ping');
+    expect(ids(shown)).toContain('s:ping');
+  });
+
+  it('a done-recent session (flagged by the caller) is kept even idle and old', () => {
+    const r = filterCanvas(nodes, edges, { ...base, scope: 'exec', doneRecentIds: new Set(['s:old']) });
+    expect(ids(r)).toContain('s:old');
+  });
+
+  it('an idle, non-windowed, non-done-recent session is dropped', () => {
+    const r = filterCanvas(nodes, edges, { ...base, scope: 'exec' });
+    expect(ids(r)).toEqual([]);
+  });
+});
+
 describe('neighbors', () => {
   it('is undirected', () => {
     expect([...neighbors(edges, 'c:leaf')].sort()).toEqual(['c:hub_a', 's:fresh']);

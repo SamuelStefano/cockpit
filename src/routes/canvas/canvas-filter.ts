@@ -1,6 +1,7 @@
 import { isCronPing, type AreaId, type CanvasCard, type CanvasEdge, type CanvasNode } from '../../../shared/canvas';
+import { isAutomationSession } from './canvas-automation';
 
-export type CanvasScope = 'active' | 'all';
+export type CanvasScope = 'exec' | 'active' | 'all';
 
 export interface FilterOpts {
   scope: CanvasScope;
@@ -10,6 +11,15 @@ export interface FilterOpts {
   cards: CanvasCard[];
   now: number;
   area?: AreaId | null; // null/undefined = every area
+  // 'exec' scope only, both optional so every other caller/test is unaffected:
+  // raw open-terminal-window node ids (useCanvasTerms' own `open`, NOT the
+  // scope-filtered `windows` useCanvasRoute derives from it — that would be
+  // circular, windows depends on the already-filtered visible set) and the
+  // session node ids kanban-items.ts's doneRecentSessionIds flags as Done but
+  // not yet Completed within the last 24h.
+  windowIds?: Set<string>;
+  doneRecentIds?: Set<string>;
+  showAutomation?: boolean;
 }
 
 // "Active" used to mean "touched in the last 7 days", which at 300 sessions
@@ -45,6 +55,25 @@ export function filterCanvas(nodes: CanvasNode[], edges: CanvasEdge[], o: Filter
   let keep = new Set<string>();
   if (o.scope === 'all') {
     for (const n of nodes) if (allowed(n)) keep.add(n.id);
+  } else if (o.scope === 'exec') {
+    // The execution panel: only sessions that are actually happening right
+    // now (running, waiting on you, sitting in an open terminal window, or
+    // just finished and not yet triaged into Completed) — never a hub, never
+    // an untouched leaf, never the archive. Neighbours are restricted to
+    // 'read'/'write' context edges (the sessions' OWN memory touches), so no
+    // hub-promotion and no topic/link neighbour ever sneaks a whole cluster
+    // of old contexts back in the way 'active' scope does.
+    const showAuto = o.showAutomation ?? false;
+    const seeds = nodes.filter((n) => n.kind === 'session' && allowed(n) && (showAuto || !isAutomationSession({ title: n.title, subtitle: n.subtitle })) && (
+      o.running.has(n.ref) || n.waiting || (o.windowIds?.has(n.id) ?? false) || (o.doneRecentIds?.has(n.id) ?? false)
+    ));
+    for (const s of seeds) {
+      keep.add(s.id);
+      for (const e of edges) {
+        if (e.kind !== 'read' && e.kind !== 'write') continue;
+        if (e.source === s.id && byId.get(e.target)?.kind === 'context') keep.add(e.target);
+      }
+    }
   } else {
     const seeds = nodes.filter((n) => allowed(n) && (
       (n.kind === 'session' && !isNoise(n) && (o.running.has(n.ref) || n.waiting || o.now - n.mtime < ACTIVE_WINDOW_MS)) ||

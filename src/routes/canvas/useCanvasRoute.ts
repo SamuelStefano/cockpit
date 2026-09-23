@@ -13,6 +13,7 @@ import { computeAreaRects } from './canvas-areas';
 import { filterCanvas, type CanvasScope } from './canvas-filter';
 import { bounds, layoutCanvas } from './canvas-layout';
 import { boundSessions, mergeBoard, moveCard, newCardId, resolveSaveStatus } from './canvas-board';
+import { deriveSessionItems, doneRecentSessionIds, type SessionKanbanItem } from './kanban-items';
 import { placeWindows, TERM_H, TERM_W, winKey } from './canvas-terms';
 
 export interface CanvasRouteProps {
@@ -30,6 +31,7 @@ export interface CanvasRouteProps {
   onCanvasPosReset: () => void;
   onCanvasCardSave: (card: CanvasCard) => void;
   onCanvasCardDelete: (id: string) => void;
+  onCanvasSessionStatus: (sessionId: string, status: CardStatus) => void;
   onCanvasFlowSave: (flow: CanvasFlow) => void;
   onCanvasFlowDelete: (id: string) => void;
   canvasFlowFired: Record<string, number>;
@@ -60,7 +62,11 @@ const today = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/
 
 export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells: CanvasNode[]) {
   const [mode, setMode] = useState<CanvasMode>('canvas');
-  const [scope, setScope] = useState<CanvasScope>('active');
+  // Default is the execution panel (TL feedback, 2026-09-23: "who is working,
+  // who stopped, who finished", not the whole second-brain graph) — persisted
+  // per device so whatever the user last picked sticks across reloads.
+  const [scope, setScope] = usePersisted<CanvasScope>('canvas.scope', 'exec');
+  const [showAutomation, setShowAutomation] = usePersisted('canvas.showAutomation', false);
   const [archived, setArchived] = useState(false);
   const [query, setQuery] = useState('');
   const [areaFilter, setAreaFilter] = usePersisted<AreaId | null>('canvas.areaFilter', null);
@@ -82,22 +88,43 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
   }, [sessionsSig, p.connected, onCanvasGet]);
 
   const merged = useMemo(() => mergeBoard(p.graph, p.board.cards), [p.graph, p.board.cards]);
+  // Raw open-terminal-window ids (NOT useCanvasRoute's own scope-filtered
+  // `windows` below — that would be circular, it's derived FROM `visible`).
+  const windowIdSet = useMemo(() => new Set(windowIds), [windowIds]);
+  const turnStartedAt = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const [id, s] of Object.entries(p.termStats)) if (s.turnStartedAt !== undefined) out[id] = s.turnStartedAt;
+    return out;
+  }, [p.termStats]);
+  // Every session as a kanban item (Kanban.tsx renders it alongside cards) —
+  // computed here, once, off the same merged graph the canvas surface uses,
+  // so "execução" scope and the kanban agree on exactly which sessions are
+  // Done-but-not-Completed within the last 24h.
+  const sessionItems = useMemo(() => deriveSessionItems({
+    nodes: merged.nodes, edges: merged.edges, cards: p.board.cards, running: p.running,
+    overrides: p.board.sessionStatus, turnStartedAt, showAutomation,
+  }), [merged, p.board.cards, p.running, p.board.sessionStatus, turnStartedAt, showAutomation]);
+  const doneRecentIds = useMemo(() => doneRecentSessionIds(sessionItems, now), [sessionItems, now]);
+  const filterExtras = { windowIds: windowIdSet, doneRecentIds, showAutomation };
   const visible = useMemo(() => {
-    const v = filterCanvas(merged.nodes, merged.edges, { scope, archived, query, area: areaFilter, running: p.running, cards: p.board.cards, now });
+    const v = filterCanvas(merged.nodes, merged.edges, { scope, archived, query, area: areaFilter, running: p.running, cards: p.board.cards, now, ...filterExtras });
     const q = query.trim().toLowerCase();
     // Shells carry no area (they're not tied to any session's memory trail): an
     // active area filter hides them along with everything else unclassified,
     // same as the card nodes filterCanvas already drops in that case.
     return { ...v, nodes: [...v.nodes, ...(areaFilter ? [] : shells.filter((s) => !q || s.title.toLowerCase().includes(q)))] };
-  }, [merged, scope, archived, query, areaFilter, p.running, p.board.cards, now, shells]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- filterExtras is a fresh
+    // object every render; its own members (windowIdSet/doneRecentIds/showAutomation) are the real deps.
+  }, [merged, scope, archived, query, areaFilter, p.running, p.board.cards, now, shells, windowIdSet, doneRecentIds, showAutomation]);
   // Positions come from the scope WITHOUT the search query or the area filter:
   // typing or picking an area only hides nodes, it never re-packs the map
   // under the user's eyes — a dragged/settled layout must survive toggling it.
   const layoutBase = useMemo(
     () => (query || areaFilter
-      ? filterCanvas(merged.nodes, merged.edges, { scope, archived, query: '', area: null, running: p.running, cards: p.board.cards, now })
+      ? filterCanvas(merged.nodes, merged.edges, { scope, archived, query: '', area: null, running: p.running, cards: p.board.cards, now, ...filterExtras })
       : visible),
-    [query, areaFilter, merged, scope, archived, p.running, p.board.cards, now, visible],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- same as visible above.
+    [query, areaFilter, merged, scope, archived, p.running, p.board.cards, now, visible, windowIdSet, doneRecentIds, showAutomation],
   );
   const visibleIds = useMemo(() => new Set(visible.nodes.map((n) => n.id)), [visible.nodes]);
   const windows = useMemo(() => new Set(windowIds.filter((id) => visibleIds.has(id))), [windowIds, visibleIds]);
@@ -297,13 +324,21 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     // fresh callback identity when the pending map mutates; its value isn't read.
   }, [merged.edges, pendingTick]);
 
+  const onSessionStatus = useCallback((sessionId: string, status: CardStatus) => {
+    p.onCanvasSessionStatus(sessionId, status);
+  }, [p]);
+
   return {
     mode, setMode, scope, setScope, archived, setArchived, query, setQuery,
     areaFilter, setAreaFilter, areaRects, areaCounts, budgetStatus, budgetEditArea, setBudgetEditArea, saveBudget,
+    showAutomation, setShowAutomation,
     merged, visible, pos, windows, onDrop, worldBounds, coreBounds, byId, waiting,
     selected, selectedNodes, select, clearSelection,
     draft, setDraft, newDraft, editCard, saveCard, runCard, setStatus, deleteCard, cardSessions,
+    sessionItems, onSessionStatus,
   };
 }
+
+export type { SessionKanbanItem };
 
 export type CanvasRoute = ReturnType<typeof useCanvasRoute>;
