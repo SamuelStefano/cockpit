@@ -117,7 +117,8 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
           termStats={c.canvasTermStats} onTermStats={c.onCanvasTermStats} onCanvasCtxStats={c.onCanvasCtxStats}
           areaUsage={c.canvasAreaUsage} interrupted={c.interrupted}
           dflSnapshot={c.dflSnapshot} onDflGet={c.onDflGet}
-          onDflTaskLink={c.onDflTaskLink} onDflTaskCreateLink={c.onDflTaskCreateLink} onDflTaskUnlink={c.onDflTaskUnlink} />
+          onDflTaskLink={c.onDflTaskLink} onDflTaskCreateLink={c.onDflTaskCreateLink} onDflTaskUnlink={c.onDflTaskUnlink}
+          onDflTaskConfirmSync={c.onDflTaskConfirmSync} />
       );
     }
     if (route === '/harness' && isAdmin) {

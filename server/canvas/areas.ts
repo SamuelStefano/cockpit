@@ -99,6 +99,13 @@ export function classifyAreas(nodes: CanvasNode[], edges: CanvasEdge[]): Map<str
   // has for every context/session by this point. Runs AFTER the session
   // loop above on purpose — a card linked to a session needs that session's
   // OWN vote-derived area, not an unclassified lookup.
+  //
+  // COSMETIC ONLY (the colored region a card renders under on the canvas
+  // map) — NOT the DFL-link security gate. A mixed-area card's majority vote
+  // could read 'dfl' here while still containing a personal context; the
+  // link/create-link guard (server/canvas/dfl-link.ts's
+  // cardLinksAreUnanimouslyDfl) requires EVERY linked node to be 'dfl', not
+  // just the winner of this vote.
   const CARD_EDGE_KINDS = new Set(['card', 'input']);
   const cardVotes = new Map<string, Map<AreaId, Vote>>();
   for (const e of edges) {

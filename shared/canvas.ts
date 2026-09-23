@@ -49,16 +49,33 @@ export function cardStatusFromDfl(raw: string): CardStatus | undefined {
   return DFL_TO_CARD_STATUS[raw as DflTaskDbStatus];
 }
 
+// review/done feed DFL's billing surface (dev_completed/done are read by
+// points/invoice generation on the DFL side) — a card must never reach them
+// in DFL without a HUMAN explicitly saying so. todo/doing carry no billing
+// weight and sync automatically. server/canvas/dfl-status-sync.ts and the
+// Kanban/CardEditor "confirmar sync" affordance both key off this.
+export function statusNeedsHumanConfirm(status: CardStatus): boolean {
+  return status === 'review' || status === 'done';
+}
+
 // A card linked to a DFL task (opt-in, per card — CardEditor's "vincular à
 // task DFL"). `pending` is the status a write is (re)trying to push to DFL
-// (server-owned, cleared on success); `error` is the last push failure
-// message, shown as a "sync pendente" badge until the next successful push
-// or a manual retry. Unlinking is always local-only — never deletes the DFL
-// task (see server/dfl-write.ts: no DELETE path exists on purpose).
+// (server-owned, cleared on success); `awaitingConfirm` means that push is
+// queued but NOT retrying yet — a human has to click "confirmar sync" first
+// (statusNeedsHumanConfirm); `error` is the last push failure message, shown
+// as a "sync pendente" badge until the next successful push or a manual
+// retry. `dflUpdatedAt` is the DFL-CLOCK epoch ms of work.tasks.updated_at
+// as last observed by us (from a read sync or a write's own response) —
+// conflict resolution compares THIS to a fresh DFL read, never to the Deck
+// card's own `updatedAt` (different clock, different machine). Unlinking is
+// always local-only — never deletes the DFL task (server/dfl-write.ts has no
+// DELETE path on purpose).
 export interface CardDflLink {
   taskId: string;
   lastSyncedAt?: number;
+  dflUpdatedAt?: number;
   pending?: CardStatus;
+  awaitingConfirm?: boolean;
   error?: string;
 }
 

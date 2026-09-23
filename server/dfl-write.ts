@@ -198,7 +198,7 @@ async function createInvoice(cmd: InvoiceCreateCmd): Promise<Record<string, unkn
 // ---- task-create / task-status: INSERT/PATCH em work.tasks -----------------
 
 const MAX_TASK_NAME = 200;
-const MAX_DESCRIPTION = 4000;
+const MAX_CONTEXT_FIELD = 2000;
 const TASK_STAGE_ID = 'execution'; // dfl-work create_task schema: work ready to be built
 const TASK_STATUSES = new Set<DflTaskDbStatus>(['to_do', 'in_progress', 'dev_completed', 'done', 'no_longer_needed', 'blocked']);
 
@@ -207,7 +207,14 @@ interface TaskCreateCmd {
   epicId: string;
   deliveryId: string;
   taskName: string;
-  description?: string;
+  // Mirrors the dfl-work MCP's create_task REQUIRED context.why/what (both
+  // non-empty there too) — an orphan task with no why/what is unreadable to
+  // whoever didn't see the Deck card that spawned it. Explicit, user-typed
+  // text ONLY (server/ws/dispatch.ts never fills this from a card's raw
+  // prompt — that would leak whatever the card's agent instructions say,
+  // including anything personal, straight into a DFL-visible task).
+  why: string;
+  what: string;
 }
 interface TaskStatusCmd {
   kind: 'task-status';
@@ -220,11 +227,14 @@ async function createTask(cmd: TaskCreateCmd): Promise<Record<string, unknown>> 
   if (!uuidRe.test(cmd.deliveryId)) throw new Error('deliveryId inválido');
   const name = cmd.taskName.trim().slice(0, MAX_TASK_NAME);
   if (!name) throw new Error('taskName vazio');
+  const why = cmd.why.trim().slice(0, MAX_CONTEXT_FIELD);
+  const what = cmd.what.trim().slice(0, MAX_CONTEXT_FIELD);
+  if (!why || !what) throw new Error('why/what vazios (contexto mínimo é obrigatório)');
   const now = new Date().toISOString();
   const payload = {
     name, status: 'to_do', stage_id: TASK_STAGE_ID, owner_id: OWNER_ID,
     epic_id: cmd.epicId, delivery_id: cmd.deliveryId,
-    description: (cmd.description ?? '').trim().slice(0, MAX_DESCRIPTION) || undefined,
+    description: `Por que: ${why}\n\nO que: ${what}`,
     created_at: now, updated_at: now,
   };
   const inserted = await pgFetch('tasks?select=id,name,status', {
@@ -241,12 +251,15 @@ async function updateTaskStatus(cmd: TaskStatusCmd): Promise<Record<string, unkn
   const now = new Date().toISOString();
   // Prefer return=representation: se o PATCH não achar a linha (task apagada/id
   // errado), a resposta vem [] e viramos erro explícito — nunca um "sucesso" mudo.
-  const updated = await pgFetch(`tasks?id=eq.${cmd.taskId}&select=id,status`, {
+  // select inclui updated_at: server/canvas/dfl-status-sync.ts precisa dele pra
+  // manter o "relógio DFL" do link alinhado com o que o PATCH realmente gravou,
+  // em vez de reconstruir a partir de um `now` local que pode divergir por ms.
+  const updated = await pgFetch(`tasks?id=eq.${cmd.taskId}&select=id,status,updated_at`, {
     schema: 'work', method: 'PATCH', headers: { Prefer: 'return=representation' },
     body: JSON.stringify({ status: cmd.status, updated_at: now }),
-  }) as { id: string; status: string }[];
+  }) as { id: string; status: string; updated_at: string }[];
   if (!updated?.length) throw new Error('PATCH task não achou a linha (id inválido ou sem permissão)');
-  return { taskId: cmd.taskId, status: updated[0].status };
+  return { taskId: cmd.taskId, status: updated[0].status, updatedAt: updated[0].updated_at };
 }
 
 // ---- entrypoint ------------------------------------------------------------

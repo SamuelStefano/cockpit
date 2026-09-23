@@ -14,7 +14,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 export type DflWriteCmd =
   | { kind: 'points-change'; taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string }
   | { kind: 'invoice-create'; deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number; deliveryId?: string; deliveryName?: string }[] }
-  | { kind: 'task-create'; epicId: string; deliveryId: string; taskName: string; description?: string }
+  | { kind: 'task-create'; epicId: string; deliveryId: string; taskName: string; why: string; what: string }
   | { kind: 'task-status'; taskId: string; status: DflTaskDbStatus };
 
 // Safety net for a Playwright/manual test backend: set DFL_WRITE_DISABLED=1

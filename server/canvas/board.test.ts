@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import {
   checkFlowSave, claimFlowFire, clearCardDflLink, emptyBoard, markCardDoing, mergePos, readBoard, readBoardChained,
   recordFlowFailure, recordFlowSuccess, removeCard, removeFlow, sanitizeBudget, sanitizeBudgets, sanitizeCard,
-  sanitizeFlow, sanitizePos, sanitizeSessionStatus, setBudget, setCardDflLink, setCardDflPending, setCardDflSynced,
-  setSessionStatus, updateBoard, upsertCard, upsertFlow,
+  sanitizeCardDfl, sanitizeFlow, sanitizePos, sanitizeSessionStatus, setBudget, setCardDflLink, setCardDflPending,
+  setCardDflSynced, setSessionStatus, updateBoard, upsertCard, upsertFlow,
 } from './board';
 
 // claimFlowFire takes a backoff curve injected by the caller (server/canvas/
@@ -54,9 +54,15 @@ describe('sanitizeCard', () => {
   });
 
   it('dfl carries over from prev regardless of what the client sends this time', () => {
-    const prev = { dfl: { taskId: 't1', lastSyncedAt: 5 } } as never;
-    expect(sanitizeCard({ id: 'abcd', title: 'a', dfl: { taskId: 'forged' } }, prev, 1)?.dfl).toEqual({ taskId: 't1', lastSyncedAt: 5 });
-    expect(sanitizeCard({ id: 'abcd', title: 'a' }, prev, 1)?.dfl).toEqual({ taskId: 't1', lastSyncedAt: 5 });
+    const uuid = '12345678-1234-1234-1234-123456789abc';
+    const prev = { dfl: { taskId: uuid, lastSyncedAt: 5 } } as never;
+    expect(sanitizeCard({ id: 'abcd', title: 'a', dfl: { taskId: 'forged' } }, prev, 1)?.dfl).toEqual({ taskId: uuid, lastSyncedAt: 5 });
+    expect(sanitizeCard({ id: 'abcd', title: 'a' }, prev, 1)?.dfl).toEqual({ taskId: uuid, lastSyncedAt: 5 });
+  });
+
+  it('a malformed prev.dfl (hand-edited board.json on disk) is re-validated, never carried over as-is', () => {
+    const prev = { dfl: { taskId: 'not-a-uuid' } } as never;
+    expect(sanitizeCard({ id: 'abcd', title: 'a' }, prev, 1)?.dfl).toBeUndefined();
   });
 });
 
@@ -88,17 +94,46 @@ describe('DFL card link mutators', () => {
 
   it('setCardDflPending marks a pending status + error only on an already-linked card', () => {
     const linked = setCardDflLink(boardWithCard(), 'abcd', taskUuid, 100);
-    const pending = setCardDflPending(linked, 'abcd', 'doing', 'timeout');
+    const pending = setCardDflPending(linked, 'abcd', 'doing', { error: 'timeout' });
     expect(pending.cards[0].dfl).toEqual({ taskId: taskUuid, lastSyncedAt: 100, pending: 'doing', error: 'timeout' });
     // unlinked card: no dfl object to patch, stays untouched
     expect(setCardDflPending(boardWithCard(), 'abcd', 'doing').cards[0].dfl).toBeUndefined();
   });
 
-  it('setCardDflSynced clears pending/error and stamps a fresh lastSyncedAt', () => {
+  it('setCardDflPending sets awaitingConfirm for a review/done push that needs a human click', () => {
     const linked = setCardDflLink(boardWithCard(), 'abcd', taskUuid, 100);
-    const pending = setCardDflPending(linked, 'abcd', 'doing', 'timeout');
-    const synced = setCardDflSynced(pending, 'abcd', 999);
-    expect(synced.cards[0].dfl).toEqual({ taskId: taskUuid, lastSyncedAt: 999 });
+    const pending = setCardDflPending(linked, 'abcd', 'done', { awaitingConfirm: true });
+    expect(pending.cards[0].dfl).toEqual({ taskId: taskUuid, lastSyncedAt: 100, pending: 'done', awaitingConfirm: true });
+  });
+
+  it('setCardDflSynced clears pending/error/awaitingConfirm and stamps a fresh lastSyncedAt + dflUpdatedAt', () => {
+    const linked = setCardDflLink(boardWithCard(), 'abcd', taskUuid, 100);
+    const pending = setCardDflPending(linked, 'abcd', 'doing', { error: 'timeout' });
+    const synced = setCardDflSynced(pending, 'abcd', 999, 888);
+    expect(synced.cards[0].dfl).toEqual({ taskId: taskUuid, lastSyncedAt: 999, dflUpdatedAt: 888 });
+  });
+});
+
+describe('sanitizeCardDfl — re-validated on every read, not trusted just because it LOOKS like a link', () => {
+  const taskUuid = '12345678-1234-1234-1234-123456789abc';
+
+  it('accepts a well-formed link and keeps only known fields', () => {
+    expect(sanitizeCardDfl({ taskId: taskUuid, lastSyncedAt: 1, dflUpdatedAt: 2, pending: 'doing', awaitingConfirm: true, error: 'x', extra: 'drop me' }))
+      .toEqual({ taskId: taskUuid, lastSyncedAt: 1, dflUpdatedAt: 2, pending: 'doing', awaitingConfirm: true, error: 'x' });
+  });
+
+  it('rejects a non-uuid taskId (hand-edited board.json)', () => {
+    expect(sanitizeCardDfl({ taskId: 'not-a-uuid' })).toBeUndefined();
+    expect(sanitizeCardDfl({})).toBeUndefined();
+    expect(sanitizeCardDfl(null)).toBeUndefined();
+  });
+
+  it('drops an invalid pending status instead of persisting garbage', () => {
+    expect(sanitizeCardDfl({ taskId: taskUuid, pending: 'bogus' })).toEqual({ taskId: taskUuid });
+  });
+
+  it('caps the error string', () => {
+    expect(sanitizeCardDfl({ taskId: taskUuid, error: 'x'.repeat(500) })?.error).toHaveLength(300);
   });
 });
 

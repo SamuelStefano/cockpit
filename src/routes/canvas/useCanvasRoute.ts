@@ -81,8 +81,9 @@ export interface CanvasRouteProps {
   dflSnapshot: DflPointsSnapshot | null;
   onDflGet: () => void;
   onDflTaskLink: (cardId: string, taskId: string) => Promise<DflWriteResult>;
-  onDflTaskCreateLink: (cardId: string, taskName: string, epicId: string, deliveryId: string) => Promise<DflWriteResult>;
+  onDflTaskCreateLink: (cardId: string, taskName: string, epicId: string, deliveryId: string, why: string, what: string) => Promise<DflWriteResult>;
   onDflTaskUnlink: (cardId: string) => boolean;
+  onDflTaskConfirmSync: (cardId: string) => Promise<DflWriteResult>;
 }
 
 export type CanvasMode = 'canvas' | 'kanban';

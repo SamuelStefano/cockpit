@@ -1,17 +1,49 @@
 import { describe, it, expect } from 'vitest';
-import type { CanvasGraph } from '../../shared/canvas';
+import type { CanvasGraph, CanvasNode } from '../../shared/canvas';
 import type { DflPointsSnapshot } from '../../shared/protocol';
-import { cardAreaFromGraph, findDeliveryInSnapshot, findTaskInSnapshot } from './dfl-link';
+import { cardLinksAreUnanimouslyDfl, findDeliveryInSnapshot, findTaskInSnapshot } from './dfl-link';
 
-describe('cardAreaFromGraph', () => {
-  it('reads the area server/canvas/areas.ts already set on the card node', () => {
-    const graph: CanvasGraph = { builtAt: 1, edges: [], nodes: [{ id: 'k:card1', kind: 'card', ref: 'card1', title: 't', subtitle: '', mtime: 1, area: 'dfl' }] };
-    expect(cardAreaFromGraph(graph, 'card1')).toBe('dfl');
+const node = (over: Partial<CanvasNode> & { id: string; kind: CanvasNode['kind'] }): CanvasNode => ({ ref: over.id, title: 't', subtitle: '', mtime: 1, ...over });
+
+describe('cardLinksAreUnanimouslyDfl', () => {
+  it('true when every linked context/session is dfl', () => {
+    const graph: CanvasGraph = {
+      builtAt: 1,
+      nodes: [node({ id: 'k:c1', kind: 'card' }), node({ id: 'c:x', kind: 'context', area: 'dfl' }), node({ id: 's:y', kind: 'session', area: 'dfl' })],
+      edges: [{ source: 'k:c1', target: 'c:x', kind: 'card' }, { source: 'k:c1', target: 's:y', kind: 'input' }],
+    };
+    expect(cardLinksAreUnanimouslyDfl(graph, 'c1')).toBe(true);
   });
-  it('returns undefined for a card with no area (or not in the graph at all)', () => {
-    const graph: CanvasGraph = { builtAt: 1, edges: [], nodes: [{ id: 'k:card1', kind: 'card', ref: 'card1', title: 't', subtitle: '', mtime: 1 }] };
-    expect(cardAreaFromGraph(graph, 'card1')).toBeUndefined();
-    expect(cardAreaFromGraph(graph, 'missing')).toBeUndefined();
+
+  it('false when even ONE linked node is not dfl — a majority-dfl card must never pass', () => {
+    const graph: CanvasGraph = {
+      builtAt: 1,
+      nodes: [node({ id: 'k:c1', kind: 'card' }), node({ id: 'c:x', kind: 'context', area: 'dfl' }), node({ id: 'c:y', kind: 'context', area: 'dfl' }), node({ id: 'c:z', kind: 'context', area: 'pessoal' })],
+      edges: [
+        { source: 'k:c1', target: 'c:x', kind: 'card' }, { source: 'k:c1', target: 'c:y', kind: 'card' },
+        { source: 'k:c1', target: 'c:z', kind: 'card' },
+      ],
+    };
+    expect(cardLinksAreUnanimouslyDfl(graph, 'c1')).toBe(false);
+  });
+
+  it('false for a card with nothing linked (fail closed, not "no evidence so sure")', () => {
+    const graph: CanvasGraph = { builtAt: 1, nodes: [node({ id: 'k:c1', kind: 'card' })], edges: [] };
+    expect(cardLinksAreUnanimouslyDfl(graph, 'c1')).toBe(false);
+  });
+
+  it('false for a card not in the graph at all', () => {
+    const graph: CanvasGraph = { builtAt: 1, nodes: [], edges: [] };
+    expect(cardLinksAreUnanimouslyDfl(graph, 'missing')).toBe(false);
+  });
+
+  it('a linked node with no area at all also fails the check', () => {
+    const graph: CanvasGraph = {
+      builtAt: 1,
+      nodes: [node({ id: 'k:c1', kind: 'card' }), node({ id: 'c:x', kind: 'context' })],
+      edges: [{ source: 'k:c1', target: 'c:x', kind: 'card' }],
+    };
+    expect(cardLinksAreUnanimouslyDfl(graph, 'c1')).toBe(false);
   });
 });
 

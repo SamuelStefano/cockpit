@@ -1,4 +1,4 @@
-import type { AreaId, CanvasGraph } from '../../shared/canvas';
+import type { CanvasGraph } from '../../shared/canvas';
 import { cardNodeId } from '../../shared/canvas';
 import type { DflDeliveryNode, DflPointsSnapshot, DflTaskNode } from '../../shared/protocol';
 
@@ -8,11 +8,20 @@ import type { DflDeliveryNode, DflPointsSnapshot, DflTaskNode } from '../../shar
 // (buildCanvas) and a snapshot already loaded (readDflSnapshot), same as
 // every other canvas write handler.
 
-// A card's area is whatever server/canvas/areas.ts derived for its `k:<id>`
-// node THIS build — never read off the client, never cached across calls.
-// Absent (no linked context/session yet classified) reads as "not dfl".
-export function cardAreaFromGraph(graph: CanvasGraph, cardId: string): AreaId | undefined {
-  return graph.nodes.find((n) => n.id === cardNodeId(cardId))?.area;
+// STRICT, not the majority vote server/canvas/areas.ts uses for the card's
+// display area (the colored region on the canvas map). A card linked to a
+// MIX of DFL and personal contexts/sessions must never be linkable — a
+// majority-DFL vote would let a card touching, say, 2 DFL sessions and 1
+// pessoal one through, and whatever ends up in `description`/`context` on
+// the DFL side is then reachable by anyone with DFL access. Every single
+// linked context/session must classify 'dfl'; a card with nothing linked at
+// all is NOT eligible either (fail closed, not "no evidence so sure why not").
+export function cardLinksAreUnanimouslyDfl(graph: CanvasGraph, cardId: string): boolean {
+  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+  const id = cardNodeId(cardId);
+  const linked = graph.edges.filter((e) => e.source === id && (e.kind === 'card' || e.kind === 'input'));
+  if (!linked.length) return false;
+  return linked.every((e) => byId.get(e.target)?.area === 'dfl');
 }
 
 // dfl-task-link must only ever point a card at a task that ALREADY came out

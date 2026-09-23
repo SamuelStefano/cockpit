@@ -38,8 +38,19 @@ export const KanbanCard = memo(function KanbanCard({ card, run, sessions, sessio
         {card.kind === 'content' && card.format && <Badge>{FORMAT_LABEL[card.format]}</Badge>}
         {/* dfl.error stays visible even while `pending` retries in the
             background — that's the "sync pendente" badge the card carries
-            until the next successful push (server/canvas/dfl-status-sync.ts). */}
-        {card.dfl && <Badge tone={card.dfl.error ? 'red' : 'orange'} title={card.dfl.error ?? 'vinculado a uma task DFL'}>DFL{card.dfl.error ? ' ⚠' : ''}</Badge>}
+            until the next successful push (server/canvas/dfl-status-sync.ts).
+            awaitingConfirm (yellow) is a DIFFERENT state from error (red): a
+            review/done push the server refuses to fire without a human
+            clicking "confirmar sync" in the editor (billing-relevant status,
+            never automatic — statusNeedsHumanConfirm). */}
+        {card.dfl && (
+          <Badge
+            tone={card.dfl.error ? 'red' : card.dfl.awaitingConfirm ? 'yellow' : 'orange'}
+            title={card.dfl.error ?? (card.dfl.awaitingConfirm ? 'aguardando confirmação pra sincronizar com a DFL' : 'vinculado a uma task DFL')}
+          >
+            DFL{card.dfl.error ? ' ⚠' : card.dfl.awaitingConfirm ? ' •' : ''}
+          </Badge>
+        )}
         {card.contextIds.length > 0 && <span>{card.contextIds.length} ctx</span>}
         {sessions.length > 0 && (
           <button type="button" className="text-orange-300 hover:underline" onClick={(e) => { e.stopPropagation(); onOpenSession(sessions[sessions.length - 1]); }}>

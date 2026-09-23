@@ -662,15 +662,26 @@ export type ClientMsg =
   // o token nunca cruza pro WS/cliente. reqId ecoa na resposta pra a UI casar.
   | { t: 'points-dfl-change'; reqId: string; taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string }
   | { t: 'points-dfl-invoice'; reqId: string; deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number; deliveryId?: string; deliveryName?: string }[] }
-  // Kanban<->DFL card link (opt-in, DFL-area cards only — server re-derives the
-  // card's area itself, never trusts the client). 'link' points a card at an
-  // EXISTING task (id comes from the already-fetched DflPointsSnapshot);
-  // 'create-link' creates a new task under a delivery THEN links it, in one
-  // sanctioned write. 'unlink' is always local-only — never deletes the DFL
-  // task. See server/canvas/dfl-link.ts.
-  | { t: 'dfl-task-link'; reqId: string; cardId: string; taskId: string }
-  | { t: 'dfl-task-create-link'; reqId: string; cardId: string; taskName: string; epicId: string; deliveryId: string }
+  // Kanban<->DFL card link (opt-in, DFL-area cards only — server re-derives
+  // the card's area itself from EVERY linked context/session, unanimously,
+  // never trusts the client; see server/canvas/dfl-link.ts's
+  // cardLinksAreUnanimouslyDfl). 'link' points a card at an EXISTING task (id
+  // comes from the already-fetched DflPointsSnapshot); 'create-link' creates
+  // a new task under a delivery THEN links it, in one sanctioned write.
+  // `confirm: true` is REQUIRED on both — the UI shows the exact
+  // title/why/what that will reach DFL before this is sent, and the server
+  // independently rejects a request without it (never trusts a client that
+  // skipped the confirm step). `why`/`what` are explicit, user-typed text —
+  // NEVER the card's raw `prompt` (that could carry personal content). 'unlink'
+  // is always local-only — never deletes the DFL task, no confirm needed.
+  | { t: 'dfl-task-link'; reqId: string; cardId: string; taskId: string; confirm: true }
+  | { t: 'dfl-task-create-link'; reqId: string; cardId: string; taskName: string; epicId: string; deliveryId: string; why: string; what: string; confirm: true }
   | { t: 'dfl-task-unlink'; cardId: string }
+  // A human explicitly confirming a queued review/done push (statusNeedsHumanConfirm
+  // in shared/canvas.ts) actually reaches DFL — review/done feed DFL's
+  // billing surface, so an automatic card move/agent auto-move never writes
+  // on its own; this is the only path that does for those two statuses.
+  | { t: 'dfl-task-confirm-sync'; reqId: string; cardId: string }
   // Botão "criar tasks com agente": dispara um turno autônomo que registra o
   // trabalho no DFL. Não escreve nada sozinho aqui — quem escreve é o agente,
   // pelas tools dele. Os tetos viajam junto pra o prompt citar o valor vigente.

@@ -242,6 +242,7 @@ export function Canvas(p: CanvasRouteProps) {
           onSave={r.saveCard} onRun={r.runCard} onDelete={r.deleteCard} onClose={() => r.setDraft(null)}
           dflSnapshot={p.dflSnapshot} onDflTaskLink={p.onDflTaskLink}
           onDflTaskCreateLink={p.onDflTaskCreateLink} onDflTaskUnlink={p.onDflTaskUnlink}
+          onDflTaskConfirmSync={p.onDflTaskConfirmSync}
         />
       )}
       {flowEdit && (
