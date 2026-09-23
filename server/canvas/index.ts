@@ -1,5 +1,5 @@
 import { open, readdir, readFile, stat, writeFile, mkdir, rename } from 'node:fs/promises';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import type { CanvasBoard, CanvasGraph } from '../../shared/canvas';
 import { CONFIG } from '../config';
@@ -15,12 +15,16 @@ import { readBoard } from './board';
 
 const CHUNK = 4 * 1024 * 1024;
 const SLUG_RE = /^[a-zA-Z0-9_-]{1,80}$/;
-
-// Bump whenever SessionRefs gains a field that a full rescan (not a tail
-// resume) is the only way to backfill — e.g. `writes`/`activity` here: bytes
-// already consumed by an old cache entry were never scanned for those, so a
-// mismatched version forces every session back to a from-scratch scan.
-const CACHE_VERSION = 2;
+// A session whose OWN activity could still fall inside the conflict (48h) or
+// timeline (7d) window. A cache entry from before `writes`/`activity` existed
+// only needs backfilling — a full from-0 rescan of THAT session, not every
+// session — when it's this recent; an old, cold session's history is never
+// read by either feature, so its stale cache entry is left alone.
+const RECENT_BACKFILL_MS = 7 * 24 * 3600_000;
+// Persist progress this often during a long first-pass scan (many sessions,
+// each up to ~64MB) so a crash/OOM mid-scan does not throw away everything
+// already read.
+const SAVE_EVERY = 25;
 
 function refsFile(): string {
   return process.env.COCKPIT_CANVAS_REFS ?? join(homedir(), '.cockpit', 'canvas-refs.json');
@@ -34,18 +38,14 @@ function archiveDirs(): string[] {
   return ['handoffs', 'stale', 'full'].map((d) => join(base, d));
 }
 
-type RefsCache = Map<string, SessionRefs & { size: number }>;
+export type RefsCache = Map<string, SessionRefs & { size: number }>;
 let cache: RefsCache | null = null;
 
 async function loadCache(): Promise<RefsCache> {
   if (cache) return cache;
   try {
-    const raw = JSON.parse(await readFile(refsFile(), 'utf8')) as
-      { version?: number; entries?: Record<string, SessionRefs & { size: number }> };
-    // No `version` (pre-versioning cache) or a stale one: discard rather than
-    // adopt — an entry scanned under the old field set would otherwise look
-    // "done" forever and never backfill `writes`/`activity`.
-    cache = raw.version === CACHE_VERSION && raw.entries ? new Map(Object.entries(raw.entries)) : new Map();
+    const raw = JSON.parse(await readFile(refsFile(), 'utf8')) as Record<string, SessionRefs & { size: number }>;
+    cache = new Map(Object.entries(raw));
   } catch {
     cache = new Map();
   }
@@ -73,11 +73,15 @@ export function __resetCanvasRefsCache(): void {
   cache = null;
 }
 
+// Own tmp filename per call (pid + random), not a fixed `${f}.tmp`: two Deck
+// processes pointed at the same cache path (a stray second instance, a script)
+// would otherwise race on the SAME tmp file and tear each other's write.
 async function saveCache(c: RefsCache): Promise<void> {
   const f = refsFile();
   await mkdir(dirname(f), { recursive: true });
-  await writeFile(`${f}.tmp`, JSON.stringify({ version: CACHE_VERSION, entries: Object.fromEntries(c) }), 'utf8');
-  await rename(`${f}.tmp`, f);
+  const tmp = `${f}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`;
+  await writeFile(tmp, JSON.stringify(Object.fromEntries(c)), 'utf8');
+  await rename(tmp, f);
 }
 
 // Reads from `refs.consumed` to EOF in bounded chunks; a partial last line is
@@ -102,17 +106,36 @@ async function scanTail(path: string, refs: SessionRefs): Promise<void> {
   }
 }
 
-async function sessionRefs(c: RefsCache, id: string): Promise<SessionRefs | undefined> {
-  const path = join(CONFIG.projectsDir, `${id}.jsonl`);
+// `path` injected rather than built from CONFIG.projectsDir here: keeps this
+// testable against a real temp file without faking global config.
+export async function sessionRefs(c: RefsCache, id: string, path: string, recent: boolean): Promise<SessionRefs | undefined> {
   let size: number;
   try { size = (await stat(path)).size; } catch { return c.get(id); }
   const hit = c.get(id);
-  if (hit && hit.size === size && hit.topics) return hit;
+  // A hit missing `writes` predates that field entirely (old cache, never
+  // serialized it). Only worth a backfill when the session is recent enough
+  // that the 48h conflict / 7d timeline windows could still read it — an old
+  // session's cache entry is left exactly as it was.
+  const needsBackfill = recent && hit && !hit.writes;
+  if (hit && hit.size === size && hit.topics && !needsBackfill) return hit;
   // Shrunk = rewritten (compaction tooling, manual edit): the offset is meaningless.
-  // A hit missing `topics` predates that field: bytes already consumed were never
-  // scanned for it, so this is a full rescan from 0 rather than a tail resume.
-  const refs: SessionRefs = hit && hit.topics && size > hit.size
-    ? { contexts: { ...hit.contexts }, contextHits: hit.contextHits ? { ...hit.contextHits } : undefined, cardId: hit.cardId, topics: hit.topics, consumed: hit.consumed }
+  // A hit missing `topics`, or one that needs the writes/activity backfill
+  // above, was never scanned for those fields either way: both are a full
+  // rescan from 0 rather than a tail resume. writes/activity/pendingWrites/
+  // contextHits are COPIED (new object/array), never aliased to `hit` — a
+  // scanTail failure below must leave the cached hit untouched, and a
+  // mutation deep inside addWrite/addActivity on a shared reference would
+  // otherwise corrupt it.
+  const canResume = hit && hit.topics && size > hit.size && !needsBackfill;
+  const refs: SessionRefs = canResume
+    ? {
+        contexts: { ...hit.contexts }, contextHits: hit.contextHits ? { ...hit.contextHits } : undefined,
+        cardId: hit.cardId, topics: hit.topics,
+        writes: { ...(hit.writes ?? {}) },
+        activity: (hit.activity ?? []).map(([s, e]): [number, number] => [s, e]),
+        pendingWrites: { ...(hit.pendingWrites ?? {}) },
+        consumed: hit.consumed,
+      }
     : emptyRefs();
   try { await scanTail(path, refs); } catch { return hit; }
   c.set(id, { ...refs, size });
@@ -149,10 +172,19 @@ export function buildCanvas(board?: CanvasBoard, running?: Set<string>): Promise
     const c = await loadCache();
     const [live, archived, b] = await Promise.all([listSessions(), listArchived(), board ? Promise.resolve(board) : readBoard()]);
     const sessions = [...live.map((meta) => ({ meta, archived: false })), ...archived.map((meta) => ({ meta, archived: true }))];
+    const now = Date.now();
     const refs = new Map<string, SessionRefs>();
+    let sinceSave = 0;
     for (const { meta } of sessions) {
-      const r = await sessionRefs(c, meta.id);
+      const recent = now - meta.mtime < RECENT_BACKFILL_MS;
+      const path = join(CONFIG.projectsDir, `${meta.id}.jsonl`);
+      const r = await sessionRefs(c, meta.id, path, recent);
       if (r) refs.set(meta.id, r);
+      // Checkpoint periodically: the first full backfill after a deploy walks
+      // every recent session's JSONL (seconds each) — a crash/OOM partway
+      // through would otherwise lose everything read so far, not just the
+      // one session in flight.
+      if (++sinceSave >= SAVE_EVERY) { sinceSave = 0; await saveCache(c).catch(() => undefined); }
     }
     const live_ = new Set(sessions.map((s) => s.meta.id));
     for (const id of c.keys()) if (!live_.has(id)) c.delete(id);
@@ -169,7 +201,10 @@ export function buildCanvas(board?: CanvasBoard, running?: Set<string>): Promise
       seenArch.add(doc.id);
       arch.push(doc);
     }
-    return buildCanvasGraph({ sessions, refs, contexts: [...mem, ...arch], cards: b.cards, running });
+    return buildCanvasGraph({
+      sessions, refs, contexts: [...mem, ...arch], cards: b.cards, running, now,
+      memoryDir: CONFIG.memoryDir, tmpDir: tmpdir(),
+    });
   })().finally(() => { inflight = null; });
   return inflight;
 }

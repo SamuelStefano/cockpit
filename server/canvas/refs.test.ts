@@ -1,8 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { addActivity, addWrite, emptyRefs, scanRefsBuffer, scanRefsLine, type ActivityIntervals, type FileWrites } from './refs';
 
-const toolLine = (name: string, input: Record<string, unknown>, timestamp?: string) =>
-  JSON.stringify({ type: 'assistant', timestamp, message: { content: [{ type: 'tool_use', name, input }] } });
+let toolUseSeq = 0;
+const toolLine = (name: string, input: Record<string, unknown>, timestamp?: string, id = `tu${++toolUseSeq}`) =>
+  JSON.stringify({ type: 'assistant', timestamp, message: { content: [{ type: 'tool_use', id, name, input }] } });
+
+// A write only lands in `refs.writes` once its tool_result comes back without
+// is_error — this is the "user" message that follows the tool_use line.
+const resultLine = (toolUseId: string, isError = false) =>
+  JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: toolUseId, is_error: isError }] } });
 
 describe('scanRefsLine', () => {
   it('records reads and writes of memory files from tool calls', () => {
@@ -66,12 +72,16 @@ describe('scanRefsLine', () => {
 });
 
 describe('scanRefsLine — file writes', () => {
-  it('records a write path with its timestamp from Edit/Write/MultiEdit/NotebookEdit', () => {
+  it('records a write path with its timestamp from Edit/Write/MultiEdit/NotebookEdit, once its result confirms success', () => {
     const r = emptyRefs();
-    scanRefsLine(toolLine('Edit', { file_path: '/home/u/repo/src/a.ts' }, '2026-09-23T10:00:00Z'), r);
-    scanRefsLine(toolLine('Write', { file_path: '/home/u/repo/src/b.ts' }, '2026-09-23T10:05:00Z'), r);
-    scanRefsLine(toolLine('MultiEdit', { file_path: '/home/u/repo/src/c.ts' }, '2026-09-23T10:06:00Z'), r);
-    scanRefsLine(toolLine('NotebookEdit', { notebook_path: '/home/u/repo/nb.ipynb' }, '2026-09-23T10:07:00Z'), r);
+    scanRefsLine(toolLine('Edit', { file_path: '/home/u/repo/src/a.ts' }, '2026-09-23T10:00:00Z', 'e1'), r);
+    scanRefsLine(resultLine('e1'), r);
+    scanRefsLine(toolLine('Write', { file_path: '/home/u/repo/src/b.ts' }, '2026-09-23T10:05:00Z', 'w1'), r);
+    scanRefsLine(resultLine('w1'), r);
+    scanRefsLine(toolLine('MultiEdit', { file_path: '/home/u/repo/src/c.ts' }, '2026-09-23T10:06:00Z', 'm1'), r);
+    scanRefsLine(resultLine('m1'), r);
+    scanRefsLine(toolLine('NotebookEdit', { notebook_path: '/home/u/repo/nb.ipynb' }, '2026-09-23T10:07:00Z', 'n1'), r);
+    scanRefsLine(resultLine('n1'), r);
     expect(r.writes).toEqual({
       '/home/u/repo/src/a.ts': Date.parse('2026-09-23T10:00:00Z'),
       '/home/u/repo/src/b.ts': Date.parse('2026-09-23T10:05:00Z'),
@@ -80,10 +90,27 @@ describe('scanRefsLine — file writes', () => {
     });
   });
 
+  it('does not record the write before its tool_result arrives', () => {
+    const r = emptyRefs();
+    scanRefsLine(toolLine('Edit', { file_path: '/x/a.ts' }, '2026-09-23T10:00:00Z', 'e1'), r);
+    expect(r.writes).toEqual({});
+    expect(r.pendingWrites).toEqual({ e1: { path: '/x/a.ts', at: Date.parse('2026-09-23T10:00:00Z') } });
+  });
+
+  it('drops a write whose tool_result reports is_error — a denied or failed Edit never touched the file', () => {
+    const r = emptyRefs();
+    scanRefsLine(toolLine('Edit', { file_path: '/x/a.ts' }, '2026-09-23T10:00:00Z', 'e1'), r);
+    scanRefsLine(resultLine('e1', true), r);
+    expect(r.writes).toEqual({});
+    expect(r.pendingWrites).toEqual({});
+  });
+
   it('keeps the LATEST timestamp when the same file is written twice', () => {
     const r = emptyRefs();
-    scanRefsLine(toolLine('Edit', { file_path: '/x/a.ts' }, '2026-09-23T10:00:00Z'), r);
-    scanRefsLine(toolLine('Edit', { file_path: '/x/a.ts' }, '2026-09-23T09:00:00Z'), r);
+    scanRefsLine(toolLine('Edit', { file_path: '/x/a.ts' }, '2026-09-23T10:00:00Z', 'e1'), r);
+    scanRefsLine(resultLine('e1'), r);
+    scanRefsLine(toolLine('Edit', { file_path: '/x/a.ts' }, '2026-09-23T09:00:00Z', 'e2'), r);
+    scanRefsLine(resultLine('e2'), r);
     expect(r.writes!['/x/a.ts']).toBe(Date.parse('2026-09-23T10:00:00Z'));
   });
 
@@ -91,6 +118,20 @@ describe('scanRefsLine — file writes', () => {
     const r = emptyRefs();
     scanRefsLine(toolLine('Read', { file_path: '/x/a.ts' }, '2026-09-23T10:00:00Z'), r);
     expect(r.writes).toEqual({});
+  });
+
+  it('does not JSON.parse a non-write, non-memory tool_use line (narrow parse for cost)', () => {
+    const r = emptyRefs();
+    // Malformed after the tool name on purpose: if this got parsed it would throw.
+    const line = '{"type":"assistant","timestamp":"2026-09-23T10:00:00Z","message":{"content":[{"type":"tool_use","name":"Grep","input":BROKEN}]}}';
+    expect(() => scanRefsLine(line, r)).not.toThrow();
+    expect(r.writes).toEqual({});
+  });
+
+  it('caps pending writes so an unresolved run cannot grow the entry without bound', () => {
+    const r = emptyRefs();
+    for (let i = 0; i < 55; i++) scanRefsLine(toolLine('Edit', { file_path: `/x/f${i}.ts` }, '2026-09-23T10:00:00Z', `e${i}`), r);
+    expect(Object.keys(r.pendingWrites!)).toHaveLength(50);
   });
 });
 

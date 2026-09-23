@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { aliveAt, ALIVE_PAD_MS, fmtTimelineStamp } from './canvas-timeline';
+import type { CanvasEdge, CanvasNode } from '../../../shared/canvas';
+import { aliveAt, ALIVE_PAD_MS, fmtTimelineStamp, pastAliveIds } from './canvas-timeline';
 
 describe('aliveAt', () => {
   it('is alive strictly inside an activity interval', () => {
@@ -35,5 +36,41 @@ describe('fmtTimelineStamp', () => {
   it('formats in BRT (UTC-3), independent of the runner\'s own timezone', () => {
     // 2026-09-23T15:00:00Z -> 12:00 in America/Sao_Paulo (UTC-3, no DST since 2019).
     expect(fmtTimelineStamp(Date.parse('2026-09-23T15:00:00Z'))).toBe('23/09, 12:00');
+  });
+});
+
+describe('pastAliveIds', () => {
+  const node = (id: string, kind: CanvasNode['kind'], activity?: [number, number][]): CanvasNode =>
+    ({ id, kind, ref: id, title: id, subtitle: '', mtime: 0, activity });
+  const edge = (source: string, target: string, kind: CanvasEdge['kind']): CanvasEdge => ({ source, target, kind });
+
+  it('includes an alive session and a context it touched', () => {
+    const nodes = [node('s:1', 'session', [[0, 100]]), node('c:a', 'context')];
+    const edges = [edge('s:1', 'c:a', 'write')];
+    expect(pastAliveIds(nodes, edges, 50, {})).toEqual(new Set(['s:1', 'c:a']));
+  });
+
+  it('does NOT spread aliveness through a conflict edge (session -> session)', () => {
+    const nodes = [node('s:1', 'session', [[0, 100]]), node('s:2', 'session')]; // s:2 has no activity of its own
+    const edges = [edge('s:1', 's:2', 'conflict')];
+    expect(pastAliveIds(nodes, edges, 50, {})).toEqual(new Set(['s:1']));
+  });
+
+  it('does not spread session -> session even over a non-conflict edge kind', () => {
+    const nodes = [node('s:1', 'session', [[0, 100]]), node('s:2', 'session')];
+    const edges = [edge('s:1', 's:2', 'read')];
+    expect(pastAliveIds(nodes, edges, 50, {})).toEqual(new Set(['s:1']));
+  });
+
+  it('a session alive only via a running turn still spreads to its context', () => {
+    const nodes = [node('s:1', 'session'), node('c:a', 'context')];
+    const edges = [edge('s:1', 'c:a', 'write')];
+    expect(pastAliveIds(nodes, edges, 50, { 's:1': 10 })).toEqual(new Set(['s:1', 'c:a']));
+  });
+
+  it('excludes a session with no activity and nothing that makes it alive', () => {
+    const nodes = [node('s:1', 'session'), node('c:a', 'context')];
+    const edges = [edge('s:1', 'c:a', 'write')];
+    expect(pastAliveIds(nodes, edges, 50, {})).toEqual(new Set());
   });
 });

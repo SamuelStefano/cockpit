@@ -33,6 +33,7 @@ interface Props {
   // would start a SECOND writer on the same transcript.
   promptDisabled: boolean;
   past: boolean; // timeline scrubbed to a past instant: overlay "vendo o passado"
+  instant: boolean; // timeline is playing: skip the opacity transition (perf)
   onPointerDown: (e: React.PointerEvent, id: string) => void;
   onActivate: (id: string) => void;
   onCollapse: (id: string) => void;
@@ -74,7 +75,8 @@ export const TerminalWindow = memo(function TerminalWindow(p: Props) {
     <div
       data-node={n.id}
       style={{ transform: `translate(${p.pos.x}px, ${p.pos.y}px)`, width: TERM_W, height: TERM_H }}
-      className={`absolute left-0 top-0 flex flex-col overflow-hidden rounded-lg border bg-[#0a0a0a] shadow-2xl shadow-black/60 transition-opacity
+      className={`absolute left-0 top-0 flex flex-col overflow-hidden rounded-lg border bg-[#0a0a0a] shadow-2xl shadow-black/60
+        ${p.instant ? '' : 'transition-opacity'}
         ${p.active ? 'border-orange-500/80 ring-2 ring-orange-500/30' : p.selected ? 'border-orange-400/60' : 'border-neutral-700'}
         ${p.dim ? 'opacity-40' : ''}`}
     >
@@ -135,8 +137,10 @@ export const TerminalWindow = memo(function TerminalWindow(p: Props) {
         )}
         {p.past && (
           // The xterm underneath stays mounted and live — this is a read-only
-          // reminder, not a detach, so returning to "agora" is instant.
-          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-neutral-950/55 backdrop-blur-[1px]">
+          // reminder, not a detach, so returning to "agora" is instant. Flat
+          // background, no backdrop-blur: blurring the live xterm behind it
+          // is real GPU cost repeated on every terminal, every frame.
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-neutral-950/70">
             <span className="rounded-full border border-neutral-700 bg-neutral-900/90 px-2.5 py-1 font-mono text-[10.5px] text-neutral-300">vendo o passado</span>
           </div>
         )}

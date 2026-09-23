@@ -20,6 +20,7 @@ interface Props {
   stats: Record<string, TermStats>;
   past: boolean; // timeline scrubbed away from live: every window shows the overlay
   pastAlive: Set<string> | null; // and one not alive at T also fades
+  instant: boolean; // timeline is playing: skip the opacity transition (perf)
 }
 
 // The focused window paints last so it is never under a neighbour it overlaps.
@@ -40,7 +41,7 @@ export function CanvasWindows(p: Props) {
             dim={(p.focus.size > 0 && !p.focus.has(n.id) && t.active !== n.id) || (p.pastAlive !== null && !p.pastAlive.has(n.id))}
             running={n.kind === 'session' && p.running.has(n.ref)} waiting={n.kind === 'session' && p.waiting.has(n.ref)}
             promptDisabled={t.resumedLive.has(n.ref)}
-            past={p.past}
+            past={p.past} instant={p.instant}
             onPointerDown={p.onPointerDown} onActivate={t.focus} onCollapse={t.collapse} onKill={t.kill}
             onMaximize={t.setMaximized} onResume={t.resume} onOpenChat={p.onOpenChat}
             // Stable reference (useCockpit's onSendTo has empty-ish deps) + the

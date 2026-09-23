@@ -27,10 +27,13 @@ export interface Timeline {
   goLive: () => void;
 }
 
-// `now` is expected to be a value stable across renders (captured once by the
-// caller, same pattern as useCanvasRoute's own `now`) — a moving `now` would
-// make the slider's range drift under the user's thumb mid-drag.
-export function useTimeline(now: number): Timeline {
+// `now` is owned by the hook, not a prop: it stays fixed WHILE scrubbing or
+// playing (so the range never drifts under the user's thumb mid-drag), but
+// gets re-captured at the two moments staleness would otherwise show —
+// leaving live to start a scrub, and returning to live — rather than frozen
+// forever at mount.
+export function useTimeline(): Timeline {
+  const [now, setNow] = useState(() => Date.now());
   const [live, setLive] = useState(true);
   const [scrubbed, setScrubbed] = useState(now);
   const [playing, setPlaying] = useState(false);
@@ -38,10 +41,11 @@ export function useTimeline(now: number): Timeline {
 
   const setT = (v: number) => {
     setPlaying(false);
-    setLive(false);
-    setScrubbed(clampToRange(v, rangeStart, now));
+    const freshNow = live ? Date.now() : now;
+    if (live) { setLive(false); setNow(freshNow); }
+    setScrubbed(clampToRange(v, freshNow - TIMELINE_WINDOW_MS, freshNow));
   };
-  const goLive = () => { setPlaying(false); setLive(true); };
+  const goLive = () => { setPlaying(false); setLive(true); setNow(Date.now()); };
   const play = () => { setLive(false); setPlaying(true); };
   const pause = () => setPlaying(false);
 

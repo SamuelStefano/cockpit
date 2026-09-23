@@ -6,7 +6,7 @@ import { countHotContext, countWaiting } from './canvas/canvas-alerts';
 import { neighbors } from './canvas/canvas-filter';
 import { newFlowId } from './canvas/canvas-board';
 import { AreaBudgetEditor } from './canvas/AreaBudgetEditor';
-import { aliveAt } from './canvas/canvas-timeline';
+import { pastAliveIds } from './canvas/canvas-timeline';
 import { CanvasFilters } from './canvas/CanvasFilters';
 import { CanvasHud } from './canvas/CanvasHud';
 import { CanvasInspector, type ConflictInfo } from './canvas/CanvasInspector';
@@ -63,24 +63,12 @@ export function Canvas(p: CanvasRouteProps) {
   const deleteFlow = useCallback((id: string) => { p.onCanvasFlowDelete(id); setFlowEdit(null); }, [p]);
   const clearAll = useCallback(() => { clearSelection(); blur(); }, [clearSelection, blur]);
 
-  const [timelineNow] = useState(() => Date.now());
-  const timeline = useTimeline(timelineNow);
-  // Alive sessions at the scrubbed instant, then their touched contexts/cards
-  // (mirrors canvas-filter's own "seed then include neighbours" shape) — null
-  // while live means "nothing extra to dim".
-  const pastAlive = useMemo(() => {
-    if (timeline.live) return null;
-    const aliveSessions = new Set<string>();
-    for (const n of r.visible.nodes) {
-      if (n.kind === 'session' && aliveAt(n, timeline.t, p.runStart[n.ref])) aliveSessions.add(n.id);
-    }
-    const out = new Set(aliveSessions);
-    for (const e of r.visible.edges) {
-      if (aliveSessions.has(e.source)) out.add(e.target);
-      if (aliveSessions.has(e.target)) out.add(e.source);
-    }
-    return out;
-  }, [timeline.live, timeline.t, r.visible.nodes, r.visible.edges, p.runStart]);
+  const timeline = useTimeline();
+  // null while live means "nothing extra to dim".
+  const pastAlive = useMemo(
+    () => (timeline.live ? null : pastAliveIds(r.visible.nodes, r.visible.edges, timeline.t, p.runStart)),
+    [timeline.live, timeline.t, r.visible.nodes, r.visible.edges, p.runStart],
+  );
 
   // Live sessions show up as terminals on their own; ghosts wait for a click.
   const { autoOpen } = terms;
@@ -158,7 +146,7 @@ export function Canvas(p: CanvasRouteProps) {
               stats={p.termStats} analysisOn={analysisOn} onToggleAnalysis={() => setAnalysisOn(!analysisOn)}
               flows={p.board.flows} flowFired={p.canvasFlowFired} onFlowCreate={openFlowDraft} onFlowClick={editFlow}
               areaRects={r.areaRects} budgetStatus={r.budgetStatus} onEditBudget={r.setBudgetEditArea}
-              pastAlive={pastAlive}
+              pastAlive={pastAlive} timelinePlaying={timeline.playing}
             >
               <CanvasHud sessions={p.sessions} running={p.running} onPick={(id) => focusNode(`s:${id}`)} />
               {r.selectedNodes.length > 0 && (
