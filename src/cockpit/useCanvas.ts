@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ClientMsg, ServerMsg } from '../../shared/protocol';
-import type { CanvasBoard, CanvasCard, CanvasGraph, CanvasPos } from '../../shared/canvas';
+import type { CanvasBoard, CanvasCard, CanvasGraph, CanvasPos, TermStats } from '../../shared/canvas';
 
 export interface CanvasApi {
   canvasGraph: CanvasGraph | null;
@@ -13,6 +13,8 @@ export interface CanvasApi {
   onCanvasPosReset: () => void;
   onCanvasCardSave: (card: CanvasCard) => void;
   onCanvasCardDelete: (id: string) => void;
+  canvasTermStats: Record<string, TermStats>;
+  onCanvasTermStats: (sessions: string[], terms: string[]) => void;
   onMsg: (msg: ServerMsg) => boolean;
 }
 
@@ -42,6 +44,7 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
   const [canvasLoading, setLoading] = useState(false);
   const [canvasLoadingSince, setLoadingSince] = useState<number | null>(null);
   const [canvasStale, setStale] = useState(false);
+  const [canvasTermStats, setTermStats] = useState<Record<string, TermStats>>({});
   const loadingRef = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -63,6 +66,7 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
   }, [clearTimer]);
 
   const onMsg = useCallback((msg: ServerMsg) => {
+    if (msg.t === 'canvas-term-stats') { setTermStats(msg.stats); return true; }
     if (msg.t === 'canvas-graph') { setGraph(msg.graph); setStale(false); settle(); return true; }
     if (msg.t === 'canvas-board') {
       if (ackTimerRef.current) { clearTimeout(ackTimerRef.current); ackTimerRef.current = null; }
@@ -144,8 +148,13 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
     send({ t: 'canvas-card-delete', id });
   }, [send]);
 
+  const onCanvasTermStats = useCallback((sessions: string[], terms: string[]) => {
+    send({ t: 'canvas-term-stats', sessions, terms });
+  }, [send]);
+
   return {
     canvasGraph, canvasBoard, canvasLoading, canvasLoadingSince, canvasStale,
-    onCanvasGet, onCanvasPos, onCanvasPosReset, onCanvasCardSave, onCanvasCardDelete, onMsg,
+    onCanvasGet, onCanvasPos, onCanvasPosReset, onCanvasCardSave, onCanvasCardDelete,
+    canvasTermStats, onCanvasTermStats, onMsg,
   };
 }

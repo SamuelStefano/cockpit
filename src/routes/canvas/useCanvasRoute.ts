@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CanvasBoard, CanvasCard, CanvasGraph, CanvasNode, CanvasPos, CardStatus, ContentFormat } from '../../../shared/canvas';
+import type { CanvasBoard, CanvasCard, CanvasGraph, CanvasNode, CanvasPos, CardStatus, ContentFormat, TermStats } from '../../../shared/canvas';
 import { buildContentPrompt, buildTaskPrompt } from '../../../shared/canvas-prompt';
 import type { Session } from '../../data/types';
 import type { TermApi } from '../../useCockpit';
@@ -26,6 +26,8 @@ export interface CanvasRouteProps {
   onLaunchAgent: (prompt: string, title: string) => string | null;
   onOpenSession: (id: string) => void;
   term: TermApi;
+  termStats: Record<string, TermStats>;
+  onTermStats: (sessions: string[], terms: string[]) => void;
   discoveredTerms: string[];
   listTerms: () => void;
 }

@@ -11,6 +11,7 @@ const term = vi.hoisted(() => ({
   listTerms: vi.fn(async () => ['a', 'b']),
   resumeTerm: vi.fn(async () => true),
   ensureWatchReaper: vi.fn(),
+  prepareWatch: vi.fn(async () => {}),
 }));
 const sent = vi.hoisted(() => ({ fn: vi.fn() }));
 
@@ -124,5 +125,29 @@ describe('term-detach vs term-close', () => {
   it('close kills the session even for an id not attached to this connection', () => {
     run({ t: 'term-close', termId: 'orphan' });
     expect(term.closeTerm).toHaveBeenCalledWith('orphan');
+  });
+});
+
+describe('term-open with watch', () => {
+  const live = { readyState: 1, OPEN: 1 } as unknown as WebSocket;
+  const uuid = '55b717e4-4e61-4a4f-83f9-2d2a4cdea948';
+
+  it('swaps a bare shell for the follower before attaching', async () => {
+    const myTerms = new Map<string, TermHandle>();
+    handleTerm(live, { t: 'term-open', termId: 'w-a', cols: 80, rows: 24, watch: uuid }, myTerms);
+    expect(term.openTerm).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(term.openTerm).toHaveBeenCalled());
+    expect(term.prepareWatch).toHaveBeenCalledWith('w-a', uuid);
+    expect(term.openTerm.mock.calls[0]).toContain(uuid);
+    expect(myTerms.has('w-a')).toBe(true);
+  });
+
+  it('drops the attach when the window detached meanwhile', async () => {
+    const myTerms = new Map<string, TermHandle>();
+    handleTerm(live, { t: 'term-open', termId: 'w-b', cols: 80, rows: 24, watch: uuid }, myTerms);
+    handleTerm(live, { t: 'term-detach', termId: 'w-b' }, myTerms);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(term.openTerm).not.toHaveBeenCalled();
+    expect(myTerms.has('w-b')).toBe(false);
   });
 });

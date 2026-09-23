@@ -66,6 +66,21 @@ export interface CanvasBoard {
 export const sessionNodeId = (id: string) => `s:${id}`;
 export const contextNodeId = (id: string) => `c:${id}`;
 export const cardNodeId = (id: string) => `k:${id}`;
+// tmux names are capped at 32 chars by the server allow-list, so the uuid is
+// folded to its first 24 hex digits — plenty to stay unique across sessions.
+export const watchTermId = (sessionId: string) => 'w-' + sessionId.replace(/-/g, '').slice(0, 24);
+
+// Live numbers behind a canvas terminal window, keyed by session uuid or termId.
+export interface TermStats {
+  cpu: number; // % of one core since the previous poll
+  rssMb: number;
+  procs: number;
+  contextTokens?: number;
+  model?: string;
+  lastAt?: number; // newest transcript record
+  turnStartedAt?: number; // set while the Deck runs a turn on it
+}
+
 // Client-only: tmux shells placed on the canvas (the server graph never emits them).
 export const shellNodeId = (termId: string) => `t:${termId}`;
 

@@ -53,7 +53,7 @@ export function useCanvasViewport() {
   }, []);
 
   const onBackgroundDown = useCallback((e: React.PointerEvent) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 && e.button !== 1) return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
   }, []);

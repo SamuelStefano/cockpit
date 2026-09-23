@@ -174,6 +174,32 @@ export function idleWatchers(entries: { id: string; idleSince: number | null }[]
   return entries.filter((e) => e.id.startsWith('w-') && e.idleSince !== null && now - e.idleSince >= idleMs).map((e) => e.id);
 }
 
+function panePid(id: string): Promise<number | null> {
+  return new Promise((resolve) => {
+    const p = spawn('tmux', ['display-message', '-p', '-t', sessionName(id), '#{pane_pid}'], { stdio: ['ignore', 'pipe', 'ignore'] });
+    let out = '';
+    p.stdout.on('data', (d) => { out += d; });
+    p.on('close', (code) => { const pid = Number(out.trim()); resolve(code === 0 && Number.isInteger(pid) && pid > 0 ? pid : null); });
+    p.on('error', () => resolve(null));
+  });
+}
+
+// A watch pane that is neither following nor running anything is a bare shell:
+// left by ctrl-c, or created by a backend that predates `watch` (it ignored the
+// field and opened plain bash under the w- name). Opening the window again must
+// show the session, so that shell is replaced. A pane with a child process —
+// claude resumed there, a build — is the user's and is left alone.
+export async function prepareWatch(id: string, watch: string): Promise<void> {
+  if (!NAME_RE.test(id) || !SESSION_UUID_RE.test(watch)) return;
+  if (terms.get(id)?.data.size) return;
+  const pid = await panePid(id);
+  if (pid === null || (await stillFollowing(id, watch))) return;
+  const kids = await readFile(`/proc/${pid}/task/${pid}/children`, 'utf8').catch(() => 'unknown');
+  if (kids.trim() !== '') return;
+  closeTerm(id);
+  await new Promise((r) => setTimeout(r, 150));
+}
+
 // The pane's own process is the `bash -c '<follower>; exec bash -l'` wrapper
 // until ctrl-c execs the login shell over it, so its cmdline still naming the
 // follower script means nobody ever took the pane over. pane_current_command

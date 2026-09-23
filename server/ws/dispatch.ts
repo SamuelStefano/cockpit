@@ -43,6 +43,7 @@ import { requestPlanUsageRefresh, planUsageFrame } from './usage-plan';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 import { buildBench } from '../bench';
 import { buildCanvas } from '../canvas/index';
+import { collectTermStats } from '../canvas/term-stats';
 import { readBoard, readBoardChained, updateBoard, sanitizeCard, sanitizePos, upsertCard, removeCard, mergePos } from '../canvas/board';
 
 const BG_RUN_MESSAGE: Record<BgRunReject, string> = {
@@ -109,6 +110,12 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const ok = await deleteGraph(msg.id);
       if (!ok) { send(ws, { t: 'error', message: 'não foi possível excluir o grafo' }); return; }
       send(ws, { t: 'graphs', items: await listGraphs() });
+      return;
+    }
+    case 'canvas-term-stats': {
+      const ids = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+      const runs = [...threads].map(([key, t]) => ({ key, sessionId: t.sessionId, pid: t.handle.pid, startedAt: t.startedAt }));
+      send(ws, { t: 'canvas-term-stats', stats: await collectTermStats(ids(msg.sessions), ids(msg.terms), runs) });
       return;
     }
     case 'canvas-get': {

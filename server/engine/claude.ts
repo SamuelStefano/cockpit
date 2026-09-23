@@ -67,6 +67,7 @@ export function validModel(m: string): boolean {
 
 export interface RunHandle {
   kill: () => void;
+  pid?: number; // root of the turn's process tree, for per-session CPU on the canvas
 }
 
 // O teto do cliente é opcional e vem do frame: sem um teto do servidor, omitir o
@@ -282,6 +283,7 @@ export function run(opts: RunOpts): RunHandle {
   });
 
   return {
+    pid: child.pid,
     kill: () => {
       killed = true;
       const signal = (sig: NodeJS.Signals) => {

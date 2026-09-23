@@ -1,4 +1,4 @@
-import { shellNodeId, type CanvasNode, type CanvasPos } from '../../../shared/canvas';
+import { shellNodeId, watchTermId, type CanvasNode, type CanvasPos } from '../../../shared/canvas';
 import { bounds } from './canvas-layout';
 
 // Terminal windows on the canvas. A session node opens a "watch" tmux pane that
@@ -15,9 +15,7 @@ const LANE_COLS = 3;
 const WATCH_PREFIX = 'w-';
 const SHELL_PREFIX = 'cv-';
 
-// tmux names are capped at 32 chars by the server allow-list, so the uuid is
-// folded to its first 24 hex digits — plenty to stay unique across sessions.
-export const watchTermId = (sessionId: string) => WATCH_PREFIX + sessionId.replace(/-/g, '').slice(0, 24);
+export { watchTermId };
 export const isWatchTerm = (termId: string) => termId.startsWith(WATCH_PREFIX);
 export const isCanvasShell = (termId: string) => termId.startsWith(SHELL_PREFIX);
 export const newShellId = (rand: number) => SHELL_PREFIX + Math.floor(rand * 36 ** 6).toString(36).padStart(6, '0');

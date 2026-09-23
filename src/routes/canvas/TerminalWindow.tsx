@@ -1,8 +1,9 @@
 import { lazy, memo, Suspense } from 'react';
-import type { CanvasNode, CanvasPos } from '../../../shared/canvas';
+import type { CanvasNode, CanvasPos, TermStats } from '../../../shared/canvas';
 import { Badge, Button, Icon } from '../../components/primitives';
 import type { TermApi } from '../../useCockpit';
 import { TERM_H, TERM_W } from './canvas-terms';
+import { TermStatsBar } from './TermStatsBar';
 import type { TermTarget } from './useCanvasTerms';
 
 const XtermView = lazy(() => import('../../components/Xterm').then((m) => ({ default: m.XtermView })));
@@ -16,6 +17,7 @@ interface Props {
   focusN: number;
   maximized: boolean;
   resuming: boolean;
+  stats?: TermStats;
   selected: boolean;
   dim: boolean;
   running: boolean;
@@ -75,6 +77,7 @@ export const TerminalWindow = memo(function TerminalWindow(p: Props) {
           <Button variant="ghost" size="sm" square icon="x" title="matar a sessão tmux" onClick={() => p.onKill(n)} />
         </span>
       </header>
+      <TermStatsBar stats={p.stats} running={p.running} session={session} />
       <div className="relative min-h-0 flex-1" data-term-active={p.active || undefined}>
         {p.maximized ? (
           <div className="flex h-full items-center justify-center font-mono text-[12px] text-neutral-600">em tela cheia</div>

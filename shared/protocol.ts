@@ -2,7 +2,7 @@
 // REGRA (squad L3): types-only — zero import de node:*/fs. O bundle do browser
 // importa este arquivo.
 
-import type { CanvasBoard, CanvasCard, CanvasGraph, CanvasPos } from './canvas';
+import type { CanvasBoard, CanvasCard, CanvasGraph, CanvasPos, TermStats } from './canvas';
 import type { DflDraft, DraftOp } from './dfl-drafts';
 
 export interface ToolDiff {
@@ -706,6 +706,7 @@ export type ClientMsg =
   | { t: 'graph-node-op'; id: string; op: 'explain' | 'affected' | 'path'; a: string; b?: string }
   | { t: 'graph-delete'; id: string }
   | { t: 'canvas-get' }
+  | { t: 'canvas-term-stats'; sessions: string[]; terms: string[] }
   | { t: 'canvas-pos'; pos: Record<string, CanvasPos> }
   | { t: 'canvas-pos-reset' }
   | { t: 'canvas-card-save'; card: CanvasCard }
@@ -852,6 +853,7 @@ export type ServerMsg =
   | { t: 'stats'; stats: SysStats }
   | { t: 'graphs'; items: GraphMeta[] }
   | { t: 'canvas-graph'; graph: CanvasGraph }
+  | { t: 'canvas-term-stats'; stats: Record<string, TermStats> }
   | { t: 'canvas-board'; board: CanvasBoard }
   | { t: 'graph-data'; id: string; graph: GraphData }
   | { t: 'graph-query-result'; id: string; question: string; answer: string; tokens: number; miss: boolean }
