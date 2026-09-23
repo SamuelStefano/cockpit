@@ -1,44 +1,33 @@
 import type { AreaBudget, AreaId, TermStats } from './canvas';
 
-// Pure aggregation + evaluation shared by the SERVER (the one authoritative
-// computation — canvas-term-stats' response and the autopause loop both call
-// this) and the client (which only EVALUATES the numbers the server sent it,
-// never recomputes its own estimate — see useCanvasRoute's budgetStatus).
-// Client and server used to each run their own approximation of "cpu of open
-// terminals", which could show a different over/under-budget verdict than the
-// one the autopause loop was actually acting on. `areaUsageFromIds` is now the
-// one place that math happens, called with whichever id sets a given context
-// has (the open ids a browser just polled with, or the running-sessions proxy
-// the loop uses when nobody's specific poll list applies — see
-// autopause-loop.ts for why the loop can't know what a browser has "open").
-//
-// ctxTokens sums the RUNNING sessions of the area (the live context window a
-// turn is paying for right now); cpu sums the OPEN sessions/terminals of the
-// area (whichever set the caller passes as `cpuIds`).
+// Pure aggregation shared by the SERVER (the one authoritative computation —
+// canvas-term-stats' reply and the autopause loop both call this over the
+// exact same id set) and the client (which only EVALUATES the number the
+// server sent it, via evaluateBudget below — never recomputes its own, see
+// useCanvasRoute's budgetStatus). Client and server used to each run their
+// own approximation ("cpu of MY open windows" vs. "cpu of every running
+// session"), which could show the user a different over/under-budget verdict
+// than the one the autopause loop was actually acting on (review #595 second
+// pass, point 4) — there is now exactly one definition: sum, over every
+// RUNNING session of the area, its cpu (claude tree + tmux pane —
+// server/canvas/term-stats.ts) and its context tokens. `sessionIds` is that
+// one running-session id set; the caller decides what "running" means
+// (server/ws/threads.ts's `threads`, both call sites).
 export interface AreaUsage { cpu: number; ctxTokens: number }
 
 export function areaUsageFromIds(
-  areaOf: ReadonlyMap<string, AreaId>, cpuIds: Iterable<string>, runningIds: ReadonlySet<string>, stats: Record<string, TermStats>,
+  areaOf: ReadonlyMap<string, AreaId>, sessionIds: Iterable<string>, stats: Record<string, TermStats>,
 ): Partial<Record<AreaId, AreaUsage>> {
   const out: Partial<Record<AreaId, AreaUsage>> = {};
-  const bump = (area: AreaId, cpu: number, ctxTokens: number) => {
-    const cur = out[area] ?? { cpu: 0, ctxTokens: 0 };
-    out[area] = { cpu: cur.cpu + cpu, ctxTokens: cur.ctxTokens + ctxTokens };
-  };
   const seen = new Set<string>();
-  for (const id of cpuIds) {
-    if (seen.has(id)) continue; // a caller's open-ids list is not guaranteed deduped
+  for (const id of sessionIds) {
+    if (seen.has(id)) continue; // a caller's id list is not guaranteed deduped
     seen.add(id);
     const area = areaOf.get(id);
     const s = stats[id];
     if (!area || !s) continue;
-    bump(area, s.cpu, 0);
-  }
-  for (const id of runningIds) {
-    const area = areaOf.get(id);
-    const s = stats[id];
-    if (!area || !s || !s.contextTokens) continue;
-    bump(area, 0, s.contextTokens);
+    const cur = out[area] ?? { cpu: 0, ctxTokens: 0 };
+    out[area] = { cpu: cur.cpu + s.cpu, ctxTokens: cur.ctxTokens + (s.contextTokens ?? 0) };
   }
   return out;
 }

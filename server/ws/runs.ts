@@ -246,7 +246,7 @@ export function drainParked(): void {
     // DESACOMPANHADO ali — senão o item sobe, autopause para de novo em ~30s, e o
     // dreno tenta de novo no próximo tick (stop→drain→stop). O chat manual do
     // usuário não passa por drainParked, só a fila estacionada.
-    if (isAreaAdmissionBlocked(first.resumeId)) {
+    if (isAreaAdmissionBlocked(first.resumeId, sessionKey)) {
       console.log(`[canvas-autopause] pulando dreno de ${sessionKey}: área sob orçamento estourado`);
       continue;
     }
@@ -918,13 +918,17 @@ async function runQuickAnswer(sessionKey: string, prompt: string, epoch: number,
 // independente. O stream vai por broadcast pra qualquer cliente conectado.
 export function fireCron(cron: Cron): void {
   if (!cron || typeof cron.prompt !== 'string' || !cron.prompt.trim()) return;
-  // Mesmo gate de admissão do drainParked. Hoje um cron não carrega resumeId (cada
-  // disparo é turno novo), então isAreaAdmissionBlocked(undefined) nunca bloqueia de
-  // verdade — mantido por consistência e pra valer sozinho se um cron ganhar um alvo.
-  if (isAreaAdmissionBlocked(undefined)) return;
+  // Mesmo gate de admissão do drainParked. Um cron não carrega resumeId (cada
+  // disparo é turno novo), então a sessão desta chamada em si nunca é
+  // classificável de antemão — a chave estável `cron-<id>` é o segundo sinal
+  // que isAreaAdmissionBlocked aceita: a área da ÚLTIMA sessão real que este
+  // MESMO cron produziu (canvas/autopause-loop.ts's lastAreaOfKey), que fica
+  // valendo até o cron rodar de novo e (talvez) mudar de área.
+  const cronKey = `cron-${cron.id}`;
+  if (isAreaAdmissionBlocked(undefined, cronKey)) return;
   startRun({
     ws: null,
-    sessionKey: `cron-${cron.id}`,
+    sessionKey: cronKey,
     prompt: cron.prompt,
     msgId: `cron-${Date.now().toString(36)}`,
     mode: cron.mode,

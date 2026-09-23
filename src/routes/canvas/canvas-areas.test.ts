@@ -19,6 +19,22 @@ describe('computeAreaRects', () => {
     expect(rect.y + rect.h).toBeGreaterThan(100 + NODE_H);
   });
 
+  // Regression (review #595 second pass, point 3): trimmedExtent used to skip
+  // sorting below the trim threshold and pick straight off `values`, which
+  // `pick` (s[0]/s[length-1]) assumes is ascending. With the members inserted
+  // in DESCENDING x order (the rightmost node first), the untrimmed pick
+  // could put the "left" edge to the right of the "right" edge — a negative
+  // width.
+  it('never yields a negative width/height for 2 members inserted in descending order', () => {
+    const nodes = [n('c:right', 'context', 'dfl'), n('c:left', 'context', 'dfl')];
+    const pos = { 'c:right': { x: 500, y: 500 }, 'c:left': { x: 0, y: 0 } };
+    const [rect] = computeAreaRects(nodes, pos, new Set(), new Set());
+    expect(rect.w).toBeGreaterThan(0);
+    expect(rect.h).toBeGreaterThan(0);
+    expect(rect.x).toBeLessThanOrEqual(0);
+    expect(rect.x + rect.w).toBeGreaterThanOrEqual(500 + NODE_W);
+  });
+
   it('keeps two areas as two separate rects', () => {
     const nodes = [n('c:a', 'context', 'dfl'), n('c:b', 'context', 'deck')];
     const pos = { 'c:a': { x: 0, y: 0 }, 'c:b': { x: 1000, y: 1000 } };

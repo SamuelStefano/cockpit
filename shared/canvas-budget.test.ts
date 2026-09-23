@@ -6,37 +6,41 @@ const stat = (extra: Partial<TermStats> = {}): TermStats => ({ cpu: 0, rssMb: 0,
 const areaMap = (entries: [string, AreaId][]) => new Map(entries);
 
 describe('areaUsageFromIds', () => {
-  it('sums cpu only for the cpuIds set and ctxTokens only for the runningIds set', () => {
+  it('sums cpu AND ctxTokens for every id in the one sessionIds set', () => {
     const areaOf = areaMap([['a', 'dfl'], ['b', 'dfl']]);
     const stats = { a: stat({ cpu: 30, contextTokens: 1000 }), b: stat({ cpu: 20, contextTokens: 2000 }) };
-    // 'a' is in cpuIds but not runningIds; 'b' is the reverse.
-    const usage = areaUsageFromIds(areaOf, ['a'], new Set(['b']), stats);
-    expect(usage.dfl).toEqual({ cpu: 30, ctxTokens: 2000 });
+    const usage = areaUsageFromIds(areaOf, ['a', 'b'], stats);
+    expect(usage.dfl).toEqual({ cpu: 50, ctxTokens: 3000 });
   });
 
   it('keeps areas separate', () => {
     const areaOf = areaMap([['a', 'dfl'], ['b', 'deck']]);
     const stats = { a: stat({ cpu: 10, contextTokens: 100 }), b: stat({ cpu: 5, contextTokens: 50 }) };
-    const usage = areaUsageFromIds(areaOf, ['a', 'b'], new Set(['a', 'b']), stats);
+    const usage = areaUsageFromIds(areaOf, ['a', 'b'], stats);
     expect(usage).toEqual({ dfl: { cpu: 10, ctxTokens: 100 }, deck: { cpu: 5, ctxTokens: 50 } });
   });
 
-  it('ignores an id with no known area, no stats, or nothing to count', () => {
+  it('ignores an id with no known area or no stats', () => {
     const areaOf = areaMap([['b', 'dfl']]);
-    expect(areaUsageFromIds(areaOf, [], new Set(), { a: stat(), b: stat() })).toEqual({});
+    expect(areaUsageFromIds(areaOf, [], { a: stat(), b: stat() })).toEqual({});
   });
 
-  it('never double-counts a cpuIds entry repeated by a sloppy caller', () => {
-    const areaOf = areaMap([['a', 'dfl']]);
-    const usage = areaUsageFromIds(areaOf, ['a', 'a', 'a'], new Set(), { a: stat({ cpu: 10 }) });
+  it('an id not in sessionIds is excluded even if it has stats and a known area', () => {
+    const areaOf = areaMap([['a', 'dfl'], ['b', 'dfl']]);
+    const usage = areaUsageFromIds(areaOf, ['a'], { a: stat({ cpu: 10 }), b: stat({ cpu: 999 }) });
     expect(usage.dfl?.cpu).toBe(10);
   });
 
-  it('the SAME id set as both cpuIds and runningIds sums both metrics for it (the autopause-loop proxy)', () => {
+  it('never double-counts an id repeated by a sloppy caller', () => {
     const areaOf = areaMap([['a', 'dfl']]);
-    const ids = ['a'];
-    const usage = areaUsageFromIds(areaOf, ids, new Set(ids), { a: stat({ cpu: 40, contextTokens: 5000 }) });
-    expect(usage.dfl).toEqual({ cpu: 40, ctxTokens: 5000 });
+    const usage = areaUsageFromIds(areaOf, ['a', 'a', 'a'], { a: stat({ cpu: 10 }) });
+    expect(usage.dfl?.cpu).toBe(10);
+  });
+
+  it('a session with no contextTokens field contributes cpu but 0 ctx', () => {
+    const areaOf = areaMap([['a', 'dfl']]);
+    const usage = areaUsageFromIds(areaOf, ['a'], { a: stat({ cpu: 10 }) });
+    expect(usage.dfl).toEqual({ cpu: 10, ctxTokens: 0 });
   });
 });
 

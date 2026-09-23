@@ -7,15 +7,23 @@ import { buildCanvas } from './index';
 import { collectTermStats, newCpuSamples, type RunPids } from './term-stats';
 import { decideAutoPause, emptyAutoPauseMemory, isUnattendedRun, type AutoPauseMemory, type StopCandidate } from './autopause';
 
-// The budgets popover measures "open terminals" for cpu, but a window being
-// open is client-only UI state the server never sees outside of a specific
-// canvas-term-stats REQUEST (which carries the caller's own open-ids list —
-// see dispatch.ts). The loop has no such request to piggyback on, so every
-// RUNNING session's cpu is used as the proxy instead — a session with an
-// open-but-idle window contributes ~0 either way, and autopause only ever
-// acts on a session that IS running, so the two can't disagree on a case that
-// would produce a stop. shared/canvas-budget.ts's areaUsageFromIds is the same
-// function the canvas-term-stats reply uses, just with cpuIds=runningIds here.
+// cpu and ctxTokens are BOTH summed over every RUNNING session of the area
+// (claude tree + tmux pane CPU — server/canvas/term-stats.ts), full stop —
+// there is no separate "open terminals" notion anymore. shared/canvas-
+// budget.ts's areaUsageFromIds is the ONE function that does this math, and
+// both this loop and the canvas-term-stats dispatch reply call it with the
+// same running-session id set, so the number a tab displays can never
+// disagree with the number this loop is actually enforcing against (review
+// #595 second pass, point 4 — display and enforcement used to read different
+// id sets and could show a different over/under-budget verdict).
+//
+// This loop only runs in the AGENT process (server/agent.ts calls
+// startAutoPauseLoop; server/ws.ts deliberately does not — same reasoning as
+// startParkedDrainer, see agent.ts's comment). A turn started against the
+// plain index.ts backend (no agent/relay running) is still shown accurately
+// — canvas-term-stats/canvas-area-usage answer from whichever process
+// handles the socket — but it is NEVER stopped: there is no enforcement loop
+// there. autoPause is inert, not broken, on an index-only deployment.
 const TICK_MS = 10_000;
 const SESSION_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -40,6 +48,15 @@ let areaCacheAt = 0;
 // runs.ts's drainParked/fireCron to gate ADMISSION of new unattended work
 // instead of racing autopause's own stop→drain→stop loop.
 let blockedAreas = new Set<AreaId>();
+// A cron (or any sessionKey with no resumeId to classify directly — fireCron
+// never has one, a first-ever parked item might not either) has no session of
+// its own to look up UNTIL it has run at least once. Best-effort memory: the
+// last area we saw THIS KEY's real session classified as, refreshed every
+// tick from the live `runs()` snapshot. Resolves review #595 second pass
+// point 2's "fireCron's gate is a no-op" — a repeating cron that keeps
+// landing in the same area gets a real, if lagging, classification instead of
+// never being gateable at all.
+let lastAreaOfKey = new Map<string, AreaId>();
 
 export function updateAreaCacheFromGraph(graph: CanvasGraph): void {
   const next = new Map<string, AreaCacheEntry>();
@@ -55,12 +72,16 @@ async function ensureAreaCache(build: () => Promise<CanvasGraph>): Promise<Map<s
 }
 
 // Sync + cheap on purpose: called from the hot path of every parked-queue
-// drain / cron fire, never triggers a rebuild. Unknown session (not yet in the
-// cache, or a cron with no resumeId to classify at all) fails OPEN — admitted.
-export function isAreaAdmissionBlocked(sessionId: string | undefined): boolean {
-  if (!sessionId) return false;
-  const entry = areaCache.get(sessionId);
-  return !!entry && blockedAreas.has(entry.area);
+// drain / cron fire, never triggers a rebuild. `key` (the stable sessionKey —
+// `cron-<id>`, or a parked item's own sessionKey) is a fallback for when
+// `sessionId` is unknown or not yet classified: cron-<id> stays the SAME
+// across every firing (server/ws/runs.ts's fireCron), so its last known area
+// is a reasonable proxy even before this specific firing has a transcript.
+// Truly unknown (never seen before, on either signal) fails OPEN — admitted.
+export function isAreaAdmissionBlocked(sessionId: string | undefined, key?: string): boolean {
+  let area = sessionId ? areaCache.get(sessionId)?.area : undefined;
+  if (!area && key) area = lastAreaOfKey.get(key);
+  return !!area && blockedAreas.has(area);
 }
 
 // Read by the canvas-term-stats dispatch handler to compute the SAME
@@ -82,13 +103,20 @@ export function startAutoPauseLoop(): void {
 // would otherwise leak between tests (hysteresis timers, cached areas, the
 // in-flight flag if a test throws mid-tick).
 export function resetAutoPauseMemoryForTest(): void { mem = emptyAutoPauseMemory(); }
-export function resetAreaCacheForTest(): void { areaCache = new Map(); areaCacheAt = 0; blockedAreas = new Set(); }
+export function resetAreaCacheForTest(): void {
+  areaCache = new Map(); areaCacheAt = 0; blockedAreas = new Set(); lastAreaOfKey = new Map();
+}
 export function resetTickInFlightForTest(): void { tickInFlight = false; }
 
 export interface AutoPauseRun extends RunPids {
   prompt: string;
-  hasWs: boolean;
+  // Drained by the passive parked-queue drainer AND not forced via "run now"/
+  // "run in background" — review #595 second pass point 1: a forced item is
+  // an explicit user action, not unattended, even though it also runs with
+  // ws:null. server/ws/threads.ts's Thread.parkedForced distinguishes them;
+  // the caller (tick(), below) does the `parked && !parkedForced` fold.
   parked: boolean;
+  flowHop?: number; // Thread.flowHop — set when a canvas flow delivered this turn
 }
 
 export interface AutoPauseTickDeps {
@@ -144,9 +172,13 @@ async function runTick(deps: AutoPauseTickDeps): Promise<void> {
   const areaMap = await ensureAreaCache(deps.buildCanvas);
   const areaOf = new Map<string, AreaId>();
   for (const [sid, entry] of areaMap) areaOf.set(sid, entry.area);
+  // Refresh the key->area proxy (fireCron/drainParked's fallback) from every
+  // run this tick can actually classify — a repeating cron keeps its last
+  // known area even on ticks where its current firing has no transcript yet.
+  for (const r of runs) { if (r.sessionId) { const a = areaOf.get(r.sessionId); if (a) lastAreaOfKey.set(r.key, a); } }
 
   const stats = await deps.collectTermStats(sessionIds, [], runs, loopSamples);
-  const usage = areaUsageFromIds(areaOf, sessionIds, new Set(sessionIds), stats);
+  const usage = areaUsageFromIds(areaOf, sessionIds, stats);
 
   const overAreas = new Set<AreaId>();
   const overKind = new Map<AreaId, 'cpu' | 'ctx'>();
@@ -191,7 +223,7 @@ function tick(): void {
     collectTermStats,
     runs: () => [...threads].map(([key, t]) => ({
       key, sessionId: t.sessionId, pid: t.handle.pid, startedAt: t.startedAt,
-      prompt: t.prompt, hasWs: !!t.hasWs, parked: !!t.parked,
+      prompt: t.prompt, parked: !!t.parked && !t.parkedForced, flowHop: t.flowHop,
     })),
     stop: stopSessionForBudget,
     notify: (area, sessionId, sessionTitle, reason) => {

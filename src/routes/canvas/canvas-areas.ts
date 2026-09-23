@@ -29,8 +29,14 @@ const TRIM_FRACTION = 0.1;
 // true percentile — cheap, deterministic, and good enough for a decorative
 // bounding box.
 function trimmedExtent(values: number[], pick: (sorted: number[]) => number): number {
-  if (values.length < TRIM_MIN_MEMBERS) return pick(values);
+  // Sort FIRST, unconditionally — `pick` (s[0] / s[length-1]) assumes an
+  // ascending array. Picking straight off the untrimmed `values` below the
+  // threshold used to skip the sort entirely, so `pick` read an arbitrary
+  // (insertion-order) element instead of the true min/max — for 2-4 members
+  // that could put a "left" edge to the right of the "right" edge and yield a
+  // negative width (review #595 second pass, point 3).
   const sorted = [...values].sort((a, b) => a - b);
+  if (sorted.length < TRIM_MIN_MEMBERS) return pick(sorted);
   // At least 1 once trimming applies at all — 10% of a realistic area (5-30
   // members) would otherwise round down to 0 and never actually trim anything.
   const cut = Math.max(1, Math.floor(sorted.length * TRIM_FRACTION));

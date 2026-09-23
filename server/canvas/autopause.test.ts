@@ -1,12 +1,23 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { mkdtempSync } from 'node:fs';
+import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import {
-  decideAutoPause, emptyAutoPauseMemory, isUnattendedRun, MIN_STOP_GAP_MS, MIN_TURN_AGE_MS, OVER_HYSTERESIS_MS,
-  type RunOrigin, type StopCandidate,
-} from './autopause';
-import { setMarathon, __resetMarathonCache } from '../ws/marathon';
+import type { RunOrigin, StopCandidate } from './autopause';
+
+// server/ws/marathon.ts freezes its store path in a module-level const the
+// FIRST time it's imported — a later `process.env.COCKPIT_MARATHON =`
+// reassignment (e.g. inside beforeEach) has no effect on an already-loaded
+// module. A static `import` is hoisted above everything else in this file, so
+// the env var has to be set, and the module imported dynamically, in that
+// order — same pattern server/ws/marathon.test.ts already relies on. Getting
+// this wrong doesn't just break isolation BETWEEN this file's own tests, it
+// also writes 's1'/'real-uuid' into the box's REAL ~/.cockpit/marathon.json.
+const marathonDir = mkdtempSync(join(tmpdir(), 'autopause-marathon-'));
+process.env.COCKPIT_MARATHON = join(marathonDir, 'marathon.json');
+afterAll(() => rmSync(marathonDir, { recursive: true, force: true }));
+
+const { decideAutoPause, emptyAutoPauseMemory, isUnattendedRun, MIN_STOP_GAP_MS, MIN_TURN_AGE_MS, OVER_HYSTERESIS_MS } = await import('./autopause');
+const { setMarathon, marathonKeys, __resetMarathonCache } = await import('../ws/marathon');
 
 const T0 = 1_000_000;
 const cand = (id: string, area: 'dfl' | 'deck', startedAt: number, weight = 1): StopCandidate => ({ sessionId: id, area, startedAt, weight });
@@ -94,39 +105,63 @@ describe('decideAutoPause', () => {
 
 describe('isUnattendedRun', () => {
   beforeEach(() => {
-    process.env.COCKPIT_MARATHON = join(mkdtempSync(join(tmpdir(), 'autopause-')), 'marathon.json');
+    for (const k of marathonKeys()) setMarathon(k, false);
     __resetMarathonCache();
   });
 
-  const run = (over: Partial<RunOrigin> = {}): RunOrigin => ({ key: 's1', sessionId: 's1', prompt: 'oi', hasWs: true, parked: false, ...over });
+  const run = (over: Partial<RunOrigin> = {}): RunOrigin => ({ key: 's1', sessionId: 's1', prompt: 'oi', parked: false, ...over });
 
   it('the user\'s own attended chat is NEVER a candidate', () => {
     expect(isUnattendedRun(run())).toBe(false);
   });
 
   it('a cron-keyed run is unattended', () => {
-    expect(isUnattendedRun(run({ key: 'cron-abc', hasWs: false }))).toBe(true);
+    expect(isUnattendedRun(run({ key: 'cron-abc' }))).toBe(true);
   });
 
-  it('a marathon-marked session is unattended even with a socket attached', () => {
+  it('a marathon-marked session is unattended', () => {
     setMarathon('s1', true);
-    expect(isUnattendedRun(run({ hasWs: true }))).toBe(true);
+    expect(isUnattendedRun(run())).toBe(true);
   });
 
-  it('a run drained from the parked queue is unattended', () => {
-    expect(isUnattendedRun(run({ parked: true, hasWs: false }))).toBe(true);
+  it('a run drained from the parked queue (passively) is unattended', () => {
+    expect(isUnattendedRun(run({ parked: true }))).toBe(true);
   });
 
-  it('a flow-marked prompt is unattended (forward-compat with PR #592)', () => {
-    expect(isUnattendedRun(run({ prompt: 'faz isso [deck-flow:abc-1]', hasWs: false }))).toBe(true);
+  it('a flow-marked prompt is unattended', () => {
+    expect(isUnattendedRun(run({ prompt: 'faz isso [deck-flow:abc-1:2]' }))).toBe(true);
   });
 
-  it('any run with no live socket is unattended, even without another marker', () => {
-    expect(isUnattendedRun(run({ hasWs: false }))).toBe(true);
+  it('Thread.flowHop alone (no marker on the prompt — a crash-resume rewrote it) is unattended', () => {
+    expect(isUnattendedRun(run({ prompt: 'Continue exatamente de onde parou', flowHop: 2 }))).toBe(true);
+  });
+
+  it('flowHop 0 still counts (a real flow-delivered first hop, not "no flow")', () => {
+    expect(isUnattendedRun(run({ flowHop: 0 }))).toBe(true);
   });
 
   it('a marathon flag on the resolved sessionId (not just the key) still counts', () => {
     setMarathon('real-uuid', true);
-    expect(isUnattendedRun(run({ key: 'new-xyz', sessionId: 'real-uuid', hasWs: true }))).toBe(true);
+    expect(isUnattendedRun(run({ key: 'new-xyz', sessionId: 'real-uuid' }))).toBe(true);
+  });
+
+  // Review #595 second pass, point 1: these three used to be wrongly caught by
+  // the old "no live socket" criterion. All three run with ws:null (a resume/
+  // run-now has no browser attached to the spawn call), but every one is an
+  // explicit, ATTENDED user action — none may ever be autopause-stopped.
+  it('a resume-offer click ("retomar") is NOT stoppable — plain resume, no cron/marathon/parked/flow marker', () => {
+    // acceptResumeOffer/autoResume/resumeOrphanRuns all start the SAME shape:
+    // ws:null, RESUME_PROMPT, no flowHop, not parked, not a cron/marathon key.
+    expect(isUnattendedRun(run({ prompt: 'O turno anterior foi interrompido por uma falha do processo. Continue exatamente de onde parou, sem repetir o trabalho já feito.' }))).toBe(false);
+  });
+
+  it('"run now" (queue-force) forcing a parked item out of the queue is NOT stoppable', () => {
+    // runParkedNow sets Thread.parked AND Thread.parkedForced — the wiring in
+    // autopause-loop.ts's tick() folds that into `parked: false` for this check.
+    expect(isUnattendedRun(run({ parked: false }))).toBe(false);
+  });
+
+  it('"run in background" is likewise not stoppable (same forced-parked shape)', () => {
+    expect(isUnattendedRun(run({ key: 'fork-uuid', sessionId: 'fork-uuid', parked: false }))).toBe(false);
   });
 });

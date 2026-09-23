@@ -12,6 +12,7 @@ import type { TurnClosed } from './turn-hooks';
 const {
   mockThreads, admit, startRunMock, isDrainerEnabledMock, resolveThreadKeyMock, addParkedMock, enqueuePendingMock,
   resumableIdMock, broadcastMock, emitCanvasMsgMock, listContextsMock, listSessionsMock, listArchivedMock, cardIdFromRefsCacheMock,
+  isAreaAdmissionBlockedMock,
 } = vi.hoisted(() => {
   const mockThreads = new Map<string, { sessionId?: string }>();
   const admit = { next: true }; // controls whether the mocked startRun "admits" (threads.set) or refuses
@@ -29,6 +30,7 @@ const {
     listSessionsMock: vi.fn(async () => [] as { id: string; title: string; snippet: string; mtime: number }[]),
     listArchivedMock: vi.fn(async () => [] as { id: string; title: string; snippet: string; mtime: number }[]),
     cardIdFromRefsCacheMock: vi.fn(async (_id: string) => undefined as string | undefined),
+    isAreaAdmissionBlockedMock: vi.fn(() => false),
   };
 });
 
@@ -51,6 +53,7 @@ vi.mock('./index', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./index')>()),
   cardIdFromRefsCache: (id: string) => cardIdFromRefsCacheMock(id),
 }));
+vi.mock('./autopause-loop', () => ({ isAreaAdmissionBlocked: (...a: unknown[]) => isAreaAdmissionBlockedMock(...(a as [])) }));
 
 import { __resetCardSessions, bindCardSession, cardIdForSession } from './card-sessions';
 import { sanitizeCard, sanitizeFlow, updateBoard, upsertCard, upsertFlow } from './board';
@@ -77,11 +80,12 @@ beforeEach(() => {
   admit.next = true;
   __resetCardSessions();
   __resetFlowRuns();
-  for (const m of [startRunMock, isDrainerEnabledMock, resolveThreadKeyMock, addParkedMock, enqueuePendingMock, resumableIdMock, broadcastMock, emitCanvasMsgMock, listContextsMock, listSessionsMock, listArchivedMock, cardIdFromRefsCacheMock]) m.mockClear();
+  for (const m of [startRunMock, isDrainerEnabledMock, resolveThreadKeyMock, addParkedMock, enqueuePendingMock, resumableIdMock, broadcastMock, emitCanvasMsgMock, listContextsMock, listSessionsMock, listArchivedMock, cardIdFromRefsCacheMock, isAreaAdmissionBlockedMock]) m.mockClear();
   isDrainerEnabledMock.mockReturnValue(false);
   resumableIdMock.mockImplementation((id?: string) => id);
   addParkedMock.mockReturnValue({ id: 'pk-1' });
   enqueuePendingMock.mockReturnValue(true);
+  isAreaAdmissionBlockedMock.mockReturnValue(false);
 });
 
 // --- pure functions -----------------------------------------------------------
@@ -237,12 +241,52 @@ describe('deliverToSession', () => {
     expect(enqueuePendingMock).toHaveBeenCalled();
     expect(addParkedMock).not.toHaveBeenCalled();
   });
+
+  // Review #595 second pass, point 2: a blocked area must refuse a NEW
+  // unattended turn (fireFlow's caller then arms the backoff, same as any
+  // other failed delivery), but must NOT block queueing behind a session
+  // that's already live — that's attended, same as a user reply.
+  it('area admission blocked: refuses to start a NEW turn', async () => {
+    resolveThreadKeyMock.mockReturnValue(undefined);
+    isAreaAdmissionBlockedMock.mockReturnValue(true);
+    await expect(deliverToSession('sess-1', 'prompt', {}, flow(), 1)).resolves.toBe(false);
+    expect(startRunMock).not.toHaveBeenCalled();
+  });
+
+  it('area admission blocked does NOT stop queueing behind an already-live session', async () => {
+    mockThreads.set('sess-1', {});
+    resolveThreadKeyMock.mockReturnValue('sess-1');
+    isAreaAdmissionBlockedMock.mockReturnValue(true);
+    await expect(deliverToSession('sess-1', 'prompt', {}, flow(), 1)).resolves.toBe(true);
+    expect(enqueuePendingMock).toHaveBeenCalled();
+  });
 });
 
 describe('deliverToCard', () => {
   it('returns delivered: false for an unknown card, without starting a run', async () => {
     await expect(deliverToCard('nope', flow(), 'result', 1, {})).resolves.toEqual({ delivered: false });
     expect(startRunMock).not.toHaveBeenCalled();
+  });
+
+  it('area admission blocked (a bound session sits in a blocked area): refuses without starting a run', async () => {
+    const card = sanitizeCard({ id: 'card1', title: 'Título' }, undefined, 1)!;
+    await updateBoard((b) => upsertCard(b, card));
+    listSessionsMock.mockResolvedValue([{ id: 'bound-sess', title: 't', snippet: 's', mtime: 1 }]);
+    const boundCard = { ...card, sessionIds: ['bound-sess'] };
+    await updateBoard((b) => upsertCard(b, boundCard));
+    isAreaAdmissionBlockedMock.mockReturnValue(true);
+    const r = await deliverToCard('card1', flow(), 'result', 1, {});
+    expect(r).toEqual({ delivered: false });
+    expect(startRunMock).not.toHaveBeenCalled();
+    expect(isAreaAdmissionBlockedMock).toHaveBeenCalledWith('bound-sess');
+  });
+
+  it('a card with no bound session is never blocked (nothing to check against)', async () => {
+    const card = sanitizeCard({ id: 'card1', title: 'Título' }, undefined, 1)!;
+    await updateBoard((b) => upsertCard(b, card));
+    isAreaAdmissionBlockedMock.mockReturnValue(true); // some OTHER area is blocked; irrelevant here
+    const r = await deliverToCard('card1', flow(), 'result', 1, {});
+    expect(r.delivered).toBe(true);
   });
 
   it('starts a NEW session under a `new-<uuid>` key (client-migratable), with the result folded into the template and the card marker present, marks the card doing, and returns the runKey', async () => {

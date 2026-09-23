@@ -1,4 +1,4 @@
-import type { AreaId } from '../../shared/canvas';
+import { FLOW_MARKER_RE, type AreaId } from '../../shared/canvas';
 import { threadIsMarathon } from '../ws/marathon';
 
 // Pure decision: given which areas are currently over their budget and who
@@ -25,32 +25,38 @@ export interface StopCandidate {
   weight: number; // whichever metric put the area over (cpu or ctxTokens) — higher stops first
 }
 
-// Marks a turn started by server/canvas/flows.ts (PR #592, orchestrator flows —
-// not merged into this branch yet). Kept local rather than in shared/canvas.ts:
-// verify this literally matches flows.ts's own marker at rebase time, the same
-// way CARD_MARKER_RE in shared/canvas.ts anchors card-launched turns. A no-op
-// (never matches) until that PR lands.
-const FLOW_MARKER_RE = /\[deck-flow:[a-z0-9-]{1,40}\]/;
-
 export interface RunOrigin {
   key: string;          // sessionKey the thread is stored under (threads.ts)
   sessionId?: string;
   prompt: string;
-  hasWs: boolean;        // a live client socket started this run (StartRunOptions.ws)
-  parked: boolean;       // this run is currently draining a parked-queue item (thread.parked)
+  // Drained by the passive parked-queue drainer and NOT forced via "run now"/
+  // "run in background" (server/ws/threads.ts's Thread.parkedForced) — those
+  // are explicit user clicks, not the drainer picking something unattended.
+  parked: boolean;
+  flowHop?: number;      // Thread.flowHop — set (even 0) when a canvas flow delivered this turn
 }
 
-// The ONLY turns autopause may ever stop: nobody is watching them live. The
-// user's own chat — typed by hand, in a tab that's open right now — is NEVER a
-// candidate, no matter how over budget its area is; over-budget there is a
-// warning (red chip + toast), never an automatic kill. This mirrors the same
-// "unattended" concept runs.ts already uses to skip a post-turn summary call.
+// The ONLY turns autopause may ever stop: nobody is watching them live.
+// Deliberately NOT based on "does this run have a live websocket" — ws:null
+// also covers a resume offer the user just clicked ("retomar"), an
+// auto/orphan resume of the user's own chat, and "run now" forcing an item
+// out of the queue: all of those are explicit, attended actions that just
+// happen to run through a code path with no socket attached (review #595
+// second pass, point 1 — the earlier hasWs-based check wrongly caught all
+// three). What actually means "nobody is watching" is one of: a scheduled
+// cron, a marathon (explicitly unattended by design), a turn a canvas flow
+// chained on its own (FLOW_MARKER_RE on the prompt, or Thread.flowHop set —
+// the marker survives on `prompt` but a crash-resume rewrites the prompt to
+// RESUME_PROMPT, which is why flowHop exists as a second signal), or an item
+// the PASSIVE drainer picked up by itself. The user's own chat — typed by
+// hand, in a tab open right now — is never a candidate; over budget there is
+// a warning (red chip + toast), never an automatic kill.
 export function isUnattendedRun(run: RunOrigin): boolean {
   return run.key.startsWith('cron-')
     || threadIsMarathon(run.key, run.sessionId)
     || run.parked
-    || FLOW_MARKER_RE.test(run.prompt)
-    || !run.hasWs;
+    || run.flowHop !== undefined
+    || FLOW_MARKER_RE.test(run.prompt);
 }
 
 export interface AutoPauseMemory {
