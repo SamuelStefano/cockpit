@@ -36,6 +36,10 @@ export const KanbanCard = memo(function KanbanCard({ card, run, sessions, sessio
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[10px] text-neutral-500">
         {card.kind === 'content' && card.format && <Badge>{FORMAT_LABEL[card.format]}</Badge>}
+        {/* dfl.error stays visible even while `pending` retries in the
+            background — that's the "sync pendente" badge the card carries
+            until the next successful push (server/canvas/dfl-status-sync.ts). */}
+        {card.dfl && <Badge tone={card.dfl.error ? 'red' : 'orange'} title={card.dfl.error ?? 'vinculado a uma task DFL'}>DFL{card.dfl.error ? ' ⚠' : ''}</Badge>}
         {card.contextIds.length > 0 && <span>{card.contextIds.length} ctx</span>}
         {sessions.length > 0 && (
           <button type="button" className="text-orange-300 hover:underline" onClick={(e) => { e.stopPropagation(); onOpenSession(sessions[sessions.length - 1]); }}>

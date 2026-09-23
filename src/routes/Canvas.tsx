@@ -19,6 +19,7 @@ import { FlowEditor } from './canvas/FlowEditor';
 import { Kanban } from './canvas/Kanban';
 import { KanbanDock } from './canvas/KanbanDock';
 import { CanvasAnalysis } from './canvas/CanvasAnalysis';
+import { useDflPontos } from './pontos/useDflPontos';
 import { useCardTerminalAutoOpen } from './canvas/useCardTerminalAutoOpen';
 import { useTermStatsPoll } from './canvas/useTermStatsPoll';
 import { useTimeline } from './canvas/useTimeline';
@@ -30,6 +31,9 @@ import { termTarget, useCanvasTerms } from './canvas/useCanvasTerms';
 export function Canvas(p: CanvasRouteProps) {
   const terms = useCanvasTerms(p.term, p.discoveredTerms, p.listTerms);
   const r = useCanvasRoute(p, terms.open, terms.shells);
+  // Fetches the DFL snapshot CardEditor's link picker needs; the server push
+  // (dfl-points-watch.ts) keeps it fresh afterwards, same as /pontos.
+  useDflPontos({ connected: p.connected, onDflGet: p.onDflGet });
   const [center, setCenter] = useState<{ id: string; n: number } | null>(null);
   const [dockOpen, setDockOpen] = usePersisted('canvas.kanbanOpen', false);
   // Depending on `r` (a fresh object every render) would recreate focusNode —
@@ -236,6 +240,8 @@ export function Canvas(p: CanvasRouteProps) {
           sessions={r.merged.nodes.filter((n) => n.kind === 'session')} edges={r.merged.edges}
           running={p.running} termStats={p.termStats} onCtxStats={p.onCanvasCtxStats}
           onSave={r.saveCard} onRun={r.runCard} onDelete={r.deleteCard} onClose={() => r.setDraft(null)}
+          dflSnapshot={p.dflSnapshot} onDflTaskLink={p.onDflTaskLink}
+          onDflTaskCreateLink={p.onDflTaskCreateLink} onDflTaskUnlink={p.onDflTaskUnlink}
         />
       )}
       {flowEdit && (
