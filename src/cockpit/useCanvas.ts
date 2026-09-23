@@ -75,7 +75,17 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
 
   const onMsg = useCallback((msg: ServerMsg) => {
     if (msg.t === 'canvas-term-stats') { setTermStats(msg.stats); return true; }
-    if (msg.t === 'canvas-flow-fired') { setFlowFired((f) => ({ ...f, [msg.flowId]: msg.at })); return true; }
+    if (msg.t === 'canvas-flow-fired') {
+      setFlowFired((f) => ({ ...f, [msg.flowId]: msg.at }));
+      // Server only ever sends this minimal event (never the whole board —
+      // every other card's prompt and flow's template would fan out to every
+      // socket for nothing); patch just this flow's own counters locally.
+      setBoard((b) => ({
+        ...b,
+        flows: b.flows.map((f) => (f.id === msg.flowId ? { ...f, fires: msg.fires, lastFiredAt: msg.at } : f)),
+      }));
+      return true;
+    }
     if (msg.t === 'canvas-graph') { setGraph(msg.graph); setStale(false); settle(); return true; }
     if (msg.t === 'canvas-board') {
       if (ackTimerRef.current) { clearTimeout(ackTimerRef.current); ackTimerRef.current = null; }
@@ -104,7 +114,10 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
         // Flows have no updatedAt (fires/lastFiredAt are server-bumped, not
         // client-edited), so — same as pos — a write in flight simply wins
         // over whatever this frame carries for that id.
-        let flows = msg.board.flows;
+        // `?? []`: a server from before this feature shipped answers
+        // canvas-board with no `flows` key at all (same defense readBoard
+        // already has server-side for a pre-flows file on disk).
+        let flows = msg.board.flows ?? [];
         const prevFlowById = new Map(prev.flows.map((f) => [f.id, f]));
         flows = flows
           .map((f) => {

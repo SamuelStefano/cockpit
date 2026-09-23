@@ -187,34 +187,40 @@ describe('selectFlowsToFire', () => {
 describe('deliverToSession', () => {
   it('returns false when the target transcript is gone (resumableId undefined)', async () => {
     resumableIdMock.mockReturnValue(undefined);
-    await expect(deliverToSession('sess-1', 'prompt', {}, flow())).resolves.toBe(false);
+    await expect(deliverToSession('sess-1', 'prompt', {}, flow(), 1)).resolves.toBe(false);
     expect(startRunMock).not.toHaveBeenCalled();
   });
 
   it('not live: starts a fresh run with bypass forced false and mcps defaulted to empty, regardless of the source params', async () => {
     resolveThreadKeyMock.mockReturnValue(undefined);
-    const ok = await deliverToSession('sess-1', 'prompt', { bypass: true, mcps: ['everything'], role: 'admin', mode: 'acceptEdits' }, flow());
+    const ok = await deliverToSession('sess-1', 'prompt', { bypass: true, mcps: ['everything'], role: 'admin', mode: 'acceptEdits' }, flow(), 1);
     expect(ok).toBe(true);
     expect(startRunMock).toHaveBeenCalledWith(expect.objectContaining({ sessionKey: 'sess-1', bypass: false, mcps: [] }));
   });
 
+  it('carries the flow hop onto the new Thread (flowHop) so a later crash-resume of THIS turn does not reset the chain depth to 0', async () => {
+    resolveThreadKeyMock.mockReturnValue(undefined);
+    await deliverToSession('sess-1', 'prompt', {}, flow(), 3);
+    expect(startRunMock).toHaveBeenCalledWith(expect.objectContaining({ flowHop: 3 }));
+  });
+
   it('a flow can opt a target INTO a specific mode/mcps, but never into bypass', async () => {
     resolveThreadKeyMock.mockReturnValue(undefined);
-    await deliverToSession('sess-1', 'prompt', { bypass: true }, flow({ mode: 'acceptEdits', mcps: ['dfl-mcp'] }));
+    await deliverToSession('sess-1', 'prompt', { bypass: true }, flow({ mode: 'acceptEdits', mcps: ['dfl-mcp'] }), 1);
     expect(startRunMock).toHaveBeenCalledWith(expect.objectContaining({ mode: 'acceptEdits', mcps: ['dfl-mcp'], bypass: false }));
   });
 
   it('startRun admission refused (threads never got the key): reports failure', async () => {
     resolveThreadKeyMock.mockReturnValue(undefined);
     admit.next = false;
-    await expect(deliverToSession('sess-1', 'prompt', {}, flow())).resolves.toBe(false);
+    await expect(deliverToSession('sess-1', 'prompt', {}, flow(), 1)).resolves.toBe(false);
   });
 
   it('live in this process + drainer enabled: parks the item (addParked)', async () => {
     mockThreads.set('sess-1', {});
     resolveThreadKeyMock.mockReturnValue('sess-1');
     isDrainerEnabledMock.mockReturnValue(true);
-    await expect(deliverToSession('sess-1', 'prompt', {}, flow())).resolves.toBe(true);
+    await expect(deliverToSession('sess-1', 'prompt', {}, flow(), 1)).resolves.toBe(true);
     expect(addParkedMock).toHaveBeenCalled();
     expect(enqueuePendingMock).not.toHaveBeenCalled();
   });
@@ -223,7 +229,7 @@ describe('deliverToSession', () => {
     mockThreads.set('sess-1', {});
     resolveThreadKeyMock.mockReturnValue('sess-1');
     isDrainerEnabledMock.mockReturnValue(false);
-    await expect(deliverToSession('sess-1', 'prompt', {}, flow())).resolves.toBe(true);
+    await expect(deliverToSession('sess-1', 'prompt', {}, flow(), 1)).resolves.toBe(true);
     expect(enqueuePendingMock).toHaveBeenCalled();
     expect(addParkedMock).not.toHaveBeenCalled();
   });

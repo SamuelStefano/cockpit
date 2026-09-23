@@ -1,6 +1,6 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import type { CanvasFlow, CanvasNode, CanvasPos } from '../../../shared/canvas';
-import { NODE_H, NODE_W } from './canvas-layout';
+import { COMPACT_NODE_H, NODE_H, NODE_W } from './canvas-layout';
 import { TERM_H, TERM_W } from './canvas-terms';
 import type { PortDrag } from './useFlowPorts';
 
@@ -8,24 +8,35 @@ interface Props {
   nodes: CanvasNode[];
   pos: Record<string, CanvasPos>;
   windows: Set<string>;
+  compact: boolean;
+  zoom: number;
   flows: CanvasFlow[];
   firedAt: Record<string, number>;
   portDrag: PortDrag | null;
   onPortDown: (e: React.PointerEvent, id: string) => void;
+  onPortLostCapture: () => void;
   onFlowClick: (id: string) => void;
 }
 
 // How long an arrow keeps pulsing after its `canvas-flow-fired` broadcast.
 const PULSE_MS = 2000;
+// World-space port radius is scaled by 1/zoom so the ON-SCREEN size never
+// drops below this floor — at low zoom a fixed world radius shrinks to an
+// unclickable dot, and the drag target would vanish exactly when the map is
+// busiest (many nodes, zoomed out to see them all).
+const PORT_SCREEN_R = 7;
+const PORT_MIN_R = 4;
+const PORT_MAX_R = 12;
 
-function rect(p: CanvasPos, isWindow: boolean) {
-  return { x: p.x, y: p.y, w: isWindow ? TERM_W : NODE_W, h: isWindow ? TERM_H : NODE_H };
+function rect(p: CanvasPos, isWindow: boolean, compact: boolean) {
+  if (isWindow) return { x: p.x, y: p.y, w: TERM_W, h: TERM_H };
+  return { x: p.x, y: p.y, w: NODE_W, h: compact ? COMPACT_NODE_H : NODE_H };
 }
 
 // Output port sits on the right edge; a flow always arrives on the target's
 // left edge, so the arrow reads as one continuous left-to-right pipeline.
-const outAnchor = (p: CanvasPos, isWindow: boolean) => { const r = rect(p, isWindow); return { x: r.x + r.w, y: r.y + r.h / 2 }; };
-const inAnchor = (p: CanvasPos, isWindow: boolean) => { const r = rect(p, isWindow); return { x: r.x, y: r.y + r.h / 2 }; };
+const outAnchor = (p: CanvasPos, isWindow: boolean, compact: boolean) => { const r = rect(p, isWindow, compact); return { x: r.x + r.w, y: r.y + r.h / 2 }; };
+const inAnchor = (p: CanvasPos, isWindow: boolean, compact: boolean) => { const r = rect(p, isWindow, compact); return { x: r.x, y: r.y + r.h / 2 }; };
 
 function curve(a: { x: number; y: number }, b: { x: number; y: number }): string {
   const mx = (a.x + b.x) / 2;
@@ -43,15 +54,23 @@ function usePulseTick(active: boolean, ms = 180) {
   }, [active, ms]);
 }
 
-// Flows render on their own layer (not CanvasEdges): bold orange, an
-// arrowhead, animated dashes flowing source→target, and — unlike a plain
-// edge — they carry interactive ports (drag to draw a new flow) and open
-// FlowEditor on click.
-export const CanvasFlows = memo(function CanvasFlows({ nodes, pos, windows, flows, firedAt, portDrag, onPortDown, onFlowClick }: Props) {
+// Flows render on their own layer (not CanvasEdges), painted AFTER the node
+// cards/windows in CanvasSurface so a port never sits under a card's edge and
+// an arrow reads on top — bold orange, an arrowhead, animated dashes flowing
+// source→target, and — unlike a plain edge — interactive ports (drag to draw
+// a new flow) and a click that opens FlowEditor.
+export const CanvasFlows = memo(function CanvasFlows({
+  nodes, pos, windows, compact, zoom, flows, firedAt, portDrag, onPortDown, onPortLostCapture, onFlowClick,
+}: Props) {
   const now = Date.now();
   usePulseTick(flows.some((f) => firedAt[f.id] && now - firedAt[f.id] < PULSE_MS));
 
-  const ports = nodes.filter((n) => n.kind === 'session' || n.kind === 'card');
+  // A node hidden by the current filter (search query, scope) can still have
+  // a saved position — never draw an arrow to/from one that isn't actually
+  // on screen.
+  const visibleIds = useMemo(() => new Set(nodes.map((n) => n.id)), [nodes]);
+  const ports = useMemo(() => nodes.filter((n) => n.kind === 'session' || n.kind === 'card'), [nodes]);
+  const portR = Math.min(PORT_MAX_R, Math.max(PORT_MIN_R, PORT_SCREEN_R / zoom));
 
   return (
     <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width={1} height={1}>
@@ -62,10 +81,11 @@ export const CanvasFlows = memo(function CanvasFlows({ nodes, pos, windows, flow
       </defs>
       <style>{'@keyframes deck-flow-dash{to{stroke-dashoffset:-32px}}.deck-flow-line{animation:deck-flow-dash 0.8s linear infinite}'}</style>
       {flows.map((f) => {
+        if (!visibleIds.has(f.from) || !visibleIds.has(f.to)) return null;
         const a = pos[f.from]; const b = pos[f.to];
         if (!a || !b) return null;
-        const from = outAnchor(a, windows.has(f.from));
-        const to = inAnchor(b, windows.has(f.to));
+        const from = outAnchor(a, windows.has(f.from), compact);
+        const to = inAnchor(b, windows.has(f.to), compact);
         const fired = firedAt[f.id];
         const pulsing = !!fired && now - fired < PULSE_MS;
         const d = curve(from, to);
@@ -87,19 +107,20 @@ export const CanvasFlows = memo(function CanvasFlows({ nodes, pos, windows, flow
       })}
       {portDrag && pos[portDrag.from] && (
         <path
-          d={curve(outAnchor(pos[portDrag.from], windows.has(portDrag.from)), portDrag)}
+          d={curve(outAnchor(pos[portDrag.from], windows.has(portDrag.from), compact), portDrag)}
           fill="none" stroke="rgba(251,146,60,0.6)" strokeWidth={2} strokeDasharray="4 4"
         />
       )}
       {ports.map((n) => {
         const at = pos[n.id];
         if (!at) return null;
-        const anchor = outAnchor(at, windows.has(n.id));
+        const anchor = outAnchor(at, windows.has(n.id), compact);
         return (
           <circle
-            key={`port-${n.id}`} cx={anchor.x} cy={anchor.y} r={7}
+            key={`port-${n.id}`} cx={anchor.x} cy={anchor.y} r={portR}
             className="pointer-events-auto cursor-crosshair fill-orange-500/80 stroke-2 stroke-neutral-950 hover:fill-orange-400"
             onPointerDown={(e) => onPortDown(e, n.id)}
+            onLostPointerCapture={onPortLostCapture}
           >
             <title>arraste pra outra sessão/card pra encadear</title>
           </circle>

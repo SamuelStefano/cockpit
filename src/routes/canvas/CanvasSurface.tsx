@@ -57,7 +57,7 @@ export function CanvasSurface(p: Props) {
   // server/canvas/flows.ts has no way to deliver a prompt to.
   const nodeKindOf = useMemo(() => new Map(p.nodes.map((n) => [n.id, n.kind])), [p.nodes]);
   const canDropFlow = useCallback((id: string) => nodeKindOf.get(id) === 'session' || nodeKindOf.get(id) === 'card', [nodeKindOf]);
-  const { portDrag, onPortDown, onPortMove, onPortUp } = useFlowPorts(vp.viewRef, vp.ref, canDropFlow, p.onFlowCreate);
+  const { portDrag, onPortDown, onPortMove, onPortUp, onPortLostCapture } = useFlowPorts(vp.viewRef, vp.ref, canDropFlow, p.onFlowCreate);
 
   const fitted = useRef(false);
   const { fit, centerOn } = vp;
@@ -150,10 +150,6 @@ export function CanvasSurface(p: Props) {
     >
       <div className="absolute left-0 top-0 origin-top-left" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})` }}>
         <CanvasEdges edges={p.edges} pos={pos} focus={focus} />
-        <CanvasFlows
-          nodes={p.nodes} pos={pos} windows={p.windows} flows={p.flows} firedAt={p.flowFired}
-          portDrag={portDrag} onPortDown={onPortDown} onFlowClick={p.onFlowClick}
-        />
         {cards.map((n) => pos[n.id] && (
           <CanvasNodeCard
             key={n.id} node={n} pos={pos[n.id]} compact={compact} zoom={view.k}
@@ -165,6 +161,12 @@ export function CanvasSurface(p: Props) {
         <CanvasWindows
           nodes={wins} pos={pos} terms={p.terms} term={p.term} selected={selectedSet} focus={focus}
           running={p.running} waiting={p.waiting} onPointerDown={onNodeDown} onOpenChat={p.onOpenChat} stats={p.stats}
+        />
+        {/* Painted LAST: a port must never sit under a card's edge, and an
+            arrow should read on top of the nodes it connects. */}
+        <CanvasFlows
+          nodes={p.nodes} pos={pos} windows={p.windows} compact={compact} zoom={view.k} flows={p.flows} firedAt={p.flowFired}
+          portDrag={portDrag} onPortDown={onPortDown} onPortLostCapture={onPortLostCapture} onFlowClick={p.onFlowClick}
         />
       </div>
       {p.children}

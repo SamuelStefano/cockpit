@@ -47,5 +47,14 @@ export function useFlowPorts(
     if (target && target !== from && canDrop(target)) onCreate(from, target);
   }, [canDrop, onCreate]);
 
-  return { portDrag, onPortDown, onPortMove, onPortUp };
+  // The port itself (not the surface) owns the capture, so it's the one that
+  // gets notified if the browser revokes it without a normal pointerup ever
+  // firing (OS-level gesture interrupt, alt-tab mid-drag, …) — without this
+  // the rubber band stays drawn forever with nothing left to cancel it.
+  const onPortLostCapture = useCallback(() => {
+    fromRef.current = null;
+    setPortDrag(null);
+  }, []);
+
+  return { portDrag, onPortDown, onPortMove, onPortUp, onPortLostCapture };
 }

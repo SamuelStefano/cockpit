@@ -131,7 +131,7 @@ function safeParams(source: RunParams, flow: Pick<CanvasFlow, 'mode' | 'mcps'>):
 // runParkedInBackground uses at server/ws/runs.ts around admitRun): a
 // concurrency-cap rejection, a hard-context block, or an invalid sessionKey
 // all return from startRun/addParked/enqueuePending having done nothing.
-export async function deliverToSession(sessionId: string, prompt: string, source: RunParams, flow: CanvasFlow): Promise<boolean> {
+export async function deliverToSession(sessionId: string, prompt: string, source: RunParams, flow: CanvasFlow, hop: number): Promise<boolean> {
   const resume = resumableId(sessionId);
   if (!resume) return false; // transcript gone — nothing to continue
   const params = safeParams(source, flow);
@@ -143,13 +143,21 @@ export async function deliverToSession(sessionId: string, prompt: string, source
     // disk forever — use the in-process pending queue instead, which THIS
     // process's own onClose drains unconditionally (drainPending, unlike
     // drainParked, isn't gated on the drainer flag).
+    //
+    // Neither queue carries flowHop through to the eventual startRun (parked
+    // items round-trip through disk with a fixed shape; pending ones aren't
+    // tracked per-thread until they actually run) — the queued turn's own
+    // Thread.flowHop starts at 0. That only UNDER-counts chain depth for
+    // ITS OWN outgoing flows (a shallower cap, never a deeper one), so it's
+    // a safe simplification rather than the un-bounded reset bug this
+    // review batch closed for the direct resume paths.
     if (isDrainerEnabled()) {
       const r = addParked(liveKey, { ...params, prompt, resumeId: resume });
       return !('reject' in r);
     }
     return enqueuePending(liveKey, { ...params, ws: null, prompt, merge: false });
   }
-  startRun({ ws: null, sessionKey: resume, prompt, resumeId: resume, ...params });
+  startRun({ ws: null, sessionKey: resume, prompt, resumeId: resume, flowHop: hop, ...params });
   return threads.has(resume);
 }
 
@@ -226,7 +234,7 @@ export async function fireFlow(flow: CanvasFlow, hop: number, result: string, pa
 
   const ref = flow.to.slice(2);
   const delivered = flow.to.startsWith('s:')
-    ? await deliverToSession(ref, buildFlowPrompt(flow, result, hop), params, flow)
+    ? await deliverToSession(ref, buildFlowPrompt(flow, result, hop), params, flow, hop)
     : await deliverToCard(ref, flow, result, hop, params);
   if (!delivered) {
     console.error(`canvas flow ${flow.id}: delivery to ${flow.to} failed, rolling back the claim`);
