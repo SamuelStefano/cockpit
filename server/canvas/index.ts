@@ -71,9 +71,13 @@ async function sessionRefs(c: RefsCache, id: string): Promise<SessionRefs | unde
   let size: number;
   try { size = (await stat(path)).size; } catch { return c.get(id); }
   const hit = c.get(id);
-  if (hit && hit.size === size) return hit;
+  if (hit && hit.size === size && hit.topics) return hit;
   // Shrunk = rewritten (compaction tooling, manual edit): the offset is meaningless.
-  const refs: SessionRefs = hit && size > hit.size ? { contexts: { ...hit.contexts }, cardId: hit.cardId, consumed: hit.consumed } : emptyRefs();
+  // A hit missing `topics` predates that field: bytes already consumed were never
+  // scanned for it, so this is a full rescan from 0 rather than a tail resume.
+  const refs: SessionRefs = hit && hit.topics && size > hit.size
+    ? { contexts: { ...hit.contexts }, cardId: hit.cardId, topics: hit.topics, consumed: hit.consumed }
+    : emptyRefs();
   try { await scanTail(path, refs); } catch { return hit; }
   c.set(id, { ...refs, size });
   return refs;
