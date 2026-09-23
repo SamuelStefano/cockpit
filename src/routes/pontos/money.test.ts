@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { brl, refMonth, fmtPts } from './money';
+import { brl, refMonth, fmtPts, parseBrl, validBrl } from './money';
 
 describe('fmtPts', () => {
   it('inteiro fica sem casa', () => {
@@ -32,5 +32,17 @@ describe('refMonth', () => {
   });
   it('devolve cru quando inválido', () => {
     expect(refMonth('xxxx')).toBe('xxxx');
+  });
+});
+
+describe('parseBrl', () => {
+  it('reads decimals with comma or dot and thousands with dot', () => {
+    expect(parseBrl('75')).toBe(75);
+    expect(parseBrl('75,50')).toBe(75.5);
+    expect(parseBrl('75.5')).toBe(75.5);
+    expect(parseBrl('4.000')).toBe(4000);
+    expect(parseBrl('R$ 4.000,00')).toBe(4000);
+    expect(validBrl('abc')).toBe(false);
+    expect(validBrl('0')).toBe(false);
   });
 });

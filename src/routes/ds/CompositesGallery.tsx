@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Button, EmptyState, Badge, RouteHeader, Stat, ProgressBar, Tabs, Modal, fireConfetti } from '../../components/primitives';
+import { Button, EmptyState, Badge, RouteHeader, SectionHeader, Stat, ProgressBar, Tabs, Modal, InlineEdit, fireConfetti } from '../../components/primitives';
 import { Section } from './Section';
 import { Row } from './Row';
 
 export function CompositesGallery() {
   const [tab, setTab] = useState<'arvore' | 'faturas' | 'ledger'>('arvore');
   const [modalOpen, setModalOpen] = useState(false);
+  const [title, setTitle] = useState('Keyframe tracks por box');
+  const [pts, setPts] = useState('5');
   return (
     <>
       <Section title="RouteHeader">
@@ -49,6 +51,24 @@ export function CompositesGallery() {
           <Stat label="Em aberto" value="197 pts" sub="R$ 12.417,23" icon="clock" tone="orange" />
           <Stat label="A fazer" value="20 pts" sub="—" icon="square" tone="neutral" />
         </div>
+        <Row label="plain">
+          <div className="grid w-full grid-cols-2 gap-4 rounded-xl border border-neutral-800 p-3.5 sm:grid-cols-4">
+            <Stat plain label="Faturado" value="R$ 0" sub="de R$ 4.000" tone="green" />
+            <Stat plain label="Cabe agora" value="R$ 4.000" sub="53 pt" tone="orange" />
+            <Stat plain label="Em espera" value="R$ 7.625" tone="yellow" />
+            <Stat plain label="A fazer" value="22 pt" />
+          </div>
+        </Row>
+      </Section>
+
+      <Section title="SectionHeader">
+        <SectionHeader title="Rascunhos para o DFL" icon="layers" count="7 épicos · 132 pt"
+          description="Revise e clique em Criar no DFL." actions={<Button size="sm" icon="zap">Criar todos</Button>} />
+      </Section>
+
+      <Section title="InlineEdit">
+        <Row label="texto"><InlineEdit label="título" value={title} onSave={setTitle} className="text-[13px] text-neutral-200" /></Row>
+        <Row label="número"><InlineEdit label="pontos" numeric value={pts} onSave={setPts} display={`${pts} pt`} inputClassName="w-16" className="text-[13px] text-neutral-200" /></Row>
       </Section>
 
       <Section title="ProgressBar">

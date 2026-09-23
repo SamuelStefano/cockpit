@@ -36,8 +36,10 @@ export function DflDelivery({ delivery, defaultOpen = false }: { delivery: DflDe
           {c.open > 0 && <Badge tone="orange">{c.open} aberta{c.open > 1 ? 's' : ''}</Badge>}
           {c.todo > 0 && <Badge tone="neutral">{c.todo} a fazer</Badge>}
         </span>
-        <span className="w-14 shrink-0 text-right text-[12px] font-medium tabular-nums text-neutral-300">{fmtPts(delivery.points)} pts</span>
-        <span className="w-24 shrink-0 text-right text-[11.5px] tabular-nums text-neutral-500">{brl(delivery.amountCents)}</span>
+        <span className="flex shrink-0 flex-col items-end leading-tight sm:flex-row sm:items-center">
+          <span className="text-right text-[12px] font-medium tabular-nums text-neutral-300 sm:w-14">{fmtPts(delivery.points)} pt</span>
+          <span className="text-right text-[11px] tabular-nums text-neutral-500 sm:w-24 sm:text-[11.5px]">{brl(delivery.amountCents)}</span>
+        </span>
         {canToggle && (
           <button
             onClick={() => toggleExcluded(delivery.id)}

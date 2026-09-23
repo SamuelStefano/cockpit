@@ -59,12 +59,12 @@ export function usePontos({ connected, points, loaded, onPointsGet, onPointsAdd,
   // Toast só quando o frame saiu: offline, o ledger confirmava uma escrita que
   // nunca chegou ao servidor.
   const add = useCallback((title: string, pts: number, description?: string) => {
-    if (onPointsAdd(title, pts, description)) toast(`Registrado: ${title} (${pts} pts)`);
+    if (onPointsAdd(title, pts, description)) toast(`Registrado: ${title} (${pts} pt)`);
     else toast(OFFLINE, { tone: 'error' });
   }, [onPointsAdd]);
 
   const correct = useCallback((entryId: string, pts: number) => {
-    if (onPointsCorrect(entryId, pts)) toast(`Corrigido para ${pts} pts`);
+    if (onPointsCorrect(entryId, pts)) toast(`Corrigido para ${pts} pt`);
     else toast(OFFLINE, { tone: 'error' });
   }, [onPointsCorrect]);
 

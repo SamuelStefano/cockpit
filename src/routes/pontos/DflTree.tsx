@@ -3,7 +3,6 @@ import type { DflProjectNode } from '../../../shared/protocol';
 import { Icon, EmptyState, ProgressBar, Badge, Button } from '../../components/primitives';
 import { DflEpic } from './DflEpic';
 import { SelectionBar } from './SelectionBar';
-import { AgentTasksModal } from './AgentTasksModal';
 import { usePontosControls } from './pontosControls';
 import { brl, fmtPts } from './money';
 import { epicCap, type EpicCap } from './epic-cap';
@@ -20,17 +19,11 @@ const FILTERS: { id: TreeFilter; label: string; on: string }[] = [
 // padrão (o resumo por chips basta); com filtro ativo abrem já expandidas.
 export function DflTree({ projects }: { projects: DflProjectNode[] }) {
   const [filter, setFilter] = useState<TreeFilter>('all');
-  const [agent, setAgent] = useState(false);
   const { selecting, setSelecting, clearSelected, pointValue, excluded } = usePontosControls();
   if (!projects.length) {
     return (
-      <>
-        <EmptyState icon="grip" title="Sem dados do DFL" description="Rode a sincronização pra puxar projetos, entregas e tarefas." />
-        <div className="mt-3 flex justify-center">
-          <Button variant="secondary" size="sm" icon="zap" onClick={() => setAgent(true)}>criar tasks com agente</Button>
-        </div>
-        {agent && <AgentTasksModal onClose={() => setAgent(false)} />}
-      </>
+      <EmptyState icon="grip" title="Nada do DFL por aqui" className="py-8"
+        description="Sincronize no resumo do mês pra puxar projetos, épicos e tasks. O que ainda não existe no DFL fica nos rascunhos acima." />
     );
   }
   const shown = filterProjects(projects, filter);
@@ -48,17 +41,10 @@ export function DflTree({ projects }: { projects: DflProjectNode[] }) {
             {f.label}
           </button>
         ))}
-        <button onClick={() => setAgent(true)}
-          className="ml-auto rounded-full border border-neutral-800 bg-transparent px-2.5 py-1 text-[11px] font-medium text-neutral-500 transition hover:text-neutral-300">
-          criar tasks com agente
-        </button>
-        <button onClick={toggleSelecting}
-          className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
-            selecting ? 'border-orange-500/40 bg-orange-500/15 text-orange-300' : 'border-neutral-800 bg-transparent text-neutral-500 hover:text-neutral-300'}`}>
-          {selecting ? 'concluir' : 'selecionar'}
-        </button>
+        <Button variant={selecting ? 'secondary' : 'ghost'} size="sm" icon={selecting ? 'check' : 'square'} className="ml-auto" onClick={toggleSelecting}>
+          {selecting ? 'concluir seleção' : 'selecionar p/ faturar'}
+        </Button>
       </div>
-      {agent && <AgentTasksModal onClose={() => setAgent(false)} />}
       {shown.length === 0
         ? <p className="py-8 text-center text-[12px] text-neutral-600">Nada com esse status.</p>
         : <div className="space-y-2">{shown.map((p) => <ProjectBlock key={`${p.id}:${filter}`} project={p} caps={caps} expandAll={filter !== 'all'} />)}</div>}
@@ -82,15 +68,15 @@ function ProjectBlock({ project, caps, expandAll }: { project: DflProjectNode; c
           <Icon name={open ? 'chevronDown' : 'chevronRight'} size={13} className="shrink-0 text-neutral-500" />
           <span className={`min-w-0 flex-1 truncate text-[13.5px] font-semibold ${active ? 'text-neutral-100' : 'text-neutral-400'}`}>{project.name}</span>
           {!active && <Badge tone="green">quitado</Badge>}
-          <span className={`shrink-0 text-[12.5px] font-semibold tabular-nums ${active ? 'text-orange-300' : 'text-neutral-500'}`}>{fmtPts(project.points)} pts</span>
+          <span className={`shrink-0 text-[12.5px] font-semibold tabular-nums ${active ? 'text-orange-300' : 'text-neutral-500'}`}>{fmtPts(project.points)} pt</span>
           <span className="w-24 shrink-0 text-right text-[12px] tabular-nums text-neutral-500">{brl(project.amountCents)}</span>
         </div>
         {active && (
           <div className="mt-2 pl-[21px]">
             <ProgressBar segments={[
-              { value: sp.paid, tone: 'green', label: `pago: ${fmtPts(sp.paid)} pts` },
-              { value: sp.open, tone: 'orange', label: `aberto: ${fmtPts(sp.open)} pts` },
-              { value: sp.todo, tone: 'neutral', label: `a fazer: ${fmtPts(sp.todo)} pts` },
+              { value: sp.paid, tone: 'green', label: `pago: ${fmtPts(sp.paid)} pt` },
+              { value: sp.open, tone: 'orange', label: `aberto: ${fmtPts(sp.open)} pt` },
+              { value: sp.todo, tone: 'neutral', label: `a fazer: ${fmtPts(sp.todo)} pt` },
             ]} />
           </div>
         )}

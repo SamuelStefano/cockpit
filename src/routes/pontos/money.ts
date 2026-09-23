@@ -28,3 +28,15 @@ export function refMonth(ref: string): string {
   const mes = MESES[Number(m[2]) - 1];
   return mes ? `${mes}/${m[1].slice(2)}` : ref;
 }
+
+// What a person types for R$: "75", "75,50", "4.000", "R$ 4.000,00". A dot followed
+// by exactly three digits is a thousands separator, anything else is a decimal.
+export function parseBrl(v: string): number {
+  const clean = v.replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.');
+  return clean ? Number(clean) : Number.NaN;
+}
+
+export function validBrl(v: string): boolean {
+  const n = parseBrl(v);
+  return Number.isFinite(n) && n > 0;
+}

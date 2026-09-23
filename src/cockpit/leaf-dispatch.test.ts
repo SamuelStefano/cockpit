@@ -37,6 +37,7 @@ const FRAMES: [ServerMsg, (typeof CADEIA)[number]][] = [
   [{ t: 'points', entries: [], total: 0 }, 'points'],
   [{ t: 'points-dfl', snapshot: null }, 'points'],
   [{ t: 'points-dfl-syncing' }, 'points'],
+  [{ t: 'drafts', items: [] }, 'points'],
   [{ t: 'points-dfl-write', reqId: 'r', kind: 'change', ok: true }, 'points'],
   [{ t: 'contexts', items: [] }, 'contexts'],
   [{ t: 'context', id: 'c', title: 't', body: 'b' }, 'contexts'],

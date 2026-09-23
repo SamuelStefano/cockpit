@@ -17,6 +17,7 @@ import { serveConnection } from './ws/serve-connection';
 import { startSessionsWatch } from './sessions/watch';
 import { startPointsWatch } from './points-watch';
 import { startDflPointsWatch } from './dfl-points-watch';
+import { startDflDraftsWatch } from './dfl-drafts-watch';
 import { sandboxUpstream, proxySandboxUpgrade } from './sandbox-proxy';
 
 export { runStats, killAllRuns } from './ws/threads';
@@ -90,6 +91,7 @@ export function attachWs(server: Server) {
   startSessionsWatch(hasClients);
   startPointsWatch(hasClients);
   startDflPointsWatch();
+  startDflDraftsWatch();
   probeSlashCommands();
   startCronLoop(fireCron); // agendador: dispara prompts agendados (turnos autônomos)
   startRunReaper(); // mata turno travado ("garimpando" eterno) → UI cai pra idle e a fila drena

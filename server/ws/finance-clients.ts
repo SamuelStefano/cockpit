@@ -1,5 +1,5 @@
 import type { WebSocket } from 'ws';
-import type { DflPointsSnapshot } from '../../shared/protocol';
+import type { DflPointsSnapshot, ServerMsg } from '../../shared/protocol';
 import { send } from './broadcast';
 
 // Registro OWNER-ONLY dos sockets que pediram o snapshot financeiro. Dado
@@ -19,7 +19,11 @@ export function registerFinanceClient(ws: WebSocket): void {
 export function hasFinanceClients(): boolean { return clients.size > 0; }
 
 export function emitFinance(snapshot: DflPointsSnapshot | null): void {
-  for (const ws of clients) send(ws, { t: 'points-dfl', snapshot });
+  emitFinanceMsg({ t: 'points-dfl', snapshot });
+}
+
+export function emitFinanceMsg(msg: ServerMsg): void {
+  for (const ws of clients) send(ws, msg);
 }
 
 // só p/ teste: zera o registro entre casos.

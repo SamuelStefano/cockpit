@@ -12,6 +12,8 @@ export { tokens, type ToneColor } from './tokens';
 export { ConnDot, type ConnState } from './ConnDot';
 export { Skeleton } from './Skeleton';
 export { Stat } from './Stat';
+export { SectionHeader } from './SectionHeader';
+export { InlineEdit } from './InlineEdit';
 export { ProgressBar, type ProgressSegment } from './ProgressBar';
 export { Tabs, type TabItem } from './Tabs';
 export { SkeletonCards } from './SkeletonCards';

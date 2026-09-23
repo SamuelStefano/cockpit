@@ -1,0 +1,110 @@
+#!/usr/bin/env node
+// deck-drafts — CLI the orchestrator runs to stage DFL epics in the Deck
+// (/pontos → "Rascunhos para o DFL"). Samuel reviews there and one click
+// dispatches the agent that creates epic + delivery + tasks in DFL. This CLI
+// never talks to DFL. The backend watches the file and updates every device live.
+//
+// Usage:
+//   deck-drafts list
+//   deck-drafts add-epic "<title>"
+//   deck-drafts add-task <epicId> "<title>" <points> [refs...]
+//   deck-drafts set-status <epicId> draft|dispatched|created
+//   deck-drafts import <file.md>        (## Épico N — Title — X pt / - Task — refs — pts)
+//
+// Imports the pure shared modules straight from TS (native Node type stripping),
+// so validation is the same one the server runs. Honors COCKPIT_DFL_DRAFTS.
+
+import { readFileSync, writeFileSync, renameSync, mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join, dirname } from 'node:path';
+import { randomBytes } from 'node:crypto';
+import { applyDraftOp, sanitizeDrafts, draftPoints } from '../shared/dfl-drafts.ts';
+import { parseDraftsMarkdown } from '../shared/dfl-drafts-md.ts';
+
+const USAGE = `uso:
+  deck-drafts list
+  deck-drafts add-epic "<título>"
+  deck-drafts add-task <epicId> "<título>" <pontos> [refs...]
+  deck-drafts set-status <epicId> draft|dispatched|created
+  deck-drafts import <arquivo.md>`;
+
+const file = () => process.env.COCKPIT_DFL_DRAFTS || join(homedir(), '.cockpit', 'dfl-drafts.json');
+const newId = (prefix) => `${prefix}-${randomBytes(3).toString('hex')}`;
+
+function die(msg) {
+  process.stderr.write(`erro: ${msg}\n${USAGE}\n`);
+  process.exit(1);
+}
+
+function load() {
+  try { return sanitizeDrafts(JSON.parse(readFileSync(file(), 'utf8'))); } catch { return []; }
+}
+
+function save(drafts) {
+  const f = file();
+  mkdirSync(dirname(f), { recursive: true });
+  const tmp = `${f}.${process.pid}.tmp`;
+  writeFileSync(tmp, JSON.stringify(drafts, null, 2) + '\n', 'utf8');
+  renameSync(tmp, f);
+}
+
+function apply(drafts, op) {
+  try { return applyDraftOp(drafts, op, { now: Date.now(), newId }); } catch (e) { die(e.message); }
+}
+
+const fmt = (n) => String(n).replace('.', ',');
+
+function list() {
+  const drafts = load();
+  if (!drafts.length) return process.stdout.write('(nenhum rascunho)\n');
+  for (const d of drafts) {
+    process.stdout.write(`${d.id}  [${d.status}]  ${d.title} — ${fmt(draftPoints(d))} pt (${d.tasks.length} tasks)\n`);
+  }
+}
+
+function addEpic([title]) {
+  const next = apply(load(), { op: 'add-epic', title });
+  save(next);
+  const d = next[next.length - 1];
+  process.stdout.write(`✓ épico ${d.id}: ${d.title}\n`);
+}
+
+function addTask([epicId, title, rawPoints, ...refs]) {
+  if (!epicId) die('epicId obrigatório');
+  const points = Number(String(rawPoints ?? '').replace(',', '.'));
+  const next = apply(load(), { op: 'add-task', epicId, title, points, refs });
+  save(next);
+  process.stdout.write(`✓ task em ${epicId}: ${title} (${fmt(points)} pt)\n`);
+}
+
+function setStatus([id, status]) {
+  save(apply(load(), { op: 'set-status', id, status }));
+  process.stdout.write(`✓ ${id} → ${status}\n`);
+}
+
+// Idempotent: an epic whose title is already staged is skipped, so re-running
+// the import after editing the file never duplicates cards.
+function importMd([path]) {
+  if (!path) die('arquivo obrigatório');
+  let md;
+  try { md = readFileSync(path, 'utf8'); } catch { die(`não consegui ler ${path}`); }
+  const { epics, warnings } = parseDraftsMarkdown(md);
+  if (!epics.length) die('nenhum "## Épico" encontrado');
+  let drafts = load();
+  const seen = new Set(drafts.map((d) => d.title));
+  let added = 0;
+  for (const e of epics) {
+    if (seen.has(e.title)) { process.stdout.write(`· já existe: ${e.title}\n`); continue; }
+    drafts = apply(drafts, { op: 'add-epic', title: e.title, tasks: e.tasks });
+    added++;
+    process.stdout.write(`✓ ${drafts[drafts.length - 1].id}  ${e.title} — ${fmt(draftPoints(drafts[drafts.length - 1]))} pt\n`);
+  }
+  if (added) save(drafts);
+  for (const w of warnings) process.stderr.write(`aviso: ${w}\n`);
+  process.stdout.write(`${added} épico(s) importado(s)\n`);
+}
+
+const [cmd, ...rest] = process.argv.slice(2);
+const cmds = { list, 'add-epic': addEpic, 'add-task': addTask, 'set-status': setStatus, import: importMd };
+if (!cmds[cmd]) die(`comando desconhecido: ${cmd || '(vazio)'}`);
+cmds[cmd](rest);
