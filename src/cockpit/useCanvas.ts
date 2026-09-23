@@ -119,11 +119,12 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
       // cardId, same shape the one-shot event already produces, so
       // useCanvasRoute's pendingLaunch absorption (keyed on cardId->key) needs
       // no separate code path for either source.
-      if (msg.flowRuns.length) {
+      const flowRuns = msg.flowRuns ?? [];
+      if (flowRuns.length) {
         setFlowRuns((r) => {
           let changed = false;
           const next = { ...r };
-          for (const run of msg.flowRuns) {
+          for (const run of flowRuns) {
             if (next[run.cardId]?.key === run.runKey) continue;
             next[run.cardId] = { key: run.runKey, at: now };
             changed = true;

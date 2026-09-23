@@ -6,7 +6,6 @@ import {
 import { buildContentPrompt, buildTaskPrompt } from '../../shared/canvas-prompt';
 import { listContexts } from '../contexts';
 import { listArchived, listSessions } from '../sessions/index';
-import { broadcast } from '../ws/broadcast';
 import { emitCanvasMsg } from '../ws/canvas-clients';
 import { enqueuePending } from '../ws/pending';
 import { addParked } from '../ws/parked';
@@ -302,11 +301,11 @@ export async function fireFlow(flow: CanvasFlow, hop: number, result: string, pa
   // pulse/counter bump for a claim whose delivery never happened would lie
   // (and did, before this fix: the broadcast used to fire right after the
   // claim, ahead of the delivery attempt).
-  broadcast({ t: 'canvas-flow-fired', flowId: flow.id, at: now, fires });
+  emitCanvasMsg({ t: 'canvas-flow-fired', flowId: flow.id, at: now, fires });
   // Card targets start a session the browser never asked for — without this,
   // the kanban has no way to know it's running (or to stop it) until the
   // session shows up in the next natural sessions-list/graph refresh.
-  if (runKey) broadcast({ t: 'canvas-flow-run', flowId: flow.id, runKey, cardId: ref });
+  if (runKey) emitCanvasMsg({ t: 'canvas-flow-run', flowId: flow.id, runKey, cardId: ref });
 }
 
 export async function handleTurnClosed(t: TurnClosed): Promise<void> {

@@ -295,9 +295,9 @@ describe('fireFlow', () => {
     // The board write (the claim) happens regardless; the broadcast — which
     // the UI reads as "this flow just did something" — must not fire until
     // startRun actually admitted.
-    expect(broadcastMock).toHaveBeenCalledTimes(1);
-    expect(broadcastMock).toHaveBeenCalledWith({ t: 'canvas-flow-fired', flowId: 'abcd', at: expect.any(Number), fires: 1 });
-    expect(broadcastMock.mock.calls[0][0]).not.toHaveProperty('board');
+    expect(emitCanvasMsgMock).toHaveBeenCalledTimes(1);
+    expect(emitCanvasMsgMock).toHaveBeenCalledWith({ t: 'canvas-flow-fired', flowId: 'abcd', at: expect.any(Number), fires: 1 });
+    expect(emitCanvasMsgMock.mock.calls[0][0]).not.toHaveProperty('board');
     const board = await updateBoard((b) => b);
     expect(board.flows[0]).toMatchObject({ fires: 1 });
     expect(board.flows[0].lastFiredAt).toBeDefined();
@@ -307,7 +307,7 @@ describe('fireFlow', () => {
     const f = sanitizeFlow({ id: 'abcd', from: 's:a', to: 's:b', enabled: false }, undefined, 1)!;
     await updateBoard((b) => upsertFlow(b, f));
     await fireFlow(f, 1, 'resultado', {});
-    expect(broadcastMock).not.toHaveBeenCalled();
+    expect(emitCanvasMsgMock).not.toHaveBeenCalled();
     expect(startRunMock).not.toHaveBeenCalled();
   });
 
@@ -318,7 +318,7 @@ describe('fireFlow', () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     await fireFlow(f, 1, 'resultado', {});
     errSpy.mockRestore();
-    expect(broadcastMock.mock.calls.some((c) => (c[0] as { t: string }).t === 'canvas-flow-fired')).toBe(false);
+    expect(emitCanvasMsgMock.mock.calls.some((c) => (c[0] as { t: string }).t === 'canvas-flow-fired')).toBe(false);
   });
 
   it('restores the EXACT prior fires/lastFiredAt on a failed delivery, not just cleared — a real earlier fire must not look erased', async () => {
@@ -403,7 +403,7 @@ describe('fireFlow', () => {
     const cardFlow = sanitizeFlow({ id: 'abcd', from: 's:a', to: 'k:card1' }, undefined, 1)!;
     await updateBoard((b) => upsertFlow(b, cardFlow));
     await fireFlow(cardFlow, 1, 'resultado', {});
-    const runMsg = broadcastMock.mock.calls.map((c) => c[0]).find((m) => (m as { t: string }).t === 'canvas-flow-run') as
+    const runMsg = emitCanvasMsgMock.mock.calls.map((c) => c[0]).find((m) => (m as { t: string }).t === 'canvas-flow-run') as
       { t: string; flowId: string; runKey: string; cardId: string } | undefined;
     expect(runMsg).toMatchObject({ flowId: 'abcd', cardId: 'card1' });
     expect(runMsg?.runKey).toMatch(/^new-/);
@@ -412,9 +412,9 @@ describe('fireFlow', () => {
     resolveThreadKeyMock.mockReturnValue(undefined);
     const sessFlow = sanitizeFlow({ id: 'bbbb', from: 's:a', to: 's:b' }, undefined, 1)!;
     await updateBoard((b) => upsertFlow(b, sessFlow));
-    broadcastMock.mockClear();
+    emitCanvasMsgMock.mockClear();
     await fireFlow(sessFlow, 1, 'resultado', {});
-    expect(broadcastMock.mock.calls.some((c) => (c[0] as { t: string }).t === 'canvas-flow-run')).toBe(false);
+    expect(emitCanvasMsgMock.mock.calls.some((c) => (c[0] as { t: string }).t === 'canvas-flow-run')).toBe(false);
   });
 });
 
@@ -427,6 +427,7 @@ describe('handleTurnClosed', () => {
     await handleTurnClosed(base); // empty board
     expect(startRunMock).not.toHaveBeenCalled();
     expect(broadcastMock).not.toHaveBeenCalled();
+    expect(emitCanvasMsgMock).not.toHaveBeenCalled();
   });
 
   it('clears any live flow-run for this exact sessionKey unconditionally — the run is over whether the turn closed ok, failed, or was unattended', async () => {
