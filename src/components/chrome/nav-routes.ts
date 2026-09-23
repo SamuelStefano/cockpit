@@ -9,6 +9,7 @@ export const NAV: { to: Route; label: string; adminOnly?: boolean }[] = [
   { to: '/crons', label: 'crons' },
   { to: '/uso', label: 'uso' },
   { to: '/play', label: 'playground' },
+  { to: '/canvas', label: 'canvas', adminOnly: true },
   { to: '/graph', label: 'graph', adminOnly: true },
   { to: '/harness', label: 'harness', adminOnly: true },
   { to: '/admin', label: 'admin', adminOnly: true },

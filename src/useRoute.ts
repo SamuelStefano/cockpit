@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 
 // Router minúsculo (sem dep): só troca a VIEW principal. useCockpit fica ACIMA
 // deste switch no App, então o WebSocket/terminais nunca desmontam ao navegar.
-export type Route = '/' | '/contextos' | '/skills' | '/notas' | '/pontos' | '/crons' | '/uso' | '/graph' | '/harness' | '/admin' | '/docs' | '/ds' | '/play';
+export type Route = '/' | '/contextos' | '/skills' | '/notas' | '/pontos' | '/crons' | '/uso' | '/graph' | '/canvas' | '/harness' | '/admin' | '/docs' | '/ds' | '/play';
 
-const ROUTES: Route[] = ['/', '/contextos', '/skills', '/notas', '/pontos', '/crons', '/uso', '/graph', '/harness', '/admin', '/docs', '/ds', '/play'];
+const ROUTES: Route[] = ['/', '/contextos', '/skills', '/notas', '/pontos', '/crons', '/uso', '/graph', '/canvas', '/harness', '/admin', '/docs', '/ds', '/play'];
 
 // Chat aberto tem URL própria (/c/<sessionId>): link salvável, F5 sem perder a
 // conversa, duas abas em chats diferentes. A VIEW continua sendo '/', então o id

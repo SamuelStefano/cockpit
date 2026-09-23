@@ -40,6 +40,8 @@ import { sendDurableSnapshot } from './snapshot';
 import { requestPlanUsageRefresh, planUsageFrame } from './usage-plan';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 import { buildBench } from '../bench';
+import { buildCanvas } from '../canvas/index';
+import { readBoard, updateBoard, sanitizeCard, sanitizePos, upsertCard, removeCard, mergePos } from '../canvas/board';
 
 const BG_RUN_MESSAGE: Record<BgRunReject, string> = {
   'sem-item': 'este item não está mais na fila',
@@ -105,6 +107,40 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const ok = await deleteGraph(msg.id);
       if (!ok) { send(ws, { t: 'error', message: 'não foi possível excluir o grafo' }); return; }
       send(ws, { t: 'graphs', items: await listGraphs() });
+      return;
+    }
+    case 'canvas-get': {
+      const board = await readBoard();
+      send(ws, { t: 'canvas-board', board });
+      send(ws, { t: 'canvas-graph', graph: await buildCanvas(board) });
+      return;
+    }
+    case 'canvas-pos': {
+      const pos = sanitizePos(msg.pos);
+      if (Object.keys(pos).length) await updateBoard((b) => mergePos(b, pos));
+      return;
+    }
+    // Canvas frames answer the caller only: broadcast() fans out regardless of
+    // role, and the graph carries every memory title and session summary.
+    case 'canvas-pos-reset': {
+      const board = await updateBoard((b) => ({ ...b, pos: {} }));
+      send(ws, { t: 'canvas-board', board });
+      return;
+    }
+    case 'canvas-card-save': {
+      const now = Date.now();
+      const prev = (await readBoard()).cards.find((c) => c.id === msg.card?.id);
+      const card = sanitizeCard(msg.card, prev, now);
+      if (!card) { send(ws, { t: 'error', message: 'card inválido' }); return; }
+      const board = await updateBoard((b) => upsertCard(b, card));
+      send(ws, { t: 'canvas-board', board });
+      send(ws, { t: 'canvas-graph', graph: await buildCanvas(board) });
+      return;
+    }
+    case 'canvas-card-delete': {
+      const board = await updateBoard((b) => removeCard(b, String(msg.id ?? '')));
+      send(ws, { t: 'canvas-board', board });
+      send(ws, { t: 'canvas-graph', graph: await buildCanvas(board) });
       return;
     }
     case 'bench-build': {

@@ -2,6 +2,8 @@
 // REGRA (squad L3): types-only — zero import de node:*/fs. O bundle do browser
 // importa este arquivo.
 
+import type { CanvasBoard, CanvasCard, CanvasGraph, CanvasPos } from './canvas';
+
 export interface ToolDiff {
   path: string;
   old: string;
@@ -696,6 +698,11 @@ export type ClientMsg =
   | { t: 'graph-query'; id: string; question: string; budget?: number }
   | { t: 'graph-node-op'; id: string; op: 'explain' | 'affected' | 'path'; a: string; b?: string }
   | { t: 'graph-delete'; id: string }
+  | { t: 'canvas-get' }
+  | { t: 'canvas-pos'; pos: Record<string, CanvasPos> }
+  | { t: 'canvas-pos-reset' }
+  | { t: 'canvas-card-save'; card: CanvasCard }
+  | { t: 'canvas-card-delete'; id: string }
   // Bench: compila um componente de outro repo num bundle autocontido pro iframe
   // do chat. `repo` é SLUG de registro do servidor, nunca caminho — caminho vindo
   // do cliente seria leitura arbitrária de arquivo.
@@ -836,6 +843,8 @@ export type ServerMsg =
   | { t: 'accounts'; accounts: AccountSummary[] }
   | { t: 'stats'; stats: SysStats }
   | { t: 'graphs'; items: GraphMeta[] }
+  | { t: 'canvas-graph'; graph: CanvasGraph }
+  | { t: 'canvas-board'; board: CanvasBoard }
   | { t: 'graph-data'; id: string; graph: GraphData }
   | { t: 'graph-query-result'; id: string; question: string; answer: string; tokens: number; miss: boolean }
   | { t: 'graph-build-progress'; line: string }
