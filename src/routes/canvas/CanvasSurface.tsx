@@ -25,6 +25,9 @@ interface Props {
 }
 
 const COMPACT_BELOW = 0.42;
+// Floor for the very first framing only — legible enough to read a title
+// without a manual zoom-in; "fit all" (toolbar) stays unfloored on purpose.
+const INITIAL_MIN_ZOOM = 0.35;
 
 export function CanvasSurface(p: Props) {
   const vp = useCanvasViewport();
@@ -36,7 +39,7 @@ export function CanvasSurface(p: Props) {
   useEffect(() => {
     if (fitted.current || !p.nodes.length) return;
     fitted.current = true;
-    fit(p.initialBounds);
+    fit(p.initialBounds, INITIAL_MIN_ZOOM);
   }, [p.nodes.length, p.initialBounds, fit]);
 
   const req = p.centerRequest;

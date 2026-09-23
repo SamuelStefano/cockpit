@@ -12,6 +12,8 @@ export interface CanvasRouteProps {
   graph: CanvasGraph | null;
   board: CanvasBoard;
   loading: boolean;
+  loadingSince: number | null;
+  stale: boolean;
   sessions: Session[];
   running: Set<string>;
   onCanvasGet: () => void;
@@ -58,13 +60,23 @@ export function useCanvasRoute(p: CanvasRouteProps) {
   );
   const pos = useMemo(() => layoutCanvas(visible.nodes, visible.edges, p.board.pos), [visible, p.board.pos]);
   const worldBounds = useMemo(() => bounds(Object.values(pos)), [pos]);
-  // First view frames the connected part of the map; the block of sessions with
-  // no memory trail is one "fit" away instead of shrinking everything to 8%.
+  const RECENT_FOCUS_N = 8;
+  // First view frames what is alive right now (running sessions + whatever
+  // they touch), falling back to the handful of most recent sessions when
+  // nothing is running. The rest of the map is one "fit all" away instead of
+  // shrinking everything to ~8% to fit the whole history on screen.
   const coreBounds = useMemo(() => {
-    const linked = new Set(visible.edges.flatMap((e) => [e.source, e.target]));
-    const core = Object.entries(pos).filter(([id]) => linked.has(id)).map(([, v]) => v);
+    const sessionNodes = visible.nodes.filter((n) => n.kind === 'session');
+    let anchors = sessionNodes.filter((n) => p.running.has(n.ref));
+    if (!anchors.length) anchors = [...sessionNodes].sort((a, b) => b.mtime - a.mtime).slice(0, RECENT_FOCUS_N);
+    const focus = new Set(anchors.map((n) => n.id));
+    for (const e of visible.edges) {
+      if (focus.has(e.source)) focus.add(e.target);
+      if (focus.has(e.target)) focus.add(e.source);
+    }
+    const core = Object.entries(pos).filter(([id]) => focus.has(id)).map(([, v]) => v);
     return core.length ? bounds(core) : worldBounds;
-  }, [visible.edges, pos, worldBounds]);
+  }, [visible.nodes, visible.edges, pos, worldBounds, p.running]);
   const byId = useMemo(() => new Map(merged.nodes.map((n) => [n.id, n])), [merged.nodes]);
   const waiting = useMemo(() => new Set(p.sessions.filter((s) => s.waiting).map((s) => s.id)), [p.sessions]);
 

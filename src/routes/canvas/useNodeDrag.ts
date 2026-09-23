@@ -15,15 +15,21 @@ export function useNodeDrag(
 ) {
   const [live, setLive] = useState<Record<string, CanvasPos>>({});
   const drag = useRef<{ id: string; sx: number; sy: number; ox: number; oy: number; moved: boolean; additive: boolean } | null>(null);
+  // Read through a ref, not the `pos` closure: `pos` is a fresh object on
+  // most re-renders (layout/board changes), and a changing dep here would
+  // recreate onNodeDown every time — which breaks CanvasNodeCard's memo for
+  // ALL ~300-600 nodes since every card receives the same onPointerDown prop.
+  const posRef = useRef(pos);
+  posRef.current = pos;
 
   const onNodeDown = useCallback((e: React.PointerEvent, id: string) => {
     if (e.button !== 0) return;
     e.stopPropagation();
-    const p = pos[id];
+    const p = posRef.current[id];
     if (!p) return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     drag.current = { id, sx: e.clientX, sy: e.clientY, ox: p.x, oy: p.y, moved: false, additive: e.shiftKey || e.metaKey || e.ctrlKey };
-  }, [pos]);
+  }, []);
 
   const onNodeMove = useCallback((e: React.PointerEvent) => {
     const d = drag.current;
