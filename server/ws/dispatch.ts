@@ -41,7 +41,7 @@ import { requestPlanUsageRefresh, planUsageFrame } from './usage-plan';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 import { buildBench } from '../bench';
 import { buildCanvas } from '../canvas/index';
-import { readBoard, updateBoard, sanitizeCard, sanitizePos, upsertCard, removeCard, mergePos } from '../canvas/board';
+import { readBoard, readBoardChained, updateBoard, sanitizeCard, sanitizePos, upsertCard, removeCard, mergePos } from '../canvas/board';
 
 const BG_RUN_MESSAGE: Record<BgRunReject, string> = {
   'sem-item': 'este item não está mais na fila',
@@ -110,7 +110,9 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'canvas-get': {
-      const board = await readBoard();
+      // Chained, not a plain readBoard(): otherwise this can race a concurrent
+      // drag-end/card-save write and answer with a stale board (review #7).
+      const board = await readBoardChained();
       send(ws, { t: 'canvas-board', board });
       send(ws, { t: 'canvas-graph', graph: await buildCanvas(board) });
       return;
