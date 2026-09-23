@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { emptyBoard, mergePos, readBoard, removeCard, sanitizeCard, sanitizePos, updateBoard, upsertCard } from './board';
+import { emptyBoard, mergePos, readBoard, readBoardChained, removeCard, sanitizeCard, sanitizePos, updateBoard, upsertCard } from './board';
 
 describe('sanitizeCard', () => {
   it('rejects a bad id or empty title', () => {
@@ -44,5 +44,41 @@ describe('updateBoard', () => {
     const b = sanitizeCard({ id: 'bbbb', title: 'b' }, undefined, 1)!;
     await Promise.all([updateBoard((x) => upsertCard(x, a)), updateBoard((x) => upsertCard(x, b))]);
     expect((await readBoard()).cards.map((c) => c.id).sort()).toEqual(['aaaa', 'bbbb']);
+  });
+
+  it('treats a missing file as empty, but a corrupt one as an error, not empty', async () => {
+    await expect(readBoard()).resolves.toEqual(emptyBoard()); // ENOENT
+    writeFileSync(process.env.COCKPIT_CANVAS_BOARD!, '{not json');
+    await expect(readBoard()).rejects.toBeInstanceOf(SyntaxError);
+  });
+
+  it('a read failure during updateBoard rejects and never wipes the file on disk', async () => {
+    const a = sanitizeCard({ id: 'aaaa', title: 'a' }, undefined, 1)!;
+    await updateBoard((x) => upsertCard(x, a));
+    writeFileSync(process.env.COCKPIT_CANVAS_BOARD!, '{not json');
+    await expect(updateBoard((x) => x)).rejects.toBeInstanceOf(SyntaxError);
+    expect(readFileSync(process.env.COCKPIT_CANVAS_BOARD!, 'utf8')).toBe('{not json');
+    // the chain recovers for the next caller once the file is fixed
+    const b = sanitizeCard({ id: 'bbbb', title: 'b' }, undefined, 1)!;
+    writeFileSync(process.env.COCKPIT_CANVAS_BOARD!, JSON.stringify(emptyBoard()));
+    await updateBoard((x) => upsertCard(x, b));
+    expect((await readBoard()).cards.map((c) => c.id)).toEqual(['bbbb']);
+  });
+
+  it('readBoardChained waits for a write already queued ahead of it', async () => {
+    const a = sanitizeCard({ id: 'aaaa', title: 'a' }, undefined, 1)!;
+    const write = updateBoard((x) => upsertCard(x, a));
+    const read = readBoardChained();
+    await write;
+    expect((await read).cards.map((c) => c.id)).toEqual(['aaaa']);
+  });
+
+  it('keeps a .bak of the board before each write', async () => {
+    const a = sanitizeCard({ id: 'aaaa', title: 'a' }, undefined, 1)!;
+    await updateBoard((x) => upsertCard(x, a));
+    const b = sanitizeCard({ id: 'bbbb', title: 'b' }, undefined, 1)!;
+    await updateBoard((x) => upsertCard(x, b));
+    const bak = JSON.parse(readFileSync(`${process.env.COCKPIT_CANVAS_BOARD!}.bak`, 'utf8'));
+    expect(bak.cards.map((c: { id: string }) => c.id)).toEqual(['aaaa']);
   });
 });

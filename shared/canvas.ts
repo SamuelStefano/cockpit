@@ -34,14 +34,20 @@ export interface CanvasNode {
   hub?: boolean;
   status?: CardStatus;
   path?: string; // absolute file of a context, so a prompt can point the agent at it
+  count?: number; // session only: user+assistant turns, for the cron-ping/empty check
+  waiting?: boolean; // session only: turn stopped on a pending AskUserQuestion
 }
 
-export type CanvasEdgeKind = 'read' | 'write' | 'link' | 'card';
+// 'card' = the agent actually ran on this session (marker-bound) or the card
+// links this context; 'input' = the user picked this session as prompt input,
+// which says nothing about who is running it or where "open session" should go.
+export type CanvasEdgeKind = 'read' | 'write' | 'link' | 'card' | 'topic' | 'input';
 
 export interface CanvasEdge {
   source: string;
   target: string;
   kind: CanvasEdgeKind;
+  weight?: number; // 'topic' only: match strength, so the strongest guess can render bolder than a weak one
 }
 
 export interface CanvasGraph {
@@ -67,3 +73,24 @@ export const CARD_ID_RE = /^[a-z0-9-]{4,40}$/;
 // the new-xxx → sessionId migration without any client bookkeeping.
 export const cardMarker = (id: string) => `[deck-card:${id}]`;
 export const CARD_MARKER_RE = /\[deck-card:([a-z0-9-]{4,40})\]/;
+
+// Cron-reset ping sessions: daily crons that send only a "." (sometimes with
+// "não responder") just to reset the account's rate-limit window. Noise in the
+// sidebar and on the canvas alike — the user never wants them as conversations.
+// Matches the EXACT ping text (title/snippet derived from the 1st message),
+// not "starts with a dot", so it never swallows a real short message. New reset
+// prompt variants join this set. Lives here (not src/cockpit/session.ts, the
+// original home) because it is also needed by the canvas filter, which is pure
+// TS tested under Node — session.ts pulls in `location` at import time and
+// breaks outside a browser/jsdom environment.
+const PING_TEXTS = new Set([
+  '.', '. - nao responder', '. - não responder', '.- nao responder', '.- não responder',
+  // Bare variant (no leading "." at all), confirmed against real recent titles
+  // while building the canvas topic matcher: "Nao responder" / "Não responder"
+  // alone, same reset cron, just without the dot.
+  'nao responder', 'não responder',
+]);
+export function isCronPing(m: { title?: string; snippet?: string }): boolean {
+  const t = (m.snippet || m.title || '').trim().toLowerCase();
+  return PING_TEXTS.has(t);
+}

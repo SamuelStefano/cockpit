@@ -37,6 +37,23 @@ describe('layoutCanvas', () => {
   it('lets a saved position win', () => {
     expect(layoutCanvas(nodes, edges, { 's:one': { x: 5, y: 6 } })['s:one']).toEqual({ x: 5, y: 6 });
   });
+
+  it('does not reshuffle when a memory write only bumps mtime (review #5)', () => {
+    const bumped = nodes.map((n) => (n.id === 'c:leaf' ? { ...n, mtime: 999 } : n));
+    const before = layoutCanvas(nodes, edges, {});
+    const after = layoutCanvas(bumped, edges, {});
+    expect(after).toEqual(before);
+  });
+
+  it('does not reshuffle an unrelated sibling when a session becomes active (review #5)', () => {
+    const more = [...nodes, n('c:leaf2', 'context'), n('s:two', 'session')];
+    const moreEdges: CanvasEdge[] = [...edges, { source: 'c:hub_a', target: 'c:leaf2', kind: 'link' }, { source: 's:two', target: 'c:leaf2', kind: 'write' }];
+    const before = layoutCanvas(more, moreEdges, {});
+    const bumped = more.map((x) => (x.id === 's:two' ? { ...x, mtime: 999 } : x));
+    const after = layoutCanvas(bumped, moreEdges, {});
+    expect(after['c:leaf']).toEqual(before['c:leaf']);
+    expect(after['s:one']).toEqual(before['s:one']);
+  });
 });
 
 describe('bounds', () => {

@@ -30,6 +30,21 @@ describe('filterCanvas', () => {
     expect(ids(filterCanvas(nodes, edges, { ...base, running: new Set(['old']) }))).toContain('s:old');
   });
 
+  it('a waiting session counts as active even outside the window', () => {
+    const waiting = [...nodes, n('s:waits', 'session', { mtime: 0, waiting: true })];
+    expect(ids(filterCanvas(waiting, edges, base))).toContain('s:waits');
+  });
+
+  it('excludes a cron-ping session even when fresh', () => {
+    const ping = [...nodes, n('s:ping', 'session', { title: '.', subtitle: '' })];
+    expect(ids(filterCanvas(ping, edges, base))).not.toContain('s:ping');
+  });
+
+  it('excludes an empty (count 0) session even when fresh', () => {
+    const empty = [...nodes, n('s:empty', 'session', { count: 0 })];
+    expect(ids(filterCanvas(empty, edges, base))).not.toContain('s:empty');
+  });
+
   it('all scope hides archived unless asked', () => {
     expect(ids(filterCanvas(nodes, edges, { ...base, scope: 'all' }))).not.toContain('s:arch');
     expect(ids(filterCanvas(nodes, edges, { ...base, scope: 'all', archived: true }))).toContain('s:arch');

@@ -14,8 +14,11 @@ export function zoomAt(v: View, sx: number, sy: number, factor: number): View {
   return { k, x: sx - (sx - v.x) * f, y: sy - (sy - v.y) * f };
 }
 
-export function fitView(b: { x: number; y: number; w: number; h: number }, w: number, h: number, pad = 60): View {
-  const k = clampK(Math.min((w - pad * 2) / b.w, (h - pad * 2) / b.h, 1));
+// minK lets a caller ask for a readable floor (e.g. the initial framing of a
+// small "core" box) instead of always shrinking to whatever fits exactly —
+// "fit all" (the toolbar button) still wants the true fit, unfloored.
+export function fitView(b: { x: number; y: number; w: number; h: number }, w: number, h: number, pad = 60, minK = MIN_K): View {
+  const k = clampK(Math.max(minK, Math.min((w - pad * 2) / b.w, (h - pad * 2) / b.h, 1)));
   return { k, x: (w - b.w * k) / 2 - b.x * k, y: (h - b.h * k) / 2 - b.y * k };
 }
 
@@ -35,6 +38,10 @@ export function useCanvasViewport() {
     const el = ref.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
+      // Overlays (HUD, inspector) sit inside the surface and bubble their wheel
+      // events up here; a non-passive listener that always preventDefault()s
+      // pans the map instead of letting their own overflow-y-auto scroll.
+      if (e.target instanceof Element && e.target.closest('[data-canvas-overlay]')) return;
       e.preventDefault();
       const r = el.getBoundingClientRect();
       if (e.ctrlKey || e.metaKey) setView((v) => zoomAt(v, e.clientX - r.left, e.clientY - r.top, Math.exp(-Math.max(-60, Math.min(60, e.deltaY)) * 0.008)));
@@ -78,9 +85,9 @@ export function useCanvasViewport() {
     setView((v) => zoomAt(v, el.clientWidth / 2, el.clientHeight / 2, factor));
   }, []);
 
-  const fit = useCallback((b: { x: number; y: number; w: number; h: number }) => {
+  const fit = useCallback((b: { x: number; y: number; w: number; h: number }, minK?: number) => {
     const el = ref.current;
-    if (el) setView(fitView(b, el.clientWidth, el.clientHeight));
+    if (el) setView(fitView(b, el.clientWidth, el.clientHeight, 60, minK));
   }, []);
 
   const centerOn = useCallback((p: CanvasPos) => {

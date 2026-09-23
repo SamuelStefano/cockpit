@@ -6,9 +6,22 @@ import { CARD_MARKER_RE } from '../../shared/canvas';
 
 export type RefKind = 'read' | 'write';
 
+// Loose context signal for topic matching (unlike `contexts`, which only fires on
+// a memory-file tool call): repos/dirs touched, skills run, MCP servers called.
+// Counted rather than boolean so the matcher can weigh a repo mentioned 40 times
+// over one seen in a single stray path. Optional on SessionRefs so an older cache
+// entry (written before this field existed) deserializes fine with it absent —
+// the caller decides whether absence means "empty" or "needs a rescan".
+export interface SessionTopics {
+  dirs: Record<string, number>;
+  skills: Record<string, number>;
+  mcp: Record<string, number>;
+}
+
 export interface SessionRefs {
   contexts: Record<string, RefKind>;
   cardId?: string;
+  topics?: SessionTopics;
   consumed: number; // bytes of complete lines already scanned (JSONL is append-only)
 }
 
@@ -16,8 +29,54 @@ const MEM_RE = /\/memory\/([A-Za-z0-9_-]{1,80})\.md\b/g;
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit']);
 const PATH_TOOLS = new Set(['Read', 'Write', 'Edit', 'MultiEdit']);
 
+// Repo/dir tokens: the first path segment under the home dir, skipping the
+// directories that are not a project (agent config, one-shot uploads, scratch).
+const IGNORED_DIRS = new Set(['.claude', 'attachments', 'tmp']);
+const HOME_RE = /^\/home\/[a-zA-Z0-9_-]+\//;
+const FILE_PATH_RE = /"file_path":"((?:[^"\\]|\\.)*)"/g;
+const CWD_RE = /"cwd":"((?:[^"\\]|\\.)*)"/g;
+const CD_RE = /\bcd\s+(?:~\/|\/home\/[a-zA-Z0-9_-]+\/)([a-zA-Z0-9_.-]+)/g;
+const SKILL_RE = /"skill":"([a-zA-Z0-9_-]+)"/g;
+const MCP_RE = /"name":"mcp__([a-zA-Z0-9_-]+?)__/g;
+
 export function emptyRefs(): SessionRefs {
-  return { contexts: {}, consumed: 0 };
+  return { contexts: {}, topics: emptyTopics(), consumed: 0 };
+}
+
+export function emptyTopics(): SessionTopics {
+  return { dirs: {}, skills: {}, mcp: {} };
+}
+
+function bump(rec: Record<string, number>, key: string | undefined) {
+  if (!key) return;
+  rec[key] = (rec[key] ?? 0) + 1;
+}
+
+// `/home/<user>/<dir>/...` -> `<dir>`, or undefined for a path outside the home
+// dir or in one of the ignored dirs.
+function dirToken(path: string): string | undefined {
+  if (!HOME_RE.test(path)) return undefined;
+  const seg = path.replace(HOME_RE, '').split('/')[0];
+  return seg && !IGNORED_DIRS.has(seg) ? seg : undefined;
+}
+
+// Cheap regex pass over the raw line (no JSON.parse): file paths, cwd, `cd`
+// inside Bash commands, skill names, MCP server names. Loose on purpose — this
+// feeds a fuzzy weighted match, not the precise read/write edge below, so a
+// path echoed back in a tool result still correctly says "this session touched
+// that repo".
+function scanTopicsLine(line: string, topics: SessionTopics): void {
+  let m: RegExpExecArray | null;
+  FILE_PATH_RE.lastIndex = 0;
+  while ((m = FILE_PATH_RE.exec(line))) bump(topics.dirs, dirToken(m[1]));
+  CWD_RE.lastIndex = 0;
+  while ((m = CWD_RE.exec(line))) bump(topics.dirs, dirToken(m[1]));
+  CD_RE.lastIndex = 0;
+  while ((m = CD_RE.exec(line))) bump(topics.dirs, IGNORED_DIRS.has(m[1]) ? undefined : m[1]);
+  SKILL_RE.lastIndex = 0;
+  while ((m = SKILL_RE.exec(line))) bump(topics.skills, m[1]);
+  MCP_RE.lastIndex = 0;
+  while ((m = MCP_RE.exec(line))) bump(topics.mcp, m[1]);
 }
 
 function addRef(refs: SessionRefs, id: string, kind: RefKind) {
@@ -40,6 +99,7 @@ function firstUserText(content: unknown): string {
 }
 
 export function scanRefsLine(line: string, refs: SessionRefs): void {
+  scanTopicsLine(line, refs.topics ?? (refs.topics = emptyTopics()));
   const maybeTool = line.includes('"tool_use"') && line.includes('/memory/');
   const maybeCard = !refs.cardId && line.includes('[deck-card:');
   if (!maybeTool && !maybeCard) return;

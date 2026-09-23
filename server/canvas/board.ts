@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rename, copyFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import {
@@ -75,32 +75,53 @@ export function mergePos(board: CanvasBoard, pos: Record<string, CanvasPos>): Ca
   return { ...board, pos: merged };
 }
 
+// Only a missing file means "no board yet" — an unreadable one (EACCES,
+// EMFILE) or a corrupt one (JSON parse error after a hand edit) must NOT read
+// as empty, because updateBoard would then happily write that emptiness over
+// every card and position (canvas review #10).
 export async function readBoard(): Promise<CanvasBoard> {
+  let raw: string;
   try {
-    const raw = JSON.parse(await readFile(boardFile(), 'utf8')) as Partial<CanvasBoard>;
-    const now = Date.now();
-    const cards = (Array.isArray(raw.cards) ? raw.cards : [])
-      .map((c) => sanitizeCard(c, c as CanvasCard, (c as CanvasCard)?.updatedAt ?? now))
-      .filter((c): c is CanvasCard => !!c);
-    return { cards, pos: sanitizePos(raw.pos) };
-  } catch {
-    return emptyBoard();
+    raw = await readFile(boardFile(), 'utf8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') return emptyBoard();
+    throw err;
   }
+  const parsed = JSON.parse(raw) as Partial<CanvasBoard>; // throws on corrupt JSON, on purpose
+  const now = Date.now();
+  const cards = (Array.isArray(parsed.cards) ? parsed.cards : [])
+    .map((c) => sanitizeCard(c, c as CanvasCard, (c as CanvasCard)?.updatedAt ?? now))
+    .filter((c): c is CanvasCard => !!c);
+  return { cards, pos: sanitizePos(parsed.pos) };
 }
 
 // Every write goes through one chain: two quick frames (drag end + card save)
 // would otherwise read the same snapshot and the second would drop the first.
+// A read failure rejects `next` instead of writing — the caller sees the
+// error and nothing on disk changes.
 let chain: Promise<unknown> = Promise.resolve();
 export function updateBoard(fn: (b: CanvasBoard) => CanvasBoard): Promise<CanvasBoard> {
   const next = chain.then(async () => {
     const updated = fn(await readBoard());
     const f = boardFile();
     await mkdir(dirname(f), { recursive: true });
+    await copyFile(f, `${f}.bak`).catch(() => undefined); // best-effort: no prior file yet is fine
     const tmp = `${f}.tmp`;
     await writeFile(tmp, JSON.stringify(updated), 'utf8');
     await rename(tmp, f);
     return updated;
   });
+  chain = next.catch(() => undefined);
+  return next;
+}
+
+// A plain `readBoard()` can land between two chained writes and see a
+// half-applied state (canvas review #7): `canvas-get` fires concurrently with
+// a drag-end or card-save frame, not awaited against them. Reading through
+// the same chain — without itself writing anything — waits for whatever
+// write is already in flight, same as another updateBoard() would.
+export function readBoardChained(): Promise<CanvasBoard> {
+  const next = chain.then(() => readBoard());
   chain = next.catch(() => undefined);
   return next;
 }

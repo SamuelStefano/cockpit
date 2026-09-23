@@ -32,12 +32,27 @@ describe('mergeBoard', () => {
   it('works before the first graph frame', () => {
     expect(mergeBoard(null, [card()]).nodes).toHaveLength(1);
   });
+
+  it('gives a prompt-input session its own "input" kind, not "card"', () => {
+    const r = mergeBoard(graph, [card({ id: 'card-2', sessionIds: ['x'], contextIds: [] })]);
+    expect(r.edges).toContainEqual({ source: 'k:card-2', target: 's:x', kind: 'input' });
+  });
+
+  it('does not downgrade an already marker-bound session to "input"', () => {
+    const r = mergeBoard(graph, [card({ sessionIds: ['x'], contextIds: [] })]);
+    expect(r.edges).toContainEqual({ source: 'k:card-1', target: 's:x', kind: 'card' });
+    expect(r.edges).not.toContainEqual({ source: 'k:card-1', target: 's:x', kind: 'input' });
+  });
 });
 
 describe('cardRun', () => {
   const edges = mergeBoard(graph, [card()]).edges;
   it('reads bound sessions', () => {
     expect(boundSessions(edges, 'card-1')).toEqual(['x']);
+  });
+  it('ignores prompt-input sessions, only marker-bound ones', () => {
+    const withInput = mergeBoard(graph, [card({ id: 'card-2', sessionIds: ['x'], contextIds: [] })]).edges;
+    expect(boundSessions(withInput, 'card-2')).toEqual([]);
   });
   it('running beats review, review needs doing + sessions', () => {
     expect(cardRun(card({ status: 'doing' }), ['x'], new Set(['x']))).toBe('running');

@@ -13,6 +13,13 @@ const STYLE: Record<CanvasEdgeKind, { stroke: string; dash?: string; width: numb
   read: { stroke: 'rgba(163,163,163,0.35)', dash: '6 6', width: 1.2 },
   link: { stroke: 'rgba(115,115,115,0.35)', dash: '2 6', width: 1 },
   card: { stroke: 'rgba(251,146,60,0.8)', dash: '8 5', width: 1.8 },
+  // Inferred, not observed (no tool call proves it) — short dash, dim, and its
+  // own opacity scales with match weight so a strong guess reads darker than a
+  // weak one even before the node is focused.
+  topic: { stroke: 'rgba(94,234,212,0.45)', dash: '1 4', width: 1 },
+  // A user-picked prompt INPUT, not an agent run — thinner and cooler than
+  // `card` on purpose so it never reads as "this session is doing the work".
+  input: { stroke: 'rgba(147,197,253,0.5)', dash: '4 4', width: 1.2 },
 };
 
 function path(a: CanvasPos, b: CanvasPos): string {
@@ -31,11 +38,12 @@ export const CanvasEdges = memo(function CanvasEdges({ edges, pos, focus }: Prop
         if (!a || !b) return null;
         const s = STYLE[e.kind];
         const on = focus.has(e.source) || focus.has(e.target);
+        const weightOpacity = e.kind === 'topic' ? 0.4 + 0.6 * (e.weight ?? 1) : 1;
         return (
           <path
             key={`${e.source}>${e.target}`} d={path(a, b)} fill="none"
             stroke={s.stroke} strokeWidth={on ? s.width * 1.8 : s.width} strokeDasharray={s.dash}
-            opacity={hasFocus && !on ? 0.15 : 1}
+            opacity={(hasFocus && !on ? 0.15 : 1) * weightOpacity}
           />
         );
       })}

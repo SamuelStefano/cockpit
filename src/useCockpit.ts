@@ -65,7 +65,7 @@ const HEARTBEAT_STALE_MS = 40_000;
 type LeafApis = Omit<Notes & Drops & Crons & Points & Contexts & Skills & Graphs & CanvasApi & Admin & Harness, 'onMsg' | 'onGraphReconnect'>;
 
 export interface Cockpit extends LeafApis {
-  onLaunchAgent: (prompt: string, title: string) => string;
+  onLaunchAgent: (prompt: string, title: string) => string | null;
   sessions: Session[];
   loading: boolean;
   activeId: string;
@@ -1386,9 +1386,9 @@ export function useCockpit(): Cockpit {
 
   // auto=true marca envio de automação (flush da fila do cliente): o servidor
   // estaciona autos enquanto a sessão aguarda resposta de AskUserQuestion.
-  const onSend = useCallback((text: string, modeOverride?: PermMode, auto?: boolean, allowWorkflow?: boolean) => {
+  const onSend = useCallback((text: string, modeOverride?: PermMode, auto?: boolean, allowWorkflow?: boolean): boolean => {
     const key = activeRef.current;
-    if (!key) return;
+    if (!key) return false;
     // WS fechado: send() descartaria em silêncio DEPOIS do trabalho otimista —
     // bolha na tela, composer limpo e o servidor nunca recebeu nada. Guard antes
     // de qualquer mutação: avisa e devolve o texto pro composer.
@@ -1397,7 +1397,7 @@ export function useCockpit(): Cockpit {
       // O submit do composer chama setValue('') logo após onSend; o microtask
       // re-despacha o restore por último, senão o texto restaurado era apagado.
       queueMicrotask(() => setDrafts((d) => ({ ...d, [key]: d[key] || text })));
-      return;
+      return false;
     }
     // Turno em voo: NÃO bloqueia mais. O servidor tria o prompt (esperar/responder/
     // prioridade/juntar) — ver routeSend. A bolha do usuário entra otimista e o
@@ -1439,6 +1439,7 @@ export function useCockpit(): Cockpit {
     const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
     const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
     send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: pinSessionModel(key), effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire, auto: auto || undefined, allowWorkflow: allowWorkflow || undefined });
+    return true;
   }, [send, updateThread, pinSessionModel, noteSent]);
   const onApproveWorkflow = useCallback((text: string) => onSend(text, undefined, undefined, true), [onSend]);
   // Fecha a ponte usada pelo handoff-result (declarado acima do onSend).
@@ -1451,7 +1452,9 @@ export function useCockpit(): Cockpit {
     const t = title.trim().slice(0, 120) || 'Agente do canvas';
     setSessions((prev) => prev.map((x) => (x.id === fresh ? { ...x, title: t } : x)));
     pendingTitle.current[fresh] = t;
-    onSend(prompt);
+    // WS fechado: onSend já mostrou o aviso e devolveu o texto pro composer da
+    // sessão nova (vazia) — o card não pode se comportar como se tivesse disparado.
+    if (!onSend(prompt)) return null;
     return fresh;
   }, [onNew, onSend]);
 
@@ -1781,10 +1784,21 @@ export function useCockpit(): Cockpit {
   const phase = phases[activeId] || 'idle';
   // Sessões com run vivo (pra dot pulsante no sidebar) — útil em run noturno
   // multi-sessão: ver de relance quem ainda trabalha sem abrir cada uma.
-  const running = useMemo(
-    () => new Set(Object.keys(phases).filter((k) => phases[k] === 'thinking' || phases[k] === 'streaming')),
-    [phases]
-  );
+  // `phases` gets a new object on every streamed token, but the SET of
+  // running keys usually doesn't change token to token. The canvas route
+  // derives its whole layout from `running`, so a fresh Set identity per
+  // token was re-filtering/re-laying-out/re-rendering ~300-600 nodes on
+  // every delta frame from any agent. Keep the previous Set when membership
+  // is unchanged so consumers that key off identity (useMemo/useEffect deps)
+  // don't churn.
+  const runningRef = useRef<Set<string>>(new Set());
+  const running = useMemo(() => {
+    const next = new Set(Object.keys(phases).filter((k) => phases[k] === 'thinking' || phases[k] === 'streaming'));
+    const prev = runningRef.current;
+    if (prev.size === next.size && [...next].every((k) => prev.has(k))) return prev;
+    runningRef.current = next;
+    return next;
+  }, [phases]);
   // Marca o início do turno por sessão (idle→running) e limpa no fim, pra o card
   // do sidebar mostrar há quanto tempo aquela sessão trabalha.
   useEffect(() => {

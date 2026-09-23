@@ -4,6 +4,7 @@ import {
   cardNodeId, contextNodeId, sessionNodeId,
 } from '../../shared/canvas';
 import type { SessionRefs } from './refs';
+import { createTopicMatcher, type MatchDoc } from './topics';
 
 export interface ContextDoc {
   id: string;
@@ -45,12 +46,12 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
   const nodes: CanvasNode[] = [];
   const edges: CanvasEdge[] = [];
   const seen = new Set<string>();
-  const addEdge = (source: string, target: string, kind: CanvasEdgeKind) => {
+  const addEdge = (source: string, target: string, kind: CanvasEdgeKind, weight?: number) => {
     if (source === target) return;
     const key = `${source}>${target}`;
     if (seen.has(key)) return;
     seen.add(key);
-    edges.push({ source, target, kind });
+    edges.push(weight === undefined ? { source, target, kind } : { source, target, kind, weight: Math.min(1, weight) });
   };
 
   const byKey = new Map<string, string>();
@@ -61,16 +62,27 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
   const ctxIds = new Set(input.contexts.map((c) => c.id));
   const sessionIds = new Set(input.sessions.map((s) => s.meta.id));
 
+  // Built once per graph, not per session: the hub<->leaf vote map only
+  // depends on the memory corpus, which is the same for every session below.
+  const matchDocs: MatchDoc[] = input.contexts.map((c) => ({ id: c.id, name: c.name, description: c.description, hub: c.id.startsWith('hub_'), links: c.links }));
+  const matchTopics = createTopicMatcher(matchDocs);
+
   for (const { meta, archived } of input.sessions) {
     nodes.push({
       id: sessionNodeId(meta.id), kind: 'session', ref: meta.id,
       title: meta.title, subtitle: (meta.summary || meta.snippet || '').slice(0, 220),
-      mtime: meta.mtime, archived: archived || undefined,
+      mtime: meta.mtime, archived: archived || undefined, count: meta.count, waiting: meta.waiting || undefined,
     });
     const refs = input.refs.get(meta.id);
     if (!refs) continue;
     for (const [ctx, kind] of Object.entries(refs.contexts)) {
       if (ctxIds.has(ctx)) addEdge(sessionNodeId(meta.id), contextNodeId(ctx), kind);
+    }
+    const text = `${meta.title} ${meta.summary ?? ''} ${meta.snippet}`;
+    for (const { id: ctx, score } of matchTopics(refs.topics, text)) {
+      // A real memory tool call (read/write) is stronger evidence than any
+      // inference — never replaced by a topic guess for the same context.
+      if (ctxIds.has(ctx) && !refs.contexts[ctx]) addEdge(sessionNodeId(meta.id), contextNodeId(ctx), 'topic', score / 5);
     }
   }
 
@@ -98,8 +110,16 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
       title: card.title, subtitle: card.prompt.slice(0, 220), mtime: card.updatedAt, status: card.status,
     });
     for (const ctx of card.contextIds) if (ctxIds.has(ctx)) addEdge(cardNodeId(card.id), contextNodeId(ctx), 'card');
-    for (const sid of [...card.sessionIds, ...(boundByCard.get(card.id) ?? [])]) {
+    // Marker-bound sessions (the agent actually ran here) first, as 'card': run
+    // state and "open session" should only ever look at these. `card.sessionIds`
+    // are the user's prompt INPUT picks, not agent sessions — 'input' kind, and
+    // addEdge's dedup means an input pick that happens to already be bound stays
+    // 'card' rather than being downgraded.
+    for (const sid of boundByCard.get(card.id) ?? []) {
       if (sessionIds.has(sid)) addEdge(cardNodeId(card.id), sessionNodeId(sid), 'card');
+    }
+    for (const sid of card.sessionIds) {
+      if (sessionIds.has(sid)) addEdge(cardNodeId(card.id), sessionNodeId(sid), 'input');
     }
   }
 

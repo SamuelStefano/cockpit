@@ -25,6 +25,9 @@ interface Props {
 }
 
 const COMPACT_BELOW = 0.42;
+// Floor for the very first framing only — legible enough to read a title
+// without a manual zoom-in; "fit all" (toolbar) stays unfloored on purpose.
+const INITIAL_MIN_ZOOM = 0.35;
 
 export function CanvasSurface(p: Props) {
   const vp = useCanvasViewport();
@@ -36,11 +39,25 @@ export function CanvasSurface(p: Props) {
   useEffect(() => {
     if (fitted.current || !p.nodes.length) return;
     fitted.current = true;
-    fit(p.initialBounds);
+    fit(p.initialBounds, INITIAL_MIN_ZOOM);
   }, [p.nodes.length, p.initialBounds, fit]);
 
+  // `p.pos` gets a new identity on every layout recompute (any streamed token
+  // from any running agent touches `running`, which feeds `visible`), so a
+  // dep on it here re-centers on every frame — panning away or zooming out
+  // was undone before the user's hand left the trackpad. Center once per
+  // request (keyed on `req.n`) and read the current position through a ref.
+  const posRef = useRef(p.pos);
+  posRef.current = p.pos;
   const req = p.centerRequest;
-  useEffect(() => { if (req && p.pos[req.id]) centerOn(p.pos[req.id]); }, [req, p.pos, centerOn]);
+  const centeredN = useRef<number | null>(null);
+  useEffect(() => {
+    if (!req || centeredN.current === req.n) return;
+    const target = posRef.current[req.id];
+    if (!target) return;
+    centeredN.current = req.n;
+    centerOn(target);
+  }, [req, centerOn]);
 
   const focus = useMemo(() => {
     const out = new Set(p.selected);
