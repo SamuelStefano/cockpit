@@ -63,21 +63,41 @@ export function metaToSession(m: SessionMeta, active: boolean): Session {
 // acabou de mexer volta pro balde velho e "some" do topo até um F5 (group-by-recency
 // ordena/agrupa só por mtime). Quando o otimista vence, mantém também o relative/
 // snippet locais pra o card não mostrar um estado velho junto do mtime novo.
-// `claimed` = uuids que uma sessão local `new-` já recebeu no `system` do 1º turno
-// mas ainda não migrou (a migração espera o `done`). O JSONL nasce no início do
-// turno, então o re-list traz esse uuid como linha própria — e a mesma conversa
-// aparecia duas vezes: a `new-` no bloco "trabalhando" e a uuid em "Hoje".
-export function mergeServerSessions(prev: Session[], items: SessionMeta[], activeId: string, claimed?: ReadonlySet<string>): Session[] {
+// `claimed` = uuid -> chave `new-` que já recebeu esse uuid (frame `system`/`replay`
+// do 1º turno) mas ainda não migrou (a migração espera o `done`). O JSONL nasce no
+// início do turno, então o re-list traz esse uuid como linha própria — e a mesma
+// conversa aparecia duas vezes: a `new-` no bloco "trabalhando" e a uuid em "Hoje".
+// Quando o cliente NÃO tem a linha `new-` (F5, outro aparelho, aba nova), a linha do
+// servidor é ADOTADA sob a chave `new-`: descartá-la sumia com a sessão do sidebar
+// até o fim do 1º turno, e renderizar sob o uuid mostraria um chat sem o stream vivo
+// (os deltas chegam keyed pela `new-`).
+export function mergeServerSessions(prev: Session[], items: SessionMeta[], activeId: string, claimed?: ReadonlyMap<string, string>): Session[] {
   const prevById = new Map(prev.map((s) => [s.id, s]));
   const localOnly = prev.filter((s) => s.id.startsWith('new-'));
-  const fromServer = items.filter((m) => !isCronPing(m) && !claimed?.has(m.id)).map((m) => {
+  const fromServer: Session[] = [];
+  for (const m of items) {
+    if (isCronPing(m)) continue;
+    const owner = claimed?.get(m.id);
+    if (owner) {
+      if (!prevById.has(owner)) fromServer.push({ ...metaToSession(m, owner === activeId), id: owner });
+      continue;
+    }
     const sess = metaToSession(m, m.id === activeId);
     const p = prevById.get(m.id);
     // `waiting` acompanha o otimista: quem acabou de responder no chat não pode
     // continuar no balde "Aguardando você" só porque o JSONL ainda não gravou.
-    return p && p.mtime > sess.mtime ? { ...sess, mtime: p.mtime, relative: p.relative, snippet: p.snippet, waiting: p.waiting } : sess;
-  });
+    fromServer.push(p && p.mtime > sess.mtime ? { ...sess, mtime: p.mtime, relative: p.relative, snippet: p.snippet, waiting: p.waiting } : sess);
+  }
   return [...localOnly, ...fromServer];
+}
+
+// Um frame (`system`/`replay`) acabou de revelar que a chave `new-` é dona do uuid.
+// Com a linha `new-` local, a do uuid (vinda de um `list` anterior) é duplicata e
+// sai; sem ela, a do uuid é renomeada pra `new-` — senão a sessão sumia do sidebar.
+export function adoptClaimedRow(prev: Session[], uuid: string, key: string): Session[] {
+  if (uuid === key || !prev.some((s) => s.id === uuid)) return prev;
+  if (prev.some((s) => s.id === key)) return prev.filter((s) => s.id !== uuid);
+  return prev.map((s) => (s.id === uuid ? { ...s, id: key } : s));
 }
 
 // Mantém a 1ª ocorrência de cada id, descartando duplicatas. Usado ao migrar a

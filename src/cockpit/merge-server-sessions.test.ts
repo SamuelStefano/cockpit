@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
-import { mergeServerSessions, isCronPing } from './session';
+import { mergeServerSessions, adoptClaimedRow, isCronPing } from './session';
 import type { Session } from '../data/types';
 import type { SessionMeta } from '../../shared/protocol';
 
@@ -41,8 +41,21 @@ describe('mergeServerSessions', () => {
   it('omite a linha do servidor cujo uuid já pertence a uma sessão local new- em voo', () => {
     const prev = [sess({ id: 'new-abc', mtime: 9000 })];
     const items = [meta({ id: 'uuid-1', mtime: 9100 }), meta({ id: 's1', mtime: 1000 })];
-    const out = mergeServerSessions(prev, items, 'new-abc', new Set(['uuid-1']));
+    const out = mergeServerSessions(prev, items, 'new-abc', new Map([['uuid-1', 'new-abc']]));
     expect(out.map((s) => s.id)).toEqual(['new-abc', 's1']);
+  });
+
+  it('adota sob a chave new- o uuid reivindicado quando não há linha local (F5 / outro aparelho)', () => {
+    const items = [meta({ id: 'uuid-1', title: 'Analytics', mtime: 9100 }), meta({ id: 's1', mtime: 1000 })];
+    const out = mergeServerSessions([], items, 's1', new Map([['uuid-1', 'new-abc']]));
+    expect(out.map((s) => s.id)).toEqual(['new-abc', 's1']);
+    expect(out[0].title).toBe('Analytics');
+    expect(out[0].active).toBe(false);
+  });
+
+  it('a linha adotada fica ativa quando a chave new- é a ativa', () => {
+    const out = mergeServerSessions([], [meta({ id: 'uuid-1' })], 'new-abc', new Map([['uuid-1', 'new-abc']]));
+    expect(out[0]).toMatchObject({ id: 'new-abc', active: true });
   });
 
   it('marca a sessão ativa', () => {
@@ -69,6 +82,24 @@ describe('mergeServerSessions', () => {
   it('NÃO esconde crons de conteúdo real (ex.: lembrete "100 reais para o ittalo")', () => {
     const out = mergeServerSessions([], [meta({ id: 'lembrete', snippet: '100 reais para o ittalo' })], 'x');
     expect(out.map((s) => s.id)).toEqual(['lembrete']);
+  });
+});
+
+describe('adoptClaimedRow', () => {
+  it('renomeia a linha do uuid pra chave new- quando não há linha local', () => {
+    const out = adoptClaimedRow([sess({ id: 'uuid-1', title: 'Analytics' }), sess({ id: 's1' })], 'uuid-1', 'new-abc');
+    expect(out.map((s) => s.id)).toEqual(['new-abc', 's1']);
+    expect(out[0].title).toBe('Analytics');
+  });
+
+  it('descarta a linha do uuid quando a new- local já existe', () => {
+    const out = adoptClaimedRow([sess({ id: 'new-abc' }), sess({ id: 'uuid-1' })], 'uuid-1', 'new-abc');
+    expect(out.map((s) => s.id)).toEqual(['new-abc']);
+  });
+
+  it('devolve a mesma referência quando o uuid não está na lista', () => {
+    const prev = [sess({ id: 's1' })];
+    expect(adoptClaimedRow(prev, 'uuid-1', 'new-abc')).toBe(prev);
   });
 });
 
