@@ -104,7 +104,7 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
     if (route === '/canvas' && isAdmin) {
       return (
         <Canvas connected={connected} graph={c.canvasGraph} board={c.canvasBoard} loading={c.canvasLoading}
-          loadingSince={c.canvasLoadingSince} stale={c.canvasStale} sessions={c.sessions} running={c.running}
+          loadingSince={c.canvasLoadingSince} stale={c.canvasStale} sessions={c.sessions} running={c.running} runStart={c.runStart}
           onCanvasGet={c.onCanvasGet} onCanvasPos={c.onCanvasPos} onCanvasPosReset={c.onCanvasPosReset}
           onCanvasCardSave={c.onCanvasCardSave} onCanvasCardDelete={c.onCanvasCardDelete} onCanvasBudgetSave={c.onCanvasBudgetSave}
           onCanvasFlowSave={c.onCanvasFlowSave} onCanvasFlowDelete={c.onCanvasFlowDelete} canvasFlowFired={c.canvasFlowFired}

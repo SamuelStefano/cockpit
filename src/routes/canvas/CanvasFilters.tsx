@@ -16,7 +16,7 @@ interface Props {
   loading: boolean;
   onRefresh: () => void;
   onNewCard: () => void;
-  counts: { sessions: number; contexts: number; terminals: number; cards: number; waiting: number; hotContext: number };
+  counts: { sessions: number; contexts: number; terminals: number; cards: number; waiting: number; hotContext: number; conflicts: number };
   areaCounts: { area: AreaId; count: number }[];
   areaFilter: AreaId | null;
   onAreaFilter: (a: AreaId | null) => void;
@@ -33,6 +33,12 @@ export function CanvasFilters(p: Props) {
         <Badge>{p.counts.terminals} terminais · {p.counts.sessions} sessões · {p.counts.contexts} contextos · {p.counts.cards} cards</Badge>
         {p.counts.waiting > 0 && <Badge tone="yellow">{p.counts.waiting} esperando</Badge>}
         {p.counts.hotContext > 0 && <Badge tone="red">{p.counts.hotContext} no limite</Badge>}
+        {p.counts.conflicts > 0 && (
+          <Badge tone="red">
+            <Icon name="alertTriangle" size={10} />
+            {p.counts.conflicts} {p.counts.conflicts === 1 ? 'conflito' : 'conflitos'}
+          </Badge>
+        )}
         <Tabs items={MODES} active={p.mode} onChange={p.onMode} className="mx-2 border-b-0" />
         <ToggleChip on={p.scope === 'active'} icon="zap" onClick={() => p.onScope('active')}>ativas (7d)</ToggleChip>
         <ToggleChip on={p.scope === 'all'} icon="layers" onClick={() => p.onScope('all')}>todas</ToggleChip>

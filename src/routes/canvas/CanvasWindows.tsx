@@ -18,6 +18,8 @@ interface Props {
   sendError: { sessionId: string; text: string; message: string } | null;
   onDismissSendError: () => void;
   stats: Record<string, TermStats>;
+  past: boolean; // timeline scrubbed away from live: every window shows the overlay
+  pastAlive: Set<string> | null; // and one not alive at T also fades
 }
 
 // The focused window paints last so it is never under a neighbour it overlaps.
@@ -34,9 +36,11 @@ export function CanvasWindows(p: Props) {
           <TerminalWindow
             key={n.id} node={n} pos={at} target={target} term={p.term}
             active={t.active === n.id} focusN={t.focusN} maximized={t.maximized === n.id} resuming={t.resuming === n.ref} stats={p.stats[n.ref]}
-            selected={p.selected.has(n.id)} dim={p.focus.size > 0 && !p.focus.has(n.id) && t.active !== n.id}
+            selected={p.selected.has(n.id)}
+            dim={(p.focus.size > 0 && !p.focus.has(n.id) && t.active !== n.id) || (p.pastAlive !== null && !p.pastAlive.has(n.id))}
             running={n.kind === 'session' && p.running.has(n.ref)} waiting={n.kind === 'session' && p.waiting.has(n.ref)}
             promptDisabled={t.resumedLive.has(n.ref)}
+            past={p.past}
             onPointerDown={p.onPointerDown} onActivate={t.focus} onCollapse={t.collapse} onKill={t.kill}
             onMaximize={t.setMaximized} onResume={t.resume} onOpenChat={p.onOpenChat}
             // Stable reference (useCockpit's onSendTo has empty-ish deps) + the

@@ -24,6 +24,7 @@ export interface CanvasRouteProps {
   stale: boolean;
   sessions: Session[];
   running: Set<string>;
+  runStart: Record<string, number>; // sessionKey -> live turn start ms, for the timeline's "running spans T"
   onCanvasGet: () => void;
   onCanvasPos: (pos: Record<string, CanvasPos>) => void;
   onCanvasPosReset: () => void;

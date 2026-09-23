@@ -32,6 +32,7 @@ interface Props {
   // outside Deck's own run tracking — sending through the prompt bar here
   // would start a SECOND writer on the same transcript.
   promptDisabled: boolean;
+  past: boolean; // timeline scrubbed to a past instant: overlay "vendo o passado"
   onPointerDown: (e: React.PointerEvent, id: string) => void;
   onActivate: (id: string) => void;
   onCollapse: (id: string) => void;
@@ -131,6 +132,13 @@ export const TerminalWindow = memo(function TerminalWindow(p: Props) {
             // so the first keystroke after the click went nowhere.
             onMouseDown={(e) => e.preventDefault()}
           />
+        )}
+        {p.past && (
+          // The xterm underneath stays mounted and live — this is a read-only
+          // reminder, not a detach, so returning to "agora" is instant.
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-neutral-950/55 backdrop-blur-[1px]">
+            <span className="rounded-full border border-neutral-700 bg-neutral-900/90 px-2.5 py-1 font-mono text-[10.5px] text-neutral-300">vendo o passado</span>
+          </div>
         )}
       </div>
       {session && (

@@ -6,11 +6,13 @@ import { countHotContext, countWaiting } from './canvas/canvas-alerts';
 import { neighbors } from './canvas/canvas-filter';
 import { newFlowId } from './canvas/canvas-board';
 import { AreaBudgetEditor } from './canvas/AreaBudgetEditor';
+import { aliveAt } from './canvas/canvas-timeline';
 import { CanvasFilters } from './canvas/CanvasFilters';
 import { CanvasHud } from './canvas/CanvasHud';
-import { CanvasInspector } from './canvas/CanvasInspector';
+import { CanvasInspector, type ConflictInfo } from './canvas/CanvasInspector';
 import { CanvasLoadingState } from './canvas/CanvasLoadingState';
 import { CanvasSurface } from './canvas/CanvasSurface';
+import { CanvasTimeline } from './canvas/CanvasTimeline';
 import { CardEditor } from './canvas/CardEditor';
 import { FlowEditor } from './canvas/FlowEditor';
 import { Kanban } from './canvas/Kanban';
@@ -18,6 +20,7 @@ import { KanbanDock } from './canvas/KanbanDock';
 import { CanvasAnalysis } from './canvas/CanvasAnalysis';
 import { useCardTerminalAutoOpen } from './canvas/useCardTerminalAutoOpen';
 import { useTermStatsPoll } from './canvas/useTermStatsPoll';
+import { useTimeline } from './canvas/useTimeline';
 import { TerminalMaximized } from './canvas/TerminalMaximized';
 import { useCanvasRoute, type CanvasRouteProps } from './canvas/useCanvasRoute';
 import { MAX_OPEN_TERMS } from './canvas/canvas-terms';
@@ -39,6 +42,10 @@ export function Canvas(p: CanvasRouteProps) {
   const linked = useCallback((id: string) => [...neighbors(r.merged.edges, id)].map((x) => r.byId.get(x)!).filter(Boolean), [r.merged.edges, r.byId]);
   const card = useCallback((id: string) => p.board.cards.find((c) => c.id === id), [p.board.cards]);
   const node = useCallback((id: string) => r.byId.get(id), [r.byId]);
+  const conflictsOf = useCallback((id: string): ConflictInfo[] => r.merged.edges
+    .filter((e) => e.kind === 'conflict' && (e.source === id || e.target === id))
+    .map((e) => ({ other: r.byId.get(e.source === id ? e.target : e.source), files: e.files ?? [] }))
+    .filter((c): c is ConflictInfo => !!c.other), [r.merged.edges, r.byId]);
   const { blur } = terms;
 
   // Flow editor: opened either by dragging a port onto another node
@@ -55,6 +62,25 @@ export function Canvas(p: CanvasRouteProps) {
   const saveFlow = useCallback((flow: CanvasFlow) => { p.onCanvasFlowSave(flow); setFlowEdit(null); }, [p]);
   const deleteFlow = useCallback((id: string) => { p.onCanvasFlowDelete(id); setFlowEdit(null); }, [p]);
   const clearAll = useCallback(() => { clearSelection(); blur(); }, [clearSelection, blur]);
+
+  const [timelineNow] = useState(() => Date.now());
+  const timeline = useTimeline(timelineNow);
+  // Alive sessions at the scrubbed instant, then their touched contexts/cards
+  // (mirrors canvas-filter's own "seed then include neighbours" shape) — null
+  // while live means "nothing extra to dim".
+  const pastAlive = useMemo(() => {
+    if (timeline.live) return null;
+    const aliveSessions = new Set<string>();
+    for (const n of r.visible.nodes) {
+      if (n.kind === 'session' && aliveAt(n, timeline.t, p.runStart[n.ref])) aliveSessions.add(n.id);
+    }
+    const out = new Set(aliveSessions);
+    for (const e of r.visible.edges) {
+      if (aliveSessions.has(e.source)) out.add(e.target);
+      if (aliveSessions.has(e.target)) out.add(e.source);
+    }
+    return out;
+  }, [timeline.live, timeline.t, r.visible.nodes, r.visible.edges, p.runStart]);
 
   // Live sessions show up as terminals on their own; ghosts wait for a click.
   const { autoOpen } = terms;
@@ -90,6 +116,7 @@ export function Canvas(p: CanvasRouteProps) {
   const contextsN = r.visible.nodes.filter((n) => n.kind === 'context').length;
   const waitingN = countWaiting(r.visible.nodes, r.waiting);
   const hotContextN = countHotContext(windowNodes, p.termStats);
+  const conflictsN = r.visible.edges.filter((e) => e.kind === 'conflict').length;
   const maxNode = terms.maximized ? r.byId.get(terms.maximized) : undefined;
   const maxTarget = maxNode && termTarget(maxNode);
 
@@ -107,7 +134,10 @@ export function Canvas(p: CanvasRouteProps) {
         mode={r.mode} onMode={r.setMode} scope={r.scope} onScope={r.setScope} archived={r.archived} onArchived={r.setArchived}
         query={r.query} onQuery={r.setQuery} loading={p.loading} onRefresh={p.onCanvasGet}
         onNewCard={() => r.newDraft('task', r.selectedNodes)}
-        counts={{ sessions: sessionsN, contexts: contextsN, terminals: r.windows.size, cards: p.board.cards.length, waiting: waitingN, hotContext: hotContextN }}
+        counts={{
+          sessions: sessionsN, contexts: contextsN, terminals: r.windows.size, cards: p.board.cards.length,
+          waiting: waitingN, hotContext: hotContextN, conflicts: conflictsN,
+        }}
         areaCounts={r.areaCounts} areaFilter={r.areaFilter} onAreaFilter={r.setAreaFilter}
       />
       {!p.connected ? (
@@ -128,11 +158,13 @@ export function Canvas(p: CanvasRouteProps) {
               stats={p.termStats} analysisOn={analysisOn} onToggleAnalysis={() => setAnalysisOn(!analysisOn)}
               flows={p.board.flows} flowFired={p.canvasFlowFired} onFlowCreate={openFlowDraft} onFlowClick={editFlow}
               areaRects={r.areaRects} budgetStatus={r.budgetStatus} onEditBudget={r.setBudgetEditArea}
+              pastAlive={pastAlive}
             >
               <CanvasHud sessions={p.sessions} running={p.running} onPick={(id) => focusNode(`s:${id}`)} />
               {r.selectedNodes.length > 0 && (
                 <CanvasInspector
                   nodes={r.selectedNodes} linked={linked} node={node} card={card} running={p.running} flows={p.board.flows}
+                  conflictsOf={conflictsOf}
                   onPick={focusNode} onOpenSession={p.onOpenSession} onOpenTerm={openTerm}
                   onNewCard={(kind) => r.newDraft(kind, r.selectedNodes)} onEditCard={r.editCard}
                   onRunCard={r.runCard} onEditFlow={editFlow} onChainSelected={openFlowDraft} onClose={r.clearSelection}
@@ -146,6 +178,7 @@ export function Canvas(p: CanvasRouteProps) {
               )}
             </CanvasSurface>
           )}
+          {p.graph && <CanvasTimeline timeline={timeline} />}
           <KanbanDock cards={p.board.cards} open={dockOpen} onToggle={() => setDockOpen(!dockOpen)}>{kanban}</KanbanDock>
         </div>
       )}
