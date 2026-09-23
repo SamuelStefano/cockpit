@@ -138,6 +138,7 @@ export function sanitizeFlow(raw: unknown, prev: CanvasFlow | undefined, now: nu
     ...(prev?.lastFiredAt !== undefined ? { lastFiredAt: prev.lastFiredAt } : {}),
     ...(prev?.failStreak ? { failStreak: prev.failStreak } : {}),
     ...(prev?.lastFailedAt !== undefined ? { lastFailedAt: prev.lastFailedAt } : {}),
+    ...(prev?.lastFailAreaBlocked ? { lastFailAreaBlocked: true } : {}),
     ...(mode ? { mode } : {}), ...(mcps ? { mcps } : {}),
   };
 }
@@ -225,14 +226,14 @@ export interface FlowClaim {
 // server/canvas/flows.ts owns the actual curve). server/canvas/flows.ts only
 // delivers when claimed.
 export function claimFlowFire(
-  board: CanvasBoard, id: string, now: number, cooldownMs: number, backoffMs: (failStreak: number) => number,
+  board: CanvasBoard, id: string, now: number, cooldownMs: number, backoffMs: (failStreak: number, areaBlocked?: boolean) => number,
 ): FlowClaim {
   const i = board.flows.findIndex((f) => f.id === id);
   if (i < 0) return { board, claimed: false, prevFires: 0, prevLastFiredAt: undefined, prevFailStreak: 0 };
   const f = board.flows[i];
   const prevFailStreak = f.failStreak ?? 0;
   const rateBlocked = f.lastFiredAt !== undefined && now - f.lastFiredAt < cooldownMs;
-  const backoffBlocked = prevFailStreak > 0 && f.lastFailedAt !== undefined && now - f.lastFailedAt < backoffMs(prevFailStreak);
+  const backoffBlocked = prevFailStreak > 0 && f.lastFailedAt !== undefined && now - f.lastFailedAt < backoffMs(prevFailStreak, f.lastFailAreaBlocked);
   if (!f.enabled || rateBlocked || backoffBlocked) {
     return { board, claimed: false, prevFires: f.fires, prevLastFiredAt: f.lastFiredAt, prevFailStreak };
   }
@@ -249,13 +250,17 @@ export function claimFlowFire(
 // delivery was still in flight.
 export function recordFlowFailure(
   board: CanvasBoard, id: string, claimedAt: number, prevFires: number, prevLastFiredAt: number | undefined, now: number,
+  areaBlocked = false,
 ): CanvasBoard {
   const i = board.flows.findIndex((f) => f.id === id);
   if (i < 0) return board;
   const f = board.flows[i];
   if (f.lastFiredAt !== claimedAt) return board;
   const flows = [...board.flows];
-  flows[i] = { ...f, fires: prevFires, lastFiredAt: prevLastFiredAt, failStreak: (f.failStreak ?? 0) + 1, lastFailedAt: now };
+  flows[i] = {
+    ...f, fires: prevFires, lastFiredAt: prevLastFiredAt, failStreak: (f.failStreak ?? 0) + 1, lastFailedAt: now,
+    ...(areaBlocked ? { lastFailAreaBlocked: true } : { lastFailAreaBlocked: undefined }),
+  };
   return { ...board, flows };
 }
 
@@ -266,7 +271,7 @@ export function recordFlowSuccess(board: CanvasBoard, id: string): CanvasBoard {
   const i = board.flows.findIndex((f) => f.id === id);
   if (i < 0 || !board.flows[i].failStreak) return board;
   const flows = [...board.flows];
-  flows[i] = { ...flows[i], failStreak: 0, lastFailedAt: undefined };
+  flows[i] = { ...flows[i], failStreak: 0, lastFailedAt: undefined, lastFailAreaBlocked: undefined };
   return { ...board, flows };
 }
 

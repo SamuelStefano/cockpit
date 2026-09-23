@@ -12,7 +12,7 @@ import type { TurnClosed } from './turn-hooks';
 const {
   mockThreads, admit, startRunMock, isDrainerEnabledMock, resolveThreadKeyMock, addParkedMock, enqueuePendingMock,
   resumableIdMock, broadcastMock, emitCanvasMsgMock, listContextsMock, listSessionsMock, listArchivedMock, cardIdFromRefsCacheMock,
-  isAreaAdmissionBlockedMock,
+  blockedAreaForMock,
 } = vi.hoisted(() => {
   const mockThreads = new Map<string, { sessionId?: string }>();
   const admit = { next: true }; // controls whether the mocked startRun "admits" (threads.set) or refuses
@@ -30,7 +30,7 @@ const {
     listSessionsMock: vi.fn(async () => [] as { id: string; title: string; snippet: string; mtime: number }[]),
     listArchivedMock: vi.fn(async () => [] as { id: string; title: string; snippet: string; mtime: number }[]),
     cardIdFromRefsCacheMock: vi.fn(async (_id: string) => undefined as string | undefined),
-    isAreaAdmissionBlockedMock: vi.fn(() => false),
+    blockedAreaForMock: vi.fn(() => undefined as string | undefined),
   };
 });
 
@@ -53,13 +53,14 @@ vi.mock('./index', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./index')>()),
   cardIdFromRefsCache: (id: string) => cardIdFromRefsCacheMock(id),
 }));
-vi.mock('./autopause-loop', () => ({ isAreaAdmissionBlocked: (...a: unknown[]) => isAreaAdmissionBlockedMock(...(a as [])) }));
+vi.mock('./autopause-loop', () => ({ blockedAreaFor: (...a: unknown[]) => blockedAreaForMock(...(a as [])) }));
 
 import { __resetCardSessions, bindCardSession, cardIdForSession } from './card-sessions';
 import { sanitizeCard, sanitizeFlow, updateBoard, upsertCard, upsertFlow } from './board';
 import { __resetFlowRuns, activeFlowRuns, registerFlowRun } from './flow-runs';
 import {
-  FLOW_RATE_LIMIT_MS, MAX_HOPS, buildFlowPrompt, deliverToCard, deliverToSession, fillTemplate, fireFlow,
+  AREA_BLOCKED_BACKOFF_MAX_MS, BACKOFF_BASE_MS, BACKOFF_MAX_MS, FLOW_RATE_LIMIT_MS, MAX_HOPS,
+  backedOff, backoffMs, buildFlowPrompt, deliverToCard, deliverToSession, fillTemplate, fireFlow,
   flowResult, handleTurnClosed, hopOfPrompt, neutralizeMarkers, rateLimited, selectFlowsToFire,
 } from './flows';
 
@@ -80,12 +81,12 @@ beforeEach(() => {
   admit.next = true;
   __resetCardSessions();
   __resetFlowRuns();
-  for (const m of [startRunMock, isDrainerEnabledMock, resolveThreadKeyMock, addParkedMock, enqueuePendingMock, resumableIdMock, broadcastMock, emitCanvasMsgMock, listContextsMock, listSessionsMock, listArchivedMock, cardIdFromRefsCacheMock, isAreaAdmissionBlockedMock]) m.mockClear();
+  for (const m of [startRunMock, isDrainerEnabledMock, resolveThreadKeyMock, addParkedMock, enqueuePendingMock, resumableIdMock, broadcastMock, emitCanvasMsgMock, listContextsMock, listSessionsMock, listArchivedMock, cardIdFromRefsCacheMock, blockedAreaForMock]) m.mockClear();
   isDrainerEnabledMock.mockReturnValue(false);
   resumableIdMock.mockImplementation((id?: string) => id);
   addParkedMock.mockReturnValue({ id: 'pk-1' });
   enqueuePendingMock.mockReturnValue(true);
-  isAreaAdmissionBlockedMock.mockReturnValue(false);
+  blockedAreaForMock.mockReturnValue(undefined);
 });
 
 // --- pure functions -----------------------------------------------------------
@@ -107,6 +108,32 @@ describe('rateLimited', () => {
     expect(rateLimited({ lastFiredAt: 1000 }, 1000 + FLOW_RATE_LIMIT_MS - 1)).toBe(true);
     expect(rateLimited({ lastFiredAt: 1000 }, 1000 + FLOW_RATE_LIMIT_MS)).toBe(false);
     expect(rateLimited({ lastFiredAt: undefined }, 999999)).toBe(false);
+  });
+});
+
+describe('backoffMs / backedOff', () => {
+  it('climbs exponentially from the 1-minute base, capped at 30 minutes for a normal (non-area) failure', () => {
+    expect(backoffMs(0)).toBe(0);
+    expect(backoffMs(1)).toBe(BACKOFF_BASE_MS);
+    expect(backoffMs(2)).toBe(BACKOFF_BASE_MS * 2);
+    expect(backoffMs(3)).toBe(BACKOFF_BASE_MS * 4);
+    expect(backoffMs(20)).toBe(BACKOFF_MAX_MS); // way past the ceiling: clamped
+  });
+
+  it('caps at 2 minutes for an area-blocked failure, far below the normal 30-minute ceiling once the streak climbs', () => {
+    expect(backoffMs(1, true)).toBe(BACKOFF_BASE_MS); // 1m: same as normal at streak 1, nothing to cap yet
+    expect(backoffMs(3, true)).toBe(AREA_BLOCKED_BACKOFF_MAX_MS); // normal curve would be 4m here; capped at 2m
+    expect(backoffMs(20, true)).toBe(AREA_BLOCKED_BACKOFF_MAX_MS);
+  });
+
+  it('backedOff reads the flow\'s own lastFailAreaBlocked to pick the right cap', () => {
+    const normal = { failStreak: 3, lastFailedAt: 1000 };
+    const areaBlocked = { failStreak: 3, lastFailedAt: 1000, lastFailAreaBlocked: true };
+    // At 3 minutes after the failure: still backed off under the normal 4m
+    // curve, but already clear under the area-blocked 2m cap.
+    const threeMinLater = 1000 + 3 * 60_000;
+    expect(backedOff(normal, threeMinLater)).toBe(true);
+    expect(backedOff(areaBlocked, threeMinLater)).toBe(false);
   });
 });
 
@@ -193,16 +220,16 @@ describe('selectFlowsToFire', () => {
 // --- handler-level: delivery, claiming, and the turn-closed entry point -----
 
 describe('deliverToSession', () => {
-  it('returns false when the target transcript is gone (resumableId undefined)', async () => {
+  it('returns delivered: false when the target transcript is gone (resumableId undefined)', async () => {
     resumableIdMock.mockReturnValue(undefined);
-    await expect(deliverToSession('sess-1', 'prompt', {}, flow(), 1)).resolves.toBe(false);
+    await expect(deliverToSession('sess-1', 'prompt', {}, flow(), 1)).resolves.toEqual({ delivered: false });
     expect(startRunMock).not.toHaveBeenCalled();
   });
 
   it('not live: starts a fresh run with bypass forced false and mcps defaulted to empty, regardless of the source params', async () => {
     resolveThreadKeyMock.mockReturnValue(undefined);
-    const ok = await deliverToSession('sess-1', 'prompt', { bypass: true, mcps: ['everything'], role: 'admin', mode: 'acceptEdits' }, flow(), 1);
-    expect(ok).toBe(true);
+    const r = await deliverToSession('sess-1', 'prompt', { bypass: true, mcps: ['everything'], role: 'admin', mode: 'acceptEdits' }, flow(), 1);
+    expect(r).toEqual({ delivered: true });
     expect(startRunMock).toHaveBeenCalledWith(expect.objectContaining({ sessionKey: 'sess-1', bypass: false, mcps: [] }));
   });
 
@@ -221,14 +248,14 @@ describe('deliverToSession', () => {
   it('startRun admission refused (threads never got the key): reports failure', async () => {
     resolveThreadKeyMock.mockReturnValue(undefined);
     admit.next = false;
-    await expect(deliverToSession('sess-1', 'prompt', {}, flow(), 1)).resolves.toBe(false);
+    await expect(deliverToSession('sess-1', 'prompt', {}, flow(), 1)).resolves.toEqual({ delivered: false });
   });
 
   it('live in this process + drainer enabled: parks the item (addParked)', async () => {
     mockThreads.set('sess-1', {});
     resolveThreadKeyMock.mockReturnValue('sess-1');
     isDrainerEnabledMock.mockReturnValue(true);
-    await expect(deliverToSession('sess-1', 'prompt', {}, flow(), 1)).resolves.toBe(true);
+    await expect(deliverToSession('sess-1', 'prompt', {}, flow(), 1)).resolves.toEqual({ delivered: true });
     expect(addParkedMock).toHaveBeenCalled();
     expect(enqueuePendingMock).not.toHaveBeenCalled();
   });
@@ -237,7 +264,7 @@ describe('deliverToSession', () => {
     mockThreads.set('sess-1', {});
     resolveThreadKeyMock.mockReturnValue('sess-1');
     isDrainerEnabledMock.mockReturnValue(false);
-    await expect(deliverToSession('sess-1', 'prompt', {}, flow(), 1)).resolves.toBe(true);
+    await expect(deliverToSession('sess-1', 'prompt', {}, flow(), 1)).resolves.toEqual({ delivered: true });
     expect(enqueuePendingMock).toHaveBeenCalled();
     expect(addParkedMock).not.toHaveBeenCalled();
   });
@@ -246,18 +273,18 @@ describe('deliverToSession', () => {
   // unattended turn (fireFlow's caller then arms the backoff, same as any
   // other failed delivery), but must NOT block queueing behind a session
   // that's already live — that's attended, same as a user reply.
-  it('area admission blocked: refuses to start a NEW turn', async () => {
+  it('area admission blocked: refuses to start a NEW turn, and reports which area', async () => {
     resolveThreadKeyMock.mockReturnValue(undefined);
-    isAreaAdmissionBlockedMock.mockReturnValue(true);
-    await expect(deliverToSession('sess-1', 'prompt', {}, flow(), 1)).resolves.toBe(false);
+    blockedAreaForMock.mockReturnValue('deck');
+    await expect(deliverToSession('sess-1', 'prompt', {}, flow(), 1)).resolves.toEqual({ delivered: false, areaBlocked: 'deck' });
     expect(startRunMock).not.toHaveBeenCalled();
   });
 
   it('area admission blocked does NOT stop queueing behind an already-live session', async () => {
     mockThreads.set('sess-1', {});
     resolveThreadKeyMock.mockReturnValue('sess-1');
-    isAreaAdmissionBlockedMock.mockReturnValue(true);
-    await expect(deliverToSession('sess-1', 'prompt', {}, flow(), 1)).resolves.toBe(true);
+    blockedAreaForMock.mockReturnValue('deck');
+    await expect(deliverToSession('sess-1', 'prompt', {}, flow(), 1)).resolves.toEqual({ delivered: true });
     expect(enqueuePendingMock).toHaveBeenCalled();
   });
 });
@@ -268,23 +295,23 @@ describe('deliverToCard', () => {
     expect(startRunMock).not.toHaveBeenCalled();
   });
 
-  it('area admission blocked (a bound session sits in a blocked area): refuses without starting a run', async () => {
+  it('area admission blocked (a bound session sits in a blocked area): refuses without starting a run, and reports which area', async () => {
     const card = sanitizeCard({ id: 'card1', title: 'Título' }, undefined, 1)!;
     await updateBoard((b) => upsertCard(b, card));
     listSessionsMock.mockResolvedValue([{ id: 'bound-sess', title: 't', snippet: 's', mtime: 1 }]);
     const boundCard = { ...card, sessionIds: ['bound-sess'] };
     await updateBoard((b) => upsertCard(b, boundCard));
-    isAreaAdmissionBlockedMock.mockReturnValue(true);
+    blockedAreaForMock.mockReturnValue('itera');
     const r = await deliverToCard('card1', flow(), 'result', 1, {});
-    expect(r).toEqual({ delivered: false });
+    expect(r).toEqual({ delivered: false, areaBlocked: 'itera' });
     expect(startRunMock).not.toHaveBeenCalled();
-    expect(isAreaAdmissionBlockedMock).toHaveBeenCalledWith('bound-sess');
+    expect(blockedAreaForMock).toHaveBeenCalledWith('bound-sess');
   });
 
   it('a card with no bound session is never blocked (nothing to check against)', async () => {
     const card = sanitizeCard({ id: 'card1', title: 'Título' }, undefined, 1)!;
     await updateBoard((b) => upsertCard(b, card));
-    isAreaAdmissionBlockedMock.mockReturnValue(true); // some OTHER area is blocked; irrelevant here
+    blockedAreaForMock.mockReturnValue('itera'); // some OTHER area is blocked; irrelevant here (no bound session to check)
     const r = await deliverToCard('card1', flow(), 'result', 1, {});
     expect(r.delivered).toBe(true);
   });
@@ -418,6 +445,35 @@ describe('fireFlow', () => {
     expect(toastCount()).toBe(1); // ...but still just the ONE toast for the ongoing streak
 
     errSpy.mockRestore();
+  });
+
+  it('an area-blocked failure gets its own pt message (never the generic "não conseguiu entregar") and persists lastFailAreaBlocked', async () => {
+    blockedAreaForMock.mockReturnValue('deck');
+    const f = sanitizeFlow({ id: 'abcd', from: 's:a', to: 's:b' }, undefined, 1)!;
+    await updateBoard((b) => upsertFlow(b, f));
+
+    await fireFlow(f, 1, 'resultado', {});
+    const board = await updateBoard((b) => b);
+    expect(board.flows[0].failStreak).toBe(1);
+    expect(board.flows[0].lastFailAreaBlocked).toBe(true);
+    const toast = emitCanvasMsgMock.mock.calls.map((c) => c[0]).find((m) => (m as { t: string }).t === 'canvas-flow-failed') as { message: string };
+    expect(toast.message).toContain('Deck');
+    expect(toast.message).not.toContain('não conseguiu entregar');
+  });
+
+  it('a success after an area-blocked failure clears lastFailAreaBlocked too, not just failStreak', async () => {
+    blockedAreaForMock.mockReturnValue('deck');
+    const f = sanitizeFlow({ id: 'abcd', from: 's:a', to: 's:b' }, undefined, 1)!;
+    await updateBoard((b) => upsertFlow(b, f));
+    await fireFlow(f, 1, 'resultado', {}); // fails, area-blocked
+    let board = await updateBoard((b) => b);
+    expect(board.flows[0].lastFailAreaBlocked).toBe(true);
+    await updateBoard((b) => ({ ...b, flows: b.flows.map((x) => (x.id === 'abcd' ? { ...x, lastFailedAt: x.lastFailedAt! - 60_000 } : x)) }));
+    blockedAreaForMock.mockReturnValue(undefined); // area recovered
+    board = await updateBoard((b) => b);
+    await fireFlow(board.flows[0], 1, 'resultado', {});
+    board = await updateBoard((b) => b);
+    expect(board.flows[0].lastFailAreaBlocked).toBeUndefined();
   });
 
   it('a success after a failure streak clears failStreak/lastFailedAt', async () => {

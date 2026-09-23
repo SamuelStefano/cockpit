@@ -102,11 +102,19 @@ async function ensureAreaCache(build: () => Promise<CanvasGraph>): Promise<Map<s
 // (server/ws.ts's cron loop, or a flow delivered from an index.ts turn —
 // server/canvas/flows.ts registers on both entry points) it's the loop's
 // verdict read back off disk instead of an always-empty local Set/Map.
-export function isAreaAdmissionBlocked(sessionId: string | undefined, key?: string): boolean {
+//
+// Returns the AreaId that's actually blocking (undefined = admitted), not
+// just a boolean — server/canvas/flows.ts uses the id to name the area in its
+// failure toast instead of a generic "couldn't deliver" message.
+export function blockedAreaFor(sessionId: string | undefined, key?: string): AreaId | undefined {
   let area = sessionId ? areaCache.get(sessionId)?.area : undefined;
   const { blockedAreas: blocked, lastAreaOfKey: crossProcessKeyMap } = getAreaAdmissionState();
   if (!area && key) area = crossProcessKeyMap.get(key);
-  return !!area && blocked.has(area);
+  return area && blocked.has(area) ? area : undefined;
+}
+
+export function isAreaAdmissionBlocked(sessionId: string | undefined, key?: string): boolean {
+  return !!blockedAreaFor(sessionId, key);
 }
 
 // Read by the canvas-term-stats dispatch handler to compute the SAME
