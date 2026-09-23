@@ -243,7 +243,8 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
         }
         // Budgets have no optimistic-write grace window (see onCanvasBudgetSave):
         // the incoming frame is always authoritative for them.
-        return { cards, pos, flows, budgets: msg.board.budgets, sessionStatus };
+        // `?? {}`: a server that predates budgets sends no key; reading budgets[area] would crash the canvas.
+        return { cards, pos, flows, budgets: msg.board.budgets ?? {}, sessionStatus };
       });
       return true;
     }

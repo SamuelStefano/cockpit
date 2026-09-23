@@ -152,3 +152,15 @@ describe('useCanvas — canvasTermStats merge (not replace)', () => {
     expect(result.current.canvasTermStats['sess-window']).toEqual({ cpu: 5, rssMb: 20, procs: 1 });
   });
 });
+
+describe('useCanvas — canvas-board from an older server', () => {
+  it('defaults every missing board field so the canvas never reads a property of undefined', () => {
+    const { result } = renderHook(() => useCanvas(send));
+    act(() => {
+      result.current.onMsg({ t: 'canvas-board', board: { cards: [], pos: {} } } as unknown as ServerMsg);
+    });
+    expect(result.current.canvasBoard.budgets).toEqual({});
+    expect(result.current.canvasBoard.flows).toEqual([]);
+    expect(result.current.canvasBoard.sessionStatus).toEqual({});
+  });
+});
