@@ -47,7 +47,7 @@ import { buildCanvas } from '../canvas/index';
 import { collectCtxOnly, collectTermStats, hasInteractiveClaude, newCpuSamples, type CpuSamples } from '../canvas/term-stats';
 import {
   MAX_FLOWS, readBoard, readBoardChained, updateBoard, sanitizeCard, sanitizeFlow, sanitizePos, upsertCard, upsertFlow, removeCard, removeFlow,
-  checkFlowSave, mergePos, setBudget, sanitizeSessionStatus, setSessionStatus,
+  checkFlowSave, mergePos, setBudget, sanitizeSessionStatus, setSessionStatus, setCardDflLink, clearCardDflLink,
 } from '../canvas/board';
 import { activeFlowRuns } from '../canvas/flow-runs';
 import { startCanvasFlows } from '../canvas/flows';
@@ -55,6 +55,8 @@ import { registerCanvasClient, emitCanvasMsg } from './canvas-clients';
 import type { CanvasBoard } from '../../shared/canvas';
 import { updateAreaCacheFromGraph, getAreaOf } from '../canvas/autopause-loop';
 import { areaUsageFromIds } from '../../shared/canvas-budget';
+import { cardAreaFromGraph, findDeliveryInSnapshot, findTaskInSnapshot } from '../canvas/dfl-link';
+import { pushCardDflStatus } from '../canvas/dfl-status-sync';
 
 // Registers the turn-closed listener once, at module load — both entry points
 // (server/index.ts, server/agent.ts) reach this file via ws/serve-connection.ts.
@@ -240,6 +242,68 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const board = await updateBoard((b) => upsertCard(b, card));
       send(ws, boardFrame(board));
       send(ws, { t: 'canvas-graph', graph: await buildCanvas(board, runningSessionIds()) });
+      // Deck -> DFL: a user-driven status change (drag, editor save, "marcar
+      // completo") on an already-linked card pushes the new status to its DFL
+      // task. Fire-and-forget — pushCardDflStatus owns its own retry/backoff
+      // and never throws; it must not hold up this frame's reply.
+      if (card.dfl && prev?.status !== card.status) void pushCardDflStatus(card.id, card.status, card.dfl.taskId);
+      return;
+    }
+    // Opt-in link to an EXISTING DFL task. Two independent server-side
+    // guards, neither trusts the client: (1) the card's area, recomputed
+    // from the graph THIS build, must be 'dfl'; (2) taskId must already be
+    // in the owner-filtered snapshot (server/dfl-sync.ts) — never a live
+    // lookup. No DFL write happens here at all (linking is local-only).
+    case 'dfl-task-link': {
+      const cardId = String(msg.cardId ?? '');
+      const taskId = String(msg.taskId ?? '');
+      const board0 = await readBoard();
+      if (!board0.cards.some((c) => c.id === cardId)) { send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: false, message: 'card inválido' }); return; }
+      const graph = await buildCanvas(board0, runningSessionIds());
+      if (cardAreaFromGraph(graph, cardId) !== 'dfl') { send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: false, message: 'card não é da área DFL' }); return; }
+      const snapshot = await readDflSnapshot();
+      if (!snapshot || !findTaskInSnapshot(snapshot, taskId)) { send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: false, message: 'task não encontrada no snapshot DFL' }); return; }
+      const board = await updateBoard((b) => setCardDflLink(b, cardId, taskId, Date.now()));
+      send(ws, boardFrame(board));
+      send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: true });
+      return;
+    }
+    // Creates a task under an existing (epicId, deliveryId) pair via the
+    // sanctioned write channel (server/dfl-write.ts's task-create, PostgREST
+    // on work.tasks — same schema the read side already fetches, never the
+    // financial workflow points-change/invoice-create use), THEN links it —
+    // one user action, one write. Same area guard as dfl-task-link; the
+    // (epicId, deliveryId) pair is re-derived from the snapshot as a PAIR
+    // (findDeliveryInSnapshot), not each id trusted independently.
+    case 'dfl-task-create-link': {
+      if (!CONFIG.localOnly) { send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: false, message: 'escrita DFL só no loopback' }); return; }
+      const cardId = String(msg.cardId ?? '');
+      const board0 = await readBoard();
+      const cardBefore = board0.cards.find((c) => c.id === cardId);
+      if (!cardBefore) { send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: false, message: 'card inválido' }); return; }
+      const graph = await buildCanvas(board0, runningSessionIds());
+      if (cardAreaFromGraph(graph, cardId) !== 'dfl') { send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: false, message: 'card não é da área DFL' }); return; }
+      const snapshot = await readDflSnapshot();
+      const delivery = snapshot && findDeliveryInSnapshot(snapshot, String(msg.epicId ?? ''), String(msg.deliveryId ?? ''));
+      if (!delivery) { send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: false, message: 'epic/delivery não encontrados no snapshot DFL' }); return; }
+      const r = await runDflWrite({
+        kind: 'task-create', epicId: String(msg.epicId), deliveryId: String(msg.deliveryId),
+        taskName: String(msg.taskName ?? cardBefore.title).slice(0, 200), description: cardBefore.prompt,
+      });
+      if (!r.ok) { send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: false, message: r.error }); return; }
+      const taskId = String(r.result.taskId ?? '');
+      const board = await updateBoard((b) => setCardDflLink(b, cardId, taskId, Date.now()));
+      send(ws, boardFrame(board));
+      send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: true });
+      runDflSync().catch(() => {});
+      return;
+    }
+    // Always local-only, unconditionally allowed (no area/loopback gate): it
+    // never talks to DFL and never deletes the task there — see
+    // server/dfl-write.ts, there is no DELETE path on purpose.
+    case 'dfl-task-unlink': {
+      const board = await updateBoard((b) => clearCardDflLink(b, String(msg.cardId ?? '')));
+      send(ws, boardFrame(board));
       return;
     }
     case 'canvas-card-delete': {

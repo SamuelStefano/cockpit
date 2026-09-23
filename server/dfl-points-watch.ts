@@ -1,6 +1,7 @@
 import { watch } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { basename, dirname } from 'node:path';
+import { applyDflSyncToBoard } from './canvas/dfl-status-sync';
 import { dflSnapshotFile, readDflSnapshot } from './dfl-points';
 import { emitFinance, hasFinanceClients } from './ws/finance-clients';
 
@@ -10,6 +11,9 @@ const RETRY_MS = 30_000;
 // Observa ~/.cockpit/dfl-points.json: quando o cron/sync-now reescreve o arquivo
 // (write atômico → um evento rename), re-lê e faz PUSH só pros sockets financeiros
 // registrados (emitFinance) — nunca broadcast global. Singleton (ws.ts + agent.ts).
+// Também é o gatilho DFL->Deck do vínculo Kanban<->DFL (applyDflSyncToBoard):
+// roda incondicionalmente (não só com finance clients — o Kanban precisa do
+// status atualizado mesmo com /pontos fechado), best-effort.
 let started = false;
 export function startDflPointsWatch(): void {
   if (started) return;
@@ -23,8 +27,10 @@ export function startDflPointsWatch(): void {
     if (timer) return;
     timer = setTimeout(() => {
       timer = null;
-      if (!hasFinanceClients()) return;
-      readDflSnapshot().then((snap) => emitFinance(snap)).catch(() => { /* best-effort */ });
+      readDflSnapshot().then((snap) => {
+        if (hasFinanceClients()) emitFinance(snap);
+        if (snap) applyDflSyncToBoard(snap).catch(() => { /* best-effort */ });
+      }).catch(() => { /* best-effort */ });
     }, DEBOUNCE_MS);
     timer.unref?.();
   };

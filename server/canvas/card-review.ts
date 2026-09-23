@@ -4,6 +4,7 @@ import { onTurnClosed, type TurnClosed } from './turn-hooks';
 import { readBoardChained, updateBoard } from './board';
 import { bindCardSession, cardIdForSession, lastCardMarker } from './card-sessions';
 import { cardIdFromRefsCache } from './index';
+import { pushCardDflStatus } from './dfl-status-sync';
 
 // A card's launched agent moves itself from "doing" to "review" the instant a
 // clean turn on its session closes — even with the browser closed, riding the
@@ -80,6 +81,13 @@ onTurnClosed((turn) => {
     // this can fire with no browser attached at all (a cron turn closing),
     // and broadcast() fans out to every socket regardless of role — same
     // reasoning as canvas-flow-failed (server/canvas/flows.ts).
-    if (moved && updated) emitCanvasMsg({ t: 'canvas-card-status', cardId, status: updated.status });
+    if (moved && updated) {
+      emitCanvasMsg({ t: 'canvas-card-status', cardId, status: updated.status });
+      // The agent's own auto-move to "review" is a status change too — a
+      // linked card must push it the same as a user-driven drag/save does
+      // (server/ws/dispatch.ts's canvas-card-save), or a card whose agent
+      // finished unattended (browser closed) would silently never sync.
+      if (updated.dfl) void pushCardDflStatus(cardId, updated.status, updated.dfl.taskId);
+    }
   })().catch((e) => console.error('card-review: falha ao mover card pra revisão', e));
 });

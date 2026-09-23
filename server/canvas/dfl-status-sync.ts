@@ -5,6 +5,22 @@ import { runDflWrite } from '../dfl-write-runner';
 import { findTaskInSnapshot } from './dfl-link';
 import { setCardDflPending, setCardDflSynced, updateBoard } from './board';
 
+// server/dfl-points-watch.ts calls this every time the cron/sync-now rewrites
+// ~/.cockpit/dfl-points.json (DFL->Deck direction). ADMIN-ONLY push (same
+// reasoning as canvas-flow-failed/canvas-card-status): this can fire with no
+// canvas tab open at all, and must never reach the global broadcast(). No-op
+// (no board write, no push) when nothing actually changed.
+export async function applyDflSyncToBoard(snapshot: DflPointsSnapshot): Promise<void> {
+  let changedCards: CanvasCard[] | null = null;
+  const board = await updateBoard((b) => {
+    const next = syncBoardFromDflSnapshot(b, snapshot, Date.now());
+    if (next !== b) changedCards = next.cards;
+    return next;
+  });
+  if (!changedCards) return;
+  emitCanvasMsg({ t: 'canvas-board', board, flowRuns: [] });
+}
+
 // DFL -> Deck direction: the periodic dfl-sync read (server/dfl-sync.ts's
 // cron, already filtered to the owner) is the ONLY source for this side —
 // never a live query from here. Pure, tested without touching the board file.
