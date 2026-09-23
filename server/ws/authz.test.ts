@@ -38,6 +38,13 @@ describe('authorize', () => {
     }
   });
 
+  it('canvas é admin-only: o grafo expõe toda a memória e o card dispara agente', () => {
+    for (const t of ['canvas-get', 'canvas-pos', 'canvas-pos-reset', 'canvas-card-save', 'canvas-card-delete'] as const) {
+      expect(authorize('student', t)).toBe(false);
+      expect(authorize('admin', t)).toBe(true);
+    }
+  });
+
   it('financeiro DFL é admin-only: student negado, admin liberado', () => {
     for (const t of ['points-dfl-get', 'points-dfl-sync'] as const) {
       expect(authorize('student', t)).toBe(false);

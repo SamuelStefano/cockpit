@@ -14,6 +14,7 @@ export const Notas = lazy(() => import('../routes/Notas').then((m) => ({ default
 export const Pontos = lazy(() => import('../routes/Pontos').then((m) => ({ default: m.Pontos })));
 export const Crons = lazy(() => import('../routes/Crons').then((m) => ({ default: m.Crons })));
 export const Observatorio = lazy(() => import('../routes/Observatorio').then((m) => ({ default: m.Observatorio })));
+export const Canvas = lazy(() => import('../routes/Canvas').then((m) => ({ default: m.Canvas })));
 export const Graph = lazy(() => import('../routes/Graph').then((m) => ({ default: m.Graph })));
 export const Harness = lazy(() => import('../routes/Harness').then((m) => ({ default: m.Harness })));
 export const Admin = lazy(() => import('../routes/Admin').then((m) => ({ default: m.Admin })));

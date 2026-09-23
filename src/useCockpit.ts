@@ -22,6 +22,7 @@ import { usePoints, type Points } from './cockpit/usePoints';
 import { useContexts, type Contexts } from './cockpit/useContexts';
 import { useSkills, type Skills } from './cockpit/useSkills';
 import { useGraphs, type Graphs } from './cockpit/useGraphs';
+import { useCanvas, type CanvasApi } from './cockpit/useCanvas';
 import { useAdmin, type Admin } from './cockpit/useAdmin';
 import { useHarness, type Harness } from './cockpit/useHarness';
 import { stripLongContext } from '../shared/long-context';
@@ -61,9 +62,10 @@ const HEARTBEAT_STALE_MS = 40_000;
 
 // A superfície pública dos domínios-folha é a dos próprios hooks, menos os canais
 // internos: `onMsg` (dispatch) e `onGraphReconnect` (gancho do socket).
-type LeafApis = Omit<Notes & Drops & Crons & Points & Contexts & Skills & Graphs & Admin & Harness, 'onMsg' | 'onGraphReconnect'>;
+type LeafApis = Omit<Notes & Drops & Crons & Points & Contexts & Skills & Graphs & CanvasApi & Admin & Harness, 'onMsg' | 'onGraphReconnect'>;
 
 export interface Cockpit extends LeafApis {
+  onLaunchAgent: (prompt: string, title: string) => string;
   sessions: Session[];
   loading: boolean;
   activeId: string;
@@ -383,12 +385,13 @@ export function useCockpit(): Cockpit {
   const contextsApi = useContexts(send);
   const skillsApi = useSkills(send);
   const graphsApi = useGraphs(send);
+  const canvasApi = useCanvas(send);
   const adminApi = useAdmin(send);
   const harnessApi = useHarness(send);
   // O onServer é um callback estável (o socket guarda a 1ª referência); ler os
   // handlers por ref evita recriá-lo — e reabrir o WS — a cada render.
   const leafHandlers = useRef<((m: ServerMsg) => boolean)[]>([]);
-  leafHandlers.current = [notesApi.onMsg, dropsApi.onMsg, cronsApi.onMsg, pointsApi.onMsg, contextsApi.onMsg, skillsApi.onMsg, graphsApi.onMsg, adminApi.onMsg, harnessApi.onMsg];
+  leafHandlers.current = [notesApi.onMsg, dropsApi.onMsg, cronsApi.onMsg, pointsApi.onMsg, contextsApi.onMsg, skillsApi.onMsg, graphsApi.onMsg, canvasApi.onMsg, adminApi.onMsg, harnessApi.onMsg];
   // Três domínios-folha também entram na reconciliação de reconnect. Referências
   // estáveis (useCallback sobre `send`), então não recriam o `reconcile`.
   const { onUsageList } = adminApi;
@@ -1441,6 +1444,17 @@ export function useCockpit(): Cockpit {
   // Fecha a ponte usada pelo handoff-result (declarado acima do onSend).
   sendPromptRef.current = onSend;
 
+  // Canvas orchestrator: a fresh chat, titled by the work and already running,
+  // the same way a handoff seeds its successor. The caller stays on its route.
+  const onLaunchAgent = useCallback((prompt: string, title: string) => {
+    const fresh = onNew();
+    const t = title.trim().slice(0, 120) || 'Agente do canvas';
+    setSessions((prev) => prev.map((x) => (x.id === fresh ? { ...x, title: t } : x)));
+    pendingTitle.current[fresh] = t;
+    onSend(prompt);
+    return fresh;
+  }, [onNew, onSend]);
+
   // Fila ESTACIONADA (servidor): enfileira p/ drenar quando a quota liberar, mesmo
   // com o browser fechado. Espelha os mesmos params de fio do onSend. O agente
   // dispara cada item ao ficar ocioso + sob a quota — ver server/ws/parked.ts.
@@ -1893,5 +1907,5 @@ export function useCockpit(): Cockpit {
 
   const attachmentsView = useMemo(() => markDuplicates(attachments, sentHashes[activeId]), [attachments, sentHashes, activeId]);
 
-  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun };
+  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...canvasApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, onLaunchAgent, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun };
 }

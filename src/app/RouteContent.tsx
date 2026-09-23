@@ -4,7 +4,7 @@ import { DesktopLayout } from './DesktopLayout';
 import { SkeletonCards } from '../components/primitives';
 import {
   Contextos, Skills, Notas, Pontos, Crons, Observatorio,
-  Graph, Harness, Admin, Docs, DesignSystem, Playground,
+  Graph, Canvas, Harness, Admin, Docs, DesignSystem, Playground,
 } from './lazyRoutes';
 import type { SessionsPanelProps } from '../components/Sessions';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
@@ -98,6 +98,14 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
         <Graph connected={connected} graphs={c.graphs} loaded={c.graphsLoaded} openId={c.graphOpenId} opening={c.graphOpening} graph={c.graphData}
           building={c.graphBuilding} buildLog={c.graphBuildLog} buildError={c.graphBuildError} querying={c.graphQuerying} queryResult={c.graphQueryResult} queryHistory={c.graphQueryHistory}
           onGraphList={c.onGraphList} onGraphOpen={c.onGraphOpen} onGraphBuild={c.onGraphBuild} onClearBuildError={c.onClearBuildError} onGraphDelete={c.onGraphDelete} onGraphQuery={c.onGraphQuery} onGraphNodeOp={c.onGraphNodeOp} />
+      );
+    }
+    if (route === '/canvas' && isAdmin) {
+      return (
+        <Canvas connected={connected} graph={c.canvasGraph} board={c.canvasBoard} loading={c.canvasLoading} sessions={c.sessions} running={c.running}
+          onCanvasGet={c.onCanvasGet} onCanvasPos={c.onCanvasPos} onCanvasPosReset={c.onCanvasPosReset}
+          onCanvasCardSave={c.onCanvasCardSave} onCanvasCardDelete={c.onCanvasCardDelete}
+          onLaunchAgent={c.onLaunchAgent} onOpenSession={onOpenSession} />
       );
     }
     if (route === '/harness' && isAdmin) {
