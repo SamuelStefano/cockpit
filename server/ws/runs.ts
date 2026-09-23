@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { emitTurnClosed } from '../canvas/turn-hooks';
 import type { WebSocket } from 'ws';
 import type { Cron, ResumeOfferReason } from '../../shared/protocol';
 import { run, resolveMcpSelection } from '../engine/claude';
@@ -683,6 +684,10 @@ export function startRun(o: StartRunOptions) {
       // Turno DESACOMPANHADO (cron agendado, maratona): ninguém vai ler o resumo nem
       // clicar num chip de continuação entre um turno e o próximo, e cada um deles é
       // uma chamada de API paga por turno fechado.
+      emitTurnClosed({
+        sessionKey, sessionId: thread.sessionId, prompt: thread.prompt, text: thread.text, params: thread.params,
+        ok: !thread.stopped && !silent && !thread.questioned && thread.text.trim() !== '',
+      });
       const unattended = sessionKey.startsWith('cron-') || threadIsMarathon(sessionKey, thread.sessionId);
       if (thread.sessionId && !thread.stopped && !unattended) void summarize(thread.sessionId);
       // Chips de continuação (estilo ChatGPT): só em turno de usuário concluído de
