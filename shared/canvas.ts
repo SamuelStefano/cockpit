@@ -76,6 +76,13 @@ export interface CanvasFlow {
   createdAt: number;
   lastFiredAt?: number;
   fires: number;
+  // Consecutive FAILED deliveries (server-owned, like fires/lastFiredAt — see
+  // server/canvas/board.ts sanitizeFlow). Backs the exponential backoff in
+  // server/canvas/flows.ts: a flow that keeps failing (target gone,
+  // concurrency cap, ...) waits longer between retries instead of hammering
+  // every source turn close. Reset to 0 on the next successful delivery.
+  failStreak?: number;
+  lastFailedAt?: number;
   mode?: 'plan' | 'auto' | 'acceptEdits';
   mcps?: string[];
 }

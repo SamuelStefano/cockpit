@@ -75,6 +75,8 @@ export function sanitizeFlow(raw: unknown, prev: CanvasFlow | undefined, now: nu
     id: f.id, from: f.from, to: f.to, template: str(f.template, MAX_TEMPLATE), enabled: f.enabled !== false,
     createdAt: prev?.createdAt ?? now, fires: prev?.fires ?? 0,
     ...(prev?.lastFiredAt !== undefined ? { lastFiredAt: prev.lastFiredAt } : {}),
+    ...(prev?.failStreak ? { failStreak: prev.failStreak } : {}),
+    ...(prev?.lastFailedAt !== undefined ? { lastFailedAt: prev.lastFailedAt } : {}),
     ...(mode ? { mode } : {}), ...(mcps ? { mcps } : {}),
   };
 }
@@ -142,32 +144,68 @@ export function removeFlow(board: CanvasBoard, id: string): CanvasBoard {
   return { ...board, flows: board.flows.filter((f) => f.id !== id) };
 }
 
+export interface FlowClaim {
+  board: CanvasBoard;
+  claimed: boolean;
+  // Snapshot from BEFORE the claim, so a failed delivery can restore the
+  // EXACT prior state (server/canvas/flows.ts recordFlowFailure) instead of
+  // just clearing lastFiredAt — which would erase a real previous fire's
+  // timestamp and falsely re-arm the 60s cooldown as "never fired".
+  prevFires: number;
+  prevLastFiredAt?: number;
+  prevFailStreak: number;
+}
+
 // Claims the RIGHT to fire, atomically, inside one updateBoard snapshot —
 // BEFORE any delivery attempt. `claimed: false` covers every reason another
-// concurrent close already got there first: removed, disabled, or already
-// inside the cooldown. server/canvas/flows.ts only delivers when claimed.
-export function claimFlowFire(board: CanvasBoard, id: string, now: number, cooldownMs: number): { board: CanvasBoard; claimed: boolean } {
+// concurrent close already got there first: removed, disabled, inside the
+// normal cooldown, or inside this flow's own failure backoff window
+// (`backoffMs`, injected rather than imported so this module stays generic —
+// server/canvas/flows.ts owns the actual curve). server/canvas/flows.ts only
+// delivers when claimed.
+export function claimFlowFire(
+  board: CanvasBoard, id: string, now: number, cooldownMs: number, backoffMs: (failStreak: number) => number,
+): FlowClaim {
   const i = board.flows.findIndex((f) => f.id === id);
-  if (i < 0) return { board, claimed: false };
+  if (i < 0) return { board, claimed: false, prevFires: 0, prevLastFiredAt: undefined, prevFailStreak: 0 };
   const f = board.flows[i];
-  if (!f.enabled || (f.lastFiredAt !== undefined && now - f.lastFiredAt < cooldownMs)) return { board, claimed: false };
+  const prevFailStreak = f.failStreak ?? 0;
+  const rateBlocked = f.lastFiredAt !== undefined && now - f.lastFiredAt < cooldownMs;
+  const backoffBlocked = prevFailStreak > 0 && f.lastFailedAt !== undefined && now - f.lastFailedAt < backoffMs(prevFailStreak);
+  if (!f.enabled || rateBlocked || backoffBlocked) {
+    return { board, claimed: false, prevFires: f.fires, prevLastFiredAt: f.lastFiredAt, prevFailStreak };
+  }
   const flows = [...board.flows];
   flows[i] = { ...f, lastFiredAt: now, fires: f.fires + 1 };
-  return { board: { ...board, flows }, claimed: true };
+  return { board: { ...board, flows }, claimed: true, prevFires: f.fires, prevLastFiredAt: f.lastFiredAt, prevFailStreak };
 }
 
 // A claimed fire whose delivery then failed (target gone, run didn't start,
-// concurrency cap, ...) didn't actually happen — undo the claim so the flow
-// is immediately retryable instead of quietly held back by a fire that never
-// delivered. `claimedAt` guards against clobbering a NEWER legitimate claim
-// that landed while delivery was still in flight.
-export function rollbackFlowFire(board: CanvasBoard, id: string, claimedAt: number): CanvasBoard {
+// concurrency cap, ...) didn't actually happen — restore the EXACT prior
+// fires/lastFiredAt (from claimFlowFire's snapshot) and bump the failure
+// streak, which arms the exponential backoff for the NEXT attempt. `claimedAt`
+// guards against clobbering a newer legitimate claim that landed while this
+// delivery was still in flight.
+export function recordFlowFailure(
+  board: CanvasBoard, id: string, claimedAt: number, prevFires: number, prevLastFiredAt: number | undefined, now: number,
+): CanvasBoard {
   const i = board.flows.findIndex((f) => f.id === id);
   if (i < 0) return board;
   const f = board.flows[i];
   if (f.lastFiredAt !== claimedAt) return board;
   const flows = [...board.flows];
-  flows[i] = { ...f, fires: Math.max(0, f.fires - 1), lastFiredAt: undefined };
+  flows[i] = { ...f, fires: prevFires, lastFiredAt: prevLastFiredAt, failStreak: (f.failStreak ?? 0) + 1, lastFailedAt: now };
+  return { ...board, flows };
+}
+
+// A delivery that succeeds after a prior failure streak clears it — the next
+// failure (if any) starts backoff over from the 1-minute floor, not wherever
+// the old streak left off.
+export function recordFlowSuccess(board: CanvasBoard, id: string): CanvasBoard {
+  const i = board.flows.findIndex((f) => f.id === id);
+  if (i < 0 || !board.flows[i].failStreak) return board;
+  const flows = [...board.flows];
+  flows[i] = { ...flows[i], failStreak: 0, lastFailedAt: undefined };
   return { ...board, flows };
 }
 

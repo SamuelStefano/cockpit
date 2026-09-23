@@ -14,7 +14,7 @@ import { isDrainerEnabled, startRun } from '../ws/runs';
 import { resolveThreadKey, threads, type RunParams } from '../ws/threads';
 import { bindCardSession, cardIdForSession, lastCardMarker, neutralizeMarkers } from './card-sessions';
 import { cardIdFromRefsCache } from './index';
-import { claimFlowFire, markCardDoing, readBoardChained, rollbackFlowFire, updateBoard } from './board';
+import { claimFlowFire, markCardDoing, readBoardChained, recordFlowFailure, recordFlowSuccess, updateBoard } from './board';
 import { onTurnClosed, type TurnClosed } from './turn-hooks';
 
 export { neutralizeMarkers };
@@ -34,6 +34,12 @@ export const FLOW_RATE_LIMIT_MS = 60_000;
 // The prompt only needs the TAIL of a long result — keeps the target turn's
 // input bounded no matter how long the source ran.
 export const MAX_RESULT_CHARS = 12_000;
+// Exponential backoff for a flow whose delivery keeps failing (target gone,
+// concurrency cap, ...): 1m, 2m, 4m, ..., capped at 30m. Without this, a flow
+// stuck failing would retry on EVERY source turn close, which for a chatty
+// source can be every few seconds.
+export const BACKOFF_BASE_MS = 60_000;
+export const BACKOFF_MAX_MS = 30 * 60_000;
 
 // --- pure: what fires, at what hop, with what text --------------------------
 
@@ -68,6 +74,16 @@ export function rateLimited(flow: Pick<CanvasFlow, 'lastFiredAt'>, now: number):
   return !!flow.lastFiredAt && now - flow.lastFiredAt < FLOW_RATE_LIMIT_MS;
 }
 
+export function backoffMs(failStreak: number): number {
+  if (failStreak <= 0) return 0;
+  return Math.min(BACKOFF_MAX_MS, BACKOFF_BASE_MS * 2 ** (failStreak - 1));
+}
+
+export function backedOff(flow: Pick<CanvasFlow, 'failStreak' | 'lastFailedAt'>, now: number): boolean {
+  if (!flow.failStreak || flow.lastFailedAt === undefined) return false;
+  return now - flow.lastFailedAt < backoffMs(flow.failStreak);
+}
+
 export interface FlowFire { flow: CanvasFlow; hop: number }
 
 export interface ClosedTurnForFlows {
@@ -75,6 +91,10 @@ export interface ClosedTurnForFlows {
   sessionId?: string;
   prompt: string;
   unattended: boolean;
+  // Thread.flowHop, carried through server/ws/runs.ts's TurnClosed.hop — the
+  // source of truth for a RESUMED or QUEUED turn, whose prompt text is
+  // RESUME_PROMPT (or a plain queued prompt) and carries no marker at all.
+  hop?: number;
   // Resolved sessionId→cardId binding beyond whatever this turn's own prompt
   // carries (server/canvas/card-sessions.ts) — a follow-up turn in a
   // card-bound session has no marker of its own, only the FIRST turn does.
@@ -89,7 +109,14 @@ export interface ClosedTurnForFlows {
 // the card that session ran for.
 export function selectFlowsToFire(t: ClosedTurnForFlows, flows: CanvasFlow[], now: number): FlowFire[] {
   if (!t.ok || t.unattended) return [];
-  const hop = hopOfPrompt(t.prompt) + 1;
+  // t.hop (Thread.flowHop) is the source of truth for a turn whose PROMPT
+  // carries no marker (a crash-resume rewrites it to RESUME_PROMPT; a queued
+  // turn's prompt is whatever the user/flow originally queued) — reading only
+  // hopOfPrompt(t.prompt) here silently reset the chain depth to 0 on every
+  // such resume, defeating MAX_HOPS. The prompt's own marker can still be the
+  // larger of the two (this turn was itself freshly delivered by a flow, and
+  // t.hop and the marker agree) — take whichever is larger, never smaller.
+  const hop = Math.max(t.hop ?? 0, hopOfPrompt(t.prompt)) + 1;
   if (hop > MAX_HOPS) return [];
   const sources = new Set<string>();
   if (t.sessionId) sources.add(sessionNodeId(t.sessionId));
@@ -97,7 +124,7 @@ export function selectFlowsToFire(t: ClosedTurnForFlows, flows: CanvasFlow[], no
   if (cardId) sources.add(cardNodeId(cardId));
   if (!sources.size) return [];
   return flows
-    .filter((f) => f.enabled && sources.has(f.from) && !rateLimited(f, now))
+    .filter((f) => f.enabled && sources.has(f.from) && !rateLimited(f, now) && !backedOff(f, now))
     .map((flow) => ({ flow, hop }));
 }
 
@@ -144,13 +171,14 @@ export async function deliverToSession(sessionId: string, prompt: string, source
     // process's own onClose drains unconditionally (drainPending, unlike
     // drainParked, isn't gated on the drainer flag).
     //
-    // Neither queue carries flowHop through to the eventual startRun (parked
-    // items round-trip through disk with a fixed shape; pending ones aren't
-    // tracked per-thread until they actually run) — the queued turn's own
-    // Thread.flowHop starts at 0. That only UNDER-counts chain depth for
-    // ITS OWN outgoing flows (a shallower cap, never a deeper one), so it's
-    // a safe simplification rather than the un-bounded reset bug this
-    // review batch closed for the direct resume paths.
+    // Neither queue threads flowHop onto the eventual Thread (parked items
+    // round-trip through disk with a fixed shape; pending ones aren't
+    // per-thread until they actually run), so that later turn's OWN
+    // Thread.flowHop starts back at 0 — but `prompt` already carries this
+    // flow's `[deck-flow:<id>:<hop>]` marker (buildFlowPrompt, below), and
+    // selectFlowsToFire takes max(Thread.flowHop, hopOfPrompt(prompt)), so
+    // the string marker alone still recovers the correct depth once that
+    // queued turn eventually closes.
     if (isDrainerEnabled()) {
       const r = addParked(liveKey, { ...params, prompt, resumeId: resume });
       return !('reject' in r);
@@ -187,6 +215,8 @@ async function resolveCardNodes(contextIds: string[], sessionIds: string[]): Pro
   return { contexts, sessions };
 }
 
+export interface CardDelivery { delivered: boolean; runKey?: string }
+
 // Target `k:<cardId>`: run the card as a brand new session, same prompt shape
 // runCard builds client-side (buildTaskPrompt/buildContentPrompt, which end
 // with the card marker), prefixed with the flow's template applied to the
@@ -194,10 +224,10 @@ async function resolveCardNodes(contextIds: string[], sessionIds: string[]): Pro
 // src/useCockpit.ts's migrateKey looks for on 'done' to fold the placeholder
 // into the real session id — a bare uuid key has no such reconciliation and
 // would leave an orphan bubble no sidebar entry ever matches.
-export async function deliverToCard(cardId: string, flow: CanvasFlow, result: string, hop: number, source: RunParams): Promise<boolean> {
+export async function deliverToCard(cardId: string, flow: CanvasFlow, result: string, hop: number, source: RunParams): Promise<CardDelivery> {
   const board = await readBoardChained();
   const card = board.cards.find((c) => c.id === cardId);
-  if (!card) return false;
+  if (!card) return { delivered: false };
   const { contexts, sessions } = await resolveCardNodes(card.contextIds, card.sessionIds);
   const basePrompt = card.kind === 'content'
     ? buildContentPrompt(card, (card.format ?? 'post') as ContentFormat, contexts, sessions, today())
@@ -205,9 +235,9 @@ export async function deliverToCard(cardId: string, flow: CanvasFlow, result: st
   const prompt = `${fillTemplate(flow.template, result)}\n\n${basePrompt}\n\n${flowMarker(flow.id, hop)}`;
   const sessionKey = `new-${randomUUID()}`;
   startRun({ ws: null, sessionKey, prompt, flowHop: hop, ...safeParams(source, flow) });
-  if (!threads.has(sessionKey)) return false; // admission refused (concurrency cap, ctx gate, ...): nothing started
+  if (!threads.has(sessionKey)) return { delivered: false }; // admission refused (concurrency cap, ctx gate, ...): nothing started
   await updateBoard((b) => markCardDoing(b, cardId, Date.now()));
-  return true;
+  return { delivered: true, runKey: sessionKey };
 }
 
 export async function fireFlow(flow: CanvasFlow, hop: number, result: string, params: RunParams): Promise<void> {
@@ -217,52 +247,83 @@ export async function fireFlow(flow: CanvasFlow, hop: number, result: string, pa
   const now = Date.now();
   let claimed = false;
   let fires = flow.fires;
+  let prevFires = flow.fires;
+  let prevLastFiredAt = flow.lastFiredAt;
+  let prevFailStreak = flow.failStreak ?? 0;
   await updateBoard((b) => {
-    const r = claimFlowFire(b, flow.id, now, FLOW_RATE_LIMIT_MS);
+    const r = claimFlowFire(b, flow.id, now, FLOW_RATE_LIMIT_MS, backoffMs);
     claimed = r.claimed;
+    prevFires = r.prevFires;
+    prevLastFiredAt = r.prevLastFiredAt;
+    prevFailStreak = r.prevFailStreak;
     if (claimed) fires = r.board.flows.find((f) => f.id === flow.id)?.fires ?? fires;
     return r.board;
   });
-  if (!claimed) return; // already fired by a concurrent close, disabled, or removed since selection
-
-  // Never broadcast the whole board from here: every card's prompt and every
-  // other flow's template would fan out to every connected socket regardless
-  // of role (dispatch.ts answers card/flow writes to the CALLER only, and
-  // there is no caller for a server-side trigger). A minimal event is enough
-  // for the UI to pulse the arrow and patch this one flow's counters.
-  broadcast({ t: 'canvas-flow-fired', flowId: flow.id, at: now, fires });
+  if (!claimed) return; // already fired, disabled, removed, cooling down, or backed off
 
   const ref = flow.to.slice(2);
-  const delivered = flow.to.startsWith('s:')
-    ? await deliverToSession(ref, buildFlowPrompt(flow, result, hop), params, flow, hop)
-    : await deliverToCard(ref, flow, result, hop, params);
-  if (!delivered) {
-    console.error(`canvas flow ${flow.id}: delivery to ${flow.to} failed, rolling back the claim`);
-    await updateBoard((b) => rollbackFlowFire(b, flow.id, now));
+  let delivered = false;
+  let runKey: string | undefined;
+  if (flow.to.startsWith('s:')) {
+    delivered = await deliverToSession(ref, buildFlowPrompt(flow, result, hop), params, flow, hop);
+  } else {
+    const r = await deliverToCard(ref, flow, result, hop, params);
+    delivered = r.delivered;
+    runKey = r.runKey;
   }
+
+  if (!delivered) {
+    // Restore the EXACT prior fires/lastFiredAt (not just cleared) and arm
+    // the exponential backoff for the next attempt — a flow that keeps
+    // failing must wait longer each time, not retry on every source close.
+    await updateBoard((b) => recordFlowFailure(b, flow.id, now, prevFires, prevLastFiredAt, now));
+    if (prevFailStreak === 0) {
+      // One toast for the START of a failure streak, not one per source turn
+      // that closes while this flow keeps failing — that would spam.
+      broadcast({ t: 'error', message: `Fluxo do canvas não conseguiu entregar em ${flow.to} — vai tentar de novo com espera crescente.` });
+    }
+    console.error(`canvas flow ${flow.id}: delivery to ${flow.to} failed (streak ${prevFailStreak + 1})`);
+    return;
+  }
+
+  if (prevFailStreak > 0) await updateBoard((b) => recordFlowSuccess(b, flow.id));
+  // Only now, after a REAL delivery, does the UI learn the flow fired — a
+  // pulse/counter bump for a claim whose delivery never happened would lie
+  // (and did, before this fix: the broadcast used to fire right after the
+  // claim, ahead of the delivery attempt).
+  broadcast({ t: 'canvas-flow-fired', flowId: flow.id, at: now, fires });
+  // Card targets start a session the browser never asked for — without this,
+  // the kanban has no way to know it's running (or to stop it) until the
+  // session shows up in the next natural sessions-list/graph refresh.
+  if (runKey) broadcast({ t: 'canvas-flow-run', flowId: flow.id, runKey, cardId: ref });
 }
 
 export async function handleTurnClosed(t: TurnClosed): Promise<void> {
   try {
-    if (!t.ok || t.unattended) return; // cheap, no IO — matches selectFlowsToFire's own gate
+    if (!t.ok || t.unattended) return;
+    // Cheap (no IO): warm the marker-based session→card binding on EVERY
+    // clean close, not only once the board already has flows — a flow drawn
+    // LATER needs this map already warm, since the marker only ever appears
+    // on the session's first turn (this covers the client's own runCard
+    // launches too, which reach here exactly the same way).
+    const marker = lastCardMarker(t.prompt);
+    if (marker && t.sessionId) bindCardSession(t.sessionId, marker);
+
     const board = await readBoardChained();
     if (!board.flows.length) return;
-    // The prompt's own marker (first turn of a card launch, or a flow
-    // delivering INTO a card) always wins and warms the in-memory map for
-    // every later turn of this session. Missing that, fall back to whatever
-    // this process already knows, then — only as a last resort — the
-    // persisted refs cache (server/canvas/index.ts), which costs a disk read.
-    const marker = lastCardMarker(t.prompt);
-    let boundCardId = marker;
-    if (marker && t.sessionId) bindCardSession(t.sessionId, marker);
-    else if (t.sessionId) {
-      boundCardId = cardIdForSession(t.sessionId);
-      if (!boundCardId) {
-        boundCardId = await cardIdFromRefsCache(t.sessionId);
-        if (boundCardId) bindCardSession(t.sessionId, boundCardId);
-      }
+
+    // Disk fallback only matters once there's something to match against —
+    // gated here (not above) to skip that IO entirely for the common case of
+    // a user with no flows configured yet.
+    let boundCardId = marker ?? (t.sessionId ? cardIdForSession(t.sessionId) : undefined);
+    if (!boundCardId && t.sessionId) {
+      boundCardId = await cardIdFromRefsCache(t.sessionId);
+      if (boundCardId) bindCardSession(t.sessionId, boundCardId);
     }
-    const fires = selectFlowsToFire({ ok: t.ok, sessionId: t.sessionId, prompt: t.prompt, unattended: t.unattended, boundCardId }, board.flows, Date.now());
+    const fires = selectFlowsToFire(
+      { ok: t.ok, sessionId: t.sessionId, prompt: t.prompt, unattended: t.unattended, hop: t.hop, boundCardId },
+      board.flows, Date.now(),
+    );
     if (!fires.length) return;
     const result = flowResult(t.text);
     // Sequential on purpose: each fire persists a board write (claimFlowFire),

@@ -862,6 +862,11 @@ export type ServerMsg =
   // and patches just this flow's counters, never the whole board (which would
   // leak every card's prompt and every other flow's template to every socket).
   | { t: 'canvas-flow-fired'; flowId: string; at: number; fires: number }
+  // A card-target flow just started a NEW session under `runKey` (`new-<uuid>`)
+  // for `cardId` — mirrors what the client's own runCard return value does
+  // (useCanvasRoute's pendingLaunch), so the kanban shows the card "rodando"
+  // and can stop it even though the browser never issued this run itself.
+  | { t: 'canvas-flow-run'; flowId: string; runKey: string; cardId: string }
   | { t: 'graph-data'; id: string; graph: GraphData }
   | { t: 'graph-query-result'; id: string; question: string; answer: string; tokens: number; miss: boolean }
   | { t: 'graph-build-progress'; line: string }

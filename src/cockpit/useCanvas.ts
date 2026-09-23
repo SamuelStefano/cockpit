@@ -18,6 +18,12 @@ export interface CanvasApi {
   // flowId -> ts of the last `canvas-flow-fired` broadcast, so the edge layer
   // can pulse the arrow that just delivered a prompt server-side.
   canvasFlowFired: Record<string, number>;
+  // cardId -> the `new-<uuid>` run key a card-target flow just started, so
+  // useCanvasRoute can bind it the same way it binds a client-launched
+  // runCard (pendingLaunch) — without this the kanban has no way to know a
+  // server-triggered card run is "rodando" until the sessions list catches
+  // up on its own.
+  canvasFlowRuns: Record<string, { key: string; at: number }>;
   canvasTermStats: Record<string, TermStats>;
   onCanvasTermStats: (sessions: string[], terms: string[]) => void;
   onMsg: (msg: ServerMsg) => boolean;
@@ -51,6 +57,7 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
   const [canvasStale, setStale] = useState(false);
   const [canvasTermStats, setTermStats] = useState<Record<string, TermStats>>({});
   const [canvasFlowFired, setFlowFired] = useState<Record<string, number>>({});
+  const [canvasFlowRuns, setFlowRuns] = useState<Record<string, { key: string; at: number }>>({});
   const loadingRef = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -84,6 +91,10 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
         ...b,
         flows: b.flows.map((f) => (f.id === msg.flowId ? { ...f, fires: msg.fires, lastFiredAt: msg.at } : f)),
       }));
+      return true;
+    }
+    if (msg.t === 'canvas-flow-run') {
+      setFlowRuns((r) => ({ ...r, [msg.cardId]: { key: msg.runKey, at: Date.now() } }));
       return true;
     }
     if (msg.t === 'canvas-graph') { setGraph(msg.graph); setStale(false); settle(); return true; }
@@ -211,7 +222,7 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
   return {
     canvasGraph, canvasBoard, canvasLoading, canvasLoadingSince, canvasStale,
     onCanvasGet, onCanvasPos, onCanvasPosReset, onCanvasCardSave, onCanvasCardDelete,
-    onCanvasFlowSave, onCanvasFlowDelete, canvasFlowFired,
+    onCanvasFlowSave, onCanvasFlowDelete, canvasFlowFired, canvasFlowRuns,
     canvasTermStats, onCanvasTermStats, onMsg,
   };
 }

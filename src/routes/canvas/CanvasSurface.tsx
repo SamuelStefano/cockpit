@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { CanvasEdge, CanvasFlow, CanvasNode, CanvasPos, TermStats } from '../../../shared/canvas';
 import { CanvasEdges } from './CanvasEdges';
-import { CanvasFlows } from './CanvasFlows';
+import { CanvasFlowArrows } from './CanvasFlowArrows';
+import { CanvasFlowPorts } from './CanvasFlowPorts';
 import { CanvasNodeCard } from './CanvasNodeCard';
 import { CanvasToolbar } from './CanvasToolbar';
 import { CanvasWindows } from './CanvasWindows';
@@ -150,6 +151,14 @@ export function CanvasSurface(p: Props) {
     >
       <div className="absolute left-0 top-0 origin-top-left" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})` }}>
         <CanvasEdges edges={p.edges} pos={pos} focus={focus} />
+        {/* Arrows paint BELOW the nodes — pointer-events-none except a small
+            midpoint chip, never a wide hit-band over the whole route, so a
+            card or a live terminal an arrow happens to cross stays fully
+            clickable/draggable underneath it. */}
+        <CanvasFlowArrows
+          nodes={p.nodes} pos={pos} windows={p.windows} compact={compact} flows={p.flows} firedAt={p.flowFired}
+          onFlowClick={p.onFlowClick}
+        />
         {cards.map((n) => pos[n.id] && (
           <CanvasNodeCard
             key={n.id} node={n} pos={pos[n.id]} compact={compact} zoom={view.k}
@@ -162,11 +171,11 @@ export function CanvasSurface(p: Props) {
           nodes={wins} pos={pos} terms={p.terms} term={p.term} selected={selectedSet} focus={focus}
           running={p.running} waiting={p.waiting} onPointerDown={onNodeDown} onOpenChat={p.onOpenChat} stats={p.stats}
         />
-        {/* Painted LAST: a port must never sit under a card's edge, and an
-            arrow should read on top of the nodes it connects. */}
-        <CanvasFlows
-          nodes={p.nodes} pos={pos} windows={p.windows} compact={compact} zoom={view.k} flows={p.flows} firedAt={p.flowFired}
-          portDrag={portDrag} onPortDown={onPortDown} onPortLostCapture={onPortLostCapture} onFlowClick={p.onFlowClick}
+        {/* Ports paint LAST, on top of everything — a port must never sit
+            under a card's edge, or it can't be grabbed to start a drag. */}
+        <CanvasFlowPorts
+          nodes={p.nodes} pos={pos} windows={p.windows} compact={compact} zoom={view.k}
+          portDrag={portDrag} onPortDown={onPortDown} onPortLostCapture={onPortLostCapture}
         />
       </div>
       {p.children}

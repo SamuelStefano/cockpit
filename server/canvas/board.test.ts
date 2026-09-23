@@ -3,9 +3,14 @@ import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  checkFlowSave, claimFlowFire, emptyBoard, markCardDoing, mergePos, readBoard, readBoardChained, removeCard, removeFlow,
-  rollbackFlowFire, sanitizeCard, sanitizeFlow, sanitizePos, updateBoard, upsertCard, upsertFlow,
+  checkFlowSave, claimFlowFire, emptyBoard, markCardDoing, mergePos, readBoard, readBoardChained, recordFlowFailure,
+  recordFlowSuccess, removeCard, removeFlow, sanitizeCard, sanitizeFlow, sanitizePos, updateBoard, upsertCard, upsertFlow,
 } from './board';
+
+// claimFlowFire takes a backoff curve injected by the caller (server/canvas/
+// flows.ts owns the real one) — a flat 0 here isolates these tests from it
+// except where a test explicitly wants to exercise a failure streak.
+const noBackoff = () => 0;
 
 describe('sanitizeCard', () => {
   it('rejects a bad id or empty title', () => {
@@ -50,7 +55,7 @@ describe('sanitizeFlow', () => {
 
   it('fires/lastFiredAt cannot be forged upward even when editing an existing flow', () => {
     const prev = sanitizeFlow({ id: 'abcd', from: 's:a', to: 'k:b' }, undefined, 1)!;
-    const claimed = claimFlowFire(upsertFlow(emptyBoard(), prev), 'abcd', 500, 60_000);
+    const claimed = claimFlowFire(upsertFlow(emptyBoard(), prev), 'abcd', 500, 60_000, noBackoff);
     const stored = claimed.board.flows[0];
     // client "saves" with a forged fires/lastFiredAt in the raw payload
     const saved = sanitizeFlow({ ...stored, template: 'novo texto', fires: 0, lastFiredAt: undefined }, stored, 9000);
@@ -99,28 +104,58 @@ describe('flow board ops', () => {
   it('claimFlowFire bumps fires/lastFiredAt atomically and refuses a disabled, cooling-down, or unknown flow', () => {
     const f = sanitizeFlow({ id: 'abcd', from: 's:a', to: 'k:b' }, undefined, 1)!;
     let b = upsertFlow(emptyBoard(), f);
-    const first = claimFlowFire(b, 'abcd', 500, 60_000);
+    const first = claimFlowFire(b, 'abcd', 500, 60_000, noBackoff);
     expect(first.claimed).toBe(true);
     expect(first.board.flows[0]).toMatchObject({ fires: 1, lastFiredAt: 500 });
-    const cooling = claimFlowFire(first.board, 'abcd', 500 + 59_999, 60_000);
+    const cooling = claimFlowFire(first.board, 'abcd', 500 + 59_999, 60_000, noBackoff);
     expect(cooling.claimed).toBe(false);
     expect(cooling.board).toBe(first.board);
-    const pastCooldown = claimFlowFire(first.board, 'abcd', 500 + 60_000, 60_000);
+    const pastCooldown = claimFlowFire(first.board, 'abcd', 500 + 60_000, 60_000, noBackoff);
     expect(pastCooldown.claimed).toBe(true);
     expect(pastCooldown.board.flows[0]).toMatchObject({ fires: 2, lastFiredAt: 60_500 });
     const disabled = upsertFlow(emptyBoard(), { ...f, enabled: false });
-    expect(claimFlowFire(disabled, 'abcd', 1, 60_000).claimed).toBe(false);
-    expect(claimFlowFire(b, 'nope', 1, 60_000).claimed).toBe(false);
+    expect(claimFlowFire(disabled, 'abcd', 1, 60_000, noBackoff).claimed).toBe(false);
+    expect(claimFlowFire(b, 'nope', 1, 60_000, noBackoff).claimed).toBe(false);
   });
 
-  it('rollbackFlowFire undoes a claim (fires -1, lastFiredAt cleared) only when it still matches the claimed timestamp', () => {
+  it('claimFlowFire also refuses while inside its OWN failure backoff window, independent of the normal cooldown', () => {
+    const f = { ...sanitizeFlow({ id: 'abcd', from: 's:a', to: 'k:b' }, undefined, 1)!, failStreak: 2, lastFailedAt: 1000 };
+    const b = upsertFlow(emptyBoard(), f);
+    const backoff = (streak: number) => streak * 1000; // 2 streaks -> 2000ms window
+    expect(claimFlowFire(b, 'abcd', 1000 + 1999, 0, backoff).claimed).toBe(false);
+    expect(claimFlowFire(b, 'abcd', 1000 + 2000, 0, backoff).claimed).toBe(true);
+  });
+
+  it('claimFlowFire returns the pre-claim snapshot (prevFires/prevLastFiredAt/prevFailStreak) for rollback', () => {
+    const f = { ...sanitizeFlow({ id: 'abcd', from: 's:a', to: 'k:b' }, undefined, 1)!, fires: 3, lastFiredAt: 100, failStreak: 1 };
+    const b = upsertFlow(emptyBoard(), f);
+    const claimed = claimFlowFire(b, 'abcd', 100 + 60_000, 60_000, noBackoff);
+    expect(claimed).toMatchObject({ claimed: true, prevFires: 3, prevLastFiredAt: 100, prevFailStreak: 1 });
+  });
+
+  it('recordFlowFailure restores the EXACT prior fires/lastFiredAt (not just cleared) and bumps failStreak/lastFailedAt', () => {
     const f = sanitizeFlow({ id: 'abcd', from: 's:a', to: 'k:b' }, undefined, 1)!;
-    const claimed = claimFlowFire(upsertFlow(emptyBoard(), f), 'abcd', 500, 60_000).board;
-    const rolledBack = rollbackFlowFire(claimed, 'abcd', 500);
-    expect(rolledBack.flows[0]).toMatchObject({ fires: 0, lastFiredAt: undefined });
-    // a newer claim landed since — rollback of the stale timestamp is a no-op
-    const superseded = rollbackFlowFire(claimed, 'abcd', 499);
+    const claim = claimFlowFire(upsertFlow(emptyBoard(), f), 'abcd', 500, 60_000, noBackoff);
+    // a SECOND successful fire, so there's a real prior fires/lastFiredAt to restore
+    const claim2 = claimFlowFire(claim.board, 'abcd', 500 + 60_000, 60_000, noBackoff);
+    const failed = recordFlowFailure(claim2.board, 'abcd', claim2.board.flows[0].lastFiredAt!, claim2.prevFires, claim2.prevLastFiredAt, 999_000);
+    expect(failed.flows[0]).toMatchObject({ fires: 1, lastFiredAt: 500, failStreak: 1, lastFailedAt: 999_000 });
+  });
+
+  it('recordFlowFailure is a no-op when a newer claim already superseded the one that failed', () => {
+    const f = sanitizeFlow({ id: 'abcd', from: 's:a', to: 'k:b' }, undefined, 1)!;
+    const claimed = claimFlowFire(upsertFlow(emptyBoard(), f), 'abcd', 500, 60_000, noBackoff).board;
+    const superseded = recordFlowFailure(claimed, 'abcd', 499, 0, undefined, 999_000);
     expect(superseded).toBe(claimed);
+  });
+
+  it('recordFlowSuccess clears an existing failure streak, and no-ops when there is none', () => {
+    const f = { ...sanitizeFlow({ id: 'abcd', from: 's:a', to: 'k:b' }, undefined, 1)!, failStreak: 3, lastFailedAt: 500 };
+    const b = upsertFlow(emptyBoard(), f);
+    const cleared = recordFlowSuccess(b, 'abcd');
+    expect(cleared.flows[0]).toMatchObject({ failStreak: 0, lastFailedAt: undefined });
+    const clean = upsertFlow(emptyBoard(), sanitizeFlow({ id: 'abcd', from: 's:a', to: 'k:b' }, undefined, 1)!);
+    expect(recordFlowSuccess(clean, 'abcd')).toBe(clean);
   });
 
   it('markCardDoing moves the card and stamps updatedAt, no-op on unknown id', () => {

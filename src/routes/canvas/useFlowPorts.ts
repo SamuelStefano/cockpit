@@ -42,8 +42,19 @@ export function useFlowPorts(
     fromRef.current = null;
     setPortDrag(null);
     if (!from) return;
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    const target = (el?.closest<HTMLElement>('[data-node]'))?.dataset.node;
+    // Plural, not elementFromPoint: dropping exactly on another node's port
+    // (or on this arrow's own click chip) put THAT small element on top —
+    // elementFromPoint only sees it, `.closest('[data-node]')` finds nothing
+    // (a port/chip isn't inside a node card's DOM), and the drop silently
+    // failed even though the pointer was visibly over the target card.
+    // Walking the whole z-stack finds the node underneath regardless of what
+    // else is drawn on top of that exact pixel.
+    const stack = typeof document.elementsFromPoint === 'function' ? document.elementsFromPoint(e.clientX, e.clientY) : [];
+    let target: string | undefined;
+    for (const el of stack) {
+      const node = el.closest?.('[data-node]');
+      if (node) { target = (node as HTMLElement).dataset.node; break; }
+    }
     if (target && target !== from && canDrop(target)) onCreate(from, target);
   }, [canDrop, onCreate]);
 
