@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ClientMsg, ServerMsg } from '../../shared/protocol';
-import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasGraph, CanvasPos, TermStats } from '../../shared/canvas';
+import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasGraph, CanvasPos, CardStatus, TermStats } from '../../shared/canvas';
 import { AREA_LABELS } from '../../shared/canvas';
 import type { AreaUsage } from '../../shared/canvas-budget';
 import { toast } from '../components/primitives';
@@ -16,6 +16,7 @@ export interface CanvasApi {
   onCanvasPosReset: () => void;
   onCanvasCardSave: (card: CanvasCard) => void;
   onCanvasCardDelete: (id: string) => void;
+  onCanvasSessionStatus: (sessionId: string, status: CardStatus) => void;
   onCanvasFlowSave: (flow: CanvasFlow) => void;
   onCanvasFlowDelete: (id: string) => void;
   // flowId -> ts of the last `canvas-flow-fired` broadcast, so the edge layer
@@ -37,7 +38,7 @@ export interface CanvasApi {
   onMsg: (msg: ServerMsg) => boolean;
 }
 
-const EMPTY_BOARD: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: {} };
+const EMPTY_BOARD: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {} };
 
 // server/ws/dispatch.ts runs message handlers unawaited and reads the board
 // outside any write chain: a `canvas-board` frame answering an earlier
@@ -75,6 +76,7 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
   const deleteWriteAt = useRef<Record<string, number>>({});
   const flowWriteAt = useRef<Record<string, number>>({});
   const flowDeleteWriteAt = useRef<Record<string, number>>({});
+  const sessionStatusWriteAt = useRef<Record<string, number>>({});
 
   const clearTimer = useCallback(() => {
     if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
@@ -199,9 +201,15 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
           });
         for (const id of Object.keys(flowWriteAt.current)) if (now - flowWriteAt.current[id] >= WRITE_GRACE_MS) delete flowWriteAt.current[id];
         for (const id of Object.keys(flowDeleteWriteAt.current)) if (now - flowDeleteWriteAt.current[id] >= WRITE_GRACE_MS) delete flowDeleteWriteAt.current[id];
+        // `?? {}`: same pre-feature-server defense as `flows` above.
+        const sessionStatus = { ...(msg.board.sessionStatus ?? {}) };
+        for (const [sid, at] of Object.entries(sessionStatusWriteAt.current)) {
+          if (now - at >= WRITE_GRACE_MS) { delete sessionStatusWriteAt.current[sid]; continue; }
+          if (sid in prev.sessionStatus) sessionStatus[sid] = prev.sessionStatus[sid]; else delete sessionStatus[sid];
+        }
         // Budgets have no optimistic-write grace window (see onCanvasBudgetSave):
         // the incoming frame is always authoritative for them.
-        return { cards, pos, flows, budgets: msg.board.budgets };
+        return { cards, pos, flows, budgets: msg.board.budgets, sessionStatus };
       });
       return true;
     }
@@ -263,6 +271,15 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
     send({ t: 'canvas-card-delete', id });
   }, [send]);
 
+  // Optimistic, same shape as onCanvasCardSave: the drag/click lands at once,
+  // the broadcast that follows (or doesn't, offline) is authoritative.
+  const onCanvasSessionStatus = useCallback((sessionId: string, status: CardStatus) => {
+    const at = Date.now();
+    sessionStatusWriteAt.current[sessionId] = at;
+    setBoard((b) => ({ ...b, sessionStatus: { ...b.sessionStatus, [sessionId]: { status, at } } }));
+    send({ t: 'canvas-session-status', sessionId, status });
+  }, [send]);
+
   const onCanvasFlowSave = useCallback((flow: CanvasFlow) => {
     delete flowDeleteWriteAt.current[flow.id];
     flowWriteAt.current[flow.id] = Date.now();
@@ -293,7 +310,7 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
 
   return {
     canvasGraph, canvasBoard, canvasLoading, canvasLoadingSince, canvasStale,
-    onCanvasGet, onCanvasPos, onCanvasPosReset, onCanvasCardSave, onCanvasCardDelete,
+    onCanvasGet, onCanvasPos, onCanvasPosReset, onCanvasCardSave, onCanvasCardDelete, onCanvasSessionStatus,
     onCanvasFlowSave, onCanvasFlowDelete, canvasFlowFired, canvasFlowRuns, onCanvasBudgetSave,
     canvasTermStats, onCanvasTermStats, canvasAreaUsage, onMsg,
   };

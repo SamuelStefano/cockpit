@@ -47,7 +47,7 @@ import { buildCanvas } from '../canvas/index';
 import { collectTermStats, hasInteractiveClaude, newCpuSamples, type CpuSamples } from '../canvas/term-stats';
 import {
   MAX_FLOWS, readBoard, readBoardChained, updateBoard, sanitizeCard, sanitizeFlow, sanitizePos, upsertCard, upsertFlow, removeCard, removeFlow,
-  checkFlowSave, mergePos, setBudget,
+  checkFlowSave, mergePos, setBudget, sanitizeSessionStatus, setSessionStatus,
 } from '../canvas/board';
 import { activeFlowRuns } from '../canvas/flow-runs';
 import { startCanvasFlows } from '../canvas/flows';
@@ -195,6 +195,22 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     // role, and the graph carries every memory title and session summary.
     case 'canvas-pos-reset': {
       const board = await updateBoard((b) => ({ ...b, pos: {} }));
+      send(ws, boardFrame(board));
+      return;
+    }
+    // The kanban's session items (src/routes/canvas/kanban-items.ts): the
+    // user dragged a session into a column (or hit "marcar completo"), which
+    // is always a full override — a client re-sends the whole {status, at}
+    // it wants, never a partial patch.
+    case 'canvas-session-status': {
+      const now = Date.now();
+      // No `at` in the raw payload: it's ALWAYS server time for a live write
+      // (sanitizeSessionStatus defaults to `now` when unset) — only readBoard
+      // parsing a value already on disk supplies one, to keep the original
+      // decision time across a restart.
+      const clean = sanitizeSessionStatus(String(msg.sessionId ?? ''), { status: msg.status }, now);
+      if (!clean) { send(ws, { t: 'error', message: 'sessão inválida' }); return; }
+      const board = await updateBoard((b) => setSessionStatus(b, clean.sessionId, clean.entry));
       send(ws, boardFrame(board));
       return;
     }

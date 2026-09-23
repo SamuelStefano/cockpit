@@ -111,11 +111,19 @@ export interface AreaBudget {
   autoPause?: boolean;
 }
 
+// A user override on a session's derived kanban status (src/routes/canvas/
+// kanban-items.ts owns the derivation and the expiry rule: a turn on the
+// session that starts/closes AFTER `at` makes the override stale and the
+// automatic reading takes back over — see isOverrideActive there). Keyed by
+// session uuid, never by node id.
+export interface CanvasSessionStatus { status: CardStatus; at: number }
+
 export interface CanvasBoard {
   cards: CanvasCard[];
   pos: Record<string, CanvasPos>;
   flows: CanvasFlow[];
   budgets: Partial<Record<AreaId, AreaBudget>>;
+  sessionStatus: Record<string, CanvasSessionStatus>;
 }
 
 // A card-target flow's in-flight run — server/canvas/flow-runs.ts, transient

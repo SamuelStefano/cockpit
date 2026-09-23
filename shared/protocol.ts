@@ -713,6 +713,9 @@ export type ClientMsg =
   | { t: 'canvas-pos-reset' }
   | { t: 'canvas-card-save'; card: CanvasCard }
   | { t: 'canvas-card-delete'; id: string }
+  // Kanban session item (src/routes/canvas/kanban-items.ts): user override on
+  // a session's derived status — drag onto a column or "marcar completo".
+  | { t: 'canvas-session-status'; sessionId: string; status: CardStatus }
   | { t: 'canvas-flow-save'; flow: CanvasFlow }
   | { t: 'canvas-flow-delete'; id: string }
   | { t: 'canvas-budget-save'; area: string; budget: AreaBudget }
