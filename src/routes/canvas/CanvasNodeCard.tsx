@@ -40,7 +40,7 @@ export const CanvasNodeCard = memo(function CanvasNodeCard({ node: n, pos, selec
       data-node={n.id}
       onPointerDown={(e) => onPointerDown(e, n.id)}
       style={{ transform: `translate(${pos.x}px, ${pos.y}px)`, width: NODE_W, height: compact ? 44 : NODE_H }}
-      className={`absolute left-0 top-0 cursor-grab select-none rounded-xl border bg-neutral-900/95 shadow-lg shadow-black/40 transition-opacity active:cursor-grabbing
+      className={`absolute left-0 top-0 touch-none cursor-grab select-none rounded-xl border bg-neutral-900/95 shadow-lg shadow-black/40 transition-opacity active:cursor-grabbing
         ${frame(n, selected)} ${dim ? 'opacity-25' : ''} ${n.archived ? 'opacity-60' : ''}`}
     >
       <div className={`flex items-center gap-1.5 rounded-t-xl border-b border-neutral-800 px-2.5 py-1.5 ${n.hub ? 'bg-orange-500/10' : 'bg-neutral-950/70'}`}>
