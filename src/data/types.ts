@@ -15,6 +15,7 @@ export interface Session {
   hasTerminal: boolean;
   active: boolean;
   waiting?: boolean; // último turno parou numa pergunta e espera resposta sua
+  lastTurnOk?: boolean; // último turno fechou limpo (server/sessions/turn-outcome.ts)
 }
 
 // Terminal real = PTY/tmux no backend; aqui só o metadado de aba.

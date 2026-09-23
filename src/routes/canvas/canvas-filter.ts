@@ -1,5 +1,6 @@
 import { isCronPing, type AreaId, type CanvasCard, type CanvasEdge, type CanvasNode } from '../../../shared/canvas';
 import { isAutomationSession } from './canvas-automation';
+import type { LiveSessionInfo } from './kanban-items';
 
 export type CanvasScope = 'exec' | 'active' | 'all';
 
@@ -20,6 +21,10 @@ export interface FilterOpts {
   windowIds?: Set<string>;
   doneRecentIds?: Set<string>;
   showAutomation?: boolean;
+  // The freshest `waiting` per session (src/data/types.ts Session, via
+  // p.sessions) — the graph node can be a whole rebuild behind. Falls back to
+  // the node's own `waiting` when a session isn't in the live list yet.
+  liveSessions?: Map<string, LiveSessionInfo>;
 }
 
 // "Active" used to mean "touched in the last 7 days", which at 300 sessions
@@ -59,19 +64,40 @@ export function filterCanvas(nodes: CanvasNode[], edges: CanvasEdge[], o: Filter
     // The execution panel: only sessions that are actually happening right
     // now (running, waiting on you, sitting in an open terminal window, or
     // just finished and not yet triaged into Completed) — never a hub, never
-    // an untouched leaf, never the archive. Neighbours are restricted to
-    // 'read'/'write' context edges (the sessions' OWN memory touches), so no
-    // hub-promotion and no topic/link neighbour ever sneaks a whole cluster
-    // of old contexts back in the way 'active' scope does.
+    // an untouched leaf, never the archive. Session neighbours are restricted
+    // to 'read'/'write' context edges (the sessions' OWN memory touches), so
+    // no hub-promotion and no topic/link neighbour ever sneaks a whole
+    // cluster of old contexts back in the way 'active' scope does.
+    //
+    // Cards not yet Completed are seeds too — otherwise every #592 flow arrow
+    // and #593 card alert touching a card, and every area chip around it
+    // (#595), vanishes the moment its bound session goes idle between turns.
+    // A card's own edges are always 'card'/'input' (graph.ts never emits
+    // read/write FROM a card), so no kind filter is needed for it.
+    //
+    // Indexed by source once (O(edges)) instead of scanning the whole edge
+    // list per seed (O(seeds × edges) — measurable on a box with 300+
+    // sessions and thousands of edges).
     const showAuto = o.showAutomation ?? false;
-    const seeds = nodes.filter((n) => n.kind === 'session' && allowed(n) && (showAuto || !isAutomationSession({ title: n.title, subtitle: n.subtitle })) && (
-      o.running.has(n.ref) || n.waiting || (o.windowIds?.has(n.id) ?? false) || (o.doneRecentIds?.has(n.id) ?? false)
+    const bySource = new Map<string, CanvasEdge[]>();
+    for (const e of edges) bySource.set(e.source, [...(bySource.get(e.source) ?? []), e]);
+
+    const sessionSeeds = nodes.filter((n) => n.kind === 'session' && allowed(n) && (showAuto || !isAutomationSession({ title: n.title, subtitle: n.subtitle })) && (
+      o.running.has(n.ref) || (o.liveSessions?.get(n.ref)?.waiting ?? n.waiting) || (o.windowIds?.has(n.id) ?? false) || (o.doneRecentIds?.has(n.id) ?? false)
     ));
-    for (const s of seeds) {
+    for (const s of sessionSeeds) {
       keep.add(s.id);
-      for (const e of edges) {
+      for (const e of bySource.get(s.id) ?? []) {
         if (e.kind !== 'read' && e.kind !== 'write') continue;
-        if (e.source === s.id && byId.get(e.target)?.kind === 'context') keep.add(e.target);
+        const t = byId.get(e.target);
+        if (t?.kind === 'context' && allowed(t)) keep.add(e.target);
+      }
+    }
+    for (const c of nodes.filter((n) => n.kind === 'card' && openCards.has(n.id))) {
+      keep.add(c.id);
+      for (const e of bySource.get(c.id) ?? []) {
+        const t = byId.get(e.target);
+        if (t && allowed(t)) keep.add(e.target);
       }
     }
   } else {

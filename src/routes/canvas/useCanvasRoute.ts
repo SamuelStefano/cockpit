@@ -13,7 +13,7 @@ import { computeAreaRects } from './canvas-areas';
 import { filterCanvas, type CanvasScope } from './canvas-filter';
 import { bounds, layoutCanvas } from './canvas-layout';
 import { boundSessions, mergeBoard, moveCard, newCardId, resolveSaveStatus } from './canvas-board';
-import { deriveSessionItems, doneRecentSessionIds, type SessionKanbanItem } from './kanban-items';
+import { deriveSessionItems, doneRecentSessionIds, type LiveSessionInfo, type SessionKanbanItem } from './kanban-items';
 import { placeWindows, TERM_H, TERM_W, winKey } from './canvas-terms';
 
 export interface CanvasRouteProps {
@@ -52,6 +52,10 @@ export interface CanvasRouteProps {
   areaUsage: Partial<Record<AreaId, AreaUsage>>;
   discoveredTerms: string[];
   listTerms: () => void;
+  // sessionKey -> endReason for a RECOVERABLE cut (budget/max_turns) THIS
+  // client just watched happen (src/useCockpit.ts `interrupted`) — a faster,
+  // client-only supplement to the server-persisted lastTurnOk on p.sessions.
+  interrupted: Record<string, string>;
 }
 
 export type CanvasMode = 'canvas' | 'kanban';
@@ -72,7 +76,15 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
   const [areaFilter, setAreaFilter] = usePersisted<AreaId | null>('canvas.areaFilter', null);
   const [selected, setSelected] = useState<string[]>([]);
   const [draft, setDraft] = useState<CardDraft | null>(null);
-  const [now] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.now());
+  // The Done-≤24h window (kanban-items.ts doneRecentSessionIds) and the
+  // active-scope 48h window both compare against `now` — without a tick, a
+  // tab left open past either boundary would keep framing a session as
+  // fresh/recent forever. A minute is plenty for a 24h/48h window.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const { onCanvasGet } = p;
   useEffect(() => { if (p.connected) onCanvasGet(); }, [p.connected, onCanvasGet]);
@@ -86,6 +98,9 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     const t = setTimeout(onCanvasGet, REFRESH_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [sessionsSig, p.connected, onCanvasGet]);
+  // Same signal also re-clocks `now` at once — a burst of session activity
+  // shouldn't have to wait up to a minute for the Done window to catch up.
+  useEffect(() => { setNow(Date.now()); }, [sessionsSig]);
 
   const merged = useMemo(() => mergeBoard(p.graph, p.board.cards), [p.graph, p.board.cards]);
   // Raw open-terminal-window ids (NOT useCanvasRoute's own scope-filtered
@@ -96,16 +111,25 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     for (const [id, s] of Object.entries(p.termStats)) if (s.turnStartedAt !== undefined) out[id] = s.turnStartedAt;
     return out;
   }, [p.termStats]);
-  // Every session as a kanban item (Kanban.tsx renders it alongside cards) —
-  // computed here, once, off the same merged graph the canvas surface uses,
-  // so "execução" scope and the kanban agree on exactly which sessions are
-  // Done-but-not-Completed within the last 24h.
-  const sessionItems = useMemo(() => deriveSessionItems({
-    nodes: merged.nodes, edges: merged.edges, cards: p.board.cards, running: p.running,
-    overrides: p.board.sessionStatus, turnStartedAt, showAutomation,
-  }), [merged, p.board.cards, p.running, p.board.sessionStatus, turnStartedAt, showAutomation]);
-  const doneRecentIds = useMemo(() => doneRecentSessionIds(sessionItems, now), [sessionItems, now]);
-  const filterExtras = { windowIds: windowIdSet, doneRecentIds, showAutomation };
+  // The freshest waiting/mtime/lastTurnOk per session — src/data/types.ts
+  // Session (p.sessions), NOT the CanvasNode graph, which can lag a whole
+  // rebuild behind (canvas review — exec-scope adversarial pass #1).
+  const liveSessions = useMemo(() => {
+    const m = new Map<string, LiveSessionInfo>();
+    for (const s of p.sessions) m.set(s.id, { waiting: s.waiting, mtime: s.mtime, lastTurnOk: s.lastTurnOk });
+    return m;
+  }, [p.sessions]);
+  const nodeStatusOpts = { running: p.running, overrides: p.board.sessionStatus, turnStartedAt, liveSessions, interrupted: p.interrupted };
+  // Every SESSION NODE, not deriveSessionItems' deduped/automation-filtered
+  // list: a session bound to a card, or an automation run, still counts as
+  // "just finished" for the execution scope's own framing.
+  const doneRecentIds = useMemo(
+    () => doneRecentSessionIds(merged.nodes, nodeStatusOpts, now),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- nodeStatusOpts is a
+    // fresh object every render; its own members are the real deps.
+    [merged.nodes, p.running, p.board.sessionStatus, turnStartedAt, liveSessions, p.interrupted, now],
+  );
+  const filterExtras = { windowIds: windowIdSet, doneRecentIds, showAutomation, liveSessions };
   const visible = useMemo(() => {
     const v = filterCanvas(merged.nodes, merged.edges, { scope, archived, query, area: areaFilter, running: p.running, cards: p.board.cards, now, ...filterExtras });
     const q = query.trim().toLowerCase();
@@ -254,6 +278,26 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     }
     if (changed) setPendingTick((t) => t + 1);
   }, [p.canvasFlowRuns]);
+
+  // Every session as a kanban item (Kanban.tsx renders it alongside cards) —
+  // deduped against a card's REAL edges (canvas-board.ts boundSessions) AND
+  // pendingLaunch/canvasFlowRuns, which know about a card's session before
+  // the graph does (refs.ts's transcript scan lags a poll or more behind a
+  // fresh launch/flow fire). Without this a just-launched session briefly
+  // doubled as its own standalone item next to the card already showing it.
+  const extraBoundIds = useMemo(() => {
+    const out = new Set<string>();
+    for (const { key } of Object.values(pendingLaunch.current)) out.add(key);
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pendingTick forces a
+    // fresh Set when the pending map mutates; its value isn't read.
+  }, [pendingTick]);
+  const sessionItems = useMemo(() => deriveSessionItems({
+    nodes: merged.nodes, edges: merged.edges, cards: p.board.cards, showAutomation, extraBoundIds, ...nodeStatusOpts,
+  }),
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- nodeStatusOpts is a
+  // fresh object every render; its own members are the real deps.
+  [merged, p.board.cards, showAutomation, extraBoundIds, p.running, p.board.sessionStatus, turnStartedAt, liveSessions, p.interrupted]);
 
   const newDraft = useCallback((kind: CanvasCard['kind'], from: CanvasNode[]) => {
     const t = Date.now();

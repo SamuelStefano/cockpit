@@ -4,7 +4,7 @@ import type { SessionMeta } from '../../shared/protocol';
 import { relPast } from '../../shared/format';
 import { CONFIG } from '../config';
 import { hiddenSet, purgedSet, titleOverrides, noteOverrides } from '../store';
-import { allSummaries, getSummary } from '../db';
+import { allSummaries, getSummary, allTurnOutcomes, getTurnOutcome } from '../db';
 
 const UUID_FILE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$/;
 
@@ -45,6 +45,7 @@ async function collectMetas(keep: (id: string, hidden: Set<string>) => boolean):
   // aplica o resumo atual em CIMA do meta (cacheado ou fresco) a cada listagem.
   // Overrides manuais (titles/notes) idem — fora do JSONL, aplicados por id.
   const summaries = allSummaries();
+  const outcomes = allTurnOutcomes();
   const titleOv = await titleOverrides();
   const noteOv = await noteOverrides();
   const metas: SessionMeta[] = [];
@@ -79,6 +80,7 @@ async function collectMetas(keep: (id: string, hidden: Set<string>) => boolean):
       relative: relPast(meta.mtime),
       title: titleOv[id] ?? meta.title,
       summary: noteOv[id] ?? summaries.get(id),
+      lastTurnOk: outcomes.get(id),
     });
   }
 
@@ -105,7 +107,10 @@ export async function metaForId(id: string): Promise<SessionMeta | null> {
   }
   const titleOv = await titleOverrides();
   const noteOv = await noteOverrides();
-  return { ...meta, relative: relPast(meta.mtime), title: titleOv[id] ?? meta.title, summary: noteOv[id] ?? getSummary(id) ?? undefined };
+  return {
+    ...meta, relative: relPast(meta.mtime), title: titleOv[id] ?? meta.title, summary: noteOv[id] ?? getSummary(id) ?? undefined,
+    lastTurnOk: getTurnOutcome(id) ?? undefined,
+  };
 }
 
 // Monta a SessionMeta a partir do cabeçalho escaneado — compartilhado pela

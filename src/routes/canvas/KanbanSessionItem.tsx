@@ -32,6 +32,7 @@ export const KanbanSessionItem = memo(function KanbanSessionItem({ item, stats, 
         <span className="min-w-0 flex-1 truncate text-[12px] font-medium leading-snug text-neutral-200">{item.title}</span>
         {item.running && <Badge tone="green" dot>rodando</Badge>}
         {item.waitingOnUser && <Badge tone="yellow">esperando você</Badge>}
+        {item.needsAttention && <Badge tone="red">precisa de atenção</Badge>}
       </div>
       {item.subtitle && <p className="mt-1 line-clamp-1 text-[10px] text-neutral-500">{item.subtitle}</p>}
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-neutral-500">

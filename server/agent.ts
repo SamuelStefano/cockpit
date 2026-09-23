@@ -11,6 +11,7 @@ import { serveConnection } from './ws/serve-connection';
 // onTurnClosed (server/canvas/turn-hooks.ts) at import time — same as
 // server/index.ts, since this entry point never imports that one.
 import './canvas/card-review';
+import './sessions/turn-outcome';
 import { setClientSource, broadcast } from './ws/broadcast';
 import { mcpServerDefsSync, claudeReady } from './admin-ops';
 import { getSlashCommands } from './ws/slash';
