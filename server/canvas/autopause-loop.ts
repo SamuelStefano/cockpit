@@ -2,7 +2,9 @@ import type { AreaId, CanvasGraph } from '../../shared/canvas';
 import { areaUsageFromIds, evaluateBudget } from '../../shared/canvas-budget';
 import { emitCanvasMsg } from '../ws/canvas-clients';
 import { threads, stopSessionForBudget } from '../ws/threads';
-import { getAreaAdmissionState, resetAreaAdmissionForTest, setAreaAdmissionState, writeAreaAdmissionFile } from './area-admission';
+import {
+  getAreaAdmissionState, resetAreaAdmissionForTest, setAreaAdmissionState, writeAreaAdmissionFile, type LastAreaEntry,
+} from './area-admission';
 import { readBoard } from './board';
 import { buildCanvas } from './index';
 import { collectTermStats, newCpuSamples, type RunPids } from './term-stats';
@@ -60,18 +62,89 @@ let blockedAreas = new Set<AreaId>();
 // tick from the live `runs()` snapshot. Resolves review #595 second pass
 // point 2's "fireCron's gate is a no-op" — a repeating cron that keeps
 // landing in the same area gets a real, if lagging, classification instead of
-// never being gateable at all.
-let lastAreaOfKey = new Map<string, AreaId>();
+// never being gateable at all. `at` (per entry) backs pruneLastAreaOfKey's
+// 24h staleness cutoff, below.
+let lastAreaOfKey = new Map<string, LastAreaEntry>();
 
-// Publishes the current blockedAreas/lastAreaOfKey both to THIS process's own
+// Unbounded growth guards on lastAreaOfKey: every distinct sessionKey this
+// process has ever seen would otherwise sit in the map (and get persisted)
+// forever. `new-<uuid>` keys (server/canvas/flows.ts's deliverToCard — a
+// one-shot session key that never fires twice) are dropped outright; anything
+// else not refreshed in 24h is presumed dead (cron removed, one-off parked
+// item long gone). Cap is a last-resort backstop on top of the 24h prune.
+export const LAST_AREA_OF_KEY_MAX = 500;
+export const LAST_AREA_OF_KEY_STALE_MS = 24 * 3600_000;
+
+export function pruneLastAreaOfKey(map: ReadonlyMap<string, LastAreaEntry>, now: number): Map<string, LastAreaEntry> {
+  const out = new Map<string, LastAreaEntry>();
+  for (const [key, entry] of map) {
+    if (key.startsWith('new-')) continue;
+    if (now - entry.at > LAST_AREA_OF_KEY_STALE_MS) continue;
+    out.set(key, entry);
+  }
+  if (out.size > LAST_AREA_OF_KEY_MAX) {
+    // Map iteration order is INSERTION order, not last-touched order (re-.set
+    // on an existing key doesn't move it) — sort by `at` explicitly rather
+    // than trusting iteration order to mean "oldest first".
+    const oldestFirst = [...out.entries()].sort((a, b) => a[1].at - b[1].at);
+    for (let i = 0; i < oldestFirst.length - LAST_AREA_OF_KEY_MAX; i++) out.delete(oldestFirst[i][0]);
+  }
+  return out;
+}
+
+function sameAreaSet(a: ReadonlySet<AreaId>, b: ReadonlySet<AreaId>): boolean {
+  if (a.size !== b.size) return false;
+  for (const x of a) if (!b.has(x)) return false;
+  return true;
+}
+
+// Ignores each entry's `at` on purpose — a running cron refreshes its OWN
+// timestamp every tick, which would otherwise make this "changed?" check
+// true forever and defeat the write-skip below. Only the AREA assignment
+// (semantic content another process actually needs) counts as a change.
+function sameKeyAreaMap(a: ReadonlyMap<string, LastAreaEntry>, b: ReadonlyMap<string, LastAreaEntry>): boolean {
+  if (a.size !== b.size) return false;
+  for (const [k, v] of a) { const other = b.get(k); if (!other || other.area !== v.area) return false; }
+  return true;
+}
+
+// Snapshot of what was last actually WRITTEN to disk (not just mirrored in
+// memory) — lets syncAdmissionState skip the write when nothing meaningful
+// changed since.
+let lastPublishedBlocked = new Set<AreaId>();
+let lastPublishedKeyMap = new Map<string, LastAreaEntry>();
+
+// Publishes the current blockedAreas/lastAreaOfKey to THIS process's own
 // area-admission cache (so isAreaAdmissionBlocked, below, always reads
-// through the one shared module — no divergent local-vs-cross-process path)
-// and to disk, for every other process. Best-effort: a write failure (full
-// disk, permissions) must never break the loop itself — the file just goes
-// stale and readers fail open once past AREA_ADMISSION_TTL_MS.
-function syncAdmissionState(): void {
+// through the one shared module — no divergent local-vs-cross-process path),
+// ALWAYS (cheap, in-memory only). The disk write is the expensive/visible
+// part — skipped unless there's something another process actually needs to
+// see: an area currently blocked (also keeps the file's TTL alive while that
+// stays true) or a change to the cron/session->area map since the last write.
+// Without this gate the loop wrote a fresh file every 10s tick forever, even
+// with autopause never triggered.
+// Awaited by runTick/clearOverBudget (both already async, on a 10s-tick, not
+// a request path) so the write is durably on disk before the tick call
+// resolves — makes this deterministic for callers/tests instead of a bare
+// fire-and-forget that could still be in flight when the tick "finishes".
+// Errors are still swallowed (a full disk, permissions) — never breaks the
+// loop itself. `now` is the TICK's own clock (deps.now in tests, Date.now()
+// in prod, same as everywhere else in runTick) — pruneLastAreaOfKey must
+// never compare against a DIFFERENT clock (a bare Date.now() here made every
+// entry look 24h+ stale in a test injecting a small fake `now`, wiping
+// lastAreaOfKey on every tick and producing a flaky admission verdict).
+async function syncAdmissionState(now: number): Promise<void> {
+  lastAreaOfKey = pruneLastAreaOfKey(lastAreaOfKey, now);
   setAreaAdmissionState({ blockedAreas, lastAreaOfKey });
-  writeAreaAdmissionFile({ blockedAreas, lastAreaOfKey }).catch((err) => console.error('[canvas-autopause] falha ao persistir admissão entre processos:', err));
+  const changed = blockedAreas.size > 0 || !sameAreaSet(blockedAreas, lastPublishedBlocked) || !sameKeyAreaMap(lastAreaOfKey, lastPublishedKeyMap);
+  if (!changed) return;
+  lastPublishedBlocked = new Set(blockedAreas);
+  lastPublishedKeyMap = new Map(lastAreaOfKey);
+  try {
+    await writeAreaAdmissionFile({ blockedAreas, lastAreaOfKey });
+  } catch (err) {
+    console.error('[canvas-autopause] falha ao persistir admissão entre processos:', err);
+  }
 }
 
 export function updateAreaCacheFromGraph(graph: CanvasGraph): void {
@@ -109,7 +182,7 @@ async function ensureAreaCache(build: () => Promise<CanvasGraph>): Promise<Map<s
 export function blockedAreaFor(sessionId: string | undefined, key?: string): AreaId | undefined {
   let area = sessionId ? areaCache.get(sessionId)?.area : undefined;
   const { blockedAreas: blocked, lastAreaOfKey: crossProcessKeyMap } = getAreaAdmissionState();
-  if (!area && key) area = crossProcessKeyMap.get(key);
+  if (!area && key) area = crossProcessKeyMap.get(key)?.area;
   return area && blocked.has(area) ? area : undefined;
 }
 
@@ -138,6 +211,7 @@ export function startAutoPauseLoop(): void {
 export function resetAutoPauseMemoryForTest(): void { mem = emptyAutoPauseMemory(); }
 export function resetAreaCacheForTest(): void {
   areaCache = new Map(); areaCacheAt = 0; blockedAreas = new Set(); lastAreaOfKey = new Map();
+  lastPublishedBlocked = new Set(); lastPublishedKeyMap = new Map();
   resetAreaAdmissionForTest();
 }
 export function resetTickInFlightForTest(): void { tickInFlight = false; }
@@ -188,21 +262,21 @@ export async function runAutoPauseTick(deps: AutoPauseTickDeps): Promise<void> {
 // which meant re-enabling autopause on a since-cleared area could reuse an
 // ancient overSince and fire a stop before ever observing 30s over in THIS
 // episode.
-function clearOverBudget(now: number): void {
+async function clearOverBudget(now: number): Promise<void> {
   mem = decideAutoPause(now, new Set(), [], mem).mem;
   blockedAreas = new Set();
-  syncAdmissionState();
+  await syncAdmissionState(now);
 }
 
 async function runTick(deps: AutoPauseTickDeps): Promise<void> {
   const now = deps.now ?? Date.now();
   const board = await deps.readBoard();
   const autoPauseAreas = (Object.keys(board.budgets) as AreaId[]).filter((a) => board.budgets[a]?.autoPause);
-  if (!autoPauseAreas.length) { clearOverBudget(now); return; } // cheap file read only — no graph/proc scan when nobody opted in
+  if (!autoPauseAreas.length) { await clearOverBudget(now); return; } // cheap file read only — no graph/proc scan when nobody opted in
 
   const runs = deps.runs();
   const sessionIds = [...new Set(runs.map((r) => r.sessionId).filter((s): s is string => !!s && SESSION_UUID_RE.test(s)))];
-  if (!sessionIds.length) { clearOverBudget(now); return; }
+  if (!sessionIds.length) { await clearOverBudget(now); return; }
 
   const areaMap = await ensureAreaCache(deps.buildCanvas);
   const areaOf = new Map<string, AreaId>();
@@ -210,7 +284,7 @@ async function runTick(deps: AutoPauseTickDeps): Promise<void> {
   // Refresh the key->area proxy (fireCron/drainParked's fallback) from every
   // run this tick can actually classify — a repeating cron keeps its last
   // known area even on ticks where its current firing has no transcript yet.
-  for (const r of runs) { if (r.sessionId) { const a = areaOf.get(r.sessionId); if (a) lastAreaOfKey.set(r.key, a); } }
+  for (const r of runs) { if (r.sessionId) { const a = areaOf.get(r.sessionId); if (a) lastAreaOfKey.set(r.key, { area: a, at: now }); } }
 
   const stats = await deps.collectTermStats(sessionIds, [], runs, loopSamples);
   const usage = areaUsageFromIds(areaOf, sessionIds, stats);
@@ -222,7 +296,7 @@ async function runTick(deps: AutoPauseTickDeps): Promise<void> {
     if (status.overCpu || status.overCtx) { overAreas.add(area); overKind.set(area, status.overCpu ? 'cpu' : 'ctx'); }
   }
   blockedAreas = overAreas;
-  syncAdmissionState();
+  await syncAdmissionState(now);
   if (!overAreas.size) { mem = decideAutoPause(now, overAreas, [], mem).mem; return; }
 
   const candidates: StopCandidate[] = [];

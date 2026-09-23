@@ -100,25 +100,49 @@ export function __resetCanvasRefsCache(): void {
   cache = null;
 }
 
+// Test-only: inspects the in-memory singleton directly (e.g. to verify what
+// scheduleRefsCacheReload merged into it) without a full buildCanvas() pass.
+export function __peekCanvasRefsCacheForTest(id: string): (SessionRefs & { size: number }) | undefined {
+  return cache?.get(id);
+}
+
+// Which of two cache entries for the SAME session id is more complete —
+// used both when saveCache merges in a disk entry this process's own `c`
+// doesn't have as good a version of, and when a background reload (below)
+// merges the winner's disk result into this process's memory. `writes`
+// existing at all beats one that doesn't (a backfill happened), then the
+// LARGER `consumed` wins (more of the transcript has been tail-scanned) —
+// never blind "whichever we happen to be holding".
+export function betterCacheEntry<T extends SessionRefs & { size: number }>(a: T, b: T): T {
+  if (!!a.writes !== !!b.writes) return a.writes ? a : b;
+  return (a.consumed ?? 0) >= (b.consumed ?? 0) ? a : b;
+}
+
 // Own tmp filename per call (pid + random), not a fixed `${f}.tmp`: two Deck
 // processes pointed at the same cache path (a stray second instance, a script,
 // or the loser of a contested backfill lock — see acquireBackfillLock below)
 // would otherwise race on the SAME tmp file and tear each other's write.
 //
-// Entry COUNT is a cheap, good-enough generation proxy: never let a smaller
-// in-memory snapshot clobber a bigger one already on disk. A process that
-// lost the backfill lock (or just hasn't scanned as much this pass as
-// whoever wrote last) used to save its own incomplete `c` unconditionally,
-// clobbering the winner's freshly-completed backfill on the next checkpoint —
-// this merges in whatever keys the current on-disk file has that `c` is
-// missing before writing, so a "last writer" can only ever ADD to what's on
-// disk, never erase it.
-export async function saveCache(c: RefsCache): Promise<void> {
+// Merges PER ENTRY with whatever is currently on disk instead of writing `c`
+// wholesale: a process that lost the backfill lock (or just hasn't scanned as
+// much this pass as whoever wrote last) used to save its own incomplete `c`
+// unconditionally, clobbering the winner's freshly-completed backfill on the
+// next checkpoint. `prunedIds` — ids THIS call's caller just deleted from `c`
+// because the session is really gone (buildCanvas's live-session prune) —
+// must never come back just because an older/other process's disk copy still
+// has them; without this exclusion the very first fix (blind "add whatever
+// disk has that `c` lacks") silently RESURRECTED every deleted session on the
+// next checkpoint save (review of #599, point 1).
+export async function saveCache(c: RefsCache, prunedIds?: ReadonlySet<string>): Promise<void> {
   const f = refsFile();
   await mkdir(dirname(f), { recursive: true });
   try {
     const onDisk = new Map(Object.entries(unwrapCacheEntries(JSON.parse(await readFile(f, 'utf8')))));
-    if (onDisk.size > c.size) for (const [id, entry] of onDisk) if (!c.has(id)) c.set(id, entry);
+    for (const [id, diskEntry] of onDisk) {
+      if (prunedIds?.has(id)) continue; // this process just deleted it on purpose — a disk copy must not resurrect it
+      const memEntry = c.get(id);
+      c.set(id, memEntry ? betterCacheEntry(memEntry, diskEntry) : diskEntry);
+    }
   } catch { /* no file yet, or unreadable/corrupt — nothing on disk to protect */ }
   const tmp = `${f}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`;
   await writeFile(tmp, JSON.stringify(Object.fromEntries(c)), 'utf8');
@@ -166,9 +190,8 @@ const LOCK_POLL_MS = 250;
 
 // Polls (not fs.watch — a handful of checks over a few seconds isn't worth a
 // watcher's own setup/teardown cost) until the lock file is gone or the
-// budget runs out. Exported so the "reload after the winner finishes"
-// behavior in buildCanvas has coverage without a real multi-second sleep in
-// every test that exercises it.
+// budget runs out. Exported so the background-reload behavior below has
+// coverage without a real multi-second sleep in every test that exercises it.
 export async function waitForLockRelease(deadlineMs = LOCK_WAIT_MS, pollMs = LOCK_POLL_MS): Promise<boolean> {
   const deadline = Date.now() + deadlineMs;
   for (;;) {
@@ -180,6 +203,44 @@ export async function waitForLockRelease(deadlineMs = LOCK_WAIT_MS, pollMs = LOC
     if (Date.now() >= deadline) return false;
     await new Promise((r) => setTimeout(r, pollMs));
   }
+}
+
+// `reloadPromise` exposes the in-flight background reload (waitForRefsCacheReloadForTest)
+// so a test can await the EXACT reload it triggered instead of guessing a
+// sleep, same pattern as area-admission.ts's waitForPendingReadForTest.
+let reloadPromise: Promise<void> | null = null;
+
+// Called when a buildCanvas() pass loses the backfill-lock race: the OLD fix
+// blocked that request for up to LOCK_WAIT_MS waiting for the winner (every
+// canvas-get stalling while contended — review of #599, point 2). This
+// instead lets the caller serve the CURRENT cache immediately
+// (allowFullScan=false, same as before) and picks up the winner's result off
+// the request path, merging PER ENTRY (betterCacheEntry) so a tail-scan THIS
+// process does in the meantime is never overwritten by an older disk
+// snapshot — a wholesale reload used to double-count topics/writes on the
+// NEXT scan pass whenever it clobbered a `consumed` this process had already
+// advanced past.
+export function scheduleRefsCacheReload(): void {
+  if (reloadPromise) return; // already polling for a previous caller — don't stack pollers across repeated canvas-gets
+  reloadPromise = (async () => {
+    try {
+      if (!(await waitForLockRelease())) return; // gave up: the next buildCanvas() call that's still contended tries again
+      const fresh = await readCacheFileFresh();
+      const current = cache ?? new Map();
+      for (const [id, diskEntry] of fresh) {
+        const memEntry = current.get(id);
+        current.set(id, memEntry ? betterCacheEntry(memEntry, diskEntry) : diskEntry);
+      }
+      cache = current;
+    } catch (err) {
+      console.error('[canvas] falha ao recarregar cache de refs em segundo plano:', err);
+    }
+  })().finally(() => { reloadPromise = null; });
+}
+
+// Test-only.
+export function waitForRefsCacheReloadForTest(): Promise<void> {
+  return reloadPromise ?? Promise.resolve();
 }
 
 // Same trigger `sessionRefs` uses internally to decide a full rescan is
@@ -313,15 +374,12 @@ export function buildCanvas(board?: CanvasBoard, running?: Set<string>): Promise
       return !!hit && needsFullScan(hit, now - meta.mtime < RECENT_BACKFILL_MS);
     });
     const holdingLock = anyBackfillPending && await acquireBackfillLock();
-    if (anyBackfillPending && !holdingLock && await waitForLockRelease()) {
-      // Lost the race, but the winner finished before our wait budget ran
-      // out: pick up whatever it just wrote BEFORE scanning anything —
-      // otherwise this process's own (older) in-memory cache would still
-      // think every one of those sessions needs a backfill, redo the exact
-      // walk the winner just did, and then (worse) save its redundant result
-      // on top, clobbering the winner's progress on the next checkpoint.
-      const fresh = await readCacheFileFresh();
-      for (const [id, entry] of fresh) c.set(id, entry);
+    if (anyBackfillPending && !holdingLock) {
+      // Someone else is mid-backfill. Never block THIS canvas-get on them —
+      // serve from whatever `c` already has (allowFullScan=false below, same
+      // as before) and pick up the winner's result in the BACKGROUND once
+      // they're done, merged per entry (never a wholesale/blocking reload).
+      scheduleRefsCacheReload();
     }
     const allowFullScan = !anyBackfillPending || holdingLock;
     const refs = new Map<string, SessionRefs>();
@@ -342,8 +400,9 @@ export function buildCanvas(board?: CanvasBoard, running?: Set<string>): Promise
       if (holdingLock) await releaseBackfillLock();
     }
     const live_ = new Set(sessions.map((s) => s.meta.id));
-    for (const id of c.keys()) if (!live_.has(id)) c.delete(id);
-    await saveCache(c).catch(() => undefined);
+    const prunedIds = new Set<string>();
+    for (const id of c.keys()) if (!live_.has(id)) { c.delete(id); prunedIds.add(id); }
+    await saveCache(c, prunedIds).catch(() => undefined);
     const [mem, ...archByDir] = await Promise.all([
       readContextDir(CONFIG.memoryDir, false),
       ...archiveDirs().map((d) => readContextDir(d, true)),
