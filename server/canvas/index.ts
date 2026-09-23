@@ -1,4 +1,4 @@
-import { open, readdir, readFile, stat, writeFile, mkdir, rename } from 'node:fs/promises';
+import { open, readdir, readFile, stat, writeFile, mkdir, rename, rm } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import type { CanvasBoard, CanvasGraph } from '../../shared/canvas';
@@ -25,9 +25,17 @@ const RECENT_BACKFILL_MS = 7 * 24 * 3600_000;
 // each up to ~64MB) so a crash/OOM mid-scan does not throw away everything
 // already read.
 const SAVE_EVERY = 25;
+// A held lock older than this is presumed to belong to a process that died
+// without releasing it (crash, kill -9) — stolen rather than honored forever.
+// A full backfill of every recent session takes single-digit seconds even on
+// a slow box, so 5 minutes is generous.
+const BACKFILL_LOCK_STALE_MS = 5 * 60_000;
 
 function refsFile(): string {
   return process.env.COCKPIT_CANVAS_REFS ?? join(homedir(), '.cockpit', 'canvas-refs.json');
+}
+function lockFile(): string {
+  return `${refsFile()}.lock`;
 }
 // The archive has 3 subdirs (`memory-gc`'s destinations); the "arquivo" toggle
 // used to only read `handoffs/` (a handful of files) and silently ignored
@@ -41,11 +49,22 @@ function archiveDirs(): string[] {
 export type RefsCache = Map<string, SessionRefs & { size: number }>;
 let cache: RefsCache | null = null;
 
+// The cache file has been both a flat `{id: entry}` map (v1) and, briefly, a
+// `{version, entries}` wrapper — accept either so a box that happens to have
+// either shape on disk never pays a full from-0 rescan of every session just
+// because the wrapper looked unfamiliar.
+export function unwrapCacheEntries(raw: unknown): Record<string, SessionRefs & { size: number }> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const entries = (raw as { entries?: unknown }).entries;
+  if (entries && typeof entries === 'object' && !Array.isArray(entries)) return entries as Record<string, SessionRefs & { size: number }>;
+  return raw as Record<string, SessionRefs & { size: number }>;
+}
+
 async function loadCache(): Promise<RefsCache> {
   if (cache) return cache;
   try {
-    const raw = JSON.parse(await readFile(refsFile(), 'utf8')) as Record<string, SessionRefs & { size: number }>;
-    cache = new Map(Object.entries(raw));
+    const raw = JSON.parse(await readFile(refsFile(), 'utf8'));
+    cache = new Map(Object.entries(unwrapCacheEntries(raw)));
   } catch {
     cache = new Map();
   }
@@ -84,6 +103,46 @@ async function saveCache(c: RefsCache): Promise<void> {
   await rename(tmp, f);
 }
 
+// Exclusive, O_EXCL-style lock (`wx` fails if the file already exists) around
+// the expensive first backfill — two Deck processes on the same cache file
+// (a rolling restart briefly running old+new, a stray second instance) would
+// otherwise both walk every recent session's JSONL at once. The loser just
+// reuses whatever is already in its own cache (see `allowFullScan` below)
+// instead of redoing the same I/O.
+export async function acquireBackfillLock(): Promise<boolean> {
+  const lp = lockFile();
+  await mkdir(dirname(lp), { recursive: true });
+  const claim = async () => {
+    const fh = await open(lp, 'wx');
+    await fh.writeFile(String(process.pid));
+    await fh.close();
+  };
+  try {
+    await claim();
+    return true;
+  } catch {
+    // Held by someone else — unless it's stale (the holder crashed without
+    // releasing it), in which case it's stolen rather than honored forever.
+    let stale = false;
+    try { stale = Date.now() - (await stat(lp)).mtimeMs >= BACKFILL_LOCK_STALE_MS; } catch { return false; }
+    if (!stale) return false;
+    try { await rm(lp, { force: true }); await claim(); return true; } catch { return false; }
+  }
+}
+
+export async function releaseBackfillLock(): Promise<void> {
+  await rm(lockFile(), { force: true }).catch(() => undefined);
+}
+
+// Same trigger `sessionRefs` uses internally to decide a full rescan is
+// coming (missing topics, missing writes on a recent session, or no cache
+// entry at all) — checked BEFORE touching the filesystem so a normal
+// canvas-get (everything just tail-resuming) never pays for the lock.
+export function needsFullScan(hit: (SessionRefs & { size: number }) | undefined, recent: boolean): boolean {
+  if (!hit || !hit.topics) return true;
+  return recent && !hit.writes;
+}
+
 // Reads from `refs.consumed` to EOF in bounded chunks; a partial last line is
 // left for the next pass (the session may still be writing it).
 async function scanTail(path: string, refs: SessionRefs): Promise<void> {
@@ -108,7 +167,11 @@ async function scanTail(path: string, refs: SessionRefs): Promise<void> {
 
 // `path` injected rather than built from CONFIG.projectsDir here: keeps this
 // testable against a real temp file without faking global config.
-export async function sessionRefs(c: RefsCache, id: string, path: string, recent: boolean): Promise<SessionRefs | undefined> {
+// `allowFullScan=false` skips any FULL rescan (backfill, missing-topics, or a
+// brand-new session) and just returns the existing hit — used when another
+// process already holds the backfill lock, so the two never duplicate the
+// same expensive walk.
+export async function sessionRefs(c: RefsCache, id: string, path: string, recent: boolean, allowFullScan = true): Promise<SessionRefs | undefined> {
   let size: number;
   try { size = (await stat(path)).size; } catch { return c.get(id); }
   const hit = c.get(id);
@@ -127,6 +190,7 @@ export async function sessionRefs(c: RefsCache, id: string, path: string, recent
   // mutation deep inside addWrite/addActivity on a shared reference would
   // otherwise corrupt it.
   const canResume = hit && hit.topics && size > hit.size && !needsBackfill;
+  if (!canResume && !allowFullScan) return hit;
   const refs: SessionRefs = canResume
     ? {
         contexts: { ...hit.contexts }, contextHits: hit.contextHits ? { ...hit.contextHits } : undefined,
@@ -137,7 +201,18 @@ export async function sessionRefs(c: RefsCache, id: string, path: string, recent
         consumed: hit.consumed,
       }
     : emptyRefs();
-  try { await scanTail(path, refs); } catch { return hit; }
+  try { await scanTail(path, refs); } catch {
+    if (needsBackfill && hit) {
+      // A permanently unreadable/corrupt file would otherwise retry this
+      // exact backfill — and fail again — on EVERY canvas-get forever. Mark
+      // writes/activity "attempted, empty" so `needsBackfill` goes false from
+      // here on; everything else about the old hit is left untouched.
+      const failed: SessionRefs & { size: number } = { ...hit, writes: hit.writes ?? {}, activity: hit.activity ?? [] };
+      c.set(id, failed);
+      return failed;
+    }
+    return hit;
+  }
   c.set(id, { ...refs, size });
   return refs;
 }
@@ -173,18 +248,27 @@ export function buildCanvas(board?: CanvasBoard, running?: Set<string>): Promise
     const [live, archived, b] = await Promise.all([listSessions(), listArchived(), board ? Promise.resolve(board) : readBoard()]);
     const sessions = [...live.map((meta) => ({ meta, archived: false })), ...archived.map((meta) => ({ meta, archived: true }))];
     const now = Date.now();
+    // Lock only when there's actually a full scan coming (a normal canvas-get,
+    // everything just tail-resuming, never even checks the lock file).
+    const anyFullScan = sessions.some(({ meta }) => needsFullScan(c.get(meta.id), now - meta.mtime < RECENT_BACKFILL_MS));
+    const holdingLock = anyFullScan && await acquireBackfillLock();
+    const allowFullScan = !anyFullScan || holdingLock;
     const refs = new Map<string, SessionRefs>();
-    let sinceSave = 0;
-    for (const { meta } of sessions) {
-      const recent = now - meta.mtime < RECENT_BACKFILL_MS;
-      const path = join(CONFIG.projectsDir, `${meta.id}.jsonl`);
-      const r = await sessionRefs(c, meta.id, path, recent);
-      if (r) refs.set(meta.id, r);
-      // Checkpoint periodically: the first full backfill after a deploy walks
-      // every recent session's JSONL (seconds each) — a crash/OOM partway
-      // through would otherwise lose everything read so far, not just the
-      // one session in flight.
-      if (++sinceSave >= SAVE_EVERY) { sinceSave = 0; await saveCache(c).catch(() => undefined); }
+    try {
+      let sinceSave = 0;
+      for (const { meta } of sessions) {
+        const recent = now - meta.mtime < RECENT_BACKFILL_MS;
+        const path = join(CONFIG.projectsDir, `${meta.id}.jsonl`);
+        const r = await sessionRefs(c, meta.id, path, recent, allowFullScan);
+        if (r) refs.set(meta.id, r);
+        // Checkpoint periodically: the first full backfill after a deploy walks
+        // every recent session's JSONL (seconds each) — a crash/OOM partway
+        // through would otherwise lose everything read so far, not just the
+        // one session in flight.
+        if (++sinceSave >= SAVE_EVERY) { sinceSave = 0; await saveCache(c).catch(() => undefined); }
+      }
+    } finally {
+      if (holdingLock) await releaseBackfillLock();
     }
     const live_ = new Set(sessions.map((s) => s.meta.id));
     for (const id of c.keys()) if (!live_.has(id)) c.delete(id);

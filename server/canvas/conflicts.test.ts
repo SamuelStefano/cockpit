@@ -40,7 +40,7 @@ describe('isNoisyPath', () => {
 describe('buildConflictEdges', () => {
   const path = '/home/u/repo/src/App.tsx';
 
-  it('flags two sessions whose ACTIVITY OVERLAPS while writing the same file, one active', () => {
+  it('flags two sessions both continuously alive across the span between their close writes, one active', () => {
     const edges = buildConflictEdges({
       sessions: [
         { id: 's1', writes: { [path]: 1_000 }, activity: [[0, 2_000]] },
@@ -89,6 +89,23 @@ describe('buildConflictEdges', () => {
       sessions: [
         { id: 's1', writes: { [path]: 0 }, activity: [[0, 0]] },
         { id: 's2', writes: { [path]: CONFLICT_NEAR_WRITE_MS + 1 }, activity: [[CONFLICT_NEAR_WRITE_MS + 1, CONFLICT_NEAR_WRITE_MS + 1]] },
+      ],
+      active: new Set(['s1', 's2']),
+      noisy: NOISY,
+    });
+    expect(edges).toHaveLength(0);
+  });
+
+  it('does NOT flag two writes 59h apart just because the sessions overlapped 3 days ago on unrelated work', () => {
+    const DAY = 24 * 3600_000;
+    const HOUR = 3600_000;
+    const wa = 3 * DAY;
+    const wb = wa + 59 * HOUR; // > CONFLICT_NEAR_WRITE_MS (2h), must reject regardless of any overlap
+    const edges = buildConflictEdges({
+      sessions: [
+        // [0,1000] and [500,1500] overlap each other — but nowhere near either write.
+        { id: 's1', writes: { [path]: wa }, activity: [[0, 1000], [wa - 100, wa + 100]] },
+        { id: 's2', writes: { [path]: wb }, activity: [[500, 1500], [wb - 100, wb + 100]] },
       ],
       active: new Set(['s1', 's2']),
       noisy: NOISY,

@@ -51,25 +51,28 @@ export interface ConflictInput {
   now?: number;
 }
 
-function intervalsOverlap(a: [number, number][], b: [number, number][]): boolean {
-  for (const [as, ae] of a) for (const [bs, be] of b) if (as <= be && bs <= ae) return true;
-  return false;
+// Does `activity` cover the WHOLE [lo, hi] span with a single interval — not
+// just touch it somewhere? A gap inside [lo, hi] already splits into two
+// separate intervals upstream (activity merges records within 15min), so
+// "one interval spans lo..hi" is exactly "continuously alive through it".
+function coversSpan(activity: [number, number][], lo: number, hi: number): boolean {
+  return activity.some(([s, e]) => s <= lo && e >= hi);
 }
 
-function aliveAt(activity: [number, number][], t: number): boolean {
-  return activity.some(([s, e]) => t >= s && t <= e);
-}
-
-// Same file, but is it really a LIVE collision? Two writes decades apart on
-// an always-touched config file are not. Either:
-//  - the two sessions' activity windows actually overlap (concurrent work), or
-//  - the writes are close (<=2h) AND each session was still alive around the
-//    OTHER's write instant — not just its own, which is true by definition
-//    and would make this check vacuous.
+// Same file, but is it really a LIVE collision? The 2h write-proximity limit
+// is now ALWAYS enforced — an earlier version treated "activity overlapped
+// at SOME point" as sufficient on its own, which flagged two sessions whose
+// broad activity windows happened to overlap on completely unrelated work
+// days apart, as long as they'd each touched the file at some point ever.
+// Both conditions are required: the writes themselves are close, AND both
+// sessions were continuously alive across the span BETWEEN those two writes
+// (not just alive at their own write, which is true by definition and would
+// make this vacuous).
 function isConflictingPair(wa: { at: number }, wb: { at: number }, activityA: [number, number][], activityB: [number, number][]): boolean {
-  if (intervalsOverlap(activityA, activityB)) return true;
   if (Math.abs(wa.at - wb.at) > CONFLICT_NEAR_WRITE_MS) return false;
-  return aliveAt(activityA, wb.at) && aliveAt(activityB, wa.at);
+  const lo = Math.min(wa.at, wb.at);
+  const hi = Math.max(wa.at, wb.at);
+  return coversSpan(activityA, lo, hi) && coversSpan(activityB, lo, hi);
 }
 
 // Builds one 'conflict' edge per pair of sessions that wrote the same
