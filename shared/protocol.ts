@@ -858,8 +858,10 @@ export type ServerMsg =
   | { t: 'canvas-graph'; graph: CanvasGraph }
   | { t: 'canvas-term-stats'; stats: Record<string, TermStats> }
   | { t: 'canvas-board'; board: CanvasBoard }
-  // A flow just delivered its result to its target — the UI pulses that arrow.
-  | { t: 'canvas-flow-fired'; flowId: string; at: number }
+  // A flow just delivered its result to its target — the UI pulses that arrow
+  // and patches just this flow's counters, never the whole board (which would
+  // leak every card's prompt and every other flow's template to every socket).
+  | { t: 'canvas-flow-fired'; flowId: string; at: number; fires: number }
   | { t: 'graph-data'; id: string; graph: GraphData }
   | { t: 'graph-query-result'; id: string; question: string; answer: string; tokens: number; miss: boolean }
   | { t: 'graph-build-progress'; line: string }

@@ -61,6 +61,12 @@ export interface CanvasPos { x: number; y: number }
 // A drawn pipeline: when the turn on `from` closes, its result becomes the
 // prompt of `to`. Both ends are `s:<session uuid>` or `k:<card id>` — the only
 // two kinds server/canvas/flows.ts knows how to deliver a prompt to.
+//
+// mode/mcps are explicit, least-privilege OPT-INS for the target turn — the
+// source turn's own `bypass`/`mcps` never propagate (the source's text is
+// model output, steerable by whatever it read, so blindly inheriting a
+// bypass-permissions turn or a broad MCP set would be a prompt-injection
+// pivot). Unset means the target runs with no MCPs and its own default mode.
 export interface CanvasFlow {
   id: string;
   from: string;
@@ -70,6 +76,8 @@ export interface CanvasFlow {
   createdAt: number;
   lastFiredAt?: number;
   fires: number;
+  mode?: 'plan' | 'auto' | 'acceptEdits';
+  mcps?: string[];
 }
 
 export interface CanvasBoard {

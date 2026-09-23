@@ -3,8 +3,8 @@ import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  bumpFlowFired, emptyBoard, markCardDoing, mergePos, readBoard, readBoardChained, removeCard, removeFlow,
-  sanitizeCard, sanitizeFlow, sanitizePos, updateBoard, upsertCard, upsertFlow,
+  checkFlowSave, claimFlowFire, emptyBoard, markCardDoing, mergePos, readBoard, readBoardChained, removeCard, removeFlow,
+  rollbackFlowFire, sanitizeCard, sanitizeFlow, sanitizePos, updateBoard, upsertCard, upsertFlow,
 } from './board';
 
 describe('sanitizeCard', () => {
@@ -33,7 +33,7 @@ describe('sanitizeFlow', () => {
     expect(sanitizeFlow({ id: 'abcd', from: 's:a', to: 's:a' }, undefined, 1)).toBeNull();
   });
 
-  it('normalizes fields, defaults enabled to true, and keeps createdAt/fires from the previous version', () => {
+  it('normalizes fields, defaults enabled to true, and keeps createdAt/fires/lastFiredAt from the previous version', () => {
     const f = sanitizeFlow(
       { id: 'abcd', from: 's:a', to: 'k:b', template: 'oi {{result}}' },
       { createdAt: 7, fires: 3, lastFiredAt: 100 } as never,
@@ -42,11 +42,36 @@ describe('sanitizeFlow', () => {
     expect(f).toMatchObject({ id: 'abcd', from: 's:a', to: 'k:b', template: 'oi {{result}}', enabled: true, createdAt: 7, fires: 3, lastFiredAt: 100 });
   });
 
-  it('caps the template length and coerces enabled/fires from raw input', () => {
-    const long = sanitizeFlow({ id: 'abcd', from: 's:a', to: 'k:b', template: 'x'.repeat(5000), enabled: false, fires: 2.9 }, undefined, 1)!;
+  it('fires/lastFiredAt are server-owned: a client-sent value is ignored even with no previous version', () => {
+    const f = sanitizeFlow({ id: 'abcd', from: 's:a', to: 'k:b', fires: 999, lastFiredAt: 123 }, undefined, 1)!;
+    expect(f.fires).toBe(0);
+    expect(f.lastFiredAt).toBeUndefined();
+  });
+
+  it('fires/lastFiredAt cannot be forged upward even when editing an existing flow', () => {
+    const prev = sanitizeFlow({ id: 'abcd', from: 's:a', to: 'k:b' }, undefined, 1)!;
+    const claimed = claimFlowFire(upsertFlow(emptyBoard(), prev), 'abcd', 500, 60_000);
+    const stored = claimed.board.flows[0];
+    // client "saves" with a forged fires/lastFiredAt in the raw payload
+    const saved = sanitizeFlow({ ...stored, template: 'novo texto', fires: 0, lastFiredAt: undefined }, stored, 9000);
+    expect(saved).toMatchObject({ template: 'novo texto', fires: 1, lastFiredAt: 500 });
+  });
+
+  it('caps the template length, coerces enabled from raw input, and validates mode/mcps', () => {
+    const long = sanitizeFlow(
+      { id: 'abcd', from: 's:a', to: 'k:b', template: 'x'.repeat(5000), enabled: false, mode: 'acceptEdits', mcps: ['dfl-mcp', 'bad name', 'dfl-mcp', 42] },
+      undefined, 1,
+    )!;
     expect(long.template.length).toBe(4000);
     expect(long.enabled).toBe(false);
-    expect(long.fires).toBe(2);
+    expect(long.mode).toBe('acceptEdits');
+    expect(long.mcps).toEqual(['dfl-mcp']);
+  });
+
+  it('rejects an invalid mode and defaults mcps to unset', () => {
+    const f = sanitizeFlow({ id: 'abcd', from: 's:a', to: 'k:b', mode: 'bypassPermissions' }, undefined, 1)!;
+    expect(f.mode).toBeUndefined();
+    expect(f.mcps).toBeUndefined();
   });
 });
 
@@ -62,13 +87,40 @@ describe('flow board ops', () => {
     expect(b.flows).toEqual([]);
   });
 
-  it('bumpFlowFired increments fires and stamps lastFiredAt, no-op on unknown id', () => {
+  it('checkFlowSave rejects a duplicate from/to pair (excluding self) and a new flow past MAX_FLOWS', () => {
+    const a = sanitizeFlow({ id: 'aaaa', from: 's:a', to: 'k:b' }, undefined, 1)!;
+    const b = upsertFlow(emptyBoard(), a);
+    expect(checkFlowSave(b, sanitizeFlow({ id: 'bbbb', from: 's:a', to: 'k:b' }, undefined, 1)!)).toBe('duplicado');
+    expect(checkFlowSave(b, { ...a, template: 'edit' })).toBeNull(); // editing itself is not a duplicate
+    const full = { ...emptyBoard(), flows: Array.from({ length: 100 }, (_, i) => ({ ...a, id: `f${i}`, to: `k:${i}` })) };
+    expect(checkFlowSave(full, sanitizeFlow({ id: 'new1', from: 's:a', to: 'k:zzz' }, undefined, 1)!)).toBe('limite');
+  });
+
+  it('claimFlowFire bumps fires/lastFiredAt atomically and refuses a disabled, cooling-down, or unknown flow', () => {
     const f = sanitizeFlow({ id: 'abcd', from: 's:a', to: 'k:b' }, undefined, 1)!;
     let b = upsertFlow(emptyBoard(), f);
-    b = bumpFlowFired(b, 'abcd', 500);
-    expect(b.flows[0]).toMatchObject({ fires: 1, lastFiredAt: 500 });
-    const same = bumpFlowFired(b, 'nope', 999);
-    expect(same).toBe(b);
+    const first = claimFlowFire(b, 'abcd', 500, 60_000);
+    expect(first.claimed).toBe(true);
+    expect(first.board.flows[0]).toMatchObject({ fires: 1, lastFiredAt: 500 });
+    const cooling = claimFlowFire(first.board, 'abcd', 500 + 59_999, 60_000);
+    expect(cooling.claimed).toBe(false);
+    expect(cooling.board).toBe(first.board);
+    const pastCooldown = claimFlowFire(first.board, 'abcd', 500 + 60_000, 60_000);
+    expect(pastCooldown.claimed).toBe(true);
+    expect(pastCooldown.board.flows[0]).toMatchObject({ fires: 2, lastFiredAt: 60_500 });
+    const disabled = upsertFlow(emptyBoard(), { ...f, enabled: false });
+    expect(claimFlowFire(disabled, 'abcd', 1, 60_000).claimed).toBe(false);
+    expect(claimFlowFire(b, 'nope', 1, 60_000).claimed).toBe(false);
+  });
+
+  it('rollbackFlowFire undoes a claim (fires -1, lastFiredAt cleared) only when it still matches the claimed timestamp', () => {
+    const f = sanitizeFlow({ id: 'abcd', from: 's:a', to: 'k:b' }, undefined, 1)!;
+    const claimed = claimFlowFire(upsertFlow(emptyBoard(), f), 'abcd', 500, 60_000).board;
+    const rolledBack = rollbackFlowFire(claimed, 'abcd', 500);
+    expect(rolledBack.flows[0]).toMatchObject({ fires: 0, lastFiredAt: undefined });
+    // a newer claim landed since — rollback of the stale timestamp is a no-op
+    const superseded = rollbackFlowFire(claimed, 'abcd', 499);
+    expect(superseded).toBe(claimed);
   });
 
   it('markCardDoing moves the card and stamps updatedAt, no-op on unknown id', () => {
@@ -77,6 +129,17 @@ describe('flow board ops', () => {
     b = markCardDoing(b, 'abcd', 42);
     expect(b.cards[0]).toMatchObject({ status: 'doing', updatedAt: 42 });
     expect(markCardDoing(b, 'nope', 1)).toBe(b);
+  });
+
+  it('removeCard drops flows bound to that card (either end) but leaves unrelated ones', () => {
+    const bound1 = sanitizeFlow({ id: 'aaaa', from: 'k:abcd', to: 's:x' }, undefined, 1)!;
+    const bound2 = sanitizeFlow({ id: 'bbbb', from: 's:x', to: 'k:abcd' }, undefined, 1)!;
+    const other = sanitizeFlow({ id: 'cccc', from: 's:x', to: 'k:other' }, undefined, 1)!;
+    const c = sanitizeCard({ id: 'abcd', title: 'a' }, undefined, 1)!;
+    let b = upsertCard(emptyBoard(), c);
+    b = upsertFlow(upsertFlow(upsertFlow(b, bound1), bound2), other);
+    b = removeCard(b, 'abcd');
+    expect(b.flows.map((f) => f.id)).toEqual(['cccc']);
   });
 });
 

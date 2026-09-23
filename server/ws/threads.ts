@@ -67,6 +67,13 @@ export interface Thread {
   questioned?: boolean; // turno fez AskUserQuestion: o `claude -p` auto-resolve e CONTINUA gerando — suprime tudo que vier depois pra a pergunta ficar como última (respondível)
   parked?: ParkedItem;  // item que a fila estacionada drenou neste turno; volta pra fila se o teto de tokens matar o turno sem consumi-lo
   parkedFrom?: string;  // sessão de onde o item saiu — no disparo avulso a chave do turno é a do FORK, e devolver por ela criaria uma fila fantasma
+  // Profundidade da cadeia de fluxos do canvas (server/canvas/flows.ts) que
+  // ENTREGOU o prompt deste turno — 0/undefined se não veio de um fluxo. Vive
+  // no Thread (não só no texto do prompt) porque uma retomada (autoResume,
+  // órfão de restart) reescreve o prompt pra RESUME_PROMPT, sem marcador
+  // nenhum: sem isto, todo crash-retomada de um turno disparado por fluxo
+  // "zerava" o hop de graça, furando o teto MAX_HOPS a cada queda.
+  flowHop?: number;
   lastError?: string;   // último erro reportado pelo processo
   lastExitCode?: number | null; // exit code do `claude saiu (N)` mais recente — insumo do gate de OOM (D1)
   lastExitSignal?: string | null; // sinal do OS, quando disponível (SIGTERM/SIGKILL) — mesmo insumo

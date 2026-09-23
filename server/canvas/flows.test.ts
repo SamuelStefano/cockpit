@@ -1,16 +1,91 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { flowMarker, type CanvasFlow } from '../../shared/canvas';
+import type { TurnClosed } from './turn-hooks';
+
+// --- mocks for every impure dependency flows.ts reaches out to --------------
+// vi.mock factories below are hoisted above these — vi.hoisted keeps the
+// state they close over from throwing a TDZ error at import time.
+
+const {
+  mockThreads, admit, startRunMock, isDrainerEnabledMock, resolveThreadKeyMock, addParkedMock, enqueuePendingMock,
+  resumableIdMock, broadcastMock, listContextsMock, listSessionsMock, listArchivedMock, cardIdFromRefsCacheMock,
+} = vi.hoisted(() => {
+  const mockThreads = new Map<string, { sessionId?: string }>();
+  const admit = { next: true }; // controls whether the mocked startRun "admits" (threads.set) or refuses
+  return {
+    mockThreads, admit,
+    startRunMock: vi.fn((o: { sessionKey: string }) => { if (admit.next) mockThreads.set(o.sessionKey, {}); }),
+    isDrainerEnabledMock: vi.fn(() => false),
+    resolveThreadKeyMock: vi.fn((id: string) => (mockThreads.has(id) ? id : undefined)),
+    addParkedMock: vi.fn(() => ({ id: 'pk-1' }) as { id: string } | { reject: string }),
+    enqueuePendingMock: vi.fn(() => true),
+    resumableIdMock: vi.fn((id?: string) => id),
+    broadcastMock: vi.fn(),
+    listContextsMock: vi.fn(async () => [] as { id: string; title: string; description: string; mtime: number }[]),
+    listSessionsMock: vi.fn(async () => [] as { id: string; title: string; snippet: string; mtime: number }[]),
+    listArchivedMock: vi.fn(async () => [] as { id: string; title: string; snippet: string; mtime: number }[]),
+    cardIdFromRefsCacheMock: vi.fn(async (_id: string) => undefined as string | undefined),
+  };
+});
+
+vi.mock('../ws/runs', () => ({
+  startRun: (o: unknown) => startRunMock(o as never),
+  isDrainerEnabled: () => isDrainerEnabledMock(),
+}));
+vi.mock('../ws/threads', () => ({
+  threads: mockThreads,
+  resolveThreadKey: (id: string) => resolveThreadKeyMock(id),
+}));
+vi.mock('../ws/parked', () => ({ addParked: (...a: unknown[]) => addParkedMock(...(a as [])) }));
+vi.mock('../ws/pending', () => ({ enqueuePending: (...a: unknown[]) => enqueuePendingMock(...(a as [])) }));
+vi.mock('../ws/resume', () => ({ resumableId: (id?: string) => resumableIdMock(id) }));
+vi.mock('../ws/broadcast', () => ({ broadcast: (m: unknown) => broadcastMock(m) }));
+vi.mock('../contexts', () => ({ listContexts: () => listContextsMock() }));
+vi.mock('../sessions/index', () => ({ listSessions: () => listSessionsMock(), listArchived: () => listArchivedMock() }));
+vi.mock('./index', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./index')>()),
+  cardIdFromRefsCache: (id: string) => cardIdFromRefsCacheMock(id),
+}));
+
+import { __resetCardSessions, bindCardSession } from './card-sessions';
+import { sanitizeCard, sanitizeFlow, updateBoard, upsertCard, upsertFlow } from './board';
 import {
-  FLOW_RATE_LIMIT_MS, MAX_HOPS, buildFlowPrompt, fillTemplate, flowResult, hopOfPrompt, rateLimited, selectFlowsToFire,
+  FLOW_RATE_LIMIT_MS, MAX_HOPS, buildFlowPrompt, deliverToCard, deliverToSession, fillTemplate, fireFlow,
+  flowResult, handleTurnClosed, hopOfPrompt, neutralizeMarkers, rateLimited, selectFlowsToFire,
 } from './flows';
 
 function flow(over: Partial<CanvasFlow> = {}): CanvasFlow {
   return { id: 'abcd', from: 's:src', to: 'k:dst', template: '', enabled: true, createdAt: 0, fires: 0, ...over };
 }
 
+// Two handleTurnClosed calls in the same test run land milliseconds apart —
+// well inside the 60s cooldown claimFlowFire enforces. Tests that fire the
+// SAME flow twice on purpose reset it first, same as waiting out the window.
+async function clearRateLimit(id: string): Promise<void> {
+  await updateBoard((b) => ({ ...b, flows: b.flows.map((f) => (f.id === id ? { ...f, lastFiredAt: undefined } : f)) }));
+}
+
+beforeEach(() => {
+  process.env.COCKPIT_CANVAS_BOARD = join(mkdtempSync(join(tmpdir(), 'canvas-flows-')), 'b.json');
+  mockThreads.clear();
+  admit.next = true;
+  __resetCardSessions();
+  for (const m of [startRunMock, isDrainerEnabledMock, resolveThreadKeyMock, addParkedMock, enqueuePendingMock, resumableIdMock, broadcastMock, listContextsMock, listSessionsMock, listArchivedMock, cardIdFromRefsCacheMock]) m.mockClear();
+  isDrainerEnabledMock.mockReturnValue(false);
+  resumableIdMock.mockImplementation((id?: string) => id);
+  addParkedMock.mockReturnValue({ id: 'pk-1' });
+  enqueuePendingMock.mockReturnValue(true);
+});
+
+// --- pure functions -----------------------------------------------------------
+
 describe('hopOfPrompt', () => {
-  it('reads the hop out of a flow marker', () => {
-    expect(hopOfPrompt(`oi ${flowMarker('abcd', 3)}`)).toBe(3);
+  it('reads the hop out of the LAST flow marker, ignoring an earlier echoed one', () => {
+    const echoedThenReal = `resultado citou ${flowMarker('other', 9)} por acaso\n\nfaça algo\n\n${flowMarker('abcd', 3)}`;
+    expect(hopOfPrompt(echoedThenReal)).toBe(3);
   });
 
   it('defaults to 0 when there is no marker, or a malformed one', () => {
@@ -27,13 +102,16 @@ describe('rateLimited', () => {
   });
 });
 
-describe('flowResult', () => {
-  it('keeps the whole text under the cap and only the tail past it', () => {
+describe('neutralizeMarkers / flowResult', () => {
+  it('re-exports the shared neutralizer and folds it into flowResult', () => {
+    expect(neutralizeMarkers('[deck-flow:x:1]')).toBe('(deck-flow:x:1]');
+  });
+
+  it('keeps the whole text under the cap, only the tail past it, and de-fangs echoed markers', () => {
     expect(flowResult('curto')).toBe('curto');
     const long = 'x'.repeat(13_000);
-    const capped = flowResult(long);
-    expect(capped.length).toBe(12_000);
-    expect(capped).toBe(long.slice(-12_000));
+    expect(flowResult(long)).toBe(long.slice(-12_000));
+    expect(flowResult('olha [deck-card:x] e [deck-flow:y:1]')).toBe('olha (deck-card:x] e (deck-flow:y:1]');
   });
 });
 
@@ -60,15 +138,15 @@ describe('buildFlowPrompt', () => {
 });
 
 describe('selectFlowsToFire', () => {
-  const base = { ok: true, sessionId: 'src', prompt: '' };
+  const base = { ok: true, sessionId: 'src', prompt: '', unattended: false };
 
-  it('fires nothing when the turn did not close ok', () => {
+  it('fires nothing when the turn did not close ok, or was unattended (cron/marathon)', () => {
     expect(selectFlowsToFire({ ...base, ok: false }, [flow()], 0)).toEqual([]);
+    expect(selectFlowsToFire({ ...base, unattended: true }, [flow()], 0)).toEqual([]);
   });
 
   it('matches the source session and stamps hop = 1 for a turn with no marker', () => {
-    const r = selectFlowsToFire(base, [flow()], 0);
-    expect(r).toEqual([{ flow: flow(), hop: 1 }]);
+    expect(selectFlowsToFire(base, [flow()], 0)).toEqual([{ flow: flow(), hop: 1 }]);
   });
 
   it('ignores a disabled flow, a flow from a different source, and a rate-limited one', () => {
@@ -77,21 +155,210 @@ describe('selectFlowsToFire', () => {
     expect(selectFlowsToFire(base, [flow({ lastFiredAt: 1000 })], 30_000)).toEqual([]);
   });
 
-  it('matches a card-sourced flow only when the prompt carries that card marker', () => {
+  it('matches a card-sourced flow by direct marker, and by a resolved boundCardId when the prompt carries none', () => {
     const cardFlow = flow({ from: 'k:card1' });
     expect(selectFlowsToFire(base, [cardFlow], 0)).toEqual([]);
     const withMarker = { ...base, prompt: 'trabalho [deck-card:card1]' };
     expect(selectFlowsToFire(withMarker, [cardFlow], 0)).toEqual([{ flow: cardFlow, hop: 1 }]);
+    const withBinding = { ...base, boundCardId: 'card1' };
+    expect(selectFlowsToFire(withBinding, [cardFlow], 0)).toEqual([{ flow: cardFlow, hop: 1 }]);
   });
 
-  it('bumps the hop from the incoming marker and blocks once it would reach MAX_HOPS', () => {
-    const withHop = { ...base, prompt: flowMarker('other', MAX_HOPS - 2) };
-    expect(selectFlowsToFire(withHop, [flow()], 0)).toEqual([{ flow: flow(), hop: MAX_HOPS - 1 }]);
-    const atCap = { ...base, prompt: flowMarker('other', MAX_HOPS - 1) };
+  it('uses the LAST card marker in the prompt, not an earlier echoed one', () => {
+    const cardFlow = flow({ from: 'k:real' });
+    const withEcho = { ...base, prompt: 'resultado citou [deck-card:echoed] por acaso\n\n[deck-card:real]' };
+    expect(selectFlowsToFire(withEcho, [cardFlow], 0)).toEqual([{ flow: cardFlow, hop: 1 }]);
+  });
+
+  it('bumps the hop from the incoming marker; hop === MAX_HOPS still fires, hop > MAX_HOPS is blocked', () => {
+    const atCapMinusOne = { ...base, prompt: flowMarker('other', MAX_HOPS - 1) };
+    expect(selectFlowsToFire(atCapMinusOne, [flow()], 0)).toEqual([{ flow: flow(), hop: MAX_HOPS }]);
+    const atCap = { ...base, prompt: flowMarker('other', MAX_HOPS) };
     expect(selectFlowsToFire(atCap, [flow()], 0)).toEqual([]);
   });
 
-  it('fires nothing when the turn carries neither a matching sessionId nor a card marker', () => {
-    expect(selectFlowsToFire({ ok: true, sessionId: undefined, prompt: 'oi' }, [flow()], 0)).toEqual([]);
+  it('fires nothing when the turn carries neither a matching sessionId nor a card marker/binding', () => {
+    expect(selectFlowsToFire({ ok: true, sessionId: undefined, prompt: 'oi', unattended: false }, [flow()], 0)).toEqual([]);
+  });
+});
+
+// --- handler-level: delivery, claiming, and the turn-closed entry point -----
+
+describe('deliverToSession', () => {
+  it('returns false when the target transcript is gone (resumableId undefined)', async () => {
+    resumableIdMock.mockReturnValue(undefined);
+    await expect(deliverToSession('sess-1', 'prompt', {}, flow())).resolves.toBe(false);
+    expect(startRunMock).not.toHaveBeenCalled();
+  });
+
+  it('not live: starts a fresh run with bypass forced false and mcps defaulted to empty, regardless of the source params', async () => {
+    resolveThreadKeyMock.mockReturnValue(undefined);
+    const ok = await deliverToSession('sess-1', 'prompt', { bypass: true, mcps: ['everything'], role: 'admin', mode: 'acceptEdits' }, flow());
+    expect(ok).toBe(true);
+    expect(startRunMock).toHaveBeenCalledWith(expect.objectContaining({ sessionKey: 'sess-1', bypass: false, mcps: [] }));
+  });
+
+  it('a flow can opt a target INTO a specific mode/mcps, but never into bypass', async () => {
+    resolveThreadKeyMock.mockReturnValue(undefined);
+    await deliverToSession('sess-1', 'prompt', { bypass: true }, flow({ mode: 'acceptEdits', mcps: ['dfl-mcp'] }));
+    expect(startRunMock).toHaveBeenCalledWith(expect.objectContaining({ mode: 'acceptEdits', mcps: ['dfl-mcp'], bypass: false }));
+  });
+
+  it('startRun admission refused (threads never got the key): reports failure', async () => {
+    resolveThreadKeyMock.mockReturnValue(undefined);
+    admit.next = false;
+    await expect(deliverToSession('sess-1', 'prompt', {}, flow())).resolves.toBe(false);
+  });
+
+  it('live in this process + drainer enabled: parks the item (addParked)', async () => {
+    mockThreads.set('sess-1', {});
+    resolveThreadKeyMock.mockReturnValue('sess-1');
+    isDrainerEnabledMock.mockReturnValue(true);
+    await expect(deliverToSession('sess-1', 'prompt', {}, flow())).resolves.toBe(true);
+    expect(addParkedMock).toHaveBeenCalled();
+    expect(enqueuePendingMock).not.toHaveBeenCalled();
+  });
+
+  it('live in this process + NO drainer here: uses the in-process pending queue instead of addParked', async () => {
+    mockThreads.set('sess-1', {});
+    resolveThreadKeyMock.mockReturnValue('sess-1');
+    isDrainerEnabledMock.mockReturnValue(false);
+    await expect(deliverToSession('sess-1', 'prompt', {}, flow())).resolves.toBe(true);
+    expect(enqueuePendingMock).toHaveBeenCalled();
+    expect(addParkedMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('deliverToCard', () => {
+  it('returns false for an unknown card, without starting a run', async () => {
+    await expect(deliverToCard('nope', flow(), 'result', 1, {})).resolves.toBe(false);
+    expect(startRunMock).not.toHaveBeenCalled();
+  });
+
+  it('starts a NEW session under a `new-<uuid>` key (client-migratable), with the result folded into the template and the card marker present, and marks the card doing', async () => {
+    const card = sanitizeCard({ id: 'card1', title: 'Título', prompt: 'faça isso' }, undefined, 1)!;
+    await updateBoard((b) => upsertCard(b, card));
+    const ok = await deliverToCard('card1', flow({ template: 'contexto: {{result}}' }), 'RESULTADO', 2, { bypass: true });
+    expect(ok).toBe(true);
+    const call = startRunMock.mock.calls.at(-1)![0] as { sessionKey: string; prompt: string; bypass: boolean };
+    expect(call.sessionKey).toMatch(/^new-/);
+    expect(call.prompt).toContain('RESULTADO');
+    expect(call.prompt).toContain('[deck-card:card1]');
+    expect(call.bypass).toBe(false);
+    const board = await updateBoard((b) => b);
+    expect(board.cards.find((c) => c.id === 'card1')?.status).toBe('doing');
+  });
+
+  it('admission refused: does not mark the card doing', async () => {
+    const card = sanitizeCard({ id: 'card1', title: 'Título' }, undefined, 1)!;
+    await updateBoard((b) => upsertCard(b, card));
+    admit.next = false;
+    const ok = await deliverToCard('card1', flow(), 'result', 1, {});
+    expect(ok).toBe(false);
+    const board = await updateBoard((b) => b);
+    expect(board.cards.find((c) => c.id === 'card1')?.status).toBe('todo');
+  });
+});
+
+describe('fireFlow', () => {
+  it('claims atomically (fires+1, lastFiredAt set) BEFORE delivering, and broadcasts only the minimal fired event — never the whole board', async () => {
+    resolveThreadKeyMock.mockReturnValue(undefined);
+    const f = sanitizeFlow({ id: 'abcd', from: 's:a', to: 's:b' }, undefined, 1)!;
+    await updateBoard((b) => upsertFlow(b, f));
+    await fireFlow(f, 1, 'resultado', {});
+    expect(broadcastMock).toHaveBeenCalledTimes(1);
+    expect(broadcastMock).toHaveBeenCalledWith({ t: 'canvas-flow-fired', flowId: 'abcd', at: expect.any(Number), fires: 1 });
+    expect(broadcastMock.mock.calls[0][0]).not.toHaveProperty('board');
+    const board = await updateBoard((b) => b);
+    expect(board.flows[0]).toMatchObject({ fires: 1 });
+    expect(board.flows[0].lastFiredAt).toBeDefined();
+  });
+
+  it('a claim that fails (already fired/disabled/removed) never delivers and never broadcasts', async () => {
+    const f = sanitizeFlow({ id: 'abcd', from: 's:a', to: 's:b', enabled: false }, undefined, 1)!;
+    await updateBoard((b) => upsertFlow(b, f));
+    await fireFlow(f, 1, 'resultado', {});
+    expect(broadcastMock).not.toHaveBeenCalled();
+    expect(startRunMock).not.toHaveBeenCalled();
+  });
+
+  it('rolls back the claim when delivery fails, so the flow is immediately retryable', async () => {
+    resumableIdMock.mockReturnValue(undefined); // deliverToSession will fail
+    const f = sanitizeFlow({ id: 'abcd', from: 's:a', to: 's:b' }, undefined, 1)!;
+    await updateBoard((b) => upsertFlow(b, f));
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await fireFlow(f, 1, 'resultado', {});
+    errSpy.mockRestore();
+    const board = await updateBoard((b) => b);
+    expect(board.flows[0].fires).toBe(0);
+    expect(board.flows[0].lastFiredAt).toBeUndefined();
+  });
+});
+
+describe('handleTurnClosed', () => {
+  const base: TurnClosed = { sessionKey: 'k', sessionId: 'src', prompt: 'trabalho', text: 'resultado', params: {}, ok: true, hop: 0, unattended: false };
+
+  it('no-ops when not ok, when unattended, or when the board has no flows', async () => {
+    await handleTurnClosed({ ...base, ok: false });
+    await handleTurnClosed({ ...base, unattended: true });
+    await handleTurnClosed(base); // empty board
+    expect(startRunMock).not.toHaveBeenCalled();
+    expect(broadcastMock).not.toHaveBeenCalled();
+  });
+
+  it('fires a session-sourced flow end to end and delivers the (capped, de-fanged) result', async () => {
+    resolveThreadKeyMock.mockReturnValue(undefined);
+    const f = sanitizeFlow({ id: 'abcd', from: 's:src', to: 's:dst' }, undefined, 1)!;
+    await updateBoard((b) => upsertFlow(b, f));
+    await handleTurnClosed(base);
+    expect(startRunMock).toHaveBeenCalledWith(expect.objectContaining({ sessionKey: 'dst', prompt: expect.stringContaining('resultado') }));
+  });
+
+  it('binds a card marker to the map for future turns, and a later markerless turn in the same session still matches by the binding', async () => {
+    const f = sanitizeFlow({ id: 'abcd', from: 'k:card1', to: 's:dst' }, undefined, 1)!;
+    await updateBoard((b) => upsertFlow(b, f));
+    resolveThreadKeyMock.mockReturnValue(undefined);
+    await handleTurnClosed({ ...base, prompt: 'primeiro turno [deck-card:card1]' });
+    expect(startRunMock).toHaveBeenCalledTimes(1);
+    startRunMock.mockClear();
+    await clearRateLimit('abcd');
+    // second turn, same session, no marker — must still match via the bound map
+    await handleTurnClosed({ ...base, prompt: 'segundo turno, sem marcador nenhum' });
+    expect(startRunMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to the persisted refs cache when the in-memory binding is empty, and warms the map from it', async () => {
+    const f = sanitizeFlow({ id: 'abcd', from: 'k:card1', to: 's:dst' }, undefined, 1)!;
+    await updateBoard((b) => upsertFlow(b, f));
+    resolveThreadKeyMock.mockReturnValue(undefined);
+    cardIdFromRefsCacheMock.mockResolvedValue('card1');
+    await handleTurnClosed({ ...base, prompt: 'sem marcador' });
+    expect(cardIdFromRefsCacheMock).toHaveBeenCalledWith('src');
+    expect(startRunMock).toHaveBeenCalledTimes(1);
+    startRunMock.mockClear();
+    cardIdFromRefsCacheMock.mockClear();
+    await clearRateLimit('abcd');
+    await handleTurnClosed({ ...base, prompt: 'sem marcador de novo' });
+    expect(cardIdFromRefsCacheMock).not.toHaveBeenCalled(); // warmed by bindCardSession, no disk read needed
+    expect(startRunMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('a caller-provided binding (bindCardSession) works without ever reaching the marker path', async () => {
+    const f = sanitizeFlow({ id: 'abcd', from: 'k:card1', to: 's:dst' }, undefined, 1)!;
+    await updateBoard((b) => upsertFlow(b, f));
+    resolveThreadKeyMock.mockReturnValue(undefined);
+    bindCardSession('src', 'card1');
+    await handleTurnClosed({ ...base, prompt: 'nada de especial' });
+    expect(cardIdFromRefsCacheMock).not.toHaveBeenCalled();
+    expect(startRunMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('never throws out of the listener even if something inside blows up', async () => {
+    resolveThreadKeyMock.mockImplementation(() => { throw new Error('boom'); });
+    const f = sanitizeFlow({ id: 'abcd', from: 's:src', to: 's:dst' }, undefined, 1)!;
+    await updateBoard((b) => upsertFlow(b, f));
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(handleTurnClosed(base)).resolves.toBeUndefined();
+    errSpy.mockRestore();
   });
 });

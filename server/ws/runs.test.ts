@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { WebSocket } from 'ws';
-import { startRun, routeSend, isSilentDeath, resumeOrphanRuns, drainParked, runParkedInBackground, runParkedNow, startParkedDrainer, acceptResumeOffer, hasResumeOffer, AUTO_RESUME_CAP } from './runs';
+import { startRun, routeSend, isSilentDeath, isCleanTurnClose, resumeOrphanRuns, drainParked, runParkedInBackground, runParkedNow, startParkedDrainer, acceptResumeOffer, hasResumeOffer, AUTO_RESUME_CAP } from './runs';
 import { threads, killAllRuns } from './threads';
 import { reapStaleRuns, REAPER_SILENCE_CAP_MS, REAPER_TOOL_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './reaper';
 import { takeOrphanRuns } from './recover';
@@ -251,6 +251,40 @@ describe('morte silenciosa do turno — aviso + retomada automática', () => {
     vi.mocked(run).mock.calls.forEach((c) => c[0].onClose?.());
     expect(run).toHaveBeenCalledTimes(2);
     expect(errors()).toHaveLength(0);
+  });
+});
+
+describe('isCleanTurnClose — o que server/canvas/flows.ts pode encadear', () => {
+  const clean = { endReason: 'success', text: 'resultado real' };
+  const okFlags = { silent: false, authBurned: false, quotaBurned: false };
+
+  it('aprova um fechamento limpo com endReason success e texto', () => {
+    expect(isCleanTurnClose(clean, okFlags)).toBe(true);
+  });
+
+  it('reprova endReason diferente de success (budget/max_turns/erro/ausente)', () => {
+    expect(isCleanTurnClose({ ...clean, endReason: 'error_max_budget' }, okFlags)).toBe(false);
+    expect(isCleanTurnClose({ ...clean, endReason: 'error_max_turns' }, okFlags)).toBe(false);
+    expect(isCleanTurnClose({ ...clean, endReason: undefined }, okFlags)).toBe(false);
+  });
+
+  it('reprova stop do usuário, AskUserQuestion pendente e morte silenciosa', () => {
+    expect(isCleanTurnClose({ ...clean, stopped: true }, okFlags)).toBe(false);
+    expect(isCleanTurnClose({ ...clean, questioned: true }, okFlags)).toBe(false);
+    expect(isCleanTurnClose(clean, { ...okFlags, silent: true })).toBe(false);
+  });
+
+  it('reprova texto que é só o aviso de auth quebrada ou o teto de tokens estourado', () => {
+    expect(isCleanTurnClose(clean, { ...okFlags, authBurned: true })).toBe(false);
+    expect(isCleanTurnClose(clean, { ...okFlags, quotaBurned: true })).toBe(false);
+  });
+
+  it('reprova quando o processo reportou um erro no meio do turno, mesmo com endReason success', () => {
+    expect(isCleanTurnClose({ ...clean, lastError: 'algo deu errado' }, okFlags)).toBe(false);
+  });
+
+  it('reprova texto vazio', () => {
+    expect(isCleanTurnClose({ ...clean, text: '  ' }, okFlags)).toBe(false);
   });
 });
 

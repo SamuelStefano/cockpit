@@ -107,7 +107,14 @@ export function scanRefsLine(line: string, refs: SessionRefs): void {
   try { rec = JSON.parse(line); } catch { return; }
   const content = rec.message?.content;
   if (maybeCard && rec.type === 'user') {
-    const m = CARD_MARKER_RE.exec(firstUserText(content));
+    // LAST match, not first: server/canvas/flows.ts injects an untrusted
+    // model result ahead of its own trailing marker when it builds a
+    // follow-up prompt, and that result can itself contain an echoed
+    // `[deck-card:...]` substring (quoted from an earlier turn). The first
+    // match in the string can be that echo; the marker this turn actually
+    // carries is always the last one.
+    let m: RegExpMatchArray | undefined;
+    for (const c of firstUserText(content).matchAll(new RegExp(CARD_MARKER_RE.source, 'g'))) m = c;
     if (m) refs.cardId = m[1];
   }
   if (!maybeTool || rec.type !== 'assistant' || !Array.isArray(content)) return;

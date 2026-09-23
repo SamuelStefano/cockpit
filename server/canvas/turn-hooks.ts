@@ -10,7 +10,15 @@ export interface TurnClosed {
   prompt: string; // the prompt that started this turn (carries [deck-card:…] / flow markers)
   text: string; // the assistant's final text for the turn
   params: RunParams;
-  ok: boolean; // finished on its own with output: not stopped, not a silent death, not waiting on a question
+  ok: boolean; // finished on its own with real output: endReason success, not stopped/silent/questioned, no auth/quota burn
+  // Chain depth this turn ran at (server/ws/threads.ts Thread.flowHop), carried
+  // through resume/orphan-resume/parked-requeue — NOT re-derived from prompt
+  // text, which a crash-resume replaces with a markerless RESUME_PROMPT.
+  hop: number;
+  // cron-* sessions and marathon turns run unattended: nobody is going to see
+  // (or approve) whatever a chained flow does next, so listeners that fire
+  // further automated work should skip these entirely.
+  unattended: boolean;
 }
 
 type Listener = (t: TurnClosed) => void;

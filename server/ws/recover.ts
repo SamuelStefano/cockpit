@@ -34,6 +34,11 @@ export interface LiveRun {
   // Sessão de onde o item saiu. No disparo avulso o turno roda com a chave do FORK,
   // então devolver o item por `sessionKey` o jogaria numa fila fantasma.
   parkedFrom?: string;
+  // Profundidade da cadeia de fluxos do canvas (Thread.flowHop em threads.ts).
+  // Sem persistir isto aqui, um restart do agente no MEIO de um turno disparado
+  // por fluxo perderia o hop — a retomada do boot reiniciaria a contagem do
+  // MAX_HOPS de graça, igual ao bug que autoResume tinha antes de carregar isto.
+  flowHop?: number;
 }
 
 type LiveMap = Record<string, LiveRun>;
@@ -80,7 +85,10 @@ export function clearRunLive(sessionKey: string): void {
 export function pickOrphans(map: LiveMap, now: number, maxAgeMs = ORPHAN_MAX_AGE_MS, cap = ORPHAN_MAX_RESUMES): LiveRun[] {
   const all = Object.values(map)
     .filter((r) => r && typeof r.sessionKey === 'string' && typeof r.sessionId === 'string' && typeof r.startedAt === 'number')
-    .map((r) => ({ ...r, params: sanitize(r.params), parked: coerceItem(r.parked) ?? undefined, parkedFrom: typeof r.parkedFrom === 'string' ? r.parkedFrom : undefined }))
+    .map((r) => ({
+      ...r, params: sanitize(r.params), parked: coerceItem(r.parked) ?? undefined, parkedFrom: typeof r.parkedFrom === 'string' ? r.parkedFrom : undefined,
+      flowHop: typeof r.flowHop === 'number' && Number.isFinite(r.flowHop) ? r.flowHop : undefined,
+    }))
     .sort((a, b) => b.startedAt - a.startedAt);
   const withParked = all.filter((r) => r.parked);
   const resumable = all.filter((r) => !r.parked && now - r.startedAt <= maxAgeMs).slice(0, cap);

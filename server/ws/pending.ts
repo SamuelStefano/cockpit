@@ -6,7 +6,11 @@ import { sameParams, type RunParams } from './threads';
 // a invariante "1 runMsg por sessão" do cliente. merge marca p/ enquadrar como
 // continuação no drain.
 export interface QueuedSend extends RunParams {
-  ws: WebSocket;
+  // null: server/canvas/flows.ts enqueues an in-process pending item for a
+  // flow-target session that's live on THIS process but has no drainer here
+  // (see runs.ts isDrainerEnabled) — same "no client attached" shape startRun
+  // already handles everywhere else.
+  ws: WebSocket | null;
   prompt: string;
   msgId?: string;
   merge?: boolean;
