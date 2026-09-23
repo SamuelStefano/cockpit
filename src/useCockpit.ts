@@ -5,7 +5,7 @@ import { loadPref, savePref, setPref, usePrefListener } from './lib/persist';
 import { MODE_KEY, MODEL_KEY, EFFORT_KEY } from './lib/account-prefs';
 import { SUPABASE_ENABLED } from './lib/supabase';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
-import { wsUrlWithToken, newId, metaToSession, mergeServerSessions, dedupById, mergeSeen, isCronPing } from './cockpit/session';
+import { wsUrlWithToken, newId, metaToSession, mergeServerSessions, adoptClaimedRow, dedupById, mergeSeen, isCronPing } from './cockpit/session';
 import { computeStalled, computeUpdated } from './cockpit/signals';
 import { upsertTool, appendDelta, appendThinking } from './cockpit/blocks';
 import { selectEvictions, pruneRefs } from './cockpit/evict';
@@ -456,9 +456,13 @@ export function useCockpit(): Cockpit {
   // DISPARAR o prompt de retomada, não só deixá-lo no composer.
   const sendPromptRef = useRef<(text: string) => void>(() => {});
 
-  const claimedByLocal = useCallback((): Set<string> => {
-    const out = new Set<string>();
-    for (const [k, v] of Object.entries(resumeId.current)) if (k.startsWith('new-') && !migratedTo.current[k]) out.add(v);
+  // Chaves `new-` criadas por ESTE cliente (onNew). As demais foram adotadas de um
+  // run que outro aparelho/aba começou — sem o history local do 1º turno.
+  const ownNew = useRef(new Set<string>());
+
+  const claimedByLocal = useCallback((): Map<string, string> => {
+    const out = new Map<string, string>();
+    for (const [k, v] of Object.entries(resumeId.current)) if (k.startsWith('new-') && !migratedTo.current[k]) out.set(v, k);
     return out;
   }, []);
 
@@ -471,8 +475,16 @@ export function useCockpit(): Cockpit {
     migratedTo.current[oldKey] = newId;
     resumeId.current[newId] = newId;
     delete resumeId.current[oldKey];
-    opened.current.add(newId);   // history já está local; não re-buscar
+    // History já está local só se ESTE cliente criou a sessão (onNew) e viu o turno
+    // desde o início. Sessão adotada (F5, outro aparelho) só tem o replay do turno:
+    // re-busca o JSONL pra trazer o prompt e o que veio antes do replay.
+    const own = ownNew.current.delete(oldKey);
     opened.current.delete(oldKey);
+    if (own) opened.current.add(newId);
+    else {
+      opened.current.delete(newId);
+      if (activeRef.current === oldKey && send(reopenMsg(newId))) opened.current.add(newId);
+    }
     if (oldKey in lastActivity.current) { lastActivity.current[newId] = lastActivity.current[oldKey]; delete lastActivity.current[oldKey]; }
     // Sem migrar runStartRef, o efeito do cronômetro re-registra Date.now() na key
     // nova e o tempo decorrido do card zera no meio do 1º turno.
@@ -512,7 +524,7 @@ export function useCockpit(): Cockpit {
     // próximo `list` sobrescreve com o derivado da 1ª fala (o prompt de retomada).
     const title = pendingTitle.current[oldKey];
     if (title) { delete pendingTitle.current[oldKey]; send({ t: 'set-meta', sessionId: newId, title }); }
-  }, [send]);
+  }, [send, reopenMsg]);
 
   // Único caminho de troca de sessão ativa — todo caminho que mexia no activeRef
   // na mão (nova sessão, pulo pela notificação) esquecia de reidratar os anexos.
@@ -546,6 +558,7 @@ export function useCockpit(): Cockpit {
 
   const onNew = useCallback(() => {
     const id = newId('new-');
+    ownNew.current.add(id);
     const s: Session = { id, title: 'Nova sessão', relative: 'agora', snippet: 'Sem mensagens ainda', mtime: Date.now(), hasTerminal: false, active: true };
     setSessions((prev) => [s, ...prev.map((x) => ({ ...x, active: false }))]);
     setThreads((prev) => ({ ...prev, [id]: [] }));
@@ -809,7 +822,12 @@ export function useCockpit(): Cockpit {
         // O reconnect pode ter perdido o frame 'system'/'done' que carregava o
         // sessionId — sem re-semear aqui o próximo envio ia sem resume e o claude
         // abria uma conversa NOVA ("é como se fosse um novo prompt").
-        if (msg.sessionId) resumeId.current[key] = msg.sessionId;
+        if (msg.sessionId) {
+          resumeId.current[key] = msg.sessionId;
+          // F5/outro aparelho: sem a linha `new-` local, a sessão sumia do sidebar
+          // até o fim do 1º turno (o `list` filtra o uuid reivindicado).
+          if (key.startsWith('new-')) setSessions((prev) => adoptClaimedRow(prev, msg.sessionId!, key));
+        }
         // Reload mid-run zera runStartRef e o efeito do cronômetro já cravou
         // Date.now() quando o 'busy' acendeu a key: o início do servidor vence.
         {
@@ -842,7 +860,7 @@ export function useCockpit(): Cockpit {
           resumeId.current[key] = msg.sessionId;
           // O `list` pode ter chegado antes deste frame e já ter trazido o uuid
           // como linha própria — some com ela; a local `new-` segue como a única.
-          if (key.startsWith('new-')) setSessions((prev) => (prev.some((s) => s.id === msg.sessionId) ? prev.filter((s) => s.id !== msg.sessionId) : prev));
+          if (key.startsWith('new-')) setSessions((prev) => adoptClaimedRow(prev, msg.sessionId!, key));
         }
         return;
       }
