@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { CanvasEdge, CanvasNode } from '../../../shared/canvas';
-import { aliveAt, ALIVE_PAD_MS, fmtTimelineStamp, pastAliveIds } from './canvas-timeline';
+import { aliveAt, ALIVE_PAD_MS, fmtTimelineStamp, pastAliveIds, pastExecIds } from './canvas-timeline';
 
 describe('aliveAt', () => {
   it('is alive strictly inside an activity interval', () => {
@@ -72,5 +72,78 @@ describe('pastAliveIds', () => {
     const nodes = [node('s:1', 'session'), node('c:a', 'context')];
     const edges = [edge('s:1', 'c:a', 'write')];
     expect(pastAliveIds(nodes, edges, 50, {})).toEqual(new Set());
+  });
+});
+
+describe('pastExecIds', () => {
+  const node = (id: string, kind: CanvasNode['kind'], activity?: [number, number][], extra: Partial<CanvasNode> = {}): CanvasNode =>
+    ({ id, kind, ref: id, title: id, subtitle: '', mtime: 0, activity, ...extra });
+  const edge = (source: string, target: string, kind: CanvasEdge['kind']): CanvasEdge => ({ source, target, kind });
+
+  it('includes a session alive at T even if it is idle right now (the exec-scope bug)', () => {
+    const nodes = [node('s:1', 'session', [[0, 100]])];
+    expect(pastExecIds(nodes, [], 50, {})).toEqual(new Set(['s:1']));
+  });
+
+  it('excludes a session not alive at T', () => {
+    const nodes = [node('s:1', 'session', [[0, 100]])];
+    expect(pastExecIds(nodes, [], 100 + ALIVE_PAD_MS + 1, {})).toEqual(new Set());
+  });
+
+  it('includes a context the alive session directly touched via read/write', () => {
+    const nodes = [node('s:1', 'session', [[0, 100]]), node('c:a', 'context')];
+    const edges = [edge('s:1', 'c:a', 'write')];
+    expect(pastExecIds(nodes, edges, 50, {})).toEqual(new Set(['s:1', 'c:a']));
+  });
+
+  it('does NOT spread through a topic/link edge (no hub-promotion, unlike the "active" scope)', () => {
+    const nodes = [node('s:1', 'session', [[0, 100]]), node('c:a', 'context')];
+    const edges = [edge('s:1', 'c:a', 'topic')];
+    expect(pastExecIds(nodes, edges, 50, {})).toEqual(new Set(['s:1']));
+  });
+
+  it('includes the card that launched an alive session, reversing the card->session edge', () => {
+    const nodes = [node('s:1', 'session', [[0, 100]]), node('k:c1', 'card')];
+    const edges = [edge('k:c1', 's:1', 'card')];
+    expect(pastExecIds(nodes, edges, 50, {})).toEqual(new Set(['s:1', 'k:c1']));
+  });
+
+  it('keeps the launching card even when the session is no longer alive at T (card excluded once session drops)', () => {
+    const nodes = [node('s:1', 'session', [[0, 100]]), node('k:c1', 'card')];
+    const edges = [edge('k:c1', 's:1', 'card')];
+    expect(pastExecIds(nodes, edges, 100 + ALIVE_PAD_MS + 1, {})).toEqual(new Set());
+  });
+
+  it('a session alive only via a running turn still pulls its context and card', () => {
+    const nodes = [node('s:1', 'session'), node('c:a', 'context'), node('k:c1', 'card')];
+    const edges = [edge('s:1', 'c:a', 'read'), edge('k:c1', 's:1', 'card')];
+    expect(pastExecIds(nodes, edges, 50, { 's:1': 10 })).toEqual(new Set(['s:1', 'c:a', 'k:c1']));
+  });
+
+  // review #600: the past view must respect the SAME automation/archived
+  // filters the live exec scope already does (canvas-filter.ts) — otherwise
+  // scrubbing back resurrects noise the user explicitly hid.
+  it('hides an automation session by default, and shows it when asked (showAutomation)', () => {
+    const nodes = [node('s:ping', 'session', [[0, 100]], { title: '.', subtitle: '' })];
+    expect(pastExecIds(nodes, [], 50, {})).toEqual(new Set());
+    expect(pastExecIds(nodes, [], 50, {}, { showAutomation: true })).toEqual(new Set(['s:ping']));
+  });
+
+  it('excludes an archived session by default, and includes it with archived:true', () => {
+    const nodes = [node('s:1', 'session', [[0, 100]], { archived: true })];
+    expect(pastExecIds(nodes, [], 50, {})).toEqual(new Set());
+    expect(pastExecIds(nodes, [], 50, {}, { archived: true })).toEqual(new Set(['s:1']));
+  });
+
+  it('a currently-running session is exempt from the archived filter even with archived:false', () => {
+    const nodes = [node('s:1', 'session', [[0, 100]], { archived: true })];
+    expect(pastExecIds(nodes, [], 50, {}, { running: new Set(['s:1']) })).toEqual(new Set(['s:1']));
+  });
+
+  it('also excludes an archived context the alive session touched', () => {
+    const nodes = [node('s:1', 'session', [[0, 100]]), node('c:a', 'context', undefined, { archived: true })];
+    const edges = [edge('s:1', 'c:a', 'write')];
+    expect(pastExecIds(nodes, edges, 50, {})).toEqual(new Set(['s:1']));
+    expect(pastExecIds(nodes, edges, 50, {}, { archived: true })).toEqual(new Set(['s:1', 'c:a']));
   });
 });

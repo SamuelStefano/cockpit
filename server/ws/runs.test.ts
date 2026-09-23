@@ -678,6 +678,24 @@ describe('disparo em background de um item da fila', () => {
     expect(vi.mocked(run).mock.calls[0][0].model).toBe('haiku');
   });
 
+  // Um fork nascido de uma entrega de fluxo do canvas (server/canvas/flows.ts
+  // deliverToCard, reuse 'continue'/'fork') carrega a profundidade da cadeia —
+  // sem isto, um crash-resume DESTE fork reseta o hop pra 0 e MAX_HOPS nunca
+  // barra a cadeia que deveria.
+  it('flowHop chega no Thread do fork quando informado, e fica undefined quando não (clique manual)', () => {
+    vi.mocked(findParked).mockReturnValue(item());
+    vi.mocked(takeParked).mockReturnValue(item());
+    const r1 = runParkedInBackground('s1', 'pk-9', 'admin', undefined, false, true, 3);
+    const forkId1 = (r1 as { forkId: string }).forkId;
+    expect(threads.get(forkId1)?.flowHop).toBe(3);
+
+    vi.mocked(findParked).mockReturnValue(item());
+    vi.mocked(takeParked).mockReturnValue(item());
+    const r2 = runParkedInBackground('s1', 'pk-9', 'admin');
+    const forkId2 = (r2 as { forkId: string }).forkId;
+    expect(threads.get(forkId2)?.flowHop).toBeUndefined();
+  });
+
   // Devolver depois de recusar contaria uma tentativa falha que nunca houve, e no
   // teto o item ficaria segurado por engano.
   it('recusa ANTES de tirar da fila: sem quota, sem item, sem contexto', () => {

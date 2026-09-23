@@ -140,6 +140,24 @@ export function deriveSessionItems(o: DeriveSessionItemsOpts): SessionKanbanItem
   return out;
 }
 
+// A card launched via runCard (or a #592 flow run) is bound under its
+// `new-<uuid>` local run key, which never equals a real session node's `ref`
+// — deriveSessionItems' dedup above only matches `ref`, so between launch and
+// refs.ts's transcript scan recording the [deck-card:] marker edge, the
+// session showed BOTH as the card (doing) and as its own standalone kanban
+// item. useCockpit's migrateKey resolves a `new-` key to the real session id
+// the moment the turn ends locally (well before a graph rebuild), so folding
+// that resolved id in here closes the gap without waiting on the graph.
+export function resolvePendingBoundIds(pendingKeys: Iterable<string>, pendingSessionIds: Record<string, string>): Set<string> {
+  const out = new Set<string>();
+  for (const key of pendingKeys) {
+    out.add(key);
+    const real = pendingSessionIds[key];
+    if (real) out.add(real);
+  }
+  return out;
+}
+
 const DONE_RECENT_WINDOW_MS = 24 * 3600_000;
 
 // Feeds the canvas "execução" scope (canvas-filter.ts): a session that just

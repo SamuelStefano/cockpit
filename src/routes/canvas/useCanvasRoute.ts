@@ -13,7 +13,9 @@ import { computeAreaRects } from './canvas-areas';
 import { filterCanvas, type CanvasScope } from './canvas-filter';
 import { bounds, layoutCanvas } from './canvas-layout';
 import { boundSessions, mergeBoard, moveCard, newCardId, resolveSaveStatus, stuckContinueCard } from './canvas-board';
-import { deriveSessionItems, doneRecentSessionIds, type LiveSessionInfo, type SessionKanbanItem } from './kanban-items';
+import {
+  deriveSessionItems, doneRecentSessionIds, resolvePendingBoundIds, type LiveSessionInfo, type SessionKanbanItem,
+} from './kanban-items';
 import { placeWindows, TERM_H, TERM_W, winKey } from './canvas-terms';
 
 export interface CanvasRouteProps {
@@ -40,6 +42,11 @@ export interface CanvasRouteProps {
   // cardRun() shows "rodando" and the kanban can stop it exactly like a
   // client-launched run.
   canvasFlowRuns: Record<string, { key: string; at: number }>;
+  // useCockpit's `new-<uuid>` -> real session id map (migrateKey/migratedTo),
+  // resolved into extraBoundIds below so a card's session stops doubling as
+  // its own kanban item the moment the turn ends locally, not only once the
+  // graph's own [deck-card:] marker edge scan catches up.
+  pendingSessionIds: Record<string, string>;
   onCanvasBudgetSave: (area: AreaId, budget: AreaBudget) => void;
   onLaunchAgent: (prompt: string, title: string) => string | null;
   onOpenSession: (id: string) => void;
@@ -310,13 +317,12 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
   // the graph does (refs.ts's transcript scan lags a poll or more behind a
   // fresh launch/flow fire). Without this a just-launched session briefly
   // doubled as its own standalone item next to the card already showing it.
-  const extraBoundIds = useMemo(() => {
-    const out = new Set<string>();
-    for (const { key } of Object.values(pendingLaunch.current)) out.add(key);
-    return out;
+  const extraBoundIds = useMemo(
+    () => resolvePendingBoundIds(Object.values(pendingLaunch.current).map((v) => v.key), p.pendingSessionIds),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- pendingTick forces a
     // fresh Set when the pending map mutates; its value isn't read.
-  }, [pendingTick]);
+    [pendingTick, p.pendingSessionIds],
+  );
   const sessionItems = useMemo(() => deriveSessionItems({
     nodes: merged.nodes, edges: merged.edges, cards: p.board.cards, showAutomation, extraBoundIds, ...nodeStatusOpts,
   }),
