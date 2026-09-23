@@ -1,5 +1,5 @@
 import type { CardStatus } from '../../shared/canvas';
-import { broadcast } from '../ws/broadcast';
+import { emitCanvasMsg } from '../ws/canvas-clients';
 import { onTurnClosed, type TurnClosed } from './turn-hooks';
 import { readBoardChained, updateBoard } from './board';
 import { bindCardSession, cardIdForSession, lastCardMarker } from './card-sessions';
@@ -76,6 +76,10 @@ onTurnClosed((turn) => {
       return { ...b, cards: b.cards.map((c) => (c.id === cardId ? { ...c, status: 'review' as const, updatedAt: Date.now() } : c)) };
     });
     const updated = board.cards.find((c) => c.id === cardId);
-    if (moved && updated) broadcast({ t: 'canvas-card-status', cardId, status: updated.status });
+    // ADMIN-ONLY (server/ws/canvas-clients.ts), never the global broadcast():
+    // this can fire with no browser attached at all (a cron turn closing),
+    // and broadcast() fans out to every socket regardless of role — same
+    // reasoning as canvas-flow-failed (server/canvas/flows.ts).
+    if (moved && updated) emitCanvasMsg({ t: 'canvas-card-status', cardId, status: updated.status });
   })().catch((e) => console.error('card-review: falha ao mover card pra revisão', e));
 });

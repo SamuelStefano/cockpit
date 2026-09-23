@@ -49,15 +49,15 @@ describe('shouldMoveToReview', () => {
 });
 
 // The listener itself (registered once, at this file's import time) — exercised
-// end to end against a real temp board file, with broadcast mocked so the test
+// end to end against a real temp board file, with emitCanvasMsg mocked so the test
 // can assert the frame without a live WebSocketServer. Static imports on
 // purpose: the module-level `onTurnClosed` subscription only needs to happen
 // once for the whole file, and a fresh board file per test (beforeEach) is
 // enough isolation between cases. Session ids are unique per test so
 // card-sessions.ts's in-memory session→card map (also a process singleton)
 // never leaks between them.
-vi.mock('../ws/broadcast', () => ({ broadcast: vi.fn() }));
-import { broadcast } from '../ws/broadcast';
+vi.mock('../ws/canvas-clients', () => ({ emitCanvasMsg: vi.fn() }));
+import { emitCanvasMsg } from '../ws/canvas-clients';
 import * as boardModule from './board';
 import { readBoard, updateBoard } from './board';
 import { emitTurnClosed } from './turn-hooks';
@@ -82,7 +82,7 @@ describe('onTurnClosed listener', () => {
   it('moves the card to review and broadcasts a slim card-status frame on a successful marked turn', async () => {
     turn({ sessionId: 'sess-a', prompt: `roda ${cardMarker('card-1')}`, text: 'ok', ok: true });
 
-    await vi.waitFor(() => expect(broadcast).toHaveBeenCalledWith({ t: 'canvas-card-status', cardId: 'card-1', status: 'review' }));
+    await vi.waitFor(() => expect(emitCanvasMsg).toHaveBeenCalledWith({ t: 'canvas-card-status', cardId: 'card-1', status: 'review' }));
     expect((await readBoard()).cards[0].status).toBe('review');
   });
 
@@ -96,7 +96,7 @@ describe('onTurnClosed listener', () => {
     // The user's next message (no marker at all) closes cleanly — the card
     // still moves, because the session was already remembered as card-1's.
     turn({ sessionId: 'sess-b', prompt: 'continua', text: 'ok', ok: true });
-    await vi.waitFor(() => expect(broadcast).toHaveBeenCalledWith({ t: 'canvas-card-status', cardId: 'card-1', status: 'review' }));
+    await vi.waitFor(() => expect(emitCanvasMsg).toHaveBeenCalledWith({ t: 'canvas-card-status', cardId: 'card-1', status: 'review' }));
     expect((await readBoard()).cards[0].status).toBe('review');
   });
 
@@ -104,7 +104,7 @@ describe('onTurnClosed listener', () => {
     turn({ sessionId: 'sess-c', prompt: `roda ${cardMarker('card-1')}`, text: '', ok: false });
     await new Promise((r) => setTimeout(r, 20));
 
-    expect(broadcast).not.toHaveBeenCalled();
+    expect(emitCanvasMsg).not.toHaveBeenCalled();
     expect((await readBoard()).cards[0].status).toBe('doing');
   });
 
@@ -123,7 +123,7 @@ describe('onTurnClosed listener', () => {
     turn({ sessionId: 'sess-d', prompt: 'sem marcador nenhum', text: 'ok', ok: true });
     await new Promise((r) => setTimeout(r, 20));
 
-    expect(broadcast).not.toHaveBeenCalled();
+    expect(emitCanvasMsg).not.toHaveBeenCalled();
     expect((await readBoard()).cards[0].status).toBe('doing');
   });
 
@@ -132,6 +132,6 @@ describe('onTurnClosed listener', () => {
     turn({ sessionId: 'sess-e', prompt: `roda ${cardMarker('card-1')}`, text: 'ok', ok: true });
     await new Promise((r) => setTimeout(r, 20));
 
-    expect(broadcast).not.toHaveBeenCalled();
+    expect(emitCanvasMsg).not.toHaveBeenCalled();
   });
 });
