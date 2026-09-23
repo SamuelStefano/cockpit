@@ -1,6 +1,6 @@
 import type { AreaId, CanvasGraph } from '../../shared/canvas';
 import { areaUsageFromIds, evaluateBudget } from '../../shared/canvas-budget';
-import { broadcastAdmin } from '../ws/broadcast';
+import { emitCanvasMsg } from '../ws/canvas-clients';
 import { threads, stopSessionForBudget } from '../ws/threads';
 import { readBoard } from './board';
 import { buildCanvas } from './index';
@@ -228,9 +228,11 @@ function tick(): void {
     stop: stopSessionForBudget,
     notify: (area, sessionId, sessionTitle, reason) => {
       console.log(`[canvas-autopause] parou "${sessionTitle}" (${sessionId}) na área ${area}: ${reason}`);
-      // Canvas data (session titles) never goes to a non-admin socket — same
-      // rule as every other canvas-* frame (dispatch.ts).
-      broadcastAdmin({ t: 'canvas-budget-paused', area, sessionId, sessionTitle, reason });
+      // Same admin-only, canvas-open-only push as canvas-flow-failed
+      // (server/ws/canvas-clients.ts) — canvas data (a session's title) never
+      // reaches a socket that hasn't opened the canvas (registerCanvasClient
+      // fires on 'canvas-get', already admin-gated by authz.ts).
+      emitCanvasMsg({ t: 'canvas-budget-paused', area, sessionId, sessionTitle, reason });
     },
     currentStartedAt: (sessionId) => {
       for (const t of threads.values()) if (t.sessionId === sessionId) return t.startedAt;
