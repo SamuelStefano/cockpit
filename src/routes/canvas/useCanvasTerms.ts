@@ -2,12 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { sessionNodeId, shellNodeId, type CanvasNode } from '../../../shared/canvas';
 import type { TermApi } from '../../useCockpit';
 import { usePersisted } from '../../lib/persist';
-import { capOpen, newShellId, shellNodes, watchTermId } from './canvas-terms';
+import { autoAdd, capOpen, newShellId, shellNodes, watchTermId } from './canvas-terms';
 
 const LIST_EVERY_MS = 20_000;
-// ctrl-c flushes the tty input queue (ISIG), so the resume command has to wait
-// for the transcript follower to die and bash to come up before it is typed.
-const RESUME_DELAY_MS = 700;
+const RESUME_LOCK_MS = 4000;
 const SESSION_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export interface TermTarget { termId: string; watch?: string }
@@ -27,6 +25,9 @@ export function useCanvasTerms(term: TermApi, discovered: string[], listTerms: (
   // Closed by hand in this page's lifetime: a running session must not pop its
   // terminal back open on the next streamed token after the user dismissed it.
   const dismissed = useRef(new Set<string>());
+  const openRef = useRef(open);
+  openRef.current = open;
+  const [resuming, setResuming] = useState<string | null>(null);
 
   useEffect(() => {
     listTerms();
@@ -74,10 +75,12 @@ export function useCanvasTerms(term: TermApi, discovered: string[], listTerms: (
     setTimeout(listTerms, 1500);
   }, [focus, listTerms]);
 
+  // The server types the command only if the pane is still just following the
+  // transcript — a pane where claude already runs must not get ctrl-c + text.
   const resume = useCallback((sessionId: string) => {
-    const id = watchTermId(sessionId);
-    term.input(id, '\x03');
-    setTimeout(() => term.input(id, `claude --resume ${sessionId}\r`), RESUME_DELAY_MS);
+    term.resume(watchTermId(sessionId), sessionId);
+    setResuming(sessionId);
+    setTimeout(() => setResuming((r) => (r === sessionId ? null : r)), RESUME_LOCK_MS);
     focus(sessionNodeId(sessionId));
   }, [term, focus]);
 
@@ -89,12 +92,12 @@ export function useCanvasTerms(term: TermApi, discovered: string[], listTerms: (
   }, [setOpen]);
 
   const autoOpen = useCallback((ids: string[]) => {
-    const fresh = ids.filter((id) => !dismissed.current.has(id) && !open.includes(id));
-    if (fresh.length) setOpen((cur) => fresh.reduce((acc, id) => capOpen(acc, id), cur));
-  }, [open, setOpen]);
+    const running = ids.filter((id) => !dismissed.current.has(id));
+    if (autoAdd(openRef.current, running) !== openRef.current) setOpen((cur) => autoAdd(cur, running));
+  }, [setOpen]);
 
   return {
-    open: windows, shells, active, focusN, maximized,
+    open: windows, shells, active, focusN, maximized, resuming,
     openWindow, openMany, collapse, kill, newShell, resume, autoOpen, focus,
     blur, setMaximized,
   };

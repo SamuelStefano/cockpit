@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseTermSessions, clampDim, stripReports, trimBuffer, tmuxArgs, idleWatchers } from './terminals';
+import { parseTermSessions, clampDim, stripReports, trimBuffer, tmuxArgs, idleWatchers, resumeTerm } from './terminals';
 
 describe('parseTermSessions', () => {
   it('keeps only cockpit-prefixed sessions and strips the prefix', () => {
@@ -116,5 +116,14 @@ describe('idleWatchers', () => {
       { id: 'w-orphan', idleSince: 0 },
     ], now);
     expect(out).toEqual(['w-old', 'w-orphan']);
+  });
+});
+
+describe('resumeTerm', () => {
+  const uuid = '55b717e4-4e61-4a4f-83f9-2d2a4cdea948';
+  it('refuses anything that is not an open watch pane of that session', async () => {
+    expect(await resumeTerm('bad id', uuid)).toBe(false);
+    expect(await resumeTerm('w-abc', 'x; rm -rf ~')).toBe(false);
+    expect(await resumeTerm('w-never-opened', uuid)).toBe(false);
   });
 });

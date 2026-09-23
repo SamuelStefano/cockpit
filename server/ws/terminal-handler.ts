@@ -1,6 +1,6 @@
 import type { WebSocket } from 'ws';
 import type { ClientMsg } from '../../shared/protocol';
-import { openTerm, detachTerm, inputTerm, resizeTerm, closeTerm, listTerms } from '../terminals';
+import { openTerm, detachTerm, inputTerm, resizeTerm, closeTerm, listTerms, resumeTerm, ensureWatchReaper } from '../terminals';
 import { send, BACKPRESSURE_BYTES } from './broadcast';
 
 export type TermHandle = { onData: (d: string) => void; onExit: () => void };
@@ -29,7 +29,18 @@ export function handleTerm(
       else send(ws, { t: 'term-exit', termId: msg.termId });
       return true;
     }
-    case 'term-list': { void listTerms().then((ids) => send(ws, { t: 'terms', ids })); return true; }
+    case 'term-list': {
+      ensureWatchReaper(); // sweeps watchers orphaned by a previous backend too
+      void listTerms().then((ids) => send(ws, { t: 'terms', ids }));
+      return true;
+    }
+    case 'term-resume': {
+      if (typeof msg.termId !== 'string' || typeof msg.watch !== 'string') return true;
+      void resumeTerm(msg.termId, msg.watch).then((ok) => {
+        if (!ok) send(ws, { t: 'error', message: 'terminal não está só acompanhando a sessão — retome à mão' });
+      });
+      return true;
+    }
     case 'term-input': {
       // Cap de tamanho: um frame de 32MB (teto do transporte) escrito cru no PTY
       // é pressão de memória/CPU sem freio. Digitação/paste humanos cabem em 64KB.

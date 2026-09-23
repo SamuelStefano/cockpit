@@ -131,7 +131,13 @@ export function CanvasSurface(p: Props) {
         />
       </div>
       {p.children}
-      <CanvasToolbar zoom={view.k} onZoom={vp.zoomBy} onFit={() => fit(p.bounds)} onResetLayout={p.onResetLayout} onNewTerminal={p.terms.newShell} onOpenRecent={() => { fitNext.current = true; p.onOpenRecent(); }} />
+      <CanvasToolbar zoom={view.k} onZoom={vp.zoomBy} onFit={() => fit(p.bounds)} onResetLayout={p.onResetLayout} onNewTerminal={p.terms.newShell} onOpenRecent={() => {
+        fitNext.current = true;
+        // Nothing new to open leaves the bounds as they were; don't let the
+        // armed fit fire later on an unrelated auto-open.
+        setTimeout(() => { fitNext.current = false; }, 1000);
+        p.onOpenRecent();
+      }} />
     </div>
   );
 }

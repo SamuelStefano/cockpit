@@ -698,6 +698,7 @@ export type ClientMsg =
   | { t: 'term-detach'; termId: string }
   | { t: 'term-close'; termId: string }
   | { t: 'term-list' }
+  | { t: 'term-resume'; termId: string; watch: string } // ctrl-c the follower, then `claude --resume <watch>`
   | { t: 'graph-list' }
   | { t: 'graph-build'; repo: string }
   | { t: 'graph-open'; id: string }

@@ -19,11 +19,14 @@ const SHELL_PREFIX = 'cv-';
 // folded to its first 24 hex digits — plenty to stay unique across sessions.
 export const watchTermId = (sessionId: string) => WATCH_PREFIX + sessionId.replace(/-/g, '').slice(0, 24);
 export const isWatchTerm = (termId: string) => termId.startsWith(WATCH_PREFIX);
+export const isCanvasShell = (termId: string) => termId.startsWith(SHELL_PREFIX);
 export const newShellId = (rand: number) => SHELL_PREFIX + Math.floor(rand * 36 ** 6).toString(36).padStart(6, '0');
 
+// Only shells born on the canvas: `main`/`term-NNN` belong to the side panel,
+// and a window here would resize (or kill) the terminal the user has open there.
 export function shellNodes(termIds: string[], now: number): CanvasNode[] {
   return termIds
-    .filter((id) => !isWatchTerm(id))
+    .filter(isCanvasShell)
     .sort()
     .map((id) => ({ id: shellNodeId(id), kind: 'shell' as const, ref: id, title: id, subtitle: 'tmux', mtime: now }));
 }
@@ -47,6 +50,11 @@ export function laneSlot(map: Rect, taken: Rect[]): CanvasPos {
   }
 }
 
+// A session's window and its card are two places on the map: the card orbits
+// its contexts, the window sits wherever it was opened or dragged. Shells only
+// ever exist as windows, so they keep their node id.
+export const winKey = (id: string) => (id.startsWith('s:') ? `w:${id.slice(2)}` : id);
+
 // Least recently focused goes first when the cap is hit; the newest id is
 // always kept.
 export function capOpen(order: string[], id: string, max = MAX_OPEN_TERMS): string[] {
@@ -60,12 +68,31 @@ export function placeWindows(pos: Record<string, CanvasPos>, saved: Record<strin
   const win = new Set(windows);
   const map = bounds(Object.entries(pos).filter(([id]) => !win.has(id)).map(([, p]) => p));
   const out = { ...pos };
-  const taken: Rect[] = windows.filter((id) => saved[id]).map((id) => ({ ...saved[id], w: TERM_W, h: TERM_H }));
+  const taken: Rect[] = windows.filter((id) => saved[winKey(id)]).map((id) => ({ ...saved[winKey(id)], w: TERM_W, h: TERM_H }));
   for (const id of windows) {
-    if (saved[id]) { out[id] = saved[id]; continue; }
+    const at = saved[winKey(id)];
+    if (at) { out[id] = at; continue; }
     const slot = laneSlot(map, taken);
     out[id] = slot;
     taken.push({ ...slot, w: TERM_W, h: TERM_H });
   }
   return out;
+}
+
+// Running sessions open on their own, but only into free room or by pushing out
+// a window that is NOT running: evicting one running window to admit another
+// would re-trigger the opener forever once more than `max` run at once.
+export function autoAdd(cur: string[], running: string[], max = MAX_OPEN_TERMS): string[] {
+  const live = new Set(running);
+  let next = cur;
+  for (const id of running) {
+    if (next.includes(id)) continue;
+    if (next.length >= max) {
+      const victim = next.find((x) => !live.has(x));
+      if (!victim) break;
+      next = next.filter((x) => x !== victim);
+    }
+    next = [...next, id];
+  }
+  return next;
 }

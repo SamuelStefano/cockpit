@@ -71,22 +71,33 @@ def stamp(rec):
     return DIM + t.strftime("%H:%M:%S") + " " + RESET
 
 
+# Harness-injected blocks (slash commands, reminders, hook output) ride in the
+# user role but were never typed by the user.
+INJECTED = re.compile(r"^<(command-|local-command-|system-reminder|task-notification|bash-|user-prompt-submit-hook)")
+
+
+def typed(text):
+    return text.strip() and not INJECTED.match(text.lstrip())
+
+
 def render(rec):
+    if not isinstance(rec, dict):
+        return []
     kind = rec.get("type")
-    msg = rec.get("message") or {}
-    content = msg.get("content")
+    msg = rec.get("message")
+    content = msg.get("content") if isinstance(msg, dict) else None
     out = []
     if kind == "user":
         if isinstance(content, str):
-            if content.startswith("<") or not content.strip():
+            if not typed(content):
                 return out
             out.append("")
             out.append(stamp(rec) + BOLD + ORANGE + "❯ " + RESET + BOLD + clip(content.strip(), MAX_TEXT_CHARS) + RESET)
             return out
-        for c in content or []:
+        for c in content if isinstance(content, list) else []:
             if not isinstance(c, dict):
                 continue
-            if c.get("type") == "text" and not c.get("text", "").startswith("<"):
+            if c.get("type") == "text" and isinstance(c.get("text"), str) and typed(c["text"]):
                 out.append("")
                 out.append(stamp(rec) + BOLD + ORANGE + "❯ " + RESET + BOLD + clip(c["text"].strip(), MAX_TEXT_CHARS) + RESET)
             elif c.get("type") == "tool_result":
@@ -97,7 +108,7 @@ def render(rec):
                 if len(lines) > MAX_RESULT_LINES:
                     out.append(DIM + "  │ … +%d linhas" % (len(lines) - MAX_RESULT_LINES) + RESET)
     elif kind == "assistant":
-        for c in content or []:
+        for c in content if isinstance(content, list) else []:
             if not isinstance(c, dict):
                 continue
             t = c.get("type")

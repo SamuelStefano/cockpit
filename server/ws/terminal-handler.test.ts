@@ -9,6 +9,8 @@ const term = vi.hoisted(() => ({
   resizeTerm: vi.fn(),
   closeTerm: vi.fn(),
   listTerms: vi.fn(async () => ['a', 'b']),
+  resumeTerm: vi.fn(async () => true),
+  ensureWatchReaper: vi.fn(),
 }));
 const sent = vi.hoisted(() => ({ fn: vi.fn() }));
 
@@ -42,6 +44,23 @@ describe('handleTerm routing', () => {
     expect(run({ t: 'term-detach', termId: 'x' }).handled).toBe(true);
     expect(run({ t: 'term-close', termId: 'x' }).handled).toBe(true);
     expect(run({ t: 'term-list' }).handled).toBe(true);
+    expect(run({ t: 'term-resume', termId: 'w-x', watch: 'u' }).handled).toBe(true);
+  });
+});
+
+describe('term-resume', () => {
+  it('tells the user when the pane is no longer just following', async () => {
+    term.resumeTerm.mockResolvedValueOnce(false);
+    run({ t: 'term-resume', termId: 'w-x', watch: 'u' });
+    await vi.waitFor(() => expect(sent.fn).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'error' })));
+  });
+
+  it('stays silent when the resume went through', async () => {
+    run({ t: 'term-resume', termId: 'w-x', watch: 'u' });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(term.resumeTerm).toHaveBeenCalledWith('w-x', 'u');
+    expect(sent.fn).not.toHaveBeenCalled();
   });
 });
 

@@ -76,7 +76,9 @@ export function tmuxArgs(id: string, watch?: string): string[] | null {
   if (watch === undefined) return base;
   if (!SESSION_UUID_RE.test(watch)) return null;
   const jsonl = join(CONFIG.projectsDir, `${watch}.jsonl`);
-  return [...base, `bash -c 'python3 "${TAIL_SCRIPT}" "${jsonl}"; exec bash -l'`];
+  // `trap : INT` keeps the wrapper alive through a ctrl-c that lands before the
+  // follower installs its own handler; `:` (not '') so python still gets SIGINT.
+  return [...base, `bash -c 'trap : INT; python3 "${TAIL_SCRIPT}" "${jsonl}"; exec bash -l'`];
 }
 
 export function parseTermSessions(stdout: string, prefix = PREFIX): string[] {
@@ -134,7 +136,9 @@ export function openTerm(
     });
     p.onExit(() => {
       for (const l of term.exit) l();
-      terms.delete(id);
+      // closeTerm + a quick reopen can put a NEW entry under this id before the
+      // old pty reports its exit; only drop the entry that actually died.
+      if (terms.get(id) === term) terms.delete(id);
     });
     terms.set(id, t = term);
   }
@@ -174,7 +178,7 @@ export function idleWatchers(entries: { id: string; idleSince: number | null }[]
 // until ctrl-c execs the login shell over it, so its cmdline still naming the
 // follower script means nobody ever took the pane over. pane_current_command
 // can't tell: it reports "bash" in both states.
-function stillFollowing(id: string): Promise<boolean> {
+function stillFollowing(id: string, watch?: string): Promise<boolean> {
   return new Promise((resolve) => {
     const p = spawn('tmux', ['display-message', '-p', '-t', sessionName(id), '#{pane_pid}'], { stdio: ['ignore', 'pipe', 'ignore'] });
     let out = '';
@@ -182,24 +186,56 @@ function stillFollowing(id: string): Promise<boolean> {
     p.on('close', () => {
       const pid = Number(out.trim());
       if (!Number.isInteger(pid) || pid <= 0) { resolve(false); return; }
-      readFile(`/proc/${pid}/cmdline`, 'utf8').then((c) => resolve(c.includes('session-tail.py')), () => resolve(false));
+      readFile(`/proc/${pid}/cmdline`, 'utf8').then(
+        (c) => resolve(c.includes('session-tail.py') && (!watch || c.includes(`${watch}.jsonl`))),
+        () => resolve(false),
+      );
     });
     p.on('error', () => resolve(false));
   });
 }
 
+// Watchers left behind by a previous backend have no PTY here. They count as
+// idle from the first sweep that sees them, not from the epoch, so a restart
+// never reaps a pane someone is about to reattach.
+const orphanSeen = new Map<string, number>();
+
 async function sweepWatchers(): Promise<void> {
   const now = Date.now();
-  // Watchers left behind by a previous backend have no PTY here: idle by definition.
-  const orphans = (await listTerms()).filter((id) => id.startsWith('w-') && !terms.has(id)).map((id) => ({ id, idleSince: 0 }));
+  const live = await listTerms();
+  for (const id of orphanSeen.keys()) if (!live.includes(id) || terms.has(id)) orphanSeen.delete(id);
+  const orphans = live.filter((id) => id.startsWith('w-') && !terms.has(id)).map((id) => {
+    if (!orphanSeen.has(id)) orphanSeen.set(id, now);
+    return { id, idleSince: orphanSeen.get(id)! };
+  });
   const tracked = [...terms].map(([id, t]) => ({ id, idleSince: t.idleSince }));
   for (const id of idleWatchers([...tracked, ...orphans], now)) {
-    if (await stillFollowing(id)) closeTerm(id);
+    if (!(await stillFollowing(id))) continue;
+    // A client may have reattached while we were asking tmux.
+    const t = terms.get(id);
+    if (t && t.idleSince === null) continue;
+    closeTerm(id);
+    orphanSeen.delete(id);
   }
 }
 
+const RESUME_DELAY_MS = 700;
+
+// ctrl-c flushes the tty input queue (ISIG), so the command waits for the
+// follower to die and the login shell to come up before it is typed. Refused
+// unless the pane still follows THIS session: a pane where the user already
+// runs claude (or anything else) must not receive ctrl-c plus a prompt.
+export async function resumeTerm(id: string, watch: string): Promise<boolean> {
+  if (!NAME_RE.test(id) || !SESSION_UUID_RE.test(watch)) return false;
+  const t = terms.get(id);
+  if (!t || !(await stillFollowing(id, watch))) return false;
+  t.pty.write('\x03');
+  setTimeout(() => { if (terms.get(id) === t) t.pty.write(`claude --resume ${watch}\r`); }, RESUME_DELAY_MS);
+  return true;
+}
+
 let reaper: NodeJS.Timeout | null = null;
-function ensureWatchReaper() {
+export function ensureWatchReaper() {
   if (reaper) return;
   reaper = setInterval(() => { sweepWatchers().catch(() => {}); }, WATCH_SWEEP_MS);
   reaper.unref();

@@ -15,6 +15,7 @@ interface Props {
   active: boolean;
   focusN: number;
   maximized: boolean;
+  resuming: boolean;
   selected: boolean;
   dim: boolean;
   running: boolean;
@@ -60,10 +61,10 @@ export const TerminalWindow = memo(function TerminalWindow(p: Props) {
         {session
           ? <Badge tone={p.running ? 'green' : 'neutral'}>{p.running ? 'ao vivo' : 'fantasma'}</Badge>
           : <Badge tone="orange">shell</Badge>}
-        <span onPointerDown={stop} className="flex items-center">
+        <span onPointerDown={stop} onDoubleClick={(e) => e.stopPropagation()} className="flex items-center">
           {session && (
             <Button
-              variant="ghost" size="sm" icon="play" disabled={p.running}
+              variant="ghost" size="sm" icon="play" disabled={p.running || p.resuming} loading={p.resuming}
               title={p.running ? 'rodando no Deck agora — retomar aqui abriria um segundo escritor' : 'ctrl-c no follow e claude --resume nesta sessão'}
               onClick={() => p.onResume(n.ref)}
             >retomar</Button>

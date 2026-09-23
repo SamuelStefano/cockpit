@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { capOpen, isWatchTerm, laneSlot, newShellId, placeWindows, shellNodes, TERM_H, TERM_W, watchTermId } from './canvas-terms';
+import { autoAdd, capOpen, isWatchTerm, laneSlot, newShellId, placeWindows, shellNodes, TERM_H, TERM_W, watchTermId, winKey } from './canvas-terms';
 
 describe('watchTermId', () => {
   it('fits the tmux name allow-list', () => {
@@ -18,9 +18,9 @@ describe('newShellId', () => {
 });
 
 describe('shellNodes', () => {
-  it('turns plain tmux sessions into shell nodes and skips session watchers', () => {
-    const nodes = shellNodes(['main', 'w-abc', 'cv-1'], 5);
-    expect(nodes.map((n) => n.id)).toEqual(['t:cv-1', 't:main']);
+  it('keeps only canvas-born shells, not watchers or the side panel terminals', () => {
+    const nodes = shellNodes(['main', 'term-101', 'w-abc', 'cv-2', 'cv-1'], 5);
+    expect(nodes.map((n) => n.id)).toEqual(['t:cv-1', 't:cv-2']);
     expect(nodes[0]).toMatchObject({ kind: 'shell', ref: 'cv-1', mtime: 5 });
   });
 });
@@ -72,9 +72,38 @@ describe('placeWindows', () => {
   });
 
   it('keeps a dragged window where the user left it and fills around it', () => {
-    const saved = { 's:1': { x: 0, y: -TERM_H - 160 } };
-    const out = placeWindows({ ...pos, ...saved }, saved, ['s:1', 's:2']);
-    expect(out['s:1']).toEqual(saved['s:1']);
+    const saved = { 'w:1': { x: 0, y: -TERM_H - 160 } };
+    const out = placeWindows(pos, saved, ['s:1', 's:2']);
+    expect(out['s:1']).toEqual(saved['w:1']);
     expect(out['s:2'].x).toBeGreaterThanOrEqual(TERM_W);
+  });
+});
+
+describe('winKey', () => {
+  it('stores a session window apart from its card, shells as themselves', () => {
+    expect(winKey('s:abc')).toBe('w:abc');
+    expect(winKey('t:cv-1')).toBe('t:cv-1');
+  });
+});
+
+describe('autoAdd', () => {
+  it('fills free room with running sessions', () => {
+    expect(autoAdd(['a'], ['b', 'c'], 3)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('pushes out an idle window, never a running one', () => {
+    expect(autoAdd(['idle', 'r1'], ['r1', 'r2'], 2)).toEqual(['r1', 'r2']);
+  });
+
+  it('converges when more sessions run than fit', () => {
+    const running = Array.from({ length: 10 }, (_, i) => `r${i}`);
+    const once = autoAdd([], running, 8);
+    expect(once).toHaveLength(8);
+    expect(autoAdd(once, running, 8)).toBe(once);
+  });
+
+  it('returns the same array when nothing changes', () => {
+    const cur = ['a'];
+    expect(autoAdd(cur, ['a'])).toBe(cur);
   });
 });

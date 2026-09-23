@@ -82,7 +82,7 @@ export function Canvas(p: CanvasRouteProps) {
             <CanvasSurface
               nodes={r.visible.nodes} edges={r.visible.edges} pos={r.pos} bounds={r.worldBounds} initialBounds={r.coreBounds}
               selected={r.selected} running={p.running} waiting={r.waiting} centerRequest={center}
-              onSelect={r.select} onClear={clearAll} onDrop={p.onCanvasPos} onResetLayout={p.onCanvasPosReset}
+              onSelect={r.select} onClear={clearAll} onDrop={r.onDrop} onResetLayout={p.onCanvasPosReset}
               windows={r.windows} terms={terms} term={p.term} onOpenTerm={openTerm} onOpenChat={p.onOpenSession} onOpenRecent={openRecent}
             >
               <CanvasHud sessions={p.sessions} running={p.running} onPick={(id) => focusNode(`s:${id}`)} />

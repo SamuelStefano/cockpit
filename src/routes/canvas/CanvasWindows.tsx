@@ -29,7 +29,7 @@ export function CanvasWindows(p: Props) {
         return (
           <TerminalWindow
             key={n.id} node={n} pos={at} target={target} term={p.term}
-            active={t.active === n.id} focusN={t.focusN} maximized={t.maximized === n.id}
+            active={t.active === n.id} focusN={t.focusN} maximized={t.maximized === n.id} resuming={t.resuming === n.ref}
             selected={p.selected.has(n.id)} dim={p.focus.size > 0 && !p.focus.has(n.id) && t.active !== n.id}
             running={n.kind === 'session' && p.running.has(n.ref)} waiting={n.kind === 'session' && p.waiting.has(n.ref)}
             onPointerDown={p.onPointerDown} onActivate={t.focus} onCollapse={t.collapse} onKill={t.kill}

@@ -7,7 +7,7 @@ import { toast } from '../../components/primitives';
 import { filterCanvas, type CanvasScope } from './canvas-filter';
 import { bounds, layoutCanvas } from './canvas-layout';
 import { boundSessions, mergeBoard, moveCard, newCardId } from './canvas-board';
-import { placeWindows, TERM_H, TERM_W } from './canvas-terms';
+import { placeWindows, TERM_H, TERM_W, winKey } from './canvas-terms';
 
 export interface CanvasRouteProps {
   connected: boolean;
@@ -87,12 +87,22 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
   const pinned = useRef(new Set<string>());
   const { onCanvasPos } = p;
   useEffect(() => { if (!Object.keys(p.board.pos).length) pinned.current.clear(); }, [p.board.pos]);
+  // Gated on the graph: it arrives after canvas-board, so by then the saved
+  // positions are known and a default slot never overwrites a dragged window.
+  const boardReady = !!p.graph;
   useEffect(() => {
-    const fresh = [...windows].filter((id) => !p.board.pos[id] && pos[id] && !pinned.current.has(id));
+    if (!boardReady) return;
+    const fresh = [...windows].filter((id) => !p.board.pos[winKey(id)] && pos[id] && !pinned.current.has(id));
     if (!fresh.length) return;
     for (const id of fresh) pinned.current.add(id);
-    onCanvasPos(Object.fromEntries(fresh.map((id) => [id, pos[id]])));
-  }, [windows, pos, p.board.pos, onCanvasPos]);
+    onCanvasPos(Object.fromEntries(fresh.map((id) => [winKey(id), pos[id]])));
+  }, [boardReady, windows, pos, p.board.pos, onCanvasPos]);
+
+  // A dragged window saves under its window key, leaving the session's card
+  // where it orbits its contexts.
+  const onDrop = useCallback((moved: Record<string, CanvasPos>) => {
+    onCanvasPos(Object.fromEntries(Object.entries(moved).map(([id, at]) => [windows.has(id) ? winKey(id) : id, at])));
+  }, [windows, onCanvasPos]);
   const RECENT_FOCUS_N = 8;
   // First view frames what is alive right now (running sessions + whatever
   // they touch), falling back to the handful of most recent sessions when
@@ -211,7 +221,7 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
 
   return {
     mode, setMode, scope, setScope, archived, setArchived, query, setQuery,
-    merged, visible, pos, windows, worldBounds, coreBounds, byId, waiting,
+    merged, visible, pos, windows, onDrop, worldBounds, coreBounds, byId, waiting,
     selected, selectedNodes, select, clearSelection,
     draft, setDraft, newDraft, editCard, saveCard, runCard, setStatus, deleteCard, cardSessions,
   };

@@ -10,6 +10,7 @@ const fakeTerm = (): TermApi => ({
   input: vi.fn(),
   resize: vi.fn(),
   kill: vi.fn(),
+  resume: vi.fn(),
 });
 
 describe('useTerminalTabs', () => {
