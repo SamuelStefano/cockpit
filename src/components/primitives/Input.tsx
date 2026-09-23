@@ -9,6 +9,8 @@ interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'>
   mono?: boolean;
   icon?: IconName;      // ícone à esquerda (ex: busca)
   suffix?: ReactNode;   // conteúdo à direita (ex: contador, atalho)
+  // Sem moldura até o foco: campo embutido numa linha de tabela ("nova task").
+  bare?: boolean;
 }
 
 const sizes: Record<InputSize, string> = {
@@ -24,19 +26,22 @@ const textSizes: Record<InputSize, string> = {
 };
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { size = 'md', error = false, mono = false, icon, suffix, className = '', ...rest },
+  { size = 'md', error = false, mono = false, bare = false, icon, suffix, className = '', ...rest },
   ref,
 ) {
   const text = mono ? 'font-mono text-[12.5px]' : textSizes[size];
   const border = error
     ? 'border-red-500/50 focus-within:border-red-500/60'
+    : bare
+    ? 'border-transparent px-1.5! focus-within:border-orange-500/40'
     : 'border-neutral-800 focus-within:border-orange-500/40';
+  const surface = bare ? 'bg-transparent focus-within:bg-neutral-950' : 'bg-neutral-950';
 
   if (!icon && !suffix) {
     return (
       <input
         ref={ref}
-        className={`w-full border bg-neutral-950 text-neutral-200 placeholder:text-neutral-600 outline-hidden transition ${sizes[size]} ${text} ${border} ${className}`}
+        className={`w-full border ${surface} text-neutral-200 placeholder:text-neutral-600 outline-hidden transition ${sizes[size]} ${text} ${border} ${className}`}
         {...rest}
       />
     );

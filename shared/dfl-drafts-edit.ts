@@ -86,12 +86,11 @@ function splitEpic(drafts: DflDraft[], op: Extract<DraftOp, { op: 'split-epic' }
 export function applyDeliveryOp(drafts: DflDraft[], op: DraftOp, ctx: DraftCtx): DflDraft[] {
   switch (op.op) {
     case 'add-delivery':
-      return withEpic(drafts, op.epicId, ctx, (d) => ({
-        ...d,
-        deliveries: [...d.deliveries, {
-          id: ctx.newId('dl'), title: cleanTitle(op.title) ?? `${defaultDeliveryTitle(d.title)} ${d.deliveries.length + 1}`, taskIds: [],
-        }],
-      }));
+      return withEpic(drafts, op.epicId, ctx, (d) => {
+        const id = ctx.newId('dl');
+        const added = { ...d, deliveries: [...d.deliveries, { id, title: cleanTitle(op.title) ?? `${defaultDeliveryTitle(d.title)} ${d.deliveries.length + 1}`, taskIds: [] }] };
+        return op.taskIds?.length ? moveTasks(added, op.taskIds, id) : added;
+      });
     case 'rename-delivery': {
       const t = cleanTitle(op.title);
       if (t === null) throw new Error('título da delivery obrigatório');

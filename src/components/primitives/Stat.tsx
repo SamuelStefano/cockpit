@@ -11,6 +11,8 @@ interface StatProps {
   tone?: StatTone;
   // plain = no card chrome: several figures inside one parent card.
   plain?: boolean;
+  // compact = one cell of a KPI strip: small label, 15px mono value, no chrome.
+  compact?: boolean;
   className?: string;
 }
 
@@ -21,8 +23,17 @@ const tones: Record<StatTone, { value: string; icon: string; glow: string }> = {
   yellow: { value: 'text-yellow-300', icon: 'text-yellow-400', glow: 'bg-yellow-500/6' },
 };
 
-export function Stat({ label, value, sub, icon, tone = 'neutral', plain = false, className = '' }: StatProps) {
+export function Stat({ label, value, sub, icon, tone = 'neutral', plain = false, compact = false, className = '' }: StatProps) {
   const t = tones[tone];
+  if (compact) {
+    return (
+      <div className={`min-w-0 ${className}`}>
+        <div className="truncate font-mono text-[10px] lowercase tracking-wide text-neutral-500">{label}</div>
+        <div className={`mt-0.5 truncate font-mono text-[15px] font-semibold leading-tight tabular-nums tracking-tight ${t.value}`}>{value}</div>
+        {sub != null && <div className="truncate text-[10.5px] tabular-nums text-neutral-500">{sub}</div>}
+      </div>
+    );
+  }
   const chrome = plain ? 'min-w-0' : 'overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/50 px-3.5 py-3 hairline';
   return (
     <div className={`relative ${chrome} ${className}`}>

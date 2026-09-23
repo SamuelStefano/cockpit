@@ -1,34 +1,31 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { DflDraft, DraftOp } from '../../../shared/dfl-drafts';
-import { batchDraftNotes, serializeDraftsNote } from '../../../shared/dfl-drafts-note';
+import { useCallback, useEffect, useState } from 'react';
+import type { DraftOp } from '../../../shared/dfl-drafts';
+import { batchDispatchNotes, serializeDispatchNote, unitMarks, unitTasks, type DispatchUnit } from '../../../shared/dfl-drafts-note';
 import { toast } from '../../components/primitives';
 import { usePontosControls } from './pontosControls';
-import { sortDrafts, pendingTotals } from './draft-cap';
 import { EPIC_CAP_CENTS } from './epic-cap';
 import { currentMonthKey } from './month-cap';
 
 interface Args {
   connected: boolean;
-  drafts: DflDraft[];
   onDraftsGet: () => void;
   onDraftOp: (op: DraftOp) => boolean;
 }
 
+export interface DispatchRequest { title: string; units: DispatchUnit[] }
+
 const OFFLINE = 'Sem conexão — a alteração não saiu.';
 
-// "Criar no DFL" reuses the free-text agent path (onPontosAgent): the Deck only
-// hands the reviewed structure to an agent, it never writes to DFL. Epics are
-// packed into as few notes as fit, so "Criar todos" fires one agent, not seven.
-export function useDrafts({ connected, drafts, onDraftsGet, onDraftOp }: Args) {
+// Every "criar no DFL" (whole epic, one delivery, a selection) goes through here:
+// ask → confirm dialog with the exact note → the existing agent path
+// (onPontosAgent). The Deck only hands over the reviewed structure; it never
+// writes to DFL. Units are packed into as few notes as fit (one agent, not seven).
+export function useDrafts({ connected, onDraftsGet, onDraftOp }: Args) {
   const { write, pointValue, monthCapCents } = usePontosControls();
-  const [confirming, setConfirming] = useState<DflDraft[] | null>(null);
+  const [confirming, setConfirming] = useState<DispatchRequest | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => { if (connected) onDraftsGet(); }, [connected, onDraftsGet]);
-
-  const sorted = useMemo(() => sortDrafts(drafts), [drafts]);
-  const pending = useMemo(() => sorted.filter((d) => d.status === 'draft'), [sorted]);
-  const totals = pendingTotals(drafts, pointValue);
 
   const op = useCallback((o: DraftOp) => {
     if (!onDraftOp(o)) toast(OFFLINE, { tone: 'error' });
@@ -38,27 +35,32 @@ export function useDrafts({ connected, drafts, onDraftsGet, onDraftOp }: Args) {
     if (!confirming || busy) return;
     setBusy(true);
     let sent = 0;
-    for (const batch of batchDraftNotes(confirming, pointValue)) {
+    for (const batch of batchDispatchNotes(confirming.units, pointValue)) {
       const r = await write.onPontosAgent({
-        note: serializeDraftsNote(batch, pointValue),
+        note: serializeDispatchNote(batch, pointValue),
         epicCapCents: EPIC_CAP_CENTS,
         monthCapCents: monthCapCents(currentMonthKey(Date.now())),
         pointValue,
       });
       if (!r.ok) { toast(r.message ?? 'Não consegui disparar o agente', { tone: 'error', durationMs: 8000 }); break; }
-      for (const d of batch) op({ op: 'set-status', id: d.id, status: 'dispatched' });
-      sent += batch.length;
+      op({ op: 'set-status', id: batch.flatMap(unitMarks), status: 'dispatched' });
+      sent += batch.reduce((s, u) => s + unitTasks(u).length, 0);
     }
     setBusy(false);
     if (sent) {
-      toast(`${sent} ${sent === 1 ? 'épico enviado' : 'épicos enviados'} ao agente — acompanhe em Sessões`);
+      toast(`${sent} ${sent === 1 ? 'task enviada' : 'tasks enviadas'} ao agente — acompanhe em Sessões`);
       setConfirming(null);
     }
   }, [confirming, busy, pointValue, write, monthCapCents, op]);
 
+  const ask = useCallback((title: string, units: (DispatchUnit | null)[]) => {
+    const ok = units.filter((u): u is DispatchUnit => u !== null);
+    if (ok.length) setConfirming({ title, units: ok });
+    else toast('Nada pendente pra enviar — já foi pro agente.');
+  }, []);
+
   return {
-    sorted, pending, totals, pointValue, op, busy, confirming, dispatch,
-    askDispatch: setConfirming,
+    op, busy, confirming, dispatch, ask, pointValue,
     closeConfirm: () => { if (!busy) setConfirming(null); },
   };
 }

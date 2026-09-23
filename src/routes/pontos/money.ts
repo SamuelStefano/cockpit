@@ -40,3 +40,9 @@ export function validBrl(v: string): boolean {
   const n = parseBrl(v);
   return Number.isFinite(n) && n > 0;
 }
+
+// Dense columns (navigator, KPI strip): whole reais, no cents — "R$ 1.800".
+export function brlShort(cents: number): string {
+  const neg = cents < 0;
+  return `${neg ? '-' : ''}R$ ${Math.round(Math.abs(cents) / 100).toLocaleString('pt-BR')}`;
+}

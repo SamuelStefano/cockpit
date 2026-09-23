@@ -41,7 +41,8 @@ export type DraftOp =
   | { op: 'add-task'; epicId: string; title: string; points: number; refs?: string[]; note?: string; deliveryId?: string }
   | { op: 'update-task'; epicId: string; taskId: string; title?: string; points?: number }
   | { op: 'delete-task'; epicId: string; taskId: string }
-  | { op: 'add-delivery'; epicId: string; title?: string }
+  // taskIds = move these tasks into the new delivery in the same step.
+  | { op: 'add-delivery'; epicId: string; title?: string; taskIds?: string[] }
   | { op: 'rename-delivery'; epicId: string; deliveryId: string; title: string }
   | { op: 'delete-delivery'; epicId: string; deliveryId: string }
   | { op: 'move-tasks'; epicId: string; taskIds: string[]; deliveryId: string }

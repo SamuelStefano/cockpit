@@ -32,6 +32,11 @@ describe('delivery ops', () => {
     expect(() => applyDraftOp(d, { op: 'delete-delivery', epicId: 'ep-5', deliveryId: 'dl-x' }, ctx())).toThrow(/ao menos uma/);
   });
 
+  it('a new delivery can take the selected tasks in the same step', () => {
+    const d = applyDraftOp(seed(), { op: 'add-delivery', epicId: 'ep-5', title: 'Infra', taskIds: ['tk-2'] }, { now: 1, newId: () => 'dl-i' });
+    expect(d[0].deliveries.map((x) => [x.id, x.taskIds])).toEqual([['dl-4', ['tk-1', 'tk-3']], ['dl-i', ['tk-2']]]);
+  });
+
   it('adds a task straight into a chosen delivery', () => {
     let d = applyDraftOp(seed(), { op: 'add-delivery', epicId: 'ep-5' }, { now: 1, newId: () => 'dl-x' });
     d = applyDraftOp(d, { op: 'add-task', epicId: 'ep-5', deliveryId: 'dl-x', title: 'D', points: 1 }, { now: 1, newId: () => 'tk-d' });

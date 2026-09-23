@@ -1,11 +1,15 @@
 import type { DflDraftTask, DraftOp } from '../../../shared/dfl-drafts';
 import { MAX_DRAFT_POINTS } from '../../../shared/dfl-drafts';
-import { Badge, Button, InlineEdit } from '../../components/primitives';
+import { Badge, Button, Checkbox, InlineEdit } from '../../components/primitives';
+import { RefChips } from './RefChips';
+import { dragTask } from './useDropZone';
 import { fmtPts } from './money';
 
 interface Props {
   epicId: string;
   task: DflDraftTask;
+  selected: boolean;
+  onToggle: (id: string) => void;
   onOp: (op: DraftOp) => void;
 }
 
@@ -14,25 +18,32 @@ const validPoints = (v: string): boolean => {
   return Number.isFinite(n) && n >= 0 && n <= MAX_DRAFT_POINTS;
 };
 
-export function DraftTaskRow({ epicId, task, onOp }: Props) {
+export const TASK_GRID = 'grid grid-cols-[14px_minmax(0,1fr)_52px_24px] items-center gap-x-2.5 sm:grid-cols-[14px_minmax(0,1fr)_auto_52px_24px]';
+
+// One task, one line: select, title (click to edit), PR chips, points (click to
+// edit), remove. Draggable onto another delivery.
+export function DraftTaskRow({ epicId, task, selected, onToggle, onOp }: Props) {
+  const sent = task.status !== 'draft';
   return (
-    <li className="flex items-start gap-2 px-3.5 py-2">
-      <div className="min-w-0 flex-1">
+    <li
+      draggable onDragStart={(e) => dragTask(e, task.id)}
+      className={`${TASK_GRID} min-h-[34px] cursor-grab px-2.5 py-1 active:cursor-grabbing ${selected ? 'bg-orange-500/[0.07]' : 'hover:bg-neutral-800/30'}`}
+    >
+      <Checkbox checked={selected} onChange={() => onToggle(task.id)} label={`Selecionar ${task.title}`} />
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
         <InlineEdit label="título da task" hint={false} value={task.title}
           onSave={(title) => onOp({ op: 'update-task', epicId, taskId: task.id, title })}
-          className="text-[12.5px] leading-snug text-neutral-200" inputClassName="w-full text-[12.5px]" />
-        {task.refs.length > 0 && (
-          <div className="mt-1 flex flex-wrap gap-1">
-            {task.refs.map((r, i) => <Badge key={`${i}:${r}`} className="font-mono">{r}</Badge>)}
-          </div>
-        )}
+          className={`text-[12.5px] leading-snug ${sent ? 'text-neutral-400' : 'text-neutral-200'}`} inputClassName="w-full text-[12.5px]" />
+        {sent && <Badge tone={task.status === 'created' ? 'green' : 'orange'}>{task.status === 'created' ? 'criada' : 'enviada'}</Badge>}
+        <span className="sm:hidden"><RefChips refs={task.refs} /></span>
       </div>
+      <span className="hidden sm:inline-flex"><RefChips refs={task.refs} /></span>
       <InlineEdit label="pontos" numeric value={fmtPts(task.points)} validate={validPoints}
-        display={<>{fmtPts(task.points)} <span className="text-[10.5px] text-neutral-500">pt</span></>}
+        display={<>{fmtPts(task.points)} <span className="text-[10px] text-neutral-500">pt</span></>}
         onSave={(v) => onOp({ op: 'update-task', epicId, taskId: task.id, points: Number(v.replace(',', '.')) })}
-        className="shrink-0 pt-0.5 text-[12.5px] font-semibold text-neutral-100" inputClassName="w-16 text-[12.5px]" />
-      <Button variant="ghost" size="sm" square icon="x" title="Tirar task do rascunho" aria-label="Tirar task do rascunho"
-        onClick={() => onOp({ op: 'delete-task', epicId, taskId: task.id })} />
+        className="justify-self-end font-mono text-[12.5px] font-medium text-neutral-100" inputClassName="w-14 text-[12.5px]" />
+      <Button variant="ghost" size="xs" square icon="x" title="Tirar task do rascunho" aria-label="Tirar task do rascunho"
+        className="opacity-60 hover:opacity-100" onClick={() => onOp({ op: 'delete-task', epicId, taskId: task.id })} />
     </li>
   );
 }

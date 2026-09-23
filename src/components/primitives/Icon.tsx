@@ -6,7 +6,8 @@ export type IconName =
   | 'rotate' | 'message' | 'pencil' | 'zap' | 'trash' | 'sparkles' | 'claude'
   | 'panelRight' | 'circle' | 'user' | 'copy' | 'command' | 'grip' | 'download' | 'paperclip' | 'clock' | 'star' | 'file' | 'tag'
   | 'shield' | 'shield-off' | 'mic' | 'image' | 'camera' | 'sliders' | 'volume' | 'wrapText' | 'smartphone'
-  | 'monitor' | 'tablet' | 'maximize' | 'minimize' | 'code' | 'link' | 'layers';
+  | 'monitor' | 'tablet' | 'maximize' | 'minimize' | 'code' | 'link' | 'layers'
+  | 'split' | 'move' | 'external';
 
 const ICON_PATHS: Record<IconName, ReactNode> = {
   terminal: <><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></>,
@@ -57,6 +58,9 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
   tablet: <><rect x="4" y="2" width="16" height="20" rx="2" /><line x1="12" y1="18" x2="12.01" y2="18" /></>,
   maximize: <><path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M21 8V5a2 2 0 0 0-2-2h-3" /><path d="M3 16v3a2 2 0 0 0 2 2h3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" /></>,
   minimize: <><path d="M8 3v3a2 2 0 0 1-2 2H3" /><path d="M21 8h-3a2 2 0 0 1-2-2V3" /><path d="M3 16h3a2 2 0 0 1 2 2v3" /><path d="M16 21v-3a2 2 0 0 1 2-2h3" /></>,
+  split: <><circle cx="6" cy="5" r="2" /><circle cx="18" cy="5" r="2" /><circle cx="12" cy="19" r="2" /><path d="M6 7v2a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V7" /><line x1="12" y1="12" x2="12" y2="17" /></>,
+  move: <><polyline points="17 3 21 7 17 11" /><line x1="21" y1="7" x2="9" y2="7" /><polyline points="7 21 3 17 7 13" /><line x1="3" y1="17" x2="15" y2="17" /></>,
+  external: <><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></>,
   code: <><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></>,
   link: <><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></>,
 };

@@ -2,7 +2,8 @@ import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Icon, type IconName } from './Icon';
 
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'dangerSolid';
-type ButtonSize = 'sm' | 'md';
+// xs = inline action inside a dense row (table header, list line).
+type ButtonSize = 'xs' | 'sm' | 'md';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children?: ReactNode;
@@ -30,16 +31,18 @@ const variants: Record<ButtonVariant, string> = {
 };
 
 const sizes: Record<ButtonSize, string> = {
+  xs: 'h-6 gap-1 px-2 text-[11px]',
   sm: 'h-7 gap-1.5 px-2.5 text-[12px]',
   md: 'h-8 gap-2 px-3 text-[13px]',
 };
 
 const squareSizes: Record<ButtonSize, string> = {
+  xs: 'h-6 w-6',
   sm: 'h-7 w-7',
   md: 'h-8 w-8',
 };
 
-const iconSize: Record<ButtonSize, number> = { sm: 13, md: 15 };
+const iconSize: Record<ButtonSize, number> = { xs: 12, sm: 13, md: 15 };
 
 export function Button({
   children,
