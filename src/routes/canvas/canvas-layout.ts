@@ -119,9 +119,11 @@ export function layoutCanvas(nodes: CanvasNode[], edges: CanvasEdge[], saved: Re
   return out;
 }
 
-export function bounds(pos: CanvasPos[]): { x: number; y: number; w: number; h: number } {
+// A rect without w/h is a plain node; terminal windows pass their own size.
+export function bounds(pos: (CanvasPos & { w?: number; h?: number })[]): { x: number; y: number; w: number; h: number } {
   if (!pos.length) return { x: 0, y: 0, w: 1, h: 1 };
-  const xs = pos.map((p) => p.x); const ys = pos.map((p) => p.y);
-  const x = Math.min(...xs); const y = Math.min(...ys);
-  return { x, y, w: Math.max(...xs) - x + NODE_W, h: Math.max(...ys) - y + NODE_H };
+  const x = Math.min(...pos.map((p) => p.x)); const y = Math.min(...pos.map((p) => p.y));
+  const right = Math.max(...pos.map((p) => p.x + (p.w ?? NODE_W)));
+  const bottom = Math.max(...pos.map((p) => p.y + (p.h ?? NODE_H)));
+  return { x, y, w: right - x, h: bottom - y };
 }

@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import type { CanvasNode, CanvasPos } from '../../../shared/canvas';
-import { Badge, Icon, type IconName } from '../../components/primitives';
+import { Badge, Button, Icon, type IconName } from '../../components/primitives';
 import { relPast } from '../../../shared/format';
 import { NODE_H, NODE_W } from './canvas-layout';
 import { STATUS_LABEL, STATUS_TONE, titleSize } from './canvas-labels';
@@ -15,11 +15,12 @@ interface Props {
   compact: boolean;
   zoom: number;
   onPointerDown: (e: React.PointerEvent, id: string) => void;
+  onOpenTerm: (id: string) => void;
 }
 
 const FAR_ZOOM = 0.3;
 
-const ICON: Record<CanvasNode['kind'], IconName> = { session: 'terminal', context: 'file', card: 'check' };
+const ICON: Record<CanvasNode['kind'], IconName> = { session: 'terminal', context: 'file', card: 'check', shell: 'terminal' };
 
 function frame(n: CanvasNode, selected: boolean): string {
   if (selected) return 'border-orange-400 ring-2 ring-orange-500/40';
@@ -34,7 +35,7 @@ function StateDot({ running, waiting, archived }: { running: boolean; waiting: b
   return <span className={`h-2 w-2 shrink-0 rounded-full ${archived ? 'bg-neutral-700' : 'bg-neutral-500'}`} title={archived ? 'arquivada' : 'idle'} />;
 }
 
-export const CanvasNodeCard = memo(function CanvasNodeCard({ node: n, pos, selected, dim, running, waiting, compact, zoom, onPointerDown }: Props) {
+export const CanvasNodeCard = memo(function CanvasNodeCard({ node: n, pos, selected, dim, running, waiting, compact, zoom, onPointerDown, onOpenTerm }: Props) {
   return (
     <div
       data-node={n.id}
@@ -49,6 +50,11 @@ export const CanvasNodeCard = memo(function CanvasNodeCard({ node: n, pos, selec
           : <Icon name={n.hub ? 'layers' : ICON[n.kind]} size={12} className={n.kind === 'card' || n.hub ? 'text-orange-400' : 'text-neutral-500'} />}
         <span className={`min-w-0 flex-1 truncate font-medium ${n.hub ? 'text-orange-200' : 'text-neutral-100'}`} style={{ fontSize: titleSize(zoom) }}>{n.title}</span>
         {n.kind === 'card' && n.status && <Badge tone={STATUS_TONE[n.status]}>{STATUS_LABEL[n.status]}</Badge>}
+        {n.kind === 'session' && !compact && (
+          <span onPointerDown={(e) => e.stopPropagation()} className="-my-1 -mr-1.5">
+            <Button variant="ghost" size="sm" square icon="terminal" title="abrir o terminal desta sessão" onClick={() => onOpenTerm(n.id)} />
+          </span>
+        )}
       </div>
       {n.hub && zoom < FAR_ZOOM && (
         <span

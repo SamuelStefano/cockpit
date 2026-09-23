@@ -5,11 +5,16 @@ interface Props {
   onZoom: (factor: number) => void;
   onFit: () => void;
   onResetLayout: () => void;
+  onNewTerminal: () => void;
+  onOpenRecent: () => void;
 }
 
-export function CanvasToolbar({ zoom, onZoom, onFit, onResetLayout }: Props) {
+export function CanvasToolbar({ zoom, onZoom, onFit, onResetLayout, onNewTerminal, onOpenRecent }: Props) {
   return (
-    <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-full border border-neutral-700 bg-neutral-900/85 px-1.5 py-1 shadow-lg backdrop-blur-md">
+    <div data-canvas-overlay className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-full border border-neutral-700 bg-neutral-900/85 px-1.5 py-1 shadow-lg backdrop-blur-md">
+      <Button variant="ghost" size="sm" icon="zap" onClick={onOpenRecent} title="abrir o terminal das sessões mais recentes">sessões</Button>
+      <Button variant="ghost" size="sm" icon="terminal" onClick={onNewTerminal} title="novo terminal (tmux) no canvas">terminal</Button>
+      <span className="mx-1 h-4 w-px bg-neutral-700" />
       <Button variant="ghost" size="sm" icon="layers" onClick={onResetLayout} title="reorganizar (descarta posições arrastadas)" />
       <Button variant="ghost" size="sm" icon="maximize" onClick={onFit} title="enquadrar tudo" />
       <span className="mx-1 h-4 w-px bg-neutral-700" />

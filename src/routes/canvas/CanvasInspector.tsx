@@ -9,6 +9,7 @@ interface Props {
   running: Set<string>;
   onPick: (id: string) => void;
   onOpenSession: (id: string) => void;
+  onOpenTerm: (nodeId: string) => void;
   onNewCard: (kind: CanvasCard['kind']) => void;
   onEditCard: (id: string) => void;
   onRunCard: (card: CanvasCard) => void;
@@ -44,7 +45,7 @@ export function CanvasInspector(p: Props) {
         {one && (
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-1">
-              <Badge tone={one.kind === 'card' ? 'orange' : 'neutral'}>{one.kind === 'session' ? 'sessão' : one.kind === 'card' ? 'card' : one.hub ? 'hub' : 'contexto'}</Badge>
+              <Badge tone={one.kind === 'card' ? 'orange' : 'neutral'}>{one.kind === 'session' ? 'sessão' : one.kind === 'card' ? 'card' : one.kind === 'shell' ? 'shell' : one.hub ? 'hub' : 'contexto'}</Badge>
               {one.kind === 'session' && p.running.has(one.ref) && <Badge tone="green" dot>rodando</Badge>}
               {one.archived && <Badge>arquivo</Badge>}
               {card && <Badge tone={STATUS_TONE[card.status]}>{STATUS_LABEL[card.status]}</Badge>}
@@ -62,7 +63,8 @@ export function CanvasInspector(p: Props) {
         {!one && <Linked nodes={p.nodes} onPick={p.onPick} />}
       </div>
       <div className="flex flex-wrap gap-1.5 border-t border-neutral-800 px-3 py-2.5">
-        {one?.kind === 'session' && <Button size="sm" icon="message" onClick={() => p.onOpenSession(one.ref)}>abrir chat</Button>}
+        {one?.kind === 'session' && <Button size="sm" icon="terminal" onClick={() => p.onOpenTerm(one.id)}>terminal</Button>}
+        {one?.kind === 'session' && <Button variant="secondary" size="sm" icon="message" onClick={() => p.onOpenSession(one.ref)}>abrir chat</Button>}
         {card && card.status === 'todo' && <Button size="sm" icon="play" onClick={() => p.onRunCard(card)}>rodar agente</Button>}
         {card && <Button variant="secondary" size="sm" icon="pencil" onClick={() => p.onEditCard(card.id)}>editar</Button>}
         {!card && <Button variant={one?.kind === 'session' ? 'secondary' : 'primary'} size="sm" icon="zap" onClick={() => p.onNewCard('task')}>agente aqui</Button>}

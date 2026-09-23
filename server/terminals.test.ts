@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseTermSessions, clampDim, stripReports, trimBuffer } from './terminals';
+import { parseTermSessions, clampDim, stripReports, trimBuffer, tmuxArgs, idleWatchers, resumeTerm } from './terminals';
 
 describe('parseTermSessions', () => {
   it('keeps only cockpit-prefixed sessions and strips the prefix', () => {
@@ -79,5 +79,51 @@ describe('trimBuffer', () => {
 
   it('falls back to the raw window when there is no newline', () => {
     expect(trimBuffer('abcdef', 3)).toBe('def');
+  });
+});
+
+describe('tmuxArgs', () => {
+  const uuid = '55b717e4-4e61-4a4f-83f9-2d2a4cdea948';
+
+  it('opens a plain shell session without a command', () => {
+    const args = tmuxArgs('main')!;
+    expect(args.slice(0, 4)).toEqual(['new-session', '-A', '-s', 'cockpit-main']);
+    expect(args).toHaveLength(6);
+  });
+
+  it('follows the session transcript, then falls back to a login shell', () => {
+    const cmd = tmuxArgs('w-abc', uuid)!.at(-1)!;
+    expect(cmd).toContain('session-tail.py');
+    expect(cmd).toContain(`${uuid}.jsonl`);
+    expect(cmd).toMatch(/; exec bash -l'$/);
+  });
+
+  it('refuses a watch target that is not a session uuid', () => {
+    expect(tmuxArgs('w-abc', "x'; rm -rf ~; '")).toBeNull();
+    expect(tmuxArgs('w-abc', '../../etc/passwd')).toBeNull();
+    expect(tmuxArgs('w-abc', '')).toBeNull();
+  });
+});
+
+describe('idleWatchers', () => {
+  const now = 1_000_000_000;
+  it('picks watch panes unwatched past the idle window', () => {
+    const out = idleWatchers([
+      { id: 'w-old', idleSince: now - 20 * 60_000 },
+      { id: 'w-fresh', idleSince: now - 60_000 },
+      { id: 'w-watched', idleSince: null },
+      { id: 'main', idleSince: now - 99 * 60_000 },
+      { id: 'w-orphan', idleSince: 0 },
+    ], now);
+    expect(out).toEqual(['w-old', 'w-orphan']);
+  });
+});
+
+describe('resumeTerm', () => {
+  const uuid = '55b717e4-4e61-4a4f-83f9-2d2a4cdea948';
+  it('refuses anything that is not an open watch pane of that session', async () => {
+    expect(await resumeTerm('bad id', uuid)).toBe(false);
+    expect(await resumeTerm('w-abc', 'x; rm -rf ~')).toBe(false);
+    expect(await resumeTerm('w-never-opened', uuid)).toBe(false);
   });
 });

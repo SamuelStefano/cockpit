@@ -3,6 +3,10 @@ import type { CanvasEdge, CanvasNode, CanvasPos } from '../../../shared/canvas';
 import { CanvasEdges } from './CanvasEdges';
 import { CanvasNodeCard } from './CanvasNodeCard';
 import { CanvasToolbar } from './CanvasToolbar';
+import { CanvasWindows } from './CanvasWindows';
+import type { TermApi } from '../../useCockpit';
+import type { CanvasTerms } from './useCanvasTerms';
+import { TERM_H, TERM_W } from './canvas-terms';
 import { neighbors } from './canvas-filter';
 import { useCanvasViewport } from './useCanvasViewport';
 import { useNodeDrag } from './useNodeDrag';
@@ -21,6 +25,12 @@ interface Props {
   onClear: () => void;
   onDrop: (p: Record<string, CanvasPos>) => void;
   onResetLayout: () => void;
+  windows: Set<string>;
+  terms: CanvasTerms;
+  term: TermApi;
+  onOpenChat: (sessionId: string) => void;
+  onOpenRecent: () => void;
+  onOpenTerm: (id: string) => void;
   children?: React.ReactNode;
 }
 
@@ -49,6 +59,17 @@ export function CanvasSurface(p: Props) {
   // request (keyed on `req.n`) and read the current position through a ref.
   const posRef = useRef(p.pos);
   posRef.current = p.pos;
+  const windowsRef = useRef(p.windows);
+  windowsRef.current = p.windows;
+
+  // "Open recent" drops a batch of windows into the lane, usually off-screen:
+  // frame them once the new bounds land instead of leaving the user to hunt.
+  const fitNext = useRef(false);
+  useEffect(() => {
+    if (!fitNext.current) return;
+    fitNext.current = false;
+    fit(p.initialBounds, INITIAL_MIN_ZOOM);
+  }, [p.initialBounds, fit]);
   const req = p.centerRequest;
   const centeredN = useRef<number | null>(null);
   useEffect(() => {
@@ -56,7 +77,8 @@ export function CanvasSurface(p: Props) {
     const target = posRef.current[req.id];
     if (!target) return;
     centeredN.current = req.n;
-    centerOn(target);
+    if (windowsRef.current.has(req.id)) centerOn(target, TERM_W, TERM_H);
+    else centerOn(target);
   }, [req, centerOn]);
 
   const focus = useMemo(() => {
@@ -65,6 +87,9 @@ export function CanvasSurface(p: Props) {
     return out;
   }, [p.selected, p.edges]);
   const selectedSet = useMemo(() => new Set(p.selected), [p.selected]);
+
+  const cards = useMemo(() => p.nodes.filter((n) => !p.windows.has(n.id)), [p.nodes, p.windows]);
+  const wins = useMemo(() => p.nodes.filter((n) => p.windows.has(n.id)), [p.nodes, p.windows]);
 
   const { view } = vp;
   const grid = 24 * view.k;
@@ -92,17 +117,27 @@ export function CanvasSurface(p: Props) {
     >
       <div className="absolute left-0 top-0 origin-top-left" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})` }}>
         <CanvasEdges edges={p.edges} pos={pos} focus={focus} />
-        {p.nodes.map((n) => pos[n.id] && (
+        {cards.map((n) => pos[n.id] && (
           <CanvasNodeCard
             key={n.id} node={n} pos={pos[n.id]} compact={compact} zoom={view.k}
             selected={selectedSet.has(n.id)} dim={focus.size > 0 && !focus.has(n.id)}
             running={n.kind === 'session' && p.running.has(n.ref)} waiting={n.kind === 'session' && p.waiting.has(n.ref)}
-            onPointerDown={onNodeDown}
+            onPointerDown={onNodeDown} onOpenTerm={p.onOpenTerm}
           />
         ))}
+        <CanvasWindows
+          nodes={wins} pos={pos} terms={p.terms} term={p.term} selected={selectedSet} focus={focus}
+          running={p.running} waiting={p.waiting} onPointerDown={onNodeDown} onOpenChat={p.onOpenChat}
+        />
       </div>
       {p.children}
-      <CanvasToolbar zoom={view.k} onZoom={vp.zoomBy} onFit={() => fit(p.bounds)} onResetLayout={p.onResetLayout} />
+      <CanvasToolbar zoom={view.k} onZoom={vp.zoomBy} onFit={() => fit(p.bounds)} onResetLayout={p.onResetLayout} onNewTerminal={p.terms.newShell} onOpenRecent={() => {
+        fitNext.current = true;
+        // Nothing new to open leaves the bounds as they were; don't let the
+        // armed fit fire later on an unrelated auto-open.
+        setTimeout(() => { fitNext.current = false; }, 1000);
+        p.onOpenRecent();
+      }} />
     </div>
   );
 }

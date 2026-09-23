@@ -22,7 +22,8 @@ export function useTerminalTabs(term: TermApi, discoveredTerms: string[] = [], l
 
   // Sessões tmux vivas no servidor que ainda não estão abertas como aba aqui:
   // permite reanexar (as "branches" persistentes da VPS, visíveis de outro device).
-  const attachable = discoveredTerms.filter((id) => !terminals.some((t) => t.id === id));
+  // `w-*` panes follow a session transcript for the canvas; they are not shells.
+  const attachable = discoveredTerms.filter((id) => !id.startsWith('w-') && !terminals.some((t) => t.id === id));
 
   // Aba com sessão VIVA no servidor. Era `terminals[0]`, que existe sempre (a semente
   // 'main'), então o ponto verde de "tem terminal rodando" ficava aceso pra sempre.

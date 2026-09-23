@@ -1,6 +1,6 @@
 import type { WebSocket } from 'ws';
 import type { ClientMsg } from '../../shared/protocol';
-import { openTerm, detachTerm, inputTerm, resizeTerm, closeTerm, listTerms } from '../terminals';
+import { openTerm, detachTerm, inputTerm, resizeTerm, closeTerm, listTerms, resumeTerm, ensureWatchReaper } from '../terminals';
 import { send, BACKPRESSURE_BYTES } from './broadcast';
 
 export type TermHandle = { onData: (d: string) => void; onExit: () => void };
@@ -24,12 +24,26 @@ export function handleTerm(
       };
       const onExit = () => { send(ws, { t: 'term-exit', termId: msg.termId }); myTerms.delete(msg.termId); };
       const onReplay = (data: string) => send(ws, { t: 'term-replay', termId: msg.termId, data });
-      const ok = openTerm(msg.termId, msg.cols, msg.rows, onData, onExit, onReplay);
+      const ok = openTerm(msg.termId, msg.cols, msg.rows, onData, onExit, onReplay, typeof msg.watch === 'string' ? msg.watch : undefined);
       if (ok) myTerms.set(msg.termId, { onData, onExit });
       else send(ws, { t: 'term-exit', termId: msg.termId });
       return true;
     }
-    case 'term-list': { void listTerms().then((ids) => send(ws, { t: 'terms', ids })); return true; }
+    case 'term-list': {
+      ensureWatchReaper(); // sweeps watchers orphaned by a previous backend too
+      void listTerms().then((ids) => send(ws, { t: 'terms', ids }));
+      return true;
+    }
+    case 'term-resume': {
+      if (typeof msg.termId !== 'string' || typeof msg.watch !== 'string') return true;
+      // Said inside the terminal itself: a keyless `error` frame only surfaces
+      // when the tab is hidden. Written to this socket only, never into tmux.
+      const termId = msg.termId;
+      void resumeTerm(termId, msg.watch).then((ok) => {
+        if (!ok) send(ws, { t: 'term-data', termId, data: '\r\n\x1b[33m[retomar recusado: o terminal já saiu do acompanhamento — rode claude --resume à mão]\x1b[0m\r\n' });
+      });
+      return true;
+    }
     case 'term-input': {
       // Cap de tamanho: um frame de 32MB (teto do transporte) escrito cru no PTY
       // é pressão de memória/CPU sem freio. Digitação/paste humanos cabem em 64KB.

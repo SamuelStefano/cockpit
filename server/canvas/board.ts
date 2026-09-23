@@ -16,7 +16,7 @@ const MAX_POS = 4000;
 const MAX_TITLE = 140;
 const MAX_PROMPT = 20_000;
 const MAX_LINKS = 60;
-const NODE_ID_RE = /^[sck]:[A-Za-z0-9_-]{1,80}$/;
+const NODE_ID_RE = /^[scktw]:[A-Za-z0-9_-]{1,80}$/;
 const REF_RE = /^[A-Za-z0-9_-]{1,80}$/;
 
 export function emptyBoard(): CanvasBoard {
