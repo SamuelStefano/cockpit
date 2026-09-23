@@ -38,7 +38,10 @@ export interface CanvasNode {
   waiting?: boolean; // session only: turn stopped on a pending AskUserQuestion
 }
 
-export type CanvasEdgeKind = 'read' | 'write' | 'link' | 'card' | 'topic';
+// 'card' = the agent actually ran on this session (marker-bound) or the card
+// links this context; 'input' = the user picked this session as prompt input,
+// which says nothing about who is running it or where "open session" should go.
+export type CanvasEdgeKind = 'read' | 'write' | 'link' | 'card' | 'topic' | 'input';
 
 export interface CanvasEdge {
   source: string;

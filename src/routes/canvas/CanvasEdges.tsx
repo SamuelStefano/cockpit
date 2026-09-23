@@ -17,6 +17,9 @@ const STYLE: Record<CanvasEdgeKind, { stroke: string; dash?: string; width: numb
   // own opacity scales with match weight so a strong guess reads darker than a
   // weak one even before the node is focused.
   topic: { stroke: 'rgba(94,234,212,0.45)', dash: '1 4', width: 1 },
+  // A user-picked prompt INPUT, not an agent run — thinner and cooler than
+  // `card` on purpose so it never reads as "this session is doing the work".
+  input: { stroke: 'rgba(147,197,253,0.5)', dash: '4 4', width: 1.2 },
 };
 
 function path(a: CanvasPos, b: CanvasPos): string {

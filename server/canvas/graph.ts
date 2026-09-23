@@ -105,8 +105,16 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
       title: card.title, subtitle: card.prompt.slice(0, 220), mtime: card.updatedAt, status: card.status,
     });
     for (const ctx of card.contextIds) if (ctxIds.has(ctx)) addEdge(cardNodeId(card.id), contextNodeId(ctx), 'card');
-    for (const sid of [...card.sessionIds, ...(boundByCard.get(card.id) ?? [])]) {
+    // Marker-bound sessions (the agent actually ran here) first, as 'card': run
+    // state and "open session" should only ever look at these. `card.sessionIds`
+    // are the user's prompt INPUT picks, not agent sessions — 'input' kind, and
+    // addEdge's dedup means an input pick that happens to already be bound stays
+    // 'card' rather than being downgraded.
+    for (const sid of boundByCard.get(card.id) ?? []) {
       if (sessionIds.has(sid)) addEdge(cardNodeId(card.id), sessionNodeId(sid), 'card');
+    }
+    for (const sid of card.sessionIds) {
+      if (sessionIds.has(sid)) addEdge(cardNodeId(card.id), sessionNodeId(sid), 'input');
     }
   }
 
