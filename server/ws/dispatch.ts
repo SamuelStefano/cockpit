@@ -33,7 +33,7 @@ import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
 import { detach } from './detach';
 import { startRun, routeSend, drainParked, runParkedInBackground, runParkedNow, acceptResumeOffer, type BgRunReject, type NowRunReject } from './runs';
-import { threads, stopSession, resolveThreadKey } from './threads';
+import { threads, stopSession, resolveThreadKey, runningSessionIds } from './threads';
 import { clearAwaiting } from './awaiting';
 import { addParked, removeParked, editParked, moveParked, clearParked, retryParked, parkedView, isQueuePaused, setQueuePaused, REJECT_MESSAGE } from './parked';
 import { refreshModels } from './models';
@@ -179,7 +179,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // drag-end/card-save write and answer with a stale board (review #7).
       const board = await readBoardChained();
       send(ws, boardFrame(board));
-      const graph = await buildCanvas(board);
+      const graph = await buildCanvas(board, runningSessionIds());
       // Cheapest refresh point for the autopause loop's session->area cache
       // (canvas/autopause-loop.ts): reuses this exact graph, no extra build.
       updateAreaCacheFromGraph(graph);
@@ -205,13 +205,13 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       if (!card) { send(ws, { t: 'error', message: 'card inválido' }); return; }
       const board = await updateBoard((b) => upsertCard(b, card));
       send(ws, boardFrame(board));
-      send(ws, { t: 'canvas-graph', graph: await buildCanvas(board) });
+      send(ws, { t: 'canvas-graph', graph: await buildCanvas(board, runningSessionIds()) });
       return;
     }
     case 'canvas-card-delete': {
       const board = await updateBoard((b) => removeCard(b, String(msg.id ?? '')));
       send(ws, boardFrame(board));
-      send(ws, { t: 'canvas-graph', graph: await buildCanvas(board) });
+      send(ws, { t: 'canvas-graph', graph: await buildCanvas(board, runningSessionIds()) });
       return;
     }
     case 'canvas-flow-save': {

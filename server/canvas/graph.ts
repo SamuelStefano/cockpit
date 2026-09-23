@@ -6,6 +6,13 @@ import {
 import type { SessionRefs } from './refs';
 import { createTopicMatcher, type MatchDoc } from './topics';
 import { classifyAreas } from './areas';
+import { buildConflictEdges } from './conflicts';
+
+// Same notion of "active" as the client's canvas-filter (scope=active): a
+// session with real signs of life right now, not just "touched sometime this
+// week". Duplicated rather than imported — canvas-filter.ts lives under
+// src/routes (a client module) and this is server-only.
+export const ACTIVE_WINDOW_MS = 48 * 3600_000;
 
 export interface ContextDoc {
   id: string;
@@ -24,6 +31,7 @@ export interface GraphInput {
   refs: Map<string, SessionRefs>;
   contexts: ContextDoc[];
   cards: CanvasCard[];
+  running?: Set<string>; // session ids with a live thread right now
   now?: number;
 }
 
@@ -68,13 +76,20 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
   const matchDocs: MatchDoc[] = input.contexts.map((c) => ({ id: c.id, name: c.name, description: c.description, hub: c.id.startsWith('hub_'), links: c.links }));
   const matchTopics = createTopicMatcher(matchDocs);
 
+  const now = input.now ?? Date.now();
+  const running = input.running ?? new Set<string>();
+  const activeIds = new Set<string>();
+  const writesBySession: { id: string; writes: Record<string, number> }[] = [];
   for (const { meta, archived } of input.sessions) {
+    const refs = input.refs.get(meta.id);
     nodes.push({
       id: sessionNodeId(meta.id), kind: 'session', ref: meta.id,
       title: meta.title, subtitle: (meta.summary || meta.snippet || '').slice(0, 220),
       mtime: meta.mtime, archived: archived || undefined, count: meta.count, waiting: meta.waiting || undefined,
+      activity: refs?.activity?.length ? refs.activity : undefined,
     });
-    const refs = input.refs.get(meta.id);
+    if (running.has(meta.id) || meta.waiting || now - meta.mtime < ACTIVE_WINDOW_MS) activeIds.add(meta.id);
+    if (refs?.writes && Object.keys(refs.writes).length) writesBySession.push({ id: meta.id, writes: refs.writes });
     if (!refs) continue;
     for (const [ctx, kind] of Object.entries(refs.contexts)) {
       if (!ctxIds.has(ctx)) continue;
@@ -131,9 +146,16 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
     }
   }
 
-  // Areas by work front, last: needs the full hub/leaf/session edge set above.
+  for (const e of buildConflictEdges({ sessions: writesBySession, active: activeIds, now })) {
+    const key = `${e.source}>${e.target}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    edges.push(e);
+  }
+
+  // Areas by work front, last: needs the full hub/leaf/session/conflict edge set above.
   const areas = classifyAreas(nodes, edges);
   for (const n of nodes) { const a = areas.get(n.id); if (a) n.area = a; }
 
-  return { nodes, edges, builtAt: input.now ?? Date.now() };
+  return { nodes, edges, builtAt: now };
 }

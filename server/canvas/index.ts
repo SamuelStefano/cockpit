@@ -16,6 +16,12 @@ import { readBoard } from './board';
 const CHUNK = 4 * 1024 * 1024;
 const SLUG_RE = /^[a-zA-Z0-9_-]{1,80}$/;
 
+// Bump whenever SessionRefs gains a field that a full rescan (not a tail
+// resume) is the only way to backfill — e.g. `writes`/`activity` here: bytes
+// already consumed by an old cache entry were never scanned for those, so a
+// mismatched version forces every session back to a from-scratch scan.
+const CACHE_VERSION = 2;
+
 function refsFile(): string {
   return process.env.COCKPIT_CANVAS_REFS ?? join(homedir(), '.cockpit', 'canvas-refs.json');
 }
@@ -34,8 +40,12 @@ let cache: RefsCache | null = null;
 async function loadCache(): Promise<RefsCache> {
   if (cache) return cache;
   try {
-    const raw = JSON.parse(await readFile(refsFile(), 'utf8')) as Record<string, SessionRefs & { size: number }>;
-    cache = new Map(Object.entries(raw));
+    const raw = JSON.parse(await readFile(refsFile(), 'utf8')) as
+      { version?: number; entries?: Record<string, SessionRefs & { size: number }> };
+    // No `version` (pre-versioning cache) or a stale one: discard rather than
+    // adopt — an entry scanned under the old field set would otherwise look
+    // "done" forever and never backfill `writes`/`activity`.
+    cache = raw.version === CACHE_VERSION && raw.entries ? new Map(Object.entries(raw.entries)) : new Map();
   } catch {
     cache = new Map();
   }
@@ -66,7 +76,7 @@ export function __resetCanvasRefsCache(): void {
 async function saveCache(c: RefsCache): Promise<void> {
   const f = refsFile();
   await mkdir(dirname(f), { recursive: true });
-  await writeFile(`${f}.tmp`, JSON.stringify(Object.fromEntries(c)), 'utf8');
+  await writeFile(`${f}.tmp`, JSON.stringify({ version: CACHE_VERSION, entries: Object.fromEntries(c) }), 'utf8');
   await rename(`${f}.tmp`, f);
 }
 
@@ -133,7 +143,7 @@ async function readContextDir(dir: string, archived: boolean): Promise<ContextDo
 
 let inflight: Promise<CanvasGraph> | null = null;
 
-export function buildCanvas(board?: CanvasBoard): Promise<CanvasGraph> {
+export function buildCanvas(board?: CanvasBoard, running?: Set<string>): Promise<CanvasGraph> {
   if (inflight) return inflight;
   inflight = (async () => {
     const c = await loadCache();
@@ -159,7 +169,7 @@ export function buildCanvas(board?: CanvasBoard): Promise<CanvasGraph> {
       seenArch.add(doc.id);
       arch.push(doc);
     }
-    return buildCanvasGraph({ sessions, refs, contexts: [...mem, ...arch], cards: b.cards });
+    return buildCanvasGraph({ sessions, refs, contexts: [...mem, ...arch], cards: b.cards, running });
   })().finally(() => { inflight = null; });
   return inflight;
 }

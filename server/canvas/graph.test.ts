@@ -138,4 +138,46 @@ describe('buildCanvasGraph', () => {
     });
     expect(g.edges).toEqual([{ source: `s:${S1}`, target: 'c:cockpit_ping_regression', kind: 'write' }]);
   });
+
+  it('carries merged activity intervals onto the session node', () => {
+    const g = buildCanvasGraph({
+      sessions: [{ meta: meta(S1), archived: false }],
+      refs: new Map([[S1, { contexts: {}, activity: [[10, 20]], consumed: 0 }]]),
+      contexts: [],
+      cards: [],
+    });
+    expect(g.nodes.find((n) => n.id === `s:${S1}`)?.activity).toEqual([[10, 20]]);
+  });
+
+  it('adds a conflict edge when two sessions wrote the same file inside the window and one is running', () => {
+    const path = '/home/u/repo/src/App.tsx';
+    const g = buildCanvasGraph({
+      sessions: [{ meta: meta(S1), archived: false }, { meta: meta(S2), archived: false }],
+      refs: new Map([
+        [S1, { contexts: {}, writes: { [path]: 1000 }, consumed: 0 }],
+        [S2, { contexts: {}, writes: { [path]: 1000 + 60_000 }, consumed: 0 }],
+      ]),
+      contexts: [],
+      cards: [],
+      running: new Set([S1]),
+      now: 2_000_000,
+    });
+    const conflict = g.edges.find((e) => e.kind === 'conflict');
+    expect(conflict).toMatchObject({ source: `s:${S1}`, target: `s:${S2}`, files: [path] });
+  });
+
+  it('does not add a conflict edge when neither session is active (running/waiting/recent)', () => {
+    const path = '/home/u/repo/src/App.tsx';
+    const g = buildCanvasGraph({
+      sessions: [{ meta: meta(S1), archived: false }, { meta: meta(S2), archived: false }],
+      refs: new Map([
+        [S1, { contexts: {}, writes: { [path]: 0 }, consumed: 0 }],
+        [S2, { contexts: {}, writes: { [path]: 1000 }, consumed: 0 }],
+      ]),
+      contexts: [],
+      cards: [],
+      now: 100 * 3600_000, // well past the 48h "recent" window from mtime 0
+    });
+    expect(g.edges.some((e) => e.kind === 'conflict')).toBe(false);
+  });
 });

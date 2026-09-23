@@ -18,6 +18,17 @@ export interface SessionTopics {
   mcp: Record<string, number>;
 }
 
+// Per-file write timestamps (ms epoch), absolute path -> last write. Feeds the
+// conflict-edge builder (two sessions writing the same file close in time).
+// Capped to the most recently written files so a long-lived session's cache
+// entry stays bounded.
+export type FileWrites = Record<string, number>;
+
+// Merged activity intervals (ms epoch, [start, end], ascending, newest last).
+// Records within ACTIVITY_MERGE_MS of the previous interval's end extend it
+// instead of opening a new one. Feeds the timeline's aliveAt().
+export type ActivityIntervals = [number, number][];
+
 export interface SessionRefs {
   contexts: Record<string, RefKind>;
   // How many tool calls touched each context, regardless of kind — a session
@@ -29,12 +40,21 @@ export interface SessionRefs {
   contextHits?: Record<string, number>;
   cardId?: string;
   topics?: SessionTopics;
+  writes?: FileWrites;
+  activity?: ActivityIntervals;
   consumed: number; // bytes of complete lines already scanned (JSONL is append-only)
 }
 
 const MEM_RE = /\/memory\/([A-Za-z0-9_-]{1,80})\.md\b/g;
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit']);
 const PATH_TOOLS = new Set(['Read', 'Write', 'Edit', 'MultiEdit']);
+// Tools that write an actual file on disk (as opposed to a memory-context
+// write, tracked separately above): candidates for the conflict-edge graph.
+const FILE_WRITE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
+const TIMESTAMP_RE = /"timestamp":"([^"]+)"/;
+const MAX_TRACKED_WRITES = 300;
+const MAX_ACTIVITY_INTERVALS = 200;
+const ACTIVITY_MERGE_MS = 15 * 60_000;
 
 // Repo/dir tokens: the first path segment under the home dir, skipping the
 // directories that are not a project (agent config, one-shot uploads, scratch).
@@ -47,7 +67,31 @@ const SKILL_RE = /"skill":"([a-zA-Z0-9_-]+)"/g;
 const MCP_RE = /"name":"mcp__([a-zA-Z0-9_-]+?)__/g;
 
 export function emptyRefs(): SessionRefs {
-  return { contexts: {}, topics: emptyTopics(), consumed: 0 };
+  return { contexts: {}, topics: emptyTopics(), writes: {}, activity: [], consumed: 0 };
+}
+
+// Records (or bumps) a write, then evicts the oldest entries once over the
+// cap — a full sort only runs on the rare session that actually crosses it.
+export function addWrite(writes: FileWrites, path: string, at: number): void {
+  writes[path] = Math.max(writes[path] ?? 0, at);
+  const keys = Object.keys(writes);
+  if (keys.length <= MAX_TRACKED_WRITES) return;
+  keys.sort((a, b) => writes[a] - writes[b]);
+  for (const k of keys.slice(0, keys.length - MAX_TRACKED_WRITES)) delete writes[k];
+}
+
+// Extends the last interval if `at` falls within the merge window of its end,
+// otherwise opens a new one. Assumes records arrive in roughly chronological
+// order (true within one scan pass; a rescan starts from an empty array).
+export function addActivity(activity: ActivityIntervals, at: number): void {
+  const last = activity[activity.length - 1];
+  if (last && at >= last[0] && at - last[1] <= ACTIVITY_MERGE_MS) {
+    if (at > last[1]) last[1] = at;
+    return;
+  }
+  if (last && at < last[1]) return; // stray out-of-order timestamp; not worth a new interval
+  activity.push([at, at]);
+  if (activity.length > MAX_ACTIVITY_INTERVALS) activity.shift();
 }
 
 export function emptyTopics(): SessionTopics {
@@ -108,7 +152,12 @@ function firstUserText(content: unknown): string {
 
 export function scanRefsLine(line: string, refs: SessionRefs): void {
   scanTopicsLine(line, refs.topics ?? (refs.topics = emptyTopics()));
-  const maybeTool = line.includes('"tool_use"') && line.includes('/memory/');
+  const tsMatch = TIMESTAMP_RE.exec(line);
+  const at = tsMatch ? Date.parse(tsMatch[1]) : NaN;
+  if (!Number.isNaN(at)) addActivity(refs.activity ?? (refs.activity = []), at);
+  // Broad on purpose (any tool_use line, not just one mentioning /memory/):
+  // Edit/Write/MultiEdit/NotebookEdit on a real file live outside /memory/.
+  const maybeTool = line.includes('"tool_use"');
   const maybeCard = !refs.cardId && line.includes('[deck-card:');
   if (!maybeTool && !maybeCard) return;
   let rec: { type?: string; message?: { content?: unknown } };
@@ -132,6 +181,11 @@ export function scanRefsLine(line: string, refs: SessionRefs): void {
       for (const id of memIds(b.input.file_path)) addRef(refs, id, WRITE_TOOLS.has(b.name) ? 'write' : 'read');
     } else if (b.name === 'Bash' && typeof b.input.command === 'string') {
       for (const id of memIds(b.input.command)) addRef(refs, id, 'read');
+    }
+    if (FILE_WRITE_TOOLS.has(b.name) && !Number.isNaN(at)) {
+      const path = typeof b.input.file_path === 'string' ? b.input.file_path
+        : typeof b.input.notebook_path === 'string' ? b.input.notebook_path : undefined;
+      if (path) addWrite(refs.writes ?? (refs.writes = {}), path, at);
     }
   }
 }
