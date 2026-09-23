@@ -29,7 +29,7 @@ const isLegacyEpic = (createdAt?: string | null): boolean =>
 
 // Linhas cruas do PostgREST (snake_case). O sync passa exatamente o que leu.
 export interface DflRawInput {
-  tasks: { id: string; name: string; status: string; points: number | null; epic_id: string | null; delivery_id: string | null }[];
+  tasks: { id: string; name: string; status: string; points: number | null; epic_id: string | null; delivery_id: string | null; updated_at?: string | null }[];
   deliveries: { id: string; name: string; epic_id: string | null; status: string; price_per_point: number | null; transaction_id: string | null }[];
   epics: { id: string; name: string; project_id: string | null; status: string; created_at?: string | null }[];
   projects: { id: string; name: string }[];
@@ -126,7 +126,11 @@ export function foldDflTree(input: DflRawInput, syncedAt: number): DflPointsSnap
       dAcc = { id: delId, name: del?.name ?? 'Sem delivery', status: del?.status ?? '', pricePerPoint: pricePerPoint(t.delivery_id), transactionId: del?.transaction_id ?? undefined, tasks: [] };
       eAcc.deliveries.set(delId, dAcc);
     }
-    dAcc.tasks.push({ id: t.id, name: t.name, points, status, rawStatus: t.status, amountCents });
+    const updatedAt = typeof t.updated_at === 'string' ? Date.parse(t.updated_at) : NaN;
+    dAcc.tasks.push({
+      id: t.id, name: t.name, points, status, rawStatus: t.status, amountCents,
+      ...(Number.isFinite(updatedAt) ? { updatedAt } : {}),
+    });
   }
 
   const projectNodes: DflProjectNode[] = [];

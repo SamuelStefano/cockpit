@@ -115,7 +115,10 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
           onLaunchFork={c.onLaunchFork} canvasForkRuns={c.canvasForkRuns} pendingSessionIds={c.pendingSessionIds}
           term={c.term} discoveredTerms={c.discoveredTerms} listTerms={c.listTerms}
           termStats={c.canvasTermStats} onTermStats={c.onCanvasTermStats} onCanvasCtxStats={c.onCanvasCtxStats}
-          areaUsage={c.canvasAreaUsage} interrupted={c.interrupted} />
+          areaUsage={c.canvasAreaUsage} interrupted={c.interrupted}
+          dflSnapshot={c.dflSnapshot} onDflGet={c.onDflGet}
+          onDflTaskLink={c.onDflTaskLink} onDflTaskCreateLink={c.onDflTaskCreateLink} onDflTaskUnlink={c.onDflTaskUnlink}
+          onDflTaskConfirmSync={c.onDflTaskConfirmSync} />
       );
     }
     if (route === '/harness' && isAdmin) {

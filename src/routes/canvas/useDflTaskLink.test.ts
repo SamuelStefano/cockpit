@@ -1,0 +1,40 @@
+import { describe, it, expect } from 'vitest';
+import type { DflPointsSnapshot } from '../../../shared/protocol';
+import { flattenDflDeliveries, flattenDflTasks } from './useDflTaskLink';
+
+function snapshot(): DflPointsSnapshot {
+  return {
+    projects: [{
+      id: 'p1', name: 'Proj', points: 0, amountCents: 0,
+      epics: [{
+        id: 'e1', name: 'Epic', status: '', points: 0, amountCents: 0,
+        deliveries: [{
+          id: 'd1', name: 'Delivery', status: '', pricePerPoint: 75, points: 0, amountCents: 0,
+          tasks: [{ id: 't1', name: 'Task 1', points: 1, status: 'todo', rawStatus: 'to_do', amountCents: 0 }],
+        }],
+      }],
+    }],
+    invoices: [], totals: { paidPoints: 0, paidAmountCents: 0, openPoints: 0, amountOpenCents: 0, todoPoints: 0, totalPoints: 0 },
+    pricePerPoint: 75, syncedAt: 1, stale: false,
+  };
+}
+
+describe('flattenDflTasks', () => {
+  it('flattens the project›epic›delivery›task tree into a searchable list', () => {
+    expect(flattenDflTasks(snapshot())).toEqual([
+      { id: 't1', name: 'Task 1', deliveryName: 'Delivery', epicName: 'Epic', projectName: 'Proj' },
+    ]);
+  });
+  it('an absent snapshot (sync never ran) flattens to an empty list, not a crash', () => {
+    expect(flattenDflTasks(null)).toEqual([]);
+  });
+});
+
+describe('flattenDflDeliveries', () => {
+  it('flattens deliveries with a breadcrumb label, keeping the epicId+deliveryId pair', () => {
+    expect(flattenDflDeliveries(snapshot())).toEqual([{ epicId: 'e1', deliveryId: 'd1', label: 'Proj / Epic / Delivery' }]);
+  });
+  it('an absent snapshot flattens to an empty list', () => {
+    expect(flattenDflDeliveries(null)).toEqual([]);
+  });
+});

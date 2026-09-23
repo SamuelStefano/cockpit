@@ -258,6 +258,14 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
       toast(`Área ${AREA_LABELS[msg.area]} estourou o orçamento: parou "${msg.sessionTitle}" (${msg.reason}).`, { tone: 'error', durationMs: 8000 });
       return true;
     }
+    // A Deck->DFL status push exhausted its retries (server/canvas/
+    // dfl-status-sync.ts). The persistent "sync pendente" badge lives on the
+    // card itself (dfl.error, via the canvas-board frame that always follows
+    // this); this is only the one-shot notification.
+    if (msg.t === 'canvas-dfl-sync-error') {
+      toast(`Sync DFL falhou: ${msg.message}`, { tone: 'error', durationMs: 8000 });
+      return true;
+    }
     return false;
   }, [settle]);
 

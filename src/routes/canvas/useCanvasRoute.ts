@@ -5,6 +5,8 @@ import type {
 import { AREA_IDS } from '../../../shared/canvas';
 import { buildContentPrompt, buildContinuePrompt, buildTaskPrompt } from '../../../shared/canvas-prompt';
 import { evaluateBudget, type AreaUsage, type BudgetStatus } from '../../../shared/canvas-budget';
+import type { DflPointsSnapshot } from '../../../shared/protocol';
+import type { DflWriteResult } from '../../cockpit/usePoints';
 import type { Session } from '../../data/types';
 import type { TermApi } from '../../useCockpit';
 import { toast } from '../../components/primitives';
@@ -73,6 +75,15 @@ export interface CanvasRouteProps {
   // client just watched happen (src/useCockpit.ts `interrupted`) — a faster,
   // client-only supplement to the server-persisted lastTurnOk on p.sessions.
   interrupted: Record<string, string>;
+  // Kanban<->DFL card link (CardEditor's "vincular à task DFL"): the same
+  // owner-filtered read channel /pontos already uses (usePoints.ts), reused
+  // here rather than a second fetch of the same data.
+  dflSnapshot: DflPointsSnapshot | null;
+  onDflGet: () => void;
+  onDflTaskLink: (cardId: string, taskId: string) => Promise<DflWriteResult>;
+  onDflTaskCreateLink: (cardId: string, taskName: string, epicId: string, deliveryId: string, why: string, what: string) => Promise<DflWriteResult>;
+  onDflTaskUnlink: (cardId: string) => boolean;
+  onDflTaskConfirmSync: (cardId: string) => Promise<DflWriteResult>;
 }
 
 export type CanvasMode = 'canvas' | 'kanban';

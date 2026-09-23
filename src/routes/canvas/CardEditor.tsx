@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { CARD_STATUSES, CONTENT_FORMATS, type CanvasCard, type CanvasEdge, type CanvasNode, type TermStats } from '../../../shared/canvas';
 import { FORMAT_LABEL } from '../../../shared/canvas-prompt';
+import type { DflPointsSnapshot } from '../../../shared/protocol';
+import type { DflWriteResult } from '../../cockpit/usePoints';
 import { Button, Input, Modal, ToggleChip } from '../../components/primitives';
 import { STATUS_LABEL } from './canvas-labels';
 import { CardReusePicker } from './CardReusePicker';
+import { DflLinkSection } from './DflLinkSection';
 import { useCardReuse } from './useCardReuse';
 
 interface Props {
@@ -24,6 +27,12 @@ interface Props {
   onRun: (card: CanvasCard) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
+  // Kanban<->DFL link (opt-in, DFL-area cards only — see DflLinkSection).
+  dflSnapshot: DflPointsSnapshot | null;
+  onDflTaskLink: (cardId: string, taskId: string) => Promise<DflWriteResult>;
+  onDflTaskCreateLink: (cardId: string, taskName: string, epicId: string, deliveryId: string, why: string, what: string) => Promise<DflWriteResult>;
+  onDflTaskUnlink: (cardId: string) => boolean;
+  onDflTaskConfirmSync: (cardId: string) => Promise<DflWriteResult>;
 }
 
 function Chips({ ids, prefix, node, onRemove }: { ids: string[]; prefix: 'c' | 's'; node: Props['node']; onRemove: (id: string) => void }) {
@@ -38,12 +47,19 @@ function Chips({ ids, prefix, node, onRemove }: { ids: string[]; prefix: 'c' | '
   );
 }
 
-export function CardEditor({ card: initial, isNew, node, sessions, edges, running, termStats, onCtxStats, onSave, onRun, onDelete, onClose }: Props) {
+export function CardEditor({
+  card: initial, isNew, node, sessions, edges, running, termStats, onCtxStats, onSave, onRun, onDelete, onClose,
+  dflSnapshot, onDflTaskLink, onDflTaskCreateLink, onDflTaskUnlink, onDflTaskConfirmSync,
+}: Props) {
   const [card, setCard] = useState(initial);
   const patch = (p: Partial<CanvasCard>) => setCard((c) => ({ ...c, ...p }));
   const ok = card.title.trim().length > 0;
   const content = card.kind === 'content';
   const { candidates, pickReuse } = useCardReuse({ isNew, card, patch, sessions, edges, running, termStats, onCtxStats });
+  // Server-derived (server/canvas/areas.ts), never client-guessed — a brand
+  // new (unsaved) card has no node yet, so it can't offer the link until
+  // saved once (same reason its context/session chips only work post-save).
+  const isDflArea = !isNew && node(`k:${card.id}`)?.area === 'dfl';
 
   return (
     <Modal
@@ -92,6 +108,19 @@ export function CardEditor({ card: initial, isNew, node, sessions, edges, runnin
           </div>
         </div>
         <CardReusePicker reuse={card.reuse} candidates={candidates} onClear={() => patch({ reuse: undefined })} onPick={pickReuse} />
+        {(isDflArea || card.dfl) && (
+          <DflLinkSection
+            card={card} isDflArea={isDflArea} snapshot={dflSnapshot}
+            // Optimistic local patch on top of the server round-trip: without
+            // it the modal's own `card` state (a snapshot taken at open time)
+            // would keep showing the old link/unlink state until the editor
+            // is closed and reopened.
+            onLink={async (id, taskId) => { const r = await onDflTaskLink(id, taskId); if (r.ok) patch({ dfl: { taskId, lastSyncedAt: Date.now() } }); return r; }}
+            onCreateLink={onDflTaskCreateLink}
+            onUnlink={(id) => { const ok = onDflTaskUnlink(id); patch({ dfl: undefined }); return ok; }}
+            onConfirmSync={onDflTaskConfirmSync}
+          />
+        )}
       </div>
     </Modal>
   );

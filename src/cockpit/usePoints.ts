@@ -40,6 +40,16 @@ export interface Points {
   onDflChange: (p: DflChange) => Promise<DflWriteResult>;
   onDflInvoice: (p: DflInvoice) => Promise<DflWriteResult>;
   onPontosAgent: (p: PontosAgentTasks) => Promise<DflWriteResult>;
+  // Kanban<->DFL card link (Canvas' CardEditor). Same request/response shape
+  // as onDflChange/onDflInvoice (reqId casado via dflWrite); onDflTaskUnlink
+  // has no server ack to wait on — it's always local-only. onDflTaskConfirmSync
+  // is the ONLY path that pushes a review/done status for real (server
+  // requires a human action for those, never automatic — see
+  // statusNeedsHumanConfirm/shared/canvas.ts).
+  onDflTaskLink: (cardId: string, taskId: string) => Promise<DflWriteResult>;
+  onDflTaskCreateLink: (cardId: string, taskName: string, epicId: string, deliveryId: string, why: string, what: string) => Promise<DflWriteResult>;
+  onDflTaskUnlink: (cardId: string) => boolean;
+  onDflTaskConfirmSync: (cardId: string) => Promise<DflWriteResult>;
   onDraftsGet: () => void;
   onDraftOp: (op: DraftOp) => boolean;
   onMsg: (msg: ServerMsg) => boolean;
@@ -81,6 +91,11 @@ export function usePoints(send: (m: ClientMsg) => boolean): Points {
         setDraftsLoaded(true);
         return true;
       case 'points-dfl-write': {
+        const resolve = writeResolvers.current.get(msg.reqId);
+        if (resolve) { writeResolvers.current.delete(msg.reqId); resolve({ ok: msg.ok, message: msg.message }); }
+        return true;
+      }
+      case 'dfl-task-write': {
         const resolve = writeResolvers.current.get(msg.reqId);
         if (resolve) { writeResolvers.current.delete(msg.reqId); resolve({ ok: msg.ok, message: msg.message }); }
         return true;
@@ -128,6 +143,22 @@ export function usePoints(send: (m: ClientMsg) => boolean): Points {
     onPontosAgent: useCallback((p: PontosAgentTasks) => {
       const reqId = crypto.randomUUID();
       return dflWrite({ t: 'pontos-agent-tasks', reqId, ...p }, reqId);
+    }, [dflWrite]),
+    // `confirm: true` literal, always — the UI only calls this from the
+    // reviewed confirm step (DflLinkSection); there is no path that sends
+    // false/omitted, matching the server's hard requirement for it.
+    onDflTaskLink: useCallback((cardId: string, taskId: string) => {
+      const reqId = crypto.randomUUID();
+      return dflWrite({ t: 'dfl-task-link', reqId, cardId, taskId, confirm: true }, reqId);
+    }, [dflWrite]),
+    onDflTaskCreateLink: useCallback((cardId: string, taskName: string, epicId: string, deliveryId: string, why: string, what: string) => {
+      const reqId = crypto.randomUUID();
+      return dflWrite({ t: 'dfl-task-create-link', reqId, cardId, taskName, epicId, deliveryId, why, what, confirm: true }, reqId);
+    }, [dflWrite]),
+    onDflTaskUnlink: useCallback((cardId: string) => send({ t: 'dfl-task-unlink', cardId }), [send]),
+    onDflTaskConfirmSync: useCallback((cardId: string) => {
+      const reqId = crypto.randomUUID();
+      return dflWrite({ t: 'dfl-task-confirm-sync', reqId, cardId }, reqId);
     }, [dflWrite]),
     onDraftsGet: useCallback(() => { send({ t: 'drafts-get' }); }, [send]),
     onDraftOp: useCallback((op: DraftOp) => send({ t: 'drafts-op', op }), [send]),

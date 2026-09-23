@@ -58,7 +58,7 @@ interface RawBundle {
 
 // Busca os 6 datasets, cada um FILTRADO na origem pelas identidades do Samuel.
 export async function fetchDflBundle(creds: Creds): Promise<RawBundle> {
-  const tasks = await pgGet(creds, 'work', `tasks?owner_id=eq.${OWNER_ID}&select=id,name,status,points,epic_id,delivery_id,owner_id`) as RawTask[];
+  const tasks = await pgGet(creds, 'work', `tasks?owner_id=eq.${OWNER_ID}&select=id,name,status,points,epic_id,delivery_id,owner_id,updated_at`) as RawTask[];
   const deliveries = await pgGet(creds, 'work', `deliveries?owner_id=eq.${OWNER_ID}&select=id,name,epic_id,status,price_per_point,transaction_id,owner_id`) as RawDelivery[];
   const epicIds = [...new Set([...tasks.map((t) => t.epic_id), ...deliveries.map((d) => d.epic_id)].filter(Boolean))] as string[];
   const epics = epicIds.length ? await pgGet(creds, 'work', `epics?id=in.(${epicIds.join(',')})&select=id,name,project_id,status,created_at`) as DflRawInput['epics'] : [];

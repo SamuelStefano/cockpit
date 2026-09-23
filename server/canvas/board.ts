@@ -93,7 +93,42 @@ export function setBudget(board: CanvasBoard, area: string, raw: unknown): Canva
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : '');
 const refs = (v: unknown) => (Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === 'string' && REF_RE.test(x)))].slice(0, MAX_LINKS) : []);
 
+const TASK_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_DFL_ERROR = 300;
+const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+
+// Re-validated every time a card is read (readBoard, on disk or off a fresh
+// frame) — a hand-edited board.json, or an older on-disk shape from before a
+// field existed, must never resurrect a bogus/malformed link just because it
+// LOOKS like a `dfl` object. Unknown/invalid shape -> undefined (no link),
+// never a partial/guessed one.
+export function sanitizeCardDfl(raw: unknown): CanvasCard['dfl'] {
+  const d = (raw ?? {}) as Record<string, unknown>;
+  if (typeof d.taskId !== 'string' || !TASK_UUID_RE.test(d.taskId)) return undefined;
+  const pending = CARD_STATUSES.includes(d.pending as CardStatus) ? (d.pending as CardStatus) : undefined;
+  return {
+    taskId: d.taskId,
+    ...(num(d.lastSyncedAt) !== undefined ? { lastSyncedAt: num(d.lastSyncedAt) } : {}),
+    ...(num(d.dflUpdatedAt) !== undefined ? { dflUpdatedAt: num(d.dflUpdatedAt) } : {}),
+    ...(pending ? { pending } : {}),
+    ...(d.awaitingConfirm === true ? { awaitingConfirm: true } : {}),
+    ...(typeof d.error === 'string' && d.error ? { error: d.error.slice(0, MAX_DFL_ERROR) } : {}),
+  };
+}
+
 // Frames arrive as raw JSON: every field is re-derived here, nothing is trusted.
+//
+// `dfl` is the ONE exception to "re-derived from THIS frame": it is
+// SERVER-OWNED, same rule as a flow's fires/lastFiredAt (sanitizeFlow above)
+// — always carried over from `prev` (itself re-validated by
+// sanitizeCardDfl — readBoard's own `prev` is the raw disk record, which
+// could be hand-edited or predate a field), NEVER read off the client's raw
+// card. Only server/ws/dispatch.ts's dfl-task-link / dfl-task-create-link /
+// dfl-task-unlink handlers (via setCardDflLink/clearCardDflLink below) and
+// the DFL status push/sync (server/canvas/dfl-status-sync.ts) are allowed to
+// set it — a client that forged `dfl.taskId` into a plain canvas-card-save
+// frame must never get a card that LOOKS linked without the server's own
+// area guard + snapshot-membership check ever running.
 export function sanitizeCard(raw: unknown, prev: CanvasCard | undefined, now: number): CanvasCard | null {
   const c = (raw ?? {}) as Record<string, unknown>;
   if (typeof c.id !== 'string' || !CARD_ID_RE.test(c.id)) return null;
@@ -102,12 +137,82 @@ export function sanitizeCard(raw: unknown, prev: CanvasCard | undefined, now: nu
   const status = CARD_STATUSES.includes(c.status as CanvasCard['status']) ? (c.status as CanvasCard['status']) : 'todo';
   const kind = c.kind === 'content' ? 'content' : 'task';
   const format = kind === 'content' && CONTENT_FORMATS.includes(c.format as never) ? (c.format as CanvasCard['format']) : undefined;
+  const dfl = prev?.dfl ? sanitizeCardDfl(prev.dfl) : undefined;
   return {
     id: c.id, title, prompt: str(c.prompt, MAX_PROMPT), status, kind, format,
     contextIds: refs(c.contextIds), sessionIds: refs(c.sessionIds),
     createdAt: prev?.createdAt ?? now, updatedAt: now,
     reuse: sanitizeReuse(c.reuse),
+    ...(dfl ? { dfl } : {}),
   };
+}
+
+// The 4 mutators below are the ONLY writers of CanvasCard.dfl — every one is
+// called from server code that already did its own validation (area guard,
+// snapshot membership, uuid) BEFORE reaching here; this layer just shapes
+// the stored value and caps the error string, same spirit as sanitizeCard.
+//
+// `dflUpdatedAt` is the DFL-CLOCK epoch ms of work.tasks.updated_at as
+// observed at link time (from the snapshot task that was just verified to
+// exist) or after a successful write (from that write's own response) —
+// NEVER derived from Deck's `now`. server/canvas/dfl-status-sync.ts's
+// conflict resolution compares this to a FRESH DFL read, never to the Deck
+// card's own updatedAt (see resolveDflStatusForCard).
+export function setCardDflLink(board: CanvasBoard, cardId: string, taskId: string, now: number, dflUpdatedAt?: number): CanvasBoard {
+  if (!TASK_UUID_RE.test(taskId)) return board;
+  const i = board.cards.findIndex((c) => c.id === cardId);
+  if (i < 0) return board;
+  const cards = [...board.cards];
+  cards[i] = { ...cards[i], dfl: { taskId, lastSyncedAt: now, ...(dflUpdatedAt !== undefined ? { dflUpdatedAt } : {}) } };
+  return { ...board, cards };
+}
+
+// Local-only: never contacts DFL, never deletes the task there (see
+// server/dfl-write.ts — there is no DELETE path on purpose). The caller
+// (server/ws/dispatch.ts) is also responsible for cancelling any in-flight
+// push for this card (server/canvas/dfl-status-sync.ts's
+// cancelPendingPush) — this function only touches board state.
+export function clearCardDflLink(board: CanvasBoard, cardId: string): CanvasBoard {
+  const i = board.cards.findIndex((c) => c.id === cardId);
+  if (i < 0 || !board.cards[i].dfl) return board;
+  const cards = [...board.cards];
+  const { dfl: _dfl, ...rest } = cards[i];
+  cards[i] = rest as CanvasCard;
+  return { ...board, cards };
+}
+
+// Optimistic marker while a status push is queued/in flight/retrying —
+// drives the "sync pendente" badge. `awaitingConfirm: true` means this push
+// is NOT retrying on its own (review/done — statusNeedsHumanConfirm): it sits
+// here until a human calls the confirm action. Only meaningful on an
+// already-linked card.
+export function setCardDflPending(board: CanvasBoard, cardId: string, pending: CardStatus | undefined, opts: { error?: string; awaitingConfirm?: boolean } = {}): CanvasBoard {
+  const i = board.cards.findIndex((c) => c.id === cardId);
+  if (i < 0 || !board.cards[i].dfl) return board;
+  const cards = [...board.cards];
+  const prevDfl = cards[i].dfl!;
+  cards[i] = {
+    ...cards[i],
+    dfl: {
+      ...prevDfl, pending,
+      error: opts.error ? opts.error.slice(0, MAX_DFL_ERROR) : undefined,
+      awaitingConfirm: opts.awaitingConfirm === true || undefined,
+    },
+  };
+  return { ...board, cards };
+}
+
+// A push that finally succeeded: clear pending/error/awaitingConfirm, stamp
+// lastSyncedAt (Deck clock, "when we last talked to DFL") and dflUpdatedAt
+// (DFL clock, from the write's own response — see the mutators' shared
+// comment above) so the NEXT conflict check compares against what DFL
+// actually has now, not a stale value from link time.
+export function setCardDflSynced(board: CanvasBoard, cardId: string, now: number, dflUpdatedAt?: number): CanvasBoard {
+  const i = board.cards.findIndex((c) => c.id === cardId);
+  if (i < 0 || !board.cards[i].dfl) return board;
+  const cards = [...board.cards];
+  cards[i] = { ...cards[i], dfl: { taskId: cards[i].dfl!.taskId, lastSyncedAt: now, ...(dflUpdatedAt !== undefined ? { dflUpdatedAt } : {}) } };
+  return { ...board, cards };
 }
 
 const mcpList = (v: unknown) => (Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === 'string' && MCP_NAME_RE.test(x)))].slice(0, MAX_MCPS) : undefined);

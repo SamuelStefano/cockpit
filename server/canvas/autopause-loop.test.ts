@@ -212,7 +212,15 @@ describe('syncAdmissionState — writes the cross-process file only when needed'
     admissionFile = join(mkdtempSync(join(tmpdir(), 'canvas-area-admission-')), 'state.json');
     process.env.COCKPIT_CANVAS_AREA_ADMISSION = admissionFile;
   });
-  afterEach(() => { process.env.COCKPIT_CANVAS_AREA_ADMISSION = prevEnv; });
+  // `process.env.X = undefined` stringifies to the literal "undefined" (env
+  // vars are always strings) — that used to write a real file named
+  // `undefined` at the repo root the NEXT time area-admission.ts resolved its
+  // path (its `?? default` never triggers once the var is "set" to that
+  // string). `delete` is the only way to truly unset it.
+  afterEach(() => {
+    if (prevEnv === undefined) delete process.env.COCKPIT_CANVAS_AREA_ADMISSION;
+    else process.env.COCKPIT_CANVAS_AREA_ADMISSION = prevEnv;
+  });
 
   it('never writes across ticks when nothing is running (nothing blocked, key map never touched)', async () => {
     const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {} };
