@@ -18,16 +18,30 @@ const parked = vi.hoisted(() => ({
 }));
 const awaiting = vi.hoisted(() => ({ clearAwaiting: vi.fn() }));
 const reg = vi.hoisted(() => {
-  const threads = new Map<string, { handle: { kill: () => void } }>();
+  const threads = new Map<string, { handle: { kill: () => void }; sessionId?: string }>();
   const onStop = vi.fn();
+  // Espelha o real resolveThreadKey (server/ws/threads.ts): chave direta, senão
+  // procura por sessionId — usado tanto pelo stopSession quanto pelo 'send'.
+  const resolveThreadKey = vi.fn((key: string) => {
+    if (threads.has(key)) return key;
+    for (const [k, t] of threads) if (t.sessionId === key) return k;
+    return undefined;
+  });
   return {
     threads,
     onStop,
+    resolveThreadKey,
     // Espelha o real: resolve a chave (aqui a chave direta basta), marca o stop e mata.
     stopSession: vi.fn((key: string) => { onStop(key); threads.get(key)?.handle.kill(); }),
   };
 });
 const bc = vi.hoisted(() => ({ send: vi.fn(), broadcast: vi.fn() }));
+const termStats = vi.hoisted(() => ({
+  collectTermStats: vi.fn(async () => ({})),
+  // Default false: most tests aren't exercising the double-writer guard, and
+  // the real implementation shells out to tmux/proc — never let it run for real.
+  hasInteractiveClaude: vi.fn(async () => false),
+}));
 const parse = vi.hoisted(() => ({ parseSession: vi.fn(), parseFullSession: vi.fn() }));
 const cfg = vi.hoisted(() => ({ CONFIG: { localOnly: true, historyLimit: 2000 } }));
 const admin = vi.hoisted(() => ({
@@ -40,6 +54,7 @@ vi.mock('./parked', () => parked);
 vi.mock('./awaiting', () => awaiting);
 vi.mock('./threads', () => reg);
 vi.mock('./broadcast', () => bc);
+vi.mock('../canvas/term-stats', () => termStats);
 vi.mock('../config', () => cfg);
 vi.mock('../admin-ops', () => admin);
 const deck = vi.hoisted(() => ({
@@ -106,6 +121,36 @@ describe('send routing (the #130 role seam)', () => {
     expect(runs.routeSend).toHaveBeenCalledOnce();
     expect(runs.routeSend.mock.calls[0][0]).toMatchObject({ sessionKey: 'k1', role: 'student' });
     expect(runs.startRun).not.toHaveBeenCalled();
+  });
+
+  // canvas review #593 item 1: a session can be live under a DIFFERENT thread
+  // key (a cron run, a flow's own key) than the sessionId a canvas prompt bar
+  // names. Routing blind to `msg.sessionKey` would spawn a SECOND
+  // `claude --resume` on top of the real run — resolveThreadKey must find it
+  // by sessionId and route the triage to the REAL key instead.
+  it('a session live under a DIFFERENT thread key still routes to routeSend on the REAL key, never startRun', async () => {
+    reg.threads.set('cron-nightly', { handle: { kill: vi.fn() }, sessionId: 's1' });
+    await handle(ws, msg({ sessionKey: 's1', sessionId: 's1' }), 'admin');
+    expect(runs.routeSend).toHaveBeenCalledOnce();
+    expect(runs.routeSend.mock.calls[0][0]).toMatchObject({ sessionKey: 'cron-nightly' });
+    expect(runs.startRun).not.toHaveBeenCalled();
+  });
+
+  // canvas review #593 second pass item 1: the client-side "disable the
+  // prompt bar after retomar" flag is only a UX hint — it resets on F5 and
+  // can't see a pane resumed BY HAND. The server checks the watch pane's own
+  // process tree (hasInteractiveClaude) as ground truth before EITHER
+  // routing path, and refuses with a message the client can restore text
+  // from — never starts a run nor triages into the live thread.
+  it('refuses (send-reject, not a plain error) when the session watch pane already has an interactive claude, before routing either way', async () => {
+    termStats.hasInteractiveClaude.mockResolvedValueOnce(true);
+    reg.threads.set('k1', { handle: { kill: vi.fn() } }); // even a BUSY thread must not get routed to
+    await handle(ws, msg(), 'admin');
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({
+      t: 'send-reject', sessionKey: 'k1', reason: 'live-elsewhere', text: 'hi', msgId: 'm1',
+    }));
+    expect(runs.startRun).not.toHaveBeenCalled();
+    expect(runs.routeSend).not.toHaveBeenCalled();
   });
 });
 

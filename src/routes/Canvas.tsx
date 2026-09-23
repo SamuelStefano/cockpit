@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CanvasFlow } from '../../shared/canvas';
 import { EmptyState } from '../components/primitives';
 import { usePersisted } from '../lib/persist';
+import { countHotContext, countWaiting } from './canvas/canvas-alerts';
 import { neighbors } from './canvas/canvas-filter';
 import { newFlowId } from './canvas/canvas-board';
 import { CanvasFilters } from './canvas/CanvasFilters';
@@ -14,6 +15,7 @@ import { FlowEditor } from './canvas/FlowEditor';
 import { Kanban } from './canvas/Kanban';
 import { KanbanDock } from './canvas/KanbanDock';
 import { CanvasAnalysis } from './canvas/CanvasAnalysis';
+import { useCardTerminalAutoOpen } from './canvas/useCardTerminalAutoOpen';
 import { useTermStatsPoll } from './canvas/useTermStatsPoll';
 import { TerminalMaximized } from './canvas/TerminalMaximized';
 import { useCanvasRoute, type CanvasRouteProps } from './canvas/useCanvasRoute';
@@ -69,6 +71,12 @@ export function Canvas(p: CanvasRouteProps) {
     r.visible.nodes.filter((n) => n.kind === 'session').sort((a, b) => a.mtime - b.mtime).slice(-MAX_OPEN_TERMS).map((n) => n.id),
   );
 
+  // A card's run becomes a real (marker-bound) session sometime after the turn
+  // starts — open its terminal so whoever is watching the card doesn't have
+  // to hunt for it. See useCardTerminalAutoOpen for the full why (persisted
+  // baseline seeding, autoAdd-not-capOpen, saved-position guard).
+  useCardTerminalAutoOpen(p.board.cards, r.merged.edges, r.pos, p.board.pos, p.onCanvasPos, autoOpen, !!p.graph && p.graph.builtAt > 0);
+
   const windowNodes = useMemo(() => r.visible.nodes.filter((n) => r.windows.has(n.id)), [r.visible.nodes, r.windows]);
   useTermStatsPoll(windowNodes, p.connected, p.onTermStats);
   const [analysisOn, setAnalysisOn] = usePersisted('canvas.analysisOn', false);
@@ -79,6 +87,8 @@ export function Canvas(p: CanvasRouteProps) {
 
   const sessionsN = r.visible.nodes.filter((n) => n.kind === 'session').length;
   const contextsN = r.visible.nodes.filter((n) => n.kind === 'context').length;
+  const waitingN = countWaiting(r.visible.nodes, r.waiting);
+  const hotContextN = countHotContext(windowNodes, p.termStats);
   const maxNode = terms.maximized ? r.byId.get(terms.maximized) : undefined;
   const maxTarget = maxNode && termTarget(maxNode);
 
@@ -96,7 +106,7 @@ export function Canvas(p: CanvasRouteProps) {
         mode={r.mode} onMode={r.setMode} scope={r.scope} onScope={r.setScope} archived={r.archived} onArchived={r.setArchived}
         query={r.query} onQuery={r.setQuery} loading={p.loading} onRefresh={p.onCanvasGet}
         onNewCard={() => r.newDraft('task', r.selectedNodes)}
-        counts={{ sessions: sessionsN, contexts: contextsN, terminals: r.windows.size, cards: p.board.cards.length }}
+        counts={{ sessions: sessionsN, contexts: contextsN, terminals: r.windows.size, cards: p.board.cards.length, waiting: waitingN, hotContext: hotContextN }}
       />
       {!p.connected ? (
         <EmptyState icon="circle" title="Desconectado" description="Reconecte pra montar o canvas." />
@@ -112,6 +122,7 @@ export function Canvas(p: CanvasRouteProps) {
               selected={r.selected} running={p.running} waiting={r.waiting} centerRequest={center}
               onSelect={r.select} onClear={clearAll} onDrop={r.onDrop} onResetLayout={p.onCanvasPosReset}
               windows={r.windows} terms={terms} term={p.term} onOpenTerm={openTerm} onOpenChat={p.onOpenSession} onOpenRecent={openRecent}
+              onSendTo={p.onSendTo} sendError={p.canvasSendError} onDismissSendError={p.dismissCanvasSendError}
               stats={p.termStats} analysisOn={analysisOn} onToggleAnalysis={() => setAnalysisOn(!analysisOn)}
               flows={p.board.flows} flowFired={p.canvasFlowFired} onFlowCreate={openFlowDraft} onFlowClick={editFlow}
             >

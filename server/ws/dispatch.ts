@@ -33,7 +33,7 @@ import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
 import { detach } from './detach';
 import { startRun, routeSend, drainParked, runParkedInBackground, runParkedNow, acceptResumeOffer, type BgRunReject, type NowRunReject } from './runs';
-import { threads, stopSession } from './threads';
+import { threads, stopSession, resolveThreadKey } from './threads';
 import { clearAwaiting } from './awaiting';
 import { addParked, removeParked, editParked, moveParked, clearParked, retryParked, parkedView, isQueuePaused, setQueuePaused, REJECT_MESSAGE } from './parked';
 import { refreshModels } from './models';
@@ -44,7 +44,7 @@ import { requestPlanUsageRefresh, planUsageFrame } from './usage-plan';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 import { buildBench } from '../bench';
 import { buildCanvas } from '../canvas/index';
-import { collectTermStats } from '../canvas/term-stats';
+import { collectTermStats, hasInteractiveClaude } from '../canvas/term-stats';
 import {
   MAX_FLOWS, readBoard, readBoardChained, updateBoard, sanitizeCard, sanitizeFlow, sanitizePos, upsertCard, upsertFlow, removeCard, removeFlow,
   checkFlowSave, mergePos,
@@ -701,7 +701,38 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
         effort: msg.effort,
         allowWorkflow: msg.allowWorkflow === true ? true : undefined,
       };
-      if (threads.has(msg.sessionKey)) detach(ws, routeSend(opts), msg.sessionKey);
+      // Server-side double-writer guard: a client-side flag (canvas prompt bar
+      // disabled after "retomar") is only a UX hint — it resets on an F5 or a
+      // second tab and can't see a pane resumed BY HAND outside Deck. The
+      // ground truth is the watch pane's own process tree: if it already has
+      // an interactive `claude` in it, ANY 'send' here (canvas or the normal
+      // composer) would start a SECOND writer on the same transcript. Cheap:
+      // only sessions with an open watch pane pay for the /proc scan.
+      const checkId = msg.sessionId ?? msg.sessionKey;
+      if (await hasInteractiveClaude(checkId)) {
+        // send-reject (not a plain error): the composer (canvas or main) must
+        // restore the text and drop the optimistic bubble by msgId, same as
+        // every other pre-spawn refusal — a bare 'error' just shows a toast
+        // and leaves the bubble orphaned.
+        send(ws, {
+          t: 'send-reject', sessionKey: msg.sessionKey, reason: 'live-elsewhere', text: msg.text, msgId: msg.msgId,
+          message: 'Essa sessão já está aberta num terminal interativo (retomada) — feche-o antes de mandar mensagem por aqui.',
+        });
+        return;
+      }
+      // A session can already be live under a DIFFERENT thread key than the one
+      // this frame names (a cron run, a card/flow's own key) — resolveThreadKey
+      // finds it by sessionId so this message reaches the real turn (routeSend's
+      // triage) instead of blindly spawning a second `claude --resume` on top of
+      // it (canvas review #593: double-writer from the canvas prompt bar).
+      const liveKey = resolveThreadKey(msg.sessionKey);
+      // displayKey: routeSend's own early checks (before any 'triage' frame,
+      // which is what the client's aliasRoutedKey correlation needs) fire
+      // under the ROUTING key — when it differs from what this frame named,
+      // tell routeSend to report those specific errors under the ORIGINAL key
+      // instead, so a canvas send rerouted onto a different live thread still
+      // correlates (canvas review #593 third pass item 4).
+      if (liveKey) detach(ws, routeSend({ ...opts, sessionKey: liveKey, displayKey: msg.sessionKey }), liveKey);
       else startRun({ ...opts, auto: msg.auto === true });
       return;
     }

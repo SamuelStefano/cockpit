@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { cpuPercent, lastUsage, parseProcStat, treeOf } from './term-stats';
+import { cpuPercent, lastUsage, paneHasInteractiveClaude, parseProcStat, treeOf, type ProcRow } from './term-stats';
 
 describe('parseProcStat', () => {
-  it('counts fields from the last paren so a spaced command name parses', () => {
+  it('counts fields from the last paren so a spaced command name parses, and keeps the command name', () => {
     const raw = '42 (tmux: server) S 7 42 42 0 -1 4194560 100 0 0 0 150 50 0 0 20 0 1 0 1000 9000000 256 18446744073709551615';
-    expect(parseProcStat(raw)).toEqual({ pid: 42, ppid: 7, ticks: 200, rssKb: 1024 });
+    expect(parseProcStat(raw)).toEqual({ pid: 42, ppid: 7, ticks: 200, rssKb: 1024, comm: 'tmux: server' });
   });
 
   it('rejects garbage', () => {
@@ -13,18 +13,42 @@ describe('parseProcStat', () => {
 });
 
 describe('treeOf', () => {
-  const rows = [
-    { pid: 1, ppid: 0, ticks: 1, rssKb: 1 },
-    { pid: 10, ppid: 1, ticks: 5, rssKb: 100 },
-    { pid: 11, ppid: 10, ticks: 7, rssKb: 200 },
-    { pid: 12, ppid: 11, ticks: 3, rssKb: 50 },
-    { pid: 20, ppid: 1, ticks: 9, rssKb: 999 },
+  const rows: ProcRow[] = [
+    { pid: 1, ppid: 0, ticks: 1, rssKb: 1, comm: 'bash' },
+    { pid: 10, ppid: 1, ticks: 5, rssKb: 100, comm: 'bash' },
+    { pid: 11, ppid: 10, ticks: 7, rssKb: 200, comm: 'claude' },
+    { pid: 12, ppid: 11, ticks: 3, rssKb: 50, comm: 'node' },
+    { pid: 20, ppid: 1, ticks: 9, rssKb: 999, comm: 'bash' },
   ];
   it('walks every descendant of the roots and nothing else', () => {
     expect(treeOf([10], rows).map((r) => r.pid).sort()).toEqual([10, 11, 12]);
   });
   it('ignores roots that are gone', () => {
     expect(treeOf([99], rows)).toEqual([]);
+  });
+});
+
+describe('paneHasInteractiveClaude', () => {
+  const rows: ProcRow[] = [
+    { pid: 1, ppid: 0, ticks: 1, rssKb: 1, comm: 'bash' },
+    { pid: 2, ppid: 1, ticks: 1, rssKb: 1, comm: 'claude' },
+    { pid: 3, ppid: 0, ticks: 1, rssKb: 1, comm: 'bash' },
+  ];
+
+  it('true when the pane tree contains a `claude` process (resumed interactively)', () => {
+    expect(paneHasInteractiveClaude(1, rows)).toBe(true);
+  });
+
+  it('false when the pane is just a shell following the transcript', () => {
+    expect(paneHasInteractiveClaude(3, rows)).toBe(false);
+  });
+
+  it('false (never a match) when there is no watch pane at all for the session', () => {
+    expect(paneHasInteractiveClaude(undefined, rows)).toBe(false);
+  });
+
+  it('false for a pane pid that no longer exists', () => {
+    expect(paneHasInteractiveClaude(999, rows)).toBe(false);
   });
 });
 

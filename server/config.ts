@@ -1,5 +1,6 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { MAX_PROMPT_BYTES } from '../shared/limits';
 
 // O CLI nomeia o dir do projeto trocando os separadores do caminho absoluto do
 // cwd por '-' (/home/samuel -> -home-samuel; /home/joao -> -home-joao). Derivar o
@@ -78,8 +79,10 @@ export const CONFIG = {
   // âncora (carregar sob demanda) fica como evolução. Override por env.
   historyLimit: Number(process.env.COCKPIT_HISTORY_LIMIT ?? 2000),
 
-  // Teto do prompt: evita ARG_MAX/DoS no spawn (argv -p).
-  maxPromptBytes: 100_000,
+  // Teto do prompt: evita ARG_MAX/DoS no spawn (argv -p). Compartilhado com o
+  // cliente (shared/limits.ts) pra o pré-check do prompt bar do canvas nunca
+  // divergir deste gate.
+  maxPromptBytes: MAX_PROMPT_BYTES,
 
   // Teto de runs `claude -p` vivos ao mesmo tempo: no loop autônomo a noite toda
   // um cliente bugado podia abrir sessões sem fim e fritar CPU/token. Substituir

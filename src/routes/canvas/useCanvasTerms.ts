@@ -28,6 +28,9 @@ export function useCanvasTerms(term: TermApi, discovered: string[], listTerms: (
   const openRef = useRef(open);
   openRef.current = open;
   const [resuming, setResuming] = useState<string | null>(null);
+  // Session ids whose pane is (or was last put into) an interactive
+  // `claude --resume`, outside Deck's own run tracking. See `resume` below.
+  const [resumedLive, setResumedLive] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     listTerms();
@@ -57,6 +60,14 @@ export function useCanvasTerms(term: TermApi, discovered: string[], listTerms: (
     setOpen((cur) => cur.filter((x) => x !== id));
     setActive((a) => (a === id ? null : a));
     setMaximized((m) => (m === id ? null : m));
+    // Closing the window is the only client-side signal we have that the pane
+    // "went back" from a resumed interactive claude (server ack for that would
+    // need deeper pty tracking) — clear the double-writer guard so reopening
+    // later doesn't leave the prompt bar disabled forever.
+    if (id.startsWith('s:')) {
+      const sid = id.slice(2);
+      setResumedLive((cur) => { if (!cur.has(sid)) return cur; const next = new Set(cur); next.delete(sid); return next; });
+    }
   }, [setOpen]);
 
   const kill = useCallback((n: CanvasNode) => {
@@ -80,6 +91,12 @@ export function useCanvasTerms(term: TermApi, discovered: string[], listTerms: (
   const resume = useCallback((sessionId: string) => {
     term.resume(watchTermId(sessionId), sessionId);
     setResuming(sessionId);
+    // Sticks past RESUME_LOCK_MS (unlike `resuming`, a short "button is
+    // mid-click" latch): the pane now runs an INTERACTIVE `claude --resume`
+    // outside Deck's `threads` map entirely, so the canvas prompt bar (feature
+    // 4) must stay disabled — sending through it would start a SECOND writer
+    // on the same transcript (canvas review #593 item 1). Cleared on collapse.
+    setResumedLive((cur) => (cur.has(sessionId) ? cur : new Set(cur).add(sessionId)));
     setTimeout(() => setResuming((r) => (r === sessionId ? null : r)), RESUME_LOCK_MS);
     focus(sessionNodeId(sessionId));
   }, [term, focus]);
@@ -97,7 +114,7 @@ export function useCanvasTerms(term: TermApi, discovered: string[], listTerms: (
   }, [setOpen]);
 
   return {
-    open: windows, shells, active, focusN, maximized, resuming,
+    open: windows, shells, active, focusN, maximized, resuming, resumedLive,
     openWindow, openMany, collapse, kill, newShell, resume, autoOpen, focus,
     blur, setMaximized,
   };

@@ -147,6 +147,30 @@ describe('coalesce da fila in-turn', () => {
   });
 });
 
+// canvas review #593 third pass item 4: dispatch.ts's 'send' case can reroute
+// a canvas prompt bar's send onto a DIFFERENT live thread key
+// (resolveThreadKey found the real run under a cron/flow key). routeSend's
+// "prompt grande demais" check fires BEFORE any 'triage' broadcast, so the
+// client's aliasRoutedKey correlation (which learns the routed key FROM that
+// triage frame) never gets a chance to run for it — `displayKey` is the
+// escape hatch: report this one early error under the ORIGINAL key instead.
+describe('routeSend — displayKey correlaciona a recusa de prompt grande cedo demais pro triage', () => {
+  const ws = {} as WebSocket;
+  const big = 'x'.repeat(200_000); // acima de CONFIG.maxPromptBytes (100_000)
+
+  beforeEach(() => { threads.clear(); vi.mocked(send).mockClear(); });
+
+  it('sem displayKey, reporta sob a própria sessionKey (default = sessionKey)', async () => {
+    await routeSend({ ws, sessionKey: 's1', prompt: big });
+    expect(send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'error', sessionKey: 's1', message: 'prompt grande demais' }));
+  });
+
+  it('com displayKey (sessão roteada pra outra chave), reporta sob a chave ORIGINAL', async () => {
+    await routeSend({ ws, sessionKey: 'cron-nightly', prompt: big, displayKey: 's1' });
+    expect(send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'error', sessionKey: 's1', message: 'prompt grande demais' }));
+  });
+});
+
 describe('morte silenciosa do turno — aviso + retomada automática', () => {
   const ws = {} as WebSocket;
   const closeLastRun = () => vi.mocked(run).mock.calls.at(-1)![0].onClose?.();

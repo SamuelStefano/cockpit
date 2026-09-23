@@ -2,7 +2,7 @@
 // REGRA (squad L3): types-only — zero import de node:*/fs. O bundle do browser
 // importa este arquivo.
 
-import type { CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, TermStats } from './canvas';
+import type { CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, CardStatus, TermStats } from './canvas';
 import type { DflDraft, DraftOp } from './dfl-drafts';
 
 export interface ToolDiff {
@@ -879,6 +879,13 @@ export type ServerMsg =
   // trigger. One per failure STREAK (server/canvas/flows.ts), not one per
   // source turn close.
   | { t: 'canvas-flow-failed'; flowId: string; message: string }
+  // Slim patch for a single card's status (e.g. the server auto-moving a card
+  // to "review" on turn close, server/canvas/card-review.ts) — cheaper than
+  // re-sending the whole board, and ADMIN-ONLY (server/ws/canvas-clients.ts,
+  // same reasoning as canvas-flow-failed above): this can fire with no
+  // browser attached at all (a cron turn closing), so it must never touch
+  // the generic global broadcast() every socket receives.
+  | { t: 'canvas-card-status'; cardId: string; status: CardStatus }
   | { t: 'graph-data'; id: string; graph: GraphData }
   | { t: 'graph-query-result'; id: string; question: string; answer: string; tokens: number; miss: boolean }
   | { t: 'graph-build-progress'; line: string }
@@ -899,11 +906,19 @@ export type ServerMsg =
   // 'error' porque aquele encerra o turno da sessão no cliente, e essas ações são
   // clicadas justamente COM um turno em voo — o aviso congelava a resposta viva.
   | { t: 'queue-error'; sessionKey: string; message: string }
-  // Turno RECUSADO antes do spawn pelo gate de contexto (ws/ctx-guard.ts): sessão
-  // grande demais, envio que não cabe na janela, ou outro cold-start em voo. Leva
-  // o texto de volta (o composer já limpou) e o msgId da bolha otimista pra ela
-  // não ficar órfã esperando uma resposta que nunca vem.
-  | { t: 'send-reject'; sessionKey: string; reason: 'ctx-hard' | 'quota-insufficient' | 'cold-busy'; text: string; msgId?: string; message: string; ctxTokens: number; pctOfWindow: number }
+  // Turno RECUSADO antes do spawn. Leva o texto de volta (o composer já
+  // limpou) e o msgId da bolha otimista pra ela não ficar órfã esperando uma
+  // resposta que nunca vem. Duas famílias de motivo:
+  // - ctx-hard/quota-insufficient/cold-busy: gate de contexto (ws/ctx-guard.ts)
+  //   — carrega ctxTokens/pctOfWindow, o custo que motivou a recusa.
+  // - live-elsewhere: guarda de double-writer (dispatch.ts 'send') — a sessão
+  //   já tem um `claude` interativo rodando no próprio pane de watch.
+  // ctxTokens/pctOfWindow só fazem sentido pro primeiro grupo — opcionais.
+  | {
+      t: 'send-reject'; sessionKey: string;
+      reason: 'ctx-hard' | 'quota-insufficient' | 'cold-busy' | 'live-elsewhere';
+      text: string; msgId?: string; message: string; ctxTokens?: number; pctOfWindow?: number;
+    }
   // O gate barrou por quota/cold-busy e o prompt foi pra fila estacionada: a bolha
   // otimista sai (o item aparece na fila) e o composer NÃO recebe o texto de volta.
   | { t: 'send-parked'; sessionKey: string; msgId?: string; message: string }

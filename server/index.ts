@@ -4,6 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { attachWs, killAllRuns, runStats } from './ws';
 import { threads } from './ws/threads';
+// Side effect only: registers the canvas "card → review" listener on
+// onTurnClosed (server/canvas/turn-hooks.ts) at import time.
+import './canvas/card-review';
 import { broadcast } from './ws/broadcast';
 import { makeStatic } from './static';
 import { buildManifest } from './build-id';

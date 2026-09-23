@@ -6,7 +6,7 @@ import type { TermApi } from '../../useCockpit';
 import { toast } from '../../components/primitives';
 import { filterCanvas, type CanvasScope } from './canvas-filter';
 import { bounds, layoutCanvas } from './canvas-layout';
-import { boundSessions, mergeBoard, moveCard, newCardId } from './canvas-board';
+import { boundSessions, mergeBoard, moveCard, newCardId, resolveSaveStatus } from './canvas-board';
 import { placeWindows, TERM_H, TERM_W, winKey } from './canvas-terms';
 
 export interface CanvasRouteProps {
@@ -33,6 +33,9 @@ export interface CanvasRouteProps {
   canvasFlowRuns: Record<string, { key: string; at: number }>;
   onLaunchAgent: (prompt: string, title: string) => string | null;
   onOpenSession: (id: string) => void;
+  onSendTo: (sessionId: string, text: string) => boolean;
+  canvasSendError: { sessionId: string; text: string; message: string } | null;
+  dismissCanvasSendError: () => void;
   term: TermApi;
   termStats: Record<string, TermStats>;
   onTermStats: (sessions: string[], terms: string[]) => void;
@@ -201,10 +204,16 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     if (c) setDraft({ card: c, isNew: false });
   }, [cardOf]);
 
+  // A server-side auto-move (card-review.ts: doing→review on a clean turn
+  // close) can land while the editor is open — the editor's own draft is a
+  // snapshot frozen at `editCard` time and never re-syncs to later board
+  // updates. If the user never touched the status control, keep whatever the
+  // server has NOW instead of clobbering it with the stale snapshot's status.
   const saveCard = useCallback((card: CanvasCard) => {
-    p.onCanvasCardSave({ ...card, updatedAt: Date.now() });
+    const status = resolveSaveStatus(card, draft?.card, cardOf(card.id));
+    p.onCanvasCardSave({ ...card, status, updatedAt: Date.now() });
     setDraft(null);
-  }, [p]);
+  }, [p, draft, cardOf]);
 
   const runCard = useCallback((card: CanvasCard) => {
     const contexts = card.contextIds.map((id) => byId.get(`c:${id}`)).filter((n): n is CanvasNode => !!n);
