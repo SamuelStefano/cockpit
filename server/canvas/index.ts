@@ -102,7 +102,7 @@ async function sessionRefs(c: RefsCache, id: string): Promise<SessionRefs | unde
   // A hit missing `topics` predates that field: bytes already consumed were never
   // scanned for it, so this is a full rescan from 0 rather than a tail resume.
   const refs: SessionRefs = hit && hit.topics && size > hit.size
-    ? { contexts: { ...hit.contexts }, cardId: hit.cardId, topics: hit.topics, consumed: hit.consumed }
+    ? { contexts: { ...hit.contexts }, contextHits: hit.contextHits ? { ...hit.contextHits } : undefined, cardId: hit.cardId, topics: hit.topics, consumed: hit.consumed }
     : emptyRefs();
   try { await scanTail(path, refs); } catch { return hit; }
   c.set(id, { ...refs, size });

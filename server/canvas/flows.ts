@@ -16,6 +16,7 @@ import { bindCardSession, cardIdForSession, lastCardMarker, neutralizeMarkers } 
 import { cardIdFromRefsCache } from './index';
 import { claimFlowFire, markCardDoing, readBoardChained, recordFlowFailure, recordFlowSuccess, updateBoard } from './board';
 import { clearFlowRun, registerFlowRun } from './flow-runs';
+import { isAreaAdmissionBlocked } from './autopause-loop';
 import { onTurnClosed, type TurnClosed } from './turn-hooks';
 
 export { neutralizeMarkers };
@@ -184,8 +185,17 @@ export async function deliverToSession(sessionId: string, prompt: string, source
       const r = addParked(liveKey, { ...params, prompt, resumeId: resume });
       return !('reject' in r);
     }
+    // Queueing behind a session that's ALREADY live (attended right now, same
+    // as a user reply landing mid-turn) is never area-gated — only admitting
+    // brand-new unattended work is (review #595 second pass, point 2: "leave
+    // the in-turn pending queue alone").
     return enqueuePending(liveKey, { ...params, ws: null, prompt, merge: false });
   }
+  // No live thread: this WOULD start a brand-new unattended turn. If the
+  // target's area is over budget with autoPause on, treat it exactly like any
+  // other failed delivery — fireFlow's caller already arms the backoff and
+  // retries later, once the area (hopefully) isn't over anymore.
+  if (isAreaAdmissionBlocked(resume)) return false;
   startRun({ ws: null, sessionKey: resume, prompt, resumeId: resume, flowHop: hop, ...params });
   return threads.has(resume);
 }
@@ -230,6 +240,13 @@ export async function deliverToCard(cardId: string, flow: CanvasFlow, result: st
   const card = board.cards.find((c) => c.id === cardId);
   if (!card) return { delivered: false };
   const { contexts, sessions } = await resolveCardNodes(card.contextIds, card.sessionIds);
+  // A card has no area of its own (server/canvas/areas.ts never classifies
+  // cards) — this ALWAYS starts a brand-new session (no live-thread branch to
+  // exempt, unlike deliverToSession), so the best available signal is whether
+  // any session the card is already bound to sits in a blocked area. No bound
+  // session at all (a fresh card) has nothing to check against — fails open,
+  // same as isAreaAdmissionBlocked's own default.
+  if (sessions.some((s) => isAreaAdmissionBlocked(s.ref))) return { delivered: false };
   const basePrompt = card.kind === 'content'
     ? buildContentPrompt(card, (card.format ?? 'post') as ContentFormat, contexts, sessions, today())
     : buildTaskPrompt(card, contexts, sessions);

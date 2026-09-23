@@ -43,6 +43,17 @@ describe('buildCanvasGraph', () => {
     expect(g.nodes.find((n) => n.id === 'c:hub_deck')?.hub).toBe(true);
   });
 
+  it('weights a read/write edge by contextHits, capped like a topic edge, and leaves it unweighted when hits are absent (older cache entry)', () => {
+    const g = buildCanvasGraph({
+      sessions: [{ meta: meta(S1), archived: false }],
+      refs: new Map([[S1, { contexts: { deck_todo: 'write', hub_dfl: 'read' }, contextHits: { deck_todo: 3 }, consumed: 0 }]]),
+      contexts: [ctx('deck_todo'), ctx('hub_dfl')],
+      cards: [],
+    });
+    expect(g.edges).toContainEqual({ source: `s:${S1}`, target: 'c:deck_todo', kind: 'write', weight: 0.6 });
+    expect(g.edges).toContainEqual({ source: `s:${S1}`, target: 'c:hub_dfl', kind: 'read' }); // no hits recorded: unweighted, same as before
+  });
+
   it('links a context to the session that wrote it via originSessionId', () => {
     const g = buildCanvasGraph({ sessions: [{ meta: meta(S2), archived: true }], refs: new Map(), contexts: [ctx('a', { origin: S2 })], cards: [] });
     expect(g.edges).toEqual([{ source: `s:${S2}`, target: 'c:a', kind: 'write' }]);

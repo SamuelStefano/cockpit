@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CanvasBoard, CanvasCard, CanvasFlow, CanvasGraph, CanvasNode, CanvasPos, CardStatus, ContentFormat, TermStats } from '../../../shared/canvas';
+import type {
+  AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasGraph, CanvasNode, CanvasPos, CardStatus, ContentFormat, TermStats,
+} from '../../../shared/canvas';
+import { AREA_IDS } from '../../../shared/canvas';
 import { buildContentPrompt, buildTaskPrompt } from '../../../shared/canvas-prompt';
+import { evaluateBudget, type AreaUsage, type BudgetStatus } from '../../../shared/canvas-budget';
 import type { Session } from '../../data/types';
 import type { TermApi } from '../../useCockpit';
 import { toast } from '../../components/primitives';
+import { usePersisted } from '../../lib/persist';
+import { computeAreaRects } from './canvas-areas';
 import { filterCanvas, type CanvasScope } from './canvas-filter';
 import { bounds, layoutCanvas } from './canvas-layout';
 import { boundSessions, mergeBoard, moveCard, newCardId, resolveSaveStatus } from './canvas-board';
@@ -31,6 +37,7 @@ export interface CanvasRouteProps {
   // cardRun() shows "rodando" and the kanban can stop it exactly like a
   // client-launched run.
   canvasFlowRuns: Record<string, { key: string; at: number }>;
+  onCanvasBudgetSave: (area: AreaId, budget: AreaBudget) => void;
   onLaunchAgent: (prompt: string, title: string) => string | null;
   onOpenSession: (id: string) => void;
   onSendTo: (sessionId: string, text: string) => boolean;
@@ -39,6 +46,7 @@ export interface CanvasRouteProps {
   term: TermApi;
   termStats: Record<string, TermStats>;
   onTermStats: (sessions: string[], terms: string[]) => void;
+  areaUsage: Partial<Record<AreaId, AreaUsage>>;
   discoveredTerms: string[];
   listTerms: () => void;
 }
@@ -54,6 +62,7 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
   const [scope, setScope] = useState<CanvasScope>('active');
   const [archived, setArchived] = useState(false);
   const [query, setQuery] = useState('');
+  const [areaFilter, setAreaFilter] = usePersisted<AreaId | null>('canvas.areaFilter', null);
   const [selected, setSelected] = useState<string[]>([]);
   const [draft, setDraft] = useState<CardDraft | null>(null);
   const [now] = useState(() => Date.now());
@@ -73,15 +82,21 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
 
   const merged = useMemo(() => mergeBoard(p.graph, p.board.cards), [p.graph, p.board.cards]);
   const visible = useMemo(() => {
-    const v = filterCanvas(merged.nodes, merged.edges, { scope, archived, query, running: p.running, cards: p.board.cards, now });
+    const v = filterCanvas(merged.nodes, merged.edges, { scope, archived, query, area: areaFilter, running: p.running, cards: p.board.cards, now });
     const q = query.trim().toLowerCase();
-    return { ...v, nodes: [...v.nodes, ...shells.filter((s) => !q || s.title.toLowerCase().includes(q))] };
-  }, [merged, scope, archived, query, p.running, p.board.cards, now, shells]);
-  // Positions come from the scope WITHOUT the search query: typing only hides
-  // nodes, it never re-packs the map under the user's eyes.
+    // Shells carry no area (they're not tied to any session's memory trail): an
+    // active area filter hides them along with everything else unclassified,
+    // same as the card nodes filterCanvas already drops in that case.
+    return { ...v, nodes: [...v.nodes, ...(areaFilter ? [] : shells.filter((s) => !q || s.title.toLowerCase().includes(q)))] };
+  }, [merged, scope, archived, query, areaFilter, p.running, p.board.cards, now, shells]);
+  // Positions come from the scope WITHOUT the search query or the area filter:
+  // typing or picking an area only hides nodes, it never re-packs the map
+  // under the user's eyes — a dragged/settled layout must survive toggling it.
   const layoutBase = useMemo(
-    () => (query ? filterCanvas(merged.nodes, merged.edges, { scope, archived, query: '', running: p.running, cards: p.board.cards, now }) : visible),
-    [query, merged, scope, archived, p.running, p.board.cards, now, visible],
+    () => (query || areaFilter
+      ? filterCanvas(merged.nodes, merged.edges, { scope, archived, query: '', area: null, running: p.running, cards: p.board.cards, now })
+      : visible),
+    [query, areaFilter, merged, scope, archived, p.running, p.board.cards, now, visible],
   );
   const visibleIds = useMemo(() => new Set(visible.nodes.map((n) => n.id)), [visible.nodes]);
   const windows = useMemo(() => new Set(windowIds.filter((id) => visibleIds.has(id))), [windowIds, visibleIds]);
@@ -137,6 +152,33 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
   }, [visible.nodes, visible.edges, worldBounds, p.running, windows, rectOf]);
   const byId = useMemo(() => new Map([...merged.nodes, ...shells].map((n) => [n.id, n])), [merged.nodes, shells]);
   const waiting = useMemo(() => new Set(p.sessions.filter((s) => s.waiting).map((s) => s.id)), [p.sessions]);
+
+  // Areas: rectangles track whatever is currently on screen (so hiding one via
+  // the filter also empties its region); the count row and the budget status
+  // both read the wider scope/archived/query set so switching areas doesn't
+  // make its own chip disappear before the click that picks it.
+  const areaRects = useMemo(() => computeAreaRects(visible.nodes, pos, p.running, windows), [visible.nodes, pos, p.running, windows]);
+  const areaCounts = useMemo(() => {
+    const out = new Map<AreaId, number>();
+    for (const n of layoutBase.nodes) if (n.area) out.set(n.area, (out.get(n.area) ?? 0) + 1);
+    return AREA_IDS.filter((a) => out.has(a)).map((area) => ({ area, count: out.get(area)! }));
+  }, [layoutBase.nodes]);
+  // The usage numbers themselves come from the server (p.areaUsage, filled by
+  // the canvas-area-usage frame — review #595 point 8): the client only
+  // EVALUATES them against the budget, never recomputes its own estimate.
+  const budgetStatus = useMemo(() => {
+    const out: Partial<Record<AreaId, BudgetStatus>> = {};
+    for (const area of AREA_IDS) {
+      const status = evaluateBudget(p.areaUsage[area], p.board.budgets[area]);
+      if (status.overCpu || status.overCtx) out[area] = status;
+    }
+    return out;
+  }, [p.areaUsage, p.board.budgets]);
+  const [budgetEditArea, setBudgetEditArea] = useState<AreaId | null>(null);
+  const saveBudget = useCallback((area: AreaId, budget: AreaBudget) => {
+    p.onCanvasBudgetSave(area, budget);
+    setBudgetEditArea(null);
+  }, [p]);
 
   const select = useCallback((id: string, additive: boolean) => {
     setSelected((cur) => (additive ? (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]) : [id]));
@@ -256,6 +298,7 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
 
   return {
     mode, setMode, scope, setScope, archived, setArchived, query, setQuery,
+    areaFilter, setAreaFilter, areaRects, areaCounts, budgetStatus, budgetEditArea, setBudgetEditArea, saveBudget,
     merged, visible, pos, windows, onDrop, worldBounds, coreBounds, byId, waiting,
     selected, selectedNodes, select, clearSelection,
     draft, setDraft, newDraft, editCard, saveCard, runCard, setStatus, deleteCard, cardSessions,

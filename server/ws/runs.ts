@@ -30,6 +30,7 @@ import {
 import { authHold, isAuthFailure, markAuthBroken, AUTH_MESSAGE } from './auth-health';
 import { threadIsMarathon, MARATHON_AUTO_RESUME_CAP } from './marathon';
 import { threads, admitRun, resolveThreadKey, stopSession, stopEpochOf, clearStopEpoch, shouldPreserveLive, runParams, sameParams, type Thread, type RunParams } from './threads';
+import { isAreaAdmissionBlocked } from '../canvas/autopause-loop';
 import { enqueuePending, hasPending, takePendingBatch, takeAllPending, type QueuedSend } from './pending';
 
 // --- morte silenciosa do turno (o "chat simplesmente parou") -----------------
@@ -241,6 +242,14 @@ export function drainParked(): void {
     // queue-force) destrava.
     if (isAwaiting(sessionKey)) continue;
     if (resolveThreadKey(sessionKey)) continue; // turno rodando: um por vez
+    // Área do canvas estourou o orçamento (autopause ligado): não readmite trabalho
+    // DESACOMPANHADO ali — senão o item sobe, autopause para de novo em ~30s, e o
+    // dreno tenta de novo no próximo tick (stop→drain→stop). O chat manual do
+    // usuário não passa por drainParked, só a fila estacionada.
+    if (isAreaAdmissionBlocked(first.resumeId, sessionKey)) {
+      console.log(`[canvas-autopause] pulando dreno de ${sessionKey}: área sob orçamento estourado`);
+      continue;
+    }
     // Veredito ANTES do shift: um item devolvido pelo `unshiftParked` lá embaixo
     // conta tentativa, e uma sessão travada aqui esgotaria MAX_PARKED_ATTEMPTS em
     // minutos — o prompt acabaria `held` por uma condição que não é culpa dele.
@@ -318,6 +327,9 @@ export function runParkedInBackground(sessionKey: string, id: string, role?: Rol
   // crash, deploy), o onClose devolve — pra fila da sessão ORIGINAL, não a do fork.
   th.parked = item;
   th.parkedFrom = sessionKey;
+  // Disparo explícito do usuário (clique em "rodar em background"), não o
+  // dreno passivo — canvas/autopause.ts nunca para isto (review #595 point 1).
+  th.parkedForced = true;
   return { forkId };
 }
 
@@ -363,6 +375,9 @@ export function runParkedNow(sessionKey: string, id: string, role?: Role): { ok:
   const th = threads.get(sessionKey);
   if (!th) { unshiftParked(sessionKey, item, false); broadcastQueue(); return { reject: 'falhou' }; }
   th.parked = item;
+  // Explicit user click (queue-force), not the passive drainer — never a
+  // stoppable candidate for canvas/autopause.ts (review #595 point 1).
+  th.parkedForced = true;
   broadcastQueue();
   return { ok: true };
 }
@@ -385,8 +400,11 @@ export function startParkedDrainer(intervalMs = 30_000): void {
 // Devolve o item pro topo da fila. No teto de tentativas pausa a fila inteira: o
 // prompt continua guardado (nunca é descartado), mas para de ser redisparado a cada
 // 30s por uma falha que se repete.
-function requeueParked(sessionKey: string, item: ParkedItem): void {
-  const attempts = unshiftParked(sessionKey, item);
+// bump=false (autopause do canvas): a devolução NÃO conta tentativa — a falha é do
+// orçamento da área, não do item, e contá-la aproximaria o item do teto de 3 por um
+// motivo que não é dele.
+function requeueParked(sessionKey: string, item: ParkedItem, bump = true): void {
+  const attempts = unshiftParked(sessionKey, item, bump);
   if (attempts >= MAX_PARKED_ATTEMPTS) {
     broadcast({ t: 'error', sessionKey, message: `Este item da fila falhou ${attempts}x sem produzir nada. Ele está guardado e segurado — use "retomar" na fila pra tentar de novo.` });
     recordIncident({ kind: 'parked-requeue-cap', sessionKey, detail: `item ${item.id} devolvido ${attempts}x` });
@@ -663,7 +681,13 @@ export function startRun(o: StartRunOptions) {
         markAuthBroken(sessionKey);
         broadcast({ t: 'error', sessionKey, message: AUTH_MESSAGE });
       }
-      if (parked && (!produced || authBurned || burnedByQuota({ limited: hold > 0, tools: thread.tools.length, text: thread.text }))) {
+      // Autopause do canvas SEMPRE devolve, mesmo que o turno já tivesse produzido
+      // algo (tool/texto) antes de ser interrompido: foi parado no meio à força por
+      // orçamento, não terminou por conta própria — o usuário não decidiu descartar
+      // o que sobrou. Sem tentativa contada (ver requeueParked).
+      if (parked && thread.budgetStopped) {
+        requeueParked(thread.parkedFrom ?? sessionKey, parked, false);
+      } else if (parked && (!produced || authBurned || burnedByQuota({ limited: hold > 0, tools: thread.tools.length, text: thread.text }))) {
         requeueParked(thread.parkedFrom ?? sessionKey, parked);
       }
       // Turno que morreu no meio sem dizer nada: avisa ANTES do 'done' (a bolha de
@@ -894,9 +918,17 @@ async function runQuickAnswer(sessionKey: string, prompt: string, epoch: number,
 // independente. O stream vai por broadcast pra qualquer cliente conectado.
 export function fireCron(cron: Cron): void {
   if (!cron || typeof cron.prompt !== 'string' || !cron.prompt.trim()) return;
+  // Mesmo gate de admissão do drainParked. Um cron não carrega resumeId (cada
+  // disparo é turno novo), então a sessão desta chamada em si nunca é
+  // classificável de antemão — a chave estável `cron-<id>` é o segundo sinal
+  // que isAreaAdmissionBlocked aceita: a área da ÚLTIMA sessão real que este
+  // MESMO cron produziu (canvas/autopause-loop.ts's lastAreaOfKey), que fica
+  // valendo até o cron rodar de novo e (talvez) mudar de área.
+  const cronKey = `cron-${cron.id}`;
+  if (isAreaAdmissionBlocked(undefined, cronKey)) return;
   startRun({
     ws: null,
-    sessionKey: `cron-${cron.id}`,
+    sessionKey: cronKey,
     prompt: cron.prompt,
     msgId: `cron-${Date.now().toString(36)}`,
     mode: cron.mode,

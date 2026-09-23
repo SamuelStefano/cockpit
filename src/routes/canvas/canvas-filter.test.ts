@@ -55,6 +55,16 @@ describe('filterCanvas', () => {
     expect(ids(r)).toEqual(['c:hub_a', 'c:leaf', 's:fresh']);
     expect(r.edges).toHaveLength(2);
   });
+
+  it('an area filter keeps only that area, on top of scope/query', () => {
+    const areaNodes = nodes.map((x) => (x.id === 'c:hub_a' || x.id === 'c:leaf' ? { ...x, area: 'deck' as const } : x));
+    const r = filterCanvas(areaNodes, edges, { ...base, scope: 'all', area: 'deck' });
+    expect(ids(r)).toEqual(['c:hub_a', 'c:leaf']);
+  });
+
+  it('no area filter (undefined) keeps the previous behavior', () => {
+    expect(ids(filterCanvas(nodes, edges, { ...base, scope: 'all', area: undefined }))).toEqual(ids(filterCanvas(nodes, edges, { ...base, scope: 'all' })));
+  });
 });
 
 describe('neighbors', () => {

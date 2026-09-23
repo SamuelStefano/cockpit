@@ -63,9 +63,21 @@ export interface Thread {
   model?: string;       // modelo EFETIVO do turno (message.model do CLI); pode divergir do pedido sob --fallback-model
   stopped?: boolean;    // turno foi morto (stop do usuário, reaper, guarda de pressão, shutdown) — o 'done' do onClose não deve notificar "turno concluído"
   userStopped?: boolean; // o stop veio do USUÁRIO. Só ele impede o item de fila de voltar pra fila: kill nosso (OOM/deploy/reaper) não consumiu o prompt
+  // O canvas parou este turno porque a área dele estourou o orçamento (autopause).
+  // Distinto de userStopped de propósito: o onClose SEMPRE devolve o item da fila
+  // (sem contar tentativa) neste caso — o usuário não pediu isso, o orçamento pediu,
+  // então o prompt não pode se perder nem contar como "falha do item".
+  budgetStopped?: boolean;
+  budgetStopReason?: string; // motivo legível (ex: "cpu 120% > 100%"), pro toast nomear a sessão
   reaped?: StaleReason; // morto pelo reaper: usa stopped (sem notificar "concluído") MAS tem direito a retomada automática
   questioned?: boolean; // turno fez AskUserQuestion: o `claude -p` auto-resolve e CONTINUA gerando — suprime tudo que vier depois pra a pergunta ficar como última (respondível)
   parked?: ParkedItem;  // item que a fila estacionada drenou neste turno; volta pra fila se o teto de tokens matar o turno sem consumi-lo
+  // O usuário furou a fila (runParkedNow) pra este item rodar JÁ — é uma ação
+  // explícita dele, não o dreno passivo do drainParked. canvas/autopause.ts's
+  // isUnattendedRun só considera "parado sem ninguém olhando" o item que o
+  // DRAINER pegou sozinho; um run-now continua contando como atendido mesmo
+  // saindo com ws:null (o clique aconteceu, só o processo é que é assíncrono).
+  parkedForced?: boolean;
   parkedFrom?: string;  // sessão de onde o item saiu — no disparo avulso a chave do turno é a do FORK, e devolver por ela criaria uma fila fantasma
   // Profundidade da cadeia de fluxos do canvas (server/canvas/flows.ts) que
   // ENTREGOU o prompt deste turno — 0/undefined se não veio de um fluxo. Vive
@@ -154,6 +166,26 @@ export function resolveThreadKey(sessionKey: string): string | undefined {
 export function stopSession(sessionKey: string): void {
   const key = resolveThreadKey(sessionKey) ?? sessionKey;
   onStop(key);
+  threads.get(key)?.handle.kill();
+}
+
+// Stop do AUTOPAUSE do canvas — nunca do usuário. Mesma mecânica de onStop (época +
+// side-runs), mas marca budgetStopped em vez de userStopped: o onClose (runs.ts) lê
+// essa flag pra SEMPRE devolver o item da fila estacionada (se houver) sem contar
+// tentativa, em vez do caminho normal que só devolve quando o turno não produziu nada.
+export function onBudgetStop(sessionKey: string, reason: string): void {
+  killSideRunsFor(sessionKey);
+  const t = threads.get(sessionKey);
+  if (!t) { stopEpoch.delete(sessionKey); return; }
+  stopEpoch.set(sessionKey, stopEpochOf(sessionKey) + 1);
+  t.stopped = true;
+  t.budgetStopped = true;
+  t.budgetStopReason = reason;
+}
+
+export function stopSessionForBudget(sessionKey: string, reason: string): void {
+  const key = resolveThreadKey(sessionKey) ?? sessionKey;
+  onBudgetStop(key, reason);
   threads.get(key)?.handle.kill();
 }
 

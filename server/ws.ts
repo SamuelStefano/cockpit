@@ -95,5 +95,9 @@ export function attachWs(server: Server) {
   probeSlashCommands();
   startCronLoop(fireCron); // agendador: dispara prompts agendados (turnos autônomos)
   startRunReaper(); // mata turno travado ("garimpando" eterno) → UI cai pra idle e a fila drena
+  // O loop de autopause do canvas NÃO liga aqui: ele para/reenfileira turnos
+  // (o mesmo tipo de escrita compartilhada que startParkedDrainer), e só o
+  // processo do agente liga esse tipo de coisa — dois processos decidindo
+  // "estourou, para" sobre o MESMO turno seria uma corrida. Ver agent.ts.
   return wss;
 }

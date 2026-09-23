@@ -40,7 +40,7 @@ describe('useCanvas — canvas-board flowRuns (reconnect visibility)', () => {
     act(() => {
       result.current.onMsg({
         t: 'canvas-board',
-        board: { cards: [], pos: {}, flows: [] },
+        board: { cards: [], pos: {}, flows: [], budgets: {} },
         flowRuns: [{ runKey: 'new-abc', cardId: 'card1', flowId: 'flow1' }],
       } as ServerMsg);
     });
@@ -51,12 +51,12 @@ describe('useCanvas — canvas-board flowRuns (reconnect visibility)', () => {
     const { result } = renderHook(() => useCanvas(send));
     act(() => {
       result.current.onMsg({
-        t: 'canvas-board', board: { cards: [], pos: {}, flows: [] },
+        t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {} },
         flowRuns: [{ runKey: 'new-abc', cardId: 'card1', flowId: 'flow1' }],
       } as ServerMsg);
     });
     act(() => {
-      result.current.onMsg({ t: 'canvas-board', board: { cards: [], pos: {}, flows: [] }, flowRuns: [] } as ServerMsg);
+      result.current.onMsg({ t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {} }, flowRuns: [] } as ServerMsg);
     });
     expect(result.current.canvasFlowRuns.card1?.key).toBe('new-abc');
   });
@@ -65,14 +65,14 @@ describe('useCanvas — canvas-board flowRuns (reconnect visibility)', () => {
     const { result } = renderHook(() => useCanvas(send));
     act(() => {
       result.current.onMsg({
-        t: 'canvas-board', board: { cards: [], pos: {}, flows: [] },
+        t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {} },
         flowRuns: [{ runKey: 'new-abc', cardId: 'card1', flowId: 'flow1' }],
       } as ServerMsg);
     });
     const before = result.current.canvasFlowRuns;
     act(() => {
       result.current.onMsg({
-        t: 'canvas-board', board: { cards: [], pos: {}, flows: [] },
+        t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {} },
         flowRuns: [{ runKey: 'new-abc', cardId: 'card1', flowId: 'flow1' }],
       } as ServerMsg);
     });

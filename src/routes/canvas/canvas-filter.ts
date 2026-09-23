@@ -1,4 +1,4 @@
-import { isCronPing, type CanvasCard, type CanvasEdge, type CanvasNode } from '../../../shared/canvas';
+import { isCronPing, type AreaId, type CanvasCard, type CanvasEdge, type CanvasNode } from '../../../shared/canvas';
 
 export type CanvasScope = 'active' | 'all';
 
@@ -9,6 +9,7 @@ export interface FilterOpts {
   running: Set<string>;
   cards: CanvasCard[];
   now: number;
+  area?: AreaId | null; // null/undefined = every area
 }
 
 // "Active" used to mean "touched in the last 7 days", which at 300 sessions
@@ -59,6 +60,10 @@ export function filterCanvas(nodes: CanvasNode[], edges: CanvasEdge[], o: Filter
     for (const e of edges) {
       if (e.kind === 'link' && keep.has(e.target) && byId.get(e.source)?.hub) keep.add(e.source);
     }
+  }
+
+  if (o.area) {
+    for (const id of [...keep]) if (byId.get(id)?.area !== o.area) keep.delete(id);
   }
 
   const q = o.query.trim().toLowerCase();

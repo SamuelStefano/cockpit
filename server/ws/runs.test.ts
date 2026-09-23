@@ -529,7 +529,7 @@ describe('fila estacionada — teto de tokens', () => {
     drainParked();
     limited(); // a quota estourou durante o turno
     closeLastRun();
-    expect(unshiftParked).toHaveBeenCalledWith('s2', it0);
+    expect(unshiftParked).toHaveBeenCalledWith('s2', it0, true); // conta tentativa: falha "normal", não de orçamento
     expect(run).toHaveBeenCalledOnce(); // sem retomada automática em cima do limite
   });
 
@@ -542,6 +542,22 @@ describe('fila estacionada — teto de tokens', () => {
     limited();
     closeLastRun();
     expect(unshiftParked).not.toHaveBeenCalled();
+  });
+
+  // Autopause do canvas: mesmo que o turno já tivesse produzido algo antes de ser
+  // interrompido, o item volta pra fila (foi parado à força, não terminou sozinho) —
+  // e SEM contar tentativa, porque a falha não é do prompt.
+  it('devolve pra fila um item budget-stopped mesmo se o turno já produziu algo, sem contar tentativa', () => {
+    const it0 = item();
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's9', first: it0 }]);
+    vi.mocked(shiftParked).mockReturnValue(it0);
+    drainParked();
+    const t = threads.get('s9')!;
+    t.text = 'já tinha feito bastante coisa';
+    t.budgetStopped = true;
+    t.budgetStopReason = 'cpu 120% > 100%';
+    closeLastRun();
+    expect(unshiftParked).toHaveBeenCalledWith('s9', it0, false);
   });
 
   it('devolve pra fila o item que nem chegou a subir (teto de sessões)', () => {

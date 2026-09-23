@@ -5,6 +5,7 @@ import { usePersisted } from '../lib/persist';
 import { countHotContext, countWaiting } from './canvas/canvas-alerts';
 import { neighbors } from './canvas/canvas-filter';
 import { newFlowId } from './canvas/canvas-board';
+import { AreaBudgetEditor } from './canvas/AreaBudgetEditor';
 import { CanvasFilters } from './canvas/CanvasFilters';
 import { CanvasHud } from './canvas/CanvasHud';
 import { CanvasInspector } from './canvas/CanvasInspector';
@@ -107,6 +108,7 @@ export function Canvas(p: CanvasRouteProps) {
         query={r.query} onQuery={r.setQuery} loading={p.loading} onRefresh={p.onCanvasGet}
         onNewCard={() => r.newDraft('task', r.selectedNodes)}
         counts={{ sessions: sessionsN, contexts: contextsN, terminals: r.windows.size, cards: p.board.cards.length, waiting: waitingN, hotContext: hotContextN }}
+        areaCounts={r.areaCounts} areaFilter={r.areaFilter} onAreaFilter={r.setAreaFilter}
       />
       {!p.connected ? (
         <EmptyState icon="circle" title="Desconectado" description="Reconecte pra montar o canvas." />
@@ -125,6 +127,7 @@ export function Canvas(p: CanvasRouteProps) {
               onSendTo={p.onSendTo} sendError={p.canvasSendError} onDismissSendError={p.dismissCanvasSendError}
               stats={p.termStats} analysisOn={analysisOn} onToggleAnalysis={() => setAnalysisOn(!analysisOn)}
               flows={p.board.flows} flowFired={p.canvasFlowFired} onFlowCreate={openFlowDraft} onFlowClick={editFlow}
+              areaRects={r.areaRects} budgetStatus={r.budgetStatus} onEditBudget={r.setBudgetEditArea}
             >
               <CanvasHud sessions={p.sessions} running={p.running} onPick={(id) => focusNode(`s:${id}`)} />
               {r.selectedNodes.length > 0 && (
@@ -156,6 +159,12 @@ export function Canvas(p: CanvasRouteProps) {
         <FlowEditor
           key={flowEdit.flow.id} flow={flowEdit.flow} isNew={flowEdit.isNew} node={node}
           onSave={saveFlow} onDelete={deleteFlow} onClose={() => setFlowEdit(null)}
+        />
+      )}
+      {r.budgetEditArea && (
+        <AreaBudgetEditor
+          key={r.budgetEditArea} area={r.budgetEditArea} budget={p.board.budgets[r.budgetEditArea]}
+          onSave={r.saveBudget} onClose={() => r.setBudgetEditArea(null)}
         />
       )}
     </div>

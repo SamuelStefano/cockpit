@@ -41,6 +41,10 @@ const termStats = vi.hoisted(() => ({
   // Default false: most tests aren't exercising the double-writer guard, and
   // the real implementation shells out to tmux/proc — never let it run for real.
   hasInteractiveClaude: vi.fn(async () => false),
+  // dispatch.ts keys canvas-term-stats CPU samples per socket (review #595
+  // point 5) via a real Map from newCpuSamples() — a fresh one each call is
+  // exactly what the real implementation does, no behavior to fake here.
+  newCpuSamples: vi.fn(() => new Map()),
 }));
 const parse = vi.hoisted(() => ({ parseSession: vi.fn(), parseFullSession: vi.fn() }));
 const cfg = vi.hoisted(() => ({ CONFIG: { localOnly: true, historyLimit: 2000 } }));

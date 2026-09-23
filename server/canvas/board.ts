@@ -3,8 +3,8 @@ import { readFile, writeFile, mkdir, rename, copyFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import {
-  type CanvasBoard, type CanvasCard, type CanvasFlow, type CanvasPos, CARD_ID_RE, CARD_STATUSES, CONTENT_FORMATS,
-  FLOW_ID_RE, isFlowEndpoint,
+  type AreaBudget, type AreaId, type CanvasBoard, type CanvasCard, type CanvasFlow, type CanvasPos,
+  AREA_IDS, CARD_ID_RE, CARD_STATUSES, CONTENT_FORMATS, FLOW_ID_RE, isFlowEndpoint,
 } from '../../shared/canvas';
 
 // Kanban cards + canvas positions for the canvas route. Lives in ~/.cockpit, out
@@ -27,7 +27,50 @@ const NODE_ID_RE = /^[scktw]:[A-Za-z0-9_-]{1,80}$/;
 const REF_RE = /^[A-Za-z0-9_-]{1,80}$/;
 
 export function emptyBoard(): CanvasBoard {
-  return { cards: [], pos: {}, flows: [] };
+  return { cards: [], pos: {}, flows: [], budgets: {} };
+}
+
+const MAX_TOKENS_BUDGET = 5_000_000; // absurd-guard, not a real ceiling anyone would hit
+const MAX_CPU_BUDGET = 100 * 64; // 64 cores pegged, same idea
+
+// Every field optional: a budget with neither number set is meaningless, so it
+// is dropped rather than kept as an empty `{}` (readBoard/board.test.ts treat
+// "no entry" and "entry with nothing in it" as the same thing on purpose).
+export function sanitizeBudget(raw: unknown): AreaBudget {
+  const b = (raw ?? {}) as Record<string, unknown>;
+  const out: AreaBudget = {};
+  if (typeof b.ctxTokens === 'number' && Number.isFinite(b.ctxTokens) && b.ctxTokens > 0) {
+    out.ctxTokens = Math.min(Math.round(b.ctxTokens), MAX_TOKENS_BUDGET);
+  }
+  if (typeof b.cpu === 'number' && Number.isFinite(b.cpu) && b.cpu > 0) {
+    out.cpu = Math.min(Math.round(b.cpu), MAX_CPU_BUDGET);
+  }
+  if (b.autoPause === true) out.autoPause = true;
+  return out;
+}
+
+export function sanitizeBudgets(raw: unknown): Partial<Record<AreaId, AreaBudget>> {
+  const out: Partial<Record<AreaId, AreaBudget>> = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!AREA_IDS.includes(k as AreaId)) continue;
+    const b = sanitizeBudget(v);
+    if (Object.keys(b).length) out[k as AreaId] = b;
+  }
+  return out;
+}
+
+// The popover always submits the area's whole budget (all 3 fields at once,
+// like sanitizeCard replaces a whole card) — a JSON frame drops an `undefined`
+// field entirely, so there is no wire-safe way to express "clear just this
+// one" as a patch. Re-sanitized here regardless, never trusted raw. An empty
+// result (every field off) removes the entry instead of leaving a `{}` husk.
+export function setBudget(board: CanvasBoard, area: string, raw: unknown): CanvasBoard {
+  if (!AREA_IDS.includes(area as AreaId)) return board;
+  const budgets = { ...board.budgets };
+  const next = sanitizeBudget(raw);
+  if (Object.keys(next).length) budgets[area as AreaId] = next; else delete budgets[area as AreaId];
+  return { ...board, budgets };
 }
 
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : '');
@@ -235,12 +278,13 @@ export async function readBoard(): Promise<CanvasBoard> {
   const cards = (Array.isArray(parsed.cards) ? parsed.cards : [])
     .map((c) => sanitizeCard(c, c as CanvasCard, (c as CanvasCard)?.updatedAt ?? now))
     .filter((c): c is CanvasCard => !!c);
-  // A board written before flows existed has no `flows` key at all — Array.isArray
-  // on undefined is false, so it degrades to [] instead of throwing.
+  // A board written before flows/budgets existed has no such key at all —
+  // Array.isArray on undefined is false, so flows degrades to [] instead of
+  // throwing; sanitizeBudgets does the equivalent for a missing/non-object budgets.
   const flows = (Array.isArray(parsed.flows) ? parsed.flows : [])
     .map((f) => sanitizeFlow(f, f as CanvasFlow, now))
     .filter((f): f is CanvasFlow => !!f);
-  return { cards, pos: sanitizePos(parsed.pos), flows };
+  return { cards, pos: sanitizePos(parsed.pos), flows, budgets: sanitizeBudgets(parsed.budgets) };
 }
 
 // Every write goes through one chain: two quick frames (drag end + card save)

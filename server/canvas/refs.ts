@@ -20,6 +20,13 @@ export interface SessionTopics {
 
 export interface SessionRefs {
   contexts: Record<string, RefKind>;
+  // How many tool calls touched each context, regardless of kind — a session
+  // that wrote a memory file once and read it back thirty times cares about it
+  // more than one that read it in passing. Optional and additive on purpose:
+  // an entry loaded from an OLDER canvas-refs.json cache simply won't have it,
+  // and every reader treats "absent" as "weight unknown, count it as 1" rather
+  // than requiring a cache-schema bump.
+  contextHits?: Record<string, number>;
   cardId?: string;
   topics?: SessionTopics;
   consumed: number; // bytes of complete lines already scanned (JSONL is append-only)
@@ -81,6 +88,7 @@ function scanTopicsLine(line: string, topics: SessionTopics): void {
 
 function addRef(refs: SessionRefs, id: string, kind: RefKind) {
   if (id === 'MEMORY') return;
+  bump(refs.contextHits ?? (refs.contextHits = {}), id);
   if (refs.contexts[id] === 'write') return;
   refs.contexts[id] = kind;
 }
