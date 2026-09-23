@@ -8,6 +8,7 @@ for node, and the canvas can keep several of these open on a 4 GB box.
 """
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -27,8 +28,14 @@ MAX_RESULT_LINES = 6
 MAX_TEXT_CHARS = 4000
 
 
+# Transcript text is untrusted (tool results carry web pages, files, command
+# output): a raw ESC or C1 byte printed here would be executed by tmux/xterm as
+# a control sequence. Only our own colour codes may reach the terminal.
+CONTROL = re.compile("[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+
+
 def clip(s, n):
-    s = s.replace("\r", "")
+    s = CONTROL.sub("", s)
     return s if len(s) <= n else s[: n - 1] + "…"
 
 
@@ -99,7 +106,7 @@ def render(rec):
             elif t == "thinking":
                 out.append(stamp(rec) + DIM + "✻ pensando…" + RESET)
             elif t == "tool_use":
-                name = c.get("name", "?")
+                name = clip(str(c.get("name", "?")), 60)
                 out.append(stamp(rec) + CYAN + "⏺ " + name + RESET + " " + tool_arg(name, c.get("input")))
     elif kind == "system" and rec.get("subtype") == "compact_boundary":
         out.append(YELLOW + "── contexto compactado ──" + RESET)
