@@ -33,7 +33,7 @@ import { stripLongContext } from '../shared/long-context';
 import { composerCost, type ComposerCost } from './components/chat/send-cost';
 import { addThumb, shouldRequestThumb } from './lib/att-thumb-cache';
 import { fileSig, isFreshUpload } from './components/chat/dedupe-uploads';
-import { encodeAttachments, parseAttachments } from './lib/parse-attachments';
+import { encodeAttachments, parseAttachments } from '../shared/parse-attachments';
 import { loadPendingAtts, savePendingAtts, addPendingAtt, movePendingAtts, clearPendingAtts, restoreAttachments } from './lib/pending-atts';
 import { digestFile, rememberSent, forgetSent, markDuplicates, SENT_HASHES_KEY, type SentHashes, type DupKind } from './lib/sent-attachments';
 

@@ -7,7 +7,7 @@ import type { UserMessage } from '../../data/types';
 import { CopyTextButton, QuoteButton } from './MessageActions';
 import { TriageBadge } from './TriageBadge';
 import { fmtClock } from './message-format';
-import { parseAttachments } from '../../lib/parse-attachments';
+import { parseAttachments } from '../../../shared/parse-attachments';
 import { AttachmentChip } from './AttachmentChip';
 
 interface UserMessageRowProps {

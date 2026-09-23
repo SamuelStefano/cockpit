@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { replaceBody, parseAttachments, attachmentTextBlock } from './parse-attachments';
+import { replaceBody, parseAttachments, attachmentTextBlock, promptPreview } from './parse-attachments';
 
 describe('parseAttachments', () => {
   it('separa marcadores de anexo do corpo e limpa o nome', () => {
@@ -59,5 +59,20 @@ describe('replaceBody', () => {
     const um = replaceBody(raw, 'novo');
     expect(um).toBe('[anexo: a/1-x-p.docx]\n\nnovo');
     expect(replaceBody(um, 'novo 2')).toBe('[anexo: a/1-x-p.docx]\n\nnovo 2');
+  });
+});
+
+describe('promptPreview', () => {
+  it('drops attachment markers and extracted text, keeping the body', () => {
+    const raw = `[anexo: attachments/k/mf1-ab12-p.docx]\n${attachmentTextBlock('p.docx', 'conteudo')}\n\nresume isso`;
+    expect(promptPreview(raw)).toBe('resume isso');
+  });
+
+  it('falls back to attachment names when the prompt is attachment-only', () => {
+    expect(promptPreview('[anexo: attachments/k/mf1-ab12-a.png]\n[anexo: attachments/k/mf1-cd34-b.pdf]')).toBe('Anexo: a.png, b.pdf');
+  });
+
+  it('keeps plain prompts untouched', () => {
+    expect(promptPreview('oi')).toBe('oi');
   });
 });

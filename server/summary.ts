@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type { Message } from '../shared/protocol';
 import { CONFIG } from './config';
 import { parseSession } from './sessions/parse';
+import { promptPreview } from '../shared/parse-attachments';
 import { setSummary } from './db';
 import { broadcast } from './ws/broadcast';
 
@@ -47,7 +48,7 @@ export function transcriptText(messages: Message[], cap = TRANSCRIPT_CAP): strin
   const lines: string[] = [];
   for (const m of messages) {
     if (m.role === 'user') {
-      const t = m.text.trim();
+      const t = promptPreview(m.text);
       if (t) lines.push(`Você: ${t}`);
     } else if (m.role === 'assistant') {
       const t = m.blocks

@@ -4,7 +4,7 @@ import { pendingQuestionIdx } from '../../cockpit/pending-question';
 import type { Session, Message } from '../../data/types';
 import type { PermMode, ModelInfo } from '../../../shared/protocol';
 import type { QueueItem } from '../../useCockpit';
-import { parseAttachments, replaceBody } from '../../lib/parse-attachments';
+import { parseAttachments, replaceBody } from '../../../shared/parse-attachments';
 
 export type Phase = 'idle' | 'thinking' | 'streaming';
 
