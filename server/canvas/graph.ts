@@ -62,7 +62,7 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
   const ctxIds = new Set(input.contexts.map((c) => c.id));
   const sessionIds = new Set(input.sessions.map((s) => s.meta.id));
 
-  const matchDocs: MatchDoc[] = input.contexts.map((c) => ({ id: c.id, name: c.name, description: c.description }));
+  const matchDocs: MatchDoc[] = input.contexts.map((c) => ({ id: c.id, name: c.name, description: c.description, hub: c.id.startsWith('hub_') }));
 
   for (const { meta, archived } of input.sessions) {
     nodes.push({

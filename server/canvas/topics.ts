@@ -19,6 +19,7 @@ export interface MatchDoc {
   id: string;
   name: string;
   description: string;
+  hub?: boolean;
 }
 
 export interface TopicMatch {
@@ -85,28 +86,33 @@ function scoreText(doc: MatchDoc, text: string): number {
 }
 
 export function matchTopics(topics: SessionTopics | undefined, text: string, docs: MatchDoc[]): TopicMatch[] {
+  // Summed, not maxed: a doc corroborated by more than one signal (say, the repo
+  // dir AND a title word) should clearly outrank a sibling that only shares the
+  // same generic family prefix (e.g. every `cockpit_*` leaf matching on the
+  // `cockpit` repo alone) — otherwise unrelated sessions in the same repo all
+  // tie on the same few leaves and the top-3 never discriminates between them.
   const scores = new Map<string, number>();
+  const bump = (id: string, s: number) => { if (s > 0) scores.set(id, (scores.get(id) ?? 0) + s); };
   const add = (rec: Record<string, number> | undefined) => {
     if (!rec) return;
     for (const [token, count] of Object.entries(rec)) {
       const families = tokenFamilies(token);
       if (!families.length) continue;
-      for (const doc of docs) {
-        const s = scoreDoc(doc, families, count);
-        if (s > 0) scores.set(doc.id, Math.max(scores.get(doc.id) ?? 0, s));
-      }
+      for (const doc of docs) bump(doc.id, scoreDoc(doc, families, count));
     }
   };
   add(topics?.dirs);
   add(topics?.skills);
   add(topics?.mcp);
-  for (const doc of docs) {
-    const s = scoreText(doc, text);
-    if (s > 0) scores.set(doc.id, Math.max(scores.get(doc.id) ?? 0, s));
-  }
+  for (const doc of docs) bump(doc.id, scoreText(doc, text));
+  const byId = new Map(docs.map((d) => [d.id, d]));
   return [...scores.entries()]
     .filter(([, score]) => score >= TOPIC_MATCH_MIN_SCORE)
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    // Tie-break toward the hub: when a generic family word (e.g. "dfl") scores
+    // several unrelated leaves identically, the hub is the defensible guess —
+    // an arbitrary alphabetically-first leaf is the false positive this whole
+    // measurement step exists to catch.
+    .sort((a, b) => b[1] - a[1] || Number(!!byId.get(b[0])?.hub) - Number(!!byId.get(a[0])?.hub) || a[0].localeCompare(b[0]))
     .slice(0, TOPIC_MATCH_LIMIT)
     .map(([id, score]) => ({ id, score }));
 }
