@@ -22,6 +22,7 @@ import { startStatsLoop } from './ws/stats-loop';
 import { startSessionsWatch } from './sessions/watch';
 import { startPointsWatch } from './points-watch';
 import { startDflPointsWatch } from './dfl-points-watch';
+import { startDflDraftsWatch } from './dfl-drafts-watch';
 import { loadManagedEnv } from './admin-ops';
 
 // Entrypoint do AGENTE T3 (DR-023): em vez de escutar (attachWs), DISCA pro relay
@@ -276,6 +277,7 @@ export function runAgent(relayUrl: string): void {
   startSessionsWatch(hasClients);
   startPointsWatch(hasClients);
   startDflPointsWatch();
+  startDflDraftsWatch();
   // Drainer da fila ESTACIONADA (overnight/quota-out): SÓ o agente liga (a trava
   // drainerEnabled em runs.ts evita dreno dobrado com o index/loopback). Roda
   // sem depender de browser aberto — é justamente o ponto: enfileirar à noite e

@@ -10,7 +10,9 @@ import { getNotes, saveNotes } from '../notes';
 import { putDrop, listDrops, openDrop, removeDrop } from '../drop';
 import { readPoints, createEntry, correctPoints, noteEntry, deleteEntry } from '../points';
 import { readDflSnapshot } from '../dfl-points';
-import { registerFinanceClient } from './finance-clients';
+import { readDrafts, mutateDrafts } from '../dfl-drafts';
+import { isDraftOp } from '../../shared/dfl-drafts';
+import { registerFinanceClient, emitFinanceMsg } from './finance-clients';
 import { runDflSync } from '../dfl-sync-runner';
 import { runDflWrite } from '../dfl-write-runner';
 import { buildAgentTasksPrompt, agentSessionKey, MAX_NOTE_BYTES } from '../pontos-agent';
@@ -418,6 +420,24 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
         effort: 'medium',
       });
       send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'agent', ok: true, message: sessionKey });
+      return;
+    }
+    // Staged DFL epics: Deck-local data (no DFL write), owner-only like the finance
+    // snapshot. After a mutation every finance socket gets the new list; the file
+    // watcher also covers writes made by the deck-drafts CLI.
+    case 'drafts-get': {
+      registerFinanceClient(ws);
+      send(ws, { t: 'drafts', items: await readDrafts() });
+      return;
+    }
+    case 'drafts-op': {
+      registerFinanceClient(ws);
+      if (!isDraftOp(msg.op)) { send(ws, { t: 'error', message: 'operação de rascunho inválida' }); return; }
+      try {
+        emitFinanceMsg({ t: 'drafts', items: await mutateDrafts(msg.op) });
+      } catch (e) {
+        send(ws, { t: 'error', message: e instanceof Error ? e.message : 'rascunho: falhou' });
+      }
       return;
     }
     case 'crons-get': {

@@ -3,6 +3,7 @@
 // importa este arquivo.
 
 import type { CanvasBoard, CanvasCard, CanvasGraph, CanvasPos } from './canvas';
+import type { DflDraft, DraftOp } from './dfl-drafts';
 
 export interface ToolDiff {
   path: string;
@@ -655,6 +656,11 @@ export type ClientMsg =
   // trabalho no DFL. Não escreve nada sozinho aqui — quem escreve é o agente,
   // pelas tools dele. Os tetos viajam junto pra o prompt citar o valor vigente.
   | { t: 'pontos-agent-tasks'; reqId: string; note: string; epicCapCents: number; monthCapCents: number; pointValue: number }
+  // Staged DFL epics (~/.cockpit/dfl-drafts.json). Same class as the finance
+  // snapshot: outside STUDENT_ALLOWED and pushed only to finance sockets. Nothing
+  // here touches DFL — only the dispatched agent writes there.
+  | { t: 'drafts-get' }
+  | { t: 'drafts-op'; op: DraftOp }
   | { t: 'ctx-install'; slug: string; title: string; body: string }
   | { t: 'session-handoff'; sessionId: string }
   // Afunilamento em lote: destila as sessões paradas num contexto só e arquiva.
@@ -769,6 +775,7 @@ export type ServerMsg =
   // snapshot = null quando o sync ainda não rodou (nada em ~/.cockpit/dfl-points.json).
   | { t: 'points-dfl'; snapshot: DflPointsSnapshot | null }
   | { t: 'points-dfl-syncing' }
+  | { t: 'drafts'; items: DflDraft[] }
   // Resultado de uma escrita DFL (change/invoice). reqId casa com o pedido; a UI
   // mostra sucesso/erro e um resync empurra o snapshot novo pelo watcher.
   | { t: 'points-dfl-write'; reqId: string; kind: 'change' | 'invoice' | 'agent'; ok: boolean; message?: string }
