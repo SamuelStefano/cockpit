@@ -71,4 +71,26 @@ describe('buildCanvasGraph', () => {
     });
     expect(g.edges).toHaveLength(1);
   });
+
+  it('wires a topic edge from the loose repo/skill/mcp signal, weighted', () => {
+    const g = buildCanvasGraph({
+      sessions: [{ meta: meta(S1), archived: false }],
+      refs: new Map([[S1, { contexts: {}, topics: { dirs: { cockpit: 5 }, skills: {}, mcp: {} }, consumed: 0 }]]),
+      contexts: [ctx('hub_deck'), ctx('cockpit_ping_regression')],
+      cards: [],
+    });
+    const topic = g.edges.filter((e) => e.kind === 'topic');
+    expect(topic.map((e) => e.target).sort()).toEqual(['c:cockpit_ping_regression', 'c:hub_deck']);
+    expect(topic.every((e) => (e.weight ?? 0) > 0 && (e.weight ?? 0) <= 1)).toBe(true);
+  });
+
+  it('does not add a topic edge on top of an existing read/write edge to the same context', () => {
+    const g = buildCanvasGraph({
+      sessions: [{ meta: meta(S1), archived: false }],
+      refs: new Map([[S1, { contexts: { cockpit_ping_regression: 'write' }, topics: { dirs: { cockpit: 5 }, skills: {}, mcp: {} }, consumed: 0 }]]),
+      contexts: [ctx('cockpit_ping_regression')],
+      cards: [],
+    });
+    expect(g.edges).toEqual([{ source: `s:${S1}`, target: 'c:cockpit_ping_regression', kind: 'write' }]);
+  });
 });

@@ -1,4 +1,4 @@
-import type { CanvasCard, CanvasEdge, CanvasNode } from '../../../shared/canvas';
+import { isCronPing, type CanvasCard, type CanvasEdge, type CanvasNode } from '../../../shared/canvas';
 
 export type CanvasScope = 'active' | 'all';
 
@@ -11,11 +11,26 @@ export interface FilterOpts {
   now: number;
 }
 
-export const ACTIVE_WINDOW_MS = 7 * 24 * 3600_000;
+// "Active" used to mean "touched in the last 7 days", which at 300 sessions
+// mostly means "everything" — the whole point was a real-time picture of what
+// the Deck is doing right now. 48h keeps the sidebar's own sense of "recent"
+// (running/waiting sessions are always in regardless of the window).
+export const ACTIVE_WINDOW_MS = 48 * 3600_000;
 
-// "Active" keeps what is alive this week — running or recent sessions and open
-// cards — plus every context they touch and the hubs above those contexts, so
-// the map shows where the work sits without the whole year of history.
+// A cron-reset ping or a session with no real turn yet is noise in the
+// sidebar (isCronPing already hides it there) and would be noise here too —
+// letting it "count" as active just to fill the empty-context cluster with
+// junk. It can still show up under "all", or via `running`/`waiting`.
+function isNoise(n: CanvasNode): boolean {
+  // `count` is undefined for a fixture/old node shape, not for a real empty
+  // session (the scanner always sets it) — only an explicit 0 counts as noise.
+  return isCronPing({ title: n.title, snippet: n.subtitle }) || n.count === 0;
+}
+
+// "Active" keeps what is alive right now — running, waiting on you, or with
+// real activity in the last 48h — plus open cards, every context they touch,
+// and the hubs above those contexts, so the map shows where the work sits
+// without the whole year of history.
 export function filterCanvas(nodes: CanvasNode[], edges: CanvasEdge[], o: FilterOpts): { nodes: CanvasNode[]; edges: CanvasEdge[] } {
   const openCards = new Set(o.cards.filter((c) => c.status !== 'done').map((c) => `k:${c.id}`));
   const nbrs = new Map<string, string[]>();
@@ -31,7 +46,7 @@ export function filterCanvas(nodes: CanvasNode[], edges: CanvasEdge[], o: Filter
     for (const n of nodes) if (allowed(n)) keep.add(n.id);
   } else {
     const seeds = nodes.filter((n) => allowed(n) && (
-      (n.kind === 'session' && (o.running.has(n.ref) || o.now - n.mtime < ACTIVE_WINDOW_MS)) ||
+      (n.kind === 'session' && !isNoise(n) && (o.running.has(n.ref) || n.waiting || o.now - n.mtime < ACTIVE_WINDOW_MS)) ||
       (n.kind === 'card' && openCards.has(n.id))
     ));
     for (const s of seeds) {
