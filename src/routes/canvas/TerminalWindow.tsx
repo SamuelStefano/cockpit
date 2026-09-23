@@ -1,9 +1,15 @@
-import { lazy, memo, Suspense } from 'react';
+import { lazy, memo, Suspense, useRef, useState } from 'react';
 import type { CanvasNode, CanvasPos, TermStats } from '../../../shared/canvas';
 import { Badge, Button, Icon } from '../../components/primitives';
 import type { TermApi } from '../../useCockpit';
+import { AlertBadge, AlertRing } from './CanvasAlert';
+import { sessionAlert } from './canvas-alerts';
 import { TERM_H, TERM_W } from './canvas-terms';
+import { GhostSummaryBanner } from './GhostSummaryBanner';
+import { SessionPromptBar } from './SessionPromptBar';
 import { TermStatsBar } from './TermStatsBar';
+import { ctxPct } from './term-stats-view';
+import { shouldShowGhostBanner, useGhostBanner } from './useGhostBanner';
 import type { TermTarget } from './useCanvasTerms';
 
 const XtermView = lazy(() => import('../../components/Xterm').then((m) => ({ default: m.XtermView })));
@@ -22,6 +28,10 @@ interface Props {
   dim: boolean;
   running: boolean;
   waiting: boolean;
+  // The pane is (or was last put into) an interactive `claude --resume`,
+  // outside Deck's own run tracking — sending through the prompt bar here
+  // would start a SECOND writer on the same transcript.
+  promptDisabled: boolean;
   onPointerDown: (e: React.PointerEvent, id: string) => void;
   onActivate: (id: string) => void;
   onCollapse: (id: string) => void;
@@ -29,6 +39,11 @@ interface Props {
   onMaximize: (id: string) => void;
   onResume: (sessionId: string) => void;
   onOpenChat: (sessionId: string) => void;
+  // Stable reference (not a per-node bound closure — see CanvasWindows.tsx)
+  // plus the raw sessionId, so this component's own memo isn't defeated.
+  onSendTo: (sessionId: string, text: string) => boolean;
+  sendError: { sessionId: string; text: string; message: string } | null;
+  onDismissSendError: () => void;
 }
 
 const stop = (e: React.PointerEvent) => e.stopPropagation();
@@ -45,6 +60,15 @@ function Dot({ running, waiting }: { running: boolean; waiting: boolean }) {
 export const TerminalWindow = memo(function TerminalWindow(p: Props) {
   const n = p.node;
   const session = n.kind === 'session';
+  const alert = session ? sessionAlert(p.waiting, p.stats) : null;
+  const pct = p.stats ? ctxPct(p.stats) : null;
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useGhostBanner(n.ref);
+  // Collapsed by default (spec: one-line, expand on click) — a ghost window
+  // rarely needs the full summary on sight, and the collapsed strip is the
+  // height that's permanently reserved (see GhostSummaryBanner.tsx).
+  const [bannerCollapsed, setBannerCollapsed] = useState(true);
+  const promptRef = useRef<HTMLInputElement>(null);
+  const showBanner = shouldShowGhostBanner(session, bannerDismissed, n.subtitle);
   return (
     <div
       data-node={n.id}
@@ -53,6 +77,7 @@ export const TerminalWindow = memo(function TerminalWindow(p: Props) {
         ${p.active ? 'border-orange-500/80 ring-2 ring-orange-500/30' : p.selected ? 'border-orange-400/60' : 'border-neutral-700'}
         ${p.dim ? 'opacity-40' : ''}`}
     >
+      <AlertRing kind={alert} />
       <header
         onPointerDown={(e) => p.onPointerDown(e, n.id)}
         onDoubleClick={() => p.onMaximize(n.id)}
@@ -60,6 +85,7 @@ export const TerminalWindow = memo(function TerminalWindow(p: Props) {
       >
         {session ? <Dot running={p.running} waiting={p.waiting} /> : <Icon name="terminal" size={12} className="text-orange-400" />}
         <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-neutral-200">{n.title}</span>
+        {alert && <AlertBadge kind={alert} pct={pct} />}
         {session
           ? <Badge tone={p.running ? 'green' : 'neutral'}>{p.running ? 'ao vivo' : 'fantasma'}</Badge>
           : <Badge tone="orange">shell</Badge>}
@@ -78,6 +104,16 @@ export const TerminalWindow = memo(function TerminalWindow(p: Props) {
         </span>
       </header>
       <TermStatsBar stats={p.stats} running={p.running} session={session} />
+      {showBanner && (
+        <GhostSummaryBanner
+          summary={n.subtitle} lastActiveAt={p.stats?.lastAt ?? n.mtime}
+          // Forced collapsed while running: nothing to "continue" mid-turn,
+          // and running never gets to change the reserved strip's height.
+          collapsed={bannerCollapsed || p.running} onToggleCollapsed={() => setBannerCollapsed((c) => !c)}
+          onDismiss={dismissBanner} continueEnabled={!p.promptDisabled && !p.running}
+          onContinue={() => promptRef.current?.focus()}
+        />
+      )}
       <div className="relative min-h-0 flex-1" data-term-active={p.active || undefined}>
         {p.maximized ? (
           <div className="flex h-full items-center justify-center font-mono text-[12px] text-neutral-600">em tela cheia</div>
@@ -97,6 +133,12 @@ export const TerminalWindow = memo(function TerminalWindow(p: Props) {
           />
         )}
       </div>
+      {session && (
+        <SessionPromptBar
+          ref={promptRef} onSend={(text) => p.onSendTo(n.ref, text)} disabled={p.promptDisabled}
+          restoreText={p.sendError?.text ?? null} onRestored={p.onDismissSendError}
+        />
+      )}
     </div>
   );
 });

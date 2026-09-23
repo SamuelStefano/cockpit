@@ -14,7 +14,7 @@ interface Props {
   loading: boolean;
   onRefresh: () => void;
   onNewCard: () => void;
-  counts: { sessions: number; contexts: number; terminals: number; cards: number };
+  counts: { sessions: number; contexts: number; terminals: number; cards: number; waiting: number; hotContext: number };
 }
 
 const MODES = [{ id: 'canvas' as const, label: 'canvas' }, { id: 'kanban' as const, label: 'kanban' }];
@@ -25,6 +25,8 @@ export function CanvasFilters(p: Props) {
       <Icon name="layers" size={14} className="text-orange-400" />
       <span className="font-mono text-[14px] font-semibold lowercase tracking-tight text-neutral-100">canvas</span>
       <Badge>{p.counts.terminals} terminais · {p.counts.sessions} sessões · {p.counts.contexts} contextos · {p.counts.cards} cards</Badge>
+      {p.counts.waiting > 0 && <Badge tone="yellow">{p.counts.waiting} esperando</Badge>}
+      {p.counts.hotContext > 0 && <Badge tone="red">{p.counts.hotContext} no limite</Badge>}
       <Tabs items={MODES} active={p.mode} onChange={p.onMode} className="mx-2 border-b-0" />
       <ToggleChip on={p.scope === 'active'} icon="zap" onClick={() => p.onScope('active')}>ativas (7d)</ToggleChip>
       <ToggleChip on={p.scope === 'all'} icon="layers" onClick={() => p.onScope('all')}>todas</ToggleChip>

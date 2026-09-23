@@ -803,13 +803,22 @@ export interface RouteSendOptions extends RunParams {
   prompt: string;
   resumeId?: string;
   msgId?: string;
+  // The key the "prompt grande demais" check reports its error under, when
+  // it differs from the routing `sessionKey` (dispatch.ts's 'send' case
+  // resolved a canvas send onto a DIFFERENT live thread via
+  // resolveThreadKey). Defaults to `sessionKey`. Only matters for THIS one
+  // check: it fires BEFORE any 'triage' broadcast, which is what the
+  // client's own aliasRoutedKey correlation (useCockpit.ts) needs to have
+  // seen first — every later rejection in this function already happens
+  // after 'triage' and is covered by that mechanism instead.
+  displayKey?: string;
 }
 
 export async function routeSend(o: RouteSendOptions) {
-  const { ws, sessionKey, prompt, resumeId, msgId } = o;
+  const { ws, sessionKey, prompt, resumeId, msgId, displayKey = sessionKey } = o;
   const params = runParams(o);
   if (typeof sessionKey !== 'string' || !SESSION_KEY_RE.test(sessionKey)) { send(ws, { t: 'error', message: 'sessão inválida' }); return; }
-  if (typeof prompt !== 'string' || Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) { send(ws, { t: 'error', sessionKey, message: 'prompt grande demais' }); return; }
+  if (typeof prompt !== 'string' || Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) { send(ws, { t: 'error', sessionKey: displayKey, message: 'prompt grande demais' }); return; }
   const cur = threads.get(sessionKey);
   if (!cur) { startRun({ ...params, ws, sessionKey, prompt, resumeId, msgId }); return; } // corrida: turno fechou
 

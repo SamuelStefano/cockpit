@@ -34,6 +34,9 @@ interface Props {
   onOpenChat: (sessionId: string) => void;
   onOpenRecent: () => void;
   onOpenTerm: (id: string) => void;
+  onSendTo: (sessionId: string, text: string) => boolean;
+  sendError: { sessionId: string; text: string; message: string } | null;
+  onDismissSendError: () => void;
   stats: Record<string, TermStats>;
   analysisOn: boolean;
   onToggleAnalysis: () => void;
@@ -164,12 +167,13 @@ export function CanvasSurface(p: Props) {
             key={n.id} node={n} pos={pos[n.id]} compact={compact} zoom={view.k}
             selected={selectedSet.has(n.id)} dim={focus.size > 0 && !focus.has(n.id)}
             running={n.kind === 'session' && p.running.has(n.ref)} waiting={n.kind === 'session' && p.waiting.has(n.ref)}
-            onPointerDown={onNodeDown} onOpenTerm={p.onOpenTerm}
+            stats={p.stats[n.ref]} onPointerDown={onNodeDown} onOpenTerm={p.onOpenTerm}
           />
         ))}
         <CanvasWindows
           nodes={wins} pos={pos} terms={p.terms} term={p.term} selected={selectedSet} focus={focus}
-          running={p.running} waiting={p.waiting} onPointerDown={onNodeDown} onOpenChat={p.onOpenChat} stats={p.stats}
+          running={p.running} waiting={p.waiting} onPointerDown={onNodeDown} onOpenChat={p.onOpenChat} onSendTo={p.onSendTo}
+          sendError={p.sendError} onDismissSendError={p.onDismissSendError} stats={p.stats}
         />
         {/* Ports paint LAST, on top of everything — a port must never sit
             under a card's edge, or it can't be grabbed to start a drag. */}

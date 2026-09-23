@@ -193,6 +193,16 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 /* Halo pulsante reusável (indicador "ao vivo"/atenção): usa --ring, herda o raio. */
 .pulse-ring { border-radius: inherit; animation: pulseRing 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
 
+/* Canvas alert ring (waiting/hot-context borders): the box-shadow itself is
+   STATIC (set inline per alert color — never fights `.pulse-ring`'s own
+   animated `--ring`, which is orange and would make every alert look like the
+   ordinary "active window" ring). Only `opacity` animates — compositor-only,
+   no repaint per frame — and it's an INSET shadow so it's never cut off by a
+   parent's `overflow-hidden` the way an outset ring/`.pulse-ring` would be. */
+@keyframes alertPulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+.alert-ring { animation: alertPulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .alert-ring { animation: none; opacity: 1; } }
+
 /* Ripple do Button: círculo que nasce no clique e some crescendo. A escala é
    grande (12x) pra cobrir botões largos a partir de qualquer ponto. */
 @keyframes ripple { to { transform: scale(12); opacity: 0; } }

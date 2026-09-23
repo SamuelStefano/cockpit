@@ -13,20 +13,22 @@ const CLK_TCK = 100;
 const PAGE_KB = 4;
 const TAIL_BYTES = 256 * 1024;
 
-export interface ProcRow { pid: number; ppid: number; ticks: number; rssKb: number }
+export interface ProcRow { pid: number; ppid: number; ticks: number; rssKb: number; comm: string }
 
 // The command name sits in parentheses and may itself contain spaces or ')',
 // so fields are counted from the LAST ')'.
 export function parseProcStat(raw: string): ProcRow | null {
+  const open = raw.indexOf('(');
   const close = raw.lastIndexOf(')');
-  if (close < 0) return null;
+  if (close < 0 || open < 0) return null;
   const pid = Number(raw.slice(0, raw.indexOf(' ')));
+  const comm = raw.slice(open + 1, close);
   const f = raw.slice(close + 2).split(' ');
   const ppid = Number(f[1]);
   const ticks = Number(f[11]) + Number(f[12]);
   const rssKb = Number(f[21]) * PAGE_KB;
   if (![pid, ppid, ticks, rssKb].every(Number.isFinite)) return null;
-  return { pid, ppid, ticks, rssKb };
+  return { pid, ppid, ticks, rssKb, comm };
 }
 
 export function treeOf(roots: number[], rows: ProcRow[]): ProcRow[] {
@@ -118,6 +120,30 @@ const SESSION_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-
 const TERM_ID_RE = /^[a-zA-Z0-9_-]{1,32}$/;
 const MAX_IDS = 40;
 const prevTicks = new Map<string, { ticks: number; at: number }>();
+
+// Pure decision: does this pane's process tree contain a `claude` process?
+// True = someone (Deck's own "retomar" button, or by hand) resumed the watch
+// pane INTERACTIVELY — routing another 'send' there (the canvas prompt bar,
+// or anything else) would start a SECOND writer on the same transcript.
+// `undefined` pane = no watch pane open at all for this session (the common
+// case for a session never opened as a canvas window) — never a match.
+export function paneHasInteractiveClaude(pane: number | undefined, rows: ProcRow[]): boolean {
+  if (pane === undefined) return false;
+  return treeOf([pane], rows).some((r) => r.comm === 'claude');
+}
+
+// I/O wrapper: same two primitives collectTermStats() already pays for
+// (readProcs/panePids), but ordered cheap-first — the tmux pane lookup runs
+// before the full /proc scan, so a session with no watch pane (never opened
+// on the canvas) never pays for the scan at all.
+export async function hasInteractiveClaude(sessionId: string): Promise<boolean> {
+  if (!SESSION_UUID_RE.test(sessionId)) return false;
+  const panes = await panePids();
+  const pane = panes.get(watchTermId(sessionId));
+  if (pane === undefined) return false;
+  const rows = await readProcs();
+  return paneHasInteractiveClaude(pane, rows);
+}
 
 export interface RunPids { sessionId?: string; key: string; pid?: number; startedAt: number }
 

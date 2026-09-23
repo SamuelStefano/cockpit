@@ -62,3 +62,44 @@ export function newFlowId(now: number, rand: number): string {
 export function moveCard(card: CanvasCard, status: CardStatus, now: number): CanvasCard {
   return { ...card, status, updatedAt: now };
 }
+
+// CardEditor's draft is a snapshot frozen at open time (useCanvasRoute's
+// `draft` state never re-syncs to later board updates). A server-side
+// auto-move (card-review.ts: doing→review on a clean turn close) can land
+// while the editor is open; if the user never touched the status control
+// (edited === original), the LIVE status should win on save instead of being
+// clobbered by the stale snapshot. `live` is undefined for a brand-new card.
+export function resolveSaveStatus(edited: CanvasCard, original: CanvasCard | undefined, live: CanvasCard | undefined): CardStatus {
+  return original && live && edited.status === original.status ? live.status : edited.status;
+}
+
+// A doing card can accumulate many bound sessions over retries/follow-ups;
+// replaying every historical binding into an open window on every mount or
+// reload would flood the canvas and evict windows the user closed on
+// purpose. Only a pair not yet in `seen` is "new" and worth auto-opening —
+// `seen` is mutated in place (every considered pair is marked, whether new
+// or not) so the caller's persisted baseline grows monotonically and a given
+// binding is only ever acted on once.
+export function newlyBoundSessions(cards: CanvasCard[], edges: CanvasEdge[], seen: Set<string>): { cardId: string; sessionId: string }[] {
+  const out: { cardId: string; sessionId: string }[] = [];
+  for (const c of cards) {
+    if (c.status !== 'doing') continue;
+    for (const sessionId of boundSessions(edges, c.id)) {
+      const key = `${c.id}:${sessionId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ cardId: c.id, sessionId });
+    }
+  }
+  return out;
+}
+
+export const MAX_PERSISTED_IDS = 200;
+
+// A localStorage-backed id list (seen card→session bindings, dismissed ghost
+// banners) only ever grows — cap it to the most recently added, so a canvas
+// with months of history doesn't bloat localStorage forever. Ids are always
+// appended, never reordered, so "last N" IS "most recent".
+export function capRecent(ids: string[], max = MAX_PERSISTED_IDS): string[] {
+  return ids.length > max ? ids.slice(ids.length - max) : ids;
+}

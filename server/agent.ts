@@ -7,6 +7,10 @@ import type { Role } from './auth';
 import { capsFor } from './auth';
 import { CONFIG } from './config';
 import { serveConnection } from './ws/serve-connection';
+// Side effect only: registers the canvas "card → review" listener on
+// onTurnClosed (server/canvas/turn-hooks.ts) at import time — same as
+// server/index.ts, since this entry point never imports that one.
+import './canvas/card-review';
 import { setClientSource, broadcast } from './ws/broadcast';
 import { mcpServerDefsSync, claudeReady } from './admin-ops';
 import { getSlashCommands } from './ws/slash';

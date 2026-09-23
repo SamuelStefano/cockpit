@@ -109,6 +109,23 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
       return true;
     }
     if (msg.t === 'canvas-graph') { setGraph(msg.graph); setStale(false); settle(); return true; }
+    // Slim patch (card-review.ts auto-moving a card to "review"): update just
+    // that card's status locally instead of waiting for a full canvas-board —
+    // the server only sends this one field, not the whole board, on purpose.
+    if (msg.t === 'canvas-card-status') {
+      setBoard((b) => {
+        const i = b.cards.findIndex((c) => c.id === msg.cardId);
+        if (i < 0 || b.cards[i].status === msg.status) return b;
+        // A user-initiated write in flight for this exact card (drag, editor
+        // save) wins over the server's patch for the same grace window as a
+        // full board frame — same rule as the `canvas-board` branch below.
+        if (Date.now() - (cardWriteAt.current[msg.cardId] ?? 0) < WRITE_GRACE_MS) return b;
+        const cards = [...b.cards];
+        cards[i] = { ...cards[i], status: msg.status };
+        return { ...b, cards };
+      });
+      return true;
+    }
     if (msg.t === 'canvas-board') {
       if (ackTimerRef.current) { clearTimeout(ackTimerRef.current); ackTimerRef.current = null; }
       const now = Date.now();

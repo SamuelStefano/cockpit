@@ -24,6 +24,9 @@ import { useContexts, type Contexts } from './cockpit/useContexts';
 import { useSkills, type Skills } from './cockpit/useSkills';
 import { useGraphs, type Graphs } from './cockpit/useGraphs';
 import { useCanvas, type CanvasApi } from './cockpit/useCanvas';
+import { buildSendWire as buildSendWirePure } from './cockpit/send-wire';
+import { MAX_PROMPT_BYTES } from '../shared/limits';
+import { aliasRoutedKey, type PendingCanvasSend } from './cockpit/canvas-send-tracker';
 import { useAdmin, type Admin } from './cockpit/useAdmin';
 import { useHarness, type Harness } from './cockpit/useHarness';
 import { stripLongContext } from '../shared/long-context';
@@ -60,6 +63,9 @@ import type { Phase } from './components/Chat';
 // de stats pra não reconectar à toa.
 const HEARTBEAT_MS = 15_000;
 const HEARTBEAT_STALE_MS = 40_000;
+// Canvas prompt bar: window to correlate a late server-side send rejection
+// (prompt too large, queue cheia) back to the text that caused it.
+const CANVAS_SEND_PENDING_MS = 20_000;
 
 // A superfície pública dos domínios-folha é a dos próprios hooks, menos os canais
 // internos: `onMsg` (dispatch) e `onGraphReconnect` (gancho do socket).
@@ -67,6 +73,9 @@ type LeafApis = Omit<Notes & Drops & Crons & Points & Contexts & Skills & Graphs
 
 export interface Cockpit extends LeafApis {
   onLaunchAgent: (prompt: string, title: string) => string | null;
+  onSendTo: (sessionId: string, text: string) => boolean;
+  canvasSendError: { sessionId: string; text: string; message: string } | null;
+  dismissCanvasSendError: () => void;
   sessions: Session[];
   loading: boolean;
   activeId: string;
@@ -327,6 +336,10 @@ export function useCockpit(): Cockpit {
   // Turno que morreu e o servidor decidiu NÃO retomar sozinho: o motivo fica na
   // tela com um botão de retomada até o próximo turno da sessão.
   const [resumeOffers, setResumeOffers] = useState<ResumeOffers>({});
+  // A canvas prompt-bar send the server later rejects (prompt too large, fila
+  // cheia): correlated back via pendingCanvasSend so the exact window can
+  // restore the text and toast, instead of it just vanishing.
+  const [canvasSendError, setCanvasSendError] = useState<{ sessionId: string; text: string; message: string } | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const runMsg = useRef<Record<string, string>>({});      // sessionKey -> assistant msgId em voo
@@ -340,6 +353,12 @@ export function useCockpit(): Cockpit {
   const viewMode = useRef<Record<string, 'chain' | 'full'>>({});
   const extBusyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const migratedTo = useRef<Record<string, string>>({});  // new-xxx -> claude sessionId já migrado (idempotência: 2º `done` não re-migra nem zera o thread)
+  // sessionId (E, se a triagem re-rotear, também a chave REAL do thread — ver
+  // 'triage' abaixo) -> {msgId, texto, sessionId ORIGINAL da janela do canvas}.
+  // `sessionId` no valor sobrevive ao alias: uma entrada guardada sob a chave
+  // roteada ainda sabe pra QUAL janela restaurar o texto.
+  const pendingCanvasSend = useRef<Map<string, PendingCanvasSend>>(new Map());
+  const pendingCanvasMsgId = useRef<Map<string, string>>(new Map()); // msgId -> sessionId original, só p/ o 'triage' achar o que aliasar
   // chave DE DISPLAY -> chave com que o SERVIDOR mantém o thread (o `t` que chega nos frames de run).
   // Numa sessão nova o servidor keyeia o run por "new-xxx" e NUNCA re-keyea; o cliente migra activeRef pro
   // sessionId real. Sem isto, o `stop` iria com o id real e o `threads.get()` do servidor daria miss → kill no-op.
@@ -605,6 +624,15 @@ export function useCockpit(): Cockpit {
         setDrafts((d) => ({ ...d, [msg.sessionKey]: d[msg.sessionKey] || body }));
         restorePendingAtts(msg.sessionKey);
         inFlight.current.delete(msg.sessionKey);
+        // A canvas prompt-bar send this key belongs to (e.g. the double-writer
+        // guard, dispatch.ts 'send'): restore the text into that specific
+        // window + toast, same as the 'error' case below.
+        if (pendingCanvasSend.current.has(msg.sessionKey)) {
+          const pendingEntry = pendingCanvasSend.current.get(msg.sessionKey)!;
+          pendingCanvasSend.current.delete(msg.sessionKey);
+          setCanvasSendError({ sessionId: pendingEntry.sessionId, text: pendingEntry.text, message: msg.message });
+          toast(`Não deu pra mandar pra essa sessão: ${msg.message}`, { tone: 'error', durationMs: 6000 });
+        }
         return;
       }
       // Sem `error`: um aviso de erro por último acendia o banner "O turno falhou",
@@ -760,6 +788,13 @@ export function useCockpit(): Cockpit {
           updateThread(key, (prev) =>
             prev.map((m) => (m.id === msg.msgId && m.role === 'user' ? { ...m, triage: { action: msg.action, reason: msg.reason } } : m)),
           );
+          // A canvas send can get triaged onto a DIFFERENT live thread key than
+          // its own sessionId (server-side resolveThreadKey, dispatch.ts 'send')
+          // — this triage frame is the only place the client learns that real
+          // key. Alias the pending entry under it too, so a LATER error/reject
+          // broadcast under that key (not the original sessionId) still
+          // correlates back to the canvas window (canvas review #593 item 2).
+          aliasRoutedKey(pendingCanvasSend.current, pendingCanvasMsgId.current, msg.msgId, key);
         }
         if (msg.action === 'priority') delete runMsg.current[key];
         return;
@@ -1189,6 +1224,15 @@ export function useCockpit(): Cockpit {
           setLiveTurn((l) => { if (!(key in l)) return l; const n = { ...l }; delete n[key]; return n; });
           setPhases((p) => ({ ...p, [key]: 'idle' }));
           updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ ${msg.message}` }], error: true }]);
+          // A canvas prompt-bar send this key belongs to, rejected server-side
+          // (prompt too large, fila cheia): restore the text into that specific
+          // window instead of it just vanishing (canvas review #593 item 4).
+          const pendingEntry = pendingCanvasSend.current.get(key);
+          if (pendingEntry) {
+            pendingCanvasSend.current.delete(key);
+            setCanvasSendError({ sessionId: pendingEntry.sessionId, text: pendingEntry.text, message: msg.message });
+            toast(`Não deu pra mandar pra essa sessão: ${msg.message}`, { tone: 'error', durationMs: 6000 });
+          }
           notifyTurnError(
             sessionsRef.current.find((s) => s.id === key)?.title ?? '',
             msg.message,
@@ -1407,6 +1451,22 @@ export function useCockpit(): Cockpit {
     return chosen;
   }, []);
 
+  // Shared by onSend and onSendTo (the canvas prompt bar): builds the EXACT
+  // same 'send' wire payload for a session, whatever session it targets —
+  // same bypass/skills/mcps/effort/model resolution, so a prompt sent from
+  // the canvas can never drift from what the main composer would have sent
+  // for the same text (canvas review #593). The actual resolution logic is a
+  // pure function (src/cockpit/send-wire.ts) so it's unit-testable without
+  // mounting this whole hook; this wrapper just supplies the live refs.
+  const buildSendWire = useCallback((sessionKey: string, resumeIdFor: string | undefined, text: string, msgId: string, modeOverride?: PermMode, auto?: boolean, allowWorkflow?: boolean): ClientMsg => buildSendWirePure(
+    {
+      canBypass: !!capsRef.current?.canBypass, bypassOn: bypassRef.current,
+      selectedSkills: selectedSkillsRef.current, selectedMcps: selectedMcpsRef.current,
+      mode: modeRef.current, effort: effortRef.current,
+    },
+    sessionKey, resumeIdFor, text, msgId, pinSessionModel(sessionKey), modeOverride, auto, allowWorkflow,
+  ), [pinSessionModel]);
+
   // auto=true marca envio de automação (flush da fila do cliente): o servidor
   // estaciona autos enquanto a sessão aguarda resposta de AskUserQuestion.
   const onSend = useCallback((text: string, modeOverride?: PermMode, auto?: boolean, allowWorkflow?: boolean): boolean => {
@@ -1454,16 +1514,9 @@ export function useCockpit(): Cockpit {
     // Sem isto o card mostrava "agora" mas ficava no balde/posição velha até um F5.
     setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: text, relative: 'agora', mtime: Date.now(), waiting: false } : s)));
     setDrafts((d) => ({ ...d, [key]: '' }));
-    // bypass só vai no fio quando o servidor anunciou a capacidade (admin + env +
-    // loopback). O backend reimpõe via bypassAllowed — isto é só pra não anunciar
-    // um pedido que seria recusado.
-    const bypassWire = capsRef.current?.canBypass && bypassRef.current ? true : undefined;
-    // skills só vai no fio quando o usuário restringiu (subconjunto); vazio = todas.
-    const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
-    const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: wire, msgId, mode: modeOverride ?? modeRef.current, model: pinSessionModel(key), effort: effortRef.current, bypass: bypassWire, skills: skillsWire, mcps: mcpsWire, auto: auto || undefined, allowWorkflow: allowWorkflow || undefined });
+    send(buildSendWire(key, resumeId.current[key], wire, msgId, modeOverride, auto, allowWorkflow));
     return true;
-  }, [send, updateThread, pinSessionModel, noteSent]);
+  }, [send, updateThread, buildSendWire, noteSent]);
   const onApproveWorkflow = useCallback((text: string) => onSend(text, undefined, undefined, true), [onSend]);
   // Fecha a ponte usada pelo handoff-result (declarado acima do onSend).
   sendPromptRef.current = onSend;
@@ -1822,6 +1875,46 @@ export function useCockpit(): Cockpit {
     runningRef.current = next;
     return next;
   }, [phases]);
+  // Canvas: a one-line composer inside a terminal window reaches a session that
+  // may not even be the open chat tab, so it can't reuse onSend's
+  // activeRef.current. ALWAYS the normal 'send' path (via buildSendWire, so
+  // mcps/skills/bypass/effort/model match the composer exactly) — never
+  // queue-add: that parked queue only drains in the agent process, with its
+  // own pause/quota/cooldown, so a reply could sit unsent for hours. Server-
+  // side, `send` already triages a busy session through routeSend (and
+  // dispatch.ts resolves the live thread key by sessionId, so this is safe
+  // even when the real run is keyed differently — canvas review #593). No
+  // attachments, no optimistic bubble: the xterm transcript follower already
+  // shows the live output.
+  const dismissCanvasSendError = useCallback(() => setCanvasSendError(null), []);
+  const onSendTo = useCallback((sessionId: string, text: string): boolean => {
+    const clean = text.trim();
+    if (!sessionId || !clean) return false;
+    // Mirrors the server's own gate (CONFIG.maxPromptBytes, shared/limits.ts)
+    // so an oversized canvas prompt never round-trips just to bounce off
+    // routeSend's check — which, for a session rerouted onto a different live
+    // thread key, fires before any 'triage' frame and can't always correlate
+    // back to this window (canvas review #593 third pass item 4).
+    if (new TextEncoder().encode(clean).length > MAX_PROMPT_BYTES) {
+      toast('Prompt grande demais pra essa sessão — encurte e tente de novo.', { tone: 'error', durationMs: 6000 });
+      return false;
+    }
+    if (wsRef.current?.readyState !== WebSocket.OPEN) {
+      toast('Sem conexão com o servidor — a mensagem não foi enviada.', { tone: 'error', durationMs: 5000 });
+      return false;
+    }
+    stopping.current.delete(sessionId); // parity with onSend: a new prompt cancels any stop latch
+    const msgId = newId('u');
+    pendingCanvasSend.current.set(sessionId, { msgId, text: clean, sessionId });
+    pendingCanvasMsgId.current.set(msgId, sessionId); // p/ o 'triage' aliasar se rotear pra outra chave
+    setTimeout(() => {
+      if (pendingCanvasSend.current.get(sessionId)?.msgId === msgId) pendingCanvasSend.current.delete(sessionId);
+      pendingCanvasMsgId.current.delete(msgId);
+    }, CANVAS_SEND_PENDING_MS);
+
+    send(buildSendWire(sessionId, resumeId.current[sessionId] ?? sessionId, clean, msgId));
+    return true;
+  }, [send, buildSendWire]);
   // Marca o início do turno por sessão (idle→running) e limpa no fim, pra o card
   // do sidebar mostrar há quanto tempo aquela sessão trabalha.
   useEffect(() => {
@@ -1944,5 +2037,5 @@ export function useCockpit(): Cockpit {
 
   const attachmentsView = useMemo(() => markDuplicates(attachments, sentHashes[activeId]), [attachments, sentHashes, activeId]);
 
-  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...canvasApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, onLaunchAgent, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun };
+  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...canvasApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onSendTo, canvasSendError, dismissCanvasSendError, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, onLaunchAgent, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun };
 }

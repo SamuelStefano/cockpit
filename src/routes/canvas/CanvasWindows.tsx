@@ -14,6 +14,9 @@ interface Props {
   waiting: Set<string>;
   onPointerDown: (e: React.PointerEvent, id: string) => void;
   onOpenChat: (sessionId: string) => void;
+  onSendTo: (sessionId: string, text: string) => boolean;
+  sendError: { sessionId: string; text: string; message: string } | null;
+  onDismissSendError: () => void;
   stats: Record<string, TermStats>;
 }
 
@@ -33,8 +36,16 @@ export function CanvasWindows(p: Props) {
             active={t.active === n.id} focusN={t.focusN} maximized={t.maximized === n.id} resuming={t.resuming === n.ref} stats={p.stats[n.ref]}
             selected={p.selected.has(n.id)} dim={p.focus.size > 0 && !p.focus.has(n.id) && t.active !== n.id}
             running={n.kind === 'session' && p.running.has(n.ref)} waiting={n.kind === 'session' && p.waiting.has(n.ref)}
+            promptDisabled={t.resumedLive.has(n.ref)}
             onPointerDown={p.onPointerDown} onActivate={t.focus} onCollapse={t.collapse} onKill={t.kill}
             onMaximize={t.setMaximized} onResume={t.resume} onOpenChat={p.onOpenChat}
+            // Stable reference (useCockpit's onSendTo has empty-ish deps) + the
+            // node's own ref (a primitive string) instead of a per-node inline
+            // closure — an unstable function prop here would defeat
+            // TerminalWindow's memo on every pan/zoom/stats-poll re-render
+            // (canvas review #593 item 10).
+            onSendTo={p.onSendTo}
+            sendError={p.sendError?.sessionId === n.ref ? p.sendError : null} onDismissSendError={p.onDismissSendError}
           />
         );
       })}
