@@ -3,20 +3,25 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import type { DflTaskDbStatus } from '../shared/canvas';
 import { OWNER_ID, FELLOW_ID } from './dfl-sync';
 
 const pexec = promisify(execFile);
 
 // Canal de ESCRITA no DFL prod, espelho do dfl-sync (leitura): roda como processo
 // FILHO com o token do Samuel na memória — o token NUNCA entra no processo do WS
-// nem no cliente. Duas operações, cada uma pelo caminho SANCIONADO que a própria UI
-// do DFL aperta:
+// nem no cliente. Quatro operações, cada uma pelo caminho SANCIONADO que a própria
+// UI do DFL aperta:
 //  - points-change → dispara o workflow BPMN dfl.work.task_points_change_request no
 //    flows-api (handler service_role bypassa o RLS lock de work.tasks.points).
 //  - invoice-create → INSERT em payments.invoices + invoice_items via PostgREST,
 //    espelhando dfl-payments/useInvoiceCreation (fatura nasce 'submitted' → revisão).
+//  - task-create/task-status → INSERT/PATCH em work.tasks via PostgREST, mesmo
+//    schema que dfl-sync já LÊ (fetchDflBundle) — nunca points/valor: o vínculo
+//    Kanban<->DFL (server/canvas/dfl-link.ts) só cria/move task, igual ao caminho
+//    do dfl-work MCP (create_task/update_task), nunca a rota financeira acima.
 // Identidade é FIXA no server (OWNER_ID/FELLOW_ID) — o comando do cliente nunca
-// escolhe de quem é a fatura. Totais recomputados aqui, não confiados no cliente.
+// escolhe de quem é a fatura/task. Totais recomputados aqui, não confiados no cliente.
 const FLOWS_API = process.env.DFL_FLOWS_API ?? 'https://flows-api.devfellowship.com';
 const ORG_ID = process.env.DFL_ORG_ID ?? '35408dc3-508e-455b-8684-e96cea72f573';
 const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -190,13 +195,69 @@ async function createInvoice(cmd: InvoiceCreateCmd): Promise<Record<string, unkn
   return { invoiceId, totalPoints, totalAmountCents, referenceMonth: cmd.referenceMonth, deliveryName: cmd.deliveryName };
 }
 
+// ---- task-create / task-status: INSERT/PATCH em work.tasks -----------------
+
+const MAX_TASK_NAME = 200;
+const MAX_DESCRIPTION = 4000;
+const TASK_STAGE_ID = 'execution'; // dfl-work create_task schema: work ready to be built
+const TASK_STATUSES = new Set<DflTaskDbStatus>(['to_do', 'in_progress', 'dev_completed', 'done', 'no_longer_needed', 'blocked']);
+
+interface TaskCreateCmd {
+  kind: 'task-create';
+  epicId: string;
+  deliveryId: string;
+  taskName: string;
+  description?: string;
+}
+interface TaskStatusCmd {
+  kind: 'task-status';
+  taskId: string;
+  status: DflTaskDbStatus;
+}
+
+async function createTask(cmd: TaskCreateCmd): Promise<Record<string, unknown>> {
+  if (!uuidRe.test(cmd.epicId)) throw new Error('epicId inválido');
+  if (!uuidRe.test(cmd.deliveryId)) throw new Error('deliveryId inválido');
+  const name = cmd.taskName.trim().slice(0, MAX_TASK_NAME);
+  if (!name) throw new Error('taskName vazio');
+  const now = new Date().toISOString();
+  const payload = {
+    name, status: 'to_do', stage_id: TASK_STAGE_ID, owner_id: OWNER_ID,
+    epic_id: cmd.epicId, delivery_id: cmd.deliveryId,
+    description: (cmd.description ?? '').trim().slice(0, MAX_DESCRIPTION) || undefined,
+    created_at: now, updated_at: now,
+  };
+  const inserted = await pgFetch('tasks?select=id,name,status', {
+    schema: 'work', method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload),
+  }) as { id: string; name: string; status: string }[];
+  const taskId = inserted?.[0]?.id;
+  if (!taskId) throw new Error('INSERT task não retornou id');
+  return { taskId, name: inserted[0].name, status: inserted[0].status };
+}
+
+async function updateTaskStatus(cmd: TaskStatusCmd): Promise<Record<string, unknown>> {
+  if (!uuidRe.test(cmd.taskId)) throw new Error('taskId inválido');
+  if (!TASK_STATUSES.has(cmd.status)) throw new Error('status inválido');
+  const now = new Date().toISOString();
+  // Prefer return=representation: se o PATCH não achar a linha (task apagada/id
+  // errado), a resposta vem [] e viramos erro explícito — nunca um "sucesso" mudo.
+  const updated = await pgFetch(`tasks?id=eq.${cmd.taskId}&select=id,status`, {
+    schema: 'work', method: 'PATCH', headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({ status: cmd.status, updated_at: now }),
+  }) as { id: string; status: string }[];
+  if (!updated?.length) throw new Error('PATCH task não achou a linha (id inválido ou sem permissão)');
+  return { taskId: cmd.taskId, status: updated[0].status };
+}
+
 // ---- entrypoint ------------------------------------------------------------
 
-type WriteCmd = PointsChangeCmd | InvoiceCreateCmd;
+type WriteCmd = PointsChangeCmd | InvoiceCreateCmd | TaskCreateCmd | TaskStatusCmd;
 
 export async function runWrite(cmd: WriteCmd): Promise<Record<string, unknown>> {
   if (cmd.kind === 'points-change') return firePointsChange(cmd);
   if (cmd.kind === 'invoice-create') return createInvoice(cmd);
+  if (cmd.kind === 'task-create') return createTask(cmd);
+  if (cmd.kind === 'task-status') return updateTaskStatus(cmd);
   throw new Error(`comando desconhecido: ${(cmd as { kind: string }).kind}`);
 }
 

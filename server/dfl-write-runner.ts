@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
+import type { DflTaskDbStatus } from '../shared/canvas';
 import { RESULT_MARK } from './dfl-write';
 
 const pexec = promisify(execFile);
@@ -12,7 +13,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 // linha marcada no stdout do filho. Espelha runDflSync (leitura). Ver dfl-write.ts.
 export type DflWriteCmd =
   | { kind: 'points-change'; taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string }
-  | { kind: 'invoice-create'; deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number; deliveryId?: string; deliveryName?: string }[] };
+  | { kind: 'invoice-create'; deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number; deliveryId?: string; deliveryName?: string }[] }
+  | { kind: 'task-create'; epicId: string; deliveryId: string; taskName: string; description?: string }
+  | { kind: 'task-status'; taskId: string; status: DflTaskDbStatus };
 
 export async function runDflWrite(cmd: DflWriteCmd): Promise<{ ok: true; result: Record<string, unknown> } | { ok: false; error: string }> {
   try {

@@ -21,6 +21,14 @@ import { type AreaId, type CanvasEdge, type CanvasNode } from '../../shared/canv
 //    result stays deterministic without name bias driving real decisions.
 //    A session with zero votes still gets 'outros' rather than staying
 //    unclassified, so it can't silently escape every area budget.
+// 4. CARD: same vote as a session, but over the 'card'/'input' edges
+//    graph.ts draws from the card to its own contextIds/sessionIds (a card's
+//    area = the area of what it's actually linked to). This is the guard
+//    server/ws/dispatch.ts's dfl-task-link/-create-link handlers read —
+//    NEVER trust a client-claimed area, recompute it here from the graph
+//    every time. A card with zero linked context/session (nothing picked
+//    yet) gets no area at all, same as an unclassified shell node — it
+//    can't be 'dfl' by default just because nothing says otherwise.
 
 function areaOfHub(hubId: string): AreaId {
   if (hubId.startsWith('hub_dfl')) return 'dfl';
@@ -85,6 +93,38 @@ export function classifyAreas(nodes: CanvasNode[], edges: CanvasEdge[]): Map<str
   // A session that voted for nothing (no memory trail at all) still lands
   // somewhere — 'outros' — so it can't sit outside every area's budget forever.
   for (const n of nodes) if (n.kind === 'session' && !out.has(n.id)) out.set(n.id, 'outros');
+
+  // Card area: same vote mechanism, over graph.ts's 'card'/'input' edges
+  // (card -> its own contextIds/sessionIds), reading the area `out` already
+  // has for every context/session by this point. Runs AFTER the session
+  // loop above on purpose — a card linked to a session needs that session's
+  // OWN vote-derived area, not an unclassified lookup.
+  const CARD_EDGE_KINDS = new Set(['card', 'input']);
+  const cardVotes = new Map<string, Map<AreaId, Vote>>();
+  for (const e of edges) {
+    if (!CARD_EDGE_KINDS.has(e.kind)) continue;
+    const card = byId.get(e.source);
+    const target = byId.get(e.target);
+    if (card?.kind !== 'card' || (target?.kind !== 'context' && target?.kind !== 'session')) continue;
+    const area = out.get(target.id);
+    if (!area) continue;
+    const votes = cardVotes.get(card.id) ?? new Map<AreaId, Vote>();
+    const cur = votes.get(area) ?? { score: 0, lastAt: 0 };
+    votes.set(area, { score: cur.score + (e.weight ?? 1), lastAt: Math.max(cur.lastAt, target.mtime) });
+    cardVotes.set(card.id, votes);
+  }
+  for (const [cid, votes] of cardVotes) {
+    let best: AreaId | undefined;
+    let bestVote: Vote = { score: -Infinity, lastAt: -Infinity };
+    for (const [area, v] of [...votes.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+      if (v.score > bestVote.score || (v.score === bestVote.score && v.lastAt > bestVote.lastAt)) { best = area; bestVote = v; }
+    }
+    if (best) out.set(cid, best);
+  }
+  // Unlike a session, a card with NO vote (no linked context/session yet, or
+  // none of them classified) stays unset — it does NOT default to 'outros'.
+  // dfl-task-link's guard reads "area === 'dfl'"; an unset card correctly
+  // fails that check instead of silently becoming eligible for nothing.
 
   return out;
 }

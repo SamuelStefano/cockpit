@@ -108,10 +108,52 @@ describe('classifyAreas', () => {
     expect(areas.get(`s:${S2}`)).toBe('outros');
   });
 
-  it('a card edge never votes (only read/write/topic to a context do) — falls back to outros', () => {
+  it('a card edge never votes for the SESSION it targets (only read/write/topic to a context do) — falls back to outros', () => {
     const nodes: CanvasNode[] = [hub('hub_deck'), leaf('deck_x'), session(S1), { id: 'k:card1', kind: 'card', ref: 'card1', title: 't', subtitle: '', mtime: 1 }];
     const edges: CanvasEdge[] = [link('hub_deck', 'deck_x'), { source: 'k:card1', target: `s:${S1}`, kind: 'card' }];
     const areas = classifyAreas(nodes, edges);
     expect(areas.get(`s:${S1}`)).toBe('outros');
+  });
+
+  it('a card inherits the area of the context it links via a card edge', () => {
+    const nodes: CanvasNode[] = [
+      hub('hub_dfl'), leaf('dfl_x'), { id: 'k:card1', kind: 'card', ref: 'card1', title: 't', subtitle: '', mtime: 1 },
+    ];
+    const edges: CanvasEdge[] = [link('hub_dfl', 'dfl_x'), { source: 'k:card1', target: 'c:dfl_x', kind: 'card' }];
+    const areas = classifyAreas(nodes, edges);
+    expect(areas.get('k:card1')).toBe('dfl');
+  });
+
+  it('a card inherits the (already-voted) area of a session it links via an input edge', () => {
+    const nodes: CanvasNode[] = [
+      hub('hub_dfl'), leaf('dfl_x'), session(S1), { id: 'k:card1', kind: 'card', ref: 'card1', title: 't', subtitle: '', mtime: 1 },
+    ];
+    const edges: CanvasEdge[] = [
+      link('hub_dfl', 'dfl_x'), { source: `s:${S1}`, target: 'c:dfl_x', kind: 'read' },
+      { source: 'k:card1', target: `s:${S1}`, kind: 'input' },
+    ];
+    const areas = classifyAreas(nodes, edges);
+    expect(areas.get(`s:${S1}`)).toBe('dfl');
+    expect(areas.get('k:card1')).toBe('dfl');
+  });
+
+  it('a card with no linked context/session stays UNSET — never defaults to outros (guard must fail-closed)', () => {
+    const nodes: CanvasNode[] = [{ id: 'k:card1', kind: 'card', ref: 'card1', title: 't', subtitle: '', mtime: 1 }];
+    const areas = classifyAreas(nodes, []);
+    expect(areas.has('k:card1')).toBe(false);
+  });
+
+  it('a card linked to contexts from two areas votes for the higher-scored one', () => {
+    const nodes: CanvasNode[] = [
+      hub('hub_dfl'), leaf('dfl_x'), hub('hub_deck'), leaf('deck_x'),
+      { id: 'k:card1', kind: 'card', ref: 'card1', title: 't', subtitle: '', mtime: 1 },
+    ];
+    const edges: CanvasEdge[] = [
+      link('hub_dfl', 'dfl_x'), link('hub_deck', 'deck_x'),
+      { source: 'k:card1', target: 'c:dfl_x', kind: 'card', weight: 2 },
+      { source: 'k:card1', target: 'c:deck_x', kind: 'card', weight: 1 },
+    ];
+    const areas = classifyAreas(nodes, edges);
+    expect(areas.get('k:card1')).toBe('dfl');
   });
 });
