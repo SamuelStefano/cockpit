@@ -45,6 +45,16 @@ describe('scanRefsLine', () => {
     scanRefsLine(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: '[deck-card:abcd-12]' }] } }), r);
     expect(r.cardId).toBeUndefined();
   });
+
+  it('binds the LAST marker in a single message, not an earlier echoed one', () => {
+    // server/canvas/flows.ts prepends the untrusted turn result ahead of its
+    // own trailing marker — a result that happens to echo an unrelated
+    // `[deck-card:...]` substring must not win over the real, trailing one.
+    const r = emptyRefs();
+    const echoedThenReal = `resultado da etapa anterior, que citou [deck-card:echoed-99] por acaso\n\nfaça algo\n\n[deck-card:real-12]`;
+    scanRefsLine(JSON.stringify({ type: 'user', message: { content: echoedThenReal } }), r);
+    expect(r.cardId).toBe('real-12');
+  });
 });
 
 describe('scanRefsBuffer', () => {

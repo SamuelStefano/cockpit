@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef } from 'react';
-import type { CanvasEdge, CanvasNode, CanvasPos, TermStats } from '../../../shared/canvas';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import type { CanvasEdge, CanvasFlow, CanvasNode, CanvasPos, TermStats } from '../../../shared/canvas';
 import { CanvasEdges } from './CanvasEdges';
+import { CanvasFlowArrows } from './CanvasFlowArrows';
+import { CanvasFlowPorts } from './CanvasFlowPorts';
 import { CanvasNodeCard } from './CanvasNodeCard';
 import { CanvasToolbar } from './CanvasToolbar';
 import { CanvasWindows } from './CanvasWindows';
@@ -9,6 +11,7 @@ import type { CanvasTerms } from './useCanvasTerms';
 import { TERM_H, TERM_W } from './canvas-terms';
 import { neighbors } from './canvas-filter';
 import { useCanvasViewport } from './useCanvasViewport';
+import { useFlowPorts } from './useFlowPorts';
 import { useNodeDrag } from './useNodeDrag';
 
 interface Props {
@@ -34,6 +37,10 @@ interface Props {
   stats: Record<string, TermStats>;
   analysisOn: boolean;
   onToggleAnalysis: () => void;
+  flows: CanvasFlow[];
+  flowFired: Record<string, number>;
+  onFlowCreate: (from: string, to: string) => void;
+  onFlowClick: (id: string) => void;
   children?: React.ReactNode;
 }
 
@@ -46,6 +53,12 @@ export function CanvasSurface(p: Props) {
   const vp = useCanvasViewport();
   const { live, onNodeDown, onNodeMove, onNodeUp } = useNodeDrag(vp.viewRef, p.pos, p.onDrop, p.onSelect);
   const pos = useMemo(() => ({ ...p.pos, ...live }), [p.pos, live]);
+
+  // A flow can only land on a session or a card — never a context/shell, which
+  // server/canvas/flows.ts has no way to deliver a prompt to.
+  const nodeKindOf = useMemo(() => new Map(p.nodes.map((n) => [n.id, n.kind])), [p.nodes]);
+  const canDropFlow = useCallback((id: string) => nodeKindOf.get(id) === 'session' || nodeKindOf.get(id) === 'card', [nodeKindOf]);
+  const { portDrag, onPortDown, onPortMove, onPortUp, onPortLostCapture } = useFlowPorts(vp.viewRef, vp.ref, canDropFlow, p.onFlowCreate);
 
   const fitted = useRef(false);
   const { fit, centerOn } = vp;
@@ -132,12 +145,20 @@ export function CanvasSurface(p: Props) {
         p.onClear();
         vp.onBackgroundDown(e);
       }}
-      onPointerMove={(e) => { onNodeMove(e); vp.onBackgroundMove(e); }}
-      onPointerUp={(e) => { onNodeUp(); vp.onBackgroundUp(e); }}
-      onPointerCancel={(e) => { onNodeUp(); vp.onBackgroundUp(e); }}
+      onPointerMove={(e) => { onNodeMove(e); onPortMove(e); vp.onBackgroundMove(e); }}
+      onPointerUp={(e) => { onNodeUp(); onPortUp(e); vp.onBackgroundUp(e); }}
+      onPointerCancel={(e) => { onNodeUp(); onPortUp(e); vp.onBackgroundUp(e); }}
     >
       <div className="absolute left-0 top-0 origin-top-left" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})` }}>
         <CanvasEdges edges={p.edges} pos={pos} focus={focus} />
+        {/* Arrows paint BELOW the nodes — pointer-events-none except a small
+            midpoint chip, never a wide hit-band over the whole route, so a
+            card or a live terminal an arrow happens to cross stays fully
+            clickable/draggable underneath it. */}
+        <CanvasFlowArrows
+          nodes={p.nodes} pos={pos} windows={p.windows} compact={compact} flows={p.flows} firedAt={p.flowFired}
+          onFlowClick={p.onFlowClick}
+        />
         {cards.map((n) => pos[n.id] && (
           <CanvasNodeCard
             key={n.id} node={n} pos={pos[n.id]} compact={compact} zoom={view.k}
@@ -149,6 +170,12 @@ export function CanvasSurface(p: Props) {
         <CanvasWindows
           nodes={wins} pos={pos} terms={p.terms} term={p.term} selected={selectedSet} focus={focus}
           running={p.running} waiting={p.waiting} onPointerDown={onNodeDown} onOpenChat={p.onOpenChat} stats={p.stats}
+        />
+        {/* Ports paint LAST, on top of everything — a port must never sit
+            under a card's edge, or it can't be grabbed to start a drag. */}
+        <CanvasFlowPorts
+          nodes={p.nodes} pos={pos} windows={p.windows} compact={compact} zoom={view.k}
+          portDrag={portDrag} onPortDown={onPortDown} onPortLostCapture={onPortLostCapture}
         />
       </div>
       {p.children}

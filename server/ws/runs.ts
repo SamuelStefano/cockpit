@@ -45,6 +45,20 @@ export function isSilentDeath(t: { stopped?: boolean; endReason?: string }): boo
   return !t.stopped && !t.endReason;
 }
 
+// Pura, testada isolada (canvas review — flows batch #3): decide se um turno
+// produziu um resultado REAL o bastante pra virar o prompt de outro nó no
+// canvas. A definição antiga (`!stopped && !silent && !questioned && text
+// não-vazio`) deixava passar um turno com texto de despedida mas que na
+// verdade cortou em budget/max_turns/erro (endReason ≠ success), ou cujo
+// texto era só o aviso de auth quebrada / o teto de tokens estourado — nenhum
+// dos dois é um resultado que faz sentido encadear.
+export interface TurnOutcome { stopped?: boolean; questioned?: boolean; text: string; endReason?: string; lastError?: string }
+export interface TurnOutcomeFlags { silent: boolean; authBurned: boolean; quotaBurned: boolean }
+export function isCleanTurnClose(t: TurnOutcome, flags: TurnOutcomeFlags): boolean {
+  return t.endReason === 'success' && !t.stopped && !t.questioned && !flags.silent
+    && !flags.authBurned && !flags.quotaBurned && !t.lastError && t.text.trim() !== '';
+}
+
 // Uma retomada automática por incidente. Mais que isso vira loop de queima de
 // token quando a causa é permanente (quota estourada, API fora) — o teto garante
 // que a falha crônica apareça pro usuário em vez de rodar em círculos.
@@ -58,7 +72,7 @@ const RESUME_PROMPT = 'O turno anterior foi interrompido por uma falha do proces
 // Ofertas de retomada em aberto: turno que morreu e NÃO foi retomado sozinho.
 // Guardar a config aqui é o que faz o botão da UI valer um `--resume` de verdade
 // em vez de um "reenvie a última mensagem" — o thread já saiu do mapa.
-interface ResumeOffer { sessionId: string; params: RunParams }
+interface ResumeOffer { sessionId: string; params: RunParams; flowHop?: number }
 const resumeOffers = new Map<string, ResumeOffer>();
 
 // Nenhum turno pode sumir em silêncio: toda desistência de retomada passa por
@@ -68,7 +82,7 @@ function offerResume(sessionKey: string, thread: Thread, reason: ResumeOfferReas
     broadcast({ t: 'error', sessionKey, message });
     return;
   }
-  resumeOffers.set(sessionKey, { sessionId: thread.sessionId, params: thread.params });
+  resumeOffers.set(sessionKey, { sessionId: thread.sessionId, params: thread.params, flowHop: thread.flowHop });
   broadcast({ t: 'resume-offer', sessionKey, sessionId: thread.sessionId, reason, message });
 }
 
@@ -84,7 +98,7 @@ export function acceptResumeOffer(sessionKey: string): boolean {
   resumeOffers.delete(sessionKey);
   if (threads.has(sessionKey)) return false;
   autoResumes.delete(sessionKey);
-  startRun({ ...offer.params, ws: null, sessionKey, prompt: RESUME_PROMPT, resumeId: offer.sessionId, queued: true });
+  startRun({ ...offer.params, ws: null, sessionKey, prompt: RESUME_PROMPT, resumeId: offer.sessionId, queued: true, flowHop: offer.flowHop });
   return true;
 }
 
@@ -117,7 +131,7 @@ function autoResume(sessionKey: string, thread: Thread): void {
   // Avisa aqui, não em quem detectou a morte: só neste ponto a retomada é certa
   // (passou das guardas de corrida acima e do teto de tentativas).
   broadcast({ t: 'error', sessionKey, message: 'Retomando de onde parou…' });
-  startRun({ ...thread.params, ws: null, sessionKey, prompt: RESUME_PROMPT, resumeId: thread.sessionId });
+  startRun({ ...thread.params, ws: null, sessionKey, prompt: RESUME_PROMPT, resumeId: thread.sessionId, flowHop: thread.flowHop });
 }
 
 // D2 — gate de memória na frente do autoResume: subir --resume com a memória
@@ -174,6 +188,14 @@ function maybeAutoResume(sessionKey: string, thread: Thread, cause: DeathCause, 
 // compartilhado → dois shifts do mesmo item = envio dobrado. O gatilho no onClose
 // também respeita esta flag.
 let drainerEnabled = false;
+
+// server/canvas/flows.ts: on a process without the drainer (e.g. the loopback
+// index, per the comment above), addParked's item would just sit on disk
+// forever — nobody here ever ticks the queue. Use the in-process pending
+// queue (server/ws/pending.ts) instead when this is false.
+export function isDrainerEnabled(): boolean {
+  return drainerEnabled;
+}
 
 // Teto de disparos por passada. O `quotaHold` é binário (só segura em 100%), então
 // sem este teto a virada da janela soltava TODA sessão estacionada na mesma passada:
@@ -403,7 +425,7 @@ export function resumeOrphanRuns(): void {
     }
     broadcast({ t: 'error', sessionKey: key, message: 'O agente reiniciou e interrompeu este turno. Retomando de onde parou…' });
     recordIncident({ kind: 'orphan-resume', sessionKey: key, sessionId: o.sessionId, detail: `turno órfão de restart, ${Math.round((Date.now() - o.startedAt) / 1000)}s de vida` });
-    startRun({ ...(o.params ?? {}), ws: null, sessionKey: key, prompt: RESUME_PROMPT, resumeId: o.sessionId });
+    startRun({ ...(o.params ?? {}), ws: null, sessionKey: key, prompt: RESUME_PROMPT, resumeId: o.sessionId, flowHop: o.flowHop });
   }
 }
 
@@ -428,6 +450,11 @@ export interface StartRunOptions extends RunParams {
   // Roda sem cliente (ws null), mas o prompt é intenção explícita dele — então o
   // teto duro de contexto não o barra, igual ao envio manual.
   queued?: boolean;
+  // Profundidade da cadeia de fluxos do canvas que entregou este prompt (ver
+  // Thread.flowHop em threads.ts). Ausente/0 = não veio de um fluxo. Carregado
+  // explicitamente pelas retomadas (autoResume, órfão de restart) pra não
+  // resetar de graça o teto MAX_HOPS a cada queda do turno.
+  flowHop?: number;
 }
 
 // Recusa do gate de contexto. Com cliente: devolve o texto pro composer (a bolha
@@ -471,7 +498,7 @@ function parkRejected(o: StartRunOptions, verdict: Verdict): boolean {
 }
 
 export function startRun(o: StartRunOptions) {
-  const { ws, sessionKey, prompt, resumeId, msgId, auto, forkId, queued } = o;
+  const { ws, sessionKey, prompt, resumeId, msgId, auto, forkId, queued, flowHop } = o;
   const params = runParams(o);
   // "Permitir todos os MCPs" chega como o sentinel '*' e é expandido AQUI, não no
   // cliente: a lista concreta fica no thread (retomada, tools.ts, sameParams) já
@@ -560,7 +587,7 @@ export function startRun(o: StartRunOptions) {
 
   let live = false; // este turno já foi registrado no live-runs.json?
   let parkedConsumed = false; // o item de fila deste turno já saiu do registro em disco?
-  const thread: Thread = { handle: { kill: () => {} }, params, prompt, startedAt: Date.now(), sessionId: forkId ?? resumeId, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set() };
+  const thread: Thread = { handle: { kill: () => {} }, params, prompt, startedAt: Date.now(), sessionId: forkId ?? resumeId, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set(), flowHop };
   threads.set(sessionKey, thread);
   // Eco da mensagem do usuário a todos os clientes ANTES do 'started' (bolha do
   // usuário aparece antes da do assistente). Só quando o cliente mandou msgId — o
@@ -587,7 +614,7 @@ export function startRun(o: StartRunOptions) {
         // O frame que traz o sessionId pode já vir com trabalho junto; nesse caso o
         // item nem chega ao disco, senão um restart tardio reenviaria o que já rodou.
         parkedConsumed = thread.tools.length > 0 || thread.text.trim() !== '';
-        markRunLive({ sessionKey, sessionId: thread.sessionId, params: thread.params, startedAt: thread.startedAt, parked: parkedConsumed ? undefined : thread.parked, parkedFrom: thread.parkedFrom });
+        markRunLive({ sessionKey, sessionId: thread.sessionId, params: thread.params, startedAt: thread.startedAt, parked: parkedConsumed ? undefined : thread.parked, parkedFrom: thread.parkedFrom, flowHop: thread.flowHop });
       }
       // O prompt da fila só fica no registro em disco enquanto o turno não produziu
       // NADA — aí uma morte do processo devolve o item pra fila. Assim que sai a
@@ -596,7 +623,7 @@ export function startRun(o: StartRunOptions) {
       // onClose ainda pode devolvê-lo (ver burnedByQuota).
       else if (live && thread.parked && !parkedConsumed && (thread.tools.length > 0 || thread.text.trim() !== '')) {
         parkedConsumed = true;
-        if (thread.sessionId) markRunLive({ sessionKey, sessionId: thread.sessionId, params: thread.params, startedAt: thread.startedAt });
+        if (thread.sessionId) markRunLive({ sessionKey, sessionId: thread.sessionId, params: thread.params, startedAt: thread.startedAt, flowHop: thread.flowHop });
       }
     },
     onError: (raw, exit) => {
@@ -684,11 +711,12 @@ export function startRun(o: StartRunOptions) {
       // Turno DESACOMPANHADO (cron agendado, maratona): ninguém vai ler o resumo nem
       // clicar num chip de continuação entre um turno e o próximo, e cada um deles é
       // uma chamada de API paga por turno fechado.
+      const unattended = sessionKey.startsWith('cron-') || threadIsMarathon(sessionKey, thread.sessionId);
       emitTurnClosed({
         sessionKey, sessionId: thread.sessionId, prompt: thread.prompt, text: thread.text, params: thread.params,
-        ok: !thread.stopped && !silent && !thread.questioned && thread.text.trim() !== '',
+        ok: isCleanTurnClose(thread, { silent, authBurned, quotaBurned: burnedByQuota({ limited: hold > 0, tools: thread.tools.length, text: thread.text }) }),
+        hop: thread.flowHop ?? 0, unattended,
       });
-      const unattended = sessionKey.startsWith('cron-') || threadIsMarathon(sessionKey, thread.sessionId);
       if (thread.sessionId && !thread.stopped && !unattended) void summarize(thread.sessionId);
       // Chips de continuação (estilo ChatGPT): só em turno de usuário concluído de
       // verdade (não stop, não cron, não AskUserQuestion pendente) e sem fila — um

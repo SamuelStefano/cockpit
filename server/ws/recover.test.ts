@@ -25,6 +25,16 @@ describe('pickOrphans', () => {
     const dirty = { ...map(mk('ok', 1000)), bad: { sessionKey: 'bad' } as unknown as LiveRun, nulo: null as unknown as LiveRun };
     expect(pickOrphans(dirty, now).map((r) => r.sessionKey)).toEqual(['ok']);
   });
+
+  it('carrega o flowHop de um turno disparado por fluxo do canvas — sem isto o restart do agente zeraria o teto MAX_HOPS de graça', () => {
+    const withHop = { ...mk('a', 1000), flowHop: 3 } as LiveRun;
+    expect(pickOrphans(map(withHop), now)[0].flowHop).toBe(3);
+  });
+
+  it('descarta um flowHop corrompido no disco em vez de propagar lixo', () => {
+    const bad = { ...mk('a', 1000), flowHop: 'tres' } as unknown as LiveRun;
+    expect(pickOrphans(map(bad), now)[0].flowHop).toBeUndefined();
+  });
 });
 
 describe('pickOrphans · item da fila', () => {

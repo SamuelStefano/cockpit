@@ -2,7 +2,7 @@
 // REGRA (squad L3): types-only — zero import de node:*/fs. O bundle do browser
 // importa este arquivo.
 
-import type { CanvasBoard, CanvasCard, CanvasGraph, CanvasPos, TermStats } from './canvas';
+import type { CanvasBoard, CanvasCard, CanvasFlow, CanvasGraph, CanvasPos, TermStats } from './canvas';
 import type { DflDraft, DraftOp } from './dfl-drafts';
 
 export interface ToolDiff {
@@ -712,6 +712,8 @@ export type ClientMsg =
   | { t: 'canvas-pos-reset' }
   | { t: 'canvas-card-save'; card: CanvasCard }
   | { t: 'canvas-card-delete'; id: string }
+  | { t: 'canvas-flow-save'; flow: CanvasFlow }
+  | { t: 'canvas-flow-delete'; id: string }
   // Bench: compila um componente de outro repo num bundle autocontido pro iframe
   // do chat. `repo` é SLUG de registro do servidor, nunca caminho — caminho vindo
   // do cliente seria leitura arbitrária de arquivo.
@@ -856,6 +858,15 @@ export type ServerMsg =
   | { t: 'canvas-graph'; graph: CanvasGraph }
   | { t: 'canvas-term-stats'; stats: Record<string, TermStats> }
   | { t: 'canvas-board'; board: CanvasBoard }
+  // A flow just delivered its result to its target — the UI pulses that arrow
+  // and patches just this flow's counters, never the whole board (which would
+  // leak every card's prompt and every other flow's template to every socket).
+  | { t: 'canvas-flow-fired'; flowId: string; at: number; fires: number }
+  // A card-target flow just started a NEW session under `runKey` (`new-<uuid>`)
+  // for `cardId` — mirrors what the client's own runCard return value does
+  // (useCanvasRoute's pendingLaunch), so the kanban shows the card "rodando"
+  // and can stop it even though the browser never issued this run itself.
+  | { t: 'canvas-flow-run'; flowId: string; runKey: string; cardId: string }
   | { t: 'graph-data'; id: string; graph: GraphData }
   | { t: 'graph-query-result'; id: string; question: string; answer: string; tokens: number; miss: boolean }
   | { t: 'graph-build-progress'; line: string }

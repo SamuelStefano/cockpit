@@ -1,19 +1,42 @@
-import type { CanvasCard, CanvasNode } from '../../../shared/canvas';
+import type { CanvasCard, CanvasFlow, CanvasNode } from '../../../shared/canvas';
 import { Badge, Button, Icon } from '../../components/primitives';
 import { STATUS_LABEL, STATUS_TONE } from './canvas-labels';
 
 interface Props {
   nodes: CanvasNode[];
   linked: (id: string) => CanvasNode[];
+  node: (id: string) => CanvasNode | undefined;
   card: (id: string) => CanvasCard | undefined;
   running: Set<string>;
+  flows: CanvasFlow[];
   onPick: (id: string) => void;
   onOpenSession: (id: string) => void;
   onOpenTerm: (nodeId: string) => void;
   onNewCard: (kind: CanvasCard['kind']) => void;
   onEditCard: (id: string) => void;
   onRunCard: (card: CanvasCard) => void;
+  onEditFlow: (id: string) => void;
+  onChainSelected: (from: string, to: string) => void;
   onClose: () => void;
+}
+
+function FlowList({ flows, node, onEditFlow }: { flows: CanvasFlow[]; node: (id: string) => CanvasNode | undefined; onEditFlow: (id: string) => void }) {
+  if (!flows.length) return null;
+  return (
+    <ul className="space-y-0.5">
+      {flows.map((f) => (
+        <li key={f.id}>
+          <button
+            type="button" onClick={() => onEditFlow(f.id)}
+            className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left hover:bg-neutral-800/70"
+          >
+            <Icon name="zap" size={11} className={`shrink-0 ${f.enabled ? 'text-orange-400' : 'text-neutral-600'}`} />
+            <span className="truncate text-[11.5px] text-neutral-300">{node(f.from)?.title ?? f.from} → {node(f.to)?.title ?? f.to}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function Linked({ nodes, onPick }: { nodes: CanvasNode[]; onPick: (id: string) => void }) {
@@ -35,6 +58,9 @@ function Linked({ nodes, onPick }: { nodes: CanvasNode[]; onPick: (id: string) =
 export function CanvasInspector(p: Props) {
   const one = p.nodes.length === 1 ? p.nodes[0] : null;
   const card = one?.kind === 'card' ? p.card(one.ref) : undefined;
+  const incoming = one ? p.flows.filter((f) => f.to === one.id) : [];
+  const outgoing = one ? p.flows.filter((f) => f.from === one.id) : [];
+  const pair = p.nodes.length === 2 && p.nodes.every((n) => n.kind === 'session' || n.kind === 'card') ? p.nodes : null;
   return (
     <aside data-canvas-overlay className="absolute inset-x-3 bottom-16 top-auto z-10 flex max-h-[46vh] flex-col overflow-hidden rounded-2xl border border-neutral-700/80 bg-neutral-900/90 shadow-xl backdrop-blur-md sm:inset-x-auto sm:left-3 sm:top-3 sm:max-h-none sm:w-72">
       <div className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2">
@@ -60,6 +86,13 @@ export function CanvasInspector(p: Props) {
             <Linked nodes={p.linked(one.id)} onPick={p.onPick} />
           </div>
         )}
+        {one && (incoming.length > 0 || outgoing.length > 0) && (
+          <div>
+            <div className="mb-1 text-[10.5px] font-medium uppercase tracking-wide text-neutral-500">Fluxos</div>
+            {outgoing.length > 0 && <FlowList flows={outgoing} node={p.node} onEditFlow={p.onEditFlow} />}
+            {incoming.length > 0 && <FlowList flows={incoming} node={p.node} onEditFlow={p.onEditFlow} />}
+          </div>
+        )}
         {!one && <Linked nodes={p.nodes} onPick={p.onPick} />}
       </div>
       <div className="flex flex-wrap gap-1.5 border-t border-neutral-800 px-3 py-2.5">
@@ -69,6 +102,7 @@ export function CanvasInspector(p: Props) {
         {card && <Button variant="secondary" size="sm" icon="pencil" onClick={() => p.onEditCard(card.id)}>editar</Button>}
         {!card && <Button variant={one?.kind === 'session' ? 'secondary' : 'primary'} size="sm" icon="zap" onClick={() => p.onNewCard('task')}>agente aqui</Button>}
         {!card && <Button variant="secondary" size="sm" icon="sparkles" onClick={() => p.onNewCard('content')}>gerar conteúdo</Button>}
+        {pair && <Button size="sm" icon="zap" onClick={() => p.onChainSelected(pair[0].id, pair[1].id)}>encadear {pair[0].title} → {pair[1].title}</Button>}
       </div>
     </aside>
   );

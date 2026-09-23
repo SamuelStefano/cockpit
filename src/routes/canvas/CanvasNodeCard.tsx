@@ -2,7 +2,7 @@ import { memo } from 'react';
 import type { CanvasNode, CanvasPos } from '../../../shared/canvas';
 import { Badge, Button, Icon, type IconName } from '../../components/primitives';
 import { relPast } from '../../../shared/format';
-import { NODE_H, NODE_W } from './canvas-layout';
+import { COMPACT_NODE_H, NODE_H, NODE_W } from './canvas-layout';
 import { STATUS_LABEL, STATUS_TONE, titleSize } from './canvas-labels';
 
 interface Props {
@@ -40,7 +40,7 @@ export const CanvasNodeCard = memo(function CanvasNodeCard({ node: n, pos, selec
     <div
       data-node={n.id}
       onPointerDown={(e) => onPointerDown(e, n.id)}
-      style={{ transform: `translate(${pos.x}px, ${pos.y}px)`, width: NODE_W, height: compact ? undefined : NODE_H, minHeight: compact ? 44 : undefined }}
+      style={{ transform: `translate(${pos.x}px, ${pos.y}px)`, width: NODE_W, height: compact ? undefined : NODE_H, minHeight: compact ? COMPACT_NODE_H : undefined }}
       className={`absolute left-0 top-0 touch-none cursor-grab select-none rounded-xl border bg-neutral-900/95 shadow-lg shadow-black/40 transition-opacity active:cursor-grabbing
         ${frame(n, selected)} ${dim ? 'opacity-25' : ''} ${n.archived ? 'opacity-60' : ''}`}
     >

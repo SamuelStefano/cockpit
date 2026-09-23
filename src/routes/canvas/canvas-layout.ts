@@ -6,6 +6,11 @@ import type { CanvasEdge, CanvasNode, CanvasPos } from '../../../shared/canvas';
 
 export const NODE_W = 248;
 export const NODE_H = 92;
+// Collapsed height below CanvasSurface's COMPACT_BELOW zoom threshold
+// (CanvasNodeCard renders `minHeight` this tall instead of the full NODE_H) —
+// shared so CanvasFlows.tsx anchors a port/arrow at the node's ACTUAL edge
+// instead of one that's 92px tall on screen but only ~44px in the DOM.
+export const COMPACT_NODE_H = 44;
 const X_STRETCH = 1.35;
 const GAP = 110;
 const RING0 = 230;

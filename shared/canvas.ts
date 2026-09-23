@@ -58,10 +58,52 @@ export interface CanvasGraph {
 
 export interface CanvasPos { x: number; y: number }
 
+// A drawn pipeline: when the turn on `from` closes, its result becomes the
+// prompt of `to`. Both ends are `s:<session uuid>` or `k:<card id>` — the only
+// two kinds server/canvas/flows.ts knows how to deliver a prompt to.
+//
+// mode/mcps are explicit, least-privilege OPT-INS for the target turn — the
+// source turn's own `bypass`/`mcps` never propagate (the source's text is
+// model output, steerable by whatever it read, so blindly inheriting a
+// bypass-permissions turn or a broad MCP set would be a prompt-injection
+// pivot). Unset means the target runs with no MCPs and its own default mode.
+export interface CanvasFlow {
+  id: string;
+  from: string;
+  to: string;
+  template: string;
+  enabled: boolean;
+  createdAt: number;
+  lastFiredAt?: number;
+  fires: number;
+  // Consecutive FAILED deliveries (server-owned, like fires/lastFiredAt — see
+  // server/canvas/board.ts sanitizeFlow). Backs the exponential backoff in
+  // server/canvas/flows.ts: a flow that keeps failing (target gone,
+  // concurrency cap, ...) waits longer between retries instead of hammering
+  // every source turn close. Reset to 0 on the next successful delivery.
+  failStreak?: number;
+  lastFailedAt?: number;
+  mode?: 'plan' | 'auto' | 'acceptEdits';
+  mcps?: string[];
+}
+
 export interface CanvasBoard {
   cards: CanvasCard[];
   pos: Record<string, CanvasPos>;
+  flows: CanvasFlow[];
 }
+
+export const FLOW_ID_RE = /^[a-z0-9-]{4,40}$/;
+// Only a session or a card can sit at either end of a flow — never a context
+// or a shell, which server/canvas/flows.ts has no way to deliver a prompt to.
+export const isFlowEndpoint = (id: string): boolean => /^[sk]:[A-Za-z0-9_-]{1,80}$/.test(id);
+
+export const DEFAULT_FLOW_TEMPLATE = 'Continue a partir do resultado da etapa anterior:\n\n{{result}}';
+
+// Every prompt the orchestrator sends carries this, so the next close knows how
+// deep the chain already is (server/canvas/flows.ts caps it at MAX_HOPS).
+export const flowMarker = (id: string, hop: number) => `[deck-flow:${id}:${hop}]`;
+export const FLOW_MARKER_RE = /\[deck-flow:([a-z0-9-]{4,40}):(\d+)\]/;
 
 export const sessionNodeId = (id: string) => `s:${id}`;
 export const contextNodeId = (id: string) => `c:${id}`;

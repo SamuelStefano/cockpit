@@ -55,6 +55,10 @@ export function newCardId(now: number, rand: number): string {
   return `${now.toString(36)}-${Math.floor(rand * 36 ** 4).toString(36).padStart(4, '0')}`;
 }
 
+export function newFlowId(now: number, rand: number): string {
+  return `f-${now.toString(36)}-${Math.floor(rand * 36 ** 4).toString(36).padStart(4, '0')}`;
+}
+
 export function moveCard(card: CanvasCard, status: CardStatus, now: number): CanvasCard {
   return { ...card, status, updatedAt: now };
 }

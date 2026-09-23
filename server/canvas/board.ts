@@ -1,8 +1,10 @@
+import { randomBytes } from 'node:crypto';
 import { readFile, writeFile, mkdir, rename, copyFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import {
-  type CanvasBoard, type CanvasCard, type CanvasPos, CARD_ID_RE, CARD_STATUSES, CONTENT_FORMATS,
+  type CanvasBoard, type CanvasCard, type CanvasFlow, type CanvasPos, CARD_ID_RE, CARD_STATUSES, CONTENT_FORMATS,
+  FLOW_ID_RE, isFlowEndpoint,
 } from '../../shared/canvas';
 
 // Kanban cards + canvas positions for the canvas route. Lives in ~/.cockpit, out
@@ -16,11 +18,16 @@ const MAX_POS = 4000;
 const MAX_TITLE = 140;
 const MAX_PROMPT = 20_000;
 const MAX_LINKS = 60;
+export const MAX_FLOWS = 100;
+const MAX_TEMPLATE = 4000;
+const MAX_MCPS = 20;
+const MCP_NAME_RE = /^[A-Za-z0-9_-]{1,60}$/;
+const FLOW_MODES = new Set(['plan', 'auto', 'acceptEdits']);
 const NODE_ID_RE = /^[scktw]:[A-Za-z0-9_-]{1,80}$/;
 const REF_RE = /^[A-Za-z0-9_-]{1,80}$/;
 
 export function emptyBoard(): CanvasBoard {
-  return { cards: [], pos: {} };
+  return { cards: [], pos: {}, flows: [] };
 }
 
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : '');
@@ -39,6 +46,38 @@ export function sanitizeCard(raw: unknown, prev: CanvasCard | undefined, now: nu
     id: c.id, title, prompt: str(c.prompt, MAX_PROMPT), status, kind, format,
     contextIds: refs(c.contextIds), sessionIds: refs(c.sessionIds),
     createdAt: prev?.createdAt ?? now, updatedAt: now,
+  };
+}
+
+const mcpList = (v: unknown) => (Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === 'string' && MCP_NAME_RE.test(x)))].slice(0, MAX_MCPS) : undefined);
+
+// Frames arrive as raw JSON, same rule as sanitizeCard: every field re-derived,
+// nothing trusted. from/to are capped to `s:`/`k:` (isFlowEndpoint) and a
+// self-loop is rejected outright — firing a flow into its own source would
+// never close a turn.
+//
+// fires/lastFiredAt are SERVER-OWNED: only server/canvas/flows.ts's
+// claimFlowFire ever advances them. A client save always carries whatever it
+// last read, which could be stale (or, from a compromised/buggy client,
+// forged) — trusting it would let a save silently rewind or fast-forward the
+// rate limit and the disparo counter. `prev` here must come from the SAME
+// updateBoard snapshot the write lands on (see dispatch.ts's canvas-flow-save),
+// not a separate readBoard() call, or this only narrows the race, not closes it.
+export function sanitizeFlow(raw: unknown, prev: CanvasFlow | undefined, now: number): CanvasFlow | null {
+  const f = (raw ?? {}) as Record<string, unknown>;
+  if (typeof f.id !== 'string' || !FLOW_ID_RE.test(f.id)) return null;
+  if (typeof f.from !== 'string' || !isFlowEndpoint(f.from)) return null;
+  if (typeof f.to !== 'string' || !isFlowEndpoint(f.to)) return null;
+  if (f.from === f.to) return null;
+  const mode = typeof f.mode === 'string' && FLOW_MODES.has(f.mode) ? (f.mode as CanvasFlow['mode']) : undefined;
+  const mcps = mcpList(f.mcps);
+  return {
+    id: f.id, from: f.from, to: f.to, template: str(f.template, MAX_TEMPLATE), enabled: f.enabled !== false,
+    createdAt: prev?.createdAt ?? now, fires: prev?.fires ?? 0,
+    ...(prev?.lastFiredAt !== undefined ? { lastFiredAt: prev.lastFiredAt } : {}),
+    ...(prev?.failStreak ? { failStreak: prev.failStreak } : {}),
+    ...(prev?.lastFailedAt !== undefined ? { lastFailedAt: prev.lastFailedAt } : {}),
+    ...(mode ? { mode } : {}), ...(mcps ? { mcps } : {}),
   };
 }
 
@@ -63,7 +102,111 @@ export function upsertCard(board: CanvasBoard, card: CanvasCard): CanvasBoard {
 export function removeCard(board: CanvasBoard, id: string): CanvasBoard {
   const pos = { ...board.pos };
   delete pos[`k:${id}`];
-  return { cards: board.cards.filter((c) => c.id !== id), pos };
+  const nodeId = `k:${id}`;
+  return {
+    ...board, cards: board.cards.filter((c) => c.id !== id), pos,
+    // A flow bound to a card that no longer exists is dead weight at best —
+    // at worst it fires into a card the UI can never show, forever failing
+    // delivery. Drop it with the card instead of leaving an orphan arrow.
+    flows: board.flows.filter((f) => f.from !== nodeId && f.to !== nodeId),
+  };
+}
+
+// A card a flow just delivered a prompt to: same transition the client makes
+// on runCard, done here because the trigger fires with the browser closed.
+export function markCardDoing(board: CanvasBoard, cardId: string, now: number): CanvasBoard {
+  const i = board.cards.findIndex((c) => c.id === cardId);
+  if (i < 0) return board;
+  const cards = [...board.cards];
+  cards[i] = { ...cards[i], status: 'doing', updatedAt: now };
+  return { ...board, cards };
+}
+
+export function upsertFlow(board: CanvasBoard, flow: CanvasFlow): CanvasBoard {
+  const i = board.flows.findIndex((f) => f.id === flow.id);
+  if (i < 0 && board.flows.length >= MAX_FLOWS) return board;
+  const flows = i < 0 ? [flow, ...board.flows] : board.flows.map((f, j) => (j === i ? flow : f));
+  return { ...board, flows };
+}
+
+export type FlowSaveError = 'duplicado' | 'limite';
+
+// Checked BEFORE upsertFlow, inside the same updateBoard snapshot (dispatch.ts):
+// a silent no-op on MAX_FLOWS looks like success to the caller, and two arrows
+// between the same pair is just visual/functional noise (which one fires?).
+export function checkFlowSave(board: CanvasBoard, flow: CanvasFlow): FlowSaveError | null {
+  if (board.flows.some((f) => f.id !== flow.id && f.from === flow.from && f.to === flow.to)) return 'duplicado';
+  if (!board.flows.some((f) => f.id === flow.id) && board.flows.length >= MAX_FLOWS) return 'limite';
+  return null;
+}
+
+export function removeFlow(board: CanvasBoard, id: string): CanvasBoard {
+  return { ...board, flows: board.flows.filter((f) => f.id !== id) };
+}
+
+export interface FlowClaim {
+  board: CanvasBoard;
+  claimed: boolean;
+  // Snapshot from BEFORE the claim, so a failed delivery can restore the
+  // EXACT prior state (server/canvas/flows.ts recordFlowFailure) instead of
+  // just clearing lastFiredAt — which would erase a real previous fire's
+  // timestamp and falsely re-arm the 60s cooldown as "never fired".
+  prevFires: number;
+  prevLastFiredAt?: number;
+  prevFailStreak: number;
+}
+
+// Claims the RIGHT to fire, atomically, inside one updateBoard snapshot —
+// BEFORE any delivery attempt. `claimed: false` covers every reason another
+// concurrent close already got there first: removed, disabled, inside the
+// normal cooldown, or inside this flow's own failure backoff window
+// (`backoffMs`, injected rather than imported so this module stays generic —
+// server/canvas/flows.ts owns the actual curve). server/canvas/flows.ts only
+// delivers when claimed.
+export function claimFlowFire(
+  board: CanvasBoard, id: string, now: number, cooldownMs: number, backoffMs: (failStreak: number) => number,
+): FlowClaim {
+  const i = board.flows.findIndex((f) => f.id === id);
+  if (i < 0) return { board, claimed: false, prevFires: 0, prevLastFiredAt: undefined, prevFailStreak: 0 };
+  const f = board.flows[i];
+  const prevFailStreak = f.failStreak ?? 0;
+  const rateBlocked = f.lastFiredAt !== undefined && now - f.lastFiredAt < cooldownMs;
+  const backoffBlocked = prevFailStreak > 0 && f.lastFailedAt !== undefined && now - f.lastFailedAt < backoffMs(prevFailStreak);
+  if (!f.enabled || rateBlocked || backoffBlocked) {
+    return { board, claimed: false, prevFires: f.fires, prevLastFiredAt: f.lastFiredAt, prevFailStreak };
+  }
+  const flows = [...board.flows];
+  flows[i] = { ...f, lastFiredAt: now, fires: f.fires + 1 };
+  return { board: { ...board, flows }, claimed: true, prevFires: f.fires, prevLastFiredAt: f.lastFiredAt, prevFailStreak };
+}
+
+// A claimed fire whose delivery then failed (target gone, run didn't start,
+// concurrency cap, ...) didn't actually happen — restore the EXACT prior
+// fires/lastFiredAt (from claimFlowFire's snapshot) and bump the failure
+// streak, which arms the exponential backoff for the NEXT attempt. `claimedAt`
+// guards against clobbering a newer legitimate claim that landed while this
+// delivery was still in flight.
+export function recordFlowFailure(
+  board: CanvasBoard, id: string, claimedAt: number, prevFires: number, prevLastFiredAt: number | undefined, now: number,
+): CanvasBoard {
+  const i = board.flows.findIndex((f) => f.id === id);
+  if (i < 0) return board;
+  const f = board.flows[i];
+  if (f.lastFiredAt !== claimedAt) return board;
+  const flows = [...board.flows];
+  flows[i] = { ...f, fires: prevFires, lastFiredAt: prevLastFiredAt, failStreak: (f.failStreak ?? 0) + 1, lastFailedAt: now };
+  return { ...board, flows };
+}
+
+// A delivery that succeeds after a prior failure streak clears it — the next
+// failure (if any) starts backoff over from the 1-minute floor, not wherever
+// the old streak left off.
+export function recordFlowSuccess(board: CanvasBoard, id: string): CanvasBoard {
+  const i = board.flows.findIndex((f) => f.id === id);
+  if (i < 0 || !board.flows[i].failStreak) return board;
+  const flows = [...board.flows];
+  flows[i] = { ...flows[i], failStreak: 0, lastFailedAt: undefined };
+  return { ...board, flows };
 }
 
 // A position map can only grow up to MAX_POS; beyond it the newest write wins
@@ -92,7 +235,12 @@ export async function readBoard(): Promise<CanvasBoard> {
   const cards = (Array.isArray(parsed.cards) ? parsed.cards : [])
     .map((c) => sanitizeCard(c, c as CanvasCard, (c as CanvasCard)?.updatedAt ?? now))
     .filter((c): c is CanvasCard => !!c);
-  return { cards, pos: sanitizePos(parsed.pos) };
+  // A board written before flows existed has no `flows` key at all — Array.isArray
+  // on undefined is false, so it degrades to [] instead of throwing.
+  const flows = (Array.isArray(parsed.flows) ? parsed.flows : [])
+    .map((f) => sanitizeFlow(f, f as CanvasFlow, now))
+    .filter((f): f is CanvasFlow => !!f);
+  return { cards, pos: sanitizePos(parsed.pos), flows };
 }
 
 // Every write goes through one chain: two quick frames (drag end + card save)
@@ -106,7 +254,11 @@ export function updateBoard(fn: (b: CanvasBoard) => CanvasBoard): Promise<Canvas
     const f = boardFile();
     await mkdir(dirname(f), { recursive: true });
     await copyFile(f, `${f}.bak`).catch(() => undefined); // best-effort: no prior file yet is fine
-    const tmp = `${f}.tmp`;
+    // pid+random, not a bare `.tmp`: the index (loopback) and the agent (relay)
+    // are two OS processes that can both be writing this file around the same
+    // moment, and a shared temp name lets one process's rename land on top of
+    // the other's still-being-written tmp (canvas review — flows batch #14).
+    const tmp = `${f}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
     await writeFile(tmp, JSON.stringify(updated), 'utf8');
     await rename(tmp, f);
     return updated;

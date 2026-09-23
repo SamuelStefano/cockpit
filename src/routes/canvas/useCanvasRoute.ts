@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CanvasBoard, CanvasCard, CanvasGraph, CanvasNode, CanvasPos, CardStatus, ContentFormat, TermStats } from '../../../shared/canvas';
+import type { CanvasBoard, CanvasCard, CanvasFlow, CanvasGraph, CanvasNode, CanvasPos, CardStatus, ContentFormat, TermStats } from '../../../shared/canvas';
 import { buildContentPrompt, buildTaskPrompt } from '../../../shared/canvas-prompt';
 import type { Session } from '../../data/types';
 import type { TermApi } from '../../useCockpit';
@@ -23,6 +23,14 @@ export interface CanvasRouteProps {
   onCanvasPosReset: () => void;
   onCanvasCardSave: (card: CanvasCard) => void;
   onCanvasCardDelete: (id: string) => void;
+  onCanvasFlowSave: (flow: CanvasFlow) => void;
+  onCanvasFlowDelete: (id: string) => void;
+  canvasFlowFired: Record<string, number>;
+  // cardId -> the `new-<uuid>` run key a server-side flow just started for
+  // that card. Absorbed into the same pendingLaunch map runCard uses, so
+  // cardRun() shows "rodando" and the kanban can stop it exactly like a
+  // client-launched run.
+  canvasFlowRuns: Record<string, { key: string; at: number }>;
   onLaunchAgent: (prompt: string, title: string) => string | null;
   onOpenSession: (id: string) => void;
   term: TermApi;
@@ -157,6 +165,22 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     }
     if (changed) setPendingTick((t) => t + 1);
   }, [p.running]);
+
+  // Same map, filled from the OTHER source: a flow that just started a card
+  // as a new session server-side, which the browser never asked for and so
+  // has no local draft to bind through runCard's own return value. The
+  // cleanup effect above (keyed on p.running) prunes this exactly the same
+  // way once the run shows up and finishes.
+  useEffect(() => {
+    const rec = pendingLaunch.current;
+    let changed = false;
+    for (const [cardId, { key, at }] of Object.entries(p.canvasFlowRuns)) {
+      if (rec[cardId]?.key === key) continue;
+      rec[cardId] = { key, addedAt: at };
+      changed = true;
+    }
+    if (changed) setPendingTick((t) => t + 1);
+  }, [p.canvasFlowRuns]);
 
   const newDraft = useCallback((kind: CanvasCard['kind'], from: CanvasNode[]) => {
     const t = Date.now();

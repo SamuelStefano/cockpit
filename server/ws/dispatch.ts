@@ -45,7 +45,15 @@ import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } fr
 import { buildBench } from '../bench';
 import { buildCanvas } from '../canvas/index';
 import { collectTermStats } from '../canvas/term-stats';
-import { readBoard, readBoardChained, updateBoard, sanitizeCard, sanitizePos, upsertCard, removeCard, mergePos } from '../canvas/board';
+import {
+  MAX_FLOWS, readBoard, readBoardChained, updateBoard, sanitizeCard, sanitizeFlow, sanitizePos, upsertCard, upsertFlow, removeCard, removeFlow,
+  checkFlowSave, mergePos,
+} from '../canvas/board';
+import { startCanvasFlows } from '../canvas/flows';
+
+// Registers the turn-closed listener once, at module load — both entry points
+// (server/index.ts, server/agent.ts) reach this file via ws/serve-connection.ts.
+startCanvasFlows();
 
 const BG_RUN_MESSAGE: Record<BgRunReject, string> = {
   'sem-item': 'este item não está mais na fila',
@@ -153,6 +161,31 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const board = await updateBoard((b) => removeCard(b, String(msg.id ?? '')));
       send(ws, { t: 'canvas-board', board });
       send(ws, { t: 'canvas-graph', graph: await buildCanvas(board) });
+      return;
+    }
+    case 'canvas-flow-save': {
+      // prev MUST come from inside the same updateBoard snapshot the write
+      // lands on, not a separate readBoard() before the chain — otherwise a
+      // concurrent claimFlowFire (a flow firing) landing in between would
+      // hand sanitizeFlow a stale fires/lastFiredAt and the save would
+      // silently roll it back (canvas review — flows batch #9/#10).
+      const now = Date.now();
+      let error: string | null = null;
+      const board = await updateBoard((b) => {
+        const prev = b.flows.find((f) => f.id === msg.flow?.id);
+        const flow = sanitizeFlow(msg.flow, prev, now);
+        if (!flow) { error = 'fluxo inválido'; return b; }
+        const saveError = checkFlowSave(b, flow);
+        if (saveError) { error = saveError === 'duplicado' ? 'já existe um fluxo entre esses dois nós' : `limite de ${MAX_FLOWS} fluxos atingido`; return b; }
+        return upsertFlow(b, flow);
+      });
+      if (error) { send(ws, { t: 'error', message: error }); return; }
+      send(ws, { t: 'canvas-board', board });
+      return;
+    }
+    case 'canvas-flow-delete': {
+      const board = await updateBoard((b) => removeFlow(b, String(msg.id ?? '')));
+      send(ws, { t: 'canvas-board', board });
       return;
     }
     case 'bench-build': {

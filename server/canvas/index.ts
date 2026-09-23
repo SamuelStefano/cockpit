@@ -42,6 +42,27 @@ async function loadCache(): Promise<RefsCache> {
   return cache;
 }
 
+// Durable fallback for server/canvas/card-sessions.ts's in-memory map: that
+// map only knows a binding once THIS process has seen the marker once (this
+// process's boot, or a fresh restart, starts it empty). Reuses the SAME
+// in-memory/disk cache buildCanvas already maintains — reading it (one JSON
+// parse, at most, if nothing has loaded it yet this process) is orders of
+// magnitude cheaper than a full buildCanvas() (which also, on top of the
+// cost, ignores its `board` argument while a build is already in flight —
+// never call it per flow fire). Callers should feed a hit back into
+// bindCardSession so the next lookup skips this disk read entirely.
+export async function cardIdFromRefsCache(sessionId: string): Promise<string | undefined> {
+  const c = await loadCache();
+  return c.get(sessionId)?.cardId;
+}
+
+// Test-only: the cache is module-level (warmed once per process, same as
+// marathon.ts's set), so a test that writes a fresh refs file needs a way to
+// force the next read to hit disk again.
+export function __resetCanvasRefsCache(): void {
+  cache = null;
+}
+
 async function saveCache(c: RefsCache): Promise<void> {
   const f = refsFile();
   await mkdir(dirname(f), { recursive: true });
