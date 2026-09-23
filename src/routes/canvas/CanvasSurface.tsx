@@ -166,7 +166,7 @@ export function CanvasSurface(p: Props) {
       onPointerCancel={(e) => { onNodeUp(); onPortUp(e); vp.onBackgroundUp(e); }}
     >
       <div className="absolute left-0 top-0 origin-top-left" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})` }}>
-        <CanvasAreas rects={p.areaRects} status={p.budgetStatus} onEditBudget={p.onEditBudget} />
+        <CanvasAreas rects={p.areaRects} status={p.budgetStatus} onEditBudget={p.onEditBudget} past={p.pastAlive !== null} />
         <CanvasEdges edges={p.edges} pos={pos} focus={focus} past={p.pastAlive !== null} />
         {/* Arrows paint BELOW the nodes — pointer-events-none except a small
             midpoint chip, never a wide hit-band over the whole route, so a

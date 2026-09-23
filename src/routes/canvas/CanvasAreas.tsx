@@ -19,13 +19,20 @@ interface Props {
   rects: AreaRect[];
   status: Partial<Record<AreaId, BudgetStatus>>;
   onEditBudget: (area: AreaId) => void;
+  // Timeline scrubbed away from live: a region's budget/running count is a
+  // LIVE reading, meaningless looking at the past — dims along with the rest.
+  past: boolean;
 }
+
+// Same factor CanvasEdges.tsx/CanvasFlowArrows.tsx use for "dim, looking at
+// the past" — one shared strength across every layer of the canvas.
+const PAST_DIM = 0.35;
 
 // Behind every node card (rendered first inside the pan/zoom layer): a soft
 // rounded region with a title chip. The box itself never eats a pointer event
 // (drag/pan must reach the node or the background under it); only the chip's
 // click surface does, and it stops the down event so it can't also start a pan.
-export function CanvasAreas({ rects, status, onEditBudget }: Props) {
+export function CanvasAreas({ rects, status, onEditBudget, past }: Props) {
   return (
     <>
       {rects.map((r) => {
@@ -35,7 +42,10 @@ export function CanvasAreas({ rects, status, onEditBudget }: Props) {
         const counts = [`${r.sessions} sessões`, r.running ? `${r.running} rodando` : null, r.terminals ? `${r.terminals} abertos` : null]
           .filter(Boolean).join(' · ');
         return (
-          <div key={r.area} className="pointer-events-none absolute left-0 top-0" style={{ transform: `translate(${r.x}px, ${r.y}px)`, width: r.w, height: r.h }}>
+          <div
+            key={r.area} className="pointer-events-none absolute left-0 top-0"
+            style={{ transform: `translate(${r.x}px, ${r.y}px)`, width: r.w, height: r.h, opacity: past ? PAST_DIM : 1 }}
+          >
             {/* Fill never pulses — a map-sized translucent rect flashing opacity
                 reads as the whole region blinking, not as an alert. Only the
                 border (thin, no fill of its own) does, and only the chip turns

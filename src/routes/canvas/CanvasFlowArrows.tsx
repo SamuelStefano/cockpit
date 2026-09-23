@@ -10,6 +10,9 @@ interface Props {
   flows: CanvasFlow[];
   firedAt: Record<string, number>;
   onFlowClick: (id: string) => void;
+  // Timeline scrubbed away from live: an arrow is a LIVE pipeline, so it
+  // dims along with everything else rather than reading as still wired up.
+  past: boolean;
 }
 
 // How long an arrow keeps pulsing after its `canvas-flow-fired` broadcast.
@@ -21,6 +24,9 @@ const PULSE_MS = 2000;
 // batch 2, #2). This layer paints BELOW the nodes (see CanvasSurface.tsx) and
 // stays pointer-events-none everywhere except this one small chip.
 const CHIP_R = 9;
+// Same factor CanvasEdges.tsx uses for a non-conflict edge in the past view —
+// one shared "how dim is dim" across every layer of the canvas.
+const PAST_DIM = 0.35;
 
 // Re-renders on an interval only while at least one arrow is still inside its
 // pulse window — idle the rest of the time, unlike a naive rAF loop.
@@ -37,7 +43,7 @@ function usePulseTick(active: boolean, ms = 180) {
 // source→target. Rendered BELOW the node cards/windows (CanvasSurface.tsx),
 // with (almost) no pointer events of its own — see CanvasFlowPorts.tsx for
 // the interactive ports, painted on a separate layer above the nodes.
-export const CanvasFlowArrows = memo(function CanvasFlowArrows({ nodes, pos, windows, compact, flows, firedAt, onFlowClick }: Props) {
+export const CanvasFlowArrows = memo(function CanvasFlowArrows({ nodes, pos, windows, compact, flows, firedAt, onFlowClick, past }: Props) {
   const now = Date.now();
   usePulseTick(flows.some((f) => firedAt[f.id] && now - firedAt[f.id] < PULSE_MS));
 
@@ -72,8 +78,9 @@ export const CanvasFlowArrows = memo(function CanvasFlowArrows({ nodes, pos, win
               strokeWidth={pulsing ? 3.2 : 2}
               className={f.enabled ? 'deck-flow-line' : undefined}
               style={pulsing ? { filter: 'drop-shadow(0 0 5px rgba(251,146,60,0.85))' } : undefined}
+              opacity={past ? PAST_DIM : 1}
             />
-            <g className="pointer-events-auto cursor-pointer" onClick={() => onFlowClick(f.id)}>
+            <g className="pointer-events-auto cursor-pointer" onClick={() => onFlowClick(f.id)} opacity={past ? PAST_DIM : 1}>
               <circle cx={mid.x} cy={mid.y} r={CHIP_R} fill="rgba(23,23,23,0.9)" stroke={f.enabled ? 'rgba(251,146,60,0.85)' : 'rgba(115,115,115,0.6)'} strokeWidth={1.5} />
               <text x={mid.x} y={mid.y + 3.5} textAnchor="middle" fontSize={10} fill={f.enabled ? 'rgba(251,146,60,0.95)' : 'rgba(163,163,163,0.8)'}>{f.fires}</text>
             </g>
