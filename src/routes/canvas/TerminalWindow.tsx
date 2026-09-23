@@ -88,6 +88,9 @@ export const TerminalWindow = memo(function TerminalWindow(p: Props) {
             className="absolute inset-0 cursor-text"
             title="clique pra digitar"
             onPointerDown={(e) => { e.stopPropagation(); p.onActivate(n.id); }}
+            // The mousedown default moves focus to <body> after our focus() ran,
+            // so the first keystroke after the click went nowhere.
+            onMouseDown={(e) => e.preventDefault()}
           />
         )}
       </div>

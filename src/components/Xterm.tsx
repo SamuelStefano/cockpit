@@ -87,7 +87,10 @@ export function XtermView({ id, term, watch, autoFocus = true, focusKey, fontSiz
   }, [id, term, watch]);
 
   useEffect(() => {
-    if (focusKey) xtRef.current?.focus();
+    if (!focusKey) return;
+    // Next frame: the click that asked for focus is still being dispatched.
+    const raf = requestAnimationFrame(() => xtRef.current?.focus());
+    return () => cancelAnimationFrame(raf);
   }, [focusKey]);
 
   return <div ref={ref} className="h-full w-full overflow-hidden" style={{ background: '#0a0a0a', padding: '6px 4px 4px 8px' }} />;

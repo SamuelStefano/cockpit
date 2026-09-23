@@ -52,7 +52,7 @@ describe('term-resume', () => {
   it('tells the user when the pane is no longer just following', async () => {
     term.resumeTerm.mockResolvedValueOnce(false);
     run({ t: 'term-resume', termId: 'w-x', watch: 'u' });
-    await vi.waitFor(() => expect(sent.fn).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'error' })));
+    await vi.waitFor(() => expect(sent.fn).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'term-data', termId: 'w-x' })));
   });
 
   it('stays silent when the resume went through', async () => {

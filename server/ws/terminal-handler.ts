@@ -36,8 +36,11 @@ export function handleTerm(
     }
     case 'term-resume': {
       if (typeof msg.termId !== 'string' || typeof msg.watch !== 'string') return true;
-      void resumeTerm(msg.termId, msg.watch).then((ok) => {
-        if (!ok) send(ws, { t: 'error', message: 'terminal não está só acompanhando a sessão — retome à mão' });
+      // Said inside the terminal itself: a keyless `error` frame only surfaces
+      // when the tab is hidden. Written to this socket only, never into tmux.
+      const termId = msg.termId;
+      void resumeTerm(termId, msg.watch).then((ok) => {
+        if (!ok) send(ws, { t: 'term-data', termId, data: '\r\n\x1b[33m[retomar recusado: o terminal já saiu do acompanhamento — rode claude --resume à mão]\x1b[0m\r\n' });
       });
       return true;
     }
