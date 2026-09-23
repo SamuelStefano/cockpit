@@ -29,10 +29,12 @@ const EMPTY_BOARD: CanvasBoard = { cards: [], pos: {} };
 const WRITE_GRACE_MS = 1500;
 
 // A backend that predates canvas-get answers nothing at all for it (no
-// default case in the server switch): without a client-side ceiling the
-// "Montando o grafo" screen waits forever. 20s comfortably covers a cold
-// first scan (~9s) plus a slow build.
-const CANVAS_GET_TIMEOUT_MS = 20_000;
+// default case in the server switch). A current one answers `canvas-board`
+// at once, before the slow graph build, so that frame is the "supported"
+// signal; the graph itself gets a much longer ceiling because the first scan
+// after a deploy re-reads every transcript (~25s measured on this box).
+const CANVAS_ACK_TIMEOUT_MS = 8_000;
+const CANVAS_GET_TIMEOUT_MS = 120_000;
 
 export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
   const [canvasGraph, setGraph] = useState<CanvasGraph | null>(null);
@@ -42,12 +44,14 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
   const [canvasStale, setStale] = useState(false);
   const loadingRef = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const posWriteAt = useRef<Record<string, number>>({});
   const cardWriteAt = useRef<Record<string, number>>({});
   const deleteWriteAt = useRef<Record<string, number>>({});
 
   const clearTimer = useCallback(() => {
     if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+    if (ackTimerRef.current) { clearTimeout(ackTimerRef.current); ackTimerRef.current = null; }
   }, []);
   useEffect(() => clearTimer, [clearTimer]);
 
@@ -61,6 +65,7 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
   const onMsg = useCallback((msg: ServerMsg) => {
     if (msg.t === 'canvas-graph') { setGraph(msg.graph); setStale(false); settle(); return true; }
     if (msg.t === 'canvas-board') {
+      if (ackTimerRef.current) { clearTimeout(ackTimerRef.current); ackTimerRef.current = null; }
       const now = Date.now();
       setBoard((prev) => {
         const pos = { ...msg.board.pos };
@@ -103,6 +108,7 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
     setLoading(true);
     setLoadingSince(Date.now());
     timeoutRef.current = setTimeout(() => { setStale(true); settle(); }, CANVAS_GET_TIMEOUT_MS);
+    ackTimerRef.current = setTimeout(() => { setStale(true); settle(); }, CANVAS_ACK_TIMEOUT_MS);
   }, [send, clearTimer, settle]);
 
   // Positions are applied locally at once; the server copy only matters on reload.

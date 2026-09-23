@@ -7,9 +7,9 @@ import type { CanvasEdge, CanvasNode, CanvasPos } from '../../../shared/canvas';
 export const NODE_W = 248;
 export const NODE_H = 92;
 const X_STRETCH = 1.35;
-const GAP = 160;
-const RING0 = 300;
-const RING_STEP = 150;
+const GAP = 110;
+const RING0 = 230;
+const RING_STEP = 125;
 const GOLDEN = Math.PI * (3 - Math.sqrt(5));
 
 export function hash(s: string): number {
@@ -102,7 +102,7 @@ export function layoutCanvas(nodes: CanvasNode[], edges: CanvasEdge[], saved: Re
     const k = orbit.get(anchor) ?? 0;
     orbit.set(anchor, k + 1);
     const angle = k * GOLDEN + (hash(anchor) % 628) / 100;
-    const radius = 170 + k * 26;
+    const radius = 150 + k * 24;
     out[s.id] = { x: cx + Math.cos(angle) * radius * 1.4, y: cy + Math.sin(angle) * radius };
   }
 

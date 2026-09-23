@@ -3,7 +3,7 @@ import type { CanvasNode, CanvasPos } from '../../../shared/canvas';
 import { Badge, Icon, type IconName } from '../../components/primitives';
 import { relPast } from '../../../shared/format';
 import { NODE_H, NODE_W } from './canvas-layout';
-import { STATUS_LABEL, STATUS_TONE } from './canvas-labels';
+import { STATUS_LABEL, STATUS_TONE, titleSize } from './canvas-labels';
 
 interface Props {
   node: CanvasNode;
@@ -39,7 +39,7 @@ export const CanvasNodeCard = memo(function CanvasNodeCard({ node: n, pos, selec
     <div
       data-node={n.id}
       onPointerDown={(e) => onPointerDown(e, n.id)}
-      style={{ transform: `translate(${pos.x}px, ${pos.y}px)`, width: NODE_W, height: compact ? 44 : NODE_H }}
+      style={{ transform: `translate(${pos.x}px, ${pos.y}px)`, width: NODE_W, height: compact ? undefined : NODE_H, minHeight: compact ? 44 : undefined }}
       className={`absolute left-0 top-0 touch-none cursor-grab select-none rounded-xl border bg-neutral-900/95 shadow-lg shadow-black/40 transition-opacity active:cursor-grabbing
         ${frame(n, selected)} ${dim ? 'opacity-25' : ''} ${n.archived ? 'opacity-60' : ''}`}
     >
@@ -47,7 +47,7 @@ export const CanvasNodeCard = memo(function CanvasNodeCard({ node: n, pos, selec
         {n.kind === 'session'
           ? <StateDot running={running} waiting={waiting} archived={n.archived} />
           : <Icon name={n.hub ? 'layers' : ICON[n.kind]} size={12} className={n.kind === 'card' || n.hub ? 'text-orange-400' : 'text-neutral-500'} />}
-        <span className={`min-w-0 flex-1 truncate text-[12px] font-medium ${n.hub ? 'text-orange-200' : 'text-neutral-100'}`}>{n.title}</span>
+        <span className={`min-w-0 flex-1 truncate font-medium ${n.hub ? 'text-orange-200' : 'text-neutral-100'}`} style={{ fontSize: titleSize(zoom) }}>{n.title}</span>
         {n.kind === 'card' && n.status && <Badge tone={STATUS_TONE[n.status]}>{STATUS_LABEL[n.status]}</Badge>}
       </div>
       {n.hub && zoom < FAR_ZOOM && (

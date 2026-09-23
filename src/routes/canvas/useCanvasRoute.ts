@@ -58,8 +58,14 @@ export function useCanvasRoute(p: CanvasRouteProps) {
     () => filterCanvas(merged.nodes, merged.edges, { scope, archived, query, running: p.running, cards: p.board.cards, now }),
     [merged, scope, archived, query, p.running, p.board.cards, now],
   );
-  const pos = useMemo(() => layoutCanvas(visible.nodes, visible.edges, p.board.pos), [visible, p.board.pos]);
-  const worldBounds = useMemo(() => bounds(Object.values(pos)), [pos]);
+  // Positions come from the scope WITHOUT the search query: typing only hides
+  // nodes, it never re-packs the map under the user's eyes.
+  const layoutBase = useMemo(
+    () => (query ? filterCanvas(merged.nodes, merged.edges, { scope, archived, query: '', running: p.running, cards: p.board.cards, now }) : visible),
+    [query, merged, scope, archived, p.running, p.board.cards, now, visible],
+  );
+  const pos = useMemo(() => layoutCanvas(layoutBase.nodes, layoutBase.edges, p.board.pos), [layoutBase, p.board.pos]);
+  const worldBounds = useMemo(() => bounds(visible.nodes.map((n) => pos[n.id]).filter(Boolean)), [visible.nodes, pos]);
   const RECENT_FOCUS_N = 8;
   // First view frames what is alive right now (running sessions + whatever
   // they touch), falling back to the handful of most recent sessions when
