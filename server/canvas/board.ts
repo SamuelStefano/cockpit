@@ -2,7 +2,8 @@ import { readFile, writeFile, mkdir, rename, copyFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import {
-  type CanvasBoard, type CanvasCard, type CanvasPos, CARD_ID_RE, CARD_STATUSES, CONTENT_FORMATS,
+  type CanvasBoard, type CanvasCard, type CanvasFlow, type CanvasPos, CARD_ID_RE, CARD_STATUSES, CONTENT_FORMATS,
+  FLOW_ID_RE, isFlowEndpoint,
 } from '../../shared/canvas';
 
 // Kanban cards + canvas positions for the canvas route. Lives in ~/.cockpit, out
@@ -16,11 +17,13 @@ const MAX_POS = 4000;
 const MAX_TITLE = 140;
 const MAX_PROMPT = 20_000;
 const MAX_LINKS = 60;
+const MAX_FLOWS = 100;
+const MAX_TEMPLATE = 4000;
 const NODE_ID_RE = /^[scktw]:[A-Za-z0-9_-]{1,80}$/;
 const REF_RE = /^[A-Za-z0-9_-]{1,80}$/;
 
 export function emptyBoard(): CanvasBoard {
-  return { cards: [], pos: {} };
+  return { cards: [], pos: {}, flows: [] };
 }
 
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : '');
@@ -39,6 +42,24 @@ export function sanitizeCard(raw: unknown, prev: CanvasCard | undefined, now: nu
     id: c.id, title, prompt: str(c.prompt, MAX_PROMPT), status, kind, format,
     contextIds: refs(c.contextIds), sessionIds: refs(c.sessionIds),
     createdAt: prev?.createdAt ?? now, updatedAt: now,
+  };
+}
+
+// Frames arrive as raw JSON, same rule as sanitizeCard: every field re-derived,
+// nothing trusted. from/to are capped to `s:`/`k:` (isFlowEndpoint) and a
+// self-loop is rejected outright — firing a flow into its own source would
+// never close a turn.
+export function sanitizeFlow(raw: unknown, prev: CanvasFlow | undefined, now: number): CanvasFlow | null {
+  const f = (raw ?? {}) as Record<string, unknown>;
+  if (typeof f.id !== 'string' || !FLOW_ID_RE.test(f.id)) return null;
+  if (typeof f.from !== 'string' || !isFlowEndpoint(f.from)) return null;
+  if (typeof f.to !== 'string' || !isFlowEndpoint(f.to)) return null;
+  if (f.from === f.to) return null;
+  const fires = typeof f.fires === 'number' && Number.isFinite(f.fires) && f.fires >= 0 ? Math.floor(f.fires) : (prev?.fires ?? 0);
+  const lastFiredAt = typeof f.lastFiredAt === 'number' && Number.isFinite(f.lastFiredAt) ? f.lastFiredAt : prev?.lastFiredAt;
+  return {
+    id: f.id, from: f.from, to: f.to, template: str(f.template, MAX_TEMPLATE), enabled: f.enabled !== false,
+    createdAt: prev?.createdAt ?? now, fires, ...(lastFiredAt !== undefined ? { lastFiredAt } : {}),
   };
 }
 
@@ -63,7 +84,38 @@ export function upsertCard(board: CanvasBoard, card: CanvasCard): CanvasBoard {
 export function removeCard(board: CanvasBoard, id: string): CanvasBoard {
   const pos = { ...board.pos };
   delete pos[`k:${id}`];
-  return { cards: board.cards.filter((c) => c.id !== id), pos };
+  return { ...board, cards: board.cards.filter((c) => c.id !== id), pos };
+}
+
+// A card a flow just delivered a prompt to: same transition the client makes
+// on runCard, done here because the trigger fires with the browser closed.
+export function markCardDoing(board: CanvasBoard, cardId: string, now: number): CanvasBoard {
+  const i = board.cards.findIndex((c) => c.id === cardId);
+  if (i < 0) return board;
+  const cards = [...board.cards];
+  cards[i] = { ...cards[i], status: 'doing', updatedAt: now };
+  return { ...board, cards };
+}
+
+export function upsertFlow(board: CanvasBoard, flow: CanvasFlow): CanvasBoard {
+  const i = board.flows.findIndex((f) => f.id === flow.id);
+  if (i < 0 && board.flows.length >= MAX_FLOWS) return board;
+  const flows = i < 0 ? [flow, ...board.flows] : board.flows.map((f, j) => (j === i ? flow : f));
+  return { ...board, flows };
+}
+
+export function removeFlow(board: CanvasBoard, id: string): CanvasBoard {
+  return { ...board, flows: board.flows.filter((f) => f.id !== id) };
+}
+
+// Server-side write after a successful delivery — bumps the counter callers
+// see in the editor/inspector and arms the 60s rate limit (server/canvas/flows.ts).
+export function bumpFlowFired(board: CanvasBoard, id: string, at: number): CanvasBoard {
+  const i = board.flows.findIndex((f) => f.id === id);
+  if (i < 0) return board;
+  const flows = [...board.flows];
+  flows[i] = { ...flows[i], lastFiredAt: at, fires: flows[i].fires + 1 };
+  return { ...board, flows };
 }
 
 // A position map can only grow up to MAX_POS; beyond it the newest write wins
@@ -92,7 +144,12 @@ export async function readBoard(): Promise<CanvasBoard> {
   const cards = (Array.isArray(parsed.cards) ? parsed.cards : [])
     .map((c) => sanitizeCard(c, c as CanvasCard, (c as CanvasCard)?.updatedAt ?? now))
     .filter((c): c is CanvasCard => !!c);
-  return { cards, pos: sanitizePos(parsed.pos) };
+  // A board written before flows existed has no `flows` key at all — Array.isArray
+  // on undefined is false, so it degrades to [] instead of throwing.
+  const flows = (Array.isArray(parsed.flows) ? parsed.flows : [])
+    .map((f) => sanitizeFlow(f, f as CanvasFlow, now))
+    .filter((f): f is CanvasFlow => !!f);
+  return { cards, pos: sanitizePos(parsed.pos), flows };
 }
 
 // Every write goes through one chain: two quick frames (drag end + card save)

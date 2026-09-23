@@ -2,7 +2,10 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { emptyBoard, mergePos, readBoard, readBoardChained, removeCard, sanitizeCard, sanitizePos, updateBoard, upsertCard } from './board';
+import {
+  bumpFlowFired, emptyBoard, markCardDoing, mergePos, readBoard, readBoardChained, removeCard, removeFlow,
+  sanitizeCard, sanitizeFlow, sanitizePos, updateBoard, upsertCard, upsertFlow,
+} from './board';
 
 describe('sanitizeCard', () => {
   it('rejects a bad id or empty title', () => {
@@ -20,6 +23,60 @@ describe('sanitizeCard', () => {
 
   it('drops format on task cards', () => {
     expect(sanitizeCard({ id: 'abcd', title: 'a', format: 'post' }, undefined, 1)?.format).toBeUndefined();
+  });
+});
+
+describe('sanitizeFlow', () => {
+  it('rejects a bad id, a non-session/card endpoint, or a self-loop', () => {
+    expect(sanitizeFlow({ id: '../x', from: 's:a', to: 'k:b' }, undefined, 1)).toBeNull();
+    expect(sanitizeFlow({ id: 'abcd', from: 'c:a', to: 'k:b' }, undefined, 1)).toBeNull();
+    expect(sanitizeFlow({ id: 'abcd', from: 's:a', to: 's:a' }, undefined, 1)).toBeNull();
+  });
+
+  it('normalizes fields, defaults enabled to true, and keeps createdAt/fires from the previous version', () => {
+    const f = sanitizeFlow(
+      { id: 'abcd', from: 's:a', to: 'k:b', template: 'oi {{result}}' },
+      { createdAt: 7, fires: 3, lastFiredAt: 100 } as never,
+      9,
+    );
+    expect(f).toMatchObject({ id: 'abcd', from: 's:a', to: 'k:b', template: 'oi {{result}}', enabled: true, createdAt: 7, fires: 3, lastFiredAt: 100 });
+  });
+
+  it('caps the template length and coerces enabled/fires from raw input', () => {
+    const long = sanitizeFlow({ id: 'abcd', from: 's:a', to: 'k:b', template: 'x'.repeat(5000), enabled: false, fires: 2.9 }, undefined, 1)!;
+    expect(long.template.length).toBe(4000);
+    expect(long.enabled).toBe(false);
+    expect(long.fires).toBe(2);
+  });
+});
+
+describe('flow board ops', () => {
+  it('upserts, caps at MAX_FLOWS is respected on insert-only, and removes', () => {
+    const f = sanitizeFlow({ id: 'abcd', from: 's:a', to: 'k:b' }, undefined, 1)!;
+    let b = upsertFlow(emptyBoard(), f);
+    expect(b.flows.map((x) => x.id)).toEqual(['abcd']);
+    const f2 = { ...f, template: 'novo' };
+    b = upsertFlow(b, f2);
+    expect(b.flows).toEqual([f2]);
+    b = removeFlow(b, 'abcd');
+    expect(b.flows).toEqual([]);
+  });
+
+  it('bumpFlowFired increments fires and stamps lastFiredAt, no-op on unknown id', () => {
+    const f = sanitizeFlow({ id: 'abcd', from: 's:a', to: 'k:b' }, undefined, 1)!;
+    let b = upsertFlow(emptyBoard(), f);
+    b = bumpFlowFired(b, 'abcd', 500);
+    expect(b.flows[0]).toMatchObject({ fires: 1, lastFiredAt: 500 });
+    const same = bumpFlowFired(b, 'nope', 999);
+    expect(same).toBe(b);
+  });
+
+  it('markCardDoing moves the card and stamps updatedAt, no-op on unknown id', () => {
+    const c = sanitizeCard({ id: 'abcd', title: 'a' }, undefined, 1)!;
+    let b = upsertCard(emptyBoard(), c);
+    b = markCardDoing(b, 'abcd', 42);
+    expect(b.cards[0]).toMatchObject({ status: 'doing', updatedAt: 42 });
+    expect(markCardDoing(b, 'nope', 1)).toBe(b);
   });
 });
 
@@ -50,6 +107,11 @@ describe('updateBoard', () => {
     await expect(readBoard()).resolves.toEqual(emptyBoard()); // ENOENT
     writeFileSync(process.env.COCKPIT_CANVAS_BOARD!, '{not json');
     await expect(readBoard()).rejects.toBeInstanceOf(SyntaxError);
+  });
+
+  it('loads a pre-flows board (no `flows` key on disk) with flows: []', async () => {
+    writeFileSync(process.env.COCKPIT_CANVAS_BOARD!, JSON.stringify({ cards: [], pos: {} }));
+    await expect(readBoard()).resolves.toEqual(emptyBoard());
   });
 
   it('a read failure during updateBoard rejects and never wipes the file on disk', async () => {

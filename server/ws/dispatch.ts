@@ -45,7 +45,14 @@ import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } fr
 import { buildBench } from '../bench';
 import { buildCanvas } from '../canvas/index';
 import { collectTermStats } from '../canvas/term-stats';
-import { readBoard, readBoardChained, updateBoard, sanitizeCard, sanitizePos, upsertCard, removeCard, mergePos } from '../canvas/board';
+import {
+  readBoard, readBoardChained, updateBoard, sanitizeCard, sanitizeFlow, sanitizePos, upsertCard, upsertFlow, removeCard, removeFlow, mergePos,
+} from '../canvas/board';
+import { startCanvasFlows } from '../canvas/flows';
+
+// Registers the turn-closed listener once, at module load — both entry points
+// (server/index.ts, server/agent.ts) reach this file via ws/serve-connection.ts.
+startCanvasFlows();
 
 const BG_RUN_MESSAGE: Record<BgRunReject, string> = {
   'sem-item': 'este item não está mais na fila',
@@ -153,6 +160,20 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const board = await updateBoard((b) => removeCard(b, String(msg.id ?? '')));
       send(ws, { t: 'canvas-board', board });
       send(ws, { t: 'canvas-graph', graph: await buildCanvas(board) });
+      return;
+    }
+    case 'canvas-flow-save': {
+      const now = Date.now();
+      const prev = (await readBoard()).flows.find((f) => f.id === msg.flow?.id);
+      const flow = sanitizeFlow(msg.flow, prev, now);
+      if (!flow) { send(ws, { t: 'error', message: 'fluxo inválido' }); return; }
+      const board = await updateBoard((b) => upsertFlow(b, flow));
+      send(ws, { t: 'canvas-board', board });
+      return;
+    }
+    case 'canvas-flow-delete': {
+      const board = await updateBoard((b) => removeFlow(b, String(msg.id ?? '')));
+      send(ws, { t: 'canvas-board', board });
       return;
     }
     case 'bench-build': {
