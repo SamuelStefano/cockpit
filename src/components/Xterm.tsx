@@ -4,11 +4,21 @@ import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import type { TermApi } from '../useCockpit';
 
+interface Props {
+  id: string;
+  term: TermApi;
+  watch?: string; // session uuid: the pane follows that transcript live
+  autoFocus?: boolean;
+  focusKey?: number; // bump to pull keyboard focus into this terminal
+  fontSize?: number;
+}
+
 // Monta um xterm.js real e liga no PTY/tmux do backend via WS.
 // Anexa no mount (com replay de scrollback), desanexa no unmount (sessão tmux
 // segue viva). Trocar de aba remonta → reattach + redraw do tmux.
-export function XtermView({ id, term }: { id: string; term: TermApi }) {
+export function XtermView({ id, term, watch, autoFocus = true, focusKey, fontSize = 12.5 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  const xtRef = useRef<XTerm | null>(null);
 
   useEffect(() => {
     const el = ref.current;
@@ -16,7 +26,7 @@ export function XtermView({ id, term }: { id: string; term: TermApi }) {
 
     const xt = new XTerm({
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-      fontSize: 12.5,
+      fontSize,
       lineHeight: 1.3,
       cursorBlink: true,
       scrollback: 5000,
@@ -33,6 +43,7 @@ export function XtermView({ id, term }: { id: string; term: TermApi }) {
     const fit = new FitAddon();
     xt.loadAddon(fit);
     xt.open(el);
+    xtRef.current = xt;
 
     // Só ajusta quando o container está montado e com tamanho real. Anexado/0x0
     // (aba oculta, drag de seleção, pós-dispose) deixa o renderer sem `dimensions`
@@ -49,9 +60,10 @@ export function XtermView({ id, term }: { id: string; term: TermApi }) {
       (d) => xt.write(d),
       () => xt.write('\r\n\x1b[2m[sessão encerrada]\x1b[0m\r\n'),
       (snapshot) => { xt.reset(); xt.write(snapshot); }, // repinta sem duplicar
+      watch,
     );
     const dataSub = xt.onData((d) => term.input(id, d));
-    xt.focus();
+    if (autoFocus) xt.focus();
 
     let raf = 0;
     const ro = new ResizeObserver(() => {
@@ -67,9 +79,16 @@ export function XtermView({ id, term }: { id: string; term: TermApi }) {
       ro.disconnect();
       dataSub.dispose();
       term.detach(id);
+      xtRef.current = null;
       xt.dispose();
     };
-  }, [id, term]);
+    // fontSize/autoFocus only matter at mount; changing them must not reattach.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, term, watch]);
+
+  useEffect(() => {
+    if (focusKey) xtRef.current?.focus();
+  }, [focusKey]);
 
   return <div ref={ref} className="h-full w-full overflow-hidden" style={{ background: '#0a0a0a', padding: '6px 4px 4px 8px' }} />;
 }

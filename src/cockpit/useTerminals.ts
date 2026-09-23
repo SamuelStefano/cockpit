@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import type { ClientMsg } from '../../shared/protocol';
 
 export interface TermApi {
-  attach: (id: string, cols: number, rows: number, onData: (d: string) => void, onExit: () => void, onReplay: (d: string) => void) => void;
+  attach: (id: string, cols: number, rows: number, onData: (d: string) => void, onExit: () => void, onReplay: (d: string) => void, watch?: string) => void;
   detach: (id: string) => void;
   input: (id: string, data: string) => void;
   resize: (id: string, cols: number, rows: number) => void;
@@ -24,14 +24,14 @@ export function useTerminals(send: (m: ClientMsg) => void): Terminals {
   const termData = useRef<Map<string, (d: string) => void>>(new Map());   // termId -> xterm.write
   const termReplay = useRef<Map<string, (d: string) => void>>(new Map()); // termId -> reset()+write (snapshot)
   const termExit = useRef<Map<string, () => void>>(new Map());
-  const termDims = useRef<Map<string, { cols: number; rows: number }>>(new Map()); // p/ reattach no reconnect
+  const termDims = useRef<Map<string, { cols: number; rows: number; watch?: string }>>(new Map()); // p/ reattach no reconnect
 
-  const attach = useCallback((id: string, cols: number, rows: number, onData: (d: string) => void, onExit: () => void, onReplay: (d: string) => void) => {
+  const attach = useCallback((id: string, cols: number, rows: number, onData: (d: string) => void, onExit: () => void, onReplay: (d: string) => void, watch?: string) => {
     termData.current.set(id, onData);
     termExit.current.set(id, onExit);
     termReplay.current.set(id, onReplay);
-    termDims.current.set(id, { cols, rows });
-    send({ t: 'term-open', termId: id, cols, rows });
+    termDims.current.set(id, { cols, rows, watch });
+    send(watch ? { t: 'term-open', termId: id, cols, rows, watch } : { t: 'term-open', termId: id, cols, rows });
   }, [send]);
   const detach = useCallback((id: string) => {
     termData.current.delete(id);
@@ -63,7 +63,7 @@ export function useTerminals(send: (m: ClientMsg) => void): Terminals {
   const onTerms = useCallback((ids: string[]) => setDiscovered(ids), []);
   const listTerms = useCallback(() => send({ t: 'term-list' }), [send]);
   const reattach = useCallback(() => {
-    for (const [id, d] of termDims.current) send({ t: 'term-open', termId: id, cols: d.cols, rows: d.rows });
+    for (const [id, d] of termDims.current) send(d.watch ? { t: 'term-open', termId: id, cols: d.cols, rows: d.rows, watch: d.watch } : { t: 'term-open', termId: id, cols: d.cols, rows: d.rows });
   }, [send]);
 
   return { term, onTermData, onTermReplay, onTermExit, onTerms, discovered, listTerms, reattach };

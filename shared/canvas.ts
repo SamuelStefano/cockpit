@@ -2,7 +2,7 @@
 // A node id carries its kind as a prefix (s:, c:, k:) so positions, selection
 // and edges address every node the same way.
 
-export type CanvasNodeKind = 'session' | 'context' | 'card';
+export type CanvasNodeKind = 'session' | 'context' | 'card' | 'shell';
 
 export type CardStatus = 'todo' | 'doing' | 'review' | 'done';
 export const CARD_STATUSES: readonly CardStatus[] = ['todo', 'doing', 'review', 'done'];
@@ -66,6 +66,8 @@ export interface CanvasBoard {
 export const sessionNodeId = (id: string) => `s:${id}`;
 export const contextNodeId = (id: string) => `c:${id}`;
 export const cardNodeId = (id: string) => `k:${id}`;
+// Client-only: tmux shells placed on the canvas (the server graph never emits them).
+export const shellNodeId = (termId: string) => `t:${termId}`;
 
 export const CARD_ID_RE = /^[a-z0-9-]{4,40}$/;
 // A launched prompt ends with this marker; the transcript scanner reads it back

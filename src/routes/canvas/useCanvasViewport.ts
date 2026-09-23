@@ -41,7 +41,8 @@ export function useCanvasViewport() {
       // Overlays (HUD, inspector) sit inside the surface and bubble their wheel
       // events up here; a non-passive listener that always preventDefault()s
       // pans the map instead of letting their own overflow-y-auto scroll.
-      if (e.target instanceof Element && e.target.closest('[data-canvas-overlay]')) return;
+      // An active terminal scrolls its own scrollback instead.
+      if (e.target instanceof Element && e.target.closest('[data-canvas-overlay],[data-term-active]')) return;
       e.preventDefault();
       const r = el.getBoundingClientRect();
       if (e.ctrlKey || e.metaKey) setView((v) => zoomAt(v, e.clientX - r.left, e.clientY - r.top, Math.exp(-Math.max(-60, Math.min(60, e.deltaY)) * 0.008)));
@@ -90,12 +91,12 @@ export function useCanvasViewport() {
     if (el) setView(fitView(b, el.clientWidth, el.clientHeight, 60, minK));
   }, []);
 
-  const centerOn = useCallback((p: CanvasPos) => {
+  const centerOn = useCallback((p: CanvasPos, w = 248, h = 92) => {
     const el = ref.current;
     if (!el) return;
     setView((v) => {
       const k = Math.max(v.k, 0.7);
-      return { k, x: el.clientWidth / 2 - (p.x + 124) * k, y: el.clientHeight / 2 - (p.y + 46) * k };
+      return { k, x: el.clientWidth / 2 - (p.x + w / 2) * k, y: el.clientHeight / 2 - (p.y + h / 2) * k };
     });
   }, []);
 

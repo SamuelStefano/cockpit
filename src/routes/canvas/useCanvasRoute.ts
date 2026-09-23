@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CanvasBoard, CanvasCard, CanvasGraph, CanvasNode, CanvasPos, CardStatus, ContentFormat } from '../../../shared/canvas';
 import { buildContentPrompt, buildTaskPrompt } from '../../../shared/canvas-prompt';
 import type { Session } from '../../data/types';
+import type { TermApi } from '../../useCockpit';
 import { toast } from '../../components/primitives';
 import { filterCanvas, type CanvasScope } from './canvas-filter';
 import { bounds, layoutCanvas } from './canvas-layout';
 import { boundSessions, mergeBoard, moveCard, newCardId } from './canvas-board';
+import { placeWindows, TERM_H, TERM_W } from './canvas-terms';
 
 export interface CanvasRouteProps {
   connected: boolean;
@@ -23,16 +25,19 @@ export interface CanvasRouteProps {
   onCanvasCardDelete: (id: string) => void;
   onLaunchAgent: (prompt: string, title: string) => string | null;
   onOpenSession: (id: string) => void;
+  term: TermApi;
+  discoveredTerms: string[];
+  listTerms: () => void;
 }
 
-export type CanvasMode = 'split' | 'canvas' | 'kanban';
+export type CanvasMode = 'canvas' | 'kanban';
 export interface CardDraft { card: CanvasCard; isNew: boolean }
 
 const REFRESH_DEBOUNCE_MS = 2500;
 const today = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
 
-export function useCanvasRoute(p: CanvasRouteProps) {
-  const [mode, setMode] = useState<CanvasMode>('split');
+export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells: CanvasNode[]) {
+  const [mode, setMode] = useState<CanvasMode>('canvas');
   const [scope, setScope] = useState<CanvasScope>('active');
   const [archived, setArchived] = useState(false);
   const [query, setQuery] = useState('');
@@ -54,24 +59,48 @@ export function useCanvasRoute(p: CanvasRouteProps) {
   }, [sessionsSig, p.connected, onCanvasGet]);
 
   const merged = useMemo(() => mergeBoard(p.graph, p.board.cards), [p.graph, p.board.cards]);
-  const visible = useMemo(
-    () => filterCanvas(merged.nodes, merged.edges, { scope, archived, query, running: p.running, cards: p.board.cards, now }),
-    [merged, scope, archived, query, p.running, p.board.cards, now],
-  );
+  const visible = useMemo(() => {
+    const v = filterCanvas(merged.nodes, merged.edges, { scope, archived, query, running: p.running, cards: p.board.cards, now });
+    const q = query.trim().toLowerCase();
+    return { ...v, nodes: [...v.nodes, ...shells.filter((s) => !q || s.title.toLowerCase().includes(q))] };
+  }, [merged, scope, archived, query, p.running, p.board.cards, now, shells]);
   // Positions come from the scope WITHOUT the search query: typing only hides
   // nodes, it never re-packs the map under the user's eyes.
   const layoutBase = useMemo(
     () => (query ? filterCanvas(merged.nodes, merged.edges, { scope, archived, query: '', running: p.running, cards: p.board.cards, now }) : visible),
     [query, merged, scope, archived, p.running, p.board.cards, now, visible],
   );
-  const pos = useMemo(() => layoutCanvas(layoutBase.nodes, layoutBase.edges, p.board.pos), [layoutBase, p.board.pos]);
-  const worldBounds = useMemo(() => bounds(visible.nodes.map((n) => pos[n.id]).filter(Boolean)), [visible.nodes, pos]);
+  const visibleIds = useMemo(() => new Set(visible.nodes.map((n) => n.id)), [visible.nodes]);
+  const windows = useMemo(() => new Set(windowIds.filter((id) => visibleIds.has(id))), [windowIds, visibleIds]);
+  const pos = useMemo(
+    () => placeWindows(layoutCanvas(layoutBase.nodes, layoutBase.edges, p.board.pos), p.board.pos, [...windows]),
+    [layoutBase, p.board.pos, windows],
+  );
+  const rectOf = useCallback((id: string) => {
+    const at = pos[id];
+    return at && (windows.has(id) ? { ...at, w: TERM_W, h: TERM_H } : at);
+  }, [pos, windows]);
+  const worldBounds = useMemo(() => bounds(visible.nodes.map((n) => rectOf(n.id)).filter(Boolean)), [visible.nodes, rectOf]);
+
+  // A lane slot is only a guess until saved: closing a neighbour would slide
+  // this window over. Pin it on first placement so it stays put from then on.
+  const pinned = useRef(new Set<string>());
+  const { onCanvasPos } = p;
+  useEffect(() => { if (!Object.keys(p.board.pos).length) pinned.current.clear(); }, [p.board.pos]);
+  useEffect(() => {
+    const fresh = [...windows].filter((id) => !p.board.pos[id] && pos[id] && !pinned.current.has(id));
+    if (!fresh.length) return;
+    for (const id of fresh) pinned.current.add(id);
+    onCanvasPos(Object.fromEntries(fresh.map((id) => [id, pos[id]])));
+  }, [windows, pos, p.board.pos, onCanvasPos]);
   const RECENT_FOCUS_N = 8;
   // First view frames what is alive right now (running sessions + whatever
   // they touch), falling back to the handful of most recent sessions when
   // nothing is running. The rest of the map is one "fit all" away instead of
   // shrinking everything to ~8% to fit the whole history on screen.
   const coreBounds = useMemo(() => {
+    // Open terminals are the live picture of the Deck: frame them first.
+    if (windows.size) return bounds([...windows].map(rectOf).filter(Boolean));
     const sessionNodes = visible.nodes.filter((n) => n.kind === 'session');
     let anchors = sessionNodes.filter((n) => p.running.has(n.ref));
     if (!anchors.length) anchors = [...sessionNodes].sort((a, b) => b.mtime - a.mtime).slice(0, RECENT_FOCUS_N);
@@ -80,10 +109,10 @@ export function useCanvasRoute(p: CanvasRouteProps) {
       if (focus.has(e.source)) focus.add(e.target);
       if (focus.has(e.target)) focus.add(e.source);
     }
-    const core = Object.entries(pos).filter(([id]) => focus.has(id)).map(([, v]) => v);
+    const core = [...focus].map(rectOf).filter(Boolean);
     return core.length ? bounds(core) : worldBounds;
-  }, [visible.nodes, visible.edges, pos, worldBounds, p.running]);
-  const byId = useMemo(() => new Map(merged.nodes.map((n) => [n.id, n])), [merged.nodes]);
+  }, [visible.nodes, visible.edges, worldBounds, p.running, windows, rectOf]);
+  const byId = useMemo(() => new Map([...merged.nodes, ...shells].map((n) => [n.id, n])), [merged.nodes, shells]);
   const waiting = useMemo(() => new Set(p.sessions.filter((s) => s.waiting).map((s) => s.id)), [p.sessions]);
 
   const select = useCallback((id: string, additive: boolean) => {
@@ -182,7 +211,7 @@ export function useCanvasRoute(p: CanvasRouteProps) {
 
   return {
     mode, setMode, scope, setScope, archived, setArchived, query, setQuery,
-    merged, visible, pos, worldBounds, coreBounds, byId, waiting,
+    merged, visible, pos, windows, worldBounds, coreBounds, byId, waiting,
     selected, selectedNodes, select, clearSelection,
     draft, setDraft, newDraft, editCard, saveCard, runCard, setStatus, deleteCard, cardSessions,
   };

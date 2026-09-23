@@ -24,7 +24,7 @@ export function handleTerm(
       };
       const onExit = () => { send(ws, { t: 'term-exit', termId: msg.termId }); myTerms.delete(msg.termId); };
       const onReplay = (data: string) => send(ws, { t: 'term-replay', termId: msg.termId, data });
-      const ok = openTerm(msg.termId, msg.cols, msg.rows, onData, onExit, onReplay);
+      const ok = openTerm(msg.termId, msg.cols, msg.rows, onData, onExit, onReplay, typeof msg.watch === 'string' ? msg.watch : undefined);
       if (ok) myTerms.set(msg.termId, { onData, onExit });
       else send(ws, { t: 'term-exit', termId: msg.termId });
       return true;

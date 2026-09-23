@@ -692,7 +692,7 @@ export type ClientMsg =
   | { t: 'admin-deck-restart'; mode: 'idle' | 'now' }
   | { t: 'upload-chunk'; uploadId: string; sessionKey: string; name: string; seq: number; total: number; dataB64: string; clientId?: string }
   | { t: 'att-open'; path: string }
-  | { t: 'term-open'; termId: string; cols: number; rows: number }
+  | { t: 'term-open'; termId: string; cols: number; rows: number; watch?: string } // watch = session uuid to follow live
   | { t: 'term-input'; termId: string; data: string }
   | { t: 'term-resize'; termId: string; cols: number; rows: number }
   | { t: 'term-detach'; termId: string }
