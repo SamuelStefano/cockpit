@@ -117,7 +117,7 @@ export const CanvasFlows = memo(function CanvasFlows({
         const anchor = outAnchor(at, windows.has(n.id), compact);
         return (
           <circle
-            key={`port-${n.id}`} cx={anchor.x} cy={anchor.y} r={portR}
+            key={`port-${n.id}`} data-flow-port={n.id} cx={anchor.x} cy={anchor.y} r={portR}
             className="pointer-events-auto cursor-crosshair fill-orange-500/80 stroke-2 stroke-neutral-950 hover:fill-orange-400"
             onPointerDown={(e) => onPortDown(e, n.id)}
             onLostPointerCapture={onPortLostCapture}
