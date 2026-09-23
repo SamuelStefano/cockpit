@@ -714,6 +714,15 @@ export type ClientMsg =
   | { t: 'graph-delete'; id: string }
   | { t: 'canvas-get' }
   | { t: 'canvas-term-stats'; sessions: string[]; terms: string[] }
+  // A CardEditor reuse-pool lookup (session-reuse.ts): just the transcript
+  // TAIL's last usage for ids that mostly never had an open window — a
+  // SEPARATE, lightweight message on purpose, never 'canvas-term-stats'
+  // itself, so it can never touch that message's per-socket CPU sample store
+  // (collectTermStats' eviction sweep would otherwise drop the window
+  // poller's own entries every round this fires — review #597 follow-up
+  // point 2) or join running-session ids into an area-usage computation fed
+  // by zeroed cpu.
+  | { t: 'canvas-ctx-stats'; sessions: string[] }
   | { t: 'canvas-pos'; pos: Record<string, CanvasPos> }
   | { t: 'canvas-pos-reset' }
   | { t: 'canvas-card-save'; card: CanvasCard }
@@ -874,6 +883,7 @@ export type ServerMsg =
   | { t: 'graphs'; items: GraphMeta[] }
   | { t: 'canvas-graph'; graph: CanvasGraph }
   | { t: 'canvas-term-stats'; stats: Record<string, TermStats> }
+  | { t: 'canvas-ctx-stats'; stats: Record<string, Pick<TermStats, 'contextTokens' | 'model' | 'lastAt'>> }
   // flowRuns: every card-target flow run still live right now (server/canvas/
   // flow-runs.ts) — a tab that (re)connects mid-run (F5, a second tab, opening
   // /canvas after the flow already fired) gets this on the SAME frame as the

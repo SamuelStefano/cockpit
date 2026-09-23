@@ -38,6 +38,9 @@ const reg = vi.hoisted(() => {
 const bc = vi.hoisted(() => ({ send: vi.fn(), broadcast: vi.fn() }));
 const termStats = vi.hoisted(() => ({
   collectTermStats: vi.fn(async () => ({})),
+  // review #597 follow-up point 2: a SEPARATE, lighter path from
+  // collectTermStats — never touches the CPU sample store.
+  collectCtxOnly: vi.fn(async () => ({})),
   // Default false: most tests aren't exercising the double-writer guard, and
   // the real implementation shells out to tmux/proc — never let it run for real.
   hasInteractiveClaude: vi.fn(async () => false),
@@ -474,6 +477,26 @@ describe('canvas-card-fork (session-reuse.ts "fork")', () => {
     await handle(ws, msg(), 'admin');
     const call = bc.send.mock.calls.find((c) => c[1]?.t === 'canvas-card-fork-reject');
     expect(call?.[1].message).toMatch(/grande demais/);
+  });
+});
+
+// review #597 follow-up point 2: this is a SEPARATE code path from
+// 'canvas-term-stats' on purpose — it must never call collectTermStats (the
+// one that owns the per-socket CPU sample store) or touch broadcast/
+// areaUsage, both of which only make sense for the window poller.
+describe('canvas-ctx-stats (session-reuse.ts pool lookup)', () => {
+  it('calls collectCtxOnly, never collectTermStats, and answers only this socket', async () => {
+    termStats.collectCtxOnly.mockResolvedValue({ 's-1': { contextTokens: 4000 } });
+    await handle(ws, { t: 'canvas-ctx-stats', sessions: ['s-1'] } as ClientMsg, 'admin');
+    expect(termStats.collectCtxOnly).toHaveBeenCalledWith(['s-1']);
+    expect(termStats.collectTermStats).not.toHaveBeenCalled();
+    expect(bc.send).toHaveBeenCalledWith(ws, { t: 'canvas-ctx-stats', stats: { 's-1': { contextTokens: 4000 } } });
+    expect(bc.broadcast).not.toHaveBeenCalled();
+  });
+
+  it('drops non-string entries instead of forwarding a malformed sessions array', async () => {
+    await handle(ws, { t: 'canvas-ctx-stats', sessions: ['ok', 42, null] } as unknown as ClientMsg, 'admin');
+    expect(termStats.collectCtxOnly).toHaveBeenCalledWith(['ok']);
   });
 });
 

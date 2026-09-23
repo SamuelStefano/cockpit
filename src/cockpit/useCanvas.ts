@@ -31,6 +31,9 @@ export interface CanvasApi {
   onCanvasBudgetSave: (area: AreaId, budget: AreaBudget) => void;
   canvasTermStats: Record<string, TermStats>;
   onCanvasTermStats: (sessions: string[], terms: string[]) => void;
+  // CardEditor's reuse-pool lookup (session-reuse.ts): transcript-tail-only,
+  // never touches the CPU sample store 'canvas-term-stats' owns.
+  onCanvasCtxStats: (sessions: string[]) => void;
   // Server-authoritative per-area usage (same computation the autopause loop
   // acts on), scoped to whatever ids the LAST onCanvasTermStats call asked
   // about. The client never estimates this itself (review #595 point 8).
@@ -92,7 +95,38 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
   }, [clearTimer]);
 
   const onMsg = useCallback((msg: ServerMsg) => {
-    if (msg.t === 'canvas-term-stats') { setTermStats(msg.stats); return true; }
+    // MERGED into the existing map, never a full replace (review #597
+    // follow-up point 2): 'canvas-term-stats' answers only the ids THIS
+    // round's caller asked about (dispatch.ts's `requested`), and with two
+    // independent pollers now sharing this state (useTermStatsPoll's window
+    // poll, CardEditor's onCanvasCtxStats below) a hard `setTermStats(msg.
+    // stats)` on EITHER one would wipe out whatever the OTHER had just
+    // populated — windows flashing 0%/the ranking flipping every round. Each
+    // key this message DOES include is a FULL TermStats (collectTermStats
+    // always sets cpu/rssMb/procs), so a per-key overwrite is correct here.
+    if (msg.t === 'canvas-term-stats') {
+      setTermStats((prev) => ({ ...prev, ...msg.stats }));
+      return true;
+    }
+    // The ctx-only reuse-pool lookup (session-reuse.ts, server/canvas/
+    // term-stats.ts collectCtxOnly): each entry is a PARTIAL patch
+    // (contextTokens/model/lastAt only, no cpu/rssMb/procs — that request
+    // never scans /proc). Spreading `patch` over `{cpu:0,rssMb:0,procs:0,
+    // ...prev[id]}` fills in real numbers for a session that already has an
+    // open-window entry and only ever defaults to 0 for one that's never
+    // been polled otherwise — it can never CLOBBER a real cpu/rss reading
+    // with a stale/zero one the way a full-map replace did.
+    if (msg.t === 'canvas-ctx-stats') {
+      setTermStats((prev) => {
+        const next = { ...prev };
+        for (const [id, patch] of Object.entries(msg.stats)) {
+          const base = prev[id] ?? { cpu: 0, rssMb: 0, procs: 0 };
+          next[id] = { ...base, ...patch };
+        }
+        return next;
+      });
+      return true;
+    }
     if (msg.t === 'canvas-area-usage') { setAreaUsage(msg.usage); return true; }
     if (msg.t === 'canvas-flow-fired') {
       setFlowFired((f) => ({ ...f, [msg.flowId]: msg.at }));
@@ -301,6 +335,13 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
     send({ t: 'canvas-term-stats', sessions, terms });
   }, [send]);
 
+  // CardEditor's reuse-pool lookup (session-reuse.ts, useCardReuse.ts) —
+  // deliberately its OWN message, not onCanvasTermStats: see the
+  // 'canvas-ctx-stats' ClientMsg comment (shared/protocol.ts) for why.
+  const onCanvasCtxStats = useCallback((sessions: string[]) => {
+    send({ t: 'canvas-ctx-stats', sessions });
+  }, [send]);
+
   // No optimistic update: unlike a card/pos drag, a budget edit is rare and
   // its popover is already closed by the caller on submit — a brief round-trip
   // before the chip updates is not the glitch a snapped-back drag would be.
@@ -312,6 +353,6 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
     canvasGraph, canvasBoard, canvasLoading, canvasLoadingSince, canvasStale,
     onCanvasGet, onCanvasPos, onCanvasPosReset, onCanvasCardSave, onCanvasCardDelete, onCanvasSessionStatus,
     onCanvasFlowSave, onCanvasFlowDelete, canvasFlowFired, canvasFlowRuns, onCanvasBudgetSave,
-    canvasTermStats, onCanvasTermStats, canvasAreaUsage, onMsg,
+    canvasTermStats, onCanvasTermStats, onCanvasCtxStats, canvasAreaUsage, onMsg,
   };
 }

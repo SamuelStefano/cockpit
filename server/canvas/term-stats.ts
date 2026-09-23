@@ -165,6 +165,23 @@ export async function hasInteractiveClaude(sessionId: string): Promise<boolean> 
 
 export interface RunPids { sessionId?: string; key: string; pid?: number; startedAt: number }
 
+// A CardEditor reuse-pool lookup (session-reuse.ts) wants just the transcript
+// TAIL's last usage for ids that mostly never had an open canvas window —
+// forcing them through the full path would (a) scan /proc and every tmux pane
+// for a CPU/rss number nobody asked for, and (b) worse, run the eviction
+// sweep below keyed on THIS round's `asked` set, deleting the window
+// poller's OWN per-socket CPU samples for every id not in THIS round —
+// resetting their next cpuPercent() delta to 0 (review #597 follow-up point
+// 2). ctxOnly skips readProcs/panePids and never touches `samples` at all.
+export async function collectCtxOnly(sessions: string[]): Promise<Record<string, Pick<TermStats, 'contextTokens' | 'model' | 'lastAt'>>> {
+  const sids = sessions.filter((s) => SESSION_UUID_RE.test(s)).slice(0, MAX_IDS);
+  const out: Record<string, Pick<TermStats, 'contextTokens' | 'model' | 'lastAt'>> = {};
+  await Promise.all(sids.map(async (sid) => {
+    out[sid] = lastUsage(await readTail(join(CONFIG.projectsDir, `${sid}.jsonl`)));
+  }));
+  return out;
+}
+
 export async function collectTermStats(
   sessions: string[], terms: string[], runs: RunPids[], samples: CpuSamples,
 ): Promise<Record<string, TermStats>> {

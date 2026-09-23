@@ -11,13 +11,15 @@ interface Props {
   isNew: boolean;
   node: (id: string) => CanvasNode | undefined;
   // Reuse picker (session-reuse.ts via useCardReuse): sessions/edges/running
-  // feed the ranking; termStats seeds it and onTermStats fetches the REAL
-  // numbers for the ranked pool (most candidates never had an open terminal).
+  // feed the ranking; termStats seeds it and onCtxStats ('canvas-ctx-stats',
+  // NOT the window poller's 'canvas-term-stats' — see its own comment,
+  // shared/protocol.ts) fetches the REAL numbers for the ranked pool (most
+  // candidates never had an open terminal).
   sessions: CanvasNode[];
   edges: CanvasEdge[];
   running: Set<string>;
   termStats: Record<string, TermStats>;
-  onTermStats: (sessions: string[], terms: string[]) => void;
+  onCtxStats: (sessions: string[]) => void;
   onSave: (card: CanvasCard) => void;
   onRun: (card: CanvasCard) => void;
   onDelete: (id: string) => void;
@@ -36,12 +38,12 @@ function Chips({ ids, prefix, node, onRemove }: { ids: string[]; prefix: 'c' | '
   );
 }
 
-export function CardEditor({ card: initial, isNew, node, sessions, edges, running, termStats, onTermStats, onSave, onRun, onDelete, onClose }: Props) {
+export function CardEditor({ card: initial, isNew, node, sessions, edges, running, termStats, onCtxStats, onSave, onRun, onDelete, onClose }: Props) {
   const [card, setCard] = useState(initial);
   const patch = (p: Partial<CanvasCard>) => setCard((c) => ({ ...c, ...p }));
   const ok = card.title.trim().length > 0;
   const content = card.kind === 'content';
-  const { candidates, pickReuse } = useCardReuse({ isNew, card, patch, sessions, edges, running, termStats, onTermStats });
+  const { candidates, pickReuse } = useCardReuse({ isNew, card, patch, sessions, edges, running, termStats, onCtxStats });
 
   return (
     <Modal

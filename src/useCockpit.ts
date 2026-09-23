@@ -74,7 +74,11 @@ type LeafApis = Omit<Notes & Drops & Crons & Points & Contexts & Skills & Graphs
 export interface Cockpit extends LeafApis {
   onLaunchAgent: (prompt: string, title: string) => string | null;
   onSendTo: (sessionId: string, text: string) => boolean;
-  canvasSendError: { sessionId: string; text: string; message: string } | null;
+  // `at`: when the server actually rejected — lets a stale, never-dismissed
+  // error (no open terminal ever consumed it) be told apart from the send it
+  // ACTUALLY belongs to, by any caller correlating against a later event
+  // (useCanvasRoute.ts's stuck-continue-card effect, review #597 follow-up).
+  canvasSendError: { sessionId: string; text: string; message: string; at: number } | null;
   dismissCanvasSendError: () => void;
   onLaunchFork: (parentSessionId: string, cardId: string, text: string) => boolean;
   canvasForkRuns: Record<string, { key: string; at: number }>;
@@ -345,7 +349,7 @@ export function useCockpit(): Cockpit {
   // A canvas prompt-bar send the server later rejects (prompt too large, fila
   // cheia): correlated back via pendingCanvasSend so the exact window can
   // restore the text and toast, instead of it just vanishing.
-  const [canvasSendError, setCanvasSendError] = useState<{ sessionId: string; text: string; message: string } | null>(null);
+  const [canvasSendError, setCanvasSendError] = useState<{ sessionId: string; text: string; message: string; at: number } | null>(null);
   // cardId -> the real forkId a 'canvas-card-fork-ok' just handed back, so
   // useCanvasRoute can bind it into pendingLaunch (the same "rodando" overlay
   // a client-launched runCard or a server-side flow run already gets) without
@@ -641,7 +645,7 @@ export function useCockpit(): Cockpit {
         if (pendingCanvasSend.current.has(msg.sessionKey)) {
           const pendingEntry = pendingCanvasSend.current.get(msg.sessionKey)!;
           pendingCanvasSend.current.delete(msg.sessionKey);
-          setCanvasSendError({ sessionId: pendingEntry.sessionId, text: pendingEntry.text, message: msg.message });
+          setCanvasSendError({ sessionId: pendingEntry.sessionId, text: pendingEntry.text, message: msg.message, at: Date.now() });
           toast(`Não deu pra mandar pra essa sessão: ${msg.message}`, { tone: 'error', durationMs: 6000 });
         }
         return;
@@ -1252,7 +1256,7 @@ export function useCockpit(): Cockpit {
           const pendingEntry = pendingCanvasSend.current.get(key);
           if (pendingEntry) {
             pendingCanvasSend.current.delete(key);
-            setCanvasSendError({ sessionId: pendingEntry.sessionId, text: pendingEntry.text, message: msg.message });
+            setCanvasSendError({ sessionId: pendingEntry.sessionId, text: pendingEntry.text, message: msg.message, at: Date.now() });
             toast(`Não deu pra mandar pra essa sessão: ${msg.message}`, { tone: 'error', durationMs: 6000 });
           }
           notifyTurnError(

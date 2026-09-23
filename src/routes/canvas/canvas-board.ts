@@ -72,12 +72,23 @@ export function moveCard(card: CanvasCard, status: CardStatus, now: number): Can
 // rejection in the same session (review #597 point 5). Never returns a card
 // not currently "doing": a manual move or an already-recovered card is not
 // this effect's business to touch again.
+//
+// `err.at >= c.updatedAt` (review #597 follow-up point 1): the caller never
+// gets a guaranteed dismiss of `err` (no open terminal ever consumed it can
+// leave it sitting in state indefinitely), so without this an OLD rejection
+// would keep matching every later run of the SAME card+session+text —
+// including a run that then SUCCEEDED — and bounce it back to ToDo with a
+// false "recusado" toast. `moveCard` stamps `updatedAt` to `Date.now()` the
+// instant a run starts, always strictly before the server's own rejection
+// timestamp can arrive, so a genuinely-current rejection always satisfies
+// this; a stale one (from a PRIOR attempt, predating the current run) never does.
 export function stuckContinueCard(
-  cards: CanvasCard[], err: { sessionId: string; text: string } | null, buildContinuePrompt: (c: CanvasCard) => string,
+  cards: CanvasCard[], err: { sessionId: string; text: string; at: number } | null, buildContinuePrompt: (c: CanvasCard) => string,
 ): CanvasCard | undefined {
   if (!err) return undefined;
   return cards.find((c) => (
-    c.status === 'doing' && c.reuse?.mode === 'continue' && c.reuse.sessionId === err.sessionId && buildContinuePrompt(c) === err.text
+    c.status === 'doing' && c.reuse?.mode === 'continue' && c.reuse.sessionId === err.sessionId
+    && err.at >= c.updatedAt && buildContinuePrompt(c) === err.text
   ));
 }
 

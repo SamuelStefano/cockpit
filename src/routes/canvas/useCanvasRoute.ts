@@ -44,7 +44,7 @@ export interface CanvasRouteProps {
   onLaunchAgent: (prompt: string, title: string) => string | null;
   onOpenSession: (id: string) => void;
   onSendTo: (sessionId: string, text: string) => boolean;
-  canvasSendError: { sessionId: string; text: string; message: string } | null;
+  canvasSendError: { sessionId: string; text: string; message: string; at: number } | null;
   dismissCanvasSendError: () => void;
   // Card "fork" (session-reuse.ts): dispara um chat paralelo que herda o
   // transcript inteiro da sessão-mãe sem tocar seu turno. O forkId real volta
@@ -55,6 +55,10 @@ export interface CanvasRouteProps {
   term: TermApi;
   termStats: Record<string, TermStats>;
   onTermStats: (sessions: string[], terms: string[]) => void;
+  // CardEditor's reuse-pool lookup (session-reuse.ts) — a SEPARATE, lighter
+  // request than onTermStats: see shared/protocol.ts's 'canvas-ctx-stats'
+  // comment for why it must never share onTermStats' wire message.
+  onCanvasCtxStats: (sessions: string[]) => void;
   areaUsage: Partial<Record<AreaId, AreaUsage>>;
   discoveredTerms: string[];
   listTerms: () => void;
@@ -325,20 +329,25 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
   // (hasInteractiveClaude, #593) or a ctx/prompt-size gate that only exists
   // server-side. p.canvasSendError is the exact correlation #593 already
   // built for the canvas prompt bar's own restore-text flow (dispatch.ts
-  // 'send' → 'send-reject' → useCockpit.ts); reusing it here (session+text
-  // match, so an unrelated rejection in the same session never false-
-  // matches) is what moves the card OUT of "doing" instead of leaving it
-  // stuck there forever for a turn that never started (review #597 point 5).
-  // Never calls dismissCanvasSendError itself — the terminal window (if that
-  // session has one open) owns restoring the text into its own composer and
-  // dismissing from there; this effect only reacts, it doesn't consume.
+  // 'send' → 'send-reject' → useCockpit.ts); reusing it here (session+text+
+  // timestamp match, via stuckContinueCard — see its own comment for why
+  // `at` matters) is what moves the card OUT of "doing" instead of leaving
+  // it stuck there forever for a turn that never started (review #597 point
+  // 5). MUST consume via dismissCanvasSendError once handled (review #597
+  // follow-up point 1): a session with no open terminal window never has
+  // another consumer for this error, so an un-dismissed one sits in state
+  // and — without the timestamp guard as a second line of defense — could
+  // false-match a LATER, actually-successful run of the same card and bounce
+  // it back to ToDo with a bogus "recusado" toast.
   useEffect(() => {
     const stuck = stuckContinueCard(p.board.cards, p.canvasSendError, buildContinuePrompt);
     if (!stuck) return;
+    const message = p.canvasSendError?.message;
     delete pendingLaunch.current[stuck.id];
     setPendingTick((t) => t + 1);
     p.onCanvasCardSave(moveCard(stuck, 'todo', Date.now()));
-    toast(`O servidor recusou continuar essa sessão — "${stuck.title}" voltou pro ToDo: ${p.canvasSendError?.message}`, { tone: 'error', durationMs: 7000 });
+    p.dismissCanvasSendError();
+    toast(`O servidor recusou continuar essa sessão — "${stuck.title}" voltou pro ToDo: ${message}`, { tone: 'error', durationMs: 7000 });
   }, [p.canvasSendError, p.board.cards, p]);
 
   const newDraft = useCallback((kind: CanvasCard['kind'], from: CanvasNode[]) => {

@@ -101,3 +101,54 @@ describe('useCanvas — onCanvasSessionStatus', () => {
     expect(result.current.canvasBoard.sessionStatus['sid-1']?.status).toBe('done');
   });
 });
+
+// review #597 follow-up point 2: two independent pollers share canvasTermStats
+// (useTermStatsPoll's window poll via 'canvas-term-stats', CardEditor's
+// reuse-pool lookup via 'canvas-ctx-stats') — neither may wipe the other's
+// contribution.
+describe('useCanvas — canvasTermStats merge (not replace)', () => {
+  it('canvas-term-stats MERGES into the map instead of replacing it', () => {
+    const { result } = renderHook(() => useCanvas(send));
+    act(() => {
+      result.current.onMsg({ t: 'canvas-term-stats', stats: { 'sess-a': { cpu: 40, rssMb: 100, procs: 2 } } } as ServerMsg);
+    });
+    act(() => {
+      result.current.onMsg({ t: 'canvas-term-stats', stats: { 'sess-b': { cpu: 10, rssMb: 50, procs: 1 } } } as ServerMsg);
+    });
+    // sess-a must still be here — a second round for a DIFFERENT id must not wipe it.
+    expect(result.current.canvasTermStats['sess-a']).toEqual({ cpu: 40, rssMb: 100, procs: 2 });
+    expect(result.current.canvasTermStats['sess-b']).toEqual({ cpu: 10, rssMb: 50, procs: 1 });
+  });
+
+  it('canvas-ctx-stats patches contextTokens WITHOUT resetting an existing cpu/rss/procs reading to 0', () => {
+    const { result } = renderHook(() => useCanvas(send));
+    act(() => {
+      result.current.onMsg({ t: 'canvas-term-stats', stats: { 'sess-a': { cpu: 40, rssMb: 100, procs: 2 } } } as ServerMsg);
+    });
+    act(() => {
+      result.current.onMsg({ t: 'canvas-ctx-stats', stats: { 'sess-a': { contextTokens: 5000 } } } as ServerMsg);
+    });
+    // The real cpu/rss/procs from the window poller must survive a ctx-only patch.
+    expect(result.current.canvasTermStats['sess-a']).toEqual({ cpu: 40, rssMb: 100, procs: 2, contextTokens: 5000 });
+  });
+
+  it('canvas-ctx-stats for a session with NO prior entry defaults cpu/rss/procs to 0', () => {
+    const { result } = renderHook(() => useCanvas(send));
+    act(() => {
+      result.current.onMsg({ t: 'canvas-ctx-stats', stats: { 'sess-new': { contextTokens: 1000 } } } as ServerMsg);
+    });
+    expect(result.current.canvasTermStats['sess-new']).toEqual({ cpu: 0, rssMb: 0, procs: 0, contextTokens: 1000 });
+  });
+
+  it('a canvas-term-stats round for the window poller does not erase a ctx-only entry for a DIFFERENT id', () => {
+    const { result } = renderHook(() => useCanvas(send));
+    act(() => {
+      result.current.onMsg({ t: 'canvas-ctx-stats', stats: { 'sess-candidate': { contextTokens: 2000 } } } as ServerMsg);
+    });
+    act(() => {
+      result.current.onMsg({ t: 'canvas-term-stats', stats: { 'sess-window': { cpu: 5, rssMb: 20, procs: 1 } } } as ServerMsg);
+    });
+    expect(result.current.canvasTermStats['sess-candidate']).toEqual({ cpu: 0, rssMb: 0, procs: 0, contextTokens: 2000 });
+    expect(result.current.canvasTermStats['sess-window']).toEqual({ cpu: 5, rssMb: 20, procs: 1 });
+  });
+});

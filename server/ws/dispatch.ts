@@ -44,7 +44,7 @@ import { requestPlanUsageRefresh, planUsageFrame } from './usage-plan';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 import { buildBench } from '../bench';
 import { buildCanvas } from '../canvas/index';
-import { collectTermStats, hasInteractiveClaude, newCpuSamples, type CpuSamples } from '../canvas/term-stats';
+import { collectCtxOnly, collectTermStats, hasInteractiveClaude, newCpuSamples, type CpuSamples } from '../canvas/term-stats';
 import {
   MAX_FLOWS, readBoard, readBoardChained, updateBoard, sanitizeCard, sanitizeFlow, sanitizePos, upsertCard, upsertFlow, removeCard, removeFlow,
   checkFlowSave, mergePos, setBudget, sanitizeSessionStatus, setSessionStatus,
@@ -176,6 +176,16 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // disagree because they're now the same function over the same ids.
       const usage = areaUsageFromIds(getAreaOf(), runningIds, stats);
       send(ws, { t: 'canvas-area-usage', usage });
+      return;
+    }
+    // CardEditor's reuse-pool lookup (session-reuse.ts) — deliberately NOT
+    // 'canvas-term-stats': collectCtxOnly never touches the per-socket CPU
+    // sample store or joins running-session ids into an area-usage
+    // computation (review #597 follow-up point 2 — see the ClientMsg comment).
+    case 'canvas-ctx-stats': {
+      const sessions = Array.isArray(msg.sessions) ? msg.sessions.filter((x): x is string => typeof x === 'string') : [];
+      const stats = await collectCtxOnly(sessions);
+      send(ws, { t: 'canvas-ctx-stats', stats });
       return;
     }
     case 'canvas-get': {
