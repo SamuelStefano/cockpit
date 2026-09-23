@@ -17,7 +17,19 @@ export type DflWriteCmd =
   | { kind: 'task-create'; epicId: string; deliveryId: string; taskName: string; description?: string }
   | { kind: 'task-status'; taskId: string; status: DflTaskDbStatus };
 
+// Safety net for a Playwright/manual test backend: set DFL_WRITE_DISABLED=1
+// and every write refuses BEFORE spawning the child process (never a live
+// PostgREST/flows-api call) — used by canvas.spec.ts so a UI check can drive
+// the real dispatch.ts handlers (dfl-task-create-link etc.) without any risk
+// of touching DFL production. CONFIG.localOnly is the other, independent
+// gate (server/ws/dispatch.ts) — this one exists specifically so a TEST run
+// can disable writes even when it IS loopback.
+export function dflWritesDisabled(): boolean {
+  return process.env.DFL_WRITE_DISABLED === '1';
+}
+
 export async function runDflWrite(cmd: DflWriteCmd): Promise<{ ok: true; result: Record<string, unknown> } | { ok: false; error: string }> {
+  if (dflWritesDisabled()) return { ok: false, error: 'escrita DFL desabilitada (DFL_WRITE_DISABLED=1)' };
   try {
     const tsx = join(here, '..', 'node_modules', '.bin', 'tsx');
     const script = join(here, 'dfl-write.ts');
