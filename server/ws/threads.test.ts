@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { admitRun, threads, onStop, stopSession, resolveThreadKey, stopEpochOf, clearStopEpoch, killAllRuns, runStats, type Thread } from './threads';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { admitRun, busyFrame, threads, onStop, stopSession, resolveThreadKey, stopEpochOf, clearStopEpoch, killAllRuns, runStats, type Thread } from './threads';
 
 vi.mock('../engine/triage', () => ({ killSideRuns: vi.fn(), killSideRunsFor: vi.fn() }));
 
@@ -115,5 +115,19 @@ describe('runStats', () => {
     threads.set('k1', thread());
     expect(runStats().activeRuns).toBe(1);
     expect(runStats().uptimeMs).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('busyFrame', () => {
+  afterEach(() => threads.clear());
+
+  it('carries each running turn start so a reload keeps the real elapsed time', () => {
+    threads.set('abc', { startedAt: 1_000 } as Thread);
+    threads.set('new-x', { startedAt: 2_000 } as Thread);
+    expect(busyFrame()).toEqual({ t: 'busy', keys: ['abc', 'new-x'], startedAt: { abc: 1_000, 'new-x': 2_000 } });
+  });
+
+  it('is an empty snapshot when nothing runs', () => {
+    expect(busyFrame()).toEqual({ t: 'busy', keys: [], startedAt: {} });
   });
 });
