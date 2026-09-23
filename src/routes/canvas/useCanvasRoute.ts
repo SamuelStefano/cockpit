@@ -3,7 +3,7 @@ import type {
   AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasGraph, CanvasNode, CanvasPos, CardStatus, ContentFormat, TermStats,
 } from '../../../shared/canvas';
 import { AREA_IDS } from '../../../shared/canvas';
-import { buildContentPrompt, buildTaskPrompt } from '../../../shared/canvas-prompt';
+import { buildContentPrompt, buildContinuePrompt, buildTaskPrompt } from '../../../shared/canvas-prompt';
 import { evaluateBudget, type AreaUsage, type BudgetStatus } from '../../../shared/canvas-budget';
 import type { Session } from '../../data/types';
 import type { TermApi } from '../../useCockpit';
@@ -46,6 +46,12 @@ export interface CanvasRouteProps {
   onSendTo: (sessionId: string, text: string) => boolean;
   canvasSendError: { sessionId: string; text: string; message: string } | null;
   dismissCanvasSendError: () => void;
+  // Card "fork" (session-reuse.ts): dispara um chat paralelo que herda o
+  // transcript inteiro da sessão-mãe sem tocar seu turno. O forkId real volta
+  // via canvasForkRuns (cardId -> {key, at}), absorvido em pendingLaunch
+  // exatamente como canvasFlowRuns já faz pra um run de fluxo.
+  onLaunchFork: (parentSessionId: string, cardId: string, text: string) => boolean;
+  canvasForkRuns: Record<string, { key: string; at: number }>;
   term: TermApi;
   termStats: Record<string, TermStats>;
   onTermStats: (sessions: string[], terms: string[]) => void;
@@ -279,6 +285,21 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     if (changed) setPendingTick((t) => t + 1);
   }, [p.canvasFlowRuns]);
 
+  // Same absorption, from the OTHER server-initiated source: a card run in
+  // "fork" reuse mode (session-reuse.ts). onLaunchFork doesn't know the new
+  // session's real id up front (the server generates it) — canvasForkRuns is
+  // filled once 'canvas-card-fork-ok' answers, keyed by cardId same as above.
+  useEffect(() => {
+    const rec = pendingLaunch.current;
+    let changed = false;
+    for (const [cardId, { key, at }] of Object.entries(p.canvasForkRuns)) {
+      if (rec[cardId]?.key === key) continue;
+      rec[cardId] = { key, addedAt: at };
+      changed = true;
+    }
+    if (changed) setPendingTick((t) => t + 1);
+  }, [p.canvasForkRuns]);
+
   // Every session as a kanban item (Kanban.tsx renders it alongside cards) —
   // deduped against a card's REAL edges (canvas-board.ts boundSessions) AND
   // pendingLaunch/canvasFlowRuns, which know about a card's session before
@@ -330,6 +351,41 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
   }, [p, draft, cardOf]);
 
   const runCard = useCallback((card: CanvasCard) => {
+    // Reuse: 'continue' sends into an existing session's own turn (onSendTo,
+    // #593 — triaged server-side if it's busy); 'fork' starts a NEW session
+    // that inherits the target's whole transcript (--fork-session) without
+    // touching it. Both skip the contexts/sessions re-seed (buildContinuePrompt)
+    // — the target session already has that context, seeding it again would
+    // just duplicate what it already read. 'new'/unset falls through below.
+    const reuse = card.reuse;
+    if (reuse?.mode === 'continue' && reuse.sessionId) {
+      const prompt = buildContinuePrompt(card);
+      if (!p.onSendTo(reuse.sessionId, prompt)) {
+        toast('Não deu pra continuar essa sessão: sem conexão com o servidor.', { tone: 'error', durationMs: 5000 });
+        return;
+      }
+      pendingLaunch.current[card.id] = { key: reuse.sessionId, addedAt: Date.now() };
+      setPendingTick((t) => t + 1);
+      p.onCanvasCardSave(moveCard(card, 'doing', Date.now()));
+      setDraft(null);
+      toast(`Continuando sessão: ${card.title}`, { durationMs: 5000 });
+      return;
+    }
+    if (reuse?.mode === 'fork' && reuse.sessionId) {
+      const prompt = buildContinuePrompt(card);
+      if (!p.onLaunchFork(reuse.sessionId, card.id, prompt)) {
+        toast('Não deu pra forkar essa sessão: sem conexão com o servidor.', { tone: 'error', durationMs: 5000 });
+        return;
+      }
+      // forkId real chega depois via canvasForkRuns (absorvido acima); "doing"
+      // já entra pra useCardTerminalAutoOpen abrir o terminal assim que a
+      // edge marker-bound aparecer no grafo, igual a #593.
+      p.onCanvasCardSave(moveCard(card, 'doing', Date.now()));
+      setDraft(null);
+      toast(`Fork disparado: ${card.title}`, { durationMs: 5000 });
+      return;
+    }
+
     const contexts = card.contextIds.map((id) => byId.get(`c:${id}`)).filter((n): n is CanvasNode => !!n);
     const sessions = card.sessionIds.map((id) => byId.get(`s:${id}`)).filter((n): n is CanvasNode => !!n);
     const prompt = card.kind === 'content'

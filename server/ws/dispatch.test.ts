@@ -419,6 +419,40 @@ describe('ações da fila estacionada', () => {
   });
 });
 
+describe('canvas-card-fork (session-reuse.ts "fork")', () => {
+  beforeEach(() => {
+    parked.addParked.mockReturnValue({ id: 'pk-1' });
+    runs.runParkedInBackground.mockReturnValue({ forkId: 'f1' });
+    parked.parkedView.mockReturnValue([]);
+  });
+
+  const msg = (over: Partial<ClientMsg> = {}): ClientMsg => ({
+    t: 'canvas-card-fork', parentSessionId: 'parent-1', cardId: 'card-1', text: 'siga daqui', ...over,
+  } as ClientMsg);
+
+  it('parks then fires in background, answering the caller with the real forkId', async () => {
+    await handle(ws, msg(), 'admin');
+    expect(parked.addParked).toHaveBeenCalledWith('parent-1', expect.objectContaining({ prompt: 'siga daqui', resumeId: 'parent-1' }));
+    expect(runs.runParkedInBackground).toHaveBeenCalledWith('parent-1', 'pk-1', 'admin', undefined);
+    expect(bc.send).toHaveBeenCalledWith(ws, { t: 'canvas-card-fork-ok', cardId: 'card-1', parentSessionId: 'parent-1', forkId: 'f1' });
+    expect(bc.broadcast).toHaveBeenCalledWith(expect.objectContaining({ t: 'queue' }));
+  });
+
+  it('a parking rejection never reaches runParkedInBackground', async () => {
+    parked.addParked.mockReturnValue({ reject: 'fila-cheia' } as never);
+    await handle(ws, msg(), 'admin');
+    expect(runs.runParkedInBackground).not.toHaveBeenCalled();
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'canvas-card-fork-reject', cardId: 'card-1', parentSessionId: 'parent-1' }));
+  });
+
+  it('a background-run rejection still reports canvas-card-fork-reject (item stays parked)', async () => {
+    runs.runParkedInBackground.mockReturnValue({ reject: 'sem-quota' } as never);
+    await handle(ws, msg(), 'admin');
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'canvas-card-fork-reject', cardId: 'card-1' }));
+    expect(bc.broadcast).toHaveBeenCalledWith(expect.objectContaining({ t: 'queue' }));
+  });
+});
+
 describe('drafts (Rascunhos para o DFL)', () => {
   it('drafts-get answers only the asking socket and registers it for pushes', async () => {
     await handle(ws, { t: 'drafts-get' }, 'admin');

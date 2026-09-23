@@ -1,13 +1,21 @@
-import { useState } from 'react';
-import { CARD_STATUSES, CONTENT_FORMATS, type CanvasCard, type CanvasNode } from '../../../shared/canvas';
+import { useMemo, useState } from 'react';
+import { CARD_STATUSES, CONTENT_FORMATS, type CanvasCard, type CanvasEdge, type CanvasNode, type TermStats } from '../../../shared/canvas';
 import { FORMAT_LABEL } from '../../../shared/canvas-prompt';
 import { Button, Input, Modal, ToggleChip } from '../../components/primitives';
 import { STATUS_LABEL } from './canvas-labels';
+import { CardReusePicker } from './CardReusePicker';
+import { defaultReuseMode, rankReuseCandidates, type ReuseSuggestion } from './session-reuse';
 
 interface Props {
   card: CanvasCard;
   isNew: boolean;
   node: (id: string) => CanvasNode | undefined;
+  // Reuse picker (session-reuse.ts): sessions/edges/termStats/running feed the
+  // ranking, and `now` at open time is enough — the modal is short-lived.
+  sessions: CanvasNode[];
+  edges: CanvasEdge[];
+  running: Set<string>;
+  termStats: Record<string, TermStats>;
   onSave: (card: CanvasCard) => void;
   onRun: (card: CanvasCard) => void;
   onDelete: (id: string) => void;
@@ -26,11 +34,29 @@ function Chips({ ids, prefix, node, onRemove }: { ids: string[]; prefix: 'c' | '
   );
 }
 
-export function CardEditor({ card: initial, isNew, node, onSave, onRun, onDelete, onClose }: Props) {
-  const [card, setCard] = useState(initial);
+export function CardEditor({ card: initial, isNew, node, sessions, edges, running, termStats, onSave, onRun, onDelete, onClose }: Props) {
+  // A brand-new card (still on 'new'/unset) starts pre-ranked against
+  // whatever contexts the user already picked on the canvas before opening
+  // this editor — the safest efficient default (session-reuse.ts's fork
+  // preference) is applied ONCE at mount, never re-applied over an explicit
+  // pick the user then makes (editing an EXISTING card never overrides it).
+  const [card, setCard] = useState(() => {
+    if (!isNew || initial.reuse) return initial;
+    const top = rankReuseCandidates({ card: initial, sessions, edges, running, termStats, now: Date.now() })[0];
+    const def = defaultReuseMode(top);
+    return def.mode === 'new' ? initial : { ...initial, reuse: { mode: def.mode, sessionId: def.sessionId } };
+  });
   const patch = (p: Partial<CanvasCard>) => setCard((c) => ({ ...c, ...p }));
   const ok = card.title.trim().length > 0;
   const content = card.kind === 'content';
+  const candidates = useMemo(
+    () => rankReuseCandidates({ card, sessions, edges, running, termStats, now: Date.now() }),
+    [card.contextIds, sessions, edges, running, termStats],
+  );
+  // A running candidate can never be "continued" (that would double-write its
+  // transcript — the same guard onSendTo hits server-side) — picking one
+  // always means fork, whichever button was clicked.
+  const pickReuse = (mode: 'continue' | 'fork', c: ReuseSuggestion) => patch({ reuse: { mode: mode === 'continue' && c.running ? 'fork' : mode, sessionId: c.sessionId } });
 
   return (
     <Modal
@@ -78,6 +104,7 @@ export function CardEditor({ card: initial, isNew, node, onSave, onRun, onDelete
             {!card.contextIds.length && !card.sessionIds.length && <span className="text-[11px] text-neutral-600">nenhum — selecione nós no canvas antes de criar o card</span>}
           </div>
         </div>
+        <CardReusePicker reuse={card.reuse} candidates={candidates} onClear={() => patch({ reuse: undefined })} onPick={pickReuse} />
       </div>
     </Modal>
   );
