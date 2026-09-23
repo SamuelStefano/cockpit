@@ -1,7 +1,14 @@
 import type { WebSocket } from 'ws';
 import type { ClientMsg } from '../../shared/protocol';
-import { openTerm, detachTerm, inputTerm, resizeTerm, closeTerm, listTerms, resumeTerm, ensureWatchReaper } from '../terminals';
+import { openTerm, detachTerm, inputTerm, resizeTerm, closeTerm, listTerms, resumeTerm, ensureWatchReaper, prepareWatch } from '../terminals';
 import { send, BACKPRESSURE_BYTES } from './broadcast';
+
+const pendingOpens = new WeakMap<WebSocket, Set<string>>();
+function pendingOf(ws: WebSocket): Set<string> {
+  let set = pendingOpens.get(ws);
+  if (!set) { set = new Set(); pendingOpens.set(ws, set); }
+  return set;
+}
 
 export type TermHandle = { onData: (d: string) => void; onExit: () => void };
 
@@ -13,20 +20,34 @@ export function handleTerm(
 ): boolean {
   switch (msg.t) {
     case 'term-open': {
-      if (myTerms.has(msg.termId)) return true; // já anexado nesta conexão
-      // Backpressure: term-data é alta-frequência e reconstruível (tmux repinta no
-      // reattach). Num socket lento (celular em wifi ruim) o buffer do ws cresce sem
-      // freio até estourar a heap. Acima do teto, dropa pra ESTE socket — uma lacuna
-      // momentânea na tela é preferível ao OOM; o scrollback volta no próximo replay.
-      const onData = (data: string) => {
-        if (ws.bufferedAmount > BACKPRESSURE_BYTES) return;
-        send(ws, { t: 'term-data', termId: msg.termId, data });
+      const termId = msg.termId;
+      const pending = pendingOf(ws);
+      if (myTerms.has(termId) || pending.has(termId)) return true; // já anexado nesta conexão
+      const watch = typeof msg.watch === 'string' ? msg.watch : undefined;
+      const { cols, rows } = msg;
+      const attach = () => {
+        // Backpressure: term-data é alta-frequência e reconstruível (tmux repinta no
+        // reattach). Num socket lento (celular em wifi ruim) o buffer do ws cresce sem
+        // freio até estourar a heap. Acima do teto, dropa pra ESTE socket — uma lacuna
+        // momentânea na tela é preferível ao OOM; o scrollback volta no próximo replay.
+        const onData = (data: string) => {
+          if (ws.bufferedAmount > BACKPRESSURE_BYTES) return;
+          send(ws, { t: 'term-data', termId, data });
+        };
+        const onExit = () => { send(ws, { t: 'term-exit', termId }); myTerms.delete(termId); };
+        const onReplay = (data: string) => send(ws, { t: 'term-replay', termId, data });
+        const ok = openTerm(termId, cols, rows, onData, onExit, onReplay, watch);
+        if (ok) myTerms.set(termId, { onData, onExit });
+        else send(ws, { t: 'term-exit', termId });
       };
-      const onExit = () => { send(ws, { t: 'term-exit', termId: msg.termId }); myTerms.delete(msg.termId); };
-      const onReplay = (data: string) => send(ws, { t: 'term-replay', termId: msg.termId, data });
-      const ok = openTerm(msg.termId, msg.cols, msg.rows, onData, onExit, onReplay, typeof msg.watch === 'string' ? msg.watch : undefined);
-      if (ok) myTerms.set(msg.termId, { onData, onExit });
-      else send(ws, { t: 'term-exit', termId: msg.termId });
+      if (!watch) { attach(); return true; }
+      // A watch pane may first need its bare shell swapped for the follower; a
+      // detach or a closed socket while that runs cancels the attach.
+      pending.add(termId);
+      void prepareWatch(termId, watch).catch(() => {}).then(() => {
+        if (!pending.delete(termId) || ws.readyState !== ws.OPEN) return;
+        attach();
+      });
       return true;
     }
     case 'term-list': {
@@ -52,11 +73,13 @@ export function handleTerm(
     }
     case 'term-resize': { resizeTerm(msg.termId, msg.cols, msg.rows); return true; }
     case 'term-detach': {
+      pendingOf(ws).delete(msg.termId);
       const h = myTerms.get(msg.termId);
       if (h) { detachTerm(msg.termId, h.onData, h.onExit); myTerms.delete(msg.termId); }
       return true; // sessão tmux fica viva pra reattach
     }
     case 'term-close': {
+      pendingOf(ws).delete(msg.termId);
       const h = myTerms.get(msg.termId);
       if (h) { detachTerm(msg.termId, h.onData, h.onExit); myTerms.delete(msg.termId); }
       closeTerm(msg.termId);

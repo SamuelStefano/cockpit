@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EmptyState } from '../components/primitives';
 import { usePersisted } from '../lib/persist';
 import { neighbors } from './canvas/canvas-filter';
@@ -10,6 +10,8 @@ import { CanvasSurface } from './canvas/CanvasSurface';
 import { CardEditor } from './canvas/CardEditor';
 import { Kanban } from './canvas/Kanban';
 import { KanbanDock } from './canvas/KanbanDock';
+import { CanvasAnalysis } from './canvas/CanvasAnalysis';
+import { useTermStatsPoll } from './canvas/useTermStatsPoll';
 import { TerminalMaximized } from './canvas/TerminalMaximized';
 import { useCanvasRoute, type CanvasRouteProps } from './canvas/useCanvasRoute';
 import { MAX_OPEN_TERMS } from './canvas/canvas-terms';
@@ -49,6 +51,14 @@ export function Canvas(p: CanvasRouteProps) {
     r.visible.nodes.filter((n) => n.kind === 'session').sort((a, b) => a.mtime - b.mtime).slice(-MAX_OPEN_TERMS).map((n) => n.id),
   );
 
+  const windowNodes = useMemo(() => r.visible.nodes.filter((n) => r.windows.has(n.id)), [r.visible.nodes, r.windows]);
+  useTermStatsPoll(windowNodes, p.connected, p.onTermStats);
+  const [analysisOn, setAnalysisOn] = usePersisted('canvas.analysisOn', false);
+  const pickWindow = useCallback((id: string) => {
+    terms.focus(id);
+    setCenter((c) => ({ id, n: (c?.n ?? 0) + 1 }));
+  }, [terms]);
+
   const sessionsN = r.visible.nodes.filter((n) => n.kind === 'session').length;
   const contextsN = r.visible.nodes.filter((n) => n.kind === 'context').length;
   const maxNode = terms.maximized ? r.byId.get(terms.maximized) : undefined;
@@ -84,6 +94,7 @@ export function Canvas(p: CanvasRouteProps) {
               selected={r.selected} running={p.running} waiting={r.waiting} centerRequest={center}
               onSelect={r.select} onClear={clearAll} onDrop={r.onDrop} onResetLayout={p.onCanvasPosReset}
               windows={r.windows} terms={terms} term={p.term} onOpenTerm={openTerm} onOpenChat={p.onOpenSession} onOpenRecent={openRecent}
+              stats={p.termStats} analysisOn={analysisOn} onToggleAnalysis={() => setAnalysisOn(!analysisOn)}
             >
               <CanvasHud sessions={p.sessions} running={p.running} onPick={(id) => focusNode(`s:${id}`)} />
               {r.selectedNodes.length > 0 && (
@@ -93,6 +104,9 @@ export function Canvas(p: CanvasRouteProps) {
                   onNewCard={(kind) => r.newDraft(kind, r.selectedNodes)} onEditCard={r.editCard}
                   onRunCard={r.runCard} onClose={r.clearSelection}
                 />
+              )}
+              {analysisOn && (
+                <CanvasAnalysis nodes={windowNodes} stats={p.termStats} running={p.running} onPick={pickWindow} onClose={() => setAnalysisOn(false)} />
               )}
               {maxNode && maxTarget && (
                 <TerminalMaximized node={maxNode} target={maxTarget} term={p.term} onClose={() => terms.setMaximized(null)} />

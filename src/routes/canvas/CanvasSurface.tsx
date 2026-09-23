@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import type { CanvasEdge, CanvasNode, CanvasPos } from '../../../shared/canvas';
+import type { CanvasEdge, CanvasNode, CanvasPos, TermStats } from '../../../shared/canvas';
 import { CanvasEdges } from './CanvasEdges';
 import { CanvasNodeCard } from './CanvasNodeCard';
 import { CanvasToolbar } from './CanvasToolbar';
@@ -31,6 +31,9 @@ interface Props {
   onOpenChat: (sessionId: string) => void;
   onOpenRecent: () => void;
   onOpenTerm: (id: string) => void;
+  stats: Record<string, TermStats>;
+  analysisOn: boolean;
+  onToggleAnalysis: () => void;
   children?: React.ReactNode;
 }
 
@@ -65,6 +68,12 @@ export function CanvasSurface(p: Props) {
   // "Open recent" drops a batch of windows into the lane, usually off-screen:
   // frame them once the new bounds land instead of leaving the user to hunt.
   const fitNext = useRef(false);
+  // Nothing new to open (or nothing to move) leaves the bounds as they were;
+  // don't let the armed fit fire later on an unrelated auto-open.
+  const armFit = () => {
+    fitNext.current = true;
+    setTimeout(() => { fitNext.current = false; }, 1000);
+  };
   useEffect(() => {
     if (!fitNext.current) return;
     fitNext.current = false;
@@ -104,6 +113,18 @@ export function CanvasSurface(p: Props) {
         backgroundSize: `${grid}px ${grid}px`,
         backgroundPosition: `${view.x}px ${view.y}px`,
       }}
+      // Middle button pans from anywhere — over a card or a live terminal too —
+      // so moving around never risks a left-click landing on something.
+      onPointerDownCapture={(e) => {
+        if (e.button !== 1 || (e.target instanceof Element && e.target.closest('[data-canvas-overlay]'))) return;
+        e.preventDefault();
+        e.stopPropagation();
+        vp.onBackgroundDown(e);
+      }}
+      // Kills the browser's autoscroll and the X11 middle-click paste into xterm.
+      onMouseDownCapture={(e) => { if (e.button === 1) e.preventDefault(); }}
+      onMouseUpCapture={(e) => { if (e.button === 1) e.preventDefault(); }}
+      onAuxClickCapture={(e) => { if (e.button === 1) e.preventDefault(); }}
       onPointerDown={(e) => {
         // Overlays (toolbar, inspector, roster) sit inside the surface: capturing
         // their press for a pan would swallow the click on their buttons.
@@ -127,17 +148,16 @@ export function CanvasSurface(p: Props) {
         ))}
         <CanvasWindows
           nodes={wins} pos={pos} terms={p.terms} term={p.term} selected={selectedSet} focus={focus}
-          running={p.running} waiting={p.waiting} onPointerDown={onNodeDown} onOpenChat={p.onOpenChat}
+          running={p.running} waiting={p.waiting} onPointerDown={onNodeDown} onOpenChat={p.onOpenChat} stats={p.stats}
         />
       </div>
       {p.children}
-      <CanvasToolbar zoom={view.k} onZoom={vp.zoomBy} onFit={() => fit(p.bounds)} onResetLayout={p.onResetLayout} onNewTerminal={p.terms.newShell} onOpenRecent={() => {
-        fitNext.current = true;
-        // Nothing new to open leaves the bounds as they were; don't let the
-        // armed fit fire later on an unrelated auto-open.
-        setTimeout(() => { fitNext.current = false; }, 1000);
-        p.onOpenRecent();
-      }} />
+      <CanvasToolbar
+        zoom={view.k} onZoom={vp.zoomBy} onFit={() => fit(p.bounds)} onNewTerminal={p.terms.newShell}
+        onResetLayout={() => { armFit(); p.onResetLayout(); }}
+        onOpenRecent={() => { armFit(); p.onOpenRecent(); }}
+        analysisOn={p.analysisOn} onToggleAnalysis={p.onToggleAnalysis}
+      />
     </div>
   );
 }
