@@ -1,6 +1,6 @@
 #!/usr/bin/env -S npx tsx
 // deckctl: command-line orchestrator for the /canvas page — speaks the SAME
-// WebSocket protocol the browser uses (ws://127.0.0.1:7777/?token=…), plus a
+// WebSocket protocol the browser uses (ws://127.0.0.1:7777/ws?token=…), plus a
 // couple of read-only commands that import the server's own parsing code
 // directly (no socket round trip needed to tail a transcript).
 //
