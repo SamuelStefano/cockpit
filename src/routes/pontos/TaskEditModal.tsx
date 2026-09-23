@@ -54,7 +54,7 @@ export function TaskEditModal() {
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-2">
           <Badge tone={m.tone} dot>{m.label}</Badge>
-          <span className="text-[12px] tabular-nums text-neutral-500">atual: {fmtPts(t.points)} pts</span>
+          <span className="text-[12px] tabular-nums text-neutral-500">atual: {fmtPts(t.points)} pt</span>
         </div>
         <label className="flex flex-col gap-1.5">
           <span className="text-[12px] text-neutral-400">Pontos</span>

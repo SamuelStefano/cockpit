@@ -70,7 +70,7 @@ export function InvoiceConfirmModal({ projects, onClose }: { projects: DflProjec
                 <div className="flex items-center gap-2">
                   <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-neutral-200">{d.deliveryName}</span>
                   <Badge tone="neutral">{d.tasks.length} task{d.tasks.length > 1 ? 's' : ''}</Badge>
-                  <span className="shrink-0 text-[12px] font-semibold tabular-nums text-orange-300">{fmtPts(d.points)} pts</span>
+                  <span className="shrink-0 text-[12px] font-semibold tabular-nums text-orange-300">{fmtPts(d.points)} pt</span>
                   <span className="w-24 shrink-0 text-right text-[11.5px] tabular-nums text-neutral-400">{brl(d.amountCents)}</span>
                 </div>
                 <div className="mt-0.5 truncate text-[10.5px] text-neutral-600">{d.projectName} · R$ {d.pricePerPoint}/pt</div>
@@ -78,7 +78,7 @@ export function InvoiceConfirmModal({ projects, onClose }: { projects: DflProjec
             ))}
             <div className="flex items-center gap-2 px-1 pt-1">
               <span className="min-w-0 flex-1 text-[12px] font-semibold text-neutral-200">Total</span>
-              <span className="text-[12.5px] font-semibold tabular-nums text-orange-300">{fmtPts(totalPoints)} pts</span>
+              <span className="text-[12.5px] font-semibold tabular-nums text-orange-300">{fmtPts(totalPoints)} pt</span>
               <span className="w-24 text-right text-[12px] tabular-nums text-neutral-300">{brl(totalCents)}</span>
             </div>
           </div>

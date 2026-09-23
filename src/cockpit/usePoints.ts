@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import type { ClientMsg, DflPointsSnapshot, PointsEntry, ServerMsg } from '../../shared/protocol';
+import type { DflDraft, DraftOp } from '../../shared/dfl-drafts';
 
 export interface DflWriteResult { ok: boolean; message?: string }
 
@@ -25,6 +26,8 @@ export interface Points {
   dflSnapshot: DflPointsSnapshot | null;
   dflLoaded: boolean;
   dflSyncing: boolean;
+  drafts: DflDraft[];
+  draftsLoaded: boolean;
   onPointsGet: () => void;
   // Devolvem se o frame saiu: com o socket fechado o envio é descartado em silêncio
   // e a rota não pode confirmar a escrita.
@@ -37,6 +40,8 @@ export interface Points {
   onDflChange: (p: DflChange) => Promise<DflWriteResult>;
   onDflInvoice: (p: DflInvoice) => Promise<DflWriteResult>;
   onPontosAgent: (p: PontosAgentTasks) => Promise<DflWriteResult>;
+  onDraftsGet: () => void;
+  onDraftOp: (op: DraftOp) => boolean;
   onMsg: (msg: ServerMsg) => boolean;
 }
 
@@ -49,6 +54,8 @@ export function usePoints(send: (m: ClientMsg) => boolean): Points {
   const [dflSnapshot, setDflSnapshot] = useState<DflPointsSnapshot | null>(null);
   const [dflLoaded, setDflLoaded] = useState(false);
   const [dflSyncing, setDflSyncing] = useState(false);
+  const [drafts, setDrafts] = useState<DflDraft[]>([]);
+  const [draftsLoaded, setDraftsLoaded] = useState(false);
   // Escritas DFL (mudar pontos / gerar fatura): request→response casado por reqId.
   // O modal chama onDflChange/onDflInvoice e aguarda a Promise; o servidor responde
   // com points-dfl-write e resolvemos o resolver pendente.
@@ -68,6 +75,10 @@ export function usePoints(send: (m: ClientMsg) => boolean): Points {
         return true;
       case 'points-dfl-syncing':
         setDflSyncing(true);
+        return true;
+      case 'drafts':
+        setDrafts(msg.items);
+        setDraftsLoaded(true);
         return true;
       case 'points-dfl-write': {
         const resolve = writeResolvers.current.get(msg.reqId);
@@ -95,6 +106,8 @@ export function usePoints(send: (m: ClientMsg) => boolean): Points {
     dflSnapshot,
     dflLoaded,
     dflSyncing,
+    drafts,
+    draftsLoaded,
     onPointsGet: useCallback(() => { send({ t: 'points-get' }); }, [send]),
     onPointsAdd: useCallback((title: string, pts: number, description?: string) => send({ t: 'points-add', title, points: pts, description }), [send]),
     onPointsCorrect: useCallback((entryId: string, pts: number) => send({ t: 'points-correct', entryId, points: pts }), [send]),
@@ -116,6 +129,8 @@ export function usePoints(send: (m: ClientMsg) => boolean): Points {
       const reqId = crypto.randomUUID();
       return dflWrite({ t: 'pontos-agent-tasks', reqId, ...p }, reqId);
     }, [dflWrite]),
+    onDraftsGet: useCallback(() => { send({ t: 'drafts-get' }); }, [send]),
+    onDraftOp: useCallback((op: DraftOp) => send({ t: 'drafts-op', op }), [send]),
     onMsg,
   };
 }

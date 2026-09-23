@@ -30,7 +30,7 @@ export function PointsCard({ entry, now, glow, onCorrect, onNote, onDelete }: Pr
           <button onClick={c.startEditPts} title="Corrigir pontos"
             className="flex items-baseline gap-1 rounded-md text-3xl font-bold tabular-nums tracking-tight text-neutral-100 transition hover:text-orange-300">
             {entry.points}
-            <span className="text-[10px] font-medium uppercase tracking-wide text-neutral-600">pts</span>
+            <span className="text-[10px] font-medium uppercase tracking-wide text-neutral-600">pt</span>
           </button>
         )}
         <div className="flex shrink-0 items-center gap-1.5">

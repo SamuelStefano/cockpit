@@ -26,7 +26,7 @@ function InvoiceRow({ inv }: { inv: DflInvoice }) {
         <Icon name={open ? 'chevronDown' : 'chevronRight'} size={12} className={`shrink-0 ${canExpand ? 'text-neutral-600' : 'text-transparent'}`} />
         <span className="w-16 shrink-0 text-[13px] font-semibold tabular-nums text-neutral-100">{refMonth(inv.referenceMonth)}</span>
         <Badge tone={tone(inv.status)} dot>{inv.status}</Badge>
-        <span className="ml-auto hidden shrink-0 text-[12px] tabular-nums text-neutral-500 sm:inline">{fmtPts(inv.totalPoints)} pts</span>
+        <span className="ml-auto hidden shrink-0 text-[12px] tabular-nums text-neutral-500 sm:inline">{fmtPts(inv.totalPoints)} pt</span>
         <span className="ml-auto min-w-[4.5rem] shrink-0 text-right text-[13px] font-medium tabular-nums text-neutral-200 sm:ml-0">{brl(inv.totalAmountCents)}</span>
       </button>
       {open && (
@@ -35,7 +35,7 @@ function InvoiceRow({ inv }: { inv: DflInvoice }) {
             {inv.items.map((it, i) => (
               <div key={i} className="flex items-center gap-3 py-1.5">
                 <span className="min-w-0 flex-1 truncate text-[12px] text-neutral-300">{it.title}</span>
-                <span className="shrink-0 text-[11.5px] tabular-nums text-neutral-500">{fmtPts(it.points)} pts</span>
+                <span className="shrink-0 text-[11.5px] tabular-nums text-neutral-500">{fmtPts(it.points)} pt</span>
                 <span className="w-24 shrink-0 text-right text-[12px] tabular-nums text-neutral-300">{brl(it.amountCents)}</span>
               </div>
             ))}

@@ -22,7 +22,7 @@ export function DflEpic({ epic, cap, expandAll }: { epic: DflEpicNode; cap?: Epi
           <div className="flex items-baseline gap-2">
             <span className="min-w-0 flex-1 truncate text-[10.5px] font-semibold uppercase tracking-widest text-neutral-500">{epic.name}</span>
             {held && <Badge tone="yellow">em espera</Badge>}
-            <span className="shrink-0 text-[10.5px] tabular-nums text-neutral-600">{fmtPts(epic.points)} pts · {brl(epic.amountCents)}</span>
+            <span className="shrink-0 text-[10.5px] tabular-nums text-neutral-600">{fmtPts(epic.points)} pt · {brl(epic.amountCents)}</span>
           </div>
           {held && cap && <p className="mt-1 text-[10.5px] tabular-nums text-yellow-300/80">{epicCapDetail(cap, brl)}</p>}
         </div>

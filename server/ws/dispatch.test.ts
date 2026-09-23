@@ -63,6 +63,13 @@ const crons = vi.hoisted(() => ({
   getCrons: vi.fn(async () => []), saveCron: vi.fn(async () => []), deleteCron: vi.fn(async () => []),
 }));
 vi.mock('../crons', () => crons);
+const drafts = vi.hoisted(() => ({
+  readDrafts: vi.fn(async () => []),
+  mutateDrafts: vi.fn(async () => [{ id: 'ep-1', title: 'E', status: 'draft', createdAt: 0, tasks: [] }]),
+}));
+vi.mock('../dfl-drafts', () => drafts);
+const fin = vi.hoisted(() => ({ registerFinanceClient: vi.fn(), emitFinanceMsg: vi.fn() }));
+vi.mock('./finance-clients', () => fin);
 
 import { handle } from './dispatch';
 
@@ -353,5 +360,33 @@ describe('ações da fila estacionada', () => {
     await handle(ws, { t: 'queue-force', sessionKey: 'k1' } as ClientMsg, 'admin');
     expect(awaiting.clearAwaiting).toHaveBeenCalledWith('k1');
     expect(bc.broadcast).toHaveBeenCalledWith(expect.objectContaining({ t: 'queue' }));
+  });
+});
+
+describe('drafts (Rascunhos para o DFL)', () => {
+  it('drafts-get answers only the asking socket and registers it for pushes', async () => {
+    await handle(ws, { t: 'drafts-get' }, 'admin');
+    expect(fin.registerFinanceClient).toHaveBeenCalledWith(ws);
+    expect(bc.send).toHaveBeenCalledWith(ws, { t: 'drafts', items: [] });
+    expect(bc.broadcast).not.toHaveBeenCalled();
+  });
+
+  it('a valid op is applied and pushed to finance sockets, never the global broadcast', async () => {
+    await handle(ws, { t: 'drafts-op', op: { op: 'delete-epic', id: 'ep-9' } }, 'admin');
+    expect(drafts.mutateDrafts).toHaveBeenCalledWith({ op: 'delete-epic', id: 'ep-9' });
+    expect(fin.emitFinanceMsg).toHaveBeenCalledWith(expect.objectContaining({ t: 'drafts' }));
+    expect(bc.broadcast).not.toHaveBeenCalled();
+  });
+
+  it('an unknown op is refused without touching the file', async () => {
+    await handle(ws, { t: 'drafts-op', op: { op: 'rm' } } as unknown as ClientMsg, 'admin');
+    expect(drafts.mutateDrafts).not.toHaveBeenCalled();
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'error' }));
+  });
+
+  it('a rule violation comes back as an error message', async () => {
+    drafts.mutateDrafts.mockRejectedValueOnce(new Error('épico ep-x não existe'));
+    await handle(ws, { t: 'drafts-op', op: { op: 'delete-task', epicId: 'ep-x', taskId: 't' } }, 'admin');
+    expect(bc.send).toHaveBeenCalledWith(ws, { t: 'error', message: 'épico ep-x não existe' });
   });
 });

@@ -12,7 +12,7 @@ export function PointsHistory({ history }: { history: PointsHistoryItem[] }) {
           <Icon name={h.by === 'agent' ? 'sparkles' : 'pencil'} size={11} className={h.by === 'agent' ? 'text-orange-400/80' : 'text-neutral-500'} />
           <span className="text-neutral-500">{h.by === 'agent' ? 'agente' : 'você'}</span>
           <span>{kindLabel(h.kind)}</span>
-          {h.kind !== 'note' && typeof h.points === 'number' && <span className="font-medium tabular-nums text-neutral-300">{h.points} pts</span>}
+          {h.kind !== 'note' && typeof h.points === 'number' && <span className="font-medium tabular-nums text-neutral-300">{h.points} pt</span>}
           {h.kind === 'note' && h.description && <span className="truncate italic text-neutral-500">“{h.description}”</span>}
           <span className="ml-auto shrink-0 tabular-nums text-neutral-600">{hhmm(h.at)}</span>
         </li>

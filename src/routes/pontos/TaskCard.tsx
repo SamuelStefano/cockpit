@@ -23,7 +23,7 @@ export function TaskCard({ task }: { task: DflTaskNode }) {
         <Badge tone={m.tone} dot>{m.label}</Badge>
         <span className="flex items-baseline gap-1 text-xl font-bold tabular-nums tracking-tight text-neutral-100">
           {fmtPts(task.points)}
-          <span className="text-[9.5px] font-medium uppercase tracking-wide text-neutral-600">pts</span>
+          <span className="text-[9.5px] font-medium uppercase tracking-wide text-neutral-600">pt</span>
         </span>
       </div>
       <p className="mt-1.5 line-clamp-2 text-[12.5px] font-medium leading-snug text-neutral-200">{task.name || 'Sem título'}</p>

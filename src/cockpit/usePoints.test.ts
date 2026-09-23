@@ -34,6 +34,15 @@ describe('usePoints', () => {
     expect(result.current.dflLoaded).toBe(true);
   });
 
+  it('claims staged drafts and sends draft ops as frames', () => {
+    const { result, enviados } = montar();
+    act(() => { expect(result.current.onMsg({ t: 'drafts', items: [{ id: 'ep-1', title: 'E', status: 'draft', createdAt: 0, tasks: [] }] })).toBe(true); });
+    expect(result.current.drafts).toHaveLength(1);
+    expect(result.current.draftsLoaded).toBe(true);
+    act(() => { expect(result.current.onDraftOp({ op: 'delete-epic', id: 'ep-1' })).toBe(true); });
+    expect(enviados.at(-1)).toEqual({ t: 'drafts-op', op: { op: 'delete-epic', id: 'ep-1' } });
+  });
+
   it('resolve a escrita DFL pelo reqId que voltou', async () => {
     const { result, enviados } = montar();
     let p!: Promise<{ ok: boolean; message?: string }>;
