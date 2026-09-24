@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { DflProjectNode } from '../../../shared/protocol';
-import { invoiceDraftsFromSelection } from './invoiceFromSelection';
+import { invoiceDraftsFromSelection, selectionSummary } from './invoiceFromSelection';
+import { MONTH_RE } from './InvoiceConfirmModal';
 
 function project(overrides: Partial<DflProjectNode> = {}): DflProjectNode {
   return {
@@ -40,5 +41,31 @@ describe('invoiceDraftsFromSelection', () => {
 
   it('ignora deliveries não selecionadas', () => {
     expect(invoiceDraftsFromSelection([project()], new Set(['zzz']), '2026-07')).toHaveLength(0);
+  });
+});
+
+describe('selectionSummary', () => {
+  it('shows what the invoice will bill: open tasks only, not the whole delivery', () => {
+    // Delivery has 10 pt in total (3 open, 2 paid, 5 to-do); the invoice bills 3.
+    expect(selectionSummary([project()], new Set(['d1']))).toEqual({ count: 1, billable: 1, points: 3, amountCents: 22500 });
+  });
+
+  it('never bills a delivery marked off', () => {
+    expect(selectionSummary([project()], new Set(['d1']), new Set(['d1']))).toMatchObject({ count: 1, billable: 0, points: 0 });
+    expect(invoiceDraftsFromSelection([project()], new Set(['d1']), '2026-07', new Set(['d1']))).toHaveLength(0);
+  });
+
+  it('counts a selected delivery with nothing open as not billable', () => {
+    const p = project();
+    p.epics[0].deliveries[0].tasks = [{ id: 't2', name: 'B', points: 2, status: 'paid', rawStatus: 'done', amountCents: 15000 }];
+    expect(selectionSummary([p], new Set(['d1']))).toMatchObject({ count: 1, billable: 0, points: 0 });
+  });
+});
+
+describe('MONTH_RE', () => {
+  it('accepts only months 01-12', () => {
+    expect(MONTH_RE.test('2026-07')).toBe(true);
+    expect(MONTH_RE.test('2026-12')).toBe(true);
+    for (const bad of ['2026-13', '2026-00', '2026-7', '07/2026']) expect(MONTH_RE.test(bad)).toBe(false);
   });
 });
