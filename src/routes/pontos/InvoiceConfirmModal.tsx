@@ -40,9 +40,12 @@ export function InvoiceConfirmModal({ projects, onClose }: { projects: DflProjec
     setBusy(false);
     // Tira da seleção só o que já existe no DFL: as deliveries que falharam ficam
     // selecionadas pro retry, e o retry não reescreve as que deram certo.
-    const done = batch.results.filter((r) => r.outcome !== 'failed').map((r) => r.deliveryId);
+    // Unknown stays selected so its row (with the "confira no DFL" badge) keeps
+    // rendering; it is in `created`, so it is never re-sent from this modal.
+    const done = batch.results.filter((r) => r.outcome === 'created' || r.outcome === 'skipped').map((r) => r.deliveryId);
     if (done.length) deselect(done);
     const { created: okCount, failed, unknown } = summarize(batch.results);
+    if (unknown > 0) toast(`${unknown} fatura${unknown > 1 ? 's' : ''} sem resposta a tempo — confira no DFL antes de gerar de novo`, { tone: 'error', durationMs: 10000 });
     if (okCount > 0) toast(`${okCount} fatura${okCount > 1 ? 's' : ''} criada${okCount > 1 ? 's' : ''} (enviada${okCount > 1 ? 's' : ''} pra revisão)`);
     // Keep the modal open when an outcome is unknown: the user has to see which
     // delivery to check in DFL before doing anything else.
