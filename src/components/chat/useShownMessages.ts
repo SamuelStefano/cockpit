@@ -23,16 +23,20 @@ import type { Message } from '../../data/types';
 //    DEPOIS do passo 4, que já tirou as ferramentas do meio do texto.
 // 6. mergeThinking junta as bolhas que sobraram só com pensamento — roda por
 //    último porque os passos 4 e 5 é que as esvaziam até restar só o thinking.
+// 7. coalesceCompacts de novo: com as ferramentas visíveis, as bolhas só-tool
+//    entre dois divisores de PR passam do passo 2 e só somem no passo 4 — os
+//    divisores ficavam lado a lado sem juntar (a parede de "PR#NNN").
+export function shownMessages(messages: Message[], showTools: boolean, groupNotes: boolean): ShownMessage[] {
+  return coalesceCompacts(mergeThinking(collapseTurnNarration(
+    collapseTurnTools(coalesceCompacts(dropInvisible(clampToPendingQuestion(messages), showTools)), showTools),
+    groupNotes,
+  )));
+}
+
 export function useShownMessages(messages: Message[]): ShownMessage[] {
   const [showTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   const [groupNotes] = usePersisted<boolean>(GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT);
   // messages troca de referência a cada token streamado; a cadeia só deve rodar
   // quando a lista (ou a preferência) realmente muda.
-  return useMemo(
-    () => mergeThinking(collapseTurnNarration(
-      collapseTurnTools(coalesceCompacts(dropInvisible(clampToPendingQuestion(messages), showTools)), showTools),
-      groupNotes,
-    )),
-    [messages, showTools, groupNotes],
-  );
+  return useMemo(() => shownMessages(messages, showTools, groupNotes), [messages, showTools, groupNotes]);
 }
