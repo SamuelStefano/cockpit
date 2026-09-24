@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { buildSchedule, draftValid, enabledFor, toLocalInput, fromLocalInput, useCronForm, type CronDraft } from './useCronForm';
+import { buildSchedule, draftValid, enabledFor, toLocalInput, fromLocalInput, scheduleValid, useCronForm, type CronDraft } from './useCronForm';
 import type { Cron } from '../../../shared/protocol';
 
 const draft = (over: Partial<CronDraft>): CronDraft => ({
@@ -72,5 +72,12 @@ describe('applyResetPreset', () => {
     act(() => result.current.applyResetPreset(at));
     expect(result.current.draft.kind).toBe('once');
     expect(buildSchedule(result.current.draft)).toEqual({ kind: 'once', atMs: at });
+  });
+});
+
+describe('scheduleValid', () => {
+  it('previews the next run from the schedule alone, before name and prompt', () => {
+    expect(scheduleValid({ name: '', prompt: '', kind: 'daily', time: '09:00' } as never)).toBe(true);
+    expect(scheduleValid({ name: '', prompt: '', kind: 'interval', everyMinutes: 0 } as never)).toBe(false);
   });
 });

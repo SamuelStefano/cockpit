@@ -41,10 +41,15 @@ export function buildSchedule(d: CronDraft): CronSchedule {
   return { kind: 'daily', atMinute: (Number.isFinite(h) ? h : 9) * 60 + (Number.isFinite(m) ? m : 0) };
 }
 
-export function draftValid(d: CronDraft): boolean {
-  if (!d.name.trim() || !d.prompt.trim()) return false;
+// The schedule alone: enough to preview the next run before name/prompt exist.
+export function scheduleValid(d: CronDraft): boolean {
   if (d.kind === 'interval' && !(d.everyMinutes >= 1)) return false;
   return d.kind !== 'once' || Number.isFinite(fromLocalInput(d.at));
+}
+
+export function draftValid(d: CronDraft): boolean {
+  if (!d.name.trim() || !d.prompt.trim()) return false;
+  return scheduleValid(d);
 }
 
 // Um "uma vez" vale pelo instante marcado: remarcar pra frente re-arma o que já

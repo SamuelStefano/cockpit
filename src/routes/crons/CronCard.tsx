@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Cron } from '../../../shared/protocol';
 import { scheduleLabel, nextRunAt } from '../../../shared/cron-schedule';
-import { Button, Icon, Badge, toast } from '../../components/primitives';
+import { Button, Icon, Badge, toast, tokens } from '../../components/primitives';
 import { prettyModel } from '../../components/chat/toolbar-format';
 import { fmtLast } from './cron-format';
 
@@ -74,12 +74,15 @@ export function CronCard({ cron, now, editing, onRun, onToggle, onEdit, onDelete
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-1">
-        <Button variant="ghost" size="sm" icon="play" title="Rodar agora" aria-label="Rodar agora" onClick={run} disabled={firing} />
-        <Button variant="ghost" size="sm" icon="pencil" title="Editar" onClick={onEdit} />
-        <Button variant="ghost" size="sm" icon={cron.enabled ? 'square' : 'play'} title={cron.enabled ? 'Pausar' : 'Ativar'} onClick={onToggle} />
+        {/* "Rodar agora" and "Ativar" both used ▶, and "Pausar" used ■ (reads as
+            "stop the run"). Pause/resume get their own icons; every action is named
+            and 40px on touch. */}
+        <Button variant="ghost" size="sm" icon="play" title="Rodar agora" aria-label="Rodar agora" className={tokens.touchBox} onClick={run} disabled={firing} />
+        <Button variant="ghost" size="sm" icon="pencil" title="Editar" aria-label="Editar" className={tokens.touchBox} onClick={onEdit} />
+        <Button variant="ghost" size="sm" icon={cron.enabled ? 'pause' : 'clock'} title={cron.enabled ? 'Pausar' : 'Reativar agendamento'} aria-label={cron.enabled ? 'Pausar' : 'Reativar agendamento'} className={tokens.touchBox} onClick={onToggle} />
         {confirmDelete
-          ? <Button variant="danger" size="sm" className="text-red-400" title="Confirmar exclusão" onClick={clickDelete}>confirmar?</Button>
-          : <Button variant="ghost" size="sm" icon="trash" title="Excluir" onClick={clickDelete} />}
+          ? <Button variant="danger" size="sm" className={`text-red-400 ${tokens.touchBox}`} title="Confirmar exclusão" onClick={clickDelete}>confirmar?</Button>
+          : <Button variant="ghost" size="sm" icon="trash" title="Excluir" aria-label="Excluir" className={tokens.touchBox} onClick={clickDelete} />}
       </div>
     </div>
   );

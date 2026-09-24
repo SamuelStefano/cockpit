@@ -3,7 +3,7 @@ import { nextRunAt } from '../../../shared/cron-schedule';
 import { resetPresets } from '../../../shared/quota-reset';
 import { Button, Icon } from '../../components/primitives';
 import { EffortPicker } from '../../components/chat/EffortPicker';
-import { buildSchedule, type useCronForm } from './useCronForm';
+import { buildSchedule, type useCronForm, scheduleValid } from './useCronForm';
 import { modelOptions } from '../../components/chat/model-options';
 import { prettyModel } from '../../components/chat/toolbar-format';
 import { fmtClock } from './cron-format';
@@ -62,7 +62,7 @@ export function CronForm({ form, onCancel, now, planUsage, models }: {
       </div>
       <div className="flex items-center justify-between gap-2 pt-0.5">
         <span className="flex items-center gap-1.5 text-[11.5px] text-neutral-500">
-          <Icon name="clock" size={12} /> próxima: <span className="tabular-nums text-neutral-400">{valid ? fmtClock(nextRunAt(preview, now), now) : '—'} BRT</span>
+          <Icon name="clock" size={12} /> {scheduleValid(draft) ? <>próxima: <span className="tabular-nums text-neutral-400">{fmtClock(nextRunAt(preview, now), now)} BRT</span></> : 'complete o agendamento pra ver a próxima execução'}
         </span>
         <div className="flex items-center gap-1.5">
           {editing && <Button variant="ghost" size="sm" onClick={onCancel}>Cancelar</Button>}
