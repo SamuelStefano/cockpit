@@ -11,7 +11,9 @@ export function suggestCompletion(history: string[], value: string): string {
   const needle = value.toLowerCase();
   for (let i = history.length - 1; i >= 0; i--) {
     const h = history[i];
-    if (h.length > value.length && h.toLowerCase().startsWith(needle)) {
+    // Lowercase only the prefix: history can hold whole pasted documents, and this
+    // runs on every composer render.
+    if (h.length > value.length && h.slice(0, value.length).toLowerCase() === needle) {
       return h.slice(value.length);
     }
   }
