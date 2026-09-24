@@ -36,8 +36,10 @@ function dropDir(): string {
   return process.env.COCKPIT_DROP_DIR ?? join(homedir(), '.deck-drop');
 }
 
+// `__proto__` passes the regex, but as a key of the plain-object TTL index it hits
+// the prototype setter: the TTL was never stored and the secret never expired.
 export function validSlug(slug: unknown): slug is string {
-  return typeof slug === 'string' && SLUG_RE.test(slug) && !slug.startsWith('.');
+  return typeof slug === 'string' && SLUG_RE.test(slug) && !slug.startsWith('.') && slug !== '__proto__';
 }
 
 // Prova que o caminho final está DENTRO do dir: o slug chega cru do WS e a regex
