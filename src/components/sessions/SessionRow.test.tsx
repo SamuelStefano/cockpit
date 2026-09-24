@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from 'vitest';
-import { render, cleanup, screen } from '@testing-library/react';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { render, cleanup, screen, fireEvent } from '@testing-library/react';
 import { SessionRow } from './SessionRow';
 import type { Session } from '../../data/types';
 
@@ -46,5 +46,22 @@ describe('SessionRow', () => {
   it('idle without signals: no dot at all', () => {
     const c = row();
     expect(c.querySelector('.rounded-full.h-1\\.5')).toBeNull();
+  });
+
+  it('the card is not a button around other controls; the title is the button', () => {
+    const c = row({ active: true });
+    const card = c.firstElementChild as HTMLElement;
+    expect(card.getAttribute('role')).toBeNull();
+    const title = screen.getByRole('button', { name: /Nova sessão/ });
+    expect(title.getAttribute('aria-current')).toBe('true');
+    expect(card.contains(title)).toBe(true);
+  });
+
+  it('activating the title (click, or Enter on the button) selects the session', () => {
+    const onSelect = vi.fn();
+    row({ onSelect });
+    const title = screen.getByRole('button', { name: /Nova sessão/ });
+    fireEvent.click(title);
+    expect(onSelect).toHaveBeenCalledWith('a');
   });
 });

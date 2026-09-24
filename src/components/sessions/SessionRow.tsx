@@ -56,18 +56,15 @@ export function SessionRow({ s, active, highlight, ctx, ctxModel, cost, running,
   // ainda sobe o callout de copiar): select-none no card, select-text nos campos
   // de edição.
   return (
+    // The card is not itself a button: a role="button" holding the menu, tags and
+    // inline editors is "nested interactive" — screen readers flatten it and skip
+    // the inner controls. The title is the focusable button; a click anywhere on
+    // the card (or Enter on the title) bubbles to this handler.
     <div
       ref={rowRef}
-      role="button"
-      tabIndex={0}
-      aria-pressed={active}
       onClick={() => { if (consumeTap()) return; onSelect(s.id); }}
       {...handlers}
-      onKeyDown={(e) => {
-        if (e.target !== e.currentTarget) return; // tecla foi pra um botão/input interno
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(s.id); }
-      }}
-      className={`group relative cursor-pointer rounded-xl border px-3.5 py-2 transition-all duration-150 outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none] lg:py-3
+      className={`group relative cursor-pointer rounded-xl border px-3.5 py-2 transition-all duration-150 outline-hidden has-[[data-row-select]:focus-visible]:ring-2 has-[[data-row-select]:focus-visible]:ring-orange-500/40 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none] lg:py-3
         ${active
           ? 'glow-active border-orange-500/40 bg-linear-to-r from-orange-500/9 to-orange-500/3'
           : 'border-transparent hover:border-neutral-800 hover:bg-neutral-900/80'}`}
@@ -82,15 +79,18 @@ export function SessionRow({ s, active, highlight, ctx, ctxModel, cost, running,
             className="w-full select-text rounded-sm border border-orange-500/50 bg-neutral-950 px-1.5 py-0.5 text-[12.5px] font-medium text-neutral-100 outline-hidden ring-2 ring-orange-500/20"
           />
         ) : (
-          <span
-            className={`flex min-w-0 flex-1 items-start gap-1.5 text-left text-[13.5px] font-medium leading-snug tracking-[-0.01em] ${active ? 'text-neutral-50' : 'text-neutral-300 group-hover:text-neutral-200'}`}
+          <button
+            type="button"
+            data-row-select=""
+            aria-current={active ? 'true' : undefined}
+            className={`flex min-w-0 flex-1 cursor-pointer items-start gap-1.5 text-left text-[13.5px] font-medium leading-snug tracking-[-0.01em] outline-hidden ${active ? 'text-neutral-50' : 'text-neutral-300 group-hover:text-neutral-200'}`}
           >
             {dot && <span className={`mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} title={status?.title ?? 'Novo output desde a última vez que você abriu'} />}
             {/* Título em até 2 linhas no desktop: um título longo mostra bem mais
                 antes de reticenciar. No celular, 2 linhas × 99 sessões viram uma
                 lista de 5 itens por tela — ali vale mais ver mais sessões. */}
             <span className={`line-clamp-1 lg:line-clamp-2 ${!running && updated && !active ? 'text-neutral-100' : ''}`}><Highlight text={s.title} term={highlight} /></span>
-          </span>
+          </button>
         )}
         {/* Só o menu acompanha o título: relógio, estrela e etiqueta desceram pro
             rodapé do card pra devolver largura ao nome da sessão. */}
