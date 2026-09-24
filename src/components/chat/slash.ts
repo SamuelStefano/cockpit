@@ -42,27 +42,31 @@ Quando eu confirmar, salve cada contexto como um arquivo markdown em ${MEMORY_DI
 
 Se eu ainda NÃO tiver anexado o conversations.json, me explique como exportar (ChatGPT → Settings → Data Controls → Export data, chega um .zip por email com o conversations.json) e peça pra anexar.`;
 
+// `rest` is the text typed after the command (`/plan refactor the hook`), kept so
+// runSlash can send it or leave it in the composer instead of dropping it.
 export type SlashAction =
-  | { kind: 'help' }
-  | { kind: 'new' }
+  | { kind: 'help'; rest?: string }
+  | { kind: 'new'; rest?: string }
   | { kind: 'model'; model: 'opus' | 'sonnet' | 'haiku' }
-  | { kind: 'mode'; mode: 'plan' | 'auto' | 'acceptEdits' }
+  | { kind: 'mode'; mode: 'plan' | 'auto' | 'acceptEdits'; rest?: string }
   | { kind: 'prompt'; text: string; mode?: PermMode }
   | null;
 
 // Decisão PURA de qual ação app-side um slash dispara (ou null = passa pro
 // Claude como texto). runSlash só despacha os efeitos colaterais a partir disto.
 export function classifySlash(raw: string): SlashAction {
-  const m = raw.match(/^\/(\S+)\s*(.*)$/);
+  const m = raw.match(/^\/(\S+)\s*([\s\S]*)$/);
   if (!m) return null;
   const cmd = m[1].toLowerCase();
-  const arg = m[2].trim().toLowerCase();
-  if (cmd === 'help') return { kind: 'help' };
-  if (cmd === 'clear' || cmd === 'new') return { kind: 'new' };
+  const text = m[2].trim();
+  const arg = text.toLowerCase();
+  const rest = text ? { rest: text } : {};
+  if (cmd === 'help') return { kind: 'help', ...rest };
+  if (cmd === 'clear' || cmd === 'new') return { kind: 'new', ...rest };
   if (cmd === 'model' && (arg === 'opus' || arg === 'sonnet' || arg === 'haiku')) return { kind: 'model', model: arg };
-  if (cmd === 'plan') return { kind: 'mode', mode: 'plan' };
-  if (cmd === 'auto') return { kind: 'mode', mode: 'auto' };
-  if (cmd === 'execute') return { kind: 'mode', mode: 'acceptEdits' };
+  if (cmd === 'plan') return { kind: 'mode', mode: 'plan', ...rest };
+  if (cmd === 'auto') return { kind: 'mode', mode: 'auto', ...rest };
+  if (cmd === 'execute') return { kind: 'mode', mode: 'acceptEdits', ...rest };
   // Comandos que expandem num prompt elaborado e rodam em modo 'auto' (lê/grava
   // arquivos de memória sozinho). O onSend recebe modeOverride='auto'.
   if (cmd === 'attcontext') return { kind: 'prompt', text: ATTCONTEXT_PROMPT, mode: 'auto' };
