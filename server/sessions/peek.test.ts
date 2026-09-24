@@ -102,4 +102,11 @@ describe('peekSession cache', () => {
     expect(await peekSession('bad')).toBeNull();
     expect(readRecords).not.toHaveBeenCalled();
   });
+
+  it('does not cache a failed read: the next open retries', async () => {
+    vi.mocked(readRecords).mockRejectedValueOnce(new Error('EMFILE'));
+    expect(await peekSession('s1')).toBeNull();
+    await peekSession('s1');
+    expect(readRecords).toHaveBeenCalledTimes(2);
+  });
 });

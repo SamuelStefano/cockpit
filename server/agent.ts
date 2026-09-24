@@ -84,6 +84,11 @@ export function signChallenge(privateKeyPem: string, challenge: string, agentId:
 }
 
 // Backoff exponencial com teto (reconnect do dial; o listen nunca precisou).
+// The cv-liveness loop runs only while someone is looking at a canvas.
+export function canvasLoopGate(hasClients: () => boolean, hasCanvas: () => boolean): () => boolean {
+  return () => hasClients() && hasCanvas();
+}
+
 export function backoffMs(attempt: number): number {
   return Math.min(30_000, 1_000 * 2 ** Math.min(attempt, 5));
 }
@@ -284,7 +289,10 @@ export function runAgent(relayUrl: string): void {
   // browser's kanban would keep showing a deckctl-started session as
   // stopped/Done, and this process's own 'send' guard would have nothing to
   // check before spawning a second `--resume` on it (server/canvas/cv-liveness.ts).
-  startCvLivenessLoop(hasCanvasClients, emitCanvasMsg);
+  // Display only (the 'send' guard reads fresh): the relay socket stays a canvas
+  // client after the last tab closes, so it also needs a browser present, or the
+  // 5s /proc + JSONL scan ran for as long as the agent was paired.
+  startCvLivenessLoop(canvasLoopGate(hasClients, hasCanvasClients), emitCanvasMsg);
   startPlanUsageLoop(hasClients, () => threads.size > 0);
   startModelsLoop(hasClients);
   startAuthKeepAlive();

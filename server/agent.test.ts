@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateIdentityKeys, signChallenge, challengeMessage, backoffMs } from './agent';
+import { generateIdentityKeys, signChallenge, challengeMessage, backoffMs, canvasLoopGate } from './agent';
 import { verifyAgentSignature, makeChallenge } from '../relay/src/verify';
 
 const AID = 'agent-123';
@@ -41,5 +41,13 @@ describe('backoffMs', () => {
     expect(backoffMs(3)).toBe(8_000);
     expect(backoffMs(5)).toBe(30_000);
     expect(backoffMs(99)).toBe(30_000);
+  });
+});
+
+describe('canvasLoopGate', () => {
+  it('runs the liveness scan only with a browser present and a canvas client', () => {
+    expect(canvasLoopGate(() => true, () => true)()).toBe(true);
+    expect(canvasLoopGate(() => false, () => true)()).toBe(false); // relay said no-browsers
+    expect(canvasLoopGate(() => true, () => false)()).toBe(false);
   });
 });
