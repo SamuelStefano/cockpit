@@ -58,6 +58,7 @@ afterEach(async () => {
 
 const TASK = '11111111-1111-4111-8111-111111111111';
 const DELIVERY = '22222222-2222-4222-8222-222222222222';
+const TASK2 = '44444444-4444-4444-8444-444444444444';
 
 function invoiceCmd(over: Record<string, unknown> = {}) {
   return {
@@ -96,10 +97,10 @@ describe('runWrite: validação antes de tocar a rede', () => {
 
 describe('invoice-create: totais e itens', () => {
   it('soma o total em centavos a partir dos pontos e do preço por ponto', async () => {
-    queue = [reply(200, []), reply(201, [{ id: 'inv-1' }]), reply(201, '')];
+    queue = [reply(200, []), reply(200, []), reply(201, [{ id: 'inv-1' }]), reply(201, '')];
     const r = await runWrite(invoiceCmd({ tasks: [
       { id: TASK, title: 'A', points: 2 },
-      { id: TASK, title: 'B', points: 3.5 },
+      { id: TASK2, title: 'B', points: 3.5 },
     ] }));
     expect(r.totalPoints).toBe(5.5);
     expect(r.totalAmountCents).toBe(41250); // (2 + 3,5) × 75 × 100
@@ -107,7 +108,7 @@ describe('invoice-create: totais e itens', () => {
   });
 
   it('cai no preço padrão de 75 quando pricePerPoint vem inválido', async () => {
-    queue = [reply(200, []), reply(201, [{ id: 'inv-2' }]), reply(201, '')];
+    queue = [reply(200, []), reply(200, []), reply(201, [{ id: 'inv-2' }]), reply(201, '')];
     const r = await runWrite(invoiceCmd({ pricePerPoint: 0 }));
     expect(r.totalAmountCents).toBe(15000); // 2 × 75 × 100
   });
@@ -117,11 +118,11 @@ describe('invoice-create: totais e itens', () => {
   // duas deliveries precisa estampar a de cada item — senão a outra volta a
   // parecer não faturada e é cobrada de novo.
   it('estampa a delivery de cada task, não a do comando', async () => {
-    queue = [reply(200, []), reply(201, [{ id: 'inv-3' }]), reply(201, '')];
+    queue = [reply(200, []), reply(200, []), reply(201, [{ id: 'inv-3' }]), reply(201, '')];
     const outra = '33333333-3333-4333-8333-333333333333';
     await runWrite(invoiceCmd({ tasks: [
       { id: TASK, title: 'A', points: 1, deliveryId: outra, deliveryName: 'Entrega B' },
-      { id: TASK, title: 'B', points: 1 },
+      { id: TASK2, title: 'B', points: 1 },
     ] }));
     const items = JSON.parse(calls.at(-1)!.body!) as Array<{ metadata: { delivery_id: string; delivery_name: string } }>;
     expect(items[0].metadata.delivery_id).toBe(outra);
@@ -131,15 +132,15 @@ describe('invoice-create: totais e itens', () => {
   });
 
   it('apaga as faturas rejeitadas do mesmo mês antes de inserir', async () => {
-    queue = [reply(200, [{ id: 'old' }]), reply(204, ''), reply(204, ''), reply(201, [{ id: 'inv-4' }]), reply(201, '')];
+    queue = [reply(200, []), reply(200, [{ id: 'old' }]), reply(204, ''), reply(204, ''), reply(201, [{ id: 'inv-4' }]), reply(201, '')];
     await runWrite(invoiceCmd());
-    expect(calls[1]).toMatchObject({ method: 'DELETE' });
-    expect(calls[1].url).toContain('invoice_items?invoice_id=in.(old)');
-    expect(calls[2].url).toContain('invoices?id=in.(old)');
+    expect(calls[2]).toMatchObject({ method: 'DELETE' });
+    expect(calls[2].url).toContain('invoice_items?invoice_id=in.(old)');
+    expect(calls[3].url).toContain('invoices?id=in.(old)');
   });
 
   it('falha explicitamente quando o INSERT não devolve id', async () => {
-    queue = [reply(200, []), reply(201, [])];
+    queue = [reply(200, []), reply(200, []), reply(201, [])];
     await expect(runWrite(invoiceCmd())).rejects.toThrow('INSERT invoice não retornou id');
   });
 });
@@ -148,9 +149,53 @@ describe('invoice-create: totais e itens', () => {
 // refazia tudo desde o começo — e como a fatura da 1ª tentativa nasce 'submitted'
 // (o dedupe só apaga 'rejected'), sobravam DUAS faturas do mesmo mês, a primeira
 // sem itens. Agora o refresh repete só a requisição que levou 401.
+describe('invoice-create: never bills a task twice', () => {
+  it('refuses when a task already sits on a live invoice', async () => {
+    queue = [
+      reply(200, [{ invoice_id: 'inv-old', source_id: TASK }]),
+      reply(200, [{ id: 'inv-old', status: 'submitted' }]),
+    ];
+    await expect(runWrite(invoiceCmd())).rejects.toThrow('já estão numa fatura submitted');
+    expect(calls.filter((c) => c.method !== 'GET')).toHaveLength(0);
+  });
+
+  it('allows it again when the only invoice was rejected', async () => {
+    queue = [
+      reply(200, [{ invoice_id: 'inv-rej', source_id: TASK }]),
+      reply(200, []),                 // no non-rejected invoice among them
+      reply(200, []),                 // select rejected (same month)
+      reply(201, [{ id: 'inv-6' }]),
+      reply(201, ''),
+    ];
+    const r = await runWrite(invoiceCmd());
+    expect(r.invoiceId).toBe('inv-6');
+  });
+
+  it('refuses the same task twice in one selection', async () => {
+    await expect(runWrite(invoiceCmd({ tasks: [
+      { id: TASK, title: 'A', points: 1 }, { id: TASK, title: 'A', points: 1 },
+    ] }))).rejects.toThrow('task repetida');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('removes the invoice when inserting its items fails', async () => {
+    queue = [
+      reply(200, []), reply(200, []),
+      reply(201, [{ id: 'inv-7' }]),
+      reply(500, 'boom'),             // items insert fails
+      reply(204, ''), reply(204, ''), // rollback deletes
+    ];
+    await expect(runWrite(invoiceCmd())).rejects.toThrow('PostgREST 500');
+    const deletes = calls.filter((c) => c.method === 'DELETE').map((c) => c.url);
+    expect(deletes[0]).toContain('invoice_items?invoice_id=eq.inv-7');
+    expect(deletes[1]).toContain('invoices?id=eq.inv-7');
+  });
+});
+
 describe('invoice-create: 401 no meio da sequência', () => {
   it('repete só a requisição que falhou, sem inserir a fatura de novo', async () => {
     queue = [
+      reply(200, []),               // already-invoiced guard
       reply(200, []),               // select rejected
       reply(201, [{ id: 'inv-5' }]), // INSERT invoices
       reply(401, 'jwt expired'),     // INSERT invoice_items → 401
@@ -161,7 +206,7 @@ describe('invoice-create: 401 no meio da sequência', () => {
     expect(refreshed.count).toBe(1);
     const inserts = calls.filter((c) => c.method === 'POST' && c.url.includes('/invoices'));
     expect(inserts).toHaveLength(1);
-    const itemInserts = calls.filter((c) => c.url.includes('/invoice_items'));
+    const itemInserts = calls.filter((c) => c.method === 'POST' && c.url.includes('/invoice_items'));
     expect(itemInserts).toHaveLength(2);
   });
 

@@ -125,6 +125,8 @@ interface InvoiceCreateCmd {
   tasks: InvoiceTaskInput[];
 }
 
+const PG_TIMEOUT_MS = 20_000;
+
 async function pgFetch(path: string, init: RequestInit & { schema: string }): Promise<unknown> {
   const { schema, ...rest } = init;
   const method = (rest.method ?? 'GET').toUpperCase();
@@ -133,6 +135,9 @@ async function pgFetch(path: string, init: RequestInit & { schema: string }): Pr
     url: `${creds.url}/rest/v1/${path}`,
     init: {
       ...rest,
+      // The runner kills this process at 60s. A hung request must fail first,
+      // or the kill lands between two writes of the invoice sequence.
+      signal: AbortSignal.timeout(PG_TIMEOUT_MS),
       headers: {
         apikey: creds.anonKey, Authorization: `Bearer ${creds.token}`,
         'Content-Type': 'application/json', Accept: 'application/json',
@@ -145,10 +150,27 @@ async function pgFetch(path: string, init: RequestInit & { schema: string }): Pr
   return txt ? JSON.parse(txt) : null;
 }
 
+async function assertNotInvoiced(taskIds: string[]): Promise<void> {
+  if (taskIds.length === 0) return;
+  const items = await pgFetch(
+    `invoice_items?source_type=eq.task&source_id=in.(${taskIds.join(',')})&select=invoice_id,source_id`,
+    { schema: 'payments' }) as { invoice_id: string; source_id: string }[] | null;
+  const invoiceIds = [...new Set((items ?? []).map((i) => i.invoice_id))];
+  if (invoiceIds.length === 0) return;
+  const live = await pgFetch(
+    `invoices?id=in.(${invoiceIds.join(',')})&status=neq.rejected&select=id,status`,
+    { schema: 'payments' }) as { id: string; status: string }[] | null;
+  if (!live?.length) return;
+  const liveIds = new Set(live.map((i) => i.id));
+  const billed = new Set((items ?? []).filter((i) => liveIds.has(i.invoice_id)).map((i) => i.source_id));
+  throw new Error(`${billed.size} task(s) já estão numa fatura ${live.map((i) => i.status).join('/')} — não faturo de novo`);
+}
+
 async function createInvoice(cmd: InvoiceCreateCmd): Promise<Record<string, unknown>> {
   if (!/^\d{4}-\d{2}$/.test(cmd.referenceMonth)) throw new Error('referenceMonth inválido (esperado YYYY-MM)');
   const tasks = cmd.tasks.filter((t) => Number.isFinite(t.points) && t.points > 0);
   if (tasks.length === 0) throw new Error('nenhuma task faturável (points > 0) na seleção');
+  if (new Set(tasks.map((t) => t.id)).size !== tasks.length) throw new Error('task repetida na seleção');
   const ppp = Number.isFinite(cmd.pricePerPoint) && cmd.pricePerPoint > 0 ? cmd.pricePerPoint : 75;
   const toCents = (v: number) => Math.round(v * 100);
   const totalPoints = tasks.reduce((s, t) => s + t.points, 0);
@@ -158,6 +180,11 @@ async function createInvoice(cmd: InvoiceCreateCmd): Promise<Record<string, unkn
   const title = `Invoice ${['Samuel', cmd.projectName, cmd.deliveryName].filter(Boolean).join(' ')} - ${mm}${yy.slice(-2)}`;
   const projectId = cmd.projectId && uuidRe.test(cmd.projectId) ? cmd.projectId : null;
   const deliveryId = uuidRe.test(cmd.deliveryId) ? cmd.deliveryId : null;
+
+  // A done task on a submitted/approved/payment_requested invoice still folds as
+  // `open` on /pontos, and the tab-local guard (#582) is gone after a reload. The
+  // server is the only place that sees every invoice, so it refuses here.
+  await assertNotInvoiced(tasks.map((t) => t.id).filter((id) => uuidRe.test(id)));
 
   // dedupe faturas 'rejected' do mesmo fellow/mês/org (igual ao app)
   const rejected = await pgFetch(
@@ -190,7 +217,15 @@ async function createInvoice(cmd: InvoiceCreateCmd): Promise<Record<string, unkn
     },
     created_at: now,
   }));
-  await pgFetch('invoice_items', { schema: 'payments', method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(items) });
+  try {
+    await pgFetch('invoice_items', { schema: 'payments', method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(items) });
+  } catch (e) {
+    // Without items the invoice is a submitted shell whose total matches nothing,
+    // and a retry would add a second one for the same month. Remove it.
+    await pgFetch(`invoice_items?invoice_id=eq.${invoiceId}`, { schema: 'payments', method: 'DELETE' }).catch(() => {});
+    await pgFetch(`invoices?id=eq.${invoiceId}`, { schema: 'payments', method: 'DELETE' }).catch(() => {});
+    throw e;
+  }
 
   return { invoiceId, totalPoints, totalAmountCents, referenceMonth: cmd.referenceMonth, deliveryName: cmd.deliveryName };
 }
