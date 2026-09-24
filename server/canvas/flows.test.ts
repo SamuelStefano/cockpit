@@ -96,7 +96,7 @@ beforeEach(() => {
   for (const m of [
     startRunMock, isDrainerEnabledMock, resolveThreadKeyMock, addParkedMock, removeParkedMock, enqueuePendingMock, resumableIdMock,
     broadcastMock, emitCanvasMsgMock, listContextsMock, listSessionsMock, listArchivedMock, cardIdFromRefsCacheMock,
-    blockedAreaForMock, runParkedInBackgroundMock, hasInteractiveClaudeMock,
+    blockedAreaForMock, runParkedInBackgroundMock, hasInteractiveClaudeMock, busyElsewhereMock, orchestratorPaneTargetMock,
   ]) m.mockClear();
   isDrainerEnabledMock.mockReturnValue(false);
   resumableIdMock.mockImplementation((id?: string) => id);
@@ -105,6 +105,8 @@ beforeEach(() => {
   blockedAreaForMock.mockReturnValue(undefined);
   runParkedInBackgroundMock.mockReturnValue({ forkId: 'fork-1' });
   hasInteractiveClaudeMock.mockResolvedValue(false);
+  busyElsewhereMock.mockResolvedValue([]);
+  orchestratorPaneTargetMock.mockReturnValue(undefined);
 });
 
 // --- pure functions -----------------------------------------------------------
@@ -410,9 +412,6 @@ describe('deliverToCard reuse modes (#597 continue/fork)', () => {
     expect(runParkedInBackgroundMock).not.toHaveBeenCalled();
     // No turn-closed will ever fire for a pane delivery: the card is left as it was.
     expect((await updateBoard((b) => b)).cards.find((c) => c.id === 'card1')?.status).toBe('todo');
-    orchestratorPaneTargetMock.mockReturnValue(undefined);
-    hasInteractiveClaudeMock.mockResolvedValue(false);
-    busyElsewhereMock.mockResolvedValue([]);
   });
 
   it('continue, target idle: sends into the existing session (startRun), never spawns a new one or parks a fork', async () => {
