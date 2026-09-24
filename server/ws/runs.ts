@@ -278,7 +278,10 @@ export function drainParked(): void {
     // queue-force) destrava.
     if (isAwaiting(sessionKey)) continue;
     if (resolveThreadKey(sessionKey)) continue; // turno rodando: um por vez
-    if (busyElsewhere.has(first.resumeId ?? sessionKey)) continue; // rodando no outro processo
+    // Busy in the other process, unless it is the Orchestrator's own session: that
+    // is an interactive claude (always "busy" in the registry while it works) and
+    // its queue items are pasted into its pane, never run headless.
+    if (busyElsewhere.has(first.resumeId ?? sessionKey) && !orchestratorPaneTarget(first.resumeId ?? sessionKey, first.role)) continue;
     // Área do canvas estourou o orçamento (autopause ligado): não readmite trabalho
     // DESACOMPANHADO ali — senão o item sobe, autopause para de novo em ~30s, e o
     // dreno tenta de novo no próximo tick (stop→drain→stop). O chat manual do

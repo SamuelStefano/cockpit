@@ -13,8 +13,10 @@ process.env.COCKPIT_AWAITING = join(dir, 'awaiting.json');
 const S = '6ef8f243-a5aa-4082-bb40-29b66e7fa756';
 const liveness = vi.hoisted(() => ({ readBusyElsewhereSessionIds: vi.fn(async () => [] as string[]) }));
 vi.mock('../canvas/cv-liveness', () => liveness);
-vi.mock('../canvas/orchestrator', () => ({ readOrchestratorSync: () => undefined, isTmuxAliveSync: () => false }));
-vi.mock('../terminals', () => ({ hasTerm: vi.fn(), openTerm: vi.fn(), inputTerm: vi.fn() }));
+const orch = vi.hoisted(() => ({ info: undefined as { name: string; sessionId: string; tmux: string } | undefined }));
+vi.mock('../canvas/orchestrator', () => ({ readOrchestratorSync: () => orch.info, isTmuxAliveSync: () => true, paneLostClaudeSync: () => false }));
+const terms = vi.hoisted(() => ({ hasTerm: vi.fn(() => true), openTerm: vi.fn(() => true), inputTerm: vi.fn() }));
+vi.mock('../terminals', () => terms);
 vi.mock('../db', () => ({ lastUsageOf: () => null }));
 vi.mock('../engine/claude', () => ({
   run: vi.fn(() => ({ kill: vi.fn(), send: vi.fn(() => false) })),
@@ -57,5 +59,16 @@ describe('queue drainer and the other backend', () => {
     addParked(S, { prompt: 'next', role: 'admin', resumeId: S });
     drainParked();
     expect(run).toHaveBeenCalledOnce();
+  });
+
+  it("still pastes into the Orchestrator's pane: its interactive claude always reads as busy", async () => {
+    orch.info = { name: 'Orchestrator', sessionId: S, tmux: 'cockpit-cv-orch' };
+    liveness.readBusyElsewhereSessionIds.mockResolvedValueOnce([S]);
+    await refreshBusyElsewhere();
+    addParked(S, { prompt: 'para o orchestrator', role: 'admin', resumeId: S });
+    drainParked();
+    expect(terms.inputTerm).toHaveBeenCalledOnce();
+    expect(run).not.toHaveBeenCalled();
+    orch.info = undefined;
   });
 });
