@@ -6,7 +6,7 @@ import type { TermApi } from '../../useCockpit';
 import { OrchestratorActivityPanel } from './OrchestratorActivityPanel';
 import { OrchestratorChatInput } from './OrchestratorChatInput';
 import { buildPastedSend } from './orchestrator-chat-history';
-import { orchestratorRunning } from './orchestrator-dock';
+import { cpuLabel } from './orchestrator-dock';
 import { orchestratorTermId } from './orchestrator';
 import { useOrchestratorActivityPoll } from './useOrchestratorActivityPoll';
 import type { OrchestratorDock as DockState } from './useOrchestratorDock';
@@ -18,6 +18,11 @@ interface Props {
   dock: DockState;
   term: TermApi;
   stats?: TermStats;
+  // From r.orchestratorItem?.running (Canvas.tsx) — the SAME running∪cv-live
+  // read the kanban pins above its columns, never the dock's own CPU sample
+  // (review item 7: the two disagreed whenever the process waited on the API
+  // or idled hot). CPU is still shown, just as a secondary figure below.
+  live: boolean;
   activity: OrchestratorActivity | null;
   onActivityGet: () => void;
   onOpenShell: (termId: string) => void;
@@ -26,9 +31,9 @@ interface Props {
 // The Orchestrator docked into a right sidebar: same live tmux pane the
 // floating window would show (reused, not a second terminal stack), plus a
 // composer that types straight into that pane.
-export function OrchestratorDock({ orchestrator, dock, term, stats, activity, onActivityGet, onOpenShell }: Props) {
+export function OrchestratorDock({ orchestrator, dock, term, stats, live, activity, onActivityGet, onOpenShell }: Props) {
   const termId = orchestratorTermId(orchestrator);
-  const running = orchestratorRunning(stats);
+  const cpu = cpuLabel(stats);
   const sheet = dock.mobile;
   const [activityOpen, setActivityOpen] = usePersisted('canvas.orchestratorActivityOpen', false);
   useOrchestratorActivityPoll(activityOpen, onActivityGet);
@@ -53,7 +58,8 @@ export function OrchestratorDock({ orchestrator, dock, term, stats, activity, on
       <header className="flex h-10 shrink-0 items-center gap-2 border-b border-fuchsia-500/30 bg-fuchsia-500/10 pl-3 pr-1.5">
         <Icon name="command" size={13} className="text-fuchsia-400" />
         <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-neutral-200">Orchestrator</span>
-        <Badge tone={running ? 'green' : 'neutral'}>{running ? 'rodando' : 'ocioso'}</Badge>
+        {cpu && <span className="font-mono text-[10px] text-neutral-500">{cpu}</span>}
+        <Badge tone={live ? 'green' : 'neutral'} dot={live}>{live ? 'rodando' : 'ocioso'}</Badge>
         <Button variant="ghost" size="sm" square icon="x" title="fechar (Ctrl+.)" onClick={() => dock.setOpen(false)} />
       </header>
       <OrchestratorActivityPanel activity={activity} open={activityOpen} onToggle={() => setActivityOpen((o) => !o)} onOpenShell={onOpenShell} />

@@ -67,6 +67,9 @@ export function PrimitivesGallery() {
           <Badge tone="yellow">aviso</Badge>
           <Badge tone="purple">orchestrator</Badge>
         </Row>
+        <Row label="clicável">
+          <Badge tone="green" dot onClick={() => toast('foco no primeiro item')}>2 rodando</Badge>
+        </Row>
       </Section>
 
       <Section title="Toast">

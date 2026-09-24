@@ -2,15 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { sessionNodeId, shellNodeId, watchTermId, type CanvasFlow } from '../../shared/canvas';
 import { Button, EmptyState } from '../components/primitives';
 import { usePersisted } from '../lib/persist';
-import { countHotContext, countWaiting } from './canvas/canvas-alerts';
+import { countHotContext, summarizeStatus } from './canvas/canvas-alerts';
 import { neighbors } from './canvas/canvas-filter';
 import { newFlowId } from './canvas/canvas-board';
 import { isOrchestratorNode, orchestratorTermId } from './canvas/orchestrator';
 import { OrchestratorDock } from './canvas/OrchestratorDock';
 import { useOrchestratorDock } from './canvas/useOrchestratorDock';
 import { AreaBudgetEditor } from './canvas/AreaBudgetEditor';
-import { pastAliveIds, pastExecIds } from './canvas/canvas-timeline';
-import { bounds, layoutCanvas } from './canvas/canvas-layout';
 import { CanvasChain } from './canvas/CanvasChain';
 import { CanvasFilters } from './canvas/CanvasFilters';
 import { CanvasHud } from './canvas/CanvasHud';
@@ -25,16 +23,24 @@ import { KanbanDock } from './canvas/KanbanDock';
 import { CanvasAnalysis } from './canvas/CanvasAnalysis';
 import { useDflPontos } from './pontos/useDflPontos';
 import { useCardTerminalAutoOpen } from './canvas/useCardTerminalAutoOpen';
+import { useCanvasPastView } from './canvas/useCanvasPastView';
+import { useKanbanCtxPoll } from './canvas/useKanbanCtxPoll';
 import { useTermStatsPoll } from './canvas/useTermStatsPoll';
-import { useTimeline } from './canvas/useTimeline';
 import { TerminalMaximized } from './canvas/TerminalMaximized';
 import { useCanvasRoute, type CanvasRouteProps } from './canvas/useCanvasRoute';
-import { MAX_OPEN_TERMS, placeWindows } from './canvas/canvas-terms';
+import { MAX_OPEN_TERMS, pickRecentSessions } from './canvas/canvas-terms';
 import { termTarget, useCanvasTerms } from './canvas/useCanvasTerms';
 
 export function Canvas(p: CanvasRouteProps) {
   const terms = useCanvasTerms(p.term, p.discoveredTerms, p.listTerms, p.graph?.orchestrator?.sessionId);
   const r = useCanvasRoute(p, terms.open, terms.shells);
+  // Sessions live in a `cockpit-cv-*` tmux shell right now (#617/#618) — same
+  // raw source useCanvasRoute.ts itself folds into its own status derivation,
+  // rebuilt here because that hook doesn't expose the Set on its return value.
+  // Feeds TerminalWindow's "ao vivo/fantasma" badge (via CanvasSurface below)
+  // and the "sessões" quick-open ranking, so both read cv-shell workers as
+  // live too, not just p.running.
+  const cvLive = useMemo(() => new Set(p.cvLiveSessionIds), [p.cvLiveSessionIds]);
   // Fetches the DFL snapshot CardEditor's link picker needs; the server push
   // (dfl-points-watch.ts) keeps it fresh afterwards, same as /pontos.
   useDflPontos({ connected: p.connected, onDflGet: p.onDflGet });
@@ -91,73 +97,9 @@ export function Canvas(p: CanvasRouteProps) {
   const deleteFlow = useCallback((id: string) => { p.onCanvasFlowDelete(id); setFlowEdit(null); }, [p]);
   const clearAll = useCallback(() => { clearSelection(); blur(); }, [clearSelection, blur]);
 
-  const timeline = useTimeline();
-  // Exec scope seeds off "alive right NOW" (canvas-filter.ts) — scrubbing the
-  // timeline back doesn't reseed it, so a session alive at T but idle right
-  // now was never in r.visible to begin with, dimmed or not. While the
-  // timeline isn't live AND the scope is exec, rebuild the node/edge set from
-  // "alive at T" instead (pastExecIds, over the FULL graph — r.merged — not
-  // the already-narrowed r.visible; same automation/archived filters the live
-  // exec scope already applies), falling back to the normal exec set the
-  // moment "agora" brings the timeline back live.
-  const pastExecNodeIds = useMemo(
-    () => (r.scope === 'exec' && !timeline.live
-      ? pastExecIds(r.merged.nodes, r.merged.edges, timeline.t, p.runStart, { showAutomation: r.showAutomation, archived: r.archived, running: p.running })
-      : null),
-    [r.scope, timeline.live, timeline.t, r.merged.nodes, r.merged.edges, p.runStart, r.showAutomation, r.archived, p.running],
-  );
-  const pastNodesUnfiltered = useMemo(
-    () => (pastExecNodeIds ? r.merged.nodes.filter((n) => pastExecNodeIds.has(n.id)) : r.visible.nodes),
-    [pastExecNodeIds, r.merged.nodes, r.visible.nodes],
-  );
-  const pastEdgesUnfiltered = useMemo(
-    () => (pastExecNodeIds ? r.merged.edges.filter((e) => pastExecNodeIds.has(e.source) && pastExecNodeIds.has(e.target)) : r.visible.edges),
-    [pastExecNodeIds, r.merged.edges, r.visible.edges],
-  );
-  // Docked: the orchestrator's node is dropped from the map entirely (not just
-  // from the window set) — it lives in the sidebar now, so it must not also
-  // show up as a plain card. Edges pointing at it would otherwise dangle.
-  const pastNodes = useMemo(
-    () => (dockedNodeId ? pastNodesUnfiltered.filter((n) => n.id !== dockedNodeId) : pastNodesUnfiltered),
-    [dockedNodeId, pastNodesUnfiltered],
-  );
-  const pastEdges = useMemo(
-    () => (dockedNodeId ? pastEdgesUnfiltered.filter((e) => e.source !== dockedNodeId && e.target !== dockedNodeId) : pastEdgesUnfiltered),
-    [dockedNodeId, pastEdgesUnfiltered],
-  );
-  const pastWindows = useMemo(
-    () => (pastExecNodeIds ? [...r.windows].filter((id) => pastExecNodeIds.has(id)) : [...r.windows]),
-    [pastExecNodeIds, r.windows],
-  );
-  // Laid out ONCE over the WHOLE merged graph, independent of the scrub
-  // position — a full layoutCanvas repack every playback tick (200ms) or
-  // scrub both wasted CPU and made a node's spot jump around as the alive-at-T
-  // set changed under it. Only WHICH ids are shown changes per tick now;
-  // where they'd sit if shown never does. Gated on `pastViewActive` (a stable
-  // boolean, unlike pastExecNodeIds' own Set which is a fresh reference every
-  // tick) so it's null — and layoutCanvas never runs — for the normal, far
-  // more common live view: a board.pos change from a plain drag would
-  // otherwise rerun this on EVERY drag frame even with the past view off.
-  const pastViewActive = r.scope === 'exec' && !timeline.live;
-  const pastLayoutPos = useMemo(
-    () => (pastViewActive ? layoutCanvas(r.merged.nodes, r.merged.edges, p.board.pos) : null),
-    [pastViewActive, r.merged, p.board.pos],
-  );
-  const pastPos = useMemo(() => {
-    if (!pastExecNodeIds || !pastLayoutPos) return r.pos;
-    const picked: typeof pastLayoutPos = {};
-    for (const id of pastExecNodeIds) if (pastLayoutPos[id]) picked[id] = pastLayoutPos[id];
-    return placeWindows(picked, p.board.pos, pastWindows);
-  }, [pastExecNodeIds, pastLayoutPos, p.board.pos, pastWindows, r.pos]);
-  const pastBounds = useMemo(
-    () => (pastExecNodeIds ? bounds(Object.values(pastPos)) : r.worldBounds),
-    [pastExecNodeIds, pastPos, r.worldBounds],
-  );
-  // null while live means "nothing extra to dim".
-  const pastAlive = useMemo(
-    () => (timeline.live ? null : pastAliveIds(pastNodes, pastEdges, timeline.t, p.runStart)),
-    [timeline.live, timeline.t, pastNodes, pastEdges, p.runStart],
-  );
+  // Timeline scrub + the "alive at T" node/edge/pos rebuild it drives while
+  // scrubbed off "agora" — see useCanvasPastView's own doc for the WHY.
+  const { timeline, pastNodes, pastEdges, pastPos, pastBounds, pastAlive } = useCanvasPastView(r, p, dockedNodeId);
   // Live sessions show up as terminals on their own; ghosts wait for a click.
   const { autoOpen } = terms;
   useEffect(() => {
@@ -189,8 +131,13 @@ export function Canvas(p: CanvasRouteProps) {
     setCenter((c) => ({ id, n: (c?.n ?? 0) + 1 }));
   }, [openWindow, orchestratorSessionNodeId, setDockOpenFromTerm]);
 
+  // Running-or-cv-live first, then waiting, then hot-context, then most
+  // recent (pickRecentSessions, canvas-terms.ts) — replaces the old
+  // mtime-only sort, which opened whatever was merely last touched over a
+  // session that's actually running in a cv shell right now.
+  const runningOrCvLive = useMemo(() => new Set([...p.running, ...cvLive]), [p.running, cvLive]);
   const openRecent = () => terms.openMany(
-    r.visible.nodes.filter((n) => n.kind === 'session').sort((a, b) => a.mtime - b.mtime).slice(-MAX_OPEN_TERMS).map((n) => n.id),
+    pickRecentSessions(r.visible.nodes.filter((n) => n.kind === 'session'), runningOrCvLive, r.waiting, p.termStats, MAX_OPEN_TERMS),
   );
 
   // A card's run becomes a real (marker-bound) session sometime after the turn
@@ -209,7 +156,6 @@ export function Canvas(p: CanvasRouteProps) {
 
   const sessionsN = r.visible.nodes.filter((n) => n.kind === 'session').length;
   const contextsN = r.visible.nodes.filter((n) => n.kind === 'context').length;
-  const waitingN = countWaiting(r.visible.nodes, r.waiting);
   const hotContextN = countHotContext(windowNodes, p.termStats);
   const conflictsN = r.visible.edges.filter((e) => e.kind === 'conflict').length;
   const maxNode = terms.maximized ? r.byId.get(terms.maximized) : undefined;
@@ -219,6 +165,33 @@ export function Canvas(p: CanvasRouteProps) {
     const n = r.byId.get(`s:${sessionId}`);
     return n ? { title: n.title, subtitle: n.subtitle } : undefined;
   }, [r.byId]);
+
+  // "Who needs me" (review item 1): one derived summary over every session
+  // item PLUS the pinned orchestrator item — the orchestrator's own turn
+  // counts as "rodando" here even though deriveSessionItems always excludes
+  // it from the plain list (Kanban.tsx pins it separately above the columns).
+  const statusItems = useMemo(
+    () => (r.orchestratorItem ? [...r.sessionItems, r.orchestratorItem] : r.sessionItems),
+    [r.sessionItems, r.orchestratorItem],
+  );
+  const statusSummary = useMemo(() => summarizeStatus(statusItems, Date.now()), [statusItems]);
+  // Shared by the status line's chips and the HUD roster's own rows: the
+  // orchestrator's node is hidden from the map while docked (dockedNodeId
+  // above), so focusing it there would silently do nothing — open the dock
+  // instead of trying to center a node that was never rendered.
+  const focusOrOpenDock = useCallback((nodeId: string) => {
+    if (nodeId === orchestratorSessionNodeId) { setDockOpenFromTerm(true); return; }
+    focusNode(nodeId);
+  }, [orchestratorSessionNodeId, setDockOpenFromTerm, focusNode]);
+
+  // The kanban's ctx% (review item 8): keeps termStats fresh for whatever the
+  // kanban actually shows (triaged, ≤40 ids), while it's the visible mode or
+  // the bottom dock is open — never while neither is true.
+  const ctxPollItems = useMemo(
+    () => r.sessionItems.filter((i) => !r.hiddenSessionIdSet.has(i.sessionId)),
+    [r.sessionItems, r.hiddenSessionIdSet],
+  );
+  useKanbanCtxPoll(ctxPollItems, r.mode === 'kanban' || dockOpen, p.onCanvasCtxStats);
 
   const kanban = (
     <Kanban
@@ -245,14 +218,20 @@ export function Canvas(p: CanvasRouteProps) {
           onNewCard={() => r.newDraft('task', r.selectedNodes)}
           counts={{
             sessions: sessionsN, contexts: contextsN, terminals: r.windows.size, cards: p.board.cards.length,
-            waiting: waitingN, hotContext: hotContextN, conflicts: conflictsN,
+            hotContext: hotContextN, conflicts: conflictsN,
           }}
           areaCounts={r.areaCounts} areaFilter={r.areaFilter} onAreaFilter={r.setAreaFilter}
+          statusSummary={statusSummary} onFocusStatusItem={focusOrOpenDock}
         />
         {!p.connected ? (
           <EmptyState icon="circle" title="Desconectado" description="Reconecte pra montar o canvas." />
         ) : r.mode === 'kanban' ? (
-          <div className="flex min-h-0 flex-1 flex-col">{kanban}</div>
+          <div className="flex min-h-0 flex-1 flex-col">
+            {/* Same gate the map/chain views already have (review item 12c) —
+                without it, kanban rendered with an empty graph for the whole
+                first build: four "nada por aqui" columns and a 0 0 0 0 strip. */}
+            {!p.graph ? <CanvasLoadingState loadingSince={p.loadingSince} stale={p.stale} onRetry={p.onCanvasGet} /> : kanban}
+          </div>
         ) : r.mode === 'chain' ? (
           !p.graph ? (
             <CanvasLoadingState loadingSince={p.loadingSince} stale={p.stale} onRetry={p.onCanvasGet} />
@@ -272,7 +251,7 @@ export function Canvas(p: CanvasRouteProps) {
                 nodes={pastNodes} edges={pastEdges} pos={pastPos} bounds={pastBounds} initialBounds={r.coreBounds}
                 selected={r.selected} running={p.running} waiting={r.waiting} centerRequest={center}
                 onSelect={r.select} onClear={clearAll} onDrop={r.onDrop} onResetLayout={p.onCanvasPosReset}
-                windows={r.windows} terms={terms} term={p.term} onOpenTerm={openTerm} onOpenChat={p.onOpenSession} onOpenRecent={openRecent}
+                windows={r.windows} terms={terms} term={p.term} onOpenTerm={openTerm} onOpenChat={p.onOpenSession} onOpenRecent={openRecent} cvLive={cvLive}
                 onSendTo={p.onSendTo} sendError={p.canvasSendError} onDismissSendError={p.dismissCanvasSendError}
                 stats={p.termStats} analysisOn={analysisOn} onToggleAnalysis={() => setAnalysisOn(!analysisOn)}
                 flows={p.board.flows} flowFired={p.canvasFlowFired} onFlowCreate={openFlowDraft} onFlowClick={editFlow}
@@ -280,7 +259,7 @@ export function Canvas(p: CanvasRouteProps) {
                 pastAlive={pastAlive} timelinePlaying={timeline.playing} orchestrator={p.graph.orchestrator}
                 onFocusOrchestrator={onFocusOrchestrator} dockOpen={orchDock.open} onToggleDock={orchestrator ? orchDock.toggle : undefined}
               >
-                <CanvasHud sessions={p.sessions} running={p.running} onPick={(id) => focusNode(`s:${id}`)} />
+                <CanvasHud items={statusItems} onPick={focusOrOpenDock} />
                 {r.selectedNodes.length > 0 && (
                   <CanvasInspector
                     nodes={r.selectedNodes} linked={linked} node={node} card={card} running={p.running} waiting={r.waiting}
@@ -330,6 +309,7 @@ export function Canvas(p: CanvasRouteProps) {
       {orchestrator && orchDock.open && (
         <OrchestratorDock
           orchestrator={orchestrator} dock={orchDock} term={p.term} stats={p.termStats[orchestratorTermId(orchestrator)]}
+          live={r.orchestratorItem?.running ?? false}
           activity={p.orchestratorActivity} onActivityGet={p.onOrchestratorActivityGet}
           onOpenShell={(termId) => openTerm(shellNodeId(termId))}
         />

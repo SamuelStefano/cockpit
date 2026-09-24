@@ -1,5 +1,6 @@
-import type { CanvasNode, TermStats } from '../../../shared/canvas';
+import { isCronPing, type CanvasNode, type TermStats } from '../../../shared/canvas';
 import { ctxPct } from './term-stats-view';
+import { KANBAN_STALE_MS, type SessionKanbanItem } from './kanban-items';
 
 // Two alert states can put a pulsing border on a session's window/node: waiting
 // on the user (AskUserQuestion pending) or a context window past the danger
@@ -30,4 +31,53 @@ export function countWaiting(nodes: CanvasNode[], waiting: Set<string>): number 
 
 export function countHotContext(nodes: CanvasNode[], stats: Record<string, TermStats>): number {
   return nodes.filter((n) => n.kind === 'session' && sessionAlert(false, stats[n.ref]) === 'context').length;
+}
+
+// "Who needs me" (TL feedback, 2026-09-24): a single first row above the
+// kanban/map/chain switch that answers it in one glance, instead of three
+// mismatched numbers (inventory badge, HUD's `p.running`-only count, kanban
+// strip's unscoped total). One count per chip, mutually exclusive — mirrors
+// deriveSessionStatus's own precedence (kanban-items.ts): running beats
+// waiting beats a crashed-idle session beats one that just closed cleanly.
+export interface StatusChip {
+  count: number;
+  // First matching item's node id, for the chip's click-to-focus — undefined
+  // when count is 0 (nothing to focus).
+  firstNodeId?: string;
+}
+
+export interface StatusSummary {
+  running: StatusChip;
+  waiting: StatusChip;
+  errored: StatusChip;
+  doneRecent: StatusChip;
+}
+
+// Cron reset-pings (isCronPing) never count here even when "mostrar
+// automações" is on — deriveSessionItems only drops them for that toggle's
+// OWN purpose (decluttering the map/kanban), but this status line is meant to
+// read like the sidebar always does: those sessions are noise, never a thing
+// Samuel needs to look at.
+export function summarizeStatus(items: SessionKanbanItem[], now: number): StatusSummary {
+  const running: StatusChip = { count: 0 };
+  const waiting: StatusChip = { count: 0 };
+  const errored: StatusChip = { count: 0 };
+  const doneRecent: StatusChip = { count: 0 };
+  for (const item of items) {
+    if (isCronPing({ title: item.title, snippet: item.subtitle })) continue;
+    if (item.running) {
+      running.count += 1;
+      running.firstNodeId ??= item.nodeId;
+    } else if (item.waitingOnUser) {
+      waiting.count += 1;
+      waiting.firstNodeId ??= item.nodeId;
+    } else if (item.needsAttention) {
+      errored.count += 1;
+      errored.firstNodeId ??= item.nodeId;
+    } else if (item.status === 'review' && now - item.mtime < KANBAN_STALE_MS) {
+      doneRecent.count += 1;
+      doneRecent.firstNodeId ??= item.nodeId;
+    }
+  }
+  return { running, waiting, errored, doneRecent };
 }
