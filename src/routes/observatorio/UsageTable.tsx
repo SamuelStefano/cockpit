@@ -20,18 +20,6 @@ export function UsageTable({ rows, known, titleOf, onOpenSession }: UsageTablePr
   const toggle = (key: UsageSortKey) =>
     setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'desc' }));
 
-  const SortHead = ({ label, sortKey, align = 'left' }: { label: ReactNode; sortKey: UsageSortKey; align?: 'left' | 'right' }) => (
-    <th className={`px-2 py-2 font-medium sm:px-3 ${align === 'right' ? 'text-right' : ''}`}>
-      <button
-        onClick={() => toggle(sortKey)}
-        className={`inline-flex items-center gap-1 uppercase tracking-wider transition-colors hover:text-neutral-300 ${sort.key === sortKey ? 'text-neutral-300' : ''}`}
-      >
-        {label}
-        <Icon name={sort.key === sortKey ? (sort.dir === 'asc' ? 'chevronUp' : 'chevronDown') : 'chevronDown'} size={11} className={sort.key === sortKey ? 'text-orange-400' : 'text-neutral-700'} />
-      </button>
-    </th>
-  );
-
   return (
     <div className="overflow-hidden rounded-xl border border-neutral-800 hairline">
       <table className="w-full text-[12.5px]">
@@ -39,10 +27,10 @@ export function UsageTable({ rows, known, titleOf, onOpenSession }: UsageTablePr
           <tr className="border-b border-neutral-800 bg-neutral-900/40 text-left text-[11px] uppercase tracking-wider text-neutral-500">
             <th className="px-2 py-2 font-medium sm:px-3">sessão</th>
             <th className="hidden px-3 py-2 font-medium md:table-cell">contexto</th>
-            <SortHead label="saída" sortKey="output" />
-            <SortHead label="custo" sortKey="cost" />
+            <SortHead label="saída" sortKey="output" sort={sort} onToggle={toggle} />
+            <SortHead label="custo" sortKey="cost" sort={sort} onToggle={toggle} />
             <th className="hidden px-3 py-2 font-medium lg:table-cell">amostras</th>
-            <SortHead label="visto" sortKey="seen" align="right" />
+            <SortHead label="visto" sortKey="seen" align="right" sort={sort} onToggle={toggle} />
           </tr>
         </thead>
         <tbody>
@@ -59,5 +47,26 @@ export function UsageTable({ rows, known, titleOf, onOpenSession }: UsageTablePr
         </tbody>
       </table>
     </div>
+  );
+}
+
+// Module-level, not declared inside UsageTable: a component type created per
+// render made React unmount and remount the header buttons on every sort click,
+// dropping keyboard focus after Enter/Space.
+function SortHead({ label, sortKey, align = 'left', sort, onToggle }: {
+  label: ReactNode; sortKey: UsageSortKey; align?: 'left' | 'right';
+  sort: { key: UsageSortKey; dir: SortDir }; onToggle: (k: UsageSortKey) => void;
+}) {
+  const active = sort.key === sortKey;
+  return (
+    <th className={`px-2 py-2 font-medium sm:px-3 ${align === 'right' ? 'text-right' : ''}`} aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button
+        onClick={() => onToggle(sortKey)}
+        className={`inline-flex items-center gap-1 uppercase tracking-wider transition-colors hover:text-neutral-300 ${active ? 'text-neutral-300' : ''}`}
+      >
+        {label}
+        <Icon name={active ? (sort.dir === 'asc' ? 'chevronUp' : 'chevronDown') : 'chevronDown'} size={11} className={active ? 'text-orange-400' : 'text-neutral-700'} />
+      </button>
+    </th>
   );
 }
