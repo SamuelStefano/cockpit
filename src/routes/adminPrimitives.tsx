@@ -29,16 +29,16 @@ export function Chip({ label, on = true, muted }: { label: string; on?: boolean;
     ? 'border-orange-500/20 bg-orange-500/10 text-orange-200/90'
     : 'border-neutral-800 bg-neutral-900/60 text-neutral-600 line-through';
   return (
-    <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[12px] ${tone}`}>
+    <span className={`inline-flex min-w-0 max-w-full items-center gap-1 wrap-anywhere rounded-md border px-2 py-0.5 text-[12px] ${tone}`}>
       {label}
-      {muted ? <span className="text-[10px] uppercase tracking-wide opacity-60">{muted}</span> : null}
+      {muted ? <span className="shrink-0 whitespace-nowrap text-[10px] uppercase tracking-wide opacity-60">{muted}</span> : null}
     </span>
   );
 }
 
 export function Inv({ icon, title, count, children }: { icon: Parameters<typeof Icon>[0]['name']; title: string; count: number; children: ReactNode }) {
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
+    <div className="min-w-0 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
       <h3 className="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
         <Icon name={icon} size={12} /> {title} <span className="text-neutral-600">· {count}</span>
       </h3>
