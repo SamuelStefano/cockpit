@@ -27,6 +27,15 @@ describe('useNotes', () => {
     expect(result.current.notesLoaded).toBe(true);
   });
 
+  it('bumps notesRev on every notes frame, not on a local save', () => {
+    const { result } = montar();
+    act(() => { result.current.onMsg({ t: 'notes', text: 'a' }); });
+    act(() => { result.current.onMsg({ t: 'notes', text: 'a' }); });
+    expect(result.current.notesRev).toBe(2);
+    act(() => { result.current.onNotesSave('b'); });
+    expect(result.current.notesRev).toBe(2);
+  });
+
   it('devolve false pro que não é dele', () => {
     const { result } = montar();
     expect(result.current.onMsg({ t: 'crons', items: [] })).toBe(false);

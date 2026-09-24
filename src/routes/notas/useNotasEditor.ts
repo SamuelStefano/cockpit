@@ -5,10 +5,12 @@ import { toast } from '../../components/primitives';
 // no unmount, contadores e salvamento manual (⌘S). A UI só renderiza.
 export type NotasStatus = 'saved' | 'saving' | 'offline';
 
-export function useNotasEditor(notes: string, notesLoaded: boolean, onNotesGet: () => void, onNotesSave: (t: string) => boolean, connected: boolean) {
+export function useNotasEditor(notes: string, notesLoaded: boolean, onNotesGet: () => void, onNotesSave: (t: string) => boolean, connected: boolean, notesRev?: number) {
   const [text, setText] = useState(notes);
   const [status, setStatus] = useState<NotasStatus>('saved');
   const seeded = useRef(false);
+  const dirty = useRef(false);
+  const mountRev = useRef(notesRev);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const latest = useRef(text);
   latest.current = text;
@@ -17,7 +19,16 @@ export function useNotasEditor(notes: string, notesLoaded: boolean, onNotesGet: 
 
   useEffect(() => { if (connected) onNotesGet(); }, [connected, onNotesGet]);
   // Semeia o textarea uma vez (não atropela digitação se o servidor reenviar).
-  useEffect(() => { if (notesLoaded && !seeded.current) { seeded.current = true; setText(notes); } }, [notesLoaded, notes]);
+  // Coming back to /notas, the cached copy may predate edits made on another
+  // device (the server never pushes note changes): wait for the reply to this
+  // mount's notes-get, unless offline, where the cache is all there is.
+  useEffect(() => {
+    if (!notesLoaded || seeded.current) return;
+    const cachedOnly = (mountRev.current ?? 0) > 0 && notesRev === mountRev.current;
+    if (cachedOnly && connected) return;
+    seeded.current = true;
+    if (!dirty.current) setText(notes);
+  }, [notesLoaded, notes, notesRev, connected]);
 
   // O envio com socket fechado é descartado em silêncio: sem olhar o retorno, o
   // editor anunciava "salvo" e o texto se perdia no reload.
@@ -29,6 +40,7 @@ export function useNotasEditor(notes: string, notesLoaded: boolean, onNotesGet: 
   }, [push]);
 
   const onChange = useCallback((v: string) => {
+    dirty.current = true;
     setText(v);
     setStatus('saving');
     if (timer.current) clearTimeout(timer.current);

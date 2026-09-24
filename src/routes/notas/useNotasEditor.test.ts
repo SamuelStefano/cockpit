@@ -56,3 +56,29 @@ describe('useNotasEditor', () => {
     expect(save).not.toHaveBeenCalled();
   });
 });
+
+describe('useNotasEditor — revisiting /notas', () => {
+  type P = { notes: string; rev: number };
+  const mount = (save = vi.fn(() => true)) => renderHook(
+    ({ notes, rev }: P) => useNotasEditor(notes, true, noop, save, true, rev),
+    { initialProps: { notes: 'cached', rev: 1 } },
+  );
+
+  it('replaces the cached copy with the reply to this visit', () => {
+    const { result, rerender } = mount();
+    rerender({ notes: 'edited on the phone', rev: 2 });
+    expect(result.current.text).toBe('edited on the phone');
+  });
+
+  it('does not overwrite what was typed before the reply arrived', () => {
+    const { result, rerender } = mount();
+    act(() => { result.current.onChange('typed now'); });
+    rerender({ notes: 'edited on the phone', rev: 2 });
+    expect(result.current.text).toBe('typed now');
+  });
+
+  it('seeds from the cache when offline', () => {
+    const { result } = renderHook(() => useNotasEditor('cached', true, noop, vi.fn(() => false), false, 1));
+    expect(result.current.text).toBe('cached');
+  });
+});
