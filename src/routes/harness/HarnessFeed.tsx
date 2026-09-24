@@ -31,6 +31,10 @@ export function HarnessFeed({ task, events }: Props) {
         {task.context === 'pentest' && <Badge tone="orange"><Icon name="shield" size={9} />pentest</Badge>}
       </div>
 
+      {/* The composer clears the prompt on Rodar and the history leaves the active
+          task out, so nothing on screen said which task this output answers. */}
+      <p className="line-clamp-3 whitespace-pre-wrap wrap-break-word text-[12.5px] leading-relaxed text-neutral-300" title={task.prompt}>{task.prompt}</p>
+
       {/* O contexto de pentest troca o system prompt da task (server/harness/prompt.ts).
           Era gravado no banco e trafegado em HarnessTaskView.context, mas nenhuma tela
           mostrava: depois de rodar não dava pra saber sob qual enquadramento a resposta

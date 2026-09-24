@@ -28,4 +28,9 @@ describe('HarnessFeed · contexto de pentest', () => {
     const { container } = render(<HarnessFeed task={task({ context: 'pentest', status: 'running' })} events={[]} />);
     expect(container.textContent).toContain('pentest');
   });
+
+  it('shows the prompt of the task it is answering', () => {
+    const { container } = render(<HarnessFeed task={task({ status: 'running' })} events={[]} />);
+    expect(container.textContent).toContain('auditar o login');
+  });
 });
