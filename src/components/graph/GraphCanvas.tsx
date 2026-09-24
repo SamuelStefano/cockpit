@@ -70,8 +70,11 @@ export function GraphCanvas({ graph, onNodeOp }: Props) {
         )}
       </div>
 
+      {/* On a phone the node panel is full width: the legend would paint over it. */}
       {x.colorMode === 'repo' && (
-        <GraphLegend repos={x.repos} focusRepo={x.focusRepo} onFocusRepo={x.setFocusRepo} />
+        <div className={x.selectedNode ? 'max-sm:hidden' : undefined}>
+          <GraphLegend repos={x.repos} focusRepo={x.focusRepo} onFocusRepo={x.setFocusRepo} />
+        </div>
       )}
 
       {!x.selectedNode && hovered ? (
