@@ -38,6 +38,13 @@ export function DraftDispatchModal({ request, pointValue, busy, onConfirm, onClo
           <span className="font-mono tabular-nums text-neutral-200"> {fmtPts(pts)} pt · {brl(centsFromPoints(pts, pointValue))}</span>.
           Nada é faturado — a fatura continua sendo clique seu.
         </p>
+        {/* The deliveries are CREATED at this price, and every invoice on them bills
+            at it. It comes from this browser's "valor/ponto" (per device, default
+            75): a phone left on the default created deliveries 17% under a desktop
+            set to 90. Shown on its own line so the number is checked before firing. */}
+        <p className="rounded-md border border-orange-500/30 bg-orange-500/6 px-3 py-2 text-orange-200">
+          Preço das deliveries criadas: <span className="font-mono tabular-nums">{brl(pointValue * 100)}/pt</span>, o valor/ponto <b>deste navegador</b>. As faturas dessas deliveries saem a esse preço — confira antes de disparar.
+        </p>
         {over > 0 && (
           <p className="rounded-md border border-yellow-500/30 bg-yellow-500/6 px-3 py-2 text-yellow-300">
             {over} {over === 1 ? 'épico passa' : 'épicos passam'} do teto de R$ 5.000 por épico. Divida antes de criar.
