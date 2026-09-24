@@ -44,9 +44,19 @@ export function CronForm({ form, onCancel, now, planUsage, models }: {
         </select>
         {draft.kind === 'daily' && <input type="time" aria-label="Horário" value={draft.time} onChange={(e) => set('time', e.target.value)} className={field} />}
         {draft.kind === 'once' && <input type="datetime-local" aria-label="Data e hora" value={draft.at} onChange={(e) => set('at', e.target.value)} className={field} />}
-        {draft.kind === 'once' && resetPresets(planUsage ?? null, now).map((p) => (
-          <Button key={p.window} variant="ghost" size="sm" onClick={() => form.applyResetPreset(p.atMs)}>{p.label}</Button>
-        ))}
+        {/* Presets get their own row as outlined chips: as ghost buttons inline with
+            the selects they read as plain text and the Modo select wrapped in
+            between them ("Próximo reset semanal (em 3d) [Planejar]"). */}
+        {draft.kind === 'once' && (() => {
+          const presets = resetPresets(planUsage ?? null, now);
+          return presets.length > 0 && (
+            <div className="flex w-full flex-wrap gap-1.5">
+              {presets.map((p) => (
+                <Button key={p.window} variant="outline" size="xs" icon="clock" onClick={() => form.applyResetPreset(p.atMs)}>{p.label}</Button>
+              ))}
+            </div>
+          );
+        })()}
         {draft.kind === 'interval' && <span className="flex items-center gap-1 text-neutral-400">a cada <input type="number" min={1} aria-label="Intervalo em minutos" value={draft.everyMinutes || ''} onChange={(e) => set('everyMinutes', e.target.value === '' ? 0 : parseInt(e.target.value, 10))} className={`w-16 ${field}`} /> min</span>}
         <select aria-label="Modo" value={draft.mode} onChange={(e) => set('mode', e.target.value as typeof draft.mode)} className={field}>
           <option value="plan">Planejar</option>
