@@ -29,8 +29,10 @@ export function handleTerm(
       const pending = pendingOf(ws);
       if (pending.has(termId)) return true;
       if (myTerms.has(termId)) {
-        // Already attached on this connection: a reconnecting tab still needs the
-        // screen repainted (output from the gap, full-screen TUIs).
+        // Already attached on this connection. Shared: it is another (or a
+        // reconnecting) tab, which still needs the screen repainted (output from the
+        // gap, full-screen TUIs). A per-tab socket reopening is just a no-op.
+        if (!shared) return true;
         const snap = termSnapshot(termId);
         if (snap) send(ws, { t: 'term-replay', termId, data: snap });
         return true;
