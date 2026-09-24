@@ -60,4 +60,15 @@ describe('SkillPicker', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(outer).not.toHaveBeenCalled();
   });
+
+  it('leaves Esc aimed at another overlay (palette on top) to that overlay', () => {
+    const paletteClose = vi.fn();
+    render(<input aria-label="palette" onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); paletteClose(); } }} />);
+    setup();
+    const palette = screen.getByLabelText('palette');
+    palette.focus();
+    fireEvent.keyDown(palette, { key: 'Escape' });
+    expect(paletteClose).toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'Escolher skills' })).toBeTruthy();
+  });
 });
