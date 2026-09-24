@@ -189,6 +189,13 @@ export function createRelay(cfg: RelayConfig) {
     if (!id) { ws.close(4401, 'auth'); return; }            // default-deny (red line #10)
     const accountId = id.accountId;
     (ws as BrowserSock)._role = id.role;                     // pra reemitir caps no agent-caps
+    // Close at the JWT's expiry with a non-4401 code: the client redials with its
+    // (refreshed) token; an expired/revoked one then gets 4401.
+    if (id.expMs !== undefined) {
+      const expTimer = setTimeout(() => { try { ws.close(4001, 'token expired'); } catch { /* indo */ } }, Math.max(0, id.expMs - nowMs()));
+      expTimer.unref?.();
+      ws.on('close', () => clearTimeout(expTimer));
+    }
     // Primeira aba da conta (0→1) → avisa o agente que há alguém olhando (liga loops).
     if (registry.addBrowser(accountId, ws)) registry.toAgent(accountId, JSON.stringify({ t: 'browsers-present' }));
     // caps autoritativo do relay (papel da conta vem do JWT). canBypass casa o papel
@@ -223,6 +230,9 @@ export function createRelay(cfg: RelayConfig) {
         if (m.t === 'set-admin' && typeof m.accountId === 'string' && typeof m.admin === 'boolean') {
           if (!canGrantAdmin(id.role)) return;                // só root concede admin
           await cfg.store.setAdmin(m.accountId, m.admin);
+          // The target's open tabs cached the old role at open (accounts-list etc.):
+          // make them redial and resolve the new one.
+          registry.eachBrowser(m.accountId, (s) => { try { (s as WebSocket).close(4001, 'role changed'); } catch { /* indo */ } });
           const rows = await cfg.store.listAccounts();
           ws.send(JSON.stringify({
             t: 'accounts',

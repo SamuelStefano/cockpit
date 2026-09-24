@@ -14,7 +14,7 @@ describe('validateClaims', () => {
 
   it('accepts a well-formed token and resolves the account role', () => {
     const id = validateClaims(base, { iss: ISS, nowSec: NOW, rootEmails: roots, isAdmin: false });
-    expect(id).toEqual({ accountId: 'uid-1', email: 'alice@dfl.com', role: 'fellow' });
+    expect(id).toEqual({ accountId: 'uid-1', email: 'alice@dfl.com', role: 'fellow', expMs: (NOW + 3600) * 1000 });
   });
 
   it('derives root from the env allowlist', () => {
