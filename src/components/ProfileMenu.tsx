@@ -7,6 +7,7 @@ import { DropButton } from './drop/DropButton';
 import type { DropApi } from '../cockpit/useDrops';
 import { usePersisted } from '../lib/persist';
 import { SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT, GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT, NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT } from '../lib/prefs';
+import { isIOS } from '../lib/platform';
 
 interface ProfileMenuProps {
   userId?: string;
@@ -95,7 +96,9 @@ export function ProfileMenu({ userId, onSignOut, onChangePassword, drops }: Prof
               onChange={() => setNotifySound((v) => !v)}
               icon="volume"
               label="Som ao terminar o turno"
-              hint="Beep curto, só com a aba fora de foco"
+              // iOS suspends a backgrounded tab or PWA: the beep and the
+              // notification only fire once it is back in front.
+              hint={isIOS() ? 'No iPhone/iPad o app em segundo plano fica pausado: o aviso só sai ao voltar' : 'Beep curto, só com a aba fora de foco'}
             />
           </div>
 

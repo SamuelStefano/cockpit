@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isApple, keyLabel, comboLabel } from './platform';
+import { isApple, keyLabel, comboLabel, isIOS } from './platform';
 
 describe('platform shortcut labels', () => {
   it('detects Apple keyboards', () => {
@@ -14,5 +14,14 @@ describe('platform shortcut labels', () => {
     expect(keyLabel('K', false)).toBe('K');
     expect(comboLabel(['⌘', 'K'], false)).toBe('Ctrl+K');
     expect(comboLabel(['⌘', 'K'], true)).toBe('⌘K');
+  });
+});
+
+describe('isIOS', () => {
+  it('detects iPhone and iPadOS posing as a Mac, not a real Mac', () => {
+    expect(isIOS('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', 5)).toBe(true);
+    expect(isIOS('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 5)).toBe(true);
+    expect(isIOS('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 0)).toBe(false);
+    expect(isIOS('Mozilla/5.0 (Linux; Android 14)', 5)).toBe(false);
   });
 });
