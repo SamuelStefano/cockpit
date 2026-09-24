@@ -40,4 +40,14 @@ describe('ChatTopics', () => {
     fireEvent.click(screen.getByLabelText(/Tópicos da conversa/));
     expect(setOpen).toHaveBeenCalledWith(true);
   });
+
+  it('closes the open list on Escape and on a tap outside', () => {
+    const setOpen = vi.fn();
+    render(<ChatTopics topics={topics} activeId="u1" open setOpen={setOpen} onJump={() => {}} />);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(setOpen).toHaveBeenLastCalledWith(false);
+    setOpen.mockClear();
+    fireEvent.mouseDown(document.body);
+    expect(setOpen).toHaveBeenLastCalledWith(false);
+  });
 });

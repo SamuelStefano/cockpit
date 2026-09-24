@@ -87,7 +87,9 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
         {c.isEmpty && phase === 'idle' ? (
           <ChatEmpty onPrompt={onPrompt} />
         ) : (
-          <div className={`mx-auto flex max-w-3xl flex-col gap-6 py-6 pl-4 ${topics.topics.length > 0 ? 'pr-9' : 'pr-4'}`}>
+          // role=log is polite-live: a reader hears new replies. aria-busy holds it
+          // while tokens stream, so it reads the finished answer, not every delta.
+          <div role="log" aria-label="Conversa" aria-busy={c.streaming} className={`mx-auto flex max-w-3xl flex-col gap-6 py-6 pl-4 ${topics.topics.length > 0 ? 'pr-9' : 'pr-4'}`}>
             {shown.map((m, i) => (
               <MessageRow key={m.id} msg={m} caretOnLast={c.streaming && i === shown.length - 1 && m.role === 'assistant'} modelLabel={m.role === 'assistant' && m.model ? c.labelFor(m.model) : c.modelLabel} showModelLabel thinking={phase !== 'idle' && !c.pendingQuestion && i === shown.length - 1 && m.role === 'assistant'} live={i === shown.length - 1 && m.role === 'assistant' && !c.pendingQuestion ? live : undefined} onEditUser={onEditUser} onQuote={onQuote} onMemorize={onMemorize} answerable={(phase === 'idle' || c.pendingQuestion) && i === shown.length - 1 && m.role === 'assistant'} onAnswer={onPrompt} reviewable={phase === 'idle' && i > lastUserIdx && m.role === 'assistant'} onApproveWorkflow={onApproveWorkflow} onRegenerate={phase === 'idle' && !c.pendingQuestion && i === shown.length - 1 && m.role === 'assistant' ? c.retryLast : undefined} onOpenAttachment={onAttOpen} attThumbs={attThumbs} onAttThumb={onAttThumb} />
 
