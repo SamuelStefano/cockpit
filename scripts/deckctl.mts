@@ -237,6 +237,25 @@ function isServerMsg<T extends ServerMsg['t']>(t: T) {
 // pushed here as 'cv-live' off the SAME 'canvas-get' cmdBoard/cmdStatus
 // already send). Folding it into `busy`'s keys is what makes `sessions`/
 // `status` agree with the kanban on what's actually running.
+// `busy` lists running turns by their START key (`new-…`, `cron-…`, a card or flow
+// key), which the server never renames to the session id. On a session's first
+// turn `busy.keys.includes(sessionId)` is false, so `wait` returned "not running"
+// at once and `sessions`/`status` showed it idle. The server sends one `replay`
+// per running turn right after `busy`, carrying the sessionId: fold those in.
+export async function busySessionIds(client: Client, timeoutMs = 3000): Promise<Set<string>> {
+  const busy = await client.waitFor(isServerMsg('busy'), timeoutMs);
+  const ids = new Set(busy?.keys ?? []);
+  const deadline = Date.now() + 1500;
+  for (const key of busy?.keys ?? []) {
+    const r = await client.waitFor(
+      (m): m is Extract<ServerMsg, { t: 'replay' }> => m.t === 'replay' && m.sessionKey === key,
+      Math.max(0, deadline - Date.now()),
+    );
+    if (r?.sessionId) ids.add(r.sessionId);
+  }
+  return ids;
+}
+
 async function externalLiveIds(client: Client): Promise<string[]> {
   client.send({ t: 'canvas-get' });
   const cvLive = await client.waitFor(isServerMsg('cv-live'), 3000);
@@ -249,10 +268,10 @@ async function cmdSessions(flags: Flags, json: boolean): Promise<void> {
   const own = flags.all ? [...await listSessions(), ...await listArchived()] : await listSessions();
 
   const client = await connect();
-  const busy = await client.waitFor(isServerMsg('busy'), 3000);
+  const busy = await busySessionIds(client);
   const external = await externalLiveIds(client);
   client.close();
-  const busyKeys = new Set([...(busy?.keys ?? []), ...external]);
+  const busyKeys = new Set([...busy, ...external]);
 
   const limit = flagNum(flags, 'limit');
   const items = await Promise.all((limit ? own.slice(0, limit) : own).map(async (s) => {
@@ -284,7 +303,7 @@ async function cmdRead(id: string, flags: Flags): Promise<void> {
 async function cmdBoard(json: boolean): Promise<void> {
   const client = await connect();
   client.send({ t: 'canvas-get' });
-  const busy = await client.waitFor(isServerMsg('busy'), DEFAULT_TIMEOUT_MS);
+  const busy = await busySessionIds(client, DEFAULT_TIMEOUT_MS);
   const board = await client.waitFor(isServerMsg('canvas-board'), DEFAULT_TIMEOUT_MS);
   const graph = await client.waitFor(isServerMsg('canvas-graph'), DEFAULT_TIMEOUT_MS);
   // Same signal the browser's kanban reads (kanban-items.ts's `cvLive`) — a
@@ -302,7 +321,7 @@ async function cmdBoard(json: boolean): Promise<void> {
   const merged = mergeBoard(graph?.graph ?? null, board.board.cards);
   const sessionItems = deriveSessionItems({
     nodes: merged.nodes, edges: merged.edges, cards: board.board.cards, showAutomation: false,
-    running: new Set(busy?.keys ?? []), overrides: board.board.sessionStatus, turnStartedAt: {},
+    running: busy, overrides: board.board.sessionStatus, turnStartedAt: {},
     orchestratorSessionId: graph?.graph.orchestrator?.sessionId, cvLive: new Set(cvLive?.sessionIds ?? []),
   });
 
@@ -335,8 +354,7 @@ async function cmdBoard(json: boolean): Promise<void> {
 // queues if the session is mid-turn, otherwise starts a turn directly.
 async function sendText(full: string, text: string, flags: Flags): Promise<void> {
   const client = await connect();
-  const busy = await client.waitFor(isServerMsg('busy'), 3000);
-  const isBusy = !!busy?.keys.includes(full);
+  const isBusy = (await busySessionIds(client)).has(full);
   const model = flagStr(flags, 'model');
   const effort = flagStr(flags, 'effort') as Effort | undefined;
 
@@ -396,8 +414,7 @@ async function cmdWait(id: string, flags: Flags): Promise<void> {
   const full = await resolveSessionId(id);
   const timeoutMs = (flagNum(flags, 'timeout') ?? 15) * 1000;
   const client = await connect();
-  const busy = await client.waitFor(isServerMsg('busy'), 3000);
-  if (!busy?.keys.includes(full)) {
+  if (!(await busySessionIds(client)).has(full)) {
     client.close();
     console.log(`session ${shortId(full)} is not running — nothing to wait for`);
     return;
@@ -690,7 +707,7 @@ async function cmdStatus(): Promise<void> {
   const own = await listSessions();
 
   const client = await connect();
-  const busy = await client.waitFor(isServerMsg('busy'), 3000);
+  const busy = await busySessionIds(client);
   client.send({ t: 'canvas-get' });
   const board = await client.waitFor(isServerMsg('canvas-board'), 8000);
   const graph = await client.waitFor(isServerMsg('canvas-graph'), 8000);
@@ -700,7 +717,7 @@ async function cmdStatus(): Promise<void> {
   client.close();
 
   const cvLiveIds = new Set(cvLive?.sessionIds ?? []);
-  const busyKeys = new Set([...(busy?.keys ?? []), ...cvLiveIds]);
+  const busyKeys = new Set([...busy, ...cvLiveIds]);
   const running = own.filter((s) => busyKeys.has(s.id));
   const awaiting = own.filter((s) => s.waiting);
 
