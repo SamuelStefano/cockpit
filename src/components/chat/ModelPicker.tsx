@@ -29,9 +29,18 @@ export function ModelPicker({ model, setModel, models, onRefreshModels }: {
   const customOpts: ModelInfo[] = customIds.map((id) => ({ id, displayName: id }));
   const list = modelOptions(models, model, customOpts).filter((o, i, a) => a.findIndex((x) => x.id === o.id) === i);
 
+  // Inline field instead of window.prompt: a home-screen PWA (iOS standalone)
+  // can suppress native dialogs, and the prompt covered the whole screen.
+  const [adding, setAdding] = useState(false);
+  const [custom, setCustom] = useState('');
   const onChange = (value: string) => {
     if (value !== ADD) { setModel(value); return; }
-    const id = normalizeModelId(window.prompt('ID do modelo (ex: claude-opus-5 ou claude-mythos-1):') ?? '');
+    setCustom('');
+    setAdding(true);
+  };
+  const commitCustom = () => {
+    const id = normalizeModelId(custom);
+    setAdding(false);
     if (!id) return;
     if (!list.some((o) => o.id === id)) setCustomIds([...customIds, id]);
     setModel(id);
@@ -40,16 +49,33 @@ export function ModelPicker({ model, setModel, models, onRefreshModels }: {
   return (
     <label className="inline-flex shrink-0 items-center gap-1" title="Versão do agente do próximo prompt">
       <span className={tag}>versão</span>
-      <select
-        // The visible "versão" tag is hidden on mobile, which left the select nameless.
-        aria-label="Versão do agente do próximo prompt"
-        value={model}
-        onChange={(e) => onChange(e.target.value)}
-        className={sel}
-      >
-        {list.map((o) => <option key={o.id} value={o.id}>{prettyModel(o.id, o.displayName)}</option>)}
-        <option value={ADD}>+ outro modelo…</option>
-      </select>
+      {adding ? (
+        <input
+          autoFocus
+          aria-label="ID do modelo"
+          placeholder="claude-opus-5"
+          value={custom}
+          onChange={(e) => setCustom(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return;
+            if (e.key === 'Enter') { e.preventDefault(); commitCustom(); }
+            else if (e.key === 'Escape') { e.preventDefault(); setAdding(false); }
+          }}
+          onBlur={commitCustom}
+          className={`${sel} w-36 font-mono`}
+        />
+      ) : (
+        <select
+          // The visible "versão" tag is hidden on mobile, which left the select nameless.
+          aria-label="Versão do agente do próximo prompt"
+          value={model}
+          onChange={(e) => onChange(e.target.value)}
+          className={sel}
+        >
+          {list.map((o) => <option key={o.id} value={o.id}>{prettyModel(o.id, o.displayName)}</option>)}
+          <option value={ADD}>+ outro modelo…</option>
+        </select>
+      )}
       <button
         type="button"
         onClick={refresh}
