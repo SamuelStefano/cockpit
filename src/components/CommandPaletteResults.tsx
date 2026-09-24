@@ -3,6 +3,11 @@ import { Icon } from './primitives';
 import { groupByOrder } from './command-palette-filter';
 import type { Cmd } from './command-palette-types';
 
+// The input keeps focus and moves a virtual cursor: a combobox pointing at this
+// listbox, so a screen reader hears the highlighted command as the arrows move.
+export const PALETTE_LIST_ID = 'cmdk-list';
+export const paletteOptionId = (i: number) => `cmdk-opt-${i}`;
+
 interface CommandPaletteResultsProps {
   filtered: Cmd[];
   sel: number;
@@ -21,15 +26,19 @@ export function CommandPaletteResults({ filtered, sel, setSel }: CommandPaletteR
   const groups = groupByOrder(filtered);
   const flatIndex = (c: Cmd) => filtered.indexOf(c);
   return (
-    <>
+    <div role="listbox" id={PALETTE_LIST_ID} aria-label="Comandos">
       {groups.map((g) => (
-        <div key={g.name} className="mb-1">
-          <div className="px-4 py-1 text-[10px] font-medium uppercase tracking-wider text-neutral-600">{g.name}</div>
+        <div key={g.name} role="group" aria-label={g.name} className="mb-1">
+          <div aria-hidden className="px-4 py-1 text-[10px] font-medium uppercase tracking-wider text-neutral-600">{g.name}</div>
           {g.items.map((c) => {
             const active = flatIndex(c) === sel;
             return (
               <button
                 key={c.id}
+                id={paletteOptionId(flatIndex(c))}
+                role="option"
+                aria-selected={active}
+                tabIndex={-1}
                 ref={active ? activeRef : undefined}
                 onMouseEnter={() => setSel(flatIndex(c))}
                 onClick={c.run}
@@ -44,6 +53,6 @@ export function CommandPaletteResults({ filtered, sel, setSel }: CommandPaletteR
           })}
         </div>
       ))}
-    </>
+    </div>
   );
 }
