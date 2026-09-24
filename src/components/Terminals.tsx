@@ -32,6 +32,7 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
     const t = setTimeout(() => setKillArmed(null), 3000);
     return () => clearTimeout(t);
   }, [killArmed]);
+  const armOrKill = (id: string) => { if (killArmed === id) { setKillArmed(null); onClose(id); } else setKillArmed(id); };
 
   return (
     <div className="flex h-full flex-col" style={{ background: '#0a0a0a' }}>
@@ -56,11 +57,13 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
                   <span
                     role="button"
                     tabIndex={0}
-                    aria-label="Fechar terminal"
-                    title="Fechar terminal"
-                    onClick={(e) => { e.stopPropagation(); onClose(t.id); }}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onClose(t.id); } }}
-                    className={`-mr-1.5 ml-0.5 rounded-sm p-1.5 text-neutral-600 transition hover:bg-neutral-800 hover:text-neutral-300 sm:pointer-fine:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100 sm:focus-visible:opacity-100 ${tokens.focusRing}`}
+                    // Same two-tap rule as "matar": this ✕ also ends the tmux session,
+                    // and on touch screens it is always visible.
+                    aria-label={killArmed === t.id ? 'Confirmar: fechar terminal' : 'Fechar terminal'}
+                    title={killArmed === t.id ? 'Toque de novo pra fechar' : 'Fechar terminal'}
+                    onClick={(e) => { e.stopPropagation(); armOrKill(t.id); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); armOrKill(t.id); } }}
+                    className={`-mr-1.5 ml-0.5 rounded-sm p-1.5 transition hover:bg-neutral-800 ${killArmed === t.id ? 'text-red-400 opacity-100' : 'text-neutral-600 hover:text-neutral-300'} sm:pointer-fine:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100 sm:focus-visible:opacity-100 ${tokens.focusRing}`}
                   >
                     <Icon name="x" size={11} />
                   </span>
@@ -118,7 +121,7 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
         </div>
         {active && (
           <button
-            onClick={() => { if (killArmed === active.id) { setKillArmed(null); onClose(active.id); } else setKillArmed(active.id); }}
+            onClick={() => armOrKill(active.id)}
             title="Encerra a sessão tmux"
             className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition ${killArmed === active.id ? 'border-red-500/60 bg-red-500/15 text-red-300' : 'border-neutral-700 text-neutral-300 hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400'}`}
           >
