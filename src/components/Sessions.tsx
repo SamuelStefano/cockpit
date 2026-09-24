@@ -128,7 +128,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, ma
             {Array.from({ length: 4 }).map((_, i) => <SessionSkeletonRow key={i} />)}
           </div>
         ) : filtered.length === 0 ? (
-          <SessionsEmptyState hasSessions={sessions.length > 0} query={query} tagFilter={tagFilter} onNew={onNew} onCloseMobile={onCloseMobile} />
+          <SessionsEmptyState hasSessions={sessions.length > 0} query={query} tagFilter={tagFilter} onNew={onNew} onCloseMobile={onCloseMobile} onClear={() => { setQuery(''); setTagFilter(null); }} />
         ) : query ? (
           filtered.map((s) => renderRow(s))
         ) : (
