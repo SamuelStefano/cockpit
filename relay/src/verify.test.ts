@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generateKeyPairSync, sign as edSign } from 'node:crypto';
-import { validateClaims, verifyAgentSignature, makeChallenge, emailVerified } from './verify';
+import { validateClaims, verifyAgentSignature, makeChallenge, emailVerified, isEd25519Spki } from './verify';
 import { parseRootEmails } from '../../shared/identity';
 
 const ISS = 'https://proj.supabase.co/auth/v1';
@@ -102,5 +102,16 @@ describe('emailVerified (pré-requisito de papel privilegiado)', () => {
   it('sem verificação, a flag is_admin também não eleva', () => {
     expect(validateClaims({ ...base, email: 'alice@dfl.com' }, opts)?.role).toBe('fellow');
     expect(validateClaims({ ...base, email: 'alice@dfl.com', user_metadata: { email_verified: true } }, opts)?.role).toBe('admin');
+  });
+});
+
+describe('isEd25519Spki', () => {
+  it('accepts an Ed25519 SPKI and rejects anything else', () => {
+    const ed = generateKeyPairSync('ed25519').publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
+    const ec = generateKeyPairSync('ec', { namedCurve: 'P-256' }).publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
+    expect(isEd25519Spki(ed)).toBe(true);
+    expect(isEd25519Spki(ec)).toBe(false);
+    expect(isEd25519Spki('not-a-key')).toBe(false);
+    expect(isEd25519Spki('')).toBe(false);
   });
 });

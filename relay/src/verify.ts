@@ -67,6 +67,18 @@ export function makeChallenge(): string {
   return randomBytes(32).toString('base64url');
 }
 
+// The pairing frame's publicKey must be an Ed25519 SPKI (DER, base64), the only
+// thing verifyAgentSignature can check later. Anything else used to pair fine and
+// then fail every reconnect with a generic "bad sig".
+export function isEd25519Spki(publicKeyB64: string): boolean {
+  try {
+    const key = createPublicKey({ key: Buffer.from(publicKeyB64, 'base64'), format: 'der', type: 'spki' });
+    return key.asymmetricKeyType === 'ed25519';
+  } catch {
+    return false;
+  }
+}
+
 // Verifica a assinatura Ed25519 do agente sobre o challenge. publicKeyB64 = SPKI DER
 // em base64 (o que o agente registrou no pairing). PURA (node:crypto), sem rede.
 // Qualquer erro → false (default-deny).
