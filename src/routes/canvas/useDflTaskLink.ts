@@ -15,13 +15,18 @@ const fold = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').t
 export function searchDflTasks(tasks: DflTaskOption[], query: string, limit = 8): DflTaskOption[] {
   const words = fold(query).split(/\s+/).filter(Boolean);
   if (!words.length) return tasks.slice(0, limit);
-  const out: DflTaskOption[] = [];
+  // Tasks whose own name matches rank first: "itera" must surface a task named
+  // after it before the first 8 unrelated tasks that merely live under Itera.
+  const byName: DflTaskOption[] = [];
+  const byContext: DflTaskOption[] = [];
   for (const t of tasks) {
-    const hay = fold(`${t.name} ${t.deliveryName} ${t.epicName} ${t.projectName}`);
-    if (words.every((w) => hay.includes(w))) out.push(t);
-    if (out.length >= limit) break;
+    const name = fold(t.name);
+    const hay = `${name} ${fold(`${t.deliveryName} ${t.epicName} ${t.projectName}`)}`;
+    if (!words.every((w) => hay.includes(w))) continue;
+    (words.some((w) => name.includes(w)) ? byName : byContext).push(t);
+    if (byName.length >= limit) break;
   }
-  return out;
+  return [...byName, ...byContext].slice(0, limit);
 }
 
 // Flattens the project›epic›delivery›task tree (same snapshot /pontos already

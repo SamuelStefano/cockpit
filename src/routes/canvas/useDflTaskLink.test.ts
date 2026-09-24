@@ -53,3 +53,11 @@ describe('searchDflTasks', () => {
     expect(searchDflTasks(tasks, '  ', 1).map((t) => t.id)).toEqual(['a']);
   });
 });
+
+describe('searchDflTasks ranking', () => {
+  it('puts tasks named after the query before tasks that only live under it', () => {
+    const under = Array.from({ length: 9 }, (_, i) => ({ id: `u${i}`, name: `Seek ${i}`, deliveryName: 'Vídeo', epicName: 'Player', projectName: 'Itera' }));
+    const named = { id: 'n', name: 'Itera onboarding', deliveryName: 'Docs', epicName: 'Geral', projectName: 'DFL' };
+    expect(searchDflTasks([...under, named], 'itera')[0].id).toBe('n');
+  });
+});
