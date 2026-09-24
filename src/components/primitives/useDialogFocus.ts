@@ -12,7 +12,8 @@ export function useDialogFocus(ref: RefObject<HTMLElement | null>, open = true):
     if (!open || !root) return;
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const items = () => [...root.querySelectorAll<HTMLElement>(FOCUSABLE)];
-    (root.querySelector<HTMLElement>('[data-autofocus]') ?? items()[0] ?? root).focus();
+    // Content that focused itself on mount (an input with autoFocus) keeps it.
+    if (!root.contains(document.activeElement)) (root.querySelector<HTMLElement>('[data-autofocus]') ?? items()[0] ?? root).focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return;
       const list = items();

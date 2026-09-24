@@ -1,5 +1,6 @@
-import { type ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { useEscapeLayer } from './useEscapeLayer';
+import { useDialogFocus } from './useDialogFocus';
 import { Button } from './Button';
 import { tokens } from './tokens';
 import { Icon, type IconName } from './Icon';
@@ -21,14 +22,18 @@ export function Modal({
   label?: string;
 }) {
   useEscapeLayer(open, onClose);
+  const ref = useRef<HTMLDivElement>(null);
+  useDialogFocus(ref, open);
 
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs" onClick={onClose}>
       <div
+        ref={ref}
         role="dialog"
         aria-modal="true"
         aria-label={label ?? title}
+        tabIndex={-1}
         className={`scale-in flex max-h-[88dvh] w-full ${maxWidth} flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl shadow-black/50`}
         onClick={(e) => e.stopPropagation()}
       >

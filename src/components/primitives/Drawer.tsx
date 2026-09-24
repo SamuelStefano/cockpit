@@ -1,5 +1,6 @@
-import { type ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { useEscapeLayer } from './useEscapeLayer';
+import { useDialogFocus } from './useDialogFocus';
 import { Button } from './Button';
 import { tokens } from './tokens';
 
@@ -16,12 +17,14 @@ interface DrawerProps {
 // navigator, a filter list) slides in over the content on a phone.
 export function Drawer({ open, onClose, title, children, side = 'left', width = 'w-[86vw] max-w-sm' }: DrawerProps) {
   useEscapeLayer(open, onClose);
+  const ref = useRef<HTMLDivElement>(null);
+  useDialogFocus(ref, open);
 
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-60 flex bg-black/60 backdrop-blur-xs" onClick={onClose}>
       <div
-        role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}
+        ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}
         className={`flex h-full ${width} flex-col border-neutral-800 bg-neutral-950 shadow-2xl shadow-black/60 ${side === 'left' ? 'border-r' : 'ml-auto border-l'}`}
       >
         <div className="flex h-11 shrink-0 items-center gap-2 border-b border-neutral-800 px-3">
