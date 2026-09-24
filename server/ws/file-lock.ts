@@ -1,4 +1,5 @@
 import { mkdirSync, openSync, closeSync, statSync, fstatSync, rmSync } from 'node:fs';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { dirname } from 'node:path';
 import { recordIncident } from './incidents';
 
@@ -49,6 +50,38 @@ export function withFileLock<T>(target: string, fn: () => T): T {
       try {
         if (statSync(lockPath).ino === ino) rmSync(lockPath, { force: true });
       } catch { /* já removido por reclaim de outro processo */ }
+    }
+  }
+}
+
+// Same lock file and rules as withFileLock, for a read-modify-write that awaits
+// (fs/promises). The sync version cannot hold across an await: it would release
+// the lock the moment `fn` returned its promise. Waits with timers instead of
+// Atomics.wait, so it never blocks the event loop.
+export async function withFileLockAsync<T>(target: string, fn: () => Promise<T>): Promise<T> {
+  const lockPath = `${target}.lock`;
+  mkdirSync(dirname(target), { recursive: true });
+  let fd: number | undefined;
+  for (let i = 0; i < SPINS && fd === undefined; i++) {
+    try {
+      fd = openSync(lockPath, 'wx');
+    } catch {
+      try {
+        if (Date.now() - statSync(lockPath).mtimeMs > LOCK_STALE_MS) rmSync(lockPath, { force: true });
+      } catch { /* released between stat and rm */ }
+      await sleep(SPIN_MS);
+    }
+  }
+  if (fd === undefined) recordIncident({ kind: 'file-lock-timeout', sessionKey: '-', detail: `lock preso ha >${SPINS * SPIN_MS}ms em ${lockPath}` });
+  const ino = fd === undefined ? undefined : fstatSync(fd).ino;
+  try {
+    return await fn();
+  } finally {
+    if (fd !== undefined) {
+      closeSync(fd);
+      try {
+        if (statSync(lockPath).ino === ino) rmSync(lockPath, { force: true });
+      } catch { /* already reclaimed */ }
     }
   }
 }
