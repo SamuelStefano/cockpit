@@ -2,7 +2,7 @@ import { Icon, ConnDot, tokens, type ConnState } from '../primitives';
 import { ProfileMenu } from '../ProfileMenu';
 import { UsageBar } from './UsageBar';
 import { RouteMenu } from './RouteMenu';
-import { navFor } from './nav-routes';
+import { navBreakpoint, navFor } from './nav-routes';
 import type { Route } from '../../useRoute';
 import type { PlanUsage } from '../../../shared/protocol';
 import type { DropApi } from '../../cockpit/useDrops';
@@ -58,7 +58,7 @@ export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette
               a partir de sm. O estado "caiu" segue visível no OfflineNotice. */}
           <span className="hidden font-mono text-[14px] font-semibold lowercase tracking-tight text-neutral-100 transition hover:text-white sm:inline">Deck</span>
         </button>
-        <nav className="ml-1 hidden items-center gap-0.5 rounded-lg border border-neutral-800 bg-neutral-900/60 p-0.5 md:flex">
+        <nav className={`ml-1 hidden items-center gap-0.5 rounded-lg border border-neutral-800 bg-neutral-900/60 p-0.5 ${navBreakpoint(isAdmin).strip}`}>
           {navFor(isAdmin).map((n) => (
             <button
               key={n.to}
