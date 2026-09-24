@@ -1466,6 +1466,12 @@ export function useCockpit(): Cockpit {
     // parou de me responder"). mergeHistory deduplica, então o re-open é barato e
     // idempotente; respeita a visão completa pra não reverter pro resumido.
     const act = activeRef.current;
+    // Every other cached thread may be stale too: writes made while the socket was
+    // down (another device, deckctl, the terminal) sent session-touched frames
+    // this tab never got, and `opened` kept the next activation from fetching.
+    // Clearing it makes the next visit to each session re-fetch (mergeHistory
+    // keeps a live bubble, so a background run's stream isn't dropped).
+    for (const k of [...opened.current]) if (k !== act) opened.current.delete(k);
     if (act && !act.startsWith('new-') && send(reopenMsg(act))) opened.current.add(act);
     reattach();
   }, [send, reattach, reopenMsg, onUsageList, onSkillList, onPointsGet]);
