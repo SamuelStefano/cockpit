@@ -93,6 +93,11 @@ export interface Thread {
   // turno fecha. Fonte do teto de silêncio maior no reaper e do bg-wait branch
   // do routeSend (escreve no stdin em vez de abrir um --resume concorrente).
   pendingBgTasks?: { task_id: string; description?: string }[];
+  // Set when a `result` arrives with background tasks still pending: the turn is
+  // over and the process only stays up for the task notification. A dev server or
+  // a never-ending poll loop keeps it there for hours, so the parked drainer has to
+  // tell this apart from a turn that is still generating (see drainParked).
+  bgWaitSince?: number;
   lastError?: string;   // último erro reportado pelo processo
   lastExitCode?: number | null; // exit code do `claude saiu (N)` mais recente — insumo do gate de OOM (D1)
   lastExitSignal?: string | null; // sinal do OS, quando disponível (SIGTERM/SIGKILL) — mesmo insumo

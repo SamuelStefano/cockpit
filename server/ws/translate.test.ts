@@ -97,6 +97,21 @@ describe('translate', () => {
     expect(t.pendingBgTasks).toEqual([]);
   });
 
+  it('marks bg-wait on a result with tasks pending and clears it when generation resumes', () => {
+    const t = register();
+    translate(KEY, t, { type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 't1' }] } as never);
+    translate(KEY, t, { type: 'result', subtype: 'success' } as never);
+    expect(t.bgWaitSince).toBeTypeOf('number');
+    translate(KEY, t, { type: 'assistant', message: { content: [] } } as never);
+    expect(t.bgWaitSince).toBeUndefined();
+  });
+
+  it('does not mark bg-wait on a result with nothing pending', () => {
+    const t = register();
+    translate(KEY, t, { type: 'result', subtype: 'success' } as never);
+    expect(t.bgWaitSince).toBeUndefined();
+  });
+
   it('broadcasts a compact divider when a background task notifies', () => {
     const t = register();
     translate(KEY, t, { type: 'system', subtype: 'task_notification', status: 'completed', summary: 'Background command "sleep 20" completed (exit code 0)' } as never);

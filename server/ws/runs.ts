@@ -277,7 +277,8 @@ export function drainParked(): void {
     // card sumia sem nunca ter sido respondido. Só a resposta do usuário (ou o
     // queue-force) destrava.
     if (isAwaiting(sessionKey)) continue;
-    if (resolveThreadKey(sessionKey)) continue; // turno rodando: um por vez
+    const liveKey = resolveThreadKey(sessionKey);
+    if (liveKey && !isBgWaiting(liveKey)) continue; // turno rodando: um por vez
     // Busy in the other process, unless it is the Orchestrator's own session: that
     // is an interactive claude (always "busy" in the registry while it works) and
     // its queue items are pasted into its pane, never run headless.
@@ -302,6 +303,10 @@ export function drainParked(): void {
     // o próximo tick resolve.
     const pre = ctxVerdict({ sessionId: first.resumeId, sessionKey, usage: getLastPlanUsage() });
     if (pre.kind === 'quota' || pre.kind === 'cold-busy') continue;
+    if (liveKey) {
+      if (deliverIntoBgWait(liveKey, sessionKey)) fired++;
+      continue;
+    }
     // Runs on a 30s timer: a disk error here must not escape as an uncaughtException.
     let item: ParkedItem | undefined;
     try { item = shiftParked(sessionKey); }
@@ -338,6 +343,35 @@ export function drainParked(): void {
     // ws null e o 'started' do turno não mexe na lista de fila do cliente.
     broadcastQueue();
   }
+}
+
+function isBgWaiting(liveKey: string): boolean {
+  const th = threads.get(liveKey);
+  return !!th?.bgWaitSince && !!th.pendingBgTasks?.length;
+}
+
+// A turn that already answered but whose process stays alive for a background task
+// (dev server, poll loop) used to hold its parked queue for hours: the drainer only
+// fires on sessions without a thread. Same move as routeSend's bg-wait branch —
+// write the item onto the live stdin instead of a second `--resume` on the transcript.
+function deliverIntoBgWait(liveKey: string, sessionKey: string): boolean {
+  const th = threads.get(liveKey);
+  if (!th) return false;
+  let item: ParkedItem | undefined;
+  try { item = shiftParked(sessionKey); }
+  catch (e) { console.error('[drainParked] shift failed:', (e as Error).message); return false; }
+  if (!item) return false;
+  if (!th.handle.send(item.prompt)) {
+    try { unshiftParked(sessionKey, item, false); }
+    catch (e) { recordIncident({ kind: 'run-error', sessionKey, detail: `drain unshift failed: ${(e as Error).message}`.slice(0, 400) }); }
+    broadcastQueue();
+    return false;
+  }
+  th.bgWaitSince = undefined;
+  th.prompt = item.prompt;
+  broadcast({ t: 'user', sessionKey: liveKey, id: item.id, text: item.prompt, ts: Date.now() });
+  broadcastQueue();
+  return true;
 }
 
 // Sessions running a turn in the OTHER backend process (index ↔ relay agent) or
@@ -847,6 +881,13 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
     forkId,
     onEvent: (ev) => {
       translate(sessionKey, thread, ev);
+      // The turn already answered and only waits on a background task: a restart
+      // now must not resume it with "continue where you left off". If the task
+      // finishes and the CLI continues, the next frame marks it live again below.
+      if (thread.bgWaitSince) {
+        if (live) { live = false; clearRunLive(sessionKey); }
+        return;
+      }
       // Registra o turno em disco assim que o sessionId aparece. É o que permite
       // retomá-lo quando o PROCESSO INTEIRO morre (restart/OOM/deploy): aí o onClose
       // não roda e a retomada em memória não existe mais. Só o agente escreve, pelo
@@ -1155,6 +1196,7 @@ export async function routeSend(o: RouteSendOptions) {
   if (cur.pendingBgTasks?.length && cur.handle.send(prompt)) {
     if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
     cur.prompt = prompt;
+    cur.bgWaitSince = undefined;
     return;
   }
 

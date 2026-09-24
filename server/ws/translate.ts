@@ -31,6 +31,7 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
   // "reacendiam" o turno na UI. stopped cobre stop do usuário E o auto-stop da
   // pergunta. Só o 'result'/'system' passam pra fechar o turno limpo.
   if ((thread.questioned || thread.stopped) && (ev.type === 'stream_event' || ev.type === 'assistant' || ev.type === 'user')) return;
+  if (ev.type === 'stream_event' || ev.type === 'assistant') thread.bgWaitSince = undefined;
   switch (ev.type) {
     case 'rate_limit_event': {
       const info = (ev as any).rate_limit_info;
@@ -224,6 +225,7 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
         if (out > 0) thread.outputTokens = out;
       }
       if (typeof r.subtype === 'string') thread.endReason = r.subtype;
+      thread.bgWaitSince = thread.pendingBgTasks?.length ? Date.now() : undefined;
       // Paridade/rede de segurança: se nenhum delta/assistant trouxe texto (streaming
       // falhou) mas o result carrega o texto final, emite agora. Guard de texto vazio
       // evita duplicar no caminho normal; !stopped pra não reacender um turno parado.
