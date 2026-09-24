@@ -93,5 +93,15 @@ export function XtermView({ id, term, watch, autoFocus = true, focusKey, fontSiz
     return () => cancelAnimationFrame(raf);
   }, [focusKey]);
 
-  return <div ref={ref} className="h-full w-full overflow-hidden" style={{ background: '#0a0a0a', padding: '6px 4px 4px 8px' }} />;
+  return (
+    // Padding sits on this wrapper, never on the element xterm opens in:
+    // FitAddon sizes rows/cols from that element's computed width/height,
+    // which under the global border-box includes padding, so the last row
+    // landed half under the bottom edge. letter-spacing: body's -0.011em was
+    // inherited by xterm's glyph-width measurer, every cell got +0.18px of
+    // spacing, and the last ~2 columns of a full line were clipped.
+    <div className="h-full w-full overflow-hidden" style={{ background: '#0a0a0a', padding: '6px 4px 4px 8px', letterSpacing: 'normal' }}>
+      <div ref={ref} data-testid="xterm-host" className="h-full w-full" />
+    </div>
+  );
 }
