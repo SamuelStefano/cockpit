@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ClientMsg, ServerMsg } from '../../shared/protocol';
-import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasGraph, CanvasPos, CardStatus, OrchestratorActivity, OrchestratorInfo, TermStats } from '../../shared/canvas';
+import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasGraph, CanvasPos, CardStatus, OrchestratorActivity, OrchestratorInfo, SessionPeek, TermStats } from '../../shared/canvas';
 import { AREA_LABELS } from '../../shared/canvas';
 import type { AreaUsage } from '../../shared/canvas-budget';
 import { toast } from '../components/primitives';
@@ -49,6 +49,11 @@ export interface CanvasApi {
   // expanded (useOrchestratorActivityPoll), never on every reconnect.
   orchestratorActivity: OrchestratorActivity | null;
   onOrchestratorActivityGet: () => void;
+  // Sessions working in a `cockpit-cv-*` tmux shell (server-pushed 'cv-live').
+  cvLiveSessionIds: string[];
+  // Kanban drawer transcript reads, by session id — null = unreadable.
+  sessionPeeks: Record<string, SessionPeek | null>;
+  onSessionPeek: (sessionId: string) => void;
   onMsg: (msg: ServerMsg) => boolean;
 }
 
@@ -86,6 +91,9 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
   const onOrchestratorReconnect = useCallback(() => { send({ t: 'orchestrator-get' }); }, [send]);
   const [orchestratorActivity, setOrchestratorActivity] = useState<OrchestratorActivity | null>(null);
   const onOrchestratorActivityGet = useCallback(() => { send({ t: 'orchestrator-activity-get' }); }, [send]);
+  const [cvLiveSessionIds, setCvLive] = useState<string[]>([]);
+  const [sessionPeeks, setSessionPeeks] = useState<Record<string, SessionPeek | null>>({});
+  const onSessionPeek = useCallback((sessionId: string) => { send({ t: 'canvas-session-peek', sessionId }); }, [send]);
   const loadingRef = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -171,6 +179,8 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
     if (msg.t === 'canvas-graph') { setGraph(msg.graph); setStale(false); settle(); return true; }
     if (msg.t === 'orchestrator-info') { setOrchestratorInfo(msg.info ?? null); return true; }
     if (msg.t === 'orchestrator-activity') { setOrchestratorActivity(msg.activity); return true; }
+    if (msg.t === 'cv-live') { setCvLive(msg.sessionIds); return true; }
+    if (msg.t === 'canvas-session-peek') { setSessionPeeks((prev) => ({ ...prev, [msg.sessionId]: msg.peek })); return true; }
     // Slim patch (card-review.ts auto-moving a card to "review"): update just
     // that card's status locally instead of waiting for a full canvas-board —
     // the server only sends this one field, not the whole board, on purpose.
@@ -380,6 +390,6 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
     onCanvasGet, onCanvasPos, onCanvasPosReset, onCanvasCardSave, onCanvasCardDelete, onCanvasSessionStatus,
     onCanvasFlowSave, onCanvasFlowDelete, canvasFlowFired, canvasFlowRuns, onCanvasBudgetSave,
     canvasTermStats, onCanvasTermStats, onCanvasCtxStats, canvasAreaUsage,
-    orchestratorInfo, onOrchestratorReconnect, orchestratorActivity, onOrchestratorActivityGet, onMsg,
+    orchestratorInfo, onOrchestratorReconnect, orchestratorActivity, onOrchestratorActivityGet, cvLiveSessionIds, sessionPeeks, onSessionPeek, onMsg,
   };
 }

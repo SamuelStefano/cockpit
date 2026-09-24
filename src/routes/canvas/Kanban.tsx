@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { CARD_STATUSES, type CanvasCard, type CardStatus, type TermStats } from '../../../shared/canvas';
+import { CARD_STATUSES, type CanvasCard, type CardStatus, type SessionPeek, type TermStats } from '../../../shared/canvas';
 import { Badge, Button } from '../../components/primitives';
 import { cardRun } from './canvas-board';
 import { STATUS_HINT, STATUS_LABEL } from './canvas-labels';
@@ -33,6 +33,8 @@ interface Props {
   hiddenSessionIds: Set<string>;
   onHideSession: (sessionId: string) => void;
   onUnhideAll: () => void;
+  sessionPeeks: Record<string, SessionPeek | null>;
+  onSessionPeek: (sessionId: string) => void;
 }
 
 export function Kanban(p: Props) {
@@ -169,6 +171,7 @@ export function Kanban(p: Props) {
       {openItem && (
         <KanbanItemDrawer
           item={openItem} stats={p.termStats[openItem.sessionId]} onClose={() => setOpenSessionId(null)}
+          peek={p.sessionPeeks[openItem.sessionId]} onPeek={p.onSessionPeek}
           onOpenSession={p.onOpenSession} onOpenTerm={p.onOpenTerm}
           onMove={(id, status) => p.onSessionStatus(id, status)}
           onHide={(id) => { p.onHideSession(id); setOpenSessionId(null); }}

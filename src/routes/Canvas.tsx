@@ -229,6 +229,7 @@ export function Canvas(p: CanvasRouteProps) {
       onMove={r.setStatus} onRun={r.runCard} onEdit={r.editCard} onOpenSession={p.onOpenSession}
       onOpenTerm={openTerm} onSessionStatus={r.onSessionStatus}
       hiddenSessionIds={r.hiddenSessionIdSet} onHideSession={r.hideSession} onUnhideAll={r.unhideAllSessions}
+      sessionPeeks={p.sessionPeeks} onSessionPeek={p.onSessionPeek}
     />
   );
 
