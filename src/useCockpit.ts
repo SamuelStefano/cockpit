@@ -2192,17 +2192,31 @@ export function useCockpit(): Cockpit {
   // não-vazias — keys `new-xxx` são efêmeras e não casam após reload.
   // Debounced: every keystroke re-serialized every draft (a quoted document can be
   // hundreds of KB) into localStorage. pagehide and unmount flush the last one.
+  // Only a tab whose drafts changed writes: an idle tab closing after another
+  // tab saved would otherwise overwrite that tab's drafts with its old snapshot.
+  // Mobile may kill a backgrounded tab without pagehide, so hiding flushes too.
   const draftsRef = useRef(drafts);
   draftsRef.current = drafts;
-  useEffect(() => {
-    const t = setTimeout(() => savePref('drafts', persistableDrafts(draftsRef.current)), DRAFTS_SAVE_MS);
-    return () => clearTimeout(t);
-  }, [drafts]);
-  useEffect(() => {
-    const flush = () => savePref('drafts', persistableDrafts(draftsRef.current));
-    window.addEventListener('pagehide', flush);
-    return () => { window.removeEventListener('pagehide', flush); flush(); };
+  const draftsSaved = useRef(drafts);
+  const saveDrafts = useCallback(() => {
+    if (draftsRef.current === draftsSaved.current) return;
+    draftsSaved.current = draftsRef.current;
+    savePref('drafts', persistableDrafts(draftsRef.current));
   }, []);
+  useEffect(() => {
+    const t = setTimeout(saveDrafts, DRAFTS_SAVE_MS);
+    return () => clearTimeout(t);
+  }, [drafts, saveDrafts]);
+  useEffect(() => {
+    const onHidden = () => { if (document.visibilityState === 'hidden') saveDrafts(); };
+    window.addEventListener('pagehide', saveDrafts);
+    document.addEventListener('visibilitychange', onHidden);
+    return () => {
+      window.removeEventListener('pagehide', saveDrafts);
+      document.removeEventListener('visibilitychange', onHidden);
+      saveDrafts();
+    };
+  }, [saveDrafts]);
 
   // Override de modelo por sessão — mesma regra dos drafts: sessões `new-xxx` são
   // efêmeras e não casam depois de um reload.

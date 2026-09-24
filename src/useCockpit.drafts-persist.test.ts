@@ -37,4 +37,24 @@ describe('draft persistence', () => {
     expect(draftWrites()).toBe(2);
     expect(localStorage.getItem([...Array(localStorage.length).keys()].map((i) => localStorage.key(i)!).find((k) => k.includes('drafts'))!)).toContain('hello!');
   });
+
+  it('an idle tab never writes its old snapshot over drafts saved elsewhere', () => {
+    localStorage.clear();
+    const hook = renderHook(() => useCockpit());
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    hook.unmount();
+    expect(setItem.mock.calls.filter(([k]) => String(k).includes('drafts'))).toEqual([]);
+  });
+
+  it('flushes when the tab is hidden (mobile may kill it without pagehide)', () => {
+    const hook = renderHook(() => useCockpit());
+    act(() => { hook.result.current.setActiveId(SID); });
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    act(() => { hook.result.current.setDraft('typed'); });
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    act(() => { document.dispatchEvent(new Event('visibilitychange')); });
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    expect(setItem.mock.calls.filter(([k]) => String(k).includes('drafts')).length).toBe(1);
+    hook.unmount();
+  });
 });
