@@ -436,6 +436,23 @@ describe('resumeOrphanRuns — turnos que o restart matou', () => {
     resumeOrphanRuns();
     expect(run).not.toHaveBeenCalled();
   });
+  // O chat que o usuário abriu na janela de 15s roda como new-… com o mesmo
+  // sessionId: threads.has(sessionId) não o via e o boot retomava por cima.
+  it('não retoma sessão que já tem turno vivo sob outra chave (new-…)', () => {
+    startRun({ ws: {} as WebSocket, sessionKey: 'new-777', prompt: 'mandei agora' });
+    threads.get('new-777')!.sessionId = 'sess-orfa';
+    vi.mocked(run).mockClear();
+    vi.mocked(takeOrphanRuns).mockReturnValue([orphan()] as never);
+    resumeOrphanRuns();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('usa a lista tomada no boot, sem reler o registro na hora de disparar', () => {
+    vi.mocked(takeOrphanRuns).mockClear();
+    resumeOrphanRuns([orphan()] as never);
+    expect(takeOrphanRuns).not.toHaveBeenCalled();
+    expect(run).toHaveBeenCalledOnce();
+  });
 });
 
 // Bug do Samuel: com os tokens esgotados a fila disparava assim mesmo, o turno

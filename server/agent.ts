@@ -16,6 +16,7 @@ import { setClientSource, broadcast } from './ws/broadcast';
 import { mcpServerDefsSync, claudeReady } from './admin-ops';
 import { getSlashCommands } from './ws/slash';
 import { startParkedDrainer, resumeOrphanRuns } from './ws/runs';
+import { takeOrphanRuns } from './ws/recover';
 import { readMemInfo } from './ws/mem-guard';
 import { startRunReaper } from './ws/reaper';
 import { busyFrame, killAllRuns, threads } from './ws/threads';
@@ -325,7 +326,8 @@ export function runAgent(relayUrl: string): void {
   // drainerEnabled precisa estar ligada pra o turno retomado se re-registrar) e
   // adiada um pouco: o relay ainda não conectou aqui, então o aviso de retomada se
   // perderia — o cliente só recebe broadcast com o socket de pé.
-  setTimeout(resumeOrphanRuns, 15_000).unref();
+  const orphans = takeOrphanRuns();
+  setTimeout(() => resumeOrphanRuns(orphans), 15_000).unref();
   // Backstop relay-agnóstico: se o relay não emitir 'browsers-present' (versão
   // antiga), a reemissão instantânea não dispara — rebroadcasta mcp-servers/slash
   // periodicamente pra o seletor de MCP nunca ficar vazio num browser tardio.
