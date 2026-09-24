@@ -27,6 +27,5 @@ export { ConfettiHost } from './Confetti';
 export { fireConfetti, type ConfettiOptions } from './confetti-bus';
 export { Markdown } from './Markdown';
 export { CodeBlock } from './CodeBlock';
-export { LivePreview } from './livepreview/LivePreview';
 export { splitFences } from './markdown/split-fences';
 export { WikilinkContext, type WikilinkResolver } from './markdown/wikilink-context';
