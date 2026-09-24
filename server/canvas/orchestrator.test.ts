@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readOrchestrator, readOrchestratorSync, isTmuxAliveSync } from './orchestrator';
+import { readOrchestrator, readOrchestratorSync, isTmuxAliveSync, paneRunsShellSync } from './orchestrator';
 
 const dir = mkdtempSync(join(tmpdir(), 'cockpit-orchestrator-'));
 const file = join(dir, 'orchestrator.json');
@@ -62,6 +62,18 @@ describe('isTmuxAliveSync', () => {
     if (saved.tmux !== undefined) process.env.TMUX = saved.tmux;
   });
   afterEach(() => { try { execFileSync('tmux', ['kill-session', '-t', name]); } catch { /* already gone */ } });
+
+  it('tells a bare shell pane from one running another program', () => {
+    execFileSync('tmux', ['new-session', '-d', '-s', `${name}-sh`, 'bash']);
+    execFileSync('tmux', ['new-session', '-d', '-s', `${name}-sleep`, 'sleep 30']);
+    try {
+      expect(paneRunsShellSync(`${name}-sh`)).toBe(true);
+      expect(paneRunsShellSync(`${name}-sleep`)).toBe(false);
+      expect(paneRunsShellSync(`${name}-missing`)).toBe(false);
+    } finally {
+      for (const n of ['sh', 'sleep']) execFileSync('tmux', ['kill-session', '-t', `=${name}-${n}`]);
+    }
+  });
 
   it('is false for a session that was never created', () => {
     expect(isTmuxAliveSync(`${name}-nope`)).toBe(false);

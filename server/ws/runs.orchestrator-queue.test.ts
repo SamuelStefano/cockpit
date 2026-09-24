@@ -15,6 +15,7 @@ const ORCH = 'orch-session';
 vi.mock('../canvas/orchestrator', () => ({
   readOrchestratorSync: () => ({ name: 'Orchestrator', sessionId: 'orch-session', tmux: 'orch' }),
   isTmuxAliveSync: () => true,
+  paneRunsShellSync: () => false,
 }));
 const terms = vi.hoisted(() => ({ hasTerm: vi.fn(() => true), openTerm: vi.fn(), inputTerm: vi.fn() }));
 vi.mock('../terminals', () => terms);

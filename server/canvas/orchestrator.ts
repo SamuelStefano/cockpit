@@ -65,3 +65,18 @@ export function isTmuxAliveSync(name: string): boolean {
     return false;
   }
 }
+
+const SHELLS = new Set(['bash', 'sh', 'zsh', 'fish', 'dash']);
+
+// The Orchestrator's claude can die (crash, OOM kill, /exit) while its tmux
+// session lives on with a bare shell in the pane. Pasting a prompt there runs
+// every line as a shell command. Unknown (tmux error) counts as "not a shell" so
+// delivery keeps its current behaviour.
+export function paneRunsShellSync(name: string): boolean {
+  try {
+    const cmd = execFileSync('tmux', ['display-message', '-p', '-t', `=${name}:`, '#{pane_current_command}'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 2000 });
+    return SHELLS.has(cmd.trim().replace(/^-/, ''));
+  } catch {
+    return false;
+  }
+}

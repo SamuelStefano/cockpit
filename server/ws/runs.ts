@@ -32,7 +32,7 @@ import { threadIsMarathon, MARATHON_AUTO_RESUME_CAP } from './marathon';
 import { threads, admitRun, resolveThreadKey, stopSession, stopEpochOf, clearStopEpoch, shouldPreserveLive, runParams, sameParams, type Thread, type RunParams } from './threads';
 import { isAreaAdmissionBlocked } from '../canvas/autopause-loop';
 import { enqueuePending, hasPending, takePendingBatch, takeAllPending, type QueuedSend } from './pending';
-import { readOrchestratorSync, isTmuxAliveSync } from '../canvas/orchestrator';
+import { readOrchestratorSync, isTmuxAliveSync, paneRunsShellSync } from '../canvas/orchestrator';
 import { orchestratorTermId, buildPastedSend } from '../../shared/canvas';
 import { hasTerm, openTerm, inputTerm } from '../terminals';
 
@@ -629,14 +629,15 @@ export function orchestratorPaneTarget(targetSessionId: string | undefined, role
   if (!targetSessionId || role !== 'admin') return undefined;
   const orch = readOrchestratorSync();
   if (!orch || orch.sessionId !== targetSessionId) return undefined;
-  return isTmuxAliveSync(orch.tmux) ? orch : undefined;
+  return isTmuxAliveSync(orch.tmux) && !paneRunsShellSync(orch.tmux) ? orch : undefined;
 }
 
 export function deliverToOrchestratorPane(targetSessionId: string | undefined, text: string, role?: Role): boolean {
   const orch = orchestratorPaneTarget(targetSessionId, role);
   if (!orch) return false;
   const termId = orchestratorTermId(orch);
-  if (!hasTerm(termId)) openTerm(termId, 120, 40, () => {}, () => {}, () => {});
+  // At the terminal cap openTerm refuses: report not-delivered instead of losing the text.
+  if (!hasTerm(termId) && !openTerm(termId, 120, 40, () => {}, () => {}, () => {})) return false;
   inputTerm(termId, buildPastedSend(text));
   return true;
 }
