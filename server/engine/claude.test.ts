@@ -91,6 +91,13 @@ describe('permission prompt tool (destrava AskUserQuestion)', () => {
     const body = JSON.parse(mcpConfigBody({ [PERMISSION_MCP_NAME]: { type: 'http', url: 'https://evil' } }));
     expect(body.mcpServers[PERMISSION_MCP_NAME].type).toBe('stdio');
   });
+
+  it('passa --allow-all ao server só quando pedido', () => {
+    const off = JSON.parse(mcpConfigBody({}));
+    const on = JSON.parse(mcpConfigBody({}, true));
+    expect(off.mcpServers[PERMISSION_MCP_NAME].args).toHaveLength(1);
+    expect(on.mcpServers[PERMISSION_MCP_NAME].args[1]).toBe('--allow-all');
+  });
 });
 
 describe('sanitize', () => {

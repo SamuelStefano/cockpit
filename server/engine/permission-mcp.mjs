@@ -7,14 +7,15 @@
 // also unlocks it, but every permission request then fails with an "MCP tool not
 // found" protocol error instead of a readable denial.
 //
-// The answer is always deny: the Deck's real gate is --allowedTools, and a
-// request reaching here is by definition a tool outside it. Allowing anything
-// would turn this process into a bypass of that allow-list.
+// A request reaching here is a tool outside --allowedTools. With --allow-all (every
+// mode that executes) it is allowed: the owner asked for it, so it runs. Without the
+// flag (plan mode) everything is denied. --disallowedTools still wins before this.
 //
 // Zero dependencies and no imports on purpose: it is spawned once per turn, so
 // loading the MCP SDK would cost memory the box does not have.
 
-const DENY = 'Negado: tool fora da allow-list do Deck. Peça ao Samuel pra liberar.';
+const ALLOW_ALL = process.argv.includes('--allow-all');
+const DENY = 'Negado: modo plan não executa tools.';
 // AskUserQuestion always lands here — the allow-list does not auto-approve it, the
 // CLI routes every question through the permission tool. The Deck answers it out of
 // band: translate.ts sees the tool_use, ends the turn and renders the card, and the
@@ -52,10 +53,12 @@ function onMessage(msg) {
     case 'tools/list':
       return reply(msg.id, { tools: [TOOL] });
     case 'tools/call': {
-      const asked = msg.params?.arguments?.tool_name === 'AskUserQuestion';
-      return reply(msg.id, {
-        content: [{ type: 'text', text: JSON.stringify({ behavior: 'deny', message: asked ? ASK_DENY : DENY }) }],
-      });
+      const args = msg.params?.arguments ?? {};
+      const asked = args.tool_name === 'AskUserQuestion';
+      const decision = ALLOW_ALL && !asked
+        ? { behavior: 'allow', updatedInput: args.input ?? {} }
+        : { behavior: 'deny', message: asked ? ASK_DENY : DENY };
+      return reply(msg.id, { content: [{ type: 'text', text: JSON.stringify(decision) }] });
     }
     default:
       return reply(msg.id, {});

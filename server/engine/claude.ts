@@ -118,23 +118,26 @@ export function pickMcpDefs(all: Record<string, unknown>, names: string[], role:
 // sem a flag o CLI nem REGISTRA a tool (some do `tools` do init e do ToolSearch), o
 // modelo não tem como emitir o tool_use e o card de escolha nunca nasce — por isso a
 // pergunta sumiu do Deck mesmo com AskUserQuestion na allow-list. A flag também
-// devolve EnterPlanMode/ExitPlanMode. O server por trás dela nega tudo: a allow-list
-// continua sendo o gate real (ver permission-mcp.mjs).
+// devolve EnterPlanMode/ExitPlanMode. Em modo que executa, o server por trás dela
+// libera toda tool que não está na allow-list (Monitor, Agent, MCPs...): o dono pediu
+// = é pra rodar. Em plan continua negando tudo. --disallowedTools segue precedendo.
 export const PERMISSION_MCP_NAME = 'deck-permission';
 export const PERMISSION_PROMPT_TOOL = `mcp__${PERMISSION_MCP_NAME}__prompt`;
+export const PERMISSION_ALLOW_ALL_FLAG = '--allow-all';
 
-export function permissionMcpDef(): Record<string, unknown> {
+export function permissionMcpDef(allowAll = false): Record<string, unknown> {
+  const script = join(dirname(fileURLToPath(import.meta.url)), 'permission-mcp.mjs');
   return {
     type: 'stdio',
     command: process.execPath,
-    args: [join(dirname(fileURLToPath(import.meta.url)), 'permission-mcp.mjs')],
+    args: allowAll ? [script, PERMISSION_ALLOW_ALL_FLAG] : [script],
   };
 }
 
 // Escreve SEMPRE, mesmo sem MCP escolhido: o server de permissão precisa existir no
 // config pra flag apontar pra algo. `picked` nunca sobrescreve o nosso nome.
-export function mcpConfigBody(picked: Record<string, unknown>): string {
-  return JSON.stringify({ mcpServers: { ...picked, [PERMISSION_MCP_NAME]: permissionMcpDef() } });
+export function mcpConfigBody(picked: Record<string, unknown>, allowAll = false): string {
+  return JSON.stringify({ mcpServers: { ...picked, [PERMISSION_MCP_NAME]: permissionMcpDef(allowAll) } });
 }
 
 // Spawn do claude headless com hardening DR-004:
@@ -237,7 +240,8 @@ export function run(opts: RunOpts): RunHandle {
   {
     const picked = opts.mcps?.length ? pickMcpDefs(mcpServerDefsSync(), opts.mcps, role) : {};
     mcpConfigPath = join(tmpdir(), `deck-mcp-${randomBytes(6).toString('hex')}.json`);
-    try { writeFileSync(mcpConfigPath, mcpConfigBody(picked), { mode: 0o600 }); }
+    const allowAll = resolveMode(mode, { bypass, role }).permissionMode !== 'plan';
+    try { writeFileSync(mcpConfigPath, mcpConfigBody(picked, allowAll), { mode: 0o600 }); }
     catch { mcpConfigPath = undefined; }
   }
   const cleanupMcp = () => { if (mcpConfigPath) { try { unlinkSync(mcpConfigPath); } catch { /* já removido */ } mcpConfigPath = undefined; } };
