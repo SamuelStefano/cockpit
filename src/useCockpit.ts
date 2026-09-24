@@ -572,6 +572,15 @@ export function useCockpit(): Cockpit {
     setUsage(move);
     setTurnStats(move);
     setInterrupted(move);
+    // The session's pinned model, its context meter model/age and its background
+    // agents were left under `new-…`: the next turn after migration ran on the
+    // default model (a different one if it changed meanwhile), and the meter lost
+    // its [1m] denominator.
+    if (oldKey in modelBySessionRef.current) { modelBySessionRef.current = moveKey(modelBySessionRef.current, oldKey, newId); setModelBySession(modelBySessionRef.current); }
+    setUsageModel(move);
+    setLastUsageAt(move);
+    setBgAgents(move);
+    if (oldKey in usageRef.current) { usageRef.current[newId] = usageRef.current[oldKey]; delete usageRef.current[oldKey]; }
     // Se o `list` já trouxe newId como linha persistida, renomear oldKey->newId
     // criaria DUAS linhas com o mesmo id. Renomeia a local e remove a duplicata
     // do servidor (a local carrega o estado em voo, então fica preferida).
@@ -757,7 +766,11 @@ export function useCockpit(): Cockpit {
         // Snapshot autoritativo do servidor (envia no connect): quais keys têm
         // run vivo. Reconcilia o phases local — cobre sessões que ESTE cliente
         // não iniciou (run noturno, outra aba) e limpa keys que já terminaram.
-        const live = new Set(msg.keys);
+        // The server keeps the key a run was born with (a resume or a queue drain
+        // after migration still runs as `new-…`): resolve to the display key first,
+        // or the live run looked dead here and a ghost `new-…` phase appeared.
+        const keys = msg.keys.map((k) => resolveKey(migratedTo.current, k));
+        const live = new Set(keys);
         {
           const seeded = seedRunStart(runStartRef.current, msg.startedAt, (k) => resolveKey(migratedTo.current, k));
           if (seeded) { runStartRef.current = seeded; setRunStart({ ...seeded }); }
@@ -770,7 +783,7 @@ export function useCockpit(): Cockpit {
         // latch `stopping`, um 'busy' pós-stop (disparado a cada reconnect por
         // visibilidade/rede) re-acende inFlight+phase e o botão parar parece
         // não funcionar — a key limpa sozinha no 'done' do kill.
-        for (const k of msg.keys) if (!stopping.current.has(k)) inFlight.current.add(k);
+        for (const k of keys) if (!stopping.current.has(k)) inFlight.current.add(k);
         // Turno que FECHOU enquanto o browser esteve desconectado: o done nunca
         // chegou, então runMsg aponta pra uma bolha truncada — o próximo 'started'
         // reusaria essa bolha ("já em voo") e o turno novo streamaria dentro do
@@ -786,7 +799,7 @@ export function useCockpit(): Cockpit {
         }
         setPhases((p) => {
           const n = { ...p };
-          for (const k of msg.keys) if (n[k] !== 'streaming' && !stopping.current.has(k)) n[k] = 'thinking';
+          for (const k of keys) if (n[k] !== 'streaming' && !stopping.current.has(k)) n[k] = 'thinking';
           for (const k of Object.keys(n)) {
             if (!live.has(k) && (n[k] === 'thinking' || n[k] === 'streaming')) n[k] = 'idle';
           }
@@ -1108,10 +1121,11 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'bgAgents': {
+        const bgKey = resolveKey(migratedTo.current, msg.sessionKey);
         setBgAgents((b) => {
-          if (msg.agents.length) return { ...b, [msg.sessionKey]: msg.agents };
-          if (!(msg.sessionKey in b)) return b;
-          const next = { ...b }; delete next[msg.sessionKey]; return next;
+          if (msg.agents.length) return { ...b, [bgKey]: msg.agents };
+          if (!(bgKey in b)) return b;
+          const next = { ...b }; delete next[bgKey]; return next;
         });
         return;
       }
@@ -1382,6 +1396,9 @@ export function useCockpit(): Cockpit {
     };
     ws.onclose = (ev) => {
       if (!isCurrent()) return;
+      // The retry schedule owns reconnection from here. A heartbeat left running
+      // redialed on its own ~40s later, even after a 4401 had put up the token gate.
+      if (heartbeat.current) { clearInterval(heartbeat.current); heartbeat.current = null; }
       setConn({ ws: 'down', sse: 'down' });
       failAllBenchPending();
       endHandoff();
