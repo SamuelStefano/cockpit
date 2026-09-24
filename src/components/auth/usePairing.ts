@@ -102,7 +102,7 @@ export function usePairing(token: string, agentOnline = false): Pairing {
 
   return {
     code,
-    cmd: code ? `curl -fsSL ${SETUP_URL} | bash -s -- ${code}` : '',
+    cmd: code ? `curl -fsSL ${SETUP_URL} | DECK_PAIR_CODE=${code} bash` : '',
     err,
     busy,
     expired,

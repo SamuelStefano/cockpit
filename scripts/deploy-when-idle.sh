@@ -43,6 +43,12 @@ while [ "$waited" -lt "$MAX_WAIT" ]; do
     log "tree sujo aos ${waited}s; seguindo em espera"
     continue
   fi
+  # Only main deploys: the incident triager works on a branch in this checkout.
+  branch=$(git -C "$REPO" rev-parse --abbrev-ref HEAD 2>/dev/null)
+  if [ "$branch" != "main" ]; then
+    log "HEAD em '$branch' (não main) aos ${waited}s; seguindo em espera"
+    continue
+  fi
   log "box ociosa aos ${waited}s; redeployando $target"
   bash "$REPO/scripts/redeploy.sh" >>"$LOG" 2>&1 9>&-
   log "redeploy terminou (exit $?)"

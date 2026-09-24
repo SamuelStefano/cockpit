@@ -169,9 +169,14 @@ REPO=/home/samuel/cockpit
 pulled=$(bash "$REPO/scripts/pull-merged-main.sh" 2>/dev/null) && [ -n "$pulled" ] && log "$pulled (merge no GitHub)"
 head_commit=$(git -C "$REPO" rev-parse HEAD 2>/dev/null || echo "")
 running=$(cat "$RUNNING_COMMIT" 2>/dev/null || echo "")
+head_branch=$(git -C "$REPO" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
 if [ -n "$head_commit" ] && [ "$running" != "$head_commit" ]; then
+  # Only main deploys. incident-ai.sh commits a fix/incidente-* branch on this
+  # same checkout; a clean tree on that branch would ship unreviewed code.
+  if [ "$head_branch" != "main" ]; then
+    log "drift de codigo, mas HEAD está em '$head_branch' (não main); deploy automático não arma"
   # Tree suja = alguém editando; subir código pela metade é pior que o drift.
-  if [ -z "$(git -C "$REPO" status --porcelain 2>/dev/null)" ]; then
+  elif [ -z "$(git -C "$REPO" status --porcelain 2>/dev/null)" ]; then
     log "drift de codigo: rodando ${running:-desconhecido} != HEAD $head_commit; armando deploy-when-idle"
     MAX_WAIT=150 STEP=5 nohup bash "$REPO/scripts/deploy-when-idle.sh" >/dev/null 2>&1 8>&- &
   fi

@@ -1,7 +1,7 @@
 import { CodeBlock } from '../../../components/primitives';
 import { Pill, SectionTitle, StepCard, Callout } from '../atoms';
 
-const SETUP_CMD = 'curl -fsSL https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh | bash -s -- CÓDIGO';
+const SETUP_CMD = 'curl -fsSL https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh | DECK_PAIR_CODE=CÓDIGO bash';
 
 export function Connect() {
   return (
