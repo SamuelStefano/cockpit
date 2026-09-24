@@ -23,6 +23,8 @@ describe('CodeBlock', () => {
 
   it('a scrolling code block can be reached from the keyboard', () => {
     const { container } = render(<CodeBlock code={'x'.repeat(400)} lang="ts" />);
-    expect(container.querySelector('pre')!.tabIndex).toBe(0);
+    const pre = container.querySelector('pre')!;
+    expect(pre.tabIndex).toBe(0);
+    expect(pre.getAttribute('role')).toBe('region');
   });
 });
