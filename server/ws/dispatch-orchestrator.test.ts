@@ -42,7 +42,7 @@ describe("'orchestrator-activity-get' — the dock's 'Em andamento' panel", () =
     const info = { name: 'Orchestrator', sessionId: 'sid-1', tmux: 'cockpit-cv-abc' };
     const activity = { subagents: [], delegatedShells: [{ name: 'x', status: 'running' as const, tmuxAlive: false }], rawShells: [] };
     orchestratorMod.readOrchestrator.mockResolvedValueOnce(info);
-    activityMod.readOrchestratorActivity.mockResolvedValueOnce(activity);
+    activityMod.readOrchestratorActivity.mockResolvedValueOnce(activity as never);
     await handle(ws, { t: 'orchestrator-activity-get' }, 'admin');
     expect(activityMod.readOrchestratorActivity).toHaveBeenCalledWith(info);
     expect(bc.send).toHaveBeenCalledWith(ws, { t: 'orchestrator-activity', activity });
