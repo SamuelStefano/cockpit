@@ -118,7 +118,10 @@ export function tasksDir(sessionId: string): string {
 // reach tens of MB (18 MB seen) and this runs every 2 s per active thread and
 // every 10 s for the Orchestrator panel; reading them whole blocked the event
 // loop for 100–400 ms per scan on this box.
-interface FileCache { size: number; mtimeMs: number; offset: number; acc: AgentAcc }
+interface FileCache { ino: number; size: number; mtimeMs: number; offset: number; acc: AgentAcc; seenAt: number }
+// Entries for sessions nobody scans any more (finished threads, a handed-off
+// Orchestrator) are dropped after this long.
+const CACHE_IDLE_MS = 10 * 60_000;
 const fileCache = new Map<string, FileCache>();
 
 function readRange(path: string, from: number, to: number): Buffer {
@@ -141,7 +144,8 @@ function readRange(path: string, from: number, to: number): Buffer {
 function scanFile(path: string, id: string, now: number): BgAgent | null {
   const st = statSync(path);
   let c = fileCache.get(path);
-  if (!c || st.size < c.offset) c = { size: 0, mtimeMs: 0, offset: 0, acc: newAcc() };
+  // A different inode is a replaced file, even when it is not shorter.
+  if (!c || st.ino !== c.ino || st.size < c.offset) c = { ino: st.ino, size: 0, mtimeMs: 0, offset: 0, acc: newAcc(), seenAt: now };
   const buf = st.size > c.offset ? readRange(path, c.offset, st.size) : Buffer.alloc(0);
   const cut = buf.lastIndexOf(0x0a) + 1;
   if (cut > 0) {
@@ -150,6 +154,7 @@ function scanFile(path: string, id: string, now: number): BgAgent | null {
   }
   c.size = st.size;
   c.mtimeMs = st.mtimeMs;
+  c.seenAt = now;
   fileCache.set(path, c);
   let acc = c.acc;
   if (cut < buf.length) { acc = { ...c.acc }; feedLine(acc, buf.subarray(cut).toString('utf8')); }
@@ -177,7 +182,9 @@ export function scanSession(sessionId: string, now: number): BgAgent[] {
     try { a = scanFile(path, id, now); } catch { fileCache.delete(path); continue; }
     if (a) out.push(a);
   }
-  for (const path of fileCache.keys()) if (path.startsWith(dir + '/') && !listed.has(path)) fileCache.delete(path);
+  for (const [path, c] of fileCache) {
+    if ((path.startsWith(dir + '/') && !listed.has(path)) || now - c.seenAt > CACHE_IDLE_MS) fileCache.delete(path);
+  }
   return out;
 }
 

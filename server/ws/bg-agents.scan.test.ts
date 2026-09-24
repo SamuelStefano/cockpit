@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
-import { appendFileSync, mkdirSync, rmSync, writeFileSync, readFileSync, statSync, readSync } from 'node:fs';
+import { appendFileSync, mkdirSync, rmSync, writeFileSync, readFileSync, statSync, readSync, renameSync } from 'node:fs';
 
 const tmp = vi.hoisted(() => ({ dir: `${process.env.TMPDIR ?? '/tmp'}/deck-bgscan-${process.pid}` }));
 vi.mock('node:os', async (orig) => ({ ...(await orig<typeof import('node:os')>()), tmpdir: () => tmp.dir }));
@@ -55,5 +55,15 @@ describe('scanSession incremental reads', () => {
     scanSession(SID, Date.now());
     writeFileSync(file, user + turn(7, 'end_turn'));
     expect(scanSession(SID, Date.now())[0]).toMatchObject({ tokens: 8, status: 'done' });
+  });
+
+  it('starts over when the file is replaced by a longer one (new inode)', () => {
+    writeFileSync(file, line({ type: 'user', timestamp: '2026-09-24T10:00:00Z', message: { content: 'OLD' } }) + turn(1000, 'end_turn'));
+    scanSession(SID, Date.now());
+    const replacement = `${file}.new`;
+    writeFileSync(replacement, line({ type: 'user', timestamp: '2026-09-24T10:00:00Z', message: { content: 'NEW NEW NEW NEW NEW NEW' } }) + turn(5, null) + turn(0, null));
+    renameSync(replacement, file);
+    const now = Date.now();
+    expect(scanSession(SID, now)).toEqual([parseAgentFile('a1', readFileSync(file, 'utf8'), statSync(file).mtimeMs, now)]);
   });
 });
