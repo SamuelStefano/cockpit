@@ -61,4 +61,18 @@ describe('useSkills', () => {
     const { result } = montar();
     expect(result.current.onMsg({ t: 'contexts', items: [] })).toBe(false);
   });
+
+  it('a reply arriving after close does not reopen the modal', () => {
+    const { result } = montar();
+    act(() => { result.current.onSkillOpen('a'); result.current.onSkillClose(); });
+    act(() => { result.current.onMsg({ t: 'skill', id: 'a', name: 'n', body: 'b' }); });
+    expect(result.current.openSkill).toBe(null);
+  });
+
+  it('a slow reply for an earlier click does not replace the one asked last', () => {
+    const { result } = montar();
+    act(() => { result.current.onSkillOpen('a'); result.current.onSkillOpen('b'); });
+    act(() => { result.current.onMsg({ t: 'skill', id: 'b', name: 'n', body: 'b' }); result.current.onMsg({ t: 'skill', id: 'a', name: 'n', body: 'b' }); });
+    expect(result.current.openSkill?.id).toBe('b');
+  });
 });

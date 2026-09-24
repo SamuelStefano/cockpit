@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { ClientMsg, ContextMeta, ServerMsg } from '../../shared/protocol';
 
 export interface ContextDoc { id: string; title: string; body: string }
@@ -19,6 +19,8 @@ export function useContexts(send: (m: ClientMsg) => boolean): Contexts {
   // snapshot) de estado vazio de verdade (zero contextos no disco).
   const [ctxLoaded, setCtxLoaded] = useState(false);
   const [openContext, setOpenContext] = useState<ContextDoc | null>(null);
+  // Same guard as useSkills: only the context last asked for may open the modal.
+  const wanted = useRef<string | null>(null);
 
   const onMsg = useCallback((msg: ServerMsg) => {
     switch (msg.t) {
@@ -27,7 +29,7 @@ export function useContexts(send: (m: ClientMsg) => boolean): Contexts {
         setCtxLoaded(true);
         return true;
       case 'context':
-        setOpenContext({ id: msg.id, title: msg.title, body: msg.body });
+        if (msg.id === wanted.current) setOpenContext({ id: msg.id, title: msg.title, body: msg.body });
         return true;
       default:
         return false;
@@ -39,8 +41,8 @@ export function useContexts(send: (m: ClientMsg) => boolean): Contexts {
     ctxLoaded,
     openContext,
     onCtxList: useCallback(() => { send({ t: 'ctx-list' }); }, [send]),
-    onCtxOpen: useCallback((id: string) => { send({ t: 'ctx-open', id }); }, [send]),
-    onCtxClose: useCallback(() => setOpenContext(null), []),
+    onCtxOpen: useCallback((id: string) => { wanted.current = id; send({ t: 'ctx-open', id }); }, [send]),
+    onCtxClose: useCallback(() => { wanted.current = null; setOpenContext(null); }, []),
     onMsg,
   };
 }
