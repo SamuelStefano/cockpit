@@ -200,7 +200,7 @@ export function Canvas(p: CanvasRouteProps) {
       onSelect={(id) => (r.mode === 'canvas' && p.graph ? focusNode(`k:${id}`) : r.editCard(id))}
       onSelectSession={(nodeId) => (r.mode === 'canvas' && p.graph ? focusNode(nodeId) : r.select(nodeId, false))}
       onMove={r.setStatus} onRun={r.runCard} onEdit={r.editCard} onOpenSession={p.onOpenSession}
-      onOpenTerm={openTerm} onSessionStatus={r.onSessionStatus}
+      onOpenTerm={openTerm} onSessionStatus={r.onSessionStatus} onSessionStatusBulk={r.onSessionStatusBulk}
       hiddenSessionIds={r.hiddenSessionIdSet} onHideSession={r.hideSession} onUnhideAll={r.unhideAllSessions}
       sessionPeeks={p.sessionPeeks} onSessionPeek={p.onSessionPeek}
     />
@@ -279,7 +279,7 @@ export function Canvas(p: CanvasRouteProps) {
               </CanvasSurface>
             )}
             {p.graph && <CanvasTimeline timeline={timeline} />}
-            <KanbanDock cards={p.board.cards} sessionItems={r.sessionItems} open={dockOpen} onToggle={() => setDockOpen(!dockOpen)}>{kanban}</KanbanDock>
+            <KanbanDock cards={p.board.cards} sessionItems={r.sessionItems} hiddenSessionIds={r.hiddenSessionIdSet} open={dockOpen} onToggle={() => setDockOpen(!dockOpen)}>{kanban}</KanbanDock>
           </div>
         )}
         {r.draft && (
