@@ -472,6 +472,13 @@ describe('fila estacionada — teto de tokens', () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it('a disk error while shifting the queue does not escape the timer', () => {
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's1', first: item() }]);
+    vi.mocked(shiftParked).mockImplementationOnce(() => { throw new Error('ENOSPC'); });
+    expect(() => drainParked()).not.toThrow();
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it('drena assim que os tokens voltam', () => {
     vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's1', first: item() }]);
     vi.mocked(shiftParked).mockReturnValue(item());
