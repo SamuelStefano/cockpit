@@ -119,9 +119,9 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
             {stats && (
               <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <Stat label="CPU" value={`${cpuPct}%`} icon="zap" tone={cpuPct >= 85 ? 'warn' : cpuPct < 60 ? 'ok' : undefined} />
-                <Stat label="RAM" value={`${memPct}%`} icon="zap" tone={memPct >= 85 ? 'warn' : memPct < 60 ? 'ok' : undefined} />
-                <Stat label="Load" value={stats.load.toFixed(2)} icon="zap" />
-                <Stat label="GPU" value={gpuPct === null ? '—' : `${gpuPct}%`} icon="zap" tone={gpuPct !== null && gpuPct >= 85 ? 'warn' : undefined} />
+                <Stat label="RAM" value={`${memPct}%`} icon="layers" tone={memPct >= 85 ? 'warn' : memPct < 60 ? 'ok' : undefined} />
+                <Stat label="Load" value={stats.load.toFixed(2)} icon="sliders" />
+                <Stat label="GPU" value={gpuPct === null ? '—' : `${gpuPct}%`} icon="monitor" tone={gpuPct !== null && gpuPct >= 85 ? 'warn' : undefined} />
               </div>
             )}
 
@@ -132,8 +132,8 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
                 <AdminInventory health={health} />
 
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <Stat label="Disco" value={`${diskPct}%`} icon="zap" tone={diskPct > 90 ? 'warn' : undefined} />
-                  <Stat label="Livre" value={gb(health.disk.total - health.disk.used)} icon="zap" />
+                  <Stat label="Disco" value={`${diskPct}%`} icon="file" tone={diskPct > 90 ? 'warn' : undefined} />
+                  <Stat label="Livre" value={gb(health.disk.total - health.disk.used)} icon="download" />
                   <Stat label="Uptime backend" value={dur(health.uptimeSec)} icon="clock" tone="ok" />
                   <Stat label="Node" value={health.node} icon="terminal" />
                   <Stat label="Sessões" value={String(health.sessions)} icon="message" />

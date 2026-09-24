@@ -8,7 +8,7 @@ import { DenseGallery } from './ds/DenseGallery';
 
 export function DesignSystem() {
   return (
-    <div className="scroll-thin h-full overflow-y-auto bg-neutral-950 px-8 py-8">
+    <div className="scroll-thin h-full overflow-y-auto bg-neutral-950 px-4 py-6 sm:px-8 sm:py-8">
       <div className="mx-auto flex max-w-3xl flex-col gap-8">
         <header>
           <h2 className="text-[20px] font-semibold text-neutral-100">Design System</h2>
