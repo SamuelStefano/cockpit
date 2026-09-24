@@ -9,6 +9,7 @@ export function ArchivedSection({ archived, onUnhide, onDelete, onView }: { arch
     <div className="mt-3 border-t border-neutral-800/70 pt-2">
       <button
         onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
         className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500 transition hover:bg-neutral-900 hover:text-neutral-300"
       >
         <Icon name="chevronRight" size={12} className={`shrink-0 transition-transform duration-150 ${open ? 'rotate-90' : ''}`} />
@@ -42,6 +43,7 @@ export function ArchivedSection({ archived, onUnhide, onDelete, onView }: { arch
                     <button
                       onClick={() => onDelete(s.id)}
                       title="Excluir sessão"
+                      aria-label={`Excluir sessão ${s.title}`}
                       className="flex h-6 w-6 items-center justify-center rounded-sm text-neutral-500 transition hover:bg-red-500/15 hover:text-red-400"
                     >
                       <Icon name="trash" size={13} />
