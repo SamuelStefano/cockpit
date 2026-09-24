@@ -3,7 +3,8 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { closeTerm } from './terminals';
+import { spawn as ptySpawn } from 'node-pty';
+import { closeTerm, watchedElsewhere } from './terminals';
 
 // Private tmux server (own socket dir), never the live one hosting the Deck terminals.
 describe('closeTerm against a real tmux', () => {
@@ -34,5 +35,18 @@ describe('closeTerm against a real tmux', () => {
     execFileSync('tmux', ['new-session', '-d', '-s', `cockpit-${id}`]);
     closeTerm(id);
     await vi.waitFor(() => expect(alive(`cockpit-${id}`)).toBe(false), { timeout: 2000 });
+  });
+
+  it('counts a client attached through another process as watched', async () => {
+    const w = `w-${id}`;
+    execFileSync('tmux', ['new-session', '-d', '-s', `cockpit-${w}`]);
+    expect(await watchedElsewhere(w)).toBe(false);
+    const other = ptySpawn('tmux', ['attach-session', '-t', `=cockpit-${w}`], { name: 'xterm-256color', cols: 80, rows: 24, env: process.env as Record<string, string> });
+    try {
+      await vi.waitFor(async () => expect(await watchedElsewhere(w)).toBe(true), { timeout: 3000 });
+    } finally {
+      other.kill();
+      closeTerm(w);
+    }
   });
 });
