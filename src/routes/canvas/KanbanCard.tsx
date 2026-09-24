@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import type { CanvasCard } from '../../../shared/canvas';
 import { FORMAT_LABEL } from '../../../shared/canvas-prompt';
-import { Badge, Button, Icon } from '../../components/primitives';
+import { Badge, Button, Icon, tokens } from '../../components/primitives';
 import type { CardRun } from './canvas-board';
 
 interface Props {
@@ -63,7 +63,7 @@ export const KanbanCard = memo(function KanbanCard({ card, run, sessions, sessio
         )}
         {card.contextIds.length > 0 && <span>{card.contextIds.length} ctx</span>}
         {sessions.length > 0 && (
-          <button type="button" className="text-orange-300 hover:underline" onClick={(e) => { e.stopPropagation(); onOpenSession(sessions[sessions.length - 1]); }}>
+          <button type="button" aria-label={`${sessions.length} ${sessions.length > 1 ? 'sessões' : 'sessão'}: abrir a mais recente`} className={`rounded-sm px-0.5 text-orange-300 hover:underline pointer-coarse:py-2 ${tokens.focusRing}`} onClick={(e) => { e.stopPropagation(); onOpenSession(sessions[sessions.length - 1]); }}>
             {sessions.length} sessão{sessions.length > 1 ? 'ões' : ''} ↗
           </button>
         )}

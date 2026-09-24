@@ -7,6 +7,7 @@ import { KanbanCard } from './KanbanCard';
 import { KanbanItemDrawer } from './KanbanItemDrawer';
 import { KanbanSessionItem } from './KanbanSessionItem';
 import { triageSessionItems, type SessionKanbanItem } from './kanban-items';
+import { useArmed } from '../../components/primitives/useArmed';
 
 interface Props {
   cards: CanvasCard[];
@@ -86,6 +87,8 @@ export function Kanban(p: Props) {
   // "completar antigos (N)": ONE wire frame when the caller has wired
   // onSessionStatusBulk through; a per-id loop otherwise (still correct,
   // just N writes instead of 1 — see the Props comment).
+  // One tap moved N sessions to done; it now arms first.
+  const bulk = useArmed();
   const completeStale = () => {
     const ids = triage.staleDone.map((s) => s.sessionId);
     if (!ids.length) return;
@@ -167,7 +170,9 @@ export function Kanban(p: Props) {
             )}
             {!empty && status === 'review' && staleDone.length > 0 && (
               <div className="border-b border-neutral-800 px-2 py-1.5">
-                <Button size="sm" variant="secondary" icon="check" onClick={completeStale}>completar antigos ({staleDone.length})</Button>
+                <Button size="sm" variant={bulk.armed ? 'primary' : 'secondary'} icon="check" onClick={() => bulk.fire(completeStale)}>
+                  {bulk.armed ? `marcar ${staleDone.length} como concluídas?` : `completar antigos (${staleDone.length})`}
+                </Button>
               </div>
             )}
             <div className={`min-h-0 flex-1 space-y-1.5 overflow-y-auto px-2 pb-2 ${empty ? 'md:hidden' : ''}`}>
