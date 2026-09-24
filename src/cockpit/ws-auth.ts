@@ -17,3 +17,19 @@ export const RELAY_AUTH_RETRY_MS = 30_000;
 export function tokenUnchangedAndLive(next: string, current: string, readyState: number | undefined): boolean {
   return next === current && readyState !== undefined && readyState <= 1;
 }
+
+// A 4401 asks Supabase for a fresh session at most this often. Each refresh
+// rotates the refresh token; several tabs rotating in a tight loop can trip
+// refresh-token reuse detection and sign the user out.
+export const RELAY_REFRESH_MIN_GAP_MS = 5 * 60_000;
+
+export function shouldRefreshSession(lastRefreshAt: number, now: number): boolean {
+  return now - lastRefreshAt >= RELAY_REFRESH_MIN_GAP_MS;
+}
+
+// While a 4401 backoff is pending, a new token (from our own refresh) is stored
+// but must not dial at once: the scheduled retry dials. Dialing immediately
+// turned "retry in 30s" into a connect→4401→refresh loop at round-trip speed.
+export function dialOnTokenChange(authBackoffUntil: number, now: number): boolean {
+  return now >= authBackoffUntil;
+}
