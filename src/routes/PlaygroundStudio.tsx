@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Icon } from '../components/primitives/Icon';
-import { toast } from '../components/primitives';
+import { toast, tokens } from '../components/primitives';
 import { download } from '../lib/export';
 import { buildShareUrl } from '../lib/playgroundShare';
 import { useCopied } from '../lib/useCopied';
@@ -33,7 +33,9 @@ export function PlaygroundStudio({ code, mode, lang }: { code: string; mode: Mod
   const sized = mode === 'react' || mode === 'html';
   const width = sized ? (VIEWPORTS.find((v) => v.id === vp)?.width ?? null) : null;
   const passed = tests.filter((t) => t.pass).length;
-  const ctrl = (active: boolean) => `relative rounded-sm p-1.5 transition ${active ? 'text-orange-200' : 'text-neutral-500 hover:text-neutral-300'}`;
+  // 25px icon buttons were the whole toolbar on a phone: touchBox grows them to
+  // 40px on coarse pointers, focusRing makes keyboard focus visible.
+  const ctrl = (active: boolean) => `relative rounded-sm p-1.5 transition ${tokens.focusRing} ${tokens.touchBox} ${active ? 'text-orange-200' : 'text-neutral-500 hover:text-neutral-300'}`;
 
   const overlay = error && (
     <div className="absolute inset-0 z-30 flex items-start bg-[#0c0c0c]/95 p-3">
@@ -48,8 +50,8 @@ export function PlaygroundStudio({ code, mode, lang }: { code: string; mode: Mod
           {sized && (
             <div className="flex items-center gap-0.5 rounded-md bg-neutral-900 p-0.5">
               {VIEWPORTS.map((v) => (
-                <button key={v.id} onClick={() => setVp(v.id)} title={v.label}
-                  className={`rounded-sm p-1 transition ${vp === v.id ? 'bg-neutral-800 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'}`}>
+                <button key={v.id} type="button" onClick={() => setVp(v.id)} title={v.label} aria-label={v.label} aria-pressed={vp === v.id}
+                  className={`rounded-sm p-1 transition ${tokens.focusRing} ${tokens.touchBox} ${vp === v.id ? 'bg-neutral-800 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'}`}>
                   <Icon name={v.icon} size={12} />
                 </button>
               ))}
@@ -60,14 +62,14 @@ export function PlaygroundStudio({ code, mode, lang }: { code: string; mode: Mod
           )}
         </div>
         <div className="flex items-center gap-1">
-          {dirty && <button onClick={reset} title="Voltar ao template" className={ctrl(false)}><Icon name="rotate" size={13} /></button>}
-          <button onClick={() => setShowConsole((s) => !s)} title="Console" className={ctrl(showConsole)}>
+          {dirty && <button type="button" onClick={reset} title="Voltar ao template" aria-label="Voltar ao template" className={ctrl(false)}><Icon name="rotate" size={13} /></button>}
+          <button type="button" onClick={() => setShowConsole((s) => !s)} title="Console" aria-label="Console" aria-pressed={showConsole} className={ctrl(showConsole)}>
             <Icon name="terminal" size={13} />
             {logs.length > 0 && !showConsole && <span className="absolute right-0 top-0 h-1.5 w-1.5 rounded-full bg-orange-400" />}
           </button>
-          <button onClick={share} title="Copiar link compartilhável" className={ctrl(linkCopied)}><Icon name={linkCopied ? 'check' : linkFailed ? 'x' : 'link'} size={13} /></button>
-          <button onClick={() => copy(draft)} title="Copiar código" className={ctrl(false)}><Icon name={copied ? 'check' : 'copy'} size={13} /></button>
-          <button onClick={() => download(`playground.${EXT[mode]}`, 'text/plain', draft)} title="Baixar código" className={ctrl(false)}><Icon name="download" size={13} /></button>
+          <button type="button" onClick={share} title="Copiar link compartilhável" aria-label="Copiar link compartilhável" className={ctrl(linkCopied)}><Icon name={linkCopied ? 'check' : linkFailed ? 'x' : 'link'} size={13} /></button>
+          <button type="button" onClick={() => copy(draft)} title="Copiar código" aria-label="Copiar código" className={ctrl(false)}><Icon name={copied ? 'check' : 'copy'} size={13} /></button>
+          <button type="button" onClick={() => download(`playground.${EXT[mode]}`, 'text/plain', draft)} title="Baixar código" aria-label="Baixar código" className={ctrl(false)}><Icon name="download" size={13} /></button>
         </div>
       </div>
 
