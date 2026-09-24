@@ -60,6 +60,9 @@ function highlighter(): Promise<HighlighterCore> {
         engine: createJavaScriptRegexEngine({ forgiving: true }),
       });
     })();
+    // A failed chunk load (flaky network) must not be cached for the page's
+    // lifetime: an installed PWA open for days would lose highlighting until reload.
+    hlPromise.catch(() => { hlPromise = null; });
   }
   return hlPromise;
 }

@@ -18,7 +18,7 @@ export function EditableTitle({ id, title, editable, onRename }: EditableTitlePr
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') { e.preventDefault(); commit(); }
+          if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); commit(); }
           else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
         }}
         className="min-w-0 flex-1 rounded-sm border border-orange-700/60 bg-neutral-800 px-1 py-0.5 text-[12.5px] font-medium text-neutral-100 outline-hidden"

@@ -48,11 +48,13 @@ export function SessionRowActions({ pinned, running, canStop, canDescribe, marat
   // Fecha ao clicar fora ou apertar Esc.
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    // pointerdown, not mousedown: iOS fires no mousedown on non-clickable areas, so
+    // tapping empty list space left the menu open (RouteMenu/ProfileMenu already switched).
+    const onDown = (e: PointerEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing) { e.preventDefault(); setOpen(false); } };
-    window.addEventListener('mousedown', onDown);
+    window.addEventListener('pointerdown', onDown);
     window.addEventListener('keydown', onKey);
-    return () => { window.removeEventListener('mousedown', onDown); window.removeEventListener('keydown', onKey); };
+    return () => { window.removeEventListener('pointerdown', onDown); window.removeEventListener('keydown', onKey); };
   }, [open]);
 
   const items: Item[] = [];
