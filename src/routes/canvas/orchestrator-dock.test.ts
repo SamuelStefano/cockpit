@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampDockWidth, isMobileWidth, MIN_DOCK_WIDTH, orchestratorRunning } from './orchestrator-dock';
+import { clampDockWidth, cpuLabel, isMobileWidth, MIN_DOCK_WIDTH } from './orchestrator-dock';
 
 describe('clampDockWidth', () => {
   it('floors at the minimum width', () => {
@@ -25,8 +25,8 @@ describe('isMobileWidth', () => {
   it('is exclusive-safe at the boundary', () => expect(isMobileWidth(480)).toBe(true));
 });
 
-describe('orchestratorRunning', () => {
-  it('is false with no stats', () => expect(orchestratorRunning(undefined)).toBe(false));
-  it('is false below the cpu threshold', () => expect(orchestratorRunning({ cpu: 0.4, rssMb: 10, procs: 1 })).toBe(false));
-  it('is true at/above the cpu threshold', () => expect(orchestratorRunning({ cpu: 5, rssMb: 10, procs: 1 })).toBe(true));
+describe('cpuLabel', () => {
+  it('is null with no stats (nothing to show yet)', () => expect(cpuLabel(undefined)).toBeNull());
+  it('rounds to a whole percent', () => expect(cpuLabel({ cpu: 4.6, rssMb: 10, procs: 1 })).toBe('cpu 5%'));
+  it('shows 0% rather than hiding — idle-but-alive is real information', () => expect(cpuLabel({ cpu: 0, rssMb: 10, procs: 1 })).toBe('cpu 0%'));
 });

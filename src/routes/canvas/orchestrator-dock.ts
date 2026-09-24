@@ -18,12 +18,13 @@ export function clampDockWidth(width: number, viewportWidth: number): number {
 export const MOBILE_BREAKPOINT = 480;
 export const isMobileWidth = (viewportWidth: number) => viewportWidth <= MOBILE_BREAKPOINT;
 
-// A cpu blip below this is measurement noise (idle process still ticks at
-// ~0-1%), not the orchestrator actually turning — same floor TermStatsBar's
-// heat scale treats as "cold".
-const RUNNING_CPU_THRESHOLD = 2;
-
-export function orchestratorRunning(stats: TermStats | undefined): boolean {
-  if (!stats) return false;
-  return stats.cpu >= RUNNING_CPU_THRESHOLD;
+// The dock's rodando/ocioso badge used to read this same CPU sample (≥2% =
+// "running") — which disagreed with the kanban's own running/cv-live read
+// whenever the process waited on the API (cpu ~0, still busy) or idled hot
+// (review item 7). The badge now takes `live` straight from
+// r.orchestratorItem?.running (Canvas.tsx); CPU is kept only as this
+// secondary figure, never the running/idle read itself.
+export function cpuLabel(stats: TermStats | undefined): string | null {
+  if (!stats) return null;
+  return `cpu ${Math.round(stats.cpu)}%`;
 }
