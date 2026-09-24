@@ -103,7 +103,13 @@ export function tasksDir(sessionId: string): string {
   return join(tmpdir(), `claude-${uid}`, projectSlug(homedir()), sessionId, 'tasks');
 }
 
-function scanSession(sessionId: string, now: number): BgAgent[] {
+// Exported for the Orchestrator's "Em andamento" panel (canvas/orchestrator-
+// activity.ts): its sessionId is never in `threads` (it's an interactive CLI
+// in a tmux pane, not one of our own runs), so scanActiveBgAgents' own
+// threads-iteration never reaches it — but the CLI writes the exact same
+// tasksDir/*.output files for a Task/Agent launch regardless of who started
+// the session, so scanning it directly works the same way.
+export function scanSession(sessionId: string, now: number): BgAgent[] {
   const dir = tasksDir(sessionId);
   let names: string[];
   try { names = readdirSync(dir); } catch { return []; }

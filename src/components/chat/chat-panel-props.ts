@@ -95,4 +95,9 @@ export interface ChatPanelProps {
   queueForce: (sessionKey: string) => void;
   resumeOffer?: ResumeOfferView | null;
   resumeRun?: (sessionKey: string) => void;
+  // The Orchestrator's own sessionId (~/.cockpit/orchestrator.json) — when it
+  // matches `session.id`, the banner tells Samuel a message here goes into
+  // its tmux pane, not a fresh turn (see server/ws/runs.ts's twin-process
+  // guard). Absent = not answered yet, or no Orchestrator configured.
+  orchestratorSessionId?: string;
 }

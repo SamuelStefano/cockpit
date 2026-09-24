@@ -68,8 +68,9 @@ const HEARTBEAT_STALE_MS = 40_000;
 const CANVAS_SEND_PENDING_MS = 20_000;
 
 // A superfície pública dos domínios-folha é a dos próprios hooks, menos os canais
-// internos: `onMsg` (dispatch) e `onGraphReconnect` (gancho do socket).
-type LeafApis = Omit<Notes & Drops & Crons & Points & Contexts & Skills & Graphs & CanvasApi & Admin & Harness, 'onMsg' | 'onGraphReconnect'>;
+// internos: `onMsg` (dispatch), `onGraphReconnect` e `onOrchestratorReconnect`
+// (ganchos do socket).
+type LeafApis = Omit<Notes & Drops & Crons & Points & Contexts & Skills & Graphs & CanvasApi & Admin & Harness, 'onMsg' | 'onGraphReconnect' | 'onOrchestratorReconnect'>;
 
 export interface Cockpit extends LeafApis {
   onLaunchAgent: (prompt: string, title: string) => string | null;
@@ -461,6 +462,7 @@ export function useCockpit(): Cockpit {
   const { onSkillList } = skillsApi;
   const { onPointsGet } = pointsApi;
   const { onGraphReconnect } = graphsApi;
+  const { onOrchestratorReconnect } = canvasApi;
 
   // Re-abertura automática (reconnect, session-touched, reconciliação de busy):
   // preserva a visão escolhida. Traz sempre a última página; o mergeHistory com
@@ -1338,6 +1340,7 @@ export function useCockpit(): Cockpit {
       thumbPending.current.clear();
       setConn({ ws: 'connected', sse: 'connected' });
       onGraphReconnect();
+      onOrchestratorReconnect();
       reconcile();
       // Watchdog de socket meio-aberto (o "chat para e só volta com F5"): no desktop,
       // aba visível, um socket que morre sem FIN (relay/NAT/idle-timeout) NÃO dispara
@@ -1391,7 +1394,7 @@ export function useCockpit(): Cockpit {
     };
     ws.onerror = () => { if (isCurrent()) { try { ws.close(); } catch { /* noop */ } } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [send, onServer, reattach, onGraphReconnect]);
+  }, [send, onServer, reattach, onGraphReconnect, onOrchestratorReconnect]);
   connectRef.current = connect;
 
   const scheduleRetry = useCallback(() => {

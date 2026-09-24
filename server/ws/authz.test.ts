@@ -9,13 +9,13 @@ describe('authorize', () => {
   });
 
   it('student may read and drive own chat', () => {
-    for (const t of ['send', 'stop', 'list', 'open', 'open-full', 'search', 'ctx-list', 'ctx-open', 'skill-list', 'skill-open', 'usage-list', 'upload-chunk'] as const) {
+    for (const t of ['send', 'stop', 'list', 'open', 'open-full', 'search', 'ctx-list', 'ctx-open', 'skill-list', 'skill-open', 'usage-list', 'upload-chunk', 'orchestrator-get'] as const) {
       expect(authorize('student', t)).toBe(true);
     }
   });
 
   it('student is denied shell, admin recon, and others’ session mutations', () => {
-    for (const t of ['admin-health', 'term-open', 'term-input', 'term-resize', 'term-detach', 'term-close', 'term-list', 'hide', 'unhide', 'purge', 'set-meta', 'list-archived'] as const) {
+    for (const t of ['admin-health', 'term-open', 'term-input', 'term-resize', 'term-detach', 'term-close', 'term-list', 'hide', 'unhide', 'purge', 'set-meta', 'list-archived', 'orchestrator-activity-get'] as const) {
       expect(authorize('student', t)).toBe(false);
     }
   });

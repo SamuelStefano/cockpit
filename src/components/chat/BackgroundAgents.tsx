@@ -4,7 +4,7 @@ import { fmtTokensK } from './Thinking';
 import { useBackgroundAgents, type ViewAgent } from './use-background-agents';
 import type { BgAgent } from '../../../shared/protocol';
 
-function fmtElapsed(ms: number): string {
+export function fmtElapsed(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
   if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);

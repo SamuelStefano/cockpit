@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
-  AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasGraph, CanvasNode, CanvasPos, CardStatus, ContentFormat, TermStats,
+  AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasGraph, CanvasNode, CanvasPos, CardStatus, ContentFormat, OrchestratorActivity, TermStats,
 } from '../../../shared/canvas';
 import { AREA_IDS } from '../../../shared/canvas';
 import { buildContentPrompt, buildContinuePrompt, buildTaskPrompt } from '../../../shared/canvas-prompt';
@@ -85,6 +85,9 @@ export interface CanvasRouteProps {
   onDflTaskCreateLink: (cardId: string, taskName: string, epicId: string, deliveryId: string, why: string, what: string) => Promise<DflWriteResult>;
   onDflTaskUnlink: (cardId: string) => boolean;
   onDflTaskConfirmSync: (cardId: string) => Promise<DflWriteResult>;
+  // The dock's "Em andamento" panel — see useOrchestratorActivityPoll.
+  orchestratorActivity: OrchestratorActivity | null;
+  onOrchestratorActivityGet: () => void;
 }
 
 export type CanvasMode = 'canvas' | 'kanban' | 'chain';

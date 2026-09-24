@@ -2,7 +2,7 @@
 // REGRA (squad L3): types-only — zero import de node:*/fs. O bundle do browser
 // importa este arquivo.
 
-import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, CardStatus, TermStats } from './canvas';
+import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, CardStatus, OrchestratorActivity, OrchestratorInfo, TermStats } from './canvas';
 import type { AreaUsage } from './canvas-budget';
 import type { DflDraft, DraftOp } from './dfl-drafts';
 
@@ -738,6 +738,14 @@ export type ClientMsg =
   | { t: 'graph-node-op'; id: string; op: 'explain' | 'affected' | 'path'; a: string; b?: string }
   | { t: 'graph-delete'; id: string }
   | { t: 'canvas-get' }
+  // Cheap identity-only read (readOrchestrator: a small local file, no
+  // transcript rescan) — so the normal chat view's "this is the
+  // Orchestrator" banner doesn't have to pull in the whole canvas-get graph
+  // build (~15-25s on a cold rescan) just to know one sessionId.
+  | { t: 'orchestrator-get' }
+  // "Em andamento" panel in the dock — polled only while it's open and
+  // expanded (see useOrchestratorActivity), not on every reconnect.
+  | { t: 'orchestrator-activity-get' }
   | { t: 'canvas-term-stats'; sessions: string[]; terms: string[] }
   // A CardEditor reuse-pool lookup (session-reuse.ts): just the transcript
   // TAIL's last usage for ids that mostly never had an open window — a
@@ -910,6 +918,8 @@ export type ServerMsg =
   | { t: 'stats'; stats: SysStats }
   | { t: 'graphs'; items: GraphMeta[] }
   | { t: 'canvas-graph'; graph: CanvasGraph }
+  | { t: 'orchestrator-info'; info?: OrchestratorInfo }
+  | { t: 'orchestrator-activity'; activity: OrchestratorActivity }
   | { t: 'canvas-term-stats'; stats: Record<string, TermStats> }
   | { t: 'canvas-ctx-stats'; stats: Record<string, Pick<TermStats, 'contextTokens' | 'model' | 'lastAt'>> }
   // flowRuns: every card-target flow run still live right now (server/canvas/

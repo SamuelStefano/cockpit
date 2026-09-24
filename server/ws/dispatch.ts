@@ -44,6 +44,8 @@ import { requestPlanUsageRefresh, planUsageFrame } from './usage-plan';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 import { buildBench } from '../bench';
 import { buildCanvas } from '../canvas/index';
+import { readOrchestrator } from '../canvas/orchestrator';
+import { readOrchestratorActivity } from '../canvas/orchestrator-activity';
 import { collectCtxOnly, collectTermStats, hasInteractiveClaude, newCpuSamples, type CpuSamples } from '../canvas/term-stats';
 import {
   MAX_FLOWS, readBoard, readBoardChained, updateBoard, sanitizeCard, sanitizeFlow, sanitizePos, upsertCard, upsertFlow, removeCard, removeFlow,
@@ -205,6 +207,18 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // (canvas/autopause-loop.ts): reuses this exact graph, no extra build.
       updateAreaCacheFromGraph(graph);
       send(ws, { t: 'canvas-graph', graph });
+      return;
+    }
+    case 'orchestrator-get': {
+      send(ws, { t: 'orchestrator-info', info: await readOrchestrator() });
+      return;
+    }
+    // Admin-only (not in authz.ts's STUDENT_ALLOWED): the dock's panel is a
+    // Samuel-only surface, and unlike 'orchestrator-get' this touches tmux
+    // session names and delegated-shell file contents.
+    case 'orchestrator-activity-get': {
+      const info = await readOrchestrator();
+      send(ws, { t: 'orchestrator-activity', activity: info ? await readOrchestratorActivity(info) : { subagents: [], delegatedShells: [], rawShells: [] } });
       return;
     }
     case 'canvas-pos': {

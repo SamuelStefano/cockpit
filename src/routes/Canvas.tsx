@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { CanvasFlow } from '../../shared/canvas';
+import { sessionNodeId, shellNodeId, watchTermId, type CanvasFlow } from '../../shared/canvas';
 import { Button, EmptyState } from '../components/primitives';
 import { usePersisted } from '../lib/persist';
 import { countHotContext, countWaiting } from './canvas/canvas-alerts';
@@ -33,7 +33,7 @@ import { MAX_OPEN_TERMS, placeWindows } from './canvas/canvas-terms';
 import { termTarget, useCanvasTerms } from './canvas/useCanvasTerms';
 
 export function Canvas(p: CanvasRouteProps) {
-  const terms = useCanvasTerms(p.term, p.discoveredTerms, p.listTerms);
+  const terms = useCanvasTerms(p.term, p.discoveredTerms, p.listTerms, p.graph?.orchestrator?.sessionId);
   const r = useCanvasRoute(p, terms.open, terms.shells);
   // Fetches the DFL snapshot CardEditor's link picker needs; the server push
   // (dfl-points-watch.ts) keeps it fresh afterwards, same as /pontos.
@@ -164,11 +164,30 @@ export function Canvas(p: CanvasRouteProps) {
     autoOpen(r.visible.nodes.filter((n) => n.kind === 'session' && p.running.has(n.ref)).map((n) => n.id));
   }, [r.visible.nodes, p.running, autoOpen]);
 
+  // A `w-` follower for the Orchestrator's OWN session is a leftover from
+  // before this exclusion existed (or from a backend without it) — kill the
+  // real tmux pane, not just hide the local window state, so `tmux ls`
+  // matches what the canvas shows. term.kill is idempotent against an id
+  // that's already gone.
+  const { kill: killTerm } = p.term;
+  useEffect(() => {
+    const info = p.graph?.orchestrator;
+    if (!info) return;
+    const followerId = watchTermId(info.sessionId);
+    if (p.discoveredTerms.includes(followerId)) killTerm(followerId);
+  }, [p.graph?.orchestrator, p.discoveredTerms, killTerm]);
+
   const { openWindow } = terms;
+  const orchestratorSessionNodeId = p.graph?.orchestrator ? sessionNodeId(p.graph.orchestrator.sessionId) : null;
+  const { setOpen: setDockOpenFromTerm } = orchDock;
   const openTerm = useCallback((id: string) => {
+    // useCanvasTerms silently refuses this id (never a `w-` follower for the
+    // Orchestrator's own session — see item B). Route the same click to the
+    // ONE real surface instead of doing nothing.
+    if (id === orchestratorSessionNodeId) { setDockOpenFromTerm(true); return; }
     openWindow(id);
     setCenter((c) => ({ id, n: (c?.n ?? 0) + 1 }));
-  }, [openWindow]);
+  }, [openWindow, orchestratorSessionNodeId, setDockOpenFromTerm]);
 
   const openRecent = () => terms.openMany(
     r.visible.nodes.filter((n) => n.kind === 'session').sort((a, b) => a.mtime - b.mtime).slice(-MAX_OPEN_TERMS).map((n) => n.id),
@@ -308,7 +327,11 @@ export function Canvas(p: CanvasRouteProps) {
         )}
       </div>
       {orchestrator && orchDock.open && (
-        <OrchestratorDock orchestrator={orchestrator} dock={orchDock} term={p.term} stats={p.termStats[orchestratorTermId(orchestrator)]} />
+        <OrchestratorDock
+          orchestrator={orchestrator} dock={orchDock} term={p.term} stats={p.termStats[orchestratorTermId(orchestrator)]}
+          activity={p.orchestratorActivity} onActivityGet={p.onOrchestratorActivityGet}
+          onOpenShell={(termId) => openTerm(shellNodeId(termId))}
+        />
       )}
       {orchestrator && !orchDock.open && orchDock.mobile && (
         <Button
