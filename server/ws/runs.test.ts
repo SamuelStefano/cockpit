@@ -543,6 +543,18 @@ describe('fila estacionada — teto de tokens', () => {
     expect(vi.mocked(shiftParked).mock.calls[0][0]).toBe('s2'); // s2 teve a vez
   });
 
+  it('a queue item whose turn the reaper killed before any output goes back to the queue', () => {
+    const it0 = item();
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's2', first: it0 }]);
+    vi.mocked(shiftParked).mockReturnValue(it0);
+    drainParked();
+    Object.assign(threads.get('s2')!, { lastFrameAt: Date.now() - REAPER_SILENCE_CAP_MS - 1 });
+    reapStaleRuns();
+    expect(threads.get('s2')!.userStopped).toBeFalsy();
+    closeLastRun();
+    expect(unshiftParked).toHaveBeenCalledWith('s2', it0, true);
+  });
+
   it('devolve pro topo da fila o item cujo turno morreu no limite', () => {
     const it0 = item();
     vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's2', first: it0 }]);
