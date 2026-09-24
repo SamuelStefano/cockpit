@@ -14,6 +14,10 @@ interface ToolCallCardProps {
 
 export function ToolCallCard({ tool }: ToolCallCardProps) {
   const [open, setOpen] = useState(!!tool.expanded);
+  // Output lines render only once the output was opened: a long session has
+  // hundreds of collapsed tool cards, each holding a full <pre> of every line.
+  const [everOpened, setEverOpened] = useState(open);
+  if (open && !everOpened) setEverOpened(true);
   const [showShellCmd, setShowShellCmd] = usePersisted('showShellCmd', true);
   const { status } = tool;
   const lines = tool.output || [];
@@ -133,11 +137,11 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
           </div>
           <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
             <div className="overflow-hidden">
-            <pre className="scroll-thin max-h-52 overflow-auto border-t border-neutral-800 bg-[#070707] px-3 py-2.5 font-mono text-[11.5px] leading-relaxed text-neutral-400">
+            {everOpened && <pre className="scroll-thin max-h-52 overflow-auto border-t border-neutral-800 bg-[#070707] px-3 py-2.5 font-mono text-[11.5px] leading-relaxed text-neutral-400">
               {lines.map((l, i) => (
                 <div key={i} className={l.startsWith('##') || l.startsWith('?') ? 'text-sky-400/80' : l.startsWith(' M') ? 'text-orange-400/80' : ''}>{l || ' '}</div>
               ))}
-            </pre>
+            </pre>}
             </div>
           </div>
         </div>
