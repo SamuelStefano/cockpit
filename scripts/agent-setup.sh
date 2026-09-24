@@ -12,7 +12,8 @@
 # mata processo, cron, hook de git que reinicia serviço — é OPT-IN por variável.
 #
 # Uso (a partir do Dashboard):
-#   curl -fsSL https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh | bash -s -- CÓDIGO
+#   curl -fsSL https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh | DECK_PAIR_CODE=CÓDIGO bash
+#   (env, not argv: `bash -s -- CÓDIGO` leaves the code visible in `ps` for the whole install)
 #
 # Requer `claude` LOGADO nesta box: se nunca logou, rode `claude` uma vez e depois
 # reinicie o serviço (o script avisa no fim).
@@ -53,7 +54,7 @@ Crie um usuário normal com sudo e rode de novo:
   adduser --disabled-password --gecos "" deck
   usermod -aG sudo deck      # (Debian/Ubuntu; em RHEL/Fedora o grupo é 'wheel')
   su - deck
-  curl -fsSL $SETUP_URL | bash -s -- CÓDIGO
+  curl -fsSL $SETUP_URL | DECK_PAIR_CODE=CÓDIGO bash
 
 Se você REALMENTE quer o agente como root, rode de novo com DECK_ALLOW_ROOT=1.
 EOF
@@ -271,7 +272,7 @@ if [ ! -f "$AGENT_DIR/identity.json" ]; then
   cat <<EOF
 [deck] esta box ainda não está pareada — não vou subir o agente (ele sairia em loop).
 Gere um código na tela "conectar sua VPS" do Deck e rode:
-  curl -fsSL $SETUP_URL | bash -s -- CÓDIGO
+  curl -fsSL $SETUP_URL | DECK_PAIR_CODE=CÓDIGO bash
 ou, com o repo já clonado aqui:
   cd $SRC_DIR && DECK_RELAY_URL=$RELAY DECK_PAIR_CODE=CÓDIGO npx tsx server/agent.ts --pair
 EOF

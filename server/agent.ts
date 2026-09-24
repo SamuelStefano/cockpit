@@ -267,7 +267,7 @@ export function startHealthGuard(): void {
 export function runAgent(relayUrl: string): void {
   const id = loadIdentity();
   if (!id?.agentId) {
-    console.error('[agent] não pareado. Gere um código no Deck e rode o instalador:\n  curl -fsSL https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh | bash -s -- CÓDIGO');
+    console.error('[agent] não pareado. Gere um código no Deck e rode o instalador:\n  curl -fsSL https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh | DECK_PAIR_CODE=CÓDIGO bash');
     process.exit(1);
   }
   startHealthGuard();
