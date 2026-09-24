@@ -43,13 +43,17 @@ interface Props {
 // mexe só no texto — o item mantém posição e os anexos amarrados a ele.
 export function QueuedItem({ index, text, atts, expanded, flash, first, last, editing, draft, setDraft, onToggle, onStartEdit, onCommit, onCancelEdit, onMove, onRemove, bgModel, models, bgOpen, onToggleBg, onRunBg, onRunNow, nowBlocked }: Props) {
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const liRef = useRef<HTMLLIElement>(null);
   const bgId = `fila-bg-${index}`;
   // Teclado virtual não tem Shift+Enter: no toque o Enter quebra linha e salvar é
   // só pelo botão — mesma regra do composer.
   const touch = useMemo(isVirtualKeyboardOnly, []);
   useEffect(() => { if (editing) taRef.current?.focus(); }, [editing]);
+  // The list scrolls (QueuedBanner caps its height): a moved item flashes where
+  // it landed, which may be outside the visible part.
+  useEffect(() => { if (flash) liRef.current?.scrollIntoView?.({ block: 'nearest' }); }, [flash]);
   return (
-    <li className={`rounded-md transition-colors duration-500 ${flash ? 'bg-orange-500/20' : ''}`}>
+    <li ref={liRef} className={`rounded-md transition-colors duration-500 ${flash ? 'bg-orange-500/20' : ''}`}>
       <div className="flex items-start gap-1 pointer-coarse:flex-wrap">
         <span className="mt-0.5 shrink-0 text-[10px] tabular-nums text-orange-400/50">{index + 1}.</span>
         {atts > 0 && (

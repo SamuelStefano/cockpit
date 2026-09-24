@@ -59,7 +59,10 @@ export function QueuedBanner({ queued, queuedAtts, queuedModels, models, onRunBg
           )}
         </div>
       </div>
-      <ul className="flex flex-col gap-1">
+      {/* Capped: on a phone every item takes ~65px (its actions get their own
+          row), so 3 queued prompts during a turn left ~80px of thread at 375x667
+          and none with the keyboard up. The list scrolls instead. */}
+      <ul className="scroll-thin flex max-h-48 flex-col gap-1 overflow-y-auto overscroll-contain pointer-coarse:max-h-[22dvh]">
         {queued.map((text, i) => (
           <QueuedItem
             key={i}
