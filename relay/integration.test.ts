@@ -483,3 +483,36 @@ describe('POST /pair/new', () => {
     expect(codes).toEqual([200, 200, 200, 200, 200, 429, 429]);
   });
 });
+
+describe('relay: browser that leaves during auth', () => {
+  let server: import('node:http').Server | null = null;
+  afterEach(() => { server?.close(); server = null; });
+
+  const store: RelayStore = {
+    async agentById() { return null; }, async isAdmin() { return false; },
+    async listAccounts() { return []; }, async setAdmin() { return true; },
+    async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
+    async consumePairingCode() { return null; }, async createAgent() { return null; },
+  };
+
+  it('is not registered when the socket closed before identity resolved', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const relay = createRelay({
+      iss: 't', jwksUrl: 'http://x', rootEmails: '', store,
+      resolveIdentity: async () => { await gate; return { accountId: 'accA', email: 'a@x', role: 'fellow' }; },
+    });
+    server = relay.server;
+    await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
+    const { port } = server!.address() as AddressInfo;
+
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=A1`);
+    await new Promise<void>((r) => ws.on('open', () => r()));
+    ws.close();
+    await new Promise((r) => setTimeout(r, 50));
+    release();
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(relay.registry.browserCount('accA')).toBe(0);
+  });
+});
