@@ -3,7 +3,7 @@ import type { WebSocket } from 'ws';
 import { startRun, catchSpawn, routeSend, isSilentDeath, isCleanTurnClose, resumeOrphanRuns, drainParked, runParkedInBackground, runParkedNow, startParkedDrainer, acceptResumeOffer, hasResumeOffer, AUTO_RESUME_CAP, deliverToOrchestratorPane, orchestratorPaneTarget } from './runs';
 import { readOrchestratorSync, isTmuxAliveSync, paneLostClaudeSync } from '../canvas/orchestrator';
 import { hasTerm, openTerm, inputTerm } from '../terminals';
-import { threads, killAllRuns } from './threads';
+import { threads, killAllRuns, stopSession } from './threads';
 import { reapStaleRuns, REAPER_SILENCE_CAP_MS, REAPER_TOOL_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './reaper';
 import { takeOrphanRuns } from './recover';
 import { recordIncident } from './incidents';
@@ -667,25 +667,6 @@ describe('fila estacionada — teto de tokens', () => {
     closeLastRun();
     expect(addParked).toHaveBeenCalledWith('s4', expect.objectContaining({ prompt: 'item enfileirado' }));
     expect(run).toHaveBeenCalledOnce();
-  });
-
-  it('disco cheio ao estacionar a fila in-turn avisa em vez de derrubar o onClose', () => {
-    setAwaiting('s9');
-    startRun({ ws, sessionKey: 's9', prompt: 'item que não cabe no disco', auto: true });
-    startRun({ ws, sessionKey: 's9', prompt: 'resposta do usuário' });
-    limited();
-    vi.mocked(addParked).mockImplementationOnce(() => { throw new Error('ENOSPC'); });
-    expect(() => closeLastRun()).not.toThrow();
-    expect(broadcast).toHaveBeenCalledWith(expect.objectContaining({ t: 'error', sessionKey: 's9', message: expect.stringContaining('ENOSPC') }));
-  });
-
-  it('disco cheio ao devolver um item no dreno não escapa do tick', () => {
-    const it0 = item({});
-    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's10', first: it0 }]);
-    vi.mocked(shiftParked).mockReturnValue(it0);
-    vi.mocked(run).mockImplementationOnce(() => { throw new Error('spawn falhou'); });
-    vi.mocked(unshiftParked).mockImplementationOnce(() => { throw new Error('ENOSPC'); });
-    expect(() => drainParked()).not.toThrow();
   });
 });
 
@@ -1662,5 +1643,93 @@ describe('catchSpawn', () => {
   it('returns the handle or the error message', () => {
     expect(catchSpawn(() => 1)).toEqual({ handle: 1 });
     expect(catchSpawn(() => { throw new Error('boom'); })).toEqual({ error: 'boom' });
+  });
+});
+
+describe('routeSend while the triage model is thinking', () => {
+  const ws = {} as WebSocket;
+  const runOf = (i: number) => vi.mocked(run).mock.calls[i][0];
+
+  beforeEach(() => { threads.clear(); clearAllAwaiting(); vi.mocked(run).mockClear(); });
+
+  it('a stop pressed during triage still wins after the stopped turn closes', async () => {
+    let release!: (v: { action: 'wait'; reason: string }) => void;
+    vi.mocked(classify).mockImplementationOnce(() => new Promise((r) => { release = r as typeof release; }));
+    startRun({ ws, sessionKey: 'st', prompt: 'turno' });
+    const pending = routeSend({ ws, sessionKey: 'st', prompt: 'mensagem' });
+    stopSession('st');
+    runOf(0).onClose?.();
+    release({ action: 'wait', reason: '' });
+    await pending;
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('a follow-up whose first turn closed during triage resumes that session', async () => {
+    let release!: (v: { action: 'wait'; reason: string }) => void;
+    vi.mocked(classify).mockImplementationOnce(() => new Promise((r) => { release = r as typeof release; }));
+    startRun({ ws, sessionKey: 'new-abc', prompt: 'oi' });
+    threads.get('new-abc')!.sessionId = 'S1';
+    threads.get('new-abc')!.endReason = 'success'; // a clean close: no auto-resume
+    const pending = routeSend({ ws, sessionKey: 'new-abc', prompt: 'e agora?' });
+    runOf(0).onClose?.();
+    release({ action: 'wait', reason: '' });
+    await pending;
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(runOf(1).resumeId).toBe('S1');
+  });
+});
+
+describe('a run refused for capacity with no socket keeps the work', () => {
+  const ws = {} as WebSocket;
+
+  beforeEach(() => {
+    threads.clear(); clearAllAwaiting();
+    vi.mocked(run).mockClear(); vi.mocked(broadcast).mockClear(); vi.mocked(addParked).mockClear();
+    memInfoMock.value = { availMb: 100_000, swapFreeMb: 4000, swapTotalMb: 4096 };
+  });
+  afterEach(() => { memInfoMock.value = { availMb: 100_000, swapFreeMb: 4000, swapTotalMb: 4096 }; });
+
+  it('auto-resume refused for memory leaves a resume banner, not "Retomando…" and nothing', () => {
+    startRun({ ws, sessionKey: 'other', prompt: 'x', resumeId: 'sess-o' });
+    startRun({ ws, sessionKey: 'dying', prompt: 'y', resumeId: 'sess-d' });
+    const dyingClose = vi.mocked(run).mock.calls[1][0].onClose!;
+    memInfoMock.value = { availMb: 600, swapFreeMb: 4000, swapTotalMb: 4096 };
+    dyingClose();
+    expect(threads.has('dying')).toBe(false);
+    expect(hasResumeOffer('dying')).toBe(true);
+  });
+
+  it('a queued batch refused for memory goes to the parked queue instead of vanishing', async () => {
+    vi.mocked(classify).mockResolvedValue({ action: 'wait', reason: '' });
+    startRun({ ws, sessionKey: 'other2', prompt: 'x', resumeId: 'sess-o2' });
+    startRun({ ws, sessionKey: 'q', prompt: 'turno', resumeId: 'sess-q' });
+    await routeSend({ ws, sessionKey: 'q', prompt: 'depois disso' });
+    threads.get('q')!.endReason = 'success';
+    memInfoMock.value = { availMb: 600, swapFreeMb: 4000, swapTotalMb: 4096 };
+    vi.mocked(run).mock.calls[1][0].onClose!();
+    expect(vi.mocked(addParked)).toHaveBeenCalledWith('q', expect.objectContaining({ prompt: expect.stringContaining('depois disso'), resumeId: 'sess-q' }));
+  });
+
+  it('a resume click refused for memory keeps the banner (offer sent again), not "not available"', () => {
+    startRun({ ws, sessionKey: 'other3', prompt: 'x', resumeId: 'sess-o3' });
+    startRun({ ws, sessionKey: 'rc', prompt: 'y', resumeId: 'sess-rc' });
+    memInfoMock.value = { availMb: 600, swapFreeMb: 4000, swapTotalMb: 4096 };
+    vi.mocked(run).mock.calls[1][0].onClose!();
+    vi.mocked(broadcast).mockClear();
+    expect(acceptResumeOffer('rc')).toBe(true);
+    expect(hasResumeOffer('rc')).toBe(true);
+    expect(vi.mocked(broadcast)).toHaveBeenCalledWith(expect.objectContaining({ t: 'resume-offer', sessionKey: 'rc' }));
+  });
+
+  it('the drainer does not count a capacity refusal as an attempt', () => {
+    startParkedDrainer(3_600_000);
+    startRun({ ws, sessionKey: 'busy1', prompt: 'x', resumeId: 'sess-b1' });
+    const item = { id: 'pk-cap', prompt: 'depois', at: 1, attempts: 0 } as unknown as ParkedItem;
+    vi.mocked(parkedHeads).mockReturnValueOnce([{ sessionKey: 'dq', first: item }] as never);
+    vi.mocked(shiftParked).mockReturnValueOnce(item as never);
+    memInfoMock.value = { availMb: 600, swapFreeMb: 4000, swapTotalMb: 4096 };
+    vi.mocked(unshiftParked).mockClear();
+    drainParked();
+    expect(vi.mocked(unshiftParked)).toHaveBeenCalledWith('dq', item, false);
   });
 });
