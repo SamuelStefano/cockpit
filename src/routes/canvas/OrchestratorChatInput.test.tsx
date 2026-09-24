@@ -35,3 +35,30 @@ describe('OrchestratorChatInput send', () => {
     expect(ta.value).toBe('');
   });
 });
+
+describe('OrchestratorChatInput draft while browsing history', () => {
+  const caretAtStart = (ta: HTMLTextAreaElement) => ta.setSelectionRange(0, 0);
+
+  it('ArrowUp with no history keeps the draft', () => {
+    const { container } = render(<OrchestratorChatInput onSend={() => true} />);
+    const ta = container.querySelector('textarea')!;
+    fireEvent.change(ta, { target: { value: 'my long draft' } });
+    caretAtStart(ta);
+    fireEvent.keyDown(ta, { key: 'ArrowUp' });
+    expect(ta.value).toBe('my long draft');
+  });
+
+  it('ArrowDown past the newest entry brings the draft back', () => {
+    const { container } = render(<OrchestratorChatInput onSend={() => true} />);
+    const ta = container.querySelector('textarea')!;
+    fireEvent.change(ta, { target: { value: 'sent before' } });
+    fireEvent.keyDown(ta, { key: 'Enter' });
+    fireEvent.change(ta, { target: { value: 'half typed' } });
+    caretAtStart(ta);
+    fireEvent.keyDown(ta, { key: 'ArrowUp' });
+    expect(ta.value).toBe('sent before');
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+    fireEvent.keyDown(ta, { key: 'ArrowDown' });
+    expect(ta.value).toBe('half typed');
+  });
+});
