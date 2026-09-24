@@ -371,13 +371,15 @@ export async function deliverToCard(cardId: string, flow: CanvasFlow, result: st
   // it off deliverToCard's own result to pick the dedicated toast/backoff,
   // and a card target is exactly as area-gateable as an `s:` one.
   if (!delivery.delivered) return { delivered: false, areaBlocked: delivery.areaBlocked };
+  // A pane delivery (the Orchestrator) is delivered but has no run of ours: no
+  // turn-closed ever fires for it, so a card marked doing here would never move to
+  // review. Leave its status alone.
+  if (!delivery.runKey) return delivery;
   await updateBoard((b) => markCardDoing(b, cardId, Date.now()));
   // Live until handleTurnClosed sees this exact runKey close (below) — read
   // back by server/ws/dispatch.ts on every canvas-board answer, so a tab
   // that (re)connects mid-run still sees the card running, reuse or not.
-  // A pane delivery (the Orchestrator) has no run of ours to track: it is still
-  // delivered — read as a failure, fireFlow backed off and pasted it again.
-  if (delivery.runKey) registerFlowRun(delivery.runKey, cardId, flow.id);
+  registerFlowRun(delivery.runKey, cardId, flow.id);
   return delivery;
 }
 
