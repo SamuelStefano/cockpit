@@ -16,6 +16,7 @@ import { useSessionsPanel } from './sessions/useSessionsPanel';
 import { useFunnel } from './sessions/useFunnel';
 import { FunnelModal } from './sessions/FunnelModal';
 import { FUNNEL_MIN_OFFER } from './sessions/stale';
+import { comboLabel } from '../lib/platform';
 
 
 export interface SessionsPanelProps {
@@ -104,7 +105,7 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, ma
             aria-label="Buscar sessões"
             className="w-full bg-transparent text-[12.5px] text-neutral-200 placeholder-neutral-600 outline-hidden"
           />
-          <kbd className="hidden shrink-0 rounded-sm border border-neutral-700 bg-neutral-950 px-1 py-px font-mono text-[9px] text-neutral-500 sm:block">⌘/</kbd>
+          <kbd className="hidden shrink-0 rounded-sm border border-neutral-700 bg-neutral-950 px-1 py-px font-mono text-[9px] text-neutral-500 sm:block">{comboLabel(['⌘', '/'])}</kbd>
         </div>
       </div>
 
