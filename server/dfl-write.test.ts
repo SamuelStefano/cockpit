@@ -205,9 +205,40 @@ describe('invoice-create: nothing half-written is left silently', () => {
   });
 
   it('refuses a new invoice while an empty one exists for the month', async () => {
-    queue = [reply(200, []), reply(200, [{ id: 'shell' }]), reply(200, [])];
+    queue = [reply(200, []), reply(200, [{ id: 'shell', created_at: '2026-08-01T00:00:00Z' }]), reply(200, [])];
     await expect(runWrite(invoiceCmd())).rejects.toThrow('fatura shell de 2026-08 está vazia');
     expect(calls.filter((c) => c.method === 'POST')).toHaveLength(0);
+  });
+
+  it('only looks at submitted invoices, so an itemless paid one does not block the month', async () => {
+    queue = [reply(200, []), reply(200, [])];
+    await expect(runWrite(invoiceCmd())).rejects.toThrow();
+    expect(calls[1].url).toContain('status=eq.submitted');
+  });
+
+  it('does not call a just-created itemless invoice orphaned (another writer mid-flight)', async () => {
+    queue = [reply(200, []), reply(200, [{ id: 'fresh', created_at: new Date().toISOString() }]), reply(200, [])];
+    const err = await runWrite(invoiceCmd()).catch((e: Error) => e);
+    expect(String(err)).toContain('pode estar sendo gravada agora');
+    expect(String(err)).not.toContain('apague');
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(0);
+  });
+
+  it('says the state is unknown when the items POST timed out and the rollback removed nothing', async () => {
+    const timeout = Object.assign(new Error('timed out'), { name: 'TimeoutError' });
+    const replies = [reply(200, []), reply(200, []), reply(200, []), reply(201, [{ id: 'inv-9' }])];
+    let n = 0;
+    globalThis.fetch = (async (url: unknown, init?: RequestInit) => {
+      calls.push({ url: String(url), method: (init?.method ?? 'GET').toUpperCase() });
+      n++;
+      if (n <= replies.length) return new Response(replies[n - 1].body || null, { status: replies[n - 1].status });
+      if (n === 5) throw timeout;       // items POST: no answer
+      if (n === 6) return new Response(null, { status: 204 });
+      return new Response('[]', { status: 200 }); // invoice DELETE: FK kept it
+    }) as typeof fetch;
+    const err = await runWrite(invoiceCmd()).catch((e: Error) => e);
+    expect(String(err)).toContain('estado desconhecido');
+    expect(String(err)).not.toContain('vazia');
   });
 });
 

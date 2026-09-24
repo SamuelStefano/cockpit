@@ -177,20 +177,29 @@ async function assertNotInvoiced(taskIds: string[]): Promise<void> {
 
 // An invoice left without items (a rollback that could not delete it) matches no
 // task, so assertNotInvoiced can't see it; a new invoice for the same month would
-// sit next to it. Refuse while one exists.
+// sit next to it. Refuse while one exists. Only `submitted` ones: that is what
+// this path writes, and an approved/paid invoice with no items (a manual
+// adjustment) must not block the month. A young one may be another tab or the
+// DFL app mid-write (INSERT, then items), so it is not called orphaned.
+export const EMPTY_INVOICE_GRACE_MS = 2 * 60_000;
+
 async function assertNoEmptyInvoice(referenceMonth: string): Promise<void> {
   // Two plain queries, not an embedded select: no dependency on how the FK
   // between invoice_items and invoices is exposed.
   const live = await pgFetch(
-    `invoices?fellow_user_id=eq.${FELLOW_ID}&reference_month=eq.${referenceMonth}&organization_id=eq.${ORG_ID}&status=neq.rejected&select=id`,
-    { schema: 'payments' }) as { id: string }[] | null;
+    `invoices?fellow_user_id=eq.${FELLOW_ID}&reference_month=eq.${referenceMonth}&organization_id=eq.${ORG_ID}&status=eq.submitted&select=id,created_at`,
+    { schema: 'payments' }) as { id: string; created_at?: string | null }[] | null;
   if (!live?.length) return;
   const items = await pgFetch(
     `invoice_items?invoice_id=in.(${live.map((i) => i.id).join(',')})&select=invoice_id`,
     { schema: 'payments' }) as { invoice_id: string }[] | null;
   const withItems = new Set((items ?? []).map((i) => i.invoice_id));
   const empty = live.filter((i) => !withItems.has(i.id));
-  if (empty.length) throw new Error(`a fatura ${empty.map((i) => i.id).join(', ')} de ${referenceMonth} está vazia no DFL — apague-a lá antes de gerar outra`);
+  if (!empty.length) return;
+  const cutoff = Date.now() - EMPTY_INVOICE_GRACE_MS;
+  const young = empty.filter((i) => i.created_at && Date.parse(i.created_at) > cutoff);
+  if (young.length) throw new Error(`a fatura ${young.map((i) => i.id).join(', ')} de ${referenceMonth} pode estar sendo gravada agora (ainda sem itens) — espere uns minutos e confira no DFL`);
+  throw new Error(`a fatura ${empty.map((i) => i.id).join(', ')} de ${referenceMonth} está vazia no DFL — apague-a lá antes de gerar outra`);
 }
 
 async function createInvoice(cmd: InvoiceCreateCmd): Promise<Record<string, unknown>> {
@@ -230,7 +239,7 @@ async function createInvoice(cmd: InvoiceCreateCmd): Promise<Record<string, unkn
     total_amount_cents: totalAmountCents, total_points: totalPoints, description: title,
     created_at: now, updated_at: now, submitted_at: now, submitted_by: FELLOW_ID, organization_id: ORG_ID,
   };
-  if (Date.now() - startedAt > PRE_INSERT_BUDGET_MS) throw new Error('DFL lento demais — nada foi gravado; tente de novo');
+  if (Date.now() - startedAt > PRE_INSERT_BUDGET_MS) throw new Error('DFL lento demais — nenhuma fatura foi criada; tente de novo');
   let inserted: { id: string }[];
   try {
     inserted = await pgFetch('invoices?select=id', {
@@ -267,6 +276,9 @@ async function createInvoice(cmd: InvoiceCreateCmd): Promise<Record<string, unkn
       schema: 'payments', method: 'DELETE', headers: { Prefer: 'return=representation' }, timeoutMs: ROLLBACK_TIMEOUT_MS,
     }).catch(() => null) as { id: string }[] | null;
     const why = (e as Error).message;
+    // A timed-out items POST may have committed server-side: then the invoice is
+    // complete, and "empty — delete it" would have him delete a valid one.
+    if (!removed?.length && isTimeout(e)) throw new Error(`sem resposta do DFL ao gravar os itens da fatura ${invoiceId} — estado desconhecido; confira no DFL antes de gerar de novo`);
     if (!removed?.length) throw new Error(`itens não gravaram (${why}) e a fatura ${invoiceId} ficou vazia no DFL — apague-a lá antes de gerar de novo`);
     throw e;
   }
