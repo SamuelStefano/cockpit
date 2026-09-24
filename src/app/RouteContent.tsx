@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { MobileLayout } from '../components/Mobile';
 import { DesktopLayout } from './DesktopLayout';
 import { SkeletonCards } from '../components/primitives';
+import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
   Contextos, Skills, Notas, Pontos, Crons, Observatorio,
   Graph, Canvas, Harness, Admin, Docs, DesignSystem, Playground,
@@ -171,7 +172,9 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
   // aparece na primeira visita a uma rota.
   return (
     <div key={route} className="route-fade flex min-h-0 min-w-0 flex-1 flex-col">
-      <Suspense fallback={<div className="p-4"><SkeletonCards /></div>}>{view}</Suspense>
+      <ChunkErrorBoundary>
+        <Suspense fallback={<div className="p-4"><SkeletonCards /></div>}>{view}</Suspense>
+      </ChunkErrorBoundary>
     </div>
   );
 }
