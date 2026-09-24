@@ -922,17 +922,26 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
           exitCode: thread.lastExitCode, signal: thread.lastExitSignal,
           userStopped: thread.userStopped, reaped: !!thread.reaped, info: memInfo,
         });
+        // No session id = the prompt never reached a transcript: there is nothing to
+        // `--resume`, so promising it only left the user waiting. Hand the prompt back.
+        // Same test the resume paths use: a fork that died before its transcript
+        // existed has a session id but nothing to resume either. A queued item that
+        // went back to the queue will run again by itself — don't ask for a resend.
+        const resumable = !!thread.sessionId && !!resumableId(thread.sessionId);
+        const lost = resumable ? ''
+          : thread.parked ? ' O pedido voltou pra fila e roda de novo sozinho.'
+          : ` O pedido não chegou a ser salvo, então não dá pra retomar — reenvie: "${thread.prompt.slice(0, 200)}"`;
         if (cause === 'oom') {
-          broadcast({ t: 'error', sessionKey, message: 'A máquina ficou sem memória e o sistema matou este turno. Vou retomar quando a memória voltar.' });
+          broadcast({ t: 'error', sessionKey, message: lost ? `A máquina ficou sem memória e o sistema matou este turno.${lost}` : 'A máquina ficou sem memória e o sistema matou este turno. Vou retomar quando a memória voltar.' });
           recordIncident({ kind: 'oom-kill', sessionKey, sessionId: thread.sessionId, detail: `availMb=${memInfo.availMb} swapFreeMb=${memInfo.swapFreeMb} swapTotalMb=${memInfo.swapTotalMb}` });
         } else if (cause === 'external-signal') {
           // Marca a rajada ANTES de qualquer espera: os irmãos que morrerem na
           // mesma leva empurram a janela de silêncio uns dos outros.
           noteExternalKill();
-          broadcast({ t: 'error', sessionKey, message: 'Algo fora do Deck matou este turno (deploy ou o sistema). Vou retomar assim que a máquina assentar.' });
+          broadcast({ t: 'error', sessionKey, message: lost ? `Algo fora do Deck matou este turno (deploy ou o sistema).${lost}` : 'Algo fora do Deck matou este turno (deploy ou o sistema). Vou retomar assim que a máquina assentar.' });
           recordIncident({ kind: 'external-kill', sessionKey, sessionId: thread.sessionId, detail: `exit=${thread.lastExitCode ?? '?'} signal=${thread.lastExitSignal ?? '-'} availMb=${memInfo.availMb}` });
         } else {
-          broadcast({ t: 'error', sessionKey, message: 'O turno caiu antes de terminar (o processo morreu sem resposta).' });
+          broadcast({ t: 'error', sessionKey, message: `O turno caiu antes de terminar (o processo morreu sem resposta).${lost}` });
           recordIncident({ kind: 'silent-death', sessionKey, sessionId: thread.sessionId, detail: `${Math.round((Date.now() - thread.startedAt) / 1000)}s vivo, ${thread.tools.length} tools, ${thread.text.length} chars de resposta` });
         }
       }
