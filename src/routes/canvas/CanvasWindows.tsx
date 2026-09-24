@@ -19,6 +19,7 @@ interface Props {
   onSendTo: (sessionId: string, text: string) => boolean;
   sendError: { sessionId: string; text: string; message: string } | null;
   onDismissSendError: () => void;
+  onDock?: () => void;
   stats: Record<string, TermStats>;
   past: boolean; // timeline scrubbed away from live: every window shows the overlay
   pastAlive: Set<string> | null; // and one not alive at T also fades
@@ -40,6 +41,7 @@ export function CanvasWindows(p: Props) {
         const target = termTarget(n);
         const at = p.pos[n.id];
         if (!target || !at) return null;
+        const isOrch = isOrchestratorNode(n, p.orchestrator);
         return (
           <TerminalWindow
             key={n.id} node={n} pos={at} target={target} term={p.term}
@@ -47,7 +49,8 @@ export function CanvasWindows(p: Props) {
             selected={p.selected.has(n.id)}
             dim={(p.focus.size > 0 && !p.focus.has(n.id) && t.active !== n.id) || (p.pastAlive !== null && !p.pastAlive.has(n.id))}
             running={n.kind === 'session' && p.running.has(n.ref)} waiting={n.kind === 'session' && p.waiting.has(n.ref)}
-            orchestrator={isOrchestratorNode(n, p.orchestrator)}
+            orchestrator={isOrch}
+            onDock={isOrch ? p.onDock : undefined}
             promptDisabled={t.resumedLive.has(n.ref)}
             past={p.past} instant={p.instant}
             onPointerDown={p.onPointerDown} onActivate={t.focus} onCollapse={t.collapse} onKill={t.kill}

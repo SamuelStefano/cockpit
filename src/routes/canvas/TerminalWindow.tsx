@@ -49,6 +49,8 @@ interface Props {
   onSendTo: (sessionId: string, text: string) => boolean;
   sendError: { sessionId: string; text: string; message: string } | null;
   onDismissSendError: () => void;
+  // Only set on the orchestrator's own window — pins it into the sidebar dock.
+  onDock?: () => void;
 }
 
 const stop = (e: React.PointerEvent) => e.stopPropagation();
@@ -101,6 +103,9 @@ export const TerminalWindow = memo(function TerminalWindow(p: Props) {
           ? <Badge tone={p.running ? 'green' : 'neutral'}>{p.running ? 'ao vivo' : 'fantasma'}</Badge>
           : !p.orchestrator && <Badge tone="orange">shell</Badge>}
         <span onPointerDown={stop} onDoubleClick={(e) => e.stopPropagation()} className="flex items-center">
+          {p.orchestrator && p.onDock && (
+            <Button variant="ghost" size="sm" square icon="panelRight" title="fixar no sidebar (Ctrl+.)" onClick={p.onDock} />
+          )}
           {session && (
             <Button
               variant="ghost" size="sm" icon="play" disabled={p.running || p.resuming} loading={p.resuming}

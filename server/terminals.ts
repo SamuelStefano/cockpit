@@ -271,6 +271,14 @@ export function inputTerm(id: string, data: string) {
   terms.get(id)?.pty.write(stripReports(data));
 }
 
+// Whether this PROCESS already holds a pty for `id` — attached or merely
+// detached-but-kept-alive (see detachTerm). Used by the orchestrator
+// twin-process guard (runs.ts) to avoid opening a second pty client onto the
+// same tmux session on every message: reuse the one already tracked here.
+export function hasTerm(id: string): boolean {
+  return terms.has(id);
+}
+
 export function resizeTerm(id: string, cols: number, rows: number) {
   const t = terms.get(id);
   if (t) t.pty.resize(clampDim(cols, 80), clampDim(rows, 24));

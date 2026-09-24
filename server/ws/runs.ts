@@ -32,6 +32,9 @@ import { threadIsMarathon, MARATHON_AUTO_RESUME_CAP } from './marathon';
 import { threads, admitRun, resolveThreadKey, stopSession, stopEpochOf, clearStopEpoch, shouldPreserveLive, runParams, sameParams, type Thread, type RunParams } from './threads';
 import { isAreaAdmissionBlocked } from '../canvas/autopause-loop';
 import { enqueuePending, hasPending, takePendingBatch, takeAllPending, type QueuedSend } from './pending';
+import { readOrchestratorSync, isTmuxAliveSync } from '../canvas/orchestrator';
+import { orchestratorTermId, buildPastedSend } from '../../shared/canvas';
+import { hasTerm, openTerm, inputTerm } from '../terminals';
 
 // --- morte silenciosa do turno (o "chat simplesmente parou") -----------------
 
@@ -462,6 +465,13 @@ export function resumeOrphanRuns(): void {
     }
     const key = o.sessionId;
     if (!SESSION_KEY_RE.test(key) || threads.has(key)) continue;
+    // Never auto-resume the Orchestrator's own session headlessly: it isn't
+    // a `claude -p` child we spawned (its "turno" lives in the tmux pane, an
+    // interactive process the boot never touched), so there's nothing here
+    // to resume — and typing "continue de onde parou" into Samuel's live
+    // pane on every backend restart would be its own twin-process bug.
+    const orch = readOrchestratorSync();
+    if (orch && orch.sessionId === key) continue;
     // Mesma regra do autoResume: o restart do agente derruba TODOS os turnos de
     // uma vez, então retomar sem olhar o tamanho é exatamente a rajada de
     // cold-starts simultâneos do incidente, só que disparada pelo deploy.
@@ -545,6 +555,28 @@ function parkRejected(o: StartRunOptions, verdict: Verdict): boolean {
   return true;
 }
 
+// Twin-process / duplicate-worker safety net (2026-09-24 incident): any
+// startRun whose target IS the Orchestrator's own live session must never
+// spawn a second headless `claude -p --resume` writing the same transcript —
+// that second writer is what forked the duplicate workers. Deliver the
+// prompt into the SAME tmux pane instead, the exact write path the canvas
+// terminal itself uses (buildPastedSend + inputTerm), and echo the user
+// bubble as if the run had started normally. Only fires while the tmux
+// session is actually alive; a torn-down Orchestrator falls through to a
+// real run (nothing left to route into). `forkId` is exempt — forking the
+// Orchestrator's transcript into a NEW session is a distinct, legitimate
+// headless run, not a twin writing the same one.
+export function deliverToOrchestratorPane(targetSessionId: string | undefined, text: string): boolean {
+  if (!targetSessionId) return false;
+  const orch = readOrchestratorSync();
+  if (!orch || orch.sessionId !== targetSessionId) return false;
+  if (!isTmuxAliveSync(orch.tmux)) return false;
+  const termId = orchestratorTermId(orch);
+  if (!hasTerm(termId)) openTerm(termId, 120, 40, () => {}, () => {}, () => {});
+  inputTerm(termId, buildPastedSend(text));
+  return true;
+}
+
 export function startRun(o: StartRunOptions) {
   const { ws, sessionKey, prompt, resumeId, msgId, auto, forkId, queued, flowHop } = o;
   const params = runParams(o);
@@ -561,6 +593,10 @@ export function startRun(o: StartRunOptions) {
   }
   if (typeof prompt !== 'string' || Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) {
     if (ws) send(ws, { t: 'error', sessionKey, message: 'prompt grande demais' });
+    return;
+  }
+  if (!forkId && deliverToOrchestratorPane(resumeId ?? sessionKey, prompt)) {
+    if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
     return;
   }
 
@@ -873,6 +909,15 @@ export async function routeSend(o: RouteSendOptions) {
   const params = runParams(o);
   if (typeof sessionKey !== 'string' || !SESSION_KEY_RE.test(sessionKey)) { send(ws, { t: 'error', message: 'sessão inválida' }); return; }
   if (typeof prompt !== 'string' || Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) { send(ws, { t: 'error', sessionKey: displayKey, message: 'prompt grande demais' }); return; }
+  // Same guard as startRun's, checked here too: a stray twin thread already
+  // sitting in `threads` under the Orchestrator's sessionId (leftover from
+  // before this fix, or a race) would otherwise run the full triage path
+  // below and end up enqueued against THAT twin instead of ever reaching the
+  // real pane. Deliver straight into the pane and skip triage entirely.
+  if (deliverToOrchestratorPane(resumeId ?? sessionKey, prompt)) {
+    if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
+    return;
+  }
   const cur = threads.get(sessionKey);
   if (!cur) { startRun({ ...params, ws, sessionKey, prompt, resumeId, msgId }); return; } // corrida: turno fechou
 

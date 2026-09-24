@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CanvasFlow } from '../../shared/canvas';
-import { EmptyState } from '../components/primitives';
+import { Button, EmptyState } from '../components/primitives';
 import { usePersisted } from '../lib/persist';
 import { countHotContext, countWaiting } from './canvas/canvas-alerts';
 import { neighbors } from './canvas/canvas-filter';
 import { newFlowId } from './canvas/canvas-board';
-import { isOrchestratorNode } from './canvas/orchestrator';
+import { isOrchestratorNode, orchestratorTermId } from './canvas/orchestrator';
+import { OrchestratorDock } from './canvas/OrchestratorDock';
+import { useOrchestratorDock } from './canvas/useOrchestratorDock';
 import { AreaBudgetEditor } from './canvas/AreaBudgetEditor';
 import { pastAliveIds, pastExecIds } from './canvas/canvas-timeline';
 import { bounds, layoutCanvas } from './canvas/canvas-layout';
@@ -60,7 +62,11 @@ export function Canvas(p: CanvasRouteProps) {
     }
     return sessionNodeId;
   }, [p.graph?.orchestrator, r.byId]);
-  const onFocusOrchestrator = orchestratorNodeId ? () => focusNode(orchestratorNodeId) : undefined;
+  const orchDock = useOrchestratorDock();
+  const onFocusOrchestrator = orchDock.open ? undefined : orchestratorNodeId ? () => focusNode(orchestratorNodeId) : undefined;
+  // While docked, the orchestrator's own node is dropped from the map — it's
+  // rendered once, in the sidebar, not doubled as a floating window too.
+  const dockedNodeId = orchDock.open ? orchestratorNodeId : null;
   const linked = useCallback((id: string) => [...neighbors(r.merged.edges, id)].map((x) => r.byId.get(x)!).filter(Boolean), [r.merged.edges, r.byId]);
   const card = useCallback((id: string) => p.board.cards.find((c) => c.id === id), [p.board.cards]);
   const node = useCallback((id: string) => r.byId.get(id), [r.byId]);
@@ -100,13 +106,24 @@ export function Canvas(p: CanvasRouteProps) {
       : null),
     [r.scope, timeline.live, timeline.t, r.merged.nodes, r.merged.edges, p.runStart, r.showAutomation, r.archived, p.running],
   );
-  const pastNodes = useMemo(
+  const pastNodesUnfiltered = useMemo(
     () => (pastExecNodeIds ? r.merged.nodes.filter((n) => pastExecNodeIds.has(n.id)) : r.visible.nodes),
     [pastExecNodeIds, r.merged.nodes, r.visible.nodes],
   );
-  const pastEdges = useMemo(
+  const pastEdgesUnfiltered = useMemo(
     () => (pastExecNodeIds ? r.merged.edges.filter((e) => pastExecNodeIds.has(e.source) && pastExecNodeIds.has(e.target)) : r.visible.edges),
     [pastExecNodeIds, r.merged.edges, r.visible.edges],
+  );
+  // Docked: the orchestrator's node is dropped from the map entirely (not just
+  // from the window set) — it lives in the sidebar now, so it must not also
+  // show up as a plain card. Edges pointing at it would otherwise dangle.
+  const pastNodes = useMemo(
+    () => (dockedNodeId ? pastNodesUnfiltered.filter((n) => n.id !== dockedNodeId) : pastNodesUnfiltered),
+    [dockedNodeId, pastNodesUnfiltered],
+  );
+  const pastEdges = useMemo(
+    () => (dockedNodeId ? pastEdgesUnfiltered.filter((e) => e.source !== dockedNodeId && e.target !== dockedNodeId) : pastEdgesUnfiltered),
+    [dockedNodeId, pastEdgesUnfiltered],
   );
   const pastWindows = useMemo(
     () => (pastExecNodeIds ? [...r.windows].filter((id) => pastExecNodeIds.has(id)) : [...r.windows]),
@@ -141,7 +158,6 @@ export function Canvas(p: CanvasRouteProps) {
     () => (timeline.live ? null : pastAliveIds(pastNodes, pastEdges, timeline.t, p.runStart)),
     [timeline.live, timeline.t, pastNodes, pastEdges, p.runStart],
   );
-
   // Live sessions show up as terminals on their own; ghosts wait for a click.
   const { autoOpen } = terms;
   useEffect(() => {
@@ -196,93 +212,106 @@ export function Canvas(p: CanvasRouteProps) {
     />
   );
 
+  const orchestrator = p.graph?.orchestrator;
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-neutral-950">
-      <CanvasFilters
-        mode={r.mode} onMode={r.setMode} scope={r.scope} onScope={r.setScope} archived={r.archived} onArchived={r.setArchived}
-        showAutomation={r.showAutomation} onShowAutomation={r.setShowAutomation}
-        query={r.query} onQuery={r.setQuery} loading={p.loading} onRefresh={p.onCanvasGet}
-        onNewCard={() => r.newDraft('task', r.selectedNodes)}
-        counts={{
-          sessions: sessionsN, contexts: contextsN, terminals: r.windows.size, cards: p.board.cards.length,
-          waiting: waitingN, hotContext: hotContextN, conflicts: conflictsN,
-        }}
-        areaCounts={r.areaCounts} areaFilter={r.areaFilter} onAreaFilter={r.setAreaFilter}
-      />
-      {!p.connected ? (
-        <EmptyState icon="circle" title="Desconectado" description="Reconecte pra montar o canvas." />
-      ) : r.mode === 'kanban' ? (
-        <div className="flex min-h-0 flex-1 flex-col">{kanban}</div>
-      ) : r.mode === 'chain' ? (
-        !p.graph ? (
-          <CanvasLoadingState loadingSince={p.loadingSince} stale={p.stale} onRetry={p.onCanvasGet} />
-        ) : (
-          <CanvasChain
-            nodes={r.visible.nodes} flows={p.board.flows} running={p.running} waiting={r.waiting}
-            stats={p.termStats} orchestrator={p.graph.orchestrator}
-            onOpenTerm={openTerm} onOpenChat={p.onOpenSession}
-          />
-        )
-      ) : (
-        <div className="flex min-h-0 flex-1 flex-col">
-          {!p.graph ? (
+    <div className="flex min-h-0 flex-1 bg-neutral-950">
+      <div className="flex min-h-0 flex-1 flex-col">
+        <CanvasFilters
+          mode={r.mode} onMode={r.setMode} scope={r.scope} onScope={r.setScope} archived={r.archived} onArchived={r.setArchived}
+          showAutomation={r.showAutomation} onShowAutomation={r.setShowAutomation}
+          query={r.query} onQuery={r.setQuery} loading={p.loading} onRefresh={p.onCanvasGet}
+          onNewCard={() => r.newDraft('task', r.selectedNodes)}
+          counts={{
+            sessions: sessionsN, contexts: contextsN, terminals: r.windows.size, cards: p.board.cards.length,
+            waiting: waitingN, hotContext: hotContextN, conflicts: conflictsN,
+          }}
+          areaCounts={r.areaCounts} areaFilter={r.areaFilter} onAreaFilter={r.setAreaFilter}
+        />
+        {!p.connected ? (
+          <EmptyState icon="circle" title="Desconectado" description="Reconecte pra montar o canvas." />
+        ) : r.mode === 'kanban' ? (
+          <div className="flex min-h-0 flex-1 flex-col">{kanban}</div>
+        ) : r.mode === 'chain' ? (
+          !p.graph ? (
             <CanvasLoadingState loadingSince={p.loadingSince} stale={p.stale} onRetry={p.onCanvasGet} />
           ) : (
-            <CanvasSurface
-              nodes={pastNodes} edges={pastEdges} pos={pastPos} bounds={pastBounds} initialBounds={r.coreBounds}
-              selected={r.selected} running={p.running} waiting={r.waiting} centerRequest={center}
-              onSelect={r.select} onClear={clearAll} onDrop={r.onDrop} onResetLayout={p.onCanvasPosReset}
-              windows={r.windows} terms={terms} term={p.term} onOpenTerm={openTerm} onOpenChat={p.onOpenSession} onOpenRecent={openRecent}
-              onSendTo={p.onSendTo} sendError={p.canvasSendError} onDismissSendError={p.dismissCanvasSendError}
-              stats={p.termStats} analysisOn={analysisOn} onToggleAnalysis={() => setAnalysisOn(!analysisOn)}
-              flows={p.board.flows} flowFired={p.canvasFlowFired} onFlowCreate={openFlowDraft} onFlowClick={editFlow}
-              areaRects={r.areaRects} budgetStatus={r.budgetStatus} onEditBudget={r.setBudgetEditArea}
-              pastAlive={pastAlive} timelinePlaying={timeline.playing} orchestrator={p.graph.orchestrator}
-              onFocusOrchestrator={onFocusOrchestrator}
-            >
-              <CanvasHud sessions={p.sessions} running={p.running} onPick={(id) => focusNode(`s:${id}`)} />
-              {r.selectedNodes.length > 0 && (
-                <CanvasInspector
-                  nodes={r.selectedNodes} linked={linked} node={node} card={card} running={p.running} flows={p.board.flows}
-                  conflictsOf={conflictsOf}
-                  onPick={focusNode} onOpenSession={p.onOpenSession} onOpenTerm={openTerm}
-                  onNewCard={(kind) => r.newDraft(kind, r.selectedNodes)} onEditCard={r.editCard}
-                  onRunCard={r.runCard} onEditFlow={editFlow} onChainSelected={openFlowDraft} onClose={r.clearSelection}
-                />
-              )}
-              {analysisOn && (
-                <CanvasAnalysis nodes={windowNodes} stats={p.termStats} running={p.running} onPick={pickWindow} onClose={() => setAnalysisOn(false)} />
-              )}
-              {maxNode && maxTarget && (
-                <TerminalMaximized node={maxNode} target={maxTarget} term={p.term} onClose={() => terms.setMaximized(null)} />
-              )}
-            </CanvasSurface>
-          )}
-          {p.graph && <CanvasTimeline timeline={timeline} />}
-          <KanbanDock cards={p.board.cards} open={dockOpen} onToggle={() => setDockOpen(!dockOpen)}>{kanban}</KanbanDock>
-        </div>
+            <CanvasChain
+              nodes={r.visible.nodes} flows={p.board.flows} running={p.running} waiting={r.waiting}
+              stats={p.termStats} orchestrator={p.graph.orchestrator}
+              onOpenTerm={openTerm} onOpenChat={p.onOpenSession}
+            />
+          )
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col">
+            {!p.graph ? (
+              <CanvasLoadingState loadingSince={p.loadingSince} stale={p.stale} onRetry={p.onCanvasGet} />
+            ) : (
+              <CanvasSurface
+                nodes={pastNodes} edges={pastEdges} pos={pastPos} bounds={pastBounds} initialBounds={r.coreBounds}
+                selected={r.selected} running={p.running} waiting={r.waiting} centerRequest={center}
+                onSelect={r.select} onClear={clearAll} onDrop={r.onDrop} onResetLayout={p.onCanvasPosReset}
+                windows={r.windows} terms={terms} term={p.term} onOpenTerm={openTerm} onOpenChat={p.onOpenSession} onOpenRecent={openRecent}
+                onSendTo={p.onSendTo} sendError={p.canvasSendError} onDismissSendError={p.dismissCanvasSendError}
+                stats={p.termStats} analysisOn={analysisOn} onToggleAnalysis={() => setAnalysisOn(!analysisOn)}
+                flows={p.board.flows} flowFired={p.canvasFlowFired} onFlowCreate={openFlowDraft} onFlowClick={editFlow}
+                areaRects={r.areaRects} budgetStatus={r.budgetStatus} onEditBudget={r.setBudgetEditArea}
+                pastAlive={pastAlive} timelinePlaying={timeline.playing} orchestrator={p.graph.orchestrator}
+                onFocusOrchestrator={onFocusOrchestrator} dockOpen={orchDock.open} onToggleDock={orchestrator ? orchDock.toggle : undefined}
+              >
+                <CanvasHud sessions={p.sessions} running={p.running} onPick={(id) => focusNode(`s:${id}`)} />
+                {r.selectedNodes.length > 0 && (
+                  <CanvasInspector
+                    nodes={r.selectedNodes} linked={linked} node={node} card={card} running={p.running} flows={p.board.flows}
+                    conflictsOf={conflictsOf}
+                    onPick={focusNode} onOpenSession={p.onOpenSession} onOpenTerm={openTerm}
+                    onNewCard={(kind) => r.newDraft(kind, r.selectedNodes)} onEditCard={r.editCard}
+                    onRunCard={r.runCard} onEditFlow={editFlow} onChainSelected={openFlowDraft} onClose={r.clearSelection}
+                  />
+                )}
+                {analysisOn && (
+                  <CanvasAnalysis nodes={windowNodes} stats={p.termStats} running={p.running} onPick={pickWindow} onClose={() => setAnalysisOn(false)} />
+                )}
+                {maxNode && maxTarget && (
+                  <TerminalMaximized node={maxNode} target={maxTarget} term={p.term} onClose={() => terms.setMaximized(null)} />
+                )}
+              </CanvasSurface>
+            )}
+            {p.graph && <CanvasTimeline timeline={timeline} />}
+            <KanbanDock cards={p.board.cards} open={dockOpen} onToggle={() => setDockOpen(!dockOpen)}>{kanban}</KanbanDock>
+          </div>
+        )}
+        {r.draft && (
+          <CardEditor
+            key={r.draft.card.id} card={r.draft.card} isNew={r.draft.isNew} node={(id) => r.byId.get(id)}
+            sessions={r.merged.nodes.filter((n) => n.kind === 'session')} edges={r.merged.edges}
+            running={p.running} termStats={p.termStats} onCtxStats={p.onCanvasCtxStats}
+            onSave={r.saveCard} onRun={r.runCard} onDelete={r.deleteCard} onClose={() => r.setDraft(null)}
+            dflSnapshot={p.dflSnapshot} onDflTaskLink={p.onDflTaskLink}
+            onDflTaskCreateLink={p.onDflTaskCreateLink} onDflTaskUnlink={p.onDflTaskUnlink}
+            onDflTaskConfirmSync={p.onDflTaskConfirmSync}
+          />
+        )}
+        {flowEdit && (
+          <FlowEditor
+            key={flowEdit.flow.id} flow={flowEdit.flow} isNew={flowEdit.isNew} node={node}
+            onSave={saveFlow} onDelete={deleteFlow} onClose={() => setFlowEdit(null)}
+          />
+        )}
+        {r.budgetEditArea && (
+          <AreaBudgetEditor
+            key={r.budgetEditArea} area={r.budgetEditArea} budget={p.board.budgets[r.budgetEditArea]}
+            onSave={r.saveBudget} onClose={() => r.setBudgetEditArea(null)}
+          />
+        )}
+      </div>
+      {orchestrator && orchDock.open && (
+        <OrchestratorDock orchestrator={orchestrator} dock={orchDock} term={p.term} stats={p.termStats[orchestratorTermId(orchestrator)]} />
       )}
-      {r.draft && (
-        <CardEditor
-          key={r.draft.card.id} card={r.draft.card} isNew={r.draft.isNew} node={(id) => r.byId.get(id)}
-          sessions={r.merged.nodes.filter((n) => n.kind === 'session')} edges={r.merged.edges}
-          running={p.running} termStats={p.termStats} onCtxStats={p.onCanvasCtxStats}
-          onSave={r.saveCard} onRun={r.runCard} onDelete={r.deleteCard} onClose={() => r.setDraft(null)}
-          dflSnapshot={p.dflSnapshot} onDflTaskLink={p.onDflTaskLink}
-          onDflTaskCreateLink={p.onDflTaskCreateLink} onDflTaskUnlink={p.onDflTaskUnlink}
-          onDflTaskConfirmSync={p.onDflTaskConfirmSync}
-        />
-      )}
-      {flowEdit && (
-        <FlowEditor
-          key={flowEdit.flow.id} flow={flowEdit.flow} isNew={flowEdit.isNew} node={node}
-          onSave={saveFlow} onDelete={deleteFlow} onClose={() => setFlowEdit(null)}
-        />
-      )}
-      {r.budgetEditArea && (
-        <AreaBudgetEditor
-          key={r.budgetEditArea} area={r.budgetEditArea} budget={p.board.budgets[r.budgetEditArea]}
-          onSave={r.saveBudget} onClose={() => r.setBudgetEditArea(null)}
+      {orchestrator && !orchDock.open && orchDock.mobile && (
+        <Button
+          variant="primary" size="md" square icon="command" title="abrir o orchestrator"
+          onClick={orchDock.toggle}
+          className="fixed bottom-4 right-4 z-40 h-12 w-12 rounded-full bg-fuchsia-600 text-white shadow-lg shadow-fuchsia-900/40 hover:bg-fuchsia-500"
         />
       )}
     </div>
