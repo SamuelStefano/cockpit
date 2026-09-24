@@ -221,7 +221,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   })();
   const failed = phase === 'idle' && (() => {
     const last = messages[messages.length - 1];
-    return !!last && last.role === 'assistant' && last.error === true;
+    return !!last && last.role === 'assistant' && last.error === true && !last.notice;
   })();
   const retryLast = () => {
     for (let i = messages.length - 1; i >= 0; i--) {

@@ -43,6 +43,19 @@ describe('useBackgroundAgents', () => {
     expect(result.current).toHaveLength(0);
   });
 
+  it('a done agent the server keeps listing does not come back after its linger', () => {
+    const done: BgAgent = { ...running('a'), status: 'done', durationMs: 4200 };
+    const { result, rerender } = renderHook(({ a }) => useBackgroundAgents(a), {
+      initialProps: { a: [done] as BgAgent[] },
+    });
+    expect(result.current).toHaveLength(1);
+    act(() => { vi.advanceTimersByTime(4500); });
+    expect(result.current).toHaveLength(0);
+    rerender({ a: [done] });
+    act(() => { vi.advanceTimersByTime(1000); });
+    expect(result.current).toHaveLength(0);
+  });
+
   it('agente que some sem virar done explícito também fecha o ciclo', () => {
     const { result, rerender } = renderHook(({ a }) => useBackgroundAgents(a), {
       initialProps: { a: [running('a')] as BgAgent[] },
