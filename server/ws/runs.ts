@@ -103,8 +103,12 @@ export function acceptResumeOffer(sessionKey: string): boolean {
   if (threads.has(sessionKey)) return false;
   autoResumes.delete(sessionKey);
   if (startRun({ ...offer.params, ws: null, sessionKey, prompt: RESUME_PROMPT, resumeId: offer.sessionId, queued: true, flowHop: offer.flowHop }) === 'rejected') {
-    resumeOffers.set(sessionKey, offer); // keep the banner: nothing started
-    return false;
+    // Nothing started. The client already cleared the banner on click, so send the
+    // offer again (and say why) — returning false would show "not available
+    // anymore", which is wrong: it is, just not right now.
+    resumeOffers.set(sessionKey, offer);
+    broadcast({ t: 'error', sessionKey, message: 'A máquina está sem memória livre pra retomar agora — tente de novo em instantes.' });
+    broadcast({ t: 'resume-offer', sessionKey, sessionId: offer.sessionId, reason: 'exhausted', message: 'O turno está guardado — retome quando a memória liberar.' });
   }
   return true;
 }
@@ -302,6 +306,9 @@ export function drainParked(): void {
     if (item.resumeId && !resume) recordIncident({ kind: 'parked-resume-morto', sessionKey, sessionId: item.resumeId, detail: `item ${item.id} disparado como turno novo` });
     const delivered = startRun({ ...runParams(item), ws: null, sessionKey, prompt: item.prompt, resumeId: resume, queued: true });
     if (delivered === 'pane') { fired++; broadcastQueue(); continue; }
+    // Refused for capacity: not the item's fault, so no attempt is counted (three
+    // memory refusals in a row used to mark it `held` and freeze the session's queue).
+    if (delivered === 'rejected') { unshiftParked(sessionKey, item, false); broadcastQueue(); continue; }
     // O run pode nem ter subido (teto de sessões simultâneas): sem isto o item já
     // saiu do disco e o prompt sumia. Subiu = fica amarrado ao thread pra voltar
     // pra fila se o teto de tokens matar o turno.
@@ -670,6 +677,12 @@ function echoPaneDelivery(sessionKey: string, msgId: string | undefined, prompt:
 // 'rejected' = refused for capacity (memory or the concurrent-run cap). With a
 // socket the sender gets an error; without one (auto-resume, a resume click, the
 // in-turn queue) the caller must keep the work, or it vanishes silently.
+// Same admission rule startRun applies (memory-aware cap; replacing always passes).
+function hasRoom(sessionKey: string): boolean {
+  const effCap = memoryRunCap(readMemInfo().availMb, CONFIG.maxConcurrentRuns, threads.size);
+  return admitRun(threads.size, threads.has(sessionKey), effCap);
+}
+
 export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
   const { ws, sessionKey, prompt, resumeId, msgId, auto, forkId, queued, flowHop } = o;
   const params = runParams(o);
@@ -994,12 +1007,16 @@ function drainPending(sessionKey: string, resumeId?: string) {
   const batch = takePendingBatch(sessionKey);
   if (!batch) return;
   const { first, text } = batch;
-  // msgId undefined: a bolha do usuário já foi ecoada no routeSend (não duplica).
-  const r = startRun({ ...runParams(first), ws: first.ws, sessionKey, prompt: text, resumeId });
-  if (r !== 'rejected') return;
-  // Refused for capacity: the batch was already taken out of the in-turn queue,
-  // which lives only in memory. Park it (and the rest) on disk so the drainer runs
-  // it when there is room, instead of losing it.
+  if (hasRoom(sessionKey)) {
+    // msgId undefined: a bolha do usuário já foi ecoada no routeSend (não duplica).
+    startRun({ ...runParams(first), ws: first.ws, sessionKey, prompt: text, resumeId });
+    return;
+  }
+  // No room (memory / concurrent cap). Checked BEFORE startRun: its refusal would
+  // tell the sender "tente de novo" while the batch is parked here, and a resend
+  // would then run twice. The in-turn queue lives only in memory, so park the
+  // batch (and the rest) on disk for the drainer.
+  broadcast({ t: 'error', sessionKey, message: 'Sem memória livre agora: a mensagem foi pra fila e sobe sozinha quando liberar.' });
   try {
     const p = addParked(sessionKey, { ...runParams(first), prompt: text, resumeId });
     if ('reject' in p) broadcast({ t: 'error', sessionKey, message: `Sem memória livre e a fila recusou a mensagem (${p.reject}). Reenvie: ${text.slice(0, 120)}` });

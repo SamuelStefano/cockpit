@@ -1709,4 +1709,27 @@ describe('a run refused for capacity with no socket keeps the work', () => {
     vi.mocked(run).mock.calls[1][0].onClose!();
     expect(vi.mocked(addParked)).toHaveBeenCalledWith('q', expect.objectContaining({ prompt: expect.stringContaining('depois disso'), resumeId: 'sess-q' }));
   });
+
+  it('a resume click refused for memory keeps the banner (offer sent again), not "not available"', () => {
+    startRun({ ws, sessionKey: 'other3', prompt: 'x', resumeId: 'sess-o3' });
+    startRun({ ws, sessionKey: 'rc', prompt: 'y', resumeId: 'sess-rc' });
+    memInfoMock.value = { availMb: 600, swapFreeMb: 4000, swapTotalMb: 4096 };
+    vi.mocked(run).mock.calls[1][0].onClose!();
+    vi.mocked(broadcast).mockClear();
+    expect(acceptResumeOffer('rc')).toBe(true);
+    expect(hasResumeOffer('rc')).toBe(true);
+    expect(vi.mocked(broadcast)).toHaveBeenCalledWith(expect.objectContaining({ t: 'resume-offer', sessionKey: 'rc' }));
+  });
+
+  it('the drainer does not count a capacity refusal as an attempt', () => {
+    startParkedDrainer(3_600_000);
+    startRun({ ws, sessionKey: 'busy1', prompt: 'x', resumeId: 'sess-b1' });
+    const item = { id: 'pk-cap', prompt: 'depois', at: 1, attempts: 0 } as unknown as ParkedItem;
+    vi.mocked(parkedHeads).mockReturnValueOnce([{ sessionKey: 'dq', first: item }] as never);
+    vi.mocked(shiftParked).mockReturnValueOnce(item as never);
+    memInfoMock.value = { availMb: 600, swapFreeMb: 4000, swapTotalMb: 4096 };
+    vi.mocked(unshiftParked).mockClear();
+    drainParked();
+    expect(vi.mocked(unshiftParked)).toHaveBeenCalledWith('dq', item, false);
+  });
 });
