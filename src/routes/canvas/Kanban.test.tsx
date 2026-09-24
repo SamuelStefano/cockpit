@@ -103,3 +103,20 @@ describe('Kanban — session drops follow the drawer rule', () => {
     expect(statuses).toEqual(expect.arrayContaining(['review', 'done']));
   });
 });
+
+describe('Kanban — empty columns', () => {
+  it('collapses an empty column to a rail only when another column has content', () => {
+    const { container } = render(<Kanban {...baseProps} sessionItems={[item('a', { status: 'doing', running: true })]} />);
+    const rails = [...container.querySelectorAll('section')].filter((s) => s.className.includes('md:w-11'));
+    expect(rails).toHaveLength(3);
+  });
+
+  it('keeps full columns (not four rails on a blank board) when every column is empty', () => {
+    const { container, getAllByText } = render(<Kanban {...baseProps} sessionItems={[]} />);
+    const sections = [...container.querySelectorAll('section')];
+    expect(sections).toHaveLength(4);
+    for (const s of sections) expect(s.className).toContain('md:flex-1');
+    expect(getAllByText('nada por aqui')).toHaveLength(4);
+    for (const p of getAllByText('nada por aqui')) expect(p.parentElement?.className).not.toContain('md:hidden');
+  });
+});
