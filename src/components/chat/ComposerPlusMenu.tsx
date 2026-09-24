@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { Icon, tokens } from '../primitives';
 import { useMenuKeys } from '../primitives/useMenuKeys';
 import { useComposerPlusMenu } from './useComposerPlusMenu';
@@ -16,10 +17,12 @@ export function ComposerPlusMenu({ mic, onAttach, onPhoto }: {
   onPhoto: () => void;
 }) {
   const { open, toggle, close, run, wrapRef } = useComposerPlusMenu();
-  const menu = useMenuKeys<HTMLDivElement>(open);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menu = useMenuKeys<HTMLDivElement>(open, triggerRef);
   return (
     <div ref={wrapRef} className="relative shrink-0">
       <button
+        ref={triggerRef}
         type="button"
         onClick={mic.listening ? mic.toggle : toggle}
         aria-label={mic.listening ? 'Parar de ditar' : 'Anexar, fotografar ou ditar'}

@@ -1,14 +1,22 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 
 // A role="menu" is expected to take focus on open and move with the arrows
 // (WAI-ARIA menu pattern). Items are found by role, so the menu markup stays
 // plain buttons.
-export function useMenuKeys<T extends HTMLElement>(open: boolean) {
+export function useMenuKeys<T extends HTMLElement>(open: boolean, trigger?: RefObject<HTMLElement | null>) {
   const ref = useRef<T>(null);
   const items = () => Array.from(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? []);
+  const wasOpen = useRef(false);
 
   useEffect(() => {
     if (open) items()[0]?.focus();
+    // Closing unmounts the focused item and focus fell to <body>: hand it back
+    // to the trigger, unless the user already moved it somewhere real.
+    else if (wasOpen.current && trigger?.current) {
+      const a = document.activeElement;
+      if (!a || a === document.body) trigger.current.focus();
+    }
+    wasOpen.current = open;
   }, [open]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {

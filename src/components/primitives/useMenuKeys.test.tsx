@@ -21,4 +21,12 @@ describe('useMenuKeys (composer + menu)', () => {
     fireEvent.keyDown(getByRole('menu'), { key: 'Home' });
     expect(document.activeElement).toBe(items[0]);
   });
+
+  it('gives focus back to the trigger when the menu closes', () => {
+    const { getByRole } = render(<ComposerPlusMenu mic={mic} onAttach={vi.fn()} onPhoto={vi.fn()} />);
+    const trigger = getByRole('button', { name: 'Anexar, fotografar ou ditar' });
+    fireEvent.click(trigger);
+    fireEvent.click(getByRole('menuitem', { name: /Anexar arquivo/ }));
+    expect(document.activeElement).toBe(trigger);
+  });
 });
