@@ -1,12 +1,14 @@
 import { Badge, Button, Icon, Switch } from '../../components/primitives';
 import type { HarnessConfig, HarnessMode } from '../../../shared/protocol';
-import { useHarnessDraft } from './useHarnessDraft';
+import type { useHarnessDraft } from './useHarnessDraft';
 import { ModelSelect } from './ModelSelect';
 
 interface Props {
   config: HarnessConfig | null;
+  draft: ReturnType<typeof useHarnessDraft>;
   running: boolean;
-  onRun: (prompt: string, draft: ReturnType<typeof useHarnessDraft>) => void;
+  // False when nothing went out: the prompt stays.
+  onRun: (prompt: string, draft: ReturnType<typeof useHarnessDraft>) => boolean;
 }
 
 const MODES: { id: HarnessMode; label: string; icon: 'zap' | 'claude' | 'command' }[] = [
@@ -20,8 +22,7 @@ const STRONG = [
   { id: 'claude-fable-5', label: 'Fable 5', tier: 'complex' as const },
 ];
 
-export function HarnessComposer({ config, running, onRun }: Props) {
-  const d = useHarnessDraft(config);
+export function HarnessComposer({ config, draft: d, running, onRun }: Props) {
   const native = config?.nativeModels ?? [];
 
   return (
@@ -32,7 +33,7 @@ export function HarnessComposer({ config, running, onRun }: Props) {
         // Same shortcut as the chat composer.
         onKeyDown={(e) => {
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !e.nativeEvent.isComposing && d.canRun && !running) {
-            e.preventDefault(); onRun(d.prompt, d); d.setPrompt('');
+            e.preventDefault(); if (onRun(d.prompt, d)) d.setPrompt('');
           }
         }}
         placeholder="Descreva a tarefa… (⌘/Ctrl+Enter roda)"
@@ -111,7 +112,7 @@ export function HarnessComposer({ config, running, onRun }: Props) {
           icon="play"
           loading={running}
           disabled={!d.canRun || running}
-          onClick={() => { onRun(d.prompt, d); d.setPrompt(''); }}
+          onClick={() => { if (onRun(d.prompt, d)) d.setPrompt(''); }}
         >
           Rodar
         </Button>

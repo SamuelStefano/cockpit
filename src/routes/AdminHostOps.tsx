@@ -12,7 +12,7 @@ import { validEnvName } from '../../shared/env-name';
 interface AdminHostOpsProps {
   health: AdminHealth | null;
   adminOp: { ok: boolean; message: string } | null;
-  onEnvSet: (name: string, value: string) => void;
+  onEnvSet: (name: string, value: string) => boolean;
   onEnvUnset: (name: string) => void;
   onMcpAdd: (name: string, opts: { command?: string; url?: string }) => void;
   onMcpRemove: (name: string) => void;
@@ -55,7 +55,8 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
   const addEnv = () => {
     const name = envName.trim();
     if (!name || !envValue || !validEnvName(name)) return;
-    const run = () => { onEnvSet(name, envValue); setEnvName(''); setEnvValue(''); };
+    // A dropped send (socket down) keeps the secret in the field to retry.
+    const run = () => { if (onEnvSet(name, envValue)) { setEnvName(''); setEnvValue(''); } };
     if ((health?.envTokens ?? []).includes(name)) setReplacing({ kind: 'env', name, run });
     else run();
   };

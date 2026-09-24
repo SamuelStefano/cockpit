@@ -11,7 +11,7 @@ export interface Admin {
   onHealthList: () => void;
   onAccountsList: () => void;
   onSetAdmin: (accountId: string, admin: boolean) => void;
-  onEnvSet: (name: string, value: string) => void;
+  onEnvSet: (name: string, value: string) => boolean;
   onEnvUnset: (name: string) => void;
   onMcpAdd: (name: string, opts: { command?: string; url?: string }) => void;
   onMcpRemove: (name: string) => void;
@@ -78,7 +78,7 @@ export function useAdmin(send: (m: ClientMsg) => boolean): Admin {
     // handler e a UI fica escondida (só aparece com Supabase ligado).
     onAccountsList: useCallback(() => { send({ t: 'accounts-list' }); }, [send]),
     onSetAdmin: useCallback((accountId: string, admin: boolean) => { send({ t: 'set-admin', accountId, admin }); }, [send]),
-    onEnvSet: useCallback((name: string, value: string) => { send({ t: 'admin-env-set', name, value }); }, [send]),
+    onEnvSet: useCallback((name: string, value: string) => send({ t: 'admin-env-set', name, value }), [send]),
     onEnvUnset: useCallback((name: string) => { send({ t: 'admin-env-unset', name }); }, [send]),
     onMcpAdd: useCallback((name: string, opts: { command?: string; url?: string }) => { send({ t: 'admin-mcp-add', name, command: opts.command, url: opts.url }); }, [send]),
     onMcpRemove: useCallback((name: string) => { send({ t: 'admin-mcp-remove', name }); }, [send]),
