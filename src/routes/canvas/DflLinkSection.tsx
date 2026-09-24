@@ -91,7 +91,7 @@ export function DflLinkSection({ card, isDflArea, snapshot, onLink, onCreateLink
       </div>
       {s.mode === 'existing' ? (
         <>
-          <Input placeholder="buscar task DFL…" value={s.query} onChange={(e) => s.setQuery(e.target.value)} />
+          <Input placeholder="buscar task, delivery ou épico…" value={s.query} onChange={(e) => s.setQuery(e.target.value)} />
           <div className="max-h-32 space-y-1 overflow-y-auto">
             {s.filtered.map((t) => (
               <button
