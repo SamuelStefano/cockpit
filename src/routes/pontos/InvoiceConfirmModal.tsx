@@ -6,6 +6,7 @@ import { invoiceDraftsFromSelection } from './invoiceFromSelection';
 import { runInvoiceBatch, invoiceKey, summarize, type InvoiceResult } from './invoice-run';
 import { brl, fmtPts, refMonth } from './money';
 import { currentMonthKey } from './month-cap';
+import { markUnconfirmed, releaseUnconfirmed, unconfirmedKeys } from './unconfirmed-invoices';
 
 // Confirmação de geração de fatura(s) a partir da seleção. Cada delivery vira UMA
 // fatura no DFL prod (status 'submitted' → revisão do admin → cobrança). Só tasks
@@ -19,11 +20,13 @@ export function InvoiceConfirmModal({ projects, onClose }: { projects: DflProjec
   // clique de recriar em prod o que a primeira passada já escreveu.
   const [created, setCreated] = useState<ReadonlySet<string>>(() => new Set());
   const [results, setResults] = useState<InvoiceResult[]>([]);
+  // Unknown outcomes from an earlier modal: not re-sent until released.
+  const [held, setHeld] = useState<ReadonlySet<string>>(() => unconfirmedKeys(Date.now()));
   const monthValid = /^\d{4}-\d{2}$/.test(month);
   const drafts = useMemo(() => invoiceDraftsFromSelection(projects, selected, month), [projects, selected, month]);
   // Só o que ainda não foi escrito conta no total e no rótulo do botão: depois de
   // uma falha parcial o modal segue aberto e o "Criar 3 faturas" mentia.
-  const pending = useMemo(() => drafts.filter((d) => !created.has(invoiceKey(d))), [drafts, created]);
+  const pending = useMemo(() => drafts.filter((d) => !created.has(invoiceKey(d)) && !held.has(invoiceKey(d))), [drafts, created, held]);
   const totalPoints = pending.reduce((s, d) => s + d.points, 0);
   const totalCents = pending.reduce((s, d) => s + d.amountCents, 0);
   const resultOf = useMemo(() => new Map(results.map((r) => [r.key, r])), [results]);
@@ -31,7 +34,7 @@ export function InvoiceConfirmModal({ projects, onClose }: { projects: DflProjec
   const confirm = async () => {
     if (busy || !pending.length || !monthValid) return;
     setBusy(true);
-    const batch = await runInvoiceBatch(drafts, created, (d) => write.onDflInvoice({
+    const batch = await runInvoiceBatch(drafts.filter((d) => !held.has(invoiceKey(d))), created, (d) => write.onDflInvoice({
       deliveryId: d.deliveryId, deliveryName: d.deliveryName, projectId: d.projectId, projectName: d.projectName,
       referenceMonth: d.referenceMonth, pricePerPoint: d.pricePerPoint, tasks: d.tasks,
     }));
@@ -44,6 +47,7 @@ export function InvoiceConfirmModal({ projects, onClose }: { projects: DflProjec
     // rendering; it is in `created`, so it is never re-sent from this modal.
     const done = batch.results.filter((r) => r.outcome === 'created' || r.outcome === 'skipped').map((r) => r.deliveryId);
     if (done.length) deselect(done);
+    markUnconfirmed(batch.results.filter((r) => r.outcome === 'unknown').map((r) => r.key), Date.now());
     const { created: okCount, failed, unknown } = summarize(batch.results);
     if (unknown > 0) toast(`${unknown} fatura${unknown > 1 ? 's' : ''} sem resposta a tempo — confira no DFL antes de gerar de novo`, { tone: 'error', durationMs: 10000 });
     if (okCount > 0) toast(`${okCount} fatura${okCount > 1 ? 's' : ''} criada${okCount > 1 ? 's' : ''} (enviada${okCount > 1 ? 's' : ''} pra revisão)`);
@@ -84,17 +88,25 @@ export function InvoiceConfirmModal({ projects, onClose }: { projects: DflProjec
             {drafts.map((d) => {
               const r = resultOf.get(invoiceKey(d));
               const done = !!r && r.outcome !== 'failed' && r.outcome !== 'unknown';
+              const isHeld = !r && held.has(invoiceKey(d));
+              const release = () => { releaseUnconfirmed(invoiceKey(d)); setHeld((prev) => { const next = new Set(prev); next.delete(invoiceKey(d)); return next; }); };
               return (
                 <div key={d.deliveryId} className={`rounded-lg border bg-neutral-900/40 px-3 py-2.5 ${r?.outcome === 'failed' ? 'border-red-500/40' : r?.outcome === 'unknown' ? 'border-amber-500/40' : done ? 'border-emerald-500/30' : 'border-neutral-800'}`}>
                   <div className="flex items-center gap-2">
                     <span className={`min-w-0 flex-1 truncate text-[12.5px] font-medium ${done ? 'text-neutral-500' : 'text-neutral-200'}`}>{d.deliveryName}</span>
-                    {r ? <Badge tone={r.outcome === 'failed' ? 'red' : r.outcome === 'unknown' ? 'orange' : 'green'}>{r.outcome === 'created' ? 'criada' : r.outcome === 'skipped' ? 'já criada' : r.outcome === 'unknown' ? 'confira no DFL' : 'falhou'}</Badge>
+                    {isHeld ? <Badge tone="orange">confira no DFL</Badge> : r ? <Badge tone={r.outcome === 'failed' ? 'red' : r.outcome === 'unknown' ? 'orange' : 'green'}>{r.outcome === 'created' ? 'criada' : r.outcome === 'skipped' ? 'já criada' : r.outcome === 'unknown' ? 'confira no DFL' : 'falhou'}</Badge>
                       : <Badge tone="neutral">{d.tasks.length} task{d.tasks.length > 1 ? 's' : ''}</Badge>}
                     <span className="shrink-0 text-[12px] font-semibold tabular-nums text-orange-300">{fmtPts(d.points)} pt</span>
                     <span className="w-24 shrink-0 text-right text-[11.5px] tabular-nums text-neutral-400">{brl(d.amountCents)}</span>
                   </div>
                   <div className="mt-0.5 truncate text-[10.5px] text-neutral-600">{d.projectName} · R$ {d.pricePerPoint}/pt</div>
                   {r?.outcome === 'failed' && <div className="mt-1 truncate text-[10.5px] text-red-300">{r.message}</div>}
+                  {isHeld && (
+                    <div className="mt-1 flex items-center gap-2 text-[10.5px] text-amber-300">
+                      <span className="min-w-0 flex-1">Uma tentativa anterior ficou sem resposta: esta fatura pode já existir. Confira no DFL antes de liberar.</span>
+                      <Button size="sm" variant="ghost" onClick={release}>Já conferi, liberar</Button>
+                    </div>
+                  )}
                   {r?.outcome === 'unknown' && <div className="mt-1 text-[10.5px] text-amber-300">Sem resposta a tempo: a fatura pode ter sido criada. Confira no DFL (ou espere o próximo sync) antes de gerar de novo.</div>}
                 </div>
               );

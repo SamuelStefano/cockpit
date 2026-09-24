@@ -32,3 +32,21 @@ describe('InvoiceConfirmModal — reply timed out', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 });
+
+describe('InvoiceConfirmModal — unknown outcome from an earlier modal', () => {
+  it('does not re-send it on reopen until the user releases it', async () => {
+    localStorage.clear();
+    ctl.onDflInvoice.mockClear();
+    const first = render(<InvoiceConfirmModal projects={projects} onClose={vi.fn()} />);
+    fireEvent.click(first.getByText(/Criar/).closest('button')!);
+    await waitFor(() => first.getByText('confira no DFL'));
+    first.unmount();
+    expect(ctl.onDflInvoice).toHaveBeenCalledTimes(1);
+
+    const { getByText } = render(<InvoiceConfirmModal projects={projects} onClose={vi.fn()} />);
+    getByText('confira no DFL');
+    expect((getByText(/Criar/).closest('button') as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(getByText('Já conferi, liberar'));
+    expect((getByText(/Criar/).closest('button') as HTMLButtonElement).disabled).toBe(false);
+  });
+});
