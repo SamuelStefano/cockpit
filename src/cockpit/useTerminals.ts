@@ -8,6 +8,8 @@ export interface TermApi {
   resize: (id: string, cols: number, rows: number) => void;
   kill: (id: string) => void;
   resume: (id: string, sessionId: string) => void;
+  // Terminals whose process exited since they were opened (the tab stays, dead).
+  exited: ReadonlySet<string>;
 }
 
 export interface Terminals {
@@ -46,7 +48,10 @@ export function useTerminals(send: (m: ClientMsg) => void): Terminals {
   const termExit = useRef<Map<string, () => void>>(new Map());
   const termDims = useRef<Map<string, { cols: number; rows: number; watch?: string }>>(new Map()); // p/ reattach no reconnect
 
+  const [exited, setExited] = useState<ReadonlySet<string>>(() => new Set());
+  const markAlive = (id: string) => setExited((s) => { if (!s.has(id)) return s; const n = new Set(s); n.delete(id); return n; });
   const attach = useCallback((id: string, cols: number, rows: number, onData: (d: string) => void, onExit: () => void, onReplay: (d: string) => void, watch?: string) => {
+    markAlive(id);
     termData.current.set(id, onData);
     termExit.current.set(id, onExit);
     termReplay.current.set(id, onReplay);
@@ -81,13 +86,16 @@ export function useTerminals(send: (m: ClientMsg) => void): Terminals {
     send({ t: 'term-close', termId: id });
   }, [send]);
   const resume = useCallback((id: string, sessionId: string) => send({ t: 'term-resume', termId: id, watch: sessionId }), [send]);
-  const term: TermApi = useMemo(() => ({ attach, detach, input, resize, kill, resume }), [attach, detach, input, resize, kill, resume]);
+  const term: TermApi = useMemo(() => ({ attach, detach, input, resize, kill, resume, exited }), [attach, detach, input, resize, kill, resume, exited]);
 
   const [discovered, setDiscovered] = useState<string[]>([]);
 
   const onTermData = useCallback((id: string, data: string) => termData.current.get(id)?.(data), []);
   const onTermReplay = useCallback((id: string, data: string) => termReplay.current.get(id)?.(data), []);
-  const onTermExit = useCallback((id: string) => termExit.current.get(id)?.(), []);
+  const onTermExit = useCallback((id: string) => {
+    setExited((s) => (s.has(id) ? s : new Set(s).add(id)));
+    termExit.current.get(id)?.();
+  }, []);
   const onTerms = useCallback((ids: string[]) => setDiscovered(ids), []);
   const listTerms = useCallback(() => send({ t: 'term-list' }), [send]);
   const reattach = useCallback(() => {
