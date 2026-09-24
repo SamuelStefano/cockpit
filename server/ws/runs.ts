@@ -601,6 +601,14 @@ export function deliverToOrchestratorPane(targetSessionId: string | undefined, t
   return true;
 }
 
+// The client latches `inFlight` on every send and only a 'done' clears it;
+// a pane delivery has no run, so without this frame the latch never clears and
+// session-touched (the live transcript tail) is ignored for that session.
+function echoPaneDelivery(sessionKey: string, msgId: string | undefined, prompt: string) {
+  if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
+  broadcast({ t: 'pane-delivered', sessionKey, msgId });
+}
+
 // 'pane' = the prompt was pasted into the Orchestrator's live tmux pane: it WAS
 // delivered, but no thread exists. Queue callers must not read "no thread" as a
 // failed spawn, or they put the item back and paste it again on every tick.
@@ -623,7 +631,7 @@ export function startRun(o: StartRunOptions): 'pane' | undefined {
     return;
   }
   if (!forkId && deliverToOrchestratorPane(resumeId ?? sessionKey, prompt, params.role)) {
-    if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
+    echoPaneDelivery(sessionKey, msgId, prompt);
     return 'pane';
   }
 
@@ -962,7 +970,7 @@ export async function routeSend(o: RouteSendOptions) {
   // below and end up enqueued against THAT twin instead of ever reaching the
   // real pane. Deliver straight into the pane and skip triage entirely.
   if (deliverToOrchestratorPane(resumeId ?? sessionKey, prompt, params.role)) {
-    if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
+    echoPaneDelivery(sessionKey, msgId, prompt);
     return;
   }
   const cur = threads.get(sessionKey);

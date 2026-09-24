@@ -838,6 +838,16 @@ export function useCockpit(): Cockpit {
         setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: msg.text, relative: 'agora', mtime: Math.max(s.mtime, msg.ts ?? Date.now()), waiting: false } : s)));
         return;
       }
+      case 'pane-delivered': {
+        // Typed into a live tmux pane: no run, so no 'done' will clear the
+        // latch onSend set. Release it and pull the transcript the pane writes.
+        const key = resolveKey(migratedTo.current, msg.sessionKey);
+        inFlight.current.delete(key);
+        stopping.current.delete(key);
+        setPhases((p) => ({ ...p, [key]: 'idle' }));
+        if (activeRef.current === key) send(reopenMsg(key));
+        return;
+      }
       case 'triage': {
         // Veredito da triagem (prompt enviado com o turno ocupado). Anexa o selo na
         // bolha do usuário correspondente. Em 'priority' o turno atual será morto e

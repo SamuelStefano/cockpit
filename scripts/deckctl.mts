@@ -245,7 +245,7 @@ async function externalLiveIds(client: Client): Promise<string[]> {
 
 async function cmdSessions(flags: Flags, json: boolean): Promise<void> {
   const { listSessions, listArchived } = await import('../server/sessions/index');
-  const { lastUsageOf } = await import('../server/db');
+  const { sessionUsage } = await import('../server/sessions/ctx-tail');
   const own = flags.all ? [...await listSessions(), ...await listArchived()] : await listSessions();
 
   const client = await connect();
@@ -255,12 +255,12 @@ async function cmdSessions(flags: Flags, json: boolean): Promise<void> {
   const busyKeys = new Set([...(busy?.keys ?? []), ...external]);
 
   const limit = flagNum(flags, 'limit');
-  const items = (limit ? own.slice(0, limit) : own).map((s) => {
+  const items = await Promise.all((limit ? own.slice(0, limit) : own).map(async (s) => {
     const running = busyKeys.has(s.id);
     const status = running ? 'running' : s.waiting ? 'awaiting' : 'idle';
-    const ctx = lastUsageOf(s.id)?.ctxTokens;
+    const ctx = (await sessionUsage(s.id))?.ctxTokens;
     return { id: s.id, title: s.title, status, lastActivity: s.mtime, ctxTokens: ctx ?? null, waiting: !!s.waiting };
-  });
+  }));
 
   if (json) { console.log(JSON.stringify(items, null, 2)); return; }
   if (!items.length) { console.log('no sessions'); return; }
@@ -546,15 +546,14 @@ async function cmdHandoff(id: string): Promise<void> {
 
 async function cmdCtx(flags: Flags, json: boolean): Promise<void> {
   const { listSessions } = await import('../server/sessions/index');
-  const { lastUsageOf } = await import('../server/db');
+  const { sessionUsage } = await import('../server/sessions/ctx-tail');
   const own = await listSessions();
-  const items = own
-    .map((s) => {
-      const u = lastUsageOf(s.id);
+  const items = (await Promise.all(own.map(async (s) => {
+      const u = await sessionUsage(s.id);
       const tokens = u?.ctxTokens ?? 0;
       const window = ctxWindow(tokens, u?.requestedModel ?? u?.model ?? undefined);
       return { id: s.id, title: s.title, tokens, window, pct: tokens ? Math.round((tokens / window) * 100) : 0 };
-    })
+    })))
     .filter((it) => it.tokens > 0)
     .sort((a, b) => b.tokens - a.tokens);
   const limit = flagNum(flags, 'limit');
@@ -687,7 +686,7 @@ async function cmdCardRun(idPrefix: string, flags: Flags): Promise<void> {
 
 async function cmdStatus(): Promise<void> {
   const { listSessions } = await import('../server/sessions/index');
-  const { lastUsageOf } = await import('../server/db');
+  const { sessionUsage } = await import('../server/sessions/ctx-tail');
   const own = await listSessions();
 
   const client = await connect();
@@ -732,20 +731,16 @@ async function cmdStatus(): Promise<void> {
   // Only RUNNING sessions — an idle session's last-known ctx is stale history,
   // not a live pressure signal, and flagging it would drown the alert in noise
   // (most sessions in this daily driver sit well above 80% once idle).
-  const hot = running.filter((s) => {
-    const ctx = lastUsageOf(s.id)?.ctxTokens;
-    return ctx !== undefined && ctx >= 0.8 * 200_000; // 200k default window; best-effort flag
-  });
+  const hot = (await Promise.all(running.map(async (s) => ({ s, ctx: (await sessionUsage(s.id))?.ctxTokens }))))
+    .filter(({ ctx }) => ctx !== undefined && ctx >= 0.8 * 200_000) // 200k default window; best-effort flag
+    .map(({ s }) => s);
   if (hot.length) console.log(`ctx>=80%: ${hot.map((s) => shortId(s.id)).join(', ')}`);
 
   // ALL own sessions (not just running) at >=70% of their observed window —
   // the handoff/ctx candidates an orchestrator should consider offloading.
-  const highCtx = own.filter((s) => {
-    const u = lastUsageOf(s.id);
-    if (!u?.ctxTokens) return false;
-    const pct = (u.ctxTokens / ctxWindow(u.ctxTokens, u.requestedModel ?? u.model ?? undefined)) * 100;
-    return pct >= 70;
-  });
+  const highCtx = (await Promise.all(own.map(async (s) => ({ s, u: await sessionUsage(s.id) }))))
+    .filter(({ u }) => !!u?.ctxTokens && (u.ctxTokens / ctxWindow(u.ctxTokens, u.requestedModel ?? u.model ?? undefined)) * 100 >= 70)
+    .map(({ s }) => s);
   console.log(`ctx>=70%: ${highCtx.length}${highCtx.length ? ' — ' + highCtx.map((s) => shortId(s.id)).join(', ') : ''}`);
 }
 

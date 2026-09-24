@@ -891,6 +891,10 @@ export type ServerMsg =
   // bolha do usuário só aparece no F5 (lendo o JSONL). `id` casa o id otimista do
   // remetente p/ dedup; os demais clientes anexam.
   | { t: 'user'; sessionKey: string; id: string; text: string; ts: number }
+  // The prompt was typed into a live tmux pane instead of starting a relay run.
+  // No 'started'/'done' will ever follow, so the client must drop its own
+  // in-flight latch and go back to tailing the transcript (session-touched).
+  | { t: 'pane-delivered'; sessionKey: string; msgId?: string }
   // Veredito da triagem de um prompt enviado com o turno ocupado. msgId casa a
   // bolha do usuário p/ anexar o selo; quick-answer chega à parte quando answer.
   | { t: 'triage'; sessionKey: string; msgId?: string; action: TriageAction; reason: string }
