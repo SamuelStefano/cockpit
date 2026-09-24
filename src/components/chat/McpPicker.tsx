@@ -25,15 +25,26 @@ export function McpPicker({ servers, selected, setSelected }: {
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node) && !isInsidePickerSheet(e.target)) setOpen(false); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing) { e.preventDefault(); setOpen(false); } };
+    const close = (e: KeyboardEvent) => { e.preventDefault(); setOpen(false); };
+    const escape = (e: KeyboardEvent) => e.key === 'Escape' && !e.defaultPrevented && !e.isComposing;
+    // Capture, but only for Esc aimed at the picker (focus in it, its portaled
+    // sheet, or nowhere): inside the mobile settings sheet the sheet's own
+    // listener was registered first and closed both. Esc aimed elsewhere (the ⌘K
+    // palette on top, the composer's Esc-to-stop) is left to them; the bubble
+    // listener then closes the picker only if nobody consumed it.
+    const onCapture = (e: KeyboardEvent) => {
+      const t = e.target as Node | null;
+      const aimed = !t || t === document.body || t === document.documentElement || !!wrapRef.current?.contains(t) || isInsidePickerSheet(t);
+      if (aimed && escape(e)) close(e);
+    };
+    const onBubble = (e: KeyboardEvent) => { if (escape(e)) close(e); };
     document.addEventListener('mousedown', onDoc);
-    // Capture: inside the mobile settings sheet, the sheet's own Esc listener was
-    // registered first and closed sheet and picker together. The picker is always
-    // the innermost overlay, so it takes Esc before any bubble listener.
-    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('keydown', onCapture, true);
+    window.addEventListener('keydown', onBubble);
     return () => {
       document.removeEventListener('mousedown', onDoc);
-      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('keydown', onCapture, true);
+      window.removeEventListener('keydown', onBubble);
     };
   }, [open]);
 
