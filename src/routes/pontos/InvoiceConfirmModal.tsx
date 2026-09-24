@@ -42,9 +42,11 @@ export function InvoiceConfirmModal({ projects, onClose }: { projects: DflProjec
     // selecionadas pro retry, e o retry não reescreve as que deram certo.
     const done = batch.results.filter((r) => r.outcome !== 'failed').map((r) => r.deliveryId);
     if (done.length) deselect(done);
-    const { created: okCount, failed } = summarize(batch.results);
+    const { created: okCount, failed, unknown } = summarize(batch.results);
     if (okCount > 0) toast(`${okCount} fatura${okCount > 1 ? 's' : ''} criada${okCount > 1 ? 's' : ''} (enviada${okCount > 1 ? 's' : ''} pra revisão)`);
-    if (failed === 0) { clearSelected(); onClose(); }
+    // Keep the modal open when an outcome is unknown: the user has to see which
+    // delivery to check in DFL before doing anything else.
+    if (failed === 0 && unknown === 0) { clearSelected(); onClose(); }
   };
 
   return (
@@ -78,18 +80,19 @@ export function InvoiceConfirmModal({ projects, onClose }: { projects: DflProjec
           <div className="flex flex-col gap-2">
             {drafts.map((d) => {
               const r = resultOf.get(invoiceKey(d));
-              const done = !!r && r.outcome !== 'failed';
+              const done = !!r && r.outcome !== 'failed' && r.outcome !== 'unknown';
               return (
-                <div key={d.deliveryId} className={`rounded-lg border bg-neutral-900/40 px-3 py-2.5 ${r?.outcome === 'failed' ? 'border-red-500/40' : done ? 'border-emerald-500/30' : 'border-neutral-800'}`}>
+                <div key={d.deliveryId} className={`rounded-lg border bg-neutral-900/40 px-3 py-2.5 ${r?.outcome === 'failed' ? 'border-red-500/40' : r?.outcome === 'unknown' ? 'border-amber-500/40' : done ? 'border-emerald-500/30' : 'border-neutral-800'}`}>
                   <div className="flex items-center gap-2">
                     <span className={`min-w-0 flex-1 truncate text-[12.5px] font-medium ${done ? 'text-neutral-500' : 'text-neutral-200'}`}>{d.deliveryName}</span>
-                    {r ? <Badge tone={r.outcome === 'failed' ? 'red' : 'green'}>{r.outcome === 'created' ? 'criada' : r.outcome === 'skipped' ? 'já criada' : 'falhou'}</Badge>
+                    {r ? <Badge tone={r.outcome === 'failed' ? 'red' : r.outcome === 'unknown' ? 'orange' : 'green'}>{r.outcome === 'created' ? 'criada' : r.outcome === 'skipped' ? 'já criada' : r.outcome === 'unknown' ? 'confira no DFL' : 'falhou'}</Badge>
                       : <Badge tone="neutral">{d.tasks.length} task{d.tasks.length > 1 ? 's' : ''}</Badge>}
                     <span className="shrink-0 text-[12px] font-semibold tabular-nums text-orange-300">{fmtPts(d.points)} pt</span>
                     <span className="w-24 shrink-0 text-right text-[11.5px] tabular-nums text-neutral-400">{brl(d.amountCents)}</span>
                   </div>
                   <div className="mt-0.5 truncate text-[10.5px] text-neutral-600">{d.projectName} · R$ {d.pricePerPoint}/pt</div>
                   {r?.outcome === 'failed' && <div className="mt-1 truncate text-[10.5px] text-red-300">{r.message}</div>}
+                  {r?.outcome === 'unknown' && <div className="mt-1 text-[10.5px] text-amber-300">Sem resposta a tempo: a fatura pode ter sido criada. Confira no DFL (ou espere o próximo sync) antes de gerar de novo.</div>}
                 </div>
               );
             })}
