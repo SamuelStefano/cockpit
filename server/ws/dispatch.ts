@@ -550,7 +550,9 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'ctx-open': {
       const c = await readContext(msg.id);
+      // A missing id used to get no reply at all, and the UI waited forever.
       if (c) send(ws, { t: 'context', id: msg.id, title: c.title, body: c.body });
+      else send(ws, { t: 'error', message: 'contexto não encontrado' });
       return;
     }
     case 'session-handoff': {
@@ -767,6 +769,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'skill-open': {
       const s = await readSkill(msg.id);
       if (s) send(ws, { t: 'skill', id: msg.id, name: s.name, body: s.body });
+      else send(ws, { t: 'error', message: 'skill não encontrada' });
       return;
     }
     // Compartilhamento (write-path, admin-only via authz): grava um contexto/skill

@@ -723,3 +723,16 @@ describe('drafts (Rascunhos para o DFL)', () => {
     expect(bc.send).toHaveBeenCalledWith(ws, { t: 'error', message: 'épico ep-x não existe' });
   });
 });
+
+describe('ctx-open / skill-open with an unknown id', () => {
+  it('answers with an error instead of leaving the UI waiting', async () => {
+    const { readContext } = await import('../contexts');
+    const { readSkill } = await import('../skills');
+    vi.mocked(readContext).mockResolvedValueOnce(null as never);
+    vi.mocked(readSkill).mockResolvedValueOnce(null as never);
+    await handle(ws, { t: 'ctx-open', id: 'nope' } as ClientMsg, 'admin');
+    await handle(ws, { t: 'skill-open', id: 'nope' } as ClientMsg, 'admin');
+    expect(bc.send).toHaveBeenCalledWith(ws, { t: 'error', message: 'contexto não encontrado' });
+    expect(bc.send).toHaveBeenCalledWith(ws, { t: 'error', message: 'skill não encontrada' });
+  });
+});
