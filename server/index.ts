@@ -33,7 +33,9 @@ async function main() {
     if (sandbox) { proxySandbox(sandbox, req, res); return; }
     // Liveness: o supervisor (run-backend.sh) faz poll disto pra detectar backend
     // pendurado-mas-vivo — se isto responde, o event loop não travou de vez.
-    if (req.url === '/healthz') {
+    // Path only: with a query string these fell through to the SPA's index.html.
+    const path = (req.url ?? '').split('?')[0];
+    if (path === '/healthz') {
       res.writeHead(200, { 'content-type': 'application/json' });
       // sandboxProxy: o painel de preview só aponta o iframe pra `<slug>.localhost`
       // se o backend em execução souber proxiar. Num backend velho esse host cai no
@@ -45,7 +47,7 @@ async function main() {
     // ela própria carregou e oferece recarregar quando um deploy troca o hash.
     // Sem auth de propósito — é o mesmo dado que qualquer um que carrega o app já
     // recebe no index.html, e a PWA precisa dele antes de ter sessão.
-    if (req.url === '/api/build') {
+    if (path === '/api/build') {
       const manifest = buildManifest(distDir);
       res.writeHead(manifest ? 200 : 503, { 'content-type': 'application/json', 'cache-control': 'no-store' });
       res.end(JSON.stringify(manifest ?? { error: 'sem build' }));

@@ -49,6 +49,9 @@ function rewriteHeaders(headers: IncomingHttpHeaders, upstream: string): Incomin
   return out;
 }
 
+// Above this, the body is streamed through without the origin rewrite.
+export const MAX_REWRITE_BYTES = 10 * 1024 * 1024;
+
 const REWRITABLE = /\b(text\/html|text\/css|javascript|json)\b/i;
 
 // O app embute a própria URL de preview (é de lá que ele fala com o Supabase). Servido
@@ -68,20 +71,44 @@ export function proxySandbox(upstream: string, req: IncomingMessage, res: Server
   const up = httpsRequest(
     { host: upstream, port: 443, servername: upstream, method: req.method, path: req.url, headers },
     (r) => {
+      // Destroying `up` on client abort makes `r` emit 'error' (ECONNRESET); with
+      // no listener that would be an uncaughtException and take the backend down.
+      r.on('error', () => res.destroy());
       const out = rewriteHeaders(r.headers, upstream);
       if (!REWRITABLE.test(String(r.headers['content-type'] ?? ''))) {
         res.writeHead(r.statusCode ?? 502, out);
         r.pipe(res);
         return;
       }
+      // Rewriting needs the whole body in memory. Past the cap, flush what was
+      // buffered and stream the rest untouched: a huge JSON from the preview app
+      // would otherwise sit whole in the heap of this small box.
+      if (Number(r.headers['content-length'] ?? 0) > MAX_REWRITE_BYTES) {
+        res.writeHead(r.statusCode ?? 502, out);
+        r.pipe(res);
+        return;
+      }
       const chunks: Buffer[] = [];
-      r.on('data', (c: Buffer) => chunks.push(c));
-      r.on('end', () => {
+      let size = 0;
+      const onData = (c: Buffer) => {
+        chunks.push(c);
+        size += c.byteLength;
+        if (size <= MAX_REWRITE_BYTES) return;
+        r.off('data', onData);
+        r.off('end', onEnd);
+        delete out['content-length'];
+        res.writeHead(r.statusCode ?? 502, out);
+        for (const one of chunks) res.write(one);
+        r.pipe(res);
+      };
+      const onEnd = () => {
         const body = Buffer.from(rewriteBody(Buffer.concat(chunks).toString('utf8'), upstream, proxyOrigin));
         out['content-length'] = String(body.byteLength);
         res.writeHead(r.statusCode ?? 502, out);
         res.end(body);
-      });
+      };
+      r.on('data', onData);
+      r.on('end', onEnd);
     },
   );
   up.on('error', (e) => {
@@ -89,7 +116,19 @@ export function proxySandbox(upstream: string, req: IncomingMessage, res: Server
     res.writeHead(502, { 'content-type': 'text/plain; charset=utf-8' });
     res.end(`sandbox indisponível: ${e.message}\n`);
   });
+  // A client that aborts must not leave the upstream request hanging open.
+  res.on('close', () => up.destroy());
   req.pipe(up);
+}
+
+// The preview's own page is the only legitimate browser origin for its HMR socket.
+// Without this, any site open in the browser could open that socket through the
+// Deck (`*.localhost` resolves to loopback) — the CSWSH that `/ws` already blocks
+// with originAllowed. No Origin = not a browser, not a CSWSH vector.
+export function sandboxOriginAllowed(origin: string | undefined, host: string | undefined): boolean {
+  if (!origin) return true;
+  if (!host) return false;
+  return origin === `http://${host}` || origin === `https://${host}`;
 }
 
 // O dev server do Vite mantém o HMR num WebSocket. Sem repassar o upgrade o cliente
@@ -109,4 +148,6 @@ export function proxySandboxUpgrade(upstream: string, req: IncomingMessage, sock
   const drop = () => { up.destroy(); socket.destroy(); };
   up.on('error', drop);
   socket.on('error', drop);
+  socket.on('close', drop);
+  up.on('close', drop);
 }
