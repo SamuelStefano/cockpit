@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Icon, tokens } from './primitives';
 import type { Terminal } from '../data/types';
 import type { TermApi } from '../useCockpit';
@@ -24,6 +24,14 @@ export interface TerminalsPanelProps {
 
 export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, term, attachable = [], onAttach, onCloseMobile }: TerminalsPanelProps) {
   const active = terminals.find((t) => t.id === activeId) || terminals[0];
+  // "matar" ends the real tmux session (agents run there). On mobile it sits at
+  // the bottom of the sheet and was easy to mis-tap: the first tap arms it for 3s.
+  const [killArmed, setKillArmed] = useState<string | null>(null);
+  useEffect(() => {
+    if (!killArmed) return;
+    const t = setTimeout(() => setKillArmed(null), 3000);
+    return () => clearTimeout(t);
+  }, [killArmed]);
 
   return (
     <div className="flex h-full flex-col" style={{ background: '#0a0a0a' }}>
@@ -108,11 +116,11 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
         </div>
         {active && (
           <button
-            onClick={() => onClose(active.id)}
+            onClick={() => { if (killArmed === active.id) { setKillArmed(null); onClose(active.id); } else setKillArmed(active.id); }}
             title="Encerra a sessão tmux"
-            className="flex items-center gap-1.5 rounded-md border border-neutral-700 px-2 py-1 text-[11px] font-medium text-neutral-300 transition hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400"
+            className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition ${killArmed === active.id ? 'border-red-500/60 bg-red-500/15 text-red-300' : 'border-neutral-700 text-neutral-300 hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400'}`}
           >
-            <Icon name="trash" size={11} /> matar
+            <Icon name="trash" size={11} /> {killArmed === active.id ? 'confirmar?' : 'matar'}
           </button>
         )}
       </div>
