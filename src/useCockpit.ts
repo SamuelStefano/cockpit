@@ -916,7 +916,7 @@ export function useCockpit(): Cockpit {
         runMsg.current[key] = id;
         // Carimba o modelo pedido na bolha desde já: sem isto o label caía no seletor
         // vivo e mudava retroativamente ao trocar de modelo. O 'done' refina pro efetivo.
-        updateThread(key, (prev) => [...prev, { id, role: 'assistant', blocks: [], ts: Date.now(), ...(msg.model ? { model: msg.model } : {}) }]);
+        updateThread(key, (prev) => [...prev, { id, role: 'assistant', blocks: [], ts: msg.startedAt ?? Date.now(), ...(msg.model ? { model: msg.model } : {}) }]);
         setPhases((p) => ({ ...p, [key]: 'thinking' }));
         // Turno novo: os chips de continuação do turno anterior ficaram obsoletos.
         setFollowups((f) => { if (!(key in f)) return f; const n = { ...f }; delete n[key]; return n; });
