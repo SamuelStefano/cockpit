@@ -13,6 +13,7 @@ import { RateWindow } from './observatorio/RateWindow';
 import { UsageTable } from './observatorio/UsageTable';
 import { UsageSkeleton } from './observatorio/UsageSkeleton';
 import { useUsageRetry } from './observatorio/useUsageRetry';
+import { useUsagePoll } from './observatorio/useUsagePoll';
 
 interface Props {
   connected: boolean;
@@ -28,6 +29,7 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions, rat
   // Resposta perdida (reconnect do relay) deixava o skeleton pra sempre — repete
   // o pedido enquanto não chegou nada.
   useUsageRetry(connected, usageStats !== null, onUsageList);
+  useUsagePoll(connected, onUsageList);
   // Esgotadas as retentativas (5×2.5s = 12.5s), sem isto o skeleton girava pra
   // sempre. 14s pro stall não sobrepor a última retentativa automática.
   const { stalled, retry } = useLoadStalled(usageStats !== null, connected, 14_000);
