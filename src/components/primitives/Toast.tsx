@@ -45,9 +45,12 @@ export function Toaster() {
     setItems((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  if (!items.length) return null;
+  // Always mounted (even empty) as a polite live region: a region created
+  // together with its first toast is not announced by screen readers.
   return (
     <div
+      role="status"
+      aria-live="polite"
       className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col items-center gap-2 px-4"
       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
     >
