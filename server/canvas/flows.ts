@@ -335,9 +335,16 @@ async function deliverToReuseTarget(card: CanvasCard, flow: CanvasFlow, result: 
   // has no thread in `threads` for resolveThreadKey above to have caught).
   const resume = resumableId(sessionId);
   if (!resume) return { delivered: false };
-  if (await hasInteractiveClaude(sessionId)) return { delivered: false };
   const blockedArea = blockedAreaFor(resume);
   if (blockedArea) return { delivered: false, areaBlocked: blockedArea };
+  // A card continuing into the Orchestrator: startRun pastes into its pane ('pane',
+  // no thread) — a delivery, same as deliverToSession. Checked before the
+  // interactive/busy guards, which would otherwise refuse or FORK its whole
+  // transcript (its claude is interactive and reads busy while it works).
+  if (orchestratorPaneTarget(resume, params.role)) {
+    return { delivered: startRun({ ws: null, sessionKey: resume, prompt, resumeId: resume, flowHop: hop, ...params }) === 'pane' };
+  }
+  if (await hasInteractiveClaude(sessionId)) return { delivered: false };
   // hasInteractiveClaude just awaited real I/O (a /proc scan) — a user could
   // have sent into this session in that exact window, making it live. startRun
   // on an already-live sessionKey takes the `replacing` branch and KILLS that
@@ -363,12 +370,14 @@ export async function deliverToCard(cardId: string, flow: CanvasFlow, result: st
   // areaBlocked (#599) has to survive this early return too — fireFlow reads
   // it off deliverToCard's own result to pick the dedicated toast/backoff,
   // and a card target is exactly as area-gateable as an `s:` one.
-  if (!delivery.delivered || !delivery.runKey) return { delivered: false, areaBlocked: delivery.areaBlocked };
+  if (!delivery.delivered) return { delivered: false, areaBlocked: delivery.areaBlocked };
   await updateBoard((b) => markCardDoing(b, cardId, Date.now()));
   // Live until handleTurnClosed sees this exact runKey close (below) — read
   // back by server/ws/dispatch.ts on every canvas-board answer, so a tab
   // that (re)connects mid-run still sees the card running, reuse or not.
-  registerFlowRun(delivery.runKey, cardId, flow.id);
+  // A pane delivery (the Orchestrator) has no run of ours to track: it is still
+  // delivered — read as a failure, fireFlow backed off and pasted it again.
+  if (delivery.runKey) registerFlowRun(delivery.runKey, cardId, flow.id);
   return delivery;
 }
 

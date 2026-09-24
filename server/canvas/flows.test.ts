@@ -397,6 +397,23 @@ describe('deliverToCard reuse modes (#597 continue/fork)', () => {
     { id: 'card1', title: 'Título', prompt: 'continue isso', reuse: { mode, sessionId: SID } }, undefined, 1,
   )!;
 
+  it('continue into the Orchestrator pane counts as delivered and marks the card doing (no fork, no retry)', async () => {
+    resolveThreadKeyMock.mockReturnValue(undefined);
+    hasInteractiveClaudeMock.mockResolvedValue(true); // its claude is interactive
+    busyElsewhereMock.mockResolvedValue([SID]);       // and reads busy while it works
+    orchestratorPaneTargetMock.mockReturnValue({ termId: 'orch' });
+    startRunMock.mockReturnValueOnce('pane' as never);
+    const card = reuseCard('continue');
+    await updateBoard((b) => upsertCard(b, card));
+    const r = await deliverToCard('card1', flow({ id: 'orchf', template: '{{result}}' }), 'R', 1, {});
+    expect(r.delivered).toBe(true);
+    expect(runParkedInBackgroundMock).not.toHaveBeenCalled();
+    expect((await updateBoard((b) => b)).cards.find((c) => c.id === 'card1')?.status).toBe('doing');
+    orchestratorPaneTargetMock.mockReturnValue(undefined);
+    hasInteractiveClaudeMock.mockResolvedValue(false);
+    busyElsewhereMock.mockResolvedValue([]);
+  });
+
   it('continue, target idle: sends into the existing session (startRun), never spawns a new one or parks a fork', async () => {
     resolveThreadKeyMock.mockReturnValue(undefined);
     const card = reuseCard('continue');
