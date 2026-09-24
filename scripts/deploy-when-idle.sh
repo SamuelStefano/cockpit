@@ -27,6 +27,24 @@ flock -n 9 || exit 0   # já tem um deploy adiado armado
 ts() { date -Is; }
 log() { echo "[$(ts)] $*" >>"$LOG"; }
 
+# A `claude -p` that already answered and only waits on a background task (dev
+# server, poll loop) stays alive for hours and blocked every deploy. The CLI's own
+# registry (~/.claude/sessions/<pid>.json) says `idle` for it; past the grace
+# window it no longer counts as work in flight. No registry file = busy.
+BG_IDLE_GRACE=${BG_IDLE_GRACE:-600}
+busy_claude() {
+  local pid
+  for pid in $(pgrep -f 'claude -p'); do
+    python3 - "$pid" "$BG_IDLE_GRACE" <<'PY' 2>/dev/null || echo "$pid"
+import json, os, sys, time
+pid, grace = sys.argv[1], int(sys.argv[2])
+d = json.load(open(os.path.expanduser(f"~/.claude/sessions/{pid}.json")))
+idle_for = time.time() - d.get("updatedAt", 0) / 1000
+sys.exit(0 if d.get("status") == "idle" and idle_for > grace else 1)
+PY
+  done
+}
+
 target=$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null)
 log "armado em $target; esperando a box ficar ociosa (teto ${MAX_WAIT}s)"
 
@@ -36,7 +54,7 @@ while [ "$waited" -lt "$MAX_WAIT" ]; do
   # Qualquer `claude -p` vivo = trabalho de alguém em voo (turno, one-shot de
   # triagem, triador de incidentes). Reiniciar agora é exatamente o bug que este
   # lote fecha, então esperamos.
-  pgrep -f 'claude -p' >/dev/null 2>&1 && continue
+  [ -n "$(busy_claude)" ] && continue
   # Working tree sujo = humano (ou outro agente) editando; o redeploy subiria
   # código pela metade.
   if [ -n "$(git -C "$REPO" status --porcelain 2>/dev/null)" ]; then
