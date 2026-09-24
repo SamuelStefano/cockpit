@@ -20,7 +20,8 @@ describe('ChatTopics', () => {
   it('closed: only the rail, one tick per topic, active tick in orange', () => {
     const { container } = render(<ChatTopics topics={topics} activeId="u2" open={false} setOpen={() => {}} onJump={() => {}} />);
     expect(screen.queryByRole('navigation')).toBeNull();
-    const ticks = container.querySelectorAll('button > span');
+    // each tick is a shrinkable slot (button > span) holding the 2px mark
+    const ticks = container.querySelectorAll('button > span > span');
     expect(ticks.length).toBe(3);
     expect(ticks[1].className).toContain('bg-orange-400');
     expect(ticks[0].className).not.toContain('bg-orange-400');

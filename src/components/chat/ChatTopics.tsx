@@ -20,7 +20,11 @@ export function ChatTopics({ topics, activeId, open, setOpen, onJump }: ChatTopi
   return (
     <div
       ref={ref}
-      className="group/topics absolute right-0 top-1/2 z-10 -translate-y-1/2 print:hidden"
+      // Spans the thread (inset-y-2) and centers the rail in it, instead of being
+      // centered on its own height: one mark per prompt, so a long session's rail
+      // (80 prompts ≈ 570px) ran over the chat header's buttons and the composer.
+      // The wrapper lets clicks through; only the rail and the list take them.
+      className="group/topics pointer-events-none absolute inset-y-2 right-0 z-10 flex items-center print:hidden"
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
     >
@@ -29,15 +33,21 @@ export function ChatTopics({ topics, activeId, open, setOpen, onJump }: ChatTopi
         aria-label={`Tópicos da conversa (${topics.length})`}
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className={`flex flex-col items-end gap-[5px] px-2 py-2 ${tokens.focusRing} rounded-md`}
+        className={`pointer-events-auto flex max-h-full flex-col items-end overflow-hidden px-2 py-2 ${tokens.focusRing} rounded-md`}
       >
+        {/* Each mark is a 7px slot that may shrink: when there are more prompts
+            than room, the rail compresses instead of overflowing. */}
         {topics.map((t) => (
-          <span key={t.id} className={`block h-[2px] rounded-full transition-all duration-200 ${t.id === activeId ? 'w-4 bg-orange-400' : 'w-2.5 bg-neutral-700 group-hover/topics:bg-neutral-600'}`} />
+          <span key={t.id} className="flex min-h-px shrink basis-[7px] items-center overflow-hidden">
+            <span className={`block h-[2px] rounded-full transition-all duration-200 ${t.id === activeId ? 'w-4 bg-orange-400' : 'w-2.5 bg-neutral-700 group-hover/topics:bg-neutral-600'}`} />
+          </span>
         ))}
       </button>
+      {/* Capped at the thread, but never below 12rem: in a short thread (a tall
+          composer, 1440x500) max-h-full left a 43px list showing one prompt. */}
       {open && (
-        <nav aria-label="Tópicos da conversa" className={`fade-up absolute right-full top-1/2 mr-1 w-60 max-w-[70vw] -translate-y-1/2 overflow-hidden ${tokens.radius.lg} ${tokens.surface.raised} py-1.5`}>
-          <div className="scroll-thin max-h-[60vh] overflow-y-auto">
+        <nav aria-label="Tópicos da conversa" className={`fade-up pointer-events-auto absolute right-full top-1/2 mr-1 flex max-h-[max(100%,12rem)] w-60 max-w-[70vw] -translate-y-1/2 flex-col overflow-hidden ${tokens.radius.lg} ${tokens.surface.raised} py-1.5`}>
+          <div className="scroll-thin max-h-[60vh] min-h-0 overflow-y-auto">
             {topics.map((t, i) => {
               const current = t.id === activeId;
               return (
