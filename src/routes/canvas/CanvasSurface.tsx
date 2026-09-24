@@ -62,6 +62,11 @@ interface Props {
   onFocusOrchestrator?: () => void;
   dockOpen?: boolean;
   onToggleDock?: () => void;
+  // Session ids alive in a `cockpit-cv-*` shell — plumbing for TerminalWindow's
+  // "ao vivo/fantasma" badge (UX review 24/09 item 3). Optional with no
+  // default set here on purpose: Canvas.tsx (another agent's file) doesn't
+  // deliver it yet — see this batch's PR body for the one-line wiring.
+  cvLive?: Set<string>;
   children?: React.ReactNode;
 }
 
@@ -72,6 +77,12 @@ const COMPACT_BELOW = 0.42;
 // 320×200 screen px — code inside reads as a grey smear, not text (#598 map
 // cleanup). The map is still pannable past this box, so nothing is lost.
 const INITIAL_MIN_ZOOM = 0.5;
+// Terminal windows exist on this board: the very first framing needs to fit
+// the lane at a zoom where typing is actually legible, not just "not zero"
+// (UX review 24/09 item 3 — 0.5 rendered a TERM_W×TERM_H window at
+// 320×200 screen px; 0.75 is 480×300, and LANE_COLS 3->2 keeps that lane
+// inside a 1440px screen at this floor).
+const INITIAL_MIN_ZOOM_WITH_WINDOWS = 0.75;
 
 export function CanvasSurface(p: Props) {
   const vp = useCanvasViewport();
@@ -89,8 +100,8 @@ export function CanvasSurface(p: Props) {
   useEffect(() => {
     if (fitted.current || !p.nodes.length) return;
     fitted.current = true;
-    fit(p.initialBounds, INITIAL_MIN_ZOOM);
-  }, [p.nodes.length, p.initialBounds, fit]);
+    fit(p.initialBounds, p.windows.size > 0 ? INITIAL_MIN_ZOOM_WITH_WINDOWS : INITIAL_MIN_ZOOM);
+  }, [p.nodes.length, p.initialBounds, p.windows, fit]);
 
   // `p.pos` gets a new identity on every layout recompute (any streamed token
   // from any running agent touches `running`, which feeds `visible`), so a
@@ -114,8 +125,8 @@ export function CanvasSurface(p: Props) {
   useEffect(() => {
     if (!fitNext.current) return;
     fitNext.current = false;
-    fit(p.initialBounds, INITIAL_MIN_ZOOM);
-  }, [p.initialBounds, fit]);
+    fit(p.initialBounds, p.windows.size > 0 ? INITIAL_MIN_ZOOM_WITH_WINDOWS : INITIAL_MIN_ZOOM);
+  }, [p.initialBounds, p.windows, fit]);
   const req = p.centerRequest;
   const centeredN = useRef<number | null>(null);
   useEffect(() => {
@@ -123,7 +134,11 @@ export function CanvasSurface(p: Props) {
     const target = posRef.current[req.id];
     if (!target) return;
     centeredN.current = req.n;
-    if (windowsRef.current.has(req.id)) centerOn(target, TERM_W, TERM_H);
+    // A window wants k=1 to be legible; a plain node card keeps centerOn's
+    // 0.7 default (UX review 24/09 item 3 — `centerOn` for a window used
+    // the SAME floor as a node, so opening a terminal never zoomed in enough
+    // to read it).
+    if (windowsRef.current.has(req.id)) centerOn(target, TERM_W, TERM_H, 1);
     else centerOn(target);
   }, [req, centerOn]);
 
@@ -144,7 +159,15 @@ export function CanvasSurface(p: Props) {
   return (
     <div
       ref={vp.ref}
-      className="relative min-h-0 flex-1 touch-none overflow-hidden bg-neutral-950"
+      // `overflow-clip` instead of `overflow-hidden`: CSS `clip` truly cannot
+      // scroll, where `hidden` still lets a programmatic scroll (e.g. a
+      // textarea.focus() inside an off-screen terminal — Xterm.tsx's
+      // XtermView does this on activate) move scrollTop/scrollLeft and drag
+      // every absolutely-positioned overlay along with it (canvas review
+      // UX review 24/09 item 4). The onScroll below is defensive redundancy for any
+      // browser whose `clip` support still tracks a scroll offset internally.
+      className="relative min-h-0 flex-1 touch-none overflow-clip bg-neutral-950"
+      onScroll={(e) => { e.currentTarget.scrollTop = 0; e.currentTarget.scrollLeft = 0; }}
       style={{
         backgroundImage: 'radial-gradient(circle, rgba(115,115,115,0.28) 1px, transparent 1.2px)',
         backgroundSize: `${grid}px ${grid}px`,
@@ -196,7 +219,7 @@ export function CanvasSurface(p: Props) {
         ))}
         <CanvasWindows
           nodes={wins} pos={pos} terms={p.terms} term={p.term} selected={selectedSet} focus={focus}
-          running={p.running} waiting={p.waiting} orchestrator={p.orchestrator}
+          running={p.running} waiting={p.waiting} orchestrator={p.orchestrator} cvLive={p.cvLive} zoom={view.k}
           onPointerDown={onNodeDown} onOpenChat={p.onOpenChat} onSendTo={p.onSendTo} onDock={p.onToggleDock}
           sendError={p.sendError} onDismissSendError={p.onDismissSendError} stats={p.stats}
           past={p.pastAlive !== null} pastAlive={p.pastAlive} instant={p.timelinePlaying}

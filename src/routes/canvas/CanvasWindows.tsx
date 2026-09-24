@@ -14,6 +14,11 @@ interface Props {
   running: Set<string>;
   waiting: Set<string>;
   orchestrator: OrchestratorInfo | undefined;
+  // Session ids alive in a `cockpit-cv-*` shell — `running` alone missed these,
+  // so a cv-shell worker's window read "fantasma" forever (UX review 24/09
+  // item 3). Optional: absent until Canvas.tsx wires up `r.cvLive` (PR body).
+  cvLive?: Set<string>;
+  zoom: number;
   onPointerDown: (e: React.PointerEvent, id: string) => void;
   onOpenChat: (sessionId: string) => void;
   onSendTo: (sessionId: string, text: string) => boolean;
@@ -48,8 +53,8 @@ export function CanvasWindows(p: Props) {
             active={t.active === n.id} focusN={t.focusN} maximized={t.maximized === n.id} resuming={t.resuming === n.ref} stats={p.stats[n.ref]}
             selected={p.selected.has(n.id)}
             dim={(p.focus.size > 0 && !p.focus.has(n.id) && t.active !== n.id) || (p.pastAlive !== null && !p.pastAlive.has(n.id))}
-            running={n.kind === 'session' && p.running.has(n.ref)} waiting={n.kind === 'session' && p.waiting.has(n.ref)}
-            orchestrator={isOrch}
+            running={n.kind === 'session' && (p.running.has(n.ref) || !!p.cvLive?.has(n.ref))} waiting={n.kind === 'session' && p.waiting.has(n.ref)}
+            orchestrator={isOrch} zoom={p.zoom}
             onDock={isOrch ? p.onDock : undefined}
             promptDisabled={t.resumedLive.has(n.ref)}
             past={p.past} instant={p.instant}

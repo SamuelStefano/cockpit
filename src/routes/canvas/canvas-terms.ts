@@ -1,4 +1,5 @@
-import { shellNodeId, watchTermId, type CanvasNode, type CanvasPos } from '../../../shared/canvas';
+import { shellNodeId, watchTermId, type CanvasNode, type CanvasPos, type TermStats } from '../../../shared/canvas';
+import { sessionAlert } from './canvas-alerts';
 import { bounds } from './canvas-layout';
 
 // Terminal windows on the canvas. A session node opens a "watch" tmux pane that
@@ -7,10 +8,16 @@ import { bounds } from './canvas-layout';
 
 export const TERM_W = 640;
 export const TERM_H = 400;
-export const MAX_OPEN_TERMS = 8;
+// 6, not 8: LANE_COLS 2 keeps a full lane on screen at a legible zoom (canvas
+// UX review 24/09 item 3) — 8 windows at 2 columns is 4 rows, taller than most
+// laptop screens even floored at 0.75.
+export const MAX_OPEN_TERMS = 6;
 const LANE_GAP = 40;
 const LANE_ABOVE = 160;
-const LANE_COLS = 3;
+// 2, not 3: at TERM_W=640 a 3-col lane needs ~2000px, unreadable even floored
+// at the new 0.75 minimum on a 1440px screen. 2 cols fits at 0.75 with room
+// to spare (UX review 24/09 item 3).
+const LANE_COLS = 2;
 
 const WATCH_PREFIX = 'w-';
 const SHELL_PREFIX = 'cv-';
@@ -141,4 +148,21 @@ export function autoAdd(cur: string[], running: string[], max = MAX_OPEN_TERMS):
     next = [...next, id];
   }
   return next;
+}
+
+// "sessões" only has MAX_OPEN_TERMS slots — spend them on what needs eyes NOW
+// (running, then waiting-on-user, then a context/error alert) before falling
+// back to recency, so a stale ghost never bumps a session stuck waiting for
+// input out of the cap (UX review 24/09 item 3). NOT wired up yet: Canvas.tsx
+// still sorts by mtime alone (see this batch's PR body for the one-line call).
+export function pickRecentSessions(
+  nodes: CanvasNode[], running: Set<string>, waiting: Set<string>,
+  stats: Record<string, Pick<TermStats, 'contextTokens' | 'model'>>, max = MAX_OPEN_TERMS,
+): string[] {
+  const rank = (n: CanvasNode) => {
+    if (running.has(n.ref)) return 0;
+    if (waiting.has(n.ref)) return 1;
+    return sessionAlert(false, stats[n.ref]) ? 2 : 3;
+  };
+  return [...nodes].sort((a, b) => rank(a) - rank(b) || b.mtime - a.mtime).slice(0, max).map((n) => n.id);
 }
