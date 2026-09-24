@@ -11,9 +11,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
-  # Only superseded PR pushes are cancelled. On main, two quick merges cancelled
-  # the first commit's run, so it landed without CI ever finishing on it.
+  # A push to main gets its own group per commit: in a shared group, a quick
+  # second merge cancelled the first commit's run (and a third, the second's
+  # pending one), so a commit could land without CI ever finishing on it.
+  # Superseded PR pushes are still cancelled.
+  group: ci-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
