@@ -67,7 +67,12 @@ export function attachWs(server: Server) {
   beat.unref();
   wss.on('close', () => clearInterval(beat));
 
+  // Without an 'error' listener Node throws it: a malformed frame, or an upload
+  // over maxPayload (1009), became an uncaughtException → shutdown(1) → every
+  // running turn killed. ws closes the socket after emitting; just log.
+  wss.on('error', (e) => console.error('[ws] server error:', e.message));
   wss.on('connection', (ws, req) => {
+    ws.on('error', (e) => console.error('[ws] socket error:', e.message));
     // Gate de auth ANTES de qualquer trabalho ou estado por-conexão (DR-011 Fase
     // 2). verifyClient já barrou origem cruzada; aqui exigimos o token quando
     // configurado. Fechamos com 4401 (código de app) pra a UI distinguir
