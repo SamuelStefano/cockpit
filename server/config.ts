@@ -168,6 +168,8 @@ export function positiveOrUndefined(v: string | undefined): number | undefined {
 }
 
 // 'bypassPermissions' nunca entra: numa máquina com sudo NOPASSWD = RCE root.
+// Fallback is acceptEdits, not plan: a run with no explicit mode (deckctl, crons,
+// orchestrator dispatch) landed in plan mode and stalled on ExitPlanMode.
 export function safeMode(v: string | undefined): 'plan' | 'default' | 'acceptEdits' {
-  return v === 'default' || v === 'acceptEdits' ? v : 'plan';
+  return v === 'default' || v === 'acceptEdits' || v === 'plan' ? v : 'acceptEdits';
 }
