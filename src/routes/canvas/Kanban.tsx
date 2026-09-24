@@ -167,8 +167,11 @@ export function Kanban(p: Props) {
               <header className="flex items-center gap-2 px-2.5 py-2" title={STATUS_HINT[status]}>
                 <span className="text-[11.5px] font-semibold text-neutral-200">{STATUS_LABEL[status]}</span>
                 <Badge>{cards.length + sessions.length}</Badge>
+                {/* -my-1.5: the chip is ~27px, the other headers' content ~17px —
+                    without it Done's header was 43px vs 33px and its title and
+                    first card sat lower than the three neighbours'. */}
                 {status === 'review' && staleDone.length > 0 && (
-                  <ToggleChip on={antigosOpen} icon="clock" onClick={() => setAntigosOpen((v) => !v)} className="ml-auto">
+                  <ToggleChip on={antigosOpen} icon="clock" onClick={() => setAntigosOpen((v) => !v)} className="-my-1.5 ml-auto">
                     {staleDone.length} antigos
                   </ToggleChip>
                 )}
