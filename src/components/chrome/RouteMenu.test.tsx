@@ -26,12 +26,12 @@ describe('RouteMenu', () => {
     expect(document.activeElement).toBe(trigger);
   });
 
-  it('stays visible until the inline tab strip actually fits (xl for admin, lg otherwise)', () => {
+  it('stays visible until the inline tab strip actually fits (1360px for admin, 1110px otherwise)', () => {
     const admin = render(<RouteMenu route={'/' as never} nav={vi.fn() as never} isAdmin open={false} setOpen={vi.fn()} />);
-    expect(admin.container.firstElementChild?.className).toContain('xl:hidden');
+    expect(admin.container.firstElementChild?.className).toContain('min-[1360px]:hidden');
     expect(admin.container.firstElementChild?.className).not.toContain('md:hidden');
     cleanup();
     const fellow = render(<RouteMenu route={'/' as never} nav={vi.fn() as never} isAdmin={false} open={false} setOpen={vi.fn()} />);
-    expect(fellow.container.firstElementChild?.className).toContain('lg:hidden');
+    expect(fellow.container.firstElementChild?.className).toContain('min-[1110px]:hidden');
   });
 });
