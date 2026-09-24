@@ -30,6 +30,7 @@ import { MAX_PROMPT_BYTES } from '../shared/limits';
 import { aliasRoutedKey, type PendingCanvasSend } from './cockpit/canvas-send-tracker';
 import { useAdmin, type Admin } from './cockpit/useAdmin';
 import { useHarness, type Harness } from './cockpit/useHarness';
+import { createReopenThrottle } from './cockpit/reopen-throttle';
 import { stripLongContext } from '../shared/long-context';
 import { composerCost, type ComposerCost } from './components/chat/send-cost';
 import { addThumb, shouldRequestThumb } from './lib/att-thumb-cache';
@@ -377,6 +378,10 @@ export function useCockpit(): Cockpit {
   // usuário voltou ao resumido de propósito, e o servidor não deve sobrepor.
   const viewMode = useRef<Record<string, 'chain' | 'full'>>({});
   const extBusyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Re-checked when the (possibly trailing) reopen fires: the session may have
+  // been left, or a run of this app may have started, in the meantime.
+  const touchReopen = useRef<ReturnType<typeof createReopenThrottle> | null>(null);
+  const touchReopenFire = useRef<(id: string) => void>(() => {});
   const migratedTo = useRef<Record<string, string>>({});  // new-xxx -> claude sessionId já migrado (idempotência: 2º `done` não re-migra nem zera o thread)
   // State, só p/ consumidores de fora (useCanvasRoute extraBoundIds) que
   // precisam de algo que dispare re-render — o resto deste hook lê
@@ -473,6 +478,10 @@ export function useCockpit(): Cockpit {
       ? { t: 'open-full', sessionId: id }
       : { t: 'open', sessionId: id, chainOnly: viewMode.current[id] === 'chain' }
   ), []);
+  touchReopenFire.current = (id: string) => {
+    if (activeRef.current === id && !inFlight.current.has(id)) send(reopenMsg(id));
+  };
+  useEffect(() => () => touchReopen.current?.cancel(), []);
 
   // O card do bench vive fundo na árvore do markdown e precisa falar com o WS.
   useEffect(() => { setBenchSender(send); return () => setBenchSender(null); }, [send]);
@@ -834,7 +843,8 @@ export function useCockpit(): Cockpit {
           stopping.current.delete(msg.sessionId);
         }
         if (activeRef.current === msg.sessionId && !inFlight.current.has(msg.sessionId)) {
-          send(reopenMsg(msg.sessionId));
+          touchReopen.current ??= createReopenThrottle((id) => touchReopenFire.current(id));
+          touchReopen.current.touch(msg.sessionId);
           // Escrita externa recente = turno do terminal em andamento: acende um
           // indicador no chat (estrelinha) que apaga 5s após a última escrita.
           setTerminalBusyId(msg.sessionId);
