@@ -1196,6 +1196,7 @@ export async function routeSend(o: RouteSendOptions) {
   if (cur.pendingBgTasks?.length && cur.handle.send(prompt)) {
     if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
     cur.prompt = prompt;
+    cur.bgWaitSince = undefined;
     return;
   }
 
