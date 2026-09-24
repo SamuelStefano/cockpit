@@ -413,14 +413,22 @@ export function runParkedNow(sessionKey: string, id: string, role?: Role): { ok:
   // disparo em background) — a falha é do disparo, não do prompt.
   const item = takeParked(sessionKey, id, role);
   if (!item) return { reject: 'sem-item' };
-  stopSession(sessionKey);
+  // The live turn can be keyed differently from the queue (a new chat's first
+  // turn runs as `new-…` while the queue uses its session id). Start on THAT key,
+  // like routeSend does, so startRun replaces it: on the queue's key the dying
+  // thread counted against the cap, and its onClose drained pending prompts onto
+  // the same session while this turn ran (two writers).
+  const liveKey = resolveThreadKey(sessionKey) ?? sessionKey;
+  stopSession(liveKey);
   const resume = resumableId(item.resumeId);
   if (item.resumeId && !resume) recordIncident({ kind: 'parked-resume-morto', sessionKey, sessionId: item.resumeId, detail: `item ${item.id} disparado como turno novo` });
-  const delivered = startRun({ ...runParams(item), ws: null, sessionKey, prompt: item.prompt, resumeId: resume, queued: true });
+  const delivered = startRun({ ...runParams(item), ws: null, sessionKey: liveKey, prompt: item.prompt, resumeId: resume, queued: true });
   if (delivered === 'pane') { broadcastQueue(); return { ok: true }; }
-  const th = threads.get(sessionKey);
+  const th = threads.get(liveKey);
   if (!th) { unshiftParked(sessionKey, item, false); broadcastQueue(); return { reject: 'falhou' }; }
   th.parked = item;
+  // A dying run-now turn puts its item back on the queue it came from.
+  if (liveKey !== sessionKey) th.parkedFrom = sessionKey;
   // Explicit user click (queue-force), not the passive drainer — never a
   // stoppable candidate for canvas/autopause.ts (review #595 point 1).
   th.parkedForced = true;
