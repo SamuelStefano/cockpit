@@ -49,4 +49,15 @@ describe('SkillPicker', () => {
     expect(list?.className).toContain('min-h-0');
     expect(list?.className).not.toMatch(/70vh/);
   });
+
+  it('Esc closes only the picker when a sheet around it listens too', () => {
+    const outer = vi.fn();
+    const sheetEsc = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); outer(); } };
+    window.addEventListener('keydown', sheetEsc);
+    setup();
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    window.removeEventListener('keydown', sheetEsc);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(outer).not.toHaveBeenCalled();
+  });
 });
