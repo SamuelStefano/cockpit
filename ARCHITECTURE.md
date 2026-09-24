@@ -28,7 +28,7 @@ custo por usuário fica plano (não centraliza inferência num servidor só).
                                                                                      claude CLI
 ```
 
-1. **Browser / SPA** (`src/`): React 18 + Vite 5 + TS + Tailwind. Deploy na **Vercel**.
+1. **Browser / SPA** (`src/`): React 19 + Vite 8 + TS + Tailwind 4. Deploy na **Vercel**.
    Faz login no **Supabase Auth** (email/senha), recebe um JWT, e abre um WebSocket
    pro relay (`wss://deck-relay.devfellowship.com/ws?token=<JWT>`). Só renderiza —
    não tem backend próprio em produção.
@@ -214,7 +214,7 @@ npx tsc --noEmit                       # SPA
 npx tsc --noEmit -p tsconfig.server.json
 npx tsc --noEmit -p tsconfig.relay.json
 npx vitest run                         # testes (ao lado dos arquivos: *.test.ts)
-npm run build                          # os três typechecks + vite build
+npm run build                          # os quatro typechecks (web, server, relay, monitor) + vite build
 ```
 Testes ficam **ao lado** do arquivo testado (ex.: `relay/src/throttle.ts` + `relay/src/throttle.test.ts`).
 O relay é provado ponta-a-ponta por `relay/integration.test.ts` (browser↔relay↔agent real, sem rede

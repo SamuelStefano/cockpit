@@ -2,7 +2,7 @@
 
 Só o **relay** tem migrations versionadas aqui. O banco local do Deck (SQLite,
 `server/db.ts` e `server/harness/store.ts`) cria e evolui o schema no boot com
-`CREATE TABLE IF NOT EXISTS` + `addColumn()`; não há arquivo a rodar na mão.
+`CREATE TABLE IF NOT EXISTS` + `ensureColumn()`; não há arquivo a rodar na mão.
 
 ## `relay/` — projeto Supabase `deck-relay`
 
@@ -12,13 +12,16 @@ dashboard (Samuel é o único com acesso ao projeto).
 
 | Arquivo | O que faz |
 |---|---|
-| `0001_init.sql` | Tabelas `account`, `agent`, `pairing_code`; RLS + policies; trigger de auto-provisionamento no signup; `guard_privileged_columns` (bloqueia `is_admin`/`used_at`/`revoked_at` fora do caminho service-role). |
+| `0001_init.sql` | Tabelas `account`, `agent`, `pairing_code`; RLS + policies; trigger de auto-provisionamento no signup; `guard_privileged_columns` (bloqueia `is_admin`/`used_at` fora do caminho service-role). **Não existe guarda de `revoked_at`**: a tabela `agent` não tem trigger, e a policy `agent_self_all` deixa o dono alterar qualquer coluna das próprias linhas (achado F-033 da auditoria). |
 | `0002_profile.sql` | Perfil (`display_name`, `avatar_url`, `ai_avatar`) na `account` + policy de self-update. Aditivo. |
 | `0003_session_prefs.sql` | `pinned_sessions` e `session_tags` na `account`. Aditivo. |
 | `0004_account_prefs.sql` | `prefs jsonb` na `account` (modo, modelo, esforço, toggles de UI), com teto de 16 KB e checagem de objeto. Aditivo. **Ainda não aplicado.** |
 
-Todo arquivo é idempotente (`if not exists` / `create or replace` / `drop trigger
-if exists`), então rerodar é seguro — é assim que se confere o estado, já que não
+Cada arquivo é idempotente sozinho (`if not exists` / `create or replace` / `drop
+trigger if exists`), mas **rerodar um arquivo antigo depois de um mais novo não é
+seguro**: `0001_init.sql` recria `guard_privileged_columns` com o corpo antigo e
+apaga a guarda de `email` que a `0002` adicionou, enquanto a policy de self-update da
+`0002` continua valendo. Rerode só o arquivo mais recente, ou todos em ordem. Não
 existe tabela de controle de versão nem CLI de migration neste repo.
 
 Conferir se está tudo aplicado:

@@ -1,6 +1,6 @@
 # Deck — Convenções do projeto
 
-App pessoal (não DFL). React 18 + Vite + TS + Tailwind. Backend Node em `server/`.
+App pessoal (não DFL). React 19 + Vite + TS + Tailwind 4. Backend Node em `server/`.
 
 ## Design system — OBRIGATÓRIO
 
