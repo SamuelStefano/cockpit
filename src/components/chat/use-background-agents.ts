@@ -20,6 +20,10 @@ export function useBackgroundAgents(incoming: BgAgent[] | undefined): ViewAgent[
 
   // Reconciliação: ids vivos vêm do backend; concluídos/sumidos entram no linger.
   const prev = useRef<Map<string, BgAgent>>(new Map());
+  // The server keeps listing finished agents (it only broadcasts changes), so a
+  // done agent whose linger expired came straight back on the next render and
+  // blinked forever. Once expired, an id stays hidden until it runs again.
+  const expired = useRef<Set<string>>(new Set());
   const live = new Map<string, BgAgent>();
   for (const a of agents) live.set(a.id, a);
   const now = Date.now();
@@ -31,16 +35,17 @@ export function useBackgroundAgents(incoming: BgAgent[] | undefined): ViewAgent[
   }
   for (const a of agents) {
     if (a.status === 'done' || a.status === 'failed') {
-      if (!linger.current.has(a.id)) linger.current.set(a.id, { agent: a, until: now + DONE_LINGER_MS });
+      if (!linger.current.has(a.id) && !expired.current.has(a.id)) linger.current.set(a.id, { agent: a, until: now + DONE_LINGER_MS });
     } else {
       linger.current.delete(a.id);
+      expired.current.delete(a.id);
     }
   }
   prev.current = live;
 
   // Tick de 1s enquanto há QUALQUER agente visível (vivo ou em linger) pra o
   // cronômetro avançar e o linger expirar sem novo evento do servidor.
-  const hasVisible = agents.length > 0 || linger.current.size > 0;
+  const hasVisible = agents.some((a) => a.status === 'running') || linger.current.size > 0;
   useEffect(() => {
     if (!hasVisible) return;
     const id = setInterval(() => force((n) => (n + 1) % 1e6), 1000);
@@ -53,7 +58,7 @@ export function useBackgroundAgents(incoming: BgAgent[] | undefined): ViewAgent[
     if (a.status === 'running') out.push({ ...a, elapsedMs: Math.max(0, t - a.startedAt) });
   }
   for (const [id, { agent, until }] of linger.current) {
-    if (t >= until) { linger.current.delete(id); continue; }
+    if (t >= until) { linger.current.delete(id); expired.current.add(id); continue; }
     if (live.get(id)?.status === 'running') continue; // ainda rodando: já listado acima
     out.push({ ...agent, elapsedMs: agent.durationMs });
   }

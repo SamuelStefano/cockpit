@@ -159,3 +159,29 @@ describe('useChatPanel histórico do composer', () => {
     expect(hook.result.current.sentHistory).toEqual(['olha isso']);
   });
 });
+
+describe('useChatPanel retry banner', () => {
+  const user = (id: string, text: string): Message => ({ id, role: 'user', text } as Message);
+  const errBubble = (over: Partial<Message> = {}): Message => ({ id: 'e1', role: 'assistant', blocks: [{ type: 'text', md: '⚠️ x' }], error: true, ...over } as Message);
+  const render = (messages: Message[]) => {
+    const onSend = vi.fn();
+    const hook = renderHook(() => useChatPanel({
+      session: { id: 's1' } as Session, messages, phase: 'idle' as Phase, models: [], model: 'opus', onSend,
+      queue: [], queueAdd: vi.fn(), queueRemove: vi.fn(), queueEdit: vi.fn(), queueMove: vi.fn(), queueClear: vi.fn(),
+      queueRetry: vi.fn(), queueRunBg: vi.fn(), queueRunNow: vi.fn(),
+    }));
+    return { hook, onSend };
+  };
+
+  it('a failed turn arms the retry of its prompt', () => {
+    const { hook } = render([user('u1', 'roda a migration 2'), errBubble()]);
+    expect(hook.result.current.failed).toBe(true);
+  });
+
+  it('a notice (offline, refused) does not arm a retry of the previous prompt', () => {
+    const { hook, onSend } = render([user('u1', 'já respondido'), { id: 'a1', role: 'assistant', blocks: [] } as unknown as Message, errBubble({ notice: true })]);
+    expect(hook.result.current.failed).toBe(false);
+    hook.result.current.bannerConfirm?.();
+    expect(onSend).not.toHaveBeenCalledWith('já respondido');
+  });
+});
