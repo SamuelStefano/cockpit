@@ -9,9 +9,12 @@ export function useLongPress(onLongPress: () => void, delay = 450) {
   const [open, setOpen] = useState(false);
 
   const clear = () => { if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null; } };
-  const onTouchStart = () => {
+  const onTouchStart = (e?: { target: EventTarget | null }) => {
     longPressed.current = false;
     clear();
+    // Holding a finger in the description/tag editor is the phone's select/paste
+    // gesture: opening the row menu there also blocked the native one.
+    if (e?.target instanceof Element && e.target.closest('input, textarea, [contenteditable="true"], [role="menu"]')) return;
     pressTimer.current = setTimeout(() => { longPressed.current = true; setOpen(true); onLongPress(); }, delay);
   };
   const consumeTap = () => {
