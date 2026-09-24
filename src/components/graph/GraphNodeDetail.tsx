@@ -18,7 +18,7 @@ interface Props {
 // em nó). Vizinhos ordenados por grau (mais central 1º).
 export function GraphNodeDetail({ node, neighbors, onSelectNeighbor, onClose, onNodeOp }: Props) {
   return (
-    <div className="pointer-events-auto absolute left-3 top-3 flex max-h-[calc(100%-1.5rem)] w-64 flex-col rounded-lg border border-neutral-800 bg-neutral-900/95 shadow-xl backdrop-blur-sm">
+    <div className="pointer-events-auto flex max-h-full min-h-0 w-full flex-col rounded-lg border border-neutral-800 bg-neutral-900/95 shadow-xl backdrop-blur-sm sm:w-64">
       <div className="flex items-start gap-2 border-b border-neutral-800/70 p-3">
         <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: node.repo ? repoColor(node.repo) : communityColor(node.community) }} />
         <div className="min-w-0 flex-1">

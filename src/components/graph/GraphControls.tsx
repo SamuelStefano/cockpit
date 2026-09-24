@@ -13,7 +13,7 @@ interface Props {
 
 export function GraphControls({ query, onQuery, matchCount, colorMode, onColorMode, showColorToggle, onReset }: Props) {
   return (
-    <div className="pointer-events-auto absolute right-3 top-3 flex items-center gap-2">
+    <div className="pointer-events-auto flex shrink-0 flex-wrap items-center justify-end gap-2 self-end sm:self-auto">
       <div className="w-44 shadow-lg">
         <Input
           icon="search" mono size="sm" value={query}
