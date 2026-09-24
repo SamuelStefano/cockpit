@@ -54,6 +54,11 @@ beforeEach(() => {
   binDir = join(tmp, 'bin');
   mkdirSync(repo);
   mkdirSync(binDir);
+  // Shim `gh` too: after a push the script runs `gh pr create`. Unshimmed, the
+  // suite called the real GitHub CLI — authenticated on Samuel's box and in CI —
+  // which is slow (it timed out the CI gate at 5s) and aims at a real repo.
+  writeFileSync(join(binDir, 'gh'), `#!/usr/bin/env bash\nfor a in "$@"; do echo "$a"; done >>"${join(tmp, 'gh-argv.txt')}"\n`, 'utf8');
+  chmodSync(join(binDir, 'gh'), 0o755);
 
   execFileSync('git', ['init', '-q', '--bare', '-b', 'main', origin]);
   git(repo, 'init', '-q', '-b', 'main');
@@ -152,6 +157,8 @@ describe('incident-ai: quem publica é o script', () => {
     run();
     expect(git(origin, 'branch', '--list', 'fix/incidente-teste')).toContain('fix/incidente-teste');
     expect(git(repo, 'branch', '--show-current').trim()).toBe('main');
+    const gh = readFileSync(join(tmp, 'gh-argv.txt'), 'utf8').split('\n');
+    expect(gh.slice(0, 4)).toEqual(['pr', 'create', '--head', 'fix/incidente-teste']);
   });
 
   it('não publica nada se o triador ficou na main', () => {
