@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { closeSync, openSync, readSync, readdirSync, statSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { projectSlug } from '../config';
@@ -39,6 +39,63 @@ export function labelFromPrompt(prompt: string | undefined, agentId: string): st
   return out || agentId;
 }
 
+// Running totals over the lines seen so far. Kept per file between scans so a
+// tick only parses what the CLI appended since the last one.
+interface AgentAcc {
+  startedAt: number;
+  lastTs: number;
+  tokens: number;
+  terminal: boolean;
+  sawAnyText: boolean;
+  firstUserPrompt: string | undefined;
+}
+
+const newAcc = (): AgentAcc => ({ startedAt: 0, lastTs: 0, tokens: 0, terminal: false, sawAnyText: false, firstUserPrompt: undefined });
+
+function feedLine(acc: AgentAcc, raw: string): void {
+  const line = raw.trim();
+  if (!line) return;
+  let o: any;
+  try { o = JSON.parse(line); } catch { return; } // linha parcial (escrevendo)
+  const ts = Date.parse(o.timestamp ?? '');
+  if (Number.isFinite(ts)) {
+    if (!acc.startedAt) acc.startedAt = ts;
+    if (ts > acc.lastTs) acc.lastTs = ts;
+  }
+  const m = o.message;
+  if (o.type === 'user' && typeof m?.content === 'string' && acc.firstUserPrompt === undefined) {
+    acc.firstUserPrompt = m.content;
+  }
+  if (o.type === 'assistant' && m && typeof m === 'object') {
+    const u = m.usage;
+    if (u && typeof u === 'object') {
+      acc.tokens += num(u.input_tokens) + num(u.output_tokens) + num(u.cache_creation_input_tokens);
+    }
+    if (Array.isArray(m.content) && m.content.some((c: any) => c?.type === 'text' && typeof c?.text === 'string' && c.text.trim())) {
+      acc.sawAnyText = true;
+    }
+    const sr = m.stop_reason;
+    acc.terminal = typeof sr === 'string' && TERMINAL_REASONS.has(sr);
+  }
+}
+
+function agentFrom(acc: AgentAcc, agentId: string, mtimeMs: number, now: number): BgAgent | null {
+  if (!acc.startedAt) return null; // arquivo vazio/sem evento válido ainda
+  const label = labelFromPrompt(acc.firstUserPrompt, agentId);
+  const fresh = now - mtimeMs < STALE_MS;
+  // Fim = último assistant com stop_reason terminal. Stale-sem-terminal = um run
+  // que não escreve mais e nunca fechou (processo morto): trata como falho pra a UI
+  // sair do limbo em vez de girar pra sempre.
+  let status: BgAgent['status'];
+  if (acc.terminal) status = acc.sawAnyText ? 'done' : 'failed';
+  else if (fresh) status = 'running';
+  else status = 'failed';
+
+  const endTs = acc.lastTs || mtimeMs;
+  const durationMs = status === 'running' ? Math.max(0, now - acc.startedAt) : Math.max(0, endTs - acc.startedAt);
+  return { id: agentId, label, startedAt: acc.startedAt, tokens: acc.tokens, status, durationMs };
+}
+
 // Parser PURO: recebe o conteúdo do .output, o mtime e o relógio. Sem I/O — testável.
 export function parseAgentFile(
   agentId: string,
@@ -46,61 +103,57 @@ export function parseAgentFile(
   mtimeMs: number,
   now: number,
 ): BgAgent | null {
-  let startedAt = 0;
-  let lastTs = 0;
-  let tokens = 0;
-  let label = agentId;
-  let terminal = false;
-  let sawAnyText = false;
-  let firstUserPrompt: string | undefined;
-
-  for (const raw of content.split('\n')) {
-    const line = raw.trim();
-    if (!line) continue;
-    let o: any;
-    try { o = JSON.parse(line); } catch { continue; } // linha parcial (escrevendo)
-    const ts = Date.parse(o.timestamp ?? '');
-    if (Number.isFinite(ts)) {
-      if (!startedAt) startedAt = ts;
-      if (ts > lastTs) lastTs = ts;
-    }
-    const m = o.message;
-    if (o.type === 'user' && typeof m?.content === 'string' && firstUserPrompt === undefined) {
-      firstUserPrompt = m.content;
-    }
-    if (o.type === 'assistant' && m && typeof m === 'object') {
-      const u = m.usage;
-      if (u && typeof u === 'object') {
-        tokens += num(u.input_tokens) + num(u.output_tokens) + num(u.cache_creation_input_tokens);
-      }
-      if (Array.isArray(m.content) && m.content.some((c: any) => c?.type === 'text' && typeof c?.text === 'string' && c.text.trim())) {
-        sawAnyText = true;
-      }
-      const sr = m.stop_reason;
-      terminal = typeof sr === 'string' && TERMINAL_REASONS.has(sr);
-    }
-  }
-  if (!startedAt) return null; // arquivo vazio/sem evento válido ainda
-
-  label = labelFromPrompt(firstUserPrompt, agentId);
-  const fresh = now - mtimeMs < STALE_MS;
-  // Fim = último assistant com stop_reason terminal. Stale-sem-terminal = um run
-  // que não escreve mais e nunca fechou (processo morto): trata como falho pra a UI
-  // sair do limbo em vez de girar pra sempre.
-  let status: BgAgent['status'];
-  if (terminal) status = sawAnyText ? 'done' : 'failed';
-  else if (fresh) status = 'running';
-  else status = 'failed';
-
-  const endTs = lastTs || mtimeMs;
-  const durationMs = status === 'running' ? Math.max(0, now - startedAt) : Math.max(0, endTs - startedAt);
-  return { id: agentId, label, startedAt, tokens, status, durationMs };
+  const acc = newAcc();
+  for (const raw of content.split('\n')) feedLine(acc, raw);
+  return agentFrom(acc, agentId, mtimeMs, now);
 }
 
 // Dir de tasks do CLI: TMPDIR/claude-<uid>/<projectSlug>/<sessionId>/tasks.
 export function tasksDir(sessionId: string): string {
   const uid = typeof process.getuid === 'function' ? process.getuid() : 0;
   return join(tmpdir(), `claude-${uid}`, projectSlug(homedir()), sessionId, 'tasks');
+}
+
+// Per file: the totals over every complete line up to `offset`. Agent outputs
+// reach tens of MB (18 MB seen) and this runs every 2 s per active thread and
+// every 10 s for the Orchestrator panel; reading them whole blocked the event
+// loop for 100–400 ms per scan on this box.
+interface FileCache { size: number; mtimeMs: number; offset: number; acc: AgentAcc }
+const fileCache = new Map<string, FileCache>();
+
+function readRange(path: string, from: number, to: number): Buffer {
+  const fd = openSync(path, 'r');
+  try {
+    const buf = Buffer.alloc(to - from);
+    let got = 0;
+    while (got < buf.length) {
+      const n = readSync(fd, buf, got, buf.length - got, from + got);
+      if (n === 0) break;
+      got += n;
+    }
+    return buf.subarray(0, got);
+  } finally { closeSync(fd); }
+}
+
+// Only complete lines advance `offset`; the unfinished tail is parsed on a copy
+// (a last line without "\n" still counts, as with a whole-file read) and read
+// again next time.
+function scanFile(path: string, id: string, now: number): BgAgent | null {
+  const st = statSync(path);
+  let c = fileCache.get(path);
+  if (!c || st.size < c.offset) c = { size: 0, mtimeMs: 0, offset: 0, acc: newAcc() };
+  const buf = st.size > c.offset ? readRange(path, c.offset, st.size) : Buffer.alloc(0);
+  const cut = buf.lastIndexOf(0x0a) + 1;
+  if (cut > 0) {
+    for (const raw of buf.subarray(0, cut).toString('utf8').split('\n')) feedLine(c.acc, raw);
+    c.offset += cut;
+  }
+  c.size = st.size;
+  c.mtimeMs = st.mtimeMs;
+  fileCache.set(path, c);
+  let acc = c.acc;
+  if (cut < buf.length) { acc = { ...c.acc }; feedLine(acc, buf.subarray(cut).toString('utf8')); }
+  return agentFrom(acc, id, st.mtimeMs, now);
 }
 
 // Exported for the Orchestrator's "Em andamento" panel (canvas/orchestrator-
@@ -114,19 +167,17 @@ export function scanSession(sessionId: string, now: number): BgAgent[] {
   let names: string[];
   try { names = readdirSync(dir); } catch { return []; }
   const out: BgAgent[] = [];
+  const listed = new Set<string>();
   for (const name of names) {
     if (!name.endsWith('.output')) continue;
     const id = name.slice(0, -'.output'.length);
     const path = join(dir, name);
-    let content: string; let mtimeMs: number;
-    try {
-      const st = statSync(path);
-      mtimeMs = st.mtimeMs;
-      content = readFileSync(path, 'utf8');
-    } catch { continue; }
-    const a = parseAgentFile(id, content, mtimeMs, now);
+    listed.add(path);
+    let a: BgAgent | null;
+    try { a = scanFile(path, id, now); } catch { fileCache.delete(path); continue; }
     if (a) out.push(a);
   }
+  for (const path of fileCache.keys()) if (path.startsWith(dir + '/') && !listed.has(path)) fileCache.delete(path);
   return out;
 }
 
