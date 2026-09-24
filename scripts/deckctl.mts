@@ -44,13 +44,30 @@ export function fail(message: string, code = 1): never {
   process.exit(code);
 }
 
-class Client {
+// Bootstrap frames arrive as soon as the server accepts the connection —
+// server/ws/serve-connection.ts sends caps/claude-auth/busy/… SYNCHRONOUSLY
+// in the 'connection' handler, before this module's own 'open' listener ever
+// resumes an `await client.ready()` caller. On a fast loopback socket, 'open'
+// and that first burst of 'message' events can both fire within the same
+// task, ahead of the microtask that resumes `connect()` — a `waitFor(busy)`
+// registered only AFTER `await connect()` returns can miss a 'busy' frame
+// that already came and went, then time out believing nothing is running
+// (the exact "deckctl status: running: 0" symptom this was chasing).
+// HISTORY_CAP bounds the buffer for a chatty `wait`/`send` session that stays
+// open for the full timeout.
+const HISTORY_CAP = 200;
+
+// Exported for scripts/deckctl.test.ts: the connect-time race is only
+// reproducible against a real socket, not a pure function — the test spins
+// up its own local WebSocketServer and passes a `url` override here instead
+// of the real COCKPIT_PORT/token this class uses everywhere else in the file.
+export class Client {
   private ws: WebSocket;
   private handlers = new Set<(m: ServerMsg) => void>();
   private openedOrFailed: Promise<void>;
+  private history: ServerMsg[] = [];
 
-  constructor(token: string) {
-    const url = `ws://127.0.0.1:${PORT}/ws?token=${encodeURIComponent(token)}`;
+  constructor(token: string, url = `ws://127.0.0.1:${PORT}/ws?token=${encodeURIComponent(token)}`) {
     this.ws = new WebSocket(url);
     this.openedOrFailed = new Promise((resolve, reject) => {
       this.ws.once('open', () => resolve());
@@ -62,6 +79,10 @@ class Client {
     this.ws.on('message', (raw) => {
       let m: ServerMsg;
       try { m = JSON.parse(String(raw)); } catch { return; }
+      // Buffered BEFORE dispatch, from the very first message this socket
+      // ever receives — a matcher registered later (waitFor) still finds it.
+      this.history.push(m);
+      if (this.history.length > HISTORY_CAP) this.history.shift();
       for (const h of this.handlers) h(m);
     });
   }
@@ -79,8 +100,13 @@ class Client {
     return () => this.handlers.delete(handler);
   }
 
-  // Resolves with the first ServerMsg matching `pred`, or null on timeout.
+  // Resolves with the first ServerMsg matching `pred` — checking the history
+  // buffer FIRST (a frame that already arrived, e.g. the connect-time race
+  // above) before falling back to a live listener + timeout for one that
+  // hasn't arrived yet.
   waitFor<T extends ServerMsg>(pred: (m: ServerMsg) => m is T, timeoutMs: number): Promise<T | null> {
+    const buffered = this.history.find(pred);
+    if (buffered) return Promise.resolve(buffered);
     return new Promise((resolve) => {
       const timer = setTimeout(() => { off(); resolve(null); }, timeoutMs);
       const off = this.on((m) => {
@@ -203,6 +229,20 @@ function isServerMsg<T extends ServerMsg['t']>(t: T) {
   return (m: ServerMsg): m is Extract<ServerMsg, { t: T }> => m.t === t;
 }
 
+// `busy` only lists THIS connection's own backend process (index.ts on
+// COCKPIT_PORT — the listen server deckctl always talks to). A turn started
+// on the OTHER Deck process (server/agent.ts, the relay a browser talks to)
+// never shows up there, which is exactly the "deckctl says running: 0 while a
+// browser turn is live" bug (server/canvas/cv-liveness.ts's registry union,
+// pushed here as 'cv-live' off the SAME 'canvas-get' cmdBoard/cmdStatus
+// already send). Folding it into `busy`'s keys is what makes `sessions`/
+// `status` agree with the kanban on what's actually running.
+async function externalLiveIds(client: Client): Promise<string[]> {
+  client.send({ t: 'canvas-get' });
+  const cvLive = await client.waitFor(isServerMsg('cv-live'), 3000);
+  return cvLive?.sessionIds ?? [];
+}
+
 async function cmdSessions(flags: Flags, json: boolean): Promise<void> {
   const { listSessions, listArchived } = await import('../server/sessions/index');
   const { lastUsageOf } = await import('../server/db');
@@ -210,8 +250,9 @@ async function cmdSessions(flags: Flags, json: boolean): Promise<void> {
 
   const client = await connect();
   const busy = await client.waitFor(isServerMsg('busy'), 3000);
+  const external = await externalLiveIds(client);
   client.close();
-  const busyKeys = new Set(busy?.keys ?? []);
+  const busyKeys = new Set([...(busy?.keys ?? []), ...external]);
 
   const limit = flagNum(flags, 'limit');
   const items = (limit ? own.slice(0, limit) : own).map((s) => {
@@ -246,6 +287,10 @@ async function cmdBoard(json: boolean): Promise<void> {
   const busy = await client.waitFor(isServerMsg('busy'), DEFAULT_TIMEOUT_MS);
   const board = await client.waitFor(isServerMsg('canvas-board'), DEFAULT_TIMEOUT_MS);
   const graph = await client.waitFor(isServerMsg('canvas-graph'), DEFAULT_TIMEOUT_MS);
+  // Same signal the browser's kanban reads (kanban-items.ts's `cvLive`) — a
+  // session live in the OTHER Deck process (or a cv-shell worker) still needs
+  // to land in "doing" here, not just in the live browser tab.
+  const cvLive = await client.waitFor(isServerMsg('cv-live'), DEFAULT_TIMEOUT_MS);
   client.close();
   if (!board) fail('backend did not answer canvas-get (canvas-board) — is it deployed with this frame?');
 
@@ -258,7 +303,7 @@ async function cmdBoard(json: boolean): Promise<void> {
   const sessionItems = deriveSessionItems({
     nodes: merged.nodes, edges: merged.edges, cards: board.board.cards, showAutomation: false,
     running: new Set(busy?.keys ?? []), overrides: board.board.sessionStatus, turnStartedAt: {},
-    orchestratorSessionId: graph?.graph.orchestrator?.sessionId,
+    orchestratorSessionId: graph?.graph.orchestrator?.sessionId, cvLive: new Set(cvLive?.sessionIds ?? []),
   });
 
   const cardsByStatus = new Map<CardStatus, CanvasCard[]>(CARD_STATUSES.map((s) => [s, []]));
@@ -650,9 +695,13 @@ async function cmdStatus(): Promise<void> {
   client.send({ t: 'canvas-get' });
   const board = await client.waitFor(isServerMsg('canvas-board'), 8000);
   const graph = await client.waitFor(isServerMsg('canvas-graph'), 8000);
+  // Live in the OTHER Deck process (or a cv-shell worker) — invisible to
+  // `busy`, which only ever lists THIS connection's own backend.
+  const cvLive = await client.waitFor(isServerMsg('cv-live'), 8000);
   client.close();
 
-  const busyKeys = new Set(busy?.keys ?? []);
+  const cvLiveIds = new Set(cvLive?.sessionIds ?? []);
+  const busyKeys = new Set([...(busy?.keys ?? []), ...cvLiveIds]);
   const running = own.filter((s) => busyKeys.has(s.id));
   const awaiting = own.filter((s) => s.waiting);
 
@@ -669,7 +718,7 @@ async function cmdStatus(): Promise<void> {
     const sessionItems = deriveSessionItems({
       nodes: merged.nodes, edges: merged.edges, cards: board.board.cards, showAutomation: false,
       running: busyKeys, overrides: board.board.sessionStatus, turnStartedAt: {},
-      orchestratorSessionId: graph?.graph.orchestrator?.sessionId,
+      orchestratorSessionId: graph?.graph.orchestrator?.sessionId, cvLive: cvLiveIds,
     });
     const counts = CARD_STATUSES.map((s) => {
       const n = board.board.cards.filter((c) => c.status === s).length + sessionItems.filter((i) => i.status === s).length;
