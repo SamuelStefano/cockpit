@@ -9,7 +9,7 @@ import { InvoiceConfirmModal } from './InvoiceConfirmModal';
 // Barra da multi-seleção: mostra a soma das deliveries marcadas e as ações (gerar
 // invoice, limpar). Aparece só no modo seleção. "gerar invoice" abre a confirmação
 // que escreve no DFL prod (uma fatura por delivery, só tasks em aberto).
-export function SelectionBar({ projects }: { projects: DflProjectNode[] }) {
+export function SelectionBar({ projects, stale = false, syncedAt }: { projects: DflProjectNode[]; stale?: boolean; syncedAt?: number }) {
   const { selected, clearSelected, pointValue } = usePontosControls();
   const [confirming, setConfirming] = useState(false);
   const s = sumDeliveries(projects, selected, pointValue);
@@ -23,7 +23,7 @@ export function SelectionBar({ projects }: { projects: DflProjectNode[] }) {
       <Button variant="primary" size="sm" onClick={() => setConfirming(true)} disabled={s.count === 0}>
         gerar invoice
       </Button>
-      {confirming && <InvoiceConfirmModal projects={projects} onClose={() => setConfirming(false)} />}
+      {confirming && <InvoiceConfirmModal projects={projects} stale={stale} syncedAt={syncedAt} onClose={() => setConfirming(false)} />}
     </div>
   );
 }
