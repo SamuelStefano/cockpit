@@ -42,16 +42,22 @@ export function resolvePref<T>(remote: T | null, local: T, hasLocal: boolean): {
   return { value: local, seed: hasLocal };
 }
 
+// Empty state is written as [] / {}, never null: null means "this account never
+// synced", and hydration would re-seed the remote from another device's stale cache,
+// resurrecting the favorites/tags just removed.
+function warnOnFailure(col: string, res: PromiseLike<{ error: { message: string } | null }> | undefined): void {
+  void res?.then(({ error }) => { if (error) console.warn(`[session-prefs] ${col} push failed:`, error.message); });
+}
+
 export function pushPinsRemote(userId: string, pins: string[]): void {
   debouncePush('pinned_sessions', () => {
-    void supabase?.from('account').update({ pinned_sessions: pins.length ? pins : null }).eq('id', userId);
+    warnOnFailure('pinned_sessions', supabase?.from('account').update({ pinned_sessions: pins }).eq('id', userId));
   });
 }
 
 export function pushTagsRemote(userId: string, tags: TagMap): void {
   debouncePush('session_tags', () => {
-    const has = Object.keys(tags).length > 0;
-    void supabase?.from('account').update({ session_tags: has ? tags : null }).eq('id', userId);
+    warnOnFailure('session_tags', supabase?.from('account').update({ session_tags: tags }).eq('id', userId));
   });
 }
 
@@ -128,8 +134,8 @@ export function useSessionPrefsHydration(userId: string | undefined): void {
 
       if (pins.seed || tags.seed || prefs?.seed) {
         await supabase!.from('account').update({
-          pinned_sessions: pins.value.length ? pins.value : null,
-          session_tags: Object.keys(tags.value).length ? tags.value : null,
+          pinned_sessions: pins.value,
+          session_tags: tags.value,
           ...(prefs ? { prefs: Object.keys(prefs.value).length ? prefs.value : null } : {}),
         }).eq('id', uid);
       }
