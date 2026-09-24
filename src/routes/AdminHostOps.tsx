@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button, Icon, Input, tokens as ui } from '../components/primitives';
 import type { AdminHealth } from '../../shared/protocol';
 import { AdminConfirm } from './AdminConfirm';
+import { validEnvName } from '../../shared/env-name';
 
 // Controle de escrita do host no painel admin (#162, DR-023): tokens de ambiente,
 // MCPs e instalação de CLI. Só role admin chega aqui (o agente nega via authorize);
@@ -50,9 +51,10 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
     setPending(null);
   };
 
+  const envNameBad = envName.trim() !== '' && !validEnvName(envName.trim());
   const addEnv = () => {
     const name = envName.trim();
-    if (!name || !envValue) return;
+    if (!name || !envValue || !validEnvName(name)) return;
     const run = () => { onEnvSet(name, envValue); setEnvName(''); setEnvValue(''); };
     if ((health?.envTokens ?? []).includes(name)) setReplacing({ kind: 'env', name, run });
     else run();
@@ -80,10 +82,11 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
 
       <h3 className="mb-1.5 text-[11px] uppercase tracking-wider text-neutral-500">Tokens de ambiente</h3>
       <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-        <Input size="sm" className="min-w-0 flex-1" placeholder="NOME" aria-label="Nome do token de ambiente" value={envName} onChange={(e) => setEnvName(e.target.value)} />
+        <Input size="sm" className="min-w-0 flex-1" placeholder="NOME" aria-label="Nome do token de ambiente" aria-invalid={envNameBad} error={envNameBad} value={envName} onChange={(e) => setEnvName(e.target.value)} />
         <Input size="sm" className="min-w-0 flex-1" type="password" placeholder="valor (não volta)" aria-label="Valor do token de ambiente" value={envValue} onChange={(e) => setEnvValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && addEnv()} />
-        <Button variant="secondary" size="sm" onClick={addEnv} disabled={!envName.trim() || !envValue}>Salvar</Button>
+        <Button variant="secondary" size="sm" onClick={addEnv} disabled={!envName.trim() || !envValue || envNameBad}>Salvar</Button>
       </div>
+      {envNameBad && <p role="alert" className="-mt-1 mb-2 text-[11px] text-red-300">Nome inválido: só letras, números e _, sem começar por número (ex: GITHUB_TOKEN).</p>}
       {tokens.length > 0 && (
         <ul className="mb-3 flex flex-wrap gap-1.5">
           {tokens.map((t) => (
