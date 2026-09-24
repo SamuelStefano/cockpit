@@ -36,8 +36,8 @@ function mount() {
 describe('busy snapshot after frames were lost with the socket', () => {
   it("a first turn whose done was lost migrates to its session id and re-fetches", () => {
     const { hook, push, opens } = mount();
-    let key = '';
-    act(() => { key = hook.result.current.onNew(); });
+    act(() => { hook.result.current.onNew(); });
+    const key = hook.result.current.activeId;
     act(() => { hook.result.current.onSend('oi'); });
     push({ t: 'started', sessionKey: key } as ServerMsg);
     push({ t: 'system', sessionKey: key, sessionId: U });
