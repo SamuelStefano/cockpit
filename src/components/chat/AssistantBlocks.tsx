@@ -18,7 +18,7 @@ function ThinkingCard({ text }: { text: string }) {
         <Icon name="chevronRight" size={12} className={`transition-transform ${open ? 'rotate-90' : ''}`} />
         <Icon name="zap" size={11} className="text-violet-400/70" />
         raciocínio interno
-        {!open && <span className="ml-1 truncate font-normal text-neutral-600">{text.slice(0, 60)}…</span>}
+        {!open && <span className="ml-1 truncate font-normal text-neutral-600">{text.length > 60 ? `${text.slice(0, 60)}…` : text}</span>}
       </button>
       {open && (
         <div className="border-t border-violet-500/15">
