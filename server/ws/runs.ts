@@ -566,11 +566,22 @@ function parkRejected(o: StartRunOptions, verdict: Verdict): boolean {
 // real run (nothing left to route into). `forkId` is exempt — forking the
 // Orchestrator's transcript into a NEW session is a distinct, legitimate
 // headless run, not a twin writing the same one.
-export function deliverToOrchestratorPane(targetSessionId: string | undefined, text: string, role?: Role): boolean {
-  if (!targetSessionId || role !== 'admin') return false;
+// The gate above, minus the actual delivery — extracted so a caller that
+// only needs to know "would this route into the Orchestrator's live pane
+// instead of a real run?" (server/ws/dispatch.ts's cross-process 'send'
+// guard) can ask the exact same question deliverToOrchestratorPane itself
+// answers, instead of duplicating (and risking drift from) these three
+// checks. Returns the matched OrchestratorInfo, or undefined.
+export function orchestratorPaneTarget(targetSessionId: string | undefined, role: Role | undefined) {
+  if (!targetSessionId || role !== 'admin') return undefined;
   const orch = readOrchestratorSync();
-  if (!orch || orch.sessionId !== targetSessionId) return false;
-  if (!isTmuxAliveSync(orch.tmux)) return false;
+  if (!orch || orch.sessionId !== targetSessionId) return undefined;
+  return isTmuxAliveSync(orch.tmux) ? orch : undefined;
+}
+
+export function deliverToOrchestratorPane(targetSessionId: string | undefined, text: string, role?: Role): boolean {
+  const orch = orchestratorPaneTarget(targetSessionId, role);
+  if (!orch) return false;
   const termId = orchestratorTermId(orch);
   if (!hasTerm(termId)) openTerm(termId, 120, 40, () => {}, () => {}, () => {});
   inputTerm(termId, buildPastedSend(text));

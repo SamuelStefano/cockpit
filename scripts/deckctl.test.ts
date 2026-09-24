@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { WebSocketServer } from 'ws';
+import type { AddressInfo } from 'node:net';
 import {
   parseFlags, flagStr, flagNum, fmtBrt, shortId, oneLine, matchByPrefix, newCardIdLocal, findCard,
-  scoreSession, isNeverPurgeSession, newTranscriptScan, feedTranscriptLine, type TriageInput,
+  scoreSession, isNeverPurgeSession, newTranscriptScan, feedTranscriptLine, type TriageInput, Client,
 } from './deckctl.mts';
 import type { CanvasCard } from '../shared/canvas';
+import type { ServerMsg } from '../shared/protocol';
 
 describe('parseFlags', () => {
   it('splits positional args from --flags', () => {
@@ -115,6 +118,59 @@ describe('newCardIdLocal', () => {
   it('falls back to a plain random id for an all-punctuation title', () => {
     const id = newCardIdLocal('!!!');
     expect(id).toMatch(/^[a-z0-9-]{4,40}$/);
+  });
+});
+
+// server/ws/serve-connection.ts sends the 'busy' bootstrap frame SYNCHRONOUSLY
+// in the server's 'connection' handler — before this Client's caller has any
+// chance to register a matching waitFor(). Reproduced deterministically here
+// (not by racing real timing, which would be flaky): a message is allowed to
+// fully arrive with ZERO handlers registered, THEN waitFor is called for that
+// same predicate — only the history buffer (scripts/deckctl.mts) can satisfy
+// it at that point.
+describe('Client — waitFor sees a frame that already arrived', () => {
+  const isBusy = (m: ServerMsg): m is Extract<ServerMsg, { t: 'busy' }> => m.t === 'busy';
+
+  it('resolves from history instead of timing out', async () => {
+    const wss = new WebSocketServer({ port: 0 });
+    await new Promise<void>((resolve) => wss.once('listening', resolve));
+    const { port } = wss.address() as AddressInfo;
+    wss.on('connection', (ws) => {
+      ws.send(JSON.stringify({ t: 'busy', keys: ['s1'], startedAt: { s1: 1 } }));
+    });
+    const client = new Client('tok', `ws://127.0.0.1:${port}/ws?token=tok`);
+    try {
+      await client.ready();
+      // Give the frame time to fully arrive and be dispatched to ZERO live
+      // handlers (none registered yet) — on loopback this is generous, not
+      // flaky. Without the history buffer this message is gone for good the
+      // instant it's dispatched; waitFor below can only succeed by reading it
+      // back from history, never from a listener.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const busy = await client.waitFor(isBusy, 200);
+      expect(busy?.keys).toEqual(['s1']);
+    } finally {
+      client.close();
+      wss.close();
+    }
+  });
+
+  it('still works for a frame that has not arrived yet (live listener path)', async () => {
+    const wss = new WebSocketServer({ port: 0 });
+    await new Promise<void>((resolve) => wss.once('listening', resolve));
+    const { port } = wss.address() as AddressInfo;
+    wss.on('connection', (ws) => {
+      setTimeout(() => ws.send(JSON.stringify({ t: 'busy', keys: ['s2'], startedAt: { s2: 1 } })), 20);
+    });
+    const client = new Client('tok', `ws://127.0.0.1:${port}/ws?token=tok`);
+    try {
+      await client.ready();
+      const busy = await client.waitFor(isBusy, 500);
+      expect(busy?.keys).toEqual(['s2']);
+    } finally {
+      client.close();
+      wss.close();
+    }
   });
 });
 

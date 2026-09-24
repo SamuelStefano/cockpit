@@ -9,6 +9,10 @@ const runs = vi.hoisted(() => ({
   drainParked: vi.fn(),
   runParkedNow: vi.fn(() => ({ ok: true as const })),
   runParkedInBackground: vi.fn(() => ({ forkId: 'f1' })),
+  // Default: never the Orchestrator's own pane — most tests aren't
+  // exercising that exemption (server/ws/runs.ts's real predicate, reused
+  // rather than duplicated by the 'send' guard).
+  orchestratorPaneTarget: vi.fn((): { name: string; sessionId: string; tmux: string } | undefined => undefined),
 }));
 const parked = vi.hoisted(() => ({
   addParked: vi.fn(() => ({ id: 'pk-1' })), removeParked: vi.fn(), editParked: vi.fn(),
@@ -33,6 +37,7 @@ const reg = vi.hoisted(() => {
     resolveThreadKey,
     // Espelha o real: resolve a chave (aqui a chave direta basta), marca o stop e mata.
     stopSession: vi.fn((key: string) => { onStop(key); threads.get(key)?.handle.kill(); }),
+    runningSessionIds: vi.fn(() => new Set<string>()),
   };
 });
 const bc = vi.hoisted(() => ({ send: vi.fn(), broadcast: vi.fn() }));
@@ -49,6 +54,15 @@ const termStats = vi.hoisted(() => ({
   // exactly what the real implementation does, no behavior to fake here.
   newCpuSamples: vi.fn(() => new Map()),
 }));
+const cvLiveness = vi.hoisted(() => ({
+  // FRESH (not cached — server/canvas/cv-liveness.ts) strict read the 'send'
+  // cross-process guard actually checks: alive pid + busy, no fresh-mtime
+  // grace, minus this process's own threads. Default empty: most tests
+  // aren't exercising it.
+  readBusyElsewhereSessionIds: vi.fn(async (): Promise<string[]> => []),
+  // FRESH snapshot for the 'canvas-get' cv-live reply, NOT the guard.
+  refreshLivenessSnapshot: vi.fn(async () => ({ live: [] as string[], busyElsewhere: [] as string[], idle: [] as string[] })),
+}));
 const parse = vi.hoisted(() => ({ parseSession: vi.fn(), parseFullSession: vi.fn() }));
 const cfg = vi.hoisted(() => ({ CONFIG: { localOnly: true, historyLimit: 2000 } }));
 const admin = vi.hoisted(() => ({
@@ -62,6 +76,7 @@ vi.mock('./awaiting', () => awaiting);
 vi.mock('./threads', () => reg);
 vi.mock('./broadcast', () => bc);
 vi.mock('../canvas/term-stats', () => termStats);
+vi.mock('../canvas/cv-liveness', () => cvLiveness);
 vi.mock('../config', () => cfg);
 vi.mock('../admin-ops', () => admin);
 const deck = vi.hoisted(() => ({
@@ -92,6 +107,28 @@ const drafts = vi.hoisted(() => ({
 vi.mock('../dfl-drafts', () => drafts);
 const fin = vi.hoisted(() => ({ registerFinanceClient: vi.fn(), emitFinanceMsg: vi.fn() }));
 vi.mock('./finance-clients', () => fin);
+// Minimal stand-ins for the 'canvas-get' path (only readBoardChained,
+// buildCanvas, activeFlowRuns, registerCanvasClient and
+// updateAreaCacheFromGraph are actually called there) — MAX_FLOWS and the
+// rest of ../canvas/board exist only so the destructured import doesn't
+// blow up; no other test in this file exercises them.
+const board = vi.hoisted(() => ({
+  MAX_FLOWS: 20,
+  readBoardChained: vi.fn(async () => ({ cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {} })),
+  readBoard: vi.fn(), updateBoard: vi.fn(), sanitizeCard: vi.fn(), sanitizeFlow: vi.fn(), sanitizePos: vi.fn(),
+  upsertCard: vi.fn(), upsertFlow: vi.fn(), removeCard: vi.fn(), removeFlow: vi.fn(), checkFlowSave: vi.fn(),
+  mergePos: vi.fn(), setBudget: vi.fn(), sanitizeSessionStatus: vi.fn(), setSessionStatus: vi.fn(),
+  setCardDflLink: vi.fn(), clearCardDflLink: vi.fn(),
+}));
+vi.mock('../canvas/board', () => board);
+const canvasIndex = vi.hoisted(() => ({ buildCanvas: vi.fn(async () => ({ nodes: [], edges: [] })) }));
+vi.mock('../canvas/index', () => canvasIndex);
+const flowRuns = vi.hoisted(() => ({ activeFlowRuns: vi.fn(() => []) }));
+vi.mock('../canvas/flow-runs', () => flowRuns);
+const canvasClients = vi.hoisted(() => ({ registerCanvasClient: vi.fn(), emitCanvasMsg: vi.fn() }));
+vi.mock('./canvas-clients', () => canvasClients);
+const autopause = vi.hoisted(() => ({ updateAreaCacheFromGraph: vi.fn(), getAreaOf: vi.fn(() => ({})) }));
+vi.mock('../canvas/autopause-loop', () => autopause);
 
 import { handle } from './dispatch';
 
@@ -158,6 +195,165 @@ describe('send routing (the #130 role seam)', () => {
     }));
     expect(runs.startRun).not.toHaveBeenCalled();
     expect(runs.routeSend).not.toHaveBeenCalled();
+  });
+
+  // Deck runs two backend processes (server/index.ts, server/agent.ts), each
+  // with its own `threads` map. readBusyElsewhereSessionIds() already
+  // subtracts THIS process's own threads (server/canvas/cv-liveness.ts), so
+  // a match there is by construction a turn live in the OTHER one —
+  // starting a `claude --resume` on top of it would fork the transcript.
+  it('refuses (send-reject, live-elsewhere) when the target session is strictly busy elsewhere and not one of THIS process\'s own threads', async () => {
+    cvLiveness.readBusyElsewhereSessionIds.mockResolvedValueOnce(['s1']); // msg().sessionId === 's1'
+    await handle(ws, msg(), 'admin');
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({
+      t: 'send-reject', sessionKey: 'k1', reason: 'live-elsewhere', text: 'hi', msgId: 'm1',
+    }));
+    expect(runs.startRun).not.toHaveBeenCalled();
+    expect(runs.routeSend).not.toHaveBeenCalled();
+  });
+
+  it('starts normally when the registry has no strict busy-elsewhere match for the session', async () => {
+    cvLiveness.readBusyElsewhereSessionIds.mockResolvedValueOnce([]);
+    await handle(ws, msg(), 'admin');
+    expect(runs.startRun).toHaveBeenCalledOnce();
+  });
+
+  // BLOCKER (2nd review): startCvLivenessLoop's cache only refreshes while a
+  // client is connected — deckctl's connection (a few seconds) can come and
+  // go between 5s ticks without a single one running, leaving any cached
+  // value stale by hours. The guard must call readBusyElsewhereSessionIds
+  // FRESH on every 'send', never read a memoized value — simulated here by
+  // flipping the mock's resolved value between two consecutive calls and
+  // checking each call reacts to ITS OWN fresh read, not the previous one.
+  it('reacts to a fresh read each call, never a stale one from a previous call', async () => {
+    cvLiveness.readBusyElsewhereSessionIds.mockResolvedValueOnce(['s1']);
+    await handle(ws, msg(), 'admin');
+    expect(runs.startRun).not.toHaveBeenCalled();
+
+    // "cache" (i.e. the previous call's answer) said busy; the registry NOW
+    // says idle — this send must go through.
+    cvLiveness.readBusyElsewhereSessionIds.mockResolvedValueOnce([]);
+    await handle(ws, msg(), 'admin');
+    expect(runs.startRun).toHaveBeenCalledOnce();
+  });
+
+  it('reacts to the reverse flip too — was clear, is now busy elsewhere', async () => {
+    cvLiveness.readBusyElsewhereSessionIds.mockResolvedValueOnce([]);
+    await handle(ws, msg(), 'admin');
+    expect(runs.startRun).toHaveBeenCalledOnce();
+
+    cvLiveness.readBusyElsewhereSessionIds.mockResolvedValueOnce(['s1']);
+    await handle(ws, msg(), 'admin');
+    expect(runs.startRun).toHaveBeenCalledOnce(); // still just the once from the first call
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ reason: 'live-elsewhere' }));
+  });
+
+  // The guard is best-effort: a broken/unreadable registry must never itself
+  // block Samuel from sending a message.
+  it('fails OPEN (allows the send) when the fresh registry read throws', async () => {
+    cvLiveness.readBusyElsewhereSessionIds.mockRejectedValueOnce(new Error('EACCES'));
+    await handle(ws, msg(), 'admin');
+    expect(runs.startRun).toHaveBeenCalledOnce();
+    expect(bc.send).not.toHaveBeenCalledWith(ws, expect.objectContaining({ reason: 'live-elsewhere' }));
+  });
+
+  // The BLOCKER the previous review guarded against: a browser turn on 's1'
+  // just ended in the OTHER process (its thread is gone there too), Samuel
+  // sends a normal follow-up within the fresh-mtime grace window. The
+  // 'send' guard never even reads the display snapshot (refreshLivenessSnapshot
+  // is 'canvas-get'-only, see the describe block below) — only the strict
+  // busy-elsewhere read matters here, so an empty strict result must let the
+  // follow-up through regardless of what the display list would have said.
+  it('does NOT refuse a follow-up when the strict busy-elsewhere read is empty', async () => {
+    cvLiveness.readBusyElsewhereSessionIds.mockResolvedValueOnce([]);
+    await handle(ws, msg(), 'admin');
+    expect(runs.startRun).toHaveBeenCalledOnce();
+    expect(bc.send).not.toHaveBeenCalledWith(ws, expect.objectContaining({ reason: 'live-elsewhere' }));
+    expect(cvLiveness.refreshLivenessSnapshot).not.toHaveBeenCalled();
+  });
+
+  // readBusyElsewhereSessionIds() itself subtracts THIS process's own
+  // threads (server/canvas/cv-liveness.ts's `own = runningSessionIds()`) —
+  // a session genuinely busy here never shows up in its result. The mock
+  // reflects that real behavior (empty), not a hypothetical false positive.
+  it('a session already busy in THIS process still passes the registry guard and routes to routeSend', async () => {
+    reg.threads.set('k1', { handle: { kill: vi.fn() }, sessionId: 's1' });
+    cvLiveness.readBusyElsewhereSessionIds.mockResolvedValueOnce([]);
+    await handle(ws, msg(), 'admin');
+    expect(runs.routeSend).toHaveBeenCalledOnce();
+    expect(runs.startRun).not.toHaveBeenCalled();
+    expect(bc.send).not.toHaveBeenCalledWith(ws, expect.objectContaining({ reason: 'live-elsewhere' }));
+  });
+
+  // BLOCKER (3rd review) #1 — regression: startRun (server/ws/runs.ts)
+  // redirects a message targeting the Orchestrator's OWN live session into
+  // its tmux pane (deliverToOrchestratorPane) instead of spawning a run —
+  // that session is busy in the registry (an interactive claude) almost the
+  // entire time it's working. Without this exemption the guard rejected
+  // every message to the Orchestrator while it was busy, making it
+  // unreachable from the Deck/dock exactly when Samuel needs to interrupt it.
+  it('does not reject the Orchestrator\'s own pane target, and never even reads the registry for it', async () => {
+    runs.orchestratorPaneTarget.mockReturnValueOnce({ name: 'orch', sessionId: 's1', tmux: 'cockpit-orchestrator:@1.%1' });
+    await handle(ws, msg(), 'admin');
+    expect(cvLiveness.readBusyElsewhereSessionIds).not.toHaveBeenCalled();
+    expect(bc.send).not.toHaveBeenCalledWith(ws, expect.objectContaining({ reason: 'live-elsewhere' }));
+    expect(runs.startRun).toHaveBeenCalledOnce(); // startRun itself does the pane redirect
+  });
+
+  it('still rejects a busy NON-orchestrator cv worker (the exemption is narrow)', async () => {
+    runs.orchestratorPaneTarget.mockReturnValueOnce(undefined);
+    cvLiveness.readBusyElsewhereSessionIds.mockResolvedValueOnce(['s1']);
+    await handle(ws, msg(), 'admin');
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ reason: 'live-elsewhere' }));
+    expect(runs.startRun).not.toHaveBeenCalled();
+  });
+
+  // BLOCKER (3rd review) #2 — race: the awaited registry read used to sit
+  // AFTER resolveThreadKey/the liveKey check, so two 'send's for the same
+  // session a few ms apart could both see no liveKey, both await, and both
+  // fall through to startRun — the second call's admission then REPLACES
+  // (kills) the thread the first call just created. Moving the await BEFORE
+  // resolveThreadKey makes resolveThreadKey→liveKey-check→startRun/routeSend
+  // one synchronous block again: whichever call's await resolves LAST always
+  // sees the OTHER's thread already registered and gets queued instead.
+  it('two concurrent sends for the same session: the second is routed/queued, never a replacing startRun', async () => {
+    // Mirrors the real admission side effect (server/ws/threads.ts): startRun
+    // registers the thread synchronously before this mock returns.
+    runs.startRun.mockImplementation((o: { sessionKey: string }) => {
+      reg.threads.set(o.sessionKey, { handle: { kill: vi.fn() } });
+    });
+    let resolveFirst: (v: string[]) => void = () => {};
+    let resolveSecond: (v: string[]) => void = () => {};
+    cvLiveness.readBusyElsewhereSessionIds
+      .mockImplementationOnce(() => new Promise((r) => { resolveFirst = r; }))
+      .mockImplementationOnce(() => new Promise((r) => { resolveSecond = r; }));
+
+    const p1 = handle(ws, msg(), 'admin');
+    const p2 = handle(ws, msg(), 'admin');
+    // Both calls have two awaits ahead of readBusyElsewhereSessionIds
+    // (resolveSkillDeny, hasInteractiveClaude) — a macrotask flush lets
+    // BOTH actually reach it and swap resolveFirst/resolveSecond in for the
+    // no-op placeholders before either is invoked; calling them any earlier
+    // would resolve the placeholder, not the real pending promise, and hang.
+    await new Promise((r) => setTimeout(r, 0));
+    // Let the FIRST call's registry read resolve and fully run its
+    // synchronous resolveThreadKey→startRun tail before the second one does.
+    resolveFirst([]);
+    await p1;
+    resolveSecond([]);
+    await p2;
+
+    expect(runs.startRun).toHaveBeenCalledOnce();
+    expect(runs.routeSend).toHaveBeenCalledOnce();
+  });
+});
+
+describe('canvas-get — cv-live reply is a fresh read, not the periodic loop\'s cache', () => {
+  it('sends cv-live built from THIS call\'s refreshLivenessSnapshot(), not a stale cached value', async () => {
+    cvLiveness.refreshLivenessSnapshot.mockResolvedValueOnce({ live: ['s9'], busyElsewhere: ['s9'], idle: ['s8'] });
+    await handle(ws, { t: 'canvas-get' } as ClientMsg);
+    expect(cvLiveness.refreshLivenessSnapshot).toHaveBeenCalledOnce();
+    expect(bc.send).toHaveBeenCalledWith(ws, { t: 'cv-live', sessionIds: ['s9'], idleSessionIds: ['s8'] });
   });
 });
 

@@ -51,6 +51,9 @@ export interface CanvasApi {
   onOrchestratorActivityGet: () => void;
   // Sessions working in a `cockpit-cv-*` tmux shell (server-pushed 'cv-live').
   cvLiveSessionIds: string[];
+  // Same push: a cv shell that's ALIVE (tmux + process) but idle — waiting on
+  // Samuel, not done. Optional field server-side (older backend omits it).
+  cvIdleSessionIds: string[];
   // Kanban drawer transcript reads, by session id — null = unreadable.
   sessionPeeks: Record<string, SessionPeek | null>;
   onSessionPeek: (sessionId: string) => void;
@@ -92,6 +95,7 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
   const [orchestratorActivity, setOrchestratorActivity] = useState<OrchestratorActivity | null>(null);
   const onOrchestratorActivityGet = useCallback(() => { send({ t: 'orchestrator-activity-get' }); }, [send]);
   const [cvLiveSessionIds, setCvLive] = useState<string[]>([]);
+  const [cvIdleSessionIds, setCvIdle] = useState<string[]>([]);
   const [sessionPeeks, setSessionPeeks] = useState<Record<string, SessionPeek | null>>({});
   const onSessionPeek = useCallback((sessionId: string) => { send({ t: 'canvas-session-peek', sessionId }); }, [send]);
   const loadingRef = useRef(false);
@@ -179,7 +183,7 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
     if (msg.t === 'canvas-graph') { setGraph(msg.graph); setStale(false); settle(); return true; }
     if (msg.t === 'orchestrator-info') { setOrchestratorInfo(msg.info ?? null); return true; }
     if (msg.t === 'orchestrator-activity') { setOrchestratorActivity(msg.activity); return true; }
-    if (msg.t === 'cv-live') { setCvLive(msg.sessionIds); return true; }
+    if (msg.t === 'cv-live') { setCvLive(msg.sessionIds); setCvIdle(msg.idleSessionIds ?? []); return true; }
     if (msg.t === 'canvas-session-peek') { setSessionPeeks((prev) => ({ ...prev, [msg.sessionId]: msg.peek })); return true; }
     // Slim patch (card-review.ts auto-moving a card to "review"): update just
     // that card's status locally instead of waiting for a full canvas-board —
@@ -390,6 +394,6 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
     onCanvasGet, onCanvasPos, onCanvasPosReset, onCanvasCardSave, onCanvasCardDelete, onCanvasSessionStatus,
     onCanvasFlowSave, onCanvasFlowDelete, canvasFlowFired, canvasFlowRuns, onCanvasBudgetSave,
     canvasTermStats, onCanvasTermStats, onCanvasCtxStats, canvasAreaUsage,
-    orchestratorInfo, onOrchestratorReconnect, orchestratorActivity, onOrchestratorActivityGet, cvLiveSessionIds, sessionPeeks, onSessionPeek, onMsg,
+    orchestratorInfo, onOrchestratorReconnect, orchestratorActivity, onOrchestratorActivityGet, cvLiveSessionIds, cvIdleSessionIds, sessionPeeks, onSessionPeek, onMsg,
   };
 }

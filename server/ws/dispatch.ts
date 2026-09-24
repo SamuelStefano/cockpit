@@ -32,7 +32,7 @@ import { updateClaudeCli, restartDeck } from '../deck-ops';
 import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
 import { detach } from './detach';
-import { startRun, routeSend, drainParked, runParkedInBackground, runParkedNow, acceptResumeOffer, type BgRunReject, type NowRunReject } from './runs';
+import { startRun, routeSend, drainParked, runParkedInBackground, runParkedNow, acceptResumeOffer, orchestratorPaneTarget, type BgRunReject, type NowRunReject } from './runs';
 import { threads, stopSession, resolveThreadKey, runningSessionIds } from './threads';
 import { clearAwaiting } from './awaiting';
 import { addParked, removeParked, editParked, moveParked, clearParked, retryParked, parkedView, isQueuePaused, setQueuePaused, REJECT_MESSAGE } from './parked';
@@ -46,7 +46,7 @@ import { buildBench } from '../bench';
 import { buildCanvas } from '../canvas/index';
 import { readOrchestrator } from '../canvas/orchestrator';
 import { readOrchestratorActivity } from '../canvas/orchestrator-activity';
-import { lastCvLiveSessionIds } from '../canvas/cv-liveness';
+import { readBusyElsewhereSessionIds, refreshLivenessSnapshot } from '../canvas/cv-liveness';
 import { peekSession } from '../sessions/peek';
 import { collectCtxOnly, collectTermStats, hasInteractiveClaude, newCpuSamples, type CpuSamples } from '../canvas/term-stats';
 import {
@@ -214,7 +214,13 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // (canvas/autopause-loop.ts): reuses this exact graph, no extra build.
       updateAreaCacheFromGraph(graph);
       send(ws, { t: 'canvas-graph', graph });
-      send(ws, { t: 'cv-live', sessionIds: lastCvLiveSessionIds() });
+      // Fresh, not the cached getters: startCvLivenessLoop only refreshes its
+      // cache while a client is connected, and a deckctl round trip (a few
+      // seconds) can come and go between ticks (5s) without ever refreshing
+      // it — a client that just asked deserves data at least as fresh as its
+      // own request, not whatever the loop last happened to see.
+      const liveness = await refreshLivenessSnapshot();
+      send(ws, { t: 'cv-live', sessionIds: liveness.live, idleSessionIds: liveness.idle });
       return;
     }
     case 'orchestrator-get': {
@@ -918,6 +924,53 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
         });
         return;
       }
+      // Cross-process double-writer guard: resolveThreadKey below only
+      // searches THIS process's own `threads` map. Deck runs two backend
+      // processes (server/index.ts, server/agent.ts), each with its own map
+      // — a session already live in the OTHER one is invisible here, and
+      // starting a `claude --resume` on it would fork the transcript exactly
+      // like the same-process hasInteractiveClaude case above. FRESH read,
+      // not a cached getter: startCvLivenessLoop's cache only updates while
+      // a client is connected, and deckctl's connection (a few seconds) can
+      // come and go between 5s ticks without ever refreshing it — acting on
+      // that cache here would sometimes block on data hours old. Fails OPEN
+      // (best-effort registry read; nothing here can safely block a send by
+      // erroring). Deliberately NOT the display-liveness list: that one's
+      // fresh-mtime grace period would reject an ordinary follow-up sent
+      // within ~2min of the OTHER process's turn closing, when nobody is
+      // actually racing anymore — readBusyElsewhereSessionIds has no such
+      // grace period, and already subtracts THIS process's own threads, so
+      // any match here is by construction someone else's turn right now.
+      //
+      // Placement matters, twice over:
+      // 1) BEFORE resolveThreadKey, not after — a session can also be
+      //    "busy elsewhere" because it's the Orchestrator's own live pane
+      //    (checked first, no I/O), which startRun redirects into instead of
+      //    spawning a run; checking that FIRST means the common case (not
+      //    the Orchestrator) skips a needless registry read. But the reason
+      //    it must run before resolveThreadKey, not merely before startRun,
+      //    is #2:
+      // 2) Everything from resolveThreadKey to startRun/routeSend below is
+      //    now ONE synchronous block with no `await` inside it. Two 'send's
+      //    for the same session landing a few ms apart used to both find
+      //    `liveKey` undefined, both await this guard, and both fall through
+      //    to startRun — the second call's admission logic (runs.ts,
+      //    `replacing`) then REPLACES and kills the thread the first call
+      //    just created. Awaiting first and deciding liveKey/startRun
+      //    without yielding in between means whichever 'send' resolves its
+      //    await LAST always sees the OTHER's thread already registered,
+      //    and gets routed to routeSend (queued) instead of replacing it.
+      const target = msg.sessionId ?? msg.sessionKey;
+      if (!orchestratorPaneTarget(target, role)) {
+        const busyElsewhere = await readBusyElsewhereSessionIds().catch(() => [] as string[]);
+        if (busyElsewhere.includes(target)) {
+          send(ws, {
+            t: 'send-reject', sessionKey: msg.sessionKey, reason: 'live-elsewhere', text: msg.text, msgId: msg.msgId,
+            message: 'Essa sessão já tem um turno rodando no outro processo do Deck (deckctl/agente) — espere ele terminar antes de mandar mensagem por aqui.',
+          });
+          return;
+        }
+      }
       // A session can already be live under a DIFFERENT thread key than the one
       // this frame names (a cron run, a card/flow's own key) — resolveThreadKey
       // finds it by sessionId so this message reaches the real turn (routeSend's
@@ -930,8 +983,8 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // tell routeSend to report those specific errors under the ORIGINAL key
       // instead, so a canvas send rerouted onto a different live thread still
       // correlates (canvas review #593 third pass item 4).
-      if (liveKey) detach(ws, routeSend({ ...opts, sessionKey: liveKey, displayKey: msg.sessionKey }), liveKey);
-      else startRun({ ...opts, auto: msg.auto === true });
+      if (liveKey) { detach(ws, routeSend({ ...opts, sessionKey: liveKey, displayKey: msg.sessionKey }), liveKey); return; }
+      startRun({ ...opts, auto: msg.auto === true });
       return;
     }
     // Fila estacionada (overnight/quota-out): persiste o prompt no servidor pro

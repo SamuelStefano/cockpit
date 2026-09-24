@@ -19,6 +19,8 @@ import { startParkedDrainer, resumeOrphanRuns } from './ws/runs';
 import { readMemInfo } from './ws/mem-guard';
 import { startRunReaper } from './ws/reaper';
 import { busyFrame, killAllRuns, threads } from './ws/threads';
+import { startCvLivenessLoop } from './canvas/cv-liveness';
+import { emitCanvasMsg } from './ws/canvas-clients';
 import { startModelsLoop, getLastModels } from './ws/models';
 import { startAuthKeepAlive } from './ws/auth-health';
 import { startPlanUsageLoop, planUsageFrame, requestPlanUsageRefresh } from './ws/usage-plan';
@@ -277,6 +279,12 @@ export function runAgent(relayUrl: string): void {
   // travadas em "carregando") nem as versões concretas dos modelos.
   const hasClients = () => activeWs !== null && browsersPresent;
   startStatsLoop(hasClients);
+  // Without this, this process never learns about a turn started on the
+  // OTHER Deck backend (server/index.ts, the one deckctl talks to) — the
+  // browser's kanban would keep showing a deckctl-started session as
+  // stopped/Done, and this process's own 'send' guard would have nothing to
+  // check before spawning a second `--resume` on it (server/canvas/cv-liveness.ts).
+  startCvLivenessLoop(hasClients, emitCanvasMsg);
   startPlanUsageLoop(hasClients, () => threads.size > 0);
   startModelsLoop(hasClients);
   startAuthKeepAlive();

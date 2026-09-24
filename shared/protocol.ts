@@ -925,9 +925,14 @@ export type ServerMsg =
   | { t: 'canvas-term-stats'; stats: Record<string, TermStats> }
   | { t: 'canvas-ctx-stats'; stats: Record<string, Pick<TermStats, 'contextTokens' | 'model' | 'lastAt'>> }
   | { t: 'canvas-session-peek'; sessionId: string; peek: SessionPeek | null }
-  // Sessions working inside a `cockpit-cv-*` tmux shell right now
-  // (server/canvas/cv-liveness.ts) — admin canvas clients only.
-  | { t: 'cv-live'; sessionIds: string[] }
+  // Sessions live right now — a `cockpit-cv-*` tmux shell, or (since the
+  // cross-process liveness generalization) a turn running in the OTHER Deck
+  // backend process — server/canvas/cv-liveness.ts, admin canvas clients only.
+  // idleSessionIds: a cv-shell whose tmux pane AND process are BOTH alive but
+  // NOT live (not busy, transcript gone stale) — Claude sitting at its
+  // prompt waiting for Samuel, not "done". Optional: an older server that
+  // hasn't redeployed this field yet just omits it, no client crash.
+  | { t: 'cv-live'; sessionIds: string[]; idleSessionIds?: string[] }
   // flowRuns: every card-target flow run still live right now (server/canvas/
   // flow-runs.ts) — a tab that (re)connects mid-run (F5, a second tab, opening
   // /canvas after the flow already fired) gets this on the SAME frame as the
@@ -995,7 +1000,9 @@ export type ServerMsg =
   // - ctx-hard/quota-insufficient/cold-busy: gate de contexto (ws/ctx-guard.ts)
   //   — carrega ctxTokens/pctOfWindow, o custo que motivou a recusa.
   // - live-elsewhere: guarda de double-writer (dispatch.ts 'send') — a sessão
-  //   já tem um `claude` interativo rodando no próprio pane de watch.
+  //   já tem um `claude` interativo rodando no próprio pane de watch, OU (via
+  //   canvas/cv-liveness.ts) um turno vivo num cv-shell ou no OUTRO processo
+  //   do backend do Deck (index.ts vs agent.ts).
   // ctxTokens/pctOfWindow só fazem sentido pro primeiro grupo — opcionais.
   | {
       t: 'send-reject'; sessionKey: string;

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { WebSocket } from 'ws';
-import { startRun, routeSend, isSilentDeath, isCleanTurnClose, resumeOrphanRuns, drainParked, runParkedInBackground, runParkedNow, startParkedDrainer, acceptResumeOffer, hasResumeOffer, AUTO_RESUME_CAP, deliverToOrchestratorPane } from './runs';
+import { startRun, routeSend, isSilentDeath, isCleanTurnClose, resumeOrphanRuns, drainParked, runParkedInBackground, runParkedNow, startParkedDrainer, acceptResumeOffer, hasResumeOffer, AUTO_RESUME_CAP, deliverToOrchestratorPane, orchestratorPaneTarget } from './runs';
 import { readOrchestratorSync, isTmuxAliveSync } from '../canvas/orchestrator';
 import { hasTerm, openTerm, inputTerm } from '../terminals';
 import { threads, killAllRuns } from './threads';
@@ -1500,6 +1500,42 @@ describe('startRun / routeSend — twin-process guard on the Orchestrator pane',
   it('deliverToOrchestratorPane is false when no orchestrator is configured', () => {
     expect(deliverToOrchestratorPane('any-session', 'oi')).toBe(false);
     expect(inputTerm).not.toHaveBeenCalled();
+  });
+
+  // server/ws/dispatch.ts's cross-process 'send' guard reuses this predicate
+  // (not deliverToOrchestratorPane itself, which also DOES the delivery) to
+  // ask "would startRun redirect this into the Orchestrator's pane instead
+  // of treating it as a conflicting run?" without duplicating the three
+  // gates below.
+  describe('orchestratorPaneTarget — same three gates, no delivery', () => {
+    it('returns the matched OrchestratorInfo when target/role/tmux all line up', () => {
+      vi.mocked(readOrchestratorSync).mockReturnValue(orch);
+      vi.mocked(isTmuxAliveSync).mockReturnValue(true);
+      expect(orchestratorPaneTarget('orch-sid', 'admin')).toEqual(orch);
+      expect(inputTerm).not.toHaveBeenCalled(); // pure predicate, no side effect
+    });
+
+    it('is undefined for a non-admin role', () => {
+      vi.mocked(readOrchestratorSync).mockReturnValue(orch);
+      vi.mocked(isTmuxAliveSync).mockReturnValue(true);
+      expect(orchestratorPaneTarget('orch-sid', 'student')).toBeUndefined();
+    });
+
+    it('is undefined for a session that is not the Orchestrator\'s', () => {
+      vi.mocked(readOrchestratorSync).mockReturnValue(orch);
+      vi.mocked(isTmuxAliveSync).mockReturnValue(true);
+      expect(orchestratorPaneTarget('some-other-session', 'admin')).toBeUndefined();
+    });
+
+    it('is undefined once the tmux pane is dead', () => {
+      vi.mocked(readOrchestratorSync).mockReturnValue(orch);
+      vi.mocked(isTmuxAliveSync).mockReturnValue(false);
+      expect(orchestratorPaneTarget('orch-sid', 'admin')).toBeUndefined();
+    });
+
+    it('is undefined when no orchestrator is configured at all', () => {
+      expect(orchestratorPaneTarget('orch-sid', 'admin')).toBeUndefined();
+    });
   });
 });
 
