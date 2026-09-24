@@ -179,13 +179,18 @@ export function useChatInput(args: UseChatInputArgs) {
     uploadFiles(Array.from(e.target.files ?? [])); // teto de 15MB espelha o backend
     e.target.value = '';
   };
+  const compositionEndAt = useRef(-Infinity);
+  const onCompositionEnd = (e: React.CompositionEvent) => { compositionEndAt.current = e.timeStamp; };
   const onKey = (e: React.KeyboardEvent) => {
     // IME em composição (dead key de acento, candidato CJK): o Enter/Tab confirma
     // o candidato, não envia a mensagem. Sem isto, digitar "ã" via ~+a no Linux
-    // dispara um submit no meio da palavra. Safari sends the Enter that confirms a
-    // CJK candidate with isComposing=false and keyCode 229; → moves between IME
-    // segments, so no key of ours may act while composing.
-    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+    // dispara um submit no meio da palavra. → moves between IME segments, so no key
+    // of ours may act while composing. Safari sends the Enter that confirms a CJK
+    // candidate right after compositionend, with isComposing=false and keyCode 229.
+    // keyCode 229 alone is not enough: Linux IBus, Windows IMEs and Android hardware
+    // keyboards report it on every key, and the Enter would never send (#807).
+    if (e.nativeEvent.isComposing) return;
+    if (e.keyCode === 229 && e.timeStamp - compositionEndAt.current < 100) return;
     if (showPalette) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => (s + 1) % matches.length); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => (s - 1 + matches.length) % matches.length); return; }
@@ -247,5 +252,5 @@ export function useChatInput(args: UseChatInputArgs) {
     if (histIdx !== null) setHistIdx(null); // digitar sai do modo recall
     fitHeight(e.target);
   };
-  return { taRef, fileRef, cameraRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, ...dnd, mic, ghost, ghostShown, acceptGhost, touch, settingsOpen, openSettings: () => setSettingsOpen(true), closeSettings };
+  return { taRef, fileRef, cameraRef, sel, setSel, showPalette, matches, complete, submit, onKey, onCompositionEnd, grow, pick, ...dnd, mic, ghost, ghostShown, acceptGhost, touch, settingsOpen, openSettings: () => setSettingsOpen(true), closeSettings };
 }
