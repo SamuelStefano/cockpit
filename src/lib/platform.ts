@@ -15,3 +15,8 @@ export function keyLabel(k: string, apple = isApple()): string {
 export function comboLabel(keys: string[], apple = isApple()): string {
   return apple ? keys.join('') : keys.map((k) => keyLabel(k, false)).join('+');
 }
+
+// iPhone/iPad, including iPadOS reporting itself as a Mac (touch + Macintosh).
+export function isIOS(ua: string = typeof navigator === 'undefined' ? '' : navigator.userAgent, touchPoints = typeof navigator === 'undefined' ? 0 : navigator.maxTouchPoints ?? 0): boolean {
+  return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && touchPoints > 1);
+}
