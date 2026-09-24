@@ -3,10 +3,10 @@ import type { ReactNode } from 'react';
 import { Icon } from '../Icon';
 import { renderInline } from './render-inline';
 import { uniqueHeadingSlug } from './slug';
-import { classifyBlock } from './classify-block';
+import { classifyBlock, proseBlockStrings } from './classify-block';
 
 export function proseBlocks(md: string, keyBase: string, caret: boolean, slugs: Map<string, number> = new Map()): ReactNode[] {
-  const blocks = md.split('\n\n');
+  const blocks = proseBlockStrings(md);
   const lastIdx = blocks.length - 1;
   return blocks.map((block, idx) => {
     const showCaret = caret && idx === lastIdx;
@@ -92,7 +92,10 @@ export function proseBlocks(md: string, keyBase: string, caret: boolean, slugs: 
       return (
         <ListTag key={k} className={`space-y-1 pl-5 text-pretty ${ordered ? 'list-decimal' : 'list-disc'} marker:text-neutral-500`}>
           {items.map((it, li) => (
-            <li key={li} style={it.depth ? { marginLeft: it.depth * 16 } : undefined}>{renderInline(it.text, `${k}-i${li}`)}</li>
+            // A bullet nested in a numbered list keeps its bullet; numbered items
+            // carry their source number, so a nested bullet doesn't shift the count.
+            <li key={li} value={ordered ? it.num : undefined} className={ordered && it.num === undefined ? 'list-disc' : !ordered && it.num !== undefined ? 'list-decimal' : undefined}
+              style={it.depth ? { marginLeft: it.depth * 16 } : undefined}>{renderInline(it.text, `${k}-i${li}`)}</li>
           ))}
         </ListTag>
       );

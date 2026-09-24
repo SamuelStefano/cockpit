@@ -58,4 +58,25 @@ describe('proseBlocks rendering', () => {
     expect(html('hello', true)).toContain('caret');
     expect(html('hello', false)).not.toContain('caret');
   });
+
+  it('renders a list glued to the paragraph above it as a real list', () => {
+    const out = html('Achados:\n- um\n- dois');
+    expect(out).toContain('<p');
+    expect(out).toContain('<ul');
+    expect(out.match(/<li/g)?.length).toBe(2);
+    expect(out).not.toContain('- um');
+  });
+
+  it('renders a heading glued to its text as a heading', () => {
+    const out = html('## Achados\nTexto');
+    expect(out).toContain('<h2');
+    expect(out).not.toContain('## Achados');
+  });
+
+  it('keeps a nested bullet inside a numbered list and the numbers after it', () => {
+    const out = html('1. a\n   - sub\n2. b');
+    expect(out).toContain('<ol');
+    expect(out).toContain('class="list-disc"');
+    expect(out).toContain('value="2"');
+  });
 });

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, Markdown, splitFences, tokens, WikilinkContext, type IconName, type WikilinkResolver } from './primitives';
 import { uniqueHeadingSlug } from './primitives/markdown/slug';
+import { proseBlockStrings } from './primitives/markdown/classify-block';
 import { useCopied } from '../lib/useCopied';
 import { useEscapeLayer } from './primitives/useEscapeLayer';
 
@@ -14,7 +15,7 @@ function outlineOf(body: string): OutlineItem[] {
   const slugs = new Map<string, number>();
   for (const seg of splitFences(body)) {
     if (seg.t !== 'prose') continue;
-    for (const block of seg.text.split('\n\n')) {
+    for (const block of proseBlockStrings(seg.text)) {
       const bl = block.trim();
       if (bl.split('\n').length !== 1) continue;
       const m = /^(#{1,6})\s+(.*)$/.exec(bl);
