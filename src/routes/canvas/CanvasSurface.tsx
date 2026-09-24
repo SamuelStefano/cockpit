@@ -205,7 +205,7 @@ export function CanvasSurface(p: Props) {
             clickable/draggable underneath it. */}
         <CanvasFlowArrows
           nodes={p.nodes} pos={pos} windows={p.windows} compact={compact} flows={p.flows} firedAt={p.flowFired}
-          onFlowClick={p.onFlowClick} past={p.pastAlive !== null}
+          onFlowClick={p.onFlowClick} past={p.pastAlive !== null} zoom={view.k}
         />
         {cards.map((n) => pos[n.id] && (
           <CanvasNodeCard
