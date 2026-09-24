@@ -52,6 +52,7 @@ describe('parseProcRecord', () => {
     expect(parseProcRecord('not json')).toBeUndefined();
     expect(parseProcRecord(JSON.stringify({ pid: '7', sessionId: 's1' }))).toBeUndefined();
     expect(parseProcRecord('null')).toBeUndefined();
+    expect(parseProcRecord(JSON.stringify({ pid: -1, sessionId: 's1' }))).toBeUndefined();
   });
 });
 

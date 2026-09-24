@@ -47,9 +47,9 @@ export function parseProcRecord(text: string): ClaudeProcRecord | undefined {
   try { o = JSON.parse(text); } catch { return undefined; }
   if (!o || typeof o !== 'object') return undefined;
   const r = o as Record<string, unknown>;
-  if (typeof r.pid !== 'number' || typeof r.sessionId !== 'string') return undefined;
+  if (!Number.isInteger(r.pid) || (r.pid as number) <= 0 || typeof r.sessionId !== 'string') return undefined;
   return {
-    pid: r.pid,
+    pid: r.pid as number,
     sessionId: r.sessionId,
     tmux: typeof r.tmux === 'string' ? r.tmux : undefined,
     status: typeof r.status === 'string' ? r.status : undefined,
