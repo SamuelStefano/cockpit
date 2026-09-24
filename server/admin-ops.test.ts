@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, statSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { setEnv, addMcp, installCli, INSTALLABLE, validateMcpUrl, claudeReady } from './admin-ops';
+import { setEnv, addMcp, installCli, INSTALLABLE, validateMcpUrl, claudeReady, readJsonForWrite, writeJson, envNameAllowedRemotely } from './admin-ops';
 
 // Cobre os guards que rejeitam ANTES de tocar o disco (#162): validação de nome,
 // allow-list de instalação e exigência de alvo do MCP. As escritas reais (env.json,
@@ -128,5 +128,44 @@ describe('claudeReady', () => {
   it('recusa key em branco no env', () => {
     vi.stubEnv('ANTHROPIC_API_KEY', '   ');
     expect(claudeReady(home)).toBe(false);
+  });
+});
+
+describe('read-modify-write of config files', () => {
+  let dir: string;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'deck-adminops-')); });
+  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+
+  it('starts empty only when the file is missing', async () => {
+    expect(await readJsonForWrite(join(dir, 'nope.json'), { a: 1 })).toEqual({ a: 1 });
+  });
+
+  it('throws on a half-written file instead of returning the empty fallback', async () => {
+    const f = join(dir, 'claude.json');
+    writeFileSync(f, '{"mcpServers": {"a": ');
+    await expect(readJsonForWrite(f, {})).rejects.toThrow();
+  });
+
+  it('writes atomically and keeps the file mode', async () => {
+    const f = join(dir, 'env.json');
+    writeFileSync(f, '{}', { mode: 0o600 });
+    await writeJson(f, { TOKEN: 'x' });
+    expect(JSON.parse(readFileSync(f, 'utf8'))).toEqual({ TOKEN: 'x' });
+    expect(statSync(f).mode & 0o777).toBe(0o600);
+    expect(readdirSync(dir)).toEqual(['env.json']);
+  });
+});
+
+describe('envNameAllowedRemotely', () => {
+  it('blocks names that load code or redirect the OAuth bearer', () => {
+    for (const n of ['LD_PRELOAD', 'NODE_OPTIONS', 'BASH_ENV', 'ANTHROPIC_BASE_URL', 'HTTPS_PROXY', 'https_proxy', 'PATH', 'GIT_SSH_COMMAND', 'PYTHONSTARTUP']) {
+      expect(envNameAllowedRemotely(n)).toBe(false);
+    }
+  });
+
+  it('allows ordinary service tokens', () => {
+    for (const n of ['GITHUB_TOKEN', 'VERCEL_TOKEN', 'SUPABASE_ACCESS_TOKEN', 'ANTHROPIC_API_KEY']) {
+      expect(envNameAllowedRemotely(n)).toBe(true);
+    }
   });
 });

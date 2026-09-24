@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rename, stat } from 'node:fs/promises';
 import { readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -22,10 +22,28 @@ async function readJson<T>(path: string, fallback: T): Promise<T> {
   try { return JSON.parse(await readFile(path, 'utf8')) as T; } catch { return fallback; }
 }
 
-async function writeJson(path: string, value: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, JSON.stringify(value, null, 2) + '\n', 'utf8');
+// Read for a read-modify-write. Only a missing file means "start empty": a parse
+// error (a concurrent `claude` caught mid-write) must abort, or writing the
+// fallback back would wipe every other MCP server / managed token in the file.
+export async function readJsonForWrite<T>(path: string, empty: T): Promise<T> {
+  let raw: string;
+  try { raw = await readFile(path, 'utf8'); }
+  catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return empty; throw e; }
+  return JSON.parse(raw) as T;
 }
+
+// tmp + rename so a crash or a concurrent reader never sees a half-written file.
+// Keeps the current mode (env.json holds tokens and must stay 0600).
+export async function writeJson(path: string, value: unknown, fallbackMode = 0o600): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  const mode = await stat(path).then((st) => st.mode & 0o777, () => fallbackMode);
+  const tmp = `${path}.${process.pid}.${Date.now()}.tmp`;
+  await writeFile(tmp, JSON.stringify(value, null, 2) + '\n', { encoding: 'utf8', mode });
+  await rename(tmp, path);
+}
+
+const unreadable = (path: string, e: unknown) =>
+  ({ ok: false, message: `não consegui ler ${path} (${(e as Error).message}); nada foi gravado` });
 
 // --- env/tokens gerenciados -------------------------------------------------
 // Persistidos em ~/.deck-agent/env.json e injetados no spawn do claude
@@ -90,9 +108,19 @@ function nonEmptyFile(path: string): boolean {
   try { return statSync(path).size > 0; } catch { return false; }
 }
 
+// Names that change how every spawned process loads code or where it sends the
+// OAuth bearer. On the owner's loopback box that is already allowed, but from a
+// remote (dial-mode) admin it is RCE / token exfiltration, same class as cli-install.
+const REMOTE_DENIED_ENV = /^(LD_|DYLD_|NODE_|BASH_ENV$|ENV$|PATH$|HOME$|SHELL$|ANTHROPIC_BASE_URL$|CLAUDE_|GIT_|PYTHON|PERL|RUBY|.*_PROXY$|COCKPIT_|DECK_|DFL_)/i;
+
+export function envNameAllowedRemotely(name: string): boolean {
+  return !REMOTE_DENIED_ENV.test(name);
+}
+
 export async function setEnv(name: string, value: string): Promise<{ ok: boolean; message: string }> {
   if (!ENV_NAME_RE.test(name)) return { ok: false, message: 'nome de env inválido' };
-  const env = await managedEnv();
+  let env: Record<string, string>;
+  try { env = await readJsonForWrite<Record<string, string>>(ENV_FILE, {}); } catch (e) { return unreadable(ENV_FILE, e); }
   env[name] = value;
   await writeJson(ENV_FILE, env);
   cache[name] = value;
@@ -101,7 +129,8 @@ export async function setEnv(name: string, value: string): Promise<{ ok: boolean
 }
 
 export async function unsetEnv(name: string): Promise<{ ok: boolean; message: string }> {
-  const env = await managedEnv();
+  let env: Record<string, string>;
+  try { env = await readJsonForWrite<Record<string, string>>(ENV_FILE, {}); } catch (e) { return unreadable(ENV_FILE, e); }
   if (!(name in env)) return { ok: false, message: `${name} não existe` };
   delete env[name];
   await writeJson(ENV_FILE, env);
@@ -133,7 +162,8 @@ export function validateMcpUrl(raw: string): { ok: boolean; message: string } {
 
 export async function addMcp(name: string, opts: { command?: string; url?: string }): Promise<{ ok: boolean; message: string }> {
   if (!name.trim()) return { ok: false, message: 'nome do MCP vazio' };
-  const j = await readJson<ClaudeJson>(CLAUDE_JSON, {});
+  let j: ClaudeJson;
+  try { j = await readJsonForWrite<ClaudeJson>(CLAUDE_JSON, {}); } catch (e) { return unreadable(CLAUDE_JSON, e); }
   const servers = (j.mcpServers ??= {});
   if (opts.url) {
     const v = validateMcpUrl(opts.url);
@@ -150,7 +180,8 @@ export async function addMcp(name: string, opts: { command?: string; url?: strin
 }
 
 export async function removeMcp(name: string): Promise<{ ok: boolean; message: string }> {
-  const j = await readJson<ClaudeJson>(CLAUDE_JSON, {});
+  let j: ClaudeJson;
+  try { j = await readJsonForWrite<ClaudeJson>(CLAUDE_JSON, {}); } catch (e) { return unreadable(CLAUDE_JSON, e); }
   if (!j.mcpServers || !(name in j.mcpServers)) return { ok: false, message: `MCP ${name} não existe` };
   delete j.mcpServers[name];
   await writeJson(CLAUDE_JSON, j);

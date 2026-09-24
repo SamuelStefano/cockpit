@@ -27,7 +27,7 @@ import { usageStats, lastUsageOf } from '../db';
 import { hideSession, unhideSession, purgeSession, setTitle, setNote } from '../store';
 import { parseSession, parseFullSession } from '../sessions/parse';
 import { collectHealth } from '../health';
-import { setEnv, unsetEnv, addMcp, removeMcp, installCli } from '../admin-ops';
+import { setEnv, unsetEnv, addMcp, removeMcp, installCli, envNameAllowedRemotely } from '../admin-ops';
 import { updateClaudeCli, restartDeck } from '../deck-ops';
 import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
@@ -830,6 +830,10 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     // Admin write-ops (#162). authorize() já garante role admin (default-deny);
     // re-emite health depois de cada escrita p/ a UI refletir na hora.
     case 'admin-env-set': {
+      if (!CONFIG.localOnly && !envNameAllowedRemotely(msg.name)) {
+        send(ws, { t: 'admin-op', ok: false, message: `${msg.name} só no loopback` });
+        return;
+      }
       const r = await setEnv(msg.name, msg.value);
       send(ws, { t: 'admin-op', ok: r.ok, message: r.message });
       send(ws, { t: 'health', health: await collectHealth() });
