@@ -6,7 +6,8 @@ export interface Harness {
   harnessTasks: HarnessTaskView[];
   harnessEvents: Record<string, HarnessEvent[]>;
   onHarnessGet: () => void;
-  onHarnessRun: (prompt: string, model: HarnessModelChoice, context: HarnessContext) => void;
+  // False when the frame didn't go out (socket down): the composer keeps the prompt.
+  onHarnessRun: (prompt: string, model: HarnessModelChoice, context: HarnessContext) => boolean;
   onMsg: (msg: ServerMsg) => boolean;
 }
 
@@ -40,7 +41,7 @@ export function useHarness(send: (m: ClientMsg) => boolean): Harness {
     harnessTasks,
     harnessEvents,
     onHarnessGet: useCallback(() => { send({ t: 'harness-get' }); }, [send]),
-    onHarnessRun: useCallback((prompt: string, model: HarnessModelChoice, context: HarnessContext) => { send({ t: 'harness-run', prompt, model, context }); }, [send]),
+    onHarnessRun: useCallback((prompt: string, model: HarnessModelChoice, context: HarnessContext) => send({ t: 'harness-run', prompt, model, context }), [send]),
     onMsg,
   };
 }

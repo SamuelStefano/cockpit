@@ -4,7 +4,7 @@ import type { HarnessConfig, HarnessContext, HarnessEvent, HarnessModelChoice, H
 import { HarnessComposer } from './harness/HarnessComposer';
 import { HarnessFeed } from './harness/HarnessFeed';
 import { HarnessHistory } from './harness/HarnessHistory';
-import type { useHarnessDraft } from './harness/useHarnessDraft';
+import { useHarnessDraft } from './harness/useHarnessDraft';
 
 interface Props {
   connected: boolean;
@@ -12,7 +12,7 @@ interface Props {
   tasks: HarnessTaskView[];
   events: Record<string, HarnessEvent[]>;
   onHarnessGet: () => void;
-  onHarnessRun: (prompt: string, model: HarnessModelChoice, context: HarnessContext) => void;
+  onHarnessRun: (prompt: string, model: HarnessModelChoice, context: HarnessContext) => boolean;
 }
 
 export function Harness(p: Props) {
@@ -21,9 +21,10 @@ export function Harness(p: Props) {
   const active = p.tasks[0] ?? null;
   const running = active?.status === 'running';
 
-  const handleRun = (prompt: string, d: ReturnType<typeof useHarnessDraft>) => {
-    p.onHarnessRun(prompt, d.choice, d.context);
-  };
+  // Lives here, not in the composer: the composer unmounts while disconnected, and
+  // a relay blip used to erase the prompt being written.
+  const draft = useHarnessDraft(p.config);
+  const handleRun = (prompt: string, d: ReturnType<typeof useHarnessDraft>) => p.onHarnessRun(prompt, d.choice, d.context);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-neutral-950">
@@ -40,7 +41,7 @@ export function Harness(p: Props) {
         <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto grid max-w-5xl grid-cols-1 gap-4 p-4 lg:grid-cols-[minmax(320px,380px)_1fr]">
             <div className="flex flex-col gap-3">
-              <HarnessComposer config={p.config} running={running} onRun={handleRun} />
+              <HarnessComposer config={p.config} draft={draft} running={running} onRun={handleRun} />
             </div>
             <div className="flex min-w-0 flex-col gap-4">
               <HarnessFeed task={active} events={active ? p.events[active.id] ?? [] : []} />

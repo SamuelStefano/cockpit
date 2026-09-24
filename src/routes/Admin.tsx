@@ -25,7 +25,7 @@ interface AdminProps {
   onSetAdmin: (accountId: string, admin: boolean) => void;
   isRoot: boolean; // só root concede/revoga admin
   adminOp: { ok: boolean; message: string } | null;
-  onEnvSet: (name: string, value: string) => void;
+  onEnvSet: (name: string, value: string) => boolean;
   onEnvUnset: (name: string) => void;
   onMcpAdd: (name: string, opts: { command?: string; url?: string }) => void;
   onMcpRemove: (name: string) => void;
