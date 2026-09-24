@@ -56,7 +56,7 @@ export function SessionRowBadges({ id, relative, stamp, status, pinned, marathon
           <button
             onClick={(e) => { e.stopPropagation(); setTagging(!tagging); }}
             title="Adicionar etiqueta"
-            className={`block rounded-sm p-1.5 text-neutral-600 transition hover:bg-neutral-800 hover:text-sky-300 sm:p-0.5 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 ${tokens.touchBox}`}
+            className={`block rounded-sm p-1.5 text-neutral-600 transition hover:bg-neutral-800 hover:text-sky-300 sm:p-0.5 sm:pointer-fine:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 ${tokens.touchBox}`}
           >
             <Icon name="tag" size={12} />
           </button>

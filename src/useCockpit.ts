@@ -1825,11 +1825,10 @@ export function useCockpit(): Cockpit {
       return [...prev.slice(0, idx), { ...prev[idx], text: clean, triage: undefined, ts: Date.now() }];
     });
     setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: clean, relative: 'agora', mtime: Date.now(), waiting: false } : s)));
-    const bypassWire = capsRef.current?.canBypass && bypassRef.current ? true : undefined;
-    const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
-    const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: clean, msgId, mode: modeRef.current, model: pinSessionModel(key), bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
-  }, [send, updateThread, onStop, pinSessionModel]);
+    // Same wire as a normal send: building it by hand here left out `effort`, so
+    // every edit-and-resend ran at the account default (high) instead of the pick.
+    send(buildSendWire(key, resumeId.current[key], clean, msgId));
+  }, [send, updateThread, onStop, buildSendWire]);
 
   // Marca de maratona: o servidor é a fonte (ele é quem aplica os tetos), mas o
   // set local muda na hora pra o menu não piscar esperando o broadcast.
