@@ -12,8 +12,8 @@ export function SkillModal({ doc, onClose }: { doc: SkillDoc; onClose: () => voi
       actions={
         <>
           <CopyDocAction text={doc.body} />
-          <DocAction label=".md" icon="download" onClick={() => download(`${doc.id}.md`, 'text/markdown', doc.body)} />
-          <DocAction label=".json" icon="download" onClick={() => download(`${doc.id}.json`, 'application/json', JSON.stringify({ id: doc.id, name: doc.name, body: doc.body }, null, 2))} />
+          <DocAction label=".md" icon="download" textOnPhone onClick={() => download(`${doc.id}.md`, 'text/markdown', doc.body)} />
+          <DocAction label=".json" icon="download" textOnPhone onClick={() => download(`${doc.id}.json`, 'application/json', JSON.stringify({ id: doc.id, name: doc.name, body: doc.body }, null, 2))} />
         </>
       }
       body={doc.body}
