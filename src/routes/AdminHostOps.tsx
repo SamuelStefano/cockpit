@@ -24,12 +24,16 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
   const [mcpName, setMcpName] = useState('');
   const [mcpTarget, setMcpTarget] = useState('');
   const [pending, setPending] = useState<{ kind: 'env' | 'mcp'; name: string } | null>(null);
+  // Saving over an existing token or MCP asks first: the old token value can never
+  // be read back, so a silent overwrite is unrecoverable.
+  const [replacing, setReplacing] = useState<{ kind: 'env' | 'mcp'; name: string; run: () => void } | null>(null);
   const [installing, setInstalling] = useState<string | null>(null);
 
   // Instalar CLI demora (npm install -g); sem isto o botão aceitava double-click
   // e disparava 2 instalações. O backend sempre responde com adminOp (ok ou erro),
   // então a chegada de qualquer resultado rearma o botão.
-  useEffect(() => { setInstalling(null); }, [adminOp]);
+  // Only a result releases it (see useDeckUpdate): the auto-reset to null is not one.
+  useEffect(() => { if (adminOp) setInstalling(null); }, [adminOp]);
 
   // Backstop: se o WS cair no meio do npm install, o admin-op nunca chega e os
   // botões ficariam presos em loading. 3min cobre a instalação mais lenta.
@@ -47,15 +51,20 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
   };
 
   const addEnv = () => {
-    if (!envName.trim() || !envValue) return;
-    onEnvSet(envName.trim(), envValue);
-    setEnvName(''); setEnvValue('');
+    const name = envName.trim();
+    if (!name || !envValue) return;
+    const run = () => { onEnvSet(name, envValue); setEnvName(''); setEnvValue(''); };
+    if ((health?.envTokens ?? []).includes(name)) setReplacing({ kind: 'env', name, run });
+    else run();
   };
   const addMcp = () => {
+    const name = mcpName.trim();
     const t = mcpTarget.trim();
-    if (!mcpName.trim() || !t) return;
-    onMcpAdd(mcpName.trim(), t.startsWith('http') ? { url: t } : { command: t });
-    setMcpName(''); setMcpTarget('');
+    if (!name || !t) return;
+    // A URL is http(s)://…; a command merely starting with "http" (httpie-mcp) is not.
+    const run = () => { onMcpAdd(name, /^https?:\/\//.test(t) ? { url: t } : { command: t }); setMcpName(''); setMcpTarget(''); };
+    if ((health?.mcp ?? []).some((m) => m.name === name)) setReplacing({ kind: 'mcp', name, run });
+    else run();
   };
 
   const tokens = health?.envTokens ?? [];
@@ -124,6 +133,19 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
         </>
       )}
 
+      {replacing && (
+        <AdminConfirm
+          heading={replacing.kind === 'env' ? 'Substituir token?' : 'Substituir MCP?'}
+          icon="alertTriangle"
+          tone="accent"
+          cta="Substituir"
+          body={replacing.kind === 'env'
+            ? <>O token <span className="font-mono text-neutral-200">{replacing.name}</span> já existe. O valor atual não pode ser recuperado depois.</>
+            : <>Já existe um servidor MCP <span className="font-mono text-neutral-200">{replacing.name}</span>. A definição atual será trocada.</>}
+          onConfirm={() => { replacing.run(); setReplacing(null); }}
+          onCancel={() => setReplacing(null)}
+        />
+      )}
       {pending && (
         <AdminConfirm
           heading={pending.kind === 'env' ? 'Remover token?' : 'Remover MCP?'}
