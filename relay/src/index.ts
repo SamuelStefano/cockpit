@@ -57,6 +57,8 @@ const tokenFromUrl = (url: string | undefined): string | null => {
 
 interface AgentState { agentId: string; accountId: string; challenge: string; authed: boolean }
 
+const MAX_TIMER_MS = 2 ** 31 - 1;
+
 export function createRelay(cfg: RelayConfig) {
   // O stub de identidade desliga a verificação de JWT inteira. Só o main.ts sobe em
   // produção e ele nunca passa isto — mas uma linha errada num refactor abriria o
@@ -191,7 +193,9 @@ export function createRelay(cfg: RelayConfig) {
     (ws as BrowserSock)._role = id.role;                     // pra reemitir caps no agent-caps
     // Close at the JWT's expiry with a non-4401 code: the client redials with its
     // (refreshed) token; an expired/revoked one then gets 4401.
-    if (id.expMs !== undefined) {
+    // Delays past 2^31-1 ms (~24.8 days) make setTimeout fire at once: a long-lived
+    // token would be closed immediately, in a loop. Such a token gets no timer.
+    if (id.expMs !== undefined && id.expMs - nowMs() <= MAX_TIMER_MS) {
       const expTimer = setTimeout(() => { try { ws.close(4001, 'token expired'); } catch { /* indo */ } }, Math.max(0, id.expMs - nowMs()));
       expTimer.unref?.();
       ws.on('close', () => clearTimeout(expTimer));
