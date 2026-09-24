@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { Button, Icon } from './primitives';
 import { usePersisted } from '../lib/persist';
 import { SHOW_SESSION_DESC_KEY, showSessionDescDefault } from '../lib/prefs';
@@ -50,7 +50,7 @@ export interface SessionsPanelProps {
   funnelBusy?: boolean;
 }
 
-export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, marathon, onToggleMarathon, onRename, onDescribe, onClose, onDelete, onStop, archived = [], onUnhide, onCloseMobile, usage = {}, usageModel = {}, cost = {}, running, stalled, updated, runStart = {}, searchResults = [], onSearch, userId, onFunnel, funnelBusy }: SessionsPanelProps) {
+function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marathon, onToggleMarathon, onRename, onDescribe, onClose, onDelete, onStop, archived = [], onUnhide, onCloseMobile, usage = {}, usageModel = {}, cost = {}, running, stalled, updated, runStart = {}, searchResults = [], onSearch, userId, onFunnel, funnelBusy }: SessionsPanelProps) {
   const {
     query, setQuery, confirmId, setConfirmId, deleteId, setDeleteId, pinned, togglePin,
     tagMap, tagFilter, setTagFilter, addTag, removeTag, allTags, dismissedWaiting, dismissWaiting, searchRef, filtered,
@@ -166,3 +166,8 @@ export function SessionsPanel({ sessions, loading, activeId, onSelect, onNew, ma
     </div>
   );
 }
+
+// Memoized: App re-renders on every streamed delta, keystroke and 2 s stats frame,
+// and none of those touch the sidebar's props (useCockpit.sidebar-stable.test.ts
+// pins that). Re-rendering hundreds of rows each time cost ~8 ms per frame.
+export const SessionsPanel = memo(SessionsPanelImpl);
