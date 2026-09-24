@@ -107,7 +107,7 @@ $(tail -n 60 "$AGENT_LOG" 2>/dev/null)
 
 Cada linha de <incidentes> é um turno de chat que falhou. Sua tarefa:
 1. Diagnostique a CAUSA RAIZ lendo o código relevante (server/ws/runs.ts, server/engine/claude.ts, server/ws/translate.ts) e os logs. Não chute.
-2. Se — e somente se — houver uma correção pequena, segura e claramente certa: crie uma branch fix/incidente-<slug>, aplique, rode 'npx tsc --noEmit' e 'npx vitest run', e commite ('fix: descrição' em português, uma linha, sem trailers). PARE aí: não pushe e não abra PR — quem publica é o script que te chamou.
+2. Se — e somente se — houver uma correção pequena, segura e claramente certa: crie uma branch fix/incidente-<slug>, aplique e commite ('fix: descrição' em português, uma linha, sem trailers). PARE aí: não pushe e não abra PR — quem publica é o script que te chamou, e o CI da PR roda tsc e testes.
 3. Se a causa for externa (quota, API da Anthropic fora, rede) ou o fix não for óbvio: NÃO mexa no código, fique na main e explique. Sua saída já é gravada no log do triador.
 
 Você roda com uma allowlist de ferramentas: reiniciar processo, pushar e abrir PR não estão ao seu alcance, e tentar não vai funcionar. Não gaste turno procurando volta — se algo que você precisa está bloqueado, diga qual e pare.
@@ -121,12 +121,14 @@ echo "$total" >"$STATE"
 
 cd "$REPO" || exit 0
 
-# O que o triador precisa pra diagnosticar e propor: ler, editar e validar. Nada além.
+# O que o triador precisa pra diagnosticar e propor: ler e editar. Nada que EXECUTE
+# código: o prompt carrega stderr/log não confiáveis, e com Write + `npx vitest` uma
+# injeção escrevia um *.test.ts com execSync e o rodava como samuel — por cima da
+# deny list, com acesso às chaves da máquina. tsc e testes rodam no CI da PR.
 ALLOW=(
   Read Grep Glob Edit Write
   "Bash(git status:*)" "Bash(git diff:*)" "Bash(git log:*)" "Bash(git show:*)"
   "Bash(git checkout -b:*)" "Bash(git add:*)" "Bash(git commit:*)"
-  "Bash(npx tsc:*)" "Bash(npx vitest:*)"
 )
 # Cinto e suspensório. A allowlist acima já é default-deny, mas ela CONVIVE com as
 # regras de `permissions.allow` dos settings — e as do Samuel crescem sozinhas toda vez
@@ -135,6 +137,7 @@ ALLOW=(
 # ficam aqui, escritos como negação e não como pedido no prompt.
 DENY=(
   "Bash(git push:*)" "Bash(gh:*)"
+  "Bash(npx:*)" "Bash(npm:*)" "Bash(node:*)" "Bash(tsx:*)" "Bash(bash:*)" "Bash(sh:*)"
   "Bash(kill:*)" "Bash(pkill:*)" "Bash(killall:*)"
   "Bash(scripts/redeploy.sh:*)" "Bash(./scripts/redeploy.sh:*)"
 )

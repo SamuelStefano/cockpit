@@ -137,6 +137,16 @@ describe('incident-ai: o triador não recebe bypass', () => {
     }
   });
 
+  it('nothing on the allowlist runs code; runners are denied outright', () => {
+    run();
+    const argv = readFileSync(argvFile, 'utf8').split('\n');
+    const i = argv.indexOf('--allowedTools');
+    const j = argv.indexOf('--disallowedTools');
+    const allowed = argv.slice(i + 1, j);
+    expect(allowed.filter((t) => /\b(npx|npm|node|tsx|vitest|tsc)\b|^Bash\((ba)?sh\b/.test(t))).toEqual([]);
+    for (const t of ['Bash(npx:*)', 'Bash(node:*)']) expect(argv.slice(j + 1)).toContain(t);
+  });
+
   it('não põe push nem gh na allowlist', () => {
     run();
     const allow = readFileSync(argvFile, 'utf8').split('\n');
