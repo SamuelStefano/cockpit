@@ -28,12 +28,22 @@ describe('terminal handler on the relay agent (one socket for every tab)', () =>
     expect(replays().map((c) => (c[1] as { data: string }).data)).toEqual(['first paint', 'screen now']);
   });
 
-  it("one tab's detach does not cut the other tabs off", () => {
+  it("one tab's detach does not cut the other tab off; the last one releases the listener", () => {
+    const my = new Map<string, TermHandle>();
+    handleTerm(ws, open as never, my, true); // laptop
+    handleTerm(ws, open as never, my, true); // phone
+    handleTerm(ws, { t: 'term-detach', termId: 'main' } as never, my, true);
+    expect(terms.detachTerm).not.toHaveBeenCalled();
+    handleTerm(ws, { t: 'term-detach', termId: 'main' } as never, my, true);
+    expect(terms.detachTerm).toHaveBeenCalledOnce();
+    expect(my.has('main')).toBe(false);
+  });
+
+  it('a single tab closing its window releases the terminal (reaper, cap and eviction keep working)', () => {
     const my = new Map<string, TermHandle>();
     handleTerm(ws, open as never, my, true);
     handleTerm(ws, { t: 'term-detach', termId: 'main' } as never, my, true);
-    expect(terms.detachTerm).not.toHaveBeenCalled();
-    expect(my.has('main')).toBe(true);
+    expect(terms.detachTerm).toHaveBeenCalledOnce();
   });
 
   it('a per-tab socket (listen mode) still detaches', () => {
