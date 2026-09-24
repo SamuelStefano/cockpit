@@ -46,4 +46,21 @@ describe('buildPastedSend', () => {
   it('wraps text in bracketed paste and submits with a carriage return', () => {
     expect(buildPastedSend('line1\nline2')).toBe('\x1b[200~line1\nline2\x1b[201~\r');
   });
+
+  // Regression pin for the "multi-line⏎segunda linha arrived as
+  // multi-linesegunda linha" report: embedded newlines must survive AS `\n`
+  // (not get collapsed/converted) inside the paste block, one per Shift+Enter
+  // in the composer, with a SINGLE trailing `\r` to submit. Verified live
+  // against a real node-pty + tmux + `claude` CLI (throwaway session,
+  // 2026-09-24): this exact wire format reproduces as two separate lines in
+  // the transcript, not one concatenated line — the wire format itself isn't
+  // where a newline gets lost, so watch inputTerm/stripReports (server/
+  // terminals.ts) first if this regresses.
+  it('preserves every embedded newline (multi-line paste), unconverted', () => {
+    const sent = buildPastedSend('multi-line\nsegunda linha\nterceira linha');
+    expect(sent).toBe('\x1b[200~multi-line\nsegunda linha\nterceira linha\x1b[201~\r');
+    const inner = sent.slice('\x1b[200~'.length, sent.length - '\x1b[201~\r'.length);
+    expect(inner.split('\n')).toEqual(['multi-line', 'segunda linha', 'terceira linha']);
+    expect(sent.match(/\r/g)).toHaveLength(1); // exactly one Enter, at the end
+  });
 });

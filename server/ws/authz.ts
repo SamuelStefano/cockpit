@@ -18,6 +18,9 @@ const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   'send', 'stop', 'ping', 'list', 'sync', 'open', 'open-full', 'search',
   'ctx-list', 'ctx-open', 'skill-list', 'skill-open', 'usage-list', 'upload-chunk', 'att-open',
   'refresh-models', 'points-get', 'plan-usage-get',
+  // Read-only identity, not the admin-gated canvas-get graph build — needed
+  // for the normal chat view's "this is the Orchestrator" banner.
+  'orchestrator-get',
   'queue-add', 'queue-remove', 'queue-edit', 'queue-move', 'queue-clear', 'queue-get', 'queue-set-paused',
   // Só antecipa um item que o próprio student enfileirou: o dispatch passa o role
   // adiante e takeParked recusa item de admin (herdaria bypass).

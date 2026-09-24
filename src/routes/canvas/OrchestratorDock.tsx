@@ -1,11 +1,14 @@
 import { lazy, Suspense } from 'react';
-import type { OrchestratorInfo, TermStats } from '../../../shared/canvas';
+import type { OrchestratorActivity, OrchestratorInfo, TermStats } from '../../../shared/canvas';
 import { Badge, Button, Icon } from '../../components/primitives';
+import { usePersisted } from '../../lib/persist';
 import type { TermApi } from '../../useCockpit';
+import { OrchestratorActivityPanel } from './OrchestratorActivityPanel';
 import { OrchestratorChatInput } from './OrchestratorChatInput';
 import { buildPastedSend } from './orchestrator-chat-history';
 import { orchestratorRunning } from './orchestrator-dock';
 import { orchestratorTermId } from './orchestrator';
+import { useOrchestratorActivityPoll } from './useOrchestratorActivityPoll';
 import type { OrchestratorDock as DockState } from './useOrchestratorDock';
 
 const XtermView = lazy(() => import('../../components/Xterm').then((m) => ({ default: m.XtermView })));
@@ -15,15 +18,20 @@ interface Props {
   dock: DockState;
   term: TermApi;
   stats?: TermStats;
+  activity: OrchestratorActivity | null;
+  onActivityGet: () => void;
+  onOpenShell: (termId: string) => void;
 }
 
 // The Orchestrator docked into a right sidebar: same live tmux pane the
 // floating window would show (reused, not a second terminal stack), plus a
 // composer that types straight into that pane.
-export function OrchestratorDock({ orchestrator, dock, term, stats }: Props) {
+export function OrchestratorDock({ orchestrator, dock, term, stats, activity, onActivityGet, onOpenShell }: Props) {
   const termId = orchestratorTermId(orchestrator);
   const running = orchestratorRunning(stats);
   const sheet = dock.mobile;
+  const [activityOpen, setActivityOpen] = usePersisted('canvas.orchestratorActivityOpen', false);
+  useOrchestratorActivityPoll(activityOpen, onActivityGet);
 
   return (
     <div
@@ -48,6 +56,7 @@ export function OrchestratorDock({ orchestrator, dock, term, stats }: Props) {
         <Badge tone={running ? 'green' : 'neutral'}>{running ? 'rodando' : 'ocioso'}</Badge>
         <Button variant="ghost" size="sm" square icon="x" title="fechar (Ctrl+.)" onClick={() => dock.setOpen(false)} />
       </header>
+      <OrchestratorActivityPanel activity={activity} open={activityOpen} onToggle={() => setActivityOpen((o) => !o)} onOpenShell={onOpenShell} />
       <div className="relative min-h-0 flex-1" data-term-active>
         <Suspense fallback={<div className="flex h-full items-center justify-center font-mono text-[12px] text-neutral-600">abrindo terminal…</div>}>
           <XtermView id={termId} term={term} autoFocus={false} />

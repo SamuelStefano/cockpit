@@ -53,3 +53,40 @@ describe('useCanvasTerms — resumedLive double-writer guard', () => {
     expect(result.current.resumedLive.has('sess-1')).toBe(true);
   });
 });
+
+describe('useCanvasTerms — never a `w-` follower window for the Orchestrator\'s own session', () => {
+  const orchestratorSessionId = 'orch-sid';
+
+  it('openWindow refuses the Orchestrator session node id', () => {
+    const { result } = renderHook(() => useCanvasTerms(term, [], vi.fn(), orchestratorSessionId));
+    act(() => result.current.openWindow(`s:${orchestratorSessionId}`));
+    expect(result.current.open).not.toContain(`s:${orchestratorSessionId}`);
+  });
+
+  it('openMany drops it while keeping every other requested id', () => {
+    const { result } = renderHook(() => useCanvasTerms(term, [], vi.fn(), orchestratorSessionId));
+    act(() => result.current.openMany([`s:${orchestratorSessionId}`, 's:other']));
+    expect(result.current.open).toContain('s:other');
+    expect(result.current.open).not.toContain(`s:${orchestratorSessionId}`);
+  });
+
+  it('autoOpen (running-session auto-open) drops it too', () => {
+    const { result } = renderHook(() => useCanvasTerms(term, [], vi.fn(), orchestratorSessionId));
+    act(() => result.current.autoOpen([`s:${orchestratorSessionId}`, 's:other']));
+    expect(result.current.open).toContain('s:other');
+    expect(result.current.open).not.toContain(`s:${orchestratorSessionId}`);
+  });
+
+  it('a stale persisted entry (from before this exclusion existed) is filtered out of `open` on mount', () => {
+    localStorage.setItem('cockpit:canvas.openTerms', JSON.stringify([`s:${orchestratorSessionId}`, 's:other']));
+    const { result } = renderHook(() => useCanvasTerms(term, [], vi.fn(), orchestratorSessionId));
+    expect(result.current.open).toContain('s:other');
+    expect(result.current.open).not.toContain(`s:${orchestratorSessionId}`);
+  });
+
+  it('without an orchestratorSessionId, nothing is excluded (existing behavior unchanged)', () => {
+    const { result } = renderHook(() => useCanvasTerms(term, [], vi.fn()));
+    act(() => result.current.openWindow(`s:${orchestratorSessionId}`));
+    expect(result.current.open).toContain(`s:${orchestratorSessionId}`);
+  });
+});

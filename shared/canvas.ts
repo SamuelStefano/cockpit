@@ -174,6 +174,35 @@ export function buildPastedSend(text: string): string {
   return `\x1b[200~${text}\x1b[201~\r`;
 }
 
+// One row in the dock's "Em andamento" panel for a task the Orchestrator
+// delegated into a tmux shell it isn't sitting in (server/canvas/
+// orchestrator-activity.ts). Written by hand, one task = two files:
+// `<name>.prompt.md` before the delegate starts, `<name>.report.md` once
+// it's done — only the prompt file present means still running.
+export interface DelegatedShell {
+  name: string;
+  status: 'running' | 'reported';
+  promptPreview?: string;
+  reportPreview?: string;
+  tmuxAlive: boolean;
+  // mtime of `<name>.prompt.md`, ms — a proxy for "since delegated" (there's
+  // no explicit start timestamp in the file itself). Absent if the prompt
+  // file's stat couldn't be read.
+  startedAt?: number;
+}
+
+export interface OrchestratorActivity {
+  // Task/Agent subagents the Orchestrator's own turn launched, still running
+  // (server/ws/bg-agents.ts's BgAgent, reused as-is — same on-disk shape
+  // regardless of who started the session).
+  subagents: { id: string; label: string; startedAt: number; tokens: number; status: 'running' | 'done' | 'failed'; durationMs: number }[];
+  delegatedShells: DelegatedShell[];
+  // Other live `cockpit-cv-*` tmux ids, not the Orchestrator's own and not
+  // already accounted for by a delegatedShells entry — an ad-hoc shell
+  // opened by hand from the canvas, with no prompt/report on record.
+  rawShells: string[];
+}
+
 export interface CanvasGraph {
   nodes: CanvasNode[];
   edges: CanvasEdge[];

@@ -1446,10 +1446,17 @@ describe('startRun / routeSend — twin-process guard on the Orchestrator pane',
     vi.mocked(broadcast).mockClear();
   });
 
+  it('never delivers into the pane for a non-admin role', () => {
+    vi.mocked(readOrchestratorSync).mockReturnValue(orch);
+    vi.mocked(isTmuxAliveSync).mockReturnValue(true);
+    expect(deliverToOrchestratorPane('orch-sid', 'oi', 'student')).toBe(false);
+    expect(inputTerm).not.toHaveBeenCalled();
+  });
+
   it('delivers into the pane instead of spawning a headless twin when the target IS the live Orchestrator session', () => {
     vi.mocked(readOrchestratorSync).mockReturnValue(orch);
     vi.mocked(isTmuxAliveSync).mockReturnValue(true);
-    startRun({ ws, sessionKey: 'orch-sid', prompt: 'oi', resumeId: 'orch-sid', msgId: 'm1' });
+    startRun({ ws, role: 'admin', sessionKey: 'orch-sid', prompt: 'oi', resumeId: 'orch-sid', msgId: 'm1' });
     expect(run).not.toHaveBeenCalled();
     expect(threads.has('orch-sid')).toBe(false);
     expect(openTerm).toHaveBeenCalledWith('cv-abc', 120, 40, expect.any(Function), expect.any(Function), expect.any(Function));
@@ -1461,7 +1468,7 @@ describe('startRun / routeSend — twin-process guard on the Orchestrator pane',
     vi.mocked(readOrchestratorSync).mockReturnValue(orch);
     vi.mocked(isTmuxAliveSync).mockReturnValue(true);
     vi.mocked(hasTerm).mockReturnValue(true);
-    startRun({ ws, sessionKey: 'orch-sid', prompt: 'oi', resumeId: 'orch-sid' });
+    startRun({ ws, role: 'admin', sessionKey: 'orch-sid', prompt: 'oi', resumeId: 'orch-sid' });
     expect(openTerm).not.toHaveBeenCalled();
     expect(inputTerm).toHaveBeenCalledOnce();
   });
@@ -1469,7 +1476,7 @@ describe('startRun / routeSend — twin-process guard on the Orchestrator pane',
   it('falls through to a normal run when the tmux session is dead', () => {
     vi.mocked(readOrchestratorSync).mockReturnValue(orch);
     vi.mocked(isTmuxAliveSync).mockReturnValue(false);
-    startRun({ ws, sessionKey: 'orch-sid', prompt: 'oi', resumeId: 'orch-sid' });
+    startRun({ ws, role: 'admin', sessionKey: 'orch-sid', prompt: 'oi', resumeId: 'orch-sid' });
     expect(run).toHaveBeenCalledOnce();
     expect(inputTerm).not.toHaveBeenCalled();
   });
@@ -1486,7 +1493,7 @@ describe('startRun / routeSend — twin-process guard on the Orchestrator pane',
     vi.mocked(readOrchestratorSync).mockReturnValue(orch);
     vi.mocked(isTmuxAliveSync).mockReturnValue(true);
     threads.set('orch-sid', { handle: { kill: vi.fn(), send: vi.fn(() => false) }, params: {}, prompt: 'p', startedAt: Date.now(), text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set() } as any);
-    routeSend({ ws, sessionKey: 'orch-sid', prompt: 'oi de novo', resumeId: 'orch-sid', msgId: 'm2' });
+    routeSend({ ws, role: 'admin', sessionKey: 'orch-sid', prompt: 'oi de novo', resumeId: 'orch-sid', msgId: 'm2' });
     expect(inputTerm).toHaveBeenCalledWith('cv-abc', '\x1b[200~oi de novo\x1b[201~\r');
   });
 
