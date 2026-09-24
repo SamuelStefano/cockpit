@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from 'vitest';
+import { useState } from 'react';
 import { render, cleanup, screen, fireEvent } from '@testing-library/react';
 import { ChatTopics } from './ChatTopics';
 
@@ -50,5 +51,21 @@ describe('ChatTopics', () => {
     setOpen.mockClear();
     fireEvent.mouseDown(document.body);
     expect(setOpen).toHaveBeenLastCalledWith(false);
+  });
+
+  it('a tap opens the list: the emulated mouseenter before the click does not toggle it shut', () => {
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return <ChatTopics topics={topics} activeId="u1" open={open} setOpen={setOpen} onJump={() => {}} />;
+    }
+    render(<Harness />);
+    const rail = screen.getByLabelText(/Tópicos da conversa/);
+    // touch tap sequence: pointer events (touch), then the compat mouse events, then click
+    fireEvent.pointerEnter(rail, { pointerType: 'touch' });
+    fireEvent.mouseEnter(rail);
+    fireEvent.mouseOver(rail);
+    fireEvent.click(rail);
+    expect(rail.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('navigation')).toBeTruthy();
   });
 });
