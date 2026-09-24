@@ -1,8 +1,12 @@
 import { Icon, type IconName } from '../primitives';
 import { ClaudeAvatar } from '../ClaudeAvatar';
+import { isVirtualKeyboardOnly } from './touch';
 
 interface ChatEmptyProps {
   onPrompt: (text: string) => void;
+  // Phone: a tap while scrolling fired a real agent turn ("Mostra o estado da
+  // VPS" runs commands). There the card fills the composer instead.
+  onSeed?: (text: string) => void;
 }
 
 // Grid de tópicos estilo ChatGPT: cards categorizados com ícone, em vez de lista
@@ -15,7 +19,8 @@ const TOPICS: { icon: IconName; label: string; prompt: string }[] = [
   { icon: 'sparkles', label: 'Análise', prompt: 'Analisa os logs recentes e resume o que aconteceu' },
 ];
 
-export function ChatEmpty({ onPrompt }: ChatEmptyProps) {
+export function ChatEmpty({ onPrompt, onSeed }: ChatEmptyProps) {
+  const pick = (prompt: string) => (onSeed && isVirtualKeyboardOnly() ? onSeed(prompt) : onPrompt(prompt));
   return (
     <div className="relative flex h-full flex-col items-center justify-center overflow-hidden px-6 text-center">
       {/* Halo quente atrás do avatar dá atmosfera — sem isto o vazio ficava chapado. */}
@@ -32,7 +37,7 @@ export function ChatEmpty({ onPrompt }: ChatEmptyProps) {
         {TOPICS.map((t) => (
           <button
             key={t.label}
-            onClick={() => onPrompt(t.prompt)}
+            onClick={() => pick(t.prompt)}
             className="group relative flex flex-col gap-2 overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/50 p-3.5 text-left transition hover:-translate-y-0.5 hover:border-orange-500/40 hover:bg-neutral-900 hover:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.7)] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40"
           >
             <span className="flex items-center justify-between">

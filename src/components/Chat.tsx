@@ -85,7 +85,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
       <div className="relative flex min-h-0 flex-1 flex-col">
       <div ref={c.scrollRef} onScroll={c.onScroll} className="print-thread scroll-thin flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
         {c.isEmpty && phase === 'idle' ? (
-          <ChatEmpty onPrompt={onPrompt} />
+          <ChatEmpty onPrompt={onPrompt} onSeed={setDraft} />
         ) : (
           // role=log is polite-live: a reader hears new replies. aria-busy holds it
           // while tokens stream, so it reads the finished answer, not every delta.
