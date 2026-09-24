@@ -86,4 +86,16 @@ describe('KanbanDock', () => {
     );
     expect(getByText('1')).toBeTruthy();
   });
+
+  it('stays one line on a phone', () => {
+    const stale = Date.now() - KANBAN_STALE_MS - 60_000;
+    const { getByRole, getByText } = render(
+      <KanbanDock cards={[]} sessionItems={[sessionItem('old', 'review', stale)]} open={false} onToggle={() => {}}><div /></KanbanDock>,
+    );
+    const strip = getByRole('button');
+    expect(strip.className).toContain('whitespace-nowrap');
+    expect(strip.className).toContain('overflow-hidden');
+    expect(getByText(/antigos/).className).toMatch(/\bhidden\b.*\bsm:inline\b/);
+    expect(getByText('kanban').className).toMatch(/\bsr-only\b.*\bsm:not-sr-only\b/);
+  });
 });
