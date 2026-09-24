@@ -13,7 +13,14 @@ interface UseChatTopics {
 const node = (root: HTMLElement, id: string) => root.querySelector<HTMLElement>(`[data-mid="${CSS.escape(id)}"]`);
 
 export function useChatTopics(scrollRef: RefObject<HTMLDivElement | null>, messages: Message[]): UseChatTopics {
-  const topics = useMemo(() => chatTopics(messages), [messages]);
+  const computed = useMemo(() => chatTopics(messages), [messages]);
+  // `messages` changes on every streamed delta, but topics come from the user
+  // prompts only. Keep the same array while the topic list is unchanged, so the
+  // measuring effect below isn't torn down and re-run (a querySelector plus a
+  // layout read per topic) dozens of times a second while a turn streams.
+  const key = computed.map((t) => `${t.id}\u0000${t.title}`).join('\u0001');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const topics = useMemo(() => computed, [key]);
   const [active, setActive] = useState(0);
   const [open, setOpen] = useState(false);
 
