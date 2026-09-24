@@ -75,3 +75,23 @@ describe.skipIf(!hasTsx)('withFileLock entre processos', () => {
     expect((await raceChildren('raw')).size).toBeLessThan(expected);
   }, 60_000);
 });
+
+describe('withFileLockAsync with a slow holder', () => {
+  it('waits for a holder stalled past 0.5 s instead of writing over it unlocked', async () => {
+    const { mkdtempSync, writeFileSync, rmSync: rm, existsSync } = await import('node:fs');
+    const { join: j } = await import('node:path');
+    const { tmpdir: td } = await import('node:os');
+    const { withFileLockAsync } = await import('./file-lock');
+    const dir = mkdtempSync(j(td(), 'deck-lockwait-'));
+    const target = j(dir, 'board.json');
+    writeFileSync(`${target}.lock`, ''); // the other process holds it
+    setTimeout(() => rm(`${target}.lock`, { force: true }), 1500);
+    const t0 = Date.now();
+    let waited = 0;
+    let lockedWhileRunning = false;
+    await withFileLockAsync(target, async () => { waited = Date.now() - t0; lockedWhileRunning = existsSync(`${target}.lock`); });
+    rm(dir, { recursive: true, force: true });
+    expect(waited).toBeGreaterThanOrEqual(1400);
+    expect(lockedWhileRunning).toBe(true);
+  }, 10_000);
+});
