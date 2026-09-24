@@ -69,7 +69,10 @@ interface MeterProps {
 function Meter({ label, pct, detail }: MeterProps) {
   const c = meterTone(pct);
   return (
-    <div className="group relative flex items-center gap-1.5">
+    // The footer scrolls horizontally (overflow-x-auto), which clips anything
+    // drawn above it: the old hover bubble (absolute, bottom-full) never showed.
+    // A native title is not clipped, and the label carries it to screen readers.
+    <div role="group" aria-label={detail} title={detail} className="flex shrink-0 items-center gap-1.5">
       <span className="font-mono text-[10px] font-medium uppercase tracking-wide text-neutral-500">{label}</span>
       <span className="relative h-1.5 w-12 overflow-hidden rounded-full bg-neutral-800">
         <span
@@ -78,9 +81,6 @@ function Meter({ label, pct, detail }: MeterProps) {
         />
       </span>
       <span className="font-mono text-[10.5px] tabular-nums text-neutral-300">{Math.round(pct)}%</span>
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1 text-[10px] text-neutral-200 shadow-xl group-hover:block">
-        {detail}
-      </span>
     </div>
   );
 }
