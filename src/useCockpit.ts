@@ -4,7 +4,8 @@ import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, TurnS
 import { loadPref, savePref, setPref, usePrefListener } from './lib/persist';
 import { MODE_KEY, MODEL_KEY, EFFORT_KEY } from './lib/account-prefs';
 import { persistableModelOverrides } from './cockpit/model-overrides';
-import { SUPABASE_ENABLED } from './lib/supabase';
+import { SUPABASE_ENABLED, supabase } from './lib/supabase';
+import { onAuthClose, tokenUnchangedAndLive, RELAY_AUTH_RETRY_MS, shouldRefreshSession, dialOnTokenChange } from './cockpit/ws-auth';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
 import { wsUrlWithToken, newId, metaToSession, mergeServerSessions, adoptClaimedRow, dedupById, mergeSeen, isCronPing } from './cockpit/session';
 import { computeStalled, computeUpdated } from './cockpit/signals';
@@ -416,6 +417,9 @@ export function useCockpit(): Cockpit {
   const activeRef = useRef('');
   const sessionsRef = useRef<Session[]>([]);
   const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const authBackoffUntil = useRef(0); // relay 4401: no immediate redial before this
+  const rejectedToken = useRef(''); // the token the relay last answered 4401 to
+  const lastRelayRefresh = useRef(0);
   const retryDelay = useRef(1500); // backoff exponencial, reset no connect bem-sucedido
   const heartbeat = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastRecvAt = useRef(0); // ts do último frame recebido (QUALQUER tipo): alimenta o watchdog de socket meio-aberto
@@ -1424,9 +1428,24 @@ export function useCockpit(): Cockpit {
       setConn({ ws: 'down', sse: 'down' });
       failAllBenchPending();
       endHandoff();
-      // 4401 = servidor exige token e o nosso falta/está errado. NÃO re-tenta em
-      // loop: mostra o login. Qualquer outro código = queda de rede → backoff.
-      if (ev.code === 4401) { setAuthRequired(true); return; }
+      // 4401 = the identity was refused. Loopback: wrong/missing token, show the
+      // token gate and stop. Relay: see onAuthClose — refresh and retry slowly.
+      // Any other code = network drop → backoff.
+      if (ev.code === 4401) {
+        setAuthRequired(true);
+        if (onAuthClose(SUPABASE_ENABLED) === 'refresh-and-retry') {
+          const now = Date.now();
+          authBackoffUntil.current = now + RELAY_AUTH_RETRY_MS;
+          rejectedToken.current = tokenRef.current;
+          if (shouldRefreshSession(lastRelayRefresh.current, now)) {
+            lastRelayRefresh.current = now;
+            void supabase?.auth.refreshSession().catch(() => {});
+          }
+          if (retry.current) clearTimeout(retry.current);
+          retry.current = setTimeout(() => { retry.current = null; authBackoffUntil.current = 0; connectRef.current?.(); }, RELAY_AUTH_RETRY_MS);
+        }
+        return;
+      }
       // 1009 = frame grande demais (ex: anexo que estourou o maxPayload de um hop).
       // O socket caía e reconectava sem explicação (parecia queda de rede em loop).
       // Mostra erro claro e reconecta pra restaurar (o frame ofensor não é reenviado).
@@ -1508,12 +1527,13 @@ export function useCockpit(): Cockpit {
   // established") e o TOKEN_REFRESHED periódico reconectaria sem necessidade.
   const submitToken = useCallback((token: string) => {
     const t = token.trim();
-    if (t === tokenRef.current && wsRef.current) return;
+    if (tokenUnchangedAndLive(t, tokenRef.current, wsRef.current?.readyState)) return;
     tokenRef.current = t;
     savePref('auth.token', t);
     setAuthRequired(false);
     retryDelay.current = 1500;
-    if (retry.current) { clearTimeout(retry.current); retry.current = null; }
+    const backingOff = !dialOnTokenChange(t, rejectedToken.current, authBackoffUntil.current, Date.now());
+    if (retry.current && !backingOff) { clearTimeout(retry.current); retry.current = null; }
     // Derruba o socket anterior NEUTRALIZANDO o onclose antes — senão o close
     // dispara scheduleRetry e reabre uma conexão com a credencial recém-trocada
     // (no sign-out, vazia), gerando churn de reconnect-rejeitado.
@@ -1525,7 +1545,16 @@ export function useCockpit(): Cockpit {
     }
     // Sign-out no modo relay (token vazio): fica desconectado, não rediscar — o
     // relay rejeitaria sem credencial e o gate de login assume.
-    if (SUPABASE_ENABLED && !t) { setConn({ ws: 'down', sse: 'down' }); return; }
+    if (SUPABASE_ENABLED && !t) {
+      // Signed out: a pending 4401 retry must not dial without credentials.
+      if (retry.current) { clearTimeout(retry.current); retry.current = null; }
+      authBackoffUntil.current = 0;
+      setConn({ ws: 'down', sse: 'down' });
+      return;
+    }
+    // During a 4401 backoff the pending retry dials with the rejected token.
+    if (backingOff) return;
+    authBackoffUntil.current = 0;
     connect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connect]);
