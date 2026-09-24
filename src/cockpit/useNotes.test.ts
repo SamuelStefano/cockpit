@@ -38,3 +38,20 @@ describe('useNotes', () => {
     expect(enviados).toEqual([{ t: 'notes-get' }, { t: 'notes-save', text: 'texto' }]);
   });
 });
+
+describe('useNotes cache after a save', () => {
+  it('keeps the cached text in step with what was saved (no echo from the server)', () => {
+    const { result } = montar();
+    act(() => { result.current.onMsg({ t: 'notes', text: 'A' }); });
+    act(() => { result.current.onNotesSave('AB'); });
+    expect(result.current.notes).toBe('AB');
+  });
+
+  it('does not touch the cache when the frame did not go out', () => {
+    const send = vi.fn(() => false);
+    const { result } = renderHook(() => useNotes(send));
+    act(() => { result.current.onMsg({ t: 'notes', text: 'A' }); });
+    act(() => { result.current.onNotesSave('AB'); });
+    expect(result.current.notes).toBe('A');
+  });
+});

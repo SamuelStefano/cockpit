@@ -42,7 +42,7 @@ export function Notas({ connected, notes, notesLoaded, onNotesGet, onNotesSave, 
           }
           actions={
             <>
-              <Button variant="ghost" size="sm" icon={preview ? 'pencil' : 'file'} onClick={() => setPreview((p) => !p)} disabled={!text.trim()}
+              <Button variant="ghost" size="sm" icon={preview ? 'pencil' : 'file'} onClick={() => setPreview((p) => !p)} disabled={!preview && !text.trim()}
                 title={preview ? 'Voltar a editar' : 'Pré-visualizar markdown'}>
                 {preview ? 'Editar' : 'Prévia'}
               </Button>
@@ -66,6 +66,9 @@ export function Notas({ connected, notes, notesLoaded, onNotesGet, onNotesSave, 
             value={text}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={onKey}
+            // Offline before the first load there is nothing to edit yet: typing
+            // here and reconnecting would save the fragment over the whole note.
+            readOnly={!notesLoaded}
             placeholder="Joga aqui as ideias soltas, links, trechos… quando acumular, clica em 'Analisar com IA' pra virar um contexto estruturado. (⌘S salva na hora)"
             spellCheck={false}
             className="scroll-thin min-h-0 w-full flex-1 resize-none rounded-xl border border-neutral-800 bg-neutral-900/60 p-4 font-mono text-[13px] leading-relaxed text-neutral-200 placeholder-neutral-600 outline-hidden transition focus:border-orange-500/40 focus:ring-2 focus:ring-orange-500/20"
