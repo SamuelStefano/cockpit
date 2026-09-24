@@ -20,6 +20,7 @@ import { Bench } from './sections/Bench';
 import { Admin } from './sections/Admin';
 import { Internals } from './sections/Internals';
 import { RepoMap } from './sections/RepoMap';
+import { WorkRoutes } from './sections/WorkRoutes';
 
 export function DocSections({ year }: { year: number }) {
   return (
@@ -43,6 +44,7 @@ export function DocSections({ year }: { year: number }) {
       <Playground />
       <Graph />
       <Bench />
+      <WorkRoutes />
       <Admin />
       <Internals />
       <RepoMap />
