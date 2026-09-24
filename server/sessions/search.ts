@@ -27,7 +27,8 @@ export async function searchSessions(q: string): Promise<SessionMeta[]> {
   try {
     const r = await execFileP(
       'grep',
-      ['-rliaF', '--include=*.jsonl', '--', query, dir],
+      // subagents/ holds hundreds of MB of agent-*.jsonl that are never results.
+      ['-rliaF', '--include=*.jsonl', '--exclude-dir=subagents', '--', query, dir],
       { maxBuffer: 1 << 20 },
     );
     stdout = r.stdout;
@@ -36,7 +37,11 @@ export async function searchSessions(q: string): Promise<SessionMeta[]> {
     throw e;
   }
 
-  const files = stdout.split('\n').map((s) => s.trim()).filter(Boolean).slice(0, MAX_HITS);
+  // Filter to session transcripts BEFORE capping: capping first let non-session
+  // hits fill every slot, and real sessions silently vanished from the results.
+  const files = stdout.split('\n').map((s) => s.trim()).filter(Boolean)
+    .filter((f) => { const rp = resolve(f); return rp.startsWith(dir + '/') && UUID_FILE.test(basename(rp)); })
+    .slice(0, MAX_HITS);
   const out: SessionMeta[] = [];
   for (const f of files) {
     const rp = resolve(f);
@@ -54,9 +59,10 @@ export async function searchSessions(q: string): Promise<SessionMeta[]> {
 // Primeira linha de prosa (user/assistant) que contém o termo. Para no 1º hit —
 // barato mesmo no arquivo de 46MB. Pula ruído (tool_result, base64): se o match
 // só existir fora de prosa, devolve null e o caller mantém o snippet padrão.
-async function matchSnippet(path: string, q: string): Promise<string | null> {
+export async function matchSnippet(path: string, q: string): Promise<string | null> {
   const needle = q.toLowerCase();
-  const rl = createInterface({ input: createReadStream(path), crlfDelay: Infinity });
+  const input = createReadStream(path);
+  const rl = createInterface({ input, crlfDelay: Infinity });
   try {
     for await (const line of rl) {
       if (!line.toLowerCase().includes(needle)) continue;
@@ -67,7 +73,10 @@ async function matchSnippet(path: string, q: string): Promise<string | null> {
       if (snip) return snip;
     }
   } finally {
+    // rl.close() does not destroy the stream: returning early on the first hit
+    // leaked the fd (and its buffered chunk) on every search.
     rl.close();
+    input.destroy();
   }
   return null;
 }
