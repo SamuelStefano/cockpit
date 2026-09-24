@@ -20,7 +20,7 @@ import {
   ctxVerdict, verdictMessage, costFor, isBigColdStart, acquireCold, releaseCold,
   noteQuotaTransition, inResetCooldown, type Verdict,
 } from './ctx-guard';
-import { markRunLive, clearRunLive, takeOrphanRuns } from './recover';
+import { markRunLive, clearRunLive, takeOrphanRuns, type LiveRun } from './recover';
 import { recordIncident } from './incidents';
 import { readMemInfo, memoryVerdict, nextResumeDelayMs, memoryRunCap } from './mem-guard';
 import {
@@ -462,8 +462,12 @@ function requeueParked(sessionKey: string, item: ParkedItem, bump = true): void 
 // com o chat mudo até reclamar: os `claude -p` filhos morrem junto do agente e não
 // sobra ninguém pra perceber (o onClose nem chega a rodar). takeOrphanRuns já zera
 // o registro, então um crash-loop não re-dispara os mesmos turnos em cascata.
-export function resumeOrphanRuns(): void {
-  for (const o of takeOrphanRuns()) {
+// `orphans` is taken at boot, synchronously, before any new turn can register:
+// read 15s later (when the relay is up to hear the notices), the registry also
+// held turns started INSIDE that window, and they were "resumed" on top of
+// themselves.
+export function resumeOrphanRuns(orphans: LiveRun[] = takeOrphanRuns()): void {
+  for (const o of orphans) {
     // Chaveia pelo sessionId, não pela key salva: uma sessão nova nasce com key
     // 'new-…' e o mapeamento pro id real vive no cliente, que o restart derrubou —
     // retomar na key velha viraria um chat fantasma que ninguém vê. Também dedupa
@@ -477,7 +481,9 @@ export function resumeOrphanRuns(): void {
       continue;
     }
     const key = o.sessionId;
-    if (!SESSION_KEY_RE.test(key) || threads.has(key)) continue;
+    // resolveThreadKey, not threads.has: a chat started meanwhile runs as `new-…`
+    // with this session id, and a second `--resume` would write the same transcript.
+    if (!SESSION_KEY_RE.test(key) || resolveThreadKey(key)) continue;
     // Never auto-resume the Orchestrator's own session headlessly: it isn't
     // a `claude -p` child we spawned (its "turno" lives in the tmux pane, an
     // interactive process the boot never touched), so there's nothing here
