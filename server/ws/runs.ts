@@ -265,7 +265,10 @@ export function drainParked(): void {
     // o próximo tick resolve.
     const pre = ctxVerdict({ sessionId: first.resumeId, sessionKey, usage: getLastPlanUsage() });
     if (pre.kind === 'quota' || pre.kind === 'cold-busy') continue;
-    const item = shiftParked(sessionKey);
+    // Runs on a 30s timer: a disk error here must not escape as an uncaughtException.
+    let item: ParkedItem | undefined;
+    try { item = shiftParked(sessionKey); }
+    catch (e) { console.error('[drainParked] shift failed:', (e as Error).message); break; }
     if (!item) continue;
     // ws null: run sem cliente específico (igual cron); o stream vai por broadcast.
     // resumeId = a sessão onde o item foi enfileirado, pra continuar a conversa —
@@ -439,7 +442,15 @@ export function startParkedDrainer(intervalMs = 30_000): void {
 // orçamento da área, não do item, e contá-la aproximaria o item do teto de 3 por um
 // motivo que não é dele.
 function requeueParked(sessionKey: string, item: ParkedItem, bump = true): void {
-  const attempts = unshiftParked(sessionKey, item, bump);
+  // Runs inside a child's onClose. A disk write that throws here (ENOSPC) would
+  // abort onClose before threads.delete and crash the agent; tell the user instead.
+  let attempts: number;
+  try { attempts = unshiftParked(sessionKey, item, bump); }
+  catch (e) {
+    broadcast({ t: 'error', sessionKey, message: `Não consegui devolver o item à fila (${(e as Error).message}). Pedido: ${item.prompt.slice(0, 200)}` });
+    recordIncident({ kind: 'run-error', sessionKey, detail: `requeue failed: ${(e as Error).message}`.slice(0, 400) });
+    return;
+  }
   if (attempts >= MAX_PARKED_ATTEMPTS) {
     broadcast({ t: 'error', sessionKey, message: `Este item da fila falhou ${attempts}x sem produzir nada. Ele está guardado e segurado — use "retomar" na fila pra tentar de novo.` });
     recordIncident({ kind: 'parked-requeue-cap', sessionKey, detail: `item ${item.id} devolvido ${attempts}x` });

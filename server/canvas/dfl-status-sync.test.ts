@@ -290,3 +290,13 @@ describe('pushBackoffMs', () => {
     expect(pushBackoffMs(10)).toBe(30 * 60_000);
   });
 });
+
+describe('pushCardDflStatus — never rejects (callers fire it with void)', () => {
+  it('resolves and reports when the board cannot be written', async () => {
+    const { writeFileSync } = await import('node:fs');
+    await linkedCard('card-1');
+    writeFileSync(process.env.COCKPIT_CANVAS_BOARD!, '{ corrupt');
+    await expect(pushCardDflStatus('card-1', 'doing', TASK)).resolves.toBeUndefined();
+    expect(emitCanvasMsgMock).toHaveBeenCalledWith(expect.objectContaining({ t: 'canvas-dfl-sync-error', cardId: 'card-1' }));
+  });
+});

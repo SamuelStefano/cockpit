@@ -149,7 +149,19 @@ function fingerprintChanged(a: TaskFingerprint | undefined, b: TaskFingerprint |
 // arms `awaitingConfirm` and stops. Only `confirmed: true` — set exclusively
 // by the explicit dfl-task-confirm-sync handler a human action drives —
 // proceeds to the network.
+// Every caller fires this with `void`. updateBoard rejects on a corrupt board or
+// a failed write (ENOSPC), and an unhandled rejection shuts the backend down and
+// kills every run, so nothing may escape from here.
 export async function pushCardDflStatus(cardId: string, status: CardStatus, taskId: string, opts: { confirmed?: boolean } = {}): Promise<void> {
+  try {
+    await pushCardDflStatusUnsafe(cardId, status, taskId, opts);
+  } catch (e) {
+    console.error('[dfl-status-sync] push failed:', (e as Error).message);
+    emitCanvasMsg({ t: 'canvas-dfl-sync-error', cardId, message: `sync DFL falhou: ${(e as Error).message}` });
+  }
+}
+
+async function pushCardDflStatusUnsafe(cardId: string, status: CardStatus, taskId: string, opts: { confirmed?: boolean }): Promise<void> {
   // Same loopback-only gate as every other DFL write (server/ws/dispatch.ts's
   // points-dfl-change/-invoice/dfl-task-create-link): the federated agent box
   // must never talk to DFL, automatic hook or not.
