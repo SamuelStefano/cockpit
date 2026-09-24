@@ -930,8 +930,24 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // tell routeSend to report those specific errors under the ORIGINAL key
       // instead, so a canvas send rerouted onto a different live thread still
       // correlates (canvas review #593 third pass item 4).
-      if (liveKey) detach(ws, routeSend({ ...opts, sessionKey: liveKey, displayKey: msg.sessionKey }), liveKey);
-      else startRun({ ...opts, auto: msg.auto === true });
+      if (liveKey) { detach(ws, routeSend({ ...opts, sessionKey: liveKey, displayKey: msg.sessionKey }), liveKey); return; }
+      // Cross-process double-writer guard: `liveKey` above only searches THIS
+      // process's own `threads` map. Deck runs two backend processes
+      // (server/index.ts, server/agent.ts), each with its own map — a session
+      // already live in the OTHER one is invisible here, and starting a
+      // `claude --resume` on it would fork the transcript exactly like the
+      // same-process hasInteractiveClaude case above. lastCvLiveSessionIds()
+      // (server/canvas/cv-liveness.ts) already subtracts THIS process's own
+      // threads, so any match here is by construction someone else's turn —
+      // a cv-shell worker or a turn running in the other process.
+      if (lastCvLiveSessionIds().includes(msg.sessionId ?? msg.sessionKey)) {
+        send(ws, {
+          t: 'send-reject', sessionKey: msg.sessionKey, reason: 'live-elsewhere', text: msg.text, msgId: msg.msgId,
+          message: 'Essa sessão já tem um turno rodando no outro processo do Deck (deckctl/agente) — espere ele terminar antes de mandar mensagem por aqui.',
+        });
+        return;
+      }
+      startRun({ ...opts, auto: msg.auto === true });
       return;
     }
     // Fila estacionada (overnight/quota-out): persiste o prompt no servidor pro

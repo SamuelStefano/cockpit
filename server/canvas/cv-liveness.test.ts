@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { CV_FRESH_MS, cvTermId, isCvShellLive, liveCvSessionIds, parseProcRecord } from './cv-liveness';
+import {
+  CV_FRESH_MS, cvTermId, isCvShellLive, isRegistrySessionLive, liveCvSessionIds, liveRegistrySessionIds, parseProcRecord,
+} from './cv-liveness';
 
 const NOW = 1_000_000_000;
 const base = { tmuxAlive: true, procAlive: true, busy: false, jsonlMtime: undefined, now: NOW };
@@ -27,6 +29,47 @@ describe('isCvShellLive', () => {
 
   it('a fresh transcript still counts right after the shell died', () => {
     expect(isCvShellLive({ ...base, tmuxAlive: false, procAlive: false, jsonlMtime: NOW - 5000 })).toBe(true);
+  });
+});
+
+describe('isRegistrySessionLive', () => {
+  const base = { procAlive: true, busy: false, jsonlMtime: undefined, now: NOW };
+
+  it('an alive, busy process is live — no tmux involved at all', () => {
+    expect(isRegistrySessionLive({ ...base, busy: true })).toBe(true);
+  });
+
+  it('a busy status does not count for a dead process (stale registry file)', () => {
+    expect(isRegistrySessionLive({ ...base, busy: true, procAlive: false })).toBe(false);
+  });
+
+  it('a transcript written under 2 minutes ago is live even when idle/dead', () => {
+    expect(isRegistrySessionLive({ ...base, procAlive: false, jsonlMtime: NOW - 5000 })).toBe(true);
+  });
+
+  it('a stale transcript and an idle process is not live', () => {
+    expect(isRegistrySessionLive({ ...base, jsonlMtime: NOW - CV_FRESH_MS - 1 })).toBe(false);
+  });
+});
+
+describe('liveRegistrySessionIds', () => {
+  const deps = { procAlive: (pid: number) => pid !== 99, mtimeOf: () => undefined, now: NOW };
+
+  it('keeps a busy, headless (no tmux) record — the cross-process Deck-turn case', () => {
+    const ids = liveRegistrySessionIds([
+      { pid: 1, sessionId: 'deck-turn', status: 'busy' },
+      { pid: 2, sessionId: 'idle', status: 'idle' },
+      { pid: 99, sessionId: 'dead-but-busy-file', status: 'busy' },
+    ], deps);
+    expect(ids).toEqual(['deck-turn']);
+  });
+
+  it('dedupes a session registered by two processes', () => {
+    const ids = liveRegistrySessionIds([
+      { pid: 1, sessionId: 's', status: 'busy' },
+      { pid: 2, sessionId: 's', status: 'busy' },
+    ], deps);
+    expect(ids).toEqual(['s']);
   });
 });
 

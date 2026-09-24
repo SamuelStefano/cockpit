@@ -49,6 +49,11 @@ const termStats = vi.hoisted(() => ({
   // exactly what the real implementation does, no behavior to fake here.
   newCpuSamples: vi.fn(() => new Map()),
 }));
+const cvLiveness = vi.hoisted(() => ({
+  // Registry union MINUS this process's own threads (server/canvas/cv-liveness.ts)
+  // — default empty: most tests aren't exercising the cross-process guard.
+  lastCvLiveSessionIds: vi.fn((): string[] => []),
+}));
 const parse = vi.hoisted(() => ({ parseSession: vi.fn(), parseFullSession: vi.fn() }));
 const cfg = vi.hoisted(() => ({ CONFIG: { localOnly: true, historyLimit: 2000 } }));
 const admin = vi.hoisted(() => ({
@@ -62,6 +67,7 @@ vi.mock('./awaiting', () => awaiting);
 vi.mock('./threads', () => reg);
 vi.mock('./broadcast', () => bc);
 vi.mock('../canvas/term-stats', () => termStats);
+vi.mock('../canvas/cv-liveness', () => cvLiveness);
 vi.mock('../config', () => cfg);
 vi.mock('../admin-ops', () => admin);
 const deck = vi.hoisted(() => ({
@@ -158,6 +164,35 @@ describe('send routing (the #130 role seam)', () => {
     }));
     expect(runs.startRun).not.toHaveBeenCalled();
     expect(runs.routeSend).not.toHaveBeenCalled();
+  });
+
+  // Deck runs two backend processes (server/index.ts, server/agent.ts), each
+  // with its own `threads` map. lastCvLiveSessionIds() already subtracts
+  // THIS process's own threads (server/canvas/cv-liveness.ts), so a match
+  // there is by construction a turn live in the OTHER one — starting a
+  // `claude --resume` on top of it would fork the transcript.
+  it('refuses (send-reject, live-elsewhere) when the target session is live per the registry but not one of THIS process\'s own threads', async () => {
+    cvLiveness.lastCvLiveSessionIds.mockReturnValueOnce(['s1']); // msg().sessionId === 's1'
+    await handle(ws, msg(), 'admin');
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({
+      t: 'send-reject', sessionKey: 'k1', reason: 'live-elsewhere', text: 'hi', msgId: 'm1',
+    }));
+    expect(runs.startRun).not.toHaveBeenCalled();
+    expect(runs.routeSend).not.toHaveBeenCalled();
+  });
+
+  it('starts normally when the registry has no external match for the session', async () => {
+    cvLiveness.lastCvLiveSessionIds.mockReturnValueOnce([]);
+    await handle(ws, msg(), 'admin');
+    expect(runs.startRun).toHaveBeenCalledOnce();
+  });
+
+  it('a session already busy in THIS process routes to routeSend without even consulting the registry guard', async () => {
+    reg.threads.set('k1', { handle: { kill: vi.fn() }, sessionId: 's1' });
+    cvLiveness.lastCvLiveSessionIds.mockReturnValueOnce(['s1']); // present but irrelevant — liveKey wins first
+    await handle(ws, msg(), 'admin');
+    expect(runs.routeSend).toHaveBeenCalledOnce();
+    expect(bc.send).not.toHaveBeenCalledWith(ws, expect.objectContaining({ reason: 'live-elsewhere' }));
   });
 });
 

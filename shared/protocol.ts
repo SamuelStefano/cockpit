@@ -995,7 +995,9 @@ export type ServerMsg =
   // - ctx-hard/quota-insufficient/cold-busy: gate de contexto (ws/ctx-guard.ts)
   //   — carrega ctxTokens/pctOfWindow, o custo que motivou a recusa.
   // - live-elsewhere: guarda de double-writer (dispatch.ts 'send') — a sessão
-  //   já tem um `claude` interativo rodando no próprio pane de watch.
+  //   já tem um `claude` interativo rodando no próprio pane de watch, OU (via
+  //   canvas/cv-liveness.ts) um turno vivo num cv-shell ou no OUTRO processo
+  //   do backend do Deck (index.ts vs agent.ts).
   // ctxTokens/pctOfWindow só fazem sentido pro primeiro grupo — opcionais.
   | {
       t: 'send-reject'; sessionKey: string;
