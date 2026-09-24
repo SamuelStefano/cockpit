@@ -46,7 +46,7 @@ import { buildBench } from '../bench';
 import { buildCanvas } from '../canvas/index';
 import { readOrchestrator } from '../canvas/orchestrator';
 import { readOrchestratorActivity } from '../canvas/orchestrator-activity';
-import { lastBusyElsewhereSessionIds, lastCvLiveSessionIds, lastIdleCvSessionIds } from '../canvas/cv-liveness';
+import { readBusyElsewhereSessionIds, refreshLivenessSnapshot } from '../canvas/cv-liveness';
 import { peekSession } from '../sessions/peek';
 import { collectCtxOnly, collectTermStats, hasInteractiveClaude, newCpuSamples, type CpuSamples } from '../canvas/term-stats';
 import {
@@ -214,7 +214,13 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // (canvas/autopause-loop.ts): reuses this exact graph, no extra build.
       updateAreaCacheFromGraph(graph);
       send(ws, { t: 'canvas-graph', graph });
-      send(ws, { t: 'cv-live', sessionIds: lastCvLiveSessionIds(), idleSessionIds: lastIdleCvSessionIds() });
+      // Fresh, not the cached getters: startCvLivenessLoop only refreshes its
+      // cache while a client is connected, and a deckctl round trip (a few
+      // seconds) can come and go between ticks (5s) without ever refreshing
+      // it — a client that just asked deserves data at least as fresh as its
+      // own request, not whatever the loop last happened to see.
+      const liveness = await refreshLivenessSnapshot();
+      send(ws, { t: 'cv-live', sessionIds: liveness.live, idleSessionIds: liveness.idle });
       return;
     }
     case 'orchestrator-get': {
@@ -936,14 +942,20 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // (server/index.ts, server/agent.ts), each with its own map — a session
       // already live in the OTHER one is invisible here, and starting a
       // `claude --resume` on it would fork the transcript exactly like the
-      // same-process hasInteractiveClaude case above. lastBusyElsewhereSessionIds()
-      // (server/canvas/cv-liveness.ts) already subtracts THIS process's own
-      // threads, so any match here is by construction someone else's turn —
-      // a cv-shell worker or a turn running in the other process. Deliberately
-      // NOT lastCvLiveSessionIds(): that display list's fresh-mtime grace
-      // period would reject an ordinary follow-up sent within ~2min of the
-      // OTHER process's turn closing, when nobody is actually racing anymore.
-      if (lastBusyElsewhereSessionIds().includes(msg.sessionId ?? msg.sessionKey)) {
+      // same-process hasInteractiveClaude case above. FRESH read, not a
+      // cached getter: startCvLivenessLoop's cache only updates while a
+      // client is connected, and deckctl's connection (a few seconds) can
+      // come and go between 5s ticks without ever refreshing it — acting on
+      // that cache here would sometimes block on data hours old. Fails OPEN
+      // (best-effort registry read; nothing here can safely block a send by
+      // erroring). Deliberately NOT the display-liveness list: that one's
+      // fresh-mtime grace period would reject an ordinary follow-up sent
+      // within ~2min of the OTHER process's turn closing, when nobody is
+      // actually racing anymore — readBusyElsewhereSessionIds has no such
+      // grace period, and already subtracts THIS process's own threads, so
+      // any match here is by construction someone else's turn right now.
+      const busyElsewhere = await readBusyElsewhereSessionIds().catch(() => [] as string[]);
+      if (busyElsewhere.includes(msg.sessionId ?? msg.sessionKey)) {
         send(ws, {
           t: 'send-reject', sessionKey: msg.sessionKey, reason: 'live-elsewhere', text: msg.text, msgId: msg.msgId,
           message: 'Essa sessão já tem um turno rodando no outro processo do Deck (deckctl/agente) — espere ele terminar antes de mandar mensagem por aqui.',

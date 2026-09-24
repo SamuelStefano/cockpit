@@ -28,6 +28,15 @@ import { runningSessionIds } from '../ws/threads';
 // that server/ws/dispatch.ts's 'send' guard uses to refuse a second
 // concurrent `--resume` — the display list's grace period would otherwise
 // reject a normal follow-up right after a turn closes elsewhere.
+//
+// Neither list is safe to read from a CACHE for a correctness decision.
+// startCvLivenessLoop only refreshes its cache while `hasClients()` — a
+// deckctl connection (open for a few seconds, well under the 5s tick) can
+// come and go without a single tick running, leaving the cache however many
+// hours old it last was. The 'send' guard therefore reads
+// readBusyElsewhereSessionIds() fresh on every call (cheap: no JSONL stat),
+// and 'canvas-get' calls refreshLivenessSnapshot() fresh instead of reading
+// the cache directly — see both further down.
 
 export const CV_FRESH_MS = 2 * 60_000;
 const CV_TMUX_RE = /^cockpit-(cv-[^:]+)/;
@@ -171,6 +180,28 @@ function pidAlive(pid: number): boolean {
   try { process.kill(pid, 0); return true; } catch (e) { return (e as NodeJS.ErrnoException).code === 'EPERM'; }
 }
 
+async function readRecords(dir: string): Promise<ClaudeProcRecord[]> {
+  const files = (await readdir(dir).catch(() => [] as string[])).filter((f) => f.endsWith('.json'));
+  return (await Promise.all(files.map((f) => readFile(join(dir, f), 'utf8').then(parseProcRecord, () => undefined))))
+    .filter((r): r is ClaudeProcRecord => !!r);
+}
+
+// FRESH read for server/ws/dispatch.ts's 'send' guard — called on every send,
+// so it deliberately skips the expensive half of readLivenessSnapshot below
+// (no JSONL stat, no tmux/listTerms lookup): just the registry dir (a
+// handful of tiny files) plus a pid-alive check per record, which is exactly
+// what busySessionIds needs. A cached snapshot would go stale between ticks
+// of startCvLivenessLoop (which only runs while a client is connected) —
+// deckctl connects for under 5s, well inside the 5s tick interval, so the
+// guard would sometimes act on data hours old. This has no such window.
+export async function readBusyElsewhereSessionIds(): Promise<string[]> {
+  const records = await readRecords(procRegistryDir());
+  if (!records.length) return [];
+  const busyIds = busySessionIds(records, { procAlive: pidAlive });
+  const own = runningSessionIds();
+  return busyIds.filter((id) => !own.has(id)).sort();
+}
+
 export interface LivenessSnapshot {
   live: string[];          // display: tmux-cv-shell live ∪ general registry live, minus own threads
   busyElsewhere: string[]; // strict, for the send guard: alive pid + status 'busy' only, minus own threads
@@ -187,10 +218,7 @@ export interface LivenessSnapshot {
 // "live, but not one of MY threads" — a cv-shell worker, OR a turn running
 // in the OTHER Deck process.
 export async function readLivenessSnapshot(now = Date.now()): Promise<LivenessSnapshot> {
-  const dir = procRegistryDir();
-  const files = (await readdir(dir).catch(() => [] as string[])).filter((f) => f.endsWith('.json'));
-  const records = (await Promise.all(files.map((f) => readFile(join(dir, f), 'utf8').then(parseProcRecord, () => undefined))))
-    .filter((r): r is ClaudeProcRecord => !!r);
+  const records = await readRecords(procRegistryDir());
   if (!records.length) return { live: [], busyElsewhere: [], idle: [] };
   // Stat every registry session's JSONL (sessionPath UUID-validates and
   // anti-traversal-guards the path — server/sessions/records.ts) — still tiny:
@@ -221,24 +249,42 @@ let lastLive: string[] = [];
 let lastBusyElsewhere: string[] = [];
 let lastIdle: string[] = [];
 
-// Cached DISPLAY snapshot for THIS process, refreshed every `intervalMs` by
-// the loop below — the 'cv-live' push/'canvas-get' reply prefers this cheap
-// in-memory read over a fresh registry scan per call.
+// Cached DISPLAY snapshot — DIAGNOSTIC/last-known-value use only. It is only
+// ever refreshed by refreshLivenessSnapshot below, which runs on the
+// startCvLivenessLoop tick (gated on `hasClients()` — only while a client is
+// actually connected) AND on-demand from 'canvas-get'. Between those, it can
+// be stale by design: NEVER read this for a correctness decision (the 'send'
+// guard learned that the hard way — see readBusyElsewhereSessionIds above,
+// which reads fresh every time instead of trusting this cache. deckctl
+// connects to index.ts for well under the 5s tick interval, so relying on
+// this cache there meant acting on data that could be hours old).
 export function lastCvLiveSessionIds(): string[] {
   return lastLive;
 }
 
-// Cached STRICT snapshot for server/ws/dispatch.ts's 'send' guard ONLY — see
-// busySessionIds' doc comment for why this must stay separate from the
-// display list above (the display list's fresh-mtime grace period would
-// reject a normal follow-up right after a turn closes elsewhere).
+// Cached STRICT snapshot — same staleness caveat as lastCvLiveSessionIds
+// above. Diagnostic only; the 'send' guard uses readBusyElsewhereSessionIds
+// (fresh) instead.
 export function lastBusyElsewhereSessionIds(): string[] {
   return lastBusyElsewhere;
 }
 
-// Cached idle-cv-shell snapshot — see idleCvSessionIds' doc comment.
+// Cached idle-cv-shell snapshot — same staleness caveat.
 export function lastIdleCvSessionIds(): string[] {
   return lastIdle;
+}
+
+// Fresh read that ALSO updates the three caches above — used by the loop
+// tick and by 'canvas-get' (server/ws/dispatch.ts), so a client that just
+// asked for the board always sees data at least as fresh as its own request,
+// never whatever the periodic tick last saw (which can be stale or, right
+// after boot / a long client-less gap, simply absent).
+export async function refreshLivenessSnapshot(now = Date.now()): Promise<LivenessSnapshot> {
+  const snap = await readLivenessSnapshot(now);
+  lastLive = snap.live;
+  lastBusyElsewhere = snap.busyElsewhere;
+  lastIdle = snap.idle;
+  return snap;
 }
 
 // Both Deck backend processes (server/ws.ts's attachWs for index.ts,
@@ -246,19 +292,19 @@ export function lastIdleCvSessionIds(): string[] {
 // through its own admin-only emit (server/ws/canvas-clients.ts's
 // emitCanvasMsg) — that is what makes "live in the other process" a signal
 // EITHER process can compute and expose on its own, no shared memory needed.
-// Pushes only on a display-relevant change (live or idle); busyElsewhere is
-// only ever read on-demand by the send guard, never pushed.
+// Pushes only on a display-relevant change (live or idle) to whichever
+// clients are already connected; a client that (re)connects gets a FRESH
+// read straight from 'canvas-get', not this loop's possibly-stale cache.
 export function startCvLivenessLoop(hasClients: () => boolean, emit: (msg: ServerMsg) => void, intervalMs = 5000) {
   let busy = false;
   const tick = async () => {
     if (busy || !hasClients()) return;
     busy = true;
     try {
-      const snap = await readLivenessSnapshot();
-      lastBusyElsewhere = snap.busyElsewhere;
-      if (snap.live.join() !== lastLive.join() || snap.idle.join() !== lastIdle.join()) {
-        lastLive = snap.live;
-        lastIdle = snap.idle;
+      const prevLive = lastLive.join();
+      const prevIdle = lastIdle.join();
+      const snap = await refreshLivenessSnapshot();
+      if (snap.live.join() !== prevLive || snap.idle.join() !== prevIdle) {
         emit({ t: 'cv-live', sessionIds: snap.live, idleSessionIds: snap.idle });
       }
     } catch { /* best-effort, like the other loops */ } finally { busy = false; }
