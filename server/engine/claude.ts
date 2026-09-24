@@ -1,6 +1,6 @@
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { writeFileSync, unlinkSync, readdirSync } from 'node:fs';
+import { writeFileSync, unlinkSync, readdirSync, statSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -453,11 +453,17 @@ export function minimalEnv(): NodeJS.ProcessEnv {
 // headers — não devem acumular no /tmp. Chamado no boot + no sweep periódico; no
 // boot não há run vivo, e no periódico os vivos já foram lidos pelo claude no spawn
 // (o --mcp-config é lido uma vez), então apagar é seguro.
-export function sweepMcpConfigs(): void {
+// Only files older than MCP_CONFIG_GRACE_MS: a run spawned a moment ago may not
+// have read its --mcp-config yet, and deleting it would start that turn with no
+// MCP servers and no permission tool.
+export const MCP_CONFIG_GRACE_MS = 5 * 60_000;
+
+export function sweepMcpConfigs(dir = tmpdir(), now = Date.now()): void {
   try {
-    const dir = tmpdir();
     for (const f of readdirSync(dir)) {
-      if (/^deck-mcp-[0-9a-f]+\.json$/.test(f)) { try { unlinkSync(join(dir, f)); } catch { /* em uso/sumiu */ } }
+      if (!/^deck-mcp-[0-9a-f]+\.json$/.test(f)) continue;
+      const full = join(dir, f);
+      try { if (now - statSync(full).mtimeMs >= MCP_CONFIG_GRACE_MS) unlinkSync(full); } catch { /* em uso/sumiu */ }
     }
   } catch { /* tmp ilegível */ }
 }

@@ -22,7 +22,7 @@ class FakeChild extends EventEmitter {
   kill = vi.fn();
 }
 
-import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run, effectiveBudget, pickMcpDefs, resolveMcpSelection, validModel, withWorkflowGrant, mcpConfigBody, encodeUserLine, shouldCloseStdin, PERMISSION_MCP_NAME, PERMISSION_PROMPT_TOOL } from './claude';
+import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run, effectiveBudget, pickMcpDefs, resolveMcpSelection, validModel, withWorkflowGrant, mcpConfigBody, encodeUserLine, shouldCloseStdin, PERMISSION_MCP_NAME, PERMISSION_PROMPT_TOOL, sweepMcpConfigs, MCP_CONFIG_GRACE_MS } from './claude';
 import { ALL_MCPS } from '../../shared/mcp';
 import { CONFIG } from '../config';
 
@@ -602,5 +602,25 @@ describe('buildArgs workflow approval', () => {
 
   it('keeps plan mode without an allow-list', () => {
     expect(argsOf({ prompt: 'go', mode: 'plan', allowWorkflow: true })).not.toContain('--allowedTools');
+  });
+});
+
+describe('sweepMcpConfigs', () => {
+  it('keeps a config a run may not have read yet, removes old ones', async () => {
+    const { mkdtempSync, writeFileSync, utimesSync, readdirSync, rmSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { tmpdir } = await import('node:os');
+    const dir = mkdtempSync(join(tmpdir(), 'deck-mcpsweep-'));
+    try {
+      writeFileSync(join(dir, 'deck-mcp-aa.json'), '{}');
+      writeFileSync(join(dir, 'deck-mcp-bb.json'), '{}');
+      writeFileSync(join(dir, 'other.json'), '{}');
+      const old = (Date.now() - MCP_CONFIG_GRACE_MS - 1000) / 1000;
+      utimesSync(join(dir, 'deck-mcp-aa.json'), old, old);
+      sweepMcpConfigs(dir);
+      expect(readdirSync(dir).sort()).toEqual(['deck-mcp-bb.json', 'other.json']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
