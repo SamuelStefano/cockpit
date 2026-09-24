@@ -7,6 +7,7 @@ import { McpAppFrame } from './McpAppFrame';
 import { TodoPanel } from './TodoPanel';
 import { CopyTextButton } from './MessageActions';
 import { permissionDeniedTool } from './permission-deny';
+import { fmtToolDuration } from './message-format';
 
 interface ToolCallCardProps {
   tool: ToolCall;
@@ -31,7 +32,7 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
     ),
     done: (
       <span className="flex items-center gap-1.5 text-[11px] font-medium text-green-400">
-        <Icon name="check" size={13} /> ok{tool.durationMs !== undefined && ` ${(tool.durationMs / 1000).toFixed(1)}s`}
+        <Icon name="check" size={13} /> ok{tool.durationMs !== undefined && ` ${fmtToolDuration(tool.durationMs)}`}
       </span>
     ),
     error: (
