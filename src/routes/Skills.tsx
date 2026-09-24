@@ -52,8 +52,11 @@ export function Skills(p: Props) {
         <SkillsOffline />
       ) : (
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <Tabs items={tabs} active={v.tab} onChange={v.setTab} className="overflow-x-auto px-4"
-            right={registry && <Button variant="ghost" size="sm" icon="rotate" loading={registryLoading} onClick={() => onRegistryGet(true)}>Registro</Button>} />
+          {/* compact + icon-only refresh below sm: at 375-390px the strip was 495px
+              wide and "Registro" sat 18-105px past the edge of a scroller with no cue. */}
+          <Tabs items={tabs} active={v.tab} onChange={v.setTab} className="overflow-x-auto px-4" compact
+            right={registry && <Button variant="ghost" size="sm" icon="rotate" loading={registryLoading} onClick={() => onRegistryGet(true)}
+              aria-label="Atualizar o registro" title="Atualizar o registro" className="max-sm:w-7 max-sm:gap-0 max-sm:px-0"><span className="max-sm:sr-only">Registro</span></Button>} />
           <div className="scroll-thin flex-1 overflow-y-auto p-4">
             {v.tab === 'installed' ? (
               !loaded ? (
