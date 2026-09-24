@@ -128,16 +128,28 @@ export async function handoffSession(sessionId: string): Promise<{ contextId: st
     if (!body) return { error: 'não consegui destilar o contexto' };
     body = body.slice(0, MAX_BODY_CHARS);
 
-    const id = handoffSlug(sessionId);
-    if (!SLUG_RE.test(id)) return { error: 'slug inválido' };
+    const base = handoffSlug(sessionId);
+    if (!SLUG_RE.test(base)) return { error: 'slug inválido' };
     const dir = resolve(CONFIG.memoryDir);
-    const full = resolve(join(dir, `${id}.md`));
-    if (!full.startsWith(dir + '/') || basename(full) !== `${id}.md`) return { error: 'caminho inválido' };
+    const description = handoffDescription(parsed.messages);
+    try { await mkdir(dir, { recursive: true }); } catch { return { error: 'falha ao gravar o contexto' }; }
 
-    try {
-      await mkdir(dir, { recursive: true });
-      await writeFile(full, handoffFile(id, handoffDescription(parsed.messages), body), 'utf8');
-    } catch { return { error: 'falha ao gravar o contexto' }; }
+    // A second handoff of the same session on the same day (unhide, hand off again)
+    // overwrote the first briefing the earlier chat still points to. `wx` claims a
+    // free name atomically; funnel.ts does the same with freeSlug.
+    let id: string | null = null;
+    for (let seq = 1; seq <= 20 && !id; seq++) {
+      const cand = seq === 1 ? base : `${base}-${seq}`;
+      const full = resolve(join(dir, `${cand}.md`));
+      if (!SLUG_RE.test(cand) || !full.startsWith(dir + '/') || basename(full) !== `${cand}.md`) return { error: 'caminho inválido' };
+      try {
+        await writeFile(full, handoffFile(cand, description, body), { encoding: 'utf8', flag: 'wx' });
+        id = cand;
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== 'EEXIST') return { error: 'falha ao gravar o contexto' };
+      }
+    }
+    if (!id) return { error: 'não consegui nomear o contexto' };
 
     await hideSession(sessionId);
     // O título da sessão de ORIGEM viaja junto: sem ele o chat novo se chamava
