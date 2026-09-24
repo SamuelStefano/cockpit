@@ -27,15 +27,18 @@ export function CanvasHud({ items, onPick }: Props) {
   const runningN = live.filter((i) => i.running).length;
 
   return (
-    <div data-canvas-overlay className="absolute right-3 top-3 z-10 w-64 rounded-2xl border border-neutral-700/80 bg-neutral-900/85 shadow-xl backdrop-blur-md">
-      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full items-center gap-2 px-3 py-2 text-left">
+    // max-h leaves room for the bottom toolbar (bottom-3 + ~40px): with the
+    // kanban dock open the surface is ~300px tall and the open roster ran
+    // under the toolbar. The list scrolls instead.
+    <div data-canvas-overlay className="absolute right-3 top-3 z-10 flex max-h-[calc(100%-5rem)] w-64 flex-col rounded-2xl border border-neutral-700/80 bg-neutral-900/85 shadow-xl backdrop-blur-md">
+      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full shrink-0 items-center gap-2 px-3 py-2 text-left">
         <Icon name="claude" size={14} className="text-orange-400" />
         <span className="flex-1 text-[12.5px] font-semibold text-neutral-100">Sessões</span>
         <span className="font-mono text-[10.5px] text-neutral-500">{runningN} rodando</span>
         <Icon name={open ? 'minimize' : 'maximize'} size={11} className="text-neutral-500" />
       </button>
       {open && (
-        <div className="border-t border-neutral-800 px-1.5 py-1.5">
+        <div className="min-h-0 overflow-y-auto border-t border-neutral-800 px-1.5 py-1.5">
           {shown.map((i) => (
             <button
               key={i.nodeId} type="button" onClick={() => onPick(i.nodeId)}
