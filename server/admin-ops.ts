@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rename, stat, realpath } from 'node:fs/promises';
 import { readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -22,24 +22,58 @@ async function readJson<T>(path: string, fallback: T): Promise<T> {
   try { return JSON.parse(await readFile(path, 'utf8')) as T; } catch { return fallback; }
 }
 
-async function writeJson(path: string, value: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, JSON.stringify(value, null, 2) + '\n', 'utf8');
+// Read for a read-modify-write. Only a missing file means "start empty": a parse
+// error (a concurrent `claude` caught mid-write) must abort, or writing the
+// fallback back would wipe every other MCP server / managed token in the file.
+export async function readJsonForWrite<T>(path: string, empty: T): Promise<T> {
+  let raw: string;
+  try { raw = await readFile(path, 'utf8'); }
+  catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return empty; throw e; }
+  return JSON.parse(raw) as T;
 }
+
+// tmp + rename so a crash or a concurrent reader never sees a half-written file.
+// Keeps the current mode (env.json holds tokens and must stay 0600).
+export async function writeJson(path: string, value: unknown, fallbackMode = 0o600): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  // Write through a symlink, not over it: renaming onto the link path replaced a
+  // dotfiles-managed ~/.claude.json (a symlink) with a plain file.
+  const target = await realpath(path).catch(() => path);
+  const mode = await stat(target).then((st) => st.mode & 0o777, () => fallbackMode);
+  const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
+  await writeFile(tmp, JSON.stringify(value, null, 2) + '\n', { encoding: 'utf8', mode });
+  await rename(tmp, target);
+}
+
+const unreadable = (path: string, e: unknown) =>
+  ({ ok: false, message: `não consegui ler ${path} (${(e as Error).message}); nada foi gravado` });
 
 // --- env/tokens gerenciados -------------------------------------------------
 // Persistidos em ~/.deck-agent/env.json e injetados no spawn do claude
 // (minimalEnv os mescla) — sem isso o agente não enxergaria o token.
 
 // Cache síncrono p/ o spawn do claude (minimalEnv é sync). loadManagedEnv() é
-// chamado no boot do backend; setEnv/unsetEnv mantêm o cache em dia.
+// chamado no boot do backend; managedEnvSync() relê quando o arquivo muda.
 let cache: Record<string, string> = {};
 
 export async function managedEnv(): Promise<Record<string, string>> {
   return readJson<Record<string, string>>(ENV_FILE, {});
 }
 
+// Both backends (index and the relay agent) share env.json but each keeps its own
+// cache. Re-reading on mtime change makes a token removed through one of them stop
+// reaching the other's spawns without a restart.
+let cacheMtime = -1;
+
 export function managedEnvSync(): Record<string, string> {
+  let mtime: number;
+  try { mtime = statSync(ENV_FILE).mtimeMs; } catch { mtime = 0; }
+  if (mtime === cacheMtime) return cache;
+  if (mtime === 0) cache = {};
+  else {
+    try { cache = JSON.parse(readFileSync(ENV_FILE, 'utf8')) as Record<string, string>; } catch { return cache; }
+  }
+  cacheMtime = mtime;
   return cache;
 }
 
@@ -54,7 +88,7 @@ export function mcpServerDefsSync(): Record<string, unknown> {
 }
 
 export async function loadManagedEnv(): Promise<void> {
-  cache = await managedEnv();
+  managedEnvSync();
 }
 
 // O `.credentials.json` guarda MAIS de um login: os OAuth dos MCP servers ficam em
@@ -81,7 +115,8 @@ function hasOauthLogin(path: string): boolean {
 // escondida justamente no caso em que ela era necessária.
 export function claudeReady(home = homedir()): boolean {
   if (process.env.ANTHROPIC_API_KEY?.trim() || process.env.ANTHROPIC_AUTH_TOKEN?.trim()) return true;
-  if (cache.ANTHROPIC_API_KEY?.trim() || cache.ANTHROPIC_AUTH_TOKEN?.trim()) return true;
+  const managed = managedEnvSync();
+  if (managed.ANTHROPIC_API_KEY?.trim() || managed.ANTHROPIC_AUTH_TOKEN?.trim()) return true;
   return hasOauthLogin(join(home, '.claude', '.credentials.json'))
     || nonEmptyFile(join(home, '.config', 'anthropic', 'credentials'));
 }
@@ -90,23 +125,38 @@ function nonEmptyFile(path: string): boolean {
   try { return statSync(path).size > 0; } catch { return false; }
 }
 
+// Names that change how every spawned process loads code or where it sends the
+// OAuth bearer. On the owner's loopback box that is already allowed, but from a
+// remote (dial-mode) admin it is RCE / token exfiltration, same class as cli-install.
+// Remote (dial mode) may only set credential-shaped names. A denylist of
+// dangerous names can't be complete (SSH_ASKPASS, npm_config_*, JAVA_TOOL_OPTIONS,
+// ZDOTDIR, PAGER/EDITOR, GCONV_PATH, SSL_CERT_FILE…), so this is an allowlist;
+// anything else stays loopback-only. The owner's box is unaffected.
+const REMOTE_ALLOWED_ENV = /^[A-Z][A-Z0-9_]*_(TOKEN|KEY|API_KEY|SECRET|PAT|PASSWORD|ACCESS_TOKEN)$/;
+const REMOTE_NEVER = /^(ANTHROPIC_BASE_URL|COCKPIT_|DECK_|DFL_)/;
+
+export function envNameAllowedRemotely(name: string): boolean {
+  return REMOTE_ALLOWED_ENV.test(name) && !REMOTE_NEVER.test(name);
+}
+
 export async function setEnv(name: string, value: string): Promise<{ ok: boolean; message: string }> {
   if (!ENV_NAME_RE.test(name)) return { ok: false, message: 'nome de env inválido' };
-  const env = await managedEnv();
+  let env: Record<string, string>;
+  try { env = await readJsonForWrite<Record<string, string>>(ENV_FILE, {}); } catch (e) { return unreadable(ENV_FILE, e); }
   env[name] = value;
   await writeJson(ENV_FILE, env);
-  cache[name] = value;
-  process.env[name] = value;
+  cache = { ...managedEnvSync(), [name]: value };
   return { ok: true, message: `${name} salvo` };
 }
 
 export async function unsetEnv(name: string): Promise<{ ok: boolean; message: string }> {
-  const env = await managedEnv();
+  let env: Record<string, string>;
+  try { env = await readJsonForWrite<Record<string, string>>(ENV_FILE, {}); } catch (e) { return unreadable(ENV_FILE, e); }
   if (!(name in env)) return { ok: false, message: `${name} não existe` };
   delete env[name];
   await writeJson(ENV_FILE, env);
-  delete cache[name];
-  delete process.env[name];
+  const { [name]: _gone, ...rest } = managedEnvSync();
+  cache = rest;
   return { ok: true, message: `${name} removido` };
 }
 
@@ -133,7 +183,8 @@ export function validateMcpUrl(raw: string): { ok: boolean; message: string } {
 
 export async function addMcp(name: string, opts: { command?: string; url?: string }): Promise<{ ok: boolean; message: string }> {
   if (!name.trim()) return { ok: false, message: 'nome do MCP vazio' };
-  const j = await readJson<ClaudeJson>(CLAUDE_JSON, {});
+  let j: ClaudeJson;
+  try { j = await readJsonForWrite<ClaudeJson>(CLAUDE_JSON, {}); } catch (e) { return unreadable(CLAUDE_JSON, e); }
   const servers = (j.mcpServers ??= {});
   if (opts.url) {
     const v = validateMcpUrl(opts.url);
@@ -150,7 +201,8 @@ export async function addMcp(name: string, opts: { command?: string; url?: strin
 }
 
 export async function removeMcp(name: string): Promise<{ ok: boolean; message: string }> {
-  const j = await readJson<ClaudeJson>(CLAUDE_JSON, {});
+  let j: ClaudeJson;
+  try { j = await readJsonForWrite<ClaudeJson>(CLAUDE_JSON, {}); } catch (e) { return unreadable(CLAUDE_JSON, e); }
   if (!j.mcpServers || !(name in j.mcpServers)) return { ok: false, message: `MCP ${name} não existe` };
   delete j.mcpServers[name];
   await writeJson(CLAUDE_JSON, j);
