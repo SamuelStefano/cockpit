@@ -259,6 +259,12 @@ describe('task-status: comando de PATCH em work.tasks', () => {
     expect(Object.keys(body).sort()).toEqual(['status', 'updated_at']);
   });
 
+  it('sem confirmação, o PATCH não mexe em task já concluída no DFL e diz isso', async () => {
+    queue = [reply(200, [])];
+    await expect(runWrite({ kind: 'task-status', taskId: TASK, status: 'in_progress', unlessFinished: true })).rejects.toThrow('FINISHED_IN_DFL');
+    expect(calls[0].url).toContain('status=not.in.(dev_completed,done)');
+  });
+
   it('recusa um status fora do enum de work.tasks', async () => {
     await expect(runWrite({ kind: 'task-status', taskId: TASK, status: 'bogus' as never })).rejects.toThrow('status inválido');
     expect(calls).toHaveLength(0);
