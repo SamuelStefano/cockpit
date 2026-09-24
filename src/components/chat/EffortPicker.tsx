@@ -10,6 +10,7 @@ export function EffortPicker({ effort, setEffort }: {
     <label className="inline-flex shrink-0 items-center gap-1" title="Nível de pensamento do próximo prompt — quanto maior, mais tokens (e custo).">
       <span className={tag}>pensar</span>
       <select
+        aria-label="Nível de pensamento do próximo prompt"
         value={effort}
         onChange={(e) => setEffort(e.target.value as Effort)}
         className={sel}
