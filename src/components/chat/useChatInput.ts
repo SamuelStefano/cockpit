@@ -182,8 +182,10 @@ export function useChatInput(args: UseChatInputArgs) {
   const onKey = (e: React.KeyboardEvent) => {
     // IME em composição (dead key de acento, candidato CJK): o Enter/Tab confirma
     // o candidato, não envia a mensagem. Sem isto, digitar "ã" via ~+a no Linux
-    // dispara um submit no meio da palavra.
-    if (e.nativeEvent.isComposing && (e.key === 'Enter' || e.key === 'Tab' || e.key === 'Escape')) return;
+    // dispara um submit no meio da palavra. Safari sends the Enter that confirms a
+    // CJK candidate with isComposing=false and keyCode 229; → moves between IME
+    // segments, so no key of ours may act while composing.
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (showPalette) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => (s + 1) % matches.length); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => (s - 1 + matches.length) % matches.length); return; }
