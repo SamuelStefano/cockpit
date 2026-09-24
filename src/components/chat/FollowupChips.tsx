@@ -11,9 +11,9 @@ export function FollowupChips({ items, onPick, onDismiss }: {
   if (!items.length) return null;
   return (
     <div className="fade-up mx-auto flex w-full max-w-3xl flex-wrap items-center gap-1.5 px-4 pb-2">
-      {items.map((s) => (
+      {items.map((s, i) => (
         <button
-          key={s}
+          key={`${i}:${s}`}
           type="button"
           onClick={() => onPick(s)}
           className={`group flex items-center gap-1.5 rounded-full border border-neutral-800 bg-neutral-900/70 px-3 py-1.5 text-[12px] text-neutral-400 transition hover:border-orange-500/40 hover:bg-neutral-900 hover:text-orange-200 ${tokens.focusRing}`}

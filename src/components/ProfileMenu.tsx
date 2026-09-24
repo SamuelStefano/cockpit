@@ -30,6 +30,9 @@ export function ProfileMenu({ userId, onSignOut, onChangePassword, drops }: Prof
       <button
         onClick={() => setOpen((o) => !o)}
         title="Perfil"
+        aria-label="Perfil"
+        aria-haspopup="menu"
+        aria-expanded={open}
         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900 text-neutral-300 transition hover:border-orange-500/60"
       >
         <AvatarFace avatar={avatar} name={name} size={32} />

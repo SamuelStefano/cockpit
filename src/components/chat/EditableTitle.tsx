@@ -1,4 +1,5 @@
 import { useEditableTitle } from './useEditableTitle';
+import { tokens } from '../primitives';
 
 interface EditableTitleProps {
   id?: string;
@@ -15,6 +16,7 @@ export function EditableTitle({ id, title, editable, onRename }: EditableTitlePr
       <input
         ref={inputRef}
         value={draft}
+        aria-label="Nome da sessão"
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
@@ -34,7 +36,8 @@ export function EditableTitle({ id, title, editable, onRename }: EditableTitlePr
     <button
       onClick={start}
       title="Renomear sessão"
-      className="min-w-0 truncate rounded-sm px-1 py-0.5 text-left text-[12.5px] font-medium text-neutral-300 transition hover:bg-neutral-800 hover:text-neutral-100"
+      aria-label={`Renomear sessão: ${title}`}
+      className={`min-w-0 truncate rounded-sm px-1 py-0.5 text-left text-[12.5px] font-medium text-neutral-300 transition hover:bg-neutral-800 hover:text-neutral-100 ${tokens.focusRing}`}
     >
       {title}
     </button>

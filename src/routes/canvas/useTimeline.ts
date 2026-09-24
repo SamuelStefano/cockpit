@@ -46,7 +46,14 @@ export function useTimeline(): Timeline {
     setScrubbed(clampToRange(v, freshNow - TIMELINE_WINDOW_MS, freshNow));
   };
   const goLive = () => { setPlaying(false); setLive(true); setNow(Date.now()); };
-  const play = () => { setLive(false); setPlaying(true); };
+  // From live, start the replay a full window back from the real now: `now` and
+  // `scrubbed` were frozen at the last capture, so play jumped to a stale time
+  // and ended short of the present, stuck in "vendo o passado".
+  const play = () => {
+    if (live) { const n = Date.now(); setNow(n); setScrubbed(n - TIMELINE_WINDOW_MS); }
+    setLive(false);
+    setPlaying(true);
+  };
   const pause = () => setPlaying(false);
 
   useEffect(() => {

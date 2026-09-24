@@ -25,7 +25,9 @@ export function PlaygroundStudio({ code, mode, lang }: { code: string; mode: Mod
   const share = () => {
     const url = buildShareUrl(lang, draft);
     copyLink(url);
-    toast(url.length > 2000 ? 'Link copiado (grande — código extenso)' : 'Link do playground copiado');
+    // The copy result arrives async (linkCopied / linkFailed drive the icon); a toast
+    // here claimed success even when the copy failed.
+    if (url.length > 2000) toast('Link grande — o código é extenso');
   };
 
   const sized = mode === 'react' || mode === 'html';

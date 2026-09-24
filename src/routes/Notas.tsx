@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button, Badge, EmptyState, Markdown, RouteHeader } from '../components/primitives';
 import { useNotasEditor } from './notas/useNotasEditor';
+import { useCopied } from '../lib/useCopied';
 
 interface Props {
   connected: boolean;
@@ -17,12 +18,15 @@ export function Notas({ connected, notes, notesLoaded, onNotesGet, onNotesSave, 
   const { text, status, counts, onChange, flush, clear } = useNotasEditor(notes, notesLoaded, onNotesGet, onNotesSave, connected);
   const statusBadge = { saved: { tone: 'neutral' as const, label: 'salvo' }, saving: { tone: 'orange' as const, label: 'salvando…' }, offline: { tone: 'red' as const, label: 'não salvo — sem conexão' } }[status];
   const [preview, setPreview] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  const copy = () => {
-    navigator.clipboard?.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {});
-  };
+  // useCopied has the execCommand fallback: navigator.clipboard is missing over
+  // http/IP (the phone on the tailnet), where copying used to fail silently.
+  const [copied, copyText] = useCopied(1500);
+  const copy = () => copyText(text);
   // ⌘S / Ctrl+S: salva já (sem esperar o debounce). preventDefault tira o "salvar página".
+  // Save what's typed first (the debounce may still hold the last keystrokes), and
+  // ignore a second tap while the route is changing.
+  const [analyzing, setAnalyzing] = useState(false);
+  const analyze = () => { if (analyzing) return; setAnalyzing(true); flush(); onAnalyze(text); setTimeout(() => setAnalyzing(false), 3000); };
   const onKey = (e: React.KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); flush(); }
   };
@@ -48,7 +52,7 @@ export function Notas({ connected, notes, notesLoaded, onNotesGet, onNotesSave, 
               </Button>
               <Button variant="ghost" size="sm" icon={copied ? 'check' : 'copy'} title="Copiar tudo" onClick={copy} disabled={!text.trim()} />
               <Button variant="ghost" size="sm" icon="trash" title="Limpar" onClick={clear} disabled={!text.trim()} />
-              <Button variant="primary" size="sm" icon="sparkles" onClick={() => onAnalyze(text)} disabled={!text.trim()}>
+              <Button variant="primary" size="sm" icon="sparkles" onClick={analyze} disabled={!text.trim() || analyzing}>
                 Analisar com IA
               </Button>
             </>

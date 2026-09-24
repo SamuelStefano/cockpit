@@ -34,18 +34,30 @@ interface AdminProps {
   onDeckRestart: (mode: 'idle' | 'now') => void;
 }
 
+const toastedOps = new WeakSet<object>();
+
 export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, isRoot, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, onCliUpdate, onDeckRestart }: AdminProps) {
   const [updatedAt, setUpdatedAt] = useState(0);
   const [tab, setTab] = useState('overview');
+  // Polls only while the tab is visible (health spawns probes server-side every
+  // 10s), and refreshes at once when it comes back.
   useEffect(() => {
     onHealthList();
-    const id = setInterval(onHealthList, 10_000);
-    return () => clearInterval(id);
+    const id = setInterval(() => { if (!document.hidden) onHealthList(); }, 10_000);
+    const onVisible = () => { if (!document.hidden) onHealthList(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
   }, [onHealthList]);
   useEffect(() => { if (health) setUpdatedAt(Date.now()); }, [health]);
   // O resultado da op é do painel inteiro, não só da aba Host: conceder/remover admin
   // na aba Contas não dava sinal nenhum (nem sucesso, nem recusa do relay).
-  useEffect(() => { if (adminOp) toast(adminOp.message, { tone: adminOp.ok ? 'ok' : 'error' }); }, [adminOp]);
+  // adminOp lives in app state for 4–8s: leaving /admin and coming back inside
+  // that window re-mounted this effect and toasted the same result again.
+  useEffect(() => {
+    if (!adminOp || toastedOps.has(adminOp)) return;
+    toastedOps.add(adminOp);
+    toast(adminOp.message, { tone: adminOp.ok ? 'ok' : 'error' });
+  }, [adminOp]);
   // …e a lista de contas não reflete a mudança sozinha.
   useEffect(() => { if (adminOp?.ok && tab === 'accounts') onAccountsList(); }, [adminOp, tab, onAccountsList]);
 
@@ -107,9 +119,9 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
             {stats && (
               <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <Stat label="CPU" value={`${cpuPct}%`} icon="zap" tone={cpuPct >= 85 ? 'warn' : cpuPct < 60 ? 'ok' : undefined} />
-                <Stat label="RAM" value={`${memPct}%`} icon="zap" tone={memPct >= 85 ? 'warn' : memPct < 60 ? 'ok' : undefined} />
-                <Stat label="Load" value={stats.load.toFixed(2)} icon="zap" />
-                <Stat label="GPU" value={gpuPct === null ? '—' : `${gpuPct}%`} icon="zap" tone={gpuPct !== null && gpuPct >= 85 ? 'warn' : undefined} />
+                <Stat label="RAM" value={`${memPct}%`} icon="layers" tone={memPct >= 85 ? 'warn' : memPct < 60 ? 'ok' : undefined} />
+                <Stat label="Load" value={stats.load.toFixed(2)} icon="sliders" />
+                <Stat label="GPU" value={gpuPct === null ? '—' : `${gpuPct}%`} icon="monitor" tone={gpuPct !== null && gpuPct >= 85 ? 'warn' : undefined} />
               </div>
             )}
 
@@ -120,8 +132,8 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
                 <AdminInventory health={health} />
 
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <Stat label="Disco" value={`${diskPct}%`} icon="zap" tone={diskPct > 90 ? 'warn' : undefined} />
-                  <Stat label="Livre" value={gb(health.disk.total - health.disk.used)} icon="zap" />
+                  <Stat label="Disco" value={`${diskPct}%`} icon="file" tone={diskPct > 90 ? 'warn' : undefined} />
+                  <Stat label="Livre" value={gb(health.disk.total - health.disk.used)} icon="download" />
                   <Stat label="Uptime backend" value={dur(health.uptimeSec)} icon="clock" tone="ok" />
                   <Stat label="Node" value={health.node} icon="terminal" />
                   <Stat label="Sessões" value={String(health.sessions)} icon="message" />

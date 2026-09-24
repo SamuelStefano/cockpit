@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Icon, tokens } from '../primitives';
 import type { ToolCall } from '../../data/types';
 import { ToolCallCard } from './ToolCallCard';
+import { fmtToolDuration } from './message-format';
 
 interface ToolGroupCardProps {
   tools: ToolCall[];
@@ -40,7 +41,7 @@ export function ToolGroupCard({ tools }: ToolGroupCardProps) {
     ? <span className="flex items-center gap-1 text-[10.5px] font-medium text-neutral-400"><Icon name="rotate" size={11} className="spin text-orange-400" /> rodando…</span>
     : status === 'error'
     ? <span className="flex items-center gap-1 text-[10.5px] font-medium text-red-400"><Icon name="x" size={12} /> {tools.filter((t) => t.status === 'error').length} falhou</span>
-    : <span className="flex items-center gap-1 text-[10.5px] font-medium text-green-400"><Icon name="check" size={12} /> ok{hasMs ? ` ${(totalMs / 1000).toFixed(1)}s` : ''}</span>;
+    : <span className="flex items-center gap-1 text-[10.5px] font-medium text-green-400"><Icon name="check" size={12} /> ok{hasMs ? ` ${fmtToolDuration(totalMs)}` : ''}</span>;
 
   return (
     <div className={`my-2 overflow-hidden rounded-xl border ${ring} bg-neutral-900/70`}>

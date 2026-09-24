@@ -101,4 +101,14 @@ describe('useGlobalShortcuts', () => {
     key({ key: 'n' });
     expect(setActiveSessionId).not.toHaveBeenCalled();
   });
+
+  it('does not switch sessions behind an open dialog', () => {
+    const dlg = document.createElement('div');
+    dlg.setAttribute('aria-modal', 'true');
+    document.body.appendChild(dlg);
+    const { setActiveSessionId } = mount({ updated: new Set(['b']) });
+    key({ key: 'ArrowDown', altKey: true });
+    key({ key: 'n' });
+    expect(setActiveSessionId).not.toHaveBeenCalled();
+  });
 });

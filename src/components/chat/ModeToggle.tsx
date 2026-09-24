@@ -23,6 +23,8 @@ export function ModeToggle({ mode, setMode }: { mode: PermMode; setMode: (m: Per
             type="button"
             onClick={() => setMode(o.v)}
             title={o.hint}
+            // The active mode was shown by colour alone.
+            aria-pressed={active}
             className={`whitespace-nowrap rounded-md px-2.5 py-1.5 text-[11px] font-medium transition sm:px-2 sm:py-1 ${tokens.focusRing}
               ${active ? ACTIVE_TONE[o.v] : 'text-neutral-500 hover:text-neutral-300'}`}
           >

@@ -1,4 +1,4 @@
-import { Icon, tokens } from '../primitives';
+import { Icon, tokens, toast } from '../primitives';
 import type { Message } from '../../data/types';
 import { useState } from 'react';
 import { threadToMarkdown, threadToPdf, download, fileSlug } from '../../lib/export';
@@ -11,7 +11,9 @@ export function ExportMenu({ title, messages }: { title: string; messages: Messa
   const exportMd = () => download(`${fileSlug(title)}.md`, 'text/markdown', threadToMarkdown(title, messages));
   const exportPdf = async () => {
     setBusy(true);
+    // jspdf is a lazy chunk: a failed load or render used to reject silently.
     try { await threadToPdf(title, messages); }
+    catch { toast('Não consegui gerar o PDF — tente o .md', { tone: 'error' }); }
     finally { setBusy(false); }
   };
   return (

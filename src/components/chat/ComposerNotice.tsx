@@ -21,7 +21,8 @@ const TONE = {
 export function ComposerNotice({ icon, children, onDismiss, tone = 'error' }: ComposerNoticeProps) {
   const t = TONE[tone];
   return (
-    <div className={`mb-2 flex items-start gap-2 rounded-lg border px-2.5 py-2 text-[12px] leading-snug ${t.box}`}>
+    // Errors (mic failure, quota) interrupt; guidance is announced politely.
+    <div role={tone === 'error' ? 'alert' : 'status'} className={`mb-2 flex items-start gap-2 rounded-lg border px-2.5 py-2 text-[12px] leading-snug ${t.box}`}>
       <Icon name={icon} size={13} className={`mt-0.5 shrink-0 ${t.icon}`} />
       <span className="flex-1">{children}</span>
       {onDismiss && (

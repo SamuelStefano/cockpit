@@ -10,7 +10,8 @@ interface ComposerActionsProps {
   onStop: () => void;
 }
 
-const btn = 'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition focus-visible:outline-hidden focus-visible:ring-2';
+// 40px on touch: 32px send/stop, 6px apart, was too easy to mis-tap on a phone.
+const btn = 'flex h-8 w-8 pointer-coarse:h-10 pointer-coarse:w-10 shrink-0 items-center justify-center rounded-lg transition focus-visible:outline-hidden focus-visible:ring-2';
 const idle = 'bg-neutral-800 text-neutral-600';
 
 export function ComposerActions({ busy, paused, hasText, hasAtt, attUploading, onSubmit, onStop }: ComposerActionsProps) {
@@ -22,7 +23,7 @@ export function ComposerActions({ busy, paused, hasText, hasAtt, attUploading, o
     // com o composer vazio empurrava o stop de volta pro slot da direita.
     const nothingToSend = !hasText && !hasAtt;
     return (
-      <div className="mb-0.5 flex shrink-0 items-center gap-1.5">
+      <div className="mb-0.5 flex shrink-0 items-center gap-1.5 pointer-coarse:gap-3">
         <button
           type="button"
           onClick={onStop}

@@ -18,6 +18,10 @@ const isTyping = () => {
   return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 };
 
+// Session switching behind an open dialog swapped the chat under a confirm or
+// an editor that still pointed at the previous session.
+const modalOpen = () => !!document.querySelector('[aria-modal="true"]');
+
 export function useGlobalShortcuts({ sessions, activeSessionId, setActiveSessionId, updated, nav, setPalette, setHelp }: Args) {
   const [navPins] = usePersisted<string[]>('pinned', []); // espelha a ordem do sidebar p/ Alt+↑/↓
 
@@ -43,6 +47,7 @@ export function useGlobalShortcuts({ sessions, activeSessionId, setActiveSession
     const onKey = (e: KeyboardEvent) => {
       if (!e.altKey || e.metaKey || e.ctrlKey) return;
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      if (modalOpen()) return;
       const pinSet = new Set(navPins);
       const ordered = [...sessions.filter((s) => pinSet.has(s.id)), ...sessions.filter((s) => !pinSet.has(s.id))];
       if (ordered.length < 2) return;
@@ -62,7 +67,7 @@ export function useGlobalShortcuts({ sessions, activeSessionId, setActiveSession
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'n' || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (isTyping()) return;
+      if (isTyping() || modalOpen()) return;
       if (!updated.size) return;
       const pinSet = new Set(navPins);
       const ordered = [...sessions.filter((s) => pinSet.has(s.id)), ...sessions.filter((s) => !pinSet.has(s.id))];

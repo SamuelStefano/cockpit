@@ -1,5 +1,7 @@
-import { useEffect, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
+import { useEscapeLayer } from './useEscapeLayer';
 import { Button } from './Button';
+import { tokens } from './tokens';
 import { Icon, type IconName } from './Icon';
 
 // Overlay modal do design system: backdrop com blur, fecha no clique-fora e no Esc,
@@ -18,12 +20,7 @@ export function Modal({
   maxWidth?: string;
   label?: string;
 }) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  useEscapeLayer(open, onClose);
 
   if (!open) return null;
   return (
@@ -39,7 +36,7 @@ export function Modal({
           <div className="flex items-center gap-2 border-b border-neutral-800 px-4 py-2.5">
             {icon && <Icon name={icon} size={14} className="shrink-0 text-neutral-500" />}
             <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-neutral-200" title={title}>{title}</span>
-            <Button variant="ghost" size="sm" square icon="x" onClick={onClose} title="Fechar (Esc)" />
+            <Button variant="ghost" size="sm" square icon="x" onClick={onClose} title="Fechar (Esc)" aria-label="Fechar" className={tokens.touchTarget} />
           </div>
         )}
         <div className="overflow-auto overscroll-contain px-4 py-4">{children}</div>

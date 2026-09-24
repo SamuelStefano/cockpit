@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { CanvasCard } from '../../../shared/canvas';
 import type { DflPointsSnapshot } from '../../../shared/protocol';
 import type { DflWriteResult } from '../../cockpit/usePoints';
@@ -48,7 +49,7 @@ export function DflLinkSection({ card, isDflArea, snapshot, onLink, onCreateLink
             <p className="text-[10.5px] text-yellow-300">
               Essa mudança de status é faturável ou reabre uma task já concluída na DFL. Confirme pra sincronizar.
             </p>
-            <Button size="xs" className="mt-1" onClick={() => onConfirmSync(card.id)}>confirmar sync</Button>
+            <ConfirmSync cardId={card.id} onConfirmSync={onConfirmSync} />
           </div>
         )}
         {card.dfl.error && !card.dfl.awaitingConfirm && <p className="mt-1 text-[10.5px] text-red-400">sync pendente: {card.dfl.error}</p>}
@@ -123,5 +124,26 @@ export function DflLinkSection({ card, isDflArea, snapshot, onLink, onCreateLink
       )}
       {s.error && <p className="text-[10.5px] text-red-400">{s.error}</p>}
     </div>
+  );
+}
+
+// The editor's `card` is a snapshot taken when it opened, so the yellow banner
+// never cleared by itself after a confirm, and the button had no busy state or
+// error: it invited repeated clicks on a billable push. Local state closes the
+// loop: busy while the ack is pending, "enviado" once queued, the error if not.
+function ConfirmSync({ cardId, onConfirmSync }: { cardId: string; onConfirmSync: (cardId: string) => Promise<DflWriteResult> }) {
+  const [state, setState] = useState<{ busy: boolean; done: boolean; error?: string }>({ busy: false, done: false });
+  if (state.done) return <p className="mt-1 text-[10.5px] text-emerald-300">enviado — sincronizando com a DFL</p>;
+  const run = async () => {
+    if (state.busy) return;
+    setState({ busy: true, done: false });
+    const r = await onConfirmSync(cardId);
+    setState(r.ok ? { busy: false, done: true } : { busy: false, done: false, error: r.message ?? 'falhou' });
+  };
+  return (
+    <>
+      <Button size="xs" className="mt-1" onClick={run} loading={state.busy} disabled={state.busy}>confirmar sync</Button>
+      {state.error && <p className="mt-1 text-[10.5px] text-red-400">{state.error}</p>}
+    </>
   );
 }

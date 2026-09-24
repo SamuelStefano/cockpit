@@ -13,6 +13,7 @@ interface TurnBannersProps {
   queuedCount?: number;
   lastEnd?: string;
   retryLast: () => void;
+  retryText?: string;
   onSend: (text: string, modeOverride?: PermMode) => void;
   onForceQueue?: () => void;
 }
@@ -21,7 +22,7 @@ interface TurnBannersProps {
 // corte de teto. Só um banner aparece por vez. A oferta vem na frente da falha
 // porque ela TAMBÉM acende o `failed` (a bolha é de erro), e "tentar novamente"
 // reenviaria a mensagem em vez de continuar o turno interrompido.
-export function TurnBanners({ phase, failed, resumeOffer = null, onResume, planPending, pendingQuestion = false, queuedCount = 0, lastEnd, retryLast, onSend, onForceQueue }: TurnBannersProps) {
+export function TurnBanners({ phase, failed, resumeOffer = null, onResume, planPending, pendingQuestion = false, queuedCount = 0, lastEnd, retryLast, retryText, onSend, onForceQueue }: TurnBannersProps) {
   if (resumeOffer && onResume) {
     return (
       <div className="flex shrink-0 items-center gap-2 border-t border-amber-500/30 bg-amber-500/6 px-4 py-2">
@@ -40,7 +41,9 @@ export function TurnBanners({ phase, failed, resumeOffer = null, onResume, planP
     return (
       <div className="flex shrink-0 items-center gap-2 border-t border-red-500/30 bg-red-500/6 px-4 py-2">
         <Icon name="rotate" size={13} className="text-red-400" />
-        <span className="text-[12px] text-red-200/90">O turno falhou. Reenviar a última mensagem?</span>
+        <span className="min-w-0 truncate text-[12px] text-red-200/90" title={retryText}>
+          O turno falhou. Reenviar{retryText ? <> «{retryText.slice(0, 80)}{retryText.length > 80 ? '…' : ''}»</> : ' a última mensagem'}?
+        </span>
         <button
           onClick={retryLast}
           className="ml-auto rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-[11.5px] font-medium text-red-200 transition hover:bg-red-500/20 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-red-500/40"

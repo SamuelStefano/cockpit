@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseTermSessions, clampDim, stripReports, trimBuffer, tmuxArgs, idleWatchers, resumeTerm } from './terminals';
+import { parseTermSessions, clampDim, stripReports, trimBuffer, tmuxArgs, idleWatchers, resumeTerm, detachedToEvict } from './terminals';
 
 describe('parseTermSessions', () => {
   it('keeps only cockpit-prefixed sessions and strips the prefix', () => {
@@ -125,5 +125,19 @@ describe('resumeTerm', () => {
     expect(await resumeTerm('bad id', uuid)).toBe(false);
     expect(await resumeTerm('w-abc', 'x; rm -rf ~')).toBe(false);
     expect(await resumeTerm('w-never-opened', uuid)).toBe(false);
+  });
+});
+
+describe('detachedToEvict', () => {
+  const e = (id: string, idleSince: number | null, attached = false) => ({ id, attached, idleSince });
+
+  it('closes the oldest idle detached clients beyond the cap', () => {
+    const entries = [e('a', 1), e('b', 2), e('c', 3), e('d', 4)];
+    expect(detachedToEvict(entries, 2)).toEqual(['a', 'b']);
+  });
+
+  it('never touches attached terminals or watch panes (those have their own reaper)', () => {
+    const entries = [e('a', 1, true), e('w-x', 2), e('b', 3), e('c', 4)];
+    expect(detachedToEvict(entries, 1)).toEqual(['b']);
   });
 });

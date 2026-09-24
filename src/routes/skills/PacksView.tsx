@@ -22,7 +22,7 @@ export function PacksView({ packs, installing, onInstall, onOpen }: Props) {
       </p>
       <PackRoleLegend />
       {packs.map((v) => (
-        <PackPanel key={v.pack.slug} view={v} installing={installing.has(`pack:${v.pack.source}/${v.pack.slug}`)} onInstall={onInstall} onOpen={onOpen} />
+        <PackPanel key={`${v.pack.source}/${v.pack.slug}`} view={v} installing={installing.has(`pack:${v.pack.source}/${v.pack.slug}`)} onInstall={onInstall} onOpen={onOpen} />
       ))}
     </div>
   );
