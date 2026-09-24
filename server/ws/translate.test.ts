@@ -21,7 +21,7 @@ vi.mock('./awaiting', () => {
 const KEY = 'k';
 
 function freshThread(): Thread {
-  return { handle: { kill: () => {} }, params: {}, prompt: '', startedAt: 0, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set() };
+  return { handle: { kill: () => {}, send: () => false }, params: {}, prompt: '', startedAt: 0, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set() };
 }
 function register(): Thread {
   const t = freshThread();
@@ -76,6 +76,31 @@ describe('translate', () => {
     expect(t.durationMs).toBe(1500);
     expect(t.numTurns).toBe(3);
     expect(t.endReason).toBe('success');
+  });
+
+  // A bg-wait turn yields several `result`s on one process: total_cost_usd is
+  // already cumulative (measured on CLI 2.1.281), duration/turns are per result.
+  it('keeps cumulative cost and sums duration/turns across results of one bg-wait turn', () => {
+    const t = register();
+    translate(KEY, t, { type: 'result', total_cost_usd: 0.01, duration_ms: 1000, num_turns: 2, subtype: 'success' } as never);
+    translate(KEY, t, { type: 'result', total_cost_usd: 0.03, duration_ms: 500, num_turns: 1, subtype: 'success' } as never);
+    expect(t.costUsd).toBeCloseTo(0.03);
+    expect(t.durationMs).toBe(1500);
+    expect(t.numTurns).toBe(3);
+  });
+
+  it('tracks the pending background-task list from background_tasks_changed', () => {
+    const t = register();
+    translate(KEY, t, { type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 't1', description: 'sleep 20' }] } as never);
+    expect(t.pendingBgTasks).toEqual([{ task_id: 't1', description: 'sleep 20' }]);
+    translate(KEY, t, { type: 'system', subtype: 'background_tasks_changed', tasks: [] } as never);
+    expect(t.pendingBgTasks).toEqual([]);
+  });
+
+  it('broadcasts a compact divider when a background task notifies', () => {
+    const t = register();
+    translate(KEY, t, { type: 'system', subtype: 'task_notification', status: 'completed', summary: 'Background command "sleep 20" completed (exit code 0)' } as never);
+    expect(broadcast).toHaveBeenCalledWith({ t: 'compact', sessionKey: KEY, kind: 'bg-task', label: 'Background command "sleep 20" completed (exit code 0)' });
   });
 
   it('captures the effective model and session id from a system event', () => {

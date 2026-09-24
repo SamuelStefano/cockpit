@@ -62,6 +62,24 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       if ((ev as any).subtype === 'scheduled_task_fire' && typeof (ev as any).content === 'string') {
         broadcast({ t: 'compact', sessionKey, kind: 'wakeup', label: (ev as any).content });
       }
+      // Lista de background tasks pendentes AGORA (Bash run_in_background, Monitor,
+      // subagente) — o engine (server/engine/claude.ts) usa a mesma lista pra
+      // decidir se mantém o stdin aberto depois do `result`; aqui ela só alimenta
+      // o teto de silêncio maior do reaper e o bg-wait branch do routeSend.
+      if ((ev as any).subtype === 'background_tasks_changed') {
+        const tasks = (ev as any).tasks;
+        thread.pendingBgTasks = Array.isArray(tasks) ? tasks : [];
+      }
+      // O engine ficou vivo esperando; a tarefa terminou e o CLI vai retomar
+      // sozinho (novo system/init + assistant + result). Marca no chat como um
+      // divisor fino — paridade com o "✻ resuming" do terminal — em vez de deixar
+      // a resposta seguinte aparecer do nada, sem contexto do que disparou.
+      if ((ev as any).subtype === 'task_notification') {
+        const summary = typeof (ev as any).summary === 'string' && (ev as any).summary
+          ? (ev as any).summary
+          : 'Tarefa em segundo plano terminou';
+        broadcast({ t: 'compact', sessionKey, kind: 'bg-task', label: summary });
+      }
       if (thread.sessionId) broadcast({ t: 'system', sessionKey, sessionId: thread.sessionId });
       return;
     }
@@ -186,9 +204,14 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       const r = ev as any;
       // typeof NaN === 'number': um total_cost_usd NaN/negativo/Infinity do CLI
       // vazaria pro 'done' e pra UI. Exige finito e >= 0.
+      // SOMA, não sobrescreve: um turno em bg-wait produz MAIS de um `result`
+      // físico (o pré-notificação e o pós-notificação) sobre o mesmo processo —
+      // cada um cobre só a fatia dele, e o 'done' final tem que refletir o gasto
+      // inteiro do turno, não só o último pedaço.
+      // total_cost_usd is cumulative per process; duration_ms/num_turns are per result.
       if (Number.isFinite(r.total_cost_usd) && r.total_cost_usd >= 0) thread.costUsd = r.total_cost_usd;
-      if (typeof r.duration_ms === 'number') thread.durationMs = r.duration_ms;
-      if (typeof r.num_turns === 'number') thread.numTurns = r.num_turns;
+      if (typeof r.duration_ms === 'number') thread.durationMs = (thread.durationMs ?? 0) + r.duration_ms;
+      if (typeof r.num_turns === 'number') thread.numTurns = (thread.numTurns ?? 0) + r.num_turns;
       // Fallback: se nenhum evento assistant trouxe usage (ex.: erro precoce),
       // usa o result.usage — que cobre só a ÚLTIMA chamada API, não o turno todo.
       const u = r.usage;

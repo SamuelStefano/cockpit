@@ -13,8 +13,15 @@ import { threads, stopSession } from './threads';
 export const REAPER_SILENCE_CAP_MS = 15 * 60_000;
 export const REAPER_TOOL_SILENCE_CAP_MS = 90 * 60_000;
 export const REAPER_TOTAL_CAP_MS = 8 * 60 * 60_000;
+// Teto de segurança pro turno em bg-wait (engine manteve o stdin aberto depois do
+// `result` esperando um background task pendente — ver claude.ts shouldCloseStdin).
+// Esse silêncio é ESPERADO (o processo não emite frame nenhum enquanto o task
+// roda), então os tetos normais de silêncio/tool não podem se aplicar — senão um
+// `sleep 20` de teste já seria reapado antes da notificação chegar. Configurável
+// (COCKPIT_BG_WAIT_CAP_MS) pra não depender de redeploy pra ajustar.
+export const REAPER_BG_WAIT_CAP_MS = 2 * 60 * 60_000;
 
-export type StaleReason = 'silence' | 'tool' | 'total';
+export type StaleReason = 'silence' | 'tool' | 'total' | 'bg-wait';
 export interface StaleVerdict { key: string; reason: StaleReason; ms: number }
 
 // Pura (testável): decide quais chaves reapar e por quê. lastFrameAt ausente → usa
@@ -23,18 +30,25 @@ export interface StaleVerdict { key: string; reason: StaleReason; ms: number }
 // contagem: um tool_use sem tool_result (subagente morto, parse perdido) ficaria
 // contado como "em voo" pelo resto do turno e rebaixaria o teto de silêncio de 15
 // pra 90min pra sempre. Tool aberta há mais que o teto dela não conta como trabalho.
+// bgWaiting = tem background task pendente (Thread.pendingBgTasks não-vazio):
+// pula os caps normais (o silêncio é esperado) e usa só o teto de bg-wait.
 export function findStaleThreads(
   now: number,
-  entries: Iterable<[string, { startedAt: number; lastFrameAt?: number; openToolsAt?: number[]; marathon?: boolean }]>,
-  caps: { silence?: number; toolSilence?: number; total?: number } = {},
+  entries: Iterable<[string, { startedAt: number; lastFrameAt?: number; openToolsAt?: number[]; marathon?: boolean; bgWaiting?: boolean }]>,
+  caps: { silence?: number; toolSilence?: number; total?: number; bgWait?: number } = {},
 ): StaleVerdict[] {
   const silenceCap = caps.silence ?? REAPER_SILENCE_CAP_MS;
   const toolCap = caps.toolSilence ?? REAPER_TOOL_SILENCE_CAP_MS;
   const totalCap = caps.total ?? REAPER_TOTAL_CAP_MS;
+  const bgWaitCap = caps.bgWait ?? REAPER_BG_WAIT_CAP_MS;
   const stale: StaleVerdict[] = [];
   for (const [key, t] of entries) {
     const silentFor = now - (t.lastFrameAt ?? t.startedAt);
     const aliveFor = now - t.startedAt;
+    if (t.bgWaiting) {
+      if (silentFor >= bgWaitCap) stale.push({ key, reason: 'bg-wait', ms: silentFor });
+      continue;
+    }
     const busy = (t.openToolsAt ?? []).some((at) => now - at < toolCap);
     // A maratona só abre mão do teto de VIDA. Os de silêncio seguem valendo: turno
     // mudo está travado, não longo — e é justamente na maratona que ninguém olha.
@@ -52,7 +66,13 @@ const REAP_MESSAGE: Record<StaleReason, string> = {
   silence: 'O turno ficou mudo tempo demais e foi encerrado.',
   tool: 'Uma ferramenta travou e o turno foi encerrado.',
   total: 'O turno passou do tempo máximo de vida e foi encerrado.',
+  'bg-wait': 'Um background task não terminou dentro do teto de espera e o turno foi encerrado.',
 };
+
+function bgWaitCapMs(): number {
+  const n = Number(process.env.COCKPIT_BG_WAIT_CAP_MS);
+  return Number.isFinite(n) && n > 0 ? n : REAPER_BG_WAIT_CAP_MS;
+}
 
 export function reapStaleRuns(): void {
   const now = Date.now();
@@ -63,8 +83,11 @@ export function reapStaleRuns(): void {
     // duplicando bolha de erro e incidente a cada minuto.
     .filter(([, t]) => !t.reaped && !t.stopped)
     .map(([key, t]) =>
-      [key, { startedAt: t.startedAt, lastFrameAt: t.lastFrameAt, openToolsAt: [...t.toolStart.values()], marathon: threadIsMarathon(key, t.sessionId) }] as [string, { startedAt: number; lastFrameAt?: number; openToolsAt: number[]; marathon: boolean }]);
-  for (const v of findStaleThreads(now, snapshot)) {
+      [key, {
+        startedAt: t.startedAt, lastFrameAt: t.lastFrameAt, openToolsAt: [...t.toolStart.values()],
+        marathon: threadIsMarathon(key, t.sessionId), bgWaiting: !!t.pendingBgTasks?.length,
+      }] as [string, { startedAt: number; lastFrameAt?: number; openToolsAt: number[]; marathon: boolean; bgWaiting: boolean }]);
+  for (const v of findStaleThreads(now, snapshot, { bgWait: bgWaitCapMs() })) {
     const thread = threads.get(v.key);
     if (!thread) continue;
     // Marca reaped ANTES do kill: o onClose usa a marca pra retomar o turno sozinho.

@@ -635,7 +635,7 @@ export function startRun(o: StartRunOptions) {
 
   let live = false; // este turno já foi registrado no live-runs.json?
   let parkedConsumed = false; // o item de fila deste turno já saiu do registro em disco?
-  const thread: Thread = { handle: { kill: () => {} }, params, prompt, startedAt: Date.now(), sessionId: forkId ?? resumeId, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set(), flowHop };
+  const thread: Thread = { handle: { kill: () => {}, send: () => false }, params, prompt, startedAt: Date.now(), sessionId: forkId ?? resumeId, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set(), flowHop };
   threads.set(sessionKey, thread);
   // Eco da mensagem do usuário a todos os clientes ANTES do 'started' (bolha do
   // usuário aparece antes da do assistente). Só quando o cliente mandou msgId — o
@@ -875,6 +875,21 @@ export async function routeSend(o: RouteSendOptions) {
   if (typeof prompt !== 'string' || Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) { send(ws, { t: 'error', sessionKey: displayKey, message: 'prompt grande demais' }); return; }
   const cur = threads.get(sessionKey);
   if (!cur) { startRun({ ...params, ws, sessionKey, prompt, resumeId, msgId }); return; } // corrida: turno fechou
+
+  // bg-wait: o processo ficou vivo depois do `result` só esperando a notificação
+  // de um background task (claude.ts shouldCloseStdin; Thread.pendingBgTasks).
+  // Uma mensagem nova aqui NÃO pode virar um segundo `--resume` no mesmo
+  // transcript — dois processos escrevendo o mesmo JSONL se atropelam (mesmo
+  // risco do comentário em runParkedNow, só que aqui os dois processos
+  // existiriam ao mesmo tempo). Escreve na MESMA stdin em vez disso: sem
+  // triagem, a mensagem entra como o próximo turno da conversa, igual ao
+  // terminal. `send` falhar (corrida rara com o fechamento natural do stdin)
+  // cai pro caminho normal abaixo, como se o turno tivesse acabado de fechar.
+  if (cur.pendingBgTasks?.length && cur.handle.send(prompt)) {
+    if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
+    cur.prompt = prompt;
+    return;
+  }
 
   // Bolha do usuário aparece já (antes da decisão da triagem, que leva ~alguns s).
   if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { findStaleThreads, REAPER_SILENCE_CAP_MS, REAPER_TOOL_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './reaper';
+import { findStaleThreads, REAPER_SILENCE_CAP_MS, REAPER_TOOL_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS, REAPER_BG_WAIT_CAP_MS } from './reaper';
 
 vi.mock('./broadcast', () => ({ broadcast: vi.fn(), send: vi.fn(), setWss: vi.fn() }));
 vi.mock('./incidents', () => ({ recordIncident: vi.fn() }));
@@ -61,6 +61,35 @@ describe('findStaleThreads', () => {
     const entries: Entry[] = [['a', { startedAt: now - 5000, lastFrameAt: now - 4000 }]];
     expect(keys(entries)).toEqual([]);
     expect(findStaleThreads(now, entries, { silence: 3000 }).map((v) => v.key)).toEqual(['a']);
+  });
+});
+
+// bg-wait: o engine manteve o stdin aberto esperando um background task (ver
+// claude.ts shouldCloseStdin). O silêncio ENQUANTO isso é esperado — não pode
+// cair nos tetos normais de 15min, senão um `sleep` de poucos minutos já seria
+// reapado antes da notificação chegar. Só o teto de segurança (2h) vale.
+describe('bg-wait', () => {
+  const now = 1_000_000_000;
+
+  it('não mata turno mudo com background task pendente dentro do teto de bg-wait', () => {
+    const entries: [string, { startedAt: number; lastFrameAt?: number; bgWaiting?: boolean }][] = [
+      ['a', { startedAt: now - REAPER_SILENCE_CAP_MS * 4, lastFrameAt: now - REAPER_SILENCE_CAP_MS * 3, bgWaiting: true }],
+    ];
+    expect(findStaleThreads(now, entries)).toEqual([]);
+  });
+
+  it('mata turno bg-waiting além do teto de bg-wait', () => {
+    const entries: [string, { startedAt: number; lastFrameAt?: number; bgWaiting?: boolean }][] = [
+      ['a', { startedAt: now - REAPER_BG_WAIT_CAP_MS * 2, lastFrameAt: now - REAPER_BG_WAIT_CAP_MS - 1, bgWaiting: true }],
+    ];
+    expect(findStaleThreads(now, entries)[0]).toMatchObject({ key: 'a', reason: 'bg-wait' });
+  });
+
+  it('respeita o teto de bg-wait injetado', () => {
+    const entries: [string, { startedAt: number; lastFrameAt?: number; bgWaiting?: boolean }][] = [
+      ['a', { startedAt: now - 5000, lastFrameAt: now - 4000, bgWaiting: true }],
+    ];
+    expect(findStaleThreads(now, entries, { bgWait: 3000 })[0]).toMatchObject({ key: 'a', reason: 'bg-wait' });
   });
 });
 

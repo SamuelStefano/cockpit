@@ -16,12 +16,13 @@ vi.mock('node:child_process', () => ({
 
 class FakeChild extends EventEmitter {
   pid = 7331;
+  stdin = new PassThrough();
   stdout = new PassThrough();
   stderr = new PassThrough();
   kill = vi.fn();
 }
 
-import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run, effectiveBudget, pickMcpDefs, resolveMcpSelection, validModel, withWorkflowGrant, mcpConfigBody, PERMISSION_MCP_NAME, PERMISSION_PROMPT_TOOL } from './claude';
+import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run, effectiveBudget, pickMcpDefs, resolveMcpSelection, validModel, withWorkflowGrant, mcpConfigBody, encodeUserLine, shouldCloseStdin, PERMISSION_MCP_NAME, PERMISSION_PROMPT_TOOL } from './claude';
 import { ALL_MCPS } from '../../shared/mcp';
 import { CONFIG } from '../config';
 
@@ -194,9 +195,17 @@ describe('bypassAllowed', () => {
 describe('buildArgs', () => {
   it('always sends the headless stream-json base flags', () => {
     const args = argsOf({ prompt: 'hi' });
-    expect(valAfter(args, '-p')).toBe('hi');
+    // O prompt vai por STDIN (encodeUserLine), não argv — -p não carrega valor.
+    expect(args).toContain('-p');
+    expect(args[args.indexOf('-p') + 1]).toBe('--input-format');
+    expect(valAfter(args, '--input-format')).toBe('stream-json');
     expect(valAfter(args, '--output-format')).toBe('stream-json');
     expect(args).toContain('--include-partial-messages');
+  });
+
+  it('never puts the prompt text in argv (stays out of `ps`)', () => {
+    const args = argsOf({ prompt: 'super-secret-instruction' });
+    expect(args).not.toContain('super-secret-instruction');
   });
 
   it('never passes bypassPermissions for any requested mode', () => {
@@ -408,6 +417,25 @@ describe('minimalEnv', () => {
   });
 });
 
+describe('encodeUserLine', () => {
+  it('produz uma linha NDJSON de turno de usuário terminada em \\n', () => {
+    expect(encodeUserLine('oi')).toBe(`${JSON.stringify({ type: 'user', message: { role: 'user', content: 'oi' } })}\n`);
+  });
+});
+
+describe('shouldCloseStdin', () => {
+  it('não fecha antes do primeiro result', () => {
+    expect(shouldCloseStdin(false, 0)).toBe(false);
+  });
+  it('fecha no result sem background task pendente', () => {
+    expect(shouldCloseStdin(true, 0)).toBe(true);
+  });
+  it('não fecha no result com background task pendente', () => {
+    expect(shouldCloseStdin(true, 1)).toBe(false);
+    expect(shouldCloseStdin(true, 3)).toBe(false);
+  });
+});
+
 describe('run: leitura do stream', () => {
   let child: FakeChild;
   const events: unknown[] = [];
@@ -457,6 +485,61 @@ describe('run: leitura do stream', () => {
     child.emit('close', 127);
     expect(errors[0]).toContain('claude saiu (127)');
     expect(errors[0]).toContain('boom no CLI');
+  });
+
+  // O prompt vai por stdin (não argv) — uma linha NDJSON no formato que
+  // --input-format stream-json espera.
+  it('escreve o prompt como a primeira linha do stdin', async () => {
+    const written: string[] = [];
+    child = new FakeChild();
+    child.stdin.on('data', (d) => written.push(String(d)));
+    spawned.child = child;
+    start();
+    await flush();
+    expect(written.join('')).toBe(encodeUserLine('oi'));
+  });
+
+  // Sem background task pendente: fecha o stdin assim que o `result` chega
+  // (mesmo comportamento visível de antes — o processo sai sozinho).
+  it('fecha o stdin no result sem background task pendente', async () => {
+    start();
+    child.stdout.write(`${JSON.stringify({ type: 'result', subtype: 'success' })}\n`);
+    await flush();
+    expect(child.stdin.writable).toBe(false);
+  });
+
+  // Com background task pendente (background_tasks_changed antes do result), o
+  // stdin FICA aberto — é o que impede o "5s depois mata o pendente e sai".
+  it('mantém o stdin aberto no result com background task pendente', async () => {
+    start();
+    child.stdout.write(`${JSON.stringify({ type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 't1' }] })}\n`);
+    child.stdout.write(`${JSON.stringify({ type: 'result', subtype: 'success' })}\n`);
+    await flush();
+    expect(child.stdin.writable).toBe(true);
+    // A lista esvazia depois (task terminou) e um SEGUNDO result fecha o stdin.
+    child.stdout.write(`${JSON.stringify({ type: 'system', subtype: 'background_tasks_changed', tasks: [] })}\n`);
+    child.stdout.write(`${JSON.stringify({ type: 'result', subtype: 'success' })}\n`);
+    await flush();
+    expect(child.stdin.writable).toBe(false);
+  });
+
+  it('handle.send escreve outra linha de usuário enquanto o stdin está aberto', async () => {
+    const written: string[] = [];
+    child = new FakeChild();
+    child.stdin.on('data', (d) => written.push(String(d)));
+    spawned.child = child;
+    const handle = run({ prompt: 'oi', onEvent: () => {}, onError: () => {}, onClose: () => {} });
+    await flush();
+    expect(handle.send('mais uma coisa')).toBe(true);
+    await flush();
+    expect(written.join('')).toBe(`${encodeUserLine('oi')}${encodeUserLine('mais uma coisa')}`);
+  });
+
+  it('handle.send devolve false depois que o stdin fechou (corrida com o fim natural)', async () => {
+    const handle = run({ prompt: 'oi', onEvent: () => {}, onError: () => {}, onClose: () => {} });
+    child.stdout.write(`${JSON.stringify({ type: 'result', subtype: 'success' })}\n`); // sem pending → fecha o stdin
+    await flush();
+    expect(handle.send('tarde demais')).toBe(false);
   });
 
   it('fecha uma vez só, mesmo com error e close no mesmo spawn', () => {

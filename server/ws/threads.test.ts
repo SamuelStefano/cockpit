@@ -8,7 +8,7 @@ vi.mock('../engine/triage', () => ({ killSideRuns: vi.fn(), killSideRunsFor: vi.
 
 const kill = vi.fn();
 const thread = (sessionId?: string): Thread => ({
-  handle: { kill }, params: {}, prompt: 'p', startedAt: Date.now(), sessionId,
+  handle: { kill, send: () => false }, params: {}, prompt: 'p', startedAt: Date.now(), sessionId,
   text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(),
   tasks: new Map(), taskCreates: new Map(), appTried: new Set(),
 });
@@ -127,7 +127,7 @@ describe('killAllRuns', () => {
   });
 
   it('handle que já morreu não derruba o resto da árvore', () => {
-    threads.set('k1', { ...thread(), handle: { kill: () => { throw new Error('já morto'); } } });
+    threads.set('k1', { ...thread(), handle: { kill: () => { throw new Error('já morto'); }, send: () => false } });
     threads.set('k2', thread());
     expect(() => killAllRuns()).not.toThrow();
     expect(kill).toHaveBeenCalledTimes(1);
