@@ -1,4 +1,6 @@
+import { useRef } from 'react';
 import { Icon, tokens } from '../primitives';
+import { useMenuKeys } from '../primitives/useMenuKeys';
 import { useComposerPlusMenu } from './useComposerPlusMenu';
 import type { Mic } from './mic-types';
 
@@ -15,13 +17,17 @@ export function ComposerPlusMenu({ mic, onAttach, onPhoto }: {
   onPhoto: () => void;
 }) {
   const { open, toggle, close, run, wrapRef } = useComposerPlusMenu();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menu = useMenuKeys<HTMLDivElement>(open, triggerRef);
   return (
     <div ref={wrapRef} className="relative shrink-0">
       <button
+        ref={triggerRef}
         type="button"
         onClick={mic.listening ? mic.toggle : toggle}
         aria-label={mic.listening ? 'Parar de ditar' : 'Anexar, fotografar ou ditar'}
         aria-expanded={open}
+        aria-haspopup="menu"
         title={mic.error ?? 'Anexar arquivo, tirar foto ou ditar'}
         className={`mb-0.5 flex h-8 w-8 items-center justify-center rounded-lg transition ${tokens.focusRing}
           ${mic.listening
@@ -35,15 +41,15 @@ export function ComposerPlusMenu({ mic, onAttach, onPhoto }: {
       {/* Sem backdrop `fixed`: o `backdrop-blur` do composer vira containing block e
           ele cobria só a caixa do composer. O clique-fora já é do useDismiss. */}
       {open && (
-        <div role="menu" aria-label="Ações do composer" className="absolute bottom-full left-0 z-40 mb-2 w-48 overflow-hidden rounded-xl border border-neutral-700 bg-neutral-900 shadow-xl shadow-black/50">
-          <button type="button" role="menuitem" className={item} onClick={() => run(onAttach)}>
+        <div ref={menu.ref} onKeyDown={menu.onKeyDown} role="menu" aria-label="Ações do composer" className="absolute bottom-full left-0 z-40 mb-2 w-48 overflow-hidden rounded-xl border border-neutral-700 bg-neutral-900 shadow-xl shadow-black/50">
+          <button type="button" role="menuitem" tabIndex={-1} className={item} onClick={() => run(onAttach)}>
             <Icon name="paperclip" size={14} className="text-neutral-500" /> Anexar arquivo
           </button>
-          <button type="button" role="menuitem" className={item} onClick={() => run(onPhoto)}>
+          <button type="button" role="menuitem" tabIndex={-1} className={item} onClick={() => run(onPhoto)}>
             <Icon name="camera" size={14} className="text-neutral-500" /> Tirar foto
           </button>
           {mic.supported && (
-            <button type="button" role="menuitem" className={item} onClick={() => run(mic.toggle)}>
+            <button type="button" role="menuitem" tabIndex={-1} className={item} onClick={() => run(mic.toggle)}>
               <Icon name="mic" size={14} className="text-neutral-500" /> {mic.listening ? 'Parar de ditar' : 'Ditar'}
             </button>
           )}
