@@ -12,7 +12,7 @@ describe('TerminalsPanel "matar"', () => {
   it('needs a second tap before killing the tmux session', () => {
     const onClose = vi.fn();
     const { getByTitle } = render(
-      <TerminalsPanel terminals={[{ id: 't1', name: 'shell' } as never]} activeId="t1" onSelect={vi.fn()} onAdd={vi.fn()} onClose={onClose} term={{} as never} />,
+      <TerminalsPanel terminals={[{ id: 't1', name: 'shell' } as never]} activeId="t1" onSelect={vi.fn()} onAdd={vi.fn()} onClose={onClose} term={{ exited: new Set<string>() } as never} />,
     );
     fireEvent.click(getByTitle('Encerra a sessão tmux'));
     expect(onClose).not.toHaveBeenCalled();
