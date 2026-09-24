@@ -86,3 +86,28 @@ describe('two agents paired to one account', () => {
     expect(await again.outcome).toBe('ready');
   });
 });
+
+describe('agent login with a slow DB', () => {
+  let server: import('node:http').Server | null = null;
+  afterEach(() => { server?.close(); server = null; });
+
+  it('sends agent-ready before stamping last-seen', async () => {
+    const A = keys();
+    let seenDone = false;
+    const store: RelayStore = {
+      async agentById(id) { return id === 'ag-1' ? { accountId: 'acc', publicKey: A.pub } : null; },
+      async isAdmin() { return false; }, async listAccounts() { return []; }, async setAdmin() { return true; },
+      async markAgentSeen() { await new Promise((r) => setTimeout(r, 1500)); seenDone = true; },
+      async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
+      async consumePairingCode() { return null; }, async createAgent() { return null; },
+    };
+    const relay = createRelay({ iss: 't', jwksUrl: 'http://x', rootEmails: '', store, resolveIdentity: async () => null });
+    server = relay.server;
+    await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
+    const url = `ws://127.0.0.1:${(server!.address() as AddressInfo).port}`;
+    const a = agent(url, 'ag-1', A.priv);
+    expect(await a.outcome).toBe('ready');
+    expect(seenDone).toBe(false);
+    a.ws.close();
+  });
+});

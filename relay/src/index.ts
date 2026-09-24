@@ -320,8 +320,11 @@ export function createRelay(cfg: RelayConfig) {
           const prevAgent = registry.bindAgent(st.accountId, ws);
           boundAgentId.set(st.accountId, { ws, agentId: st.agentId });
           if (prevAgent) { try { (prevAgent as WebSocket).terminate(); } catch { /* já indo */ } }
-          await cfg.store.markAgentSeen(st.agentId);
+          // agent-ready BEFORE the DB write: the socket is already bound, so browser
+          // frames route to it from here on, and the agent ignores everything until
+          // agent-ready — up to 10 s of `send`s were dropped with no agent-offline.
           ws.send(JSON.stringify({ t: 'agent-ready' }));
+          void cfg.store.markAgentSeen(st.agentId).catch(() => { /* last-seen stamp only */ });
           // Avisa as abas da conta que o agente ficou online.
           registry.toBrowsers(st.accountId, JSON.stringify({ t: 'agent-online' }));
           // Estado inicial de presença pro agente recém-pareado: liga os loops só se
