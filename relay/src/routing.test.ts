@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Registry, type Sock } from './routing';
+import { Registry, HARD_BUFFER_BYTES, type Sock } from './routing';
 
 function fakeSock(): Sock & { sent: string[] } {
   const sent: string[] = [];
@@ -99,5 +99,21 @@ describe('Registry routing (per-account scoping)', () => {
     expect(r.bindAgent('A', oldA)).toBeNull();   // não havia anterior
     expect(r.bindAgent('A', newA)).toBe(oldA);   // devolve o velho pra o caller matar
     expect(r.bindAgent('A', newA)).toBeNull();   // mesmo socket → nada a evictar
+  });
+});
+
+describe('Registry hard buffer cap', () => {
+  it('terminates a peer that stopped reading instead of buffering forever, both ways', () => {
+    const r = new Registry();
+    let agentCut = false, browserCut = false;
+    const agent: Sock & { sent: string[] } = { sent: [], readyState: 1, bufferedAmount: HARD_BUFFER_BYTES + 1, send(d) { this.sent.push(d); }, terminate() { agentCut = true; } };
+    const browser: Sock & { sent: string[] } = { sent: [], readyState: 1, bufferedAmount: HARD_BUFFER_BYTES + 1, send(d) { this.sent.push(d); }, terminate() { browserCut = true; } };
+    r.bindAgent('A', agent);
+    r.addBrowser('A', browser);
+    expect(r.toAgent('A', '{"t":"send"}')).toBe(false);
+    expect(r.toBrowsers('A', '{"t":"done"}')).toBe(0);
+    expect(agentCut && browserCut).toBe(true);
+    expect(agent.sent).toEqual([]);
+    expect(browser.sent).toEqual([]);
   });
 });

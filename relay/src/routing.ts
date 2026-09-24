@@ -8,6 +8,7 @@ export interface Sock {
   send(data: string): void;
   readyState?: number;
   bufferedAmount?: number;
+  terminate?(): void;
 }
 const OPEN = 1; // WebSocket.OPEN
 
@@ -19,6 +20,17 @@ const OPEN = 1; // WebSocket.OPEN
 // mantendo o caminho quente limpo.
 const BACKPRESSURE_BYTES = 4 * 1024 * 1024;
 const DROPPABLE: ReadonlySet<string> = new Set(['delta', 'thinking', 'stats']);
+// Hard cap, both directions: past this a socket is not slow, it is not reading.
+// Lifecycle frames and every browser→agent frame were buffered without limit, so
+// one peer that stopped reading (while its pongs kept the heartbeat happy) could
+// grow the relay heap until OOM and drop every account. Cut that socket instead;
+// its side reconnects and replays.
+export const HARD_BUFFER_BYTES = 64 * 1024 * 1024;
+function overHardCap(s: Sock): boolean {
+  if (s.bufferedAmount === undefined || s.bufferedAmount <= HARD_BUFFER_BYTES) return false;
+  try { s.terminate?.(); } catch { /* already going */ }
+  return true;
+}
 function frameType(data: string): string {
   try { return (JSON.parse(data) as { t?: string }).t ?? '?'; } catch { return '?'; }
 }
@@ -101,6 +113,7 @@ export class Registry {
   toAgent(accountId: string, data: string): boolean {
     const agent = this.byAccount.get(accountId)?.agent;
     if (!agent || (agent.readyState !== undefined && agent.readyState !== OPEN)) return false;
+    if (overHardCap(agent)) return false;
     agent.send(data);
     return true;
   }
@@ -114,6 +127,7 @@ export class Registry {
     let dropChecked = false, droppable = false;
     for (const s of b.browsers) {
       if (s.readyState !== undefined && s.readyState !== OPEN) continue;
+      if (overHardCap(s)) continue;
       if (s.bufferedAmount !== undefined && s.bufferedAmount > BACKPRESSURE_BYTES) {
         if (!dropChecked) { droppable = DROPPABLE.has(frameType(data)); dropChecked = true; }
         if (droppable) continue;
