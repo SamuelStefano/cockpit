@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Icon } from './primitives';
-import { filterCommands } from './command-palette-filter';
+import { filterCommands, capSessions } from './command-palette-filter';
 import { usePaletteCommands } from './usePaletteCommands';
 import { CommandPaletteResults } from './CommandPaletteResults';
 import type { Route } from '../useRoute';
@@ -30,7 +30,7 @@ export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessi
   const inputRef = useRef<HTMLInputElement>(null);
 
   const commands = usePaletteCommands({ onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onSeedComposer, onShowHelp, isAdmin });
-  const filtered = useMemo(() => filterCommands(commands, q), [q, commands]);
+  const filtered = useMemo(() => capSessions(filterCommands(commands, q), q), [q, commands]);
 
   useEffect(() => { setSel(0); }, [q, open]);
   useEffect(() => {
