@@ -86,6 +86,13 @@ export interface Thread {
   // nenhum: sem isto, todo crash-retomada de um turno disparado por fluxo
   // "zerava" o hop de graça, furando o teto MAX_HOPS a cada queda.
   flowHop?: number;
+  // Lista atual de background tasks pendentes (Bash run_in_background, Monitor,
+  // subagente), do último `system/background_tasks_changed`. Não-vazia depois de
+  // um `result` = o engine manteve o stdin aberto (server/engine/claude.ts
+  // shouldCloseStdin) esperando a notificação; some quando a task termina ou o
+  // turno fecha. Fonte do teto de silêncio maior no reaper e do bg-wait branch
+  // do routeSend (escreve no stdin em vez de abrir um --resume concorrente).
+  pendingBgTasks?: { task_id: string; description?: string }[];
   lastError?: string;   // último erro reportado pelo processo
   lastExitCode?: number | null; // exit code do `claude saiu (N)` mais recente — insumo do gate de OOM (D1)
   lastExitSignal?: string | null; // sinal do OS, quando disponível (SIGTERM/SIGKILL) — mesmo insumo

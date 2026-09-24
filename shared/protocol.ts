@@ -132,9 +132,10 @@ export interface CompactMessage {
   role: 'compact';
   trigger?: string; // 'auto' | 'manual' (/compact)
   preTokens?: number;
-  // Marcadores finos reusam o divisor: 'wakeup' (loop agendado acordou) e
-  // 'pr' (pull request aberto — label + url clicável). Sem kind = compactação.
-  kind?: 'wakeup' | 'pr';
+  // Marcadores finos reusam o divisor: 'wakeup' (loop agendado acordou),
+  // 'pr' (pull request aberto — label + url clicável) e 'bg-task' (background
+  // task terminou e o turno retomou sozinho). Sem kind = compactação.
+  kind?: 'wakeup' | 'pr' | 'bg-task';
   label?: string;
   url?: string;
   ts?: number;
@@ -901,7 +902,7 @@ export type ServerMsg =
   // Agentes de fundo ativos da sessão (label + tempo + tokens ao vivo). Cheap/
   // droppable como o stats: só emitido em mudança e reconstruível no próximo tick.
   | { t: 'bgAgents'; sessionKey: string; agents: BgAgent[] }
-  | { t: 'compact'; sessionKey: string; trigger?: string; preTokens?: number; kind?: 'wakeup' | 'pr'; label?: string }
+  | { t: 'compact'; sessionKey: string; trigger?: string; preTokens?: number; kind?: 'wakeup' | 'pr' | 'bg-task'; label?: string }
   | { t: 'usage-stats'; stats: UsageStats }
   | { t: 'health'; health: AdminHealth }
   | { t: 'admin-op'; ok: boolean; message: string }

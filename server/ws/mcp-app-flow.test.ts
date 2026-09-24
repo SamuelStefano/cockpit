@@ -20,7 +20,7 @@ const KEY = 'k';
 
 function register() {
   const t: any = {
-    handle: { kill: () => {} }, params: { mcps: ['deck-fixture'] }, prompt: '', startedAt: 0, text: '', thinking: '',
+    handle: { kill: () => {}, send: () => false }, params: { mcps: ['deck-fixture'] }, prompt: '', startedAt: 0, text: '', thinking: '',
     tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(),
     taskCreates: new Map(), appTried: new Set(),
   };

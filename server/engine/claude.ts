@@ -68,6 +68,12 @@ export function validModel(m: string): boolean {
 export interface RunHandle {
   kill: () => void;
   pid?: number; // root of the turn's process tree, for per-session CPU on the canvas
+  // Writes another user turn onto the SAME stream-json stdin (bg-wait
+  // continuation) instead of spawning a second --resume process on the same
+  // transcript — two processes writing one JSONL corrupt it (runs.ts routeSend's
+  // bg-wait branch). Returns false when stdin is already closed/the process is
+  // finishing — the caller falls back to a normal new run in that race.
+  send: (text: string) => boolean;
 }
 
 // O teto do cliente é opcional e vem do frame: sem um teto do servidor, omitir o
@@ -137,16 +143,28 @@ export function mcpConfigBody(picked: Record<string, unknown>): string {
 // - env mínimo (não vaza segredo do processo pai)
 // - cwd isolado
 // - detached pra matar a árvore no stop
+//
+// `prompt` continua no tipo (não usado no argv) porque BuildArgsOpts é literal
+// direto de run() — tirar o campo do Pick obrigaria remover `prompt` de toda
+// chamada de teste. O prompt de verdade vai por STDIN (ver run()), não argv:
+// --input-format stream-json + --output-format stream-json + stdin ABERTO é o
+// que mantém o processo vivo depois do `result` esperando por um background
+// task pendente (Bash run_in_background, subagente). Com `-p <prompt>` E stdin
+// ignorado (o comportamento velho), o CLI espera ~5s após o result, mata todo
+// task pendente (`system/task_updated {status:"killed"}`) e sai — é por isso
+// que "eu te aviso quando terminar" nunca chegava a acontecer no Deck. Root
+// cause + comportamento verificados ao vivo com claude 2.1.281 (ver PR).
 export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills' | 'forkId' | 'allowWorkflow'>;
 
 export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: string[] } | { error: string } {
-  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow } = opts;
+  const { resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow } = opts;
   const resolved = resolveMode(mode, { bypass, role });
   const { permissionMode } = resolved;
   const allow = withWorkflowGrant(resolved, allowWorkflow);
 
   const args = [
-    '-p', prompt,
+    '-p',
+    '--input-format', 'stream-json',
     '--output-format', 'stream-json',
     '--include-partial-messages',
     '--verbose',
@@ -189,6 +207,26 @@ export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: 
   return { args };
 }
 
+// One line of the --input-format stream-json protocol: a user turn. Used both
+// for the opening prompt (in place of the old `-p <prompt>` argv) and for a
+// follow-up message written onto a still-open stdin (RunHandle.send).
+export function encodeUserLine(text: string): string {
+  return `${JSON.stringify({ type: 'user', message: { role: 'user', content: text } })}\n`;
+}
+
+// Pure decision: keep stdin open (process stays alive, waiting for the CLI's
+// own auto-continuation) or close it (process exits, same as the old
+// argv-prompt behavior) — evaluated once per `result` event, against the
+// background-task list as it stood at that exact point in the stream. The
+// CLI's own sequence (verified live) is: result(pending>0) -> ... ->
+// background_tasks_changed(tasks:[]) -> task_notification -> a NEW
+// system/init+assistant+result. Closing only on an EMPTY list at a `result`
+// means we never close mid-notification, and we do close once the
+// notification's own result reports nothing left pending.
+export function shouldCloseStdin(sawResult: boolean, pendingBackgroundTasks: number): boolean {
+  return sawResult && pendingBackgroundTasks <= 0;
+}
+
 export function run(opts: RunOpts): RunHandle {
   const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, onEvent, onError, onClose } = opts;
 
@@ -211,7 +249,7 @@ export function run(opts: RunOpts): RunHandle {
     cleanupMcp();
     onError(built.error);
     onClose();
-    return { kill: () => {} };
+    return { kill: () => {}, send: () => false };
   }
 
   const child: ChildProcess = spawn('claude', built.args, {
@@ -219,8 +257,15 @@ export function run(opts: RunOpts): RunHandle {
     env: minimalEnv(),
     shell: false,
     detached: true,
-    stdio: ['ignore', 'pipe', 'pipe'],
+    // stdin agora é um PIPE aberto, não 'ignore': o prompt vai por stdin (uma
+    // linha NDJSON, ver encodeUserLine) e o pipe FICA aberto depois do `result`
+    // pra o processo poder continuar sozinho quando um background task
+    // (Bash run_in_background, subagente) termina — ver shouldCloseStdin.
+    stdio: ['pipe', 'pipe', 'pipe'],
   });
+  child.stdin!.on('error', () => {}); // EPIPE esperado quando o kill() já matou o processo
+  let stdinOpen = true;
+  child.stdin!.write(encodeUserLine(prompt));
 
   // O `claude` emite um evento `result` ao terminar de forma graciosa — inclusive
   // nos cortes esperados (budget/max-turns), que ele reporta como subtype no
@@ -229,6 +274,11 @@ export function run(opts: RunOpts): RunHandle {
   // do banner correto de "teto atingido / Continuar". Visto o result, o exit não
   // é mais um crash a reportar.
   let sawResult = false;
+  // Lista de background tasks pendentes AGORA, conforme o último
+  // `system/background_tasks_changed` — é o que decide, a cada `result`, se o
+  // stdin fecha (processo sai, igual ao comportamento antigo) ou fica aberto
+  // esperando a notificação (ver shouldCloseStdin).
+  let pendingBg = 0;
   // Erro nos pipes é ESPERADO no caminho normal: o kill() manda SIGKILL no grupo com
   // a leitura em voo, e o pipe morre embaixo (EPIPE/ECONNRESET). Sem handler isso vira
   // uncaughtException e o backstop do index.ts derruba o backend INTEIRO — todos os
@@ -243,7 +293,17 @@ export function run(opts: RunOpts): RunHandle {
     if (!s) return;
     try {
       const ev = JSON.parse(s) as ClaudeEvent;
-      if (ev.type === 'result') sawResult = true;
+      if (ev.type === 'system' && (ev as { subtype?: string }).subtype === 'background_tasks_changed') {
+        const tasks = (ev as { tasks?: unknown }).tasks;
+        pendingBg = Array.isArray(tasks) ? tasks.length : 0;
+      }
+      if (ev.type === 'result') {
+        sawResult = true;
+        if (stdinOpen && shouldCloseStdin(sawResult, pendingBg)) {
+          stdinOpen = false;
+          try { child.stdin!.end(); } catch { /* já fechado */ }
+        }
+      }
       onEvent(ev);
     } catch {
       // linha não-JSON (ruído) — ignora
@@ -284,8 +344,18 @@ export function run(opts: RunOpts): RunHandle {
 
   return {
     pid: child.pid,
+    // Escreve mais uma linha de usuário no MESMO stdin — é como uma mensagem nova
+    // chega numa sessão em bg-wait sem abrir um segundo `--resume` no mesmo
+    // transcript (runs.ts routeSend). false = stdin já fechado (corrida com o
+    // fechamento natural do processo); o chamador cai pro caminho normal.
+    send: (text: string) => {
+      if (!stdinOpen || closed) return false;
+      try { child.stdin!.write(encodeUserLine(text)); return true; }
+      catch { return false; }
+    },
     kill: () => {
       killed = true;
+      stdinOpen = false;
       const signal = (sig: NodeJS.Signals) => {
         try { if (child.pid) process.kill(-child.pid, sig); }
         catch { try { child.kill(sig); } catch { /* já morto */ } }

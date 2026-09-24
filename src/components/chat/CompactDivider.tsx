@@ -13,10 +13,13 @@ export function CompactDivider({ msg }: { msg: CompactMessage }) {
   // um divisor só com a contagem, em vez de uma parede de linhas.
   const times = msg.count && msg.count > 1 ? <span className="tabular-nums text-neutral-500">×{msg.count}</span> : null;
   const prs = msg.kind === 'pr' ? prLinks(msg) : null;
-  // O mesmo divisor fino marca compactação, wakeup de loop agendado e PR aberta
-  // (kind) — paridade com as linhas avulsas que o terminal imprime.
+  // O mesmo divisor fino marca compactação, wakeup de loop agendado, PR aberta e
+  // background task terminado (kind) — paridade com as linhas avulsas que o
+  // terminal imprime.
   const body = prs ? <PrGroup prs={prs} /> : msg.kind === 'wakeup' ? (
     <><Icon name="zap" size={11} className="text-violet-400/90" />{msg.label ?? 'Claude retomou um loop agendado'}{times}</>
+  ) : msg.kind === 'bg-task' ? (
+    <><Icon name="check" size={11} className="text-emerald-400/90" />{msg.label ?? 'Tarefa em segundo plano terminou'}{times}</>
   ) : (
     <>
       <Icon name="sparkles" size={11} className="text-orange-400/80" />
