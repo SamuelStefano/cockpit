@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { OrchestratorInfo } from '../../shared/canvas';
@@ -17,6 +19,10 @@ function isOrchestratorInfo(v: unknown): v is OrchestratorInfo {
   return typeof r.name === 'string' && !!r.name && typeof r.sessionId === 'string' && !!r.sessionId && typeof r.tmux === 'string' && !!r.tmux;
 }
 
+function parseOrchestrator(raw: unknown): OrchestratorInfo | undefined {
+  return isOrchestratorInfo(raw) ? { name: raw.name, sessionId: raw.sessionId, tmux: raw.tmux } : undefined;
+}
+
 // Missing file, unreadable file, or a shape that doesn't match: no
 // orchestrator — never thrown, since "nobody set one up yet" is the default
 // state of a fresh Deck install, not an error worth surfacing on every
@@ -28,5 +34,32 @@ export async function readOrchestrator(): Promise<OrchestratorInfo | undefined> 
   } catch {
     return undefined;
   }
-  return isOrchestratorInfo(raw) ? { name: raw.name, sessionId: raw.sessionId, tmux: raw.tmux } : undefined;
+  return parseOrchestrator(raw);
+}
+
+// Sync twin of readOrchestrator, for the twin-process guard in runs.ts
+// startRun — that function stays synchronous (it's called from many places
+// without an await, including fire-and-forget dispatch paths), and this file
+// is a few bytes read from local disk, so a blocking read here is cheap
+// against the alternative of threading async through every startRun caller.
+export function readOrchestratorSync(): OrchestratorInfo | undefined {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(orchestratorFile(), 'utf8'));
+  } catch {
+    return undefined;
+  }
+  return parseOrchestrator(raw);
+}
+
+// Same tradeoff as readOrchestratorSync: `tmux has-session` answers in low
+// single-digit ms against the local socket, so a blocking call here is far
+// cheaper than making startRun's whole call chain async just for this check.
+export function isTmuxAliveSync(name: string): boolean {
+  try {
+    execFileSync('tmux', ['has-session', '-t', name], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
 }

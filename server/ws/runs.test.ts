@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { WebSocket } from 'ws';
-import { startRun, routeSend, isSilentDeath, isCleanTurnClose, resumeOrphanRuns, drainParked, runParkedInBackground, runParkedNow, startParkedDrainer, acceptResumeOffer, hasResumeOffer, AUTO_RESUME_CAP } from './runs';
+import { startRun, routeSend, isSilentDeath, isCleanTurnClose, resumeOrphanRuns, drainParked, runParkedInBackground, runParkedNow, startParkedDrainer, acceptResumeOffer, hasResumeOffer, AUTO_RESUME_CAP, deliverToOrchestratorPane } from './runs';
+import { readOrchestratorSync, isTmuxAliveSync } from '../canvas/orchestrator';
+import { hasTerm, openTerm, inputTerm } from '../terminals';
 import { threads, killAllRuns } from './threads';
 import { reapStaleRuns, REAPER_SILENCE_CAP_MS, REAPER_TOOL_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './reaper';
 import { takeOrphanRuns } from './recover';
@@ -58,6 +60,18 @@ vi.mock('../engine/triage', () => ({ classify: vi.fn(), quickAnswer: vi.fn(), ki
 vi.mock('../engine/suggest', () => ({ suggestFollowups: vi.fn(async () => []) }));
 vi.mock('./incidents', () => ({ recordIncident: vi.fn() })); // teste não escreve no log real de incidentes
 vi.mock('./recover', () => ({ markRunLive: vi.fn(), clearRunLive: vi.fn(), takeOrphanRuns: vi.fn(() => []) }));
+// Orchestrator identity/pane: undefined/dead by default so the existing suite's
+// many startRun calls take the normal `run()` path unchanged; the twin-process
+// guard tests below override these per-case.
+vi.mock('../canvas/orchestrator', () => ({
+  readOrchestratorSync: vi.fn(() => undefined),
+  isTmuxAliveSync: vi.fn(() => false),
+}));
+vi.mock('../terminals', () => ({
+  hasTerm: vi.fn(() => false),
+  openTerm: vi.fn(() => true),
+  inputTerm: vi.fn(),
+}));
 // Memória mockada como "sempre ok" por padrão: sem isto os testes leriam o
 // /proc/meminfo REAL da box (que roda apertada de propósito) e o gate de D1/D2/D5
 // ficaria flaky. Os describes de D1/D2/D5 sobrescrevem os mocks que precisam.
@@ -1414,5 +1428,90 @@ describe('oferta de retomada', () => {
     vi.mocked(quotaHold).mockReturnValue(0);
     startRun({ ws, sessionKey: 'of4', prompt: 'outro pedido', resumeId: 'sess-of4' });
     expect(hasResumeOffer('of4')).toBe(false);
+  });
+});
+
+describe('startRun / routeSend — twin-process guard on the Orchestrator pane', () => {
+  const ws = {} as WebSocket;
+  const orch = { name: 'orch', sessionId: 'orch-sid', tmux: 'cockpit-cv-abc' };
+
+  beforeEach(() => {
+    threads.clear();
+    vi.mocked(run).mockClear();
+    vi.mocked(readOrchestratorSync).mockReset().mockReturnValue(undefined);
+    vi.mocked(isTmuxAliveSync).mockReset().mockReturnValue(false);
+    vi.mocked(hasTerm).mockReset().mockReturnValue(false);
+    vi.mocked(openTerm).mockReset().mockReturnValue(true);
+    vi.mocked(inputTerm).mockReset();
+    vi.mocked(broadcast).mockClear();
+  });
+
+  it('delivers into the pane instead of spawning a headless twin when the target IS the live Orchestrator session', () => {
+    vi.mocked(readOrchestratorSync).mockReturnValue(orch);
+    vi.mocked(isTmuxAliveSync).mockReturnValue(true);
+    startRun({ ws, sessionKey: 'orch-sid', prompt: 'oi', resumeId: 'orch-sid', msgId: 'm1' });
+    expect(run).not.toHaveBeenCalled();
+    expect(threads.has('orch-sid')).toBe(false);
+    expect(openTerm).toHaveBeenCalledWith('cv-abc', 120, 40, expect.any(Function), expect.any(Function), expect.any(Function));
+    expect(inputTerm).toHaveBeenCalledWith('cv-abc', '\x1b[200~oi\x1b[201~\r');
+    expect(broadcast).toHaveBeenCalledWith(expect.objectContaining({ t: 'user', sessionKey: 'orch-sid', id: 'm1', text: 'oi' }));
+  });
+
+  it('reuses an already-open pane pty instead of opening a second client onto the same tmux session', () => {
+    vi.mocked(readOrchestratorSync).mockReturnValue(orch);
+    vi.mocked(isTmuxAliveSync).mockReturnValue(true);
+    vi.mocked(hasTerm).mockReturnValue(true);
+    startRun({ ws, sessionKey: 'orch-sid', prompt: 'oi', resumeId: 'orch-sid' });
+    expect(openTerm).not.toHaveBeenCalled();
+    expect(inputTerm).toHaveBeenCalledOnce();
+  });
+
+  it('falls through to a normal run when the tmux session is dead', () => {
+    vi.mocked(readOrchestratorSync).mockReturnValue(orch);
+    vi.mocked(isTmuxAliveSync).mockReturnValue(false);
+    startRun({ ws, sessionKey: 'orch-sid', prompt: 'oi', resumeId: 'orch-sid' });
+    expect(run).toHaveBeenCalledOnce();
+    expect(inputTerm).not.toHaveBeenCalled();
+  });
+
+  it('does not redirect a fork off the Orchestrator transcript — forking is a distinct, legitimate headless run', () => {
+    vi.mocked(readOrchestratorSync).mockReturnValue(orch);
+    vi.mocked(isTmuxAliveSync).mockReturnValue(true);
+    startRun({ ws, sessionKey: 'fork-1', prompt: 'oi', resumeId: 'orch-sid', forkId: 'fork-1' });
+    expect(run).toHaveBeenCalledOnce();
+    expect(inputTerm).not.toHaveBeenCalled();
+  });
+
+  it('routeSend delivers into the pane too, even if a stray twin thread already sits under the sessionKey', () => {
+    vi.mocked(readOrchestratorSync).mockReturnValue(orch);
+    vi.mocked(isTmuxAliveSync).mockReturnValue(true);
+    threads.set('orch-sid', { handle: { kill: vi.fn(), send: vi.fn(() => false) }, params: {}, prompt: 'p', startedAt: Date.now(), text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set() } as any);
+    routeSend({ ws, sessionKey: 'orch-sid', prompt: 'oi de novo', resumeId: 'orch-sid', msgId: 'm2' });
+    expect(inputTerm).toHaveBeenCalledWith('cv-abc', '\x1b[200~oi de novo\x1b[201~\r');
+  });
+
+  it('deliverToOrchestratorPane is false when no orchestrator is configured', () => {
+    expect(deliverToOrchestratorPane('any-session', 'oi')).toBe(false);
+    expect(inputTerm).not.toHaveBeenCalled();
+  });
+});
+
+describe('resumeOrphanRuns — never auto-resumes the Orchestrator headlessly', () => {
+  beforeEach(() => {
+    threads.clear();
+    vi.mocked(run).mockClear();
+    vi.mocked(readOrchestratorSync).mockReset().mockReturnValue(undefined);
+    vi.mocked(inputTerm).mockReset();
+  });
+
+  it('drops the orphan silently instead of typing "continue de onde parou" into the live pane', () => {
+    vi.mocked(readOrchestratorSync).mockReturnValue({ name: 'orch', sessionId: 'orch-sid', tmux: 'cockpit-cv-abc' });
+    vi.mocked(takeOrphanRuns).mockReturnValueOnce([
+      { sessionKey: 'orch-sid', sessionId: 'orch-sid', params: {}, startedAt: Date.now() },
+    ]);
+    resumeOrphanRuns();
+    expect(run).not.toHaveBeenCalled();
+    expect(inputTerm).not.toHaveBeenCalled();
+    expect(threads.has('orch-sid')).toBe(false);
   });
 });

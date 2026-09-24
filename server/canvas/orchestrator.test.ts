@@ -1,8 +1,9 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readOrchestrator } from './orchestrator';
+import { readOrchestrator, readOrchestratorSync, isTmuxAliveSync } from './orchestrator';
 
 const dir = mkdtempSync(join(tmpdir(), 'cockpit-orchestrator-'));
 const file = join(dir, 'orchestrator.json');
@@ -34,5 +35,29 @@ describe('readOrchestrator', () => {
     expect(await readOrchestrator()).toEqual({
       name: 'Orchestrator', sessionId: '7671f68f-bd1b-4a8d-ab24-a122583c2286', tmux: 'cockpit-cv-jmbp6v',
     });
+  });
+});
+
+describe('readOrchestratorSync', () => {
+  it('mirrors readOrchestrator — same validation, blocking read', () => {
+    expect(readOrchestratorSync()).toBeUndefined();
+    writeFileSync(file, JSON.stringify({ name: 'Orchestrator', sessionId: 'abc', tmux: 'cockpit-cv-x' }));
+    expect(readOrchestratorSync()).toEqual({ name: 'Orchestrator', sessionId: 'abc', tmux: 'cockpit-cv-x' });
+  });
+});
+
+describe('isTmuxAliveSync', () => {
+  const name = `cockpit-orchestrator-test-${process.pid}`;
+  afterEach(() => { try { execFileSync('tmux', ['kill-session', '-t', name]); } catch { /* already gone */ } });
+
+  it('is false for a session that was never created', () => {
+    expect(isTmuxAliveSync(`${name}-nope`)).toBe(false);
+  });
+
+  it('is true for a live tmux session and false again once it is killed', () => {
+    execFileSync('tmux', ['new-session', '-d', '-s', name]);
+    expect(isTmuxAliveSync(name)).toBe(true);
+    execFileSync('tmux', ['kill-session', '-t', name]);
+    expect(isTmuxAliveSync(name)).toBe(false);
   });
 });

@@ -1,6 +1,8 @@
 // Pure logic for the sidebar chat composer: local send history (up-arrow
-// recall) and the wire format that lands a multi-line message in the
-// orchestrator's tmux pane as ONE message instead of one Enter per line.
+// recall). The wire format that lands a multi-line message in the
+// orchestrator's tmux pane as ONE message lives in shared/canvas.ts
+// (buildPastedSend) — the server's twin-process guard (runs.ts) uses the
+// same function to write straight into the pane.
 
 export const MAX_CHAT_HISTORY = 50;
 
@@ -22,10 +24,4 @@ export function stepChatHistory(historyLen: number, index: number, direction: 1 
   return Math.min(historyLen, Math.max(0, next));
 }
 
-// Bracketed paste (CSI 200~ ... CSI 201~) tells the pty's reader (readline in
-// Claude Code CLI) that everything in between is one paste, not keystrokes —
-// so embedded newlines don't submit early. The trailing \r is a real Enter,
-// sent once the paste block closes, to submit the whole message.
-export function buildPastedSend(text: string): string {
-  return `\x1b[200~${text}\x1b[201~\r`;
-}
+export { buildPastedSend } from '../../../shared/canvas';

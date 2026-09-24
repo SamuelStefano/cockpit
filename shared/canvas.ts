@@ -159,6 +159,21 @@ export interface OrchestratorInfo {
   tmux: string;
 }
 
+// The terminal id the shell pane is opened under (tmux name minus the
+// `cockpit-` prefix server/terminals.ts adds — see PREFIX there). Shared by
+// the client (sidebar dock attach, canvas node matching) and the server
+// (routeSend/startRun's twin-process guard writes into this same pane
+// instead of spawning a second headless `claude -p --resume`).
+export const orchestratorTermId = (o: OrchestratorInfo) => o.tmux.replace(/^cockpit-/, '');
+
+// Bracketed paste (CSI 200~ ... CSI 201~) tells the pty's reader (readline in
+// Claude Code CLI) that everything in between is one paste, not keystrokes —
+// so embedded newlines don't submit early. The trailing \r is a real Enter,
+// sent once the paste block closes, to submit the whole message.
+export function buildPastedSend(text: string): string {
+  return `\x1b[200~${text}\x1b[201~\r`;
+}
+
 export interface CanvasGraph {
   nodes: CanvasNode[];
   edges: CanvasEdge[];
