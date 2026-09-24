@@ -21,6 +21,8 @@ export function SelectionBar({ projects }: { projects: DflProjectNode[] }) {
       <div className="min-w-0 flex-1">
         <span className="text-[12.5px] font-semibold text-neutral-100">{s.count} {s.count === 1 ? 'delivery' : 'deliveries'}</span>
         <span className="ml-2 text-[12px] tabular-nums text-neutral-400">{fmtPts(s.points)} pt em aberto · {brl(s.amountCents)}</span>
+        {/* "Off" is a per-device flag: say why a selected delivery doesn't count. */}
+        {s.off > 0 && <span className="ml-2 text-[11.5px] text-amber-300/80">{s.off} off (fora da fatura)</span>}
       </div>
       <Button variant="ghost" size="sm" onClick={clearSelected} disabled={s.count === 0}>limpar</Button>
       <Button variant="primary" size="sm" onClick={() => setConfirming(true)} disabled={s.billable === 0}>
