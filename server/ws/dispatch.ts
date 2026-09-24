@@ -297,11 +297,19 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'canvas-card-save': {
+      // Same rule as canvas-flow-save: prev comes from the snapshot the write
+      // lands on. sanitizeCard copies the server-owned `dfl` field from prev, so a
+      // separate readBoard() let a concurrent pushCardDflStatus or dfl-task-unlink
+      // be rolled back — an unlinked card came back linked and wrote to DFL again.
       const now = Date.now();
-      const prev = (await readBoard()).cards.find((c) => c.id === msg.card?.id);
-      const card = sanitizeCard(msg.card, prev, now);
+      const saved: { prev?: NonNullable<ReturnType<typeof sanitizeCard>>; card: ReturnType<typeof sanitizeCard> } = { card: null };
+      const board = await updateBoard((b) => {
+        saved.prev = b.cards.find((c) => c.id === msg.card?.id);
+        saved.card = sanitizeCard(msg.card, saved.prev, now);
+        return saved.card ? upsertCard(b, saved.card) : b;
+      });
+      const { prev, card } = saved;
       if (!card) { send(ws, { t: 'error', message: 'card inválido' }); return; }
-      const board = await updateBoard((b) => upsertCard(b, card));
       send(ws, boardFrame(board));
       send(ws, { t: 'canvas-graph', graph: await buildCanvas(board, runningSessionIds()) });
       // A manual save (drag, editor) used to reach a second tab/phone only on
