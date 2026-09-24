@@ -42,7 +42,10 @@ export function quotaGate(planUsage: PlanUsage | null, rate: RateInfo | null, no
   return {
     paused,
     warn: !!rate && rate.status !== 'allowed',
-    resetsAt: planReset ?? rateReset,
+    // The label must name the limit that is actually blocking: a weekly `rejected`
+    // (resets in days) used to read "reseta em 2h" from the 5h window, or "agora"
+    // once that one had passed.
+    resetsAt: rateLimited ? (rateReset ?? planReset) : ((planExpired ? null : planReset) ?? rateReset),
     nextResetAt: future.length ? Math.min(...future) : null,
   };
 }
