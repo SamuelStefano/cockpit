@@ -566,8 +566,8 @@ function parkRejected(o: StartRunOptions, verdict: Verdict): boolean {
 // real run (nothing left to route into). `forkId` is exempt — forking the
 // Orchestrator's transcript into a NEW session is a distinct, legitimate
 // headless run, not a twin writing the same one.
-export function deliverToOrchestratorPane(targetSessionId: string | undefined, text: string): boolean {
-  if (!targetSessionId) return false;
+export function deliverToOrchestratorPane(targetSessionId: string | undefined, text: string, role?: Role): boolean {
+  if (!targetSessionId || role !== 'admin') return false;
   const orch = readOrchestratorSync();
   if (!orch || orch.sessionId !== targetSessionId) return false;
   if (!isTmuxAliveSync(orch.tmux)) return false;
@@ -595,7 +595,7 @@ export function startRun(o: StartRunOptions) {
     if (ws) send(ws, { t: 'error', sessionKey, message: 'prompt grande demais' });
     return;
   }
-  if (!forkId && deliverToOrchestratorPane(resumeId ?? sessionKey, prompt)) {
+  if (!forkId && deliverToOrchestratorPane(resumeId ?? sessionKey, prompt, params.role)) {
     if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
     return;
   }
@@ -914,7 +914,7 @@ export async function routeSend(o: RouteSendOptions) {
   // before this fix, or a race) would otherwise run the full triage path
   // below and end up enqueued against THAT twin instead of ever reaching the
   // real pane. Deliver straight into the pane and skip triage entirely.
-  if (deliverToOrchestratorPane(resumeId ?? sessionKey, prompt)) {
+  if (deliverToOrchestratorPane(resumeId ?? sessionKey, prompt, params.role)) {
     if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
     return;
   }
