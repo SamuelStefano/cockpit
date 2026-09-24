@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { headingSlug } from './slug';
+import { headingSlug, uniqueHeadingSlug } from './slug';
 
 describe('headingSlug', () => {
   it('lowercases and dasherizes', () => {
@@ -21,5 +21,12 @@ describe('headingSlug', () => {
   it('is stable for the same text (render and outline must agree)', () => {
     const t = 'Glossário/IDs';
     expect(headingSlug(t)).toBe(headingSlug(t));
+  });
+});
+
+describe('uniqueHeadingSlug', () => {
+  it('suffixes repeats in document order', () => {
+    const seen = new Map<string, number>();
+    expect(['X', 'Y', 'X', 'X'].map((t) => uniqueHeadingSlug(t, seen))).toEqual(['x', 'y', 'x-2', 'x-3']);
   });
 });

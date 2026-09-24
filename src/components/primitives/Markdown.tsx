@@ -18,12 +18,13 @@ function MarkdownImpl({ md, caret = false }: MarkdownProps) {
     for (let i = s.length - 1; i >= 0; i--) { if (s[i].t === 'prose') { lp = i; break; } }
     return { segs: s, lastProse: lp };
   }, [md]);
+  const slugs = new Map<string, number>();
   return (
     <div className="space-y-4 wrap-break-word text-[15.5px] leading-7 text-neutral-300">
       {segs.map((s, si) =>
         s.t === 'code'
           ? <CodeBlock key={`seg${si}`} code={s.code} lang={s.lang || undefined} />
-          : <React.Fragment key={`seg${si}`}>{proseBlocks(s.text, `s${si}`, caret && si === lastProse)}</React.Fragment>
+          : <React.Fragment key={`seg${si}`}>{proseBlocks(s.text, `s${si}`, caret && si === lastProse, slugs)}</React.Fragment>
       )}
     </div>
   );
