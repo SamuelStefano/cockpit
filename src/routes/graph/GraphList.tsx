@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Icon, Button, Badge, Input, Skeleton, EmptyState, tokens } from '../../components/primitives';
+import { Icon, Button, Badge, Input, Skeleton, tokens } from '../../components/primitives';
 import type { GraphMeta } from '../../../shared/protocol';
 
 interface Props {
@@ -55,7 +55,9 @@ export function GraphList({ graphs, loaded, openId, opening, building, onOpen, o
             {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-[52px] w-full rounded-lg" />)}
           </div>
         ) : graphs.length === 0 ? (
-          <EmptyState icon="sparkles" title="Nenhum grafo" description="Gere um grafo de um repositório acima." />
+          // The canvas beside/below shows the real empty state; a second full
+          // EmptyState here stacked two "Nenhum grafo" blocks on a phone.
+          <p className="px-2 py-3 text-[12px] text-neutral-600">nenhum grafo ainda</p>
         ) : (
           <ul className="flex flex-col gap-1">
             {graphs.map((g) => (

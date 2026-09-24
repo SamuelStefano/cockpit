@@ -84,7 +84,7 @@ export function Graph(p: Props) {
               <EmptyState
                 icon="zap"
                 title={p.graphs.length ? 'Selecione um grafo' : 'Nenhum grafo ainda'}
-                description={p.graphs.length ? 'Escolha um grafo na lista pra explorar.' : 'Informe o caminho de um repositório à esquerda e gere o primeiro grafo.'}
+                description={p.graphs.length ? 'Escolha um grafo na lista pra explorar.' : 'Informe o caminho de um repositório em "caminho do repo…" e gere o primeiro grafo.'}
               />
             )}
           </div>
