@@ -50,6 +50,8 @@ export function CanvasHud({ items, onPick }: Props) {
             </button>
           ))}
           {list.length > SHOWN && <div className="px-2 pb-0.5 pt-1 text-[10.5px] text-neutral-500">e mais {list.length - SHOWN}</div>}
+          {/* An open roster with no rows read as a broken, empty box. */}
+          {!list.length && <div className="px-2 py-1.5 text-[11px] text-neutral-500">nenhuma sessão viva agora</div>}
         </div>
       )}
     </div>

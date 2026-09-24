@@ -24,4 +24,9 @@ describe('CanvasHud', () => {
     expect(shell.className).toMatch(/max-h-\[calc\(100%-5rem\)\]/);
     expect(shell.className).toContain('flex-col');
   });
+
+  it('says so when nothing is alive instead of opening an empty box', () => {
+    const { getByText } = render(<CanvasHud items={[]} onPick={vi.fn()} />);
+    expect(getByText('nenhuma sessão viva agora')).toBeTruthy();
+  });
 });
