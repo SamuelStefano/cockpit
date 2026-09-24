@@ -34,6 +34,8 @@ interface AdminProps {
   onDeckRestart: (mode: 'idle' | 'now') => void;
 }
 
+const toastedOps = new WeakSet<object>();
+
 export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, isRoot, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, onCliUpdate, onDeckRestart }: AdminProps) {
   const [updatedAt, setUpdatedAt] = useState(0);
   const [tab, setTab] = useState('overview');
@@ -45,7 +47,13 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
   useEffect(() => { if (health) setUpdatedAt(Date.now()); }, [health]);
   // O resultado da op é do painel inteiro, não só da aba Host: conceder/remover admin
   // na aba Contas não dava sinal nenhum (nem sucesso, nem recusa do relay).
-  useEffect(() => { if (adminOp) toast(adminOp.message, { tone: adminOp.ok ? 'ok' : 'error' }); }, [adminOp]);
+  // adminOp lives in app state for 4–8s: leaving /admin and coming back inside
+  // that window re-mounted this effect and toasted the same result again.
+  useEffect(() => {
+    if (!adminOp || toastedOps.has(adminOp)) return;
+    toastedOps.add(adminOp);
+    toast(adminOp.message, { tone: adminOp.ok ? 'ok' : 'error' });
+  }, [adminOp]);
   // …e a lista de contas não reflete a mudança sozinha.
   useEffect(() => { if (adminOp?.ok && tab === 'accounts') onAccountsList(); }, [adminOp, tab, onAccountsList]);
 

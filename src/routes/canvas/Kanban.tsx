@@ -131,7 +131,9 @@ export function Kanban(p: Props) {
               const cardId = e.dataTransfer.getData('text/deck-card');
               const sessionId = e.dataTransfer.getData('text/deck-session');
               if (cardId) p.onMove(cardId, status);
-              else if (sessionId) p.onSessionStatus(sessionId, status);
+              // Same rule as the drawer: a session is only moved by hand to
+              // review/done — To do and In progress come from real activity.
+              else if (sessionId && (status === 'review' || status === 'done')) p.onSessionStatus(sessionId, status);
             }}
             className={`${isMobileActive ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col rounded-xl border bg-neutral-950/60 md:flex ${
               empty ? 'md:w-11 md:min-w-11 md:max-w-11 md:flex-none md:items-center' : 'md:min-w-0 md:flex-1'

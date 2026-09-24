@@ -83,3 +83,20 @@ describe('Kanban — session item actions (no per-item complete button, item 5)'
     expect(within(container).getByText('terminal')).toBeTruthy(); // drawer footer
   });
 });
+
+describe('Kanban — session drops follow the drawer rule', () => {
+  const drop = (section: Element, sessionId: string) => fireEvent.drop(section, {
+    dataTransfer: { getData: (t: string) => (t === 'text/deck-session' ? sessionId : '') },
+  });
+
+  it('ignores a session dropped on To do / In progress, accepts review and done', () => {
+    const onSessionStatus = vi.fn();
+    const { container } = render(<Kanban {...baseProps} onSessionStatus={onSessionStatus} sessionItems={[item('x')]} />);
+    const sections = container.querySelectorAll('section');
+    for (const s of sections) drop(s, 'x');
+    const statuses = onSessionStatus.mock.calls.map((c) => c[1]);
+    expect(statuses).not.toContain('todo');
+    expect(statuses).not.toContain('doing');
+    expect(statuses).toEqual(expect.arrayContaining(['review', 'done']));
+  });
+});
