@@ -7,7 +7,7 @@ import { ComposerTools } from './ComposerTools';
 import { ComposerSettingsSheet } from './ComposerSettingsSheet';
 import { AttachmentChips } from './AttachmentChips';
 import { QueuedBanner } from './QueuedBanner';
-import { SlashPalette } from './SlashPalette';
+import { SlashPalette, SLASH_LIST_ID, slashOptionId } from './SlashPalette';
 import type { PermMode, Effort, ModelInfo, Caps, SkillMeta } from '../../../shared/protocol';
 import type { Attachment } from '../../useCockpit';
 import { useChatInput } from './useChatInput';
@@ -116,6 +116,9 @@ export function ChatInput(props: ChatInputProps) {
             ref={taRef}
             rows={1}
             aria-label="Escrever mensagem"
+            aria-autocomplete="list"
+            aria-controls={showPalette ? SLASH_LIST_ID : undefined}
+            aria-activedescendant={showPalette && matches[sel] ? slashOptionId(sel) : undefined}
             value={value}
             onChange={grow}
             onKeyDown={onKey}

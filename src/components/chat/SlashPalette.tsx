@@ -1,5 +1,10 @@
 import { isLocalSlash, slashHint } from './slash';
 
+// Focus stays in the composer; it points at the highlighted option by id so a
+// screen reader follows ↑/↓ through the commands.
+export const SLASH_LIST_ID = 'slash-list';
+export const slashOptionId = (i: number) => `slash-opt-${i}`;
+
 interface SlashPaletteProps {
   matches: string[];
   sel: number;
@@ -9,12 +14,16 @@ interface SlashPaletteProps {
 
 export function SlashPalette({ matches, sel, setSel, complete }: SlashPaletteProps) {
   return (
-    <div className="scroll-thin absolute bottom-full left-0 z-30 mb-2 max-h-60 w-full overscroll-contain overflow-auto rounded-lg border border-neutral-700 bg-neutral-900 py-1 shadow-xl shadow-black/50">
+    <div role="listbox" id={SLASH_LIST_ID} aria-label="Comandos de barra" className="scroll-thin absolute bottom-full left-0 z-30 mb-2 max-h-60 w-full overscroll-contain overflow-auto rounded-lg border border-neutral-700 bg-neutral-900 py-1 shadow-xl shadow-black/50">
       {matches.map((c, i) => {
         const local = isLocalSlash(c);
         return (
           <button
             key={c}
+            id={slashOptionId(i)}
+            role="option"
+            aria-selected={i === sel}
+            tabIndex={-1}
             onMouseDown={(e) => { e.preventDefault(); complete(c); }}
             onMouseEnter={() => setSel(i)}
             className={`flex w-full items-center gap-2 px-3 py-1.5 text-left transition ${i === sel ? 'bg-orange-500/15' : ''}`}
