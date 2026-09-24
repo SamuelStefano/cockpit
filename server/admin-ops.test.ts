@@ -158,7 +158,7 @@ describe('read-modify-write of config files', () => {
 
 describe('envNameAllowedRemotely', () => {
   it('blocks names that load code or redirect the OAuth bearer', () => {
-    for (const n of ['LD_PRELOAD', 'NODE_OPTIONS', 'BASH_ENV', 'ANTHROPIC_BASE_URL', 'HTTPS_PROXY', 'https_proxy', 'PATH', 'GIT_SSH_COMMAND', 'PYTHONSTARTUP']) {
+    for (const n of ['LD_PRELOAD', 'NODE_OPTIONS', 'BASH_ENV', 'ANTHROPIC_BASE_URL', 'HTTPS_PROXY', 'https_proxy', 'PATH', 'GIT_SSH_COMMAND', 'PYTHONSTARTUP', 'SSH_ASKPASS', 'npm_config_script_shell', 'JAVA_TOOL_OPTIONS', 'ZDOTDIR', 'PAGER', 'EDITOR', 'GCONV_PATH', 'SSL_CERT_FILE', 'COCKPIT_TOKEN']) {
       expect(envNameAllowedRemotely(n)).toBe(false);
     }
   });
@@ -167,5 +167,17 @@ describe('envNameAllowedRemotely', () => {
     for (const n of ['GITHUB_TOKEN', 'VERCEL_TOKEN', 'SUPABASE_ACCESS_TOKEN', 'ANTHROPIC_API_KEY']) {
       expect(envNameAllowedRemotely(n)).toBe(true);
     }
+  });
+});
+
+describe('writeJson through a symlink', () => {
+  it('keeps the link and writes the file it points to', async () => {
+    const { mkdtempSync, writeFileSync, symlinkSync, lstatSync, readFileSync } = await import('node:fs');
+    const d = mkdtempSync(join(tmpdir(), 'deck-adminops-link-'));
+    const real = join(d, 'real.json'); const link = join(d, 'link.json');
+    writeFileSync(real, '{}'); symlinkSync(real, link);
+    await writeJson(link, { a: 1 });
+    expect(lstatSync(link).isSymbolicLink()).toBe(true);
+    expect(JSON.parse(readFileSync(real, 'utf8'))).toEqual({ a: 1 });
   });
 });
