@@ -1,4 +1,5 @@
-import { useEffect, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
+import { useEscapeLayer } from './useEscapeLayer';
 import { Button } from './Button';
 
 interface DrawerProps {
@@ -13,12 +14,7 @@ interface DrawerProps {
 // Side sheet for small screens: what is a fixed side pane on desktop (a
 // navigator, a filter list) slides in over the content on a phone.
 export function Drawer({ open, onClose, title, children, side = 'left', width = 'w-[86vw] max-w-sm' }: DrawerProps) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  useEscapeLayer(open, onClose);
 
   if (!open) return null;
   return (
