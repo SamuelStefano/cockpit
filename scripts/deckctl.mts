@@ -467,14 +467,20 @@ async function cmdWait(id: string, flags: Flags): Promise<void> {
 // `error` reply. The old waits matched a frame already in history (the board
 // fetched to find the card, the `archived` list from connect or from the hide
 // step) and ignored errors, so a failed save printed success and exited 0.
-export async function mutationAck<T extends ServerMsg>(client: Client, pred: (m: ServerMsg) => m is T, what: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
+export async function tryMutationAck<T extends ServerMsg>(client: Client, pred: (m: ServerMsg) => m is T, what: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<{ ok: T } | { error: string }> {
   const m = await client.waitFor(
     (f): f is T | Extract<ServerMsg, { t: 'error' }> => pred(f) || (f.t === 'error' && !f.sessionKey),
     timeoutMs, { fresh: true },
   );
-  if (!m) { client.close(); fail(`backend did not confirm ${what} (timeout)`); }
-  if (m.t === 'error' && !pred(m)) { client.close(); fail(`${what} failed: ${(m as Extract<ServerMsg, { t: 'error' }>).message}`); }
-  return m as T;
+  if (!m) return { error: `backend did not confirm ${what} (timeout)` };
+  if (m.t === 'error' && !pred(m)) return { error: `${what} failed: ${(m as Extract<ServerMsg, { t: 'error' }>).message}` };
+  return { ok: m as T };
+}
+
+export async function mutationAck<T extends ServerMsg>(client: Client, pred: (m: ServerMsg) => m is T, what: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
+  const r = await tryMutationAck(client, pred, what, timeoutMs);
+  if ('error' in r) { client.close(); fail(r.error); }
+  return r.ok;
 }
 
 const archivedWith = (id: string, present: boolean) =>
@@ -746,8 +752,11 @@ async function cmdCardRun(idPrefix: string, flags: Flags): Promise<void> {
   if (sys.kind === 'rejected') { client.close(); fail(`send rejected: ${sys.message}`); }
   if (sys.kind === 'parked') parked(client, `card ${card.id}`, sys.message);
   client.send({ t: 'canvas-card-save', card: { ...card, status: 'doing', updatedAt: Date.now() } });
-  await mutationAck(client, boardWhere((cards) => cards.some((c) => c.id === card.id && c.status === 'doing')), `canvas-card-save (the turn started on ${sys.sessionId})`);
+  // The turn already started: a non-zero exit here would make a retrying caller
+  // start a duplicate run. Only the card's status move is in doubt.
+  const moved = await tryMutationAck(client, boardWhere((cards) => cards.some((c) => c.id === card.id && c.status === 'doing')), 'canvas-card-save');
   client.close();
+  if ('error' in moved) console.error(`deckctl: warning — the turn started but the card was not moved to doing: ${moved.error}`);
   console.log(`card ${card.id} running on session ${sys.sessionId}`);
 }
 
@@ -1213,6 +1222,7 @@ async function applyTriage(rows: TriageRow[]): Promise<void> {
   const toPurge = rows.filter((r) => r.verdict === 'PURGE');
   const toStub = rows.filter((r) => r.verdict === 'KEEP' && !handoffIds.has(r.id) && !memoryLeafIds.has(r.id));
 
+  let purgeFailures = 0;
   for (const r of toPurge) {
     // Hard guard, independent of scoring: refuse a never-purge id/title even if a
     // future scoring change ever let one through as PURGE.
@@ -1220,12 +1230,16 @@ async function applyTriage(rows: TriageRow[]): Promise<void> {
       console.error(`deckctl: refusing to purge never-purge session ${shortId(r.id)} (scoring bug — this should not happen)`);
       continue;
     }
+    // One unconfirmed session must not stop the batch: report it, go on, and
+    // exit non-zero at the end.
     const client = await connect();
     client.send({ t: 'hide', sessionId: r.id });
-    await mutationAck(client, archivedWith(r.id, true), `hide ${shortId(r.id)}`);
+    const hid = await tryMutationAck(client, archivedWith(r.id, true), `hide ${shortId(r.id)}`);
+    if ('error' in hid) { client.close(); console.error(`deckctl: ${hid.error} — skipped`); purgeFailures++; continue; }
     client.send({ t: 'purge', sessionId: r.id });
-    await mutationAck(client, archivedWith(r.id, false), `purge ${shortId(r.id)}`);
+    const gone = await tryMutationAck(client, archivedWith(r.id, false), `purge ${shortId(r.id)}`);
     client.close();
+    if ('error' in gone) { console.error(`deckctl: ${gone.error} — ${shortId(r.id)} is hidden, not purged`); purgeFailures++; continue; }
     console.log(`purged ${shortId(r.id)}`);
   }
 
@@ -1235,7 +1249,8 @@ async function applyTriage(rows: TriageRow[]): Promise<void> {
   }
 
   const reviewed = rows.filter((r) => r.verdict === 'REVIEW').length;
-  console.log(`apply done — purged ${toPurge.length}, stubbed ${toStub.length}, reviewed ${reviewed} (no action)`);
+  console.log(`apply done — purged ${toPurge.length - purgeFailures}, stubbed ${toStub.length}, reviewed ${reviewed} (no action)`);
+  if (purgeFailures) fail(`${purgeFailures} purge(s) not confirmed — see above`);
 }
 
 async function cmdTriage(flags: Flags, json: boolean): Promise<void> {

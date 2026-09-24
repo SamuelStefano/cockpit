@@ -58,3 +58,16 @@ describe('deckctl mutation acks', () => {
     expect(r.out).toContain('did not confirm hide');
   }, 40_000);
 });
+
+describe('deckctl card run when only the status move fails', () => {
+  it('exits 0 (the turn started) and warns on stderr', async () => {
+    const r = await deckctl(['card', 'run', 'fix-login'], (m, ws) => {
+      if (m.t === 'canvas-get') send(ws, { t: 'canvas-board', board: { cards: [card] } });
+      if (m.t === 'send') send(ws, { t: 'system', sessionKey: m.sessionKey, sessionId: S });
+      if (m.t === 'canvas-card-save') send(ws, { t: 'error', message: 'board lock' });
+    });
+    expect(r.code).toBe(0);
+    expect(r.out).toContain('was not moved to doing');
+    expect(r.out).toContain(`running on session ${S}`);
+  }, 30_000);
+});
