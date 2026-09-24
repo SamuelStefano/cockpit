@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Icon, tokens } from '../primitives';
+import { useMenuKeys } from '../primitives/useMenuKeys';
 import { navFor } from './nav-routes';
 import type { Route } from '../../useRoute';
 
@@ -9,6 +10,10 @@ import type { Route } from '../../useRoute';
 // sessões no mobile — abrir um fecha o outro (senão os dois overlays se sobrepõem).
 export function RouteMenu({ route, nav, isAdmin, open, setOpen }: { route: Route; nav: (to: Route) => void; isAdmin: boolean; open: boolean; setOpen: (v: boolean) => void }) {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // Announced as a menu, so it behaves as one: focus moves in, arrows move, Esc
+  // closes and hands focus back to the trigger.
+  const menu = useMenuKeys<HTMLDivElement>(open, triggerRef);
   useEffect(() => {
     if (!open) return;
     // pointerdown cobre toque (mobile) e mouse — mousedown sozinho não fechava em
@@ -23,6 +28,7 @@ export function RouteMenu({ route, nav, isAdmin, open, setOpen }: { route: Route
   return (
     <div ref={wrapRef} className="relative md:hidden">
       <button
+        ref={triggerRef}
         onClick={() => setOpen(!open)}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -33,10 +39,14 @@ export function RouteMenu({ route, nav, isAdmin, open, setOpen }: { route: Route
         <Icon name="chevronDown" size={12} />
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-36 rounded-lg border border-neutral-800 bg-neutral-900 p-1 shadow-2xl">
+        <div ref={menu.ref} role="menu" aria-label="Rotas" onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setOpen(false); } else menu.onKeyDown(e); }}
+          className="absolute left-0 top-full z-50 mt-1 w-36 rounded-lg border border-neutral-800 bg-neutral-900 p-1 shadow-2xl">
           {items.map((n) => (
             <button
               key={n.to}
+              role="menuitem"
+              tabIndex={-1}
+              aria-current={route === n.to ? 'page' : undefined}
               onClick={() => { nav(n.to); setOpen(false); }}
               className={`flex w-full items-center rounded-md px-2.5 py-1.5 text-left font-mono text-[12px] lowercase tracking-tight transition
                 ${route === n.to ? 'bg-orange-500/15 text-orange-300' : 'text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200'}`}
