@@ -40,4 +40,18 @@ describe('useContexts', () => {
     const { result } = montar();
     expect(result.current.onMsg({ t: 'skills', items: [] })).toBe(false);
   });
+
+  it('a reply arriving after close does not reopen the modal', () => {
+    const { result } = montar();
+    act(() => { result.current.onCtxOpen('a'); result.current.onCtxClose(); });
+    act(() => { result.current.onMsg({ t: 'context', id: 'a', title: 't', body: 'b' }); });
+    expect(result.current.openContext).toBe(null);
+  });
+
+  it('a slow reply for an earlier click does not replace the one asked last', () => {
+    const { result } = montar();
+    act(() => { result.current.onCtxOpen('a'); result.current.onCtxOpen('b'); });
+    act(() => { result.current.onMsg({ t: 'context', id: 'b', title: 't', body: 'b' }); result.current.onMsg({ t: 'context', id: 'a', title: 't', body: 'b' }); });
+    expect(result.current.openContext?.id).toBe('b');
+  });
 });
