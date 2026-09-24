@@ -3,6 +3,7 @@ import type { Session, Message, Block, ToolTodo } from './data/types';
 import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, TurnStats, Caps, PlanUsage, ParkedView, BgAgent } from '../shared/protocol';
 import { loadPref, savePref, setPref, usePrefListener } from './lib/persist';
 import { MODE_KEY, MODEL_KEY, EFFORT_KEY } from './lib/account-prefs';
+import { persistableModelOverrides } from './cockpit/model-overrides';
 import { SUPABASE_ENABLED } from './lib/supabase';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
 import { wsUrlWithToken, newId, metaToSession, mergeServerSessions, adoptClaimedRow, dedupById, mergeSeen, isCronPing } from './cockpit/session';
@@ -2151,11 +2152,13 @@ export function useCockpit(): Cockpit {
 
   // Override de modelo por sessão — mesma regra dos drafts: sessões `new-xxx` são
   // efêmeras e não casam depois de um reload.
+  // Also drops sessions that no longer exist (deleted, or gone from both lists):
+  // the map was never pruned and grew in localStorage for good. Only once the
+  // list has loaded, or a cold start would wipe every override.
   useEffect(() => {
-    const keep: Record<string, string> = {};
-    for (const [k, v] of Object.entries(modelBySession)) if (!k.startsWith('new-')) keep[k] = v;
-    savePref('modelBySession', keep);
-  }, [modelBySession]);
+    const known = loading ? null : new Set([...sessions.map((s) => s.id), ...archived.map((s) => s.id)]);
+    savePref('modelBySession', persistableModelOverrides(modelBySession, known));
+  }, [modelBySession, sessions, archived, loading]);
 
   const attachmentsView = useMemo(() => markDuplicates(attachments, sentHashes[activeId]), [attachments, sentHashes, activeId]);
 
