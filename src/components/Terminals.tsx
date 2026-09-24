@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Icon, tokens } from './primitives';
 import type { Terminal } from '../data/types';
 import type { TermApi } from '../useCockpit';
@@ -24,6 +24,15 @@ export interface TerminalsPanelProps {
 
 export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, term, attachable = [], onAttach, onCloseMobile }: TerminalsPanelProps) {
   const active = terminals.find((t) => t.id === activeId) || terminals[0];
+  // "matar" ends the real tmux session (agents run there). On mobile it sits at
+  // the bottom of the sheet and was easy to mis-tap: the first tap arms it for 3s.
+  const [killArmed, setKillArmed] = useState<string | null>(null);
+  useEffect(() => {
+    if (!killArmed) return;
+    const t = setTimeout(() => setKillArmed(null), 3000);
+    return () => clearTimeout(t);
+  }, [killArmed]);
+  const armOrKill = (id: string) => { if (killArmed === id) { setKillArmed(null); onClose(id); } else setKillArmed(id); };
 
   return (
     <div className="flex h-full flex-col" style={{ background: '#0a0a0a' }}>
@@ -40,18 +49,21 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
                     ? 'border-orange-500 bg-neutral-900 text-neutral-100'
                     : 'border-transparent text-neutral-500 hover:bg-neutral-900/50 hover:text-neutral-300'}`}
               >
-                <span className="h-1.5 w-1.5 rounded-full bg-green-500" style={{ boxShadow: '0 0 6px var(--ok)' }} />
+                {/* Colour alone used to say "alive" for every tab, dead ones too. */}
+                <span className={`h-1.5 w-1.5 rounded-full ${term.exited.has(t.id) ? 'bg-neutral-600' : 'bg-green-500'}`} style={term.exited.has(t.id) ? undefined : { boxShadow: '0 0 6px var(--ok)' }} aria-label={term.exited.has(t.id) ? 'encerrado' : 'ativo'} />
                 {t.name}
                 {terminals.length > 1 && (
                   // span (não button) — aninhar button em button é HTML inválido.
                   <span
                     role="button"
                     tabIndex={0}
-                    aria-label="Fechar terminal"
-                    title="Fechar terminal"
-                    onClick={(e) => { e.stopPropagation(); onClose(t.id); }}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onClose(t.id); } }}
-                    className={`-mr-1.5 ml-0.5 rounded-sm p-1.5 text-neutral-600 transition hover:bg-neutral-800 hover:text-neutral-300 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100 sm:focus-visible:opacity-100 ${tokens.focusRing}`}
+                    // Same two-tap rule as "matar": this ✕ also ends the tmux session,
+                    // and on touch screens it is always visible.
+                    aria-label={killArmed === t.id ? 'Confirmar: fechar terminal' : 'Fechar terminal'}
+                    title={killArmed === t.id ? 'Toque de novo pra fechar' : 'Fechar terminal'}
+                    onClick={(e) => { e.stopPropagation(); armOrKill(t.id); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); armOrKill(t.id); } }}
+                    className={`-mr-1.5 ml-0.5 rounded-sm p-1.5 transition hover:bg-neutral-800 ${killArmed === t.id ? 'text-red-400 opacity-100' : 'text-neutral-600 hover:text-neutral-300'} sm:pointer-fine:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100 sm:focus-visible:opacity-100 ${tokens.focusRing}`}
                   >
                     <Icon name="x" size={11} />
                   </span>
@@ -102,17 +114,18 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
 
       <div className="flex shrink-0 items-center justify-between border-t border-neutral-800 bg-neutral-950/80 px-3 py-1.5">
         <div className="flex items-center gap-2 font-mono text-[11px]">
-          <span className="h-2 w-2 rounded-full bg-green-500" style={{ boxShadow: '0 0 6px var(--ok)' }} />
-          <span className="text-green-400">tmux</span>
+          {active && term.exited.has(active.id)
+            ? <><span className="h-2 w-2 rounded-full bg-neutral-600" /><span className="text-neutral-500">encerrado</span></>
+            : <><span className="h-2 w-2 rounded-full bg-green-500" style={{ boxShadow: '0 0 6px var(--ok)' }} /><span className="text-green-400">tmux</span></>}
           {active && <span className="text-neutral-600">cockpit-{active.id}</span>}
         </div>
         {active && (
           <button
-            onClick={() => onClose(active.id)}
+            onClick={() => armOrKill(active.id)}
             title="Encerra a sessão tmux"
-            className="flex items-center gap-1.5 rounded-md border border-neutral-700 px-2 py-1 text-[11px] font-medium text-neutral-300 transition hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400"
+            className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition ${killArmed === active.id ? 'border-red-500/60 bg-red-500/15 text-red-300' : 'border-neutral-700 text-neutral-300 hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400'}`}
           >
-            <Icon name="trash" size={11} /> matar
+            <Icon name="trash" size={11} /> {killArmed === active.id ? 'confirmar?' : 'matar'}
           </button>
         )}
       </div>

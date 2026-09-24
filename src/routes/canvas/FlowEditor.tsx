@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { DEFAULT_FLOW_TEMPLATE, type CanvasFlow, type CanvasNode } from '../../../shared/canvas';
 import { relPast } from '../../../shared/format';
 import { Button, Input, Modal, Switch, ToggleChip } from '../../components/primitives';
+import { useArmed } from '../../components/primitives/useArmed';
 
 const MODES: { value: CanvasFlow['mode']; label: string }[] = [
   { value: undefined, label: 'herdar da origem' },
@@ -34,13 +35,14 @@ export function FlowEditor({ flow: initial, isNew, node, onSave, onDelete, onClo
     patch({ mcps: mcps.length ? mcps : undefined });
   };
 
+  const del = useArmed();
   return (
     <Modal
       open onClose={onClose} icon="zap" maxWidth="max-w-lg"
       title={isNew ? 'Novo fluxo' : 'Editar fluxo'}
       footer={(
         <div className="flex w-full items-center gap-2">
-          {!isNew && <Button variant="danger" size="sm" icon="trash" onClick={() => onDelete(flow.id)}>excluir</Button>}
+          {!isNew && <Button variant="danger" size="sm" icon="trash" onClick={() => del.fire(() => onDelete(flow.id))}>{del.armed ? 'confirmar?' : 'excluir'}</Button>}
           <span className="flex-1" />
           <Button size="sm" onClick={() => onSave(flow)}>salvar</Button>
         </div>

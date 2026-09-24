@@ -26,7 +26,9 @@ export function useHarnessDraft(config: HarnessConfig | null) {
   const nativeMode = mode === 'auto' || mode === 'model';
   const needsApiKey = mode === 'auto' ? true : via === 'api';
 
-  const blocked = needsApiKey && !nativeApiOk
+  // config === null = not loaded yet: say nothing rather than flash a false
+  // "precisa de ANTHROPIC_API_KEY" for the first frames.
+  const blocked = config && needsApiKey && !nativeApiOk
     ? (mode === 'auto' ? 'auto precisa de ANTHROPIC_API_KEY pro classificador (a task pode rodar no plano)' : 'via API precisa de ANTHROPIC_API_KEY — ou troque pra Plano')
     : null;
 

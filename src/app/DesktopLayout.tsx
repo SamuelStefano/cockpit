@@ -4,6 +4,7 @@ import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import { TerminalsPanel, type TerminalsPanelProps } from '../components/Terminals';
 import { CollapsedRail } from '../components/chrome/CollapsedRail';
 import { CollapseBtn } from '../components/chrome/CollapseBtn';
+import { LEFT_RANGE, RIGHT_RANGE, type PanelSide } from './usePanelResize';
 
 export interface DesktopLayoutProps {
   sessionsProps: SessionsPanelProps;
@@ -16,10 +17,11 @@ export interface DesktopLayoutProps {
   setLeftCollapsed: (v: boolean) => void;
   rightCollapsed: boolean;
   setRightCollapsed: (v: boolean) => void;
-  startDrag: (which: string) => (e: React.MouseEvent<HTMLDivElement>) => void;
+  startDrag: (which: PanelSide) => (e: React.PointerEvent<HTMLDivElement>) => void;
+  nudge: (which: PanelSide, e: React.KeyboardEvent) => void;
 }
 
-export function DesktopLayout({ sessionsProps, chatProps, termProps, rowRef, leftW, rightW, leftCollapsed, setLeftCollapsed, rightCollapsed, setRightCollapsed, startDrag }: DesktopLayoutProps) {
+export function DesktopLayout({ sessionsProps, chatProps, termProps, rowRef, leftW, rightW, leftCollapsed, setLeftCollapsed, rightCollapsed, setRightCollapsed, startDrag, nudge }: DesktopLayoutProps) {
   return (
     <div ref={rowRef} className="flex min-h-0 flex-1">
       {leftCollapsed ? (
@@ -30,7 +32,12 @@ export function DesktopLayout({ sessionsProps, chatProps, termProps, rowRef, lef
             <SessionsPanel {...sessionsProps} />
             <CollapseBtn side="left" onClick={() => setLeftCollapsed(true)} />
           </div>
-          <div className="resizer w-[3px] shrink-0 cursor-col-resize bg-neutral-800" onMouseDown={startDrag('left')} />
+          <div
+            role="separator" aria-orientation="vertical" aria-label="Largura do painel de sessões" tabIndex={0}
+            aria-valuenow={Math.round(leftW)} aria-valuemin={LEFT_RANGE[0]} aria-valuemax={LEFT_RANGE[1]}
+            className="resizer w-[3px] shrink-0 cursor-col-resize touch-none bg-neutral-800 focus-visible:bg-orange-500/60 focus-visible:outline-hidden"
+            onPointerDown={startDrag('left')} onKeyDown={(e) => nudge('left', e)}
+          />
         </>
       )}
 
@@ -42,7 +49,12 @@ export function DesktopLayout({ sessionsProps, chatProps, termProps, rowRef, lef
         <CollapsedRail side="right" label="Terminais" icon="terminal" onExpand={() => setRightCollapsed(false)} />
       ) : (
         <>
-          <div className="resizer w-[3px] shrink-0 cursor-col-resize bg-neutral-800" onMouseDown={startDrag('right')} />
+          <div
+            role="separator" aria-orientation="vertical" aria-label="Largura do painel de terminais" tabIndex={0}
+            aria-valuenow={Math.round(rightW)} aria-valuemin={RIGHT_RANGE[0]} aria-valuemax={RIGHT_RANGE[1]}
+            className="resizer w-[3px] shrink-0 cursor-col-resize touch-none bg-neutral-800 focus-visible:bg-orange-500/60 focus-visible:outline-hidden"
+            onPointerDown={startDrag('right')} onKeyDown={(e) => nudge('right', e)}
+          />
           <div style={{ width: `${rightW}%` }} className="relative min-w-0 shrink-0 border-l border-neutral-800">
             <TerminalsPanel {...termProps} />
             <CollapseBtn side="right" onClick={() => setRightCollapsed(true)} />

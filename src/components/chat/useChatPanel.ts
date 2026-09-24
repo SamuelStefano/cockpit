@@ -221,7 +221,12 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   })();
   const failed = phase === 'idle' && (() => {
     const last = messages[messages.length - 1];
-    return !!last && last.role === 'assistant' && last.error === true;
+    return !!last && last.role === 'assistant' && last.error === true && !last.notice;
+  })();
+  // What "Tentar novamente" will resend, so the banner can show it.
+  const retryText = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) { const m = messages[i]; if (m.role === 'user') return m.text; }
+    return '';
   })();
   const retryLast = () => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -245,6 +250,6 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
     queued, queuedAtts, queuedModels, enqueue, clearQueue, cancelQueueAt, editQueuedAt, moveQueuedItem, queueHeld, resumeQueue, runQueuedInBgAt, runQueuedNowAt, fullLoaded, setFullLoaded,
     streaming, disabled, isEmpty,
     sentHistory, modelLabel, labelFor,
-    planPending, pendingQuestion, failed, retryLast, bannerConfirm,
+    planPending, pendingQuestion, failed, retryLast, retryText, bannerConfirm,
   };
 }

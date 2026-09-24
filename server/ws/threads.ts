@@ -138,7 +138,9 @@ export function clearStopEpoch(sessionKey: string): void {
 // onClose (pedido do Samuel: cancelar um prompt não pode apagar a fila inteira).
 // O bump de época ainda descarta uma mensagem que estava EM TRIAGEM no instante do
 // stop (senão ela viraria um turno novo logo após o stop, furando o cancelamento).
-export function onStop(sessionKey: string): void {
+// byUser=false: a kill of ours (the reaper) — the turn is stopped the same way,
+// but its queue item may go back to the queue (see userStopped).
+export function onStop(sessionKey: string, byUser = true): void {
   // Side-runs (triagem/quick-answer haiku) NÃO viviam em `threads` — o stop só
   // matava o turno principal e esses one-shots seguiam vivos, a quick-answer ainda
   // fazia broadcast depois do stop. Mata os daquela sessão agora.
@@ -154,7 +156,7 @@ export function onStop(sessionKey: string): void {
   // clientes), mas com stopped=true pra o cliente NÃO disparar notificação de
   // "turno concluído" — o usuário interrompeu de propósito. Flag morre com o thread.
   t.stopped = true;
-  t.userStopped = true;
+  if (byUser) t.userStopped = true;
 }
 
 // O servidor keyeia o thread pela chave com que o run COMEÇOU ("new-xxx" numa
@@ -170,9 +172,9 @@ export function resolveThreadKey(sessionKey: string): string | undefined {
 
 // Ponto único de stop: resolve a chave real do thread ANTES de marcar/matar, pra
 // onStop (bump de época + limpa side-runs) e o kill acertarem o mesmo turno.
-export function stopSession(sessionKey: string): void {
+export function stopSession(sessionKey: string, byUser = true): void {
   const key = resolveThreadKey(sessionKey) ?? sessionKey;
-  onStop(key);
+  onStop(key, byUser);
   threads.get(key)?.handle.kill();
 }
 

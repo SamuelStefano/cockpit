@@ -39,6 +39,8 @@ export const stripReports = (s: string) => s.replace(INPUT_REPORT_RE, '');
 // fronteira de linha: um corte cru no meio de um escape ANSI / codepoint UTF-8
 // faz o xterm pintar lixo na 1ª linha do reattach. Sem newline na janela (uma
 // linha gigante única) cai no corte cru — raro e auto-cura no próximo redraw.
+const TRIM_SLACK = 1.5;
+
 export function trimBuffer(buf: string, max = MAX_BUFFER): string {
   if (buf.length <= max) return buf;
   const cut = buf.slice(buf.length - max);
@@ -131,7 +133,11 @@ export function openTerm(
     });
     const term: Term = { pty: p, buffer: '', data: new Set(), exit: new Set(), idleSince: null };
     p.onData((d) => {
-      term.buffer = trimBuffer(term.buffer + d);
+      // Trim with slack, not on every chunk: once the scrollback was full, each
+      // chunk sliced (copied) the whole 200 KB buffer — tens of MB/s of copying on
+      // the event loop for a chatty terminal. Replay still gets exactly MAX_BUFFER.
+      term.buffer += d;
+      if (term.buffer.length > MAX_BUFFER * TRIM_SLACK) term.buffer = trimBuffer(term.buffer);
       for (const l of term.data) l(d);
     });
     p.onExit(() => {
@@ -150,7 +156,7 @@ export function openTerm(
   // Snapshot do scrollback como mensagem SEPARADA (term-replay): o cliente dá
   // reset() antes de repintar, então reattach/reconnect não DUPLICA a tela.
   // Emitido após registrar onData, então a ordem replay -> live é preservada.
-  if (t.buffer) onReplay(t.buffer);
+  if (t.buffer) onReplay(trimBuffer(t.buffer));
   return true;
 }
 
@@ -161,6 +167,31 @@ export function detachTerm(id: string, onData: (d: string) => void, onExit: () =
   t.exit.delete(onExit);
   if (!t.data.size) t.idleSince = Date.now();
   // PTY fica vivo de propósito: a sessão tmux persiste pra reattach.
+  evictDetached();
+}
+
+// Detached (non-watch) PTYs were never reaped and MAX_TERMS counts only attached
+// ones, so every terminal ever opened kept a tmux client process (and its 200 KB
+// scrollback) alive for the backend's lifetime. Past MAX_DETACHED, the oldest
+// idle clients are closed. Only the CLIENT goes: the tmux session keeps running
+// and a later open re-attaches (it just starts without the old scrollback).
+const MAX_DETACHED = 20;
+
+export function detachedToEvict(entries: { id: string; attached: boolean; idleSince: number | null }[], max = MAX_DETACHED): string[] {
+  const idle = entries
+    .filter((e) => !e.attached && !e.id.startsWith('w-') && e.idleSince !== null)
+    .sort((a, b) => (a.idleSince ?? 0) - (b.idleSince ?? 0));
+  return idle.slice(0, Math.max(0, idle.length - max)).map((e) => e.id);
+}
+
+function evictDetached(): void {
+  const entries = [...terms].map(([id, t]) => ({ id, attached: t.data.size > 0, idleSince: t.idleSince }));
+  for (const id of detachedToEvict(entries)) {
+    const t = terms.get(id);
+    if (!t) continue;
+    terms.delete(id);
+    try { t.pty.kill(); } catch { /* already gone */ }
+  }
 }
 
 // Canvas watch panes nobody looks at are pure waste (~22 MB each: follower +

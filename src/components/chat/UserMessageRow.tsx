@@ -91,7 +91,7 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
     <div data-mid={msg.id} className="fade-up group/u flex flex-wrap items-start justify-end gap-2.5 sm:flex-nowrap">
       {/* No mobile as ações vão pra linha própria ABAIXO da bolha (order-3): o
           thread tem overflow-x-hidden e ao lado da bolha elas eram clipadas. */}
-      <div className="order-3 mt-1 flex w-full shrink-0 items-center justify-end gap-0.5 opacity-100 transition group-hover/u:opacity-100 sm:order-0 sm:w-auto sm:opacity-0 sm:focus-within:opacity-100 sm:group-hover/u:opacity-100">
+      <div className="order-3 mt-1 flex w-full shrink-0 items-center justify-end gap-0.5 opacity-100 transition group-hover/u:opacity-100 sm:order-0 sm:w-auto sm:pointer-fine:opacity-0 sm:focus-within:opacity-100 sm:group-hover/u:opacity-100">
         {msg.ts && <time className="mr-1 text-[10px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
         <CopyTextButton text={msg.text} />
         {onQuote && <QuoteButton onClick={() => onQuote(msg.text)} />}

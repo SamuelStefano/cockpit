@@ -57,7 +57,8 @@ export function readOrchestratorSync(): OrchestratorInfo | undefined {
 // cheaper than making startRun's whole call chain async just for this check.
 export function isTmuxAliveSync(name: string): boolean {
   try {
-    execFileSync('tmux', ['has-session', '-t', name], { stdio: 'ignore' });
+    // Blocks the event loop: a tmux wedged under load must not hang every run.
+    execFileSync('tmux', ['has-session', '-t', name], { stdio: 'ignore', timeout: 2000 });
     return true;
   } catch {
     return false;

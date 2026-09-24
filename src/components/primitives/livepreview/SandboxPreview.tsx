@@ -11,12 +11,22 @@ import type { SandboxTarget } from '../../../../shared/sandbox-preview';
 // `allow-top-navigation`, senão o app embutido conseguiria trocar a página do Deck.
 const SANDBOX_PERMS = 'allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads';
 
+// The safety argument above holds only when the src really is another origin.
+// The fence body is untrusted (model output); pointed at the Deck's own origin,
+// allow-same-origin + allow-scripts would let the frame read the Deck's
+// localStorage (auth token) and lift its own sandbox. Same origin → no same-origin.
+export function sandboxPerms(src: string, deckOrigin: string): string {
+  let origin: string;
+  try { origin = new URL(src, deckOrigin).origin; } catch { return SANDBOX_PERMS.replace(' allow-same-origin', ''); }
+  return origin === deckOrigin ? SANDBOX_PERMS.replace(' allow-same-origin', '') : SANDBOX_PERMS;
+}
+
 function Frame({ src, title, className, width }: { src: string; title: string; className: string; width: number | null }) {
   return (
     <iframe
       src={src}
       title={title}
-      sandbox={SANDBOX_PERMS}
+      sandbox={sandboxPerms(src, window.location.origin)}
       referrerPolicy="no-referrer"
       allow="clipboard-write; fullscreen"
       className={className}

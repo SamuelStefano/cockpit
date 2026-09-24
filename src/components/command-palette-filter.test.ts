@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { filterCommands, groupByOrder } from './command-palette-filter';
+import { capSessions, filterCommands, groupByOrder } from './command-palette-filter';
 
 const cmds = [
   { label: 'Ir para Chat', group: 'Navegar' },
@@ -35,5 +35,21 @@ describe('groupByOrder', () => {
 
   it('returns [] for an empty list', () => {
     expect(groupByOrder([])).toEqual([]);
+  });
+});
+
+describe('capSessions', () => {
+  const sessions = Array.from({ length: 150 }, (_, i) => ({ label: `s${i}`, group: 'Sessões' }));
+  const other = { label: 'Ir para Chat', group: 'Navegar' };
+
+  it('shows only the recent 40 sessions with no query, keeps other groups', () => {
+    const out = capSessions([other, ...sessions], '');
+    expect(out.filter((c) => c.group === 'Sessões')).toHaveLength(40);
+    expect(out).toContain(other);
+  });
+
+  it('lets a query reach sessions past the first 40', () => {
+    const hits = filterCommands(sessions, 's120');
+    expect(capSessions(hits, 's120').map((c) => c.label)).toEqual(['s120']);
   });
 });

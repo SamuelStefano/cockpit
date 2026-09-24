@@ -2,10 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const cp = vi.hoisted(() => ({
   execFile: vi.fn(),
-  spawn: vi.fn(() => ({ unref: vi.fn() })),
+  spawn: vi.fn(() => ({ unref: vi.fn(), on: vi.fn() })),
 }));
 vi.mock('node:child_process', () => cp);
-vi.mock('node:fs', async (orig) => ({ ...(await orig<typeof import('node:fs')>()), mkdirSync: vi.fn(), openSync: vi.fn(() => 9) }));
+vi.mock('node:fs', async (orig) => ({ ...(await orig<typeof import('node:fs')>()), mkdirSync: vi.fn(), openSync: vi.fn(() => 9), closeSync: vi.fn() }));
+const fsMock = await import('node:fs');
 vi.mock('./engine/cli-path', () => ({ cliPath: () => '/home/x/.local/bin:/usr/bin' }));
 
 import { parseCliVersion, restartDeck, claudeCliInfo, REPO_ROOT } from './deck-ops';
@@ -55,6 +56,14 @@ describe('restartDeck', () => {
     fakeExec(() => ({ stdout: '' }));
     await restartDeck('idle');
     expect(cp.spawn).toHaveBeenCalledWith('bash', [`${REPO_ROOT}/scripts/deploy-when-idle.sh`], expect.objectContaining({ cwd: REPO_ROOT, detached: true }));
+  });
+
+  it('closes its copy of the log fd and listens for spawn errors', async () => {
+    fakeExec(() => ({ stdout: '' }));
+    await restartDeck('now');
+    expect(fsMock.closeSync).toHaveBeenCalledWith(9);
+    const child = cp.spawn.mock.results[0].value as { on: ReturnType<typeof vi.fn> };
+    expect(child.on).toHaveBeenCalledWith('error', expect.any(Function));
   });
 
   it('now: spawns redeploy.sh without consulting the lock', async () => {

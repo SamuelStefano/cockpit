@@ -42,9 +42,13 @@ export function useOrchestratorDock() {
       dragging.current = false;
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    // A cancelled pointer (pen lifted off-screen, OS gesture) sends no pointerup:
+    // the drag stayed live and the dock followed the next mouse move.
+    window.addEventListener('pointercancel', onUp);
   }, [mobile, setWidth]);
 
   return { open, toggle, setOpen, width: clampDockWidth(width, window.innerWidth), mobile, startResize };

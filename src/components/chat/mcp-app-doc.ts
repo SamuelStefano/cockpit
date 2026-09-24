@@ -28,12 +28,14 @@ export function mcpAppCsp(csp?: McpAppView['csp']): string {
 // script do app, senão o próprio documento já teria executado sem política.
 export function mcpAppDoc(html: string, csp?: McpAppView['csp']): string {
   const meta = `<meta http-equiv="Content-Security-Policy" content="${mcpAppCsp(csp).replace(/"/g, '&quot;')}">`;
-  const head = html.match(/<head[^>]*>/i);
+  // `(?=[\s>])`: a bare `<head` prefix also matched `<header>`, which put the
+  // CSP meta in the body where browsers ignore it — the app ran with no policy.
+  const head = html.match(/<head(?=[\s>])[^>]*>/i);
   if (head) {
     const at = (head.index ?? 0) + head[0].length;
     return html.slice(0, at) + meta + html.slice(at);
   }
-  const htmlTag = html.match(/<html[^>]*>/i);
+  const htmlTag = html.match(/<html(?=[\s>])[^>]*>/i);
   if (htmlTag) {
     const at = (htmlTag.index ?? 0) + htmlTag[0].length;
     return html.slice(0, at) + `<head>${meta}</head>` + html.slice(at);

@@ -98,7 +98,7 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
         {!caretOnLast && !thinking && msg.stats?.durationMs ? <ThoughtFor ms={msg.stats.durationMs} /> : null}
         {hasText && !caretOnLast && (
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <div className="flex flex-wrap items-center gap-x-2 opacity-100 transition group-hover/msg:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100">
+            <div className="flex flex-wrap items-center gap-x-2 opacity-100 transition group-hover/msg:opacity-100 sm:pointer-fine:opacity-0 sm:focus-within:opacity-100 sm:group-hover/msg:opacity-100">
               <CopyMessageButton blocks={msg.blocks} />
               <SpeakButton blocks={msg.blocks} />
               {onRegenerate && <RegenerateButton onClick={onRegenerate} />}

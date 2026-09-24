@@ -51,11 +51,18 @@ function read(): LiveMap {
 }
 
 function write(map: LiveMap): void {
-  mkdirSync(dirname(LIVE_PATH), { recursive: true });
-  const tmp = `${LIVE_PATH}.${process.pid}.tmp`;
-  // 0600: guarda role/bypass do turno, que o boot vai reexecutar sem passar por authz.
-  writeFileSync(tmp, JSON.stringify(map), { encoding: 'utf8', mode: 0o600 });
-  renameSync(tmp, LIVE_PATH);
+  // Called from a child's close handler and from stream callbacks. This registry
+  // is crash-recovery hardening; a full disk (ENOSPC) must not throw out of
+  // onClose, where it would crash the agent or leave the session busy.
+  try {
+    mkdirSync(dirname(LIVE_PATH), { recursive: true });
+    const tmp = `${LIVE_PATH}.${process.pid}.tmp`;
+    // 0600: guarda role/bypass do turno, que o boot vai reexecutar sem passar por authz.
+    writeFileSync(tmp, JSON.stringify(map), { encoding: 'utf8', mode: 0o600 });
+    renameSync(tmp, LIVE_PATH);
+  } catch (e) {
+    console.error('[recover] live-runs write failed:', (e as Error).message);
+  }
 }
 
 // Mesma trava do parked.json, pelo mesmo motivo: agente e index escrevem aqui. Um

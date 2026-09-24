@@ -98,7 +98,9 @@ export function reapStaleRuns(): void {
     console.error(`[reaper] ${v.key}: ${v.reason} há ${Math.round(v.ms / 1000)}s`);
     recordIncident({ kind: 'reaped', sessionKey: v.key, sessionId: thread.sessionId, detail: `${v.reason} há ${Math.round(v.ms / 1000)}s, ${thread.tools.length} tools` });
     broadcast({ t: 'error', sessionKey: v.key, message: REAP_MESSAGE[v.reason] });
-    stopSession(v.key);
+    // Not a user stop: a reaped turn that produced nothing did not consume its
+    // queue item, and onClose must be free to put it back (userStopped blocks that).
+    stopSession(v.key, false);
   }
 }
 

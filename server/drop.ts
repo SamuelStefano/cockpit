@@ -1,4 +1,4 @@
-import { chmod, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readdir, readFile, rm, stat, writeFile, rename } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
@@ -72,10 +72,24 @@ async function readIndex(): Promise<Record<string, number>> {
   }
 }
 
+// tmp + rename: a reader never sees a half-written index. A torn index parses
+// as {} and the next write would drop every TTL — secret drops that never expire.
 async function writeIndex(idx: Record<string, number>): Promise<void> {
   const file = join(await ensureDir(), INDEX);
-  await writeFile(file, JSON.stringify(idx), { mode: FILE_MODE });
-  await chmod(file, FILE_MODE);
+  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  await writeFile(tmp, JSON.stringify(idx), { mode: FILE_MODE });
+  await chmod(tmp, FILE_MODE);
+  await rename(tmp, file);
+}
+
+// Every read-modify-write of the index goes through one chain: two concurrent
+// drop-put frames used to read the same index and the second write dropped the
+// first one's TTL, so that drop never expired.
+let indexChain: Promise<unknown> = Promise.resolve();
+function mutateIndex<T>(fn: (idx: Record<string, number>) => Promise<T> | T): Promise<T> {
+  const next = indexChain.then(async () => fn(await readIndex()));
+  indexChain = next.catch(() => undefined);
+  return next;
 }
 
 function sha256(buf: Buffer): string {
@@ -108,12 +122,14 @@ export async function putDrop(slug: string, content: unknown, ttlMs?: unknown): 
   await chmod(full, FILE_MODE);
 
   const ttl = typeof ttlMs === 'number' && Number.isFinite(ttlMs) && ttlMs > 0 ? Math.min(ttlMs, MAX_TTL_MS) : 0;
-  const idx = await readIndex();
-  if (ttl) idx[slug] = Date.now() + ttl;
-  else delete idx[slug];
-  await writeIndex(idx);
+  const expiresAt = await mutateIndex(async (idx) => {
+    if (ttl) idx[slug] = Date.now() + ttl;
+    else delete idx[slug];
+    await writeIndex(idx);
+    return idx[slug];
+  });
 
-  const ref = await refFor(slug, full, ttl ? idx[slug] : undefined);
+  const ref = await refFor(slug, full, ttl ? expiresAt : undefined);
   return ref ?? { error: 'não deu pra gravar o drop' };
 }
 
@@ -154,16 +170,18 @@ export async function removeDrop(slug: string): Promise<{ ok: true } | { error: 
   const full = pathFor(slug);
   if (!full) return { error: 'nome inválido' };
   await rm(full, { force: true });
-  const idx = await readIndex();
-  if (slug in idx) { delete idx[slug]; await writeIndex(idx); }
+  await mutateIndex(async (idx) => { if (slug in idx) { delete idx[slug]; await writeIndex(idx); } });
   return { ok: true };
 }
 
 // Varredura dos expirados (boot + periódica, junto do sweepMcpConfigs). Também
 // poda o índice de slug que já não tem arquivo, senão ele cresce sem teto.
-export async function sweepDrops(now = Date.now()): Promise<number> {
+export function sweepDrops(now = Date.now()): Promise<number> {
+  return mutateIndex((idx) => sweepIndex(idx, now));
+}
+
+async function sweepIndex(idx: Record<string, number>, now: number): Promise<number> {
   const root = resolve(dropDir());
-  const idx = await readIndex();
   let removed = 0;
   let changed = false;
   for (const [slug, expiresAt] of Object.entries(idx)) {

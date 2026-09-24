@@ -4,6 +4,7 @@ import { FORMAT_LABEL } from '../../../shared/canvas-prompt';
 import type { DflPointsSnapshot } from '../../../shared/protocol';
 import type { DflWriteResult } from '../../cockpit/usePoints';
 import { Button, Input, Modal, ToggleChip } from '../../components/primitives';
+import { useArmed } from '../../components/primitives/useArmed';
 import { STATUS_LABEL } from './canvas-labels';
 import { CardReusePicker } from './CardReusePicker';
 import { DflLinkSection } from './DflLinkSection';
@@ -61,13 +62,14 @@ export function CardEditor({
   // saved once (same reason its context/session chips only work post-save).
   const isDflArea = !isNew && node(`k:${card.id}`)?.area === 'dfl';
 
+  const del = useArmed();
   return (
     <Modal
       open onClose={onClose} icon={content ? 'sparkles' : 'zap'} maxWidth="max-w-xl"
       title={isNew ? (content ? 'Novo conteúdo' : 'Novo card') : 'Editar card'}
       footer={(
         <div className="flex w-full items-center gap-2">
-          {!isNew && <Button variant="danger" size="sm" icon="trash" onClick={() => onDelete(card.id)}>excluir</Button>}
+          {!isNew && <Button variant="danger" size="sm" icon="trash" onClick={() => del.fire(() => onDelete(card.id))}>{del.armed ? 'confirmar?' : 'excluir'}</Button>}
           <span className="flex-1" />
           <Button variant="secondary" size="sm" disabled={!ok} onClick={() => onSave(card)}>{isNew ? 'salvar no ToDo' : 'salvar'}</Button>
           <Button size="sm" icon="play" disabled={!ok || card.status !== 'todo'} onClick={() => onRun(card)}>salvar e rodar</Button>
@@ -116,7 +118,13 @@ export function CardEditor({
             // would keep showing the old link/unlink state until the editor
             // is closed and reopened.
             onLink={async (id, taskId) => { const r = await onDflTaskLink(id, taskId); if (r.ok) patch({ dfl: { taskId, lastSyncedAt: Date.now() } }); return r; }}
-            onCreateLink={onDflTaskCreateLink}
+            onCreateLink={async (id, name, epicId, deliveryId, why, what) => {
+              const r = await onDflTaskCreateLink(id, name, epicId, deliveryId, why, what);
+              // Same local patch as onLink: without it the editor fell back to a
+              // filled-in picker and a second confirm created a duplicate task.
+              if (r.ok && r.taskId) patch({ dfl: { taskId: r.taskId, lastSyncedAt: Date.now() } });
+              return r;
+            }}
             onUnlink={(id) => { const ok = onDflTaskUnlink(id); patch({ dfl: undefined }); return ok; }}
             onConfirmSync={onDflTaskConfirmSync}
           />

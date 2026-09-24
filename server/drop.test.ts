@@ -136,3 +136,13 @@ describe('drop privado', () => {
     expect(r.path).toBe(join(homedir(), '.deck-drop', 'padrao'));
   });
 });
+
+describe('TTL index under concurrent writes', () => {
+  it('keeps every TTL when drops are put at the same time', async () => {
+    const refs = await Promise.all(Array.from({ length: 8 }, (_, i) => putDrop(`s${i}`, 'segredo', 60_000)));
+    for (const r of refs) expect('expiresAt' in r && r.expiresAt).toBeTruthy();
+    const listed = await listDrops();
+    expect(listed).toHaveLength(8);
+    for (const r of listed) expect(r.expiresAt).toBeGreaterThan(Date.now());
+  });
+});

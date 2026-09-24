@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { MobileLayout } from '../components/Mobile';
 import { DesktopLayout } from './DesktopLayout';
 import { SkeletonCards } from '../components/primitives';
+import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
   Contextos, Skills, Notas, Pontos, Crons, Observatorio,
   Graph, Canvas, Harness, Admin, Docs, DesignSystem, Playground,
@@ -12,6 +13,7 @@ import type { TerminalsPanelProps } from '../components/Terminals';
 import type { Terminal } from '../data/types';
 import type { useCockpit } from '../useCockpit';
 import type { Route } from '../useRoute';
+import type { PanelSide } from './usePanelResize';
 
 interface LayoutState {
   rowRef: React.RefObject<HTMLDivElement | null>;
@@ -21,7 +23,8 @@ interface LayoutState {
   setLeftCollapsed: (v: boolean) => void;
   rightCollapsed: boolean;
   setRightCollapsed: (v: boolean) => void;
-  startDrag: (which: string) => (e: React.MouseEvent<HTMLDivElement>) => void;
+  startDrag: (which: PanelSide) => (e: React.PointerEvent<HTMLDivElement>) => void;
+  nudge: (which: PanelSide, e: React.KeyboardEvent) => void;
 }
 
 interface MobileState {
@@ -157,7 +160,7 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
         rowRef={layout.rowRef} leftW={layout.leftW} rightW={layout.rightW}
         leftCollapsed={layout.leftCollapsed} setLeftCollapsed={layout.setLeftCollapsed}
         rightCollapsed={layout.rightCollapsed} setRightCollapsed={layout.setRightCollapsed}
-        startDrag={layout.startDrag}
+        startDrag={layout.startDrag} nudge={layout.nudge}
       />
     );
   })();
@@ -171,7 +174,9 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
   // aparece na primeira visita a uma rota.
   return (
     <div key={route} className="route-fade flex min-h-0 min-w-0 flex-1 flex-col">
-      <Suspense fallback={<div className="p-4"><SkeletonCards /></div>}>{view}</Suspense>
+      <ChunkErrorBoundary>
+        <Suspense fallback={<div className="p-4"><SkeletonCards /></div>}>{view}</Suspense>
+      </ChunkErrorBoundary>
     </div>
   );
 }

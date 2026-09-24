@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { makeSnippet, extractText } from './search';
+import { makeSnippet, extractText, matchSnippet } from './search';
 
 describe('makeSnippet', () => {
   it('returns null when the term is absent', () => {
@@ -44,5 +44,23 @@ describe('extractText', () => {
   it('returns empty string for other shapes', () => {
     expect(extractText(null)).toBe('');
     expect(extractText({ foo: 1 })).toBe('');
+  });
+});
+
+describe('matchSnippet', () => {
+  it('does not leak a file descriptor when it stops at the first hit', async () => {
+    const { mkdtempSync, writeFileSync, readdirSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { tmpdir } = await import('node:os');
+    const dir = mkdtempSync(join(tmpdir(), 'deck-search-'));
+    const f = join(dir, 's.jsonl');
+    const line = JSON.stringify({ type: 'user', message: { content: 'procura o termo aqui' } });
+    writeFileSync(f, Array(2000).fill(line).join('\n'));
+    const fds = () => readdirSync('/proc/self/fd').length;
+    await matchSnippet(f, 'termo');
+    const before = fds();
+    for (let i = 0; i < 20; i++) expect(await matchSnippet(f, 'termo')).toContain('termo');
+    await new Promise((r) => setTimeout(r, 20));
+    expect(fds() - before).toBeLessThan(3);
   });
 });

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { SessionUsage } from '../../../shared/protocol';
-import { Icon } from '../../components/primitives';
+import { Button, Icon } from '../../components/primitives';
 import { UsageRow } from './UsageRow';
 import { sortUsage, type UsageSortKey, type SortDir } from './usage-sort';
 
@@ -12,25 +12,19 @@ interface UsageTableProps {
   onOpenSession: (id: string) => void;
 }
 
+// Every session since the start of the log is a row; hundreds of them rendered
+// at once made /uso slow on a phone. Show a page, grow on demand.
+export const USAGE_PAGE = 50;
+
 export function UsageTable({ rows, known, titleOf, onOpenSession }: UsageTableProps) {
   const maxOut = Math.max(1, ...rows.map((r) => r.outputTokens));
   const [sort, setSort] = useState<{ key: UsageSortKey; dir: SortDir }>({ key: 'cost', dir: 'desc' });
   const sorted = useMemo(() => sortUsage(rows, sort.key, sort.dir), [rows, sort]);
+  const [limit, setLimit] = useState(USAGE_PAGE);
+  const hidden = sorted.length - limit;
 
   const toggle = (key: UsageSortKey) =>
     setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'desc' }));
-
-  const SortHead = ({ label, sortKey, align = 'left' }: { label: ReactNode; sortKey: UsageSortKey; align?: 'left' | 'right' }) => (
-    <th className={`px-2 py-2 font-medium sm:px-3 ${align === 'right' ? 'text-right' : ''}`}>
-      <button
-        onClick={() => toggle(sortKey)}
-        className={`inline-flex items-center gap-1 uppercase tracking-wider transition-colors hover:text-neutral-300 ${sort.key === sortKey ? 'text-neutral-300' : ''}`}
-      >
-        {label}
-        <Icon name={sort.key === sortKey ? (sort.dir === 'asc' ? 'chevronUp' : 'chevronDown') : 'chevronDown'} size={11} className={sort.key === sortKey ? 'text-orange-400' : 'text-neutral-700'} />
-      </button>
-    </th>
-  );
 
   return (
     <div className="overflow-hidden rounded-xl border border-neutral-800 hairline">
@@ -39,14 +33,14 @@ export function UsageTable({ rows, known, titleOf, onOpenSession }: UsageTablePr
           <tr className="border-b border-neutral-800 bg-neutral-900/40 text-left text-[11px] uppercase tracking-wider text-neutral-500">
             <th className="px-2 py-2 font-medium sm:px-3">sessão</th>
             <th className="hidden px-3 py-2 font-medium md:table-cell">contexto</th>
-            <SortHead label="saída" sortKey="output" />
-            <SortHead label="custo" sortKey="cost" />
+            <SortHead label="saída" sortKey="output" sort={sort} onToggle={toggle} />
+            <SortHead label="custo" sortKey="cost" sort={sort} onToggle={toggle} />
             <th className="hidden px-3 py-2 font-medium lg:table-cell">amostras</th>
-            <SortHead label="visto" sortKey="seen" align="right" />
+            <SortHead label="visto" sortKey="seen" align="right" sort={sort} onToggle={toggle} />
           </tr>
         </thead>
         <tbody>
-          {sorted.map((r) => (
+          {sorted.slice(0, limit).map((r) => (
             <UsageRow
               key={r.sessionId}
               row={r}
@@ -58,6 +52,34 @@ export function UsageTable({ rows, known, titleOf, onOpenSession }: UsageTablePr
           ))}
         </tbody>
       </table>
+      {hidden > 0 && (
+        <div className="flex justify-center border-t border-neutral-800 py-2">
+          <Button variant="ghost" size="sm" onClick={() => setLimit((l) => l + USAGE_PAGE)}>
+            ver mais ({hidden} restante{hidden > 1 ? 's' : ''})
+          </Button>
+        </div>
+      )}
     </div>
+  );
+}
+
+// Module-level, not declared inside UsageTable: a component type created per
+// render made React unmount and remount the header buttons on every sort click,
+// dropping keyboard focus after Enter/Space.
+function SortHead({ label, sortKey, align = 'left', sort, onToggle }: {
+  label: ReactNode; sortKey: UsageSortKey; align?: 'left' | 'right';
+  sort: { key: UsageSortKey; dir: SortDir }; onToggle: (k: UsageSortKey) => void;
+}) {
+  const active = sort.key === sortKey;
+  return (
+    <th className={`px-2 py-2 font-medium sm:px-3 ${align === 'right' ? 'text-right' : ''}`} aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button
+        onClick={() => onToggle(sortKey)}
+        className={`inline-flex items-center gap-1 uppercase tracking-wider transition-colors hover:text-neutral-300 ${active ? 'text-neutral-300' : ''}`}
+      >
+        {label}
+        <Icon name={active ? (sort.dir === 'asc' ? 'chevronUp' : 'chevronDown') : 'chevronDown'} size={11} className={active ? 'text-orange-400' : 'text-neutral-700'} />
+      </button>
+    </th>
   );
 }

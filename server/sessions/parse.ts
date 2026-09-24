@@ -85,22 +85,29 @@ export function attachTurnStats(messages: Message[], stats: Map<string, TurnBubb
 // rajada — re-ler/re-parsear o JSONL inteiro cada vez era o custo de CPU/RAM #13.
 // A chave inclui mtime+size, então QUALQUER mudança no arquivo invalida (nunca
 // stale). LRU pequeno: amortiza a rajada da mesma versão sem reter histórico.
-const PARSE_CACHE = new Map<string, unknown>();
+// One slot per (tag, path, limit), holding the version it was parsed from. With
+// mtime+size inside the map key, every write of a live session added a new entry
+// and a single session filled all 24 slots with near-identical copies.
+const PARSE_CACHE = new Map<string, { sig: string; val: unknown }>();
 const PARSE_CACHE_MAX = 24;
-function parseKey(tag: string, path: string, limit: number): string | null {
-  try { const st = statSync(path); return `${tag}:${path}:${st.mtimeMs}:${st.size}:${limit}`; } catch { return null; }
+export interface ParseKey { slot: string; sig: string }
+export function parseKey(tag: string, path: string, limit: number): ParseKey | null {
+  try { const st = statSync(path); return { slot: `${tag}:${path}:${limit}`, sig: `${st.mtimeMs}:${st.size}` }; } catch { return null; }
 }
-function parseCacheGet<T>(key: string | null): T | undefined {
+export function parseCacheGet<T>(key: ParseKey | null): T | undefined {
   if (!key) return undefined;
-  const v = PARSE_CACHE.get(key);
-  if (v !== undefined) { PARSE_CACHE.delete(key); PARSE_CACHE.set(key, v); } // bump LRU
-  return v as T | undefined;
+  const e = PARSE_CACHE.get(key.slot);
+  if (!e || e.sig !== key.sig) return undefined;
+  PARSE_CACHE.delete(key.slot); PARSE_CACHE.set(key.slot, e); // bump LRU
+  return e.val as T;
 }
-function parseCacheSet(key: string | null, val: unknown): void {
+export function parseCacheSet(key: ParseKey | null, val: unknown): void {
   if (!key) return;
-  PARSE_CACHE.set(key, val);
+  PARSE_CACHE.delete(key.slot);
+  PARSE_CACHE.set(key.slot, { sig: key.sig, val });
   if (PARSE_CACHE.size > PARSE_CACHE_MAX) { const k = PARSE_CACHE.keys().next().value; if (k !== undefined) PARSE_CACHE.delete(k); }
 }
+export function parseCacheSize(): number { return PARSE_CACHE.size; }
 
 // Lê o JSONL e reconstrói o CAMINHO ATIVO (não-linear; squad C1):
 // 1. último last-prompt.leafUuid = leaf ativo
@@ -172,7 +179,8 @@ async function fullTimeline(sessionId: string): Promise<Timeline | null> {
   const path = sessionPath(sessionId);
   if (!path) return null;
   const ck = parseKey('F', path, 0);
-  if (ck && timelineCache?.key === ck) return timelineCache.val;
+  const tk = ck && `${ck.slot}:${ck.sig}`;
+  if (tk && timelineCache?.key === tk) return timelineCache.val;
 
   const { msgs, results, markers } = await readRecords(path);
   const mapped = msgs.map((r) => recToMessage(r, results)).filter((m): m is Message => m !== null);
@@ -180,7 +188,7 @@ async function fullTimeline(sessionId: string): Promise<Timeline | null> {
   const todoMap = taskTodos(msgs, results);
   attachTaskTodos(mapped, todoMap);
   const out: Timeline = { all: weaveByTs(mapped, markers), tokens: lastCtxTokens(msgs), todos: finalTodos(todoMap) };
-  if (ck) timelineCache = { key: ck, val: out };
+  if (tk) timelineCache = { key: tk, val: out };
   return out;
 }
 

@@ -40,22 +40,22 @@ export function BenchPreview({ code, repo }: { code: string; repo: string }) {
         <div className="flex items-center gap-1">
           <div className="flex items-center gap-0.5 rounded-md bg-neutral-900 p-0.5">
             {VIEWPORTS.map((v) => (
-              <button key={v.id} onClick={() => setVp(v.id)} title={v.label} className={`rounded-sm p-1 transition ${vp === v.id ? 'bg-neutral-800 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'}`}>
+              <button key={v.id} onClick={() => setVp(v.id)} title={v.label} aria-label={v.label} aria-pressed={vp === v.id} className={`rounded-sm p-1 transition ${vp === v.id ? 'bg-neutral-800 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'}`}>
                 <Icon name={v.icon} size={11} />
               </button>
             ))}
           </div>
-          <button onClick={() => setShowConsole((s) => !s)} title="Console" className={ctrlBtn(showConsole)}>
+          <button onClick={() => setShowConsole((s) => !s)} title="Console" aria-label="Console" aria-pressed={showConsole} className={ctrlBtn(showConsole)}>
             <Icon name="terminal" size={12} />
             {logs.length > 0 && !showConsole && <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-orange-400" />}
           </button>
-          {armed && <button onClick={() => setFull(true)} title="Abrir no studio (tela cheia)" className={ctrlBtn(false)}><Icon name="maximize" size={12} /></button>}
-          {dirty && <button onClick={reset} title="Voltar ao código original" className={ctrlBtn(false)}><Icon name="rotate" size={12} /></button>}
-          <button onClick={() => copy(draft)} title="Copiar código" className={ctrlBtn(false)}><Icon name={copied ? 'check' : 'copy'} size={12} /></button>
-          <button onClick={() => download('bench.tsx', 'text/plain', draft)} title="Baixar código" className={ctrlBtn(false)}><Icon name="download" size={12} /></button>
+          {armed && <button onClick={() => setFull(true)} title="Abrir no studio (tela cheia)" aria-label="Abrir no studio (tela cheia)" className={ctrlBtn(false)}><Icon name="maximize" size={12} /></button>}
+          {dirty && <button onClick={reset} title="Voltar ao código original" aria-label="Voltar ao código original" className={ctrlBtn(false)}><Icon name="rotate" size={12} /></button>}
+          <button onClick={() => copy(draft)} title="Copiar código" aria-label="Copiar código" className={ctrlBtn(false)}><Icon name={copied ? 'check' : 'copy'} size={12} /></button>
+          <button onClick={() => download('bench.tsx', 'text/plain', draft)} title="Baixar código" aria-label="Baixar código" className={ctrlBtn(false)}><Icon name="download" size={12} /></button>
           <div className="flex items-center gap-0.5 rounded-md bg-neutral-900 p-0.5">
             {(['preview', 'code'] as Tab[]).map((t) => (
-              <button key={t} onClick={() => setTab(t)} className={`rounded-sm px-2 py-0.5 text-[10px] transition ${tab === t ? 'bg-neutral-800 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'} ${tokens.focusRing}`}>
+              <button key={t} onClick={() => setTab(t)} aria-pressed={tab === t} className={`rounded-sm px-2 py-0.5 text-[10px] transition ${tab === t ? 'bg-neutral-800 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'} ${tokens.focusRing}`}>
                 {t === 'preview' ? 'tela' : 'código'}
               </button>
             ))}

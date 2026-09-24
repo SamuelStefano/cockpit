@@ -555,14 +555,15 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
   // the legacy key directly (not via usePersisted, which would keep writing
   // it going forward) and re-applies each id through the new board-persisted
   // path, then clears the legacy key so this never runs twice.
+  // Waits for the socket: opening /canvas directly ran this before the WS was
+  // OPEN, every hide frame was dropped, and the legacy key was deleted anyway.
   useEffect(() => {
-    if (!hasPref('canvas.hiddenSessions')) return;
+    if (!p.connected || !hasPref('canvas.hiddenSessions')) return;
     for (const id of loadPref<string[]>('canvas.hiddenSessions', [])) p.onHideSession(id);
     removePref('canvas.hiddenSessions');
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- migrate once on
-    // mount; hasPref goes false after the first run, so re-running on a
-    // later `p` identity change is already a no-op — no need to chase it.
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per
+    // connection; hasPref goes false after the first run, so later runs no-op.
+  }, [p.connected]);
 
   return {
     mode, setMode, scope, setScope, archived, setArchived, query, setQuery,

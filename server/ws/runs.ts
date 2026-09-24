@@ -265,14 +265,18 @@ export function drainParked(): void {
     // o próximo tick resolve.
     const pre = ctxVerdict({ sessionId: first.resumeId, sessionKey, usage: getLastPlanUsage() });
     if (pre.kind === 'quota' || pre.kind === 'cold-busy') continue;
-    const item = shiftParked(sessionKey);
+    // Runs on a 30s timer: a disk error here must not escape as an uncaughtException.
+    let item: ParkedItem | undefined;
+    try { item = shiftParked(sessionKey); }
+    catch (e) { console.error('[drainParked] shift failed:', (e as Error).message); break; }
     if (!item) continue;
     // ws null: run sem cliente específico (igual cron); o stream vai por broadcast.
     // resumeId = a sessão onde o item foi enfileirado, pra continuar a conversa —
     // se aquele transcript não existe mais, roda como turno novo em vez de morrer.
     const resume = resumableId(item.resumeId);
     if (item.resumeId && !resume) recordIncident({ kind: 'parked-resume-morto', sessionKey, sessionId: item.resumeId, detail: `item ${item.id} disparado como turno novo` });
-    startRun({ ...runParams(item), ws: null, sessionKey, prompt: item.prompt, resumeId: resume, queued: true });
+    const delivered = startRun({ ...runParams(item), ws: null, sessionKey, prompt: item.prompt, resumeId: resume, queued: true });
+    if (delivered === 'pane') { fired++; broadcastQueue(); continue; }
     // O run pode nem ter subido (teto de sessões simultâneas): sem isto o item já
     // saiu do disco e o prompt sumia. Subiu = fica amarrado ao thread pra voltar
     // pra fila se o teto de tokens matar o turno.
@@ -404,7 +408,8 @@ export function runParkedNow(sessionKey: string, id: string, role?: Role): { ok:
   stopSession(sessionKey);
   const resume = resumableId(item.resumeId);
   if (item.resumeId && !resume) recordIncident({ kind: 'parked-resume-morto', sessionKey, sessionId: item.resumeId, detail: `item ${item.id} disparado como turno novo` });
-  startRun({ ...runParams(item), ws: null, sessionKey, prompt: item.prompt, resumeId: resume, queued: true });
+  const delivered = startRun({ ...runParams(item), ws: null, sessionKey, prompt: item.prompt, resumeId: resume, queued: true });
+  if (delivered === 'pane') { broadcastQueue(); return { ok: true }; }
   const th = threads.get(sessionKey);
   if (!th) { unshiftParked(sessionKey, item, false); broadcastQueue(); return { reject: 'falhou' }; }
   th.parked = item;
@@ -437,7 +442,15 @@ export function startParkedDrainer(intervalMs = 30_000): void {
 // orçamento da área, não do item, e contá-la aproximaria o item do teto de 3 por um
 // motivo que não é dele.
 function requeueParked(sessionKey: string, item: ParkedItem, bump = true): void {
-  const attempts = unshiftParked(sessionKey, item, bump);
+  // Runs inside a child's onClose. A disk write that throws here (ENOSPC) would
+  // abort onClose before threads.delete and crash the agent; tell the user instead.
+  let attempts: number;
+  try { attempts = unshiftParked(sessionKey, item, bump); }
+  catch (e) {
+    broadcast({ t: 'error', sessionKey, message: `Não consegui devolver o item à fila (${(e as Error).message}). Pedido: ${item.prompt.slice(0, 200)}` });
+    recordIncident({ kind: 'run-error', sessionKey, detail: `requeue failed: ${(e as Error).message}`.slice(0, 400) });
+    return;
+  }
   if (attempts >= MAX_PARKED_ATTEMPTS) {
     broadcast({ t: 'error', sessionKey, message: `Este item da fila falhou ${attempts}x sem produzir nada. Ele está guardado e segurado — use "retomar" na fila pra tentar de novo.` });
     recordIncident({ kind: 'parked-requeue-cap', sessionKey, detail: `item ${item.id} devolvido ${attempts}x` });
@@ -588,7 +601,18 @@ export function deliverToOrchestratorPane(targetSessionId: string | undefined, t
   return true;
 }
 
-export function startRun(o: StartRunOptions) {
+// The client latches `inFlight` on every send and only a 'done' clears it;
+// a pane delivery has no run, so without this frame the latch never clears and
+// session-touched (the live transcript tail) is ignored for that session.
+function echoPaneDelivery(sessionKey: string, msgId: string | undefined, prompt: string) {
+  if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
+  broadcast({ t: 'pane-delivered', sessionKey, msgId });
+}
+
+// 'pane' = the prompt was pasted into the Orchestrator's live tmux pane: it WAS
+// delivered, but no thread exists. Queue callers must not read "no thread" as a
+// failed spawn, or they put the item back and paste it again on every tick.
+export function startRun(o: StartRunOptions): 'pane' | undefined {
   const { ws, sessionKey, prompt, resumeId, msgId, auto, forkId, queued, flowHop } = o;
   const params = runParams(o);
   // "Permitir todos os MCPs" chega como o sentinel '*' e é expandido AQUI, não no
@@ -607,8 +631,8 @@ export function startRun(o: StartRunOptions) {
     return;
   }
   if (!forkId && deliverToOrchestratorPane(resumeId ?? sessionKey, prompt, params.role)) {
-    if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
-    return;
+    echoPaneDelivery(sessionKey, msgId, prompt);
+    return 'pane';
   }
 
   // Gate de CONTEXTO — antes do latch de pergunta e do admitRun: um envio recusado
@@ -661,7 +685,18 @@ export function startRun(o: StartRunOptions) {
     }
     return;
   }
-  if (replacing) threads.get(sessionKey)!.handle.kill();
+  if (replacing) {
+    const old = threads.get(sessionKey)!;
+    // The replaced thread's onClose exits early (the map already holds the new
+    // one), so its queue item was dropped. If that turn produced nothing, the
+    // prompt was never consumed — put it back without counting an attempt. When
+    // it did produce something, the priority path already carries it forward.
+    if (old.parked && old.tools.length === 0 && !old.text.trim() && !old.thinking.trim()) {
+      requeueParked(old.parkedFrom ?? sessionKey, old.parked, false);
+      old.parked = undefined;
+    }
+    old.handle.kill();
+  }
   // Turno NOVO (não uma retomada nossa) devolve a cota de retomada da sessão. Só o
   // fechamento saudável zerava, então um turno morto que não fechou saudável (ex.:
   // reapado) deixava a cota gasta pra sempre e a próxima falha de verdade era
@@ -693,7 +728,11 @@ export function startRun(o: StartRunOptions) {
   // modelo. O 'done' refina pro efetivo (revela fallback silencioso).
   broadcast({ t: 'started', sessionKey, model: params.model });
 
-  thread.handle = run({
+  // `run()` can throw synchronously (spawn ENOMEM, EMFILE leaving no stdio). The
+  // thread is already registered and the cold slot held, so without this the
+  // session stays busy forever with a no-op kill, and callers on timers turn the
+  // throw into an uncaughtException that kills every other run.
+  const started = catchSpawn(() => run({
     ...params,
     prompt,
     resumeId,
@@ -858,7 +897,23 @@ export function startRun(o: StartRunOptions) {
         else maybeAutoResume(sessionKey, thread, cause);
       }
     },
-  });
+  }));
+  if ('error' in started) {
+    if (threads.get(sessionKey) === thread) threads.delete(sessionKey);
+    if (holdsCold) releaseCold(sessionKey);
+    clearStopEpoch(sessionKey);
+    if (thread.parked) requeueParked(thread.parkedFrom ?? sessionKey, thread.parked);
+    recordIncident({ kind: 'run-error', sessionKey, detail: `spawn failed: ${started.error}`.slice(0, 400) });
+    broadcast({ t: 'error', sessionKey, message: `Não consegui iniciar o turno: ${started.error}` });
+    broadcast({ t: 'done', sessionKey, sessionId: thread.sessionId ?? '', stopped: true });
+    return;
+  }
+  thread.handle = started.handle;
+}
+
+export function catchSpawn<T>(start: () => T): { handle: T } | { error: string } {
+  try { return { handle: start() }; }
+  catch (e) { return { error: e instanceof Error ? e.message : String(e) }; }
 }
 
 // Drena UM prompt enfileirado (triagem 'wait'/'merge') como o próximo turno da
@@ -926,7 +981,7 @@ export async function routeSend(o: RouteSendOptions) {
   // below and end up enqueued against THAT twin instead of ever reaching the
   // real pane. Deliver straight into the pane and skip triage entirely.
   if (deliverToOrchestratorPane(resumeId ?? sessionKey, prompt, params.role)) {
-    if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
+    echoPaneDelivery(sessionKey, msgId, prompt);
     return;
   }
   const cur = threads.get(sessionKey);

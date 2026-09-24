@@ -5,7 +5,7 @@ import { useWorkflowReview } from './useWorkflowReview';
 interface WorkflowReviewCardProps {
   tool: ToolCall;
   reviewable: boolean;
-  onApprove?: (text: string) => void;
+  onApprove?: (text: string) => boolean | void;
 }
 
 export function WorkflowReviewCard({ tool, reviewable, onApprove }: WorkflowReviewCardProps) {

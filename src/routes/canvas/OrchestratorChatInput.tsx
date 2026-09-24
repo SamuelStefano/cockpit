@@ -3,7 +3,8 @@ import { Button } from '../../components/primitives';
 import { pushChatHistory, stepChatHistory } from './orchestrator-chat-history';
 
 interface Props {
-  onSend: (text: string) => void;
+  // Returns false when nothing went out (socket down): the text stays.
+  onSend: (text: string) => boolean;
   disabled?: boolean;
 }
 
@@ -20,9 +21,10 @@ export function OrchestratorChatInput({ onSend, disabled }: Props) {
     if (disabled) return;
     const text = value.trim();
     if (!text) return;
-    onSend(text);
-    setHistory((h) => pushChatHistory(h, text));
-    historyIndex.current = history.length + 1; // +1: pushChatHistory just grew it
+    if (!onSend(text)) return;
+    // The index is the NEW length: pushChatHistory dedupes and caps at 50, so
+    // "old length + 1" pointed past the end and the first ArrowUp did nothing.
+    setHistory((h) => { const next = pushChatHistory(h, text); historyIndex.current = next.length; return next; });
     setValue('');
   };
 

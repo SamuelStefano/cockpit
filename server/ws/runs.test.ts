@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { WebSocket } from 'ws';
-import { startRun, routeSend, isSilentDeath, isCleanTurnClose, resumeOrphanRuns, drainParked, runParkedInBackground, runParkedNow, startParkedDrainer, acceptResumeOffer, hasResumeOffer, AUTO_RESUME_CAP, deliverToOrchestratorPane, orchestratorPaneTarget } from './runs';
+import { startRun, catchSpawn, routeSend, isSilentDeath, isCleanTurnClose, resumeOrphanRuns, drainParked, runParkedInBackground, runParkedNow, startParkedDrainer, acceptResumeOffer, hasResumeOffer, AUTO_RESUME_CAP, deliverToOrchestratorPane, orchestratorPaneTarget } from './runs';
 import { readOrchestratorSync, isTmuxAliveSync } from '../canvas/orchestrator';
 import { hasTerm, openTerm, inputTerm } from '../terminals';
 import { threads, killAllRuns } from './threads';
@@ -15,7 +15,7 @@ import { resumableId } from './resume';
 import { quotaHold } from './quota';
 import { getLastPlanUsage } from './usage-plan';
 import { classify } from '../engine/triage';
-import { resetCooldownState, resetColdInflight, acquireCold, COOLDOWN_AFTER_RESET_MS, CTX_HARD } from './ctx-guard';
+import { resetCooldownState, resetColdInflight, coldInflightCount, acquireCold, COOLDOWN_AFTER_RESET_MS, CTX_HARD } from './ctx-guard';
 import { noteExternalKill, resetExternalKills, EXTERNAL_POLL_MS, EXTERNAL_QUIET_MS } from './kill-class';
 
 // O gate de contexto lê a última amostra de uso do SQLite. No teste isso tem que
@@ -472,6 +472,13 @@ describe('fila estacionada — teto de tokens', () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it('a disk error while shifting the queue does not escape the timer', () => {
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's1', first: item() }]);
+    vi.mocked(shiftParked).mockImplementationOnce(() => { throw new Error('ENOSPC'); });
+    expect(() => drainParked()).not.toThrow();
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it('drena assim que os tokens voltam', () => {
     vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's1', first: item() }]);
     vi.mocked(shiftParked).mockReturnValue(item());
@@ -534,6 +541,28 @@ describe('fila estacionada — teto de tokens', () => {
     drainParked();
     expect(run).toHaveBeenCalledOnce();
     expect(vi.mocked(shiftParked).mock.calls[0][0]).toBe('s2'); // s2 teve a vez
+  });
+
+  it('a queue item whose turn the reaper killed before any output goes back to the queue', () => {
+    const it0 = item();
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's2', first: it0 }]);
+    vi.mocked(shiftParked).mockReturnValue(it0);
+    drainParked();
+    Object.assign(threads.get('s2')!, { lastFrameAt: Date.now() - REAPER_SILENCE_CAP_MS - 1 });
+    reapStaleRuns();
+    expect(threads.get('s2')!.userStopped).toBeFalsy();
+    closeLastRun();
+    expect(unshiftParked).toHaveBeenCalledWith('s2', it0, true);
+  });
+
+  it('a queue item whose idle turn is replaced by a new send goes back to the queue', () => {
+    const it0 = item();
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's2', first: it0 }]);
+    vi.mocked(shiftParked).mockReturnValue(it0);
+    drainParked();
+    vi.mocked(unshiftParked).mockClear();
+    startRun({ ws: {} as WebSocket, sessionKey: 's2', prompt: 'urgente' });
+    expect(unshiftParked).toHaveBeenCalledWith('s2', it0, false);
   });
 
   it('devolve pro topo da fila o item cujo turno morreu no limite', () => {
@@ -1462,6 +1491,7 @@ describe('startRun / routeSend — twin-process guard on the Orchestrator pane',
     expect(openTerm).toHaveBeenCalledWith('cv-abc', 120, 40, expect.any(Function), expect.any(Function), expect.any(Function));
     expect(inputTerm).toHaveBeenCalledWith('cv-abc', '\x1b[200~oi\x1b[201~\r');
     expect(broadcast).toHaveBeenCalledWith(expect.objectContaining({ t: 'user', sessionKey: 'orch-sid', id: 'm1', text: 'oi' }));
+    expect(broadcast).toHaveBeenCalledWith({ t: 'pane-delivered', sessionKey: 'orch-sid', msgId: 'm1' });
   });
 
   it('reuses an already-open pane pty instead of opening a second client onto the same tmux session', () => {
@@ -1495,6 +1525,7 @@ describe('startRun / routeSend — twin-process guard on the Orchestrator pane',
     threads.set('orch-sid', { handle: { kill: vi.fn(), send: vi.fn(() => false) }, params: {}, prompt: 'p', startedAt: Date.now(), text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set() } as any);
     routeSend({ ws, role: 'admin', sessionKey: 'orch-sid', prompt: 'oi de novo', resumeId: 'orch-sid', msgId: 'm2' });
     expect(inputTerm).toHaveBeenCalledWith('cv-abc', '\x1b[200~oi de novo\x1b[201~\r');
+    expect(broadcast).toHaveBeenCalledWith({ t: 'pane-delivered', sessionKey: 'orch-sid', msgId: 'm2' });
   });
 
   it('deliverToOrchestratorPane is false when no orchestrator is configured', () => {
@@ -1556,5 +1587,26 @@ describe('resumeOrphanRuns — never auto-resumes the Orchestrator headlessly', 
     expect(run).not.toHaveBeenCalled();
     expect(inputTerm).not.toHaveBeenCalled();
     expect(threads.has('orch-sid')).toBe(false);
+  });
+});
+
+describe('startRun — spawn throws synchronously', () => {
+  const ws = {} as WebSocket;
+  beforeEach(() => { threads.clear(); clearAllAwaiting(); resetColdInflight(); vi.mocked(broadcast).mockClear(); });
+
+  it('frees the session instead of leaving it busy forever', () => {
+    vi.mocked(run).mockImplementationOnce(() => { throw new Error('spawn ENOMEM'); });
+    expect(() => startRun({ ws, sessionKey: 'sx', prompt: 'oi' })).not.toThrow();
+    expect(threads.has('sx')).toBe(false);
+    expect(coldInflightCount()).toBe(0);
+    expect(broadcast).toHaveBeenCalledWith(expect.objectContaining({ t: 'error', sessionKey: 'sx' }));
+    expect(broadcast).toHaveBeenCalledWith(expect.objectContaining({ t: 'done', sessionKey: 'sx', stopped: true }));
+  });
+});
+
+describe('catchSpawn', () => {
+  it('returns the handle or the error message', () => {
+    expect(catchSpawn(() => 1)).toEqual({ handle: 1 });
+    expect(catchSpawn(() => { throw new Error('boom'); })).toEqual({ error: 'boom' });
   });
 });

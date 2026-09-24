@@ -24,10 +24,10 @@ interface Props {
 // graph (linked nodes, flows) and only mounts inside CanvasSurface, which
 // isn't there in the dedicated kanban tab. The last assistant message and
 // the transcript's PRs/links come from a 'canvas-session-peek' read
-// (server/sessions/peek.ts), refetched whenever the session moves.
+// (server/sessions/peek.ts), refetched on open and when the turn ends.
 export function KanbanItemDrawer({ item, stats, peek, onPeek, onClose, onOpenSession, onOpenTerm, onMove, onHide }: Props) {
   const pct = stats ? ctxPct(stats) : null;
-  useEffect(() => { onPeek(item.sessionId); }, [onPeek, item.sessionId, item.mtime]);
+  useEffect(() => { onPeek(item.sessionId); }, [onPeek, item.sessionId, item.running]);
   // canvas review item 9: no key handling existed anywhere on the route.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
