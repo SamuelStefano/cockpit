@@ -123,7 +123,9 @@ export function CardEditor({
               if (r.ok && r.taskId) patch({ dfl: { taskId: r.taskId, lastSyncedAt: Date.now() } });
               return r;
             }}
-            onUnlink={(id) => { const ok = onDflTaskUnlink(id); patch({ dfl: undefined }); return ok; }}
+            // Only show it unlinked when the frame went out; offline the server
+            // keeps the link and the editor must not claim otherwise.
+            onUnlink={(id) => { const ok = onDflTaskUnlink(id); if (ok) patch({ dfl: undefined }); return ok; }}
             onConfirmSync={onDflTaskConfirmSync}
           />
         )}
