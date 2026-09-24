@@ -143,14 +143,16 @@ export const CONFIG = {
   // BashOutput/KillShell acompanham o Bash: sem eles o agente abre um comando em
   // background e é barrado ao ler/matar a saída, tendo que improvisar. NotebookEdit
   // idem pra .ipynb. Negadas em silêncio no `claude -p` = atrito constante.
-  allowedTools: (process.env.COCKPIT_ALLOWED_TOOLS ?? 'Bash,BashOutput,KillShell,Read,Edit,Write,NotebookEdit,Glob,Grep,WebFetch,WebSearch,AskUserQuestion,TodoWrite,TaskCreate,TaskUpdate,TaskGet,TaskList')
+  // ExitPlanMode idem: o --permission-prompt-tool devolve EnterPlanMode ao modelo, que
+  // entrava em plan mode sozinho e travava sem poder sair (5 sessões em 24/09/2026).
+  allowedTools: (process.env.COCKPIT_ALLOWED_TOOLS ?? 'Bash,BashOutput,KillShell,Read,Edit,Write,NotebookEdit,Glob,Grep,WebFetch,WebSearch,AskUserQuestion,ExitPlanMode,TodoWrite,TaskCreate,TaskUpdate,TaskGet,TaskList')
     .split(',').map((s) => s.trim()).filter(Boolean),
 
   // Modo Auto: o agente roda o ciclo inteiro sozinho, então também precisa de
   // Bash (antes barrado aqui — o agente tentava um comando e tinha que improvisar
   // alternativa pior). Esta é a box do dono; o freio é COCKPIT_DISALLOWED_TOOLS,
   // não tirar o shell. Mesmas companheiras de bash/notebook do modo Executar.
-  allowedToolsAuto: (process.env.COCKPIT_ALLOWED_TOOLS_AUTO ?? 'Bash,BashOutput,KillShell,Read,Edit,Write,NotebookEdit,Glob,Grep,WebFetch,WebSearch,AskUserQuestion,TodoWrite,TaskCreate,TaskUpdate,TaskGet,TaskList')
+  allowedToolsAuto: (process.env.COCKPIT_ALLOWED_TOOLS_AUTO ?? 'Bash,BashOutput,KillShell,Read,Edit,Write,NotebookEdit,Glob,Grep,WebFetch,WebSearch,AskUserQuestion,ExitPlanMode,TodoWrite,TaskCreate,TaskUpdate,TaskGet,TaskList')
     .split(',').map((s) => s.trim()).filter(Boolean),
 
   // Kill-switch DURO: tools aqui são negadas em TODOS os modos (precede a allow-list
