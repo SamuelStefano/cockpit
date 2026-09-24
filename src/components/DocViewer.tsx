@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Button, Markdown, splitFences, tokens, WikilinkContext, type IconName, type WikilinkResolver } from './primitives';
+import { Button, Icon, Markdown, splitFences, tokens, WikilinkContext, type IconName, type WikilinkResolver } from './primitives';
 import { uniqueHeadingSlug } from './primitives/markdown/slug';
 import { useCopied } from '../lib/useCopied';
 import { useEscapeLayer } from './primitives/useEscapeLayer';
@@ -133,10 +133,16 @@ export function DocViewer({
 }
 
 // Botão de header reaproveitável (copiar/baixar).
-export function DocAction({ label, icon, onClick }: { label: string; icon: IconName; onClick: () => void }) {
+// Below sm the header holds up to five of these next to the title: labelled they
+// took ~330px of a 375px sheet and the document name was gone. On a phone an
+// action is a square icon (label kept as its accessible name) — or, with
+// `textOnPhone`, just its short label, for the downloads whose icons are all the
+// same arrow (".md" vs ".json").
+export function DocAction({ label, icon, onClick, textOnPhone = false }: { label: string; icon: IconName; onClick: () => void; textOnPhone?: boolean }) {
   return (
-    <Button variant="outline" size="sm" icon={icon} onClick={onClick} title={label}>
-      {label}
+    <Button variant="outline" size="sm" onClick={onClick} title={label} className={textOnPhone ? 'max-sm:px-2' : 'max-sm:w-7 max-sm:px-0'}>
+      <Icon name={icon} size={13} className={textOnPhone ? 'max-sm:hidden' : undefined} />
+      <span className={textOnPhone ? undefined : 'max-sm:sr-only'}>{label}</span>
     </Button>
   );
 }
