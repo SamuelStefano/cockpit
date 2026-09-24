@@ -15,6 +15,9 @@ export interface ChainItem {
   kind: ChainItemKind;
   node?: CanvasNode; // session kind only
   areaId?: AreaId; // area kind, and session kind (which area chip it inherits)
+  // session kind only: how this node's PARENT link was resolved — feeds the
+  // fork/flow badge. Undefined for a root session (hangs under its area).
+  arrivedVia?: 'fork' | 'flow';
   children: ChainItem[];
 }
 
@@ -61,11 +64,16 @@ export function buildChainTree(
   // under its area). Both are session node ids already, so no extra lookup.
   const flowParentOf = flowParents(nodes, flows);
   const parentOf = new Map<string, string>(); // child node id -> parent node id
+  const viaOf = new Map<string, 'fork' | 'flow'>();
   for (const n of sessions) {
     if (n.id === rootNodeId) continue;
     const forkParentId = n.parentSessionId ? sessionNodeId(n.parentSessionId) : undefined;
-    const parentId = forkParentId && byId.has(forkParentId) ? forkParentId : flowParentOf.get(n.id);
-    if (parentId && byId.has(parentId) && parentId !== n.id) parentOf.set(n.id, parentId);
+    const isFork = !!forkParentId && byId.has(forkParentId);
+    const parentId = isFork ? forkParentId : flowParentOf.get(n.id);
+    if (parentId && byId.has(parentId) && parentId !== n.id) {
+      parentOf.set(n.id, parentId);
+      viaOf.set(n.id, isFork ? 'fork' : 'flow');
+    }
   }
 
   // Guard against a cycle (stale/corrupt fork-parent data): walk a chain's
@@ -90,7 +98,7 @@ export function buildChainTree(
 
   function sessionItem(n: CanvasNode): ChainItem {
     const kids = sortSessions(childrenOf.get(n.id) ?? [], running);
-    return { id: n.id, kind: 'session', node: n, areaId: n.area, children: kids.map(sessionItem) };
+    return { id: n.id, kind: 'session', node: n, areaId: n.area, arrivedVia: viaOf.get(n.id), children: kids.map(sessionItem) };
   }
 
   const rootSessionsByArea = new Map<AreaId, CanvasNode[]>();
