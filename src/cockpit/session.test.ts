@@ -81,8 +81,16 @@ describe('mergeSeen', () => {
     expect(changed).toBe(true);
   });
   it('preserves local new- ids that the server does not know yet', () => {
-    const { next, changed } = mergeSeen({ 'new-x': 7 }, [{ id: 'a', mtime: 5 }]);
+    const { next, changed } = mergeSeen({ 'new-x': 7 }, [{ id: 'a', mtime: 5 }], new Set(['new-x']));
     expect(next).toEqual({ 'new-x': 7, a: 5 });
+    expect(changed).toBe(true);
+  });
+});
+
+describe('mergeSeen pruning', () => {
+  it('drops abandoned new- ids that are no longer open here', () => {
+    const { next, changed } = mergeSeen({ 'new-old': 1, 'new-open': 2, a: 5 }, [{ id: 'a', mtime: 5 }], new Set(['new-open']));
+    expect(next).toEqual({ 'new-open': 2, a: 5 });
     expect(changed).toBe(true);
   });
 });

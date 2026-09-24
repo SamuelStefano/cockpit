@@ -722,7 +722,7 @@ export function useCockpit(): Cockpit {
         // Baseline: sessão vista pela 1ª vez entra no `seen` com o mtime atual
         // (não vira "atualizada" retroativamente). Só mtime que AVANÇA depois badgeia.
         setSeen((prev) => {
-          const { next, changed } = mergeSeen(prev, msg.items);
+          const { next, changed } = mergeSeen(prev, msg.items, new Set([activeRef.current]));
           if (changed) savePref('seen', next);
           return changed ? next : prev;
         });

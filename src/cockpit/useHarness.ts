@@ -10,6 +10,19 @@ export interface Harness {
   onMsg: (msg: ServerMsg) => boolean;
 }
 
+const EVENTS_PER_TASK = 200;
+const TASKS_WITH_EVENTS = 20;
+
+export function capHarnessEvents<E>(prev: Record<string, E[]>, taskId: string, event: E): Record<string, E[]> {
+  const events = [...(prev[taskId] ?? []), event].slice(-EVENTS_PER_TASK);
+  const next: Record<string, E[]> = { ...prev };
+  delete next[taskId];
+  next[taskId] = events; // re-inserted last: key order = recency
+  const keys = Object.keys(next);
+  for (const k of keys.slice(0, Math.max(0, keys.length - TASKS_WITH_EVENTS))) delete next[k];
+  return next;
+}
+
 export function useHarness(send: (m: ClientMsg) => boolean): Harness {
   const [harnessConfig, setHarnessConfig] = useState<HarnessConfig | null>(null);
   const [harnessTasks, setHarnessTasks] = useState<HarnessTaskView[]>([]);
@@ -28,7 +41,9 @@ export function useHarness(send: (m: ClientMsg) => boolean): Harness {
         setHarnessTasks((prev) => [msg.task, ...prev.filter((t) => t.id !== msg.task.id)].sort((a, b) => b.ts - a.ts));
         return true;
       case 'harness-event':
-        setHarnessEvents((prev) => ({ ...prev, [msg.taskId]: [...(prev[msg.taskId] ?? []), msg.event] }));
+        // Capped per task, and only the most recent tasks keep their event log: the
+        // map used to grow for the whole day-long session.
+        setHarnessEvents((prev) => capHarnessEvents(prev, msg.taskId, msg.event));
         return true;
       default:
         return false;
