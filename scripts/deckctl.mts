@@ -7,7 +7,9 @@
 // Run: npx tsx scripts/deckctl.mts <command> [args]
 // or via the ~/bin/deckctl wrapper.
 
-import { readFileSync, readdirSync } from 'node:fs';
+import {
+  readFileSync, readdirSync, statSync, openSync, readSync, closeSync, existsSync, mkdirSync, writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -665,6 +667,403 @@ async function cmdStatus(): Promise<void> {
   console.log(`ctx>=70%: ${highCtx.length}${highCtx.length ? ' — ' + highCtx.map((s) => shortId(s.id)).join(', ') : ''}`);
 }
 
+// --- triage ---------------------------------------------------------------
+//
+// Score every Deck session (active + archived + anything left only on disk in
+// session-archivist's index) for keep/purge/review, so cleanup is a repeatable
+// command instead of a one-off manual sweep. `scoreSession`/`isNeverPurgeSession`
+// are pure and unit-tested below (scripts/deckctl.test.ts); everything else here
+// is I/O gathering + the dry-run/--apply command.
+
+export type TriageVerdict = 'KEEP' | 'PURGE' | 'REVIEW';
+
+export interface TriageInput {
+  id: string;
+  title: string;
+  lastActivity: number; // ms epoch — last real activity, not file mtime
+  messageCount: number;
+  toolCallCount: number; // best-effort; 0 when unknown (still counted as "no evidence of tool use")
+  hasHandoff: boolean;
+  hasMemoryLeaf: boolean;
+  pendingAsk: boolean;
+  hasPrMention: boolean;
+  neverPurge: boolean;
+  now?: number; // injectable for tests
+}
+
+export interface TriageScore {
+  verdict: TriageVerdict;
+  score: number;
+  signals: string[];
+  reason: string;
+}
+
+// Weights are additive and small on purpose — the point is ORDERING sessions by
+// "how much is there to lose" for a human to skim, not a calibrated probability.
+// The hard rules below override the numeric threshold for the cases the brief
+// calls out explicitly: never-purge ids, an open question, very recent activity,
+// and "fully distilled elsewhere" (handoff + memory + old — the strongest purge
+// case even though handoff/memory alone are positive signals everywhere else).
+const TRIAGE_WEIGHTS = {
+  handoff: 3,
+  memoryLeaf: 3,
+  prMention: 2,
+  thin: -4,
+  old: -2,
+  recent: 4,
+  pendingAsk: 6,
+} as const;
+
+const TRIAGE_RECENT_MS = 48 * 60 * 60 * 1000;
+const TRIAGE_OLD_MS = 30 * 24 * 60 * 60 * 1000;
+const TRIAGE_KEEP_THRESHOLD = 3;
+const TRIAGE_PURGE_THRESHOLD = -3;
+
+export function scoreSession(input: TriageInput): TriageScore {
+  const now = input.now ?? Date.now();
+  const age = now - input.lastActivity;
+  const recent = age < TRIAGE_RECENT_MS;
+  const old = age > TRIAGE_OLD_MS;
+  const thin = input.messageCount <= 2 && input.toolCallCount === 0;
+
+  const signals: string[] = [];
+  let score = 0;
+  const add = (w: number, label: string) => { score += w; signals.push(label); };
+  if (input.hasHandoff) add(TRIAGE_WEIGHTS.handoff, 'has-handoff');
+  if (input.hasMemoryLeaf) add(TRIAGE_WEIGHTS.memoryLeaf, 'has-memory-leaf');
+  if (input.hasPrMention) add(TRIAGE_WEIGHTS.prMention, 'pr-mentioned');
+  if (thin) add(TRIAGE_WEIGHTS.thin, 'thin/empty');
+  if (old) add(TRIAGE_WEIGHTS.old, 'old(>30d)');
+  if (recent) add(TRIAGE_WEIGHTS.recent, 'recent(<48h)');
+  if (input.pendingAsk) add(TRIAGE_WEIGHTS.pendingAsk, 'pending-question');
+
+  // Rule 1: hardcoded never-purge (orchestrator ids, cockpit-term-*/main) — KEEP
+  // outright, no scoring needed.
+  if (input.neverPurge) {
+    return { verdict: 'KEEP', score: Infinity, signals: ['never-purge', ...signals], reason: 'hardcoded never-purge (orchestrator or cockpit-term-*/main session)' };
+  }
+  // Rule 2: an open question is never silently discarded.
+  if (input.pendingAsk) {
+    return { verdict: score >= TRIAGE_KEEP_THRESHOLD ? 'KEEP' : 'REVIEW', score, signals, reason: 'has an unanswered question — never auto-purged' };
+  }
+  // Rule 3: very recent activity may still be live work — review, don't purge.
+  if (recent) {
+    return { verdict: score >= TRIAGE_KEEP_THRESHOLD ? 'KEEP' : 'REVIEW', score, signals, reason: 'active in the last 48h — reviewed, not purged, even if thin' };
+  }
+  // Rule 4: fully distilled elsewhere (handoff AND memory) AND old — the session
+  // copy is redundant. Strongest purge case even though handoff/memory alone
+  // lean KEEP everywhere else.
+  if (input.hasHandoff && input.hasMemoryLeaf && old) {
+    return { verdict: 'PURGE', score, signals: [...signals, 'fully-distilled-elsewhere'], reason: 'context already saved to a handoff and a memory leaf — the session copy is redundant' };
+  }
+  // Rule 5: numeric threshold on everything else.
+  if (score <= TRIAGE_PURGE_THRESHOLD) {
+    return { verdict: 'PURGE', score, signals, reason: thin ? 'thin/empty session with no signal worth keeping' : 'low score, no durable signal found' };
+  }
+  if (score >= TRIAGE_KEEP_THRESHOLD) {
+    return { verdict: 'KEEP', score, signals, reason: 'has durable signal (handoff, memory, PR, or recency)' };
+  }
+  return { verdict: 'REVIEW', score, signals, reason: 'no strong signal either way — needs a human look' };
+}
+
+export interface NeverPurgeRecord { id: string; title?: string }
+
+// Hard guard — checked BEFORE any hide/purge call in applyTriage, not just used
+// to steer scoring (see brief "Hard constraints": assert this in code).
+export function isNeverPurgeSession(rec: NeverPurgeRecord, neverPurgeIds: ReadonlySet<string>): boolean {
+  if (neverPurgeIds.has(rec.id)) return true;
+  const title = (rec.title ?? '').trim().toLowerCase();
+  return title === 'main' || title.startsWith('cockpit-term-');
+}
+
+function readNeverPurgeIds(): Set<string> {
+  const ids = new Set<string>();
+  try {
+    const raw = JSON.parse(readFileSync(join(homedir(), '.cockpit', 'orchestrator.json'), 'utf8'));
+    if (typeof raw.sessionId === 'string' && raw.sessionId) ids.add(raw.sessionId);
+    if (typeof raw.previous === 'string' && raw.previous) ids.add(raw.previous);
+  } catch { /* no orchestrator.json — nothing hardcoded to add */ }
+  return ids;
+}
+
+function readHandoffIds(): Set<string> {
+  try {
+    return new Set(readdirSync(join(homedir(), '.cockpit', 'handoffs')).filter((f) => f.endsWith('.md')).map((f) => f.slice(0, -3)));
+  } catch { return new Set(); }
+}
+
+const ORIGIN_SESSION_RE = /originSessionId:\s*([0-9a-f-]{36})/g;
+
+// A session "covered" by memory is one at least one leaf cites via originSessionId
+// in its frontmatter-ish header (see dfl_outro_video_aguia.md for the shape).
+function readMemoryLeafOriginIds(): Set<string> {
+  const dir = join(homedir(), '.claude', 'projects', '-home-samuel', 'memory');
+  const ids = new Set<string>();
+  let files: string[];
+  try { files = readdirSync(dir); } catch { return ids; }
+  for (const f of files) {
+    if (!f.endsWith('.md')) continue;
+    try {
+      const text = readFileSync(join(dir, f), 'utf8');
+      for (const m of text.matchAll(ORIGIN_SESSION_RE)) ids.add(m[1]);
+    } catch { /* unreadable leaf — skip */ }
+  }
+  return ids;
+}
+
+const PR_MENTION_RE = /github\.com\/[^\s"'<>]+\/pull\/\d+|(?:^|\W)PR\s*#\d+|mergeada|merged\b/i;
+
+const PR_SCAN_CHUNK = 65_536; // 64KB — PR mentions cluster near the task (head) or the wrap-up (tail)
+const PR_SCAN_MAX_FULL = 2_000_000; // read the whole file only when that's cheap; bigger files read head+tail only
+
+// Bounded read so a 780k-token transcript doesn't get fully materialized just to
+// grep it — same size concern server/sessions/index.ts's scanMeta already solves
+// for meta scanning, applied here for the (optional, best-effort) PR-mention scan.
+function readBoundedText(path: string): string {
+  let size: number;
+  try { size = statSync(path).size; } catch { return ''; }
+  if (size === 0) return '';
+  if (size <= PR_SCAN_MAX_FULL) {
+    try { return readFileSync(path, 'utf8'); } catch { return ''; }
+  }
+  let fd: number;
+  try { fd = openSync(path, 'r'); } catch { return ''; }
+  try {
+    const headLen = Math.min(PR_SCAN_CHUNK, size);
+    const headBuf = Buffer.alloc(headLen);
+    readSync(fd, headBuf, 0, headLen, 0);
+    const tailLen = Math.min(PR_SCAN_CHUNK, size);
+    const tailBuf = Buffer.alloc(tailLen);
+    readSync(fd, tailBuf, 0, tailLen, size - tailLen);
+    return `${headBuf.toString('utf8')}\n${tailBuf.toString('utf8')}`;
+  } catch { return ''; }
+  finally { closeSync(fd); }
+}
+
+function fileMentionsPr(path: string): boolean {
+  return PR_MENTION_RE.test(readBoundedText(path));
+}
+
+interface RawSessionRecord {
+  id: string;
+  title: string;
+  lastActivity: number;
+  messageCount: number;
+  toolCallCount: number;
+  pendingAsk: boolean;
+  source: 'cockpit' | 'index';
+  jsonlPath?: string; // present when we can bound-scan the raw transcript for PR mentions
+}
+
+interface IndexEntry {
+  id: string;
+  title?: string;
+  cwd?: string;
+  started?: string;
+  ended?: string;
+  user_turns?: number;
+  branches?: string[];
+  commands?: string[];
+  first_prompt?: string;
+  _mtime?: number;
+}
+
+// session-archivist's cheap digest index — title/cwd/branch/tool files/usage/
+// timestamps, no conversation body. Prefer it over decompressing the .gz.
+function readSessionArchiveIndex(): IndexEntry[] {
+  const path = join(homedir(), '.claude', 'session-archive', 'INDEX.jsonl');
+  let text: string;
+  try { text = readFileSync(path, 'utf8'); } catch { return []; }
+  const out: IndexEntry[] = [];
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    try { out.push(JSON.parse(line)); } catch { /* corrupt line — skip */ }
+  }
+  return out;
+}
+
+// Merges the cockpit-known list (listSessions + listArchived — the WS/live source
+// of truth) with session-archivist's INDEX.jsonl for anything archived-and-purged
+// from cockpit that only survives on disk. Degrades gracefully: if the cockpit
+// import throws (backend/db unreachable), falls back to INDEX.jsonl alone.
+async function gatherRawSessions(): Promise<RawSessionRecord[]> {
+  const seen = new Set<string>();
+  const records: RawSessionRecord[] = [];
+  try {
+    const { listSessions, listArchived } = await import('../server/sessions/index');
+    const { sessionPath } = await import('../server/sessions/records');
+    const own = [...await listSessions(), ...await listArchived()];
+    for (const s of own) {
+      seen.add(s.id);
+      records.push({
+        id: s.id, title: s.title, lastActivity: s.mtime, messageCount: s.count,
+        toolCallCount: 0, pendingAsk: !!s.waiting, source: 'cockpit', jsonlPath: sessionPath(s.id) ?? undefined,
+      });
+    }
+  } catch (e) {
+    console.error(`deckctl: cockpit session source unavailable (${(e as Error).message}) — falling back to session-archivist's INDEX.jsonl only`);
+  }
+  for (const e of readSessionArchiveIndex()) {
+    if (seen.has(e.id)) continue; // already covered by the cockpit-known list
+    seen.add(e.id);
+    const lastActivity = Date.parse(e.ended || e.started || '') || (e._mtime ? e._mtime * 1000 : Date.now());
+    records.push({
+      id: e.id,
+      title: e.title || e.first_prompt?.slice(0, 60) || 'Sem título',
+      lastActivity,
+      messageCount: (e.user_turns ?? 0) * 2,
+      toolCallCount: e.commands?.length ?? 0,
+      pendingAsk: false, // INDEX carries no pendingAsk signal — these are already archived/compressed
+      source: 'index',
+    });
+  }
+  return records;
+}
+
+export interface TriageRow extends TriageScore {
+  id: string;
+  title: string;
+  lastActivity: number;
+  source: string;
+}
+
+async function buildTriageRows(): Promise<TriageRow[]> {
+  const neverPurgeIds = readNeverPurgeIds();
+  const handoffIds = readHandoffIds();
+  const memoryLeafIds = readMemoryLeafOriginIds();
+  const raw = await gatherRawSessions();
+  const rows: TriageRow[] = [];
+  for (const r of raw) {
+    const hasPrMention = r.jsonlPath ? fileMentionsPr(r.jsonlPath) : PR_MENTION_RE.test(r.title);
+    const input: TriageInput = {
+      id: r.id, title: r.title, lastActivity: r.lastActivity, messageCount: r.messageCount,
+      toolCallCount: r.toolCallCount, hasHandoff: handoffIds.has(r.id), hasMemoryLeaf: memoryLeafIds.has(r.id),
+      pendingAsk: r.pendingAsk, hasPrMention, neverPurge: isNeverPurgeSession(r, neverPurgeIds),
+    };
+    rows.push({ ...scoreSession(input), id: r.id, title: r.title, lastActivity: r.lastActivity, source: r.source });
+  }
+  return rows.sort((a, b) => a.score - b.score); // most PURGE-leaning first
+}
+
+// Deterministic (no AI call) handoff stub for a KEEP session with neither a
+// handoff nor a memory leaf yet — built straight from the JSONL's own fields.
+// Explicitly marked as an auto-distilled stub so a human knows to double check it
+// (contrast with handoffFor() in handoff-from-jsonl.mts, which is AI-summarized).
+async function writeHandoffStub(id: string): Promise<string | null> {
+  const { sessionPath } = await import('../server/sessions/records');
+  const src = sessionPath(id);
+  if (!src || !existsSync(src)) return null;
+
+  let title = '';
+  let firstUser = '';
+  let cwd = '';
+  let lastTs = '';
+  const files = new Set<string>();
+  for (const line of readBoundedText(src).split('\n')) {
+    if (!line.trim()) continue;
+    let o: any;
+    try { o = JSON.parse(line); } catch { continue; }
+    if (o.type === 'ai-title' && o.aiTitle) title = o.aiTitle;
+    if (typeof o.cwd === 'string' && !cwd) cwd = o.cwd;
+    if (typeof o.timestamp === 'string') lastTs = o.timestamp;
+    if (!firstUser && o.type === 'user' && o.message) {
+      const c = o.message.content;
+      firstUser = typeof c === 'string' ? c : Array.isArray(c) ? c.filter((x: any) => x?.type === 'text').map((x: any) => x.text).join(' ') : '';
+    }
+    if (o.type === 'assistant' && Array.isArray(o.message?.content)) {
+      for (const b of o.message.content) {
+        if (b?.type === 'tool_use' && /^(Edit|Write|NotebookEdit|MultiEdit)$/.test(b.name) && typeof b.input?.file_path === 'string') {
+          files.add(b.input.file_path);
+        }
+      }
+    }
+  }
+
+  const dir = join(homedir(), '.cockpit', 'handoffs');
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const dest = join(dir, `${id}.md`);
+  const body = [
+    `# Handoff — ${id}`,
+    '',
+    '> **Auto-distilled stub** — generated deterministically by `deckctl triage --apply` straight from the raw ' +
+      'JSONL (title/cwd/last user message/files touched), NOT hand-written and NOT AI-summarized. Double check it.',
+    '',
+    '## Objetivo',
+    oneLine(firstUser, 300) || title || '—',
+    '',
+    '## Estado atual',
+    `cwd: ${cwd || '—'}`,
+    '',
+    '## Arquivos e PRs tocados',
+    files.size ? [...files].slice(0, 40).map((f) => `- ${f}`).join('\n') : '—',
+    '',
+    '## Pendências que dependem do Samuel',
+    '—',
+    '',
+    `_Última atividade: ${lastTs || '—'}_`,
+  ].join('\n');
+  writeFileSync(dest, `${body}\n`, { mode: 0o600 });
+  return dest;
+}
+
+async function applyTriage(rows: TriageRow[]): Promise<void> {
+  const neverPurgeIds = readNeverPurgeIds();
+  const handoffIds = readHandoffIds();
+  const memoryLeafIds = readMemoryLeafOriginIds();
+  const toPurge = rows.filter((r) => r.verdict === 'PURGE');
+  const toStub = rows.filter((r) => r.verdict === 'KEEP' && !handoffIds.has(r.id) && !memoryLeafIds.has(r.id));
+
+  for (const r of toPurge) {
+    // Hard guard, independent of scoring: refuse a never-purge id/title even if a
+    // future scoring change ever let one through as PURGE.
+    if (isNeverPurgeSession({ id: r.id, title: r.title }, neverPurgeIds)) {
+      console.error(`deckctl: refusing to purge never-purge session ${shortId(r.id)} (scoring bug — this should not happen)`);
+      continue;
+    }
+    const client = await connect();
+    client.send({ t: 'hide', sessionId: r.id });
+    await client.waitFor(isServerMsg('archived'), DEFAULT_TIMEOUT_MS);
+    client.send({ t: 'purge', sessionId: r.id });
+    await client.waitFor(isServerMsg('archived'), DEFAULT_TIMEOUT_MS);
+    client.close();
+    console.log(`purged ${shortId(r.id)}`);
+  }
+
+  for (const r of toStub) {
+    const path = await writeHandoffStub(r.id);
+    console.log(path ? `handoff stub written: ${path}` : `handoff stub SKIPPED for ${shortId(r.id)} (no jsonl on disk)`);
+  }
+
+  const reviewed = rows.filter((r) => r.verdict === 'REVIEW').length;
+  console.log(`apply done — purged ${toPurge.length}, stubbed ${toStub.length}, reviewed ${reviewed} (no action)`);
+}
+
+async function cmdTriage(flags: Flags, json: boolean): Promise<void> {
+  let rows = await buildTriageRows();
+  const limit = flagNum(flags, 'limit');
+  if (limit) rows = rows.slice(0, limit);
+
+  if (flags.apply) {
+    await applyTriage(rows);
+    return;
+  }
+
+  if (json) { console.log(JSON.stringify(rows, null, 2)); return; }
+
+  const counts: Record<TriageVerdict, number> = { KEEP: 0, PURGE: 0, REVIEW: 0 };
+  for (const r of rows) counts[r.verdict]++;
+  console.log(`KEEP=${counts.KEEP}  PURGE=${counts.PURGE}  REVIEW=${counts.REVIEW}  (total ${rows.length})`);
+  for (const verdict of ['PURGE', 'REVIEW', 'KEEP'] as TriageVerdict[]) {
+    const group = rows.filter((r) => r.verdict === verdict);
+    if (!group.length) continue;
+    console.log(`\n== ${verdict} (${group.length}) ==`);
+    for (const r of group) {
+      const sig = r.signals.slice(0, 2).join(',') || '-';
+      console.log(`${shortId(r.id)}  score=${r.score === Infinity ? '∞' : r.score}  [${sig}]  ${oneLine(r.title, 50)}  — ${r.reason}`);
+    }
+  }
+}
+
 // --- main --------------------------------------------------------------
 
 const HELP = `deckctl — orchestrate the Deck canvas from a terminal
@@ -691,6 +1090,7 @@ Usage: deckctl <command> [args] [--json]
   card rm <id>                              delete a card
   card run <id> [--fork <parentSessionId>]  run a card (optionally as a fork of an existing session)
   status                                    one-screen overview + alerts (pending questions, hot-context sessions)
+  triage [--apply] [--limit N]              score every session KEEP/PURGE/REVIEW (dry-run by default; --apply acts)
 
 Session/card ids accept unambiguous prefixes. Add --json to any read command for raw output.`;
 
@@ -771,6 +1171,7 @@ async function main(): Promise<void> {
       return;
     }
     case 'status': return cmdStatus();
+    case 'triage': return cmdTriage(flags, json);
     default:
       fail(`unknown command "${cmd}" — run "deckctl --help"`);
   }

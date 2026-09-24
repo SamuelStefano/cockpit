@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   parseFlags, flagStr, flagNum, fmtBrt, shortId, oneLine, matchByPrefix, newCardIdLocal, findCard,
+  scoreSession, isNeverPurgeSession, type TriageInput,
 } from './deckctl.mts';
 import type { CanvasCard } from '../shared/canvas';
 
@@ -132,5 +133,66 @@ describe('findCard', () => {
     // 'card-abcd1234' vs 'card-abcd5678' both share 'card-abcd' — use a fully
     // distinguishing prefix so this asserts the SUCCESS path, not ambiguity.
     expect(findCard(cards, 'card-abcd12').id).toBe('card-abcd1234');
+  });
+});
+
+describe('isNeverPurgeSession', () => {
+  const ids = new Set(['9d039e27-0ee5-4293-be44-f98454a42d8a', '7671f68f-bd1b-4a8d-ab24-a122583c2286']);
+
+  it('matches a hardcoded orchestrator id', () => {
+    expect(isNeverPurgeSession({ id: '9d039e27-0ee5-4293-be44-f98454a42d8a' }, ids)).toBe(true);
+  });
+
+  it('matches a cockpit-term-* title regardless of id', () => {
+    expect(isNeverPurgeSession({ id: 'unrelated-id', title: 'cockpit-term-jmbp6v' }, ids)).toBe(true);
+  });
+
+  it('matches a "main" title regardless of id', () => {
+    expect(isNeverPurgeSession({ id: 'unrelated-id', title: 'Main' }, ids)).toBe(true);
+  });
+
+  it('is false for an unrelated id/title', () => {
+    expect(isNeverPurgeSession({ id: 'unrelated-id', title: 'some feature work' }, ids)).toBe(false);
+  });
+});
+
+describe('scoreSession', () => {
+  const NOW = Date.UTC(2026, 8, 24, 12, 0, 0);
+  const HOUR = 60 * 60 * 1000;
+  const DAY = 24 * HOUR;
+
+  const base: TriageInput = {
+    id: 'sess-1', title: 'some feature work', lastActivity: NOW - 10 * DAY, messageCount: 20, toolCallCount: 8,
+    hasHandoff: false, hasMemoryLeaf: false, pendingAsk: false, hasPrMention: false, neverPurge: false, now: NOW,
+  };
+
+  it('forces KEEP for a hardcoded never-purge session regardless of other signals', () => {
+    const r = scoreSession({ ...base, neverPurge: true, messageCount: 0, toolCallCount: 0 });
+    expect(r.verdict).toBe('KEEP');
+  });
+
+  it('scores a thin/empty session as PURGE', () => {
+    const r = scoreSession({ ...base, messageCount: 1, toolCallCount: 0, lastActivity: NOW - 60 * DAY });
+    expect(r.verdict).toBe('PURGE');
+  });
+
+  it('scores handoff + memory + old + no pending as the strongest PURGE case', () => {
+    const r = scoreSession({
+      ...base, hasHandoff: true, hasMemoryLeaf: true, lastActivity: NOW - 60 * DAY, pendingAsk: false,
+    });
+    expect(r.verdict).toBe('PURGE');
+    expect(r.signals).toContain('fully-distilled-elsewhere');
+  });
+
+  it('never PURGEs a session with a pending question, even if otherwise thin and old', () => {
+    const r = scoreSession({
+      ...base, messageCount: 1, toolCallCount: 0, lastActivity: NOW - 60 * DAY, pendingAsk: true,
+    });
+    expect(r.verdict).not.toBe('PURGE');
+  });
+
+  it('never PURGEs a very recent session, even if otherwise thin', () => {
+    const r = scoreSession({ ...base, messageCount: 1, toolCallCount: 0, lastActivity: NOW - 2 * HOUR });
+    expect(r.verdict).not.toBe('PURGE');
   });
 });
