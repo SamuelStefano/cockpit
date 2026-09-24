@@ -129,6 +129,10 @@ const canvasClients = vi.hoisted(() => ({ registerCanvasClient: vi.fn(), emitCan
 vi.mock('./canvas-clients', () => canvasClients);
 const autopause = vi.hoisted(() => ({ updateAreaCacheFromGraph: vi.fn(), getAreaOf: vi.fn(() => ({})) }));
 vi.mock('../canvas/autopause-loop', () => autopause);
+// Invoice writes spawn the real DFL runner: never in tests.
+const dflw = vi.hoisted(() => ({ runDflWrite: vi.fn(async (_c: unknown) => ({ ok: true })) }));
+vi.mock('../dfl-write-runner', () => dflw);
+vi.mock('../dfl-sync-runner', () => ({ runDflSync: vi.fn(async () => ({ ok: true })), isDflSyncRunning: () => false }));
 
 import { handle } from './dispatch';
 
@@ -734,5 +738,22 @@ describe('ctx-open / skill-open with an unknown id', () => {
     await handle(ws, { t: 'skill-open', id: 'nope' } as ClientMsg, 'admin');
     expect(bc.send).toHaveBeenCalledWith(ws, { t: 'error', message: 'contexto não encontrado' });
     expect(bc.send).toHaveBeenCalledWith(ws, { t: 'error', message: 'skill não encontrada' });
+  });
+});
+
+describe('points-dfl-invoice concurrency', () => {
+  const inv = (reqId: string) => ({ t: 'points-dfl-invoice', reqId, deliveryId: 'd1', deliveryName: 'D', projectId: null, projectName: 'P', referenceMonth: '2026-09', pricePerPoint: 75, tasks: [{ id: 't1', title: 'A', points: 3 }] }) as unknown as ClientMsg;
+
+  it('refuses a second invoice for the same tasks while the first is still being written', async () => {
+    let release!: () => void;
+    dflw.runDflWrite.mockImplementationOnce(() => new Promise((r) => { release = () => r({ ok: true }); }));
+    const first = handle(ws, inv('r1'));
+    await handle(ws, inv('r2'));
+    expect(dflw.runDflWrite).toHaveBeenCalledTimes(1);
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ reqId: 'r2', ok: false, message: expect.stringContaining('já há uma fatura sendo criada') }));
+    release();
+    await first;
+    await handle(ws, inv('r3')); // released: a later invoice goes through
+    expect(dflw.runDflWrite).toHaveBeenCalledTimes(2);
   });
 });
