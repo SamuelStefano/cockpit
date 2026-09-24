@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, cleanup } from '@testing-library/react';
+import { render, cleanup, fireEvent } from '@testing-library/react';
 import { KanbanSessionItem } from './KanbanSessionItem';
 import type { SessionKanbanItem } from './kanban-items';
 
@@ -45,5 +45,21 @@ describe('KanbanSessionItem', () => {
     const { container } = render(<KanbanSessionItem item={base} selected={false} onSelect={onSelect} onOpenSession={noop} onOpenTerm={noop} />);
     (container.firstChild as HTMLElement).click();
     expect(onSelect).toHaveBeenCalledWith('s:a');
+  });
+
+  it('opens the drawer with Enter or Space, but not from the inner buttons', () => {
+    const onSelect = vi.fn();
+    const { container, getByTitle } = render(<KanbanSessionItem item={base} selected={false} onSelect={onSelect} onOpenSession={noop} onOpenTerm={noop} />);
+    const item = container.firstElementChild as HTMLElement;
+    fireEvent.keyDown(item, { key: 'Enter' });
+    fireEvent.keyDown(item, { key: ' ' });
+    expect(onSelect).toHaveBeenCalledTimes(2);
+    fireEvent.keyDown(getByTitle('abrir chat'), { key: 'Enter' });
+    expect(onSelect).toHaveBeenCalledTimes(2);
+  });
+
+  it('hidden action buttons do not catch taps', () => {
+    const { getByTitle } = render(<KanbanSessionItem item={base} selected={false} onSelect={noop} onOpenSession={noop} onOpenTerm={noop} />);
+    expect(getByTitle('abrir chat').parentElement!.className).toContain('pointer-events-none');
   });
 });
