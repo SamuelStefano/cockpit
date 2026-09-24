@@ -5,9 +5,18 @@ on:
     branches: [main]
   pull_request:
 
+# Read-only token: `npm ci` runs dependency lifecycle scripts, which must not get a
+# write-scoped GITHUB_TOKEN if the repo default ever is write.
+permissions:
+  contents: read
+
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # A push to main gets its own group per commit: in a shared group, a quick
+  # second merge cancelled the first commit's run (and a third, the second's
+  # pending one), so a commit could land without CI ever finishing on it.
+  # Superseded PR pushes are still cancelled.
+  group: ci-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   gate:
