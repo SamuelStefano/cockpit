@@ -41,12 +41,16 @@ export function HarnessComposer({ config, draft: d, running, onRun }: Props) {
         className="w-full resize-none rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2.5 text-[13px] leading-relaxed text-neutral-200 placeholder-neutral-600 outline-hidden transition focus:border-orange-500/40 focus:ring-2 focus:ring-orange-500/15"
       />
 
-      <div className="grid grid-cols-3 gap-1.5">
+      {/* flex-auto instead of three equal columns: widths follow the labels, so
+          "Orquestrado" is not cut to "Orquestra…" in a narrow third (a phone, or
+          the ~111px third at 1024px). */}
+      <div className="flex gap-1.5">
         {MODES.map((m) => (
           <Button
             key={m.id}
             variant={d.mode === m.id ? 'primary' : 'secondary'}
             size="sm"
+            className="flex-auto"
             icon={m.icon}
             onClick={() => d.setMode(m.id)}
           >
