@@ -131,6 +131,30 @@ export async function readRecords(path: string): Promise<RecordScan> {
   return scan;
 }
 
+// Lean pass for the canvas drawer's peek: only what peekFromRecords reads (the
+// assistant records' text blocks, and the pr markers). readRecords keeps every
+// record by uuid plus every tool result — several times a 100+ MB transcript in
+// heap for a drawer that shows the last reply and a few links.
+export async function readPeekRecords(path: string): Promise<{ msgs: Rec[]; markers: Message[] }> {
+  const msgs: Rec[] = [];
+  const markers: Message[] = [];
+  const seenPr = new Set<string>();
+  const rl = createInterface({ input: createReadStream(path), crlfDelay: Infinity });
+  for await (const line of rl) {
+    const s = line.trim();
+    if (!s) continue;
+    let r: Rec;
+    try { r = JSON.parse(s) as Rec; } catch { continue; }
+    const marker = markerFromRec(r, seenPr);
+    if (marker) markers.push(marker);
+    if (r.type !== 'assistant' || r.message?.role !== 'assistant' || !Array.isArray(r.message.content)) continue;
+    const text = (r.message.content as { type?: string; text?: unknown }[]).filter((c) => c?.type === 'text' && typeof c.text === 'string');
+    if (!text.length) continue;
+    msgs.push({ type: r.type, uuid: r.uuid, timestamp: r.timestamp, message: { role: 'assistant', content: text } } as Rec);
+  }
+  return { msgs, markers };
+}
+
 function descendsFrom(byUuid: Map<string, Rec>, node: string, ancestor: string): boolean {
   const guard = new Set<string>();
   let cur: string | undefined = node;
