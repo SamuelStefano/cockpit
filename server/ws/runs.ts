@@ -144,12 +144,28 @@ function autoResume(sessionKey: string, thread: Thread): void {
 // com backoff SEM contar tentativa — o cap real só é gasto quando a retomada
 // roda de fato. Todas as guardas de corrida (threads.has, isAwaiting, etc.) vivem
 // dentro de autoResume() e são reavaliadas do zero a cada disparo do timer.
-interface ResumeWait { waitedMs: number; backoffAttempt: number }
+interface ResumeWait { waitedMs: number; backoffAttempt: number; gen?: string }
+
+// Bumped by every turn that is not our own resume, on its key AND its session id.
+// A resume timer (memory backoff, external-kill wait) re-checked only "is a turn
+// running on this key right now": a turn the user started and FINISHED during the
+// wait slipped past it, and the timer later resumed the dead turn with its old
+// params — a phantom "Continue de onde parou" redoing superseded work.
+const resumeGen = new Map<string, number>();
+function bumpResumeGen(key?: string): void {
+  if (key) resumeGen.set(key, (resumeGen.get(key) ?? 0) + 1);
+}
+function resumeGenOf(sessionKey: string, sessionId?: string): string {
+  return `${resumeGen.get(sessionKey) ?? 0}:${sessionId ? resumeGen.get(sessionId) ?? 0 : 0}`;
+}
 
 function maybeAutoResume(sessionKey: string, thread: Thread, cause: DeathCause, wait: ResumeWait = { waitedMs: 0, backoffAttempt: 1 }): void {
-  // Um turno novo já pegou a sessão enquanto esperávamos: nada a retomar, e
-  // atropelá-lo seria pior que não retomar.
-  if (threads.has(sessionKey)) return;
+  const gen = wait.gen ?? resumeGenOf(sessionKey, thread.sessionId);
+  if (resumeGenOf(sessionKey, thread.sessionId) !== gen) return;
+  // Um turno novo já pegou a sessão enquanto esperávamos (inclusive sob outra
+  // chave, ex. o id real de um chat new-…): nada a retomar, e atropelá-lo seria
+  // pior que não retomar.
+  if (threads.has(sessionKey) || (thread.sessionId && resolveThreadKey(thread.sessionId))) return;
   // Sinal EXTERNO (deploy, varredura do earlyoom, pkill): o processo não quebrou,
   // alguém o matou — e quem matou costuma matar todos os irmãos na mesma rajada e
   // subir um processo novo em seguida. Re-disparar agora entrega o `--resume` de
@@ -165,7 +181,7 @@ function maybeAutoResume(sessionKey: string, thread: Thread, cause: DeathCause, 
     }
     if (gate === 'wait') {
       const timer = setTimeout(
-        () => maybeAutoResume(sessionKey, thread, cause, { ...wait, waitedMs: wait.waitedMs + EXTERNAL_POLL_MS }),
+        () => maybeAutoResume(sessionKey, thread, cause, { ...wait, gen, waitedMs: wait.waitedMs + EXTERNAL_POLL_MS }),
         EXTERNAL_POLL_MS,
       );
       timer.unref?.();
@@ -179,7 +195,7 @@ function maybeAutoResume(sessionKey: string, thread: Thread, cause: DeathCause, 
   // como sempre se a memória continuar ruim. Preso pra sempre seria pior que isso.
   if (delay === null) { autoResume(sessionKey, thread); return; }
   const timer = setTimeout(
-    () => maybeAutoResume(sessionKey, thread, cause, { waitedMs: wait.waitedMs + delay, backoffAttempt: wait.backoffAttempt + 1 }),
+    () => maybeAutoResume(sessionKey, thread, cause, { gen, waitedMs: wait.waitedMs + delay, backoffAttempt: wait.backoffAttempt + 1 }),
     delay,
   );
   timer.unref?.();
@@ -725,7 +741,11 @@ export function startRun(o: StartRunOptions): 'pane' | undefined {
   // fechamento saudável zerava, então um turno morto que não fechou saudável (ex.:
   // reapado) deixava a cota gasta pra sempre e a próxima falha de verdade era
   // recusada com "a retomada automática também falhou".
-  if (prompt !== RESUME_PROMPT) autoResumes.delete(sessionKey);
+  if (prompt !== RESUME_PROMPT) {
+    autoResumes.delete(sessionKey);
+    bumpResumeGen(sessionKey);
+    bumpResumeGen(resumeId);
+  }
   // Turno novo na sessão: a oferta pendente do turno morto perdeu o sentido (e
   // clicá-la depois atropelaria este run).
   resumeOffers.delete(sessionKey);

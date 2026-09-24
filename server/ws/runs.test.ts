@@ -1233,6 +1233,21 @@ describe('D2 — autoResume espera a memória antes de retomar', () => {
     vi.advanceTimersByTime(30_000);
     expect(vi.mocked(run).mock.calls.length).toBe(callsBefore); // nada novo disparou por cima
   });
+
+  // O turno novo não precisa estar RODANDO quando o timer dispara: se ele subiu e
+  // terminou durante a espera, retomar o morto refaria trabalho já superado.
+  it('um turno novo que termina durante a espera cancela a retomada adiada', () => {
+    memInfoMock.value = STARVED_MEM;
+    startRun({ ws, sessionKey: 'bk4', prompt: 'trabalho', resumeId: 'sess-bk4' });
+    closeLastRun();
+    memInfoMock.value = HEALTHY_MEM;
+    startRun({ ws, sessionKey: 'bk4', prompt: 'novo pedido', resumeId: 'sess-bk4' });
+    threads.get('bk4')!.endReason = 'success';
+    closeLastRun();
+    const callsBefore = vi.mocked(run).mock.calls.length;
+    vi.advanceTimersByTime(120_000);
+    expect(vi.mocked(run).mock.calls.length).toBe(callsBefore);
+  });
 });
 
 // D2 — o dreno da fila estacionada não pode subir turno novo com a memória
