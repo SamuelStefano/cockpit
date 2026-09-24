@@ -39,7 +39,7 @@ export function GraphList({ graphs, loaded, openId, opening, building, onOpen, o
         <Input
           icon="plus" mono size="sm" value={repo}
           onChange={(e) => setRepo(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) submit(); }}
           placeholder="caminho do repo…"
           aria-label="Caminho do repositório para gerar o grafo"
         />

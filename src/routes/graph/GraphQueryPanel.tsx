@@ -36,7 +36,7 @@ export function GraphQueryPanel({ querying, result, history, onQuery }: Props) {
           <Input
             icon="search" value={q}
             onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) submit(); }}
             placeholder="pergunte com termos do código… (ex: auth token session)"
             aria-label="Pergunta para o grafo"
           />

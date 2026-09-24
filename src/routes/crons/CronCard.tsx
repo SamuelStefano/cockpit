@@ -7,7 +7,7 @@ import { fmtLast } from './cron-format';
 
 
 // "em 2h 5min" / "em 40s" / "agora". now passado de fora pra ser determinístico.
-function fmtIn(target: number, now: number): string {
+export function fmtIn(target: number, now: number): string {
   const ms = target - now;
   if (ms <= 0) return 'agora';
   const min = Math.round(ms / 60_000);
@@ -16,7 +16,10 @@ function fmtIn(target: number, now: number): string {
   const h = Math.floor(min / 60);
   const rem = min % 60;
   if (h < 24) return rem ? `em ${h}h ${rem}min` : `em ${h}h`;
-  return `em ${Math.round(h / 24)}d`;
+  // floor, not round: 36h read as "em 2d".
+  const d = Math.floor(h / 24);
+  const rh = h % 24;
+  return rh ? `em ${d}d ${rh}h` : `em ${d}d`;
 }
 
 export function CronCard({ cron, now, editing, onRun, onToggle, onEdit, onDelete }: {
