@@ -20,3 +20,17 @@ describe('TerminalsPanel "matar"', () => {
     expect(onClose).toHaveBeenCalledWith('t1');
   });
 });
+
+describe('TerminalsPanel tab ✕', () => {
+  it('also needs a second tap (it ends the same tmux session)', () => {
+    const onClose = vi.fn();
+    const { getAllByLabelText } = render(
+      <TerminalsPanel terminals={[{ id: 't1', name: 'a' } as never, { id: 't2', name: 'b' } as never]} activeId="t1" onSelect={vi.fn()} onAdd={vi.fn()} onClose={onClose} term={{ exited: new Set<string>() } as never} />,
+    );
+    const x = getAllByLabelText('Fechar terminal')[0];
+    fireEvent.click(x);
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(getAllByLabelText('Confirmar: fechar terminal')[0]);
+    expect(onClose).toHaveBeenCalledWith('t1');
+  });
+});
