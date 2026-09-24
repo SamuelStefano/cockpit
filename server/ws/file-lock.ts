@@ -23,11 +23,19 @@ export function withFileLock<T>(target: string, fn: () => T): T {
 // (fs/promises). The sync version cannot hold across an await: it would release
 // the lock the moment `fn` returned its promise. Waits with timers instead of
 // Atomics.wait, so it never blocks the event loop.
+export const ASYNC_WAIT_MS = LOCK_STALE_MS + 1_000;
+
 export async function withFileLockAsync<T>(target: string, fn: () => Promise<T>): Promise<T> {
   const lockPath = `${target}.lock`;
   mkdirSync(dirname(target), { recursive: true });
   let fd: number | undefined;
-  for (let i = 0; i < SPINS && fd === undefined; i++) {
+  // Waiting costs nothing here (timers, not Atomics.wait), so wait past the stale
+  // threshold instead of the sync version's ~500 ms: a holder stalled for 0.5–5 s
+  // (big JSON parse, GC, swap on this box) used to be written over unlocked —
+  // the lost update #776 exists to prevent. By the deadline a dead holder's lock
+  // has been reclaimed.
+  const deadline = Date.now() + ASYNC_WAIT_MS;
+  while (fd === undefined && Date.now() < deadline) {
     try {
       fd = openSync(lockPath, 'wx');
     } catch {
@@ -37,7 +45,7 @@ export async function withFileLockAsync<T>(target: string, fn: () => Promise<T>)
       await sleep(SPIN_MS);
     }
   }
-  if (fd === undefined) recordIncident({ kind: 'file-lock-timeout', sessionKey: '-', detail: `lock preso ha >${SPINS * SPIN_MS}ms em ${lockPath}` });
+  if (fd === undefined) recordIncident({ kind: 'file-lock-timeout', sessionKey: '-', detail: `lock preso ha >${ASYNC_WAIT_MS}ms em ${lockPath}` });
   const ino = fd === undefined ? undefined : fstatSync(fd).ino;
   try {
     return await fn();
