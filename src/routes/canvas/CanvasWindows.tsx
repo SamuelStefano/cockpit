@@ -1,5 +1,6 @@
-import type { CanvasNode, CanvasPos, TermStats } from '../../../shared/canvas';
+import type { CanvasNode, CanvasPos, OrchestratorInfo, TermStats } from '../../../shared/canvas';
 import type { TermApi } from '../../useCockpit';
+import { isOrchestratorNode } from './orchestrator';
 import { TerminalWindow } from './TerminalWindow';
 import { termTarget, type CanvasTerms } from './useCanvasTerms';
 
@@ -12,6 +13,7 @@ interface Props {
   focus: Set<string>;
   running: Set<string>;
   waiting: Set<string>;
+  orchestrator: OrchestratorInfo | undefined;
   onPointerDown: (e: React.PointerEvent, id: string) => void;
   onOpenChat: (sessionId: string) => void;
   onSendTo: (sessionId: string, text: string) => boolean;
@@ -23,10 +25,15 @@ interface Props {
   instant: boolean; // timeline is playing: skip the opacity transition (perf)
 }
 
-// The focused window paints last so it is never under a neighbour it overlaps.
+// Paint order (lowest first, so later entries sit on top of earlier ones
+// where they overlap): plain window, active window, orchestrator window —
+// the orchestrator outranks even the active window, so it's always findable.
 export function CanvasWindows(p: Props) {
   const t = p.terms;
-  const list = [...p.nodes].sort((a, b) => Number(a.id === t.active) - Number(b.id === t.active));
+  const list = [...p.nodes].sort((a, b) => {
+    const rank = (n: CanvasNode) => (isOrchestratorNode(n, p.orchestrator) ? 2 : n.id === t.active ? 1 : 0);
+    return rank(a) - rank(b);
+  });
   return (
     <>
       {list.map((n) => {
@@ -40,6 +47,7 @@ export function CanvasWindows(p: Props) {
             selected={p.selected.has(n.id)}
             dim={(p.focus.size > 0 && !p.focus.has(n.id) && t.active !== n.id) || (p.pastAlive !== null && !p.pastAlive.has(n.id))}
             running={n.kind === 'session' && p.running.has(n.ref)} waiting={n.kind === 'session' && p.waiting.has(n.ref)}
+            orchestrator={isOrchestratorNode(n, p.orchestrator)}
             promptDisabled={t.resumedLive.has(n.ref)}
             past={p.past} instant={p.instant}
             onPointerDown={p.onPointerDown} onActivate={t.focus} onCollapse={t.collapse} onKill={t.kill}

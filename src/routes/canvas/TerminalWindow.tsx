@@ -28,6 +28,9 @@ interface Props {
   dim: boolean;
   running: boolean;
   waiting: boolean;
+  // The one session that commands every other one (shared/canvas.ts
+  // OrchestratorInfo) — distinct chrome so it never blends into the rest.
+  orchestrator: boolean;
   // The pane is (or was last put into) an interactive `claude --resume`,
   // outside Deck's own run tracking — sending through the prompt bar here
   // would start a SECOND writer on the same transcript.
@@ -77,21 +80,26 @@ export const TerminalWindow = memo(function TerminalWindow(p: Props) {
       style={{ transform: `translate(${p.pos.x}px, ${p.pos.y}px)`, width: TERM_W, height: TERM_H }}
       className={`absolute left-0 top-0 flex flex-col overflow-hidden rounded-lg border bg-[#0a0a0a] shadow-2xl shadow-black/60
         ${p.instant ? '' : 'transition-opacity'}
-        ${p.active ? 'border-orange-500/80 ring-2 ring-orange-500/30' : p.selected ? 'border-orange-400/60' : 'border-neutral-700'}
+        ${p.orchestrator
+          ? 'border-fuchsia-500 ring-2 ring-fuchsia-500/40 shadow-[0_0_28px_-4px_rgba(217,70,239,0.6)]'
+          : p.active ? 'border-orange-500/80 ring-2 ring-orange-500/30' : p.selected ? 'border-orange-400/60' : 'border-neutral-700'}
         ${p.dim ? 'opacity-40' : ''}`}
     >
       <AlertRing kind={alert} />
       <header
         onPointerDown={(e) => p.onPointerDown(e, n.id)}
         onDoubleClick={() => p.onMaximize(n.id)}
-        className="flex h-8 shrink-0 cursor-grab touch-none select-none items-center gap-1.5 border-b border-neutral-800 bg-neutral-900 pl-2.5 pr-1 active:cursor-grabbing"
+        className={`flex h-8 shrink-0 cursor-grab touch-none select-none items-center gap-1.5 border-b pl-2.5 pr-1 active:cursor-grabbing ${p.orchestrator ? 'border-fuchsia-500/40 bg-fuchsia-500/10' : 'border-neutral-800 bg-neutral-900'}`}
       >
-        {session ? <Dot running={p.running} waiting={p.waiting} /> : <Icon name="terminal" size={12} className="text-orange-400" />}
+        {p.orchestrator
+          ? <Icon name="command" size={12} className="text-fuchsia-400" />
+          : session ? <Dot running={p.running} waiting={p.waiting} /> : <Icon name="terminal" size={12} className="text-orange-400" />}
         <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-neutral-200">{n.title}</span>
+        {p.orchestrator && <Badge tone="purple">ORCHESTRATOR</Badge>}
         {alert && <AlertBadge kind={alert} pct={pct} />}
         {session
           ? <Badge tone={p.running ? 'green' : 'neutral'}>{p.running ? 'ao vivo' : 'fantasma'}</Badge>
-          : <Badge tone="orange">shell</Badge>}
+          : !p.orchestrator && <Badge tone="orange">shell</Badge>}
         <span onPointerDown={stop} onDoubleClick={(e) => e.stopPropagation()} className="flex items-center">
           {session && (
             <Button

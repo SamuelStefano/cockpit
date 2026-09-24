@@ -65,6 +65,7 @@ export function PrimitivesGallery() {
           <Badge tone="green" dot>online</Badge>
           <Badge tone="red" dot>erro</Badge>
           <Badge tone="yellow">aviso</Badge>
+          <Badge tone="purple">orchestrator</Badge>
         </Row>
       </Section>
 

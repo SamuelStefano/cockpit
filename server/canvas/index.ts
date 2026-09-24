@@ -6,6 +6,7 @@ import { CONFIG } from '../config';
 import { parseFrontmatter, stripFrontmatter } from '../frontmatter';
 import { listSessions, listArchived } from '../sessions/index';
 import { buildCanvasGraph, originSession, wikilinks, type ContextDoc } from './graph';
+import { readOrchestrator } from './orchestrator';
 import { emptyRefs, scanRefsBuffer, type SessionRefs } from './refs';
 import { readBoard } from './board';
 
@@ -360,7 +361,9 @@ export function buildCanvas(board?: CanvasBoard, running?: Set<string>): Promise
   if (inflight) return inflight;
   inflight = (async () => {
     const c = await loadCache();
-    const [live, archived, b] = await Promise.all([listSessions(), listArchived(), board ? Promise.resolve(board) : readBoard()]);
+    const [live, archived, b, orchestrator] = await Promise.all([
+      listSessions(), listArchived(), board ? Promise.resolve(board) : readBoard(), readOrchestrator(),
+    ]);
     const sessions = [...live.map((meta) => ({ meta, archived: false })), ...archived.map((meta) => ({ meta, archived: true }))];
     const now = Date.now();
     // Lock only when there's an actual BACKFILL coming — an EXISTING hit
@@ -417,7 +420,7 @@ export function buildCanvas(board?: CanvasBoard, running?: Set<string>): Promise
     }
     return buildCanvasGraph({
       sessions, refs, contexts: [...mem, ...arch], cards: b.cards, running, now,
-      memoryDir: CONFIG.memoryDir, tmpDir: tmpdir(),
+      memoryDir: CONFIG.memoryDir, tmpDir: tmpdir(), orchestrator,
     });
   })().finally(() => { inflight = null; });
   return inflight;

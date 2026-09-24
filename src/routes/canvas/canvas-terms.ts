@@ -62,12 +62,19 @@ export function capOpen(order: string[], id: string, max = MAX_OPEN_TERMS): stri
 
 // Windows the user dragged keep their spot; the rest queue up in the lane. The
 // map rect ignores windows so the lane never drifts up as more of them open.
-export function placeWindows(pos: Record<string, CanvasPos>, saved: Record<string, CanvasPos>, windows: string[]): Record<string, CanvasPos> {
+// `priority` (e.g. the orchestrator's window) goes through the queue FIRST,
+// so on a fresh board it claims lane slot 0 — top-left, the most predictable
+// spot — instead of wherever iteration order happens to put it. A window
+// already in `saved` ignores this: a spot the user dragged always wins.
+export function placeWindows(
+  pos: Record<string, CanvasPos>, saved: Record<string, CanvasPos>, windows: string[], priority?: Set<string>,
+): Record<string, CanvasPos> {
   const win = new Set(windows);
   const map = bounds(Object.entries(pos).filter(([id]) => !win.has(id)).map(([, p]) => p));
   const out = { ...pos };
   const taken: Rect[] = windows.filter((id) => saved[winKey(id)]).map((id) => ({ ...saved[winKey(id)], w: TERM_W, h: TERM_H }));
-  for (const id of windows) {
+  const ordered = priority?.size ? [...windows].sort((a, b) => Number(priority.has(b)) - Number(priority.has(a))) : windows;
+  for (const id of ordered) {
     const at = saved[winKey(id)];
     if (at) { out[id] = at; continue; }
     const slot = laneSlot(map, taken);

@@ -10,6 +10,10 @@ import type { SessionKanbanItem } from './kanban-items';
 interface Props {
   cards: CanvasCard[];
   sessionItems: SessionKanbanItem[];
+  // Pinned above the columns — never one of the 4, see kanban-items.ts
+  // orchestratorKanbanItem. Undefined when no orchestrator is configured or
+  // its session hasn't shown up on the canvas yet.
+  orchestratorItem?: SessionKanbanItem;
   termStats: Record<string, TermStats>;
   selected: string[];
   running: Set<string>;
@@ -28,7 +32,16 @@ interface Props {
 export function Kanban(p: Props) {
   const [over, setOver] = useState<CardStatus | null>(null);
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-y-auto p-2 md:grid-cols-4 md:overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 md:overflow-hidden">
+      {p.orchestratorItem && (
+        <KanbanSessionItem
+          item={p.orchestratorItem} orchestrator stats={p.termStats[p.orchestratorItem.sessionId]}
+          selected={p.selected.includes(p.orchestratorItem.nodeId)}
+          onSelect={p.onSelectSession} onOpenSession={p.onOpenSession} onOpenTerm={p.onOpenTerm}
+          onComplete={() => {}}
+        />
+      )}
+      <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 md:grid-cols-4 md:overflow-hidden">
       {CARD_STATUSES.map((status) => {
         const cards = p.cards.filter((c) => c.status === status).sort((a, b) => b.updatedAt - a.updatedAt);
         const sessions = p.sessionItems.filter((s) => s.status === status).sort((a, b) => b.mtime - a.mtime);
@@ -75,6 +88,7 @@ export function Kanban(p: Props) {
           </section>
         );
       })}
+      </div>
     </div>
   );
 }

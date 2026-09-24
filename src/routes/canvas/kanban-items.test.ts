@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CanvasCard, CanvasEdge, CanvasNode } from '../../../shared/canvas';
 import {
-  deriveSessionItems, deriveSessionStatus, doneRecentSessionIds, isOverrideActive, resolvePendingBoundIds,
+  deriveSessionItems, deriveSessionStatus, doneRecentSessionIds, isOverrideActive, orchestratorKanbanItem, resolvePendingBoundIds,
 } from './kanban-items';
 
 describe('isOverrideActive', () => {
@@ -161,6 +161,35 @@ describe('deriveSessionItems', () => {
       showAutomation: false, liveSessions: new Map([['a', { waiting: true, mtime: 999 }]]),
     });
     expect(items[0]).toMatchObject({ status: 'doing', waitingOnUser: true, mtime: 999 });
+  });
+
+  it('excludes the orchestrator session — it never shows as a normal item', () => {
+    const items = deriveSessionItems({
+      nodes: [session('a'), session('b')], edges: [], cards: [], running: new Set(), overrides: {}, turnStartedAt: {},
+      showAutomation: false, orchestratorSessionId: 'a',
+    });
+    expect(items).toHaveLength(1);
+    expect(items[0].sessionId).toBe('b');
+  });
+});
+
+describe('orchestratorKanbanItem', () => {
+  const session = (id: string, extra: Partial<CanvasNode> = {}): CanvasNode => ({
+    id: `s:${id}`, kind: 'session', ref: id, title: `sessão ${id}`, subtitle: '', mtime: 10, count: 3, ...extra,
+  });
+  const opts = { running: new Set<string>(), overrides: {}, turnStartedAt: {} };
+
+  it('is undefined with no orchestrator configured', () => {
+    expect(orchestratorKanbanItem([session('a')], opts, undefined)).toBeUndefined();
+  });
+
+  it('is undefined when the orchestrator session has no node yet', () => {
+    expect(orchestratorKanbanItem([session('a')], opts, 'missing')).toBeUndefined();
+  });
+
+  it('finds the item unconditionally — no automation/bound filtering', () => {
+    const item = orchestratorKanbanItem([session('a')], opts, 'a');
+    expect(item).toMatchObject({ sessionId: 'a', nodeId: 's:a' });
   });
 });
 
