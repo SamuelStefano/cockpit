@@ -141,8 +141,12 @@ export function DocViewer({
 export function DocAction({ label, icon, onClick, textOnPhone = false }: { label: string; icon: IconName; onClick: () => void; textOnPhone?: boolean }) {
   return (
     <Button variant="outline" size="sm" onClick={onClick} title={label} className={textOnPhone ? 'max-sm:px-2' : 'max-sm:w-7 max-sm:px-0'}>
-      <Icon name={icon} size={13} className={textOnPhone ? 'max-sm:hidden' : undefined} />
-      <span className={textOnPhone ? undefined : 'max-sm:sr-only'}>{label}</span>
+      {/* inline-flex: Button wraps children in a text span where a bare svg
+          (preflight: display block) would stack above the label. */}
+      <span className="inline-flex items-center gap-1.5">
+        <Icon name={icon} size={13} className={textOnPhone ? 'max-sm:hidden' : undefined} />
+        <span className={textOnPhone ? undefined : 'max-sm:sr-only'}>{label}</span>
+      </span>
     </Button>
   );
 }
