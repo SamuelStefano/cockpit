@@ -10,7 +10,7 @@ import { emitCanvasMsg } from '../ws/canvas-clients';
 import { enqueuePending } from '../ws/pending';
 import { addParked, removeParked } from '../ws/parked';
 import { resumableId } from '../ws/resume';
-import { isDrainerEnabled, runParkedInBackground, startRun } from '../ws/runs';
+import { isDrainerEnabled, orchestratorPaneTarget, runParkedInBackground, startRun } from '../ws/runs';
 import { resolveThreadKey, threads, type RunParams } from '../ws/threads';
 import { bindCardSession, cardIdForSession, lastCardMarker, neutralizeMarkers } from './card-sessions';
 import { cardIdFromRefsCache } from './index';
@@ -18,6 +18,7 @@ import { claimFlowFire, markCardDoing, readBoardChained, recordFlowFailure, reco
 import { clearFlowRun, registerFlowRun } from './flow-runs';
 import { blockedAreaFor } from './autopause-loop';
 import { hasInteractiveClaude } from './term-stats';
+import { readBusyElsewhereSessionIds } from './cv-liveness';
 import { onTurnClosed, type TurnClosed } from './turn-hooks';
 
 export { neutralizeMarkers };
@@ -213,8 +214,22 @@ export async function deliverToSession(sessionId: string, prompt: string, source
   // retries later, once the area (hopefully) isn't over anymore.
   const blocked = blockedAreaFor(resume);
   if (blocked) return { delivered: false, areaBlocked: blocked };
-  startRun({ ws: null, sessionKey: resume, prompt, resumeId: resume, flowHop: hop, ...params });
-  return { delivered: threads.has(resume) };
+  // The Orchestrator's session lives in its tmux pane: startRun types the prompt
+  // there and returns 'pane' with no thread. That IS a delivery — read as a
+  // failure, the "report back" arrow backed off and skipped later results.
+  if (orchestratorPaneTarget(resume, params.role)) {
+    return { delivered: startRun({ ws: null, sessionKey: resume, prompt, resumeId: resume, flowHop: hop, ...params }) === 'pane' };
+  }
+  // Same double-writer guards 'send' runs (dispatch.ts): a session driven by an
+  // interactive `claude` in a pane, or live in the OTHER Deck process, is not in
+  // this process's `threads`, and a `claude -p --resume` here would be a second
+  // writer on its transcript. Not delivered = fireFlow backs off and retries.
+  if (await hasInteractiveClaude(resume)) return { delivered: false };
+  if ((await readBusyElsewhereSessionIds().catch(() => [] as string[])).includes(resume)) return { delivered: false };
+  // Those awaits did real I/O: a turn may have started here meanwhile.
+  if (resolveThreadKey(sessionId)) return { delivered: false };
+  const r = startRun({ ws: null, sessionKey: resume, prompt, resumeId: resume, flowHop: hop, ...params });
+  return { delivered: r === 'pane' || threads.has(resume) };
 }
 
 async function resolveCardNodes(contextIds: string[], sessionIds: string[]): Promise<{ contexts: CanvasNode[]; sessions: CanvasNode[] }> {
@@ -329,8 +344,12 @@ async function deliverToReuseTarget(card: CanvasCard, flow: CanvasFlow, result: 
   // fresh turn (`threads.get(sessionKey)!.handle.kill()`), which a background
   // flow firing must never do. Re-check immediately before the spawn — not
   // just once, before the await — and fall back to fork if it's live now.
+  // Live in the other Deck process (not in this process's threads): fork
+  // instead of a second writer, same as a live turn here.
+  if ((await readBusyElsewhereSessionIds().catch(() => [] as string[])).includes(resume)) return viaFork();
   if (resolveThreadKey(sessionId)) return viaFork();
-  startRun({ ws: null, sessionKey: resume, prompt, resumeId: resume, flowHop: hop, ...params });
+  const r = startRun({ ws: null, sessionKey: resume, prompt, resumeId: resume, flowHop: hop, ...params });
+  if (r === 'pane') return { delivered: true };
   return threads.has(resume) ? { delivered: true, runKey: resume } : { delivered: false };
 }
 
