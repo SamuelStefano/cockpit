@@ -523,11 +523,6 @@ describe('relay: pairing with an invalid public key', () => {
 
   it('closes 4400 without consuming the single-use code', async () => {
     let consumed = 0;
-  });
-});
-
-describe('relay: shutdown with open sockets', () => {
-  it('closes promptly instead of waiting for WebSockets to end on their own', async () => {
     const store: RelayStore = {
       async agentById() { return null; }, async isAdmin() { return false; },
       async listAccounts() { return []; }, async setAdmin() { return true; },
@@ -547,6 +542,12 @@ describe('relay: shutdown with open sockets', () => {
   });
 });
 
+describe('relay: shutdown with open sockets', () => {
+  it('closes promptly instead of waiting for WebSockets to end on their own', async () => {
+    const store: RelayStore = {
+      async agentById() { return null; }, async isAdmin() { return false; },
+      async listAccounts() { return []; }, async setAdmin() { return true; },
+      async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
       async consumePairingCode() { return null; }, async createAgent() { return null; },
     };
     const relay = createRelay({ iss: 't', jwksUrl: 'http://x', rootEmails: '', store, resolveIdentity: async () => ({ accountId: 'accA', email: 'a@x', role: 'fellow' }) });
