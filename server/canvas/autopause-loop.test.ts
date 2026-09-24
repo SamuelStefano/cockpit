@@ -59,21 +59,21 @@ beforeEach(() => {
 
 describe('runAutoPauseTick', () => {
   it('does nothing when no area has autoPause on — never touches the graph or proc stats', async () => {
-    const d = deps({ board: { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10 } }, sessionStatus: {} } }); // set but autoPause not true
+    const d = deps({ board: { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10 } }, sessionStatus: {}, hiddenSessions: [] } }); // set but autoPause not true
     await runAutoPauseTick(d);
     expect(d.buildCanvas).not.toHaveBeenCalled();
     expect(d.stop).not.toHaveBeenCalled();
   });
 
   it('does not stop the first tick an area goes over (hysteresis not yet elapsed)', async () => {
-    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {} };
+    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {}, hiddenSessions: [] };
     const d = deps({ board, graph: graphWith(S1, 'dfl'), stats: { [S1]: stat({ cpu: 90 }) } });
     await runAutoPauseTick(d);
     expect(d.stop).not.toHaveBeenCalled();
   });
 
   it('stops the offending UNATTENDED session once the area has stayed over long enough, and names it in the notify', async () => {
-    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {} };
+    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {}, hiddenSessions: [] };
     const graph = graphWith(S1, 'dfl', 'sessão pesada');
     const stats = { [S1]: stat({ cpu: 90 }) };
     const runs = [run({ key: `cron-x`, prompt: '' })]; // cron = unattended
@@ -86,7 +86,7 @@ describe('runAutoPauseTick', () => {
   });
 
   it('NEVER stops an attended run (a live user chat), even once the area is way over budget', async () => {
-    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {} };
+    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {}, hiddenSessions: [] };
     const graph = graphWith(S1, 'dfl');
     const stats = { [S1]: stat({ cpu: 90 }) };
     // Not a cron, not marathon, not parked, no flow marker/flowHop — this is
@@ -100,7 +100,7 @@ describe('runAutoPauseTick', () => {
   });
 
   it('a parked-queue-drained run IS a valid candidate (passively drained, not forced via run-now)', async () => {
-    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {} };
+    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {}, hiddenSessions: [] };
     const graph = graphWith(S1, 'dfl');
     const stats = { [S1]: stat({ cpu: 90 }) };
     const runs = [run({ parked: true })];
@@ -111,7 +111,7 @@ describe('runAutoPauseTick', () => {
   });
 
   it('never stops a session whose turn just started, even if its area is way over', async () => {
-    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {} };
+    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {}, hiddenSessions: [] };
     const graph = graphWith(S1, 'dfl');
     const stats = { [S1]: stat({ cpu: 90 }) };
     const youngRuns = [run({ startedAt: NOW - 1000 })]; // 1s old
@@ -123,7 +123,7 @@ describe('runAutoPauseTick', () => {
   });
 
   it('a session under budget is left alone', async () => {
-    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 100, autoPause: true } }, sessionStatus: {} };
+    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 100, autoPause: true } }, sessionStatus: {}, hiddenSessions: [] };
     const graph = graphWith(S1, 'dfl');
     const stats = { [S1]: stat({ cpu: 5 }) };
     const d = deps({ board, graph, stats, now: NOW + 35_000 });
@@ -132,7 +132,7 @@ describe('runAutoPauseTick', () => {
   });
 
   it('skips the stop when the candidate thread is stale (restarted or closed since the snapshot)', async () => {
-    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {} };
+    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {}, hiddenSessions: [] };
     const graph = graphWith(S1, 'dfl');
     const stats = { [S1]: stat({ cpu: 90 }) };
     const runs = [run()];
@@ -144,7 +144,7 @@ describe('runAutoPauseTick', () => {
   });
 
   it('skips the stop when the candidate thread is gone entirely', async () => {
-    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {} };
+    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {}, hiddenSessions: [] };
     const graph = graphWith(S1, 'dfl');
     const stats = { [S1]: stat({ cpu: 90 }) };
     const runs = [run()];
@@ -155,7 +155,7 @@ describe('runAutoPauseTick', () => {
   });
 
   it('does not run two ticks concurrently — a slow tick blocks the next one, which becomes a no-op', async () => {
-    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {} };
+    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {}, hiddenSessions: [] };
     let releaseFirst!: () => void;
     const gate = new Promise<void>((res) => { releaseFirst = res; });
     const d1 = deps({ board, graph: graphWith(S1, 'dfl'), runs: [] });
@@ -171,8 +171,8 @@ describe('runAutoPauseTick', () => {
   });
 
   it('resets overSince on the early-return path when autoPause has no areas — re-enabling later starts a fresh hysteresis window', async () => {
-    const boardOn: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {} };
-    const boardOff: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: false } }, sessionStatus: {} };
+    const boardOn: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {}, hiddenSessions: [] };
+    const boardOff: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: false } }, sessionStatus: {}, hiddenSessions: [] };
     const graph = graphWith(S1, 'dfl');
     const stats = { [S1]: stat({ cpu: 90 }) };
     const runs = [run()];
@@ -190,7 +190,7 @@ describe('runAutoPauseTick', () => {
   });
 
   it('resets overSince on the early-return path when no sessions are running', async () => {
-    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {} };
+    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {}, hiddenSessions: [] };
     const graph = graphWith(S1, 'dfl');
     const stats = { [S1]: stat({ cpu: 90 }) };
     const runs = [run()];
@@ -223,7 +223,7 @@ describe('syncAdmissionState — writes the cross-process file only when needed'
   });
 
   it('never writes across ticks when nothing is running (nothing blocked, key map never touched)', async () => {
-    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {} };
+    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {}, hiddenSessions: [] };
     await runAutoPauseTick(deps({ board, runs: [], now: NOW }));
     await expect(readFile(admissionFile, 'utf8')).rejects.toThrow();
     await runAutoPauseTick(deps({ board, runs: [], now: NOW + 20_000 }));
@@ -231,7 +231,7 @@ describe('syncAdmissionState — writes the cross-process file only when needed'
   });
 
   it('writes once an area goes over budget', async () => {
-    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {} };
+    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {}, hiddenSessions: [] };
     const graph = graphWith(S1, 'dfl');
     const stats = { [S1]: stat({ cpu: 90 }) };
     await runAutoPauseTick(deps({ board, graph, stats, runs: [run()], now: NOW }));
@@ -240,8 +240,8 @@ describe('syncAdmissionState — writes the cross-process file only when needed'
   });
 
   it('writes again once the blocked area clears, to actually publish the clear', async () => {
-    const overBoard: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {} };
-    const underBoard: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 1000, autoPause: true } }, sessionStatus: {} };
+    const overBoard: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {}, hiddenSessions: [] };
+    const underBoard: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 1000, autoPause: true } }, sessionStatus: {}, hiddenSessions: [] };
     const graph = graphWith(S1, 'dfl');
     const stats = { [S1]: stat({ cpu: 90 }) };
     const runs = [run()];
@@ -259,7 +259,7 @@ describe('area cache + admission gate', () => {
   });
 
   it('a tick over budget blocks admission for that area, and clears it once back under', async () => {
-    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {} };
+    const board: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 10, autoPause: true } }, sessionStatus: {}, hiddenSessions: [] };
     const graph = graphWith(S1, 'dfl');
     updateAreaCacheFromGraph(graph); // simulate a prior canvas-get populating the cache
     const stats = { [S1]: stat({ cpu: 90 }) };
@@ -267,7 +267,7 @@ describe('area cache + admission gate', () => {
     await runAutoPauseTick(deps({ board, graph, stats, runs, now: NOW }));
     expect(isAreaAdmissionBlocked(S1)).toBe(true);
 
-    const under: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 1000, autoPause: true } }, sessionStatus: {} };
+    const under: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: { dfl: { cpu: 1000, autoPause: true } }, sessionStatus: {}, hiddenSessions: [] };
     await runAutoPauseTick(deps({ board: under, graph, stats, runs, now: NOW + 1000 }));
     expect(isAreaAdmissionBlocked(S1)).toBe(false);
   });

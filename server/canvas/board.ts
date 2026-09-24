@@ -44,7 +44,7 @@ function sanitizeReuse(raw: unknown): CardReuse | undefined {
 }
 
 export function emptyBoard(): CanvasBoard {
-  return { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {} };
+  return { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {}, hiddenSessions: [] };
 }
 
 const MAX_TOKENS_BUDGET = 5_000_000; // absurd-guard, not a real ceiling anyone would hit
@@ -414,6 +414,53 @@ export function setSessionStatus(board: CanvasBoard, sessionId: string, entry: C
   return { ...board, sessionStatus };
 }
 
+export const MAX_BULK_STATUS_IDS = 1000; // absurd-guard — "completar antigos" tops out in the low hundreds on this box
+
+// Raw JSON, nothing trusted: same id shape as sessionStatus's own key
+// (REF_RE), deduped, capped. Shared by the bulk status write below and by
+// canvas-session-hide (dispatch.ts) so a forged/runaway frame can't bloat
+// either list past its own ceiling.
+export function sanitizeSessionIds(raw: unknown, max: number): string[] {
+  if (!Array.isArray(raw)) return [];
+  return [...new Set(raw.filter((x): x is string => typeof x === 'string' && REF_RE.test(x)))].slice(0, max);
+}
+
+// Done column bulk triage ("completar antigos (N)", canvas review item 2): the
+// SAME override as setSessionStatus, applied to every id in ONE pass — a
+// single updateBoard/disk write for the whole batch instead of one per
+// session (208 stale items used to mean 208 round-trips and 208 writes).
+export function setSessionStatusMany(board: CanvasBoard, sessionIds: string[], entry: CanvasSessionStatus): CanvasBoard {
+  if (!sessionIds.length) return board;
+  const sessionStatus = { ...board.sessionStatus };
+  for (const id of sessionIds) sessionStatus[id] = entry;
+  const keys = Object.keys(sessionStatus);
+  if (keys.length > MAX_SESSION_STATUS) for (const k of keys.slice(0, keys.length - MAX_SESSION_STATUS)) delete sessionStatus[k];
+  return { ...board, sessionStatus };
+}
+
+const MAX_HIDDEN_SESSIONS = 2000; // same ceiling as MAX_SESSION_STATUS — same kind of ever-growing id list
+
+export function sanitizeHiddenSessions(raw: unknown): string[] {
+  return sanitizeSessionIds(raw, MAX_HIDDEN_SESSIONS);
+}
+
+// The kanban drawer's "ocultar" — a manual dismiss ON TOP OF the automatic
+// staleness triage (src/routes/canvas/kanban-items.ts triageSessionItems).
+// Board-persisted (canvas review item 2): a hide on the laptop must hold on
+// the phone too, unlike the old per-device localStorage list. Named
+// `...OnBoard` — plain `hideSession`/`unhideSession` already belong to
+// server/store.ts's sidebar hide (a DIFFERENT feature: removing a session
+// from the chat list entirely), imported side by side with this in
+// server/ws/dispatch.ts.
+export function hideSessionOnBoard(board: CanvasBoard, sessionId: string): CanvasBoard {
+  if (!REF_RE.test(sessionId) || board.hiddenSessions.includes(sessionId)) return board;
+  return { ...board, hiddenSessions: [...board.hiddenSessions, sessionId].slice(-MAX_HIDDEN_SESSIONS) };
+}
+
+export function unhideAllSessionsOnBoard(board: CanvasBoard): CanvasBoard {
+  return board.hiddenSessions.length ? { ...board, hiddenSessions: [] } : board;
+}
+
 // Only a missing file means "no board yet" — an unreadable one (EACCES,
 // EMFILE) or a corrupt one (JSON parse error after a hand edit) must NOT read
 // as empty, because updateBoard would then happily write that emptiness over
@@ -446,7 +493,10 @@ export async function readBoard(): Promise<CanvasBoard> {
       if (clean) sessionStatus[clean.sessionId] = clean.entry;
     }
   }
-  return { cards, pos: sanitizePos(parsed.pos), flows, budgets: sanitizeBudgets(parsed.budgets), sessionStatus };
+  // A board written before this feature existed has no `hiddenSessions` key —
+  // sanitizeSessionIds degrades a non-array to [], same defense as `flows`.
+  const hiddenSessions = sanitizeHiddenSessions(parsed.hiddenSessions);
+  return { cards, pos: sanitizePos(parsed.pos), flows, budgets: sanitizeBudgets(parsed.budgets), sessionStatus, hiddenSessions };
 }
 
 // Every write goes through one chain: two quick frames (drag end + card save)

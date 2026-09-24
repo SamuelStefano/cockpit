@@ -43,8 +43,13 @@ export function boundSessions(edges: CanvasEdge[], cardId: string): string[] {
   return edges.filter((e) => e.source === id && e.kind === 'card' && e.target.startsWith('s:')).map((e) => e.target.slice(2));
 }
 
-// A doing card whose sessions all went quiet is waiting on the human, which is
-// exactly what the review column means; the board only suggests the move.
+// A doing card whose sessions all went quiet did NOT reach the server's own
+// 'review' status (server/canvas/card-review.ts only moves a card there on a
+// CLEAN turn close) — so idle-while-still-doing means the last turn
+// stopped/crashed instead, not "looks done" (canvas review 2026-09-24, item
+// 6: KanbanCard used to badge this yellow "parece pronto"; it's now red
+// "parou sem terminar"). This client-side 'review' is only ever a HINT for
+// that badge — the board's real status is untouched until a human confirms.
 export function cardRun(card: CanvasCard, sessions: string[], running: Set<string>): CardRun {
   if (sessions.some((s) => running.has(s))) return 'running';
   if (card.status === 'doing' && sessions.length) return 'review';

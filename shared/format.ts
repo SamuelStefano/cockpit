@@ -19,6 +19,17 @@ export function relPast(then: number, now: number = Date.now()): string {
   return `${Math.floor(d / 7)}sem`;
 }
 
+// "Parada há" + tempo decorrido — usada nos 3 lugares que mostram quando uma
+// sessão parada foi vista pela última vez (KanbanSessionItem, KanbanItemDrawer,
+// TermStatsBar). Antes cada um montava a frase na mão com `parada há ${relPast(...)}`
+// (ou, no TermStatsBar, um "ativa agora" próprio) — sessão tocada há < 1min virava
+// "parada há agora", que se contradiz (canvas review 2026-09-24, item 6). Só cobre o
+// caso NÃO RODANDO: rodando é decisão de quem chama (não dá pra saber aqui).
+export function lastSeenLabel(mtime: number, now: number = Date.now()): string {
+  const r = relPast(mtime, now);
+  return r === 'agora' ? 'parou agora' : `parada há ${r}`;
+}
+
 // Data/hora absoluta curta: "12/08 14:30" (ano só quando não é o corrente).
 // Serve o caso em que o relativo NÃO desempata — duas sessões de título parecido
 // marcadas "3d" são indistinguíveis; o horário decide qual é qual.

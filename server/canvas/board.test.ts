@@ -3,10 +3,11 @@ import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  checkFlowSave, claimFlowFire, clearCardDflLink, emptyBoard, markCardDoing, mergePos, readBoard, readBoardChained,
+  checkFlowSave, claimFlowFire, clearCardDflLink, emptyBoard, hideSessionOnBoard, markCardDoing, mergePos, readBoard, readBoardChained,
   recordFlowFailure, recordFlowSuccess, removeCard, removeFlow, sanitizeBudget, sanitizeBudgets, sanitizeCard,
-  sanitizeCardDfl, sanitizeFlow, sanitizePos, sanitizeSessionStatus, setBudget, setCardDflLink, setCardDflPending,
-  setCardDflSynced, setSessionStatus, updateBoard, upsertCard, upsertFlow,
+  sanitizeCardDfl, sanitizeFlow, sanitizeHiddenSessions, sanitizePos, sanitizeSessionIds, sanitizeSessionStatus, setBudget,
+  setCardDflLink, setCardDflPending, setCardDflSynced, setSessionStatus, setSessionStatusMany, unhideAllSessionsOnBoard,
+  updateBoard, upsertCard, upsertFlow,
 } from './board';
 
 // claimFlowFire takes a backoff curve injected by the caller (server/canvas/
@@ -335,6 +336,64 @@ describe('sessionStatus', () => {
   it('loads a pre-sessionStatus board (no key on disk) with sessionStatus: {}', async () => {
     process.env.COCKPIT_CANVAS_BOARD = join(mkdtempSync(join(tmpdir(), 'canvas-')), 'b.json');
     writeFileSync(process.env.COCKPIT_CANVAS_BOARD, JSON.stringify({ cards: [], pos: {}, flows: [] }));
+    await expect(readBoard()).resolves.toEqual(emptyBoard());
+  });
+
+  it('setSessionStatusMany applies the SAME entry to every id in one pass', () => {
+    const b = setSessionStatusMany(emptyBoard(), ['a', 'b', 'c'], { status: 'done', at: 5 });
+    expect(b.sessionStatus).toEqual({ a: { status: 'done', at: 5 }, b: { status: 'done', at: 5 }, c: { status: 'done', at: 5 } });
+  });
+
+  it('setSessionStatusMany is a no-op on an empty id list', () => {
+    const board = emptyBoard();
+    expect(setSessionStatusMany(board, [], { status: 'done', at: 5 })).toBe(board);
+  });
+});
+
+describe('sanitizeSessionIds', () => {
+  it('keeps only well-formed ids, deduped, capped at `max`', () => {
+    expect(sanitizeSessionIds(['a', 'a', 'b', '../x', 42, 'c'], 2)).toEqual(['a', 'b']);
+  });
+
+  it('a non-array input is an empty list', () => {
+    expect(sanitizeSessionIds(null, 10)).toEqual([]);
+    expect(sanitizeSessionIds('a', 10)).toEqual([]);
+  });
+});
+
+describe('hiddenSessions (kanban drawer "ocultar", board-persisted — canvas review item 2)', () => {
+  it('hideSessionOnBoard adds an id once, no duplicates on a second hide', () => {
+    let b = hideSessionOnBoard(emptyBoard(), 'sid-1');
+    b = hideSessionOnBoard(b, 'sid-1');
+    expect(b.hiddenSessions).toEqual(['sid-1']);
+  });
+
+  it('rejects a malformed session id', () => {
+    expect(hideSessionOnBoard(emptyBoard(), '../x').hiddenSessions).toEqual([]);
+  });
+
+  it('unhideAllSessionsOnBoard clears the whole list', () => {
+    let b = hideSessionOnBoard(emptyBoard(), 'sid-1');
+    b = hideSessionOnBoard(b, 'sid-2');
+    b = unhideAllSessionsOnBoard(b);
+    expect(b.hiddenSessions).toEqual([]);
+  });
+
+  it('sanitizeHiddenSessions degrades a pre-feature (missing key) board field to []', () => {
+    expect(sanitizeHiddenSessions(undefined)).toEqual([]);
+  });
+
+  it('round-trips through readBoard', async () => {
+    process.env.COCKPIT_CANVAS_BOARD = join(mkdtempSync(join(tmpdir(), 'canvas-')), 'b.json');
+    const b = hideSessionOnBoard(emptyBoard(), 'sid-1');
+    await updateBoard(() => b);
+    const reloaded = await readBoard();
+    expect(reloaded.hiddenSessions).toEqual(['sid-1']);
+  });
+
+  it('loads a pre-hiddenSessions board (no key on disk) with hiddenSessions: []', async () => {
+    process.env.COCKPIT_CANVAS_BOARD = join(mkdtempSync(join(tmpdir(), 'canvas-')), 'b.json');
+    writeFileSync(process.env.COCKPIT_CANVAS_BOARD, JSON.stringify({ cards: [], pos: {}, flows: [], sessionStatus: {} }));
     await expect(readBoard()).resolves.toEqual(emptyBoard());
   });
 });

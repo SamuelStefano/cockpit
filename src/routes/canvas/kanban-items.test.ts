@@ -182,6 +182,14 @@ describe('deriveSessionItems', () => {
     expect(items[0].area).toBeUndefined();
   });
 
+  it('excludes an archived session — Samuel archiving it IS his "done with this" (canvas review item 2)', () => {
+    const items = deriveSessionItems({
+      nodes: [session('a', { archived: true }), session('b')], edges: [], cards: [], running: new Set(), overrides: {}, turnStartedAt: {}, showAutomation: false,
+    });
+    expect(items).toHaveLength(1);
+    expect(items[0].sessionId).toBe('b');
+  });
+
   it('excludes the orchestrator session — it never shows as a normal item', () => {
     const items = deriveSessionItems({
       nodes: [session('a'), session('b')], edges: [], cards: [], running: new Set(), overrides: {}, turnStartedAt: {},

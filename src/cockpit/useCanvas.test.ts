@@ -40,7 +40,7 @@ describe('useCanvas — canvas-board flowRuns (reconnect visibility)', () => {
     act(() => {
       result.current.onMsg({
         t: 'canvas-board',
-        board: { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {} },
+        board: { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {}, hiddenSessions: [] },
         flowRuns: [{ runKey: 'new-abc', cardId: 'card1', flowId: 'flow1' }],
       } as ServerMsg);
     });
@@ -51,12 +51,12 @@ describe('useCanvas — canvas-board flowRuns (reconnect visibility)', () => {
     const { result } = renderHook(() => useCanvas(send));
     act(() => {
       result.current.onMsg({
-        t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {} },
+        t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {}, hiddenSessions: [] },
         flowRuns: [{ runKey: 'new-abc', cardId: 'card1', flowId: 'flow1' }],
       } as ServerMsg);
     });
     act(() => {
-      result.current.onMsg({ t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {} }, flowRuns: [] } as ServerMsg);
+      result.current.onMsg({ t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {}, hiddenSessions: [] }, flowRuns: [] } as ServerMsg);
     });
     expect(result.current.canvasFlowRuns.card1?.key).toBe('new-abc');
   });
@@ -65,14 +65,14 @@ describe('useCanvas — canvas-board flowRuns (reconnect visibility)', () => {
     const { result } = renderHook(() => useCanvas(send));
     act(() => {
       result.current.onMsg({
-        t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {} },
+        t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {}, hiddenSessions: [] },
         flowRuns: [{ runKey: 'new-abc', cardId: 'card1', flowId: 'flow1' }],
       } as ServerMsg);
     });
     const before = result.current.canvasFlowRuns;
     act(() => {
       result.current.onMsg({
-        t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {} },
+        t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {}, hiddenSessions: [] },
         flowRuns: [{ runKey: 'new-abc', cardId: 'card1', flowId: 'flow1' }],
       } as ServerMsg);
     });
@@ -95,10 +95,90 @@ describe('useCanvas — onCanvasSessionStatus', () => {
     act(() => { result.current.onCanvasSessionStatus('sid-1', 'done'); });
     act(() => {
       result.current.onMsg({
-        t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {} }, flowRuns: [],
+        t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {}, hiddenSessions: [] }, flowRuns: [],
       } as ServerMsg);
     });
     expect(result.current.canvasBoard.sessionStatus['sid-1']?.status).toBe('done');
+  });
+});
+
+describe('useCanvas — onCanvasSessionStatusBulk (canvas review item 2: "completar antigos (N)")', () => {
+  it('applies the SAME status to every id optimistically and sends one wire frame', () => {
+    const localSend = vi.fn(() => true);
+    const { result } = renderHook(() => useCanvas(localSend));
+    act(() => { result.current.onCanvasSessionStatusBulk(['a', 'b', 'c'], 'done'); });
+    expect(result.current.canvasBoard.sessionStatus.a?.status).toBe('done');
+    expect(result.current.canvasBoard.sessionStatus.b?.status).toBe('done');
+    expect(result.current.canvasBoard.sessionStatus.c?.status).toBe('done');
+    expect(localSend).toHaveBeenCalledTimes(1);
+    expect(localSend).toHaveBeenCalledWith({ t: 'canvas-session-status-bulk', sessionIds: ['a', 'b', 'c'], status: 'done' });
+  });
+
+  it('is a no-op on an empty selection', () => {
+    const localSend = vi.fn(() => true);
+    const { result } = renderHook(() => useCanvas(localSend));
+    act(() => { result.current.onCanvasSessionStatusBulk([], 'done'); });
+    expect(localSend).not.toHaveBeenCalled();
+  });
+});
+
+describe('useCanvas — canvas-session-status / -bulk broadcast from another tab (item 12a)', () => {
+  it('a slim canvas-session-status patch is applied to the board', () => {
+    const { result } = renderHook(() => useCanvas(send));
+    act(() => {
+      result.current.onMsg({ t: 'canvas-session-status', sessionId: 'sid-1', status: 'done', at: 5 } as ServerMsg);
+    });
+    expect(result.current.canvasBoard.sessionStatus['sid-1']).toEqual({ status: 'done', at: 5 });
+  });
+
+  it('a local write still inside its grace window is not clobbered by the broadcast for the SAME id', () => {
+    const localSend = vi.fn(() => true);
+    const { result } = renderHook(() => useCanvas(localSend));
+    act(() => { result.current.onCanvasSessionStatus('sid-1', 'done'); });
+    act(() => {
+      result.current.onMsg({ t: 'canvas-session-status', sessionId: 'sid-1', status: 'review', at: 1 } as ServerMsg);
+    });
+    expect(result.current.canvasBoard.sessionStatus['sid-1']?.status).toBe('done');
+  });
+
+  it('the bulk broadcast applies every id', () => {
+    const { result } = renderHook(() => useCanvas(send));
+    act(() => {
+      result.current.onMsg({ t: 'canvas-session-status-bulk', sessionIds: ['a', 'b'], status: 'done', at: 5 } as ServerMsg);
+    });
+    expect(result.current.canvasBoard.sessionStatus.a).toEqual({ status: 'done', at: 5 });
+    expect(result.current.canvasBoard.sessionStatus.b).toEqual({ status: 'done', at: 5 });
+  });
+});
+
+describe('useCanvas — hide/unhide (board-persisted, canvas review item 2)', () => {
+  it('onCanvasHideSession adds the id optimistically and sends the wire frame', () => {
+    const localSend = vi.fn(() => true);
+    const { result } = renderHook(() => useCanvas(localSend));
+    act(() => { result.current.onCanvasHideSession('sid-1'); });
+    expect(result.current.canvasBoard.hiddenSessions).toEqual(['sid-1']);
+    expect(localSend).toHaveBeenCalledWith({ t: 'canvas-session-hide', sessionId: 'sid-1' });
+  });
+
+  it('onCanvasUnhideAllSessions clears the list and sends the wire frame', () => {
+    const localSend = vi.fn(() => true);
+    const { result } = renderHook(() => useCanvas(localSend));
+    act(() => { result.current.onCanvasHideSession('sid-1'); });
+    act(() => { result.current.onCanvasUnhideAllSessions(); });
+    expect(result.current.canvasBoard.hiddenSessions).toEqual([]);
+    expect(localSend).toHaveBeenCalledWith({ t: 'canvas-session-unhide-all' });
+  });
+
+  it('a stale canvas-board frame within the grace window does not clobber an optimistic hide', () => {
+    const localSend = vi.fn(() => true);
+    const { result } = renderHook(() => useCanvas(localSend));
+    act(() => { result.current.onCanvasHideSession('sid-1'); });
+    act(() => {
+      result.current.onMsg({
+        t: 'canvas-board', board: { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {}, hiddenSessions: [] }, flowRuns: [],
+      } as ServerMsg);
+    });
+    expect(result.current.canvasBoard.hiddenSessions).toEqual(['sid-1']);
   });
 });
 
@@ -162,5 +242,6 @@ describe('useCanvas — canvas-board from an older server', () => {
     expect(result.current.canvasBoard.budgets).toEqual({});
     expect(result.current.canvasBoard.flows).toEqual([]);
     expect(result.current.canvasBoard.sessionStatus).toEqual({});
+    expect(result.current.canvasBoard.hiddenSessions).toEqual([]);
   });
 });

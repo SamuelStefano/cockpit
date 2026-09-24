@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CARD_STATUSES, type CanvasCard, type CardStatus, type SessionPeek, type TermStats } from '../../../shared/canvas';
-import { Badge, Button } from '../../components/primitives';
+import { Badge, Button, Segmented, ToggleChip } from '../../components/primitives';
 import { cardRun } from './canvas-board';
 import { STATUS_HINT, STATUS_LABEL } from './canvas-labels';
 import { KanbanCard } from './KanbanCard';
@@ -28,6 +28,12 @@ interface Props {
   onOpenSession: (id: string) => void;
   onOpenTerm: (nodeId: string) => void;
   onSessionStatus: (sessionId: string, status: CardStatus) => void;
+  // Done column bulk triage ("completar antigos (N)", canvas review item 2) —
+  // ONE wire frame for the whole batch. Optional so a caller not yet wired
+  // through (Canvas.tsx needs one added prop line — see the PR body) still
+  // compiles; falls back to one onSessionStatus call per id, which is still
+  // correct, just not the single-write path.
+  onSessionStatusBulk?: (sessionIds: string[], status: CardStatus) => void;
   // Manual dismiss on top of the automatic staleness triage below — a session
   // Samuel closed from the drawer never comes back on its own.
   hiddenSessionIds: Set<string>;
@@ -37,16 +43,36 @@ interface Props {
   onSessionPeek: (sessionId: string) => void;
 }
 
+// Below `md`, one column at a time (canvas review item 11) — a 2×2 grid at
+// 390px left every column too narrow to read and clipped its own action row.
+const MOBILE_STATUSES = CARD_STATUSES;
+
 export function Kanban(p: Props) {
   const [over, setOver] = useState<CardStatus | null>(null);
   const [openSessionId, setOpenSessionId] = useState<string | null>(null);
   const [antigosOpen, setAntigosOpen] = useState(false);
+  const [mobileStatus, setMobileStatus] = useState<CardStatus>('doing');
 
   const shownItems = useMemo(() => p.sessionItems.filter((s) => !p.hiddenSessionIds.has(s.sessionId)), [p.sessionItems, p.hiddenSessionIds]);
+  // 12d: own 60s ticker — triageSessionItems used to be memoised on
+  // `shownItems` only, so an item crossing the 24h stale line stayed visible
+  // until something ELSE happened to re-render this component.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
   // sessionItems is unscoped by design (every session ever, not the canvas
   // scope filter) — without this, "Done" fills with hundreds of sessions
   // nobody is ever going to review (Samuel feedback, 2026-09-24).
-  const triage = useMemo(() => triageSessionItems(shownItems, Date.now()), [shownItems]);
+  const triage = useMemo(() => triageSessionItems(shownItems, now), [shownItems, now]);
+
+  const counts = useMemo(() => {
+    const out: Record<CardStatus, number> = { todo: 0, doing: 0, review: 0, done: 0 };
+    for (const c of p.cards) out[c.status]++;
+    for (const s of triage.visible) out[s.status]++;
+    return out;
+  }, [p.cards, triage.visible]);
 
   const selectSession = (nodeId: string, sessionId: string) => {
     p.onSelectSession(nodeId);
@@ -57,6 +83,17 @@ export function Kanban(p: Props) {
     ?? (p.orchestratorItem?.sessionId === openSessionId ? p.orchestratorItem : undefined)
     : undefined;
 
+  // "completar antigos (N)": ONE wire frame when the caller has wired
+  // onSessionStatusBulk through; a per-id loop otherwise (still correct,
+  // just N writes instead of 1 — see the Props comment).
+  const completeStale = () => {
+    const ids = triage.staleDone.map((s) => s.sessionId);
+    if (!ids.length) return;
+    if (p.onSessionStatusBulk) p.onSessionStatusBulk(ids, 'done');
+    else for (const id of ids) p.onSessionStatus(id, 'done');
+    setAntigosOpen(false);
+  };
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 md:overflow-hidden">
       {p.orchestratorItem && (
@@ -64,10 +101,15 @@ export function Kanban(p: Props) {
           item={p.orchestratorItem} orchestrator stats={p.termStats[p.orchestratorItem.sessionId]}
           selected={p.selected.includes(p.orchestratorItem.nodeId)}
           onSelect={(nodeId) => selectSession(nodeId, p.orchestratorItem!.sessionId)} onOpenSession={p.onOpenSession} onOpenTerm={p.onOpenTerm}
-          onComplete={() => {}}
         />
       )}
-      <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 md:grid-cols-4 md:overflow-hidden">
+      <div className="shrink-0 md:hidden">
+        <Segmented
+          label="coluna do kanban" value={mobileStatus} onChange={setMobileStatus}
+          items={MOBILE_STATUSES.map((s) => ({ id: s, label: `${STATUS_LABEL[s]} · ${counts[s]}` }))}
+        />
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-2 md:flex-row md:overflow-hidden">
       {CARD_STATUSES.map((status) => {
         const cards = p.cards.filter((c) => c.status === status).sort((a, b) => b.updatedAt - a.updatedAt);
         const sessions = triage.visible.filter((s) => s.status === status).sort((a, b) => b.mtime - a.mtime);
@@ -78,6 +120,7 @@ export function Kanban(p: Props) {
         const own = status === 'doing' ? sessions.filter((s) => !s.orchestratorChild) : sessions;
         const staleDone = status === 'review' ? triage.staleDone : [];
         const empty = !cards.length && !sessions.length && !staleDone.length;
+        const isMobileActive = status === mobileStatus;
         return (
           <section
             key={status}
@@ -90,13 +133,42 @@ export function Kanban(p: Props) {
               if (cardId) p.onMove(cardId, status);
               else if (sessionId) p.onSessionStatus(sessionId, status);
             }}
-            className={`flex min-h-0 flex-col rounded-xl border bg-neutral-950/60 ${over === status ? 'border-orange-500/60' : 'border-neutral-800'}`}
+            className={`${isMobileActive ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col rounded-xl border bg-neutral-950/60 md:flex ${
+              empty ? 'md:w-11 md:min-w-11 md:max-w-11 md:flex-none md:items-center' : 'md:min-w-0 md:flex-1'
+            } ${over === status ? 'border-orange-500/60' : 'border-neutral-800'}`}
           >
-            <header className="flex items-center gap-2 px-2.5 py-2" title={STATUS_HINT[status]}>
-              <span className="text-[11.5px] font-semibold text-neutral-200">{STATUS_LABEL[status]}</span>
-              <Badge>{cards.length + sessions.length}</Badge>
-            </header>
-            <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-2 pb-2">
+            {empty ? (
+              <>
+                {/* Below md this IS the active column (nothing else is on
+                    screen to save space from) — normal header + "nada por
+                    aqui" body. From md up, an empty column collapses to a
+                    ~44px rail so In progress/Done keep the width (item 5). */}
+                <header className="flex items-center gap-2 px-2.5 py-2 md:hidden" title={STATUS_HINT[status]}>
+                  <span className="text-[11.5px] font-semibold text-neutral-200">{STATUS_LABEL[status]}</span>
+                  <Badge>0</Badge>
+                </header>
+                <header className="hidden shrink-0 flex-col items-center gap-1 py-2 text-[10px] text-neutral-500 md:flex" title={STATUS_HINT[status]}>
+                  <Badge>0</Badge>
+                  <span className="[writing-mode:vertical-rl]">{STATUS_LABEL[status]}</span>
+                </header>
+              </>
+            ) : (
+              <header className="flex items-center gap-2 px-2.5 py-2" title={STATUS_HINT[status]}>
+                <span className="text-[11.5px] font-semibold text-neutral-200">{STATUS_LABEL[status]}</span>
+                <Badge>{cards.length + sessions.length}</Badge>
+                {status === 'review' && staleDone.length > 0 && (
+                  <ToggleChip on={antigosOpen} icon="clock" onClick={() => setAntigosOpen((v) => !v)} className="ml-auto">
+                    {staleDone.length} antigos
+                  </ToggleChip>
+                )}
+              </header>
+            )}
+            {!empty && status === 'review' && staleDone.length > 0 && (
+              <div className="border-b border-neutral-800 px-2 py-1.5">
+                <Button size="sm" variant="secondary" icon="check" onClick={completeStale}>completar antigos ({staleDone.length})</Button>
+              </div>
+            )}
+            <div className={`min-h-0 flex-1 space-y-1.5 overflow-y-auto px-2 pb-2 ${empty ? 'md:hidden' : ''}`}>
               {cards.map((c) => {
                 const boundIds = p.sessionsOf(c.id);
                 const lastSession = boundIds.length ? p.nodeOf(boundIds[boundIds.length - 1]) : undefined;
@@ -116,7 +188,6 @@ export function Kanban(p: Props) {
                       <KanbanSessionItem
                         key={s.nodeId} item={s} stats={p.termStats[s.sessionId]} selected={p.selected.includes(s.nodeId)}
                         onSelect={(nodeId) => selectSession(nodeId, s.sessionId)} onOpenSession={p.onOpenSession} onOpenTerm={p.onOpenTerm}
-                        onComplete={(id) => p.onSessionStatus(id, 'done')}
                       />
                     ))}
                   </div>
@@ -126,29 +197,16 @@ export function Kanban(p: Props) {
                 <KanbanSessionItem
                   key={s.nodeId} item={s} stats={p.termStats[s.sessionId]} selected={p.selected.includes(s.nodeId)}
                   onSelect={(nodeId) => selectSession(nodeId, s.sessionId)} onOpenSession={p.onOpenSession} onOpenTerm={p.onOpenTerm}
-                  onComplete={(id) => p.onSessionStatus(id, 'done')}
                 />
               ))}
-              {staleDone.length > 0 && (
-                <div className="rounded-lg border border-neutral-800 bg-neutral-950/40">
-                  <button
-                    type="button" onClick={() => setAntigosOpen((v) => !v)}
-                    className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-[10.5px] text-neutral-500 hover:text-neutral-300"
-                  >
-                    <span>{antigosOpen ? '▾' : '▸'} antigos</span>
-                    <Badge>{staleDone.length}</Badge>
-                  </button>
-                  {antigosOpen && (
-                    <div className="space-y-1.5 px-1 pb-1.5">
-                      {staleDone.map((s) => (
-                        <KanbanSessionItem
-                          key={s.nodeId} item={s} stats={p.termStats[s.sessionId]} selected={p.selected.includes(s.nodeId)}
-                          onSelect={(nodeId) => selectSession(nodeId, s.sessionId)} onOpenSession={p.onOpenSession} onOpenTerm={p.onOpenTerm}
-                          onComplete={(id) => p.onSessionStatus(id, 'done')}
-                        />
-                      ))}
-                    </div>
-                  )}
+              {antigosOpen && staleDone.length > 0 && (
+                <div className="space-y-1.5 border-t border-neutral-800 pt-1.5">
+                  {staleDone.map((s) => (
+                    <KanbanSessionItem
+                      key={s.nodeId} item={s} stats={p.termStats[s.sessionId]} selected={p.selected.includes(s.nodeId)}
+                      onSelect={(nodeId) => selectSession(nodeId, s.sessionId)} onOpenSession={p.onOpenSession} onOpenTerm={p.onOpenTerm}
+                    />
+                  ))}
                 </div>
               )}
               {empty && <p className="px-1 py-3 text-center text-[11px] text-neutral-600">nada por aqui</p>}

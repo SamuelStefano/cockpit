@@ -1,5 +1,5 @@
 import type { TermStats } from '../../../shared/canvas';
-import { relPast } from '../../../shared/format';
+import { lastSeenLabel } from '../../../shared/format';
 import { fmtElapsed, useElapsed } from '../../components/chat/elapsed';
 import { cpuHeat, ctxHeat, ctxPct, ctxWindow, fmtMb, fmtTokens, HEAT_TEXT, shortModel } from './term-stats-view';
 
@@ -14,9 +14,13 @@ function TurnClock({ startedAt }: { startedAt: number }) {
   return <span className="text-green-400">turno {fmtElapsed(secs)}</span>;
 }
 
+// Only rendered from the NOT-running branch below (`running && stats.turnStartedAt`
+// takes TurnClock instead) — this used to special-case "agora" as "ativa
+// agora" anyway, which lied about a window that isn't running. Centralized in
+// shared/format.ts (canvas review item 6) so this can't diverge from
+// KanbanSessionItem/KanbanItemDrawer's own copy of the same phrase again.
 function LastSeen({ at }: { at: number }) {
-  const r = relPast(at);
-  return <span>{r === 'agora' ? 'ativa agora' : `parada há ${r}`}</span>;
+  return <span>{lastSeenLabel(at)}</span>;
 }
 
 // One mono line under the title bar: what the window costs the box right now
