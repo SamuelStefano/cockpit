@@ -745,7 +745,7 @@ export function useCockpit(): Cockpit {
           // `prepend` = página anterior pedida pelo "carregar antigas". Fora dela, o
           // frame é snapshot da última página: em "ver tudo" (full) o keepOlder segura
           // o que já foi paginado pra trás, senão o refresh encolhia a janela.
-          const next = msg.prepend ? prependHistory(msg.messages, local) : mergeHistory(msg.messages, local, !!msg.full);
+          const next = msg.prepend ? prependHistory(msg.messages, local) : mergeHistory(msg.messages, local, !!msg.full, runMsg.current[msg.sessionId]);
           return { ...prev, [msg.sessionId]: next };
         });
         resumeId.current[msg.sessionId] = msg.sessionId;
@@ -928,7 +928,7 @@ export function useCockpit(): Cockpit {
         runMsg.current[key] = id;
         // Carimba o modelo pedido na bolha desde já: sem isto o label caía no seletor
         // vivo e mudava retroativamente ao trocar de modelo. O 'done' refina pro efetivo.
-        updateThread(key, (prev) => [...prev, { id, role: 'assistant', blocks: [], ts: Date.now(), ...(msg.model ? { model: msg.model } : {}) }]);
+        updateThread(key, (prev) => [...prev, { id, role: 'assistant', blocks: [], ts: msg.startedAt ?? Date.now(), ...(msg.model ? { model: msg.model } : {}) }]);
         setPhases((p) => ({ ...p, [key]: 'thinking' }));
         // Turno novo: os chips de continuação do turno anterior ficaram obsoletos.
         setFollowups((f) => { if (!(key in f)) return f; const n = { ...f }; delete n[key]; return n; });
@@ -1299,7 +1299,7 @@ export function useCockpit(): Cockpit {
           () => {
             focusSession(id);
             setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === id })));
-            if (id && !id.startsWith('new-') && !opened.current.has(id) && send({ t: 'open', sessionId: id })) opened.current.add(id);
+            if (id && !id.startsWith('new-') && !opened.current.has(id) && send(reopenMsg(id))) opened.current.add(id);
           },
         );
         return;
@@ -1466,6 +1466,12 @@ export function useCockpit(): Cockpit {
     // parou de me responder"). mergeHistory deduplica, então o re-open é barato e
     // idempotente; respeita a visão completa pra não reverter pro resumido.
     const act = activeRef.current;
+    // Every other cached thread may be stale too: writes made while the socket was
+    // down (another device, deckctl, the terminal) sent session-touched frames
+    // this tab never got, and `opened` kept the next activation from fetching.
+    // Clearing it makes the next visit to each session re-fetch (mergeHistory
+    // keeps a live bubble, so a background run's stream isn't dropped).
+    for (const k of [...opened.current]) if (k !== act) opened.current.delete(k);
     if (act && !act.startsWith('new-') && send(reopenMsg(act))) opened.current.add(act);
     reattach();
   }, [send, reattach, reopenMsg, onUsageList, onSkillList, onPointsGet]);
@@ -1534,8 +1540,8 @@ export function useCockpit(): Cockpit {
     // Sessão real (não rascunho local) vira a última ativa — sobrevive ao F5.
     if (id && !id.startsWith('new-')) savePref('activeId', id);
     setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === id })));
-    if (id && !id.startsWith('new-') && !opened.current.has(id) && send({ t: 'open', sessionId: id })) opened.current.add(id);
-  }, [send, focusSession]);
+    if (id && !id.startsWith('new-') && !opened.current.has(id) && send(reopenMsg(id))) opened.current.add(id);
+  }, [send, focusSession, reopenMsg]);
 
   // Congela na sessão o modelo com que o turno REALMENTE roda. Sem isto, uma
   // conversa que herdou o default (sem override próprio) segue derivando o rótulo
@@ -1900,7 +1906,7 @@ export function useCockpit(): Cockpit {
       if (activeRef.current !== id) return next;
       const fb = next[0]?.id ?? '';
       focusSession(fb);
-      if (fb && !fb.startsWith('new-') && !opened.current.has(fb) && send({ t: 'open', sessionId: fb })) opened.current.add(fb);
+      if (fb && !fb.startsWith('new-') && !opened.current.has(fb) && send(reopenMsg(fb))) opened.current.add(fb);
       return next.map((s) => ({ ...s, active: s.id === fb }));
     });
     setThreads((prev) => { const n = { ...prev }; delete n[id]; return n; });
