@@ -20,8 +20,11 @@ export function TerminalMaximized({ node, target, term, onClose }: Props) {
     <div data-canvas-overlay className="absolute inset-2 z-30 flex flex-col overflow-hidden rounded-lg border border-orange-500/60 bg-[#0a0a0a] shadow-2xl shadow-black/70">
       <header className="flex h-9 shrink-0 items-center gap-2 border-b border-neutral-800 bg-neutral-900 pl-3 pr-1">
         <Icon name="terminal" size={13} className="text-orange-400" />
-        <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-neutral-200">{node.title}</span>
-        <span className="font-mono text-[10.5px] text-neutral-500">tmux cockpit-{target.termId}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-neutral-200" title={node.title}>{node.title}</span>
+        {/* The tmux id is for debugging, the title is what a person reads: it
+            used to keep its full width and squeeze the title to "Deck aud…"
+            on a phone. Hidden below sm, and it truncates before the title does. */}
+        <span className="hidden min-w-0 max-w-[40%] shrink truncate font-mono text-[10.5px] text-neutral-500 sm:inline">tmux cockpit-{target.termId}</span>
         <Button variant="ghost" size="sm" square icon="minimize" title="voltar pro canvas" onClick={onClose} />
       </header>
       <div className="min-h-0 flex-1">
