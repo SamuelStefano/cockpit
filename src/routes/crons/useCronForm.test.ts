@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { buildSchedule, draftValid, enabledFor, toLocalInput, fromLocalInput, scheduleValid, useCronForm, type CronDraft } from './useCronForm';
 import type { Cron } from '../../../shared/protocol';
@@ -79,5 +79,29 @@ describe('scheduleValid', () => {
   it('previews the next run from the schedule alone, before name and prompt', () => {
     expect(scheduleValid({ name: '', prompt: '', kind: 'daily', time: '09:00' } as never)).toBe(true);
     expect(scheduleValid({ name: '', prompt: '', kind: 'interval', everyMinutes: 0 } as never)).toBe(false);
+  });
+});
+
+describe('useCronForm saves against the live cron', () => {
+  const cron: Cron = {
+    id: 'c1', name: 'hourly', prompt: 'p', schedule: { kind: 'interval', everyMinutes: 60 },
+    mode: 'plan', effort: 'low', enabled: true, createdAt: 1, lastRun: 1_000,
+  };
+
+  it('keeps a lastRun and pause that happened while the form was open', () => {
+    const onSave = vi.fn();
+    const { result, rerender } = renderHook(({ list }) => useCronForm(onSave, list), { initialProps: { list: [cron] } });
+    act(() => result.current.startEdit(cron));
+    rerender({ list: [{ ...cron, lastRun: 5_000, enabled: false }] });
+    act(() => result.current.submit());
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ id: 'c1', lastRun: 5_000, enabled: false }));
+  });
+
+  it('falls back to the snapshot when the cron is not in the list', () => {
+    const onSave = vi.fn();
+    const { result } = renderHook(() => useCronForm(onSave, []));
+    act(() => result.current.startEdit(cron));
+    act(() => result.current.submit());
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ lastRun: 1_000, enabled: true }));
   });
 });

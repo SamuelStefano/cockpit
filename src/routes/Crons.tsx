@@ -30,7 +30,7 @@ export function canToggleOn(c: Cron, now: number): boolean {
 }
 
 export function Crons({ connected, crons, loaded, onCronsGet, onCronSave, onCronDelete, onCronRun, planUsage, models }: Props) {
-  const form = useCronForm(onCronSave);
+  const form = useCronForm(onCronSave, crons);
   const formRef = useRef<HTMLDivElement>(null);
   // The form sits above the list, so editing a card further down changed state
   // off-screen and the button looked like it did nothing.

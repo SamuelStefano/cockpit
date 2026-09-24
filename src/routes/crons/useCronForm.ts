@@ -84,7 +84,10 @@ function toDraft(c: Cron): CronDraft {
 
 // Estado do formulário de cron — serve tanto criar (id ausente) quanto editar (id do
 // cron sendo alterado). `build()` materializa o Cron pronto pra salvar.
-export function useCronForm(onSave: (c: Cron) => void) {
+// `crons` is the live list: the card can run or be paused while its form is open,
+// and saving the snapshot taken at startEdit rewound lastRun (the cron fired again)
+// or turned a paused cron back on.
+export function useCronForm(onSave: (c: Cron) => void, crons: Cron[] = []) {
   const [draft, setDraft] = useState<CronDraft>(empty);
   // Cron original sendo editado: preserva enabled/createdAt/lastRun no salvar (sem
   // isto, editar resetaria o histórico e reativaria um cron pausado).
@@ -105,6 +108,7 @@ export function useCronForm(onSave: (c: Cron) => void) {
   const submit = () => {
     if (!valid) return;
     const schedule = buildSchedule(draft);
+    const base = (original && crons.find((c) => c.id === original.id)) ?? original;
     onSave({
       id: draft.id ?? newId(),
       name: draft.name.trim(),
@@ -113,9 +117,9 @@ export function useCronForm(onSave: (c: Cron) => void) {
       model: draft.model || undefined,
       mode: draft.mode,
       effort: draft.effort,
-      enabled: enabledFor(schedule, original, Date.now()),
-      createdAt: original?.createdAt ?? Date.now(),
-      lastRun: original?.lastRun,
+      enabled: enabledFor(schedule, base, Date.now()),
+      createdAt: base?.createdAt ?? Date.now(),
+      lastRun: base?.lastRun,
     });
     reset();
   };
