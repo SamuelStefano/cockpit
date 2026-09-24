@@ -55,7 +55,7 @@ export function CronCard({ cron, now, editing, onRun, onToggle, onEdit, onDelete
   const run = () => { if (firing) return; setFiring(true); onRun(); toast('Cron disparado'); };
 
   return (
-    <div className={`flex items-start gap-3 rounded-xl border bg-neutral-900/50 p-3 transition ${editing ? 'border-orange-500/40 glow-active' : 'border-neutral-800 hairline hover:border-neutral-700'}`}>
+    <div className={`flex flex-col gap-1 rounded-xl border bg-neutral-900/50 p-3 transition sm:flex-row sm:items-start sm:gap-3 ${editing ? 'border-orange-500/40 glow-active' : 'border-neutral-800 hairline hover:border-neutral-700'}`}>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="truncate text-sm font-medium text-neutral-100">{cron.name}</span>
@@ -73,7 +73,9 @@ export function CronCard({ cron, now, editing, onRun, onToggle, onEdit, onDelete
           {cron.effort && cron.effort !== 'low' && <span>· pensar: {cron.effort}</span>}
         </p>
       </div>
-      <div className="flex shrink-0 items-center gap-1">
+      {/* Below sm the four 40px actions sit on their own row: beside the text they
+          took 176px of a 326px card and cut the name to "Cron com nome muito…". */}
+      <div className="-mb-1 flex shrink-0 items-center gap-1 self-end sm:mb-0 sm:self-auto">
         {/* "Rodar agora" and "Ativar" both used ▶, and "Pausar" used ■ (reads as
             "stop the run"). Pause/resume get their own icons; every action is named
             and 40px on touch. */}
