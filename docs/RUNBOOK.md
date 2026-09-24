@@ -32,7 +32,7 @@ a aba presa na tela de pareamento com a VPS de pé do outro lado. **Confira isto
 de qualquer outra coisa.**
 
 ```bash
-git pull --ff-only && sudo systemctl restart deck-relay   # ~5s de piscada; tudo reconecta
+git pull --ff-only && sudo systemctl restart deck-relay   # tudo reconecta com backoff
 ```
 
 **2. O relay responde?**
@@ -90,7 +90,7 @@ está na box do usuário, não no relay.
 | Peça | Como |
 |---|---|
 | Front | Merge na `main` → Vercel |
-| Backend/agente locais | `npm run update` na box |
+| Backend/agente locais | `git pull` + `npm run redeploy` na box (ou o hook post-merge / re-arme do doctor). `npm run update` só atualiza o CLI do Claude e reinicia |
 | Relay | **Manual:** `git pull --ff-only` + `sudo systemctl restart deck-relay` |
 | Monitor | **Manual:** `git pull --ff-only` + `sudo systemctl restart deck-monitor` |
 
@@ -114,11 +114,15 @@ monitor só perde a visão de quantos agentes estão online.
 
 1. Usuário faz login no front e pede um código de pareamento (validade de 10 minutos,
    uso único).
-2. Na máquina dele: `npx tsx server/agent.ts --pair=CÓDIGO`.
+2. Na máquina dele: `curl -fsSL https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh | DECK_PAIR_CODE=CÓDIGO bash`
+   (ou, num clone: `DECK_RELAY_URL=wss://deck-relay.devfellowship.com DECK_PAIR_CODE=CÓDIGO npx tsx server/agent.ts --pair`).
+   Código por env, não argv: argv aparece no `ps`.
 3. O par de chaves é gerado **na máquina dele**, em `~/.deck-agent/identity.json`
    (permissão 0600). A chave privada não sai dali.
-4. Depois do pareamento, `run-agent.sh` mantém o agente de pé.
+4. Depois do pareamento, a unit systemd `deck-agent` (instalada pelo `agent-setup.sh`)
+   mantém o agente de pé. `run-agent.sh` é o supervisor da box do Samuel, com caminho e
+   papel cravados.
 
 O papel padrão de conta convidada é o restrito (sem terminal, sem ação
-administrativa). Elevar exige ação de conta root, definida por variável de ambiente no
-relay — nunca pelo banco.
+administrativa). Elevar exige ação de uma conta root (definida por `COCKPIT_ROOT_EMAILS` no
+relay); a elevação a admin que ela faz fica gravada em `account.is_admin` no banco.

@@ -19,7 +19,7 @@ Topologia, protocolo e modelo de segurança em detalhe: **[ARCHITECTURE.md](ARCH
 - Painéis de **uso/custo**, **crons**, **pontos**, **grafo** do repo e um **design system** vivo.
 
 Rotas: `/` `/contextos` `/skills` `/notas` `/pontos` `/crons` `/uso` `/graph`
-`/harness` `/admin` `/docs` `/ds` `/play`.
+`/canvas` `/harness` `/admin` `/docs` `/ds` `/play`.
 
 ---
 
@@ -45,15 +45,18 @@ npm run dev          # vite :5173 + backend :7777 (proxy /ws)
 Produção em porta única:
 
 ```bash
-npm run build        # typecheck (web + server + relay) + bundle em dist/
+npm run build        # typecheck (web + server + relay + monitor) + bundle em dist/
 npm run serve        # http://127.0.0.1:7777 serve a UI e o WS
 ```
 
-O backend roda `claude -p` em `--permission-mode plan` por padrão e lê as sessões do
-CLI direto do JSONL em `~/.claude/projects/…` (fonte da verdade). Configuração em
-`.env` — veja **[.env.example](.env.example)** para a lista completa; o essencial é
-`COCKPIT_PORT`, `COCKPIT_WORKDIR` e `COCKPIT_PERMISSION_MODE`
-(`plan` | `default` | `acceptEdits`).
+O backend roda `claude -p` em `--permission-mode acceptEdits` por padrão (desde #630;
+edita arquivos) e lê as sessões do CLI direto do JSONL em `~/.claude/projects/…`
+(fonte da verdade). O backend **não lê `.env`**: ele usa só `process.env`, e os
+supervisores (`run-backend.sh`, `run-agent.sh`) carregam `~/.cockpit-local.env`. Um
+`COCKPIT_TOKEN` posto em `.env` é ignorado e o gate do WS fica desligado. Só o Vite lê
+`.env`, e só as `VITE_*`. Lista completa em **[.env.example](.env.example)**; o
+essencial é `COCKPIT_PORT`, `COCKPIT_WORKDIR` e `COCKPIT_PERMISSION_MODE`
+(`acceptEdits` | `default` | `plan`).
 
 `--dangerously-skip-permissions` fica atrás de `COCKPIT_ALLOW_BYPASS` **e** de papel
 admin **e** de acesso local: default-deny, desligado salvo decisão explícita.
@@ -65,7 +68,7 @@ Se a SPA for servida separada do backend, aponte o WS no build:
 
 ## Stack
 
-`Vite 5` · `React 18` · `TypeScript 5` · `Tailwind 3` · fontes `Geist` / `Geist Mono`
+`Vite 8` · `React 19` · `TypeScript 7` · `Tailwind 4` (tema em `src/index.css`) · fontes `Geist` / `Geist Mono`
 Backend: `Node` · `tsx` · `ws` · `node-pty` · `better-sqlite3`. Bind `127.0.0.1:7777`.
 Auth do modo remoto: `Supabase` (JWT verificado por JWKS no relay).
 
@@ -93,5 +96,5 @@ Teste fica **ao lado** do arquivo testado (`x.ts` + `x.test.ts`). O CI roda o me
 ## Persistência
 
 - **JSONL** (`~/.claude/projects/…`) — histórico bruto do CLI, read-only.
-- **SQLite** — índice das sessões, estado do tmux, cursor por device.
+- **SQLite** — amostras de uso/custo, resumos de sessão, resultado do último turno e tarefas do harness.
 - **Markdown** — contexto curado que melhora a cada conversa.

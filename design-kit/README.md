@@ -15,5 +15,5 @@ Deck → diff conceitual. Pra aplicar, cole o mockup num chat do Deck com
 
 ## Manutenção
 
-O BRIEF espelha `src/components/primitives/tokens.ts`, `tailwind.config.js` e
-`src/index.css`. Mudou paleta/token/primitivo? Atualize o BRIEF no mesmo commit.
+O BRIEF espelha `src/components/primitives/tokens.ts` e `src/index.css` (Tailwind 4:
+o tema vive no CSS, não há `tailwind.config.js`). Mudou paleta/token/primitivo? Atualize o BRIEF no mesmo commit.
