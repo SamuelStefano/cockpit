@@ -38,8 +38,10 @@ export function Docs() {
   return (
     <div className="flex min-h-0 flex-1 bg-neutral-950">
       {/* Nav lateral (scrollspy) — só desktop */}
-      <aside className="hidden w-60 shrink-0 border-r border-neutral-800/80 lg:block">
-        <div className="sticky top-0 p-4">
+      {/* Scrolls on its own: with 20+ sections the list ran past the status bar and
+          the last entries could not be reached. */}
+      <aside className="scroll-thin hidden w-60 shrink-0 overflow-y-auto border-r border-neutral-800/80 lg:block">
+        <div className="p-4">
           <div className="mb-4 px-2">
             <div className="font-mono text-[15px] font-semibold lowercase tracking-tight text-neutral-100">documentação</div>
             <div className="mt-0.5 text-[11px] text-neutral-500">manual do Deck</div>

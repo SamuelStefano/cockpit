@@ -55,19 +55,19 @@ export function Playground() {
                 : 'edite e veja rodar ao vivo — React, HTML, iPhone, SVG e testes'}</span>}
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-0.5 rounded-lg bg-neutral-900 p-0.5">
+          <div className="scroll-thin flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg bg-neutral-900 p-0.5">
             {LANGS.map((l) => (
               <button key={l.id} onClick={() => pickLang(l.id)}
-                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] transition ${langId === l.id ? 'bg-neutral-800 text-orange-200' : 'text-neutral-400 hover:text-neutral-200'} ${tokens.focusRing}`}>
+                className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1 text-[12px] transition ${langId === l.id ? 'bg-neutral-800 text-orange-200' : 'text-neutral-400 hover:text-neutral-200'} ${tokens.focusRing}`}>
                 <Icon name={l.icon} size={12} /> {l.label}
               </button>
             ))}
           </div>
           {templatesForLang.length > 1 && (
-            <div className="flex items-center gap-0.5 rounded-lg bg-neutral-900 p-0.5">
+            <div className="scroll-thin flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg bg-neutral-900 p-0.5">
               {templatesForLang.map((t) => (
                 <button key={t.id} onClick={() => pickTpl(t.id)}
-                  className={`rounded-md px-2.5 py-1 text-[12px] transition ${!shared && tplId === t.id ? 'bg-neutral-800 text-orange-200' : 'text-neutral-400 hover:text-neutral-200'} ${tokens.focusRing}`}>
+                  className={`shrink-0 whitespace-nowrap rounded-md px-2.5 py-1 text-[12px] transition ${!shared && tplId === t.id ? 'bg-neutral-800 text-orange-200' : 'text-neutral-400 hover:text-neutral-200'} ${tokens.focusRing}`}>
                   {t.label}
                 </button>
               ))}
