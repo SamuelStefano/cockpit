@@ -28,13 +28,19 @@ export function Playground() {
   const code = shared ? shared.code : active.code;
   const studioKey = shared ? `shared:${langId}` : `${langId}:${tplId}`;
 
-  const pickLang = (id: string) => {
+  // Leaving the shared snippet also drops `#c=` from the URL; left there, a
+  // reload reopened the shared code instead of what the user switched to.
+  const leaveShared = () => {
     setShared(null);
+    if (location.hash.startsWith('#c=')) history.replaceState(null, '', location.pathname + location.search);
+  };
+  const pickLang = (id: string) => {
+    leaveShared();
     setLangId(id);
     const first = TEMPLATES.find((t) => t.lang === id);
     if (first) setTplId(first.id);
   };
-  const pickTpl = (id: string) => { setShared(null); setTplId(id); };
+  const pickTpl = (id: string) => { leaveShared(); setTplId(id); };
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-neutral-950">
