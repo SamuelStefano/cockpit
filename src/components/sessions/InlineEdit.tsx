@@ -41,8 +41,8 @@ export function InlineEdit({ value, onChange, onCommit, onCancel, label, classNa
     onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onChange(e.target.value),
     onBlur: onCommit,
     onKeyDown,
-    // O card inteiro é role="button": sem barrar aqui, clicar pra posicionar o
-    // cursor no meio do texto trocava a sessão ativa.
+    // Um clique em qualquer lugar do card seleciona a sessão: sem barrar aqui,
+    // clicar pra posicionar o cursor no meio do texto trocava a sessão ativa.
     onClick: (e: MouseEvent) => e.stopPropagation(),
     placeholder,
     'aria-label': label,
