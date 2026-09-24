@@ -598,6 +598,19 @@ describe('fireFlow', () => {
     errSpy.mockRestore();
   });
 
+  it('a delivery that throws counts as a failure (streak, backoff, toast), not a silent success', async () => {
+    const f = sanitizeFlow({ id: 'abcd', from: 's:a', to: 's:b' }, undefined, 1)!;
+    await updateBoard((b) => upsertFlow(b, f));
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    hasInteractiveClaudeMock.mockImplementationOnce(async () => { throw new Error('tmux wedged'); });
+    startRunMock.mockImplementationOnce(() => { throw new Error('spawn ENOMEM'); });
+    await expect(fireFlow(f, 1, 'resultado', {})).resolves.toBeUndefined();
+    const board = await updateBoard((b) => b);
+    expect(board.flows[0].failStreak).toBe(1);
+    expect(emitCanvasMsgMock.mock.calls.some((c) => (c[0] as { t: string }).t === 'canvas-flow-failed')).toBe(true);
+    errSpy.mockRestore();
+  });
+
   it('an area-blocked failure gets its own pt message (never the generic "não conseguiu entregar") and persists lastFailAreaBlocked', async () => {
     blockedAreaForMock.mockReturnValue('deck');
     const f = sanitizeFlow({ id: 'abcd', from: 's:a', to: 's:b' }, undefined, 1)!;

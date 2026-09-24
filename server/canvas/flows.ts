@@ -378,15 +378,23 @@ export async function fireFlow(flow: CanvasFlow, hop: number, result: string, pa
   let delivered = false;
   let runKey: string | undefined;
   let areaBlocked: AreaId | undefined;
-  if (flow.to.startsWith('s:')) {
-    const r = await deliverToSession(ref, buildFlowPrompt(flow, result, hop), params, flow, hop);
-    delivered = r.delivered;
-    areaBlocked = r.areaBlocked;
-  } else {
-    const r = await deliverToCard(ref, flow, result, hop, params);
-    delivered = r.delivered;
-    runKey = r.runKey;
-    areaBlocked = r.areaBlocked;
+  // A throw after the claim (a board read rejecting, a spawn failing) used to skip
+  // the failure branch below: fires/lastFiredAt stayed advanced with no failure
+  // streak, no backoff and no toast. It is a failed delivery like any other.
+  try {
+    if (flow.to.startsWith('s:')) {
+      const r = await deliverToSession(ref, buildFlowPrompt(flow, result, hop), params, flow, hop);
+      delivered = r.delivered;
+      areaBlocked = r.areaBlocked;
+    } else {
+      const r = await deliverToCard(ref, flow, result, hop, params);
+      delivered = r.delivered;
+      runKey = r.runKey;
+      areaBlocked = r.areaBlocked;
+    }
+  } catch (e) {
+    console.error(`canvas flow ${flow.id}: delivery threw:`, (e as Error).message);
+    delivered = false;
   }
 
   if (!delivered) {
