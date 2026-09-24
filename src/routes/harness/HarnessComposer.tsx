@@ -29,7 +29,13 @@ export function HarnessComposer({ config, running, onRun }: Props) {
       <textarea
         value={d.prompt}
         onChange={(e) => d.setPrompt(e.target.value)}
-        placeholder="Descreva a tarefa…"
+        // Same shortcut as the chat composer.
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !e.nativeEvent.isComposing && d.canRun && !running) {
+            e.preventDefault(); onRun(d.prompt, d); d.setPrompt('');
+          }
+        }}
+        placeholder="Descreva a tarefa… (⌘/Ctrl+Enter roda)"
         rows={5}
         className="w-full resize-none rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2.5 text-[13px] leading-relaxed text-neutral-200 placeholder-neutral-600 outline-hidden transition focus:border-orange-500/40 focus:ring-2 focus:ring-orange-500/15"
       />
