@@ -252,17 +252,26 @@ export function run(opts: RunOpts): RunHandle {
     return { kill: () => {}, send: () => false };
   }
 
-  const child: ChildProcess = spawn('claude', built.args, {
-    cwd: CONFIG.workdir,
-    env: minimalEnv(),
-    shell: false,
-    detached: true,
-    // stdin agora é um PIPE aberto, não 'ignore': o prompt vai por stdin (uma
-    // linha NDJSON, ver encodeUserLine) e o pipe FICA aberto depois do `result`
-    // pra o processo poder continuar sozinho quando um background task
-    // (Bash run_in_background, subagente) termina — ver shouldCloseStdin.
-    stdio: ['pipe', 'pipe', 'pipe'],
-  });
+  let child: ChildProcess;
+  // A synchronous spawn failure (EAGAIN on fork) is caught by the caller, so the
+  // close handler below never runs: drop the config here or it sits in /tmp, with
+  // tokens in it, until the next sweep.
+  try {
+    child = spawn('claude', built.args, {
+      cwd: CONFIG.workdir,
+      env: minimalEnv(),
+      shell: false,
+      detached: true,
+      // stdin agora é um PIPE aberto, não 'ignore': o prompt vai por stdin (uma
+      // linha NDJSON, ver encodeUserLine) e o pipe FICA aberto depois do `result`
+      // pra o processo poder continuar sozinho quando um background task
+      // (Bash run_in_background, subagente) termina — ver shouldCloseStdin.
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch (e) {
+    cleanupMcp();
+    throw e;
+  }
   child.stdin!.on('error', () => {}); // EPIPE esperado quando o kill() já matou o processo
   let stdinOpen = true;
   child.stdin!.write(encodeUserLine(prompt));
