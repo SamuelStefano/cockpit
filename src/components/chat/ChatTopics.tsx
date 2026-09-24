@@ -25,8 +25,11 @@ export function ChatTopics({ topics, activeId, open, setOpen, onJump }: ChatTopi
       // (80 prompts ≈ 570px) ran over the chat header's buttons and the composer.
       // The wrapper lets clicks through; only the rail and the list take them.
       className="group/topics pointer-events-none absolute inset-y-2 right-0 z-10 flex items-center print:hidden"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
+      // Hover opens it for a real mouse only. A tap fires emulated mouseenter right
+      // before click, so opening on mouseenter made the click toggle it shut again:
+      // on a phone the rail never opened.
+      onPointerEnter={(e) => { if (e.pointerType === 'mouse') setOpen(true); }}
+      onPointerLeave={(e) => { if (e.pointerType === 'mouse') setOpen(false); }}
     >
       <button
         type="button"
