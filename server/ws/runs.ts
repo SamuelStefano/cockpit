@@ -693,7 +693,11 @@ export function startRun(o: StartRunOptions) {
   // modelo. O 'done' refina pro efetivo (revela fallback silencioso).
   broadcast({ t: 'started', sessionKey, model: params.model });
 
-  thread.handle = run({
+  // `run()` can throw synchronously (spawn ENOMEM, EMFILE leaving no stdio). The
+  // thread is already registered and the cold slot held, so without this the
+  // session stays busy forever with a no-op kill, and callers on timers turn the
+  // throw into an uncaughtException that kills every other run.
+  const started = catchSpawn(() => run({
     ...params,
     prompt,
     resumeId,
@@ -858,7 +862,23 @@ export function startRun(o: StartRunOptions) {
         else maybeAutoResume(sessionKey, thread, cause);
       }
     },
-  });
+  }));
+  if ('error' in started) {
+    if (threads.get(sessionKey) === thread) threads.delete(sessionKey);
+    if (holdsCold) releaseCold(sessionKey);
+    clearStopEpoch(sessionKey);
+    if (thread.parked) requeueParked(thread.parkedFrom ?? sessionKey, thread.parked);
+    recordIncident({ kind: 'run-error', sessionKey, detail: `spawn failed: ${started.error}`.slice(0, 400) });
+    broadcast({ t: 'error', sessionKey, message: `Não consegui iniciar o turno: ${started.error}` });
+    broadcast({ t: 'done', sessionKey, sessionId: thread.sessionId ?? '', stopped: true });
+    return;
+  }
+  thread.handle = started.handle;
+}
+
+export function catchSpawn<T>(start: () => T): { handle: T } | { error: string } {
+  try { return { handle: start() }; }
+  catch (e) { return { error: e instanceof Error ? e.message : String(e) }; }
 }
 
 // Drena UM prompt enfileirado (triagem 'wait'/'merge') como o próximo turno da

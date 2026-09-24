@@ -46,7 +46,9 @@ export function handleTerm(
       pending.add(termId);
       void prepareWatch(termId, watch).catch(() => {}).then(() => {
         if (!pending.delete(termId) || ws.readyState !== ws.OPEN) return;
-        attach();
+        // Outside serve-connection's try: a forkpty failure here would be an
+        // unhandledRejection, which shuts the whole backend down.
+        try { attach(); } catch { send(ws, { t: 'term-exit', termId }); }
       });
       return true;
     }
