@@ -71,7 +71,7 @@ export function ChatInput(props: ChatInputProps) {
   const hasAtt = attachments.length > 0;
   const attUploading = attachments.some((a) => a.uploading);
   const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
-  const { taRef, fileRef, cameraRef, sel, setSel, showPalette, matches, complete, submit, onKey, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic, ghost, ghostShown, acceptGhost, touch, settingsOpen, openSettings, closeSettings } = useChatInput({ ...props, hasAtt, attUploading });
+  const { taRef, fileRef, cameraRef, sel, setSel, showPalette, matches, complete, submit, onKey, onCompositionEnd, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic, ghost, ghostShown, acceptGhost, touch, settingsOpen, openSettings, closeSettings } = useChatInput({ ...props, hasAtt, attUploading });
   const settings = { caps, bypass, setBypass, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, model, setModel, models, onRefreshModels, effort, setEffort };
   // Com o teclado aberto o thread cabe em ~150px: a barra sai de cena e os ajustes
   // passam a morar nos sliders do ComposerTools. Exige `touch` porque o sheet só
@@ -122,6 +122,7 @@ export function ChatInput(props: ChatInputProps) {
             value={value}
             onChange={grow}
             onKeyDown={onKey}
+            onCompositionEnd={onCompositionEnd}
             onPaste={onPaste}
             readOnly={mic.listening}
             enterKeyHint={touch ? 'enter' : 'send'}

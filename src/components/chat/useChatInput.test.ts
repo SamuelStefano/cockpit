@@ -184,10 +184,10 @@ describe('useChatInput — slash command followed by text', () => {
 });
 
 describe('useChatInput — IME composition', () => {
-  function imeKey(key: string, composing: boolean, keyCode = 0) {
+  function imeKey(key: string, composing: boolean, keyCode = 0, timeStamp = 1000) {
     const prevented = { value: false };
     const e = {
-      key, keyCode, shiftKey: false,
+      key, keyCode, timeStamp, shiftKey: false,
       nativeEvent: { isComposing: composing },
       preventDefault: () => { prevented.value = true; },
     } as unknown as React.KeyboardEvent;
@@ -196,9 +196,25 @@ describe('useChatInput — IME composition', () => {
 
   it('does not submit on the Safari Enter that confirms a candidate (keyCode 229)', () => {
     const { result } = setup('日本');
+    act(() => result.current.onCompositionEnd({ timeStamp: 995 } as React.CompositionEvent));
     const { e, prevented } = imeKey('Enter', false, 229);
     act(() => result.current.onKey(e));
     expect(prevented.value).toBe(false);
+  });
+
+  it('sends an Enter reported as keyCode 229 outside a composition (IBus, Android keyboards)', () => {
+    const { result } = setup('olá');
+    const { e, prevented } = imeKey('Enter', false, 229);
+    act(() => result.current.onKey(e));
+    expect(prevented.value).toBe(true);
+  });
+
+  it('sends a later Enter after a composition ended long before', () => {
+    const { result } = setup('não');
+    act(() => result.current.onCompositionEnd({ timeStamp: 100 } as React.CompositionEvent));
+    const { e, prevented } = imeKey('Enter', false, 229, 5000);
+    act(() => result.current.onKey(e));
+    expect(prevented.value).toBe(true);
   });
 
   it('leaves ArrowUp to the IME while composing', () => {
