@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isOrchestratorNode } from './orchestrator';
+import { isOrchestratorNode, orchestratorTermId } from './orchestrator';
 
 const info = { name: 'Orchestrator', sessionId: '7671f68f-bd1b-4a8d-ab24-a122583c2286', tmux: 'cockpit-cv-jmbp6v' };
 
@@ -22,4 +22,8 @@ describe('isOrchestratorNode', () => {
     expect(isOrchestratorNode({ kind: 'context', ref: info.sessionId }, info)).toBe(false);
     expect(isOrchestratorNode({ kind: 'card', ref: info.sessionId }, info)).toBe(false);
   });
+});
+
+describe('orchestratorTermId', () => {
+  it('strips the cockpit- prefix', () => expect(orchestratorTermId(info)).toBe('cv-jmbp6v'));
 });

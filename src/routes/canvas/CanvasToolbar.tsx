@@ -12,14 +12,27 @@ interface Props {
   // Absent when no orchestrator.json is configured, or its session/shell
   // hasn't shown up on the canvas yet — the button has nowhere to jump to.
   onFocusOrchestrator?: () => void;
+  // Absent when there's no orchestrator.json at all — nothing to dock.
+  dockOpen?: boolean;
+  onToggleDock?: () => void;
 }
 
 export function CanvasToolbar({
   zoom, onZoom, onFit, onResetLayout, onNewTerminal, onOpenRecent, analysisOn, onToggleAnalysis, onFocusOrchestrator,
+  dockOpen, onToggleDock,
 }: Props) {
   return (
     <div data-canvas-overlay className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-full border border-neutral-700 bg-neutral-900/85 px-1.5 py-1 shadow-lg backdrop-blur-md">
-      {onFocusOrchestrator && (
+      {onToggleDock && (
+        <>
+          <Button
+            variant={dockOpen ? 'secondary' : 'ghost'} size="sm" icon="panelRight" onClick={onToggleDock}
+            title="fixar o orchestrator no sidebar (Ctrl+.)" className="text-fuchsia-400 hover:text-fuchsia-300"
+          >orchestrator</Button>
+          <span className="mx-1 h-4 w-px bg-neutral-700" />
+        </>
+      )}
+      {!dockOpen && onFocusOrchestrator && (
         <>
           <Button variant="ghost" size="sm" icon="command" onClick={onFocusOrchestrator} title="ir para a janela do orchestrator" className="text-fuchsia-400 hover:text-fuchsia-300">orchestrator</Button>
           <span className="mx-1 h-4 w-px bg-neutral-700" />

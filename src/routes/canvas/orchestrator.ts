@@ -10,3 +10,8 @@ export function isOrchestratorNode(n: Pick<CanvasNode, 'kind' | 'ref'>, o: Orche
   if (n.kind === 'shell') return n.ref === o.tmux.replace(/^cockpit-/, '');
   return false;
 }
+
+// The terminal id the sidebar dock attaches to directly — always the shell
+// pane (tmux name minus prefix), independent of whether that node has shown
+// up on the canvas map yet.
+export const orchestratorTermId = (o: OrchestratorInfo) => o.tmux.replace(/^cockpit-/, '');

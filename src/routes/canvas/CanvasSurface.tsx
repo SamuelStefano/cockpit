@@ -60,6 +60,8 @@ interface Props {
   timelinePlaying: boolean;
   orchestrator: OrchestratorInfo | undefined;
   onFocusOrchestrator?: () => void;
+  dockOpen?: boolean;
+  onToggleDock?: () => void;
   children?: React.ReactNode;
 }
 
@@ -192,7 +194,7 @@ export function CanvasSurface(p: Props) {
         <CanvasWindows
           nodes={wins} pos={pos} terms={p.terms} term={p.term} selected={selectedSet} focus={focus}
           running={p.running} waiting={p.waiting} orchestrator={p.orchestrator}
-          onPointerDown={onNodeDown} onOpenChat={p.onOpenChat} onSendTo={p.onSendTo}
+          onPointerDown={onNodeDown} onOpenChat={p.onOpenChat} onSendTo={p.onSendTo} onDock={p.onToggleDock}
           sendError={p.sendError} onDismissSendError={p.onDismissSendError} stats={p.stats}
           past={p.pastAlive !== null} pastAlive={p.pastAlive} instant={p.timelinePlaying}
         />
@@ -209,7 +211,7 @@ export function CanvasSurface(p: Props) {
         onResetLayout={() => { armFit(); p.onResetLayout(); }}
         onOpenRecent={() => { armFit(); p.onOpenRecent(); }}
         analysisOn={p.analysisOn} onToggleAnalysis={p.onToggleAnalysis}
-        onFocusOrchestrator={p.onFocusOrchestrator}
+        onFocusOrchestrator={p.onFocusOrchestrator} dockOpen={p.dockOpen} onToggleDock={p.onToggleDock}
       />
     </div>
   );
