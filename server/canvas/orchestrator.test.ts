@@ -67,6 +67,15 @@ describe('isTmuxAliveSync', () => {
     expect(isTmuxAliveSync(`${name}-nope`)).toBe(false);
   });
 
+  it('does not take a longer session that starts with the name for it', () => {
+    execFileSync('tmux', ['new-session', '-d', '-s', `${name}-2`]);
+    try {
+      expect(isTmuxAliveSync(name)).toBe(false);
+    } finally {
+      execFileSync('tmux', ['kill-session', '-t', `=${name}-2`]);
+    }
+  });
+
   it('is true for a live tmux session and false again once it is killed', () => {
     execFileSync('tmux', ['new-session', '-d', '-s', name]);
     expect(isTmuxAliveSync(name)).toBe(true);
