@@ -126,6 +126,7 @@ export function useChatInput(args: UseChatInputArgs) {
     if (attUploading) return; // não envia com anexo ainda subindo (perderia o arquivo)
     const v = value.trim();
     if (v.startsWith('/') && runSlash(v)) {
+      mic.reset();
       setValue('');
       if (taRef.current) taRef.current.style.height = 'auto';
       return;
@@ -137,10 +138,12 @@ export function useChatInput(args: UseChatInputArgs) {
     if (disabled || paused) {
       if (!v && !hasAtt) return;
       if (v) recordPrompt(v);
+      mic.reset();
       onQueue(v); setValue('');
     } else {
       if (!v && !hasAtt) return;
       recordPrompt(v);
+      mic.reset();
       onSend(v); setValue('');
     }
     if (taRef.current) taRef.current.style.height = 'auto';
@@ -178,6 +181,7 @@ export function useChatInput(args: UseChatInputArgs) {
         // Enter num comando app-side runnable dispara a ação direto; Tab (e os que
         // seguem pro Claude) só completam o texto pra revisão antes de enviar.
         if (e.key === 'Enter' && runSlash('/' + matches[sel])) {
+          mic.reset();
           setValue('');
           if (taRef.current) taRef.current.style.height = 'auto';
           return;

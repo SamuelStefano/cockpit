@@ -125,3 +125,27 @@ describe('useChatInput — arrow keys delivered as raw text', () => {
     expect(setValue).toHaveBeenLastCalledWith('ola mundo');
   });
 });
+
+describe('useChatInput — send while dictating', () => {
+  it('stops the recognizer before clearing the composer', () => {
+    const recs: { stop: () => void; stopped: boolean; start: () => void; onresult: unknown }[] = [];
+    class FakeRec {
+      stopped = false; onresult: unknown = null; onend = null; onerror = null;
+      constructor() { recs.push(this); }
+      start() {}
+      stop() { this.stopped = true; }
+    }
+    (window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition = FakeRec;
+    try {
+      const { result, setText } = setup('');
+      act(() => result.current.mic.start());
+      setText('ship it');
+      act(() => result.current.submit());
+      expect(result.current.mic.listening).toBe(false);
+      expect(recs[0].stopped).toBe(true);
+      expect(recs[0].onresult).toBeNull();
+    } finally {
+      delete (window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition;
+    }
+  });
+});
