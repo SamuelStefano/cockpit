@@ -32,13 +32,16 @@ function plainHeading(text: string): string {
 // (rail de headings) à esquerda e leitura confortável à direita. Mobile:
 // bottom-sheet de largura cheia, sem rail. Toggle de markdown cru. Esc fecha.
 export function DocViewer({
-  title, badges, actions, body,
+  title, badges, actions, body, rawBody,
   onClose, onWikilink,
 }: {
   title: ReactNode;
   badges?: ReactNode;
   actions?: ReactNode;
   body: string;
+  // The file as it is on disk, for the "cru" view, when `body` is a cleaned-up
+  // version for reading (a SKILL.md without its frontmatter).
+  rawBody?: string;
   onClose: () => void;
   onWikilink?: WikilinkResolver;
 }) {
@@ -117,7 +120,7 @@ export function DocViewer({
 
           <div ref={scrollRef} className="scroll-thin flex-1 overscroll-contain overflow-y-auto px-4 py-5 sm:px-7">
             {raw ? (
-              <pre className="whitespace-pre-wrap wrap-break-word font-mono text-[12px] leading-relaxed text-neutral-400">{body}</pre>
+              <pre className="whitespace-pre-wrap wrap-break-word font-mono text-[12px] leading-relaxed text-neutral-400">{rawBody ?? body}</pre>
             ) : (
               <div className="mx-auto max-w-[74ch]">
                 <WikilinkContext.Provider value={onWikilink ?? null}>
