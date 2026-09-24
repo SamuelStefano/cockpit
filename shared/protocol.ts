@@ -2,7 +2,7 @@
 // REGRA (squad L3): types-only — zero import de node:*/fs. O bundle do browser
 // importa este arquivo.
 
-import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, CardStatus, OrchestratorActivity, OrchestratorInfo, TermStats } from './canvas';
+import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, CardStatus, OrchestratorActivity, OrchestratorInfo, SessionPeek, TermStats } from './canvas';
 import type { AreaUsage } from './canvas-budget';
 import type { DflDraft, DraftOp } from './dfl-drafts';
 
@@ -756,6 +756,8 @@ export type ClientMsg =
   // point 2) or join running-session ids into an area-usage computation fed
   // by zeroed cpu.
   | { t: 'canvas-ctx-stats'; sessions: string[] }
+  // Kanban drawer: last assistant message + PR/links read from one transcript.
+  | { t: 'canvas-session-peek'; sessionId: string }
   | { t: 'canvas-pos'; pos: Record<string, CanvasPos> }
   | { t: 'canvas-pos-reset' }
   | { t: 'canvas-card-save'; card: CanvasCard }
@@ -922,6 +924,10 @@ export type ServerMsg =
   | { t: 'orchestrator-activity'; activity: OrchestratorActivity }
   | { t: 'canvas-term-stats'; stats: Record<string, TermStats> }
   | { t: 'canvas-ctx-stats'; stats: Record<string, Pick<TermStats, 'contextTokens' | 'model' | 'lastAt'>> }
+  | { t: 'canvas-session-peek'; sessionId: string; peek: SessionPeek | null }
+  // Sessions working inside a `cockpit-cv-*` tmux shell right now
+  // (server/canvas/cv-liveness.ts) — admin canvas clients only.
+  | { t: 'cv-live'; sessionIds: string[] }
   // flowRuns: every card-target flow run still live right now (server/canvas/
   // flow-runs.ts) — a tab that (re)connects mid-run (F5, a second tab, opening
   // /canvas after the flow already fired) gets this on the SAME frame as the

@@ -15,7 +15,7 @@ describe('authorize', () => {
   });
 
   it('student is denied shell, admin recon, and others’ session mutations', () => {
-    for (const t of ['admin-health', 'term-open', 'term-input', 'term-resize', 'term-detach', 'term-close', 'term-list', 'hide', 'unhide', 'purge', 'set-meta', 'list-archived', 'orchestrator-activity-get'] as const) {
+    for (const t of ['admin-health', 'term-open', 'term-input', 'term-resize', 'term-detach', 'term-close', 'term-list', 'hide', 'unhide', 'purge', 'set-meta', 'list-archived', 'orchestrator-activity-get', 'canvas-session-peek'] as const) {
       expect(authorize('student', t)).toBe(false);
     }
   });

@@ -46,6 +46,8 @@ import { buildBench } from '../bench';
 import { buildCanvas } from '../canvas/index';
 import { readOrchestrator } from '../canvas/orchestrator';
 import { readOrchestratorActivity } from '../canvas/orchestrator-activity';
+import { lastCvLiveSessionIds } from '../canvas/cv-liveness';
+import { peekSession } from '../sessions/peek';
 import { collectCtxOnly, collectTermStats, hasInteractiveClaude, newCpuSamples, type CpuSamples } from '../canvas/term-stats';
 import {
   MAX_FLOWS, readBoard, readBoardChained, updateBoard, sanitizeCard, sanitizeFlow, sanitizePos, upsertCard, upsertFlow, removeCard, removeFlow,
@@ -193,6 +195,11 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       send(ws, { t: 'canvas-ctx-stats', stats });
       return;
     }
+    case 'canvas-session-peek': {
+      const sessionId = typeof msg.sessionId === 'string' ? msg.sessionId : '';
+      send(ws, { t: 'canvas-session-peek', sessionId, peek: await peekSession(sessionId) });
+      return;
+    }
     case 'canvas-get': {
       // 'canvas-get' is already admin-only at authz.ts (not in
       // STUDENT_ALLOWED) — registering here is enough for
@@ -207,6 +214,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // (canvas/autopause-loop.ts): reuses this exact graph, no extra build.
       updateAreaCacheFromGraph(graph);
       send(ws, { t: 'canvas-graph', graph });
+      send(ws, { t: 'cv-live', sessionIds: lastCvLiveSessionIds() });
       return;
     }
     case 'orchestrator-get': {
