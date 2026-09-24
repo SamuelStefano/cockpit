@@ -5,7 +5,7 @@ import { MONTHLY_CAP_CENTS } from './month-cap';
 export interface DflWriteApi {
   onDflChange: (p: { taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string }) => Promise<{ ok: boolean; message?: string }>;
   onDflInvoice: (p: { deliveryId: string; deliveryName: string; projectId?: string | null; projectName?: string | null; referenceMonth: string; pricePerPoint: number; tasks: { id: string; title: string; points: number }[] }) => Promise<{ ok: boolean; message?: string }>;
-  onPontosAgent: (p: { note: string; epicCapCents: number; monthCapCents: number; pointValue: number; target?: 'dfl' | 'drafts' }) => Promise<{ ok: boolean; message?: string }>;
+  onPontosAgent: (p: { note: string; epicCapCents: number; monthCapCents: number; pointValue: number; target?: 'dfl' | 'drafts' }) => Promise<{ ok: boolean; message?: string; unknown?: boolean }>;
 }
 
 const KEY = 'deck:pontos:excludedDeliveries';

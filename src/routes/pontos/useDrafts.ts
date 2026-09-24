@@ -42,6 +42,14 @@ export function useDrafts({ connected, onDraftsGet, onDraftOp }: Args) {
         monthCapCents: monthCapCents(currentMonthKey(Date.now())),
         pointValue,
       });
+      // Sent but no reply in time: the agent may already be creating these tasks in
+      // DFL. Mark them dispatched and close, so "Disparar" can't fire a second agent.
+      if (!r.ok && r.unknown) {
+        op({ op: 'set-status', id: batch.flatMap(unitMarks), status: 'dispatched' });
+        toast('Sem resposta a tempo — o agente pode estar rodando. Confira em Sessões antes de disparar de novo.', { tone: 'error', durationMs: 10000 });
+        setConfirming(null);
+        break;
+      }
       if (!r.ok) { toast(r.message ?? 'Não consegui disparar o agente', { tone: 'error', durationMs: 8000 }); break; }
       op({ op: 'set-status', id: batch.flatMap(unitMarks), status: 'dispatched' });
       sent += batch.reduce((s, u) => s + unitTasks(u).length, 0);
