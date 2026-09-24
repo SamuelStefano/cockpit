@@ -112,13 +112,18 @@ function countDescendants(item: ChainItem): number {
   return n;
 }
 
+export const CHAIN_LIST_INDENT = 14;
+
 function ChainTreeList(p: ListProps) {
   const { item } = p;
   const collapsed = item.kind === 'area' ? (!!item.areaId && p.collapsedAreas.has(item.areaId)) : p.collapsedSessions.has(item.id);
   const descendantCount = countDescendants(item);
   const rowH = item.kind === 'session' ? CHAIN_SESSION_H : CHAIN_AREA_H;
   return (
-    <div style={{ marginLeft: p.depth * 14 }} className="mb-1.5">
+    // One step per level: each child renders INSIDE its parent's div, so the
+    // margins add up — `depth * 14` compounded (14, 42, 84, 140…) and a 5-deep
+    // fork chain left a 50px-wide row with no title on a 375px phone.
+    <div style={{ marginLeft: p.depth ? CHAIN_LIST_INDENT : 0 }} className="mb-1.5">
       <div style={{ height: rowH }}>
         <ChainNode
           item={item} running={item.node ? p.running.has(item.node.ref) : false} waiting={item.node ? p.waiting.has(item.node.ref) : false}
