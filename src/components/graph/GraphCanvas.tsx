@@ -46,29 +46,35 @@ export function GraphCanvas({ graph, onNodeOp }: Props) {
     <div className="relative min-h-0 flex-1 overflow-hidden bg-neutral-950">
       <canvas ref={canvasRef} className="h-full w-full" style={{ cursor: 'grab', touchAction: 'none' }} />
 
-      {!x.selectedNode && (
-        <div className="pointer-events-none absolute left-3 top-3 flex flex-col gap-1 text-[11px] text-neutral-500">
-          <span><span className="text-neutral-300">{graph.nodes.length.toLocaleString('pt-BR')}</span> nós · <span className="text-neutral-300">{graph.edges.length.toLocaleString('pt-BR')}</span> arestas · <span className="text-neutral-300">{x.hasRepos ? x.repos.length : graph.communities.length}</span> {x.hasRepos ? 'apps' : 'comunidades'}</span>
-          {graph.truncated && (
-            <span className="text-amber-500/80">mostrando os {graph.nodes.length.toLocaleString('pt-BR')} nós mais conectados de {graph.totalNodes.toLocaleString('pt-BR')}</span>
-          )}
-          <span className="text-neutral-600">arraste · scroll p/ zoom · clique num nó · shift+clique: caminho</span>
-        </div>
-      )}
-
-      <GraphControls
-        query={x.query} onQuery={x.setQuery} matchCount={x.matchCount}
-        colorMode={x.colorMode} onColorMode={x.setColorMode} showColorToggle={x.hasRepos}
-        onReset={resetView}
-      />
+      {/* One overlay row: the stats (or the selected node's panel) on the left, the
+          search/controls on the right; below sm the controls come first and the
+          rest flows under them. Absolutely placed at both top corners they
+          overlapped on a phone: the search box covered the node count and the
+          "showing N of M" warning, and the node panel slid under the controls. */}
+      <div className="pointer-events-none absolute inset-3 flex flex-col items-start gap-2 sm:flex-row-reverse sm:justify-between">
+        <GraphControls
+          query={x.query} onQuery={x.setQuery} matchCount={x.matchCount}
+          colorMode={x.colorMode} onColorMode={x.setColorMode} showColorToggle={x.hasRepos}
+          onReset={resetView}
+        />
+        {x.selectedNode ? (
+          <GraphNodeDetail node={x.selectedNode} neighbors={x.neighbors} onSelectNeighbor={selectNeighbor} onClose={x.clearSelection} onNodeOp={onNodeOp} />
+        ) : (
+          <div className="flex min-w-0 flex-col gap-1 text-[11px] text-neutral-500">
+            <span><span className="text-neutral-300">{graph.nodes.length.toLocaleString('pt-BR')}</span> nós · <span className="text-neutral-300">{graph.edges.length.toLocaleString('pt-BR')}</span> arestas · <span className="text-neutral-300">{x.hasRepos ? x.repos.length : graph.communities.length}</span> {x.hasRepos ? 'apps' : 'comunidades'}</span>
+            {graph.truncated && (
+              <span className="text-amber-500/80">mostrando os {graph.nodes.length.toLocaleString('pt-BR')} nós mais conectados de {graph.totalNodes.toLocaleString('pt-BR')}</span>
+            )}
+            <span className="text-neutral-600">arraste · scroll p/ zoom · clique num nó · shift+clique: caminho</span>
+          </div>
+        )}
+      </div>
 
       {x.colorMode === 'repo' && (
         <GraphLegend repos={x.repos} focusRepo={x.focusRepo} onFocusRepo={x.setFocusRepo} />
       )}
 
-      {x.selectedNode ? (
-        <GraphNodeDetail node={x.selectedNode} neighbors={x.neighbors} onSelectNeighbor={selectNeighbor} onClose={x.clearSelection} onNodeOp={onNodeOp} />
-      ) : hovered ? (
+      {!x.selectedNode && hovered ? (
         <div className="pointer-events-none absolute bottom-3 left-3 max-w-xs rounded-lg border border-neutral-800 bg-neutral-900/95 px-3 py-2 shadow-lg">
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: dotColor(hovered) }} />
