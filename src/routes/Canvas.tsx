@@ -319,7 +319,11 @@ export function Canvas(p: CanvasRouteProps) {
           onOpenShell={(termId) => openTerm(shellNodeId(termId))}
         />
       )}
-      {orchestrator && !orchDock.open && orchDock.mobile && (
+      {/* Not on the map: there the toolbar's "…" menu already opens the
+          orchestrator, and this fixed button sat on the timeline's "agora"
+          (back to live) and the kanban strip's last count — a tap meant for
+          "agora" opened the orchestrator instead. */}
+      {orchestrator && !orchDock.open && orchDock.mobile && r.mode !== 'canvas' && (
         <Button
           variant="primary" size="md" square icon="command" title="abrir o orchestrator"
           onClick={orchDock.toggle}

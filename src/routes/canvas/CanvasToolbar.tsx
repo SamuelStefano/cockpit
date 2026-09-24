@@ -62,15 +62,18 @@ export function CanvasToolbar({
         <Button variant="ghost" size="sm" icon="maximize" onClick={onFit} title="enquadrar tudo" />
         <span className="mx-1 h-4 w-px bg-neutral-700" />
       </div>
+      {/* On a phone this menu is the map's only way into the orchestrator
+          (Canvas.tsx hides the floating ⌘ button here), so its two entries
+          say what they do instead of both reading "orchestrator". */}
       <div ref={menu.ref} className="relative sm:hidden">
         <Button variant="ghost" size="sm" square icon="ellipsis" onClick={menu.toggle} title="mais ações" />
         {menu.open && (
           <div className="absolute bottom-full right-0 z-20 mb-2 flex w-44 flex-col gap-0.5 rounded-lg border border-neutral-700 bg-neutral-900 p-1 shadow-2xl">
             {onToggleDock && (
-              <Button variant={dockOpen ? 'secondary' : 'ghost'} size="sm" icon="panelRight" className="text-fuchsia-400" onClick={() => { onToggleDock(); menu.close(); }}>orchestrator</Button>
+              <Button variant={dockOpen ? 'secondary' : 'ghost'} size="sm" icon="panelRight" className="text-fuchsia-400" onClick={() => { onToggleDock(); menu.close(); }}>{dockOpen ? 'fechar orchestrator' : 'abrir orchestrator'}</Button>
             )}
             {!dockOpen && onFocusOrchestrator && (
-              <Button variant="ghost" size="sm" icon="command" className="text-fuchsia-400" onClick={() => { onFocusOrchestrator(); menu.close(); }}>orchestrator</Button>
+              <Button variant="ghost" size="sm" icon="command" className="text-fuchsia-400" onClick={() => { onFocusOrchestrator(); menu.close(); }}>ir pra janela dele</Button>
             )}
             <Button variant="ghost" size="sm" icon="zap" onClick={() => { onOpenRecent(); menu.close(); }}>sessões</Button>
             <Button variant="ghost" size="sm" icon="terminal" onClick={() => { onNewTerminal(); menu.close(); }}>terminal</Button>
