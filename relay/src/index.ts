@@ -406,7 +406,17 @@ export function createRelay(cfg: RelayConfig) {
   beat.unref();
   server.on('close', () => clearInterval(beat));
 
-  return { server, registry };
+  // server.close() waits for every open connection, and WebSockets never end on
+  // their own: without terminating them first, SIGTERM hung until systemd's
+  // SIGKILL (~90s offline per restart instead of a few seconds). Agents and tabs
+  // reconnect with backoff.
+  const shutdown = (done: () => void) => {
+    clearInterval(beat);
+    for (const w of [wssBrowser, wssAgent]) for (const c of w.clients) { try { c.terminate(); } catch { /* going */ } }
+    server.close(() => done());
+  };
+
+  return { server, registry, shutdown };
 }
 
 // Pré-filtro BARATO: só decide se vale gastar um JSON.parse. Os frames de DADOS
