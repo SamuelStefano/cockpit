@@ -1124,6 +1124,17 @@ describe('D1 — morte silenciosa classificada como OOM kill', () => {
     }));
   });
 
+  it('a turn that dies before it has a session id hands the prompt back instead of promising a resume', () => {
+    startRun({ ws, sessionKey: 'new-oom0', prompt: 'meu pedido importante' });
+    threads.get('new-oom0')!.lastExitCode = 143;
+    memInfoMock.value = STARVED_MEM;
+    closeLastRun();
+    const msg = (errors()[0] as { message: string }).message;
+    expect(msg).toContain('ficou sem memória');
+    expect(msg).not.toContain('Vou retomar');
+    expect(msg).toContain('meu pedido importante');
+  });
+
   it('exit 137 (SIGKILL) + swap quase zerado também vira oom-kill', () => {
     startRun({ ws, sessionKey: 'oom2', prompt: 'trabalho', resumeId: 'sess-oom2' });
     threads.get('oom2')!.lastExitCode = 137;
