@@ -227,6 +227,8 @@ export function sweepUsage(): void {
     // session_summary também crescia sem poda (1 linha por sessão, pra sempre).
     // Descarta resumos não tocados há > RETAIN_DAYS (sessão antiga/sumida).
     db.prepare('DELETE FROM session_summary WHERE updated_at < ?').run(cutoff);
+    // Same for the last-turn outcome (one row per session, never pruned before).
+    db.prepare('DELETE FROM session_turn_outcome WHERE updated_at < ?').run(cutoff);
   } catch { /* lock/disco — ignora, tenta no próximo sweep */ }
 }
 

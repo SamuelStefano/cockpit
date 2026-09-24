@@ -555,6 +555,16 @@ describe('fila estacionada — teto de tokens', () => {
     expect(unshiftParked).toHaveBeenCalledWith('s2', it0, true);
   });
 
+  it('a queue item whose idle turn is replaced by a new send goes back to the queue', () => {
+    const it0 = item();
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's2', first: it0 }]);
+    vi.mocked(shiftParked).mockReturnValue(it0);
+    drainParked();
+    vi.mocked(unshiftParked).mockClear();
+    startRun({ ws: {} as WebSocket, sessionKey: 's2', prompt: 'urgente' });
+    expect(unshiftParked).toHaveBeenCalledWith('s2', it0, false);
+  });
+
   it('devolve pro topo da fila o item cujo turno morreu no limite', () => {
     const it0 = item();
     vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's2', first: it0 }]);

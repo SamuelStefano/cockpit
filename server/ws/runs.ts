@@ -685,7 +685,18 @@ export function startRun(o: StartRunOptions): 'pane' | undefined {
     }
     return;
   }
-  if (replacing) threads.get(sessionKey)!.handle.kill();
+  if (replacing) {
+    const old = threads.get(sessionKey)!;
+    // The replaced thread's onClose exits early (the map already holds the new
+    // one), so its queue item was dropped. If that turn produced nothing, the
+    // prompt was never consumed — put it back without counting an attempt. When
+    // it did produce something, the priority path already carries it forward.
+    if (old.parked && old.tools.length === 0 && !old.text.trim() && !old.thinking.trim()) {
+      requeueParked(old.parkedFrom ?? sessionKey, old.parked, false);
+      old.parked = undefined;
+    }
+    old.handle.kill();
+  }
   // Turno NOVO (não uma retomada nossa) devolve a cota de retomada da sessão. Só o
   // fechamento saudável zerava, então um turno morto que não fechou saudável (ex.:
   // reapado) deixava a cota gasta pra sempre e a próxima falha de verdade era
