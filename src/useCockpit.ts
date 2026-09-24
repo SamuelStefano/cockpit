@@ -6,6 +6,7 @@ import { MODE_KEY, MODEL_KEY, EFFORT_KEY } from './lib/account-prefs';
 import { persistableModelOverrides } from './cockpit/model-overrides';
 import { SUPABASE_ENABLED, supabase } from './lib/supabase';
 import { onAuthClose, tokenUnchangedAndLive, RELAY_AUTH_RETRY_MS, shouldRefreshSession, dialOnTokenChange } from './cockpit/ws-auth';
+import { TOKEN_EXPIRED_CLOSE, TOKEN_EXPIRED_EVENT } from './lib/auth-events';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
 import { wsUrlWithToken, newId, metaToSession, mergeServerSessions, adoptClaimedRow, dedupById, mergeSeen, isCronPing } from './cockpit/session';
 import { computeStalled, computeUpdated } from './cockpit/signals';
@@ -1447,6 +1448,7 @@ export function useCockpit(): Cockpit {
         }
         return;
       }
+      if (ev.code === TOKEN_EXPIRED_CLOSE) window.dispatchEvent(new Event(TOKEN_EXPIRED_EVENT));
       // 1009 = frame grande demais (ex: anexo que estourou o maxPayload de um hop).
       // O socket caía e reconectava sem explicação (parecia queda de rede em loop).
       // Mostra erro claro e reconecta pra restaurar (o frame ofensor não é reenviado).

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { TOKEN_EXPIRED_EVENT } from './auth-events';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 
@@ -69,7 +70,11 @@ export function useSupabaseAuth(onToken: (token: string | null) => void): AuthSt
       // acesso à caixa de entrada. Volta a fluir no endRecovery.
       onTokenRef.current(recoveryRef.current ? null : (sess?.access_token ?? null));
     });
-    return () => sub.subscription.unsubscribe();
+    // Relay closed the socket at token expiry: refresh now (a hidden tab's auto-
+    // refresh is paused); TOKEN_REFRESHED above hands the new token to the socket.
+    const onExpired = () => { void supabase!.auth.refreshSession().catch(() => {}); };
+    window.addEventListener(TOKEN_EXPIRED_EVENT, onExpired);
+    return () => { sub.subscription.unsubscribe(); window.removeEventListener(TOKEN_EXPIRED_EVENT, onExpired); };
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
