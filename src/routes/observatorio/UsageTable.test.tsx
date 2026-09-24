@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, cleanup, fireEvent } from '@testing-library/react';
-import { UsageTable } from './UsageTable';
+import { UsageTable, USAGE_PAGE } from './UsageTable';
 
 afterEach(cleanup);
 
@@ -18,5 +18,18 @@ describe('UsageTable sort headers', () => {
     fireEvent.click(btn);
     expect(document.activeElement).toBe(getByText('saída').closest('button'));
     expect(btn.closest('th')!.getAttribute('aria-sort')).toBe('descending');
+  });
+});
+
+describe('UsageTable paging', () => {
+  it('renders one page and grows on "ver mais"', () => {
+    const many = Array.from({ length: USAGE_PAGE + 7 }, (_, i) => ({
+      sessionId: `s${i}`, ctxTokens: 1, outputTokens: i, samples: 1, lastTs: i, model: null, requestedModel: null, costUsd: i,
+    })) as never;
+    const { container, getByText, queryByText } = render(<UsageTable rows={many} known={new Set()} titleOf={(id) => id} onOpenSession={() => {}} />);
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(USAGE_PAGE);
+    fireEvent.click(getByText('ver mais (7 restantes)'));
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(USAGE_PAGE + 7);
+    expect(queryByText(/ver mais/)).toBeNull();
   });
 });
