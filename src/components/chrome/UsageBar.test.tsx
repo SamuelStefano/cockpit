@@ -47,4 +47,11 @@ describe('UsageBar', () => {
     fireEvent.click(screen.getByRole('button'));
     expect(screen.getByText('Lendo da conta…')).toBeTruthy();
   });
+
+  it('names the compact meter by what it measures and says it opens a panel', () => {
+    render(<UsageBar usage={usage} compact />);
+    const btn = screen.getByRole('button');
+    expect(btn.getAttribute('aria-haspopup')).toBe('dialog');
+    expect(btn.getAttribute('aria-label')).toMatch(/^Uso do plano: \d+%/);
+  });
 });

@@ -53,6 +53,9 @@ export function UsageBar({ usage, compact, warn = false, paused = false, quotaRe
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
+        aria-haspopup="dialog"
+        // Compact (mobile) shows only "45%"; say what the number is.
+        aria-label={`Uso do plano: ${pct === null ? 'lendo' : `${pct}%`}${paused ? ' — cota esgotada' : warn ? ' — perto do limite' : ''}${gateReset ? `, reseta ${gateReset}` : ''}`}
         title={paused ? `Cota esgotada${gateReset ? ` — reseta ${gateReset}` : ''}` : warn ? `Uso próximo do limite${gateReset ? ` — reseta ${gateReset}` : ''}` : stale ? 'Uso do plano: a janela virou e o número novo ainda não chegou da conta' : old ? `Uso do plano: número lido há ${age} — a leitura nova não chegou` : usage ? 'Ver detalhe do uso do plano' : 'Uso do plano: lendo da conta…'}
         className={`flex items-center border bg-neutral-900/60 py-1.5 transition-colors hover:bg-neutral-900 ${quotaBorder(warn, paused)} ${tokens.radius.md} ${tokens.focusRing} ${compact ? 'gap-1.5 px-2' : 'gap-2 px-2.5'}`}
       >
