@@ -13,7 +13,7 @@ describe('shownMessages', () => {
     const messages: Message[] = [
       { id: 'u', role: 'user', text: 'abre as PRs' },
       toolOnly('a1'), pr(1), toolOnly('a2'), pr(2), toolOnly('a3'), pr(3),
-      { id: 'end', role: 'assistant', blocks: [{ type: 'text', text: 'pronto' }] },
+      { id: 'end', role: 'assistant', blocks: [{ type: 'text', md: 'pronto' }] },
     ];
     const out = shownMessages(messages, true, false);
     const dividers = out.filter((m) => m.role === 'compact') as CompactMessage[];
