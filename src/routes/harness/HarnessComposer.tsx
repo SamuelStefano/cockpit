@@ -42,9 +42,9 @@ export function HarnessComposer({ config, draft: d, running, onRun }: Props) {
       />
 
       {/* flex-auto instead of three equal columns: widths follow the labels, so
-          "Orquestrado" is not cut to "Orquestra…" in a 100px third on a phone.
-          Equal thirds again from sm, where they fit. */}
-      <div className="flex gap-1.5 sm:grid sm:grid-cols-3">
+          "Orquestrado" is not cut to "Orquestra…" in a narrow third (a phone, or
+          the ~111px third at 1024px). */}
+      <div className="flex gap-1.5">
         {MODES.map((m) => (
           <Button
             key={m.id}
