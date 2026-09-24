@@ -4,7 +4,8 @@ import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, TurnS
 import { loadPref, savePref, setPref, usePrefListener } from './lib/persist';
 import { MODE_KEY, MODEL_KEY, EFFORT_KEY } from './lib/account-prefs';
 import { persistableModelOverrides } from './cockpit/model-overrides';
-import { SUPABASE_ENABLED } from './lib/supabase';
+import { SUPABASE_ENABLED, supabase } from './lib/supabase';
+import { onAuthClose, tokenUnchangedAndLive, RELAY_AUTH_RETRY_MS } from './cockpit/ws-auth';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
 import { wsUrlWithToken, newId, metaToSession, mergeServerSessions, adoptClaimedRow, dedupById, mergeSeen, isCronPing } from './cockpit/session';
 import { computeStalled, computeUpdated } from './cockpit/signals';
@@ -1385,9 +1386,18 @@ export function useCockpit(): Cockpit {
       setConn({ ws: 'down', sse: 'down' });
       failAllBenchPending();
       endHandoff();
-      // 4401 = servidor exige token e o nosso falta/está errado. NÃO re-tenta em
-      // loop: mostra o login. Qualquer outro código = queda de rede → backoff.
-      if (ev.code === 4401) { setAuthRequired(true); return; }
+      // 4401 = the identity was refused. Loopback: wrong/missing token, show the
+      // token gate and stop. Relay: see onAuthClose — refresh and retry slowly.
+      // Any other code = network drop → backoff.
+      if (ev.code === 4401) {
+        setAuthRequired(true);
+        if (onAuthClose(SUPABASE_ENABLED) === 'refresh-and-retry') {
+          void supabase?.auth.refreshSession().catch(() => {});
+          if (retry.current) clearTimeout(retry.current);
+          retry.current = setTimeout(() => { retry.current = null; connectRef.current?.(); }, RELAY_AUTH_RETRY_MS);
+        }
+        return;
+      }
       // 1009 = frame grande demais (ex: anexo que estourou o maxPayload de um hop).
       // O socket caía e reconectava sem explicação (parecia queda de rede em loop).
       // Mostra erro claro e reconecta pra restaurar (o frame ofensor não é reenviado).
@@ -1463,7 +1473,7 @@ export function useCockpit(): Cockpit {
   // established") e o TOKEN_REFRESHED periódico reconectaria sem necessidade.
   const submitToken = useCallback((token: string) => {
     const t = token.trim();
-    if (t === tokenRef.current && wsRef.current) return;
+    if (tokenUnchangedAndLive(t, tokenRef.current, wsRef.current?.readyState)) return;
     tokenRef.current = t;
     savePref('auth.token', t);
     setAuthRequired(false);

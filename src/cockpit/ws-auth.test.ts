@@ -1,0 +1,22 @@
+import { describe, it, expect } from 'vitest';
+import { onAuthClose, tokenUnchangedAndLive } from './ws-auth';
+
+describe('onAuthClose', () => {
+  it('shows the token gate on loopback and retries on the relay', () => {
+    expect(onAuthClose(false)).toBe('token-gate');
+    expect(onAuthClose(true)).toBe('refresh-and-retry');
+  });
+});
+
+describe('tokenUnchangedAndLive', () => {
+  it('skips only when the token is the same and the socket is connecting or open', () => {
+    expect(tokenUnchangedAndLive('t', 't', 0)).toBe(true);
+    expect(tokenUnchangedAndLive('t', 't', 1)).toBe(true);
+  });
+
+  it('reconnects after a close, even with the same token', () => {
+    expect(tokenUnchangedAndLive('t', 't', 3)).toBe(false);
+    expect(tokenUnchangedAndLive('t', 't', undefined)).toBe(false);
+    expect(tokenUnchangedAndLive('u', 't', 1)).toBe(false);
+  });
+});
