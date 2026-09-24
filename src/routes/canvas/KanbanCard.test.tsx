@@ -33,13 +33,11 @@ describe('KanbanCard', () => {
     expect(getByText('marcar como feito')).toBeTruthy();
   });
 
-  it('opens with Enter or Space from the keyboard', () => {
+  it('the title is the keyboard button; the card is not a button around other buttons', () => {
     const onSelect = vi.fn();
-    const { container } = render(<KanbanCard {...props} onSelect={onSelect} card={card()} run="running" />);
-    const el = container.firstElementChild as HTMLElement;
-    fireEvent.keyDown(el, { key: 'Enter' });
-    fireEvent.keyDown(el, { key: ' ' });
+    const { container, getByRole } = render(<KanbanCard {...props} onSelect={onSelect} card={card()} run="running" />);
+    expect((container.firstElementChild as HTMLElement).getAttribute('role')).toBeNull();
+    fireEvent.click(getByRole('button', { name: 'T' }));
     expect(onSelect).toHaveBeenCalledWith('card-1');
-    expect(onSelect).toHaveBeenCalledTimes(2);
   });
 });
