@@ -9,6 +9,10 @@ const runs = vi.hoisted(() => ({
   drainParked: vi.fn(),
   runParkedNow: vi.fn(() => ({ ok: true as const })),
   runParkedInBackground: vi.fn(() => ({ forkId: 'f1' })),
+  // Default: never the Orchestrator's own pane — most tests aren't
+  // exercising that exemption (server/ws/runs.ts's real predicate, reused
+  // rather than duplicated by the 'send' guard).
+  orchestratorPaneTarget: vi.fn((): { name: string; sessionId: string; tmux: string } | undefined => undefined),
 }));
 const parked = vi.hoisted(() => ({
   addParked: vi.fn(() => ({ id: 'pk-1' })), removeParked: vi.fn(), editParked: vi.fn(),
@@ -268,12 +272,79 @@ describe('send routing (the #130 role seam)', () => {
     expect(cvLiveness.refreshLivenessSnapshot).not.toHaveBeenCalled();
   });
 
-  it('a session already busy in THIS process routes to routeSend without even consulting the registry guard', async () => {
+  // readBusyElsewhereSessionIds() itself subtracts THIS process's own
+  // threads (server/canvas/cv-liveness.ts's `own = runningSessionIds()`) —
+  // a session genuinely busy here never shows up in its result. The mock
+  // reflects that real behavior (empty), not a hypothetical false positive.
+  it('a session already busy in THIS process still passes the registry guard and routes to routeSend', async () => {
     reg.threads.set('k1', { handle: { kill: vi.fn() }, sessionId: 's1' });
-    cvLiveness.readBusyElsewhereSessionIds.mockResolvedValueOnce(['s1']); // present but irrelevant — liveKey wins first
+    cvLiveness.readBusyElsewhereSessionIds.mockResolvedValueOnce([]);
     await handle(ws, msg(), 'admin');
     expect(runs.routeSend).toHaveBeenCalledOnce();
+    expect(runs.startRun).not.toHaveBeenCalled();
     expect(bc.send).not.toHaveBeenCalledWith(ws, expect.objectContaining({ reason: 'live-elsewhere' }));
+  });
+
+  // BLOCKER (3rd review) #1 — regression: startRun (server/ws/runs.ts)
+  // redirects a message targeting the Orchestrator's OWN live session into
+  // its tmux pane (deliverToOrchestratorPane) instead of spawning a run —
+  // that session is busy in the registry (an interactive claude) almost the
+  // entire time it's working. Without this exemption the guard rejected
+  // every message to the Orchestrator while it was busy, making it
+  // unreachable from the Deck/dock exactly when Samuel needs to interrupt it.
+  it('does not reject the Orchestrator\'s own pane target, and never even reads the registry for it', async () => {
+    runs.orchestratorPaneTarget.mockReturnValueOnce({ name: 'orch', sessionId: 's1', tmux: 'cockpit-orchestrator:@1.%1' });
+    await handle(ws, msg(), 'admin');
+    expect(cvLiveness.readBusyElsewhereSessionIds).not.toHaveBeenCalled();
+    expect(bc.send).not.toHaveBeenCalledWith(ws, expect.objectContaining({ reason: 'live-elsewhere' }));
+    expect(runs.startRun).toHaveBeenCalledOnce(); // startRun itself does the pane redirect
+  });
+
+  it('still rejects a busy NON-orchestrator cv worker (the exemption is narrow)', async () => {
+    runs.orchestratorPaneTarget.mockReturnValueOnce(undefined);
+    cvLiveness.readBusyElsewhereSessionIds.mockResolvedValueOnce(['s1']);
+    await handle(ws, msg(), 'admin');
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ reason: 'live-elsewhere' }));
+    expect(runs.startRun).not.toHaveBeenCalled();
+  });
+
+  // BLOCKER (3rd review) #2 — race: the awaited registry read used to sit
+  // AFTER resolveThreadKey/the liveKey check, so two 'send's for the same
+  // session a few ms apart could both see no liveKey, both await, and both
+  // fall through to startRun — the second call's admission then REPLACES
+  // (kills) the thread the first call just created. Moving the await BEFORE
+  // resolveThreadKey makes resolveThreadKey→liveKey-check→startRun/routeSend
+  // one synchronous block again: whichever call's await resolves LAST always
+  // sees the OTHER's thread already registered and gets queued instead.
+  it('two concurrent sends for the same session: the second is routed/queued, never a replacing startRun', async () => {
+    // Mirrors the real admission side effect (server/ws/threads.ts): startRun
+    // registers the thread synchronously before this mock returns.
+    runs.startRun.mockImplementation((o: { sessionKey: string }) => {
+      reg.threads.set(o.sessionKey, { handle: { kill: vi.fn() } });
+    });
+    let resolveFirst: (v: string[]) => void = () => {};
+    let resolveSecond: (v: string[]) => void = () => {};
+    cvLiveness.readBusyElsewhereSessionIds
+      .mockImplementationOnce(() => new Promise((r) => { resolveFirst = r; }))
+      .mockImplementationOnce(() => new Promise((r) => { resolveSecond = r; }));
+
+    const p1 = handle(ws, msg(), 'admin');
+    const p2 = handle(ws, msg(), 'admin');
+    // Both calls have two awaits ahead of readBusyElsewhereSessionIds
+    // (resolveSkillDeny, hasInteractiveClaude) — a macrotask flush lets
+    // BOTH actually reach it and swap resolveFirst/resolveSecond in for the
+    // no-op placeholders before either is invoked; calling them any earlier
+    // would resolve the placeholder, not the real pending promise, and hang.
+    await new Promise((r) => setTimeout(r, 0));
+    // Let the FIRST call's registry read resolve and fully run its
+    // synchronous resolveThreadKey→startRun tail before the second one does.
+    resolveFirst([]);
+    await p1;
+    resolveSecond([]);
+    await p2;
+
+    expect(runs.startRun).toHaveBeenCalledOnce();
+    expect(runs.routeSend).toHaveBeenCalledOnce();
   });
 });
 
