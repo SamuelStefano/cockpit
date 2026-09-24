@@ -15,6 +15,7 @@ interface Props {
   dim: boolean;
   running: boolean;
   waiting: boolean;
+  orchestrator: boolean;
   stats?: TermStats;
   compact: boolean;
   zoom: number;
@@ -27,7 +28,8 @@ const FAR_ZOOM = 0.3;
 
 const ICON: Record<CanvasNode['kind'], IconName> = { session: 'terminal', context: 'file', card: 'check', shell: 'terminal' };
 
-function frame(n: CanvasNode, selected: boolean): string {
+function frame(n: CanvasNode, selected: boolean, orchestrator: boolean): string {
+  if (orchestrator) return 'border-fuchsia-500 ring-2 ring-fuchsia-500/40 shadow-[0_0_20px_-4px_rgba(217,70,239,0.6)]';
   if (selected) return 'border-orange-400 ring-2 ring-orange-500/40';
   if (n.kind === 'card') return 'border-orange-500/40';
   if (n.hub) return 'border-orange-500/60';
@@ -40,7 +42,7 @@ function StateDot({ running, waiting, archived }: { running: boolean; waiting: b
   return <span className={`h-2 w-2 shrink-0 rounded-full ${archived ? 'bg-neutral-700' : 'bg-neutral-500'}`} title={archived ? 'arquivada' : 'idle'} />;
 }
 
-export const CanvasNodeCard = memo(function CanvasNodeCard({ node: n, pos, selected, dim, running, waiting, stats, compact, zoom, instant, onPointerDown, onOpenTerm }: Props) {
+export const CanvasNodeCard = memo(function CanvasNodeCard({ node: n, pos, selected, dim, running, waiting, orchestrator, stats, compact, zoom, instant, onPointerDown, onOpenTerm }: Props) {
   const alert = n.kind === 'session' ? sessionAlert(waiting, stats) : null;
   const pct = stats ? ctxPct(stats) : null;
   return (
@@ -50,14 +52,17 @@ export const CanvasNodeCard = memo(function CanvasNodeCard({ node: n, pos, selec
       style={{ transform: `translate(${pos.x}px, ${pos.y}px)`, width: NODE_W, height: compact ? undefined : NODE_H, minHeight: compact ? COMPACT_NODE_H : undefined }}
       className={`absolute left-0 top-0 touch-none cursor-grab select-none rounded-xl border bg-neutral-900/95 shadow-lg shadow-black/40 active:cursor-grabbing
         ${instant ? '' : 'transition-opacity'}
-        ${frame(n, selected)} ${dim ? 'opacity-25' : ''} ${n.archived ? 'opacity-60' : ''}`}
+        ${frame(n, selected, orchestrator)} ${dim ? 'opacity-25' : ''} ${n.archived ? 'opacity-60' : ''}`}
     >
       <AlertRing kind={alert} />
-      <div className={`flex items-center gap-1.5 rounded-t-xl border-b border-neutral-800 px-2.5 py-1.5 ${n.hub ? 'bg-orange-500/10' : 'bg-neutral-950/70'}`}>
-        {n.kind === 'session'
-          ? <StateDot running={running} waiting={waiting} archived={n.archived} />
-          : <Icon name={n.hub ? 'layers' : ICON[n.kind]} size={12} className={n.kind === 'card' || n.hub ? 'text-orange-400' : 'text-neutral-500'} />}
+      <div className={`flex items-center gap-1.5 rounded-t-xl border-b px-2.5 py-1.5 ${orchestrator ? 'border-fuchsia-500/40 bg-fuchsia-500/10' : n.hub ? 'border-neutral-800 bg-orange-500/10' : 'border-neutral-800 bg-neutral-950/70'}`}>
+        {orchestrator
+          ? <Icon name="command" size={12} className="text-fuchsia-400" />
+          : n.kind === 'session'
+            ? <StateDot running={running} waiting={waiting} archived={n.archived} />
+            : <Icon name={n.hub ? 'layers' : ICON[n.kind]} size={12} className={n.kind === 'card' || n.hub ? 'text-orange-400' : 'text-neutral-500'} />}
         <span className={`min-w-0 flex-1 truncate font-medium ${n.hub ? 'text-orange-200' : 'text-neutral-100'}`} style={{ fontSize: titleSize(zoom) }}>{n.title}</span>
+        {orchestrator && <Badge tone="purple">ORCHESTRATOR</Badge>}
         {n.kind === 'card' && n.status && <Badge tone={STATUS_TONE[n.status]}>{STATUS_LABEL[n.status]}</Badge>}
         {alert && <AlertBadge kind={alert} pct={pct} />}
         {n.kind === 'session' && !compact && (

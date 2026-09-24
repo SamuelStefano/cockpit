@@ -115,12 +115,18 @@ export interface DeriveSessionItemsOpts extends NodeStatusOpts {
   // Without this, that same session doubles as its own standalone item until
   // the graph catches up.
   extraBoundIds?: Iterable<string>;
+  // The orchestrator's session (shared/canvas.ts OrchestratorInfo.sessionId,
+  // when one is configured) never becomes a normal ToDo/Doing/Review/Done
+  // item — Kanban.tsx pins it above the columns instead, via
+  // orchestratorKanbanItem below.
+  orchestratorSessionId?: string;
 }
 
 // Every session becomes a kanban item EXCEPT one already represented by a
 // card (its run IS the card — canvas-board.ts boundSessions, plus whatever
-// extraBoundIds the caller adds) and automation noise (canvas-automation.ts),
-// unless the user asked to see automations.
+// extraBoundIds the caller adds), the orchestrator's own session, and
+// automation noise (canvas-automation.ts), unless the user asked to see
+// automations.
 export function deriveSessionItems(o: DeriveSessionItemsOpts): SessionKanbanItem[] {
   const boundIds = new Set<string>();
   for (const c of o.cards) for (const sid of boundSessions(o.edges, c.id)) boundIds.add(sid);
@@ -129,6 +135,7 @@ export function deriveSessionItems(o: DeriveSessionItemsOpts): SessionKanbanItem
   const out: SessionKanbanItem[] = [];
   for (const n of o.nodes) {
     if (n.kind !== 'session') continue;
+    if (n.ref === o.orchestratorSessionId) continue;
     if (boundIds.has(n.ref)) continue;
     if (!o.showAutomation && isAutomationSession({ title: n.title, subtitle: n.subtitle })) continue;
     const ns = nodeStatus(n, o);
@@ -138,6 +145,20 @@ export function deriveSessionItems(o: DeriveSessionItemsOpts): SessionKanbanItem
     });
   }
   return out;
+}
+
+// The item pinned above the kanban columns (Kanban.tsx) — same shape as any
+// other row, computed the same way, just never filtered by automation/bound
+// status: the orchestrator always shows, however it's wired up.
+export function orchestratorKanbanItem(nodes: CanvasNode[], o: NodeStatusOpts, orchestratorSessionId: string | undefined): SessionKanbanItem | undefined {
+  if (!orchestratorSessionId) return undefined;
+  const n = nodes.find((x) => x.kind === 'session' && x.ref === orchestratorSessionId);
+  if (!n) return undefined;
+  const ns = nodeStatus(n, o);
+  return {
+    nodeId: n.id, sessionId: n.ref, title: n.title, subtitle: n.subtitle,
+    status: ns.status, running: ns.running, waitingOnUser: ns.waiting, needsAttention: ns.needsAttention, mtime: ns.mtime,
+  };
 }
 
 // A card launched via runCard (or a #592 flow run) is bound under its

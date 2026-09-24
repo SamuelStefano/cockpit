@@ -16,9 +16,10 @@ import { filterCanvas, type CanvasScope } from './canvas-filter';
 import { bounds, layoutCanvas } from './canvas-layout';
 import { boundSessions, mergeBoard, moveCard, newCardId, resolveSaveStatus, stuckContinueCard } from './canvas-board';
 import {
-  deriveSessionItems, doneRecentSessionIds, resolvePendingBoundIds, type LiveSessionInfo, type SessionKanbanItem,
+  deriveSessionItems, doneRecentSessionIds, orchestratorKanbanItem, resolvePendingBoundIds, type LiveSessionInfo, type SessionKanbanItem,
 } from './kanban-items';
 import { placeWindows, TERM_H, TERM_W, winKey } from './canvas-terms';
+import { isOrchestratorNode } from './orchestrator';
 
 export interface CanvasRouteProps {
   connected: boolean;
@@ -180,9 +181,15 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
   );
   const visibleIds = useMemo(() => new Set(visible.nodes.map((n) => n.id)), [visible.nodes]);
   const windows = useMemo(() => new Set(windowIds.filter((id) => visibleIds.has(id))), [windowIds, visibleIds]);
+  const byId = useMemo(() => new Map([...merged.nodes, ...shells].map((n) => [n.id, n])), [merged.nodes, shells]);
+  // Claims lane slot 0 (top-left) the first time it opens — see placeWindows.
+  const orchestratorWindowIds = useMemo(
+    () => new Set([...windows].filter((id) => isOrchestratorNode(byId.get(id) ?? { kind: 'session', ref: '' }, p.graph?.orchestrator))),
+    [windows, byId, p.graph?.orchestrator],
+  );
   const pos = useMemo(
-    () => placeWindows(layoutCanvas(layoutBase.nodes, layoutBase.edges, p.board.pos), p.board.pos, [...windows]),
-    [layoutBase, p.board.pos, windows],
+    () => placeWindows(layoutCanvas(layoutBase.nodes, layoutBase.edges, p.board.pos), p.board.pos, [...windows], orchestratorWindowIds),
+    [layoutBase, p.board.pos, windows, orchestratorWindowIds],
   );
   const rectOf = useCallback((id: string) => {
     const at = pos[id];
@@ -230,7 +237,6 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     const core = [...focus].map(rectOf).filter(Boolean);
     return core.length ? bounds(core) : worldBounds;
   }, [visible.nodes, visible.edges, worldBounds, p.running, windows, rectOf]);
-  const byId = useMemo(() => new Map([...merged.nodes, ...shells].map((n) => [n.id, n])), [merged.nodes, shells]);
   const waiting = useMemo(() => new Set(p.sessions.filter((s) => s.waiting).map((s) => s.id)), [p.sessions]);
 
   // Areas: rectangles track whatever is currently on screen (so hiding one via
@@ -334,12 +340,19 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     // fresh Set when the pending map mutates; its value isn't read.
     [pendingTick, p.pendingSessionIds],
   );
+  const orchestratorSessionId = p.graph?.orchestrator?.sessionId;
   const sessionItems = useMemo(() => deriveSessionItems({
-    nodes: merged.nodes, edges: merged.edges, cards: p.board.cards, showAutomation, extraBoundIds, ...nodeStatusOpts,
+    nodes: merged.nodes, edges: merged.edges, cards: p.board.cards, showAutomation, extraBoundIds, orchestratorSessionId, ...nodeStatusOpts,
   }),
   // eslint-disable-next-line react-hooks/exhaustive-deps -- nodeStatusOpts is a
   // fresh object every render; its own members are the real deps.
-  [merged, p.board.cards, showAutomation, extraBoundIds, p.running, p.board.sessionStatus, turnStartedAt, liveSessions, p.interrupted]);
+  [merged, p.board.cards, showAutomation, extraBoundIds, orchestratorSessionId, p.running, p.board.sessionStatus, turnStartedAt, liveSessions, p.interrupted]);
+  const orchestratorItem = useMemo(
+    () => orchestratorKanbanItem(merged.nodes, nodeStatusOpts, orchestratorSessionId),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- nodeStatusOpts is a
+    // fresh object every render; its own members are the real deps.
+    [merged.nodes, orchestratorSessionId, p.running, p.board.sessionStatus, turnStartedAt, liveSessions, p.interrupted],
+  );
 
   // A 'continue' reuse send runCard already moved to "doing" can still be
   // refused by the SERVER after the fact — the double-writer guard
@@ -506,7 +519,7 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     merged, visible, pos, windows, onDrop, worldBounds, coreBounds, byId, waiting,
     selected, selectedNodes, select, clearSelection,
     draft, setDraft, newDraft, editCard, saveCard, runCard, setStatus, deleteCard, cardSessions,
-    sessionItems, onSessionStatus,
+    sessionItems, orchestratorItem, onSessionStatus,
   };
 }
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import type { AreaId, CanvasEdge, CanvasFlow, CanvasNode, CanvasPos, TermStats } from '../../../shared/canvas';
+import type { AreaId, CanvasEdge, CanvasFlow, CanvasNode, CanvasPos, OrchestratorInfo, TermStats } from '../../../shared/canvas';
 import type { BudgetStatus } from '../../../shared/canvas-budget';
 import { CanvasAreas } from './CanvasAreas';
 import type { AreaRect } from './canvas-areas';
@@ -13,6 +13,7 @@ import type { TermApi } from '../../useCockpit';
 import type { CanvasTerms } from './useCanvasTerms';
 import { TERM_H, TERM_W } from './canvas-terms';
 import { neighbors } from './canvas-filter';
+import { isOrchestratorNode } from './orchestrator';
 import { useCanvasViewport } from './useCanvasViewport';
 import { useFlowPorts } from './useFlowPorts';
 import { useNodeDrag } from './useNodeDrag';
@@ -57,6 +58,8 @@ interface Props {
   // Timeline is animating through many time steps a second: CSS opacity
   // transitions re-triggering on every node, every tick, is real jank.
   timelinePlaying: boolean;
+  orchestrator: OrchestratorInfo | undefined;
+  onFocusOrchestrator?: () => void;
   children?: React.ReactNode;
 }
 
@@ -181,13 +184,15 @@ export function CanvasSurface(p: Props) {
             key={n.id} node={n} pos={pos[n.id]} compact={compact} zoom={view.k}
             selected={selectedSet.has(n.id)} dim={(focus.size > 0 && !focus.has(n.id)) || (p.pastAlive !== null && !p.pastAlive.has(n.id))}
             running={n.kind === 'session' && p.running.has(n.ref)} waiting={n.kind === 'session' && p.waiting.has(n.ref)}
+            orchestrator={isOrchestratorNode(n, p.orchestrator)}
             stats={p.stats[n.ref]} instant={p.timelinePlaying}
             onPointerDown={onNodeDown} onOpenTerm={p.onOpenTerm}
           />
         ))}
         <CanvasWindows
           nodes={wins} pos={pos} terms={p.terms} term={p.term} selected={selectedSet} focus={focus}
-          running={p.running} waiting={p.waiting} onPointerDown={onNodeDown} onOpenChat={p.onOpenChat} onSendTo={p.onSendTo}
+          running={p.running} waiting={p.waiting} orchestrator={p.orchestrator}
+          onPointerDown={onNodeDown} onOpenChat={p.onOpenChat} onSendTo={p.onSendTo}
           sendError={p.sendError} onDismissSendError={p.onDismissSendError} stats={p.stats}
           past={p.pastAlive !== null} pastAlive={p.pastAlive} instant={p.timelinePlaying}
         />
@@ -204,6 +209,7 @@ export function CanvasSurface(p: Props) {
         onResetLayout={() => { armFit(); p.onResetLayout(); }}
         onOpenRecent={() => { armFit(); p.onOpenRecent(); }}
         analysisOn={p.analysisOn} onToggleAnalysis={p.onToggleAnalysis}
+        onFocusOrchestrator={p.onFocusOrchestrator}
       />
     </div>
   );

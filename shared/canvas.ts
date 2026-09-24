@@ -141,10 +141,22 @@ export interface CanvasEdge {
   files?: string[]; // 'conflict' only: absolute paths both sessions wrote, newest first, capped
 }
 
+// The one session that commands every other one (server/canvas/orchestrator.ts
+// reads it from ~/.cockpit/orchestrator.json). `sessionId` binds the kanban/
+// session-list card; `tmux` binds the canvas SHELL window it runs in — see
+// src/routes/canvas/orchestrator.ts for how a node is matched against this.
+// Absent = nobody has designated one, the default state.
+export interface OrchestratorInfo {
+  name: string;
+  sessionId: string;
+  tmux: string;
+}
+
 export interface CanvasGraph {
   nodes: CanvasNode[];
   edges: CanvasEdge[];
   builtAt: number;
+  orchestrator?: OrchestratorInfo;
 }
 
 export interface CanvasPos { x: number; y: number }

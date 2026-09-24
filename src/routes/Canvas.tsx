@@ -5,6 +5,7 @@ import { usePersisted } from '../lib/persist';
 import { countHotContext, countWaiting } from './canvas/canvas-alerts';
 import { neighbors } from './canvas/canvas-filter';
 import { newFlowId } from './canvas/canvas-board';
+import { isOrchestratorNode } from './canvas/orchestrator';
 import { AreaBudgetEditor } from './canvas/AreaBudgetEditor';
 import { pastAliveIds, pastExecIds } from './canvas/canvas-timeline';
 import { bounds, layoutCanvas } from './canvas/canvas-layout';
@@ -44,6 +45,21 @@ export function Canvas(p: CanvasRouteProps) {
     select(id, false);
     setCenter((c) => ({ id, n: (c?.n ?? 0) + 1 }));
   }, [select]);
+  // Prefers the live terminal window (the actual orchestrator process) over
+  // the bare session node — falls back to the session when the shell hasn't
+  // shown up on the canvas yet (tmux not (re)discovered since the last poll).
+  const orchestratorNodeId = useMemo(() => {
+    const info = p.graph?.orchestrator;
+    if (!info) return null;
+    let sessionNodeId: string | null = null;
+    for (const n of r.byId.values()) {
+      if (!isOrchestratorNode(n, info)) continue;
+      if (n.kind === 'shell') return n.id;
+      sessionNodeId = n.id;
+    }
+    return sessionNodeId;
+  }, [p.graph?.orchestrator, r.byId]);
+  const onFocusOrchestrator = orchestratorNodeId ? () => focusNode(orchestratorNodeId) : undefined;
   const linked = useCallback((id: string) => [...neighbors(r.merged.edges, id)].map((x) => r.byId.get(x)!).filter(Boolean), [r.merged.edges, r.byId]);
   const card = useCallback((id: string) => p.board.cards.find((c) => c.id === id), [p.board.cards]);
   const node = useCallback((id: string) => r.byId.get(id), [r.byId]);
@@ -170,7 +186,7 @@ export function Canvas(p: CanvasRouteProps) {
 
   const kanban = (
     <Kanban
-      cards={p.board.cards} sessionItems={r.sessionItems} termStats={p.termStats}
+      cards={p.board.cards} sessionItems={r.sessionItems} orchestratorItem={r.orchestratorItem} termStats={p.termStats}
       selected={r.selected} running={p.running} sessionsOf={r.cardSessions} nodeOf={sessionNodeOf}
       onSelect={(id) => (r.mode === 'canvas' && p.graph ? focusNode(`k:${id}`) : r.editCard(id))}
       onSelectSession={(nodeId) => (r.mode === 'canvas' && p.graph ? focusNode(nodeId) : r.select(nodeId, false))}
@@ -210,7 +226,8 @@ export function Canvas(p: CanvasRouteProps) {
               stats={p.termStats} analysisOn={analysisOn} onToggleAnalysis={() => setAnalysisOn(!analysisOn)}
               flows={p.board.flows} flowFired={p.canvasFlowFired} onFlowCreate={openFlowDraft} onFlowClick={editFlow}
               areaRects={r.areaRects} budgetStatus={r.budgetStatus} onEditBudget={r.setBudgetEditArea}
-              pastAlive={pastAlive} timelinePlaying={timeline.playing}
+              pastAlive={pastAlive} timelinePlaying={timeline.playing} orchestrator={p.graph.orchestrator}
+              onFocusOrchestrator={onFocusOrchestrator}
             >
               <CanvasHud sessions={p.sessions} running={p.running} onPick={(id) => focusNode(`s:${id}`)} />
               {r.selectedNodes.length > 0 && (

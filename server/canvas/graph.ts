@@ -1,6 +1,6 @@
 import type { SessionMeta } from '../../shared/protocol';
 import {
-  type CanvasCard, type CanvasEdge, type CanvasEdgeKind, type CanvasGraph, type CanvasNode,
+  type CanvasCard, type CanvasEdge, type CanvasEdgeKind, type CanvasGraph, type CanvasNode, type OrchestratorInfo,
   cardNodeId, contextNodeId, sessionNodeId,
 } from '../../shared/canvas';
 import type { SessionRefs } from './refs';
@@ -42,6 +42,9 @@ export interface GraphInput {
   // about it — defaulted to "" below, which never matches any path.
   memoryDir?: string;
   tmpDir?: string;
+  // Read by the caller (server/canvas/index.ts, orchestrator.ts) — passed
+  // through untouched, this function does no I/O of its own.
+  orchestrator?: OrchestratorInfo;
 }
 
 // Wikilinks name memories by slug or by frontmatter name, with - and _ used
@@ -175,5 +178,5 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
   const areas = classifyAreas(nodes, edges);
   for (const n of nodes) { const a = areas.get(n.id); if (a) n.area = a; }
 
-  return { nodes, edges, builtAt: now };
+  return { nodes, edges, builtAt: now, orchestrator: input.orchestrator };
 }
