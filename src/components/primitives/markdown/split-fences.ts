@@ -5,7 +5,18 @@ export function splitFences(md: string): Array<{ t: 'code'; lang: string; code: 
   const lines = md.split('\n');
   const segs: Array<{ t: 'code'; lang: string; code: string } | { t: 'prose'; text: string }> = [];
   let prose: string[] = [];
-  const flush = () => { if (prose.join('\n').trim()) segs.push({ t: 'prose', text: prose.join('\n') }); prose = []; };
+  // Blank lines at the edges of a prose run are dropped: the blank line after a
+  // closing fence (or before an opening one) stuck to the next block, so
+  // "```…```\n\n## Title" rendered "## Title" as literal text, and a table right
+  // before a fence got an empty last row.
+  const flush = () => {
+    let a = 0;
+    let b = prose.length;
+    while (a < b && !prose[a].trim()) a++;
+    while (b > a && !prose[b - 1].trim()) b--;
+    if (b > a) segs.push({ t: 'prose', text: prose.slice(a, b).join('\n') });
+    prose = [];
+  };
   let i = 0;
   while (i < lines.length) {
     // `:` está no conjunto por causa do bench (```bench:<slug>).
