@@ -3,6 +3,7 @@ import { Button, Badge, EmptyState, Markdown, RouteHeader } from '../components/
 import { useNotasEditor } from './notas/useNotasEditor';
 import { useCopied } from '../lib/useCopied';
 import { comboLabel } from '../lib/platform';
+import { useArmed } from '../components/primitives/useArmed';
 
 interface Props {
   connected: boolean;
@@ -27,6 +28,7 @@ export function Notas({ connected, notes, notesLoaded, onNotesGet, onNotesSave, 
   // Save what's typed first (the debounce may still hold the last keystrokes), and
   // ignore a second tap while the route is changing.
   const [analyzing, setAnalyzing] = useState(false);
+  const wipe = useArmed();
   const analyze = () => { if (analyzing) return; setAnalyzing(true); flush(); onAnalyze(text); setTimeout(() => setAnalyzing(false), 3000); };
   const onKey = (e: React.KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); flush(); }
@@ -41,7 +43,7 @@ export function Notas({ connected, notes, notesLoaded, onNotesGet, onNotesSave, 
           subtitle={
             <>
               <span>Rascunho livre, salvo automaticamente.</span>
-              {counts.chars > 0 && <span className="tabular-nums text-neutral-600">{counts.words} palavras · {counts.lines} linhas</span>}
+              {counts.chars > 0 && <span className="tabular-nums text-neutral-600">{counts.words} {counts.words === 1 ? 'palavra' : 'palavras'} · {counts.lines} {counts.lines === 1 ? 'linha' : 'linhas'}</span>}
               <Badge tone={statusBadge.tone} dot>{statusBadge.label}</Badge>
             </>
           }
@@ -52,7 +54,11 @@ export function Notas({ connected, notes, notesLoaded, onNotesGet, onNotesSave, 
                 {preview ? 'Editar' : 'Prévia'}
               </Button>
               <Button variant="ghost" size="sm" icon={copied ? 'check' : 'copy'} title="Copiar tudo" onClick={copy} disabled={!text.trim()} />
-              <Button variant="ghost" size="sm" icon="trash" title="Limpar" onClick={clear} disabled={!text.trim()} />
+              {/* The whole note, gone on one tap next to "copiar": two taps now. */}
+              <Button variant={wipe.armed ? 'danger' : 'ghost'} size="sm" icon="trash" title={wipe.armed ? 'Toque de novo pra apagar a nota' : 'Limpar'}
+                aria-label={wipe.armed ? 'Confirmar: apagar a nota' : 'Limpar'} onClick={() => wipe.fire(clear)} disabled={!text.trim()}>
+                {wipe.armed ? 'apagar?' : undefined}
+              </Button>
               <Button variant="primary" size="sm" icon="sparkles" onClick={analyze} disabled={!text.trim() || analyzing}>
                 Analisar com IA
               </Button>
