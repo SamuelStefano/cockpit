@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { useHarness } from './useHarness';
+import { useHarness, appendHarnessEvent } from './useHarness';
 import type { ClientMsg, HarnessTaskView } from '../../shared/protocol';
 
 const tarefa = (id: string, ts: number, status: HarnessTaskView['status'] = 'running'): HarnessTaskView => ({
@@ -45,8 +45,9 @@ describe('useHarness', () => {
       result.current.onMsg({ t: 'harness-event', taskId: 'b', event: { kind: 'text', text: 'x' } });
       result.current.onMsg({ t: 'harness-event', taskId: 'a', event: { kind: 'text', text: '2' } });
     });
-    expect(result.current.harnessEvents.a).toHaveLength(2);
-    expect(result.current.harnessEvents.b).toHaveLength(1);
+    // Consecutive text deltas are merged (the feed joins them anyway).
+    expect(result.current.harnessEvents.a.map((e) => e.text).join('')).toBe('12');
+    expect(result.current.harnessEvents.b.map((e) => e.text).join('')).toBe('x');
   });
 
   it('manda get e run', () => {
@@ -58,5 +59,23 @@ describe('useHarness', () => {
   it('devolve false pro que não é dele', () => {
     const { result } = montar();
     expect(result.current.onMsg({ t: 'notes', text: '' })).toBe(false);
+  });
+});
+
+describe('appendHarnessEvent', () => {
+  it('merges consecutive text deltas so a long answer is never cut', () => {
+    let m: Record<string, import('../../shared/protocol').HarnessEvent[]> = {};
+    m = appendHarnessEvent(m, 't', { kind: 'classified', tier: 'simple' } as never);
+    for (let i = 0; i < 500; i++) m = appendHarnessEvent(m, 't', { kind: 'text', text: `${i} ` });
+    expect(m.t).toHaveLength(2);
+    expect(m.t[1].text!.startsWith('0 1 2 ')).toBe(true);
+    expect(m.t[1].text!.endsWith('499 ')).toBe(true);
+  });
+
+  it('keeps event logs only for the 20 most recently active tasks', () => {
+    let m: Record<string, import('../../shared/protocol').HarnessEvent[]> = {};
+    for (let i = 0; i < 25; i++) m = appendHarnessEvent(m, `t${i}`, { kind: 'done' });
+    expect(Object.keys(m)).toHaveLength(20);
+    expect(m.t0).toBeUndefined();
   });
 });

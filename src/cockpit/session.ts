@@ -115,9 +115,13 @@ export function dedupById<T extends { id: string }>(rows: T[]): T[] {
 // locais são preservados, e ids sumidos (arquivados/apagados) são podados. Só
 // mtime que AVANÇA depois é que marca a sessão como "atualizada". `changed`
 // avisa o chamador se vale persistir/atualizar o estado.
+// `keepLocal`: the `new-` ids still open here. Any other `new-` key is a draft
+// session that was abandoned or reloaded before its first turn; keeping them all
+// grew `cockpit:seen` in localStorage forever.
 export function mergeSeen(
   prev: Record<string, number>,
   items: { id: string; mtime: number }[],
+  keepLocal: ReadonlySet<string> = new Set(),
 ): { next: Record<string, number>; changed: boolean } {
   const live = new Set(items.map((m) => m.id));
   const next: Record<string, number> = {};
@@ -127,7 +131,11 @@ export function mergeSeen(
     if (prev[m.id] === undefined) changed = true;
   }
   for (const id of Object.keys(prev)) {
-    if (id.startsWith('new-')) { next[id] = prev[id]; continue; }
+    if (id.startsWith('new-')) {
+      if (keepLocal.has(id)) next[id] = prev[id];
+      else changed = true;
+      continue;
+    }
     if (!live.has(id)) changed = true;
   }
   return { next, changed };

@@ -11,6 +11,27 @@ export interface Harness {
   onMsg: (msg: ServerMsg) => boolean;
 }
 
+const TASKS_WITH_EVENTS = 20;
+
+// Each `text` event is ONE stream delta, and the feed shows a running task as
+// the joined text. Capping the event count cut the start of any long answer
+// while it streamed. Consecutive deltas are merged instead, so a task's log
+// stays a handful of events (classified, model-selected, text, done) without
+// losing anything; only the 20 most recently active tasks keep a log.
+export function appendHarnessEvent(prev: Record<string, HarnessEvent[]>, taskId: string, event: HarnessEvent): Record<string, HarnessEvent[]> {
+  const cur = prev[taskId] ?? [];
+  const last = cur[cur.length - 1];
+  const events = event.kind === 'text' && last?.kind === 'text'
+    ? [...cur.slice(0, -1), { ...last, text: (last.text ?? '') + (event.text ?? '') }]
+    : [...cur, event];
+  const next: Record<string, HarnessEvent[]> = { ...prev };
+  delete next[taskId];
+  next[taskId] = events; // re-inserted last: key order = recency (task ids are UUIDs, never integer-like)
+  const keys = Object.keys(next);
+  for (const k of keys.slice(0, Math.max(0, keys.length - TASKS_WITH_EVENTS))) delete next[k];
+  return next;
+}
+
 export function useHarness(send: (m: ClientMsg) => boolean): Harness {
   const [harnessConfig, setHarnessConfig] = useState<HarnessConfig | null>(null);
   const [harnessTasks, setHarnessTasks] = useState<HarnessTaskView[]>([]);
@@ -29,7 +50,9 @@ export function useHarness(send: (m: ClientMsg) => boolean): Harness {
         setHarnessTasks((prev) => [msg.task, ...prev.filter((t) => t.id !== msg.task.id)].sort((a, b) => b.ts - a.ts));
         return true;
       case 'harness-event':
-        setHarnessEvents((prev) => ({ ...prev, [msg.taskId]: [...(prev[msg.taskId] ?? []), msg.event] }));
+        // Merged and bounded (see appendHarnessEvent): the map used to grow for
+        // the whole day-long session.
+        setHarnessEvents((prev) => appendHarnessEvent(prev, msg.taskId, msg.event));
         return true;
       default:
         return false;
