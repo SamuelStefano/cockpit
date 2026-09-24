@@ -17,4 +17,10 @@ describe('OfflineNotice', () => {
     fireEvent.click(getByText('Reconectar agora'));
     expect(onReconnect).toHaveBeenCalledOnce();
   });
+
+  it('says the login was refused, not that the backend is down, after a relay 4401', () => {
+    const { getByText, queryByText } = render(<OfflineNotice show authRejected />);
+    expect(getByText('Login recusado pelo relay')).toBeTruthy();
+    expect(queryByText('Backend não acessível')).toBeNull();
+  });
 });

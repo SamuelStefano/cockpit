@@ -181,7 +181,7 @@ export function CockpitApp() {
 
       {/* Âncora de altura zero no fluxo: o aviso pende daqui, logo abaixo do header. */}
       <div className="relative z-40">
-        <OfflineNotice show={showOffline} onReconnect={reconnectNow} />
+        <OfflineNotice show={showOffline} onReconnect={reconnectNow} authRejected={SUPABASE_ENABLED && authRequired} />
         {/* Um de cada vez na mesma âncora, e offline ganha: sem servidor não há
             versão nova pra buscar, e recarregar ali só daria página em branco. */}
         <UpdateNotice show={updateReady && !updateClosed && !showOffline} onApply={applyUpdate} onDismiss={() => setUpdateClosed(true)} />

@@ -13,7 +13,9 @@ export function backendHost(base = wsBase()): string {
 // front no Vercel sem túnel pro backend loopback). Evita a sensação de "app quebrado".
 // Ancora no wrapper de altura zero que o App monta logo abaixo do header: o `top`
 // mágico de 58px saía do lugar quando a safe-area do iPhone empurrava o header.
-export function OfflineNotice({ show, onReconnect }: { show: boolean; onReconnect?: () => void }) {
+// `authRejected`: the relay answered 4401. The backend is up; the login was
+// refused, and useCockpit refreshes it and retries on its own.
+export function OfflineNotice({ show, onReconnect, authRejected = false }: { show: boolean; onReconnect?: () => void; authRejected?: boolean }) {
   const [showConnect, setShowConnect] = useState(false);
   if (!show) return null;
   return (
@@ -24,9 +26,11 @@ export function OfflineNotice({ show, onReconnect }: { show: boolean; onReconnec
             <Icon name="circle" size={13} />
           </span>
           <div className="leading-tight">
-            <p className="text-[12px] font-medium text-red-200">Backend não acessível</p>
+            <p className="text-[12px] font-medium text-red-200">{authRejected ? 'Login recusado pelo relay' : 'Backend não acessível'}</p>
             <p className="text-[11px] text-red-200/70">
-              O Deck não alcança o servidor em <span className="font-mono">{backendHost()}</span>. Confira se o backend está rodando (ou o túnel/Tailscale). Tentando reconectar…
+              {authRejected
+                ? <>O relay em <span className="font-mono">{backendHost()}</span> não aceitou a sua sessão. Renovando o login e tentando de novo em até 30s; se persistir, saia e entre de novo.</>
+                : <>O Deck não alcança o servidor em <span className="font-mono">{backendHost()}</span>. Confira se o backend está rodando (ou o túnel/Tailscale). Tentando reconectar…</>}
             </p>
             {onReconnect && (
               <button
