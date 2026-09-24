@@ -26,4 +26,19 @@ describe('useLongPress', () => {
     result.current.handlers.onContextMenu(e);
     expect(e.preventDefault).not.toHaveBeenCalled();
   });
+
+  it('leaves a long press inside a text field to the phone (select/paste)', () => {
+    vi.useFakeTimers();
+    const onLong = vi.fn();
+    const { result } = renderHook(() => useLongPress(onLong));
+    const ta = document.createElement('textarea');
+    act(() => { result.current.handlers.onTouchStart({ target: ta }); });
+    act(() => { vi.advanceTimersByTime(500); });
+    expect(onLong).not.toHaveBeenCalled();
+    expect(result.current.open).toBe(false);
+    const e = evt();
+    result.current.handlers.onContextMenu(e);
+    expect(e.preventDefault).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
 });
