@@ -160,6 +160,13 @@ export function openTerm(
   return true;
 }
 
+// Scrollback snapshot of a live PTY (null when there is none), for a viewer that
+// is already attached but lost its screen (see terminal-handler's shared mode).
+export function termSnapshot(id: string): string | null {
+  const t = terms.get(id);
+  return t?.buffer ? trimBuffer(t.buffer) : null;
+}
+
 export function detachTerm(id: string, onData: (d: string) => void, onExit: () => void) {
   const t = terms.get(id);
   if (!t) return;

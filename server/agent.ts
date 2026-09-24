@@ -150,7 +150,7 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: ()
       ws.removeListener('message', onHandshake);    // serveConnection assume o loop
       activeWs = ws;
       setClientSource({ clients: new Set([ws]) });  // broadcast sai por ESTE socket
-      serveConnection(ws, { role: AGENT_ROLE, sendCaps: false }); // relay é a fonte do caps
+      serveConnection(ws, { role: AGENT_ROLE, sendCaps: false, shared: true }); // relay é a fonte do caps; um socket pra todas as abas
       // bootstrap do serveConnection já replaya o último snapshot (models/plan-usage/
       // stats) PRA ESTE socket; os loops periódicos (startLoops no runAgent) seguem
       // emitindo via broadcast enquanto este socket for o activeWs.
