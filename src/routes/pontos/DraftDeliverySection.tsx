@@ -4,6 +4,7 @@ import { DraftTaskRow } from './DraftTaskRow';
 import { AddTaskRow } from './AddTaskRow';
 import { useDropZone } from './useDropZone';
 import { brlShort, centsFromPoints, fmtPts } from './money';
+import { useArmed } from '../../components/primitives/useArmed';
 
 interface Props {
   draft: DflDraft;
@@ -28,6 +29,7 @@ export function DraftDeliverySection({ draft, delivery, pointValue, selected, on
   const drop = useDropZone((taskId) => onDrop(delivery.id, taskId));
   const epicId = draft.id;
 
+  const del = useArmed();
   return (
     <section {...drop.bind} aria-label={delivery.title}
       className={`overflow-hidden rounded-lg border transition ${drop.over ? 'border-orange-500/60 bg-orange-500/[0.04]' : 'border-neutral-800/80 bg-neutral-900/30'}`}>
@@ -48,8 +50,10 @@ export function DraftDeliverySection({ draft, delivery, pointValue, selected, on
               title="Mandar o agente criar só esta delivery no DFL">criar só esta</Button>
           )}
           {draft.deliveries.length > 1 && (
-            <Button variant="ghost" size="xs" square icon="x" onClick={() => onOp({ op: 'delete-delivery', epicId, deliveryId: delivery.id })}
-              title="Remover delivery (as tasks vão pra primeira)" aria-label="Remover delivery" />
+            del.armed
+              ? <Button variant="danger" size="xs" onClick={() => del.fire(() => onOp({ op: 'delete-delivery', epicId, deliveryId: delivery.id }))}>remover?</Button>
+              : <Button variant="ghost" size="xs" square icon="x" onClick={() => del.fire(() => {})}
+                  title="Remover delivery (as tasks vão pra primeira)" aria-label="Remover delivery" />
           )}
         </span>
       </div>
