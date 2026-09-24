@@ -50,9 +50,14 @@ const termStats = vi.hoisted(() => ({
   newCpuSamples: vi.fn(() => new Map()),
 }));
 const cvLiveness = vi.hoisted(() => ({
-  // Registry union MINUS this process's own threads (server/canvas/cv-liveness.ts)
-  // — default empty: most tests aren't exercising the cross-process guard.
+  // Display union MINUS this process's own threads (server/canvas/cv-liveness.ts)
+  // — default empty. Used for the 'canvas-get' cv-live reply, NOT the guard.
   lastCvLiveSessionIds: vi.fn((): string[] => []),
+  // Strict (alive pid + busy, no fresh-mtime grace) — this is what the 'send'
+  // cross-process guard actually checks. Default empty: most tests aren't
+  // exercising it.
+  lastBusyElsewhereSessionIds: vi.fn((): string[] => []),
+  lastIdleCvSessionIds: vi.fn((): string[] => []),
 }));
 const parse = vi.hoisted(() => ({ parseSession: vi.fn(), parseFullSession: vi.fn() }));
 const cfg = vi.hoisted(() => ({ CONFIG: { localOnly: true, historyLimit: 2000 } }));
@@ -167,12 +172,12 @@ describe('send routing (the #130 role seam)', () => {
   });
 
   // Deck runs two backend processes (server/index.ts, server/agent.ts), each
-  // with its own `threads` map. lastCvLiveSessionIds() already subtracts
-  // THIS process's own threads (server/canvas/cv-liveness.ts), so a match
-  // there is by construction a turn live in the OTHER one — starting a
-  // `claude --resume` on top of it would fork the transcript.
-  it('refuses (send-reject, live-elsewhere) when the target session is live per the registry but not one of THIS process\'s own threads', async () => {
-    cvLiveness.lastCvLiveSessionIds.mockReturnValueOnce(['s1']); // msg().sessionId === 's1'
+  // with its own `threads` map. lastBusyElsewhereSessionIds() already
+  // subtracts THIS process's own threads (server/canvas/cv-liveness.ts), so
+  // a match there is by construction a turn live in the OTHER one —
+  // starting a `claude --resume` on top of it would fork the transcript.
+  it('refuses (send-reject, live-elsewhere) when the target session is strictly busy elsewhere and not one of THIS process\'s own threads', async () => {
+    cvLiveness.lastBusyElsewhereSessionIds.mockReturnValueOnce(['s1']); // msg().sessionId === 's1'
     await handle(ws, msg(), 'admin');
     expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({
       t: 'send-reject', sessionKey: 'k1', reason: 'live-elsewhere', text: 'hi', msgId: 'm1',
@@ -181,15 +186,28 @@ describe('send routing (the #130 role seam)', () => {
     expect(runs.routeSend).not.toHaveBeenCalled();
   });
 
-  it('starts normally when the registry has no external match for the session', async () => {
-    cvLiveness.lastCvLiveSessionIds.mockReturnValueOnce([]);
+  it('starts normally when the registry has no strict busy-elsewhere match for the session', async () => {
+    cvLiveness.lastBusyElsewhereSessionIds.mockReturnValueOnce([]);
     await handle(ws, msg(), 'admin');
     expect(runs.startRun).toHaveBeenCalledOnce();
   });
 
+  // The BLOCKER this test guards against: a browser turn on 's1' just ended
+  // in the OTHER process (its thread is gone there too), Samuel sends a
+  // normal follow-up within the fresh-mtime grace window — the DISPLAY list
+  // (lastCvLiveSessionIds) still carries 's1' for a couple more minutes, but
+  // the STRICT guard must not, so the follow-up must go through.
+  it('does NOT refuse when the session is only in the display-live list (fresh mtime) but not the strict busy-elsewhere one', async () => {
+    cvLiveness.lastCvLiveSessionIds.mockReturnValueOnce(['s1']);
+    cvLiveness.lastBusyElsewhereSessionIds.mockReturnValueOnce([]);
+    await handle(ws, msg(), 'admin');
+    expect(runs.startRun).toHaveBeenCalledOnce();
+    expect(bc.send).not.toHaveBeenCalledWith(ws, expect.objectContaining({ reason: 'live-elsewhere' }));
+  });
+
   it('a session already busy in THIS process routes to routeSend without even consulting the registry guard', async () => {
     reg.threads.set('k1', { handle: { kill: vi.fn() }, sessionId: 's1' });
-    cvLiveness.lastCvLiveSessionIds.mockReturnValueOnce(['s1']); // present but irrelevant — liveKey wins first
+    cvLiveness.lastBusyElsewhereSessionIds.mockReturnValueOnce(['s1']); // present but irrelevant — liveKey wins first
     await handle(ws, msg(), 'admin');
     expect(runs.routeSend).toHaveBeenCalledOnce();
     expect(bc.send).not.toHaveBeenCalledWith(ws, expect.objectContaining({ reason: 'live-elsewhere' }));

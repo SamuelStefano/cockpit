@@ -46,7 +46,7 @@ import { buildBench } from '../bench';
 import { buildCanvas } from '../canvas/index';
 import { readOrchestrator } from '../canvas/orchestrator';
 import { readOrchestratorActivity } from '../canvas/orchestrator-activity';
-import { lastCvLiveSessionIds } from '../canvas/cv-liveness';
+import { lastBusyElsewhereSessionIds, lastCvLiveSessionIds, lastIdleCvSessionIds } from '../canvas/cv-liveness';
 import { peekSession } from '../sessions/peek';
 import { collectCtxOnly, collectTermStats, hasInteractiveClaude, newCpuSamples, type CpuSamples } from '../canvas/term-stats';
 import {
@@ -214,7 +214,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // (canvas/autopause-loop.ts): reuses this exact graph, no extra build.
       updateAreaCacheFromGraph(graph);
       send(ws, { t: 'canvas-graph', graph });
-      send(ws, { t: 'cv-live', sessionIds: lastCvLiveSessionIds() });
+      send(ws, { t: 'cv-live', sessionIds: lastCvLiveSessionIds(), idleSessionIds: lastIdleCvSessionIds() });
       return;
     }
     case 'orchestrator-get': {
@@ -936,11 +936,14 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // (server/index.ts, server/agent.ts), each with its own map — a session
       // already live in the OTHER one is invisible here, and starting a
       // `claude --resume` on it would fork the transcript exactly like the
-      // same-process hasInteractiveClaude case above. lastCvLiveSessionIds()
+      // same-process hasInteractiveClaude case above. lastBusyElsewhereSessionIds()
       // (server/canvas/cv-liveness.ts) already subtracts THIS process's own
       // threads, so any match here is by construction someone else's turn —
-      // a cv-shell worker or a turn running in the other process.
-      if (lastCvLiveSessionIds().includes(msg.sessionId ?? msg.sessionKey)) {
+      // a cv-shell worker or a turn running in the other process. Deliberately
+      // NOT lastCvLiveSessionIds(): that display list's fresh-mtime grace
+      // period would reject an ordinary follow-up sent within ~2min of the
+      // OTHER process's turn closing, when nobody is actually racing anymore.
+      if (lastBusyElsewhereSessionIds().includes(msg.sessionId ?? msg.sessionKey)) {
         send(ws, {
           t: 'send-reject', sessionKey: msg.sessionKey, reason: 'live-elsewhere', text: msg.text, msgId: msg.msgId,
           message: 'Essa sessão já tem um turno rodando no outro processo do Deck (deckctl/agente) — espere ele terminar antes de mandar mensagem por aqui.',

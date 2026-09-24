@@ -89,6 +89,9 @@ export interface CanvasRouteProps {
   orchestratorActivity: OrchestratorActivity | null;
   onOrchestratorActivityGet: () => void;
   cvLiveSessionIds: string[];
+  // A cv shell alive but idle (waiting on Samuel) — optional, an older
+  // server simply never sends it.
+  cvIdleSessionIds?: string[];
   sessionPeeks: Record<string, SessionPeek | null>;
   onSessionPeek: (sessionId: string) => void;
 }
@@ -158,7 +161,8 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     return m;
   }, [p.sessions]);
   const cvLive = useMemo(() => new Set(p.cvLiveSessionIds), [p.cvLiveSessionIds]);
-  const nodeStatusOpts = { running: p.running, overrides: p.board.sessionStatus, turnStartedAt, liveSessions, interrupted: p.interrupted, cvLive };
+  const idleCvLive = useMemo(() => new Set(p.cvIdleSessionIds ?? []), [p.cvIdleSessionIds]);
+  const nodeStatusOpts = { running: p.running, overrides: p.board.sessionStatus, turnStartedAt, liveSessions, interrupted: p.interrupted, cvLive, idleCvLive };
   // Every SESSION NODE, not deriveSessionItems' deduped/automation-filtered
   // list: a session bound to a card, or an automation run, still counts as
   // "just finished" for the execution scope's own framing.
@@ -166,7 +170,7 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     () => doneRecentSessionIds(merged.nodes, nodeStatusOpts, now),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- nodeStatusOpts is a
     // fresh object every render; its own members are the real deps.
-    [merged.nodes, p.running, p.board.sessionStatus, turnStartedAt, liveSessions, p.interrupted, cvLive, now],
+    [merged.nodes, p.running, p.board.sessionStatus, turnStartedAt, liveSessions, p.interrupted, cvLive, idleCvLive, now],
   );
   const filterExtras = { windowIds: windowIdSet, doneRecentIds, showAutomation, liveSessions, showContexts };
   const visible = useMemo(() => {
@@ -357,12 +361,12 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
   }),
   // eslint-disable-next-line react-hooks/exhaustive-deps -- nodeStatusOpts is a
   // fresh object every render; its own members are the real deps.
-  [merged, p.board.cards, showAutomation, extraBoundIds, orchestratorSessionId, p.running, p.board.sessionStatus, turnStartedAt, liveSessions, p.interrupted, cvLive]);
+  [merged, p.board.cards, showAutomation, extraBoundIds, orchestratorSessionId, p.running, p.board.sessionStatus, turnStartedAt, liveSessions, p.interrupted, cvLive, idleCvLive]);
   const orchestratorItem = useMemo(
     () => orchestratorKanbanItem(merged.nodes, nodeStatusOpts, orchestratorSessionId),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- nodeStatusOpts is a
     // fresh object every render; its own members are the real deps.
-    [merged.nodes, orchestratorSessionId, p.running, p.board.sessionStatus, turnStartedAt, liveSessions, p.interrupted, cvLive],
+    [merged.nodes, orchestratorSessionId, p.running, p.board.sessionStatus, turnStartedAt, liveSessions, p.interrupted, cvLive, idleCvLive],
   );
 
   // A 'continue' reuse send runCard already moved to "doing" can still be

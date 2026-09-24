@@ -112,6 +112,11 @@ interface NodeStatusOpts {
   interrupted?: Record<string, string>;
   // Session ids live in a `cockpit-cv-*` shell ('cv-live' frame).
   cvLive?: Set<string>;
+  // Session ids in a `cockpit-cv-*` shell that's ALIVE but idle — waiting on
+  // Samuel, not done ('cv-live' frame's idleSessionIds). Dropped out of
+  // `cvLive` above the moment it's no longer live; without this it read as
+  // 'review' (Done) instead of waiting for input.
+  idleCvLive?: Set<string>;
 }
 
 interface NodeStatus { status: CardStatus; running: boolean; waiting: boolean; needsAttention: boolean; mtime: number; shellLive: boolean }
@@ -120,7 +125,7 @@ function nodeStatus(n: CanvasNode, o: NodeStatusOpts): NodeStatus {
   const live = o.liveSessions?.get(n.ref);
   const shellLive = !!o.cvLive?.has(n.ref);
   const running = o.running.has(n.ref) || shellLive;
-  const waiting = live?.waiting ?? !!n.waiting;
+  const waiting = (live?.waiting ?? !!n.waiting) || !!o.idleCvLive?.has(n.ref);
   const mtime = live?.mtime ?? n.mtime;
   const lastTurnOk = live?.lastTurnOk;
   const attentionNeeded = lastTurnOk === false || !!o.interrupted?.[n.ref];

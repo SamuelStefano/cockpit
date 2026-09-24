@@ -120,7 +120,7 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
           onDflTaskLink={c.onDflTaskLink} onDflTaskCreateLink={c.onDflTaskCreateLink} onDflTaskUnlink={c.onDflTaskUnlink}
           onDflTaskConfirmSync={c.onDflTaskConfirmSync}
           orchestratorActivity={c.orchestratorActivity} onOrchestratorActivityGet={c.onOrchestratorActivityGet}
-          cvLiveSessionIds={c.cvLiveSessionIds} sessionPeeks={c.sessionPeeks} onSessionPeek={c.onSessionPeek} />
+          cvLiveSessionIds={c.cvLiveSessionIds} cvIdleSessionIds={c.cvIdleSessionIds} sessionPeeks={c.sessionPeeks} onSessionPeek={c.onSessionPeek} />
       );
     }
     if (route === '/harness' && isAdmin) {

@@ -305,6 +305,18 @@ describe('deriveSessionItems — orchestratorChild', () => {
     expect(items[0]).toMatchObject({ sessionId: 'a', status: 'doing', running: true, orchestratorChild: true });
     expect(items[1]).toMatchObject({ sessionId: 'b', status: 'review', running: false, orchestratorChild: false });
   });
+
+  // UX bug: a cv shell that's alive but idle (waiting on Samuel) drops out of
+  // `cvLive` — without idleCvLive it fell through to 'review' (Done) instead
+  // of reading as waiting for input.
+  it('a cv shell alive but idle reads as waiting on the user, not Done', () => {
+    const items = deriveSessionItems({
+      nodes: [session('a', { subtitle: 'preciso de ajuda com o deploy' })],
+      edges: [], cards: [], running: new Set(), overrides: {}, turnStartedAt: {}, showAutomation: false,
+      idleCvLive: new Set(['a']),
+    });
+    expect(items[0]).toMatchObject({ sessionId: 'a', status: 'doing', running: false, waitingOnUser: true });
+  });
 });
 
 describe('triageSessionItems', () => {
