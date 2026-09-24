@@ -137,6 +137,20 @@ describe('incident-ai: o triador não recebe bypass', () => {
     }
   });
 
+  it('nothing on the allowlist runs code; runners are denied outright', () => {
+    run();
+    const argv = readFileSync(argvFile, 'utf8').split('\n');
+    const i = argv.indexOf('--allowedTools');
+    const j = argv.indexOf('--disallowedTools');
+    const allowed = argv.slice(i + 1, j);
+    expect(allowed.filter((t) => /\b(npx|npm|node|tsx|vitest|tsc)\b|^Bash\((ba)?sh\b/.test(t))).toEqual([]);
+    for (const t of ['Bash(npx:*)', 'Bash(node:*)', 'Bash(git commit:*)', 'Edit(./.git/**)']) expect(argv.slice(j + 1)).toContain(t);
+    // No git that writes, and file edits only inside the repo.
+    expect(allowed.filter((t) => /git (commit|add|checkout|config)/.test(t))).toEqual([]);
+    expect(allowed).not.toContain('Write');
+    expect(allowed).not.toContain('Edit');
+  });
+
   it('não põe push nem gh na allowlist', () => {
     run();
     const allow = readFileSync(argvFile, 'utf8').split('\n');
@@ -148,20 +162,42 @@ describe('incident-ai: o triador não recebe bypass', () => {
 });
 
 describe('incident-ai: quem publica é o script', () => {
-  it('pusha a branch que o triador criou e volta pra main', () => {
+  it('commits the triager edits on a new branch, pushes it and goes back to main', () => {
     fakeClaude([
       `cd "${repo}"`,
-      'git checkout -qb fix/incidente-teste',
-      'echo fix > b.txt && git add -A && git commit -qm "fix: corrige o incidente"',
+      'echo fix > b.txt',
+      'echo "fix: corrige o incidente" > .incident-commit-msg',
     ].join('\n'));
     run();
-    expect(git(origin, 'branch', '--list', 'fix/incidente-teste')).toContain('fix/incidente-teste');
+    const remote = git(origin, 'branch', '--list', 'fix/incidente-*');
+    expect(remote).toContain('fix/incidente-');
+    const branch = remote.replace('*', '').trim();
+    expect(git(origin, 'log', '-1', '--format=%s', branch).trim()).toBe('fix: corrige o incidente');
+    expect(git(origin, 'show', '--name-only', '--format=', branch)).not.toContain('.incident-commit-msg');
     expect(git(repo, 'branch', '--show-current').trim()).toBe('main');
     const gh = readFileSync(join(tmp, 'gh-argv.txt'), 'utf8').split('\n');
-    expect(gh.slice(0, 4)).toEqual(['pr', 'create', '--head', 'fix/incidente-teste']);
+    expect(gh.slice(0, 4)).toEqual(['pr', 'create', '--head', branch]);
   });
 
-  it('não publica nada se o triador ficou na main', () => {
+  it('never runs the repo hooks when committing', () => {
+    const marker = join(tmp, 'hook-ran');
+    const hook = join(repo, '.git', 'hooks', 'post-commit');
+    writeFileSync(hook, `#!/usr/bin/env bash\ntouch "${marker}"\n`, 'utf8');
+    chmodSync(hook, 0o755);
+    fakeClaude([`cd "${repo}"`, 'echo fix > b.txt'].join('\n'));
+    run();
+    expect(git(origin, 'branch', '--list', 'fix/incidente-*')).toContain('fix/incidente-');
+    expect(existsSync(marker)).toBe(false);
+  });
+
+  it('publishes nothing if .git/config changed during the turn', () => {
+    fakeClaude([`cd "${repo}"`, 'echo fix > b.txt', 'git config core.fsmonitor "touch /tmp/pwned"'].join('\n'));
+    run();
+    expect(readFileSync(logFile, 'utf8')).toContain('.git/config ou hooks mudaram');
+    expect(git(origin, 'branch', '--list')).not.toContain('fix/');
+  });
+
+  it('não publica nada se o triador não mudou nada', () => {
     run();
     expect(readFileSync(logFile, 'utf8')).toContain('nada a publicar');
     expect(git(origin, 'branch', '--list')).not.toContain('fix/');
