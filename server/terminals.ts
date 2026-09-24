@@ -221,6 +221,25 @@ function panePid(id: string): Promise<number | null> {
   });
 }
 
+// tmux clients on the session. Each PTY a backend holds is one client, and the
+// index (:7777) and the relay agent each keep their own `terms` map, so a pane
+// with no PTY here can still be on screen through the other process (or SSH).
+function attachedClients(id: string): Promise<number> {
+  return new Promise((resolve) => {
+    const p = spawn('tmux', ['display-message', '-p', '-t', exactPane(id), '#{session_attached}'], { stdio: ['ignore', 'pipe', 'ignore'] });
+    let out = '';
+    p.stdout.on('data', (d) => { out += d; });
+    // Unknown counts as watched: reaping is only an optimisation.
+    p.on('close', (code) => { const n = Number(out.trim()); resolve(code === 0 && out.trim() !== '' && Number.isInteger(n) ? n : Infinity); });
+    p.on('error', () => resolve(Infinity));
+  });
+}
+
+// Someone other than this process's own PTY is attached.
+export async function watchedElsewhere(id: string): Promise<boolean> {
+  return (await attachedClients(id)) > (terms.has(id) ? 1 : 0);
+}
+
 // A watch pane that is neither following nor running anything is a bare shell:
 // left by ctrl-c, or created by a backend that predates `watch` (it ignored the
 // field and opened plain bash under the w- name). Opening the window again must
@@ -229,6 +248,7 @@ function panePid(id: string): Promise<number | null> {
 export async function prepareWatch(id: string, watch: string): Promise<void> {
   if (!NAME_RE.test(id) || !SESSION_UUID_RE.test(watch)) return;
   if (terms.get(id)?.data.size) return;
+  if (await watchedElsewhere(id)) return;
   const pid = await panePid(id);
   if (pid === null || (await stillFollowing(id, watch))) return;
   const kids = await readFile(`/proc/${pid}/task/${pid}/children`, 'utf8').catch(() => 'unknown');
@@ -274,6 +294,7 @@ async function sweepWatchers(): Promise<void> {
   const tracked = [...terms].map(([id, t]) => ({ id, idleSince: t.idleSince }));
   for (const id of idleWatchers([...tracked, ...orphans], now)) {
     if (!(await stillFollowing(id))) continue;
+    if (await watchedElsewhere(id)) continue;
     // A client may have reattached while we were asking tmux.
     const t = terms.get(id);
     if (t && t.idleSince === null) continue;
