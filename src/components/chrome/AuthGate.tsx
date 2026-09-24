@@ -23,6 +23,7 @@ export function AuthGate({ onSubmit }: { onSubmit: (token: string) => void }) {
         <Input
           id="gate-token"
           type="password"
+          autoComplete="current-password"
           value={token}
           onChange={(e) => setToken(e.target.value)}
           autoFocus
