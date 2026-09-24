@@ -32,27 +32,27 @@ export function CronForm({ form, onCancel, now, planUsage, models }: {
           <Icon name="pencil" size={12} /> Editando “{draft.name || 'cron'}”
         </div>
       )}
-      <input value={draft.name} onChange={(e) => set('name', e.target.value)} placeholder="Nome (ex: resumo diário)"
+      <input value={draft.name} onChange={(e) => set('name', e.target.value)} aria-label="Nome do cron" placeholder="Nome (ex: resumo diário)"
         className={`w-full ${field} px-3 py-2 text-sm placeholder-neutral-600`} />
-      <textarea value={draft.prompt} onChange={(e) => set('prompt', e.target.value)} placeholder="Prompt a enviar…" rows={2}
+      <textarea value={draft.prompt} onChange={(e) => set('prompt', e.target.value)} aria-label="Prompt do cron" placeholder="Prompt a enviar…" rows={2}
         className={`scroll-thin w-full resize-none ${field} px-3 py-2 font-mono text-[13px] placeholder-neutral-600`} />
       <div className="flex flex-wrap items-center gap-2 text-[13px]">
-        <select value={draft.kind} onChange={(e) => set('kind', e.target.value as typeof draft.kind)} className={field}>
+        <select aria-label="Frequência" value={draft.kind} onChange={(e) => set('kind', e.target.value as typeof draft.kind)} className={field}>
           <option value="daily">Diário</option>
           <option value="interval">Intervalo</option>
           <option value="once">Uma vez</option>
         </select>
-        {draft.kind === 'daily' && <input type="time" value={draft.time} onChange={(e) => set('time', e.target.value)} className={field} />}
-        {draft.kind === 'once' && <input type="datetime-local" value={draft.at} onChange={(e) => set('at', e.target.value)} className={field} />}
+        {draft.kind === 'daily' && <input type="time" aria-label="Horário" value={draft.time} onChange={(e) => set('time', e.target.value)} className={field} />}
+        {draft.kind === 'once' && <input type="datetime-local" aria-label="Data e hora" value={draft.at} onChange={(e) => set('at', e.target.value)} className={field} />}
         {draft.kind === 'once' && resetPresets(planUsage ?? null, now).map((p) => (
           <Button key={p.window} variant="ghost" size="sm" onClick={() => form.applyResetPreset(p.atMs)}>{p.label}</Button>
         ))}
-        {draft.kind === 'interval' && <span className="flex items-center gap-1 text-neutral-400">a cada <input type="number" min={1} value={draft.everyMinutes} onChange={(e) => set('everyMinutes', parseInt(e.target.value, 10) || 60)} className={`w-16 ${field}`} /> min</span>}
-        <select value={draft.mode} onChange={(e) => set('mode', e.target.value as typeof draft.mode)} className={field}>
+        {draft.kind === 'interval' && <span className="flex items-center gap-1 text-neutral-400">a cada <input type="number" min={1} aria-label="Intervalo em minutos" value={draft.everyMinutes || ''} onChange={(e) => set('everyMinutes', e.target.value === '' ? 0 : parseInt(e.target.value, 10))} className={`w-16 ${field}`} /> min</span>}
+        <select aria-label="Modo" value={draft.mode} onChange={(e) => set('mode', e.target.value as typeof draft.mode)} className={field}>
           <option value="plan">Planejar</option>
           <option value="acceptEdits">Executar</option>
         </select>
-        <select value={draft.model} onChange={(e) => set('model', e.target.value)} className={field}>
+        <select aria-label="Modelo" value={draft.model} onChange={(e) => set('model', e.target.value)} className={field}>
           <option value="">modelo padrão</option>
           {modelOptions(models, draft.model).filter((o) => o.id !== '').map((o) => (
             <option key={o.id} value={o.id}>{prettyModel(o.id, o.displayName)}</option>

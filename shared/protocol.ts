@@ -112,6 +112,9 @@ export interface AssistantMessage {
   blocks: Block[];
   ts?: number; // epoch ms; ausente em sessões antigas sem timestamp no JSONL
   error?: boolean; // bubble de erro do turno (habilita "tentar novamente" na UI)
+  // Error bubble that is NOT a failed turn (offline, refused, queue): the prompt
+  // it refers to is not the last user bubble, so it must not arm "tentar novamente".
+  notice?: boolean;
   quick?: boolean; // resposta-rápida de subagente (triagem 'answer'); fora do turno principal
   model?: string; // modelo EFETIVO daquele turno; rotula a bolha (evita anacronismo ao trocar modelo mid-thread)
   stats?: TurnBubbleStats; // gasto/tempo/tokens do turno, carimbado no 'done' pra exibição discreta sob a bolha
@@ -857,7 +860,7 @@ export type ServerMsg =
   | { t: 'points-dfl-write'; reqId: string; kind: 'change' | 'invoice' | 'agent'; ok: boolean; message?: string }
   // Resultado de dfl-task-link/dfl-task-create-link. reqId casa com o pedido;
   // sucesso já vem acompanhado de um canvas-board com o card.dfl atualizado.
-  | { t: 'dfl-task-write'; reqId: string; ok: boolean; message?: string }
+  | { t: 'dfl-task-write'; reqId: string; ok: boolean; message?: string; taskId?: string }
   | { t: 'crons'; items: Cron[] }
   | { t: 'context'; id: string; title: string; body: string }
   | { t: 'models'; models: ModelInfo[] }
@@ -891,6 +894,10 @@ export type ServerMsg =
   // bolha do usuário só aparece no F5 (lendo o JSONL). `id` casa o id otimista do
   // remetente p/ dedup; os demais clientes anexam.
   | { t: 'user'; sessionKey: string; id: string; text: string; ts: number }
+  // The prompt was typed into a live tmux pane instead of starting a relay run.
+  // No 'started'/'done' will ever follow, so the client must drop its own
+  // in-flight latch and go back to tailing the transcript (session-touched).
+  | { t: 'pane-delivered'; sessionKey: string; msgId?: string }
   // Veredito da triagem de um prompt enviado com o turno ocupado. msgId casa a
   // bolha do usuário p/ anexar o selo; quick-answer chega à parte quando answer.
   | { t: 'triage'; sessionKey: string; msgId?: string; action: TriageAction; reason: string }

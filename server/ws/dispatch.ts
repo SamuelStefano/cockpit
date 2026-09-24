@@ -114,6 +114,9 @@ const NOW_RUN_MESSAGE: Record<NowRunReject, string> = {
   'falhou': 'não deu pra subir o item agora — ele voltou pra fila',
 };
 
+// Cards with a dfl-task-create-link between its checks and its board write.
+const dflCreatesInFlight = new Set<string>();
+
 export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
   switch (msg.t) {
     case 'ping': {
@@ -297,11 +300,19 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'canvas-card-save': {
+      // Same rule as canvas-flow-save: prev comes from the snapshot the write
+      // lands on. sanitizeCard copies the server-owned `dfl` field from prev, so a
+      // separate readBoard() let a concurrent pushCardDflStatus or dfl-task-unlink
+      // be rolled back — an unlinked card came back linked and wrote to DFL again.
       const now = Date.now();
-      const prev = (await readBoard()).cards.find((c) => c.id === msg.card?.id);
-      const card = sanitizeCard(msg.card, prev, now);
+      const saved: { prev?: NonNullable<ReturnType<typeof sanitizeCard>>; card: ReturnType<typeof sanitizeCard> } = { card: null };
+      const board = await updateBoard((b) => {
+        saved.prev = b.cards.find((c) => c.id === msg.card?.id);
+        saved.card = sanitizeCard(msg.card, saved.prev, now);
+        return saved.card ? upsertCard(b, saved.card) : b;
+      });
+      const { prev, card } = saved;
       if (!card) { send(ws, { t: 'error', message: 'card inválido' }); return; }
-      const board = await updateBoard((b) => upsertCard(b, card));
       send(ws, boardFrame(board));
       send(ws, { t: 'canvas-graph', graph: await buildCanvas(board, runningSessionIds()) });
       // A manual save (drag, editor) used to reach a second tab/phone only on
@@ -360,22 +371,31 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const board0 = await readBoard();
       const cardBefore = board0.cards.find((c) => c.id === cardId);
       if (!cardBefore) { send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: false, message: 'card inválido' }); return; }
-      const graph = await buildCanvas(board0, runningSessionIds());
-      if (!cardLinksAreUnanimouslyDfl(graph, cardId)) { send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: false, message: 'card tem contexto/sessão fora da área DFL' }); return; }
-      const snapshot = await readDflSnapshot();
-      const delivery = snapshot && findDeliveryInSnapshot(snapshot, String(msg.epicId ?? ''), String(msg.deliveryId ?? ''));
-      if (!delivery) { send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: false, message: 'epic/delivery não encontrados no snapshot DFL' }); return; }
-      const r = await runDflWrite({
-        kind: 'task-create', epicId: String(msg.epicId), deliveryId: String(msg.deliveryId),
-        taskName: String(msg.taskName ?? cardBefore.title).slice(0, 200), why: String(msg.why ?? ''), what: String(msg.what ?? ''),
-      });
-      if (!r.ok) { send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: false, message: r.error }); return; }
-      const taskId = String(r.result.taskId ?? '');
-      const board = await updateBoard((b) => setCardDflLink(b, cardId, taskId, Date.now(), Date.now()));
-      send(ws, boardFrame(board));
-      send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: true });
-      runDflSync().catch(() => {});
-      return;
+      // Creating is not idempotent in DFL: a second confirm (stale editor, two
+      // tabs, double click) would create a duplicate task in prod.
+      if (cardBefore.dfl) { send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: false, message: 'card já vinculado a uma task DFL' }); return; }
+      if (dflCreatesInFlight.has(cardId)) { send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: false, message: 'criação já em andamento pra este card' }); return; }
+      dflCreatesInFlight.add(cardId);
+      try {
+        const graph = await buildCanvas(board0, runningSessionIds());
+        if (!cardLinksAreUnanimouslyDfl(graph, cardId)) { send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: false, message: 'card tem contexto/sessão fora da área DFL' }); return; }
+        const snapshot = await readDflSnapshot();
+        const delivery = snapshot && findDeliveryInSnapshot(snapshot, String(msg.epicId ?? ''), String(msg.deliveryId ?? ''));
+        if (!delivery) { send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: false, message: 'epic/delivery não encontrados no snapshot DFL' }); return; }
+        const r = await runDflWrite({
+          kind: 'task-create', epicId: String(msg.epicId), deliveryId: String(msg.deliveryId),
+          taskName: String(msg.taskName ?? cardBefore.title).slice(0, 200), why: String(msg.why ?? ''), what: String(msg.what ?? ''),
+        });
+        if (!r.ok) { send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: false, message: r.error }); return; }
+        const taskId = String(r.result.taskId ?? '');
+        const board = await updateBoard((b) => setCardDflLink(b, cardId, taskId, Date.now(), Date.now()));
+        send(ws, boardFrame(board));
+        send(ws, { t: 'dfl-task-write', reqId: msg.reqId, ok: true, taskId });
+        runDflSync().catch(() => {});
+        return;
+      } finally {
+        dflCreatesInFlight.delete(cardId);
+      }
     }
     // Always local-only, unconditionally allowed (no area/loopback gate): it
     // never talks to DFL and never deletes the task there — see
@@ -550,7 +570,9 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'ctx-open': {
       const c = await readContext(msg.id);
+      // A missing id used to get no reply at all, and the UI waited forever.
       if (c) send(ws, { t: 'context', id: msg.id, title: c.title, body: c.body });
+      else send(ws, { t: 'error', message: 'contexto não encontrado' });
       return;
     }
     case 'session-handoff': {
@@ -767,6 +789,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'skill-open': {
       const s = await readSkill(msg.id);
       if (s) send(ws, { t: 'skill', id: msg.id, name: s.name, body: s.body });
+      else send(ws, { t: 'error', message: 'skill não encontrada' });
       return;
     }
     // Compartilhamento (write-path, admin-only via authz): grava um contexto/skill

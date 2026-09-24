@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button, Badge, EmptyState, Markdown, RouteHeader } from '../components/primitives';
 import { useNotasEditor } from './notas/useNotasEditor';
+import { useCopied } from '../lib/useCopied';
 
 interface Props {
   connected: boolean;
@@ -17,12 +18,15 @@ export function Notas({ connected, notes, notesLoaded, onNotesGet, onNotesSave, 
   const { text, status, counts, onChange, flush, clear } = useNotasEditor(notes, notesLoaded, onNotesGet, onNotesSave, connected);
   const statusBadge = { saved: { tone: 'neutral' as const, label: 'salvo' }, saving: { tone: 'orange' as const, label: 'salvando…' }, offline: { tone: 'red' as const, label: 'não salvo — sem conexão' } }[status];
   const [preview, setPreview] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  const copy = () => {
-    navigator.clipboard?.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {});
-  };
+  // useCopied has the execCommand fallback: navigator.clipboard is missing over
+  // http/IP (the phone on the tailnet), where copying used to fail silently.
+  const [copied, copyText] = useCopied(1500);
+  const copy = () => copyText(text);
   // ⌘S / Ctrl+S: salva já (sem esperar o debounce). preventDefault tira o "salvar página".
+  // Save what's typed first (the debounce may still hold the last keystrokes), and
+  // ignore a second tap while the route is changing.
+  const [analyzing, setAnalyzing] = useState(false);
+  const analyze = () => { if (analyzing) return; setAnalyzing(true); flush(); onAnalyze(text); setTimeout(() => setAnalyzing(false), 3000); };
   const onKey = (e: React.KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); flush(); }
   };
@@ -42,13 +46,13 @@ export function Notas({ connected, notes, notesLoaded, onNotesGet, onNotesSave, 
           }
           actions={
             <>
-              <Button variant="ghost" size="sm" icon={preview ? 'pencil' : 'file'} onClick={() => setPreview((p) => !p)} disabled={!text.trim()}
+              <Button variant="ghost" size="sm" icon={preview ? 'pencil' : 'file'} onClick={() => setPreview((p) => !p)} disabled={!preview && !text.trim()}
                 title={preview ? 'Voltar a editar' : 'Pré-visualizar markdown'}>
                 {preview ? 'Editar' : 'Prévia'}
               </Button>
               <Button variant="ghost" size="sm" icon={copied ? 'check' : 'copy'} title="Copiar tudo" onClick={copy} disabled={!text.trim()} />
               <Button variant="ghost" size="sm" icon="trash" title="Limpar" onClick={clear} disabled={!text.trim()} />
-              <Button variant="primary" size="sm" icon="sparkles" onClick={() => onAnalyze(text)} disabled={!text.trim()}>
+              <Button variant="primary" size="sm" icon="sparkles" onClick={analyze} disabled={!text.trim() || analyzing}>
                 Analisar com IA
               </Button>
             </>
@@ -66,6 +70,9 @@ export function Notas({ connected, notes, notesLoaded, onNotesGet, onNotesSave, 
             value={text}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={onKey}
+            // Offline before the first load there is nothing to edit yet: typing
+            // here and reconnecting would save the fragment over the whole note.
+            readOnly={!notesLoaded}
             placeholder="Joga aqui as ideias soltas, links, trechos… quando acumular, clica em 'Analisar com IA' pra virar um contexto estruturado. (⌘S salva na hora)"
             spellCheck={false}
             className="scroll-thin min-h-0 w-full flex-1 resize-none rounded-xl border border-neutral-800 bg-neutral-900/60 p-4 font-mono text-[13px] leading-relaxed text-neutral-200 placeholder-neutral-600 outline-hidden transition focus:border-orange-500/40 focus:ring-2 focus:ring-orange-500/20"

@@ -22,7 +22,7 @@ export function SessionRowTags({ id, tags, tagging, tagDraft, setTagDraft, setTa
         <span key={t} className="group/tag inline-flex items-center gap-0.5 rounded-full border border-sky-500/30 bg-sky-500/8 px-1.5 py-px text-[9.5px] font-medium text-sky-300/90">
           <button onClick={(e) => { e.stopPropagation(); onFilterTag?.(t); }} title={`Filtrar por "${t}"`} className="hover:text-sky-200">#{t}</button>
           {onRemoveTag && (
-            <button onClick={(e) => { e.stopPropagation(); onRemoveTag(id, t); }} title="Remover etiqueta" className="text-sky-400/50 hover:text-red-400">
+            <button onClick={(e) => { e.stopPropagation(); onRemoveTag(id, t); }} title="Remover etiqueta" aria-label={`Remover etiqueta ${t}`} className="text-sky-400/50 hover:text-red-400">
               <Icon name="x" size={9} />
             </button>
           )}

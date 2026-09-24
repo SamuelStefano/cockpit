@@ -1,5 +1,6 @@
 import { tokens } from '../primitives';
 import type { ChatTopic } from './chat-topics';
+import { useDismiss } from './useDismiss';
 
 interface ChatTopicsProps {
   topics: ChatTopic[];
@@ -13,9 +14,12 @@ interface ChatTopicsProps {
 // direita (um por prompt, o corrente em laranja). Passar o mouse — ou tocar, no
 // celular — abre a lista com os títulos. Fora disso não ocupa nada da thread.
 export function ChatTopics({ topics, activeId, open, setOpen, onJump }: ChatTopicsProps) {
+  // Opened by tap on a phone there is no mouseleave to close it: Esc and a tap outside do.
+  const ref = useDismiss<HTMLDivElement>(open, () => setOpen(false));
   if (topics.length === 0) return null;
   return (
     <div
+      ref={ref}
       className="group/topics absolute right-0 top-1/2 z-10 -translate-y-1/2 print:hidden"
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}

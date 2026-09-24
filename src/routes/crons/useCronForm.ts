@@ -1,3 +1,4 @@
+import { CRON_TZ_OFFSET_MIN } from '../../../shared/cron-schedule';
 import { useState } from 'react';
 import type { Cron, CronSchedule, PermMode, Effort } from '../../../shared/protocol';
 
@@ -18,21 +19,32 @@ export interface CronDraft {
   effort: Effort;
 }
 
-// `datetime-local` fala hora local sem fuso; o offset entra na mão nos dois sentidos.
+// `datetime-local` has no zone. Crons live in Brasília (label, card, timeline and
+// the daily time are all BRT), so the one-time field is BRT too, both ways — the
+// browser's zone made a phone set to UTC (or a trip) schedule a different hour
+// than the one typed.
 export function toLocalInput(ts: number): string {
-  return new Date(ts - new Date(ts).getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+  return new Date(ts + CRON_TZ_OFFSET_MIN * 60_000).toISOString().slice(0, 16);
+}
+
+export function fromLocalInput(v: string): number {
+  // Strict shape first: V8's Date.parse accepts oddities like ':00Z'.
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v)) return NaN;
+  const utc = Date.parse(`${v}:00Z`);
+  return Number.isFinite(utc) ? utc - CRON_TZ_OFFSET_MIN * 60_000 : NaN;
 }
 
 export function buildSchedule(d: CronDraft): CronSchedule {
   if (d.kind === 'interval') return { kind: 'interval', everyMinutes: Math.max(1, d.everyMinutes) };
-  if (d.kind === 'once') return { kind: 'once', atMs: new Date(d.at).getTime() };
+  if (d.kind === 'once') return { kind: 'once', atMs: fromLocalInput(d.at) };
   const [h, m] = d.time.split(':').map((x) => parseInt(x, 10));
   return { kind: 'daily', atMinute: (Number.isFinite(h) ? h : 9) * 60 + (Number.isFinite(m) ? m : 0) };
 }
 
 export function draftValid(d: CronDraft): boolean {
   if (!d.name.trim() || !d.prompt.trim()) return false;
-  return d.kind !== 'once' || Number.isFinite(new Date(d.at).getTime());
+  if (d.kind === 'interval' && !(d.everyMinutes >= 1)) return false;
+  return d.kind !== 'once' || Number.isFinite(fromLocalInput(d.at));
 }
 
 // Um "uma vez" vale pelo instante marcado: remarcar pra frente re-arma o que já

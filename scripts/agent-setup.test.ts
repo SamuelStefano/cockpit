@@ -48,7 +48,14 @@ describe('agent-setup.sh', () => {
     const bin = join(raiz, 'root-bin');
     mkdirSync(bin, { recursive: true });
     writeFileSync(join(bin, 'id'), '#!/bin/sh\ncase "$1" in -u) echo 0;; -un) echo root;; *) exec /usr/bin/id "$@";; esac\n', { mode: 0o755 });
+    // This runs the WHOLE installer and relies on the root guard coming first. If
+    // that guard ever moves, every step past it must fail loudly here instead of
+    // running sudo/apt-get/npm -g/git clone/systemctl on the dev box.
+    for (const cmd of ['sudo', 'apt-get', 'dnf', 'yum', 'npm', 'npx', 'curl', 'git', 'systemctl', 'crontab', 'claude']) {
+      writeFileSync(join(bin, cmd), `#!/bin/sh\necho "SENTINEL: ${cmd} reached" >&2\nexit 99\n`, { mode: 0o755 });
+    }
     const r = spawnSync('bash', [SCRIPT], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, encoding: 'utf8' });
+    expect(r.stderr).not.toContain('SENTINEL');
     expect(r.status).toBe(1);
     expect(r.stdout).toContain('recusando instalar como root');
     expect(r.stdout).toContain('DECK_ALLOW_ROOT=1');

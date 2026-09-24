@@ -4,6 +4,11 @@ import type { Route } from '../useRoute';
 import type { PermMode } from '../../shared/protocol';
 import type { Session } from '../data/types';
 import { UI_SEEDS } from './paletteSeeds';
+import { navFor } from './chrome/nav-routes';
+
+const NAV_ICON: Partial<Record<Route, IconName>> = {
+  '/': 'message', '/contextos': 'sparkles', '/skills': 'zap', '/uso': 'arrowUp', '/docs': 'file',
+};
 
 const MODE_LABEL: Record<PermMode, string> = { plan: 'Planejar', auto: 'Auto', acceptEdits: 'Executar' };
 
@@ -20,20 +25,23 @@ interface PaletteCommandsArgs {
   onFocusComposer: () => void;
   onSeedComposer: (text: string) => void;
   onShowHelp: () => void;
+  isAdmin?: boolean;
 }
 
 export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
-  const { onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onSeedComposer, onShowHelp } = args;
+  const { onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onSeedComposer, onShowHelp, isAdmin = false } = args;
   return useMemo<Cmd[]>(() => {
     const go = (to: Route) => () => { nav(to); onClose(); };
     const setM = (m: PermMode) => () => { setMode(m); onClose(); };
-    const nav_: Cmd[] = [
-      { id: 'go-chat', label: 'Ir para Chat', icon: 'message', group: 'Navegar', run: go('/') },
-      { id: 'go-ctx', label: 'Ir para Contextos', icon: 'sparkles', group: 'Navegar', run: go('/contextos') },
-      { id: 'go-skills', label: 'Ir para Skills', icon: 'zap', group: 'Navegar', run: go('/skills') },
-      { id: 'go-uso', label: 'Ir para Uso', icon: 'arrowUp', group: 'Navegar', run: go('/uso') },
-      { id: 'go-docs', label: 'Ir para Docs', icon: 'file', group: 'Navegar', run: go('/docs') },
-    ];
+    // Every route the header offers, from the same list (navFor): the palette used
+    // to reach only 5 of them, so ⌘K could not open notas, pontos, crons, canvas…
+    const nav_: Cmd[] = navFor(isAdmin).map((n) => ({
+      id: `go-${n.to === '/' ? 'chat' : n.to.slice(1)}`,
+      label: `Ir para ${n.label[0].toUpperCase()}${n.label.slice(1)}`,
+      icon: NAV_ICON[n.to] ?? 'file',
+      group: 'Navegar',
+      run: go(n.to),
+    }));
     const actions: Cmd[] = [
       { id: 'new', label: 'Nova sessão', icon: 'plus', group: 'Ações', run: () => { onNew(); onClose(); } },
       { id: 'focus', label: 'Focar campo de mensagem', hint: '↵', icon: 'pencil', group: 'Ações', run: () => { nav('/'); onFocusComposer(); onClose(); } },
@@ -79,7 +87,9 @@ export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
       group: 'Modo',
       run: setM(m),
     }));
-    const sess: Cmd[] = sessions.slice(0, 40).map((s) => ({
+    // Every session is a command, so a query finds old ones too; the empty
+    // palette shows only the first SESSIONS_IDLE (capSessions in filter).
+    const sess: Cmd[] = sessions.map((s) => ({
       id: `sess-${s.id}`,
       label: s.title || s.snippet || 'sessão',
       icon: 'message',
@@ -87,5 +97,5 @@ export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
       run: () => { onSelectSession(s.id); nav('/'); onClose(); },
     }));
     return [...nav_, ...actions, ...seeds, ...runningCmds, ...modes, ...sess];
-  }, [nav, onClose, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onSeedComposer, onShowHelp]);
+  }, [isAdmin, nav, onClose, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onSeedComposer, onShowHelp]);
 }

@@ -9,7 +9,6 @@ import { CONFIG } from '../config';
 import { capsFor } from '../auth';
 import { claudeReady, mcpServerDefsSync } from '../admin-ops';
 import { getSlashCommands } from './slash';
-import { threads } from './threads';
 import { handle } from './dispatch';
 import { handleTerm, type TermHandle } from './terminal-handler';
 import { createRateLimiter } from './guard';
@@ -39,12 +38,9 @@ export function serveConnection(ws: WebSocket, opts: { role: Role; sendCaps?: bo
   const slash = getSlashCommands();
   if (slash.length) send(ws, { t: 'slash-commands', items: slash });
   // Estado durável (busy/rate/plan-usage/models) — mesmo helper que o `sync` usa.
+  // It also replays every in-flight turn (#10) with its sessionId, so there is no
+  // second replay loop here: that one sent the same frames again on each connect.
   sendDurableSnapshot(ws);
-  // Reconnect mid-run (#10): replaya o snapshot acumulado SÓ pra ESTE socket,
-  // pra a UI reconstruir o turno em voo. Os deltas seguintes chegam via broadcast.
-  for (const [key, thread] of threads) {
-    send(ws, { t: 'replay', sessionKey: key, text: thread.text, thinking: thread.thinking, tools: thread.tools, startedAt: thread.startedAt, model: thread.model });
-  }
   collect().then((stats) => send(ws, { t: 'stats', stats })).catch(() => {});
 
   // terminais anexados por ESTA conexão — pra desanexar no disconnect.

@@ -7,7 +7,7 @@ import { CanvasSurface } from './CanvasSurface';
 
 afterEach(cleanup);
 
-const term: TermApi = { attach: vi.fn(), detach: vi.fn(), input: vi.fn(), resize: vi.fn(), kill: vi.fn(), resume: vi.fn() };
+const term: TermApi = { attach: vi.fn(), detach: vi.fn(), input: vi.fn(), resize: vi.fn(), kill: vi.fn(), resume: vi.fn(), exited: new Set<string>() };
 
 const terms: CanvasTerms = {
   open: [], shells: [], active: null, focusN: 0, maximized: null, resuming: null, resumedLive: new Set(),

@@ -62,10 +62,12 @@ export function QueuedItem({ index, text, atts, expanded, flash, first, last, ed
             ref={taRef}
             value={draft}
             rows={3}
+            aria-label="Editar mensagem na fila"
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') { e.preventDefault(); onCancelEdit(); }
-              if (e.key === 'Enter' && !e.shiftKey && !touch) { e.preventDefault(); onCommit(); }
+              // isComposing: the Enter that confirms an IME/dead-key candidate must not commit mid-word.
+              if (e.key === 'Enter' && !e.shiftKey && !touch && !e.nativeEvent.isComposing) { e.preventDefault(); onCommit(); }
             }}
             className={`flex-1 resize-none rounded-sm border border-orange-500/40 bg-neutral-900 px-1.5 py-1 text-[11.5px] leading-snug text-neutral-200 ${tokens.focusRing}`}
           />

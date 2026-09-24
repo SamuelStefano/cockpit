@@ -23,11 +23,22 @@ export function getLastModels() { return last; }
 // Busca e memoiza a lista (sem broadcast). Usado pelo agente T3 (dial), que não tem
 // um WebSocketServer pra rodar o startModelsLoop do modo listen — ele chama isto e
 // emite o frame `models` pelo próprio socket de saída.
-export async function refreshModels(): Promise<ModelInfo[]> {
-  const m = await fetchModels();
-  if (m && m.length) last = m;
-  return last;
+// `refresh-models` is a client frame (any role) that hits /v1/models on the
+// owner's OAuth token. One request in flight at a time, and at most one every
+// REFRESH_MIN_GAP_MS: a held-down button or a loop would otherwise hammer the API.
+const REFRESH_MIN_GAP_MS = 30_000;
+let refreshing: Promise<ModelInfo[]> | null = null;
+let lastRefreshAt = 0;
+export function refreshModels(now = Date.now()): Promise<ModelInfo[]> {
+  if (refreshing) return refreshing;
+  if (now - lastRefreshAt < REFRESH_MIN_GAP_MS) return Promise.resolve(last);
+  lastRefreshAt = now;
+  refreshing = fetchModels()
+    .then((m) => { if (m && m.length) last = m; return last; })
+    .finally(() => { refreshing = null; });
+  return refreshing;
 }
+export function resetRefreshModelsThrottle(): void { refreshing = null; lastRefreshAt = 0; }
 
 // A lista vai INTEIRA pro seletor, na ordem da Anthropic (novo primeiro) — pedido
 // do Samuel (2026-06-10): "puxe igual aos da anthropic, inclusive os novos". Só
@@ -53,6 +64,7 @@ export async function fetchModels(): Promise<ModelInfo[] | null> {
   let res: Response;
   try {
     res = await fetch(MODELS_URL, {
+      signal: AbortSignal.timeout(15_000),
       headers: {
         authorization: `Bearer ${token}`,
         'anthropic-beta': OAUTH_BETA,

@@ -3,6 +3,7 @@ import type { Session, Message, Block, ToolTodo } from './data/types';
 import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, TurnStats, Caps, PlanUsage, ParkedView, BgAgent } from '../shared/protocol';
 import { loadPref, savePref, setPref, usePrefListener } from './lib/persist';
 import { MODE_KEY, MODEL_KEY, EFFORT_KEY } from './lib/account-prefs';
+import { persistableModelOverrides } from './cockpit/model-overrides';
 import { SUPABASE_ENABLED } from './lib/supabase';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
 import { wsUrlWithToken, newId, metaToSession, mergeServerSessions, adoptClaimedRow, dedupById, mergeSeen, isCronPing } from './cockpit/session';
@@ -648,14 +649,14 @@ export function useCockpit(): Cockpit {
       // enche COM turno rodando — recusar um disparo congelava a resposta em voo.
       case 'queue-error': {
         const key = resolveKey(migratedTo.current, msg.sessionKey);
-        updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ ${msg.message}` }], error: true }]);
+        updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ ${msg.message}` }], error: true, notice: true }]);
         return;
       }
       // Servidor recusou o enfileiramento (fila cheia, prompt grande demais): o
       // composer já limpou o texto e a fila não ecoa bolha nenhuma — sem devolver
       // aqui, o prompt sumia igual ao furo do WS fechado.
       case 'queue-reject': {
-        updateThread(msg.sessionKey, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ O item não entrou na fila: ${msg.message}. O texto voltou pro composer.` }], error: true }]);
+        updateThread(msg.sessionKey, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ O item não entrou na fila: ${msg.message}. O texto voltou pro composer.` }], error: true, notice: true }]);
         const body = parseAttachments(msg.text).body;
         setDrafts((d) => ({ ...d, [msg.sessionKey]: d[msg.sessionKey] || body }));
         restorePendingAtts(msg.sessionKey);
@@ -667,7 +668,7 @@ export function useCockpit(): Cockpit {
       case 'send-reject': {
         updateThread(msg.sessionKey, (prev) => {
           const semOrfa = msg.msgId ? prev.filter((m) => !(m.id === msg.msgId && m.role === 'user')) : prev;
-          return [...semOrfa, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ ${msg.message}` }], error: true }];
+          return [...semOrfa, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ ${msg.message}` }], error: true, notice: true }];
         });
         const body = parseAttachments(msg.text).body;
         setDrafts((d) => ({ ...d, [msg.sessionKey]: d[msg.sessionKey] || body }));
@@ -836,6 +837,16 @@ export function useCockpit(): Cockpit {
           prev.some((m) => m.id === msg.id) ? prev : [...prev, { id: msg.id, role: 'user', text: msg.text, ts: msg.ts }],
         );
         setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: msg.text, relative: 'agora', mtime: Math.max(s.mtime, msg.ts ?? Date.now()), waiting: false } : s)));
+        return;
+      }
+      case 'pane-delivered': {
+        // Typed into a live tmux pane: no run, so no 'done' will clear the
+        // latch onSend set. Release it and pull the transcript the pane writes.
+        const key = resolveKey(migratedTo.current, msg.sessionKey);
+        inFlight.current.delete(key);
+        stopping.current.delete(key);
+        setPhases((p) => ({ ...p, [key]: 'idle' }));
+        if (activeRef.current === key) send(reopenMsg(key));
         return;
       }
       case 'triage': {
@@ -1388,7 +1399,7 @@ export function useCockpit(): Cockpit {
           attachmentsRef.current = attachmentsRef.current.filter((a) => !a.uploading);
           setAttachments(attachmentsRef.current);
         }
-        if (key) updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: '⚠️ Arquivo grande demais para enviar pela conexão — anexe um arquivo menor.' }], error: true }]);
+        if (key) updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: '⚠️ Arquivo grande demais para enviar pela conexão — anexe um arquivo menor.' }], error: true, notice: true }]);
       }
       scheduleRetry();
     };
@@ -1539,7 +1550,7 @@ export function useCockpit(): Cockpit {
     // bolha na tela, composer limpo e o servidor nunca recebeu nada. Guard antes
     // de qualquer mutação: avisa e devolve o texto pro composer.
     if (wsRef.current?.readyState !== WebSocket.OPEN) {
-      updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: '⚠️ Sem conexão com o servidor — a mensagem não foi enviada. O texto voltou pro composer; tente de novo quando reconectar.' }], error: true }]);
+      updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: '⚠️ Sem conexão com o servidor — a mensagem não foi enviada. O texto voltou pro composer; tente de novo quando reconectar.' }], error: true, notice: true }]);
       // O submit do composer chama setValue('') logo após onSend; o microtask
       // re-despacha o restore por último, senão o texto restaurado era apagado.
       queueMicrotask(() => setDrafts((d) => ({ ...d, [key]: d[key] || text })));
@@ -1607,7 +1618,7 @@ export function useCockpit(): Cockpit {
     // descarte do send() com WS fechado sumia com o texto sem deixar rastro — o
     // item nunca chegava ao parked.json e a fila parecia travada.
     if (wsRef.current?.readyState !== WebSocket.OPEN) {
-      updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: '⚠️ Sem conexão com o servidor — o item não entrou na fila. O texto voltou pro composer; tente de novo quando reconectar.' }], error: true }]);
+      updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: '⚠️ Sem conexão com o servidor — o item não entrou na fila. O texto voltou pro composer; tente de novo quando reconectar.' }], error: true, notice: true }]);
       queueMicrotask(() => setDrafts((d) => ({ ...d, [key]: d[key] || text })));
       return;
     }
@@ -1665,8 +1676,11 @@ export function useCockpit(): Cockpit {
     const fail = (msg: string) => {
       if (done) return; done = true;
       uploadOrigin.current.delete(clientId);
+      // A late 'uploaded' ack (slow link past the 75s watchdog) must not bring the
+      // chip back after the user was told it failed — same rule as removing it by hand.
+      removedUploads.current.add(clientId);
       setAtts(attachmentsRef.current.filter((a) => a.clientId !== clientId));
-      updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: msg }], error: true }]);
+      updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: msg }], error: true, notice: true }]);
     };
     // Watchdog: o chip NUNCA fica "carregando" pra sempre. Se em 75s ainda estiver
     // uploading (fetch pendurado, sem ack do backend, relay dropou), some + erro.
@@ -1680,6 +1694,12 @@ export function useCockpit(): Cockpit {
     // upload direto browser→edge fn (travava por CORS/Cloudflare) e o cap de frame.
     const reader = new FileReader();
     reader.onload = () => {
+      // send() drops every chunk silently while the socket is closed; the chip then
+      // spun for the full 75s watchdog. Fail now instead.
+      if (wsRef.current?.readyState !== WebSocket.OPEN) {
+        fail(`⚠️ Sem conexão com o servidor — "${file.name}" não foi enviado. Anexe de novo quando reconectar.`);
+        return;
+      }
       const res = String(reader.result);
       const b64 = res.includes(',') ? res.slice(res.indexOf(',') + 1) : res;
       const CHUNK = 700_000; // ~700KB de base64 por frame (folga sob o cap do relay)
@@ -1802,7 +1822,7 @@ export function useCockpit(): Cockpit {
     // seria pior, o thread já teria sido TRUNCADO no slice abaixo. Nada muda;
     // o texto editado vai pro composer pra não se perder.
     if (wsRef.current?.readyState !== WebSocket.OPEN) {
-      updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: '⚠️ Sem conexão com o servidor — a edição não foi aplicada. O texto editado foi pro composer.' }], error: true }]);
+      updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: '⚠️ Sem conexão com o servidor — a edição não foi aplicada. O texto editado foi pro composer.' }], error: true, notice: true }]);
       setDrafts((d) => ({ ...d, [key]: d[key] || clean }));
       return;
     }
@@ -1815,11 +1835,10 @@ export function useCockpit(): Cockpit {
       return [...prev.slice(0, idx), { ...prev[idx], text: clean, triage: undefined, ts: Date.now() }];
     });
     setSessions((prev) => prev.map((s) => (s.id === key ? { ...s, snippet: clean, relative: 'agora', mtime: Date.now(), waiting: false } : s)));
-    const bypassWire = capsRef.current?.canBypass && bypassRef.current ? true : undefined;
-    const skillsWire = selectedSkillsRef.current.length ? selectedSkillsRef.current : undefined;
-    const mcpsWire = selectedMcpsRef.current.length ? selectedMcpsRef.current : undefined;
-    send({ t: 'send', sessionKey: key, sessionId: resumeId.current[key], text: clean, msgId, mode: modeRef.current, model: pinSessionModel(key), bypass: bypassWire, skills: skillsWire, mcps: mcpsWire });
-  }, [send, updateThread, onStop, pinSessionModel]);
+    // Same wire as a normal send: building it by hand here left out `effort`, so
+    // every edit-and-resend ran at the account default (high) instead of the pick.
+    send(buildSendWire(key, resumeId.current[key], clean, msgId));
+  }, [send, updateThread, onStop, buildSendWire]);
 
   // Marca de maratona: o servidor é a fonte (ele é quem aplica os tetos), mas o
   // set local muda na hora pra o menu não piscar esperando o broadcast.
@@ -2133,11 +2152,13 @@ export function useCockpit(): Cockpit {
 
   // Override de modelo por sessão — mesma regra dos drafts: sessões `new-xxx` são
   // efêmeras e não casam depois de um reload.
+  // Also drops sessions that no longer exist (deleted, or gone from both lists):
+  // the map was never pruned and grew in localStorage for good. Only once the
+  // list has loaded, or a cold start would wipe every override.
   useEffect(() => {
-    const keep: Record<string, string> = {};
-    for (const [k, v] of Object.entries(modelBySession)) if (!k.startsWith('new-')) keep[k] = v;
-    savePref('modelBySession', keep);
-  }, [modelBySession]);
+    const known = loading ? null : new Set([...sessions.map((s) => s.id), ...archived.map((s) => s.id)]);
+    savePref('modelBySession', persistableModelOverrides(modelBySession, known));
+  }, [modelBySession, sessions, archived, loading]);
 
   const attachmentsView = useMemo(() => markDuplicates(attachments, sentHashes[activeId]), [attachments, sentHashes, activeId]);
 

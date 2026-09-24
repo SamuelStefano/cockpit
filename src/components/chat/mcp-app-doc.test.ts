@@ -49,3 +49,11 @@ describe('mcpAppDoc', () => {
     expect(attr).not.toContain('"');
   });
 });
+
+describe('mcpAppDoc', () => {
+  it('puts the CSP in <head>, not in a <header> that comes first', () => {
+    const doc = mcpAppDoc('<html><body><header>x</header><script>1</script></body></html>');
+    expect(doc.indexOf('Content-Security-Policy')).toBeLessThan(doc.indexOf('<header>'));
+    expect(doc).toMatch(/^<html><head><meta http-equiv="Content-Security-Policy"/);
+  });
+});

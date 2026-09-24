@@ -43,6 +43,9 @@ export function Contextos({ connected, contexts, loaded, openContext, onCtxList,
   }, []);
 
   const counts = useMemo(() => countByType(contexts), [contexts]);
+  // A type that drops to zero loses its chip, and the filter used to stay set
+  // with no way to see or clear it.
+  useEffect(() => { if (filter && !counts[filter as keyof typeof counts]) setFilter(null); }, [filter, counts]);
   const filtered = useMemo(() => filterContexts(contexts, query, filter), [contexts, query, filter]);
 
   const openType = openContext ? contexts.find((c) => c.id === openContext.id)?.type : undefined;
@@ -94,7 +97,7 @@ export function Contextos({ connected, contexts, loaded, openContext, onCtxList,
               <SkeletonCards />
             )
           ) : filtered.length === 0 ? (
-            <ContextEmpty query={query} />
+            <ContextEmpty query={query} filter={filter} onClearFilter={() => setFilter(null)} />
           ) : (
             <div className="stagger-fade grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filtered.map((c) => <ContextCard key={c.id} c={c} onClick={() => onCtxOpen(c.id)} />)}

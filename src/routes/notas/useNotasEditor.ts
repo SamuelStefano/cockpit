@@ -37,7 +37,9 @@ export function useNotasEditor(notes: string, notesLoaded: boolean, onNotesGet: 
 
   // Voltou a conexão com escrita pendente: reenvia sozinho em vez de esperar a
   // próxima tecla.
-  useEffect(() => { if (connected && statusRef.current === 'offline') push(latest.current); }, [connected, push]);
+  // Only once the editor holds the server's text: a fragment typed before the
+  // first load would otherwise overwrite the whole note.
+  useEffect(() => { if (connected && statusRef.current === 'offline' && seeded.current) push(latest.current); }, [connected, push]);
 
   // Flush no unmount pra não perder os últimos 700ms digitados.
   useEffect(() => () => { if (timer.current) { clearTimeout(timer.current); onNotesSave(latest.current); } }, [onNotesSave]);

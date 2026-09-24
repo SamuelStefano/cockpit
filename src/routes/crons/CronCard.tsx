@@ -7,7 +7,7 @@ import { fmtLast } from './cron-format';
 
 
 // "em 2h 5min" / "em 40s" / "agora". now passado de fora pra ser determinístico.
-function fmtIn(target: number, now: number): string {
+export function fmtIn(target: number, now: number): string {
   const ms = target - now;
   if (ms <= 0) return 'agora';
   const min = Math.round(ms / 60_000);
@@ -16,7 +16,10 @@ function fmtIn(target: number, now: number): string {
   const h = Math.floor(min / 60);
   const rem = min % 60;
   if (h < 24) return rem ? `em ${h}h ${rem}min` : `em ${h}h`;
-  return `em ${Math.round(h / 24)}d`;
+  // floor, not round: 36h read as "em 2d".
+  const d = Math.floor(h / 24);
+  const rh = h % 24;
+  return rh ? `em ${d}d ${rh}h` : `em ${d}d`;
 }
 
 export function CronCard({ cron, now, editing, onRun, onToggle, onEdit, onDelete }: {
@@ -41,7 +44,15 @@ export function CronCard({ cron, now, editing, onRun, onToggle, onEdit, onDelete
     confirmTimer.current = setTimeout(() => setConfirmDelete(false), 3000);
   };
 
-  const run = () => { onRun(); toast('Cron disparado'); };
+  // A double tap sent two cron-run frames, and the second fireCron replaced the
+  // first turn mid-flight. Ignore re-taps for a moment.
+  const [firing, setFiring] = useState(false);
+  useEffect(() => {
+    if (!firing) return;
+    const t = setTimeout(() => setFiring(false), 3000);
+    return () => clearTimeout(t);
+  }, [firing]);
+  const run = () => { if (firing) return; setFiring(true); onRun(); toast('Cron disparado'); };
 
   return (
     <div className={`flex items-start gap-3 rounded-xl border bg-neutral-900/50 p-3 transition ${editing ? 'border-orange-500/40 glow-active' : 'border-neutral-800 hairline hover:border-neutral-700'}`}>
@@ -63,7 +74,7 @@ export function CronCard({ cron, now, editing, onRun, onToggle, onEdit, onDelete
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-1">
-        <Button variant="ghost" size="sm" icon="play" title="Rodar agora" onClick={run} />
+        <Button variant="ghost" size="sm" icon="play" title="Rodar agora" aria-label="Rodar agora" onClick={run} disabled={firing} />
         <Button variant="ghost" size="sm" icon="pencil" title="Editar" onClick={onEdit} />
         <Button variant="ghost" size="sm" icon={cron.enabled ? 'square' : 'play'} title={cron.enabled ? 'Pausar' : 'Ativar'} onClick={onToggle} />
         {confirmDelete

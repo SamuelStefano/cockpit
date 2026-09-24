@@ -45,7 +45,9 @@ export function download(name: string, mime: string, data: string) {
   a.href = url;
   a.download = name;
   a.click();
-  URL.revokeObjectURL(url);
+  // Revoked in the same tick, Safari and Firefox can cancel the download before
+  // it reads the blob.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // As fontes embutidas do jsPDF (helvetica/courier) são WinAnsi: qualquer char

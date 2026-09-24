@@ -68,7 +68,9 @@ export const KanbanCard = memo(function KanbanCard({ card, run, sessions, sessio
           </button>
         )}
         <div
-          className="ml-auto flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+          // Hidden actions must not take taps: on a phone an invisible "rodar"
+          // launched an agent. Touch screens have no hover, so show them there.
+          className="ml-auto flex gap-1 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto pointer-coarse:opacity-100 pointer-coarse:pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {card.status === 'todo' && <Button size="sm" icon="play" onClick={() => onRun(card)}>rodar</Button>}

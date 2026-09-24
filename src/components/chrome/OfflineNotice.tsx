@@ -1,12 +1,21 @@
 import { useState } from 'react';
 import { Icon } from '../primitives';
 import { VpsConnectForm } from '../VpsConnectForm';
+import { wsBase } from '../../cockpit/session';
+
+// The host the socket really dials: a saved ws.url override or VITE_WS_URL, not
+// necessarily the page's own host (the front on Vercel, the backend elsewhere).
+export function backendHost(base = wsBase()): string {
+  try { return new URL(base).host; } catch { return base; }
+}
 
 // Aviso honesto quando o backend não responde por alguns segundos (caso clássico:
 // front no Vercel sem túnel pro backend loopback). Evita a sensação de "app quebrado".
 // Ancora no wrapper de altura zero que o App monta logo abaixo do header: o `top`
 // mágico de 58px saía do lugar quando a safe-area do iPhone empurrava o header.
-export function OfflineNotice({ show }: { show: boolean }) {
+// `authRejected`: the relay answered 4401. The backend is up; the login was
+// refused (expired or unresolved identity).
+export function OfflineNotice({ show, onReconnect, authRejected = false }: { show: boolean; onReconnect?: () => void; authRejected?: boolean }) {
   const [showConnect, setShowConnect] = useState(false);
   if (!show) return null;
   return (
@@ -17,14 +26,25 @@ export function OfflineNotice({ show }: { show: boolean }) {
             <Icon name="circle" size={13} />
           </span>
           <div className="leading-tight">
-            <p className="text-[12px] font-medium text-red-200">Backend não acessível</p>
+            <p className="text-[12px] font-medium text-red-200">{authRejected ? 'Login recusado pelo relay' : 'Backend não acessível'}</p>
             <p className="text-[11px] text-red-200/70">
-              O Deck não alcança o servidor em <span className="font-mono">{location.host}</span>. Confira se o backend está rodando (ou o túnel/Tailscale). Tentando reconectar…
+              {authRejected
+                ? <>O relay em <span className="font-mono">{backendHost()}</span> não aceitou a sua sessão. Se não voltar sozinho em alguns segundos, saia e entre de novo.</>
+                : <>O Deck não alcança o servidor em <span className="font-mono">{backendHost()}</span>. Confira se o backend está rodando (ou o túnel/Tailscale). Tentando reconectar…</>}
             </p>
+            {onReconnect && (
+              <button
+                type="button"
+                onClick={onReconnect}
+                className="mt-1.5 mr-3 inline-flex items-center gap-1.5 text-[11px] font-medium text-red-100 transition hover:text-white"
+              >
+                <Icon name="rotate" size={12} /> Reconectar agora
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setShowConnect((v) => !v)}
-              className="mt-1.5 flex items-center gap-1.5 text-[11px] font-medium text-red-200/80 transition hover:text-red-100"
+              className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-medium text-red-200/80 transition hover:text-red-100"
             >
               <Icon name={showConnect ? 'chevronDown' : 'chevronRight'} size={12} /> Configurar endereço do backend
             </button>

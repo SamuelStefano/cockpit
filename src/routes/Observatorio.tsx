@@ -13,6 +13,7 @@ import { RateWindow } from './observatorio/RateWindow';
 import { UsageTable } from './observatorio/UsageTable';
 import { UsageSkeleton } from './observatorio/UsageSkeleton';
 import { useUsageRetry } from './observatorio/useUsageRetry';
+import { useUsagePoll } from './observatorio/useUsagePoll';
 
 interface Props {
   connected: boolean;
@@ -28,6 +29,7 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions, rat
   // Resposta perdida (reconnect do relay) deixava o skeleton pra sempre — repete
   // o pedido enquanto não chegou nada.
   useUsageRetry(connected, usageStats !== null, onUsageList);
+  useUsagePoll(connected, onUsageList);
   // Esgotadas as retentativas (5×2.5s = 12.5s), sem isto o skeleton girava pra
   // sempre. 14s pro stall não sobrepor a última retentativa automática.
   const { stalled, retry } = useLoadStalled(usageStats !== null, connected, 14_000);
@@ -61,12 +63,12 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions, rat
           ) : <>
           {rate && <RateWindow rate={rate} />}
           <div className="stagger-fade mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            <Stat label="custo estimado" value={fmtCost(usageStats?.totalCost ?? 0)} icon="zap" />
+            <Stat label="custo estimado · 90d" value={fmtCost(usageStats?.totalCost ?? 0)} icon="zap" />
             <Stat label="custo hoje" value={fmtCost(costToday)} icon="clock" />
             <Stat label="média/sessão" value={fmtCost(avgPerSession)} icon="message" />
             <Stat label="tokens de saída" value={fmt(usageStats?.totalOutput ?? 0)} icon="arrowUp" />
             <Stat label="amostras" value={fmt(usageStats?.totalSamples ?? 0)} icon="zap" />
-            <Stat label="sessões ativas" value={String(rows.length)} icon="message" />
+            <Stat label="sessões" value={String(rows.length)} icon="message" />
           </div>
 
           {(usageStats?.series?.length ?? 0) > 0 && <Trend series={usageStats!.series} />}

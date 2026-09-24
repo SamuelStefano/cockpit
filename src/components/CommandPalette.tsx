@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Icon } from './primitives';
-import { filterCommands } from './command-palette-filter';
+import { filterCommands, capSessions } from './command-palette-filter';
 import { usePaletteCommands } from './usePaletteCommands';
 import { CommandPaletteResults } from './CommandPaletteResults';
 import type { Route } from '../useRoute';
@@ -21,15 +21,16 @@ interface CommandPaletteProps {
   onFocusComposer: () => void;
   onSeedComposer: (text: string) => void;
   onShowHelp: () => void;
+  isAdmin?: boolean;
 }
 
-export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onSeedComposer, onShowHelp }: CommandPaletteProps) {
+export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onSeedComposer, onShowHelp, isAdmin }: CommandPaletteProps) {
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const commands = usePaletteCommands({ onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onSeedComposer, onShowHelp });
-  const filtered = useMemo(() => filterCommands(commands, q), [q, commands]);
+  const commands = usePaletteCommands({ onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onSeedComposer, onShowHelp, isAdmin });
+  const filtered = useMemo(() => capSessions(filterCommands(commands, q), q), [q, commands]);
 
   useEffect(() => { setSel(0); }, [q, open]);
   useEffect(() => {

@@ -1,14 +1,13 @@
 import { Icon } from '../primitives';
 import { Badge } from '../primitives/Badge';
 import { fmtTokensK } from './Thinking';
+import { fmtElapsed as fmtElapsedSecs } from './elapsed';
 import { useBackgroundAgents, type ViewAgent } from './use-background-agents';
 import type { BgAgent } from '../../../shared/protocol';
 
+// Milliseconds in, the same "1m 5s" as the turn timer (elapsed.ts) out.
 export function fmtElapsed(ms: number): string {
-  const s = Math.max(0, Math.floor(ms / 1000));
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  return `${m}m${String(s % 60).padStart(2, '0')}s`;
+  return fmtElapsedSecs(Math.max(0, Math.floor(ms / 1000)));
 }
 
 function AgentChip({ a }: { a: ViewAgent }) {

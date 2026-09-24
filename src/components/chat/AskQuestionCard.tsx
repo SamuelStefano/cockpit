@@ -7,7 +7,8 @@ interface AskQuestionCardProps {
   // answerable = é a última mensagem, o turno acabou e ninguém respondeu ainda.
   // Só então os botões clicam; fora disso o card é histórico (read-only).
   answerable: boolean;
-  onAnswer?: (text: string) => void;
+  // Returns false when the frame did not go out (offline): the card stays open.
+  onAnswer?: (text: string) => boolean | void;
 }
 
 // AskUserQuestion: o Claude pediu uma escolha de múltipla-escolha. Como o `claude -p`
@@ -46,8 +47,9 @@ export function AskQuestionCard({ tool, answerable, onAnswer }: AskQuestionCardP
         return `${head}: ${chosen.join(', ')}`;
       })
       .join('\n');
-    setSent(true);
-    onAnswer(text);
+    // Lock only once the answer actually left: offline, the card used to read
+    // "Resposta enviada" while nothing was sent and the question stayed pending.
+    if (onAnswer(text) !== false) setSent(true);
   };
 
   const locked = !answerable || sent;

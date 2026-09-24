@@ -3,7 +3,15 @@ import { Icon } from '../../components/primitives';
 import type { DailyUsage } from '../../../shared/protocol';
 import { fmtNum as fmt, startOfDay } from '../observatorio-format';
 import { fmtCost } from '../../../shared/format';
-import { filterSeries, type TrendPeriod } from './trend-filter';
+import { filterSeries, fillGaps, type TrendPeriod } from './trend-filter';
+import { CRON_TZ } from '../../../shared/cron-schedule';
+
+// Buckets are Brasília midnights: label them in that zone, not the browser's, or a
+// browser west of UTC-3 labels every bar one day early.
+const DAY_FMT = new Intl.DateTimeFormat('pt-BR', { timeZone: CRON_TZ, day: 'numeric', month: 'numeric' });
+const DAY_NUM = new Intl.DateTimeFormat('pt-BR', { timeZone: CRON_TZ, day: 'numeric' });
+export const dayLabel = (ts: number) => DAY_FMT.format(ts);
+export const dayNum = (ts: number) => DAY_NUM.format(ts);
 
 const PERIODS: { id: TrendPeriod; label: string }[] = [
   { id: '7d', label: '7d' },
@@ -13,11 +21,7 @@ const PERIODS: { id: TrendPeriod; label: string }[] = [
 
 export function Trend({ series }: { series: DailyUsage[] }) {
   const [period, setPeriod] = useState<TrendPeriod>('all');
-  const shown = useMemo(() => filterSeries(series, period), [series, period]);
-  const dayLabel = (ts: number) => {
-    const d = new Date(ts);
-    return `${d.getDate()}/${d.getMonth() + 1}`;
-  };
+  const shown = useMemo(() => fillGaps(filterSeries(series, period)), [series, period]);
   const max = Math.max(1, ...shown.map((d) => d.cost));
   const totalCost = shown.reduce((a, d) => a + d.cost, 0);
   const today = startOfDay(Date.now());
@@ -34,6 +38,7 @@ export function Trend({ series }: { series: DailyUsage[] }) {
               <button
                 key={p.id}
                 onClick={() => setPeriod(p.id)}
+                aria-pressed={period === p.id}
                 className={`rounded-md border px-1.5 py-0.5 text-[10.5px] font-medium transition ${period === p.id ? 'border-orange-500/40 bg-orange-500/15 text-orange-300' : 'border-transparent text-neutral-500 hover:text-neutral-300'}`}
               >
                 {p.label}
@@ -62,7 +67,7 @@ export function Trend({ series }: { series: DailyUsage[] }) {
                   title={`${dayLabel(d.day)} · ${fmtCost(d.cost)} · ${fmt(d.output)} out`}
                 />
               </div>
-              <span className={`text-[8.5px] tabular-nums ${isToday ? 'font-semibold text-orange-400' : 'text-neutral-600'} ${showLabel ? '' : 'invisible'}`}>{new Date(d.day).getDate()}</span>
+              <span className={`text-[8.5px] tabular-nums ${isToday ? 'font-semibold text-orange-400' : 'text-neutral-600'} ${showLabel ? '' : 'invisible'}`}>{dayNum(d.day)}</span>
             </div>
           );
         })}

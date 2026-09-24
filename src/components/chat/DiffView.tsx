@@ -3,11 +3,16 @@ import { Icon, tokens } from '../primitives';
 import type { ToolDiff } from '../../../shared/protocol';
 import { lineDiff } from './diff';
 
+export const DIFF_OPEN_MAX_ROWS = 40;
+
 export function DiffView({ diff }: { diff: ToolDiff }) {
   const rows = useMemo(() => lineDiff(diff.old, diff.new), [diff.old, diff.new]);
   const adds = rows.filter((r) => r.t === 'add').length;
   const dels = rows.filter((r) => r.t === 'del').length;
-  const [open, setOpen] = useState(true);
+  // Small diffs open, large ones start collapsed: a 300-line edit filled the
+  // thread with a scroll box the reader rarely needs, and the +/- counts in the
+  // header already say what changed.
+  const [open, setOpen] = useState(() => rows.length <= DIFF_OPEN_MAX_ROWS);
   return (
     <div className="px-3 pb-2">
       <button
