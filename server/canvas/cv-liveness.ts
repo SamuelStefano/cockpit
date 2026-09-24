@@ -46,6 +46,7 @@ export interface ClaudeProcRecord {
   sessionId: string;
   tmux?: string;
   status?: string;
+  procStart?: string;
 }
 
 export interface CvLivenessInput {
@@ -79,6 +80,7 @@ export function parseProcRecord(text: string): ClaudeProcRecord | undefined {
     sessionId: r.sessionId,
     tmux: typeof r.tmux === 'string' ? r.tmux : undefined,
     status: typeof r.status === 'string' ? r.status : undefined,
+    procStart: typeof r.procStart === 'string' || typeof r.procStart === 'number' ? String(r.procStart) : undefined,
   };
 }
 
@@ -180,10 +182,33 @@ function pidAlive(pid: number): boolean {
   try { process.kill(pid, 0); return true; } catch (e) { return (e as NodeJS.ErrnoException).code === 'EPERM'; }
 }
 
+// Field 22 of /proc/<pid>/stat (starttime, clock ticks since boot). The comm
+// field (2) may hold spaces and parens, so count from the LAST ')'.
+export function procStartTicks(statText: string): string | undefined {
+  const rest = statText.slice(statText.lastIndexOf(')') + 2).split(' ');
+  return rest[19] || undefined;
+}
+
+// A registry file whose pid now belongs to a different process (pid reuse
+// after a crash) must not vouch for anything. No procStart recorded, or no
+// /proc (non-Linux) = nothing to compare, trust as before.
+export function procStartMatches(recorded: string | undefined, statText: string | undefined): boolean {
+  if (!recorded || statText === undefined) return true;
+  return procStartTicks(statText) === recorded;
+}
+
+async function isSameProcess(r: ClaudeProcRecord): Promise<boolean> {
+  if (!r.procStart) return true;
+  const text = await readFile(`/proc/${r.pid}/stat`, 'utf8').catch(() => undefined);
+  return procStartMatches(r.procStart, text);
+}
+
 async function readRecords(dir: string): Promise<ClaudeProcRecord[]> {
   const files = (await readdir(dir).catch(() => [] as string[])).filter((f) => f.endsWith('.json'));
-  return (await Promise.all(files.map((f) => readFile(join(dir, f), 'utf8').then(parseProcRecord, () => undefined))))
+  const parsed = (await Promise.all(files.map((f) => readFile(join(dir, f), 'utf8').then(parseProcRecord, () => undefined))))
     .filter((r): r is ClaudeProcRecord => !!r);
+  const same = await Promise.all(parsed.map(isSameProcess));
+  return parsed.filter((_, i) => same[i]);
 }
 
 // FRESH read for server/ws/dispatch.ts's 'send' guard — called on every send,

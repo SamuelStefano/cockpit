@@ -20,7 +20,7 @@ import { readMemInfo } from './ws/mem-guard';
 import { startRunReaper } from './ws/reaper';
 import { busyFrame, killAllRuns, threads } from './ws/threads';
 import { startCvLivenessLoop } from './canvas/cv-liveness';
-import { emitCanvasMsg } from './ws/canvas-clients';
+import { emitCanvasMsg, hasCanvasClients } from './ws/canvas-clients';
 import { startModelsLoop, getLastModels } from './ws/models';
 import { startAuthKeepAlive } from './ws/auth-health';
 import { startPlanUsageLoop, planUsageFrame, requestPlanUsageRefresh } from './ws/usage-plan';
@@ -284,7 +284,7 @@ export function runAgent(relayUrl: string): void {
   // browser's kanban would keep showing a deckctl-started session as
   // stopped/Done, and this process's own 'send' guard would have nothing to
   // check before spawning a second `--resume` on it (server/canvas/cv-liveness.ts).
-  startCvLivenessLoop(hasClients, emitCanvasMsg);
+  startCvLivenessLoop(hasCanvasClients, emitCanvasMsg);
   startPlanUsageLoop(hasClients, () => threads.size > 0);
   startModelsLoop(hasClients);
   startAuthKeepAlive();

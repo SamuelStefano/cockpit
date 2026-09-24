@@ -1,7 +1,18 @@
-import { describe, it, expect } from 'vitest';
+import { mkdtempSync, writeFileSync, utimesSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Message } from '../../shared/protocol';
 import type { Rec } from './records';
-import { extractUrls, peekFromRecords, PEEK_TAIL_CHARS, tailText } from './peek';
+import { readRecords } from './records';
+import { _resetPeekCache, extractUrls, peekFromRecords, peekSession, PEEK_TAIL_CHARS, tailText } from './peek';
+
+const file = join(mkdtempSync(join(tmpdir(), 'peek-')), 's.jsonl');
+vi.mock('./records', async (orig) => ({
+  ...(await orig<typeof import('./records')>()),
+  sessionPath: (id: string) => (id === 'bad' ? null : file),
+  readRecords: vi.fn(async () => ({ byUuid: new Map(), msgs: [], results: new Map(), markers: [] })),
+}));
 
 const asst = (text: string, ts = '2026-09-24T10:00:00Z'): Rec => ({
   type: 'assistant', uuid: text.slice(0, 8), timestamp: ts,
@@ -59,5 +70,36 @@ describe('peekFromRecords', () => {
 
   it('is empty for a transcript with no assistant text', () => {
     expect(peekFromRecords([user('hi'), toolOnly], [])).toEqual({ lastAssistant: undefined, lastAt: undefined, prs: [], links: [] });
+  });
+});
+
+describe('peekSession cache', () => {
+  beforeEach(() => {
+    _resetPeekCache();
+    vi.mocked(readRecords).mockClear();
+    writeFileSync(file, 'a');
+  });
+
+  it('reparses only when mtime or size changes', async () => {
+    await peekSession('s1');
+    await peekSession('s1');
+    expect(readRecords).toHaveBeenCalledTimes(1);
+    writeFileSync(file, 'ab');
+    await peekSession('s1');
+    expect(readRecords).toHaveBeenCalledTimes(2);
+    utimesSync(file, new Date(), new Date(Date.now() + 5000));
+    await peekSession('s1');
+    expect(readRecords).toHaveBeenCalledTimes(3);
+  });
+
+  it('shares one read between concurrent requests', async () => {
+    const [a, b] = await Promise.all([peekSession('s1'), peekSession('s1')]);
+    expect(readRecords).toHaveBeenCalledTimes(1);
+    expect(a).toBe(b);
+  });
+
+  it('returns null for an invalid id', async () => {
+    expect(await peekSession('bad')).toBeNull();
+    expect(readRecords).not.toHaveBeenCalled();
   });
 });
