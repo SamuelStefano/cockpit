@@ -3,7 +3,7 @@ import { Icon } from '../../components/primitives';
 import type { DailyUsage } from '../../../shared/protocol';
 import { fmtNum as fmt, startOfDay } from '../observatorio-format';
 import { fmtCost } from '../../../shared/format';
-import { filterSeries, type TrendPeriod } from './trend-filter';
+import { filterSeries, fillGaps, type TrendPeriod } from './trend-filter';
 import { CRON_TZ } from '../../../shared/cron-schedule';
 
 // Buckets are Brasília midnights: label them in that zone, not the browser's, or a
@@ -21,7 +21,7 @@ const PERIODS: { id: TrendPeriod; label: string }[] = [
 
 export function Trend({ series }: { series: DailyUsage[] }) {
   const [period, setPeriod] = useState<TrendPeriod>('all');
-  const shown = useMemo(() => filterSeries(series, period), [series, period]);
+  const shown = useMemo(() => fillGaps(filterSeries(series, period)), [series, period]);
   const max = Math.max(1, ...shown.map((d) => d.cost));
   const totalCost = shown.reduce((a, d) => a + d.cost, 0);
   const today = startOfDay(Date.now());
