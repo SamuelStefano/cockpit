@@ -67,8 +67,11 @@ export function loadIdentity(): Identity | null {
 }
 
 export function saveIdentity(id: Identity): void {
-  mkdirSync(DIR, { recursive: true });
-  writeFileSync(ID_FILE, JSON.stringify(id, null, 2));
+  // Born private: written with the default umask (0644) and chmod'ed after, the
+  // private key was readable by other users of a shared fellow VPS in between (or
+  // for good, if the chmod failed). The chmod stays for files that already exist.
+  mkdirSync(DIR, { recursive: true, mode: 0o700 });
+  writeFileSync(ID_FILE, JSON.stringify(id, null, 2), { mode: 0o600 });
   try { chmodSync(ID_FILE, 0o600); } catch { /* best-effort em FS sem perms */ }
 }
 
