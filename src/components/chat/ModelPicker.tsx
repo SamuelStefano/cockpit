@@ -30,6 +30,8 @@ export function ModelPicker({ model, setModel, models, onRefreshModels }: {
     <label className="inline-flex shrink-0 items-center gap-1" title="Versão do agente do próximo prompt">
       <span className={tag}>versão</span>
       <select
+        // The visible "versão" tag is hidden on mobile, which left the select nameless.
+        aria-label="Versão do agente do próximo prompt"
         value={model}
         onChange={(e) => onChange(e.target.value)}
         className={sel}
