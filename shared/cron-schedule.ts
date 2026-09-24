@@ -51,8 +51,10 @@ export function nextRunAt(c: Cron, now: number): number {
 // agendador (nunca dispara) e "Invalid Date" no card.
 export function scheduleValid(s: CronSchedule | undefined): boolean {
   if (!s) return false;
-  if (s.kind === 'interval') return Number.isFinite(s.everyMinutes);
-  if (s.kind === 'daily') return Number.isFinite(s.atMinute);
+  // Integers in range: `everyMinutes: -5` was clamped to 1 (fired every minute
+  // while the card read "a cada -5min") and `atMinute: 540.5` printed "09:0.5".
+  if (s.kind === 'interval') return Number.isInteger(s.everyMinutes) && (s.everyMinutes ?? 0) >= 1;
+  if (s.kind === 'daily') return Number.isInteger(s.atMinute) && (s.atMinute ?? -1) >= 0 && (s.atMinute ?? 1440) <= 1439;
   if (s.kind === 'once') return Number.isFinite(s.atMs) && (s.atMs ?? 0) > 0;
   return false;
 }

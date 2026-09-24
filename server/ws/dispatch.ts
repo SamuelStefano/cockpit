@@ -765,7 +765,9 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const c = msg.cron;
       // Validação mínima da borda (frame cru): só persiste um cron bem-formado.
       if (!c || typeof c.id !== 'string' || !/^[a-zA-Z0-9_-]{1,59}$/.test(c.id) ||
-          typeof c.prompt !== 'string' || !c.prompt.trim() || !scheduleValid(c.schedule)) {
+          typeof c.prompt !== 'string' || !c.prompt.trim() || !scheduleValid(c.schedule) ||
+          // NaN here made an interval cron that never fires.
+          !Number.isFinite(c.createdAt)) {
         send(ws, { t: 'error', message: 'cron inválido' });
         return;
       }
