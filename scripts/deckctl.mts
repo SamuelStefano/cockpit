@@ -410,9 +410,11 @@ export async function startNewTurn(client: Client, sessionKey: string, msg: Omit
   return { kind: 'rejected', message: m.message };
 }
 
+// stderr, not stdout: callers capture stdout as the new session id
+// (`new=$(deckctl new … | tail -1)` in ~/bin/marathon-watch).
 function parked(client: Client, what: string, message: string): never {
   client.close();
-  console.log(`parked — ${what} will start when the server drains its queue: ${message}`);
+  console.error(`deckctl: parked — ${what} will start when the server drains its queue: ${message}`);
   process.exit(EXIT_PARKED);
 }
 
