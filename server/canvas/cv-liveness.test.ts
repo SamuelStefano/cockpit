@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   busySessionIds, CV_FRESH_MS, cvTermId, idleCvSessionIds, isCvShellLive, isRegistrySessionLive,
-  liveCvSessionIds, liveRegistrySessionIds, parseProcRecord,
+  liveCvSessionIds, liveRegistrySessionIds, parseProcRecord, procStartMatches, procStartTicks,
 } from './cv-liveness';
 
 const NOW = 1_000_000_000;
@@ -203,5 +203,27 @@ describe('idleCvSessionIds', () => {
   it('ignores a non-cv (or no tmux) record entirely', () => {
     const ids = idleCvSessionIds([{ pid: 1, sessionId: 'notmux', status: 'idle' }], deps);
     expect(ids).toEqual([]);
+  });
+});
+
+describe('procStartTicks / procStartMatches', () => {
+  const stat = (start: string) => `123 (my (odd) cmd) S ${'1 '.repeat(18)}${start} 0 0`;
+
+  it('reads starttime past a comm with spaces and parens', () => {
+    expect(procStartTicks(stat('649290542'))).toBe('649290542');
+  });
+
+  it('matches the recorded start, rejects a reused pid', () => {
+    expect(procStartMatches('649290542', stat('649290542'))).toBe(true);
+    expect(procStartMatches('649290542', stat('700000000'))).toBe(false);
+  });
+
+  it('trusts records without procStart or without /proc', () => {
+    expect(procStartMatches(undefined, stat('1'))).toBe(true);
+    expect(procStartMatches('5', undefined)).toBe(true);
+  });
+
+  it('parseProcRecord keeps procStart as a string', () => {
+    expect(parseProcRecord(JSON.stringify({ pid: 7, sessionId: 's1', procStart: '42' }))?.procStart).toBe('42');
   });
 });
