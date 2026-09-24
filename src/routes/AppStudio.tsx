@@ -59,7 +59,7 @@ export function AppStudio({ code }: { code: string }) {
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-2">
+      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-2 md:grid-cols-2 md:grid-rows-1">
         <div className="min-h-0 border-b border-neutral-800 md:border-b-0 md:border-r">
           <CodeEditor value={draft} onChange={setDraft} mode="react" heightClass="h-full" />
         </div>
