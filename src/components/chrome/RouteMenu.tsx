@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Icon, tokens } from '../primitives';
 import { useMenuKeys } from '../primitives/useMenuKeys';
-import { navFor } from './nav-routes';
+import { navBreakpoint, navFor } from './nav-routes';
 import type { Route } from '../../useRoute';
 
 // Em telas estreitas as 6 abas não cabem no header (eram cortadas). Aqui viram um
@@ -26,7 +26,7 @@ export function RouteMenu({ route, nav, isAdmin, open, setOpen }: { route: Route
   // Routes outside the menu (/ds) used to show the first item ("chat").
   const current = items.find((n) => n.to === route) ?? { to: route, label: route.slice(1) || items[0].label };
   return (
-    <div ref={wrapRef} className="relative md:hidden">
+    <div ref={wrapRef} className={`relative ${navBreakpoint(isAdmin).menu}`}>
       <button
         ref={triggerRef}
         onClick={() => setOpen(!open)}
