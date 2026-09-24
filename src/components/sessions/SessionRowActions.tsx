@@ -73,7 +73,7 @@ export function SessionRowActions({ pinned, running, canStop, canDescribe, marat
         aria-haspopup="menu"
         aria-expanded={open}
         className={`rounded p-1.5 text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200 sm:p-0.5 ${tokens.touchBox}
-          ${open ? 'bg-neutral-800 text-neutral-200' : 'sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100'}`}
+          ${open ? 'bg-neutral-800 text-neutral-200' : 'sm:pointer-fine:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100'}`}
       >
         <Icon name="grip" size={14} />
       </button>
