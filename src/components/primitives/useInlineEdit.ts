@@ -20,6 +20,8 @@ export function useInlineEdit({ value, onSave, validate }: Args) {
     else setDraft(value);
   };
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Enter/Escape inside an IME or dead-key composition belong to the candidate.
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (e.key === 'Enter') { e.preventDefault(); commit(); }
     if (e.key === 'Escape') { e.preventDefault(); cancel(); }
   };
