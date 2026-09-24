@@ -103,9 +103,10 @@ export class Client {
   // Resolves with the first ServerMsg matching `pred` — checking the history
   // buffer FIRST (a frame that already arrived, e.g. the connect-time race
   // above) before falling back to a live listener + timeout for one that
-  // hasn't arrived yet.
-  waitFor<T extends ServerMsg>(pred: (m: ServerMsg) => m is T, timeoutMs: number): Promise<T | null> {
-    const buffered = this.history.find(pred);
+  // hasn't arrived yet. `fresh` skips the history: an ack for a mutation must be
+  // a frame sent AFTER it, not the board/list fetched before it.
+  waitFor<T extends ServerMsg>(pred: (m: ServerMsg) => m is T, timeoutMs: number, opts: { fresh?: boolean } = {}): Promise<T | null> {
+    const buffered = opts.fresh ? undefined : this.history.find(pred);
     if (buffered) return Promise.resolve(buffered);
     return new Promise((resolve) => {
       const timer = setTimeout(() => { off(); resolve(null); }, timeoutMs);
@@ -462,6 +463,25 @@ async function cmdWait(id: string, flags: Flags): Promise<void> {
   if (parsed) console.log(transcriptText(parsed.messages, 2000));
 }
 
+// Waits for the frame that proves a mutation landed, or for the handler's
+// `error` reply. The old waits matched a frame already in history (the board
+// fetched to find the card, the `archived` list from connect or from the hide
+// step) and ignored errors, so a failed save printed success and exited 0.
+export async function mutationAck<T extends ServerMsg>(client: Client, pred: (m: ServerMsg) => m is T, what: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
+  const m = await client.waitFor(
+    (f): f is T | Extract<ServerMsg, { t: 'error' }> => pred(f) || (f.t === 'error' && !f.sessionKey),
+    timeoutMs, { fresh: true },
+  );
+  if (!m) { client.close(); fail(`backend did not confirm ${what} (timeout)`); }
+  if (m.t === 'error' && !pred(m)) { client.close(); fail(`${what} failed: ${(m as Extract<ServerMsg, { t: 'error' }>).message}`); }
+  return m as T;
+}
+
+const archivedWith = (id: string, present: boolean) =>
+  (m: ServerMsg): m is Extract<ServerMsg, { t: 'archived' }> => m.t === 'archived' && m.items.some((s) => s.id === id) === present;
+const boardWhere = (ok: (cards: CanvasCard[]) => boolean) =>
+  (m: ServerMsg): m is Extract<ServerMsg, { t: 'canvas-board' }> => m.t === 'canvas-board' && ok(m.board.cards);
+
 // --- session meta / visibility -------------------------------------------
 
 async function cmdRename(id: string, title: string, flags: Flags): Promise<void> {
@@ -469,7 +489,7 @@ async function cmdRename(id: string, title: string, flags: Flags): Promise<void>
   const summary = flagStr(flags, 'summary');
   const client = await connect();
   client.send({ t: 'set-meta', sessionId: full, title, summary });
-  await client.waitFor(isServerMsg('sessions'), DEFAULT_TIMEOUT_MS);
+  await mutationAck(client, isServerMsg('sessions'), 'rename');
   client.close();
   console.log(`session ${shortId(full)} renamed to "${oneLine(title, 120)}"${summary ? ' (summary updated)' : ''}`);
 }
@@ -478,7 +498,7 @@ async function cmdHide(id: string): Promise<void> {
   const full = await resolveSessionId(id);
   const client = await connect();
   client.send({ t: 'hide', sessionId: full });
-  await client.waitFor(isServerMsg('archived'), DEFAULT_TIMEOUT_MS);
+  await mutationAck(client, archivedWith(full, true), 'hide');
   client.close();
   console.log(`session ${shortId(full)} hidden`);
 }
@@ -487,7 +507,7 @@ async function cmdUnhide(id: string): Promise<void> {
   const full = await resolveSessionId(id);
   const client = await connect();
   client.send({ t: 'unhide', sessionId: full });
-  await client.waitFor(isServerMsg('archived'), DEFAULT_TIMEOUT_MS);
+  await mutationAck(client, archivedWith(full, false), 'unhide');
   client.close();
   console.log(`session ${shortId(full)} unhidden`);
 }
@@ -665,9 +685,8 @@ async function cmdCardAdd(title: string, flags: Flags): Promise<void> {
   };
   const client = await connect();
   client.send({ t: 'canvas-card-save', card });
-  const board = await client.waitFor(isServerMsg('canvas-board'), DEFAULT_TIMEOUT_MS);
+  await mutationAck(client, boardWhere((cards) => cards.some((c) => c.id === card.id)), 'canvas-card-save');
   client.close();
-  if (!board) fail('backend did not answer canvas-card-save (timeout)');
   console.log(`card created: ${card.id}`);
 }
 
@@ -678,9 +697,8 @@ async function cmdCardMove(idPrefix: string, status: string): Promise<void> {
   if (!board) { client.close(); fail('backend did not answer canvas-get (timeout)'); }
   const card = findCard(board.cards, idPrefix);
   client.send({ t: 'canvas-card-save', card: { ...card, status: status as CardStatus, updatedAt: Date.now() } });
-  const ack = await client.waitFor(isServerMsg('canvas-board'), DEFAULT_TIMEOUT_MS);
+  await mutationAck(client, boardWhere((cards) => cards.some((c) => c.id === card.id && c.status === status)), 'canvas-card-save');
   client.close();
-  if (!ack) fail('backend did not confirm canvas-card-save (timeout)');
   console.log(`card ${card.id} -> ${status}`);
 }
 
@@ -690,9 +708,8 @@ async function cmdCardRm(idPrefix: string): Promise<void> {
   if (!board) { client.close(); fail('backend did not answer canvas-get (timeout)'); }
   const card = findCard(board.cards, idPrefix);
   client.send({ t: 'canvas-card-delete', id: card.id });
-  const ack = await client.waitFor(isServerMsg('canvas-board'), DEFAULT_TIMEOUT_MS);
+  await mutationAck(client, boardWhere((cards) => !cards.some((c) => c.id === card.id)), 'canvas-card-delete');
   client.close();
-  if (!ack) fail('backend did not confirm canvas-card-delete (timeout)');
   console.log(`card ${card.id} removed`);
 }
 
@@ -729,7 +746,7 @@ async function cmdCardRun(idPrefix: string, flags: Flags): Promise<void> {
   if (sys.kind === 'rejected') { client.close(); fail(`send rejected: ${sys.message}`); }
   if (sys.kind === 'parked') parked(client, `card ${card.id}`, sys.message);
   client.send({ t: 'canvas-card-save', card: { ...card, status: 'doing', updatedAt: Date.now() } });
-  await client.waitFor(isServerMsg('canvas-board'), DEFAULT_TIMEOUT_MS);
+  await mutationAck(client, boardWhere((cards) => cards.some((c) => c.id === card.id && c.status === 'doing')), `canvas-card-save (the turn started on ${sys.sessionId})`);
   client.close();
   console.log(`card ${card.id} running on session ${sys.sessionId}`);
 }
@@ -1205,9 +1222,9 @@ async function applyTriage(rows: TriageRow[]): Promise<void> {
     }
     const client = await connect();
     client.send({ t: 'hide', sessionId: r.id });
-    await client.waitFor(isServerMsg('archived'), DEFAULT_TIMEOUT_MS);
+    await mutationAck(client, archivedWith(r.id, true), `hide ${shortId(r.id)}`);
     client.send({ t: 'purge', sessionId: r.id });
-    await client.waitFor(isServerMsg('archived'), DEFAULT_TIMEOUT_MS);
+    await mutationAck(client, archivedWith(r.id, false), `purge ${shortId(r.id)}`);
     client.close();
     console.log(`purged ${shortId(r.id)}`);
   }
