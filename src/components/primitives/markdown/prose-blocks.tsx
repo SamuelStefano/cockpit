@@ -2,10 +2,10 @@ import React from 'react';
 import type { ReactNode } from 'react';
 import { Icon } from '../Icon';
 import { renderInline } from './render-inline';
-import { headingSlug } from './slug';
+import { uniqueHeadingSlug } from './slug';
 import { classifyBlock } from './classify-block';
 
-export function proseBlocks(md: string, keyBase: string, caret: boolean): ReactNode[] {
+export function proseBlocks(md: string, keyBase: string, caret: boolean, slugs: Map<string, number> = new Map()): ReactNode[] {
   const blocks = md.split('\n\n');
   const lastIdx = blocks.length - 1;
   return blocks.map((block, idx) => {
@@ -28,7 +28,7 @@ export function proseBlocks(md: string, keyBase: string, caret: boolean): ReactN
         : 'pt-1 text-[12.5px] font-semibold uppercase tracking-wide text-neutral-400';
       return React.createElement(
         `h${level}`,
-        { key: k, id: headingSlug(node.text), className: `scroll-mt-4 ${cls}` },
+        { key: k, id: uniqueHeadingSlug(node.text, slugs), className: `scroll-mt-4 ${cls}` },
         renderInline(node.text, `${k}-h`),
         showCaret ? <span key={`${k}-caret`} className="caret" /> : null,
       );

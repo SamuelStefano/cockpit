@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, Markdown, splitFences, tokens, WikilinkContext, type IconName, type WikilinkResolver } from './primitives';
-import { headingSlug } from './primitives/markdown/slug';
+import { uniqueHeadingSlug } from './primitives/markdown/slug';
 import { useCopied } from '../lib/useCopied';
 import { useEscapeLayer } from './primitives/useEscapeLayer';
 
@@ -11,13 +11,14 @@ interface OutlineItem { level: number; text: string; slug: string }
 // senão o link do índice apontaria pra uma âncora que não existe no DOM.
 function outlineOf(body: string): OutlineItem[] {
   const items: OutlineItem[] = [];
+  const slugs = new Map<string, number>();
   for (const seg of splitFences(body)) {
     if (seg.t !== 'prose') continue;
     for (const block of seg.text.split('\n\n')) {
       const bl = block.trim();
       if (bl.split('\n').length !== 1) continue;
       const m = /^(#{1,6})\s+(.*)$/.exec(bl);
-      if (m) items.push({ level: m[1].length, text: m[2], slug: headingSlug(m[2]) });
+      if (m) items.push({ level: m[1].length, text: m[2], slug: uniqueHeadingSlug(m[2], slugs) });
     }
   }
   return items;
