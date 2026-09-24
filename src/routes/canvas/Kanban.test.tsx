@@ -29,6 +29,8 @@ describe('Kanban — "completar antigos (N)" bulk triage (canvas review item 2)'
       <Kanban {...baseProps} sessionItems={items} onSessionStatus={onSessionStatus} onSessionStatusBulk={onSessionStatusBulk} />,
     );
     fireEvent.click(getByText(/completar antigos \(2\)/));
+    expect(onSessionStatusBulk).not.toHaveBeenCalled();
+    fireEvent.click(getByText('marcar 2 como concluídas?'));
     expect(onSessionStatusBulk).toHaveBeenCalledWith(['old-1', 'old-2'], 'done');
     expect(onSessionStatus).not.toHaveBeenCalled();
   });
@@ -38,6 +40,7 @@ describe('Kanban — "completar antigos (N)" bulk triage (canvas review item 2)'
     const items = [item('old-1', { mtime: STALE }), item('old-2', { mtime: STALE })];
     const { getByText } = render(<Kanban {...baseProps} sessionItems={items} onSessionStatus={onSessionStatus} />);
     fireEvent.click(getByText(/completar antigos \(2\)/));
+    fireEvent.click(getByText('marcar 2 como concluídas?'));
     expect(onSessionStatus).toHaveBeenCalledWith('old-1', 'done');
     expect(onSessionStatus).toHaveBeenCalledWith('old-2', 'done');
   });

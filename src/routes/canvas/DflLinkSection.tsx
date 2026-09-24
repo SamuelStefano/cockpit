@@ -77,7 +77,7 @@ export function DflLinkSection({ card, isDflArea, snapshot, onLink, onCreateLink
         {s.error && <p className="text-[10.5px] text-red-400">{s.error}</p>}
         <div className="flex gap-1.5">
           <Button size="sm" variant="secondary" onClick={s.cancelReview} disabled={s.busy}>cancelar</Button>
-          <Button size="sm" disabled={s.busy} onClick={s.confirm}>confirmar e enviar</Button>
+          <Button size="sm" disabled={s.busy} loading={s.busy} onClick={s.confirm}>confirmar e enviar</Button>
         </div>
       </div>
     );
