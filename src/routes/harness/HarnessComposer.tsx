@@ -102,8 +102,10 @@ export function HarnessComposer({ config, draft: d, running, onRun }: Props) {
         {/* O toggle de pentest NÃO se desarma depois de rodar (só o prompt é limpo), então
             sem este aviso ao lado do botão a task seguinte sairia com o mesmo system prompt
             sem ninguém perceber. */}
+        {/* Why Rodar is off is the one thing to read here: a 2-line 9px pill squeezed
+            beside the button hid it. Plain wrapping text, readable size. */}
         {d.blocked
-          ? <Badge tone="yellow">{d.blocked}</Badge>
+          ? <p role="status" className="flex min-w-0 items-start gap-1.5 text-[11.5px] leading-snug text-amber-300/90"><Icon name="zap" size={12} className="mt-px shrink-0" />{d.blocked}</p>
           : d.pentest
             ? <Badge tone="orange"><Icon name="shield" size={9} />contexto de pentest ligado</Badge>
             : <span className="text-[11px] text-neutral-600">tudo selecionável, nada roda sozinho</span>}
