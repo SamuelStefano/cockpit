@@ -15,6 +15,8 @@ export function OrchestratorChatInput({ onSend, disabled }: Props) {
   const [value, setValue] = useState('');
   const [history, setHistory] = useState<string[]>([]);
   const historyIndex = useRef(0); // history.length === "live draft"
+  // The text typed before browsing, put back when stepping past the newest entry.
+  const draft = useRef('');
   const ref = useRef<HTMLTextAreaElement>(null);
 
   const submit = () => {
@@ -25,13 +27,20 @@ export function OrchestratorChatInput({ onSend, disabled }: Props) {
     // The index is the NEW length: pushChatHistory dedupes and caps at 50, so
     // "old length + 1" pointed past the end and the first ArrowUp did nothing.
     setHistory((h) => { const next = pushChatHistory(h, text); historyIndex.current = next.length; return next; });
+    draft.current = '';
     setValue('');
   };
 
-  const recall = (direction: 1 | -1) => {
-    const next = stepChatHistory(history.length, historyIndex.current, direction);
+  // False when there was nowhere to go: the key keeps its normal behaviour and,
+  // with no history, ArrowUp at the start no longer wipes the draft.
+  const recall = (direction: 1 | -1): boolean => {
+    const cur = historyIndex.current;
+    const next = stepChatHistory(history.length, cur, direction);
+    if (next === cur) return false;
+    if (cur === history.length) draft.current = value;
     historyIndex.current = next;
-    setValue(next === history.length ? '' : history[next]);
+    setValue(next === history.length ? draft.current : history[next]);
+    return true;
   };
 
   return (
@@ -46,8 +55,8 @@ export function OrchestratorChatInput({ onSend, disabled }: Props) {
           // Only steal the arrow when there's nowhere else for the cursor to
           // go, so a multi-line draft's own line navigation still works.
           const el = e.currentTarget;
-          if (e.key === 'ArrowUp' && el.selectionStart === 0 && el.selectionEnd === 0) { e.preventDefault(); recall(-1); }
-          if (e.key === 'ArrowDown' && el.selectionStart === value.length && el.selectionEnd === value.length) { e.preventDefault(); recall(1); }
+          if (e.key === 'ArrowUp' && el.selectionStart === 0 && el.selectionEnd === 0 && recall(-1)) e.preventDefault();
+          if (e.key === 'ArrowDown' && el.selectionStart === value.length && el.selectionEnd === value.length && recall(1)) e.preventDefault();
         }}
         placeholder="mandar mensagem pro orchestrator… (Enter envia, Shift+Enter quebra linha)"
         rows={3}
