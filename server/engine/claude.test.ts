@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest';
+import { readdirSync, rmSync } from 'node:fs';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 
@@ -6,11 +7,20 @@ let managed: Record<string, string> = {};
 let mcpDefs: Record<string, unknown> = {};
 vi.mock('../admin-ops', () => ({ managedEnvSync: () => managed, mcpServerDefsSync: () => mcpDefs }));
 
+// run() writes its MCP config under tmpdir(); keep the ones these tests create out of the real /tmp.
+const tmp = vi.hoisted(() => ({ dir: '' }));
+vi.mock('node:os', async (orig) => {
+  const os = await orig<typeof import('node:os')>();
+  const { mkdtempSync } = await import('node:fs');
+  tmp.dir = mkdtempSync(`${os.tmpdir()}/deck-claude-test-`);
+  return { ...os, tmpdir: () => tmp.dir };
+});
+
 // `claude` é um binário REAL na máquina do Samuel: sem este mock os testes de run()
 // subiriam um turno de verdade e queimariam token.
-const spawned = vi.hoisted(() => ({ child: null as FakeChild | null }));
+const spawned = vi.hoisted(() => ({ child: null as FakeChild | null, throws: null as Error | null }));
 vi.mock('node:child_process', () => ({
-  spawn: () => spawned.child,
+  spawn: () => { if (spawned.throws) throw spawned.throws; return spawned.child; },
   execFileSync: () => '',
 }));
 
@@ -622,5 +632,17 @@ describe('sweepMcpConfigs', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('run: spawn that throws', () => {
+  afterEach(() => { spawned.throws = null; });
+  afterAll(() => rmSync(tmp.dir, { recursive: true, force: true }));
+
+  it('removes the MCP config before rethrowing', () => {
+    spawned.throws = Object.assign(new Error('spawn EAGAIN'), { code: 'EAGAIN' });
+    const before = readdirSync(tmp.dir).filter((f) => f.startsWith('deck-mcp-')).length;
+    expect(() => run({ prompt: 'go', onEvent: () => {}, onError: () => {}, onClose: () => {} } as Parameters<typeof run>[0])).toThrow('EAGAIN');
+    expect(readdirSync(tmp.dir).filter((f) => f.startsWith('deck-mcp-')).length).toBe(before);
   });
 });
