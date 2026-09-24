@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { escapeLayerOpen } from '../primitives/useEscapeLayer';
 
 // De quanto em quanto o painel ABERTO repede o número. O servidor tem
 // single-flight, espaçamento e orçamento por hora, então o custo real é decidido
@@ -30,7 +31,7 @@ export function useUsagePanel(onRefresh?: (force?: boolean) => void) {
     // chegava e o painel ficava aberto sob outro overlay (mesmo caso do RouteMenu).
     const onDoc = (e: PointerEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false); };
     // Um Esc fecha um overlay só: ignora keypress já consumido e marca o que consome.
-    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing) { e.preventDefault(); setOpen(false); } };
+    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing && !escapeLayerOpen()) { e.preventDefault(); setOpen(false); } };
     document.addEventListener('pointerdown', onDoc);
     document.addEventListener('keydown', onEsc);
     return () => { document.removeEventListener('pointerdown', onDoc); document.removeEventListener('keydown', onEsc); };

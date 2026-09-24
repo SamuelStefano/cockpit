@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Button, Icon } from '../primitives';
+import { useEscapeLayer } from '../primitives/useEscapeLayer';
 
 type Mode = 'archive' | 'delete';
 
@@ -24,6 +25,9 @@ const COPY: Record<Mode, { heading: string; cta: string; icon: 'x' | 'trash'; bo
 
 export function ConfirmArchive({ title, mode = 'archive', onConfirm, onCancel }: { title: string; mode?: Mode; onConfirm: () => void; onCancel: () => void }) {
   const c = COPY[mode];
+  // In the shared Escape stack (useEscapeLayer): opened on top of a Modal, this
+  // overlay closes first instead of the Modal underneath.
+  useEscapeLayer(true, onCancel);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.isComposing || e.defaultPrevented) return;
@@ -32,8 +36,7 @@ export function ConfirmArchive({ title, mode = 'archive', onConfirm, onCancel }:
       // Botão focado também fica de fora — o click nativo dele já age sozinho.
       const t = e.target as HTMLElement | null;
       const typing = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON' || t.isContentEditable);
-      if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
-      else if (e.key === 'Enter' && !typing) { e.preventDefault(); onConfirm(); }
+      if (e.key === 'Enter' && !typing) { e.preventDefault(); onConfirm(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

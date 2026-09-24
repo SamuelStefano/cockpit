@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, Markdown, splitFences, tokens, WikilinkContext, type IconName, type WikilinkResolver } from './primitives';
 import { headingSlug } from './primitives/markdown/slug';
 import { useCopied } from '../lib/useCopied';
+import { useEscapeLayer } from './primitives/useEscapeLayer';
 
 interface OutlineItem { level: number; text: string; slug: string }
 
@@ -46,13 +47,9 @@ export function DocViewer({
   const outline = useMemo(() => outlineOf(body), [body]);
   const hasOutline = outline.length >= 3;
 
-  useEffect(() => {
-    // defaultPrevented + preventDefault: um Esc fecha um overlay só — quem consome
-    // marca o evento e os listeners dos overlays de baixo ignoram o mesmo keypress.
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing) { e.preventDefault(); onClose(); } };
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
-  }, [onClose]);
+  // In the shared Escape stack (useEscapeLayer): opened on top of a Modal, this
+  // overlay closes first instead of the Modal underneath.
+  useEscapeLayer(true, onClose);
 
   // Scroll-spy: destaca no índice a seção mais alta visível na área de leitura.
   useEffect(() => {

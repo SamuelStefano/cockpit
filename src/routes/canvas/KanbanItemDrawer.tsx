@@ -5,6 +5,7 @@ import { Badge, Button, Icon, Segmented, Skeleton } from '../../components/primi
 import { STATUS_LABEL, STATUS_TONE } from './canvas-labels';
 import { ctxPct, fmtTokens } from './term-stats-view';
 import type { SessionKanbanItem } from './kanban-items';
+import { useEscapeLayer } from '../../components/primitives/useEscapeLayer';
 
 interface Props {
   item: SessionKanbanItem;
@@ -29,11 +30,7 @@ export function KanbanItemDrawer({ item, stats, peek, onPeek, onClose, onOpenSes
   const pct = stats ? ctxPct(stats) : null;
   useEffect(() => { onPeek(item.sessionId); }, [onPeek, item.sessionId, item.running]);
   // canvas review item 9: no key handling existed anywhere on the route.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  useEscapeLayer(true, onClose);
   return (
     // z-[45]: above the mobile FAB (Canvas.tsx, z-40) — it used to sit under
     // it and cover "ocultar" at 390px (canvas review item 9).
