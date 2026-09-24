@@ -263,6 +263,24 @@ describe('pushCardDflStatus — stale-abort (review point 5)', () => {
   });
 });
 
+describe('pushCardDflStatus — the other backend moved on during a retry', () => {
+  it('a newer push (or unlink) written on the shared board stops this retry loop', async () => {
+    vi.useFakeTimers();
+    try {
+      await linkedCard('card-x');
+      readDflSnapshotMock.mockResolvedValue(null);
+      runDflWriteMock.mockResolvedValueOnce({ ok: false, error: 'DFL 503' });
+      const p = pushCardDflStatus('card-x', 'doing', TASK);
+      await vi.waitFor(() => expect(runDflWriteMock).toHaveBeenCalledTimes(1));
+      // The other process pushed `todo` for the same card (its own pending mark).
+      await updateBoard((b) => ({ ...b, cards: b.cards.map((c) => (c.id === 'card-x' ? { ...c, dfl: { ...c.dfl!, pending: 'todo' as const } } : c)) }));
+      await vi.advanceTimersByTimeAsync(60_000);
+      await p;
+      expect(runDflWriteMock).toHaveBeenCalledTimes(1);
+    } finally { vi.useRealTimers(); }
+  });
+});
+
 describe('cancelPendingPush', () => {
   it('a push cancelled right after being queued (e.g. by an unlink) never lands its board write', async () => {
     await linkedCard('card-1');
