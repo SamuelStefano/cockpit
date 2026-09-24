@@ -1,9 +1,10 @@
-import { useEffect, useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { SessionsPanel, type SessionsPanelProps } from './Sessions';
 import { ChatPanel } from './Chat';
 import type { ChatPanelProps } from './chat/chat-panel-props';
 import { TerminalsPanel, type TerminalsPanelProps } from './Terminals';
 import type { Terminal } from '../data/types';
+import { useEscapeLayer } from './primitives/useEscapeLayer';
 
 interface TerminalSheetProps {
   termProps: TerminalsPanelProps;
@@ -65,19 +66,10 @@ export interface MobileLayoutProps {
 }
 
 export function MobileLayout({ sessionsProps, chatProps, termProps, drawer, setDrawer, termSheet, setTermSheet, runningTerm }: MobileLayoutProps) {
-  // Teclado físico (iPad, celular com Bluetooth): Esc fechava tudo menos as duas
-  // sobreposições daqui, que só saíam tocando no backdrop.
-  useEffect(() => {
-    if (!drawer && !termSheet) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.isComposing || e.defaultPrevented) return;
-      e.preventDefault();
-      if (termSheet) setTermSheet(false);
-      else setDrawer(false);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [drawer, termSheet, setDrawer, setTermSheet]);
+  // Hardware keyboard (iPad, Bluetooth phone): Esc closes these two overlays too.
+  // They are escape layers so a dialog opened on top of the drawer closes first.
+  useEscapeLayer(drawer, () => setDrawer(false));
+  useEscapeLayer(termSheet, () => setTermSheet(false));
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
