@@ -6,6 +6,7 @@ import { navFor } from './nav-routes';
 import type { Route } from '../../useRoute';
 import type { PlanUsage } from '../../../shared/protocol';
 import type { DropApi } from '../../cockpit/useDrops';
+import { comboLabel } from '../../lib/platform';
 
 interface HeaderProps {
   conn: { ws: ConnState; sse: ConnState };
@@ -37,7 +38,7 @@ export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex items-center gap-2.5">
         {isMobile && route === '/' && (
-          <button onClick={onMenu} title="Sessões" aria-label="Sessões" aria-expanded={menuOpen} className="-ml-1 rounded-md p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100">
+          <button onClick={onMenu} title="Sessões" aria-label="Sessões" aria-expanded={menuOpen} className={`-ml-1 rounded-md p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100 ${tokens.touchBox}`}>
             <Icon name="menu" size={18} />
           </button>
         )}
@@ -76,12 +77,12 @@ export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette
         <UsageBar usage={planUsage} compact={isMobile} warn={quotaWarn} paused={quotaPaused} quotaResetsAt={quotaResetsAt} blockedUntil={planBlockedUntil} readAt={planReadAt} nextReadAt={planNextReadAt} onRefresh={onRefreshPlanUsage} />
         <button
           onClick={onPalette}
-          title="Comandos (⌘K)"
-          aria-label="Comandos (⌘K)"
-          className={`flex shrink-0 items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/60 py-1.5 text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-300 ${isMobile ? 'px-2' : 'px-2.5'}`}
+          title={`Comandos (${comboLabel(['⌘', 'K'])})`}
+          aria-label={`Comandos (${comboLabel(['⌘', 'K'])})`}
+          className={`flex shrink-0 items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/60 py-1.5 text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-300 ${isMobile ? 'px-2' : 'px-2.5'} ${tokens.touchTarget}`}
         >
           <Icon name="search" size={14} />
-          {!isMobile && <kbd className="font-mono text-[10px] text-neutral-600">⌘K</kbd>}
+          {!isMobile && <kbd className="font-mono text-[10px] text-neutral-600">{comboLabel(['⌘', 'K'])}</kbd>}
         </button>
         <div className={`hidden shrink-0 items-center rounded-lg border border-neutral-800 bg-neutral-900/60 py-1 sm:flex ${isMobile ? 'px-2' : 'px-2.5'}`}>
           <ConnDot label="ws" state={conn.ws} compact={isMobile} />

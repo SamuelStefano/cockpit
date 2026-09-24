@@ -62,6 +62,7 @@ export function QueuedItem({ index, text, atts, expanded, flash, first, last, ed
             ref={taRef}
             value={draft}
             rows={3}
+            aria-label="Editar mensagem na fila"
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') { e.preventDefault(); onCancelEdit(); }

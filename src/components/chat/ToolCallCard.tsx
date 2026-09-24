@@ -7,6 +7,7 @@ import { McpAppFrame } from './McpAppFrame';
 import { TodoPanel } from './TodoPanel';
 import { CopyTextButton } from './MessageActions';
 import { permissionDeniedTool } from './permission-deny';
+import { fmtToolDuration } from './message-format';
 
 interface ToolCallCardProps {
   tool: ToolCall;
@@ -14,6 +15,10 @@ interface ToolCallCardProps {
 
 export function ToolCallCard({ tool }: ToolCallCardProps) {
   const [open, setOpen] = useState(!!tool.expanded);
+  // Output lines render only once the output was opened: a long session has
+  // hundreds of collapsed tool cards, each holding a full <pre> of every line.
+  const [everOpened, setEverOpened] = useState(open);
+  if (open && !everOpened) setEverOpened(true);
   const [showShellCmd, setShowShellCmd] = usePersisted('showShellCmd', true);
   const { status } = tool;
   const lines = tool.output || [];
@@ -27,7 +32,7 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
     ),
     done: (
       <span className="flex items-center gap-1.5 text-[11px] font-medium text-green-400">
-        <Icon name="check" size={13} /> ok{tool.durationMs !== undefined && ` ${(tool.durationMs / 1000).toFixed(1)}s`}
+        <Icon name="check" size={13} /> ok{tool.durationMs !== undefined && ` ${fmtToolDuration(tool.durationMs)}`}
       </span>
     ),
     error: (
@@ -89,6 +94,7 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
               <button
                 onClick={() => setShowShellCmd(false)}
                 title="Ocultar comandos de shell por padrão"
+                aria-label="Ocultar comandos de shell por padrão"
                 className={`ml-auto shrink-0 rounded-sm text-neutral-600 transition hover:text-neutral-300 ${tokens.focusRing}`}
               >
                 <Icon name="x" size={12} />
@@ -133,11 +139,11 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
           </div>
           <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
             <div className="overflow-hidden">
-            <pre className="scroll-thin max-h-52 overflow-auto border-t border-neutral-800 bg-[#070707] px-3 py-2.5 font-mono text-[11.5px] leading-relaxed text-neutral-400">
+            {everOpened && <pre className="scroll-thin max-h-52 overflow-auto border-t border-neutral-800 bg-[#070707] px-3 py-2.5 font-mono text-[11.5px] leading-relaxed text-neutral-400">
               {lines.map((l, i) => (
                 <div key={i} className={l.startsWith('##') || l.startsWith('?') ? 'text-sky-400/80' : l.startsWith(' M') ? 'text-orange-400/80' : ''}>{l || ' '}</div>
               ))}
-            </pre>
+            </pre>}
             </div>
           </div>
         </div>

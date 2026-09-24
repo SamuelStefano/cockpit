@@ -11,6 +11,10 @@ import { isTouchMobile } from './touch';
 // No celular sai por portal: aberto de dentro da folha de ajustes, o `fixed` herdava
 // o composer (backdrop-blur vira containing block) e a lista era cortada em cima e
 // embaixo — o título da primeira skill e o fim da última sumiam.
+export function isNarrow(): boolean {
+  return typeof window !== 'undefined' && (window.matchMedia?.('(max-width: 639px)')?.matches ?? false);
+}
+
 export function PickerSheet({ label, query, setQuery, placeholder, onClear, onClose, footer, children }: {
   label: string;
   query: string;
@@ -21,7 +25,11 @@ export function PickerSheet({ label, query, setQuery, placeholder, onClear, onCl
   footer: ReactNode;
   children: ReactNode;
 }) {
-  const touch = isTouchMobile();
+  // Portal only when the layout is the bottom sheet (below `sm`). The choice used
+  // to follow "is touch", but the layout follows width: on an iPad or a touch
+  // laptop (>= 640px) the popover's `sm:absolute sm:bottom-full` was portaled to
+  // <body> and landed off-screen, so the picker opened invisibly.
+  const touch = isTouchMobile() && isNarrow();
   const sheet = (
     <>
       <div data-picker-sheet="" className="fixed inset-0 z-40 bg-black/40 sm:hidden" onClick={onClose} />

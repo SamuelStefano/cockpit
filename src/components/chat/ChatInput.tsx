@@ -7,7 +7,7 @@ import { ComposerTools } from './ComposerTools';
 import { ComposerSettingsSheet } from './ComposerSettingsSheet';
 import { AttachmentChips } from './AttachmentChips';
 import { QueuedBanner } from './QueuedBanner';
-import { SlashPalette } from './SlashPalette';
+import { SlashPalette, SLASH_LIST_ID, slashOptionId } from './SlashPalette';
 import type { PermMode, Effort, ModelInfo, Caps, SkillMeta } from '../../../shared/protocol';
 import type { Attachment } from '../../useCockpit';
 import { useChatInput } from './useChatInput';
@@ -116,6 +116,9 @@ export function ChatInput(props: ChatInputProps) {
             ref={taRef}
             rows={1}
             aria-label="Escrever mensagem"
+            aria-autocomplete="list"
+            aria-controls={showPalette ? SLASH_LIST_ID : undefined}
+            aria-activedescendant={showPalette && matches[sel] ? slashOptionId(sel) : undefined}
             value={value}
             onChange={grow}
             onKeyDown={onKey}
@@ -124,7 +127,7 @@ export function ChatInput(props: ChatInputProps) {
             enterKeyHint={touch ? 'enter' : 'send'}
             // A 390px o placeholder longo quebrava em 2 linhas e o composer vazio
             // já nascia com o dobro da altura.
-            placeholder={paused ? 'Tokens esgotados — digite p/ enfileirar (envia ao resetar)…' : mic.listening ? 'Ouvindo… fale agora' : disabled ? 'Próxima mensagem (envia ao terminar)…' : touch ? 'Mensagem…' : 'Pergunte ou peça um comando…  (↵ envia, ⇧↵ quebra linha)'}
+            placeholder={paused ? 'Tokens esgotados — digite p/ enfileirar (envia ao resetar)…' : mic.listening ? 'Ouvindo… fale agora' : disabled ? (touch ? 'Turno rodando: triagem decide a vez…' : 'Mensagem com o turno rodando (a triagem decide a vez)…') : touch ? 'Mensagem…' : 'Pergunte ou peça um comando…  (↵ envia, ⇧↵ quebra linha)'}
             style={{ maxHeight: composerMaxH() }}
             className="scroll-thin relative w-full resize-none bg-transparent py-1 text-[15px] leading-7 text-neutral-100 placeholder-neutral-600 outline-hidden"
           />

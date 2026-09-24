@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { ENV_NAME_RE } from '../shared/env-name';
 
 const run = promisify(execFile);
 
@@ -16,7 +17,6 @@ const ENV_FILE = join(homedir(), '.deck-agent', 'env.json');
 const CLAUDE_JSON = join(homedir(), '.claude.json');
 
 // Nome de env válido: LETRA/_ seguido de alfanum/_. Barra injeção e chaves estranhas.
-const ENV_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 async function readJson<T>(path: string, fallback: T): Promise<T> {
   try { return JSON.parse(await readFile(path, 'utf8')) as T; } catch { return fallback; }

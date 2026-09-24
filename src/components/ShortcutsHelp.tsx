@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Button, Icon } from './primitives';
+import { keyLabel } from '../lib/platform';
 
 const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = [
   {
@@ -8,6 +9,9 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
       { keys: ['⌘', 'K'], label: 'Abrir paleta de comandos' },
       { keys: ['?'], label: 'Mostrar este painel' },
       { keys: ['esc'], label: 'Fechar paleta / modal' },
+      { keys: ['⌥', '↓'], label: 'Próxima sessão' },
+      { keys: ['⌥', '↑'], label: 'Sessão anterior' },
+      { keys: ['n'], label: 'Próxima sessão com output novo' },
     ],
   },
   {
@@ -23,9 +27,6 @@ const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = 
     title: 'Listas (sessões, skills, contextos)',
     items: [
       { keys: ['⌘', '/'], label: 'Focar a busca' },
-      { keys: ['⌥', '↓'], label: 'Próxima sessão' },
-      { keys: ['⌥', '↑'], label: 'Sessão anterior' },
-      { keys: ['n'], label: 'Próxima sessão com output novo' },
     ],
   },
   {
@@ -50,7 +51,7 @@ function Keys({ keys }: { keys: string[] }) {
   return (
     <span className="flex shrink-0 items-center gap-1">
       {keys.map((k) => (
-        <kbd key={k} className="rounded-sm border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[10px] text-neutral-400">{k}</kbd>
+        <kbd key={k} className="rounded-sm border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[10px] text-neutral-400">{keyLabel(k)}</kbd>
       ))}
     </span>
   );

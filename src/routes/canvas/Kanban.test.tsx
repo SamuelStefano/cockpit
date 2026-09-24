@@ -29,6 +29,8 @@ describe('Kanban — "completar antigos (N)" bulk triage (canvas review item 2)'
       <Kanban {...baseProps} sessionItems={items} onSessionStatus={onSessionStatus} onSessionStatusBulk={onSessionStatusBulk} />,
     );
     fireEvent.click(getByText(/completar antigos \(2\)/));
+    expect(onSessionStatusBulk).not.toHaveBeenCalled();
+    fireEvent.click(getByText('marcar 2 como concluídas?'));
     expect(onSessionStatusBulk).toHaveBeenCalledWith(['old-1', 'old-2'], 'done');
     expect(onSessionStatus).not.toHaveBeenCalled();
   });
@@ -38,6 +40,7 @@ describe('Kanban — "completar antigos (N)" bulk triage (canvas review item 2)'
     const items = [item('old-1', { mtime: STALE }), item('old-2', { mtime: STALE })];
     const { getByText } = render(<Kanban {...baseProps} sessionItems={items} onSessionStatus={onSessionStatus} />);
     fireEvent.click(getByText(/completar antigos \(2\)/));
+    fireEvent.click(getByText('marcar 2 como concluídas?'));
     expect(onSessionStatus).toHaveBeenCalledWith('old-1', 'done');
     expect(onSessionStatus).toHaveBeenCalledWith('old-2', 'done');
   });
@@ -81,5 +84,22 @@ describe('Kanban — session item actions (no per-item complete button, item 5)'
     expect(queryByText(/marcar completo/i)).toBeNull();
     fireEvent.click(within(container).getByText('sessão a'));
     expect(within(container).getByText('terminal')).toBeTruthy(); // drawer footer
+  });
+});
+
+describe('Kanban — session drops follow the drawer rule', () => {
+  const drop = (section: Element, sessionId: string) => fireEvent.drop(section, {
+    dataTransfer: { getData: (t: string) => (t === 'text/deck-session' ? sessionId : '') },
+  });
+
+  it('ignores a session dropped on To do / In progress, accepts review and done', () => {
+    const onSessionStatus = vi.fn();
+    const { container } = render(<Kanban {...baseProps} onSessionStatus={onSessionStatus} sessionItems={[item('x')]} />);
+    const sections = container.querySelectorAll('section');
+    for (const s of sections) drop(s, 'x');
+    const statuses = onSessionStatus.mock.calls.map((c) => c[1]);
+    expect(statuses).not.toContain('todo');
+    expect(statuses).not.toContain('doing');
+    expect(statuses).toEqual(expect.arrayContaining(['review', 'done']));
   });
 });

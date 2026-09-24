@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Icon } from './primitives';
-import { filterCommands } from './command-palette-filter';
+import { filterCommands, capSessions } from './command-palette-filter';
 import { usePaletteCommands } from './usePaletteCommands';
-import { CommandPaletteResults } from './CommandPaletteResults';
+import { CommandPaletteResults, PALETTE_LIST_ID, paletteOptionId } from './CommandPaletteResults';
 import type { Route } from '../useRoute';
 import type { PermMode } from '../../shared/protocol';
 import type { Session } from '../data/types';
@@ -30,7 +30,7 @@ export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessi
   const inputRef = useRef<HTMLInputElement>(null);
 
   const commands = usePaletteCommands({ onClose, nav, onNew, mode, setMode, sessions, onSelectSession, running, onStop, onFocusComposer, onSeedComposer, onShowHelp, isAdmin });
-  const filtered = useMemo(() => filterCommands(commands, q), [q, commands]);
+  const filtered = useMemo(() => capSessions(filterCommands(commands, q), q), [q, commands]);
 
   useEffect(() => { setSel(0); }, [q, open]);
   useEffect(() => {
@@ -69,6 +69,11 @@ export function CommandPalette({ open, onClose, nav, onNew, mode, setMode, sessi
             onKeyDown={onKey}
             placeholder="Buscar comando ou sessão…"
             aria-label="Buscar comando ou sessão"
+            role="combobox"
+            aria-expanded={filtered.length > 0}
+            aria-controls={PALETTE_LIST_ID}
+            aria-activedescendant={filtered[sel] ? paletteOptionId(sel) : undefined}
+            aria-autocomplete="list"
             className="w-full bg-transparent py-3.5 text-[14px] text-neutral-100 placeholder-neutral-600 outline-hidden"
           />
           <kbd className="hidden rounded-sm border sm:inline border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[10px] text-neutral-500">esc</kbd>

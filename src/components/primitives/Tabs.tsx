@@ -19,12 +19,13 @@ interface TabsProps<T extends string> {
 export function Tabs<T extends string>({ items, active, onChange, className = '', right }: TabsProps<T>) {
   return (
     <div className={`flex items-center gap-1 border-b border-neutral-800 ${className}`}>
-      <div className="flex items-center gap-1">
+      <div role="tablist" className="flex items-center gap-1">
         {items.map((it) => {
           const on = it.id === active;
           return (
             <button
               key={it.id} onClick={() => onChange(it.id)}
+              type="button" role="tab" aria-selected={on}
               className={`-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-[12.5px] font-medium transition ${
                 on ? 'border-orange-500 text-neutral-100' : 'border-transparent text-neutral-500 hover:text-neutral-300'}`}
             >

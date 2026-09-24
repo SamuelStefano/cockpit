@@ -25,6 +25,7 @@ export function TagFilterBar({ allTags, tagFilter, setTagFilter, clearFilter }: 
           <button
             key={t}
             onClick={() => setTagFilter((cur) => (cur === t ? null : t))}
+            aria-pressed={tagFilter === t}
             className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium transition
               ${tagFilter === t
                 ? 'border-sky-500/60 bg-sky-500/20 text-sky-200'

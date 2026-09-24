@@ -9,6 +9,7 @@ import { ContextChip } from './contextos/ContextChip';
 import { ContextCard } from './contextos/ContextCard';
 import { ContextOffline } from './contextos/ContextOffline';
 import { ContextEmpty } from './contextos/ContextEmpty';
+import { comboLabel } from '../lib/platform';
 
 const TYPES = ['user', 'project', 'feedback', 'reference', 'memory'] as const;
 
@@ -43,6 +44,9 @@ export function Contextos({ connected, contexts, loaded, openContext, onCtxList,
   }, []);
 
   const counts = useMemo(() => countByType(contexts), [contexts]);
+  // A type that drops to zero loses its chip, and the filter used to stay set
+  // with no way to see or clear it.
+  useEffect(() => { if (filter && !counts[filter as keyof typeof counts]) setFilter(null); }, [filter, counts]);
   const filtered = useMemo(() => filterContexts(contexts, query, filter), [contexts, query, filter]);
 
   const openType = openContext ? contexts.find((c) => c.id === openContext.id)?.type : undefined;
@@ -69,7 +73,7 @@ export function Contextos({ connected, contexts, loaded, openContext, onCtxList,
               aria-label="Buscar contextos"
               className="w-full bg-transparent text-[12.5px] text-neutral-200 placeholder-neutral-600 outline-hidden"
             />
-            <kbd className="hidden shrink-0 rounded-sm border border-neutral-700 bg-neutral-950 px-1 py-px font-mono text-[9px] text-neutral-500 sm:block">⌘/</kbd>
+            <kbd className="hidden shrink-0 rounded-sm border border-neutral-700 bg-neutral-950 px-1 py-px font-mono text-[9px] text-neutral-500 sm:block">{comboLabel(['⌘', '/'])}</kbd>
           </div>
         }
       >
@@ -94,7 +98,7 @@ export function Contextos({ connected, contexts, loaded, openContext, onCtxList,
               <SkeletonCards />
             )
           ) : filtered.length === 0 ? (
-            <ContextEmpty query={query} />
+            <ContextEmpty query={query} filter={filter} onClearFilter={() => setFilter(null)} />
           ) : (
             <div className="stagger-fade grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filtered.map((c) => <ContextCard key={c.id} c={c} onClick={() => onCtxOpen(c.id)} />)}

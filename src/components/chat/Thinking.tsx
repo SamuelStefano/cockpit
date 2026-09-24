@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ClaudeAvatar } from '../ClaudeAvatar';
 import { CompactingLine } from './CompactingLine';
 import { fmtElapsed, useElapsed } from './elapsed';
+import { fmtTokens } from './message-format';
 
 // Stats AO VIVO do turno em andamento (estilo terminal): tempo decorrido + tokens
 // gastos NESTE turno. `startedAt` (ts do início do turno) sobrevive a remontagem
@@ -10,12 +11,7 @@ import { fmtElapsed, useElapsed } from './elapsed';
 export interface LiveTurn { tokens: number; startedAt?: number; compactingSince?: number }
 
 // Tokens compactos: 1.2k, 18k, 1.3M. Abaixo de 1000 mostra o número cru.
-export function fmtTokensK(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 10_000) return `${Math.round(n / 1000)}k`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return `${n}`;
-}
+export const fmtTokensK = fmtTokens;
 
 // Linha discreta "Xs · N.Nk tok" enquanto o turno roda. Mostra o tempo desde 1s
 // (igual ao terminal, que conta do início) e os tokens assim que a saída começa

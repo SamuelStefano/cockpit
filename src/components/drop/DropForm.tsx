@@ -40,7 +40,9 @@ export function DropForm({ api, open }: { api: DropApi; open: boolean }) {
         {TTL_OPCOES.map((o) => (
           <button
             key={o.ms}
+            type="button"
             onClick={() => f.setTtlMs(o.ms)}
+            aria-pressed={f.ttlMs === o.ms}
             className={`rounded-md border px-2 py-1 text-[11px] transition ${f.ttlMs === o.ms ? 'border-orange-500/40 bg-orange-500/15 text-orange-300' : 'border-neutral-800 text-neutral-500 hover:text-neutral-300'}`}
           >
             {o.label}

@@ -27,10 +27,13 @@ export function McpPicker({ servers, selected, setSelected }: {
     const onDoc = (e: MouseEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node) && !isInsidePickerSheet(e.target)) setOpen(false); };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing) { e.preventDefault(); setOpen(false); } };
     document.addEventListener('mousedown', onDoc);
-    window.addEventListener('keydown', onKey);
+    // Capture: inside the mobile settings sheet, the sheet's own Esc listener was
+    // registered first and closed sheet and picker together. The picker is always
+    // the innermost overlay, so it takes Esc before any bubble listener.
+    window.addEventListener('keydown', onKey, true);
     return () => {
       document.removeEventListener('mousedown', onDoc);
-      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onKey, true);
     };
   }, [open]);
 

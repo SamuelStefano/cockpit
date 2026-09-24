@@ -3,6 +3,7 @@ import type { Session, Message, Block, ToolTodo } from './data/types';
 import type { ClientMsg, ServerMsg, SysStats, PermMode, Effort, ModelInfo, TurnStats, Caps, PlanUsage, ParkedView, BgAgent } from '../shared/protocol';
 import { loadPref, savePref, setPref, usePrefListener } from './lib/persist';
 import { MODE_KEY, MODEL_KEY, EFFORT_KEY } from './lib/account-prefs';
+import { persistableModelOverrides } from './cockpit/model-overrides';
 import { SUPABASE_ENABLED } from './lib/supabase';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
 import { wsUrlWithToken, newId, metaToSession, mergeServerSessions, adoptClaimedRow, dedupById, mergeSeen, isCronPing } from './cockpit/session';
@@ -1675,8 +1676,11 @@ export function useCockpit(): Cockpit {
     const fail = (msg: string) => {
       if (done) return; done = true;
       uploadOrigin.current.delete(clientId);
+      // A late 'uploaded' ack (slow link past the 75s watchdog) must not bring the
+      // chip back after the user was told it failed — same rule as removing it by hand.
+      removedUploads.current.add(clientId);
       setAtts(attachmentsRef.current.filter((a) => a.clientId !== clientId));
-      updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: msg }], error: true }]);
+      updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: msg }], error: true, notice: true }]);
     };
     // Watchdog: o chip NUNCA fica "carregando" pra sempre. Se em 75s ainda estiver
     // uploading (fetch pendurado, sem ack do backend, relay dropou), some + erro.
@@ -1690,6 +1694,12 @@ export function useCockpit(): Cockpit {
     // upload direto browser→edge fn (travava por CORS/Cloudflare) e o cap de frame.
     const reader = new FileReader();
     reader.onload = () => {
+      // send() drops every chunk silently while the socket is closed; the chip then
+      // spun for the full 75s watchdog. Fail now instead.
+      if (wsRef.current?.readyState !== WebSocket.OPEN) {
+        fail(`⚠️ Sem conexão com o servidor — "${file.name}" não foi enviado. Anexe de novo quando reconectar.`);
+        return;
+      }
       const res = String(reader.result);
       const b64 = res.includes(',') ? res.slice(res.indexOf(',') + 1) : res;
       const CHUNK = 700_000; // ~700KB de base64 por frame (folga sob o cap do relay)
@@ -2142,11 +2152,13 @@ export function useCockpit(): Cockpit {
 
   // Override de modelo por sessão — mesma regra dos drafts: sessões `new-xxx` são
   // efêmeras e não casam depois de um reload.
+  // Also drops sessions that no longer exist (deleted, or gone from both lists):
+  // the map was never pruned and grew in localStorage for good. Only once the
+  // list has loaded, or a cold start would wipe every override.
   useEffect(() => {
-    const keep: Record<string, string> = {};
-    for (const [k, v] of Object.entries(modelBySession)) if (!k.startsWith('new-')) keep[k] = v;
-    savePref('modelBySession', keep);
-  }, [modelBySession]);
+    const known = loading ? null : new Set([...sessions.map((s) => s.id), ...archived.map((s) => s.id)]);
+    savePref('modelBySession', persistableModelOverrides(modelBySession, known));
+  }, [modelBySession, sessions, archived, loading]);
 
   const attachmentsView = useMemo(() => markDuplicates(attachments, sentHashes[activeId]), [attachments, sentHashes, activeId]);
 

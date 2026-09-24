@@ -28,7 +28,7 @@ export function CanvasHud({ items, onPick }: Props) {
 
   return (
     <div data-canvas-overlay className="absolute right-3 top-3 z-10 w-64 rounded-2xl border border-neutral-700/80 bg-neutral-900/85 shadow-xl backdrop-blur-md">
-      <button type="button" onClick={() => setOpen(!open)} className="flex w-full items-center gap-2 px-3 py-2 text-left">
+      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full items-center gap-2 px-3 py-2 text-left">
         <Icon name="claude" size={14} className="text-orange-400" />
         <span className="flex-1 text-[12.5px] font-semibold text-neutral-100">Sessões</span>
         <span className="font-mono text-[10.5px] text-neutral-500">{runningN} rodando</span>
