@@ -167,6 +167,31 @@ export function detachTerm(id: string, onData: (d: string) => void, onExit: () =
   t.exit.delete(onExit);
   if (!t.data.size) t.idleSince = Date.now();
   // PTY fica vivo de propósito: a sessão tmux persiste pra reattach.
+  evictDetached();
+}
+
+// Detached (non-watch) PTYs were never reaped and MAX_TERMS counts only attached
+// ones, so every terminal ever opened kept a tmux client process (and its 200 KB
+// scrollback) alive for the backend's lifetime. Past MAX_DETACHED, the oldest
+// idle clients are closed. Only the CLIENT goes: the tmux session keeps running
+// and a later open re-attaches (it just starts without the old scrollback).
+const MAX_DETACHED = 20;
+
+export function detachedToEvict(entries: { id: string; attached: boolean; idleSince: number | null }[], max = MAX_DETACHED): string[] {
+  const idle = entries
+    .filter((e) => !e.attached && !e.id.startsWith('w-') && e.idleSince !== null)
+    .sort((a, b) => (a.idleSince ?? 0) - (b.idleSince ?? 0));
+  return idle.slice(0, Math.max(0, idle.length - max)).map((e) => e.id);
+}
+
+function evictDetached(): void {
+  const entries = [...terms].map(([id, t]) => ({ id, attached: t.data.size > 0, idleSince: t.idleSince }));
+  for (const id of detachedToEvict(entries)) {
+    const t = terms.get(id);
+    if (!t) continue;
+    terms.delete(id);
+    try { t.pty.kill(); } catch { /* already gone */ }
+  }
 }
 
 // Canvas watch panes nobody looks at are pure waste (~22 MB each: follower +
