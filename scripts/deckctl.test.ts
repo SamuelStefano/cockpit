@@ -3,7 +3,7 @@ import { WebSocketServer } from 'ws';
 import type { AddressInfo } from 'node:net';
 import {
   parseFlags, flagStr, flagNum, fmtBrt, shortId, oneLine, matchByPrefix, newCardIdLocal, findCard,
-  scoreSession, isNeverPurgeSession, newTranscriptScan, feedTranscriptLine, type TriageInput, Client,
+  scoreSession, isNeverPurgeSession, newTranscriptScan, feedTranscriptLine, type TriageInput, Client, busySessionIds, startNewTurn,
 } from './deckctl.mts';
 import type { CanvasCard } from '../shared/canvas';
 import type { ServerMsg } from '../shared/protocol';
@@ -302,5 +302,64 @@ describe('feedTranscriptLine', () => {
   it('tracks whether the last real turn is Samuel with no answer after it', () => {
     expect(feed([user('do X'), asst({ type: 'text', text: 'done' })]).lastRole).toBe('assistant');
     expect(feed([user('do X'), asst({ type: 'text', text: 'done' }), user('and Y?')]).lastRole).toBe('user');
+  });
+});
+
+describe('busySessionIds', () => {
+  it('counts a first turn (start key new-…) as its session running', async () => {
+    const wss = new WebSocketServer({ port: 0 });
+    await new Promise<void>((resolve) => wss.once('listening', resolve));
+    const { port } = wss.address() as AddressInfo;
+    wss.on('connection', (ws) => {
+      ws.send(JSON.stringify({ t: 'busy', keys: ['new-x', 'cron-y'], startedAt: {} }));
+      ws.send(JSON.stringify({ t: 'replay', sessionKey: 'new-x', text: '', thinking: '', tools: [], startedAt: 1, sessionId: 'S1' }));
+      ws.send(JSON.stringify({ t: 'replay', sessionKey: 'cron-y', text: '', thinking: '', tools: [], startedAt: 1 }));
+    });
+    const client = new Client('tok', `ws://127.0.0.1:${port}/ws?token=tok`);
+    try {
+      await client.ready();
+      const ids = await busySessionIds(client, 1000);
+      expect(ids.has('S1')).toBe(true);
+      expect(ids.has('new-x')).toBe(true);
+    } finally {
+      client.close();
+      wss.close();
+    }
+  });
+});
+
+describe('startNewTurn', () => {
+  async function against(reply: (key: string) => object) {
+    const wss = new WebSocketServer({ port: 0 });
+    await new Promise<void>((resolve) => wss.once('listening', resolve));
+    const { port } = wss.address() as AddressInfo;
+    wss.on('connection', (ws) => {
+      ws.on('message', (raw) => {
+        const m = JSON.parse(String(raw));
+        if (m.t === 'send') ws.send(JSON.stringify(reply(m.sessionKey)));
+      });
+    });
+    const client = new Client('tok', `ws://127.0.0.1:${port}/ws?token=tok`);
+    try {
+      await client.ready();
+      return await startNewTurn(client, 'new-k', { text: 'hi' }, 1000);
+    } finally {
+      client.close();
+      wss.close();
+    }
+  }
+
+  it('returns the session id once the turn starts', async () => {
+    expect(await against((k) => ({ t: 'system', sessionKey: k, sessionId: 'S' }))).toEqual({ kind: 'started', sessionId: 'S' });
+  });
+
+  it('reports a park right away instead of timing out', async () => {
+    const t0 = Date.now();
+    expect(await against((k) => ({ t: 'send-parked', sessionKey: k, message: 'quota' }))).toEqual({ kind: 'parked', message: 'quota' });
+    expect(Date.now() - t0).toBeLessThan(900);
+  });
+
+  it('keeps the reject message', async () => {
+    expect(await against((k) => ({ t: 'send-reject', sessionKey: k, message: 'too big' }))).toEqual({ kind: 'rejected', message: 'too big' });
   });
 });

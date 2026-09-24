@@ -103,9 +103,10 @@ export class Client {
   // Resolves with the first ServerMsg matching `pred` — checking the history
   // buffer FIRST (a frame that already arrived, e.g. the connect-time race
   // above) before falling back to a live listener + timeout for one that
-  // hasn't arrived yet.
-  waitFor<T extends ServerMsg>(pred: (m: ServerMsg) => m is T, timeoutMs: number): Promise<T | null> {
-    const buffered = this.history.find(pred);
+  // hasn't arrived yet. `fresh` skips the history: an ack for a mutation must be
+  // a frame sent AFTER it, not the board/list fetched before it.
+  waitFor<T extends ServerMsg>(pred: (m: ServerMsg) => m is T, timeoutMs: number, opts: { fresh?: boolean } = {}): Promise<T | null> {
+    const buffered = opts.fresh ? undefined : this.history.find(pred);
     if (buffered) return Promise.resolve(buffered);
     return new Promise((resolve) => {
       const timer = setTimeout(() => { off(); resolve(null); }, timeoutMs);
@@ -237,6 +238,25 @@ function isServerMsg<T extends ServerMsg['t']>(t: T) {
 // pushed here as 'cv-live' off the SAME 'canvas-get' cmdBoard/cmdStatus
 // already send). Folding it into `busy`'s keys is what makes `sessions`/
 // `status` agree with the kanban on what's actually running.
+// `busy` lists running turns by their START key (`new-…`, `cron-…`, a card or flow
+// key), which the server never renames to the session id. On a session's first
+// turn `busy.keys.includes(sessionId)` is false, so `wait` returned "not running"
+// at once and `sessions`/`status` showed it idle. The server sends one `replay`
+// per running turn right after `busy`, carrying the sessionId: fold those in.
+export async function busySessionIds(client: Client, timeoutMs = 3000): Promise<Set<string>> {
+  const busy = await client.waitFor(isServerMsg('busy'), timeoutMs);
+  const ids = new Set(busy?.keys ?? []);
+  const deadline = Date.now() + 1500;
+  for (const key of busy?.keys ?? []) {
+    const r = await client.waitFor(
+      (m): m is Extract<ServerMsg, { t: 'replay' }> => m.t === 'replay' && m.sessionKey === key,
+      Math.max(0, deadline - Date.now()),
+    );
+    if (r?.sessionId) ids.add(r.sessionId);
+  }
+  return ids;
+}
+
 async function externalLiveIds(client: Client): Promise<string[]> {
   client.send({ t: 'canvas-get' });
   const cvLive = await client.waitFor(isServerMsg('cv-live'), 3000);
@@ -249,10 +269,10 @@ async function cmdSessions(flags: Flags, json: boolean): Promise<void> {
   const own = flags.all ? [...await listSessions(), ...await listArchived()] : await listSessions();
 
   const client = await connect();
-  const busy = await client.waitFor(isServerMsg('busy'), 3000);
+  const busy = await busySessionIds(client);
   const external = await externalLiveIds(client);
   client.close();
-  const busyKeys = new Set([...(busy?.keys ?? []), ...external]);
+  const busyKeys = new Set([...busy, ...external]);
 
   const limit = flagNum(flags, 'limit');
   const items = await Promise.all((limit ? own.slice(0, limit) : own).map(async (s) => {
@@ -284,7 +304,7 @@ async function cmdRead(id: string, flags: Flags): Promise<void> {
 async function cmdBoard(json: boolean): Promise<void> {
   const client = await connect();
   client.send({ t: 'canvas-get' });
-  const busy = await client.waitFor(isServerMsg('busy'), DEFAULT_TIMEOUT_MS);
+  const busy = await busySessionIds(client, DEFAULT_TIMEOUT_MS);
   const board = await client.waitFor(isServerMsg('canvas-board'), DEFAULT_TIMEOUT_MS);
   const graph = await client.waitFor(isServerMsg('canvas-graph'), DEFAULT_TIMEOUT_MS);
   // Same signal the browser's kanban reads (kanban-items.ts's `cvLive`) — a
@@ -302,7 +322,7 @@ async function cmdBoard(json: boolean): Promise<void> {
   const merged = mergeBoard(graph?.graph ?? null, board.board.cards);
   const sessionItems = deriveSessionItems({
     nodes: merged.nodes, edges: merged.edges, cards: board.board.cards, showAutomation: false,
-    running: new Set(busy?.keys ?? []), overrides: board.board.sessionStatus, turnStartedAt: {},
+    running: busy, overrides: board.board.sessionStatus, turnStartedAt: {},
     orchestratorSessionId: graph?.graph.orchestrator?.sessionId, cvLive: new Set(cvLive?.sessionIds ?? []),
   });
 
@@ -335,8 +355,7 @@ async function cmdBoard(json: boolean): Promise<void> {
 // queues if the session is mid-turn, otherwise starts a turn directly.
 async function sendText(full: string, text: string, flags: Flags): Promise<void> {
   const client = await connect();
-  const busy = await client.waitFor(isServerMsg('busy'), 3000);
-  const isBusy = !!busy?.keys.includes(full);
+  const isBusy = (await busySessionIds(client)).has(full);
   const model = flagStr(flags, 'model');
   const effort = flagStr(flags, 'effort') as Effort | undefined;
 
@@ -368,15 +387,48 @@ async function cmdSend(id: string, text: string, flags: Flags): Promise<void> {
   return sendText(full, text, flags);
 }
 
+// Exit code for "accepted but parked": the server queued the prompt (quota
+// window nearly spent, or a big session starting) and its drainer runs it later.
+// Not a failure — retrying would start a duplicate session.
+export const EXIT_PARKED = 3;
+
+type NewTurn = { kind: 'started'; sessionId: string } | { kind: 'parked'; message: string } | { kind: 'rejected'; message: string } | null;
+
+// Starts a turn on a fresh `new-…` key and waits for whichever answer comes: the
+// session id (`system`), a park or a reject. Waiting for `system` alone turned a
+// park into "timeout, turn may have failed" (exit 1) 15 s later, and a reject lost
+// its message.
+export async function startNewTurn(client: Client, sessionKey: string, msg: Omit<Extract<ClientMsg, { t: 'send' }>, 't' | 'sessionKey'>, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<NewTurn> {
+  client.send({ t: 'send', sessionKey, ...msg });
+  const m = await client.waitFor(
+    (f): f is Extract<ServerMsg, { t: 'system' | 'send-parked' | 'send-reject' }> =>
+      (f.t === 'system' || f.t === 'send-parked' || f.t === 'send-reject') && f.sessionKey === sessionKey,
+    timeoutMs,
+  );
+  if (!m) return null;
+  if (m.t === 'system') return { kind: 'started', sessionId: m.sessionId };
+  if (m.t === 'send-parked') return { kind: 'parked', message: m.message };
+  return { kind: 'rejected', message: m.message };
+}
+
+// stderr, not stdout: callers capture stdout as the new session id
+// (`new=$(deckctl new … | tail -1)` in ~/bin/marathon-watch).
+function parked(client: Client, what: string, message: string): never {
+  client.close();
+  console.error(`deckctl: parked — ${what} will start when the server drains its queue: ${message}`);
+  process.exit(EXIT_PARKED);
+}
+
 async function cmdNew(text: string, flags: Flags): Promise<void> {
   if (flagStr(flags, 'cwd')) {
     console.error('deckctl: --cwd is not supported by the current WS protocol (server always spawns in its own fixed workdir) — ignoring');
   }
   const sessionKey = `new-${randomUUID()}`;
   const client = await connect();
-  client.send({ t: 'send', sessionKey, text, model: flagStr(flags, 'model'), effort: flagStr(flags, 'effort') as Effort | undefined });
-  const sys = await client.waitFor((m): m is Extract<ServerMsg, { t: 'system' }> => m.t === 'system' && m.sessionKey === sessionKey, DEFAULT_TIMEOUT_MS);
+  const sys = await startNewTurn(client, sessionKey, { text, model: flagStr(flags, 'model'), effort: flagStr(flags, 'effort') as Effort | undefined });
   if (!sys) { client.close(); fail('no sessionId assigned by server (timeout) — turn may have failed to start'); }
+  if (sys.kind === 'rejected') { client.close(); fail(`send rejected: ${sys.message}`); }
+  if (sys.kind === 'parked') parked(client, 'the new session', sys.message);
   console.log(sys.sessionId);
   const title = flagStr(flags, 'title');
   if (title) client.send({ t: 'set-meta', sessionId: sys.sessionId, title: title.slice(0, 120) });
@@ -396,8 +448,7 @@ async function cmdWait(id: string, flags: Flags): Promise<void> {
   const full = await resolveSessionId(id);
   const timeoutMs = (flagNum(flags, 'timeout') ?? 15) * 1000;
   const client = await connect();
-  const busy = await client.waitFor(isServerMsg('busy'), 3000);
-  if (!busy?.keys.includes(full)) {
+  if (!(await busySessionIds(client)).has(full)) {
     client.close();
     console.log(`session ${shortId(full)} is not running — nothing to wait for`);
     return;
@@ -412,6 +463,31 @@ async function cmdWait(id: string, flags: Flags): Promise<void> {
   if (parsed) console.log(transcriptText(parsed.messages, 2000));
 }
 
+// Waits for the frame that proves a mutation landed, or for the handler's
+// `error` reply. The old waits matched a frame already in history (the board
+// fetched to find the card, the `archived` list from connect or from the hide
+// step) and ignored errors, so a failed save printed success and exited 0.
+export async function tryMutationAck<T extends ServerMsg>(client: Client, pred: (m: ServerMsg) => m is T, what: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<{ ok: T } | { error: string }> {
+  const m = await client.waitFor(
+    (f): f is T | Extract<ServerMsg, { t: 'error' }> => pred(f) || (f.t === 'error' && !f.sessionKey),
+    timeoutMs, { fresh: true },
+  );
+  if (!m) return { error: `backend did not confirm ${what} (timeout)` };
+  if (m.t === 'error' && !pred(m)) return { error: `${what} failed: ${(m as Extract<ServerMsg, { t: 'error' }>).message}` };
+  return { ok: m as T };
+}
+
+export async function mutationAck<T extends ServerMsg>(client: Client, pred: (m: ServerMsg) => m is T, what: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
+  const r = await tryMutationAck(client, pred, what, timeoutMs);
+  if ('error' in r) { client.close(); fail(r.error); }
+  return r.ok;
+}
+
+const archivedWith = (id: string, present: boolean) =>
+  (m: ServerMsg): m is Extract<ServerMsg, { t: 'archived' }> => m.t === 'archived' && m.items.some((s) => s.id === id) === present;
+const boardWhere = (ok: (cards: CanvasCard[]) => boolean) =>
+  (m: ServerMsg): m is Extract<ServerMsg, { t: 'canvas-board' }> => m.t === 'canvas-board' && ok(m.board.cards);
+
 // --- session meta / visibility -------------------------------------------
 
 async function cmdRename(id: string, title: string, flags: Flags): Promise<void> {
@@ -419,7 +495,7 @@ async function cmdRename(id: string, title: string, flags: Flags): Promise<void>
   const summary = flagStr(flags, 'summary');
   const client = await connect();
   client.send({ t: 'set-meta', sessionId: full, title, summary });
-  await client.waitFor(isServerMsg('sessions'), DEFAULT_TIMEOUT_MS);
+  await mutationAck(client, isServerMsg('sessions'), 'rename');
   client.close();
   console.log(`session ${shortId(full)} renamed to "${oneLine(title, 120)}"${summary ? ' (summary updated)' : ''}`);
 }
@@ -428,7 +504,7 @@ async function cmdHide(id: string): Promise<void> {
   const full = await resolveSessionId(id);
   const client = await connect();
   client.send({ t: 'hide', sessionId: full });
-  await client.waitFor(isServerMsg('archived'), DEFAULT_TIMEOUT_MS);
+  await mutationAck(client, archivedWith(full, true), 'hide');
   client.close();
   console.log(`session ${shortId(full)} hidden`);
 }
@@ -437,7 +513,7 @@ async function cmdUnhide(id: string): Promise<void> {
   const full = await resolveSessionId(id);
   const client = await connect();
   client.send({ t: 'unhide', sessionId: full });
-  await client.waitFor(isServerMsg('archived'), DEFAULT_TIMEOUT_MS);
+  await mutationAck(client, archivedWith(full, false), 'unhide');
   client.close();
   console.log(`session ${shortId(full)} unhidden`);
 }
@@ -535,9 +611,10 @@ async function cmdHandoff(id: string): Promise<void> {
   // that context, same as onNew() + sendPrompt() in the browser.
   const sessionKey = `new-${randomUUID()}`;
   const text = `Retome o trabalho a partir do contexto \`${result.contextId}\`.`;
-  client.send({ t: 'send', sessionKey, text });
-  const sys = await client.waitFor((m): m is Extract<ServerMsg, { t: 'system' }> => m.t === 'system' && m.sessionKey === sessionKey, DEFAULT_TIMEOUT_MS);
+  const sys = await startNewTurn(client, sessionKey, { text });
   if (!sys) { client.close(); fail('handoff distilled ok but the fresh session never got a sessionId (timeout)'); }
+  if (sys.kind === 'rejected') { client.close(); fail(`handoff distilled ok (context ${result.contextId}) but the fresh session was rejected: ${sys.message}`); }
+  if (sys.kind === 'parked') parked(client, `the resumed session (context ${result.contextId})`, sys.message);
   const title = result.fromTitle?.trim() ? `${result.fromTitle.trim()} (retomado)` : 'Sessão retomada';
   client.send({ t: 'set-meta', sessionId: sys.sessionId, title });
   client.close();
@@ -614,9 +691,8 @@ async function cmdCardAdd(title: string, flags: Flags): Promise<void> {
   };
   const client = await connect();
   client.send({ t: 'canvas-card-save', card });
-  const board = await client.waitFor(isServerMsg('canvas-board'), DEFAULT_TIMEOUT_MS);
+  await mutationAck(client, boardWhere((cards) => cards.some((c) => c.id === card.id)), 'canvas-card-save');
   client.close();
-  if (!board) fail('backend did not answer canvas-card-save (timeout)');
   console.log(`card created: ${card.id}`);
 }
 
@@ -627,9 +703,8 @@ async function cmdCardMove(idPrefix: string, status: string): Promise<void> {
   if (!board) { client.close(); fail('backend did not answer canvas-get (timeout)'); }
   const card = findCard(board.cards, idPrefix);
   client.send({ t: 'canvas-card-save', card: { ...card, status: status as CardStatus, updatedAt: Date.now() } });
-  const ack = await client.waitFor(isServerMsg('canvas-board'), DEFAULT_TIMEOUT_MS);
+  await mutationAck(client, boardWhere((cards) => cards.some((c) => c.id === card.id && c.status === status)), 'canvas-card-save');
   client.close();
-  if (!ack) fail('backend did not confirm canvas-card-save (timeout)');
   console.log(`card ${card.id} -> ${status}`);
 }
 
@@ -639,9 +714,8 @@ async function cmdCardRm(idPrefix: string): Promise<void> {
   if (!board) { client.close(); fail('backend did not answer canvas-get (timeout)'); }
   const card = findCard(board.cards, idPrefix);
   client.send({ t: 'canvas-card-delete', id: card.id });
-  const ack = await client.waitFor(isServerMsg('canvas-board'), DEFAULT_TIMEOUT_MS);
+  await mutationAck(client, boardWhere((cards) => !cards.some((c) => c.id === card.id)), 'canvas-card-delete');
   client.close();
-  if (!ack) fail('backend did not confirm canvas-card-delete (timeout)');
   console.log(`card ${card.id} removed`);
 }
 
@@ -673,12 +747,16 @@ async function cmdCardRun(idPrefix: string, flags: Flags): Promise<void> {
   // enrichment is skipped here since deckctl has no local canvas graph).
   const prompt = card.reuse?.mode ? buildContinuePrompt(card) : buildTaskPrompt(card, [], []);
   const sessionKey = `new-${randomUUID()}`;
-  client.send({ t: 'send', sessionKey, text: prompt });
-  const sys = await client.waitFor((m): m is Extract<ServerMsg, { t: 'system' }> => m.t === 'system' && m.sessionKey === sessionKey, DEFAULT_TIMEOUT_MS);
+  const sys = await startNewTurn(client, sessionKey, { text: prompt });
   if (!sys) { client.close(); fail('no sessionId assigned by server (timeout)'); }
+  if (sys.kind === 'rejected') { client.close(); fail(`send rejected: ${sys.message}`); }
+  if (sys.kind === 'parked') parked(client, `card ${card.id}`, sys.message);
   client.send({ t: 'canvas-card-save', card: { ...card, status: 'doing', updatedAt: Date.now() } });
-  await client.waitFor(isServerMsg('canvas-board'), DEFAULT_TIMEOUT_MS);
+  // The turn already started: a non-zero exit here would make a retrying caller
+  // start a duplicate run. Only the card's status move is in doubt.
+  const moved = await tryMutationAck(client, boardWhere((cards) => cards.some((c) => c.id === card.id && c.status === 'doing')), 'canvas-card-save');
   client.close();
+  if ('error' in moved) console.error(`deckctl: warning — the turn started but the card was not moved to doing: ${moved.error}`);
   console.log(`card ${card.id} running on session ${sys.sessionId}`);
 }
 
@@ -690,7 +768,7 @@ async function cmdStatus(): Promise<void> {
   const own = await listSessions();
 
   const client = await connect();
-  const busy = await client.waitFor(isServerMsg('busy'), 3000);
+  const busy = await busySessionIds(client);
   client.send({ t: 'canvas-get' });
   const board = await client.waitFor(isServerMsg('canvas-board'), 8000);
   const graph = await client.waitFor(isServerMsg('canvas-graph'), 8000);
@@ -700,7 +778,7 @@ async function cmdStatus(): Promise<void> {
   client.close();
 
   const cvLiveIds = new Set(cvLive?.sessionIds ?? []);
-  const busyKeys = new Set([...(busy?.keys ?? []), ...cvLiveIds]);
+  const busyKeys = new Set([...busy, ...cvLiveIds]);
   const running = own.filter((s) => busyKeys.has(s.id));
   const awaiting = own.filter((s) => s.waiting);
 
@@ -1144,6 +1222,7 @@ async function applyTriage(rows: TriageRow[]): Promise<void> {
   const toPurge = rows.filter((r) => r.verdict === 'PURGE');
   const toStub = rows.filter((r) => r.verdict === 'KEEP' && !handoffIds.has(r.id) && !memoryLeafIds.has(r.id));
 
+  let purgeFailures = 0;
   for (const r of toPurge) {
     // Hard guard, independent of scoring: refuse a never-purge id/title even if a
     // future scoring change ever let one through as PURGE.
@@ -1151,12 +1230,16 @@ async function applyTriage(rows: TriageRow[]): Promise<void> {
       console.error(`deckctl: refusing to purge never-purge session ${shortId(r.id)} (scoring bug — this should not happen)`);
       continue;
     }
+    // One unconfirmed session must not stop the batch: report it, go on, and
+    // exit non-zero at the end.
     const client = await connect();
     client.send({ t: 'hide', sessionId: r.id });
-    await client.waitFor(isServerMsg('archived'), DEFAULT_TIMEOUT_MS);
+    const hid = await tryMutationAck(client, archivedWith(r.id, true), `hide ${shortId(r.id)}`);
+    if ('error' in hid) { client.close(); console.error(`deckctl: ${hid.error} — skipped`); purgeFailures++; continue; }
     client.send({ t: 'purge', sessionId: r.id });
-    await client.waitFor(isServerMsg('archived'), DEFAULT_TIMEOUT_MS);
+    const gone = await tryMutationAck(client, archivedWith(r.id, false), `purge ${shortId(r.id)}`);
     client.close();
+    if ('error' in gone) { console.error(`deckctl: ${gone.error} — ${shortId(r.id)} is hidden, not purged`); purgeFailures++; continue; }
     console.log(`purged ${shortId(r.id)}`);
   }
 
@@ -1166,7 +1249,8 @@ async function applyTriage(rows: TriageRow[]): Promise<void> {
   }
 
   const reviewed = rows.filter((r) => r.verdict === 'REVIEW').length;
-  console.log(`apply done — purged ${toPurge.length}, stubbed ${toStub.length}, reviewed ${reviewed} (no action)`);
+  console.log(`apply done — purged ${toPurge.length - purgeFailures}, stubbed ${toStub.length}, reviewed ${reviewed} (no action)`);
+  if (purgeFailures) fail(`${purgeFailures} purge(s) not confirmed — see above`);
 }
 
 async function cmdTriage(flags: Flags, json: boolean): Promise<void> {
@@ -1224,7 +1308,8 @@ Usage: deckctl <command> [args] [--json]
   status                                    one-screen overview + alerts (pending questions, hot-context sessions)
   triage [--apply] [--limit N]              score every session KEEP/PURGE/REVIEW (dry-run by default; --apply acts)
 
-Session/card ids accept unambiguous prefixes. Add --json to any read command for raw output.`;
+Session/card ids accept unambiguous prefixes. Add --json to any read command for raw output.
+Exit codes: 0 ok, 1 failure, 3 parked (new/handoff/card run accepted but queued by the server — do not retry).`;
 
 async function main(): Promise<void> {
   const [cmd, ...rest] = process.argv.slice(2);
