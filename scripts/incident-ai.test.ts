@@ -176,7 +176,7 @@ describe('incident-ai: quem publica é o script', () => {
     expect(git(origin, 'show', '--name-only', '--format=', branch)).not.toContain('.incident-commit-msg');
     expect(git(repo, 'branch', '--show-current').trim()).toBe('main');
     const gh = readFileSync(join(tmp, 'gh-argv.txt'), 'utf8').split('\n');
-    expect(gh.slice(0, 4)).toEqual(['pr', 'create', '--head', 'fix/incidente-teste']);
+    expect(gh.slice(0, 4)).toEqual(['pr', 'create', '--head', branch]);
   });
 
   it('never runs the repo hooks when committing', () => {
