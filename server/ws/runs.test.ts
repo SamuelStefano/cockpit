@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { WebSocket } from 'ws';
-import { startRun, routeSend, isSilentDeath, isCleanTurnClose, resumeOrphanRuns, drainParked, runParkedInBackground, runParkedNow, startParkedDrainer, acceptResumeOffer, hasResumeOffer, AUTO_RESUME_CAP, deliverToOrchestratorPane, orchestratorPaneTarget } from './runs';
+import { startRun, catchSpawn, routeSend, isSilentDeath, isCleanTurnClose, resumeOrphanRuns, drainParked, runParkedInBackground, runParkedNow, startParkedDrainer, acceptResumeOffer, hasResumeOffer, AUTO_RESUME_CAP, deliverToOrchestratorPane, orchestratorPaneTarget } from './runs';
 import { readOrchestratorSync, isTmuxAliveSync } from '../canvas/orchestrator';
 import { hasTerm, openTerm, inputTerm } from '../terminals';
 import { threads, killAllRuns } from './threads';
@@ -15,7 +15,7 @@ import { resumableId } from './resume';
 import { quotaHold } from './quota';
 import { getLastPlanUsage } from './usage-plan';
 import { classify } from '../engine/triage';
-import { resetCooldownState, resetColdInflight, acquireCold, COOLDOWN_AFTER_RESET_MS, CTX_HARD } from './ctx-guard';
+import { resetCooldownState, resetColdInflight, coldInflightCount, acquireCold, COOLDOWN_AFTER_RESET_MS, CTX_HARD } from './ctx-guard';
 import { noteExternalKill, resetExternalKills, EXTERNAL_POLL_MS, EXTERNAL_QUIET_MS } from './kill-class';
 
 // O gate de contexto lê a última amostra de uso do SQLite. No teste isso tem que
@@ -1556,5 +1556,26 @@ describe('resumeOrphanRuns — never auto-resumes the Orchestrator headlessly', 
     expect(run).not.toHaveBeenCalled();
     expect(inputTerm).not.toHaveBeenCalled();
     expect(threads.has('orch-sid')).toBe(false);
+  });
+});
+
+describe('startRun — spawn throws synchronously', () => {
+  const ws = {} as WebSocket;
+  beforeEach(() => { threads.clear(); clearAllAwaiting(); resetColdInflight(); vi.mocked(broadcast).mockClear(); });
+
+  it('frees the session instead of leaving it busy forever', () => {
+    vi.mocked(run).mockImplementationOnce(() => { throw new Error('spawn ENOMEM'); });
+    expect(() => startRun({ ws, sessionKey: 'sx', prompt: 'oi' })).not.toThrow();
+    expect(threads.has('sx')).toBe(false);
+    expect(coldInflightCount()).toBe(0);
+    expect(broadcast).toHaveBeenCalledWith(expect.objectContaining({ t: 'error', sessionKey: 'sx' }));
+    expect(broadcast).toHaveBeenCalledWith(expect.objectContaining({ t: 'done', sessionKey: 'sx', stopped: true }));
+  });
+});
+
+describe('catchSpawn', () => {
+  it('returns the handle or the error message', () => {
+    expect(catchSpawn(() => 1)).toEqual({ handle: 1 });
+    expect(catchSpawn(() => { throw new Error('boom'); })).toEqual({ error: 'boom' });
   });
 });
