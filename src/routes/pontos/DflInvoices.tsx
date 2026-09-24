@@ -4,11 +4,15 @@ import { InvoiceRow } from './InvoiceRow';
 import { brl } from './money';
 
 interface Props {
-  invoices: DflInvoice[];
+  // null = no DFL snapshot yet (never synced, or offline): not the same as zero invoices.
+  invoices: DflInvoice[] | null;
 }
 
 // Every DFL invoice as one dense table; a row opens into its lines.
 export function DflInvoices({ invoices }: Props) {
+  if (invoices === null) {
+    return <EmptyState icon="rotate" title="Sem dados do DFL" description="Ainda não há sincronização com o DFL. Use ⟳ no topo pra buscar as faturas." />;
+  }
   if (!invoices.length) {
     return <EmptyState icon="file" title="Nenhuma fatura" description="As faturas do DFL aparecem aqui após a sincronização." />;
   }

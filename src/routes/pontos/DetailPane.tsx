@@ -15,7 +15,7 @@ interface Props {
   selection: Selection;
   waiting: boolean;
   projects: DflProjectNode[];
-  invoices: DflInvoice[];
+  invoices: DflInvoice[] | null;
   op: (o: DraftOp) => void;
   ask: AskDispatch;
   ledger: ComponentProps<typeof LedgerTab>;
