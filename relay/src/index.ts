@@ -3,7 +3,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Registry } from './routing';
 import {
-  makeJwks, verifyJwtSignature, validateClaims, makeChallenge, verifyAgentSignature,
+  makeJwks, verifyJwtSignature, validateClaims, makeChallenge, verifyAgentSignature, isEd25519Spki,
   type JwksFn, type Identity,
 } from './verify';
 import { slidingWindow } from './throttle';
@@ -274,6 +274,8 @@ export function createRelay(cfg: RelayConfig) {
         if (++attempts > 10) { try { ws.close(4429, 'too many attempts'); } catch { /* indo */ } return; }
         // Pairing: consome o código (atômico) → registra o agente → devolve agentId.
         if (m.t === 'pair' && typeof m.code === 'string' && typeof m.publicKey === 'string') {
+          // Checked BEFORE consuming the single-use code: a bad key must not burn it.
+          if (!isEd25519Spki(m.publicKey)) { ws.close(4400, 'invalid public key'); return; }
           const accountId = await cfg.store.consumePairingCode(m.code);
           if (!accountId) { ws.close(4401, 'invalid code'); return; }
           const agentId = await cfg.store.createAgent(accountId, m.publicKey);

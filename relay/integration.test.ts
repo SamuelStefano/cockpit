@@ -516,3 +516,28 @@ describe('relay: browser that leaves during auth', () => {
     expect(relay.registry.browserCount('accA')).toBe(0);
   });
 });
+
+describe('relay: pairing with an invalid public key', () => {
+  let server: import('node:http').Server | null = null;
+  afterEach(() => { server?.close(); server = null; });
+
+  it('closes 4400 without consuming the single-use code', async () => {
+    let consumed = 0;
+    const store: RelayStore = {
+      async agentById() { return null; }, async isAdmin() { return false; },
+      async listAccounts() { return []; }, async setAdmin() { return true; },
+      async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
+      async consumePairingCode() { consumed++; return 'accA'; }, async createAgent() { return 'ag-1'; },
+    };
+    const relay = createRelay({ iss: 't', jwksUrl: 'http://x', rootEmails: '', store, resolveIdentity: async () => null });
+    server = relay.server;
+    await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
+    const { port } = server!.address() as AddressInfo;
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/agent`);
+    await new Promise<void>((r) => ws.on('open', () => r()));
+    ws.send(JSON.stringify({ t: 'pair', code: 'CODE', publicKey: 'garbage' }));
+    const code = await new Promise<number>((r) => ws.on('close', (c) => r(c)));
+    expect(code).toBe(4400);
+    expect(consumed).toBe(0);
+  });
+});
