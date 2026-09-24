@@ -4,7 +4,8 @@ import type { ClientMsg } from '../../shared/protocol';
 export interface TermApi {
   attach: (id: string, cols: number, rows: number, onData: (d: string) => void, onExit: () => void, onReplay: (d: string) => void, watch?: string) => void;
   detach: (id: string) => void;
-  input: (id: string, data: string) => void;
+  // false = the socket was not open and nothing was sent.
+  input: (id: string, data: string) => boolean;
   resize: (id: string, cols: number, rows: number) => void;
   kill: (id: string) => void;
   resume: (id: string, sessionId: string) => void;
@@ -29,7 +30,7 @@ export interface Terminals {
 // the bucket and no window is left blank on a "muitas requisições".
 const OPEN_SPACING_MS = 180;
 
-export function useTerminals(send: (m: ClientMsg) => void): Terminals {
+export function useTerminals(send: (m: ClientMsg) => boolean): Terminals {
   const openQueue = useRef<ClientMsg[]>([]);
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sendOpen = useCallback((m: ClientMsg) => {
