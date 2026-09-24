@@ -21,8 +21,9 @@ export function OrchestratorChatInput({ onSend, disabled }: Props) {
     const text = value.trim();
     if (!text) return;
     onSend(text);
-    setHistory((h) => pushChatHistory(h, text));
-    historyIndex.current = history.length + 1; // +1: pushChatHistory just grew it
+    // The index is the NEW length: pushChatHistory dedupes and caps at 50, so
+    // "old length + 1" pointed past the end and the first ArrowUp did nothing.
+    setHistory((h) => { const next = pushChatHistory(h, text); historyIndex.current = next.length; return next; });
     setValue('');
   };
 
