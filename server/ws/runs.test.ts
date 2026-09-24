@@ -1469,6 +1469,7 @@ describe('startRun / routeSend — twin-process guard on the Orchestrator pane',
     expect(openTerm).toHaveBeenCalledWith('cv-abc', 120, 40, expect.any(Function), expect.any(Function), expect.any(Function));
     expect(inputTerm).toHaveBeenCalledWith('cv-abc', '\x1b[200~oi\x1b[201~\r');
     expect(broadcast).toHaveBeenCalledWith(expect.objectContaining({ t: 'user', sessionKey: 'orch-sid', id: 'm1', text: 'oi' }));
+    expect(broadcast).toHaveBeenCalledWith({ t: 'pane-delivered', sessionKey: 'orch-sid', msgId: 'm1' });
   });
 
   it('reuses an already-open pane pty instead of opening a second client onto the same tmux session', () => {
@@ -1502,6 +1503,7 @@ describe('startRun / routeSend — twin-process guard on the Orchestrator pane',
     threads.set('orch-sid', { handle: { kill: vi.fn(), send: vi.fn(() => false) }, params: {}, prompt: 'p', startedAt: Date.now(), text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set() } as any);
     routeSend({ ws, role: 'admin', sessionKey: 'orch-sid', prompt: 'oi de novo', resumeId: 'orch-sid', msgId: 'm2' });
     expect(inputTerm).toHaveBeenCalledWith('cv-abc', '\x1b[200~oi de novo\x1b[201~\r');
+    expect(broadcast).toHaveBeenCalledWith({ t: 'pane-delivered', sessionKey: 'orch-sid', msgId: 'm2' });
   });
 
   it('deliverToOrchestratorPane is false when no orchestrator is configured', () => {
