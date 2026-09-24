@@ -17,7 +17,7 @@ export function InstalledView({ packs, groups, installing, onInstall, onOpen }: 
       {packs.length > 0 && (
         <div className="flex flex-col gap-3">
           {packs.map((v) => (
-            <PackPanel key={v.pack.slug} view={v} compact installing={installing.has(`pack:${v.pack.source}/${v.pack.slug}`)} onInstall={onInstall} onOpen={onOpen} />
+            <PackPanel key={`${v.pack.source}/${v.pack.slug}`} view={v} compact installing={installing.has(`pack:${v.pack.source}/${v.pack.slug}`)} onInstall={onInstall} onOpen={onOpen} />
           ))}
         </div>
       )}

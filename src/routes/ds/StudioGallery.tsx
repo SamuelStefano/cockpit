@@ -59,7 +59,8 @@ export function StudioGallery() {
           O botão <Icon name="link" size={11} className="inline text-orange-300" /> gera um <strong className="text-neutral-400">link compartilhável</strong>:
           serializa linguagem + código no hash da URL (base64url, client-side) — abrir o link recria o sandbox vivo.
         </p>
-        <a href="/play" className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-orange-500/15 px-3 py-1.5 text-[12px] font-medium text-orange-300 transition hover:bg-orange-500/25">
+        {/* SPA navigation: a plain href reloaded the whole page and reconnected the WS. */}
+        <a href="/play" onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); history.pushState(null, '', '/play'); window.dispatchEvent(new PopStateEvent('popstate')); }} className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-orange-500/15 px-3 py-1.5 text-[12px] font-medium text-orange-300 transition hover:bg-orange-500/25">
           abrir playground →
         </a>
       </Section>
