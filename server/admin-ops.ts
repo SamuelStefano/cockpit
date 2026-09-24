@@ -53,14 +53,27 @@ const unreadable = (path: string, e: unknown) =>
 // (minimalEnv os mescla) — sem isso o agente não enxergaria o token.
 
 // Cache síncrono p/ o spawn do claude (minimalEnv é sync). loadManagedEnv() é
-// chamado no boot do backend; setEnv/unsetEnv mantêm o cache em dia.
+// chamado no boot do backend; managedEnvSync() relê quando o arquivo muda.
 let cache: Record<string, string> = {};
 
 export async function managedEnv(): Promise<Record<string, string>> {
   return readJson<Record<string, string>>(ENV_FILE, {});
 }
 
+// Both backends (index and the relay agent) share env.json but each keeps its own
+// cache. Re-reading on mtime change makes a token removed through one of them stop
+// reaching the other's spawns without a restart.
+let cacheMtime = -1;
+
 export function managedEnvSync(): Record<string, string> {
+  let mtime: number;
+  try { mtime = statSync(ENV_FILE).mtimeMs; } catch { mtime = 0; }
+  if (mtime === cacheMtime) return cache;
+  if (mtime === 0) cache = {};
+  else {
+    try { cache = JSON.parse(readFileSync(ENV_FILE, 'utf8')) as Record<string, string>; } catch { return cache; }
+  }
+  cacheMtime = mtime;
   return cache;
 }
 
@@ -75,7 +88,7 @@ export function mcpServerDefsSync(): Record<string, unknown> {
 }
 
 export async function loadManagedEnv(): Promise<void> {
-  cache = await managedEnv();
+  managedEnvSync();
 }
 
 // O `.credentials.json` guarda MAIS de um login: os OAuth dos MCP servers ficam em
@@ -102,7 +115,8 @@ function hasOauthLogin(path: string): boolean {
 // escondida justamente no caso em que ela era necessária.
 export function claudeReady(home = homedir()): boolean {
   if (process.env.ANTHROPIC_API_KEY?.trim() || process.env.ANTHROPIC_AUTH_TOKEN?.trim()) return true;
-  if (cache.ANTHROPIC_API_KEY?.trim() || cache.ANTHROPIC_AUTH_TOKEN?.trim()) return true;
+  const managed = managedEnvSync();
+  if (managed.ANTHROPIC_API_KEY?.trim() || managed.ANTHROPIC_AUTH_TOKEN?.trim()) return true;
   return hasOauthLogin(join(home, '.claude', '.credentials.json'))
     || nonEmptyFile(join(home, '.config', 'anthropic', 'credentials'));
 }
@@ -131,8 +145,7 @@ export async function setEnv(name: string, value: string): Promise<{ ok: boolean
   try { env = await readJsonForWrite<Record<string, string>>(ENV_FILE, {}); } catch (e) { return unreadable(ENV_FILE, e); }
   env[name] = value;
   await writeJson(ENV_FILE, env);
-  cache[name] = value;
-  process.env[name] = value;
+  cache = { ...managedEnvSync(), [name]: value };
   return { ok: true, message: `${name} salvo` };
 }
 
@@ -142,8 +155,8 @@ export async function unsetEnv(name: string): Promise<{ ok: boolean; message: st
   if (!(name in env)) return { ok: false, message: `${name} não existe` };
   delete env[name];
   await writeJson(ENV_FILE, env);
-  delete cache[name];
-  delete process.env[name];
+  const { [name]: _gone, ...rest } = managedEnvSync();
+  cache = rest;
   return { ok: true, message: `${name} removido` };
 }
 
