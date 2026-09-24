@@ -102,7 +102,10 @@ export function acceptResumeOffer(sessionKey: string): boolean {
   resumeOffers.delete(sessionKey);
   if (threads.has(sessionKey)) return false;
   autoResumes.delete(sessionKey);
-  startRun({ ...offer.params, ws: null, sessionKey, prompt: RESUME_PROMPT, resumeId: offer.sessionId, queued: true, flowHop: offer.flowHop });
+  if (startRun({ ...offer.params, ws: null, sessionKey, prompt: RESUME_PROMPT, resumeId: offer.sessionId, queued: true, flowHop: offer.flowHop }) === 'rejected') {
+    resumeOffers.set(sessionKey, offer); // keep the banner: nothing started
+    return false;
+  }
   return true;
 }
 
@@ -135,7 +138,13 @@ function autoResume(sessionKey: string, thread: Thread): void {
   // Avisa aqui, não em quem detectou a morte: só neste ponto a retomada é certa
   // (passou das guardas de corrida acima e do teto de tentativas).
   broadcast({ t: 'error', sessionKey, message: 'Retomando de onde parou…' });
-  startRun({ ...thread.params, ws: null, sessionKey, prompt: RESUME_PROMPT, resumeId: thread.sessionId, flowHop: thread.flowHop });
+  const r = startRun({ ...thread.params, ws: null, sessionKey, prompt: RESUME_PROMPT, resumeId: thread.sessionId, flowHop: thread.flowHop });
+  if (r === 'rejected') {
+    // No room right now (memory): give the attempt back and leave a banner, instead
+    // of "Retomando…" followed by nothing.
+    autoResumes.set(sessionKey, tries - 1);
+    offerResume(sessionKey, thread, 'exhausted', 'A máquina está sem memória livre pra retomar agora. O turno está guardado — retome quando liberar.');
+  }
 }
 
 // D2 — gate de memória na frente do autoResume: subir --resume com a memória
@@ -658,7 +667,10 @@ function echoPaneDelivery(sessionKey: string, msgId: string | undefined, prompt:
 // 'pane' = the prompt was pasted into the Orchestrator's live tmux pane: it WAS
 // delivered, but no thread exists. Queue callers must not read "no thread" as a
 // failed spawn, or they put the item back and paste it again on every tick.
-export function startRun(o: StartRunOptions): 'pane' | undefined {
+// 'rejected' = refused for capacity (memory or the concurrent-run cap). With a
+// socket the sender gets an error; without one (auto-resume, a resume click, the
+// in-turn queue) the caller must keep the work, or it vanishes silently.
+export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
   const { ws, sessionKey, prompt, resumeId, msgId, auto, forkId, queued, flowHop } = o;
   const params = runParams(o);
   // "Permitir todos os MCPs" chega como o sentinel '*' e é expandido AQUI, não no
@@ -734,7 +746,7 @@ export function startRun(o: StartRunOptions): 'pane' | undefined {
         : 'limite de sessões simultâneas atingido';
       send(ws, { t: 'error', sessionKey, message });
     }
-    return;
+    return 'rejected';
   }
   if (replacing) {
     const old = threads.get(sessionKey)!;
@@ -983,7 +995,19 @@ function drainPending(sessionKey: string, resumeId?: string) {
   if (!batch) return;
   const { first, text } = batch;
   // msgId undefined: a bolha do usuário já foi ecoada no routeSend (não duplica).
-  startRun({ ...runParams(first), ws: first.ws, sessionKey, prompt: text, resumeId });
+  const r = startRun({ ...runParams(first), ws: first.ws, sessionKey, prompt: text, resumeId });
+  if (r !== 'rejected') return;
+  // Refused for capacity: the batch was already taken out of the in-turn queue,
+  // which lives only in memory. Park it (and the rest) on disk so the drainer runs
+  // it when there is room, instead of losing it.
+  try {
+    const p = addParked(sessionKey, { ...runParams(first), prompt: text, resumeId });
+    if ('reject' in p) broadcast({ t: 'error', sessionKey, message: `Sem memória livre e a fila recusou a mensagem (${p.reject}). Reenvie: ${text.slice(0, 120)}` });
+  } catch (e) {
+    broadcast({ t: 'error', sessionKey, message: `Não consegui guardar a mensagem (${(e as Error).message}). Reenvie: ${text.slice(0, 120)}` });
+  }
+  parkPending(sessionKey, resumeId);
+  broadcastQueue();
 }
 
 // Migra a fila in-turn pra fila estacionada quando os tokens acabam: os itens saem

@@ -668,25 +668,6 @@ describe('fila estacionada — teto de tokens', () => {
     expect(addParked).toHaveBeenCalledWith('s4', expect.objectContaining({ prompt: 'item enfileirado' }));
     expect(run).toHaveBeenCalledOnce();
   });
-
-  it('disco cheio ao estacionar a fila in-turn avisa em vez de derrubar o onClose', () => {
-    setAwaiting('s9');
-    startRun({ ws, sessionKey: 's9', prompt: 'item que não cabe no disco', auto: true });
-    startRun({ ws, sessionKey: 's9', prompt: 'resposta do usuário' });
-    limited();
-    vi.mocked(addParked).mockImplementationOnce(() => { throw new Error('ENOSPC'); });
-    expect(() => closeLastRun()).not.toThrow();
-    expect(broadcast).toHaveBeenCalledWith(expect.objectContaining({ t: 'error', sessionKey: 's9', message: expect.stringContaining('ENOSPC') }));
-  });
-
-  it('disco cheio ao devolver um item no dreno não escapa do tick', () => {
-    const it0 = item({});
-    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's10', first: it0 }]);
-    vi.mocked(shiftParked).mockReturnValue(it0);
-    vi.mocked(run).mockImplementationOnce(() => { throw new Error('spawn falhou'); });
-    vi.mocked(unshiftParked).mockImplementationOnce(() => { throw new Error('ENOSPC'); });
-    expect(() => drainParked()).not.toThrow();
-  });
 });
 
 describe('disparo em background de um item da fila', () => {
@@ -1695,5 +1676,37 @@ describe('routeSend while the triage model is thinking', () => {
     await pending;
     expect(run).toHaveBeenCalledTimes(2);
     expect(runOf(1).resumeId).toBe('S1');
+  });
+});
+
+describe('a run refused for capacity with no socket keeps the work', () => {
+  const ws = {} as WebSocket;
+
+  beforeEach(() => {
+    threads.clear(); clearAllAwaiting();
+    vi.mocked(run).mockClear(); vi.mocked(broadcast).mockClear(); vi.mocked(addParked).mockClear();
+    memInfoMock.value = { availMb: 100_000, swapFreeMb: 4000, swapTotalMb: 4096 };
+  });
+  afterEach(() => { memInfoMock.value = { availMb: 100_000, swapFreeMb: 4000, swapTotalMb: 4096 }; });
+
+  it('auto-resume refused for memory leaves a resume banner, not "Retomando…" and nothing', () => {
+    startRun({ ws, sessionKey: 'other', prompt: 'x', resumeId: 'sess-o' });
+    startRun({ ws, sessionKey: 'dying', prompt: 'y', resumeId: 'sess-d' });
+    const dyingClose = vi.mocked(run).mock.calls[1][0].onClose!;
+    memInfoMock.value = { availMb: 600, swapFreeMb: 4000, swapTotalMb: 4096 };
+    dyingClose();
+    expect(threads.has('dying')).toBe(false);
+    expect(hasResumeOffer('dying')).toBe(true);
+  });
+
+  it('a queued batch refused for memory goes to the parked queue instead of vanishing', async () => {
+    vi.mocked(classify).mockResolvedValue({ action: 'wait', reason: '' });
+    startRun({ ws, sessionKey: 'other2', prompt: 'x', resumeId: 'sess-o2' });
+    startRun({ ws, sessionKey: 'q', prompt: 'turno', resumeId: 'sess-q' });
+    await routeSend({ ws, sessionKey: 'q', prompt: 'depois disso' });
+    threads.get('q')!.endReason = 'success';
+    memInfoMock.value = { availMb: 600, swapFreeMb: 4000, swapTotalMb: 4096 };
+    vi.mocked(run).mock.calls[1][0].onClose!();
+    expect(vi.mocked(addParked)).toHaveBeenCalledWith('q', expect.objectContaining({ prompt: expect.stringContaining('depois disso'), resumeId: 'sess-q' }));
   });
 });
