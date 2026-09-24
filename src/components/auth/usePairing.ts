@@ -30,6 +30,10 @@ export function usePairing(token: string, agentOnline = false): Pairing {
   const [now, setNow] = useState(() => Date.now());
 
   const abortRef = useRef<AbortController | null>(null);
+  // Read at call time: supabase refreshes the JWT hourly, and a fetchCode keyed on
+  // it re-ran the mount effect and swapped the code under a half-typed command.
+  const tokenRef = useRef(token);
+  tokenRef.current = token;
   const probeRef = useRef<AbortController | null>(null);
 
   const fetchCode = useCallback(async () => {
@@ -44,7 +48,7 @@ export function usePairing(token: string, agentOnline = false): Pairing {
     try {
       const res = await fetch(`${relayHttpBase()}/pair/new`, {
         method: 'POST',
-        headers: { authorization: `Bearer ${token}` },
+        headers: { authorization: `Bearer ${tokenRef.current}` },
         signal: ctrl.signal,
       });
       if (!res.ok) throw new PairError('falha ao gerar código');
@@ -61,7 +65,7 @@ export function usePairing(token: string, agentOnline = false): Pairing {
       clearTimeout(timer);
       if (abortRef.current === ctrl) setBusy(false);
     }
-  }, [token]);
+  }, []);
 
   // "Testar conexão": prova de ida-e-volta com o relay AGORA, separada do código.
   // Sem isto o usuário não tinha como saber de que lado estava o silêncio.
