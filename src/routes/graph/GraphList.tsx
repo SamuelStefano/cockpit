@@ -67,9 +67,11 @@ export function GraphList({ graphs, loaded, openId, opening, building, onOpen, o
                   }`}
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 truncate font-mono text-[12.5px]">
+                    {/* truncate on the flex row itself never drew the ellipsis (the text is an
+                        anonymous flex item): long names were cut mid-letter with no cue. */}
+                    <div className="flex min-w-0 items-center gap-1.5 font-mono text-[12.5px]">
                       {g.id === 'global' && <Icon name="sparkles" size={12} className="shrink-0 text-orange-400" />}
-                      {g.label}
+                      <span className="truncate" title={g.label}>{g.label}</span>
                     </div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10.5px] text-neutral-500">
                       <Badge tone="neutral">{g.nodes.toLocaleString('pt-BR')} nós</Badge>
