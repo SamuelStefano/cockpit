@@ -1,6 +1,6 @@
 import type { PointsHistoryItem } from '../../../shared/protocol';
 import { Icon } from '../../components/primitives';
-import { kindLabel, hhmm } from './format';
+import { kindLabel, whenShort } from './format';
 
 // Timeline da trilha de procedência — o "histórico prevalece" visível. Cada evento
 // mostra quem (🤖 agente / ✍️ você), o que fez e o horário.
@@ -14,7 +14,7 @@ export function PointsHistory({ history }: { history: PointsHistoryItem[] }) {
           <span>{kindLabel(h.kind)}</span>
           {h.kind !== 'note' && typeof h.points === 'number' && <span className="font-medium tabular-nums text-neutral-300">{h.points} pt</span>}
           {h.kind === 'note' && h.description && <span className="truncate italic text-neutral-500">“{h.description}”</span>}
-          <span className="ml-auto shrink-0 tabular-nums text-neutral-600">{hhmm(h.at)}</span>
+          <span className="ml-auto shrink-0 tabular-nums text-neutral-600">{whenShort(h.at, Date.now())}</span>
         </li>
       ))}
     </ol>

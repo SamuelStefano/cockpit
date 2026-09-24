@@ -2,16 +2,13 @@ import type { DflInvoice } from '../../../shared/protocol';
 import { Badge, Icon } from '../../components/primitives';
 import { useToggle } from './useToggle';
 import { brl, fmtPts, refMonth } from './money';
+import { invoiceStatus } from './invoice-status';
 
-function tone(status: string): 'green' | 'orange' | 'neutral' {
-  if (status === 'paid') return 'green';
-  if (status === 'pending' || status === 'open') return 'orange';
-  return 'neutral';
-}
 
 export function InvoiceRow({ inv }: { inv: DflInvoice }) {
   const open = useToggle(false);
   const canExpand = inv.items.length > 0;
+  const st = invoiceStatus(inv.status);
   return (
     <div>
       <button
@@ -20,7 +17,7 @@ export function InvoiceRow({ inv }: { inv: DflInvoice }) {
       >
         <Icon name={open.on ? 'chevronDown' : 'chevronRight'} size={12} className={`shrink-0 ${canExpand ? 'text-neutral-500' : 'text-transparent'}`} />
         <span className="w-14 shrink-0 font-mono text-[12.5px] font-semibold tabular-nums text-neutral-100">{refMonth(inv.referenceMonth)}</span>
-        <Badge tone={tone(inv.status)} dot>{inv.status}</Badge>
+        <Badge tone={st.tone} dot title={inv.status}>{st.label}</Badge>
         <span className="hidden text-[11.5px] text-neutral-600 sm:inline">{inv.items.length} {inv.items.length === 1 ? 'linha' : 'linhas'}</span>
         <span className="ml-auto shrink-0 font-mono text-[11.5px] tabular-nums text-neutral-500">{fmtPts(inv.totalPoints)} pt</span>
         <span className="w-24 shrink-0 text-right font-mono text-[12.5px] font-medium tabular-nums text-neutral-200">{brl(inv.totalAmountCents)}</span>
