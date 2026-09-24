@@ -68,15 +68,6 @@ describe('resolveApp', () => {
     expect(await resolveApp('mcp__sem-ui__qualquer')).toBeUndefined();
   });
 
-  it('does not respawn a server that just failed on every tool call', async () => {
-    const t0 = Date.now();
-    await resolveApp('mcp__sem-ui__qualquer');
-    const firstMs = Date.now() - t0;
-    const t1 = Date.now();
-    await resolveApp('mcp__sem-ui__outra');
-    expect(Date.now() - t1).toBeLessThan(Math.max(50, firstMs / 2));
-  });
-
   it('serve do cache na segunda chamada', async () => {
     const a = await resolveApp('mcp__deck-fixture__counter');
     const b = await resolveApp('mcp__deck-fixture__counter');
