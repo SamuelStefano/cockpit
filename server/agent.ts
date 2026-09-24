@@ -83,12 +83,12 @@ export function signChallenge(privateKeyPem: string, challenge: string, agentId:
   return edSign(null, Buffer.from(challengeMessage(challenge, agentId)), createPrivateKey(privateKeyPem)).toString('base64');
 }
 
-// Backoff exponencial com teto (reconnect do dial; o listen nunca precisou).
 // The cv-liveness loop runs only while someone is looking at a canvas.
 export function canvasLoopGate(hasClients: () => boolean, hasCanvas: () => boolean): () => boolean {
   return () => hasClients() && hasCanvas();
 }
 
+// Backoff exponencial com teto (reconnect do dial; o listen nunca precisou).
 export function backoffMs(attempt: number): number {
   return Math.min(30_000, 1_000 * 2 ** Math.min(attempt, 5));
 }
