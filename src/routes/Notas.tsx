@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button, Badge, EmptyState, Markdown, RouteHeader } from '../components/primitives';
 import { useNotasEditor } from './notas/useNotasEditor';
+import { useCopied } from '../lib/useCopied';
 
 interface Props {
   connected: boolean;
@@ -17,11 +18,10 @@ export function Notas({ connected, notes, notesLoaded, onNotesGet, onNotesSave, 
   const { text, status, counts, onChange, flush, clear } = useNotasEditor(notes, notesLoaded, onNotesGet, onNotesSave, connected);
   const statusBadge = { saved: { tone: 'neutral' as const, label: 'salvo' }, saving: { tone: 'orange' as const, label: 'salvando…' }, offline: { tone: 'red' as const, label: 'não salvo — sem conexão' } }[status];
   const [preview, setPreview] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  const copy = () => {
-    navigator.clipboard?.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {});
-  };
+  // useCopied has the execCommand fallback: navigator.clipboard is missing over
+  // http/IP (the phone on the tailnet), where copying used to fail silently.
+  const [copied, copyText] = useCopied(1500);
+  const copy = () => copyText(text);
   // ⌘S / Ctrl+S: salva já (sem esperar o debounce). preventDefault tira o "salvar página".
   const onKey = (e: React.KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); flush(); }
