@@ -31,6 +31,7 @@ import { aliasRoutedKey, type PendingCanvasSend } from './cockpit/canvas-send-tr
 import { useAdmin, type Admin } from './cockpit/useAdmin';
 import { useHarness, type Harness } from './cockpit/useHarness';
 import { createReopenThrottle } from './cockpit/reopen-throttle';
+import { persistableDrafts, DRAFTS_SAVE_MS } from './cockpit/drafts';
 import { stripLongContext } from '../shared/long-context';
 import { composerCost, type ComposerCost } from './components/chat/send-cost';
 import { addThumb, shouldRequestThumb } from './lib/att-thumb-cache';
@@ -2189,11 +2190,19 @@ export function useCockpit(): Cockpit {
 
   // Drafts não-enviados sobrevivem a reload. Só persiste sessões reais (uuid) e
   // não-vazias — keys `new-xxx` são efêmeras e não casam após reload.
+  // Debounced: every keystroke re-serialized every draft (a quoted document can be
+  // hundreds of KB) into localStorage. pagehide and unmount flush the last one.
+  const draftsRef = useRef(drafts);
+  draftsRef.current = drafts;
   useEffect(() => {
-    const keep: Record<string, string> = {};
-    for (const [k, v] of Object.entries(drafts)) if (v && !k.startsWith('new-')) keep[k] = v;
-    savePref('drafts', keep);
+    const t = setTimeout(() => savePref('drafts', persistableDrafts(draftsRef.current)), DRAFTS_SAVE_MS);
+    return () => clearTimeout(t);
   }, [drafts]);
+  useEffect(() => {
+    const flush = () => savePref('drafts', persistableDrafts(draftsRef.current));
+    window.addEventListener('pagehide', flush);
+    return () => { window.removeEventListener('pagehide', flush); flush(); };
+  }, []);
 
   // Override de modelo por sessão — mesma regra dos drafts: sessões `new-xxx` são
   // efêmeras e não casam depois de um reload.
