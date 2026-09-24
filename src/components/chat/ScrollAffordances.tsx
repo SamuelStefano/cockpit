@@ -25,6 +25,7 @@ export function ScrollAffordances({ promptAbove, onScrollToPrompt, onScrollToBot
         type="button"
         onClick={onScrollToBottom}
         title="Ir para o fim"
+        aria-label="Ir para o fim"
         className={`flex h-8 w-8 items-center justify-center ${tokens.radius.full} border border-neutral-700 bg-neutral-800 text-neutral-300 shadow-lg shadow-black/40 transition hover:bg-neutral-700 hover:text-neutral-100 ${tokens.focusRing}`}
       >
         <Icon name="chevronDown" size={16} />
