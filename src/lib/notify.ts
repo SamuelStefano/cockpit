@@ -79,9 +79,11 @@ function beep(freq: number): void {
 
 // Título "base" da aba (sem o flash de done). Reflete atividade persistente:
 // nº de sessões rodando/atualizadas, pra ver de relance com a aba em background.
+// While flashing, the ✦ stays in front but the counts keep moving: freezing the
+// whole title left "✦ ▶2" on a background tab for the rest of the night.
 export function setTitleBase(t: string): void {
   baseTitle = t;
-  if (typeof document !== 'undefined' && !flashing) document.title = t;
+  if (typeof document !== 'undefined') document.title = flashing ? '✦ ' + t : t;
 }
 
 export function requestNotifyPermission(): void {

@@ -38,13 +38,13 @@ describe('setTitleBase / flash', () => {
     expect(document.title).toBe('▶1 — Deck');
   });
 
-  it('não sobrescreve o flash em andamento, mas guarda a base nova', () => {
+  it('keeps the ✦ during a flash but updates the counts behind it', () => {
     setVisibility('hidden');
     notifyTurnDone('sessão x'); // entra em flash: title vira "✦ Deck"
     expect(document.title).toBe('✦ Deck');
 
     setTitleBase('▶2 — Deck'); // chega update de atividade durante o flash
-    expect(document.title).toBe('✦ Deck'); // flash preservado
+    expect(document.title).toBe('✦ ▶2 — Deck');
 
     // ao voltar pra aba, restaura a base MAIS RECENTE, não a antiga
     setVisibility('visible');
