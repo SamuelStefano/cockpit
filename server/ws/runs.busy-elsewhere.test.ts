@@ -14,7 +14,7 @@ const S = '6ef8f243-a5aa-4082-bb40-29b66e7fa756';
 const liveness = vi.hoisted(() => ({ readBusyElsewhereSessionIds: vi.fn(async () => [] as string[]) }));
 vi.mock('../canvas/cv-liveness', () => liveness);
 const orch = vi.hoisted(() => ({ info: undefined as { name: string; sessionId: string; tmux: string } | undefined }));
-vi.mock('../canvas/orchestrator', () => ({ readOrchestratorSync: () => orch.info, isTmuxAliveSync: () => true, paneLostClaudeSync: () => false }));
+vi.mock('../canvas/orchestrator', () => ({ readOrchestratorSync: () => orch.info, isTmuxAliveSync: () => true, paneLostClaudeSync: () => false, tmuxStateSync: () => 'alive' }));
 const terms = vi.hoisted(() => ({ hasTerm: vi.fn(() => true), openTerm: vi.fn(() => true), inputTerm: vi.fn() }));
 vi.mock('../terminals', () => terms);
 vi.mock('../db', () => ({ lastUsageOf: () => null }));

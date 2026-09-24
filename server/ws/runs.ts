@@ -32,7 +32,7 @@ import { threadIsMarathon, MARATHON_AUTO_RESUME_CAP } from './marathon';
 import { threads, admitRun, resolveThreadKey, stopSession, stopEpochOf, clearStopEpoch, shouldPreserveLive, runParams, sameParams, type Thread, type RunParams } from './threads';
 import { isAreaAdmissionBlocked } from '../canvas/autopause-loop';
 import { enqueuePending, hasPending, takePendingBatch, takeAllPending, type QueuedSend } from './pending';
-import { readOrchestratorSync, isTmuxAliveSync, paneLostClaudeSync } from '../canvas/orchestrator';
+import { readOrchestratorSync, isTmuxAliveSync, paneLostClaudeSync, tmuxStateSync } from '../canvas/orchestrator';
 import { orchestratorTermId, buildPastedSend } from '../../shared/canvas';
 import { hasTerm, openTerm, inputTerm } from '../terminals';
 import { readBusyElsewhereSessionIds } from '../canvas/cv-liveness';
@@ -682,6 +682,9 @@ export const PANE_REFUSED = 'o painel do Orchestrator não abriu (limite de term
 export function deliverToOrchestratorPane(targetSessionId: string | undefined, text: string, role?: Role): PaneDelivery {
   const orch = orchestratorPaneTarget(targetSessionId, role);
   if (!orch) return false;
+  // tmux couldn't answer: don't paste (the pane may be gone and `new-session -A`
+  // would make a bare shell), don't spawn headless either.
+  if (tmuxStateSync(orch.tmux) === 'unknown') return 'refused';
   const termId = orchestratorTermId(orch);
   if (!hasTerm(termId) && !openTerm(termId, 120, 40, () => {}, () => {}, () => {})) return 'refused';
   inputTerm(termId, buildPastedSend(text));

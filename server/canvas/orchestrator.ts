@@ -55,15 +55,28 @@ export function readOrchestratorSync(): OrchestratorInfo | undefined {
 // Same tradeoff as readOrchestratorSync: `tmux has-session` answers in low
 // single-digit ms against the local socket, so a blocking call here is far
 // cheaper than making startRun's whole call chain async just for this check.
-export function isTmuxAliveSync(name: string): boolean {
+// Only a definite "no such session" (tmux exit 1) or no tmux at all means dead.
+// A timeout (tmux wedged) or a spawn failure under memory pressure is UNKNOWN:
+// "dead" there sent the Orchestrator's prompt to a headless `claude -p --resume`
+// next to its live pane (a twin writer), and "alive" would let the pane path run
+// `tmux new-session -A` — creating a bare shell if the session is really gone —
+// and paste the prompt into it. Callers refuse delivery on unknown.
+export type TmuxState = 'alive' | 'dead' | 'unknown';
+export function tmuxStateSync(name: string): TmuxState {
   try {
     // Blocks the event loop: a tmux wedged under load must not hang every run.
     // `=`: exact name; a bare `-t` also matches a longer session starting with it.
     execFileSync('tmux', ['has-session', '-t', `=${name}`], { stdio: 'ignore', timeout: 2000 });
-    return true;
-  } catch {
-    return false;
+    return 'alive';
+  } catch (e) {
+    const err = e as { status?: number | null; code?: string };
+    return err.status === 1 || err.code === 'ENOENT' ? 'dead' : 'unknown';
   }
+}
+
+// Not dead = the Orchestrator's session may be live: never a headless run on it.
+export function isTmuxAliveSync(name: string): boolean {
+  return tmuxStateSync(name) !== 'dead';
 }
 
 const CLAUDE_ARG = /(^|\/)claude$|claude-code\/cli\.js$/;

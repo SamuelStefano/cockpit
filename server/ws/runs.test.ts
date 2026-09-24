@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { WebSocket } from 'ws';
 import { startRun, catchSpawn, routeSend, isSilentDeath, isCleanTurnClose, resumeOrphanRuns, drainParked, runParkedInBackground, runParkedNow, startParkedDrainer, acceptResumeOffer, hasResumeOffer, AUTO_RESUME_CAP, deliverToOrchestratorPane, orchestratorPaneTarget } from './runs';
-import { readOrchestratorSync, isTmuxAliveSync, paneLostClaudeSync } from '../canvas/orchestrator';
+import { readOrchestratorSync, isTmuxAliveSync, paneLostClaudeSync, tmuxStateSync } from '../canvas/orchestrator';
 import { hasTerm, openTerm, inputTerm } from '../terminals';
 import { threads, killAllRuns, stopSession } from './threads';
 import { reapStaleRuns, REAPER_SILENCE_CAP_MS, REAPER_TOOL_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './reaper';
@@ -67,6 +67,7 @@ vi.mock('../canvas/orchestrator', () => ({
   readOrchestratorSync: vi.fn(() => undefined),
   isTmuxAliveSync: vi.fn(() => false),
   paneLostClaudeSync: vi.fn(() => false),
+  tmuxStateSync: vi.fn(() => 'alive'),
 }));
 vi.mock('../terminals', () => ({
   hasTerm: vi.fn(() => false),
@@ -1556,6 +1557,16 @@ describe('startRun / routeSend — twin-process guard on the Orchestrator pane',
     startRun({ ws, role: 'admin', sessionKey: 'orch-sid', prompt: 'oi', resumeId: 'orch-sid' });
     expect(openTerm).not.toHaveBeenCalled();
     expect(inputTerm).toHaveBeenCalledOnce();
+  });
+
+  it('tmux cannot answer: refuses (error to the sender) — no paste, no headless run', () => {
+    vi.mocked(readOrchestratorSync).mockReturnValue(orch);
+    vi.mocked(isTmuxAliveSync).mockReturnValue(true);
+    vi.mocked(tmuxStateSync).mockReturnValueOnce('unknown');
+    startRun({ ws, role: 'admin', sessionKey: 'orch-sid', prompt: 'oi', resumeId: 'orch-sid' });
+    expect(run).not.toHaveBeenCalled();
+    expect(inputTerm).not.toHaveBeenCalled();
+    expect(send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'error', sessionKey: 'orch-sid' }));
   });
 
   it('falls through to a normal run when claude is gone and the pane is a bare shell', () => {
