@@ -48,11 +48,11 @@ export function WorkflowReviewCard({ tool, reviewable, onApprove }: WorkflowRevi
         {decision === 'approved' ? (
           <span className="flex items-center gap-1.5 text-[12px] text-green-400"><Icon name="check" size={13} /> aprovado · rodando de novo</span>
         ) : decision === 'denied' ? (
-          <span className="flex items-center gap-1.5 text-[12px] text-neutral-500"><Icon name="x" size={13} /> negado</span>
+          <span className="flex items-center gap-1.5 text-[12px] text-neutral-500"><Icon name="x" size={13} /> negado · o workflow não roda (nada foi enviado ao Claude)</span>
         ) : (
           <>
             <Button variant="primary" size="sm" icon="check" onClick={approve} disabled={locked}>Aprovar e rodar</Button>
-            <Button variant="ghost" size="sm" icon="x" onClick={deny} disabled={locked}>Negar</Button>
+            <Button variant="ghost" size="sm" icon="x" onClick={deny} disabled={locked} title="Não roda o workflow. Nada é enviado ao Claude: o turno já terminou com ele bloqueado.">Negar</Button>
             {!reviewable && <span className="text-[11px] text-neutral-600">só na última resposta, com a sessão ociosa</span>}
           </>
         )}
