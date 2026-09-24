@@ -18,7 +18,8 @@ export function RouteMenu({ route, nav, isAdmin, open, setOpen }: { route: Route
     return () => document.removeEventListener('pointerdown', onDoc);
   }, [open, setOpen]);
   const items = navFor(isAdmin);
-  const current = items.find((n) => n.to === route) ?? items[0];
+  // Routes outside the menu (/ds) used to show the first item ("chat").
+  const current = items.find((n) => n.to === route) ?? { to: route, label: route.slice(1) || items[0].label };
   return (
     <div ref={wrapRef} className="relative md:hidden">
       <button

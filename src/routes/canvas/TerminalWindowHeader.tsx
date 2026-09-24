@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { CanvasNode } from '../../../shared/canvas';
 import { Badge, Button, Icon } from '../../components/primitives';
 import { AlertBadge } from './CanvasAlert';
@@ -34,6 +35,14 @@ function Dot({ running, waiting }: { running: boolean; waiting: boolean }) {
 // ~150-line UI file cap (CLAUDE.md).
 export function TerminalWindowHeader(p: Props) {
   const { node: n } = p;
+  // Two taps to kill: the "x" sits next to "recolher" at 28px and the tmux
+  // session may be running a worker. The first tap arms it for 3s.
+  const [killArmed, setKillArmed] = useState(false);
+  useEffect(() => {
+    if (!killArmed) return;
+    const t = setTimeout(() => setKillArmed(false), 3000);
+    return () => clearTimeout(t);
+  }, [killArmed]);
   return (
     <header
       onPointerDown={(e) => p.onPointerDown(e, n.id)}
@@ -63,7 +72,14 @@ export function TerminalWindowHeader(p: Props) {
         {p.session && <Button variant="ghost" size="sm" square icon="message" title="abrir o chat" onClick={() => p.onOpenChat(n.ref)} />}
         <Button variant="ghost" size="sm" square icon="maximize" title="tela cheia" onClick={() => p.onMaximize(n.id)} />
         {p.session && <Button variant="ghost" size="sm" square icon="minimize" title="recolher (tmux segue vivo)" onClick={() => p.onCollapse(n.id)} />}
-        {!p.orchestrator && <Button variant="ghost" size="sm" square icon="x" title="matar a sessão tmux" onClick={() => p.onKill(n)} />}
+        {!p.orchestrator && (
+          <Button
+            variant={killArmed ? 'danger' : 'ghost'} size="sm" square icon="x"
+            title={killArmed ? 'toque de novo pra matar a sessão tmux' : 'matar a sessão tmux'}
+            aria-label={killArmed ? 'confirmar: matar a sessão tmux' : 'matar a sessão tmux'}
+            onClick={() => { if (killArmed) { setKillArmed(false); p.onKill(n); } else setKillArmed(true); }}
+          />
+        )}
       </span>
     </header>
   );
