@@ -18,7 +18,9 @@ const edges: CanvasEdge[] = [
   { source: 's:arch', target: 'c:other', kind: 'write' },
 ];
 const card = { id: 'open', status: 'todo' } as CanvasCard;
-const base = { scope: 'active' as const, archived: false, query: '', running: new Set<string>(), cards: [card], now: NOW };
+// showContexts: true keeps every test below about scope/seed logic, not about
+// the toggle itself — see the dedicated 'showContexts' describe block.
+const base = { scope: 'active' as const, archived: false, query: '', running: new Set<string>(), cards: [card], now: NOW, showContexts: true };
 const ids = (r: { nodes: CanvasNode[] }) => r.nodes.map((x) => x.id).sort();
 
 describe('filterCanvas', () => {
@@ -151,6 +153,37 @@ describe('filterCanvas — exec scope', () => {
       const r = filterCanvas(cardNodes, cardEdges, { ...base, scope: 'exec', cards: cardObjs });
       expect(ids(r)).not.toContain('k:done');
     });
+  });
+});
+
+// #598 map cleanup: context/hub nodes (and the giant floating hub label
+// CanvasNodeCard draws at low zoom) clutter the "what's happening now" view.
+// Default OFF in exec/active; the toggle brings them back; 'all' scope is the
+// memory map itself, so it always shows them regardless of the flag.
+describe('filterCanvas — showContexts', () => {
+  it('active scope hides contexts by default (showContexts omitted)', () => {
+    const r = filterCanvas(nodes, edges, { ...base, showContexts: undefined });
+    expect(ids(r)).toEqual(['k:open', 's:fresh']);
+  });
+
+  it('active scope hides contexts when explicitly false', () => {
+    const r = filterCanvas(nodes, edges, { ...base, showContexts: false });
+    expect(ids(r)).toEqual(['k:open', 's:fresh']);
+  });
+
+  it('exec scope hides contexts by default too', () => {
+    const r = filterCanvas(nodes, edges, { ...base, scope: 'exec', showContexts: undefined, running: new Set(['fresh']) });
+    expect(ids(r)).not.toContain('c:leaf');
+  });
+
+  it('exec scope shows contexts once toggled on', () => {
+    const r = filterCanvas(nodes, edges, { ...base, scope: 'exec', showContexts: true, running: new Set(['fresh']) });
+    expect(ids(r)).toContain('c:leaf');
+  });
+
+  it('all scope always shows contexts, ignoring the flag', () => {
+    const r = filterCanvas(nodes, edges, { ...base, scope: 'all', showContexts: false });
+    expect(ids(r)).toContain('c:hub_a');
   });
 });
 

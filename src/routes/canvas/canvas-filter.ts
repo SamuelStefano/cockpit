@@ -25,6 +25,11 @@ export interface FilterOpts {
   // p.sessions) — the graph node can be a whole rebuild behind. Falls back to
   // the node's own `waiting` when a session isn't in the live list yet.
   liveSessions?: Map<string, LiveSessionInfo>;
+  // 'exec'/'active' only: memory context/hub nodes (and the giant floating hub
+  // labels + their crowding on top of session windows) are noise for "what's
+  // happening right now" — default OFF, a toggle brings them back. 'all' scope
+  // always shows everything regardless, since that view IS the memory map.
+  showContexts?: boolean;
 }
 
 // "Active" used to mean "touched in the last 7 days", which at 300 sessions
@@ -115,6 +120,10 @@ export function filterCanvas(nodes: CanvasNode[], edges: CanvasEdge[], o: Filter
     for (const e of edges) {
       if (e.kind === 'link' && keep.has(e.target) && byId.get(e.source)?.hub) keep.add(e.source);
     }
+  }
+
+  if (o.scope !== 'all' && !o.showContexts) {
+    for (const id of [...keep]) if (byId.get(id)?.kind === 'context') keep.delete(id);
   }
 
   if (o.area) {

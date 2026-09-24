@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { autoAdd, capOpen, isWatchTerm, laneSlot, newShellId, placeWindows, shellNodes, TERM_H, TERM_W, watchTermId, winKey } from './canvas-terms';
+import {
+  autoAdd, capOpen, isWatchTerm, laneSlot, newShellId, nudgeToFreeSlot, placeWindows, shellNodes, TERM_H, TERM_W, watchTermId, winKey,
+} from './canvas-terms';
 
 describe('watchTermId', () => {
   it('fits the tmux name allow-list', () => {
@@ -53,6 +55,32 @@ describe('laneSlot', () => {
   });
 });
 
+describe('nudgeToFreeSlot', () => {
+  it('keeps the target spot when nothing occupies it', () => {
+    expect(nudgeToFreeSlot({ x: 100, y: 100 }, [])).toEqual({ x: 100, y: 100 });
+  });
+
+  it('moves to the nearest free grid cell when the target overlaps', () => {
+    const taken = [{ x: 100, y: 100, w: TERM_W, h: TERM_H }];
+    const r = nudgeToFreeSlot({ x: 100, y: 100 }, taken);
+    expect(r).not.toEqual({ x: 100, y: 100 });
+    expect(taken.some((t) => t.x < r.x + TERM_W && r.x < t.x + TERM_W && t.y < r.y + TERM_H && r.y < t.y + TERM_H)).toBe(false);
+  });
+
+  it('picks the closer of two free neighbours, not just the first scanned', () => {
+    // Every ring-1 cell is taken except straight above — must land there, not
+    // fall through to a farther ring-2 cell.
+    const step = TERM_W + 40;
+    const stepY = TERM_H + 40;
+    const target = { x: 0, y: 0 };
+    const ring1 = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]
+      .filter(([dx, dy]) => !(dx === 1 && dy === 0)) // leave (1,0) free
+      .map(([dx, dy]) => ({ x: target.x + dx * step, y: target.y + dy * stepY, w: TERM_W, h: TERM_H }));
+    const taken = [{ ...target, w: TERM_W, h: TERM_H }, ...ring1];
+    expect(nudgeToFreeSlot(target, taken)).toEqual({ x: target.x + step, y: target.y });
+  });
+});
+
 describe('capOpen', () => {
   it('moves the id to the end and drops the least recent past the cap', () => {
     expect(capOpen(['a', 'b'], 'a')).toEqual(['b', 'a']);
@@ -76,6 +104,34 @@ describe('placeWindows', () => {
     const out = placeWindows(pos, saved, ['s:1', 's:2']);
     expect(out['s:1']).toEqual(saved['w:1']);
     expect(out['s:2'].x).toBeGreaterThanOrEqual(TERM_W);
+  });
+
+  it('groups windows by area into contiguous slots regardless of arrival order (#598 map cleanup)', () => {
+    const areaOf = (id: string): string | undefined => ({ 's:1': 'deck', 's:2': 'itera', 's:3': 'deck' } as Record<string, string>)[id];
+    const out = placeWindows(pos, {}, ['s:2', 's:1', 's:3'], undefined, areaOf);
+    // deck's two windows land in the first two slots (row-major left to right);
+    // itera's lone window comes after both, not interleaved between them.
+    expect(out['s:1'].y).toBe(out['s:3'].y);
+    expect(out['s:1'].x).toBeLessThan(out['s:3'].x);
+    expect(out['s:2'].x).toBeGreaterThan(out['s:3'].x);
+  });
+
+  it('nudges a dragged window off another one it was dropped onto — windows never overlap', () => {
+    const saved = { 'w:1': { x: 0, y: 0 }, 'w:2': { x: 0, y: 0 } };
+    const out = placeWindows(pos, saved, ['s:1', 's:2']);
+    expect(out['s:1']).toEqual({ x: 0, y: 0 }); // first in queue keeps the exact spot
+    expect(out['s:2']).not.toEqual({ x: 0, y: 0 }); // second gets nudged off it
+    const a = { ...out['s:1'], w: TERM_W, h: TERM_H };
+    const b = { ...out['s:2'], w: TERM_W, h: TERM_H };
+    expect(a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h).toBe(false);
+  });
+
+  it('priority still wins the first slot even with area grouping active', () => {
+    const areaOf = () => 'outros';
+    const out = placeWindows(pos, {}, ['s:1', 's:2'], new Set(['s:2']), areaOf);
+    expect(out['s:2'].x).toBe(0);
+    expect(out['s:2'].y).toBe(out['s:1'].y);
+    expect(out['s:1'].x).toBeGreaterThanOrEqual(TERM_W);
   });
 });
 

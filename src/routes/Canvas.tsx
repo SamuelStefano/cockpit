@@ -209,6 +209,7 @@ export function Canvas(p: CanvasRouteProps) {
       onSelectSession={(nodeId) => (r.mode === 'canvas' && p.graph ? focusNode(nodeId) : r.select(nodeId, false))}
       onMove={r.setStatus} onRun={r.runCard} onEdit={r.editCard} onOpenSession={p.onOpenSession}
       onOpenTerm={openTerm} onSessionStatus={r.onSessionStatus}
+      hiddenSessionIds={r.hiddenSessionIdSet} onHideSession={r.hideSession} onUnhideAll={r.unhideAllSessions}
     />
   );
 
@@ -219,6 +220,7 @@ export function Canvas(p: CanvasRouteProps) {
         <CanvasFilters
           mode={r.mode} onMode={r.setMode} scope={r.scope} onScope={r.setScope} archived={r.archived} onArchived={r.setArchived}
           showAutomation={r.showAutomation} onShowAutomation={r.setShowAutomation}
+          showContexts={r.showContexts} onShowContexts={r.setShowContexts}
           query={r.query} onQuery={r.setQuery} loading={p.loading} onRefresh={p.onCanvasGet}
           onNewCard={() => r.newDraft('task', r.selectedNodes)}
           counts={{
@@ -261,7 +263,8 @@ export function Canvas(p: CanvasRouteProps) {
                 <CanvasHud sessions={p.sessions} running={p.running} onPick={(id) => focusNode(`s:${id}`)} />
                 {r.selectedNodes.length > 0 && (
                   <CanvasInspector
-                    nodes={r.selectedNodes} linked={linked} node={node} card={card} running={p.running} flows={p.board.flows}
+                    nodes={r.selectedNodes} linked={linked} node={node} card={card} running={p.running} waiting={r.waiting}
+                    orchestrator={p.graph.orchestrator} flows={p.board.flows}
                     conflictsOf={conflictsOf}
                     onPick={focusNode} onOpenSession={p.onOpenSession} onOpenTerm={openTerm}
                     onNewCard={(kind) => r.newDraft(kind, r.selectedNodes)} onEditCard={r.editCard}
@@ -277,7 +280,7 @@ export function Canvas(p: CanvasRouteProps) {
               </CanvasSurface>
             )}
             {p.graph && <CanvasTimeline timeline={timeline} />}
-            <KanbanDock cards={p.board.cards} open={dockOpen} onToggle={() => setDockOpen(!dockOpen)}>{kanban}</KanbanDock>
+            <KanbanDock cards={p.board.cards} sessionItems={r.sessionItems} open={dockOpen} onToggle={() => setDockOpen(!dockOpen)}>{kanban}</KanbanDock>
           </div>
         )}
         {r.draft && (

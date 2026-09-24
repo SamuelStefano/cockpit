@@ -48,6 +48,35 @@ export function laneSlot(map: Rect, taken: Rect[]): CanvasPos {
   }
 }
 
+// Nearest free slot to `target`, snapped to the same TERM_W/TERM_H grid the
+// lane uses — a spiral search (ring 0 = target itself, ring 1 = its 8
+// neighbours, …) so the result is always the closest open cell, not just
+// "the first one some arbitrary scan order hits". Terminates: a finite
+// `taken` can never cover an infinite grid.
+export function nudgeToFreeSlot(target: CanvasPos, taken: Rect[]): CanvasPos {
+  const stepX = TERM_W + LANE_GAP;
+  const stepY = TERM_H + LANE_GAP;
+  const at = (dx: number, dy: number): Rect => ({ x: target.x + dx * stepX, y: target.y + dy * stepY, w: TERM_W, h: TERM_H });
+  const free = (r: Rect) => !taken.some((t) => overlaps(t, r));
+  if (free(at(0, 0))) return { x: target.x, y: target.y };
+  for (let ring = 1; ring < 64; ring++) {
+    const cells: [number, number][] = [];
+    for (let dx = -ring; dx <= ring; dx++) {
+      for (let dy = -ring; dy <= ring; dy++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) === ring) cells.push([dx, dy]);
+      }
+    }
+    // Closest-by-Euclidean-distance first, so a ring picks its nearest cell
+    // to `target` rather than whatever order the double loop produced.
+    cells.sort((a, b) => (a[0] ** 2 + a[1] ** 2) - (b[0] ** 2 + b[1] ** 2));
+    for (const [dx, dy] of cells) {
+      const r = at(dx, dy);
+      if (free(r)) return { x: r.x, y: r.y };
+    }
+  }
+  return { x: target.x, y: target.y }; // unreachable in practice — see the 64-ring bound above
+}
+
 // A session's window and its card are two places on the map: the card orbits
 // its contexts, the window sits wherever it was opened or dragged. Shells only
 // ever exist as windows, so they keep their node id.
@@ -64,20 +93,32 @@ export function capOpen(order: string[], id: string, max = MAX_OPEN_TERMS): stri
 // map rect ignores windows so the lane never drifts up as more of them open.
 // `priority` (e.g. the orchestrator's window) goes through the queue FIRST,
 // so on a fresh board it claims lane slot 0 — top-left, the most predictable
-// spot — instead of wherever iteration order happens to put it. A window
-// already in `saved` ignores this: a spot the user dragged always wins.
+// spot — instead of wherever iteration order happens to put it.
+//
+// Windows must NEVER overlap (canvas review, 2026-09-24): a saved (dragged)
+// position is still checked against every OTHER window already placed this
+// pass — one dropped on top of another, or two whose saved spots happen to
+// collide after a layout change, gets nudged to the nearest free slot
+// (nudgeToFreeSlot) instead of silently stacking. This runs on every
+// placeWindows call, so it covers first placement, a newly opened window, AND
+// a fresh drag in one path — there's no separate "resolve collisions" step.
 export function placeWindows(
   pos: Record<string, CanvasPos>, saved: Record<string, CanvasPos>, windows: string[], priority?: Set<string>,
+  // Windows sharing an area queue up next to each other in the lane, so the
+  // grid reads as loose per-area groups instead of arrival order (#598 map
+  // cleanup) — absent id (a shell, no memory trail) sorts after every area.
+  areaOf?: (id: string) => string | undefined,
 ): Record<string, CanvasPos> {
   const win = new Set(windows);
   const map = bounds(Object.entries(pos).filter(([id]) => !win.has(id)).map(([, p]) => p));
   const out = { ...pos };
-  const taken: Rect[] = windows.filter((id) => saved[winKey(id)]).map((id) => ({ ...saved[winKey(id)], w: TERM_W, h: TERM_H }));
-  const ordered = priority?.size ? [...windows].sort((a, b) => Number(priority.has(b)) - Number(priority.has(a))) : windows;
+  const taken: Rect[] = [];
+  let ordered = windows;
+  if (areaOf) ordered = [...ordered].sort((a, b) => (areaOf(a) ?? '￿').localeCompare(areaOf(b) ?? '￿'));
+  if (priority?.size) ordered = [...ordered].sort((a, b) => Number(priority.has(b)) - Number(priority.has(a)));
   for (const id of ordered) {
     const at = saved[winKey(id)];
-    if (at) { out[id] = at; continue; }
-    const slot = laneSlot(map, taken);
+    const slot = at ? nudgeToFreeSlot(at, taken) : laneSlot(map, taken);
     out[id] = slot;
     taken.push({ ...slot, w: TERM_W, h: TERM_H });
   }

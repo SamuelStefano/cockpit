@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import type { TermStats } from '../../../shared/canvas';
+import { AREA_LABELS, type TermStats } from '../../../shared/canvas';
 import { relPast } from '../../../shared/format';
 import { Badge, Button, Icon } from '../../components/primitives';
 import { ctxPct, fmtTokens } from './term-stats-view';
@@ -42,6 +42,7 @@ export const KanbanSessionItem = memo(function KanbanSessionItem({ item, stats, 
       </div>
       {item.subtitle && <p className="mt-1 line-clamp-1 text-[10px] text-neutral-500">{item.subtitle}</p>}
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-neutral-500">
+        {item.area && <span className="rounded border border-neutral-700 px-1 py-0.5 text-neutral-400">{AREA_LABELS[item.area]}</span>}
         <span>{item.running ? 'ativa agora' : `parada há ${relPast(item.mtime)}`}</span>
         {pct !== null && stats?.contextTokens !== undefined && <span>ctx {fmtTokens(stats.contextTokens)} ({pct}%)</span>}
       </div>

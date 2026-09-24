@@ -17,6 +17,8 @@ import type { ClientMsg, ServerMsg, Effort, Message, ToolQuestion } from '../sha
 import { CARD_ID_RE, CARD_STATUSES, type CanvasCard, type CardStatus } from '../shared/canvas';
 import { buildTaskPrompt, buildContinuePrompt } from '../shared/canvas-prompt';
 import { ctxWindow } from '../src/routes/canvas/term-stats-view';
+import { mergeBoard } from '../src/routes/canvas/canvas-board';
+import { deriveSessionItems } from '../src/routes/canvas/kanban-items';
 
 // --- connection -------------------------------------------------------------
 
@@ -237,6 +239,7 @@ async function cmdRead(id: string, flags: Flags): Promise<void> {
 async function cmdBoard(json: boolean): Promise<void> {
   const client = await connect();
   client.send({ t: 'canvas-get' });
+  const busy = await client.waitFor(isServerMsg('busy'), DEFAULT_TIMEOUT_MS);
   const board = await client.waitFor(isServerMsg('canvas-board'), DEFAULT_TIMEOUT_MS);
   const graph = await client.waitFor(isServerMsg('canvas-graph'), DEFAULT_TIMEOUT_MS);
   client.close();
@@ -244,14 +247,30 @@ async function cmdBoard(json: boolean): Promise<void> {
 
   if (json) { console.log(JSON.stringify({ board: board.board, graph: graph?.graph ?? null }, null, 2)); return; }
 
-  const byStatus = new Map<CardStatus, CanvasCard[]>(CARD_STATUSES.map((s) => [s, []]));
-  for (const c of board.board.cards) byStatus.get(c.status)?.push(c);
+  // Every session in scope is ALSO a kanban item (kanban-items.ts
+  // deriveSessionItems, #598) — a task card is the minority case, so listing
+  // cards alone under-reports the board almost every time.
+  const merged = mergeBoard(graph?.graph ?? null, board.board.cards);
+  const sessionItems = deriveSessionItems({
+    nodes: merged.nodes, edges: merged.edges, cards: board.board.cards, showAutomation: false,
+    running: new Set(busy?.keys ?? []), overrides: board.board.sessionStatus, turnStartedAt: {},
+    orchestratorSessionId: graph?.graph.orchestrator?.sessionId,
+  });
+
+  const cardsByStatus = new Map<CardStatus, CanvasCard[]>(CARD_STATUSES.map((s) => [s, []]));
+  for (const c of board.board.cards) cardsByStatus.get(c.status)?.push(c);
+  const itemsByStatus = new Map<CardStatus, typeof sessionItems>(CARD_STATUSES.map((s) => [s, []]));
+  for (const i of sessionItems) itemsByStatus.get(i.status)?.push(i);
   for (const status of CARD_STATUSES) {
-    const cards = byStatus.get(status) ?? [];
-    console.log(`== ${status} (${cards.length}) ==`);
+    const cards = cardsByStatus.get(status) ?? [];
+    const items = itemsByStatus.get(status) ?? [];
+    console.log(`== ${status} (${cards.length + items.length}) ==`);
     for (const c of cards) {
       const link = c.dfl ? ` dfl:${c.dfl.taskId.slice(0, 8)}` : '';
       console.log(`  ${c.id}  [${c.kind}]${link}  ${oneLine(c.title)}`);
+    }
+    for (const i of items) {
+      console.log(`  ${shortId(i.sessionId)}  [session]${i.needsAttention ? ' !' : ''}  ${oneLine(i.title)}`);
     }
   }
   const sessionNodes = (graph?.graph.nodes ?? []).filter((n) => n.kind === 'session');
@@ -626,6 +645,7 @@ async function cmdStatus(): Promise<void> {
   const busy = await client.waitFor(isServerMsg('busy'), 3000);
   client.send({ t: 'canvas-get' });
   const board = await client.waitFor(isServerMsg('canvas-board'), 8000);
+  const graph = await client.waitFor(isServerMsg('canvas-graph'), 8000);
   client.close();
 
   const busyKeys = new Set(busy?.keys ?? []);
@@ -639,7 +659,18 @@ async function cmdStatus(): Promise<void> {
   console.log(`pending questions: ${pending.length}${pending.length ? ' — ' + pending.map((p) => shortId(p.id)).join(', ') : ''}`);
 
   if (board) {
-    const counts = CARD_STATUSES.map((s) => `${s}=${board.board.cards.filter((c) => c.status === s).length}`).join(' ');
+    // Cards alone under-report the board — most items are sessions that never
+    // got an explicit task card (#598); count both like the canvas kanban does.
+    const merged = mergeBoard(graph?.graph ?? null, board.board.cards);
+    const sessionItems = deriveSessionItems({
+      nodes: merged.nodes, edges: merged.edges, cards: board.board.cards, showAutomation: false,
+      running: busyKeys, overrides: board.board.sessionStatus, turnStartedAt: {},
+      orchestratorSessionId: graph?.graph.orchestrator?.sessionId,
+    });
+    const counts = CARD_STATUSES.map((s) => {
+      const n = board.board.cards.filter((c) => c.status === s).length + sessionItems.filter((i) => i.status === s).length;
+      return `${s}=${n}`;
+    }).join(' ');
     console.log(`board: ${counts}`);
   } else {
     console.log('board: no response from backend (canvas-get timed out)');
