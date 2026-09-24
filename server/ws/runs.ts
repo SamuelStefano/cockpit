@@ -35,6 +35,7 @@ import { enqueuePending, hasPending, takePendingBatch, takeAllPending, type Queu
 import { readOrchestratorSync, isTmuxAliveSync, paneLostClaudeSync } from '../canvas/orchestrator';
 import { orchestratorTermId, buildPastedSend } from '../../shared/canvas';
 import { hasTerm, openTerm, inputTerm } from '../terminals';
+import { readBusyElsewhereSessionIds } from '../canvas/cv-liveness';
 
 // --- morte silenciosa do turno (o "chat simplesmente parou") -----------------
 
@@ -101,6 +102,9 @@ export function acceptResumeOffer(sessionKey: string): boolean {
   if (!offer) return false;
   resumeOffers.delete(sessionKey);
   if (threads.has(sessionKey)) return false;
+  // A stale banner on another device: the session already continued in the other
+  // backend. Resuming it here would be a second writer on the same transcript.
+  if (offer.sessionId && busyElsewhere.has(offer.sessionId)) return false;
   autoResumes.delete(sessionKey);
   if (startRun({ ...offer.params, ws: null, sessionKey, prompt: RESUME_PROMPT, resumeId: offer.sessionId, queued: true, flowHop: offer.flowHop }) === 'rejected') {
     // Nothing started. The client already cleared the banner on click, so send the
@@ -274,6 +278,7 @@ export function drainParked(): void {
     // queue-force) destrava.
     if (isAwaiting(sessionKey)) continue;
     if (resolveThreadKey(sessionKey)) continue; // turno rodando: um por vez
+    if (busyElsewhere.has(first.resumeId ?? sessionKey)) continue; // rodando no outro processo
     // Área do canvas estourou o orçamento (autopause ligado): não readmite trabalho
     // DESACOMPANHADO ali — senão o item sobe, autopause para de novo em ~30s, e o
     // dreno tenta de novo no próximo tick (stop→drain→stop). O chat manual do
@@ -331,6 +336,17 @@ export function drainParked(): void {
     broadcastQueue();
   }
 }
+
+// Sessions running a turn in the OTHER backend process (index ↔ relay agent) or
+// in an interactive claude, from the shared process registry. The drainer only
+// saw this process's threads, so a prompt queued on a session the other backend
+// was running started `claude -p --resume` on top of it: two writers on one
+// transcript. Refreshed before every drain tick (and before a resume click).
+let busyElsewhere: ReadonlySet<string> = new Set();
+export async function refreshBusyElsewhere(): Promise<void> {
+  try { busyElsewhere = new Set(await readBusyElsewhereSessionIds()); } catch { /* keep the last read */ }
+}
+const drainTick = () => { void refreshBusyElsewhere().then(drainParked, drainParked); };
 
 function broadcastQueue(): void {
   broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
@@ -474,13 +490,13 @@ let parkedTimer: ReturnType<typeof setInterval> | null = null;
 export function startParkedDrainer(intervalMs = 30_000): void {
   drainerEnabled = true;
   if (parkedTimer) return;
-  parkedTimer = setInterval(drainParked, intervalMs);
+  parkedTimer = setInterval(drainTick, intervalMs);
   parkedTimer.unref?.();
   // Primeira passada logo no boot: o restart do agente (deploy, OOM) zera o tick, e
   // sem isto a fila ficava parada até o primeiro intervalo mesmo com a sessão ociosa.
   // Depois da retomada dos órfãos (15s), pra não subir um item numa sessão que o
   // resumeOrphanRuns vai reocupar.
-  setTimeout(drainParked, Math.min(intervalMs, 16_000)).unref?.();
+  setTimeout(drainTick, Math.min(intervalMs, 16_000)).unref?.();
 }
 
 // Devolve o item pro topo da fila. No teto de tentativas pausa a fila inteira: o

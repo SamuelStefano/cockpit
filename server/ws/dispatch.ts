@@ -32,7 +32,7 @@ import { updateClaudeCli, restartDeck } from '../deck-ops';
 import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
 import { detach } from './detach';
-import { startRun, routeSend, drainParked, runParkedInBackground, runParkedNow, acceptResumeOffer, orchestratorPaneTarget, type BgRunReject, type NowRunReject } from './runs';
+import { startRun, routeSend, drainParked, runParkedInBackground, runParkedNow, acceptResumeOffer, refreshBusyElsewhere, orchestratorPaneTarget, type BgRunReject, type NowRunReject } from './runs';
 import { threads, stopSession, resolveThreadKey, runningSessionIds } from './threads';
 import { clearAwaiting } from './awaiting';
 import { addParked, removeParked, editParked, moveParked, clearParked, retryParked, parkedView, isQueuePaused, setQueuePaused, REJECT_MESSAGE } from './parked';
@@ -1149,6 +1149,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     // Clique na oferta de retomada: o servidor ainda guarda a config do turno
     // morto, então isto vira um `--resume` de verdade e não um reenvio de texto.
     case 'resume-run': {
+      await refreshBusyElsewhere();
       if (!acceptResumeOffer(msg.sessionKey)) {
         send(ws, { t: 'queue-error', sessionKey: msg.sessionKey, message: 'Esta retomada não está mais disponível (a sessão já tem turno novo).' });
       }
