@@ -1675,8 +1675,11 @@ export function useCockpit(): Cockpit {
     const fail = (msg: string) => {
       if (done) return; done = true;
       uploadOrigin.current.delete(clientId);
+      // A late 'uploaded' ack (slow link past the 75s watchdog) must not bring the
+      // chip back after the user was told it failed — same rule as removing it by hand.
+      removedUploads.current.add(clientId);
       setAtts(attachmentsRef.current.filter((a) => a.clientId !== clientId));
-      updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: msg }], error: true }]);
+      updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: msg }], error: true, notice: true }]);
     };
     // Watchdog: o chip NUNCA fica "carregando" pra sempre. Se em 75s ainda estiver
     // uploading (fetch pendurado, sem ack do backend, relay dropou), some + erro.
@@ -1690,6 +1693,12 @@ export function useCockpit(): Cockpit {
     // upload direto browser→edge fn (travava por CORS/Cloudflare) e o cap de frame.
     const reader = new FileReader();
     reader.onload = () => {
+      // send() drops every chunk silently while the socket is closed; the chip then
+      // spun for the full 75s watchdog. Fail now instead.
+      if (wsRef.current?.readyState !== WebSocket.OPEN) {
+        fail(`⚠️ Sem conexão com o servidor — "${file.name}" não foi enviado. Anexe de novo quando reconectar.`);
+        return;
+      }
       const res = String(reader.result);
       const b64 = res.includes(',') ? res.slice(res.indexOf(',') + 1) : res;
       const CHUNK = 700_000; // ~700KB de base64 por frame (folga sob o cap do relay)
