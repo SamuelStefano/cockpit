@@ -30,7 +30,7 @@ export function PrimitivesGallery() {
       <Section title="Input">
         <Row label="md"><Input placeholder="voce@exemplo.com" /></Row>
         <Row label="sm"><Input size="sm" placeholder="NOME_DO_TOKEN" /></Row>
-        <Row label="error"><Input error defaultValue="http://errado" /></Row>
+        <Row label="error"><Input error defaultValue="http://errado" aria-label="URL inválida (exemplo)" /></Row>
         <Row label="mono"><Input mono placeholder="wss://deck.exemplo.com" /></Row>
         <Row label="password"><Input type="password" placeholder="••••••••" /></Row>
         <Row label="icon"><Input icon="search" placeholder="buscar…" /></Row>

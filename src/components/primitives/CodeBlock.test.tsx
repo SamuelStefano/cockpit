@@ -20,4 +20,9 @@ describe('CodeBlock', () => {
     const { container } = render(<CodeBlock code="qualquer coisa" />);
     expect(container.textContent).toContain('text');
   });
+
+  it('a scrolling code block can be reached from the keyboard', () => {
+    const { container } = render(<CodeBlock code={'x'.repeat(400)} lang="ts" />);
+    expect(container.querySelector('pre')!.tabIndex).toBe(0);
+  });
 });

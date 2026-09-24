@@ -64,7 +64,9 @@ function HighlightedCode({ code, lang }: CodeBlockProps) {
           </button>
         </div>
       </div>
-      <pre className={`scroll-thin overflow-x-auto px-3 py-2.5 text-[12.5px] leading-relaxed ${wrap ? 'whitespace-pre-wrap wrap-break-word' : 'whitespace-pre'}`}>
+      {/* Focusable when it can scroll sideways: otherwise a keyboard user cannot
+          reach the part of a long line past the edge. */}
+      <pre tabIndex={wrap ? undefined : 0} aria-label={wrap ? undefined : 'código'} className={`scroll-thin overflow-x-auto px-3 py-2.5 text-[12.5px] leading-relaxed ${wrap ? 'whitespace-pre-wrap wrap-break-word' : 'whitespace-pre'}`}>
         {/* Sem tokens (carregando/offline) = texto puro, sem flash nem erro. */}
         <code className="font-mono text-neutral-200">{tokens ? renderTokens(tokens) : code}</code>
       </pre>
