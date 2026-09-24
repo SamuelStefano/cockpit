@@ -68,7 +68,7 @@ try {
   else fail(`seeds de Gerar UI não apareceram (${seeds})`);
 
   // Selecionar um seed pré-preenche o composer com o prompt ```preview.
-  await page.getByRole('button', { name: /Gerar UI: landing page/ }).click();
+  await page.getByRole('option', { name: /Gerar UI: landing page/ }).click();
   await page.waitForTimeout(250);
   const values = await page.locator('textarea').evaluateAll((els) => els.map((e) => e.value));
   const seeded = values.some((v) => v.includes('```preview'));
