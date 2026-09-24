@@ -386,15 +386,46 @@ async function cmdSend(id: string, text: string, flags: Flags): Promise<void> {
   return sendText(full, text, flags);
 }
 
+// Exit code for "accepted but parked": the server queued the prompt (quota
+// window nearly spent, or a big session starting) and its drainer runs it later.
+// Not a failure — retrying would start a duplicate session.
+export const EXIT_PARKED = 3;
+
+type NewTurn = { kind: 'started'; sessionId: string } | { kind: 'parked'; message: string } | { kind: 'rejected'; message: string } | null;
+
+// Starts a turn on a fresh `new-…` key and waits for whichever answer comes: the
+// session id (`system`), a park or a reject. Waiting for `system` alone turned a
+// park into "timeout, turn may have failed" (exit 1) 15 s later, and a reject lost
+// its message.
+export async function startNewTurn(client: Client, sessionKey: string, msg: Omit<Extract<ClientMsg, { t: 'send' }>, 't' | 'sessionKey'>, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<NewTurn> {
+  client.send({ t: 'send', sessionKey, ...msg });
+  const m = await client.waitFor(
+    (f): f is Extract<ServerMsg, { t: 'system' | 'send-parked' | 'send-reject' }> =>
+      (f.t === 'system' || f.t === 'send-parked' || f.t === 'send-reject') && f.sessionKey === sessionKey,
+    timeoutMs,
+  );
+  if (!m) return null;
+  if (m.t === 'system') return { kind: 'started', sessionId: m.sessionId };
+  if (m.t === 'send-parked') return { kind: 'parked', message: m.message };
+  return { kind: 'rejected', message: m.message };
+}
+
+function parked(client: Client, what: string, message: string): never {
+  client.close();
+  console.log(`parked — ${what} will start when the server drains its queue: ${message}`);
+  process.exit(EXIT_PARKED);
+}
+
 async function cmdNew(text: string, flags: Flags): Promise<void> {
   if (flagStr(flags, 'cwd')) {
     console.error('deckctl: --cwd is not supported by the current WS protocol (server always spawns in its own fixed workdir) — ignoring');
   }
   const sessionKey = `new-${randomUUID()}`;
   const client = await connect();
-  client.send({ t: 'send', sessionKey, text, model: flagStr(flags, 'model'), effort: flagStr(flags, 'effort') as Effort | undefined });
-  const sys = await client.waitFor((m): m is Extract<ServerMsg, { t: 'system' }> => m.t === 'system' && m.sessionKey === sessionKey, DEFAULT_TIMEOUT_MS);
+  const sys = await startNewTurn(client, sessionKey, { text, model: flagStr(flags, 'model'), effort: flagStr(flags, 'effort') as Effort | undefined });
   if (!sys) { client.close(); fail('no sessionId assigned by server (timeout) — turn may have failed to start'); }
+  if (sys.kind === 'rejected') { client.close(); fail(`send rejected: ${sys.message}`); }
+  if (sys.kind === 'parked') parked(client, 'the new session', sys.message);
   console.log(sys.sessionId);
   const title = flagStr(flags, 'title');
   if (title) client.send({ t: 'set-meta', sessionId: sys.sessionId, title: title.slice(0, 120) });
@@ -552,9 +583,10 @@ async function cmdHandoff(id: string): Promise<void> {
   // that context, same as onNew() + sendPrompt() in the browser.
   const sessionKey = `new-${randomUUID()}`;
   const text = `Retome o trabalho a partir do contexto \`${result.contextId}\`.`;
-  client.send({ t: 'send', sessionKey, text });
-  const sys = await client.waitFor((m): m is Extract<ServerMsg, { t: 'system' }> => m.t === 'system' && m.sessionKey === sessionKey, DEFAULT_TIMEOUT_MS);
+  const sys = await startNewTurn(client, sessionKey, { text });
   if (!sys) { client.close(); fail('handoff distilled ok but the fresh session never got a sessionId (timeout)'); }
+  if (sys.kind === 'rejected') { client.close(); fail(`handoff distilled ok (context ${result.contextId}) but the fresh session was rejected: ${sys.message}`); }
+  if (sys.kind === 'parked') parked(client, `the resumed session (context ${result.contextId})`, sys.message);
   const title = result.fromTitle?.trim() ? `${result.fromTitle.trim()} (retomado)` : 'Sessão retomada';
   client.send({ t: 'set-meta', sessionId: sys.sessionId, title });
   client.close();
@@ -690,9 +722,10 @@ async function cmdCardRun(idPrefix: string, flags: Flags): Promise<void> {
   // enrichment is skipped here since deckctl has no local canvas graph).
   const prompt = card.reuse?.mode ? buildContinuePrompt(card) : buildTaskPrompt(card, [], []);
   const sessionKey = `new-${randomUUID()}`;
-  client.send({ t: 'send', sessionKey, text: prompt });
-  const sys = await client.waitFor((m): m is Extract<ServerMsg, { t: 'system' }> => m.t === 'system' && m.sessionKey === sessionKey, DEFAULT_TIMEOUT_MS);
+  const sys = await startNewTurn(client, sessionKey, { text: prompt });
   if (!sys) { client.close(); fail('no sessionId assigned by server (timeout)'); }
+  if (sys.kind === 'rejected') { client.close(); fail(`send rejected: ${sys.message}`); }
+  if (sys.kind === 'parked') parked(client, `card ${card.id}`, sys.message);
   client.send({ t: 'canvas-card-save', card: { ...card, status: 'doing', updatedAt: Date.now() } });
   await client.waitFor(isServerMsg('canvas-board'), DEFAULT_TIMEOUT_MS);
   client.close();
@@ -1241,7 +1274,8 @@ Usage: deckctl <command> [args] [--json]
   status                                    one-screen overview + alerts (pending questions, hot-context sessions)
   triage [--apply] [--limit N]              score every session KEEP/PURGE/REVIEW (dry-run by default; --apply acts)
 
-Session/card ids accept unambiguous prefixes. Add --json to any read command for raw output.`;
+Session/card ids accept unambiguous prefixes. Add --json to any read command for raw output.
+Exit codes: 0 ok, 1 failure, 3 parked (new/handoff/card run accepted but queued by the server — do not retry).`;
 
 async function main(): Promise<void> {
   const [cmd, ...rest] = process.argv.slice(2);
