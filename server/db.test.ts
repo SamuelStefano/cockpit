@@ -206,3 +206,32 @@ describe('session_turn_outcome', () => {
     expect(all.has('s3')).toBe(false);
   });
 });
+
+describe('daily usage series', () => {
+  const dirs: string[] = [];
+  afterEach(() => { delete process.env.COCKPIT_DB; for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }); });
+
+  it('covers the whole retention window, one bucket per Brasília day', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cockpit-db-'));
+    dirs.push(dir);
+    process.env.COCKPIT_DB = join(dir, 'usage.db');
+    vi.resetModules();
+    const db = await import('./db');
+    const now = Date.now();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(now - 40 * 86_400_000);
+      db.recordUsage({ sessionId: 's1', ctxTokens: 1, outputTokens: 700, model: 'claude-opus-4' });
+      vi.setSystemTime(now);
+      db.recordUsage({ sessionId: 's1', ctxTokens: 1, outputTokens: 1000, model: 'claude-opus-4' });
+      db.recordUsage({ sessionId: 's1', ctxTokens: 1, outputTokens: 500, model: 'claude-opus-4' });
+      const series = db.usageStats().series;
+      // A 40-day-old day is inside the 90-day window (it was cut at 14 before).
+      expect(series).toHaveLength(2);
+      expect(series[0].output).toBe(700);
+      expect(series[1].output).toBe(1500);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

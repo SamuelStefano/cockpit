@@ -298,17 +298,26 @@ function computeStats(): UsageStats {
     totalOutput: sessions.reduce((a, s) => a + s.outputTokens, 0),
     totalSamples: sessions.reduce((a, s) => a + s.samples, 0),
     totalCost: sessions.reduce((a, s) => a + s.costUsd, 0),
-    series: dailySeries(14),
+    // The whole retention window: /uso's 30d and "tudo" buttons used to filter a
+    // 14-day series, so both showed 14 days and "tudo" disagreed with the headline.
+    series: dailySeries(RETAIN_DAYS),
   };
 }
+
+const BRT_OFFSET_MS = 3 * 60 * 60 * 1000;
 
 // Buckets diários (output + custo estimado) dos últimos N dias, pra trend no /uso.
 function dailySeries(days: number): { day: number; output: number; cost: number }[] {
   const cutoff = Date.now() - days * 86_400_000;
+  // Aggregated in SQL per (Brasília day, model): pulling every sample row into JS
+  // is ~150k rows for 90 days on this box. BRT has no DST, so a fixed -3h shift
+  // groups by local day; the label still comes from midnightInTz.
   const rows = open().prepare(`
-    SELECT ts, output_tokens AS output, input_tokens AS input,
-           cache_read_tokens AS cacheRead, cache_creation_tokens AS cacheCreation, model
+    SELECT MIN(ts) AS ts, model,
+           SUM(output_tokens) AS output, SUM(input_tokens) AS input,
+           SUM(cache_read_tokens) AS cacheRead, SUM(cache_creation_tokens) AS cacheCreation
     FROM usage_sample WHERE ts >= ?
+    GROUP BY CAST((ts - ${BRT_OFFSET_MS}) / 86400000 AS INTEGER), model
   `).all(cutoff) as Array<{ ts: number; output: number; input: number; cacheRead: number; cacheCreation: number; model: string | null }>;
 
   const buckets = new Map<number, { day: number; output: number; cost: number }>();
