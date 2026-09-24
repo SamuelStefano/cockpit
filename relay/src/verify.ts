@@ -10,6 +10,9 @@ export interface Identity {
   accountId: string;     // = sub do JWT (server-side, red line #1)
   email: string;
   role: AccountRole;
+  // JWT expiry (ms epoch). The browser socket is closed at this instant: a login
+  // checked only at open kept a stolen/expired/signed-out token's channel alive.
+  expMs?: number;
 }
 
 // Valida os claims já decodificados de um JWT Supabase. PURA (sem rede): checa
@@ -29,7 +32,7 @@ export function validateClaims(
   if (typeof exp !== 'number' || exp <= opts.nowSec) return null;
   if (!sub || !email) return null;
   const role = roleFromIdentity(email, opts.isAdmin, opts.rootEmails, emailVerified(claims));
-  return { accountId: sub, email, role };
+  return { accountId: sub, email, role, expMs: exp * 1000 };
 }
 
 // O Supabase põe `email_verified` em `user_metadata`; outros provedores usam o claim
