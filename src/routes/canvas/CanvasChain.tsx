@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { AreaId, CanvasFlow, CanvasNode, OrchestratorInfo, TermStats } from '../../../shared/canvas';
 import { EmptyState } from '../../components/primitives';
 import { ChainNode } from './ChainNode';
-import { CHAIN_NODE_H, CHAIN_NODE_W } from './chain-layout';
+import { CHAIN_AREA_H, CHAIN_ROOT_W, CHAIN_SESSION_H, countRunning, type ChainItem } from './chain-layout';
 import { useCanvasChain } from './useCanvasChain';
 
 interface Props {
@@ -55,7 +55,7 @@ function ChainCanvas({ chain, p }: { chain: ReturnType<typeof useCanvasChain>; p
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    el.scrollLeft = Math.max(0, rootX + CHAIN_NODE_W / 2 - el.clientWidth / 2);
+    el.scrollLeft = Math.max(0, rootX + CHAIN_ROOT_W / 2 - el.clientWidth / 2);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only the tree's overall width should re-center, not every scroll/collapse.
   }, [chain.width]);
 
@@ -66,12 +66,12 @@ function ChainCanvas({ chain, p }: { chain: ReturnType<typeof useCanvasChain>; p
           {chain.edges.map((e) => <path key={e.id} d={e.d} fill="none" stroke="rgb(64 64 64)" strokeWidth={1.5} />)}
         </svg>
         {chain.positions.map((pos) => (
-          <div key={pos.id} className="absolute" style={{ left: pos.x, top: pos.y, width: CHAIN_NODE_W, height: CHAIN_NODE_H }}>
+          <div key={pos.id} className="absolute" style={{ left: pos.x, top: pos.y, width: pos.width, height: pos.height }}>
             <ChainNode
               item={pos.item} running={pos.item.node ? p.running.has(pos.item.node.ref) : false}
               waiting={pos.item.node ? p.waiting.has(pos.item.node.ref) : false}
               stats={pos.item.node ? p.stats[pos.item.node.ref] : undefined}
-              descendantCount={pos.descendantCount} collapsed={pos.collapsed}
+              descendantCount={pos.descendantCount} collapsed={pos.collapsed} runningCount={countRunning(pos.item, p.running)}
               onToggleCollapse={() => (pos.item.kind === 'area' && pos.item.areaId ? chain.toggleArea(pos.item.areaId) : chain.toggleSession(pos.item.id))}
               onOpenTerm={() => onOpenNode(pos.item, p)} onOpenChat={() => (pos.item.node ? p.onOpenChat(pos.item.node.ref) : undefined)}
             />
@@ -87,7 +87,7 @@ function onOpenNode(item: { kind: string; id: string }, p: Props) {
 }
 
 interface ListProps {
-  item: import('./chain-layout').ChainItem;
+  item: ChainItem;
   depth: number;
   running: Set<string>;
   waiting: Set<string>;
@@ -102,16 +102,24 @@ interface ListProps {
 
 // Same nodes, same collapse state, just stacked with indentation instead of
 // positioned absolutely — no separate data model for the mobile fallback.
+function countDescendants(item: ChainItem): number {
+  let n = item.children.length;
+  for (const c of item.children) n += countDescendants(c);
+  return n;
+}
+
 function ChainTreeList(p: ListProps) {
   const { item } = p;
   const collapsed = item.kind === 'area' ? (!!item.areaId && p.collapsedAreas.has(item.areaId)) : p.collapsedSessions.has(item.id);
   const descendantCount = countDescendants(item);
+  const rowH = item.kind === 'session' ? CHAIN_SESSION_H : CHAIN_AREA_H;
   return (
     <div style={{ marginLeft: p.depth * 14 }} className="mb-1.5">
-      <div style={{ height: CHAIN_NODE_H }}>
+      <div style={{ height: rowH }}>
         <ChainNode
           item={item} running={item.node ? p.running.has(item.node.ref) : false} waiting={item.node ? p.waiting.has(item.node.ref) : false}
           stats={item.node ? p.stats[item.node.ref] : undefined} descendantCount={descendantCount} collapsed={collapsed}
+          runningCount={countRunning(item, p.running)}
           onToggleCollapse={() => (item.kind === 'area' && item.areaId ? p.onToggleArea(item.areaId) : p.onToggleSession(item.id))}
           onOpenTerm={() => (item.kind === 'session' ? p.onOpenTerm(item.id) : undefined)}
           onOpenChat={() => (item.node ? p.onOpenChat(item.node.ref) : undefined)}
@@ -120,10 +128,4 @@ function ChainTreeList(p: ListProps) {
       {!collapsed && item.children.map((c) => <ChainTreeList key={c.id} {...p} item={c} depth={p.depth + 1} />)}
     </div>
   );
-}
-
-function countDescendants(item: { children: { children: unknown[] }[] }): number {
-  let n = item.children.length;
-  for (const c of item.children) n += countDescendants(c as { children: { children: unknown[] }[] });
-  return n;
 }
