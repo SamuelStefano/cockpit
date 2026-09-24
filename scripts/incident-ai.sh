@@ -107,7 +107,7 @@ $(tail -n 60 "$AGENT_LOG" 2>/dev/null)
 
 Cada linha de <incidentes> é um turno de chat que falhou. Sua tarefa:
 1. Diagnostique a CAUSA RAIZ lendo o código relevante (server/ws/runs.ts, server/engine/claude.ts, server/ws/translate.ts) e os logs. Não chute.
-2. Se — e somente se — houver uma correção pequena, segura e claramente certa: crie uma branch fix/incidente-<slug>, aplique e commite ('fix: descrição' em português, uma linha, sem trailers). PARE aí: não pushe e não abra PR — quem publica é o script que te chamou, e o CI da PR roda tsc e testes.
+2. Se — e somente se — houver uma correção pequena, segura e claramente certa: aplique editando os arquivos (você não usa git pra escrever: sem branch, add ou commit) e grave a mensagem de commit ('fix: descrição' em português, uma linha, sem trailers) no arquivo .incident-commit-msg na raiz do repo. PARE aí: quem cria a branch, commita, publica e abre a PR é o script que te chamou, e o CI da PR roda tsc e testes.
 3. Se a causa for externa (quota, API da Anthropic fora, rede) ou o fix não for óbvio: NÃO mexa no código, fique na main e explique. Sua saída já é gravada no log do triador.
 
 Você roda com uma allowlist de ferramentas: reiniciar processo, pushar e abrir PR não estão ao seu alcance, e tentar não vai funcionar. Não gaste turno procurando volta — se algo que você precisa está bloqueado, diga qual e pare.
@@ -121,26 +121,35 @@ echo "$total" >"$STATE"
 
 cd "$REPO" || exit 0
 
-# O que o triador precisa pra diagnosticar e propor: ler e editar. Nada que EXECUTE
-# código: o prompt carrega stderr/log não confiáveis, e com Write + `npx vitest` uma
-# injeção escrevia um *.test.ts com execSync e o rodava como samuel — por cima da
-# deny list, com acesso às chaves da máquina. tsc e testes rodam no CI da PR.
+# O que o triador precisa pra diagnosticar e propor: ler e editar ARQUIVOS DO REPO.
+# Nada que execute código: o prompt carrega stderr/log não confiáveis. Com Write +
+# `npx vitest`, uma injeção escrevia um teste com execSync e o rodava como samuel; com
+# Write + `git commit`, reescrevia um hook (.git/hooks/post-commit existe e chama
+# scripts fora do repo) e o commit o executava. Por isso o modelo só edita dentro do
+# repo e não roda git que escreve: branch, commit e push são do script, com hooks off.
 ALLOW=(
-  Read Grep Glob Edit Write
+  Read Grep Glob "Edit(./**)"
   "Bash(git status:*)" "Bash(git diff:*)" "Bash(git log:*)" "Bash(git show:*)"
-  "Bash(git checkout -b:*)" "Bash(git add:*)" "Bash(git commit:*)"
 )
 # Cinto e suspensório. A allowlist acima já é default-deny, mas ela CONVIVE com as
 # regras de `permissions.allow` dos settings — e as do Samuel crescem sozinhas toda vez
 # que ele clica "always allow" (a do projeto ~ tem `Bash(node:*)`, que é shell inteiro).
-# Regra de deny vence allow venha de onde vier, então os três limites duros do cabeçalho
-# ficam aqui, escritos como negação e não como pedido no prompt.
+# Regra de deny vence allow venha de onde vier, então os limites duros ficam aqui,
+# escritos como negação e não como pedido no prompt.
 DENY=(
   "Bash(git push:*)" "Bash(gh:*)"
+  "Bash(git commit:*)" "Bash(git add:*)" "Bash(git checkout:*)" "Bash(git config:*)"
+  "Edit(./.git/**)" "Edit(./.gitattributes)"
   "Bash(npx:*)" "Bash(npm:*)" "Bash(node:*)" "Bash(tsx:*)" "Bash(bash:*)" "Bash(sh:*)"
   "Bash(kill:*)" "Bash(pkill:*)" "Bash(killall:*)"
   "Bash(scripts/redeploy.sh:*)" "Bash(./scripts/redeploy.sh:*)"
 )
+# git do script depois do modelo: hooks e fsmonitor desligados. E se .git/config ou
+# os hooks mudaram durante o turno, nada é publicado — o Samuel olha antes.
+G=(git -C "$REPO" -c core.hooksPath=/dev/null -c core.fsmonitor=false)
+git_fingerprint() { cat "$REPO/.git/config" "$REPO"/.git/hooks/* 2>/dev/null | sha256sum; }
+before=$(git_fingerprint)
+
 # --permission-mode explícito não é decoração: o ~/.claude/settings.json do Samuel tem
 # "defaultMode": "bypassPermissions", que valeria aqui se a flag fosse só omitida.
 # Verificado na mão: com `default` na linha de comando, o modo do settings não vale.
@@ -156,22 +165,32 @@ ANTHROPIC_API_KEY="$key" CLAUDE_CODE_OAUTH_TOKEN= timeout 900 \
 log "triador terminou (exit $?)"
 
 # Publicar é do script, não do modelo: é o único jeito de "nunca na main" ser um fato e
-# não uma frase no prompt. Se o triador não criou branch, não há nada a publicar.
-branch=$(git -C "$REPO" branch --show-current)
-if [ "$branch" = "main" ] || [ -z "$branch" ]; then
-  log "sem branch nova; nada a publicar"
-elif [ -z "$(git -C "$REPO" log --oneline main.."$branch" 2>/dev/null)" ]; then
-  log "branch $branch sem commit à frente da main; nada a publicar"
-elif git -C "$REPO" push -q -u origin "$branch" >>"$LOG" 2>&1; then
-  gh pr create --head "$branch" --base main \
-    --title "$(git -C "$REPO" log -1 --format=%s "$branch")" \
-    --body "Aberta pelo triador de incidentes a partir de $new incidente(s) em \`$INCIDENTS\`. Diagnóstico completo em \`$LOG\`." \
-    >>"$LOG" 2>&1 || log "push ok, mas 'gh pr create' falhou; branch $branch está no remoto"
+# não uma frase no prompt. Sem mudança no repo, não há nada a publicar.
+MSG_FILE="$REPO/.incident-commit-msg"
+msg=$(head -n1 "$MSG_FILE" 2>/dev/null | tr -d '\r' | cut -c1-120)
+rm -f "$MSG_FILE"
+if [ "$(git_fingerprint)" != "$before" ]; then
+  log "ABORT: .git/config ou hooks mudaram durante o turno; nada publicado, revisar à mão"
+elif [ -z "$("${G[@]}" status --porcelain)" ]; then
+  log "sem mudança no repo; nada a publicar"
 else
-  log "falha ao pushar $branch; branch ficou só local"
+  case "$msg" in fix:*) ;; *) msg="fix: correção proposta pelo triador de incidentes" ;; esac
+  branch="fix/incidente-$(date -u +%Y%m%d-%H%M%S)"
+  if "${G[@]}" checkout -q -b "$branch" >>"$LOG" 2>&1 && "${G[@]}" add -A >>"$LOG" 2>&1 \
+     && "${G[@]}" commit -q -m "$msg" >>"$LOG" 2>&1; then
+    if "${G[@]}" push -q -u origin "$branch" >>"$LOG" 2>&1; then
+      gh pr create --head "$branch" --base main --title "$msg" \
+        --body "Aberta pelo triador de incidentes a partir de $new incidente(s) em \`$INCIDENTS\`. Diagnóstico completo em \`$LOG\`." \
+        >>"$LOG" 2>&1 || log "push ok, mas 'gh pr create' falhou; branch $branch está no remoto"
+    else
+      log "falha ao pushar $branch; branch ficou só local"
+    fi
+  else
+    log "falha ao commitar a correção do triador; tree ficou como estava pra revisão"
+  fi
 fi
 
-# Volta pra main pra próxima passada não empilhar em cima desta branch. Se o triador
-# deixou sujeira, NÃO forço: o checkout falha, a próxima passada aborta no guard de
-# tree limpo, e o Samuel encontra o estado como estava pra inspecionar.
-git -C "$REPO" checkout -q main 2>>"$LOG" || log "não consegui voltar pra main (tree suja?); triador pausado até revisão"
+# Volta pra main pra próxima passada não empilhar em cima desta branch. Se sobrou
+# sujeira, NÃO forço: o checkout falha, a próxima passada aborta no guard de tree
+# limpo, e o Samuel encontra o estado como estava pra inspecionar.
+"${G[@]}" checkout -q main 2>>"$LOG" || log "não consegui voltar pra main (tree suja?); triador pausado até revisão"
