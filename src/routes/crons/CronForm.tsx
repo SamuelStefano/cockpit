@@ -47,7 +47,7 @@ export function CronForm({ form, onCancel, now, planUsage, models }: {
         {draft.kind === 'once' && resetPresets(planUsage ?? null, now).map((p) => (
           <Button key={p.window} variant="ghost" size="sm" onClick={() => form.applyResetPreset(p.atMs)}>{p.label}</Button>
         ))}
-        {draft.kind === 'interval' && <span className="flex items-center gap-1 text-neutral-400">a cada <input type="number" min={1} value={draft.everyMinutes} onChange={(e) => set('everyMinutes', parseInt(e.target.value, 10) || 60)} className={`w-16 ${field}`} /> min</span>}
+        {draft.kind === 'interval' && <span className="flex items-center gap-1 text-neutral-400">a cada <input type="number" min={1} value={draft.everyMinutes} onChange={(e) => set('everyMinutes', e.target.value === '' ? 0 : parseInt(e.target.value, 10))} className={`w-16 ${field}`} /> min</span>}
         <select value={draft.mode} onChange={(e) => set('mode', e.target.value as typeof draft.mode)} className={field}>
           <option value="plan">Planejar</option>
           <option value="acceptEdits">Executar</option>

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { buildSchedule, draftValid, enabledFor, toLocalInput, useCronForm, type CronDraft } from './useCronForm';
+import { buildSchedule, draftValid, enabledFor, toLocalInput, fromLocalInput, useCronForm, type CronDraft } from './useCronForm';
 import type { Cron } from '../../../shared/protocol';
 
 const draft = (over: Partial<CronDraft>): CronDraft => ({
@@ -16,8 +16,9 @@ describe('buildSchedule', () => {
   it('diário vira minuto do dia', () => {
     expect(buildSchedule(draft({ time: '18:30' }))).toEqual({ kind: 'daily', atMinute: 18 * 60 + 30 });
   });
-  it('uma vez vira timestamp local absoluto', () => {
-    expect(buildSchedule(draft({ kind: 'once' }))).toEqual({ kind: 'once', atMs: new Date(2026, 6, 25, 9, 59).getTime() });
+  it('uma vez: the typed wall-clock time is Brasília, whatever the browser zone', () => {
+    // 09:59 BRT = 12:59 UTC.
+    expect(buildSchedule(draft({ kind: 'once' }))).toEqual({ kind: 'once', atMs: Date.UTC(2026, 6, 25, 12, 59) });
   });
 });
 
@@ -25,6 +26,10 @@ describe('draftValid', () => {
   it('exige nome e prompt', () => {
     expect(draftValid(draft({ name: '  ' }))).toBe(false);
     expect(draftValid(draft({ prompt: '' }))).toBe(false);
+  });
+  it('an emptied interval field is not a valid schedule (no silent 60)', () => {
+    expect(draftValid(draft({ kind: 'interval', everyMinutes: 0 }))).toBe(false);
+    expect(draftValid(draft({ kind: 'interval', everyMinutes: 15 }))).toBe(true);
   });
   it('uma vez exige data parseável', () => {
     expect(draftValid(draft({ kind: 'once', at: '' }))).toBe(false);
@@ -50,10 +55,10 @@ describe('enabledFor', () => {
 });
 
 describe('toLocalInput', () => {
-  it('formata pro input sem fuso e volta no mesmo instante', () => {
-    const ts = new Date(2026, 6, 25, 9, 59).getTime();
+  it('formats in Brasília and parses back to the same instant', () => {
+    const ts = Date.UTC(2026, 6, 25, 12, 59);
     expect(toLocalInput(ts)).toBe('2026-07-25T09:59');
-    expect(new Date(toLocalInput(ts)).getTime()).toBe(ts);
+    expect(fromLocalInput(toLocalInput(ts))).toBe(ts);
   });
 });
 
