@@ -857,7 +857,7 @@ export type ServerMsg =
   | { t: 'points-dfl-write'; reqId: string; kind: 'change' | 'invoice' | 'agent'; ok: boolean; message?: string }
   // Resultado de dfl-task-link/dfl-task-create-link. reqId casa com o pedido;
   // sucesso já vem acompanhado de um canvas-board com o card.dfl atualizado.
-  | { t: 'dfl-task-write'; reqId: string; ok: boolean; message?: string }
+  | { t: 'dfl-task-write'; reqId: string; ok: boolean; message?: string; taskId?: string }
   | { t: 'crons'; items: Cron[] }
   | { t: 'context'; id: string; title: string; body: string }
   | { t: 'models'; models: ModelInfo[] }
