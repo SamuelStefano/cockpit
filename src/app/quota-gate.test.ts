@@ -74,3 +74,15 @@ describe('quotaGate', () => {
     expect(quotaGate(plan(10), { resetsAt: NOW + 30_000, status: 'allowed' }, NOW).resetsAt).toBe(NOW + 30_000);
   });
 });
+
+describe('quotaGate resetsAt names the blocking limit', () => {
+  it('a hard limit shows its own reset, not the 5h window', () => {
+    const g = quotaGate(plan(10, NOW + 2 * 3_600_000), { status: 'rejected', resetsAt: NOW + 3 * 86_400_000 }, NOW);
+    expect(g.paused).toBe(true);
+    expect(g.resetsAt).toBe(NOW + 3 * 86_400_000);
+  });
+  it('a 5h reset already in the past is not shown', () => {
+    const g = quotaGate(plan(10, NOW - 60_000), { status: 'allowed_warning', resetsAt: NOW + 3_600_000 }, NOW);
+    expect(g.resetsAt).toBe(NOW + 3_600_000);
+  });
+});
