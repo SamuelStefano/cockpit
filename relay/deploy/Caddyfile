@@ -2,7 +2,7 @@
 # loopback. Troque o domínio. Browsers conectam em /ws, agentes em /agent — ambos
 # WSS, mesmo host. Inbound 443 só (ver deploy/README.md pro firewall).
 
-relay.devfellowship.com {
+deck-relay.devfellowship.com {
 	encode zstd gzip
 	reverse_proxy 127.0.0.1:8800
 }

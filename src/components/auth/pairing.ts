@@ -44,7 +44,7 @@ export interface DiagnoseInput {
 const AGENT_STEPS = [
   'systemctl status deck-agent --no-pager',
   'journalctl -u deck-agent -n 50 --no-pager',
-  'curl -sS https://relay.devfellowship.com/status',
+  'curl -sS https://deck-relay.devfellowship.com/status',
 ];
 
 // Traduz o estado observável em algo acionável. A ordem importa: sem relay
@@ -61,7 +61,7 @@ export function diagnose({ probe, agentOnline, expired, hasCode }: DiagnoseInput
     return {
       tone: 'red',
       title: 'Este navegador não alcança o relay. O problema está aqui, não na VPS.',
-      steps: ['Confira sua rede/VPN e tente de novo', 'curl -sS https://relay.devfellowship.com/status'],
+      steps: ['Confira sua rede/VPN e tente de novo', 'curl -sS https://deck-relay.devfellowship.com/status'],
     };
   }
   if (probe === 'rejected') {

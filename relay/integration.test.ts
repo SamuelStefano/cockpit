@@ -523,6 +523,11 @@ describe('relay: pairing with an invalid public key', () => {
 
   it('closes 4400 without consuming the single-use code', async () => {
     let consumed = 0;
+  });
+});
+
+describe('relay: shutdown with open sockets', () => {
+  it('closes promptly instead of waiting for WebSockets to end on their own', async () => {
     const store: RelayStore = {
       async agentById() { return null; }, async isAdmin() { return false; },
       async listAccounts() { return []; }, async setAdmin() { return true; },
@@ -539,5 +544,18 @@ describe('relay: pairing with an invalid public key', () => {
     const code = await new Promise<number>((r) => ws.on('close', (c) => r(c)));
     expect(code).toBe(4400);
     expect(consumed).toBe(0);
+  });
+});
+
+      async consumePairingCode() { return null; }, async createAgent() { return null; },
+    };
+    const relay = createRelay({ iss: 't', jwksUrl: 'http://x', rootEmails: '', store, resolveIdentity: async () => ({ accountId: 'accA', email: 'a@x', role: 'fellow' }) });
+    await new Promise<void>((r) => relay.server.listen(0, '127.0.0.1', r));
+    const { port } = relay.server.address() as AddressInfo;
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=A1`);
+    await new Promise<void>((r) => ws.on('open', () => r()));
+    const t0 = Date.now();
+    await new Promise<void>((r) => relay.shutdown(r));
+    expect(Date.now() - t0).toBeLessThan(1500);
   });
 });

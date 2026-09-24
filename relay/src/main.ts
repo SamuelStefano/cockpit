@@ -17,7 +17,7 @@ const rootEmails = process.env.COCKPIT_ROOT_EMAILS ?? '';
 const port = Number(process.env.RELAY_PORT ?? '8800');
 const host = process.env.RELAY_HOST ?? '127.0.0.1';
 
-const { server } = createRelay({
+const { server, shutdown } = createRelay({
   iss: `${supabaseUrl}/auth/v1`,
   jwksUrl: `${supabaseUrl}/auth/v1/.well-known/jwks.json`,
   rootEmails,
@@ -30,5 +30,9 @@ server.listen(port, host, () => {
 });
 
 for (const sig of ['SIGTERM', 'SIGINT'] as const) {
-  process.on(sig, () => { server.close(() => process.exit(0)); });
+  process.on(sig, () => {
+    shutdown(() => process.exit(0));
+    // Backstop: never outlive a stop by more than a few seconds.
+    setTimeout(() => process.exit(0), 5_000).unref();
+  });
 }
