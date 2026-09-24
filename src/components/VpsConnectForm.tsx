@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button, Icon, Input } from './primitives';
 import { loadPref, savePref } from '../lib/persist';
+import { insecureWsUrl } from './vps-url';
 
 // Configuração do backend por dispositivo (#147). Um build único no Vercel não
 // tem como saber o endereço da VPS de cada aparelho; aqui o usuário cola o
@@ -43,6 +44,11 @@ export function VpsConnectForm({ onDone }: { onDone?: () => void }) {
           spellCheck={false}
         />
         {urlErr && <p className="mt-1.5 text-[11px] leading-relaxed text-red-300">{urlErr}</p>}
+        {!urlErr && insecureWsUrl(url) && (
+          <p role="alert" className="mt-1.5 text-[11px] leading-relaxed text-yellow-300">
+            ws:// sem TLS pra um host público: o token e tudo o que passa pelo Deck vão em texto claro. Use wss:// (ou o endereço Tailscale).
+          </p>
+        )}
       </div>
       <div>
         <label htmlFor="vps-token" className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-neutral-400">
