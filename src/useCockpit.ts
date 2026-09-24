@@ -413,6 +413,7 @@ export function useCockpit(): Cockpit {
   const sessionsRef = useRef<Session[]>([]);
   const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
   const authBackoffUntil = useRef(0); // relay 4401: no immediate redial before this
+  const rejectedToken = useRef(''); // the token the relay last answered 4401 to
   const lastRelayRefresh = useRef(0);
   const retryDelay = useRef(1500); // backoff exponencial, reset no connect bem-sucedido
   const heartbeat = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -1396,6 +1397,7 @@ export function useCockpit(): Cockpit {
         if (onAuthClose(SUPABASE_ENABLED) === 'refresh-and-retry') {
           const now = Date.now();
           authBackoffUntil.current = now + RELAY_AUTH_RETRY_MS;
+          rejectedToken.current = tokenRef.current;
           if (shouldRefreshSession(lastRelayRefresh.current, now)) {
             lastRelayRefresh.current = now;
             void supabase?.auth.refreshSession().catch(() => {});
@@ -1485,7 +1487,7 @@ export function useCockpit(): Cockpit {
     savePref('auth.token', t);
     setAuthRequired(false);
     retryDelay.current = 1500;
-    const backingOff = !dialOnTokenChange(authBackoffUntil.current, Date.now());
+    const backingOff = !dialOnTokenChange(t, rejectedToken.current, authBackoffUntil.current, Date.now());
     if (retry.current && !backingOff) { clearTimeout(retry.current); retry.current = null; }
     // Derruba o socket anterior NEUTRALIZANDO o onclose antes — senão o close
     // dispara scheduleRetry e reabre uma conexão com a credencial recém-trocada
@@ -1505,8 +1507,9 @@ export function useCockpit(): Cockpit {
       setConn({ ws: 'down', sse: 'down' });
       return;
     }
-    // During a 4401 backoff the pending retry dials with this token.
-    if (!dialOnTokenChange(authBackoffUntil.current, Date.now())) return;
+    // During a 4401 backoff the pending retry dials with the rejected token.
+    if (backingOff) return;
+    authBackoffUntil.current = 0;
     connect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connect]);

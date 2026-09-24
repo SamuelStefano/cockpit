@@ -27,9 +27,11 @@ export function shouldRefreshSession(lastRefreshAt: number, now: number): boolea
   return now - lastRefreshAt >= RELAY_REFRESH_MIN_GAP_MS;
 }
 
-// While a 4401 backoff is pending, a new token (from our own refresh) is stored
-// but must not dial at once: the scheduled retry dials. Dialing immediately
-// turned "retry in 30s" into a connect→4401→refresh loop at round-trip speed.
-export function dialOnTokenChange(authBackoffUntil: number, now: number): boolean {
-  return now >= authBackoffUntil;
+// While a 4401 backoff is pending, only the token that got the 4401 waits for
+// the scheduled retry; redialing it at once was a connect→4401 loop at
+// round-trip speed. A different token (supabase refreshing on wake, a new
+// sign-in) dials now: the refresh throttle above already bounds that to once
+// per RELAY_REFRESH_MIN_GAP_MS, and a resumed tab is not left down for 30s.
+export function dialOnTokenChange(next: string, rejected: string, authBackoffUntil: number, now: number): boolean {
+  return now >= authBackoffUntil || next !== rejected;
 }

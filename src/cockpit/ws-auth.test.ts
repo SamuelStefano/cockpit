@@ -27,9 +27,13 @@ describe('4401 backoff helpers', () => {
     expect(shouldRefreshSession(10 * 60_000, 12 * 60_000)).toBe(false);
   });
 
-  it('a token that arrives during the backoff does not dial at once', () => {
-    expect(dialOnTokenChange(30_000, 1_000)).toBe(false);
-    expect(dialOnTokenChange(30_000, 30_000)).toBe(true);
-    expect(dialOnTokenChange(0, 5)).toBe(true);
+  it('the rejected token waits for the scheduled retry', () => {
+    expect(dialOnTokenChange('old', 'old', 30_000, 1_000)).toBe(false);
+    expect(dialOnTokenChange('old', 'old', 30_000, 30_000)).toBe(true);
+    expect(dialOnTokenChange('old', 'old', 0, 5)).toBe(true);
+  });
+
+  it('a genuinely new token dials at once, even inside the backoff', () => {
+    expect(dialOnTokenChange('fresh', 'old', 30_000, 1_000)).toBe(true);
   });
 });
