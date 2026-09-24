@@ -32,7 +32,7 @@ export function AdminDeckUpdate({ health, adminOp, onCliUpdate, onDeckRestart }:
         <div className="min-w-0 flex-1 text-[12.5px] text-neutral-300">
           <span className="text-neutral-500">CLI do Claude</span>{' '}
           <span className="font-mono text-neutral-100">{cli?.version || '—'}</span>
-          {cli?.path && <span className="ml-2 font-mono text-[11px] text-neutral-600">{cli.path}</span>}
+          {cli?.path && <span className="ml-2 wrap-anywhere font-mono text-[11px] text-neutral-600">{cli.path}</span>}
         </div>
         <Button variant="secondary" size="sm" icon="download" onClick={u.updateCli} disabled={u.busy !== null || !health} loading={u.busy === 'cli'}>
           Atualizar CLI
