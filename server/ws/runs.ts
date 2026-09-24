@@ -825,7 +825,7 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
   // Carimba o modelo PEDIDO na bolha desde o start: sem isto a bolha em voo ficava
   // sem modelo e o label caía no seletor vivo, mudando retroativamente ao trocar de
   // modelo. O 'done' refina pro efetivo (revela fallback silencioso).
-  broadcast({ t: 'started', sessionKey, model: params.model });
+  broadcast({ t: 'started', sessionKey, model: params.model, startedAt: thread.startedAt });
 
   // `run()` can throw synchronously (spawn ENOMEM, EMFILE leaving no stdio). The
   // thread is already registered and the cold slot held, so without this the

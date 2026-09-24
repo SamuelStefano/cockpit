@@ -905,7 +905,9 @@ export type ServerMsg =
   // model = modelo PEDIDO no turno (alias/id); carimba a bolha na hora pra o label
   // não cair no seletor vivo e mudar retroativamente ao trocar de modelo. O 'done'
   // refina pro modelo EFETIVO (revela fallback silencioso, se houver).
-  | { t: 'started'; sessionKey: string; model?: string }
+  // startedAt: server clock, so the client's live bubble compares with the
+  // transcript's timestamps instead of the browser's (possibly skewed) clock.
+  | { t: 'started'; sessionKey: string; model?: string; startedAt?: number }
   | { t: 'replay'; sessionKey: string; text: string; thinking: string; tools: ToolCall[]; startedAt?: number; sessionId?: string; model?: string }
   | { t: 'system'; sessionKey: string; sessionId: string }
   | { t: 'slash-commands'; items: string[] }

@@ -48,3 +48,27 @@ describe('history arriving while a turn streams', () => {
     expect(all.split('part one').length - 1).toBe(1); // the snapshot's copy of the live text is left to the bubble
   });
 });
+
+describe('live bubble timestamp', () => {
+  it('uses the server start time from `started`, not the browser clock', () => {
+    const S0 = Date.now() + 60_000; // server clock a minute ahead of the browser
+    const hook = renderHook(() => useCockpit());
+    const ws = FakeWebSocket.instances.at(-1)!;
+    const push = (f: ServerMsg) => act(() => { ws.onmessage?.({ data: JSON.stringify(f) }); });
+    act(() => { ws.onopen?.({}); });
+    push({ t: 'sessions', items: [{ id: U, title: 't', relative: 'agora', snippet: 's', mtime: T0 }] } as ServerMsg);
+    act(() => { hook.result.current.setActiveId(U); });
+    // The previous turn's answer (server S0 + 1 s) is older than this turn's server
+    // start (S0 + 5 s) but newer than the browser's clock: it must stay.
+    push({ t: 'started', sessionKey: U, startedAt: S0 + 5_000 } as ServerMsg);
+    push({ t: 'history', sessionId: U, messages: [
+      { id: 'u0', role: 'user', text: 'antes', ts: S0 },
+      { id: 'a0', role: 'assistant', blocks: [{ type: 'text', md: 'RESPOSTA-ANTERIOR' }], ts: S0 + 1_000 },
+      { id: 'u1', role: 'user', text: 'agora', ts: S0 + 5_100 },
+    ] } as unknown as ServerMsg);
+    push({ t: 'delta', sessionKey: U, text: 'streaming' });
+    const all = JSON.stringify(hook.result.current.messages);
+    expect(all).toContain('RESPOSTA-ANTERIOR');
+    expect(all).toContain('streaming');
+  });
+});
