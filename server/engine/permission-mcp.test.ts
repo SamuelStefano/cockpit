@@ -4,9 +4,9 @@ import { join } from 'node:path';
 
 const SCRIPT = join(__dirname, 'permission-mcp.mjs');
 
-function talk(frames: unknown[]): Promise<any[]> {
+function talk(frames: unknown[], flags: string[] = []): Promise<any[]> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [SCRIPT], { stdio: ['pipe', 'pipe', 'ignore'] });
+    const child = spawn(process.execPath, [SCRIPT, ...flags], { stdio: ['pipe', 'pipe', 'ignore'] });
     let out = '';
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', (c) => { out += c; });
@@ -34,12 +34,21 @@ describe('permission-mcp', () => {
     expect(list.result.tools.map((t: any) => t.name)).toEqual(['prompt']);
   });
 
-  // Answering `allow` here would let any tool through and make the gate a bypass of
-  // --allowedTools, which is the Deck's only real permission boundary in headless mode.
-  it('never allows, whatever the tool', async () => {
-    const [bash, ask] = await talk([call('Bash'), { ...call('AskUserQuestion'), id: 3 }]);
+  it('denies every tool without --allow-all (plan mode)', async () => {
+    const [bash, ask] = await talk([call('Monitor'), { ...call('AskUserQuestion'), id: 3 }]);
     expect(decisionOf(bash).behavior).toBe('deny');
     expect(decisionOf(ask).behavior).toBe('deny');
+  });
+
+  it('allows any tool with --allow-all, passing the input through', async () => {
+    const frame = { ...call('Monitor'), params: { name: 'prompt', arguments: { tool_name: 'Monitor', input: { command: 'x' } } } };
+    const [monitor] = await talk([frame], ['--allow-all']);
+    expect(decisionOf(monitor)).toEqual({ behavior: 'allow', updatedInput: { command: 'x' } });
+  });
+
+  it('still routes AskUserQuestion to the Deck card with --allow-all', async () => {
+    const [ask] = await talk([call('AskUserQuestion')], ['--allow-all']);
+    expect(decisionOf(ask)).toMatchObject({ behavior: 'deny', message: expect.stringMatching(/card no Deck/) });
   });
 
   it('tells the model the question was delivered as a Deck card', async () => {
