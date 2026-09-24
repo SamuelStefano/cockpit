@@ -39,10 +39,14 @@ const toastedOps = new WeakSet<object>();
 export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, isRoot, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, onCliUpdate, onDeckRestart }: AdminProps) {
   const [updatedAt, setUpdatedAt] = useState(0);
   const [tab, setTab] = useState('overview');
+  // Polls only while the tab is visible (health spawns probes server-side every
+  // 10s), and refreshes at once when it comes back.
   useEffect(() => {
     onHealthList();
-    const id = setInterval(onHealthList, 10_000);
-    return () => clearInterval(id);
+    const id = setInterval(() => { if (!document.hidden) onHealthList(); }, 10_000);
+    const onVisible = () => { if (!document.hidden) onHealthList(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
   }, [onHealthList]);
   useEffect(() => { if (health) setUpdatedAt(Date.now()); }, [health]);
   // O resultado da op é do painel inteiro, não só da aba Host: conceder/remover admin
