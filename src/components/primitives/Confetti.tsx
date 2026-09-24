@@ -8,6 +8,8 @@ interface Piece {
   id: number;
   left: number;
   size: number;
+  // Drawn once per piece: re-rolled in render, every burst re-render reshaped all live pieces.
+  height: number;
   color: string;
   dx: number;
   rot: number;
@@ -21,17 +23,22 @@ interface Burst { id: number; pieces: Piece[] }
 function makePieces(count: number, spread: number, seq: () => number): Piece[] {
   const mid = 50;
   const half = spread * 50;
-  return Array.from({ length: count }, () => ({
-    id: seq(),
-    left: rand(mid - half, mid + half),
-    size: rand(6, 11),
-    color: COLORS[Math.floor(Math.random() * COLORS.length)],
-    dx: rand(-140, 140),
-    rot: rand(360, 900) * (Math.random() < 0.5 ? -1 : 1),
-    dur: rand(2.2, 3.4),
-    delay: rand(0, 260),
-    round: Math.random() < 0.4,
-  }));
+  return Array.from({ length: count }, () => {
+    const size = rand(6, 11);
+    const round = Math.random() < 0.4;
+    return {
+      id: seq(),
+      left: rand(mid - half, mid + half),
+      size,
+      height: size * (round ? 1 : rand(0.5, 0.9)),
+      color: COLORS[Math.floor(Math.random() * COLORS.length)],
+      dx: rand(-140, 140),
+      rot: rand(360, 900) * (Math.random() < 0.5 ? -1 : 1),
+      dur: rand(2.2, 3.4),
+      delay: rand(0, 260),
+      round,
+    };
+  });
 }
 
 // Overlay único (montado uma vez no App): escuta o bus e dispara rajadas de
@@ -67,7 +74,7 @@ export function ConfettiHost() {
             style={{
               left: `${p.left}%`,
               width: p.size,
-              height: p.size * (p.round ? 1 : rand(0.5, 0.9)),
+              height: p.height,
               background: p.color,
               ['--dx' as string]: `${p.dx}px`,
               ['--rot' as string]: `${p.rot}deg`,
