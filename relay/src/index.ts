@@ -65,6 +65,11 @@ export function createRelay(cfg: RelayConfig) {
     throw new Error('resolveIdentity é stub de teste: proibido em produção');
   }
   const registry = new Registry();
+  // Which agent id holds each account's slot. The relay allows one agent per
+  // account; a DIFFERENT agent (a second box paired while the first was down)
+  // used to evict the bound one, which reconnected 1 s later and evicted it back —
+  // forever, with a full bootstrap, DB calls and agent-online to every tab each time.
+  const boundAgentId = new Map<string, { ws: WebSocket; agentId: string }>();
   const startedAt = nowMs();
   const roots = parseRootEmails(cfg.rootEmails);
   const jwks: JwksFn = makeJwks(cfg.jwksUrl);
@@ -283,11 +288,15 @@ export function createRelay(cfg: RelayConfig) {
           const pub = (st as AgentState & { pub?: string }).pub ?? '';
           // Verifica sobre challenge+agentId (domain separation; casa com o agente).
           if (!st.challenge || !verifyAgentSignature(pub, `${st.challenge}.${st.agentId}`, m.sig)) { ws.close(4401, 'bad sig'); return; }
+          // Same agent reconnecting (the old socket half-open) still takes over below.
+          const cur = boundAgentId.get(st.accountId);
+          if (cur && cur.agentId !== st.agentId && cur.ws.readyState === cur.ws.OPEN) { ws.close(4409, 'another agent online'); return; }
           st.authed = true;
           clearTimeout(authTimer);
           // Termina um socket de agente ANTERIOR da mesma conta (reconnect com o velho
           // meio-aberto) — senão os dois coexistiam empurrando frames até o heartbeat.
           const prevAgent = registry.bindAgent(st.accountId, ws);
+          boundAgentId.set(st.accountId, { ws, agentId: st.agentId });
           if (prevAgent) { try { (prevAgent as WebSocket).terminate(); } catch { /* já indo */ } }
           await cfg.store.markAgentSeen(st.agentId);
           ws.send(JSON.stringify({ t: 'agent-ready' }));
@@ -333,6 +342,7 @@ export function createRelay(cfg: RelayConfig) {
       // Só emite agent-offline / apaga bypass se ESTE socket ainda era o agente
       // vinculado. Socket VELHO substituído no rebind (eviction) → unbindAgent false →
       // não derruba o agente NOVO nem manda offline espúrio logo após o online dele.
+      if (st.authed && boundAgentId.get(st.accountId)?.ws === ws) boundAgentId.delete(st.accountId);
       if (st.authed && registry.unbindAgent(st.accountId, ws)) {
         agentBypass.delete(st.accountId);
         registry.toBrowsers(st.accountId, JSON.stringify({ t: 'agent-offline' }));

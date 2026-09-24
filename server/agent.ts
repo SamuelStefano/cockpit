@@ -134,7 +134,10 @@ function reemitBootstrap(ws: WebSocket): void {
   } catch { /* socket indo embora */ }
 }
 
-function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: () => void, onAuthed: () => void): WebSocket {
+export const ANOTHER_AGENT_CLOSE = 4409;
+export const ANOTHER_AGENT_WAIT_MS = 5 * 60_000;
+
+function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: (code: number) => void, onAuthed: () => void): WebSocket {
   const ws = new WebSocket(`${relayUrl.replace(/\/$/, '')}/agent`);
   let ready = false;
 
@@ -187,7 +190,7 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: ()
 
   ws.on('open', () => { onOpen(); ws.send(JSON.stringify({ t: 'agent-hello', agentId: id.agentId })); });
   ws.on('message', onHandshake);
-  ws.on('close', () => { if (activeWs === ws) { setClientSource(null); activeWs = null; browsersPresent = true; } onClose(); });
+  ws.on('close', (code) => { if (activeWs === ws) { setClientSource(null); activeWs = null; browsersPresent = true; } onClose(code); });
   ws.on('error', () => { /* o 'close' cuida do reconnect */ });
 
   // Health check do link: ping a cada 30s E checa o pong. Sem checar o pong um
@@ -333,8 +336,10 @@ export function runAgent(relayUrl: string): void {
     connect(
       relayUrl, id,
       () => { /* TCP-open não zera o backoff: auth pode falhar logo após (4401) */ },
-      () => {
-        const wait = backoffMs(attempt++);
+      (code) => {
+        // 4409: another agent of this account is online. Retrying at the normal
+        // backoff kept evicting-and-being-evicted; wait long and don't reset.
+        const wait = code === ANOTHER_AGENT_CLOSE ? ANOTHER_AGENT_WAIT_MS : backoffMs(attempt++);
         console.error(`[agent] desconectado; reconectando em ${Math.round(wait / 1000)}s`);
         setTimeout(loop, wait);
       },
