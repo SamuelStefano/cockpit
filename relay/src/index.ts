@@ -295,6 +295,9 @@ export function createRelay(cfg: RelayConfig) {
           if (cur && cur.agentId !== st.agentId && cur.ws.readyState === cur.ws.OPEN && await cfg.store.agentById(cur.agentId)) {
             ws.close(4409, 'another agent online'); return;
           }
+          // The store lookup above awaited: a socket that closed meanwhile already ran
+          // its close handler (not authed), so binding it would leave a dead agent bound.
+          if (ws.readyState !== ws.OPEN) return;
           st.authed = true;
           clearTimeout(authTimer);
           // Termina um socket de agente ANTERIOR da mesma conta (reconnect com o velho

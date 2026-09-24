@@ -29,9 +29,9 @@ describe('two agents paired to one account', () => {
   const socks: WebSocket[] = [];
   afterEach(() => { socks.forEach((s) => { try { s.close(); } catch {} }); socks.length = 0; server?.close(); server = null; });
 
-  async function relayWith(agents: Record<string, string>) {
+  async function relayWith(agents: Record<string, string>, delay?: (id: string) => Promise<void>) {
     const store: RelayStore = {
-      async agentById(id) { return agents[id] ? { accountId: 'acc', publicKey: agents[id] } : null; },
+      async agentById(id) { await delay?.(id); return agents[id] ? { accountId: 'acc', publicKey: agents[id] } : null; },
       async isAdmin() { return false; }, async listAccounts() { return []; }, async setAdmin() { return true; },
       async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
       async consumePairingCode() { return null; }, async createAgent() { return null; },
@@ -61,6 +61,20 @@ describe('two agents paired to one account', () => {
     delete agents['ag-1']; // revoked in the store (agentById → null)
     const second = agent(url, 'ag-2', B.priv); socks.push(second.ws);
     expect(await second.outcome).toBe('ready');
+  });
+
+  it('a second agent that closes during the revocation lookup is not bound', async () => {
+    const A = keys(); const B = keys();
+    const agents: Record<string, string> = { 'ag-1': A.pub, 'ag-2': B.pub };
+    const url = await relayWith(agents, async (id) => { if (id === 'ag-1') await new Promise((r) => setTimeout(r, 300)); });
+    const first = agent(url, 'ag-1', A.priv); socks.push(first.ws);
+    expect(await first.outcome).toBe('ready');
+    delete agents['ag-1'];
+    const second = agent(url, 'ag-2', B.priv); socks.push(second.ws);
+    second.ws.on('message', (raw) => { if (JSON.parse(raw.toString()).t === 'challenge') setTimeout(() => second.ws.terminate(), 50); });
+    await second.outcome;
+    await new Promise((r) => setTimeout(r, 500));
+    expect(first.ws.readyState).toBe(WebSocket.OPEN);
   });
 
   it('the same agent reconnecting still takes over its half-open socket', async () => {
