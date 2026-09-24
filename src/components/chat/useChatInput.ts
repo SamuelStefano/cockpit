@@ -105,14 +105,24 @@ export function useChatInput(args: UseChatInputArgs) {
   // Slash-commands emulados no app: o `claude -p` headless NÃO interpreta slash
   // (viram texto literal no prompt). Interceptamos um conjunto conhecido e
   // disparamos a ação local; tudo que não casa segue pro modelo como antes.
-  const runSlash = (raw: string): boolean => {
+  // Returns what stays in the composer (null = not an app-side command).
+  const runSlash = (raw: string): string | null => {
     const a = classifySlash(raw);
-    if (!a) return false;
+    if (!a) return null;
     switch (a.kind) {
-      case 'help': onShowHelp?.(); break;
-      case 'new': onNew(); break;
+      // The composer draft follows the active session, so after onNew the text
+      // after `/new` lands in the new session's composer.
+      case 'help': onShowHelp?.(); return a.rest ?? '';
+      case 'new': onNew(); return a.rest ?? '';
       case 'model': setModel(a.model); break;
-      case 'mode': setMode(a.mode); break;
+      case 'mode':
+        setMode(a.mode);
+        if (a.rest) {
+          recordPrompt(a.rest);
+          if (disabled || paused) onQueue(a.rest);
+          else onSend(a.rest, a.mode);
+        }
+        break;
       // Expande num prompt pronto e envia ao Claude (modo 'auto': lê/grava memória).
       // Ocupado entra na fila; livre vai direto com o modeOverride.
       case 'prompt':
@@ -120,14 +130,15 @@ export function useChatInput(args: UseChatInputArgs) {
         else onSend(a.text, a.mode);
         break;
     }
-    return true;
+    return '';
   };
   const submit = () => {
     if (attUploading) return; // não envia com anexo ainda subindo (perderia o arquivo)
     const v = value.trim();
-    if (v.startsWith('/') && runSlash(v)) {
+    const left = v.startsWith('/') ? runSlash(v) : null;
+    if (left !== null) {
       mic.reset();
-      setValue('');
+      setValue(left);
       if (taRef.current) taRef.current.style.height = 'auto';
       return;
     }
@@ -180,7 +191,7 @@ export function useChatInput(args: UseChatInputArgs) {
         e.preventDefault();
         // Enter num comando app-side runnable dispara a ação direto; Tab (e os que
         // seguem pro Claude) só completam o texto pra revisão antes de enviar.
-        if (e.key === 'Enter' && runSlash('/' + matches[sel])) {
+        if (e.key === 'Enter' && runSlash('/' + matches[sel]) !== null) {
           mic.reset();
           setValue('');
           if (taRef.current) taRef.current.style.height = 'auto';

@@ -149,3 +149,36 @@ describe('useChatInput — send while dictating', () => {
     }
   });
 });
+
+describe('useChatInput — slash command followed by text', () => {
+  function setupWith(value: string, disabled = false) {
+    const props = { onSend: vi.fn(), onQueue: vi.fn(), setMode: vi.fn(), onNew: vi.fn(), setValue: vi.fn() };
+    const hook = renderHook(() => useChatInput({
+      disabled, onStop: vi.fn(), value, setModel: vi.fn(), slashCommands: [], hasAtt: false,
+      onUpload: vi.fn(), focusSignal: 0, history: [], ...props,
+    }));
+    return { ...hook, ...props };
+  }
+
+  it('switches mode and sends the text in that mode', () => {
+    const { result, onSend, setMode, setValue } = setupWith('/plan refactor the auth hook');
+    act(() => result.current.submit());
+    expect(setMode).toHaveBeenCalledWith('plan');
+    expect(onSend).toHaveBeenCalledWith('refactor the auth hook', 'plan');
+    expect(setValue).toHaveBeenLastCalledWith('');
+  });
+
+  it('queues the text when a turn is running', () => {
+    const { result, onSend, onQueue } = setupWith('/execute run the tests', true);
+    act(() => result.current.submit());
+    expect(onQueue).toHaveBeenCalledWith('run the tests');
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('opens a new session and leaves the text in the composer', () => {
+    const { result, onNew, setValue } = setupWith('/new fix login');
+    act(() => result.current.submit());
+    expect(onNew).toHaveBeenCalled();
+    expect(setValue).toHaveBeenLastCalledWith('fix login');
+  });
+});
