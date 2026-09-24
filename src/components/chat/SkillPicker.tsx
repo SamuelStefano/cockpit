@@ -3,6 +3,7 @@ import { Icon, ToggleChip, tokens } from '../primitives';
 import type { SkillMeta } from '../../../shared/protocol';
 import { PickerSheet } from './PickerSheet';
 import { isInsidePickerSheet } from './picker-sheet-dom';
+import { escapeLayerOpen } from '../primitives/useEscapeLayer';
 
 // Seletor das skills ativas POR PROMPT. Multi-select num popover (bottom-sheet no
 // mobile). Vazio = todas ativas (default fail-open): o backend só NEGA as não
@@ -36,7 +37,8 @@ export function SkillPicker({ skills, selected, setSelected }: {
       const aimed = !t || t === document.body || t === document.documentElement || !!wrapRef.current?.contains(t) || isInsidePickerSheet(t);
       if (aimed && escape(e)) close(e);
     };
-    const onBubble = (e: KeyboardEvent) => { if (escape(e)) close(e); };
+    // A dialog opened on top (escape stack) owns an Esc that was not aimed here.
+    const onBubble = (e: KeyboardEvent) => { if (escape(e) && !escapeLayerOpen()) close(e); };
     document.addEventListener('mousedown', onDoc);
     window.addEventListener('keydown', onCapture, true);
     window.addEventListener('keydown', onBubble);

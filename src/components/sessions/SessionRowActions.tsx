@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Icon, tokens } from '../primitives';
 import type { IconName } from '../primitives/Icon';
 import { shouldDropUp } from './menu-flip';
+import { escapeLayerOpen } from '../primitives/useEscapeLayer';
 
 interface SessionRowActionsProps {
   pinned: boolean;
@@ -51,7 +52,7 @@ export function SessionRowActions({ pinned, running, canStop, canDescribe, marat
     // pointerdown, not mousedown: iOS fires no mousedown on non-clickable areas, so
     // tapping empty list space left the menu open (RouteMenu/ProfileMenu already switched).
     const onDown = (e: PointerEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing) { e.preventDefault(); setOpen(false); } };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing && !escapeLayerOpen()) { e.preventDefault(); setOpen(false); } };
     window.addEventListener('pointerdown', onDown);
     window.addEventListener('keydown', onKey);
     return () => { window.removeEventListener('pointerdown', onDown); window.removeEventListener('keydown', onKey); };

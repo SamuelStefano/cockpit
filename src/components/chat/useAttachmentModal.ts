@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import type { AttachmentPreview } from '../../useCockpit';
 import { attachmentKind, type AttachmentKind } from '../../lib/attachment-kind';
 import { b64ToObjectUrl } from '../../lib/blob-url';
+import { useEscapeLayer } from '../primitives/useEscapeLayer';
 
 // O conteúdo chega como base64 pela WS (não há endpoint HTTP de arquivos no
 // backend); vira blob URL pra <img>/<video> renderizarem sem estourar o atributo
@@ -12,11 +13,9 @@ export function useAttachmentModal(att: AttachmentPreview, onClose: () => void):
 
   useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing) { e.preventDefault(); onClose(); } };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  // In the shared Escape stack (useEscapeLayer): opened on top of a Modal, this
+  // overlay closes first instead of the Modal underneath.
+  useEscapeLayer(true, onClose);
 
   return { kind, url };
 }

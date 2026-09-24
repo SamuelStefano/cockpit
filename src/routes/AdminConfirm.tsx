@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { useDialogFocus } from '../components/primitives/useDialogFocus';
 import { Button, Icon, type IconName } from '../components/primitives';
+import { useEscapeLayer } from '../components/primitives/useEscapeLayer';
 
 // Modal de confirmação para ações destrutivas/sensíveis do painel admin (remover
 // token, tirar MCP, conceder/revogar admin). Enter confirma, Esc cancela. Tom
@@ -16,6 +17,9 @@ export function AdminConfirm({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  // In the shared Escape stack (useEscapeLayer): opened on top of a Modal, this
+  // overlay closes first instead of the Modal underneath.
+  useEscapeLayer(true, onCancel);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.isComposing) return;
@@ -23,8 +27,7 @@ export function AdminConfirm({
       // focado) não pode confirmar sozinho uma ação destrutiva de admin.
       const t = e.target as HTMLElement | null;
       const typing = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON' || t.isContentEditable);
-      if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); onCancel(); }
-      else if (e.key === 'Enter' && !typing) { e.preventDefault(); onConfirm(); }
+      if (e.key === 'Enter' && !typing) { e.preventDefault(); onConfirm(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

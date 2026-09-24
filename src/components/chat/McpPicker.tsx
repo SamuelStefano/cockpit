@@ -3,6 +3,7 @@ import { Icon, ToggleChip, tokens } from '../primitives';
 import { ALL_MCPS, isAllMcps } from '../../../shared/mcp';
 import { PickerSheet } from './PickerSheet';
 import { isInsidePickerSheet } from './picker-sheet-dom';
+import { escapeLayerOpen } from '../primitives/useEscapeLayer';
 
 // Seletor dos MCP servers ativos POR PROMPT. AO CONTRÁRIO das skills: vazio =
 // NENHUM MCP (default fail-CLOSED). Cada server adiciona ~5-20k tokens de
@@ -37,7 +38,8 @@ export function McpPicker({ servers, selected, setSelected }: {
       const aimed = !t || t === document.body || t === document.documentElement || !!wrapRef.current?.contains(t) || isInsidePickerSheet(t);
       if (aimed && escape(e)) close(e);
     };
-    const onBubble = (e: KeyboardEvent) => { if (escape(e)) close(e); };
+    // A dialog opened on top (escape stack) owns an Esc that was not aimed here.
+    const onBubble = (e: KeyboardEvent) => { if (escape(e) && !escapeLayerOpen()) close(e); };
     document.addEventListener('mousedown', onDoc);
     window.addEventListener('keydown', onCapture, true);
     window.addEventListener('keydown', onBubble);

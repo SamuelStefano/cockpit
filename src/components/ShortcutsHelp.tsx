@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
 import { Button, Icon } from './primitives';
 import { keyLabel } from '../lib/platform';
+import { useEscapeLayer } from './primitives/useEscapeLayer';
 
 const GROUPS: { title: string; items: { keys: string[]; label: string }[] }[] = [
   {
@@ -58,13 +58,9 @@ function Keys({ keys }: { keys: string[] }) {
 }
 
 export function ShortcutsHelp({ open, onClose }: { open: boolean; onClose: () => void }) {
-  useEffect(() => {
-    if (!open) return;
-    // Um Esc fecha um overlay só: ignora keypress já consumido e marca o que consome.
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !e.isComposing) { e.preventDefault(); onClose(); } };
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
-  }, [open, onClose]);
+  // In the shared Escape stack (useEscapeLayer): opened on top of a Modal, this
+  // overlay closes first instead of the Modal underneath.
+  useEscapeLayer(open, onClose);
 
   if (!open) return null;
 
