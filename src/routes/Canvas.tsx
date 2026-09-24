@@ -28,12 +28,19 @@ import { useKanbanCtxPoll } from './canvas/useKanbanCtxPoll';
 import { useTermStatsPoll } from './canvas/useTermStatsPoll';
 import { TerminalMaximized } from './canvas/TerminalMaximized';
 import { useCanvasRoute, type CanvasRouteProps } from './canvas/useCanvasRoute';
-import { MAX_OPEN_TERMS } from './canvas/canvas-terms';
+import { MAX_OPEN_TERMS, pickRecentSessions } from './canvas/canvas-terms';
 import { termTarget, useCanvasTerms } from './canvas/useCanvasTerms';
 
 export function Canvas(p: CanvasRouteProps) {
   const terms = useCanvasTerms(p.term, p.discoveredTerms, p.listTerms, p.graph?.orchestrator?.sessionId);
   const r = useCanvasRoute(p, terms.open, terms.shells);
+  // Sessions live in a `cockpit-cv-*` tmux shell right now (#617/#618) — same
+  // raw source useCanvasRoute.ts itself folds into its own status derivation,
+  // rebuilt here because that hook doesn't expose the Set on its return value.
+  // Feeds TerminalWindow's "ao vivo/fantasma" badge (via CanvasSurface below)
+  // and the "sessões" quick-open ranking, so both read cv-shell workers as
+  // live too, not just p.running.
+  const cvLive = useMemo(() => new Set(p.cvLiveSessionIds), [p.cvLiveSessionIds]);
   // Fetches the DFL snapshot CardEditor's link picker needs; the server push
   // (dfl-points-watch.ts) keeps it fresh afterwards, same as /pontos.
   useDflPontos({ connected: p.connected, onDflGet: p.onDflGet });
@@ -124,8 +131,13 @@ export function Canvas(p: CanvasRouteProps) {
     setCenter((c) => ({ id, n: (c?.n ?? 0) + 1 }));
   }, [openWindow, orchestratorSessionNodeId, setDockOpenFromTerm]);
 
+  // Running-or-cv-live first, then waiting, then hot-context, then most
+  // recent (pickRecentSessions, canvas-terms.ts) — replaces the old
+  // mtime-only sort, which opened whatever was merely last touched over a
+  // session that's actually running in a cv shell right now.
+  const runningOrCvLive = useMemo(() => new Set([...p.running, ...cvLive]), [p.running, cvLive]);
   const openRecent = () => terms.openMany(
-    r.visible.nodes.filter((n) => n.kind === 'session').sort((a, b) => a.mtime - b.mtime).slice(-MAX_OPEN_TERMS).map((n) => n.id),
+    pickRecentSessions(r.visible.nodes.filter((n) => n.kind === 'session'), runningOrCvLive, r.waiting, p.termStats, MAX_OPEN_TERMS),
   );
 
   // A card's run becomes a real (marker-bound) session sometime after the turn
@@ -239,7 +251,7 @@ export function Canvas(p: CanvasRouteProps) {
                 nodes={pastNodes} edges={pastEdges} pos={pastPos} bounds={pastBounds} initialBounds={r.coreBounds}
                 selected={r.selected} running={p.running} waiting={r.waiting} centerRequest={center}
                 onSelect={r.select} onClear={clearAll} onDrop={r.onDrop} onResetLayout={p.onCanvasPosReset}
-                windows={r.windows} terms={terms} term={p.term} onOpenTerm={openTerm} onOpenChat={p.onOpenSession} onOpenRecent={openRecent}
+                windows={r.windows} terms={terms} term={p.term} onOpenTerm={openTerm} onOpenChat={p.onOpenSession} onOpenRecent={openRecent} cvLive={cvLive}
                 onSendTo={p.onSendTo} sendError={p.canvasSendError} onDismissSendError={p.dismissCanvasSendError}
                 stats={p.termStats} analysisOn={analysisOn} onToggleAnalysis={() => setAnalysisOn(!analysisOn)}
                 flows={p.board.flows} flowFired={p.canvasFlowFired} onFlowCreate={openFlowDraft} onFlowClick={editFlow}
