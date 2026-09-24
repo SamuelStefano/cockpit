@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, statSync, renameSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -18,16 +18,24 @@ export const MARATHON_TOTAL_CAP_MS = 72 * 60 * 60_000;
 // primeira e o trabalho da noite inteira se perderia.
 export const MARATHON_AUTO_RESUME_CAP = 20;
 
+// Cached by the file's mtime, not for the process lifetime: the index (loopback)
+// and the agent are two processes on the same file. A plain cache made one
+// backend's 72h cap ignore a session marked in the other, and a toggle rewrote
+// the file from a stale set, erasing the other process's marks.
 let keys: Set<string> | null = null;
+let keysMtime = -1;
 
 function load(): Set<string> {
-  if (keys) return keys;
+  let mtime = -2;
+  try { mtime = statSync(STORE_PATH).mtimeMs; } catch { /* no file yet */ }
+  if (keys && mtime === keysMtime) return keys;
   try {
     const raw = JSON.parse(readFileSync(STORE_PATH, 'utf8'));
     keys = new Set(Array.isArray(raw?.keys) ? raw.keys.filter((k: unknown) => typeof k === 'string') : []);
   } catch {
-    keys = new Set();
+    keys = keys ?? new Set();
   }
+  keysMtime = mtime;
   return keys;
 }
 
@@ -45,7 +53,10 @@ export function setMarathon(sessionKey: string, on: boolean): void {
   else set.delete(sessionKey);
   try {
     mkdirSync(dirname(STORE_PATH), { recursive: true });
-    writeFileSync(STORE_PATH, JSON.stringify({ keys: [...set] }, null, 2));
+    const tmp = `${STORE_PATH}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify({ keys: [...set] }, null, 2));
+    renameSync(tmp, STORE_PATH);
+    keysMtime = statSync(STORE_PATH).mtimeMs;
   } catch { /* disco cheio/readonly: a marca vale pra esta execução */ }
 }
 
@@ -58,4 +69,5 @@ export function threadIsMarathon(sessionKey: string, sessionId?: string): boolea
 
 export function __resetMarathonCache(): void {
   keys = null;
+  keysMtime = -1;
 }
