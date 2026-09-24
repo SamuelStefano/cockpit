@@ -778,6 +778,10 @@ export function useCockpit(): Cockpit {
         // Reconcilia a guarda síncrona: descarta keys que ficaram presas (envio
         // enquanto desconectado nunca recebeu started/done) e marca as vivas.
         for (const k of [...inFlight.current]) if (!live.has(k)) inFlight.current.delete(k);
+        // A stop whose `done` was lost with the socket: the turn is gone, so the
+        // latch must go too — left set, it hid every later run of the session
+        // (phase stayed idle, inFlight never set) until one of them closed.
+        for (const k of [...stopping.current]) if (!live.has(k)) stopping.current.delete(k);
         // Não reviver sessão que o usuário acabou de parar: o kill leva até ~5s
         // (SIGTERM→SIGKILL) e o thread ainda consta vivo neste snapshot. Sem o
         // latch `stopping`, um 'busy' pós-stop (disparado a cada reconnect por
@@ -795,6 +799,14 @@ export function useCockpit(): Cockpit {
           if (!k.startsWith('new-')) {
             opened.current.delete(k);
             if (activeRef.current === k && send(reopenMsg(k))) opened.current.add(k);
+          } else if (resumeId.current[k] && !migratedTo.current[k]) {
+            // A first turn whose `done` was lost: without it the key never migrated,
+            // so the chat stayed `new-…` with a cut-off answer, and rename/handoff/
+            // "ver tudo" refused the key. Migrate now, as `done` would have, and take
+            // the re-fetch path even for our own session (its local history is short
+            // of the end the lost frames carried).
+            ownNew.current.delete(k);
+            migrateKey(k, resumeId.current[k]);
           }
         }
         setPhases((p) => {
