@@ -923,7 +923,10 @@ export function startRun(o: StartRunOptions): 'pane' | undefined {
         }).catch(() => {});
       }
       threads.delete(sessionKey);
-      clearStopEpoch(sessionKey); // época só vive enquanto há turno/triagem; senão vaza monotônico
+      // época só vive enquanto há turno/triagem; senão vaza monotônico. A triage
+      // or quick answer still waiting on this key needs it: clearing it back to 0
+      // made a stop pressed during triage look like no stop at all.
+      if (!epochHolds.has(sessionKey)) clearStopEpoch(sessionKey);
       // Após AskUserQuestion o turno aguarda a RESPOSTA do usuário (próximo prompt) —
       // não drenar a fila aqui, senão um enfileirado fura na frente da resposta.
       if (!thread.questioned) {
@@ -956,7 +959,7 @@ export function startRun(o: StartRunOptions): 'pane' | undefined {
   if ('error' in started) {
     if (threads.get(sessionKey) === thread) threads.delete(sessionKey);
     if (holdsCold) releaseCold(sessionKey);
-    clearStopEpoch(sessionKey);
+    if (!epochHolds.has(sessionKey)) clearStopEpoch(sessionKey);
     if (thread.parked) requeueParked(thread.parkedFrom ?? sessionKey, thread.parked);
     recordIncident({ kind: 'run-error', sessionKey, detail: `spawn failed: ${started.error}`.slice(0, 400) });
     broadcast({ t: 'error', sessionKey, message: `Não consegui iniciar o turno: ${started.error}` });
@@ -1034,6 +1037,15 @@ export interface RouteSendOptions extends RunParams {
   displayKey?: string;
 }
 
+// Per-key count of triages / quick answers waiting on a model call, each holding a
+// stop epoch it will compare afterwards. See the onClose clearStopEpoch.
+const epochHolds = new Map<string, number>();
+function holdEpoch(key: string): void { epochHolds.set(key, (epochHolds.get(key) ?? 0) + 1); }
+function releaseEpoch(key: string): void {
+  const n = (epochHolds.get(key) ?? 1) - 1;
+  if (n > 0) epochHolds.set(key, n); else epochHolds.delete(key);
+}
+
 export async function routeSend(o: RouteSendOptions) {
   const { ws, sessionKey, prompt, resumeId, msgId, displayKey = sessionKey } = o;
   const params = runParams(o);
@@ -1072,7 +1084,14 @@ export async function routeSend(o: RouteSendOptions) {
   if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
 
   const epoch = stopEpochOf(sessionKey);
-  const verdict = await classify(cur.prompt, cur.text, prompt, sessionKey);
+  holdEpoch(sessionKey);
+  let verdict: Awaited<ReturnType<typeof classify>>;
+  try { verdict = await classify(cur.prompt, cur.text, prompt, sessionKey); }
+  finally { releaseEpoch(sessionKey); }
+  // A message sent before the client saw the first `system` carries no resumeId,
+  // but the turn it followed has one by now: starting without it put the
+  // follow-up in a brand-new session and the first exchange fell out of context.
+  const resumeFrom = resumeId ?? cur.sessionId;
 
   // Stop durante o await da triagem → o usuário pediu silêncio; descarta.
   if (stopEpochOf(sessionKey) !== epoch) return;
@@ -1082,7 +1101,7 @@ export async function routeSend(o: RouteSendOptions) {
   // mataria um run que nunca avaliamos (flap/queima de token), 'merge'/'wait'
   // enfileiraria contra outra linhagem. Re-checa identidade antes de agir.
   if (threads.get(sessionKey) !== cur) {
-    if (!threads.has(sessionKey)) startRun({ ...params, ws, sessionKey, prompt, resumeId });
+    if (!threads.has(sessionKey)) startRun({ ...params, ws, sessionKey, prompt, resumeId: resumeFrom });
     else if (!enqueuePending(sessionKey, { ...params, ws, prompt, merge: false })) {
       broadcast({ t: 'error', sessionKey, message: 'fila de mensagens cheia' });
     }
@@ -1100,14 +1119,14 @@ export async function routeSend(o: RouteSendOptions) {
       const carry = cur.text || cur.thinking
         ? `Você estava no meio de: ${cur.prompt}\n\nProgresso até agora (não repita, continue daqui):\n${(cur.thinking || '').slice(-1500)}\n${(cur.text || '').slice(-1500)}\n\nNOVA INSTRUÇÃO URGENTE (priorize):\n${prompt}`
         : prompt;
-      startRun({ ...params, ws, sessionKey, prompt: carry, resumeId });
+      startRun({ ...params, ws, sessionKey, prompt: carry, resumeId: resumeFrom });
       return;
     }
     case 'answer':
       // Fallback: haiku falhou/timeout (retorna '') → NÃO engolir a mensagem em
       // silêncio; degrada pra 'wait' (responde quando o turno fechar).
       detach(ws, runQuickAnswer(sessionKey, prompt, epoch, () => {
-        if (!threads.has(sessionKey)) { startRun({ ...params, ws, sessionKey, prompt, resumeId }); return; }
+        if (!threads.has(sessionKey)) { startRun({ ...params, ws, sessionKey, prompt, resumeId: resumeFrom }); return; }
         if (!enqueuePending(sessionKey, { ...params, ws, prompt, merge: false })) {
           broadcast({ t: 'error', sessionKey, message: 'fila de mensagens cheia' });
         }
@@ -1127,7 +1146,10 @@ export async function routeSend(o: RouteSendOptions) {
 // a época muda e a resposta é descartada — senão a quick-answer pingava depois do
 // stop. O killSideRunsFor no onStop já mata o processo; o guard cobre a corrida.
 async function runQuickAnswer(sessionKey: string, prompt: string, epoch: number, onEmpty?: () => void) {
-  const text = await quickAnswer(prompt, sessionKey);
+  holdEpoch(sessionKey);
+  let text: string;
+  try { text = await quickAnswer(prompt, sessionKey); }
+  finally { releaseEpoch(sessionKey); }
   if (stopEpochOf(sessionKey) !== epoch) return;
   if (!text) { onEmpty?.(); return; }
   broadcast({ t: 'quick-answer', sessionKey, id: `qa-${Date.now().toString(36)}`, text, ts: Date.now() });
