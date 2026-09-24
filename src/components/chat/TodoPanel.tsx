@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Icon, tokens } from '../primitives';
 import type { ToolTodo } from '../../data/types';
+import { collapsedWindow } from './todo-window';
 
 interface TodoPanelProps {
   todos: ToolTodo[];
@@ -15,9 +16,10 @@ export function TodoPanel({ todos, header = true }: TodoPanelProps) {
   const [showAll, setShowAll] = useState(false);
   const done = todos.filter((t) => t.status === 'completed').length;
   const hidden = todos.length - COLLAPSE_AFTER;
-  // Em progresso primeiro, depois pendentes, concluídas por último — espelha o
-  // foco do Claude Code (o que está rolando agora fica no topo).
-  const shown = showAll ? todos : todos.slice(0, COLLAPSE_AFTER);
+  // Plan order is kept (it is the agent's plan); collapsed, the window follows
+  // the item in progress instead of always showing the first six.
+  const { start, end } = showAll ? { start: 0, end: todos.length } : collapsedWindow(todos, COLLAPSE_AFTER);
+  const shown = todos.slice(start, end);
 
   return (
     <div className="px-3 pb-2">
@@ -30,12 +32,14 @@ export function TodoPanel({ todos, header = true }: TodoPanelProps) {
         )}
         <ul className="flex flex-col gap-1">
           {shown.map((t, i) => (
-            <TodoRow key={`${t.content}-${i}`} todo={t} />
+            <TodoRow key={`${t.content}-${start + i}`} todo={t} />
           ))}
         </ul>
         {hidden > 0 && (
           <button
+            type="button"
             onClick={() => setShowAll((s) => !s)}
+            aria-expanded={showAll}
             className={`mt-1.5 rounded-sm text-[11px] text-neutral-600 transition hover:text-neutral-400 ${tokens.focusRing}`}
           >
             {showAll ? 'mostrar menos' : `mostrar todas (+${hidden})`}
