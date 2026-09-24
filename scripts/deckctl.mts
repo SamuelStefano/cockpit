@@ -8,8 +8,10 @@
 // or via the ~/bin/deckctl wrapper.
 
 import {
-  readFileSync, readdirSync, statSync, openSync, readSync, closeSync, existsSync, mkdirSync, writeFileSync,
+  readFileSync, readdirSync, existsSync, mkdirSync, writeFileSync, createReadStream,
 } from 'node:fs';
+import { createInterface } from 'node:readline';
+import { createGunzip } from 'node:zlib';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -687,6 +689,10 @@ export interface TriageInput {
   hasMemoryLeaf: boolean;
   pendingAsk: boolean;
   hasPrMention: boolean;
+  editCount: number; // Edit/Write tool calls — proxy for "unique fixes/decisions made here"
+  commitCount: number; // git commit / gh pr create|merge / git push in Bash calls
+  hasCanvasRefs: boolean; // canvas-refs.json shows this session wrote files or touched memory
+  unansweredRequest: boolean; // last real turn is Samuel's, with no assistant text after it
   neverPurge: boolean;
   now?: number; // injectable for tests
 }
@@ -708,6 +714,10 @@ const TRIAGE_WEIGHTS = {
   handoff: 3,
   memoryLeaf: 3,
   prMention: 2,
+  shippedWork: 2,
+  substantialEdits: 2,
+  canvasRefs: 2,
+  unansweredRequest: 3,
   thin: -4,
   old: -2,
   recent: 4,
@@ -716,6 +726,7 @@ const TRIAGE_WEIGHTS = {
 
 const TRIAGE_RECENT_MS = 48 * 60 * 60 * 1000;
 const TRIAGE_OLD_MS = 30 * 24 * 60 * 60 * 1000;
+const TRIAGE_SUBSTANTIAL_EDITS = 5;
 const TRIAGE_KEEP_THRESHOLD = 3;
 const TRIAGE_PURGE_THRESHOLD = -3;
 
@@ -724,7 +735,7 @@ export function scoreSession(input: TriageInput): TriageScore {
   const age = now - input.lastActivity;
   const recent = age < TRIAGE_RECENT_MS;
   const old = age > TRIAGE_OLD_MS;
-  const thin = input.messageCount <= 2 && input.toolCallCount === 0;
+  const thin = input.messageCount <= 2 && input.toolCallCount === 0 && input.editCount === 0 && input.commitCount === 0;
 
   const signals: string[] = [];
   let score = 0;
@@ -732,6 +743,10 @@ export function scoreSession(input: TriageInput): TriageScore {
   if (input.hasHandoff) add(TRIAGE_WEIGHTS.handoff, 'has-handoff');
   if (input.hasMemoryLeaf) add(TRIAGE_WEIGHTS.memoryLeaf, 'has-memory-leaf');
   if (input.hasPrMention) add(TRIAGE_WEIGHTS.prMention, 'pr-mentioned');
+  if (input.commitCount > 0) add(TRIAGE_WEIGHTS.shippedWork, 'commit/push');
+  if (input.editCount >= TRIAGE_SUBSTANTIAL_EDITS) add(TRIAGE_WEIGHTS.substantialEdits, 'substantial-edits');
+  if (input.hasCanvasRefs) add(TRIAGE_WEIGHTS.canvasRefs, 'canvas-refs');
+  if (input.unansweredRequest) add(TRIAGE_WEIGHTS.unansweredRequest, 'unanswered-request');
   if (thin) add(TRIAGE_WEIGHTS.thin, 'thin/empty');
   if (old) add(TRIAGE_WEIGHTS.old, 'old(>30d)');
   if (recent) add(TRIAGE_WEIGHTS.recent, 'recent(<48h)');
@@ -743,8 +758,8 @@ export function scoreSession(input: TriageInput): TriageScore {
     return { verdict: 'KEEP', score: Infinity, signals: ['never-purge', ...signals], reason: 'hardcoded never-purge (orchestrator or cockpit-term-*/main session)' };
   }
   // Rule 2: an open question is never silently discarded.
-  if (input.pendingAsk) {
-    return { verdict: score >= TRIAGE_KEEP_THRESHOLD ? 'KEEP' : 'REVIEW', score, signals, reason: 'has an unanswered question — never auto-purged' };
+  if (input.pendingAsk || input.unansweredRequest) {
+    return { verdict: score >= TRIAGE_KEEP_THRESHOLD ? 'KEEP' : 'REVIEW', score, signals, reason: 'has an unanswered question or request — never auto-purged' };
   }
   // Rule 3: very recent activity may still be live work — review, don't purge.
   if (recent) {
@@ -811,37 +826,73 @@ function readMemoryLeafOriginIds(): Set<string> {
   return ids;
 }
 
-const PR_MENTION_RE = /github\.com\/[^\s"'<>]+\/pull\/\d+|(?:^|\W)PR\s*#\d+|mergeada|merged\b/i;
+// Tight on purpose: a real PR URL, or a gh/git command that ships work. Loose
+// words ("merged", "PR #1" in prose) matched unrelated chatter and kept junk.
+const PR_URL_RE = /github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/;
+const SHIP_CMD_RE = /\b(?:git\s+(?:commit|push)|gh\s+pr\s+(?:create|merge))\b/;
+const PR_CMD_RE = /\bgh\s+pr\s+(?:create|merge)\b/;
+const WORK_TOOL_RE = /^(?:Edit|Write|MultiEdit|NotebookEdit)$/;
 
-const PR_SCAN_CHUNK = 65_536; // 64KB — PR mentions cluster near the task (head) or the wrap-up (tail)
-const PR_SCAN_MAX_FULL = 2_000_000; // read the whole file only when that's cheap; bigger files read head+tail only
-
-// Bounded read so a 780k-token transcript doesn't get fully materialized just to
-// grep it — same size concern server/sessions/index.ts's scanMeta already solves
-// for meta scanning, applied here for the (optional, best-effort) PR-mention scan.
-function readBoundedText(path: string): string {
-  let size: number;
-  try { size = statSync(path).size; } catch { return ''; }
-  if (size === 0) return '';
-  if (size <= PR_SCAN_MAX_FULL) {
-    try { return readFileSync(path, 'utf8'); } catch { return ''; }
-  }
-  let fd: number;
-  try { fd = openSync(path, 'r'); } catch { return ''; }
-  try {
-    const headLen = Math.min(PR_SCAN_CHUNK, size);
-    const headBuf = Buffer.alloc(headLen);
-    readSync(fd, headBuf, 0, headLen, 0);
-    const tailLen = Math.min(PR_SCAN_CHUNK, size);
-    const tailBuf = Buffer.alloc(tailLen);
-    readSync(fd, tailBuf, 0, tailLen, size - tailLen);
-    return `${headBuf.toString('utf8')}\n${tailBuf.toString('utf8')}`;
-  } catch { return ''; }
-  finally { closeSync(fd); }
+export interface TranscriptScan {
+  prMention: boolean;
+  editCount: number;
+  commitCount: number;
+  toolCallCount: number;
+  userTurns: number;
+  lastRole: 'user' | 'assistant' | null; // last real turn: Samuel text vs assistant text
 }
 
-function fileMentionsPr(path: string): boolean {
-  return PR_MENTION_RE.test(readBoundedText(path));
+export function newTranscriptScan(): TranscriptScan {
+  return { prMention: false, editCount: 0, commitCount: 0, toolCallCount: 0, userTurns: 0, lastRole: null };
+}
+
+// Feeds one JSONL line into the accumulator. Cheap substring gates before
+// JSON.parse — a full-corpus scan touches ~1GB of transcripts.
+export function feedTranscriptLine(scan: TranscriptScan, line: string): void {
+  if (!scan.prMention && PR_URL_RE.test(line)) scan.prMention = true;
+  if (!line.includes('"type":"user"') && !line.includes('"type":"assistant"')) return;
+  let o: any;
+  try { o = JSON.parse(line); } catch { return; }
+  const c = o?.message?.content;
+  if (o.type === 'user') {
+    const text = typeof c === 'string' ? c : Array.isArray(c) ? c.filter((x: any) => x?.type === 'text').map((x: any) => x.text).join('') : '';
+    if (text.trim() && !o.isMeta) { scan.userTurns++; scan.lastRole = 'user'; }
+    return;
+  }
+  if (o.type !== 'assistant' || !Array.isArray(c)) return;
+  for (const b of c) {
+    if (b?.type === 'text' && typeof b.text === 'string' && b.text.trim()) scan.lastRole = 'assistant';
+    if (b?.type !== 'tool_use') continue;
+    scan.toolCallCount++;
+    if (WORK_TOOL_RE.test(b.name)) scan.editCount++;
+    const cmd = b.name === 'Bash' ? b.input?.command : undefined;
+    if (typeof cmd === 'string' && SHIP_CMD_RE.test(cmd)) {
+      scan.commitCount++;
+      if (PR_CMD_RE.test(cmd)) scan.prMention = true;
+    }
+  }
+}
+
+async function scanTranscriptFile(path: string): Promise<TranscriptScan> {
+  const scan = newTranscriptScan();
+  try {
+    const raw = createReadStream(path);
+    const input = path.endsWith('.gz') ? raw.pipe(createGunzip()) : raw;
+    input.setEncoding('utf8');
+    const rl = createInterface({ input, crlfDelay: Infinity });
+    for await (const line of rl) feedTranscriptLine(scan, line);
+  } catch { /* unreadable transcript — scan stays at zero */ }
+  return scan;
+}
+
+let canvasRefsCache: Record<string, any> | null = null;
+function hasCanvasRefs(id: string): boolean {
+  if (!canvasRefsCache) {
+    try { canvasRefsCache = JSON.parse(readFileSync(join(homedir(), '.cockpit', 'canvas-refs.json'), 'utf8')); } catch { canvasRefsCache = {}; }
+  }
+  const e = canvasRefsCache![id];
+  if (!e) return false;
+  return Object.keys(e.writes ?? {}).length > 0 || Object.values(e.contexts ?? {}).includes('write');
 }
 
 interface RawSessionRecord {
@@ -852,7 +903,7 @@ interface RawSessionRecord {
   toolCallCount: number;
   pendingAsk: boolean;
   source: 'cockpit' | 'index';
-  jsonlPath?: string; // present when we can bound-scan the raw transcript for PR mentions
+  jsonlPath?: string; // present when we can scan the raw transcript for work signals
 }
 
 interface IndexEntry {
@@ -915,6 +966,7 @@ async function gatherRawSessions(): Promise<RawSessionRecord[]> {
       toolCallCount: e.commands?.length ?? 0,
       pendingAsk: false, // INDEX carries no pendingAsk signal — these are already archived/compressed
       source: 'index',
+      jsonlPath: join(homedir(), '.claude', 'session-archive', `${e.id}.jsonl.gz`),
     });
   }
   return records;
@@ -934,11 +986,15 @@ async function buildTriageRows(): Promise<TriageRow[]> {
   const raw = await gatherRawSessions();
   const rows: TriageRow[] = [];
   for (const r of raw) {
-    const hasPrMention = r.jsonlPath ? fileMentionsPr(r.jsonlPath) : PR_MENTION_RE.test(r.title);
+    const scan = r.jsonlPath && existsSync(r.jsonlPath) ? await scanTranscriptFile(r.jsonlPath) : null;
     const input: TriageInput = {
       id: r.id, title: r.title, lastActivity: r.lastActivity, messageCount: r.messageCount,
-      toolCallCount: r.toolCallCount, hasHandoff: handoffIds.has(r.id), hasMemoryLeaf: memoryLeafIds.has(r.id),
-      pendingAsk: r.pendingAsk, hasPrMention, neverPurge: isNeverPurgeSession(r, neverPurgeIds),
+      toolCallCount: Math.max(r.toolCallCount, scan?.toolCallCount ?? 0),
+      hasPrMention: scan?.prMention ?? false, editCount: scan?.editCount ?? 0, commitCount: scan?.commitCount ?? 0,
+      hasCanvasRefs: hasCanvasRefs(r.id),
+      unansweredRequest: !!scan && scan.userTurns > 0 && scan.lastRole === 'user',
+      hasHandoff: handoffIds.has(r.id), hasMemoryLeaf: memoryLeafIds.has(r.id),
+      pendingAsk: r.pendingAsk, neverPurge: isNeverPurgeSession(r, neverPurgeIds),
     };
     rows.push({ ...scoreSession(input), id: r.id, title: r.title, lastActivity: r.lastActivity, source: r.source });
   }
@@ -959,7 +1015,7 @@ async function writeHandoffStub(id: string): Promise<string | null> {
   let cwd = '';
   let lastTs = '';
   const files = new Set<string>();
-  for (const line of readBoundedText(src).split('\n')) {
+  for (const line of readFileSync(src, 'utf8').split('\n')) {
     if (!line.trim()) continue;
     let o: any;
     try { o = JSON.parse(line); } catch { continue; }
@@ -1041,6 +1097,7 @@ async function applyTriage(rows: TriageRow[]): Promise<void> {
 async function cmdTriage(flags: Flags, json: boolean): Promise<void> {
   let rows = await buildTriageRows();
   const limit = flagNum(flags, 'limit');
+  if (limit && flags.apply) fail('--limit cannot be combined with --apply (it would silently narrow the set to the lowest-scored rows)');
   if (limit) rows = rows.slice(0, limit);
 
   if (flags.apply) {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   parseFlags, flagStr, flagNum, fmtBrt, shortId, oneLine, matchByPrefix, newCardIdLocal, findCard,
-  scoreSession, isNeverPurgeSession, type TriageInput,
+  scoreSession, isNeverPurgeSession, newTranscriptScan, feedTranscriptLine, type TriageInput,
 } from './deckctl.mts';
 import type { CanvasCard } from '../shared/canvas';
 
@@ -163,7 +163,8 @@ describe('scoreSession', () => {
 
   const base: TriageInput = {
     id: 'sess-1', title: 'some feature work', lastActivity: NOW - 10 * DAY, messageCount: 20, toolCallCount: 8,
-    hasHandoff: false, hasMemoryLeaf: false, pendingAsk: false, hasPrMention: false, neverPurge: false, now: NOW,
+    hasHandoff: false, hasMemoryLeaf: false, pendingAsk: false, hasPrMention: false,
+    editCount: 0, commitCount: 0, hasCanvasRefs: false, unansweredRequest: false, neverPurge: false, now: NOW,
   };
 
   it('forces KEEP for a hardcoded never-purge session regardless of other signals', () => {
@@ -194,5 +195,56 @@ describe('scoreSession', () => {
   it('never PURGEs a very recent session, even if otherwise thin', () => {
     const r = scoreSession({ ...base, messageCount: 1, toolCallCount: 0, lastActivity: NOW - 2 * HOUR });
     expect(r.verdict).not.toBe('PURGE');
+  });
+
+  it('does not purge a thin-message session that made edits', () => {
+    const r = scoreSession({ ...base, messageCount: 2, toolCallCount: 0, editCount: 6, lastActivity: NOW - 60 * DAY });
+    expect(r.verdict).not.toBe('PURGE');
+  });
+
+  it('counts canvas-refs as a keep signal', () => {
+    const r = scoreSession({ ...base, hasCanvasRefs: true, hasPrMention: true, commitCount: 1 });
+    expect(r.signals).toContain('canvas-refs');
+    expect(r.verdict).toBe('KEEP');
+  });
+
+  it('never PURGEs a session whose last turn is an unanswered Samuel request', () => {
+    const r = scoreSession({
+      ...base, messageCount: 1, toolCallCount: 0, lastActivity: NOW - 60 * DAY, unansweredRequest: true,
+    });
+    expect(r.verdict).not.toBe('PURGE');
+    expect(r.signals).toContain('unanswered-request');
+  });
+});
+
+describe('feedTranscriptLine', () => {
+  const feed = (lines: object[]) => {
+    const s = newTranscriptScan();
+    for (const l of lines) feedTranscriptLine(s, JSON.stringify(l));
+    return s;
+  };
+  const user = (text: string) => ({ type: 'user', message: { content: text } });
+  const asst = (...content: object[]) => ({ type: 'assistant', message: { content } });
+
+  it('ignores loose "merged" chatter but matches a real PR URL', () => {
+    expect(feed([user('it got merged yesterday, PR #12 was fine')]).prMention).toBe(false);
+    expect(feed([user('see https://github.com/acme/repo/pull/42')]).prMention).toBe(true);
+  });
+
+  it('counts edits, commits and gh pr create as shipped work', () => {
+    const s = feed([
+      asst({ type: 'tool_use', name: 'Edit', input: { file_path: '/a' } }),
+      asst({ type: 'tool_use', name: 'Bash', input: { command: 'git commit -m x' } }),
+      asst({ type: 'tool_use', name: 'Bash', input: { command: 'gh pr create --fill' } }),
+    ]);
+    expect(s.editCount).toBe(1);
+    expect(s.commitCount).toBe(2);
+    expect(s.prMention).toBe(true);
+    expect(s.toolCallCount).toBe(3);
+  });
+
+  it('tracks whether the last real turn is Samuel with no answer after it', () => {
+    expect(feed([user('do X'), asst({ type: 'text', text: 'done' })]).lastRole).toBe('assistant');
+    expect(feed([user('do X'), asst({ type: 'text', text: 'done' }), user('and Y?')]).lastRole).toBe('user');
   });
 });
