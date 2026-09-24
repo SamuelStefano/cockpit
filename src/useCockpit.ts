@@ -14,6 +14,7 @@ import { resolveKey, moveKey } from './cockpit/migrate';
 import { addOffer, clearOffer, type ResumeOffers, type ResumeOfferView } from './cockpit/resume-offers';
 import { mergeHistory, prependHistory } from './cockpit/history';
 import { liveTokens } from './cockpit/live-tokens';
+import { persistableDrafts, DRAFTS_SAVE_MS } from './cockpit/drafts';
 import { insertCompact } from './cockpit/insert-compact';
 import { seedRunStart } from './cockpit/run-start';
 import { useTerminals, type TermApi } from './cockpit/useTerminals';
@@ -31,7 +32,6 @@ import { aliasRoutedKey, type PendingCanvasSend } from './cockpit/canvas-send-tr
 import { useAdmin, type Admin } from './cockpit/useAdmin';
 import { useHarness, type Harness } from './cockpit/useHarness';
 import { createReopenThrottle } from './cockpit/reopen-throttle';
-import { persistableDrafts, DRAFTS_SAVE_MS } from './cockpit/drafts';
 import { stripLongContext } from '../shared/long-context';
 import { composerCost, type ComposerCost } from './components/chat/send-cost';
 import { addThumb, shouldRequestThumb } from './lib/att-thumb-cache';
