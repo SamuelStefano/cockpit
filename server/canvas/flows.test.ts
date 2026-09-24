@@ -12,7 +12,7 @@ import type { TurnClosed } from './turn-hooks';
 const {
   mockThreads, admit, startRunMock, isDrainerEnabledMock, resolveThreadKeyMock, addParkedMock, removeParkedMock, enqueuePendingMock,
   resumableIdMock, broadcastMock, emitCanvasMsgMock, listContextsMock, listSessionsMock, listArchivedMock, cardIdFromRefsCacheMock,
-  blockedAreaForMock, runParkedInBackgroundMock, hasInteractiveClaudeMock,
+  blockedAreaForMock, runParkedInBackgroundMock, hasInteractiveClaudeMock, busyElsewhereMock, orchestratorPaneTargetMock,
 } = vi.hoisted(() => {
   const mockThreads = new Map<string, { sessionId?: string }>();
   const admit = { next: true }; // controls whether the mocked startRun "admits" (threads.set) or refuses
@@ -34,6 +34,8 @@ const {
     blockedAreaForMock: vi.fn((_id?: string) => undefined as string | undefined),
     runParkedInBackgroundMock: vi.fn(() => ({ forkId: 'fork-1' }) as { forkId: string } | { reject: string }),
     hasInteractiveClaudeMock: vi.fn(async (_id: string) => false),
+    busyElsewhereMock: vi.fn(async () => [] as string[]),
+    orchestratorPaneTargetMock: vi.fn((_id?: string, _role?: string) => undefined as unknown),
   };
 });
 
@@ -41,6 +43,7 @@ vi.mock('../ws/runs', () => ({
   startRun: (o: unknown) => startRunMock(o as never),
   isDrainerEnabled: () => isDrainerEnabledMock(),
   runParkedInBackground: (...a: unknown[]) => runParkedInBackgroundMock(...(a as [])),
+  orchestratorPaneTarget: (id?: string, role?: string) => orchestratorPaneTargetMock(id, role),
 }));
 vi.mock('../ws/threads', () => ({
   threads: mockThreads,
@@ -62,6 +65,7 @@ vi.mock('./index', async (importOriginal) => ({
 }));
 vi.mock('./autopause-loop', () => ({ blockedAreaFor: (...a: unknown[]) => blockedAreaForMock(...(a as [])) }));
 vi.mock('./term-stats', () => ({ hasInteractiveClaude: (id: string) => hasInteractiveClaudeMock(id) }));
+vi.mock('./cv-liveness', () => ({ readBusyElsewhereSessionIds: () => busyElsewhereMock() }));
 
 import { __resetCardSessions, bindCardSession, cardIdForSession } from './card-sessions';
 import { sanitizeCard, sanitizeFlow, updateBoard, upsertCard, upsertFlow } from './board';
@@ -234,6 +238,22 @@ describe('selectFlowsToFire', () => {
 // --- handler-level: delivery, claiming, and the turn-closed entry point -----
 
 describe('deliverToSession', () => {
+  it('a flow into the Orchestrator pane counts as delivered (startRun → pane, no thread)', async () => {
+    resolveThreadKeyMock.mockReturnValue(undefined);
+    orchestratorPaneTargetMock.mockReturnValueOnce({ termId: 'orch' });
+    startRunMock.mockReturnValueOnce('pane' as never);
+    await expect(deliverToSession('sess-1', 'prompt', { role: 'admin' }, flow(), 1)).resolves.toEqual({ delivered: true });
+  });
+
+  it('does not start a second writer on a session a pane or the other process is running', async () => {
+    resolveThreadKeyMock.mockReturnValue(undefined);
+    hasInteractiveClaudeMock.mockResolvedValueOnce(true);
+    await expect(deliverToSession('sess-1', 'prompt', {}, flow(), 1)).resolves.toEqual({ delivered: false });
+    busyElsewhereMock.mockResolvedValueOnce(['sess-1']);
+    await expect(deliverToSession('sess-1', 'prompt', {}, flow(), 1)).resolves.toEqual({ delivered: false });
+    expect(startRunMock).not.toHaveBeenCalled();
+  });
+
   it('returns delivered: false when the target transcript is gone (resumableId undefined)', async () => {
     resumableIdMock.mockReturnValue(undefined);
     await expect(deliverToSession('sess-1', 'prompt', {}, flow(), 1)).resolves.toEqual({ delivered: false });
