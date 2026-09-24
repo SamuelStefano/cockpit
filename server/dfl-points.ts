@@ -1,3 +1,4 @@
+import { DFL_STALE_MS } from '../shared/dfl-stale';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -17,7 +18,7 @@ export function dflSnapshotFile(): string {
 // Um sync mais velho que isto vira "stale" (badge na UI). Fail-closed: melhor
 // mostrar número velho MARCADO do que cair pra query ao vivo (que traria segredo
 // pro caminho de request). ~35 min cobre um cron de 15 min com folga.
-export const STALE_MS = 35 * 60 * 1000;
+export const STALE_MS = DFL_STALE_MS;
 export const DEFAULT_PRICE_PER_POINT = 75;
 
 // Epics criados antes desta data são anteriores ao app de invoice — esse trabalho foi

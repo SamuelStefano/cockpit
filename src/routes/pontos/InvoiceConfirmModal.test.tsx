@@ -31,3 +31,10 @@ describe('InvoiceConfirmModal with stale DFL data', () => {
     expect((getByText(/Criar/).closest('button') as HTMLButtonElement).disabled).toBe(false);
   });
 });
+
+describe('InvoiceConfirmModal with a snapshot the server still calls fresh', () => {
+  it('blocks when syncedAt is older than the stale window', () => {
+    const { getByRole } = render(<InvoiceConfirmModal projects={projects} syncedAt={Date.now() - 3 * 60 * 60 * 1000} onClose={vi.fn()} />);
+    expect(getByRole('alert').textContent).toContain('dados do DFL estão velhos');
+  });
+});

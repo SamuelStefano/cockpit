@@ -1,3 +1,4 @@
+import { isSnapshotStale } from '../../../shared/dfl-stale';
 import { useMemo, useState } from 'react';
 import type { DflProjectNode } from '../../../shared/protocol';
 import { Modal, Button, Input, Badge, toast } from '../../components/primitives';
@@ -11,7 +12,11 @@ import { currentMonthKey } from './month-cap';
 // fatura no DFL prod (status 'submitted' → revisão do admin → cobrança). Só tasks
 // EM ABERTO entram. Mostra exatamente o que será criado antes de escrever — a
 // escrita real só acontece no clique de confirmar (ação do usuário).
-export function InvoiceConfirmModal({ projects, onClose, stale = false }: { projects: DflProjectNode[]; onClose: () => void; stale?: boolean }) {
+export function InvoiceConfirmModal({ projects, onClose, stale: staleFromServer = false, syncedAt }: { projects: DflProjectNode[]; onClose: () => void; stale?: boolean; syncedAt?: number }) {
+  // Re-derived here (at render and again at confirm): the server's flag is only
+  // as fresh as the last snapshot push.
+  const staleNow = () => staleFromServer || (syncedAt !== undefined && isSnapshotStale(syncedAt, Date.now()));
+  const stale = staleNow();
   const { selected, clearSelected, deselect, write } = usePontosControls();
   const [month, setMonth] = useState(() => currentMonthKey(Date.now()));
   const [busy, setBusy] = useState(false);
@@ -29,7 +34,7 @@ export function InvoiceConfirmModal({ projects, onClose, stale = false }: { proj
   const resultOf = useMemo(() => new Map(results.map((r) => [r.key, r])), [results]);
 
   const confirm = async () => {
-    if (busy || !pending.length || !monthValid || stale) return;
+    if (busy || !pending.length || !monthValid || staleNow()) return;
     setBusy(true);
     const batch = await runInvoiceBatch(drafts, created, (d) => write.onDflInvoice({
       deliveryId: d.deliveryId, deliveryName: d.deliveryName, projectId: d.projectId, projectName: d.projectName,
