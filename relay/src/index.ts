@@ -55,7 +55,7 @@ const tokenFromUrl = (url: string | undefined): string | null => {
   try { return new URL(url ?? '', 'http://x').searchParams.get('token'); } catch { return null; }
 };
 
-interface AgentState { agentId: string; accountId: string; challenge: string; authed: boolean }
+interface AgentState { agentId: string; accountId: string; challenge: string; authed: boolean; helloPending?: boolean }
 
 export function createRelay(cfg: RelayConfig) {
   // O stub de identidade desliga a verificação de JWT inteira. Só o main.ts sobe em
@@ -277,7 +277,15 @@ export function createRelay(cfg: RelayConfig) {
           return;
         }
         if (m.t === 'agent-hello' && typeof m.agentId === 'string') {
+          // One hello per socket. A second hello pending across the await below
+          // could land AFTER agent-auth had bound the socket to its own account and
+          // overwrite st.accountId: that agent's frames then went to another
+          // account's browsers (it only needed the victim's agent id).
+          if (st.challenge || st.helloPending) { ws.close(4401, 'hello twice'); return; }
+          st.helloPending = true;
           const rec = await cfg.store.agentById(m.agentId);
+          st.helloPending = false;
+          if (st.authed || ws.readyState !== WebSocket.OPEN) return;
           if (!rec) { ws.close(4401, 'unknown agent'); return; }
           st.agentId = m.agentId; st.accountId = rec.accountId; st.challenge = makeChallenge();
           (st as AgentState & { pub?: string }).pub = rec.publicKey;
