@@ -11,7 +11,7 @@ export function DesignSystem() {
     <div className="scroll-thin h-full overflow-y-auto bg-neutral-950 px-4 py-6 sm:px-8 sm:py-8">
       <div className="mx-auto flex max-w-3xl flex-col gap-8">
         <header>
-          <h2 className="text-[20px] font-semibold text-neutral-100">Design System</h2>
+          <h1 className="text-[20px] font-semibold text-neutral-100">Design System</h1>
           <p className="mt-1 text-[13px] text-neutral-500">Primitivos do Deck — Button, Input, Badge, Stat, ProgressBar, Tabs, Toast, EmptyState e tokens.</p>
         </header>
 
