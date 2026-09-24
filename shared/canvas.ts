@@ -125,6 +125,13 @@ export interface CanvasNode {
   // capped server-side. Feeds the timeline's aliveAt(node, t) — a session is
   // "alive" around any timestamp that falls in (or near) one of these.
   activity?: [number, number][];
+  // Session only: the uuid of the session this one was `canvas-card-fork`ed
+  // FROM (server/canvas/fork-sessions.ts). Absent means either it wasn't a
+  // fork, or the fork happened before this process started (the binding is
+  // process-lifetime, not persisted — see that module's comment). Feeds the
+  // chain-of-command view's parent link; never a security/authorization
+  // signal, purely a display hint.
+  parentSessionId?: string;
 }
 
 // 'card' = the agent actually ran on this session (marker-bound) or the card

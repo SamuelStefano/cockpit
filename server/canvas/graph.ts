@@ -45,6 +45,10 @@ export interface GraphInput {
   // Read by the caller (server/canvas/index.ts, orchestrator.ts) — passed
   // through untouched, this function does no I/O of its own.
   orchestrator?: OrchestratorInfo;
+  // childSessionId -> parentSessionId, from server/canvas/fork-sessions.ts.
+  // Optional so every existing fixture/test stays valid; a child not in this
+  // map just gets no parentSessionId on its node.
+  forkParents?: Map<string, string>;
 }
 
 // Wikilinks name memories by slug or by frontmatter name, with - and _ used
@@ -100,11 +104,16 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
     const activity = !archived && refs?.activity?.length
       ? refs.activity.filter(([, end]) => now - end < TIMELINE_TRIM_MS)
       : undefined;
+    // Only wired to a parent that's actually in this graph's session set —
+    // a fork-sessions entry pointing at a session that's since been deleted
+    // or archived-out would otherwise dangle.
+    const forkParent = input.forkParents?.get(meta.id);
     nodes.push({
       id: sessionNodeId(meta.id), kind: 'session', ref: meta.id,
       title: meta.title, subtitle: (meta.summary || meta.snippet || '').slice(0, 220),
       mtime: meta.mtime, archived: archived || undefined, count: meta.count, waiting: meta.waiting || undefined,
       activity: activity?.length ? activity : undefined,
+      parentSessionId: forkParent && sessionIds.has(forkParent) ? forkParent : undefined,
     });
     if (running.has(meta.id) || meta.waiting || now - meta.mtime < ACTIVE_WINDOW_MS) activeIds.add(meta.id);
     if (!archived && refs?.writes && Object.keys(refs.writes).length) {

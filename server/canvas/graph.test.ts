@@ -54,6 +54,25 @@ describe('buildCanvasGraph', () => {
     expect(g.edges).toContainEqual({ source: `s:${S1}`, target: 'c:hub_dfl', kind: 'read' }); // no hits recorded: unweighted, same as before
   });
 
+  it('wires a session node to its fork parent when both are present in the graph', () => {
+    const g = buildCanvasGraph({
+      sessions: [{ meta: meta(S1), archived: false }, { meta: meta(S2), archived: false }],
+      refs: new Map(), contexts: [], cards: [],
+      forkParents: new Map([[S2, S1]]),
+    });
+    expect(g.nodes.find((n) => n.ref === S2)?.parentSessionId).toBe(S1);
+    expect(g.nodes.find((n) => n.ref === S1)?.parentSessionId).toBeUndefined();
+  });
+
+  it('drops a fork-parent pointer to a session not in this graph, rather than dangling', () => {
+    const g = buildCanvasGraph({
+      sessions: [{ meta: meta(S2), archived: false }],
+      refs: new Map(), contexts: [], cards: [],
+      forkParents: new Map([[S2, S1]]), // S1 never listed
+    });
+    expect(g.nodes.find((n) => n.ref === S2)?.parentSessionId).toBeUndefined();
+  });
+
   it('links a context to the session that wrote it via originSessionId', () => {
     const g = buildCanvasGraph({ sessions: [{ meta: meta(S2), archived: true }], refs: new Map(), contexts: [ctx('a', { origin: S2 })], cards: [] });
     expect(g.edges).toEqual([{ source: `s:${S2}`, target: 'c:a', kind: 'write' }]);
