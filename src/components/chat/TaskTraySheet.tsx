@@ -2,12 +2,15 @@ import { Icon, tokens } from '../primitives';
 import { TodoPanel } from './TodoPanel';
 import { todoCounts } from './task-tray';
 import type { ToolTodo } from '../../data/types';
+import { useEscapeLayer } from '../primitives/useEscapeLayer';
 
 // Lista completa de tarefas no celular: bottom sheet (mesmo padrão do McpPicker)
 // em vez de empurrar o composer. Expandido inline, o tray comia 176px de uma tela
 // de 420px com o teclado aberto.
 export function TaskTraySheet({ todos, onClose }: { todos: ToolTodo[]; onClose: () => void }) {
   const { done, total } = todoCounts(todos);
+  // A bottom sheet with a hardware keyboard (iPad) had no Esc.
+  useEscapeLayer(true, onClose);
   return (
     <>
       <div className="fixed inset-0 z-30 bg-black/40 sm:hidden" onClick={onClose} />

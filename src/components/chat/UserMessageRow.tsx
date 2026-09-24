@@ -53,10 +53,13 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
 
   const start = () => { setValue(msg.text); setEditing(true); };
   const cancel = () => { setEditing(false); setValue(msg.text); };
+  // Unchanged or emptied text resends nothing; the button says so instead of
+  // closing the editor as if it had resent.
+  const changed = value.trim() !== '' && value.trim() !== msg.text.trim();
   const save = () => {
-    const next = value.trim();
+    if (!changed) return;
     setEditing(false);
-    if (next && next !== msg.text.trim()) onEditUser?.(msg.id, next);
+    onEditUser?.(msg.id, value.trim());
   };
 
   if (editing) {
@@ -78,7 +81,7 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
           />
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={cancel}>Cancelar</Button>
-            <Button size="sm" onClick={save}>Salvar e reenviar</Button>
+            <Button size="sm" onClick={save} disabled={!changed}>Salvar e reenviar</Button>
           </div>
         </div>
       </div>
