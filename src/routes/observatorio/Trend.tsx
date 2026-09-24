@@ -43,7 +43,7 @@ export function Trend({ series }: { series: DailyUsage[] }) {
                 key={p.id}
                 onClick={() => setPeriod(p.id)}
                 aria-pressed={period === p.id}
-                className={`rounded-md border px-1.5 py-0.5 text-[10.5px] font-medium transition ${period === p.id ? 'border-orange-500/40 bg-orange-500/15 text-orange-300' : 'border-transparent text-neutral-500 hover:text-neutral-300'}`}
+                className={`rounded-md border px-1.5 py-0.5 text-[10.5px] font-medium transition pointer-coarse:px-2.5 pointer-coarse:py-1.5 ${period === p.id ? 'border-orange-500/40 bg-orange-500/15 text-orange-300' : 'border-transparent text-neutral-500 hover:text-neutral-300'}`}
               >
                 {p.label}
               </button>
