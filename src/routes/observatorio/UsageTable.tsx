@@ -75,7 +75,7 @@ function SortHead({ label, sortKey, align = 'left', sort, onToggle }: {
     <th className={`px-2 py-2 font-medium sm:px-3 ${align === 'right' ? 'text-right' : ''}`} aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
       <button
         onClick={() => onToggle(sortKey)}
-        className={`inline-flex items-center gap-1 uppercase tracking-wider transition-colors hover:text-neutral-300 ${active ? 'text-neutral-300' : ''}`}
+        className={`inline-flex items-center gap-1 uppercase tracking-wider transition-colors pointer-coarse:-my-2 pointer-coarse:py-2.5 hover:text-neutral-300 ${active ? 'text-neutral-300' : ''}`}
       >
         {label}
         <Icon name={active ? (sort.dir === 'asc' ? 'chevronUp' : 'chevronDown') : 'chevronDown'} size={11} className={active ? 'text-orange-400' : 'text-neutral-700'} />
