@@ -31,6 +31,7 @@ export const KanbanCard = memo(function KanbanCard({ card, run, sessions, sessio
       draggable tabIndex={0} role="button"
       onDragStart={(e) => { e.dataTransfer.setData('text/deck-card', card.id); e.dataTransfer.effectAllowed = 'move'; }}
       onClick={() => onSelect(card.id)}
+      onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSelect(card.id); } }}
       title={sessionSummary && `${sessionSummary.title} — ${sessionSummary.subtitle}`}
       className={`group cursor-grab rounded-lg border bg-neutral-900 px-2.5 py-2 active:cursor-grabbing ${selected ? 'border-orange-400/70' : 'border-neutral-800 hover:border-neutral-700'}`}
     >

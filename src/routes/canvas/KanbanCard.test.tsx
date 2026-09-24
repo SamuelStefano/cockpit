@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from 'vitest';
-import { render, cleanup } from '@testing-library/react';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { render, cleanup, fireEvent } from '@testing-library/react';
 import type { CanvasCard } from '../../../shared/canvas';
 import { KanbanCard } from './KanbanCard';
 
@@ -31,5 +31,15 @@ describe('KanbanCard', () => {
   it('keeps "marcar como feito" as the manual confirmation for a review-run card', () => {
     const { getByText } = render(<KanbanCard {...props} card={card()} run="review" />);
     expect(getByText('marcar como feito')).toBeTruthy();
+  });
+
+  it('opens with Enter or Space from the keyboard', () => {
+    const onSelect = vi.fn();
+    const { container } = render(<KanbanCard {...props} onSelect={onSelect} card={card()} run="running" />);
+    const el = container.firstElementChild as HTMLElement;
+    fireEvent.keyDown(el, { key: 'Enter' });
+    fireEvent.keyDown(el, { key: ' ' });
+    expect(onSelect).toHaveBeenCalledWith('card-1');
+    expect(onSelect).toHaveBeenCalledTimes(2);
   });
 });

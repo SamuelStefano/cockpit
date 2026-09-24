@@ -38,6 +38,8 @@ export const KanbanSessionItem = memo(function KanbanSessionItem({ item, stats, 
       draggable={!orchestrator} tabIndex={0} role="button"
       onDragStart={(e) => { e.dataTransfer.setData('text/deck-session', item.sessionId); e.dataTransfer.effectAllowed = 'move'; }}
       onClick={() => onSelect(item.nodeId)}
+      // Only the item itself: Enter on the inner terminal/chat buttons is theirs.
+      onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSelect(item.nodeId); } }}
       title={item.subtitle}
       className={`group rounded-lg border px-2.5 py-2 ${orchestrator ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} ${
         orchestrator ? 'border-fuchsia-500/60 bg-fuchsia-500/[0.08]' : selected ? 'border-orange-400/70 bg-neutral-900/70' : 'border-neutral-800 bg-neutral-900/70 hover:border-neutral-700'}`}
@@ -53,7 +55,7 @@ export const KanbanSessionItem = memo(function KanbanSessionItem({ item, stats, 
         {pct !== null && stats?.contextTokens !== undefined && <span>ctx {fmtTokens(stats.contextTokens)} ({pct}%)</span>}
         {badge && <Badge tone={badge.tone} dot={badge.dot}>{badge.text}</Badge>}
         <div
-          className="ml-auto flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+          className="ml-auto flex gap-1 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         >
           <Button size="sm" variant="ghost" icon="terminal" title="abrir terminal" onClick={() => onOpenTerm(item.nodeId)} />
