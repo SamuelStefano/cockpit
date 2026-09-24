@@ -745,7 +745,7 @@ export function useCockpit(): Cockpit {
           // `prepend` = página anterior pedida pelo "carregar antigas". Fora dela, o
           // frame é snapshot da última página: em "ver tudo" (full) o keepOlder segura
           // o que já foi paginado pra trás, senão o refresh encolhia a janela.
-          const next = msg.prepend ? prependHistory(msg.messages, local) : mergeHistory(msg.messages, local, !!msg.full);
+          const next = msg.prepend ? prependHistory(msg.messages, local) : mergeHistory(msg.messages, local, !!msg.full, runMsg.current[msg.sessionId]);
           return { ...prev, [msg.sessionId]: next };
         });
         resumeId.current[msg.sessionId] = msg.sessionId;
