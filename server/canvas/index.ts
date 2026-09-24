@@ -7,6 +7,7 @@ import { parseFrontmatter, stripFrontmatter } from '../frontmatter';
 import { listSessions, listArchived } from '../sessions/index';
 import { buildCanvasGraph, originSession, wikilinks, type ContextDoc } from './graph';
 import { readOrchestrator } from './orchestrator';
+import { allForkParents } from './fork-sessions';
 import { emptyRefs, scanRefsBuffer, type SessionRefs } from './refs';
 import { readBoard } from './board';
 
@@ -420,7 +421,7 @@ export function buildCanvas(board?: CanvasBoard, running?: Set<string>): Promise
     }
     return buildCanvasGraph({
       sessions, refs, contexts: [...mem, ...arch], cards: b.cards, running, now,
-      memoryDir: CONFIG.memoryDir, tmpDir: tmpdir(), orchestrator,
+      memoryDir: CONFIG.memoryDir, tmpDir: tmpdir(), orchestrator, forkParents: allForkParents(),
     });
   })().finally(() => { inflight = null; });
   return inflight;

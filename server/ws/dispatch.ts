@@ -57,6 +57,7 @@ import { updateAreaCacheFromGraph, getAreaOf } from '../canvas/autopause-loop';
 import { areaUsageFromIds } from '../../shared/canvas-budget';
 import { cardLinksAreUnanimouslyDfl, findDeliveryInSnapshot, findTaskInSnapshot } from '../canvas/dfl-link';
 import { cancelPendingPush, pushCardDflStatus } from '../canvas/dfl-status-sync';
+import { bindForkSession } from '../canvas/fork-sessions';
 
 // Registers the turn-closed listener once, at module load — both entry points
 // (server/index.ts, server/agent.ts) reach this file via ws/serve-connection.ts.
@@ -1053,6 +1054,9 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
         return;
       }
       broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      // The only place this relation is ever produced — see fork-sessions.ts.
+      // Feeds the chain-of-command view's "forked from" link.
+      bindForkSession(r.forkId, msg.parentSessionId);
       send(ws, { t: 'canvas-card-fork-ok', cardId: msg.cardId, parentSessionId: msg.parentSessionId, forkId: r.forkId });
       return;
     }

@@ -24,7 +24,11 @@ interface Props {
   onAreaFilter: (a: AreaId | null) => void;
 }
 
-const MODES = [{ id: 'canvas' as const, label: 'canvas' }, { id: 'kanban' as const, label: 'kanban' }];
+const MODES = [
+  { id: 'canvas' as const, label: 'canvas' },
+  { id: 'kanban' as const, label: 'kanban' },
+  { id: 'chain' as const, label: 'cadeia' },
+];
 
 export function CanvasFilters(p: Props) {
   return (

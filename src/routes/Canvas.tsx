@@ -9,6 +9,7 @@ import { isOrchestratorNode } from './canvas/orchestrator';
 import { AreaBudgetEditor } from './canvas/AreaBudgetEditor';
 import { pastAliveIds, pastExecIds } from './canvas/canvas-timeline';
 import { bounds, layoutCanvas } from './canvas/canvas-layout';
+import { CanvasChain } from './canvas/CanvasChain';
 import { CanvasFilters } from './canvas/CanvasFilters';
 import { CanvasHud } from './canvas/CanvasHud';
 import { CanvasInspector, type ConflictInfo } from './canvas/CanvasInspector';
@@ -212,6 +213,16 @@ export function Canvas(p: CanvasRouteProps) {
         <EmptyState icon="circle" title="Desconectado" description="Reconecte pra montar o canvas." />
       ) : r.mode === 'kanban' ? (
         <div className="flex min-h-0 flex-1 flex-col">{kanban}</div>
+      ) : r.mode === 'chain' ? (
+        !p.graph ? (
+          <CanvasLoadingState loadingSince={p.loadingSince} stale={p.stale} onRetry={p.onCanvasGet} />
+        ) : (
+          <CanvasChain
+            nodes={r.visible.nodes} flows={p.board.flows} running={p.running} waiting={r.waiting}
+            stats={p.termStats} orchestrator={p.graph.orchestrator}
+            onOpenTerm={openTerm} onOpenChat={p.onOpenSession}
+          />
+        )
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
           {!p.graph ? (

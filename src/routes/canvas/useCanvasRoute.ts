@@ -87,7 +87,7 @@ export interface CanvasRouteProps {
   onDflTaskConfirmSync: (cardId: string) => Promise<DflWriteResult>;
 }
 
-export type CanvasMode = 'canvas' | 'kanban';
+export type CanvasMode = 'canvas' | 'kanban' | 'chain';
 export interface CardDraft { card: CanvasCard; isNew: boolean }
 
 const REFRESH_DEBOUNCE_MS = 2500;
