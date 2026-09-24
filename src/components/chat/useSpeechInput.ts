@@ -232,6 +232,18 @@ export function useSpeechInput(value: string, setValue: (v: string) => void, foc
     }, STOP_GRACE_MS);
   };
 
+  // The composer was sent or cleared mid-dictation: drop the recognizer and what it
+  // already heard. A plain stop() flushes the last partial as final, and the next
+  // result rebuilds base + everything said — the sent prompt would come back.
+  const reset = () => {
+    wantRef.current = false;
+    clearWatchdog();
+    detach();
+    baseRef.current = '';
+    finalRef.current = '';
+    setListening(false);
+  };
+
   // Desmontou no meio da gravação? Encerra o reconhecimento pra não vazar o mic.
   useEffect(() => () => { wantRef.current = false; clearWatchdog(); detach(); }, []);
 
@@ -248,5 +260,5 @@ export function useSpeechInput(value: string, setValue: (v: string) => void, foc
   const dismissError = () => setError(null);
   const dismissHint = () => setHint(null);
 
-  return { supported, keyboardMode, listening, error, hint, dismissError, dismissHint, start, stop, toggle: () => (listening ? stop() : start()) };
+  return { supported, keyboardMode, listening, error, hint, dismissError, dismissHint, start, stop, reset, toggle: () => (listening ? stop() : start()) };
 }
