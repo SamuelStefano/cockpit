@@ -171,6 +171,12 @@ export function deriveSessionItems(o: DeriveSessionItemsOpts): SessionKanbanItem
     if (n.kind !== 'session') continue;
     if (n.ref === o.orchestratorSessionId) continue;
     if (boundIds.has(n.ref)) continue;
+    // A session Samuel archived (Deck sidebar hide, server/sessions/index.ts
+    // listArchived) is "I'm done with this" — it stays on the map's
+    // tudo/arquivo scopes (canvas-filter.ts) but never floods the kanban's
+    // Done column. `n.archived` comes straight off server/canvas/graph.ts,
+    // set for every session server/canvas/index.ts read from listArchived().
+    if (n.archived) continue;
     if (!o.showAutomation && isAutomationSession({ title: n.title, subtitle: n.subtitle })) continue;
     const ns = nodeStatus(n, o);
     out.push({

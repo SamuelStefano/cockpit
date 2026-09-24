@@ -17,6 +17,14 @@ export interface CanvasApi {
   onCanvasCardSave: (card: CanvasCard) => void;
   onCanvasCardDelete: (id: string) => void;
   onCanvasSessionStatus: (sessionId: string, status: CardStatus) => void;
+  // Done column bulk triage ("completar antigos (N)", canvas review item 2):
+  // ONE wire frame for the whole batch instead of one onCanvasSessionStatus
+  // call per session.
+  onCanvasSessionStatusBulk: (sessionIds: string[], status: CardStatus) => void;
+  // Kanban drawer "ocultar" — board-persisted (canvas review item 2), holds
+  // across devices instead of the old per-device localStorage list.
+  onCanvasHideSession: (sessionId: string) => void;
+  onCanvasUnhideAllSessions: () => void;
   onCanvasFlowSave: (flow: CanvasFlow) => void;
   onCanvasFlowDelete: (id: string) => void;
   // flowId -> ts of the last `canvas-flow-fired` broadcast, so the edge layer
@@ -60,7 +68,7 @@ export interface CanvasApi {
   onMsg: (msg: ServerMsg) => boolean;
 }
 
-const EMPTY_BOARD: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {} };
+const EMPTY_BOARD: CanvasBoard = { cards: [], pos: {}, flows: [], budgets: {}, sessionStatus: {}, hiddenSessions: [] };
 
 // server/ws/dispatch.ts runs message handlers unawaited and reads the board
 // outside any write chain: a `canvas-board` frame answering an earlier
@@ -107,6 +115,11 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
   const flowWriteAt = useRef<Record<string, number>>({});
   const flowDeleteWriteAt = useRef<Record<string, number>>({});
   const sessionStatusWriteAt = useRef<Record<string, number>>({});
+  // Single timestamp, not per-id like sessionStatusWriteAt: hide/unhide-all
+  // are rare, deliberate actions (not a drag stream), so one grace window for
+  // the whole list is enough to stop a stale canvas-board frame from
+  // clobbering a hide that just landed.
+  const hiddenWriteAt = useRef(0);
 
   const clearTimer = useCallback(() => {
     if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
@@ -202,6 +215,33 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
       });
       return true;
     }
+    // Slim broadcast for a session move made in ANOTHER tab/device (server/ws/
+    // dispatch.ts's canvas-session-status, canvas review item 12a) — same
+    // write-grace rule as canvas-card-status above: a local optimistic write
+    // still in its grace window wins over this frame for the SAME id.
+    if (msg.t === 'canvas-session-status') {
+      setBoard((b) => {
+        if (Date.now() - (sessionStatusWriteAt.current[msg.sessionId] ?? 0) < WRITE_GRACE_MS) return b;
+        return { ...b, sessionStatus: { ...b.sessionStatus, [msg.sessionId]: { status: msg.status, at: msg.at } } };
+      });
+      return true;
+    }
+    // Same broadcast, batched: "completar antigos (N)" in another tab moves
+    // every id at once — apply each, still respecting per-id write grace.
+    if (msg.t === 'canvas-session-status-bulk') {
+      setBoard((b) => {
+        const now = Date.now();
+        const sessionStatus = { ...b.sessionStatus };
+        let changed = false;
+        for (const id of msg.sessionIds) {
+          if (now - (sessionStatusWriteAt.current[id] ?? 0) < WRITE_GRACE_MS) continue;
+          sessionStatus[id] = { status: msg.status, at: msg.at };
+          changed = true;
+        }
+        return changed ? { ...b, sessionStatus } : b;
+      });
+      return true;
+    }
     if (msg.t === 'canvas-board') {
       if (ackTimerRef.current) { clearTimeout(ackTimerRef.current); ackTimerRef.current = null; }
       const now = Date.now();
@@ -275,7 +315,10 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
         // Budgets have no optimistic-write grace window (see onCanvasBudgetSave):
         // the incoming frame is always authoritative for them.
         // `?? {}`: a server that predates budgets sends no key; reading budgets[area] would crash the canvas.
-        return { cards, pos, flows, budgets: msg.board.budgets ?? {}, sessionStatus };
+        // `?? []`: same pre-feature-server defense — a server that predates
+        // board-persisted hides sends no `hiddenSessions` key at all.
+        const hiddenSessions = now - hiddenWriteAt.current < WRITE_GRACE_MS ? prev.hiddenSessions : (msg.board.hiddenSessions ?? []);
+        return { cards, pos, flows, budgets: msg.board.budgets ?? {}, sessionStatus, hiddenSessions };
       });
       return true;
     }
@@ -354,6 +397,32 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
     send({ t: 'canvas-session-status', sessionId, status });
   }, [send]);
 
+  // Same optimistic shape, batched: applies the SAME entry to every id at
+  // once instead of looping onCanvasSessionStatus (one wire frame, not N).
+  const onCanvasSessionStatusBulk = useCallback((sessionIds: string[], status: CardStatus) => {
+    if (!sessionIds.length) return;
+    const at = Date.now();
+    for (const id of sessionIds) sessionStatusWriteAt.current[id] = at;
+    setBoard((b) => {
+      const sessionStatus = { ...b.sessionStatus };
+      for (const id of sessionIds) sessionStatus[id] = { status, at };
+      return { ...b, sessionStatus };
+    });
+    send({ t: 'canvas-session-status-bulk', sessionIds, status });
+  }, [send]);
+
+  const onCanvasHideSession = useCallback((sessionId: string) => {
+    hiddenWriteAt.current = Date.now();
+    setBoard((b) => (b.hiddenSessions.includes(sessionId) ? b : { ...b, hiddenSessions: [...b.hiddenSessions, sessionId] }));
+    send({ t: 'canvas-session-hide', sessionId });
+  }, [send]);
+
+  const onCanvasUnhideAllSessions = useCallback(() => {
+    hiddenWriteAt.current = Date.now();
+    setBoard((b) => ({ ...b, hiddenSessions: [] }));
+    send({ t: 'canvas-session-unhide-all' });
+  }, [send]);
+
   const onCanvasFlowSave = useCallback((flow: CanvasFlow) => {
     delete flowDeleteWriteAt.current[flow.id];
     flowWriteAt.current[flow.id] = Date.now();
@@ -392,6 +461,7 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
   return {
     canvasGraph, canvasBoard, canvasLoading, canvasLoadingSince, canvasStale,
     onCanvasGet, onCanvasPos, onCanvasPosReset, onCanvasCardSave, onCanvasCardDelete, onCanvasSessionStatus,
+    onCanvasSessionStatusBulk, onCanvasHideSession, onCanvasUnhideAllSessions,
     onCanvasFlowSave, onCanvasFlowDelete, canvasFlowFired, canvasFlowRuns, onCanvasBudgetSave,
     canvasTermStats, onCanvasTermStats, onCanvasCtxStats, canvasAreaUsage,
     orchestratorInfo, onOrchestratorReconnect, orchestratorActivity, onOrchestratorActivityGet, cvLiveSessionIds, cvIdleSessionIds, sessionPeeks, onSessionPeek, onMsg,

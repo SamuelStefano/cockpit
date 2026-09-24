@@ -45,6 +45,16 @@ describe('authorize', () => {
     }
   });
 
+  // Kanban triage (canvas review item 2): same admin-only surface as
+  // canvas-session-status — default-deny means a new `t` needs no allowlist
+  // entry to stay blocked, this just documents the intent.
+  it('kanban triage/hide frames são admin-only, igual canvas-session-status', () => {
+    for (const t of ['canvas-session-status', 'canvas-session-status-bulk', 'canvas-session-hide', 'canvas-session-unhide-all'] as const) {
+      expect(authorize('student', t)).toBe(false);
+      expect(authorize('admin', t)).toBe(true);
+    }
+  });
+
   it('financeiro DFL é admin-only: student negado, admin liberado', () => {
     for (const t of ['points-dfl-get', 'points-dfl-sync'] as const) {
       expect(authorize('student', t)).toBe(false);

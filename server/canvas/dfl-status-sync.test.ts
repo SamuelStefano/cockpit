@@ -73,7 +73,7 @@ function boardWithLinkedCard(status: CanvasCard['status'], dflUpdatedAt: number 
     id: 'card-1', title: 'Card', prompt: '', status, kind: 'task', contextIds: [], sessionIds: [],
     createdAt: 1, updatedAt: 1, dfl: { taskId, ...(dflUpdatedAt !== undefined ? { dflUpdatedAt } : {}), ...extra },
   };
-  return { cards: [card], pos: {}, flows: [], budgets: {}, sessionStatus: {} };
+  return { cards: [card], pos: {}, flows: [], budgets: {}, sessionStatus: {}, hiddenSessions: [] };
 }
 
 describe('syncBoardFromDflSnapshot', () => {
@@ -94,7 +94,7 @@ describe('syncBoardFromDflSnapshot', () => {
   });
 
   it('leaves an unlinked card untouched', () => {
-    const board: CanvasBoard = { cards: [{ id: 'card-1', title: 'x', prompt: '', status: 'todo', kind: 'task', contextIds: [], sessionIds: [], createdAt: 1, updatedAt: 1 }], pos: {}, flows: [], budgets: {}, sessionStatus: {} };
+    const board: CanvasBoard = { cards: [{ id: 'card-1', title: 'x', prompt: '', status: 'todo', kind: 'task', contextIds: [], sessionIds: [], createdAt: 1, updatedAt: 1 }], pos: {}, flows: [], budgets: {}, sessionStatus: {}, hiddenSessions: [] };
     const snap = snapshotWithTask(baseTask({ rawStatus: 'done', updatedAt: 500 }));
     expect(syncBoardFromDflSnapshot(board, snap, 999)).toBe(board); // same reference: no-op, no unnecessary write
   });

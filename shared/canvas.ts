@@ -277,6 +277,11 @@ export interface CanvasBoard {
   flows: CanvasFlow[];
   budgets: Partial<Record<AreaId, AreaBudget>>;
   sessionStatus: Record<string, CanvasSessionStatus>;
+  // Kanban drawer "ocultar" (canvas review 2026-09-24, item 2): board-persisted
+  // so a hide made on the laptop holds on the phone too, instead of the old
+  // per-device localStorage list. Session uuids, sanitized/capped like the
+  // sessionStatus map (server/canvas/board.ts).
+  hiddenSessions: string[];
 }
 
 // A card-target flow's in-flight run — server/canvas/flow-runs.ts, transient

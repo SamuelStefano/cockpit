@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { relPast, fmtCost, fmtStamp } from './format';
+import { relPast, fmtCost, fmtStamp, lastSeenLabel } from './format';
 
 const now = Date.UTC(2026, 0, 15, 12, 0, 0);
 const ago = (ms: number) => now - ms;
@@ -54,6 +54,20 @@ describe('relPast', () => {
       expect(out).not.toMatch(/há |atrás|ontem/);
     }
     expect(relPast(ago(36 * H), now)).toBe('1d');
+  });
+});
+
+describe('lastSeenLabel', () => {
+  // canvas review item 6: relPast(mtime) === 'agora' for a session touched <
+  // 1min ago used to leave "parada há agora" on screen — self-contradictory.
+  it('never says "parada há agora"', () => {
+    expect(lastSeenLabel(ago(0), now)).not.toBe('parada há agora');
+    expect(lastSeenLabel(ago(30_000), now)).toBe('parou agora');
+  });
+
+  it('reads "parada há X" once there is a real elapsed amount', () => {
+    expect(lastSeenLabel(ago(7 * MIN), now)).toBe('parada há 7min');
+    expect(lastSeenLabel(ago(D), now)).toBe('parada há 1d');
   });
 });
 

@@ -10,7 +10,7 @@ import type { DflWriteResult } from '../../cockpit/usePoints';
 import type { Session } from '../../data/types';
 import type { TermApi } from '../../useCockpit';
 import { toast } from '../../components/primitives';
-import { usePersisted } from '../../lib/persist';
+import { hasPref, loadPref, removePref, usePersisted } from '../../lib/persist';
 import { computeAreaRects } from './canvas-areas';
 import { filterCanvas, type CanvasScope } from './canvas-filter';
 import { bounds, layoutCanvas } from './canvas-layout';
@@ -37,6 +37,12 @@ export interface CanvasRouteProps {
   onCanvasCardSave: (card: CanvasCard) => void;
   onCanvasCardDelete: (id: string) => void;
   onCanvasSessionStatus: (sessionId: string, status: CardStatus) => void;
+  // Done column bulk triage ("completar antigos (N)", canvas review item 2).
+  onCanvasSessionStatusBulk: (sessionIds: string[], status: CardStatus) => void;
+  // Kanban drawer "ocultar" — board-persisted, not per-device localStorage
+  // (canvas review item 2).
+  onHideSession: (sessionId: string) => void;
+  onUnhideAllSessions: () => void;
   onCanvasFlowSave: (flow: CanvasFlow) => void;
   onCanvasFlowDelete: (id: string) => void;
   canvasFlowFired: Record<string, number>;
@@ -103,7 +109,9 @@ const REFRESH_DEBOUNCE_MS = 2500;
 const today = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
 
 export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells: CanvasNode[]) {
-  const [mode, setMode] = useState<CanvasMode>('canvas');
+  // Persisted per device (canvas review item 12e) — a kanban-first user used
+  // to land on the map every reload, same class of fix as `scope` below.
+  const [mode, setMode] = usePersisted<CanvasMode>('canvas.mode', 'canvas');
   // Default is the execution panel (TL feedback, 2026-09-23: "who is working,
   // who stopped, who finished", not the whole second-brain graph) — persisted
   // per device so whatever the user last picked sticks across reloads.
@@ -526,17 +534,35 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
   const onSessionStatus = useCallback((sessionId: string, status: CardStatus) => {
     p.onCanvasSessionStatus(sessionId, status);
   }, [p]);
+  // Done column bulk triage ("completar antigos (N)", canvas review item 2):
+  // ONE wire frame + ONE board write for the whole batch — see useCanvas.ts's
+  // onCanvasSessionStatusBulk.
+  const onSessionStatusBulk = useCallback((sessionIds: string[], status: CardStatus) => {
+    p.onCanvasSessionStatusBulk(sessionIds, status);
+  }, [p]);
 
   // Kanban "ocultar" (drawer action, canvas review 2026-09-24): a manual dismiss
   // ON TOP OF the automatic staleness triage (kanban-items.ts triageSessionItems)
-  // — for the odd session that's noise sooner than 24h. Client-only, never
-  // touches the session's real status/override.
-  const [hiddenSessionIds, setHiddenSessionIds] = usePersisted<string[]>('canvas.hiddenSessions', []);
-  const hiddenSessionIdSet = useMemo(() => new Set(hiddenSessionIds), [hiddenSessionIds]);
-  const hideSession = useCallback((id: string) => {
-    setHiddenSessionIds((cur) => (cur.includes(id) ? cur : [...cur, id]));
-  }, [setHiddenSessionIds]);
-  const unhideAllSessions = useCallback(() => setHiddenSessionIds([]), [setHiddenSessionIds]);
+  // — for the odd session that's noise sooner than 24h. Board-persisted (item
+  // 2): a hide made on the laptop must hold on the phone too, so this reads
+  // straight off `p.board` rather than its own local/localStorage state.
+  const hiddenSessionIdSet = useMemo(() => new Set(p.board.hiddenSessions), [p.board.hiddenSessions]);
+  const hideSession = useCallback((id: string) => { p.onHideSession(id); }, [p]);
+  const unhideAllSessions = useCallback(() => { p.onUnhideAllSessions(); }, [p]);
+
+  // One-time migration off the OLD per-device localStorage hides (this used
+  // to be `usePersisted('canvas.hiddenSessions', [])` — see git blame): reads
+  // the legacy key directly (not via usePersisted, which would keep writing
+  // it going forward) and re-applies each id through the new board-persisted
+  // path, then clears the legacy key so this never runs twice.
+  useEffect(() => {
+    if (!hasPref('canvas.hiddenSessions')) return;
+    for (const id of loadPref<string[]>('canvas.hiddenSessions', [])) p.onHideSession(id);
+    removePref('canvas.hiddenSessions');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- migrate once on
+    // mount; hasPref goes false after the first run, so re-running on a
+    // later `p` identity change is already a no-op — no need to chase it.
+  }, []);
 
   return {
     mode, setMode, scope, setScope, archived, setArchived, query, setQuery,
@@ -545,7 +571,7 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     merged, visible, pos, windows, onDrop, worldBounds, coreBounds, byId, waiting,
     selected, selectedNodes, select, clearSelection,
     draft, setDraft, newDraft, editCard, saveCard, runCard, setStatus, deleteCard, cardSessions,
-    sessionItems, orchestratorItem, onSessionStatus,
+    sessionItems, orchestratorItem, onSessionStatus, onSessionStatusBulk,
     hiddenSessionIdSet, hideSession, unhideAllSessions,
   };
 }

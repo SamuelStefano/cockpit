@@ -1,0 +1,85 @@
+// @vitest-environment jsdom
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { render, cleanup, fireEvent, within } from '@testing-library/react';
+import { Kanban } from './Kanban';
+import type { SessionKanbanItem } from './kanban-items';
+
+afterEach(cleanup);
+
+const item = (id: string, extra: Partial<SessionKanbanItem> = {}): SessionKanbanItem => ({
+  nodeId: `s:${id}`, sessionId: id, title: `sessão ${id}`, subtitle: '', status: 'review', orchestratorChild: false,
+  running: false, waitingOnUser: false, needsAttention: false, mtime: Date.now(), ...extra,
+});
+const noop = () => {};
+const baseProps = {
+  cards: [], termStats: {}, selected: [], running: new Set<string>(), sessionsOf: () => [], nodeOf: () => undefined,
+  onSelect: noop, onSelectSession: noop, onMove: noop, onRun: noop, onEdit: noop, onOpenSession: noop, onOpenTerm: noop,
+  onSessionStatus: noop, hiddenSessionIds: new Set<string>(), onHideSession: noop, onUnhideAll: noop,
+  sessionPeeks: {}, onSessionPeek: noop,
+};
+
+describe('Kanban — "completar antigos (N)" bulk triage (canvas review item 2)', () => {
+  const STALE = Date.now() - 25 * 3600_000; // over the 24h threshold
+
+  it('uses the ONE bulk frame when onSessionStatusBulk is wired', () => {
+    const onSessionStatusBulk = vi.fn();
+    const onSessionStatus = vi.fn();
+    const items = [item('old-1', { mtime: STALE }), item('old-2', { mtime: STALE })];
+    const { getByText } = render(
+      <Kanban {...baseProps} sessionItems={items} onSessionStatus={onSessionStatus} onSessionStatusBulk={onSessionStatusBulk} />,
+    );
+    fireEvent.click(getByText(/completar antigos \(2\)/));
+    expect(onSessionStatusBulk).toHaveBeenCalledWith(['old-1', 'old-2'], 'done');
+    expect(onSessionStatus).not.toHaveBeenCalled();
+  });
+
+  it('falls back to one onSessionStatus call per id when no bulk callback is wired', () => {
+    const onSessionStatus = vi.fn();
+    const items = [item('old-1', { mtime: STALE }), item('old-2', { mtime: STALE })];
+    const { getByText } = render(<Kanban {...baseProps} sessionItems={items} onSessionStatus={onSessionStatus} />);
+    fireEvent.click(getByText(/completar antigos \(2\)/));
+    expect(onSessionStatus).toHaveBeenCalledWith('old-1', 'done');
+    expect(onSessionStatus).toHaveBeenCalledWith('old-2', 'done');
+  });
+
+  it('the antigos chip and count sit in the Done header, reachable without opening the list first', () => {
+    const items = [item('old-1', { mtime: STALE })];
+    const { getByText } = render(<Kanban {...baseProps} sessionItems={items} />);
+    expect(getByText('1 antigos')).toBeTruthy();
+  });
+});
+
+describe('Kanban — empty column collapse (item 5)', () => {
+  it('an empty column still renders its name and a 0 count (collapsed rail on desktop)', () => {
+    const { getAllByText } = render(<Kanban {...baseProps} sessionItems={[]} />);
+    // ToDo/In progress/Done/Completed all empty — every one renders its label
+    // twice (mobile header + desktop rail), both present in the DOM.
+    expect(getAllByText('ToDo').length).toBeGreaterThan(0);
+  });
+});
+
+describe('Kanban — mobile column switcher (item 11)', () => {
+  it('only the selected status column is visible (not hidden) at a time', () => {
+    const { container, getByText } = render(<Kanban {...baseProps} sessionItems={[item('a', { status: 'doing' })]} />);
+    const sections = container.querySelectorAll('section');
+    const visible = [...sections].filter((s) => !s.className.includes('hidden'));
+    expect(visible).toHaveLength(1);
+    // Default lands on "In progress" — switch to "Done" via the segmented
+    // control. fireEvent (not a raw .click()) so the re-render is flushed
+    // before the DOM is read back below.
+    fireEvent.click(getByText(/Done ·/));
+    const visibleAfter = [...container.querySelectorAll('section')].filter((s) => !s.className.includes('hidden'));
+    expect(visibleAfter).toHaveLength(1);
+    expect(visibleAfter[0]).not.toBe(visible[0]);
+  });
+});
+
+describe('Kanban — session item actions (no per-item complete button, item 5)', () => {
+  it('opens the drawer on click instead of a dedicated complete button', () => {
+    const items = [item('a', { status: 'doing' })];
+    const { container, queryByText } = render(<Kanban {...baseProps} sessionItems={items} />);
+    expect(queryByText(/marcar completo/i)).toBeNull();
+    fireEvent.click(within(container).getByText('sessão a'));
+    expect(within(container).getByText('terminal')).toBeTruthy(); // drawer footer
+  });
+});

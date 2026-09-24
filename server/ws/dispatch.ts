@@ -50,13 +50,14 @@ import { readBusyElsewhereSessionIds, refreshLivenessSnapshot } from '../canvas/
 import { peekSession } from '../sessions/peek';
 import { collectCtxOnly, collectTermStats, hasInteractiveClaude, newCpuSamples, type CpuSamples } from '../canvas/term-stats';
 import {
-  MAX_FLOWS, readBoard, readBoardChained, updateBoard, sanitizeCard, sanitizeFlow, sanitizePos, upsertCard, upsertFlow, removeCard, removeFlow,
-  checkFlowSave, mergePos, setBudget, sanitizeSessionStatus, setSessionStatus, setCardDflLink, clearCardDflLink,
+  MAX_FLOWS, MAX_BULK_STATUS_IDS, readBoard, readBoardChained, updateBoard, sanitizeCard, sanitizeFlow, sanitizePos, sanitizeSessionIds,
+  upsertCard, upsertFlow, removeCard, removeFlow, checkFlowSave, mergePos, setBudget, sanitizeSessionStatus, setSessionStatus,
+  setSessionStatusMany, hideSessionOnBoard, unhideAllSessionsOnBoard, setCardDflLink, clearCardDflLink,
 } from '../canvas/board';
 import { activeFlowRuns } from '../canvas/flow-runs';
 import { startCanvasFlows } from '../canvas/flows';
 import { registerCanvasClient, emitCanvasMsg } from './canvas-clients';
-import type { CanvasBoard } from '../../shared/canvas';
+import { CARD_STATUSES, type CanvasBoard, type CardStatus } from '../../shared/canvas';
 import { updateAreaCacheFromGraph, getAreaOf } from '../canvas/autopause-loop';
 import { areaUsageFromIds } from '../../shared/canvas-budget';
 import { cardLinksAreUnanimouslyDfl, findDeliveryInSnapshot, findTaskInSnapshot } from '../canvas/dfl-link';
@@ -261,6 +262,38 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       if (!clean) { send(ws, { t: 'error', message: 'sessão inválida' }); return; }
       const board = await updateBoard((b) => setSessionStatus(b, clean.sessionId, clean.entry));
       send(ws, boardFrame(board));
+      // A second tab/phone must see the move without waiting on the next
+      // sessions-triggered refresh (canvas review item 12a) — slim patch, not
+      // the whole board, same ADMIN-ONLY channel canvas-card-status already
+      // uses.
+      emitCanvasMsg({ t: 'canvas-session-status', sessionId: clean.sessionId, status: clean.entry.status, at: clean.entry.at });
+      return;
+    }
+    // Done column bulk triage ("completar antigos (N)", canvas review item
+    // 2): every selected id gets the SAME override, applied inside ONE
+    // updateBoard call (setSessionStatusMany) — one disk write for the whole
+    // batch, not one per session.
+    case 'canvas-session-status-bulk': {
+      const now = Date.now();
+      const status = CARD_STATUSES.includes(msg.status as CardStatus) ? (msg.status as CardStatus) : undefined;
+      const sessionIds = sanitizeSessionIds(msg.sessionIds, MAX_BULK_STATUS_IDS);
+      if (!status || !sessionIds.length) { send(ws, { t: 'error', message: 'seleção inválida' }); return; }
+      const entry = { status, at: now };
+      const board = await updateBoard((b) => setSessionStatusMany(b, sessionIds, entry));
+      send(ws, boardFrame(board));
+      emitCanvasMsg({ t: 'canvas-session-status-bulk', sessionIds, status, at: now });
+      return;
+    }
+    // Kanban drawer "ocultar" — board-persisted (canvas review item 2), so it
+    // holds across devices instead of the old per-device localStorage list.
+    case 'canvas-session-hide': {
+      const board = await updateBoard((b) => hideSessionOnBoard(b, String(msg.sessionId ?? '')));
+      send(ws, boardFrame(board));
+      return;
+    }
+    case 'canvas-session-unhide-all': {
+      const board = await updateBoard((b) => unhideAllSessionsOnBoard(b));
+      send(ws, boardFrame(board));
       return;
     }
     case 'canvas-card-save': {
@@ -271,6 +304,11 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const board = await updateBoard((b) => upsertCard(b, card));
       send(ws, boardFrame(board));
       send(ws, { t: 'canvas-graph', graph: await buildCanvas(board, runningSessionIds()) });
+      // A manual save (drag, editor) used to reach a second tab/phone only on
+      // the next sessions-triggered refresh — same gap as canvas-session-status
+      // above (canvas review item 12a). Reuses the slim canvas-card-status
+      // patch card-review.ts's own auto-move already broadcasts.
+      if (prev?.status !== card.status) emitCanvasMsg({ t: 'canvas-card-status', cardId: card.id, status: card.status });
       // Deck -> DFL: a user-driven status change (drag, editor save, "marcar
       // completo") on an already-linked card pushes the new status to its DFL
       // task. Fire-and-forget — pushCardDflStatus owns its own retry/backoff

@@ -765,6 +765,16 @@ export type ClientMsg =
   // Kanban session item (src/routes/canvas/kanban-items.ts): user override on
   // a session's derived status — drag onto a column or "marcar completo".
   | { t: 'canvas-session-status'; sessionId: string; status: CardStatus }
+  // Done column bulk triage ("completar antigos (N)", canvas review item 2):
+  // the SAME override as 'canvas-session-status', applied to every id at once
+  // through ONE board write (server/canvas/board.ts setSessionStatusMany) —
+  // 208 stale items used to cost 208 round-trips and 208 disk writes.
+  | { t: 'canvas-session-status-bulk'; sessionIds: string[]; status: CardStatus }
+  // Kanban drawer "ocultar" — board-persisted (canvas review item 2), not the
+  // old per-device localStorage list; a hide made on one device holds on every
+  // other. `unhide-all` is the drawer's "mostrar tudo" — clears the whole list.
+  | { t: 'canvas-session-hide'; sessionId: string }
+  | { t: 'canvas-session-unhide-all' }
   | { t: 'canvas-flow-save'; flow: CanvasFlow }
   | { t: 'canvas-flow-delete'; id: string }
   | { t: 'canvas-budget-save'; area: string; budget: AreaBudget }
@@ -962,6 +972,14 @@ export type ServerMsg =
   // browser attached at all (a cron turn closing), so it must never touch
   // the generic global broadcast() every socket receives.
   | { t: 'canvas-card-status'; cardId: string; status: CardStatus }
+  // Same slim-patch reasoning as canvas-card-status, for the kanban's session
+  // items: a drag/"marcar completo" in one tab used to reach a second
+  // tab/phone only on the next sessions-triggered refresh (canvas review item
+  // 12a) — up to minutes later. ADMIN-ONLY (server/ws/canvas-clients.ts),
+  // never the global broadcast(). `-bulk` is the "completar antigos (N)"
+  // batch move, one frame for the whole set instead of one per session.
+  | { t: 'canvas-session-status'; sessionId: string; status: CardStatus; at: number }
+  | { t: 'canvas-session-status-bulk'; sessionIds: string[]; status: CardStatus; at: number }
   // Server-initiated: the autopause loop stopped a running turn because its
   // area stayed over budget. Same emitCanvasMsg (server/ws/canvas-clients.ts)
   // as canvas-flow-failed — every canvas-open admin tab gets the toast, but

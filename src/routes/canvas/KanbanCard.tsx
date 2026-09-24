@@ -20,21 +20,31 @@ interface Props {
   onOpenSession: (id: string) => void;
 }
 
+// 2 rows (canvas review item 5: was icon+title+badge / meta / preview / 3
+// buttons — 4 rows, ~4.5 cards fit a screen): row 1 is icon+title+run badge,
+// row 2 is every meta chip together. Actions (rodar/marcar como feito/editar)
+// only show on hover/focus — a tap still opens the full CardEditor via
+// onSelect, so touch never loses them.
 export const KanbanCard = memo(function KanbanCard({ card, run, sessions, sessionSummary, selected, onSelect, onRun, onEdit, onReview, onOpenSession }: Props) {
   return (
     <div
-      draggable
+      draggable tabIndex={0} role="button"
       onDragStart={(e) => { e.dataTransfer.setData('text/deck-card', card.id); e.dataTransfer.effectAllowed = 'move'; }}
       onClick={() => onSelect(card.id)}
-      className={`cursor-grab rounded-lg border bg-neutral-900 px-2.5 py-2 active:cursor-grabbing ${selected ? 'border-orange-400/70' : 'border-neutral-800 hover:border-neutral-700'}`}
+      title={sessionSummary && `${sessionSummary.title} — ${sessionSummary.subtitle}`}
+      className={`group cursor-grab rounded-lg border bg-neutral-900 px-2.5 py-2 active:cursor-grabbing ${selected ? 'border-orange-400/70' : 'border-neutral-800 hover:border-neutral-700'}`}
     >
       <div className="flex items-start gap-1.5">
         <Icon name={card.kind === 'content' ? 'sparkles' : 'zap'} size={12} className="mt-0.5 shrink-0 text-orange-400" />
-        <span className="min-w-0 flex-1 text-[12px] font-medium leading-snug text-neutral-100">{card.title}</span>
+        <span className="min-w-0 flex-1 truncate text-[12px] font-medium leading-snug text-neutral-100">{card.title}</span>
         {run === 'running' && <Badge tone="green" dot>rodando</Badge>}
-        {run === 'review' && <Badge tone="yellow">parece pronto</Badge>}
+        {/* card.status is STILL 'doing' here (server/canvas/card-review.ts
+            only flips it to 'review' on a CLEAN turn close) — idle sessions
+            with no clean close means the last turn stopped/crashed, not
+            "looks done" (canvas review item 6). */}
+        {run === 'review' && <Badge tone="red">parou sem terminar</Badge>}
       </div>
-      <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[10px] text-neutral-500">
+      <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-neutral-500">
         {card.kind === 'content' && card.format && <Badge>{FORMAT_LABEL[card.format]}</Badge>}
         {/* dfl.error stays visible even while `pending` retries in the
             background — that's the "sync pendente" badge the card carries
@@ -57,12 +67,14 @@ export const KanbanCard = memo(function KanbanCard({ card, run, sessions, sessio
             {sessions.length} sessão{sessions.length > 1 ? 'ões' : ''} ↗
           </button>
         )}
-      </div>
-      {sessionSummary && <p className="mt-1 line-clamp-1 text-[10px] text-neutral-500">{sessionSummary.title} — {sessionSummary.subtitle}</p>}
-      <div className="mt-1.5 flex gap-1" onClick={(e) => e.stopPropagation()}>
-        {card.status === 'todo' && <Button size="sm" icon="play" onClick={() => onRun(card)}>rodar</Button>}
-        {run === 'review' && <Button size="sm" variant="secondary" icon="check" onClick={() => onReview(card.id)}>marcar como feito</Button>}
-        <Button size="sm" variant="ghost" icon="pencil" onClick={() => onEdit(card.id)} title="editar" />
+        <div
+          className="ml-auto flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {card.status === 'todo' && <Button size="sm" icon="play" onClick={() => onRun(card)}>rodar</Button>}
+          {run === 'review' && <Button size="sm" variant="secondary" icon="check" onClick={() => onReview(card.id)}>marcar como feito</Button>}
+          <Button size="sm" variant="ghost" icon="pencil" onClick={() => onEdit(card.id)} title="editar" />
+        </div>
       </div>
     </div>
   );
