@@ -91,11 +91,15 @@ export function useCanvasViewport() {
     if (el) setView(fitView(b, el.clientWidth, el.clientHeight, 60, minK));
   }, []);
 
-  const centerOn = useCallback((p: CanvasPos, w = 248, h = 92) => {
+  // minK floors the zoom-IN direction only (Math.max) — centering never zooms
+  // OUT to fit, it zooms IN enough to read. A window (TERM_W×TERM_H) needs a
+  // higher floor than a node card to be legible (canvas review #620 item 3):
+  // callers pass 1 for a window, the 0.7 default suits a node.
+  const centerOn = useCallback((p: CanvasPos, w = 248, h = 92, minK = 0.7) => {
     const el = ref.current;
     if (!el) return;
     setView((v) => {
-      const k = Math.max(v.k, 0.7);
+      const k = Math.max(v.k, minK);
       return { k, x: el.clientWidth / 2 - (p.x + w / 2) * k, y: el.clientHeight / 2 - (p.y + h / 2) * k };
     });
   }, []);

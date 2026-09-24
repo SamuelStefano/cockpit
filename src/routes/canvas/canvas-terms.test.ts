@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import type { CanvasNode } from '../../../shared/canvas';
 import {
-  autoAdd, capOpen, isWatchTerm, laneSlot, newShellId, nudgeToFreeSlot, placeWindows, shellNodes, TERM_H, TERM_W, watchTermId, winKey,
+  autoAdd, capOpen, isWatchTerm, laneSlot, MAX_OPEN_TERMS, newShellId, nudgeToFreeSlot, pickRecentSessions, placeWindows, shellNodes,
+  TERM_H, TERM_W, watchTermId, winKey,
 } from './canvas-terms';
 
 describe('watchTermId', () => {
@@ -41,8 +43,8 @@ describe('laneSlot', () => {
     expect(second.y).toBe(first.y);
   });
 
-  it('wraps to a new row above after three columns', () => {
-    const taken = [0, 1, 2].map((i) => ({ ...laneSlot(map, []), x: i * (TERM_W + 40), w: TERM_W, h: TERM_H }));
+  it('wraps to a new row above after two columns (LANE_COLS 3 -> 2, canvas review #620 item 3)', () => {
+    const taken = [0, 1].map((i) => ({ ...laneSlot(map, []), x: i * (TERM_W + 40), w: TERM_W, h: TERM_H }));
     const next = laneSlot(map, taken);
     expect(next.x).toBe(0);
     expect(next.y).toBe(1000 - 160 - TERM_H * 2 - 40);
@@ -109,11 +111,12 @@ describe('placeWindows', () => {
   it('groups windows by area into contiguous slots regardless of arrival order (#598 map cleanup)', () => {
     const areaOf = (id: string): string | undefined => ({ 's:1': 'deck', 's:2': 'itera', 's:3': 'deck' } as Record<string, string>)[id];
     const out = placeWindows(pos, {}, ['s:2', 's:1', 's:3'], undefined, areaOf);
-    // deck's two windows land in the first two slots (row-major left to right);
-    // itera's lone window comes after both, not interleaved between them.
+    // deck's two windows fill the first row (LANE_COLS 3 -> 2, canvas review
+    // #620 item 3, so a row is only 2 wide now); itera's lone window comes
+    // after both, wrapped to the row above, not interleaved between them.
     expect(out['s:1'].y).toBe(out['s:3'].y);
     expect(out['s:1'].x).toBeLessThan(out['s:3'].x);
-    expect(out['s:2'].x).toBeGreaterThan(out['s:3'].x);
+    expect(out['s:2'].y).toBeLessThan(out['s:3'].y);
   });
 
   it('nudges a dragged window off another one it was dropped onto — windows never overlap', () => {
@@ -161,5 +164,34 @@ describe('autoAdd', () => {
   it('returns the same array when nothing changes', () => {
     const cur = ['a'];
     expect(autoAdd(cur, ['a'])).toBe(cur);
+  });
+});
+
+describe('MAX_OPEN_TERMS', () => {
+  it('is 6, not 8 (canvas review #620 item 3)', () => {
+    expect(MAX_OPEN_TERMS).toBe(6);
+  });
+});
+
+describe('pickRecentSessions', () => {
+  const node = (id: string, ref: string, mtime: number): CanvasNode => ({ id, kind: 'session', ref, title: id, subtitle: '', mtime });
+
+  it('puts running ahead of waiting, waiting ahead of an alert, an alert ahead of plain recency', () => {
+    const nodes = [node('idle', 'idle', 40), node('run', 'run', 10), node('wait', 'wait', 20), node('hot', 'hot', 30)];
+    const stats = { hot: { contextTokens: 190_000, model: 'sonnet' } };
+    const picked = pickRecentSessions(nodes, new Set(['run']), new Set(['wait']), stats, 4);
+    expect(picked).toEqual(['run', 'wait', 'hot', 'idle']);
+  });
+
+  it('breaks ties within the same rank by most recent mtime', () => {
+    const nodes = [node('r-old', 'r-old', 10), node('r-new', 'r-new', 20)];
+    const picked = pickRecentSessions(nodes, new Set(['r-old', 'r-new']), new Set(), {}, 4);
+    expect(picked).toEqual(['r-new', 'r-old']);
+  });
+
+  it('caps at max even when everything is running', () => {
+    const nodes = Array.from({ length: 5 }, (_, i) => node(`n${i}`, `n${i}`, i));
+    const running = new Set(nodes.map((n) => n.ref));
+    expect(pickRecentSessions(nodes, running, new Set(), {}, 2)).toHaveLength(2);
   });
 });

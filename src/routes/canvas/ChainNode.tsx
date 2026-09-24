@@ -35,7 +35,11 @@ export const ChainNode = memo(function ChainNode({ item, running, waiting, stats
 
   if (item.kind === 'orchestrator') {
     return (
-      <div className="flex h-full w-full items-center gap-1.5 rounded-lg border border-fuchsia-500 bg-neutral-900/95 px-2.5 shadow-[0_0_16px_-4px_rgba(217,70,239,0.6)]">
+      // min-w-0: a flex item's default min-width is its content's, which
+      // fights `w-full` and defeats the title's `truncate` inside — on a
+      // narrow viewport the row grew past it instead of clipping the text
+      // (canvas review #620 item 11).
+      <div className="flex h-full w-full min-w-0 items-center gap-1.5 rounded-lg border border-fuchsia-500 bg-neutral-900/95 px-2.5 shadow-[0_0_16px_-4px_rgba(217,70,239,0.6)]">
         <Icon name="command" size={13} className="shrink-0 text-fuchsia-400" />
         <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-fuchsia-100">{item.node?.title ?? 'Orchestrator'}</span>
         <Badge tone="purple" className="shrink-0">ORCHESTRATOR</Badge>
@@ -48,7 +52,7 @@ export const ChainNode = memo(function ChainNode({ item, running, waiting, stats
     return (
       <button
         type="button" onClick={onToggleCollapse}
-        className="flex h-full w-full items-center gap-1.5 rounded-lg border border-orange-500/50 bg-orange-500/10 px-2.5 text-left hover:border-orange-500/70"
+        className="flex h-full w-full min-w-0 items-center gap-1.5 rounded-lg border border-orange-500/50 bg-orange-500/10 px-2.5 text-left hover:border-orange-500/70"
       >
         <Icon name="layers" size={12} className="shrink-0 text-orange-400" />
         <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-orange-200">{label}</span>
@@ -68,10 +72,10 @@ export const ChainNode = memo(function ChainNode({ item, running, waiting, stats
   return (
     <div
       onClick={onOpenTerm}
-      className={`flex h-full w-full cursor-pointer flex-col justify-center gap-1 rounded-lg border bg-neutral-900/95 px-2 py-1.5 hover:border-orange-500/40
+      className={`flex h-full w-full min-w-0 cursor-pointer flex-col justify-center gap-1 rounded-lg border bg-neutral-900/95 px-2 py-1.5 hover:border-orange-500/40
         ${n.archived ? 'border-neutral-800 opacity-60' : 'border-neutral-700/80'}`}
     >
-      <div className="flex items-center gap-1.5">
+      <div className="flex min-w-0 items-center gap-1.5">
         <StateDot running={running} waiting={waiting} archived={n.archived} />
         <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-neutral-100">{n.title}</span>
         {item.arrivedVia === 'fork' && <Icon name="split" size={10} className="shrink-0 text-neutral-500" />}

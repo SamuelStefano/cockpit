@@ -29,7 +29,11 @@ export function CanvasChain(p: Props) {
 
   if (chain.narrow) {
     return (
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+      // min-w-0 + overflow-x-hidden: without them a deep tree's row content
+      // (title + badges + buttons, none of it wrapping) pushed the list wider
+      // than the 390px viewport instead of truncating (canvas review #620
+      // item 11 — the Orchestrator row was cut mid-word at "ORCHE").
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3">
         <ChainTreeList
           item={chain.tree} depth={0} running={p.running} waiting={p.waiting} stats={p.stats}
           collapsedAreas={chain.collapsedAreas} collapsedSessions={chain.collapsedSessions}

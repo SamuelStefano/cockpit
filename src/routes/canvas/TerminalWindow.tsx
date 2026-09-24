@@ -1,12 +1,12 @@
 import { lazy, memo, Suspense, useRef, useState } from 'react';
 import type { CanvasNode, CanvasPos, TermStats } from '../../../shared/canvas';
-import { Badge, Button, Icon } from '../../components/primitives';
 import type { TermApi } from '../../useCockpit';
-import { AlertBadge, AlertRing } from './CanvasAlert';
+import { AlertRing } from './CanvasAlert';
 import { sessionAlert } from './canvas-alerts';
 import { TERM_H, TERM_W } from './canvas-terms';
 import { GhostSummaryBanner } from './GhostSummaryBanner';
 import { SessionPromptBar } from './SessionPromptBar';
+import { TerminalWindowHeader } from './TerminalWindowHeader';
 import { TermStatsBar } from './TermStatsBar';
 import { ctxPct } from './term-stats-view';
 import { shouldShowGhostBanner, useGhostBanner } from './useGhostBanner';
@@ -28,6 +28,9 @@ interface Props {
   dim: boolean;
   running: boolean;
   waiting: boolean;
+  // Below this the glyphs read as a grey smear, not text — clicking the body
+  // then maximizes instead of typing (canvas review #620 item 3).
+  zoom: number;
   // The one session that commands every other one (shared/canvas.ts
   // OrchestratorInfo) — distinct chrome so it never blends into the rest.
   orchestrator: boolean;
@@ -53,13 +56,10 @@ interface Props {
   onDock?: () => void;
 }
 
-const stop = (e: React.PointerEvent) => e.stopPropagation();
-
-function Dot({ running, waiting }: { running: boolean; waiting: boolean }) {
-  if (running) return <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-green-400" title="rodando" />;
-  if (waiting) return <span className="h-2 w-2 shrink-0 rounded-full bg-yellow-400" title="esperando você" />;
-  return <span className="h-2 w-2 shrink-0 rounded-full bg-neutral-600" title="inativa" />;
-}
+// Same floor useCanvasViewport's centerOn uses for a node — below it a
+// terminal's glyphs read as a grey smear, so clicking to "type" would just
+// land on illegible text (canvas review #620 item 3).
+const UNREADABLE_BELOW = 0.7;
 
 // A live tmux pane placed on the map. The title bar drags the window; the body
 // belongs to the terminal only once activated, so an idle window never eats the
@@ -88,37 +88,11 @@ export const TerminalWindow = memo(function TerminalWindow(p: Props) {
         ${p.dim ? 'opacity-40' : ''}`}
     >
       <AlertRing kind={alert} />
-      <header
-        onPointerDown={(e) => p.onPointerDown(e, n.id)}
-        onDoubleClick={() => p.onMaximize(n.id)}
-        className={`flex h-8 shrink-0 cursor-grab touch-none select-none items-center gap-1.5 border-b pl-2.5 pr-1 active:cursor-grabbing ${p.orchestrator ? 'border-fuchsia-500/40 bg-fuchsia-500/10' : 'border-neutral-800 bg-neutral-900'}`}
-      >
-        {p.orchestrator
-          ? <Icon name="command" size={12} className="text-fuchsia-400" />
-          : session ? <Dot running={p.running} waiting={p.waiting} /> : <Icon name="terminal" size={12} className="text-orange-400" />}
-        <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-neutral-200">{p.orchestrator ? 'Orchestrator' : n.title}</span>
-        {p.orchestrator && <Badge tone="purple">ORCHESTRATOR</Badge>}
-        {alert && <AlertBadge kind={alert} pct={pct} />}
-        {session
-          ? <Badge tone={p.running ? 'green' : 'neutral'}>{p.running ? 'ao vivo' : 'fantasma'}</Badge>
-          : !p.orchestrator && <Badge tone="orange">shell</Badge>}
-        <span onPointerDown={stop} onDoubleClick={(e) => e.stopPropagation()} className="flex items-center">
-          {p.orchestrator && p.onDock && (
-            <Button variant="ghost" size="sm" square icon="panelRight" title="fixar no sidebar (Ctrl+.)" onClick={p.onDock} />
-          )}
-          {session && (
-            <Button
-              variant="ghost" size="sm" icon="play" disabled={p.running || p.resuming} loading={p.resuming}
-              title={p.running ? 'rodando no Deck agora — retomar aqui abriria um segundo escritor' : 'ctrl-c no follow e claude --resume nesta sessão'}
-              onClick={() => p.onResume(n.ref)}
-            >retomar</Button>
-          )}
-          {session && <Button variant="ghost" size="sm" square icon="message" title="abrir o chat" onClick={() => p.onOpenChat(n.ref)} />}
-          <Button variant="ghost" size="sm" square icon="maximize" title="tela cheia" onClick={() => p.onMaximize(n.id)} />
-          {session && <Button variant="ghost" size="sm" square icon="minimize" title="recolher (tmux segue vivo)" onClick={() => p.onCollapse(n.id)} />}
-          {!p.orchestrator && <Button variant="ghost" size="sm" square icon="x" title="matar a sessão tmux" onClick={() => p.onKill(n)} />}
-        </span>
-      </header>
+      <TerminalWindowHeader
+        node={n} session={session} orchestrator={p.orchestrator} running={p.running} waiting={p.waiting} resuming={p.resuming}
+        alert={alert} pct={pct} onPointerDown={p.onPointerDown} onMaximize={p.onMaximize} onCollapse={p.onCollapse} onKill={p.onKill}
+        onResume={p.onResume} onOpenChat={p.onOpenChat} onDock={p.onDock}
+      />
       <TermStatsBar stats={p.stats} running={p.running} session={session} />
       {showBanner && (
         <GhostSummaryBanner
@@ -138,16 +112,23 @@ export const TerminalWindow = memo(function TerminalWindow(p: Props) {
             <XtermView id={p.target.termId} watch={p.target.watch} term={p.term} autoFocus={false} focusKey={p.active ? p.focusN : 0} />
           </Suspense>
         )}
-        {!p.active && (
-          <div
-            className="absolute inset-0 cursor-text"
-            title="clique pra digitar"
-            onPointerDown={(e) => { e.stopPropagation(); p.onActivate(n.id); }}
-            // The mousedown default moves focus to <body> after our focus() ran,
-            // so the first keystroke after the click went nowhere.
-            onMouseDown={(e) => e.preventDefault()}
-          />
-        )}
+        {!p.active && (() => {
+          const unreadable = p.zoom < UNREADABLE_BELOW;
+          return (
+            <div
+              className={`absolute inset-0 ${unreadable ? 'cursor-zoom-in' : 'cursor-text'}`}
+              title={unreadable ? 'clique pra ampliar' : 'clique pra digitar'}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                if (unreadable) p.onMaximize(n.id);
+                else p.onActivate(n.id);
+              }}
+              // The mousedown default moves focus to <body> after our focus() ran,
+              // so the first keystroke after the click went nowhere.
+              onMouseDown={(e) => e.preventDefault()}
+            />
+          );
+        })()}
         {p.past && (
           // The xterm underneath stays mounted and live — this is a read-only
           // reminder, not a detach, so returning to "agora" is instant. Flat
