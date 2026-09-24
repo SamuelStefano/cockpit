@@ -3,7 +3,7 @@ import type { WebSocket } from 'ws';
 import { startRun, catchSpawn, routeSend, isSilentDeath, isCleanTurnClose, resumeOrphanRuns, drainParked, runParkedInBackground, runParkedNow, startParkedDrainer, acceptResumeOffer, hasResumeOffer, AUTO_RESUME_CAP, deliverToOrchestratorPane, orchestratorPaneTarget } from './runs';
 import { readOrchestratorSync, isTmuxAliveSync } from '../canvas/orchestrator';
 import { hasTerm, openTerm, inputTerm } from '../terminals';
-import { threads, killAllRuns } from './threads';
+import { threads, killAllRuns, stopSession } from './threads';
 import { reapStaleRuns, REAPER_SILENCE_CAP_MS, REAPER_TOOL_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './reaper';
 import { takeOrphanRuns } from './recover';
 import { recordIncident } from './incidents';
@@ -1608,5 +1608,38 @@ describe('catchSpawn', () => {
   it('returns the handle or the error message', () => {
     expect(catchSpawn(() => 1)).toEqual({ handle: 1 });
     expect(catchSpawn(() => { throw new Error('boom'); })).toEqual({ error: 'boom' });
+  });
+});
+
+describe('routeSend while the triage model is thinking', () => {
+  const ws = {} as WebSocket;
+  const runOf = (i: number) => vi.mocked(run).mock.calls[i][0];
+
+  beforeEach(() => { threads.clear(); clearAllAwaiting(); vi.mocked(run).mockClear(); });
+
+  it('a stop pressed during triage still wins after the stopped turn closes', async () => {
+    let release!: (v: { action: 'wait'; reason: string }) => void;
+    vi.mocked(classify).mockImplementationOnce(() => new Promise((r) => { release = r as typeof release; }));
+    startRun({ ws, sessionKey: 'st', prompt: 'turno' });
+    const pending = routeSend({ ws, sessionKey: 'st', prompt: 'mensagem' });
+    stopSession('st');
+    runOf(0).onClose?.();
+    release({ action: 'wait', reason: '' });
+    await pending;
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('a follow-up whose first turn closed during triage resumes that session', async () => {
+    let release!: (v: { action: 'wait'; reason: string }) => void;
+    vi.mocked(classify).mockImplementationOnce(() => new Promise((r) => { release = r as typeof release; }));
+    startRun({ ws, sessionKey: 'new-abc', prompt: 'oi' });
+    threads.get('new-abc')!.sessionId = 'S1';
+    threads.get('new-abc')!.endReason = 'success'; // a clean close: no auto-resume
+    const pending = routeSend({ ws, sessionKey: 'new-abc', prompt: 'e agora?' });
+    runOf(0).onClose?.();
+    release({ action: 'wait', reason: '' });
+    await pending;
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(runOf(1).resumeId).toBe('S1');
   });
 });
