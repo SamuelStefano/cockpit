@@ -182,3 +182,28 @@ describe('useChatInput — slash command followed by text', () => {
     expect(setValue).toHaveBeenLastCalledWith('fix login');
   });
 });
+
+describe('useChatInput — IME composition', () => {
+  function imeKey(key: string, composing: boolean, keyCode = 0) {
+    const prevented = { value: false };
+    const e = {
+      key, keyCode, shiftKey: false,
+      nativeEvent: { isComposing: composing },
+      preventDefault: () => { prevented.value = true; },
+    } as unknown as React.KeyboardEvent;
+    return { e, prevented };
+  }
+
+  it('does not submit on the Safari Enter that confirms a candidate (keyCode 229)', () => {
+    const { result } = setup('日本');
+    const { e, prevented } = imeKey('Enter', false, 229);
+    act(() => result.current.onKey(e));
+    expect(prevented.value).toBe(false);
+  });
+
+  it('leaves ArrowUp to the IME while composing', () => {
+    const { result, setValue } = setup('');
+    act(() => result.current.onKey(imeKey('ArrowUp', true).e));
+    expect(setValue).not.toHaveBeenCalled();
+  });
+});
