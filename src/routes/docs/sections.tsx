@@ -16,6 +16,7 @@ import { Commands } from './sections/Commands';
 import { Models } from './sections/Models';
 import { Playground } from './sections/Playground';
 import { Graph } from './sections/Graph';
+import { Kanban } from './sections/Kanban';
 import { Bench } from './sections/Bench';
 import { Admin } from './sections/Admin';
 import { Internals } from './sections/Internals';
@@ -42,6 +43,7 @@ export function DocSections({ year }: { year: number }) {
       <Models />
       <Playground />
       <Graph />
+      <Kanban />
       <Bench />
       <Admin />
       <Internals />

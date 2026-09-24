@@ -18,7 +18,7 @@ Topologia, protocolo e modelo de segurança em detalhe: **[ARCHITECTURE.md](ARCH
 - **Salvar e evoluir contexto** — sessões, notas, skills e docs viram memória do projeto.
 - Painéis de **uso/custo**, **crons**, **pontos**, **grafo** do repo e um **design system** vivo.
 
-Rotas: `/` `/contextos` `/skills` `/notas` `/pontos` `/crons` `/uso` `/graph`
+Rotas: `/` `/contextos` `/skills` `/notas` `/pontos` `/crons` `/uso` `/graph` `/canvas`
 `/harness` `/admin` `/docs` `/ds` `/play`.
 
 ---

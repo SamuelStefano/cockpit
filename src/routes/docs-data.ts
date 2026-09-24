@@ -29,6 +29,7 @@ export const SECTIONS: Section[] = [
   { id: 'modelos', label: 'Modelos', icon: 'claude' },
   { id: 'playground', label: 'Playground & modo App', icon: 'code' },
   { id: 'graph', label: 'Graph (knowledge graph)', icon: 'zap' },
+  { id: 'kanban', label: 'Canvas & kanban', icon: 'grip' },
   { id: 'bench', label: 'Bench (repo externo)', icon: 'grip' },
   { id: 'admin', label: 'Admin', icon: 'shield' },
   { id: 'bastidores', label: 'Por trás dos panos', icon: 'terminal' },

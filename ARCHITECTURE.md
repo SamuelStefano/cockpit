@@ -98,6 +98,24 @@ A box NÃO pode travar. Camadas:
   - **Timeout no store** (`relay/src/store.ts`, `AbortSignal.timeout(10s)`): sem ele um
     PostgREST que aceita a conexão e nunca responde pendura o socket que espera por ele.
 
+## Canvas / kanban — status de sessão
+
+A rota `/canvas` (admin) lista cada sessão como item de kanban. O status é derivado no
+cliente (`src/routes/canvas/kanban-items.ts`, `deriveSessionStatus`), nunca salvo:
+turno rodando no Deck, esperando o usuário, último turno quebrado ou **shell cv vivo** →
+In progress; turno fechado limpo → Done; override do usuário vale até a sessão mexer.
+
+- **Workers em tmux `cockpit-cv-*`** não passam por turno do Deck. `server/canvas/cv-liveness.ts`
+  lê o registro por processo do Claude Code (`~/.claude/sessions/<pid>.json`: `sessionId`,
+  `tmux`, `status` busy/idle) a cada 5s. Viva = tmux vivo + processo vivo + busy, OU JSONL
+  escrito há < 2 min. Empurra `{t:'cv-live', sessionIds}` só pros clientes admin do canvas
+  (`emitCanvasMsg`) quando muda; `canvas-get` manda o valor atual. Viva → faixa Orchestrator.
+  O registro não é documentado pela Anthropic: se o formato mudar, cai no status antigo.
+- **Gaveta do item** pede `{t:'canvas-session-peek', sessionId}` (admin-only).
+  `server/sessions/peek.ts` devolve o fim da última mensagem do assistente (600 chars), PRs
+  (marcadores `pr-link` + URLs de PR do GitHub) e links citados no texto do assistente —
+  nunca de tool output.
+
 ## Layout do repositório
 
 ```
@@ -114,6 +132,7 @@ server/              backend Node/TS (roda local na VPS; e é a base do agent)
   agent.ts           AGENT T3: disca pro relay, health checks embutidos
   ws/                protocolo: serve-connection, runs, broadcast, authz, dispatch...
   engine/, sessions/ engine que fala com o claude CLI
+  canvas/            grafo/board do /canvas, orquestrador, liveness dos shells cv
 relay/               relay T3 (roteador WS) — projeto isolado, sem driver de DB
   src/index.ts       createRelay(): paths /ws e /agent, /pair/new (CORS), heartbeat
   src/verify.ts      JWKS, validateClaims, verifyAgentSignature (Ed25519)
