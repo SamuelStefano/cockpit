@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { AreaId, CanvasFlow, CanvasNode, OrchestratorInfo, TermStats } from '../../../shared/canvas';
 import { EmptyState } from '../../components/primitives';
 import { ChainNode } from './ChainNode';
@@ -39,8 +40,27 @@ export function CanvasChain(p: Props) {
     );
   }
 
+  return <ChainCanvas chain={chain} p={p} />;
+}
+
+// The root centers over ALL its area children (chain-layout.ts's classic
+// tree-layout math), which on a wide org chart sits far to the right of x=0
+// — without this, opening "cadeia" shows only the first area's leaves,
+// orchestrator and area rows scrolled clean out of view. Scrolled ONCE per
+// tree width (not on every reposition from a collapse toggle, which would
+// yank the view back to center after the user just scrolled somewhere else).
+function ChainCanvas({ chain, p }: { chain: ReturnType<typeof useCanvasChain>; p: Props }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const rootX = chain.positions.find((pos) => pos.item.kind === 'orchestrator')?.x ?? 0;
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollLeft = Math.max(0, rootX + CHAIN_NODE_W / 2 - el.clientWidth / 2);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only the tree's overall width should re-center, not every scroll/collapse.
+  }, [chain.width]);
+
   return (
-    <div className="min-h-0 flex-1 overflow-auto p-6">
+    <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto p-6">
       <div className="relative" style={{ width: chain.width, height: chain.height }}>
         <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width={chain.width} height={chain.height}>
           {chain.edges.map((e) => <path key={e.id} d={e.d} fill="none" stroke="rgb(64 64 64)" strokeWidth={1.5} />)}
