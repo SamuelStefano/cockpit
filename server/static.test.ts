@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { resolve } from 'node:path';
 import { EventEmitter } from 'node:events';
 import type { ServerResponse } from 'node:http';
@@ -48,15 +48,15 @@ describe('pipeFile', () => {
   it('derruba a resposta em vez de lançar quando a leitura falha', async () => {
     const res = fakeRes();
     pipeFile(resolve(root, 'nao-existe.js'), res as unknown as ServerResponse);
-    await new Promise((r) => setTimeout(r, 20));
-    expect(res.destroyed).toBe(true);
+    // The fs error arrives on a later tick; a fixed 20ms lost that race under the
+    // CI's parallel load (flaky red on unrelated PRs). Wait for it instead.
+    await vi.waitFor(() => expect(res.destroyed).toBe(true), { timeout: 2000 });
   });
 
   it('destrói o stream quando o cliente aborta, pra não vazar fd', async () => {
     const res = fakeRes();
     const stream = pipeFile(resolve(__dirname, 'static.ts'), res as unknown as ServerResponse);
     res.emit('close');
-    await new Promise((r) => setTimeout(r, 20));
-    expect(stream.destroyed).toBe(true);
+    await vi.waitFor(() => expect(stream.destroyed).toBe(true), { timeout: 2000 });
   });
 });
