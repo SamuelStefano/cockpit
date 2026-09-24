@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Icon, Button, Badge, Input, Skeleton, EmptyState } from '../../components/primitives';
+import { Icon, Button, Badge, Input, Skeleton, EmptyState, tokens } from '../../components/primitives';
 import type { GraphMeta } from '../../../shared/protocol';
 
 interface Props {
@@ -85,7 +85,7 @@ export function GraphList({ graphs, loaded, openId, opening, building, onOpen, o
                     aria-label={pendingDelete === g.id ? `Confirmar exclusão de ${g.label}` : `Excluir grafo ${g.label}`}
                     onClick={() => clickDelete(g.id)}
                     className={`absolute right-1.5 top-1.5 rounded px-1 py-0.5 transition-opacity ${
-                      pendingDelete === g.id ? 'font-mono text-[10px] text-red-400 opacity-100' : 'text-neutral-600 opacity-0 hover:text-red-400 focus:opacity-100 group-hover:opacity-100'
+                      pendingDelete === g.id ? 'font-mono text-[10px] text-red-400 opacity-100' : `text-neutral-600 opacity-0 pointer-coarse:opacity-100 hover:text-red-400 focus:opacity-100 group-hover:opacity-100 ${tokens.touchBox}`
                     }`}
                   >
                     {pendingDelete === g.id ? 'confirmar?' : <Icon name="trash" size={13} />}
