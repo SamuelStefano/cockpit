@@ -46,4 +46,25 @@ describe('reconnect', () => {
     const opens = ws.sent.map((d) => JSON.parse(d)).filter((m) => m.t === 'open' && m.sessionId === U);
     expect(opens.length).toBe(1);
   });
+
+  it('the re-fetch keeps the view the user had (loaded older pages stay)', () => {
+    const hook = renderHook(() => useCockpit());
+    let ws = FakeWebSocket.instances.at(-1)!;
+    act(() => { ws.onopen?.({}); });
+    const push = (f: ServerMsg) => act(() => { ws.onmessage?.({ data: JSON.stringify(f) }); });
+    push({ t: 'sessions', items: [{ id: U, title: 'u', relative: 'agora', snippet: 's', mtime: 1 }, { id: V, title: 'v', relative: 'agora', snippet: 's', mtime: 1 }] } as ServerMsg);
+    act(() => { hook.result.current.setActiveId(U); });
+    act(() => { hook.result.current.onLoadOlder(U); });
+    act(() => { hook.result.current.setActiveId(V); });
+    vi.useFakeTimers();
+    act(() => { ws.readyState = 3; ws.onclose?.({ code: 1006 }); });
+    act(() => { vi.advanceTimersByTime(10_000); });
+    vi.useRealTimers();
+    ws = FakeWebSocket.instances.at(-1)!;
+    act(() => { ws.onopen?.({}); });
+    ws.sent.length = 0;
+    act(() => { hook.result.current.setActiveId(U); });
+    const frames = ws.sent.map((d) => JSON.parse(d)).filter((m) => m.sessionId === U);
+    expect(frames).toEqual([{ t: 'open-full', sessionId: U }]);
+  });
 });

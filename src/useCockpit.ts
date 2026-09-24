@@ -1299,7 +1299,7 @@ export function useCockpit(): Cockpit {
           () => {
             focusSession(id);
             setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === id })));
-            if (id && !id.startsWith('new-') && !opened.current.has(id) && send({ t: 'open', sessionId: id })) opened.current.add(id);
+            if (id && !id.startsWith('new-') && !opened.current.has(id) && send(reopenMsg(id))) opened.current.add(id);
           },
         );
         return;
@@ -1540,8 +1540,8 @@ export function useCockpit(): Cockpit {
     // Sessão real (não rascunho local) vira a última ativa — sobrevive ao F5.
     if (id && !id.startsWith('new-')) savePref('activeId', id);
     setSessions((prev) => prev.map((s) => ({ ...s, active: s.id === id })));
-    if (id && !id.startsWith('new-') && !opened.current.has(id) && send({ t: 'open', sessionId: id })) opened.current.add(id);
-  }, [send, focusSession]);
+    if (id && !id.startsWith('new-') && !opened.current.has(id) && send(reopenMsg(id))) opened.current.add(id);
+  }, [send, focusSession, reopenMsg]);
 
   // Congela na sessão o modelo com que o turno REALMENTE roda. Sem isto, uma
   // conversa que herdou o default (sem override próprio) segue derivando o rótulo
@@ -1906,7 +1906,7 @@ export function useCockpit(): Cockpit {
       if (activeRef.current !== id) return next;
       const fb = next[0]?.id ?? '';
       focusSession(fb);
-      if (fb && !fb.startsWith('new-') && !opened.current.has(fb) && send({ t: 'open', sessionId: fb })) opened.current.add(fb);
+      if (fb && !fb.startsWith('new-') && !opened.current.has(fb) && send(reopenMsg(fb))) opened.current.add(fb);
       return next.map((s) => ({ ...s, active: s.id === fb }));
     });
     setThreads((prev) => { const n = { ...prev }; delete n[id]; return n; });
