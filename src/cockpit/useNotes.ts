@@ -27,7 +27,14 @@ export function useNotes(send: (m: ClientMsg) => boolean): Notes {
     notes,
     notesLoaded,
     onNotesGet: useCallback(() => { send({ t: 'notes-get' }); }, [send]),
-    onNotesSave: useCallback((text: string) => send({ t: 'notes-save', text }), [send]),
+    // The server never echoes a `notes` frame after a save, so the cache is
+    // updated here. Without it, coming back to /notas seeded the editor with the
+    // text from before the last edits, and the next keystroke saved over them.
+    onNotesSave: useCallback((text: string) => {
+      const ok = send({ t: 'notes-save', text });
+      if (ok) setNotes(text);
+      return ok;
+    }, [send]),
     onMsg,
   };
 }

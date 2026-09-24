@@ -41,4 +41,18 @@ describe('useNotasEditor', () => {
     expect(result.current.status).toBe('saved');
     expect(save).toHaveBeenLastCalledWith('rascunho');
   });
+
+  it('does not push a fragment typed before the first load over the whole note', () => {
+    const save = vi.fn(() => false);
+    const { result, rerender } = renderHook(
+      ({ conn, loaded }: { conn: boolean; loaded: boolean }) => useNotasEditor('', loaded, noop, save, conn),
+      { initialProps: { conn: false, loaded: false } },
+    );
+    act(() => { result.current.onChange('fragmento'); });
+    act(() => { vi.advanceTimersByTime(700); });
+    save.mockClear();
+    save.mockReturnValue(true);
+    rerender({ conn: true, loaded: false });
+    expect(save).not.toHaveBeenCalled();
+  });
 });
