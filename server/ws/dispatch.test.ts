@@ -9,6 +9,8 @@ const runs = vi.hoisted(() => ({
   drainParked: vi.fn(),
   runParkedNow: vi.fn(() => ({ ok: true as const })),
   runParkedInBackground: vi.fn(() => ({ forkId: 'f1' })),
+  acceptResumeOffer: vi.fn(() => true),
+  refreshBusyElsewhere: vi.fn(async () => {}),
   // Default: never the Orchestrator's own pane — most tests aren't
   // exercising that exemption (server/ws/runs.ts's real predicate, reused
   // rather than duplicated by the 'send' guard).
