@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -48,6 +48,19 @@ describe('readOrchestratorSync', () => {
 
 describe('isTmuxAliveSync', () => {
   const name = `cockpit-orchestrator-test-${process.pid}`;
+  // A private tmux server (own socket dir), never the live one that hosts every
+  // Deck terminal: the `cockpit-` name would otherwise show up in term stats and
+  // leak there if the test died between create and kill.
+  const saved = { tmpdir: process.env.TMUX_TMPDIR, tmux: process.env.TMUX };
+  beforeAll(() => {
+    process.env.TMUX_TMPDIR = mkdtempSync(join(tmpdir(), 'tmux-test-'));
+    delete process.env.TMUX;
+  });
+  afterAll(() => {
+    try { execFileSync('tmux', ['kill-server']); } catch { /* no server */ }
+    if (saved.tmpdir === undefined) delete process.env.TMUX_TMPDIR; else process.env.TMUX_TMPDIR = saved.tmpdir;
+    if (saved.tmux !== undefined) process.env.TMUX = saved.tmux;
+  });
   afterEach(() => { try { execFileSync('tmux', ['kill-session', '-t', name]); } catch { /* already gone */ } });
 
   it('is false for a session that was never created', () => {
