@@ -1,8 +1,10 @@
+import { randomBytes } from 'node:crypto';
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import type { Cron } from '../shared/protocol';
 import { nextRunAt, isDue } from '../shared/cron-schedule';
+import { withFileLockAsync } from './ws/file-lock';
 
 export { nextRunAt, isDue };
 
@@ -22,8 +24,11 @@ async function writeCrons(list: Cron[]): Promise<void> {
   const file = cronsFile();
   await mkdir(dirname(file), { recursive: true });
   // Atômico: escreve no .tmp e renomeia — um crash no meio do write não corrompe
-  // o crons.json. Serializado pelo mutex abaixo (escritor único), então .tmp fixo basta.
-  const tmp = `${file}.tmp`;
+  // o crons.json. Tmp name per process + random: two processes write this file
+  // (the index's scheduler, the agent's cron-save from the browser), and a shared
+  // `.tmp` let one rename the other's half-written file into place — a torn
+  // crons.json reads as [] and the next save wipes every cron.
+  const tmp = `${file}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
   await writeFile(tmp, JSON.stringify(list, null, 2) + '\n', 'utf8');
   await rename(tmp, file);
 }
@@ -33,7 +38,11 @@ async function writeCrons(list: Cron[]): Promise<void> {
 // atropelavam (lost update). Encadeia todas as mutações numa fila única.
 let writeChain: Promise<unknown> = Promise.resolve();
 function serialize<T>(fn: () => Promise<T>): Promise<T> {
-  const next = writeChain.then(fn, fn);
+  // The chain orders this process; the file lock orders it against the other one.
+  // Without it markRan (index) and a cron-save (agent) could each read the old
+  // list: a lost lastRun re-fires the same cron on the next tick.
+  const locked = () => withFileLockAsync(cronsFile(), fn);
+  const next = writeChain.then(locked, locked);
   writeChain = next.catch(() => {});
   return next;
 }
