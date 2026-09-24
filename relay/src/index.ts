@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage } from 'node:http';
-import { timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Registry } from './routing';
 import {
@@ -186,6 +186,11 @@ export function createRelay(cfg: RelayConfig) {
 
     const id = await identityFrom(tokenFromUrl(req.url));
     clearTimeout(authTimer);
+    // The socket may have closed during the await (F5, pre-auth flood, auth
+    // timeout). Its 'close' already fired with no listener, so registering it now
+    // would leave a dead tab in the registry forever and the agent would never get
+    // `no-browsers`.
+    if (ws.readyState !== WebSocket.OPEN) return;
     if (!id) { ws.close(4401, 'auth'); return; }            // default-deny (red line #10)
     const accountId = id.accountId;
     (ws as BrowserSock)._role = id.role;                     // pra reemitir caps no agent-caps
@@ -394,9 +399,13 @@ function nowMs(): number { return Date.now(); }
 // Comparação de segredo em tempo constante. `===` em string vaza o tamanho do
 // prefixo correto pelo tempo de resposta, e o /status é público — dá pra sondar à
 // vontade. Segredo não configurado nega sempre.
+// Compares sha256 digests (always 32 bytes) so a length mismatch takes the same
+// path as a byte mismatch and does not leak the secret's length.
 export function secretEquals(expected: string | undefined, got: string): boolean {
   if (!expected) return false;
-  const a = Buffer.from(expected), b = Buffer.from(got);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
+  return timingSafeEqual(sha256(expected), sha256(got));
+}
+
+function sha256(s: string): Buffer {
+  return createHash('sha256').update(s, 'utf8').digest();
 }
