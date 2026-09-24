@@ -26,12 +26,15 @@ export function invoiceDraftsFromSelection(
   projects: DflProjectNode[],
   selected: Set<string>,
   referenceMonth: string = monthKey(),
+  // Deliveries marked "off" (work done that cannot be invoiced yet) never
+  // become a draft, even when selected.
+  excluded: ReadonlySet<string> = new Set(),
 ): InvoiceDraft[] {
   const drafts: InvoiceDraft[] = [];
   for (const project of projects) {
     for (const epic of project.epics) {
       for (const delivery of epic.deliveries) {
-        if (!selected.has(delivery.id)) continue;
+        if (!selected.has(delivery.id) || excluded.has(delivery.id)) continue;
         const open = delivery.tasks.filter((t) => t.status === 'open' && t.points > 0);
         if (open.length === 0) continue;
         const ppp = delivery.pricePerPoint > 0 ? delivery.pricePerPoint : 75;
@@ -51,4 +54,23 @@ export function invoiceDraftsFromSelection(
     }
   }
   return drafts;
+}
+
+// What the selection bar shows next to "gerar invoice": the same drafts the
+// invoice is built from (open tasks only, each delivery's own price).
+export function selectionSummary(projects: DflProjectNode[], selected: Set<string>, excluded: ReadonlySet<string> = new Set()): { count: number; billable: number; off: number; points: number; amountCents: number } {
+  let count = 0, off = 0;
+  for (const p of projects) for (const e of p.epics) for (const d of e.deliveries) {
+    if (!selected.has(d.id)) continue;
+    count++;
+    if (excluded.has(d.id)) off++;
+  }
+  const drafts = invoiceDraftsFromSelection(projects, selected, monthKey(), excluded);
+  return {
+    count,
+    billable: drafts.length,
+    off,
+    points: drafts.reduce((n, d) => n + d.points, 0),
+    amountCents: drafts.reduce((n, d) => n + d.amountCents, 0),
+  };
 }
