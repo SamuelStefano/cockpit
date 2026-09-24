@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { CanvasFlow, CanvasNode, OrchestratorInfo } from '../../../shared/canvas';
-import { buildChainTree, layoutChainTree, sortSessions } from './chain-layout';
+import {
+  buildChainTree, CHAIN_AREA_GAP, CHAIN_AREA_H, CHAIN_AREA_W, CHAIN_ROOT_H, CHAIN_ROOT_W, CHAIN_SESSION_GAP, CHAIN_SESSION_H,
+  countRunning, estimateAreaHeight, hasLiveSession, layoutChainTree, sortSessions,
+} from './chain-layout';
 
 const S1 = '11111111-1111-1111-1111-111111111111';
 const S2 = '22222222-2222-2222-2222-222222222222';
 const S3 = '33333333-3333-3333-3333-333333333333';
-const ORCH = '99999999-9999-9999-9999-999999999999';
 
 function session(ref: string, extra: Partial<CanvasNode> = {}): CanvasNode {
   return { id: `s:${ref}`, kind: 'session', ref, title: ref.slice(0, 4), subtitle: '', mtime: 1, area: 'deck', ...extra };
@@ -102,21 +104,84 @@ describe('buildChainTree', () => {
   });
 });
 
+describe('countRunning / hasLiveSession', () => {
+  it('counts only RUNNING descendants, at any depth', () => {
+    const parent = session(S1, { area: 'dfl' });
+    const child = session(S2, { area: 'dfl', parentSessionId: S1 });
+    const tree = buildChainTree([parent, child], [], new Set([S2]));
+    const area = tree.children[0];
+    expect(countRunning(area, new Set([S2]))).toBe(1);
+    expect(countRunning(area, new Set())).toBe(0);
+  });
+
+  it('hasLiveSession is true for running OR waiting, false when neither', () => {
+    const idle = session(S1, { area: 'dfl' });
+    const tree = buildChainTree([idle], [], new Set());
+    expect(hasLiveSession(tree.children[0], new Set())).toBe(false);
+    expect(hasLiveSession(tree.children[0], new Set([S1]))).toBe(true);
+
+    const waiting = session(S2, { area: 'itera', waiting: true });
+    const tree2 = buildChainTree([waiting], [], new Set());
+    expect(hasLiveSession(tree2.children[0], new Set())).toBe(true);
+  });
+});
+
+describe('estimateAreaHeight', () => {
+  it('sums one row per session in the subtree, regardless of nesting, plus the header', () => {
+    const parent = session(S1, { area: 'dfl' });
+    const child = session(S2, { area: 'dfl', parentSessionId: S1 });
+    const tree = buildChainTree([parent, child], [], new Set());
+    const area = tree.children[0];
+    const expected = CHAIN_AREA_H + CHAIN_SESSION_GAP + 2 * (CHAIN_SESSION_H + CHAIN_SESSION_GAP);
+    expect(estimateAreaHeight(area)).toBe(expected);
+  });
+});
+
 describe('layoutChainTree', () => {
-  it('centers a parent over its children and stacks depth into rows', () => {
+  it('lays areas out as fixed-width COLUMNS side by side, sessions stacked vertically inside', () => {
     const a = session(S1, { area: 'dfl' });
-    const b = session(S2, { area: 'dfl' });
+    const b = session(S2, { area: 'itera' });
+    const tree = buildChainTree([a, b], [], new Set());
+    const { positions } = layoutChainTree(tree, { collapsedAreas: new Set(), collapsedSessions: new Set() });
+    const areaDfl = positions.find((p) => p.id === 'area:dfl')!;
+    const areaItera = positions.find((p) => p.id === 'area:itera')!;
+    const sessDfl = positions.find((p) => p.id === `s:${S1}`)!;
+    const sessItera = positions.find((p) => p.id === `s:${S2}`)!;
+
+    expect(areaDfl.width).toBe(CHAIN_AREA_W);
+    expect(areaDfl.height).toBe(CHAIN_AREA_H);
+    expect(areaItera.x).toBe(areaDfl.x + CHAIN_AREA_W + CHAIN_AREA_GAP); // side by side, fixed pitch
+    expect(areaDfl.y).toBe(areaItera.y); // same row
+
+    // session sits directly under its OWN area's column, not off to the side
+    expect(sessDfl.x).toBe(areaDfl.x);
+    expect(sessItera.x).toBe(areaItera.x);
+    expect(sessDfl.y).toBeGreaterThan(areaDfl.y); // stacked below the header, same column
+  });
+
+  it('stacks a fork/flow child directly beneath its parent in the SAME column, indented', () => {
+    const parent = session(S1, { area: 'dfl' });
+    const child = session(S2, { area: 'dfl', parentSessionId: S1 });
+    const tree = buildChainTree([parent, child], [], new Set());
+    const { positions } = layoutChainTree(tree, { collapsedAreas: new Set(), collapsedSessions: new Set() });
+    const parentPos = positions.find((p) => p.id === `s:${S1}`)!;
+    const childPos = positions.find((p) => p.id === `s:${S2}`)!;
+    expect(childPos.y).toBe(parentPos.y + CHAIN_SESSION_H + CHAIN_SESSION_GAP); // directly below, not a sibling row
+    expect(childPos.x).toBeGreaterThan(parentPos.x); // indented
+    expect(childPos.width).toBeLessThan(parentPos.width); // narrower to fit the column
+  });
+
+  it('centers the orchestrator root over the full column span', () => {
+    const a = session(S1, { area: 'dfl' });
+    const b = session(S2, { area: 'itera' });
     const tree = buildChainTree([a, b], [], new Set());
     const { positions } = layoutChainTree(tree, { collapsedAreas: new Set(), collapsedSessions: new Set() });
     const root = positions.find((p) => p.id === 'orchestrator')!;
-    const area = positions.find((p) => p.id === 'area:dfl')!;
-    const leaves = positions.filter((p) => p.item.kind === 'session');
-    expect(leaves).toHaveLength(2);
-    expect(area.x).toBeCloseTo((leaves[0].x + leaves[1].x) / 2);
-    expect(root.x).toBeCloseTo(area.x);
-    expect(root.depth).toBe(0);
-    expect(area.depth).toBe(1);
-    expect(leaves[0].depth).toBe(2);
+    const areaDfl = positions.find((p) => p.id === 'area:dfl')!;
+    const areaItera = positions.find((p) => p.id === 'area:itera')!;
+    const spanCenter = (areaDfl.x + areaItera.x + CHAIN_AREA_W) / 2;
+    expect(root.x + root.width / 2).toBeCloseTo(spanCenter);
+    expect(root.y).toBe(0);
   });
 
   it('treats a collapsed branch as a leaf and reports its descendant count', () => {
@@ -136,5 +201,19 @@ describe('layoutChainTree', () => {
     const { positions } = layoutChainTree(tree, { collapsedAreas: new Set(['dfl']), collapsedSessions: new Set() });
     expect(positions.map((p) => p.id).sort()).toEqual(['area:dfl', 'orchestrator']);
     expect(positions.find((p) => p.id === 'area:dfl')?.descendantCount).toBe(1);
+    expect(positions.find((p) => p.id === 'area:dfl')?.height).toBe(CHAIN_AREA_H); // collapsed: header only, not the whole column
+  });
+
+  it('keeps the overall width to the fixed column pitch, not proportional to session count', () => {
+    const many = Array.from({ length: 12 }, (_, i) => session(`sess-${i}`, { area: 'dfl' }));
+    const tree = buildChainTree(many, [], new Set());
+    const { width } = layoutChainTree(tree, { collapsedAreas: new Set(), collapsedSessions: new Set() });
+    expect(width).toBe(Math.max(CHAIN_AREA_W, CHAIN_ROOT_W)); // one area column regardless of how many sessions stack inside it
+  });
+
+  it('root height never depends on how tall the tallest column is', () => {
+    const tree = buildChainTree([session(S1, { area: 'dfl' })], [], new Set());
+    const { positions } = layoutChainTree(tree, { collapsedAreas: new Set(), collapsedSessions: new Set() });
+    expect(positions.find((p) => p.id === 'orchestrator')?.height).toBe(CHAIN_ROOT_H);
   });
 });

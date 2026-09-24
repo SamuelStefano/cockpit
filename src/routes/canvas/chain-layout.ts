@@ -119,17 +119,35 @@ export function buildChainTree(
   return { id: 'orchestrator', kind: 'orchestrator', node: orchestratorNode, children: areaItems };
 }
 
-export const CHAIN_COL_W = 264;
-export const CHAIN_ROW_H = 148;
-export const CHAIN_NODE_W = 224;
-export const CHAIN_NODE_H = 84;
+// Level 2 (areas) are horizontal COLUMNS sized to fit the viewport (6 areas
+// across ~1440px); level 3+ (a session and its own fork/flow children) stack
+// VERTICALLY inside its area's column, indented one step per nesting level.
+// Review #609 point 1: the previous "one row per tree depth" layout spread
+// areas across thousands of horizontal pixels and left session rows mostly
+// empty — a column is both narrower and reads top-to-bottom the way a fork
+// chain actually happened.
+export const CHAIN_AREA_W = 220;
+export const CHAIN_AREA_GAP = 16;
+export const CHAIN_AREA_H = 40;
+export const CHAIN_SESSION_H = 56;
+export const CHAIN_SESSION_GAP = 8;
+export const CHAIN_INDENT = 18;
+export const CHAIN_ROOT_W = 280;
+export const CHAIN_ROOT_H = 56;
+// Vertical room between the root's bottom and the area row's top — enough
+// for the bus-line elbow (all root->area connectors share the same midY,
+// which is what makes them read as one horizontal bus rather than N crossing
+// diagonals) without crowding the area headers.
+export const CHAIN_BUS_GAP = 32;
 
 export interface ChainPos {
   id: string;
   item: ChainItem;
   depth: number;
-  x: number; // center x, in columns of CHAIN_COL_W
-  y: number;
+  x: number; // left, px
+  y: number; // top, px
+  width: number;
+  height: number;
   parentId: string | null;
   descendantCount: number;
   collapsed: boolean;
@@ -146,37 +164,100 @@ function countDescendants(item: ChainItem): number {
   return n;
 }
 
+// How many of an item's descendants are RUNNING right now — feeds the area
+// header's running-count dot (point 2: distinct from the plain total badge).
+export function countRunning(item: ChainItem, running: Set<string>): number {
+  let n = 0;
+  for (const c of item.children) {
+    if (c.node && running.has(c.node.ref)) n++;
+    n += countRunning(c, running);
+  }
+  return n;
+}
+
+// Running OR waiting-on-you anywhere in the subtree — the signal point 4's
+// default-collapse rule reads as "nothing happening here right now".
+export function hasLiveSession(item: ChainItem, running: Set<string>): boolean {
+  for (const c of item.children) {
+    if (c.node && (running.has(c.node.ref) || c.node.waiting)) return true;
+    if (hasLiveSession(c, running)) return true;
+  }
+  return false;
+}
+
+// The height an area's column would need if every branch in it were
+// expanded — used to decide the default collapse state (point 4) BEFORE any
+// real layout runs, so it never depends on the current collapse set.
+export function estimateAreaHeight(area: ChainItem): number {
+  const rowHeight = (item: ChainItem): number => {
+    let h = CHAIN_SESSION_H + CHAIN_SESSION_GAP;
+    for (const c of item.children) h += rowHeight(c);
+    return h;
+  };
+  return CHAIN_AREA_H + CHAIN_SESSION_GAP + area.children.reduce((sum, c) => sum + rowHeight(c), 0);
+}
+
 function isCollapsed(item: ChainItem, opts: ChainLayoutOpts): boolean {
   if (item.kind === 'area') return !!item.areaId && opts.collapsedAreas.has(item.areaId);
   if (item.kind === 'session') return opts.collapsedSessions.has(item.id);
   return false;
 }
 
-// Classic "children centered over their subtree" tree layout: a leaf (or a
-// collapsed branch, treated as a leaf) takes the next free column; an
-// internal node centers over its own children's x range. Depth-first so
-// sibling order in the tree IS left-to-right order on screen.
+// A session (or nested fork/flow child) and everything under it, stacked
+// vertically within its area's column — indented one CHAIN_INDENT step per
+// nesting level so a chain reads as a small indented tree inside the column,
+// not a second row of horizontal siblings. Returns the y just past what it
+// drew, so the caller can stack the next sibling directly beneath it.
+function layoutColumn(
+  item: ChainItem, parentId: string, colX: number, y: number, level: number, opts: ChainLayoutOpts, out: ChainPos[],
+): number {
+  const collapsed = isCollapsed(item, opts);
+  const descendantCount = countDescendants(item);
+  const indent = level * CHAIN_INDENT;
+  const width = Math.max(CHAIN_AREA_W - indent, CHAIN_AREA_W / 2);
+  out.push({ id: item.id, item, depth: level + 2, x: colX + indent, y, width, height: CHAIN_SESSION_H, parentId, descendantCount, collapsed });
+  let cursorY = y + CHAIN_SESSION_H + CHAIN_SESSION_GAP;
+  if (!collapsed) for (const c of item.children) cursorY = layoutColumn(c, item.id, colX, cursorY, level + 1, opts, out);
+  return cursorY;
+}
+
 export function layoutChainTree(root: ChainItem, opts: ChainLayoutOpts): { positions: ChainPos[]; width: number; height: number } {
   const positions: ChainPos[] = [];
-  let col = 0;
+  const areas = root.children;
+  const areaTop = CHAIN_ROOT_H + CHAIN_BUS_GAP;
 
-  function visit(item: ChainItem, depth: number, parentId: string | null): number {
-    const collapsed = isCollapsed(item, opts);
-    const descendantCount = countDescendants(item);
-    if (collapsed || item.children.length === 0) {
-      const x = col * CHAIN_COL_W;
-      col++;
-      positions.push({ id: item.id, item, depth, x, y: depth * CHAIN_ROW_H, parentId, descendantCount, collapsed });
-      return x;
+  let colX = 0;
+  let maxBottom = CHAIN_ROOT_H;
+  const areaXs: number[] = [];
+  for (const area of areas) {
+    areaXs.push(colX);
+    const collapsed = isCollapsed(area, opts);
+    const descendantCount = countDescendants(area);
+    positions.push({
+      id: area.id, item: area, depth: 1, x: colX, y: areaTop, width: CHAIN_AREA_W, height: CHAIN_AREA_H,
+      parentId: root.id, descendantCount, collapsed,
+    });
+    let bottom = areaTop + CHAIN_AREA_H;
+    if (!collapsed) {
+      let cursorY = areaTop + CHAIN_AREA_H + CHAIN_SESSION_GAP;
+      for (const s of area.children) cursorY = layoutColumn(s, area.id, colX, cursorY, 0, opts, positions);
+      bottom = Math.max(bottom, cursorY - CHAIN_SESSION_GAP);
     }
-    const childXs = item.children.map((c) => visit(c, depth + 1, item.id));
-    const x = (childXs[0] + childXs[childXs.length - 1]) / 2;
-    positions.push({ id: item.id, item, depth, x, y: depth * CHAIN_ROW_H, parentId, descendantCount, collapsed: false });
-    return x;
+    maxBottom = Math.max(maxBottom, bottom);
+    colX += CHAIN_AREA_W + CHAIN_AREA_GAP;
   }
 
-  visit(root, 0, null);
-  const maxX = Math.max(0, ...positions.map((p) => p.x));
-  const maxY = Math.max(0, ...positions.map((p) => p.y));
-  return { positions, width: maxX + CHAIN_NODE_W, height: maxY + CHAIN_NODE_H };
+  // Root centers over the full column span (point 1: "orchestrator centered
+  // above"), even with zero areas (degenerates to centering over one
+  // notional empty column rather than crashing on an empty min/max).
+  const firstX = areaXs[0] ?? 0;
+  const lastX = areaXs[areaXs.length - 1] ?? 0;
+  const spanCenter = (firstX + lastX + CHAIN_AREA_W) / 2;
+  positions.push({
+    id: root.id, item: root, depth: 0, x: Math.max(0, spanCenter - CHAIN_ROOT_W / 2), y: 0,
+    width: CHAIN_ROOT_W, height: CHAIN_ROOT_H, parentId: null, descendantCount: countDescendants(root), collapsed: false,
+  });
+
+  const totalAreasWidth = areas.length ? colX - CHAIN_AREA_GAP : CHAIN_ROOT_W;
+  return { positions, width: Math.max(totalAreasWidth, CHAIN_ROOT_W), height: maxBottom + 24 };
 }
