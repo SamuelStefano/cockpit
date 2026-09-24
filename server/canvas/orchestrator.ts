@@ -66,17 +66,34 @@ export function isTmuxAliveSync(name: string): boolean {
   }
 }
 
-const SHELLS = new Set(['bash', 'sh', 'zsh', 'fish', 'dash']);
+const CLAUDE_ARG = /(^|\/)claude$|claude-code\/cli\.js$/;
+
+function isClaudeProc(pid: number): boolean {
+  try {
+    if (readFileSync(`/proc/${pid}/comm`, 'utf8').trim() === 'claude') return true;
+    return readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0').some((a) => CLAUDE_ARG.test(a));
+  } catch { return false; }
+}
 
 // The Orchestrator's claude can die (crash, OOM kill, /exit) while its tmux
-// session lives on with a bare shell in the pane. Pasting a prompt there runs
-// every line as a shell command. Unknown (tmux error) counts as "not a shell" so
-// delivery keeps its current behaviour.
-export function paneRunsShellSync(name: string): boolean {
+// session lives on with a bare shell in the pane; pasting a prompt there runs
+// every line as a shell command. pane_current_command can't tell: a pane started
+// as `bash -c "claude …; exec bash"` reports bash while claude runs. So walk the
+// pane process tree for a claude. Anything unreadable (tmux error, /proc gone)
+// answers false, keeping delivery as it was.
+export function paneLostClaudeSync(name: string): boolean {
+  let root: number;
   try {
-    const cmd = execFileSync('tmux', ['display-message', '-p', '-t', `=${name}:`, '#{pane_current_command}'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 2000 });
-    return SHELLS.has(cmd.trim().replace(/^-/, ''));
-  } catch {
-    return false;
+    root = Number(execFileSync('tmux', ['display-message', '-p', '-t', `=${name}:`, '#{pane_pid}'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 2000 }).trim());
+  } catch { return false; }
+  if (!Number.isInteger(root) || root <= 0) return false;
+  const queue = [root];
+  for (let seen = 0; queue.length && seen < 64; seen++) {
+    const pid = queue.shift()!;
+    if (isClaudeProc(pid)) return false;
+    try {
+      for (const kid of readFileSync(`/proc/${pid}/task/${pid}/children`, 'utf8').trim().split(/\s+/)) if (kid) queue.push(Number(kid));
+    } catch { /* process gone */ }
   }
+  return true;
 }

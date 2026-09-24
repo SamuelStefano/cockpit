@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { WebSocket } from 'ws';
 import { startRun, catchSpawn, routeSend, isSilentDeath, isCleanTurnClose, resumeOrphanRuns, drainParked, runParkedInBackground, runParkedNow, startParkedDrainer, acceptResumeOffer, hasResumeOffer, AUTO_RESUME_CAP, deliverToOrchestratorPane, orchestratorPaneTarget } from './runs';
-import { readOrchestratorSync, isTmuxAliveSync, paneRunsShellSync } from '../canvas/orchestrator';
+import { readOrchestratorSync, isTmuxAliveSync, paneLostClaudeSync } from '../canvas/orchestrator';
 import { hasTerm, openTerm, inputTerm } from '../terminals';
 import { threads, killAllRuns } from './threads';
 import { reapStaleRuns, REAPER_SILENCE_CAP_MS, REAPER_TOOL_SILENCE_CAP_MS, REAPER_TOTAL_CAP_MS } from './reaper';
@@ -66,7 +66,7 @@ vi.mock('./recover', () => ({ markRunLive: vi.fn(), clearRunLive: vi.fn(), takeO
 vi.mock('../canvas/orchestrator', () => ({
   readOrchestratorSync: vi.fn(() => undefined),
   isTmuxAliveSync: vi.fn(() => false),
-  paneRunsShellSync: vi.fn(() => false),
+  paneLostClaudeSync: vi.fn(() => false),
 }));
 vi.mock('../terminals', () => ({
   hasTerm: vi.fn(() => false),
@@ -1541,17 +1541,17 @@ describe('startRun / routeSend — twin-process guard on the Orchestrator pane',
   it('falls through to a normal run when claude is gone and the pane is a bare shell', () => {
     vi.mocked(readOrchestratorSync).mockReturnValue(orch);
     vi.mocked(isTmuxAliveSync).mockReturnValue(true);
-    vi.mocked(paneRunsShellSync).mockReturnValueOnce(true);
+    vi.mocked(paneLostClaudeSync).mockReturnValueOnce(true);
     expect(deliverToOrchestratorPane('orch-sid', 'rm -rf build\nls', 'admin')).toBe(false);
     expect(inputTerm).not.toHaveBeenCalled();
   });
 
-  it('reports not-delivered when the pane client cannot be opened (terminal cap)', () => {
+  it('never falls through to a headless twin when the pane client cannot be opened (terminal cap)', () => {
     vi.mocked(readOrchestratorSync).mockReturnValue(orch);
     vi.mocked(isTmuxAliveSync).mockReturnValue(true);
     vi.mocked(openTerm).mockReturnValue(false);
-    expect(deliverToOrchestratorPane('orch-sid', 'oi', 'admin')).toBe(false);
-    expect(inputTerm).not.toHaveBeenCalled();
+    startRun({ ws, role: 'admin', sessionKey: 'orch-sid', prompt: 'oi', resumeId: 'orch-sid' });
+    expect(run).not.toHaveBeenCalled();
   });
 
   it('falls through to a normal run when the tmux session is dead', () => {

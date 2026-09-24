@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readOrchestrator, readOrchestratorSync, isTmuxAliveSync, paneRunsShellSync } from './orchestrator';
+import { readOrchestrator, readOrchestratorSync, isTmuxAliveSync, paneLostClaudeSync } from './orchestrator';
 
 const dir = mkdtempSync(join(tmpdir(), 'cockpit-orchestrator-'));
 const file = join(dir, 'orchestrator.json');
@@ -63,15 +63,20 @@ describe('isTmuxAliveSync', () => {
   });
   afterEach(() => { try { execFileSync('tmux', ['kill-session', '-t', name]); } catch { /* already gone */ } });
 
-  it('tells a bare shell pane from one running another program', () => {
+  it('finds claude anywhere in the pane process tree, even under a bash -c wrapper', () => {
+    const bin = mkdtempSync(join(tmpdir(), 'fake-claude-'));
+    writeFileSync(join(bin, 'claude'), '#!/bin/bash\nsleep 30\n', { mode: 0o755 });
     execFileSync('tmux', ['new-session', '-d', '-s', `${name}-sh`, 'bash']);
-    execFileSync('tmux', ['new-session', '-d', '-s', `${name}-sleep`, 'sleep 30']);
+    execFileSync('tmux', ['new-session', '-d', '-s', `${name}-wrapped`, `bash -c "${bin}/claude; exec bash"`]);
+    execFileSync('tmux', ['new-session', '-d', '-s', `${name}-other`, 'sleep 30']);
     try {
-      expect(paneRunsShellSync(`${name}-sh`)).toBe(true);
-      expect(paneRunsShellSync(`${name}-sleep`)).toBe(false);
-      expect(paneRunsShellSync(`${name}-missing`)).toBe(false);
+      expect(paneLostClaudeSync(`${name}-sh`)).toBe(true);
+      expect(paneLostClaudeSync(`${name}-other`)).toBe(true);
+      expect(paneLostClaudeSync(`${name}-wrapped`)).toBe(false);
+      expect(paneLostClaudeSync(`${name}-missing`)).toBe(false);
     } finally {
-      for (const n of ['sh', 'sleep']) execFileSync('tmux', ['kill-session', '-t', `=${name}-${n}`]);
+      for (const n of ['sh', 'wrapped', 'other']) execFileSync('tmux', ['kill-session', '-t', `=${name}-${n}`]);
+      rmSync(bin, { recursive: true, force: true });
     }
   });
 
