@@ -106,3 +106,22 @@ describe('runParkedNow — furar a fila', () => {
 });
 
 process.on('exit', () => rmSync(dir, { recursive: true, force: true }));
+
+describe('runParkedNow — turno vivo com outra chave', () => {
+  beforeEach(() => {
+    threads.clear();
+    clearParked('s1', 'admin');
+    vi.mocked(run).mockClear();
+  });
+
+  // Primeiro turno de um chat novo roda como new-…; a fila usa o id da sessão.
+  it('substitui o thread vivo (new-…) em vez de subir um segundo na chave da fila', () => {
+    const [, b] = fill();
+    startRun({ ws: null, sessionKey: 'new-abc', prompt: 'primeiro turno' });
+    threads.get('new-abc')!.sessionId = 's1';
+    expect(runParkedNow('s1', b)).toEqual({ ok: true });
+    expect(threads.has('s1')).toBe(false);
+    expect(threads.get('new-abc')?.parked?.prompt).toBe('B');
+    expect(threads.get('new-abc')?.parkedFrom).toBe('s1');
+  });
+});
