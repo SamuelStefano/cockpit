@@ -96,7 +96,7 @@ beforeEach(() => {
   for (const m of [
     startRunMock, isDrainerEnabledMock, resolveThreadKeyMock, addParkedMock, removeParkedMock, enqueuePendingMock, resumableIdMock,
     broadcastMock, emitCanvasMsgMock, listContextsMock, listSessionsMock, listArchivedMock, cardIdFromRefsCacheMock,
-    blockedAreaForMock, runParkedInBackgroundMock, hasInteractiveClaudeMock,
+    blockedAreaForMock, runParkedInBackgroundMock, hasInteractiveClaudeMock, busyElsewhereMock, orchestratorPaneTargetMock,
   ]) m.mockClear();
   isDrainerEnabledMock.mockReturnValue(false);
   resumableIdMock.mockImplementation((id?: string) => id);
@@ -105,6 +105,8 @@ beforeEach(() => {
   blockedAreaForMock.mockReturnValue(undefined);
   runParkedInBackgroundMock.mockReturnValue({ forkId: 'fork-1' });
   hasInteractiveClaudeMock.mockResolvedValue(false);
+  busyElsewhereMock.mockResolvedValue([]);
+  orchestratorPaneTargetMock.mockReturnValue(undefined);
 });
 
 // --- pure functions -----------------------------------------------------------
@@ -396,6 +398,21 @@ describe('deliverToCard reuse modes (#597 continue/fork)', () => {
   const reuseCard = (mode: 'continue' | 'fork') => sanitizeCard(
     { id: 'card1', title: 'Título', prompt: 'continue isso', reuse: { mode, sessionId: SID } }, undefined, 1,
   )!;
+
+  it('continue into the Orchestrator pane counts as delivered (no fork, no retry) and leaves the card status', async () => {
+    resolveThreadKeyMock.mockReturnValue(undefined);
+    hasInteractiveClaudeMock.mockResolvedValue(true); // its claude is interactive
+    busyElsewhereMock.mockResolvedValue([SID]);       // and reads busy while it works
+    orchestratorPaneTargetMock.mockReturnValue({ termId: 'orch' });
+    startRunMock.mockReturnValueOnce('pane' as never);
+    const card = reuseCard('continue');
+    await updateBoard((b) => upsertCard(b, card));
+    const r = await deliverToCard('card1', flow({ id: 'orchf', template: '{{result}}' }), 'R', 1, {});
+    expect(r.delivered).toBe(true);
+    expect(runParkedInBackgroundMock).not.toHaveBeenCalled();
+    // No turn-closed will ever fire for a pane delivery: the card is left as it was.
+    expect((await updateBoard((b) => b)).cards.find((c) => c.id === 'card1')?.status).toBe('todo');
+  });
 
   it('continue, target idle: sends into the existing session (startRun), never spawns a new one or parks a fork', async () => {
     resolveThreadKeyMock.mockReturnValue(undefined);
