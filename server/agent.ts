@@ -342,8 +342,18 @@ export function runAgent(relayUrl: string): void {
     );
   };
   loop();
-  process.on('SIGTERM', gracefulShutdown);
-  process.on('SIGINT', gracefulShutdown);
+  process.on('SIGTERM', () => gracefulShutdown(0));
+  process.on('SIGINT', () => gracefulShutdown(0));
+  installCrashBackstop(process, gracefulShutdown);
+}
+
+// Same backstop index.ts has. Without it an unexpected throw in the agent made
+// Node exit on its default path: no killAllRuns, the detached `claude` children
+// kept running as orphans, and 15s after run-agent.sh restarted us
+// resumeOrphanRuns started a second `--resume` on the same sessions.
+export function installCrashBackstop(proc: NodeJS.EventEmitter, shutdown: (code: number) => void): void {
+  proc.on('uncaughtException', (err) => { console.error('[agent] uncaughtException', err); shutdown(1); });
+  proc.on('unhandledRejection', (reason) => { console.error('[agent] unhandledRejection', reason); shutdown(1); });
 }
 
 // SIGTERM/SIGINT matam o processo inteiro (deploy, doctor, restart manual) — mas
@@ -354,14 +364,18 @@ export function runAgent(relayUrl: string): void {
 // fica com a bolha "pensando" pra sempre e não sabe que a run morreu (turno mudo).
 // Fix: avisa cada sessão com turno ativo ANTES de matar, e só sai depois de dar
 // tempo do frame de WS realmente sair pela rede.
-function gracefulShutdown(): void {
+let shuttingDown = false;
+function gracefulShutdown(code = 0): void {
+  // A second signal or a throw during the 300ms grace must not re-run this.
+  if (shuttingDown) return;
+  shuttingDown = true;
   for (const sessionKey of threads.keys()) {
     broadcast({ t: 'error', sessionKey, message: 'Agente reiniciado — retomando este turno assim que ele voltar.' });
   }
   // preserveLive: mantém os turnos no live-runs.json pra o boot retomá-los. Sem isto
   // o onClose que chega dentro dos 300ms apaga o registro e o turno morre de vez.
   killAllRuns({ preserveLive: true });
-  setTimeout(() => process.exit(0), 300);
+  setTimeout(() => process.exit(code), 300);
 }
 
 // Execução direta: `tsx server/agent.ts [--pair=CÓDIGO | --pair]` (relay via

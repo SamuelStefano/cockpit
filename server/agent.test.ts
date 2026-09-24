@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { generateIdentityKeys, signChallenge, challengeMessage, backoffMs, canvasLoopGate } from './agent';
+import { EventEmitter } from 'node:events';
+import { generateIdentityKeys, signChallenge, challengeMessage, backoffMs, canvasLoopGate, installCrashBackstop } from './agent';
 import { verifyAgentSignature, makeChallenge } from '../relay/src/verify';
 
 const AID = 'agent-123';
@@ -49,5 +50,19 @@ describe('canvasLoopGate', () => {
     expect(canvasLoopGate(() => true, () => true)()).toBe(true);
     expect(canvasLoopGate(() => false, () => true)()).toBe(false); // relay said no-browsers
     expect(canvasLoopGate(() => true, () => false)()).toBe(false);
+  });
+});
+
+describe('installCrashBackstop', () => {
+  it('turns an uncaught throw or rejection into a clean shutdown with exit code 1', () => {
+    const proc = new EventEmitter();
+    const codes: number[] = [];
+    const err = console.error;
+    console.error = () => {};
+    installCrashBackstop(proc, (c) => codes.push(c));
+    proc.emit('uncaughtException', new Error('boom'));
+    proc.emit('unhandledRejection', new Error('late'));
+    console.error = err;
+    expect(codes).toEqual([1, 1]);
   });
 });
