@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { useEscapeLayer } from './useEscapeLayer';
 import { Button } from './Button';
+import { tokens } from './tokens';
 
 interface DrawerProps {
   open: boolean;
@@ -25,7 +26,7 @@ export function Drawer({ open, onClose, title, children, side = 'left', width = 
       >
         <div className="flex h-11 shrink-0 items-center gap-2 border-b border-neutral-800 px-3">
           <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-neutral-200">{title}</span>
-          <Button variant="ghost" size="sm" square icon="x" onClick={onClose} title="Fechar (Esc)" aria-label="Fechar" />
+          <Button variant="ghost" size="sm" square icon="x" onClick={onClose} title="Fechar (Esc)" aria-label="Fechar" className={tokens.touchTarget} />
         </div>
         <div className="scroll-thin min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</div>
       </div>

@@ -37,7 +37,7 @@ export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex items-center gap-2.5">
         {isMobile && route === '/' && (
-          <button onClick={onMenu} title="Sessões" aria-label="Sessões" aria-expanded={menuOpen} className="-ml-1 rounded-md p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100">
+          <button onClick={onMenu} title="Sessões" aria-label="Sessões" aria-expanded={menuOpen} className={`-ml-1 rounded-md p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100 ${tokens.touchBox}`}>
             <Icon name="menu" size={18} />
           </button>
         )}
@@ -78,7 +78,7 @@ export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette
           onClick={onPalette}
           title="Comandos (⌘K)"
           aria-label="Comandos (⌘K)"
-          className={`flex shrink-0 items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/60 py-1.5 text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-300 ${isMobile ? 'px-2' : 'px-2.5'}`}
+          className={`flex shrink-0 items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/60 py-1.5 text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-300 ${isMobile ? 'px-2' : 'px-2.5'} ${tokens.touchTarget}`}
         >
           <Icon name="search" size={14} />
           {!isMobile && <kbd className="font-mono text-[10px] text-neutral-600">⌘K</kbd>}
