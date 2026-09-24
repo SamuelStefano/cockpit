@@ -109,6 +109,12 @@ describe('useChatPanel fila (server-backed)', () => {
     expect(queueClear).toHaveBeenCalledWith('s1');
   });
 
+  it('clearQueue also clears items still stored under the pre-migration key', () => {
+    const { hook, queueClear } = setup([pv('a', 'agora', 100), migrated('b', 'do 1º turno', 50, 's1')]);
+    hook.result.current.clearQueue();
+    expect(queueClear.mock.calls.map((c) => c[0]).sort()).toEqual(['new-abc', 's1']);
+  });
+
   it('sem sessão ativa: queued vazio e clear é no-op', () => {
     const queueClear = vi.fn();
     const hook = renderHook(() => useChatPanel({

@@ -58,7 +58,10 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   useEffect(() => { setFullLoaded(false); pinnedRef.current = true; setAtBottom(true); }, [sid]);
 
   const enqueue = (text: string) => queueAdd(text);
-  const clearQueue = () => { if (sid) queueClear(sid); };
+  // By the wire key of each item, like the per-item actions: items queued during a
+  // chat's first turn stay under `new-…` on the server after the display key
+  // migrated, and clearing by the display key left them to drain later.
+  const clearQueue = () => { for (const k of new Set(parked.map((p) => p.sessionKey))) queueClear(k); };
   const cancelQueueAt = (i: number) => { const it = parked[i]; if (it) queueRemove(it.sessionKey, it.id); };
   // Editar reescreve SÓ o corpo do item: os marcadores de anexo do wire original
   // seguem amarrados a ele (o banner mostra o corpo limpo, não o wire).
