@@ -43,7 +43,7 @@ export function GraphQueryPanel({ querying, result, history, onQuery }: Props) {
         </div>
         <div className="flex overflow-hidden rounded-lg border border-neutral-800">
           {(Object.keys(BUDGETS) as Budget[]).map((b) => (
-            <button key={b} onClick={() => setBudget(b)}
+            <button key={b} type="button" onClick={() => setBudget(b)} aria-pressed={budget === b}
               className={`px-2 py-2 font-mono text-[11px] transition-colors ${budget === b ? 'bg-orange-500/15 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'}`}>
               {b}
             </button>
