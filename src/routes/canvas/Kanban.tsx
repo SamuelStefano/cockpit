@@ -75,6 +75,11 @@ export function Kanban(p: Props) {
     return out;
   }, [p.cards, triage.visible]);
 
+  // Rails only make sense NEXT to a column with content: with every column
+  // empty, four 44px rails hugged the left edge of a blank board and nothing
+  // said "empty". Then they stay full columns, each with "nada por aqui".
+  const boardEmpty = CARD_STATUSES.every((s) => counts[s] === 0) && triage.staleDone.length === 0;
+
   const selectSession = (nodeId: string, sessionId: string) => {
     p.onSelectSession(nodeId);
     setOpenSessionId(sessionId);
@@ -123,6 +128,7 @@ export function Kanban(p: Props) {
         const own = status === 'doing' ? sessions.filter((s) => !s.orchestratorChild) : sessions;
         const staleDone = status === 'review' ? triage.staleDone : [];
         const empty = !cards.length && !sessions.length && !staleDone.length;
+        const rail = empty && !boardEmpty;
         const isMobileActive = status === mobileStatus;
         return (
           <section
@@ -139,10 +145,10 @@ export function Kanban(p: Props) {
               else if (sessionId && (status === 'review' || status === 'done')) p.onSessionStatus(sessionId, status);
             }}
             className={`${isMobileActive ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col rounded-xl border bg-neutral-950/60 md:flex ${
-              empty ? 'md:w-11 md:min-w-11 md:max-w-11 md:flex-none md:items-center' : 'md:min-w-0 md:flex-1'
+              rail ? 'md:w-11 md:min-w-11 md:max-w-11 md:flex-none md:items-center' : 'md:min-w-0 md:flex-1'
             } ${over === status ? 'border-orange-500/60' : 'border-neutral-800'}`}
           >
-            {empty ? (
+            {rail ? (
               <>
                 {/* Below md this IS the active column (nothing else is on
                     screen to save space from) — normal header + "nada por
@@ -175,7 +181,7 @@ export function Kanban(p: Props) {
                 </Button>
               </div>
             )}
-            <div className={`min-h-0 flex-1 space-y-1.5 overflow-y-auto px-2 pb-2 ${empty ? 'md:hidden' : ''}`}>
+            <div className={`min-h-0 flex-1 space-y-1.5 overflow-y-auto px-2 pb-2 ${rail ? 'md:hidden' : ''}`}>
               {cards.map((c) => {
                 const boundIds = p.sessionsOf(c.id);
                 const lastSession = boundIds.length ? p.nodeOf(boundIds[boundIds.length - 1]) : undefined;
