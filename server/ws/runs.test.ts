@@ -667,6 +667,25 @@ describe('fila estacionada — teto de tokens', () => {
     expect(addParked).toHaveBeenCalledWith('s4', expect.objectContaining({ prompt: 'item enfileirado' }));
     expect(run).toHaveBeenCalledOnce();
   });
+
+  it('disco cheio ao estacionar a fila in-turn avisa em vez de derrubar o onClose', () => {
+    setAwaiting('s9');
+    startRun({ ws, sessionKey: 's9', prompt: 'item que não cabe no disco', auto: true });
+    startRun({ ws, sessionKey: 's9', prompt: 'resposta do usuário' });
+    limited();
+    vi.mocked(addParked).mockImplementationOnce(() => { throw new Error('ENOSPC'); });
+    expect(() => closeLastRun()).not.toThrow();
+    expect(broadcast).toHaveBeenCalledWith(expect.objectContaining({ t: 'error', sessionKey: 's9', message: expect.stringContaining('ENOSPC') }));
+  });
+
+  it('disco cheio ao devolver um item no dreno não escapa do tick', () => {
+    const it0 = item({});
+    vi.mocked(parkedHeads).mockReturnValue([{ sessionKey: 's10', first: it0 }]);
+    vi.mocked(shiftParked).mockReturnValue(it0);
+    vi.mocked(run).mockImplementationOnce(() => { throw new Error('spawn falhou'); });
+    vi.mocked(unshiftParked).mockImplementationOnce(() => { throw new Error('ENOSPC'); });
+    expect(() => drainParked()).not.toThrow();
+  });
 });
 
 describe('disparo em background de um item da fila', () => {

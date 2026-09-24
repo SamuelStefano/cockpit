@@ -284,7 +284,15 @@ export function drainParked(): void {
     // Só conta o que virou turno de verdade: um item devolvido não gastou quota, e
     // gastar o teto da passada com ele seguraria a fila sem motivo.
     if (th) { th.parked = item; fired++; }
-    else unshiftParked(sessionKey, item);
+    else {
+      // Same 30s timer as the shift above: a disk error putting the item back
+      // must not escape as an uncaughtException either.
+      try { unshiftParked(sessionKey, item); }
+      catch (e) {
+        broadcast({ t: 'error', sessionKey, message: `Não consegui devolver o item à fila (${(e as Error).message}). Pedido: ${item.prompt.slice(0, 200)}` });
+        recordIncident({ kind: 'run-error', sessionKey, detail: `drain unshift failed: ${(e as Error).message}`.slice(0, 400) });
+      }
+    }
     // O item saiu (ou voltou) do parked.json: sem este broadcast a fila drenada some
     // do disco mas continua na tela de quem não está na sessão — o drainer roda com
     // ws null e o 'started' do turno não mexe na lista de fila do cliente.
@@ -558,7 +566,15 @@ function rejectRun(a: { ws: WebSocket | null; sessionKey: string; prompt: string
 // in-turn virava "O turno falhou" e o texto se perdia no draft.
 function parkRejected(o: StartRunOptions, verdict: Verdict): boolean {
   if (!o.ws || o.forkId || (verdict.kind !== 'quota' && verdict.kind !== 'cold-busy')) return false;
-  const r = addParked(o.sessionKey, { ...runParams(o), prompt: o.prompt, resumeId: o.resumeId });
+  // Reached from drainPending inside a child's onClose: a throwing disk write
+  // (ENOSPC) here aborted onClose and crashed the process. Not parked = the
+  // caller reports the verdict as a normal rejection.
+  let r: ReturnType<typeof addParked>;
+  try { r = addParked(o.sessionKey, { ...runParams(o), prompt: o.prompt, resumeId: o.resumeId }); }
+  catch (e) {
+    recordIncident({ kind: 'run-error', sessionKey: o.sessionKey, detail: `park failed: ${(e as Error).message}`.slice(0, 400) });
+    return false;
+  }
   if ('reject' in r) return false;
   const message = verdict.kind === 'quota'
     ? `Este envio custaria ~${verdict.cost.pctOfWindow}% da janela e não cabe no que sobrou — entrou na fila e roda sozinho quando a janela virar.`
@@ -936,11 +952,20 @@ function parkPending(sessionKey: string, resumeId?: string): void {
   const arr = takeAllPending(sessionKey);
   if (arr.length === 0) return;
   for (const it of arr) {
-    const r = addParked(sessionKey, {
-      ...runParams(it),
-      prompt: it.merge ? `Complemento do pedido anterior:\n\n${it.prompt}` : it.prompt,
-      resumeId,
-    });
+    // Runs inside a child's onClose: a throwing write must not abort it (and the
+    // process). Report the prompt instead of losing it silently.
+    let r: ReturnType<typeof addParked>;
+    try {
+      r = addParked(sessionKey, {
+        ...runParams(it),
+        prompt: it.merge ? `Complemento do pedido anterior:\n\n${it.prompt}` : it.prompt,
+        resumeId,
+      });
+    } catch (e) {
+      broadcast({ t: 'error', sessionKey, message: `Não consegui guardar um prompt em espera (${(e as Error).message}). Reenvie: ${it.prompt.slice(0, 120)}` });
+      recordIncident({ kind: 'run-error', sessionKey, detail: `park pending failed: ${(e as Error).message}`.slice(0, 400) });
+      continue;
+    }
     // Recusa aqui apagaria um prompt que o usuário já mandou: a migração é a última
     // parada dele (a fila in-turn vive só em memória). Avisa em vez de sumir.
     if ('reject' in r) {
