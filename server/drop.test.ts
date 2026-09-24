@@ -48,7 +48,7 @@ describe('drop privado', () => {
   });
 
   it('recusa path traversal, barra, dotfile e nome fora da regex', async () => {
-    for (const slug of ['..', '../fora', '../../etc/passwd', 'a/b', '/etc/passwd', '.ttl.json', '.bashrc', '', 'x'.repeat(65), 'com espaço', 'a\0b']) {
+    for (const slug of ['..', '../fora', '../../etc/passwd', 'a/b', '/etc/passwd', '.ttl.json', '.bashrc', '', 'x'.repeat(65), 'com espaço', 'a\0b', '__proto__']) {
       expect(validSlug(slug)).toBe(false);
       expect(await putDrop(slug, 'x')).toEqual({ error: 'nome inválido' });
       expect(await openDrop(slug)).toEqual({ error: 'nome inválido' });
