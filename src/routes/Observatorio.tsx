@@ -62,14 +62,18 @@ export function Observatorio({ connected, usageStats, onUsageList, sessions, rat
             )
           ) : <>
           {rate && <RateWindow rate={rate} />}
-          <div className="stagger-fade mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            <Stat label="custo estimado · 90d" value={fmtCost(usageStats?.totalCost ?? 0)} icon="zap" />
-            <Stat label="custo hoje" value={fmtCost(costToday)} icon="clock" />
-            <Stat label="média/sessão" value={fmtCost(avgPerSession)} icon="message" />
-            <Stat label="tokens de saída" value={fmt(usageStats?.totalOutput ?? 0)} icon="arrowUp" />
-            <Stat label="amostras" value={fmt(usageStats?.totalSamples ?? 0)} icon="zap" />
-            <Stat label="sessões" value={String(rows.length)} icon="message" />
-          </div>
+          {/* With no telemetry yet, six cards of "$0" / "0" sat above "Sem dados de
+              uso ainda": numbers that look measured but mean nothing. */}
+          {(rows.length > 0 || (usageStats?.series?.length ?? 0) > 0) && (
+            <div className="stagger-fade mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              <Stat label="custo estimado · 90d" value={fmtCost(usageStats?.totalCost ?? 0)} icon="zap" />
+              <Stat label="custo hoje" value={fmtCost(costToday)} icon="clock" />
+              <Stat label="média/sessão" value={fmtCost(avgPerSession)} icon="message" />
+              <Stat label="tokens de saída" value={fmt(usageStats?.totalOutput ?? 0)} icon="arrowUp" />
+              <Stat label="amostras" value={fmt(usageStats?.totalSamples ?? 0)} icon="zap" />
+              <Stat label="sessões" value={String(rows.length)} icon="message" />
+            </div>
+          )}
 
           {(usageStats?.series?.length ?? 0) > 0 && <Trend series={usageStats!.series} />}
 
