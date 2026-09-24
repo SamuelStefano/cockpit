@@ -11,7 +11,7 @@ import { currentMonthKey } from './month-cap';
 // fatura no DFL prod (status 'submitted' → revisão do admin → cobrança). Só tasks
 // EM ABERTO entram. Mostra exatamente o que será criado antes de escrever — a
 // escrita real só acontece no clique de confirmar (ação do usuário).
-export function InvoiceConfirmModal({ projects, onClose }: { projects: DflProjectNode[]; onClose: () => void }) {
+export function InvoiceConfirmModal({ projects, onClose, stale = false }: { projects: DflProjectNode[]; onClose: () => void; stale?: boolean }) {
   const { selected, clearSelected, deselect, write } = usePontosControls();
   const [month, setMonth] = useState(() => currentMonthKey(Date.now()));
   const [busy, setBusy] = useState(false);
@@ -29,7 +29,7 @@ export function InvoiceConfirmModal({ projects, onClose }: { projects: DflProjec
   const resultOf = useMemo(() => new Map(results.map((r) => [r.key, r])), [results]);
 
   const confirm = async () => {
-    if (busy || !pending.length || !monthValid) return;
+    if (busy || !pending.length || !monthValid || stale) return;
     setBusy(true);
     const batch = await runInvoiceBatch(drafts, created, (d) => write.onDflInvoice({
       deliveryId: d.deliveryId, deliveryName: d.deliveryName, projectId: d.projectId, projectName: d.projectName,
@@ -57,13 +57,20 @@ export function InvoiceConfirmModal({ projects, onClose }: { projects: DflProjec
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={busy}>Cancelar</Button>
-          <Button onClick={confirm} loading={busy} disabled={!pending.length || !monthValid}>
+          <Button onClick={confirm} loading={busy} disabled={!pending.length || !monthValid || stale}>
             {results.length ? 'Tentar de novo' : `Criar ${pending.length || ''} fatura${pending.length > 1 ? 's' : ''}`}
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-4">
+        {stale && (
+          // Open/paid status comes from the last DFL sync: invoicing from an old one
+          // can bill tasks that were already invoiced since.
+          <p role="alert" className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
+            Os dados do DFL estão velhos. Sincronize antes de gerar a fatura: o que aparece como em aberto pode já estar faturado.
+          </p>
+        )}
         <label className="flex items-center gap-3">
           <span className="text-[12px] text-neutral-400">Mês de referência</span>
           <Input value={month} onChange={(e) => setMonth(e.target.value)} error={!monthValid} mono size="sm" className="w-28" placeholder="2026-07" />

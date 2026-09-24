@@ -19,11 +19,12 @@ interface Props {
   op: (o: DraftOp) => void;
   ask: AskDispatch;
   ledger: ComponentProps<typeof LedgerTab>;
+  stale?: boolean;
 }
 
 // Right pane: whatever the navigator points at — a draft, a DFL epic, the
 // invoices or the ledger. The invoice selection bar follows across DFL epics.
-export function DetailPane({ selection, waiting, projects, invoices, op, ask, ledger }: Props) {
+export function DetailPane({ selection, waiting, projects, invoices, op, ask, ledger, stale = false }: Props) {
   const { pointValue, selecting } = usePontosControls();
   const { draft, dfl, view } = selection;
   return (
@@ -34,7 +35,7 @@ export function DetailPane({ selection, waiting, projects, invoices, op, ask, le
         ? <div className="space-y-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full rounded-lg" />)}</div>
         : <DflInvoices invoices={invoices} />)}
       {view === 'ledger' && <LedgerTab {...ledger} />}
-      {selecting && <SelectionBar projects={projects} />}
+      {selecting && <SelectionBar projects={projects} stale={stale} />}
     </div>
   );
 }

@@ -47,7 +47,7 @@ export function PontosWorkspace(props: Props) {
         <div className="flex lg:min-h-0 lg:flex-1">
           <aside className="hidden w-[360px] shrink-0 flex-col border-r border-neutral-800/80 lg:flex xl:w-[400px]">{navigator}</aside>
           <main className="scroll-thin min-w-0 flex-1 px-3 py-3 sm:px-5 sm:py-4 lg:overflow-y-auto">
-            <DetailPane selection={ws.selection} waiting={props.waiting} projects={pg.projects} invoices={snapshot?.invoices ?? []}
+            <DetailPane selection={ws.selection} waiting={props.waiting} projects={pg.projects} invoices={snapshot?.invoices ?? []} stale={snapshot?.stale ?? false}
               op={d.op} ask={d.ask} ledger={props.ledger} />
           </main>
         </div>
