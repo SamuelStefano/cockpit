@@ -51,7 +51,10 @@ export function saveCron(c: Cron): Promise<Cron[]> {
   return serialize(async () => {
     const all = await getCrons();
     const i = all.findIndex((x) => x.id === c.id);
-    if (i >= 0) all[i] = c; else all.push(c);
+    // lastRun and createdAt are the server's: the browser's list is only fetched on
+    // mount, so an edit (or pause/resume) after a fire carried the old lastRun back
+    // and isDue turned true again — a second autonomous turn within 30s.
+    if (i >= 0) all[i] = { ...c, lastRun: all[i].lastRun, createdAt: all[i].createdAt }; else all.push(c);
     await writeCrons(all);
     return all;
   });
