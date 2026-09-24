@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { SessionUsage } from '../../../shared/protocol';
-import { Icon } from '../../components/primitives';
+import { Button, Icon } from '../../components/primitives';
 import { UsageRow } from './UsageRow';
 import { sortUsage, type UsageSortKey, type SortDir } from './usage-sort';
 
@@ -12,10 +12,16 @@ interface UsageTableProps {
   onOpenSession: (id: string) => void;
 }
 
+// Every session since the start of the log is a row; hundreds of them rendered
+// at once made /uso slow on a phone. Show a page, grow on demand.
+export const USAGE_PAGE = 50;
+
 export function UsageTable({ rows, known, titleOf, onOpenSession }: UsageTableProps) {
   const maxOut = Math.max(1, ...rows.map((r) => r.outputTokens));
   const [sort, setSort] = useState<{ key: UsageSortKey; dir: SortDir }>({ key: 'cost', dir: 'desc' });
   const sorted = useMemo(() => sortUsage(rows, sort.key, sort.dir), [rows, sort]);
+  const [limit, setLimit] = useState(USAGE_PAGE);
+  const hidden = sorted.length - limit;
 
   const toggle = (key: UsageSortKey) =>
     setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'desc' }));
@@ -34,7 +40,7 @@ export function UsageTable({ rows, known, titleOf, onOpenSession }: UsageTablePr
           </tr>
         </thead>
         <tbody>
-          {sorted.map((r) => (
+          {sorted.slice(0, limit).map((r) => (
             <UsageRow
               key={r.sessionId}
               row={r}
@@ -46,6 +52,13 @@ export function UsageTable({ rows, known, titleOf, onOpenSession }: UsageTablePr
           ))}
         </tbody>
       </table>
+      {hidden > 0 && (
+        <div className="flex justify-center border-t border-neutral-800 py-2">
+          <Button variant="ghost" size="sm" onClick={() => setLimit((l) => l + USAGE_PAGE)}>
+            ver mais ({hidden} restante{hidden > 1 ? 's' : ''})
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
