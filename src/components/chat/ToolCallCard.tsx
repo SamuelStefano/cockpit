@@ -93,6 +93,7 @@ export function ToolCallCard({ tool }: ToolCallCardProps) {
               <button
                 onClick={() => setShowShellCmd(false)}
                 title="Ocultar comandos de shell por padrão"
+                aria-label="Ocultar comandos de shell por padrão"
                 className={`ml-auto shrink-0 rounded-sm text-neutral-600 transition hover:text-neutral-300 ${tokens.focusRing}`}
               >
                 <Icon name="x" size={12} />
