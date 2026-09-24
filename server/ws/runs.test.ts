@@ -1546,12 +1546,15 @@ describe('startRun / routeSend — twin-process guard on the Orchestrator pane',
     expect(inputTerm).not.toHaveBeenCalled();
   });
 
-  it('never falls through to a headless twin when the pane client cannot be opened (terminal cap)', () => {
+  it('at the terminal cap: no headless twin, no fake delivery, an error to the sender', () => {
     vi.mocked(readOrchestratorSync).mockReturnValue(orch);
     vi.mocked(isTmuxAliveSync).mockReturnValue(true);
     vi.mocked(openTerm).mockReturnValue(false);
-    startRun({ ws, role: 'admin', sessionKey: 'orch-sid', prompt: 'oi', resumeId: 'orch-sid' });
+    startRun({ ws, role: 'admin', sessionKey: 'orch-sid', prompt: 'oi', resumeId: 'orch-sid', msgId: 'm9' });
     expect(run).not.toHaveBeenCalled();
+    expect(inputTerm).not.toHaveBeenCalled();
+    expect(broadcast).not.toHaveBeenCalledWith(expect.objectContaining({ t: 'pane-delivered' }));
+    expect(send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'error', sessionKey: 'orch-sid' }));
   });
 
   it('falls through to a normal run when the tmux session is dead', () => {
