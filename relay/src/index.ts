@@ -351,7 +351,13 @@ export function createRelay(cfg: RelayConfig) {
   // servidores — sem isto o buffer de um cliente morto cresce até o OOM, e um agente
   // morto fica "online" engolindo frames. Espelha o sweep do server/ws.ts.
   for (const w of [wssBrowser, wssAgent]) {
+    // An 'error' with no listener is thrown by Node: one malformed frame (unmasked,
+    // bad opcode) or an over-limit one (1009) from ANY client, authenticated or
+    // not, killed the relay and dropped every account. ws closes the socket after
+    // emitting it; logging is all that is left to do.
+    w.on('error', (e: Error) => console.error('[relay] wss error:', e.message));
     w.on('connection', (ws: WebSocket) => {
+      ws.on('error', (e: Error) => console.error('[relay] ws error:', e.message));
       (ws as WebSocket & { isAlive?: boolean }).isAlive = true;
       ws.on('pong', () => { (ws as WebSocket & { isAlive?: boolean }).isAlive = true; });
     });
