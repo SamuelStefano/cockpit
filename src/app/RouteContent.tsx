@@ -13,6 +13,7 @@ import type { TerminalsPanelProps } from '../components/Terminals';
 import type { Terminal } from '../data/types';
 import type { useCockpit } from '../useCockpit';
 import type { Route } from '../useRoute';
+import type { PanelSide } from './usePanelResize';
 
 interface LayoutState {
   rowRef: React.RefObject<HTMLDivElement | null>;
@@ -22,7 +23,8 @@ interface LayoutState {
   setLeftCollapsed: (v: boolean) => void;
   rightCollapsed: boolean;
   setRightCollapsed: (v: boolean) => void;
-  startDrag: (which: string) => (e: React.MouseEvent<HTMLDivElement>) => void;
+  startDrag: (which: PanelSide) => (e: React.PointerEvent<HTMLDivElement>) => void;
+  nudge: (which: PanelSide, e: React.KeyboardEvent) => void;
 }
 
 interface MobileState {
@@ -158,7 +160,7 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
         rowRef={layout.rowRef} leftW={layout.leftW} rightW={layout.rightW}
         leftCollapsed={layout.leftCollapsed} setLeftCollapsed={layout.setLeftCollapsed}
         rightCollapsed={layout.rightCollapsed} setRightCollapsed={layout.setRightCollapsed}
-        startDrag={layout.startDrag}
+        startDrag={layout.startDrag} nudge={layout.nudge}
       />
     );
   })();
