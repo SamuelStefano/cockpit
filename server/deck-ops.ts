@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
-import { mkdirSync, openSync } from 'node:fs';
+import { mkdirSync, openSync, closeSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -80,6 +80,11 @@ export async function restartDeck(mode: 'idle' | 'now'): Promise<{ ok: boolean; 
   mkdirSync(dirname(LOG), { recursive: true });
   const out = openSync(LOG, 'a');
   const child = spawn('bash', [script], { cwd: REPO_ROOT, detached: true, stdio: ['ignore', out, out] });
+  // The child holds its own copy of the fd; ours would leak one per restart.
+  closeSync(out);
+  // A spawn failure is emitted as 'error'; with no listener it would be an
+  // uncaughtException, and index.ts kills every run on that.
+  child.on('error', () => {});
   child.unref();
   return mode === 'now'
     ? { ok: true, message: 'reiniciando agora — o Deck volta em alguns segundos' }

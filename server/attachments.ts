@@ -1,4 +1,4 @@
-import { mkdir, writeFile, readFile, readdir, stat, rm } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, readdir, stat, rm, rmdir } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { inflateRawSync } from 'node:zlib';
@@ -246,7 +246,9 @@ export async function sweepAttachments(): Promise<number> {
         else live++;
       } catch { /* corrida com outra remoção — ignora */ }
     }
-    if (live === 0) { try { await rm(dir, { recursive: true, force: true }); } catch { /* best-effort */ } }
+    // Non-recursive: an upload that landed in this dir after the readdir above
+    // makes rmdir fail (ENOTEMPTY) instead of being deleted with it.
+    if (live === 0) { try { await rmdir(dir); } catch { /* not empty or gone */ } }
   }
   return removed;
 }
