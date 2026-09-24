@@ -41,9 +41,13 @@ describe.each(['modal', 'drawer'] as const)('%s keyboard focus', (kind) => {
     expect(document.activeElement).toBe(trigger);
   });
 
-  it('leaves focus on content that focused itself', () => {
-    const { getByText, getByLabelText } = render(<Harness kind={kind} autoFocusInput />);
-    fireEvent.click(getByText('trigger'));
+  it('leaves focus on content that focused itself, and still returns it to the trigger', () => {
+    const { getByText, getByLabelText, getByRole } = render(<Harness kind={kind} autoFocusInput />);
+    const trigger = getByText('trigger');
+    trigger.focus();
+    fireEvent.click(trigger);
     expect(document.activeElement).toBe(getByLabelText('field'));
+    fireEvent.click(getByRole('button', { name: 'Fechar' }));
+    expect(document.activeElement).toBe(trigger);
   });
 });

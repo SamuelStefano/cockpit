@@ -18,7 +18,11 @@ interface DrawerProps {
 export function Drawer({ open, onClose, title, children, side = 'left', width = 'w-[86vw] max-w-sm' }: DrawerProps) {
   useEscapeLayer(open, onClose);
   const ref = useRef<HTMLDivElement>(null);
-  useDialogFocus(ref, open);
+  const opener = useRef<Element | null>(null);
+  // Read during render, before an autoFocus child takes focus in the commit.
+  if (!open) opener.current = null;
+  else if (!opener.current && typeof document !== 'undefined') opener.current = document.activeElement;
+  useDialogFocus(ref, open, opener);
 
   if (!open) return null;
   return (
