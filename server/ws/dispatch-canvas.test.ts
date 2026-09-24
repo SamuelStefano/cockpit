@@ -134,6 +134,16 @@ describe("'canvas-card-save' — status change also broadcasts a slim canvas-car
     expect(canvasClients.emitCanvasMsg).toHaveBeenCalledWith({ t: 'canvas-card-status', cardId: 'c1', status: 'review' });
   });
 
+  it('takes prev from the snapshot the write lands on, not a stale read', async () => {
+    const fresh = { id: 'c1', status: 'doing' };
+    board.cards = [fresh];
+    // A stale read still carries a DFL link that a concurrent unlink already removed.
+    boardMod.readBoard.mockResolvedValueOnce({ ...board, cards: [{ id: 'c1', status: 'doing', dfl: { taskId: 'gone' } }] } as never);
+    boardMod.sanitizeCard.mockReturnValue({ id: 'c1', title: 't', status: 'doing' });
+    await handle(ws, { t: 'canvas-card-save', card: { id: 'c1', status: 'doing' } as never }, 'admin');
+    expect(boardMod.sanitizeCard).toHaveBeenCalledWith(expect.anything(), fresh, expect.any(Number));
+  });
+
   it('does not broadcast when the status is unchanged (e.g. a title-only edit)', async () => {
     boardMod.sanitizeCard.mockReturnValue({ id: 'c1', title: 't2', status: 'doing' });
     board.cards = [{ id: 'c1', status: 'doing' }];
