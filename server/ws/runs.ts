@@ -924,7 +924,13 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
         });
         // No session id = the prompt never reached a transcript: there is nothing to
         // `--resume`, so promising it only left the user waiting. Hand the prompt back.
-        const lost = thread.sessionId ? '' : ` O pedido não chegou a ser salvo, então não dá pra retomar — reenvie: "${thread.prompt.slice(0, 200)}"`;
+        // Same test the resume paths use: a fork that died before its transcript
+        // existed has a session id but nothing to resume either. A queued item that
+        // went back to the queue will run again by itself — don't ask for a resend.
+        const resumable = !!thread.sessionId && !!resumableId(thread.sessionId);
+        const lost = resumable ? ''
+          : thread.parked ? ' O pedido voltou pra fila e roda de novo sozinho.'
+          : ` O pedido não chegou a ser salvo, então não dá pra retomar — reenvie: "${thread.prompt.slice(0, 200)}"`;
         if (cause === 'oom') {
           broadcast({ t: 'error', sessionKey, message: lost ? `A máquina ficou sem memória e o sistema matou este turno.${lost}` : 'A máquina ficou sem memória e o sistema matou este turno. Vou retomar quando a memória voltar.' });
           recordIncident({ kind: 'oom-kill', sessionKey, sessionId: thread.sessionId, detail: `availMb=${memInfo.availMb} swapFreeMb=${memInfo.swapFreeMb} swapTotalMb=${memInfo.swapTotalMb}` });
