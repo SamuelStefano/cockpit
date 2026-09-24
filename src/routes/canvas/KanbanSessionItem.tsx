@@ -35,18 +35,19 @@ export const KanbanSessionItem = memo(function KanbanSessionItem({ item, stats, 
     : null;
   return (
     <div
-      draggable={!orchestrator} tabIndex={0} role="button"
+      // Not a button itself: it holds the terminal/chat buttons, and a button
+      // wrapping buttons is "nested interactive" for screen readers. The title
+      // is the button; a click anywhere on the item bubbles here.
+      draggable={!orchestrator}
       onDragStart={(e) => { e.dataTransfer.setData('text/deck-session', item.sessionId); e.dataTransfer.effectAllowed = 'move'; }}
       onClick={() => onSelect(item.nodeId)}
-      // Only the item itself: Enter on the inner terminal/chat buttons is theirs.
-      onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSelect(item.nodeId); } }}
       title={item.subtitle}
-      className={`group rounded-lg border px-2.5 py-2 ${orchestrator ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} ${
+      className={`group rounded-lg border px-2.5 py-2 has-[[data-item-select]:focus-visible]:ring-2 has-[[data-item-select]:focus-visible]:ring-orange-500/40 ${orchestrator ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} ${
         orchestrator ? 'border-fuchsia-500/60 bg-fuchsia-500/[0.08]' : selected ? 'border-orange-400/70 bg-neutral-900/70' : 'border-neutral-800 bg-neutral-900/70 hover:border-neutral-700'}`}
     >
       <div className="flex items-start gap-1.5">
         <Icon name={orchestrator ? 'command' : 'terminal'} size={12} className={`mt-0.5 shrink-0 ${orchestrator ? 'text-fuchsia-400' : 'text-neutral-500'}`} />
-        <span className="min-w-0 flex-1 truncate text-[12px] font-medium leading-snug text-neutral-200">{item.title}</span>
+        <button type="button" data-item-select="" aria-current={selected ? 'true' : undefined} className="min-w-0 flex-1 cursor-pointer truncate text-left text-[12px] font-medium leading-snug text-neutral-200 outline-hidden">{item.title}</button>
         {orchestrator && <Badge tone="purple">ORCHESTRATOR</Badge>}
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-neutral-500">

@@ -47,15 +47,16 @@ describe('KanbanSessionItem', () => {
     expect(onSelect).toHaveBeenCalledWith('s:a');
   });
 
-  it('opens the drawer with Enter or Space, but not from the inner buttons', () => {
+  it('the title is the keyboard button; the item is not a button around other buttons', () => {
     const onSelect = vi.fn();
-    const { container, getByTitle } = render(<KanbanSessionItem item={base} selected={false} onSelect={onSelect} onOpenSession={noop} onOpenTerm={noop} />);
-    const item = container.firstElementChild as HTMLElement;
-    fireEvent.keyDown(item, { key: 'Enter' });
-    fireEvent.keyDown(item, { key: ' ' });
-    expect(onSelect).toHaveBeenCalledTimes(2);
-    fireEvent.keyDown(getByTitle('abrir chat'), { key: 'Enter' });
-    expect(onSelect).toHaveBeenCalledTimes(2);
+    const { container, getByRole, getByTitle } = render(<KanbanSessionItem item={base} selected onSelect={onSelect} onOpenSession={noop} onOpenTerm={noop} />);
+    expect((container.firstElementChild as HTMLElement).getAttribute('role')).toBeNull();
+    const title = getByRole('button', { name: 'sessão a' });
+    expect(title.getAttribute('aria-current')).toBe('true');
+    fireEvent.click(title);
+    expect(onSelect).toHaveBeenCalledWith('s:a');
+    fireEvent.click(getByTitle('abrir chat'));
+    expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
   it('hidden action buttons do not catch taps', () => {
