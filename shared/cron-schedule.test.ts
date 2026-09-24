@@ -76,6 +76,15 @@ describe('scheduleValid', () => {
     expect(scheduleValid({ kind: 'once', atMs: 'amanhã' as unknown as number })).toBe(false);
     expect(scheduleValid({ kind: 'daily' })).toBe(false);
   });
+  it('requires whole, in-range minutes', () => {
+    expect(scheduleValid({ kind: 'interval', everyMinutes: -5 })).toBe(false);
+    expect(scheduleValid({ kind: 'interval', everyMinutes: 0 })).toBe(false);
+    expect(scheduleValid({ kind: 'interval', everyMinutes: 1.5 })).toBe(false);
+    expect(scheduleValid({ kind: 'daily', atMinute: 540.5 })).toBe(false);
+    expect(scheduleValid({ kind: 'daily', atMinute: 1440 })).toBe(false);
+    expect(scheduleValid({ kind: 'daily', atMinute: -1 })).toBe(false);
+    expect(scheduleValid({ kind: 'daily', atMinute: 1439 })).toBe(true);
+  });
 });
 
 describe('Brasília anchoring', () => {

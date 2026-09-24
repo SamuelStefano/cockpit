@@ -529,6 +529,11 @@ describe('cron-save boundary', () => {
     expect(crons.saveCron).not.toHaveBeenCalled();
     expect(bc.send).toHaveBeenCalledWith(ws, { t: 'error', message: 'cron inválido' });
   });
+
+  it('rejects a cron without a numeric createdAt (an interval cron would never fire)', async () => {
+    await handle(ws, { t: 'cron-save', cron: { id: 'c1', name: 'n', prompt: 'p', schedule: { kind: 'interval', everyMinutes: 60 }, enabled: true } } as unknown as ClientMsg);
+    expect(crons.saveCron).not.toHaveBeenCalled();
+  });
 });
 
 describe('purge broadcasts to all clients', () => {
