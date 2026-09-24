@@ -37,7 +37,7 @@ export function useTerminals(send: (m: ClientMsg) => boolean): Terminals {
   const openQueue = useRef<string[]>([]);
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const termDims = useRef<Map<string, { cols: number; rows: number; watch?: string }>>(new Map()); // p/ reattach no reconnect
-  // Last size the server heard per id: ResizeObserver fires every frame while a
+  // Last resize the server heard per id: ResizeObserver fires every frame while a
   // window is dragged, and identical resizes ate the connection's rate budget.
   const sentDims = useRef<Map<string, string>>(new Map());
   const sendOpen = useCallback((id: string) => {
@@ -48,7 +48,10 @@ export function useTerminals(send: (m: ClientMsg) => boolean): Terminals {
         const d = termDims.current.get(next);
         if (!d) continue;
         send(d.watch ? { t: 'term-open', termId: next, cols: d.cols, rows: d.rows, watch: d.watch } : { t: 'term-open', termId: next, cols: d.cols, rows: d.rows });
-        sentDims.current.set(next, `${d.cols}x${d.rows}`);
+        // Not marked as sent: an open onto a PTY that already exists (kept detached,
+        // or shared with another device) keeps its old size, so the first fit after
+        // it must still go out as a term-resize.
+        sentDims.current.delete(next);
         openTimer.current = setTimeout(pump, OPEN_SPACING_MS);
         return;
       }

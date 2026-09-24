@@ -44,7 +44,10 @@ describe('useTerminals open queue and resizes', () => {
       for (let i = 0; i < 10; i++) result.current.term.resize('a', 80, 24);
       for (let i = 0; i < 10; i++) result.current.term.resize('a', 100, 30);
     });
-    expect(resizes(send)).toEqual([{ t: 'term-resize', termId: 'a', cols: 100, rows: 30 }]);
+    expect(resizes(send)).toEqual([
+      { t: 'term-resize', termId: 'a', cols: 80, rows: 24 },
+      { t: 'term-resize', termId: 'a', cols: 100, rows: 30 },
+    ]);
   });
 
   it('reattach reopens each live window once, at its current size', () => {
@@ -57,5 +60,19 @@ describe('useTerminals open queue and resizes', () => {
     act(() => { result.current.reattach(); result.current.reattach(); });
     act(() => { vi.advanceTimersByTime(1000); });
     expect(opens(send)).toEqual([{ t: 'term-open', termId: 'a', cols: 90, rows: 30 }]);
+  });
+
+  it('the first fit after an open still resizes (the PTY may already exist at another size)', () => {
+    vi.useFakeTimers();
+    const send = vi.fn(() => true);
+    const { result } = renderHook(() => useTerminals(send));
+    act(() => {
+      result.current.term.attach('a', 80, 24, vi.fn(), vi.fn(), vi.fn());
+      result.current.term.attach('b', 80, 24, vi.fn(), vi.fn(), vi.fn());
+      result.current.term.resize('b', 132, 40);
+    });
+    act(() => { vi.advanceTimersByTime(500); });
+    act(() => { result.current.term.resize('b', 132, 40); });
+    expect(resizes(send)).toEqual([{ t: 'term-resize', termId: 'b', cols: 132, rows: 40 }]);
   });
 });
