@@ -9,6 +9,7 @@ interface Props {
   connected: boolean;
   notes: string;
   notesLoaded: boolean;
+  notesRev?: number;
   onNotesGet: () => void;
   onNotesSave: (text: string) => boolean;
   onAnalyze: (text: string) => void;
@@ -16,8 +17,8 @@ interface Props {
 
 // Rascunho livre: anota coisas soltas ao longo do tempo (autosave) e, quando quiser,
 // manda a IA destilar tudo num contexto/memória estruturado.
-export function Notas({ connected, notes, notesLoaded, onNotesGet, onNotesSave, onAnalyze }: Props) {
-  const { text, status, counts, onChange, flush, clear } = useNotasEditor(notes, notesLoaded, onNotesGet, onNotesSave, connected);
+export function Notas({ connected, notes, notesLoaded, notesRev, onNotesGet, onNotesSave, onAnalyze }: Props) {
+  const { text, status, counts, onChange, flush, clear } = useNotasEditor(notes, notesLoaded, onNotesGet, onNotesSave, connected, notesRev);
   const statusBadge = { saved: { tone: 'neutral' as const, label: 'salvo' }, saving: { tone: 'orange' as const, label: 'salvando…' }, offline: { tone: 'red' as const, label: 'não salvo — sem conexão' } }[status];
   const [preview, setPreview] = useState(false);
   // useCopied has the execCommand fallback: navigator.clipboard is missing over

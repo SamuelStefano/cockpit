@@ -69,7 +69,7 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
     }
     if (route === '/notas') {
       return (
-        <Notas connected={connected} notes={c.notes} notesLoaded={c.notesLoaded}
+        <Notas connected={connected} notes={c.notes} notesLoaded={c.notesLoaded} notesRev={c.notesRev}
           onNotesGet={c.onNotesGet} onNotesSave={c.onNotesSave} onAnalyze={onAnalyzeNotes} />
       );
     }
