@@ -24,6 +24,9 @@ export function RouteMenu({ route, nav, isAdmin, open, setOpen }: { route: Route
     <div ref={wrapRef} className="relative md:hidden">
       <button
         onClick={() => setOpen(!open)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Rota atual: ${current.label}. Trocar de rota`}
         className={`flex items-center gap-1 rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1 font-mono text-[11.5px] lowercase tracking-tight text-orange-300 ${tokens.touchTarget}`}
       >
         {current.label}

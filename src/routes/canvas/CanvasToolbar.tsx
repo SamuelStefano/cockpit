@@ -80,9 +80,9 @@ export function CanvasToolbar({
           </div>
         )}
       </div>
-      <Button variant="ghost" size="sm" onClick={() => onZoom(1 / 1.25)} title="afastar">−</Button>
+      <Button variant="ghost" size="sm" onClick={() => onZoom(1 / 1.25)} title="afastar" aria-label="Afastar">−</Button>
       <span className="w-11 text-center font-mono text-[11px] tabular-nums text-neutral-300" title="ctrl/⌘ + scroll = zoom">{Math.round(zoom * 100)}%</span>
-      <Button variant="ghost" size="sm" onClick={() => onZoom(1.25)} title="aproximar">+</Button>
+      <Button variant="ghost" size="sm" onClick={() => onZoom(1.25)} title="aproximar" aria-label="Aproximar">+</Button>
     </div>
   );
 }
