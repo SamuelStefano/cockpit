@@ -236,7 +236,9 @@ export function createRelay(cfg: RelayConfig) {
           await cfg.store.setAdmin(m.accountId, m.admin);
           // The target's open tabs cached the old role at open (accounts-list etc.):
           // make them redial and resolve the new one.
-          registry.eachBrowser(m.accountId, (s) => { try { (s as WebSocket).close(4001, 'role changed'); } catch { /* indo */ } });
+          // Not the requester's own socket (root changing its own account): it is
+          // about to receive the refreshed list.
+          registry.eachBrowser(m.accountId, (s) => { if (s !== ws) { try { (s as WebSocket).close(4001, 'role changed'); } catch { /* indo */ } } });
           const rows = await cfg.store.listAccounts();
           ws.send(JSON.stringify({
             t: 'accounts',
