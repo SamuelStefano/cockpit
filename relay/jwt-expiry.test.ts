@@ -28,4 +28,20 @@ describe('browser socket and the JWT expiry', () => {
     expect(code).toBe(4001);
     expect(Date.now() - t0).toBeLessThan(3000);
   });
+
+  it('a token valid for longer than a timer can hold is not closed at once', async () => {
+    const relay = createRelay({
+      iss: 't', jwksUrl: 'http://x', rootEmails: '', store,
+      resolveIdentity: async () => ({ accountId: 'acc', email: 'a@x', role: 'fellow', expMs: Date.now() + 40 * 86_400_000 }),
+    });
+    server = relay.server;
+    await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
+    const ws = new WebSocket(`ws://127.0.0.1:${(server!.address() as AddressInfo).port}/ws?token=t`);
+    const closed = await Promise.race([
+      new Promise<boolean>((r) => ws.on('close', () => r(true))),
+      new Promise<boolean>((r) => setTimeout(() => r(false), 800)),
+    ]);
+    expect(closed).toBe(false);
+    ws.close();
+  });
 });
