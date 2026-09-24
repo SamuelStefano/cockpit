@@ -151,3 +151,12 @@ describe("'canvas-card-save' — status change also broadcasts a slim canvas-car
     expect(canvasClients.emitCanvasMsg).not.toHaveBeenCalled();
   });
 });
+
+describe("'dfl-task-create-link' — never creates a second DFL task for a card", () => {
+  it('refuses a card that is already linked, before touching DFL', async () => {
+    board.cards = [{ id: 'c1', status: 'doing', dfl: { taskId: '11111111-1111-4111-8111-111111111111' } } as never];
+    await handle(ws, { t: 'dfl-task-create-link', reqId: 'r1', confirm: true, cardId: 'c1', epicId: 'e', deliveryId: 'd', taskName: 'T', why: 'w', what: 'w' } as never, 'admin');
+    expect(bc.send).toHaveBeenCalledWith(ws, { t: 'dfl-task-write', reqId: 'r1', ok: false, message: 'card já vinculado a uma task DFL' });
+    expect(canvasIndex.buildCanvas).not.toHaveBeenCalled();
+  });
+});

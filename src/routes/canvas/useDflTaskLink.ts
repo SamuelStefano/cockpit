@@ -83,7 +83,7 @@ export function useDflTaskLink({ card, snapshot, onLink, onCreateLink, onUnlink 
 
   // Step 2: explicit confirm — the only place either write actually fires.
   const confirm = async () => {
-    if (!pending) return;
+    if (!pending || busy) return;
     setBusy(true); setError(undefined);
     const r = pending.kind === 'link'
       ? await onLink(card.id, pending.taskId)

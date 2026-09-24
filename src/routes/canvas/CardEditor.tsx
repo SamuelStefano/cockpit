@@ -116,7 +116,13 @@ export function CardEditor({
             // would keep showing the old link/unlink state until the editor
             // is closed and reopened.
             onLink={async (id, taskId) => { const r = await onDflTaskLink(id, taskId); if (r.ok) patch({ dfl: { taskId, lastSyncedAt: Date.now() } }); return r; }}
-            onCreateLink={onDflTaskCreateLink}
+            onCreateLink={async (id, name, epicId, deliveryId, why, what) => {
+              const r = await onDflTaskCreateLink(id, name, epicId, deliveryId, why, what);
+              // Same local patch as onLink: without it the editor fell back to a
+              // filled-in picker and a second confirm created a duplicate task.
+              if (r.ok && r.taskId) patch({ dfl: { taskId: r.taskId, lastSyncedAt: Date.now() } });
+              return r;
+            }}
             onUnlink={(id) => { const ok = onDflTaskUnlink(id); patch({ dfl: undefined }); return ok; }}
             onConfirmSync={onDflTaskConfirmSync}
           />
