@@ -87,7 +87,9 @@ export function usePaletteCommands(args: PaletteCommandsArgs): Cmd[] {
       group: 'Modo',
       run: setM(m),
     }));
-    const sess: Cmd[] = sessions.slice(0, 40).map((s) => ({
+    // Every session is a command, so a query finds old ones too; the empty
+    // palette shows only the first SESSIONS_IDLE (capSessions in filter).
+    const sess: Cmd[] = sessions.map((s) => ({
       id: `sess-${s.id}`,
       label: s.title || s.snippet || 'sessão',
       icon: 'message',
