@@ -20,7 +20,7 @@ import { startSessionsWatch } from './sessions/watch';
 import { startPointsWatch } from './points-watch';
 import { startDflPointsWatch } from './dfl-points-watch';
 import { startDflDraftsWatch } from './dfl-drafts-watch';
-import { sandboxUpstream, proxySandboxUpgrade } from './sandbox-proxy';
+import { sandboxUpstream, proxySandboxUpgrade, sandboxOriginAllowed } from './sandbox-proxy';
 
 export { runStats, killAllRuns } from './ws/threads';
 
@@ -40,7 +40,11 @@ export function attachWs(server: Server) {
 
   server.on('upgrade', (req, socket, head) => {
     const upstream = sandboxUpstream(req.headers.host);
-    if (upstream) { proxySandboxUpgrade(upstream, req, socket, head); return; }
+    if (upstream) {
+      if (!sandboxOriginAllowed(req.headers.origin, req.headers.host)) { socket.destroy(); return; }
+      proxySandboxUpgrade(upstream, req, socket, head);
+      return;
+    }
     if (req.url?.split('?')[0] === '/ws') {
       wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
       return;
