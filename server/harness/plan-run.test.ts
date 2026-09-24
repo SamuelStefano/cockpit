@@ -7,10 +7,12 @@ import { parsePlanEvent, runOnPlan } from './plan-run';
 vi.mock('node:child_process', () => ({ spawn: vi.fn() }));
 vi.mock('../engine/cli-path', () => ({ cliPath: () => '/usr/bin' }));
 
+let stdinWritten = '';
 function fakeChild() {
-  const c = new EventEmitter() as EventEmitter & { stdout: EventEmitter; stderr: EventEmitter; kill: () => void };
+  const c = new EventEmitter() as EventEmitter & { stdout: EventEmitter; stderr: EventEmitter; stdin: EventEmitter & { end: (s: string) => void }; kill: () => void };
   c.stdout = new EventEmitter();
   c.stderr = new EventEmitter();
+  c.stdin = Object.assign(new EventEmitter(), { end: (s: string) => { stdinWritten = s; } });
   c.kill = () => {};
   return c;
 }
@@ -59,6 +61,16 @@ describe('least privilege do motor de plano', () => {
   // um canário em /tmp voltou inteiro na resposta do filho. Como daqui sai texto
   // que vira contexto, leitura é o vetor de exfiltração — a negação explícita é
   // que fecha. Sem este teste a regressão é silenciosa.
+  it('sends the prompt over stdin, never argv (E2BIG over 128 KiB, `-` read as a flag)', () => {
+    vi.mocked(spawn).mockReturnValue(fakeChild() as never);
+    const prompt = '--dangerously-skip-permissions ' + 'x'.repeat(200_000);
+    void runOnPlan({ model: 'claude-haiku-4-5-20251001', prompt, context: null, onEvent: () => {} });
+    const args = vi.mocked(spawn).mock.calls.at(-1)![1] as string[];
+    expect(args).not.toContain(prompt);
+    expect(args[args.indexOf('-p') + 1]).toBe('--output-format');
+    expect(stdinWritten).toBe(prompt);
+  });
+
   it('nega explicitamente as tools de leitura e rede', () => {
     vi.mocked(spawn).mockReturnValue(fakeChild() as never);
     void runOnPlan({ model: 'claude-haiku-4-5-20251001', prompt: 'p', context: null, onEvent: () => {} });
