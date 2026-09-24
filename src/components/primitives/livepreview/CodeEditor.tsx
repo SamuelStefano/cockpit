@@ -45,6 +45,7 @@ export function CodeEditor({ value, onChange, mode, heightClass = 'max-h-[640px]
         onChange={(e) => onChange(e.target.value)}
         onScroll={onScroll}
         onKeyDown={onKeyDown}
+        aria-label="Editor de código"
         spellCheck={false}
         autoCapitalize="off"
         autoCorrect="off"
