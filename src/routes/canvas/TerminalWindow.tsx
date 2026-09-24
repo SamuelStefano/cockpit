@@ -94,7 +94,7 @@ export const TerminalWindow = memo(function TerminalWindow(p: Props) {
         {p.orchestrator
           ? <Icon name="command" size={12} className="text-fuchsia-400" />
           : session ? <Dot running={p.running} waiting={p.waiting} /> : <Icon name="terminal" size={12} className="text-orange-400" />}
-        <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-neutral-200">{n.title}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-neutral-200">{p.orchestrator ? 'Orchestrator' : n.title}</span>
         {p.orchestrator && <Badge tone="purple">ORCHESTRATOR</Badge>}
         {alert && <AlertBadge kind={alert} pct={pct} />}
         {session
@@ -111,7 +111,7 @@ export const TerminalWindow = memo(function TerminalWindow(p: Props) {
           {session && <Button variant="ghost" size="sm" square icon="message" title="abrir o chat" onClick={() => p.onOpenChat(n.ref)} />}
           <Button variant="ghost" size="sm" square icon="maximize" title="tela cheia" onClick={() => p.onMaximize(n.id)} />
           {session && <Button variant="ghost" size="sm" square icon="minimize" title="recolher (tmux segue vivo)" onClick={() => p.onCollapse(n.id)} />}
-          <Button variant="ghost" size="sm" square icon="x" title="matar a sessão tmux" onClick={() => p.onKill(n)} />
+          {!p.orchestrator && <Button variant="ghost" size="sm" square icon="x" title="matar a sessão tmux" onClick={() => p.onKill(n)} />}
         </span>
       </header>
       <TermStatsBar stats={p.stats} running={p.running} session={session} />
