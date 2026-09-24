@@ -196,11 +196,17 @@ async function pushCardDflStatusUnsafe(cardId: string, status: CardStatus, taskI
       await updateBoard((b) => setCardDflPending(b, cardId, undefined));
       return;
     }
-    const r = await runDflWrite({ kind: 'task-status', taskId, status: dflStatus });
+    const r = await runDflWrite({ kind: 'task-status', taskId, status: dflStatus, unlessFinished: !opts.confirmed });
     if (superseded()) return;
     if (r.ok) {
       const updatedAt = typeof r.result.updatedAt === 'string' ? Date.parse(r.result.updatedAt) : undefined;
       await updateBoard((b) => setCardDflSynced(b, cardId, Date.now(), Number.isFinite(updatedAt) ? updatedAt : undefined));
+      return;
+    }
+    // DFL itself says the task is finished (the local snapshot was stale): same
+    // gate as the up-front reopen check — ask, don't retry.
+    if (!opts.confirmed && r.error.includes('FINISHED_IN_DFL')) {
+      await updateBoard((b) => setCardDflPending(b, cardId, status, { awaitingConfirm: true }));
       return;
     }
     if (attempt === MAX_PUSH_ATTEMPTS) {
