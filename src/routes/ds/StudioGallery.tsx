@@ -1,7 +1,19 @@
-import { LivePreview, Icon } from '../../components/primitives';
+import { Suspense, type ComponentProps } from 'react';
+import { Icon } from '../../components/primitives';
+import { LivePreview } from '../../components/primitives/lazyPreviews';
 import { ThemePlayground } from './ThemePlayground';
 import { Section } from './Section';
 import { DEMO_PREVIEW, DEMO_PREVIEW_NATIVE, DEMO_PREVIEW_SVG, DEMO_PREVIEW_TEST } from './demo-sources';
+
+// Lazy on purpose: re-exported statically from the primitives index, the preview
+// compiler (sucrase, ~45 KB gzip) was preloaded on every page load.
+function Preview(props: ComponentProps<typeof LivePreview>) {
+  return (
+    <Suspense fallback={<div className="my-1 min-h-[180px] rounded-lg border border-neutral-800 bg-[#0c0c0c]" />}>
+      <LivePreview {...props} />
+    </Suspense>
+  );
+}
 
 export function StudioGallery() {
   return (
@@ -23,7 +35,7 @@ export function StudioGallery() {
           <span className="text-orange-300">console</span> capturado do sandbox, <span className="text-orange-300">tela cheia</span>{' '}
           (studio split editor↔preview) e copiar/baixar o código.
         </p>
-        <LivePreview lang="preview" code={DEMO_PREVIEW} />
+        <Preview lang="preview" code={DEMO_PREVIEW} />
       </Section>
 
       <Section title="Studio nativo — iPhone editável (react-native-web)">
@@ -32,7 +44,7 @@ export function StudioGallery() {
           (View, Text, Pressable, StyleSheet) via react-native-web numa moldura de iPhone — sem macOS. Também editável ao
           vivo: digite na aba código e veja o app mudar na tela do telefone.
         </p>
-        <LivePreview lang="preview-native" code={DEMO_PREVIEW_NATIVE} />
+        <Preview lang="preview-native" code={DEMO_PREVIEW_NATIVE} />
       </Section>
 
       <Section title="Studio SVG — vetor animado editável">
@@ -40,7 +52,7 @@ export function StudioGallery() {
           Bloco <code className="text-orange-300">```preview-svg</code> renderiza SVG cru (com <code className="text-orange-300">&lt;animate&gt;</code>,
           SMIL ou CSS) centralizado sobre um xadrez de transparência. Edite os atributos e veja a animação mudar na hora.
         </p>
-        <LivePreview lang="preview-svg" code={DEMO_PREVIEW_SVG} />
+        <Preview lang="preview-svg" code={DEMO_PREVIEW_SVG} />
       </Section>
 
       <Section title="Juiz de código — testes verde/vermelho no sandbox">
@@ -49,7 +61,7 @@ export function StudioGallery() {
           <code className="text-orange-300">expect()</code> (globais) dentro do sandbox e mostra cada asserção passando ou falhando,
           com resumo <span className="text-neutral-400">N/N</span>. O terceiro test abaixo falha de propósito.
         </p>
-        <LivePreview lang="preview-test" code={DEMO_PREVIEW_TEST} />
+        <Preview lang="preview-test" code={DEMO_PREVIEW_TEST} />
       </Section>
 
       <Section title="Playground — bancada completa em /play">
