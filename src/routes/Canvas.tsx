@@ -209,7 +209,12 @@ export function Canvas(p: CanvasRouteProps) {
   const orchestrator = p.graph?.orchestrator;
   return (
     <div className="flex min-h-0 flex-1 bg-neutral-950">
-      <div className="flex min-h-0 flex-1 flex-col">
+      {/* min-w-0: a flex item's default min-width is its content's, so the
+          kanban's four columns (and the chain's area row) widened the whole
+          route past the viewport — "+ card", the Completed column and, on a
+          phone, the "filtros" button and the orchestrator FAB ended up
+          off-screen. */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <CanvasFilters
           mode={r.mode} onMode={r.setMode} scope={r.scope} onScope={r.setScope} archived={r.archived} onArchived={r.setArchived}
           showAutomation={r.showAutomation} onShowAutomation={r.setShowAutomation}
