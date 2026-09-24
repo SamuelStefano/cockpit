@@ -15,7 +15,9 @@ export function CanvasTimeline({ timeline: tl }: Props) {
     <div className="flex shrink-0 items-center gap-2 border-t border-neutral-800/80 bg-neutral-950 px-3 py-1.5">
       <Button
         variant="ghost" size="sm" square icon={tl.playing ? 'pause' : 'play'}
-        title={tl.playing ? 'pausar' : 'reproduzir a partir daqui'}
+        // From live, play replays the whole window (useTimeline.play), not "from here".
+        title={tl.playing ? 'pausar' : tl.live ? 'reproduzir os últimos 7 dias' : 'reproduzir a partir daqui'}
+        aria-label={tl.playing ? 'pausar' : tl.live ? 'reproduzir os últimos 7 dias' : 'reproduzir a partir daqui'}
         onClick={() => (tl.playing ? tl.pause() : tl.play())}
       />
       <span className="font-mono text-[10.5px] text-neutral-500">7d atrás</span>

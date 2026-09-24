@@ -72,6 +72,8 @@ export function TerminalWindowHeader(p: Props) {
         {p.session && <Button variant="ghost" size="sm" square icon="message" title="abrir o chat" onClick={() => p.onOpenChat(n.ref)} />}
         <Button variant="ghost" size="sm" square icon="maximize" title="tela cheia" onClick={() => p.onMaximize(n.id)} />
         {p.session && <Button variant="ghost" size="sm" square icon="minimize" title="recolher (tmux segue vivo)" onClick={() => p.onCollapse(n.id)} />}
+        {/* Gap before the destructive ✕: it sat flush against maximize/collapse. */}
+        {!p.orchestrator && <span className="mx-1 h-4 w-px bg-neutral-800" aria-hidden />}
         {!p.orchestrator && (
           <Button
             variant={killArmed ? 'danger' : 'ghost'} size="sm" square icon="x"
