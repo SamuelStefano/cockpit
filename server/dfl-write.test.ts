@@ -97,7 +97,7 @@ describe('runWrite: validação antes de tocar a rede', () => {
 
 describe('invoice-create: totais e itens', () => {
   it('soma o total em centavos a partir dos pontos e do preço por ponto', async () => {
-    queue = [reply(200, []), reply(200, []), reply(201, [{ id: 'inv-1' }]), reply(201, '')];
+    queue = [reply(200, []), reply(200, []), reply(200, []), reply(201, [{ id: 'inv-1' }]), reply(201, '')];
     const r = await runWrite(invoiceCmd({ tasks: [
       { id: TASK, title: 'A', points: 2 },
       { id: TASK2, title: 'B', points: 3.5 },
@@ -108,7 +108,7 @@ describe('invoice-create: totais e itens', () => {
   });
 
   it('cai no preço padrão de 75 quando pricePerPoint vem inválido', async () => {
-    queue = [reply(200, []), reply(200, []), reply(201, [{ id: 'inv-2' }]), reply(201, '')];
+    queue = [reply(200, []), reply(200, []), reply(200, []), reply(201, [{ id: 'inv-2' }]), reply(201, '')];
     const r = await runWrite(invoiceCmd({ pricePerPoint: 0 }));
     expect(r.totalAmountCents).toBe(15000); // 2 × 75 × 100
   });
@@ -118,7 +118,7 @@ describe('invoice-create: totais e itens', () => {
   // duas deliveries precisa estampar a de cada item — senão a outra volta a
   // parecer não faturada e é cobrada de novo.
   it('estampa a delivery de cada task, não a do comando', async () => {
-    queue = [reply(200, []), reply(200, []), reply(201, [{ id: 'inv-3' }]), reply(201, '')];
+    queue = [reply(200, []), reply(200, []), reply(200, []), reply(201, [{ id: 'inv-3' }]), reply(201, '')];
     const outra = '33333333-3333-4333-8333-333333333333';
     await runWrite(invoiceCmd({ tasks: [
       { id: TASK, title: 'A', points: 1, deliveryId: outra, deliveryName: 'Entrega B' },
@@ -132,15 +132,15 @@ describe('invoice-create: totais e itens', () => {
   });
 
   it('apaga as faturas rejeitadas do mesmo mês antes de inserir', async () => {
-    queue = [reply(200, []), reply(200, [{ id: 'old' }]), reply(204, ''), reply(204, ''), reply(201, [{ id: 'inv-4' }]), reply(201, '')];
+    queue = [reply(200, []), reply(200, []), reply(200, [{ id: 'old' }]), reply(204, ''), reply(204, ''), reply(201, [{ id: 'inv-4' }]), reply(201, '')];
     await runWrite(invoiceCmd());
-    expect(calls[2]).toMatchObject({ method: 'DELETE' });
-    expect(calls[2].url).toContain('invoice_items?invoice_id=in.(old)');
-    expect(calls[3].url).toContain('invoices?id=in.(old)');
+    expect(calls[3]).toMatchObject({ method: 'DELETE' });
+    expect(calls[3].url).toContain('invoice_items?invoice_id=in.(old)');
+    expect(calls[4].url).toContain('invoices?id=in.(old)');
   });
 
   it('falha explicitamente quando o INSERT não devolve id', async () => {
-    queue = [reply(200, []), reply(200, []), reply(201, [])];
+    queue = [reply(200, []), reply(200, []), reply(200, []), reply(201, [])];
     await expect(runWrite(invoiceCmd())).rejects.toThrow('INSERT invoice não retornou id');
   });
 });
@@ -163,6 +163,7 @@ describe('invoice-create: never bills a task twice', () => {
     queue = [
       reply(200, [{ invoice_id: 'inv-rej', source_id: TASK }]),
       reply(200, []),                 // no non-rejected invoice among them
+      reply(200, []),                 // no empty invoice this month
       reply(200, []),                 // select rejected (same month)
       reply(201, [{ id: 'inv-6' }]),
       reply(201, ''),
@@ -180,10 +181,10 @@ describe('invoice-create: never bills a task twice', () => {
 
   it('removes the invoice when inserting its items fails', async () => {
     queue = [
-      reply(200, []), reply(200, []),
+      reply(200, []), reply(200, []), reply(200, []),
       reply(201, [{ id: 'inv-7' }]),
       reply(500, 'boom'),             // items insert fails
-      reply(204, ''), reply(204, ''), // rollback deletes
+      reply(204, ''), reply(200, [{ id: 'inv-7' }]), // rollback deletes (invoice DELETE returns the row)
     ];
     await expect(runWrite(invoiceCmd())).rejects.toThrow('PostgREST 500');
     const deletes = calls.filter((c) => c.method === 'DELETE').map((c) => c.url);
@@ -192,10 +193,29 @@ describe('invoice-create: never bills a task twice', () => {
   });
 });
 
+describe('invoice-create: nothing half-written is left silently', () => {
+  it('says the invoice stayed empty when the rollback deleted nothing (RLS)', async () => {
+    queue = [
+      reply(200, []), reply(200, []), reply(200, []),
+      reply(201, [{ id: 'inv-8' }]),
+      reply(500, 'boom'),
+      reply(204, ''), reply(200, []), // invoice DELETE removed 0 rows
+    ];
+    await expect(runWrite(invoiceCmd())).rejects.toThrow('fatura inv-8 ficou vazia no DFL');
+  });
+
+  it('refuses a new invoice while an empty one exists for the month', async () => {
+    queue = [reply(200, []), reply(200, [{ id: 'shell' }]), reply(200, [])];
+    await expect(runWrite(invoiceCmd())).rejects.toThrow('fatura shell de 2026-08 está vazia');
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(0);
+  });
+});
+
 describe('invoice-create: 401 no meio da sequência', () => {
   it('repete só a requisição que falhou, sem inserir a fatura de novo', async () => {
     queue = [
       reply(200, []),               // already-invoiced guard
+      reply(200, []),               // no empty invoice this month
       reply(200, []),               // select rejected
       reply(201, [{ id: 'inv-5' }]), // INSERT invoices
       reply(401, 'jwt expired'),     // INSERT invoice_items → 401
