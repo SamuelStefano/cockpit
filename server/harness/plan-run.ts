@@ -76,8 +76,11 @@ export function runOnPlan(opts: { model: string; prompt: string; context: Harnes
   const { model, prompt, context, onEvent } = opts;
   try { mkdirSync(CWD, { recursive: true }); } catch { /* já existe */ }
 
+  // The prompt goes over stdin, not argv: a single argv element over 128 KiB
+  // (MAX_ARG_STRLEN) fails the spawn with E2BIG, and one starting with `-` would be
+  // parsed as a flag. `claude -p` with no positional prompt reads stdin.
   const args = [
-    '-p', prompt,
+    '-p',
     '--output-format', 'stream-json',
     '--include-partial-messages',
     '--verbose',
@@ -107,7 +110,9 @@ export function runOnPlan(opts: { model: string; prompt: string; context: Harnes
     let settled = false;
     const done = (r: PlanResult) => { if (!settled) { settled = true; clearTimeout(timer); resolve(r); } };
 
-    const child = spawn('claude', args, { cwd: CWD, env: planEnv(), stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn('claude', args, { cwd: CWD, env: planEnv(), stdio: ['pipe', 'pipe', 'pipe'] });
+    child.stdin.on('error', () => { /* the child died first; 'close' reports it */ });
+    child.stdin.end(prompt);
     const timer = setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* já morreu */ } done({ status: 'error', inputTokens: 0, outputTokens: 0, error: 'timeout no CLI do plano' }); }, TIMEOUT_MS);
 
     let buf = '';
