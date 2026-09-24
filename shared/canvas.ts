@@ -203,6 +203,14 @@ export interface OrchestratorActivity {
   rawShells: string[];
 }
 
+// Kanban drawer read of one transcript (server/sessions/peek.ts).
+export interface SessionPeek {
+  lastAssistant?: string; // tail of the last assistant text, capped
+  lastAt?: number;
+  prs: { url: string; label: string }[];
+  links: string[]; // other http(s) URLs, most recent first
+}
+
 export interface CanvasGraph {
   nodes: CanvasNode[];
   edges: CanvasEdge[];

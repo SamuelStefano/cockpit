@@ -10,6 +10,8 @@ import { runStats, killAllRuns, threads } from './ws/threads';
 import { startCronLoop } from './crons';
 import { startStatsLoop } from './ws/stats-loop';
 import { startBgAgentsLoop } from './ws/bg-agents';
+import { startCvLivenessLoop } from './canvas/cv-liveness';
+import { emitCanvasMsg } from './ws/canvas-clients';
 import { startPlanUsageLoop } from './ws/usage-plan';
 import { startModelsLoop } from './ws/models';
 import { probeSlashCommands } from './ws/slash-probe';
@@ -86,6 +88,7 @@ export function attachWs(server: Server) {
   const hasClients = () => wss.clients.size > 0;
   startStatsLoop(hasClients);
   startBgAgentsLoop(hasClients);
+  startCvLivenessLoop(hasClients, emitCanvasMsg);
   startPlanUsageLoop(hasClients, () => threads.size > 0);
   startModelsLoop(hasClients);
   startSessionsWatch(hasClients);

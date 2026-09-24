@@ -34,6 +34,9 @@ export interface DeriveSessionStatusInput {
   attentionNeeded?: boolean;
   override?: SessionStatusOverride;
   turnStartedAt?: number;
+  // Working inside a `cockpit-cv-*` tmux shell right now, outside any
+  // Deck-run turn (server/canvas/cv-liveness.ts).
+  shellLive?: boolean;
 }
 
 // running/waiting are read off LIVE state (phases, SessionMeta.waiting) and
@@ -46,7 +49,7 @@ export interface DeriveSessionStatusInput {
 // -> In progress (attentionNeeded, never silently Done); otherwise the agent
 // closed a turn cleanly and nobody has looked -> Done.
 export function deriveSessionStatus(i: DeriveSessionStatusInput): CardStatus {
-  if (i.running) return 'doing';
+  if (i.running || i.shellLive) return 'doing';
   if (i.waiting) return 'doing';
   if (isOverrideActive(i.override, i.mtime, i.turnStartedAt)) return i.override!.status;
   if (!i.everRan) return 'todo';
@@ -61,11 +64,9 @@ export function deriveSessionStatus(i: DeriveSessionStatusInput): CardStatus {
 // already carries (server/sessions/index.ts snippet, 120 chars of the first
 // user message), so no server plumbing is needed for THIS source — see
 // canvas-automation.ts for the same trick applied to automation noise.
-// tmux-shell-sourced children (a `cockpit-cv-*` orchestrator opened directly,
-// tracked by ~/.cockpit/orch-shells/<name>.{prompt,report}.md) are a SEPARATE
-// source this text match can't see — server/canvas doesn't surface those
-// files into the graph yet, so a shell child only shows up here once that
-// plumbing exists.
+// tmux-shell-sourced children (a `cockpit-cv-*` worker started by hand) are a
+// SEPARATE source this text match can't see — while one is live
+// (NodeStatusOpts.cvLive) it joins the same lane.
 const ORCH_CHILD_MARKER_RE = /^you are a delegated worker of the orchestrator\b|\[orch\]/i;
 export function isOrchestratorChildText(subtitle: string): boolean {
   return ORCH_CHILD_MARKER_RE.test(subtitle);
@@ -109,22 +110,25 @@ interface NodeStatusOpts {
   // Arrives before a resync would ever pick up the server-persisted
   // lastTurnOk, so it's checked independently, not as a fallback.
   interrupted?: Record<string, string>;
+  // Session ids live in a `cockpit-cv-*` shell ('cv-live' frame).
+  cvLive?: Set<string>;
 }
 
-interface NodeStatus { status: CardStatus; running: boolean; waiting: boolean; needsAttention: boolean; mtime: number }
+interface NodeStatus { status: CardStatus; running: boolean; waiting: boolean; needsAttention: boolean; mtime: number; shellLive: boolean }
 
 function nodeStatus(n: CanvasNode, o: NodeStatusOpts): NodeStatus {
   const live = o.liveSessions?.get(n.ref);
-  const running = o.running.has(n.ref);
+  const shellLive = !!o.cvLive?.has(n.ref);
+  const running = o.running.has(n.ref) || shellLive;
   const waiting = live?.waiting ?? !!n.waiting;
   const mtime = live?.mtime ?? n.mtime;
   const lastTurnOk = live?.lastTurnOk;
   const attentionNeeded = lastTurnOk === false || !!o.interrupted?.[n.ref];
   const override = o.overrides[n.ref];
   const turnStartedAt = o.turnStartedAt[n.ref];
-  const status = deriveSessionStatus({ mtime, running, waiting, everRan: n.count !== 0, attentionNeeded, override, turnStartedAt });
+  const status = deriveSessionStatus({ mtime, running, waiting, everRan: n.count !== 0, attentionNeeded, override, turnStartedAt, shellLive });
   const needsAttention = attentionNeeded && !running && !waiting && !isOverrideActive(override, mtime, turnStartedAt);
-  return { status, running, waiting, needsAttention, mtime };
+  return { status, running, waiting, needsAttention, mtime, shellLive };
 }
 
 export interface DeriveSessionItemsOpts extends NodeStatusOpts {
@@ -165,7 +169,7 @@ export function deriveSessionItems(o: DeriveSessionItemsOpts): SessionKanbanItem
     if (!o.showAutomation && isAutomationSession({ title: n.title, subtitle: n.subtitle })) continue;
     const ns = nodeStatus(n, o);
     out.push({
-      nodeId: n.id, sessionId: n.ref, title: n.title, subtitle: n.subtitle, area: n.area, orchestratorChild: isOrchestratorChildText(n.subtitle),
+      nodeId: n.id, sessionId: n.ref, title: n.title, subtitle: n.subtitle, area: n.area, orchestratorChild: ns.shellLive || isOrchestratorChildText(n.subtitle),
       status: ns.status, running: ns.running, waitingOnUser: ns.waiting, needsAttention: ns.needsAttention, mtime: ns.mtime,
     });
   }
@@ -181,7 +185,7 @@ export function orchestratorKanbanItem(nodes: CanvasNode[], o: NodeStatusOpts, o
   if (!n) return undefined;
   const ns = nodeStatus(n, o);
   return {
-    nodeId: n.id, sessionId: n.ref, title: n.title, subtitle: n.subtitle, area: n.area, orchestratorChild: isOrchestratorChildText(n.subtitle),
+    nodeId: n.id, sessionId: n.ref, title: n.title, subtitle: n.subtitle, area: n.area, orchestratorChild: ns.shellLive || isOrchestratorChildText(n.subtitle),
     status: ns.status, running: ns.running, waitingOnUser: ns.waiting, needsAttention: ns.needsAttention, mtime: ns.mtime,
   };
 }

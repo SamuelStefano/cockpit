@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
-  AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasGraph, CanvasNode, CanvasPos, CardStatus, ContentFormat, OrchestratorActivity, TermStats,
+  AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasGraph, CanvasNode, CanvasPos, CardStatus, ContentFormat, OrchestratorActivity, SessionPeek, TermStats,
 } from '../../../shared/canvas';
 import { AREA_IDS } from '../../../shared/canvas';
 import { buildContentPrompt, buildContinuePrompt, buildTaskPrompt } from '../../../shared/canvas-prompt';
@@ -88,6 +88,9 @@ export interface CanvasRouteProps {
   // The dock's "Em andamento" panel — see useOrchestratorActivityPoll.
   orchestratorActivity: OrchestratorActivity | null;
   onOrchestratorActivityGet: () => void;
+  cvLiveSessionIds: string[];
+  sessionPeeks: Record<string, SessionPeek | null>;
+  onSessionPeek: (sessionId: string) => void;
 }
 
 export type CanvasMode = 'canvas' | 'kanban' | 'chain';
@@ -154,7 +157,8 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     for (const s of p.sessions) m.set(s.id, { waiting: s.waiting, mtime: s.mtime, lastTurnOk: s.lastTurnOk });
     return m;
   }, [p.sessions]);
-  const nodeStatusOpts = { running: p.running, overrides: p.board.sessionStatus, turnStartedAt, liveSessions, interrupted: p.interrupted };
+  const cvLive = useMemo(() => new Set(p.cvLiveSessionIds), [p.cvLiveSessionIds]);
+  const nodeStatusOpts = { running: p.running, overrides: p.board.sessionStatus, turnStartedAt, liveSessions, interrupted: p.interrupted, cvLive };
   // Every SESSION NODE, not deriveSessionItems' deduped/automation-filtered
   // list: a session bound to a card, or an automation run, still counts as
   // "just finished" for the execution scope's own framing.
@@ -162,7 +166,7 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     () => doneRecentSessionIds(merged.nodes, nodeStatusOpts, now),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- nodeStatusOpts is a
     // fresh object every render; its own members are the real deps.
-    [merged.nodes, p.running, p.board.sessionStatus, turnStartedAt, liveSessions, p.interrupted, now],
+    [merged.nodes, p.running, p.board.sessionStatus, turnStartedAt, liveSessions, p.interrupted, cvLive, now],
   );
   const filterExtras = { windowIds: windowIdSet, doneRecentIds, showAutomation, liveSessions, showContexts };
   const visible = useMemo(() => {
@@ -353,12 +357,12 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
   }),
   // eslint-disable-next-line react-hooks/exhaustive-deps -- nodeStatusOpts is a
   // fresh object every render; its own members are the real deps.
-  [merged, p.board.cards, showAutomation, extraBoundIds, orchestratorSessionId, p.running, p.board.sessionStatus, turnStartedAt, liveSessions, p.interrupted]);
+  [merged, p.board.cards, showAutomation, extraBoundIds, orchestratorSessionId, p.running, p.board.sessionStatus, turnStartedAt, liveSessions, p.interrupted, cvLive]);
   const orchestratorItem = useMemo(
     () => orchestratorKanbanItem(merged.nodes, nodeStatusOpts, orchestratorSessionId),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- nodeStatusOpts is a
     // fresh object every render; its own members are the real deps.
-    [merged.nodes, orchestratorSessionId, p.running, p.board.sessionStatus, turnStartedAt, liveSessions, p.interrupted],
+    [merged.nodes, orchestratorSessionId, p.running, p.board.sessionStatus, turnStartedAt, liveSessions, p.interrupted, cvLive],
   );
 
   // A 'continue' reuse send runCard already moved to "doing" can still be

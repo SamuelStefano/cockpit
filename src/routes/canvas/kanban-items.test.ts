@@ -30,6 +30,10 @@ describe('deriveSessionStatus', () => {
     expect(deriveSessionStatus({ ...base, running: true, override: { status: 'done', at: 999 } })).toBe('doing');
   });
 
+  it('a live cv shell reads as In progress, override or not', () => {
+    expect(deriveSessionStatus({ ...base, shellLive: true, override: { status: 'done', at: 999 } })).toBe('doing');
+  });
+
   it('waiting on the user reads as In progress', () => {
     expect(deriveSessionStatus({ ...base, waiting: true })).toBe('doing');
   });
@@ -291,6 +295,15 @@ describe('deriveSessionItems — orchestratorChild', () => {
       edges: [], cards: [], running: new Set(), overrides: {}, turnStartedAt: {}, showAutomation: false,
     });
     expect(items[0].orchestratorChild).toBe(false);
+  });
+
+  it('a session live in a cv shell is running, In progress and in the orchestrator lane', () => {
+    const items = deriveSessionItems({
+      nodes: [session('a', { subtitle: 'preciso de ajuda com o deploy' }), session('b')],
+      edges: [], cards: [], running: new Set(), overrides: {}, turnStartedAt: {}, showAutomation: false, cvLive: new Set(['a']),
+    });
+    expect(items[0]).toMatchObject({ sessionId: 'a', status: 'doing', running: true, orchestratorChild: true });
+    expect(items[1]).toMatchObject({ sessionId: 'b', status: 'review', running: false, orchestratorChild: false });
   });
 });
 
