@@ -13,9 +13,10 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import WebSocket from 'ws';
-import type { ClientMsg, ServerMsg, Effort } from '../shared/protocol';
+import type { ClientMsg, ServerMsg, Effort, Message, ToolQuestion } from '../shared/protocol';
 import { CARD_ID_RE, CARD_STATUSES, type CanvasCard, type CardStatus } from '../shared/canvas';
 import { buildTaskPrompt, buildContinuePrompt } from '../shared/canvas-prompt';
+import { ctxWindow } from '../src/routes/canvas/term-stats-view';
 
 // --- connection -------------------------------------------------------------
 
@@ -262,8 +263,9 @@ async function cmdBoard(json: boolean): Promise<void> {
   }
 }
 
-async function cmdSend(id: string, text: string, flags: Flags): Promise<void> {
-  const full = await resolveSessionId(id);
+// Shared by `send` and `answer` (an answer is just a normal send — see cmdAnswer):
+// queues if the session is mid-turn, otherwise starts a turn directly.
+async function sendText(full: string, text: string, flags: Flags): Promise<void> {
   const client = await connect();
   const busy = await client.waitFor(isServerMsg('busy'), 3000);
   const isBusy = !!busy?.keys.includes(full);
@@ -291,6 +293,11 @@ async function cmdSend(id: string, text: string, flags: Flags): Promise<void> {
   if (ack.t === 'send-reject') fail(`send rejected: ${ack.message}`);
   if (ack.t === 'send-parked') { console.log(`parked (queued for later): ${ack.message}`); return; }
   console.log(`sent — turn started on ${shortId(full)}${ack.model ? ` (model ${ack.model})` : ''}`);
+}
+
+async function cmdSend(id: string, text: string, flags: Flags): Promise<void> {
+  const full = await resolveSessionId(id);
+  return sendText(full, text, flags);
 }
 
 async function cmdNew(text: string, flags: Flags): Promise<void> {
@@ -335,6 +342,180 @@ async function cmdWait(id: string, flags: Flags): Promise<void> {
   const { transcriptText } = await import('../server/summary');
   const parsed = await parseSession(done.sessionId);
   if (parsed) console.log(transcriptText(parsed.messages, 2000));
+}
+
+// --- session meta / visibility -------------------------------------------
+
+async function cmdRename(id: string, title: string, flags: Flags): Promise<void> {
+  const full = await resolveSessionId(id);
+  const summary = flagStr(flags, 'summary');
+  const client = await connect();
+  client.send({ t: 'set-meta', sessionId: full, title, summary });
+  await client.waitFor(isServerMsg('sessions'), DEFAULT_TIMEOUT_MS);
+  client.close();
+  console.log(`session ${shortId(full)} renamed to "${oneLine(title, 120)}"${summary ? ' (summary updated)' : ''}`);
+}
+
+async function cmdHide(id: string): Promise<void> {
+  const full = await resolveSessionId(id);
+  const client = await connect();
+  client.send({ t: 'hide', sessionId: full });
+  await client.waitFor(isServerMsg('archived'), DEFAULT_TIMEOUT_MS);
+  client.close();
+  console.log(`session ${shortId(full)} hidden`);
+}
+
+async function cmdUnhide(id: string): Promise<void> {
+  const full = await resolveSessionId(id);
+  const client = await connect();
+  client.send({ t: 'unhide', sessionId: full });
+  await client.waitFor(isServerMsg('archived'), DEFAULT_TIMEOUT_MS);
+  client.close();
+  console.log(`session ${shortId(full)} unhidden`);
+}
+
+// --- pending questions / answering ---------------------------------------
+
+// A pending AskUserQuestion is the last assistant message's last AskUserQuestion
+// tool block, the same lookup the frontend does in AskQuestionCard/visible-blocks
+// (isQuestionTool: t.name === 'AskUserQuestion' && t.questions?.length).
+async function findPendingQuestion(sessionId: string): Promise<ToolQuestion[] | null> {
+  const { parseSession } = await import('../server/sessions/parse');
+  const parsed = await parseSession(sessionId);
+  if (!parsed) return null;
+  const messages = parsed.messages as Message[];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== 'assistant') continue;
+    for (let j = m.blocks.length - 1; j >= 0; j--) {
+      const b = m.blocks[j];
+      if (b.type === 'tool' && b.tool.name === 'AskUserQuestion' && b.tool.questions?.length) return b.tool.questions;
+    }
+    return null; // last assistant message has no pending question — nothing to find further back
+  }
+  return null;
+}
+
+interface PendingItem { id: string; title: string; questions: ToolQuestion[] }
+
+async function pendingItems(idFilter?: string): Promise<PendingItem[]> {
+  const { listSessions } = await import('../server/sessions/index');
+  const own = await listSessions();
+  let waiting = own.filter((s) => s.waiting);
+  if (idFilter) {
+    const full = await resolveSessionId(idFilter);
+    waiting = waiting.filter((s) => s.id === full);
+  }
+  const items: PendingItem[] = [];
+  for (const s of waiting) {
+    const questions = await findPendingQuestion(s.id);
+    if (questions) items.push({ id: s.id, title: s.title, questions });
+  }
+  return items;
+}
+
+async function cmdPending(idArg: string | undefined, json: boolean): Promise<void> {
+  const items = await pendingItems(idArg);
+  if (json) { console.log(JSON.stringify(items, null, 2)); return; }
+  if (!items.length) { console.log(idArg ? 'that session has no pending question' : 'no sessions awaiting an answer'); return; }
+  for (const it of items) {
+    console.log(`${shortId(it.id)}  ${oneLine(it.title)}`);
+    it.questions.forEach((q, qi) => {
+      console.log(`  [${qi}] ${q.header ? `${q.header} — ` : ''}${oneLine(q.question, 200)}`);
+      q.options.forEach((opt, oi) => {
+        console.log(`      ${oi}) ${opt.label}${opt.description ? ` — ${oneLine(opt.description, 120)}` : ''}`);
+      });
+    });
+  }
+}
+
+async function cmdAnswer(id: string, answer: string, flags: Flags): Promise<void> {
+  const full = await resolveSessionId(id);
+  const questions = await findPendingQuestion(full);
+  if (!questions) {
+    fail(`session ${shortId(full)} has no pending question to answer — falling back to "deckctl send" instead:\n  npx tsx scripts/deckctl.mts send ${id} "${answer}"`);
+  }
+  const idx = /^\d+$/.test(answer) ? Number(answer) : null;
+  let text: string;
+  if (idx !== null) {
+    if (questions.length > 1) fail(`session ${shortId(full)} has ${questions.length} pending questions — an option index only resolves the first; answer with free text instead (it mirrors what the frontend sends: "<header>: <chosen label>" per question)`);
+    const opt = questions[0].options[idx];
+    if (!opt) fail(`option index ${idx} out of range — ${questions[0].options.length} option(s): ${questions[0].options.map((o, i) => `${i}) ${o.label}`).join(', ')}`);
+    text = `${questions[0].header || questions[0].question}: ${opt.label}`;
+  } else {
+    text = answer;
+  }
+  await sendText(full, text, flags);
+}
+
+// --- handoff / context size ------------------------------------------------
+
+async function cmdHandoff(id: string): Promise<void> {
+  const full = await resolveSessionId(id);
+  const client = await connect();
+  client.send({ t: 'session-handoff', sessionId: full });
+  const result = await client.waitFor(
+    (m): m is Extract<ServerMsg, { t: 'handoff-result' }> => m.t === 'handoff-result' && m.sessionId === full,
+    30_000,
+  );
+  if (!result) { client.close(); fail('no handoff-result from server (timeout)'); }
+  if (!result.ok) { client.close(); fail(`handoff rejected: ${result.error}`); }
+
+  // Mirror what the frontend does on handoff-result (useCockpit.ts): the WS
+  // frame only distills the old session into a memory context and hides it —
+  // the fresh chat is a normal 'send' seeded with a resume prompt pointing at
+  // that context, same as onNew() + sendPrompt() in the browser.
+  const sessionKey = `new-${randomUUID()}`;
+  const text = `Retome o trabalho a partir do contexto \`${result.contextId}\`.`;
+  client.send({ t: 'send', sessionKey, text });
+  const sys = await client.waitFor((m): m is Extract<ServerMsg, { t: 'system' }> => m.t === 'system' && m.sessionKey === sessionKey, DEFAULT_TIMEOUT_MS);
+  if (!sys) { client.close(); fail('handoff distilled ok but the fresh session never got a sessionId (timeout)'); }
+  const title = result.fromTitle?.trim() ? `${result.fromTitle.trim()} (retomado)` : 'Sessão retomada';
+  client.send({ t: 'set-meta', sessionId: sys.sessionId, title });
+  client.close();
+  console.log(`handoff ok — context ${result.contextId}, new session ${sys.sessionId}`);
+}
+
+async function cmdCtx(flags: Flags, json: boolean): Promise<void> {
+  const { listSessions } = await import('../server/sessions/index');
+  const { lastUsageOf } = await import('../server/db');
+  const own = await listSessions();
+  const items = own
+    .map((s) => {
+      const u = lastUsageOf(s.id);
+      const tokens = u?.ctxTokens ?? 0;
+      const window = ctxWindow(tokens, u?.requestedModel ?? u?.model ?? undefined);
+      return { id: s.id, title: s.title, tokens, window, pct: tokens ? Math.round((tokens / window) * 100) : 0 };
+    })
+    .filter((it) => it.tokens > 0)
+    .sort((a, b) => b.tokens - a.tokens);
+  const limit = flagNum(flags, 'limit');
+  const shown = limit ? items.slice(0, limit) : items;
+
+  if (json) { console.log(JSON.stringify(shown, null, 2)); return; }
+  if (!shown.length) { console.log('no sessions with observed context usage'); return; }
+  for (const it of shown) {
+    const windowStr = it.window >= 1_000_000 ? '1M' : '200k';
+    console.log(`${shortId(it.id)}  ${String(it.pct).padStart(3)}% of ${windowStr}  (${Math.round(it.tokens / 1000)}k)  ${oneLine(it.title)}`);
+  }
+}
+
+// --- queue -----------------------------------------------------------------
+
+async function cmdQueue(id: string, json: boolean): Promise<void> {
+  const full = await resolveSessionId(id);
+  const client = await connect();
+  client.send({ t: 'queue-get' });
+  const q = await client.waitFor(isServerMsg('queue'), DEFAULT_TIMEOUT_MS);
+  client.close();
+  if (!q) fail('no ack from server for queue-get (timeout)');
+  const items = q.items.filter((it) => it.sessionKey === full);
+  if (json) { console.log(JSON.stringify({ items, paused: q.paused }, null, 2)); return; }
+  if (!items.length) { console.log(`no queued prompts for session ${shortId(full)}${q.paused ? ' (queue is paused)' : ''}`); return; }
+  if (q.paused) console.log('(queue is paused)');
+  for (const it of items) {
+    console.log(`${it.id}  ${fmtBrt(it.at)}${it.held ? ' held' : ''}${it.model ? ` model=${it.model}` : ''}  ${oneLine(it.text, 100)}`);
+  }
 }
 
 // --- card commands -----------------------------------------------------
@@ -454,6 +635,9 @@ async function cmdStatus(): Promise<void> {
   console.log(`running: ${running.length}${running.length ? ' — ' + running.map((s) => shortId(s.id)).join(', ') : ''}`);
   console.log(`awaiting input: ${awaiting.length}${awaiting.length ? ' — ' + awaiting.map((s) => shortId(s.id)).join(', ') : ''}`);
 
+  const pending = await pendingItems();
+  console.log(`pending questions: ${pending.length}${pending.length ? ' — ' + pending.map((p) => shortId(p.id)).join(', ') : ''}`);
+
   if (board) {
     const counts = CARD_STATUSES.map((s) => `${s}=${board.board.cards.filter((c) => c.status === s).length}`).join(' ');
     console.log(`board: ${counts}`);
@@ -469,6 +653,16 @@ async function cmdStatus(): Promise<void> {
     return ctx !== undefined && ctx >= 0.8 * 200_000; // 200k default window; best-effort flag
   });
   if (hot.length) console.log(`ctx>=80%: ${hot.map((s) => shortId(s.id)).join(', ')}`);
+
+  // ALL own sessions (not just running) at >=70% of their observed window —
+  // the handoff/ctx candidates an orchestrator should consider offloading.
+  const highCtx = own.filter((s) => {
+    const u = lastUsageOf(s.id);
+    if (!u?.ctxTokens) return false;
+    const pct = (u.ctxTokens / ctxWindow(u.ctxTokens, u.requestedModel ?? u.model ?? undefined)) * 100;
+    return pct >= 70;
+  });
+  console.log(`ctx>=70%: ${highCtx.length}${highCtx.length ? ' — ' + highCtx.map((s) => shortId(s.id)).join(', ') : ''}`);
 }
 
 // --- main --------------------------------------------------------------
@@ -484,11 +678,19 @@ Usage: deckctl <command> [args] [--json]
   new "<text>" [--cwd DIR] [--model M] [--title T]     start a new session, prints its sessionId
   stop <sessionId>                          stop a running turn
   wait <sessionId> [--timeout S]            block until the turn ends (default 15s)
+  rename <sessionId> "<title>" [--summary S]   set-meta: title (and optionally summary)
+  hide <sessionId>                          hide a session (moves it to archived)
+  unhide <sessionId>                        unhide a session
+  pending [<sessionId>]                     sessions awaiting an answer (AskUserQuestion) + question/options
+  answer <sessionId> <optionIndex|"free text">  answer a pending question (falls back to "send" if none pending)
+  handoff <sessionId>                       migrate a heavy session to a fresh chat + handoff summary
+  ctx [--limit N]                           sessions sorted by context size, % of window (200k, or 1M if observed)
+  queue <sessionId>                         queued prompts for a session
   card add "<title>" [--prompt P]           create a kanban card
   card move <id> <status>                   move a card (todo|doing|review|done)
   card rm <id>                              delete a card
   card run <id> [--fork <parentSessionId>]  run a card (optionally as a fork of an existing session)
-  status                                    one-screen overview + alerts
+  status                                    one-screen overview + alerts (pending questions, hot-context sessions)
 
 Session/card ids accept unambiguous prefixes. Add --json to any read command for raw output.`;
 
@@ -520,6 +722,32 @@ async function main(): Promise<void> {
     case 'wait': {
       if (!positional[0]) fail('usage: deckctl wait <sessionId> [--timeout S]');
       return cmdWait(positional[0], flags);
+    }
+    case 'rename': {
+      if (!positional[0] || positional[1] === undefined) fail('usage: deckctl rename <sessionId> "<title>" [--summary S]');
+      return cmdRename(positional[0], positional[1], flags);
+    }
+    case 'hide': {
+      if (!positional[0]) fail('usage: deckctl hide <sessionId>');
+      return cmdHide(positional[0]);
+    }
+    case 'unhide': {
+      if (!positional[0]) fail('usage: deckctl unhide <sessionId>');
+      return cmdUnhide(positional[0]);
+    }
+    case 'pending': return cmdPending(positional[0], json);
+    case 'answer': {
+      if (!positional[0] || positional[1] === undefined) fail('usage: deckctl answer <sessionId> <optionIndex|"free text">');
+      return cmdAnswer(positional[0], positional[1], flags);
+    }
+    case 'handoff': {
+      if (!positional[0]) fail('usage: deckctl handoff <sessionId>');
+      return cmdHandoff(positional[0]);
+    }
+    case 'ctx': return cmdCtx(flags, json);
+    case 'queue': {
+      if (!positional[0]) fail('usage: deckctl queue <sessionId>');
+      return cmdQueue(positional[0], json);
     }
     case 'card': {
       const [sub, ...cargs] = positional;
