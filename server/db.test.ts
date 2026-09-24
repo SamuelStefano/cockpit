@@ -74,6 +74,15 @@ describe('computeStats per-model pricing', () => {
     for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
   });
 
+  it('sweepUsage prunes stale last-turn outcomes too', async () => {
+    const db = await freshDb();
+    db.setTurnOutcome('old', true, Date.now() - 200 * 86_400_000);
+    db.setTurnOutcome('new', true, Date.now());
+    db.sweepUsage();
+    expect(db.getTurnOutcome('old')).toBeNull();
+    expect(db.getTurnOutcome('new')).toBe(true);
+  });
+
   it('prices each turn at its own model, not the latest one', async () => {
     const { recordUsage, usageStats, costOf: cost } = await freshDb();
     recordUsage({ sessionId: 's1', ctxTokens: 1000, outputTokens: 1_000_000, model: 'claude-opus-4' });
