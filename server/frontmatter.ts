@@ -10,11 +10,21 @@ export function parseFrontmatter(text: string): Fm {
   const end = text.indexOf('\n---', 3);
   const block = end >= 0 ? text.slice(3, end) : text.slice(3);
   const fm: Fm = {};
-  for (const line of block.split('\n')) {
-    const m = /^\s*([a-zA-Z_]+):\s*(.*)$/.exec(line);
+  const lines = block.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^(\s*)([a-zA-Z_]+):\s*(.*)$/.exec(lines[i]);
     if (!m) continue;
-    const [, key, valRaw] = m;
-    const val = unquote(valRaw.trim());
+    const [, indent, key, valRaw] = m;
+    let val = unquote(valRaw.trim());
+    // YAML block scalar (`description: >-` then indented lines): the value is the
+    // following more-indented lines. Without this the UI showed a literal ">-".
+    if (/^[>|][+-]?$/.test(val)) {
+      const parts: string[] = [];
+      while (i + 1 < lines.length && (lines[i + 1].trim() === '' || /^\s*/.exec(lines[i + 1])![0].length > indent.length)) {
+        parts.push(lines[++i].trim());
+      }
+      val = parts.filter(Boolean).join(' ');
+    }
     if (key === 'name' && !fm.name) fm.name = val;
     else if (key === 'description' && !fm.description) fm.description = val;
     else if (key === 'type' && !fm.type) fm.type = val;

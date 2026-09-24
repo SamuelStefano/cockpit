@@ -56,3 +56,14 @@ describe('stripFrontmatter', () => {
     expect(stripFrontmatter('plain body')).toBe('plain body');
   });
 });
+
+describe('parseFrontmatter block scalars', () => {
+  it('reads a folded description (>-) instead of returning the indicator', () => {
+    const fm = parseFrontmatter('---\nname: x\ndescription: >-\n  Primeira linha\n  segunda linha.\ntype: ref\n---\nbody');
+    expect(fm).toEqual({ name: 'x', description: 'Primeira linha segunda linha.', type: 'ref' });
+  });
+
+  it('reads a literal block (|) too', () => {
+    expect(parseFrontmatter('---\ndescription: |\n  a\n  b\n---').description).toBe('a b');
+  });
+});
