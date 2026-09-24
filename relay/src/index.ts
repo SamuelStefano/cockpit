@@ -289,8 +289,12 @@ export function createRelay(cfg: RelayConfig) {
           // Verifica sobre challenge+agentId (domain separation; casa com o agente).
           if (!st.challenge || !verifyAgentSignature(pub, `${st.challenge}.${st.agentId}`, m.sig)) { ws.close(4401, 'bad sig'); return; }
           // Same agent reconnecting (the old socket half-open) still takes over below.
+          // A bound agent that was revoked since it logged in (revocation is only
+          // checked at agent-hello) must not keep the slot either.
           const cur = boundAgentId.get(st.accountId);
-          if (cur && cur.agentId !== st.agentId && cur.ws.readyState === cur.ws.OPEN) { ws.close(4409, 'another agent online'); return; }
+          if (cur && cur.agentId !== st.agentId && cur.ws.readyState === cur.ws.OPEN && await cfg.store.agentById(cur.agentId)) {
+            ws.close(4409, 'another agent online'); return;
+          }
           st.authed = true;
           clearTimeout(authTimer);
           // Termina um socket de agente ANTERIOR da mesma conta (reconnect com o velho

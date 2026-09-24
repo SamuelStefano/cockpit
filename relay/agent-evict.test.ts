@@ -52,6 +52,17 @@ describe('two agents paired to one account', () => {
     expect(first.ws.readyState).toBe(WebSocket.OPEN);
   });
 
+  it('a bound agent revoked since its login does not keep the slot', async () => {
+    const A = keys(); const B = keys();
+    const agents: Record<string, string> = { 'ag-1': A.pub, 'ag-2': B.pub };
+    const url = await relayWith(agents);
+    const first = agent(url, 'ag-1', A.priv); socks.push(first.ws);
+    expect(await first.outcome).toBe('ready');
+    delete agents['ag-1']; // revoked in the store (agentById → null)
+    const second = agent(url, 'ag-2', B.priv); socks.push(second.ws);
+    expect(await second.outcome).toBe('ready');
+  });
+
   it('the same agent reconnecting still takes over its half-open socket', async () => {
     const A = keys();
     const url = await relayWith({ 'ag-1': A.pub });

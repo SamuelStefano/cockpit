@@ -135,7 +135,9 @@ function reemitBootstrap(ws: WebSocket): void {
 }
 
 export const ANOTHER_AGENT_CLOSE = 4409;
-export const ANOTHER_AGENT_WAIT_MS = 5 * 60_000;
+// Past the relay's heartbeat window (~60 s), so a half-open socket of a re-paired
+// box is gone by the next try, without hammering while another box holds the slot.
+export const ANOTHER_AGENT_WAIT_MS = 90_000;
 
 function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: (code: number) => void, onAuthed: () => void): WebSocket {
   const ws = new WebSocket(`${relayUrl.replace(/\/$/, '')}/agent`);
@@ -338,7 +340,7 @@ export function runAgent(relayUrl: string): void {
       () => { /* TCP-open não zera o backoff: auth pode falhar logo após (4401) */ },
       (code) => {
         // 4409: another agent of this account is online. Retrying at the normal
-        // backoff kept evicting-and-being-evicted; wait long and don't reset.
+        // backoff kept evicting-and-being-evicted; wait longer and don't reset.
         const wait = code === ANOTHER_AGENT_CLOSE ? ANOTHER_AGENT_WAIT_MS : backoffMs(attempt++);
         console.error(`[agent] desconectado; reconectando em ${Math.round(wait / 1000)}s`);
         setTimeout(loop, wait);
