@@ -79,4 +79,11 @@ describe('proseBlocks rendering', () => {
     expect(out).toContain('class="list-disc"');
     expect(out).toContain('value="2"');
   });
+
+  it('a numbered list nested in a bullet list keeps its own numbers', () => {
+    const out = html('- a\n- b\n  1. x\n  2. y');
+    expect(out).toContain('<ul');
+    expect(out).toContain('value="1"');
+    expect(out).toContain('value="2"');
+  });
 });

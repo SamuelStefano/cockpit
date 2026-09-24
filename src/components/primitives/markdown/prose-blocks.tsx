@@ -94,7 +94,7 @@ export function proseBlocks(md: string, keyBase: string, caret: boolean, slugs: 
           {items.map((it, li) => (
             // A bullet nested in a numbered list keeps its bullet; numbered items
             // carry their source number, so a nested bullet doesn't shift the count.
-            <li key={li} value={ordered ? it.num : undefined} className={ordered && it.num === undefined ? 'list-disc' : !ordered && it.num !== undefined ? 'list-decimal' : undefined}
+            <li key={li} value={it.num} className={ordered && it.num === undefined ? 'list-disc' : !ordered && it.num !== undefined ? 'list-decimal' : undefined}
               style={it.depth ? { marginLeft: it.depth * 16 } : undefined}>{renderInline(it.text, `${k}-i${li}`)}</li>
           ))}
         </ListTag>
