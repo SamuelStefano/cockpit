@@ -31,7 +31,10 @@ export function UsageTable({ rows, known, titleOf, onOpenSession }: UsageTablePr
       <table className="w-full text-[12.5px]">
         <thead>
           <tr className="border-b border-neutral-800 bg-neutral-900/40 text-left text-[11px] uppercase tracking-wider text-neutral-500">
-            <th className="px-2 py-2 font-medium sm:px-3">sessão</th>
+            {/* w-full: the title column takes the slack. With max-w-0 cells and no width
+                it got the least of it (157px of a 1400px table, "Itera: lição de variávei…")
+                while the other columns held empty space. */}
+            <th className="w-full px-2 py-2 font-medium sm:px-3">sessão</th>
             <th className="hidden px-3 py-2 font-medium md:table-cell">contexto</th>
             <SortHead label="saída" sortKey="output" sort={sort} onToggle={toggle} />
             <SortHead label="custo" sortKey="cost" sort={sort} onToggle={toggle} />
