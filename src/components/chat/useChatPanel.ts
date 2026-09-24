@@ -1,10 +1,11 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { prettyModel } from './toolbar-format';
 import { pendingQuestionIdx } from '../../cockpit/pending-question';
-import type { Session, Message } from '../../data/types';
+import type { Session, Message, UserMessage } from '../../data/types';
 import type { PermMode, ModelInfo } from '../../../shared/protocol';
 import type { QueueItem } from '../../useCockpit';
 import { parseAttachments, replaceBody } from '../../../shared/parse-attachments';
+import { userBody } from './chat-topics';
 
 export type Phase = 'idle' | 'thinking' | 'streaming';
 
@@ -93,7 +94,7 @@ export function useChatPanel({ session, messages, phase, models, model, lastEnd,
   // as linhas `[anexo:]`. Recuperar o prompt trazia os marcadores junto e o reenvio
   // repontava pra um arquivo que já pode ter passado do TTL.
   const sentHistory = useMemo(
-    () => messages.filter((m) => m.role === 'user').map((m) => parseAttachments(m.text).body).filter(Boolean),
+    () => messages.filter((m): m is UserMessage => m.role === 'user').map(userBody).filter(Boolean),
     [messages],
   );
   const modelLabel = useMemo(
