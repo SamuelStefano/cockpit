@@ -17,7 +17,9 @@ export function ConnDot({ label, state, compact }: ConnDotProps) {
   const pulse = state === 'reconnecting';
   const description = `${label} · ${meta.label}`;
   return (
-    <div className="group relative flex items-center gap-1.5" title={description} aria-label={description} role="status">
+    // No `title`: the styled bubble below already shows on hover, and the native
+    // tooltip stacked a second copy of the same text over it a moment later.
+    <div className="group relative flex items-center gap-1.5" aria-label={description} role="status">
       <span
         className="relative inline-flex h-2 w-2 rounded-full"
         style={{
