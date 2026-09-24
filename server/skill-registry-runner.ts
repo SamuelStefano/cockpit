@@ -49,7 +49,12 @@ export async function installFromRegistry(items: RegistryRef[]): Promise<Install
   }
   if (wanted.length === 0) return out;
   const fetched = await run<RegistryFilesResult>({ kind: 'files', items: wanted });
+  // Only what was asked for lands: a registry reply carrying extra or renamed
+  // slugs is registry content, not a request, and must not install anything.
+  const asked = new Set(wanted.map((w) => w.slug));
   for (const item of fetched.items) {
+    if (!asked.has(item.slug)) { out.failed.push({ slug: String(item.slug).slice(0, 80), error: 'não solicitada' }); continue; }
+    asked.delete(item.slug);
     const v = verifySkillFiles(item.files);
     if (!v.ok) { out.failed.push({ slug: item.slug, error: v.error }); continue; }
     const w = await writeSkillDir(CONFIG.skillsDir, item.slug, v.files);
