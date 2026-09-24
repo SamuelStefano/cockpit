@@ -1,4 +1,5 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { useDialogFocus } from '../components/primitives/useDialogFocus';
 import { Button, Icon, type IconName } from '../components/primitives';
 
 // Modal de confirmação para ações destrutivas/sensíveis do painel admin (remover
@@ -29,11 +30,14 @@ export function AdminConfirm({
     return () => window.removeEventListener('keydown', onKey);
   }, [onConfirm, onCancel]);
 
+  const dialog = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialog);
+
   const glyph = tone === 'danger' ? 'bg-red-500/15 text-red-400' : 'bg-orange-500/15 text-orange-400';
 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" onClick={onCancel}>
-      <div role="dialog" aria-modal="true" aria-label={heading} className="w-full max-w-sm rounded-2xl border border-neutral-700 bg-neutral-900 p-4 shadow-2xl shadow-black/50" onClick={(e) => e.stopPropagation()}>
+      <div ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-label={heading} className="w-full max-w-sm rounded-2xl border border-neutral-700 bg-neutral-900 p-4 shadow-2xl shadow-black/50" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start gap-3">
           <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${glyph}`}>
             <Icon name={icon} size={16} />
@@ -44,7 +48,9 @@ export function AdminConfirm({
           </div>
         </div>
         <div className="mt-4 flex items-center justify-end gap-2">
-          <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+          {/* Focus starts on the SAFE choice: Enter on a destructive admin action
+              must never be one keystroke away from opening the dialog. */}
+          <Button variant="outline" onClick={onCancel} data-autofocus>Cancelar</Button>
           <Button variant={tone === 'danger' ? 'dangerSolid' : 'primary'} onClick={onConfirm}>{cta}</Button>
         </div>
       </div>
