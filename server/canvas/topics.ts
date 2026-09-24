@@ -89,20 +89,32 @@ export function createTopicMatcher(docs: MatchDoc[]) {
   }
   // Leaves whose id starts with `word_` or equals `word`, indexed by that
   // family word so both the hub vote and the leaf-exact rule reuse one scan.
+  // The matcher runs for every session on every canvas build: re-normalizing each
+  // leaf id per word per token cost ~0.5s of synchronous CPU per build. Leaf ids
+  // are normalized once and both lookups are memoized per word (the corpus is
+  // fixed for the matcher's lifetime).
+  const leafNorms = leaves.map((l) => ({ l, n: norm(l.id) }));
+  const leavesMemo = new Map<string, MatchDoc[]>();
   function leavesFor(word: string): MatchDoc[] {
-    return leaves.filter((l) => {
-      const idHay = norm(l.id);
-      return idHay === word || idHay.startsWith(`${word}_`);
-    });
+    let hit = leavesMemo.get(word);
+    if (!hit) {
+      hit = leafNorms.filter(({ n }) => n === word || n.startsWith(`${word}_`)).map(({ l }) => l);
+      leavesMemo.set(word, hit);
+    }
+    return hit;
   }
 
   // Rule 1: which hubs does this token reach, through its family words and
   // the leaves those words match?
+  const hubsMemo = new Map<string, Set<string>>();
   function hubsFor(tokenRaw: string): Set<string> {
+    const cached = hubsMemo.get(tokenRaw);
+    if (cached) return cached;
     const hubs = new Set<string>();
     for (const w of tokenFamilies(tokenRaw)) {
       for (const l of leavesFor(w)) for (const h of hubOfLeaf.get(l.id) ?? []) hubs.add(h);
     }
+    hubsMemo.set(tokenRaw, hubs);
     return hubs;
   }
 
