@@ -8,7 +8,7 @@ import { emitCanvasMsg } from '../ws/canvas-clients';
 import { runDflWrite } from '../dfl-write-runner';
 import { readDflSnapshot } from '../dfl-points';
 import { findTaskInSnapshot } from './dfl-link';
-import { setCardDflPending, setCardDflSynced, updateBoard } from './board';
+import { setCardDflPending, setCardDflSynced, updateBoard, readBoardChained } from './board';
 
 // server/dfl-points-watch.ts calls this every time the cron/sync-now rewrites
 // ~/.cockpit/dfl-points.json (DFL->Deck direction). ADMIN-ONLY push (same
@@ -187,6 +187,14 @@ async function pushCardDflStatusUnsafe(cardId: string, status: CardStatus, taskI
 
   for (let attempt = 1; attempt <= MAX_PUSH_ATTEMPTS; attempt++) {
     if (superseded()) return;
+    // `superseded` only knows this process's pushes. The other backend (index ↔
+    // relay agent) can have pushed a newer status or unlinked the card meanwhile;
+    // a retry here would then PATCH a stale status over DFL (and stamp it as
+    // synced) or keep writing a task that is no longer linked. Every push marks
+    // `dfl.pending` on the shared board before its loop, so a newer one (or a
+    // success, which clears it) shows there.
+    const live = (await readBoardChained()).cards.find((c) => c.id === cardId);
+    if (!live?.dfl || live.dfl.taskId !== taskId || live.dfl.pending !== status) return;
     // Re-read (local cache, no network) right before every attempt — if the
     // task changed since this push was queued (someone else, or our own
     // sync, moved it), abandon THIS push and let the DFL->Deck direction
@@ -196,11 +204,17 @@ async function pushCardDflStatusUnsafe(cardId: string, status: CardStatus, taskI
       await updateBoard((b) => setCardDflPending(b, cardId, undefined));
       return;
     }
-    const r = await runDflWrite({ kind: 'task-status', taskId, status: dflStatus });
+    const r = await runDflWrite({ kind: 'task-status', taskId, status: dflStatus, unlessFinished: !opts.confirmed });
     if (superseded()) return;
     if (r.ok) {
       const updatedAt = typeof r.result.updatedAt === 'string' ? Date.parse(r.result.updatedAt) : undefined;
       await updateBoard((b) => setCardDflSynced(b, cardId, Date.now(), Number.isFinite(updatedAt) ? updatedAt : undefined));
+      return;
+    }
+    // DFL itself says the task is finished (the local snapshot was stale): same
+    // gate as the up-front reopen check — ask, don't retry.
+    if (!opts.confirmed && r.error.includes('FINISHED_IN_DFL')) {
+      await updateBoard((b) => setCardDflPending(b, cardId, status, { awaitingConfirm: true }));
       return;
     }
     if (attempt === MAX_PUSH_ATTEMPTS) {
