@@ -1,7 +1,7 @@
 import { stat } from 'node:fs/promises';
 import type { Message } from '../../shared/protocol';
 import type { SessionPeek } from '../../shared/canvas';
-import { readRecords, recTs, sessionPath, type Rec } from './records';
+import { readPeekRecords, recTs, sessionPath, type Rec } from './records';
 
 export const PEEK_TAIL_CHARS = 600;
 const MAX_LINKS = 12;
@@ -74,7 +74,7 @@ export async function peekSession(sessionId: string): Promise<SessionPeek | null
     // A failed read (EMFILE, ENOMEM on a huge transcript) must not stick: cached
     // under the same mtime+size, an idle session's drawer stayed empty until the
     // file changed. Drop it (if still ours) so the next open retries.
-    entry.peek = readRecords(path).then((scan) => peekFromRecords(scan.msgs, scan.markers), () => {
+    entry.peek = readPeekRecords(path).then((scan) => peekFromRecords(scan.msgs, scan.markers), () => {
       if (peekCache.get(sessionId) === entry) peekCache.delete(sessionId);
       return null;
     });
