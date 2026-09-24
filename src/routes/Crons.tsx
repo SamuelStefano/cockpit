@@ -22,6 +22,13 @@ interface Props {
 
 // Agendador: dispara prompts em horário marcado (turnos autônomos). Cada cron vira
 // uma sessão `cron-<id>` no chat quando roda.
+// Pausing is always allowed; turning a one-time cron back ON only if its moment is
+// still ahead.
+export function canToggleOn(c: Cron, now: number): boolean {
+  if (c.enabled) return true;
+  return c.schedule.kind !== 'once' || (c.schedule.atMs ?? 0) > now;
+}
+
 export function Crons({ connected, crons, loaded, onCronsGet, onCronSave, onCronDelete, onCronRun, planUsage, models }: Props) {
   const form = useCronForm(onCronSave);
   const formRef = useRef<HTMLDivElement>(null);
@@ -85,9 +92,14 @@ export function Crons({ connected, crons, loaded, onCronsGet, onCronSave, onCron
                   now={now}
                   editing={form.draft.id === c.id}
                   onRun={() => onCronRun(c.id)}
-                  onToggle={() => onCronSave({ ...c, enabled: !c.enabled })}
+                  // A one-time cron whose moment already passed cannot just be
+                  // re-enabled: it would fire at the next tick (the case
+                  // enabledFor blocks on save). Open it to pick a new time.
+                  onToggle={() => (canToggleOn(c, now) ? onCronSave({ ...c, enabled: !c.enabled }) : startEdit(c))}
                   onEdit={() => startEdit(c)}
-                  onDelete={() => onCronDelete(c.id)}
+                  // Deleting the cron open in the form must close the form, or
+                  // "Salvar" would recreate it under the same id.
+                  onDelete={() => { if (form.draft.id === c.id) form.reset(); onCronDelete(c.id); }}
                 />
               ))}
             </div>}
