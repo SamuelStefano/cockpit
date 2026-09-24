@@ -120,3 +120,11 @@ describe('Kanban — empty columns', () => {
     for (const p of getAllByText('nada por aqui')) expect(p.parentElement?.className).not.toContain('md:hidden');
   });
 });
+
+describe('Kanban — column headers', () => {
+  it('keeps the Done header as tall as the others when the "antigos" chip shows', () => {
+    const STALE = Date.now() - 25 * 3600_000;
+    const { getByText } = render(<Kanban {...baseProps} sessionItems={[item('old', { mtime: STALE })]} />);
+    expect(getByText(/1 antigos/).closest('button')?.className).toContain('-my-1.5');
+  });
+});
