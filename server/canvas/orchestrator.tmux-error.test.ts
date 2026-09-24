@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 const cp = vi.hoisted(() => ({ execFileSync: vi.fn() }));
 vi.mock('node:child_process', async (orig) => ({ ...(await orig<typeof import('node:child_process')>()), execFileSync: cp.execFileSync }));
 
-import { isTmuxAliveSync } from './orchestrator';
+import { isTmuxAliveSync, tmuxStateSync } from './orchestrator';
 
 const fail = (props: object) => () => { throw Object.assign(new Error('tmux'), props); };
 
@@ -20,5 +20,10 @@ describe('isTmuxAliveSync when the check itself fails', () => {
     expect(isTmuxAliveSync('cockpit-cv-orch')).toBe(true);
     cp.execFileSync.mockImplementationOnce(fail({ code: 'EAGAIN' }));
     expect(isTmuxAliveSync('cockpit-cv-orch')).toBe(true);
+  });
+
+  it('reports unknown so delivery can refuse instead of pasting', () => {
+    cp.execFileSync.mockImplementationOnce(fail({ code: 'ETIMEDOUT', status: null }));
+    expect(tmuxStateSync('cockpit-cv-orch')).toBe('unknown');
   });
 });
