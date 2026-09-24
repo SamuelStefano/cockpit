@@ -11,6 +11,8 @@ interface Props {
   onClose: () => void;
 }
 
+const COLS = 'grid-cols-[1fr_4.5rem_3rem_4rem] sm:grid-cols-[1fr_4.5rem_3rem_3.5rem_4rem]';
+
 // Every open terminal in one table, heaviest first: which session is eating the
 // box, which one is about to run out of context, which one went quiet.
 export function CanvasAnalysis({ nodes, stats, running, onPick, onClose }: Props) {
@@ -27,8 +29,10 @@ export function CanvasAnalysis({ nodes, stats, running, onPick, onClose }: Props
         <span className="font-mono text-[10.5px] text-neutral-500">{rows.length} · cpu {cpu}% · ram {fmtMb(ram)}</span>
         <Button variant="ghost" size="sm" square icon="x" title="fechar" onClick={onClose} />
       </header>
-      <div className="grid grid-cols-[1fr_4.5rem_3rem_3.5rem_4rem] gap-x-2 border-b border-neutral-800 px-3 py-1 font-mono text-[10px] uppercase tracking-wide text-neutral-600">
-        <span>sessão</span><span>contexto</span><span>cpu</span><span>ram</span><span className="text-right">tempo</span>
+      {/* Below sm the RAM column and the model tag go: at 366px the five
+          fixed columns + model left the session title ONE character wide. */}
+      <div className={`grid ${COLS} gap-x-2 border-b border-neutral-800 px-3 py-1 font-mono text-[10px] uppercase tracking-wide text-neutral-600`}>
+        <span>sessão</span><span>contexto</span><span>cpu</span><span className="hidden sm:inline">ram</span><span className="text-right">tempo</span>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto py-1">
         {!rows.length && <p className="px-3 py-4 text-center text-[11.5px] text-neutral-500">nenhum terminal aberto — use “sessões” na barra de baixo</p>}
@@ -37,16 +41,17 @@ export function CanvasAnalysis({ nodes, stats, running, onPick, onClose }: Props
           return (
             <button
               key={n.id} type="button" onClick={() => onPick(n.id)}
-              className="grid w-full grid-cols-[1fr_4.5rem_3rem_3.5rem_4rem] items-center gap-x-2 px-3 py-1.5 text-left font-mono text-[11px] hover:bg-neutral-800/70"
+              title={n.title}
+              className={`grid w-full ${COLS} items-center gap-x-2 px-3 py-1.5 text-left font-mono text-[11px] hover:bg-neutral-800/70`}
             >
               <span className="flex min-w-0 items-center gap-1.5">
                 <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${live ? 'animate-pulse bg-green-400' : n.kind === 'shell' ? 'bg-orange-400' : 'bg-neutral-600'}`} />
                 <span className="truncate font-sans text-neutral-200">{n.title}</span>
-                {s?.model && <span className="shrink-0 text-[9.5px] text-neutral-600">{shortModel(s.model)}</span>}
+                {s?.model && <span className="hidden shrink-0 text-[9.5px] text-neutral-600 sm:inline">{shortModel(s.model)}</span>}
               </span>
               <span className={pct === null ? 'text-neutral-700' : HEAT_TEXT[ctxHeat(pct)]}>{pct === null ? '—' : `${pct}%`}</span>
               <span className={s ? HEAT_TEXT[cpuHeat(s.cpu)] : 'text-neutral-700'}>{s ? `${s.cpu}%` : '…'}</span>
-              <span className="text-neutral-400">{s ? fmtMb(s.rssMb) : '…'}</span>
+              <span className="hidden text-neutral-400 sm:inline">{s ? fmtMb(s.rssMb) : '…'}</span>
               <span className="text-right text-neutral-500">{live ? 'rodando' : s?.lastAt ? relPast(s.lastAt) : '—'}</span>
             </button>
           );
