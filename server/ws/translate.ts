@@ -208,7 +208,8 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
       // físico (o pré-notificação e o pós-notificação) sobre o mesmo processo —
       // cada um cobre só a fatia dele, e o 'done' final tem que refletir o gasto
       // inteiro do turno, não só o último pedaço.
-      if (Number.isFinite(r.total_cost_usd) && r.total_cost_usd >= 0) thread.costUsd = (thread.costUsd ?? 0) + r.total_cost_usd;
+      // total_cost_usd is cumulative per process; duration_ms/num_turns are per result.
+      if (Number.isFinite(r.total_cost_usd) && r.total_cost_usd >= 0) thread.costUsd = r.total_cost_usd;
       if (typeof r.duration_ms === 'number') thread.durationMs = (thread.durationMs ?? 0) + r.duration_ms;
       if (typeof r.num_turns === 'number') thread.numTurns = (thread.numTurns ?? 0) + r.num_turns;
       // Fallback: se nenhum evento assistant trouxe usage (ex.: erro precoce),

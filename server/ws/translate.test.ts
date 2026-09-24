@@ -78,13 +78,12 @@ describe('translate', () => {
     expect(t.endReason).toBe('success');
   });
 
-  // Um turno em bg-wait produz mais de um `result` sobre o MESMO processo (o
-  // pré-notificação e o pós-notificação) — soma em vez de sobrescrever, senão o
-  // 'done' final reporta só o último pedaço do gasto.
-  it('sums cost/duration/turns across multiple results of the same bg-wait turn', () => {
+  // A bg-wait turn yields several `result`s on one process: total_cost_usd is
+  // already cumulative (measured on CLI 2.1.281), duration/turns are per result.
+  it('keeps cumulative cost and sums duration/turns across results of one bg-wait turn', () => {
     const t = register();
     translate(KEY, t, { type: 'result', total_cost_usd: 0.01, duration_ms: 1000, num_turns: 2, subtype: 'success' } as never);
-    translate(KEY, t, { type: 'result', total_cost_usd: 0.02, duration_ms: 500, num_turns: 1, subtype: 'success' } as never);
+    translate(KEY, t, { type: 'result', total_cost_usd: 0.03, duration_ms: 500, num_turns: 1, subtype: 'success' } as never);
     expect(t.costUsd).toBeCloseTo(0.03);
     expect(t.durationMs).toBe(1500);
     expect(t.numTurns).toBe(3);
