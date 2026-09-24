@@ -93,7 +93,7 @@ export function useCanvasViewport() {
 
   // minK floors the zoom-IN direction only (Math.max) — centering never zooms
   // OUT to fit, it zooms IN enough to read. A window (TERM_W×TERM_H) needs a
-  // higher floor than a node card to be legible (canvas review #620 item 3):
+  // higher floor than a node card to be legible (UX review 24/09 item 3):
   // callers pass 1 for a window, the 0.7 default suits a node.
   const centerOn = useCallback((p: CanvasPos, w = 248, h = 92, minK = 0.7) => {
     const el = ref.current;

@@ -26,7 +26,7 @@ describe('viewport math', () => {
 
 describe('centerOn', () => {
   // A window (TERM_W×TERM_H) needs a higher zoom floor than a node card to
-  // read as more than a grey smear — the caller picks (canvas review #620
+  // read as more than a grey smear — the caller picks (UX review 24/09
   // item 3: CanvasSurface passes 1 for a window, the 0.7 default for a node).
   it('floors zoom at the caller-supplied minK, not the old hardcoded 0.7', () => {
     const { result } = renderHook(() => useCanvasViewport());

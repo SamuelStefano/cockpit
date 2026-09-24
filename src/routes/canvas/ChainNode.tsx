@@ -38,7 +38,7 @@ export const ChainNode = memo(function ChainNode({ item, running, waiting, stats
       // min-w-0: a flex item's default min-width is its content's, which
       // fights `w-full` and defeats the title's `truncate` inside — on a
       // narrow viewport the row grew past it instead of clipping the text
-      // (canvas review #620 item 11).
+      // (UX review 24/09 item 11).
       <div className="flex h-full w-full min-w-0 items-center gap-1.5 rounded-lg border border-fuchsia-500 bg-neutral-900/95 px-2.5 shadow-[0_0_16px_-4px_rgba(217,70,239,0.6)]">
         <Icon name="command" size={13} className="shrink-0 text-fuchsia-400" />
         <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-fuchsia-100">{item.node?.title ?? 'Orchestrator'}</span>

@@ -63,7 +63,7 @@ interface Props {
   dockOpen?: boolean;
   onToggleDock?: () => void;
   // Session ids alive in a `cockpit-cv-*` shell — plumbing for TerminalWindow's
-  // "ao vivo/fantasma" badge (canvas review #620 item 3). Optional with no
+  // "ao vivo/fantasma" badge (UX review 24/09 item 3). Optional with no
   // default set here on purpose: Canvas.tsx (another agent's file) doesn't
   // deliver it yet — see this batch's PR body for the one-line wiring.
   cvLive?: Set<string>;
@@ -79,7 +79,7 @@ const COMPACT_BELOW = 0.42;
 const INITIAL_MIN_ZOOM = 0.5;
 // Terminal windows exist on this board: the very first framing needs to fit
 // the lane at a zoom where typing is actually legible, not just "not zero"
-// (canvas review #620 item 3 — 0.5 rendered a TERM_W×TERM_H window at
+// (UX review 24/09 item 3 — 0.5 rendered a TERM_W×TERM_H window at
 // 320×200 screen px; 0.75 is 480×300, and LANE_COLS 3->2 keeps that lane
 // inside a 1440px screen at this floor).
 const INITIAL_MIN_ZOOM_WITH_WINDOWS = 0.75;
@@ -135,7 +135,7 @@ export function CanvasSurface(p: Props) {
     if (!target) return;
     centeredN.current = req.n;
     // A window wants k=1 to be legible; a plain node card keeps centerOn's
-    // 0.7 default (canvas review #620 item 3 — `centerOn` for a window used
+    // 0.7 default (UX review 24/09 item 3 — `centerOn` for a window used
     // the SAME floor as a node, so opening a terminal never zoomed in enough
     // to read it).
     if (windowsRef.current.has(req.id)) centerOn(target, TERM_W, TERM_H, 1);
@@ -164,7 +164,7 @@ export function CanvasSurface(p: Props) {
       // textarea.focus() inside an off-screen terminal — Xterm.tsx's
       // XtermView does this on activate) move scrollTop/scrollLeft and drag
       // every absolutely-positioned overlay along with it (canvas review
-      // #620 item 4). The onScroll below is defensive redundancy for any
+      // UX review 24/09 item 4). The onScroll below is defensive redundancy for any
       // browser whose `clip` support still tracks a scroll offset internally.
       className="relative min-h-0 flex-1 touch-none overflow-clip bg-neutral-950"
       onScroll={(e) => { e.currentTarget.scrollTop = 0; e.currentTarget.scrollLeft = 0; }}

@@ -9,14 +9,14 @@ import { bounds } from './canvas-layout';
 export const TERM_W = 640;
 export const TERM_H = 400;
 // 6, not 8: LANE_COLS 2 keeps a full lane on screen at a legible zoom (canvas
-// review #620 item 3) — 8 windows at 2 columns is 4 rows, taller than most
+// UX review 24/09 item 3) — 8 windows at 2 columns is 4 rows, taller than most
 // laptop screens even floored at 0.75.
 export const MAX_OPEN_TERMS = 6;
 const LANE_GAP = 40;
 const LANE_ABOVE = 160;
 // 2, not 3: at TERM_W=640 a 3-col lane needs ~2000px, unreadable even floored
 // at the new 0.75 minimum on a 1440px screen. 2 cols fits at 0.75 with room
-// to spare (canvas review #620 item 3).
+// to spare (UX review 24/09 item 3).
 const LANE_COLS = 2;
 
 const WATCH_PREFIX = 'w-';
@@ -153,7 +153,7 @@ export function autoAdd(cur: string[], running: string[], max = MAX_OPEN_TERMS):
 // "sessões" only has MAX_OPEN_TERMS slots — spend them on what needs eyes NOW
 // (running, then waiting-on-user, then a context/error alert) before falling
 // back to recency, so a stale ghost never bumps a session stuck waiting for
-// input out of the cap (canvas review #620 item 3). NOT wired up yet: Canvas.tsx
+// input out of the cap (UX review 24/09 item 3). NOT wired up yet: Canvas.tsx
 // still sorts by mtime alone (see this batch's PR body for the one-line call).
 export function pickRecentSessions(
   nodes: CanvasNode[], running: Set<string>, waiting: Set<string>,

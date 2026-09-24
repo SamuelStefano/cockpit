@@ -28,7 +28,7 @@ const props = () => ({
 });
 
 describe('CanvasSurface scroll defensiveness', () => {
-  // Root cause (canvas review #620 item 4): `overflow-hidden` still lets a
+  // Root cause (UX review 24/09 item 4): `overflow-hidden` still lets a
   // programmatic scroll (e.g. a background terminal's textarea.focus()) move
   // scrollTop/scrollLeft and drag every absolutely-positioned overlay with
   // it. `overflow-clip` truly can't scroll, but jsdom doesn't model layout —

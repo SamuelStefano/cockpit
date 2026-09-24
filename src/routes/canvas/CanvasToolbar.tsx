@@ -20,7 +20,7 @@ interface Props {
 
 // Orchestrator's two actions (dock, jump) used to be two adjacent buttons
 // both labelled "orchestrator" — one caption, two square icon buttons instead
-// (canvas review #620 item 10).
+// (UX review 24/09 item 10).
 function OrchestratorGroup({ dockOpen, onToggleDock, onFocusOrchestrator }: Pick<Props, 'dockOpen' | 'onToggleDock' | 'onFocusOrchestrator'>) {
   if (!onToggleDock && !onFocusOrchestrator) return null;
   return (
@@ -49,7 +49,7 @@ export function CanvasToolbar({
   return (
     <div data-canvas-overlay className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-full border border-neutral-700 bg-neutral-900/85 px-1.5 py-1 shadow-lg backdrop-blur-md">
       {/* A wide, unwrapped row anchored to the right edge pushed everything
-          before "sessões" off-screen on a 390px phone (canvas review #620
+          before "sessões" off-screen on a 390px phone (UX review 24/09
           item 10) — below `sm` these fold into the "…" menu instead. */}
       <div className="hidden items-center gap-1 sm:flex">
         <OrchestratorGroup dockOpen={dockOpen} onToggleDock={onToggleDock} onFocusOrchestrator={onFocusOrchestrator} />

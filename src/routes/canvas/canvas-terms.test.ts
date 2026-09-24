@@ -43,7 +43,7 @@ describe('laneSlot', () => {
     expect(second.y).toBe(first.y);
   });
 
-  it('wraps to a new row above after two columns (LANE_COLS 3 -> 2, canvas review #620 item 3)', () => {
+  it('wraps to a new row above after two columns (LANE_COLS 3 -> 2, UX review 24/09 item 3)', () => {
     const taken = [0, 1].map((i) => ({ ...laneSlot(map, []), x: i * (TERM_W + 40), w: TERM_W, h: TERM_H }));
     const next = laneSlot(map, taken);
     expect(next.x).toBe(0);
@@ -112,7 +112,7 @@ describe('placeWindows', () => {
     const areaOf = (id: string): string | undefined => ({ 's:1': 'deck', 's:2': 'itera', 's:3': 'deck' } as Record<string, string>)[id];
     const out = placeWindows(pos, {}, ['s:2', 's:1', 's:3'], undefined, areaOf);
     // deck's two windows fill the first row (LANE_COLS 3 -> 2, canvas review
-    // #620 item 3, so a row is only 2 wide now); itera's lone window comes
+    // UX review 24/09 item 3, so a row is only 2 wide now); itera's lone window comes
     // after both, wrapped to the row above, not interleaved between them.
     expect(out['s:1'].y).toBe(out['s:3'].y);
     expect(out['s:1'].x).toBeLessThan(out['s:3'].x);
@@ -168,7 +168,7 @@ describe('autoAdd', () => {
 });
 
 describe('MAX_OPEN_TERMS', () => {
-  it('is 6, not 8 (canvas review #620 item 3)', () => {
+  it('is 6, not 8 (UX review 24/09 item 3)', () => {
     expect(MAX_OPEN_TERMS).toBe(6);
   });
 });

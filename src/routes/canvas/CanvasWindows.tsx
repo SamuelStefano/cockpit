@@ -15,7 +15,7 @@ interface Props {
   waiting: Set<string>;
   orchestrator: OrchestratorInfo | undefined;
   // Session ids alive in a `cockpit-cv-*` shell — `running` alone missed these,
-  // so a cv-shell worker's window read "fantasma" forever (canvas review #620
+  // so a cv-shell worker's window read "fantasma" forever (UX review 24/09
   // item 3). Optional: absent until Canvas.tsx wires up `r.cvLive` (PR body).
   cvLive?: Set<string>;
   zoom: number;

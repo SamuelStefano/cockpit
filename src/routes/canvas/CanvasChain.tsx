@@ -31,7 +31,7 @@ export function CanvasChain(p: Props) {
     return (
       // min-w-0 + overflow-x-hidden: without them a deep tree's row content
       // (title + badges + buttons, none of it wrapping) pushed the list wider
-      // than the 390px viewport instead of truncating (canvas review #620
+      // than the 390px viewport instead of truncating (UX review 24/09
       // item 11 — the Orchestrator row was cut mid-word at "ORCHE").
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3">
         <ChainTreeList

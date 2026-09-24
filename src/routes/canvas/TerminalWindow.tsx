@@ -29,7 +29,7 @@ interface Props {
   running: boolean;
   waiting: boolean;
   // Below this the glyphs read as a grey smear, not text — clicking the body
-  // then maximizes instead of typing (canvas review #620 item 3).
+  // then maximizes instead of typing (UX review 24/09 item 3).
   zoom: number;
   // The one session that commands every other one (shared/canvas.ts
   // OrchestratorInfo) — distinct chrome so it never blends into the rest.
@@ -58,7 +58,7 @@ interface Props {
 
 // Same floor useCanvasViewport's centerOn uses for a node — below it a
 // terminal's glyphs read as a grey smear, so clicking to "type" would just
-// land on illegible text (canvas review #620 item 3).
+// land on illegible text (UX review 24/09 item 3).
 const UNREADABLE_BELOW = 0.7;
 
 // A live tmux pane placed on the map. The title bar drags the window; the body
