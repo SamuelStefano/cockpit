@@ -11,7 +11,7 @@ const TIER_TONE = { simple: 'green', medium: 'yellow', complex: 'orange' } as co
 
 export function HarnessFeed({ task, events }: Props) {
   if (!task) {
-    return <EmptyState icon="zap" title="Nenhuma task ainda" description="Dispare uma tarefa no composer ao lado pra ver a orquestração ao vivo." />;
+    return <EmptyState icon="zap" title="Nenhuma task ainda" description="Dispare uma tarefa no composer pra ver a orquestração ao vivo." />;
   }
 
   const streamed = events.filter((e) => e.kind === 'text').map((e) => e.text ?? '').join('');

@@ -1,4 +1,4 @@
-import { Icon, Badge } from '../../components/primitives';
+import { Icon } from '../../components/primitives';
 import type { SkillMeta } from '../../../shared/protocol';
 
 export function SkillCard({ s, onClick }: { s: SkillMeta; onClick: () => void }) {
@@ -8,11 +8,9 @@ export function SkillCard({ s, onClick }: { s: SkillMeta; onClick: () => void })
       className="group relative flex flex-col rounded-xl border border-neutral-800 bg-neutral-900/40 p-3.5 text-left transition hairline hover:-translate-y-px hover:border-orange-500/40 hover:bg-orange-500/5 hover:shadow-lg hover:shadow-black/30"
     >
       <div className="mb-1.5 flex items-center justify-between gap-2">
-        <span className="flex items-center gap-1.5">
-          <span className="flex h-5 w-5 items-center justify-center rounded-md bg-orange-500/15 text-orange-400">
-            <Icon name="sparkles" size={12} />
-          </span>
-          <Badge tone="neutral">skill</Badge>
+        {/* Every card on this route is a skill; the "skill" badge said nothing. */}
+        <span className="flex h-5 w-5 items-center justify-center rounded-md bg-orange-500/15 text-orange-400">
+          <Icon name="sparkles" size={12} />
         </span>
       </div>
       <h3 className="mb-1 line-clamp-1 font-mono text-[13px] font-medium lowercase text-neutral-200 group-hover:text-orange-300">{s.name}</h3>
