@@ -100,6 +100,9 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
   // per device so whatever the user last picked sticks across reloads.
   const [scope, setScope] = usePersisted<CanvasScope>('canvas.scope', 'exec');
   const [showAutomation, setShowAutomation] = usePersisted('canvas.showAutomation', false);
+  // Memory/context nodes hidden by default in exec/active scope — see
+  // canvas-filter.ts FilterOpts.showContexts.
+  const [showContexts, setShowContexts] = usePersisted('canvas.showContexts', false);
   const [archived, setArchived] = useState(false);
   const [query, setQuery] = useState('');
   const [areaFilter, setAreaFilter] = usePersisted<AreaId | null>('canvas.areaFilter', null);
@@ -158,7 +161,7 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     // fresh object every render; its own members are the real deps.
     [merged.nodes, p.running, p.board.sessionStatus, turnStartedAt, liveSessions, p.interrupted, now],
   );
-  const filterExtras = { windowIds: windowIdSet, doneRecentIds, showAutomation, liveSessions };
+  const filterExtras = { windowIds: windowIdSet, doneRecentIds, showAutomation, liveSessions, showContexts };
   const visible = useMemo(() => {
     const v = filterCanvas(merged.nodes, merged.edges, { scope, archived, query, area: areaFilter, running: p.running, cards: p.board.cards, now, ...filterExtras });
     const q = query.trim().toLowerCase();
@@ -167,8 +170,8 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     // same as the card nodes filterCanvas already drops in that case.
     return { ...v, nodes: [...v.nodes, ...(areaFilter ? [] : shells.filter((s) => !q || s.title.toLowerCase().includes(q)))] };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- filterExtras is a fresh
-    // object every render; its own members (windowIdSet/doneRecentIds/showAutomation) are the real deps.
-  }, [merged, scope, archived, query, areaFilter, p.running, p.board.cards, now, shells, windowIdSet, doneRecentIds, showAutomation]);
+    // object every render; its own members (windowIdSet/doneRecentIds/showAutomation/showContexts) are the real deps.
+  }, [merged, scope, archived, query, areaFilter, p.running, p.board.cards, now, shells, windowIdSet, doneRecentIds, showAutomation, showContexts]);
   // Positions come from the scope WITHOUT the search query or the area filter:
   // typing or picking an area only hides nodes, it never re-packs the map
   // under the user's eyes — a dragged/settled layout must survive toggling it.
@@ -177,7 +180,7 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
       ? filterCanvas(merged.nodes, merged.edges, { scope, archived, query: '', area: null, running: p.running, cards: p.board.cards, now, ...filterExtras })
       : visible),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- same as visible above.
-    [query, areaFilter, merged, scope, archived, p.running, p.board.cards, now, visible, windowIdSet, doneRecentIds, showAutomation],
+    [query, areaFilter, merged, scope, archived, p.running, p.board.cards, now, visible, windowIdSet, doneRecentIds, showAutomation, showContexts],
   );
   const visibleIds = useMemo(() => new Set(visible.nodes.map((n) => n.id)), [visible.nodes]);
   const windows = useMemo(() => new Set(windowIds.filter((id) => visibleIds.has(id))), [windowIds, visibleIds]);
@@ -187,9 +190,10 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     () => new Set([...windows].filter((id) => isOrchestratorNode(byId.get(id) ?? { kind: 'session', ref: '' }, p.graph?.orchestrator))),
     [windows, byId, p.graph?.orchestrator],
   );
+  const areaOf = useCallback((id: string) => byId.get(id)?.area, [byId]);
   const pos = useMemo(
-    () => placeWindows(layoutCanvas(layoutBase.nodes, layoutBase.edges, p.board.pos), p.board.pos, [...windows], orchestratorWindowIds),
-    [layoutBase, p.board.pos, windows, orchestratorWindowIds],
+    () => placeWindows(layoutCanvas(layoutBase.nodes, layoutBase.edges, p.board.pos), p.board.pos, [...windows], orchestratorWindowIds, areaOf),
+    [layoutBase, p.board.pos, windows, orchestratorWindowIds, areaOf],
   );
   const rectOf = useCallback((id: string) => {
     const at = pos[id];
@@ -512,14 +516,26 @@ export function useCanvasRoute(p: CanvasRouteProps, windowIds: string[], shells:
     p.onCanvasSessionStatus(sessionId, status);
   }, [p]);
 
+  // Kanban "ocultar" (drawer action, canvas review 2026-09-24): a manual dismiss
+  // ON TOP OF the automatic staleness triage (kanban-items.ts triageSessionItems)
+  // — for the odd session that's noise sooner than 24h. Client-only, never
+  // touches the session's real status/override.
+  const [hiddenSessionIds, setHiddenSessionIds] = usePersisted<string[]>('canvas.hiddenSessions', []);
+  const hiddenSessionIdSet = useMemo(() => new Set(hiddenSessionIds), [hiddenSessionIds]);
+  const hideSession = useCallback((id: string) => {
+    setHiddenSessionIds((cur) => (cur.includes(id) ? cur : [...cur, id]));
+  }, [setHiddenSessionIds]);
+  const unhideAllSessions = useCallback(() => setHiddenSessionIds([]), [setHiddenSessionIds]);
+
   return {
     mode, setMode, scope, setScope, archived, setArchived, query, setQuery,
     areaFilter, setAreaFilter, areaRects, areaCounts, budgetStatus, budgetEditArea, setBudgetEditArea, saveBudget,
-    showAutomation, setShowAutomation,
+    showAutomation, setShowAutomation, showContexts, setShowContexts,
     merged, visible, pos, windows, onDrop, worldBounds, coreBounds, byId, waiting,
     selected, selectedNodes, select, clearSelection,
     draft, setDraft, newDraft, editCard, saveCard, runCard, setStatus, deleteCard, cardSessions,
     sessionItems, orchestratorItem, onSessionStatus,
+    hiddenSessionIdSet, hideSession, unhideAllSessions,
   };
 }
 

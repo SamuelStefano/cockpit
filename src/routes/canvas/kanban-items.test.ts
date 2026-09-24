@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { CanvasCard, CanvasEdge, CanvasNode } from '../../../shared/canvas';
 import {
-  deriveSessionItems, deriveSessionStatus, doneRecentSessionIds, isOverrideActive, orchestratorKanbanItem, resolvePendingBoundIds,
+  deriveSessionItems, deriveSessionStatus, doneRecentSessionIds, isOrchestratorChildText, isOverrideActive, KANBAN_STALE_MS,
+  orchestratorKanbanItem, resolvePendingBoundIds, triageSessionItems, type SessionKanbanItem,
 } from './kanban-items';
 
 describe('isOverrideActive', () => {
@@ -163,6 +164,20 @@ describe('deriveSessionItems', () => {
     expect(items[0]).toMatchObject({ status: 'doing', waitingOnUser: true, mtime: 999 });
   });
 
+  it('carries the session area through so the kanban can show WHERE it belongs, not just what', () => {
+    const items = deriveSessionItems({
+      nodes: [session('a', { area: 'deck' })], edges: [], cards: [], running: new Set(), overrides: {}, turnStartedAt: {}, showAutomation: false,
+    });
+    expect(items[0].area).toBe('deck');
+  });
+
+  it('area is undefined for a session areas.ts hasn\'t classified yet', () => {
+    const items = deriveSessionItems({
+      nodes: [session('a')], edges: [], cards: [], running: new Set(), overrides: {}, turnStartedAt: {}, showAutomation: false,
+    });
+    expect(items[0].area).toBeUndefined();
+  });
+
   it('excludes the orchestrator session — it never shows as a normal item', () => {
     const items = deriveSessionItems({
       nodes: [session('a'), session('b')], edges: [], cards: [], running: new Set(), overrides: {}, turnStartedAt: {},
@@ -232,6 +247,98 @@ describe('deriveSessionItems with a migrated pending session', () => {
       showAutomation: false, extraBoundIds,
     });
     expect(items).toHaveLength(0);
+  });
+});
+
+describe('isOrchestratorChildText', () => {
+  it('matches the buildTaskPrompt-style opening line', () => {
+    expect(isOrchestratorChildText('You are a delegated worker of the Orchestrator (Samuel\'s main agent). Work in...')).toBe(true);
+  });
+
+  it('matches case-insensitively', () => {
+    expect(isOrchestratorChildText('you are a delegated worker of the orchestrator, go')).toBe(true);
+  });
+
+  it('matches the short opt-in marker anywhere in the text', () => {
+    expect(isOrchestratorChildText('quick check [orch] on the deploy')).toBe(true);
+  });
+
+  it('does not match an unrelated first message', () => {
+    expect(isOrchestratorChildText('Duvida sobre o skills. O app é aberto')).toBe(false);
+  });
+
+  it('does not match a session merely mentioning the orchestrator in passing', () => {
+    expect(isOrchestratorChildText('ask the orchestrator later, not now')).toBe(false);
+  });
+});
+
+describe('deriveSessionItems — orchestratorChild', () => {
+  const session = (id: string, extra: Partial<CanvasNode> = {}): CanvasNode => ({
+    id: `s:${id}`, kind: 'session', ref: id, title: id, subtitle: '', mtime: 10, count: 3, ...extra,
+  });
+
+  it('tags a delegated-worker session so the kanban can group it', () => {
+    const items = deriveSessionItems({
+      nodes: [session('a', { subtitle: 'You are a delegated worker of the Orchestrator (Samuel\'s main agent). Fix X.' })],
+      edges: [], cards: [], running: new Set(), overrides: {}, turnStartedAt: {}, showAutomation: false,
+    });
+    expect(items[0].orchestratorChild).toBe(true);
+  });
+
+  it('a normal session is not tagged', () => {
+    const items = deriveSessionItems({
+      nodes: [session('a', { subtitle: 'preciso de ajuda com o deploy' })],
+      edges: [], cards: [], running: new Set(), overrides: {}, turnStartedAt: {}, showAutomation: false,
+    });
+    expect(items[0].orchestratorChild).toBe(false);
+  });
+});
+
+describe('triageSessionItems', () => {
+  const NOW = 100 * KANBAN_STALE_MS;
+  const item = (id: string, extra: Partial<SessionKanbanItem> = {}): SessionKanbanItem => ({
+    nodeId: `s:${id}`, sessionId: id, title: id, subtitle: '', status: 'review', orchestratorChild: false,
+    running: false, waitingOnUser: false, needsAttention: false, mtime: NOW, ...extra,
+  });
+
+  it('a fresh Done item stays visible (needs review)', () => {
+    const r = triageSessionItems([item('a')], NOW);
+    expect(r.visible.map((i) => i.sessionId)).toEqual(['a']);
+    expect(r.staleDone).toEqual([]);
+  });
+
+  it('a Done item idle over the threshold moves to staleDone, not dropped', () => {
+    const r = triageSessionItems([item('old', { mtime: NOW - KANBAN_STALE_MS - 1 })], NOW);
+    expect(r.visible).toEqual([]);
+    expect(r.staleDone.map((i) => i.sessionId)).toEqual(['old']);
+    expect(r.hiddenIdle).toEqual([]);
+  });
+
+  it('a non-Done item idle over the threshold is hidden entirely, not grouped', () => {
+    const r = triageSessionItems([item('todo', { status: 'todo', mtime: NOW - KANBAN_STALE_MS - 1 })], NOW);
+    expect(r.visible).toEqual([]);
+    expect(r.staleDone).toEqual([]);
+    expect(r.hiddenIdle.map((i) => i.sessionId)).toEqual(['todo']);
+  });
+
+  it('running always stays visible regardless of age', () => {
+    const r = triageSessionItems([item('run', { status: 'doing', running: true, mtime: 0 })], NOW);
+    expect(r.visible.map((i) => i.sessionId)).toEqual(['run']);
+  });
+
+  it('waiting on the user always stays visible regardless of age', () => {
+    const r = triageSessionItems([item('wait', { status: 'doing', waitingOnUser: true, mtime: 0 })], NOW);
+    expect(r.visible.map((i) => i.sessionId)).toEqual(['wait']);
+  });
+
+  it('needsAttention always stays visible regardless of age (a real pending question)', () => {
+    const r = triageSessionItems([item('attn', { status: 'doing', needsAttention: true, mtime: 0 })], NOW);
+    expect(r.visible.map((i) => i.sessionId)).toEqual(['attn']);
+  });
+
+  it('exactly at the threshold is still visible — only strictly over triages away', () => {
+    const r = triageSessionItems([item('edge', { mtime: NOW - KANBAN_STALE_MS })], NOW);
+    expect(r.visible.map((i) => i.sessionId)).toEqual(['edge']);
   });
 });
 

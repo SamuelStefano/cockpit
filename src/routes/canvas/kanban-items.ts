@@ -1,4 +1,4 @@
-import type { CanvasCard, CanvasEdge, CanvasNode, CardStatus } from '../../../shared/canvas';
+import type { AreaId, CanvasCard, CanvasEdge, CanvasNode, CardStatus } from '../../../shared/canvas';
 import { boundSessions } from './canvas-board';
 import { isAutomationSession } from './canvas-automation';
 
@@ -54,11 +54,36 @@ export function deriveSessionStatus(i: DeriveSessionStatusInput): CardStatus {
   return 'review';
 }
 
+// A session deckctl (or the orchestrator itself) launched AS a delegated
+// worker names itself in its very first message — buildTaskPrompt-style
+// briefs open with this line, and a hand-rolled one can opt in with the
+// short `[orch]` marker. That first message is exactly what `subtitle`
+// already carries (server/sessions/index.ts snippet, 120 chars of the first
+// user message), so no server plumbing is needed for THIS source — see
+// canvas-automation.ts for the same trick applied to automation noise.
+// tmux-shell-sourced children (a `cockpit-cv-*` orchestrator opened directly,
+// tracked by ~/.cockpit/orch-shells/<name>.{prompt,report}.md) are a SEPARATE
+// source this text match can't see — server/canvas doesn't surface those
+// files into the graph yet, so a shell child only shows up here once that
+// plumbing exists.
+const ORCH_CHILD_MARKER_RE = /^you are a delegated worker of the orchestrator\b|\[orch\]/i;
+export function isOrchestratorChildText(subtitle: string): boolean {
+  return ORCH_CHILD_MARKER_RE.test(subtitle);
+}
+
 export interface SessionKanbanItem {
   nodeId: string; // 's:<uuid>'
   sessionId: string;
   title: string;
   subtitle: string;
+  // server/canvas/areas.ts work-front grouping — undefined for a session with
+  // no memory trail yet (areas.ts hasn't classified it). Samuel asked the
+  // kanban to say WHERE a session belongs, not just what it's doing.
+  area?: AreaId;
+  // A worker the Orchestrator delegated to (isOrchestratorChildText) — while
+  // alive (running/waiting/doing) it groups into its own fuchsia swimlane
+  // inside "In progress" instead of blending into Samuel's own sessions.
+  orchestratorChild: boolean;
   status: CardStatus;
   running: boolean;
   waitingOnUser: boolean;
@@ -140,7 +165,7 @@ export function deriveSessionItems(o: DeriveSessionItemsOpts): SessionKanbanItem
     if (!o.showAutomation && isAutomationSession({ title: n.title, subtitle: n.subtitle })) continue;
     const ns = nodeStatus(n, o);
     out.push({
-      nodeId: n.id, sessionId: n.ref, title: n.title, subtitle: n.subtitle,
+      nodeId: n.id, sessionId: n.ref, title: n.title, subtitle: n.subtitle, area: n.area, orchestratorChild: isOrchestratorChildText(n.subtitle),
       status: ns.status, running: ns.running, waitingOnUser: ns.waiting, needsAttention: ns.needsAttention, mtime: ns.mtime,
     });
   }
@@ -156,7 +181,7 @@ export function orchestratorKanbanItem(nodes: CanvasNode[], o: NodeStatusOpts, o
   if (!n) return undefined;
   const ns = nodeStatus(n, o);
   return {
-    nodeId: n.id, sessionId: n.ref, title: n.title, subtitle: n.subtitle,
+    nodeId: n.id, sessionId: n.ref, title: n.title, subtitle: n.subtitle, area: n.area, orchestratorChild: isOrchestratorChildText(n.subtitle),
     status: ns.status, running: ns.running, waitingOnUser: ns.waiting, needsAttention: ns.needsAttention, mtime: ns.mtime,
   };
 }
@@ -177,6 +202,39 @@ export function resolvePendingBoundIds(pendingKeys: Iterable<string>, pendingSes
     if (real) out.add(real);
   }
   return out;
+}
+
+// Kanban triage (Samuel feedback, 2026-09-24): sessionItems is unscoped by
+// design (every session ever, not just what canvas-filter.ts shows) — which
+// means "Done" fills with hundreds of sessions nobody is ever going to
+// review. Split what actually needs a look from what's just old.
+export const KANBAN_STALE_MS = 24 * 3600_000;
+
+export interface KanbanTriage {
+  visible: SessionKanbanItem[]; // shown in their normal column, unchanged
+  // Agent-said-Done (status 'review') and idle for a day: still real work,
+  // just not urgent — collapsed under "antigos" at the bottom of Done rather
+  // than auto-flipped to Completed (that status change is Samuel's call, not
+  // a UI default's).
+  staleDone: SessionKanbanItem[];
+  // Any OTHER column, idle for a day, with nothing pending (not running, not
+  // waiting on Samuel, no attention badge): off the board entirely. Exposed
+  // as a count, not a list — there's nothing actionable left to show.
+  hiddenIdle: SessionKanbanItem[];
+}
+
+export function triageSessionItems(items: SessionKanbanItem[], now: number): KanbanTriage {
+  const visible: SessionKanbanItem[] = [];
+  const staleDone: SessionKanbanItem[] = [];
+  const hiddenIdle: SessionKanbanItem[] = [];
+  for (const item of items) {
+    const noPendingQuestion = !item.running && !item.waitingOnUser && !item.needsAttention;
+    const stale = noPendingQuestion && now - item.mtime > KANBAN_STALE_MS;
+    if (!stale) visible.push(item);
+    else if (item.status === 'review') staleDone.push(item);
+    else hiddenIdle.push(item);
+  }
+  return { visible, staleDone, hiddenIdle };
 }
 
 const DONE_RECENT_WINDOW_MS = 24 * 3600_000;

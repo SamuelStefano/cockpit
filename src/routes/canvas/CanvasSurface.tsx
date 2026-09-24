@@ -68,7 +68,10 @@ interface Props {
 const COMPACT_BELOW = 0.42;
 // Floor for the very first framing only — legible enough to read a title
 // without a manual zoom-in; "fit all" (toolbar) stays unfloored on purpose.
-const INITIAL_MIN_ZOOM = 0.35;
+// 50%: below that a TERM_W×TERM_H terminal window (640×400) renders under
+// 320×200 screen px — code inside reads as a grey smear, not text (#598 map
+// cleanup). The map is still pannable past this box, so nothing is lost.
+const INITIAL_MIN_ZOOM = 0.5;
 
 export function CanvasSurface(p: Props) {
   const vp = useCanvasViewport();

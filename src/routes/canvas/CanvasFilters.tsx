@@ -13,6 +13,8 @@ interface Props {
   onArchived: (v: boolean) => void;
   showAutomation: boolean;
   onShowAutomation: (v: boolean) => void;
+  showContexts: boolean;
+  onShowContexts: (v: boolean) => void;
   query: string;
   onQuery: (q: string) => void;
   loading: boolean;
@@ -51,6 +53,9 @@ export function CanvasFilters(p: Props) {
         <ToggleChip on={p.scope === 'all'} icon="layers" onClick={() => p.onScope('all')}>tudo</ToggleChip>
         <ToggleChip on={p.archived} icon="clock" onClick={() => p.onArchived(!p.archived)}>arquivo</ToggleChip>
         <ToggleChip on={p.showAutomation} icon="rotate" onClick={() => p.onShowAutomation(!p.showAutomation)} title="mostra sessões de automação (crons de reset, limpeza de memória, manutenção)">mostrar automações</ToggleChip>
+        {p.scope !== 'all' && (
+          <ToggleChip on={p.showContexts} icon="file" onClick={() => p.onShowContexts(!p.showContexts)} title="mostra os nós de memória/contexto (hubs, leafs) por cima das sessões">contextos</ToggleChip>
+        )}
         <div className="w-full sm:w-56">
           <Input size="sm" icon="search" placeholder="buscar sessão ou contexto" value={p.query} onChange={(e) => p.onQuery(e.target.value)} />
         </div>

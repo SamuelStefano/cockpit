@@ -1,6 +1,7 @@
-import type { CanvasCard, CanvasFlow, CanvasNode } from '../../../shared/canvas';
+import type { CanvasCard, CanvasFlow, CanvasNode, OrchestratorInfo } from '../../../shared/canvas';
 import { Badge, Button, Icon } from '../../components/primitives';
 import { STATUS_LABEL, STATUS_TONE } from './canvas-labels';
+import { isOrchestratorNode } from './orchestrator';
 
 export interface ConflictInfo { other: CanvasNode; files: string[] }
 
@@ -10,6 +11,8 @@ interface Props {
   node: (id: string) => CanvasNode | undefined;
   card: (id: string) => CanvasCard | undefined;
   running: Set<string>;
+  waiting: Set<string>;
+  orchestrator?: OrchestratorInfo;
   flows: CanvasFlow[];
   conflictsOf: (id: string) => ConflictInfo[];
   onPick: (id: string) => void;
@@ -21,6 +24,22 @@ interface Props {
   onEditFlow: (id: string) => void;
   onChainSelected: (from: string, to: string) => void;
   onClose: () => void;
+}
+
+// A raw tmux pane name ("cv-jmbp6v") means nothing to Samuel. The orchestrator's
+// shell is always identifiable (shared/canvas.ts OrchestratorInfo.tmux via
+// isOrchestratorNode) so it gets a real name + a live status instead. Any other
+// shell falls back to whatever Claude session it's currently running, if one is
+// known — server/canvas doesn't track that link for a plain shell yet, so most
+// shells still show their tmux name until that plumbing exists.
+function shellDisplay(
+  n: CanvasNode, o: OrchestratorInfo | undefined, running: Set<string>, waiting: Set<string>,
+): { title: string; subtitle: string } {
+  if (isOrchestratorNode(n, o)) {
+    const status = running.has(o!.sessionId) ? 'rodando' : waiting.has(o!.sessionId) ? 'esperando você' : 'idle';
+    return { title: 'Orchestrator', subtitle: status };
+  }
+  return { title: n.title, subtitle: n.subtitle };
 }
 
 function FlowList({ flows, node, onEditFlow }: { flows: CanvasFlow[]; node: (id: string) => CanvasNode | undefined; onEditFlow: (id: string) => void }) {
@@ -86,10 +105,12 @@ export function CanvasInspector(p: Props) {
   const outgoing = one ? p.flows.filter((f) => f.from === one.id) : [];
   const pair = p.nodes.length === 2 && p.nodes.every((n) => n.kind === 'session' || n.kind === 'card') ? p.nodes : null;
   const conflicts = one?.kind === 'session' ? p.conflictsOf(one.id) : [];
+  const shell = one?.kind === 'shell' ? shellDisplay(one, p.orchestrator, p.running, p.waiting) : null;
+  const headerTitle = shell ? shell.title : one ? one.title : `${p.nodes.length} selecionados`;
   return (
     <aside data-canvas-overlay className="absolute inset-x-3 bottom-16 top-auto z-10 flex max-h-[46vh] flex-col overflow-hidden rounded-2xl border border-neutral-700/80 bg-neutral-900/90 shadow-xl backdrop-blur-md sm:inset-x-auto sm:left-3 sm:top-3 sm:max-h-none sm:w-72">
       <div className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2">
-        <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-neutral-100">{one ? one.title : `${p.nodes.length} selecionados`}</span>
+        <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-neutral-100">{headerTitle}</span>
         <Button variant="ghost" size="sm" icon="x" onClick={p.onClose} title="fechar" />
       </div>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-2.5">
@@ -101,7 +122,7 @@ export function CanvasInspector(p: Props) {
               {one.archived && <Badge>arquivo</Badge>}
               {card && <Badge tone={STATUS_TONE[card.status]}>{STATUS_LABEL[card.status]}</Badge>}
             </div>
-            <p className="whitespace-pre-wrap text-[11.5px] leading-relaxed text-neutral-400">{card ? card.prompt || '—' : one.subtitle || '—'}</p>
+            <p className="whitespace-pre-wrap text-[11.5px] leading-relaxed text-neutral-400">{card ? card.prompt || '—' : shell ? shell.subtitle : one.subtitle || '—'}</p>
             {one.path && <p className="break-all font-mono text-[10px] text-neutral-600">{one.path}</p>}
           </div>
         )}
