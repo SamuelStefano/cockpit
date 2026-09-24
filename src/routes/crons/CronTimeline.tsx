@@ -34,6 +34,10 @@ export function CronTimeline({ slots, now }: { slots: CronSlot[]; now: number })
           <span key={h} className={`absolute ${tickAlign(i)}`} style={{ left: `${(h / 24) * 100}%` }}>{fmtHour(now + h * HOUR)}</span>
         ))}
       </div>
+      {/* The dots name their cron only in a hover title, which a phone never shows. */}
+      <p className="mt-1.5 truncate text-[11px] text-neutral-500">
+        próximos: {slots.slice(0, 3).map((s) => `${s.name} ${fmtClock(s.at, now)}`).join(' · ')}
+      </p>
       {clashing.length > 0 && (
         <p className="mt-1.5 text-[11px] text-yellow-300/80">
           A menos de 15min um do outro, dividindo a janela de cota: {clashing.map((s) => `${s.name} ${fmtHour(s.at)}`).join(' · ')}
