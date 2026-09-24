@@ -66,6 +66,12 @@ function sessionName(id: string): string {
   return `${PREFIX}${id}`;
 }
 
+// `-t name` also matches a session that merely STARTS with name (and then a glob):
+// with `cockpit-cv-fix` gone, `kill-session -t cockpit-cv-fix` killed
+// `cockpit-cv-fix-2`. `=` makes tmux match the exact name only.
+export const exactSession = (id: string) => `=${sessionName(id)}`;
+const exactPane = (id: string) => `=${sessionName(id)}:`;
+
 const SESSION_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const TAIL_SCRIPT = join(dirname(fileURLToPath(import.meta.url)), '..', 'scripts', 'session-tail.py');
 
@@ -207,7 +213,7 @@ export function idleWatchers(entries: { id: string; idleSince: number | null }[]
 
 function panePid(id: string): Promise<number | null> {
   return new Promise((resolve) => {
-    const p = spawn('tmux', ['display-message', '-p', '-t', sessionName(id), '#{pane_pid}'], { stdio: ['ignore', 'pipe', 'ignore'] });
+    const p = spawn('tmux', ['display-message', '-p', '-t', exactPane(id), '#{pane_pid}'], { stdio: ['ignore', 'pipe', 'ignore'] });
     let out = '';
     p.stdout.on('data', (d) => { out += d; });
     p.on('close', (code) => { const pid = Number(out.trim()); resolve(code === 0 && Number.isInteger(pid) && pid > 0 ? pid : null); });
@@ -237,7 +243,7 @@ export async function prepareWatch(id: string, watch: string): Promise<void> {
 // can't tell: it reports "bash" in both states.
 function stillFollowing(id: string, watch?: string): Promise<boolean> {
   return new Promise((resolve) => {
-    const p = spawn('tmux', ['display-message', '-p', '-t', sessionName(id), '#{pane_pid}'], { stdio: ['ignore', 'pipe', 'ignore'] });
+    const p = spawn('tmux', ['display-message', '-p', '-t', exactPane(id), '#{pane_pid}'], { stdio: ['ignore', 'pipe', 'ignore'] });
     let out = '';
     p.stdout.on('data', (d) => { out += d; });
     p.on('close', () => {
@@ -320,5 +326,5 @@ export function closeTerm(id: string) {
   if (!NAME_RE.test(id)) return;
   const t = terms.get(id);
   if (t) { try { t.pty.kill(); } catch { /* noop */ } terms.delete(id); }
-  try { spawn('tmux', ['kill-session', '-t', sessionName(id)], { stdio: 'ignore' }); } catch { /* noop */ }
+  try { spawn('tmux', ['kill-session', '-t', exactSession(id)], { stdio: 'ignore' }); } catch { /* noop */ }
 }

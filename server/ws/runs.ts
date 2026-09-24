@@ -32,7 +32,7 @@ import { threadIsMarathon, MARATHON_AUTO_RESUME_CAP } from './marathon';
 import { threads, admitRun, resolveThreadKey, stopSession, stopEpochOf, clearStopEpoch, shouldPreserveLive, runParams, sameParams, type Thread, type RunParams } from './threads';
 import { isAreaAdmissionBlocked } from '../canvas/autopause-loop';
 import { enqueuePending, hasPending, takePendingBatch, takeAllPending, type QueuedSend } from './pending';
-import { readOrchestratorSync, isTmuxAliveSync } from '../canvas/orchestrator';
+import { readOrchestratorSync, isTmuxAliveSync, paneLostClaudeSync } from '../canvas/orchestrator';
 import { orchestratorTermId, buildPastedSend } from '../../shared/canvas';
 import { hasTerm, openTerm, inputTerm } from '../terminals';
 
@@ -629,16 +629,22 @@ export function orchestratorPaneTarget(targetSessionId: string | undefined, role
   if (!targetSessionId || role !== 'admin') return undefined;
   const orch = readOrchestratorSync();
   if (!orch || orch.sessionId !== targetSessionId) return undefined;
-  return isTmuxAliveSync(orch.tmux) ? orch : undefined;
+  return isTmuxAliveSync(orch.tmux) && !paneLostClaudeSync(orch.tmux) ? orch : undefined;
 }
 
-export function deliverToOrchestratorPane(targetSessionId: string | undefined, text: string, role?: Role): boolean {
+// 'refused' = the target IS the live Orchestrator pane but openTerm hit the
+// terminal cap: the caller must neither fall through to a headless twin writing
+// the same transcript nor report the prompt as delivered.
+export type PaneDelivery = 'delivered' | 'refused' | false;
+export const PANE_REFUSED = 'o painel do Orchestrator não abriu (limite de terminais) — o prompt não foi entregue; feche um terminal e reenvie';
+
+export function deliverToOrchestratorPane(targetSessionId: string | undefined, text: string, role?: Role): PaneDelivery {
   const orch = orchestratorPaneTarget(targetSessionId, role);
   if (!orch) return false;
   const termId = orchestratorTermId(orch);
-  if (!hasTerm(termId)) openTerm(termId, 120, 40, () => {}, () => {}, () => {});
+  if (!hasTerm(termId) && !openTerm(termId, 120, 40, () => {}, () => {}, () => {})) return 'refused';
   inputTerm(termId, buildPastedSend(text));
-  return true;
+  return 'delivered';
 }
 
 // The client latches `inFlight` on every send and only a 'done' clears it;
@@ -670,9 +676,14 @@ export function startRun(o: StartRunOptions): 'pane' | undefined {
     if (ws) send(ws, { t: 'error', sessionKey, message: 'prompt grande demais' });
     return;
   }
-  if (!forkId && deliverToOrchestratorPane(resumeId ?? sessionKey, prompt, params.role)) {
+  const pane = forkId ? false : deliverToOrchestratorPane(resumeId ?? sessionKey, prompt, params.role);
+  if (pane === 'delivered') {
     echoPaneDelivery(sessionKey, msgId, prompt);
     return 'pane';
+  }
+  if (pane === 'refused') {
+    if (ws) send(ws, { t: 'error', sessionKey, message: PANE_REFUSED });
+    return;
   }
 
   // Gate de CONTEXTO — antes do latch de pergunta e do admitRun: um envio recusado
@@ -1033,10 +1044,12 @@ export async function routeSend(o: RouteSendOptions) {
   // before this fix, or a race) would otherwise run the full triage path
   // below and end up enqueued against THAT twin instead of ever reaching the
   // real pane. Deliver straight into the pane and skip triage entirely.
-  if (deliverToOrchestratorPane(resumeId ?? sessionKey, prompt, params.role)) {
+  const pane = deliverToOrchestratorPane(resumeId ?? sessionKey, prompt, params.role);
+  if (pane === 'delivered') {
     echoPaneDelivery(sessionKey, msgId, prompt);
     return;
   }
+  if (pane === 'refused') { send(ws, { t: 'error', sessionKey: displayKey, message: PANE_REFUSED }); return; }
   const cur = threads.get(sessionKey);
   if (!cur) { startRun({ ...params, ws, sessionKey, prompt, resumeId, msgId }); return; } // corrida: turno fechou
 
