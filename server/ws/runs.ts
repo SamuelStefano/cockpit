@@ -272,7 +272,8 @@ export function drainParked(): void {
     // se aquele transcript não existe mais, roda como turno novo em vez de morrer.
     const resume = resumableId(item.resumeId);
     if (item.resumeId && !resume) recordIncident({ kind: 'parked-resume-morto', sessionKey, sessionId: item.resumeId, detail: `item ${item.id} disparado como turno novo` });
-    startRun({ ...runParams(item), ws: null, sessionKey, prompt: item.prompt, resumeId: resume, queued: true });
+    const delivered = startRun({ ...runParams(item), ws: null, sessionKey, prompt: item.prompt, resumeId: resume, queued: true });
+    if (delivered === 'pane') { fired++; broadcastQueue(); continue; }
     // O run pode nem ter subido (teto de sessões simultâneas): sem isto o item já
     // saiu do disco e o prompt sumia. Subiu = fica amarrado ao thread pra voltar
     // pra fila se o teto de tokens matar o turno.
@@ -404,7 +405,8 @@ export function runParkedNow(sessionKey: string, id: string, role?: Role): { ok:
   stopSession(sessionKey);
   const resume = resumableId(item.resumeId);
   if (item.resumeId && !resume) recordIncident({ kind: 'parked-resume-morto', sessionKey, sessionId: item.resumeId, detail: `item ${item.id} disparado como turno novo` });
-  startRun({ ...runParams(item), ws: null, sessionKey, prompt: item.prompt, resumeId: resume, queued: true });
+  const delivered = startRun({ ...runParams(item), ws: null, sessionKey, prompt: item.prompt, resumeId: resume, queued: true });
+  if (delivered === 'pane') { broadcastQueue(); return { ok: true }; }
   const th = threads.get(sessionKey);
   if (!th) { unshiftParked(sessionKey, item, false); broadcastQueue(); return { reject: 'falhou' }; }
   th.parked = item;
@@ -588,7 +590,10 @@ export function deliverToOrchestratorPane(targetSessionId: string | undefined, t
   return true;
 }
 
-export function startRun(o: StartRunOptions) {
+// 'pane' = the prompt was pasted into the Orchestrator's live tmux pane: it WAS
+// delivered, but no thread exists. Queue callers must not read "no thread" as a
+// failed spawn, or they put the item back and paste it again on every tick.
+export function startRun(o: StartRunOptions): 'pane' | undefined {
   const { ws, sessionKey, prompt, resumeId, msgId, auto, forkId, queued, flowHop } = o;
   const params = runParams(o);
   // "Permitir todos os MCPs" chega como o sentinel '*' e é expandido AQUI, não no
@@ -608,7 +613,7 @@ export function startRun(o: StartRunOptions) {
   }
   if (!forkId && deliverToOrchestratorPane(resumeId ?? sessionKey, prompt, params.role)) {
     if (msgId) broadcast({ t: 'user', sessionKey, id: msgId, text: prompt, ts: Date.now() });
-    return;
+    return 'pane';
   }
 
   // Gate de CONTEXTO — antes do latch de pergunta e do admitRun: um envio recusado
