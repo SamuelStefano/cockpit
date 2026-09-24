@@ -43,9 +43,9 @@ export function ChatTopics({ topics, activeId, open, setOpen, onJump }: ChatTopi
           </span>
         ))}
       </button>
+      {/* Capped at the thread, but never below 12rem: in a short thread (a tall
+          composer, 1440x500) max-h-full left a 43px list showing one prompt. */}
       {open && (
-        {/* Capped at the thread, but never below 12rem: in a short thread (a tall
-            composer, 1440x500) max-h-full left a 43px list showing one prompt. */}
         <nav aria-label="Tópicos da conversa" className={`fade-up pointer-events-auto absolute right-full top-1/2 mr-1 flex max-h-[max(100%,12rem)] w-60 max-w-[70vw] -translate-y-1/2 flex-col overflow-hidden ${tokens.radius.lg} ${tokens.surface.raised} py-1.5`}>
           <div className="scroll-thin max-h-[60vh] min-h-0 overflow-y-auto">
             {topics.map((t, i) => {
