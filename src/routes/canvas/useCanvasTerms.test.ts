@@ -5,7 +5,7 @@ import type { TermApi } from '../../useCockpit';
 import { useCanvasTerms } from './useCanvasTerms';
 
 const term: TermApi = {
-  attach: vi.fn(), detach: vi.fn(), input: vi.fn(), resize: vi.fn(), kill: vi.fn(), resume: vi.fn(),
+  attach: vi.fn(), detach: vi.fn(), input: vi.fn(), resize: vi.fn(), kill: vi.fn(), resume: vi.fn(), exited: new Set<string>(),
 };
 
 beforeEach(() => { localStorage.clear(); vi.clearAllMocks(); });

@@ -48,7 +48,8 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
                     ? 'border-orange-500 bg-neutral-900 text-neutral-100'
                     : 'border-transparent text-neutral-500 hover:bg-neutral-900/50 hover:text-neutral-300'}`}
               >
-                <span className="h-1.5 w-1.5 rounded-full bg-green-500" style={{ boxShadow: '0 0 6px var(--ok)' }} />
+                {/* Colour alone used to say "alive" for every tab, dead ones too. */}
+                <span className={`h-1.5 w-1.5 rounded-full ${term.exited.has(t.id) ? 'bg-neutral-600' : 'bg-green-500'}`} style={term.exited.has(t.id) ? undefined : { boxShadow: '0 0 6px var(--ok)' }} aria-label={term.exited.has(t.id) ? 'encerrado' : 'ativo'} />
                 {t.name}
                 {terminals.length > 1 && (
                   // span (não button) — aninhar button em button é HTML inválido.
@@ -110,8 +111,9 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
 
       <div className="flex shrink-0 items-center justify-between border-t border-neutral-800 bg-neutral-950/80 px-3 py-1.5">
         <div className="flex items-center gap-2 font-mono text-[11px]">
-          <span className="h-2 w-2 rounded-full bg-green-500" style={{ boxShadow: '0 0 6px var(--ok)' }} />
-          <span className="text-green-400">tmux</span>
+          {active && term.exited.has(active.id)
+            ? <><span className="h-2 w-2 rounded-full bg-neutral-600" /><span className="text-neutral-500">encerrado</span></>
+            : <><span className="h-2 w-2 rounded-full bg-green-500" style={{ boxShadow: '0 0 6px var(--ok)' }} /><span className="text-green-400">tmux</span></>}
           {active && <span className="text-neutral-600">cockpit-{active.id}</span>}
         </div>
         {active && (
