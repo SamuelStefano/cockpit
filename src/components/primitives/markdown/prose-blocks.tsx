@@ -38,7 +38,9 @@ export function proseBlocks(md: string, keyBase: string, caret: boolean, slugs: 
       const { header, rows } = node;
       return (
         <div key={k} className="scroll-thin overflow-x-auto">
-          <table className="w-full border-collapse text-[13px]">
+          {/* leading-snug: cells inherited the prose leading-7 (28px lines at 13px),
+              so every wrapped cell grew ~2x taller than its text. */}
+          <table className="w-full border-collapse text-[13px] leading-snug">
             <thead>
               <tr>{header.map((h, hi) => (
                 <th key={hi} className="border border-neutral-800 bg-neutral-900/60 px-2.5 py-1.5 text-left font-semibold text-neutral-200">{renderInline(h, `${k}-th${hi}`)}</th>
