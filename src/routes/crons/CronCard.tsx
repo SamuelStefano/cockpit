@@ -81,7 +81,7 @@ export function CronCard({ cron, now, editing, onRun, onToggle, onEdit, onDelete
         <Button variant="ghost" size="sm" icon="pencil" title="Editar" aria-label="Editar" className={tokens.touchBox} onClick={onEdit} />
         <Button variant="ghost" size="sm" icon={cron.enabled ? 'pause' : 'clock'} title={cron.enabled ? 'Pausar' : 'Reativar agendamento'} aria-label={cron.enabled ? 'Pausar' : 'Reativar agendamento'} className={tokens.touchBox} onClick={onToggle} />
         {confirmDelete
-          ? <Button variant="danger" size="sm" className="text-red-400" title="Confirmar exclusão" onClick={clickDelete}>confirmar?</Button>
+          ? <Button variant="danger" size="sm" className={`text-red-400 ${tokens.touchBox}`} title="Confirmar exclusão" onClick={clickDelete}>confirmar?</Button>
           : <Button variant="ghost" size="sm" icon="trash" title="Excluir" aria-label="Excluir" className={tokens.touchBox} onClick={clickDelete} />}
       </div>
     </div>
