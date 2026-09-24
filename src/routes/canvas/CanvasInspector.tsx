@@ -149,7 +149,12 @@ export function CanvasInspector(p: Props) {
         {card && <Button variant="secondary" size="sm" icon="pencil" onClick={() => p.onEditCard(card.id)}>editar</Button>}
         {!card && <Button variant={one?.kind === 'session' ? 'secondary' : 'primary'} size="sm" icon="zap" onClick={() => p.onNewCard('task')}>agente aqui</Button>}
         {!card && <Button variant="secondary" size="sm" icon="sparkles" onClick={() => p.onNewCard('content')}>gerar conteúdo</Button>}
-        {pair && <Button size="sm" icon="zap" onClick={() => p.onChainSelected(pair[0].id, pair[1].id)}>encadear {pair[0].title} → {pair[1].title}</Button>}
+        {pair && (
+          // Two long session titles pushed this button past a phone's width.
+          <Button size="sm" icon="zap" className="max-w-full" title={`encadear ${pair[0].title} → ${pair[1].title}`} onClick={() => p.onChainSelected(pair[0].id, pair[1].id)}>
+            encadear <span className="inline-block max-w-[9rem] truncate align-bottom">{pair[0].title}</span> → <span className="inline-block max-w-[9rem] truncate align-bottom">{pair[1].title}</span>
+          </Button>
+        )}
       </div>
     </aside>
   );
