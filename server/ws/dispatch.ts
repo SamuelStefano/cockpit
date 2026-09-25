@@ -46,7 +46,7 @@ import { buildBench } from '../bench';
 import { buildCanvas } from '../canvas/index';
 import { readOrchestrator } from '../canvas/orchestrator';
 import { readOrchestratorActivity } from '../canvas/orchestrator-activity';
-import { readBusyElsewhereSessionIds, refreshLivenessSnapshot } from '../canvas/cv-liveness';
+import { readBusyElsewhereSessionIds, readTmuxPaneSessionIds, refreshLivenessSnapshot } from '../canvas/cv-liveness';
 import { peekSession } from '../sessions/peek';
 import { collectCtxOnly, collectTermStats, hasInteractiveClaude, newCpuSamples, type CpuSamples } from '../canvas/term-stats';
 import {
@@ -1034,6 +1034,16 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
           send(ws, {
             t: 'send-reject', sessionKey: msg.sessionKey, reason: 'live-elsewhere', text: msg.text, msgId: msg.msgId,
             message: 'Essa sessão já tem um turno rodando no outro processo do Deck (deckctl/agente) — espere ele terminar antes de mandar mensagem por aqui.',
+          });
+          return;
+        }
+        // An idle interactive claude in a tmux pane isn't "busy", but a
+        // `--resume` twin beside it still forks the transcript. Refuse.
+        const inPane = await readTmuxPaneSessionIds().catch(() => [] as string[]);
+        if (inPane.includes(target)) {
+          send(ws, {
+            t: 'send-reject', sessionKey: msg.sessionKey, reason: 'live-elsewhere', text: msg.text, msgId: msg.msgId,
+            message: 'Essa sessão está aberta num terminal tmux — mande a mensagem lá; por aqui criaria uma cópia headless que sobrescreve o trabalho.',
           });
           return;
         }
