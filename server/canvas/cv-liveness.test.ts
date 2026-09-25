@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  busySessionIds, CV_FRESH_MS, cvTermId, idleCvSessionIds, isCvShellLive, isRegistrySessionLive,
+  busySessionIds, tmuxPaneSessionIds, CV_FRESH_MS, cvTermId, idleCvSessionIds, isCvShellLive, isRegistrySessionLive,
   liveCvSessionIds, liveRegistrySessionIds, parseProcRecord, procStartMatches, procStartTicks,
 } from './cv-liveness';
 
@@ -225,5 +225,17 @@ describe('procStartTicks / procStartMatches', () => {
 
   it('parseProcRecord keeps procStart as a string', () => {
     expect(parseProcRecord(JSON.stringify({ pid: 7, sessionId: 's1', procStart: '42' }))?.procStart).toBe('42');
+  });
+});
+
+describe('tmuxPaneSessionIds — idle interactive panes count', () => {
+  it('keeps alive pids with a tmux target, busy or idle', () => {
+    const ids = tmuxPaneSessionIds([
+      { pid: 1, sessionId: 'idle-pane', status: 'idle', tmux: 'cockpit-cv-x:@1.%1' },
+      { pid: 2, sessionId: 'busy-pane', status: 'busy', tmux: 'cockpit-cv-y:@2.%2' },
+      { pid: 3, sessionId: 'headless', status: 'idle' },
+      { pid: 99, sessionId: 'dead-pane', tmux: 'cockpit-cv-z:@3.%3' },
+    ], { procAlive: (pid) => pid !== 99 });
+    expect(ids).toEqual(['busy-pane', 'idle-pane']);
   });
 });

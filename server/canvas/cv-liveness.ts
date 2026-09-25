@@ -154,6 +154,18 @@ export function busySessionIds(records: ClaudeProcRecord[], d: BusyElsewhereDeps
   return [...out].sort();
 }
 
+// Every alive process the registry places inside a tmux pane, busy or idle.
+// busySessionIds misses the idle ones: an interactive claude sitting at its
+// prompt is still a writer — a `--resume` twin next to it forks the
+// transcript the moment either side takes a turn.
+export function tmuxPaneSessionIds(records: ClaudeProcRecord[], d: BusyElsewhereDeps): string[] {
+  const out = new Set<string>();
+  for (const r of records) {
+    if (r.tmux && d.procAlive(r.pid)) out.add(r.sessionId);
+  }
+  return [...out].sort();
+}
+
 // A cv-shell that is ALIVE (tmux pane + process both up) but NOT live per
 // isCvShellLive — idle, no busy flag, transcript gone stale. That's Claude
 // Code sitting at its prompt waiting on Samuel, not a finished turn; without
@@ -225,6 +237,16 @@ export async function readBusyElsewhereSessionIds(): Promise<string[]> {
   const busyIds = busySessionIds(records, { procAlive: pidAlive });
   const own = runningSessionIds();
   return busyIds.filter((id) => !own.has(id)).sort();
+}
+
+// FRESH read for the 'send' guard, same reasoning as above: sessions with an
+// alive interactive claude in a tmux pane (idle included), minus this
+// process's own threads.
+export async function readTmuxPaneSessionIds(): Promise<string[]> {
+  const records = await readRecords(procRegistryDir());
+  if (!records.length) return [];
+  const own = runningSessionIds();
+  return tmuxPaneSessionIds(records, { procAlive: pidAlive }).filter((id) => !own.has(id));
 }
 
 export interface LivenessSnapshot {
