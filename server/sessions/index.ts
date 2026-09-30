@@ -1,5 +1,5 @@
-import { readdir, stat, open } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readdir, stat, open, readFile, writeFile, rename } from 'node:fs/promises';
+import { join, dirname } from 'node:path';
 import type { SessionMeta } from '../../shared/protocol';
 import { relPast } from '../../shared/format';
 import { promptPreview } from '../../shared/parse-attachments';
@@ -15,6 +15,85 @@ export interface MetaScan { title: string; firstUser?: string; count: number; co
 // scan incremental: JSONL de sessão é append-only, então quando o arquivo só cresce
 // relê apenas a cauda nova (de `consumed`) em vez do arquivo inteiro a cada `list`.
 const cache = new Map<string, { mtime: number; size: number; scan: MetaScan; meta: SessionMeta }>();
+
+// Scans in flight, keyed by id: concurrent callers (WS list/sync, watcher broadcast)
+// await the same promise instead of re-reading the same file in parallel.
+const inflight = new Map<string, { mtime: number; size: number; promise: Promise<SessionMeta> }>();
+
+// The scan cache is persisted next to the DB so a restart starts warm instead of
+// re-parsing every JSONL. Only `mtime,size,scan` are stored; `meta` is rebuilt on load.
+const SAVE_DEBOUNCE_MS = 2000;
+let loadPromise: Promise<void> | undefined;
+let saveTimer: ReturnType<typeof setTimeout> | undefined;
+
+function cachePath(): string {
+  return process.env.COCKPIT_SESSION_META_CACHE ?? join(dirname(CONFIG.dbPath), 'session-meta-cache.json');
+}
+
+function loadPersisted(): Promise<void> {
+  loadPromise ??= (async () => {
+    try {
+      const data = JSON.parse(await readFile(cachePath(), 'utf8'));
+      if (!data || typeof data !== 'object') return;
+      for (const [id, e] of Object.entries<any>(data)) {
+        if (!UUID_FILE.test(`${id}.jsonl`) || cache.has(id)) continue;
+        if (typeof e?.mtime !== 'number' || typeof e?.size !== 'number' || !e.scan || typeof e.scan.consumed !== 'number') continue;
+        cache.set(id, { mtime: e.mtime, size: e.size, scan: e.scan, meta: metaFromHead(id, e.mtime, e.scan) });
+      }
+    } catch { /* missing or corrupt file: start cold */ }
+  })();
+  return loadPromise;
+}
+
+function scheduleSave(): void {
+  if (saveTimer) return;
+  saveTimer = setTimeout(() => { saveTimer = undefined; void flushMetaCache(); }, SAVE_DEBOUNCE_MS);
+  saveTimer.unref();
+}
+
+// Writes atomically (tmp file + rename) so a crash mid-write never leaves a torn file.
+export async function flushMetaCache(): Promise<void> {
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = undefined; }
+  const out: Record<string, { mtime: number; size: number; scan: MetaScan }> = {};
+  for (const [id, e] of cache) out[id] = { mtime: e.mtime, size: e.size, scan: e.scan };
+  const path = cachePath();
+  const tmp = `${path}.${process.pid}.tmp`;
+  try {
+    await writeFile(tmp, JSON.stringify(out));
+    await rename(tmp, path);
+  } catch { /* best effort: the next change reschedules */ }
+}
+
+// Test-only: forget all in-memory state so the next call reloads from disk.
+export function resetMetaCacheForTests(): void {
+  cache.clear();
+  inflight.clear();
+  loadPromise = undefined;
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = undefined; }
+}
+
+// Returns the meta for a file, reusing the cache, joining an in-flight scan of the
+// same (mtime,size), or scanning (incrementally when the file only grew).
+async function resolveMeta(id: string, full: string, mtime: number, size: number): Promise<SessionMeta> {
+  await loadPersisted();
+  const hit = cache.get(id);
+  if (hit && hit.mtime === mtime && hit.size === size) return hit.meta;
+  const pending = inflight.get(id);
+  if (pending && pending.mtime === mtime && pending.size === size) return pending.promise;
+  const prev = hit && size > hit.size ? hit.scan : undefined;
+  const promise = (async () => {
+    const scan = await scanMeta(full, prev);
+    const meta = metaFromHead(id, mtime, scan);
+    cache.set(id, { mtime, size, scan, meta });
+    scheduleSave();
+    return meta;
+  })();
+  const entry = { mtime, size, promise };
+  inflight.set(id, entry);
+  const done = () => { if (inflight.get(id) === entry) inflight.delete(id); };
+  promise.then(done, done);
+  return promise;
+}
 
 export function listSessions(): Promise<SessionMeta[]> {
   return collectMetas((id, hidden) => !hidden.has(id));
@@ -38,7 +117,10 @@ async function collectMetas(keep: (id: string, hidden: Set<string>) => boolean):
   // senão arquivadas (filtradas aqui) seriam despejadas a cada listSessions.
   const live = new Set<string>();
   for (const f of files) if (UUID_FILE.test(f)) live.add(f.replace('.jsonl', ''));
-  for (const id of cache.keys()) if (!live.has(id)) cache.delete(id);
+  await loadPersisted();
+  let pruned = false;
+  for (const id of cache.keys()) if (!live.has(id)) { cache.delete(id); pruned = true; }
+  if (pruned) scheduleSave();
 
   const hidden = await hiddenSet();
   const purged = await purgedSet();
@@ -60,16 +142,7 @@ async function collectMetas(keep: (id: string, hidden: Set<string>) => boolean):
     try { st = await stat(full); } catch { continue; }
     const mtime = st.mtimeMs;
 
-    const hit = cache.get(id);
-    let meta: SessionMeta;
-    if (hit && hit.mtime === mtime) {
-      meta = hit.meta;
-    } else {
-      const prev = hit && st.size > hit.size ? hit.scan : undefined;
-      const scan = await scanMeta(full, prev);
-      meta = metaFromHead(id, mtime, scan);
-      cache.set(id, { mtime, size: st.size, scan, meta });
-    }
+    const meta = await resolveMeta(id, full, mtime, st.size);
     // Cópia rasa por listagem: o override NÃO é mutado no `meta` cacheado, senão
     // limpar o override depois não voltaria ao título derivado (ficaria grudado).
     // `relative` é recalculado do mtime (estável) a cada listagem — se viesse do
@@ -96,16 +169,7 @@ export async function metaForId(id: string): Promise<SessionMeta | null> {
   let st;
   try { st = await stat(full); } catch { return null; }
   const mtime = st.mtimeMs;
-  const hit = cache.get(id);
-  let meta: SessionMeta;
-  if (hit && hit.mtime === mtime) {
-    meta = hit.meta;
-  } else {
-    const prev = hit && st.size > hit.size ? hit.scan : undefined;
-    const scan = await scanMeta(full, prev);
-    meta = metaFromHead(id, mtime, scan);
-    cache.set(id, { mtime, size: st.size, scan, meta });
-  }
+  const meta = await resolveMeta(id, full, mtime, st.size);
   const titleOv = await titleOverrides();
   const noteOv = await noteOverrides();
   return {
