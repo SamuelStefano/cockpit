@@ -3,7 +3,7 @@ import { MAX_UPLOAD_BYTES, uploadWatchdogMs } from './limits';
 
 describe('upload limits', () => {
   it('fits a typical 3D model export', () => {
-    expect(MAX_UPLOAD_BYTES).toBeGreaterThanOrEqual(50_000_000);
+    expect(MAX_UPLOAD_BYTES).toBeGreaterThanOrEqual(65_000_000);
   });
 
   it('keeps the 75s floor for small files', () => {
@@ -12,6 +12,7 @@ describe('upload limits', () => {
   });
 
   it('grows the watchdog with the file size', () => {
-    expect(uploadWatchdogMs(MAX_UPLOAD_BYTES)).toBe(300_000);
+    expect(uploadWatchdogMs(MAX_UPLOAD_BYTES)).toBe(MAX_UPLOAD_BYTES / 200);
+    expect(uploadWatchdogMs(MAX_UPLOAD_BYTES)).toBeGreaterThan(75_000);
   });
 });

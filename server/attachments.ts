@@ -158,24 +158,28 @@ async function persistBuffer(
 // buracos — retornava false já no 1º chunk, finalizando cada chunk como se fosse
 // o arquivo inteiro. Era o bug que partia uma imagem em duas metades (cada chunk
 // virava um .png no boundary do CHUNK do cliente).
-interface ChunkUpload { sessionKey: string; name: string; total: number; parts: string[]; received: number; bytes: number; ts: number }
+// parts guarda cada chunk JÁ decodificado: remontar juntando o base64 inteiro
+// segurava base64 + string unida + buffer (~3,7× o arquivo) na box de 3,7GB.
+interface ChunkUpload { sessionKey: string; name: string; total: number; parts: (Buffer | null)[]; received: number; bytes: number; ts: number }
 const chunkUploads = new Map<string, ChunkUpload>();
 const CHUNK_TTL = 120_000;
 // Cada upload em voo segura até ~2× maxUploadBytes de base64 em RAM pelo TTL
 // inteiro. O teto por upload já existia; sem teto de uploads SIMULTÂNEOS, abrir
 // vários uploadId diferentes multiplica isso sem freio.
 const MAX_ACTIVE_UPLOADS = 8;
-// Teto de base64 em voo somando TODOS os uploads: com o teto por arquivo em 60MB,
-// 8 uploads grandes simultâneos seguravam ~640MB numa box de 3,7GB. Cabem ~2
+// Teto de bytes em voo somando TODOS os uploads: com o teto por arquivo em 100MB,
+// 8 uploads grandes simultâneos seguravam ~800MB numa box de 3,7GB. Cabem ~2
 // arquivos no teto por vez; os pequenos seguem livres.
-const MAX_INFLIGHT_B64 = Math.ceil(CONFIG.maxUploadBytes * 1.4) * 2;
+const MAX_INFLIGHT_BYTES = CONFIG.maxUploadBytes * 2;
+// O cliente manda ~700KB de base64 por chunk; bem acima disso é frame forjado.
+const MAX_CHUNK_B64 = 4_000_000;
 // O espelho S3 (edge fn) é best-effort e foi dimensionado pro teto antigo; acima
 // disso só gastava banda e os 30s do timeout antes de cair no fluxo local.
 const S3_MIRROR_MAX_BYTES = 15_000_000;
 // Pré-visualização manda o arquivo inteiro num frame WS de volta; acima disto o
 // anexo continua indo pro agente, só não abre no modal.
 const PREVIEW_MAX_BYTES = 15_000_000;
-function inflightB64(): number { let n = 0; for (const u of chunkUploads.values()) n += u.bytes; return n; }
+function inflightBytes(): number { let n = 0; for (const u of chunkUploads.values()) n += u.bytes; return n; }
 // Upload abortado (teto estourado): o cliente ainda manda os lotes restantes, que
 // recriariam uma entrada órfã segurando RAM até o TTL. Ignora o id até lá.
 const abortedUploads = new Map<string, number>();
@@ -198,17 +202,23 @@ export async function addUploadChunk(
   let u = chunkUploads.get(uploadId);
   if (!u) {
     if (chunkUploads.size >= MAX_ACTIVE_UPLOADS) return { error: 'muitos uploads simultâneos' };
-    u = { sessionKey, name, total, parts: new Array(total).fill(''), received: 0, bytes: 0, ts: now };
+    u = { sessionKey, name, total, parts: new Array<Buffer | null>(total).fill(null), received: 0, bytes: 0, ts: now };
     chunkUploads.set(uploadId, u);
   }
-  if (u.parts[seq] === '') { u.parts[seq] = dataB64; u.bytes += dataB64.length; u.received++; }
+  // Chunk que não é o último precisa fechar em múltiplo de 4 pra decodificar
+  // sozinho (o cliente corta em 700_000); fora disso é upload inválido.
+  if (dataB64.length > MAX_CHUNK_B64 || (seq < total - 1 && dataB64.length % 4 !== 0)) {
+    abortUpload(uploadId, now); return { error: 'upload inválido' };
+  }
+  if (u.parts[seq] === null) { const b = Buffer.from(dataB64, 'base64'); u.parts[seq] = b; u.bytes += b.length; u.received++; }
   u.ts = now;
-  // Teto cedo (base64 ~+33%): aborta uploads grandes antes de remontar.
-  if (u.bytes > CONFIG.maxUploadBytes * 2) { abortUpload(uploadId, now); return { error: 'arquivo grande demais' }; }
-  if (inflightB64() > MAX_INFLIGHT_B64) { abortUpload(uploadId, now); return { error: 'uploads demais em andamento — espere terminar e anexe de novo' }; }
+  // Teto cedo: aborta uploads grandes antes de remontar.
+  if (u.bytes > CONFIG.maxUploadBytes) { abortUpload(uploadId, now); return { error: 'arquivo grande demais' }; }
+  if (inflightBytes() > MAX_INFLIGHT_BYTES) { abortUpload(uploadId, now); return { error: 'uploads demais em andamento — espere terminar e anexe de novo' }; }
   if (u.received < u.total) return null; // ainda faltam chunks
   chunkUploads.delete(uploadId);
-  const buf = Buffer.from(u.parts.join(''), 'base64');
+  const buf = Buffer.concat(u.parts as Buffer[]);
+  u.parts = [];
   const r = await persistBuffer(sessionKey, name, buf);
   if ('error' in r) return r;
   const s3 = buf.length <= S3_MIRROR_MAX_BYTES ? await uploadToS3(buf, name, mimeOf(name)) : null;

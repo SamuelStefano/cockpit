@@ -3,7 +3,7 @@ import type { ClientMsg } from '../../shared/protocol';
 // Operações que tocam fs/spawn/grep — caras o bastante pra merecer um teto mais
 // apertado que o global. Um loop de `search` (grep sobre centenas de MB) ou
 // `term-open` (spawn de tmux) sem freio é o vetor de DoS quando houver 2º ator.
-// `upload-chunk` fica FORA de propósito: um anexo de 60MB vira ~115 frames e o balde
+// `upload-chunk` fica FORA de propósito: um anexo de 100MB vira ~190 frames e o balde
 // apertado (burst 15) derrubaria o fim de todo arquivo grande. Ele passa só pelo
 // global — o cliente manda em lotes de 40/s pra caber — e o teto dele é outro:
 // MAX_ACTIVE_UPLOADS + MAX_INFLIGHT_B64 + maxUploadBytes em attachments.ts.

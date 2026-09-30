@@ -1789,7 +1789,7 @@ export function useCockpit(): Cockpit {
       const CHUNK = 700_000; // ~700KB de base64 por frame (folga sob o cap do relay)
       const total = Math.max(1, Math.ceil(b64.length / CHUNK));
       // Lotes espaçados: o limitador global do servidor (server/ws/guard.ts) aceita
-      // rajada de 120 frames e 60/s; um .glb de 60MB são ~115 chunks e, numa rajada
+      // rajada de 120 frames e 60/s; um .glb de 100MB são ~190 chunks e, numa rajada
       // só, o fim do arquivo era descartado e o chip girava até o watchdog.
       const sendBatch = (from: number) => {
         if (done || removedUploads.current.has(clientId)) return;
