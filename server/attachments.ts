@@ -176,7 +176,14 @@ const S3_MIRROR_MAX_BYTES = 15_000_000;
 // anexo continua indo pro agente, só não abre no modal.
 const PREVIEW_MAX_BYTES = 15_000_000;
 function inflightB64(): number { let n = 0; for (const u of chunkUploads.values()) n += u.bytes; return n; }
-function sweepChunks(now: number): void { for (const [id, u] of chunkUploads) if (now - u.ts > CHUNK_TTL) chunkUploads.delete(id); }
+// Upload abortado (teto estourado): o cliente ainda manda os lotes restantes, que
+// recriariam uma entrada órfã segurando RAM até o TTL. Ignora o id até lá.
+const abortedUploads = new Map<string, number>();
+function abortUpload(id: string, now: number): void { chunkUploads.delete(id); abortedUploads.set(id, now); }
+function sweepChunks(now: number): void {
+  for (const [id, u] of chunkUploads) if (now - u.ts > CHUNK_TTL) chunkUploads.delete(id);
+  for (const [id, ts] of abortedUploads) if (now - ts > CHUNK_TTL) abortedUploads.delete(id);
+}
 
 export async function addUploadChunk(
   uploadId: string, sessionKey: string, name: string, seq: number, total: number, dataB64: string,
@@ -187,6 +194,7 @@ export async function addUploadChunk(
   if (!Number.isInteger(seq) || seq < 0 || seq >= total) return { error: 'upload inválido' };
   const now = Date.now();
   sweepChunks(now);
+  if (abortedUploads.has(uploadId)) return null;
   let u = chunkUploads.get(uploadId);
   if (!u) {
     if (chunkUploads.size >= MAX_ACTIVE_UPLOADS) return { error: 'muitos uploads simultâneos' };
@@ -196,8 +204,8 @@ export async function addUploadChunk(
   if (u.parts[seq] === '') { u.parts[seq] = dataB64; u.bytes += dataB64.length; u.received++; }
   u.ts = now;
   // Teto cedo (base64 ~+33%): aborta uploads grandes antes de remontar.
-  if (u.bytes > CONFIG.maxUploadBytes * 2) { chunkUploads.delete(uploadId); return { error: 'arquivo grande demais' }; }
-  if (inflightB64() > MAX_INFLIGHT_B64) { chunkUploads.delete(uploadId); return { error: 'uploads demais em andamento — espere terminar e anexe de novo' }; }
+  if (u.bytes > CONFIG.maxUploadBytes * 2) { abortUpload(uploadId, now); return { error: 'arquivo grande demais' }; }
+  if (inflightB64() > MAX_INFLIGHT_B64) { abortUpload(uploadId, now); return { error: 'uploads demais em andamento — espere terminar e anexe de novo' }; }
   if (u.received < u.total) return null; // ainda faltam chunks
   chunkUploads.delete(uploadId);
   const buf = Buffer.from(u.parts.join(''), 'base64');

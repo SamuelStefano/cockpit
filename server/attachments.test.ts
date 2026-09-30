@@ -207,6 +207,17 @@ describe('extractDocxText', () => {
   });
 });
 
+describe('addUploadChunk abort', () => {
+  it('ignores the remaining chunks of an upload aborted by the size cap', async () => {
+    const big = 'A'.repeat(CONFIG.maxUploadBytes * 2 + 4);
+    const id = 'up-vitest-abort';
+    expect(await addUploadChunk(id, 'vitest-abort', 'x.glb', 0, 3, big)).toEqual({ error: 'arquivo grande demais' });
+    // The client keeps sending its batches: they must not reopen the upload.
+    expect(await addUploadChunk(id, 'vitest-abort', 'x.glb', 1, 3, 'AAAA')).toBeNull();
+    expect(await addUploadChunk(id, 'vitest-abort', 'x.glb', 2, 3, 'AAAA')).toBeNull();
+  });
+});
+
 describe('readAttachment', () => {
   it('rejects traversal and paths outside attachments/', async () => {
     const bad = { error: 'anexo inválido' };
