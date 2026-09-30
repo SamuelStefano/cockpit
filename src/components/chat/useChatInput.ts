@@ -52,12 +52,11 @@ export function useChatInput(args: UseChatInputArgs) {
   const mic = useSpeechInput(value, setValue, () => taRef.current?.focus());
   // Assinaturas recém-enviadas pra deduplicar o mesmo arquivo repetido (bug iOS).
   const recentUploads = useRef<Map<string, number>>(new Map());
-  // Sobe vários arquivos respeitando o teto (espelha o backend); retorna quantos
-  // passaram pra o caller decidir se houve upload (ex: paste consome o evento).
+  // Sobe vários arquivos (o teto de tamanho é do onUpload, que avisa); retorna
+  // quantos passaram pra o caller decidir se houve upload (ex: paste consome o evento).
   const uploadFiles = (files: File[]): number => {
     let n = 0;
     for (const f of pickFreshUploads(files, recentUploads.current, Date.now())) {
-      if (f.size > 15_000_000) continue;
       onUpload(f); n++;
     }
     return n;
@@ -176,7 +175,7 @@ export function useChatInput(args: UseChatInputArgs) {
     return el ? { start: el.selectionStart, end: el.selectionEnd } : null;
   };
   const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    uploadFiles(Array.from(e.target.files ?? [])); // teto de 15MB espelha o backend
+    uploadFiles(Array.from(e.target.files ?? []));
     e.target.value = '';
   };
   const compositionEndAt = useRef(-Infinity);

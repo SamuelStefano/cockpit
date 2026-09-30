@@ -14,6 +14,7 @@ const MIME: Record<string, string> = {
   // da DFL; um SVG com <script> serviria stored-XSS inline. Força download binário.
   svg: 'application/octet-stream',
   pdf: 'application/pdf', mp4: 'video/mp4', webm: 'video/webm', mp3: 'audio/mpeg',
+  glb: 'model/gltf-binary', gltf: 'model/gltf+json',
 };
 export function mimeOf(name: string): string {
   return MIME[(name.split('.').pop() ?? '').toLowerCase()] ?? 'application/octet-stream';
@@ -164,7 +165,25 @@ const CHUNK_TTL = 120_000;
 // inteiro. O teto por upload já existia; sem teto de uploads SIMULTÂNEOS, abrir
 // vários uploadId diferentes multiplica isso sem freio.
 const MAX_ACTIVE_UPLOADS = 8;
-function sweepChunks(now: number): void { for (const [id, u] of chunkUploads) if (now - u.ts > CHUNK_TTL) chunkUploads.delete(id); }
+// Teto de base64 em voo somando TODOS os uploads: com o teto por arquivo em 60MB,
+// 8 uploads grandes simultâneos seguravam ~640MB numa box de 3,7GB. Cabem ~2
+// arquivos no teto por vez; os pequenos seguem livres.
+const MAX_INFLIGHT_B64 = Math.ceil(CONFIG.maxUploadBytes * 1.4) * 2;
+// O espelho S3 (edge fn) é best-effort e foi dimensionado pro teto antigo; acima
+// disso só gastava banda e os 30s do timeout antes de cair no fluxo local.
+const S3_MIRROR_MAX_BYTES = 15_000_000;
+// Pré-visualização manda o arquivo inteiro num frame WS de volta; acima disto o
+// anexo continua indo pro agente, só não abre no modal.
+const PREVIEW_MAX_BYTES = 15_000_000;
+function inflightB64(): number { let n = 0; for (const u of chunkUploads.values()) n += u.bytes; return n; }
+// Upload abortado (teto estourado): o cliente ainda manda os lotes restantes, que
+// recriariam uma entrada órfã segurando RAM até o TTL. Ignora o id até lá.
+const abortedUploads = new Map<string, number>();
+function abortUpload(id: string, now: number): void { chunkUploads.delete(id); abortedUploads.set(id, now); }
+function sweepChunks(now: number): void {
+  for (const [id, u] of chunkUploads) if (now - u.ts > CHUNK_TTL) chunkUploads.delete(id);
+  for (const [id, ts] of abortedUploads) if (now - ts > CHUNK_TTL) abortedUploads.delete(id);
+}
 
 export async function addUploadChunk(
   uploadId: string, sessionKey: string, name: string, seq: number, total: number, dataB64: string,
@@ -175,6 +194,7 @@ export async function addUploadChunk(
   if (!Number.isInteger(seq) || seq < 0 || seq >= total) return { error: 'upload inválido' };
   const now = Date.now();
   sweepChunks(now);
+  if (abortedUploads.has(uploadId)) return null;
   let u = chunkUploads.get(uploadId);
   if (!u) {
     if (chunkUploads.size >= MAX_ACTIVE_UPLOADS) return { error: 'muitos uploads simultâneos' };
@@ -184,13 +204,14 @@ export async function addUploadChunk(
   if (u.parts[seq] === '') { u.parts[seq] = dataB64; u.bytes += dataB64.length; u.received++; }
   u.ts = now;
   // Teto cedo (base64 ~+33%): aborta uploads grandes antes de remontar.
-  if (u.bytes > CONFIG.maxUploadBytes * 2) { chunkUploads.delete(uploadId); return { error: 'arquivo grande demais' }; }
+  if (u.bytes > CONFIG.maxUploadBytes * 2) { abortUpload(uploadId, now); return { error: 'arquivo grande demais' }; }
+  if (inflightB64() > MAX_INFLIGHT_B64) { abortUpload(uploadId, now); return { error: 'uploads demais em andamento — espere terminar e anexe de novo' }; }
   if (u.received < u.total) return null; // ainda faltam chunks
   chunkUploads.delete(uploadId);
   const buf = Buffer.from(u.parts.join(''), 'base64');
   const r = await persistBuffer(sessionKey, name, buf);
   if ('error' in r) return r;
-  const s3 = await uploadToS3(buf, name, mimeOf(name));
+  const s3 = buf.length <= S3_MIRROR_MAX_BYTES ? await uploadToS3(buf, name, mimeOf(name)) : null;
   return { ...r, s3url: s3?.url };
 }
 
@@ -208,7 +229,8 @@ export async function readAttachment(
   if (!full.startsWith(root + '/')) return { error: 'anexo inválido' };
   try {
     const st = await stat(full);
-    if (!st.isFile() || st.size > CONFIG.maxUploadBytes) return { error: 'anexo indisponível' };
+    if (!st.isFile()) return { error: 'anexo indisponível' };
+    if (st.size > PREVIEW_MAX_BYTES) return { error: 'anexo grande demais pra pré-visualizar' };
     const buf = await readFile(full);
     // Mesmo prefixo que persistBuffer gera (ts36-hex-nome) — devolve o nome original.
     const name = basename(full).replace(/^[a-z0-9]+-[a-z0-9]+-/i, '') || basename(full);

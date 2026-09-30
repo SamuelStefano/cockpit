@@ -29,7 +29,7 @@ import { useSkills, type Skills } from './cockpit/useSkills';
 import { useGraphs, type Graphs } from './cockpit/useGraphs';
 import { useCanvas, type CanvasApi } from './cockpit/useCanvas';
 import { buildForkWire, buildSendWire as buildSendWirePure } from './cockpit/send-wire';
-import { MAX_PROMPT_BYTES } from '../shared/limits';
+import { MAX_PROMPT_BYTES, MAX_UPLOAD_BYTES, uploadWatchdogMs } from '../shared/limits';
 import { aliasRoutedKey, type PendingCanvasSend } from './cockpit/canvas-send-tracker';
 import { useAdmin, type Admin } from './cockpit/useAdmin';
 import { useHarness, type Harness } from './cockpit/useHarness';
@@ -1732,12 +1732,19 @@ export function useCockpit(): Cockpit {
     setResumeOffers((o) => clearOffer(o, sessionKey));
   }, [send]);
 
+  // Chunks por lote de envio: fica sob os 60 frames/s do limitador global.
+  const UPLOAD_BATCH = 40;
   const onUpload = useCallback((file: File) => {
     const key = activeRef.current;
     if (!key) return;
     // Mesmo arquivo chegando repetido (FileList duplicado do iOS, re-disparo de
     // paste/change, caminhos concorrentes) só sobe uma vez dentro da janela.
     if (!isFreshUpload(recentUploadSigs.current, fileSig(file), Date.now())) return;
+    if (file.size > MAX_UPLOAD_BYTES) {
+      const mb = (n: number) => `${Math.round(n / 1_000_000)}MB`;
+      updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⚠️ "${file.name}" tem ${mb(file.size)} — o limite de anexo é ${mb(MAX_UPLOAD_BYTES)}.` }], error: true, notice: true }]);
+      return;
+    }
     const clientId = newId('up');
     uploadOrigin.current.set(clientId, key);
     // Chip otimista na hora (com spinner) — antes só aparecia DEPOIS do ack do
@@ -1759,13 +1766,13 @@ export function useCockpit(): Cockpit {
       setAtts(attachmentsRef.current.filter((a) => a.clientId !== clientId));
       updateThread(key, (prev) => [...prev, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: msg }], error: true, notice: true }]);
     };
-    // Watchdog: o chip NUNCA fica "carregando" pra sempre. Se em 75s ainda estiver
-    // uploading (fetch pendurado, sem ack do backend, relay dropou), some + erro.
+    // Watchdog: o chip NUNCA fica "carregando" pra sempre. Se no prazo (75s, mais
+    // pra arquivo grande) ainda estiver uploading (sem ack, relay dropou), some + erro.
     setTimeout(() => {
       if (!done && attachmentsRef.current.some((a) => a.clientId === clientId && a.uploading)) {
         fail(`⚠️ Upload de "${file.name}" demorou demais — tente de novo.`);
       }
-    }, 75_000);
+    }, uploadWatchdogMs(file.size));
     // Upload em CHUNKS via WS: fatia o base64 em pedaços pequenos (cada frame bem
     // abaixo do cap do relay), o backend remonta e sobe pro S3 server-side. Evita o
     // upload direto browser→edge fn (travava por CORS/Cloudflare) e o cap de frame.
@@ -1781,9 +1788,22 @@ export function useCockpit(): Cockpit {
       const b64 = res.includes(',') ? res.slice(res.indexOf(',') + 1) : res;
       const CHUNK = 700_000; // ~700KB de base64 por frame (folga sob o cap do relay)
       const total = Math.max(1, Math.ceil(b64.length / CHUNK));
-      for (let seq = 0; seq < total; seq++) {
-        send({ t: 'upload-chunk', uploadId: clientId, sessionKey: key, name: file.name, seq, total, dataB64: b64.slice(seq * CHUNK, (seq + 1) * CHUNK), clientId });
-      }
+      // Lotes espaçados: o limitador global do servidor (server/ws/guard.ts) aceita
+      // rajada de 120 frames e 60/s; um .glb de 60MB são ~115 chunks e, numa rajada
+      // só, o fim do arquivo era descartado e o chip girava até o watchdog.
+      const sendBatch = (from: number) => {
+        if (done || removedUploads.current.has(clientId)) return;
+        if (wsRef.current?.readyState !== WebSocket.OPEN) {
+          fail(`⚠️ Conexão caiu no meio do upload de "${file.name}" — anexe de novo.`);
+          return;
+        }
+        const to = Math.min(total, from + UPLOAD_BATCH);
+        for (let seq = from; seq < to; seq++) {
+          send({ t: 'upload-chunk', uploadId: clientId, sessionKey: key, name: file.name, seq, total, dataB64: b64.slice(seq * CHUNK, (seq + 1) * CHUNK), clientId });
+        }
+        if (to < total) setTimeout(() => sendBatch(to), 1000);
+      };
+      sendBatch(0);
     };
     reader.onerror = reader.onabort = () => fail(`⚠️ Falha ao ler o arquivo "${file.name}" — tente anexar de novo.`);
     reader.readAsDataURL(file);

@@ -39,10 +39,10 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
   // "Pensando…" — antes o chat parecia travado por minutos.
   const compactingSince = useCompacting(messages, running, contextTokens, quotaPaused, contextModel);
   const live = running ? { tokens: liveTurnTokens ?? 0, startedAt: turnStartedAt, compactingSince: compactingSince ?? undefined } : undefined;
-  // Drop em qualquer lugar do chat (não só no composer): teto de 15MB espelha o
-  // backend. O composer tem seu próprio drop com stopPropagation, então soltar lá
-  // não dispara este também.
-  const panelDnd = useFileDrop((files) => { let n = 0; for (const f of files) { if (f.size > 15_000_000) continue; onUpload(f); n++; } return n; });
+  // Drop em qualquer lugar do chat (não só no composer); o teto de tamanho é
+  // checado no onUpload, que avisa em vez de descartar calado. O composer tem seu
+  // próprio drop com stopPropagation, então soltar lá não dispara este também.
+  const panelDnd = useFileDrop((files) => { for (const f of files) onUpload(f); return files.length; });
   // Derivado memoizado: messages troca de referência a cada token streamado e a
   // varredura reversa só deve rodar quando a lista realmente muda.
   // Precedência do tray: com turno RODANDO os snapshots ao vivo (carimbados nos
