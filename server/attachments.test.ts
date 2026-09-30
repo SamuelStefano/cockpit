@@ -37,6 +37,11 @@ function buildDocx(documentXml: string): Buffer {
 }
 
 describe('mimeOf', () => {
+  it('serves 3D models with their gltf type', () => {
+    expect(mimeOf('fenix.glb')).toBe('model/gltf-binary');
+    expect(mimeOf('fenix.gltf')).toBe('model/gltf+json');
+  });
+
   it('nunca serve svg como image/svg+xml (stored-XSS no bucket S3 público)', () => {
     expect(mimeOf('logo.svg')).toBe('application/octet-stream');
     expect(mimeOf('a.SVG')).toBe('application/octet-stream');
@@ -227,6 +232,19 @@ describe('readAttachment', () => {
       expect(r).toEqual({ name: 'foto_teste.png', dataB64 });
     } finally {
       await rm(resolve(CONFIG.workdir, 'attachments', 'vitest-read'), { recursive: true, force: true });
+    }
+  });
+  // A 20MB .glb used to be dropped (15MB cap); now it is saved for the agent, and
+  // only the in-chat preview (whole file back in one WS frame) refuses it.
+  it('accepts a file above the old 15MB cap but does not preview it', async () => {
+    const dataB64 = Buffer.alloc(20_000_000, 7).toString('base64');
+    const saved = await upload('vitest-big', 'fenix.glb', dataB64);
+    expect(saved && 'path' in saved).toBe(true);
+    if (!saved || !('path' in saved)) return;
+    try {
+      expect(await readAttachment(saved.path)).toEqual({ error: 'anexo grande demais pra pré-visualizar' });
+    } finally {
+      await rm(resolve(CONFIG.workdir, 'attachments', 'vitest-big'), { recursive: true, force: true });
     }
   });
 });

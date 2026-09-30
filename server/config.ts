@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { MAX_PROMPT_BYTES } from '../shared/limits';
+import { MAX_PROMPT_BYTES, MAX_UPLOAD_BYTES } from '../shared/limits';
 
 // O CLI nomeia o dir do projeto trocando os separadores do caminho absoluto do
 // cwd por '-' (/home/samuel -> -home-samuel; /home/joao -> -home-joao). Derivar o
@@ -95,7 +95,7 @@ export const CONFIG = {
   maxBudgetUsd: positiveOrUndefined(process.env.COCKPIT_MAX_BUDGET_USD),
 
   // Teto por anexo gravado no workdir (loopback-only, mas evita encher o disco).
-  maxUploadBytes: 15_000_000,
+  maxUploadBytes: MAX_UPLOAD_BYTES,
 
   // Anexos são one-shot (o agente lê no turno e nunca mais). Varre e apaga os
   // mais velhos que isto pra o workdir não crescer sem limite num daily driver.

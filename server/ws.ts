@@ -26,9 +26,9 @@ export { runStats, killAllRuns } from './ws/threads';
 
 export function attachWs(server: Server) {
   // maxPayload: rejeita frames gigantes no transporte ANTES de o ws alocar/
-  // decodificar e o JSON.parse alocar de novo. O upload manda o arquivo inteiro
-  // em base64 num frame só; o teto de 15MB do app só checa DEPOIS. 32MB cobre o
-  // upload legítimo (15MB → ~20MB em base64) e corta o frame acidental de 100MB.
+  // decodificar e o JSON.parse alocar de novo. O upload vai em chunks de ~700KB
+  // (useCockpit.onUpload), então 32MB sobra pro frame legítimo e corta o
+  // acidental de 100MB.
   // noServer: o 'upgrade' é roteado no index.ts, que precisa desviar o HMR dos
   // sandboxes proxiados antes de chegar aqui — com `server` o ws aborta com 400
   // qualquer upgrade fora de /ws.
