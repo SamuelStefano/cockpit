@@ -10,7 +10,6 @@ import { detach } from './detach';
 import { translate } from './translate';
 import { summarize } from '../summary';
 import { classify, quickAnswer } from '../engine/triage';
-import { suggestFollowups } from '../engine/suggest';
 import { isAwaiting, clearAwaiting } from './awaiting';
 import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takeParked, promoteParked, parkedView, isQueuePaused, MAX_PARKED_ATTEMPTS, REJECT_MESSAGE, type ParkedItem } from './parked';
 import { resumableId } from './resume';
@@ -31,7 +30,7 @@ import { authHold, isAuthFailure, markAuthBroken, AUTH_MESSAGE } from './auth-he
 import { threadIsMarathon, MARATHON_AUTO_RESUME_CAP } from './marathon';
 import { threads, admitRun, resolveThreadKey, stopSession, stopEpochOf, clearStopEpoch, shouldPreserveLive, runParams, sameParams, type Thread, type RunParams } from './threads';
 import { isAreaAdmissionBlocked } from '../canvas/autopause-loop';
-import { enqueuePending, hasPending, takePendingBatch, takeAllPending, type QueuedSend } from './pending';
+import { enqueuePending, takePendingBatch, takeAllPending, type QueuedSend } from './pending';
 import { readOrchestratorSync, isTmuxAliveSync, paneLostClaudeSync, tmuxStateSync } from '../canvas/orchestrator';
 import { orchestratorTermId, buildPastedSend } from '../../shared/canvas';
 import { hasTerm, openTerm, inputTerm } from '../terminals';
@@ -1016,15 +1015,6 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
         hop: thread.flowHop ?? 0, unattended,
       });
       if (thread.sessionId && !thread.stopped && !unattended) void summarize(thread.sessionId);
-      // Chips de continuação (estilo ChatGPT): só em turno de usuário concluído de
-      // verdade (não stop, não cron, não AskUserQuestion pendente) e sem fila — um
-      // prompt enfileirado vai rodar já; sugerir tópicos agora seria ruído. Se um
-      // turno novo começar antes do haiku voltar, o resultado é descartado.
-      if (!thread.stopped && !thread.questioned && !unattended && !hasPending(sessionKey)) {
-        void suggestFollowups(thread.prompt, thread.text, sessionKey).then((items) => {
-          if (items.length && !threads.has(sessionKey)) broadcast({ t: 'suggestions', sessionKey, items });
-        }).catch(() => {});
-      }
       threads.delete(sessionKey);
       // época só vive enquanto há turno/triagem; senão vaza monotônico. A triage
       // or quick answer still waiting on this key needs it: clearing it back to 0
