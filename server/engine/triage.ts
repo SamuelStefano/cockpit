@@ -5,11 +5,10 @@ import { join } from 'node:path';
 import { cliPath } from './cli-path';
 import type { TriageVerdict, TriageAction } from '../../shared/protocol';
 
-// Os one-shots (triagem + sugestões) rodam `claude -p`, que PERSISTE um JSONL de
+// Os one-shots (triagem) rodam `claude -p`, que PERSISTE um JSONL de
 // sessão no projects-dir do cwd. Rodando no CONFIG.workdir, esses arquivos caíam na
-// MESMA pasta que o Deck lista → cada one-shot virava um "chat fantasma" na sidebar
-// (e o suggest roda a cada fim de turno = enxurrada). Isolando o cwd num dir
-// dedicado, o slug do projects-dir muda e o Deck nunca lista essas sessões efêmeras.
+// MESMA pasta que o Deck lista → cada one-shot virava um "chat fantasma" na sidebar.
+// Isolando o cwd num dir dedicado, o slug do projects-dir muda e o Deck nunca lista essas sessões efêmeras.
 const ONESHOT_CWD = join(homedir(), '.cockpit', 'oneshot');
 try { mkdirSync(ONESHOT_CWD, { recursive: true }); } catch { /* melhor esforço */ }
 
@@ -55,8 +54,7 @@ function miniEnv(): NodeJS.ProcessEnv {
 }
 
 // Executa `claude -p` haiku plan-mode e devolve o campo .result (texto). '' em erro/timeout.
-// Exportado: também alimenta os geradores baratos fora da triagem (ex: suggest.ts).
-export function oneShot(prompt: string, timeoutMs: number, cap = 65536, key = '_'): Promise<string> {
+function oneShot(prompt: string, timeoutMs: number, cap = 65536, key = '_'): Promise<string> {
   return new Promise((resolve) => {
     const args = ['-p', prompt, '--model', 'haiku', '--effort', 'low', '--permission-mode', 'plan', '--strict-mcp-config', '--output-format', 'json'];
     let child: ChildProcess;

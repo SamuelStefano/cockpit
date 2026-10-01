@@ -11,7 +11,7 @@ const RATIO = 0.75;
 const SHORT = '(max-height: 500px)';
 
 // Celular deitado também tem menos de 500px de altura, sem teclado nenhum — a
-// query sozinha escondia toolbar, followups e agentes em background em landscape.
+// query sozinha escondia toolbar e agentes em background em landscape.
 // Teclado só abre com um campo de texto focado, então a query exige esse foco.
 // `(orientation: portrait)` não serviria: com resizes-content a janela vira
 // "landscape" justamente quando o teclado abre.

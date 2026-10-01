@@ -12,7 +12,6 @@ import { latestTodos } from './chat/task-tray';
 import { useShownMessages } from './chat/useShownMessages';
 import { useCompacting } from './chat/useCompacting';
 import { TurnBanners } from './chat/TurnBanners';
-import { FollowupChips } from './chat/FollowupChips';
 import { ClaudeAuthBanner } from './chat/ClaudeAuthBanner';
 import { OrchestratorSessionBanner } from './chat/OrchestratorSessionBanner';
 import { isOrchestratorSession } from './chat/orchestrator-banner';
@@ -26,7 +25,7 @@ import type { ChatPanelProps } from './chat/chat-panel-props';
 
 export type { Phase };
 
-export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, followups, onDismissFollowups, draft, setDraft, onSend, onPrompt, onApproveWorkflow, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, contextModel = null, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onMemorize, onRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, keyboardOpen = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer = null, resumeRun, orchestratorSessionId }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, draft, setDraft, onSend, onPrompt, onApproveWorkflow, onStop, mode, setMode, caps, claudeReady = true, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, contextModel = null, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onMemorize, onRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, keyboardOpen = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer = null, resumeRun, orchestratorSessionId }: ChatPanelProps) {
   const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg, queueRunNow });
   // Modo iterativo: um refino pedido de dentro de um live preview vira o próximo
   // prompt (o card não tem acesso ao compositor — publica no [[refine-bus]]).
@@ -110,15 +109,9 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
 
       {trayTodos && <TaskTray todos={trayTodos} isMobile={isMobile} keyboardOpen={keyboardOpen} />}
 
-      {/* Com o teclado aberto o thread inteiro cabe em ~150px: faixa de agentes,
-          chips de continuação e aviso de saturação saem de cena até fechar. */}
+      {/* Com o teclado aberto o thread inteiro cabe em ~150px: faixa de agentes
+          e aviso de saturação saem de cena até fechar. */}
       {!keyboardOpen && <BackgroundAgents agents={bgAgents} />}
-
-      {/* Chips só em repouso de verdade: sem turno, sem pergunta/plano pendente e
-          sem fila — nesses estados o banner correspondente é a ação principal. */}
-      {!keyboardOpen && phase === 'idle' && !c.isEmpty && !c.pendingQuestion && !c.planPending && !c.failed && c.queued.length === 0 && followups && onDismissFollowups && (
-        <FollowupChips items={followups} onPick={onPrompt} onDismiss={onDismissFollowups} />
-      )}
 
       {!keyboardOpen && phase === 'idle' && onHandoff && (
         <SaturationBanner sessionId={session?.id} contextTokens={contextTokens} contextModel={contextModel} busy={handoffBusy} onHandoff={onHandoff} />

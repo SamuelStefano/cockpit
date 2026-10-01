@@ -15,9 +15,6 @@ export interface ChatPanelProps {
   // Estado corrente da lista de tarefas (arquivo inteiro, via frame history) —
   // fallback do tray quando a janela visível não tem snapshot (pós-compact).
   sessionTodos?: ToolTodo[];
-  // Tópicos de continuação pós-turno (chips estilo ChatGPT) + dispensa.
-  followups?: string[];
-  onDismissFollowups?: () => void;
   draft: string;
   setDraft: (v: string) => void;
   onSend: (text: string, modeOverride?: PermMode) => void;

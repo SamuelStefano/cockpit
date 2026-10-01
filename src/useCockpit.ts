@@ -103,9 +103,6 @@ export interface Cockpit extends LeafApis {
   messages: Message[];
   terminalBusy: boolean;
   sessionTodos?: ToolTodo[];
-  // Tópicos de continuação pós-turno da sessão ativa (chips estilo ChatGPT).
-  followups?: string[];
-  dismissFollowups: () => void;
   phase: Phase;
   running: Set<string>;
   stalled: Set<string>;
@@ -356,7 +353,6 @@ export function useCockpit(): Cockpit {
   const [sessionTodos, setSessionTodos] = useState<Record<string, ToolTodo[]>>({});
   // Tópicos de continuação sugeridos pós-turno (chips estilo ChatGPT), por sessão.
   // Efêmeros: somem ao enviar a próxima mensagem (novo turno gera novos).
-  const [followups, setFollowups] = useState<Record<string, string[]>>({});
   // Turno que morreu e o servidor decidiu NÃO retomar sozinho: o motivo fica na
   // tela com um botão de retomada até o próximo turno da sessão.
   const [resumeOffers, setResumeOffers] = useState<ResumeOffers>({});
@@ -946,8 +942,6 @@ export function useCockpit(): Cockpit {
         // vivo e mudava retroativamente ao trocar de modelo. O 'done' refina pro efetivo.
         updateThread(key, (prev) => [...prev, { id, role: 'assistant', blocks: [], ts: msg.startedAt ?? Date.now(), ...(msg.model ? { model: msg.model } : {}) }]);
         setPhases((p) => ({ ...p, [key]: 'thinking' }));
-        // Turno novo: os chips de continuação do turno anterior ficaram obsoletos.
-        setFollowups((f) => { if (!(key in f)) return f; const n = { ...f }; delete n[key]; return n; });
         // Início do turno: fixa a base de contexto pra medir o gasto AO VIVO deste
         // turno (delta) no indicador estilo terminal. Zera o contador exibido.
         turnBaseRef.current[key] = usageRef.current[key] || 0;
@@ -1065,14 +1059,6 @@ export function useCockpit(): Cockpit {
       }
       case 'marathon': {
         setMarathon(new Set(msg.keys));
-        return;
-      }
-      case 'suggestions': {
-        // Chips de continuação pós-turno. Chegou depois de um turno novo começar?
-        // O gate do servidor já descarta; aqui só ignora se a sessão está rodando.
-        const key = resolveKey(migratedTo.current, msg.sessionKey);
-        if (phasesRef.current[key] === 'thinking' || phasesRef.current[key] === 'streaming') return;
-        setFollowups((f) => ({ ...f, [key]: msg.items }));
         return;
       }
       case 'models': {
@@ -2234,10 +2220,6 @@ export function useCockpit(): Cockpit {
   const lastTurn = turnStats[activeId];
   const lastEnd = interrupted[activeId];
   const setDraft = useCallback((v: string) => setDrafts((d) => ({ ...d, [activeRef.current]: v })), []);
-  const dismissFollowups = useCallback(() => {
-    const key = activeRef.current;
-    setFollowups((f) => { if (!(key in f)) return f; const n = { ...f }; delete n[key]; return n; });
-  }, []);
 
   // Drafts não-enviados sobrevivem a reload. Só persiste sessões reais (uuid) e
   // não-vazias — keys `new-xxx` são efêmeras e não casam após reload.
@@ -2281,5 +2263,5 @@ export function useCockpit(): Cockpit {
 
   const attachmentsView = useMemo(() => markDuplicates(attachments, sentHashes[activeId]), [attachments, sentHashes, activeId]);
 
-  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...canvasApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], followups: followups[activeId], dismissFollowups, running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, interrupted, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onSendTo, canvasSendError, dismissCanvasSendError, onLaunchFork, canvasForkRuns, pendingSessionIds, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, onLaunchAgent, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun };
+  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...canvasApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, interrupted, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onSendTo, canvasSendError, dismissCanvasSendError, onLaunchFork, canvasForkRuns, pendingSessionIds, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, onLaunchAgent, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun };
 }
