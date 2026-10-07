@@ -20,7 +20,7 @@ import { takeOrphanRuns } from './ws/recover';
 import { readMemInfo } from './ws/mem-guard';
 import { startRunReaper } from './ws/reaper';
 import { busyFrame, killAllRuns, threads } from './ws/threads';
-import { startCvLivenessLoop } from './canvas/cv-liveness';
+import { startCvLivenessLoop, startLiveElsewhereLoop, liveElsewhereFrame } from './canvas/cv-liveness';
 import { emitCanvasMsg, hasCanvasClients } from './ws/canvas-clients';
 import { startModelsLoop, getLastModels } from './ws/models';
 import { startAuthKeepAlive } from './ws/auth-health';
@@ -121,6 +121,7 @@ function reemitBootstrap(ws: WebSocket): void {
     const slash = getSlashCommands();
     if (slash.length) s({ t: 'slash-commands', items: slash });
     s(busyFrame());
+    void liveElsewhereFrame().then(s).catch(() => {});
     const rate = getLastRate();
     if (rate) s({ t: 'rate', ...rate });
     const planFrame = planUsageFrame();
@@ -302,6 +303,7 @@ export function runAgent(relayUrl: string): void {
   // client after the last tab closes, so it also needs a browser present, or the
   // 5s /proc + JSONL scan ran for as long as the agent was paired.
   startCvLivenessLoop(canvasLoopGate(hasClients, hasCanvasClients), emitCanvasMsg);
+  startLiveElsewhereLoop(hasClients, broadcast);
   startPlanUsageLoop(hasClients, () => threads.size > 0);
   startModelsLoop(hasClients);
   startAuthKeepAlive();

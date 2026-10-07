@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  busySessionIds, CV_FRESH_MS, cvTermId, idleCvSessionIds, isCvShellLive, isRegistrySessionLive,
+  busyHeadlessSessionIds, busySessionIds, CV_FRESH_MS, cvTermId, idleCvSessionIds, isCvShellLive, isRegistrySessionLive,
   liveCvSessionIds, liveRegistrySessionIds, parseProcRecord, procStartMatches, procStartTicks,
 } from './cv-liveness';
 
@@ -81,6 +81,18 @@ describe('busySessionIds — strict, for the send guard only', () => {
   it('has no fresh-mtime fallback — an idle-but-recently-active session is never in this set', () => {
     const ids = busySessionIds([{ pid: 1, sessionId: 'just-finished', status: 'idle' }], deps);
     expect(ids).toEqual([]);
+  });
+});
+
+describe('busyHeadlessSessionIds — what a refused send may park for', () => {
+  it('keeps a busy headless turn and drops a busy cv-shell, whose interactive claude outlives the turn', () => {
+    const records = [
+      { pid: 1, sessionId: 'headless', status: 'busy' },
+      { pid: 2, sessionId: 'shell', status: 'busy', tmux: 'cockpit-cv-a:@1.%1' },
+      { pid: 3, sessionId: 'idle', status: 'idle' },
+    ];
+    expect(busyHeadlessSessionIds(records, { procAlive: () => true })).toEqual(['headless']);
+    expect(busyHeadlessSessionIds(records, { procAlive: () => false })).toEqual([]);
   });
 });
 

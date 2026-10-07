@@ -1,6 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'node:http';
-import { setWss, BACKPRESSURE_BYTES } from './ws/broadcast';
+import { setWss, broadcast, BACKPRESSURE_BYTES } from './ws/broadcast';
 import { CONFIG } from './config';
 import { originAllowed } from './ws/origin';
 import { tokenAllowed, tokenFromUrl } from './ws/token';
@@ -10,7 +10,7 @@ import { runStats, killAllRuns, threads } from './ws/threads';
 import { startCronLoop } from './crons';
 import { startStatsLoop } from './ws/stats-loop';
 import { startBgAgentsLoop } from './ws/bg-agents';
-import { startCvLivenessLoop } from './canvas/cv-liveness';
+import { startCvLivenessLoop, startLiveElsewhereLoop } from './canvas/cv-liveness';
 import { emitCanvasMsg, hasCanvasClients } from './ws/canvas-clients';
 import { startPlanUsageLoop } from './ws/usage-plan';
 import { startModelsLoop } from './ws/models';
@@ -98,6 +98,7 @@ export function attachWs(server: Server) {
   startStatsLoop(hasClients);
   startBgAgentsLoop(hasClients);
   startCvLivenessLoop(hasCanvasClients, emitCanvasMsg);
+  startLiveElsewhereLoop(hasClients, broadcast);
   startPlanUsageLoop(hasClients, () => threads.size > 0);
   startModelsLoop(hasClients);
   startSessionsWatch(hasClients);
