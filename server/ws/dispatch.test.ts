@@ -62,6 +62,7 @@ const cvLiveness = vi.hoisted(() => ({
   // grace, minus this process's own threads. Default empty: most tests
   // aren't exercising it.
   readBusyElsewhereSessionIds: vi.fn(async (): Promise<string[]> => []),
+  readBusyHeadlessElsewhereSessionIds: vi.fn(async (): Promise<string[]> => []),
   // FRESH snapshot for the 'canvas-get' cv-live reply, NOT the guard.
   refreshLivenessSnapshot: vi.fn(async () => ({ live: [] as string[], busyElsewhere: [] as string[], idle: [] as string[] })),
 }));
@@ -212,6 +213,28 @@ describe('send routing (the #130 role seam)', () => {
     }));
     expect(runs.startRun).not.toHaveBeenCalled();
     expect(runs.routeSend).not.toHaveBeenCalled();
+  });
+
+  // The turn is a headless `claude -p` owned by the other process: it ends on
+  // its own, so the message is queued for the drainer instead of being lost.
+  it('parks (send-parked) instead of refusing when the busy-elsewhere turn is headless', async () => {
+    cvLiveness.readBusyElsewhereSessionIds.mockResolvedValueOnce(['s1']);
+    cvLiveness.readBusyHeadlessElsewhereSessionIds.mockResolvedValueOnce(['s1']);
+    await handle(ws, msg(), 'admin');
+    expect(parked.addParked).toHaveBeenCalledWith('k1', expect.objectContaining({ prompt: 'hi', resumeId: 's1', role: 'admin' }));
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'send-parked', sessionKey: 'k1', msgId: 'm1' }));
+    expect(bc.send).not.toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'send-reject' }));
+    expect(runs.startRun).not.toHaveBeenCalled();
+    expect(runs.routeSend).not.toHaveBeenCalled();
+  });
+
+  it('still refuses a headless busy-elsewhere send when the queue will not take it', async () => {
+    cvLiveness.readBusyElsewhereSessionIds.mockResolvedValueOnce(['s1']);
+    cvLiveness.readBusyHeadlessElsewhereSessionIds.mockResolvedValueOnce(['s1']);
+    parked.addParked.mockReturnValueOnce({ reject: 'fila-cheia' } as never);
+    await handle(ws, msg(), 'admin');
+    expect(bc.send).toHaveBeenCalledWith(ws, expect.objectContaining({ t: 'send-reject', reason: 'live-elsewhere', text: 'hi' }));
+    expect(runs.startRun).not.toHaveBeenCalled();
   });
 
   it('starts normally when the registry has no strict busy-elsewhere match for the session', async () => {

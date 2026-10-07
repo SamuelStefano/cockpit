@@ -61,3 +61,15 @@ describe('busy snapshot after frames were lost with the socket', () => {
     expect(hook.result.current.phase).not.toBe('idle');
   });
 });
+
+describe('a turn live in the other backend process', () => {
+  it('shows as running in the sidebar set without becoming one of this client\'s own runs', () => {
+    const { hook, push } = mount();
+    push({ t: 'busy', keys: [], startedAt: {} });
+    push({ t: 'live-elsewhere', sessionIds: [U] });
+    expect(hook.result.current.runningAnywhere.has(U)).toBe(true);
+    expect(hook.result.current.running.has(U)).toBe(false);
+    push({ t: 'live-elsewhere', sessionIds: [] });
+    expect(hook.result.current.runningAnywhere.has(U)).toBe(false);
+  });
+});

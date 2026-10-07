@@ -952,6 +952,9 @@ export type ServerMsg =
   // prompt waiting for Samuel, not "done". Optional: an older server that
   // hasn't redeployed this field yet just omits it, no client crash.
   | { t: 'cv-live'; sessionIds: string[]; idleSessionIds?: string[] }
+  // Sessions with a turn live outside THIS backend process (the other Deck
+  // process, or an interactive claude) — every client, not just the canvas.
+  | { t: 'live-elsewhere'; sessionIds: string[] }
   // flowRuns: every card-target flow run still live right now (server/canvas/
   // flow-runs.ts) — a tab that (re)connects mid-run (F5, a second tab, opening
   // /canvas after the flow already fired) gets this on the SAME frame as the

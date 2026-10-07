@@ -227,6 +227,19 @@ export async function readBusyElsewhereSessionIds(): Promise<string[]> {
   return busyIds.filter((id) => !own.has(id)).sort();
 }
 
+// The subset of the above that is a HEADLESS turn (no tmux pane): a `claude -p`
+// the other Deck process spawned. Its process exits when the turn closes, so a
+// prompt parked for it is safe to drain later — unlike a busy cv-shell, whose
+// interactive claude stays open at its prompt and would get a second writer.
+export async function readBusyHeadlessElsewhereSessionIds(): Promise<string[]> {
+  const own = runningSessionIds();
+  return busyHeadlessSessionIds(await readRecords(procRegistryDir()), { procAlive: pidAlive }).filter((id) => !own.has(id));
+}
+
+export function busyHeadlessSessionIds(records: ClaudeProcRecord[], d: BusyElsewhereDeps): string[] {
+  return busySessionIds(records.filter((r) => !r.tmux), d);
+}
+
 export interface LivenessSnapshot {
   live: string[];          // display: tmux-cv-shell live ∪ general registry live, minus own threads
   busyElsewhere: string[]; // strict, for the send guard: alive pid + status 'busy' only, minus own threads
@@ -332,6 +345,29 @@ export function startCvLivenessLoop(hasClients: () => boolean, emit: (msg: Serve
       if (snap.live.join() !== prevLive || snap.idle.join() !== prevIdle) {
         emit({ t: 'cv-live', sessionIds: snap.live, idleSessionIds: snap.idle });
       }
+    } catch { /* best-effort, like the other loops */ } finally { busy = false; }
+  };
+  setInterval(tick, intervalMs).unref();
+}
+
+// 'cv-live' above only reaches admin canvas clients, so the sidebar and the
+// chat never learned that a session was running in the OTHER Deck process: it
+// read idle while every send to it was refused. This loop pushes the strict
+// busy-elsewhere list to every client instead (cheap read, no JSONL stat).
+export async function liveElsewhereFrame(): Promise<Extract<ServerMsg, { t: 'live-elsewhere' }>> {
+  return { t: 'live-elsewhere', sessionIds: await readBusyElsewhereSessionIds().catch(() => [] as string[]) };
+}
+
+export function startLiveElsewhereLoop(hasClients: () => boolean, emit: (msg: ServerMsg) => void, intervalMs = 5000) {
+  let busy = false;
+  let last = '';
+  const tick = async () => {
+    if (busy || !hasClients()) return;
+    busy = true;
+    try {
+      const frame = await liveElsewhereFrame();
+      const key = frame.sessionIds.join();
+      if (key !== last) { last = key; emit(frame); }
     } catch { /* best-effort, like the other loops */ } finally { busy = false; }
   };
   setInterval(tick, intervalMs).unref();

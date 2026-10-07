@@ -105,6 +105,7 @@ export interface Cockpit extends LeafApis {
   sessionTodos?: ToolTodo[];
   phase: Phase;
   running: Set<string>;
+  runningAnywhere: Set<string>; // running ∪ live in the other backend process (display only)
   stalled: Set<string>;
   updated: Set<string>;
   runStart: Record<string, number>;
@@ -249,6 +250,8 @@ export function useCockpit(): Cockpit {
   const [truncated, setTruncated] = useState<Record<string, boolean>>({}); // sessionKey -> open dropou histórico antigo
   const [turnStats, setTurnStats] = useState<Record<string, TurnStats>>({}); // sessionKey -> custo/duração reais do último turno
   const [interrupted, setInterrupted] = useState<Record<string, string>>({}); // sessionKey -> endReason (budget/max_turns) p/ oferecer "continuar"
+  // Sessions with a turn live in the OTHER Deck backend process ('live-elsewhere').
+  const [liveElsewhere, setLiveElsewhere] = useState<string[]>([]);
   const [searchResults, setSearchResults] = useState<Session[]>([]);
   const searchQ = useRef('');
   const [queue, setQueue] = useState<QueueItem[]>([]); // fila estacionada (servidor), broadcast dos queue-*
@@ -725,6 +728,7 @@ export function useCockpit(): Cockpit {
           return [...semOrfa, { id: newId('e'), role: 'assistant', blocks: [{ type: 'text', md: `⏳ ${msg.message}` }] }];
         });
         inFlight.current.delete(msg.sessionKey);
+        pendingCanvasSend.current.delete(msg.sessionKey);
         return;
       }
       case 'caps': {
@@ -773,6 +777,7 @@ export function useCockpit(): Cockpit {
         setTruncated((t) => ({ ...t, [msg.sessionId]: deeper ? !!t[msg.sessionId] : !!msg.truncated }));
         return;
       }
+      case 'live-elsewhere': { setLiveElsewhere(msg.sessionIds); return; }
       case 'busy': {
         // Snapshot autoritativo do servidor (envia no connect): quais keys têm
         // run vivo. Reconcilia o phases local — cobre sessões que ESTE cliente
@@ -2047,6 +2052,12 @@ export function useCockpit(): Cockpit {
     runningRef.current = next;
     return next;
   }, [phases]);
+  // Display only: this process can't stream or stop those turns, so they stay
+  // out of `running` (which drives phases, eviction and the stall watchdog).
+  const runningAnywhere = useMemo(
+    () => (liveElsewhere.length ? new Set([...running, ...liveElsewhere]) : running),
+    [running, liveElsewhere],
+  );
   // Canvas: a one-line composer inside a terminal window reaches a session that
   // may not even be the open chat tab, so it can't reuse onSend's
   // activeRef.current. ALWAYS the normal 'send' path (via buildSendWire, so
@@ -2263,5 +2274,5 @@ export function useCockpit(): Cockpit {
 
   const attachmentsView = useMemo(() => markDuplicates(attachments, sentHashes[activeId]), [attachments, sentHashes, activeId]);
 
-  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...canvasApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], running, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, interrupted, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onSendTo, canvasSendError, dismissCanvasSendError, onLaunchFork, canvasForkRuns, pendingSessionIds, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, onLaunchAgent, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun };
+  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...canvasApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], running, runningAnywhere, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, interrupted, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onSendTo, canvasSendError, dismissCanvasSendError, onLaunchFork, canvasForkRuns, pendingSessionIds, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, onLaunchAgent, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun };
 }

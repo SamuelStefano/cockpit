@@ -46,7 +46,7 @@ import { buildBench } from '../bench';
 import { buildCanvas } from '../canvas/index';
 import { readOrchestrator } from '../canvas/orchestrator';
 import { readOrchestratorActivity } from '../canvas/orchestrator-activity';
-import { readBusyElsewhereSessionIds, refreshLivenessSnapshot } from '../canvas/cv-liveness';
+import { readBusyElsewhereSessionIds, readBusyHeadlessElsewhereSessionIds, refreshLivenessSnapshot } from '../canvas/cv-liveness';
 import { peekSession } from '../sessions/peek';
 import { collectCtxOnly, collectTermStats, hasInteractiveClaude, newCpuSamples, type CpuSamples } from '../canvas/term-stats';
 import {
@@ -1031,6 +1031,23 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       if (!orchestratorPaneTarget(target, role)) {
         const busyElsewhere = await readBusyElsewhereSessionIds().catch(() => [] as string[]);
         if (busyElsewhere.includes(target)) {
+          // A headless turn in the other process ends on its own: park the
+          // prompt (the drainer holds it while the session is busy elsewhere)
+          // instead of refusing a message the user has no other way to send.
+          const headless = await readBusyHeadlessElsewhereSessionIds().catch(() => [] as string[]);
+          if (headless.includes(target)) {
+            let parked: ReturnType<typeof addParked> | undefined;
+            try { parked = addParked(msg.sessionKey, { prompt: msg.text, resumeId: msg.sessionId, mode: msg.mode, model: msg.model, effort: msg.effort, maxBudgetUsd: msg.maxBudgetUsd, bypass: msg.bypass, role, disallowedSkills, mcps: msg.mcps }); }
+            catch { /* disk write failed: fall through to the refusal */ }
+            if (parked && !('reject' in parked)) {
+              send(ws, {
+                t: 'send-parked', sessionKey: msg.sessionKey, msgId: msg.msgId,
+                message: 'Essa sessão está com um turno rodando no outro processo do Deck — a mensagem entrou na fila e roda sozinha quando ele terminar.',
+              });
+              broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+              return;
+            }
+          }
           send(ws, {
             t: 'send-reject', sessionKey: msg.sessionKey, reason: 'live-elsewhere', text: msg.text, msgId: msg.msgId,
             message: 'Essa sessão já tem um turno rodando no outro processo do Deck (deckctl/agente) — espere ele terminar antes de mandar mensagem por aqui.',

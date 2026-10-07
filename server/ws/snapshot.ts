@@ -5,6 +5,7 @@ import { requestPlanUsageRefresh, planUsageFrame } from './usage-plan';
 import { getLastModels } from './models';
 import { busyFrame, threads } from './threads';
 import { marathonKeys } from './marathon';
+import { liveElsewhereFrame } from '../canvas/cv-liveness';
 
 // Estado durável que o CLI só emite DURANTE um run (busy/rate/plan-usage/models):
 // uma aba que suspendeu no mobile e voltou ficaria com o snapshot velho até um F5.
@@ -12,6 +13,7 @@ import { marathonKeys } from './marathon';
 // sem duplicar.
 export function sendDurableSnapshot(ws: WebSocket) {
   send(ws, busyFrame());
+  void liveElsewhereFrame().then((f) => send(ws, f), () => {});
   // Replay dos turnos EM VOO: um browser que reconecta (aba suspensa no mobile)
   // enquanto outra aba segue viva não passa pelo reemit do agente (só dispara
   // quando TODOS os browsers sumiram) — sem replay aqui o turno fica mudo e o
