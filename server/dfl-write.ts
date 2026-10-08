@@ -125,14 +125,28 @@ interface InvoiceCreateCmd {
   tasks: InvoiceTaskInput[];
 }
 
-async function pgFetch(path: string, init: RequestInit & { schema: string }): Promise<unknown> {
-  const { schema, ...rest } = init;
+const PG_TIMEOUT_MS = 20_000;
+// The runner kills this process at 60s. Everything before the INSERT (guards,
+// rejected cleanup) must finish inside PRE_INSERT_BUDGET_MS, or nothing is
+// written; the INSERT, the items and a rollback then get short fixed timeouts,
+// so the two writes can't be split by the kill.
+const PRE_INSERT_BUDGET_MS = 30_000;
+const WRITE_TIMEOUT_MS = 8_000;
+const ROLLBACK_TIMEOUT_MS = 5_000;
+
+const isTimeout = (e: unknown) => e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError');
+
+async function pgFetch(path: string, init: RequestInit & { schema: string; timeoutMs?: number }): Promise<unknown> {
+  const { schema, timeoutMs = PG_TIMEOUT_MS, ...rest } = init;
   const method = (rest.method ?? 'GET').toUpperCase();
   const profileHeader = method === 'GET' ? { 'Accept-Profile': schema } : { 'Content-Profile': schema };
   const res = await authedFetch((creds) => ({
     url: `${creds.url}/rest/v1/${path}`,
     init: {
       ...rest,
+      // The runner kills this process at 60s. A hung request must fail first,
+      // or the kill lands between two writes of the invoice sequence.
+      signal: AbortSignal.timeout(timeoutMs),
       headers: {
         apikey: creds.anonKey, Authorization: `Bearer ${creds.token}`,
         'Content-Type': 'application/json', Accept: 'application/json',
@@ -145,10 +159,54 @@ async function pgFetch(path: string, init: RequestInit & { schema: string }): Pr
   return txt ? JSON.parse(txt) : null;
 }
 
+async function assertNotInvoiced(taskIds: string[]): Promise<void> {
+  if (taskIds.length === 0) return;
+  const items = await pgFetch(
+    `invoice_items?source_type=eq.task&source_id=in.(${taskIds.join(',')})&select=invoice_id,source_id`,
+    { schema: 'payments' }) as { invoice_id: string; source_id: string }[] | null;
+  const invoiceIds = [...new Set((items ?? []).map((i) => i.invoice_id))];
+  if (invoiceIds.length === 0) return;
+  const live = await pgFetch(
+    `invoices?id=in.(${invoiceIds.join(',')})&status=neq.rejected&select=id,status`,
+    { schema: 'payments' }) as { id: string; status: string }[] | null;
+  if (!live?.length) return;
+  const liveIds = new Set(live.map((i) => i.id));
+  const billed = new Set((items ?? []).filter((i) => liveIds.has(i.invoice_id)).map((i) => i.source_id));
+  throw new Error(`${billed.size} task(s) já estão numa fatura ${live.map((i) => i.status).join('/')} — não faturo de novo`);
+}
+
+// An invoice left without items (a rollback that could not delete it) matches no
+// task, so assertNotInvoiced can't see it; a new invoice for the same month would
+// sit next to it. Refuse while one exists. Only `submitted` ones: that is what
+// this path writes, and an approved/paid invoice with no items (a manual
+// adjustment) must not block the month. A young one may be another tab or the
+// DFL app mid-write (INSERT, then items), so it is not called orphaned.
+export const EMPTY_INVOICE_GRACE_MS = 2 * 60_000;
+
+async function assertNoEmptyInvoice(referenceMonth: string): Promise<void> {
+  // Two plain queries, not an embedded select: no dependency on how the FK
+  // between invoice_items and invoices is exposed.
+  const live = await pgFetch(
+    `invoices?fellow_user_id=eq.${FELLOW_ID}&reference_month=eq.${referenceMonth}&organization_id=eq.${ORG_ID}&status=eq.submitted&select=id,created_at`,
+    { schema: 'payments' }) as { id: string; created_at?: string | null }[] | null;
+  if (!live?.length) return;
+  const items = await pgFetch(
+    `invoice_items?invoice_id=in.(${live.map((i) => i.id).join(',')})&select=invoice_id`,
+    { schema: 'payments' }) as { invoice_id: string }[] | null;
+  const withItems = new Set((items ?? []).map((i) => i.invoice_id));
+  const empty = live.filter((i) => !withItems.has(i.id));
+  if (!empty.length) return;
+  const cutoff = Date.now() - EMPTY_INVOICE_GRACE_MS;
+  const young = empty.filter((i) => i.created_at && Date.parse(i.created_at) > cutoff);
+  if (young.length) throw new Error(`a fatura ${young.map((i) => i.id).join(', ')} de ${referenceMonth} pode estar sendo gravada agora (ainda sem itens) — espere uns minutos e confira no DFL`);
+  throw new Error(`a fatura ${empty.map((i) => i.id).join(', ')} de ${referenceMonth} está vazia no DFL — apague-a lá antes de gerar outra`);
+}
+
 async function createInvoice(cmd: InvoiceCreateCmd): Promise<Record<string, unknown>> {
   if (!/^\d{4}-\d{2}$/.test(cmd.referenceMonth)) throw new Error('referenceMonth inválido (esperado YYYY-MM)');
   const tasks = cmd.tasks.filter((t) => Number.isFinite(t.points) && t.points > 0);
   if (tasks.length === 0) throw new Error('nenhuma task faturável (points > 0) na seleção');
+  if (new Set(tasks.map((t) => t.id)).size !== tasks.length) throw new Error('task repetida na seleção');
   const ppp = Number.isFinite(cmd.pricePerPoint) && cmd.pricePerPoint > 0 ? cmd.pricePerPoint : 75;
   const toCents = (v: number) => Math.round(v * 100);
   const totalPoints = tasks.reduce((s, t) => s + t.points, 0);
@@ -158,6 +216,13 @@ async function createInvoice(cmd: InvoiceCreateCmd): Promise<Record<string, unkn
   const title = `Invoice ${['Samuel', cmd.projectName, cmd.deliveryName].filter(Boolean).join(' ')} - ${mm}${yy.slice(-2)}`;
   const projectId = cmd.projectId && uuidRe.test(cmd.projectId) ? cmd.projectId : null;
   const deliveryId = uuidRe.test(cmd.deliveryId) ? cmd.deliveryId : null;
+
+  // A done task on a submitted/approved/payment_requested invoice still folds as
+  // `open` on /pontos, and the tab-local guard (#582) is gone after a reload. The
+  // server is the only place that sees every invoice, so it refuses here.
+  const startedAt = Date.now();
+  await assertNotInvoiced(tasks.map((t) => t.id).filter((id) => uuidRe.test(id)));
+  await assertNoEmptyInvoice(cmd.referenceMonth);
 
   // dedupe faturas 'rejected' do mesmo fellow/mês/org (igual ao app)
   const rejected = await pgFetch(
@@ -174,9 +239,18 @@ async function createInvoice(cmd: InvoiceCreateCmd): Promise<Record<string, unkn
     total_amount_cents: totalAmountCents, total_points: totalPoints, description: title,
     created_at: now, updated_at: now, submitted_at: now, submitted_by: FELLOW_ID, organization_id: ORG_ID,
   };
-  const inserted = await pgFetch('invoices?select=id', {
-    schema: 'payments', method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload),
-  }) as { id: string }[];
+  if (Date.now() - startedAt > PRE_INSERT_BUDGET_MS) throw new Error('DFL lento demais — nenhuma fatura foi criada; tente de novo');
+  let inserted: { id: string }[];
+  try {
+    inserted = await pgFetch('invoices?select=id', {
+      schema: 'payments', method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload), timeoutMs: WRITE_TIMEOUT_MS,
+    }) as { id: string }[];
+  } catch (e) {
+    // No reply to the INSERT: it may or may not have committed. Say so instead of
+    // a plain failure, so nobody retries into a second invoice.
+    if (isTimeout(e)) throw new Error('sem resposta do DFL ao criar a fatura — ela pode ter sido criada; confira no DFL antes de gerar de novo');
+    throw e;
+  }
   const invoiceId = inserted?.[0]?.id;
   if (!invoiceId) throw new Error('INSERT invoice não retornou id');
 
@@ -190,7 +264,24 @@ async function createInvoice(cmd: InvoiceCreateCmd): Promise<Record<string, unkn
     },
     created_at: now,
   }));
-  await pgFetch('invoice_items', { schema: 'payments', method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(items) });
+  try {
+    await pgFetch('invoice_items', { schema: 'payments', method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(items), timeoutMs: WRITE_TIMEOUT_MS });
+  } catch (e) {
+    // Without items the invoice is a submitted shell whose total matches nothing,
+    // and a retry would add a second one for the same month. Remove it, and CHECK
+    // that a row went: under RLS a DELETE the fellow may not do answers 204 with
+    // zero rows, which used to pass as a successful rollback.
+    await pgFetch(`invoice_items?invoice_id=eq.${invoiceId}`, { schema: 'payments', method: 'DELETE', timeoutMs: ROLLBACK_TIMEOUT_MS }).catch(() => {});
+    const removed = await pgFetch(`invoices?id=eq.${invoiceId}&select=id`, {
+      schema: 'payments', method: 'DELETE', headers: { Prefer: 'return=representation' }, timeoutMs: ROLLBACK_TIMEOUT_MS,
+    }).catch(() => null) as { id: string }[] | null;
+    const why = (e as Error).message;
+    // A timed-out items POST may have committed server-side: then the invoice is
+    // complete, and "empty — delete it" would have him delete a valid one.
+    if (!removed?.length && isTimeout(e)) throw new Error(`sem resposta do DFL ao gravar os itens da fatura ${invoiceId} — estado desconhecido; confira no DFL antes de gerar de novo`);
+    if (!removed?.length) throw new Error(`itens não gravaram (${why}) e a fatura ${invoiceId} ficou vazia no DFL — apague-a lá antes de gerar de novo`);
+    throw e;
+  }
 
   return { invoiceId, totalPoints, totalAmountCents, referenceMonth: cmd.referenceMonth, deliveryName: cmd.deliveryName };
 }
