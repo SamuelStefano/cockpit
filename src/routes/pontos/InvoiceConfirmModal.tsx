@@ -11,16 +11,19 @@ import { currentMonthKey } from './month-cap';
 // fatura no DFL prod (status 'submitted' → revisão do admin → cobrança). Só tasks
 // EM ABERTO entram. Mostra exatamente o que será criado antes de escrever — a
 // escrita real só acontece no clique de confirmar (ação do usuário).
+// 01–12 only: a plain \d{2} let 2026-13 or 2026-00 reach DFL prod.
+export const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
 export function InvoiceConfirmModal({ projects, onClose }: { projects: DflProjectNode[]; onClose: () => void }) {
-  const { selected, clearSelected, deselect, write } = usePontosControls();
+  const { selected, clearSelected, deselect, write, excluded } = usePontosControls();
   const [month, setMonth] = useState(() => currentMonthKey(Date.now()));
   const [busy, setBusy] = useState(false);
   // Faturas já confirmadas pelo servidor NESTE modal. É o que impede o segundo
   // clique de recriar em prod o que a primeira passada já escreveu.
   const [created, setCreated] = useState<ReadonlySet<string>>(() => new Set());
   const [results, setResults] = useState<InvoiceResult[]>([]);
-  const monthValid = /^\d{4}-\d{2}$/.test(month);
-  const drafts = useMemo(() => invoiceDraftsFromSelection(projects, selected, month), [projects, selected, month]);
+  const monthValid = MONTH_RE.test(month);
+  const drafts = useMemo(() => invoiceDraftsFromSelection(projects, selected, month, excluded), [projects, selected, month, excluded]);
   // Só o que ainda não foi escrito conta no total e no rótulo do botão: depois de
   // uma falha parcial o modal segue aberto e o "Criar 3 faturas" mentia.
   const pending = useMemo(() => drafts.filter((d) => !created.has(invoiceKey(d))), [drafts, created]);
