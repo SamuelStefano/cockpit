@@ -1,6 +1,6 @@
 import type { WebSocket } from 'ws';
 import type { ClientMsg } from '../../shared/protocol';
-import { openTerm, detachTerm, inputTerm, resizeTerm, closeTerm, listTerms, resumeTerm, ensureWatchReaper, prepareWatch } from '../terminals';
+import { openTerm, detachTerm, inputTerm, resizeTerm, closeTerm, listTerms, resumeTerm, ensureWatchReaper, prepareWatch, termSnapshot } from '../terminals';
 import { send, BACKPRESSURE_BYTES } from './broadcast';
 
 const pendingOpens = new WeakMap<WebSocket, Set<string>>();
@@ -10,19 +10,36 @@ function pendingOf(ws: WebSocket): Set<string> {
   return set;
 }
 
-export type TermHandle = { onData: (d: string) => void; onExit: () => void };
+// opens: shared mode only — how many tab-level opens hold this listener.
+export type TermHandle = { onData: (d: string) => void; onExit: () => void; opens?: number };
 
 // Terminais (síncrono): true se a msg foi de terminal e já tratada.
+// shared: dial mode (relay agent). Every tab of the account arrives on this ONE
+// socket, so `myTerms` is shared by all of them: a tab reattaching (JWT refresh,
+// phone wake, F5) finds the id already attached, and one tab's `term-detach`
+// would remove the listener every other tab is reading through.
 export function handleTerm(
   ws: WebSocket,
   msg: ClientMsg,
   myTerms: Map<string, TermHandle>,
+  shared = false,
 ): boolean {
   switch (msg.t) {
     case 'term-open': {
       const termId = msg.termId;
       const pending = pendingOf(ws);
-      if (myTerms.has(termId) || pending.has(termId)) return true; // já anexado nesta conexão
+      if (pending.has(termId)) return true;
+      if (myTerms.has(termId)) {
+        // Already attached on this connection. Shared: it is another (or a
+        // reconnecting) tab, which still needs the screen repainted (output from the
+        // gap, full-screen TUIs). A per-tab socket reopening is just a no-op.
+        if (!shared) return true;
+        const h = myTerms.get(termId)!;
+        h.opens = (h.opens ?? 1) + 1;
+        const snap = termSnapshot(termId);
+        if (snap) send(ws, { t: 'term-replay', termId, data: snap });
+        return true;
+      }
       const watch = typeof msg.watch === 'string' ? msg.watch : undefined;
       const { cols, rows } = msg;
       const attach = () => {
@@ -75,6 +92,14 @@ export function handleTerm(
     }
     case 'term-resize': { resizeTerm(msg.termId, msg.cols, msg.rows); return true; }
     case 'term-detach': {
+      // Shared socket: other tabs may still be watching. Each tab-level open counts;
+      // the listener goes only when the last one detaches (a tab that reconnected
+      // without detaching over-counts, and `no-browsers` releases everything once
+      // the last tab is gone — see serve-connection).
+      if (shared) {
+        const h = myTerms.get(msg.termId);
+        if (h && (h.opens ?? 1) > 1) { h.opens = (h.opens ?? 1) - 1; return true; }
+      }
       pendingOf(ws).delete(msg.termId);
       const h = myTerms.get(msg.termId);
       if (h) { detachTerm(msg.termId, h.onData, h.onExit); myTerms.delete(msg.termId); }
