@@ -116,6 +116,12 @@ const NOW_RUN_MESSAGE: Record<NowRunReject, string> = {
 
 // Cards with a dfl-task-create-link between its checks and its board write.
 const dflCreatesInFlight = new Set<string>();
+// Tasks inside an invoice-create that has not answered yet. The invoice guards
+// (not already invoiced, no empty invoice) read DFL and then insert, in separate
+// steps: two tabs or devices confirming the same delivery both passed the reads
+// before either inserted, and DFL got two submitted invoices for the same tasks.
+// Invoice writes only run on the loopback process, so one set covers them all.
+const invoiceTasksInFlight = new Set<string>();
 
 export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
   switch (msg.t) {
@@ -709,9 +715,19 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'points-dfl-invoice': {
       if (!CONFIG.localOnly) { send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'invoice', ok: false, message: 'escrita DFL só no loopback' }); return; }
       registerFinanceClient(ws);
-      const r = await runDflWrite({ kind: 'invoice-create', deliveryId: msg.deliveryId, deliveryName: msg.deliveryName, projectId: msg.projectId, projectName: msg.projectName, referenceMonth: msg.referenceMonth, pricePerPoint: msg.pricePerPoint, tasks: msg.tasks });
-      send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'invoice', ok: r.ok, message: r.ok ? undefined : r.error });
-      if (r.ok) runDflSync().catch(() => {});
+      const taskIds = (Array.isArray(msg.tasks) ? msg.tasks : []).map((t) => String(t?.id ?? ''));
+      if (taskIds.some((id) => invoiceTasksInFlight.has(id))) {
+        send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'invoice', ok: false, message: 'já há uma fatura sendo criada com estas tasks (outra aba ou aparelho) — espere ela terminar e sincronize' });
+        return;
+      }
+      for (const id of taskIds) invoiceTasksInFlight.add(id);
+      try {
+        const r = await runDflWrite({ kind: 'invoice-create', deliveryId: msg.deliveryId, deliveryName: msg.deliveryName, projectId: msg.projectId, projectName: msg.projectName, referenceMonth: msg.referenceMonth, pricePerPoint: msg.pricePerPoint, tasks: msg.tasks });
+        send(ws, { t: 'points-dfl-write', reqId: msg.reqId, kind: 'invoice', ok: r.ok, message: r.ok ? undefined : r.error });
+        if (r.ok) runDflSync().catch(() => {});
+      } finally {
+        for (const id of taskIds) invoiceTasksInFlight.delete(id);
+      }
       return;
     }
     // Botão "criar tasks com agente": não escreve no DFL daqui — abre um turno
