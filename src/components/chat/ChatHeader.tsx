@@ -40,8 +40,11 @@ export function ChatHeader({ session, messages, isEmpty, isMobile, contextTokens
       />
     );
   }
+  // @container: the chat column is ~470px at 1024 (sidebar + terminal open), far
+  // below the viewport breakpoints. Labels in the right cluster collapse on the
+  // header's OWN width, or the cluster (~410px) left the session title 8px wide.
   return (
-    <div className="flex shrink-0 items-center gap-2 border-b border-neutral-800 px-4 py-2.5">
+    <div className="@container flex shrink-0 items-center gap-2 border-b border-neutral-800 px-4 py-2.5">
       <Icon name="message" size={14} className="text-neutral-500" />
       <EditableTitle
         id={session?.id}
