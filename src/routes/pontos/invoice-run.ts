@@ -6,7 +6,7 @@ import type { InvoiceDraft } from './invoiceFromSelection';
 // duas — fatura duplicada em produção financeira. Aqui cada delivery tem uma
 // chave e só roda uma vez por chave.
 
-export type InvoiceOutcome = 'created' | 'skipped' | 'failed';
+export type InvoiceOutcome = 'created' | 'skipped' | 'failed' | 'unknown';
 
 export interface InvoiceResult {
   key: string;
@@ -30,7 +30,7 @@ export function invoiceKey(d: Pick<InvoiceDraft, 'deliveryId' | 'referenceMonth'
   return `${d.deliveryId}@${d.referenceMonth}`;
 }
 
-export type CreateInvoice = (d: InvoiceDraft) => Promise<{ ok: boolean; message?: string }>;
+export type CreateInvoice = (d: InvoiceDraft) => Promise<{ ok: boolean; message?: string; unknown?: boolean }>;
 
 // Sequencial de propósito: escrita financeira em paralelo esconde qual delivery
 // falhou e multiplica o estrago de um erro transitório do endpoint.
@@ -51,7 +51,7 @@ export async function runInvoiceBatch(
       settled.push(key);
       continue;
     }
-    let r: { ok: boolean; message?: string };
+    let r: { ok: boolean; message?: string; unknown?: boolean };
     try {
       r = await create(d);
     } catch (e) {
@@ -63,6 +63,12 @@ export async function runInvoiceBatch(
     if (r.ok) {
       results.push({ ...base, outcome: 'created' });
       settled.push(key);
+    } else if (r.unknown) {
+      // Sent, but the reply timed out: the invoice may exist in DFL. Treat it as
+      // settled so this modal never re-sends it; the user checks DFL (or waits for
+      // the next sync) instead of clicking "Tentar de novo" into a duplicate.
+      results.push({ ...base, outcome: 'unknown', message: r.message ?? 'sem resposta' });
+      settled.push(key);
     } else {
       results.push({ ...base, outcome: 'failed', message: r.message ?? 'erro' });
       failed.push(key);
@@ -73,10 +79,11 @@ export async function runInvoiceBatch(
 
 // Resumo pro toast. Separado do laço porque a contagem é a única coisa que o
 // usuário lê quando dá tudo certo, e o detalhe por delivery aparece na lista.
-export function summarize(results: InvoiceResult[]): { created: number; skipped: number; failed: number } {
+export function summarize(results: InvoiceResult[]): { created: number; skipped: number; failed: number; unknown: number } {
   return {
     created: results.filter((r) => r.outcome === 'created').length,
     skipped: results.filter((r) => r.outcome === 'skipped').length,
     failed: results.filter((r) => r.outcome === 'failed').length,
+    unknown: results.filter((r) => r.outcome === 'unknown').length,
   };
 }
