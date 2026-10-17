@@ -22,7 +22,7 @@ standing issues instead of a diff. Three failed snapshots in a row raise `guard_
 ## Install
 
 ```
-*/5 * * * * cd /home/samuel/cockpit && npx tsx scripts/supa-guard/guard.mts >> /tmp/supa-guard.log 2>&1
+*/5 * * * * cd /home/samuel/cockpit && flock -n /tmp/supa-guard.lock nice -n 10 /usr/bin/npx tsx scripts/supa-guard/guard.mts >> /home/samuel/.cache/supa-guard.log 2>&1 # supa-guard
 ```
 
 Flags: `--dry-run` (print only, no card, no state write), `--project <ref>`.
