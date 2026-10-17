@@ -16,6 +16,7 @@ dashboard (Samuel é o único com acesso ao projeto).
 | `0002_profile.sql` | Perfil (`display_name`, `avatar_url`, `ai_avatar`) na `account` + policy de self-update. Aditivo. |
 | `0003_session_prefs.sql` | `pinned_sessions` e `session_tags` na `account`. Aditivo. |
 | `0004_account_prefs.sql` | `prefs jsonb` na `account` (modo, modelo, esforço, toggles de UI), com teto de 16 KB e checagem de objeto. Aditivo. **Ainda não aplicado.** |
+| `0005_revoke_anon.sql` | Tira todo grant do `anon` no `public` (tabelas, sequences) e `TRUNCATE`/`TRIGGER`/`REFERENCES` do `authenticated`; default privileges param de dar `anon` a tabela nova. Nenhuma rota usa `anon`. **Ainda não aplicado.** |
 
 Cada arquivo é idempotente sozinho (`if not exists` / `create or replace` / `drop
 trigger if exists`), mas **rerodar um arquivo antigo depois de um mais novo não é
