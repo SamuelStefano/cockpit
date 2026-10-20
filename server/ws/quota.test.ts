@@ -70,25 +70,38 @@ describe('quotaHoldUntil', () => {
 
 describe('quotaHoldUntil com usage mais novo que o rate_limit_event', () => {
   const SET = NOW - 600_000;
+  const FRESH = NOW - 1000;
 
-  it('usage novo livre ignora rejected sem resetsAt', () => {
-    expect(quotaHoldUntil(rate('rejected', 0, SET), plan(1, NOW + 5000), NOW, NOW - 1000)).toBe(0);
+  it('sem resetsAt, usage novo livre solta', () => {
+    expect(quotaHoldUntil(rate('rejected', 0, SET), plan(1, NOW + 5000), NOW, FRESH)).toBe(0);
   });
 
-  it('usage mais velho que o evento não solta', () => {
+  it('usage mais velho que o evento nao solta', () => {
     expect(quotaHoldUntil(rate('rejected', 0, SET), plan(1, NOW + 5000), NOW, SET - 1000)).toBe(SET + UNKNOWN_HOLD_MS);
   });
 
   it('usage novo em 100% continua segurando', () => {
-    expect(quotaHoldUntil(rate('rejected', 0, SET), plan(100, null), NOW, NOW - 1000)).toBe(SET + UNKNOWN_HOLD_MS);
+    expect(quotaHoldUntil(rate('rejected', 0, SET), plan(100, null), NOW, FRESH)).toBe(SET + UNKNOWN_HOLD_MS);
   });
 
-  it('sevenDay cheio ou limite não-scoped cheio continua segurando', () => {
+  it('99% arredondado nao solta rejected com resetsAt conhecido', () => {
     const r = rate('rejected', NOW + 9000, SET);
-    expect(quotaHoldUntil(r, { ...plan(1, null), sevenDay: 100 }, NOW, NOW - 1000)).toBe(NOW + 9000);
+    expect(quotaHoldUntil(r, plan(99, NOW + 9000), NOW, FRESH)).toBe(NOW + 9000);
+  });
+
+  it('com resetsAt conhecido so solta quando a janela virou', () => {
+    const r = rate('rejected', NOW + 9000, SET);
+    expect(quotaHoldUntil(r, plan(1, NOW + 9000), NOW, FRESH)).toBe(NOW + 9000);
+    expect(quotaHoldUntil(r, plan(1, null), NOW, FRESH)).toBe(NOW + 9000);
+    expect(quotaHoldUntil(r, plan(1, NOW + 5 * 3_600_000), NOW, FRESH)).toBe(0);
+  });
+
+  it('sevenDay alto ou qualquer limite alto, escopado ou nao, nao solta', () => {
+    const r = rate('rejected', 0, SET);
+    expect(quotaHoldUntil(r, { ...plan(1, null), sevenDay: 100 }, NOW, FRESH)).toBe(SET + UNKNOWN_HOLD_MS);
     const limits = [{ id: 'x', label: 'x', pct: 100, resetsAt: null, severity: 'critical' as const, scoped: false }];
-    expect(quotaHoldUntil(r, { ...plan(1, null), limits }, NOW, NOW - 1000)).toBe(NOW + 9000);
-    expect(quotaHoldUntil(r, { ...plan(1, null), limits: [{ ...limits[0], scoped: true }] }, NOW, NOW - 1000)).toBe(0);
+    expect(quotaHoldUntil(r, { ...plan(1, null), limits }, NOW, FRESH)).toBe(SET + UNKNOWN_HOLD_MS);
+    expect(quotaHoldUntil(r, { ...plan(1, null), limits: [{ ...limits[0], scoped: true }] }, NOW, FRESH)).toBe(SET + UNKNOWN_HOLD_MS);
   });
 });
 

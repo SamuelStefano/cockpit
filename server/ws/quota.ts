@@ -17,10 +17,13 @@ export const UNKNOWN_HOLD_MS = 30 * 60_000;
 // Epoch ms até quando a fila deve segurar; 0 = livre pra drenar.
 // Leitura de usage MAIS NOVA que o rate_limit_event e com tudo livre vence o evento:
 // o evento fica velho depois do reset da janela e segurava a fila (resetsAt 0 ou de outro limite).
+const RELEASE_MARGIN_PCT = 95;
+
 function usageFreesRate(rate: RateSnapshot, usage: PlanUsage | null, usageReadAt: number): boolean {
   if (!usage || usageReadAt <= rate.setAt) return false;
-  if (usage.fiveHour >= PLAN_FULL_PCT || usage.sevenDay >= PLAN_FULL_PCT) return false;
-  return !(usage.limits ?? []).some((l) => !l.scoped && l.pct >= PLAN_FULL_PCT);
+  if ((usage.limits ?? []).some((l) => l.pct >= RELEASE_MARGIN_PCT)) return false;
+  if (rate.resetsAt > 0) return usage.resetsAt !== null && usage.resetsAt > rate.resetsAt && usage.fiveHour < RELEASE_MARGIN_PCT && usage.sevenDay < RELEASE_MARGIN_PCT;
+  return usage.fiveHour < RELEASE_MARGIN_PCT && usage.sevenDay < RELEASE_MARGIN_PCT;
 }
 
 export function quotaHoldUntil(rate: RateSnapshot | null, usage: PlanUsage | null, now: number, usageReadAt = 0): number {
