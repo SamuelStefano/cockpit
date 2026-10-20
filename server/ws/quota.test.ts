@@ -5,12 +5,14 @@ interface Fakes {
   rate: { status: string; resetsAt: number; setAt: number } | null;
   usage: PlanUsage | null;
   refreshes: number;
+  readAt: number;
 }
-const f: Fakes = { rate: null, usage: null, refreshes: 0 };
+const f: Fakes = { rate: null, usage: null, refreshes: 0, readAt: 0 };
 
 vi.mock('./rate', () => ({ getRateSnapshot: () => f.rate }));
 vi.mock('./usage-plan', () => ({
   getLastPlanUsage: () => f.usage,
+  getPlanUsageReadAt: () => f.readAt,
   requestPlanUsageRefresh: () => { f.refreshes++; },
 }));
 
@@ -19,7 +21,7 @@ import { quotaHoldUntil, quotaHold, planLimited, burnedByQuota, UNKNOWN_HOLD_MS,
 const NOW = 1_800_000_000_000;
 
 beforeEach(() => {
-  Object.assign(f, { rate: null, usage: null, refreshes: 0 });
+  Object.assign(f, { rate: null, usage: null, refreshes: 0, readAt: 0 });
 });
 const rate = (status: string, resetsAt: number, setAt = NOW) => ({ status, resetsAt, setAt });
 const plan = (fiveHour: number, resetsAt: number | null): PlanUsage => ({ fiveHour, sevenDay: 10, resetsAt, sevenDayResetsAt: null, limits: [] });
@@ -63,6 +65,30 @@ describe('quotaHoldUntil', () => {
   it('fica com o reset mais distante entre os dois sinais', () => {
     const r = rate('rejected', NOW + 1000);
     expect(quotaHoldUntil(r, plan(100, NOW + 9000), NOW)).toBe(NOW + 9000);
+  });
+});
+
+describe('quotaHoldUntil com usage mais novo que o rate_limit_event', () => {
+  const SET = NOW - 600_000;
+
+  it('usage novo livre ignora rejected sem resetsAt', () => {
+    expect(quotaHoldUntil(rate('rejected', 0, SET), plan(1, NOW + 5000), NOW, NOW - 1000)).toBe(0);
+  });
+
+  it('usage mais velho que o evento não solta', () => {
+    expect(quotaHoldUntil(rate('rejected', 0, SET), plan(1, NOW + 5000), NOW, SET - 1000)).toBe(SET + UNKNOWN_HOLD_MS);
+  });
+
+  it('usage novo em 100% continua segurando', () => {
+    expect(quotaHoldUntil(rate('rejected', 0, SET), plan(100, null), NOW, NOW - 1000)).toBe(SET + UNKNOWN_HOLD_MS);
+  });
+
+  it('sevenDay cheio ou limite não-scoped cheio continua segurando', () => {
+    const r = rate('rejected', NOW + 9000, SET);
+    expect(quotaHoldUntil(r, { ...plan(1, null), sevenDay: 100 }, NOW, NOW - 1000)).toBe(NOW + 9000);
+    const limits = [{ id: 'x', label: 'x', pct: 100, resetsAt: null, severity: 'critical' as const, scoped: false }];
+    expect(quotaHoldUntil(r, { ...plan(1, null), limits }, NOW, NOW - 1000)).toBe(NOW + 9000);
+    expect(quotaHoldUntil(r, { ...plan(1, null), limits: [{ ...limits[0], scoped: true }] }, NOW, NOW - 1000)).toBe(0);
   });
 });
 
