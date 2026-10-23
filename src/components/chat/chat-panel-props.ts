@@ -85,6 +85,7 @@ export interface ChatPanelProps {
   queueMove: (sessionKey: string, id: string, dir: -1 | 1) => void;
   queueClear: (sessionKey: string) => void;
   queuePaused: boolean;
+  queueReleaseAt?: number;
   queueSetPaused: (v: boolean) => void;
   queueRetry: (sessionKey: string, id: string) => void;
   queueRunBg: (sessionKey: string, id: string, model?: string) => void;

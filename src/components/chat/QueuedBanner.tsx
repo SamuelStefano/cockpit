@@ -2,12 +2,13 @@ import type { ModelInfo } from '../../../shared/protocol';
 import { Icon, tokens } from '../primitives';
 import { QueuedItem } from './QueuedItem';
 import { useQueuedBanner } from './useQueuedBanner';
+import { useNowTick } from './useNowTick';
 import { queueStatus, queueStatusIcon, queueStatusLabel } from './queue-status';
 
 // Fila do cliente: mensagens digitadas durante um turno, disparadas em ordem
 // quando a sessão libera. Cada item: ver completo, editar, reordenar (drena sempre
 // do topo) e cancelar só ele. A fila vive no servidor (parked.json).
-export function QueuedBanner({ queued, queuedAtts, queuedModels, models, onRunBg, onRunNow, onCancelQueueAt, onEdit, onMove, held = false, onResume, paused = false, onTogglePause, quotaHeld = false, resetLabel }: {
+export function QueuedBanner({ queued, queuedAtts, queuedModels, models, onRunBg, onRunNow, onCancelQueueAt, onEdit, onMove, held = false, onResume, paused = false, onTogglePause, quotaHeld = false, resetLabel, releaseAt = 0 }: {
   queued: string[];
   queuedAtts?: number[];
   // Disparo em background: modelo com que cada item foi enfileirado + catálogo.
@@ -28,14 +29,17 @@ export function QueuedBanner({ queued, queuedAtts, queuedModels, models, onRunBg
   // Teto de tokens do plano: o drainer do servidor segura sozinho até o reset.
   quotaHeld?: boolean;
   resetLabel?: string | null;
+  // Epoch ms em que o cooldown pós-reset acaba e a fila começa a soltar.
+  releaseAt?: number;
 }) {
   const q = useQueuedBanner(queued, onMove, onEdit);
-  const status = queueStatus({ held, paused, quotaHeld });
+  const now = useNowTick(releaseAt > Date.now());
+  const status = queueStatus({ held, paused, quotaHeld, releaseAt, now });
   return (
     <div className="mb-2 rounded-lg border border-orange-500/30 bg-orange-500/6 px-2.5 py-1.5">
       <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-orange-300/90">
         <Icon name={queueStatusIcon(status)} size={12} className="shrink-0 text-orange-400/80" />
-        {queueStatusLabel(status, queued.length, resetLabel)}
+        {queueStatusLabel(status, queued.length, resetLabel, releaseAt, now)}
         <div className="ml-auto flex items-center gap-1">
           {held && onResume && (
             <button

@@ -20,6 +20,7 @@ import { buildStageDraftsPrompt } from '../pontos-stage-prompt';
 import { getCrons, saveCron, deleteCron, runCronNow } from '../crons';
 import { scheduleValid } from '../../shared/cron-schedule';
 import { fireCron } from './runs';
+import { queueReleaseAt } from './ctx-guard';
 import { listSkills, readSkill, resolveSkillDeny, installSkill } from '../skills';
 import { getRegistryCatalog, installFromRegistry } from '../skill-registry-runner';
 import { addUploadChunk, readAttachment } from '../attachments';
@@ -1044,7 +1045,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
                 t: 'send-parked', sessionKey: msg.sessionKey, msgId: msg.msgId,
                 message: 'Essa sessão está com um turno rodando no outro processo do Deck — a mensagem entrou na fila e roda sozinha quando ele terminar.',
               });
-              broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+              broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
               return;
             }
           }
@@ -1095,7 +1096,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
         send(ws, { t: 'queue-reject', sessionKey: msg.sessionKey, text: msg.text, message: REJECT_MESSAGE[r.reject] });
         return;
       }
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       // Enfileirar com a sessão já ociosa (turno morreu, quota voltou) esperava o
       // tick de 30s à toa. No processo sem drainer isto é no-op.
       drainParked();
@@ -1103,12 +1104,12 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'queue-remove': {
       removeParked(msg.sessionKey, msg.id, role ?? 'student');
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       return;
     }
     case 'queue-edit': {
       const ok = editParked(msg.sessionKey, msg.id, msg.text, role ?? 'student'); // sem role identificada = menor privilégio
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       // O textarea da fila já fechou quando isto chega: uma recusa calada levava o
       // texto que o usuário acabou de digitar junto.
       if (!ok) send(ws, { t: 'queue-error', sessionKey: msg.sessionKey, message: 'não deu pra editar este item da fila (ele pode já ter saído pra rodar)' });
@@ -1116,24 +1117,24 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'queue-move': {
       if (msg.dir === -1 || msg.dir === 1) moveParked(msg.sessionKey, msg.id, msg.dir);
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       return;
     }
     case 'queue-clear': {
       clearParked(msg.sessionKey, role ?? 'student');
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       return;
     }
     case 'queue-set-paused': {
       setQueuePaused(msg.paused === true);
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       if (msg.paused !== true) drainParked(); // retomar não espera o próximo tick
       return;
     }
     // Destrava o item que bateu o teto de tentativas e tenta de novo na hora.
     case 'queue-retry': {
       retryParked(msg.sessionKey, msg.id);
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       drainParked();
       return;
     }
@@ -1145,7 +1146,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // Sem este snapshot o clique não mudava NADA na tela quando o dreno não
       // subiu nada (outro processo é quem drena, ou a sessão não era a da vez):
       // o banner seguia igual e o botão parecia morto.
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       return;
     }
     // Tira o item da fila e roda AGORA num chat paralelo, forkando o contexto deste
@@ -1153,7 +1154,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'queue-run-bg': {
       const r = runParkedInBackground(msg.sessionKey, msg.id, role ?? 'student', typeof msg.model === 'string' ? msg.model : undefined);
       if ('reject' in r) { send(ws, { t: 'queue-error', sessionKey: msg.sessionKey, message: BG_RUN_MESSAGE[r.reject] }); return; }
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       return;
     }
     // Fura a fila: o item vai pro topo e o turno em andamento é interrompido pra
@@ -1162,11 +1163,11 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'queue-run-now': {
       const r = runParkedNow(msg.sessionKey, msg.id, role ?? 'student');
       if ('reject' in r) { send(ws, { t: 'queue-error', sessionKey: msg.sessionKey, message: NOW_RUN_MESSAGE[r.reject] }); return; }
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       return;
     }
     case 'queue-get': {
-      send(ws, { t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      send(ws, { t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       return;
     }
     // Clique na oferta de retomada: o servidor ainda guarda a config do turno
@@ -1209,11 +1210,11 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
         // o MESMO id (unshiftParked preserva). Os dois casos: remove agora,
         // sem exceção.
         removeParked(msg.parentSessionId, parked.id, role);
-        broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+        broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
         send(ws, { t: 'canvas-card-fork-reject', cardId: msg.cardId, parentSessionId: msg.parentSessionId, message: CANVAS_FORK_MESSAGE[r.reject] });
         return;
       }
-      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+      broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
       // The only place this relation is ever produced — see fork-sessions.ts.
       // Feeds the chain-of-command view's "forked from" link.
       bindForkSession(r.forkId, msg.parentSessionId);
