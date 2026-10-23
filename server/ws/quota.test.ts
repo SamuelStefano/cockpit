@@ -92,8 +92,25 @@ describe('quotaHoldUntil com usage mais novo que o rate_limit_event', () => {
   it('com resetsAt conhecido so solta quando a janela virou', () => {
     const r = rate('rejected', NOW + 9000, SET);
     expect(quotaHoldUntil(r, plan(1, NOW + 9000), NOW, FRESH)).toBe(NOW + 9000);
-    expect(quotaHoldUntil(r, plan(1, null), NOW, FRESH)).toBe(NOW + 9000);
     expect(quotaHoldUntil(r, plan(1, NOW + 5 * 3_600_000), NOW, FRESH)).toBe(0);
+  });
+
+  it('pos-reset: usage novo em 0% com resetsAt nulo solta evento rejeitado com resetsAt futuro', () => {
+    const r = rate('rejected', NOW + 3_600_000, SET);
+    const u = { ...plan(0, null), sevenDay: 53 };
+    expect(quotaHoldUntil(r, u, NOW, FRESH)).toBe(0);
+  });
+
+  it('pos-reset: usage mais velho que o evento continua segurando', () => {
+    const r = rate('rejected', NOW + 3_600_000, SET);
+    const u = { ...plan(0, null), sevenDay: 53 };
+    expect(quotaHoldUntil(r, u, NOW, SET - 1000)).toBe(NOW + 3_600_000);
+  });
+
+  it('pos-reset: limite em 96% continua segurando', () => {
+    const r = rate('rejected', NOW + 3_600_000, SET);
+    const limits = [{ id: 'x', label: 'x', pct: 96, resetsAt: null, severity: 'critical' as const, scoped: false }];
+    expect(quotaHoldUntil(r, { ...plan(0, null), sevenDay: 53, limits }, NOW, FRESH)).toBe(NOW + 3_600_000);
   });
 
   it('sevenDay alto ou qualquer limite alto, escopado ou nao, nao solta', () => {

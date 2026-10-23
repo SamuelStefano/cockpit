@@ -17,7 +17,7 @@ import { quotaHold, burnedByQuota } from './quota';
 import { getLastPlanUsage, notePlanUsageChanged } from './usage-plan';
 import {
   ctxVerdict, verdictMessage, costFor, isBigColdStart, acquireCold, releaseCold,
-  noteQuotaTransition, inResetCooldown, type Verdict,
+  noteQuotaTransition, inResetCooldown, queueReleaseAt, type Verdict,
 } from './ctx-guard';
 import { markRunLive, clearRunLive, takeOrphanRuns, type LiveRun } from './recover';
 import { recordIncident } from './incidents';
@@ -253,7 +253,8 @@ export function drainParked(): void {
   // durante um reset, o cooldown nunca armava e o primeiro dreno após retomar
   // subia em cima da janela recém-virada.
   const hold = quotaHold();
-  noteQuotaTransition(hold);
+  // Clientes só sabem do cooldown se forem avisados na virada.
+  if (noteQuotaTransition(hold)) broadcastQueue();
   if (isQueuePaused()) return; // pausa manual do usuário: segura tudo até retomar
   if (authHold()) return;      // dead OAuth login: every fired prompt would die until /login
   if (hold) return;            // sem token: o turno morreria no limite e o prompt seria queimado
@@ -385,7 +386,7 @@ export async function refreshBusyElsewhere(): Promise<void> {
 const drainTick = () => { void refreshBusyElsewhere().then(drainParked, drainParked); };
 
 function broadcastQueue(): void {
-  broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused() });
+  broadcast({ t: 'queue', items: parkedView(), paused: isQueuePaused(), releaseAt: queueReleaseAt() });
 }
 
 export type BgRunReject = 'sem-item' | 'sem-contexto' | 'sem-quota' | 'sem-slot' | 'falhou' | 'ctx-grande';

@@ -198,6 +198,7 @@ export interface Cockpit extends LeafApis {
   queueMove: (sessionKey: string, id: string, dir: -1 | 1) => void;
   queueClear: (sessionKey: string) => void;
   queuePaused: boolean;
+  queueReleaseAt: number;
   queueSetPaused: (v: boolean) => void;
   queueRetry: (sessionKey: string, id: string) => void;
   queueRunBg: (sessionKey: string, id: string, model?: string) => void;
@@ -255,6 +256,7 @@ export function useCockpit(): Cockpit {
   const [searchResults, setSearchResults] = useState<Session[]>([]);
   const searchQ = useRef('');
   const [queue, setQueue] = useState<QueueItem[]>([]); // fila estacionada (servidor), broadcast dos queue-*
+  const [queueReleaseAt, setQueueReleaseAt] = useState(0);
   const [queuePaused, setQueuePausedState] = useState(false); // pausa manual da fila (servidor)
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const attachmentsRef = useRef<Attachment[]>([]);
@@ -665,6 +667,7 @@ export function useCockpit(): Cockpit {
       case 'queue': {
         setQueue(msg.items.map((i) => ({ ...i, key: resolveKey(migratedTo.current, i.sessionKey) })));
         setQueuePausedState(msg.paused);
+        setQueueReleaseAt(msg.releaseAt ?? 0);
         return;
       }
       // Recusa de uma AÇÃO da fila (furar a fila, rodar em paralelo). Vem separada
@@ -2274,5 +2277,5 @@ export function useCockpit(): Cockpit {
 
   const attachmentsView = useMemo(() => markDuplicates(attachments, sentHashes[activeId]), [attachments, sentHashes, activeId]);
 
-  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...canvasApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], running, runningAnywhere, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, interrupted, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onSendTo, canvasSendError, dismissCanvasSendError, onLaunchFork, canvasForkRuns, pendingSessionIds, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, onLaunchAgent, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun };
+  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...canvasApi, ...adminApi, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], running, runningAnywhere, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, interrupted, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onSendTo, canvasSendError, dismissCanvasSendError, onLaunchFork, canvasForkRuns, pendingSessionIds, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, onLaunchAgent, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun };
 }

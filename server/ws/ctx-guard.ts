@@ -1,6 +1,7 @@
 import type { PlanUsage } from '../../shared/protocol';
 import { estimateSendCost, fitsInWindow, type Sample, type SendCost } from '../../shared/send-cost';
 import { lastUsageOf } from '../db';
+import { quotaHold } from './quota';
 
 // Gate de CONTEXTO do turno. Roda antes do spawn, no startRun.
 //
@@ -91,13 +92,22 @@ let wasHeld = false;
 
 // Chamado onde o hold é consultado. A transição hold>0 → hold=0 É o reset: não dá
 // pra ler `resetsAt` e confiar, porque o poll de usage pausa sem browser aberto.
-export function noteQuotaTransition(hold: number, now = Date.now()): void {
-  if (hold > 0) { wasHeld = true; return; }
-  if (wasHeld) { wasHeld = false; lastResetAt = now; }
+export function noteQuotaTransition(hold: number, now = Date.now()): boolean {
+  if (hold > 0) { wasHeld = true; return false; }
+  if (wasHeld) { wasHeld = false; lastResetAt = now; return true; }
+  return false;
 }
 
 export function inResetCooldown(now = Date.now()): boolean {
   return lastResetAt > 0 && now - lastResetAt < COOLDOWN_AFTER_RESET_MS;
+}
+
+// Quando a fila volta a poder soltar (epoch ms): fim do hold de tokens ou do cooldown
+// pós-reset. 0 = livre. O cliente mostra a contagem em vez de parecer travado.
+export function queueReleaseAt(now = Date.now()): number {
+  const hold = quotaHold(now);
+  if (hold > 0) return hold;
+  return inResetCooldown(now) ? lastResetAt + COOLDOWN_AFTER_RESET_MS : 0;
 }
 
 export function resetCooldownState(): void { lastResetAt = 0; wasHeld = false; }

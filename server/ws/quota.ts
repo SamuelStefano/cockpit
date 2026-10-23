@@ -22,7 +22,9 @@ const RELEASE_MARGIN_PCT = 95;
 function usageFreesRate(rate: RateSnapshot, usage: PlanUsage | null, usageReadAt: number): boolean {
   if (!usage || usageReadAt <= rate.setAt) return false;
   if ((usage.limits ?? []).some((l) => l.pct >= RELEASE_MARGIN_PCT)) return false;
-  if (rate.resetsAt > 0) return usage.resetsAt !== null && usage.resetsAt > rate.resetsAt && usage.fiveHour < RELEASE_MARGIN_PCT && usage.sevenDay < RELEASE_MARGIN_PCT;
+  // Logo após o reset a API devolve five_hour em 0% com resets_at nulo; o evento
+  // rejeitado velho (resetsAt errado/posterior) não pode segurar a fila por isso.
+  if (rate.resetsAt > 0 && usage.resetsAt !== null && usage.resetsAt <= rate.resetsAt) return false;
   return usage.fiveHour < RELEASE_MARGIN_PCT && usage.sevenDay < RELEASE_MARGIN_PCT;
 }
 

@@ -1016,7 +1016,7 @@ export type ServerMsg =
   | { t: 'terms'; ids: string[] }
   | { t: 'done'; sessionKey: string; sessionId: string; costUsd?: number; durationMs?: number; numTurns?: number; turnTokens?: number; inputTokens?: number; outputTokens?: number; endReason?: string; model?: string; stopped?: boolean }
   // Tópicos de continuação sugeridos pós-turno (chips selecionáveis, estilo ChatGPT).
-  | { t: 'queue'; items: ParkedView[]; paused: boolean }
+  | { t: 'queue'; items: ParkedView[]; paused: boolean; releaseAt?: number }
   // O enfileiramento foi recusado: devolve o texto pro cliente restaurar o composer.
   | { t: 'queue-reject'; sessionKey: string; text: string; message: string }
   // Uma AÇÃO da fila foi recusada (furar a fila, rodar em paralelo). Separado do
