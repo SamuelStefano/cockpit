@@ -2,7 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { TeamBot } from '../../shared/protocol';
 
 const runs = vi.hoisted(() => ({ startRun: vi.fn((_o: Record<string, unknown>): 'pane' | 'rejected' | undefined => undefined), isDrainerEnabled: vi.fn(() => false) }));
-vi.mock('./runs', () => runs);
+vi.mock('./runs', async () => {
+  const { threads } = await import('./threads');
+  const botLiveKey = (botId: string, sessionId?: string) => {
+    for (const [k, t] of threads) if (t.params?.botId === botId || (sessionId && t.sessionId === sessionId)) return k;
+    return undefined;
+  };
+  return { ...runs, botLiveKey };
+});
 const pending = vi.hoisted(() => ({ enqueuePending: vi.fn(() => true) }));
 vi.mock('./pending', () => pending);
 const parked = vi.hoisted(() => ({ addParked: vi.fn((): { id: string } | { reject: string } => ({ id: 'p1' })) }));
@@ -30,17 +37,17 @@ beforeEach(() => {
   runs.isDrainerEnabled.mockReturnValue(false);
 });
 
-function fakeThread(sessionId?: string): Thread {
-  return { sessionId } as unknown as Thread;
+function fakeThread(sessionId?: string, botId?: string): Thread {
+  return { sessionId, params: { botId } } as unknown as Thread;
 }
 
 describe('deliverTeamMessage', () => {
-  it('starts a server turn in the bound session with the bot identity and hop', async () => {
-    runs.startRun.mockImplementation(() => { threads.set(SID, fakeThread(SID)); return undefined; });
+  it('starts a server turn on bot-<id>, resuming the bound session, with the bot identity and hop', async () => {
+    runs.startRun.mockImplementation(() => { threads.set('bot-ativ1', fakeThread(SID, 'ativ1')); return undefined; });
     expect(await deliverTeamMessage(msg, team)).toBe('delivered');
     const opts = runs.startRun.mock.calls[0][0];
     expect(opts).toMatchObject({
-      ws: null, sessionKey: SID, resumeId: SID, botId: 'ativ1', teamHop: 2, model: 'sonnet', effort: 'low', msgId: 'team-mabc1234',
+      ws: null, sessionKey: 'bot-ativ1', resumeId: SID, botId: 'ativ1', teamHop: 2, model: 'sonnet', effort: 'low', msgId: 'team-mabc1234',
       prompt: '[Mensagem de growth-lead]\nproponha 1 ação',
     });
     expect(opts.appendSystemPrompt).toMatch(/Você é growth-ativacao/);
@@ -67,7 +74,7 @@ describe('deliverTeamMessage', () => {
   });
 
   it('finds the first turn of an unbound bot under its draft key', async () => {
-    threads.set('new-bot-lead1', fakeThread());
+    threads.set('new-bot-lead1', fakeThread(undefined, 'lead1'));
     expect(await deliverTeamMessage({ ...msg, from: 'ativ1', to: 'lead1' }, team)).toBe('queued');
     expect(runs.startRun).not.toHaveBeenCalled();
   });
@@ -75,7 +82,7 @@ describe('deliverTeamMessage', () => {
   it('parks when the other Deck process is running the session', async () => {
     live.readBusyElsewhereSessionIds.mockResolvedValueOnce([SID]);
     expect(await deliverTeamMessage(msg, team)).toBe('queued');
-    expect(parked.addParked).toHaveBeenCalledWith(SID, expect.objectContaining({ prompt: expect.stringContaining('proponha') }));
+    expect(parked.addParked).toHaveBeenCalledWith(SID, expect.objectContaining({ resumeId: SID, prompt: expect.stringContaining('proponha') }));
     expect(runs.startRun).not.toHaveBeenCalled();
   });
 
