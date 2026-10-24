@@ -99,7 +99,31 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
   const [canvasFlowRuns, setFlowRuns] = useState<Record<string, { key: string; at: number }>>({});
   const [canvasAreaUsage, setAreaUsage] = useState<Partial<Record<AreaId, AreaUsage>>>({});
   const [orchestratorInfo, setOrchestratorInfo] = useState<OrchestratorInfo | null | undefined>(undefined);
-  const onOrchestratorReconnect = useCallback(() => { send({ t: 'orchestrator-get' }); }, [send]);
+  // Board writes made while the socket is down. They used to be sent into the
+  // void: the optimistic card showed, and the first board after reconnect (past
+  // the write grace) dropped it, prompt and all, with no warning. Queued here
+  // and replayed on the next open, with their grace timestamps refreshed so a
+  // board snapshot racing the replay does not drop them either.
+  const pendingWrites = useRef<ClientMsg[]>([]);
+  const write = useCallback((m: ClientMsg) => {
+    if (send(m)) return;
+    pendingWrites.current.push(m);
+    if (m.t === 'canvas-card-save' || m.t === 'canvas-flow-save') toast('Sem conexão — a mudança vai quando reconectar', { tone: 'error' });
+  }, [send]);
+  const onOrchestratorReconnect = useCallback(() => {
+    send({ t: 'orchestrator-get' });
+    const queued = pendingWrites.current;
+    pendingWrites.current = [];
+    const now = Date.now();
+    for (const m of queued) {
+      if (m.t === 'canvas-card-save') cardWriteAt.current[m.card.id] = now;
+      if (m.t === 'canvas-card-delete') deleteWriteAt.current[m.id] = now;
+      if (m.t === 'canvas-pos') for (const id of Object.keys(m.pos)) posWriteAt.current[id] = now;
+      if (m.t === 'canvas-flow-save') flowWriteAt.current[m.flow.id] = now;
+      if (m.t === 'canvas-flow-delete') flowDeleteWriteAt.current[m.id] = now;
+      if (!send(m)) pendingWrites.current.push(m);
+    }
+  }, [send]);
   const [orchestratorActivity, setOrchestratorActivity] = useState<OrchestratorActivity | null>(null);
   const onOrchestratorActivityGet = useCallback(() => { send({ t: 'orchestrator-activity-get' }); }, [send]);
   const [cvLiveSessionIds, setCvLive] = useState<string[]>([]);
@@ -360,13 +384,13 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
     const now = Date.now();
     for (const id of Object.keys(pos)) posWriteAt.current[id] = now;
     setBoard((b) => ({ ...b, pos: { ...b.pos, ...pos } }));
-    send({ t: 'canvas-pos', pos });
+    write({ t: 'canvas-pos', pos });
   }, [send]);
 
   const onCanvasPosReset = useCallback(() => {
     posWriteAt.current = {};
     setBoard((b) => ({ ...b, pos: {} }));
-    send({ t: 'canvas-pos-reset' });
+    write({ t: 'canvas-pos-reset' });
   }, [send]);
 
   // Optimistic: a card dragged across the kanban must not snap back while the
@@ -378,14 +402,14 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
       const i = b.cards.findIndex((c) => c.id === card.id);
       return { ...b, cards: i < 0 ? [card, ...b.cards] : b.cards.map((c) => (c.id === card.id ? card : c)) };
     });
-    send({ t: 'canvas-card-save', card });
+    write({ t: 'canvas-card-save', card });
   }, [send]);
 
   const onCanvasCardDelete = useCallback((id: string) => {
     delete cardWriteAt.current[id];
     deleteWriteAt.current[id] = Date.now();
     setBoard((b) => ({ ...b, cards: b.cards.filter((c) => c.id !== id) }));
-    send({ t: 'canvas-card-delete', id });
+    write({ t: 'canvas-card-delete', id });
   }, [send]);
 
   // Optimistic, same shape as onCanvasCardSave: the drag/click lands at once,
@@ -394,7 +418,7 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
     const at = Date.now();
     sessionStatusWriteAt.current[sessionId] = at;
     setBoard((b) => ({ ...b, sessionStatus: { ...b.sessionStatus, [sessionId]: { status, at } } }));
-    send({ t: 'canvas-session-status', sessionId, status });
+    write({ t: 'canvas-session-status', sessionId, status });
   }, [send]);
 
   // Same optimistic shape, batched: applies the SAME entry to every id at
@@ -408,19 +432,19 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
       for (const id of sessionIds) sessionStatus[id] = { status, at };
       return { ...b, sessionStatus };
     });
-    send({ t: 'canvas-session-status-bulk', sessionIds, status });
+    write({ t: 'canvas-session-status-bulk', sessionIds, status });
   }, [send]);
 
   const onCanvasHideSession = useCallback((sessionId: string) => {
     hiddenWriteAt.current = Date.now();
     setBoard((b) => (b.hiddenSessions.includes(sessionId) ? b : { ...b, hiddenSessions: [...b.hiddenSessions, sessionId] }));
-    send({ t: 'canvas-session-hide', sessionId });
+    write({ t: 'canvas-session-hide', sessionId });
   }, [send]);
 
   const onCanvasUnhideAllSessions = useCallback(() => {
     hiddenWriteAt.current = Date.now();
     setBoard((b) => ({ ...b, hiddenSessions: [] }));
-    send({ t: 'canvas-session-unhide-all' });
+    write({ t: 'canvas-session-unhide-all' });
   }, [send]);
 
   const onCanvasFlowSave = useCallback((flow: CanvasFlow) => {
@@ -430,14 +454,14 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
       const i = b.flows.findIndex((f) => f.id === flow.id);
       return { ...b, flows: i < 0 ? [flow, ...b.flows] : b.flows.map((f) => (f.id === flow.id ? flow : f)) };
     });
-    send({ t: 'canvas-flow-save', flow });
+    write({ t: 'canvas-flow-save', flow });
   }, [send]);
 
   const onCanvasFlowDelete = useCallback((id: string) => {
     delete flowWriteAt.current[id];
     flowDeleteWriteAt.current[id] = Date.now();
     setBoard((b) => ({ ...b, flows: b.flows.filter((f) => f.id !== id) }));
-    send({ t: 'canvas-flow-delete', id });
+    write({ t: 'canvas-flow-delete', id });
   }, [send]);
 
   const onCanvasTermStats = useCallback((sessions: string[], terms: string[]) => {
@@ -455,7 +479,7 @@ export function useCanvas(send: (m: ClientMsg) => boolean): CanvasApi {
   // its popover is already closed by the caller on submit — a brief round-trip
   // before the chip updates is not the glitch a snapped-back drag would be.
   const onCanvasBudgetSave = useCallback((area: AreaId, budget: AreaBudget) => {
-    send({ t: 'canvas-budget-save', area, budget });
+    write({ t: 'canvas-budget-save', area, budget });
   }, [send]);
 
   return {
