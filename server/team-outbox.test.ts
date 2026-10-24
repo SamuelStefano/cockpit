@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { mkdtempSync, writeFileSync, readdirSync, mkdirSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -18,6 +18,7 @@ function fresh() {
 fresh();
 
 const { claimOutbox, processClaimed, recoverStale, drainOutbox, parseSpool } = await import('./team-outbox');
+type Delivery = import('./team-outbox').Delivery;
 const { readTeamLog, setTeamPaused, appendTeamLog } = await import('./team-log');
 
 const bot = (id: string, name: string): TeamBot => ({ id, name, label: '', instructions: '', mascot: { shape: 'drop', color: '#22c55e' }, profile: 'full', createdAt: 1, updatedAt: 1 });
@@ -28,7 +29,7 @@ function spool(over: Record<string, unknown> = {}): string {
   writeFileSync(join(outbox, `${id}.json`), JSON.stringify({ id, from: 'lead1', to: 'ativ1', text: 'oi', hop: 1, ts: 1, ...over }));
   return id;
 }
-const deps = (deliver = vi.fn(async () => 'delivered' as const)) => ({ getTeam: async () => team, deliver, emit: vi.fn(), now: () => 1_000_000 });
+const deps = (deliver: Mock<() => Promise<Delivery>> = vi.fn(async (): Promise<Delivery> => 'delivered')) => ({ getTeam: async () => team, deliver, emit: vi.fn(), now: () => 1_000_000 });
 
 beforeEach(() => { fresh(); });
 
@@ -43,7 +44,7 @@ describe('outbox claim', () => {
 
   it('two processes draining at once deliver each message once', async () => {
     for (let i = 0; i < 10; i++) spool();
-    const deliver = vi.fn(async () => 'delivered' as const);
+    const deliver = vi.fn(async (): Promise<Delivery> => 'delivered');
     const d = deps(deliver);
     const [a, b] = await Promise.all([claimOutbox(outbox, 2001), claimOutbox(outbox, 2002)]);
     await Promise.all([...a.map((p) => processClaimed(p, d)), ...b.map((p) => processClaimed(p, d))]);
@@ -71,7 +72,7 @@ describe('processClaimed', () => {
 
   it('logs the queue outcome when the recipient is busy', async () => {
     spool();
-    await drainOutbox(deps(vi.fn(async () => 'queued' as const)), outbox);
+    await drainOutbox(deps(vi.fn(async (): Promise<Delivery> => 'queued')), outbox);
     expect((await readTeamLog())[0].status).toBe('queued');
   });
 
@@ -124,7 +125,7 @@ describe('processClaimed', () => {
 
   it('records a delivery that threw as failed', async () => {
     spool();
-    await drainOutbox(deps(vi.fn(async () => { throw new Error('boom'); })), outbox);
+    await drainOutbox(deps(vi.fn(async (): Promise<Delivery> => { throw new Error('boom'); })), outbox);
     expect((await readTeamLog())[0]).toMatchObject({ status: 'failed', reason: 'boom' });
   });
 
