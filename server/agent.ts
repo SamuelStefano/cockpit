@@ -16,6 +16,7 @@ import { setClientSource, broadcast } from './ws/broadcast';
 import { mcpServerDefsSync, claudeReady } from './admin-ops';
 import { getSlashCommands } from './ws/slash';
 import { startParkedDrainer, resumeOrphanRuns } from './ws/runs';
+import { startTeamMessaging } from './ws/team-deliver';
 import { takeOrphanRuns } from './ws/recover';
 import { readMemInfo } from './ws/mem-guard';
 import { startRunReaper } from './ws/reaper';
@@ -319,6 +320,7 @@ export function runAgent(relayUrl: string): void {
   // sem depender de browser aberto — é justamente o ponto: enfileirar à noite e
   // acordar com tudo drenado quando a quota voltou.
   startParkedDrainer();
+  startTeamMessaging();
   // Reaper no agente também: um item drenado que trava mudo ("garimpando" eterno)
   // deixaria a sessão ocupada pra sempre e travaria o resto da fila overnight. No
   // modo listen isto roda no attachWs; no dial (agente) não rodava — sem ele o

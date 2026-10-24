@@ -40,6 +40,7 @@ export interface ParkedItem {
   mcps?: string[];
   botId?: string;
   appendSystemPrompt?: string;
+  teamHop?: number;
   at: number;
   // Quantas vezes este item já voltou pra fila depois de um turno que não o consumiu.
   attempts?: number;
@@ -74,6 +75,7 @@ export function coerceItem(o: unknown): ParkedItem | null {
     mcps: Array.isArray(r.mcps) ? r.mcps.filter((x): x is string => typeof x === 'string') : undefined,
     botId: typeof r.botId === 'string' ? r.botId : undefined,
     appendSystemPrompt: typeof r.appendSystemPrompt === 'string' ? r.appendSystemPrompt : undefined,
+    teamHop: typeof r.teamHop === 'number' ? r.teamHop : undefined,
     at: typeof r.at === 'number' ? r.at : Date.now(),
     attempts: typeof r.attempts === 'number' ? r.attempts : undefined,
     held: r.held === true ? true : undefined,

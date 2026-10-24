@@ -6,6 +6,7 @@ import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasFlo
 import type { AreaUsage } from './canvas-budget';
 import type { DflDraft, DraftOp } from './dfl-drafts';
 import type { AgentView, AgentPreset, AgentStatus } from './agents';
+import type { TeamMessage } from './team-messages';
 
 export interface ToolDiff {
   path: string;
@@ -737,6 +738,8 @@ export type ClientMsg =
   | { t: 'team-get' }
   | { t: 'team-save'; bot: TeamBotInput }
   | { t: 'team-delete'; id: string }
+  | { t: 'team-messages-get'; botId?: string; peer?: string; before?: number }
+  | { t: 'team-pause-set'; paused: boolean }
   | { t: 'skill-list' }
   | { t: 'skill-open'; id: string }
   | { t: 'registry-get'; refresh?: boolean }
@@ -901,6 +904,9 @@ export type ServerMsg =
   | { t: 'dfl-task-write'; reqId: string; ok: boolean; message?: string; taskId?: string }
   | { t: 'crons'; items: Cron[] }
   | { t: 'team'; bots: TeamBot[] }
+  | { t: 'team-messages'; items: TeamMessage[]; botId?: string; peer?: string; before?: number }
+  | { t: 'team-message'; item: TeamMessage }
+  | { t: 'team-paused'; paused: boolean }
   | { t: 'context'; id: string; title: string; body: string }
   | { t: 'models'; models: ModelInfo[] }
   | { t: 'agents'; items: AgentView[]; presets: AgentPreset[]; customAllowed: boolean }

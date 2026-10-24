@@ -5,6 +5,7 @@ import { CONFIG } from './config';
 import { originAllowed } from './ws/origin';
 import { tokenAllowed, tokenFromUrl } from './ws/token';
 import { fireCron } from './ws/runs';
+import { startTeamMessaging } from './ws/team-deliver';
 import { startRunReaper } from './ws/reaper';
 import { runStats, killAllRuns, threads } from './ws/threads';
 import { startCronLoop } from './crons';
@@ -107,6 +108,7 @@ export function attachWs(server: Server) {
   startDflDraftsWatch();
   probeSlashCommands();
   startCronLoop(fireCron); // agendador: dispara prompts agendados (turnos autônomos)
+  startTeamMessaging();
   startRunReaper(); // mata turno travado ("garimpando" eterno) → UI cai pra idle e a fila drena
   // O loop de autopause do canvas NÃO liga aqui: ele para/reenfileira turnos
   // (o mesmo tipo de escrita compartilhada que startParkedDrainer), e só o
