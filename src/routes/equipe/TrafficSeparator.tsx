@@ -11,8 +11,8 @@ export function TrafficSeparator({ count, peers, onOpen }: TrafficSeparatorProps
       <span>{count} mensagens com</span>
       <MascotStack mascots={known} />
       {peers.map((p, i) => (
-        <span key={p.id} className="inline-flex items-center gap-1">
-          {i > 0 && <span>{i === peers.length - 1 ? 'e' : ','}</span>}
+        <span key={p.id} className="inline-flex items-center">
+          {i > 0 && <span className="mr-1">{i === peers.length - 1 ? 'e' : ','}</span>}
           <Button variant="ghost" size="xs" onClick={() => onOpen(p.id)} aria-label={`Abrir conversa com ${p.bot?.name ?? p.id}`}>
             <span className="text-neutral-300">{p.bot?.name ?? p.id}</span>
           </Button>
