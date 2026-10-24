@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, type ReactNode } from 'react';
 import { Icon } from '../primitives';
 import { ClaudeAvatar } from '../ClaudeAvatar';
 import type { TurnBubbleStats } from '../../../shared/protocol';
@@ -21,6 +21,7 @@ export { Thinking } from './Thinking';
 
 interface MessageRowProps {
   msg: ShownMessage;
+  avatar?: ReactNode;
   caretOnLast: boolean;
   modelLabel?: string;
   showModelLabel?: boolean;
@@ -43,7 +44,7 @@ interface MessageRowProps {
 // memo: cada delta de streaming troca só a referência da ÚLTIMA mensagem
 // (patchRunMsg usa .map preservando as demais) — sem isto a thread inteira
 // re-renderiza a cada chunk.
-export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabel, showModelLabel = true, thinking, live, onEditUser, onQuote, onMemorize, answerable, onAnswer, reviewable, onApproveWorkflow, onRegenerate, onOpenAttachment, attThumbs, onAttThumb }: MessageRowProps) {
+export const MessageRow = memo(function MessageRow({ msg, avatar, caretOnLast, modelLabel, showModelLabel = true, thinking, live, onEditUser, onQuote, onMemorize, answerable, onAnswer, reviewable, onApproveWorkflow, onRegenerate, onOpenAttachment, attThumbs, onAttThumb }: MessageRowProps) {
   const [showTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   if (msg.role === 'user') {
     return <UserMessageRow msg={msg} onEditUser={onEditUser} onQuote={onQuote} onOpenAttachment={onOpenAttachment} attThumbs={attThumbs} onAttThumb={onAttThumb} />;
@@ -84,7 +85,7 @@ export const MessageRow = memo(function MessageRow({ msg, caretOnLast, modelLabe
     // ocupar a viewport inteira — sem âncora ali, a leitura saltava.
     <div data-mid={msg.id} className="fade-up group/msg flex gap-2.5">
       <div className="mt-0.5" title={showModelLabel ? undefined : modelLabel}>
-        <ClaudeAvatar size={28} />
+        {avatar ?? <ClaudeAvatar size={28} />}
       </div>
       <div className="min-w-0 flex-1 pt-0.5">
         {showModelLabel && <span className="mb-0.5 block max-w-[260px] truncate px-0.5 font-mono text-[11px] font-medium tracking-tight text-orange-300/90">{modelLabel || 'Claude'}</span>}

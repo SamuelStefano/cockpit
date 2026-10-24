@@ -35,3 +35,26 @@ describe('useTeam', () => {
     expect(sent.map((m) => m.t)).toEqual(['team-get', 'team-save', 'team-delete']);
   });
 });
+
+describe('useTeam messages and pause', () => {
+  const m = (id: string, ts: number) => ({ id, from: 'capo1', to: 'ativ1', text: id, ts, status: 'delivered' as const, hop: 1 });
+
+  it('merges a page and live frames by id, in time order', () => {
+    const { result } = mount();
+    act(() => { result.current.onMsg({ t: 'team-messages', items: [m('m2', 2), m('m1', 1)] }); });
+    act(() => { result.current.onMsg({ t: 'team-message', item: m('m3', 3) }); });
+    act(() => { result.current.onMsg({ t: 'team-message', item: { ...m('m2', 2), status: 'queued' } }); });
+    expect(result.current.teamMessages.map((x) => `${x.id}:${x.status}`)).toEqual(['m1:delivered', 'm2:queued', 'm3:delivered']);
+  });
+
+  it('tracks the pause switch and sends both frames', () => {
+    const { result, sent } = mount();
+    act(() => { result.current.onMsg({ t: 'team-paused', paused: true }); });
+    expect(result.current.teamPaused).toBe(true);
+    act(() => {
+      result.current.onTeamPauseSet(false);
+      result.current.onTeamMessagesGet({ botId: 'capo1', peer: 'ativ1' });
+    });
+    expect(sent).toEqual([{ t: 'team-pause-set', paused: false }, { t: 'team-messages-get', botId: 'capo1', peer: 'ativ1' }]);
+  });
+});

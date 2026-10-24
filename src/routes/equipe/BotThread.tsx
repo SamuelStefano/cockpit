@@ -1,9 +1,16 @@
+import { useMemo } from 'react';
 import { ChatPanel } from '../../components/Chat';
-import type { ChatPanelProps } from '../../components/chat/chat-panel-props';
+import type { ChatBotDecor, ChatPanelProps } from '../../components/chat/chat-panel-props';
 import { Mascot } from '../../components/team/Mascot';
 import { MascotStatusLine } from '../../components/team/MascotStatusLine';
 import { Button } from '../../components/primitives';
+import type { TeamBot } from '../../../shared/protocol';
+import type { TeamMessage } from '../../../shared/team-messages';
 import type { BotView } from './team-view';
+import { BotThreadEmpty } from './BotThreadEmpty';
+import { TrafficMarker } from './TrafficMarker';
+import { isTeamPromptMessage } from './team-thread';
+import { useBotTraffic } from './useBotTraffic';
 
 // A bot has one continuous thread: no "new session" and no handoff into another one.
 const noop = () => {};
@@ -11,13 +18,24 @@ const noop = () => {};
 interface BotThreadProps {
   view: BotView;
   chatProps: ChatPanelProps;
+  bots: TeamBot[];
+  log: TeamMessage[];
+  onOpenPeer: (peerId: string) => void;
   onBack?: () => void;
   onProfile?: () => void;
 }
 
-export function BotThread({ view, chatProps, onBack, onProfile }: BotThreadProps) {
+export function BotThread({ view, chatProps, bots, log, onOpenPeer, onBack, onProfile }: BotThreadProps) {
   const { bot, state, startedAt } = view;
   const live = state === 'thinking' || state === 'working';
+  const { byId, groups } = useBotTraffic(bot.id, bots, log, chatProps.messages);
+  const botDecor = useMemo<ChatBotDecor>(() => ({
+    name: bot.name,
+    avatar: <Mascot mascot={bot.mascot} size={28} name={bot.name} />,
+    empty: <BotThreadEmpty name={bot.name} />,
+    hideMessage: isTeamPromptMessage,
+    extras: groups.map((g) => ({ key: `t-${g.key}`, ts: g.ts, node: <TrafficMarker group={g} botId={bot.id} byId={byId} onOpen={onOpenPeer} /> })),
+  }), [bot.id, bot.name, bot.mascot, groups, byId, onOpenPeer]);
   return (
     <div className="flex h-full min-w-0 flex-col">
       <div className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2">
@@ -35,6 +53,7 @@ export function BotThread({ view, chatProps, onBack, onProfile }: BotThreadProps
           {...chatProps}
           onNew={noop}
           onHandoff={undefined}
+          botDecor={botDecor}
           turnStatus={<MascotStatusLine active={live} startedAt={startedAt} />}
         />
       </div>

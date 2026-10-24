@@ -1,5 +1,6 @@
 import type { TeamBot } from '../../../shared/protocol';
 import { botDraftKey } from '../../../shared/team';
+import { trafficLine, type TeamMessage } from '../../../shared/team-messages';
 import type { Session } from '../../data/types';
 import { deriveMascotState, type MascotState } from '../../components/team/mascot-state';
 import type { Phase } from '../../components/chat/useChatPanel';
@@ -23,6 +24,18 @@ export interface TeamViewCtx {
   seen: Record<string, number>;
   selectedId: string | null;
   now: number;
+  lastTraffic?: Record<string, TeamMessage>;
+  nameOf?: (id: string) => string;
+}
+
+// The newest bot↔bot message each bot took part in: the roster preview shows it
+// when it is newer than the bot's own thread ("Mandou para X: …").
+export function lastTrafficByBot(log: TeamMessage[]): Record<string, TeamMessage> {
+  const out: Record<string, TeamMessage> = {};
+  for (const m of log) {
+    for (const id of [m.from, m.to]) if (!out[id] || out[id].ts <= m.ts) out[id] = m;
+  }
+  return out;
 }
 
 // The chat key a bot's thread lives under right now: its bound session, else
@@ -47,7 +60,9 @@ export function botView(bot: TeamBot, ctx: TeamViewCtx): BotView {
     endedAt: s?.mtime,
     now: ctx.now,
   });
-  const preview = (s?.snippet && s.snippet !== 'Sem mensagens ainda' ? s.snippet : '') || bot.label || 'Sem mensagens ainda';
+  const traffic = ctx.lastTraffic?.[bot.id];
+  const own = s?.snippet && s.snippet !== 'Sem mensagens ainda' ? s.snippet : '';
+  const preview = (traffic && traffic.ts > (s?.mtime ?? 0) ? trafficLine(bot.id, traffic, ctx.nameOf ?? ((id) => id)) : own) || bot.label || 'Sem mensagens ainda';
   const unread = bot.id !== ctx.selectedId && !!s && s.mtime > (ctx.seen[bot.id] ?? 0) && !!bot.sessionId;
   return { bot, key, preview, unread, state, startedAt: ctx.runStart[key] };
 }
