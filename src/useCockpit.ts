@@ -25,6 +25,7 @@ import { useDrops, type Drops } from './cockpit/useDrops';
 import { useCrons, type Crons } from './cockpit/useCrons';
 import { useTeam, type Team } from './cockpit/useTeam';
 import { botDraftKey } from '../shared/team';
+import { botAliases } from './cockpit/bot-alias';
 import { usePoints, type Points } from './cockpit/usePoints';
 import { useContexts, type Contexts } from './cockpit/useContexts';
 import { useSkills, type Skills } from './cockpit/useSkills';
@@ -473,6 +474,12 @@ export function useCockpit(): Cockpit {
   const adminApi = useAdmin(send);
   const agentsApi = useAgents(send);
   const harnessApi = useHarness(send);
+  useEffect(() => { Object.assign(migratedTo.current, botAliases(teamApi.bots, migratedTo.current)); }, [teamApi.bots]);
+  // The alias needs the team before a server-side bot turn starts, not only once
+  // /equipe is opened. Team frames are admin-only: a fellow asking would get an error.
+  const { onTeamGet } = teamApi;
+  const teamAllowed = caps?.role === 'admin' || caps?.role === 'root';
+  useEffect(() => { if (teamAllowed && conn.ws === 'connected') onTeamGet(); }, [teamAllowed, conn.ws, onTeamGet]);
   // O onServer é um callback estável (o socket guarda a 1ª referência); ler os
   // handlers por ref evita recriá-lo — e reabrir o WS — a cada render.
   const leafHandlers = useRef<((m: ServerMsg) => boolean)[]>([]);

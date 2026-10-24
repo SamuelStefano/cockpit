@@ -1315,7 +1315,7 @@ export function fireCron(cron: Cron): Promise<CronFire> {
 
 // The bot's live turn, under whatever key it runs: its draft key, `bot-<id>`, or the
 // key a tab gave the bound session.
-function botLiveKey(botId: string, sessionId?: string): string | undefined {
+export function botLiveKey(botId: string, sessionId?: string): string | undefined {
   for (const [k, t] of threads) if (t.params.botId === botId || (sessionId && t.sessionId === sessionId)) return k;
   return undefined;
 }
