@@ -23,6 +23,7 @@ import { scheduleValid } from '../../shared/cron-schedule';
 import { fireCron, type CronFire } from './runs';
 import { getTeam, saveBot, deleteBot } from '../team';
 import { botTurnParams } from '../team-prompt';
+import { sendTeamMessages, sendTeamPaused, setTeamPause } from './team-frames';
 import { validateBotInput } from '../../shared/team';
 import { queueReleaseAt } from './ctx-guard';
 import { listSkills, readSkill, resolveSkillDeny, installSkill } from '../skills';
@@ -790,6 +791,15 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'team-get': {
       send(ws, { t: 'team', bots: await getTeam() });
+      sendTeamPaused(ws);
+      return;
+    }
+    case 'team-messages-get': {
+      await sendTeamMessages(ws, msg);
+      return;
+    }
+    case 'team-pause-set': {
+      await setTeamPause(ws, msg.paused);
       return;
     }
     case 'team-save': {
