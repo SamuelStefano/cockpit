@@ -34,6 +34,7 @@ rl.on('line', (l) => {
     return out({ jsonrpc: '2.0', id: m.id, result: {} });
   }
   if (m.method === 'session/prompt') {
+    if (process.argv.includes('--legacy')) return out({ jsonrpc: '2.0', id: m.id, error: { code: -32603, message: 'Internal error', data: { message: 'API error (status 403 Forbidden): Grok Build is not supported in Legacy (no storage). Switch to Privacy Mode to use Grok Build.' } } });
     promptId = m.id;
     appendFileSync(process.argv[1] + '.prompts', JSON.stringify(m.params.prompt[0].text) + '\\n');
     const sid = m.params.sessionId;
@@ -83,6 +84,8 @@ describe('runAgent', () => {
       const { agentEnv } = await import('./acp-run');
       expect(agentEnv().GH_TOKEN).toBeUndefined();
       expect(agentEnv().PATH).toContain('.grok/bin');
+      expect(agentEnv().GROK_CLAUDE_MCPS_ENABLED).toBe('0');
+      expect(agentEnv().GROK_CLAUDE_HOOKS_ENABLED).toBe('0');
     } finally { delete managed.GH_TOKEN; }
   });
 
@@ -159,5 +162,28 @@ describe('runAgent', () => {
     const { errors } = await turn({ model: 'agent:ghost' });
     expect(errors[0]).toMatch(/não está instalado/);
     expect(existsSync(join(root, '.deck-agent', 'agents.json'))).toBe(true);
+  });
+});
+
+describe('probeAgent', () => {
+  it('is ready only after a real prompt answers', async () => {
+    const { probeAgent } = await import('./probe');
+    const r = await probeAgent({ id: 'fake', name: 'Fake', command: process.execPath, args: [fakeAgent] });
+    expect(r.status).toBe('ready');
+    expect(r.version).toBe('9.9');
+    expect(r.message).toMatch(/respondeu "olá/);
+  });
+
+  it('turns the Grok privacy-mode refusal into a setup step', async () => {
+    const { probeAgent } = await import('./probe');
+    const r = await probeAgent({ id: 'grok', name: 'Grok', command: process.execPath, args: [fakeAgent, '--legacy'] });
+    expect(r.status).toBe('needs-login');
+    expect(r.message).toMatch(/\/privacy/);
+  });
+
+  it('keeps the rpc data in a turn error', async () => {
+    await store.addCustomAgent({ id: 'legacy', name: 'Legacy', command: process.execPath, args: [fakeAgent, '--legacy'] });
+    const { errors } = await turn({ model: 'agent:legacy' });
+    expect(errors[0]).toMatch(/Internal error — .*Privacy Mode/);
   });
 });

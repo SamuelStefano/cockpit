@@ -7,7 +7,7 @@ import type { ClaudeEvent } from '../engine/events';
 import { CONFIG } from '../config';
 import { sessionPath } from '../sessions/records';
 import { agentIdOf, agentModelId } from '../../shared/agents';
-import { ACP_CLIENT_CAPABILITIES, ACP_PROTOCOL_VERSION, isAuthError, startAcp } from './acp-client';
+import { ACP_CLIENT_CAPABILITIES, ACP_PROTOCOL_VERSION, AcpError, isAuthError, startAcp } from './acp-client';
 import { closeDangling, mapUpdate, permissionOutcome, resultSubtype, type MapCtx } from './acp-events';
 import { findAgent, saveSessionLink, sessionLinkSync } from './store';
 import { TranscriptWriter } from './transcript';
@@ -22,8 +22,16 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export function agentEnv(): NodeJS.ProcessEnv {
   const base = minimalEnv();
   const extra = [join(homedir(), '.grok', 'bin'), join(homedir(), '.local', 'bin')];
-  return { LANG: base.LANG, TERM: base.TERM, HOME: base.HOME, PATH: [...extra, base.PATH ?? ''].filter(Boolean).join(':') };
+  return { LANG: base.LANG, TERM: base.TERM, HOME: base.HOME, PATH: [...extra, base.PATH ?? ''].filter(Boolean).join(':'), ...COMPAT_OFF };
 }
+
+// Grok (and agents built the same way) import the MCP servers and hooks of the
+// Claude/Cursor/Codex installs under HOME: an agent turn would get the owner's
+// Infisical and every other MCP Claude has, and run Claude's hooks. The Deck
+// passes MCPs explicitly (none today), so the imports are switched off.
+export const COMPAT_OFF: Record<string, string> = Object.fromEntries(
+  ['CLAUDE', 'CURSOR', 'CODEX'].flatMap((v) => ['MCPS', 'HOOKS'].map((k) => [`GROK_${v}_${k}_ENABLED`, '0'])),
+);
 
 export function loginHint(agentId: string, name: string, then = 'depois mande de novo'): string {
   const cmd = agentId === 'grok' ? 'grok login --device-auth' : agentId === 'codex' ? 'codex login --device-auth' : agentId === 'opencode' ? 'opencode auth login' : agentId === 'gemini' ? 'gemini' : null;
@@ -144,7 +152,7 @@ export function runAgent(opts: RunOpts): RunHandle {
     ended = true;
     for (const ev of closeDangling(ctx, true)) emit(ev);
     transcript?.flush();
-    onError(isAuthError(e) ? loginHint(agent.id, agent.name) : `${agent.name}: ${(e as Error).message}`);
+    onError(isAuthError(e) ? loginHint(agent.id, agent.name) : setupHint(agent.id, errorText(e)) ?? `${agent.name}: ${errorText(e)}`);
     finish('error_during_execution', true);
     acp.kill();
   });
@@ -162,4 +170,23 @@ export function runAgent(opts: RunOpts): RunHandle {
     },
     send: () => false,
   };
+}
+
+// "Internal error" alone tells nobody what broke; ACP puts the reason in data.
+export function errorText(e: unknown): string {
+  if (e instanceof AcpError && e.rpc.data !== undefined) {
+    const d = typeof e.rpc.data === 'string' ? e.rpc.data : JSON.stringify(e.rpc.data);
+    return `${e.rpc.message} — ${d.slice(0, 400)}`;
+  }
+  return (e as Error)?.message ?? String(e);
+}
+
+// Some refusals are account settings, not bugs, and the fix is one command the
+// owner runs once. Grok Build refuses accounts still in the "Legacy (no
+// storage)" privacy mode with a 403 inside a generic "Internal error".
+export function setupHint(agentId: string, text: string): string | null {
+  if (agentId === 'grok' && /privacy mode|privacy-mode/i.test(text)) {
+    return 'Sua conta do Grok está no modo de privacidade "Legacy", que o Grok Build não aceita. Num Terminal do Deck rode `grok`, digite `/privacy` e escolha Opt in ou Opt out (Opt out = a xAI não treina com o seu código). Depois clique em Testar.';
+  }
+  return null;
 }
