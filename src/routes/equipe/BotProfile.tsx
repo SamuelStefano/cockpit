@@ -5,6 +5,7 @@ import { Mascot } from '../../components/team/Mascot';
 import { BotDetails } from './BotDetails';
 import { withLabel } from './useBotForm';
 import type { BotView } from './team-view';
+import type { CronApi } from './equipe-props';
 
 type ProfileTab = 'details' | 'files' | 'computer';
 const TABS = [
@@ -21,9 +22,11 @@ interface BotProfileProps {
   onEdit: () => void;
   onDelete: (id: string) => void;
   onBack?: () => void;
+  connected: boolean;
+  cronApi: CronApi;
 }
 
-export function BotProfile({ view, bots, models, onSave, onEdit, onDelete, onBack }: BotProfileProps) {
+export function BotProfile({ view, bots, models, onSave, onEdit, onDelete, onBack, connected, cronApi }: BotProfileProps) {
   const [tab, setTab] = useState<ProfileTab>('details');
   const { bot, state } = view;
   const saveLabel = (label: string) => onSave(withLabel(bot, label));
@@ -43,7 +46,7 @@ export function BotProfile({ view, bots, models, onSave, onEdit, onDelete, onBac
       </div>
       <Tabs items={TABS} active={tab} onChange={setTab} className="justify-center px-3" />
       <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
-        {tab === 'details' && <BotDetails bot={bot} bots={bots} models={models} onEdit={onEdit} onDelete={onDelete} />}
+        {tab === 'details' && <BotDetails bot={bot} bots={bots} models={models} onEdit={onEdit} onDelete={onDelete} connected={connected} cronApi={cronApi} />}
         {tab === 'files' && <EmptyState icon="file" title="Em breve" description="As páginas e arquivos que o bot gerar vão aparecer aqui." />}
         {tab === 'computer' && <EmptyState icon="monitor" title="Em breve" description="A prévia do computador onde o bot trabalha vai aparecer aqui." />}
       </div>

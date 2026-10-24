@@ -38,3 +38,26 @@ describe('canToggleOn', () => {
     expect(canToggleOn({ ...base, enabled: false, schedule: { kind: 'once', atMs: 50 } } as never, 10)).toBe(true);
   });
 });
+
+describe('Crons with bot routines', () => {
+  const bot = { id: 'capo1', name: 'capo', label: '', instructions: '', mascot: { shape: 'drop' as const, color: '#22c55e' }, profile: 'full' as const, createdAt: 0, updatedAt: 0 };
+  const routine = { id: 'r1', name: 'métricas', prompt: 'p', schedule: { kind: 'interval' as const, everyMinutes: 5 }, enabled: true, createdAt: 0, botId: 'capo1' };
+
+  it('names the bot that owns the routine and loads the team', () => {
+    const onTeamGet = vi.fn();
+    const { getByLabelText } = render(<Crons {...props} connected loaded crons={[routine]} bots={[bot]} onTeamGet={onTeamGet} />);
+    expect(getByLabelText(/capo/)).toBeTruthy();
+    expect(onTeamGet).toHaveBeenCalled();
+  });
+
+  it('marks a routine whose bot was removed', () => {
+    const { container } = render(<Crons {...props} connected loaded crons={[{ ...routine, enabled: false }]} bots={[]} onTeamGet={vi.fn()} />);
+    expect(container.textContent).toContain('bot removido');
+  });
+
+  it('does not ask for the team when no cron belongs to a bot', () => {
+    const onTeamGet = vi.fn();
+    render(<Crons {...props} connected loaded crons={[{ ...routine, botId: undefined }]} onTeamGet={onTeamGet} />);
+    expect(onTeamGet).not.toHaveBeenCalled();
+  });
+});

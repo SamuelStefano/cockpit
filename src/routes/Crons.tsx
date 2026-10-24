@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Cron, ModelInfo, PlanUsage } from '../../shared/protocol';
+import type { Cron, ModelInfo, PlanUsage, TeamBot } from '../../shared/protocol';
 import { Button, EmptyState, Skeleton, RouteHeader } from '../components/primitives';
 import { useLoadStalled } from '../lib/useLoadStalled';
 import { useCronForm } from './crons/useCronForm';
@@ -18,6 +18,8 @@ interface Props {
   onCronRun: (id: string) => void;
   planUsage?: PlanUsage | null;
   models: ModelInfo[];
+  bots?: TeamBot[];
+  onTeamGet?: () => void;
 }
 
 // Agendador: dispara prompts em horário marcado (turnos autônomos). Cada cron vira
@@ -29,7 +31,7 @@ export function canToggleOn(c: Cron, now: number): boolean {
   return c.schedule.kind !== 'once' || (c.schedule.atMs ?? 0) > now;
 }
 
-export function Crons({ connected, crons, loaded, onCronsGet, onCronSave, onCronDelete, onCronRun, planUsage, models }: Props) {
+export function Crons({ connected, crons, loaded, onCronsGet, onCronSave, onCronDelete, onCronRun, planUsage, models, bots = [], onTeamGet }: Props) {
   const form = useCronForm(onCronSave, crons);
   const formRef = useRef<HTMLDivElement>(null);
   // The form sits above the list, so editing a card further down changed state
@@ -45,6 +47,8 @@ export function Crons({ connected, crons, loaded, onCronsGet, onCronSave, onCron
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => { if (connected) onCronsGet(); }, [connected, onCronsGet]);
+  const hasRoutines = crons.some((c) => c.botId);
+  useEffect(() => { if (connected && hasRoutines) onTeamGet?.(); }, [connected, hasRoutines, onTeamGet]);
   const { stalled, retry } = useLoadStalled(loaded, connected);
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30_000);
@@ -89,6 +93,7 @@ export function Crons({ connected, crons, loaded, onCronsGet, onCronSave, onCron
                 <CronCard
                   key={c.id}
                   cron={c}
+                  bots={bots}
                   now={now}
                   editing={form.draft.id === c.id}
                   onRun={() => onCronRun(c.id)}
