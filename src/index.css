@@ -216,6 +216,30 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 }
 .confetti-pc { position: absolute; top: 0; will-change: transform, opacity; animation: confettiFall var(--dur, 2.6s) cubic-bezier(0.25, 0.6, 0.4, 1) forwards; animation-delay: var(--delay, 0ms); }
 
+/* Mascote da Equipe: o estado se lê pelo MOVIMENTO (respira, balança, treme,
+   pula), não por cor nem texto. Só transform/opacity — compositor, sem repaint. */
+@keyframes mascotBreathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.03, 0.97); } }
+@keyframes mascotBlink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+@keyframes mascotSway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+@keyframes mascotShake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-1.5px); } 40%, 80% { transform: translateX(1.5px); } }
+@keyframes mascotHop { 0%, 100% { transform: translateY(0); } 30% { transform: translateY(-4px); } 55% { transform: translateY(0); } }
+@keyframes mascotLook { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(1.5px); } }
+@keyframes mascotDot { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+.mascot-idle .mascot-body { animation: mascotBreathe 3.2s ease-in-out infinite; }
+.mascot-idle .mascot-eyes { animation: mascotBlink 4.5s ease-in-out infinite; }
+.mascot-thinking .mascot-body { animation: mascotBreathe 1.8s ease-in-out infinite; }
+.mascot-dots circle { animation: mascotDot 1.2s ease-in-out infinite; }
+.mascot-dots circle:nth-child(2) { animation-delay: 0.2s; }
+.mascot-dots circle:nth-child(3) { animation-delay: 0.4s; }
+.mascot-working .mascot-body { animation: mascotSway 1.1s ease-in-out infinite; }
+.mascot-waiting .mascot-eyes { animation: mascotLook 2.4s ease-in-out infinite; }
+.mascot-blocked .mascot-body { animation: mascotShake 0.5s ease-in-out 3, mascotBreathe 3.2s ease-in-out 1.5s infinite; }
+.mascot-done .mascot-body { animation: mascotHop 1.4s ease-out infinite; }
+.mascot-status { animation: fadeIn 0.3s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .mascot .mascot-body, .mascot .mascot-eyes, .mascot-dots circle, .mascot-status { animation: none; }
+}
+
 pre, code, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
 .resizer { transition: background 0.15s; }
 .resizer:hover, .resizer.active { background: rgba(249,115,22,0.55); }
