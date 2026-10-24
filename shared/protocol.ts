@@ -387,6 +387,8 @@ export interface Cron {
   enabled: boolean;
   lastRun?: number;
   createdAt: number;
+  // Rotina de um bot da Equipe: dispara na thread do bot (`bot-<id>`), com a identidade dele.
+  botId?: string;
 }
 // Bot da Equipe: um agente persistente com nome, cargo e mascote, dono de UMA thread
 // contínua (sessionId). Persistido em ~/.cockpit/team.json (server/team.ts).

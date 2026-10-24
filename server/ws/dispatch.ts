@@ -17,9 +17,10 @@ import { runDflSync } from '../dfl-sync-runner';
 import { runDflWrite } from '../dfl-write-runner';
 import { buildAgentTasksPrompt, agentSessionKey, MAX_NOTE_BYTES } from '../pontos-agent';
 import { buildStageDraftsPrompt } from '../pontos-stage-prompt';
-import { getCrons, saveCron, deleteCron, runCronNow } from '../crons';
+import { getCrons, saveCron, deleteCron, runCronNow, pauseBotRoutines } from '../crons';
+import { botRoutineError } from '../../shared/bot-routine';
 import { scheduleValid } from '../../shared/cron-schedule';
-import { fireCron } from './runs';
+import { fireCron, type CronFire } from './runs';
 import { getTeam, saveBot, deleteBot } from '../team';
 import { botTurnParams } from '../team-prompt';
 import { validateBotInput } from '../../shared/team';
@@ -778,6 +779,8 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
         send(ws, { t: 'error', message: 'cron inválido' });
         return;
       }
+      const routineError = c.botId === undefined ? null : botRoutineError(c, await getTeam());
+      if (routineError) { send(ws, { t: 'error', message: routineError }); return; }
       send(ws, { t: 'crons', items: await saveCron(c) });
       return;
     }
@@ -800,12 +803,18 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'team-delete': {
       if (typeof msg.id !== 'string') { send(ws, { t: 'error', message: 'bot inválido' }); return; }
       broadcast({ t: 'team', bots: await deleteBot(msg.id) });
+      const paused = await pauseBotRoutines(msg.id);
+      if (paused) broadcast({ t: 'crons', items: paused });
       return;
     }
     case 'cron-run': {
-      const items = await runCronNow(msg.id, fireCron);
-      if (items) send(ws, { t: 'crons', items });
-      else send(ws, { t: 'error', message: 'cron não encontrado' });
+      let fired: Promise<CronFire> | undefined;
+      const items = await runCronNow(msg.id, (c) => { fired = fireCron(c); });
+      if (!items) { send(ws, { t: 'error', message: 'cron não encontrado' }); return; }
+      send(ws, { t: 'crons', items });
+      const outcome = await fired;
+      if (outcome === 'bot-busy') send(ws, { t: 'error', message: 'o bot está no meio de um turno — a rotina roda no próximo horário' });
+      else if (outcome === 'bot-gone') send(ws, { t: 'error', message: 'o bot desta rotina foi removido' });
       return;
     }
     case 'skill-list': {
