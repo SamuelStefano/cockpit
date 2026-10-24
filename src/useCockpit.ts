@@ -23,6 +23,8 @@ import { useTerminals, type TermApi } from './cockpit/useTerminals';
 import { useNotes, type Notes } from './cockpit/useNotes';
 import { useDrops, type Drops } from './cockpit/useDrops';
 import { useCrons, type Crons } from './cockpit/useCrons';
+import { useTeam, type Team } from './cockpit/useTeam';
+import { botDraftKey } from '../shared/team';
 import { usePoints, type Points } from './cockpit/usePoints';
 import { useContexts, type Contexts } from './cockpit/useContexts';
 import { useSkills, type Skills } from './cockpit/useSkills';
@@ -77,12 +79,13 @@ const CANVAS_SEND_PENDING_MS = 20_000;
 // A superfície pública dos domínios-folha é a dos próprios hooks, menos os canais
 // internos: `onMsg` (dispatch), `onGraphReconnect` e `onOrchestratorReconnect`
 // (ganchos do socket).
-type LeafApis = Omit<Notes & Drops & Crons & Points & Contexts & Skills & Graphs & CanvasApi & Admin & Harness, 'onMsg' | 'onGraphReconnect' | 'onOrchestratorReconnect'>;
+type LeafApis = Omit<Notes & Drops & Crons & Team & Points & Contexts & Skills & Graphs & CanvasApi & Admin & Harness, 'onMsg' | 'onGraphReconnect' | 'onOrchestratorReconnect'>;
 
 export interface Cockpit extends LeafApis {
   agents: AgentsApi;
   onLaunchAgent: (prompt: string, title: string) => string | null;
   onSendTo: (sessionId: string, text: string) => boolean;
+  onOpenBot: (botId: string, sessionId: string | undefined, title: string) => void;
   // `at`: when the server actually rejected — lets a stale, never-dismissed
   // error (no open terminal ever consumed it) be told apart from the send it
   // ACTUALLY belongs to, by any caller correlating against a later event
@@ -461,6 +464,7 @@ export function useCockpit(): Cockpit {
   const notesApi = useNotes(send);
   const dropsApi = useDrops(send);
   const cronsApi = useCrons(send);
+  const teamApi = useTeam(send);
   const pointsApi = usePoints(send);
   const contextsApi = useContexts(send);
   const skillsApi = useSkills(send);
@@ -472,7 +476,7 @@ export function useCockpit(): Cockpit {
   // O onServer é um callback estável (o socket guarda a 1ª referência); ler os
   // handlers por ref evita recriá-lo — e reabrir o WS — a cada render.
   const leafHandlers = useRef<((m: ServerMsg) => boolean)[]>([]);
-  leafHandlers.current = [notesApi.onMsg, dropsApi.onMsg, cronsApi.onMsg, pointsApi.onMsg, contextsApi.onMsg, skillsApi.onMsg, graphsApi.onMsg, canvasApi.onMsg, adminApi.onMsg, agentsApi.onMsg, harnessApi.onMsg];
+  leafHandlers.current = [notesApi.onMsg, dropsApi.onMsg, cronsApi.onMsg, teamApi.onMsg, pointsApi.onMsg, contextsApi.onMsg, skillsApi.onMsg, graphsApi.onMsg, canvasApi.onMsg, adminApi.onMsg, agentsApi.onMsg, harnessApi.onMsg];
   // Três domínios-folha também entram na reconciliação de reconnect. Referências
   // estáveis (useCallback sobre `send`), então não recriam o `reconcile`.
   const { onUsageList } = adminApi;
@@ -1577,6 +1581,28 @@ export function useCockpit(): Cockpit {
     if (id && !id.startsWith('new-') && !opened.current.has(id) && send(reopenMsg(id))) opened.current.add(id);
   }, [send, focusSession, reopenMsg]);
 
+  // A bot has one thread. Before its first turn there is no session yet, so it
+  // gets a fixed `new-bot-<id>` draft key that migrateKey carries over to the real
+  // sessionId exactly like any new chat; the server binds that id to the bot.
+  const onOpenBot = useCallback((botId: string, sessionId: string | undefined, title: string) => {
+    const draft = botDraftKey(botId);
+    const target = sessionId ?? migratedTo.current[draft] ?? draft;
+    if (target === draft) {
+      if (!(draft in threadsRef.current)) { ownNew.current.add(draft); setThreads((prev) => ({ ...prev, [draft]: [] })); }
+      setSessions((prev) => prev.some((x) => x.id === draft)
+        ? prev.map((x) => ({ ...x, active: x.id === draft }))
+        : [{ id: draft, title, relative: 'agora', snippet: 'Sem mensagens ainda', mtime: Date.now(), hasTerminal: false, active: true }, ...prev.map((x) => ({ ...x, active: false }))]);
+      focusSession(draft);
+      return;
+    }
+    // A long-lived bot thread can fall off the recent-sessions window; without a
+    // row the chat panel has no session to render.
+    setSessions((prev) => prev.some((x) => x.id === target)
+      ? prev
+      : [{ id: target, title, relative: '', snippet: '', mtime: 0, hasTerminal: false, active: false }, ...prev]);
+    setActiveId(target);
+  }, [focusSession, setActiveId]);
+
   // Congela na sessão o modelo com que o turno REALMENTE roda. Sem isto, uma
   // conversa que herdou o default (sem override próprio) segue derivando o rótulo
   // do defaultModel mutável — e trocar a versão em OUTRA conversa reetiqueta um
@@ -2275,5 +2301,5 @@ export function useCockpit(): Cockpit {
 
   const attachmentsView = useMemo(() => markDuplicates(attachments, sentHashes[activeId]), [attachments, sentHashes, activeId]);
 
-  return { ...notesApi, ...dropsApi, ...cronsApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...canvasApi, ...adminApi, agents: agentsApi.agents, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], running, runningAnywhere, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, interrupted, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onSendTo, canvasSendError, dismissCanvasSendError, onLaunchFork, canvasForkRuns, pendingSessionIds, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, onLaunchAgent, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun };
+  return { ...notesApi, ...dropsApi, ...cronsApi, ...teamApi, ...pointsApi, ...contextsApi, ...skillsApi, ...graphsApi, ...canvasApi, ...adminApi, agents: agentsApi.agents, ...harnessApi, sessions, loading, activeId, setActiveId, messages, phase, terminalBusy: terminalBusyId === activeId, sessionTodos: sessionTodos[activeId], running, runningAnywhere, stalled, updated, runStart, draft, setDraft, conn, reconnectNow, authRequired, agentOnline, submitToken, rate, planUsage, planBlockedUntil, planReadAt, planNextReadAt, stats, archived, contextTokens, contextModel, usageModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents: activeBgAgents, usage, truncated: !!truncated[activeId], lastTurn, lastEnd, interrupted, searchResults, onSearch, marathon, onToggleMarathon, attachments: attachmentsView, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, mode, setMode: changeMode, caps, claudeReady, bypass, setBypass: changeBypass, model, setModel: changeModel, models, onRefreshModels, onRefreshPlanUsage, effort, setEffort: changeEffort, selectedSkills, setSelectedSkills: changeSelectedSkills, mcpServers, selectedMcps, setSelectedMcps: changeSelectedMcps, slashCommands, term, discoveredTerms, listTerms, onSend, onSendTo, canvasSendError, dismissCanvasSendError, onLaunchFork, canvasForkRuns, pendingSessionIds, onApproveWorkflow, onEditUser: editUser, onStop, onNew, onHandoff, onLaunchAgent, handoffBusy, onFunnel, funnelBusy, onRename, onDescribe, onClose, onDelete, onUnhide, onOpenFull, onLoadOlder, onOpenSummary, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer: resumeOffers[activeId] ?? null, resumeRun, onOpenBot };
 }
