@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import type { TermApi } from '../useCockpit';
+import { useTerminalClipboard, type TerminalClipboardApi } from './useTerminalClipboard';
 
 interface Props {
   id: string;
@@ -11,14 +12,16 @@ interface Props {
   autoFocus?: boolean;
   focusKey?: number; // bump to pull keyboard focus into this terminal
   fontSize?: number;
+  clipboardRef?: RefObject<TerminalClipboardApi | null>; // lets a toolbar copy/paste for this terminal
 }
 
 // Monta um xterm.js real e liga no PTY/tmux do backend via WS.
 // Anexa no mount (com replay de scrollback), desanexa no unmount (sessão tmux
 // segue viva). Trocar de aba remonta → reattach + redraw do tmux.
-export function XtermView({ id, term, watch, autoFocus = true, focusKey, fontSize = 12.5 }: Props) {
+export function XtermView({ id, term, watch, autoFocus = true, focusKey, fontSize = 12.5, clipboardRef }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const xtRef = useRef<XTerm | null>(null);
+  const clipboard = useTerminalClipboard();
 
   useEffect(() => {
     const el = ref.current;
@@ -49,11 +52,17 @@ export function XtermView({ id, term, watch, autoFocus = true, focusKey, fontSiz
     // (aba oculta, drag de seleção, pós-dispose) deixa o renderer sem `dimensions`
     // e o xterm estoura em getMouseReportCoords no mousedrag/mouseup.
     let disposed = false;
+    const canFit = () => !disposed && el.isConnected && !!el.offsetParent && el.clientWidth >= 2 && el.clientHeight >= 2;
     const safeFit = () => {
-      if (disposed || !el.isConnected || !el.offsetParent || el.clientWidth < 2 || el.clientHeight < 2) return;
+      if (!canFit()) return;
       try { fit.fit(); term.resize(id, xt.cols, xt.rows); } catch { /* noop */ }
     };
+    // Fit before attach so term-open carries the real size, not xterm's 80x24
+    // default: tmux sizes its client from the open and a queued resize is skipped.
+    if (canFit()) { try { fit.fit(); } catch { /* noop */ } }
     const firstFit = requestAnimationFrame(safeFit);
+    const unbindClipboard = clipboard.bind(xt, el);
+    if (clipboardRef) clipboardRef.current = { copy: clipboard.copy, paste: clipboard.paste };
 
     term.attach(
       id, xt.cols, xt.rows,
@@ -78,6 +87,8 @@ export function XtermView({ id, term, watch, autoFocus = true, focusKey, fontSiz
       cancelAnimationFrame(raf);
       ro.disconnect();
       dataSub.dispose();
+      unbindClipboard();
+      if (clipboardRef) clipboardRef.current = null;
       term.detach(id);
       xtRef.current = null;
       xt.dispose();
