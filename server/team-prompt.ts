@@ -1,5 +1,6 @@
 import type { TeamBot } from '../shared/protocol';
 import { botIdFromKey } from '../shared/team';
+import type { Role } from './auth';
 
 const MAX_IDENTITY_BYTES = 16 * 1024;
 
@@ -50,10 +51,19 @@ export interface BotTurn {
   model?: string;
   mode?: TeamBot['mode'];
   effort?: TeamBot['effort'];
+  profile: TeamBot['profile'];
 }
 
 // What a bot imposes on a turn. The bound session wins over the frame's sessionId:
 // a tab still holding a draft key must land in the bot's one thread, not open a new one.
+// A turn driven by anyone but admin is always restricted, whatever team.json says:
+// a non-admin account can reach that file through other means, the profile it
+// stored there must not be what unlocks Bash.
+export function botTurnFor(team: TeamBot[], sessionKey: string, sessionId: string | undefined, role: Role | undefined): BotTurn | undefined {
+  const turn = botTurnParams(team, sessionKey, sessionId);
+  return turn && role !== 'admin' ? { ...turn, profile: 'restricted' } : turn;
+}
+
 export function botTurnParams(team: TeamBot[], sessionKey: string, sessionId?: string): BotTurn | undefined {
   const bot = findTurnBot(team, sessionKey, sessionId);
   if (!bot) return undefined;
@@ -61,6 +71,7 @@ export function botTurnParams(team: TeamBot[], sessionKey: string, sessionId?: s
     botId: bot.id,
     resumeId: bot.sessionId ?? sessionId,
     appendSystemPrompt: buildBotIdentity(bot, team),
+    profile: bot.profile === 'full' ? 'full' : 'restricted',
     ...(bot.model ? { model: bot.model } : {}),
     ...(bot.mode ? { mode: bot.mode } : {}),
     ...(bot.effort ? { effort: bot.effort } : {}),

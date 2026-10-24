@@ -4,6 +4,7 @@ import type { WebSocket } from 'ws';
 import type { Cron, ResumeOfferReason } from '../../shared/protocol';
 import { run, resolveMcpSelection } from '../engine/claude';
 import { runAgent } from '../agents/acp-run';
+import { restrictedModelError, stripRestricted } from '../engine/restricted-profile';
 import { isAgentModel } from '../../shared/agents';
 import { CONFIG } from '../config';
 import type { Role } from '../auth';
@@ -758,7 +759,7 @@ function bindBot(botId: string, sessionId: string): void {
 
 export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
   const { ws, sessionKey, prompt, resumeId, msgId, auto, forkId, queued, flowHop } = o;
-  const params = runParams(o);
+  const params = stripRestricted(runParams(o));
   // "Permitir todos os MCPs" chega como o sentinel '*' e é expandido AQUI, não no
   // cliente: a lista concreta fica no thread (retomada, tools.ts, sameParams) já
   // filtrada pelo role, e um MCP adicionado hoje vale no próximo turno.
@@ -773,6 +774,11 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
   if (typeof prompt !== 'string' || Buffer.byteLength(prompt) > CONFIG.maxPromptBytes) {
     if (ws) send(ws, { t: 'error', sessionKey, message: 'prompt grande demais' });
     return;
+  }
+  const profileError = restrictedModelError(params.profile, params.model);
+  if (profileError) {
+    if (ws) send(ws, { t: 'error', sessionKey, message: profileError });
+    return 'rejected';
   }
   const pane = forkId ? false : deliverToOrchestratorPane(resumeId ?? sessionKey, prompt, params.role);
   if (pane === 'delivered') {
@@ -1345,6 +1351,7 @@ async function fireBotRoutine(cron: Cron, botId: string): Promise<CronFire> {
     effort: turn.effort ?? (cron.effort || 'low'),
     botId,
     appendSystemPrompt: turn.appendSystemPrompt,
+    profile: turn.profile,
   });
   return 'started';
 }

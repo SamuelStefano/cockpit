@@ -18,11 +18,12 @@ import { runDflWrite } from '../dfl-write-runner';
 import { buildAgentTasksPrompt, agentSessionKey, MAX_NOTE_BYTES } from '../pontos-agent';
 import { buildStageDraftsPrompt } from '../pontos-stage-prompt';
 import { getCrons, saveCron, deleteCron, runCronNow, pauseBotRoutines } from '../crons';
+import { coerceBotForRole, botSaveError, visibleCrons, cronWriteError, coerceCronForRole } from './student-team';
 import { botRoutineError } from '../../shared/bot-routine';
 import { scheduleValid } from '../../shared/cron-schedule';
 import { fireCron, type CronFire } from './runs';
 import { getTeam, saveBot, deleteBot } from '../team';
-import { botTurnParams } from '../team-prompt';
+import { botTurnFor } from '../team-prompt';
 import { validateBotInput } from '../../shared/team';
 import { queueReleaseAt } from './ctx-guard';
 import { listSkills, readSkill, resolveSkillDeny, installSkill } from '../skills';
@@ -766,7 +767,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'crons-get': {
-      send(ws, { t: 'crons', items: await getCrons() });
+      send(ws, { t: 'crons', items: visibleCrons(await getCrons(), role) });
       return;
     }
     case 'cron-save': {
@@ -779,13 +780,17 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
         send(ws, { t: 'error', message: 'cron inválido' });
         return;
       }
-      const routineError = c.botId === undefined ? null : botRoutineError(c, await getTeam());
+      const coerced = coerceCronForRole(c, (await getCrons()).find((x) => x.id === c.id), role);
+      if ('error' in coerced) { send(ws, { t: 'error', message: coerced.error }); return; }
+      const routineError = coerced.cron.botId === undefined ? null : botRoutineError(coerced.cron, await getTeam());
       if (routineError) { send(ws, { t: 'error', message: routineError }); return; }
-      send(ws, { t: 'crons', items: await saveCron(c) });
+      send(ws, { t: 'crons', items: visibleCrons(await saveCron(coerced.cron), role) });
       return;
     }
     case 'cron-delete': {
-      send(ws, { t: 'crons', items: await deleteCron(msg.id) });
+      const denied = cronWriteError((await getCrons()).find((x) => x.id === msg.id), role);
+      if (denied) { send(ws, { t: 'error', message: denied }); return; }
+      send(ws, { t: 'crons', items: visibleCrons(await deleteCron(msg.id), role) });
       return;
     }
     case 'team-get': {
@@ -795,7 +800,10 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'team-save': {
       const v = validateBotInput(msg.bot);
       if (!v.ok) { send(ws, { t: 'error', message: v.error }); return; }
-      const r = await saveBot(v.bot);
+      const bot = coerceBotForRole(v.bot, role);
+      const saveError = botSaveError(bot);
+      if (saveError) { send(ws, { t: 'error', message: saveError }); return; }
+      const r = await saveBot(bot);
       if (!r.ok) { send(ws, { t: 'error', message: r.error }); return; }
       broadcast({ t: 'team', bots: r.bots });
       return;
@@ -808,10 +816,12 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'cron-run': {
+      const denied = cronWriteError((await getCrons()).find((x) => x.id === msg.id), role);
+      if (denied) { send(ws, { t: 'error', message: denied }); return; }
       let fired: Promise<CronFire> | undefined;
       const items = await runCronNow(msg.id, (c) => { fired = fireCron(c); });
       if (!items) { send(ws, { t: 'error', message: 'cron não encontrado' }); return; }
-      send(ws, { t: 'crons', items });
+      send(ws, { t: 'crons', items: visibleCrons(items, role) });
       const outcome = await fired;
       if (outcome === 'bot-busy') send(ws, { t: 'error', message: 'o bot está no meio de um turno — a rotina roda no próximo horário' });
       else if (outcome === 'bot-gone') send(ws, { t: 'error', message: 'o bot desta rotina foi removido' });
@@ -1027,7 +1037,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // Skills selecionadas pela UI viram regras de negação das NÃO-selecionadas
       // (Skill(id)). Resolvido aqui (async) e passado adiante; vazio = todas ativas.
       const disallowedSkills = await resolveSkillDeny(msg.skills);
-      const bot = botTurnParams(await getTeam(), msg.sessionKey, msg.sessionId);
+      const bot = botTurnFor(await getTeam(), msg.sessionKey, msg.sessionId, role);
       const resumeId = bot?.resumeId ?? msg.sessionId;
       // Sessão ocupada → triador decide o destino (esperar/responder/prioridade/
       // juntar). Livre → roda direto como antes.
@@ -1047,6 +1057,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
         effort: bot?.effort ?? msg.effort,
         botId: bot?.botId,
         appendSystemPrompt: bot?.appendSystemPrompt,
+        profile: bot?.profile,
         allowWorkflow: msg.allowWorkflow === true ? true : undefined,
       };
       // Server-side double-writer guard: a client-side flag (canvas prompt bar
@@ -1114,7 +1125,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
           const headless = await readBusyHeadlessElsewhereSessionIds().catch(() => [] as string[]);
           if (headless.includes(target)) {
             let parked: ReturnType<typeof addParked> | undefined;
-            try { parked = addParked(msg.sessionKey, { prompt: msg.text, resumeId, mode: opts.mode, model: opts.model, effort: opts.effort, maxBudgetUsd: msg.maxBudgetUsd, bypass: msg.bypass, role, disallowedSkills, mcps: msg.mcps, botId: opts.botId, appendSystemPrompt: opts.appendSystemPrompt }); }
+            try { parked = addParked(msg.sessionKey, { prompt: msg.text, resumeId, mode: opts.mode, model: opts.model, effort: opts.effort, maxBudgetUsd: msg.maxBudgetUsd, bypass: msg.bypass, role, disallowedSkills, mcps: msg.mcps, botId: opts.botId, appendSystemPrompt: opts.appendSystemPrompt, profile: opts.profile }); }
             catch { /* disk write failed: fall through to the refusal */ }
             if (parked && !('reject' in parked)) {
               send(ws, {
@@ -1155,7 +1166,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     // snapshot pra todos os aparelhos verem a fila mudar ao vivo.
     case 'queue-add': {
       const disallowedSkills = await resolveSkillDeny(msg.skills);
-      const bot = botTurnParams(await getTeam(), msg.sessionKey, msg.sessionId);
+      const bot = botTurnFor(await getTeam(), msg.sessionKey, msg.sessionId, role);
       const r = addParked(msg.sessionKey, {
         prompt: msg.text,
         resumeId: bot?.resumeId ?? msg.sessionId,
@@ -1164,6 +1175,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
         effort: bot?.effort ?? msg.effort,
         botId: bot?.botId,
         appendSystemPrompt: bot?.appendSystemPrompt,
+        profile: bot?.profile,
         maxBudgetUsd: msg.maxBudgetUsd,
         bypass: msg.bypass,
         role,

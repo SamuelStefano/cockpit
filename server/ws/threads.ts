@@ -1,4 +1,4 @@
-import type { ToolCall, ToolTodo } from '../../shared/protocol';
+import type { TeamProfile, ToolCall, ToolTodo } from '../../shared/protocol';
 import type { RunHandle } from '../engine/claude';
 import { CONFIG } from '../config';
 import type { Role } from '../auth';
@@ -21,6 +21,7 @@ export interface RunParams {
   allowWorkflow?: boolean;
   botId?: string;              // turn belongs to a Equipe bot: its session gets bound to the bot
   appendSystemPrompt?: string; // the bot's identity (server/team-prompt.ts), resolved at dispatch
+  profile?: TeamProfile;       // the bot's profile; 'restricted' locks tools/paths (engine/restricted-profile.ts)
 }
 
 // Lista única das chaves de RunParams. O `satisfies Record<keyof RunParams, 0>`
@@ -31,7 +32,7 @@ export interface RunParams {
 // o esforço do primeiro, calado.
 export const RUN_PARAM_KEYS = Object.keys({
   mode: 0, model: 0, maxBudgetUsd: 0, bypass: 0, role: 0,
-  disallowedSkills: 0, mcps: 0, effort: 0, allowWorkflow: 0, botId: 0, appendSystemPrompt: 0,
+  disallowedSkills: 0, mcps: 0, effort: 0, allowWorkflow: 0, botId: 0, appendSystemPrompt: 0, profile: 0,
 } satisfies Record<keyof RunParams, 0>) as (keyof RunParams)[];
 
 // Extrai só a config do turno de um objeto maior (opções do startRun, item da

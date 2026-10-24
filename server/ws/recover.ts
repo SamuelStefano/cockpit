@@ -3,6 +3,7 @@ import { withFileLock } from './file-lock';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import type { Role } from '../auth';
+import type { TeamProfile } from '../../shared/protocol';
 import type { RunParams } from './threads';
 import { coerceItem, type ParkedItem } from './parked';
 
@@ -119,6 +120,7 @@ function sanitize(p: unknown): RunParams {
     allowWorkflow: r.allowWorkflow === true ? true : undefined,
     botId: typeof r.botId === 'string' ? r.botId : undefined,
     appendSystemPrompt: typeof r.appendSystemPrompt === 'string' ? r.appendSystemPrompt : undefined,
+    profile: r.profile === 'restricted' || r.profile === 'full' ? (r.profile as TeamProfile) : undefined,
     // Todo campo do RunParams é opcional, então esquecer uma linha aqui compilaria
     // — e o param sumiria calado no boot, fazendo a retomada rodar com config
     // diferente da que o turno tinha (o oposto do que o RunParams promete). O

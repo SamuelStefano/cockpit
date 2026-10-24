@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import type { Role } from '../auth';
-import type { ParkedView } from '../../shared/protocol';
+import type { ParkedView, TeamProfile } from '../../shared/protocol';
 import { CONFIG } from '../config';
 import { withFileLock } from './file-lock';
 
@@ -40,6 +40,7 @@ export interface ParkedItem {
   mcps?: string[];
   botId?: string;
   appendSystemPrompt?: string;
+  profile?: TeamProfile;
   at: number;
   // Quantas vezes este item já voltou pra fila depois de um turno que não o consumiu.
   attempts?: number;
@@ -74,6 +75,7 @@ export function coerceItem(o: unknown): ParkedItem | null {
     mcps: Array.isArray(r.mcps) ? r.mcps.filter((x): x is string => typeof x === 'string') : undefined,
     botId: typeof r.botId === 'string' ? r.botId : undefined,
     appendSystemPrompt: typeof r.appendSystemPrompt === 'string' ? r.appendSystemPrompt : undefined,
+    profile: r.profile === 'restricted' || r.profile === 'full' ? (r.profile as TeamProfile) : undefined,
     at: typeof r.at === 'number' ? r.at : Date.now(),
     attempts: typeof r.attempts === 'number' ? r.attempts : undefined,
     held: r.held === true ? true : undefined,

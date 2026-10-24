@@ -73,4 +73,11 @@ describe('permission-mcp', () => {
     expect(frames).toHaveLength(1);
     expect(frames[0].id).toBe(2);
   });
+
+  it('--restricted denies everything even next to --allow-all, with the locked-bot reason', async () => {
+    const [write] = await talk([call('Write')], ['--restricted', '--allow-all']);
+    const d = decisionOf(write);
+    expect(d.behavior).toBe('deny');
+    expect(d.message).toMatch(/perfil travado/);
+  });
 });

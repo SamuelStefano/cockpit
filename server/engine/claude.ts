@@ -12,6 +12,9 @@ import { managedEnvSync, mcpServerDefsSync } from '../admin-ops';
 import type { Role } from '../auth';
 import { isLongContextModel } from '../../shared/long-context';
 import { ALL_MCPS } from '../../shared/mcp';
+import type { TeamProfile } from '../../shared/protocol';
+import { projectSlug } from '../config';
+import { restrictedTurn, ensureWorkspace, type RestrictedTurn } from './restricted-profile';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -43,6 +46,8 @@ export interface RunOpts {
   allowWorkflow?: boolean;
   appendSystemPrompt?: string; // Equipe bot identity (--append-system-prompt); never starts with '-' (built server-side)
   forkId?: string;             // roda em cima do transcript do `resumeId` mas GRAVA neste id novo (--fork-session). Sem isto dois processos escreveriam o mesmo JSONL.
+  botId?: string;
+  profile?: TeamProfile;       // 'restricted' = profilePermissions() below decides tools, cwd, MCPs and mode
   onEvent: (ev: ClaudeEvent) => void;
   // exit/signal são passados quando o erro veio do close do processo (não de um
   // spawn falho) — insumo do gate de OOM (D1, ws/mem-guard.ts looksLikeOomKill).
@@ -125,20 +130,27 @@ export function pickMcpDefs(all: Record<string, unknown>, names: string[], role:
 export const PERMISSION_MCP_NAME = 'deck-permission';
 export const PERMISSION_PROMPT_TOOL = `mcp__${PERMISSION_MCP_NAME}__prompt`;
 export const PERMISSION_ALLOW_ALL_FLAG = '--allow-all';
+export const PERMISSION_RESTRICTED_FLAG = '--restricted';
 
-export function permissionMcpDef(allowAll = false): Record<string, unknown> {
+export function permissionMcpDef(allowAll = false, restricted = false): Record<string, unknown> {
   const script = join(dirname(fileURLToPath(import.meta.url)), 'permission-mcp.mjs');
-  return {
-    type: 'stdio',
-    command: process.execPath,
-    args: allowAll ? [script, PERMISSION_ALLOW_ALL_FLAG] : [script],
-  };
+  const args = [script];
+  if (restricted) args.push(PERMISSION_RESTRICTED_FLAG);
+  else if (allowAll) args.push(PERMISSION_ALLOW_ALL_FLAG);
+  return { type: 'stdio', command: process.execPath, args };
 }
 
 // Escreve SEMPRE, mesmo sem MCP escolhido: o server de permissão precisa existir no
 // config pra flag apontar pra algo. `picked` nunca sobrescreve o nosso nome.
-export function mcpConfigBody(picked: Record<string, unknown>, allowAll = false): string {
-  return JSON.stringify({ mcpServers: { ...picked, [PERMISSION_MCP_NAME]: permissionMcpDef(allowAll) } });
+export function mcpConfigBody(picked: Record<string, unknown>, allowAll = false, restricted = false): string {
+  return JSON.stringify({ mcpServers: { ...picked, [PERMISSION_MCP_NAME]: permissionMcpDef(allowAll, restricted) } });
+}
+
+// The one place a bot profile changes a turn: tools, paths, cwd, env, MCPs and mode.
+// undefined = not restricted, the turn follows resolveMode as before.
+export function profilePermissions(o: Pick<RunOpts, 'profile' | 'botId' | 'mode'>): RestrictedTurn | { error: string } | undefined {
+  if (o.profile !== 'restricted') return undefined;
+  return restrictedTurn(o, projectSlug(CONFIG.workdir));
 }
 
 // Spawn do claude headless com hardening DR-004:
@@ -158,13 +170,15 @@ export function mcpConfigBody(picked: Record<string, unknown>, allowAll = false)
 // task pendente (`system/task_updated {status:"killed"}`) e sai — é por isso
 // que "eu te aviso quando terminar" nunca chegava a acontecer no Deck. Root
 // cause + comportamento verificados ao vivo com claude 2.1.281 (ver PR).
-export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills' | 'forkId' | 'allowWorkflow' | 'appendSystemPrompt'>;
+export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills' | 'forkId' | 'allowWorkflow' | 'appendSystemPrompt' | 'botId' | 'profile'>;
 
 export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: string[] } | { error: string } {
   const { resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt } = opts;
-  const resolved = resolveMode(mode, { bypass, role });
+  const restricted = profilePermissions(opts);
+  if (restricted && 'error' in restricted) return { error: restricted.error };
+  const resolved = restricted ?? resolveMode(mode, { bypass, role });
   const { permissionMode } = resolved;
-  const allow = withWorkflowGrant(resolved, allowWorkflow);
+  const allow = restricted ? restricted.allow : withWorkflowGrant(resolved, allowWorkflow);
 
   const args = [
     '-p',
@@ -179,6 +193,7 @@ export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: 
     // selecionado não paga esse overhead — era a maior diferença pro terminal.
     '--strict-mcp-config',
   ];
+  if (restricted) args.push(...restricted.args);
   if (mcpConfigPath) args.push('--mcp-config', mcpConfigPath, '--permission-prompt-tool', PERMISSION_PROMPT_TOOL);
   if (model && validModel(model)) args.push('--model', model);
   // Nível de pensamento. Sem a flag o CLI usa o default da conta (alto) e queima
@@ -195,7 +210,7 @@ export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: 
   if (allow.length) args.push('--allowedTools', [...allow].sort().join(' '));
   // Kill-switch de tools (config) + skills não-selecionadas (por-prompt) entram no
   // MESMO --disallowedTools (uma flag só; rules space-separated).
-  const deny = [...new Set([...CONFIG.disallowedTools, ...(disallowedSkills ?? [])])].sort();
+  const deny = [...new Set([...(restricted?.deny ?? []), ...CONFIG.disallowedTools, ...(disallowedSkills ?? [])])].sort();
   if (deny.length) args.push('--disallowedTools', deny.join(' '));
   if (appendSystemPrompt?.trim()) args.push('--append-system-prompt', appendSystemPrompt);
   if (resumeId) {
@@ -233,23 +248,29 @@ export function shouldCloseStdin(sawResult: boolean, pendingBackgroundTasks: num
 }
 
 export function run(opts: RunOpts): RunHandle {
-  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt, onEvent, onError, onClose } = opts;
+  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt, botId, profile, onEvent, onError, onClose } = opts;
+  const restricted = profilePermissions(opts);
+  const fail = (msg: string): RunHandle => { onError(msg); onClose(); return { kill: () => {}, send: () => false }; };
+  if (restricted && 'error' in restricted) return fail(restricted.error);
+  if (restricted && !ensureWorkspace(restricted.cwd)) return fail('perfil travado: não deu pra criar o workspace do bot');
 
   // MCP por sessão: escreve um config TEMPORÁRIO só com os servers escolhidos
   // (definições completas lidas do ~/.claude.json). Sem seleção → sem arquivo →
   // --strict-mcp-config sozinho = zero MCP. mode 600 (pode ter token nos headers).
   let mcpConfigPath: string | undefined;
   {
-    const picked = opts.mcps?.length ? pickMcpDefs(mcpServerDefsSync(), opts.mcps, role) : {};
+    // A restricted turn never loads the session's MCPs (nor the '*' sentinel): a
+    // remote MCP is a tool surface the workspace rules do not cover.
+    const picked = !restricted && opts.mcps?.length ? pickMcpDefs(mcpServerDefsSync(), opts.mcps, role) : {};
     mcpConfigPath = join(tmpdir(), `deck-mcp-${randomBytes(6).toString('hex')}.json`);
-    const allowAll = resolveMode(mode, { bypass, role }).permissionMode !== 'plan';
-    try { writeFileSync(mcpConfigPath, mcpConfigBody(picked, allowAll), { mode: 0o600 }); }
+    const allowAll = !restricted && resolveMode(mode, { bypass, role }).permissionMode !== 'plan';
+    try { writeFileSync(mcpConfigPath, mcpConfigBody(picked, allowAll, !!restricted), { mode: 0o600 }); }
     catch { mcpConfigPath = undefined; }
   }
   const cleanupMcp = () => { if (mcpConfigPath) { try { unlinkSync(mcpConfigPath); } catch { /* já removido */ } mcpConfigPath = undefined; } };
 
   const built = buildArgs({
-    prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt,
+    prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt, botId, profile,
   }, mcpConfigPath);
   if ('error' in built) {
     cleanupMcp();
@@ -264,8 +285,8 @@ export function run(opts: RunOpts): RunHandle {
   // tokens in it, until the next sweep.
   try {
     child = spawn('claude', built.args, {
-      cwd: CONFIG.workdir,
-      env: minimalEnv(),
+      cwd: restricted?.cwd ?? CONFIG.workdir,
+      env: { ...minimalEnv(), ...restricted?.env },
       shell: false,
       detached: true,
       // stdin agora é um PIPE aberto, não 'ignore': o prompt vai por stdin (uma
