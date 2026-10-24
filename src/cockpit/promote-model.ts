@@ -7,8 +7,12 @@ import { isAgentModel } from '../../shared/agents';
 export function promoteModel(list: ModelInfo[], cur: string): string {
   if (isAgentModel(cur)) return cur;
   if (list.some((m) => m.id === cur)) return cur;
+  // Only Claude models are upgrade targets: with no Claude list (no OAuth, API
+  // down) the list holds just the agents, and `list[0]` would silently move a
+  // Claude chat onto Grok.
+  const claude = list.filter((m) => !isAgentModel(m.id));
   const upgrade = ['opus', 'sonnet', 'haiku'].includes(cur)
-    ? list.find((m) => m.id.includes(cur))
-    : (list.find((m) => m.id.includes('sonnet')) ?? list[0]);
+    ? claude.find((m) => m.id.includes(cur))
+    : (claude.find((m) => m.id.includes('sonnet')) ?? claude[0]);
   return upgrade ? upgrade.id : cur;
 }

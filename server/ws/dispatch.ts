@@ -867,8 +867,8 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'refresh-models': {
       // Puxa /v1/models na hora (em vez de esperar o poll horário) e re-broadcasta
       // a lista nova pra todos, pra um modelo recém-lançado aparecer no seletor.
-      const models = await refreshModels();
-      if (models.length) broadcast({ t: 'models', models: withAgents(models) });
+      const models = withAgents(await refreshModels());
+      if (models.length) broadcast({ t: 'models', models });
       return;
     }
     case 'admin-health': {
