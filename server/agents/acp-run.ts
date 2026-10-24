@@ -33,7 +33,7 @@ export function loginHint(agentId: string, name: string, then = 'depois mande de
 }
 
 export function runAgent(opts: RunOpts): RunHandle {
-  const { prompt, resumeId, forkId, mode, model, role, onEvent, onError, onClose } = opts;
+  const { prompt, resumeId, forkId, mode, model, role, appendSystemPrompt, onEvent, onError, onClose } = opts;
   const agentId = model ? agentIdOf(model) : null;
   const agent = agentId ? findAgent(agentId) : undefined;
   const deckId = (forkId && UUID_RE.test(forkId)) ? forkId : (resumeId && UUID_RE.test(resumeId)) ? resumeId : randomUUID();
@@ -119,14 +119,18 @@ export function runAgent(opts: RunOpts): RunHandle {
         if (isAuthError(e)) throw e;
       } finally { replaying = false; }
     }
+    // ACP has no system prompt: a Equipe bot's identity rides on the first prompt of
+    // a fresh agent session, kept out of the Deck transcript the user sees.
+    let wire = prompt;
     if (!acpSessionId) {
+      if (appendSystemPrompt?.trim()) wire = `${appendSystemPrompt}\n\n---\n\n${prompt}`;
       const r = await acp.call<any>('session/new', { cwd: CONFIG.workdir, mcpServers: [] });
       if (typeof r?.sessionId !== 'string' || !r.sessionId) throw new Error('o agente não devolveu sessionId');
       acpSessionId = r.sessionId;
       await saveSessionLink(deckId, { agentId: agent.id, acpSessionId: r.sessionId }).catch(() => {});
     }
     transcript?.user(prompt);
-    const res = await acp.call<any>('session/prompt', { sessionId: acpSessionId, prompt: [{ type: 'text', text: prompt }] });
+    const res = await acp.call<any>('session/prompt', { sessionId: acpSessionId, prompt: [{ type: 'text', text: wire }] });
     if (ended) return;
     ended = true;
     const { subtype, isError } = resultSubtype(res?.stopReason);

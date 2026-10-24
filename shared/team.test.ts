@@ -25,6 +25,9 @@ describe('validateBotInput', () => {
   ])('rejects %s', (_n, raw) => {
     expect(validateBotInput(raw).ok).toBe(false);
   });
+  it('accepts an ACP agent as the bot model', () => {
+    expect(validateBotInput({ ...ok, model: 'agent:grok' })).toMatchObject({ ok: true, bot: { model: 'agent:grok' } });
+  });
   it('accepts accented names', () => {
     expect(validateBotInput({ ...ok, name: 'conversão' }).ok).toBe(true);
   });
