@@ -388,6 +388,31 @@ export interface Cron {
   lastRun?: number;
   createdAt: number;
 }
+// Bot da Equipe: um agente persistente com nome, cargo e mascote, dono de UMA thread
+// contínua (sessionId). Persistido em ~/.cockpit/team.json (server/team.ts).
+// A hierarquia (parentId) é convenção de prompt, não do sistema. `profile`
+// 'restricted' é o gancho da fatia E (tools/MCP mínimos); hoje só é gravado.
+export type MascotShape = 'drop' | 'blob' | 'tri' | 'bean';
+export interface TeamMascot { shape: MascotShape; color: string }
+export type TeamProfile = 'full' | 'restricted';
+export interface TeamBot {
+  id: string;
+  name: string;
+  label: string;
+  instructions: string;
+  mascot: TeamMascot;
+  parentId?: string;
+  primary?: boolean;
+  sessionId?: string;
+  profile: TeamProfile;
+  model?: string;
+  mode?: PermMode;
+  effort?: Effort;
+  createdAt: number;
+  updatedAt: number;
+}
+// What the browser may send: sessionId/createdAt/updatedAt are the server's.
+export type TeamBotInput = Omit<TeamBot, 'sessionId' | 'createdAt' | 'updatedAt'>;
 export interface TurnStats { costUsd?: number; durationMs?: number; numTurns?: number; model?: string }
 
 // Agente de FUNDO (Task/Agent lançado em background): espelha o terminal com
@@ -707,6 +732,9 @@ export type ClientMsg =
   | { t: 'cron-save'; cron: Cron }
   | { t: 'cron-delete'; id: string }
   | { t: 'cron-run'; id: string }
+  | { t: 'team-get' }
+  | { t: 'team-save'; bot: TeamBotInput }
+  | { t: 'team-delete'; id: string }
   | { t: 'skill-list' }
   | { t: 'skill-open'; id: string }
   | { t: 'registry-get'; refresh?: boolean }
@@ -870,6 +898,7 @@ export type ServerMsg =
   // sucesso já vem acompanhado de um canvas-board com o card.dfl atualizado.
   | { t: 'dfl-task-write'; reqId: string; ok: boolean; message?: string; taskId?: string }
   | { t: 'crons'; items: Cron[] }
+  | { t: 'team'; bots: TeamBot[] }
   | { t: 'context'; id: string; title: string; body: string }
   | { t: 'models'; models: ModelInfo[] }
   | { t: 'agents'; items: AgentView[]; presets: AgentPreset[]; customAllowed: boolean }

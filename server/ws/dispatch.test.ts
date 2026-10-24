@@ -103,6 +103,7 @@ const crons = vi.hoisted(() => ({
   getCrons: vi.fn(async () => []), saveCron: vi.fn(async () => []), deleteCron: vi.fn(async () => []),
 }));
 vi.mock('../crons', () => crons);
+vi.mock('../team', () => ({ getTeam: vi.fn(async () => []), saveBot: vi.fn(), deleteBot: vi.fn(), bindBotSession: vi.fn() }));
 const drafts = vi.hoisted(() => ({
   readDrafts: vi.fn(async () => []),
   mutateDrafts: vi.fn(async () => [{ id: 'ep-1', title: 'E', status: 'draft', createdAt: 0, tasks: [] }]),

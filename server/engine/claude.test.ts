@@ -290,6 +290,13 @@ describe('buildArgs', () => {
     expect(buildArgs({ prompt: 'x', resumeId: '../etc/passwd' })).toEqual({ error: 'sessionId inválido' });
   });
 
+  it('passes a bot identity as one --append-system-prompt argv element', () => {
+    const identity = 'Você é capo, coo.\nInstruções: "x" $(rm -rf /)';
+    expect(valAfter(argsOf({ prompt: 'x', appendSystemPrompt: identity }), '--append-system-prompt')).toBe(identity);
+    expect(argsOf({ prompt: 'x', appendSystemPrompt: '  ' })).not.toContain('--append-system-prompt');
+    expect(argsOf({ prompt: 'x' })).not.toContain('--append-system-prompt');
+  });
+
   it('forkId vira --fork-session --session-id, e só junto do --resume', () => {
     const fork = argsOf({ prompt: 'x', resumeId: '11111111-1111-1111-1111-111111111111', forkId: '22222222-2222-2222-2222-222222222222' });
     expect(fork).toContain('--fork-session');

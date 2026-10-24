@@ -30,6 +30,7 @@ import {
 } from './kill-class';
 import { authHold, isAuthFailure, markAuthBroken, AUTH_MESSAGE } from './auth-health';
 import { threadIsMarathon, MARATHON_AUTO_RESUME_CAP } from './marathon';
+import { bindBotSession } from '../team';
 import { threads, admitRun, resolveThreadKey, stopSession, stopEpochOf, clearStopEpoch, shouldPreserveLive, runParams, sameParams, type Thread, type RunParams } from './threads';
 import { isAreaAdmissionBlocked } from '../canvas/autopause-loop';
 import { enqueuePending, takePendingBatch, takeAllPending, type QueuedSend } from './pending';
@@ -747,6 +748,12 @@ function hasRoom(sessionKey: string): boolean {
   return admitRun(threads.size, threads.has(sessionKey), effCap);
 }
 
+// The first turn of a bot is where its continuous thread is born: persist the id
+// so the next turn resumes it, and tell every tab the bot now has a thread.
+function bindBot(botId: string, sessionId: string): void {
+  void bindBotSession(botId, sessionId).then((bots) => { if (bots) broadcast({ t: 'team', bots }); }, () => {});
+}
+
 export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
   const { ws, sessionKey, prompt, resumeId, msgId, auto, forkId, queued, flowHop } = o;
   const params = runParams(o);
@@ -864,6 +871,7 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
   else releaseCold(sessionKey);
 
   let live = false; // este turno já foi registrado no live-runs.json?
+  let botBound = !params.botId || !!forkId; // a fork writes a new id: it must not steal the bot's thread
   let parkedConsumed = false; // o item de fila deste turno já saiu do registro em disco?
   const thread: Thread = { handle: { kill: () => {}, send: () => false }, params, prompt, startedAt: Date.now(), sessionId: forkId ?? resumeId, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set(), flowHop };
   threads.set(sessionKey, thread);
@@ -887,6 +895,7 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
     forkId,
     onEvent: (ev) => {
       translate(sessionKey, thread, ev);
+      if (!botBound && thread.sessionId) { botBound = true; bindBot(params.botId!, thread.sessionId); }
       // The turn already answered and only waits on a background task: a restart
       // now must not resume it with "continue where you left off". If the task
       // finishes and the CLI continues, the next frame marks it live again below.
