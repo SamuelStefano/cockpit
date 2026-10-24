@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { TeamBot } from '../../shared/protocol';
 
-const runs = vi.hoisted(() => ({ startRun: vi.fn((): 'pane' | 'rejected' | undefined => undefined), isDrainerEnabled: vi.fn(() => false) }));
+const runs = vi.hoisted(() => ({ startRun: vi.fn((_o: Record<string, unknown>): 'pane' | 'rejected' | undefined => undefined), isDrainerEnabled: vi.fn(() => false) }));
 vi.mock('./runs', () => runs);
 const pending = vi.hoisted(() => ({ enqueuePending: vi.fn(() => true) }));
 vi.mock('./pending', () => pending);
@@ -38,7 +38,7 @@ describe('deliverTeamMessage', () => {
   it('starts a server turn in the bound session with the bot identity and hop', async () => {
     runs.startRun.mockImplementation(() => { threads.set(SID, fakeThread(SID)); return undefined; });
     expect(await deliverTeamMessage(msg, team)).toBe('delivered');
-    const opts = runs.startRun.mock.calls[0][0] as Record<string, unknown>;
+    const opts = runs.startRun.mock.calls[0][0];
     expect(opts).toMatchObject({
       ws: null, sessionKey: SID, resumeId: SID, botId: 'ativ1', teamHop: 2, model: 'sonnet', effort: 'low', msgId: 'team-mabc1234',
       prompt: '[Mensagem de growth-lead]\nproponha 1 ação',
