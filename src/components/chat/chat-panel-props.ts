@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { ComposerCost } from './send-cost';
 import type { Session, Message, ToolTodo } from '../../data/types';
 import type { PermMode, Effort, ModelInfo, TurnStats, Caps, SkillMeta, BgAgent } from '../../../shared/protocol';
@@ -6,6 +7,8 @@ import type { ResumeOfferView } from '../../cockpit/resume-offers';
 import type { Phase } from './useChatPanel';
 
 export interface ChatPanelProps {
+  // Live line under the thread while a turn runs (Equipe's rotating bot status).
+  turnStatus?: ReactNode;
   session: Session | null;
   messages: Message[];
   phase: Phase;

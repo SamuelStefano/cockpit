@@ -1586,7 +1586,10 @@ export function useCockpit(): Cockpit {
   // sessionId exactly like any new chat; the server binds that id to the bot.
   const onOpenBot = useCallback((botId: string, sessionId: string | undefined, title: string) => {
     const draft = botDraftKey(botId);
-    const target = sessionId ?? migratedTo.current[draft] ?? draft;
+    // The server binds the session on the turn's first frame, but the draft only
+    // migrates at `done`: switching to the sessionId mid-turn would drop the live bubble.
+    const draftLive = !migratedTo.current[draft] && (threadsRef.current[draft]?.length ?? 0) > 0;
+    const target = migratedTo.current[draft] ?? (draftLive ? draft : sessionId ?? draft);
     if (target === draft) {
       if (!(draft in threadsRef.current)) { ownNew.current.add(draft); setThreads((prev) => ({ ...prev, [draft]: [] })); }
       setSessions((prev) => prev.some((x) => x.id === draft)
