@@ -41,6 +41,7 @@ export interface RunOpts {
   mcps?: string[];             // MCP servers a CARREGAR neste turno. Default = NENHUM (strict-mcp-config). Cada server adiciona ~5-20k tokens de tool defs por chamada; carregar só os escolhidos corta o overhead que inflava a quota (vs terminal).
   effort?: string;             // nível de pensamento (--effort low|medium|high|xhigh|max). Sem isto o CLI usa o default da conta (alto) → thinking tokens caros em pedido simples. Default do Deck = low.
   allowWorkflow?: boolean;
+  appendSystemPrompt?: string; // Equipe bot identity (--append-system-prompt); never starts with '-' (built server-side)
   forkId?: string;             // roda em cima do transcript do `resumeId` mas GRAVA neste id novo (--fork-session). Sem isto dois processos escreveriam o mesmo JSONL.
   onEvent: (ev: ClaudeEvent) => void;
   // exit/signal são passados quando o erro veio do close do processo (não de um
@@ -157,10 +158,10 @@ export function mcpConfigBody(picked: Record<string, unknown>, allowAll = false)
 // task pendente (`system/task_updated {status:"killed"}`) e sai — é por isso
 // que "eu te aviso quando terminar" nunca chegava a acontecer no Deck. Root
 // cause + comportamento verificados ao vivo com claude 2.1.281 (ver PR).
-export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills' | 'forkId' | 'allowWorkflow'>;
+export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills' | 'forkId' | 'allowWorkflow' | 'appendSystemPrompt'>;
 
 export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: string[] } | { error: string } {
-  const { resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow } = opts;
+  const { resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt } = opts;
   const resolved = resolveMode(mode, { bypass, role });
   const { permissionMode } = resolved;
   const allow = withWorkflowGrant(resolved, allowWorkflow);
@@ -196,6 +197,7 @@ export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: 
   // MESMO --disallowedTools (uma flag só; rules space-separated).
   const deny = [...new Set([...CONFIG.disallowedTools, ...(disallowedSkills ?? [])])].sort();
   if (deny.length) args.push('--disallowedTools', deny.join(' '));
+  if (appendSystemPrompt?.trim()) args.push('--append-system-prompt', appendSystemPrompt);
   if (resumeId) {
     if (!UUID_RE.test(resumeId)) return { error: 'sessionId inválido' };
     args.push('--resume', resumeId);
@@ -231,7 +233,7 @@ export function shouldCloseStdin(sawResult: boolean, pendingBackgroundTasks: num
 }
 
 export function run(opts: RunOpts): RunHandle {
-  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, onEvent, onError, onClose } = opts;
+  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt, onEvent, onError, onClose } = opts;
 
   // MCP por sessão: escreve um config TEMPORÁRIO só com os servers escolhidos
   // (definições completas lidas do ~/.claude.json). Sem seleção → sem arquivo →
@@ -247,7 +249,7 @@ export function run(opts: RunOpts): RunHandle {
   const cleanupMcp = () => { if (mcpConfigPath) { try { unlinkSync(mcpConfigPath); } catch { /* já removido */ } mcpConfigPath = undefined; } };
 
   const built = buildArgs({
-    prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow,
+    prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt,
   }, mcpConfigPath);
   if ('error' in built) {
     cleanupMcp();

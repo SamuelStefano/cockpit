@@ -7,6 +7,8 @@ export const NAV: { to: Route; label: string; adminOnly?: boolean }[] = [
   { to: '/notas', label: 'notas' },
   { to: '/pontos', label: 'pontos' },
   { to: '/crons', label: 'crons' },
+  // Admin-only until fatia E: team-* frames sit outside STUDENT_ALLOWED.
+  { to: '/equipe', label: 'equipe', adminOnly: true },
   { to: '/uso', label: 'uso' },
   { to: '/play', label: 'playground' },
   { to: '/canvas', label: 'canvas', adminOnly: true },
@@ -21,12 +23,12 @@ export const navFor = (isAdmin: boolean) => NAV.filter((n) => !n.adminOnly || is
 
 // Where the inline tab strip replaces the RouteMenu dropdown. Measured with a
 // populated usage bar (header's right cluster ≈ 420px): the admin strip
-// (13 tabs, ≈ 795px) needs ≈ 1315px and the 9-tab strip (≈ 550px) ≈ 1070px, so
+// (14 tabs, ≈ 860px) needs ≈ 1380px and the 9-tab strip (≈ 550px) ≈ 1070px, so
 // xl/lg still pushed the profile menu off-screen at exactly 1280/1024. The
 // thresholds keep ~40px of slack for a longer usage label; past that the strip
 // scrolls (Header.tsx) instead of pushing the right cluster out.
 // Literal class names, so Tailwind's scanner sees them.
 export const navBreakpoint = (isAdmin: boolean) =>
   isAdmin
-    ? { strip: 'min-[1360px]:flex', menu: 'min-[1360px]:hidden' }
+    ? { strip: 'min-[1420px]:flex', menu: 'min-[1420px]:hidden' }
     : { strip: 'min-[1110px]:flex', menu: 'min-[1110px]:hidden' };

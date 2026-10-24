@@ -20,6 +20,9 @@ import { buildStageDraftsPrompt } from '../pontos-stage-prompt';
 import { getCrons, saveCron, deleteCron, runCronNow } from '../crons';
 import { scheduleValid } from '../../shared/cron-schedule';
 import { fireCron } from './runs';
+import { getTeam, saveBot, deleteBot } from '../team';
+import { botTurnParams } from '../team-prompt';
+import { validateBotInput } from '../../shared/team';
 import { queueReleaseAt } from './ctx-guard';
 import { listSkills, readSkill, resolveSkillDeny, installSkill } from '../skills';
 import { getRegistryCatalog, installFromRegistry } from '../skill-registry-runner';
@@ -782,6 +785,23 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       send(ws, { t: 'crons', items: await deleteCron(msg.id) });
       return;
     }
+    case 'team-get': {
+      send(ws, { t: 'team', bots: await getTeam() });
+      return;
+    }
+    case 'team-save': {
+      const v = validateBotInput(msg.bot);
+      if (!v.ok) { send(ws, { t: 'error', message: v.error }); return; }
+      const r = await saveBot(v.bot);
+      if (!r.ok) { send(ws, { t: 'error', message: r.error }); return; }
+      broadcast({ t: 'team', bots: r.bots });
+      return;
+    }
+    case 'team-delete': {
+      if (typeof msg.id !== 'string') { send(ws, { t: 'error', message: 'bot inválido' }); return; }
+      broadcast({ t: 'team', bots: await deleteBot(msg.id) });
+      return;
+    }
     case 'cron-run': {
       const items = await runCronNow(msg.id, fireCron);
       if (items) send(ws, { t: 'crons', items });
@@ -998,22 +1018,26 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // Skills selecionadas pela UI viram regras de negação das NÃO-selecionadas
       // (Skill(id)). Resolvido aqui (async) e passado adiante; vazio = todas ativas.
       const disallowedSkills = await resolveSkillDeny(msg.skills);
+      const bot = botTurnParams(await getTeam(), msg.sessionKey, msg.sessionId);
+      const resumeId = bot?.resumeId ?? msg.sessionId;
       // Sessão ocupada → triador decide o destino (esperar/responder/prioridade/
       // juntar). Livre → roda direto como antes.
       const opts = {
         ws,
         sessionKey: msg.sessionKey,
         prompt: msg.text,
-        resumeId: msg.sessionId,
+        resumeId,
         msgId: msg.msgId,
-        mode: msg.mode,
-        model: msg.model,
+        mode: bot?.mode ?? msg.mode,
+        model: bot?.model ?? msg.model,
         maxBudgetUsd: msg.maxBudgetUsd,
         bypass: msg.bypass,
         role,
         disallowedSkills,
         mcps: msg.mcps,
-        effort: msg.effort,
+        effort: bot?.effort ?? msg.effort,
+        botId: bot?.botId,
+        appendSystemPrompt: bot?.appendSystemPrompt,
         allowWorkflow: msg.allowWorkflow === true ? true : undefined,
       };
       // Server-side double-writer guard: a client-side flag (canvas prompt bar
@@ -1023,7 +1047,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // an interactive `claude` in it, ANY 'send' here (canvas or the normal
       // composer) would start a SECOND writer on the same transcript. Cheap:
       // only sessions with an open watch pane pay for the /proc scan.
-      const checkId = msg.sessionId ?? msg.sessionKey;
+      const checkId = resumeId ?? msg.sessionKey;
       if (await hasInteractiveClaude(checkId)) {
         // send-reject (not a plain error): the composer (canvas or main) must
         // restore the text and drop the optimistic bubble by msgId, same as
@@ -1071,7 +1095,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       //    without yielding in between means whichever 'send' resolves its
       //    await LAST always sees the OTHER's thread already registered,
       //    and gets routed to routeSend (queued) instead of replacing it.
-      const target = msg.sessionId ?? msg.sessionKey;
+      const target = resumeId ?? msg.sessionKey;
       if (!orchestratorPaneTarget(target, role)) {
         const busyElsewhere = await readBusyElsewhereSessionIds().catch(() => [] as string[]);
         if (busyElsewhere.includes(target)) {
@@ -1081,7 +1105,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
           const headless = await readBusyHeadlessElsewhereSessionIds().catch(() => [] as string[]);
           if (headless.includes(target)) {
             let parked: ReturnType<typeof addParked> | undefined;
-            try { parked = addParked(msg.sessionKey, { prompt: msg.text, resumeId: msg.sessionId, mode: msg.mode, model: msg.model, effort: msg.effort, maxBudgetUsd: msg.maxBudgetUsd, bypass: msg.bypass, role, disallowedSkills, mcps: msg.mcps }); }
+            try { parked = addParked(msg.sessionKey, { prompt: msg.text, resumeId, mode: opts.mode, model: opts.model, effort: opts.effort, maxBudgetUsd: msg.maxBudgetUsd, bypass: msg.bypass, role, disallowedSkills, mcps: msg.mcps, botId: opts.botId, appendSystemPrompt: opts.appendSystemPrompt }); }
             catch { /* disk write failed: fall through to the refusal */ }
             if (parked && !('reject' in parked)) {
               send(ws, {
@@ -1104,7 +1128,8 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // finds it by sessionId so this message reaches the real turn (routeSend's
       // triage) instead of blindly spawning a second `claude --resume` on top of
       // it (canvas review #593: double-writer from the canvas prompt bar).
-      const liveKey = resolveThreadKey(msg.sessionKey);
+      // A bot's draft key resumes the bot's bound session, which may be live under its own key.
+      const liveKey = resolveThreadKey(msg.sessionKey) ?? (bot?.resumeId ? resolveThreadKey(bot.resumeId) : undefined);
       // displayKey: routeSend's own early checks (before any 'triage' frame,
       // which is what the client's aliasRoutedKey correlation needs) fire
       // under the ROUTING key — when it differs from what this frame named,
@@ -1121,12 +1146,15 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     // snapshot pra todos os aparelhos verem a fila mudar ao vivo.
     case 'queue-add': {
       const disallowedSkills = await resolveSkillDeny(msg.skills);
+      const bot = botTurnParams(await getTeam(), msg.sessionKey, msg.sessionId);
       const r = addParked(msg.sessionKey, {
         prompt: msg.text,
-        resumeId: msg.sessionId,
-        mode: msg.mode,
-        model: msg.model,
-        effort: msg.effort,
+        resumeId: bot?.resumeId ?? msg.sessionId,
+        mode: bot?.mode ?? msg.mode,
+        model: bot?.model ?? msg.model,
+        effort: bot?.effort ?? msg.effort,
+        botId: bot?.botId,
+        appendSystemPrompt: bot?.appendSystemPrompt,
         maxBudgetUsd: msg.maxBudgetUsd,
         bypass: msg.bypass,
         role,

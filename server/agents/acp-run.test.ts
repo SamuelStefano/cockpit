@@ -18,6 +18,7 @@ vi.mock('../admin-ops', async (orig) => ({ ...(await orig<typeof import('../admi
 // asks permission, and ends the turn. LOGIN=0 makes session/new demand auth.
 const AGENT_SRC = `
 import { createInterface } from 'node:readline';
+import { appendFileSync } from 'node:fs';
 const out = (m) => process.stdout.write(JSON.stringify(m) + '\\n');
 const rl = createInterface({ input: process.stdin });
 let promptId = null;
@@ -34,6 +35,7 @@ rl.on('line', (l) => {
   }
   if (m.method === 'session/prompt') {
     promptId = m.id;
+    appendFileSync(process.argv[1] + '.prompts', JSON.stringify(m.params.prompt[0].text) + '\\n');
     const sid = m.params.sessionId;
     out({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: sid, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'olá ' + sid } } } });
     out({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: sid, update: { sessionUpdate: 'tool_call', toolCallId: 't1', title: 'ls', kind: 'execute', status: 'pending', rawInput: { command: 'ls' } } } });
@@ -124,6 +126,18 @@ describe('runAgent', () => {
     expect(again.events[0].session_id).toBe(sid);
     expect(again.events.some((e) => e.event?.delta?.text === 'REPLAY')).toBe(false);
     expect(readFileSync(file, 'utf8').trim().split('\n')).toHaveLength(8);
+  });
+
+  it("puts a bot's identity on the first prompt of a fresh session only, never in the transcript", async () => {
+    const log = fakeAgent + '.prompts';
+    rmSync(log, { force: true });
+    const first = await turn({ appendSystemPrompt: 'Você é capo' });
+    const sid = first.events[0].session_id;
+    await turn({ resumeId: sid, appendSystemPrompt: 'Você é capo' });
+    const sent = readFileSync(log, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    expect(sent[0]).toBe('Você é capo\n\n---\n\noi');
+    expect(sent[1]).toBe('oi');
+    expect(readFileSync(join(root, 'projects', `${sid}.jsonl`), 'utf8')).not.toContain('Você é capo');
   });
 
   it('rejects tools in plan mode', async () => {

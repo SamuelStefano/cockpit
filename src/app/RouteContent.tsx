@@ -4,7 +4,7 @@ import { DesktopLayout } from './DesktopLayout';
 import { SkeletonCards } from '../components/primitives';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
-  Contextos, Skills, Notas, Pontos, Crons, Observatorio,
+  Contextos, Skills, Notas, Pontos, Crons, Equipe, Observatorio,
   Graph, Canvas, Harness, Admin, Docs, DesignSystem, Playground,
 } from './lazyRoutes';
 import type { SessionsPanelProps } from '../components/Sessions';
@@ -89,6 +89,14 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
         <Crons connected={connected} crons={c.crons} loaded={c.cronsLoaded}
           onCronsGet={c.onCronsGet} onCronSave={c.onCronSave} onCronDelete={c.onCronDelete} onCronRun={c.onCronRun}
           planUsage={c.planUsage} models={c.models} />
+      );
+    }
+    if (route === '/equipe' && isAdmin) {
+      return (
+        <Equipe connected={connected} isMobile={isMobile} bots={c.bots} teamLoaded={c.teamLoaded}
+          onTeamGet={c.onTeamGet} onTeamSave={c.onTeamSave} onTeamDelete={c.onTeamDelete} onOpenBot={c.onOpenBot}
+          sessions={c.sessions} running={c.running} activeId={c.activeId} phase={c.phase} interrupted={c.interrupted}
+          runStart={c.runStart} models={c.models} chatProps={chatProps} />
       );
     }
     if (route === '/uso') {
