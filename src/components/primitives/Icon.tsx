@@ -7,7 +7,7 @@ export type IconName =
   | 'panelRight' | 'circle' | 'user' | 'copy' | 'command' | 'grip' | 'download' | 'paperclip' | 'clock' | 'star' | 'file' | 'tag'
   | 'shield' | 'shield-off' | 'mic' | 'image' | 'camera' | 'sliders' | 'volume' | 'wrapText' | 'smartphone'
   | 'monitor' | 'tablet' | 'maximize' | 'minimize' | 'code' | 'link' | 'layers'
-  | 'split' | 'move' | 'external' | 'alertTriangle' | 'ellipsis';
+  | 'split' | 'move' | 'external' | 'alertTriangle' | 'ellipsis' | 'swap';
 
 const ICON_PATHS: Record<IconName, ReactNode> = {
   terminal: <><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></>,
@@ -20,6 +20,7 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
   chevronDown: <polyline points="6 9 12 15 18 9" />,
   chevronUp: <polyline points="18 15 12 9 6 15" />,
   chevronRight: <polyline points="9 6 15 12 9 18" />,
+  swap: <><polyline points="16 3 20 7 16 11" /><line x1="20" y1="7" x2="4" y2="7" /><polyline points="8 21 4 17 8 13" /><line x1="4" y1="17" x2="20" y2="17" /></>,
   chevronLeft: <polyline points="15 6 9 12 15 18" />,
   check: <polyline points="20 6 9 17 4 12" />,
   x: <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>,
