@@ -10,6 +10,8 @@ vi.mock('@xterm/xterm', () => ({
     loadAddon() {}
     open(el: HTMLElement) { opened.push(el); }
     onData() { return { dispose() {} }; }
+    attachCustomKeyEventHandler() {}
+    hasSelection() { return false; }
     focus() {}
     write() {}
     reset() {}

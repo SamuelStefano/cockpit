@@ -110,6 +110,18 @@ export function listTerms(): Promise<string[]> {
   });
 }
 
+// A kept-alive PTY still has the size of whoever opened it last (the xterm default
+// 80x24 before its first fit, or another device), and tmux sizes its client from
+// that. Reattaching must carry the new client's size; when it is unchanged the
+// replayed snapshot may still hold a stale cursor, so a one-row wobble makes tmux
+// redraw the whole screen (SIGWINCH).
+export function syncPtySize(pty: Pick<IPty, 'cols' | 'rows' | 'resize'>, cols: number, rows: number): void {
+  if (pty.cols !== cols || pty.rows !== rows) { pty.resize(cols, rows); return; }
+  if (rows <= 1) return;
+  pty.resize(cols, rows - 1);
+  setTimeout(() => { try { pty.resize(cols, rows); } catch { /* pty exited meanwhile */ } }, 0);
+}
+
 export function openTerm(
   id: string,
   cols: number,
@@ -124,6 +136,7 @@ export function openTerm(
   if (!args) return false;
 
   let t = terms.get(id);
+  const reused = !!t;
   if (!t) {
     // Teto conta só terminais ANEXADOS (com listeners). PTYs detached ficam no mapa
     // pro replay no reattach, mas não devem travar a criação de novos — 50 detached
@@ -163,6 +176,9 @@ export function openTerm(
   // reset() antes de repintar, então reattach/reconnect não DUPLICA a tela.
   // Emitido após registrar onData, então a ordem replay -> live é preservada.
   if (t.buffer) onReplay(trimBuffer(t.buffer));
+  // After the replay on purpose: the client resets its screen on term-replay, so a
+  // repaint emitted before it would be wiped. The tmux redraw lands async, after.
+  if (reused) syncPtySize(t.pty, clampDim(cols, 80), clampDim(rows, 24));
   return true;
 }
 

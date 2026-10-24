@@ -1,5 +1,6 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
-import { Icon, tokens } from './primitives';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { Button, Icon, tokens } from './primitives';
+import type { TerminalClipboardApi } from './useTerminalClipboard';
 import type { Terminal } from '../data/types';
 import type { TermApi } from '../useCockpit';
 
@@ -32,6 +33,7 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
     const t = setTimeout(() => setKillArmed(null), 3000);
     return () => clearTimeout(t);
   }, [killArmed]);
+  const clipboardRef = useRef<TerminalClipboardApi | null>(null);
   const armOrKill = (id: string) => { if (killArmed === id) { setKillArmed(null); onClose(id); } else setKillArmed(id); };
 
   return (
@@ -71,14 +73,14 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
               </button>
             );
           })}
-          <button
-            onClick={onAdd}
-            title="Novo terminal"
-            aria-label="Novo terminal"
-            className="flex shrink-0 items-center justify-center rounded-md p-1.5 text-neutral-500 transition hover:bg-neutral-900 hover:text-orange-400"
-          >
-            <Icon name="plus" size={14} />
-          </button>
+            <button
+              onClick={onAdd}
+              title="Novo terminal"
+              aria-label="Novo terminal"
+              className="flex shrink-0 items-center justify-center rounded-md p-1.5 text-neutral-500 transition hover:bg-neutral-900 hover:text-orange-400"
+            >
+              <Icon name="plus" size={14} />
+            </button>
           {attachable.length > 0 && onAttach && (
             <>
               <span className="mx-1 h-4 w-px shrink-0 bg-neutral-800" />
@@ -105,7 +107,7 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
       <div className="relative min-h-0 flex-1">
         {active ? (
           <Suspense fallback={<div className="flex h-full items-center justify-center font-mono text-[12px] text-neutral-600">abrindo terminal…</div>}>
-            <XtermView key={active.id} id={active.id} term={term} />
+            <XtermView key={active.id} id={active.id} term={term} clipboardRef={clipboardRef} />
           </Suspense>
         ) : (
           <div className="flex h-full items-center justify-center text-[12px] text-neutral-600">nenhum terminal aberto</div>
@@ -120,13 +122,17 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
           {active && <span className="text-neutral-600">cockpit-{active.id}</span>}
         </div>
         {active && (
-          <button
-            onClick={() => armOrKill(active.id)}
-            title="Encerra a sessão tmux"
-            className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition ${killArmed === active.id ? 'border-red-500/60 bg-red-500/15 text-red-300' : 'border-neutral-700 text-neutral-300 hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400'}`}
-          >
-            <Icon name="trash" size={11} /> {killArmed === active.id ? 'confirmar?' : 'matar'}
-          </button>
+          <div className="flex items-center gap-1.5">
+            <Button variant="ghost" size="xs" icon="copy" title="Copia a seleção · Ctrl+Shift+C" onClick={() => void clipboardRef.current?.copy()}>Copiar</Button>
+            <Button variant="ghost" size="xs" icon="clipboard" title="Cola no terminal · Ctrl+Shift+V · botão direito" onClick={() => void clipboardRef.current?.paste()}>Colar</Button>
+            <button
+              onClick={() => armOrKill(active.id)}
+              title="Encerra a sessão tmux"
+              className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition ${killArmed === active.id ? 'border-red-500/60 bg-red-500/15 text-red-300' : 'border-neutral-700 text-neutral-300 hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400'}`}
+            >
+              <Icon name="trash" size={11} /> {killArmed === active.id ? 'confirmar?' : 'matar'}
+            </button>
+          </div>
         )}
       </div>
     </div>
