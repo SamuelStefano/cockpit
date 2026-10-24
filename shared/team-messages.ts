@@ -108,3 +108,15 @@ export function coerceTeamMessage(raw: unknown): TeamMessage | null {
   if (typeof r.reason === 'string') m.reason = r.reason;
   return m;
 }
+
+export const MAX_CLIENT_TEAM_MSGS = 1000;
+
+// Folds a page or a live frame into what the browser holds: one entry per id,
+// oldest first, capped so a chatty team cannot grow the tab without bound.
+export function mergeTeamMessages(prev: TeamMessage[], items: TeamMessage[], cap = MAX_CLIENT_TEAM_MSGS): TeamMessage[] {
+  if (!items.length) return prev;
+  const byId = new Map(prev.map((m) => [m.id, m]));
+  for (const m of items) byId.set(m.id, m);
+  const all = [...byId.values()].sort((a, b) => a.ts - b.ts);
+  return all.length > cap ? all.slice(-cap) : all;
+}

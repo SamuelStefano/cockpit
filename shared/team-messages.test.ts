@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { judgeTeamMessage, groupTeamTraffic, teamPrompt, teamPromptSender, trafficLine, coerceTeamMessage, MAX_TEAM_HOPS, MAX_TEAM_MSGS_PER_HOUR, type TeamMessage } from './team-messages';
+import { judgeTeamMessage, groupTeamTraffic, mergeTeamMessages, teamPrompt, teamPromptSender, trafficLine, coerceTeamMessage, MAX_TEAM_HOPS, MAX_TEAM_MSGS_PER_HOUR, type TeamMessage } from './team-messages';
 
 const msg = (id: string, from: string, to: string, ts: number): TeamMessage => ({ id, from, to, text: id, ts, status: 'delivered', hop: 1 });
 
@@ -63,5 +63,13 @@ describe('coerceTeamMessage', () => {
   it('drops malformed lines', () => {
     expect(coerceTeamMessage({ id: 'm1', from: 'a', to: 'b', text: 'x', ts: 1, hop: 1, status: 'nope' })).toBeNull();
     expect(coerceTeamMessage({ id: 'm1', from: 'a', to: 'b', text: 'x', ts: 1, hop: 1, status: 'blocked', reason: 'r' })).toMatchObject({ reason: 'r' });
+  });
+});
+
+describe('mergeTeamMessages', () => {
+  it('dedupes by id, sorts by time and caps from the oldest', () => {
+    const merged = mergeTeamMessages([msg('b', 'x', 'y', 2), msg('a', 'x', 'y', 1)].sort((p, q) => p.ts - q.ts), [msg('c', 'x', 'y', 3), { ...msg('a', 'x', 'y', 1), status: 'blocked' }], 2);
+    expect(merged.map((m) => m.id)).toEqual(['b', 'c']);
+    expect(mergeTeamMessages([msg('a', 'x', 'y', 1)], [msg('a', 'x', 'y', 1)])[0].status).toBe('delivered');
   });
 });

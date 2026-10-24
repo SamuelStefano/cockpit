@@ -9,17 +9,27 @@ interface TeamRosterProps {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onNew: () => void;
+  paused: boolean;
+  onPauseSet: (paused: boolean) => void;
 }
 
-export function TeamRoster({ views, loaded, selectedId, onSelect, onNew }: TeamRosterProps) {
+export function TeamRoster({ views, loaded, selectedId, onSelect, onNew, paused, onPauseSet }: TeamRosterProps) {
   const primary = views.find((v) => v.bot.primary);
   const rest = views.filter((v) => v !== primary);
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-3 pb-2 pt-3">
         <h1 className="text-[13px] font-semibold uppercase tracking-wide text-neutral-500">Equipe</h1>
-        <Button variant="ghost" size="sm" icon="plus" square aria-label="Novo bot" title="Novo bot" onClick={onNew} />
+        <div className="flex items-center gap-1">
+          <Button variant={paused ? 'outline' : 'ghost'} size="xs" icon={paused ? 'play' : 'pause'} aria-pressed={paused}
+            title={paused ? 'Bots voltam a trocar mensagens' : 'Congela as mensagens entre bots (as novas ficam bloqueadas)'}
+            onClick={() => onPauseSet(!paused)}>
+            {paused ? 'Retomar equipe' : 'Pausar equipe'}
+          </Button>
+          <Button variant="ghost" size="sm" icon="plus" square aria-label="Novo bot" title="Novo bot" onClick={onNew} />
+        </div>
       </div>
+      {paused && <p className="px-3 pb-2 text-[12px] text-yellow-400/90">Equipe pausada: mensagens entre bots ficam bloqueadas.</p>}
       {!loaded ? (
         <div className="p-3"><SkeletonCards /></div>
       ) : views.length === 0 ? (

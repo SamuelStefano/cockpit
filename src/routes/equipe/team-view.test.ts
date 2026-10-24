@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { botView, botChatKey, orderBots, type TeamViewCtx } from './team-view';
+import { botView, botChatKey, orderBots, lastTrafficByBot, type TeamViewCtx } from './team-view';
 import type { TeamBot } from '../../../shared/protocol';
 import type { Session } from '../../data/types';
 
@@ -43,5 +43,25 @@ describe('botView', () => {
     expect(botView(bot, ctx({ sessions: [session(SID, { waiting: true })] })).state).toBe('waiting');
     expect(botView(bot, ctx({ interrupted: { [SID]: 'max_turns' } })).state).toBe('blocked');
     expect(botView(bot, ctx({ sessions: [session(SID, { lastTurnOk: true, mtime: 900 })] })).state).toBe('done');
+  });
+});
+
+describe('traffic preview', () => {
+  const m = (id: string, from: string, to: string, ts: number) => ({ id, from, to, text: `t${id}`, ts, status: 'delivered' as const, hop: 1 });
+  const nameOf = (id: string) => id.toUpperCase();
+
+  it('keeps the newest message per bot, sender and recipient alike', () => {
+    const last = lastTrafficByBot([m('1', 'a', 'b', 1), m('2', 'c', 'a', 2)]);
+    expect(last.a.id).toBe('2');
+    expect(last.b.id).toBe('1');
+    expect(last.c.id).toBe('2');
+  });
+
+  it('previews a newer bot message over the thread snippet', () => {
+    const bot = mk('lead1', { sessionId: SID });
+    const v = botView(bot, ctx({ sessions: [session(SID, { mtime: 500 })], lastTraffic: { lead1: m('1', 'lead1', 'ativ1', 900) }, nameOf }));
+    expect(v.preview).toBe('Mandou para ATIV1: t1');
+    const older = botView(bot, ctx({ sessions: [session(SID, { mtime: 500 })], lastTraffic: { lead1: m('1', 'ativ1', 'lead1', 100) }, nameOf }));
+    expect(older.preview).toBe('última fala');
   });
 });
