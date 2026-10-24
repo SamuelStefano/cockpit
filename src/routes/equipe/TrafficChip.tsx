@@ -12,10 +12,12 @@ export function TrafficChip({ message, outgoing, peer, peerId, onOpen }: Traffic
       {message.status === 'queued' && <Badge tone="yellow">na fila</Badge>}
       {message.status === 'failed' && <Badge tone="red" title={message.reason}>não entregue</Badge>}
       <Button variant="ghost" size="xs" onClick={() => onOpen(peerId)} title={message.text.slice(0, 200)}>
-        {outgoing ? 'Mandou para' : 'Mensagem de'}
-        <Icon name="chevronRight" size={11} />
-        {peer && <Mascot mascot={peer.mascot} size={14} name={peer.name} />}
-        <span className="text-neutral-300">{peer?.name ?? peerId}</span>
+        <span className="inline-flex items-center gap-1">
+          {outgoing ? 'Mandou para' : 'Mensagem de'}
+          <Icon name="chevronRight" size={11} />
+          {peer && <Mascot mascot={peer.mascot} size={14} name={peer.name} />}
+          <span className="text-neutral-300">{peer?.name ?? peerId}</span>
+        </span>
       </Button>
     </div>
   );
