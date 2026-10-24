@@ -75,7 +75,7 @@ export const AGENT_PRESETS: AgentPreset[] = [
       {
         title: 'Entrar com a conta da assinatura',
         command: 'grok login --device-auth',
-        hint: 'Rode num Terminal do Deck. Ele mostra um link e um código: abra no celular ou no PC, logado na conta do SuperGrok, e confirme.',
+        hint: 'Rode num Terminal do Deck. Ele mostra um link e um código: abra no celular ou no PC, logado na conta do SuperGrok, e confirme. Se o teste falar em "Privacy Mode", rode `grok`, digite /privacy e escolha uma opção.',
       },
       ACP_TEST_STEP,
     ],
