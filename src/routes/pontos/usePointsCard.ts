@@ -19,7 +19,8 @@ export function usePointsCard({ entry, onCorrect, onNote, onDelete }: Args) {
   useEffect(() => () => { if (confirmTimer.current) clearTimeout(confirmTimer.current); }, []);
 
   const savePts = () => {
-    const n = Number(ptsDraft);
+    // Comma decimals ("2,5") are how this is typed in pt-BR; Number() made them NaN.
+    const n = Number(ptsDraft.replace(',', '.'));
     setEditPts(false);
     if (Number.isFinite(n) && n >= 0 && n <= 100_000 && n !== entry.points) onCorrect(entry.entryId, n);
     else setPtsDraft(String(entry.points));
