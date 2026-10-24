@@ -1,4 +1,5 @@
 import type { ModelInfo } from '../../../shared/protocol';
+import { isAgentModel } from '../../../shared/agents';
 import { modelFamily } from './toolbar-format';
 
 // Versão concreta do agente, puxada de /v1/models pelo backend. Sem a lista
@@ -29,4 +30,8 @@ export function modelOptions(models: ModelInfo[], current: string, extra: ModelI
   const fam = modelFamily(current);
   const covered = opts.some((o) => o.id === current) || (fam && opts.some((o) => modelFamily(o.id) === fam));
   return covered ? opts : [{ id: current, displayName: current }, ...opts];
+}
+
+export function splitAgentModels(opts: ModelInfo[]): { models: ModelInfo[]; agents: ModelInfo[] } {
+  return { models: opts.filter((o) => !isAgentModel(o.id)), agents: opts.filter((o) => isAgentModel(o.id)) };
 }

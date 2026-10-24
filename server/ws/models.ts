@@ -3,6 +3,8 @@ import { broadcast } from './broadcast';
 import { readOAuthToken, OAUTH_BETA } from '../oauth';
 import { CONFIG } from '../config';
 import { isLongContextModel } from '../../shared/long-context';
+import { agentModelId } from '../../shared/agents';
+import { listAgentsSync } from '../agents/store';
 
 // Modelos concretos disponíveis na conta (claude-opus-4-8, etc). Lê o token OAuth
 // do CLI e consulta /v1/models. SEGURANÇA: o token NUNCA sai do servidor — só a
@@ -18,7 +20,15 @@ const RETRY_MS = 30_000;
 const MAX_FAST_RETRIES = 12;
 
 let last: ModelInfo[] = [];
-export function getLastModels() { return last; }
+export function getLastModels() { return withAgents(last); }
+
+// Connected ACP agents ride the same list as the Claude models, so picking one
+// in a session is just choosing a model. Only sent once Claude's list is known:
+// the client treats an empty list as "keep the fallback aliases".
+export function withAgents(list: ModelInfo[]): ModelInfo[] {
+  if (!list.length) return list;
+  return [...list, ...listAgentsSync().map((a) => ({ id: agentModelId(a.id), displayName: `${a.name} · agente` }))];
+}
 
 // Busca e memoiza a lista (sem broadcast). Usado pelo agente T3 (dial), que não tem
 // um WebSocketServer pra rodar o startModelsLoop do modo listen — ele chama isto e
@@ -84,7 +94,7 @@ export function startModelsLoop(hasClients: () => boolean) {
     if (m && m.length) {
       last = m;
       fastRetries = 0;
-      broadcast({ t: 'models', models: m });
+      broadcast({ t: 'models', models: withAgents(m) });
       return;
     }
     // Falhou e ainda nem temos uma lista: re-tenta rápido (token em refresh/rede)
