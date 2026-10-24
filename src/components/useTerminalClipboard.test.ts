@@ -23,8 +23,11 @@ describe('clipboardKeyAction', () => {
     expect(clipboardKeyAction(key('V', { ctrlKey: true, shiftKey: true }), false)).toBe('paste');
   });
 
-  it('leaves Ctrl+V and Cmd+V to the native paste event', () => {
-    expect(clipboardKeyAction(key('v', { ctrlKey: true }), false)).toBeNull();
+  it('pastes on plain Ctrl+V', () => {
+    expect(clipboardKeyAction(key('v', { ctrlKey: true }), false)).toBe('paste');
+  });
+
+  it('leaves Cmd+V to the native paste event', () => {
     expect(clipboardKeyAction(key('v', { metaKey: true }), false)).toBeNull();
   });
 

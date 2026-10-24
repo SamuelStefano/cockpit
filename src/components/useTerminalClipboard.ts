@@ -19,10 +19,9 @@ interface KeyLike {
 }
 
 // Plain Ctrl+C only copies while text is selected, otherwise it stays ^C (SIGINT).
-// Ctrl+V and Cmd+V are deliberately NOT handled: the browser's native paste event
-// reaches xterm's textarea on its own, and intercepting them too would paste twice.
-// Ctrl+Shift+V is handled because browsers also fire a native paste for it, which
-// the handler cancels with preventDefault before pasting from the clipboard API.
+// Ctrl+V and Ctrl+Shift+V both paste through the clipboard API; the handler cancels
+// the keydown so the browser's native paste does not fire a second time. Cmd+V is
+// left to the native paste event for the same reason. ^V (quoted-insert) is given up.
 export function clipboardKeyAction(e: KeyLike, hasSelection: boolean): ClipboardKeyAction {
   if (e.type !== 'keydown' || e.altKey) return null;
   const key = e.key.toLowerCase();
@@ -31,7 +30,7 @@ export function clipboardKeyAction(e: KeyLike, hasSelection: boolean): Clipboard
     if (e.metaKey && !e.ctrlKey && !e.shiftKey) return 'copy';
     if (e.ctrlKey && !e.shiftKey && !e.metaKey && hasSelection) return 'copy';
   }
-  if (key === 'v' && e.ctrlKey && e.shiftKey && !e.metaKey) return 'paste';
+  if (key === 'v' && e.ctrlKey && !e.metaKey) return 'paste';
   return null;
 }
 

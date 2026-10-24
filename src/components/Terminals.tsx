@@ -124,7 +124,7 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
         {active && (
           <div className="flex items-center gap-1.5">
             <Button variant="ghost" size="xs" icon="copy" title="Copia a seleção · Ctrl+Shift+C" onClick={() => void clipboardRef.current?.copy()}>Copiar</Button>
-            <Button variant="ghost" size="xs" icon="clipboard" title="Cola no terminal · Ctrl+Shift+V · botão direito" onClick={() => void clipboardRef.current?.paste()}>Colar</Button>
+            <Button variant="ghost" size="xs" icon="clipboard" title="Ctrl+V / Ctrl+Shift+V colam · botão direito" onClick={() => void clipboardRef.current?.paste()}>Colar</Button>
             <button
               onClick={() => armOrKill(active.id)}
               title="Encerra a sessão tmux"
