@@ -2,7 +2,9 @@ import { useCallback, useRef, useState } from 'react';
 import type { ClientMsg, DflPointsSnapshot, PointsEntry, ServerMsg } from '../../shared/protocol';
 import type { DflDraft, DraftOp } from '../../shared/dfl-drafts';
 
-export interface DflWriteResult { ok: boolean; message?: string; taskId?: string }
+// `unknown`: the frame went out but no reply came back in time — the write may or
+// may not have landed. Never safe to blindly retry a money write after this.
+export interface DflWriteResult { ok: boolean; message?: string; taskId?: string; unknown?: boolean }
 
 export interface DflChange {
   taskId: string; taskName: string; currentPoints: number; newPoints: number; reason?: string;
@@ -110,7 +112,7 @@ export function usePoints(send: (m: ClientMsg) => boolean): Points {
       writeResolvers.current.set(reqId, resolve);
       if (!send(m)) { writeResolvers.current.delete(reqId); resolve({ ok: false, message: 'sem conexão com o backend' }); return; }
       setTimeout(() => {
-        if (writeResolvers.current.has(reqId)) { writeResolvers.current.delete(reqId); resolve({ ok: false, message: 'tempo esgotado' }); }
+        if (writeResolvers.current.has(reqId)) { writeResolvers.current.delete(reqId); resolve({ ok: false, unknown: true, message: 'sem resposta a tempo — pode ter sido gravado' }); }
       }, WRITE_TIMEOUT_MS);
     }), [send]);
 
