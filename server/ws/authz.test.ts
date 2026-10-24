@@ -61,4 +61,10 @@ describe('authorize', () => {
       expect(authorize('admin', t)).toBe(true);
     }
   });
+
+  it('student uses the Equipe: team and cron frames pass authz (dispatch coerces them, ws/student-team.ts)', () => {
+    for (const t of ['team-get', 'team-save', 'team-delete', 'crons-get', 'cron-save', 'cron-delete', 'cron-run'] as const) {
+      expect(authorize('student', t)).toBe(true);
+    }
+  });
 });

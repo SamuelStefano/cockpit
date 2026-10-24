@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest';
-import { readdirSync, rmSync } from 'node:fs';
+import { readdirSync, rmSync, readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 
@@ -18,9 +19,13 @@ vi.mock('node:os', async (orig) => {
 
 // `claude` é um binário REAL na máquina do Samuel: sem este mock os testes de run()
 // subiriam um turno de verdade e queimariam token.
-const spawned = vi.hoisted(() => ({ child: null as FakeChild | null, throws: null as Error | null }));
+const spawned = vi.hoisted(() => ({ child: null as FakeChild | null, throws: null as Error | null, last: null as { args: string[]; opts: { cwd?: string; env?: Record<string, string | undefined> } } | null }));
 vi.mock('node:child_process', () => ({
-  spawn: () => { if (spawned.throws) throw spawned.throws; return spawned.child; },
+  spawn: (_cmd: string, args: string[], opts: { cwd?: string; env?: Record<string, string | undefined> }) => {
+    spawned.last = { args, opts };
+    if (spawned.throws) throw spawned.throws;
+    return spawned.child;
+  },
   execFileSync: () => '',
 }));
 
@@ -32,9 +37,9 @@ class FakeChild extends EventEmitter {
   kill = vi.fn();
 }
 
-import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run, effectiveBudget, pickMcpDefs, resolveMcpSelection, validModel, withWorkflowGrant, mcpConfigBody, encodeUserLine, shouldCloseStdin, PERMISSION_MCP_NAME, PERMISSION_PROMPT_TOOL, sweepMcpConfigs, MCP_CONFIG_GRACE_MS } from './claude';
+import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run, effectiveBudget, pickMcpDefs, resolveMcpSelection, validModel, withWorkflowGrant, mcpConfigBody, encodeUserLine, shouldCloseStdin, PERMISSION_MCP_NAME, PERMISSION_PROMPT_TOOL, sweepMcpConfigs, MCP_CONFIG_GRACE_MS, profilePermissions } from './claude';
 import { ALL_MCPS } from '../../shared/mcp';
-import { CONFIG } from '../config';
+import { CONFIG, projectSlug } from '../config';
 
 beforeEach(() => { managed = {}; });
 
@@ -646,6 +651,71 @@ describe('sweepMcpConfigs', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('restricted bot turn (fatia E)', () => {
+  const prevBots = process.env.COCKPIT_BOTS_DIR;
+  beforeEach(() => { process.env.COCKPIT_BOTS_DIR = join(tmp.dir, 'bots'); });
+  afterEach(() => {
+    if (prevBots === undefined) delete process.env.COCKPIT_BOTS_DIR; else process.env.COCKPIT_BOTS_DIR = prevBots;
+    mcpDefs = {};
+  });
+  const ws = () => join(tmp.dir, 'bots', 'abcd1', 'workspace');
+  const restrictedArgs = (o: Partial<Parameters<typeof buildArgs>[0]> = {}) =>
+    argsOf({ prompt: 'oi', botId: 'abcd1', profile: 'restricted', mode: 'auto', ...o });
+
+  it('no Bash anywhere in the allow-list, and Bash denied explicitly', () => {
+    const args = restrictedArgs({ mode: 'acceptEdits' });
+    const allow = valAfter(args, '--allowedTools')!.split(' ');
+    expect(allow.some((t) => /^(Bash|BashOutput|KillShell|NotebookEdit)\b/.test(t))).toBe(false);
+    const deny = valAfter(args, '--disallowedTools')!.split(' ');
+    for (const t of ['Bash', 'BashOutput', 'KillShell', 'NotebookEdit']) expect(deny).toContain(t);
+    expect(valAfter(args, '--tools')!.split(' ')).not.toContain('Bash');
+    expect(args).toContain('--restricted');
+  });
+
+  it('file tools only with rules pinned to the workspace', () => {
+    const allow = valAfter(restrictedArgs(), '--allowedTools')!.split(' ');
+    const fileRules = allow.filter((t) => /^(Read|Edit|Write)/.test(t));
+    expect(fileRules).toEqual([`Edit(/${ws()}/**)`, `Read(/${ws()}/**)`, `Write(/${ws()}/**)`]);
+  });
+
+  it('bypass, acceptEdits and the workflow grant never survive', () => {
+    const prev = { allow: CONFIG.allowBypass, local: CONFIG.localOnly };
+    CONFIG.allowBypass = true; CONFIG.localOnly = true;
+    try {
+      const args = restrictedArgs({ bypass: true, role: 'admin', mode: 'acceptEdits', allowWorkflow: true });
+      expect(valAfter(args, '--permission-mode')).toBe('default');
+      expect(valAfter(args, '--allowedTools')!.split(' ')).not.toContain('Workflow');
+    } finally { CONFIG.allowBypass = prev.allow; CONFIG.localOnly = prev.local; }
+  });
+
+  it('a full bot keeps the normal allow-list (Bash included)', () => {
+    const args = argsOf({ prompt: 'oi', botId: 'abcd1', profile: 'full', mode: 'auto' });
+    expect(args).not.toContain('--restricted');
+    expect(valAfter(args, '--allowedTools')!.split(' ')).toContain('Bash');
+  });
+
+  it('a restricted turn without a valid bot fails closed', () => {
+    expect(buildArgs({ prompt: 'oi', profile: 'restricted' })).toEqual({ error: expect.stringMatching(/workspace/) });
+    expect(profilePermissions({ profile: 'full', botId: 'abcd1' })).toBeUndefined();
+  });
+
+  it('run(): spawns in the workspace (created on demand), project dir pinned, no MCP of the session, permission server without --allow-all', () => {
+    spawned.child = new FakeChild();
+    mcpDefs = { supabase: { type: 'http', url: 'https://x' } };
+    run({ prompt: 'oi', botId: 'abcd1', profile: 'restricted', mode: 'auto', mcps: ['supabase', ALL_MCPS], onEvent: () => {}, onError: () => {}, onClose: () => {} });
+    const { args, opts } = spawned.last!;
+    expect(opts.cwd).toBe(ws());
+    expect(existsSync(ws())).toBe(true);
+    expect(opts.env?.CLAUDE_CODE_PROJECT_DIR_NAME).toBe(projectSlug(CONFIG.workdir));
+    expect(opts.env?.ANTHROPIC_API_KEY).toBe('');
+    const servers = JSON.parse(readFileSync(valAfter(args, '--mcp-config')!, 'utf8')).mcpServers;
+    expect(Object.keys(servers)).toEqual([PERMISSION_MCP_NAME]);
+    expect(servers[PERMISSION_MCP_NAME].args).toContain('--restricted');
+    expect(servers[PERMISSION_MCP_NAME].args).not.toContain('--allow-all');
+    spawned.child.emit('close', 0);
   });
 });
 
