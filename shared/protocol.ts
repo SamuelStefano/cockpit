@@ -5,6 +5,7 @@
 import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, CardStatus, OrchestratorActivity, OrchestratorInfo, SessionPeek, TermStats } from './canvas';
 import type { AreaUsage } from './canvas-budget';
 import type { DflDraft, DraftOp } from './dfl-drafts';
+import type { AgentView, AgentPreset, AgentStatus } from './agents';
 
 export interface ToolDiff {
   path: string;
@@ -725,6 +726,13 @@ export type ClientMsg =
   // deploy do repo. Só loopback: fora dele o admin não reinicia a box de um fellow.
   | { t: 'admin-cli-update' }
   | { t: 'admin-deck-restart'; mode: 'idle' | 'now' }
+  // External ACP agents (shared/agents.ts). Admin-only by authorize's default-deny;
+  // a custom command is a subprocess the box will spawn, so it is loopback-only.
+  | { t: 'agents-get' }
+  | { t: 'agent-connect'; preset: string }
+  | { t: 'agent-add-custom'; id: string; name: string; command: string; args: string[] }
+  | { t: 'agent-remove'; id: string }
+  | { t: 'agent-test'; id: string }
   | { t: 'upload-chunk'; uploadId: string; sessionKey: string; name: string; seq: number; total: number; dataB64: string; clientId?: string }
   | { t: 'att-open'; path: string }
   | { t: 'term-open'; termId: string; cols: number; rows: number; watch?: string } // watch = session uuid to follow live
@@ -864,6 +872,8 @@ export type ServerMsg =
   | { t: 'crons'; items: Cron[] }
   | { t: 'context'; id: string; title: string; body: string }
   | { t: 'models'; models: ModelInfo[] }
+  | { t: 'agents'; items: AgentView[]; presets: AgentPreset[]; customAllowed: boolean }
+  | { t: 'agent-test-result'; id: string; ok: boolean; status: AgentStatus; message: string }
   | { t: 'skills'; items: SkillMeta[] }
   | { t: 'skill'; id: string; name: string; body: string }
   | { t: 'registry'; catalog: RegistryCatalog | null; error?: string }

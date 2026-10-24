@@ -1,0 +1,161 @@
+import { randomUUID } from 'node:crypto';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import type { RunHandle, RunOpts } from '../engine/claude';
+import { minimalEnv } from '../engine/claude';
+import type { ClaudeEvent } from '../engine/events';
+import { CONFIG } from '../config';
+import { sessionPath } from '../sessions/records';
+import { agentIdOf, agentModelId } from '../../shared/agents';
+import { ACP_CLIENT_CAPABILITIES, ACP_PROTOCOL_VERSION, isAuthError, startAcp } from './acp-client';
+import { closeDangling, mapUpdate, permissionOutcome, resultSubtype, type MapCtx } from './acp-events';
+import { findAgent, saveSessionLink, sessionLinkSync } from './store';
+import { TranscriptWriter } from './transcript';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+// Agent installers drop binaries outside the PATH the supervisors inherited
+// (grok → ~/.grok/bin, npm -g → ~/.local/bin or the node prefix).
+// Least privilege: a third-party agent gets none of the admin-managed tokens the
+// claude engine receives (minimalEnv) — only what it needs to find its binary
+// and its own login under HOME.
+export function agentEnv(): NodeJS.ProcessEnv {
+  const base = minimalEnv();
+  const extra = [join(homedir(), '.grok', 'bin'), join(homedir(), '.local', 'bin')];
+  return { LANG: base.LANG, TERM: base.TERM, HOME: base.HOME, PATH: [...extra, base.PATH ?? ''].filter(Boolean).join(':') };
+}
+
+export function loginHint(agentId: string, name: string, then = 'depois mande de novo'): string {
+  const cmd = agentId === 'grok' ? 'grok login --device-auth' : agentId === 'codex' ? 'codex login --device-auth' : agentId === 'opencode' ? 'opencode auth login' : agentId === 'gemini' ? 'gemini' : null;
+  return cmd
+    ? `${name} não está logado nesta VPS. Abra um Terminal do Deck, rode \`${cmd}\` e confirme no navegador; ${then}.`
+    : `${name} pediu login. Entre pelo próprio CLI num Terminal do Deck; ${then}.`;
+}
+
+export function runAgent(opts: RunOpts): RunHandle {
+  const { prompt, resumeId, forkId, mode, model, role, onEvent, onError, onClose } = opts;
+  const agentId = model ? agentIdOf(model) : null;
+  const agent = agentId ? findAgent(agentId) : undefined;
+  const deckId = (forkId && UUID_RE.test(forkId)) ? forkId : (resumeId && UUID_RE.test(resumeId)) ? resumeId : randomUUID();
+  const modelId = agentModelId(agentId ?? 'desconhecido');
+  const started = Date.now();
+  let closedOnce = false;
+  const close = () => { if (!closedOnce) { closedOnce = true; onClose(); } };
+  const finish = (subtype: string, isError: boolean) => {
+    onEvent({ type: 'result', subtype, is_error: isError, session_id: deckId, duration_ms: Date.now() - started, num_turns: 1, total_cost_usd: 0 } as ClaudeEvent);
+  };
+
+  // The agent auto-approves its tools outside plan mode and has no per-role
+  // allowlist like the claude engine, so only the box owner may drive it.
+  if (role !== 'admin') {
+    onError('agentes externos só rodam para admin');
+    finish('error_during_execution', true);
+    close();
+    return { kill: () => {}, send: () => false };
+  }
+  if (!agent) {
+    onError(`agente "${agentId ?? model}" não está conectado — Admin → Agentes`);
+    finish('error_during_execution', true);
+    close();
+    return { kill: () => {}, send: () => false };
+  }
+
+  const path = sessionPath(deckId);
+  const transcript = path ? new TranscriptWriter(path, deckId, modelId, CONFIG.workdir) : null;
+  const ctx: MapCtx = { sessionId: deckId, tools: new Map() };
+  let acpSessionId: string | null = null;
+  let replaying = false;
+  let cancelled = false;
+  let ended = false;
+  const emit = (ev: ClaudeEvent) => { transcript?.observe(ev); onEvent(ev); };
+
+  const acp = startAcp({
+    command: agent.command,
+    args: agent.args,
+    cwd: CONFIG.workdir,
+    env: agentEnv(),
+    onNotification: (method, params) => {
+      if (method !== 'session/update' || replaying) return;
+      if (acpSessionId && params?.sessionId && params.sessionId !== acpSessionId) return;
+      for (const ev of mapUpdate(params?.update, ctx)) emit(ev);
+    },
+    onRequest: async (method, params) => {
+      if (method === 'session/request_permission') return { outcome: permissionOutcome(params?.options, mode) };
+      throw new Error(`método não suportado pelo Deck: ${method}`);
+    },
+    onExit: (code, signal, stderrTail) => {
+      if (!ended && !cancelled) {
+        ended = true;
+        for (const ev of closeDangling(ctx, true)) emit(ev);
+        transcript?.flush();
+        const why = stderrTail.trim().split('\n').slice(-3).join(' ').slice(0, 400);
+        onError(`${agent.name} saiu antes de responder (${signal ?? code})${why ? `: ${why}` : ''}`, { code, signal });
+        finish('error_during_execution', true);
+      }
+      close();
+    },
+  });
+
+  acp.child.on('error', (e: NodeJS.ErrnoException) => {
+    if (ended) return;
+    ended = true;
+    onError(e.code === 'ENOENT'
+      ? `${agent.name} não está instalado nesta VPS (comando \`${agent.command}\` não encontrado) — veja Admin → Agentes`
+      : `não consegui iniciar ${agent.name}: ${e.message}`);
+    finish('error_during_execution', true);
+    close();
+  });
+
+  (async () => {
+    const init = await acp.call<any>('initialize', { protocolVersion: ACP_PROTOCOL_VERSION, clientCapabilities: ACP_CLIENT_CAPABILITIES, clientInfo: { name: 'deck', version: '1' } });
+    onEvent({ type: 'system', subtype: 'init', session_id: deckId, model: modelId } as ClaudeEvent);
+    const link = resumeId && !forkId ? sessionLinkSync(resumeId) : undefined;
+    if (link && link.agentId === agent.id && init?.agentCapabilities?.loadSession) {
+      replaying = true;
+      try {
+        await acp.call('session/load', { sessionId: link.acpSessionId, cwd: CONFIG.workdir, mcpServers: [] });
+        acpSessionId = link.acpSessionId;
+      } catch (e) {
+        if (isAuthError(e)) throw e;
+      } finally { replaying = false; }
+    }
+    if (!acpSessionId) {
+      const r = await acp.call<any>('session/new', { cwd: CONFIG.workdir, mcpServers: [] });
+      if (typeof r?.sessionId !== 'string' || !r.sessionId) throw new Error('o agente não devolveu sessionId');
+      acpSessionId = r.sessionId;
+      await saveSessionLink(deckId, { agentId: agent.id, acpSessionId: r.sessionId }).catch(() => {});
+    }
+    transcript?.user(prompt);
+    const res = await acp.call<any>('session/prompt', { sessionId: acpSessionId, prompt: [{ type: 'text', text: prompt }] });
+    if (ended) return;
+    ended = true;
+    const { subtype, isError } = resultSubtype(res?.stopReason);
+    for (const ev of closeDangling(ctx, isError)) emit(ev);
+    transcript?.flush();
+    if (subtype === 'refusal') onError(`${agent.name} recusou o pedido`);
+    finish(subtype, isError);
+    acp.kill();
+  })().catch((e) => {
+    if (ended) return;
+    ended = true;
+    for (const ev of closeDangling(ctx, true)) emit(ev);
+    transcript?.flush();
+    onError(isAuthError(e) ? loginHint(agent.id, agent.name) : `${agent.name}: ${(e as Error).message}`);
+    finish('error_during_execution', true);
+    acp.kill();
+  });
+
+  return {
+    pid: acp.child.pid,
+    kill: () => {
+      if (ended) { acp.kill(); return; }
+      cancelled = true;
+      ended = true;
+      if (acpSessionId) acp.notify('session/cancel', { sessionId: acpSessionId });
+      for (const ev of closeDangling(ctx, false)) emit(ev);
+      transcript?.flush();
+      setTimeout(() => acp.kill(), 500).unref();
+    },
+    send: () => false,
+  };
+}

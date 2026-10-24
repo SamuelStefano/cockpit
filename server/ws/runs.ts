@@ -3,6 +3,8 @@ import { emitTurnClosed } from '../canvas/turn-hooks';
 import type { WebSocket } from 'ws';
 import type { Cron, ResumeOfferReason } from '../../shared/protocol';
 import { run, resolveMcpSelection } from '../engine/claude';
+import { runAgent } from '../agents/acp-run';
+import { isAgentModel } from '../../shared/agents';
 import { CONFIG } from '../config';
 import type { Role } from '../auth';
 import { broadcast, send } from './broadcast';
@@ -786,8 +788,12 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
   // tente de novo" a cada tick do dreno. Quem avisa continua sendo o
   // SaturationBanner + o custo do envio no composer.
   const intentional = (!!ws && !auto) || !!queued;
+  // An ACP agent bills its own account (SuperGrok, ChatGPT…), never the Claude
+  // plan or context window, so the Claude quota gate does not apply to it.
   const verdict = ctxVerdict({ sessionId: resumeId, sessionKey, usage: getLastPlanUsage() });
-  const blocking = verdict.kind === 'quota' || verdict.kind === 'cold-busy' || (verdict.kind === 'hard' && !intentional);
+  // An ACP agent bills its own account (SuperGrok, ChatGPT…), never the Claude
+  // plan, so the Claude quota gate does not hold it.
+  const blocking = !isAgentModel(params.model) && (verdict.kind === 'quota' || verdict.kind === 'cold-busy' || (verdict.kind === 'hard' && !intentional));
   if (blocking) {
     if (parkRejected(o, verdict)) return;
     rejectRun({ ws, sessionKey, prompt, msgId, verdict });
@@ -874,7 +880,7 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
   // thread is already registered and the cold slot held, so without this the
   // session stays busy forever with a no-op kill, and callers on timers turn the
   // throw into an uncaughtException that kills every other run.
-  const started = catchSpawn(() => run({
+  const started = catchSpawn(() => (isAgentModel(params.model) ? runAgent : run)({
     ...params,
     prompt,
     resumeId,

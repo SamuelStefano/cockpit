@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ModelInfo } from '../../../shared/protocol';
 import { prettyModel, normalizeModelId } from './toolbar-format';
-import { modelOptions } from './model-options';
+import { modelOptions, splitAgentModels } from './model-options';
 import { usePersisted } from '../../lib/persist';
 import { Icon, tokens } from '../primitives';
 
@@ -28,6 +28,9 @@ export function ModelPicker({ model, setModel, models, onRefreshModels }: {
   // Modelos digitados à mão (ex: um recém-lançado ainda fora do /v1/models da conta).
   const customOpts: ModelInfo[] = customIds.map((id) => ({ id, displayName: id }));
   const list = modelOptions(models, model, customOpts).filter((o, i, a) => a.findIndex((x) => x.id === o.id) === i);
+
+  const groups = splitAgentModels(list);
+  const renderOpt = (o: ModelInfo) => <option key={o.id} value={o.id}>{prettyModel(o.id, o.displayName)}</option>;
 
   // Inline field instead of window.prompt: a home-screen PWA (iOS standalone)
   // can suppress native dialogs, and the prompt covered the whole screen.
@@ -72,7 +75,8 @@ export function ModelPicker({ model, setModel, models, onRefreshModels }: {
           onChange={(e) => onChange(e.target.value)}
           className={sel}
         >
-          {list.map((o) => <option key={o.id} value={o.id}>{prettyModel(o.id, o.displayName)}</option>)}
+          {groups.models.map(renderOpt)}
+          {groups.agents.length > 0 && <optgroup label="Agentes">{groups.agents.map(renderOpt)}</optgroup>}
           <option value={ADD}>+ outro modelo…</option>
         </select>
       )}

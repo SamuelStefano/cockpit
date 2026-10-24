@@ -1,5 +1,5 @@
 import type { WebSocket } from 'ws';
-import type { ClientMsg } from '../../shared/protocol';
+import type { ClientMsg, ServerMsg } from '../../shared/protocol';
 import type { Role } from '../auth';
 import { listSessions, listArchived } from '../sessions/index';
 import { searchSessions } from '../sessions/search';
@@ -37,7 +37,10 @@ import { startRun, routeSend, drainParked, runParkedInBackground, runParkedNow, 
 import { threads, stopSession, resolveThreadKey, runningSessionIds } from './threads';
 import { clearAwaiting } from './awaiting';
 import { addParked, removeParked, editParked, moveParked, clearParked, retryParked, parkedView, isQueuePaused, setQueuePaused, REJECT_MESSAGE } from './parked';
-import { refreshModels } from './models';
+import { refreshModels, withAgents, getLastModels } from './models';
+import { AGENT_PRESETS } from '../../shared/agents';
+import { addCustomAgent, connectPreset, findAgent, removeAgent } from '../agents/store';
+import { agentViews, probeAgent } from '../agents/probe';
 import { handleHarnessMsg } from './harness';
 import { setMarathon, marathonKeys } from './marathon';
 import { sendDurableSnapshot } from './snapshot';
@@ -836,7 +839,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // Puxa /v1/models na hora (em vez de esperar o poll horário) e re-broadcasta
       // a lista nova pra todos, pra um modelo recém-lançado aparecer no seletor.
       const models = await refreshModels();
-      if (models.length) broadcast({ t: 'models', models });
+      if (models.length) broadcast({ t: 'models', models: withAgents(models) });
       return;
     }
     case 'admin-health': {
@@ -909,6 +912,46 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const r = await updateClaudeCli();
       send(ws, { t: 'admin-op', ok: r.ok, message: r.message });
       send(ws, { t: 'health', health: await collectHealth() });
+      return;
+    }
+    case 'agents-get': {
+      send(ws, agentsFrame());
+      return;
+    }
+    case 'agent-connect': {
+      const r = await connectPreset(msg.preset);
+      send(ws, { t: 'admin-op', ok: r.ok, message: r.message });
+      afterAgentsChange();
+      return;
+    }
+    case 'agent-add-custom': {
+      // A custom agent is an arbitrary command the box spawns on every turn — the
+      // same RCE class as an MCP stdio, so the same loopback gate. Presets are a
+      // fixed command list and stay available remotely.
+      if (!CONFIG.localOnly) {
+        send(ws, { t: 'admin-op', ok: false, message: 'agente personalizado só no loopback — edite ~/.deck-agent/agents.json na VPS' });
+        return;
+      }
+      const r = await addCustomAgent({ id: msg.id, name: msg.name, command: msg.command, args: msg.args });
+      send(ws, { t: 'admin-op', ok: r.ok, message: r.message });
+      afterAgentsChange();
+      return;
+    }
+    case 'agent-remove': {
+      const r = await removeAgent(msg.id);
+      send(ws, { t: 'admin-op', ok: r.ok, message: r.message });
+      afterAgentsChange();
+      return;
+    }
+    case 'agent-test': {
+      const agent = typeof msg.id === 'string' ? findAgent(msg.id) : undefined;
+      if (!agent) {
+        send(ws, { t: 'agent-test-result', id: String(msg.id), ok: false, status: 'unknown', message: 'agente não conectado' });
+        return;
+      }
+      const r = await probeAgent(agent);
+      send(ws, { t: 'agent-test-result', id: agent.id, ok: r.status === 'ready', status: r.status, message: r.message });
+      send(ws, agentsFrame());
       return;
     }
     case 'admin-deck-restart': {
@@ -1222,4 +1265,14 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
   }
+}
+
+function agentsFrame(): ServerMsg {
+  return { t: 'agents', items: agentViews(), presets: AGENT_PRESETS, customAllowed: CONFIG.localOnly };
+}
+
+function afterAgentsChange(): void {
+  broadcast(agentsFrame());
+  const models = getLastModels();
+  if (models.length) broadcast({ t: 'models', models });
 }

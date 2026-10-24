@@ -3,6 +3,8 @@ import { Button, Icon, RouteHeader, toast } from '../components/primitives';
 import type { AdminHealth, SysStats, AccountSummary } from '../../shared/protocol';
 import { AdminAccounts } from './AdminAccounts';
 import { AdminHostOps } from './AdminHostOps';
+import { AdminAgents } from './AdminAgents';
+import type { AgentsApi } from '../cockpit/useAgents';
 import { AdminDeckUpdate } from './AdminDeckUpdate';
 import { AdminInventory } from './AdminInventory';
 import { AdminTabs, type AdminTab } from './AdminTabs';
@@ -32,11 +34,12 @@ interface AdminProps {
   onCliInstall: (name: string) => void;
   onCliUpdate: () => void;
   onDeckRestart: (mode: 'idle' | 'now') => void;
+  agents: AgentsApi;
 }
 
 const toastedOps = new WeakSet<object>();
 
-export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, isRoot, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, onCliUpdate, onDeckRestart }: AdminProps) {
+export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, isRoot, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, onCliUpdate, onDeckRestart, agents }: AdminProps) {
   const [updatedAt, setUpdatedAt] = useState(0);
   const [tab, setTab] = useState('overview');
   // Polls only while the tab is visible (health spawns probes server-side every
@@ -65,6 +68,7 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
     const t: AdminTab[] = [{ id: 'overview', label: 'Visão geral', icon: 'zap' }];
     if (SUPABASE_ENABLED) t.push({ id: 'accounts', label: 'Contas', icon: 'user' });
     t.push({ id: 'host', label: 'Host', icon: 'terminal' });
+    t.push({ id: 'agents', label: 'Agentes', icon: 'sparkles' });
     return t;
   }, []);
 
@@ -94,6 +98,8 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
         {tab === 'accounts' && SUPABASE_ENABLED && (
           <AdminAccounts accounts={accounts} loaded={accountsLoaded} onAccountsList={onAccountsList} onSetAdmin={onSetAdmin} canGrant={isRoot} />
         )}
+
+        {tab === 'agents' && <AdminAgents agents={agents} />}
 
         {tab === 'host' && (
           <AdminDeckUpdate health={health} adminOp={adminOp} onCliUpdate={onCliUpdate} onDeckRestart={onDeckRestart} />
