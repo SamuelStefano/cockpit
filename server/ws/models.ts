@@ -23,10 +23,10 @@ let last: ModelInfo[] = [];
 export function getLastModels() { return withAgents(last); }
 
 // Connected ACP agents ride the same list as the Claude models, so picking one
-// in a session is just choosing a model. Only sent once Claude's list is known:
-// the client treats an empty list as "keep the fallback aliases".
+// in a session is just choosing a model. Sent even when Claude's list is unknown
+// (no OAuth on this box): an agent-only account must still see its agents, and
+// the picker completes the Claude side with the fallback aliases.
 export function withAgents(list: ModelInfo[]): ModelInfo[] {
-  if (!list.length) return list;
   return [...list, ...listAgentsSync().map((a) => ({ id: agentModelId(a.id), displayName: `${a.name} · agente` }))];
 }
 

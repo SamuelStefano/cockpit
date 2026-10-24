@@ -21,4 +21,9 @@ describe('promoteModel', () => {
     expect(promoteModel(list.slice(1), 'agent:grok')).toBe('agent:grok');
     expect(promoteModel(list, 'agent:gone')).toBe('agent:gone');
   });
+  it('never moves a Claude pin onto an agent when only agents are listed', () => {
+    const agentsOnly = [{ id: 'agent:grok', displayName: 'Grok · agente' }];
+    expect(promoteModel(agentsOnly, 'claude-opus-4-7')).toBe('claude-opus-4-7');
+    expect(promoteModel(agentsOnly, 'sonnet')).toBe('sonnet');
+  });
 });
