@@ -21,7 +21,8 @@ import { authorize } from './authz';
 // resolvido (token no listen; dono-da-box no agente) — aqui é só servir o
 // protocolo: bootstrap (caps/busy/replay/…), o loop de mensagens com o checkpoint
 // authorize, e o cleanup de terminais no close.
-export function serveConnection(ws: WebSocket, opts: { role: Role; sendCaps?: boolean }) {
+// shared: dial mode — the relay multiplexes every tab of the account onto this socket.
+export function serveConnection(ws: WebSocket, opts: { role: Role; sendCaps?: boolean; shared?: boolean }) {
   const { role, sendCaps = true } = opts;
   (ws as WebSocket & { isAlive?: boolean }).isAlive = true;
   ws.on('pong', () => { (ws as WebSocket & { isAlive?: boolean }).isAlive = true; });
@@ -60,6 +61,13 @@ export function serveConnection(ws: WebSocket, opts: { role: Role; sendCaps?: bo
     // dispatch — ignora ANTES do authorize, senão o allowlist default-deny respondia
     // 'sem permissão' (toast espúrio na aba a cada abrir/fechar) p/ agente student.
     const ctrlT = msg.t as string;
+    if (ctrlT === 'no-browsers' && opts.shared) {
+      // Last tab gone: release this connection's terminal listeners (term-detach
+      // is ignored in shared mode), so idle panes can be reaped.
+      for (const [id, h] of myTerms) detachTerm(id, h.onData, h.onExit);
+      myTerms.clear();
+      return;
+    }
     if (ctrlT === 'browsers-present' || ctrlT === 'no-browsers') return;
     // Teto por conexão antes de qualquer trabalho: corta loop de frames (DoS).
     if (!limiter.allow(msg.t)) { send(ws, { t: 'error', message: 'muitas requisições' }); return; }
@@ -73,7 +81,7 @@ export function serveConnection(ws: WebSocket, opts: { role: Role; sendCaps?: bo
     // malformado que lançasse aqui viraria uncaughtException e derrubaria o processo
     // inteiro. O try isola o socket que mandou lixo.
     try {
-      if (handleTerm(ws, msg, myTerms)) return;
+      if (handleTerm(ws, msg, myTerms, !!opts.shared)) return;
     } catch (e) {
       send(ws, { t: 'error', message: sanitize(String((e as Error)?.message ?? e)) });
       return;
