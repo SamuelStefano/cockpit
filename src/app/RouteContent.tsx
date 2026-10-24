@@ -88,7 +88,7 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
       return (
         <Crons connected={connected} crons={c.crons} loaded={c.cronsLoaded}
           onCronsGet={c.onCronsGet} onCronSave={c.onCronSave} onCronDelete={c.onCronDelete} onCronRun={c.onCronRun}
-          planUsage={c.planUsage} models={c.models} />
+          planUsage={c.planUsage} models={c.models} bots={c.bots} onTeamGet={c.onTeamGet} />
       );
     }
     if (route === '/equipe' && isAdmin) {
@@ -96,7 +96,8 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
         <Equipe connected={connected} isMobile={isMobile} bots={c.bots} teamLoaded={c.teamLoaded}
           onTeamGet={c.onTeamGet} onTeamSave={c.onTeamSave} onTeamDelete={c.onTeamDelete} onOpenBot={c.onOpenBot}
           sessions={c.sessions} running={c.running} activeId={c.activeId} phase={c.phase} interrupted={c.interrupted}
-          runStart={c.runStart} models={c.models} chatProps={chatProps} />
+          runStart={c.runStart} models={c.models} chatProps={chatProps}
+          crons={c.crons} onCronsGet={c.onCronsGet} onCronSave={c.onCronSave} onCronDelete={c.onCronDelete} onCronRun={c.onCronRun} />
       );
     }
     if (route === '/uso') {

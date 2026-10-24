@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import type { Cron } from '../../../shared/protocol';
+import type { Cron, TeamBot } from '../../../shared/protocol';
 import { scheduleLabel, nextRunAt } from '../../../shared/cron-schedule';
 import { Button, Icon, Badge, toast, tokens } from '../../components/primitives';
 import { prettyModel } from '../../components/chat/toolbar-format';
 import { fmtLast } from './cron-format';
+import { CronBotTag } from './CronBotTag';
 
 
 // "em 2h 5min" / "em 40s" / "agora". now passado de fora pra ser determinístico.
@@ -22,8 +23,9 @@ export function fmtIn(target: number, now: number): string {
   return rh ? `em ${d}d ${rh}h` : `em ${d}d`;
 }
 
-export function CronCard({ cron, now, editing, onRun, onToggle, onEdit, onDelete }: {
+export function CronCard({ cron, bots = [], now, editing, onRun, onToggle, onEdit, onDelete }: {
   cron: Cron;
+  bots?: TeamBot[];
   now: number;
   editing: boolean;
   onRun: () => void;
@@ -59,6 +61,7 @@ export function CronCard({ cron, now, editing, onRun, onToggle, onEdit, onDelete
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="truncate text-sm font-medium text-neutral-100">{cron.name}</span>
+          {cron.botId && <CronBotTag bot={bots.find((b) => b.id === cron.botId)} />}
           <Badge tone={cron.enabled ? 'green' : 'neutral'} dot>{cron.enabled ? 'ativo' : 'pausado'}</Badge>
           <span className="flex items-center gap-1 text-[11px] text-neutral-500"><Icon name="clock" size={10} />{scheduleLabel(cron.schedule)}</span>
           {cron.enabled && (

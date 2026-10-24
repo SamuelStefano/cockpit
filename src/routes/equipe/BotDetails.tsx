@@ -3,6 +3,9 @@ import { Badge, Button } from '../../components/primitives';
 import { useArmed } from '../../components/primitives/useArmed';
 import { prettyModel } from '../../components/chat/toolbar-format';
 import { DetailField as Field } from './DetailField';
+import { BotRoutines } from './BotRoutines';
+import { useBotRoutines } from './useBotRoutines';
+import type { CronApi } from './equipe-props';
 
 interface BotDetailsProps {
   bot: TeamBot;
@@ -10,12 +13,15 @@ interface BotDetailsProps {
   models: ModelInfo[];
   onEdit: () => void;
   onDelete: (id: string) => void;
+  connected: boolean;
+  cronApi: CronApi;
 }
 
 const MODE_LABEL = { plan: 'Planejar', auto: 'Automático', acceptEdits: 'Executar' } as const;
 
-export function BotDetails({ bot, bots, models, onEdit, onDelete }: BotDetailsProps) {
+export function BotDetails({ bot, bots, models, onEdit, onDelete, connected, cronApi }: BotDetailsProps) {
   const del = useArmed();
+  const routines = useBotRoutines({ ...cronApi, botId: bot.id, connected });
   const boss = bots.find((b) => b.id === bot.parentId);
   const reports = bots.filter((b) => b.parentId === bot.id).map((b) => b.name);
   const model = bot.model ? prettyModel(bot.model, models.find((m) => m.id === bot.model)?.displayName) : 'padrão do chat';
@@ -32,6 +38,7 @@ export function BotDetails({ bot, bots, models, onEdit, onDelete }: BotDetailsPr
         <Badge tone={bot.profile === 'restricted' ? 'yellow' : 'neutral'}>{bot.profile === 'restricted' ? 'restrito' : 'completo'}</Badge>
       </Field>
       <Field label="Modelo">{model}{bot.mode ? ` · ${MODE_LABEL[bot.mode]}` : ''}{bot.effort ? ` · esforço ${bot.effort}` : ''}</Field>
+      <BotRoutines r={routines} />
       <div className="flex items-center gap-2 pt-1">
         <Button variant="secondary" size="sm" icon="pencil" onClick={onEdit}>Editar</Button>
         <Button variant="danger" size="sm" icon="trash" onClick={() => del.fire(() => onDelete(bot.id))}>

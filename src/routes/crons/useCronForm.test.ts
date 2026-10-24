@@ -104,4 +104,13 @@ describe('useCronForm saves against the live cron', () => {
     act(() => result.current.submit());
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ lastRun: 1_000, enabled: true }));
   });
+
+  it('keeps the routine on its bot when edited from /crons', () => {
+    const onSave = vi.fn();
+    const routine = { ...cron, botId: 'capo1' };
+    const { result } = renderHook(() => useCronForm(onSave, [routine]));
+    act(() => result.current.startEdit(routine));
+    act(() => result.current.submit());
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ id: 'c1', botId: 'capo1' }));
+  });
 });

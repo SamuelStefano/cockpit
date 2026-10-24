@@ -79,10 +79,23 @@ export function markRan(id: string, now: number): Promise<unknown> {
   });
 }
 
+// A deleted bot's routines stay listed but paused: they can no longer fire, and the
+// card still shows what the bot used to do until someone deletes it.
+export function pauseBotRoutines(botId: string): Promise<Cron[] | null> {
+  return serialize(async () => {
+    const all = await getCrons();
+    const hit = all.filter((c) => c.botId === botId && c.enabled);
+    if (!hit.length) return null;
+    for (const c of hit) c.enabled = false;
+    await writeCrons(all);
+    return all;
+  });
+}
+
 // Manual "run now": records lastRun so the card shows it ran and an interval
 // restarts its countdown. A one-shot is left alone, since marking it would pause
 // it and drop the run still scheduled for later.
-export function runCronNow(id: string, fire: (c: Cron) => void, now = Date.now()): Promise<Cron[] | null> {
+export function runCronNow(id: string, fire: (c: Cron) => unknown, now = Date.now()): Promise<Cron[] | null> {
   return serialize(async () => {
     const all = await getCrons();
     const c = all.find((x) => x.id === id);

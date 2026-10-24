@@ -30,7 +30,9 @@ import {
 } from './kill-class';
 import { authHold, isAuthFailure, markAuthBroken, AUTH_MESSAGE } from './auth-health';
 import { threadIsMarathon, MARATHON_AUTO_RESUME_CAP } from './marathon';
-import { bindBotSession } from '../team';
+import { bindBotSession, getTeam } from '../team';
+import { botTurnParams } from '../team-prompt';
+import { botThreadKey } from '../../shared/team';
 import { threads, admitRun, resolveThreadKey, stopSession, stopEpochOf, clearStopEpoch, shouldPreserveLive, runParams, sameParams, type Thread, type RunParams } from './threads';
 import { isAreaAdmissionBlocked } from '../canvas/autopause-loop';
 import { enqueuePending, takePendingBatch, takeAllPending, type QueuedSend } from './pending';
@@ -1286,8 +1288,11 @@ async function runQuickAnswer(sessionKey: string, prompt: string, epoch: number,
 // Se a sessão do cron já estiver rodando (turno anterior não fechou), startRun
 // substitui (replacing) — não acumula. Novo turno (sem resume): cada disparo é
 // independente. O stream vai por broadcast pra qualquer cliente conectado.
-export function fireCron(cron: Cron): void {
-  if (!cron || typeof cron.prompt !== 'string' || !cron.prompt.trim()) return;
+// A cron with `botId` is a bot routine and takes the bot's path (fireBotRoutine).
+export type CronFire = 'started' | 'skipped' | 'blocked' | 'bot-busy' | 'bot-gone';
+export function fireCron(cron: Cron): Promise<CronFire> {
+  if (!cron || typeof cron.prompt !== 'string' || !cron.prompt.trim()) return Promise.resolve('skipped');
+  if (cron.botId) return fireBotRoutine(cron, cron.botId).catch(() => 'skipped' as const);
   // Mesmo gate de admissão do drainParked. Um cron não carrega resumeId (cada
   // disparo é turno novo), então a sessão desta chamada em si nunca é
   // classificável de antemão — a chave estável `cron-<id>` é o segundo sinal
@@ -1295,7 +1300,7 @@ export function fireCron(cron: Cron): void {
   // MESMO cron produziu (canvas/autopause-loop.ts's lastAreaOfKey), que fica
   // valendo até o cron rodar de novo e (talvez) mudar de área.
   const cronKey = `cron-${cron.id}`;
-  if (isAreaAdmissionBlocked(undefined, cronKey)) return;
+  if (isAreaAdmissionBlocked(undefined, cronKey)) return Promise.resolve('blocked');
   startRun({
     ws: null,
     sessionKey: cronKey,
@@ -1305,4 +1310,41 @@ export function fireCron(cron: Cron): void {
     model: cron.model,
     effort: cron.effort || 'low',
   });
+  return Promise.resolve('started');
+}
+
+// The bot's live turn, under whatever key it runs: its draft key, `bot-<id>`, or the
+// key a tab gave the bound session.
+function botLiveKey(botId: string, sessionId?: string): string | undefined {
+  for (const [k, t] of threads) if (t.params.botId === botId || (sessionId && t.sessionId === sessionId)) return k;
+  return undefined;
+}
+
+// A routine never replaces a live bot turn: a plain cron replacing its own `cron-<id>`
+// only kills its previous fire, but here it would kill a conversation. It skips the
+// tick instead of queueing — an interval routine queued behind a long conversation
+// would pile up stale copies of itself; the next tick tries again.
+async function fireBotRoutine(cron: Cron, botId: string): Promise<CronFire> {
+  const team = await getTeam();
+  const bot = team.find((b) => b.id === botId);
+  if (!bot) return 'bot-gone';
+  if (bot.sessionId && (await readBusyElsewhereSessionIds().catch(() => [] as string[])).includes(bot.sessionId)) return 'bot-busy';
+  const key = botThreadKey(botId);
+  const turn = botTurnParams(team, key);
+  if (!turn) return 'bot-gone';
+  if (botLiveKey(botId, bot.sessionId)) return 'bot-busy';
+  if (isAreaAdmissionBlocked(turn.resumeId, key)) return 'blocked';
+  startRun({
+    ws: null,
+    sessionKey: key,
+    prompt: cron.prompt,
+    resumeId: turn.resumeId,
+    msgId: `cron-${Date.now().toString(36)}`,
+    mode: turn.mode ?? cron.mode,
+    model: turn.model ?? cron.model,
+    effort: turn.effort ?? (cron.effort || 'low'),
+    botId,
+    appendSystemPrompt: turn.appendSystemPrompt,
+  });
+  return 'started';
 }

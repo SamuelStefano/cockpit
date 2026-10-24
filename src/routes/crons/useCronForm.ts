@@ -120,6 +120,7 @@ export function useCronForm(onSave: (c: Cron) => void, crons: Cron[] = []) {
       enabled: enabledFor(schedule, base, Date.now()),
       createdAt: base?.createdAt ?? Date.now(),
       lastRun: base?.lastRun,
+      ...(base?.botId ? { botId: base.botId } : {}),
     });
     reset();
   };
