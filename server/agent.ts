@@ -51,6 +51,11 @@ const ID_FILE = join(DIR, 'identity.json');
 // Sem isto, o relay anuncia caps de root/admin pro browser mas o agente nega tudo
 // ("sem permissão" em term-open/admin/…).
 const AGENT_ROLE: Role = process.env.DECK_AGENT_ROLE === 'admin' ? 'admin' : 'student';
+// The owner-only frames (shared/root-frames.ts) need the ACCOUNT to be root, which
+// only the relay knows (JWT): it drops them for any other account before they get
+// here. Routing is per account, so this agent only ever sees its own account's
+// frames; what it adds is the box side — a fellow's student box never serves them.
+const AGENT_ROOT = AGENT_ROLE === 'admin';
 
 export interface Identity { agentId: string; privateKeyPem: string; publicKey: string }
 
@@ -161,7 +166,7 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: (c
       ws.removeListener('message', onHandshake);    // serveConnection assume o loop
       activeWs = ws;
       setClientSource({ clients: new Set([ws]) });  // broadcast sai por ESTE socket
-      serveConnection(ws, { role: AGENT_ROLE, sendCaps: false }); // relay é a fonte do caps
+      serveConnection(ws, { role: AGENT_ROLE, root: AGENT_ROOT, sendCaps: false }); // relay é a fonte do caps
       // bootstrap do serveConnection já replaya o último snapshot (models/plan-usage/
       // stats) PRA ESTE socket; os loops periódicos (startLoops no runAgent) seguem
       // emitindo via broadcast enquanto este socket for o activeWs.

@@ -21,14 +21,16 @@ import { authorize } from './authz';
 // resolvido (token no listen; dono-da-box no agente) — aqui é só servir o
 // protocolo: bootstrap (caps/busy/replay/…), o loop de mensagens com o checkpoint
 // authorize, e o cleanup de terminais no close.
-export function serveConnection(ws: WebSocket, opts: { role: Role; sendCaps?: boolean }) {
-  const { role, sendCaps = true } = opts;
+// `root` = the box owner's connection: unlocks the owner-only frames
+// (shared/root-frames.ts). Default false, so a new transport denies them.
+export function serveConnection(ws: WebSocket, opts: { role: Role; root?: boolean; sendCaps?: boolean }) {
+  const { role, root = false, sendCaps = true } = opts;
   (ws as WebSocket & { isAlive?: boolean }).isAlive = true;
   ws.on('pong', () => { (ws as WebSocket & { isAlive?: boolean }).isAlive = true; });
   // No modo dial (agente T3) o caps autoritativo é do relay (papel da conta vem do
   // JWT). O agente NÃO reanuncia caps — senão sobrescreveria o papel do viewer com
   // o papel-de-engine 'student'. busy/replay/stats seguem (estado de engine).
-  if (sendCaps) send(ws, { t: 'caps', caps: capsFor(role, CONFIG) });
+  if (sendCaps) send(ws, { t: 'caps', caps: capsFor(role, CONFIG, root) });
   // Fato do engine (a box) — vai sempre, inclusive no dial T3, pra a UI avisar
   // que nada roda até conectar uma conta Anthropic aqui.
   send(ws, { t: 'claude-auth', ready: claudeReady() });
@@ -65,7 +67,7 @@ export function serveConnection(ws: WebSocket, opts: { role: Role; sendCaps?: bo
     if (!limiter.allow(msg.t)) { send(ws, { t: 'error', message: 'muitas requisições' }); return; }
     // Checkpoint ÚNICO de autorização (default-deny), ANTES do handleTerm (que
     // trata term-* e retorna) e do dispatch/startRun.
-    if (!authorize(role, msg.t)) {
+    if (!authorize(role, msg.t, root)) {
       send(ws, { t: 'error', message: 'sem permissão' });
       return;
     }

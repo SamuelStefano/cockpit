@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { roleFromIdentity, parseRootEmails, canGrantAdmin, canSeeAllAccounts } from './identity';
+import { roleFromIdentity, parseRootEmails, canGrantAdmin, canSeeAllAccounts, canListAccounts } from './identity';
 
 describe('roleFromIdentity', () => {
   const roots = parseRootEmails('samuel@dfl.com, boss@dfl.com');
@@ -66,5 +66,11 @@ describe('account authorization helpers', () => {
     expect(canSeeAllAccounts('root')).toBe(true);
     expect(canSeeAllAccounts('admin')).toBe(true);
     expect(canSeeAllAccounts('fellow')).toBe(false);
+  });
+
+  it('only root lists the accounts (every e-mail)', () => {
+    expect(canListAccounts('root')).toBe(true);
+    expect(canListAccounts('admin')).toBe(false);
+    expect(canListAccounts('fellow')).toBe(false);
   });
 });

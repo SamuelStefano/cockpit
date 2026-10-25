@@ -7,7 +7,8 @@ import {
   type JwksFn, type Identity,
 } from './verify';
 import { slidingWindow } from './throttle';
-import { parseRootEmails, canSeeAllAccounts, canGrantAdmin, type AccountRole } from '../../shared/identity';
+import { parseRootEmails, canSeeAllAccounts, canGrantAdmin, canListAccounts, type AccountRole } from '../../shared/identity';
+import { isRootOnlyFrame } from '../../shared/root-frames';
 
 // Relay T3 (DR-023): roteador WS stateless e autenticado. NÃO spawna nada (a
 // fronteira é garantida pelo boundary.test) e NÃO guarda chave de assinatura — só
@@ -233,7 +234,7 @@ export function createRelay(cfg: RelayConfig) {
         // administração, o frame CAI FORA daqui e segue pro agente; engolir aqui era
         // uma mensagem sumindo em silêncio.
         if (m.t === 'accounts-list') {
-          if (!canSeeAllAccounts(id.role)) return;           // default-deny
+          if (!canListAccounts(id.role)) return;             // default-deny
           const rows = await cfg.store.listAccounts();
           ws.send(JSON.stringify({
             t: 'accounts',
@@ -259,6 +260,14 @@ export function createRelay(cfg: RelayConfig) {
         // Frame de administração malformado/negado nunca é repassado: o agente não
         // fala com o banco e não teria o que fazer com ele.
         if (m.t === 'accounts-list' || m.t === 'set-admin') return;
+      }
+      // Owner-only frames (points, host write-ops) need a root ACCOUNT, and only the
+      // relay knows the account role. Parsed, not substring-matched (a JSON escape
+      // hides the name); root skips the parse, and browser frames are small (uploads
+      // go in ~700KB chunks), so the other roles pay one JSON.parse per frame.
+      if (id.role !== 'root' && isRootOnlyFrame(s)) {
+        ws.send(JSON.stringify({ t: 'error', message: 'sem permissão' }));
+        return;
       }
       // Roteia opaco pro agente DAQUELA conta. A autenticidade fim-a-fim do frame
       // (assinatura, T5) é verificada NO AGENTE, não aqui — o relay não confia em si.

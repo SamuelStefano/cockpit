@@ -486,11 +486,15 @@ export function useCockpit(): Cockpit {
   // handlers por ref evita recriá-lo — e reabrir o WS — a cada render.
   const leafHandlers = useRef<((m: ServerMsg) => boolean)[]>([]);
   leafHandlers.current = [notesApi.onMsg, dropsApi.onMsg, cronsApi.onMsg, teamApi.onMsg, botFilesApi.onMsg, pointsApi.onMsg, contextsApi.onMsg, skillsApi.onMsg, graphsApi.onMsg, canvasApi.onMsg, adminApi.onMsg, agentsApi.onMsg, harnessApi.onMsg];
-  // Três domínios-folha também entram na reconciliação de reconnect. Referências
+  // Domínios-folha que também entram na reconciliação de reconnect. Referências
   // estáveis (useCallback sobre `send`), então não recriam o `reconcile`.
   const { onUsageList } = adminApi;
   const { onSkillList } = skillsApi;
   const { onPointsGet } = pointsApi;
+  // The ledger is root-only on the server: asking as admin/fellow only earns a
+  // "sem permissão". Re-runs on every reconnect (conn.ws flips).
+  const isRoot = caps?.role === 'root';
+  useEffect(() => { if (isRoot && conn.ws === 'connected') onPointsGet(); }, [isRoot, conn.ws, onPointsGet]);
   const { onGraphReconnect } = graphsApi;
   const { onOrchestratorReconnect } = canvasApi;
 
@@ -1497,7 +1501,6 @@ export function useCockpit(): Cockpit {
     send({ t: 'queue-get' });  // fila estacionada do servidor (drena com quota liberada)
     onUsageList();
     onSkillList();  // popula o seletor de skills do composer
-    onPointsGet();  // ledger de pontos: atualiza ao vivo mesmo fora da rota
     // Re-abre a sessão ativa SEMPRE (não só se nunca abriu): um turno que terminou
     // enquanto o WS esteve fechado perdeu os deltas finais + o 'done' — sem re-puxar
     // o history a resposta ficava congelada no meio da frase pra sempre ("o agente
@@ -1512,7 +1515,7 @@ export function useCockpit(): Cockpit {
     for (const k of [...opened.current]) if (k !== act) opened.current.delete(k);
     if (act && !act.startsWith('new-') && send(reopenMsg(act))) opened.current.add(act);
     reattach();
-  }, [send, reattach, reopenMsg, onUsageList, onSkillList, onPointsGet]);
+  }, [send, reattach, reopenMsg, onUsageList, onSkillList]);
 
   // Reconexão proativa (visibilidade/rede): não espera o backoff. Socket morto em
   // silêncio (mobile) reabre na hora; socket vivo só reconcilia o estado durável.
