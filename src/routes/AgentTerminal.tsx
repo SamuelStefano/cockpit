@@ -3,6 +3,7 @@ import { useIsMobile } from '../app/useIsMobile';
 import { Button, Icon } from '../components/primitives';
 import type { TermApi } from '../cockpit/useTerminals';
 import type { AgentTerminalApi } from './useAgentTerminal';
+import { useRevealOnOpen } from './useRevealOnOpen';
 
 const XtermView = lazy(() => import('../components/Xterm').then((m) => ({ default: m.XtermView })));
 
@@ -20,13 +21,14 @@ interface AgentTerminalProps {
 
 export function AgentTerminal({ api, term, name }: AgentTerminalProps) {
   const isMobile = useIsMobile();
+  const ref = useRevealOnOpen<HTMLElement>(api.open && !isMobile);
   if (!api.open) return null;
   const running = api.running ? RUNNING_TEXT[api.running.kind] : null;
   const frame = isMobile
     ? 'fixed inset-0 z-60 flex flex-col bg-neutral-950'
     : 'flex h-80 flex-col overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950';
   return (
-    <section role="region" aria-label={`Terminal do ${name}`} className={frame}>
+    <section ref={ref} role="region" aria-label={`Terminal do ${name}`} className={frame}>
       <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-neutral-800 px-3 py-2">
         {isMobile && <Button variant="ghost" size="sm" icon="chevronLeft" onClick={api.hide}>Voltar</Button>}
         <Icon name="terminal" size={13} className="text-neutral-500" />

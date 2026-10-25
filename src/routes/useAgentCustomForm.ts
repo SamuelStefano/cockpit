@@ -53,8 +53,11 @@ export function useAgentCustomForm({ agents, gate, term, onSaved }: FormDeps) {
   const errorFor = (field: AgentCustomField): string | undefined =>
     outcome && !outcome.ok && outcome.field === field ? outcome.message : undefined;
 
+  // An edit makes the last server answer stale.
+  const edit = (set: (v: string) => void) => (v: string) => { set(v); if (outcome) clearCustomOutcome(); };
   return {
-    name, setName, id, setId: (v: string) => setIdInput(v), commandLine, setCommandLine, install, setInstall, login, setLogin,
+    name, setName: edit(setName), id, setId: edit(setIdInput), commandLine, setCommandLine: edit(setCommandLine),
+    install, setInstall: edit(setInstall), login, setLogin: edit(setLogin),
     idBad, complete, canAct, busy, outcome, errorFor, probe, save, terminal,
     runInstall: () => { if (gate.allowed && install.trim()) terminal.run('install', install.trim()); },
   };
