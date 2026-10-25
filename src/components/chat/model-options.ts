@@ -1,6 +1,7 @@
 import type { ModelInfo } from '../../../shared/protocol';
 import { isAgentModel } from '../../../shared/agents';
 import { modelFamily } from './toolbar-format';
+import { visibleOptions, type VisibleOption } from '../../lib/model-visibility';
 
 // Versão concreta do agente, puxada de /v1/models pelo backend. Sem a lista
 // (boot/offline) cai nos aliases opus/sonnet/haiku, que o CLI aceita. Fable has no
@@ -32,6 +33,34 @@ export function modelOptions(models: ModelInfo[], current: string, extra: ModelI
   return covered ? opts : [{ id: current, displayName: current }, ...opts];
 }
 
-export function splitAgentModels(opts: ModelInfo[]): { models: ModelInfo[]; agents: ModelInfo[] } {
+export function splitAgentModels<T extends ModelInfo>(opts: T[]): { models: T[]; agents: T[] } {
   return { models: opts.filter((o) => !isAgentModel(o.id)), agents: opts.filter((o) => isAgentModel(o.id)) };
+}
+
+function uniqueById<T extends ModelInfo>(opts: T[]): T[] {
+  return opts.filter((o, i, a) => a.findIndex((x) => x.id === o.id) === i);
+}
+
+export function customModelOptions(ids: string[]): ModelInfo[] {
+  return ids.map((id) => ({ id, displayName: id }));
+}
+
+// Everything the account can pick, with nothing hidden — the Admin lists it so a
+// hidden model can be turned back on.
+export function catalogOptions(models: ModelInfo[], customIds: string[]): ModelInfo[] {
+  return uniqueById([...(models.length ? withFamilies(models) : FALLBACK_MODELS), ...customModelOptions(customIds)]);
+}
+
+export interface PickerGroups {
+  all: VisibleOption[];
+  anthropic: VisibleOption[];
+  others: VisibleOption[];
+  allHidden: boolean;
+}
+
+export function pickerGroups(models: ModelInfo[], current: string, customIds: string[], hidden: readonly string[]): PickerGroups {
+  const list = uniqueById(modelOptions(models, current, customModelOptions(customIds)));
+  const { options, allHidden } = visibleOptions(list, hidden, current);
+  const split = splitAgentModels(options);
+  return { all: options, anthropic: split.models, others: split.agents, allHidden };
 }
