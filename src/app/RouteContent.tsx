@@ -15,6 +15,9 @@ import type { useCockpit } from '../useCockpit';
 import type { Route } from '../useRoute';
 import type { PanelSide } from './usePanelResize';
 
+// The DFL snapshot is root-only on the server: the Canvas of a plain admin skips it.
+const noop = () => {};
+
 interface LayoutState {
   rowRef: React.RefObject<HTMLDivElement | null>;
   leftW: number;
@@ -126,7 +129,7 @@ export function RouteContent({ route, isMobile, isAdmin, isRoot, connected, cock
           term={c.term} discoveredTerms={c.discoveredTerms} listTerms={c.listTerms}
           termStats={c.canvasTermStats} onTermStats={c.onCanvasTermStats} onCanvasCtxStats={c.onCanvasCtxStats}
           areaUsage={c.canvasAreaUsage} interrupted={c.interrupted}
-          dflSnapshot={c.dflSnapshot} onDflGet={c.onDflGet}
+          dflSnapshot={c.dflSnapshot} onDflGet={isRoot ? c.onDflGet : noop}
           onDflTaskLink={c.onDflTaskLink} onDflTaskCreateLink={c.onDflTaskCreateLink} onDflTaskUnlink={c.onDflTaskUnlink}
           onDflTaskConfirmSync={c.onDflTaskConfirmSync}
           orchestratorActivity={c.orchestratorActivity} onOrchestratorActivityGet={c.onOrchestratorActivityGet}

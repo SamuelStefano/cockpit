@@ -28,11 +28,11 @@ describe('RouteMenu', () => {
 
   it('stays visible until the inline tab strip actually fits (per role)', () => {
     const root = render(<RouteMenu route={'/' as never} nav={vi.fn() as never} role="root" open={false} setOpen={vi.fn()} />);
-    expect(root.container.firstElementChild?.className).toContain('min-[1220px]:hidden');
+    expect(root.container.firstElementChild?.className).toContain('min-[1260px]:hidden');
     expect(root.container.firstElementChild?.className).not.toContain('md:hidden');
     cleanup();
     const admin = render(<RouteMenu route={'/' as never} nav={vi.fn() as never} role="admin" open={false} setOpen={vi.fn()} />);
-    expect(admin.container.firstElementChild?.className).toContain('min-[1160px]:hidden');
+    expect(admin.container.firstElementChild?.className).toContain('min-[1210px]:hidden');
     cleanup();
     const fellow = render(<RouteMenu route={'/' as never} nav={vi.fn() as never} role="student" open={false} setOpen={vi.fn()} />);
     expect(fellow.container.firstElementChild?.className).toContain('min-[1110px]:hidden');
