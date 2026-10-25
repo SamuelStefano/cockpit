@@ -416,6 +416,12 @@ export interface TeamBot {
 }
 // What the browser may send: sessionId/createdAt/updatedAt are the server's.
 export type TeamBotInput = Omit<TeamBot, 'sessionId' | 'createdAt' | 'updatedAt'>;
+// A bot's AskUserQuestion still waiting on the human. Persisted server-side
+// (~/.cockpit/team-pending.json) so a question asked by a routine or a bot↔bot
+// turn, with nobody watching, survives a reload and reaches another device.
+export interface TeamPendingQuestion { botId: string; sessionKey: string; questions: ToolQuestion[]; at: number }
+// A file in a bot's workspace (`~/.cockpit/bots/<id>/workspace`), path relative to it.
+export interface BotFile { path: string; size: number; mtime: number }
 export interface TurnStats { costUsd?: number; durationMs?: number; numTurns?: number; model?: string }
 
 // Agente de FUNDO (Task/Agent lançado em background): espelha o terminal com
@@ -740,6 +746,8 @@ export type ClientMsg =
   | { t: 'team-delete'; id: string }
   | { t: 'team-messages-get'; botId?: string; peer?: string; before?: number }
   | { t: 'team-pause-set'; paused: boolean }
+  | { t: 'team-files-get'; botId: string }
+  | { t: 'team-file-get'; botId: string; path: string }
   | { t: 'skill-list' }
   | { t: 'skill-open'; id: string }
   | { t: 'registry-get'; refresh?: boolean }
@@ -907,6 +915,9 @@ export type ServerMsg =
   | { t: 'team-messages'; items: TeamMessage[]; botId?: string; peer?: string; before?: number }
   | { t: 'team-message'; item: TeamMessage }
   | { t: 'team-paused'; paused: boolean }
+  | { t: 'team-pending'; items: TeamPendingQuestion[] }
+  | { t: 'team-files'; botId: string; items: BotFile[]; error?: string }
+  | { t: 'team-file'; botId: string; path: string; mime?: string; size?: number; dataB64?: string; error?: string }
   | { t: 'context'; id: string; title: string; body: string }
   | { t: 'models'; models: ModelInfo[] }
   | { t: 'agents'; items: AgentView[]; presets: AgentPreset[]; customAllowed: boolean }
