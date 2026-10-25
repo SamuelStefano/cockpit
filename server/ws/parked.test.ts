@@ -296,3 +296,12 @@ describe('editParked — retorno', () => {
     expect(parkedView().find((p) => p.id === r.id)?.text).toBe('novo');
   });
 });
+
+describe('coerceItem profile (fatia E)', () => {
+  it('keeps a known profile and drops anything else', async () => {
+    const { coerceItem } = await import('./parked');
+    expect(coerceItem({ id: 'a', prompt: 'p', profile: 'restricted' })?.profile).toBe('restricted');
+    expect(coerceItem({ id: 'a', prompt: 'p', profile: 'full' })?.profile).toBe('full');
+    expect(coerceItem({ id: 'a', prompt: 'p', profile: 'root' })?.profile).toBeUndefined();
+  });
+});

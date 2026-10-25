@@ -25,6 +25,20 @@ describe('bot form model', () => {
   });
 });
 
+describe('locked form (non-admin, fatia E)', () => {
+  it('a new bot starts restricted and automatic', () => {
+    expect(draftFrom(null, 0, true)).toMatchObject({ profile: 'restricted', mode: 'auto' });
+  });
+  it('editing a full bot on an ACP agent shows it locked, without the agent', () => {
+    const d = draftFrom(mk('capo1', { model: 'agent:grok', mode: 'acceptEdits' }), 1, true);
+    expect(d).toMatchObject({ profile: 'restricted', mode: 'auto', model: '' });
+    expect(draftFrom(mk('capo1', { model: 'haiku' }), 1, true).model).toBe('haiku');
+  });
+  it('the form refuses a restricted bot on an ACP agent', () => {
+    expect(draftError('capo1', { ...draftFrom(null, 0), name: 'capo', profile: 'restricted', model: 'agent:grok' }, [])).toMatch(/agente externo/);
+  });
+});
+
 describe('withLabel', () => {
   it('edits the label and strips server-owned fields', async () => {
     const { withLabel } = await import('./useBotForm');

@@ -23,6 +23,8 @@ export interface TeamTrafficApi {
 export interface EquipeProps extends CronApi, TeamTrafficApi {
   connected: boolean;
   isMobile: boolean;
+  // Non-admin: every bot is locked (the server coerces it anyway), so the form hides profile and mode.
+  isAdmin: boolean;
   bots: TeamBot[];
   teamLoaded: boolean;
   onTeamGet: () => void;

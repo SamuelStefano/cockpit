@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildBotIdentity, findTurnBot, botTurnParams } from './team-prompt';
+import { buildBotIdentity, findTurnBot, botTurnParams, botTurnFor } from './team-prompt';
 import type { TeamBot } from '../shared/protocol';
 
 const mk = (id: string, over: Partial<TeamBot> = {}): TeamBot => ({
@@ -36,5 +36,23 @@ describe('findTurnBot / botTurnParams', () => {
   it('resumes the bound session and pins the bot settings', () => {
     expect(botTurnParams(bound, 'new-bot-capo1', undefined)).toMatchObject({ botId: 'capo1', resumeId: SID, effort: 'high' });
     expect(botTurnParams([mk('capo1')], 'new-bot-capo1', undefined)?.resumeId).toBeUndefined();
+  });
+});
+
+describe('botTurnFor (fatia E)', () => {
+  it('carries the stored profile for admin', () => {
+    expect(botTurnFor([mk('capo1', { profile: 'full' })], 'new-bot-capo1', undefined, 'admin')?.profile).toBe('full');
+    expect(botTurnFor([mk('capo1', { profile: 'restricted' })], 'new-bot-capo1', undefined, 'admin')?.profile).toBe('restricted');
+  });
+  it('forces restricted for a student or an unknown role', () => {
+    expect(botTurnFor([mk('capo1', { profile: 'full' })], 'new-bot-capo1', undefined, 'student')?.profile).toBe('restricted');
+    expect(botTurnFor([mk('capo1', { profile: 'full' })], 'new-bot-capo1', undefined, undefined)?.profile).toBe('restricted');
+  });
+  it('a stored profile that is neither value reads as restricted', () => {
+    const odd = mk('capo1', { profile: 'weird' as never });
+    expect(botTurnParams([odd], 'new-bot-capo1', undefined)?.profile).toBe('restricted');
+  });
+  it('no bot, no turn', () => {
+    expect(botTurnFor([], 'k1', undefined, 'student')).toBeUndefined();
   });
 });

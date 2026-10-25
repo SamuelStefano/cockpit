@@ -1,14 +1,15 @@
 import type { Route } from '../../useRoute';
 
-export const NAV: { to: Route; label: string; adminOnly?: boolean }[] = [
-  { to: '/', label: 'chat' },
+// `student`: what a non-admin is shown. The Equipe is their home (fatia E); the rest
+// is either refused by the server (STUDENT_ALLOWED) or useless without a terminal.
+export const NAV: { to: Route; label: string; adminOnly?: boolean; student?: true }[] = [
+  { to: '/', label: 'chat', student: true },
   { to: '/contextos', label: 'contextos' },
   { to: '/skills', label: 'skills' },
   { to: '/notas', label: 'notas' },
   { to: '/pontos', label: 'pontos' },
   { to: '/crons', label: 'crons' },
-  // Admin-only until fatia E: team-* frames sit outside STUDENT_ALLOWED.
-  { to: '/equipe', label: 'equipe', adminOnly: true },
+  { to: '/equipe', label: 'equipe', student: true },
   { to: '/uso', label: 'uso' },
   { to: '/play', label: 'playground' },
   { to: '/canvas', label: 'canvas', adminOnly: true },
@@ -19,7 +20,17 @@ export const NAV: { to: Route; label: string; adminOnly?: boolean }[] = [
 ];
 
 // A aba admin some pra quem não é admin (default-deny: sem caps = não-admin).
-export const navFor = (isAdmin: boolean) => NAV.filter((n) => !n.adminOnly || isAdmin);
+export const navFor = (isAdmin: boolean) => (isAdmin ? NAV : NAV.filter((n) => n.student));
+
+export const STUDENT_HOME: Route = '/equipe';
+
+// Where a non-admin lands: the bare root goes to the Equipe once (a chat URL stays
+// put), and a route outside their menu always does. null = stay.
+export function studentRedirect(route: Route, chatId: string, firstLanding: boolean): Route | null {
+  if (!NAV.some((n) => n.to === route && n.student)) return STUDENT_HOME;
+  if (route === '/' && !chatId && firstLanding) return STUDENT_HOME;
+  return null;
+}
 
 // Where the inline tab strip replaces the RouteMenu dropdown. Measured with a
 // populated usage bar (header's right cluster ≈ 420px): the admin strip

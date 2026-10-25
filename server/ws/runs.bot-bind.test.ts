@@ -28,11 +28,13 @@ vi.mock('../summary', () => ({ summarize: vi.fn(async () => {}) }));
 vi.mock('../engine/triage', () => ({ classify: vi.fn(), quickAnswer: vi.fn(), killSideRuns: vi.fn(), killSideRunsFor: vi.fn() }));
 vi.mock('./incidents', () => ({ recordIncident: vi.fn() }));
 vi.mock('./recover', () => ({ markRunLive: vi.fn(), clearRunLive: vi.fn(), takeOrphanRuns: vi.fn(() => []) }));
+vi.mock('../agents/acp-run', () => ({ runAgent: vi.fn(() => ({ kill: vi.fn(), send: vi.fn(() => false) })) }));
 
 import { startRun } from './runs';
 import { threads } from './threads';
 import { run } from '../engine/claude';
 import { broadcast } from './broadcast';
+import { runAgent } from '../agents/acp-run';
 
 type Ev = (ev: unknown) => void;
 const lastOnEvent = (): Ev => (vi.mocked(run).mock.calls.at(-1)![0] as unknown as { onEvent: Ev }).onEvent;
@@ -58,5 +60,31 @@ describe('a bot turn binds its session', () => {
     startRun({ ws: null, sessionKey: 'f1', prompt: 'oi', botId: 'capo1', resumeId: SID, forkId: '7ef8f243-a5aa-4082-bb40-29b66e7fa756' });
     lastOnEvent()({ type: 'system', session_id: SID });
     expect(team.bindBotSession).not.toHaveBeenCalled();
+  });
+});
+
+describe('a restricted bot turn (fatia E)', () => {
+  beforeEach(() => { threads.clear(); vi.clearAllMocks(); });
+
+  it('refuses an ACP agent model before anything spawns', () => {
+    const r = startRun({ ws: null, sessionKey: 'new-bot-capo1', prompt: 'oi', botId: 'capo1', profile: 'restricted', model: 'agent:grok' });
+    expect(r).toBe('rejected');
+    expect(runAgent).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+    expect(threads.size).toBe(0);
+  });
+
+  it('the thread never stores the MCPs, bypass or workflow grant of the frame', () => {
+    startRun({ ws: null, sessionKey: 'new-bot-capo1', prompt: 'oi', botId: 'capo1', profile: 'restricted', mcps: ['supabase'], bypass: true, allowWorkflow: true });
+    const o = vi.mocked(run).mock.calls[0][0];
+    expect(o).toMatchObject({ profile: 'restricted', botId: 'capo1' });
+    expect(o.mcps).toBeUndefined();
+    expect(o.bypass).toBeUndefined();
+    expect(o.allowWorkflow).toBeUndefined();
+  });
+
+  it('a full bot may still use an ACP agent', () => {
+    startRun({ ws: null, sessionKey: 'new-bot-capo1', prompt: 'oi', botId: 'capo1', profile: 'full', model: 'agent:grok' });
+    expect(runAgent).toHaveBeenCalledOnce();
   });
 });

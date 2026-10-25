@@ -14,7 +14,8 @@ const navIds = (isAdmin: boolean) => renderHook(() => usePaletteCommands({ ...ba
 describe('usePaletteCommands navigation', () => {
   it('offers every route the header offers', () => {
     expect(navIds(false)).toHaveLength(navFor(false).length);
-    expect(navIds(false)).toEqual(expect.arrayContaining(['go-chat', 'go-notas', 'go-pontos', 'go-crons', 'go-play']));
+    expect(navIds(false)).toEqual(['go-chat', 'go-equipe']);
+    expect(navIds(true)).toEqual(expect.arrayContaining(['go-chat', 'go-notas', 'go-pontos', 'go-crons', 'go-play', 'go-equipe']));
   });
 
   it('adds the admin-only routes only for admins', () => {

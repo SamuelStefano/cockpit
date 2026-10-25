@@ -28,6 +28,10 @@ describe('validateBotInput', () => {
   it('accepts an ACP agent as the bot model', () => {
     expect(validateBotInput({ ...ok, model: 'agent:grok' })).toMatchObject({ ok: true, bot: { model: 'agent:grok' } });
   });
+  it('refuses an ACP agent on a restricted bot (fatia E)', () => {
+    expect(validateBotInput({ ...ok, profile: 'restricted', model: 'agent:grok' })).toEqual({ ok: false, error: expect.stringMatching(/agente externo/) });
+    expect(validateBotInput({ ...ok, profile: 'restricted', model: 'haiku' }).ok).toBe(true);
+  });
   it('accepts accented names', () => {
     expect(validateBotInput({ ...ok, name: 'conversão' }).ok).toBe(true);
   });

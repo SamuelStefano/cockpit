@@ -7,6 +7,7 @@ const runs = vi.hoisted(() => ({
   routeSend: vi.fn((_opts: unknown) => Promise.resolve()),
   orchestratorPaneTarget: vi.fn(() => undefined),
   fireCron: vi.fn(),
+  drainParked: vi.fn(),
 }));
 vi.mock('./runs', () => runs);
 const bc = vi.hoisted(() => ({ send: vi.fn(), broadcast: vi.fn() }));
@@ -109,5 +110,48 @@ describe('send into a bot thread', () => {
     const o = runs.startRun.mock.calls[0][0];
     expect(o.botId).toBeUndefined();
     expect(o.appendSystemPrompt).toBeUndefined();
+  });
+});
+
+describe('student on the Equipe (fatia E)', () => {
+  const send = (over: Partial<Extract<ClientMsg, { t: 'send' }>> = {}): ClientMsg =>
+    ({ t: 'send', sessionKey: 'new-bot-capo1', text: 'oi', msgId: 'm1', ...over }) as ClientMsg;
+
+  it('a bot saved by a student is always restricted, auto, without an ACP agent', async () => {
+    await handle(ws, { t: 'team-save', bot: { ...input, profile: 'full', mode: 'acceptEdits', model: 'agent:grok' } } as unknown as ClientMsg, 'student');
+    const saved = (team.saveBot.mock.calls as unknown as [TeamBot][])[0][0];
+    expect(saved).toMatchObject({ profile: 'restricted', mode: 'auto' });
+    expect(saved.model).toBeUndefined();
+  });
+
+  it('admin keeps the profile it chose', async () => {
+    await handle(ws, { t: 'team-save', bot: { ...input, profile: 'full', mode: 'acceptEdits' } } as unknown as ClientMsg, 'admin');
+    expect((team.saveBot.mock.calls as unknown as [TeamBot][])[0][0]).toMatchObject({ profile: 'full', mode: 'acceptEdits' });
+  });
+
+  it('nobody stores a restricted bot on an ACP agent', async () => {
+    await handle(ws, { t: 'team-save', bot: { ...input, profile: 'restricted', model: 'agent:grok' } } as unknown as ClientMsg, 'admin');
+    expect(team.saveBot).not.toHaveBeenCalled();
+    expect(bc.send).toHaveBeenCalledWith(ws, { t: 'error', message: expect.stringMatching(/agente externo/) });
+  });
+
+  it("a student's turn on a bot stored as full still runs restricted", async () => {
+    team.getTeam.mockResolvedValueOnce([capo]);
+    await handle(ws, send(), 'student');
+    expect(runs.startRun.mock.calls[0][0]).toMatchObject({ botId: 'capo1', profile: 'restricted' });
+  });
+
+  it("admin's turn follows the stored profile", async () => {
+    team.getTeam.mockResolvedValueOnce([capo]);
+    await handle(ws, send(), 'admin');
+    expect(runs.startRun.mock.calls[0][0]).toMatchObject({ botId: 'capo1', profile: 'full' });
+  });
+
+  it('queue-add on a bot carries the restricted profile into the parked item', async () => {
+    team.getTeam.mockResolvedValueOnce([{ ...capo, profile: 'restricted' }]);
+    await handle(ws, { t: 'queue-add', sessionKey: 'new-bot-capo1', text: 'depois' } as ClientMsg, 'admin');
+    const { loadParked } = await import('./parked');
+    const items = loadParked()['new-bot-capo1'] ?? [];
+    expect(items.at(-1)).toMatchObject({ botId: 'capo1', profile: 'restricted' });
   });
 });

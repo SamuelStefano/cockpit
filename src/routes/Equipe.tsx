@@ -16,7 +16,7 @@ export function Equipe(p: EquipeProps) {
   );
   const form = e.form && (
     <BotForm key={e.form.mode === 'edit' ? e.form.bot.id : 'new'} bot={e.form.mode === 'edit' ? e.form.bot : null}
-      bots={p.bots} models={p.models} onSave={p.onTeamSave} onClose={e.closeForm} />
+      bots={p.bots} models={p.models} locked={!p.isAdmin} onSave={p.onTeamSave} onClose={e.closeForm} />
   );
   const profile = (onBack?: () => void) => sel && (
     <BotProfile view={sel} bots={p.bots} models={p.models} onSave={p.onTeamSave} onEdit={e.openEdit} onDelete={p.onTeamDelete} onBack={onBack}

@@ -22,6 +22,7 @@ import { relReset } from './lib/time';
 import { usePanelResize } from './app/usePanelResize';
 import { useTerminalTabs } from './app/useTerminalTabs';
 import { useGlobalShortcuts } from './app/useGlobalShortcuts';
+import { useRoleLanding } from './app/useRoleLanding';
 import { useIsMobile } from './app/useIsMobile';
 import { useKeyboardOpen } from './app/useKeyboardOpen';
 import { useTabTitle } from './app/useTabTitle';
@@ -135,11 +136,7 @@ export function CockpitApp() {
     setActiveSessionId(pick);
   }, [activeSessionId, sessions, archived, chatId, setActiveSessionId]);
 
-  // Não-admin não fica preso na URL /admin (só redireciona quando caps já chegou,
-  // pra não chutar pra fora antes de saber o papel).
-  useEffect(() => {
-    if (route === '/admin' && caps && !isAdmin) nav('/');
-  }, [route, caps, isAdmin, nav]);
+  useRoleLanding({ route, chatId, capsKnown: !!caps, isAdmin, nav });
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || archived.find((s) => s.id === activeSessionId) || null;
 

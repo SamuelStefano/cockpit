@@ -161,10 +161,40 @@ scripts/doctor.sh    watchdog do host (cron)
   (`config.ts` allow-lists), e `Write` sem restrição de path alcança hooks de
   `~/.claude/settings.json` (rodam fora de `allowedTools`) e o `~/.claude.json`. Tirar Bash da
   allow-list seria teatro. A contenção real é **um processo/HOME por conta** (`server/auth.ts`).
+- **Perfil travado (`restricted`) de bot da Equipe** (fatia E, `server/engine/restricted-profile.ts`,
+  aplicado em `profilePermissions` no `claude.ts`). Bot salvo por não-admin é sempre travado
+  (`ws/student-team.ts`), e turno de bot puxado por não-admin roda travado mesmo que o `team.json`
+  diga `full` (`botTurnFor`). Num turno travado:
+  - `cwd` = `~/.cockpit/bots/<id>/workspace` (`COCKPIT_BOTS_DIR`), criado sob demanda com 0700.
+  - CLI com `--restricted` + `--tools AskUserQuestion Edit Glob Grep Read TodoWrite WebFetch WebSearch Write`:
+    Bash/Monitor/Agent/NotebookEdit nem existem na sessão, e o `--restricted` do CLI prende Read/Edit/
+    Write/Glob/Grep aos diretórios de trabalho e ignora settings de usuário/projeto/local (hooks do
+    `~/.claude/settings.json` e um `.claude/settings.json` plantado no workspace não carregam).
+    `--allowedTools` só libera `Edit|Write|Read(//<workspace>/**)`; `--disallowedTools` repete Bash & cia.
+  - Modo: `plan` fica `plan`; todo o resto (auto, acceptEdits, bypass pedido) vira `default`.
+    O permission MCP sobe com `--restricted` (nunca `--allow-all`): tool fora da allow-list é negada.
+  - MCPs da sessão e o sentinel `*` são ignorados (só o server de permissão; a fatia B soma o da equipe).
+  - Modelo `agent:` (ACP) recusado no save (`validateBotInput`) e no turno (`startRun`): o ACP tem
+    loop de tools próprio, fora destas regras.
+  - O transcript continua no `projectsDir` do Deck via `CLAUDE_CONFIG_DIR` + `CLAUDE_CODE_PROJECT_DIR_NAME`
+    (o CLI 2.1.309 só honra o segundo com o primeiro setado); auto-memory desligada.
+  - Verificado ao vivo (CLI 2.1.309, HOME temporário): `Read(~/.claude.json)`, `Write(~/.claude/settings.local.json)`,
+    `Grep` no HOME, `Read(/etc/hostname)`, Bash e `Write(<workspace>/.claude/settings.json)` negados;
+    escrita no workspace e `--resume` funcionam.
+
+  **O que o perfil travado NÃO garante:** não é sandbox de SO — o processo `claude` roda com o mesmo
+  usuário Unix e a garantia é a do enforcement do CLI (uma regressão do `--restricted`/`--tools` numa
+  versão nova abre tudo; o teste ao vivo precisa ser refeito a cada salto de versão). `WebFetch`/
+  `WebSearch` ficam ligados: o bot pode exfiltrar o que leu do workspace e alcançar URL de loopback/
+  rede interna (SSRF de GET). Symlink já existente dentro do workspace não foi testado. Parked/live-runs
+  carregam o `profile` do momento em que o turno foi enfileirado. O chat normal do student continua
+  como antes (Bash/Write na própria box): o travado vale só para turno de bot. Mudar o bot de `full`
+  pra travado não apaga o que ele já fez.
 - **Isolamento entre contas** é por construção no T3 (um agente por conta; `relay/src/routing.ts`
   só entrega pro bucket da conta) e travado em CI por `relay/integration.test.ts` ("two live
   agents… never cross accounts"). Um processo servindo duas contas quebraria isso — não existe.
-- **Gates que o código impõe por papel** (agente): bypass (`bypassAllowed`, 4 condições), MCP stdio
+- **Gates que o código impõe por papel** (agente): Equipe do student só com bot travado e cron só de bot
+  (`ws/student-team.ts`), bypass (`bypassAllowed`, 4 condições), MCP stdio
   só pra admin (`pickMcpDefs` — student só carrega server remoto), item de fila de admin só sai pela
   mão de admin (`parked.ts`), teto de gasto por run do servidor (`COCKPIT_MAX_BUDGET_USD`, o cliente
   só aperta).
