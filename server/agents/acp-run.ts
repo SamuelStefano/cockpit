@@ -8,7 +8,7 @@ import { CONFIG } from '../config';
 import { sessionPath } from '../sessions/records';
 import { agentIdOf, agentModelId, presetById } from '../../shared/agents';
 import { ACP_CLIENT_CAPABILITIES, ACP_PROTOCOL_VERSION, AcpError, isAuthError, startAcp } from './acp-client';
-import { closeDangling, mapUpdate, permissionOutcome, resultSubtype, type MapCtx } from './acp-events';
+import { closeDangling, mapUpdate, retryNotice, permissionOutcome, resultSubtype, type MapCtx } from './acp-events';
 import { findAgent, saveSessionLink, sessionLinkSync } from './store';
 import { TranscriptWriter } from './transcript';
 
@@ -87,8 +87,11 @@ export function runAgent(opts: RunOpts): RunHandle {
     cwd: CONFIG.workdir,
     env: agentEnv(),
     onNotification: (method, params) => {
-      if (method !== 'session/update' || replaying) return;
+      if (replaying) return;
       if (acpSessionId && params?.sessionId && params.sessionId !== acpSessionId) return;
+      const retry = retryNotice(method, params, deckId);
+      if (retry) { onEvent(retry); return; }
+      if (method !== 'session/update') return;
       for (const ev of mapUpdate(params?.update, ctx)) emit(ev);
     },
     onRequest: async (method, params) => {
@@ -190,7 +193,7 @@ export function errorText(e: unknown): string {
 // storage)" privacy mode with a 403 inside a generic "Internal error".
 export function setupHint(agentId: string, text: string, then = 'Depois mande a mensagem de novo.'): string | null {
   if (agentId === 'grok' && /privacy mode|privacy-mode/i.test(text)) {
-    return `Sua conta do Grok está no modo de privacidade "Legacy", que o Grok Build não aceita. No terminal do agente rode \`grok\`, digite \`/privacy\` e escolha Opt in ou Opt out (Opt out = a xAI não treina com o seu código). ${then}`;
+    return `Sua conta do Grok está no modo de privacidade "Legacy (no storage)", que o Grok Build não aceita. No grok.com abra Configurações → Grok Bot → Privacy settings e escolha "Privacy Mode" (guarda as sessões, sem treinar com elas). ${then}`;
   }
   return null;
 }

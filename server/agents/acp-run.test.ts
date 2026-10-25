@@ -178,7 +178,7 @@ describe('probeAgent', () => {
     const { probeAgent } = await import('./probe');
     const r = await probeAgent({ id: 'grok', name: 'Grok', command: process.execPath, args: [fakeAgent, '--legacy'] });
     expect(r.status).toBe('needs-login');
-    expect(r.message).toMatch(/\/privacy/);
+    expect(r.message).toMatch(/Grok Bot → Privacy settings/);
     expect(r.message).toMatch(/clique em Testar/);
   });
 

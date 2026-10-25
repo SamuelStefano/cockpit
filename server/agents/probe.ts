@@ -2,6 +2,7 @@ import { tmpdir } from 'node:os';
 import type { AgentConfig, AgentStatus, AgentView } from '../../shared/agents';
 import { ACP_CLIENT_CAPABILITIES, ACP_PROTOCOL_VERSION, isAuthError, startAcp } from './acp-client';
 import { agentEnv, errorText, loginHint, setupHint } from './acp-run';
+import { retryNotice } from './acp-events';
 import { listAgentsSync } from './store';
 
 export interface ProbeResult { status: AgentStatus; message: string; version?: string }
@@ -18,6 +19,7 @@ export function probeAgent(agent: AgentConfig, readyNote = 'já aparece no selet
     let done = false;
     let version: string | undefined;
     let reply = '';
+    let retrying = false;
     const settle = (r: ProbeResult) => {
       if (done) return;
       done = true;
@@ -33,6 +35,7 @@ export function probeAgent(agent: AgentConfig, readyNote = 'já aparece no selet
       cwd: tmpdir(),
       env: agentEnv(),
       onNotification: (method, params) => {
+        if (retryNotice(method, params, '')) retrying = true;
         const u = params?.update;
         if (method === 'session/update' && u?.sessionUpdate === 'agent_message_chunk' && typeof u.content?.text === 'string') reply += u.content.text;
       },
@@ -40,7 +43,7 @@ export function probeAgent(agent: AgentConfig, readyNote = 'já aparece no selet
       onRequest: async () => ({ outcome: { outcome: 'cancelled' } }),
       onExit: (code, signal, tail) => settle({ status: 'error', message: `saiu no meio do teste (${signal ?? code}) ${tail.trim().split('\n').pop() ?? ''}`.trim() }),
     });
-    const timer = setTimeout(() => settle({ status: 'error', message: 'sem resposta em 90s — o comando fala ACP?' }), PROBE_TIMEOUT_MS);
+    const timer = setTimeout(() => settle({ status: 'error', message: retrying ? 'o servidor do agente está sobrecarregado e ainda tentando — teste de novo em alguns minutos' : 'sem resposta em 90s — o comando fala ACP?' }), PROBE_TIMEOUT_MS);
     acp.child.on('error', (e: NodeJS.ErrnoException) => settle(e.code === 'ENOENT'
       ? { status: 'not-installed', message: `comando \`${agent.command}\` não encontrado — faça o passo 1` }
       : { status: 'error', message: e.message }));
