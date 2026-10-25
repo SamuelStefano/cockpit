@@ -5,6 +5,7 @@ import { AdminAccounts } from './AdminAccounts';
 import { AdminHostOps } from './AdminHostOps';
 import { AdminAgents } from './AdminAgents';
 import type { AgentsApi } from '../cockpit/useAgents';
+import type { TermApi } from '../cockpit/useTerminals';
 import { AdminDeckUpdate } from './AdminDeckUpdate';
 import { AdminInventory } from './AdminInventory';
 import { AdminTabs } from './AdminTabs';
@@ -38,13 +39,14 @@ interface AdminProps {
   onCliUpdate: () => void;
   onDeckRestart: (mode: 'idle' | 'now') => void;
   agents: AgentsApi;
+  term: TermApi;
   models: ModelInfo[];
   onOpenAgentChat: (model: string) => void;
 }
 
 const toastedOps = new WeakSet<object>();
 
-export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, isRoot, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, onCliUpdate, onDeckRestart, agents, models, onOpenAgentChat }: AdminProps) {
+export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, isRoot, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, onCliUpdate, onDeckRestart, agents, term, models, onOpenAgentChat }: AdminProps) {
   const [updatedAt, setUpdatedAt] = useState(0);
   const tabs = useMemo(() => painelTabs(isRoot, SUPABASE_ENABLED), [isRoot]);
   const tabIds = useMemo(() => tabs.map((t) => t.id), [tabs]);
@@ -98,7 +100,7 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
           <AdminAccounts accounts={accounts} loaded={accountsLoaded} onAccountsList={onAccountsList} onSetAdmin={onSetAdmin} canGrant={isRoot} />
         )}
 
-        {tab === 'agents' && <AdminAgents agents={agents} onOpenChat={onOpenAgentChat} />}
+        {tab === 'agents' && <AdminAgents agents={agents} term={term} isRoot={isRoot} onOpenChat={onOpenAgentChat} />}
 
         {tab === 'models' && <AdminModels models={models} />}
 

@@ -47,7 +47,8 @@ import { clearAwaiting } from './awaiting';
 import { addParked, removeParked, editParked, moveParked, clearParked, retryParked, parkedView, isQueuePaused, setQueuePaused, REJECT_MESSAGE } from './parked';
 import { refreshModels, withAgents, getLastModels } from './models';
 import { AGENT_PRESETS } from '../../shared/agents';
-import { addCustomAgent, connectPreset, findAgent, removeAgent } from '../agents/store';
+import { connectPreset, findAgent, removeAgent } from '../agents/store';
+import { customAgentDenial, probeDraft, saveCustomAgent } from '../agents/custom-agent';
 import { agentViews, probeAgent } from '../agents/probe';
 import { handleHarnessMsg } from './harness';
 import { setMarathon, marathonKeys } from './marathon';
@@ -983,16 +984,24 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'agent-add-custom': {
-      // A custom agent is an arbitrary command the box spawns on every turn — the
-      // same RCE class as an MCP stdio, so the same loopback gate. Presets are a
-      // fixed command list and stay available remotely.
-      if (!CONFIG.localOnly) {
-        send(ws, { t: 'admin-op', ok: false, message: 'agente personalizado só no loopback — edite ~/.deck-agent/agents.json na VPS' });
+      const denied = customAgentDenial(role, CONFIG.localOnly);
+      if (denied) {
+        send(ws, { t: 'agent-custom-result', ok: false, message: denied });
         return;
       }
-      const r = await addCustomAgent({ id: msg.id, name: msg.name, command: msg.command, args: msg.args });
-      send(ws, { t: 'admin-op', ok: r.ok, message: r.message });
-      afterAgentsChange();
+      const r = await saveCustomAgent(msg);
+      send(ws, { t: 'agent-custom-result', ok: r.ok, message: r.message, field: r.field, id: r.ok ? String(msg.id).trim() : undefined });
+      if (r.ok) afterAgentsChange();
+      return;
+    }
+    case 'agent-probe-draft': {
+      const denied = customAgentDenial(role, CONFIG.localOnly);
+      if (denied) {
+        send(ws, { t: 'agent-draft-result', ok: false, status: 'error', message: denied });
+        return;
+      }
+      const r = await probeDraft(msg);
+      send(ws, { t: 'agent-draft-result', ok: r.status === 'ready', status: r.status, message: r.message, field: r.field });
       return;
     }
     case 'agent-remove': {

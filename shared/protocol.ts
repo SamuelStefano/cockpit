@@ -5,7 +5,7 @@
 import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, CardStatus, OrchestratorActivity, OrchestratorInfo, SessionPeek, TermStats } from './canvas';
 import type { AreaUsage } from './canvas-budget';
 import type { DflDraft, DraftOp } from './dfl-drafts';
-import type { AgentView, AgentPreset, AgentStatus } from './agents';
+import type { AgentView, AgentPreset, AgentStatus, AgentCustomField } from './agents';
 import type { TeamMessage } from './team-messages';
 
 export interface ToolDiff {
@@ -768,10 +768,12 @@ export type ClientMsg =
   | { t: 'admin-cli-update' }
   | { t: 'admin-deck-restart'; mode: 'idle' | 'now' }
   // External ACP agents (shared/agents.ts). Admin-only by authorize's default-deny;
-  // a custom command is a subprocess the box will spawn, so it is loopback-only.
+  // a custom command is a subprocess the box will spawn: root-only (relay) on the
+  // owner's own box (engine), validated in server/agents/custom-agent.ts.
   | { t: 'agents-get' }
   | { t: 'agent-connect'; preset: string }
-  | { t: 'agent-add-custom'; id: string; name: string; command: string; args: string[] }
+  | { t: 'agent-add-custom'; id: string; name: string; command: string; args: string[]; install?: string; login?: string }
+  | { t: 'agent-probe-draft'; id: string; name: string; command: string; args: string[] }
   | { t: 'agent-remove'; id: string }
   | { t: 'agent-test'; id: string }
   | { t: 'upload-chunk'; uploadId: string; sessionKey: string; name: string; seq: number; total: number; dataB64: string; clientId?: string }
@@ -922,6 +924,8 @@ export type ServerMsg =
   | { t: 'models'; models: ModelInfo[] }
   | { t: 'agents'; items: AgentView[]; presets: AgentPreset[]; customAllowed: boolean }
   | { t: 'agent-test-result'; id: string; ok: boolean; status: AgentStatus; message: string }
+  | { t: 'agent-custom-result'; ok: boolean; message: string; field?: AgentCustomField; id?: string }
+  | { t: 'agent-draft-result'; ok: boolean; status: AgentStatus; message: string; field?: AgentCustomField }
   | { t: 'skills'; items: SkillMeta[] }
   | { t: 'skill'; id: string; name: string; body: string }
   | { t: 'registry'; catalog: RegistryCatalog | null; error?: string }

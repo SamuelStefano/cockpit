@@ -3,7 +3,8 @@ import { NEXT_ACTION } from '../cockpit/agents-view';
 import type { AgentStatus } from '../../shared/agents';
 
 export function AgentCallout({ status, message }: { status: AgentStatus; message?: string }) {
-  const next = NEXT_ACTION[status];
+  // The highlighted step already says what is missing; only a failure needs a headline.
+  const next = status === 'error' ? NEXT_ACTION.error : undefined;
   if (!message && !next) return null;
   return (
     <div role="status" className="flex gap-2.5 rounded-lg border border-neutral-800 bg-neutral-900/70 px-3 py-2.5">

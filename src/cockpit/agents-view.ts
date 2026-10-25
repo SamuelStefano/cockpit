@@ -1,4 +1,4 @@
-import type { AgentPreset, AgentStatus, AgentView } from '../../shared/agents';
+import { agentSteps, type AgentPreset, type AgentStatus, type AgentView } from '../../shared/agents';
 import type { BitState } from '../components/bit/bit-state';
 
 export interface AgentCardModel {
@@ -73,7 +73,8 @@ export function customCards(presets: AgentPreset[], items: AgentView[]): AgentCa
   return customItems(presets, items).map((item) => ({
     preset: {
       id: item.id, name: item.name, vendor: 'Personalizado', source: 'closed', command: item.command, args: item.args,
-      blurb: `Roda com o comando ${[item.command, ...item.args].join(' ')}.`, steps: [], docs: '',
+      install: item.install, login: item.login,
+      blurb: `Roda ${[item.command, ...item.args].join(' ')}.`, steps: agentSteps(item), docs: '',
     },
     item, status: item.status, activeStep: activeStepFor(item.status), custom: true,
   }));
@@ -114,7 +115,33 @@ export function monogram(name: string): string {
 }
 
 export const NEXT_ACTION: Partial<Record<AgentStatus, string>> = {
-  'not-installed': 'Falta instalar o CLI: rode o passo 1 num Terminal do Deck e clique em Testar.',
-  'needs-login': 'Quase lá: faça o login (passo 2) e clique em Testar de novo.',
-  error: 'O teste falhou. Confira o detalhe abaixo e tente de novo.',
+  'not-installed': 'Falta instalar: rode o passo 1 no terminal.',
+  'needs-login': 'Falta entrar: rode o passo 2 no terminal.',
+  error: 'O teste falhou. Veja o motivo e tente de novo.',
 };
+
+export interface CustomSaveGate {
+  allowed: boolean;
+  reason?: string;
+}
+
+// UX mirror of the server gate (shared/root-frames.ts plus the owner's box). The
+// server enforces it either way; this only explains a disabled form.
+export function customSaveGate(customAllowed: boolean, isRoot: boolean): CustomSaveGate {
+  if (!isRoot) return { allowed: false, reason: 'Só a conta root salva agente novo: ele roda um comando nesta VPS.' };
+  if (!customAllowed) return { allowed: false, reason: 'Este Deck não está marcado como a máquina do dono. Edite ~/.deck-agent/agents.json na VPS.' };
+  return { allowed: true };
+}
+
+// "gemini --experimental-acp" → executable + argv. No quoting on purpose: the
+// server refuses quotes and spaces inside an argument anyway.
+export function parseCommandLine(raw: string): { command: string; args: string[] } {
+  const [command = '', ...args] = splitArgs(raw);
+  return { command, args };
+}
+
+export function slugFromName(name: string): string {
+  const slug = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^[^a-z]+/, '').replace(/-+$/, '');
+  return slug.slice(0, 32).replace(/-+$/, '');
+}

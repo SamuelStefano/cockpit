@@ -6,6 +6,11 @@ describe('isRootOnly', () => {
     for (const t of ROOT_ONLY) expect(isRootOnly(t)).toBe(true);
   });
 
+  it('keeps the custom ACP agent save and probe for root', () => {
+    expect(isRootOnly('agent-add-custom')).toBe(true);
+    expect(isRootOnly('agent-probe-draft')).toBe(true);
+  });
+
   it('covers an unlisted frame by its owner prefix', () => {
     for (const t of ['points-future', 'pontos-x', 'drafts-new', 'admin-env-rotate', 'admin-mcp-x', 'admin-cli-x', 'admin-deck-x']) {
       expect(isRootOnly(t)).toBe(true);
@@ -13,7 +18,7 @@ describe('isRootOnly', () => {
   });
 
   it('leaves the plain admin surface alone', () => {
-    for (const t of ['admin-health', 'agents-get', 'send', 'canvas-get', 'refresh-models', 'accounts-list']) {
+    for (const t of ['admin-health', 'agents-get', 'agent-connect', 'agent-test', 'send', 'canvas-get', 'refresh-models', 'accounts-list']) {
       expect(isRootOnly(t)).toBe(false);
     }
   });

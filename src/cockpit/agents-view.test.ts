@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AGENT_PRESETS, type AgentView } from '../../shared/agents';
-import { activeStepFor, bitStateForAgent, buildCards, customCards, customItems, defaultSelection, monogram, newlyReady, phraseAt, progressFor, sortCards, splitArgs, tintFor } from './agents-view';
+import { activeStepFor, bitStateForAgent, buildCards, customCards, customItems, customSaveGate, defaultSelection, monogram, newlyReady, parseCommandLine, phraseAt, progressFor, slugFromName, sortCards, splitArgs, tintFor } from './agents-view';
 
 const view = (over: Partial<AgentView>): AgentView => ({ id: 'grok', name: 'Grok', command: 'grok', args: [], status: 'ready', ...over });
 
@@ -54,7 +54,7 @@ describe('agents-view', () => {
 
   it('sorts ready, then connected, then the rest, keeping order', () => {
     const cards = buildCards(AGENT_PRESETS, [view({ id: 'codex', status: 'needs-login' }), view({ id: 'opencode', status: 'ready' })]);
-    expect(sortCards(cards).map((c) => c.preset.id)).toEqual(['opencode', 'codex', 'grok', 'gemini']);
+    expect(sortCards(cards).map((c) => c.preset.id)).toEqual(['opencode', 'codex', 'grok', 'gemini', 'claude-code']);
   });
 
   it('selects the first connected unfinished agent, else Grok', () => {
@@ -69,11 +69,33 @@ describe('agents-view', () => {
     expect(newlyReady({ a: 'needs-login', b: 'ready' }, items)).toEqual(['a']);
   });
 
-  it('turns custom items into cards without steps', () => {
-    const cards = customCards(AGENT_PRESETS, [view({ id: 'meu', name: 'Meu', command: 'x', args: ['y'] }), view({})]);
+  it('turns custom items into cards with the same three steps, using their own commands', () => {
+    const cards = customCards(AGENT_PRESETS, [view({ id: 'meu', name: 'Meu', command: 'x', args: ['y'], install: 'npm i -g x' }), view({})]);
     expect(cards).toHaveLength(1);
     expect(cards[0]).toMatchObject({ custom: true, status: 'ready' });
-    expect(cards[0].preset.steps).toEqual([]);
+    expect(cards[0].preset.steps.map((s) => [s.kind, s.command])).toEqual([['install', 'npm i -g x'], ['login', undefined], ['test', undefined]]);
+  });
+
+  it('gives every preset install, login and test steps with commands', () => {
+    for (const p of AGENT_PRESETS) {
+      expect(p.steps.map((s) => s.kind)).toEqual(['install', 'login', 'test']);
+      expect(p.steps[0].command).toBeTruthy();
+      expect(p.steps[1].command).toBeTruthy();
+    }
+  });
+
+  it('explains why the custom form is locked', () => {
+    expect(customSaveGate(true, true)).toEqual({ allowed: true });
+    expect(customSaveGate(true, false)).toMatchObject({ allowed: false, reason: expect.stringMatching(/root/) });
+    expect(customSaveGate(false, true)).toMatchObject({ allowed: false, reason: expect.stringMatching(/agents\.json/) });
+  });
+
+  it('splits a command line and slugs a name', () => {
+    expect(parseCommandLine('  gemini --experimental-acp ')).toEqual({ command: 'gemini', args: ['--experimental-acp'] });
+    expect(parseCommandLine('')).toEqual({ command: '', args: [] });
+    expect(slugFromName('Meu Agente Ação!')).toBe('meu-agente-acao');
+    expect(slugFromName('42 Coisa')).toBe('coisa');
+    expect(slugFromName('x'.repeat(40))).toHaveLength(32);
   });
 
   it('cycles phrases and derives a stable tint and monogram', () => {

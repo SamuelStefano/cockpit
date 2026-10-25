@@ -1,19 +1,64 @@
-import { useState } from 'react';
-import { AGENT_ID_RE } from '../../shared/agents';
-import { splitArgs } from '../cockpit/agents-view';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AGENT_ID_RE, type AgentCustomField } from '../../shared/agents';
+import { parseCommandLine, slugFromName, type CustomSaveGate } from '../cockpit/agents-view';
+import type { AgentsApi, CustomAgentDraft } from '../cockpit/useAgents';
+import type { TermApi } from '../cockpit/useTerminals';
+import { useAgentTerminal } from './useAgentTerminal';
 
-export function useAgentCustomForm(onAdd: (a: { id: string; name: string; command: string; args: string[] }) => boolean) {
-  const [id, setId] = useState('');
+export const NEW_AGENT_TERM_ID = 'agent-new';
+
+interface FormDeps {
+  agents: AgentsApi;
+  gate: CustomSaveGate;
+  term: TermApi;
+  onSaved: (id: string) => void;
+}
+
+export function useAgentCustomForm({ agents, gate, term, onSaved }: FormDeps) {
   const [name, setName] = useState('');
-  const [command, setCommand] = useState('');
-  const [args, setArgs] = useState('');
-  const idBad = id !== '' && !AGENT_ID_RE.test(id);
-  const valid = AGENT_ID_RE.test(id) && name.trim() !== '' && command.trim() !== '';
-  const submit = () => {
-    if (!valid) return;
-    if (onAdd({ id, name: name.trim(), command: command.trim(), args: splitArgs(args) })) {
-      setId(''); setName(''); setCommand(''); setArgs('');
-    }
+  const [idInput, setIdInput] = useState<string | null>(null);
+  const [commandLine, setCommandLine] = useState('');
+  const [install, setInstall] = useState('');
+  const [login, setLogin] = useState('');
+  const terminal = useAgentTerminal(term, NEW_AGENT_TERM_ID, () => {});
+
+  const id = idInput ?? slugFromName(name);
+  const { command, args } = parseCommandLine(commandLine);
+  const draft: CustomAgentDraft = {
+    id, name: name.trim(), command, args,
+    ...(install.trim() ? { install: install.trim() } : {}),
+    ...(login.trim() ? { login: login.trim() } : {}),
   };
-  return { id, setId, name, setName, command, setCommand, args, setArgs, idBad, valid, submit };
+  const idBad = id !== '' && !AGENT_ID_RE.test(id);
+  const complete = AGENT_ID_RE.test(id) && draft.name !== '' && command !== '';
+  const { customBusy: busy, customOutcome: outcome, clearCustomOutcome, addCustom, probeDraft } = agents;
+
+  useEffect(() => { clearCustomOutcome(); }, [clearCustomOutcome]);
+  const savedRef = useRef(onSaved);
+  savedRef.current = onSaved;
+  const lastSaved = useRef<string | null>(null);
+  useEffect(() => {
+    if (outcome?.kind === 'save' && outcome.ok && lastSaved.current) {
+      savedRef.current(lastSaved.current);
+      lastSaved.current = null;
+    }
+  }, [outcome]);
+
+  const canAct = gate.allowed && complete && busy === null;
+  const probe = useCallback(() => { if (canAct) probeDraft(draft); }, [canAct, probeDraft, draft]);
+  const save = useCallback(() => {
+    if (!canAct) return;
+    if (addCustom(draft)) lastSaved.current = draft.id;
+  }, [canAct, addCustom, draft]);
+  const errorFor = (field: AgentCustomField): string | undefined =>
+    outcome && !outcome.ok && outcome.field === field ? outcome.message : undefined;
+
+  // An edit makes the last server answer stale.
+  const edit = (set: (v: string) => void) => (v: string) => { set(v); if (outcome) clearCustomOutcome(); };
+  return {
+    name, setName: edit(setName), id, setId: edit(setIdInput), commandLine, setCommandLine: edit(setCommandLine),
+    install, setInstall: edit(setInstall), login, setLogin: edit(setLogin),
+    idBad, complete, canAct, busy, outcome, errorFor, probe, save, terminal,
+    runInstall: () => { if (gate.allowed && install.trim()) terminal.run('install', install.trim()); },
+  };
 }

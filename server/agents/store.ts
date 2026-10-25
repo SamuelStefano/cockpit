@@ -18,6 +18,13 @@ type SessionsFile = Record<string, AgentSessionLink>;
 // flag or carry a path trick; args are passed verbatim, each capped.
 const COMMAND_RE = /^[A-Za-z0-9_./-]{1,128}$/;
 const ARG_RE = /^[^\0\n\r]{0,256}$/;
+// Setup commands are typed into a shell on purpose (`curl … | bash`); one line,
+// no control characters, so a stored value cannot smuggle extra keystrokes.
+export const SETUP_RE = /^[^\x00-\x1f\x7f]{1,300}$/;
+
+function setupOf(v: unknown): string | undefined {
+  return typeof v === 'string' && SETUP_RE.test(v) ? v : undefined;
+}
 
 export function validAgent(a: unknown): a is AgentConfig {
   const x = a as AgentConfig;
@@ -36,7 +43,13 @@ function parseAgents(raw: unknown): AgentConfig[] {
   for (const a of list) {
     if (!validAgent(a) || seen.has(a.id)) continue;
     seen.add(a.id);
-    out.push({ id: a.id, name: a.name.trim(), command: a.command, args: [...a.args], preset: typeof a.preset === 'string' ? a.preset : undefined });
+    const install = setupOf(a.install);
+    const login = setupOf(a.login);
+    out.push({
+      id: a.id, name: a.name.trim(), command: a.command, args: [...a.args],
+      preset: typeof a.preset === 'string' ? a.preset : undefined,
+      ...(install ? { install } : {}), ...(login ? { login } : {}),
+    });
   }
   return out;
 }
@@ -70,13 +83,17 @@ export async function connectPreset(presetId: string): Promise<{ ok: boolean; me
   const p = presetById(presetId);
   if (!p) return { ok: false, message: 'agente desconhecido' };
   await saveAgents((list) => [...list.filter((a) => a.id !== p.id), { id: p.id, name: p.name, command: p.command, args: p.args, preset: p.id }]);
-  return { ok: true, message: `${p.name} conectado — agora clique em Testar` };
+  return { ok: true, message: `${p.name} adicionado — siga os 3 passos` };
 }
 
+// Raw writer. The UI path goes through saveCustomAgent (custom-agent.ts), which
+// also resolves the executable on the box before anything is stored.
 export async function addCustomAgent(a: AgentConfig): Promise<{ ok: boolean; message: string }> {
-  const agent = { id: a.id, name: a.name, command: a.command, args: a.args };
+  const install = setupOf(a.install);
+  const login = setupOf(a.login);
+  const agent: AgentConfig = { id: a.id, name: a.name, command: a.command, args: a.args, ...(install ? { install } : {}), ...(login ? { login } : {}) };
   if (!validAgent(agent)) return { ok: false, message: 'dados inválidos (id, nome, comando ou argumentos)' };
-  if (presetById(agent.id)) return { ok: false, message: `"${agent.id}" é um agente pronto — use Conectar` };
+  if (presetById(agent.id)) return { ok: false, message: `"${agent.id}" é um agente pronto — use Adicionar no cartão dele` };
   await saveAgents((list) => [...list.filter((x) => x.id !== agent.id), agent]);
   return { ok: true, message: `${agent.name} adicionado — agora clique em Testar` };
 }
