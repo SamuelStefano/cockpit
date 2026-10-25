@@ -61,3 +61,36 @@ export function groupByFamily<T extends ModelInfo>(opts: T[]): FamilyGroup<T>[] 
   }
   return [...groups].map(([family, options]) => ({ family, options }));
 }
+
+export interface CatalogVersion {
+  id: string;
+  displayName: string;
+  shown: boolean;
+}
+
+export interface CatalogFamily {
+  family: string;
+  key: string;
+  shown: boolean;
+  versions: CatalogVersion[];
+}
+
+export interface ModelCatalog {
+  families: CatalogFamily[];
+  agents: CatalogVersion[];
+  allHidden: boolean;
+}
+
+// Version toggles reflect only their own id so that re-showing a family restores
+// the per-version choices made before it was hidden.
+export function buildModelCatalog(opts: ModelInfo[], hidden: readonly string[]): ModelCatalog {
+  const version = (o: ModelInfo): CatalogVersion => ({ id: o.id, displayName: o.displayName, shown: !hidden.includes(o.id) });
+  const families = groupByFamily(opts.filter((o) => !isAgentModel(o.id))).map(({ family, options }) => ({
+    family,
+    key: familyKey(family),
+    shown: !hidden.includes(familyKey(family)),
+    versions: options.map(version),
+  }));
+  const agents = opts.filter((o) => isAgentModel(o.id)).map(version);
+  return { families, agents, allHidden: visibleOptions(opts, hidden, '').allHidden };
+}

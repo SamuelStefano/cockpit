@@ -150,7 +150,7 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
         <Admin health={c.health} stats={c.stats} onHealthList={c.onHealthList}
           accounts={c.accounts} accountsLoaded={c.accountsLoaded} onAccountsList={c.onAccountsList} onSetAdmin={c.onSetAdmin} isRoot={c.caps?.role === 'root'}
           adminOp={c.adminOp} onEnvSet={c.onEnvSet} onEnvUnset={c.onEnvUnset} onMcpAdd={c.onMcpAdd} onMcpRemove={c.onMcpRemove} onCliInstall={c.onCliInstall}
-          onCliUpdate={c.onCliUpdate} onDeckRestart={c.onDeckRestart} agents={c.agents} onOpenAgentChat={onOpenAgentChat} />
+          onCliUpdate={c.onCliUpdate} onDeckRestart={c.onDeckRestart} agents={c.agents} models={c.models} onOpenAgentChat={onOpenAgentChat} />
       );
     }
     if (route === '/docs') return <Docs />;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { familyKey, groupByFamily, isHidden, toggleHidden, visibleOptions } from './model-visibility';
+import { buildModelCatalog, familyKey, groupByFamily, isHidden, toggleHidden, visibleOptions } from './model-visibility';
 
 const m = (id: string) => ({ id, displayName: id });
 const ids = (opts: { id: string }[]) => opts.map((o) => o.id);
@@ -73,5 +73,22 @@ describe('groupByFamily', () => {
       ['opus', ['claude-opus-5', 'claude-opus-4-8']],
       ['sonnet', ['sonnet', 'claude-sonnet-5']],
     ]);
+  });
+});
+
+describe('buildModelCatalog', () => {
+  const opts = [m('claude-opus-5'), m('claude-opus-4-8'), m('haiku'), m('agent:grok'), m('agent:gemini')];
+
+  it('splits Claude families from other agents with their toggles', () => {
+    const c = buildModelCatalog(opts, [familyKey('haiku'), 'claude-opus-4-8', 'agent:gemini']);
+    expect(c.families.map((f) => [f.family, f.shown])).toEqual([['opus', true], ['haiku', false]]);
+    expect(c.families[0].versions.map((v) => [v.id, v.shown])).toEqual([['claude-opus-5', true], ['claude-opus-4-8', false]]);
+    expect(c.agents.map((a) => [a.id, a.shown])).toEqual([['agent:grok', true], ['agent:gemini', false]]);
+    expect(c.allHidden).toBe(false);
+  });
+
+  it('flags when every model is hidden', () => {
+    const c = buildModelCatalog(opts, [familyKey('opus'), familyKey('haiku'), 'agent:grok', 'agent:gemini']);
+    expect(c.allHidden).toBe(true);
   });
 });
