@@ -2,8 +2,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, cleanup, fireEvent } from '@testing-library/react';
 import { ModelPicker } from './ModelPicker';
+import { setPref } from '../../lib/persist';
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); setPref('hiddenModels', []); localStorage.clear(); });
 
 describe('ModelPicker refresh', () => {
   it('shows it is fetching until the new model list arrives', () => {
@@ -29,5 +30,40 @@ describe('ModelPicker refresh', () => {
     expect(setModel).toHaveBeenCalledWith('claude-mythos-1');
     expect(promptSpy).not.toHaveBeenCalled();
     promptSpy.mockRestore();
+  });
+});
+
+describe('ModelPicker visibility', () => {
+  const models = [
+    { id: 'claude-opus-5', displayName: 'Opus 5' },
+    { id: 'claude-haiku-4-5', displayName: 'Haiku 4.5' },
+    { id: 'agent:grok', displayName: 'Grok · agente' },
+  ];
+  const groupLabels = (el: HTMLElement) => [...el.querySelectorAll('optgroup')].map((g) => g.label);
+
+  it('separates Anthropic from other agents', () => {
+    const { getByRole } = render(<ModelPicker model="claude-opus-5" setModel={vi.fn()} models={models} onRefreshModels={vi.fn()} />);
+    const select = getByRole('combobox');
+    expect(groupLabels(select)).toEqual(['Anthropic · Claude', 'Outros agentes']);
+  });
+
+  it('drops hidden models and the empty group, but keeps the current one marked', () => {
+    setPref('hiddenModels', ['family:haiku', 'agent:grok']);
+    const { getByRole } = render(<ModelPicker model="claude-haiku-4-5" setModel={vi.fn()} models={models} onRefreshModels={vi.fn()} />);
+    const select = getByRole('combobox');
+    expect(groupLabels(select)).toEqual(['Anthropic · Claude']);
+    expect(select.textContent).toContain('Haiku 4.5 (oculto)');
+    expect(select.textContent).not.toContain('Grok');
+  });
+
+  it('offers "Gerenciar modelos…" only to admins and deep-links to the admin tab', () => {
+    const student = render(<ModelPicker model="claude-opus-5" setModel={vi.fn()} models={models} onRefreshModels={vi.fn()} />);
+    expect(student.getByRole('combobox').textContent).not.toContain('Gerenciar modelos');
+    student.unmount();
+    const setModel = vi.fn();
+    const { getByRole } = render(<ModelPicker model="claude-opus-5" setModel={setModel} models={models} onRefreshModels={vi.fn()} canManage />);
+    fireEvent.change(getByRole('combobox'), { target: { value: '__manage__' } });
+    expect(location.pathname + location.hash).toBe('/admin#models');
+    expect(setModel).not.toHaveBeenCalled();
   });
 });
