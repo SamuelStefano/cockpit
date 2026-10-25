@@ -3,12 +3,13 @@ import { Icon, tokens } from '../primitives';
 import { useMenuKeys } from '../primitives/useMenuKeys';
 import { navBreakpoint, navFor } from './nav-routes';
 import type { Route } from '../../useRoute';
+import { NavCount } from './NavCount';
 
 // Em telas estreitas as 6 abas não cabem no header (eram cortadas). Aqui viram um
 // dropdown compacto que mostra a rota atual e abre a lista ao toque.
 // Controlado pelo App (open/setOpen) pra ser mutuamente exclusivo com o drawer de
 // sessões no mobile — abrir um fecha o outro (senão os dois overlays se sobrepõem).
-export function RouteMenu({ route, nav, isAdmin, open, setOpen }: { route: Route; nav: (to: Route) => void; isAdmin: boolean; open: boolean; setOpen: (v: boolean) => void }) {
+export function RouteMenu({ route, nav, isAdmin, open, setOpen, counts }: { route: Route; nav: (to: Route) => void; isAdmin: boolean; open: boolean; setOpen: (v: boolean) => void; counts?: Partial<Record<Route, number>> }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   // Announced as a menu, so it behaves as one: focus moves in, arrows move, Esc
@@ -36,6 +37,7 @@ export function RouteMenu({ route, nav, isAdmin, open, setOpen }: { route: Route
         className={`flex items-center gap-1 rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1 font-mono text-[11.5px] lowercase tracking-tight text-orange-300 ${tokens.touchTarget}`}
       >
         {current.label}
+        <NavCount count={Object.values(counts ?? {}).reduce((a, b) => a + (b ?? 0), 0)} />
         <Icon name="chevronDown" size={12} />
       </button>
       {open && (
@@ -52,6 +54,7 @@ export function RouteMenu({ route, nav, isAdmin, open, setOpen }: { route: Route
                 ${route === n.to ? 'bg-orange-500/15 text-orange-300' : 'text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200'}`}
             >
               {n.label}
+              <NavCount count={counts?.[n.to]} />
             </button>
           ))}
         </div>

@@ -1,4 +1,5 @@
-import type { Cron, ModelInfo, TeamBot, TeamBotInput } from '../../../shared/protocol';
+import type { BotFile, Cron, ModelInfo, TeamBot, TeamBotInput, TeamPendingQuestion } from '../../../shared/protocol';
+import type { BotFileData } from '../../cockpit/useBotFiles';
 import type { ChatPanelProps } from '../../components/chat/chat-panel-props';
 import type { Session } from '../../data/types';
 import type { Phase } from '../../components/chat/useChatPanel';
@@ -20,7 +21,15 @@ export interface TeamTrafficApi {
   onTeamPauseSet: (paused: boolean) => void;
 }
 
-export interface EquipeProps extends CronApi, TeamTrafficApi {
+export interface BotFilesApi {
+  botFiles: Record<string, BotFile[]>;
+  botFileData: Record<string, BotFileData>;
+  onBotFilesGet: (botId: string) => void;
+  onBotFileGet: (botId: string, path: string, force?: boolean) => void;
+}
+
+export interface EquipeProps extends CronApi, TeamTrafficApi, BotFilesApi {
+  pendingQuestions: TeamPendingQuestion[];
   connected: boolean;
   isMobile: boolean;
   // Non-admin: every bot is locked (the server coerces it anyway), so the form hides profile and mode.

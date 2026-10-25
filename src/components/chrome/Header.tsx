@@ -3,6 +3,7 @@ import { ProfileMenu } from '../ProfileMenu';
 import { UsageBar } from './UsageBar';
 import { RouteMenu } from './RouteMenu';
 import { navBreakpoint, navFor } from './nav-routes';
+import { NavCount } from './NavCount';
 import type { Route } from '../../useRoute';
 import type { PlanUsage } from '../../../shared/protocol';
 import type { DropApi } from '../../cockpit/useDrops';
@@ -34,9 +35,10 @@ interface HeaderProps {
   onChangePassword?: (password: string) => Promise<string | null>;
   drops?: DropApi;
   bitState?: BitState;
+  navCounts?: Partial<Record<Route, number>>;
 }
 
-export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette, planUsage, planBlockedUntil = null, planReadAt = null, planNextReadAt = null, onRefreshPlanUsage, quotaWarn = false, quotaPaused = false, quotaResetsAt = null, isAdmin, routeMenuOpen, setRouteMenuOpen, userId, onSignOut, onChangePassword, drops, bitState = 'idle' }: HeaderProps) {
+export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette, planUsage, planBlockedUntil = null, planReadAt = null, planNextReadAt = null, onRefreshPlanUsage, quotaWarn = false, quotaPaused = false, quotaResetsAt = null, isAdmin, routeMenuOpen, setRouteMenuOpen, userId, onSignOut, onChangePassword, drops, bitState = 'idle', navCounts }: HeaderProps) {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex min-w-0 items-center gap-2.5">
@@ -68,10 +70,11 @@ export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette
                 ${route === n.to ? 'bg-orange-500/15 text-orange-300' : 'text-neutral-500 hover:text-neutral-300'}`}
             >
               {n.label}
+              <NavCount count={navCounts?.[n.to]} />
             </button>
           ))}
         </nav>
-        <RouteMenu route={route} nav={nav} isAdmin={isAdmin} open={routeMenuOpen} setOpen={setRouteMenuOpen} />
+        <RouteMenu route={route} nav={nav} isAdmin={isAdmin} open={routeMenuOpen} setOpen={setRouteMenuOpen} counts={navCounts} />
       </div>
 
       <div className="flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-3">

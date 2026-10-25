@@ -1,4 +1,4 @@
-import type { TeamBot } from '../../../shared/protocol';
+import type { TeamBot, TeamPendingQuestion } from '../../../shared/protocol';
 import { botDraftKey } from '../../../shared/team';
 import { trafficLine, type TeamMessage } from '../../../shared/team-messages';
 import type { Session } from '../../data/types';
@@ -12,6 +12,7 @@ export interface BotView {
   unread: boolean;
   state: MascotState;
   startedAt?: number;
+  pending?: TeamPendingQuestion;
 }
 
 export interface TeamViewCtx {
@@ -26,6 +27,13 @@ export interface TeamViewCtx {
   now: number;
   lastTraffic?: Record<string, TeamMessage>;
   nameOf?: (id: string) => string;
+  pending?: Record<string, TeamPendingQuestion>;
+}
+
+export const WAITING_PREFIX = 'Esperando você: ';
+
+export function pendingByBot(items: TeamPendingQuestion[]): Record<string, TeamPendingQuestion> {
+  return Object.fromEntries(items.map((p) => [p.botId, p]));
 }
 
 // The newest bot↔bot message each bot took part in: the roster preview shows it
@@ -51,10 +59,11 @@ export function botView(bot: TeamBot, ctx: TeamViewCtx): BotView {
   const key = botChatKey(bot);
   const s = ctx.sessions.find((x) => x.id === key) ?? (bot.sessionId ? undefined : ctx.sessions.find((x) => x.id === botDraftKey(bot.id)));
   const running = ctx.running.has(key);
+  const pending = ctx.pending?.[bot.id];
   const state = deriveMascotState({
     running,
     phase: key === ctx.activeId ? ctx.phase : undefined,
-    waiting: s?.waiting,
+    waiting: s?.waiting || !!pending,
     failed: !!ctx.interrupted[key] || s?.lastTurnOk === false,
     lastTurnOk: s?.lastTurnOk,
     endedAt: s?.mtime,
@@ -62,7 +71,8 @@ export function botView(bot: TeamBot, ctx: TeamViewCtx): BotView {
   });
   const traffic = ctx.lastTraffic?.[bot.id];
   const own = s?.snippet && s.snippet !== 'Sem mensagens ainda' ? s.snippet : '';
-  const preview = (traffic && traffic.ts > (s?.mtime ?? 0) ? trafficLine(bot.id, traffic, ctx.nameOf ?? ((id) => id)) : own) || bot.label || 'Sem mensagens ainda';
+  const asked = pending?.questions[0]?.question;
+  const preview = asked ? `${WAITING_PREFIX}${asked}` : (traffic && traffic.ts > (s?.mtime ?? 0) ? trafficLine(bot.id, traffic, ctx.nameOf ?? ((id) => id)) : own) || bot.label || 'Sem mensagens ainda';
   const unread = bot.id !== ctx.selectedId && !!s && s.mtime > (ctx.seen[bot.id] ?? 0) && !!bot.sessionId;
-  return { bot, key, preview, unread, state, startedAt: ctx.runStart[key] };
+  return { bot, key, preview, unread, state, startedAt: ctx.runStart[key], pending };
 }
