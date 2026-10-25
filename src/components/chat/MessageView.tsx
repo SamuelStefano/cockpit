@@ -1,6 +1,7 @@
 import { memo, type ReactNode } from 'react';
 import { Icon } from '../primitives';
-import { ClaudeAvatar } from '../ClaudeAvatar';
+import { Bit } from '../bit/Bit';
+import type { BitState } from '../bit/bit-state';
 import type { TurnBubbleStats } from '../../../shared/protocol';
 import { messageToText } from '../../lib/export';
 import { usePersisted } from '../../lib/persist';
@@ -22,6 +23,8 @@ export { Thinking } from './Thinking';
 interface MessageRowProps {
   msg: ShownMessage;
   avatar?: ReactNode;
+  // Only the live turn's bubble gets a state; older bubbles keep a frozen Bit.
+  bit?: BitState;
   caretOnLast: boolean;
   modelLabel?: string;
   showModelLabel?: boolean;
@@ -44,7 +47,7 @@ interface MessageRowProps {
 // memo: cada delta de streaming troca só a referência da ÚLTIMA mensagem
 // (patchRunMsg usa .map preservando as demais) — sem isto a thread inteira
 // re-renderiza a cada chunk.
-export const MessageRow = memo(function MessageRow({ msg, avatar, caretOnLast, modelLabel, showModelLabel = true, thinking, live, onEditUser, onQuote, onMemorize, answerable, onAnswer, reviewable, onApproveWorkflow, onRegenerate, onOpenAttachment, attThumbs, onAttThumb }: MessageRowProps) {
+export const MessageRow = memo(function MessageRow({ msg, avatar, bit, caretOnLast, modelLabel, showModelLabel = true, thinking, live, onEditUser, onQuote, onMemorize, answerable, onAnswer, reviewable, onApproveWorkflow, onRegenerate, onOpenAttachment, attThumbs, onAttThumb }: MessageRowProps) {
   const [showTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   if (msg.role === 'user') {
     return <UserMessageRow msg={msg} onEditUser={onEditUser} onQuote={onQuote} onOpenAttachment={onOpenAttachment} attThumbs={attThumbs} onAttThumb={onAttThumb} />;
@@ -59,7 +62,7 @@ export const MessageRow = memo(function MessageRow({ msg, avatar, caretOnLast, m
     return (
       <div data-mid={msg.id} className="fade-up">
         <ToolGroupCard tools={msg.digest} />
-        {thinking && <ThinkingDots live={live} />}
+        {thinking && <ThinkingDots live={live} bit={bit} />}
       </div>
     );
   }
@@ -69,7 +72,7 @@ export const MessageRow = memo(function MessageRow({ msg, avatar, caretOnLast, m
     return (
       <div data-mid={msg.id} className="fade-up">
         <NarrationGroupCard notes={msg.narration} />
-        {thinking && <ThinkingDots live={live} />}
+        {thinking && <ThinkingDots live={live} bit={bit} />}
       </div>
     );
   }
@@ -85,7 +88,7 @@ export const MessageRow = memo(function MessageRow({ msg, avatar, caretOnLast, m
     // ocupar a viewport inteira — sem âncora ali, a leitura saltava.
     <div data-mid={msg.id} className="fade-up group/msg flex gap-2.5">
       <div className="mt-0.5" title={showModelLabel ? undefined : modelLabel}>
-        {avatar ?? <ClaudeAvatar size={28} />}
+        {avatar ?? <Bit state={bit ?? 'idle'} still={!bit} size={28} />}
       </div>
       <div className="min-w-0 flex-1 pt-0.5">
         {showModelLabel && <span className="mb-0.5 block max-w-[260px] truncate px-0.5 font-mono text-[11px] font-medium tracking-tight text-orange-300/90">{modelLabel || 'Claude'}</span>}
@@ -146,7 +149,7 @@ function TurnStatsLine({ stats }: { stats: TurnBubbleStats }) {
 function ThoughtFor({ ms }: { ms: number }) {
   return (
     <div className="mt-1 flex items-center gap-1.5 text-[11px] text-neutral-500" title="Tempo total deste turno (relógio do CLI)">
-      <span className="text-orange-400/70" aria-hidden>✻</span>
+      <Icon name="clock" size={11} className="text-orange-400/70" />
       <span className="tabular-nums">Pensou por {fmtDuration(ms)}</span>
     </div>
   );

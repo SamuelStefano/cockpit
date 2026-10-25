@@ -75,7 +75,7 @@ export const FILEMAP: { group: string; tone: string; files: { path: string; what
       { path: 'src/components/Xterm.tsx', what: 'Ponte com a lib xterm.js — desenha os quadros do PTY que chegam pelo WebSocket.' },
       { path: 'src/components/Mobile.tsx', what: 'Layout mobile: chat em tela cheia, drawer de sessões e sheet de terminal.' },
       { path: 'src/components/Avatar.tsx', what: 'Avatares do usuário e da IA + menu de perfil com o seletor de ícone.' },
-      { path: 'src/components/aiAvatar.ts', what: 'Presets de ícone da IA (burst da marca + emojis divertidos).' },
+      { path: 'src/components/bit/turn-bit-state.ts', what: 'Estado do Bit no chat derivado do turno (pensando, ferramenta, escrevendo, esperando, erro, feito, offline).' },
       { path: 'src/components/CommandPalette.tsx', what: 'Paleta global de ações (⌘K).' },
       { path: 'src/components/StatusBar.tsx', what: 'Rodapé com telemetria da máquina (CPU/RAM/disco/load).' },
       { path: 'src/components/DocViewer.tsx', what: 'Visualizador de markdown reusado por Contextos e Skills.' },

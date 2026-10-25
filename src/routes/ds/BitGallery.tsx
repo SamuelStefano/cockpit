@@ -17,6 +17,10 @@ export function BitGallery() {
       <Row label="tamanhos">
         {[20, 28, 40, 64, 120].map((s) => <Bit key={s} size={s} />)}
       </Row>
+      <Row label="parado (bolhas antigas do chat)">
+        <Bit size={28} still />
+        <Bit size={64} still />
+      </Row>
     </Section>
   );
 }

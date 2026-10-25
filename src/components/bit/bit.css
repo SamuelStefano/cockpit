@@ -8,7 +8,8 @@
 .bit .bit-ant { transform-origin: 60px 30px; transform-box: view-box; }
 .bit .bit-tip { transform-origin: 60px 12px; transform-box: view-box; animation: bitTip 2.4s ease-in-out infinite; }
 .bit .bit-cursor { animation: bitCursor 1.05s steps(1) infinite; }
-.bit .bit-spark, .bit .bit-ring, .bit .bit-z { transform-box: fill-box; transform-origin: center; }
+.bit .bit-mouth { transform-origin: 60px 78px; transform-box: view-box; }
+.bit .bit-spark, .bit .bit-ring, .bit .bit-z, .bit .bit-ask { transform-box: fill-box; transform-origin: center; }
 
 @keyframes bitBreathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.025, 0.975); } }
 @keyframes bitBlink { 0%, 91%, 100% { transform: scaleY(1); } 94% { transform: scaleY(0.08); } 97% { transform: scaleY(1); } }
@@ -37,6 +38,9 @@
 @keyframes bitFlicker { 0%, 100% { opacity: 1; } 10% { opacity: 0.2; } 14% { opacity: 1; } 52% { opacity: 0.35; } 56% { opacity: 1; } }
 @keyframes bitRing { 0% { opacity: 0.9; transform: scale(0.4); } 100% { opacity: 0; transform: scale(1.7); } }
 @keyframes bitSpark { 0%, 100% { opacity: 0; transform: scale(0.3) rotate(0); } 40% { opacity: 1; transform: scale(1) rotate(45deg); } 70% { opacity: 0; transform: scale(0.6) rotate(90deg); } }
+@keyframes bitTalk { 0%, 100% { transform: scale(1, 0.35); } 30% { transform: scale(0.9, 1.1); } 55% { transform: scale(1.05, 0.6); } 80% { transform: scale(0.85, 1); } }
+@keyframes bitNod { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-3deg); } }
+@keyframes bitAsk { 0%, 100% { transform: translateY(0) rotate(-6deg); opacity: 0.85; } 50% { transform: translateY(-4px) rotate(6deg); opacity: 1; } }
 @keyframes bitShadowHop { 0%, 100% { transform: scaleX(1); opacity: 0.45; } 35% { transform: scaleX(0.7); opacity: 0.25; } }
 
 .bit-idle .bit-body, .bit-wave .bit-body { animation: bitBreathe 3.4s ease-in-out infinite; }
@@ -81,6 +85,21 @@
 .bit-connecting .bit-pupils { animation: bitLook 2.4s ease-in-out infinite; }
 .bit-connecting .bit-ring { animation: bitRing 1.6s ease-out infinite; }
 .bit-connecting .bit-ring:nth-of-type(2) { animation-delay: 0.8s; }
+
+.bit-talking .bit-body { animation: bitNod 1.4s ease-in-out infinite; }
+.bit-talking .bit-mouth { animation: bitTalk 0.42s ease-in-out infinite; }
+.bit-talking .bit-eyes { animation: bitBlink 3.8s ease-in-out infinite; }
+.bit-talking .bit-armR { animation: bitTypeR 0.7s ease-in-out infinite; }
+
+.bit-waiting .bit-body { animation: bitBreathe 2.8s ease-in-out infinite; }
+.bit-waiting .bit-eyes { animation: bitBlink 3s ease-in-out infinite; }
+.bit-waiting .bit-ant { animation: bitAnt 2.2s ease-in-out infinite; }
+.bit-waiting .bit-ask { animation: bitAsk 1.6s ease-in-out infinite; }
+.bit-waiting .bit-tip { animation-duration: 1.2s; }
+
+/* Old bubbles keep a frozen Bit: dozens of animating avatars in a long thread
+   would compete with the one live turn for attention. */
+.bit.bit-still *, .bit.bit-still .bit-tip, .bit.bit-still .bit-cursor { animation: none !important; }
 
 @media (prefers-reduced-motion: reduce) {
   .bit *, .bit .bit-tip, .bit .bit-cursor { animation: none !important; }

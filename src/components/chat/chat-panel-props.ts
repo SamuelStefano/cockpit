@@ -6,6 +6,7 @@ import type { Attachment, AttachmentPreview, QueueItem } from '../../useCockpit'
 import type { ResumeOfferView } from '../../cockpit/resume-offers';
 import type { Phase } from './useChatPanel';
 import type { TimedExtra } from './interleave';
+import type { LinkState } from '../bit/turn-bit-state';
 
 // A Equipe bot's thread: the assistant speaks as the bot, the empty thread has no
 // generic suggestions, and delivered team prompts give way to the traffic rows.
@@ -21,6 +22,8 @@ export interface ChatPanelProps {
   // Live line under the thread while a turn runs (Equipe's rotating bot status).
   turnStatus?: ReactNode;
   botDecor?: ChatBotDecor;
+  // Link to the agent; a dead one puts the chat's Bit to sleep.
+  conn?: LinkState;
   session: Session | null;
   messages: Message[];
   phase: Phase;

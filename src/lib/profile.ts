@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase, SUPABASE_ENABLED } from './supabase';
 import { usePersisted, loadPref, setPref } from './persist';
-import { AI_AVATAR_KEY, AI_AVATAR_DEFAULT } from '../components/aiAvatar';
 
-// Perfil do usuário (nome, avatar, ícone da IA). Antes só no localStorage, então
+// Perfil do usuário (nome, avatar). Antes só no localStorage, então
 // não acompanhava a conta em outro device/IP. Agora a fonte da verdade é a row
 // `account` no Supabase (escrita client-side sob RLS = auth.uid()); o localStorage
 // vira CACHE — pinta na hora e sobrevive offline/loopback. No loopback (Supabase
@@ -27,12 +26,11 @@ function pushRemote(userId: string, col: string, value: string, onResult: (ok: b
 
 // Hook do MENU de perfil (único escritor): setters gravam o cache local na hora e,
 // quando logado no produto multi-conta, empurram pro Supabase. Os demais avatares
-// (UserAvatar/ClaudeAvatar/MessageView) só LEEM via usePersisted nas mesmas keys, e
+// (UserAvatar/MessageView) só LEEM via usePersisted nas mesmas keys, e
 // a hidratação remota os atualiza por setPref — sem precisar deste hook.
 export function useProfile(userId?: string) {
   const [name, setNameLocal] = usePersisted<string>(NAME_KEY, '');
   const [avatar, setAvatarLocal] = usePersisted<string>(AVATAR_KEY, '');
-  const [aiIcon, setAiIconLocal] = usePersisted<string>(AI_AVATAR_KEY, AI_AVATAR_DEFAULT);
   const synced = SUPABASE_ENABLED && !!userId;
   // O write remoto é silencioso (debounce + fire-and-forget); sem este flag o menu
   // mostrava "Sincronizado" mesmo quando o UPDATE falhou e o valor só existia local.
@@ -47,12 +45,7 @@ export function useProfile(userId?: string) {
     setAvatarLocal(v);
     if (synced) pushRemote(userId!, 'avatar_url', v, onPush);
   }, [synced, userId, setAvatarLocal, onPush]);
-  const setAiIcon = useCallback((v: string) => {
-    setAiIconLocal(v);
-    if (synced) pushRemote(userId!, 'ai_avatar', v, onPush);
-  }, [synced, userId, setAiIconLocal, onPush]);
-
-  return { name, avatar, aiIcon, setName, setAvatar, setAiIcon, synced, syncFailed };
+  return { name, avatar, setName, setAvatar, synced, syncFailed };
 }
 
 // Hidratação na conexão/login. Funde o perfil remoto da conta com o cache local.
@@ -73,7 +66,6 @@ export function useProfileHydration(userId: string | undefined): void {
     if (switched) {
       setPref(NAME_KEY, '');
       setPref(AVATAR_KEY, '');
-      setPref(AI_AVATAR_KEY, AI_AVATAR_DEFAULT);
     }
     if (!uid) return;
 
@@ -81,36 +73,31 @@ export function useProfileHydration(userId: string | undefined): void {
     void (async () => {
       const { data, error } = await supabase!
         .from('account')
-        .select('display_name, avatar_url, ai_avatar')
+        .select('display_name, avatar_url')
         .eq('id', uid)
         .maybeSingle();
       if (cancelled || error || !data) return;
 
       const localName = loadPref<string>(NAME_KEY, '');
       const localAvatar = loadPref<string>(AVATAR_KEY, '');
-      const localIcon = loadPref<string>(AI_AVATAR_KEY, AI_AVATAR_DEFAULT);
 
       const name = data.display_name ?? (localName || null);
       const avatar = data.avatar_url ?? (localAvatar || null);
-      const icon = data.ai_avatar ?? (localIcon !== AI_AVATAR_DEFAULT ? localIcon : null);
 
       if (cancelled) return;
       setPref(NAME_KEY, name ?? '');
       setPref(AVATAR_KEY, avatar ?? '');
-      setPref(AI_AVATAR_KEY, icon ?? AI_AVATAR_DEFAULT);
 
       // Cura o remoto quando ele estava sem algo que temos no local (write que
       // falhou antes, ou perfil de loopback subindo pra primeira conta). A troca de
       // conta já limpou o local acima, então isto só carrega valores DESTA conta.
       const remoteMissing =
         (data.display_name == null && name != null) ||
-        (data.avatar_url == null && avatar != null) ||
-        (data.ai_avatar == null && icon != null);
+        (data.avatar_url == null && avatar != null);
       if (remoteMissing) {
         await supabase!.from('account').update({
           display_name: name,
           avatar_url: avatar,
-          ai_avatar: icon,
         }).eq('id', uid);
       }
     })();

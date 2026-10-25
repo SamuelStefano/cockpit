@@ -20,6 +20,11 @@ export function BitFx({ state }: { state: BitState }) {
       </g>
     );
   }
+  if (state === 'waiting') {
+    return (
+      <text className="bit-ask" x={98} y={30} fill="#fde68a" fontSize={22} fontWeight={800} fontFamily="ui-sans-serif, system-ui">?</text>
+    );
+  }
   if (state === 'connecting') {
     return (
       <g fill="none" stroke="#fdba74" strokeWidth={2}>
