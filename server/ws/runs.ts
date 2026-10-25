@@ -34,6 +34,7 @@ import { threadIsMarathon, MARATHON_AUTO_RESUME_CAP } from './marathon';
 import { bindBotSession, getTeam } from '../team';
 import { botTurnParams } from '../team-prompt';
 import { botThreadKey } from '../../shared/team';
+import { clearBotQuestion } from './team-pending-frames';
 import { threads, admitRun, resolveThreadKey, stopSession, stopEpochOf, clearStopEpoch, shouldPreserveLive, runParams, sameParams, type Thread, type RunParams } from './threads';
 import { isAreaAdmissionBlocked } from '../canvas/autopause-loop';
 import { enqueuePending, takePendingBatch, takeAllPending, type QueuedSend } from './pending';
@@ -883,6 +884,9 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
   let parkedConsumed = false; // o item de fila deste turno já saiu do registro em disco?
   const thread: Thread = { handle: { kill: () => {}, send: () => false }, params, prompt, startedAt: Date.now(), sessionId: forkId ?? resumeId, text: '', thinking: '', tools: [], toolStart: new Map(), taskNotifies: new Map(), tasks: new Map(), taskCreates: new Map(), appTried: new Set(), flowHop };
   threads.set(sessionKey, thread);
+  // Any new turn of the bot (a routine, a peer's message) moves its thread past the
+  // open question: the card goes read-only, so the roster must stop waiting too.
+  if (params.botId && !forkId) clearBotQuestion(params.botId);
   // Eco da mensagem do usuário a todos os clientes ANTES do 'started' (bolha do
   // usuário aparece antes da do assistente). Só quando o cliente mandou msgId — o
   // dedup no remetente depende de casar o id otimista dele.

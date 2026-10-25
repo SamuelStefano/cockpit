@@ -25,6 +25,7 @@ import { useFileDrop } from './chat/useFileDrop';
 import { BackgroundAgents } from './chat/BackgroundAgents';
 import { AttachmentModal } from './chat/AttachmentModal';
 import type { ChatPanelProps } from './chat/chat-panel-props';
+import { BotThreadContext, BOT_ANSWER_PLACEHOLDER } from './chat/bot-thread-context';
 
 export type { Phase };
 
@@ -98,7 +99,9 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
           // role=log is polite-live: a reader hears new replies. aria-busy holds it
           // while tokens stream, so it reads the finished answer, not every delta.
           <div role="log" aria-label="Conversa" aria-busy={c.streaming} className={`mx-auto flex max-w-3xl flex-col gap-6 py-6 pl-4 ${topics.topics.length > 0 ? 'pr-9' : 'pr-4'}`}>
-            {rows.map((r) => (r.kind === 'extra' ? <div key={r.key}>{r.node}</div> : renderRow(r.msg, r.index)))}
+            <BotThreadContext.Provider value={!!botDecor}>
+              {rows.map((r) => (r.kind === 'extra' ? <div key={r.key}>{r.node}</div> : renderRow(r.msg, r.index)))}
+            </BotThreadContext.Provider>
             {/* Sem bolha de assistente na cauda (ex: divisor recém-inserido) o turno
                 em voo ficaria sem nenhum sinal — vale pra streaming também. */}
             {!c.pendingQuestion && (phase !== 'idle' && shown[shown.length - 1]?.role !== 'assistant' || phase === 'idle' && terminalBusy) && <Thinking live={live} />}
@@ -132,7 +135,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
 
       <TurnBanners phase={phase} failed={c.failed} resumeOffer={resumeOffer} onResume={resumeOffer && resumeRun ? () => resumeRun(resumeOffer.sessionKey) : undefined} planPending={c.planPending} pendingQuestion={c.pendingQuestion} queuedCount={c.queued.length} lastEnd={lastEnd} retryLast={c.retryLast} retryText={c.retryText} onSend={onSend} onForceQueue={session ? () => queueForce(session.id) : undefined} />
 
-      <ChatInput disabled={c.disabled} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
+      <ChatInput disabled={c.disabled} placeholder={botDecor && c.pendingQuestion ? BOT_ANSWER_PLACEHOLDER : undefined} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
         caps={caps} bypass={bypass} setBypass={setBypass}
         model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels}
         effort={effort} setEffort={setEffort}

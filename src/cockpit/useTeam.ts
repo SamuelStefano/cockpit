@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import type { ClientMsg, ServerMsg, TeamBot, TeamBotInput } from '../../shared/protocol';
+import type { ClientMsg, ServerMsg, TeamBot, TeamBotInput, TeamPendingQuestion } from '../../shared/protocol';
 import { mergeTeamMessages, type TeamMessage } from '../../shared/team-messages';
 
 export interface TeamMessagesQuery { botId?: string; peer?: string; before?: number }
@@ -9,6 +9,7 @@ export interface Team {
   teamLoaded: boolean;
   teamMessages: TeamMessage[];
   teamPaused: boolean;
+  pendingQuestions: TeamPendingQuestion[];
   onTeamGet: () => void;
   onTeamSave: (bot: TeamBotInput) => void;
   onTeamDelete: (id: string) => void;
@@ -22,6 +23,7 @@ export function useTeam(send: (m: ClientMsg) => boolean): Team {
   const [teamLoaded, setTeamLoaded] = useState(false);
   const [teamMessages, setTeamMessages] = useState<TeamMessage[]>([]);
   const [teamPaused, setTeamPaused] = useState(false);
+  const [pendingQuestions, setPendingQuestions] = useState<TeamPendingQuestion[]>([]);
 
   const onMsg = useCallback((msg: ServerMsg) => {
     switch (msg.t) {
@@ -38,6 +40,9 @@ export function useTeam(send: (m: ClientMsg) => boolean): Team {
       case 'team-paused':
         setTeamPaused(msg.paused);
         return true;
+      case 'team-pending':
+        setPendingQuestions(msg.items);
+        return true;
       default:
         return false;
     }
@@ -48,6 +53,7 @@ export function useTeam(send: (m: ClientMsg) => boolean): Team {
     teamLoaded,
     teamMessages,
     teamPaused,
+    pendingQuestions,
     onTeamGet: useCallback(() => { send({ t: 'team-get' }); }, [send]),
     onTeamSave: useCallback((bot: TeamBotInput) => { send({ t: 'team-save', bot }); }, [send]),
     onTeamDelete: useCallback((id: string) => { send({ t: 'team-delete', id }); }, [send]),

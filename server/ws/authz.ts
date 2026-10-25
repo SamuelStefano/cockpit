@@ -33,6 +33,9 @@ const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   // (ws/student-team.ts) — the frame alone grants no Bash.
   'team-get', 'team-save', 'team-delete',
   'crons-get', 'cron-save', 'cron-delete', 'cron-run',
+  // Read-only, limited to a bot in this account's team.json and to that bot's
+  // workspace after realpath (ws/team-files-frames.ts, team-files.ts).
+  'team-files-get', 'team-file-get',
 ]);
 
 export function authorize(role: Role, t: ClientMsg['t']): boolean {

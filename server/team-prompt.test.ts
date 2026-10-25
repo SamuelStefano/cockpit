@@ -16,6 +16,11 @@ describe('buildBotIdentity', () => {
     expect(t).toContain('- capo1 (principal) — coo do tainan; chefe de lead1');
     expect(t).toContain('- lead1; responde a capo1; chefe de kid11');
   });
+  it('asks for decisions as AskUserQuestion with 2-4 options and images as workspace files', () => {
+    const t = buildBotIdentity(team[0], team);
+    expect(t).toContain('AskUserQuestion com uma pergunta e 2 a 4 opções curtas e mutuamente exclusivas');
+    expect(t).toContain('![legenda](nome.png)');
+  });
   it('omits the roster for a team of one and caps the size', () => {
     const solo = mk('solo1', { instructions: 'z'.repeat(40_000) });
     const t = buildBotIdentity(solo, [solo]);

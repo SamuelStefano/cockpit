@@ -7,6 +7,7 @@ const dir = mkdtempSync(join(tmpdir(), 'deck-bot-bind-'));
 process.env.COCKPIT_PARKED = join(dir, 'parked.json');
 process.env.COCKPIT_QUEUE_PAUSE = join(dir, 'queue-paused.json');
 process.env.COCKPIT_AWAITING = join(dir, 'awaiting.json');
+process.env.COCKPIT_TEAM_PENDING = join(dir, 'team-pending.json');
 
 const SID = '6ef8f243-a5aa-4082-bb40-29b66e7fa756';
 const team = vi.hoisted(() => ({ bindBotSession: vi.fn(async (): Promise<unknown[] | null> => [{ id: 'capo1' }]) }));
@@ -35,6 +36,7 @@ import { threads } from './threads';
 import { run } from '../engine/claude';
 import { broadcast } from './broadcast';
 import { runAgent } from '../agents/acp-run';
+import { readPendingQuestions, setPendingQuestion } from '../team-pending';
 
 type Ev = (ev: unknown) => void;
 const lastOnEvent = (): Ev => (vi.mocked(run).mock.calls.at(-1)![0] as unknown as { onEvent: Ev }).onEvent;
@@ -52,6 +54,15 @@ describe('a bot turn binds its session', () => {
     expect(team.bindBotSession).toHaveBeenCalledTimes(1);
     expect(team.bindBotSession).toHaveBeenCalledWith('capo1', SID);
     expect(broadcast).toHaveBeenCalledWith({ t: 'team', bots: [{ id: 'capo1' }] });
+  });
+
+  it('a new turn of the bot (routine, peer message) retires its open question', () => {
+    const questions = [{ question: 'Q?', header: '', multiSelect: false, options: [{ label: 'A' }] }];
+    setPendingQuestion({ botId: 'capo1', sessionKey: 'bot-capo1', questions, at: 1 });
+    setPendingQuestion({ botId: 'lead1', sessionKey: 'bot-lead1', questions, at: 1 });
+    startRun({ ws: null, sessionKey: 'bot-capo1', prompt: 'rotina', botId: 'capo1' });
+    expect(readPendingQuestions().map((p) => p.botId)).toEqual(['lead1']);
+    expect(broadcast).toHaveBeenCalledWith({ t: 'team-pending', items: [expect.objectContaining({ botId: 'lead1' })] });
   });
 
   it('never binds a plain turn or a fork', () => {

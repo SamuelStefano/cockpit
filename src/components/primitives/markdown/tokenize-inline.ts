@@ -1,5 +1,5 @@
 // Tokeniza markdown inline numa única passada: wikilink `[[x]]`, negrito,
-// itálico, tachado, código, link `[txt](url)` e URL crua. A regra de precedência
+// itálico, tachado, código, imagem `![alt](src)`, link `[txt](url)` e URL crua. A regra de precedência
 // é a ordem das alternativas no regex (negrito antes de itálico, etc.). Puro e
 // testável — o render só mapeia cada token pro seu nó.
 export type InlineToken =
@@ -10,11 +10,12 @@ export type InlineToken =
   | { type: 'italic'; value: string }
   | { type: 'code'; value: string }
   | { type: 'autolink'; url: string; trail: string }
-  | { type: 'link'; label: string; url: string };
+  | { type: 'link'; label: string; url: string }
+  | { type: 'image'; alt: string; src: string };
 
 export function tokenizeInline(text: string): InlineToken[] {
   const tokens: InlineToken[] = [];
-  const re = /(\[\[[^\]\n]+\]\]|\*\*[^*]+\*\*|\*\S[^*\n]*?\*|~~[^~]+~~|`[^`]+`|\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s<>)\]]+)/g;
+  const re = /(\[\[[^\]\n]+\]\]|\*\*[^*]+\*\*|\*\S[^*\n]*?\*|~~[^~]+~~|`[^`]+`|!\[[^\]\n]*\]\([^)\s]+\)|\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s<>)\]]+)/g;
   let last = 0;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
@@ -25,6 +26,10 @@ export function tokenizeInline(text: string): InlineToken[] {
     else if (tok.startsWith('~~')) tokens.push({ type: 'strike', value: tok.slice(2, -2) });
     else if (tok.startsWith('*')) tokens.push({ type: 'italic', value: tok.slice(1, -1) });
     else if (tok.startsWith('`')) tokens.push({ type: 'code', value: tok.slice(1, -1) });
+    else if (tok.startsWith('![')) {
+      const mm = /^!\[([^\]]*)\]\(([^)]+)\)$/.exec(tok)!;
+      tokens.push({ type: 'image', alt: mm[1], src: mm[2] });
+    }
     else if (tok.startsWith('http')) {
       const trail = /[.,;:!?]+$/.exec(tok);
       const url = trail ? tok.slice(0, -trail[0].length) : tok;

@@ -26,6 +26,7 @@ export { toast, type ToastTone, type ToastOptions } from './toast-bus';
 export { ConfettiHost } from './Confetti';
 export { fireConfetti, type ConfettiOptions } from './confetti-bus';
 export { Markdown } from './Markdown';
+export { ImageResolverContext, type ImageResolver, type ResolvedImage } from './markdown/image-context';
 export { CodeBlock } from './CodeBlock';
 export { splitFences } from './markdown/split-fences';
 export { WikilinkContext, type WikilinkResolver } from './markdown/wikilink-context';

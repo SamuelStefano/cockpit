@@ -17,6 +17,7 @@ export { ChatEmpty } from './ChatEmpty';
 
 interface ChatInputProps {
   disabled: boolean;
+  placeholder?: string;
   onSend: (text: string, modeOverride?: PermMode) => void;
   onStop: () => void;
   value: string;
@@ -68,7 +69,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, onOpenAttachment, queued, queuedAtts, queuedModels, onRunQueuedBg, onRunQueuedNow, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, queueReleaseAt = 0, onToggleQueuePause, paused = false, quotaResetsAt, keyboardOpen = false } = props;
+  const { disabled, placeholder, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, onOpenAttachment, queued, queuedAtts, queuedModels, onRunQueuedBg, onRunQueuedNow, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, queueReleaseAt = 0, onToggleQueuePause, paused = false, quotaResetsAt, keyboardOpen = false } = props;
   const hasAtt = attachments.length > 0;
   const attUploading = attachments.some((a) => a.uploading);
   const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
@@ -129,7 +130,7 @@ export function ChatInput(props: ChatInputProps) {
             enterKeyHint={touch ? 'enter' : 'send'}
             // A 390px o placeholder longo quebrava em 2 linhas e o composer vazio
             // já nascia com o dobro da altura.
-            placeholder={paused ? 'Tokens esgotados — digite p/ enfileirar (envia ao resetar)…' : mic.listening ? 'Ouvindo… fale agora' : disabled ? (touch ? 'Turno rodando: triagem decide a vez…' : 'Mensagem com o turno rodando (a triagem decide a vez)…') : touch ? 'Mensagem…' : 'Pergunte ou peça um comando…  (↵ envia, ⇧↵ quebra linha)'}
+            placeholder={paused ? 'Tokens esgotados — digite p/ enfileirar (envia ao resetar)…' : mic.listening ? 'Ouvindo… fale agora' : disabled ? (touch ? 'Turno rodando: triagem decide a vez…' : 'Mensagem com o turno rodando (a triagem decide a vez)…') : placeholder ?? (touch ? 'Mensagem…' : 'Pergunte ou peça um comando…  (↵ envia, ⇧↵ quebra linha)')}
             style={{ maxHeight: composerMaxH() }}
             className="scroll-thin relative w-full resize-none bg-transparent py-1 text-[15px] leading-7 text-neutral-100 placeholder-neutral-600 outline-hidden"
           />

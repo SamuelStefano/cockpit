@@ -34,4 +34,10 @@ describe('RouteMenu', () => {
     const fellow = render(<RouteMenu route={'/' as never} nav={vi.fn() as never} isAdmin={false} open={false} setOpen={vi.fn()} />);
     expect(fellow.container.firstElementChild?.className).toContain('min-[1110px]:hidden');
   });
+
+  it('counts what waits on the user, on the trigger and on the route', () => {
+    const r = render(<RouteMenu route={'/' as never} nav={vi.fn() as never} isAdmin open setOpen={vi.fn()} counts={{ '/equipe': 2 } as never} />);
+    expect(r.getAllByTitle('2 esperando você')).toHaveLength(2);
+    expect(r.getByRole('menuitem', { name: /equipe/ }).textContent).toContain('2');
+  });
 });

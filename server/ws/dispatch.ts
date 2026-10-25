@@ -25,6 +25,8 @@ import { fireCron, type CronFire } from './runs';
 import { getTeam, saveBot, deleteBot } from '../team';
 import { botTurnFor } from '../team-prompt';
 import { sendTeamMessages, sendTeamPaused, setTeamPause } from './team-frames';
+import { clearBotQuestion, sendTeamPending } from './team-pending-frames';
+import { sendBotFile, sendBotFiles } from './team-files-frames';
 import { validateBotInput } from '../../shared/team';
 import { queueReleaseAt } from './ctx-guard';
 import { listSkills, readSkill, resolveSkillDeny, installSkill } from '../skills';
@@ -797,6 +799,15 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'team-get': {
       send(ws, { t: 'team', bots: await getTeam() });
       sendTeamPaused(ws);
+      sendTeamPending(ws);
+      return;
+    }
+    case 'team-files-get': {
+      await sendBotFiles(ws, msg.botId);
+      return;
+    }
+    case 'team-file-get': {
+      await sendBotFile(ws, msg.botId, msg.path);
       return;
     }
     case 'team-messages-get': {
@@ -818,6 +829,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'team-delete': {
       if (typeof msg.id !== 'string') { send(ws, { t: 'error', message: 'bot inválido' }); return; }
       broadcast({ t: 'team', bots: await deleteBot(msg.id) });
+      clearBotQuestion(msg.id);
       const paused = await pauseBotRoutines(msg.id);
       if (paused) broadcast({ t: 'crons', items: paused });
       return;
@@ -1045,6 +1057,8 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // (Skill(id)). Resolvido aqui (async) e passado adiante; vazio = todas ativas.
       const disallowedSkills = await resolveSkillDeny(msg.skills);
       const bot = botTurnFor(await getTeam(), msg.sessionKey, msg.sessionId, role);
+      // The human's next message in the bot's thread is the answer, picked or typed.
+      if (bot && msg.auto !== true) clearBotQuestion(bot.botId);
       const resumeId = bot?.resumeId ?? msg.sessionId;
       // Sessão ocupada → triador decide o destino (esperar/responder/prioridade/
       // juntar). Livre → roda direto como antes.

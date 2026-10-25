@@ -10,6 +10,7 @@ import { getLastRate } from './rate';
 import { parseTaskNotification, registerNotify } from './task-notify';
 import { threads, type Thread } from './threads';
 import { setAwaiting } from './awaiting';
+import { recordBotQuestion } from './team-pending-frames';
 
 // Tradução evento NDJSON -> ServerMsg (squad C2/H1: tool por id de correlação).
 export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
@@ -173,6 +174,7 @@ export function translate(sessionKey: string, thread: Thread, ev: ClaudeEvent) {
         thread.stopped = true;
         thread.questioned = true;
         setAwaiting(sessionKey);
+        if (thread.params.botId) recordBotQuestion(thread.params.botId, sessionKey, content);
         thread.handle.kill();
       }
       return;

@@ -20,6 +20,15 @@ describe('useTeam', () => {
     expect(result.current.teamLoaded).toBe(true);
   });
 
+  it('keeps the server list of open bot questions', () => {
+    const { result } = mount();
+    const q = { botId: 'capo1', sessionKey: 'bot-capo1', at: 1, questions: [{ question: 'Q?', header: '', multiSelect: false, options: [{ label: 'A' }] }] };
+    act(() => { expect(result.current.onMsg({ t: 'team-pending', items: [q] })).toBe(true); });
+    expect(result.current.pendingQuestions).toEqual([q]);
+    act(() => { result.current.onMsg({ t: 'team-pending', items: [] }); });
+    expect(result.current.pendingQuestions).toEqual([]);
+  });
+
   it('ignores frames that are not its own', () => {
     const { result } = mount();
     expect(result.current.onMsg({ t: 'crons', items: [] })).toBe(false);

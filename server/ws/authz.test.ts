@@ -26,6 +26,11 @@ describe('authorize', () => {
     }
   });
 
+  it('student reads its own bots files (team-files-get/team-file-get)', () => {
+    expect(authorize('student', 'team-files-get')).toBe(true);
+    expect(authorize('student', 'team-file-get')).toBe(true);
+  });
+
   it('default-deny: an unknown future message type is denied for student', () => {
     expect(authorize('student', 'totally-new-msg' as never)).toBe(false);
     expect(authorize('admin', 'totally-new-msg' as never)).toBe(true);

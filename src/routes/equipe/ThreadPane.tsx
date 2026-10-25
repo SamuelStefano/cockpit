@@ -8,7 +8,7 @@ interface ThreadPaneProps {
   view: BotView;
   peer: TeamBot | null;
   byId: Map<string, TeamBot>;
-  p: Pick<EquipeProps, 'chatProps' | 'bots' | 'teamMessages'>;
+  p: Pick<EquipeProps, 'chatProps' | 'bots' | 'teamMessages' | 'botFileData' | 'onBotFileGet'>;
   onOpenPeer: (id: string) => void;
   onClosePeer: () => void;
   onBack?: () => void;
@@ -17,5 +17,5 @@ interface ThreadPaneProps {
 
 export function ThreadPane({ view, peer, byId, p, onOpenPeer, onClosePeer, onBack, onProfile }: ThreadPaneProps) {
   if (peer) return <PeerThread a={view.bot} b={peer} log={p.teamMessages} byId={byId} onBack={onClosePeer} />;
-  return <BotThread view={view} chatProps={p.chatProps} bots={p.bots} log={p.teamMessages} onOpenPeer={onOpenPeer} onBack={onBack} onProfile={onProfile} />;
+  return <BotThread view={view} chatProps={p.chatProps} bots={p.bots} log={p.teamMessages} files={p} onOpenPeer={onOpenPeer} onBack={onBack} onProfile={onProfile} />;
 }

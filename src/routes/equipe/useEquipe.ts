@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { loadPref, savePref } from '../../lib/persist';
-import { botView, lastTrafficByBot, orderBots } from './team-view';
+import { botView, lastTrafficByBot, orderBots, pendingByBot } from './team-view';
 import { botName } from '../../../shared/team-messages';
 import type { BotFormTarget, EquipePane, EquipeProps } from './equipe-props';
 
@@ -28,8 +28,9 @@ export function useEquipe(p: EquipeProps) {
   }, [selected?.id, selected?.sessionId]);
 
   const lastTraffic = useMemo(() => lastTrafficByBot(teamMessages), [teamMessages]);
+  const pending = useMemo(() => pendingByBot(p.pendingQuestions), [p.pendingQuestions]);
   const nameOf = useCallback((id: string) => botName(bots, id), [bots]);
-  const ctx = { sessions: p.sessions, running: p.running, activeId: p.activeId, phase: p.phase, interrupted: p.interrupted, runStart: p.runStart, seen, selectedId: currentId, now, lastTraffic, nameOf };
+  const ctx = { sessions: p.sessions, running: p.running, activeId: p.activeId, phase: p.phase, interrupted: p.interrupted, runStart: p.runStart, seen, selectedId: currentId, now, lastTraffic, nameOf, pending };
   const views = ordered.map((b) => botView(b, ctx));
   const selectedView = views.find((v) => v.bot.id === currentId) ?? null;
 

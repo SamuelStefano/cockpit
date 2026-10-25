@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { botView, botChatKey, orderBots, lastTrafficByBot, type TeamViewCtx } from './team-view';
+import { botView, botChatKey, orderBots, lastTrafficByBot, pendingByBot, type TeamViewCtx } from './team-view';
 import type { TeamBot } from '../../../shared/protocol';
 import type { Session } from '../../data/types';
 
@@ -63,5 +63,16 @@ describe('traffic preview', () => {
     expect(v.preview).toBe('Mandou para ATIV1: t1');
     const older = botView(bot, ctx({ sessions: [session(SID, { mtime: 500 })], lastTraffic: { lead1: m('1', 'ativ1', 'lead1', 100) }, nameOf }));
     expect(older.preview).toBe('última fala');
+  });
+});
+
+describe('botView with an open question', () => {
+  it('shows the waiting mascot and "Esperando você: <pergunta>", even while idle and unseen', () => {
+    const q = { botId: 'capo1', sessionKey: 'bot-capo1', at: 1, questions: [{ question: 'O que faço com a proposta?', header: '', multiSelect: false, options: [{ label: 'A' }] }] };
+    const v = botView(mk('capo1', { sessionId: SID }), ctx({ sessions: [session(SID)], pending: pendingByBot([q]) }));
+    expect(v.state).toBe('waiting');
+    expect(v.preview).toBe('Esperando você: O que faço com a proposta?');
+    expect(v.pending).toBe(q);
+    expect(botView(mk('lead1'), ctx({ pending: pendingByBot([q]) })).state).not.toBe('waiting');
   });
 });
