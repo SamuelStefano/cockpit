@@ -4,6 +4,8 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { systemPrompt } from './prompt';
 import { cliPath } from '../engine/cli-path';
+import { LEAN_ONESHOT_ARGS } from '../engine/lean-args';
+import { CONFIG } from '../config';
 import type { HarnessContext, HarnessEvent } from '../../shared/protocol';
 
 // Motor de PLANO: roda a task pelo mesmo binário `claude` que o Deck já usa, com env
@@ -104,6 +106,9 @@ export function runOnPlan(opts: { model: string; prompt: string; context: Harnes
     '--disallowedTools', 'Read Bash Glob Grep WebFetch WebSearch Edit Write NotebookEdit Task',
     '--model', model,
     '--system-prompt', systemPrompt(context),
+    // Measured 21.3k -> 0.6k input tokens per task, and `--tools ''` also removes
+    // every tool definition instead of relying on the deny list above.
+    ...(CONFIG.leanOneShots ? LEAN_ONESHOT_ARGS : []),
   ];
 
   return new Promise<PlanResult>((resolve) => {

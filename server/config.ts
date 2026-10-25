@@ -107,6 +107,11 @@ export const CONFIG = {
   summaryEnabled: process.env.COCKPIT_SUMMARY !== 'off',
   summaryModel: process.env.COCKPIT_SUMMARY_MODEL ?? 'claude-haiku-4-5-20251001',
 
+  // One-shot `claude -p` calls (triage, auth keep-alive, harness plan engine) run
+  // without built-in tools, skills, user settings/hooks/CLAUDE.md and transcript:
+  // measured 30.4k -> 2.2k input tokens per triage call. 'off' restores the old argv.
+  leanOneShots: process.env.COCKPIT_LEAN_ONESHOTS !== 'off',
+
   // Variantes de janela de 1M (`claude-opus-5[1m]`) no seletor e no argv. Default
   // FALSE: uma sessão nelas para de compactar e chega a ~800k de contexto, onde
   // cada prompt com cache frio custa ~14% da janela de 5h (incidente de 04/09/2026,

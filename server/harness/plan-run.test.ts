@@ -71,6 +71,15 @@ describe('least privilege do motor de plano', () => {
     expect(stdinWritten).toBe(prompt);
   });
 
+  it('starts with no tool definitions, skills or user settings at all', () => {
+    vi.mocked(spawn).mockReturnValue(fakeChild() as never);
+    void runOnPlan({ model: 'm', prompt: 'p', context: null, onEvent: () => {} });
+    const args = vi.mocked(spawn).mock.calls.at(-1)![1] as string[];
+    expect(args[args.indexOf('--tools') + 1]).toBe('');
+    expect(args[args.indexOf('--setting-sources') + 1]).toBe('');
+    expect(args.filter((a) => a === '--system-prompt')).toHaveLength(1);
+  });
+
   it('nega explicitamente as tools de leitura e rede', () => {
     vi.mocked(spawn).mockReturnValue(fakeChild() as never);
     void runOnPlan({ model: 'claude-haiku-4-5-20251001', prompt: 'p', context: null, onEvent: () => {} });

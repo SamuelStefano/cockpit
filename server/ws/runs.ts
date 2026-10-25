@@ -13,6 +13,7 @@ import { detach } from './detach';
 import { translate } from './translate';
 import { summarize } from '../summary';
 import { classify, quickAnswer } from '../engine/triage';
+import { priorityCarry } from './priority-carry';
 import { isAwaiting, clearAwaiting } from './awaiting';
 import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takeParked, promoteParked, parkedView, isQueuePaused, MAX_PARKED_ATTEMPTS, REJECT_MESSAGE, type ParkedItem } from './parked';
 import { resumableId } from './resume';
@@ -1254,9 +1255,7 @@ export async function routeSend(o: RouteSendOptions) {
       // Carrega o progresso parcial do turno morto no prompt: o trabalho já pensado
       // não estava no JSONL (turno interrompido), então sem isso o modelo re-derivava
       // do zero (a "repetição de pensamento" reportada). msgId undefined: bolha já ecoada.
-      const carry = cur.text || cur.thinking
-        ? `Você estava no meio de: ${cur.prompt}\n\nProgresso até agora (não repita, continue daqui):\n${(cur.thinking || '').slice(-1500)}\n${(cur.text || '').slice(-1500)}\n\nNOVA INSTRUÇÃO URGENTE (priorize):\n${prompt}`
-        : prompt;
+      const carry = priorityCarry(cur, prompt, !!resumeFrom);
       startRun({ ...params, ws, sessionKey, prompt: carry, resumeId: resumeFrom });
       return;
     }
