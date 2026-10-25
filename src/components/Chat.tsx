@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react';
+import { isAgentModel } from '../../shared/agents';
 import { Icon } from './primitives';
 import { subscribeRefine } from './primitives/livepreview/refine-bus';
 import { MessageRow, Thinking } from './chat/MessageView';
@@ -75,7 +76,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
         keyboardOpen={keyboardOpen}
       />
 
-      {!claudeReady && <ClaudeAuthBanner onTerminal={onTerminal} />}
+      {!claudeReady && !isAgentModel(model) && <ClaudeAuthBanner onTerminal={onTerminal} />}
       {isOrchestratorSession(session?.id, orchestratorSessionId) && <OrchestratorSessionBanner />}
 
       {/* Wrapper relativo: as afordâncias de scroll ancoram no fim da ÁREA DE
