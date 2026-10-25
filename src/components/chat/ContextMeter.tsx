@@ -24,12 +24,14 @@ export function ContextMeter({ tokens, model, onNew }: { tokens: number; model?:
       {high && onNew && (
         <button
           onClick={onNew}
+          aria-label="Nova sessão"
           title="Contexto quase cheio — comece uma sessão nova para respostas mais rápidas e baratas"
           // nowrap/shrink-0: in a crowded chat header the label broke onto two lines
           // inside its red border.
           className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 text-[10.5px] font-medium text-red-300 transition hover:bg-red-500/20 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-red-500/40"
         >
-          <Icon name="plus" size={11} /> nova sessão
+          {/* Label only in a wide chat header (ChatHeader is the @container). */}
+          <Icon name="plus" size={11} /><span className="hidden @min-[36rem]:inline">nova sessão</span>
         </button>
       )}
     </div>
