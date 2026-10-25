@@ -92,7 +92,8 @@ export function attachWs(server: Server) {
     // por conta vive no relay T3 (server/agent.ts + DECK_AGENT_ROLE).
     // O ciclo de vida da conexão (bootstrap + loop + cleanup) é agnóstico ao
     // transporte — o mesmo serveConnection serve o agente T3 que disca pro relay.
-    serveConnection(ws, { role: 'admin' });
+    // Same reasoning makes it root: the owner keeps points and the host write-ops.
+    serveConnection(ws, { role: 'admin', root: true });
   });
 
   const hasClients = () => wss.clients.size > 0;

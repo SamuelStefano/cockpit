@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { authorize } from './authz';
+import { ROOT_ONLY } from '../../shared/root-frames';
 
 describe('authorize', () => {
   it('admin may send every message type', () => {
@@ -60,9 +61,38 @@ describe('authorize', () => {
     }
   });
 
-  it('financeiro DFL é admin-only: student negado, admin liberado', () => {
+  it('financeiro DFL é root-only: student e admin negados, dono liberado', () => {
     for (const t of ['points-dfl-get', 'points-dfl-sync'] as const) {
       expect(authorize('student', t)).toBe(false);
+      expect(authorize('admin', t)).toBe(false);
+      expect(authorize('admin', t, true)).toBe(true);
+    }
+  });
+
+  it('every owner frame needs root: admin without it is denied, the owner passes', () => {
+    const owner = [
+      'points-get', 'points-add', 'points-correct', 'points-note', 'points-delete',
+      'points-dfl-get', 'points-dfl-sync', 'points-dfl-change', 'points-dfl-invoice',
+      'pontos-agent-tasks', 'drafts-get', 'drafts-op',
+      'admin-env-set', 'admin-env-unset', 'admin-mcp-add', 'admin-mcp-remove',
+      'admin-cli-install', 'admin-cli-update', 'admin-deck-restart',
+    ] as const;
+    expect([...ROOT_ONLY].sort()).toEqual([...owner].sort());
+    for (const t of owner) {
+      expect(authorize('admin', t)).toBe(false);
+      expect(authorize('student', t)).toBe(false);
+      expect(authorize('student', t, true)).toBe(false);
+      expect(authorize('admin', t, true)).toBe(true);
+    }
+  });
+
+  it('an unlisted future owner frame is denied without root by its prefix', () => {
+    expect(authorize('admin', 'points-future' as never)).toBe(false);
+    expect(authorize('admin', 'points-future' as never, true)).toBe(true);
+  });
+
+  it('a plain admin keeps the rest of the Painel', () => {
+    for (const t of ['admin-health', 'agents-get', 'refresh-models', 'canvas-get', 'term-open'] as const) {
       expect(authorize('admin', t)).toBe(true);
     }
   });

@@ -256,6 +256,84 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
     expect(setCalls).toEqual([{ id: 'accA', admin: true }]); // fellow não escreveu nada
   });
 
+  it('a plain admin account gets no account list', async () => {
+    const store: RelayStore = {
+      async agentById() { return null; }, async isAdmin() { return true; },
+      async listAccounts() { return [{ id: 'accA', email: 'a@x', isAdmin: true }]; }, async setAdmin() { return true; },
+      async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
+      async consumePairingCode() { return null; }, async createAgent() { return null; },
+    };
+    const relay = createRelay({
+      iss: 't', jwksUrl: 'http://x', rootEmails: '', store,
+      resolveIdentity: async () => ({ accountId: 'accA', email: 'a@x', role: 'admin' }),
+    });
+    server = relay.server;
+    await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
+    const url = `ws://127.0.0.1:${(server!.address() as AddressInfo).port}`;
+    const admin = new WebSocket(`${url}/ws?token=A1`); sockets.push(admin);
+    const wait = collect(admin);
+    await wait((m) => m.t === 'caps');
+    admin.send(JSON.stringify({ t: 'accounts-list' }));
+    await expect(wait((m) => m.t === 'accounts', 600)).rejects.toThrow();
+  });
+
+  // Owner-only frames (shared/root-frames.ts): only a root account reaches its agent
+  // with them. The escaped variant proves the check reads the parsed `t`.
+  it('drops owner-only frames for admin and fellow accounts, forwards them for root', async () => {
+    const A = makeAgentKeys();
+    let role: 'root' | 'admin' | 'fellow' = 'admin';
+    const store: RelayStore = {
+      async agentById(id) { return id === 'ag-A' ? { accountId: 'accA', publicKey: A.pub } : null; },
+      async isAdmin() { return false; },
+      async listAccounts() { return []; }, async setAdmin() { return true; },
+      async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
+      async consumePairingCode() { return null; }, async createAgent() { return null; },
+    };
+    const relay = createRelay({
+      iss: 't', jwksUrl: 'http://x', rootEmails: '', store,
+      resolveIdentity: async () => ({ accountId: 'accA', email: 'a@x', role }),
+    });
+    server = relay.server;
+    await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
+    const url = `ws://127.0.0.1:${(server!.address() as AddressInfo).port}`;
+    const agentA = connectFakeAgent(url, 'ag-A', A.priv); sockets.push(agentA.ws);
+    await agentA.ready;
+
+    const owner = [
+      JSON.stringify({ t: 'points-get' }),
+      JSON.stringify({ t: 'points-add', title: 'x', points: 1 }),
+      JSON.stringify({ t: 'points-dfl-get' }),
+      JSON.stringify({ t: 'pontos-agent-tasks', reqId: 'r', note: '', epicCapCents: 0, monthCapCents: 0, pointValue: 0 }),
+      JSON.stringify({ t: 'drafts-get' }),
+      JSON.stringify({ t: 'admin-env-set', name: 'A', value: 'b' }),
+      JSON.stringify({ t: 'admin-mcp-add', name: 'm', url: 'https://x' }),
+      JSON.stringify({ t: 'admin-cli-install', name: 'x' }),
+      JSON.stringify({ t: 'admin-deck-restart', mode: 'now' }),
+      '{"t":"points\\u002ddelete","entryId":"e"}',
+    ];
+    for (const r of ['admin', 'fellow'] as const) {
+      role = r;
+      const b = new WebSocket(`${url}/ws?token=${r}`); sockets.push(b);
+      const wait = collect(b);
+      await wait((m) => m.t === 'caps');
+      for (const f of owner) b.send(f);
+      b.send(JSON.stringify({ t: 'admin-health' }));
+      await wait((m) => m.t === 'echo' && m.saw === 'admin-health');
+      await expect(wait((m) => m.t === 'echo' && /^(points|pontos|drafts|admin-env|admin-mcp|admin-cli|admin-deck)/.test(m.saw ?? ''), 300)).rejects.toThrow();
+      await wait((m) => m.t === 'error' && m.message === 'sem permissão');
+      b.close();
+    }
+
+    role = 'root';
+    const root = new WebSocket(`${url}/ws?token=root`); sockets.push(root);
+    const waitR = collect(root);
+    await waitR((m) => m.t === 'caps');
+    root.send(JSON.stringify({ t: 'points-add', title: 'x', points: 1 }));
+    root.send(JSON.stringify({ t: 'admin-env-set', name: 'A', value: 'b' }));
+    expect((await waitR((m) => m.t === 'echo' && m.saw === 'points-add')).saw).toBe('points-add');
+    expect((await waitR((m) => m.t === 'echo' && m.saw === 'admin-env-set')).saw).toBe('admin-env-set');
+  });
+
   // Regressão: o pré-filtro de frame de admin é por SUBSTRING sobre o JSON cru.
   // Aspas dentro de texto saem escapadas (\"), então o gatilho não é "mencionar" o
   // nome: é qualquer CAMPO cujo valor seja exatamente `accounts-list`/`set-admin` —

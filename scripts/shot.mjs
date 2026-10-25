@@ -2,8 +2,8 @@
 // Serve pra eu (agente) VER a tela em vez de deduzir do código — screenshot é a
 // única forma de pegar bug visual (contraste, overflow, elemento sumido).
 //
-//   node scripts/shot.mjs /play --out /tmp/play.png
-//   node scripts/shot.mjs /play --click "App" --click "Modal" --wait 1200 --vp 1440x900
+//   node scripts/shot.mjs /ds --out /tmp/ds.png
+//   node scripts/shot.mjs /ds --click "Modal" --wait 1200 --vp 1440x900
 //
 // Roda contra `vite preview` (SMOKE_BASE) ou qualquer base via env.
 import { chromium } from 'playwright';

@@ -2,24 +2,36 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { usePaletteCommands } from './usePaletteCommands';
-import { navFor } from './chrome/nav-routes';
+import { navFor, type NavRole } from './chrome/nav-routes';
 
 const noop = () => {};
 const base = {
   onClose: noop, nav: noop, onNew: noop, mode: 'auto' as const, setMode: noop, sessions: [], onSelectSession: noop,
   running: new Set<string>(), onStop: noop, onFocusComposer: noop, onSeedComposer: noop, onShowHelp: noop,
 };
-const navIds = (isAdmin: boolean) => renderHook(() => usePaletteCommands({ ...base, isAdmin })).result.current.filter((c) => c.group === 'Navegar').map((c) => c.id);
+const navIds = (role: NavRole) => renderHook(() => usePaletteCommands({ ...base, role })).result.current.filter((c) => c.group === 'Navegar').map((c) => c.id);
 
 describe('usePaletteCommands navigation', () => {
   it('offers every route the header offers', () => {
-    expect(navIds(false)).toHaveLength(navFor(false).length);
-    expect(navIds(false)).toEqual(['go-chat', 'go-equipe']);
-    expect(navIds(true)).toEqual(expect.arrayContaining(['go-chat', 'go-notas', 'go-pontos', 'go-crons', 'go-play', 'go-equipe']));
+    expect(navIds('student')).toHaveLength(navFor('student').length);
+    expect(navIds('student')).toEqual(['go-chat', 'go-equipe']);
+    expect(navIds('root')).toEqual(expect.arrayContaining(['go-chat', 'go-pontos', 'go-crons', 'go-equipe']));
   });
 
   it('adds the admin-only routes only for admins', () => {
-    expect(navIds(false)).not.toContain('go-canvas');
-    expect(navIds(true)).toEqual(expect.arrayContaining(['go-canvas', 'go-graph', 'go-harness', 'go-admin']));
+    expect(navIds('student')).not.toContain('go-canvas');
+    expect(navIds('admin')).toEqual(expect.arrayContaining(['go-canvas', 'go-graph', 'go-painel']));
+  });
+
+  it('offers pontos to root only', () => {
+    expect(navIds('root')).toContain('go-pontos');
+    expect(navIds('admin')).not.toContain('go-pontos');
+    expect(navIds('student')).not.toContain('go-pontos');
+  });
+
+  it('never offers the retired screens', () => {
+    for (const r of ['root', 'admin', 'student'] as const) {
+      for (const gone of ['go-notas', 'go-play', 'go-harness', 'go-admin']) expect(navIds(r)).not.toContain(gone);
+    }
   });
 });

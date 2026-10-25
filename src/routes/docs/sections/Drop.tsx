@@ -13,9 +13,6 @@ export function Drop() {
         <InfoCard icon="paperclip" title="Por que não anexar">
           O anexo é espelhado no S3 compartilhado e o texto extraído entra no prompt. É a pior via possível pra segredo.
         </InfoCard>
-        <InfoCard icon="file" title="Por que não usar Notas">
-          A nota é rascunho pra virar prompt: no "Analisar com IA" o conteúdo inteiro vai pro modelo.
-        </InfoCard>
       </div>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <InfoCard icon="shield" title="O que o drop faz">

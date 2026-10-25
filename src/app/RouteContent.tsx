@@ -4,8 +4,8 @@ import { DesktopLayout } from './DesktopLayout';
 import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
-  Contextos, Skills, Notas, Pontos, Crons, Equipe, Observatorio,
-  Graph, Canvas, Harness, Admin, Docs, DesignSystem, Playground,
+  Contextos, Skills, Pontos, Crons, Equipe, Observatorio,
+  Graph, Canvas, Admin, Docs, DesignSystem,
 } from './lazyRoutes';
 import type { SessionsPanelProps } from '../components/Sessions';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
@@ -14,6 +14,9 @@ import type { Terminal } from '../data/types';
 import type { useCockpit } from '../useCockpit';
 import type { Route } from '../useRoute';
 import type { PanelSide } from './usePanelResize';
+
+// The DFL snapshot is root-only on the server: the Canvas of a plain admin skips it.
+const noop = () => {};
 
 interface LayoutState {
   rowRef: React.RefObject<HTMLDivElement | null>;
@@ -39,19 +42,19 @@ interface RouteContentProps {
   route: Route;
   isMobile: boolean;
   isAdmin: boolean;
+  isRoot: boolean;
   connected: boolean;
   cockpit: ReturnType<typeof useCockpit>;
   sessionsProps: SessionsPanelProps;
   chatProps: ChatPanelProps;
   termProps: TerminalsPanelProps;
   onOpenSession: (id: string) => void;
-  onAnalyzeNotes: (text: string) => void;
   onOpenAgentChat: (model: string) => void;
   layout: LayoutState;
   mobile: MobileState;
 }
 
-export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, sessionsProps, chatProps, termProps, onOpenSession, onAnalyzeNotes, onOpenAgentChat, layout, mobile }: RouteContentProps) {
+export function RouteContent({ route, isMobile, isAdmin, isRoot, connected, cockpit, sessionsProps, chatProps, termProps, onOpenSession, onOpenAgentChat, layout, mobile }: RouteContentProps) {
   const c = cockpit;
   const view = (() => {
     if (route === '/contextos') {
@@ -68,13 +71,7 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
           onRegistryGet={c.onRegistryGet} onRegistryInstall={c.onRegistryInstall} />
       );
     }
-    if (route === '/notas') {
-      return (
-        <Notas connected={connected} notes={c.notes} notesLoaded={c.notesLoaded} notesRev={c.notesRev}
-          onNotesGet={c.onNotesGet} onNotesSave={c.onNotesSave} onAnalyze={onAnalyzeNotes} />
-      );
-    }
-    if (route === '/pontos') {
+    if (route === '/pontos' && isRoot) {
       return (
         <Pontos connected={connected} points={c.points} total={c.pointsTotal} loaded={c.pointsLoaded}
           onPointsGet={c.onPointsGet} onPointsAdd={c.onPointsAdd} onPointsCorrect={c.onPointsCorrect}
@@ -132,30 +129,23 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
           term={c.term} discoveredTerms={c.discoveredTerms} listTerms={c.listTerms}
           termStats={c.canvasTermStats} onTermStats={c.onCanvasTermStats} onCanvasCtxStats={c.onCanvasCtxStats}
           areaUsage={c.canvasAreaUsage} interrupted={c.interrupted}
-          dflSnapshot={c.dflSnapshot} onDflGet={c.onDflGet}
+          dflSnapshot={c.dflSnapshot} onDflGet={isRoot ? c.onDflGet : noop}
           onDflTaskLink={c.onDflTaskLink} onDflTaskCreateLink={c.onDflTaskCreateLink} onDflTaskUnlink={c.onDflTaskUnlink}
           onDflTaskConfirmSync={c.onDflTaskConfirmSync}
           orchestratorActivity={c.orchestratorActivity} onOrchestratorActivityGet={c.onOrchestratorActivityGet}
           cvLiveSessionIds={c.cvLiveSessionIds} cvIdleSessionIds={c.cvIdleSessionIds} sessionPeeks={c.sessionPeeks} onSessionPeek={c.onSessionPeek} />
       );
     }
-    if (route === '/harness' && isAdmin) {
-      return (
-        <Harness connected={connected} config={c.harnessConfig} tasks={c.harnessTasks} events={c.harnessEvents}
-          onHarnessGet={c.onHarnessGet} onHarnessRun={c.onHarnessRun} />
-      );
-    }
-    if (route === '/admin' && isAdmin) {
+    if (route === '/painel' && isAdmin) {
       return (
         <Admin health={c.health} stats={c.stats} onHealthList={c.onHealthList}
-          accounts={c.accounts} accountsLoaded={c.accountsLoaded} onAccountsList={c.onAccountsList} onSetAdmin={c.onSetAdmin} isRoot={c.caps?.role === 'root'}
+          accounts={c.accounts} accountsLoaded={c.accountsLoaded} onAccountsList={c.onAccountsList} onSetAdmin={c.onSetAdmin} isRoot={isRoot}
           adminOp={c.adminOp} onEnvSet={c.onEnvSet} onEnvUnset={c.onEnvUnset} onMcpAdd={c.onMcpAdd} onMcpRemove={c.onMcpRemove} onCliInstall={c.onCliInstall}
           onCliUpdate={c.onCliUpdate} onDeckRestart={c.onDeckRestart} agents={c.agents} models={c.models} onOpenAgentChat={onOpenAgentChat} />
       );
     }
     if (route === '/docs') return <Docs />;
     if (route === '/ds') return <DesignSystem />;
-    if (route === '/play') return <Playground />;
     if (isMobile) {
       return (
         <MobileLayout

@@ -2,9 +2,24 @@ import { useState, useEffect, useCallback } from 'react';
 
 // Router minúsculo (sem dep): só troca a VIEW principal. useCockpit fica ACIMA
 // deste switch no App, então o WebSocket/terminais nunca desmontam ao navegar.
-export type Route = '/' | '/contextos' | '/skills' | '/notas' | '/pontos' | '/crons' | '/equipe' | '/uso' | '/graph' | '/canvas' | '/harness' | '/admin' | '/docs' | '/ds' | '/play';
+export type Route = '/' | '/contextos' | '/skills' | '/pontos' | '/crons' | '/equipe' | '/uso' | '/graph' | '/canvas' | '/painel' | '/docs' | '/ds';
 
-const ROUTES: Route[] = ['/', '/contextos', '/skills', '/notas', '/pontos', '/crons', '/equipe', '/uso', '/graph', '/canvas', '/harness', '/admin', '/docs', '/ds', '/play'];
+const ROUTES: Route[] = ['/', '/contextos', '/skills', '/pontos', '/crons', '/equipe', '/uso', '/graph', '/canvas', '/painel', '/docs', '/ds'];
+
+// Old URLs (bookmarks, deep links) keep working: /admin became /painel (the hash
+// picks the sub-tab, so it rides along) and the retired screens fall back to chat.
+const LEGACY: Record<string, Route> = { '/admin': '/painel', '/notas': '/', '/play': '/', '/harness': '/' };
+
+export function legacyRedirect(pathname: string, hash: string): string | null {
+  const to = LEGACY[pathname];
+  if (!to) return null;
+  return to === '/painel' ? to + hash : to;
+}
+
+function redirectLegacy(): void {
+  const to = legacyRedirect(location.pathname, location.hash);
+  if (to) history.replaceState(null, '', to);
+}
 
 // Chat aberto tem URL própria (/c/<sessionId>): link salvável, F5 sem perder a
 // conversa, duas abas em chats diferentes. A VIEW continua sendo '/', então o id
@@ -16,6 +31,7 @@ export interface RouteState { route: Route; chatId: string }
 export const chatPath = (id: string) => CHAT + encodeURIComponent(id);
 
 function current(): RouteState {
+  redirectLegacy();
   const p = location.pathname;
   if (p.startsWith(CHAT)) {
     const id = decodeURIComponent(p.slice(CHAT.length));

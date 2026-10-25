@@ -104,7 +104,7 @@ A box NÃO pode travar. Camadas:
 src/                 SPA React (deploy Vercel)
   App.tsx            monta o chrome; o gate de login sai de app/AuthGateView
   app/               hooks e layout do shell (overlays, quota, atalhos, painéis, rotas lazy)
-  useCockpit.ts      bomba de mensagens do WS; os domínios saem em hooks (useTerminals, useNotes…)
+  useCockpit.ts      bomba de mensagens do WS; os domínios saem em hooks (useTerminals, usePoints…)
   cockpit/           estado do cliente fatiado (session, history, blocks, live-tokens…)
   components/primitives/  design system (Button, Badge, Icon, tokens) — galeria em /ds
   components/auth/   SupabaseAuthGate, Dashboard (pareamento + banner trusted-relay)
@@ -207,7 +207,7 @@ scripts/doctor.sh    watchdog do host (cron)
 
 O modelo multi-conta **já é o T3**: cada pessoa cria conta (signup aberto no SPA), pareia um agente
 na própria box e roda o `claude` logado na própria conta Anthropic. Não existe "ligar o login" no
-modo listen — o listen é o dono da box, sempre `admin`.
+modo listen — o listen é o dono da box, sempre `admin` no engine e `root` no caps (pontos e host-ops exigem root: `shared/root-frames.ts`, barrados também no relay pra conta não-root).
 
 **Público interno (fellows DFL, box própria)** — falta:
 1. `scripts/agent-setup.sh` endurecido (recusar root, watchdog e hooks de auto-redeploy opt-in,

@@ -4,7 +4,7 @@ export function Bench() {
   return (
     <section id="bench" className="mb-14 scroll-mt-6">
       <SectionTitle icon="grip" kicker="repo de verdade" title="Bench — testar PR dentro do chat"
-        desc="O playground monta componentes do próprio Deck. O bench monta os de OUTRO repositório: o servidor compila o componente real da PR num bundle autocontido e o chat renderiza ali mesmo, interativo. É clicar, responder e ver o comportamento de verdade sem sair da conversa." />
+        desc="O bench monta componentes de OUTRO repositório: o servidor compila o componente real da PR num bundle autocontido e o chat renderiza ali mesmo, interativo. É clicar, responder e ver o comportamento de verdade sem sair da conversa." />
       <div className="grid gap-3 sm:grid-cols-3">
         <StepCard step={1} title="Registrar o repo">
           Cada alvo vive em <Pill>~/.cockpit/bench.json</Pill> com raiz, alias, css e content. O bloco cita um

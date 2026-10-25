@@ -7,7 +7,7 @@ export function adminTabFromHash(hash: string, known: readonly string[]): string
 }
 
 export function openAdminTab(tab: string): void {
-  history.pushState(null, '', `/admin#${encodeURIComponent(tab)}`);
+  history.pushState(null, '', `/painel#${encodeURIComponent(tab)}`);
   window.dispatchEvent(new PopStateEvent('popstate'));
 }
 
