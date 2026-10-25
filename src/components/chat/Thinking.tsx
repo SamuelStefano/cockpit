@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ClaudeAvatar } from '../ClaudeAvatar';
+import { Bit } from '../bit/Bit';
 import { CompactingLine } from './CompactingLine';
 import { fmtElapsed, useElapsed } from './elapsed';
 import { fmtTokens } from './message-format';
@@ -63,6 +64,7 @@ export function ThinkingDots({ live }: { live?: LiveTurn }) {
   if (live?.compactingSince) return <CompactingLine since={live.compactingSince} />;
   return (
     <div className="flex items-center gap-2 pt-1.5">
+      <Bit state={live && live.tokens > 0 ? 'working' : 'thinking'} size={20} className="-my-1" />
       <span className="spinner-star inline-block w-4 text-center text-[15px] leading-none text-orange-400" aria-hidden>
         {glyph}
       </span>

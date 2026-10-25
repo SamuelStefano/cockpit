@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { MobileLayout } from '../components/Mobile';
 import { DesktopLayout } from './DesktopLayout';
-import { SkeletonCards } from '../components/primitives';
+import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
   Contextos, Skills, Notas, Pontos, Crons, Equipe, Observatorio,
@@ -46,11 +46,12 @@ interface RouteContentProps {
   termProps: TerminalsPanelProps;
   onOpenSession: (id: string) => void;
   onAnalyzeNotes: (text: string) => void;
+  onOpenAgentChat: (model: string) => void;
   layout: LayoutState;
   mobile: MobileState;
 }
 
-export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, sessionsProps, chatProps, termProps, onOpenSession, onAnalyzeNotes, layout, mobile }: RouteContentProps) {
+export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, sessionsProps, chatProps, termProps, onOpenSession, onAnalyzeNotes, onOpenAgentChat, layout, mobile }: RouteContentProps) {
   const c = cockpit;
   const view = (() => {
     if (route === '/contextos') {
@@ -147,7 +148,7 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
         <Admin health={c.health} stats={c.stats} onHealthList={c.onHealthList}
           accounts={c.accounts} accountsLoaded={c.accountsLoaded} onAccountsList={c.onAccountsList} onSetAdmin={c.onSetAdmin} isRoot={c.caps?.role === 'root'}
           adminOp={c.adminOp} onEnvSet={c.onEnvSet} onEnvUnset={c.onEnvUnset} onMcpAdd={c.onMcpAdd} onMcpRemove={c.onMcpRemove} onCliInstall={c.onCliInstall}
-          onCliUpdate={c.onCliUpdate} onDeckRestart={c.onDeckRestart} agents={c.agents} />
+          onCliUpdate={c.onCliUpdate} onDeckRestart={c.onDeckRestart} agents={c.agents} onOpenAgentChat={onOpenAgentChat} />
       );
     }
     if (route === '/docs') return <Docs />;
@@ -184,7 +185,7 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
   return (
     <div key={route} className="route-fade flex min-h-0 min-w-0 flex-1 flex-col">
       <ChunkErrorBoundary>
-        <Suspense fallback={<div className="p-4"><SkeletonCards /></div>}>{view}</Suspense>
+        <Suspense fallback={<RouteFallback />}>{view}</Suspense>
       </ChunkErrorBoundary>
     </div>
   );

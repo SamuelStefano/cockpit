@@ -14,7 +14,7 @@ export function Dashboard({ token, onSignOut }: { token: string; onSignOut: () =
   return (
     <div className="flex h-full flex-1 items-center justify-center overflow-y-auto bg-neutral-950 px-4 py-6">
       <div className="w-full max-w-lg rounded-2xl border border-neutral-800 bg-neutral-900/60 p-7 shadow-2xl">
-        <BrandMark title="conectar sua VPS" subtitle="rode um comando na sua máquina pra começar" className="mb-1" />
+        <BrandMark title="conectar sua VPS" subtitle="rode um comando na sua máquina pra começar" bitState="connecting" className="mb-1" />
 
         <p className="mb-4 mt-4 text-[13px] leading-relaxed text-neutral-400">
           O Deck que você vê é a tela; o cérebro roda na sua VPS. Cole o comando abaixo no terminal da sua

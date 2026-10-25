@@ -1,5 +1,5 @@
 import { Icon, type IconName } from '../primitives';
-import { ClaudeAvatar } from '../ClaudeAvatar';
+import { Bit } from '../bit/Bit';
 import { isVirtualKeyboardOnly } from './touch';
 
 interface ChatEmptyProps {
@@ -22,13 +22,8 @@ const TOPICS: { icon: IconName; label: string; prompt: string }[] = [
 export function ChatEmpty({ onPrompt, onSeed }: ChatEmptyProps) {
   const pick = (prompt: string) => (onSeed && isVirtualKeyboardOnly() ? onSeed(prompt) : onPrompt(prompt));
   return (
-    <div className="relative flex h-full flex-col items-center justify-center overflow-hidden px-6 text-center">
-      {/* Halo quente atrás do avatar dá atmosfera — sem isto o vazio ficava chapado. */}
-      <div aria-hidden className="pointer-events-none absolute left-1/2 top-[38%] h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-orange-500/[0.07] blur-3xl" />
-      <div className="fade-up relative mb-5">
-        <div aria-hidden className="absolute inset-0 -z-10 rounded-full bg-orange-500/20 blur-xl" />
-        <ClaudeAvatar size={52} />
-      </div>
+    <div className="flex h-full flex-col items-center justify-center overflow-hidden px-6 text-center">
+      <Bit state="wave" size={84} className="fade-up mb-4" />
       <h2 className="fade-up text-[22px] font-semibold tracking-tight text-neutral-100">Em que vamos trabalhar?</h2>
       <p className="fade-up mt-2 max-w-sm text-[13.5px] leading-relaxed text-neutral-500">
         Converse com o agente — ele roda comandos direto nos seus terminais da VPS.

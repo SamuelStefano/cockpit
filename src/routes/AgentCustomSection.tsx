@@ -1,29 +1,26 @@
 import { useState } from 'react';
-import { Button } from '../components/primitives';
-import { customItems } from '../cockpit/agents-view';
+import { Icon } from '../components/primitives';
 import type { AgentsApi } from '../cockpit/useAgents';
 import { AgentCustomForm } from './AgentCustomForm';
 import { AgentCustomManual } from './AgentCustomManual';
-import { AgentCustomRow } from './AgentCustomRow';
 
 export function AgentCustomSection({ agents }: { agents: AgentsApi }) {
   const [open, setOpen] = useState(false);
-  const rows = customItems(agents.presets, agents.items);
   return (
-    <section className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
-      <h3 className="text-[14px] font-semibold text-neutral-100">Agente personalizado</h3>
-      <p className="mb-3 mt-1 text-[12.5px] text-neutral-400">Tem outro CLI que fala ACP? Conecte aqui.</p>
-      {rows.length > 0 && (
-        <ul className="mb-3 flex flex-col gap-2">
-          {rows.map((i) => <AgentCustomRow key={i.id} item={i} testing={agents.testing.has(i.id)} onTest={agents.test} onRemove={agents.remove} />)}
-        </ul>
-      )}
-      {!agents.customAllowed ? (
-        <AgentCustomManual />
-      ) : open ? (
-        <AgentCustomForm onAdd={agents.addCustom} />
-      ) : (
-        <Button variant="secondary" size="sm" icon="plus" onClick={() => setOpen(true)}>Adicionar personalizado</Button>
+    <section className="hairline rounded-xl border border-neutral-800 bg-neutral-900/40">
+      <button
+        type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 rounded-xl px-4 py-3 text-left focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40"
+      >
+        <Icon name="plus" size={14} className="text-neutral-500" />
+        <span className="text-[13px] font-semibold text-neutral-200">Agente personalizado</span>
+        <span className="hidden text-[12px] text-neutral-500 sm:inline">Tem outro CLI que fala ACP? Conecte aqui.</span>
+        <Icon name="chevronDown" size={14} className={`ml-auto text-neutral-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="fade-up border-t border-neutral-800 px-4 py-3">
+          {agents.customAllowed ? <AgentCustomForm onAdd={agents.addCustom} /> : <AgentCustomManual />}
+        </div>
       )}
     </section>
   );

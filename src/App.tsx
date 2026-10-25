@@ -8,6 +8,7 @@ import { UpdateNotice } from './components/chrome/UpdateNotice';
 import { CommandPalette } from './components/CommandPalette';
 import { ShortcutsHelp } from './components/ShortcutsHelp';
 import { Toaster, ConfettiHost } from './components/primitives';
+import { bitStateFor } from './components/bit/bit-state';
 import { RouteContent } from './app/RouteContent';
 import { useCockpit } from './useCockpit';
 import { useRoute } from './useRoute';
@@ -92,6 +93,7 @@ export function CockpitApp() {
   // heurística acertaria pelo motivo errado e mutilaria o chat à toa.
   const keyboardOpen = useKeyboardOpen() && isMobile;
   useTabTitle(running, updated);
+  const bitState = bitStateFor({ conn: conn.ws === 'connected' ? 'open' : conn.ws === 'reconnecting' ? 'connecting' : 'closed', agentOnline, running: runningAnywhere.size > 0, thinking: phase === 'thinking' });
 
   const { drawer, setDrawer, termSheet, setTermSheet, routeMenu, setRouteMenu, palette, setPalette, help, setHelp } = useOverlays(route);
   const [focusSignal, setFocusSignal] = useState(0);
@@ -177,7 +179,7 @@ export function CockpitApp() {
         isAdmin={isAdmin}
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
-      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(!drawer)} menuOpen={drawer} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} planBlockedUntil={planBlockedUntil} planReadAt={planReadAt} planNextReadAt={planNextReadAt} onRefreshPlanUsage={onRefreshPlanUsage} quotaWarn={quotaGate.warn} quotaPaused={quotaGate.paused} quotaResetsAt={quotaGate.resetsAt} isAdmin={isAdmin} routeMenuOpen={routeMenu} setRouteMenuOpen={setRouteMenu} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} onChangePassword={SUPABASE_ENABLED ? sbAuth.changePassword : undefined} drops={dropApi} />
+      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(!drawer)} menuOpen={drawer} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} planBlockedUntil={planBlockedUntil} planReadAt={planReadAt} planNextReadAt={planNextReadAt} onRefreshPlanUsage={onRefreshPlanUsage} quotaWarn={quotaGate.warn} quotaPaused={quotaGate.paused} quotaResetsAt={quotaGate.resetsAt} isAdmin={isAdmin} routeMenuOpen={routeMenu} setRouteMenuOpen={setRouteMenu} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} onChangePassword={SUPABASE_ENABLED ? sbAuth.changePassword : undefined} drops={dropApi} bitState={bitState} />
 
       {/* Âncora de altura zero no fluxo: o aviso pende daqui, logo abaixo do header. */}
       <div className="relative z-40">
@@ -191,6 +193,7 @@ export function CockpitApp() {
         route={route} isMobile={isMobile} isAdmin={isAdmin} connected={conn.ws === 'connected'}
         cockpit={cockpit} sessionsProps={sessionsProps} chatProps={chatProps} termProps={termProps}
         onOpenSession={selectSession}
+        onOpenAgentChat={(m) => { handleNew(); setModel(m); nav('/'); }}
         onAnalyzeNotes={(text) => {
           handleNew();
           setDraft(`Analise estas anotações soltas e destile num contexto/memória estruturado e reutilizável (markdown bem organizado). Se fizer sentido, salve em memory/. Anotações:\n\n${text}`);

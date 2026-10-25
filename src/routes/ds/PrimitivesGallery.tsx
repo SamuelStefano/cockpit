@@ -56,6 +56,7 @@ export function PrimitivesGallery() {
       <Section title="BrandMark">
         <Row label="md"><BrandMark title="deck" subtitle="acesso restrito" /></Row>
         <Row label="lg"><BrandMark title="deck" subtitle="o Claude Code da sua VPS" size="lg" /></Row>
+        <Row label="connecting"><BrandMark title="conectar sua VPS" bitState="connecting" /></Row>
       </Section>
 
       <Section title="Badge">

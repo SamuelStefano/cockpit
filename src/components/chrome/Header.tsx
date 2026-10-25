@@ -7,6 +7,8 @@ import type { Route } from '../../useRoute';
 import type { PlanUsage } from '../../../shared/protocol';
 import type { DropApi } from '../../cockpit/useDrops';
 import { comboLabel } from '../../lib/platform';
+import { Bit } from '../bit/Bit';
+import { BIT_STATE_LABEL, type BitState } from '../bit/bit-state';
 
 interface HeaderProps {
   conn: { ws: ConnState; sse: ConnState };
@@ -31,9 +33,10 @@ interface HeaderProps {
   onSignOut?: () => void;
   onChangePassword?: (password: string) => Promise<string | null>;
   drops?: DropApi;
+  bitState?: BitState;
 }
 
-export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette, planUsage, planBlockedUntil = null, planReadAt = null, planNextReadAt = null, onRefreshPlanUsage, quotaWarn = false, quotaPaused = false, quotaResetsAt = null, isAdmin, routeMenuOpen, setRouteMenuOpen, userId, onSignOut, onChangePassword, drops }: HeaderProps) {
+export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette, planUsage, planBlockedUntil = null, planReadAt = null, planNextReadAt = null, onRefreshPlanUsage, quotaWarn = false, quotaPaused = false, quotaResetsAt = null, isAdmin, routeMenuOpen, setRouteMenuOpen, userId, onSignOut, onChangePassword, drops, bitState = 'idle' }: HeaderProps) {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex min-w-0 items-center gap-2.5">
@@ -47,12 +50,10 @@ export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette
             sessão" segue no drawer, na paleta e no estado vazio do chat. */}
         <button
           onClick={() => nav('/')}
-          title="Ir pro chat"
+          title={`Ir pro chat · ${BIT_STATE_LABEL[bitState]}`}
           className={`flex items-center gap-2 rounded-md ${tokens.focusRing}`}
         >
-          <span className={`flex h-6 w-6 items-center justify-center rounded-md bg-linear-to-br from-orange-500 to-orange-700 text-neutral-950 ${tokens.accentGlow}`}>
-            <Icon name="terminal" size={14} stroke={2.4} />
-          </span>
+          <Bit state={bitState} size={30} title={BIT_STATE_LABEL[bitState]} className="-my-1" />
           {/* Em 360–390px o header não fecha a conta com o wordmark e o ConnDot
               (a direita é shrink-0 e sozinha passa de 200px): os dois só voltam
               a partir de sm. O estado "caiu" segue visível no OfflineNotice. */}
