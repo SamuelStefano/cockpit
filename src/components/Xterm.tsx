@@ -13,15 +13,19 @@ interface Props {
   focusKey?: number; // bump to pull keyboard focus into this terminal
   fontSize?: number;
   clipboardRef?: RefObject<TerminalClipboardApi | null>; // lets a toolbar copy/paste for this terminal
+  onOutput?: (data: string, replay: boolean) => void; // taps what the PTY prints, after it is drawn
 }
 
 // Monta um xterm.js real e liga no PTY/tmux do backend via WS.
 // Anexa no mount (com replay de scrollback), desanexa no unmount (sessão tmux
 // segue viva). Trocar de aba remonta → reattach + redraw do tmux.
-export function XtermView({ id, term, watch, autoFocus = true, focusKey, fontSize = 12.5, clipboardRef }: Props) {
+export function XtermView({ id, term, watch, autoFocus = true, focusKey, fontSize = 12.5, clipboardRef, onOutput }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const xtRef = useRef<XTerm | null>(null);
   const clipboard = useTerminalClipboard();
+  // A ref, so a new callback each render never reattaches the PTY.
+  const outputRef = useRef(onOutput);
+  outputRef.current = onOutput;
 
   useEffect(() => {
     const el = ref.current;
@@ -66,9 +70,9 @@ export function XtermView({ id, term, watch, autoFocus = true, focusKey, fontSiz
 
     term.attach(
       id, xt.cols, xt.rows,
-      (d) => xt.write(d),
+      (d) => { xt.write(d); outputRef.current?.(d, false); },
       () => xt.write('\r\n\x1b[2m[sessão encerrada]\x1b[0m\r\n'),
-      (snapshot) => { xt.reset(); xt.write(snapshot); }, // repinta sem duplicar
+      (snapshot) => { xt.reset(); xt.write(snapshot); outputRef.current?.(snapshot, true); }, // repinta sem duplicar
       watch,
     );
     const dataSub = xt.onData((d) => term.input(id, d));

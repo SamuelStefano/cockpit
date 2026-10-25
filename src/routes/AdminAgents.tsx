@@ -1,24 +1,30 @@
 import type { CSSProperties } from 'react';
 import { EmptyState } from '../components/primitives';
-import { progressFor } from '../cockpit/agents-view';
 import type { AgentsApi } from '../cockpit/useAgents';
-import { AgentCustomSection } from './AgentCustomSection';
+import type { TermApi } from '../cockpit/useTerminals';
+import { AgentCustomSheet } from './AgentCustomSheet';
 import { AgentPanel } from './AgentPanel';
 import { AgentTile } from './AgentTile';
-import { AgentsHero } from './AgentsHero';
+import { AgentsHeader } from './AgentsHeader';
 import { useAgentsPage } from './useAgentsPage';
 import './agents.css';
 
-export function AdminAgents({ agents, onOpenChat }: { agents: AgentsApi; onOpenChat: (model: string) => void }) {
-  const page = useAgentsPage(agents, onOpenChat);
+interface AdminAgentsProps {
+  agents: AgentsApi;
+  term: TermApi;
+  isRoot: boolean;
+  onOpenChat: (model: string) => void;
+}
+
+export function AdminAgents({ agents, term, isRoot, onOpenChat }: AdminAgentsProps) {
+  const page = useAgentsPage(agents, isRoot, onOpenChat);
   const { cards, selected } = page;
-  const selectedIndex = cards.findIndex((c) => c === selected);
-  const slot = { '--p1': selectedIndex * 2 + 1, '--p2': (selectedIndex | 1) * 2 + 1 } as CSSProperties;
+  const slot = { '--p1': page.selectedIndex * 2 + 1, '--p2': (page.selectedIndex | 1) * 2 + 1 } as CSSProperties;
   return (
     <div className="flex flex-col gap-5">
-      <AgentsHero state={page.heroState} done={selected ? progressFor(selected.status, !!selected.item) : 0} />
+      <AgentsHeader state={page.heroState} onAdd={page.openSheet} />
       {agents.loaded && cards.length === 0 ? (
-        <EmptyState bit="sleeping" title="Nenhum agente disponível" description="O servidor não devolveu nenhum agente pré-configurado." />
+        <EmptyState bit="sleeping" title="Nenhum agente ainda" description="Adicione um CLI que fale ACP e ele vira um modelo no seletor." />
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {cards.map((c, i) => (
@@ -31,7 +37,7 @@ export function AdminAgents({ agents, onOpenChat }: { agents: AgentsApi; onOpenC
           {selected && (
             <div className="agent-panel-slot col-span-full" style={slot}>
               <AgentPanel
-                key={selected.preset.id} card={selected} testing={page.selectedTesting} celebrating={page.celebrating === selected.item?.id}
+                key={selected.preset.id} card={selected} term={term} testing={page.selectedTesting} celebrating={page.celebrating === selected.item?.id}
                 phrase={page.phrase} message={page.message}
                 onConnect={agents.connect} onTest={agents.test} onRemove={agents.remove} onOpenChat={page.openChat}
               />
@@ -39,7 +45,7 @@ export function AdminAgents({ agents, onOpenChat }: { agents: AgentsApi; onOpenC
           )}
         </div>
       )}
-      <AgentCustomSection agents={agents} />
+      {page.sheetOpen && <AgentCustomSheet agents={agents} gate={page.gate} term={term} onClose={page.closeSheet} onSaved={page.onSaved} />}
     </div>
   );
 }

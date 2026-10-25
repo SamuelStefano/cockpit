@@ -13,7 +13,7 @@ const last = new Map<string, ProbeResult & { at: number }>();
 // The check is the one a turn needs, end to end: handshake, open a session AND
 // get an answer. Grok answers initialize and session/new on an account that
 // still cannot run a prompt, so stopping at the session gave a false "Pronto".
-export function probeAgent(agent: AgentConfig): Promise<ProbeResult> {
+export function probeAgent(agent: AgentConfig, readyNote = 'já aparece no seletor de modelo'): Promise<ProbeResult> {
   return new Promise((resolve) => {
     let done = false;
     let version: string | undefined;
@@ -55,7 +55,7 @@ export function probeAgent(agent: AgentConfig): Promise<ProbeResult> {
         const said = reply.trim().slice(0, 80);
         settle(r?.stopReason === 'refusal'
           ? { status: 'error', message: 'o agente recusou o teste' }
-          : { status: 'ready', message: `respondeu${said ? ` "${said}"` : ''} — já aparece no seletor de modelo` });
+          : { status: 'ready', message: `respondeu${said ? ` "${said}"` : ''} — ${readyNote}` });
       } catch (e) {
         if (isAuthError(e)) { settle({ status: 'needs-login', message: loginHint(agent.id, agent.name, 'depois clique em Testar') }); return; }
         const text = errorText(e);

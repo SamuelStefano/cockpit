@@ -111,7 +111,7 @@ export async function saveCustomAgent(input: CustomAgentInput): Promise<{ ok: bo
 export async function probeDraft(input: CustomAgentInput): Promise<ProbeResult & { field?: CustomField }> {
   const c = await checkCustomAgent(input);
   if (!c.ok) return { status: 'error', message: c.message, field: c.field };
-  return probeAgent(c.agent);
+  return probeAgent(c.agent, 'funcionou, pode salvar');
 }
 
 // A custom agent is an arbitrary command the box spawns on every turn — the same

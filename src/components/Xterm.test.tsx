@@ -41,4 +41,19 @@ describe('XtermView host element', () => {
     render(<XtermView id="t1" term={term} autoFocus={false} />);
     expect(opened[0].parentElement?.style.letterSpacing).toBe('normal');
   });
+
+  it('taps live data and replays through onOutput without reattaching on a new callback', () => {
+    const attach = vi.fn();
+    const t = { ...term, attach } as unknown as TermApi;
+    const first = vi.fn();
+    const second = vi.fn();
+    const { rerender } = render(<XtermView id="t2" term={t} autoFocus={false} onOutput={first} />);
+    rerender(<XtermView id="t2" term={t} autoFocus={false} onOutput={second} />);
+    expect(attach).toHaveBeenCalledTimes(1);
+    const [, , , onData, , onReplay] = attach.mock.calls[0];
+    onData('hi');
+    onReplay('snap');
+    expect(first).not.toHaveBeenCalled();
+    expect(second.mock.calls).toEqual([['hi', false], ['snap', true]]);
+  });
 });
