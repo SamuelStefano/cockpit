@@ -173,14 +173,18 @@ scripts/doctor.sh    watchdog do host (cron)
     `--allowedTools` só libera `Edit|Write|Read(//<workspace>/**)`; `--disallowedTools` repete Bash & cia.
   - Modo: `plan` fica `plan`; todo o resto (auto, acceptEdits, bypass pedido) vira `default`.
     O permission MCP sobe com `--restricted` (nunca `--allow-all`): tool fora da allow-list é negada.
-  - MCPs da sessão e o sentinel `*` são ignorados (só o server de permissão; a fatia B soma o da equipe).
+  - MCPs da sessão e o sentinel `*` são ignorados: sobem só `deck-permission` (travado) e `deck-team`
+    (`team_list`/`team_send` entram no allow). O bot fala com a equipe só pelo MCP; outbox, log, pause
+    e `team.json` ficam em `~/.cockpit`, fora do workspace, e as file tools não alcançam. Mensagem da
+    equipe que acorda um bot travado leva o `profile` junto (`ws/team-deliver.ts`).
   - Modelo `agent:` (ACP) recusado no save (`validateBotInput`) e no turno (`startRun`): o ACP tem
     loop de tools próprio, fora destas regras.
   - O transcript continua no `projectsDir` do Deck via `CLAUDE_CONFIG_DIR` + `CLAUDE_CODE_PROJECT_DIR_NAME`
     (o CLI 2.1.309 só honra o segundo com o primeiro setado); auto-memory desligada.
   - Verificado ao vivo (CLI 2.1.309, HOME temporário): `Read(~/.claude.json)`, `Write(~/.claude/settings.local.json)`,
     `Grep` no HOME, `Read(/etc/hostname)`, Bash e `Write(<workspace>/.claude/settings.json)` negados;
-    escrita no workspace e `--resume` funcionam.
+    escrita no workspace e `--resume` funcionam. Com a fatia B: `team_list`/`team_send` funcionam e
+    `Write` em `team-outbox/`, `team-paused.json` e `Read` em `team-messages.jsonl` são negados.
 
   **O que o perfil travado NÃO garante:** não é sandbox de SO — o processo `claude` roda com o mesmo
   usuário Unix e a garantia é a do enforcement do CLI (uma regressão do `--restricted`/`--tools` numa
