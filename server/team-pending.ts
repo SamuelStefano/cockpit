@@ -60,6 +60,8 @@ export function setPendingQuestion(p: TeamPendingQuestion): TeamPendingQuestion[
 
 // Null when the bot had no open question, so the caller broadcasts only on a change.
 export function clearPendingQuestion(botId: string): TeamPendingQuestion[] | null {
+  // Every human message to a bot lands here: skip the lock when there is nothing to clear.
+  if (!readPendingQuestions().some((x) => x.botId === botId)) return null;
   return withFileLock(teamPendingFile(), () => {
     const all = readPendingQuestions();
     const rest = all.filter((x) => x.botId !== botId);

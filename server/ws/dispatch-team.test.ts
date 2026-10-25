@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { WebSocket } from 'ws';
 import type { ClientMsg, TeamBot } from '../../shared/protocol';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { readPendingQuestions, setPendingQuestion } from '../team-pending';
+
+process.env.COCKPIT_TEAM_PENDING = join(mkdtempSync(join(tmpdir(), 'tp-')), 'team-pending.json');
 
 const runs = vi.hoisted(() => ({
   startRun: vi.fn(),
@@ -153,5 +159,26 @@ describe('student on the Equipe (fatia E)', () => {
     const { loadParked } = await import('./parked');
     const items = loadParked()['new-bot-capo1'] ?? [];
     expect(items.at(-1)).toMatchObject({ botId: 'capo1', profile: 'restricted' });
+  });
+});
+
+describe('pending bot question', () => {
+  const questions = [{ question: 'O que faço?', header: '', multiSelect: false, options: [{ label: 'Aprovar' }, { label: 'Cortar' }] }];
+
+  it('team-get delivers the open questions to a fresh connection', async () => {
+    setPendingQuestion({ botId: 'capo1', sessionKey: 'bot-capo1', questions, at: 5 });
+    await handle(ws, { t: 'team-get' }, 'admin');
+    expect(bc.send).toHaveBeenCalledWith(ws, { t: 'team-pending', items: [{ botId: 'capo1', sessionKey: 'bot-capo1', questions, at: 5 }] });
+  });
+
+  it('the human message to the bot is the answer: it clears the question and tells every device', async () => {
+    setPendingQuestion({ botId: 'capo1', sessionKey: 'bot-capo1', questions, at: 5 });
+    team.getTeam.mockResolvedValue([{ ...capo, sessionId: SID }]);
+    await handle(ws, { t: 'send', sessionKey: 'new-bot-capo1', text: 'Aprovar', msgId: 'm9', model: 'opus', auto: true } as ClientMsg, 'admin');
+    expect(readPendingQuestions()).toHaveLength(1);
+    await handle(ws, { t: 'send', sessionKey: 'new-bot-capo1', text: 'Aprovar', msgId: 'm9', model: 'opus' } as ClientMsg, 'admin');
+    expect(readPendingQuestions()).toEqual([]);
+    expect(bc.broadcast).toHaveBeenCalledWith({ t: 'team-pending', items: [] });
+    team.getTeam.mockResolvedValue([]);
   });
 });

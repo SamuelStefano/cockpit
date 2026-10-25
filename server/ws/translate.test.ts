@@ -4,6 +4,10 @@ import { threads, type Thread } from './threads';
 import { getLastRate } from './rate';
 import { broadcast } from './broadcast';
 import { isAwaiting, clearAllAwaiting } from './awaiting';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { readPendingQuestions } from '../team-pending';
 
 vi.mock('./broadcast', () => ({ broadcast: vi.fn(), send: vi.fn(), setWss: vi.fn() }));
 vi.mock('./awaiting', () => {
