@@ -23,6 +23,7 @@ import { relReset } from './lib/time';
 import { usePanelResize } from './app/usePanelResize';
 import { useTerminalTabs } from './app/useTerminalTabs';
 import { useGlobalShortcuts } from './app/useGlobalShortcuts';
+import { navRole } from './components/chrome/nav-routes';
 import { useRoleLanding } from './app/useRoleLanding';
 import { useIsMobile } from './app/useIsMobile';
 import { useKeyboardOpen } from './app/useKeyboardOpen';
@@ -60,7 +61,9 @@ export function CockpitApp() {
   useChatUrl({ route, chatId, navChat, activeId: activeSessionId, setActiveId: setActiveSessionId, sessions, archived });
   // Default-deny: sem caps (ainda não chegou) = não-admin. No T3 o caps vem do
   // relay (papel da conta no JWT); no loopback, do token/role local.
-  const isAdmin = caps?.role === 'admin' || caps?.role === 'root';
+  const role = navRole(caps?.role);
+  const isAdmin = role !== 'student';
+  const isRoot = role === 'root';
   // Drop privado só existe pra admin (drop-* fora do STUDENT_ALLOWED): sem isso a
   // UI ofereceria um botão que o servidor responde com 'sem permissão'.
   const dropApi = useMemo(
@@ -138,7 +141,7 @@ export function CockpitApp() {
     setActiveSessionId(pick);
   }, [activeSessionId, sessions, archived, chatId, setActiveSessionId]);
 
-  useRoleLanding({ route, chatId, capsKnown: !!caps, isAdmin, nav });
+  useRoleLanding({ route, chatId, capsKnown: !!caps, role, nav });
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || archived.find((s) => s.id === activeSessionId) || null;
 
@@ -175,10 +178,10 @@ export function CockpitApp() {
         running={running} onStop={handleStop} onFocusComposer={() => setFocusSignal((n) => n + 1)}
         onSeedComposer={(text) => { setDraft(text); setFocusSignal((n) => n + 1); }}
         onShowHelp={() => setHelp(true)}
-        isAdmin={isAdmin}
+        role={role}
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
-      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(!drawer)} menuOpen={drawer} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} planBlockedUntil={planBlockedUntil} planReadAt={planReadAt} planNextReadAt={planNextReadAt} onRefreshPlanUsage={onRefreshPlanUsage} quotaWarn={quotaGate.warn} quotaPaused={quotaGate.paused} quotaResetsAt={quotaGate.resetsAt} isAdmin={isAdmin} routeMenuOpen={routeMenu} setRouteMenuOpen={setRouteMenu} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} onChangePassword={SUPABASE_ENABLED ? sbAuth.changePassword : undefined} drops={dropApi} bitState={bitState} navCounts={{ '/equipe': cockpit.pendingQuestions.length }} />
+      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(!drawer)} menuOpen={drawer} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} planBlockedUntil={planBlockedUntil} planReadAt={planReadAt} planNextReadAt={planNextReadAt} onRefreshPlanUsage={onRefreshPlanUsage} quotaWarn={quotaGate.warn} quotaPaused={quotaGate.paused} quotaResetsAt={quotaGate.resetsAt} role={role} routeMenuOpen={routeMenu} setRouteMenuOpen={setRouteMenu} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} onChangePassword={SUPABASE_ENABLED ? sbAuth.changePassword : undefined} drops={dropApi} bitState={bitState} navCounts={{ '/equipe': cockpit.pendingQuestions.length }} />
 
       {/* Âncora de altura zero no fluxo: o aviso pende daqui, logo abaixo do header. */}
       <div className="relative z-40">
@@ -189,15 +192,10 @@ export function CockpitApp() {
       </div>
 
       <RouteContent
-        route={route} isMobile={isMobile} isAdmin={isAdmin} connected={conn.ws === 'connected'}
+        route={route} isMobile={isMobile} isAdmin={isAdmin} isRoot={isRoot} connected={conn.ws === 'connected'}
         cockpit={cockpit} sessionsProps={sessionsProps} chatProps={chatProps} termProps={termProps}
         onOpenSession={selectSession}
         onOpenAgentChat={(m) => { handleNew(); setModel(m); nav('/'); }}
-        onAnalyzeNotes={(text) => {
-          handleNew();
-          setDraft(`Analise estas anotações soltas e destile num contexto/memória estruturado e reutilizável (markdown bem organizado). Se fizer sentido, salve em memory/. Anotações:\n\n${text}`);
-          nav('/');
-        }}
         layout={{ rowRef, leftW, rightW, leftCollapsed, setLeftCollapsed, rightCollapsed, setRightCollapsed, startDrag, nudge }}
         mobile={{ drawer, setDrawer, termSheet, setTermSheet, runningTerm }}
       />

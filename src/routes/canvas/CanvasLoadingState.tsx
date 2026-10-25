@@ -21,7 +21,7 @@ export function CanvasLoadingState({ loadingSince, stale, onRetry }: Props) {
 
   if (stale) {
     return (
-      <EmptyState icon="circle" title="O servidor não respondeu ao canvas" description="Se o Deck não foi atualizado desde a entrada do canvas, atualize (admin → atualizar) e tente de novo.">
+      <EmptyState icon="circle" title="O servidor não respondeu ao canvas" description="Se o Deck não foi atualizado desde a entrada do canvas, atualize (painel → host → atualizar) e tente de novo.">
         <Button variant="secondary" onClick={onRetry}>tentar de novo</Button>
       </EmptyState>
     );

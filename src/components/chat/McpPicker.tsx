@@ -131,7 +131,7 @@ export function McpPicker({ servers, selected, setSelected }: {
           })}
           {filtered.length === 0 && (
             <p className="px-3 py-3 text-[11.5px] text-neutral-500">
-              {empty ? 'Nenhum MCP configurado nesta máquina. Adicione em Admin → MCP (ou no ~/.claude.json) e ele aparece aqui.' : 'Nenhum MCP encontrado.'}
+              {empty ? 'Nenhum MCP configurado nesta máquina. Adicione em Painel → Host (ou no ~/.claude.json) e ele aparece aqui.' : 'Nenhum MCP encontrado.'}
             </p>
           )}
         </PickerSheet>

@@ -2,7 +2,8 @@ import { Icon, ConnDot, tokens, type ConnState } from '../primitives';
 import { ProfileMenu } from '../ProfileMenu';
 import { UsageBar } from './UsageBar';
 import { RouteMenu } from './RouteMenu';
-import { navBreakpoint, navFor } from './nav-routes';
+import { navBreakpoint, navFor, type NavRole } from './nav-routes';
+import { RoleBadge } from './RoleBadge';
 import { NavCount } from './NavCount';
 import type { Route } from '../../useRoute';
 import type { PlanUsage } from '../../../shared/protocol';
@@ -27,7 +28,7 @@ interface HeaderProps {
   quotaWarn?: boolean;
   quotaPaused?: boolean;
   quotaResetsAt?: number | null;
-  isAdmin: boolean;
+  role: NavRole;
   routeMenuOpen: boolean;
   setRouteMenuOpen: (v: boolean) => void;
   userId?: string;
@@ -38,7 +39,7 @@ interface HeaderProps {
   navCounts?: Partial<Record<Route, number>>;
 }
 
-export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette, planUsage, planBlockedUntil = null, planReadAt = null, planNextReadAt = null, onRefreshPlanUsage, quotaWarn = false, quotaPaused = false, quotaResetsAt = null, isAdmin, routeMenuOpen, setRouteMenuOpen, userId, onSignOut, onChangePassword, drops, bitState = 'idle', navCounts }: HeaderProps) {
+export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette, planUsage, planBlockedUntil = null, planReadAt = null, planNextReadAt = null, onRefreshPlanUsage, quotaWarn = false, quotaPaused = false, quotaResetsAt = null, role, routeMenuOpen, setRouteMenuOpen, userId, onSignOut, onChangePassword, drops, bitState = 'idle', navCounts }: HeaderProps) {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex min-w-0 items-center gap-2.5">
@@ -61,8 +62,8 @@ export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette
               a partir de sm. O estado "caiu" segue visível no OfflineNotice. */}
           <span className="hidden font-mono text-[14px] font-semibold lowercase tracking-tight text-neutral-100 transition hover:text-white sm:inline">Deck</span>
         </button>
-        <nav className={`ml-1 hidden min-w-0 items-center gap-0.5 overflow-x-auto rounded-lg border border-neutral-800 bg-neutral-900/60 p-0.5 ${navBreakpoint(isAdmin).strip}`}>
-          {navFor(isAdmin).map((n) => (
+        <nav className={`ml-1 hidden min-w-0 items-center gap-0.5 overflow-x-auto rounded-lg border border-neutral-800 bg-neutral-900/60 p-0.5 ${navBreakpoint(role).strip}`}>
+          {navFor(role).map((n) => (
             <button
               key={n.to}
               onClick={() => nav(n.to)}
@@ -74,7 +75,7 @@ export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette
             </button>
           ))}
         </nav>
-        <RouteMenu route={route} nav={nav} isAdmin={isAdmin} open={routeMenuOpen} setOpen={setRouteMenuOpen} counts={navCounts} />
+        <RouteMenu route={route} nav={nav} role={role} open={routeMenuOpen} setOpen={setRouteMenuOpen} counts={navCounts} />
       </div>
 
       <div className="flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-3">
@@ -91,6 +92,7 @@ export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette
         <div className={`hidden shrink-0 items-center rounded-lg border border-neutral-800 bg-neutral-900/60 py-1 sm:flex ${isMobile ? 'px-2' : 'px-2.5'}`}>
           <ConnDot label="ws" state={conn.ws} compact={isMobile} />
         </div>
+        <RoleBadge role={role} />
         <ProfileMenu userId={userId} onSignOut={onSignOut} onChangePassword={onChangePassword} drops={drops} />
       </div>
     </header>

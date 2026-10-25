@@ -8,7 +8,7 @@ afterEach(cleanup);
 
 function Harness({ nav }: { nav: (to: string) => void }) {
   const [open, setOpen] = useState(false);
-  return <RouteMenu route={'/' as never} nav={nav as never} isAdmin={false} open={open} setOpen={setOpen} />;
+  return <RouteMenu route={'/' as never} nav={nav as never} role="student" open={open} setOpen={setOpen} />;
 }
 
 describe('RouteMenu', () => {
@@ -26,17 +26,34 @@ describe('RouteMenu', () => {
     expect(document.activeElement).toBe(trigger);
   });
 
-  it('stays visible until the inline tab strip actually fits (1420px for admin, 1110px otherwise)', () => {
-    const admin = render(<RouteMenu route={'/' as never} nav={vi.fn() as never} isAdmin open={false} setOpen={vi.fn()} />);
-    expect(admin.container.firstElementChild?.className).toContain('min-[1420px]:hidden');
-    expect(admin.container.firstElementChild?.className).not.toContain('md:hidden');
+  it('stays visible until the inline tab strip actually fits (per role)', () => {
+    const root = render(<RouteMenu route={'/' as never} nav={vi.fn() as never} role="root" open={false} setOpen={vi.fn()} />);
+    expect(root.container.firstElementChild?.className).toContain('min-[1220px]:hidden');
+    expect(root.container.firstElementChild?.className).not.toContain('md:hidden');
     cleanup();
-    const fellow = render(<RouteMenu route={'/' as never} nav={vi.fn() as never} isAdmin={false} open={false} setOpen={vi.fn()} />);
+    const admin = render(<RouteMenu route={'/' as never} nav={vi.fn() as never} role="admin" open={false} setOpen={vi.fn()} />);
+    expect(admin.container.firstElementChild?.className).toContain('min-[1160px]:hidden');
+    cleanup();
+    const fellow = render(<RouteMenu route={'/' as never} nav={vi.fn() as never} role="student" open={false} setOpen={vi.fn()} />);
     expect(fellow.container.firstElementChild?.className).toContain('min-[1110px]:hidden');
   });
 
+  it('lists pontos for root only and never the retired screens', () => {
+    const labels = (role: 'root' | 'admin') => {
+      const r = render(<RouteMenu route={'/' as never} nav={vi.fn() as never} role={role} open setOpen={vi.fn()} />);
+      const out = r.getAllByRole('menuitem').map((b) => b.textContent);
+      cleanup();
+      return out;
+    };
+    expect(labels('root')).toContain('pontos');
+    expect(labels('root')).toContain('painel');
+    expect(labels('admin')).not.toContain('pontos');
+    expect(labels('admin')).toContain('painel');
+    for (const gone of ['notas', 'playground', 'harness', 'admin']) expect(labels('root')).not.toContain(gone);
+  });
+
   it('counts what waits on the user, on the trigger and on the route', () => {
-    const r = render(<RouteMenu route={'/' as never} nav={vi.fn() as never} isAdmin open setOpen={vi.fn()} counts={{ '/equipe': 2 } as never} />);
+    const r = render(<RouteMenu route={'/' as never} nav={vi.fn() as never} role="admin" open setOpen={vi.fn()} counts={{ '/equipe': 2 } as never} />);
     expect(r.getAllByTitle('2 esperando você')).toHaveLength(2);
     expect(r.getByRole('menuitem', { name: /equipe/ }).textContent).toContain('2');
   });

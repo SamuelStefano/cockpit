@@ -9,18 +9,18 @@ describe('admin-nav', () => {
     expect(adminTabFromHash('', ['overview'])).toBeNull();
   });
 
-  it('pushes /admin#tab and emits popstate so useRoute switches view', () => {
+  it('pushes /painel#tab and emits popstate so useRoute switches view', () => {
     const onPop = vi.fn();
     window.addEventListener('popstate', onPop);
     openAdminTab('models');
     window.removeEventListener('popstate', onPop);
-    expect(location.pathname + location.hash).toBe('/admin#models');
+    expect(location.pathname + location.hash).toBe('/painel#models');
     expect(onPop).toHaveBeenCalledOnce();
   });
 
   it('replaces the hash without leaving the page', () => {
-    history.replaceState(null, '', '/admin#overview');
+    history.replaceState(null, '', '/painel#overview');
     replaceAdminTabHash('host');
-    expect(location.pathname + location.hash).toBe('/admin#host');
+    expect(location.pathname + location.hash).toBe('/painel#host');
   });
 });

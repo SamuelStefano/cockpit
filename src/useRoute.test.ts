@@ -8,9 +8,38 @@ describe('useRoute', () => {
   afterEach(() => history.replaceState(null, '', '/'));
 
   it('inicia na rota atual quando válida', () => {
-    history.replaceState(null, '', '/admin');
+    history.replaceState(null, '', '/painel');
     const { result } = renderHook(() => useRoute());
-    expect(result.current.route).toBe('/admin');
+    expect(result.current.route).toBe('/painel');
+  });
+
+  it('/admin vira /painel preservando o hash da sub-aba', () => {
+    history.replaceState(null, '', '/admin#models');
+    const before = history.length;
+    const { result } = renderHook(() => useRoute());
+    expect(result.current.route).toBe('/painel');
+    expect(location.pathname + location.hash).toBe('/painel#models');
+    expect(history.length).toBe(before);
+  });
+
+  it('telas desligadas (/notas, /play, /harness) redirecionam pro chat', () => {
+    for (const p of ['/notas', '/play', '/harness']) {
+      history.replaceState(null, '', p);
+      const { result, unmount } = renderHook(() => useRoute());
+      expect(result.current.route).toBe('/');
+      expect(location.pathname).toBe('/');
+      unmount();
+    }
+  });
+
+  it('um voltar pra URL antiga também redireciona', () => {
+    const { result } = renderHook(() => useRoute());
+    act(() => {
+      history.pushState(null, '', '/admin#host');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    expect(result.current.route).toBe('/painel');
+    expect(location.pathname + location.hash).toBe('/painel#host');
   });
 
   it('cai pra "/" quando o pathname não é uma rota conhecida', () => {

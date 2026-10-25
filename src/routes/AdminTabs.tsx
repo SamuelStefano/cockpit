@@ -8,7 +8,7 @@ export interface AdminTab {
 
 export function AdminTabs({ tabs, active, onSelect }: { tabs: AdminTab[]; active: string; onSelect: (id: string) => void }) {
   return (
-    <div role="tablist" aria-label="Seções do admin" className="mb-5 flex gap-1 rounded-lg border border-neutral-800 bg-neutral-900/40 p-1 hairline">
+    <div role="tablist" aria-label="Seções do painel" className="mb-5 flex gap-1 rounded-lg border border-neutral-800 bg-neutral-900/40 p-1 hairline">
       {tabs.map((t) => (
         <button
           key={t.id}

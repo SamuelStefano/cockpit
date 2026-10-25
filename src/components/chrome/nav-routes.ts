@@ -1,26 +1,38 @@
 import type { Route } from '../../useRoute';
+import type { Caps } from '../../../shared/protocol';
+
+// The account role as far as navigation goes. Default-deny: no caps yet = student.
+export type NavRole = 'root' | 'admin' | 'student';
+
+export function navRole(role: Caps['role'] | undefined): NavRole {
+  if (role === 'root') return 'root';
+  if (role === 'admin') return 'admin';
+  return 'student';
+}
 
 // `student`: what a non-admin is shown. The Equipe is their home (fatia E); the rest
 // is either refused by the server (STUDENT_ALLOWED) or useless without a terminal.
-export const NAV: { to: Route; label: string; adminOnly?: boolean; student?: true }[] = [
+// `root`: the owner only — the server refuses its frames to anyone else
+// (shared/root-frames.ts).
+export const NAV: { to: Route; label: string; student?: true; root?: true }[] = [
   { to: '/', label: 'chat', student: true },
   { to: '/contextos', label: 'contextos' },
   { to: '/skills', label: 'skills' },
-  { to: '/notas', label: 'notas' },
-  { to: '/pontos', label: 'pontos' },
+  { to: '/pontos', label: 'pontos', root: true },
   { to: '/crons', label: 'crons' },
   { to: '/equipe', label: 'equipe', student: true },
   { to: '/uso', label: 'uso' },
-  { to: '/play', label: 'playground' },
-  { to: '/canvas', label: 'canvas', adminOnly: true },
-  { to: '/graph', label: 'graph', adminOnly: true },
-  { to: '/harness', label: 'harness', adminOnly: true },
-  { to: '/admin', label: 'admin', adminOnly: true },
+  { to: '/canvas', label: 'canvas' },
+  { to: '/graph', label: 'graph' },
+  { to: '/painel', label: 'painel' },
   { to: '/docs', label: 'docs' },
 ];
 
-// A aba admin some pra quem não é admin (default-deny: sem caps = não-admin).
-export const navFor = (isAdmin: boolean) => (isAdmin ? NAV : NAV.filter((n) => n.student));
+export function navFor(role: NavRole) {
+  if (role === 'root') return NAV;
+  if (role === 'admin') return NAV.filter((n) => !n.root);
+  return NAV.filter((n) => n.student);
+}
 
 export const STUDENT_HOME: Route = '/equipe';
 
@@ -32,14 +44,24 @@ export function studentRedirect(route: Route, chatId: string, firstLanding: bool
   return null;
 }
 
+// Where a role that opened a URL outside its menu goes. Root is never moved; /ds
+// (the design-system gallery) stays reachable by URL for admins.
+export function roleRedirect(role: NavRole, route: Route, chatId: string, firstLanding: boolean): Route | null {
+  if (role === 'student') return studentRedirect(route, chatId, firstLanding);
+  if (role === 'admin' && NAV.some((n) => n.to === route && n.root)) return '/';
+  return null;
+}
+
 // Where the inline tab strip replaces the RouteMenu dropdown. Measured with a
-// populated usage bar (header's right cluster ≈ 420px): the admin strip
-// (14 tabs, ≈ 860px) needs ≈ 1380px and the 9-tab strip (≈ 550px) ≈ 1070px, so
-// xl/lg still pushed the profile menu off-screen at exactly 1280/1024. The
-// thresholds keep ~40px of slack for a longer usage label; past that the strip
-// scrolls (Header.tsx) instead of pushing the right cluster out.
+// populated usage bar: the logo plus the header's right cluster take ≈ 520px, and
+// each tab is its label in 11.5px mono plus ≈ 22px of padding and gap. The root
+// strip (11 tabs) is ≈ 660px → 1180px, the admin one (10 tabs, no pontos) ≈ 600px
+// → 1120px, and the student one (2 tabs) fits far earlier. The thresholds keep
+// ~40px of slack for a longer usage label; past that the strip scrolls
+// (Header.tsx) instead of pushing the right cluster out.
 // Literal class names, so Tailwind's scanner sees them.
-export const navBreakpoint = (isAdmin: boolean) =>
-  isAdmin
-    ? { strip: 'min-[1420px]:flex', menu: 'min-[1420px]:hidden' }
-    : { strip: 'min-[1110px]:flex', menu: 'min-[1110px]:hidden' };
+export function navBreakpoint(role: NavRole) {
+  if (role === 'root') return { strip: 'min-[1220px]:flex', menu: 'min-[1220px]:hidden' };
+  if (role === 'admin') return { strip: 'min-[1160px]:flex', menu: 'min-[1160px]:hidden' };
+  return { strip: 'min-[1110px]:flex', menu: 'min-[1110px]:hidden' };
+}

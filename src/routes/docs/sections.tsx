@@ -14,7 +14,6 @@ import { Drop } from './sections/Drop';
 import { Search } from './sections/Search';
 import { Commands } from './sections/Commands';
 import { Models } from './sections/Models';
-import { Playground } from './sections/Playground';
 import { Graph } from './sections/Graph';
 import { Bench } from './sections/Bench';
 import { Admin } from './sections/Admin';
@@ -41,7 +40,6 @@ export function DocSections({ year }: { year: number }) {
       <Search />
       <Commands />
       <Models />
-      <Playground />
       <Graph />
       <Bench />
       <WorkRoutes />

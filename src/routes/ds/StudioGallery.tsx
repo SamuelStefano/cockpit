@@ -1,5 +1,4 @@
 import { Suspense, type ComponentProps } from 'react';
-import { Icon } from '../../components/primitives';
 import { LivePreview } from '../../components/primitives/lazyPreviews';
 import { ThemePlayground } from './ThemePlayground';
 import { Section } from './Section';
@@ -62,19 +61,6 @@ export function StudioGallery() {
           com resumo <span className="text-neutral-400">N/N</span>. O terceiro test abaixo falha de propósito.
         </p>
         <Preview lang="preview-test" code={DEMO_PREVIEW_TEST} />
-      </Section>
-
-      <Section title="Playground — bancada completa em /play">
-        <p className="text-[12px] text-neutral-600">
-          Uma página inteira (<code className="text-orange-300">/play</code>) com editor ↔ preview lado a lado, seletor de linguagem
-          (React, HTML, iPhone, SVG, testes), templates prontos, switcher de dispositivo e console — construída com estes mesmos primitivos.
-          O botão <Icon name="link" size={11} className="inline text-orange-300" /> gera um <strong className="text-neutral-400">link compartilhável</strong>:
-          serializa linguagem + código no hash da URL (base64url, client-side) — abrir o link recria o sandbox vivo.
-        </p>
-        {/* SPA navigation: a plain href reloaded the whole page and reconnected the WS. */}
-        <a href="/play" onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); history.pushState(null, '', '/play'); window.dispatchEvent(new PopStateEvent('popstate')); }} className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-orange-500/15 px-3 py-1.5 text-[12px] font-medium text-orange-300 transition hover:bg-orange-500/25">
-          abrir playground →
-        </a>
       </Section>
     </>
   );

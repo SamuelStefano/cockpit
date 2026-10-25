@@ -1,15 +1,15 @@
 import { useEffect, useRef } from 'react';
 import { Icon, tokens } from '../primitives';
 import { useMenuKeys } from '../primitives/useMenuKeys';
-import { navBreakpoint, navFor } from './nav-routes';
+import { navBreakpoint, navFor, type NavRole } from './nav-routes';
 import type { Route } from '../../useRoute';
 import { NavCount } from './NavCount';
 
-// Em telas estreitas as 6 abas não cabem no header (eram cortadas). Aqui viram um
+// Em telas estreitas as abas não cabem no header (eram cortadas). Aqui viram um
 // dropdown compacto que mostra a rota atual e abre a lista ao toque.
 // Controlado pelo App (open/setOpen) pra ser mutuamente exclusivo com o drawer de
 // sessões no mobile — abrir um fecha o outro (senão os dois overlays se sobrepõem).
-export function RouteMenu({ route, nav, isAdmin, open, setOpen, counts }: { route: Route; nav: (to: Route) => void; isAdmin: boolean; open: boolean; setOpen: (v: boolean) => void; counts?: Partial<Record<Route, number>> }) {
+export function RouteMenu({ route, nav, role, open, setOpen, counts }: { route: Route; nav: (to: Route) => void; role: NavRole; open: boolean; setOpen: (v: boolean) => void; counts?: Partial<Record<Route, number>> }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   // Announced as a menu, so it behaves as one: focus moves in, arrows move, Esc
@@ -23,11 +23,11 @@ export function RouteMenu({ route, nav, isAdmin, open, setOpen, counts }: { rout
     document.addEventListener('pointerdown', onDoc);
     return () => document.removeEventListener('pointerdown', onDoc);
   }, [open, setOpen]);
-  const items = navFor(isAdmin);
+  const items = navFor(role);
   // Routes outside the menu (/ds) used to show the first item ("chat").
   const current = items.find((n) => n.to === route) ?? { to: route, label: route.slice(1) || items[0].label };
   return (
-    <div ref={wrapRef} className={`relative ${navBreakpoint(isAdmin).menu}`}>
+    <div ref={wrapRef} className={`relative ${navBreakpoint(role).menu}`}>
       <button
         ref={triggerRef}
         onClick={() => setOpen(!open)}

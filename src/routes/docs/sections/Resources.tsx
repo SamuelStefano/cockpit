@@ -5,7 +5,7 @@ export function Resources() {
   return (
     <section id="recursos" className="mb-14 scroll-mt-6">
       <SectionTitle icon="zap" kicker="telemetria" title="Recursos da máquina"
-        desc="Os medidores no rodapé e no Admin mostram a saúde da VPS em tempo real. Tudo é lido direto do sistema operacional, sem instalar nada — leituras best-effort que nunca derrubam o app." />
+        desc="Os medidores no rodapé e no Painel mostram a saúde da VPS em tempo real. Tudo é lido direto do sistema operacional, sem instalar nada — leituras best-effort que nunca derrubam o app." />
       <div className="space-y-3">
         {RESOURCES.map((r) => <ResourceRow key={r.key} r={r} />)}
       </div>

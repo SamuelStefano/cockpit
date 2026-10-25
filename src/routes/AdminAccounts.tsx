@@ -70,8 +70,8 @@ export function AdminAccounts({ accounts, loaded, onAccountsList, onSetAdmin, ca
           tone={pending.isAdmin ? 'danger' : 'accent'}
           cta={pending.isAdmin ? 'Remover' : 'Tornar admin'}
           body={pending.isAdmin
-            ? <>A conta <span className="font-mono text-neutral-200">{pending.email}</span> perde acesso ao painel admin e às ações sensíveis.</>
-            : <>A conta <span className="font-mono text-neutral-200">{pending.email}</span> ganha acesso ao painel admin e às ações de host.</>}
+            ? <>A conta <span className="font-mono text-neutral-200">{pending.email}</span> perde acesso ao Painel.</>
+            : <>A conta <span className="font-mono text-neutral-200">{pending.email}</span> ganha acesso ao Painel (Host e Contas continuam só do root).</>}
           onConfirm={runPending}
           onCancel={() => setPending(null)}
         />

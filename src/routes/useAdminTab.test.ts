@@ -8,14 +8,14 @@ const KNOWN = ['overview', 'models'];
 
 describe('useAdminTab', () => {
   it('opens the tab named in the hash and falls back to overview', () => {
-    history.replaceState(null, '', '/admin#models');
+    history.replaceState(null, '', '/painel#models');
     expect(renderHook(() => useAdminTab(KNOWN)).result.current[0]).toBe('models');
-    history.replaceState(null, '', '/admin#bogus');
+    history.replaceState(null, '', '/painel#bogus');
     expect(renderHook(() => useAdminTab(KNOWN)).result.current[0]).toBe('overview');
   });
 
   it('follows a deep link while mounted and writes the hash on select', () => {
-    history.replaceState(null, '', '/admin');
+    history.replaceState(null, '', '/painel');
     const { result } = renderHook(() => useAdminTab(KNOWN));
     act(() => openAdminTab('models'));
     expect(result.current[0]).toBe('models');

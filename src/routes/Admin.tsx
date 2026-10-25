@@ -7,7 +7,8 @@ import { AdminAgents } from './AdminAgents';
 import type { AgentsApi } from '../cockpit/useAgents';
 import { AdminDeckUpdate } from './AdminDeckUpdate';
 import { AdminInventory } from './AdminInventory';
-import { AdminTabs, type AdminTab } from './AdminTabs';
+import { AdminTabs } from './AdminTabs';
+import { painelTabs } from './painel-tabs';
 import { AdminModels } from './AdminModels';
 import { useAdminTab } from './useAdminTab';
 import { AdminHealthSkeleton } from './AdminHealthSkeleton';
@@ -15,8 +16,8 @@ import { Stat } from './adminPrimitives';
 import { gb, clockTime, dur } from './adminFormat';
 import { SUPABASE_ENABLED } from '../lib/supabase';
 
-// Painel admin: health/inventário da máquina (somente leitura) + controle de host
-// (tokens, MCP, CLI) e contas, ambos gated por role admin no relay. Organizado em
+// Painel: health/inventário da máquina (somente leitura) pra admin; controle de host
+// (tokens, MCP, CLI) e contas só pro root, que o servidor também exige. Organizado em
 // sub-abas; ações sensíveis pedem confirmação. Loopback continua sem porta pública.
 
 interface AdminProps {
@@ -27,7 +28,7 @@ interface AdminProps {
   accountsLoaded: boolean;
   onAccountsList: () => void;
   onSetAdmin: (accountId: string, admin: boolean) => void;
-  isRoot: boolean; // só root concede/revoga admin
+  isRoot: boolean; // Host e Contas são do root
   adminOp: { ok: boolean; message: string } | null;
   onEnvSet: (name: string, value: string) => boolean;
   onEnvUnset: (name: string) => void;
@@ -42,11 +43,12 @@ interface AdminProps {
 }
 
 const toastedOps = new WeakSet<object>();
-const TAB_IDS = ['overview', ...(SUPABASE_ENABLED ? ['accounts'] : []), 'host', 'agents', 'models'];
 
 export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, isRoot, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, onCliUpdate, onDeckRestart, agents, models, onOpenAgentChat }: AdminProps) {
   const [updatedAt, setUpdatedAt] = useState(0);
-  const [tab, setTab] = useAdminTab(TAB_IDS);
+  const tabs = useMemo(() => painelTabs(isRoot, SUPABASE_ENABLED), [isRoot]);
+  const tabIds = useMemo(() => tabs.map((t) => t.id), [tabs]);
+  const [tab, setTab] = useAdminTab(tabIds);
   // Polls only while the tab is visible (health spawns probes server-side every
   // 10s), and refreshes at once when it comes back.
   useEffect(() => {
@@ -59,7 +61,7 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
   useEffect(() => { if (health) setUpdatedAt(Date.now()); }, [health]);
   // O resultado da op é do painel inteiro, não só da aba Host: conceder/remover admin
   // na aba Contas não dava sinal nenhum (nem sucesso, nem recusa do relay).
-  // adminOp lives in app state for 4–8s: leaving /admin and coming back inside
+  // adminOp lives in app state for 4–8s: leaving /painel and coming back inside
   // that window re-mounted this effect and toasted the same result again.
   useEffect(() => {
     if (!adminOp || toastedOps.has(adminOp)) return;
@@ -68,15 +70,6 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
   }, [adminOp]);
   // …e a lista de contas não reflete a mudança sozinha.
   useEffect(() => { if (adminOp?.ok && tab === 'accounts') onAccountsList(); }, [adminOp, tab, onAccountsList]);
-
-  const tabs = useMemo<AdminTab[]>(() => {
-    const t: AdminTab[] = [{ id: 'overview', label: 'Visão geral', icon: 'zap' }];
-    if (SUPABASE_ENABLED) t.push({ id: 'accounts', label: 'Contas', icon: 'user' });
-    t.push({ id: 'host', label: 'Host', icon: 'terminal' });
-    t.push({ id: 'agents', label: 'Agentes', icon: 'sparkles' });
-    t.push({ id: 'models', label: 'Modelos', icon: 'layers' });
-    return t;
-  }, []);
 
   const diskPct = health && health.disk.total > 0 ? Math.round((health.disk.used / health.disk.total) * 100) : 0;
   const memPct = stats && stats.mem.total > 0 ? Math.round((stats.mem.used / stats.mem.total) * 100) : 0;
@@ -89,9 +82,9 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
       <div className="mx-auto max-w-3xl">
         <RouteHeader
           variant="page"
-          title="Admin"
+          title="Painel"
           icon="shield"
-          subtitle="Saúde e inventário da VPS, controle do host e contas. Ações sensíveis pedem confirmação e exigem role admin no relay."
+          subtitle={isRoot ? 'Saúde e inventário da VPS, controle do host e contas. Ações sensíveis pedem confirmação e exigem o papel root.' : 'Saúde e inventário da VPS, agentes e modelos.'}
           actions={
             <Button variant="secondary" size="sm" icon="rotate" title="Atualizar agora" onClick={onHealthList}>
               Atualizar
@@ -101,7 +94,7 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
 
         <AdminTabs tabs={tabs} active={tab} onSelect={setTab} />
 
-        {tab === 'accounts' && SUPABASE_ENABLED && (
+        {tab === 'accounts' && isRoot && SUPABASE_ENABLED && (
           <AdminAccounts accounts={accounts} loaded={accountsLoaded} onAccountsList={onAccountsList} onSetAdmin={onSetAdmin} canGrant={isRoot} />
         )}
 
@@ -109,10 +102,10 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
 
         {tab === 'models' && <AdminModels models={models} />}
 
-        {tab === 'host' && (
+        {tab === 'host' && isRoot && (
           <AdminDeckUpdate health={health} adminOp={adminOp} onCliUpdate={onCliUpdate} onDeckRestart={onDeckRestart} />
         )}
-        {tab === 'host' && (
+        {tab === 'host' && isRoot && (
           <AdminHostOps
             health={health} adminOp={adminOp}
             onEnvSet={onEnvSet} onEnvUnset={onEnvUnset}
