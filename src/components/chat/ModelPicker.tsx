@@ -11,11 +11,35 @@ const renderOpt = (o: VisibleOption) => (
   <option key={o.id} value={o.id}>{prettyModel(o.id, o.displayName)}{o.hidden ? ' (oculto)' : ''}</option>
 );
 
-export function ModelPicker({ model, setModel, models, onRefreshModels, canManage = false }: {
+export function ModelPicker({ model, setModel, models, onRefreshModels, canManage = false, locked }: {
   model: string; setModel: (m: string) => void;
   models: ModelInfo[];
   onRefreshModels: () => void;
   canManage?: boolean;
+  locked?: string;
+}) {
+  if (locked) return <LockedModel model={model} models={models} reason={locked} />;
+  return <ModelSelect model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} canManage={canManage} />;
+}
+
+function LockedModel({ model, models, reason }: { model: string; models: ModelInfo[]; reason: string }) {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1" title={`Modelo ${reason} — troque no perfil do bot`}>
+      <span className={tag}>versão</span>
+      <span className="inline-flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-900 px-2 py-1 text-[11px] font-medium text-neutral-300">
+        <Icon name="lock" size={10} />
+        {prettyModel(model, models.find((m) => m.id === model)?.displayName)}
+        <span className="text-neutral-600">· {reason}</span>
+      </span>
+    </span>
+  );
+}
+
+function ModelSelect({ model, setModel, models, onRefreshModels, canManage }: {
+  model: string; setModel: (m: string) => void;
+  models: ModelInfo[];
+  onRefreshModels: () => void;
+  canManage: boolean;
 }) {
   const { groups, refreshing, refresh, adding, custom, setCustom, onChange, commitCustom, cancelCustom } =
     useModelPicker({ model, setModel, models, onRefreshModels });

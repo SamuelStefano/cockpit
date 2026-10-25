@@ -22,6 +22,7 @@ interface ComposerSettingsSheetProps {
   setSelectedMcps: (ids: string[]) => void;
   model: string;
   setModel: (m: string) => void;
+  modelLocked?: string;
   models: ModelInfo[];
   onRefreshModels: () => void;
   effort: Effort;
@@ -38,7 +39,7 @@ const label = 'text-[12.5px] font-medium text-neutral-300';
 // Sai por portal como o PickerSheet: o `backdrop-blur` do composer vira containing
 // block pro `fixed`, e o backdrop `inset-0` cobria só a caixa do composer — a thread
 // não escurecia. `useDismiss` segue valendo (ref.contains olha o DOM real do portal).
-export function ComposerSettingsSheet({ onClose, caps, bypass, setBypass, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, model, setModel, models, onRefreshModels, effort, setEffort }: ComposerSettingsSheetProps) {
+export function ComposerSettingsSheet({ onClose, caps, bypass, setBypass, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort }: ComposerSettingsSheetProps) {
   const ref = useDismiss<HTMLDivElement>(true, onClose);
   const sheet = (
     <>
@@ -62,7 +63,7 @@ export function ComposerSettingsSheet({ onClose, caps, bypass, setBypass, skills
         </div>
         <div className={row}>
           <span className={label}>Modelo</span>
-          <ModelPicker model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} canManage={caps?.role === 'admin' || caps?.role === 'root'} />
+          <ModelPicker model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} canManage={caps?.role === 'admin' || caps?.role === 'root'} locked={modelLocked} />
         </div>
         {!isAgentModel(model) && (
           <>

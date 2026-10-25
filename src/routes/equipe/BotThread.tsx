@@ -56,6 +56,7 @@ export function BotThread({ view, chatProps, bots, log, files, onOpenPeer, onBac
         <ChatPanel
           key={chatProps.session?.id ?? 'none'}
           {...chatProps}
+          {...(bot.model ? { model: bot.model, modelLocked: 'fixado no bot' } : {})}
           onNew={noop}
           onHandoff={undefined}
           botDecor={botDecor}
