@@ -35,11 +35,12 @@ interface AdminProps {
   onCliUpdate: () => void;
   onDeckRestart: (mode: 'idle' | 'now') => void;
   agents: AgentsApi;
+  onOpenAgentChat: (model: string) => void;
 }
 
 const toastedOps = new WeakSet<object>();
 
-export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, isRoot, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, onCliUpdate, onDeckRestart, agents }: AdminProps) {
+export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, isRoot, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, onCliUpdate, onDeckRestart, agents, onOpenAgentChat }: AdminProps) {
   const [updatedAt, setUpdatedAt] = useState(0);
   const [tab, setTab] = useState('overview');
   // Polls only while the tab is visible (health spawns probes server-side every
@@ -99,7 +100,7 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
           <AdminAccounts accounts={accounts} loaded={accountsLoaded} onAccountsList={onAccountsList} onSetAdmin={onSetAdmin} canGrant={isRoot} />
         )}
 
-        {tab === 'agents' && <AdminAgents agents={agents} />}
+        {tab === 'agents' && <AdminAgents agents={agents} onOpenChat={onOpenAgentChat} />}
 
         {tab === 'host' && (
           <AdminDeckUpdate health={health} adminOp={adminOp} onCliUpdate={onCliUpdate} onDeckRestart={onDeckRestart} />

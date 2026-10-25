@@ -122,6 +122,9 @@ export function CompositesGallery() {
             <Button icon="plus">Nova sessão</Button>
           </EmptyState>
         </div>
+        <div className="mt-3 h-64 rounded-xl border border-neutral-800 bg-neutral-900/40">
+          <EmptyState bit="idle" title="Nenhuma sessão ainda" description="Com o Bit no lugar do ícone." />
+        </div>
       </Section>
 
       <Section title="Micro-interações">
