@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react';
+import { isAgentModel } from '../../shared/agents';
 import { Icon } from './primitives';
 import { subscribeRefine } from './primitives/livepreview/refine-bus';
 import { MessageRow, Thinking } from './chat/MessageView';
