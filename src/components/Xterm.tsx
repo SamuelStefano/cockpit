@@ -9,6 +9,7 @@ interface Props {
   id: string;
   term: TermApi;
   watch?: string; // session uuid: the pane follows that transcript live
+  botId?: string; // opens in that bot's workspace
   autoFocus?: boolean;
   focusKey?: number; // bump to pull keyboard focus into this terminal
   fontSize?: number;
@@ -19,7 +20,7 @@ interface Props {
 // Monta um xterm.js real e liga no PTY/tmux do backend via WS.
 // Anexa no mount (com replay de scrollback), desanexa no unmount (sessão tmux
 // segue viva). Trocar de aba remonta → reattach + redraw do tmux.
-export function XtermView({ id, term, watch, autoFocus = true, focusKey, fontSize = 12.5, clipboardRef, onOutput }: Props) {
+export function XtermView({ id, term, watch, botId, autoFocus = true, focusKey, fontSize = 12.5, clipboardRef, onOutput }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const xtRef = useRef<XTerm | null>(null);
   const clipboard = useTerminalClipboard();
@@ -74,6 +75,7 @@ export function XtermView({ id, term, watch, autoFocus = true, focusKey, fontSiz
       () => xt.write('\r\n\x1b[2m[sessão encerrada]\x1b[0m\r\n'),
       (snapshot) => { xt.reset(); xt.write(snapshot); outputRef.current?.(snapshot, true); }, // repinta sem duplicar
       watch,
+      botId,
     );
     const dataSub = xt.onData((d) => term.input(id, d));
     if (autoFocus) xt.focus();
@@ -99,7 +101,7 @@ export function XtermView({ id, term, watch, autoFocus = true, focusKey, fontSiz
     };
     // fontSize/autoFocus only matter at mount; changing them must not reattach.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, term, watch]);
+  }, [id, term, watch, botId]);
 
   useEffect(() => {
     if (!focusKey) return;

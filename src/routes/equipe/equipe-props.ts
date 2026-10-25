@@ -1,5 +1,7 @@
 import type { BotFile, Cron, ModelInfo, TeamBot, TeamBotInput, TeamPendingQuestion } from '../../../shared/protocol';
 import type { BotFileData } from '../../cockpit/useBotFiles';
+import type { BotComputerState } from '../../cockpit/useBotComputer';
+import type { TermApi } from '../../cockpit/useTerminals';
 import type { ChatPanelProps } from '../../components/chat/chat-panel-props';
 import type { Session } from '../../data/types';
 import type { Phase } from '../../components/chat/useChatPanel';
@@ -28,7 +30,13 @@ export interface BotFilesApi {
   onBotFileGet: (botId: string, path: string, force?: boolean) => void;
 }
 
-export interface EquipeProps extends CronApi, TeamTrafficApi, BotFilesApi {
+export interface BotComputerApi {
+  botComputers: Record<string, BotComputerState>;
+  onBotComputerGet: (botId: string) => void;
+}
+
+export interface EquipeProps extends CronApi, TeamTrafficApi, BotFilesApi, BotComputerApi {
+  term: TermApi;
   pendingQuestions: TeamPendingQuestion[];
   connected: boolean;
   isMobile: boolean;

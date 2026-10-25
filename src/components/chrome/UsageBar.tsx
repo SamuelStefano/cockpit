@@ -3,7 +3,8 @@ import { tokens } from '../primitives';
 import { usageRows, toneOf, isStalePlanUsage, isOldReading } from './usage-rows';
 import { quotaBorder } from './quota-tone';
 import { useUsagePanel } from './useUsagePanel';
-import { UsagePanel } from './UsagePanel';
+import { UsagePanel, type UsagePanelSecondary } from './UsagePanel';
+import type { UsageAgent } from './usage-agent';
 import type { PlanUsage } from '../../../shared/protocol';
 
 const BAR = { ok: 'bg-emerald-500', mid: 'bg-amber-500', high: 'bg-red-500' } as const;
@@ -29,9 +30,12 @@ interface UsageBarProps {
   nextReadAt?: number | null;
   // Pede um número fresco ao servidor; `force` = clique, lê sem esperar o poll.
   onRefresh?: (force?: boolean) => void;
+  // Whose account the chip measures; the panel can list the other one below.
+  agent?: UsageAgent;
+  secondary?: UsagePanelSecondary;
 }
 
-export function UsageBar({ usage, compact, warn = false, paused = false, quotaResetsAt = null, blockedUntil = null, readAt = null, nextReadAt = null, onRefresh }: UsageBarProps) {
+export function UsageBar({ usage, compact, warn = false, paused = false, quotaResetsAt = null, blockedUntil = null, readAt = null, nextReadAt = null, onRefresh, agent = 'claude', secondary }: UsageBarProps) {
   const { open, setOpen, wrapRef } = useUsagePanel(onRefresh);
   const rows = usageRows(usage);
   const stale = isStalePlanUsage(usage);
@@ -46,6 +50,7 @@ export function UsageBar({ usage, compact, warn = false, paused = false, quotaRe
   const age = old && readAt ? relAge(readAt) : '';
   const reset = usage && usage.resetsAt && !stale && !old ? relReset(usage.resetsAt) : '';
   const gateReset = quotaResetsAt ? relReset(quotaResetsAt) : '';
+  const what = agent === 'grok' ? 'Uso do Grok' : 'Uso do plano';
 
   return (
     <div ref={wrapRef} className="relative shrink-0">
@@ -55,12 +60,12 @@ export function UsageBar({ usage, compact, warn = false, paused = false, quotaRe
         aria-expanded={open}
         aria-haspopup="dialog"
         // Compact (mobile) shows only "45%"; say what the number is.
-        aria-label={`Uso do plano: ${pct === null ? 'lendo' : `${pct}%`}${paused ? ' — cota esgotada' : warn ? ' — perto do limite' : ''}${gateReset ? `, reseta ${gateReset}` : ''}`}
-        title={paused ? `Cota esgotada${gateReset ? ` — reseta ${gateReset}` : ''}` : warn ? `Uso próximo do limite${gateReset ? ` — reseta ${gateReset}` : ''}` : stale ? 'Uso do plano: a janela virou e o número novo ainda não chegou da conta' : old ? `Uso do plano: número lido há ${age} — a leitura nova não chegou` : usage ? 'Ver detalhe do uso do plano' : 'Uso do plano: lendo da conta…'}
+        aria-label={`${what}: ${pct === null ? 'lendo' : `${pct}%`}${paused ? ' — cota esgotada' : warn ? ' — perto do limite' : ''}${gateReset ? `, reseta ${gateReset}` : ''}`}
+        title={paused ? `Cota esgotada${gateReset ? ` — reseta ${gateReset}` : ''}` : warn ? `Uso próximo do limite${gateReset ? ` — reseta ${gateReset}` : ''}` : stale ? `${what}: a janela virou e o número novo ainda não chegou da conta` : old ? `${what}: número lido há ${age} — a leitura nova não chegou` : usage ? `Ver detalhe do ${agent === 'grok' ? 'uso do Grok' : 'uso do plano'}` : `${what}: lendo da conta…`}
         className={`flex items-center border bg-neutral-900/60 py-1.5 transition-colors hover:bg-neutral-900 ${quotaBorder(warn, paused)} ${tokens.radius.md} ${tokens.focusRing} ${compact ? 'gap-1.5 px-2' : 'gap-2 px-2.5'}`}
       >
         {paused && <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-red-400" />}
-        {!compact && <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Uso</span>}
+        {!compact && <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{agent === 'grok' ? 'Grok' : 'Uso'}</span>}
         <div className={`${compact ? 'w-12' : 'w-20'} h-2 overflow-hidden rounded-full bg-neutral-800`}>
           <div className={`h-full rounded-full transition-all ${bar}`} style={{ width: `${pct ?? 0}%` }} />
         </div>
@@ -72,7 +77,7 @@ export function UsageBar({ usage, compact, warn = false, paused = false, quotaRe
           <span className="text-[10px] tabular-nums text-neutral-600">há {age}</span>
         )}
       </button>
-      {open && <UsagePanel rows={rows} reset={gateReset} warn={warn || paused} blockedUntil={blockedUntil} readAt={readAt} nextReadAt={nextReadAt} />}
+      {open && <UsagePanel rows={rows} reset={gateReset} warn={warn || paused} blockedUntil={blockedUntil} readAt={readAt} nextReadAt={nextReadAt} title={what} secondary={secondary} />}
     </div>
   );
 }

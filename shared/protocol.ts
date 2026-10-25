@@ -422,6 +422,18 @@ export type TeamBotInput = Omit<TeamBot, 'sessionId' | 'createdAt' | 'updatedAt'
 export interface TeamPendingQuestion { botId: string; sessionKey: string; questions: ToolQuestion[]; at: number }
 // A file in a bot's workspace (`~/.cockpit/bots/<id>/workspace`), path relative to it.
 export interface BotFile { path: string; size: number; mtime: number }
+// Aba Computador: não há VM por bot — o computador é esta máquina, e o que é do
+// bot é o workspace. `preview` = últimas linhas do terminal dele, já sem bytes de
+// controle; vazio quando o terminal ainda não existe.
+export interface BotComputer {
+  cwd: string;
+  files: number;
+  bytes: number;
+  truncated: boolean;
+  termId: string;
+  termAlive: boolean;
+  preview: string[];
+}
 export interface TurnStats { costUsd?: number; durationMs?: number; numTurns?: number; model?: string }
 
 // Agente de FUNDO (Task/Agent lançado em background): espelha o terminal com
@@ -657,6 +669,8 @@ export type ClientMsg =
   // sessões inteiro, caro demais pra abrir um popover.
   // `force` = o usuário clicou: ler agora, sem esperar o espaçamento do poll.
   | { t: 'plan-usage-get'; force?: boolean }
+  // Mesmo contrato, conta do Grok (créditos do período, não janela de 5h).
+  | { t: 'grok-usage-get'; force?: boolean }
   // `chainOnly` = o usuário PEDIU a visão resumida; sem ele o servidor pode servir
   // a timeline completa quando a cadeia ativa colapsou (pós-/compact).
   | { t: 'open'; sessionId: string; chainOnly?: boolean }
@@ -748,6 +762,7 @@ export type ClientMsg =
   | { t: 'team-pause-set'; paused: boolean }
   | { t: 'team-files-get'; botId: string }
   | { t: 'team-file-get'; botId: string; path: string }
+  | { t: 'team-computer-get'; botId: string }
   | { t: 'skill-list' }
   | { t: 'skill-open'; id: string }
   | { t: 'registry-get'; refresh?: boolean }
@@ -778,7 +793,7 @@ export type ClientMsg =
   | { t: 'agent-test'; id: string }
   | { t: 'upload-chunk'; uploadId: string; sessionKey: string; name: string; seq: number; total: number; dataB64: string; clientId?: string }
   | { t: 'att-open'; path: string }
-  | { t: 'term-open'; termId: string; cols: number; rows: number; watch?: string } // watch = session uuid to follow live
+  | { t: 'term-open'; termId: string; cols: number; rows: number; watch?: string; botId?: string } // watch = session uuid to follow live; botId = abre no workspace do bot (o servidor resolve o caminho)
   | { t: 'term-input'; termId: string; data: string }
   | { t: 'term-resize'; termId: string; cols: number; rows: number }
   | { t: 'term-detach'; termId: string }
@@ -920,6 +935,7 @@ export type ServerMsg =
   | { t: 'team-pending'; items: TeamPendingQuestion[] }
   | { t: 'team-files'; botId: string; items: BotFile[]; error?: string }
   | { t: 'team-file'; botId: string; path: string; mime?: string; size?: number; dataB64?: string; error?: string }
+  | { t: 'team-computer'; botId: string; computer?: BotComputer; error?: string }
   | { t: 'context'; id: string; title: string; body: string }
   | { t: 'models'; models: ModelInfo[] }
   | { t: 'agents'; items: AgentView[]; presets: AgentPreset[]; customAllowed: boolean }
@@ -984,6 +1000,7 @@ export type ServerMsg =
   // `nextReadAt` = quando o servidor volta a poder ler (429 ou orçamento da hora
   // esgotado). Sem ele um clique que não trouxe número novo parecia botão quebrado.
   | { t: 'plan-usage'; usage: PlanUsage | null; blockedUntil?: number | null; readAt?: number | null; nextReadAt?: number | null }
+  | { t: 'grok-usage'; usage: PlanUsage | null; blockedUntil?: number | null; readAt?: number | null; nextReadAt?: number | null }
   | { t: 'harness-config'; config: HarnessConfig }
   | { t: 'harness-task'; task: HarnessTaskView }
   | { t: 'harness-event'; taskId: string; event: HarnessEvent }

@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import type { ModelInfo, TeamBot, TeamBotInput } from '../../../shared/protocol';
-import { Button, EmptyState, InlineEdit, Tabs } from '../../components/primitives';
+import { Button, InlineEdit, Tabs } from '../../components/primitives';
 import { Mascot } from '../../components/team/Mascot';
 import { BotDetails } from './BotDetails';
 import { withLabel } from './useBotForm';
 import type { BotView } from './team-view';
-import type { BotFilesApi, CronApi } from './equipe-props';
+import type { BotComputerApi, BotFilesApi, CronApi } from './equipe-props';
+import type { TermApi } from '../../cockpit/useTerminals';
 import { BotFiles } from './BotFiles';
+import { BotComputer } from './BotComputer';
 
 type ProfileTab = 'details' | 'files' | 'computer';
 const TABS = [
@@ -26,9 +28,12 @@ interface BotProfileProps {
   connected: boolean;
   cronApi: CronApi;
   filesApi: BotFilesApi;
+  computerApi: BotComputerApi;
+  term: TermApi;
+  isAdmin: boolean;
 }
 
-export function BotProfile({ view, bots, models, onSave, onEdit, onDelete, onBack, connected, cronApi, filesApi }: BotProfileProps) {
+export function BotProfile({ view, bots, models, onSave, onEdit, onDelete, onBack, connected, cronApi, filesApi, computerApi, term, isAdmin }: BotProfileProps) {
   const [tab, setTab] = useState<ProfileTab>('details');
   const { bot, state } = view;
   const saveLabel = (label: string) => onSave(withLabel(bot, label));
@@ -50,7 +55,7 @@ export function BotProfile({ view, bots, models, onSave, onEdit, onDelete, onBac
       <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
         {tab === 'details' && <BotDetails bot={bot} bots={bots} models={models} onEdit={onEdit} onDelete={onDelete} connected={connected} cronApi={cronApi} />}
         {tab === 'files' && <BotFiles botId={bot.id} api={filesApi} connected={connected} />}
-        {tab === 'computer' && <EmptyState icon="monitor" title="Em breve" description="A prévia do computador onde o bot trabalha vai aparecer aqui." />}
+        {tab === 'computer' && <BotComputer bot={bot} state={state} api={computerApi} term={term} connected={connected} isAdmin={isAdmin} />}
       </div>
     </div>
   );

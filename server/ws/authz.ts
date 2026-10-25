@@ -37,6 +37,8 @@ const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   // Read-only, limited to a bot in this account's team.json and to that bot's
   // workspace after realpath (ws/team-files-frames.ts, team-files.ts).
   'team-files-get', 'team-file-get',
+  // Counts and a plain-text pane snapshot of that same bot; taking over is term-*.
+  'team-computer-get',
 ]);
 
 // `root` = this connection is the box owner's (listen mode, or the owner's dial

@@ -54,4 +54,22 @@ describe('UsageBar', () => {
     expect(btn.getAttribute('aria-haspopup')).toBe('dialog');
     expect(btn.getAttribute('aria-label')).toMatch(/^Uso do plano: \d+%/);
   });
+
+  it('labels the chip Grok and lists the other account in the panel', () => {
+    const grok: PlanUsage = { fiveHour: 42, sevenDay: 42, resetsAt: null, sevenDayResetsAt: null, limits: [{ id: 'grok-credits', label: 'Créditos do período', pct: 42, resetsAt: null, severity: 'normal', scoped: false }] };
+    render(<UsageBar usage={grok} compact={false} agent="grok" secondary={{ title: 'Claude', rows: [{ id: 'five-hour', label: 'Sessão (5h)', pct: 19, resetsAt: null, tone: 'ok', scoped: false }] }} />);
+    const btn = screen.getByRole('button');
+    expect(btn.getAttribute('aria-label')).toMatch(/^Uso do Grok: 42%/);
+    expect(btn.textContent).toContain('Grok');
+    fireEvent.click(btn);
+    const panel = screen.getByRole('dialog');
+    expect(panel.textContent).toContain('Créditos do período');
+    expect(panel.textContent).toContain('Claude');
+    expect(panel.textContent).toContain('Sessão (5h)');
+  });
+
+  it('Grok with no number shows a dash, not a percentage', () => {
+    render(<UsageBar usage={null} compact={false} agent="grok" />);
+    expect(screen.getByRole('button').textContent).toContain('—');
+  });
 });

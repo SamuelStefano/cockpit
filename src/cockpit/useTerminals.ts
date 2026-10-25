@@ -2,7 +2,8 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import type { ClientMsg } from '../../shared/protocol';
 
 export interface TermApi {
-  attach: (id: string, cols: number, rows: number, onData: (d: string) => void, onExit: () => void, onReplay: (d: string) => void, watch?: string) => void;
+  // botId = open in that bot's workspace (the server resolves and checks the path).
+  attach: (id: string, cols: number, rows: number, onData: (d: string) => void, onExit: () => void, onReplay: (d: string) => void, watch?: string, botId?: string) => void;
   detach: (id: string) => void;
   // false = the socket was not open and nothing was sent.
   input: (id: string, data: string) => boolean;
@@ -36,7 +37,7 @@ export function useTerminals(send: (m: ClientMsg) => boolean): Terminals {
   // opens the pty at the fitted size instead of xterm's default 80x24.
   const openQueue = useRef<string[]>([]);
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const termDims = useRef<Map<string, { cols: number; rows: number; watch?: string }>>(new Map()); // p/ reattach no reconnect
+  const termDims = useRef<Map<string, { cols: number; rows: number; watch?: string; botId?: string }>>(new Map()); // p/ reattach no reconnect
   // Last resize the server heard per id: ResizeObserver fires every frame while a
   // window is dragged, and identical resizes ate the connection's rate budget.
   const sentDims = useRef<Map<string, string>>(new Map());
@@ -47,7 +48,9 @@ export function useTerminals(send: (m: ClientMsg) => boolean): Terminals {
       for (let next = openQueue.current.shift(); next !== undefined; next = openQueue.current.shift()) {
         const d = termDims.current.get(next);
         if (!d) continue;
-        send(d.watch ? { t: 'term-open', termId: next, cols: d.cols, rows: d.rows, watch: d.watch } : { t: 'term-open', termId: next, cols: d.cols, rows: d.rows });
+        send(d.watch ? { t: 'term-open', termId: next, cols: d.cols, rows: d.rows, watch: d.watch }
+          : d.botId ? { t: 'term-open', termId: next, cols: d.cols, rows: d.rows, botId: d.botId }
+          : { t: 'term-open', termId: next, cols: d.cols, rows: d.rows });
         // Not marked as sent: an open onto a PTY that already exists (kept detached,
         // or shared with another device) keeps its old size, so the first fit after
         // it must still go out as a term-resize.
@@ -65,12 +68,12 @@ export function useTerminals(send: (m: ClientMsg) => boolean): Terminals {
 
   const [exited, setExited] = useState<ReadonlySet<string>>(() => new Set());
   const markAlive = (id: string) => setExited((s) => { if (!s.has(id)) return s; const n = new Set(s); n.delete(id); return n; });
-  const attach = useCallback((id: string, cols: number, rows: number, onData: (d: string) => void, onExit: () => void, onReplay: (d: string) => void, watch?: string) => {
+  const attach = useCallback((id: string, cols: number, rows: number, onData: (d: string) => void, onExit: () => void, onReplay: (d: string) => void, watch?: string, botId?: string) => {
     markAlive(id);
     termData.current.set(id, onData);
     termExit.current.set(id, onExit);
     termReplay.current.set(id, onReplay);
-    termDims.current.set(id, { cols, rows, watch });
+    termDims.current.set(id, { cols, rows, watch, botId });
     sentDims.current.delete(id);
     sendOpen(id);
   }, [sendOpen]);

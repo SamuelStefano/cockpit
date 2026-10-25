@@ -35,6 +35,7 @@ import { useLiveConnection } from './app/useLiveConnection';
 import { useQuotaGate } from './app/useQuotaGate';
 import { useOverlays } from './app/useOverlays';
 import { useChatUrl } from './app/useChatUrl';
+import { usageAgentOf } from './components/chrome/usage-agent';
 
 export function CockpitApp() {
   const cockpit = useCockpit();
@@ -83,6 +84,7 @@ export function CockpitApp() {
 
   const [quotaClosed, setQuotaClosed] = useState(false);
   const quotaGate = useQuotaGate(planUsage, rate);
+  const usageAgent = usageAgentOf(model, { route, activeId: activeSessionId, bots: cockpit.bots });
   // Fechar o aviso vale pra ESTA janela de cota: sem o reset, quem fechou uma vez
   // nunca mais era avisado (nem na janela seguinte) até dar F5.
   const quotaWindow = rate?.resetsAt ?? null;
@@ -181,7 +183,7 @@ export function CockpitApp() {
         role={role}
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
-      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(!drawer)} menuOpen={drawer} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} planBlockedUntil={planBlockedUntil} planReadAt={planReadAt} planNextReadAt={planNextReadAt} onRefreshPlanUsage={onRefreshPlanUsage} quotaWarn={quotaGate.warn} quotaPaused={quotaGate.paused} quotaResetsAt={quotaGate.resetsAt} role={role} routeMenuOpen={routeMenu} setRouteMenuOpen={setRouteMenu} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} onChangePassword={SUPABASE_ENABLED ? sbAuth.changePassword : undefined} drops={dropApi} bitState={bitState} navCounts={{ '/equipe': cockpit.pendingQuestions.length }} />
+      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(!drawer)} menuOpen={drawer} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} planBlockedUntil={planBlockedUntil} planReadAt={planReadAt} planNextReadAt={planNextReadAt} onRefreshPlanUsage={onRefreshPlanUsage} usageAgent={usageAgent} grokUsage={cockpit.grokUsage} onRefreshGrokUsage={cockpit.onRefreshGrokUsage} quotaWarn={quotaGate.warn} quotaPaused={quotaGate.paused} quotaResetsAt={quotaGate.resetsAt} role={role} routeMenuOpen={routeMenu} setRouteMenuOpen={setRouteMenu} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} onChangePassword={SUPABASE_ENABLED ? sbAuth.changePassword : undefined} drops={dropApi} bitState={bitState} navCounts={{ '/equipe': cockpit.pendingQuestions.length }} />
 
       {/* Âncora de altura zero no fluxo: o aviso pende daqui, logo abaixo do header. */}
       <div className="relative z-40">

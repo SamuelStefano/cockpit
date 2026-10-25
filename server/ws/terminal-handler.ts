@@ -2,6 +2,10 @@ import type { WebSocket } from 'ws';
 import type { ClientMsg } from '../../shared/protocol';
 import { openTerm, detachTerm, inputTerm, resizeTerm, closeTerm, listTerms, resumeTerm, ensureWatchReaper, prepareWatch } from '../terminals';
 import { send, BACKPRESSURE_BYTES } from './broadcast';
+import { botTermId } from '../../shared/bot-term';
+import { getTeam } from '../team';
+import { botTermCwd } from '../team-computer';
+import { ownBotId } from './team-files-frames';
 
 const pendingOpens = new WeakMap<WebSocket, Set<string>>();
 function pendingOf(ws: WebSocket): Set<string> {
@@ -25,7 +29,7 @@ export function handleTerm(
       if (myTerms.has(termId) || pending.has(termId)) return true; // já anexado nesta conexão
       const watch = typeof msg.watch === 'string' ? msg.watch : undefined;
       const { cols, rows } = msg;
-      const attach = () => {
+      const attach = (cwd?: string) => {
         // Backpressure: term-data é alta-frequência e reconstruível (tmux repinta no
         // reattach). Num socket lento (celular em wifi ruim) o buffer do ws cresce sem
         // freio até estourar a heap. Acima do teto, dropa pra ESTE socket — uma lacuna
@@ -36,10 +40,24 @@ export function handleTerm(
         };
         const onExit = () => { send(ws, { t: 'term-exit', termId }); myTerms.delete(termId); };
         const onReplay = (data: string) => send(ws, { t: 'term-replay', termId, data });
-        const ok = openTerm(termId, cols, rows, onData, onExit, onReplay, watch);
+        const ok = openTerm(termId, cols, rows, onData, onExit, onReplay, watch, cwd);
         if (ok) myTerms.set(termId, { onData, onExit });
         else send(ws, { t: 'term-exit', termId });
       };
+      // Take over of a bot: the browser names the bot, never a path. Only a bot of
+      // this team, only under its own term id (one id = one cwd: tmux ignores `-c`
+      // when the session already exists), and the cwd comes from botTermCwd.
+      if (msg.botId !== undefined) {
+        if (watch || typeof msg.botId !== 'string' || termId !== botTermId(msg.botId)) { send(ws, { t: 'term-exit', termId }); return true; }
+        const botId = msg.botId;
+        pending.add(termId);
+        void getTeam().then((team) => (ownBotId(team, botId) ? botTermCwd(botId) : null), () => null).then((cwd) => {
+          if (!pending.delete(termId) || ws.readyState !== ws.OPEN) return;
+          if (!cwd) { send(ws, { t: 'term-exit', termId }); return; }
+          try { attach(cwd); } catch { send(ws, { t: 'term-exit', termId }); }
+        });
+        return true;
+      }
       if (!watch) { attach(); return true; }
       // A watch pane may first need its bare shell swapped for the follower; a
       // detach or a closed socket while that runs cancels the attach.

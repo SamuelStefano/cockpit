@@ -34,9 +34,11 @@ function Row({ row }: { row: UsageRow }) {
   );
 }
 
+export interface UsagePanelSecondary { title: string; rows: UsageRow[] }
+
 // `reset` vem do gate de cota (não das linhas): é o "quando volto a poder enviar"
 // que a pílula flutuante mostrava antes de sair do chat.
-export function UsagePanel({ rows, reset = '', warn = false, blockedUntil = null, readAt = null, nextReadAt = null }: { rows: UsageRow[]; reset?: string; warn?: boolean; blockedUntil?: number | null; readAt?: number | null; nextReadAt?: number | null }) {
+export function UsagePanel({ rows, reset = '', warn = false, blockedUntil = null, readAt = null, nextReadAt = null, title = 'Uso do plano', secondary }: { rows: UsageRow[]; reset?: string; warn?: boolean; blockedUntil?: number | null; readAt?: number | null; nextReadAt?: number | null; title?: string; secondary?: UsagePanelSecondary }) {
   const now = Date.now();
   // Bloqueio da conta não é carregamento: "Lendo da conta…" pra sempre escondia
   // que o servidor tinha DESISTIDO de tentar até uma hora marcada.
@@ -53,10 +55,10 @@ export function UsagePanel({ rows, reset = '', warn = false, blockedUntil = null
   return (
     <div
       role="dialog"
-      aria-label="Detalhe do uso do plano"
+      aria-label={title === 'Uso do plano' ? 'Detalhe do uso do plano' : `Detalhe — ${title}`}
       className={`fixed inset-x-3 top-[calc(3rem+env(safe-area-inset-top)+0.5rem)] z-50 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-64 ${tokens.radius.lg} ${tokens.surface.raised} p-3.5`}
     >
-      <p className="mb-3 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Uso do plano</p>
+      <p className="mb-3 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{title}</p>
       {rows.length === 0 ? (
         <p className="text-[12px] text-neutral-500">{blocked ? `A conta limitou as consultas de uso. Próxima leitura em ${blocked}.` : 'Lendo da conta…'}</p>
       ) : (
@@ -81,6 +83,14 @@ export function UsagePanel({ rows, reset = '', warn = false, blockedUntil = null
         <p className={`mt-3 border-t border-neutral-800 pt-2.5 text-[11px] tabular-nums ${warn ? 'text-amber-300/90' : 'text-neutral-500'}`}>
           reseta {reset}
         </p>
+      )}
+      {secondary && secondary.rows.length > 0 && (
+        <div className="mt-3 border-t border-neutral-800 pt-2.5">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{secondary.title}</p>
+          <ul className="flex flex-col gap-3">
+            {secondary.rows.map((row) => <Row key={row.id} row={row} />)}
+          </ul>
+        </div>
       )}
     </div>
   );

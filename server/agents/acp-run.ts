@@ -11,6 +11,7 @@ import { ACP_CLIENT_CAPABILITIES, ACP_PROTOCOL_VERSION, AcpError, isAuthError, s
 import { closeDangling, mapUpdate, retryNotice, permissionOutcome, resultSubtype, type MapCtx } from './acp-events';
 import { findAgent, saveSessionLink, sessionLinkSync } from './store';
 import { TranscriptWriter } from './transcript';
+import { noteGrokUsage } from '../ws/usage-grok';
 
 // Every agent failure is already told to the user through onError in plain
 // words; this end reason lets the client skip its generic "Turno encerrado".
@@ -153,6 +154,7 @@ export function runAgent(opts: RunOpts): RunHandle {
     transcript?.flush();
     if (subtype === 'refusal') onError(`${agent.name} recusou o pedido`);
     finish(subtype, isError);
+    if (agent.id === 'grok') await askAcpBilling(acp.call);
     acp.kill();
   })().catch((e) => {
     if (ended) return;
@@ -177,6 +179,20 @@ export function runAgent(opts: RunOpts): RunHandle {
     },
     send: () => false,
   };
+}
+
+const ACP_BILLING_TIMEOUT_MS = 3_000;
+
+// Grok extension, not ACP: a build without it answers "method not found" and the
+// HTTP poller (ws/usage-grok.ts) stays the only source. Bounded, because the turn
+// already ended and the process is only kept alive for this one answer.
+export async function askAcpBilling(call: (method: string, params: unknown) => Promise<unknown>): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((r) => { timer = setTimeout(() => r(null), ACP_BILLING_TIMEOUT_MS); });
+  try {
+    const body = await Promise.race([call('_x.ai/billing', {}).catch(() => null), timeout]);
+    return body ? noteGrokUsage(body) : false;
+  } finally { clearTimeout(timer); }
 }
 
 // "Internal error" alone tells nobody what broke; ACP puts the reason in data.

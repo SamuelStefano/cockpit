@@ -5,7 +5,7 @@ import type { Cron, ResumeOfferReason } from '../../shared/protocol';
 import { run, resolveMcpSelection } from '../engine/claude';
 import { runAgent } from '../agents/acp-run';
 import { restrictedModelError, stripRestricted } from '../engine/restricted-profile';
-import { isAgentModel } from '../../shared/agents';
+import { agentIdOf, isAgentModel } from '../../shared/agents';
 import { CONFIG } from '../config';
 import type { Role } from '../auth';
 import { broadcast, send } from './broadcast';
@@ -19,6 +19,7 @@ import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takePar
 import { resumableId } from './resume';
 import { quotaHold, burnedByQuota } from './quota';
 import { getLastPlanUsage, notePlanUsageChanged } from './usage-plan';
+import { noteGrokUsageChanged } from './usage-grok';
 import {
   ctxVerdict, verdictMessage, costFor, isBigColdStart, acquireCold, releaseCold,
   noteQuotaTransition, inResetCooldown, queueReleaseAt, type Verdict,
@@ -1027,6 +1028,7 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
       // O turno que acabou de fechar é EXATAMENTE o que moveu a barra de uso.
       // Sem este gatilho o número só chegava no próximo poll (ou num F5).
       notePlanUsageChanged();
+      if (thread.params.model && agentIdOf(thread.params.model) === 'grok') noteGrokUsageChanged();
       broadcast({ t: 'done', sessionKey, sessionId: thread.sessionId ?? '', costUsd: thread.costUsd, durationMs: thread.durationMs, numTurns: thread.numTurns, turnTokens: thread.turnTokens, inputTokens: thread.inputTokens, outputTokens: thread.outputTokens, endReason: thread.endReason, model: thread.model, stopped: thread.stopped });
       // Resumo IA do que a sessão fez, atualizado ao fim do turno (pedido do Samuel).
       // Fire-and-forget: best-effort, nunca bloqueia/derruba o fechamento do run.

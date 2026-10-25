@@ -26,6 +26,7 @@ import { emitCanvasMsg, hasCanvasClients } from './ws/canvas-clients';
 import { startModelsLoop, getLastModels } from './ws/models';
 import { startAuthKeepAlive } from './ws/auth-health';
 import { startPlanUsageLoop, planUsageFrame, requestPlanUsageRefresh } from './ws/usage-plan';
+import { startGrokUsageLoop, grokUsageFrame, requestGrokUsageRefresh } from './ws/usage-grok';
 import { getLastRate } from './ws/rate';
 import { startStatsLoop } from './ws/stats-loop';
 import { startSessionsWatch } from './sessions/watch';
@@ -135,6 +136,9 @@ function reemitBootstrap(ws: WebSocket): void {
     // Always ask, like the listen bootstrap: single-flight, MIN_GAP and the 429
     // cooldown already hold the request back.
     requestPlanUsageRefresh();
+    const grokFrame = grokUsageFrame();
+    if (grokFrame) s(grokFrame);
+    void requestGrokUsageRefresh('idle');
     const models = getLastModels();
     if (models.length) s({ t: 'models', models });
     // Reconecta no meio de um turno: replaya o snapshot acumulado pra reconstruir o
@@ -311,6 +315,7 @@ export function runAgent(relayUrl: string): void {
   startCvLivenessLoop(canvasLoopGate(hasClients, hasCanvasClients), emitCanvasMsg);
   startLiveElsewhereLoop(hasClients, broadcast);
   startPlanUsageLoop(hasClients, () => threads.size > 0);
+  startGrokUsageLoop(hasClients, () => threads.size > 0);
   startModelsLoop(hasClients);
   startAuthKeepAlive();
   startSessionsWatch(hasClients);

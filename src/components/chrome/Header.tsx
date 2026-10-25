@@ -1,6 +1,7 @@
 import { Icon, ConnDot, tokens, type ConnState } from '../primitives';
 import { ProfileMenu } from '../ProfileMenu';
 import { UsageBar } from './UsageBar';
+import { usageChip, type UsageAgent, type UsageReading } from './usage-agent';
 import { RouteMenu } from './RouteMenu';
 import { navBreakpoint, navFor, type NavRole } from './nav-routes';
 import { RoleBadge } from './RoleBadge';
@@ -21,6 +22,10 @@ interface HeaderProps {
   nav: (to: Route) => void;
   onPalette: () => void;
   planUsage: PlanUsage | null;
+  // Grok account, shown in the chip when the agent on screen is Grok.
+  usageAgent?: UsageAgent;
+  grokUsage?: UsageReading;
+  onRefreshGrokUsage?: (force?: boolean) => void;
   planBlockedUntil?: number | null;
   planReadAt?: number | null;
   planNextReadAt?: number | null;
@@ -39,7 +44,8 @@ interface HeaderProps {
   navCounts?: Partial<Record<Route, number>>;
 }
 
-export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette, planUsage, planBlockedUntil = null, planReadAt = null, planNextReadAt = null, onRefreshPlanUsage, quotaWarn = false, quotaPaused = false, quotaResetsAt = null, role, routeMenuOpen, setRouteMenuOpen, userId, onSignOut, onChangePassword, drops, bitState = 'idle', navCounts }: HeaderProps) {
+export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette, planUsage, planBlockedUntil = null, planReadAt = null, planNextReadAt = null, onRefreshPlanUsage, usageAgent = 'claude', grokUsage, onRefreshGrokUsage, quotaWarn = false, quotaPaused = false, quotaResetsAt = null, role, routeMenuOpen, setRouteMenuOpen, userId, onSignOut, onChangePassword, drops, bitState = 'idle', navCounts }: HeaderProps) {
+  const chip = usageChip(usageAgent, { usage: planUsage, blockedUntil: planBlockedUntil, readAt: planReadAt, nextReadAt: planNextReadAt }, grokUsage);
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-neutral-800 bg-neutral-950 px-3">
       <div className="flex min-w-0 items-center gap-2.5">
@@ -79,7 +85,8 @@ export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette
       </div>
 
       <div className="flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-3">
-        <UsageBar usage={planUsage} compact={isMobile} warn={quotaWarn} paused={quotaPaused} quotaResetsAt={quotaResetsAt} blockedUntil={planBlockedUntil} readAt={planReadAt} nextReadAt={planNextReadAt} onRefresh={onRefreshPlanUsage} />
+        <UsageBar usage={chip.usage} compact={isMobile} warn={chip.gate && quotaWarn} paused={chip.gate && quotaPaused} quotaResetsAt={chip.gate ? quotaResetsAt : null} blockedUntil={chip.blockedUntil} readAt={chip.readAt} nextReadAt={chip.nextReadAt}
+          onRefresh={chip.agent === 'grok' ? onRefreshGrokUsage : onRefreshPlanUsage} agent={chip.agent} secondary={chip.secondary} />
         <button
           onClick={onPalette}
           title={`Comandos (${comboLabel(['⌘', 'K'])})`}

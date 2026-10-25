@@ -1,9 +1,10 @@
 import { spawn as ptySpawn, type IPty } from 'node-pty';
 import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CONFIG } from './config';
+import { botsRoot } from './engine/restricted-profile';
 
 // Terminais reais via node-pty, cada um ancorado num tmux `new-session -A`
 // (attach-or-create) — a sessão sobrevive a restart do backend e a múltiplos
@@ -79,14 +80,26 @@ const TAIL_SCRIPT = join(dirname(fileURLToPath(import.meta.url)), '..', 'scripts
 // a login shell on ctrl-c so the same pane can `claude --resume` it. The command
 // is built here from a validated uuid and fixed paths only — the client never
 // sends a command string, so this adds no injection surface to term-open.
-export function tmuxArgs(id: string, watch?: string): string[] | null {
-  const base = ['new-session', '-A', '-s', sessionName(id), '-c', CONFIG.workdir];
+export function tmuxArgs(id: string, watch?: string, cwd?: string): string[] | null {
+  const base = ['new-session', '-A', '-s', sessionName(id), '-c', cwd ?? CONFIG.workdir];
   if (watch === undefined) return base;
   if (!SESSION_UUID_RE.test(watch)) return null;
   const jsonl = join(CONFIG.projectsDir, `${watch}.jsonl`);
   // `trap : INT` keeps the wrapper alive through a ctrl-c that lands before the
   // follower installs its own handler; `:` (not '') so python still gets SIGINT.
   return [...base, `bash -c 'trap : INT; python3 "${TAIL_SCRIPT}" "${jsonl}"; exec bash -l'`];
+}
+
+// The only cwd a terminal may get besides the Deck's own workdir: a directory
+// under botsRoot(). Built by the server from a bot id, never sent as a path by
+// the browser, and still checked here so a future caller cannot widen it.
+// `-c` is one argv item (no shell), so the check is about WHERE, not quoting.
+export function safeTermCwd(path: unknown, root = botsRoot()): string | null {
+  if (typeof path !== 'string' || !path || path.includes('\0') || !isAbsolute(path)) return null;
+  if (path.split(/[\\/]/).some((seg) => seg === '..')) return null;
+  const clean = normalize(path);
+  const base = normalize(root).replace(/[\\/]+$/, '');
+  return clean.startsWith(base + sep) ? clean : null;
 }
 
 export function parseTermSessions(stdout: string, prefix = PREFIX): string[] {
@@ -130,9 +143,11 @@ export function openTerm(
   onExit: () => void,
   onReplay: (d: string) => void,
   watch?: string,
+  cwd?: string,
 ): boolean {
   if (!NAME_RE.test(id)) return false;
-  const args = tmuxArgs(id, watch);
+  if (cwd !== undefined && !safeTermCwd(cwd)) return false;
+  const args = tmuxArgs(id, watch, cwd);
   if (!args) return false;
 
   let t = terms.get(id);
@@ -147,7 +162,7 @@ export function openTerm(
       name: 'xterm-256color',
       cols: clampDim(cols, 80),
       rows: clampDim(rows, 24),
-      cwd: process.env.HOME,
+      cwd: cwd ?? process.env.HOME,
       env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
     });
     const term: Term = { pty: p, buffer: '', data: new Set(), exit: new Set(), idleSince: null };
@@ -332,6 +347,33 @@ export async function resumeTerm(id: string, watch: string): Promise<boolean> {
   t.pty.write('\x03');
   setTimeout(() => { if (terms.get(id) === t) t.pty.write(`claude --resume ${watch}\r`); }, RESUME_DELAY_MS);
   return true;
+}
+
+// Text that leaves the PTY to be painted OUTSIDE xterm (the bot's Computer
+// preview): escape sequences and the remaining C0/C1 bytes go, tab and newline
+// stay. A pane can hold anything a program printed, including sequences that
+// would restyle or retitle the page's own terminal-looking block.
+// eslint-disable-next-line no-control-regex
+const ESC_SEQ_RE = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?|\x1b[P^_][^\x1b]*(?:\x1b\\)?|\x1b[@-Z\\-_]|\x9b[0-?]*[ -/]*[@-~]/g;
+// eslint-disable-next-line no-control-regex
+const CTRL_RE = /[\x00-\x08\x0b-\x1f\x7f-\x9f]/g;
+export const stripControl = (s: string) => s.replace(ESC_SEQ_RE, '').replace(CTRL_RE, '');
+
+// Last lines of a pane, plain text. Empty when the session does not exist.
+export function capturePane(id: string, lines = 12): Promise<{ alive: boolean; lines: string[] }> {
+  if (!NAME_RE.test(id)) return Promise.resolve({ alive: false, lines: [] });
+  return new Promise((resolve) => {
+    const p = spawn('tmux', ['capture-pane', '-p', '-J', '-t', exactPane(id), '-S', `-${Math.max(lines * 4, 40)}`], { stdio: ['ignore', 'pipe', 'ignore'] });
+    let out = '';
+    p.stdout.on('data', (d) => { if (out.length < 64_000) out += d; });
+    p.on('close', (code) => {
+      if (code !== 0) { resolve({ alive: false, lines: [] }); return; }
+      const all = stripControl(out).split('\n').map((l) => l.replace(/\s+$/, ''));
+      while (all.length && !all[all.length - 1]) all.pop();
+      resolve({ alive: true, lines: all.slice(-lines) });
+    });
+    p.on('error', () => resolve({ alive: false, lines: [] }));
+  });
 }
 
 let reaper: NodeJS.Timeout | null = null;

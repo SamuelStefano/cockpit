@@ -2,6 +2,7 @@ import type { WebSocket } from 'ws';
 import { send } from './broadcast';
 import { getLastRate } from './rate';
 import { requestPlanUsageRefresh, planUsageFrame } from './usage-plan';
+import { requestGrokUsageRefresh, grokUsageFrame } from './usage-grok';
 import { getLastModels } from './models';
 import { busyFrame, threads } from './threads';
 import { marathonKeys } from './marathon';
@@ -32,6 +33,9 @@ export function sendDurableSnapshot(ws: WebSocket) {
   // snapshot da noite anterior e esperava até 5min por um número atual. O
   // single-flight, o MIN_GAP e o cooldown já seguram o abuso deste pedido.
   requestPlanUsageRefresh();
+  const grokFrame = grokUsageFrame();
+  if (grokFrame) send(ws, grokFrame);
+  void requestGrokUsageRefresh('idle');
   const models = getLastModels();
   if (models.length) send(ws, { t: 'models', models });
   send(ws, { t: 'marathon', keys: marathonKeys() });

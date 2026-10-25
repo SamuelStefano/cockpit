@@ -14,6 +14,7 @@ import { startBgAgentsLoop } from './ws/bg-agents';
 import { startCvLivenessLoop, startLiveElsewhereLoop } from './canvas/cv-liveness';
 import { emitCanvasMsg, hasCanvasClients } from './ws/canvas-clients';
 import { startPlanUsageLoop } from './ws/usage-plan';
+import { startGrokUsageLoop } from './ws/usage-grok';
 import { startModelsLoop } from './ws/models';
 import { probeSlashCommands } from './ws/slash-probe';
 import { serveConnection } from './ws/serve-connection';
@@ -102,6 +103,7 @@ export function attachWs(server: Server) {
   startCvLivenessLoop(hasCanvasClients, emitCanvasMsg);
   startLiveElsewhereLoop(hasClients, broadcast);
   startPlanUsageLoop(hasClients, () => threads.size > 0);
+  startGrokUsageLoop(hasClients, () => threads.size > 0);
   startModelsLoop(hasClients);
   startSessionsWatch(hasClients);
   startPointsWatch(hasClients);

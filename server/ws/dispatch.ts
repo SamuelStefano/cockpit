@@ -26,7 +26,7 @@ import { getTeam, saveBot, deleteBot } from '../team';
 import { botTurnFor } from '../team-prompt';
 import { sendTeamMessages, sendTeamPaused, setTeamPause } from './team-frames';
 import { clearBotQuestion, sendTeamPending } from './team-pending-frames';
-import { sendBotFile, sendBotFiles } from './team-files-frames';
+import { sendBotComputer, sendBotFile, sendBotFiles } from './team-files-frames';
 import { validateBotInput } from '../../shared/team';
 import { queueReleaseAt } from './ctx-guard';
 import { listSkills, readSkill, resolveSkillDeny, installSkill } from '../skills';
@@ -54,6 +54,7 @@ import { handleHarnessMsg } from './harness';
 import { setMarathon, marathonKeys } from './marathon';
 import { sendDurableSnapshot } from './snapshot';
 import { requestPlanUsageRefresh, planUsageFrame } from './usage-plan';
+import { requestGrokUsageRefresh, grokUsageFrame } from './usage-grok';
 import { listGraphs, readGraph, buildGraph, deleteGraph, queryGraph, nodeOp } from '../graph';
 import { buildBench } from '../bench';
 import { buildCanvas } from '../canvas/index';
@@ -503,6 +504,11 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       requestPlanUsageRefresh({ mode: msg.force ? 'force' : 'active' });
       return;
     }
+    case 'grok-usage-get': {
+      send(ws, grokUsageFrame(Date.now(), true)!);
+      void requestGrokUsageRefresh(msg.force ? 'force' : 'active');
+      return;
+    }
     case 'open': {
       const parsed = await parseSession(msg.sessionId);
       if (!parsed) { send(ws, { t: 'error', message: 'sessão inválida' }); return; }
@@ -809,6 +815,10 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'team-file-get': {
       await sendBotFile(ws, msg.botId, msg.path);
+      return;
+    }
+    case 'team-computer-get': {
+      await sendBotComputer(ws, msg.botId);
       return;
     }
     case 'team-messages-get': {
