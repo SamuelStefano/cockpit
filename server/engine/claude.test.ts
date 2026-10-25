@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest';
-import { readdirSync, rmSync } from 'node:fs';
+import { readdirSync, rmSync, readFileSync, existsSync } from 'node:fs';
+import { join, sep } from 'node:path';
+import { homedir } from 'node:os';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 
@@ -18,9 +20,13 @@ vi.mock('node:os', async (orig) => {
 
 // `claude` é um binário REAL na máquina do Samuel: sem este mock os testes de run()
 // subiriam um turno de verdade e queimariam token.
-const spawned = vi.hoisted(() => ({ child: null as FakeChild | null, throws: null as Error | null }));
+const spawned = vi.hoisted(() => ({ child: null as FakeChild | null, throws: null as Error | null, last: null as { args: string[]; opts: { cwd?: string; env?: Record<string, string | undefined> } } | null }));
 vi.mock('node:child_process', () => ({
-  spawn: () => { if (spawned.throws) throw spawned.throws; return spawned.child; },
+  spawn: (_cmd: string, args: string[], opts: { cwd?: string; env?: Record<string, string | undefined> }) => {
+    spawned.last = { args, opts };
+    if (spawned.throws) throw spawned.throws;
+    return spawned.child;
+  },
   execFileSync: () => '',
 }));
 
@@ -33,9 +39,9 @@ class FakeChild extends EventEmitter {
 }
 
 import { TEAM_MCP_NAME, TEAM_MCP_TOOLS } from '../../shared/team-messages';
-import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run, effectiveBudget, pickMcpDefs, resolveMcpSelection, validModel, withWorkflowGrant, mcpConfigBody, encodeUserLine, shouldCloseStdin, PERMISSION_MCP_NAME, PERMISSION_PROMPT_TOOL, sweepMcpConfigs, MCP_CONFIG_GRACE_MS } from './claude';
+import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run, effectiveBudget, pickMcpDefs, resolveMcpSelection, validModel, withWorkflowGrant, mcpConfigBody, encodeUserLine, shouldCloseStdin, PERMISSION_MCP_NAME, PERMISSION_PROMPT_TOOL, sweepMcpConfigs, MCP_CONFIG_GRACE_MS, profilePermissions } from './claude';
 import { ALL_MCPS } from '../../shared/mcp';
-import { CONFIG } from '../config';
+import { CONFIG, projectSlug } from '../config';
 
 beforeEach(() => { managed = {}; });
 
@@ -666,6 +672,105 @@ describe('sweepMcpConfigs', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('restricted bot turn (fatia E)', () => {
+  const prevBots = process.env.COCKPIT_BOTS_DIR;
+  beforeEach(() => { process.env.COCKPIT_BOTS_DIR = join(tmp.dir, 'bots'); });
+  afterEach(() => {
+    if (prevBots === undefined) delete process.env.COCKPIT_BOTS_DIR; else process.env.COCKPIT_BOTS_DIR = prevBots;
+    mcpDefs = {};
+  });
+  const ws = () => join(tmp.dir, 'bots', 'abcd1', 'workspace');
+  const restrictedArgs = (o: Partial<Parameters<typeof buildArgs>[0]> = {}) =>
+    argsOf({ prompt: 'oi', botId: 'abcd1', profile: 'restricted', mode: 'auto', ...o });
+
+  it('no Bash anywhere in the allow-list, and Bash denied explicitly', () => {
+    const args = restrictedArgs({ mode: 'acceptEdits' });
+    const allow = valAfter(args, '--allowedTools')!.split(' ');
+    expect(allow.some((t) => /^(Bash|BashOutput|KillShell|NotebookEdit)\b/.test(t))).toBe(false);
+    const deny = valAfter(args, '--disallowedTools')!.split(' ');
+    for (const t of ['Bash', 'BashOutput', 'KillShell', 'NotebookEdit']) expect(deny).toContain(t);
+    expect(valAfter(args, '--tools')!.split(' ')).not.toContain('Bash');
+    expect(args).toContain('--restricted');
+  });
+
+  it('file tools only with rules pinned to the workspace', () => {
+    const allow = valAfter(restrictedArgs(), '--allowedTools')!.split(' ');
+    const fileRules = allow.filter((t) => /^(Read|Edit|Write)/.test(t));
+    expect(fileRules).toEqual([`Edit(/${ws()}/**)`, `Read(/${ws()}/**)`, `Write(/${ws()}/**)`]);
+  });
+
+  it('bypass, acceptEdits and the workflow grant never survive', () => {
+    const prev = { allow: CONFIG.allowBypass, local: CONFIG.localOnly };
+    CONFIG.allowBypass = true; CONFIG.localOnly = true;
+    try {
+      const args = restrictedArgs({ bypass: true, role: 'admin', mode: 'acceptEdits', allowWorkflow: true });
+      expect(valAfter(args, '--permission-mode')).toBe('default');
+      expect(valAfter(args, '--allowedTools')!.split(' ')).not.toContain('Workflow');
+    } finally { CONFIG.allowBypass = prev.allow; CONFIG.localOnly = prev.local; }
+  });
+
+  it('a full bot keeps the normal allow-list (Bash included)', () => {
+    const args = argsOf({ prompt: 'oi', botId: 'abcd1', profile: 'full', mode: 'auto' });
+    expect(args).not.toContain('--restricted');
+    expect(valAfter(args, '--allowedTools')!.split(' ')).toContain('Bash');
+  });
+
+  it('a restricted turn without a valid bot fails closed', () => {
+    expect(buildArgs({ prompt: 'oi', profile: 'restricted' })).toEqual({ error: expect.stringMatching(/workspace/) });
+    expect(profilePermissions({ profile: 'full', botId: 'abcd1' })).toBeUndefined();
+  });
+
+  it('run(): spawns in the workspace (created on demand), project dir pinned, no MCP of the session, permission server without --allow-all', () => {
+    spawned.child = new FakeChild();
+    mcpDefs = { supabase: { type: 'http', url: 'https://x' } };
+    run({ prompt: 'oi', botId: 'abcd1', profile: 'restricted', mode: 'auto', mcps: ['supabase', ALL_MCPS], onEvent: () => {}, onError: () => {}, onClose: () => {} });
+    const { args, opts } = spawned.last!;
+    expect(opts.cwd).toBe(ws());
+    expect(existsSync(ws())).toBe(true);
+    expect(opts.env?.CLAUDE_CODE_PROJECT_DIR_NAME).toBe(projectSlug(CONFIG.workdir));
+    expect(opts.env?.ANTHROPIC_API_KEY).toBe('');
+    const servers = JSON.parse(readFileSync(valAfter(args, '--mcp-config')!, 'utf8')).mcpServers;
+    expect(Object.keys(servers).sort()).toEqual([PERMISSION_MCP_NAME, TEAM_MCP_NAME].sort());
+    expect(servers[PERMISSION_MCP_NAME].args).toContain('--restricted');
+    expect(servers[PERMISSION_MCP_NAME].args).not.toContain('--allow-all');
+    expect(servers[TEAM_MCP_NAME].args).toEqual(expect.arrayContaining(['--bot', 'abcd1']));
+    const allow = valAfter(args, '--allowedTools')!.split(' ');
+    for (const t of TEAM_MCP_TOOLS) expect(allow).toContain(t);
+    expect(allow.filter((t) => t.startsWith('mcp__'))).toEqual([...TEAM_MCP_TOOLS].sort());
+    spawned.child.emit('close', 0);
+  });
+
+  it('the team outbox, log, pause and team files sit outside the workspace the file tools are pinned to', () => {
+    const saved = Object.fromEntries(['COCKPIT_BOTS_DIR', 'COCKPIT_TEAM', 'COCKPIT_TEAM_LOG', 'COCKPIT_TEAM_OUTBOX', 'COCKPIT_TEAM_PAUSE'].map((k) => [k, process.env[k]]));
+    for (const k of Object.keys(saved)) delete process.env[k];
+    try {
+      const args = restrictedArgs();
+      const workspace = join(homedir(), '.cockpit', 'bots', 'abcd1', 'workspace');
+      const writable = valAfter(args, '--allowedTools')!.split(' ').filter((t) => /^(Edit|Write)\(/.test(t));
+      expect(writable).toEqual([`Edit(/${workspace}/**)`, `Write(/${workspace}/**)`]);
+      const teamArgs: string[] = JSON.parse(mcpConfigBody({}, false, { botId: 'abcd1' }, true)).mcpServers[TEAM_MCP_NAME].args;
+      const files = ['--team', '--outbox', '--log', '--pause'].map((f) => teamArgs[teamArgs.indexOf(f) + 1]);
+      expect(files).toHaveLength(4);
+      for (const f of files) {
+        expect(f.startsWith(join(homedir(), '.cockpit') + sep)).toBe(true);
+        expect(f === workspace || f.startsWith(workspace + sep)).toBe(false);
+      }
+    } finally {
+      for (const [k, v] of Object.entries(saved)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  });
+
+  it('plan and full bots keep the team tools too; a non-bot turn never gets them', () => {
+    for (const o of [{ profile: 'restricted' as const, mode: 'plan' }, { profile: 'full' as const }]) {
+      const built = buildArgs({ prompt: 'oi', botId: 'abcd1', ...o }, '/tmp/deck-mcp-x.json');
+      if ('error' in built) throw new Error(built.error);
+      const allow = valAfter(built.args, '--allowedTools')!.split(' ');
+      for (const t of TEAM_MCP_TOOLS) expect(allow).toContain(t);
+    }
+    expect(valAfter(argsOf({ prompt: 'oi' }), '--allowedTools')!.split(' ').some((t) => t.startsWith('mcp__deck-team'))).toBe(false);
   });
 });
 

@@ -53,6 +53,18 @@ describe('deliverTeamMessage', () => {
     expect(opts.appendSystemPrompt).toMatch(/Você é growth-ativacao/);
   });
 
+  it('a restricted bot stays restricted when a team message wakes it, live or parked', async () => {
+    const locked = team.map((b) => (b.id === 'ativ1' ? { ...b, profile: 'restricted' as const } : b));
+    runs.startRun.mockImplementation(() => { threads.set('bot-ativ1', fakeThread(SID, 'ativ1')); return undefined; });
+    expect(await deliverTeamMessage(msg, locked)).toBe('delivered');
+    expect(runs.startRun.mock.calls[0][0]).toMatchObject({ botId: 'ativ1', profile: 'restricted' });
+    threads.clear();
+    runs.isDrainerEnabled.mockReturnValue(true);
+    threads.set(SID, fakeThread(SID));
+    expect(await deliverTeamMessage(msg, locked)).toBe('queued');
+    expect(parked.addParked).toHaveBeenCalledWith(SID, expect.objectContaining({ botId: 'ativ1', profile: 'restricted' }));
+  });
+
   it('runs an unbound bot under bot-<id>', async () => {
     runs.startRun.mockImplementation(() => { threads.set('bot-lead1', fakeThread()); return undefined; });
     expect(await deliverTeamMessage({ ...msg, from: 'ativ1', to: 'lead1' }, team)).toBe('delivered');

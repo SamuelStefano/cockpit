@@ -1,5 +1,6 @@
 import type { ModelInfo, TeamBot } from '../../../shared/protocol';
-import { Badge, Button } from '../../components/primitives';
+import { Button } from '../../components/primitives';
+import { ProfileNote } from './ProfileNote';
 import { useArmed } from '../../components/primitives/useArmed';
 import { prettyModel } from '../../components/chat/toolbar-format';
 import { DetailField as Field } from './DetailField';
@@ -34,9 +35,7 @@ export function BotDetails({ bot, bots, models, onEdit, onDelete, connected, cro
       </Field>
       <Field label="Chefe">{boss ? boss.name : <span className="text-neutral-600">ninguém</span>}</Field>
       {reports.length > 0 && <Field label="Equipe dele">{reports.join(', ')}</Field>}
-      <Field label="Perfil">
-        <Badge tone={bot.profile === 'restricted' ? 'yellow' : 'neutral'}>{bot.profile === 'restricted' ? 'restrito' : 'completo'}</Badge>
-      </Field>
+      <ProfileNote profile={bot.profile} />
       <Field label="Modelo">{model}{bot.mode ? ` · ${MODE_LABEL[bot.mode]}` : ''}{bot.effort ? ` · esforço ${bot.effort}` : ''}</Field>
       <BotRoutines r={routines} />
       <div className="flex items-center gap-2 pt-1">

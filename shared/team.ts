@@ -1,4 +1,5 @@
 import type { Effort, MascotShape, PermMode, TeamBot, TeamBotInput, TeamProfile } from './protocol';
+import { isAgentModel } from './agents';
 
 export const MAX_BOTS = 50;
 export const MAX_NAME = 40;
@@ -58,6 +59,8 @@ export function validateBotInput(raw: unknown): BotValidation {
   if (parentId === id) return { ok: false, error: 'um bot não pode ser chefe de si mesmo' };
   const model = str(r.model) || undefined;
   if (model !== undefined && !MODEL_RE.test(model)) return { ok: false, error: 'modelo inválido' };
+  // The ACP agent runs its own tool loop, outside the restricted profile's rules.
+  if (profile === 'restricted' && isAgentModel(model)) return { ok: false, error: 'bot com perfil travado não pode usar agente externo' };
   const mode = str(r.mode) as PermMode | undefined;
   if (mode !== undefined && !MODES.has(mode)) return { ok: false, error: 'modo inválido' };
   const effort = str(r.effort) as Effort | undefined;

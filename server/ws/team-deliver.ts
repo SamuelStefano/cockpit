@@ -35,6 +35,8 @@ export async function deliverTeamMessage(m: SpoolMessage, team: TeamBot[]): Prom
   const params: RunParams = {
     mode: turn.mode, model: turn.model, effort: turn.effort ?? 'low',
     botId: turn.botId, appendSystemPrompt: turn.appendSystemPrompt, teamHop: m.hop,
+    // Without this a restricted bot woken by a team message would run unlocked.
+    profile: turn.profile,
   };
   const queueLive = (live: string): Delivery => {
     // Only the drainer's process ticks parked.json; elsewhere the in-turn queue,

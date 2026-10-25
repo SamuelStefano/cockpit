@@ -92,9 +92,9 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
           planUsage={c.planUsage} models={c.models} bots={c.bots} onTeamGet={c.onTeamGet} />
       );
     }
-    if (route === '/equipe' && isAdmin) {
+    if (route === '/equipe') {
       return (
-        <Equipe connected={connected} isMobile={isMobile} bots={c.bots} teamLoaded={c.teamLoaded}
+        <Equipe connected={connected} isMobile={isMobile} isAdmin={isAdmin} bots={c.bots} teamLoaded={c.teamLoaded}
           onTeamGet={c.onTeamGet} onTeamSave={c.onTeamSave} onTeamDelete={c.onTeamDelete} onOpenBot={c.onOpenBot}
           sessions={c.sessions} running={c.running} activeId={c.activeId} phase={c.phase} interrupted={c.interrupted}
           runStart={c.runStart} models={c.models} chatProps={chatProps}

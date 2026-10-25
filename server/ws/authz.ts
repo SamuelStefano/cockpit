@@ -28,6 +28,11 @@ const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   // Só reordena e interrompe: o item continua rodando com o role de quem o
   // enfileirou, e 'stop' o student já tem. Não concede privilégio novo.
   'queue-run-now',
+  // Equipe (fatia E): the dispatch coerces every bot a non-admin saves to the
+  // restricted profile and limits the cron frames to bot routines
+  // (ws/student-team.ts) — the frame alone grants no Bash.
+  'team-get', 'team-save', 'team-delete',
+  'crons-get', 'cron-save', 'cron-delete', 'cron-run',
 ]);
 
 export function authorize(role: Role, t: ClientMsg['t']): boolean {

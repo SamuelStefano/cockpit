@@ -82,3 +82,50 @@ describe('bot routine frames', () => {
     expect(bc.send).toHaveBeenCalledWith(ws, { t: 'error', message: expect.stringMatching(/meio de um turno/) });
   });
 });
+
+describe('student on bot routines (fatia E)', () => {
+  const free: Cron = { ...routine, id: 'f1', botId: undefined };
+
+  it('crons-get shows a student only the bot routines', async () => {
+    crons.getCrons.mockResolvedValueOnce([routine, free] as never);
+    await handle(ws, { t: 'crons-get' }, 'student');
+    expect(bc.send).toHaveBeenCalledWith(ws, { t: 'crons', items: [routine] });
+  });
+
+  it('cron-save: a student may save a bot routine, mode pinned to auto and no ACP model', async () => {
+    await handle(ws, { t: 'cron-save', cron: { ...routine, mode: 'acceptEdits', model: 'agent:grok' } }, 'student');
+    const saved = crons.saveCron.mock.calls[0][0] as Cron;
+    expect(saved).toMatchObject({ id: 'r1', botId: 'capo1', mode: 'auto' });
+    expect(saved.model).toBeUndefined();
+  });
+
+  it('cron-save: a student may not create a free cron', async () => {
+    await handle(ws, { t: 'cron-save', cron: free }, 'student');
+    expect(crons.saveCron).not.toHaveBeenCalled();
+    expect(bc.send).toHaveBeenCalledWith(ws, { t: 'error', message: 'só rotinas de bot da Equipe' });
+  });
+
+  it('cron-save: a student may not overwrite a free cron by reusing its id', async () => {
+    crons.getCrons.mockResolvedValueOnce([free] as never);
+    await handle(ws, { t: 'cron-save', cron: { ...routine, id: 'f1' } }, 'student');
+    expect(crons.saveCron).not.toHaveBeenCalled();
+  });
+
+  it('cron-delete and cron-run: refused on a free cron, allowed on a routine', async () => {
+    crons.getCrons.mockResolvedValue([routine, free] as never);
+    await handle(ws, { t: 'cron-delete', id: 'f1' }, 'student');
+    await handle(ws, { t: 'cron-run', id: 'f1' }, 'student');
+    expect(crons.deleteCron).not.toHaveBeenCalled();
+    expect(crons.runCronNow).not.toHaveBeenCalled();
+    await handle(ws, { t: 'cron-delete', id: 'r1' }, 'student');
+    await handle(ws, { t: 'cron-run', id: 'r1' }, 'student');
+    expect(crons.deleteCron).toHaveBeenCalledWith('r1');
+    expect(crons.runCronNow).toHaveBeenCalledOnce();
+    crons.getCrons.mockResolvedValue([]);
+  });
+
+  it('admin still saves a free cron', async () => {
+    await handle(ws, { t: 'cron-save', cron: { ...free, schedule: { kind: 'interval', everyMinutes: 10 } } }, 'admin');
+    expect(crons.saveCron).toHaveBeenCalledOnce();
+  });
+});

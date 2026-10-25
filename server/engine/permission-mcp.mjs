@@ -14,8 +14,12 @@
 // Zero dependencies and no imports on purpose: it is spawned once per turn, so
 // loading the MCP SDK would cost memory the box does not have.
 
-const ALLOW_ALL = process.argv.includes('--allow-all');
-const DENY = 'Negado: modo plan não executa tools.';
+// --restricted (a locked bot) wins over --allow-all: it must never approve.
+const RESTRICTED = process.argv.includes('--restricted');
+const ALLOW_ALL = !RESTRICTED && process.argv.includes('--allow-all');
+const DENY = RESTRICTED
+  ? 'Negado: o perfil travado deste bot só lê e escreve no workspace dele, sem terminal.'
+  : 'Negado: modo plan não executa tools.';
 // AskUserQuestion always lands here — the allow-list does not auto-approve it, the
 // CLI routes every question through the permission tool. The Deck answers it out of
 // band: translate.ts sees the tool_use, ends the turn and renders the card, and the

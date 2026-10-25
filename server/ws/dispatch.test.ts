@@ -543,7 +543,7 @@ describe('cron-save boundary', () => {
   } as ClientMsg);
 
   it('persiste um "uma vez" com instante válido', async () => {
-    await handle(ws, msg({ kind: 'once', atMs: 1784973360000 }));
+    await handle(ws, msg({ kind: 'once', atMs: 1784973360000 }), 'admin');
     expect(crons.saveCron).toHaveBeenCalledOnce();
   });
 

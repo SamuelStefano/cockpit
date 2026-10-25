@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Effort, MascotShape, PermMode, TeamBot, TeamBotInput, TeamProfile } from '../../../shared/protocol';
 import { newBotId, validateBotInput, wouldCycle } from '../../../shared/team';
 import { MASCOT_COLORS } from '../../components/team/mascot-shapes';
+import { isAgentModel } from '../../../shared/agents';
 
 export interface BotDraft {
   name: string;
@@ -17,7 +18,13 @@ export interface BotDraft {
   effort: Effort | '';
 }
 
-export function draftFrom(bot: TeamBot | null, count: number): BotDraft {
+// locked = what the server forces on a non-admin's bot, shown up front in the form.
+export function draftFrom(bot: TeamBot | null, count: number, locked = false): BotDraft {
+  const d = baseDraft(bot, count);
+  return locked ? { ...d, profile: 'restricted', mode: 'auto', model: isAgentModel(d.model) ? '' : d.model } : d;
+}
+
+function baseDraft(bot: TeamBot | null, count: number): BotDraft {
   if (!bot) {
     return { name: '', label: '', instructions: '', shape: 'blob', color: MASCOT_COLORS[count % MASCOT_COLORS.length], parentId: '', primary: count === 0, profile: 'full', model: '', mode: '', effort: '' };
   }
@@ -51,9 +58,9 @@ export function draftError(id: string, d: BotDraft, bots: TeamBot[]): string | n
   return null;
 }
 
-export function useBotForm(bot: TeamBot | null, bots: TeamBot[], onSave: (b: TeamBotInput) => void, onDone: () => void) {
+export function useBotForm(bot: TeamBot | null, bots: TeamBot[], onSave: (b: TeamBotInput) => void, onDone: () => void, locked = false) {
   const [id] = useState(() => bot?.id ?? newBotId());
-  const [draft, setDraft] = useState<BotDraft>(() => draftFrom(bot, bots.length));
+  const [draft, setDraft] = useState<BotDraft>(() => draftFrom(bot, bots.length, locked));
   const [touched, setTouched] = useState(false);
   const error = draftError(id, draft, bots);
   const set = <K extends keyof BotDraft>(k: K, v: BotDraft[K]) => setDraft((d) => ({ ...d, [k]: v }));
