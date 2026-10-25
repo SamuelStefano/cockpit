@@ -11,10 +11,10 @@ export function letterIndex(e: KeyLike, count: number): number {
   return i < count ? i : -1;
 }
 
-// The shortcut only fires when it cannot eat typing: focus outside any text
-// field, or in one that is still empty (the composer before the first letter).
+// The shortcut only fires with focus outside every text field: in an empty
+// composer, a reply that starts with "a" would otherwise send option A.
 export function shortcutTargetFree(target: EventTarget | null): boolean {
   if (!target || !(target instanceof HTMLElement)) return true;
-  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return target.value === '';
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return false;
   return !target.isContentEditable;
 }
