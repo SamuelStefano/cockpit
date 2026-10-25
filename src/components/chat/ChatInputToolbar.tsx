@@ -63,7 +63,7 @@ export function ChatInputToolbar({ mode, setMode, caps, bypass, setBypass, skill
         <McpPicker servers={mcpServers} selected={selectedMcps} setSelected={setSelectedMcps} />
         <SkillPicker skills={skills} selected={selectedSkills} setSelected={setSelectedSkills} />
         <EffortPicker effort={effort} setEffort={setEffort} />
-        <ModelPicker model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} />
+        <ModelPicker model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} canManage={caps?.role === 'admin' || caps?.role === 'root'} />
       </div>
     </div>
   );

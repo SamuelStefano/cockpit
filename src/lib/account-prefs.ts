@@ -20,11 +20,12 @@ export const MODE_KEY = 'mode';
 export const MODEL_KEY = 'model';
 export const EFFORT_KEY = 'effort';
 export const CUSTOM_MODELS_KEY = 'customModels';
+export const HIDDEN_MODELS_KEY = 'hiddenModels';
 
 export const ACCOUNT_PREF_KEYS = [
   MODE_KEY, MODEL_KEY, EFFORT_KEY,
   SHOW_TOOLS_KEY, GROUP_NOTES_KEY, SHOW_SESSION_DESC_KEY,
-  CUSTOM_MODELS_KEY,
+  CUSTOM_MODELS_KEY, HIDDEN_MODELS_KEY,
 ] as const;
 
 export type AccountPrefKey = (typeof ACCOUNT_PREF_KEYS)[number];
@@ -40,6 +41,7 @@ const DEFAULTS: Record<AccountPrefKey, unknown> = {
   [GROUP_NOTES_KEY]: GROUP_NOTES_DEFAULT,
   [SHOW_SESSION_DESC_KEY]: SHOW_SESSION_DESC_DEFAULT,
   [CUSTOM_MODELS_KEY]: [],
+  [HIDDEN_MODELS_KEY]: [],
 };
 
 // Só o que EXISTE no localStorage: um aparelho recém-aberto não tem opinião, e

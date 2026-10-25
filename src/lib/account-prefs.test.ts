@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  ACCOUNT_PREF_KEYS, MODE_KEY, MODEL_KEY, EFFORT_KEY, CUSTOM_MODELS_KEY,
+  ACCOUNT_PREF_KEYS, MODE_KEY, MODEL_KEY, EFFORT_KEY, CUSTOM_MODELS_KEY, HIDDEN_MODELS_KEY,
   readLocalAccountPrefs, mergeAccountPrefs, applyAccountPrefs, clearAccountPrefs,
   subscribeAccountPrefs, type AccountPrefs,
 } from './account-prefs';
@@ -11,7 +11,7 @@ import { SHOW_TOOLS_KEY, GROUP_NOTES_KEY, SHOW_SESSION_DESC_KEY } from './prefs'
 describe('ACCOUNT_PREF_KEYS', () => {
   it('leva as prefs de conta e nenhuma de aparelho', () => {
     expect([...ACCOUNT_PREF_KEYS]).toEqual([
-      'mode', 'model', 'effort', 'chat.showTools', 'chat.groupNotes', 'sessions.showDesc', 'customModels',
+      'mode', 'model', 'effort', 'chat.showTools', 'chat.groupNotes', 'sessions.showDesc', 'customModels', 'hiddenModels',
     ]);
     for (const local of ['drafts', 'auth.token', 'ws.url', 'activeId', 'seen', 'pendingAtts:abc']) {
       expect(ACCOUNT_PREF_KEYS as readonly string[]).not.toContain(local);
@@ -64,7 +64,8 @@ describe('prefs locais', () => {
     expect(readLocalAccountPrefs()).toEqual({});
     savePref(MODE_KEY, 'plan');
     savePref(CUSTOM_MODELS_KEY, ['claude-x']);
-    expect(readLocalAccountPrefs()).toEqual({ mode: 'plan', customModels: ['claude-x'] });
+    savePref(HIDDEN_MODELS_KEY, ['family:haiku']);
+    expect(readLocalAccountPrefs()).toEqual({ mode: 'plan', customModels: ['claude-x'], hiddenModels: ['family:haiku'] });
   });
 
   it('aplica o resultado do merge no cache local', () => {

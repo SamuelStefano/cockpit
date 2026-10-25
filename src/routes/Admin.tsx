@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Icon, RouteHeader, toast } from '../components/primitives';
-import type { AdminHealth, SysStats, AccountSummary } from '../../shared/protocol';
+import type { AdminHealth, SysStats, AccountSummary, ModelInfo } from '../../shared/protocol';
 import { AdminAccounts } from './AdminAccounts';
 import { AdminHostOps } from './AdminHostOps';
 import { AdminAgents } from './AdminAgents';
@@ -8,6 +8,8 @@ import type { AgentsApi } from '../cockpit/useAgents';
 import { AdminDeckUpdate } from './AdminDeckUpdate';
 import { AdminInventory } from './AdminInventory';
 import { AdminTabs, type AdminTab } from './AdminTabs';
+import { AdminModels } from './AdminModels';
+import { useAdminTab } from './useAdminTab';
 import { AdminHealthSkeleton } from './AdminHealthSkeleton';
 import { Stat } from './adminPrimitives';
 import { gb, clockTime, dur } from './adminFormat';
@@ -35,14 +37,16 @@ interface AdminProps {
   onCliUpdate: () => void;
   onDeckRestart: (mode: 'idle' | 'now') => void;
   agents: AgentsApi;
+  models: ModelInfo[];
   onOpenAgentChat: (model: string) => void;
 }
 
 const toastedOps = new WeakSet<object>();
+const TAB_IDS = ['overview', ...(SUPABASE_ENABLED ? ['accounts'] : []), 'host', 'agents', 'models'];
 
-export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, isRoot, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, onCliUpdate, onDeckRestart, agents, onOpenAgentChat }: AdminProps) {
+export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, isRoot, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, onCliUpdate, onDeckRestart, agents, models, onOpenAgentChat }: AdminProps) {
   const [updatedAt, setUpdatedAt] = useState(0);
-  const [tab, setTab] = useState('overview');
+  const [tab, setTab] = useAdminTab(TAB_IDS);
   // Polls only while the tab is visible (health spawns probes server-side every
   // 10s), and refreshes at once when it comes back.
   useEffect(() => {
@@ -70,6 +74,7 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
     if (SUPABASE_ENABLED) t.push({ id: 'accounts', label: 'Contas', icon: 'user' });
     t.push({ id: 'host', label: 'Host', icon: 'terminal' });
     t.push({ id: 'agents', label: 'Agentes', icon: 'sparkles' });
+    t.push({ id: 'models', label: 'Modelos', icon: 'layers' });
     return t;
   }, []);
 
@@ -101,6 +106,8 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
         )}
 
         {tab === 'agents' && <AdminAgents agents={agents} onOpenChat={onOpenAgentChat} />}
+
+        {tab === 'models' && <AdminModels models={models} />}
 
         {tab === 'host' && (
           <AdminDeckUpdate health={health} adminOp={adminOp} onCliUpdate={onCliUpdate} onDeckRestart={onDeckRestart} />

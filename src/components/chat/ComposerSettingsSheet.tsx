@@ -61,7 +61,7 @@ export function ComposerSettingsSheet({ onClose, caps, bypass, setBypass, skills
         </div>
         <div className={row}>
           <span className={label}>Modelo</span>
-          <ModelPicker model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} />
+          <ModelPicker model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} canManage={caps?.role === 'admin' || caps?.role === 'root'} />
         </div>
         <div className={row}>
           <span className={label}>Pensar</span>
