@@ -20,7 +20,7 @@ export function Equipe(p: EquipeProps) {
   );
   const profile = (onBack?: () => void) => sel && (
     <BotProfile view={sel} bots={p.bots} models={p.models} onSave={p.onTeamSave} onEdit={e.openEdit} onDelete={p.onTeamDelete} onBack={onBack}
-      connected={p.connected} cronApi={p} />
+      connected={p.connected} cronApi={p} filesApi={p} />
   );
 
   if (p.isMobile) {

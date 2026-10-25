@@ -27,6 +27,13 @@ describe('TeamRoster', () => {
     expect(onSelect).toHaveBeenCalledWith('lead');
   });
 
+  it('a bot with an open question shows the waiting mascot and "Esperando você"', () => {
+    const waiting: BotView = { ...view('lead'), state: 'waiting', preview: 'Esperando você: O que faço?' };
+    render(<TeamRoster views={[view('capo', true), waiting]} loaded selectedId="capo" onSelect={vi.fn()} onNew={vi.fn()} paused={false} onPauseSet={vi.fn()} />);
+    expect(screen.getByText('Esperando você: O que faço?')).toBeTruthy();
+    expect(screen.getAllByLabelText(/esperando você/).length).toBeGreaterThan(0);
+  });
+
   it('toggles the team pause from the roster header', () => {
     const onPauseSet = vi.fn();
     const { rerender } = render(<TeamRoster views={[view('capo', true)]} loaded selectedId={null} onSelect={vi.fn()} onNew={vi.fn()} paused={false} onPauseSet={onPauseSet} />);

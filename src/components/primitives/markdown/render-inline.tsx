@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { tokenizeInline } from './tokenize-inline';
 import { WikiLink } from './wikilink-context';
+import { MdImage } from './image-context';
 import { safeHref } from '../../../lib/safe-href';
 
 export function renderInline(text: string, keyBase: string): ReactNode[] {
@@ -39,6 +40,9 @@ export function renderInline(text: string, keyBase: string): ReactNode[] {
           </a>
         );
         if (t.trail) nodes.push(<span key={`${key}-tp`}>{t.trail}</span>);
+        break;
+      case 'image':
+        nodes.push(<MdImage key={key} alt={t.alt} src={t.src} />);
         break;
       case 'link': {
         const href = safeHref(t.url);

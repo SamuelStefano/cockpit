@@ -32,6 +32,15 @@ describe('tokenizeInline', () => {
     ]);
   });
 
+  it('parses an image before a link', () => {
+    expect(tokenizeInline('veja ![o mockup](mock/tela.png) e [doc](http://x.com)')).toEqual([
+      { type: 'text', value: 'veja ' },
+      { type: 'image', alt: 'o mockup', src: 'mock/tela.png' },
+      { type: 'text', value: ' e ' },
+      { type: 'link', label: 'doc', url: 'http://x.com' },
+    ]);
+  });
+
   it('strips trailing punctuation off a bare url into a trail field', () => {
     expect(tokenizeInline('see https://a.com.')).toEqual([
       { type: 'text', value: 'see ' },
