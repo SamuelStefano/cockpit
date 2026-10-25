@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseVerdict } from './triage';
+import { parseVerdict, classifyArgs, TRIAGE_SYSTEM_PROMPT, QUICK_ANSWER_ARGS } from './triage';
 
 describe('parseVerdict', () => {
   it('falls back to wait on empty/garbage input', () => {
@@ -32,5 +32,21 @@ describe('parseVerdict', () => {
   it('truncates the reason to 80 chars', () => {
     const long = 'a'.repeat(200);
     expect(parseVerdict(`{"action":"wait","reason":"${long}"}`).reason.length).toBe(80);
+  });
+});
+
+describe('triage argv', () => {
+  it('classify runs lean with its own system prompt', () => {
+    const args = classifyArgs(true);
+    expect(args[args.indexOf('--tools') + 1]).toBe('');
+    expect(args[args.indexOf('--system-prompt') + 1]).toBe(TRIAGE_SYSTEM_PROMPT);
+  });
+
+  it('classify keeps the old argv when lean one-shots are off', () => {
+    expect(classifyArgs(false)).toEqual([]);
+  });
+
+  it('quick answer keeps its tools and settings, only skips the transcript', () => {
+    expect([...QUICK_ANSWER_ARGS]).toEqual(['--no-session-persistence']);
   });
 });

@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { cliPath } from './cli-path';
+import { leanOneShotArgs } from './lean-args';
 import type { TriageVerdict, TriageAction } from '../../shared/protocol';
 
 // Os one-shots (triagem) rodam `claude -p`, que PERSISTE um JSONL de
@@ -54,9 +55,9 @@ function miniEnv(): NodeJS.ProcessEnv {
 }
 
 // Executa `claude -p` haiku plan-mode e devolve o campo .result (texto). '' em erro/timeout.
-function oneShot(prompt: string, timeoutMs: number, cap = 65536, key = '_'): Promise<string> {
+function oneShot(prompt: string, timeoutMs: number, cap = 65536, key = '_', extra: string[] = []): Promise<string> {
   return new Promise((resolve) => {
-    const args = ['-p', prompt, '--model', 'haiku', '--effort', 'low', '--permission-mode', 'plan', '--strict-mcp-config', '--output-format', 'json'];
+    const args = ['-p', prompt, '--model', 'haiku', '--effort', 'low', '--permission-mode', 'plan', '--strict-mcp-config', '--output-format', 'json', ...extra];
     let child: ChildProcess;
     try {
       child = spawn('claude', args, { cwd: ONESHOT_CWD, env: miniEnv(), shell: false, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -83,6 +84,18 @@ function oneShot(prompt: string, timeoutMs: number, cap = 65536, key = '_'): Pro
     });
   });
 }
+
+export const TRIAGE_SYSTEM_PROMPT = 'Você classifica prompts e responde só o JSON pedido.';
+
+// The classifier only reads the three quoted strings in its prompt and answers JSON.
+export function classifyArgs(on?: boolean): string[] {
+  return leanOneShotArgs(TRIAGE_SYSTEM_PROMPT, on);
+}
+
+// The quick answer keeps the default system prompt, tools and the user's settings
+// (it may search the web, and it speaks in the user's configured style); it only
+// stops leaving a ghost transcript in ONESHOT_CWD.
+export const QUICK_ANSWER_ARGS: readonly string[] = ['--no-session-persistence'];
 
 export function parseVerdict(raw: string): TriageVerdict {
   const fallback: TriageVerdict = { action: 'wait', reason: 'triagem indisponível — enfileirado' };
@@ -114,10 +127,10 @@ export async function classify(currentPrompt: string, currentWork: string, newPr
     'Na dúvida use wait. priority SÓ se claramente urgente — interromper custa o turno em andamento.',
     'Responda SÓ com JSON, sem texto fora: {"action":"wait|answer|priority|merge","reason":"<=8 palavras"}',
   ].join('\n');
-  return parseVerdict(await oneShot(p, 8000, 8192, sessionKey));
+  return parseVerdict(await oneShot(p, 8000, 8192, sessionKey, classifyArgs()));
 }
 
 export async function quickAnswer(newPrompt: string, sessionKey = '_'): Promise<string> {
   const p = 'Responda de forma curta e direta. A pessoa fez esta pergunta enquanto outra tarefa roda em paralelo, então seja conciso:\n\n' + newPrompt;
-  return (await oneShot(p, 60000, 262144, sessionKey)).trim();
+  return (await oneShot(p, 60000, 262144, sessionKey, [...QUICK_ANSWER_ARGS])).trim();
 }
