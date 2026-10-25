@@ -44,6 +44,9 @@ export interface ChatPanelProps {
   setBypass: (b: boolean) => void;
   model: string;
   setModel: (m: string) => void;
+  // Set when the server will use a fixed model anyway (a bot's own model): the
+  // picker turns into a read-only label instead of a choice that is ignored.
+  modelLocked?: string;
   models: ModelInfo[];
   onRefreshModels: () => void;
   effort: Effort;

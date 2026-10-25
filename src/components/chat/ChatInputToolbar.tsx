@@ -23,6 +23,7 @@ interface ChatInputToolbarProps {
   setSelectedMcps: (ids: string[]) => void;
   model: string;
   setModel: (m: string) => void;
+  modelLocked?: string;
   models: ModelInfo[];
   onRefreshModels: () => void;
   effort: Effort;
@@ -33,7 +34,7 @@ interface ChatInputToolbarProps {
 // Nenhum controle daqui é bloqueado por turno rodando: todos viram flag no spawn
 // do PRÓXIMO `claude -p`, então travá-los impedia justamente o caso normal —
 // preparar o próximo prompt enquanto o atual ainda responde.
-export function ChatInputToolbar({ mode, setMode, caps, bypass, setBypass, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, model, setModel, models, onRefreshModels, effort, setEffort, onOpenSettings }: ChatInputToolbarProps) {
+export function ChatInputToolbar({ mode, setMode, caps, bypass, setBypass, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, onOpenSettings }: ChatInputToolbarProps) {
   return (
     // No mobile só o modo (o que mais muda) fica inline; o resto vira um chip de
     // resumo que abre o bottom sheet. Antes era uma linha com scroll-x escondido:
@@ -70,7 +71,7 @@ export function ChatInputToolbar({ mode, setMode, caps, bypass, setBypass, skill
             <EffortPicker effort={effort} setEffort={setEffort} />
           </>
         )}
-        <ModelPicker model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} canManage={caps?.role === 'admin' || caps?.role === 'root'} />
+        <ModelPicker model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} canManage={caps?.role === 'admin' || caps?.role === 'root'} locked={modelLocked} />
       </div>
     </div>
   );

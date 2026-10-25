@@ -5,7 +5,7 @@ export type IconName =
   | 'chevronDown' | 'chevronUp' | 'chevronRight' | 'chevronLeft' | 'check' | 'x' | 'square' | 'play' | 'pause'
   | 'rotate' | 'message' | 'pencil' | 'zap' | 'trash' | 'sparkles' | 'claude'
   | 'panelRight' | 'circle' | 'user' | 'copy' | 'command' | 'grip' | 'download' | 'paperclip' | 'clock' | 'star' | 'file' | 'tag'
-  | 'shield' | 'shield-off' | 'mic' | 'image' | 'camera' | 'sliders' | 'volume' | 'wrapText' | 'smartphone'
+  | 'lock' | 'shield' | 'shield-off' | 'mic' | 'image' | 'camera' | 'sliders' | 'volume' | 'wrapText' | 'smartphone'
   | 'monitor' | 'tablet' | 'maximize' | 'minimize' | 'code' | 'link' | 'layers'
   | 'split' | 'move' | 'external' | 'alertTriangle' | 'ellipsis' | 'clipboard' | 'swap';
 
@@ -46,6 +46,7 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
   clock: <><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" /></>,
   star: <><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></>,
   tag: <><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></>,
+  lock: <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,
   shield: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />,
   'shield-off': <><path d="M19.7 14a6.9 6.9 0 0 0 .3-2V5l-8-3-3.2 1.2" /><path d="M4.7 4.7 4 5v7c0 6 8 10 8 10a20.3 20.3 0 0 0 5.6-4.3" /><line x1="2" y1="2" x2="22" y2="22" /></>,
   mic: <><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></>,
