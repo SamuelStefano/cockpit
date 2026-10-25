@@ -85,10 +85,9 @@ describe('agents-view', () => {
   });
 
   it('explains why the custom form is locked', () => {
-    expect(customSaveGate(true, true, true)).toEqual({ allowed: true });
-    expect(customSaveGate(true, false, false)).toEqual({ allowed: true });
-    expect(customSaveGate(true, false, true)).toMatchObject({ allowed: false, reason: expect.stringMatching(/root/) });
-    expect(customSaveGate(false, true, true)).toMatchObject({ allowed: false, reason: expect.stringMatching(/agents\.json/) });
+    expect(customSaveGate(true, true)).toEqual({ allowed: true });
+    expect(customSaveGate(true, false)).toMatchObject({ allowed: false, reason: expect.stringMatching(/root/) });
+    expect(customSaveGate(false, true)).toMatchObject({ allowed: false, reason: expect.stringMatching(/agents\.json/) });
   });
 
   it('splits a command line and slugs a name', () => {

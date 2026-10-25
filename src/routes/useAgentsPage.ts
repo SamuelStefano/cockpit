@@ -3,7 +3,6 @@ import { agentModelId } from '../../shared/agents';
 import { buildCards, customCards, customSaveGate, defaultSelection, sortCards } from '../cockpit/agents-view';
 import type { AgentsApi } from '../cockpit/useAgents';
 import type { BitState } from '../components/bit/bit-state';
-import { SUPABASE_ENABLED } from '../lib/supabase';
 import { useAgentCelebration } from './useAgentCelebration';
 import { useTestPhrase } from './useTestPhrase';
 
@@ -28,7 +27,7 @@ export function useAgentsPage(agents: AgentsApi, isRoot: boolean, onOpenChat: (m
   return {
     cards, selected, selectedIndex: cards.findIndex((c) => c === selected), select: setPicked,
     celebrating, selectedTesting, phrase, message, heroState,
-    gate: customSaveGate(customAllowed, isRoot, SUPABASE_ENABLED),
+    gate: customSaveGate(customAllowed, isRoot),
     sheetOpen, openSheet: useCallback(() => setSheetOpen(true), []), closeSheet: useCallback(() => setSheetOpen(false), []),
     onSaved: useCallback((id: string) => { setSheetOpen(false); setPicked(id); }, []),
     isTesting: (id: string) => testing.has(id),

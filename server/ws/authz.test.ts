@@ -76,6 +76,7 @@ describe('authorize', () => {
       'pontos-agent-tasks', 'drafts-get', 'drafts-op',
       'admin-env-set', 'admin-env-unset', 'admin-mcp-add', 'admin-mcp-remove',
       'admin-cli-install', 'admin-cli-update', 'admin-deck-restart',
+      'agent-add-custom', 'agent-probe-draft',
     ] as const;
     expect([...ROOT_ONLY].sort()).toEqual([...owner].sort());
     for (const t of owner) {

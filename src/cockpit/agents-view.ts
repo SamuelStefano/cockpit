@@ -125,10 +125,10 @@ export interface CustomSaveGate {
   reason?: string;
 }
 
-// UX mirror of the server gate (relay: root only; engine: owner's box). The
+// UX mirror of the server gate (shared/root-frames.ts plus the owner's box). The
 // server enforces it either way; this only explains a disabled form.
-export function customSaveGate(customAllowed: boolean, isRoot: boolean, relayMode: boolean): CustomSaveGate {
-  if (relayMode && !isRoot) return { allowed: false, reason: 'Só a conta root salva agente novo: ele roda um comando nesta VPS.' };
+export function customSaveGate(customAllowed: boolean, isRoot: boolean): CustomSaveGate {
+  if (!isRoot) return { allowed: false, reason: 'Só a conta root salva agente novo: ele roda um comando nesta VPS.' };
   if (!customAllowed) return { allowed: false, reason: 'Este Deck não está marcado como a máquina do dono. Edite ~/.deck-agent/agents.json na VPS.' };
   return { allowed: true };
 }
