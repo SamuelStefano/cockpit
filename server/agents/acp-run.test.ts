@@ -179,11 +179,24 @@ describe('probeAgent', () => {
     const r = await probeAgent({ id: 'grok', name: 'Grok', command: process.execPath, args: [fakeAgent, '--legacy'] });
     expect(r.status).toBe('needs-login');
     expect(r.message).toMatch(/\/privacy/);
+    expect(r.message).toMatch(/clique em Testar/);
   });
 
   it('keeps the rpc data in a turn error', async () => {
     await store.addCustomAgent({ id: 'legacy', name: 'Legacy', command: process.execPath, args: [fakeAgent, '--legacy'] });
     const { errors } = await turn({ model: 'agent:legacy' });
     expect(errors[0]).toMatch(/Internal error — .*Privacy Mode/);
+  });
+});
+
+describe('agent turn errors', () => {
+  it('ends with error_shown so the client does not repeat the reason', async () => {
+    const { events } = await turn({ model: 'agent:nope' });
+    expect(events.at(-1)).toMatchObject({ type: 'result', subtype: 'error_shown', is_error: true });
+  });
+
+  it('tells the Grok privacy fix in chat words, not the Testar button', async () => {
+    const { setupHint } = await import('./acp-run');
+    expect(setupHint('grok', 'Switch to Privacy Mode')).toMatch(/mande a mensagem de novo/);
   });
 });

@@ -1285,7 +1285,8 @@ export function useCockpit(): Cockpit {
           setTurnStats((t) => ({ ...t, [key]: { costUsd: msg.costUsd, durationMs: msg.durationMs, numTurns: msg.numTurns, model: msg.model } }));
         }
         const resumable = !!msg.endReason && (msg.endReason.includes('budget') || msg.endReason.includes('max_turns'));
-        if (msg.endReason && msg.endReason !== 'success') {
+        // error_shown: the engine already put the reason in the chat (ACP agents).
+        if (msg.endReason && msg.endReason !== 'success' && msg.endReason !== 'error_shown') {
           const note = msg.endReason.includes('budget')
             ? `⚠️ Turno interrompido: teto de gasto atingido${msg.costUsd !== undefined ? ` ($${msg.costUsd.toFixed(3)})` : ''}.`
             : msg.endReason.includes('max_turns')

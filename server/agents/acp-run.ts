@@ -12,6 +12,10 @@ import { closeDangling, mapUpdate, permissionOutcome, resultSubtype, type MapCtx
 import { findAgent, saveSessionLink, sessionLinkSync } from './store';
 import { TranscriptWriter } from './transcript';
 
+// Every agent failure is already told to the user through onError in plain
+// words; this end reason lets the client skip its generic "Turno encerrado".
+export const ERROR_SHOWN = 'error_shown';
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 // Agent installers drop binaries outside the PATH the supervisors inherited
@@ -57,13 +61,13 @@ export function runAgent(opts: RunOpts): RunHandle {
   // allowlist like the claude engine, so only the box owner may drive it.
   if (role !== 'admin') {
     onError('agentes externos só rodam para admin');
-    finish('error_during_execution', true);
+    finish(ERROR_SHOWN, true);
     close();
     return { kill: () => {}, send: () => false };
   }
   if (!agent) {
     onError(`agente "${agentId ?? model}" não está conectado — Admin → Agentes`);
-    finish('error_during_execution', true);
+    finish(ERROR_SHOWN, true);
     close();
     return { kill: () => {}, send: () => false };
   }
@@ -98,7 +102,7 @@ export function runAgent(opts: RunOpts): RunHandle {
         transcript?.flush();
         const why = stderrTail.trim().split('\n').slice(-3).join(' ').slice(0, 400);
         onError(`${agent.name} saiu antes de responder (${signal ?? code})${why ? `: ${why}` : ''}`, { code, signal });
-        finish('error_during_execution', true);
+        finish(ERROR_SHOWN, true);
       }
       close();
     },
@@ -110,7 +114,7 @@ export function runAgent(opts: RunOpts): RunHandle {
     onError(e.code === 'ENOENT'
       ? `${agent.name} não está instalado nesta VPS (comando \`${agent.command}\` não encontrado) — veja Admin → Agentes`
       : `não consegui iniciar ${agent.name}: ${e.message}`);
-    finish('error_during_execution', true);
+    finish(ERROR_SHOWN, true);
     close();
   });
 
@@ -153,7 +157,7 @@ export function runAgent(opts: RunOpts): RunHandle {
     for (const ev of closeDangling(ctx, true)) emit(ev);
     transcript?.flush();
     onError(isAuthError(e) ? loginHint(agent.id, agent.name) : setupHint(agent.id, errorText(e)) ?? `${agent.name}: ${errorText(e)}`);
-    finish('error_during_execution', true);
+    finish(ERROR_SHOWN, true);
     acp.kill();
   });
 
@@ -184,9 +188,9 @@ export function errorText(e: unknown): string {
 // Some refusals are account settings, not bugs, and the fix is one command the
 // owner runs once. Grok Build refuses accounts still in the "Legacy (no
 // storage)" privacy mode with a 403 inside a generic "Internal error".
-export function setupHint(agentId: string, text: string): string | null {
+export function setupHint(agentId: string, text: string, then = 'Depois mande a mensagem de novo.'): string | null {
   if (agentId === 'grok' && /privacy mode|privacy-mode/i.test(text)) {
-    return 'Sua conta do Grok está no modo de privacidade "Legacy", que o Grok Build não aceita. Num Terminal do Deck rode `grok`, digite `/privacy` e escolha Opt in ou Opt out (Opt out = a xAI não treina com o seu código). Depois clique em Testar.';
+    return `Sua conta do Grok está no modo de privacidade "Legacy", que o Grok Build não aceita. Num Terminal do Deck rode \`grok\`, digite \`/privacy\` e escolha Opt in ou Opt out (Opt out = a xAI não treina com o seu código). ${then}`;
   }
   return null;
 }

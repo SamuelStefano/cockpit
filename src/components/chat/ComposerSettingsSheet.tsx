@@ -4,6 +4,7 @@ import { ModelPicker } from './ModelPicker';
 import { EffortPicker } from './EffortPicker';
 import { SkillPicker } from './SkillPicker';
 import { McpPicker } from './McpPicker';
+import { isAgentModel } from '../../../shared/agents';
 import { BypassToggle } from './BypassToggle';
 import { useDismiss } from './useDismiss';
 import type { Effort, ModelInfo, Caps, SkillMeta } from '../../../shared/protocol';
@@ -63,17 +64,21 @@ export function ComposerSettingsSheet({ onClose, caps, bypass, setBypass, skills
           <span className={label}>Modelo</span>
           <ModelPicker model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} canManage={caps?.role === 'admin' || caps?.role === 'root'} />
         </div>
-        <div className={row}>
-          <span className={label}>Pensar</span>
-          <EffortPicker effort={effort} setEffort={setEffort} />
-        </div>
-        <div className={row}>
-          <span className={label}>Contexto</span>
-          <div className="flex items-center gap-2">
-            <SkillPicker skills={skills} selected={selectedSkills} setSelected={setSelectedSkills} />
-            <McpPicker servers={mcpServers} selected={selectedMcps} setSelected={setSelectedMcps} />
-          </div>
-        </div>
+        {!isAgentModel(model) && (
+          <>
+            <div className={row}>
+              <span className={label}>Pensar</span>
+              <EffortPicker effort={effort} setEffort={setEffort} />
+            </div>
+            <div className={row}>
+              <span className={label}>Contexto</span>
+              <div className="flex items-center gap-2">
+                <SkillPicker skills={skills} selected={selectedSkills} setSelected={setSelectedSkills} />
+                <McpPicker servers={mcpServers} selected={selectedMcps} setSelected={setSelectedMcps} />
+              </div>
+            </div>
+          </>
+        )}
         {caps?.canBypass && (
           <div className={row}>
             <span className={label}>Permissões</span>
