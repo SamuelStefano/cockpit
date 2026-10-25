@@ -98,7 +98,8 @@ export function RouteContent({ route, isMobile, isAdmin, connected, cockpit, ses
           onTeamGet={c.onTeamGet} onTeamSave={c.onTeamSave} onTeamDelete={c.onTeamDelete} onOpenBot={c.onOpenBot}
           sessions={c.sessions} running={c.running} activeId={c.activeId} phase={c.phase} interrupted={c.interrupted}
           runStart={c.runStart} models={c.models} chatProps={chatProps}
-          crons={c.crons} onCronsGet={c.onCronsGet} onCronSave={c.onCronSave} onCronDelete={c.onCronDelete} onCronRun={c.onCronRun} />
+          crons={c.crons} onCronsGet={c.onCronsGet} onCronSave={c.onCronSave} onCronDelete={c.onCronDelete} onCronRun={c.onCronRun}
+          teamMessages={c.teamMessages} teamPaused={c.teamPaused} onTeamMessagesGet={c.onTeamMessagesGet} onTeamPauseSet={c.onTeamPauseSet} />
       );
     }
     if (route === '/uso') {

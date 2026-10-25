@@ -1,15 +1,11 @@
 import { randomBytes } from 'node:crypto';
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
-import { homedir } from 'node:os';
-import { join, dirname } from 'node:path';
+import { dirname } from 'node:path';
 import type { TeamBot, TeamBotInput } from '../shared/protocol';
 import { MAX_BOTS, wouldCycle } from '../shared/team';
 import { withFileLockAsync } from './ws/file-lock';
+import { teamFile } from './team-log';
 
-// Read at call time (not module load) so tests can point it at a temp dir.
-function teamFile(): string {
-  return process.env.COCKPIT_TEAM ?? join(homedir(), '.cockpit', 'team.json');
-}
 
 export async function getTeam(): Promise<TeamBot[]> {
   try { const j = JSON.parse(await readFile(teamFile(), 'utf8')); return Array.isArray(j) ? j : []; } catch { return []; }

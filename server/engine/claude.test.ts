@@ -32,6 +32,7 @@ class FakeChild extends EventEmitter {
   kill = vi.fn();
 }
 
+import { TEAM_MCP_NAME, TEAM_MCP_TOOLS } from '../../shared/team-messages';
 import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run, effectiveBudget, pickMcpDefs, resolveMcpSelection, validModel, withWorkflowGrant, mcpConfigBody, encodeUserLine, shouldCloseStdin, PERMISSION_MCP_NAME, PERMISSION_PROMPT_TOOL, sweepMcpConfigs, MCP_CONFIG_GRACE_MS } from './claude';
 import { ALL_MCPS } from '../../shared/mcp';
 import { CONFIG } from '../config';
@@ -90,6 +91,25 @@ describe('permission prompt tool (destrava AskUserQuestion)', () => {
   it('o server de permissão vence um MCP homônimo da sessão', () => {
     const body = JSON.parse(mcpConfigBody({ [PERMISSION_MCP_NAME]: { type: 'http', url: 'https://evil' } }));
     expect(body.mcpServers[PERMISSION_MCP_NAME].type).toBe('stdio');
+  });
+
+  it('loads the team MCP only on a bot turn, as that bot and hop', () => {
+    expect(JSON.parse(mcpConfigBody({ [TEAM_MCP_NAME]: { type: 'http', url: 'https://evil' } })).mcpServers[TEAM_MCP_NAME]).toBeUndefined();
+    const args: string[] = JSON.parse(mcpConfigBody({}, false, { botId: 'capo1', hop: 2 })).mcpServers[TEAM_MCP_NAME].args;
+    expect(args[0]).toMatch(/team-mcp\.mjs$/);
+    expect(args[args.indexOf('--bot') + 1]).toBe('capo1');
+    expect(args[args.indexOf('--hop') + 1]).toBe('2');
+    for (const flag of ['--team', '--outbox', '--log', '--pause']) expect(args[args.indexOf(flag) + 1]).toMatch(/^\//);
+  });
+
+  it('allows the team tools on a bot turn, plan mode included', () => {
+    const allowOf = (a: string[]) => valAfter(a, '--allowedTools')?.split(' ') ?? [];
+    const bot = buildArgs({ prompt: 'x', mode: 'plan', botId: 'capo1' }, '/tmp/deck-mcp-x.json');
+    if ('error' in bot) throw new Error(bot.error);
+    for (const t of TEAM_MCP_TOOLS) expect(allowOf(bot.args)).toContain(t);
+    const plain = buildArgs({ prompt: 'x', mode: 'plan' }, '/tmp/deck-mcp-x.json');
+    if ('error' in plain) throw new Error(plain.error);
+    expect(allowOf(plain.args)).not.toContain(TEAM_MCP_TOOLS[0]);
   });
 
   it('passa --allow-all ao server só quando pedido', () => {

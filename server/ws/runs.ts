@@ -1026,7 +1026,7 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
       // Turno DESACOMPANHADO (cron agendado, maratona): ninguém vai ler o resumo nem
       // clicar num chip de continuação entre um turno e o próximo, e cada um deles é
       // uma chamada de API paga por turno fechado.
-      const unattended = sessionKey.startsWith('cron-') || threadIsMarathon(sessionKey, thread.sessionId);
+      const unattended = sessionKey.startsWith('cron-') || !!thread.params.teamHop || threadIsMarathon(sessionKey, thread.sessionId);
       emitTurnClosed({
         sessionKey, sessionId: thread.sessionId, prompt: thread.prompt, text: thread.text, params: thread.params,
         ok: isCleanTurnClose(thread, { silent, authBurned, quotaBurned: burnedByQuota({ limited: hold > 0, tools: thread.tools.length, text: thread.text }) }),
@@ -1315,7 +1315,7 @@ export function fireCron(cron: Cron): Promise<CronFire> {
 
 // The bot's live turn, under whatever key it runs: its draft key, `bot-<id>`, or the
 // key a tab gave the bound session.
-function botLiveKey(botId: string, sessionId?: string): string | undefined {
+export function botLiveKey(botId: string, sessionId?: string): string | undefined {
   for (const [k, t] of threads) if (t.params.botId === botId || (sessionId && t.sessionId === sessionId)) return k;
   return undefined;
 }

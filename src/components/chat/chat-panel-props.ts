@@ -5,10 +5,22 @@ import type { PermMode, Effort, ModelInfo, TurnStats, Caps, SkillMeta, BgAgent }
 import type { Attachment, AttachmentPreview, QueueItem } from '../../useCockpit';
 import type { ResumeOfferView } from '../../cockpit/resume-offers';
 import type { Phase } from './useChatPanel';
+import type { TimedExtra } from './interleave';
+
+// A Equipe bot's thread: the assistant speaks as the bot, the empty thread has no
+// generic suggestions, and delivered team prompts give way to the traffic rows.
+export interface ChatBotDecor {
+  name: string;
+  avatar: ReactNode;
+  empty: ReactNode;
+  hideMessage: (m: Message) => boolean;
+  extras: TimedExtra<ReactNode>[];
+}
 
 export interface ChatPanelProps {
   // Live line under the thread while a turn runs (Equipe's rotating bot status).
   turnStatus?: ReactNode;
+  botDecor?: ChatBotDecor;
   session: Session | null;
   messages: Message[];
   phase: Phase;

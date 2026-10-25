@@ -12,6 +12,8 @@ import { managedEnvSync, mcpServerDefsSync } from '../admin-ops';
 import type { Role } from '../auth';
 import { isLongContextModel } from '../../shared/long-context';
 import { ALL_MCPS } from '../../shared/mcp';
+import { TEAM_MCP_NAME, TEAM_MCP_TOOLS } from '../../shared/team-messages';
+import { teamFile, teamLogFile, teamOutboxDir, teamPauseFile } from '../team-log';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -42,6 +44,8 @@ export interface RunOpts {
   effort?: string;             // nível de pensamento (--effort low|medium|high|xhigh|max). Sem isto o CLI usa o default da conta (alto) → thinking tokens caros em pedido simples. Default do Deck = low.
   allowWorkflow?: boolean;
   appendSystemPrompt?: string; // Equipe bot identity (--append-system-prompt); never starts with '-' (built server-side)
+  botId?: string;              // a Equipe bot's turn: loads the team MCP (team_list/team_send) as this bot
+  teamHop?: number;            // chain depth of the message that started this turn; the MCP stamps hop+1
   forkId?: string;             // roda em cima do transcript do `resumeId` mas GRAVA neste id novo (--fork-session). Sem isto dois processos escreveriam o mesmo JSONL.
   onEvent: (ev: ClaudeEvent) => void;
   // exit/signal são passados quando o erro veio do close do processo (não de um
@@ -137,8 +141,22 @@ export function permissionMcpDef(allowAll = false): Record<string, unknown> {
 
 // Escreve SEMPRE, mesmo sem MCP escolhido: o server de permissão precisa existir no
 // config pra flag apontar pra algo. `picked` nunca sobrescreve o nosso nome.
-export function mcpConfigBody(picked: Record<string, unknown>, allowAll = false): string {
-  return JSON.stringify({ mcpServers: { ...picked, [PERMISSION_MCP_NAME]: permissionMcpDef(allowAll) } });
+export function mcpConfigBody(picked: Record<string, unknown>, allowAll = false, team?: { botId: string; hop?: number }): string {
+  const servers: Record<string, unknown> = { ...picked, [PERMISSION_MCP_NAME]: permissionMcpDef(allowAll) };
+  if (team) servers[TEAM_MCP_NAME] = teamMcpDef(team.botId, team.hop ?? 0);
+  else delete servers[TEAM_MCP_NAME];
+  return JSON.stringify({ mcpServers: servers });
+}
+
+// The claude child runs with minimalEnv, so the MCP it spawns never sees COCKPIT_*:
+// every path goes in argv, resolved here where the env (and the tests') applies.
+export function teamMcpDef(botId: string, hop: number): Record<string, unknown> {
+  const script = join(dirname(fileURLToPath(import.meta.url)), 'team-mcp.mjs');
+  return {
+    type: 'stdio',
+    command: process.execPath,
+    args: [script, '--bot', botId, '--hop', String(hop), '--team', teamFile(), '--outbox', teamOutboxDir(), '--log', teamLogFile(), '--pause', teamPauseFile()],
+  };
 }
 
 // Spawn do claude headless com hardening DR-004:
@@ -158,13 +176,15 @@ export function mcpConfigBody(picked: Record<string, unknown>, allowAll = false)
 // task pendente (`system/task_updated {status:"killed"}`) e sai — é por isso
 // que "eu te aviso quando terminar" nunca chegava a acontecer no Deck. Root
 // cause + comportamento verificados ao vivo com claude 2.1.281 (ver PR).
-export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills' | 'forkId' | 'allowWorkflow' | 'appendSystemPrompt'>;
+export type BuildArgsOpts = Pick<RunOpts, 'prompt' | 'resumeId' | 'mode' | 'model' | 'effort' | 'maxBudgetUsd' | 'bypass' | 'role' | 'disallowedSkills' | 'forkId' | 'allowWorkflow' | 'appendSystemPrompt' | 'botId'>;
 
 export function buildArgs(opts: BuildArgsOpts, mcpConfigPath?: string): { args: string[] } | { error: string } {
-  const { resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt } = opts;
+  const { resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt, botId } = opts;
   const resolved = resolveMode(mode, { bypass, role });
   const { permissionMode } = resolved;
-  const allow = withWorkflowGrant(resolved, allowWorkflow);
+  // A bot talks to its team in every mode, plan included: the tools only drop a
+  // file in the outbox, and the backend applies the brakes.
+  const allow = botId && mcpConfigPath ? [...new Set([...withWorkflowGrant(resolved, allowWorkflow), ...TEAM_MCP_TOOLS])] : withWorkflowGrant(resolved, allowWorkflow);
 
   const args = [
     '-p',
@@ -233,7 +253,7 @@ export function shouldCloseStdin(sawResult: boolean, pendingBackgroundTasks: num
 }
 
 export function run(opts: RunOpts): RunHandle {
-  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt, onEvent, onError, onClose } = opts;
+  const { prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt, botId, teamHop, onEvent, onError, onClose } = opts;
 
   // MCP por sessão: escreve um config TEMPORÁRIO só com os servers escolhidos
   // (definições completas lidas do ~/.claude.json). Sem seleção → sem arquivo →
@@ -243,13 +263,13 @@ export function run(opts: RunOpts): RunHandle {
     const picked = opts.mcps?.length ? pickMcpDefs(mcpServerDefsSync(), opts.mcps, role) : {};
     mcpConfigPath = join(tmpdir(), `deck-mcp-${randomBytes(6).toString('hex')}.json`);
     const allowAll = resolveMode(mode, { bypass, role }).permissionMode !== 'plan';
-    try { writeFileSync(mcpConfigPath, mcpConfigBody(picked, allowAll), { mode: 0o600 }); }
+    try { writeFileSync(mcpConfigPath, mcpConfigBody(picked, allowAll, botId ? { botId, hop: teamHop } : undefined), { mode: 0o600 }); }
     catch { mcpConfigPath = undefined; }
   }
   const cleanupMcp = () => { if (mcpConfigPath) { try { unlinkSync(mcpConfigPath); } catch { /* já removido */ } mcpConfigPath = undefined; } };
 
   const built = buildArgs({
-    prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt,
+    prompt, resumeId, mode, model, effort, maxBudgetUsd, bypass, role, disallowedSkills, forkId, allowWorkflow, appendSystemPrompt, botId,
   }, mcpConfigPath);
   if ('error' in built) {
     cleanupMcp();

@@ -21,6 +21,7 @@ export interface RunParams {
   allowWorkflow?: boolean;
   botId?: string;              // turn belongs to a Equipe bot: its session gets bound to the bot
   appendSystemPrompt?: string; // the bot's identity (server/team-prompt.ts), resolved at dispatch
+  teamHop?: number;            // depth of the bot→bot chain this turn was born from (0/absent = a human started it)
 }
 
 // Lista única das chaves de RunParams. O `satisfies Record<keyof RunParams, 0>`
@@ -31,7 +32,7 @@ export interface RunParams {
 // o esforço do primeiro, calado.
 export const RUN_PARAM_KEYS = Object.keys({
   mode: 0, model: 0, maxBudgetUsd: 0, bypass: 0, role: 0,
-  disallowedSkills: 0, mcps: 0, effort: 0, allowWorkflow: 0, botId: 0, appendSystemPrompt: 0,
+  disallowedSkills: 0, mcps: 0, effort: 0, allowWorkflow: 0, botId: 0, appendSystemPrompt: 0, teamHop: 0,
 } satisfies Record<keyof RunParams, 0>) as (keyof RunParams)[];
 
 // Extrai só a config do turno de um objeto maior (opções do startRun, item da
