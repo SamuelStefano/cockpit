@@ -7,7 +7,6 @@ import { escapeLayerOpen } from '../primitives/useEscapeLayer';
 export function useProfileMenu(userId?: string) {
   const profile = useProfile(userId);
   const [open, setOpen] = useState(false);
-  const [iconOpen, setIconOpen] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -39,5 +38,5 @@ export function useProfileMenu(userId?: string) {
       .finally(() => setUploading(false));
   };
 
-  return { ...profile, open, setOpen, iconOpen, setIconOpen, uploadError, uploading, fileRef, wrapRef, onFile };
+  return { ...profile, open, setOpen, uploadError, uploading, fileRef, wrapRef, onFile };
 }

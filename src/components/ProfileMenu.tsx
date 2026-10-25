@@ -1,6 +1,5 @@
 import { Button, Input, Switch } from './primitives';
 import { AvatarFace } from './avatar/AvatarFace';
-import { AiIconPicker } from './avatar/AiIconPicker';
 import { useProfileMenu } from './avatar/useProfileMenu';
 import { ChangePasswordForm } from './profile/ChangePasswordForm';
 import { DropButton } from './drop/DropButton';
@@ -21,7 +20,7 @@ interface ProfileMenuProps {
 // upload/limpa o avatar e, com conta Supabase, troca a senha. Perfil e toggles
 // vão pro cache local e sobem pra conta (ver lib/profile e lib/account-prefs).
 export function ProfileMenu({ userId, onSignOut, onChangePassword, drops }: ProfileMenuProps = {}) {
-  const { name, avatar, aiIcon, setName, setAvatar, setAiIcon, synced, syncFailed, open, setOpen, iconOpen, setIconOpen, uploadError, uploading, fileRef, wrapRef, onFile } = useProfileMenu(userId);
+  const { name, avatar, setName, setAvatar, synced, syncFailed, open, setOpen, uploadError, uploading, fileRef, wrapRef, onFile } = useProfileMenu(userId);
   const [showTools, setShowTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   const [groupNotes, setGroupNotes] = usePersisted<boolean>(GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT);
   const [notifySound, setNotifySound] = usePersisted<boolean>(NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT);
@@ -76,9 +75,7 @@ export function ProfileMenu({ userId, onSignOut, onChangePassword, drops }: Prof
           {uploadError && <p role="alert" className="mt-1.5 text-[11px] text-red-400">{uploadError}</p>}
           <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
 
-          <AiIconPicker open={iconOpen} onToggle={() => setIconOpen((o) => !o)} selected={aiIcon} onSelect={setAiIcon} />
-
-          <div className="mt-3 space-y-1.5">
+          <div className="mt-3 space-y-1.5 border-t border-neutral-800 pt-3">
             <Switch
               checked={showTools}
               onChange={() => setShowTools((v) => !v)}

@@ -4,7 +4,7 @@ import { turnBitState, liveTurnBlocks } from './turn-bit-state';
 
 const text: Block = { type: 'text', md: 'oi' };
 const think: Block = { type: 'thinking', text: 'hmm' };
-const tool = (status: 'running' | 'done' | 'error'): Block => ({ type: 'tool', tool: { id: 't', name: 'Bash', label: 'Bash', command: 'ls', status } });
+const tool = (status: 'running' | 'done' | 'error'): Block => ({ type: 'tool', tool: { id: 't', name: 'Bash', label: 'Bash', command: 'ls', output: [], status } });
 
 describe('turnBitState', () => {
   it('thinks while waiting for the first token', () => {

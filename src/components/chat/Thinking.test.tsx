@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, act } from '@testing-library/react';
-import { LiveStatsLine, fmtTokensK, spinnerGlyph, spinnerVerb, SPINNER_VERBS, ThinkingDots } from './Thinking';
+import { LiveStatsLine, fmtTokensK, spinnerVerb, SPINNER_VERBS, ThinkingDots } from './Thinking';
 
 describe('fmtTokensK', () => {
   it('formata compacto (cru, k, M)', () => {
@@ -41,22 +41,6 @@ describe('LiveStatsLine', () => {
   });
 });
 
-describe('spinnerGlyph', () => {
-  it('faz ping-pong na sequência (cresce e encolhe)', () => {
-    expect(spinnerGlyph(0)).toBe('·');
-    expect(spinnerGlyph(5)).toBe('✽');
-    expect(spinnerGlyph(6)).toBe('✻');
-    expect(spinnerGlyph(9)).toBe('✢');
-    expect(spinnerGlyph(10)).toBe('·');
-    expect(spinnerGlyph(11)).toBe('✢');
-  });
-
-  it('aceita tick negativo sem quebrar', () => {
-    expect(spinnerGlyph(-1)).toBe('✢');
-    expect(spinnerGlyph(-10)).toBe('·');
-  });
-});
-
 describe('spinnerVerb', () => {
   it('rotaciona com wrap pelo módulo', () => {
     expect(spinnerVerb(0)).toBe(SPINNER_VERBS[0]);
@@ -73,21 +57,17 @@ describe('ThinkingDots', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it('renderiza estrelinha + verbo com reticências', () => {
+  it('renders the verb with an ellipsis and no AI glyph', () => {
     const { container } = render(<ThinkingDots />);
-    const star = container.querySelector('.spinner-star');
-    expect(star).not.toBeNull();
-    expect(['·', '✢', '✳', '✶', '✻', '✽']).toContain(star!.textContent);
+    expect(container.querySelector('.spinner-star')).toBeNull();
+    expect(container.querySelector('svg.bit')).toBeNull();
     const verb = SPINNER_VERBS.find((v) => container.textContent?.includes(`${v}…`));
     expect(verb).toBeDefined();
   });
 
-  it('a estrelinha anima (glyph muda com o tempo)', () => {
-    const { container } = render(<ThinkingDots />);
-    const before = container.querySelector('.spinner-star')!.textContent;
-    act(() => vi.advanceTimersByTime(140));
-    const after = container.querySelector('.spinner-star')!.textContent;
-    expect(after).not.toBe(before);
+  it('shows the Bit in the given state when no avatar sits beside it', () => {
+    const { container } = render(<ThinkingDots bit="working" />);
+    expect(container.querySelector('svg.bit-working')).not.toBeNull();
   });
 
   it('compactando troca o verbo pela barra em movimento', () => {
