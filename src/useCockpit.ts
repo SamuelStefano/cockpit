@@ -1642,8 +1642,9 @@ export function useCockpit(): Cockpit {
   // auto=true marca envio de automação (flush da fila do cliente): o servidor
   // estaciona autos enquanto a sessão aguarda resposta de AskUserQuestion.
   const onSend = useCallback((text: string, modeOverride?: PermMode, auto?: boolean, allowWorkflow?: boolean): boolean => {
-    const key = activeRef.current;
-    if (!key) return false;
+    // A fresh install has no session at all: the composer is on screen, so the
+    // first message opens one instead of vanishing with the cleared composer.
+    const key = activeRef.current || onNew();
     // WS fechado: send() descartaria em silêncio DEPOIS do trabalho otimista —
     // bolha na tela, composer limpo e o servidor nunca recebeu nada. Guard antes
     // de qualquer mutação: avisa e devolve o texto pro composer.
@@ -1688,7 +1689,7 @@ export function useCockpit(): Cockpit {
     setDrafts((d) => ({ ...d, [key]: '' }));
     send(buildSendWire(key, resumeId.current[key], wire, msgId, modeOverride, auto, allowWorkflow));
     return true;
-  }, [send, updateThread, buildSendWire, noteSent]);
+  }, [send, updateThread, buildSendWire, noteSent, onNew]);
   const onApproveWorkflow = useCallback((text: string) => onSend(text, undefined, undefined, true), [onSend]);
   // Fecha a ponte usada pelo handoff-result (declarado acima do onSend).
   sendPromptRef.current = onSend;
