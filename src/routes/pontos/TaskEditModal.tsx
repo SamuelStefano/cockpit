@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Modal, Button, Input, Badge, toast } from '../../components/primitives';
+import { Modal, Button, Input, Badge, Checkbox, toast } from '../../components/primitives';
 import { usePontosControls } from './pontosControls';
 import { fmtPts } from './money';
 import { taskPointsEdit } from './task-points-edit';
@@ -18,9 +18,12 @@ export function TaskEditModal() {
   const [points, setPoints] = useState('');
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
+  // A paid task already sits on an invoice that will not be adjusted: a read
+  // warning was easy to miss, so saving takes an explicit tick.
+  const [ack, setAck] = useState(false);
 
   useEffect(() => {
-    if (selectedTask) { setPoints(String(selectedTask.points)); setReason(''); }
+    if (selectedTask) { setPoints(String(selectedTask.points)); setReason(''); setAck(false); }
   }, [selectedTask]);
 
   if (!selectedTask) return null;
@@ -28,9 +31,10 @@ export function TaskEditModal() {
   const m = statusMeta[t.status];
   const { next, valid, changed, willTruncate } = taskPointsEdit(points, t.points);
   const close = () => setSelectedTask(null);
+  const needsAck = t.status === 'paid' && !ack;
 
   const save = async () => {
-    if (!changed || saving) return;
+    if (!changed || saving || needsAck) return;
     setSaving(true);
     const r = await write.onDflChange({ taskId: t.id, taskName: t.name, currentPoints: t.points, newPoints: next, reason });
     setSaving(false);
@@ -47,7 +51,7 @@ export function TaskEditModal() {
       footer={
         <>
           <Button variant="ghost" onClick={close} disabled={saving}>Cancelar</Button>
-          <Button onClick={save} loading={saving} disabled={!changed}>Salvar pontos</Button>
+          <Button onClick={save} loading={saving} disabled={!changed || needsAck}>Salvar pontos</Button>
         </>
       }
     >
@@ -66,9 +70,10 @@ export function TaskEditModal() {
           <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="ex: alinhar com o invoice_item" />
         </label>
         {t.status === 'paid' && (
-          <p className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-[11.5px] text-yellow-200">
-            Task já faturada — mudar os pontos aqui não reajusta a fatura existente.
-          </p>
+          <div className="flex items-start gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-[11.5px] text-yellow-200">
+            <Checkbox checked={ack} onChange={setAck} label="Entendi: a fatura existente não muda" className="mt-0.5" />
+            <span>Task já faturada — mudar os pontos aqui não reajusta a fatura existente. Marque pra confirmar.</span>
+          </div>
         )}
         <p className="text-[11px] text-neutral-600">
           A mudança dispara o workflow oficial do DFL (aprovação automática como admin) e re-sincroniza.
