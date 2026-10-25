@@ -1,12 +1,14 @@
-export type BitState = 'idle' | 'wave' | 'thinking' | 'working' | 'happy' | 'sleeping' | 'error' | 'connecting';
+export type BitState = 'idle' | 'wave' | 'thinking' | 'working' | 'talking' | 'waiting' | 'happy' | 'sleeping' | 'error' | 'connecting';
 
-export const BIT_STATES: BitState[] = ['idle', 'wave', 'thinking', 'working', 'happy', 'sleeping', 'error', 'connecting'];
+export const BIT_STATES: BitState[] = ['idle', 'wave', 'thinking', 'working', 'talking', 'waiting', 'happy', 'sleeping', 'error', 'connecting'];
 
 export const BIT_STATE_LABEL: Record<BitState, string> = {
   idle: 'Bit, à disposição',
   wave: 'Bit dando oi',
   thinking: 'Bit pensando',
   working: 'Bit trabalhando',
+  talking: 'Bit escrevendo a resposta',
+  waiting: 'Bit esperando você',
   happy: 'Bit comemorando',
   sleeping: 'Bit dormindo',
   error: 'Bit preocupado',

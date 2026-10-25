@@ -11,6 +11,16 @@ function Eyes({ state }: { state: BitState }) {
   if (state === 'sleeping') {
     return <path d="M42 60q6 4 12 0M66 60q6 4 12 0" stroke={GLOW} strokeWidth={3.6} strokeLinecap="round" fill="none" opacity={0.6} />;
   }
+  if (state === 'waiting') {
+    return (
+      <g className="bit-pupils">
+        <rect x={43} y={50} width={10} height={14} rx={5} fill={GLOW} />
+        <rect x={67} y={50} width={10} height={14} rx={5} fill={GLOW} />
+        <circle cx={49} cy={53} r={2} fill="#fff" />
+        <circle cx={73} cy={53} r={2} fill="#fff" />
+      </g>
+    );
+  }
   if (state === 'error') {
     return (
       <g>
@@ -48,6 +58,10 @@ function Mouth({ state, clipId }: { state: BitState; clipId: string }) {
           </g>
         </g>
       );
+    case 'talking':
+      return <ellipse className="bit-mouth" cx={60} cy={78} rx={6} ry={4} fill={GLOW} />;
+    case 'waiting':
+      return <circle cx={60} cy={79} r={3} fill="none" stroke={GLOW} strokeWidth={2.6} />;
     case 'sleeping':
       return null;
     case 'error':
