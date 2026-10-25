@@ -37,16 +37,17 @@ describe('BotQuestionCard', () => {
     expect(onAnswer).toHaveBeenCalledWith('Aprovar como está');
   });
 
-  it('a bare letter answers when the composer is empty or unfocused, never over typed text', () => {
+  it('a bare letter answers only with focus outside the composer, never while typing', () => {
     const onAnswer = vi.fn(() => true);
     const r = mount(onAnswer);
     const ta = r.getByLabelText('composer') as HTMLTextAreaElement;
     ta.value = 'acho que';
     fireEvent.keyDown(ta, { key: 'c' });
+    ta.value = '';
+    fireEvent.keyDown(ta, { key: 'a' });
     fireEvent.keyDown(window, { key: 'c', ctrlKey: true });
     expect(onAnswer).not.toHaveBeenCalled();
-    ta.value = '';
-    fireEvent.keyDown(ta, { key: 'c' });
+    fireEvent.keyDown(window, { key: 'c' });
     expect(onAnswer).toHaveBeenCalledWith('Pedir um novo mockup antes');
   });
 
