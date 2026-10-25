@@ -5,6 +5,7 @@ import { EffortPicker } from './EffortPicker';
 import { BypassToggle } from './BypassToggle';
 import { SkillPicker } from './SkillPicker';
 import { McpPicker } from './McpPicker';
+import { isAgentModel } from '../../../shared/agents';
 import { ComposerSummaryChip } from './ComposerSummaryChip';
 import type { PermMode, Effort, ModelInfo, Caps, SkillMeta } from '../../../shared/protocol';
 
@@ -60,9 +61,15 @@ export function ChatInputToolbar({ mode, setMode, caps, bypass, setBypass, skill
         onClick={onOpenSettings} className="ml-auto sm:hidden"
       />
       <div className="ml-auto hidden shrink-0 items-center gap-x-2 sm:flex sm:min-w-0 sm:max-w-full sm:flex-wrap sm:justify-end sm:gap-y-1.5">
-        <McpPicker servers={mcpServers} selected={selectedMcps} setSelected={setSelectedMcps} />
-        <SkillPicker skills={skills} selected={selectedSkills} setSelected={setSelectedSkills} />
-        <EffortPicker effort={effort} setEffort={setEffort} />
+        {/* An ACP agent brings its own tools and reasoning: MCPs, Claude skills and
+            effort are never passed to it, so offering them would be a lie. */}
+        {!isAgentModel(model) && (
+          <>
+            <McpPicker servers={mcpServers} selected={selectedMcps} setSelected={setSelectedMcps} />
+            <SkillPicker skills={skills} selected={selectedSkills} setSelected={setSelectedSkills} />
+            <EffortPicker effort={effort} setEffort={setEffort} />
+          </>
+        )}
         <ModelPicker model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} canManage={caps?.role === 'admin' || caps?.role === 'root'} />
       </div>
     </div>

@@ -59,7 +59,7 @@ export function probeAgent(agent: AgentConfig): Promise<ProbeResult> {
       } catch (e) {
         if (isAuthError(e)) { settle({ status: 'needs-login', message: loginHint(agent.id, agent.name, 'depois clique em Testar') }); return; }
         const text = errorText(e);
-        const hint = setupHint(agent.id, text);
+        const hint = setupHint(agent.id, text, 'Depois clique em Testar.');
         settle(hint ? { status: 'needs-login', message: hint } : { status: 'error', message: text });
       }
     })().catch((e) => settle({ status: 'error', message: `handshake ACP falhou: ${errorText(e)}` }));
