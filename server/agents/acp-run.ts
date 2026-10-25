@@ -6,7 +6,7 @@ import { minimalEnv } from '../engine/claude';
 import type { ClaudeEvent } from '../engine/events';
 import { CONFIG } from '../config';
 import { sessionPath } from '../sessions/records';
-import { agentIdOf, agentModelId } from '../../shared/agents';
+import { agentIdOf, agentModelId, presetById } from '../../shared/agents';
 import { ACP_CLIENT_CAPABILITIES, ACP_PROTOCOL_VERSION, AcpError, isAuthError, startAcp } from './acp-client';
 import { closeDangling, mapUpdate, permissionOutcome, resultSubtype, type MapCtx } from './acp-events';
 import { findAgent, saveSessionLink, sessionLinkSync } from './store';
@@ -38,9 +38,9 @@ export const COMPAT_OFF: Record<string, string> = Object.fromEntries(
 );
 
 export function loginHint(agentId: string, name: string, then = 'depois mande de novo'): string {
-  const cmd = agentId === 'grok' ? 'grok login --device-auth' : agentId === 'codex' ? 'codex login --device-auth' : agentId === 'opencode' ? 'opencode auth login' : agentId === 'gemini' ? 'gemini' : null;
+  const cmd = findAgent(agentId)?.login ?? presetById(agentId)?.login;
   return cmd
-    ? `${name} não está logado nesta VPS. Abra um Terminal do Deck, rode \`${cmd}\` e confirme no navegador; ${then}.`
+    ? `${name} não está logado nesta VPS. Em Painel › Agentes, no passo Entrar, clique em "Rodar no terminal" (\`${cmd}\`) e confirme no navegador; ${then}.`
     : `${name} pediu login. Entre pelo próprio CLI num Terminal do Deck; ${then}.`;
 }
 
@@ -190,7 +190,7 @@ export function errorText(e: unknown): string {
 // storage)" privacy mode with a 403 inside a generic "Internal error".
 export function setupHint(agentId: string, text: string, then = 'Depois mande a mensagem de novo.'): string | null {
   if (agentId === 'grok' && /privacy mode|privacy-mode/i.test(text)) {
-    return `Sua conta do Grok está no modo de privacidade "Legacy", que o Grok Build não aceita. Num Terminal do Deck rode \`grok\`, digite \`/privacy\` e escolha Opt in ou Opt out (Opt out = a xAI não treina com o seu código). ${then}`;
+    return `Sua conta do Grok está no modo de privacidade "Legacy", que o Grok Build não aceita. No terminal do agente rode \`grok\`, digite \`/privacy\` e escolha Opt in ou Opt out (Opt out = a xAI não treina com o seu código). ${then}`;
   }
   return null;
 }

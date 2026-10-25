@@ -309,6 +309,8 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
       JSON.stringify({ t: 'admin-mcp-add', name: 'm', url: 'https://x' }),
       JSON.stringify({ t: 'admin-cli-install', name: 'x' }),
       JSON.stringify({ t: 'admin-deck-restart', mode: 'now' }),
+      JSON.stringify({ t: 'agent-add-custom', id: 'x', name: 'X', command: 'sh', args: ['-c', 'id'] }),
+      JSON.stringify({ t: 'agent-probe-draft', id: 'x', name: 'X', command: 'sh', args: [] }),
       '{"t":"points\\u002ddelete","entryId":"e"}',
     ];
     for (const r of ['admin', 'fellow'] as const) {
@@ -319,7 +321,7 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
       for (const f of owner) b.send(f);
       b.send(JSON.stringify({ t: 'admin-health' }));
       await wait((m) => m.t === 'echo' && m.saw === 'admin-health');
-      await expect(wait((m) => m.t === 'echo' && /^(points|pontos|drafts|admin-env|admin-mcp|admin-cli|admin-deck)/.test(m.saw ?? ''), 300)).rejects.toThrow();
+      await expect(wait((m) => m.t === 'echo' && /^(points|pontos|drafts|admin-env|admin-mcp|admin-cli|admin-deck|agent-add-custom|agent-probe-draft)/.test(m.saw ?? ''), 300)).rejects.toThrow();
       await wait((m) => m.t === 'error' && m.message === 'sem permissão');
       b.close();
     }
@@ -330,6 +332,8 @@ describe('relay integration (browser ↔ agent, per-account)', () => {
     await waitR((m) => m.t === 'caps');
     root.send(JSON.stringify({ t: 'points-add', title: 'x', points: 1 }));
     root.send(JSON.stringify({ t: 'admin-env-set', name: 'A', value: 'b' }));
+    root.send(JSON.stringify({ t: 'agent-add-custom', id: 'x', name: 'X', command: 'x', args: [] }));
+    expect((await waitR((m) => m.t === 'echo' && m.saw === 'agent-add-custom')).saw).toBe('agent-add-custom');
     expect((await waitR((m) => m.t === 'echo' && m.saw === 'points-add')).saw).toBe('points-add');
     expect((await waitR((m) => m.t === 'echo' && m.saw === 'admin-env-set')).saw).toBe('admin-env-set');
   });
