@@ -424,7 +424,7 @@ export interface TeamPendingQuestion { botId: string; sessionKey: string; questi
 export interface BotFile { path: string; size: number; mtime: number }
 // Aba Computador: não há VM por bot — o computador é esta máquina, e o que é do
 // bot é o workspace. `preview` = últimas linhas do terminal dele, já sem bytes de
-// controle; vazio quando o terminal ainda não existe.
+// controle; vazio quando o terminal ainda não existe ou o caller não é admin.
 export interface BotComputer {
   cwd: string;
   files: number;

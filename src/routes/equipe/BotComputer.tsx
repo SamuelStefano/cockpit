@@ -59,7 +59,7 @@ export function BotComputer({ bot, state, api, term, connected, isAdmin }: BotCo
               <XtermView id={botTermId(bot.id)} botId={bot.id} term={term} />
             </Suspense>
           </div>
-        ) : c.termAlive && c.preview.length ? (
+        ) : isAdmin && c.termAlive && c.preview.length ? (
           <pre aria-label="Prévia do terminal" className="max-h-56 overflow-auto whitespace-pre-wrap break-all px-3 py-2 font-mono text-[11px] leading-snug text-neutral-400">{c.preview.join('\n')}</pre>
         ) : (
           <p className="px-3 py-4 text-[12px] text-neutral-500">

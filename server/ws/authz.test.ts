@@ -32,6 +32,13 @@ describe('authorize', () => {
     expect(authorize('student', 'team-file-get')).toBe(true);
   });
 
+  it('student may poll grok usage like Claude, and read computer counts', () => {
+    expect(authorize('student', 'grok-usage-get')).toBe(true);
+    expect(authorize('student', 'plan-usage-get')).toBe(true);
+    expect(authorize('student', 'team-computer-get')).toBe(true);
+    expect(authorize('student', 'term-open')).toBe(false);
+  });
+
   it('default-deny: an unknown future message type is denied for student', () => {
     expect(authorize('student', 'totally-new-msg' as never)).toBe(false);
     expect(authorize('admin', 'totally-new-msg' as never)).toBe(true);

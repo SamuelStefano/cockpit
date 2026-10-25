@@ -58,6 +58,10 @@ export function handleTerm(
         });
         return true;
       }
+      // tmux -A ignores -c on an existing session. A bare open of bot-<id>
+      // would otherwise create the session in CONFIG.workdir and Assumir
+      // would reattach there while the tab still shows the bot cwd.
+      if (termId.startsWith('bot-')) { send(ws, { t: 'term-exit', termId }); return true; }
       if (!watch) { attach(); return true; }
       // A watch pane may first need its bare shell swapped for the follower; a
       // detach or a closed socket while that runs cancels the attach.

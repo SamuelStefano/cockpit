@@ -60,4 +60,10 @@ describe('term-open with botId (Assumir)', () => {
     handleTerm(ws, { t: 'term-open', termId: 'main', cols: 80, rows: 24 }, new Map());
     expect((term.openTerm.mock.calls[0] as unknown[])[7]).toBeUndefined();
   });
+
+  it('refuses a bot-* term-open without botId', () => {
+    handleTerm(ws, { t: 'term-open', termId: 'bot-capo1', cols: 80, rows: 24 }, new Map());
+    expect(term.openTerm).not.toHaveBeenCalled();
+    expect(sent.fn).toHaveBeenCalledWith(ws, { t: 'term-exit', termId: 'bot-capo1' });
+  });
 });

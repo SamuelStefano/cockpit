@@ -18,7 +18,7 @@ import { isRootOnly } from '../../shared/root-frames';
 const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   'send', 'stop', 'ping', 'list', 'sync', 'open', 'open-full', 'search',
   'ctx-list', 'ctx-open', 'skill-list', 'skill-open', 'usage-list', 'upload-chunk', 'att-open',
-  'refresh-models', 'plan-usage-get',
+  'refresh-models', 'plan-usage-get', 'grok-usage-get',
   // Read-only identity, not the admin-gated canvas-get graph build — needed
   // for the normal chat view's "this is the Orchestrator" banner.
   'orchestrator-get',
@@ -37,7 +37,8 @@ const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   // Read-only, limited to a bot in this account's team.json and to that bot's
   // workspace after realpath (ws/team-files-frames.ts, team-files.ts).
   'team-files-get', 'team-file-get',
-  // Counts and a plain-text pane snapshot of that same bot; taking over is term-*.
+  // Counts/cwd/state of that bot. Pane preview is emptied for student in
+  // sendBotComputer; taking over is term-* (admin-only).
   'team-computer-get',
 ]);
 

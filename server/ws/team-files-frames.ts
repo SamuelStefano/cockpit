@@ -1,5 +1,6 @@
 import type { WebSocket } from 'ws';
 import type { TeamBot } from '../../shared/protocol';
+import type { Role } from '../auth';
 import { getTeam } from '../team';
 import { listBotFiles, readBotFile } from '../team-files';
 import { botComputer } from '../team-computer';
@@ -28,10 +29,10 @@ export async function sendBotFile(ws: WebSocket, botId: unknown, path: unknown):
   else send(ws, { t: 'team-file', botId: echo, path: p, mime: r.mime, size: r.size, dataB64: r.dataB64 });
 }
 
-export async function sendBotComputer(ws: WebSocket, botId: unknown): Promise<void> {
+export async function sendBotComputer(ws: WebSocket, botId: unknown, role: Role = 'student'): Promise<void> {
   const id = ownBotId(await getTeam(), botId);
   const echo = typeof botId === 'string' ? botId : '';
   const r = id ? await botComputer(id) : { error: 'bot não encontrado' };
   if ('error' in r) send(ws, { t: 'team-computer', botId: echo, error: r.error });
-  else send(ws, { t: 'team-computer', botId: echo, computer: r });
+  else send(ws, { t: 'team-computer', botId: echo, computer: role === 'admin' ? r : { ...r, preview: [] } });
 }

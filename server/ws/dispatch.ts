@@ -818,7 +818,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       return;
     }
     case 'team-computer-get': {
-      await sendBotComputer(ws, msg.botId);
+      await sendBotComputer(ws, msg.botId, role ?? 'student');
       return;
     }
     case 'team-messages-get': {

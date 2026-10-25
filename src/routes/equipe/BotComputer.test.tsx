@@ -57,6 +57,11 @@ describe('BotComputer', () => {
     expect(r.getByText('Só admin assume o terminal.')).toBeTruthy();
   });
 
+  it('does not paint pane lines for a student even if the payload has them', () => {
+    const r = render(<BotComputer bot={bot} state="idle" api={api({ termAlive: true, preview: ['sk-secret'] })} term={term} connected isAdmin={false} />);
+    expect(r.queryByText('sk-secret')).toBeNull();
+  });
+
   it('says what failed instead of a blank tab', () => {
     const a: BotComputerApi = { botComputers: { capo1: { status: 'error', error: 'bot não encontrado' } }, onBotComputerGet: vi.fn() };
     const r = render(<BotComputer bot={bot} state="idle" api={a} term={term} connected isAdmin />);
