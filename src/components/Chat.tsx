@@ -75,7 +75,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
         keyboardOpen={keyboardOpen}
       />
 
-      {!claudeReady && <ClaudeAuthBanner onTerminal={onTerminal} />}
+      {!claudeReady && !isAgentModel(model) && <ClaudeAuthBanner onTerminal={onTerminal} />}
       {isOrchestratorSession(session?.id, orchestratorSessionId) && <OrchestratorSessionBanner />}
 
       {/* Wrapper relativo: as afordâncias de scroll ancoram no fim da ÁREA DE
