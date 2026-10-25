@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { closeDangling, mapUpdate, permissionOutcome, resultSubtype, toolBlockOf, type MapCtx } from './acp-events';
+import { retryNotice, closeDangling, mapUpdate, permissionOutcome, resultSubtype, toolBlockOf, type MapCtx } from './acp-events';
 
 const ctx = (): MapCtx => ({ sessionId: 'sid', tools: new Map() });
 
@@ -84,5 +84,16 @@ describe('resultSubtype', () => {
     expect(resultSubtype('end_turn')).toEqual({ subtype: 'success', isError: false });
     expect(resultSubtype('refusal')).toEqual({ subtype: 'refusal', isError: true });
     expect(resultSubtype('max_turn_requests').isError).toBe(true);
+  });
+});
+
+describe('retryNotice', () => {
+  it('turns a Grok capacity retry into a visible thinking line', () => {
+    const ev = retryNotice('_x.ai/session_notification', { update: { sessionUpdate: 'retry_state', type: 'retrying', attempt: 3, max_retries: 15, reason: 'API error (status 500): The model is currently at capacity due to high demand' } }, 'sid') as any;
+    expect(ev.event.delta.thinking).toMatch(/xAI sobrecarregado — tentando de novo \(3 de 15\)/);
+  });
+  it('ignores everything else', () => {
+    expect(retryNotice('session/update', { update: { sessionUpdate: 'retry_state' } }, 's')).toBeNull();
+    expect(retryNotice('_x.ai/session_notification', { update: { sessionUpdate: 'model_changed' } }, 's')).toBeNull();
   });
 });

@@ -126,3 +126,16 @@ export function resultSubtype(stopReason: unknown): { subtype: string; isError: 
     default: return { subtype: 'success', isError: false };
   }
 }
+
+// Grok retries an overloaded backend for minutes (up to 15 tries) and only says
+// so in an x.ai extension notification; without it the chat looks frozen.
+export function retryNotice(method: string, params: any, sessionId: string): ClaudeEvent | null {
+  const u = params?.update;
+  if (method !== '_x.ai/session_notification' || u?.sessionUpdate !== 'retry_state' || u.type !== 'retrying') return null;
+  const reason = typeof u.reason === 'string' && /capacity|high demand/i.test(u.reason)
+    ? 'servidor da xAI sobrecarregado'
+    : 'erro temporário no servidor do agente';
+  const of = Number.isFinite(u.max_retries) ? ` de ${u.max_retries}` : '';
+  const thinking = `\n⏳ ${reason} — tentando de novo (${u.attempt ?? '?'}${of})…\n`;
+  return { type: 'stream_event', session_id: sessionId, event: { type: 'content_block_delta', delta: { type: 'thinking_delta', thinking } as any } };
+}
