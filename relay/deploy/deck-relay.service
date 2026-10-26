@@ -1,7 +1,10 @@
-# systemd unit do relay T3, endurecida (squad de deploy, DR-023/024). Roda como um
-# usuário sem privilégio numa VPS isolada. O sandbox bloqueia exec/escrita-executável
-# — defesa-em-profundidade caso o relay seja comprometido (não deve nem conseguir
-# dropar um shell). Coloque em /etc/systemd/system/deck-relay.service e ajuste paths.
+# systemd unit do relay T3, endurecida. Roda como `relay` (sem shell, sem sudo) um
+# bundle único em /opt/deck-relay que pertence a root: o processo não consegue
+# reescrever o próprio código nem alcançar o admin do Caddy (socket unix, fora de
+# RestrictAddressFamilies). Instalada por relay/deploy/harden-host.sh.
+#
+# Sem MemoryDenyWriteExecute: o JIT do V8 precisa de páginas W+X e o Node morre
+# com ele ligado (a não ser com --jitless).
 
 [Unit]
 Description=Deck T3 relay
@@ -11,16 +14,16 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=relay
+Group=relay
 WorkingDirectory=/opt/deck-relay
-# Carrega SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, COCKPIT_ROOT_EMAILS, RELAY_PORT.
-EnvironmentFile=/opt/deck-relay/.env
+EnvironmentFile=/etc/deck-relay/env
 # createRelay recusa o stub de identidade (só teste) quando NODE_ENV=production.
 Environment=NODE_ENV=production
-ExecStart=/usr/bin/npx tsx relay/src/main.ts
+ExecStart=/opt/node22/bin/node /opt/deck-relay/main.mjs
 Restart=always
 RestartSec=3
+UMask=0077
 
-# --- Sandbox (endurecimento) ---
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
@@ -28,15 +31,25 @@ PrivateTmp=yes
 PrivateDevices=yes
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
+ProtectKernelLogs=yes
 ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
 RestrictNamespaces=yes
 RestrictSUIDSGID=yes
+RestrictRealtime=yes
 LockPersonality=yes
-MemoryDenyWriteExecute=yes
+RemoveIPC=yes
 RestrictAddressFamilies=AF_INET AF_INET6
 CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
 SystemCallFilter=@system-service
-SystemCallFilter=~@privileged @debug @mount @reboot @swap
+SystemCallFilter=~@privileged @debug @mount @reboot @swap @resources
+MemoryMax=512M
+TasksMax=64
 
 [Install]
 WantedBy=multi-user.target

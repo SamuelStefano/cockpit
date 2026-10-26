@@ -1,8 +1,31 @@
-# Caddy faz o TLS público (Let's Encrypt automático) e encaminha pro relay em
-# loopback. Troque o domínio. Browsers conectam em /ws, agentes em /agent — ambos
-# WSS, mesmo host. Inbound 443 só (ver deploy/README.md pro firewall).
+# Caddy faz o TLS público e encaminha pro relay em loopback. Browsers em /ws,
+# agentes em /agent — ambos WSS, mesmo host.
+{
+	# Admin API num socket unix: o relay (só AF_INET/AF_INET6) não alcança, e
+	# nenhum processo local reconfigura o proxy por 127.0.0.1:2019.
+	admin unix//run/caddy/admin.sock
+	# Clientes antigos ainda mandam o JWT em ?token=. O Caddy registra a URI nos
+	# erros de upstream mesmo sem diretiva `log`: o filtro tira o token de todo log.
+	log {
+		format filter {
+			wrap console
+			fields {
+				request>uri query {
+					delete token
+				}
+				request>headers>Sec-Websocket-Protocol delete
+				request>headers>Authorization delete
+			}
+		}
+	}
+}
 
 deck-relay.devfellowship.com {
 	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		-Server
+	}
 	reverse_proxy 127.0.0.1:8800
 }

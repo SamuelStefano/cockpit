@@ -11,3 +11,4 @@ cockpit-doc.pdf
 .vercel
 graphify-out/
 .claude/
+relay/deploy/dist/
