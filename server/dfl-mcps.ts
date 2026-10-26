@@ -15,8 +15,8 @@ const ADD_TIMEOUT_MS = 20_000;
 
 type Runner = (args: string[], timeoutMs: number) => Promise<string>;
 
-// Only touches the caller's own ~/.claude.json through the CLI (scope user): no
-// token or file path crosses the wire, so it is safe for any Deck account.
+// Writes only the box user's ~/.claude.json through the CLI (scope user): no
+// token or file path crosses the wire. Adding is admin-only (server/ws/authz.ts).
 const claude: Runner = async (args, timeout) => {
   const { stdout } = await run('claude', args, { timeout, env: { ...process.env, PATH: cliPath(), TERM: 'dumb' }, maxBuffer: 1024 * 1024 });
   return stdout;
