@@ -643,6 +643,10 @@ export interface DflPointsSnapshot {
   stale: boolean;          // DERIVADO no server: sync velho demais
 }
 
+export type ClaudeLoginState = 'waiting-url' | 'url' | 'verifying' | 'done' | 'error';
+
+export interface ClaudeLoginView { state: 'idle' | ClaudeLoginState; url?: string; error?: string }
+
 export type ClientMsg =
   // skills = ids das skills SELECIONADAS p/ este prompt (subconjunto de SkillMeta.id).
   // Vazio/ausente = todas ativas (default fail-open). O backend nega via permission
@@ -769,6 +773,9 @@ export type ClientMsg =
   | { t: 'registry-install'; reqId: string; items: RegistryRef[] }
   | { t: 'usage-list' }
   | { t: 'refresh-models' }
+  | { t: 'claude-login-start' }
+  | { t: 'claude-login-code'; code: string }
+  | { t: 'claude-login-cancel' }
   | { t: 'admin-health' }
   // Admin write-ops no host (#162, DR-023). Gated por role admin (authorize) e —
   // p/ cli-install (RCE) — por loopback (CONFIG.localOnly) no dispatch. Valor de
@@ -901,6 +908,7 @@ export type ServerMsg =
   // É fato do ENGINE (a VPS), não do viewer — por isso vai à parte do caps, que
   // o agente T3 não reanuncia.
   | { t: 'claude-auth'; ready: boolean }
+  | { t: 'claude-login'; state: ClaudeLoginState; url?: string; error?: string }
   // Relay T3 (DR-023): a VPS pareada da conta está online/offline. O browser usa
   // pra mostrar o dashboard de pareamento quando não há agente atendendo.
   | { t: 'agent-online' }

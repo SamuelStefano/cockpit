@@ -19,6 +19,8 @@ const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   'send', 'stop', 'ping', 'list', 'sync', 'open', 'open-full', 'search',
   'ctx-list', 'ctx-open', 'skill-list', 'skill-open', 'usage-list', 'upload-chunk', 'att-open',
   'refresh-models', 'plan-usage-get', 'grok-usage-get',
+  // Logs in the box's own CLI with a code only the human holds: no privilege gained.
+  'claude-login-start', 'claude-login-code', 'claude-login-cancel',
   // Read-only identity, not the admin-gated canvas-get graph build — needed
   // for the normal chat view's "this is the Orchestrator" banner.
   'orchestrator-get',

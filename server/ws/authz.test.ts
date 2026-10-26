@@ -39,6 +39,12 @@ describe('authorize', () => {
     expect(authorize('student', 'term-open')).toBe(false);
   });
 
+  it('student may log the box Claude CLI in', () => {
+    for (const t of ['claude-login-start', 'claude-login-code', 'claude-login-cancel'] as const) {
+      expect(authorize('student', t)).toBe(true);
+    }
+  });
+
   it('default-deny: an unknown future message type is denied for student', () => {
     expect(authorize('student', 'totally-new-msg' as never)).toBe(false);
     expect(authorize('admin', 'totally-new-msg' as never)).toBe(true);
