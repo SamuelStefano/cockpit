@@ -115,3 +115,22 @@ describe('isEd25519Spki', () => {
     expect(isEd25519Spki('')).toBe(false);
   });
 });
+
+describe('root pinned by user id', () => {
+  const base = { iss: ISS, sub: 'uid-root', email: 'boss@dfl.com', aud: 'authenticated', exp: NOW + 3600, email_verified: true };
+  const opts = { iss: ISS, nowSec: NOW, rootEmails: parseRootEmails('boss@dfl.com'), isAdmin: false };
+
+  it('keeps root when sub is listed', () => {
+    expect(validateClaims(base, { ...opts, rootUserIds: new Set(['uid-root']) })?.role).toBe('root');
+  });
+  it('a root e-mail with an unlisted sub falls back to fellow, or admin when flagged', () => {
+    const ids = new Set(['uid-root']);
+    const imposter = { ...base, sub: 'uid-imposter' };
+    expect(validateClaims(imposter, { ...opts, rootUserIds: ids })?.role).toBe('fellow');
+    expect(validateClaims(imposter, { ...opts, rootUserIds: ids, isAdmin: true })?.role).toBe('admin');
+  });
+  it('an empty or absent id set changes nothing', () => {
+    expect(validateClaims({ ...base, sub: 'anyone' }, { ...opts, rootUserIds: new Set() })?.role).toBe('root');
+    expect(validateClaims({ ...base, sub: 'anyone' }, opts)?.role).toBe('root');
+  });
+});

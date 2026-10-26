@@ -20,7 +20,7 @@ export interface Identity {
 // null em qualquer falha → o chamador trata como identidade falha → fellow.
 export function validateClaims(
   claims: Record<string, unknown> | null | undefined,
-  opts: { iss: string; nowSec: number; rootEmails: ReadonlySet<string>; isAdmin: boolean },
+  opts: { iss: string; nowSec: number; rootEmails: ReadonlySet<string>; rootUserIds?: ReadonlySet<string>; isAdmin: boolean },
 ): Identity | null {
   if (!claims) return null;
   const { iss, sub, email, aud, exp } = claims as {
@@ -31,7 +31,10 @@ export function validateClaims(
   if (!auds.includes('authenticated')) return null;
   if (typeof exp !== 'number' || exp <= opts.nowSec) return null;
   if (!sub || !email) return null;
-  const role = roleFromIdentity(email, opts.isAdmin, opts.rootEmails, emailVerified(claims));
+  // Root also pinned by id: a fresh sign-up with a root e-mail has a different sub, so
+  // with the id list set it gets no root and falls through to admin/fellow.
+  const pinned = !opts.rootUserIds || opts.rootUserIds.size === 0 || opts.rootUserIds.has(sub);
+  const role = roleFromIdentity(email, opts.isAdmin, pinned ? opts.rootEmails : new Set(), emailVerified(claims));
   return { accountId: sub, email, role, expMs: exp * 1000 };
 }
 

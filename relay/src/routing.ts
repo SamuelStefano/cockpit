@@ -141,6 +141,19 @@ export class Registry {
     return n;
   }
 
+  // Sealed frame (T5) → the ONE tab its channel belongs to, and only if that
+  // tab is in the same account as the agent that sent it. The relay can't read
+  // the frame; `droppable` is the agent's plaintext hint for backpressure.
+  toBrowser(accountId: string, sock: Sock, data: string, droppable: boolean): boolean {
+    const b = this.byAccount.get(accountId);
+    if (!b || !b.browsers.has(sock)) return false;
+    if (sock.readyState !== undefined && sock.readyState !== OPEN) return false;
+    if (overHardCap(sock)) return false;
+    if (droppable && sock.bufferedAmount !== undefined && sock.bufferedAmount > BACKPRESSURE_BYTES) return false;
+    sock.send(data);
+    return true;
+  }
+
   stats(): { accounts: number; agents: number; browsers: number } {
     let agents = 0, browsers = 0;
     for (const b of this.byAccount.values()) { if (b.agent) agents++; browsers += b.browsers.size; }

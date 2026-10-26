@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage } from 'node:http';
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Registry } from './routing';
 import {
@@ -7,6 +7,7 @@ import {
   type JwksFn, type Identity,
 } from './verify';
 import { slidingWindow } from './throttle';
+import { parseCsvSet, clientIp, originAllowed, tokenFromSubprotocol, pickSubprotocol, rawLength, makeLimiter } from './guards';
 import { parseRootEmails, canSeeAllAccounts, canGrantAdmin, canListAccounts, type AccountRole } from '../../shared/identity';
 import { isRootOnlyFrame } from '../../shared/root-frames';
 
@@ -43,6 +44,12 @@ export interface RelayConfig {
   iss: string;            // issuer esperado do JWT (…/auth/v1)
   jwksUrl: string;        // JWKS do projeto Supabase
   rootEmails: string;     // CSV (COCKPIT_ROOT_EMAILS)
+  // CSV of Supabase user ids (COCKPIT_ROOT_USER_IDS). Non-empty = root also needs sub in it.
+  rootUserIds?: string;
+  // CSV of exact origins (DECK_ALLOWED_ORIGINS). Empty = any origin (legacy).
+  allowedOrigins?: string;
+  maxSocketsPerIp?: number;     // DECK_MAX_SOCKETS_PER_IP, default 64
+  maxTabsPerAccount?: number;   // DECK_MAX_TABS_PER_ACCOUNT, default 20
   store: RelayStore;
   maxPayload?: number;
   // Segredo do /status detalhado (DECK_STATUS_TOKEN). Ausente = só o corpo público.
@@ -75,8 +82,18 @@ export function createRelay(cfg: RelayConfig) {
   const boundAgentId = new Map<string, { ws: WebSocket; agentId: string }>();
   const startedAt = nowMs();
   const roots = parseRootEmails(cfg.rootEmails);
+  const rootIds = parseCsvSet(cfg.rootUserIds);
+  const origins = parseCsvSet(cfg.allowedOrigins);
+  const acquireIp = makeLimiter(cfg.maxSocketsPerIp ?? 64);
+  const maxTabs = cfg.maxTabsPerAccount ?? 20;
+  // Agents send no Origin and the sealed channel is opaque: 16KB is far above any
+  // legitimate handshake frame (hello/auth/pair) and bounds what an unauthed peer can push.
+  const AGENT_PREAUTH_MAX = 16 * 1024;
   const jwks: JwksFn = makeJwks(cfg.jwksUrl);
   const pairThrottle = slidingWindow(5, 60_000);
+  // Sealed channels (T5) are per tab: each browser socket gets a routing id the
+  // agent addresses its encrypted frames to. Random, never derived from the JWT.
+  const conns = new Map<string, { ws: WebSocket; accountId: string }>();
 
   // canBypass é capacidade LOCAL do agente (allowBypass + localOnly + role admin do
   // agente); o relay não tem como saber, então o agente reporta via 'agent-caps'.
@@ -101,7 +118,7 @@ export function createRelay(cfg: RelayConfig) {
       if (!token) return null;
       const payload = await verifyJwtSignature(token, jwks, cfg.iss);
       const isAdmin = payload?.sub ? await cfg.store.isAdmin(String(payload.sub)) : false;
-      return validateClaims(payload, { iss: cfg.iss, nowSec: Math.floor(nowMs() / 1000), rootEmails: roots, isAdmin });
+      return validateClaims(payload, { iss: cfg.iss, nowSec: Math.floor(nowMs() / 1000), rootEmails: roots, rootUserIds: rootIds, isAdmin });
     } catch (e) {
       console.error('[relay] identityFrom:', e);
       return null;
@@ -112,7 +129,9 @@ export function createRelay(cfg: RelayConfig) {
   // dispara preflight OPTIONS e exige ACAO na resposta. A fronteira de segurança
   // aqui é o JWT (não o CORS), então refletimos a Origin do chamador.
   const setCors = (req: IncomingMessage, res: import('node:http').ServerResponse) => {
-    res.setHeader('access-control-allow-origin', req.headers.origin ?? '*');
+    const origin = req.headers.origin;
+    if (origins.size === 0) res.setHeader('access-control-allow-origin', origin ?? '*');
+    else if (origin && origins.has(origin)) res.setHeader('access-control-allow-origin', origin);
     res.setHeader('vary', 'Origin');
     res.setHeader('access-control-allow-methods', 'POST, OPTIONS');
     res.setHeader('access-control-allow-headers', 'authorization, content-type');
@@ -164,7 +183,7 @@ export function createRelay(cfg: RelayConfig) {
   // Upload vai INLINE como frame WS (base64, +33%). O hop browser→relay precisa
   // acomodar o mesmo teto do agente/backend (32MB) — antes era 4MB e DERRUBAVA o
   // socket (close 1009) em qualquer anexo >~3MB que todo o resto da cadeia aceitaria.
-  const wssBrowser = new WebSocketServer({ noServer: true, maxPayload: cfg.maxPayload ?? 32 * 1024 * 1024 });
+  const wssBrowser = new WebSocketServer({ noServer: true, maxPayload: cfg.maxPayload ?? 32 * 1024 * 1024, handleProtocols: pickSubprotocol });
   const wssAgent = new WebSocketServer({ noServer: true, maxPayload: cfg.maxPayload ?? 32 * 1024 * 1024 });
 
   // ── Browser path: JWT → accountId, route command frames to that account's agent.
@@ -192,7 +211,7 @@ export function createRelay(cfg: RelayConfig) {
     const authTimer = setTimeout(() => { try { ws.close(4408, 'auth timeout'); } catch { /* indo */ } }, 20_000);
     authTimer.unref?.();
 
-    const id = await identityFrom(tokenFromUrl(req.url));
+    const id = await identityFrom(tokenFromSubprotocol(req.headers['sec-websocket-protocol']) ?? tokenFromUrl(req.url));
     clearTimeout(authTimer);
     // The socket may have closed during the await (F5, pre-auth flood, auth
     // timeout). Its 'close' already fired with no listener, so registering it now
@@ -201,7 +220,15 @@ export function createRelay(cfg: RelayConfig) {
     if (ws.readyState !== WebSocket.OPEN) return;
     if (!id) { ws.close(4401, 'auth'); return; }            // default-deny (red line #10)
     const accountId = id.accountId;
+    // Checked and registered with no await in between, so concurrent opens can't overshoot.
+    if (registry.browserCount(accountId) >= maxTabs) { ws.close(4429, 'too many tabs'); return; }
     (ws as BrowserSock)._role = id.role;                     // pra reemitir caps no agent-caps
+    const connId = randomBytes(16).toString('base64url');
+    conns.set(connId, { ws, accountId });
+    ws.on('close', () => {
+      conns.delete(connId);
+      registry.toAgent(accountId, JSON.stringify({ t: 'e2e-gone', c: connId }));
+    });
     // Close at the JWT's expiry with a non-4401 code: the client redials with its
     // (refreshed) token; an expired/revoked one then gets 4401.
     // Delays past 2^31-1 ms (~24.8 days) make setTimeout fire at once: a long-lived
@@ -222,6 +249,12 @@ export function createRelay(cfg: RelayConfig) {
     ws.send(JSON.stringify({ t: registry.hasAgent(accountId) ? 'agent-online' : 'agent-offline' }));
 
     const onFrame = async (s: string) => {
+      // Sealed frame: opaque to the relay. The channel id is APPENDED, so it is
+      // the last "c" key and wins over any "c" the browser put in the frame.
+      if (s.startsWith('{"t":"e2e') && s.endsWith('}')) {
+        if (!registry.toAgent(accountId, `${s.slice(0, -1)},"c":"${connId}"}`)) ws.send(JSON.stringify({ t: 'agent-offline' }));
+        return;
+      }
       // Frames de administração de CONTA (T3): tratados NO RELAY (só ele tem a
       // service-role do Supabase). Gate por papel da conta vindo do JWT — nunca
       // do frame. Não são repassados ao agente (que não tem acesso ao banco).
@@ -293,6 +326,7 @@ export function createRelay(cfg: RelayConfig) {
     const authTimer = setTimeout(() => { if (!st.authed) { try { ws.close(4408, 'auth timeout'); } catch { /* indo */ } } }, 15_000);
     authTimer.unref?.();
     const onAgentFrame = async (raw: import('ws').RawData) => {
+      if (!st.authed && rawLength(raw) > AGENT_PREAUTH_MAX) { try { ws.close(4413, 'pre-auth frame too large'); } catch { /* indo */ } return; }
       let m: { t?: string; agentId?: string; sig?: string; code?: string; publicKey?: string } = {};
       try { m = JSON.parse(raw.toString()); } catch { return; }
       if (!st.authed) {
@@ -375,6 +409,16 @@ export function createRelay(cfg: RelayConfig) {
           return;
         }
       }
+      // Sealed frame for one tab: `{"c":"<22 chars>","p":0|1,...`. Routed by the
+      // prefix alone (frames run to 32MB; no parse on the hot path), and only to
+      // a tab of this agent's own account. The `c` is stripped: the tab never
+      // needs it and must not learn other tabs' ids.
+      const directed = /^\{"c":"([A-Za-z0-9_-]{22})"(?:,"p":([01]))?,/.exec(s.slice(0, 40));
+      if (directed) {
+        const conn = conns.get(directed[1]);
+        if (conn && conn.accountId === st.accountId) registry.toBrowser(st.accountId, conn.ws, `{${s.slice(directed[0].length)}`, directed[2] === '1');
+        return;
+      }
       // Autenticado: frame do agente → as abas DAQUELA conta (escopo por conta).
       registry.toBrowsers(st.accountId, s);
     };
@@ -404,6 +448,18 @@ export function createRelay(cfg: RelayConfig) {
     const path = (req.url ?? '').split('?')[0];
     const target = path === '/agent' ? wssAgent : path === '/ws' ? wssBrowser : null;
     if (!target) { socket.destroy(); return; }
+    // Browsers always send Origin; a cross-site page must not open a socket with the
+    // user's token. Agents send none (allowed); a foreign Origin on /agent is rejected too.
+    if (!originAllowed(origins, req.headers.origin)) {
+      socket.end('HTTP/1.1 403 Forbidden\r\nconnection: close\r\ncontent-length: 0\r\n\r\n');
+      return;
+    }
+    const release = acquireIp(clientIp(req));
+    if (!release) {
+      socket.end('HTTP/1.1 429 Too Many Requests\r\nconnection: close\r\ncontent-length: 0\r\n\r\n');
+      return;
+    }
+    socket.once('close', release);
     target.handleUpgrade(req, socket, head, (ws) => target.emit('connection', ws, req));
   });
 
