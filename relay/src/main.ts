@@ -17,10 +17,21 @@ const rootEmails = process.env.COCKPIT_ROOT_EMAILS ?? '';
 const port = Number(process.env.RELAY_PORT ?? '8800');
 const host = process.env.RELAY_HOST ?? '127.0.0.1';
 
+function positiveInt(name: string): number | undefined {
+  const n = Number(process.env[name]);
+  return Number.isInteger(n) && n > 0 ? n : undefined;
+}
+
+if (!process.env.DECK_ALLOWED_ORIGINS?.trim()) console.warn('[relay] DECK_ALLOWED_ORIGINS unset: any origin accepted');
+
 const { server, shutdown } = createRelay({
   iss: `${supabaseUrl}/auth/v1`,
   jwksUrl: `${supabaseUrl}/auth/v1/.well-known/jwks.json`,
   rootEmails,
+  rootUserIds: process.env.COCKPIT_ROOT_USER_IDS,
+  allowedOrigins: process.env.DECK_ALLOWED_ORIGINS,
+  maxSocketsPerIp: positiveInt('DECK_MAX_SOCKETS_PER_IP'),
+  maxTabsPerAccount: positiveInt('DECK_MAX_TABS_PER_ACCOUNT'),
   store: supabaseStore({ url: supabaseUrl, serviceKey }),
   statusToken: process.env.DECK_STATUS_TOKEN,
 });

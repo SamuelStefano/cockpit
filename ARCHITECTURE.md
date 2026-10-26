@@ -51,6 +51,17 @@ custo por usuário fica plano (não centraliza inferência num servidor só).
 - **Browser → relay**: JWT do Supabase, verificado no relay via **JWKS** (`relay/src/verify.ts`).
   `roleFromIdentity` resolve o papel: **root** (allowlist por env `COCKPIT_ROOT_EMAILS`),
   **admin** (flag `is_admin` no DB), ou **fellow**. Default-deny: sem JWT válido, fecha 4401.
+  Com `COCKPIT_ROOT_USER_IDS` (CSV de UUIDs) não vazio, root exige e-mail na allowlist **e** `sub`
+  na lista: quem se cadastra com e-mail root mas outro id cai pra admin/fellow.
+- **Origem e limites**: `DECK_ALLOWED_ORIGINS` (CSV de origens exatas) barra no upgrade de `/ws` e
+  `/agent` qualquer `Origin` fora da lista (sem `Origin` passa: agente não é browser) e só reflete
+  origens listadas no CORS de `/pair/new`; vazio = qualquer origem (aviso no boot). Teto de
+  sockets por IP (`DECK_MAX_SOCKETS_PER_IP`, 64; IP = último `X-Forwarded-For` se o peer é loopback)
+  e de abas por conta (`DECK_MAX_TABS_PER_ACCOUNT`, 20; a nova fecha 4429). Frame de agente
+  > 16 KB antes da auth fecha 4413.
+- **JWT no WS**: o cliente oferece `['deck.v1', 'bearer.<JWT>']` em `Sec-WebSocket-Protocol`; o relay
+  seleciona `deck.v1` e lê o token do `bearer.`. `?token=` segue como fallback (clientes antigos) e
+  perde pro subprotocolo; ele vaza no access log do Caddy, então o SPA deve migrar.
 - **Agent → relay**: handshake **Ed25519 challenge-response**. O agente manda `agent-hello`
   com seu `agentId`; o relay devolve um `challenge` (nonce); o agente assina `nonce.agentId`
   com a privada; o relay verifica contra a pubkey guardada no Store. (`relay/src/index.ts` path `/agent`.)

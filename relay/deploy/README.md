@@ -18,6 +18,9 @@ cat > /opt/deck-relay/.env <<EOF
 SUPABASE_URL=https://ikxtdssxmcgipyfpwmar.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=<service-role do deck-relay (dashboard → API)>
 COCKPIT_ROOT_EMAILS=samuelstefanodocarmo@gmail.com
+COCKPIT_ROOT_USER_IDS=<uuid do usuário root no Supabase>
+DECK_ALLOWED_ORIGINS=https://<origem do SPA>
+# opcionais: DECK_MAX_SOCKETS_PER_IP (64), DECK_MAX_TABS_PER_ACCOUNT (20)
 RELAY_PORT=8800
 EOF
 chmod 600 /opt/deck-relay/.env
