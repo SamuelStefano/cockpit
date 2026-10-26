@@ -103,4 +103,62 @@ describe('agent-setup.sh', () => {
     expect(fonte).toContain('StartLimitBurst=5');
     expect(fonte).toContain('StartLimitIntervalSec=300');
   });
+
+  // Stub node that answers `-p` (version probe) with a fixed version.
+  function stubNode(dir: string, versao: string): void {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'node'), `#!/bin/sh\necho ${versao}\n`, { mode: 0o755 });
+  }
+  function sentinelas(bin: string, cmds: string[]): void {
+    for (const cmd of cmds) {
+      writeFileSync(join(bin, cmd), `#!/bin/sh\necho "SENTINEL: ${cmd} reached" >&2\nexit 99\n`, { mode: 0o755 });
+    }
+  }
+  function rodarPickNode(home: string, bin: string): { status: number | null; saida: string; dir: string } {
+    const r = spawnSync('bash', ['-c', [
+      'set -uo pipefail',
+      extrairFuncao('pick_node'),
+      'pick_node || exit 3',
+      'echo "DIR=$NODE_DIR HOW=$NODE_HOW"',
+    ].join('\n')], { env: { HOME: home, PATH: `${bin}:/usr/bin:/bin` }, encoding: 'utf8' });
+    return { status: r.status, saida: `${r.stdout}${r.stderr}`, dir: /DIR=(\S*)/.exec(r.stdout)?.[1] ?? '' };
+  }
+
+  it('pick_node reaproveita o node do PATH (v22) sem chamar curl', () => {
+    const { home, bin } = caixa('pick-path', '#!/bin/sh\n');
+    stubNode(bin, '22.1.0');
+    sentinelas(bin, ['curl', 'sudo', 'apt-get']);
+    const r = rodarPickNode(home, bin);
+    expect(r.saida).not.toContain('SENTINEL');
+    expect(r.status).toBe(0);
+    expect(r.dir).toBe(bin);
+    expect(r.saida).toContain('HOW=reuse');
+  });
+
+  it('pick_node troca um node v18 do PATH pelo do nvm (v20)', () => {
+    const { home, bin } = caixa('pick-nvm', '#!/bin/sh\n');
+    stubNode(bin, '18.19.0');
+    const nvmBin = join(home, '.nvm/versions/node/v20.11.0/bin');
+    stubNode(nvmBin, '20.11.0');
+    sentinelas(bin, ['curl']);
+    const r = rodarPickNode(home, bin);
+    expect(r.saida).not.toContain('SENTINEL');
+    expect(r.status).toBe(0);
+    expect(r.dir).toBe(nvmBin);
+  });
+
+  it('DECK_DRY_RUN=1 imprime o plano e não alcança nenhum instalador', () => {
+    const { home, bin } = caixa('dry', '#!/bin/sh\n');
+    stubNode(bin, '22.1.0');
+    for (const cmd of ['git', 'curl', 'claude', 'systemctl']) {
+      writeFileSync(join(bin, cmd), `#!/bin/sh\necho "SENTINEL: ${cmd} executed" >&2\nexit 99\n`, { mode: 0o755 });
+    }
+    sentinelas(bin, ['sudo', 'apt-get', 'dnf', 'yum', 'npm', 'npx', 'crontab']);
+    const r = spawnSync('bash', [SCRIPT], { env: { HOME: home, PATH: `${bin}:/usr/bin:/bin`, DECK_DRY_RUN: '1' }, encoding: 'utf8' });
+    expect(r.stderr).not.toContain('SENTINEL');
+    expect(r.status).toBe(0);
+    for (const alvo of ['git:', 'curl:', 'node:', 'build tools:', 'claude:', 'systemd unit:']) expect(r.stdout).toContain(alvo);
+    expect(r.stdout).toContain('node: reaproveita');
+    expect(r.stdout).toContain('claude: reaproveita');
+  });
 });
