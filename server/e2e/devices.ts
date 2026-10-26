@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { ENROLL_TTL_MS, checkRequest, newEnrollCode } from '../../shared/e2e/enroll';
 import { fromB64, toB64, type Bytes } from '../../shared/e2e/bytes';
+import { withFileLockSync } from '../../shared/file-lock';
 
 // Devices allowed to open a sealed channel to this agent. Lives next to the
 // agent's private key and is only ever written from this box: from the CLI, or
@@ -11,6 +12,9 @@ import { fromB64, toB64, type Bytes } from '../../shared/e2e/bytes';
 const DIR = () => process.env.DECK_AGENT_DIR || join(homedir(), '.deck-agent');
 const DEVICES = () => join(DIR(), 'devices.json');
 const CODES = () => join(DIR(), 'enroll-codes.json');
+// lastSeen lives apart from the trust list: a busy handshake rewriting the
+// trust file could otherwise put back a device the CLI had just revoked.
+const SEEN = () => join(DIR(), 'devices-seen.json');
 const MAX_PENDING = 5;
 
 export interface Device { pub: string; label: string; addedAt: string; lastSeen?: string }
@@ -27,29 +31,33 @@ function writeJson(path: string, value: unknown): void {
   renameSync(tmp, path);
 }
 
-export function listDevices(): Device[] {
+function trusted(): Device[] {
   const d = readJson<Device[]>(DEVICES(), []);
   return Array.isArray(d) ? d.filter((x) => typeof x?.pub === 'string') : [];
 }
 
-export function isEnrolled(pub: string): boolean {
-  return listDevices().some((d) => d.pub === pub);
+export function listDevices(): Device[] {
+  const seen = readJson<Record<string, string>>(SEEN(), {});
+  return trusted().map((d) => ({ ...d, lastSeen: seen[d.pub] }));
 }
 
+export function isEnrolled(pub: string): boolean {
+  return trusted().some((d) => d.pub === pub);
+}
+
+// The CLI and the running agent are two processes writing the same file.
 export function revokeDevice(pub: string): boolean {
-  const all = listDevices();
-  const left = all.filter((d) => d.pub !== pub);
-  if (left.length === all.length) return false;
-  writeJson(DEVICES(), left);
-  return true;
+  return withFileLockSync(DEVICES(), () => {
+    const all = trusted();
+    const left = all.filter((d) => d.pub !== pub);
+    if (left.length === all.length) return false;
+    writeJson(DEVICES(), left);
+    return true;
+  });
 }
 
 export function touchDevice(pub: string, now = new Date()): void {
-  const all = listDevices();
-  const d = all.find((x) => x.pub === pub);
-  if (!d) return;
-  d.lastSeen = now.toISOString();
-  writeJson(DEVICES(), all);
+  withFileLockSync(SEEN(), () => writeJson(SEEN(), { ...readJson<Record<string, string>>(SEEN(), {}), [pub]: now.toISOString() }));
 }
 
 function livePending(now: number): PendingCode[] {
@@ -59,7 +67,7 @@ function livePending(now: number): PendingCode[] {
 export async function createEnrollCode(agentPub: Bytes, now = Date.now()): Promise<{ code: string; expiresAt: number }> {
   const { code, secret } = await newEnrollCode(agentPub);
   const expiresAt = now + ENROLL_TTL_MS;
-  writeJson(CODES(), [...livePending(now).slice(-(MAX_PENDING - 1)), { secret: toB64(secret), expiresAt }]);
+  withFileLockSync(CODES(), () => writeJson(CODES(), [...livePending(now).slice(-(MAX_PENDING - 1)), { secret: toB64(secret), expiresAt }]));
   return { code, expiresAt };
 }
 
@@ -76,17 +84,27 @@ export function redeemEnrollCode(
 }
 
 async function redeemNow(agentPub: Bytes, devicePub: Bytes, label: string, mac: Bytes, now: number): Promise<Bytes | null> {
-  const pending = livePending(now);
-  for (const p of pending) {
-    const secret = fromB64(p.secret);
-    if (!(await checkRequest(secret, agentPub, devicePub, label, mac))) continue;
-    writeJson(CODES(), pending.filter((x) => x !== p));
-    const pub = toB64(devicePub);
-    const rest = listDevices().filter((d) => d.pub !== pub);
-    writeJson(DEVICES(), [...rest, { pub, label: cleanLabel(label), addedAt: new Date(now).toISOString() }]);
-    return secret;
+  let match: string | null = null;
+  for (const p of livePending(now)) {
+    if (await checkRequest(fromB64(p.secret), agentPub, devicePub, label, mac)) { match = p.secret; break; }
   }
-  return null;
+  if (!match) return null;
+  const secret = match;
+  // Burn under the lock and only if the code is still there: another process
+  // (or a code expiry) may have consumed it while the MAC was being checked.
+  const burnt = withFileLockSync(CODES(), () => {
+    const left = livePending(now);
+    if (!left.some((p) => p.secret === secret)) return false;
+    writeJson(CODES(), left.filter((p) => p.secret !== secret));
+    return true;
+  });
+  if (!burnt) return null;
+  const pub = toB64(devicePub);
+  withFileLockSync(DEVICES(), () => {
+    const rest = trusted().filter((d) => d.pub !== pub);
+    writeJson(DEVICES(), [...rest, { pub, label: cleanLabel(label), addedAt: new Date(now).toISOString() }]);
+  });
+  return fromB64(secret);
 }
 
 export function cleanLabel(label: string): string {

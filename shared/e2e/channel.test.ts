@@ -54,15 +54,29 @@ describe('sealed channel', () => {
     expect(await b.open(await a.seal('{"t":"delta"}'))).toBe('{"t":"delta"}');
   });
 
-  it('tolerates a dropped frame but refuses replay and reorder', async () => {
+  it('tolerates a dropped droppable frame but refuses replay and reorder', async () => {
     const { a, b } = await handshake();
-    const f1 = await b.seal('one');
+    const f1 = await b.seal('delta', false);
     const f2 = await b.seal('two');
     const f3 = await b.seal('three');
     expect(await a.open(f2)).toBe('two');
     await expect(a.open(f1)).rejects.toThrow();
     await expect(a.open(f2)).rejects.toThrow();
     expect(await a.open(f3)).toBe('three');
+  });
+
+  it('detects a dropped critical frame (a keystroke, a stop)', async () => {
+    const { a, b } = await handshake();
+    expect(await a.open(await b.seal('rm -rf '))).toBe('rm -rf ');
+    await b.seal('.');
+    await expect(a.open(await b.seal('/build'))).rejects.toThrow('critical frame missing');
+  });
+
+  it('detects a dropped critical frame behind droppable ones', async () => {
+    const { a, b } = await handshake();
+    await b.seal('done');
+    const d = await b.seal('delta', false);
+    await expect(a.open(d)).rejects.toThrow('critical frame missing');
   });
 
   it('refuses a tampered payload or a bumped sequence', async () => {

@@ -35,7 +35,7 @@ import { startDflPointsWatch } from './dfl-points-watch';
 import { startDflDraftsWatch } from './dfl-drafts-watch';
 import { loadManagedEnv } from './admin-ops';
 import { startAutoPauseLoop } from './canvas/autopause-loop';
-import { SealedHub, agentKeysFrom, type AgentKeys } from './e2e/hub';
+import { SealedHub, loadE2eKeys, type AgentKeys } from './e2e/hub';
 import { deviceFrameHandler } from './e2e/manage';
 import { createEnrollCode, listDevices, revokeDevice } from './e2e/devices';
 
@@ -396,7 +396,7 @@ export function runAgent(relayUrl: string): void {
   let attempt = 0;
   const loop = () => {
     if (E2E_REQUIRED && !agentKeys) {
-      agentKeysFrom(id.privateKeyPem, id.publicKey)
+      loadE2eKeys()
         .then((k) => { agentKeys = k; loop(); })
         .catch((e) => { console.error('[agent] e2e: identity key unusable:', e); process.exit(1); });
       return;
@@ -456,7 +456,7 @@ function gracefulShutdown(code = 0): void {
 async function enrollDeviceCli(): Promise<void> {
   const id = loadIdentity();
   if (!id?.privateKeyPem) { console.error('[agent] not paired yet'); process.exit(1); }
-  const keys = await agentKeysFrom(id.privateKeyPem, id.publicKey);
+  const keys = await loadE2eKeys();
   const { code, expiresAt } = await createEnrollCode(keys.pub);
   console.log(`\nEnrollment code (single use, expires ${new Date(expiresAt).toLocaleTimeString()}):\n\n  ${code}\n\nType it in the Deck on the device you want to trust. Never paste it in a chat.\n`);
   process.exit(0);

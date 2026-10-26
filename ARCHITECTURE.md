@@ -171,7 +171,17 @@ scripts/doctor.sh    watchdog do host (cron)
     `agent-offline` e `accounts`. Chave de agente não fixada no cadastro = tela de cadastro, nunca retry.
   - **Relay**: dá um id aleatório por aba, carimba no frame do navegador (último `"c"` vence) e
     entrega a resposta do agente só àquela aba, da mesma conta, sem o id.
+  - **Só frame descartável pode sumir**: cada frame leva, cifrado, se é crítico e a sequência do último
+    crítico antes dele. O relay só consegue descartar delta/thinking/stats; perder uma tecla, um `stop`
+    ou uma negação quebra a cadeia e o canal.
+  - **Chave própria**: o canal usa `~/.deck-agent/e2e-key.json`, não a chave que responde ao desafio
+    de login do relay (o relay escolhe o desafio; a mesma chave viraria oráculo de assinatura).
   - Gestão: `--devices`, `--revoke-device=<prefixo>`; dentro do canal, `devices-list`/`device-revoke`.
+    O agente varre os canais a cada 10 s: aparelho revogado (até pela CLI) cai na hora, e todo canal
+    se refaz em no máximo 12 h.
+  - **Frames de dono (`shared/root-frames.ts`)**: o relay não vê mais o tipo do frame selado, então o
+    filtro de root dele não vale para o canal. Quem decide é o agente: `DECK_AGENT_ROLE=admin` libera
+    tudo para os aparelhos cadastrados na própria box (o dono).
   - **O que NÃO cobre**: quem controla o JS servido pela Vercel controla a ponta do navegador (CSP
     estrita reduz XSS, mas o deploy é raiz de confiança); o relay ainda vê metadados (tamanho, horário,
     conta) e pode derrubar a conexão.

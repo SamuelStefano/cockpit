@@ -57,8 +57,8 @@ export async function pinnedAgents(): Promise<Bytes[]> {
   return list.map(fromB64);
 }
 
+// One account = one agent: a new enrollment REPLACES the pin, so the key of a
+// box that was wiped or re-provisioned stops being trusted right away.
 export async function pinAgent(pub: Bytes): Promise<void> {
-  const b64 = toB64(pub);
-  const list = (await get<string[]>('pins')) ?? [];
-  if (!list.includes(b64)) await put('pins', [...list, b64]);
+  await put('pins', [toB64(pub)]);
 }

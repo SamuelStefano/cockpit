@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { generateKeyPairSync } from 'node:crypto';
 import type { WebSocket } from 'ws';
-import { SealedHub, agentKeysFrom, type SealedPeer } from './hub';
+import { SealedHub, agentKeysFrom, MAX_CHANNEL_MS, type SealedPeer } from './hub';
 import { createEnrollCode, listDevices, revokeDevice } from './devices';
 import { DeviceHandshake, enrollRequest, enrollResult, type DeviceKeys } from '../../shared/e2e/device';
 import { publicRaw, type KeyPair } from '../../shared/e2e/channel';
@@ -151,6 +151,33 @@ describe('sealed hub', () => {
     revokeDevice(toB64(dev.pub));
     h.hub.dropDevice(toB64(dev.pub));
     expect(h.hub.peers.size).toBe(0);
+  });
+
+  it('sweeps a channel whose device was revoked by another process', async () => {
+    const h = await setup();
+    const dev = await deviceKeys();
+    await open(h, dev, [await enroll(h, dev)]);
+    revokeDevice(toB64(dev.pub));
+    h.hub.sweep();
+    expect(h.hub.peers.size).toBe(0);
+  });
+
+  it('expires a channel after its lifetime', async () => {
+    const h = await setup();
+    const dev = await deviceKeys();
+    await open(h, dev, [await enroll(h, dev)]);
+    h.hub.sweep(Date.now() + MAX_CHANNEL_MS + 1);
+    expect(h.hub.peers.size).toBe(0);
+  });
+
+  it('keeps lastSeen out of the trust file', async () => {
+    const h = await setup();
+    const dev = await deviceKeys();
+    await open(h, dev, [await enroll(h, dev)]);
+    const { readFileSync } = await import('node:fs');
+    const trustFile = JSON.parse(readFileSync(join(process.env.DECK_AGENT_DIR!, 'devices.json'), 'utf8'));
+    expect(trustFile[0].lastSeen).toBeUndefined();
+    expect(listDevices()[0].lastSeen).toBeTruthy();
   });
 
   it('ignores frames with a malformed channel id', async () => {

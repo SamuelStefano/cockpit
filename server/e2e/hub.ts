@@ -1,5 +1,8 @@
 import { EventEmitter } from 'node:events';
-import { createPrivateKey } from 'node:crypto';
+import { createPrivateKey, generateKeyPairSync } from 'node:crypto';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
 import type { WebSocket } from 'ws';
 import {
   SealedChannel, newEphemeral, newNonce, signTranscript, verifyTranscript, type Ephemeral, type Transcript,
@@ -16,9 +19,38 @@ import { isEnrolled, redeemEnrollCode, touchDevice } from './devices';
 const CONN_ID = /^[A-Za-z0-9_-]{22}$/;
 const HANDSHAKE_TTL_MS = 15_000;
 const MAX_PENDING = 32;
+// A channel lives at most this long, then the browser redials and re-handshakes.
+// The sweep also catches a device revoked from the CLI (another process).
+export const MAX_CHANNEL_MS = 12 * 3600_000;
+const SWEEP_MS = 10_000;
 const DROPPABLE = /^\{"t":"(delta|thinking|stats|bgAgents)"/;
 
 export interface AgentKeys { pub: Bytes; sign: CryptoKey }
+
+// The sealed channel has its OWN key, never the one that answers the relay's
+// login challenge: the relay picks that challenge, so the same key would let it
+// ask for a signature over bytes of its choosing.
+export async function loadE2eKeys(): Promise<AgentKeys> {
+  const dir = process.env.DECK_AGENT_DIR || join(homedir(), '.deck-agent');
+  const file = join(dir, 'e2e-key.json');
+  let rec: { privateKeyPem: string; publicKey: string } | null = null;
+  try { rec = JSON.parse(readFileSync(file, 'utf8')); } catch { rec = null; }
+  if (!rec?.privateKeyPem) {
+    const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+    rec = {
+      privateKeyPem: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+      publicKey: publicKey.export({ type: 'spki', format: 'der' }).toString('base64'),
+    };
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    try {
+      writeFileSync(file, JSON.stringify(rec, null, 2), { mode: 0o600, flag: 'wx' });
+    } catch {
+      // Another process (the CLI, the agent) created it first: use that one.
+      rec = JSON.parse(readFileSync(file, 'utf8'));
+    }
+  }
+  return agentKeysFrom(rec!.privateKeyPem, rec!.publicKey);
+}
 
 export async function agentKeysFrom(privateKeyPem: string, publicKeySpkiB64: string): Promise<AgentKeys> {
   const der = createPrivateKey(privateKeyPem).export({ type: 'pkcs8', format: 'der' });
@@ -29,6 +61,7 @@ export async function agentKeysFrom(privateKeyPem: string, publicKeySpkiB64: str
 
 export class SealedPeer extends EventEmitter {
   readonly OPEN = 1;
+  readonly openedAt = Date.now();
   readyState = 1;
   private chain: Promise<unknown> = Promise.resolve();
 
@@ -47,9 +80,10 @@ export class SealedPeer extends EventEmitter {
   // Callers expect a synchronous send; the chain keeps frames in order.
   send(data: string): void {
     if (this.readyState !== 1) return;
-    const p = DROPPABLE.test(data.slice(0, 24)) ? 1 : 0;
+    const droppable = DROPPABLE.test(data.slice(0, 24));
+    const p = droppable ? 1 : 0;
     this.chain = this.chain.then(async () => {
-      const f = await this.channel.seal(String(data));
+      const f = await this.channel.seal(String(data), !droppable);
       if (this.readyState !== 1 || this.link.readyState !== this.link.OPEN) return;
       this.link.send(`{"c":"${this.connId}","p":${p},"t":"e2e","s":${f.s},"d":"${f.d}"}`);
     }).catch(() => this.close());
@@ -90,8 +124,18 @@ export class SealedHub {
   readonly peers = new Map<string, SealedPeer>();
   private pending = new Map<string, Pending>();
   private queue = new Map<string, Promise<unknown>>();
+  private sweeper: ReturnType<typeof setInterval>;
 
-  constructor(private readonly o: HubOptions) {}
+  constructor(private readonly o: HubOptions) {
+    this.sweeper = setInterval(() => this.sweep(), SWEEP_MS);
+    this.sweeper.unref?.();
+  }
+
+  sweep(now = Date.now()): void {
+    for (const p of [...this.peers.values()]) {
+      if (now - p.openedAt > MAX_CHANNEL_MS || !isEnrolled(p.devicePub)) p.close();
+    }
+  }
 
   // Frames for one connId are handled strictly in order: a confirm and the
   // first sealed frame right behind it must not race.
@@ -184,6 +228,7 @@ export class SealedHub {
   }
 
   closeAll(): void {
+    clearInterval(this.sweeper);
     for (const p of [...this.peers.values()]) p.close();
     this.pending.clear();
   }

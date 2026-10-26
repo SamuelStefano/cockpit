@@ -83,9 +83,16 @@ async function hkdfKey(ikm: Bytes, salt: Bytes, info: string): Promise<CryptoKey
 // Past this a channel re-handshakes instead of risking a nonce wrap.
 const MAX_SEQ = 2 ** 40;
 
+// Every frame carries, inside the ciphertext, whether it is critical and the
+// sequence of the last critical frame sent before it. The relay may drop a
+// droppable frame (stream deltas, under backpressure) and nothing else: a
+// missing critical frame (a keystroke, a `stop`, a denial) breaks the chain
+// and the channel. Replay and reorder are refused by the increasing sequence.
 export class SealedChannel {
   private sendSeq = 0;
   private recvSeq = 0;
+  private lastCritSent = 0;
+  private lastCritRecv = 0;
 
   private constructor(
     private readonly sendKey: CryptoKey,
@@ -107,24 +114,28 @@ export class SealedChannel {
     return concat(new Uint8Array([0, 0, 0, dir]), u64(seq));
   }
 
-  async seal(plaintext: string): Promise<{ s: number; d: string }> {
+  async seal(plaintext: string, critical = true): Promise<{ s: number; d: string }> {
     const s = ++this.sendSeq;
     if (s >= MAX_SEQ) throw new Error('channel exhausted');
     const iv = this.nonce(this.sendDir, s);
-    const ct = await subtle().encrypt({ name: 'AES-GCM', iv, additionalData: concat(utf8(PROTO), iv) }, this.sendKey, utf8(plaintext));
+    const body = concat(new Uint8Array([critical ? 1 : 0]), u64(this.lastCritSent), utf8(plaintext));
+    if (critical) this.lastCritSent = s;
+    const ct = await subtle().encrypt({ name: 'AES-GCM', iv, additionalData: concat(utf8(PROTO), iv) }, this.sendKey, body);
     return { s, d: toB64(new Uint8Array(ct)) };
   }
 
-  // Strictly increasing, not strictly consecutive: the relay may drop a
-  // high-rate frame under backpressure, but it can never replay or reorder.
   async open(frame: { s: unknown; d: unknown }): Promise<string> {
     const s = frame.s;
     if (typeof s !== 'number' || !Number.isSafeInteger(s) || s <= this.recvSeq || s >= MAX_SEQ) throw new Error('bad sequence');
     if (typeof frame.d !== 'string') throw new Error('bad payload');
     const iv = this.nonce(3 - this.sendDir, s);
-    const pt = await subtle().decrypt({ name: 'AES-GCM', iv, additionalData: concat(utf8(PROTO), iv) }, this.recvKey, fromB64(frame.d));
+    const body = new Uint8Array(await subtle().decrypt({ name: 'AES-GCM', iv, additionalData: concat(utf8(PROTO), iv) }, this.recvKey, fromB64(frame.d)));
+    if (body.length < 9 || body[0] > 1) throw new Error('bad header');
+    const prevCrit = Number(new DataView(body.buffer, body.byteOffset + 1, 8).getBigUint64(0));
+    if (prevCrit !== this.lastCritRecv) throw new Error('critical frame missing');
     this.recvSeq = s;
-    return new TextDecoder().decode(pt);
+    if (body[0] === 1) this.lastCritRecv = s;
+    return new TextDecoder().decode(body.subarray(9));
   }
 }
 
