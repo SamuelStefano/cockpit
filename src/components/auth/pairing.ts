@@ -90,3 +90,9 @@ export function diagnose({ probe, agentOnline, expired, hasCode }: DiagnoseInput
   }
   return { tone: 'neutral', title: 'Aguardando o agente conectar…', steps: [] };
 }
+
+// An admin account pairs its OWN box: without DECK_AGENT_ROLE=admin the agent comes
+// up as student and refuses terminals and external agents (Grok) on every turn.
+export function setupCommand(url: string, code: string, admin: boolean): string {
+  return `curl -fsSL ${url} | ${admin ? 'DECK_AGENT_ROLE=admin ' : ''}DECK_PAIR_CODE=${code} bash`;
+}

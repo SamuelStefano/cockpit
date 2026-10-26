@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { remainingMs, isExpired, fmtCountdown, diagnose } from './pairing';
+import { remainingMs, isExpired, fmtCountdown, diagnose, setupCommand } from './pairing';
 
 const NOW = 1_700_000_000_000;
 const inMs = (ms: number) => new Date(NOW + ms).toISOString();
@@ -72,5 +72,14 @@ describe('diagnose', () => {
 
   it('sem código ainda diz que está gerando', () => {
     expect(diagnose({ ...base, hasCode: false }).title).toContain('Gerando');
+  });
+});
+
+describe('setupCommand', () => {
+  it('pairs an admin account as admin', () => {
+    expect(setupCommand('https://x/s.sh', 'ABC', true)).toBe('curl -fsSL https://x/s.sh | DECK_AGENT_ROLE=admin DECK_PAIR_CODE=ABC bash');
+  });
+  it('leaves any other account on the student default', () => {
+    expect(setupCommand('https://x/s.sh', 'ABC', false)).toBe('curl -fsSL https://x/s.sh | DECK_PAIR_CODE=ABC bash');
   });
 });

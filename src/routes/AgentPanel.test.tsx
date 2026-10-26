@@ -44,7 +44,7 @@ describe('AgentPanel — Rodar no terminal', () => {
     expect((screen.getByRole('status')).textContent).toMatch(/testo sozinho/);
 
     act(() => xterm.props!.onOutput!('$ ', false));
-    expect(term.input).toHaveBeenCalledWith('agent-grok', typedCommand('curl -fsSL https://x.ai/cli/install.sh | bash'));
+    expect(term.input).toHaveBeenCalledWith('agent-grok', typedCommand('curl -fsSL https://x.ai/cli/install.sh | bash && export PATH="$HOME/.grok/bin:$PATH"'));
     act(() => xterm.props!.onOutput!('\r\n[deck] passo terminou (0)\r\n', false));
     expect(onTest).toHaveBeenCalledWith('grok');
     expect(screen.queryByRole('status')).toBeNull();

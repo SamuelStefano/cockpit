@@ -1,14 +1,15 @@
 import { BrandMark, Button, Badge } from '../primitives';
 import { useCopied } from '../../lib/useCopied';
 import { usePairing } from './usePairing';
+import { useAccountAdmin } from './useAccountAdmin';
 import { PairingStatus } from './PairingStatus';
 
 // Dashboard de pareamento (DR-023): mostrado quando o usuário está logado mas a VPS
 // dele ainda não está atendendo (sem agente pareado/online). Pede um código de
 // pareamento ao relay e mostra o comando de 1 linha pra rodar na VPS. Quando o
 // agente conecta, o relay manda 'agent-online' e o App troca pra o app de verdade.
-export function Dashboard({ token, onSignOut }: { token: string; onSignOut: () => void }) {
-  const p = usePairing(token);
+export function Dashboard({ token, userId, onSignOut }: { token: string; userId?: string; onSignOut: () => void }) {
+  const p = usePairing(token, false, useAccountAdmin(userId));
   const [copied, copy, copyFailed] = useCopied();
 
   return (
