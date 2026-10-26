@@ -1,23 +1,37 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { MascotState } from '../../components/team/mascot-state';
 import type { BotComputerApi } from './equipe-props';
+import { COMPUTER_POLL_MS, computerActive } from './computer-view';
 
-// The preview is a snapshot, not a stream: re-read when the bot changes state
-// (a turn started or ended is when the pane moves) and after a take over ends.
 export function useBotComputerTab(botId: string, api: BotComputerApi, connected: boolean, state: MascotState) {
   const { botComputers, onBotComputerGet } = api;
   const [takenOver, setTakenOver] = useState(false);
-  useEffect(() => { setTakenOver(false); }, [botId]);
-  useEffect(() => { if (connected) onBotComputerGet(botId); }, [botId, connected, state, onBotComputerGet]);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  useEffect(() => { setTakenOver(false); setPreviewOpen(false); }, [botId]);
+  const data = botComputers[botId];
+  const termAlive = data?.status === 'ok' && data.computer.termAlive;
+  const active = computerActive(state, termAlive);
+  const shouldPoll = connected && !!botId && !takenOver && (previewOpen || active);
+  useEffect(() => {
+    if (!connected || !botId) return;
+    onBotComputerGet(botId);
+    if (!shouldPoll) return;
+    const t = setInterval(() => onBotComputerGet(botId), COMPUTER_POLL_MS);
+    return () => clearInterval(t);
+  }, [botId, connected, shouldPoll, onBotComputerGet]);
   const release = useCallback(() => {
     setTakenOver(false);
-    onBotComputerGet(botId);
+    if (botId) onBotComputerGet(botId);
   }, [botId, onBotComputerGet]);
   return {
-    data: botComputers[botId],
+    data,
     takenOver,
+    previewOpen,
+    active,
     takeOver: () => setTakenOver(true),
     release,
-    refresh: () => onBotComputerGet(botId),
+    togglePreview: () => setPreviewOpen((v) => !v),
+    closePreview: () => setPreviewOpen(false),
+    refresh: () => { if (botId) onBotComputerGet(botId); },
   };
 }

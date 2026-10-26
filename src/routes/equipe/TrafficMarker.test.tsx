@@ -23,6 +23,13 @@ describe('TrafficMarker', () => {
     expect(screen.getByText('bloqueada').getAttribute('title')).toBe('equipe pausada');
   });
 
+  it('lets you peek a single message without leaving the thread', () => {
+    render(<TrafficMarker group={{ key: 'a', ts: 1, items: [m('a', 'lead1', 'ativ1')], peers: ['ativ1'] }} botId="lead1" byId={byId} onOpen={vi.fn()} />);
+    expect(screen.getByText('texto a')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Ver mensagem' }));
+    expect(screen.getByText('texto a')).toBeTruthy();
+  });
+
   it('collapses a run into "N mensagens com A e B", each name opening its thread', () => {
     const onOpen = vi.fn();
     const items = [m('a', 'lead1', 'ativ1'), m('b', 'aqui1', 'lead1')];
@@ -31,5 +38,8 @@ describe('TrafficMarker', () => {
     expect(screen.getByText('e')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Abrir conversa com growth-aquisicao' }));
     expect(onOpen).toHaveBeenCalledWith('aqui1');
+    fireEvent.click(screen.getByRole('button', { name: 'Ver mensagens' }));
+    expect(screen.getByText('texto a')).toBeTruthy();
+    expect(screen.getByText('texto b')).toBeTruthy();
   });
 });
