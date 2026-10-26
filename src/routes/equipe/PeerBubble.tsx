@@ -1,4 +1,5 @@
 import { Badge } from '../../components/primitives';
+import { CopyTextButton, QuoteButton } from '../../components/chat/MessageActions';
 import { Mascot } from '../../components/team/Mascot';
 import type { TeamBot } from '../../../shared/protocol';
 import type { TeamMessage } from '../../../shared/team-messages';
@@ -10,10 +11,16 @@ const STATUS: Partial<Record<TeamMessage['status'], { tone: 'red' | 'yellow'; la
   failed: { tone: 'red', label: 'não entregue' },
 };
 
-export function PeerBubble({ message, sender }: { message: TeamMessage; sender: TeamBot | undefined }) {
+interface PeerBubbleProps {
+  message: TeamMessage;
+  sender: TeamBot | undefined;
+  onQuote?: (text: string) => void;
+}
+
+export function PeerBubble({ message, sender, onQuote }: PeerBubbleProps) {
   const status = STATUS[message.status];
   return (
-    <div className="flex items-end gap-2">
+    <div className="group/peer flex items-end gap-2">
       {sender ? <Mascot mascot={sender.mascot} size={22} name={sender.name} /> : <span className="w-[22px]" />}
       <div className="min-w-0 max-w-[85%]">
         <div className="mb-0.5 flex items-center gap-1.5 px-1 text-[12px]">
@@ -24,6 +31,10 @@ export function PeerBubble({ message, sender }: { message: TeamMessage; sender: 
         <div className="whitespace-pre-wrap break-words rounded-2xl border border-neutral-800 bg-neutral-900 px-3.5 py-2.5 text-[14px] leading-relaxed text-neutral-200">
           {message.text}
         </div>
+      </div>
+      <div className="mb-1 flex items-center gap-0.5 opacity-100 transition sm:pointer-fine:opacity-0 sm:focus-within:opacity-100 sm:group-hover/peer:opacity-100">
+        {onQuote && <QuoteButton onClick={() => onQuote(message.text)} />}
+        <CopyTextButton text={message.text} />
       </div>
     </div>
   );

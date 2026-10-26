@@ -4,6 +4,7 @@ import { ThreadPane } from './equipe/ThreadPane';
 import { BotProfile } from './equipe/BotProfile';
 import { BotForm } from './equipe/BotForm';
 import { useEquipe } from './equipe/useEquipe';
+import { BotComputerProvider } from './equipe/computer-context';
 import type { EquipeProps } from './equipe/equipe-props';
 
 export function Equipe(p: EquipeProps) {
@@ -20,22 +21,18 @@ export function Equipe(p: EquipeProps) {
   );
   const profile = (onBack?: () => void) => sel && (
     <BotProfile view={sel} bots={p.bots} models={p.models} onSave={p.onTeamSave} onEdit={e.openEdit} onDelete={p.onTeamDelete} onBack={onBack}
-      connected={p.connected} cronApi={p} filesApi={p} computerApi={p} term={p.term} isAdmin={p.isAdmin} />
+      connected={p.connected} cronApi={p} filesApi={p} />
   );
 
-  if (p.isMobile) {
-    const pane = sel ? e.pane : 'roster';
-    return (
-      <div className="flex min-h-0 flex-1 flex-col bg-neutral-950">
-        {pane === 'roster' && roster}
-        {pane === 'thread' && thread({ onBack: () => e.setPane('roster'), onProfile: () => e.setPane('profile') })}
-        {pane === 'profile' && profile(() => e.setPane('thread'))}
-        {form}
-      </div>
-    );
-  }
-
-  return (
+  const pane = sel ? e.pane : 'roster';
+  const body = p.isMobile ? (
+    <div className="flex min-h-0 flex-1 flex-col bg-neutral-950">
+      {pane === 'roster' && roster}
+      {pane === 'thread' && thread({ onBack: () => e.setPane('roster'), onProfile: () => e.setPane('profile') })}
+      {pane === 'profile' && profile(() => e.setPane('thread'))}
+      {form}
+    </div>
+  ) : (
     <div className="flex min-h-0 flex-1 bg-neutral-950">
       <aside className="w-72 shrink-0 border-r border-neutral-800">{roster}</aside>
       <main className="min-w-0 flex-1">
@@ -46,5 +43,12 @@ export function Equipe(p: EquipeProps) {
       {sel && <aside className="w-80 shrink-0 border-l border-neutral-800">{profile()}</aside>}
       {form}
     </div>
+  );
+
+  if (!sel) return body;
+  return (
+    <BotComputerProvider bot={sel.bot} state={sel.state} api={p} term={p.term} connected={p.connected} isAdmin={p.isAdmin} isMobile={p.isMobile}>
+      {body}
+    </BotComputerProvider>
   );
 }

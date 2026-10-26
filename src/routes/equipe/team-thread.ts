@@ -10,3 +10,9 @@ export function isTeamPromptMessage(m: Message): boolean {
 export function threadAnchors(messages: Message[]): number[] {
   return messages.flatMap((m) => (!isTeamPromptMessage(m) && typeof m.ts === 'number' ? [m.ts] : []));
 }
+
+export function messageSnippet(text: string, max = 80): string {
+  const one = text.replace(/\s+/g, ' ').trim();
+  if (!one) return '';
+  return one.length > max ? `${one.slice(0, max).trimEnd()}…` : one;
+}

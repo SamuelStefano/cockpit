@@ -4,12 +4,26 @@ import type { TeamBot } from '../../../shared/protocol';
 import type { TeamMessage } from '../../../shared/team-messages';
 import { PeerBubble } from './PeerBubble';
 import { usePeerThread } from './usePeerThread';
+import { SelectionQuote } from './SelectionQuote';
 
-interface PeerThreadProps { a: TeamBot; b: TeamBot; log: TeamMessage[]; byId: Map<string, TeamBot>; onBack: () => void }
+interface PeerThreadProps {
+  a: TeamBot;
+  b: TeamBot;
+  log: TeamMessage[];
+  byId: Map<string, TeamBot>;
+  onBack: () => void;
+  onQuote?: (text: string) => void;
+}
 
-// Read-only: the two bots talk through team_send, a person only watches.
-export function PeerThread({ a, b, log, byId, onBack }: PeerThreadProps) {
+export function PeerThread({ a, b, log, byId, onBack, onQuote }: PeerThreadProps) {
   const items = usePeerThread(log, a.id, b.id);
+  const logView = (
+    <div role="log" aria-label={`Conversa entre ${a.name} e ${b.name}`} className="scroll-thin flex-1 overflow-y-auto">
+      {items.length === 0
+        ? <EmptyState icon="message" title="Sem mensagens" description={`${a.name} e ${b.name} ainda não trocaram mensagens.`} />
+        : <div className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-6">{items.map((m) => <PeerBubble key={m.id} message={m} sender={byId.get(m.from)} onQuote={onQuote} />)}</div>}
+    </div>
+  );
   return (
     <div className="flex h-full min-w-0 flex-col bg-neutral-900">
       <div className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2">
@@ -23,11 +37,7 @@ export function PeerThread({ a, b, log, byId, onBack }: PeerThreadProps) {
         </div>
         <span className="w-8" />
       </div>
-      <div role="log" aria-label={`Conversa entre ${a.name} e ${b.name}`} className="scroll-thin flex-1 overflow-y-auto">
-        {items.length === 0
-          ? <EmptyState icon="message" title="Sem mensagens" description={`${a.name} e ${b.name} ainda não trocaram mensagens.`} />
-          : <div className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-6">{items.map((m) => <PeerBubble key={m.id} message={m} sender={byId.get(m.from)} />)}</div>}
-      </div>
+      {onQuote ? <SelectionQuote onQuote={onQuote}>{logView}</SelectionQuote> : logView}
     </div>
   );
 }

@@ -24,6 +24,13 @@ describe('PeerThread', () => {
     expect(screen.queryByRole('textbox')).toBeNull();
   });
 
+  it('quotes a bubble into the human composer', () => {
+    const onQuote = vi.fn();
+    render(<PeerThread a={a} b={b} log={[m('m1', 'lead1', 'ativ1')]} byId={byId} onBack={vi.fn()} onQuote={onQuote} />);
+    fireEvent.click(screen.getByTitle('Citar esta mensagem no compositor'));
+    expect(onQuote).toHaveBeenCalledWith('texto m1');
+  });
+
   it('goes back to the bot thread', () => {
     const onBack = vi.fn();
     render(<PeerThread a={a} b={b} log={[]} byId={byId} onBack={onBack} />);

@@ -26,3 +26,14 @@ export function profileLine(profile: TeamProfile | undefined): string {
     ? 'Perfil travado: o bot só alcança este workspace.'
     : 'Perfil completo: o bot trabalha nesta máquina; o terminal abre no workspace dele.';
 }
+
+export const COMPUTER_POLL_MS = 2000;
+export const PREVIEW_LINES = 12;
+
+export function computerActive(state: MascotState, termAlive: boolean): boolean {
+  return termAlive || state === 'thinking' || state === 'working';
+}
+
+export function previewText(lines: string[], max = PREVIEW_LINES): string {
+  return lines.slice(-max).join('\n');
+}

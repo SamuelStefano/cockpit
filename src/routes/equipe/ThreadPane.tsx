@@ -16,6 +16,6 @@ interface ThreadPaneProps {
 }
 
 export function ThreadPane({ view, peer, byId, p, onOpenPeer, onClosePeer, onBack, onProfile }: ThreadPaneProps) {
-  if (peer) return <PeerThread a={view.bot} b={peer} log={p.teamMessages} byId={byId} onBack={onClosePeer} />;
+  if (peer) return <PeerThread a={view.bot} b={peer} log={p.teamMessages} byId={byId} onBack={onClosePeer} onQuote={p.chatProps.onQuote} />;
   return <BotThread view={view} chatProps={p.chatProps} bots={p.bots} log={p.teamMessages} files={p} onOpenPeer={onOpenPeer} onBack={onBack} onProfile={onProfile} />;
 }
