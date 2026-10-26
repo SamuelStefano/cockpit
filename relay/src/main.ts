@@ -17,8 +17,8 @@ const rootEmails = process.env.COCKPIT_ROOT_EMAILS ?? '';
 const port = Number(process.env.RELAY_PORT ?? '8800');
 const host = process.env.RELAY_HOST ?? '127.0.0.1';
 
-function positiveInt(name: string): number | undefined {
-  const n = Number(process.env[name]);
+function positiveInt(raw: string | undefined): number | undefined {
+  const n = Number(raw);
   return Number.isInteger(n) && n > 0 ? n : undefined;
 }
 
@@ -30,8 +30,8 @@ const { server, shutdown } = createRelay({
   rootEmails,
   rootUserIds: process.env.COCKPIT_ROOT_USER_IDS,
   allowedOrigins: process.env.DECK_ALLOWED_ORIGINS,
-  maxSocketsPerIp: positiveInt('DECK_MAX_SOCKETS_PER_IP'),
-  maxTabsPerAccount: positiveInt('DECK_MAX_TABS_PER_ACCOUNT'),
+  maxSocketsPerIp: positiveInt(process.env.DECK_MAX_SOCKETS_PER_IP),
+  maxTabsPerAccount: positiveInt(process.env.DECK_MAX_TABS_PER_ACCOUNT),
   store: supabaseStore({ url: supabaseUrl, serviceKey }),
   statusToken: process.env.DECK_STATUS_TOKEN,
 });
