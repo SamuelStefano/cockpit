@@ -11,6 +11,7 @@ import { InstalledView } from './skills/InstalledView';
 import { PacksView } from './skills/PacksView';
 import { DiscoverView } from './skills/DiscoverView';
 import { RegistryNotice } from './skills/RegistryNotice';
+import { PublicOnlyHint } from './skills/PublicOnlyHint';
 import { useSkillsView, type SkillsTab } from './skills/useSkillsView';
 
 interface Props {
@@ -72,10 +73,15 @@ export function Skills(p: Props) {
               )
             ) : registryBlocked ? (
               <RegistryNotice loading={registryLoading} error={registryError} onRetry={() => onRegistryGet(true)} />
-            ) : v.tab === 'packs' ? (
-              <PacksView packs={v.packs} installing={p.installing} onInstall={p.onRegistryInstall} onOpen={p.onSkillOpen} />
             ) : (
-              <DiscoverView skills={v.discover} installing={p.installing} onInstall={p.onRegistryInstall} />
+              <>
+                {registry?.publicOnly && <PublicOnlyHint />}
+                {v.tab === 'packs' ? (
+                  <PacksView packs={v.packs} installing={p.installing} onInstall={p.onRegistryInstall} onOpen={p.onSkillOpen} />
+                ) : (
+                  <DiscoverView skills={v.discover} installing={p.installing} onInstall={p.onRegistryInstall} />
+                )}
+              </>
             )}
           </div>
         </div>

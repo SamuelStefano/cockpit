@@ -230,6 +230,9 @@ export interface RegistryPack {
 export interface RegistryCatalog {
   skills: RegistrySkill[];
   packs: RegistryPack[];
+  // The API answered with the public tier only: no DFL session on this box (or the
+  // token was not sent), so internal skills are hidden, not missing.
+  publicOnly?: boolean;
   fetchedAt: number;
 }
 
