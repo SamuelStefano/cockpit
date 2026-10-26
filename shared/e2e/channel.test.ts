@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { SealedChannel, newEphemeral, newNonce, publicRaw, signTranscript, verifyTranscript, type Transcript } from './channel';
+import { SealedChannel, newEphemeral, newNonce, publicRaw, signTranscript, verifyTranscript, type KeyPair, type Transcript } from './channel';
 import { checkGrant, checkRequest, grantMac, newEnrollCode, parseEnrollCode, requestMac } from './enroll';
 import { fingerprint } from './channel';
 
 async function signer() {
-  const pair = await crypto.subtle.generateKey({ name: 'Ed25519' }, false, ['sign', 'verify']) as CryptoKeyPair;
+  const pair = await crypto.subtle.generateKey({ name: 'Ed25519' }, false, ['sign', 'verify']) as unknown as KeyPair;
   return { pair, pub: await publicRaw(pair.publicKey) };
 }
 

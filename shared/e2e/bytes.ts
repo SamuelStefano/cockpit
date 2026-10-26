@@ -1,10 +1,13 @@
+// WebCrypto takes ArrayBuffer-backed views only (TS 5.7+ is strict about it).
+export type Bytes = Uint8Array<ArrayBuffer>;
+
 const enc = new TextEncoder();
 
-export function utf8(s: string): Uint8Array {
+export function utf8(s: string): Bytes {
   return enc.encode(s);
 }
 
-export function concat(...parts: Uint8Array[]): Uint8Array {
+export function concat(...parts: Bytes[]): Bytes {
   const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
   let o = 0;
   for (const p of parts) { out.set(p, o); o += p.length; }
@@ -13,29 +16,29 @@ export function concat(...parts: Uint8Array[]): Uint8Array {
 
 // Length-prefixed so two fields can never be re-split into a different pair
 // with the same concatenation ("ab"+"c" vs "a"+"bc").
-export function framed(...parts: Uint8Array[]): Uint8Array {
+export function framed(...parts: Bytes[]): Bytes {
   return concat(...parts.flatMap((p) => [u32(p.length), p]));
 }
 
-export function u32(n: number): Uint8Array {
+export function u32(n: number): Bytes {
   const b = new Uint8Array(4);
   new DataView(b.buffer).setUint32(0, n >>> 0);
   return b;
 }
 
-export function u64(n: number): Uint8Array {
+export function u64(n: number): Bytes {
   const b = new Uint8Array(8);
   new DataView(b.buffer).setBigUint64(0, BigInt(n));
   return b;
 }
 
-export function toB64(b: Uint8Array): string {
+export function toB64(b: Bytes): string {
   let s = '';
   for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
   return btoa(s);
 }
 
-export function fromB64(s: string): Uint8Array {
+export function fromB64(s: string): Bytes {
   if (typeof s !== 'string' || !/^[A-Za-z0-9+/]*={0,2}$/.test(s)) throw new Error('bad base64');
   const bin = atob(s);
   const out = new Uint8Array(bin.length);
@@ -45,7 +48,7 @@ export function fromB64(s: string): Uint8Array {
 
 const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
-export function toB32(b: Uint8Array): string {
+export function toB32(b: Bytes): string {
   let bits = 0, val = 0, out = '';
   for (const byte of b) {
     val = (val << 8) | byte; bits += 8;
@@ -55,7 +58,7 @@ export function toB32(b: Uint8Array): string {
   return out;
 }
 
-export function fromB32(s: string): Uint8Array {
+export function fromB32(s: string): Bytes {
   const clean = s.toUpperCase().replace(/[\s-]/g, '');
   let bits = 0, val = 0;
   const out: number[] = [];
@@ -68,13 +71,13 @@ export function fromB32(s: string): Uint8Array {
   return new Uint8Array(out);
 }
 
-export function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
+export function equalBytes(a: Bytes, b: Bytes): boolean {
   if (a.length !== b.length) return false;
   let d = 0;
   for (let i = 0; i < a.length; i++) d |= a[i] ^ b[i];
   return d === 0;
 }
 
-export function randomBytes(n: number): Uint8Array {
+export function randomBytes(n: number): Bytes {
   return crypto.getRandomValues(new Uint8Array(n));
 }
