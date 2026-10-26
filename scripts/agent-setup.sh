@@ -58,7 +58,7 @@ SETUP_URL="${DECK_SETUP_URL:-https://raw.githubusercontent.com/SamuelStefano/coc
 # Instala pacotes "simples" (mesmo nome em toda distro): git, curl.
 pm_install() {
   ( umask 022
-  if command -v apt-get >/dev/null 2>&1; then $SUDO apt-get update -y && $SUDO apt-get install -y "$@"
+  if command -v apt-get >/dev/null 2>&1; then $SUDO env DEBIAN_FRONTEND=noninteractive apt-get update -y && $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y "$@"
   elif command -v dnf >/dev/null 2>&1;   then $SUDO dnf install -y "$@"
   elif command -v yum >/dev/null 2>&1;   then $SUDO yum install -y "$@"
   elif command -v apk >/dev/null 2>&1;   then $SUDO apk add --no-cache "$@"
@@ -248,6 +248,25 @@ EOF
   command -v curl >/dev/null 2>&1 || ensure_cmd curl curl
   command -v git >/dev/null 2>&1 || ensure_cmd git git
 
+  # node-pty ships no linux prebuild, and the deck user has no sudo to fetch a
+  # compiler later — so decide here, before creating anything.
+  if ! have_build_tools; then
+    if [ "${DECK_INSTALL_BUILD_TOOLS:-}" = "1" ]; then
+      echo "[deck] instalando ferramentas de build (DECK_INSTALL_BUILD_TOOLS=1)…"
+      install_build_tools && have_build_tools || { echo "[deck] não consegui instalar as ferramentas de build."; exit 1; }
+    else
+      cat <<EOF
+[deck] faltam ferramentas de build (make, compilador C/C++, python3) pra compilar node-pty.
+Nada foi alterado. Instale e rode de novo (não mexe no seu Node):
+  Debian/Ubuntu:  sudo apt-get install -y build-essential python3
+  Fedora/RHEL:    sudo dnf groupinstall -y "Development Tools" && sudo dnf install -y python3
+  Alpine:         sudo apk add build-base python3
+Ou rode de novo com DECK_INSTALL_BUILD_TOOLS=1 na frente do bash.
+EOF
+      exit 1
+    fi
+  fi
+
   if [ "$exists" != "1" ]; then
     echo "[deck] criando o usuário 'deck' (sem sudo)…"
     if command -v useradd >/dev/null 2>&1; then useradd -m -s /bin/bash deck
@@ -288,7 +307,7 @@ EOF
 
   if ! deck_exec env -i HOME="$dhome" PATH="$UNIT_PATH" bash -c "$(declare -f claude_logged_in); claude_logged_in"; then
     echo "[deck] pronto, MAS o claude não está logado para o usuário deck. Faça o login e reinicie o serviço:"
-    echo "  sudo -iu deck claude"
+    echo "  sudo -iu deck env PATH=$UNIT_PATH $CLAUDE_DIR/claude"
     echo "  sudo systemctl restart $SERVICE"
   else
     echo "[deck] pronto — a tela do Deck troca sozinha quando o agente conectar."
@@ -296,6 +315,34 @@ EOF
   echo "[deck] desinstalar:"
   echo "  sudo systemctl disable --now deck-agent; sudo rm /etc/systemd/system/deck-agent.service; sudo pkill -u deck; sudo userdel -r deck"
   exit 0
+}
+
+have_build_tools() {
+  command -v make >/dev/null 2>&1 || return 1
+  command -v cc >/dev/null 2>&1 || command -v gcc >/dev/null 2>&1 || command -v g++ >/dev/null 2>&1 || return 1
+  command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1 || return 1
+  return 0
+}
+
+# Só roda com DECK_INSTALL_BUILD_TOOLS=1.
+install_build_tools() {
+  ( umask 022
+  if command -v apt-get >/dev/null 2>&1; then
+    $SUDO env DEBIAN_FRONTEND=noninteractive apt-get update -y && $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential python3
+  elif command -v dnf >/dev/null 2>&1; then
+    $SUDO dnf groupinstall -y "Development Tools" && $SUDO dnf install -y python3
+  elif command -v yum >/dev/null 2>&1; then
+    $SUDO yum groupinstall -y "Development Tools" && $SUDO yum install -y python3
+  elif command -v apk >/dev/null 2>&1; then
+    $SUDO apk add --no-cache build-base python3
+  elif command -v pacman >/dev/null 2>&1; then
+    $SUDO pacman -Sy --noconfirm base-devel python
+  elif command -v zypper >/dev/null 2>&1; then
+    $SUDO zypper install -y -t pattern devel_basis && $SUDO zypper install -y python3
+  else
+    return 1
+  fi
+  )
 }
 
 if [ "${DECK_ISOLATED:-}" = "1" ] && [ "${DECK_NO_SERVICE:-}" != "1" ]; then isolated_parent; fi
@@ -330,33 +377,6 @@ REUSED=""; INSTALLED=""
 note_reused() { REUSED="${REUSED:+$REUSED, }$1"; }
 note_installed() { INSTALLED="${INSTALLED:+$INSTALLED, }$1"; }
 
-have_build_tools() {
-  command -v make >/dev/null 2>&1 || return 1
-  command -v cc >/dev/null 2>&1 || command -v gcc >/dev/null 2>&1 || command -v g++ >/dev/null 2>&1 || return 1
-  command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1 || return 1
-  return 0
-}
-
-# Só roda com DECK_INSTALL_BUILD_TOOLS=1 e depois de um `npm ci` que falhou.
-install_build_tools() {
-  ( umask 022
-  if command -v apt-get >/dev/null 2>&1; then
-    $SUDO apt-get update -y && $SUDO apt-get install -y build-essential python3
-  elif command -v dnf >/dev/null 2>&1; then
-    $SUDO dnf groupinstall -y "Development Tools" && $SUDO dnf install -y python3
-  elif command -v yum >/dev/null 2>&1; then
-    $SUDO yum groupinstall -y "Development Tools" && $SUDO yum install -y python3
-  elif command -v apk >/dev/null 2>&1; then
-    $SUDO apk add --no-cache build-base python3
-  elif command -v pacman >/dev/null 2>&1; then
-    $SUDO pacman -Sy --noconfirm base-devel python
-  elif command -v zypper >/dev/null 2>&1; then
-    $SUDO zypper install -y -t pattern devel_basis && $SUDO zypper install -y python3
-  else
-    return 1
-  fi
-  )
-}
 
 # Escolhe o primeiro Node >= 20: PATH, nvm (maior versão), ~/.deck-node. Sem nenhum,
 # baixa o tarball oficial pro ~/.deck-node (não mexe no Node do sistema).
@@ -572,11 +592,13 @@ if ! claude_logged_in; then
   │  ATENÇÃO: o `claude` NÃO está logado nesta máquina.           │
   │  O agente sobe, mas TODO prompt vai falhar até você logar.    │
   │                                                               │
-  │  Rode `claude` uma vez nesta box, faça o login, e depois:     │
+  │  Rode o comando abaixo uma vez, faça o login, e depois:       │
   │      sudo systemctl restart deck-agent                        │
   └───────────────────────────────────────────────────────────────┘
 
 EOF
+  # The claude/node we picked may live outside the login PATH (~/.deck-npm, ~/.deck-node).
+  [ "${DECK_NO_SERVICE:-}" = "1" ] || echo "      PATH=$UNIT_PATH $CLAUDE_DIR/claude"
 fi
 
 # Sem identidade o agente sai 1 na hora (runAgent aborta) e a unit ficaria
@@ -716,5 +738,5 @@ print_summary
 if [ "$LOGGED_IN" = "1" ]; then
   echo "[deck] pronto — a tela do Deck troca sozinha quando o agente conectar."
 else
-  echo "[deck] pronto, MAS o \`claude\` não está logado: rode \`claude\` nesta box, faça login e depois '$SUDO systemctl restart $SERVICE' (ou reinicie o agente)."
+  echo "[deck] pronto, MAS o \`claude\` não está logado: rode \`PATH=$UNIT_PATH $CLAUDE_DIR/claude\` nesta box, faça login e depois '$SUDO systemctl restart $SERVICE' (ou reinicie o agente)."
 fi
