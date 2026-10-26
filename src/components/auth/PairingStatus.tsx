@@ -12,9 +12,9 @@ interface PairingStatusProps {
 export function PairingStatus({ diagnosis, probe, onTest }: PairingStatusProps) {
   return (
     <div className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
-      <div className="flex items-start gap-2">
+      <div className="flex flex-wrap items-start gap-2">
         <Badge tone={diagnosis.tone} dot>{probe === 'checking' ? 'testando' : 'pareamento'}</Badge>
-        <p className="flex-1 text-[11.5px] leading-relaxed text-neutral-400">{diagnosis.title}</p>
+        <p className="min-w-[12rem] flex-1 text-[11.5px] leading-relaxed text-neutral-400">{diagnosis.title}</p>
         <Button variant="outline" size="sm" disabled={probe === 'checking'} loading={probe === 'checking'} onClick={onTest}>
           testar conexão
         </Button>
