@@ -173,7 +173,7 @@ pick_node() {
   mkdir -p "$HOME/.deck-node"
   tar -xzf "$tmp/$file" -C "$HOME/.deck-node" --strip-components=1
   rm -rf "$tmp"
-  NODE_VER="${file#node-}"; NODE_VER="${NODE_VER%%-linux*}"
+  NODE_VER="${file#node-v}"; NODE_VER="${NODE_VER%%-linux*}"
 }
 
 # Reaproveita um `claude` existente: PATH, ~/.local/bin, ~/.claude/local, ~/.deck-npm.
@@ -223,7 +223,7 @@ pick_node
 export PATH="$NODE_DIR:$PATH"
 hash -r 2>/dev/null || true
 if [ "$NODE_HOW" = "install" ]; then
-  note_installed "node $NODE_VER ($HOME/.deck-node)"
+  note_installed "node v$NODE_VER ($HOME/.deck-node)"
 else
   note_reused "node v$NODE_VER ($NODE_DIR)"
 fi
