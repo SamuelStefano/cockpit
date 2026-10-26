@@ -4,6 +4,31 @@ Roda numa **VPS isolada** (NÃO a box do DFL prod), usuário sem sudo/docker. O 
 só guarda material público (JWKS) + a service-role do projeto `deck-relay`; é
 incapaz de spawnar (boundary.test). Caddy faz o TLS em :443 → relay em loopback.
 
+## Caminho endurecido (atual)
+
+O relay roda como o usuário `relay` (sem shell, sem sudo) um **bundle único**
+(`/opt/deck-relay/main.mjs`, de root, só-leitura) com Node 22 oficial verificado por
+checksum em `/opt/node22`. Env em `/etc/deck-relay/env` (`root:relay 0640`). Sem
+`npx`, `tsx` nem `node_modules` no host. Caddy com admin em socket unix e logs sem
+token.
+
+```
+relay/deploy/build.sh
+ssh -i ~/.ssh/oracle_relay ubuntu@HOST 'mkdir -p /tmp/deck-relay'
+scp -i ~/.ssh/oracle_relay relay/deploy/dist/* relay/deploy/{deck-relay.service,Caddyfile,harden-host.sh} ubuntu@HOST:/tmp/deck-relay/
+ssh -i ~/.ssh/oracle_relay ubuntu@HOST 'sudo EXTRA_ENV="DECK_ALLOWED_ORIGINS=https://… COCKPIT_ROOT_USER_IDS=…" bash /tmp/deck-relay/harden-host.sh'
+```
+
+O script faz backup, sobe o relay novo e confere `/status` (rollback se falhar),
+valida o Caddyfile antes de trocar (rollback se o HTTPS cair), corta a retenção do
+journald (os logs antigos tinham JWT na URL), desliga rpcbind e X11/agent forwarding
+do sshd (validado com `sshd -t`). Não mexe em firewall nem na porta 22.
+
+Deploy seguinte = só `build.sh` + `scp` + o mesmo script (idempotente).
+Conferir drift: `cat /opt/deck-relay/REVISION` contra `git rev-parse origin/main`.
+
+## Caminho antigo (referência)
+
 ## 1. Provisionar (Samuel)
 - VPS pequena (Hetzner CX22 / DO basic / Fly), distinta da box do prod.
 - Usuário `relay` sem sudo, fora do grupo docker.
