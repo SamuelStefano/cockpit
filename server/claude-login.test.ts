@@ -82,6 +82,18 @@ describe('createClaudeLogin', () => {
     expect(frames.at(-1)).toEqual({ t: 'claude-auth', ready: true });
   });
 
+  it('a rejected code goes back to url with an error and accepts a retry', () => {
+    const login = make();
+    login.start();
+    fakes[0].emitData(SAMPLE);
+    login.submitCode('wrong');
+    fakes[0].emitData('Invalid code. Please make sure the full code was copied.\r\n');
+    expect(states()).toEqual(['waiting-url', 'url', 'verifying', 'url']);
+    expect(frames.at(-1)).toMatchObject({ state: 'url', url: URL_, error: expect.stringContaining('Código inválido') });
+    login.submitCode('right');
+    expect(fakes[0].pty.written).toEqual(['wrong\r', 'right\r']);
+  });
+
   it('ignores code before the url or when invalid', () => {
     const login = make();
     login.start();

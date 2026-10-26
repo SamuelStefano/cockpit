@@ -91,13 +91,18 @@ export function createClaudeLogin(deps: ClaudeLoginDeps) {
     };
     session = mine;
     let buf = '';
-    let urlSent = false;
+    let url: string | null = null;
     pty.onData((data) => {
       if (session !== mine) return;
       buf = (buf + data).slice(-MAX_BUFFER);
-      if (urlSent) return;
-      const url = extractAuthUrl(buf);
-      if (url) { urlSent = true; set('url', { url }); }
+      // A wrong code doesn't exit the CLI: it prints this and keeps waiting at the prompt.
+      if (state === 'verifying' && url && /invalid code/i.test(stripTerminal(data))) {
+        set('url', { url, error: 'Código inválido. Copie o código inteiro e cole de novo.' });
+        return;
+      }
+      if (url) return;
+      url = extractAuthUrl(buf);
+      if (url) set('url', { url });
     });
     pty.onExit(({ exitCode }) => {
       if (session !== mine) return;

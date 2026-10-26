@@ -39,7 +39,7 @@ export function ClaudeAuthBanner(props: ClaudeAuthBannerProps) {
                   </Button>
                 </div>
               )}
-              {l.state === 'error' && l.error && (
+              {l.error && (l.state === 'error' || l.state === 'url') && (
                 <p role="alert" className="text-[12.5px] text-red-400">{l.error}</p>
               )}
               {showCode && l.url && (
