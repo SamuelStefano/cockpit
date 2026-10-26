@@ -507,6 +507,18 @@ fi
 CLAUDE_DIR="$(dirname "$CLAUDE_BIN")"
 export PATH="$CLAUDE_DIR:$PATH"
 
+# O perfil de bot PADRÃO ('travado') passa --restricted ao claude. Um claude
+# reaproveitado que seja antigo demais não conhece a flag e TODO bot travado falha
+# com "unknown option '--restricted'" — o primeiro bot de um fellow novo. Testa a
+# capacidade direto (sem comparar número de versão) e avisa; não aborta porque bot
+# 'full' e terminais seguem funcionando.
+if ! "$CLAUDE_BIN" --help 2>/dev/null | grep -q -- '--restricted'; then
+  echo "[deck] aviso: este claude ($CLAUDE_BIN) não conhece --restricted."
+  echo "       Bots no perfil 'travado' (o padrão) vão falhar até você atualizar o claude."
+  echo "       Atualize e rode o setup de novo (ou reinicie o deck-agent):"
+  echo "         npm install -g @anthropic-ai/claude-code@latest"
+fi
+
 if [ -d "$SRC_DIR/.git" ]; then
   echo "[deck] atualizando repo em $SRC_DIR…"
   git -C "$SRC_DIR" pull --ff-only

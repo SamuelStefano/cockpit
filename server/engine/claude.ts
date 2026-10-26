@@ -393,7 +393,8 @@ export function run(opts: RunOpts): RunHandle {
   child.on('close', (code, signal) => {
     if (shouldReportExit(killed, code, sawResult)) {
       const tail = stderr.trim().slice(-300);
-      onError(sanitize(tail ? `claude saiu (${code}): ${tail}` : `claude saiu (${code})`), { code, signal });
+      const hint = explainExit(code, tail);
+      onError(sanitize(hint ? `claude saiu (${code}): ${hint}` : tail ? `claude saiu (${code}): ${tail}` : `claude saiu (${code})`), { code, signal });
     }
     finish();
   });
@@ -541,4 +542,15 @@ export function sanitize(msg: string): string {
 // Só reporta quando NÃO matamos e o `claude` NÃO reportou um result próprio.
 export function shouldReportExit(killed: boolean, code: number | null, sawResult = false): boolean {
   return !killed && !sawResult && code != null && code !== 0;
+}
+
+// O perfil travado passa --restricted (e --tools) ao `claude` (restricted-profile.ts).
+// Um claude antigo não conhece essas flags e o commander sai com
+// "error: unknown option '--restricted'" — cru, o dono não sabe o que fazer. Traduz
+// pra ação. O bot no perfil travado é o PADRÃO, então o primeiro bot de um fellow
+// com claude desatualizado cai exatamente aqui.
+export function explainExit(code: number | null, tail: string): string | null {
+  const m = /unknown option '(--restricted|--tools)'/.exec(tail);
+  if (!m) return null;
+  return `o claude desta máquina é antigo demais pro perfil travado (não conhece ${m[1]}). Atualize o claude e reinicie o deck-agent.`;
 }

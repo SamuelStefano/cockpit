@@ -39,7 +39,7 @@ class FakeChild extends EventEmitter {
 }
 
 import { TEAM_MCP_NAME, TEAM_MCP_TOOLS } from '../../shared/team-messages';
-import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run, effectiveBudget, pickMcpDefs, resolveMcpSelection, validModel, withWorkflowGrant, mcpConfigBody, encodeUserLine, shouldCloseStdin, PERMISSION_MCP_NAME, PERMISSION_PROMPT_TOOL, sweepMcpConfigs, MCP_CONFIG_GRACE_MS, profilePermissions } from './claude';
+import { sanitize, resolveMode, buildArgs, bypassAllowed, shouldReportExit, minimalEnv, run, effectiveBudget, pickMcpDefs, resolveMcpSelection, validModel, withWorkflowGrant, mcpConfigBody, encodeUserLine, shouldCloseStdin, PERMISSION_MCP_NAME, PERMISSION_PROMPT_TOOL, sweepMcpConfigs, MCP_CONFIG_GRACE_MS, profilePermissions, explainExit } from './claude';
 import { ALL_MCPS } from '../../shared/mcp';
 import { CONFIG, projectSlug } from '../config';
 
@@ -783,5 +783,22 @@ describe('run: spawn that throws', () => {
     const before = readdirSync(tmp.dir).filter((f) => f.startsWith('deck-mcp-')).length;
     expect(() => run({ prompt: 'go', onEvent: () => {}, onError: () => {}, onClose: () => {} } as Parameters<typeof run>[0])).toThrow('EAGAIN');
     expect(readdirSync(tmp.dir).filter((f) => f.startsWith('deck-mcp-')).length).toBe(before);
+  });
+});
+
+describe('explainExit', () => {
+  it('traduz unknown option --restricted em ação', () => {
+    const msg = explainExit(1, "error: unknown option '--restricted'");
+    expect(msg).toContain('perfil travado');
+    expect(msg).toContain('Atualize o claude');
+  });
+
+  it('traduz também --tools', () => {
+    expect(explainExit(1, "error: unknown option '--tools'")).toContain('--tools');
+  });
+
+  it('não traduz um exit comum', () => {
+    expect(explainExit(127, 'command not found')).toBeNull();
+    expect(explainExit(1, 'API Error: 500')).toBeNull();
   });
 });
