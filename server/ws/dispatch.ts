@@ -40,6 +40,7 @@ import { setEnv, unsetEnv, addMcp, removeMcp, installCli, envNameAllowedRemotely
 import { updateClaudeCli, restartDeck } from '../deck-ops';
 import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
+import { claudeLogin } from '../claude-login';
 import { detach } from './detach';
 import { startRun, routeSend, drainParked, runParkedInBackground, runParkedNow, acceptResumeOffer, refreshBusyElsewhere, orchestratorPaneTarget, type BgRunReject, type NowRunReject } from './runs';
 import { threads, stopSession, resolveThreadKey, runningSessionIds } from './threads';
@@ -911,6 +912,9 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       if (models.length) broadcast({ t: 'models', models });
       return;
     }
+    case 'claude-login-start': { claudeLogin.start(); return; }
+    case 'claude-login-code': { claudeLogin.submitCode(msg.code); return; }
+    case 'claude-login-cancel': { claudeLogin.cancel(); return; }
     case 'admin-health': {
       send(ws, { t: 'health', health: await collectHealth() });
       return;

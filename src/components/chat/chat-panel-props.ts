@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { ComposerCost } from './send-cost';
 import type { Session, Message, ToolTodo } from '../../data/types';
-import type { PermMode, Effort, ModelInfo, TurnStats, Caps, SkillMeta, BgAgent } from '../../../shared/protocol';
+import type { PermMode, Effort, ModelInfo, TurnStats, Caps, SkillMeta, BgAgent, ClaudeLoginView } from '../../../shared/protocol';
 import type { Attachment, AttachmentPreview, QueueItem } from '../../useCockpit';
 import type { ResumeOfferView } from '../../cockpit/resume-offers';
 import type { Phase } from './useChatPanel';
@@ -43,6 +43,10 @@ export interface ChatPanelProps {
   setMode: (m: PermMode) => void;
   caps: Caps | null;
   claudeReady?: boolean;
+  claudeLogin?: ClaudeLoginView;
+  onClaudeLoginStart?: () => void;
+  onClaudeLoginCode?: (code: string) => void;
+  onClaudeLoginCancel?: () => void;
   bypass: boolean;
   setBypass: (b: boolean) => void;
   model: string;

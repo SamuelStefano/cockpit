@@ -1,14 +1,20 @@
-import { Icon } from '../primitives';
+import type { ClaudeLoginView } from '../../../shared/protocol';
+import { Badge, Button, Icon, Input } from '../primitives';
+import { useClaudeLogin } from './useClaudeLogin';
 
 interface ClaudeAuthBannerProps {
-  onTerminal?: () => void;
+  login?: ClaudeLoginView;
+  onStart?: () => void;
+  onCode?: (code: string) => void;
+  onCancel?: () => void;
 }
 
-// Aviso de que NADA roda até conectar uma conta Anthropic nesta VPS. Aparece só
-// quando o backend manda claude-auth ready:false. Dá os dois caminhos: login pelo
-// terminal (com túnel SSH, já que o callback OAuth volta pra um localhost da VPS,
-// não do PC do usuário) ou ANTHROPIC_API_KEY via Admin.
-export function ClaudeAuthBanner({ onTerminal }: ClaudeAuthBannerProps) {
+const MONO = 'rounded-sm bg-black/30 px-1 py-0.5 font-mono text-amber-200';
+
+export function ClaudeAuthBanner(props: ClaudeAuthBannerProps) {
+  const l = useClaudeLogin(props);
+  const showCode = l.state === 'url' || l.state === 'verifying';
+
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pt-4">
       <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
@@ -17,45 +23,60 @@ export function ClaudeAuthBanner({ onTerminal }: ClaudeAuthBannerProps) {
             <Icon name="shield" size={15} />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[14px] font-semibold text-amber-200">Conecte uma conta Anthropic</p>
+            <div className="flex items-center gap-2">
+              <p className="text-[14px] font-semibold text-amber-200">Conecte sua conta Claude</p>
+              <Badge tone="yellow">Pendente</Badge>
+            </div>
             <p className="mt-1 text-[13px] leading-relaxed text-amber-100/80">
-              O Claude não vai responder nesta VPS enquanto não houver login. Conecte
-              pelo terminal ou peça ao admin para adicionar um token.
+              O Deck usa o Claude da sua VPS. Faça login uma vez, direto daqui.
             </p>
 
-            <div className="mt-3 space-y-3">
-              <div>
-                <p className="text-[12px] font-medium text-amber-200/90">1. Login pelo terminal</p>
-                <p className="mt-1 text-[12px] leading-relaxed text-amber-100/70">
-                  Abra um terminal e rode <code className="rounded-sm bg-black/30 px-1 py-0.5 text-amber-200">claude</code> — siga o login.
-                  Como você está numa VPS, o link de autorização volta para um endereço local
-                  <em> da VPS</em>. Crie um túnel SSH no seu PC encaminhando a porta que o
-                  <code className="rounded-sm bg-black/30 px-1 py-0.5 text-amber-200">claude</code> mostrar:
-                </p>
-                <pre className="mt-1.5 overflow-x-auto rounded-lg bg-black/40 px-3 py-2 text-[12px] text-amber-100">
-ssh -L PORTA:localhost:PORTA usuario@sua-vps</pre>
-                <p className="mt-1 text-[12px] leading-relaxed text-amber-100/70">
-                  Depois abra a URL no navegador do seu PC. Se o <code className="rounded-sm bg-black/30 px-1 py-0.5 text-amber-200">claude</code> oferecer
-                  colar um código, esse caminho dispensa o túnel.
-                </p>
-              </div>
-              <div>
-                <p className="text-[12px] font-medium text-amber-200/90">2. Ou um token de API</p>
-                <p className="mt-1 text-[12px] leading-relaxed text-amber-100/70">
-                  Um admin pode adicionar <code className="rounded-sm bg-black/30 px-1 py-0.5 text-amber-200">ANTHROPIC_API_KEY</code> em
-                  Admin → Tokens. Vale na hora, sem túnel.
-                </p>
-              </div>
+            <div className="mt-3 flex flex-col gap-2">
+              {(l.state === 'idle' || l.state === 'waiting-url' || l.state === 'error') && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button icon="link" loading={l.busy} onClick={l.start}>
+                    {l.state === 'error' ? 'Tentar de novo' : 'Conectar conta Claude'}
+                  </Button>
+                </div>
+              )}
+              {l.state === 'error' && l.error && (
+                <p role="alert" className="text-[12.5px] text-red-400">{l.error}</p>
+              )}
+              {showCode && l.url && (
+                <>
+                  <Button className="w-fit" icon="external" iconRight onClick={() => window.open(l.url, '_blank', 'noopener,noreferrer')}>
+                    Abrir login da Anthropic
+                  </Button>
+                  <form
+                    className="flex flex-wrap items-center gap-2"
+                    onSubmit={(e) => { e.preventDefault(); l.submit(); }}
+                  >
+                    <div className="min-w-56 flex-1">
+                      <Input
+                        value={l.code}
+                        onChange={(e) => l.setCode(e.target.value)}
+                        placeholder="Cole aqui o código que a Anthropic mostrar"
+                        autoComplete="off"
+                        spellCheck={false}
+                        mono
+                        disabled={l.busy}
+                      />
+                    </div>
+                    <Button type="submit" loading={l.busy} disabled={!l.canSubmit}>Concluir</Button>
+                    <Button type="button" variant="ghost" onClick={l.reset}>Cancelar</Button>
+                  </form>
+                </>
+              )}
             </div>
 
-            {onTerminal && (
-              <button
-                onClick={onTerminal}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-1.5 text-[12px] font-medium text-amber-100 transition hover:bg-amber-500/25 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-amber-500/40"
-              >
-                <Icon name="terminal" size={13} /> Abrir terminal
-              </button>
-            )}
+            <details className="mt-3 text-[12px] text-amber-100/70">
+              <summary className="cursor-pointer text-amber-200/90">Outras opções</summary>
+              <ul className="mt-2 space-y-1.5 leading-relaxed">
+                <li>Pelo terminal da VPS: <code className={MONO}>claude auth login</code></li>
+                <li>Se a instalação é isolada: <code className={MONO}>sudo -iu deck claude auth login</code></li>
+                <li>Ou um admin adiciona <code className={MONO}>ANTHROPIC_API_KEY</code> em Admin → Tokens.</li>
+              </ul>
+            </details>
           </div>
         </div>
       </div>

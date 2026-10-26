@@ -306,9 +306,10 @@ EOF
   fi
 
   if ! deck_exec env -i HOME="$dhome" PATH="$UNIT_PATH" bash -c "$(declare -f claude_logged_in); claude_logged_in"; then
-    echo "[deck] pronto, MAS o claude não está logado para o usuário deck. Faça o login e reinicie o serviço:"
-    echo "  sudo -iu deck env PATH=$UNIT_PATH $CLAUDE_DIR/claude"
-    echo "  sudo systemctl restart $SERVICE"
+    echo "[deck] pronto, MAS o claude não está logado para o usuário deck."
+    echo "  Abra o Deck no navegador e clique em 'Conectar conta Claude' (ou rode na VPS:"
+    echo "  sudo -iu deck env PATH=$UNIT_PATH $CLAUDE_DIR/claude auth login)"
+    echo "  Se logou pela VPS, reinicie o serviço: sudo systemctl restart $SERVICE"
   else
     echo "[deck] pronto — a tela do Deck troca sozinha quando o agente conectar."
   fi
@@ -592,13 +593,14 @@ if ! claude_logged_in; then
   │  ATENÇÃO: o `claude` NÃO está logado nesta máquina.           │
   │  O agente sobe, mas TODO prompt vai falhar até você logar.    │
   │                                                               │
-  │  Rode o comando abaixo uma vez, faça o login, e depois:       │
+  │  Abra o Deck no navegador e clique em "Conectar conta         │
+  │  Claude". Ou rode o comando abaixo na VPS e depois:           │
   │      sudo systemctl restart deck-agent                        │
   └───────────────────────────────────────────────────────────────┘
 
 EOF
   # The claude/node we picked may live outside the login PATH (~/.deck-npm, ~/.deck-node).
-  [ "${DECK_NO_SERVICE:-}" = "1" ] || echo "      PATH=$UNIT_PATH $CLAUDE_DIR/claude"
+  [ "${DECK_NO_SERVICE:-}" = "1" ] || echo "      PATH=$UNIT_PATH $CLAUDE_DIR/claude auth login"
 fi
 
 # Sem identidade o agente sai 1 na hora (runAgent aborta) e a unit ficaria
@@ -738,5 +740,5 @@ print_summary
 if [ "$LOGGED_IN" = "1" ]; then
   echo "[deck] pronto — a tela do Deck troca sozinha quando o agente conectar."
 else
-  echo "[deck] pronto, MAS o \`claude\` não está logado: rode \`PATH=$UNIT_PATH $CLAUDE_DIR/claude\` nesta box, faça login e depois '$SUDO systemctl restart $SERVICE' (ou reinicie o agente)."
+  echo "[deck] pronto, MAS o \`claude\` não está logado: abra o Deck no navegador e clique em 'Conectar conta Claude' (ou rode \`PATH=$UNIT_PATH $CLAUDE_DIR/claude auth login\` nesta box), faça login e depois '$SUDO systemctl restart $SERVICE' (ou reinicie o agente)."
 fi
