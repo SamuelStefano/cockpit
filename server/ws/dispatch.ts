@@ -41,6 +41,7 @@ import { updateClaudeCli, restartDeck } from '../deck-ops';
 import { CONFIG } from '../config';
 import { send, broadcast } from './broadcast';
 import { claudeLogin } from '../claude-login';
+import { dflMcpsState, addDflMcps } from '../dfl-mcps';
 import { detach } from './detach';
 import { startRun, routeSend, drainParked, runParkedInBackground, runParkedNow, acceptResumeOffer, refreshBusyElsewhere, orchestratorPaneTarget, type BgRunReject, type NowRunReject } from './runs';
 import { threads, stopSession, resolveThreadKey, runningSessionIds } from './threads';
@@ -915,6 +916,8 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'claude-login-start': { claudeLogin.start(); return; }
     case 'claude-login-code': { claudeLogin.submitCode(msg.code); return; }
     case 'claude-login-cancel': { claudeLogin.cancel(); return; }
+    case 'dfl-mcps-get': { send(ws, { t: 'dfl-mcps', state: await dflMcpsState() }); return; }
+    case 'dfl-mcps-add': { send(ws, { t: 'dfl-mcps', state: await addDflMcps(msg.hosts) }); return; }
     case 'admin-health': {
       send(ws, { t: 'health', health: await collectHealth() });
       return;

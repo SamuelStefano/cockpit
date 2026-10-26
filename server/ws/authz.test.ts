@@ -116,4 +116,13 @@ describe('authorize', () => {
       expect(authorize('student', t)).toBe(true);
     }
   });
+
+  it('DFL MCP onboarding: admin reads and adds, student only reads, never owner-only', () => {
+    for (const t of ['dfl-mcps-get', 'dfl-mcps-add'] as const) {
+      expect(authorize('admin', t)).toBe(true);
+      expect(ROOT_ONLY.has(t)).toBe(false);
+    }
+    expect(authorize('student', 'dfl-mcps-get')).toBe(true);
+    expect(authorize('student', 'dfl-mcps-add')).toBe(false);
+  });
 });

@@ -4,6 +4,8 @@ import type { AdminHealth, SysStats, AccountSummary, ModelInfo } from '../../sha
 import { AdminAccounts } from './AdminAccounts';
 import { AdminHostOps } from './AdminHostOps';
 import { AdminAgents } from './AdminAgents';
+import { AdminDflMcps } from './AdminDflMcps';
+import type { DflMcps } from '../cockpit/useDflMcps';
 import type { AgentsApi } from '../cockpit/useAgents';
 import type { TermApi } from '../cockpit/useTerminals';
 import { AdminDeckUpdate } from './AdminDeckUpdate';
@@ -39,6 +41,7 @@ interface AdminProps {
   onCliUpdate: () => void;
   onDeckRestart: (mode: 'idle' | 'now') => void;
   agents: AgentsApi;
+  dflMcps: Pick<DflMcps, 'dflMcps' | 'dflMcpsBusy' | 'onDflMcpsGet' | 'onDflMcpsAdd'>;
   term: TermApi;
   models: ModelInfo[];
   onOpenAgentChat: (model: string) => void;
@@ -46,7 +49,7 @@ interface AdminProps {
 
 const toastedOps = new WeakSet<object>();
 
-export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, isRoot, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, onCliUpdate, onDeckRestart, agents, term, models, onOpenAgentChat }: AdminProps) {
+export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, onAccountsList, onSetAdmin, isRoot, adminOp, onEnvSet, onEnvUnset, onMcpAdd, onMcpRemove, onCliInstall, onCliUpdate, onDeckRestart, agents, dflMcps, term, models, onOpenAgentChat }: AdminProps) {
   const [updatedAt, setUpdatedAt] = useState(0);
   const tabs = useMemo(() => painelTabs(isRoot, SUPABASE_ENABLED), [isRoot]);
   const tabIds = useMemo(() => tabs.map((t) => t.id), [tabs]);
@@ -99,6 +102,8 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
         {tab === 'accounts' && isRoot && SUPABASE_ENABLED && (
           <AdminAccounts accounts={accounts} loaded={accountsLoaded} onAccountsList={onAccountsList} onSetAdmin={onSetAdmin} canGrant={isRoot} />
         )}
+
+        {tab === 'mcps' && <AdminDflMcps api={dflMcps} term={term} />}
 
         {tab === 'agents' && <AdminAgents agents={agents} term={term} isRoot={isRoot} onOpenChat={onOpenAgentChat} />}
 

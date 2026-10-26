@@ -21,6 +21,9 @@ const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   'refresh-models', 'plan-usage-get', 'grok-usage-get',
   // Logs in the box's own CLI with a code only the human holds: no privilege gained.
   'claude-login-start', 'claude-login-code', 'claude-login-cancel',
+  // Read-only `claude mcp list`. Adding (dfl-mcps-add) writes the box's
+  // ~/.claude.json, the same ground admin-* covers, so it stays admin-only.
+  'dfl-mcps-get',
   // Read-only identity, not the admin-gated canvas-get graph build — needed
   // for the normal chat view's "this is the Orchestrator" banner.
   'orchestrator-get',
