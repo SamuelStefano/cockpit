@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage } from 'node:http';
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Registry } from './routing';
 import {
@@ -77,6 +77,9 @@ export function createRelay(cfg: RelayConfig) {
   const roots = parseRootEmails(cfg.rootEmails);
   const jwks: JwksFn = makeJwks(cfg.jwksUrl);
   const pairThrottle = slidingWindow(5, 60_000);
+  // Sealed channels (T5) are per tab: each browser socket gets a routing id the
+  // agent addresses its encrypted frames to. Random, never derived from the JWT.
+  const conns = new Map<string, { ws: WebSocket; accountId: string }>();
 
   // canBypass é capacidade LOCAL do agente (allowBypass + localOnly + role admin do
   // agente); o relay não tem como saber, então o agente reporta via 'agent-caps'.
@@ -202,6 +205,12 @@ export function createRelay(cfg: RelayConfig) {
     if (!id) { ws.close(4401, 'auth'); return; }            // default-deny (red line #10)
     const accountId = id.accountId;
     (ws as BrowserSock)._role = id.role;                     // pra reemitir caps no agent-caps
+    const connId = randomBytes(16).toString('base64url');
+    conns.set(connId, { ws, accountId });
+    ws.on('close', () => {
+      conns.delete(connId);
+      registry.toAgent(accountId, JSON.stringify({ t: 'e2e-gone', c: connId }));
+    });
     // Close at the JWT's expiry with a non-4401 code: the client redials with its
     // (refreshed) token; an expired/revoked one then gets 4401.
     // Delays past 2^31-1 ms (~24.8 days) make setTimeout fire at once: a long-lived
@@ -222,6 +231,12 @@ export function createRelay(cfg: RelayConfig) {
     ws.send(JSON.stringify({ t: registry.hasAgent(accountId) ? 'agent-online' : 'agent-offline' }));
 
     const onFrame = async (s: string) => {
+      // Sealed frame: opaque to the relay. The channel id is APPENDED, so it is
+      // the last "c" key and wins over any "c" the browser put in the frame.
+      if (s.startsWith('{"t":"e2e') && s.endsWith('}')) {
+        if (!registry.toAgent(accountId, `${s.slice(0, -1)},"c":"${connId}"}`)) ws.send(JSON.stringify({ t: 'agent-offline' }));
+        return;
+      }
       // Frames de administração de CONTA (T3): tratados NO RELAY (só ele tem a
       // service-role do Supabase). Gate por papel da conta vindo do JWT — nunca
       // do frame. Não são repassados ao agente (que não tem acesso ao banco).
@@ -374,6 +389,16 @@ export function createRelay(cfg: RelayConfig) {
           });
           return;
         }
+      }
+      // Sealed frame for one tab: `{"c":"<22 chars>","p":0|1,...`. Routed by the
+      // prefix alone (frames run to 32MB; no parse on the hot path), and only to
+      // a tab of this agent's own account. The `c` is stripped: the tab never
+      // needs it and must not learn other tabs' ids.
+      const directed = /^\{"c":"([A-Za-z0-9_-]{22})"(?:,"p":([01]))?,/.exec(s.slice(0, 40));
+      if (directed) {
+        const conn = conns.get(directed[1]);
+        if (conn && conn.accountId === st.accountId) registry.toBrowser(st.accountId, conn.ws, `{${s.slice(directed[0].length)}`, directed[2] === '1');
+        return;
       }
       // Autenticado: frame do agente → as abas DAQUELA conta (escopo por conta).
       registry.toBrowsers(st.accountId, s);
