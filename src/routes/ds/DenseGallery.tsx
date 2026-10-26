@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Badge, Button, ButtonGroup, Checkbox, Drawer, Input, ProgressBar, Segmented, Stat } from '../../components/primitives';
+import { Badge, Button, ButtonGroup, Checkbox, Drawer, Input, ProgressBar, RadioCardGroup, Segmented, Stat } from '../../components/primitives';
 import { Section } from './Section';
 import { Row } from './Row';
 
@@ -7,6 +7,7 @@ import { Row } from './Row';
 export function DenseGallery() {
   const [checked, setChecked] = useState(true);
   const [seg, setSeg] = useState<'all' | 'open' | 'paid'>('all');
+  const [card, setCard] = useState<'a' | 'b'>('a');
   const [drawer, setDrawer] = useState(false);
   return (
     <Section title="Denso — tabelas, navegador, KPI">
@@ -17,6 +18,12 @@ export function DenseGallery() {
       </Row>
       <Row label="Segmented">
         <Segmented label="Status" value={seg} onChange={setSeg} items={[{ id: 'all', label: 'todos' }, { id: 'open', label: 'aberto' }, { id: 'paid', label: 'pago' }]} />
+      </Row>
+      <Row label="RadioCardGroup">
+        <RadioCardGroup label="Modo" value={card} onChange={setCard} items={[
+          { id: 'a', icon: 'shield', title: 'isolado', description: 'Opção com badge e descrição de uma linha.', badge: <Badge tone="orange">recomendado</Badge> },
+          { id: 'b', icon: 'terminal', title: 'dedicada', description: 'Segunda opção, sem badge.' },
+        ]} />
       </Row>
       <Row label="ButtonGroup">
         <ButtonGroup label="agente">
