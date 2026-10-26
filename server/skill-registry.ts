@@ -21,14 +21,21 @@ export interface RegistryFilesResult { items: { source: string; slug: string; fi
 
 function credsDir(): string { return process.env.DFL_MCP_DIR ?? join(homedir(), '.dfl-mcp'); }
 
-async function token(): Promise<string> {
-  const cred = JSON.parse(await readFile(join(credsDir(), 'credentials.json'), 'utf8'));
-  if (!cred.access_token) throw new Error('sem sessão DFL (dfl-auth login)');
-  return cred.access_token as string;
+// A fresh Deck box (the `deck` user from agent-setup) has no DFL session: the
+// registry still serves the public tier anonymously, so that is the fallback.
+export async function token(): Promise<string | null> {
+  let raw: string;
+  try { raw = await readFile(join(credsDir(), 'credentials.json'), 'utf8'); }
+  catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null; throw e; }
+  const cred = JSON.parse(raw) as { access_token?: unknown };
+  return typeof cred.access_token === 'string' && cred.access_token ? cred.access_token : null;
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const go = async () => fetch(`${API}${path}`, { headers: { Accept: 'application/json', Authorization: `Bearer ${await token()}` } });
+  const go = async () => {
+    const t = await token();
+    return fetch(`${API}${path}`, { headers: { Accept: 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) } });
+  };
   let res = await go();
   if (res.status === 401) {
     try { await pexec('dfl-auth', ['refresh'], { timeout: 30_000 }); } catch { /* the retry reports */ }
@@ -82,12 +89,13 @@ export function adaptPack(raw: Raw): RegistryPack {
 
 async function catalog(): Promise<RegistryCatalog> {
   const [s, p] = await Promise.all([
-    getJson<{ skills?: Raw[] }>('/api/v1/skills'),
+    getJson<{ skills?: Raw[]; scope?: string }>('/api/v1/skills'),
     getJson<{ packs?: Raw[] }>('/api/v1/packs'),
   ]);
   return {
     skills: (s.skills ?? []).map(adaptSkill).filter((x) => x.slug && x.source),
     packs: (p.packs ?? []).map(adaptPack).filter((x) => x.slug && x.source),
+    publicOnly: s.scope === 'public',
     fetchedAt: Date.now(),
   };
 }
