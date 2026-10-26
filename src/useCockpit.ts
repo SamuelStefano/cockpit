@@ -40,6 +40,7 @@ import { useAdmin, type Admin } from './cockpit/useAdmin';
 import { useDflMcps, type DflMcps } from './cockpit/useDflMcps';
 import { useAgents, type AgentsApi } from './cockpit/useAgents';
 import { promoteModel } from './cockpit/promote-model';
+import { resolveSessionModel } from './cockpit/session-model';
 import { createReopenThrottle } from './cockpit/reopen-throttle';
 import { stripLongContext } from '../shared/long-context';
 import { composerCost, type ComposerCost } from './components/chat/send-cost';
@@ -1640,7 +1641,7 @@ export function useCockpit(): Cockpit {
   // recusaria o argv (validModel) com o pin ainda gravado. Normaliza na leitura —
   // é o único ponto por onde todo envio passa.
   const pinSessionModel = useCallback((key: string): string => {
-    const chosen = stripLongContext(modelBySessionRef.current[key] ?? defaultModelRef.current);
+    const chosen = stripLongContext(resolveSessionModel(modelBySessionRef.current[key], threadsRef.current[key], defaultModelRef.current));
     if (modelBySessionRef.current[key] !== chosen) {
       modelBySessionRef.current = { ...modelBySessionRef.current, [key]: chosen };
       setModelBySession(modelBySessionRef.current);
@@ -2270,9 +2271,10 @@ export function useCockpit(): Cockpit {
     [sessions, seen, activeId, running]
   );
   const draft = drafts[activeId] || '';
-  // Modelo efetivo da sessão ativa: override próprio, ou o default (semente) se
-  // esta conversa nunca trocou de versão.
-  const model = modelBySession[activeId] ?? defaultModel;
+  // Modelo efetivo da sessão ativa: override próprio, senão o do último turno
+  // dela, senão o default (semente) — o seletor nunca mostra um modelo que o
+  // próximo envio não usaria.
+  const model = resolveSessionModel(modelBySession[activeId], messages, defaultModel);
   const contextTokens = usage[activeId] || 0;
   const contextModel = usageModel[activeId] ?? null;
   // Recalculado a cada render: o cache esfria com o RELÓGIO, não com um evento —
