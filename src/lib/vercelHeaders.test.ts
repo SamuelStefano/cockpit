@@ -6,7 +6,7 @@ const rules = config.headers as Rule[];
 const value = (r: Rule, key: string) => r.headers.find((h) => h.key === key)?.value ?? '';
 
 describe('vercel.json headers', () => {
-  const app = rules.find((r) => r.source === '/(.*)')!;
+  const app = rules.find((r) => r.source === '/((?!sandbox/).*)')!;
   const sandboxIdx = rules.findIndex((r) => r.source === '/sandbox/(.*)');
 
   it('keeps the strict CSP on the app', () => {

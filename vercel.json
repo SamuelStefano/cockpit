@@ -7,7 +7,7 @@
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
   "headers": [
     {
-      "source": "/(.*)",
+      "source": "/((?!sandbox/).*)",
       "headers": [
         {
           "key": "Content-Security-Policy",
