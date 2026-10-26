@@ -31,6 +31,10 @@ function writeJson(path: string, value: unknown): void {
   renameSync(tmp, path);
 }
 
+// The trust list never takes the shared helper's "write anyway after ~500 ms"
+// path: a lost update here could bring back a revoked device.
+const mustLock = (lockPath: string): never => { throw new Error(`device list busy (${lockPath}); try again`); };
+
 function trusted(): Device[] {
   const d = readJson<Device[]>(DEVICES(), []);
   return Array.isArray(d) ? d.filter((x) => typeof x?.pub === 'string') : [];
@@ -53,7 +57,7 @@ export function revokeDevice(pub: string): boolean {
     if (left.length === all.length) return false;
     writeJson(DEVICES(), left);
     return true;
-  });
+  }, mustLock);
 }
 
 export function touchDevice(pub: string, now = new Date()): void {
@@ -97,13 +101,13 @@ async function redeemNow(agentPub: Bytes, devicePub: Bytes, label: string, mac: 
     if (!left.some((p) => p.secret === secret)) return false;
     writeJson(CODES(), left.filter((p) => p.secret !== secret));
     return true;
-  });
+  }, mustLock);
   if (!burnt) return null;
   const pub = toB64(devicePub);
   withFileLockSync(DEVICES(), () => {
     const rest = trusted().filter((d) => d.pub !== pub);
     writeJson(DEVICES(), [...rest, { pub, label: cleanLabel(label), addedAt: new Date(now).toISOString() }]);
-  });
+  }, mustLock);
   return fromB64(secret);
 }
 

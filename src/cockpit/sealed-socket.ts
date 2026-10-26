@@ -2,6 +2,7 @@ import { DeviceHandshake, enrollRequest, enrollResult } from '../../shared/e2e/d
 import type { SealedChannel } from '../../shared/e2e/channel';
 import type { EnrollCode } from '../../shared/e2e/enroll';
 import { deviceKeys, pinAgent, pinnedAgents } from './device-store';
+import { toast } from '../components/primitives/toast-bus';
 
 // Relay-mode socket (T5). Same surface useCockpit uses on a WebSocket, but it
 // reports "open" only once a sealed channel to a pinned agent exists, and from
@@ -35,6 +36,8 @@ export function enrollThisDevice(code: string, label: string): Promise<void> {
 const FROM_RELAY = new Set(['agent-online', 'agent-offline', 'accounts']);
 const TO_RELAY = /^\{"t":"(accounts-list|set-admin)"/;
 const HANDSHAKE_MS = 10_000;
+// Mirrors the agent's cap: neither end keeps a channel's keys longer than this.
+const MAX_CHANNEL_MS = 12 * 3600_000;
 export const SEAL_LOST = 4002;
 
 type Handler<E> = ((ev: E) => void) | null;
@@ -135,6 +138,7 @@ export class SealedSocket {
         this.raw(JSON.stringify(confirm));
         this.channel = channel;
         this.clearTimer();
+        this.timer = setTimeout(() => this.fail('channel lifetime reached'), MAX_CHANNEL_MS);
         this.readyState = 1;
         setState('sealed');
         this.onopen?.(new Event('open'));
@@ -161,7 +165,13 @@ export class SealedSocket {
     this.onmessage?.(new MessageEvent('message', { data }));
   }
 
+  // A relay can drop the last thing you sent and then force a reconnect, which
+  // starts a fresh channel and hides the loss. Say so instead of reconnecting
+  // silently, so an unconfirmed action gets checked.
   private fail(reason: string, next: SealState = 'connecting'): void {
+    if (this.channel && reason !== 'channel lifetime reached') {
+      toast('Conexão cifrada reiniciada — confira se a última ação chegou.', { tone: 'error' });
+    }
     setState(next);
     this.close(SEAL_LOST, reason);
   }

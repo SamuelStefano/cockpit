@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { createPrivateKey, generateKeyPairSync } from 'node:crypto';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, linkSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import type { WebSocket } from 'ws';
@@ -42,13 +42,14 @@ export async function loadE2eKeys(): Promise<AgentKeys> {
       publicKey: publicKey.export({ type: 'spki', format: 'der' }).toString('base64'),
     };
     mkdirSync(dir, { recursive: true, mode: 0o700 });
-    try {
-      writeFileSync(file, JSON.stringify(rec, null, 2), { mode: 0o600, flag: 'wx' });
-    } catch {
-      // Another process (the CLI, the agent) created it first: use that one.
-      rec = JSON.parse(readFileSync(file, 'utf8'));
-    }
+    // Written whole to a temp file, then hard-linked into place: link fails if
+    // the key already exists, so a racing process (CLI vs agent) never reads a
+    // half-written key and the first complete one wins.
+    const tmp = `${file}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify(rec, null, 2), { mode: 0o600 });
+    try { linkSync(tmp, file); } catch { rec = JSON.parse(readFileSync(file, 'utf8')); } finally { rmSync(tmp, { force: true }); }
   }
+  if (!rec?.privateKeyPem || !rec.publicKey) throw new Error(`${file} exists but holds no key: move it away to create a new one (enrolled devices will need to re-enroll)`);
   return agentKeysFrom(rec!.privateKeyPem, rec!.publicKey);
 }
 
