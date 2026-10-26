@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
 
 vi.mock('../../cockpit/session', () => ({ relayHttpBase: () => 'https://relay.test' }));
 
@@ -32,5 +32,16 @@ describe('usePairing', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     const init = (fetchMock.mock.calls[1] as unknown as [string, RequestInit])[1];
     expect((init.headers as Record<string, string>).authorization).toBe('Bearer jwt-2');
+  });
+
+  it('defaults to the isolated install command and switches to dedicated', async () => {
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ code: 'C' }), { status: 200 })) as never;
+    const { result } = renderHook(() => usePairing('jwt'));
+    await waitFor(() => expect(result.current.code).toBe('C'));
+    expect(result.current.mode).toBe('isolated');
+    expect(result.current.cmd).toContain('sudo DECK_ISOLATED=1 DECK_PAIR_CODE=C bash');
+    act(() => result.current.setMode('dedicated'));
+    expect(result.current.cmd).not.toContain('sudo');
+    expect(result.current.cmd).toContain('DECK_PAIR_CODE=C bash');
   });
 });

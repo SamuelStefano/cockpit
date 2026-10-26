@@ -161,4 +161,70 @@ describe('agent-setup.sh', () => {
     expect(r.stdout).toContain('node: reaproveita');
     expect(r.stdout).toContain('claude: reaproveita');
   });
+
+  describe('modo isolado (DECK_ISOLATED=1)', () => {
+    const PERIGOSOS = ['sudo', 'apt-get', 'dnf', 'yum', 'npm', 'npx', 'curl', 'git', 'systemctl', 'crontab', 'claude', 'useradd', 'adduser', 'runuser', 'su'];
+
+    function caixaIsolada(nome: string, uid: number, idDeck: string): { home: string; bin: string } {
+      const dir = join(raiz, nome);
+      const bin = join(dir, 'bin');
+      const home = join(dir, 'home');
+      mkdirSync(bin, { recursive: true });
+      mkdirSync(home, { recursive: true });
+      writeFileSync(join(bin, 'id'), `#!/bin/sh\ncase "$1" in -u) echo ${uid};; -un) echo x;; deck) ${idDeck};; *) exec /usr/bin/id "$@";; esac\n`, { mode: 0o755 });
+      sentinelas(bin, PERIGOSOS);
+      return { home, bin };
+    }
+
+    it('sem root sai 1 com orientação e não alcança nenhum comando perigoso', () => {
+      const { home, bin } = caixaIsolada('iso-user', 1000, 'echo "id: deck: no such user" >&2; exit 1');
+      const r = spawnSync('bash', [SCRIPT], { env: { HOME: home, PATH: `${bin}:/usr/bin:/bin`, DECK_ISOLATED: '1' }, encoding: 'utf8' });
+      expect(r.stderr).not.toContain('SENTINEL');
+      expect(r.status).toBe(1);
+      expect(r.stdout).toContain('precisa de root');
+      expect(r.stdout).toContain('sudo DECK_ISOLATED=1');
+    });
+
+    it('DRY_RUN como root imprime o plano e não cria usuário, serviço nem instala nada', () => {
+      const { home, bin } = caixaIsolada('iso-dry', 0, 'echo "id: deck: no such user" >&2; exit 1');
+      const r = spawnSync('bash', [SCRIPT], { env: { HOME: home, PATH: `${bin}:/usr/bin:/bin`, DECK_ISOLATED: '1', DECK_DRY_RUN: '1' }, encoding: 'utf8' });
+      expect(r.stderr).not.toContain('SENTINEL');
+      expect(r.status).toBe(0);
+      expect(r.stdout).toContain('usuário deck: criaria');
+      expect(r.stdout).toContain('/etc/systemd/system/deck-agent.service');
+      expect(r.stdout).toContain('depois que o usuário existir');
+    });
+
+    it('recusa um usuário deck que já está no grupo sudo', () => {
+      const { home, bin } = caixaIsolada('iso-sudo', 0, 'echo "uid=1001(deck)"');
+      const idBin = readFileSync(join(bin, 'id'), 'utf8').replace('*) exec', '-nG) echo "deck sudo";; *) exec');
+      writeFileSync(join(bin, 'id'), idBin.replace('case "$1" in', 'case "$1$2" in').replace('deck) echo', 'deck*) echo').replace('-nG)', '-nGdeck)'), { mode: 0o755 });
+      const r = spawnSync('bash', [SCRIPT], { env: { HOME: home, PATH: `${bin}:/usr/bin:/bin`, DECK_ISOLATED: '1', DECK_DRY_RUN: '1' }, encoding: 'utf8' });
+      expect(r.stderr).not.toContain('SENTINEL');
+      expect(r.status).toBe(1);
+      expect(r.stdout).toContain('sudo/wheel/admin');
+    });
+
+    it('write_install_env grava install.env 600 com valores entre aspas e load_install_env o lê sem executar', () => {
+      const { home } = caixa('iso-env', '#!/bin/sh\n');
+      const r = spawnSync('bash', ['-c', [
+        'set -euo pipefail',
+        extrairFuncao('write_install_env'),
+        extrairFuncao('load_install_env'),
+        `AGENT_DIR="${home}/.deck-agent"; SRC_DIR=/home/deck/.deck-src; NODE_BIN=/usr/bin; CLAUDE_DIR=/home/deck/.deck-npm/bin; NPX_BIN=/usr/bin/npx; RELAY=wss://r.test; ROLE=admin`,
+        'write_install_env',
+        'stat -c %a "$AGENT_DIR/install.env"',
+        'cat "$AGENT_DIR/install.env"',
+        'ROLE=x; load_install_env "$AGENT_DIR/install.env"; echo "ROLE=$ROLE"',
+        'printf "%s\\n" "SRC_DIR=\'/tmp/x\'; touch /tmp/pwned" > "$AGENT_DIR/bad.env"',
+        'load_install_env "$AGENT_DIR/bad.env" && echo ACEITOU || echo REJEITADO',
+      ].join('\n')], { encoding: 'utf8' });
+      expect(r.status).toBe(0);
+      expect(r.stdout).toContain('600');
+      expect(r.stdout).toContain("SRC_DIR='/home/deck/.deck-src'");
+      expect(r.stdout).toContain("RELAY='wss://r.test'");
+      expect(r.stdout).toContain('ROLE=admin');
+      expect(r.stdout).toContain('REJEITADO');
+    });
+  });
 });

@@ -76,6 +76,12 @@ describe('diagnose', () => {
 });
 
 describe('setupCommand', () => {
+  it('isolated mode runs through sudo with DECK_ISOLATED=1', () => {
+    expect(setupCommand('https://x/s.sh', 'ABC', false, 'isolated')).toBe('curl -fsSL https://x/s.sh | sudo DECK_ISOLATED=1 DECK_PAIR_CODE=ABC bash');
+  });
+  it('isolated mode keeps the admin role', () => {
+    expect(setupCommand('https://x/s.sh', 'ABC', true, 'isolated')).toBe('curl -fsSL https://x/s.sh | sudo DECK_ISOLATED=1 DECK_AGENT_ROLE=admin DECK_PAIR_CODE=ABC bash');
+  });
   it('pairs an admin account as admin', () => {
     expect(setupCommand('https://x/s.sh', 'ABC', true)).toBe('curl -fsSL https://x/s.sh | DECK_AGENT_ROLE=admin DECK_PAIR_CODE=ABC bash');
   });

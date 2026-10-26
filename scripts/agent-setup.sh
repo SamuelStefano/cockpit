@@ -35,6 +35,12 @@
 #   DECK_DRY_RUN=1     só detecta e imprime o plano (reaproveita/instalaria); não instala nada
 #   DECK_INSTALL_BUILD_TOOLS=1  se o `npm ci` falhar sem make/compilador/python3, instala
 #                      (sudo + gerenciador de pacotes) e tenta de novo; default: só mostra o comando
+#   DECK_ISOLATED=1    instalação isolada (rode com sudo): cria o usuário `deck` SEM sudo, roda o
+#                      instalador inteiro como ele e deixa só a unit systemd (User=deck) com root.
+#                      Não mexe na sua conta, no seu Node nem nos seus pacotes
+#   DECK_NO_SERVICE=1  uso interno do modo isolado: instala tudo menos o serviço e grava
+#                      $AGENT_DIR/install.env (chmod 600) pro processo root registrar a unit
+#   DECK_SETUP_URL     de onde baixar este script no modo isolado quando ele veio por pipe (teste)
 #   DECK_SKIP_INSTALL=1   pula o `npm ci` (só pra testar o instalador; o agente NÃO sobe)
 set -euo pipefail
 # Este script cria chave privada (identity.json), log de agente e clone do repo.
@@ -47,7 +53,299 @@ RELAY="${DECK_RELAY_URL:-wss://deck-relay.devfellowship.com}"
 SRC_DIR="${DECK_SRC_DIR:-$HOME/.deck-src}"
 AGENT_DIR="${DECK_AGENT_DIR:-$HOME/.deck-agent}"
 REPO="https://github.com/SamuelStefano/cockpit.git"
-SETUP_URL="https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh"
+SETUP_URL="${DECK_SETUP_URL:-https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh}"
+
+# Instala pacotes "simples" (mesmo nome em toda distro): git, curl.
+pm_install() {
+  ( umask 022
+  if command -v apt-get >/dev/null 2>&1; then $SUDO env DEBIAN_FRONTEND=noninteractive apt-get update -y && $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y "$@"
+  elif command -v dnf >/dev/null 2>&1;   then $SUDO dnf install -y "$@"
+  elif command -v yum >/dev/null 2>&1;   then $SUDO yum install -y "$@"
+  elif command -v apk >/dev/null 2>&1;   then $SUDO apk add --no-cache "$@"
+  elif command -v pacman >/dev/null 2>&1;then $SUDO pacman -Sy --noconfirm "$@"
+  elif command -v zypper >/dev/null 2>&1;then $SUDO zypper install -y "$@"
+  else return 1; fi
+  )
+}
+
+ensure_cmd() { # ensure_cmd <comando> <pacote>
+  command -v "$1" >/dev/null 2>&1 && return 0
+  echo "[deck] instalando $2…"
+  pm_install "$2" || { echo "[deck] não consegui instalar $2 automaticamente — instale manualmente e rode de novo"; exit 1; }
+}
+
+can_systemd() {
+  command -v systemctl >/dev/null 2>&1 || return 1
+  [ "$(id -u)" -eq 0 ] || [ -n "$SUDO" ] || return 1
+  $SUDO systemctl list-units >/dev/null 2>&1 || return 1
+  return 0
+}
+
+# Nunca sobrescreve unit existente sem cópia: a box pode ter uma unit ajustada na mão.
+write_unit() { # write_unit <caminho>  (conteúdo via stdin)
+  local path="$1"
+  if [ -f "$path" ]; then
+    $SUDO cp -a "$path" "$path.bak"
+    echo "[deck] backup da unit anterior em $path.bak"
+  fi
+  $SUDO tee "$path" >/dev/null
+  $SUDO chmod 0644 "$path"
+}
+
+# flock: dois agentes com a MESMA identidade brigam pelo agentId no relay (um chuta
+# o outro em loop). run-agent.sh já usa /tmp/deck-agent.lock — o serviço entra no
+# mesmo lock pra nunca coexistir com o supervisor manual.
+build_exec_start() {
+  if [ -n "$FLOCK_BIN" ]; then
+    EXEC_START="$FLOCK_BIN -n $LOCK $NPX_BIN tsx server/agent.ts"
+  else
+    echo "[deck] aviso: 'flock' não encontrado — sem trava de instância única (não rode outro agente com a mesma identidade)."
+    EXEC_START="$NPX_BIN tsx server/agent.ts"
+  fi
+}
+
+render_unit() {
+  cat <<EOF
+[Unit]
+Description=Deck Agent (T3 relay)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=$RUN_USER
+WorkingDirectory=$SRC_DIR
+Environment=HOME=$HOME
+Environment=PATH=$UNIT_PATH
+Environment=DECK_RELAY_URL=$RELAY
+Environment=DECK_AGENT_ROLE=$ROLE
+Environment=DECK_AGENT_DIR=$AGENT_DIR
+ExecStart=$EXEC_START
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+}
+
+# Login do Claude nesta box — mesma regra do claudeReady() em server/admin-ops.ts.
+# Sem isto o agente conecta, a UI acende e TODO prompt morre mudo: é o buraco que
+# mais queimou fellow ("instalei e não responde").
+claude_logged_in() {
+  if [ -n "${ANTHROPIC_API_KEY:-}" ] || [ -n "${ANTHROPIC_AUTH_TOKEN:-}" ]; then return 0; fi
+  if [ -s "$HOME/.config/anthropic/credentials" ]; then return 0; fi
+  node -e 'const fs=require("fs");try{const o=JSON.parse(fs.readFileSync(process.env.HOME+"/.claude/.credentials.json","utf8")).claudeAiOauth;process.exit(o&&typeof o.accessToken==="string"&&o.accessToken?0:1)}catch(e){process.exit(1)}' 2>/dev/null
+}
+
+# Modo isolado: o filho (usuário deck, sem sudo) grava isto em vez de instalar o
+# serviço; o pai root lê e registra a unit. Valores entre aspas simples.
+write_install_env() {
+  local f="$AGENT_DIR/install.env" k v q="'" bq="'\\''"
+  mkdir -p "$AGENT_DIR"
+  (
+    umask 077
+    for k in SRC_DIR AGENT_DIR NODE_BIN CLAUDE_DIR NPX_BIN RELAY ROLE; do
+      v="${!k}"
+      printf "%s='%s'\n" "$k" "${v//$q/$bq}"
+    done >"$f"
+  )
+  chmod 600 "$f"
+}
+
+# Lê install.env SEM executá-lo: só linhas CHAVE='valor' que passam na validação
+# (o arquivo é do usuário deck; nada dele vira shell nem quebra a unit).
+load_install_env() { # load_install_env <arquivo>
+  local line k v
+  while IFS= read -r line || [ -n "$line" ]; do
+    [[ "$line" =~ ^([A-Z_]+)=\'([^\']*)\'$ ]] || { echo "[deck] install.env inválido: linha inesperada"; return 1; }
+    k="${BASH_REMATCH[1]}"; v="${BASH_REMATCH[2]}"
+    case "$k" in
+      SRC_DIR|AGENT_DIR|NODE_BIN|CLAUDE_DIR|NPX_BIN)
+        [[ "$v" =~ ^/[A-Za-z0-9._/+@:-]*$ ]] || { echo "[deck] install.env inválido: $k não é um caminho absoluto seguro"; return 1; } ;;
+      RELAY) [[ "$v" =~ ^wss?://[A-Za-z0-9._:/@%-]+$ ]] || { echo "[deck] install.env inválido: RELAY"; return 1; } ;;
+      ROLE) [[ "$v" =~ ^[a-z]+$ ]] || { echo "[deck] install.env inválido: ROLE"; return 1; } ;;
+      *) echo "[deck] install.env inválido: chave $k desconhecida"; return 1 ;;
+    esac
+    printf -v "$k" '%s' "$v"
+  done <"$1"
+  return 0
+}
+
+# Roda um comando como o usuário deck (runuser; su como fallback).
+deck_exec() {
+  if command -v runuser >/dev/null 2>&1; then runuser -u deck -- "$@"
+  else su -s /bin/bash deck -c "$(printf '%q ' "$@")"; fi
+}
+
+isolated_parent() {
+  local dhome="/home/deck" unit="/etc/systemd/system/deck-agent.service" exists=0 copy rc=0 groups_of_deck mode_o suser_home
+  local deck_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  SUDO=""
+  if [ "$(id -u)" -ne 0 ]; then
+    cat <<EOF
+[deck] DECK_ISOLATED=1 precisa de root (via sudo) pra criar o usuário 'deck' e o serviço.
+Rode como seu usuário normal, com sudo:
+  curl -fsSL $SETUP_URL | sudo DECK_ISOLATED=1 DECK_PAIR_CODE=CÓDIGO bash
+EOF
+    exit 1
+  fi
+
+  if id deck >/dev/null 2>&1; then
+    exists=1
+    dhome="$(getent passwd deck 2>/dev/null | cut -d: -f6 || true)"; dhome="${dhome:-/home/deck}"
+    groups_of_deck=" $(id -nG deck 2>/dev/null || true) "
+    case "$groups_of_deck" in
+      *" sudo "*|*" wheel "*|*" admin "*)
+        echo "[deck] ERRO: o usuário 'deck' já existe e está no grupo sudo/wheel/admin."
+        echo "[deck] O modo isolado exige um 'deck' SEM privilégios. Remova-o do grupo (gpasswd -d deck sudo) ou use outro usuário, e rode de novo."
+        exit 1 ;;
+    esac
+  fi
+
+  if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+    suser_home="$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6 || true)"; suser_home="${suser_home:-/home/$SUDO_USER}"
+    mode_o="$(stat -c %a "$suser_home" 2>/dev/null || true)"; mode_o="${mode_o: -1}"
+    if [ -n "$mode_o" ] && [ $((mode_o & 5)) -ne 0 ]; then
+      echo "[deck] AVISO: $suser_home é legível por outros usuários (inclusive o 'deck'). Não alterei nada; sugestão:"
+      echo "         sudo chmod 750 $suser_home"
+    fi
+  fi
+
+  if [ "${DECK_DRY_RUN:-}" = "1" ]; then
+    echo "[deck] DECK_ISOLATED=1 DECK_DRY_RUN=1 — nada será alterado. Plano do processo root:"
+    if [ "$exists" = "1" ]; then echo "  usuário deck: já existe (reaproveita, home $dhome)"
+    else echo "  usuário deck: criaria (useradd -m -s /bin/bash deck), sem sudo/wheel"; fi
+    echo "  systemd unit: $unit (User=deck; único arquivo escrito como root)"
+    if [ "$exists" != "1" ]; then
+      echo "  o plano do instalador (rodando como deck) aparece depois que o usuário existir."
+      exit 0
+    fi
+  fi
+
+  copy="$(mktemp)"
+  trap 'rm -f "$copy"' EXIT
+  if [ -r "${BASH_SOURCE[0]:-}" ]; then cp "${BASH_SOURCE[0]}" "$copy"
+  else
+    command -v curl >/dev/null 2>&1 || ensure_cmd curl curl
+    curl -fsSL "$SETUP_URL" -o "$copy" || { echo "[deck] não consegui baixar $SETUP_URL"; exit 1; }
+  fi
+  chmod 644 "$copy"
+
+  local envs=(HOME="$dhome" USER=deck LOGNAME=deck PATH="$deck_path" SHELL=/bin/bash)
+  [ -n "$CODE" ] && envs+=(DECK_PAIR_CODE="$CODE")
+  [ -n "${DECK_RELAY_URL:-}" ] && envs+=(DECK_RELAY_URL="$DECK_RELAY_URL")
+  [ -n "${DECK_AGENT_ROLE:-}" ] && envs+=(DECK_AGENT_ROLE="$DECK_AGENT_ROLE")
+  [ -n "${DECK_SETUP_URL:-}" ] && envs+=(DECK_SETUP_URL="$DECK_SETUP_URL")
+
+  if [ "${DECK_DRY_RUN:-}" = "1" ]; then
+    deck_exec env -i "${envs[@]}" DECK_NO_SERVICE=1 DECK_DRY_RUN=1 bash "$copy"
+    exit $?
+  fi
+
+  command -v curl >/dev/null 2>&1 || ensure_cmd curl curl
+  command -v git >/dev/null 2>&1 || ensure_cmd git git
+
+  # node-pty ships no linux prebuild, and the deck user has no sudo to fetch a
+  # compiler later — so decide here, before creating anything.
+  if ! have_build_tools; then
+    if [ "${DECK_INSTALL_BUILD_TOOLS:-}" = "1" ]; then
+      echo "[deck] instalando ferramentas de build (DECK_INSTALL_BUILD_TOOLS=1)…"
+      install_build_tools && have_build_tools || { echo "[deck] não consegui instalar as ferramentas de build."; exit 1; }
+    else
+      cat <<EOF
+[deck] faltam ferramentas de build (make, compilador C/C++, python3) pra compilar node-pty.
+Nada foi alterado. Instale e rode de novo (não mexe no seu Node):
+  Debian/Ubuntu:  sudo apt-get install -y build-essential python3
+  Fedora/RHEL:    sudo dnf groupinstall -y "Development Tools" && sudo dnf install -y python3
+  Alpine:         sudo apk add build-base python3
+Ou rode de novo com DECK_INSTALL_BUILD_TOOLS=1 na frente do bash.
+EOF
+      exit 1
+    fi
+  fi
+
+  if [ "$exists" != "1" ]; then
+    echo "[deck] criando o usuário 'deck' (sem sudo)…"
+    if command -v useradd >/dev/null 2>&1; then useradd -m -s /bin/bash deck
+    elif command -v adduser >/dev/null 2>&1; then adduser -D -s /bin/bash deck
+    else echo "[deck] sem useradd/adduser — crie o usuário 'deck' à mão e rode de novo."; exit 1; fi
+    dhome="$(getent passwd deck 2>/dev/null | cut -d: -f6 || true)"; dhome="${dhome:-/home/deck}"
+    envs[0]="HOME=$dhome"
+  fi
+
+  rm -f "$dhome/.deck-agent/install.env"
+  deck_exec env -i "${envs[@]}" DECK_NO_SERVICE=1 bash "$copy" || rc=$?
+  if [ "$rc" -ne 0 ]; then echo "[deck] o instalador (usuário deck) falhou com código $rc."; exit "$rc"; fi
+  if [ ! -f "$dhome/.deck-agent/install.env" ]; then
+    echo "[deck] nada a registrar: o instalador terminou sem preparar o serviço (veja a mensagem acima)."
+    exit 0
+  fi
+  load_install_env "$dhome/.deck-agent/install.env" || exit 1
+
+  SERVICE="deck-agent"; RUN_USER="deck"; HOME="$dhome"
+  FLOCK_BIN="$(command -v flock || true)"; LOCK=/tmp/deck-agent.lock
+  UNIT_PATH="$NODE_BIN:$CLAUDE_DIR:$deck_path"
+  build_exec_start
+  if can_systemd; then
+    echo "[deck] instalando serviço systemd ($SERVICE, User=deck)…"
+    render_unit | write_unit "$unit"
+    systemctl daemon-reload
+    systemctl enable "$SERVICE" >/dev/null 2>&1 || true
+    systemctl restart "$SERVICE"
+    echo "[deck] agente instalado como serviço (usuário=deck, role=$ROLE)."
+    echo "[deck] logs: journalctl -u $SERVICE -f"
+  else
+    echo "[deck] systemd indisponível — subindo com nohup como 'deck' (sobrevive ao SSH, NÃO a reboot)."
+    # shellcheck disable=SC2086
+    deck_exec env -i HOME="$dhome" PATH="$UNIT_PATH" DECK_RELAY_URL="$RELAY" DECK_AGENT_ROLE="$ROLE" DECK_AGENT_DIR="$AGENT_DIR" \
+      sh -c 'cd "$1" && shift && touch agent.log && chmod 600 agent.log && nohup "$@" >>agent.log 2>&1 &' _ "$SRC_DIR" $EXEC_START
+    echo "[deck] agente rodando em segundo plano (log: $SRC_DIR/agent.log)."
+  fi
+
+  if ! deck_exec env -i HOME="$dhome" PATH="$UNIT_PATH" bash -c "$(declare -f claude_logged_in); claude_logged_in"; then
+    echo "[deck] pronto, MAS o claude não está logado para o usuário deck. Faça o login e reinicie o serviço:"
+    echo "  sudo -iu deck env PATH=$UNIT_PATH $CLAUDE_DIR/claude"
+    echo "  sudo systemctl restart $SERVICE"
+  else
+    echo "[deck] pronto — a tela do Deck troca sozinha quando o agente conectar."
+  fi
+  echo "[deck] desinstalar:"
+  echo "  sudo systemctl disable --now deck-agent; sudo rm /etc/systemd/system/deck-agent.service; sudo pkill -u deck; sudo userdel -r deck"
+  exit 0
+}
+
+have_build_tools() {
+  command -v make >/dev/null 2>&1 || return 1
+  command -v cc >/dev/null 2>&1 || command -v gcc >/dev/null 2>&1 || command -v g++ >/dev/null 2>&1 || return 1
+  command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1 || return 1
+  return 0
+}
+
+# Só roda com DECK_INSTALL_BUILD_TOOLS=1.
+install_build_tools() {
+  ( umask 022
+  if command -v apt-get >/dev/null 2>&1; then
+    $SUDO env DEBIAN_FRONTEND=noninteractive apt-get update -y && $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential python3
+  elif command -v dnf >/dev/null 2>&1; then
+    $SUDO dnf groupinstall -y "Development Tools" && $SUDO dnf install -y python3
+  elif command -v yum >/dev/null 2>&1; then
+    $SUDO yum groupinstall -y "Development Tools" && $SUDO yum install -y python3
+  elif command -v apk >/dev/null 2>&1; then
+    $SUDO apk add --no-cache build-base python3
+  elif command -v pacman >/dev/null 2>&1; then
+    $SUDO pacman -Sy --noconfirm base-devel python
+  elif command -v zypper >/dev/null 2>&1; then
+    $SUDO zypper install -y -t pattern devel_basis && $SUDO zypper install -y python3
+  else
+    return 1
+  fi
+  )
+}
+
+if [ "${DECK_ISOLATED:-}" = "1" ] && [ "${DECK_NO_SERVICE:-}" != "1" ]; then isolated_parent; fi
 
 # Root vira User=root na unit systemd: o agente roda `claude -p` e terminais reais,
 # então todo turno passaria a ter root na box do fellow. Recusa por default.
@@ -69,7 +367,7 @@ EOF
 fi
 
 SUDO=""
-if [ "$(id -u)" -ne 0 ]; then
+if [ "$(id -u)" -ne 0 ] && [ "${DECK_NO_SERVICE:-}" != "1" ]; then
   if command -v sudo >/dev/null 2>&1; then SUDO="sudo"; fi
 fi
 DRY="${DECK_DRY_RUN:-}"
@@ -79,52 +377,6 @@ REUSED=""; INSTALLED=""
 note_reused() { REUSED="${REUSED:+$REUSED, }$1"; }
 note_installed() { INSTALLED="${INSTALLED:+$INSTALLED, }$1"; }
 
-# Instala pacotes "simples" (mesmo nome em toda distro): git, curl.
-pm_install() {
-  ( umask 022
-  if command -v apt-get >/dev/null 2>&1; then $SUDO apt-get update -y && $SUDO apt-get install -y "$@"
-  elif command -v dnf >/dev/null 2>&1;   then $SUDO dnf install -y "$@"
-  elif command -v yum >/dev/null 2>&1;   then $SUDO yum install -y "$@"
-  elif command -v apk >/dev/null 2>&1;   then $SUDO apk add --no-cache "$@"
-  elif command -v pacman >/dev/null 2>&1;then $SUDO pacman -Sy --noconfirm "$@"
-  elif command -v zypper >/dev/null 2>&1;then $SUDO zypper install -y "$@"
-  else return 1; fi
-  )
-}
-
-ensure_cmd() { # ensure_cmd <comando> <pacote>
-  command -v "$1" >/dev/null 2>&1 && return 0
-  echo "[deck] instalando $2…"
-  pm_install "$2" || { echo "[deck] não consegui instalar $2 automaticamente — instale manualmente e rode de novo"; exit 1; }
-}
-
-have_build_tools() {
-  command -v make >/dev/null 2>&1 || return 1
-  command -v cc >/dev/null 2>&1 || command -v gcc >/dev/null 2>&1 || command -v g++ >/dev/null 2>&1 || return 1
-  command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1 || return 1
-  return 0
-}
-
-# Só roda com DECK_INSTALL_BUILD_TOOLS=1 e depois de um `npm ci` que falhou.
-install_build_tools() {
-  ( umask 022
-  if command -v apt-get >/dev/null 2>&1; then
-    $SUDO apt-get update -y && $SUDO apt-get install -y build-essential python3
-  elif command -v dnf >/dev/null 2>&1; then
-    $SUDO dnf groupinstall -y "Development Tools" && $SUDO dnf install -y python3
-  elif command -v yum >/dev/null 2>&1; then
-    $SUDO yum groupinstall -y "Development Tools" && $SUDO yum install -y python3
-  elif command -v apk >/dev/null 2>&1; then
-    $SUDO apk add --no-cache build-base python3
-  elif command -v pacman >/dev/null 2>&1; then
-    $SUDO pacman -Sy --noconfirm base-devel python
-  elif command -v zypper >/dev/null 2>&1; then
-    $SUDO zypper install -y -t pattern devel_basis && $SUDO zypper install -y python3
-  else
-    return 1
-  fi
-  )
-}
 
 # Escolhe o primeiro Node >= 20: PATH, nvm (maior versão), ~/.deck-node. Sem nenhum,
 # baixa o tarball oficial pro ~/.deck-node (não mexe no Node do sistema).
@@ -206,7 +458,9 @@ if [ "$DRY" = "1" ]; then
   find_claude
   if [ -n "$CLAUDE_BIN" ]; then echo "  claude: reaproveita $CLAUDE_BIN"
   else echo "  claude: instalaria @anthropic-ai/claude-code em $HOME/.deck-npm (npm --prefix, sem sudo)"; fi
-  if command -v systemctl >/dev/null 2>&1; then
+  if [ "${DECK_NO_SERVICE:-}" = "1" ]; then
+    echo "  systemd unit: não escrita aqui — o processo root registra a unit (User=deck)"
+  elif command -v systemctl >/dev/null 2>&1; then
     if [ -f "/etc/systemd/system/deck-agent.service" ]; then echo "  systemd unit: reaproveita o nome (atualiza /etc/systemd/system/deck-agent.service, backup .bak)"
     else echo "  systemd unit: instalaria /etc/systemd/system/deck-agent.service (único uso de sudo)"; fi
   else
@@ -329,29 +583,22 @@ LOCK=/tmp/deck-agent.lock
 ROLE="${DECK_AGENT_ROLE:-student}"
 UNIT_PATH="$NODE_BIN:$CLAUDE_DIR:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-# Login do Claude nesta box — mesma regra do claudeReady() em server/admin-ops.ts.
-# Sem isto o agente conecta, a UI acende e TODO prompt morre mudo: é o buraco que
-# mais queimou fellow ("instalei e não responde").
-claude_logged_in() {
-  if [ -n "${ANTHROPIC_API_KEY:-}" ] || [ -n "${ANTHROPIC_AUTH_TOKEN:-}" ]; then return 0; fi
-  if [ -s "$HOME/.config/anthropic/credentials" ]; then return 0; fi
-  node -e 'const fs=require("fs");try{const o=JSON.parse(fs.readFileSync(process.env.HOME+"/.claude/.credentials.json","utf8")).claudeAiOauth;process.exit(o&&typeof o.accessToken==="string"&&o.accessToken?0:1)}catch(e){process.exit(1)}' 2>/dev/null
-}
-
 LOGGED_IN=1
 if ! claude_logged_in; then
   LOGGED_IN=0
-  cat <<'EOF'
+  [ "${DECK_NO_SERVICE:-}" = "1" ] || cat <<'EOF'
 
   ┌───────────────────────────────────────────────────────────────┐
   │  ATENÇÃO: o `claude` NÃO está logado nesta máquina.           │
   │  O agente sobe, mas TODO prompt vai falhar até você logar.    │
   │                                                               │
-  │  Rode `claude` uma vez nesta box, faça o login, e depois:     │
+  │  Rode o comando abaixo uma vez, faça o login, e depois:       │
   │      sudo systemctl restart deck-agent                        │
   └───────────────────────────────────────────────────────────────┘
 
 EOF
+  # The claude/node we picked may live outside the login PATH (~/.deck-npm, ~/.deck-node).
+  [ "${DECK_NO_SERVICE:-}" = "1" ] || echo "      PATH=$UNIT_PATH $CLAUDE_DIR/claude"
 fi
 
 # Sem identidade o agente sai 1 na hora (runAgent aborta) e a unit ficaria
@@ -374,63 +621,18 @@ if [ "${DECK_SKIP_INSTALL:-}" = "1" ]; then
   exit 0
 fi
 
-# Persistência: instala um serviço systemd pra o agente sobreviver ao fechamento
-# do SSH e a reboots, com auto-restart. Sem systemd (ou sem root/sudo p/ escrever
-# a unit), cai pro nohup — sobrevive ao SSH mas NÃO ao reboot.
-can_systemd() {
-  command -v systemctl >/dev/null 2>&1 || return 1
-  [ "$(id -u)" -eq 0 ] || [ -n "$SUDO" ] || return 1
-  $SUDO systemctl list-units >/dev/null 2>&1 || return 1
-  return 0
-}
-
-# Nunca sobrescreve unit existente sem cópia: a box pode ter uma unit ajustada na mão.
-write_unit() { # write_unit <caminho>  (conteúdo via stdin)
-  local path="$1"
-  if [ -f "$path" ]; then
-    $SUDO cp -a "$path" "$path.bak"
-    echo "[deck] backup da unit anterior em $path.bak"
-  fi
-  $SUDO tee "$path" >/dev/null
-  $SUDO chmod 0644 "$path"
-}
-
-# flock: dois agentes com a MESMA identidade brigam pelo agentId no relay (um chuta
-# o outro em loop). run-agent.sh já usa /tmp/deck-agent.lock — o serviço entra no
-# mesmo lock pra nunca coexistir com o supervisor manual.
-if [ -n "$FLOCK_BIN" ]; then
-  EXEC_START="$FLOCK_BIN -n $LOCK $NPX_BIN tsx server/agent.ts"
-else
-  echo "[deck] aviso: 'flock' não encontrado — sem trava de instância única (não rode outro agente com a mesma identidade)."
-  EXEC_START="$NPX_BIN tsx server/agent.ts"
+if [ "${DECK_NO_SERVICE:-}" = "1" ]; then
+  write_install_env
+  print_summary
+  echo "[deck] DECK_NO_SERVICE=1 — dependências e pareamento prontos; o serviço é registrado pelo processo root."
+  exit 0
 fi
 
+# Persistência: serviço systemd (auto-restart, sobrevive a reboot); sem systemd, nohup.
+build_exec_start
 if can_systemd; then
   echo "[deck] instalando serviço systemd ($SERVICE) — auto-restart e sobrevive a reboot…"
-  write_unit "/etc/systemd/system/$SERVICE.service" <<EOF
-[Unit]
-Description=Deck Agent (T3 relay)
-After=network-online.target
-Wants=network-online.target
-StartLimitIntervalSec=300
-StartLimitBurst=5
-
-[Service]
-Type=simple
-User=$RUN_USER
-WorkingDirectory=$SRC_DIR
-Environment=HOME=$HOME
-Environment=PATH=$UNIT_PATH
-Environment=DECK_RELAY_URL=$RELAY
-Environment=DECK_AGENT_ROLE=$ROLE
-Environment=DECK_AGENT_DIR=$AGENT_DIR
-ExecStart=$EXEC_START
-Restart=always
-RestartSec=3
-
-[Install]
-WantedBy=multi-user.target
-EOF
+  render_unit | write_unit "/etc/systemd/system/$SERVICE.service"
   $SUDO systemctl daemon-reload
   $SUDO systemctl enable "$SERVICE" >/dev/null 2>&1 || true
   $SUDO systemctl restart "$SERVICE"
@@ -536,5 +738,5 @@ print_summary
 if [ "$LOGGED_IN" = "1" ]; then
   echo "[deck] pronto — a tela do Deck troca sozinha quando o agente conectar."
 else
-  echo "[deck] pronto, MAS o \`claude\` não está logado: rode \`claude\` nesta box, faça login e depois '$SUDO systemctl restart $SERVICE' (ou reinicie o agente)."
+  echo "[deck] pronto, MAS o \`claude\` não está logado: rode \`PATH=$UNIT_PATH $CLAUDE_DIR/claude\` nesta box, faça login e depois '$SUDO systemctl restart $SERVICE' (ou reinicie o agente)."
 fi
