@@ -86,7 +86,7 @@ beforeEach(async () => {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 async function enrolledSocket() {
-  const s = new SealedSocket('wss://relay/ws');
+  const s = new SealedSocket('wss://relay/ws', 'jwt');
   const got: string[] = [];
   let opened = false;
   s.onopen = () => { opened = true; };
@@ -132,7 +132,7 @@ describe('SealedSocket against the real agent hub', () => {
     s.close();
     await flush();
     mem.pins = [new Uint8Array(32).fill(7)];
-    const again = new SealedSocket('wss://relay/ws');
+    const again = new SealedSocket('wss://relay/ws', 'jwt');
     let opened = false;
     again.onopen = () => { opened = true; };
     await flush(); await flush();

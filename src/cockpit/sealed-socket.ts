@@ -57,12 +57,14 @@ export class SealedSocket {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private chain: Promise<unknown> = Promise.resolve();
 
-  constructor(url: string) {
+  // The JWT rides as a subprotocol entry, never in the URL: the relay picks
+  // `deck.v1`, and access/error logs that record the URL never see the token.
+  constructor(url: string, token: string) {
     current = this;
     // A refused agent key or an agent without T5 stays on screen across the
     // automatic redials; only a sealed channel or a new enrollment clears it.
     if (state !== 'rejected' && state !== 'unsupported') setState('connecting');
-    this.ws = new WebSocket(url);
+    this.ws = token ? new WebSocket(url, ['deck.v1', `bearer.${token}`]) : new WebSocket(url);
     this.ws.onmessage = (ev) => { this.chain = this.chain.then(() => this.onFrame(String(ev.data))).catch(() => this.fail('sealed frame rejected')); };
     this.ws.onclose = (ev) => this.finish(ev.code, ev.reason);
     this.ws.onerror = (ev) => this.onerror?.(ev);
