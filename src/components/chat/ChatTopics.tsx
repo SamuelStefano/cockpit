@@ -1,6 +1,12 @@
+import { useEffect, useRef } from 'react';
 import { tokens } from '../primitives';
 import type { ChatTopic } from './chat-topics';
 import { useDismiss } from './useDismiss';
+
+// Leaving the rail on the way to the list crosses a gap and, diagonally, chat area
+// outside both: closing on the instant of pointerleave hid the list before the
+// mouse reached it. Re-entering within this window keeps it open.
+export const CLOSE_GRACE_MS = 400;
 
 interface ChatTopicsProps {
   topics: ChatTopic[];
@@ -16,6 +22,12 @@ interface ChatTopicsProps {
 export function ChatTopics({ topics, activeId, open, setOpen, onJump }: ChatTopicsProps) {
   // Opened by tap on a phone there is no mouseleave to close it: Esc and a tap outside do.
   const ref = useDismiss<HTMLDivElement>(open, () => setOpen(false));
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelClose = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    closeTimer.current = null;
+  };
+  useEffect(() => cancelClose, []);
   if (topics.length === 0) return null;
   return (
     <div
@@ -28,8 +40,16 @@ export function ChatTopics({ topics, activeId, open, setOpen, onJump }: ChatTopi
       // Hover opens it for a real mouse only. A tap fires emulated mouseenter right
       // before click, so opening on mouseenter made the click toggle it shut again:
       // on a phone the rail never opened.
-      onPointerEnter={(e) => { if (e.pointerType === 'mouse') setOpen(true); }}
-      onPointerLeave={(e) => { if (e.pointerType === 'mouse') setOpen(false); }}
+      onPointerEnter={(e) => {
+        if (e.pointerType !== 'mouse') return;
+        cancelClose();
+        setOpen(true);
+      }}
+      onPointerLeave={(e) => {
+        if (e.pointerType !== 'mouse') return;
+        cancelClose();
+        closeTimer.current = setTimeout(() => setOpen(false), CLOSE_GRACE_MS);
+      }}
     >
       <button
         type="button"

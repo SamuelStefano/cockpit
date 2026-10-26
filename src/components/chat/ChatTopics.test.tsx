@@ -2,7 +2,8 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { useState } from 'react';
 import { render, cleanup, screen, fireEvent } from '@testing-library/react';
-import { ChatTopics } from './ChatTopics';
+import { act } from 'react';
+import { ChatTopics, CLOSE_GRACE_MS } from './ChatTopics';
 
 afterEach(cleanup);
 
@@ -67,5 +68,32 @@ describe('ChatTopics', () => {
     fireEvent.click(rail);
     expect(rail.getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByRole('navigation')).toBeTruthy();
+  });
+
+  it('mouse leaving waits a grace period, so the pointer can cross the gap to the list', () => {
+    vi.useFakeTimers();
+    try {
+      function Harness() {
+        const [open, setOpen] = useState(false);
+        return <ChatTopics topics={topics} activeId="u1" open={open} setOpen={setOpen} onJump={() => {}} />;
+      }
+      render(<Harness />);
+      const rail = screen.getByLabelText(/Tópicos da conversa/);
+      fireEvent.pointerEnter(rail, { pointerType: 'mouse' });
+      expect(screen.getByRole('navigation')).toBeTruthy();
+      fireEvent.pointerLeave(rail, { pointerType: 'mouse' });
+      act(() => { vi.advanceTimersByTime(CLOSE_GRACE_MS - 50); });
+      expect(screen.getByRole('navigation')).toBeTruthy();
+      // reaches the list in time: stays open past the grace period
+      fireEvent.pointerEnter(screen.getByRole('navigation'), { pointerType: 'mouse' });
+      act(() => { vi.advanceTimersByTime(CLOSE_GRACE_MS * 2); });
+      expect(screen.getByRole('navigation')).toBeTruthy();
+      // leaves for good: closes once the grace period runs out
+      fireEvent.pointerLeave(screen.getByRole('navigation'), { pointerType: 'mouse' });
+      act(() => { vi.advanceTimersByTime(CLOSE_GRACE_MS); });
+      expect(screen.queryByRole('navigation')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
