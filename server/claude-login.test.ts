@@ -149,6 +149,45 @@ describe('createClaudeLogin', () => {
     expect(fakes[0].pty.killed).toBe(true);
   });
 
+  it('errors with a shell hint when the CLI never prints a link', () => {
+    const login = createClaudeLogin({ spawn: () => { const f = fakePty(); fakes.push(f); return f.pty; }, ready: () => false, emit: (m) => frames.push(m), timeoutMs: 600_000, urlTimeoutMs: 100 });
+    login.start();
+    fakes[0].emitData('some warning\r\n');
+    vi.advanceTimersByTime(101);
+    const last = frames.at(-1) as { state: string; error: string };
+    expect(last.state).toBe('error');
+    expect(last.error).toContain('claude auth login');
+    expect(fakes[0].pty.killed).toBe(true);
+  });
+
+  it('does not fire the link timeout once the url arrived', () => {
+    const login = createClaudeLogin({ spawn: () => { const f = fakePty(); fakes.push(f); return f.pty; }, ready: () => false, emit: (m) => frames.push(m), timeoutMs: 600_000, urlTimeoutMs: 100 });
+    login.start();
+    fakes[0].emitData(SAMPLE);
+    vi.advanceTimersByTime(500);
+    expect(states()).toEqual(['waiting-url', 'url']);
+  });
+
+  it('returns to the url step when verification hangs', () => {
+    const login = createClaudeLogin({ spawn: () => { const f = fakePty(); fakes.push(f); return f.pty; }, ready: () => false, emit: (m) => frames.push(m), timeoutMs: 600_000, verifyTimeoutMs: 100 });
+    login.start();
+    fakes[0].emitData(SAMPLE);
+    login.submitCode('abc');
+    vi.advanceTimersByTime(101);
+    const last = frames.at(-1) as { state: string; url?: string; error?: string };
+    expect(last.state).toBe('url');
+    expect(last.url).toBe(URL_);
+    expect(last.error).toContain('claude auth login');
+  });
+
+  it('spawn failure carries the cause and the shell hint', () => {
+    const login = createClaudeLogin({ spawn: () => { throw new Error('File not found: claude'); }, ready: () => false, emit: (m) => frames.push(m), timeoutMs: 1000 });
+    login.start();
+    const last = frames.at(-1) as { error: string };
+    expect(last.error).toContain('File not found: claude');
+    expect(last.error).toContain('claude auth login');
+  });
+
   it('spawn failure becomes an error', () => {
     const login = createClaudeLogin({ spawn: () => { throw new Error('ENOENT'); }, ready: () => false, emit: (m) => frames.push(m), timeoutMs: 1000 });
     login.start();

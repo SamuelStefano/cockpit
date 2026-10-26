@@ -52,7 +52,12 @@ export function ClaudeAuthBanner(props: ClaudeAuthBannerProps) {
                   <CodeBlock code={UPDATE_PLAIN} lang="bash" />
                 </div>
               )}
-              {l.error && (l.state === 'error' || l.state === 'url') && (
+              {l.stalled && (
+                <p role="alert" className="text-[12.5px] text-red-400">
+                  O login demorou demais. Abra a aba Shell e rode <code className={MONO}>claude auth login</code>.
+                </p>
+              )}
+              {l.error && !l.noReply && !l.stalled && (l.state === 'error' || l.state === 'url') && (
                 <p role="alert" className="text-[12.5px] text-red-400">{l.error}</p>
               )}
               {showCode && l.url && (

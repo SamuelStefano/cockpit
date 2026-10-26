@@ -66,3 +66,16 @@ describe('useClaudeLogin reply timeout', () => {
     vi.useRealTimers();
   });
 });
+
+describe('useClaudeLogin stall timeout', () => {
+  it('stops spinning when the server goes silent after answering', async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook((p: { login: ClaudeLoginView }) => useClaudeLogin(p), { initialProps: { login: { state: 'waiting-url' } as ClaudeLoginView } });
+    expect(result.current.busy).toBe(true);
+    await act(async () => { await vi.advanceTimersByTimeAsync(90_000); });
+    expect(result.current.stalled).toBe(true);
+    expect(result.current.busy).toBe(false);
+    expect(result.current.state).toBe('error');
+    vi.useRealTimers();
+  });
+});
