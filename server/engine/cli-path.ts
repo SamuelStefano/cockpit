@@ -10,6 +10,12 @@ import { join } from 'node:path';
 // spawn sem depender do PATH de quem subiu o processo.
 export function cliPath(): string {
   const base = process.env.PATH ?? '';
-  const local = join(homedir(), '.local', 'bin');
-  return existsSync(join(local, 'claude')) ? `${local}:${base}` : base;
+  const home = homedir();
+  const local = join(home, '.local', 'bin');
+  // Installs by scripts/agent-setup.sh and the official installer land outside the
+  // systemd unit's PATH when the unit was written before claude moved.
+  const extra = [join(home, '.deck-npm', 'bin'), join(home, '.claude', 'local')]
+    .filter((d) => existsSync(join(d, 'claude')) && !base.split(':').includes(d));
+  const front = existsSync(join(local, 'claude')) ? [local, ...extra] : extra;
+  return front.length ? `${front.join(':')}:${base}` : base;
 }
