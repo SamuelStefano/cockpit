@@ -91,8 +91,14 @@ export function diagnose({ probe, agentOnline, expired, hasCode }: DiagnoseInput
   return { tone: 'neutral', title: 'Aguardando o agente conectar…', steps: [] };
 }
 
+export type InstallMode = 'isolated' | 'dedicated';
+
 // An admin account pairs its OWN box: without DECK_AGENT_ROLE=admin the agent comes
 // up as student and refuses terminals and external agents (Grok) on every turn.
-export function setupCommand(url: string, code: string, admin: boolean): string {
-  return `curl -fsSL ${url} | ${admin ? 'DECK_AGENT_ROLE=admin ' : ''}DECK_PAIR_CODE=${code} bash`;
+// Isolated runs through sudo so the script can create the `deck` user; the agent
+// itself never gets sudo.
+export function setupCommand(url: string, code: string, admin: boolean, mode: InstallMode = 'dedicated'): string {
+  const role = admin ? 'DECK_AGENT_ROLE=admin ' : '';
+  if (mode === 'isolated') return `curl -fsSL ${url} | sudo DECK_ISOLATED=1 ${role}DECK_PAIR_CODE=${code} bash`;
+  return `curl -fsSL ${url} | ${role}DECK_PAIR_CODE=${code} bash`;
 }

@@ -1,7 +1,9 @@
 import { CodeBlock } from '../../../components/primitives';
 import { Pill, SectionTitle, StepCard, Callout } from '../atoms';
 
-const SETUP_CMD = 'curl -fsSL https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh | DECK_PAIR_CODE=CÓDIGO bash';
+const SETUP_URL = 'https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh';
+const SETUP_CMD = `curl -fsSL ${SETUP_URL} | sudo DECK_ISOLATED=1 DECK_PAIR_CODE=CÓDIGO bash`;
+const SETUP_CMD_DEDICATED = `curl -fsSL ${SETUP_URL} | DECK_PAIR_CODE=CÓDIGO bash`;
 
 export function Connect() {
   return (
@@ -14,8 +16,11 @@ export function Connect() {
           <span className="font-medium text-neutral-300"> “conectar sua VPS”</span> com um comando de uma linha e um código de pareamento.
         </StepCard>
         <StepCard step={2} title="Rode o agente na VPS">
-          No terminal da sua VPS, cole o comando mostrado na tela (troque <Pill>CÓDIGO</Pill> pelo seu código de pareamento):
+          No terminal da sua VPS, cole o comando mostrado na tela (troque <Pill>CÓDIGO</Pill> pelo seu código de pareamento). Há dois modos:
+          <span className="mt-2 block"><span className="font-medium text-neutral-300">Isolado (recomendado)</span> — pra uma VPS que já roda outras coisas. O agente roda num usuário <Pill>deck</Pill> separado, sem sudo; sua conta, seu Node e seus pacotes ficam intactos. O sudo é usado só pra criar o usuário e o serviço.</span>
           <CodeBlock code={SETUP_CMD} lang="bash" />
+          <span className="block"><span className="font-medium text-neutral-300">VPS dedicada</span> — pra uma box só do Deck: instala no seu próprio usuário. Pra controle total (terminais e admin) rode com <Pill>DECK_AGENT_ROLE=admin</Pill>.</span>
+          <CodeBlock code={SETUP_CMD_DEDICATED} lang="bash" />
           O script <span className="font-medium text-neutral-300">reaproveita o que a sua VPS já tem</span> (Node 20+, <Pill>claude</Pill> CLI) e instala só o que faltar, sempre dentro do seu HOME — não troca o Node do sistema e não faz npm global.
           Pra ver o plano sem instalar nada, rode com <Pill>DECK_DRY_RUN=1</Pill>. Depois clona o repo, instala as dependências, pareia e deixa o agente como serviço <span className="font-medium text-neutral-300">systemd</span> — sobrevive a reboot (sem systemd, cai pro nohup e sobrevive só ao fechamento do SSH).
           O <span className="font-medium text-neutral-300">watchdog anti-travamento</span> é opcional (<Pill>DECK_VPS_GUARD=1</Pill>): se a VPS travar de carga, ele mata os processos vilões e, persistindo, derruba as sessões de terminal (tmux).

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { relayHttpBase } from '../../cockpit/session';
-import { diagnose, isExpired, remainingMs, fmtCountdown, setupCommand, type RelayProbe, type PairDiagnosis } from './pairing';
+import { diagnose, isExpired, remainingMs, fmtCountdown, setupCommand, type InstallMode, type RelayProbe, type PairDiagnosis } from './pairing';
 
 // Erros com mensagem própria pro usuário; o resto (TypeError de rede, SyntaxError
 // de JSON) vira uma mensagem genérica em vez de vazar "Unexpected token" cru.
@@ -15,6 +15,8 @@ export interface Pairing {
   countdown: string | null;
   probe: RelayProbe;
   diagnosis: PairDiagnosis;
+  mode: InstallMode;
+  setMode: (m: InstallMode) => void;
   fetchCode: () => void;
   testConnection: () => void;
 }
@@ -27,6 +29,7 @@ export function usePairing(token: string, agentOnline = false, admin = false): P
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [probe, setProbe] = useState<RelayProbe>('unknown');
+  const [mode, setMode] = useState<InstallMode>('isolated');
   const [now, setNow] = useState(() => Date.now());
 
   const abortRef = useRef<AbortController | null>(null);
@@ -106,13 +109,15 @@ export function usePairing(token: string, agentOnline = false, admin = false): P
 
   return {
     code,
-    cmd: code ? setupCommand(SETUP_URL, code, admin) : '',
+    cmd: code ? setupCommand(SETUP_URL, code, admin, mode) : '',
     err,
     busy,
     expired,
     countdown: left === null ? null : fmtCountdown(left),
     probe,
     diagnosis,
+    mode,
+    setMode,
     fetchCode: () => { void fetchCode(); },
     testConnection: () => { void testConnection(); },
   };
