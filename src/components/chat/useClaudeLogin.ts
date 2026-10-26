@@ -33,7 +33,7 @@ export function useClaudeLogin({ login = { state: 'idle' }, onStart, onCode, onC
     if (!working) return;
     const timer = setTimeout(() => setStalled(true), LOGIN_STALL_TIMEOUT_MS);
     return () => clearTimeout(timer);
-  }, [login, working]);
+  }, [login.state, login.url, login.error, working]);
 
   const busy = !noReply && !stalled && (login.state === 'waiting-url' || login.state === 'verifying');
 
