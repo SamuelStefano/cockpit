@@ -40,3 +40,29 @@ describe('useClaudeLogin', () => {
     expect(onCancel).toHaveBeenCalled();
   });
 });
+
+describe('useClaudeLogin reply timeout', () => {
+  it('flags noReply when the server never answers the start', async () => {
+    vi.useFakeTimers();
+    const optimistic: ClaudeLoginView = { state: 'waiting-url', optimistic: true };
+    const { result, rerender } = renderHook((p: { login: ClaudeLoginView }) => useClaudeLogin(p), { initialProps: { login: optimistic } });
+    expect(result.current.busy).toBe(true);
+    await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
+    expect(result.current.noReply).toBe(true);
+    expect(result.current.busy).toBe(false);
+    expect(result.current.state).toBe('error');
+    rerender({ login: { state: 'url', url: 'https://x/oauth/authorize' } });
+    expect(result.current.noReply).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it('does not flag noReply once a real frame arrives', async () => {
+    vi.useFakeTimers();
+    const { result, rerender } = renderHook((p: { login: ClaudeLoginView }) => useClaudeLogin(p), { initialProps: { login: { state: 'waiting-url', optimistic: true } as ClaudeLoginView } });
+    rerender({ login: { state: 'waiting-url' } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    expect(result.current.noReply).toBe(false);
+    expect(result.current.busy).toBe(true);
+    vi.useRealTimers();
+  });
+});

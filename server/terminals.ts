@@ -135,6 +135,18 @@ export function syncPtySize(pty: Pick<IPty, 'cols' | 'rows' | 'resize'>, cols: n
   setTimeout(() => { try { pty.resize(cols, rows); } catch { /* pty exited meanwhile */ } }, 0);
 }
 
+export const FIRST_REDRAW_MS = 300;
+
+// The first prompt can be painted before tmux has the client's size settled, leaving
+// the screen blank with the cursor mid-line until a keystroke forces a repaint.
+// A one-row wobble on a brand-new pty makes tmux redraw the whole screen once.
+function scheduleFirstRedraw(id: string, term: Term): void {
+  setTimeout(() => {
+    if (terms.get(id) !== term) return;
+    try { syncPtySize(term.pty, term.pty.cols, term.pty.rows); } catch { /* pty exited meanwhile */ }
+  }, FIRST_REDRAW_MS).unref();
+}
+
 export function openTerm(
   id: string,
   cols: number,
@@ -181,6 +193,7 @@ export function openTerm(
       if (terms.get(id) === term) terms.delete(id);
     });
     terms.set(id, t = term);
+    scheduleFirstRedraw(id, term);
   }
 
   t.data.add(onData);

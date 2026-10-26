@@ -3,6 +3,7 @@ import type { ClientMsg } from '../../shared/protocol';
 import type { Role } from '../auth';
 import { sanitize } from '../engine/claude';
 import { collect } from '../stats';
+import { claudeAuthWatch } from '../claude-auth-watch';
 import { detachTerm } from '../terminals';
 import { send } from './broadcast';
 import { CONFIG } from '../config';
@@ -33,7 +34,9 @@ export function serveConnection(ws: WebSocket, opts: { role: Role; root?: boolea
   if (sendCaps) send(ws, { t: 'caps', caps: capsFor(role, CONFIG, root) });
   // Fato do engine (a box) — vai sempre, inclusive no dial T3, pra a UI avisar
   // que nada roda até conectar uma conta Anthropic aqui.
-  send(ws, { t: 'claude-auth', ready: claudeReady() });
+  const authReady = claudeReady();
+  send(ws, { t: 'claude-auth', ready: authReady });
+  if (!authReady) claudeAuthWatch.ensure();
   // MCP disponíveis (nomes) p/ o seletor por sessão. Default no engine = nenhum
   // carregado (--strict-mcp-config); a sessão liga só o que precisa.
   send(ws, { t: 'mcp-servers', servers: Object.keys(mcpServerDefsSync()) });

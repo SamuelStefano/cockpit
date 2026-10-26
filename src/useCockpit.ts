@@ -1922,7 +1922,7 @@ export function useCockpit(): Cockpit {
   }, [send]);
 
   const onRefreshModels = useCallback(() => send({ t: 'refresh-models' }), [send]);
-  const onClaudeLoginStart = useCallback(() => { setClaudeLogin({ state: 'waiting-url' }); send({ t: 'claude-login-start' }); }, [send]);
+  const onClaudeLoginStart = useCallback(() => { setClaudeLogin({ state: 'waiting-url', optimistic: true }); send({ t: 'claude-login-start' }); }, [send]);
   const onClaudeLoginCode = useCallback((code: string) => send({ t: 'claude-login-code', code }), [send]);
   const onClaudeLoginCancel = useCallback(() => { setClaudeLogin({ state: 'idle' }); send({ t: 'claude-login-cancel' }); }, [send]);
   // Abrir o painel de uso pede um número fresco na hora: o poll é de 5min e sem

@@ -645,7 +645,8 @@ export interface DflPointsSnapshot {
 
 export type ClaudeLoginState = 'waiting-url' | 'url' | 'verifying' | 'done' | 'error';
 
-export interface ClaudeLoginView { state: 'idle' | ClaudeLoginState; url?: string; error?: string }
+// optimistic = set by the client on start, cleared by the first real server frame.
+export interface ClaudeLoginView { state: 'idle' | ClaudeLoginState; url?: string; error?: string; optimistic?: boolean }
 
 export type ClientMsg =
   // skills = ids das skills SELECIONADAS p/ este prompt (subconjunto de SkillMeta.id).

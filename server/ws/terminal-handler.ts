@@ -1,6 +1,7 @@
 import type { WebSocket } from 'ws';
 import type { ClientMsg } from '../../shared/protocol';
 import { openTerm, detachTerm, inputTerm, resizeTerm, closeTerm, listTerms, resumeTerm, ensureWatchReaper, prepareWatch } from '../terminals';
+import { claudeAuthWatch } from '../claude-auth-watch';
 import { send, BACKPRESSURE_BYTES } from './broadcast';
 import { botTermId } from '../../shared/bot-term';
 import { getTeam } from '../team';
@@ -38,7 +39,7 @@ export function handleTerm(
           if (ws.bufferedAmount > BACKPRESSURE_BYTES) return;
           send(ws, { t: 'term-data', termId, data });
         };
-        const onExit = () => { send(ws, { t: 'term-exit', termId }); myTerms.delete(termId); };
+        const onExit = () => { send(ws, { t: 'term-exit', termId }); myTerms.delete(termId); claudeAuthWatch.kick(); };
         const onReplay = (data: string) => send(ws, { t: 'term-replay', termId, data });
         const ok = openTerm(termId, cols, rows, onData, onExit, onReplay, watch, cwd);
         if (ok) myTerms.set(termId, { onData, onExit });
