@@ -50,8 +50,8 @@ if [ "$(id -u)" -eq 0 ] && [ "${DECK_ALLOW_ROOT:-}" != "1" ]; then
 O agente executa comandos (claude -p, terminais) com o usuário que o instalou —
 como root, qualquer turno vira root nesta máquina.
 
-Crie um usuário normal com sudo e rode de novo:
-  adduser --disabled-password --gecos "" deck
+Crie um usuário normal com sudo (defina a senha: o sudo vai pedir) e rode de novo:
+  adduser --gecos "" deck
   usermod -aG sudo deck      # (Debian/Ubuntu; em RHEL/Fedora o grupo é 'wheel')
   su - deck
   curl -fsSL $SETUP_URL | DECK_PAIR_CODE=CÓDIGO bash

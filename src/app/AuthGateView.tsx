@@ -30,7 +30,7 @@ export function resolveAuthGate({ sbAuth, ejectPairing, authRequired, submitToke
         />
       );
     } else if (!sbAuth.loading && !sbAuth.session) node = <SupabaseAuthGate auth={sbAuth} />;
-    else if (sbAuth.session && ejectPairing) node = <Dashboard token={sbAuth.session.access_token} onSignOut={sbAuth.signOut} />;
+    else if (sbAuth.session && ejectPairing) node = <Dashboard token={sbAuth.session.access_token} userId={sbAuth.session.user?.id} onSignOut={sbAuth.signOut} />;
   } else if (authRequired) {
     node = <AuthGate onSubmit={submitToken} />;
   }

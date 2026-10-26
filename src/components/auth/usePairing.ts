@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { relayHttpBase } from '../../cockpit/session';
-import { diagnose, isExpired, remainingMs, fmtCountdown, type RelayProbe, type PairDiagnosis } from './pairing';
+import { diagnose, isExpired, remainingMs, fmtCountdown, setupCommand, type RelayProbe, type PairDiagnosis } from './pairing';
 
 // Erros com mensagem própria pro usuário; o resto (TypeError de rede, SyntaxError
 // de JSON) vira uma mensagem genérica em vez de vazar "Unexpected token" cru.
@@ -21,7 +21,7 @@ export interface Pairing {
 
 const SETUP_URL = 'https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh';
 
-export function usePairing(token: string, agentOnline = false): Pairing {
+export function usePairing(token: string, agentOnline = false, admin = false): Pairing {
   const [code, setCode] = useState('');
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [err, setErr] = useState('');
@@ -106,7 +106,7 @@ export function usePairing(token: string, agentOnline = false): Pairing {
 
   return {
     code,
-    cmd: code ? `curl -fsSL ${SETUP_URL} | DECK_PAIR_CODE=${code} bash` : '',
+    cmd: code ? setupCommand(SETUP_URL, code, admin) : '',
     err,
     busy,
     expired,

@@ -93,7 +93,10 @@ const SEEDS: PresetSeed[] = [
     blurb: 'Roda na sua assinatura SuperGrok / X Premium+, sem chave de API.',
     command: 'grok',
     args: ['agent', 'stdio'],
-    install: 'curl -fsSL https://x.ai/cli/install.sh | bash',
+    // The installer adds ~/.grok/bin to ~/.bashrc, which the terminal shell that
+    // ran it never re-reads: without the export the login step, typed into the
+    // same shell, dies with "grok: command not found".
+    install: 'curl -fsSL https://x.ai/cli/install.sh | bash && export PATH="$HOME/.grok/bin:$PATH"',
     login: 'grok login --device-auth',
     docs: 'https://docs.x.ai/build/overview',
   },
