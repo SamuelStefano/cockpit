@@ -22,7 +22,7 @@ vi.mock('node-pty', () => ({
   },
 }));
 
-import { openTerm, closeTerm, syncPtySize, FIRST_REDRAW_MS } from './terminals';
+import { openTerm, closeTerm, syncPtySize, FIRST_REDRAW_MS, SETTLE_REDRAW_MS } from './terminals';
 
 describe('syncPtySize', () => {
   beforeEach(() => { vi.useFakeTimers(); });
@@ -85,6 +85,24 @@ describe('openTerm first prompt', () => {
     expect(fake.calls).toEqual(['resize 100x29']);
     vi.runAllTimers();
     expect(fake.calls).toEqual(['resize 100x29', 'resize 100x30']);
+  });
+
+  it('redraws again after a late first prompt goes quiet', () => {
+    openTerm(id, 100, 30, () => {}, () => {}, () => {});
+    vi.advanceTimersByTime(FIRST_REDRAW_MS + 10);
+    vi.runAllTimers();
+    fake.calls.length = 0;
+    fake.emit('deck@host:~$ ');
+    vi.advanceTimersByTime(SETTLE_REDRAW_MS - 1);
+    expect(fake.calls).toEqual([]);
+    vi.advanceTimersByTime(1);
+    expect(fake.calls).toEqual(['resize 100x29']);
+    vi.runAllTimers();
+    expect(fake.calls).toEqual(['resize 100x29', 'resize 100x30']);
+    fake.calls.length = 0;
+    fake.emit('more');
+    vi.runAllTimers();
+    expect(fake.calls).toEqual([]);
   });
 
   it('replays output produced before a later attach', () => {

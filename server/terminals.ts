@@ -55,6 +55,9 @@ interface Term {
   data: Set<(d: string) => void>;
   exit: Set<() => void>;
   idleSince: number | null; // last listener left at; null while someone watches
+  spawnedAt: number;
+  settleTimer: ReturnType<typeof setTimeout> | null;
+  settled: boolean; // the post-output redraw already ran
 }
 
 const terms = new Map<string, Term>();
@@ -136,6 +139,24 @@ export function syncPtySize(pty: Pick<IPty, 'cols' | 'rows' | 'resize'>, cols: n
 }
 
 export const FIRST_REDRAW_MS = 300;
+export const SETTLE_REDRAW_MS = 400;
+export const SETTLE_WINDOW_MS = 8_000;
+
+// tmux only repaints what changed. On a slow first login the prompt lands after the
+// fixed redraw above, possibly while the browser is still fitting/resetting its xterm,
+// and tmux never repaints that line. Redraw once more when the first burst of output
+// goes quiet, so the prompt is always on screen.
+function armSettleRedraw(id: string, term: Term): void {
+  if (term.settled || Date.now() - term.spawnedAt > SETTLE_WINDOW_MS) return;
+  if (term.settleTimer) clearTimeout(term.settleTimer);
+  term.settleTimer = setTimeout(() => {
+    term.settleTimer = null;
+    term.settled = true;
+    if (terms.get(id) !== term) return;
+    try { syncPtySize(term.pty, term.pty.cols, term.pty.rows); } catch { /* pty exited meanwhile */ }
+  }, SETTLE_REDRAW_MS);
+  term.settleTimer.unref();
+}
 
 // The first prompt can be painted before tmux has the client's size settled, leaving
 // the screen blank with the cursor mid-line until a keystroke forces a repaint.
@@ -177,7 +198,7 @@ export function openTerm(
       cwd: cwd ?? process.env.HOME,
       env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
     });
-    const term: Term = { pty: p, buffer: '', data: new Set(), exit: new Set(), idleSince: null };
+    const term: Term = { pty: p, buffer: '', data: new Set(), exit: new Set(), idleSince: null, spawnedAt: Date.now(), settleTimer: null, settled: false };
     p.onData((d) => {
       // Trim with slack, not on every chunk: once the scrollback was full, each
       // chunk sliced (copied) the whole 200 KB buffer — tens of MB/s of copying on
@@ -185,8 +206,10 @@ export function openTerm(
       term.buffer += d;
       if (term.buffer.length > MAX_BUFFER * TRIM_SLACK) term.buffer = trimBuffer(term.buffer);
       for (const l of term.data) l(d);
+      armSettleRedraw(id, term);
     });
     p.onExit(() => {
+      if (term.settleTimer) clearTimeout(term.settleTimer);
       for (const l of term.exit) l();
       // closeTerm + a quick reopen can put a NEW entry under this id before the
       // old pty reports its exit; only drop the entry that actually died.
