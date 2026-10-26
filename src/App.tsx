@@ -36,6 +36,7 @@ import { useQuotaGate } from './app/useQuotaGate';
 import { useOverlays } from './app/useOverlays';
 import { useChatUrl } from './app/useChatUrl';
 import { usageAgentOf } from './components/chrome/usage-agent';
+import { withoutBotThreads } from './components/sessions/bot-threads';
 
 export function CockpitApp() {
   const cockpit = useCockpit();
@@ -153,7 +154,8 @@ export function CockpitApp() {
     nav('/');
   }, [cockpitNew, setDrawer, nav]);
 
-  const sessionsProps = { sessions, loading, activeId: activeSessionId, onSelect: selectSession, onNew: handleNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, usageModel, cost: sessionCost, running: runningAnywhere, stalled, updated, runStart, searchResults, onSearch, userId: sbAuth.session?.user.id, onFunnel, funnelBusy };
+  const sidebarSessions = useMemo(() => withoutBotThreads(sessions, cockpit.bots), [sessions, cockpit.bots]);
+  const sessionsProps = { sessions: sidebarSessions, loading, activeId: activeSessionId, onSelect: selectSession, onNew: handleNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, usageModel, cost: sessionCost, running: runningAnywhere, stalled, updated, runStart, searchResults, onSearch, userId: sbAuth.session?.user.id, onFunnel, funnelBusy };
   const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onApproveWorkflow, onStop: handleStop, mode, setMode, caps, claudeReady, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, contextModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew: handleNew, onHandoff, handoffBusy, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onMemorize: memorizeMsg, onRename: handleRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, keyboardOpen, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer, resumeRun, orchestratorSessionId: orchestratorInfo?.sessionId, conn: link };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
 
