@@ -7,6 +7,7 @@ export { Checkbox } from './Checkbox';
 export { Drawer } from './Drawer';
 export { ButtonGroup } from './ButtonGroup';
 export { Segmented, type SegmentedItem } from './Segmented';
+export { RadioCardGroup, type RadioCardItem } from './RadioCardGroup';
 export { Switch } from './Switch';
 export { ToggleChip } from './ToggleChip';
 export { EmptyState } from './EmptyState';
