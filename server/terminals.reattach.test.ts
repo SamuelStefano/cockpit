@@ -22,7 +22,7 @@ vi.mock('node-pty', () => ({
   },
 }));
 
-import { openTerm, closeTerm, syncPtySize } from './terminals';
+import { openTerm, closeTerm, syncPtySize, FIRST_REDRAW_MS } from './terminals';
 
 describe('syncPtySize', () => {
   beforeEach(() => { vi.useFakeTimers(); });
@@ -69,5 +69,30 @@ describe('openTerm on an existing pty', () => {
   it('does not resize a freshly spawned pty (spawn already has the size)', () => {
     openTerm(id, 100, 30, () => {}, () => {}, () => {});
     expect(fake.calls).toEqual([]);
+  });
+});
+
+describe('openTerm first prompt', () => {
+  const id = 'first-prompt-test';
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { closeTerm(id); fake.calls.length = 0; vi.useRealTimers(); });
+
+  it('spawns at the client size and forces one redraw once the pty settles', () => {
+    openTerm(id, 100, 30, () => {}, () => {}, () => {});
+    expect(fake.pty?.cols).toBe(100);
+    expect(fake.pty?.rows).toBe(30);
+    vi.advanceTimersByTime(FIRST_REDRAW_MS);
+    expect(fake.calls).toEqual(['resize 100x29']);
+    vi.runAllTimers();
+    expect(fake.calls).toEqual(['resize 100x29', 'resize 100x30']);
+  });
+
+  it('replays output produced before a later attach', () => {
+    const noop = () => {};
+    openTerm(id, 80, 24, noop, noop, noop);
+    fake.emit('deck@host:~$ ');
+    const replay = vi.fn();
+    openTerm(id, 80, 24, noop, noop, replay);
+    expect(replay).toHaveBeenCalledWith('deck@host:~$ ');
   });
 });

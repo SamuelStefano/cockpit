@@ -1,5 +1,5 @@
 import type { ClaudeLoginView } from '../../../shared/protocol';
-import { Badge, Button, Icon, Input } from '../primitives';
+import { Badge, Button, CodeBlock, Icon, Input } from '../primitives';
 import { useClaudeLogin } from './useClaudeLogin';
 
 interface ClaudeAuthBannerProps {
@@ -8,6 +8,9 @@ interface ClaudeAuthBannerProps {
   onCode?: (code: string) => void;
   onCancel?: () => void;
 }
+
+const UPDATE_ISOLATED = 'sudo -u deck git -C /home/deck/.deck-src pull && sudo systemctl restart deck-agent';
+const UPDATE_PLAIN = 'git -C ~/.deck-src pull && sudo systemctl restart deck-agent';
 
 const MONO = 'rounded-sm bg-black/30 px-1 py-0.5 font-mono text-amber-200';
 
@@ -37,6 +40,16 @@ export function ClaudeAuthBanner(props: ClaudeAuthBannerProps) {
                   <Button icon="link" loading={l.busy} onClick={l.start}>
                     {l.state === 'error' ? 'Tentar de novo' : 'Conectar conta Claude'}
                   </Button>
+                </div>
+              )}
+              {l.noReply && (
+                <div role="alert" className="flex flex-col gap-2">
+                  <p className="text-[12.5px] text-red-400">
+                    A VPS não respondeu. O agente pode estar desatualizado — atualize e tente de novo:
+                  </p>
+                  <CodeBlock code={UPDATE_ISOLATED} lang="bash" />
+                  <p className="text-[12px] text-amber-100/70">Instalação não isolada:</p>
+                  <CodeBlock code={UPDATE_PLAIN} lang="bash" />
                 </div>
               )}
               {l.error && (l.state === 'error' || l.state === 'url') && (

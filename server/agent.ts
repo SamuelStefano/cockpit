@@ -13,6 +13,7 @@ import { serveConnection } from './ws/serve-connection';
 import './canvas/card-review';
 import './sessions/turn-outcome';
 import { setClientSource, broadcast } from './ws/broadcast';
+import { claudeAuthWatch } from './claude-auth-watch';
 import { mcpServerDefsSync, claudeReady } from './admin-ops';
 import { getSlashCommands } from './ws/slash';
 import { startParkedDrainer, resumeOrphanRuns } from './ws/runs';
@@ -123,7 +124,9 @@ let browsersPresent = true;
 function reemitBootstrap(ws: WebSocket): void {
   try {
     const s = (m: unknown) => ws.send(JSON.stringify(m));
-    s({ t: 'claude-auth', ready: claudeReady() });
+    const authReady = claudeReady();
+    s({ t: 'claude-auth', ready: authReady });
+    if (!authReady) claudeAuthWatch.ensure();
     s({ t: 'mcp-servers', servers: Object.keys(mcpServerDefsSync()) });
     const slash = getSlashCommands();
     if (slash.length) s({ t: 'slash-commands', items: slash });
