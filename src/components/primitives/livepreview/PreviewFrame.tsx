@@ -5,6 +5,7 @@ import { IFRAME_HTML_SVG } from './iframeHtmlSvg';
 import { IFRAME_HTML_TEST } from './iframeHtmlTest';
 import { PhoneFrame, PHONE_SCREEN } from './PhoneFrame';
 import type { Mode } from './useLivePreview';
+import { useSandboxDoc } from './useSandboxDoc';
 
 const SRCDOC: Record<Mode, string> = {
   native: IFRAME_HTML_NATIVE,
@@ -31,8 +32,9 @@ export function PreviewFrame({
   /** Ocupa a altura do container em vez da altura medida do conteúdo. */
   fill?: boolean;
 }) {
+  const sandbox = useSandboxDoc(frameRef, srcDoc ?? SRCDOC[mode]);
   const frame = (
-    <iframe ref={frameRef} title={title} sandbox="allow-scripts" srcDoc={srcDoc ?? SRCDOC[mode]} />
+    <iframe key={sandbox.frameKey} ref={frameRef} title={title} sandbox={sandbox.sandbox} src={sandbox.src} />
   );
 
   if (mode === 'native') {
