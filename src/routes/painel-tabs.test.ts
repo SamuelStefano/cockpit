@@ -5,14 +5,14 @@ const ids = (isRoot: boolean, accounts: boolean) => painelTabs(isRoot, accounts)
 
 describe('painelTabs', () => {
   it('root sees every section', () => {
-    expect(ids(true, true)).toEqual(['overview', 'accounts', 'host', 'agents', 'models']);
+    expect(ids(true, true)).toEqual(['overview', 'accounts', 'host', 'mcps', 'agents', 'models']);
   });
 
   it('a plain admin gets overview, agents and models only', () => {
-    expect(ids(false, true)).toEqual(['overview', 'agents', 'models']);
+    expect(ids(false, true)).toEqual(['overview', 'mcps', 'agents', 'models']);
   });
 
   it('accounts need Supabase even for root', () => {
-    expect(ids(true, false)).toEqual(['overview', 'host', 'agents', 'models']);
+    expect(ids(true, false)).toEqual(['overview', 'host', 'mcps', 'agents', 'models']);
   });
 });

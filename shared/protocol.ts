@@ -5,6 +5,7 @@
 import type { AreaBudget, AreaId, CanvasBoard, CanvasCard, CanvasFlow, CanvasFlowRun, CanvasGraph, CanvasPos, CardStatus, OrchestratorActivity, OrchestratorInfo, SessionPeek, TermStats } from './canvas';
 import type { AreaUsage } from './canvas-budget';
 import type { DflDraft, DraftOp } from './dfl-drafts';
+import type { DflMcpsState } from './dfl-mcps';
 import type { AgentView, AgentPreset, AgentStatus, AgentCustomField } from './agents';
 import type { TeamMessage } from './team-messages';
 
@@ -780,6 +781,8 @@ export type ClientMsg =
   | { t: 'claude-login-start' }
   | { t: 'claude-login-code'; code: string }
   | { t: 'claude-login-cancel' }
+  | { t: 'dfl-mcps-get' }
+  | { t: 'dfl-mcps-add'; hosts: string[] }
   | { t: 'admin-health' }
   // Admin write-ops no host (#162, DR-023). Gated por role admin (authorize) e —
   // p/ cli-install (RCE) — por loopback (CONFIG.localOnly) no dispatch. Valor de
@@ -1026,6 +1029,7 @@ export type ServerMsg =
   | { t: 'usage-stats'; stats: UsageStats }
   | { t: 'health'; health: AdminHealth }
   | { t: 'admin-op'; ok: boolean; message: string }
+  | { t: 'dfl-mcps'; state: DflMcpsState }
   | { t: 'accounts'; accounts: AccountSummary[] }
   | { t: 'stats'; stats: SysStats }
   | { t: 'graphs'; items: GraphMeta[] }

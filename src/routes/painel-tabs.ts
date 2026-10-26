@@ -7,6 +7,7 @@ export function painelTabs(isRoot: boolean, accountsEnabled: boolean): AdminTab[
   const t: AdminTab[] = [{ id: 'overview', label: 'Visão geral', icon: 'zap' }];
   if (isRoot && accountsEnabled) t.push({ id: 'accounts', label: 'Contas', icon: 'user' });
   if (isRoot) t.push({ id: 'host', label: 'Host', icon: 'terminal' });
+  t.push({ id: 'mcps', label: 'MCPs', icon: 'link' });
   t.push({ id: 'agents', label: 'Agentes', icon: 'sparkles' });
   t.push({ id: 'models', label: 'Modelos', icon: 'layers' });
   return t;
