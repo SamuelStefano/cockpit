@@ -46,5 +46,12 @@ describe('BotThread computer levels', () => {
     const r = renderThread(false);
     fireEvent.click(r.getByRole('button', { name: 'Computador ativo' }));
     expect(r.queryByText('sk-secret')).toBeNull();
+    expect(r.queryByText('$ ls')).toBeNull();
+    expect(r.queryByLabelText('Prévia do terminal')).toBeNull();
+    const assumir = r.getByRole('button', { name: 'Assumir' }) as HTMLButtonElement;
+    expect(assumir.disabled).toBe(true);
+    fireEvent.click(assumir);
+    expect(r.queryByTestId('xterm')).toBeNull();
+    expect(r.queryByRole('dialog')).toBeNull();
   });
 });

@@ -65,9 +65,12 @@ describe('BotComputer', () => {
 
   it('only an admin can take over', () => {
     const r = renderTab({ isAdmin: false });
-    expect((r.getByRole('button', { name: 'Assumir' }) as HTMLButtonElement).disabled).toBe(true);
+    const assumir = r.getByRole('button', { name: 'Assumir' }) as HTMLButtonElement;
+    expect(assumir.disabled).toBe(true);
     expect(r.getByText('Só admin assume o terminal.')).toBeTruthy();
+    fireEvent.click(assumir);
     expect(r.queryByTestId('xterm')).toBeNull();
+    expect(r.queryByRole('dialog')).toBeNull();
   });
 
   it('does not paint pane lines for a student even if the payload has them', () => {
