@@ -12,3 +12,4 @@ cockpit-doc.pdf
 graphify-out/
 .claude/
 relay/deploy/dist/
+*.tsbuildinfo
