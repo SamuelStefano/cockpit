@@ -335,9 +335,9 @@ EOF
   else
     echo "[deck] systemd indisponível — subindo com nohup como 'deck' (sobrevive ao SSH, NÃO a reboot)."
     # shellcheck disable=SC2086
-    deck_exec env -i HOME="$dhome" PATH="$UNIT_PATH" DECK_RELAY_URL="$RELAY" DECK_AGENT_ROLE="$ROLE" DECK_AGENT_DIR="$AGENT_DIR" \
-      sh -c 'cd "$1" && shift && touch agent.log && chmod 600 agent.log && nohup "$@" >>agent.log 2>&1 &' _ "$SRC_DIR" $EXEC_START
-    echo "[deck] agente rodando em segundo plano (log: $SRC_DIR/agent.log)."
+    deck_exec env -i HOME="$dhome" PATH="$UNIT_PATH" DECK_RELAY_URL="$RELAY" DECK_AGENT_ROLE="$ROLE" DECK_AGENT_DIR="$AGENT_DIR" DECK_SUPERVISED=1 \
+      sh -c 'cd "$1" && shift && touch agent.log && chmod 600 agent.log && nohup sh -c "while :; do \"\$@\"; sleep 3; done" deck-agent-loop "$@" >>agent.log 2>&1 &' _ "$SRC_DIR" $EXEC_START
+    echo "[deck] agente rodando em segundo plano (log: $SRC_DIR/agent.log; parar: pkill -u deck -f deck-agent-loop)."
   fi
 
   if write_deck_agent_wrapper /usr/local/bin/deck-agent; then
@@ -608,10 +608,10 @@ fi
 # um pull passa a matar processo e subir código novo sem ninguém pedir.
 if [ "${DECK_AUTO_REDEPLOY:-}" = "1" ]; then
   git config core.hooksPath scripts/git-hooks 2>/dev/null || true
-  echo "[deck] auto-redeploy ARMADO: todo git pull neste clone que tocar server/ reinicia backend+agente."
+  echo "[deck] auto-redeploy ARMADO: todo git pull neste clone que tocar server/ reinicia backend+agente (o self-update do agente fica de fora neste clone)."
 else
   git config --unset core.hooksPath 2>/dev/null || true
-  echo "[deck] auto-redeploy desligado (default) — atualize com: cd $SRC_DIR && git pull && sudo systemctl restart deck-agent"
+  echo "[deck] o agente se atualiza sozinho: a cada ~10 min puxa a main e reinicia quando não há turno rodando (desligar: DECK_SELF_UPDATE=off)."
 fi
 
 if [ -n "$CODE" ]; then
@@ -712,9 +712,10 @@ else
   # O log carrega saída de turno (prompt, caminhos, eventualmente segredo do env): 0600.
   touch "$SRC_DIR/agent.log" && chmod 600 "$SRC_DIR/agent.log"
   # shellcheck disable=SC2086
-  nohup env DECK_RELAY_URL="$RELAY" DECK_AGENT_ROLE="$ROLE" DECK_AGENT_DIR="$AGENT_DIR" \
-    $EXEC_START >>"$SRC_DIR/agent.log" 2>&1 &
-  echo "[deck] agente rodando (PID $!, usuário=$RUN_USER, role=$ROLE)."
+  # Loop de supervisão: o agente sai sozinho pra subir o código novo (self-update).
+  nohup env DECK_RELAY_URL="$RELAY" DECK_AGENT_ROLE="$ROLE" DECK_AGENT_DIR="$AGENT_DIR" DECK_SUPERVISED=1 \
+    sh -c 'while :; do "$@"; sleep 3; done' deck-agent-loop $EXEC_START >>"$SRC_DIR/agent.log" 2>&1 &
+  echo "[deck] agente rodando (PID $!, usuário=$RUN_USER, role=$ROLE; parar: pkill -f deck-agent-loop)."
   echo "[deck] logs: tail -f $SRC_DIR/agent.log"
 fi
 
