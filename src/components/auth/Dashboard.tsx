@@ -9,7 +9,6 @@ import { InstallExplainer } from './InstallExplainer';
 import { RelayVisibility } from './RelayVisibility';
 import { BetaNote } from './BetaNote';
 import { usePasskeySetup } from './usePasskeySetup';
-import { PasskeyUnlock } from './PasskeyUnlock';
 import { SetupChecklistView } from '../health/SetupChecklistView';
 import { startSetupWatch, useSetupChecklist } from '../health/useSetupChecklist';
 
@@ -35,7 +34,6 @@ export function Dashboard({ token, userId, onSignOut }: { token: string; userId?
             <InstallModePicker mode={p.mode} onChange={p.setMode} />
           </PairStep>
           <PairStep n={2} title="Cole na sua VPS">
-            <div className="mb-3"><PasskeyUnlock pk={pk} /></div>
             <PairCommand code={p.code} cmd={p.cmd} busy={p.busy} expired={p.expired} countdown={p.countdown} mode={p.mode} onCopy={() => startSetupWatch()} />
             {/* Um só lugar pro erro: com o código já na tela, a falha de "gerar novo código" não aparecia. */}
             <InstallExplainer mode={p.mode} />

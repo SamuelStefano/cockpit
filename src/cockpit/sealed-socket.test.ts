@@ -570,24 +570,4 @@ describe('SealedSocket with a passkey device key', () => {
     expect(mem.boxPins[BOX]).toEqual([keys.pub]);
     expect(devicePin(toB64(mem.passkey.pub))).toEqual(await boxPinKey(mem.passkey.pinRoot, BOX));
   });
-
-  it('after the migration window the browser refuses a first-use answer', async () => {
-    const keys = (relay as unknown as { keys: { pub: Bytes; sign: CryptoKey } }).keys;
-    let hub: InstanceType<typeof SealedHub> | null = null;
-    hub = new SealedHub({
-      keys, link: relay.agentLink, onPeersChanged: () => {}, boxId: BOX, tofu: tofuWindow({}),
-      intercept: deviceFrameHandler(keys.pub, () => hub, BOX), serve: () => {},
-    });
-    relay.hub = hub;
-    mem.passkey = await deriveFromPrf(PRF);
-    const now = vi.spyOn(Date, 'now').mockReturnValue(TOFU_UNTIL);
-    try {
-      dial();
-      await settle();
-    } finally {
-      now.mockRestore();
-    }
-    expect(sealState.get()).not.toBe('sealed');
-    expect(mem.boxPins[BOX] ?? []).toEqual([]);
-  });
 });

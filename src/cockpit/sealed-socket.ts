@@ -239,7 +239,7 @@ export class SealedSocket {
     }
     const keys = this.keys!;
     const check = this.passkey && bound ? pinChecker(this.passkey.pinRoot, this.box!, keys.pub) : null;
-    this.handshake = new DeviceHandshake(keys, pins, check, { tofu: bound && !pins.length && Date.now() < TOFU_UNTIL, label: defaultDeviceLabel() });
+    this.handshake = new DeviceHandshake(keys, pins, check, { tofu: bound && !pins.length, label: defaultDeviceLabel() });
     this.raw(JSON.stringify(await this.handshake.hello()));
     this.clearTimer();
     this.timer = setTimeout(() => { if (!this.channel) this.fail('handshake timeout', 'unsupported'); }, HANDSHAKE_MS);

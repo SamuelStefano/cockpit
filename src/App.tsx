@@ -17,7 +17,6 @@ import { useBoxes } from './cockpit/useBoxes';
 import { useRoute } from './useRoute';
 import { loadPref } from './lib/persist';
 import { SUPABASE_ENABLED } from './lib/supabase';
-import { PasskeyOffer } from './components/auth/PasskeyOffer';
 import { useSupabaseAuth } from './lib/useSupabaseAuth';
 import { useProfileHydration } from './lib/profile';
 import { useSessionPrefsHydration } from './lib/session-prefs';
@@ -197,7 +196,6 @@ function CockpitBody() {
         {/* Um de cada vez na mesma âncora, e offline ganha: sem servidor não há
             versão nova pra buscar, e recarregar ali só daria página em branco. */}
         <UpdateNotice show={updateReady && !updateClosed && !showOffline} onApply={applyUpdate} onDismiss={() => setUpdateClosed(true)} />
-        {SUPABASE_ENABLED && seal === 'sealed' && !showOffline && !(updateReady && !updateClosed) && <PasskeyOffer />}
       </div>
 
       <RouteContent

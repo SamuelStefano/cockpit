@@ -11,8 +11,7 @@ import { grantMac, preauthGrantMac } from '../../shared/e2e/enroll';
 import { pinProof } from '../../shared/e2e/passkey';
 import { fromB64, toB64, type Bytes } from '../../shared/e2e/bytes';
 import {
-  cleanLabel, devicePin, hasDevices, hasLivePreauth, isEnrolled, isRevokedDevice, redeemEnrollCode, redeemPreauth, touchDevice, trustFirstDevice,
-} from './devices';
+  cleanLabel, devicePin, hasDevices, hasLivePreauth, isEnrolled, isRevokedDevice, redeemEnrollCode, redeemPreauth, touchDevice, trustFirstDevice, trustAccountDevice } from './devices';
 import { TOFU_UNTIL } from '../../shared/e2e/tofu';
 
 // One SealedPeer per browser channel. It looks like a WebSocket to
@@ -38,10 +37,10 @@ export interface AgentKeys { pub: Bytes; sign: CryptoKey }
 
 // One per agent process, shared by the hubs of every relay reconnect: once a
 // device got in on first use, the window stays shut even if the list empties.
-export interface TofuWindow { until: number; spent: boolean }
+export interface TofuWindow { until: number; spent: boolean; account?: boolean }
 
 export function tofuWindow(env: NodeJS.ProcessEnv = process.env): TofuWindow {
-  return { until: env.DECK_E2E_TOFU === 'off' ? 0 : TOFU_UNTIL, spent: false };
+  return { until: env.DECK_E2E_TOFU === 'off' ? 0 : TOFU_UNTIL, spent: false, account: env.DECK_ACCOUNT_TRUST !== 'off' };
 }
 
 // The sealed channel has its OWN key, never the one that answers the relay's
@@ -200,7 +199,8 @@ export class SealedHub {
     if (!dev || !eB || !nB) return;
     const devicePub = toB64(dev);
     const label = typeof m.label === 'string' ? m.label.slice(0, 200) : '';
-    const tofu = !isEnrolled(devicePub) && this.tofuOpen() && !hasDevices() && !isRevokedDevice(devicePub);
+    const tofu = !isEnrolled(devicePub) && !isRevokedDevice(devicePub)
+      && (this.accountTrust() || (this.tofuOpen() && !hasDevices()));
     if (!tofu && !isEnrolled(devicePub)) { this.reply(c, { t: 'e2e-unknown-device' }); return; }
     const eph = await newEphemeral();
     const t: Transcript = { devicePub: dev, agentPub: this.o.keys.pub, eB, nB, eA: eph.pub, nA: newNonce() };
@@ -246,7 +246,18 @@ export class SealedHub {
     return !!w && !w.spent && now < w.until && now < TOFU_UNTIL && !hasLivePreauth(now);
   }
 
+  // Account mode (owner's call, 2026-10-27): the relay already checked the account,
+  // so any browser it routes here is trusted. DECK_ACCOUNT_TRUST=off restores devices.
+  private accountTrust(): boolean {
+    return this.o.tofu?.account === true;
+  }
+
   private async trustOnFirstUse(p: Pending): Promise<boolean> {
+    if (this.accountTrust()) {
+      if (!trustAccountDevice(p.t.devicePub, cleanLabel(p.label))) return false;
+      console.error(`[agent] e2e: device trusted by account (${toB64(p.t.devicePub).slice(0, 8)}…)`);
+      return true;
+    }
     if (!this.tofuOpen() || !trustFirstDevice(p.t.devicePub, cleanLabel(p.label))) return false;
     this.o.tofu!.spent = true;
     const fp = Buffer.from(await fingerprint(p.t.devicePub)).toString('hex').slice(0, 16);
