@@ -36,7 +36,21 @@ async function deviceKeys(): Promise<DeviceKeys> {
   return { pub: await publicRaw(pair.publicKey), sign: pair.privateKey };
 }
 
-const flush = () => new Promise((r) => setTimeout(r, 30));
+// Waits for the hubs' own work, not a fixed delay: a loaded runner (the PC under
+// a parallel suite) can take longer than any sleep for the Ed25519/X25519 steps.
+const hubs = new Set<SealedHub>();
+type Inner = { queue: Map<string, Promise<unknown>>; peers: Map<string, { chain?: Promise<unknown> }> };
+async function flush(): Promise<void> {
+  await new Promise((r) => setTimeout(r, 5));
+  for (let i = 0; i < 3; i++) {
+    for (const h of hubs) {
+      const inner = h as unknown as Inner;
+      await Promise.all([...inner.queue.values()]);
+      await Promise.all([...inner.peers.values()].map((p) => p.chain));
+    }
+    await new Promise((r) => setTimeout(r, 0));
+  }
+}
 const last = (sent: string[]) => JSON.parse(sent[sent.length - 1]) as Record<string, unknown>;
 const toAgent = (m: Record<string, unknown>, c = C) => JSON.stringify({ ...m, c });
 
@@ -49,6 +63,7 @@ async function setup() {
     keys, link, onPeersChanged: () => {},
     serve: (p) => { served.push(p); p.on('message', (b: Buffer) => got.push(b.toString())); },
   });
+  hubs.add(hub);
   return { keys, sent, hub, served, got };
 }
 
@@ -69,7 +84,7 @@ async function open(h: Awaited<ReturnType<typeof setup>>, dev: DeviceKeys, pinne
   return channel;
 }
 
-beforeEach(() => { process.env.DECK_AGENT_DIR = mkdtempSync(join(tmpdir(), 'deck-e2e-')); });
+beforeEach(() => { hubs.clear(); process.env.DECK_AGENT_DIR = mkdtempSync(join(tmpdir(), 'deck-e2e-')); });
 
 describe('sealed hub', () => {
   it('enrolls a device and serves its sealed frames', async () => {
@@ -208,6 +223,7 @@ async function passkeySetup(boxId = BOX, tofu?: TofuWindow) {
     intercept: deviceFrameHandler(keys.pub, () => hub, boxId),
     serve: (p) => { p.on('message', (b: Buffer) => got.push(b.toString())); },
   });
+  hubs.add(hub);
   return { keys, sent, hub, got };
 }
 

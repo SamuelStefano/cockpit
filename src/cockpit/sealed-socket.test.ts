@@ -378,9 +378,8 @@ describe('SealedSocket with a passkey device key', () => {
     const fake = gen('ed25519').publicKey.export({ type: 'spki', format: 'der' });
     relay.tamper = (f) => (f.includes('"e2e-accept"') ? f.replace(/"agent":"[^"]+"/, `"agent":"${toB64(new Uint8Array(fake.subarray(fake.length - 32)))}"`) : f);
     dial();
-    await settle();
+    await vi.waitFor(() => expect(sealState.get()).toBe('enroll'));
     relay.tamper = null;
-    expect(sealState.get()).toBe('enroll');
     expect(mem.boxPins[BOX]).toBeUndefined();
   });
 
@@ -480,19 +479,18 @@ describe('SealedSocket with a passkey device key', () => {
     await settle();
     const { code } = await createEnrollCode(keys.pub);
     await enrollThisDevice(code, 'laptop');
-    await settle();
+    await vi.waitFor(() => expect(sealState.get()).toBe('sealed'));
     mem.passkey = await deriveFromPrf(PRF);
     retrySeal();
-    await settle();
     const pk = toB64(mem.passkey.pub);
-    expect(listDevices().map((d) => d.pub)).toContain(pk);
+    await vi.waitFor(() => expect(listDevices().map((d) => d.pub)).toContain(pk));
     revokeDevice(pk);
     s.close();
     await flush();
     mem.passkeyBoxes = [];
     dial();
+    await vi.waitFor(() => expect(sealState.get()).toBe('sealed'));
     await settle();
-    expect(sealState.get()).toBe('sealed');
     expect(relay.browser!.sent.some((f) => f.includes('e2e-hello') && !f.includes(pk))).toBe(true);
     expect(listDevices().map((d) => d.pub)).not.toContain(pk);
     expect(devicePin(pk)).toBeNull();
@@ -504,7 +502,7 @@ describe('SealedSocket with a passkey device key', () => {
     let closed = false;
     relay.browser!.onclose = () => { closed = true; };
     expect(await forgetThisBox()).toBe(true);
-    await flush();
+    await vi.waitFor(() => expect(closed).toBe(true));
     expect(mem.boxPins[BOX]).toEqual([]);
     expect(mem.passkeyBoxes).not.toContain(BOX);
     expect(closed).toBe(true);
@@ -517,9 +515,8 @@ describe('SealedSocket with a passkey device key', () => {
     mem.boxPins = {};
     relay.tamper = (f) => (f.includes('"e2e-accept"') ? f.replace(/"pin":"[^"]+"/, `"pin":"${toB64(new Uint8Array(32).fill(1))}"`) : f);
     dial();
-    await settle();
+    await vi.waitFor(() => expect(sealState.get()).toBe('enroll'));
     relay.tamper = null;
-    expect(sealState.get()).not.toBe('rejected');
     expect(mem.boxPins[BOX] ?? []).toEqual([]);
   });
 
