@@ -118,13 +118,13 @@ describe('agent-setup.sh', () => {
       writeFileSync(join(bin, cmd), `#!/bin/sh\necho "SENTINEL: ${cmd} reached" >&2\nexit 99\n`, { mode: 0o755 });
     }
   }
-  function rodarPickNode(home: string, bin: string): { status: number | null; saida: string; dir: string } {
+  function rodarPickNode(home: string, bin: string, env: Record<string, string> = {}): { status: number | null; saida: string; dir: string } {
     const r = spawnSync('bash', ['-c', [
       'set -uo pipefail',
       extrairFuncao('pick_node'),
       'pick_node || exit 3',
       'echo "DIR=$NODE_DIR HOW=$NODE_HOW"',
-    ].join('\n')], { env: { HOME: home, PATH: `${bin}:/usr/bin:/bin` }, encoding: 'utf8' });
+    ].join('\n')], { env: { HOME: home, PATH: `${bin}:/usr/bin:/bin`, ...env }, encoding: 'utf8' });
     return { status: r.status, saida: `${r.stdout}${r.stderr}`, dir: /DIR=(\S*)/.exec(r.stdout)?.[1] ?? '' };
   }
 
@@ -139,16 +139,27 @@ describe('agent-setup.sh', () => {
     expect(r.saida).toContain('HOW=reuse');
   });
 
-  it('pick_node troca um node v18 do PATH pelo do nvm (v20)', () => {
+  it('pick_node troca um node v20 do PATH pelo do nvm (v22)', () => {
     const { home, bin } = caixa('pick-nvm', '#!/bin/sh\n');
-    stubNode(bin, '18.19.0');
-    const nvmBin = join(home, '.nvm/versions/node/v20.11.0/bin');
-    stubNode(nvmBin, '20.11.0');
+    stubNode(bin, '20.19.0');
+    const nvmBin = join(home, '.nvm/versions/node/v22.11.0/bin');
+    stubNode(nvmBin, '22.11.0');
     sentinelas(bin, ['curl']);
     const r = rodarPickNode(home, bin);
     expect(r.saida).not.toContain('SENTINEL');
     expect(r.status).toBe(0);
     expect(r.dir).toBe(nvmBin);
+  });
+
+  it('pick_node reinstala um ~/.deck-node v20: o claude CLI exige node>=22', () => {
+    const { home, bin } = caixa('pick-deck-node-20', '#!/bin/sh\n');
+    stubNode(bin, '20.19.0');
+    stubNode(join(home, '.deck-node/bin'), '20.20.2');
+    sentinelas(bin, ['curl']);
+    const r = rodarPickNode(home, bin, { DECK_DRY_RUN: '1' });
+    expect(r.saida).not.toContain('SENTINEL');
+    expect(r.saida).toContain('HOW=install');
+    expect(fonte).toContain('https://nodejs.org/dist/latest-v22.x');
   });
 
   it('DECK_DRY_RUN=1 imprime o plano e não alcança nenhum instalador', () => {

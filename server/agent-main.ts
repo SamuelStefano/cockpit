@@ -42,6 +42,7 @@ import { createEnrollCode, listDevices, revokeDevice, storePreauth } from './e2e
 import { startSelfUpdate } from './self-update';
 import { startHealthLoop } from './box-health';
 import { startCliAutoUpdate } from './engine/cli-update';
+import { startNodeUpgrade } from './node-upgrade';
 import { agentDir, bootConfirmer, CONFIRM_UPTIME_MS, realFs } from './self-update-boot';
 
 // Entrypoint do AGENTE T3 (DR-023): em vez de escutar (attachWs), DISCA pro relay
@@ -449,6 +450,7 @@ export function runAgent(relayUrl: string): void {
   loop();
   startSelfUpdate({ cwd: process.cwd(), busy: () => threads.size > 0, restart: () => gracefulShutdown(0) });
   startCliAutoUpdate({ busy: () => threads.size > 0 });
+  startNodeUpgrade({ cwd: process.cwd(), busy: () => threads.size > 0, restart: () => gracefulShutdown(0) });
   process.on('SIGTERM', () => gracefulShutdown(0));
   process.on('SIGINT', () => gracefulShutdown(0));
   installCrashBackstop(process, gracefulShutdown);

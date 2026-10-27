@@ -73,7 +73,12 @@ describe('evalClaudeAuth', () => {
 
 describe('evalNode', () => {
   it('errors below the minimum', () => expect(evalNode('v18.19.0').level).toBe('error'));
-  it('is ok from 20 up', () => expect(evalNode('v22.22.2').level).toBe('ok'));
+  it('errors on Node 20: the claude CLI needs 22', () => {
+    const r = evalNode('v20.20.2');
+    expect(r.level).toBe('error');
+    expect(r.hint).toMatch(/Node 22/);
+  });
+  it('is ok from 22 up', () => expect(evalNode('v22.22.2').level).toBe('ok'));
   it('warns on garbage', () => expect(evalNode('').level).toBe('warn'));
 });
 

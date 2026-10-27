@@ -5,7 +5,7 @@
 # O agente reusa o backend inteiro (serveConnection), por isso precisa do repo —
 # não dá pra ser um npx fino sem publicar. A chave Ed25519 nasce e fica nesta box.
 #
-# Política: REAPROVEITAR o que a box já tem. Usa o Node 20+ que já existe (PATH, nvm
+# Política: REAPROVEITAR o que a box já tem. Usa o Node 22+ que já existe (PATH, nvm
 # ou um anterior em ~/.deck-node) e o `claude` que já existe; só instala o que
 # faltar, e sempre dentro do seu HOME (Node em ~/.deck-node, claude em ~/.deck-npm).
 # Nunca troca o Node do sistema, nunca faz npm global, e o único sudo é a unit
@@ -489,7 +489,7 @@ note_reused() { REUSED="${REUSED:+$REUSED, }$1"; }
 note_installed() { INSTALLED="${INSTALLED:+$INSTALLED, }$1"; }
 
 
-# Escolhe o primeiro Node >= 20: PATH, nvm (maior versão), ~/.deck-node. Sem nenhum,
+# Escolhe o primeiro Node >= 22 (o claude CLI exige node>=22 desde a 2.1.198): PATH, nvm (maior versão), ~/.deck-node. Sem nenhum,
 # baixa o tarball oficial pro ~/.deck-node (não mexe no Node do sistema).
 # Define NODE_DIR, NODE_VER e NODE_HOW (reuse|install); com DECK_DRY_RUN=1 não baixa.
 pick_node() {
@@ -498,13 +498,13 @@ pick_node() {
   NODE_DIR=""; NODE_VER=""; NODE_HOW="reuse"
   if p="$(command -v node 2>/dev/null)"; then
     v="$(nodever "$p")"
-    if [ "${v%%.*}" -ge 20 ] 2>/dev/null; then NODE_DIR="$(dirname "$p")"; NODE_VER="$v"; return 0; fi
+    if [ "${v%%.*}" -ge 22 ] 2>/dev/null; then NODE_DIR="$(dirname "$p")"; NODE_VER="$v"; return 0; fi
   fi
   best=""
   for c in "${NVM_DIR:-$HOME/.nvm}"/versions/node/*/bin/node "$HOME"/.nvm/versions/node/*/bin/node; do
     [ -x "$c" ] || continue
     v="$(nodever "$c")"
-    [ "${v%%.*}" -ge 20 ] 2>/dev/null || continue
+    [ "${v%%.*}" -ge 22 ] 2>/dev/null || continue
     best="$best$v $c"$'\n'
   done
   if [ -n "$best" ]; then
@@ -514,27 +514,30 @@ pick_node() {
   c="$HOME/.deck-node/bin/node"
   if [ -x "$c" ]; then
     v="$(nodever "$c")"
-    if [ "${v%%.*}" -ge 20 ] 2>/dev/null; then NODE_DIR="$HOME/.deck-node/bin"; NODE_VER="$v"; return 0; fi
+    if [ "${v%%.*}" -ge 22 ] 2>/dev/null; then NODE_DIR="$HOME/.deck-node/bin"; NODE_VER="$v"; return 0; fi
   fi
-  NODE_HOW="install"; NODE_DIR="$HOME/.deck-node/bin"; NODE_VER="20 LTS"
+  NODE_HOW="install"; NODE_DIR="$HOME/.deck-node/bin"; NODE_VER="22 LTS"
   [ "${DECK_DRY_RUN:-}" = "1" ] && return 0
   local arch base file tmp
   case "$(uname -m)" in
     x86_64|amd64) arch=x64;;
     aarch64|arm64) arch=arm64;;
-    *) echo "[deck] arquitetura $(uname -m) sem Node oficial automático — instale Node 20+ e rode de novo"; exit 1;;
+    *) echo "[deck] arquitetura $(uname -m) sem Node oficial automático — instale Node 22+ e rode de novo"; exit 1;;
   esac
-  base="https://nodejs.org/dist/latest-v20.x"
+  base="https://nodejs.org/dist/latest-v22.x"
   tmp="$(mktemp -d)"
-  echo "[deck] Node 20+ não encontrado — baixando o Node 20 LTS oficial pra $HOME/.deck-node (não mexe no Node do sistema)…"
+  echo "[deck] Node 22+ não encontrado — baixando o Node 22 LTS oficial pra $HOME/.deck-node (não mexe no Node do sistema)…"
   curl -fsSL "$base/SHASUMS256.txt" -o "$tmp/SHASUMS256.txt" || { echo "[deck] falha ao baixar SHASUMS256.txt"; rm -rf "$tmp"; exit 1; }
   file="$(grep -o "node-v[0-9.]*-linux-$arch\.tar\.gz" "$tmp/SHASUMS256.txt" | head -n 1)"
   [ -n "$file" ] || { echo "[deck] tarball linux-$arch não listado em SHASUMS256.txt"; rm -rf "$tmp"; exit 1; }
   curl -fsSL "$base/$file" -o "$tmp/$file" || { echo "[deck] falha ao baixar $file"; rm -rf "$tmp"; exit 1; }
   ( cd "$tmp" && grep " $file\$" SHASUMS256.txt | sha256sum -c - >/dev/null ) || { echo "[deck] checksum do $file não confere — abortando"; rm -rf "$tmp"; exit 1; }
+  # Extract beside and swap: a failed tar must not leave the box without any Node.
+  rm -rf "$HOME/.deck-node.new"
+  mkdir -p "$HOME/.deck-node.new"
+  tar -xzf "$tmp/$file" -C "$HOME/.deck-node.new" --strip-components=1 || { echo "[deck] falha ao extrair $file"; rm -rf "$tmp" "$HOME/.deck-node.new"; exit 1; }
   rm -rf "$HOME/.deck-node"
-  mkdir -p "$HOME/.deck-node"
-  tar -xzf "$tmp/$file" -C "$HOME/.deck-node" --strip-components=1
+  mv "$HOME/.deck-node.new" "$HOME/.deck-node"
   rm -rf "$tmp"
   NODE_VER="${file#node-v}"; NODE_VER="${NODE_VER%%-linux*}"
 }
@@ -565,7 +568,7 @@ if [ "$DRY" = "1" ]; then
   done
   pick_node
   if [ "$NODE_HOW" = "reuse" ]; then echo "  node: reaproveita $NODE_DIR/node (v$NODE_VER)"
-  else echo "  node: instalaria Node 20 LTS (tarball oficial nodejs.org) em $HOME/.deck-node"; fi
+  else echo "  node: instalaria Node 22 LTS (tarball oficial nodejs.org) em $HOME/.deck-node"; fi
   if have_build_tools; then echo "  build tools: reaproveita (make/compilador/python3 presentes)"
   elif build_tools_auto; then echo "  build tools: instalaria make/compilador/python3 via gerenciador de pacotes (root disponível)"
   else echo "  build tools: faltam e a instalação automática está desligada (sem root ou DECK_INSTALL_BUILD_TOOLS=0)"; fi
