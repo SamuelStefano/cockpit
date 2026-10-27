@@ -4,6 +4,7 @@ import { boxLabel } from '../../cockpit/boxes-store';
 import { AddBoxModal } from './AddBoxModal';
 import { BoxDot } from './BoxDot';
 import { useBoxSwitcher } from './useBoxSwitcher';
+import { HealthBadge } from '../health/HealthBadge';
 
 export function BoxSwitcher({ userId }: { userId?: string }) {
   const s = useBoxSwitcher();
@@ -18,6 +19,7 @@ export function BoxSwitcher({ userId }: { userId?: string }) {
       >
         <BoxDot online={s.current?.online ?? false} />
         <span className="min-w-0 flex-1 truncate">{s.current ? boxLabel(s.current) : 'Máquina'}</span>
+        {s.active && s.levelOf(s.active) !== 'ok' && <HealthBadge level={s.levelOf(s.active)} />}
         <Icon name="chevronDown" size={14} className="shrink-0 text-neutral-500" />
       </button>
       {s.open && (
@@ -40,6 +42,7 @@ export function BoxSwitcher({ userId }: { userId?: string }) {
                   <button type="button" role="menuitem" onClick={() => s.select(b.id)} className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-left text-[12.5px] text-neutral-200">
                     <BoxDot online={b.online} />
                     <span className="min-w-0 flex-1 truncate">{boxLabel(b)}</span>
+                    <HealthBadge level={s.levelOf(b.id)} />
                     {b.id === s.active && <Icon name="check" size={13} className="shrink-0 text-orange-400" />}
                   </button>
                   <button type="button" onClick={() => s.startEdit(b)} title="Renomear" aria-label={`Renomear ${boxLabel(b)}`} className="rounded-md p-1 text-neutral-500 hover:text-neutral-200">
@@ -66,6 +69,10 @@ export function BoxSwitcher({ userId }: { userId?: string }) {
             </div>
           ))}
           <div className="mt-1 border-t border-neutral-800 pt-1">
+            <button type="button" role="menuitem" onClick={s.openHealth} className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12.5px] text-neutral-300 hover:bg-neutral-800/60">
+              <Icon name="shield" size={13} />
+              Saúde da máquina
+            </button>
             <button type="button" role="menuitem" onClick={s.startAdd} className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12.5px] text-neutral-300 hover:bg-neutral-800/60">
               <Icon name="plus" size={13} />
               Adicionar máquina

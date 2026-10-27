@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Role } from './auth';
-import type { ClaudeEvent } from './engine/events';
+import type { ClaudeEvent, ResultEvent } from './engine/events';
 import { run, type RunOpts } from './engine/claude';
 import { smokeHint, type SmokeResult } from '../shared/box-health';
 
@@ -43,7 +43,8 @@ export function runSmoke(role: Role, runner: Runner = run, now = () => Date.now(
         cwd: SMOKE_CWD,
         onEvent: (ev: ClaudeEvent) => {
           if (ev.type !== 'result') return;
-          if (ev.is_error) error = ev.result || ev.subtype || 'erro sem mensagem';
+          const r = ev as ResultEvent;
+          if (r.is_error) error = r.result || r.subtype || 'erro sem mensagem';
           else answered = true;
         },
         onError: (msg) => { error ||= msg; },

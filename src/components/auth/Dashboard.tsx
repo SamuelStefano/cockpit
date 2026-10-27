@@ -10,6 +10,8 @@ import { RelayVisibility } from './RelayVisibility';
 import { BetaNote } from './BetaNote';
 import { usePasskeySetup } from './usePasskeySetup';
 import { PasskeyUnlock } from './PasskeyUnlock';
+import { SetupChecklistView } from '../health/SetupChecklistView';
+import { startSetupWatch, useSetupChecklist } from '../health/useSetupChecklist';
 
 // Dashboard de pareamento (DR-023): mostrado quando o usuário está logado mas a VPS
 // dele ainda não está atendendo. Pede um código ao relay e mostra o comando de 1 linha
@@ -18,6 +20,7 @@ export function Dashboard({ token, userId, onSignOut }: { token: string; userId?
   const admin = useAccountAdmin(userId);
   const pk = usePasskeySetup();
   const p = usePairing(token, false, admin, '', pk.version);
+  const setup = useSetupChecklist(true);
 
   return (
     <div className="flex h-full flex-1 justify-center overflow-y-auto bg-neutral-950 px-4 py-6">
@@ -33,12 +36,13 @@ export function Dashboard({ token, userId, onSignOut }: { token: string; userId?
           </PairStep>
           <PairStep n={2} title="Cole na sua VPS">
             <div className="mb-3"><PasskeyUnlock pk={pk} /></div>
-            <PairCommand code={p.code} cmd={p.cmd} busy={p.busy} expired={p.expired} countdown={p.countdown} mode={p.mode} />
+            <PairCommand code={p.code} cmd={p.cmd} busy={p.busy} expired={p.expired} countdown={p.countdown} mode={p.mode} onCopy={() => startSetupWatch()} />
             {/* Um só lugar pro erro: com o código já na tela, a falha de "gerar novo código" não aparecia. */}
             <InstallExplainer mode={p.mode} />
             {p.err && <p className="mt-3 text-[12px] text-red-300">{p.err}</p>}
           </PairStep>
           <PairStep n={3} title="Aguarde a conexão">
+            {setup.checklist && <div className="mb-3"><SetupChecklistView c={setup.checklist} /></div>}
             <PairingStatus diagnosis={p.diagnosis} probe={p.probe} onTest={p.testConnection} />
           </PairStep>
         </div>
