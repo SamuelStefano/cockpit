@@ -172,15 +172,37 @@ scripts/doctor.sh    watchdog do host (cron)
 
 ## Modelo de segurança (estado atual)
 
-- **Trusted-relay beta**: hoje o relay é operado pela DevFellowship e tecnicamente VÊ o tráfego
-  (encaminha, mas poderia ler). A UI mostra um banner avisando. Concretamente, passam em claro
-  pelo relay: o texto do chat, `upload-chunk` (bytes do anexo) e `admin-env-set` (nome E valor
-  do token que o admin cola no painel — só admin manda isso, então hoje é exposição do próprio
-  Samuel, não de fellow). O JWT viaja na query string do WS (`?token=`) porque browser não manda
-  header no handshake: o Caddyfile do relay NÃO pode ganhar diretiva `log` sem redigir a query.
-- **T5 (assinatura e2e dos frames)**: NÃO construído. É **fast-follow obrigatório** antes de
-  abrir pra VPS de **terceiros** (relay não poder forjar comandos). Pro público interno (relay
-  operado pela DFL, banner ligado) é aceitável; pro externo é gate.
+- **Canal selado navegador↔agente (T5, `shared/e2e/`, `server/e2e/`, `src/cockpit/sealed-socket.ts`).**
+  O relay deixou de ser confiável: ele roteia, mas não lê, não forja e não reenvia frame.
+  - **Aparelho cadastrado**: cada navegador gera uma chave Ed25519 **não-extraível** (IndexedDB).
+    O agente só aceita aparelhos de `~/.deck-agent/devices.json`, escrito só na própria box.
+  - **Cadastro fora do relay**: `npx tsx server/agent.ts --enroll-device` mostra um código de uso
+    único (10 min) com o fingerprint da chave do agente + um segredo de 128 bits. O segredo
+    autentica (HMAC) a chave do aparelho e a resposta do agente: o relay não troca nenhuma das duas.
+    Um aparelho já cadastrado também gera código (`device-code-new`, dentro do canal selado).
+  - **Handshake por aba**: X25519 efêmero dos dois lados, transcript assinado pelos dois (papéis
+    separados), HKDF → AES-256-GCM com chave por direção. Sequência estritamente crescente: o relay
+    pode descartar frame (backpressure), nunca reordenar nem repetir. Frame adulterado derruba o canal.
+  - **Agente**: por padrão (`DECK_E2E` ≠ `off`) só serve canais selados; frame em claro do relay é
+    descartado. `DECK_E2E=off` volta ao modo antigo e existe só pra recuperar uma box sem aparelho.
+  - **Navegador**: só abre o app depois do canal; do relay em claro aceita só `agent-online`,
+    `agent-offline` e `accounts`. Chave de agente não fixada no cadastro = tela de cadastro, nunca retry.
+  - **Relay**: dá um id aleatório por aba, carimba no frame do navegador (último `"c"` vence) e
+    entrega a resposta do agente só àquela aba, da mesma conta, sem o id.
+  - **Só frame descartável pode sumir**: cada frame leva, cifrado, se é crítico e a sequência do último
+    crítico antes dele. O relay só consegue descartar delta/thinking/stats; perder uma tecla, um `stop`
+    ou uma negação quebra a cadeia e o canal.
+  - **Chave própria**: o canal usa `~/.deck-agent/e2e-key.json`, não a chave que responde ao desafio
+    de login do relay (o relay escolhe o desafio; a mesma chave viraria oráculo de assinatura).
+  - Gestão: `--devices`, `--revoke-device=<prefixo>`; dentro do canal, `devices-list`/`device-revoke`.
+    O agente varre os canais a cada 10 s: aparelho revogado (até pela CLI) cai na hora, e todo canal
+    se refaz em no máximo 12 h.
+  - **Frames de dono (`shared/root-frames.ts`)**: o relay não vê mais o tipo do frame selado, então o
+    filtro de root dele não vale para o canal. Quem decide é o agente: `DECK_AGENT_ROLE=admin` libera
+    tudo para os aparelhos cadastrados na própria box (o dono).
+  - **O que NÃO cobre**: quem controla o JS servido pela Vercel controla a ponta do navegador (CSP
+    estrita reduz XSS, mas o deploy é raiz de confiança); o relay ainda vê metadados (tamanho, horário,
+    conta) e pode derrubar a conexão.
 - **Co-location**: rodar o relay na MESMA box do backend é aceito só pro teste pessoal single-user.
   Antes de DFL/fellows: VPS separada pro relay + T5 ligado.
 - **Papel `student` NÃO é sandbox do LLM.** Ele limita a superfície do *Deck*: sem `term-*` (PTY
@@ -259,7 +281,7 @@ modo listen — o listen é o dono da box, sempre `admin` no engine e `root` no 
 6. Aplicar `migrations/relay/0004_account_prefs.sql` (coluna `prefs`): sem ela o sync de
    preferências falha calado e cada aparelho segue com as suas.
 
-**Público externo / patrocinado (Centelha: pessoa sem box própria)** — bloqueado por:
+**Público externo / patrocinado (Centelha: pessoa sem box própria)** — bloqueado por (T5 já feito):
 1. **Isolamento é infra, não código**: agente hospedado por terceiro exige container/VM por conta
    com HOME, `~/.claude` e login próprios. O engine zera `ANTHROPIC_API_KEY` e força o OAuth da box
    (`claude.ts` `minimalEnv`), então um agente hospedado gasta a assinatura de *alguém* — de quem é

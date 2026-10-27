@@ -5,10 +5,11 @@ import { loadPref, savePref, setPref, usePrefListener } from './lib/persist';
 import { MODE_KEY, MODEL_KEY, EFFORT_KEY } from './lib/account-prefs';
 import { persistableModelOverrides } from './cockpit/model-overrides';
 import { SUPABASE_ENABLED, supabase } from './lib/supabase';
+import { SealedSocket } from './cockpit/sealed-socket';
 import { onAuthClose, tokenUnchangedAndLive, RELAY_AUTH_RETRY_MS, shouldRefreshSession, dialOnTokenChange } from './cockpit/ws-auth';
 import { TOKEN_EXPIRED_CLOSE, TOKEN_EXPIRED_EVENT } from './lib/auth-events';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
-import { wsUrlWithToken, newId, metaToSession, mergeServerSessions, adoptClaimedRow, dedupById, mergeSeen, isCronPing } from './cockpit/session';
+import { wsBase, wsUrlWithToken, newId, metaToSession, mergeServerSessions, adoptClaimedRow, dedupById, mergeSeen, isCronPing } from './cockpit/session';
 import { computeStalled, computeUpdated } from './cockpit/signals';
 import { upsertTool, appendDelta, appendThinking } from './cockpit/blocks';
 import { selectEvictions, pruneRefs } from './cockpit/evict';
@@ -1401,7 +1402,9 @@ export function useCockpit(): Cockpit {
     if (heartbeat.current) { clearInterval(heartbeat.current); heartbeat.current = null; }
     setConn((c) => ({ ...c, ws: 'reconnecting', sse: 'reconnecting' }));
     let ws: WebSocket;
-    try { ws = new WebSocket(wsUrlWithToken(tokenRef.current)); } catch { scheduleRetry(); return; }
+    // Relay mode: the socket only opens once a sealed channel to this account's
+    // pinned agent exists (T5); the loopback backend has no relay in between.
+    try { ws = SUPABASE_ENABLED ? new SealedSocket(wsBase(), tokenRef.current) as unknown as WebSocket : new WebSocket(wsUrlWithToken(tokenRef.current)); } catch { scheduleRetry(); return; }
     wsRef.current = ws;
 
     // Guarda de geração: só o socket ATUAL (wsRef.current) reage. Um evento tardio

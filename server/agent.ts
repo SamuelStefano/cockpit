@@ -36,6 +36,9 @@ import { startDflPointsWatch } from './dfl-points-watch';
 import { startDflDraftsWatch } from './dfl-drafts-watch';
 import { loadManagedEnv } from './admin-ops';
 import { startAutoPauseLoop } from './canvas/autopause-loop';
+import { SealedHub, loadE2eKeys, type AgentKeys } from './e2e/hub';
+import { deviceFrameHandler } from './e2e/manage';
+import { createEnrollCode, listDevices, revokeDevice } from './e2e/devices';
 
 // Entrypoint do AGENTE T3 (DR-023): em vez de escutar (attachWs), DISCA pro relay
 // e serve o MESMO protocolo pelo socket de saída. O relay encaminha os frames do
@@ -115,6 +118,14 @@ let activeWs: WebSocket | null = null;
 // (loops rodam) — sem regressão; só PAUSA quando o relay novo diz que ninguém olha.
 let browsersPresent = true;
 
+// T5: by default the agent serves ONLY sealed channels from enrolled devices
+// (server/e2e). Plaintext frames from the relay are dropped: the relay is a
+// router, not a principal. DECK_E2E=off restores the old trusted-relay mode and
+// exists only to recover a box whose devices were lost.
+export const E2E_REQUIRED = process.env.DECK_E2E !== 'off';
+let hub: SealedHub | null = null;
+let agentKeys: AgentKeys | null = null;
+
 // Reemite o bootstrap inteiro na chegada de um browser. No modo dial o
 // serveConnection só faz o bootstrap UMA vez (no agent-ready, antes de qualquer
 // aba). Um browser que abre/recarrega depois multiplexa no MESMO socket do agente
@@ -152,6 +163,16 @@ function reemitBootstrap(ws: WebSocket): void {
   } catch { /* socket indo embora */ }
 }
 
+// Control frames from the relay itself; everything else on the plaintext path
+// is a browser frame that skipped the sealed channel.
+const RELAY_CONTROL = /^\{"t":"(browsers-present|no-browsers|agent-ready|challenge)"/;
+let plaintextWarned = false;
+function warnPlaintextOnce(s: string): void {
+  if (plaintextWarned || RELAY_CONTROL.test(s)) return;
+  plaintextWarned = true;
+  console.error('[agent] e2e: plaintext frame from the relay dropped (only sealed channels are served)');
+}
+
 export const ANOTHER_AGENT_CLOSE = 4409;
 // Past the relay's heartbeat window (~60 s), so a half-open socket of a re-paired
 // box is gone by the next try, without hammering while another box holds the slot.
@@ -186,8 +207,27 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: (c
       onAuthed();                                   // backoff só zera após AUTH ok (não no TCP-open)
       ws.removeListener('message', onHandshake);    // serveConnection assume o loop
       activeWs = ws;
-      setClientSource({ clients: new Set([ws]) });  // broadcast sai por ESTE socket
-      serveConnection(ws, { role: AGENT_ROLE, root: AGENT_ROOT, sendCaps: false }); // relay é a fonte do caps
+      if (E2E_REQUIRED && agentKeys) {
+        const keys = agentKeys;
+        const sealed = new SealedHub({
+          keys,
+          link: ws,
+          serve: (peer) => serveConnection(peer as unknown as WebSocket, { role: AGENT_ROLE, root: AGENT_ROOT }),
+          intercept: deviceFrameHandler(keys.pub, () => hub),
+          onPeersChanged: () => {},
+        });
+        hub = sealed;
+        setClientSource({ get clients() { return sealed.peers.values() as unknown as Iterable<WebSocket>; } });
+        ws.on('message', (raw: Buffer) => {
+          const s = raw.toString();
+          if (sealed.handle(s)) return;
+          warnPlaintextOnce(s);
+        });
+        ws.on('close', () => { sealed.closeAll(); if (hub === sealed) hub = null; });
+      } else {
+        setClientSource({ clients: new Set([ws]) });  // broadcast sai por ESTE socket
+        serveConnection(ws, { role: AGENT_ROLE, root: AGENT_ROOT, sendCaps: false }); // relay é a fonte do caps
+      }
       // bootstrap do serveConnection já replaya o último snapshot (models/plan-usage/
       // stats) PRA ESTE socket; os loops periódicos (startLoops no runAgent) seguem
       // emitindo via broadcast enquanto este socket for o activeWs.
@@ -208,7 +248,7 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: (c
             // loops periódicos cobrem stats/usage/models; estes não têm loop, então
             // um browser que chega depois nunca os recebia (seletor de MCP vazio,
             // slash sumido). Reemite na chegada de browser.
-            reemitBootstrap(ws);
+            if (!E2E_REQUIRED) reemitBootstrap(ws);
           }
           else if (p.t === 'no-browsers') browsersPresent = false;
           // Qualquer comando do cliente prova que há aba olhando. O relay só emite
@@ -316,6 +356,7 @@ export function runAgent(relayUrl: string): void {
     console.error('[agent] não pareado. Gere um código no Deck e rode o instalador:\n  curl -fsSL https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh | DECK_PAIR_CODE=CÓDIGO bash');
     process.exit(1);
   }
+  if (!E2E_REQUIRED) console.error('[agent] DECK_E2E=off: serving PLAINTEXT relay frames — whoever controls the relay controls this box');
   startHealthGuard();
   void loadManagedEnv(); // tokens gerenciados (#162) p/ o spawn herdar
   // Loops periódicos (telemetria/usage/modelos) que o modo listen roda no attachWs.
@@ -323,7 +364,7 @@ export function runAgent(relayUrl: string): void {
   // pro relay (activeWs). broadcast já sai por ele via setClientSource. Sem isto a
   // UI nunca recebe stats/plan-usage atualizados (barra de usage e telemetria
   // travadas em "carregando") nem as versões concretas dos modelos.
-  const hasClients = () => activeWs !== null && browsersPresent;
+  const hasClients = () => activeWs !== null && (E2E_REQUIRED ? (hub?.peers.size ?? 0) > 0 : browsersPresent);
   startStatsLoop(hasClients);
   // Without this, this process never learns about a turn started on the
   // OTHER Deck backend (server/index.ts, the one deckctl talks to) — the
@@ -375,6 +416,12 @@ export function runAgent(relayUrl: string): void {
   bootstrapTimer.unref();
   let attempt = 0;
   const loop = () => {
+    if (E2E_REQUIRED && !agentKeys) {
+      loadE2eKeys()
+        .then((k) => { agentKeys = k; loop(); })
+        .catch((e) => { console.error('[agent] e2e: identity key unusable:', e); process.exit(1); });
+      return;
+    }
     connect(
       relayUrl, id,
       () => { /* TCP-open não zera o backoff: auth pode falhar logo após (4401) */ },
@@ -426,6 +473,17 @@ function gracefulShutdown(code = 0): void {
   setTimeout(() => process.exit(code), 300);
 }
 
+// Prints a one-time code for enrolling a browser. Shown only on this box's own
+// terminal: that is what makes the code a channel the relay never sees.
+async function enrollDeviceCli(): Promise<void> {
+  const id = loadIdentity();
+  if (!id?.privateKeyPem) { console.error('[agent] not paired yet'); process.exit(1); }
+  const keys = await loadE2eKeys();
+  const { code, expiresAt } = await createEnrollCode(keys.pub);
+  console.log(`\nEnrollment code (single use, expires ${new Date(expiresAt).toLocaleTimeString()}):\n\n  ${code}\n\nType it in the Deck on the device you want to trust. Never paste it in a chat.\n`);
+  process.exit(0);
+}
+
 // Execução direta: `tsx server/agent.ts [--pair=CÓDIGO | --pair]` (relay via
 // DECK_RELAY_URL). Com `--pair` sem valor, o código vem de DECK_PAIR_CODE — argv é
 // legível por qualquer usuário local no `ps`. Só o flag explícito ativa o pairing:
@@ -435,7 +493,20 @@ if (process.argv[1] && process.argv[1].endsWith('agent.ts')) {
   const url = process.env.DECK_RELAY_URL;
   if (!url) { console.error('[agent] defina DECK_RELAY_URL'); process.exit(1); }
   const pairArg = process.argv.find((a) => a === '--pair' || a.startsWith('--pair='));
-  if (pairArg) {
+  const revokeArg = process.argv.find((a) => a.startsWith('--revoke-device='));
+  if (process.argv.includes('--enroll-device')) {
+    void enrollDeviceCli();
+  } else if (process.argv.includes('--devices')) {
+    for (const d of listDevices()) console.log(`${d.pub}  ${d.label}  added ${d.addedAt}${d.lastSeen ? `  seen ${d.lastSeen}` : ''}`);
+    process.exit(0);
+  } else if (revokeArg) {
+    const prefix = revokeArg.slice('--revoke-device='.length);
+    const hit = listDevices().filter((d) => prefix.length >= 6 && d.pub.startsWith(prefix));
+    if (hit.length !== 1) { console.error(`[agent] ${hit.length} devices match "${prefix}" (need exactly 1, prefix >= 6 chars)`); process.exit(1); }
+    revokeDevice(hit[0].pub);
+    console.log(`[agent] revoked ${hit[0].label}. A running agent drops it on its next handshake.`);
+    process.exit(0);
+  } else if (pairArg) {
     const code = pairArg === '--pair' ? (process.env.DECK_PAIR_CODE ?? '') : pairArg.slice('--pair='.length);
     if (!code) { console.error('[agent] --pair sem código: passe --pair=CÓDIGO ou defina DECK_PAIR_CODE'); process.exit(1); }
     pairAgent(url, code)

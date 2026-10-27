@@ -4,9 +4,13 @@ import { SupabaseAuthGate } from '../components/auth/SupabaseAuthGate';
 import { PasswordRecoveryGate } from '../components/auth/PasswordRecoveryGate';
 import { Dashboard } from '../components/auth/Dashboard';
 import { AuthGate } from '../components/chrome/AuthGate';
+import { EnrollDevice } from '../components/auth/EnrollDevice';
+import { useSealState } from '../components/auth/useEnrollDevice';
+import type { SealState } from '../cockpit/sealed-socket';
 
 interface AuthGateViewProps {
   sbAuth: ReturnType<typeof useSupabaseAuth>;
+  seal: SealState;
   ejectPairing: boolean;
   authRequired: boolean;
   submitToken: (token: string) => void;
@@ -18,7 +22,11 @@ interface AuthGateViewProps {
 // antiga ainda valendo. Logado mas a VPS ainda não atende → dashboard de
 // pareamento. Sem Supabase (loopback): o gate de token de sempre (DR-011 Fase 2),
 // quando o servidor exige token e o nosso falta/errou. Retorna null = app livre.
-export function resolveAuthGate({ sbAuth, ejectPairing, authRequired, submitToken }: AuthGateViewProps) {
+const NEEDS_ENROLL: ReadonlySet<SealState> = new Set(['enroll', 'enroll-failed', 'rejected', 'unsupported']);
+
+export { useSealState };
+
+export function resolveAuthGate({ sbAuth, seal, ejectPairing, authRequired, submitToken }: AuthGateViewProps) {
   let node: React.ReactNode = null;
   if (SUPABASE_ENABLED) {
     if (sbAuth.recovery && sbAuth.session) {
@@ -31,6 +39,7 @@ export function resolveAuthGate({ sbAuth, ejectPairing, authRequired, submitToke
       );
     } else if (!sbAuth.loading && !sbAuth.session) node = <SupabaseAuthGate auth={sbAuth} />;
     else if (sbAuth.session && ejectPairing) node = <Dashboard token={sbAuth.session.access_token} userId={sbAuth.session.user?.id} onSignOut={sbAuth.signOut} />;
+    else if (sbAuth.session && NEEDS_ENROLL.has(seal)) node = <EnrollDevice onSignOut={sbAuth.signOut} />;
   } else if (authRequired) {
     node = <AuthGate onSubmit={submitToken} />;
   }
