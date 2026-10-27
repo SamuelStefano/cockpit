@@ -1,6 +1,5 @@
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { addBad, agentDir, markerFile, npmBesideNode, readBad, realFs, writeMarker } from './self-update-boot';
 
 // Keeps an installed agent on the code merged to `main` of the repo it was cloned
 // from. The only source is that git remote, the same trust as the install itself:
@@ -15,6 +14,12 @@ export interface SelfUpdateDeps {
   busy: () => boolean;
   restart: () => void;
   log: (msg: string) => void;
+  // Persisted across restarts (self-update-boot.ts): commits that failed, and the
+  // marker the next boot counts against until the new code confirms itself.
+  isBad: (sha: string) => boolean;
+  markBad: (sha: string) => void;
+  markPending: (from: string, to: string) => void;
+  unconfirmed: () => boolean;
 }
 
 export interface SelfUpdateOptions {
@@ -47,7 +52,6 @@ export function createSelfUpdater(deps: SelfUpdateDeps, o: SelfUpdateOptions = {
   const git = (args: string[], ms = GIT_MS) => deps.exec('git', [...GIT, ...args], ms);
   let lastSkip = '';
   let pendingSince: number | null = null;
-  let badTarget: string | null = null;
   let done = false;
 
   const skip = (why: string): TickResult => {
@@ -74,6 +78,7 @@ export function createSelfUpdater(deps: SelfUpdateDeps, o: SelfUpdateOptions = {
     if (done) return 'restarting';
     if (env.DECK_SELF_UPDATE === 'off') { deps.log('[agent] self-update: off (DECK_SELF_UPDATE=off)'); return 'disabled'; }
     const why = await skipReason();
+    if (!why && deps.unconfirmed()) return skip('previous update not confirmed yet');
     if (why) { pendingSince = null; return skip(why); }
     lastSkip = '';
 
@@ -82,7 +87,7 @@ export function createSelfUpdater(deps: SelfUpdateDeps, o: SelfUpdateOptions = {
     const target = (await git(['rev-parse', 'origin/main'])).stdout.trim();
     if (!head || !target || head === target) { pendingSince = null; return 'current'; }
     if (!(await git(['merge-base', '--is-ancestor', head, target])).ok) { pendingSince = null; return 'diverged'; }
-    if (target === badTarget) return 'known-bad';
+    if (deps.isBad(target)) return 'known-bad';
 
     if (deps.busy()) {
       pendingSince ??= deps.now();
@@ -103,12 +108,13 @@ export function createSelfUpdater(deps: SelfUpdateDeps, o: SelfUpdateOptions = {
         // npm ci wipes node_modules first: reinstall the old lockfile so the next boot still runs.
         const restore = await deps.exec(npm, ['ci', '--no-audit', '--no-fund'], NPM_MS);
         if (!restore.ok) deps.log('[agent] self-update: restoring the previous dependencies failed too');
-        badTarget = target;
+        deps.markBad(target);
         pendingSince = null;
         return 'rolled-back';
       }
     }
     done = true;
+    deps.markPending(head, target);
     deps.log(`[agent] self-update: ${short(head)}..${short(target)}, restarting`);
     deps.restart();
     return 'restarting';
@@ -128,20 +134,19 @@ export function execIn(cwd: string): Exec {
   });
 }
 
-// npm next to the running node, so a unit whose PATH lacks it still finds it.
-export function npmBesideNode(execPath = process.execPath): string {
-  const bin = join(dirname(execPath), 'npm');
-  return existsSync(bin) ? bin : 'npm';
-}
-
 export const FIRST_CHECK_MS = 60_000;
 export const CHECK_EVERY_MS = 10 * 60_000;
 const JITTER_MS = 2 * 60_000;
 const RECHECK_WAITING_MS = 60_000;
 
 export function startSelfUpdate(p: { cwd: string; busy: () => boolean; restart: () => void }): void {
+  const dir = agentDir();
   const updater = createSelfUpdater({
     exec: execIn(p.cwd), now: Date.now, busy: p.busy, restart: p.restart, log: (m) => console.error(m),
+    isBad: (sha) => readBad(realFs, dir).includes(sha),
+    markBad: (sha) => addBad(realFs, dir, sha),
+    markPending: (from, to) => writeMarker(realFs, dir, { from, to, boots: 0 }),
+    unconfirmed: () => realFs.read(markerFile(dir)) !== null,
   }, { npmBin: npmBesideNode() });
   const schedule = (ms: number) => setTimeout(run, ms).unref();
   const run = async () => {

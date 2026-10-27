@@ -100,7 +100,8 @@ describe('agent-setup.sh', () => {
 
   it('sobe o agente sob flock e com limite de respawn', () => {
     expect(fonte).toContain('EXEC_START="$FLOCK_BIN -n $LOCK');
-    expect(fonte).toContain('StartLimitBurst=5');
+    // Room for the self-update rollback: 3 failed boots + the boot that rolls back.
+    expect(fonte).toContain('StartLimitBurst=10');
     expect(fonte).toContain('StartLimitIntervalSec=300');
   });
 

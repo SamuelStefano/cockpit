@@ -124,7 +124,19 @@ A box NÃO pode travar. Camadas:
     `npm ci` de novo e aquele commit não é tentado de novo. Espera não haver turno rodando (máx.
     30 min; depois reinicia assim mesmo pelo caminho `preserveLive`, e os turnos retomam no boot) e
     sai; systemd (`Restart=always`) ou o loop do nohup (`DECK_SUPERVISED=1`) sobe o código novo.
-    Sem supervisor que o traga de volta, não atualiza. `DECK_SELF_UPDATE=off` desliga. **Confiança**:
+    Sem supervisor que o traga de volta, não atualiza.
+    **Rollback de main quebrada** (`server/self-update-boot.ts`): antes de sair, grava
+    `~/.deck-agent/self-update.json` `{from, to, boots: 0}`. Cada boot com HEAD = `to` conta um; o
+    boot que acha 3 já contados faz `git reset --hard <from>` (+ `npm ci` se as deps mudaram), põe
+    `to` em `self-update-bad.json` (nunca tentado de novo), apaga o marcador, loga
+    `[agent] self-update: <to> failed to boot 3x, rolled back to <from>` e segue no código antigo no
+    mesmo processo. O update vira bom (marcador apagado) com 2 min no ar E uma conexão ao relay;
+    até lá nenhum update novo começa. O check roda em `server/agent.ts`, o entrypoint das units, que
+    só importa builtins + `self-update-boot.ts` e carrega `agent-main.ts` por `import()` dinâmico: o
+    ESM linka o grafo estático inteiro antes de rodar qualquer linha, então um import quebrado não
+    pode impedir o check. Esses dois arquivos têm que continuar sem imports do app. Unit:
+    `StartLimitBurst=10` em 300 s, `RestartSec=5` (o rollback precisa de 4 starts; units antigas
+    com burst 5 ainda cabem). `DECK_SELF_UPDATE=off` desliga. **Confiança**:
     a fonte é o mesmo repositório GitHub de onde a box foi instalada (nenhuma raiz nova); nada vindo
     do relay inicia, pula ou direciona uma atualização.
 - **Relay (`relay/src/index.ts`)**: heartbeat ping/pong nos dois servidores (browser+agent),

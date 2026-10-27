@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { createSelfUpdater, isSupervised, npmBesideNode, type ExecResult } from './self-update';
+import { createSelfUpdater, isSupervised, type ExecResult } from './self-update';
+import { npmBesideNode } from './self-update-boot';
 
 const OLD = 'a'.repeat(40);
 const NEW = 'b'.repeat(40);
@@ -10,7 +11,9 @@ interface Repo {
   mergeOk?: boolean; npmResults?: boolean[];
 }
 
-function harness(repo: Repo = {}, opts: { env?: NodeJS.ProcessEnv; busy?: () => boolean; maxWaitMs?: number } = {}) {
+function harness(repo: Repo = {}, opts: { env?: NodeJS.ProcessEnv; busy?: () => boolean; maxWaitMs?: number; bad?: string[]; unconfirmed?: boolean } = {}) {
+  const bad = new Set(opts.bad ?? []);
+  const pending: Array<[string, string]> = [];
   const calls: string[] = [];
   const logs: string[] = [];
   let restarts = 0;
@@ -36,8 +39,10 @@ function harness(repo: Repo = {}, opts: { env?: NodeJS.ProcessEnv; busy?: () => 
   };
   const updater = createSelfUpdater({
     exec, now: () => clock, busy: opts.busy ?? (() => false), restart: () => { restarts++; }, log: (m) => logs.push(m),
+    isBad: (s) => bad.has(s), markBad: (s) => { bad.add(s); },
+    markPending: (from, to) => { pending.push([from, to]); }, unconfirmed: () => !!opts.unconfirmed,
   }, { env: opts.env ?? { INVOCATION_ID: 'x' }, maxWaitMs: opts.maxWaitMs ?? 1000 });
-  return { updater, calls, logs, restarts: () => restarts, advance: (ms: number) => { clock += ms; } };
+  return { updater, calls, logs, bad, pending, restarts: () => restarts, advance: (ms: number) => { clock += ms; } };
 }
 
 describe('self-update decision', () => {
@@ -48,6 +53,7 @@ describe('self-update decision', () => {
     expect(h.calls.some((c) => c.startsWith('npm'))).toBe(false);
     expect(h.restarts()).toBe(1);
     expect(h.logs).toContain('[agent] self-update: aaaaaaa..bbbbbbb, restarting');
+    expect(h.pending).toEqual([[OLD, NEW]]);
   });
 
   it('runs git with hooks and fsmonitor disabled', async () => {
@@ -55,6 +61,7 @@ describe('self-update decision', () => {
     const u = createSelfUpdater({
       exec: async (cmd, args) => { if (cmd === 'git') seen.push(args); return { ok: true, stdout: args.includes('--abbrev-ref') ? 'main' : '', stderr: '' }; },
       now: () => 0, busy: () => false, restart: () => {}, log: () => {},
+      isBad: () => false, markBad: () => {}, markPending: () => {}, unconfirmed: () => false,
     }, { env: { INVOCATION_ID: 'x' } });
     await u.tick();
     const fetch = seen.find((a) => a.includes('fetch'))!;
@@ -125,8 +132,23 @@ describe('self-update decision', () => {
     expect(h.calls.filter((c) => c.startsWith('npm'))).toHaveLength(2);
     expect(h.restarts()).toBe(0);
     expect(h.logs.some((l) => l.includes('npm ci failed') && l.includes('rolling back'))).toBe(true);
+    expect(h.bad.has(NEW)).toBe(true);
+    expect(h.pending).toEqual([]);
     expect(await h.updater.tick()).toBe('known-bad');
     expect(h.calls.filter((c) => c.includes('merge --ff-only'))).toHaveLength(1);
+  });
+
+  it('never retries a commit that was rolled back on an earlier boot', async () => {
+    const h = harness({}, { bad: [NEW] });
+    expect(await h.updater.tick()).toBe('known-bad');
+    expect(h.calls.some((c) => c.includes('merge --ff-only'))).toBe(false);
+  });
+
+  it('waits for the last update to confirm itself before taking another', async () => {
+    const h = harness({}, { unconfirmed: true });
+    expect(await h.updater.tick()).toBe('skipped');
+    expect(h.calls.some((c) => c.includes('fetch'))).toBe(false);
+    expect(h.logs).toEqual(['[agent] self-update: skipped (previous update not confirmed yet)']);
   });
 
   it('does not restart when the fast-forward fails', async () => {

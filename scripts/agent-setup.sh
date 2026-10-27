@@ -113,7 +113,7 @@ Description=Deck Agent (T3 relay)
 After=network-online.target
 Wants=network-online.target
 StartLimitIntervalSec=300
-StartLimitBurst=5
+StartLimitBurst=10
 
 [Service]
 Type=simple
@@ -126,7 +126,7 @@ Environment=DECK_AGENT_ROLE=$ROLE
 Environment=DECK_AGENT_DIR=$AGENT_DIR
 ExecStart=$EXEC_START
 Restart=always
-RestartSec=3
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
