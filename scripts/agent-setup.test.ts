@@ -207,8 +207,8 @@ describe('agent-setup.sh', () => {
     it('no modo isolado a checagem roda no processo root, antes de entregar pro deck', () => {
       const i = fonte.indexOf('isolated_parent() {');
       const corpo = fonte.slice(i, fonte.indexOf('\n}\n', i));
-      expect(corpo.indexOf('if build_tools_auto; then')).toBeGreaterThan(corpo.indexOf('command -v git'));
-      expect(corpo.indexOf('if build_tools_auto; then')).toBeLessThan(corpo.indexOf('DECK_NO_SERVICE=1 bash "$copy"'));
+      expect(corpo.indexOf('    if build_tools_auto; then')).toBeGreaterThan(corpo.indexOf('command -v git'));
+      expect(corpo.indexOf('    if build_tools_auto; then')).toBeLessThan(corpo.indexOf('DECK_NO_SERVICE=1 bash "$copy"'));
     });
   });
 
