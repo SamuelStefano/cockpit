@@ -95,6 +95,9 @@ export interface SealedSocketOptions {
   // Only the main socket drives the exported sealState and enrollThisDevice.
   main?: boolean;
   handshakeMs?: number;
+  // Read-only view of another box: handshakes only with a pin it already holds,
+  // never redeems, trusts on first use, hands over keys or toasts.
+  peek?: boolean;
 }
 
 // Frames the relay answers itself (account admin) or emits about the link.
@@ -139,6 +142,7 @@ export class SealedSocket {
   private pinRetried = false;
   private readonly box: string | undefined;
   private readonly main: boolean;
+  private readonly peek: boolean;
   private seal: SealState = 'connecting';
   private timer: ReturnType<typeof setTimeout> | null = null;
   private chain: Promise<unknown> = Promise.resolve();
@@ -154,6 +158,7 @@ export class SealedSocket {
     this.box = opts.box;
     this.main = opts.main === true;
     this.handshakeMs = opts.handshakeMs ?? HANDSHAKE_MS;
+    this.peek = opts.peek === true && !this.main;
     if (this.main) {
       mainSocket = this;
       // A refused agent key or an agent without T5 stays on screen across the
@@ -224,6 +229,10 @@ export class SealedSocket {
     const pins = await pinnedAgents(this.box);
     const sel = await deviceKeysFor(this.box);
     this.keys = sel.keys; this.passkey = sel.passkey; this.upgrade = sel.upgrade;
+    if (this.peek) {
+      this.passkey = null; this.upgrade = null;
+      if (!pins.length) { this.setSeal('enroll'); return; }
+    }
     if (this.box !== undefined && !pins.length && this.passkey) {
       const secrets = pendingPreauths();
       if (secrets.length) { await this.preauth(secrets); return; }
@@ -461,7 +470,7 @@ export class SealedSocket {
   // silently, so an unconfirmed action gets checked.
   private fail(reason: string, next: SealState = 'connecting'): void {
     if (this.main) recordConnEvent('seal_fail', { reason });
-    if (this.channel && reason !== 'channel lifetime reached' && reason !== 'box forgotten') {
+    if (this.channel && !this.peek && reason !== 'channel lifetime reached' && reason !== 'box forgotten') {
       toast('Conexão cifrada reiniciada — confira se a última ação chegou.', { tone: 'error' });
     }
     this.setSeal(next);

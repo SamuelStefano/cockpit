@@ -605,4 +605,46 @@ describe('SealedSocket with a passkey device key', () => {
     expect(mem.boxPins[BOX]).toEqual([keys.pub]);
     expect(devicePin(toB64(mem.passkey.pub))).toEqual(await boxPinKey(mem.passkey.pinRoot, BOX));
   });
+
+  it('a peek socket with no pin for its box never handshakes, redeems or trusts on first use', async () => {
+    const keys = (relay as unknown as { keys: { pub: Bytes; sign: CryptoKey } }).keys;
+    let hub: InstanceType<typeof SealedHub> | null = null;
+    hub = new SealedHub({
+      keys, link: relay.agentLink, onPeersChanged: () => {}, boxId: BOX, tofu: tofuWindow({}),
+      intercept: deviceFrameHandler(keys.pub, () => hub, BOX), serve: () => {},
+    });
+    relay.hub = hub;
+    mem.passkey = await deriveFromPrf(PRF);
+    const { code, secret } = await newDeviceCode(mem.passkey.pub);
+    storePreauth(code);
+    mem.preauth = [secret];
+    const before = sealState.get();
+    const peek = new SealedSocket('wss://relay/ws?box=' + BOX + '&peek=1', 'jwt', { box: BOX, peek: true });
+    await settle();
+    expect(peek.sealed).toBe('enroll');
+    expect(sealState.get()).toBe(before);
+    expect(mem.boxPins[BOX] ?? []).toEqual([]);
+    expect(mem.preauth).toEqual([secret]);
+    expect(listDevices()).toEqual([]);
+    const sent = [...relay.tabs.values()].flatMap((t) => t.sent);
+    expect(sent.some((x) => /e2e-(hello|preauth)/.test(x))).toBe(false);
+  });
+
+  it('a peek socket seals with a pinned box and never drives sealState or hands over a pin key', async () => {
+    const { keys, s } = await pairedWithDeviceCode();
+    s.close(1000);
+    await settle();
+    const before = sealState.get();
+    relay.served = [];
+    const peek = new SealedSocket('wss://relay/ws?box=' + BOX + '&peek=1', 'jwt', { box: BOX, peek: true });
+    let opened = false;
+    peek.onopen = () => { opened = true; peek.send('{"t":"subscribe","scope":"summary"}'); };
+    await settle();
+    expect(opened).toBe(true);
+    expect(peek.sealed).toBe('sealed');
+    expect(sealState.get()).toBe(before);
+    expect(mem.boxPins[BOX]).toEqual([keys.pub]);
+    expect(relay.served.some((x) => x.startsWith('{"t":"device'))).toBe(false);
+  });
+
 });
