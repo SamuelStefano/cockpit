@@ -1,10 +1,19 @@
-import { Button, Badge, BrandMark, Input, Switch, ToggleChip, toast } from '../../components/primitives';
+import { useState } from 'react';
+import { Button, Badge, BrandMark, IconButton, Input, Popover, Switch, ToggleChip, Tooltip, UsageRing, toast } from '../../components/primitives';
 import { Section } from './Section';
 import { Row } from './Row';
 
 export function PrimitivesGallery() {
+  const [pop, setPop] = useState(false);
   return (
     <>
+      <Section title="Tooltip, IconButton, Popover, UsageRing">
+        <Row label="Tooltip"><Tooltip label="Aparece no hover ou foco"><Button variant="secondary">passe o mouse</Button></Tooltip><Tooltip label="À direita" side="right"><Button variant="secondary">direita</Button></Tooltip></Row>
+        <Row label="IconButton"><IconButton icon="plus" label="Nova conversa" /><IconButton icon="search" label="Buscar" tip="Buscar ⌘K" /><IconButton icon="x" label="Fechar" variant="secondary" /></Row>
+        <Row label="Popover"><Popover open={pop} onClose={() => setPop(false)} label="Exemplo" side="bottom" content={<p className="w-56 p-3 text-[13px] text-neutral-300">Fecha com Esc ou clique fora.</p>}><Button variant="outline" onClick={() => setPop((o) => !o)}>abrir</Button></Popover></Row>
+        <Row label="UsageRing"><Tooltip label="Uso do plano 25%"><span><UsageRing value={25} size={28} label="Uso do plano: 25%" /></span></Tooltip><UsageRing value={75} size={28} /><UsageRing value={95} size={28} /><UsageRing value={null} size={28} /></Row>
+      </Section>
+
       <Section title="Button — variantes">
         <Row label="primary"><Button>Enviar</Button><Button icon="play">Rodar</Button><Button iconRight icon="arrowUp">Próximo</Button></Row>
         <Row label="secondary"><Button variant="secondary">Cancelar</Button><Button variant="secondary" icon="copy">Copiar</Button></Row>

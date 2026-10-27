@@ -1,4 +1,7 @@
-import { Button, Input, Switch } from './primitives';
+import { Badge, Button, Input, Switch, Tooltip } from './primitives';
+import { connStateColor, connStateLabel, type ConnState } from './primitives/ConnDot';
+import { roleBadge } from './chrome/role-badge';
+import type { NavRole } from './chrome/nav-routes';
 import { AvatarFace } from './avatar/AvatarFace';
 import { useProfileMenu } from './avatar/useProfileMenu';
 import { ChangePasswordForm } from './profile/ChangePasswordForm';
@@ -15,39 +18,60 @@ interface ProfileMenuProps {
   onChangePassword?: (password: string) => Promise<string | null>;
   // Ausente pra quem não é admin: os frames drop-* ficam fora do STUDENT_ALLOWED.
   drops?: DropApi;
+  // Shell extras: the connection dot rides on the avatar and the role badge sits in the panel.
+  conn?: ConnState;
+  role?: NavRole;
+  placement?: 'down-end' | 'up-start';
 }
+
+const PANEL_PLACEMENT = {
+  'down-end': 'right-0 top-full mt-1.5',
+  'up-start': 'bottom-full left-0 mb-2 max-h-[80vh] overflow-y-auto',
+} as const;
 
 // Menu de perfil no header: define nome (usado nas iniciais do chat), faz
 // upload/limpa o avatar e, com conta Supabase, troca a senha. Perfil e toggles
 // vão pro cache local e sobem pra conta (ver lib/profile e lib/account-prefs).
-export function ProfileMenu({ userId, onSignOut, onChangePassword, drops }: ProfileMenuProps = {}) {
+export function ProfileMenu({ userId, onSignOut, onChangePassword, drops, conn, role, placement = 'down-end' }: ProfileMenuProps = {}) {
   const { name, avatar, setName, setAvatar, synced, syncFailed, open, setOpen, uploadError, uploading, fileRef, wrapRef, onFile } = useProfileMenu(userId);
   const [showTools, setShowTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   const [groupNotes, setGroupNotes] = usePersisted<boolean>(GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT);
   const [notifySound, setNotifySound] = usePersisted<boolean>(NOTIFY_SOUND_KEY, NOTIFY_SOUND_DEFAULT);
 
+  const badge = role ? roleBadge(role) : null;
   return (
     <div ref={wrapRef} className="relative">
+      <Tooltip label={[name || 'Perfil', conn && connStateLabel(conn), badge?.label].filter(Boolean).join(' · ')} side={placement === 'up-start' ? 'right' : 'bottom'} disabled={open}>
       <button
         onClick={() => setOpen((o) => !o)}
-        title="Perfil"
         aria-label="Perfil"
         // A panel with a form (name, image, toggles), not a list of commands:
         // announced as a dialog, not as a menu with no menu items.
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900 text-neutral-300 transition hover:border-orange-500/60 pointer-coarse:h-11 pointer-coarse:w-11"
+        className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900 text-neutral-300 transition hover:border-orange-500/60 pointer-coarse:h-11 pointer-coarse:w-11"
       >
         <AvatarFace avatar={avatar} name={name} size={32} />
+        {conn && (
+          <span
+            aria-hidden="true"
+            className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-neutral-950 ${conn === 'reconnecting' ? 'animate-pulse' : ''}`}
+            style={{ background: connStateColor(conn) }}
+          />
+        )}
       </button>
+      </Tooltip>
       {open && (
-        <div role="dialog" aria-label="Perfil" className="fade-up absolute right-0 top-full z-50 mt-1.5 w-60 max-w-[calc(100vw-1rem)] rounded-xl border border-neutral-800 bg-neutral-900 p-3 shadow-2xl">
+        <div role="dialog" aria-label="Perfil" className={`fade-up absolute z-50 w-60 max-w-[calc(100vw-1rem)] ${PANEL_PLACEMENT[placement]} rounded-xl border border-neutral-800 bg-neutral-900 p-3 shadow-2xl`}>
           <div className="flex items-center gap-2.5">
             <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-neutral-700 bg-neutral-950">
               <AvatarFace avatar={avatar} name={name} size={40} />
             </span>
             <div className="min-w-0">
-              <p className="truncate text-[13px] font-medium text-neutral-200">{name || 'Sem nome'}</p>
+              <p className="flex items-center gap-1.5 text-[13px] font-medium text-neutral-200">
+                <span className="truncate">{name || 'Sem nome'}</span>
+                {badge && <Badge tone={badge.tone} title={badge.title} className="font-mono">{badge.label}</Badge>}
+              </p>
               <p className={`text-[12px] ${synced && syncFailed ? 'text-amber-400' : 'text-neutral-500'}`}>
                 {synced ? (syncFailed ? 'Salvo só neste device — não sincronizou' : 'Sincronizado') : 'Perfil local'}
               </p>

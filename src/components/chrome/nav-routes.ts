@@ -51,17 +51,3 @@ export function roleRedirect(role: NavRole, route: Route, chatId: string, firstL
   if (role === 'admin' && NAV.some((n) => n.to === route && n.root)) return '/';
   return null;
 }
-
-// Where the inline tab strip replaces the RouteMenu dropdown. Measured with
-// Playwright and a populated usage bar: the logo takes ≈ 85px and the right cluster
-// (usage, ⌘K, ws, role badge, profile) ≈ 470px. The root strip (11 tabs) is ≈ 650px
-// → 1220px, the admin one (10 tabs, no pontos) ≈ 585px → 1170px. The thresholds
-// keep ~40px of slack for a longer usage label; past that the strip scrolls
-// (Header.tsx) instead of pushing the right cluster out. The student strip (2 tabs)
-// keeps its old, conservative threshold.
-// Literal class names, so Tailwind's scanner sees them.
-export function navBreakpoint(role: NavRole) {
-  if (role === 'root') return { strip: 'min-[1260px]:flex', menu: 'min-[1260px]:hidden' };
-  if (role === 'admin') return { strip: 'min-[1210px]:flex', menu: 'min-[1210px]:hidden' };
-  return { strip: 'min-[1110px]:flex', menu: 'min-[1110px]:hidden' };
-}

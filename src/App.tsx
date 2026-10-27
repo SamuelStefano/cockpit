@@ -1,7 +1,9 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { StatusBar } from './components/StatusBar';
 import { memorizePrompt } from './components/chat/memorize';
-import { Header } from './components/chrome/Header';
+import { Sidebar } from './components/chrome/sidebar/Sidebar';
+import { MobileTopBar } from './components/chrome/sidebar/MobileTopBar';
+import { MobileNavDrawer } from './components/chrome/sidebar/MobileNavDrawer';
+import { DrawerNav } from './components/chrome/sidebar/DrawerNav';
 import { QuotaBanner } from './components/chrome/QuotaBanner';
 import { OfflineNotice } from './components/chrome/OfflineNotice';
 import { UpdateNotice } from './components/chrome/UpdateNotice';
@@ -108,7 +110,7 @@ function CockpitBody() {
   const link: LinkState = conn.ws === 'connected' ? 'open' : conn.ws === 'reconnecting' ? 'connecting' : 'closed';
   const bitState = bitStateFor({ conn: link, agentOnline, running: runningAnywhere.size > 0, thinking: phase === 'thinking' });
 
-  const { drawer, setDrawer, termSheet, setTermSheet, routeMenu, setRouteMenu, palette, setPalette, help, setHelp } = useOverlays(route);
+  const { drawer, setDrawer, termSheet, setTermSheet, palette, setPalette, help, setHelp } = useOverlays(route);
   const [focusSignal, setFocusSignal] = useState(0);
 
   useGlobalShortcuts({ sessions, activeSessionId, setActiveSessionId: selectSession, updated, nav, setPalette, setHelp });
@@ -165,6 +167,11 @@ function CockpitBody() {
   const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onApproveWorkflow, onStop: handleStop, mode, setMode, caps, claudeReady, claudeLogin, agents: cockpit.agents, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, contextModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew: handleNew, onHandoff, handoffBusy, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onMemorize: memorizeMsg, onRename: handleRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, keyboardOpen, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer, resumeRun, orchestratorSessionId: orchestratorInfo?.sessionId, conn: link, call };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
 
+  const navCounts = { '/equipe': cockpit.pendingQuestions.length };
+  const openPalette = () => { setDrawer(false); setPalette(true); };
+  const usageDock = { usageAgent, planUsage, planBlockedUntil, planReadAt, planNextReadAt, onRefreshPlanUsage, grokUsage: cockpit.grokUsage, onRefreshGrokUsage: cockpit.onRefreshGrokUsage, quotaWarn: quotaGate.warn, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, stats };
+  const account = { userId: sbAuth.session?.user.id, onSignOut: SUPABASE_ENABLED ? sbAuth.signOut : undefined, onChangePassword: SUPABASE_ENABLED ? sbAuth.changePassword : undefined, drops: dropApi };
+
   const gate = resolveAuthGate({ sbAuth, seal, ejectPairing, authRequired, submitToken });
   if (gate) return gate;
 
@@ -191,32 +198,45 @@ function CockpitBody() {
         role={role}
       />
       <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
-      <Header conn={conn} isMobile={isMobile} onMenu={() => setDrawer(!drawer)} menuOpen={drawer} route={route} nav={nav} onPalette={() => setPalette(true)} planUsage={planUsage} planBlockedUntil={planBlockedUntil} planReadAt={planReadAt} planNextReadAt={planNextReadAt} onRefreshPlanUsage={onRefreshPlanUsage} usageAgent={usageAgent} grokUsage={cockpit.grokUsage} onRefreshGrokUsage={cockpit.onRefreshGrokUsage} quotaWarn={quotaGate.warn} quotaPaused={quotaGate.paused} quotaResetsAt={quotaGate.resetsAt} role={role} routeMenuOpen={routeMenu} setRouteMenuOpen={setRouteMenu} userId={sbAuth.session?.user.id} onSignOut={SUPABASE_ENABLED ? sbAuth.signOut : undefined} onChangePassword={SUPABASE_ENABLED ? sbAuth.changePassword : undefined} drops={dropApi} bitState={bitState} navCounts={{ '/equipe': cockpit.pendingQuestions.length }} />
+      <div className="flex min-h-0 flex-1">
+        {!isMobile && (
+          <Sidebar
+            route={route} nav={nav} role={role} navCounts={navCounts} onNew={handleNew} onPalette={() => setPalette(true)}
+            bitState={bitState} conn={conn.ws} usage={usageDock} account={account}
+          />
+        )}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {isMobile && (
+            <MobileTopBar onMenu={() => setDrawer(!drawer)} menuOpen={drawer} usage={usageDock} account={account} conn={conn.ws} role={role} />
+          )}
+          {/* Âncora de altura zero no fluxo: o aviso pende daqui, logo abaixo do topo da coluna. */}
+          <div className="relative z-40">
+            <OfflineNotice show={showOffline} onReconnect={reconnectNow} authRejected={SUPABASE_ENABLED && authRequired} />
+            {/* Um de cada vez na mesma âncora, e offline ganha: sem servidor não há
+                versão nova pra buscar, e recarregar ali só daria página em branco. */}
+            <UpdateNotice show={updateReady && !updateClosed && !showOffline} onApply={applyUpdate} onDismiss={() => setUpdateClosed(true)} />
+          </div>
 
-      {/* Âncora de altura zero no fluxo: o aviso pende daqui, logo abaixo do header. */}
-      <div className="relative z-40">
-        <OfflineNotice show={showOffline} onReconnect={reconnectNow} authRejected={SUPABASE_ENABLED && authRequired} />
-        {/* Um de cada vez na mesma âncora, e offline ganha: sem servidor não há
-            versão nova pra buscar, e recarregar ali só daria página em branco. */}
-        <UpdateNotice show={updateReady && !updateClosed && !showOffline} onApply={applyUpdate} onDismiss={() => setUpdateClosed(true)} />
+          {/* O aviso de cota do desktop: no celular quem avisa é o anel de uso no topo,
+              então nada flutua sobre o thread (A1). */}
+          {!isMobile && quotaGate.warn && !quotaClosed && rate && (
+            <div className="flex shrink-0 justify-end px-3 pt-1.5">
+              <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} />
+            </div>
+          )}
+
+          <RouteContent
+            route={route} isMobile={isMobile} isAdmin={isAdmin} isRoot={isRoot} connected={conn.ws === 'connected'}
+            cockpit={cockpit} sessionsProps={sessionsProps} chatProps={chatProps} termProps={termProps}
+            onOpenSession={selectSession}
+            onOpenAgentChat={(m) => { handleNew(); setModel(m); nav('/'); }}
+            layout={{ rowRef, leftW, rightW, leftCollapsed, setLeftCollapsed, rightCollapsed, setRightCollapsed, startDrag, nudge }}
+            mobile={{ drawer, setDrawer, termSheet, setTermSheet, runningTerm, drawerNav: <DrawerNav route={route} nav={nav} role={role} counts={navCounts} onPalette={openPalette} /> }}
+          />
+        </div>
       </div>
-
-      <RouteContent
-        route={route} isMobile={isMobile} isAdmin={isAdmin} isRoot={isRoot} connected={conn.ws === 'connected'}
-        cockpit={cockpit} sessionsProps={sessionsProps} chatProps={chatProps} termProps={termProps}
-        onOpenSession={selectSession}
-        onOpenAgentChat={(m) => { handleNew(); setModel(m); nav('/'); }}
-        layout={{ rowRef, leftW, rightW, leftCollapsed, setLeftCollapsed, rightCollapsed, setRightCollapsed, startDrag, nudge }}
-        mobile={{ drawer, setDrawer, termSheet, setTermSheet, runningTerm }}
-      />
-
-      {/* O aviso de cota do desktop mora na StatusBar: no celular quem avisa é a
-          UsageBar do header — nada flutua sobre o thread (A1). */}
-      {!isMobile && (
-        <StatusBar
-          stats={stats} rate={rate} ctxTokens={contextTokens} ctxModel={contextModel} lastTurn={lastTurn}
-          quota={quotaGate.warn && !quotaClosed && rate ? <QuotaBanner reset={relReset(rate.resetsAt)} onClose={() => setQuotaClosed(true)} /> : null}
-        />
+      {isMobile && route !== '/' && (
+        <MobileNavDrawer open={drawer} onClose={() => setDrawer(false)} route={route} nav={nav} role={role} counts={navCounts} onPalette={openPalette} />
       )}
       <BoxHealthHost />
       <Toaster />

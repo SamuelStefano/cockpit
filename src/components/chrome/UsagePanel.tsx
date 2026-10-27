@@ -38,7 +38,7 @@ export interface UsagePanelSecondary { title: string; rows: UsageRow[] }
 
 // `reset` vem do gate de cota (não das linhas): é o "quando volto a poder enviar"
 // que a pílula flutuante mostrava antes de sair do chat.
-export function UsagePanel({ rows, reset = '', warn = false, blockedUntil = null, readAt = null, nextReadAt = null, title = 'Uso do plano', secondary }: { rows: UsageRow[]; reset?: string; warn?: boolean; blockedUntil?: number | null; readAt?: number | null; nextReadAt?: number | null; title?: string; secondary?: UsagePanelSecondary }) {
+export function UsagePanel({ rows, reset = '', warn = false, blockedUntil = null, readAt = null, nextReadAt = null, title = 'Uso do plano', secondary, inline = false }: { rows: UsageRow[]; reset?: string; warn?: boolean; blockedUntil?: number | null; readAt?: number | null; nextReadAt?: number | null; title?: string; secondary?: UsagePanelSecondary; inline?: boolean }) {
   const now = Date.now();
   // Bloqueio da conta não é carregamento: "Lendo da conta…" pra sempre escondia
   // que o servidor tinha DESISTIDO de tentar até uma hora marcada.
@@ -49,14 +49,12 @@ export function UsagePanel({ rows, reset = '', warn = false, blockedUntil = null
   // Idade da leitura mesmo SEM bloqueio: o poll também para quando o agente cai ou
   // o browser fica fechado, e aí o número velho não tinha nada que o denunciasse.
   const age = readAt ? relAge(readAt) : '';
-  // No celular a barra fica a <256px da borda esquerda, então um painel w-64
-  // ancorado em right-0 começava fora da tela. Fixo à largura da tela, logo
-  // abaixo do header (3rem + safe-area); volta a ser dropdown a partir de sm.
+  // `inline`: the panel sits inside a Popover that already anchors it.
   return (
     <div
-      role="dialog"
+      role={inline ? 'group' : 'dialog'}
       aria-label={title === 'Uso do plano' ? 'Detalhe do uso do plano' : `Detalhe — ${title}`}
-      className={`fixed inset-x-3 top-[calc(3rem+env(safe-area-inset-top)+0.5rem)] z-50 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-64 ${tokens.radius.lg} ${tokens.surface.raised} p-3.5`}
+      className={`${inline ? 'w-72 max-w-full p-3.5' : `fixed inset-x-3 top-[calc(3rem+env(safe-area-inset-top)+0.5rem)] z-50 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-64 ${tokens.radius.lg} ${tokens.surface.raised} p-3.5`}`}
     >
       <p className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-neutral-500">{title}</p>
       {rows.length === 0 ? (
