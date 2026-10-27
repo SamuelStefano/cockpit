@@ -23,16 +23,14 @@ function Item({ icon, run, onClick, children }: { icon: IconName; run: ComposerM
   );
 }
 
-// Mounted only while open, so useMenuKeys focuses the first item on mount.
-export function ComposerMenu({ touch, mic, onAttach, onPhoto, onCall, run, settings }: ComposerMenuProps) {
+export function ComposerMenu({ touch, onAttach, onPhoto, onCall, run, settings }: ComposerMenuProps) {
   const menu = useMenuKeys<HTMLDivElement>(true);
   return (
     <>
       <div ref={menu.ref} onKeyDown={menu.onKeyDown} role="menu" aria-label="Ações do composer" className="py-1">
-        {onCall && <Item icon="phone" run={run} onClick={onCall}>Ligar por voz</Item>}
         <Item icon="paperclip" run={run} onClick={onAttach}>Anexar arquivo</Item>
         {touch && <Item icon="camera" run={run} onClick={onPhoto}>Tirar foto</Item>}
-        {touch && mic.supported && <Item icon="mic" run={run} onClick={mic.toggle}>{mic.listening ? 'Parar de ditar' : 'Ditar'}</Item>}
+        {onCall && <Item icon="phone" run={run} onClick={onCall}>Ligar por voz</Item>}
       </div>
       <ComposerSettings {...settings} />
     </>
