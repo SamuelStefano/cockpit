@@ -16,6 +16,7 @@
     "smoke": "node scripts/smoke.mjs",
     "smoke:ui": "node scripts/smoke-ui.mjs",
     "smoke:bench": "tsx scripts/smoke-bench.mts",
+    "skill:bench": "tsx scripts/skill-bench.mts",
     "serve": "tsx server/index.ts",
     "redeploy": "bash scripts/redeploy.sh",
     "update": "bash scripts/deck-update.sh",
