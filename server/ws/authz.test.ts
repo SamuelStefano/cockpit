@@ -57,6 +57,14 @@ describe('authorize', () => {
     }
   });
 
+  it('vault is root-only: admin without root is denied, root admin allowed, student denied', () => {
+    for (const t of ['vault-put', 'vault-list', 'vault-rm'] as const) {
+      expect(authorize('student', t, true)).toBe(false);
+      expect(authorize('admin', t)).toBe(false);
+      expect(authorize('admin', t, true)).toBe(true);
+    }
+  });
+
   it('canvas é admin-only: o grafo expõe toda a memória e o card dispara agente', () => {
     for (const t of ['canvas-get', 'canvas-pos', 'canvas-pos-reset', 'canvas-card-save', 'canvas-card-delete'] as const) {
       expect(authorize('student', t)).toBe(false);
@@ -92,6 +100,7 @@ describe('authorize', () => {
       'agent-add-custom', 'agent-probe-draft', 'provider-probe',
       'claude-import-scan', 'claude-import-apply',
       'versions-restore',
+      'vault-put', 'vault-list', 'vault-rm',
     ] as const;
     expect([...ROOT_ONLY].sort()).toEqual([...owner].sort());
     for (const t of owner) {
