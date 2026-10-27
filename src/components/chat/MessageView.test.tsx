@@ -29,4 +29,10 @@ describe('MessageRow identity', () => {
     render(<MessageRow msg={msg} caretOnLast={false} modelLabel="Grok" bit="idle" />);
     expect(screen.getByText('Grok')).toBeTruthy();
   });
+
+  it('omits the who line when no agent is named', () => {
+    const { container } = render(<MessageRow msg={msg} caretOnLast={false} modelLabel="Opus" showModelLabel={false} />);
+    expect(screen.queryByText('Opus')).toBeNull();
+    expect(container.querySelector('svg.bit')).toBeNull();
+  });
 });
