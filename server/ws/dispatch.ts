@@ -1035,7 +1035,7 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       }
       const r = await probeAgent(agent);
       send(ws, { t: 'agent-test-result', id: agent.id, ok: r.status === 'ready', status: r.status, message: r.message });
-      send(ws, agentsFrame());
+      afterAgentsChange();
       return;
     }
     case 'admin-deck-restart': {

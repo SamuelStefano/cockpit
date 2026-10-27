@@ -16,6 +16,7 @@ import type { ShownMessage } from './chat/shown';
 import { useCompacting } from './chat/useCompacting';
 import { TurnBanners } from './chat/TurnBanners';
 import { ClaudeAuthBanner } from './chat/ClaudeAuthBanner';
+import { ProviderOnboarding } from './chat/ProviderOnboarding';
 import { OrchestratorSessionBanner } from './chat/OrchestratorSessionBanner';
 import { isOrchestratorSession } from './chat/orchestrator-banner';
 import { SaturationBanner } from './chat/SaturationBanner';
@@ -30,7 +31,7 @@ import { BotThreadContext, BOT_ANSWER_PLACEHOLDER } from './chat/bot-thread-cont
 
 export type { Phase };
 
-export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, draft, setDraft, onSend, onPrompt, onApproveWorkflow, onStop, mode, setMode, caps, claudeReady = true, claudeLogin, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, contextModel = null, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onMemorize, onRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, keyboardOpen = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt = 0, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer = null, resumeRun, orchestratorSessionId, turnStatus, botDecor, conn }: ChatPanelProps) {
+export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, draft, setDraft, onSend, onPrompt, onApproveWorkflow, onStop, mode, setMode, caps, claudeReady = true, claudeLogin, agents, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, contextModel = null, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onMemorize, onRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, keyboardOpen = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt = 0, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer = null, resumeRun, orchestratorSessionId, turnStatus, botDecor, conn }: ChatPanelProps) {
   const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg, queueRunNow });
   // Modo iterativo: um refino pedido de dentro de um live preview vira o próximo
   // prompt (o card não tem acesso ao compositor — publica no [[refine-bus]]).
@@ -87,7 +88,9 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
         keyboardOpen={keyboardOpen}
       />
 
-      {!claudeReady && !isAgentModel(model) && <ClaudeAuthBanner login={claudeLogin} onStart={onClaudeLoginStart} onCode={onClaudeLoginCode} onCancel={onClaudeLoginCancel} />}
+      {!claudeReady && !isAgentModel(model) && (agents
+        ? <ProviderOnboarding agents={agents} claudeReady={claudeReady} login={claudeLogin} onStart={onClaudeLoginStart} onCode={onClaudeLoginCode} onCancel={onClaudeLoginCancel} />
+        : <ClaudeAuthBanner login={claudeLogin} onStart={onClaudeLoginStart} onCode={onClaudeLoginCode} onCancel={onClaudeLoginCancel} />)}
       {isOrchestratorSession(session?.id, orchestratorSessionId) && <OrchestratorSessionBanner />}
 
       {/* Wrapper relativo: as afordâncias de scroll ancoram no fim da ÁREA DE

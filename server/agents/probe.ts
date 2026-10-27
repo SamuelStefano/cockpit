@@ -4,12 +4,12 @@ import { ACP_CLIENT_CAPABILITIES, ACP_PROTOCOL_VERSION, isAuthError, startAcp } 
 import { agentEnv, errorText, loginHint, setupHint } from './acp-run';
 import { retryNotice } from './acp-events';
 import { listAgentsSync } from './store';
+import { lastProbes } from './status';
 
 export interface ProbeResult { status: AgentStatus; message: string; version?: string }
 
 const PROBE_TIMEOUT_MS = 90_000;
 export const PROBE_PROMPT = 'Deck connection test. Reply with exactly: OK';
-const last = new Map<string, ProbeResult & { at: number }>();
 
 // The check is the one a turn needs, end to end: handshake, open a session AND
 // get an answer. Grok answers initialize and session/new on an account that
@@ -25,7 +25,7 @@ export function probeAgent(agent: AgentConfig, readyNote = 'já aparece no selet
       done = true;
       clearTimeout(timer);
       const out = { ...r, version: r.version ?? version };
-      last.set(agent.id, { ...out, at: Date.now() });
+      lastProbes.set(agent.id, { ...out, at: Date.now() });
       acp.kill();
       resolve(out);
     };
@@ -71,7 +71,7 @@ export function probeAgent(agent: AgentConfig, readyNote = 'já aparece no selet
 
 export function agentViews(): AgentView[] {
   return listAgentsSync().map((a) => {
-    const r = last.get(a.id);
+    const r = lastProbes.get(a.id);
     return { ...a, status: r?.status ?? 'unknown', detail: r?.message, version: r?.version, checkedAt: r?.at };
   });
 }
