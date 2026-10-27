@@ -33,13 +33,13 @@ export default function App() {
 
 const s = StyleSheet.create({
   wrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, backgroundColor: '#0c0c0c' },
-  num: { fontSize: 48, fontWeight: '700', color: '#3b82f6' },
-  btn: { backgroundColor: '#3b82f6', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
+  num: { fontSize: 48, fontWeight: '700', color: '#f97316' },
+  btn: { backgroundColor: '#f97316', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
   btnTxt: { color: '#fff', fontWeight: '600' },
 });`;
 
 export const DEMO_PREVIEW_SVG = `<svg width="180" height="180" viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg">
-  <rect x="30" y="30" width="120" height="120" rx="24" fill="#3b82f6">
+  <rect x="30" y="30" width="120" height="120" rx="24" fill="#f97316">
     <animate attributeName="rx" values="24;60;24" dur="2s" repeatCount="indefinite" />
   </rect>
   <circle cx="90" cy="90" r="26" fill="#0c0c0c" />

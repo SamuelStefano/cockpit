@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { subscribeConfetti, type ConfettiOptions } from './confetti-bus';
 
-const COLORS = ['#3b82f6', '#60a5fa', '#22c55e', '#eab308', '#38bdf8', '#a78bfa', '#f5f5f5'];
+const COLORS = ['#f97316', '#fb923c', '#22c55e', '#eab308', '#38bdf8', '#a78bfa', '#f5f5f5'];
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 
 interface Piece {
