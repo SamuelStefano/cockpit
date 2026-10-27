@@ -6,6 +6,8 @@ import { ExportMenu } from './ExportMenu';
 import { TurnStat } from './TurnStat';
 import { ContextMeter } from './ContextMeter';
 import type { Session, Message } from '../../data/types';
+import { ranOnOtherModel } from '../../cockpit/session-model';
+import { prettyModel } from './toolbar-format';
 import type { TurnStats } from '../../../shared/protocol';
 
 interface ChatHeaderProps {
@@ -28,9 +30,11 @@ interface ChatHeaderProps {
   terminalRunning?: boolean;
   onRename?: (id: string, title: string) => void;
   keyboardOpen?: boolean;
+  selectedModel?: string;
 }
 
-export function ChatHeader({ session, messages, isEmpty, isMobile, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, onRename, keyboardOpen = false }: ChatHeaderProps) {
+export function ChatHeader({ session, messages, isEmpty, isMobile, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, onRename, keyboardOpen = false, selectedModel }: ChatHeaderProps) {
+  const ranOn = selectedModel ? ranOnOtherModel(selectedModel, messages) : null;
   if (keyboardOpen) {
     return (
       <ChatHeaderCompact
@@ -55,6 +59,11 @@ export function ChatHeader({ session, messages, isEmpty, isMobile, contextTokens
       {/* gap maior no dedo: os alvos de 40px do cluster se sobrepõem com 8px de
           folga entre botões de 28px, e o toque na borda ia pro vizinho. */}
       <div className="ml-auto flex items-center gap-2 pointer-coarse:gap-3">
+        {ranOn && !isMobile && (
+          <Badge tone="yellow" title={`O último turno rodou em ${prettyModel(ranOn)}, não em ${prettyModel(selectedModel)}`}>
+            rodou em {prettyModel(ranOn)}
+          </Badge>
+        )}
         <TurnStat stats={lastTurn} />
         {!isMobile && <ContextMeter tokens={contextTokens} model={contextModel} onNew={onNew} />}
         {!isEmpty && session && !session.id.startsWith('new-') && onOpenFull && (
