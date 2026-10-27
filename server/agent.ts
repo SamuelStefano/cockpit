@@ -39,6 +39,7 @@ import { startAutoPauseLoop } from './canvas/autopause-loop';
 import { SealedHub, loadE2eKeys, tofuWindow, type AgentKeys } from './e2e/hub';
 import { deviceFrameHandler } from './e2e/manage';
 import { createEnrollCode, listDevices, revokeDevice, storePreauth } from './e2e/devices';
+import { startSelfUpdate } from './self-update';
 
 // Entrypoint do AGENTE T3 (DR-023): em vez de escutar (attachWs), DISCA pro relay
 // e serve o MESMO protocolo pelo socket de saída. O relay encaminha os frames do
@@ -440,6 +441,7 @@ export function runAgent(relayUrl: string): void {
     );
   };
   loop();
+  startSelfUpdate({ cwd: process.cwd(), busy: () => threads.size > 0, restart: () => gracefulShutdown(0) });
   process.on('SIGTERM', () => gracefulShutdown(0));
   process.on('SIGINT', () => gracefulShutdown(0));
   installCrashBackstop(process, gracefulShutdown);
