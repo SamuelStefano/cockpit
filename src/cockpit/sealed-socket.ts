@@ -93,6 +93,7 @@ export interface SealedSocketOptions {
   box?: string;
   // Only the main socket drives the exported sealState and enrollThisDevice.
   main?: boolean;
+  handshakeMs?: number;
 }
 
 // Frames the relay answers itself (account admin) or emits about the link.
@@ -141,12 +142,17 @@ export class SealedSocket {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private chain: Promise<unknown> = Promise.resolve();
   private closed = false;
+  // Agent from before the sealed channel (T5): it never answers the hello. In
+  // account mode the relay already vouched for the login, so talk to it in clear.
+  private plain = false;
+  private readonly handshakeMs: number;
 
   // The JWT rides as a subprotocol entry, never in the URL: the relay picks
   // `deck.v1`, and access/error logs that record the URL never see the token.
   constructor(url: string, token: string, opts: SealedSocketOptions = {}) {
     this.box = opts.box;
     this.main = opts.main === true;
+    this.handshakeMs = opts.handshakeMs ?? HANDSHAKE_MS;
     if (this.main) {
       mainSocket = this;
       // A refused agent key or an agent without T5 stays on screen across the
@@ -165,7 +171,7 @@ export class SealedSocket {
   get bufferedAmount(): number { return this.ws.bufferedAmount; }
 
   send(data: string): void {
-    if (TO_RELAY.test(data.slice(0, 32))) { this.raw(data); return; }
+    if (TO_RELAY.test(data.slice(0, 32)) || this.plain) { this.raw(data); return; }
     const ch = this.channel;
     if (this.readyState !== 1 || !ch) return;
     this.chain = this.chain.then(async () => this.raw(JSON.stringify({ t: 'e2e', ...(await ch.seal(data)) })));
@@ -201,7 +207,7 @@ export class SealedSocket {
   }
 
   retry(): void {
-    if (!this.channel && !this.handshake && !this.starting && !this.enrolling && !this.preauthing && this.ws.readyState === WebSocket.OPEN) void this.start();
+    if (!this.plain && !this.channel && !this.handshake && !this.starting && !this.enrolling && !this.preauthing && this.ws.readyState === WebSocket.OPEN) void this.start();
   }
 
   private async start(): Promise<void> {
@@ -231,18 +237,17 @@ export class SealedSocket {
   // to bind the dial (the key={box} remount) and only then handshakes.
   private async hello(pins: Bytes[]): Promise<void> {
     const bound = this.box !== undefined;
-    if (!pins.length && !bound) {
-      if (!this.passkey) { this.setSeal('enroll'); return; }
+    if (!pins.length && !bound && this.passkey) {
       this.clearTimer();
       this.timer = setTimeout(() => { if (!this.channel) this.setSeal('enroll'); }, HANDSHAKE_MS);
       return;
     }
     const keys = this.keys!;
     const check = this.passkey && bound ? pinChecker(this.passkey.pinRoot, this.box!, keys.pub) : null;
-    this.handshake = new DeviceHandshake(keys, pins, check, { tofu: bound && !pins.length, label: defaultDeviceLabel() });
+    this.handshake = new DeviceHandshake(keys, pins, check, { tofu: !pins.length, label: defaultDeviceLabel() });
     this.raw(JSON.stringify(await this.handshake.hello()));
     this.clearTimer();
-    this.timer = setTimeout(() => { if (!this.channel) this.fail('handshake timeout', 'unsupported'); }, HANDSHAKE_MS);
+    this.timer = setTimeout(() => { if (!this.channel) this.goPlain(); }, this.handshakeMs);
   }
 
   private async preauth(secrets: Bytes[]): Promise<void> {
@@ -332,10 +337,11 @@ export class SealedSocket {
       // sent on open is still in flight: a second hello would make the first
       // accept arrive against the wrong handshake and read as a refused key.
       if (t === 'agent-offline' && this.handshake) { this.handshake = null; this.clearTimer(); }
-      if (t === 'agent-online' && !this.channel && !this.handshake && !this.starting && !this.enrolling && !this.preauthing && this.seal !== 'enroll') void this.start();
+      if (t === 'agent-online' && !this.plain && !this.channel && !this.handshake && !this.starting && !this.enrolling && !this.preauthing && this.seal !== 'enroll') void this.start();
       this.deliver(s);
       return;
     }
+    if (this.plain) { this.deliver(s); return; }
     switch (t) {
       case 'e2e': {
         if (!this.channel) return;
@@ -423,6 +429,17 @@ export class SealedSocket {
     this.onopen?.(new Event('open'));
     if (this.passkey && !done.hasPin) await this.handPin();
     if (this.upgrade) await this.offerPasskey();
+  }
+
+  private goPlain(): void {
+    if (this.closed || this.channel) return;
+    console.warn('[deck] agent did not answer the sealed hello; using the relay in clear');
+    this.plain = true;
+    this.handshake = null;
+    this.clearTimer();
+    this.readyState = 1;
+    this.setSeal('sealed');
+    this.onopen?.(new Event('open'));
   }
 
   private setSeal(s: SealState): void {
