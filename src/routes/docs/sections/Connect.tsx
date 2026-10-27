@@ -1,4 +1,5 @@
 import { CodeBlock } from '../../../components/primitives';
+import { COMMAND_DOES, COMMAND_DOES_NOT, RELAY_SEES, RELAY_SOON, SETUP_SOURCE_URL } from '../../../components/auth/install-facts';
 import { Pill, SectionTitle, StepCard, Callout } from '../atoms';
 
 const SETUP_URL = 'https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh';
@@ -35,6 +36,21 @@ export function Connect() {
           Pronto. O app puxa o que vive na sua VPS — conta Claude, uso, contextos, skills, sessões.
           Do celular ou de outro PC, basta logar na mesma conta: o relay roteia <span className="font-medium text-neutral-300">por-conta</span>, então só você alcança o seu agente.
         </StepCard>
+      </div>
+      <div className="mt-4 rounded-xl border border-neutral-800 bg-neutral-950/60 p-4 text-[13px] leading-relaxed text-neutral-400">
+        <p className="font-medium text-neutral-200">O que o comando faz</p>
+        <ul className="mt-2 list-disc space-y-1 pl-4">
+          {COMMAND_DOES.map((t) => <li key={t}>{t}</li>)}
+          {COMMAND_DOES_NOT.map((t) => <li key={t}>{t}</li>)}
+        </ul>
+        <p className="mt-2">
+          Leia antes de rodar: <a href={SETUP_SOURCE_URL} target="_blank" rel="noopener noreferrer" className="text-orange-300 underline underline-offset-2">scripts/agent-setup.sh no GitHub</a>.
+        </p>
+        <p className="mt-4 font-medium text-neutral-200">O que o relay vê</p>
+        <ul className="mt-2 list-disc space-y-1 pl-4">
+          {RELAY_SEES.map((t) => <li key={t}>{t}</li>)}
+        </ul>
+        <p className="mt-2 text-neutral-500">{RELAY_SOON}</p>
       </div>
       <Callout icon="shield" tone="amber">
         <span className="font-medium">Capacidade do agente ·</span> por padrão o agente sobe em modo <span className="font-medium">least-capability</span> (chat, sessões e contextos — sem terminais nem admin).

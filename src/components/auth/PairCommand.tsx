@@ -35,10 +35,11 @@ export function PairCommand({ code, cmd, busy, expired, countdown, mode }: PairC
           {copied ? 'copiado ✓' : copyFailed ? 'falhou — copie à mão' : 'copiar'}
         </Button>
       </div>
-      <p className="mt-3 text-[12px] leading-relaxed text-neutral-500">
-        Quer ver antes? Troque <span className={mono}>DECK_PAIR_CODE=…</span> por <span className={mono}>DECK_DRY_RUN=1</span> — mostra o plano sem instalar nada.
-        {mode === 'dedicated' && <> Pra controle total (terminais e admin), use <span className={mono}>DECK_AGENT_ROLE=admin</span>.</>}
-      </p>
+      {mode === 'dedicated' && (
+        <p className="mt-3 text-[12px] leading-relaxed text-neutral-500">
+          Pra controle total (terminais e admin), use <span className={mono}>DECK_AGENT_ROLE=admin</span>.
+        </p>
+      )}
     </div>
   );
 }
