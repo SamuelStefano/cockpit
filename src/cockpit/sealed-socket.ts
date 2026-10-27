@@ -39,8 +39,10 @@ function setState(s: SealState): void {
   for (const fn of listeners) fn();
 }
 
-export function enrollThisDevice(code: string, label: string): Promise<void> {
+// `box`: the box a QR link's code was minted for; the socket must be dialing it.
+export function enrollThisDevice(code: string, label: string, box?: string): Promise<void> {
   if (!mainSocket) return Promise.reject(new Error('sem conexão com o relay'));
+  if (box !== undefined && mainSocket.boundBox !== box.toLowerCase()) return Promise.reject(new Error('este link é de outra VPS'));
   return mainSocket.enroll(code, label);
 }
 
@@ -172,6 +174,10 @@ export class SealedSocket {
   close(code?: number, reason?: string): void {
     this.clearTimer();
     try { this.ws.close(code, reason); } catch { /* already closing */ }
+  }
+
+  get boundBox(): string | undefined {
+    return this.box?.toLowerCase();
   }
 
   async enroll(code: string, label: string): Promise<void> {

@@ -3,11 +3,12 @@ import { useEnrollDevice } from './useEnrollDevice';
 import { usePasskeySetup } from './usePasskeySetup';
 import { PasskeyUnlock } from './PasskeyUnlock';
 import { EnrollCodeForm } from './EnrollCodeForm';
+import { EnrollLinkStatus } from './EnrollLinkStatus';
 
 // Shown when the agent does not know this device yet (or refused its key). The
-// normal way in is the passkey: a box already trusting it lets this browser in,
-// and an enrolled device can vouch for it from inside the Deck. The code from
-// the box's terminal stays as a fallback behind "outro método".
+// normal way in is a QR shown by an enrolled device (this browser then enrolls
+// itself, see useEnrollLink) or a synced passkey. The code from the box's
+// terminal stays as a fallback behind "outro método".
 export function EnrollDevice({ onSignOut }: { onSignOut: () => void }) {
   const e = useEnrollDevice();
   const pk = usePasskeySetup();
@@ -28,11 +29,12 @@ export function EnrollDevice({ onSignOut }: { onSignOut: () => void }) {
             O agente na sua VPS não respondeu ao canal cifrado. Atualize o agente e tente de novo.
           </p>
         )}
+        <EnrollLinkStatus />
         <PasskeyUnlock pk={pk} />
         {!e.showCode && (
           <>
             <p className="mt-4 text-[13px] leading-relaxed text-neutral-400">
-              Se esta VPS ainda não conhece a sua passkey, abra o Deck num aparelho já cadastrado e ative a passkey lá: este navegador entra sozinho em seguida.
+              Abra o Deck num aparelho já cadastrado, toque em <strong className="text-neutral-200">Conectar outro aparelho</strong> (menu do perfil) e aponte a câmera deste aparelho para o QR.
             </p>
             <div className="mt-3">
               <Button variant="ghost" size="sm" onClick={e.showOther}>Outro método</Button>

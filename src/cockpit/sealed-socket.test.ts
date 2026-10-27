@@ -283,6 +283,41 @@ describe('SealedSocket against the real agent hub', () => {
     expect(mem.pins).toHaveLength(0);
     expect(sealState.get()).toBe('sealed');
   });
+
+  it('a QR link code for another box is refused before anything reaches the relay', async () => {
+    const box = '22222222-2222-4222-8222-222222222222';
+    hubFor(box);
+    const s = new SealedSocket('wss://relay/ws?box=' + box, 'jwt', { box, main: true });
+    s.onmessage = () => {};
+    await flush();
+    const { code } = await createEnrollCode((relay as unknown as { keys: { pub: Bytes } }).keys.pub);
+    const before = relay.browser!.sent.length;
+    await expect(enrollThisDevice(code, 'test', '44444444-4444-4444-8444-444444444444')).rejects.toThrow('outra VPS');
+    expect(relay.browser!.sent.length).toBe(before);
+    expect(mem.boxPins[box]).toBeUndefined();
+  });
+
+  it('a QR link code enrolls its own box once, never sends the code itself, and fails when reused', async () => {
+    const box = '22222222-2222-4222-8222-222222222222';
+    hubFor(box);
+    const s = new SealedSocket('wss://relay/ws?box=' + box, 'jwt', { box, main: true });
+    s.onmessage = () => {};
+    await flush();
+    const { code } = await createEnrollCode((relay as unknown as { keys: { pub: Bytes } }).keys.pub);
+    await enrollThisDevice(code, 'phone', box.toUpperCase());
+    await flush();
+    expect(sealState.get()).toBe('sealed');
+    const raw = code.replace(/-/g, '');
+    expect(relay.browser!.sent.some((f) => f.includes(code) || f.includes(raw))).toBe(false);
+
+    mem.pair = undefined; mem.boxPins = {};
+    for (const t of [...relay.tabs.values()]) t.close();
+    const again = new SealedSocket('wss://relay/ws?box=' + box, 'jwt', { box, main: true });
+    again.onmessage = () => {};
+    await flush();
+    await expect(enrollThisDevice(code, 'thief', box)).rejects.toThrow('inválido');
+    expect(mem.boxPins[box]).toBeUndefined();
+  });
 });
 
 describe('SealedSocket with a passkey device key', () => {
