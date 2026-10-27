@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  EMPTY_BUILDER_DRAFT, builderPrompt, builderSystemPrompt, draftIsEmpty, draftsEqual, mergeDraft, parseBuilderReply,
+  EMPTY_BUILDER_DRAFT, applyBuilderReply, builderPrompt, builderSystemPrompt, draftIsEmpty, draftsEqual, mergeDraft, parseBuilderReply,
   sanitizeName, skillBlurb, toggleSkill,
 } from './agent-builder';
 
@@ -98,5 +98,22 @@ describe('helpers', () => {
     expect(draftIsEmpty({ ...EMPTY_BUILDER_DRAFT, skills: ['a'] })).toBe(false);
     expect(draftsEqual(EMPTY_BUILDER_DRAFT, { ...EMPTY_BUILDER_DRAFT })).toBe(true);
     expect(draftsEqual(EMPTY_BUILDER_DRAFT, { ...EMPTY_BUILDER_DRAFT, label: 'x' })).toBe(false);
+  });
+});
+
+describe('applyBuilderReply', () => {
+  it('merges the block and reports whether the preview changed', () => {
+    const r = applyBuilderReply(EMPTY_BUILDER_DRAFT, `Pronto!\n${block('{"name":"ana","skills":["planilhas","x"]}')}`, known);
+    expect(r.message).toBe('Pronto!');
+    expect(r.draft).toMatchObject({ name: 'ana', skills: ['planilhas'] });
+    expect(r.changed).toBe(true);
+  });
+
+  it('keeps the draft and gives a fallback line when the reply is only a block', () => {
+    const r = applyBuilderReply(EMPTY_BUILDER_DRAFT, block('{"name":"a"}'), known);
+    expect(r.message).toBe('Atualizei a prévia.');
+    const again = applyBuilderReply(r.draft, 'Mais alguma coisa?', known);
+    expect(again.changed).toBe(false);
+    expect(again.draft).toBe(r.draft);
   });
 });

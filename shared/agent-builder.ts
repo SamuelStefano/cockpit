@@ -151,3 +151,15 @@ export function draftsEqual(a: BuilderDraft, b: BuilderDraft): boolean {
 export function toggleSkill(skills: string[], id: string): string[] {
   return skills.includes(id) ? skills.filter((s) => s !== id) : [...skills, id];
 }
+
+export interface AppliedReply {
+  message: string;
+  draft: BuilderDraft;
+  changed: boolean;
+}
+
+export function applyBuilderReply(draft: BuilderDraft, text: string, known: ReadonlySet<string>): AppliedReply {
+  const { message, patch } = parseBuilderReply(text);
+  const next = mergeDraft(draft, patch, known);
+  return { message: message || 'Atualizei a prévia.', draft: next, changed: !draftsEqual(draft, next) };
+}
