@@ -173,8 +173,43 @@ describe('Registry with several boxes per account', () => {
     const { r } = twoBoxes();
     r.addBrowser('A', fakeSock(), 'b2');
     expect(r.browserCount('A', 'b2')).toBe(2);
-    expect(r.browserCount('A', 'b1')).toBe(1);
-    expect(r.browserCount('A')).toBe(1);
+    expect(r.browserCount('A', 'b1')).toBe(2);
+    expect(r.browserCount('A')).toBe(2);
+  });
+});
+
+describe('Registry primary box and peeks', () => {
+  it('the earliest-paired online box is primary, and gets it back after a blip', () => {
+    const r = new Registry();
+    const vps = fakeSock(), pc = fakeSock(), vps2 = fakeSock();
+    r.bindAgent('A', 'pc', pc, 200);
+    r.bindAgent('A', 'vps', vps, 100);
+    expect(r.primary('A')).toBe('vps');
+    r.unbindAgent('A', 'vps', vps);
+    expect(r.primary('A')).toBe('pc');
+    r.bindAgent('A', 'vps', vps2, 100);
+    expect(r.primary('A')).toBe('vps');
+  });
+
+  it('counts unbound tabs and tabs naming the primary together for the cap', () => {
+    const r = new Registry();
+    r.bindAgent('A', 'b1', fakeSock(), 1);
+    r.addBrowser('A', fakeSock()); r.addBrowser('A', fakeSock(), 'b1');
+    expect(r.browserCount('A', 'b1')).toBe(2);
+    expect(r.browserCount('A')).toBe(2);
+    expect(r.browserCount('A', 'b9')).toBe(0);
+  });
+
+  it('peeks get the box frames but neither presence nor the tab cap', () => {
+    const r = new Registry();
+    const box = fakeSock(), peek = fakeSock();
+    r.bindAgent('A', 'b2', box);
+    r.addBrowser('A', peek, 'b2', true);
+    expect(r.presenceChanges('A')).toEqual([['b2', box, false]]);
+    expect(r.browserCount('A', 'b2')).toBe(0);
+    expect(r.browserCount('A', 'b2', true)).toBe(1);
+    expect(r.toBrowsers('A', 'b2', 'x')).toBe(1);
+    expect(peek.sent).toEqual(['x']);
   });
 });
 

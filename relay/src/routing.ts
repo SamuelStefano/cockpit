@@ -37,12 +37,15 @@ function frameType(data: string): string {
 
 
 // A tab is bound to one box at open (`?box=<agentId>`) or to '' = the account's
-// primary box (the earliest-bound one online), which is what old clients and
-// single-box accounts get. A box only ever receives its own tabs' frames and
-// only reaches its own tabs.
+// primary box, which is what old clients and single-box accounts get. The
+// primary is the online box paired first (rank = paired_at), so a box that blips
+// offline and back gets its place again. A box only ever receives its own tabs'
+// frames and only reaches its own tabs. A "peek" tab (read-only view of another
+// box) gets the box's frames but never counts as someone looking at it.
+interface Tab { box: string; peek: boolean }
 interface Bucket {
-  agents: Map<string, Sock>;      // agentId → socket; insertion order = bind order
-  browsers: Map<Sock, string>;    // tab → bound box ('' = primary)
+  agents: Map<string, { sock: Sock; rank: number }>;
+  browsers: Map<Sock, Tab>;
   present: Map<string, boolean>;  // last presence state sent to each agent
 }
 
@@ -62,16 +65,17 @@ export class Registry {
 
   private resolveIn(b: Bucket, box: string): string | null {
     if (box) return b.agents.has(box) ? box : null;
-    const first = b.agents.keys().next();
-    return first.done ? null : first.value;
+    let best: string | null = null, bestRank = Infinity;
+    for (const [id, a] of b.agents) if (best === null || a.rank < bestRank) { best = id; bestRank = a.rank; }
+    return best;
   }
 
   // Binds the agent and RETURNS its previous socket (same agentId reconnecting with
   // the old one half-open) for the caller to terminate. Other boxes are untouched.
-  bindAgent(accountId: string, agentId: string, sock: Sock): Sock | null {
+  bindAgent(accountId: string, agentId: string, sock: Sock, rank = Infinity): Sock | null {
     const b = this.bucket(accountId);
-    const cur = b.agents.get(agentId);
-    b.agents.set(agentId, sock);
+    const cur = b.agents.get(agentId)?.sock;
+    b.agents.set(agentId, { sock, rank });
     if (cur !== sock) b.present.delete(agentId);
     return cur && cur !== sock ? cur : null;
   }
@@ -80,15 +84,15 @@ export class Registry {
   // agent replaced it: the caller must not announce agent-offline.
   unbindAgent(accountId: string, agentId: string, sock: Sock): boolean {
     const b = this.byAccount.get(accountId);
-    if (!b || b.agents.get(agentId) !== sock) return false;
+    if (!b || b.agents.get(agentId)?.sock !== sock) return false;
     b.agents.delete(agentId);
     b.present.delete(agentId);
     this.gc(accountId);
     return true;
   }
 
-  addBrowser(accountId: string, sock: Sock, box = ''): void {
-    this.bucket(accountId).browsers.set(sock, box);
+  addBrowser(accountId: string, sock: Sock, box = '', peek = false): void {
+    this.bucket(accountId).browsers.set(sock, { box, peek });
   }
 
   removeBrowser(accountId: string, sock: Sock): void {
@@ -98,12 +102,17 @@ export class Registry {
     this.gc(accountId);
   }
 
-  // Tabs bound to exactly this box key (the per-box tab cap).
-  browserCount(accountId: string, box = ''): number {
+  // Tabs (or peeks) that would reach the same box as `box` (the per-box caps). '' and
+  // the primary's own id count together; an offline box counts by its key.
+  browserCount(accountId: string, box = '', peek = false): number {
     const b = this.byAccount.get(accountId);
     if (!b) return 0;
+    const target = this.resolveIn(b, box);
     let n = 0;
-    for (const v of b.browsers.values()) if (v === box) n++;
+    for (const t of b.browsers.values()) {
+      if (t.peek !== peek) continue;
+      if (target ? this.resolveIn(b, t.box) === target : t.box === box) n++;
+    }
     return n;
   }
 
@@ -115,7 +124,7 @@ export class Registry {
 
   primary(accountId: string): string | null { return this.resolve(accountId, ''); }
 
-  boxOf(accountId: string, sock: Sock): string | undefined { return this.byAccount.get(accountId)?.browsers.get(sock); }
+  boxOf(accountId: string, sock: Sock): string | undefined { return this.byAccount.get(accountId)?.browsers.get(sock)?.box; }
 
   // Any box online (no argument), or the box a tab bound to `box` reaches.
   hasAgent(accountId: string, box?: string): boolean {
@@ -124,7 +133,7 @@ export class Registry {
     return box === undefined ? b.agents.size > 0 : this.resolveIn(b, box) !== null;
   }
 
-  agentSocket(accountId: string, agentId: string): Sock | undefined { return this.byAccount.get(accountId)?.agents.get(agentId); }
+  agentSocket(accountId: string, agentId: string): Sock | undefined { return this.byAccount.get(accountId)?.agents.get(agentId)?.sock; }
 
   browserTotal(accountId: string): number { return this.byAccount.get(accountId)?.browsers.size ?? 0; }
 
@@ -145,27 +154,31 @@ export class Registry {
     const b = this.byAccount.get(accountId);
     if (!b) return [];
     const out: Array<[Sock, string]> = [];
-    for (const [s, box] of b.browsers) {
+    for (const [s, t] of b.browsers) {
       if (s.readyState !== undefined && s.readyState !== OPEN) continue;
-      if (this.resolveIn(b, box) === agentId) out.push([s, box]);
+      if (this.resolveIn(b, t.box) === agentId) out.push([s, t.box]);
     }
     return out;
   }
 
-  // Presence transitions since the last call, per online agent: true = it has a
-  // tab now and had none, false = the reverse. A freshly bound agent always gets
-  // its initial state. The caller sends browsers-present / no-browsers.
+  // Presence transitions since the last call, per online agent: true = a (non-peek)
+  // tab looks at it now and none did, false = the reverse. A freshly bound agent
+  // always gets its initial state. The caller sends browsers-present / no-browsers.
   presenceChanges(accountId: string): Array<[string, Sock, boolean]> {
     const b = this.byAccount.get(accountId);
     if (!b) return [];
     const watched = new Set<string>();
-    for (const box of b.browsers.values()) { const id = this.resolveIn(b, box); if (id) watched.add(id); }
+    for (const t of b.browsers.values()) {
+      if (t.peek) continue;
+      const id = this.resolveIn(b, t.box);
+      if (id) watched.add(id);
+    }
     const out: Array<[string, Sock, boolean]> = [];
-    for (const [id, sock] of b.agents) {
+    for (const [id, a] of b.agents) {
       const now = watched.has(id);
       if (b.present.get(id) === now) continue;
       b.present.set(id, now);
-      out.push([id, sock, now]);
+      out.push([id, a.sock, now]);
     }
     return out;
   }
@@ -175,7 +188,7 @@ export class Registry {
   toAgent(accountId: string, box: string, data: string): boolean {
     const b = this.byAccount.get(accountId);
     const id = b ? this.resolveIn(b, box) : null;
-    const agent = id ? b!.agents.get(id) : undefined;
+    const agent = id ? b!.agents.get(id)?.sock : undefined;
     if (!agent || (agent.readyState !== undefined && agent.readyState !== OPEN)) return false;
     if (overHardCap(agent)) return false;
     agent.send(data);
@@ -188,9 +201,9 @@ export class Registry {
     if (!b) return 0;
     let n = 0;
     let dropChecked = false, droppable = false;
-    for (const [s, box] of b.browsers) {
+    for (const [s, t] of b.browsers) {
       if (s.readyState !== undefined && s.readyState !== OPEN) continue;
-      if (this.resolveIn(b, box) !== agentId) continue;
+      if (this.resolveIn(b, t.box) !== agentId) continue;
       if (overHardCap(s)) continue;
       if (s.bufferedAmount !== undefined && s.bufferedAmount > BACKPRESSURE_BYTES) {
         if (!dropChecked) { droppable = DROPPABLE.has(frameType(data)); dropChecked = true; }
@@ -209,8 +222,8 @@ export class Registry {
   // read the frame; `droppable` is the agent's plaintext hint for backpressure.
   toBrowser(accountId: string, agentId: string, sock: Sock, data: string, droppable: boolean): boolean {
     const b = this.byAccount.get(accountId);
-    const box = b?.browsers.get(sock);
-    if (!b || box === undefined || this.resolveIn(b, box) !== agentId) return false;
+    const t = b?.browsers.get(sock);
+    if (!b || !t || this.resolveIn(b, t.box) !== agentId) return false;
     if (sock.readyState !== undefined && sock.readyState !== OPEN) return false;
     if (overHardCap(sock)) return false;
     if (droppable && sock.bufferedAmount !== undefined && sock.bufferedAmount > BACKPRESSURE_BYTES) return false;

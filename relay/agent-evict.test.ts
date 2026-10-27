@@ -53,7 +53,7 @@ describe('several boxes paired to one account', () => {
   async function relayWith(agents: Record<string, string>, over: Partial<RelayStore> = {}) {
     const calls: string[] = [];
     const store: RelayStore = {
-      async agentById(id) { return agents[id] ? { accountId: 'acc', publicKey: agents[id] } : null; },
+      async agentById(id) { return agents[id] ? { accountId: 'acc', publicKey: agents[id], pairedAt: id === B1 ? '2026-01-01T00:00:00Z' : '2026-06-01T00:00:00Z' } : null; },
       async isAdmin() { return false; }, async listAccounts() { return []; }, async setAdmin() { return true; },
       async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
       async consumePairingCode() { return null; }, async createAgent() { return null; },
@@ -186,6 +186,38 @@ describe('several boxes paired to one account', () => {
     expect(in1.got.some((m) => m.t === 'browsers-present')).toBe(false);
     t.ws.close();
     await in2.next((m) => m.t === 'no-browsers');
+  });
+
+  it('the earliest-paired box stays primary even when it connects last', async () => {
+    const A = keys(); const B = keys();
+    const { url } = await relayWith({ [B1]: A.pub, [B2]: B.pub });
+    const late = agent(url, B2, B.priv); socks.push(late.ws);
+    expect(await late.outcome).toBe('ready');
+    const early = agent(url, B1, A.priv); socks.push(early.ws);
+    expect(await early.outcome).toBe('ready');
+    const t = tab(url);
+    expect((await t.next((m) => m.t === 'boxes')).primary).toBe(B1);
+  });
+
+  it('a failed rename or revoke answers box-error to the requester', async () => {
+    const { url } = await twoBoxes();
+    const t = tab(url, B1);
+    await t.next((m) => m.t === 'boxes');
+    t.ws.send(JSON.stringify({ t: 'box-revoke', id: FOREIGN }));
+    expect(await t.next((m) => m.t === 'box-error')).toEqual({ t: 'box-error', op: 'box-revoke', id: FOREIGN });
+  });
+
+  it('a peek needs a box, and does not count as someone looking at it', async () => {
+    const { url, second } = await twoBoxes();
+    const in2 = inbox(second.ws);
+    const bad = new WebSocket(`${url}/ws?token=me&peek=1`); socks.push(bad);
+    expect(await inbox(bad).closed).toBe(4400);
+    const p = new WebSocket(`${url}/ws?token=me&box=${B2}&peek=1`); socks.push(p);
+    const pin = inbox(p);
+    await pin.next((m) => m.t === 'agent-online');
+    second.ws.send(JSON.stringify({ t: 'sessions' }));
+    await pin.next((m) => m.t === 'sessions');
+    expect(in2.got.some((m) => m.t === 'browsers-present')).toBe(false);
   });
 
   it('the same agent reconnecting still takes over its half-open socket', async () => {

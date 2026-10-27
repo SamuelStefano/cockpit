@@ -45,10 +45,10 @@ export function supabaseStore(cfg: StoreConfig): RelayStore {
   return {
     async agentById(agentId) {
       const enc = encodeURIComponent(agentId);
-      const row = await getOne<{ account_id: string; public_key: string }>(
-        `/agent?id=eq.${enc}&kind=eq.vps&revoked_at=is.null&select=account_id,public_key`,
+      const row = await getOne<{ account_id: string; public_key: string; paired_at?: string }>(
+        `/agent?id=eq.${enc}&kind=eq.vps&revoked_at=is.null&select=account_id,public_key,paired_at`,
       );
-      return row ? { accountId: row.account_id, publicKey: row.public_key } : null;
+      return row ? { accountId: row.account_id, publicKey: row.public_key, pairedAt: row.paired_at } : null;
     },
 
     async isAdmin(accountId) {
