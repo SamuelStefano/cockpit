@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Bit } from '../bit/Bit';
 import type { BitState } from '../bit/bit-state';
-import { MascotStatusLine } from '../team/MascotStatusLine';
+import { LivingPhrase } from '../team/LivingPhrase';
 import { CompactingLine } from './CompactingLine';
 import type { LiveTurn } from './Thinking';
 
@@ -17,8 +17,8 @@ export function LiveLine({ live, bit, avatar, bare }: LiveLineProps) {
   return (
     <div className="flex items-center gap-2.5 pt-1.5">
       {!bare && (avatar ?? <Bit state={bit ?? 'working'} size={24} />)}
-      <div className="min-w-0 [&>p]:p-0">
-        <MascotStatusLine active startedAt={live?.startedAt} />
+      <div className="min-w-0">
+        <LivingPhrase live active startedAt={live?.startedAt} className="text-[13px] text-neutral-400" />
       </div>
     </div>
   );
