@@ -62,7 +62,7 @@ export interface MobileLayoutProps {
   termSheet: boolean;
   setTermSheet: (v: boolean) => void;
   runningTerm: Terminal | undefined;
-  // The drawer's content: the same sections as the desktop sidebar (agents, conversations, more).
+  // The drawer's content: the sidebar itself, in drawer mode.
   drawerNav?: ReactNode;
   // An agent's thread, full screen in place of the plain chat.
   center?: ReactNode;
@@ -77,7 +77,7 @@ export function MobileLayout({ chatProps, termProps, drawer, setDrawer, termShee
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1">
-        {center ?? <ChatPanel key={chatProps.session?.id ?? 'none'} {...chatProps} onTerminal={() => setTermSheet(true)} terminalRunning={!!runningTerm} />}
+        {center ?? <ChatPanel key={chatProps.session?.id ?? 'none'} {...chatProps} onMenu={() => setDrawer(true)} onTerminal={() => setTermSheet(true)} terminalRunning={!!runningTerm} />}
       </div>
 
       {drawer && (

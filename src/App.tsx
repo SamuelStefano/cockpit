@@ -3,7 +3,6 @@ import { memorizePrompt } from './components/chat/memorize';
 import { Sidebar } from './components/chrome/sidebar/Sidebar';
 import { MobileTopBar } from './components/chrome/sidebar/MobileTopBar';
 import { MobileNavDrawer } from './components/chrome/sidebar/MobileNavDrawer';
-import { DrawerNav } from './components/chrome/sidebar/DrawerNav';
 import { SessionsPanel } from './components/Sessions';
 import { QuotaBanner } from './components/chrome/QuotaBanner';
 import { OfflineNotice } from './components/chrome/OfflineNotice';
@@ -30,7 +29,8 @@ import { relReset } from './lib/time';
 import { usePanelResize } from './app/usePanelResize';
 import { useTerminalTabs } from './app/useTerminalTabs';
 import { useGlobalShortcuts } from './app/useGlobalShortcuts';
-import { navRole } from './components/chrome/nav-routes';
+import { navRole, NAV } from './components/chrome/nav-routes';
+import { FOOTER_NAV } from './components/chrome/sidebar/sidebar-nav';
 import { useRoleLanding } from './app/useRoleLanding';
 import { useIsMobile } from './app/useIsMobile';
 import { useKeyboardOpen } from './app/useKeyboardOpen';
@@ -167,7 +167,7 @@ function CockpitBody() {
 
   const sidebarSessions = useMemo(() => withoutBotThreads(sessions, cockpit.bots), [sessions, cockpit.bots]);
   const sessionsProps = { sessions: sidebarSessions, loading, activeId: activeSessionId, onSelect: selectSession, onNew: handleNew, marathon, onToggleMarathon, onRename: handleRename, onDescribe: handleDescribe, onClose: handleCloseSession, onDelete: handleDeleteSession, onStop: handleStop, archived, onUnhide: handleUnhide, usage, usageModel, cost: sessionCost, running: runningAnywhere, stalled, updated, runStart, searchResults, onSearch, userId: sbAuth.session?.user.id, onFunnel, funnelBusy };
-  const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onApproveWorkflow, onStop: handleStop, mode, setMode, caps, claudeReady, claudeLogin, agents: cockpit.agents, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, contextModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew: handleNew, onHandoff, handoffBusy, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onMemorize: memorizeMsg, onRename: handleRename, onDelete: handleDeleteSession, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, keyboardOpen, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer, resumeRun, orchestratorSessionId: orchestratorInfo?.sessionId, conn: link, call };
+  const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onApproveWorkflow, onStop: handleStop, mode, setMode, caps, claudeReady, claudeLogin, agents: cockpit.agents, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, contextModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew: handleNew, onHandoff, handoffBusy, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onMemorize: memorizeMsg, onRename: handleRename, onDelete: handleDeleteSession, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, onMenu: () => setDrawer(!drawer), keyboardOpen, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer, resumeRun, orchestratorSessionId: orchestratorInfo?.sessionId, conn: link, call };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
 
   const agent = useAgentNav({
@@ -183,8 +183,17 @@ function CockpitBody() {
   const usageDock = { usageAgent, planUsage, planBlockedUntil, planReadAt, planNextReadAt, onRefreshPlanUsage, grokUsage: cockpit.grokUsage, onRefreshGrokUsage: cockpit.onRefreshGrokUsage, quotaWarn: quotaGate.warn, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, stats };
   const account = { userId: sbAuth.session?.user.id, onSignOut: SUPABASE_ENABLED ? sbAuth.signOut : undefined, onChangePassword: SUPABASE_ENABLED ? sbAuth.changePassword : undefined, drops: dropApi };
 
-  const drawerSessions = drawer ? <SessionsPanel {...sessionsProps} onCloseMobile={() => setDrawer(false)} /> : null;
-  const drawerNav = <DrawerNav route={route} nav={nav} role={role} onPalette={openPalette} agents={agentsProps} sessions={drawerSessions} />;
+  const drawerNav = drawer ? (
+    <Sidebar
+      route={route} nav={(to) => { setDrawer(false); nav(to); }} role={role}
+      onNew={handleNew} onPalette={openPalette}
+      bitState={bitState} conn={conn.ws} usage={usageDock} account={account}
+      agents={agentsProps} sessions={<SessionsPanel {...sessionsProps} embedded onCloseMobile={() => setDrawer(false)} />}
+      drawer={{ onClose: () => setDrawer(false) }}
+    />
+  ) : null;
+  const chatSurface = route === '/' || route === '/equipe';
+  const pageTitle = FOOTER_NAV.find((i) => i.to === route)?.label ?? NAV.find((n) => n.to === route)?.label ?? 'Deck';
 
   const gate = resolveAuthGate({ sbAuth, seal, ejectPairing, authRequired, submitToken });
   if (gate) return gate;
@@ -221,8 +230,8 @@ function CockpitBody() {
           />
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          {isMobile && (
-            <MobileTopBar onMenu={() => setDrawer(!drawer)} menuOpen={drawer} usage={usageDock} account={account} conn={conn.ws} role={role} />
+          {isMobile && !chatSurface && (
+            <MobileTopBar onMenu={() => setDrawer(!drawer)} menuOpen={drawer} title={pageTitle} />
           )}
           {/* Âncora de altura zero no fluxo: o aviso pende daqui, logo abaixo do topo da coluna. */}
           <div className="relative z-40">
@@ -250,8 +259,8 @@ function CockpitBody() {
           />
         </div>
       </div>
-      {isMobile && route !== '/' && route !== '/equipe' && (
-        <MobileNavDrawer open={drawer} onClose={() => setDrawer(false)} route={route} nav={nav} role={role} onPalette={openPalette} agents={agentsProps} sessions={drawerSessions} />
+      {isMobile && !chatSurface && (
+        <MobileNavDrawer open={drawer} onClose={() => setDrawer(false)}>{drawerNav}</MobileNavDrawer>
       )}
       <AgentFormHost target={agent.form} bots={cockpit.bots} models={models} isAdmin={isAdmin} onSave={cockpit.onTeamSave} onClose={agent.closeForm} />
       <BoxHealthHost />

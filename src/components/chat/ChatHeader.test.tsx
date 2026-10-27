@@ -100,3 +100,24 @@ describe('ChatHeader', () => {
     expect(onProfile).toHaveBeenCalledOnce();
   });
 });
+
+describe('ChatHeader phone bar', () => {
+  const base = { session: { id: 's1', title: 'Relatório' } as never, messages: [], isEmpty: false, isMobile: true, contextTokens: 0, onNew: vi.fn(), fullLoaded: false, setFullLoaded: vi.fn() };
+
+  it('shows ☰ · title · one "…" action, no context ring or terminal button', () => {
+    const onMenu = vi.fn();
+    render(<ChatHeader {...base} onMenu={onMenu} onTerminal={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
+    expect(onMenu).toHaveBeenCalledOnce();
+    expect(screen.getByRole('button', { name: 'Mais ações da conversa' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Abrir terminais' })).toBeNull();
+  });
+
+  it('on a fresh chat the action is "+" and the title is Deck', () => {
+    const onNew = vi.fn();
+    render(<ChatHeader {...base} isEmpty onNew={onNew} onMenu={vi.fn()} />);
+    expect(screen.getByText('Deck')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Nova conversa' }));
+    expect(onNew).toHaveBeenCalledOnce();
+  });
+});
