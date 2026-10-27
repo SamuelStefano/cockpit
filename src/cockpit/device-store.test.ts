@@ -26,7 +26,7 @@ const fakeIdb = {
 vi.stubGlobal('indexedDB', fakeIdb);
 
 const {
-  pinnedAgents, pinAgent, deviceKeys, adoptPasskey, passkeyDevice, canAdoptPasskey, savePreauth, pendingPreauth, clearPreauth, PREAUTH_KEEP_MS,
+  pinnedAgents, pinAgent, pinAgentIfEmpty, deviceKeysFor, adoptPasskey, passkeyDevice, markPasskeyBox,
 } = await import('./device-store');
 const { deriveFromPrf } = await import('../../shared/e2e/passkey');
 
@@ -69,29 +69,48 @@ describe('per-box pins', () => {
   });
 });
 
+describe('pinning never replaces a trusted agent key', () => {
+  it('pinAgentIfEmpty fills an empty slot and refuses a filled one', async () => {
+    expect(await pinAgentIfEmpty(new Uint8Array([1]), A)).toBe(true);
+    expect(await pinAgentIfEmpty(new Uint8Array([2]), A)).toBe(false);
+    expect([...(await pinnedAgents(A))[0]]).toEqual([1]);
+  });
+});
+
 describe('passkey device key', () => {
-  it('replaces the random key once adopted, and keeps no raw PRF material', async () => {
-    const before = await deviceKeys();
+  it('is used once adopted on a browser with no pins, and keeps no raw PRF material', async () => {
+    const before = await deviceKeysFor(A);
+    expect(before.passkey).toBeNull();
     const d = await deriveFromPrf(new Uint8Array(32).fill(3));
     await adoptPasskey(d);
-    const after = await deviceKeys();
-    expect(after.pub).toEqual(d.pub);
-    expect(after.pub).not.toEqual(before.pub);
+    const after = await deviceKeysFor(A);
+    expect(after.keys.pub).toEqual(d.pub);
+    expect(after.passkey?.pub).toEqual(d.pub);
+    expect(after.keys.pub).not.toEqual(before.keys.pub);
     expect((await passkeyDevice())?.pub).toEqual(d.pub);
     for (const v of data.values()) expect(v).not.toBeInstanceOf(Uint8Array);
   });
 
-  it('is not offered to a browser already enrolled with its random key', async () => {
-    expect(await canAdoptPasskey()).toBe(true);
+  it('a box this browser pinned with its random key keeps that key until it learns the passkey', async () => {
+    const random = await deviceKeysFor(A);
     await pinAgent(new Uint8Array([1]), A);
-    expect(await canAdoptPasskey()).toBe(false);
+    const d = await deriveFromPrf(new Uint8Array(32).fill(4));
+    await adoptPasskey(d);
+    const legacy = await deviceKeysFor(A);
+    expect(legacy.keys.pub).toEqual(random.keys.pub);
+    expect(legacy.upgrade?.pub).toEqual(d.pub);
+    expect((await deviceKeysFor(B)).keys.pub).toEqual(d.pub);
+    await markPasskeyBox(A);
+    expect((await deviceKeysFor(A)).keys.pub).toEqual(d.pub);
   });
 
-  it('keeps the pending device secret until cleared or expired', async () => {
-    await savePreauth(new Uint8Array(16).fill(7), 1000);
-    expect([...(await pendingPreauth(1000))!]).toEqual(new Array(16).fill(7));
-    expect(await pendingPreauth(1000 + PREAUTH_KEEP_MS)).toBeNull();
-    await clearPreauth();
-    expect(await pendingPreauth(1000)).toBeNull();
+  it('a new passkey is new to every box again', async () => {
+    await deviceKeysFor(A);
+    await pinAgent(new Uint8Array([1]), A);
+    await adoptPasskey(await deriveFromPrf(new Uint8Array(32).fill(4)));
+    await markPasskeyBox(A);
+    const fresh = await deriveFromPrf(new Uint8Array(32).fill(5));
+    await adoptPasskey(fresh);
+    expect((await deviceKeysFor(A)).passkey).toBeNull();
   });
 });

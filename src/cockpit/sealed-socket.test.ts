@@ -10,23 +10,30 @@ import type { PasskeyDevice } from '../../shared/e2e/passkey';
 
 const mem: {
   pair?: KeyPair; pins: Bytes[]; boxPins: Record<string, Bytes[]>;
-  passkey?: PasskeyDevice; preauth?: Bytes;
-} = { pins: [], boxPins: {} };
+  passkey?: PasskeyDevice; preauth: Bytes[]; passkeyBoxes: string[];
+} = { pins: [], boxPins: {}, preauth: [], passkeyBoxes: [] };
 vi.mock('./device-store', async () => {
   const { publicRaw } = await import('../../shared/e2e/channel');
+  const pinsOf = (box?: string) => (box ? (mem.boxPins[box] ?? []) : mem.pins);
+  const pin = (p: Bytes, box?: string) => { if (box) mem.boxPins[box] = [p]; else mem.pins = [p]; };
   return {
-    deviceKeys: async () => {
-      if (mem.passkey) return { pub: mem.passkey.pub, sign: mem.passkey.pair.privateKey };
+    deviceKeysFor: async (box?: string) => {
+      const ref = mem.passkey ? { pub: mem.passkey.pub, pinRoot: mem.passkey.pinRoot } : null;
+      const legacy = !!mem.pair && pinsOf(box).length > 0 && !mem.passkeyBoxes.includes(box ?? '');
+      if (mem.passkey && !legacy) return { keys: { pub: mem.passkey.pub, sign: mem.passkey.pair.privateKey }, passkey: ref, upgrade: null };
       mem.pair ??= await crypto.subtle.generateKey({ name: 'Ed25519' }, false, ['sign', 'verify']) as unknown as KeyPair;
-      return { pub: await publicRaw(mem.pair.publicKey), sign: mem.pair.privateKey };
+      return { keys: { pub: await publicRaw(mem.pair.publicKey), sign: mem.pair.privateKey }, passkey: null, upgrade: ref };
     },
-    passkeyDevice: async () => (mem.passkey ? { pub: mem.passkey.pub, pinRoot: mem.passkey.pinRoot } : null),
-    pendingPreauth: async () => mem.preauth ?? null,
-    clearPreauth: async () => { mem.preauth = undefined; },
-    pinnedAgents: async (box?: string) => (box ? (mem.boxPins[box] ?? []) : mem.pins),
-    pinAgent: async (p: Bytes, box?: string) => { if (box) mem.boxPins[box] = [p]; else mem.pins = [p]; },
+    markPasskeyBox: async (box?: string) => { if (!mem.passkeyBoxes.includes(box ?? '')) mem.passkeyBoxes.push(box ?? ''); },
+    pinnedAgents: async (box?: string) => pinsOf(box),
+    pinAgent: async (p: Bytes, box?: string) => pin(p, box),
+    pinAgentIfEmpty: async (p: Bytes, box?: string) => { if (pinsOf(box).length) return false; pin(p, box); return true; },
   };
 });
+vi.mock('./preauth-store', () => ({
+  pendingPreauths: () => [...mem.preauth],
+  dropPreauth: (s: Bytes) => { mem.preauth = mem.preauth.filter((x) => x !== s); },
+}));
 
 const { SealedSocket, enrollThisDevice, sealState, sendRelayFrame } = await import('./sealed-socket');
 const { boxStore } = await import('./boxes-store');
@@ -86,7 +93,7 @@ let relay: Relay;
 
 beforeEach(async () => {
   process.env.DECK_AGENT_DIR = mkdtempSync(join(tmpdir(), 'deck-sealed-'));
-  mem.pair = undefined; mem.pins = []; mem.boxPins = {}; mem.passkey = undefined; mem.preauth = undefined;
+  mem.pair = undefined; mem.pins = []; mem.boxPins = {}; mem.passkey = undefined; mem.preauth = []; mem.passkeyBoxes = [];
   relay = new Relay();
   FakeBrowserWs.relay = relay;
   vi.stubGlobal('WebSocket', FakeBrowserWs);
@@ -252,7 +259,7 @@ describe('SealedSocket with a passkey device key', () => {
     mem.passkey = await deriveFromPrf(PRF);
     const { code, secret } = await newDeviceCode(mem.passkey.pub);
     storePreauth(code);
-    mem.preauth = secret;
+    mem.preauth = [secret];
     const s = dial();
     await settle();
     return { keys, s };
@@ -262,7 +269,7 @@ describe('SealedSocket with a passkey device key', () => {
     const { keys } = await pairedWithDeviceCode();
     expect(sealState.get()).toBe('sealed');
     expect(mem.boxPins[BOX]).toEqual([keys.pub]);
-    expect(mem.preauth).toBeUndefined();
+    expect(mem.preauth).toEqual([]);
     expect(devicePin(toB64(mem.passkey!.pub))).toEqual(await boxPinKey(mem.passkey!.pinRoot, BOX));
   });
 

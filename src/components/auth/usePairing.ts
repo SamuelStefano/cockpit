@@ -103,7 +103,7 @@ export function usePairing(token: string, agentOnline = false, admin = false, la
   useEffect(() => {
     if (!code) return;
     let live = true;
-    issueDeviceCode().then((c) => { if (live) setDeviceCode(c); }, () => { if (live) setDeviceCode(''); });
+    issueDeviceCode(code).then((c) => { if (live) setDeviceCode(c); }, () => { if (live) setDeviceCode(''); });
     return () => { live = false; };
   }, [code, passkeyVersion]);
 

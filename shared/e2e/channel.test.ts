@@ -117,8 +117,9 @@ describe('enrollment', () => {
     expect(parsed.secret).toEqual(secret);
     const mac = await requestMac(parsed.secret, device.pub, parsed.agentFp, 'phone');
     expect(await checkRequest(secret, agent.pub, device.pub, 'phone', mac)).toBe(true);
-    const grant = await grantMac(secret, agent.pub, device.pub);
-    expect(await checkGrant(parsed, agent.pub, device.pub, grant)).toBe(true);
+    const grant = await grantMac(secret, agent.pub, device.pub, 'box-a');
+    expect(await checkGrant(parsed, agent.pub, device.pub, 'box-a', grant)).toBe(true);
+    expect(await checkGrant(parsed, agent.pub, device.pub, 'box-b', grant)).toBe(false);
   });
 
   it('rejects a relay that swaps the device key', async () => {
@@ -137,8 +138,8 @@ describe('enrollment', () => {
     const relay = await signer();
     const { code } = await newEnrollCode(agent.pub);
     const parsed = parseEnrollCode(code);
-    const forged = await grantMac(new Uint8Array(16), relay.pub, device.pub);
-    expect(await checkGrant(parsed, relay.pub, device.pub, forged)).toBe(false);
+    const forged = await grantMac(new Uint8Array(16), relay.pub, device.pub, 'box-a');
+    expect(await checkGrant(parsed, relay.pub, device.pub, 'box-a', forged)).toBe(false);
   });
 
   it('accepts the code with spacing and lower case', async () => {

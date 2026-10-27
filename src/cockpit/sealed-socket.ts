@@ -1,9 +1,14 @@
-import { DeviceHandshake, enrollRequest, enrollResult, preauthRequest, preauthResult, type PinCheck } from '../../shared/e2e/device';
+import {
+  AgentKeyError, DeviceHandshake, enrollRequest, enrollResult, preauthRequest, preauthResult, type DeviceKeys, type PinCheck,
+} from '../../shared/e2e/device';
 import type { SealedChannel } from '../../shared/e2e/channel';
 import type { EnrollCode } from '../../shared/e2e/enroll';
 import { boxPinKey, checkPinProof } from '../../shared/e2e/passkey';
-import { toB64, type Bytes } from '../../shared/e2e/bytes';
-import { clearPreauth, deviceKeys, passkeyDevice, pendingPreauth, pinAgent, pinnedAgents } from './device-store';
+import { equalBytes, toB64, type Bytes } from '../../shared/e2e/bytes';
+import {
+  deviceKeysFor, markPasskeyBox, pinAgent, pinAgentIfEmpty, pinnedAgents, type PasskeyRef,
+} from './device-store';
+import { dropPreauth, pendingPreauths } from './preauth-store';
 import { defaultDeviceLabel } from './device-label';
 import { toast } from '../components/primitives/toast-bus';
 import { boxStore } from './boxes-store';
@@ -36,10 +41,26 @@ export function enrollThisDevice(code: string, label: string): Promise<void> {
   return mainSocket.enroll(code, label);
 }
 
-// After this browser adopted a passkey key: dial again with it.
+// After this browser adopted a passkey key: dial again with it, or, on a channel
+// that is already open with the random key, hand the box the passkey key.
 export function retrySeal(): void {
   mainSocket?.retry();
+  void mainSocket?.offerPasskey();
 }
+
+// Device management frames (devices list, revoke) ride the main sealed channel
+// and never reach the app's message handler.
+export type DeviceFrame = Record<string, unknown> & { t: string };
+const deviceListeners = new Set<(m: DeviceFrame) => void>();
+
+export const deviceFrames = {
+  subscribe: (fn: (m: DeviceFrame) => void) => { deviceListeners.add(fn); return () => { deviceListeners.delete(fn); }; },
+  send: (frame: DeviceFrame): boolean => {
+    if (!mainSocket || mainSocket.sealed !== 'sealed') return false;
+    mainSocket.send(JSON.stringify(frame));
+    return true;
+  },
+};
 
 function pinChecker(pinRoot: CryptoKey, box: string, devicePub: Bytes): PinCheck {
   return async (agentPub, proof) => {
@@ -64,6 +85,10 @@ export interface SealedSocketOptions {
 const FROM_RELAY = new Set(['agent-online', 'agent-offline', 'accounts', 'boxes', 'box-error']);
 const TO_RELAY = /^\{"t":"(accounts-list|set-admin|box-rename|box-revoke)"/;
 const HANDSHAKE_MS = 10_000;
+// While a pre-authorization secret is pending, a failed or unanswered attempt is
+// tried again: a relay that drops or forges one answer only delays it.
+const PREAUTH_RETRY_MS = 5_000;
+const PIN_RETRY_MS = 1_000;
 // Mirrors the agent's cap: neither end keeps a channel's keys longer than this.
 const MAX_CHANNEL_MS = 12 * 3600_000;
 export const SEAL_LOST = 4002;
@@ -84,10 +109,17 @@ export class SealedSocket {
   private ws: WebSocket;
   private channel: SealedChannel | null = null;
   private handshake: DeviceHandshake | null = null;
-  private enrolling: { parsed: EnrollCode; resolve: () => void; reject: (e: Error) => void } | null = null;
-  private preauthing: { secret: Bytes } | null = null;
+  private enrolling: { parsed: EnrollCode; replace: boolean; resolve: () => void; reject: (e: Error) => void } | null = null;
+  private preauthing: { secret: Bytes; rest: Bytes[] } | null = null;
+  private redeemed: Bytes | null = null;
   private starting = false;
-  private passkey: { pub: Bytes; pinRoot: CryptoKey } | null = null;
+  private keys: DeviceKeys | null = null;
+  // `passkey`: the key in use is the passkey key. `upgrade`: this browser has a
+  // passkey key the box does not know yet, and the channel is on the random key.
+  private passkey: PasskeyRef | null = null;
+  private upgrade: PasskeyRef | null = null;
+  private agentPub: Bytes | null = null;
+  private pinRetried = false;
   private readonly box: string | undefined;
   private readonly main: boolean;
   private seal: SealState = 'connecting';
@@ -129,10 +161,12 @@ export class SealedSocket {
   }
 
   async enroll(code: string, label: string): Promise<void> {
-    const keys = await deviceKeys();
+    const keys = this.keys ?? (await deviceKeysFor(this.box)).keys;
     const { frame, parsed } = await enrollRequest(code, keys.pub, label);
+    // Only the screen that said this box's key changed may replace its pin.
+    const replace = (this.main ? state : this.seal) === 'rejected';
     return new Promise((resolve, reject) => {
-      this.enrolling = { parsed, resolve, reject };
+      this.enrolling = { parsed, replace, resolve, reject };
       this.raw(JSON.stringify(frame));
     });
   }
@@ -142,56 +176,117 @@ export class SealedSocket {
   }
 
   retry(): void {
-    if (!this.channel && !this.enrolling && !this.preauthing && this.ws.readyState === WebSocket.OPEN) void this.start();
+    if (!this.channel && !this.handshake && !this.starting && !this.enrolling && !this.preauthing && this.ws.readyState === WebSocket.OPEN) void this.start();
   }
 
-  // A passkey device with no pin for this box may still accept the agent by its
-  // pin proof, which is bound to the box id this socket dialed. An unbound
-  // socket has no box id to check against: it waits for the `boxes` frame to
-  // bind the dial (the key={box} remount) and only then handshakes.
   private async start(): Promise<void> {
     if (this.starting) return;
     this.starting = true;
-    try { await this.begin(); } finally { this.starting = false; }
+    try { await this.begin(); } catch { this.setSeal('enroll'); } finally { this.starting = false; }
   }
 
+  // A socket bound to a box with no pin, holding a passkey key and a secret from
+  // a setup command, redeems it before anything else. Nothing else sends
+  // e2e-preauth: a relay's "unknown device" never triggers it.
   private async begin(): Promise<void> {
     const pins = await pinnedAgents(this.box);
-    this.passkey = await passkeyDevice().catch(() => null);
-    const viaPin = !!this.passkey && this.box !== undefined;
-    if (!pins.length && !viaPin) {
+    const sel = await deviceKeysFor(this.box);
+    this.keys = sel.keys; this.passkey = sel.passkey; this.upgrade = sel.upgrade;
+    if (this.box !== undefined && !pins.length && this.passkey) {
+      const secrets = pendingPreauths();
+      if (secrets.length) { await this.preauth(secrets); return; }
+    }
+    await this.hello(pins);
+  }
+
+  // A passkey device with no pin for this box may still accept the agent by its
+  // pin proof, which is bound to the box id this socket dialed; any device with
+  // no pin for it may accept a box trusting its first device. An unbound socket
+  // has no box id to check against: a passkey one waits for the `boxes` frame
+  // to bind the dial (the key={box} remount) and only then handshakes.
+  private async hello(pins: Bytes[]): Promise<void> {
+    const bound = this.box !== undefined;
+    if (!pins.length && !bound) {
       if (!this.passkey) { this.setSeal('enroll'); return; }
       this.clearTimer();
       this.timer = setTimeout(() => { if (!this.channel) this.setSeal('enroll'); }, HANDSHAKE_MS);
       return;
     }
-    const keys = await deviceKeys();
-    const check = viaPin ? pinChecker(this.passkey!.pinRoot, this.box!, keys.pub) : null;
-    this.handshake = new DeviceHandshake(keys, pins, check);
+    const keys = this.keys!;
+    const check = this.passkey && bound ? pinChecker(this.passkey.pinRoot, this.box!, keys.pub) : null;
+    this.handshake = new DeviceHandshake(keys, pins, check, { tofu: bound && !pins.length, label: defaultDeviceLabel() });
     this.raw(JSON.stringify(await this.handshake.hello()));
     this.clearTimer();
     this.timer = setTimeout(() => { if (!this.channel) this.fail('handshake timeout', 'unsupported'); }, HANDSHAKE_MS);
   }
 
-  // The pending secret from the setup command (pairing.ts) enrolls this device
-  // on the box that `--pair`ed with it. Any other box just answers "failed".
-  private async tryPreauth(): Promise<boolean> {
-    const secret = await pendingPreauth();
-    if (!secret) return false;
-    const keys = await deviceKeys();
-    this.preauthing = { secret };
-    this.raw(JSON.stringify(await preauthRequest(secret, keys.pub, defaultDeviceLabel())));
+  private async preauth(secrets: Bytes[]): Promise<void> {
+    const [secret, ...rest] = secrets;
+    this.preauthing = { secret, rest };
+    this.raw(JSON.stringify(await preauthRequest(secret, this.keys!.pub, defaultDeviceLabel(), this.box!)));
     this.clearTimer();
-    this.timer = setTimeout(() => { if (this.preauthing) { this.preauthing = null; this.setSeal('enroll'); } }, HANDSHAKE_MS);
-    return true;
+    this.timer = setTimeout(() => this.enqueue(() => this.preauthNext()), HANDSHAKE_MS);
   }
 
-  // Sealed, so the relay never sees the key. Sent only on a socket bound to the
-  // box id the key is derived for; the agent also refuses a key named for
-  // another box.
-  private async handPin(box: string, pinRoot: CryptoKey): Promise<void> {
-    const key = await boxPinKey(pinRoot, box);
+  // A failed, forged or lost answer moves on to the next secret, then to a plain
+  // hello; nothing here is sticky while a secret is still pending.
+  private async preauthNext(): Promise<void> {
+    const p = this.preauthing;
+    if (!p) return;
+    this.clearTimer();
+    if (p.rest.length) { await this.preauth(p.rest); return; }
+    this.preauthing = null;
+    await this.hello(await pinnedAgents(this.box));
+  }
+
+  // Timers run their step on the frame chain, so it never interleaves with one.
+  private enqueue(fn: () => Promise<void>): void {
+    this.chain = this.chain.then(fn).catch(() => this.fail('sealed frame rejected'));
+  }
+
+  private toEnroll(): void {
+    this.setSeal('enroll');
+    if (this.box === undefined || !this.passkey || !pendingPreauths().length) return;
+    this.clearTimer();
+    this.timer = setTimeout(() => this.retry(), PREAUTH_RETRY_MS);
+  }
+
+  // Sealed, so the relay never sees the key. Sent only for the box this socket
+  // is bound to, and only while that box's slot holds exactly the agent key this
+  // channel was opened with; the agent also refuses a key named for another box.
+  private async handPin(): Promise<void> {
+    const box = this.box, pk = this.passkey, agent = this.agentPub;
+    if (box === undefined || !pk || !agent) return;
+    const slot = await pinnedAgents(box);
+    if (slot.length !== 1 || !equalBytes(slot[0], agent)) return;
+    const key = await boxPinKey(pk.pinRoot, box);
     try { this.send(JSON.stringify({ t: 'device-pin', box, key: toB64(key) })); } finally { key.fill(0); }
+  }
+
+  // A browser enrolled with its random key vouches for its passkey key from
+  // inside the channel; the box trusts it with its pin key in the same write.
+  async offerPasskey(): Promise<void> {
+    if (!this.channel || this.box === undefined) return;
+    if (!this.upgrade) this.upgrade = (await deviceKeysFor(this.box)).upgrade;
+    const up = this.upgrade;
+    if (!up) return;
+    const key = await boxPinKey(up.pinRoot, this.box);
+    try {
+      this.send(JSON.stringify({ t: 'device-add-passkey', pub: toB64(up.pub), label: defaultDeviceLabel(), box: this.box, key: toB64(key) }));
+    } finally { key.fill(0); }
+  }
+
+  private async onDeviceFrame(m: DeviceFrame): Promise<void> {
+    if (m.t === 'device-passkey-added' && m.ok === true) {
+      this.upgrade = null;
+      await markPasskeyBox(this.box);
+    }
+    // A busy device list on the box: one more try, the channel stays up.
+    if (m.t === 'device-pinned' && m.ok !== true && m.busy === true && !this.pinRetried) {
+      this.pinRetried = true;
+      setTimeout(() => this.enqueue(() => this.handPin()), PIN_RETRY_MS);
+    }
+    for (const fn of deviceListeners) fn(m);
   }
 
   private async onFrame(s: string): Promise<void> {
@@ -216,47 +311,36 @@ export class SealedSocket {
     switch (t) {
       case 'e2e': {
         if (!this.channel) return;
-        this.deliver(await this.channel.open(m as { s: unknown; d: unknown }));
+        const text = await this.channel.open(m as { s: unknown; d: unknown });
+        if (text.startsWith('{"t":"device')) {
+          let f: DeviceFrame | null = null;
+          try { f = JSON.parse(text) as DeviceFrame; } catch { /* not a device frame after all */ }
+          if (f) { await this.onDeviceFrame(f); return; }
+        }
+        this.deliver(text);
         return;
       }
-      case 'e2e-accept': {
-        if (!this.handshake) return;
-        // A key this device never pinned is either a relay in the middle or a
-        // reinstalled agent: both need a fresh enrollment, never a silent retry.
-        const done = await this.handshake.accept(m).catch(() => null);
-        this.handshake = null;
-        if (!done) { this.fail('agent key not trusted', 'rejected'); return; }
-        const { confirm, channel } = done;
-        if (done.provedByPin) await pinAgent(done.agentPub, this.box);
-        this.raw(JSON.stringify(confirm));
-        this.channel = channel;
-        this.clearTimer();
-        this.timer = setTimeout(() => this.fail('channel lifetime reached'), MAX_CHANNEL_MS);
-        this.readyState = 1;
-        this.setSeal('sealed');
-        this.onopen?.(new Event('open'));
-        if (this.passkey && this.box !== undefined && !done.hasPin) await this.handPin(this.box, this.passkey.pinRoot);
-        return;
-      }
+      case 'e2e-accept': return this.onAccept(m);
       case 'e2e-unknown-device': {
         this.handshake = null;
         if (this.preauthing) return;
         this.clearTimer();
-        if (this.passkey && (await this.tryPreauth())) return;
-        this.setSeal('enroll');
+        this.toEnroll();
         return;
       }
       case 'e2e-preauthed':
       case 'e2e-preauth-failed': {
         const pending = this.preauthing;
         if (!pending) return;
-        this.preauthing = null;
         this.clearTimer();
-        const pub = await preauthResult(m, pending.secret, (await deviceKeys()).pub);
-        if (!pub) { this.setSeal('enroll'); return; }
-        await pinAgent(pub, this.box);
-        await clearPreauth();
-        void this.start();
+        const pub = await preauthResult(m, pending.secret, this.keys!.pub, this.box!);
+        if (!pub) { await this.preauthNext(); return; }
+        this.preauthing = null;
+        // Kept until the channel seals: if it does not, the box answers the same
+        // secret again for this device until it expires.
+        this.redeemed = pending.secret;
+        await pinAgentIfEmpty(pub, this.box);
+        await this.hello(await pinnedAgents(this.box));
         return;
       }
       case 'e2e-enrolled':
@@ -264,15 +348,52 @@ export class SealedSocket {
         const pending = this.enrolling;
         if (!pending) return;
         this.enrolling = null;
-        const pub = await enrollResult(m, pending.parsed, (await deviceKeys()).pub);
-        if (!pub) { this.setSeal('enroll-failed'); pending.reject(new Error('código inválido, expirado ou adulterado')); return; }
-        await pinAgent(pub, this.box);
+        const r = await enrollResult(m, pending.parsed, this.keys?.pub ?? (await deviceKeysFor(this.box)).keys.pub);
+        // The grant names the box that answered: a dial the relay sent to
+        // another box never pins that box's key under this one.
+        const ok = !!r && (this.box === undefined || r.box === this.box.toLowerCase());
+        const pinned = ok && (pending.replace ? (await pinAgent(r!.agentPub, this.box), true) : await pinAgentIfEmpty(r!.agentPub, this.box));
+        if (!pinned) {
+          this.setSeal('enroll-failed');
+          pending.reject(new Error(ok ? 'este aparelho já confia em outra chave para esta VPS' : 'código inválido, expirado ou adulterado'));
+          return;
+        }
         pending.resolve();
         void this.start();
         return;
       }
       case 'e2e-reset': this.fail('agent reset the channel'); return;
     }
+  }
+
+  private async onAccept(m: Record<string, unknown>): Promise<void> {
+    const hs = this.handshake;
+    if (!hs) return;
+    this.handshake = null;
+    let done;
+    try { done = await hs.accept(m); } catch (e) {
+      // Nothing to check the key against is not an alarm: back to enrollment
+      // (and to the pending pre-authorization, if any), never the sticky refusal.
+      if (e instanceof AgentKeyError && e.kind === 'unverified') { this.clearTimer(); this.toEnroll(); return; }
+      // A key this device never pinned is either a relay in the middle or a
+      // reinstalled agent: both need a fresh enrollment, never a silent retry.
+      this.fail('agent key not trusted', 'rejected');
+      return;
+    }
+    if (done.newPin && !(await pinAgentIfEmpty(done.agentPub, this.box))) { this.fail('agent key not trusted', 'rejected'); return; }
+    this.raw(JSON.stringify(done.confirm));
+    this.channel = done.channel;
+    this.agentPub = done.agentPub;
+    this.clearTimer();
+    this.timer = setTimeout(() => this.fail('channel lifetime reached'), MAX_CHANNEL_MS);
+    this.readyState = 1;
+    this.setSeal('sealed');
+    if (done.tofu) toast('Este aparelho foi cadastrado na VPS na primeira conexão.', { tone: 'ok' });
+    if (this.redeemed) { dropPreauth(this.redeemed); this.redeemed = null; }
+    if (this.passkey) await markPasskeyBox(this.box);
+    this.onopen?.(new Event('open'));
+    if (this.passkey && !done.hasPin) await this.handPin();
+    if (this.upgrade) await this.offerPasskey();
   }
 
   private setSeal(s: SealState): void {

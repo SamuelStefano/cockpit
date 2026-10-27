@@ -22,7 +22,9 @@ const MAX_PENDING = 5;
 // trust entry so a revoke removes it in the same write.
 export interface Device { pub: string; label: string; addedAt: string; lastSeen?: string; pin?: string }
 interface PendingCode { secret: string; expiresAt: number }
-interface PendingPreauth { fp: string; secret: string; expiresAt: number }
+// usedBy: the device that redeemed it. It may redeem again until expiry (its
+// grant can be lost on the way back); no other device can.
+interface PendingPreauth { fp: string; secret: string; expiresAt: number; usedBy?: string }
 
 function readJson<T>(path: string, fallback: T): T {
   try { return JSON.parse(readFileSync(path, 'utf8')) as T; } catch { return fallback; }
@@ -52,6 +54,10 @@ export function listDevices(): Device[] {
 
 export function isEnrolled(pub: string): boolean {
   return trusted().some((d) => d.pub === pub);
+}
+
+export function hasDevices(): boolean {
+  return trusted().length > 0;
 }
 
 export function devicePin(pub: string): Bytes | null {
@@ -133,8 +139,8 @@ export function redeemEnrollCode(
   return serialized(() => redeemNow(agentPub, devicePub, label, mac, now));
 }
 
-export function redeemPreauth(devicePub: Bytes, label: string, mac: Bytes, now = Date.now()): Promise<Bytes | null> {
-  return serialized(() => redeemPreauthNow(devicePub, label, mac, now));
+export function redeemPreauth(devicePub: Bytes, label: string, boxId: string, mac: Bytes, now = Date.now()): Promise<Bytes | null> {
+  return serialized(() => redeemPreauthNow(devicePub, label, boxId, mac, now));
 }
 
 async function redeemNow(agentPub: Bytes, devicePub: Bytes, label: string, mac: Bytes, now: number): Promise<Bytes | null> {
@@ -157,22 +163,51 @@ async function redeemNow(agentPub: Bytes, devicePub: Bytes, label: string, mac: 
   return fromB64(secret);
 }
 
-async function redeemPreauthNow(devicePub: Bytes, label: string, mac: Bytes, now: number): Promise<Bytes | null> {
+async function redeemPreauthNow(devicePub: Bytes, label: string, boxId: string, mac: Bytes, now: number): Promise<Bytes | null> {
   let match: string | null = null;
   for (const p of livePreauth(now)) {
-    if (await checkPreauthRequest({ deviceFp: fromB64(p.fp), secret: fromB64(p.secret) }, devicePub, label, mac)) { match = p.secret; break; }
+    if (await checkPreauthRequest({ deviceFp: fromB64(p.fp), secret: fromB64(p.secret) }, devicePub, label, boxId, mac)) { match = p.secret; break; }
   }
   if (!match) return null;
   const secret = match;
-  const burnt = withFileLockSync(PREAUTH(), () => {
+  const pub = toB64(devicePub);
+  const use = withFileLockSync(PREAUTH(), (): 'first' | 'again' | null => {
     const left = livePreauth(now);
-    if (!left.some((p) => p.secret === secret)) return false;
-    writeJson(PREAUTH(), left.filter((p) => p.secret !== secret));
-    return true;
+    const entry = left.find((p) => p.secret === secret);
+    if (!entry || (entry.usedBy && entry.usedBy !== pub)) return null;
+    if (entry.usedBy) return 'again';
+    writeJson(PREAUTH(), left.map((p) => (p === entry ? { ...p, usedBy: pub } : p)));
+    return 'first';
   }, mustLock);
-  if (!burnt) return null;
+  if (!use) return null;
+  // A repeat only re-sends the grant: a device revoked since is not brought back.
+  if (use === 'again') return isEnrolled(pub) ? fromB64(secret) : null;
   trust(devicePub, label, now);
   return fromB64(secret);
+}
+
+// Trust on first use: writes the device only while the list is empty, under the
+// same lock as every other write, so of two racing devices only one gets in.
+export function trustFirstDevice(devicePub: Bytes, label: string, now = Date.now()): boolean {
+  return withFileLockSync(DEVICES(), () => {
+    if (trusted().length > 0) return false;
+    writeJson(DEVICES(), [{ pub: toB64(devicePub), label: cleanLabel(label), addedAt: new Date(now).toISOString() } satisfies Device]);
+    return true;
+  }, mustLock);
+}
+
+// An enrolled device vouches for this browser's passkey key from inside its
+// sealed channel, handing over the key's pin key for this box in the same write.
+export function addPasskeyDevice(devicePub: Bytes, label: string, pin: Bytes, now = Date.now()): boolean {
+  if (devicePub.length !== 32 || pin.length !== 32) return false;
+  const pub = toB64(devicePub);
+  return withFileLockSync(DEVICES(), () => {
+    const all = trusted();
+    const prev = all.find((d) => d.pub === pub);
+    const entry: Device = { pub, label: cleanLabel(label), addedAt: prev?.addedAt ?? new Date(now).toISOString(), pin: toB64(pin) };
+    writeJson(DEVICES(), [...all.filter((d) => d.pub !== pub), entry]);
+    return true;
+  }, mustLock);
 }
 
 // Re-enrolling the same key keeps its pin key: the device holds the same one.

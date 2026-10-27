@@ -36,7 +36,7 @@ import { startDflPointsWatch } from './dfl-points-watch';
 import { startDflDraftsWatch } from './dfl-drafts-watch';
 import { loadManagedEnv } from './admin-ops';
 import { startAutoPauseLoop } from './canvas/autopause-loop';
-import { SealedHub, loadE2eKeys, type AgentKeys } from './e2e/hub';
+import { SealedHub, loadE2eKeys, tofuWindow, type AgentKeys } from './e2e/hub';
 import { deviceFrameHandler } from './e2e/manage';
 import { createEnrollCode, listDevices, revokeDevice, storePreauth } from './e2e/devices';
 
@@ -124,6 +124,7 @@ let browsersPresent = true;
 // exists only to recover a box whose devices were lost.
 export const E2E_REQUIRED = process.env.DECK_E2E !== 'off';
 let hub: SealedHub | null = null;
+const tofu = tofuWindow(Date.now());
 let agentKeys: AgentKeys | null = null;
 
 // Reemite o bootstrap inteiro na chegada de um browser. No modo dial o
@@ -216,6 +217,7 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: (c
           intercept: deviceFrameHandler(keys.pub, () => hub, id.agentId),
           onPeersChanged: () => {},
           boxId: id.agentId,
+          tofu,
         });
         hub = sealed;
         setClientSource({ get clients() { return sealed.peers.values() as unknown as Iterable<WebSocket>; } });

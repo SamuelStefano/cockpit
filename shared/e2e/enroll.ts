@@ -34,16 +34,20 @@ function requestBytes(devicePub: Bytes, agentFp: Bytes, label: string): Bytes {
   return framed(utf8(PROTO), utf8('enroll-request'), devicePub, agentFp, utf8(label));
 }
 
-function grantBytes(agentPub: Bytes, devicePub: Bytes): Bytes {
-  return framed(utf8(PROTO), utf8('enroll-grant'), agentPub, devicePub);
+// The box id is in every grant: a box the relay dialed in place of another one
+// answers with its own id, and the browser pins only the box it asked for.
+const boxBytes = (boxId: string) => utf8(boxId.toLowerCase());
+
+function grantBytes(agentPub: Bytes, devicePub: Bytes, boxId: string): Bytes {
+  return framed(utf8(PROTO), utf8('enroll-grant'), agentPub, devicePub, boxBytes(boxId));
 }
 
 export function requestMac(secret: Bytes, devicePub: Bytes, agentFp: Bytes, label: string): Promise<Bytes> {
   return hmac(secret, requestBytes(devicePub, agentFp, label));
 }
 
-export function grantMac(secret: Bytes, agentPub: Bytes, devicePub: Bytes): Promise<Bytes> {
-  return hmac(secret, grantBytes(agentPub, devicePub));
+export function grantMac(secret: Bytes, agentPub: Bytes, devicePub: Bytes, boxId: string): Promise<Bytes> {
+  return hmac(secret, grantBytes(agentPub, devicePub, boxId));
 }
 
 export async function checkRequest(secret: Bytes, agentPub: Bytes, devicePub: Bytes, label: string, mac: Bytes): Promise<boolean> {
@@ -53,10 +57,10 @@ export async function checkRequest(secret: Bytes, agentPub: Bytes, devicePub: By
 
 // Device side: the agent key that came back through the relay is accepted only
 // if it hashes to the fingerprint from the code AND the grant MAC checks out.
-export async function checkGrant(code: EnrollCode, agentPub: Bytes, devicePub: Bytes, mac: Bytes): Promise<boolean> {
+export async function checkGrant(code: EnrollCode, agentPub: Bytes, devicePub: Bytes, boxId: string, mac: Bytes): Promise<boolean> {
   if (agentPub.length !== 32) return false;
   if (!equalBytes(await fingerprint(agentPub), code.agentFp)) return false;
-  return equalBytes(mac, await grantMac(code.secret, agentPub, devicePub));
+  return equalBytes(mac, await grantMac(code.secret, agentPub, devicePub, boxId));
 }
 
 // Pre-authorization at pairing (DECK_DEVICE_CODE), the mirror of an enroll
@@ -78,21 +82,23 @@ export function parseDeviceCode(code: string): DeviceCode {
   return { deviceFp: b.slice(0, FP_LEN), secret: b.slice(FP_LEN) };
 }
 
-export function preauthMac(secret: Bytes, devicePub: Bytes, label: string): Promise<Bytes> {
-  return hmac(secret, framed(utf8(PROTO), utf8('preauth-request'), devicePub, utf8(label)));
+// Both directions name the box: a box the relay routed this dial to by mistake
+// refuses the request without burning anything, and its grant never verifies.
+export function preauthMac(secret: Bytes, devicePub: Bytes, label: string, boxId: string): Promise<Bytes> {
+  return hmac(secret, framed(utf8(PROTO), utf8('preauth-request'), devicePub, utf8(label), boxBytes(boxId)));
 }
 
-export function preauthGrantMac(secret: Bytes, agentPub: Bytes, devicePub: Bytes): Promise<Bytes> {
-  return hmac(secret, framed(utf8(PROTO), utf8('preauth-grant'), agentPub, devicePub));
+export function preauthGrantMac(secret: Bytes, agentPub: Bytes, devicePub: Bytes, boxId: string): Promise<Bytes> {
+  return hmac(secret, framed(utf8(PROTO), utf8('preauth-grant'), agentPub, devicePub, boxBytes(boxId)));
 }
 
-export async function checkPreauthRequest(code: DeviceCode, devicePub: Bytes, label: string, mac: Bytes): Promise<boolean> {
+export async function checkPreauthRequest(code: DeviceCode, devicePub: Bytes, label: string, boxId: string, mac: Bytes): Promise<boolean> {
   if (devicePub.length !== 32 || mac.length !== 32) return false;
   if (!equalBytes(await fingerprint(devicePub), code.deviceFp)) return false;
-  return equalBytes(mac, await preauthMac(code.secret, devicePub, label));
+  return equalBytes(mac, await preauthMac(code.secret, devicePub, label, boxId));
 }
 
-export async function checkPreauthGrant(secret: Bytes, agentPub: Bytes, devicePub: Bytes, mac: Bytes): Promise<boolean> {
+export async function checkPreauthGrant(secret: Bytes, agentPub: Bytes, devicePub: Bytes, boxId: string, mac: Bytes): Promise<boolean> {
   if (agentPub.length !== 32 || mac.length !== 32) return false;
-  return equalBytes(mac, await preauthGrantMac(secret, agentPub, devicePub));
+  return equalBytes(mac, await preauthGrantMac(secret, agentPub, devicePub, boxId));
 }
