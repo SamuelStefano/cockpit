@@ -1,5 +1,7 @@
 import type { ClaudeLoginView } from '../../shared/protocol';
 import type { AgentsApi } from '../cockpit/useAgents';
+import type { ClaudeImportApi } from '../cockpit/useClaudeImport';
+import { ClaudeImportCard } from '../components/chat/ClaudeImportCard';
 import { Bit } from '../components/bit/Bit';
 import { Button } from '../components/primitives';
 import { useProviderOnboarding } from '../components/chat/useProviderOnboarding';
@@ -10,6 +12,7 @@ import { ProviderRow } from './onboarding/ProviderRow';
 
 interface OnboardingProps {
   agents: AgentsApi;
+  claudeImport?: ClaudeImportApi;
   claudeReady: boolean;
   login?: ClaudeLoginView;
   onStart?: () => void;
@@ -18,7 +21,7 @@ interface OnboardingProps {
   onDone: () => void;
 }
 
-export function Onboarding({ agents, claudeReady, login, onStart, onCode, onCancel, onDone }: OnboardingProps) {
+export function Onboarding({ agents, claudeImport, claudeReady, login, onStart, onCode, onCancel, onDone }: OnboardingProps) {
   const p = useProviderOnboarding(agents, claudeReady);
   const rows = buildOnboardingRows(p.cards, agents.items, p.loaded, claudeReady, login);
 
@@ -53,6 +56,9 @@ export function Onboarding({ agents, claudeReady, login, onStart, onCode, onCanc
             <ProviderRow key={row.id} row={row} action={agentAction(row)} detail={row.command ? <DeviceCode command={row.command} /> : undefined} />
           ))}
         </ul>
+        {claudeImport && <div className="w-full">
+          <ClaudeImportCard api={claudeImport} />
+        </div>}
         <div className="mt-7 flex flex-col items-center gap-2.5">
           <Button size="md" icon="chevronRight" iconRight className="h-10 px-5" onClick={onDone}>Começar a conversar</Button>
           <p className="text-center text-[12px] text-neutral-500">Sabrina vai usar o Deck também? Convide depois em Configurações › Pessoas.</p>
