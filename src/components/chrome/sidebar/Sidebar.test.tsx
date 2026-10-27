@@ -45,44 +45,32 @@ describe('Sidebar', () => {
     expect(screen.getByRole('complementary').className).toContain('w-14');
   });
 
-  it('navigates through primary rows and keeps the rest under "Mais"', () => {
+  it('shows the footer nav in the fixed order and navigates', () => {
     const p = setup({ role: 'root' });
-    expect(screen.queryByRole('button', { name: 'crons' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'chat' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'equipe' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'skills' }));
-    expect(p.nav).toHaveBeenCalledWith('/skills');
-    fireEvent.click(screen.getByRole('button', { name: 'Mais' }));
-    fireEvent.click(screen.getByRole('button', { name: 'pontos' }));
-    expect(p.nav).toHaveBeenCalledWith('/pontos');
-  });
-
-  it('gives a student no "Mais" group and no skills', () => {
-    setup({ role: 'student' });
+    const names = within(screen.getByRole('navigation', { name: 'Rotas' })).getAllByRole('button').map((b) => b.getAttribute('aria-label'));
+    expect(names).toEqual(['Equipe', 'Skills', 'Conexões', 'Configurações']);
     expect(screen.queryByRole('button', { name: 'Mais' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'skills' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Skills' }));
+    expect(p.nav).toHaveBeenCalledWith('/skills');
   });
 
-  it('hides root-only routes from an admin', () => {
-    setup({ role: 'admin' });
-    fireEvent.click(screen.getByRole('button', { name: 'Mais' }));
-    expect(screen.getByRole('button', { name: 'crons' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'pontos' })).toBeNull();
+  it('keeps a student on the Equipe entry only', () => {
+    setup({ role: 'student' });
+    expect(screen.getByRole('button', { name: 'Equipe' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Skills' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Configurações' })).toBeNull();
   });
 
-  it('opens "Mais" as a popover in rail mode', () => {
-    const p = setup();
+  it('keeps the footer entries as icons in the rail', () => {
+    setup();
     fireEvent.click(screen.getByRole('button', { name: 'Recolher barra lateral' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Mais' }));
-    const pop = screen.getByRole('dialog', { name: 'Mais rotas' });
-    fireEvent.click(within(pop).getByRole('button', { name: 'docs' }));
-    expect(p.nav).toHaveBeenCalledWith('/docs');
-    expect(screen.queryByRole('dialog', { name: 'Mais rotas' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Conexões' })).toBeTruthy();
+    expect(screen.queryByText('Conexões')).toBeNull();
   });
 
   it('marks the current route', () => {
     setup({ route: '/skills' });
-    expect(screen.getByRole('button', { name: 'skills' }).getAttribute('aria-current')).toBe('page');
+    expect(screen.getByRole('button', { name: 'Skills' }).getAttribute('aria-current')).toBe('page');
   });
 
   it('embeds the conversations list only while expanded', () => {

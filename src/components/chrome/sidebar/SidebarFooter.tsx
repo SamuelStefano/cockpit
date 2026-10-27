@@ -19,11 +19,13 @@ interface SidebarFooterProps {
   role: NavRole;
 }
 
+// The account line: avatar + name, and the plan ring at the far end. In the rail
+// the same two controls stack as icons.
 export function SidebarFooter({ expanded, usage, account, conn, role }: SidebarFooterProps) {
   return (
-    <div className={`flex shrink-0 items-center border-t border-neutral-800 p-2 ${expanded ? 'flex-row justify-between' : 'flex-col gap-1.5'}`}>
-      <div className={expanded ? 'pl-1' : ''}>
-        <ProfileMenu {...account} conn={conn} role={role} placement="up-start" />
+    <div className={`flex shrink-0 items-center px-2 pb-2 pt-1 ${expanded ? 'flex-row gap-1' : 'flex-col gap-1'}`}>
+      <div className={expanded ? 'min-w-0 flex-1' : ''}>
+        <ProfileMenu {...account} conn={conn} role={role} placement="up-start" variant={expanded ? 'row' : 'rail'} />
       </div>
       <UsageDock {...usage} />
     </div>

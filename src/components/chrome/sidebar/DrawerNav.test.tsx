@@ -10,7 +10,7 @@ describe('DrawerNav', () => {
     const nav = vi.fn();
     const onPalette = vi.fn();
     render(<DrawerNav route="/" nav={nav} role="admin" onPalette={onPalette} />);
-    fireEvent.click(screen.getByRole('button', { name: 'skills' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Skills' }));
     expect(nav).toHaveBeenCalledWith('/skills');
     fireEvent.click(screen.getByRole('button', { name: /^Comandos/ }));
     expect(onPalette).toHaveBeenCalledOnce();
@@ -19,11 +19,11 @@ describe('DrawerNav', () => {
   it('stacks agents, then conversations, then the routes', () => {
     render(
       <DrawerNav route="/" nav={vi.fn()} role="admin" onPalette={vi.fn()} sessions={<div>conversas</div>}
-        agents={{ views: [], activeId: null, onOpen: vi.fn(), onNew: vi.fn() }} />,
+        agents={{ views: [{ bot: { id: 'capo1', name: 'Capo', mascot: { shape: 'drop', color: '#fff' } }, key: 'capo1', preview: '', unread: false, state: 'idle' }] as never, activeId: null, onOpen: vi.fn(), onNew: vi.fn() }} />,
     );
-    const create = screen.getByRole('button', { name: 'Criar agente' });
+    const create = screen.getByRole('button', { name: 'Capo' });
     const list = screen.getByText('conversas');
-    const skills = screen.getByRole('button', { name: 'skills' });
+    const skills = screen.getByRole('button', { name: 'Skills' });
     expect(create.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(list.compareDocumentPosition(skills) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });

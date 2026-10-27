@@ -2,33 +2,25 @@ import type { IconName } from '../../primitives';
 import type { Route } from '../../../useRoute';
 import { navFor, type NavRole } from '../nav-routes';
 
-export const NAV_ICONS: Partial<Record<Route, IconName>> = {
-  '/': 'message',
-  '/equipe': 'users',
-  '/skills': 'sparkles',
-  '/contextos': 'layers',
-  '/pontos': 'star',
-  '/crons': 'clock',
-  '/uso': 'zap',
-  '/canvas': 'split',
-  '/graph': 'link',
-  '/painel': 'monitor',
-  '/docs': 'file',
-};
-
-// The conversations list is the chat and the agents section is the team, so
-// neither route gets a nav row of its own (both stay reachable by URL).
-const IN_SIDEBAR: Route[] = ['/', '/equipe'];
-const PRIMARY: Route[] = ['/skills'];
-
-// Same role gating as before: navFor decides what a role may see; the sidebar only
-// decides where each entry sits (always visible vs. under "Mais").
-export function splitNav(role: NavRole) {
-  const all = navFor(role).filter((n) => !IN_SIDEBAR.includes(n.to));
-  return {
-    primary: PRIMARY.flatMap((to) => all.filter((n) => n.to === to)),
-    more: all.filter((n) => !PRIMARY.includes(n.to)),
-  };
+export interface FooterNavItem {
+  id: 'equipe' | 'skills' | 'conexoes' | 'configuracoes';
+  label: string;
+  icon: IconName;
+  to: Route;
 }
 
-export const navTitle = (label: string) => label.charAt(0).toUpperCase() + label.slice(1);
+// Conexões and Configurações have no screen of their own yet (slices 13 and 15+):
+// until then they open the closest existing route, so the footer is already final.
+export const FOOTER_NAV: FooterNavItem[] = [
+  { id: 'equipe', label: 'Equipe', icon: 'users', to: '/equipe' },
+  { id: 'skills', label: 'Skills', icon: 'sparkles', to: '/skills' },
+  { id: 'conexoes', label: 'Conexões', icon: 'link', to: '/painel' },
+  { id: 'configuracoes', label: 'Configurações', icon: 'sliders', to: '/uso' },
+];
+
+// navFor still decides what a role may open; the footer only lays the allowed
+// entries out in the fixed order.
+export function footerNav(role: NavRole): FooterNavItem[] {
+  const allowed = navFor(role).map((n) => n.to);
+  return FOOTER_NAV.filter((i) => allowed.includes(i.to));
+}

@@ -18,20 +18,27 @@ function setup(views: BotView[], expanded = true, over = {}) {
 }
 
 describe('SidebarAgents', () => {
-  it('is a single "Criar agente" row with no agents', () => {
-    const p = setup([]);
-    expect(screen.queryByText('Agentes')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Criar agente' }));
-    expect(p.onNew).toHaveBeenCalledOnce();
+  it('renders nothing with no agents', () => {
+    const { container } = render(<SidebarAgents views={[]} activeId={null} onOpen={vi.fn()} onNew={vi.fn()} expanded />);
+    expect(container.textContent).toBe('');
   });
 
-  it('is one compact row with a single agent, still able to add another', () => {
-    const p = setup([view('capo1')]);
-    expect(screen.queryByText('Agentes')).toBeNull();
+  it('shows the section with a single agent, its star and its live phrase', () => {
+    const p = setup([view('capo1', { preview: 'Quer sua decisão', bot: { id: 'capo1', name: 'CAPO1', primary: true, mascot: { shape: 'drop', color: '#fff' } } as never })]);
+    expect(screen.getByRole('region', { name: 'Agentes' })).toBeTruthy();
+    expect(screen.getByText('Quer sua decisão')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'CAPO1' }));
     expect(p.onOpen).toHaveBeenCalledWith('capo1');
     fireEvent.click(screen.getByRole('button', { name: 'Novo bot' }));
     expect(p.onNew).toHaveBeenCalledOnce();
+  });
+
+  it('indents an agent by its depth in the hierarchy', () => {
+    const mk = (id: string, parentId?: string) => view(id, { bot: { id, name: id.toUpperCase(), parentId, mascot: { shape: 'drop', color: '#fff' } } as never });
+    setup([mk('capo1'), mk('lead2', 'capo1'), mk('ana33', 'lead2')]);
+    expect(screen.getByRole('button', { name: 'CAPO1' }).style.marginLeft).toBe('');
+    expect(screen.getByRole('button', { name: 'LEAD2' }).style.marginLeft).toBe('12px');
+    expect(screen.getByRole('button', { name: 'ANA33' }).style.marginLeft).toBe('24px');
   });
 
   it('lists several agents under a header, marking the open one and the dots', () => {
@@ -55,8 +62,5 @@ describe('SidebarAgents', () => {
   it('shows at most five mascots in the rail and nothing with no agents', () => {
     setup(['a', 'b', 'c', 'd', 'e', 'f'].map((c) => view(`${c}0001`)), false);
     expect(screen.getAllByRole('button')).toHaveLength(5);
-    cleanup();
-    const { container } = render(<SidebarAgents views={[]} activeId={null} onOpen={vi.fn()} onNew={vi.fn()} expanded={false} />);
-    expect(container.textContent).toBe('');
   });
 });
