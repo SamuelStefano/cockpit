@@ -7,6 +7,8 @@ import { InstallModePicker } from '../auth/InstallModePicker';
 import { PairCommand } from '../auth/PairCommand';
 import { SetupChecklistView } from '../health/SetupChecklistView';
 import { startSetupWatch, useSetupChecklist } from '../health/useSetupChecklist';
+import { SshInstallHint } from '../auth/SshInstallHint';
+import { sshOnboardingEnabled } from '../auth/ssh-install';
 
 // Same code + install command as the first-machine Dashboard, for one more box.
 export function BoxPairing({ userId }: { userId?: string }) {
@@ -22,6 +24,7 @@ export function BoxPairing({ userId }: { userId?: string }) {
       <InstallModePicker mode={p.mode} onChange={p.setMode} />
       <PairCommand code={p.code} cmd={p.cmd} busy={p.busy} expired={p.expired} countdown={p.countdown} mode={p.mode} onCopy={() => startSetupWatch(label)} />
       {setup.checklist && <SetupChecklistView c={setup.checklist} onSwitch={setup.switchTo} onDismiss={setup.dismiss} />}
+      {sshOnboardingEnabled() && !p.expired && <SshInstallHint code={p.code} />}
       {p.err && <p role="alert" className="text-[11.5px] text-red-300">{p.err}</p>}
       <div className="flex justify-end">
         <Button variant="ghost" size="sm" onClick={p.fetchCode} disabled={p.busy} loading={p.busy}>
