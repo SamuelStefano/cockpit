@@ -76,7 +76,7 @@ export function ChatInput(props: ChatInputProps) {
   // raiz e pintava POR CIMA dos popovers do composer (MCP/skills), cobrindo
   // itens da lista. O composer precisa de um contexto próprio acima dele.
   return (
-    <div className="relative z-20 shrink-0 border-t border-neutral-800 bg-neutral-900/60 px-3 py-3 backdrop-blur-sm">
+    <div className="relative z-20 shrink-0 px-3 py-3">
       <div className="mx-auto w-full max-w-[760px]">
       {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} onOpen={onOpenAttachment} />}
       {mic.error && <ComposerNotice icon="mic" onDismiss={mic.dismissError}>{mic.error}</ComposerNotice>}
