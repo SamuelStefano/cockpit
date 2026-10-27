@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import type { ClientMsg, ServerMsg } from '../../shared/protocol';
+import { useVersions, type VersionsApi } from './useVersions';
 import type { AgentCustomField, AgentPreset, AgentStatus, AgentView } from '../../shared/agents';
 
 export interface AgentTestResult {
@@ -42,6 +43,7 @@ export interface AgentsApi {
   customBusy: 'save' | 'probe' | null;
   customOutcome: CustomAgentOutcome | null;
   clearCustomOutcome: () => void;
+  versions: VersionsApi;
 }
 
 export function useAgents(send: (m: ClientMsg) => boolean) {
@@ -54,7 +56,11 @@ export function useAgents(send: (m: ClientMsg) => boolean) {
   const [customBusy, setCustomBusy] = useState<'save' | 'probe' | null>(null);
   const [customOutcome, setCustomOutcome] = useState<CustomAgentOutcome | null>(null);
 
+  const versions = useVersions(send, 'agent');
+  const onVersionsMsg = versions.onMsg;
+
   const onMsg = useCallback((msg: ServerMsg) => {
+    if (onVersionsMsg(msg)) return true;
     if (msg.t === 'agents') {
       setItems(msg.items);
       setPresets(msg.presets);
@@ -78,7 +84,7 @@ export function useAgents(send: (m: ClientMsg) => boolean) {
       return true;
     }
     return false;
-  }, []);
+  }, [onVersionsMsg]);
 
   const agents: AgentsApi = {
     items, presets, customAllowed, loaded, testing, lastTest, customBusy, customOutcome,
@@ -102,6 +108,7 @@ export function useAgents(send: (m: ClientMsg) => boolean) {
       return true;
     }, [send]),
     clearCustomOutcome: useCallback(() => setCustomOutcome(null), []),
+    versions: versions.api,
   };
   return { agents, onMsg };
 }

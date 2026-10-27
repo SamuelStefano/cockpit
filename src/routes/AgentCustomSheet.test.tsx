@@ -18,6 +18,7 @@ function makeAgents(over: Partial<AgentsApi> = {}): AgentsApi {
     items: [], presets: [], customAllowed: true, loaded: true, testing: new Set(), lastTest: null,
     refresh: vi.fn(), connect: vi.fn(), test: vi.fn(), remove: vi.fn(),
     addCustom: vi.fn(() => true), probeDraft: vi.fn(() => true), customBusy: null, customOutcome: null, clearCustomOutcome: vi.fn(),
+    versions: { id: null, items: [], loading: false, diff: null, restoring: false, open: vi.fn(), close: vi.fn(), showDiff: vi.fn(), restore: vi.fn() },
     ...over,
   };
 }

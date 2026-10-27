@@ -21,9 +21,10 @@ interface AgentPanelProps {
   onTest: (id: string) => void;
   onRemove: (id: string) => void;
   onOpenChat: (id: string) => void;
+  onVersions?: (id: string) => void;
 }
 
-export function AgentPanel({ card, term, testing, celebrating, phrase, message, onConnect, onTest, onRemove, onOpenChat }: AgentPanelProps) {
+export function AgentPanel({ card, term, testing, celebrating, phrase, message, onConnect, onTest, onRemove, onOpenChat, onVersions }: AgentPanelProps) {
   const { preset, item, status } = card;
   const p = useAgentPanel(card, { term, onConnect, onTest });
   return (
@@ -49,6 +50,7 @@ export function AgentPanel({ card, term, testing, celebrating, phrase, message, 
             <AgentActions
               card={card} testing={testing} phrase={phrase}
               onConnect={() => onConnect(preset.id)} onTest={p.test} onRemove={() => p.setConfirming(true)}
+              onVersions={item && onVersions ? () => onVersions(item.id) : undefined}
             />
           </div>
         </div>

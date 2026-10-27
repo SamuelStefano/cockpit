@@ -5,6 +5,8 @@ import type { RegistryCatalog, RegistryRef, SkillMeta, TeamBot } from '../../sha
 import type { SkillDoc } from '../useCockpit';
 import { botWithSkillToggled } from './skills/toggle-agent';
 import { SkillPage } from './skills/SkillPage';
+import { VersionsModal } from '../components/versions/VersionsModal';
+import type { VersionsApi } from '../cockpit/useVersions';
 import { SkillsOffline } from './skills/SkillsOffline';
 import { SkillsEmpty } from './skills/SkillsEmpty';
 import { SkillsSearch } from './skills/SkillsSearch';
@@ -34,6 +36,8 @@ interface Props {
   onSkillClose: () => void;
   onRegistryGet: (refresh?: boolean) => void;
   onRegistryInstall: (key: string, items: RegistryRef[]) => void;
+  versions: VersionsApi;
+  canRestoreVersions: boolean;
 }
 
 export function Skills(p: Props) {
@@ -61,10 +65,11 @@ export function Skills(p: Props) {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-neutral-950">
         <div className="scroll-thin flex-1 overflow-y-auto p-4 md:p-6">
           {!connected ? <SkillsOffline /> : (
-            <SkillPage skill={skills.find((s) => s.id === skillId)} doc={p.openSkill} skillId={skillId} bots={p.bots} loaded={loaded} onBack={() => p.onNavigate('')}
+            <SkillPage skill={skills.find((s) => s.id === skillId)} doc={p.openSkill} skillId={skillId} bots={p.bots} loaded={loaded} onBack={() => p.onNavigate('')} onVersions={() => p.versions.open(skillId)}
               onToggleAgent={p.onToggleAgent && ((sid, botId, on) => { const b = p.bots.find((x) => x.id === botId); if (b) p.onToggleAgent?.(botWithSkillToggled(b, skills, sid, on)); })} />
           )}
         </div>
+        <VersionsModal api={p.versions} title={skills.find((s) => s.id === skillId)?.name ?? skillId} canRestore={p.canRestoreVersions} />
       </div>
     );
   }

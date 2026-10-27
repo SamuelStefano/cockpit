@@ -81,7 +81,7 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
           skillId={skillRoute?.id ?? ''} onToggleAgent={isAdmin ? c.onTeamSave : undefined} onNavigate={(id) => skillRoute?.open(id)}
           registry={c.registry} registryLoading={c.registryLoading} registryError={c.registryError} installing={c.installing}
           onSkillList={c.onSkillList} onSkillOpen={c.onSkillOpen} onSkillClose={c.onSkillClose}
-          onRegistryGet={c.onRegistryGet} onRegistryInstall={c.onRegistryInstall} />
+          onRegistryGet={c.onRegistryGet} onRegistryInstall={c.onRegistryInstall} versions={c.versions} canRestoreVersions={isRoot} />
       );
     }
     if (route === '/pontos' && isRoot) {
