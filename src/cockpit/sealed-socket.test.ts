@@ -35,7 +35,7 @@ vi.mock('./preauth-store', () => ({
   dropPreauth: (s: Bytes) => { mem.preauth = mem.preauth.filter((x) => x !== s); },
 }));
 
-const { SealedSocket, enrollThisDevice, retrySeal, sealState, sendRelayFrame } = await import('./sealed-socket');
+const { SealedSocket, enrollThisDevice, retrySeal, sealState, sendRelayFrame, TOFU_UNTIL } = await import('./sealed-socket');
 const { boxStore } = await import('./boxes-store');
 const { SealedHub, agentKeysFrom, tofuWindow } = await import('../../server/e2e/hub');
 const { createEnrollCode, devicePin, listDevices, storePreauth } = await import('../../server/e2e/devices');
@@ -487,5 +487,25 @@ describe('SealedSocket with a passkey device key', () => {
     expect(sealState.get()).toBe('sealed');
     expect(mem.boxPins[BOX]).toEqual([keys.pub]);
     expect(devicePin(toB64(mem.passkey.pub))).toEqual(await boxPinKey(mem.passkey.pinRoot, BOX));
+  });
+
+  it('after the migration window the browser refuses a first-use answer', async () => {
+    const keys = (relay as unknown as { keys: { pub: Bytes; sign: CryptoKey } }).keys;
+    let hub: InstanceType<typeof SealedHub> | null = null;
+    hub = new SealedHub({
+      keys, link: relay.agentLink, onPeersChanged: () => {}, boxId: BOX, tofu: tofuWindow(TOFU_UNTIL),
+      intercept: deviceFrameHandler(keys.pub, () => hub, BOX), serve: () => {},
+    });
+    relay.hub = hub;
+    mem.passkey = await deriveFromPrf(PRF);
+    const now = vi.spyOn(Date, 'now').mockReturnValue(TOFU_UNTIL);
+    try {
+      dial();
+      await settle();
+    } finally {
+      now.mockRestore();
+    }
+    expect(sealState.get()).not.toBe('sealed');
+    expect(mem.boxPins[BOX] ?? []).toEqual([]);
   });
 });

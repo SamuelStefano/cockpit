@@ -22,6 +22,10 @@ import { boxStore } from './boxes-store';
 export type SealState = 'connecting' | 'enroll' | 'enroll-failed' | 'sealed' | 'unsupported' | 'rejected';
 
 let state: SealState = 'connecting';
+// The browser cannot tell a real first-use answer from one the relay forged, so it
+// only accepts one while boxes paired before passkeys migrate; new boxes pre-authorize.
+export const TOFU_UNTIL = Date.UTC(2026, 10, 10);
+
 const listeners = new Set<() => void>();
 let mainSocket: SealedSocket | null = null;
 
@@ -216,7 +220,7 @@ export class SealedSocket {
     }
     const keys = this.keys!;
     const check = this.passkey && bound ? pinChecker(this.passkey.pinRoot, this.box!, keys.pub) : null;
-    this.handshake = new DeviceHandshake(keys, pins, check, { tofu: bound && !pins.length, label: defaultDeviceLabel() });
+    this.handshake = new DeviceHandshake(keys, pins, check, { tofu: bound && !pins.length && Date.now() < TOFU_UNTIL, label: defaultDeviceLabel() });
     this.raw(JSON.stringify(await this.handshake.hello()));
     this.clearTimer();
     this.timer = setTimeout(() => { if (!this.channel) this.fail('handshake timeout', 'unsupported'); }, HANDSHAKE_MS);
