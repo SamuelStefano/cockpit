@@ -14,18 +14,12 @@ import type { TerminalsPanelProps } from '../components/Terminals';
 import type { Terminal } from '../data/types';
 import type { useCockpit } from '../useCockpit';
 import type { Route } from '../useRoute';
-import type { PanelSide } from './usePanelResize';
 
 // The DFL snapshot is root-only on the server: the Canvas of a plain admin skips it.
 const noop = () => {};
 
 interface LayoutState {
   rowRef: React.RefObject<HTMLDivElement | null>;
-  rightW: number;
-  rightCollapsed: boolean;
-  setRightCollapsed: (v: boolean) => void;
-  startDrag: (which: PanelSide) => (e: React.PointerEvent<HTMLDivElement>) => void;
-  nudge: (which: PanelSide, e: React.KeyboardEvent) => void;
 }
 
 interface MobileState {
@@ -151,9 +145,7 @@ export function RouteContent({ route, isMobile, isAdmin, isRoot, connected, cock
     return (
       <DesktopLayout
         chatProps={chatProps} termProps={termProps} center={center} hideTerminals={agent.profileOpen}
-        rowRef={layout.rowRef} rightW={layout.rightW}
-        rightCollapsed={layout.rightCollapsed} setRightCollapsed={layout.setRightCollapsed}
-        startDrag={layout.startDrag} nudge={layout.nudge}
+        rowRef={layout.rowRef}
       />
     );
   })();

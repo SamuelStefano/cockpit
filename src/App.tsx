@@ -88,7 +88,7 @@ function CockpitBody() {
   useProfileHydration(sbAuth.session?.user.id);
   useSessionPrefsHydration(sbAuth.session?.user.id);
 
-  const { rowRef, rightW, rightCollapsed, setRightCollapsed, startDrag, nudge } = usePanelResize();
+  const { rowRef } = usePanelResize();
   const { terminals, activeTermId, setActiveTermId, handleAddTerm, handleCloseTerm, attachable, attachExisting, runningTerm } = useTerminalTabs(term, discoveredTerms, listTerms);
 
   const [quotaClosed, setQuotaClosed] = useState(false);
@@ -245,7 +245,7 @@ function CockpitBody() {
             cockpit={cockpit} chatProps={chatProps} termProps={termProps}
             onOpenSession={selectSession} agent={agent}
             onOpenAgentChat={(m) => { handleNew(); setModel(m); nav('/'); }}
-            layout={{ rowRef, rightW, rightCollapsed, setRightCollapsed, startDrag, nudge }}
+            layout={{ rowRef }}
             mobile={{ drawer, setDrawer, termSheet, setTermSheet, runningTerm, drawerNav }}
           />
         </div>

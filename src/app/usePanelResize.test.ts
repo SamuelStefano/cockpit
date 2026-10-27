@@ -16,13 +16,6 @@ describe('usePanelResize keyboard', () => {
     act(() => { for (let i = 0; i < 10; i++) result.current.nudge('left', key('ArrowRight', true)); });
     expect(result.current.leftW).toBe(LEFT_RANGE[1]);
   });
-
-  it('grows the right panel when its divider moves left', () => {
-    const { result } = renderHook(() => usePanelResize());
-    const start = result.current.rightW;
-    act(() => result.current.nudge('right', key('ArrowLeft')));
-    expect(result.current.rightW).toBe(start + 1);
-  });
 });
 
 describe('left panel minimum width', () => {

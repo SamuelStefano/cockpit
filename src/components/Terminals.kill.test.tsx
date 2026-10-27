@@ -8,15 +8,15 @@ import { TerminalsPanel } from './Terminals';
 
 afterEach(cleanup);
 
-describe('TerminalsPanel "matar"', () => {
+describe('TerminalsPanel close on a single tab', () => {
   it('needs a second tap before killing the tmux session', () => {
     const onClose = vi.fn();
-    const { getByTitle } = render(
+    const { getByLabelText } = render(
       <TerminalsPanel terminals={[{ id: 't1', name: 'shell' } as never]} activeId="t1" onSelect={vi.fn()} onAdd={vi.fn()} onClose={onClose} term={{ exited: new Set<string>() } as never} />,
     );
-    fireEvent.click(getByTitle('Encerra a sessão tmux'));
+    fireEvent.click(getByLabelText('Fechar terminal'));
     expect(onClose).not.toHaveBeenCalled();
-    fireEvent.click(getByTitle('Encerra a sessão tmux'));
+    fireEvent.click(getByLabelText('Confirmar: fechar terminal'));
     expect(onClose).toHaveBeenCalledWith('t1');
   });
 });
