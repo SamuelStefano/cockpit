@@ -200,6 +200,14 @@ describe('Registry primary box and peeks', () => {
     expect(r.browserCount('A', 'b9')).toBe(0);
   });
 
+  it('tabs on offline or unknown boxes share one cap budget', () => {
+    const r = new Registry();
+    r.bindAgent('A', 'b1', fakeSock(), 1);
+    r.addBrowser('A', fakeSock(), 'x1'); r.addBrowser('A', fakeSock(), 'x2');
+    expect(r.browserCount('A', 'x3')).toBe(2);
+    expect(r.browserCount('A', 'b1')).toBe(0);
+  });
+
   it('peeks get the box frames but neither presence nor the tab cap', () => {
     const r = new Registry();
     const box = fakeSock(), peek = fakeSock();

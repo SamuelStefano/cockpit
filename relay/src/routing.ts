@@ -103,7 +103,7 @@ export class Registry {
   }
 
   // Tabs (or peeks) that would reach the same box as `box` (the per-box caps). '' and
-  // the primary's own id count together; an offline box counts by its key.
+  // the primary's own id count together; all tabs on offline boxes count together.
   browserCount(accountId: string, box = '', peek = false): number {
     const b = this.byAccount.get(accountId);
     if (!b) return 0;
@@ -111,7 +111,9 @@ export class Registry {
     let n = 0;
     for (const t of b.browsers.values()) {
       if (t.peek !== peek) continue;
-      if (target ? this.resolveIn(b, t.box) === target : t.box === box) n++;
+      // Tabs on offline/unknown boxes share one budget, so cycling box ids can't
+      // multiply the cap.
+      if (target ? this.resolveIn(b, t.box) === target : this.resolveIn(b, t.box) === null) n++;
     }
     return n;
   }

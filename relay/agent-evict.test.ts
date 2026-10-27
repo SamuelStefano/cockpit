@@ -207,9 +207,13 @@ describe('several boxes paired to one account', () => {
     const t0 = tab(url), t2 = tab(url, B2);
     expect((await t0.next((m) => m.t === 'agent-online')).box).toBe(B2);
     await t2.next((m) => m.t === 'agent-online');
+    const lateIn = inbox(late.ws);
+    t0.ws.send(JSON.stringify({ t: 'e2e', x: 1 }));
+    const sealed = await lateIn.next((m) => m.t === 'e2e');
     const early = agent(url, B1, A.priv); socks.push(early.ws);
     expect(await early.outcome).toBe('ready');
     expect(await t0.closed).toBe(4003);
+    expect((await lateIn.next((m) => m.t === 'e2e-gone')).c).toBe(sealed.c);
     await new Promise((r) => setTimeout(r, 100));
     expect(t2.ws.readyState).toBe(WebSocket.OPEN);
   });

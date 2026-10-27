@@ -467,8 +467,13 @@ export function createRelay(cfg: RelayConfig) {
           // An earlier-paired box coming back takes the primary over: tabs following
           // the primary were sealed with the other box and must redial.
           if (prevPrimary && prevPrimary !== st.agentId && registry.primary(st.accountId) === st.agentId) {
+            const oldPrimary = registry.agentSocket(st.accountId, prevPrimary);
             for (const [tab, box] of registry.tabsOf(st.accountId, st.agentId)) {
-              if (!box) { try { (tab as WebSocket).close(4003, 'primary box changed'); } catch { /* indo */ } }
+              if (box) continue;
+              // Its close handler will tell the NEW primary; the old one held the
+              // sealed channel and must drop it now.
+              for (const [c, conn] of conns) if (conn.ws === tab) { try { oldPrimary?.send(JSON.stringify({ t: 'e2e-gone', c })); } catch { /* indo */ } }
+              try { (tab as WebSocket).close(4003, 'primary box changed'); } catch { /* indo */ }
             }
           }
           // agent-ready BEFORE the DB write: the socket is already bound, so browser

@@ -32,12 +32,6 @@ describe('supabaseStore.agentById', () => {
     expect(await store.agentById('ghost')).toBeNull();
   });
 
-  it('returns null on a non-ok response (fail-closed)', async () => {
-    const { impl } = fakeFetch({ '/agent': { ok: false, body: [] } });
-    const store = supabaseStore({ ...CFG, fetchImpl: impl });
-    expect(await store.agentById('ag-1')).toBeNull();
-  });
-
   it('url-encodes the agent id', async () => {
     const { impl, calls } = fakeFetch({ '/agent': { body: [] } });
     const store = supabaseStore({ ...CFG, fetchImpl: impl });
@@ -110,6 +104,13 @@ describe('supabaseStore pairing', () => {
     expect(await store.createAgent('acc-1', 'PUBKEY', 'vps')).toBe('ag-new');
     const body = JSON.parse(String(calls[0].init?.body));
     expect(body).toMatchObject({ account_id: 'acc-1', public_key: 'PUBKEY', kind: 'vps' });
+  });
+});
+
+describe('supabaseStore.agentById on a failing database', () => {
+  it('throws instead of answering "unknown agent" (the agent would back off for minutes)', async () => {
+    const { impl } = fakeFetch({ '/agent': { ok: false } });
+    await expect(supabaseStore({ ...CFG, fetchImpl: impl }).agentById('ag-1')).rejects.toThrow();
   });
 });
 

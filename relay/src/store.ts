@@ -45,9 +45,13 @@ export function supabaseStore(cfg: StoreConfig): RelayStore {
   return {
     async agentById(agentId) {
       const enc = encodeURIComponent(agentId);
-      const row = await getOne<{ account_id: string; public_key: string; paired_at?: string }>(
-        `/agent?id=eq.${enc}&kind=eq.vps&revoked_at=is.null&select=account_id,public_key,paired_at`,
-      );
+      // A failed read must not look like "unknown agent": the agent backs off for
+      // minutes on that answer, so a PostgREST blip would park every box. Throwing
+      // closes 4500 and the agent retries on its normal backoff.
+      const res = await req(`/agent?id=eq.${enc}&kind=eq.vps&revoked_at=is.null&select=account_id,public_key,paired_at`);
+      if (!res.ok) throw new Error(`agentById failed: ${res.status}`);
+      const rows = (await res.json()) as { account_id: string; public_key: string; paired_at?: string }[];
+      const row = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
       return row ? { accountId: row.account_id, publicKey: row.public_key, pairedAt: row.paired_at } : null;
     },
 
