@@ -26,6 +26,9 @@ const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   // Read-only `claude mcp list`. Adding (dfl-mcps-add) writes the box's
   // ~/.claude.json, the same ground admin-* covers, so it stays admin-only.
   'dfl-mcps-get',
+  // Import copies into the caller's own HOME from a path the isolated process
+  // itself can read; OS permissions bound what it sees.
+  'claude-import-scan', 'claude-import-apply',
   // Read-only identity, not the admin-gated canvas-get graph build — needed
   // for the normal chat view's "this is the Orchestrator" banner.
   'orchestrator-get',
