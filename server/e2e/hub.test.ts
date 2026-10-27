@@ -1,11 +1,12 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { generateKeyPairSync } from 'node:crypto';
 import type { WebSocket } from 'ws';
 import { SealedHub, agentKeysFrom, MAX_CHANNEL_MS, TOFU_WINDOW_MS, tofuWindow, type SealedPeer, type TofuWindow } from './hub';
-import { createEnrollCode, devicePin, listDevices, revokeDevice, storePreauth } from './devices';
+import { createEnrollCode, devicePin, listDevices, revokeDevice, storePreauth, trustFirstDevice } from './devices';
+import { TOFU_UNTIL } from '../../shared/e2e/tofu';
 import { deviceFrameHandler } from './manage';
 import {
   AgentKeyError, DeviceHandshake, enrollRequest, enrollResult, preauthRequest, preauthResult, type DeviceKeys, type PinCheck,
@@ -535,6 +536,49 @@ describe('trust on first use for a box with no devices', () => {
     expect(last(again.sent).t).toBe('e2e-unknown-device');
   });
 
+  it('stays shut while a pre-authorization is pending', async () => {
+    const h = await passkeySetup(BOX, open30());
+    const pk = await passkeyDevice();
+    storePreauth((await newDeviceCode(pk.pub)).code);
+    const d = new DeviceHandshake(await deviceKeys(), [], null, { tofu: true });
+    h.hub.handle(toAgent(await d.hello())); await flush();
+    expect(last(h.sent).t).toBe('e2e-unknown-device');
+    expect(listDevices()).toHaveLength(0);
+  });
+
+  it('shuts at the migration cutoff even for an agent started just before it', async () => {
+    expect(tofuWindow(TOFU_UNTIL - 60_000).until).toBeLessThanOrEqual(TOFU_UNTIL);
+    const h = await passkeySetup(BOX, tofuWindow(TOFU_UNTIL - 60_000));
+    const d = new DeviceHandshake(await deviceKeys(), [], null, { tofu: true });
+    const hello = await d.hello();
+    const now = vi.spyOn(Date, 'now').mockReturnValue(TOFU_UNTIL + 1);
+    try {
+      h.hub.handle(toAgent(hello)); await flush();
+    } finally { now.mockRestore(); }
+    expect(last(h.sent).t).toBe('e2e-unknown-device');
+  });
+
+  it('an unreadable device list counts as devices and is never overwritten by first use', async () => {
+    const { writeFileSync, readFileSync } = await import('node:fs');
+    const file = join(process.env.DECK_AGENT_DIR!, 'devices.json');
+    writeFileSync(file, '[{"pub":"half-writ');
+    const h = await passkeySetup(BOX, open30());
+    const d = new DeviceHandshake(await deviceKeys(), [], null, { tofu: true });
+    h.hub.handle(toAgent(await d.hello())); await flush();
+    expect(last(h.sent).t).toBe('e2e-unknown-device');
+    expect(trustFirstDevice((await deviceKeys()).pub, 'x')).toBe(false);
+    expect(readFileSync(file, 'utf8')).toBe('[{"pub":"half-writ');
+    writeFileSync(file, '{"not":"a list"}');
+    expect(trustFirstDevice((await deviceKeys()).pub, 'x')).toBe(false);
+    expect(readFileSync(file, 'utf8')).toBe('{"not":"a list"}');
+  });
+
+  it('a missing device list is empty and opens first use', async () => {
+    const h = await passkeySetup(BOX, open30());
+    await sealedTofu(h, await deviceKeys());
+    expect(listDevices()).toHaveLength(1);
+  });
+
   it('is off with DECK_E2E_TOFU=off', () => {
     expect(tofuWindow(Date.now(), { DECK_E2E_TOFU: 'off' }).until).toBe(0);
     expect(tofuWindow(1000, {}).until).toBe(1000 + TOFU_WINDOW_MS);
@@ -596,6 +640,36 @@ describe('device management frames', () => {
     const accepted = await sealWithPin(h, synced.keys, [], checker(synced.pinRoot, BOX, synced.pub));
     expect(accepted.hasPin).toBe(true);
     expect(accepted.agentPub).toEqual(h.keys.pub);
+  });
+
+  it('a revoked passkey key is not re-added by another enrolled device until an enroll code clears it', async () => {
+    const h = await passkeySetup();
+    const random = await deviceKeys();
+    const agentPub = await enroll(h as unknown as Awaited<ReturnType<typeof setup>>, random);
+    const s = await sealed(h, random, [agentPub]);
+    const pk = await passkeyDevice();
+    const add = async () => sendSealed(h, s.channel, { t: 'device-add-passkey', pub: toB64(pk.pub), label: 'Mac', box: BOX, key: toB64(await boxPinKey(pk.pinRoot, BOX)) });
+    await add();
+    expect(await lastSealed(h, s.channel)).toMatchObject({ t: 'device-passkey-added', ok: true });
+    revokeDevice(toB64(pk.pub));
+    await add();
+    expect(await lastSealed(h, s.channel)).toMatchObject({ t: 'device-passkey-added', ok: false });
+    expect(listDevices().map((d) => d.pub)).not.toContain(toB64(pk.pub));
+    expect(devicePin(toB64(pk.pub))).toBeNull();
+    const { code } = await createEnrollCode(h.keys.pub);
+    h.hub.handle(toAgent((await enrollRequest(code, pk.pub, 'Mac')).frame, 'EEEEEEEEEEEEEEEEEEEEEE')); await flush();
+    await add();
+    expect(await lastSealed(h, s.channel)).toMatchObject({ t: 'device-passkey-added', ok: true });
+  });
+
+  it('a revoked device never gets back in on first use', async () => {
+    const h = await passkeySetup(BOX, tofuWindow(Date.now()));
+    const dev = await deviceKeys();
+    const { code } = await createEnrollCode(h.keys.pub);
+    h.hub.handle(toAgent((await enrollRequest(code, dev.pub, 'a')).frame)); await flush();
+    revokeDevice(toB64(dev.pub));
+    expect(trustFirstDevice(dev.pub, 'a')).toBe(false);
+    expect(listDevices()).toHaveLength(0);
   });
 
   it('refuses a passkey key named for another box', async () => {

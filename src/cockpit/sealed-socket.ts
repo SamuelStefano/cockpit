@@ -5,6 +5,7 @@ import type { SealedChannel } from '../../shared/e2e/channel';
 import type { EnrollCode } from '../../shared/e2e/enroll';
 import { boxPinKey, checkPinProof } from '../../shared/e2e/passkey';
 import { equalBytes, toB64, type Bytes } from '../../shared/e2e/bytes';
+import { TOFU_UNTIL } from '../../shared/e2e/tofu';
 import {
   deviceKeysFor, markPasskeyBox, pinAgent, pinAgentIfEmpty, pinnedAgents, type PasskeyRef,
 } from './device-store';
@@ -22,9 +23,7 @@ import { boxStore } from './boxes-store';
 export type SealState = 'connecting' | 'enroll' | 'enroll-failed' | 'sealed' | 'unsupported' | 'rejected';
 
 let state: SealState = 'connecting';
-// The browser cannot tell a real first-use answer from one the relay forged, so it
-// only accepts one while boxes paired before passkeys migrate; new boxes pre-authorize.
-export const TOFU_UNTIL = Date.UTC(2026, 10, 10);
+export { TOFU_UNTIL };
 
 const listeners = new Set<() => void>();
 let mainSocket: SealedSocket | null = null;

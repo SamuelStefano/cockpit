@@ -41,9 +41,47 @@ function writeJson(path: string, value: unknown): void {
 // path: a lost update here could bring back a revoked device.
 const mustLock = (lockPath: string): never => { throw new Error(`device list busy (${lockPath}); try again`); };
 
+// A revoked key stays named in the trust file (`{ revoked }`, no `pub`, so an
+// older agent just drops it): another synced browser re-offering it, or first
+// use, cannot bring it back. Only an enroll code or a pairing preauth clears it.
+interface Tombstone { revoked: string; at: string }
+const MAX_TOMBSTONES = 200;
+
+interface TrustFile { devices: Device[]; revoked: Tombstone[]; ok: boolean }
+
+// Missing = empty. Present but unreadable = not empty: an empty answer would open
+// first use and let it overwrite the list.
+function readTrust(): TrustFile {
+  let raw: string;
+  try { raw = readFileSync(DEVICES(), 'utf8'); } catch (e) {
+    return { devices: [], revoked: [], ok: (e as NodeJS.ErrnoException).code === 'ENOENT' };
+  }
+  let d: unknown;
+  try { d = JSON.parse(raw); } catch { return { devices: [], revoked: [], ok: false }; }
+  if (!Array.isArray(d)) return { devices: [], revoked: [], ok: false };
+  return {
+    devices: d.filter((x): x is Device => typeof x?.pub === 'string'),
+    revoked: d.filter((x): x is Tombstone => typeof x?.revoked === 'string' && typeof x?.pub !== 'string'),
+    ok: true,
+  };
+}
+
+function writableTrust(): TrustFile {
+  const t = readTrust();
+  if (!t.ok) throw new Error(`${DEVICES()} is unreadable; fix or move it away`);
+  return t;
+}
+
+function writeTrust(devices: Device[], revoked: Tombstone[]): void {
+  writeJson(DEVICES(), [...devices, ...revoked.slice(-MAX_TOMBSTONES)]);
+}
+
 function trusted(): Device[] {
-  const d = readJson<Device[]>(DEVICES(), []);
-  return Array.isArray(d) ? d.filter((x) => typeof x?.pub === 'string') : [];
+  return readTrust().devices;
+}
+
+function isRevoked(t: TrustFile, pub: string): boolean {
+  return t.revoked.some((r) => r.revoked === pub);
 }
 
 // Never carries the pin key: this list goes to devices over their channels.
@@ -57,7 +95,12 @@ export function isEnrolled(pub: string): boolean {
 }
 
 export function hasDevices(): boolean {
-  return trusted().length > 0;
+  const t = readTrust();
+  return !t.ok || t.devices.length > 0;
+}
+
+export function isRevokedDevice(pub: string): boolean {
+  return isRevoked(readTrust(), pub);
 }
 
 export function devicePin(pub: string): Bytes | null {
@@ -71,22 +114,23 @@ export function devicePin(pub: string): Bytes | null {
 export function setDevicePin(pub: string, pin: Bytes): boolean {
   if (pin.length !== 32) return false;
   return withFileLockSync(DEVICES(), () => {
-    const all = trusted();
-    const i = all.findIndex((d) => d.pub === pub);
+    const t = writableTrust();
+    const i = t.devices.findIndex((d) => d.pub === pub);
     if (i < 0) return false;
-    all[i] = { ...all[i], pin: toB64(pin) };
-    writeJson(DEVICES(), all);
+    t.devices[i] = { ...t.devices[i], pin: toB64(pin) };
+    writeTrust(t.devices, t.revoked);
     return true;
   }, mustLock);
 }
 
-// The CLI and the running agent are two processes writing the same file.
-export function revokeDevice(pub: string): boolean {
+// The CLI and the running agent are two processes writing the same file. The
+// tombstone goes in the same write as the removal.
+export function revokeDevice(pub: string, now = Date.now()): boolean {
   return withFileLockSync(DEVICES(), () => {
-    const all = trusted();
-    const left = all.filter((d) => d.pub !== pub);
-    if (left.length === all.length) return false;
-    writeJson(DEVICES(), left);
+    const t = writableTrust();
+    const left = t.devices.filter((d) => d.pub !== pub);
+    if (left.length === t.devices.length) return false;
+    writeTrust(left, [...t.revoked.filter((r) => r.revoked !== pub), { revoked: pub, at: new Date(now).toISOString() }]);
     return true;
   }, mustLock);
 }
@@ -97,6 +141,10 @@ export function touchDevice(pub: string, now = new Date()): void {
 
 function livePending(now: number): PendingCode[] {
   return readJson<PendingCode[]>(CODES(), []).filter((c) => typeof c?.secret === 'string' && c.expiresAt > now);
+}
+
+export function hasLivePreauth(now = Date.now()): boolean {
+  return livePreauth(now).length > 0;
 }
 
 function livePreauth(now: number): PendingPreauth[] {
@@ -189,9 +237,11 @@ async function redeemPreauthNow(devicePub: Bytes, label: string, boxId: string, 
 // Trust on first use: writes the device only while the list is empty, under the
 // same lock as every other write, so of two racing devices only one gets in.
 export function trustFirstDevice(devicePub: Bytes, label: string, now = Date.now()): boolean {
+  const pub = toB64(devicePub);
   return withFileLockSync(DEVICES(), () => {
-    if (trusted().length > 0) return false;
-    writeJson(DEVICES(), [{ pub: toB64(devicePub), label: cleanLabel(label), addedAt: new Date(now).toISOString() } satisfies Device]);
+    const t = readTrust();
+    if (!t.ok || t.devices.length > 0 || isRevoked(t, pub)) return false;
+    writeTrust([{ pub, label: cleanLabel(label), addedAt: new Date(now).toISOString() }], t.revoked);
     return true;
   }, mustLock);
 }
@@ -202,22 +252,24 @@ export function addPasskeyDevice(devicePub: Bytes, label: string, pin: Bytes, no
   if (devicePub.length !== 32 || pin.length !== 32) return false;
   const pub = toB64(devicePub);
   return withFileLockSync(DEVICES(), () => {
-    const all = trusted();
-    const prev = all.find((d) => d.pub === pub);
+    const t = writableTrust();
+    if (isRevoked(t, pub)) return false;
+    const prev = t.devices.find((d) => d.pub === pub);
     const entry: Device = { pub, label: cleanLabel(label), addedAt: prev?.addedAt ?? new Date(now).toISOString(), pin: toB64(pin) };
-    writeJson(DEVICES(), [...all.filter((d) => d.pub !== pub), entry]);
+    writeTrust([...t.devices.filter((d) => d.pub !== pub), entry], t.revoked);
     return true;
   }, mustLock);
 }
 
 // Re-enrolling the same key keeps its pin key: the device holds the same one.
+// An explicit code or preauth is the one path that clears a revoked key's tombstone.
 function trust(devicePub: Bytes, label: string, now: number): void {
   const pub = toB64(devicePub);
   withFileLockSync(DEVICES(), () => {
-    const all = trusted();
-    const pin = all.find((d) => d.pub === pub)?.pin;
+    const t = writableTrust();
+    const pin = t.devices.find((d) => d.pub === pub)?.pin;
     const entry: Device = { pub, label: cleanLabel(label), addedAt: new Date(now).toISOString(), ...(pin ? { pin } : {}) };
-    writeJson(DEVICES(), [...all.filter((d) => d.pub !== pub), entry]);
+    writeTrust([...t.devices.filter((d) => d.pub !== pub), entry], t.revoked.filter((r) => r.revoked !== pub));
   }, mustLock);
 }
 

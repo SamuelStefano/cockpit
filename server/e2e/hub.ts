@@ -10,7 +10,10 @@ import {
 import { grantMac, preauthGrantMac } from '../../shared/e2e/enroll';
 import { pinProof } from '../../shared/e2e/passkey';
 import { fromB64, toB64, type Bytes } from '../../shared/e2e/bytes';
-import { cleanLabel, devicePin, hasDevices, isEnrolled, redeemEnrollCode, redeemPreauth, touchDevice, trustFirstDevice } from './devices';
+import {
+  cleanLabel, devicePin, hasDevices, hasLivePreauth, isEnrolled, isRevokedDevice, redeemEnrollCode, redeemPreauth, touchDevice, trustFirstDevice,
+} from './devices';
+import { TOFU_UNTIL } from '../../shared/e2e/tofu';
 
 // One SealedPeer per browser channel. It looks like a WebSocket to
 // serveConnection/broadcast, so the agent serves each sealed browser exactly as
@@ -29,7 +32,8 @@ const DROPPABLE = /^\{"t":"(delta|thinking|stats|bgAgents)"/;
 export interface AgentKeys { pub: Bytes; sign: CryptoKey }
 
 // A box with no enrolled device trusts the first one that dials it, but only
-// this long after the agent starts and never with DECK_E2E_TOFU=off.
+// this long after the agent starts, never past the migration cutoff the browser
+// also enforces, and never with DECK_E2E_TOFU=off.
 export const TOFU_WINDOW_MS = 30 * 60_000;
 
 // One per agent process, shared by the hubs of every relay reconnect: once a
@@ -37,7 +41,7 @@ export const TOFU_WINDOW_MS = 30 * 60_000;
 export interface TofuWindow { until: number; spent: boolean }
 
 export function tofuWindow(startedAt: number, env: NodeJS.ProcessEnv = process.env): TofuWindow {
-  return { until: env.DECK_E2E_TOFU === 'off' ? 0 : startedAt + TOFU_WINDOW_MS, spent: false };
+  return { until: env.DECK_E2E_TOFU === 'off' ? 0 : Math.min(startedAt + TOFU_WINDOW_MS, TOFU_UNTIL), spent: false };
 }
 
 // The sealed channel has its OWN key, never the one that answers the relay's
@@ -196,7 +200,7 @@ export class SealedHub {
     if (!dev || !eB || !nB) return;
     const devicePub = toB64(dev);
     const label = typeof m.label === 'string' ? m.label.slice(0, 200) : '';
-    const tofu = !isEnrolled(devicePub) && this.tofuOpen() && !hasDevices();
+    const tofu = !isEnrolled(devicePub) && this.tofuOpen() && !hasDevices() && !isRevokedDevice(devicePub);
     if (!tofu && !isEnrolled(devicePub)) { this.reply(c, { t: 'e2e-unknown-device' }); return; }
     const eph = await newEphemeral();
     const t: Transcript = { devicePub: dev, agentPub: this.o.keys.pub, eB, nB, eA: eph.pub, nA: newNonce() };
@@ -235,9 +239,11 @@ export class SealedHub {
     this.o.serve(peer);
   }
 
+  // A pending pre-authorization means the owner's browser is about to enroll
+  // itself: first use would only let the relay get in ahead of it.
   private tofuOpen(): boolean {
-    const w = this.o.tofu;
-    return !!w && !w.spent && Date.now() < w.until;
+    const w = this.o.tofu, now = Date.now();
+    return !!w && !w.spent && now < w.until && now < TOFU_UNTIL && !hasLivePreauth(now);
   }
 
   private async trustOnFirstUse(p: Pending): Promise<boolean> {
