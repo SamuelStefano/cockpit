@@ -29,7 +29,7 @@ export function Drawer({ open, onClose, title, children, side = 'left', width = 
     <div className="fixed inset-0 z-60 flex bg-black/60 backdrop-blur-xs" onClick={onClose}>
       <div
         ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}
-        className={`flex h-full ${width} flex-col border-neutral-800 bg-neutral-950 shadow-2xl shadow-black/60 ${side === 'left' ? 'border-r' : 'ml-auto border-l'}`}
+        className={`flex h-full ${width} flex-col border-neutral-800 bg-neutral-950 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] shadow-2xl shadow-black/60 ${side === 'left' ? 'border-r pl-[env(safe-area-inset-left)]' : 'ml-auto border-l pr-[env(safe-area-inset-right)]'}`}
       >
         <div className="flex h-11 shrink-0 items-center gap-2 border-b border-neutral-800 px-3">
           <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-neutral-200">{title}</span>

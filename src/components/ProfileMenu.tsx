@@ -36,7 +36,7 @@ export function ProfileMenu({ userId, onSignOut, onChangePassword, drops }: Prof
         // announced as a dialog, not as a menu with no menu items.
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900 text-neutral-300 transition hover:border-orange-500/60"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900 text-neutral-300 transition hover:border-orange-500/60 pointer-coarse:h-11 pointer-coarse:w-11"
       >
         <AvatarFace avatar={avatar} name={name} size={32} />
       </button>

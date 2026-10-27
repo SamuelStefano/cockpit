@@ -31,6 +31,7 @@ export default defineConfig({
         skipWaiting: true,
       },
       manifest: {
+        id: '/',
         name: 'Deck',
         short_name: 'deck',
         description: 'Cockpit pessoal de agentes',
@@ -38,6 +39,7 @@ export default defineConfig({
         display: 'standalone',
         start_url: '/',
         scope: '/',
+        orientation: 'any',
         background_color: BG,
         theme_color: BG,
         icons: [

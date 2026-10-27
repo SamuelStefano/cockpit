@@ -62,7 +62,7 @@ export function UsageBar({ usage, compact, warn = false, paused = false, quotaRe
         // Compact (mobile) shows only "45%"; say what the number is.
         aria-label={`${what}: ${pct === null ? 'lendo' : `${pct}%`}${paused ? ' — cota esgotada' : warn ? ' — perto do limite' : ''}${gateReset ? `, reseta ${gateReset}` : ''}`}
         title={paused ? `Cota esgotada${gateReset ? ` — reseta ${gateReset}` : ''}` : warn ? `Uso próximo do limite${gateReset ? ` — reseta ${gateReset}` : ''}` : stale ? `${what}: a janela virou e o número novo ainda não chegou da conta` : old ? `${what}: número lido há ${age} — a leitura nova não chegou` : usage ? `Ver detalhe do ${agent === 'grok' ? 'uso do Grok' : 'uso do plano'}` : `${what}: lendo da conta…`}
-        className={`flex items-center border bg-neutral-900/60 py-1.5 transition-colors hover:bg-neutral-900 ${quotaBorder(warn, paused)} ${tokens.radius.md} ${tokens.focusRing} ${compact ? 'gap-1.5 px-2' : 'gap-2 px-2.5'}`}
+        className={`flex items-center border bg-neutral-900/60 py-1.5 pointer-coarse:min-h-11 transition-colors hover:bg-neutral-900 ${quotaBorder(warn, paused)} ${tokens.radius.md} ${tokens.focusRing} ${compact ? 'gap-1.5 px-2' : 'gap-2 px-2.5'}`}
       >
         {paused && <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-red-400" />}
         {!compact && <span className="text-[12px] font-semibold uppercase tracking-wide text-neutral-500">{agent === 'grok' ? 'Grok' : 'Uso'}</span>}

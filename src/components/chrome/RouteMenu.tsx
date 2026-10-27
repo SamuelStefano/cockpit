@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Icon, tokens } from '../primitives';
+import { Icon } from '../primitives';
 import { useMenuKeys } from '../primitives/useMenuKeys';
 import { navBreakpoint, navFor, type NavRole } from './nav-routes';
 import type { Route } from '../../useRoute';
@@ -34,7 +34,7 @@ export function RouteMenu({ route, nav, role, open, setOpen, counts }: { route: 
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Rota atual: ${current.label}. Trocar de rota`}
-        className={`flex items-center gap-1 rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1 font-mono text-[12px] lowercase tracking-tight text-orange-300 ${tokens.touchTarget}`}
+        className={`flex items-center gap-1 rounded-lg border border-neutral-800 bg-neutral-900/60 px-2.5 py-1 pointer-coarse:min-h-11 font-mono text-[12px] lowercase tracking-tight text-orange-300`}
       >
         {current.label}
         <NavCount count={Object.values(counts ?? {}).reduce((a, b) => a + (b ?? 0), 0)} />
@@ -50,7 +50,7 @@ export function RouteMenu({ route, nav, role, open, setOpen, counts }: { route: 
               tabIndex={-1}
               aria-current={route === n.to ? 'page' : undefined}
               onClick={() => { nav(n.to); setOpen(false); }}
-              className={`flex w-full items-center rounded-md px-2.5 py-1.5 text-left font-mono text-[13px] lowercase tracking-tight transition
+              className={`flex w-full items-center rounded-md px-2.5 py-1.5 pointer-coarse:min-h-11 text-left font-mono text-[13px] lowercase tracking-tight transition
                 ${route === n.to ? 'bg-orange-500/15 text-orange-300' : 'text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200'}`}
             >
               {n.label}
