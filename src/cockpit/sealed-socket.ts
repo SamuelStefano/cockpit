@@ -89,6 +89,7 @@ const HANDSHAKE_MS = 10_000;
 // tried again: a relay that drops or forges one answer only delays it.
 const PREAUTH_RETRY_MS = 2_000;
 const PIN_RETRY_MS = 1_000;
+const ENROLL_POLL_MS = 15_000;
 // Mirrors the agent's cap: neither end keeps a channel's keys longer than this.
 const MAX_CHANNEL_MS = 12 * 3600_000;
 export const SEAL_LOST = 4002;
@@ -245,11 +246,13 @@ export class SealedSocket {
     this.chain = this.chain.then(fn).catch(() => this.fail('sealed frame rejected'));
   }
 
+  // A passkey browser keeps knocking: a pending secret may still redeem, and an
+  // enrolled device may hand this box the passkey key at any moment.
   private toEnroll(): void {
     this.setSeal('enroll');
-    if (this.box === undefined || !this.passkey || !pendingPreauths().length) return;
+    if (this.box === undefined || !this.passkey) return;
     this.clearTimer();
-    this.timer = setTimeout(() => this.retry(), PREAUTH_RETRY_MS);
+    this.timer = setTimeout(() => this.retry(), pendingPreauths().length ? PREAUTH_RETRY_MS : ENROLL_POLL_MS);
   }
 
   // Sealed, so the relay never sees the key. Sent only for the box this socket

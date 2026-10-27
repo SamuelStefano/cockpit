@@ -1,11 +1,13 @@
-import { BrandMark, Button, CodeBlock, Input } from '../primitives';
+import { BrandMark, Button } from '../primitives';
 import { useEnrollDevice } from './useEnrollDevice';
 import { usePasskeySetup } from './usePasskeySetup';
 import { PasskeyUnlock } from './PasskeyUnlock';
+import { EnrollCodeForm } from './EnrollCodeForm';
 
 // Shown when the agent does not know this device yet (or refused its key). The
-// code comes from the box itself, never through the relay: that is what lets
-// the browser and the agent trust each other's keys without trusting the relay.
+// normal way in is the passkey: a box already trusting it lets this browser in,
+// and an enrolled device can vouch for it from inside the Deck. The code from
+// the box's terminal stays as a fallback behind "outro método".
 export function EnrollDevice({ onSignOut }: { onSignOut: () => void }) {
   const e = useEnrollDevice();
   const pk = usePasskeySetup();
@@ -27,16 +29,17 @@ export function EnrollDevice({ onSignOut }: { onSignOut: () => void }) {
           </p>
         )}
         <PasskeyUnlock pk={pk} />
-        <p className="mb-5 mt-4 text-[13px] leading-relaxed text-neutral-400">
-          O relay só repassa bytes cifrados. Rode na VPS o comando abaixo e digite aqui o código que ele mostrar (vale uma vez, por 10 minutos). Com passkey, isso é preciso só uma vez por VPS; sem passkey, uma vez por navegador.
-        </p>
-        <CodeBlock code={e.cli} lang="bash" />
-        <div className="mt-5 space-y-3">
-          <Input mono value={e.code} onChange={(ev) => e.setCode(ev.target.value)} placeholder="XXXX-XXXX-…" autoComplete="off" spellCheck={false} aria-label="Código de cadastro" error={!!e.err} />
-          <Input value={e.label} onChange={(ev) => e.setLabel(ev.target.value)} placeholder="Nome deste aparelho" aria-label="Nome deste aparelho" />
-          {e.err && <p className="text-[11.5px] text-red-300">{e.err}</p>}
-          <Button variant="primary" loading={e.busy} disabled={!e.ready} onClick={() => void e.submit()}>{e.boxName ? `Cadastrar este aparelho em ${e.boxName}` : 'Cadastrar aparelho'}</Button>
-        </div>
+        {!e.showCode && (
+          <>
+            <p className="mt-4 text-[13px] leading-relaxed text-neutral-400">
+              Se esta VPS ainda não conhece a sua passkey, abra o Deck num aparelho já cadastrado e ative a passkey lá: este navegador entra sozinho em seguida.
+            </p>
+            <div className="mt-3">
+              <Button variant="ghost" size="sm" onClick={e.showOther}>Outro método</Button>
+            </div>
+          </>
+        )}
+        {e.showCode && <EnrollCodeForm e={e} />}
         <div className="mt-6 flex justify-end border-t border-neutral-800 pt-4">
           <Button variant="ghost" size="sm" onClick={onSignOut}>Sair</Button>
         </div>

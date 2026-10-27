@@ -127,7 +127,7 @@ beforeEach(async () => {
   });
   (relay as unknown as { keys: typeof keys }).keys = keys;
 });
-afterEach(() => { vi.unstubAllGlobals(); });
+afterEach(() => { for (const t of [...relay.tabs.values()]) t.close(); vi.unstubAllGlobals(); });
 
 async function enrolledSocket() {
   const s = new SealedSocket('wss://relay/ws', 'jwt', { main: true });

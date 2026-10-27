@@ -19,6 +19,7 @@ export function useEnrollDevice() {
   const [label, setLabel] = useState(() => defaultLabel());
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [other, setOther] = useState(false);
 
   const submit = async () => {
     setBusy(true);
@@ -34,5 +35,11 @@ export function useEnrollDevice() {
   };
 
   const ready = code.replace(/[\s-]/g, '').length >= 52;
-  return { state, boxName, code, setCode, label, setLabel, busy, err, submit, ready, cli: enrollCommand(relayAgentUrl()) };
+  // The code typed from the box's terminal is a fallback (no PRF), behind "outro
+  // método"; a refused agent key can only be fixed with it, so it opens there.
+  const showCode = other || state === 'rejected' || state === 'enroll-failed';
+  return {
+    state, boxName, code, setCode, label, setLabel, busy, err, submit, ready, cli: enrollCommand(relayAgentUrl()),
+    showCode, showOther: () => setOther(true),
+  };
 }
