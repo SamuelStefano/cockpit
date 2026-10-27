@@ -3,6 +3,7 @@ import { agentModelId } from '../../shared/agents';
 import { buildCards, customCards, customSaveGate, defaultSelection, sortCards } from '../cockpit/agents-view';
 import type { AgentsApi } from '../cockpit/useAgents';
 import type { BitState } from '../components/bit/bit-state';
+import { takeAgentFocus } from '../cockpit/provider-onboarding';
 import { useAgentCelebration } from './useAgentCelebration';
 import { useTestPhrase } from './useTestPhrase';
 
@@ -11,7 +12,7 @@ export function useAgentsPage(agents: AgentsApi, isRoot: boolean, onOpenChat: (m
   useEffect(() => { refresh(); }, [refresh]);
 
   const cards = useMemo(() => sortCards([...buildCards(presets, items), ...customCards(presets, items)]), [presets, items]);
-  const [picked, setPicked] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string | null>(() => takeAgentFocus());
   useEffect(() => {
     if (picked === null && loaded && cards.length) setPicked(defaultSelection(cards));
   }, [picked, loaded, cards]);

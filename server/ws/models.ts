@@ -5,6 +5,7 @@ import { CONFIG } from '../config';
 import { isLongContextModel } from '../../shared/long-context';
 import { agentModelId } from '../../shared/agents';
 import { listAgentsSync } from '../agents/store';
+import { isAgentUnavailable } from '../agents/status';
 
 // Modelos concretos disponíveis na conta (claude-opus-4-8, etc). Lê o token OAuth
 // do CLI e consulta /v1/models. SEGURANÇA: o token NUNCA sai do servidor — só a
@@ -27,7 +28,7 @@ export function getLastModels() { return withAgents(last); }
 // (no OAuth on this box): an agent-only account must still see its agents, and
 // the picker completes the Claude side with the fallback aliases.
 export function withAgents(list: ModelInfo[]): ModelInfo[] {
-  return [...list, ...listAgentsSync().map((a) => ({ id: agentModelId(a.id), displayName: `${a.name} · agente` }))];
+  return [...list, ...listAgentsSync().filter((a) => !isAgentUnavailable(a.id)).map((a) => ({ id: agentModelId(a.id), displayName: `${a.name} · agente` }))];
 }
 
 // Busca e memoiza a lista (sem broadcast). Usado pelo agente T3 (dial), que não tem

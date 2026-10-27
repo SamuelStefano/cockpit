@@ -6,6 +6,7 @@ import type { Attachment, AttachmentPreview, QueueItem } from '../../useCockpit'
 import type { ResumeOfferView } from '../../cockpit/resume-offers';
 import type { Phase } from './useChatPanel';
 import type { TimedExtra } from './interleave';
+import type { AgentsApi } from '../../cockpit/useAgents';
 import type { LinkState } from '../bit/turn-bit-state';
 
 // A Equipe bot's thread: the assistant speaks as the bot, the empty thread has no
@@ -44,6 +45,7 @@ export interface ChatPanelProps {
   caps: Caps | null;
   claudeReady?: boolean;
   claudeLogin?: ClaudeLoginView;
+  agents?: AgentsApi;
   onClaudeLoginStart?: () => void;
   onClaudeLoginCode?: (code: string) => void;
   onClaudeLoginCancel?: () => void;
