@@ -199,6 +199,21 @@ describe('several boxes paired to one account', () => {
     expect((await t.next((m) => m.t === 'boxes')).primary).toBe(B1);
   });
 
+  it('tabs following the primary redial when the earlier-paired box comes back', async () => {
+    const A = keys(); const B = keys();
+    const { url } = await relayWith({ [B1]: A.pub, [B2]: B.pub });
+    const late = agent(url, B2, B.priv); socks.push(late.ws);
+    expect(await late.outcome).toBe('ready');
+    const t0 = tab(url), t2 = tab(url, B2);
+    expect((await t0.next((m) => m.t === 'agent-online')).box).toBe(B2);
+    await t2.next((m) => m.t === 'agent-online');
+    const early = agent(url, B1, A.priv); socks.push(early.ws);
+    expect(await early.outcome).toBe('ready');
+    expect(await t0.closed).toBe(4003);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(t2.ws.readyState).toBe(WebSocket.OPEN);
+  });
+
   it('a failed rename or revoke answers box-error to the requester', async () => {
     const { url } = await twoBoxes();
     const t = tab(url, B1);

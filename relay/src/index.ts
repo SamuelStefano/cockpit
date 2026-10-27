@@ -145,6 +145,7 @@ export function createRelay(cfg: RelayConfig) {
     return JSON.stringify(frame);
   };
   const sendBoxes = async (accountId: string, only?: WebSocket) => {
+    if (registry.browserTotal(accountId) === 0) return;
     try {
       const rows = await rowsFor(accountId);
       const send = (s: WebSocket) => { const box = registry.boxOf(accountId, s); if (box !== undefined) s.send(boxesFrame(accountId, box, rows)); };
@@ -460,8 +461,16 @@ export function createRelay(cfg: RelayConfig) {
           if (ws.readyState !== ws.OPEN) return;
           st.authed = true;
           clearTimeout(authTimer);
+          const prevPrimary = registry.primary(st.accountId);
           const prevAgent = registry.bindAgent(st.accountId, st.agentId, ws, st.rank);
           if (prevAgent) { try { (prevAgent as WebSocket).terminate(); } catch { /* já indo */ } }
+          // An earlier-paired box coming back takes the primary over: tabs following
+          // the primary were sealed with the other box and must redial.
+          if (prevPrimary && prevPrimary !== st.agentId && registry.primary(st.accountId) === st.agentId) {
+            for (const [tab, box] of registry.tabsOf(st.accountId, st.agentId)) {
+              if (!box) { try { (tab as WebSocket).close(4003, 'primary box changed'); } catch { /* indo */ } }
+            }
+          }
           // agent-ready BEFORE the DB write: the socket is already bound, so browser
           // frames route to it from here on, and the agent ignores everything until
           // agent-ready — up to 10 s of `send`s were dropped with no agent-offline.
