@@ -120,7 +120,7 @@ export function createSelfUpdater(deps: SelfUpdateDeps, o: SelfUpdateOptions = {
     return 'restarting';
   }
 
-  return { tick };
+  return { tick, reason: () => lastSkip };
 }
 
 function short(sha: string): string { return sha.slice(0, 7); }
@@ -139,6 +139,13 @@ export const CHECK_EVERY_MS = 10 * 60_000;
 const JITTER_MS = 2 * 60_000;
 const RECHECK_WAITING_MS = 60_000;
 
+let lastStatus: { result: TickResult | null; reason: string } = { result: null, reason: '' };
+
+// Read by the machine health report (server/box-health.ts).
+export function selfUpdateStatus(): { result: TickResult | null; reason: string } {
+  return lastStatus;
+}
+
 export function startSelfUpdate(p: { cwd: string; busy: () => boolean; restart: () => void }): void {
   const dir = agentDir();
   const updater = createSelfUpdater({
@@ -152,6 +159,7 @@ export function startSelfUpdate(p: { cwd: string; busy: () => boolean; restart: 
   const run = async () => {
     let r: TickResult;
     try { r = await updater.tick(); } catch (e) { console.error('[agent] self-update:', (e as Error).message); r = 'fetch-failed'; }
+    lastStatus = { result: r, reason: updater.reason() };
     if (r === 'disabled' || r === 'restarting') return;
     schedule(r === 'waiting' ? RECHECK_WAITING_MS : CHECK_EVERY_MS + Math.floor(Math.random() * JITTER_MS));
   };

@@ -51,6 +51,7 @@ export interface RunOpts {
   teamHop?: number;            // chain depth of the message that started this turn; the MCP stamps hop+1
   forkId?: string;             // roda em cima do transcript do `resumeId` mas GRAVA neste id novo (--fork-session). Sem isto dois processos escreveriam o mesmo JSONL.
   profile?: TeamProfile;       // 'restricted' = profilePermissions() below decides tools, cwd, MCPs and mode
+  cwd?: string;                // default CONFIG.workdir; a restricted profile's workspace still wins
   onEvent: (ev: ClaudeEvent) => void;
   // exit/signal são passados quando o erro veio do close do processo (não de um
   // spawn falho) — insumo do gate de OOM (D1, ws/mem-guard.ts looksLikeOomKill).
@@ -305,7 +306,7 @@ export function run(opts: RunOpts): RunHandle {
   // tokens in it, until the next sweep.
   try {
     child = spawn('claude', built.args, {
-      cwd: restricted?.cwd ?? CONFIG.workdir,
+      cwd: restricted?.cwd ?? opts.cwd ?? CONFIG.workdir,
       env: { ...minimalEnv(), ...restricted?.env },
       shell: false,
       detached: true,

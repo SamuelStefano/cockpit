@@ -8,6 +8,7 @@ import type { DflDraft, DraftOp } from './dfl-drafts';
 import type { DflMcpsState } from './dfl-mcps';
 import type { AgentView, AgentPreset, AgentStatus, AgentCustomField } from './agents';
 import type { TeamMessage } from './team-messages';
+import type { BoxHealth, SmokeResult } from './box-health';
 
 export interface ToolDiff {
   path: string;
@@ -784,6 +785,9 @@ export type ClientMsg =
   | { t: 'dfl-mcps-get' }
   | { t: 'dfl-mcps-add'; hosts: string[] }
   | { t: 'admin-health' }
+  // Machine health (shared/box-health.ts): a fresh report, and one tiny real prompt.
+  | { t: 'box-health-get' }
+  | { t: 'box-smoke-test' }
   // Admin write-ops no host (#162, DR-023). Gated por role admin (authorize) e —
   // p/ cli-install (RCE) — por loopback (CONFIG.localOnly) no dispatch. Valor de
   // token nunca volta; só o nome aparece em health.envTokens.
@@ -915,6 +919,8 @@ export type ServerMsg =
   // É fato do ENGINE (a VPS), não do viewer — por isso vai à parte do caps, que
   // o agente T3 não reanuncia.
   | { t: 'claude-auth'; ready: boolean }
+  | { t: 'agent-health'; health: BoxHealth }
+  | ({ t: 'box-smoke' } & SmokeResult)
   | { t: 'claude-login'; state: ClaudeLoginState; url?: string; error?: string }
   // Relay T3 (DR-023): a VPS pareada da conta está online/offline. O browser usa
   // pra mostrar o dashboard de pareamento quando não há agente atendendo.

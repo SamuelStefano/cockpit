@@ -79,6 +79,8 @@ import { areaUsageFromIds } from '../../shared/canvas-budget';
 import { cardLinksAreUnanimouslyDfl, findDeliveryInSnapshot, findTaskInSnapshot } from '../canvas/dfl-link';
 import { cancelPendingPush, pushCardDflStatus } from '../canvas/dfl-status-sync';
 import { bindForkSession } from '../canvas/fork-sessions';
+import { boxHealth, healthFrame } from '../box-health';
+import { smokeOnce } from '../box-smoke';
 
 // Registers the turn-closed listener once, at module load — both entry points
 // (server/index.ts, server/agent.ts) reach this file via ws/serve-connection.ts.
@@ -918,6 +920,16 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     case 'claude-login-cancel': { claudeLogin.cancel(); return; }
     case 'dfl-mcps-get': { send(ws, { t: 'dfl-mcps', state: await dflMcpsState() }); return; }
     case 'dfl-mcps-add': { send(ws, { t: 'dfl-mcps', state: await addDflMcps(msg.hosts) }); return; }
+    case 'box-health-get': {
+      send(ws, healthFrame(await boxHealth.refresh()));
+      return;
+    }
+    case 'box-smoke-test': {
+      broadcast({ t: 'box-smoke', state: 'running' });
+      const r = await smokeOnce(role ?? 'student');
+      broadcast({ t: 'box-smoke', ...r });
+      return;
+    }
     case 'admin-health': {
       send(ws, { t: 'health', health: await collectHealth() });
       return;
