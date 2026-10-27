@@ -1,15 +1,10 @@
 import { Button, Icon, tokens } from '../../primitives';
-import type { Message } from '../../../data/types';
-import type { Phase } from '../useChatPanel';
 import { CALL_LABEL } from './call-machine';
 import { ComposerNotice } from '../ComposerNotice';
 import { useCall } from './useCall';
 
 interface Props {
-  messages: Message[];
-  phase: Phase;
-  onSend: (text: string) => void;
-  keyboardOpen: boolean;
+  call: ReturnType<typeof useCall>;
 }
 
 const DOT: Record<keyof typeof CALL_LABEL, string> = {
@@ -18,19 +13,14 @@ const DOT: Record<keyof typeof CALL_LABEL, string> = {
   speaking: 'bg-orange-400 animate-pulse',
 };
 
-export function CallDock({ messages, phase, onSend, keyboardOpen }: Props) {
-  const call = useCall({ messages, phase, onSend });
-  if (!call.supported) return null;
+export function CallDock({ call }: Props) {
   const { state } = call;
 
   if (state.phase === 'off') {
-    if (keyboardOpen && !call.error) return null;
+    if (!call.error) return null;
     return (
       <div className="shrink-0 border-t border-neutral-800 bg-neutral-900/60 px-3 pt-2">
-        {call.error && <ComposerNotice icon="mic" onDismiss={call.dismissError}>{call.error}</ComposerNotice>}
-        <Button variant="outline" icon="mic" onClick={call.dial} className="h-11! w-full" title="Conversar por voz com a sessão, sem as mãos">
-          Ligar
-        </Button>
+        <ComposerNotice icon="mic" onDismiss={call.dismissError}>{call.error}</ComposerNotice>
       </div>
     );
   }

@@ -1,6 +1,6 @@
 # Voice call mode
 
-"Ligar" in the chat opens a hands-free conversation with the session.
+The phone button ("Ligar") in the composer toolbar opens a hands-free conversation with the session.
 
 Flow: continuous `SpeechRecognition` → silence timer decides the end of an utterance → `onSend` →
 when the turn goes idle, the final text (after the last tool call, markdown/code stripped, ≤ ~420 chars)
@@ -21,7 +21,7 @@ Headphones give the best result — speakers can still leak echo through noise-c
   The screen must stay on (Wake Lock is requested; iOS < 16.4 ignores it). Locking the phone ends the call.
 - Chrome/Android: the engine ends on every pause; the recognizer restarts itself. Android WebViews may lack the API
   (the button is hidden when unsupported).
-- Firefox: no `SpeechRecognition` → no "Ligar" button.
+- Firefox: no `SpeechRecognition` → no phone button in the composer toolbar.
 - Recognition is cloud-based in Chrome/Safari (audio leaves the device); no local models run.
 
 ## Not in this slice

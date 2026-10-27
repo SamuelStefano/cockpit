@@ -67,10 +67,11 @@ interface ChatInputProps {
   onNew: () => void;
   onShowHelp?: () => void;
   keyboardOpen?: boolean;
+  onCall?: () => void;
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, placeholder, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, onOpenAttachment, queued, queuedAtts, queuedModels, onRunQueuedBg, onRunQueuedNow, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, queueReleaseAt = 0, onToggleQueuePause, paused = false, quotaResetsAt, keyboardOpen = false } = props;
+  const { disabled, placeholder, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, onOpenAttachment, queued, queuedAtts, queuedModels, onRunQueuedBg, onRunQueuedNow, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, queueReleaseAt = 0, onToggleQueuePause, paused = false, quotaResetsAt, keyboardOpen = false, onCall } = props;
   const hasAtt = attachments.length > 0;
   const attUploading = attachments.some((a) => a.uploading);
   const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
@@ -86,7 +87,7 @@ export function ChatInput(props: ChatInputProps) {
   // itens da lista. O composer precisa de um contexto próprio acima dele.
   return (
     <div className="relative z-20 shrink-0 border-t border-neutral-800 bg-neutral-900/60 px-3 py-3 backdrop-blur-sm">
-      {!compact && <ChatInputToolbar mode={mode} setMode={setMode} onOpenSettings={openSettings} {...settings} />}
+      {!compact && <ChatInputToolbar mode={mode} setMode={setMode} onOpenSettings={openSettings} onCall={onCall} {...settings} />}
       {settingsOpen && <ComposerSettingsSheet onClose={closeSettings} {...settings} />}
       {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} onOpen={onOpenAttachment} />}
       {mic.error && <ComposerNotice icon="mic" onDismiss={mic.dismissError}>{mic.error}</ComposerNotice>}
