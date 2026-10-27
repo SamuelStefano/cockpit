@@ -86,6 +86,7 @@ import { cancelPendingPush, pushCardDflStatus } from '../canvas/dfl-status-sync'
 import { bindForkSession } from '../canvas/fork-sessions';
 import { boxHealth, healthFrame } from '../box-health';
 import { smokeOnce } from '../box-smoke';
+import { parseRoster, saveRoster } from '../deck-context';
 
 // Registers the turn-closed listener once, at module load — both entry points
 // (server/index.ts, server/agent.ts) reach this file via ws/serve-connection.ts.
@@ -146,6 +147,11 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       // Ecoa o pong pro MESMO socket. Barato de propósito: o cliente usa o
       // ida-e-volta pra detectar socket meio-aberto e reconectar sem F5.
       send(ws, { t: 'pong' });
+      return;
+    }
+    case 'box-roster': {
+      const boxes = parseRoster(msg.boxes);
+      if (boxes) { try { saveRoster(boxes); } catch { /* best effort: the context falls back to "unknown" */ } }
       return;
     }
     case 'graph-list': {

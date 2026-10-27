@@ -1,4 +1,5 @@
 import { isBoxId, sanitizeBoxLabel, type BoxInfo, type BoxesFrame } from '../../shared/boxes';
+import type { ClientMsg } from '../../shared/protocol';
 import { loadPref, savePref, removePref } from '../lib/persist';
 import { toast } from '../components/primitives/toast-bus';
 
@@ -93,4 +94,10 @@ export function currentBoxId(s: State = state): string | null {
 
 export function boxLabel(b: Pick<BoxInfo, 'id' | 'label'>): string {
   return b.label || `${b.id.slice(0, 8)} · sem nome`;
+}
+
+export function rosterMsg(s: State = state): Extract<ClientMsg, { t: 'box-roster' }> | null {
+  if (!s.frame) return null;
+  const self = currentBoxId(s);
+  return { t: 'box-roster', boxes: s.frame.boxes.map((b) => ({ label: boxLabel(b), online: b.online, self: b.id === self })) };
 }

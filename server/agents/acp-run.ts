@@ -6,6 +6,7 @@ import { minimalEnv } from '../engine/claude';
 import type { ClaudeEvent } from '../engine/events';
 import { CONFIG } from '../config';
 import { sessionPath } from '../sessions/records';
+import { deckAgentContext, joinSystemPrompts } from '../deck-context';
 import { agentIdOf, agentModelId, presetById } from '../../shared/agents';
 import { ACP_CLIENT_CAPABILITIES, ACP_PROTOCOL_VERSION, AcpError, isAuthError, startAcp } from './acp-client';
 import { closeDangling, mapUpdate, retryNotice, permissionOutcome, resultSubtype, type MapCtx } from './acp-events';
@@ -139,7 +140,8 @@ export function runAgent(opts: RunOpts): RunHandle {
     // a fresh agent session, kept out of the Deck transcript the user sees.
     let wire = prompt;
     if (!acpSessionId) {
-      if (appendSystemPrompt?.trim()) wire = `${appendSystemPrompt}\n\n---\n\n${prompt}`;
+      const system = joinSystemPrompts(deckAgentContext({ bot: !!opts.botId }), appendSystemPrompt);
+      if (system) wire = `${system}\n\n---\n\n${prompt}`;
       const r = await acp.call<any>('session/new', { cwd: CONFIG.workdir, mcpServers: [] });
       if (typeof r?.sessionId !== 'string' || !r.sessionId) throw new Error('o agente não devolveu sessionId');
       acpSessionId = r.sessionId;

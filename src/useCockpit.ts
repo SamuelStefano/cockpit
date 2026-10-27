@@ -7,8 +7,8 @@ import { MODE_KEY, MODEL_KEY, EFFORT_KEY } from './lib/account-prefs';
 import { persistableModelOverrides } from './cockpit/model-overrides';
 import { SUPABASE_ENABLED, supabase } from './lib/supabase';
 import { SealedSocket } from './cockpit/sealed-socket';
-import { boxStore } from './cockpit/boxes-store';
 import { boxHealthStore } from './cockpit/box-health-store';
+import { boxStore, rosterMsg } from './cockpit/boxes-store';
 import { onAuthClose, tokenUnchangedAndLive, RELAY_AUTH_RETRY_MS, shouldRefreshSession, dialOnTokenChange } from './cockpit/ws-auth';
 import { TOKEN_EXPIRED_CLOSE, TOKEN_EXPIRED_EVENT } from './lib/auth-events';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
@@ -488,6 +488,8 @@ export function useCockpit(): Cockpit {
     ws.send(JSON.stringify(m));
     return true;
   }, []);
+
+  useEffect(() => { const off = boxStore.subscribe(() => { const m = rosterMsg(); if (m) send(m); }); return () => { off(); }; }, [send]);
 
   // Domínios-folha: estado próprio, frames próprios e ações que só chamam `send`.
   // Nada aqui toca sessão/turno, então cada um vive num hook e o switch abaixo só
@@ -1542,6 +1544,8 @@ export function useCockpit(): Cockpit {
   // que o CLI só manda durante um run) sem depender de eventos perdidos.
   const reconcile = useCallback(() => {
     send({ t: 'list' });
+    const roster = rosterMsg();
+    if (roster) send(roster);
     send({ t: 'list-archived' });
     send({ t: 'sync' });       // reemite o estado durável fresco (busy/rate/plan/models)
     send({ t: 'queue-get' });  // fila estacionada do servidor (drena com quota liberada)
