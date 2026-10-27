@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { ChatPanel } from '../../components/Chat';
 import type { ChatBotDecor, ChatPanelProps } from '../../components/chat/chat-panel-props';
 import { Mascot } from '../../components/team/Mascot';
-import { MascotStatusLine } from '../../components/team/MascotStatusLine';
+import { LivingPhrase } from '../../components/team/LivingPhrase';
 import { ImageResolverContext } from '../../components/primitives';
 import { botImageResolver } from './bot-image';
 import type { BotFilesApi } from './equipe-props';
@@ -71,7 +71,7 @@ export function BotThread({ view, chatProps, bots, log, files, onOpenPeer, onPro
           onNew={noop}
           onHandoff={undefined}
           botDecor={botDecor}
-          turnStatus={<MascotStatusLine active={live} startedAt={startedAt} />}
+          turnStatus={<LivingPhrase live active={live} startedAt={startedAt} className="px-4 pb-2 text-[13px] text-neutral-500" />}
         />
       </ImageResolverContext.Provider>
     </div>

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { MascotState } from '../../components/team/mascot-state';
+import type { BotState } from '../../components/team/botState';
 import type { BotComputerApi } from './equipe-props';
 import { COMPUTER_POLL_MS, computerActive } from './computer-view';
 
-export function useBotComputerTab(botId: string, api: BotComputerApi, connected: boolean, state: MascotState) {
+export function useBotComputerTab(botId: string, api: BotComputerApi, connected: boolean, state: BotState) {
   const { botComputers, onBotComputerGet } = api;
   const [takenOver, setTakenOver] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);

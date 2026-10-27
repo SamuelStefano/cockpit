@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { Mascot } from './Mascot';
-import { MASCOT_STATES } from './mascot-state';
+import { BOT_STATES } from './botState';
 
 const mascot = { shape: 'drop' as const, color: '#22c55e' };
 
@@ -13,18 +13,26 @@ describe('Mascot', () => {
   });
 
   it('carries one motion class per state', () => {
-    for (const state of MASCOT_STATES) {
+    for (const state of BOT_STATES) {
       const { container, unmount } = render(<Mascot mascot={mascot} state={state} />);
       expect(container.querySelector('svg')!.classList.contains(`mascot-${state}`)).toBe(true);
       unmount();
     }
   });
 
-  it('shows the dots only while thinking', () => {
-    const { container, rerender } = render(<Mascot mascot={mascot} state="thinking" />);
-    expect(container.querySelector('.mascot-dots')).toBeTruthy();
-    rerender(<Mascot mascot={mascot} state="working" />);
+  it('shows the dots only while working', () => {
+    const { container, rerender } = render(<Mascot mascot={mascot} state="working" />);
+    expect(container.querySelectorAll('.mascot-dots circle')).toHaveLength(3);
+    rerender(<Mascot mascot={mascot} state="thinking" />);
     expect(container.querySelector('.mascot-dots')).toBeNull();
+    expect(container.querySelector('.mascot-eyes')).toBeTruthy();
+  });
+
+  it('draws the expanding ring only while waiting', () => {
+    const { container, rerender } = render(<Mascot mascot={mascot} state="waiting" />);
+    expect(container.querySelector('.mascot-ring')).toBeTruthy();
+    rerender(<Mascot mascot={mascot} state="idle" />);
+    expect(container.querySelector('.mascot-ring')).toBeNull();
   });
 
   it('falls back to the blob for an unknown shape', () => {

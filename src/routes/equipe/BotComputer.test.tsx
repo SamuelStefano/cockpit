@@ -4,7 +4,7 @@ import { render, cleanup, fireEvent } from '@testing-library/react';
 import type { BotComputer as BotComputerData, TeamBot } from '../../../shared/protocol';
 import type { TermApi } from '../../cockpit/useTerminals';
 import type { BotComputerApi } from './equipe-props';
-import type { MascotState } from '../../components/team/mascot-state';
+import type { BotState } from '../../components/team/botState';
 import { BotComputerProvider } from './computer-context';
 import { BotComputer } from './BotComputer';
 
@@ -22,7 +22,7 @@ const api = (c: Partial<BotComputerData> | null = {}): BotComputerApi => ({
 });
 const term = {} as TermApi;
 
-function renderTab(over: { isAdmin?: boolean; connected?: boolean; state?: MascotState; computer?: Partial<BotComputerData> | null } = {}) {
+function renderTab(over: { isAdmin?: boolean; connected?: boolean; state?: BotState; computer?: Partial<BotComputerData> | null } = {}) {
   const a = api(over.computer === undefined ? {} : over.computer);
   const state = over.state ?? 'idle';
   const r = render(

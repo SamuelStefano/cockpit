@@ -41,7 +41,7 @@ describe('botView', () => {
     expect(botView(bot, ctx({ running: new Set([SID]), activeId: SID, phase: 'thinking' })).state).toBe('thinking');
     expect(botView(bot, ctx({ running: new Set([SID]) })).state).toBe('working');
     expect(botView(bot, ctx({ sessions: [session(SID, { waiting: true })] })).state).toBe('waiting');
-    expect(botView(bot, ctx({ interrupted: { [SID]: 'max_turns' } })).state).toBe('blocked');
+    expect(botView(bot, ctx({ interrupted: { [SID]: 'max_turns' } })).state).toBe('error');
     expect(botView(bot, ctx({ sessions: [session(SID, { lastTurnOk: true, mtime: 900 })] })).state).toBe('done');
   });
 });
