@@ -125,6 +125,7 @@ export class SealedSocket {
   private seal: SealState = 'connecting';
   private timer: ReturnType<typeof setTimeout> | null = null;
   private chain: Promise<unknown> = Promise.resolve();
+  private closed = false;
 
   // The JWT rides as a subprotocol entry, never in the URL: the relay picks
   // `deck.v1`, and access/error logs that record the URL never see the token.
@@ -290,6 +291,7 @@ export class SealedSocket {
   }
 
   private async onFrame(s: string): Promise<void> {
+    if (this.closed) return;
     let m: Record<string, unknown>;
     try { m = JSON.parse(s); } catch { return; }
     const t = m.t;
@@ -418,6 +420,7 @@ export class SealedSocket {
   }
 
   private finish(code: number, reason: string): void {
+    this.closed = true;
     this.clearTimer();
     this.channel = null;
     this.readyState = 3;
