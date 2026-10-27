@@ -4,10 +4,7 @@ import { useBoxes } from '../../cockpit/useBoxes';
 import { enrollThisDevice, sealState } from '../../cockpit/sealed-socket';
 import { defaultDeviceLabel as defaultLabel } from '../../cockpit/device-label';
 import { relayAgentUrl } from '../../cockpit/session';
-
-export function enrollCommand(relayUrl: string): string {
-  return `cd ~/cockpit && DECK_RELAY_URL=${relayUrl} npx tsx server/agent.ts --enroll-device`;
-}
+import { enrollCommand } from './pairing';
 
 export function useSealState() {
   return useSyncExternalStore(sealState.subscribe, sealState.get);
