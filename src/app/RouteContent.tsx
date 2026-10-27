@@ -151,7 +151,7 @@ export function RouteContent({ route, agentRoute, skillRoute, isMobile, isAdmin,
     if (route === '/ds') return <DesignSystem />;
     if (route === '/onboarding') {
       return (
-        <Onboarding agents={c.agents} claudeImport={isRoot ? c.claudeImport : undefined} claudeReady={c.claudeReady} login={c.claudeLogin}
+        <Onboarding agents={c.agents} claudeImport={isRoot ? c.claudeImport : undefined} byoKeys={isRoot} claudeReady={c.claudeReady} login={c.claudeLogin}
           onStart={c.onClaudeLoginStart} onCode={c.onClaudeLoginCode} onCancel={c.onClaudeLoginCancel}
           onDone={() => navigateTo('/')} connected={connected} />
       );

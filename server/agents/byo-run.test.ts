@@ -27,7 +27,7 @@ function turn(deps: Partial<ByoDeps>, over: Record<string, unknown> = {}) {
     const errors: string[] = [];
     runByo({
       prompt: 'oi', model: 'agent:byo-deepseek-chat', role: 'admin', resumeId: SESSION,
-      onEvent: (e) => events.push(e), onError: (m) => errors.push(m), onClose: () => resolve({ events, errors }),
+      onEvent: (e: any) => events.push(e), onError: (m: string) => errors.push(m), onClose: () => resolve({ events, errors }),
       ...over,
     } as any, { fetch: vi.fn() as any, keys: store, ...deps });
   });

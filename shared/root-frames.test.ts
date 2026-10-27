@@ -11,6 +11,10 @@ describe('isRootOnly', () => {
     expect(isRootOnly('agent-probe-draft')).toBe(true);
   });
 
+  it('keeps provider API keys for root', () => {
+    for (const t of ['byo-keys-get', 'byo-key-set', 'byo-key-remove']) expect(isRootOnly(t)).toBe(true);
+  });
+
   it('covers an unlisted frame by its owner prefix', () => {
     for (const t of ['points-future', 'pontos-x', 'drafts-new', 'admin-env-rotate', 'admin-mcp-x', 'admin-cli-x', 'admin-deck-x']) {
       expect(isRootOnly(t)).toBe(true);

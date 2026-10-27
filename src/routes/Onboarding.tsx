@@ -2,6 +2,7 @@ import type { ClaudeLoginView } from '../../shared/protocol';
 import type { AgentsApi } from '../cockpit/useAgents';
 import type { ClaudeImportApi } from '../cockpit/useClaudeImport';
 import { ClaudeImportCard } from '../components/chat/ClaudeImportCard';
+import { ByoKeysSection } from '../components/chat/ByoKeysSection';
 import { Bit } from '../components/bit/Bit';
 import { Button, EmptyState } from '../components/primitives';
 import { useProviderOnboarding } from '../components/chat/useProviderOnboarding';
@@ -13,6 +14,8 @@ import { ProviderRow } from './onboarding/ProviderRow';
 interface OnboardingProps {
   agents: AgentsApi;
   claudeImport?: ClaudeImportApi;
+  // Owner only: the byo-key frames are root-only on the server.
+  byoKeys?: boolean;
   claudeReady: boolean;
   login?: ClaudeLoginView;
   onStart?: () => void;
@@ -23,7 +26,7 @@ interface OnboardingProps {
   connected?: boolean;
 }
 
-export function Onboarding({ agents, claudeImport, claudeReady, login, onStart, onCode, onCancel, onDone, connected = true }: OnboardingProps) {
+export function Onboarding({ agents, claudeImport, byoKeys, claudeReady, login, onStart, onCode, onCancel, onDone, connected = true }: OnboardingProps) {
   const p = useProviderOnboarding(agents, claudeReady);
   const rows = buildOnboardingRows(p.cards, agents.items, p.loaded, claudeReady, login);
   const live = rows.filter((r) => r.state !== 'soon');
@@ -69,6 +72,9 @@ export function Onboarding({ agents, claudeImport, claudeReady, login, onStart, 
                 <ul aria-label="Provedores em breve" className="mt-1 flex w-full flex-col gap-2">{soon.map(renderRow)}</ul>
               </details>
             )}
+            {byoKeys && agents.byoKeys && agents.saveByoKey && agents.removeByoKey && agents.refreshByoKeys && <div className="w-full">
+              <ByoKeysSection agents={{ byoKeys: agents.byoKeys, byoMessage: agents.byoMessage ?? null, saveByoKey: agents.saveByoKey, removeByoKey: agents.removeByoKey, refreshByoKeys: agents.refreshByoKeys }} />
+            </div>}
           </>
         )}
         {claudeImport && <div className="w-full">

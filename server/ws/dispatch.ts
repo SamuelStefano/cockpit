@@ -63,6 +63,7 @@ import { AGENT_PRESETS } from '../../shared/agents';
 import { connectPreset, findAgent, removeAgent } from '../agents/store';
 import { customAgentDenial, probeDraft, saveCustomAgent } from '../agents/custom-agent';
 import { agentViews, probeAgent } from '../agents/probe';
+import { byoKeys, byoKeyViews, removeByoKey, saveByoKey } from '../agents/byo-keys';
 import { handleHarnessMsg } from './harness';
 import { setMarathon, marathonKeys } from './marathon';
 import { sendDurableSnapshot } from './snapshot';
@@ -1106,6 +1107,17 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const r = await updateClaudeCli();
       send(ws, { t: 'admin-op', ok: r.ok, message: r.message });
       send(ws, { t: 'health', health: await collectHealth() });
+      return;
+    }
+    case 'byo-keys-get': {
+      send(ws, { t: 'byo-keys', items: byoKeyViews(byoKeys) });
+      return;
+    }
+    case 'byo-key-set':
+    case 'byo-key-remove': {
+      const r = msg.t === 'byo-key-set' ? saveByoKey(byoKeys, String(msg.provider), String(msg.key)) : removeByoKey(byoKeys, String(msg.provider));
+      send(ws, { t: 'byo-keys', items: byoKeyViews(byoKeys), ok: r.ok, message: r.message });
+      if (r.ok) afterAgentsChange();
       return;
     }
     case 'agents-get': {
