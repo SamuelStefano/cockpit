@@ -1,10 +1,10 @@
 import { Icon } from '../primitives';
-import { ChatInputToolbar } from './ChatInputToolbar';
 import { ComposerNotice } from './ComposerNotice';
 import { ComposerActions } from './ComposerActions';
 import { ComposerGhost } from './ComposerGhost';
-import { ComposerTools } from './ComposerTools';
-import { ComposerSettingsSheet } from './ComposerSettingsSheet';
+import { ComposerPlus } from './ComposerPlus';
+import { ComposerStatusChips } from './ComposerStatusChips';
+import { ModelPicker } from './ModelPicker';
 import { AttachmentChips } from './AttachmentChips';
 import { QueuedBanner } from './QueuedBanner';
 import { SlashPalette, SLASH_LIST_ID, slashOptionId } from './SlashPalette';
@@ -66,29 +66,21 @@ interface ChatInputProps {
   pendingConfirm?: () => void;
   onNew: () => void;
   onShowHelp?: () => void;
-  keyboardOpen?: boolean;
   onCall?: () => void;
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, placeholder, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, onOpenAttachment, queued, queuedAtts, queuedModels, onRunQueuedBg, onRunQueuedNow, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, queueReleaseAt = 0, onToggleQueuePause, paused = false, quotaResetsAt, keyboardOpen = false, onCall } = props;
+  const { disabled, placeholder, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, onOpenAttachment, queued, queuedAtts, queuedModels, onRunQueuedBg, onRunQueuedNow, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, queueReleaseAt = 0, onToggleQueuePause, paused = false, quotaResetsAt, onCall } = props;
   const hasAtt = attachments.length > 0;
   const attUploading = attachments.some((a) => a.uploading);
   const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
-  const { taRef, fileRef, cameraRef, sel, setSel, showPalette, matches, complete, submit, onKey, onCompositionEnd, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic, ghost, ghostShown, acceptGhost, touch, settingsOpen, openSettings, closeSettings } = useChatInput({ ...props, hasAtt, attUploading });
-  const settings = { caps, bypass, setBypass, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort };
-  // Com o teclado aberto o thread cabe em ~150px: a barra sai de cena e os ajustes
-  // passam a morar nos sliders do ComposerTools. Exige `touch` porque o sheet só
-  // existe abaixo de `sm` — janela de desktop baixa dispara o keyboardOpen e ficaria
-  // sem barra E sem sheet.
-  const compact = keyboardOpen && touch;
+  const { taRef, fileRef, cameraRef, sel, setSel, showPalette, matches, complete, submit, onKey, onCompositionEnd, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic, ghost, ghostShown, acceptGhost, touch } = useChatInput({ ...props, hasAtt, attUploading });
+  const settings = { mode, setMode, caps, bypass, setBypass, model, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, onRefreshModels, modelLocked };
   // `relative z-20` na casca: o header sticky do CodeBlock é z-10 no contexto
   // raiz e pintava POR CIMA dos popovers do composer (MCP/skills), cobrindo
   // itens da lista. O composer precisa de um contexto próprio acima dele.
   return (
     <div className="relative z-20 shrink-0 border-t border-neutral-800 bg-neutral-900/60 px-3 py-3 backdrop-blur-sm">
-      {!compact && <ChatInputToolbar mode={mode} setMode={setMode} onOpenSettings={openSettings} onCall={onCall} {...settings} />}
-      {settingsOpen && <ComposerSettingsSheet onClose={closeSettings} {...settings} />}
       {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} onOpen={onOpenAttachment} />}
       {mic.error && <ComposerNotice icon="mic" onDismiss={mic.dismissError}>{mic.error}</ComposerNotice>}
       {mic.hint && <ComposerNotice icon="mic" tone="info" onDismiss={mic.dismissHint}>{mic.hint}</ComposerNotice>}
@@ -102,17 +94,16 @@ export function ChatInput(props: ChatInputProps) {
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={pick} className="hidden" />
       <div className="relative" onDragEnter={onDragEnter} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
       {dragging && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-orange-500/60 bg-neutral-950/85 text-[13px] font-medium text-orange-300 backdrop-blur-xs">
+        <div className="absolute inset-0 z-40 flex items-center justify-center gap-2 rounded-3xl border-2 border-dashed border-orange-500/60 bg-neutral-950/85 text-[13px] font-medium text-orange-300 backdrop-blur-xs">
           <Icon name="paperclip" size={15} /> Solte os arquivos pra anexar
         </div>
       )}
       {showPalette && <SlashPalette matches={matches} sel={sel} setSel={setSel} complete={complete} />}
-      <div className="elev-1 flex items-end gap-2 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 transition focus-within:border-orange-500/50 focus-within:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05),0_0_0_3px_rgba(249,115,22,0.08),0_6px_20px_-6px_rgba(0,0,0,0.6)]">
-        <ComposerTools
-          touch={touch} compact={compact} mic={mic}
+      <div className="elev-1 flex items-end gap-1.5 rounded-3xl border border-neutral-700 bg-neutral-950 py-1.5 pl-1.5 pr-2 transition focus-within:border-orange-500/50 focus-within:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05),0_0_0_3px_rgba(249,115,22,0.08),0_6px_20px_-6px_rgba(0,0,0,0.6)]">
+        <ComposerPlus
+          touch={touch} mic={mic} onCall={onCall} settings={settings}
           onAttach={() => fileRef.current?.click()}
           onPhoto={() => cameraRef.current?.click()}
-          onOpenSettings={openSettings}
         />
         <div className="relative min-w-0 flex-1">
           {ghost && <ComposerGhost value={value} ghostShown={ghostShown} acceptGhost={acceptGhost} />}
@@ -137,7 +128,13 @@ export function ChatInput(props: ChatInputProps) {
             className="scroll-thin relative w-full resize-none bg-transparent py-1 text-[15px] leading-7 text-neutral-100 placeholder-neutral-600 outline-hidden"
           />
         </div>
+        <div className="mb-0.5 flex shrink-0 items-center gap-1">
+          <ModelPicker compact model={model} setModel={setModel} models={models} onRefreshModels={onRefreshModels} canManage={caps?.role === 'admin' || caps?.role === 'root'} locked={modelLocked} />
+          <ComposerStatusChips mode={mode} bypass={bypass} />
+        </div>
         <ComposerActions
+          mic={mic}
+          onCall={onCall}
           busy={disabled}
           paused={paused}
           hasText={!!value.trim()}

@@ -1,0 +1,65 @@
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { ChatHeader } from './ChatHeader';
+
+afterEach(cleanup);
+
+const session = { id: 's1', title: 'Minha conversa' } as never;
+const msgs = [{ id: 'm1', role: 'user', text: 'oi' }] as never;
+
+function setup(over: Partial<Parameters<typeof ChatHeader>[0]> = {}) {
+  render(
+    <ChatHeader
+      session={session} messages={msgs} isEmpty={false} isMobile={false} contextTokens={0}
+      onNew={vi.fn()} fullLoaded={false} setFullLoaded={vi.fn()} {...over}
+    />,
+  );
+}
+
+describe('ChatHeader', () => {
+  it('is a single line with the title and a menu, no message icon or badges', () => {
+    setup();
+    expect(screen.getByLabelText('Renomear sessão: Minha conversa')).toBeTruthy();
+    expect(screen.getByLabelText('Mais ações da conversa')).toBeTruthy();
+    expect(screen.queryByLabelText('Abrir terminais')).toBeNull();
+    expect(screen.queryByText('terminal')).toBeNull();
+  });
+
+  it('puts turn stats, history and export inside the menu', () => {
+    setup({ lastTurn: { costUsd: 0.0123, durationMs: 4200, model: 'claude-opus-4-8' }, onOpenFull: vi.fn() });
+    expect(screen.queryByText(/Último turno/)).toBeNull();
+    fireEvent.click(screen.getByLabelText('Mais ações da conversa'));
+    expect(screen.getByText(/Último turno: \$0\.012 · 4\.2s · opus/)).toBeTruthy();
+    expect(screen.getByLabelText('Ver todas as mensagens')).toBeTruthy();
+    expect(screen.getByTitle('Baixar conversa em PDF')).toBeTruthy();
+  });
+
+  it('closes the menu after an action', () => {
+    const onOpenFull = vi.fn();
+    setup({ onOpenFull });
+    fireEvent.click(screen.getByLabelText('Mais ações da conversa'));
+    fireEvent.click(screen.getByLabelText('Ver todas as mensagens'));
+    expect(onOpenFull).toHaveBeenCalledWith('s1');
+    expect(screen.queryByLabelText('Ver todas as mensagens')).toBeNull();
+  });
+
+  it('hides the menu when there is nothing to show', () => {
+    setup({ isEmpty: true });
+    expect(screen.queryByLabelText('Mais ações da conversa')).toBeNull();
+  });
+
+  it('shows the terminal button only with a handler, with a live dot when running', () => {
+    const onTerminal = vi.fn();
+    setup({ onTerminal });
+    fireEvent.click(screen.getByLabelText('Abrir terminais'));
+    expect(onTerminal).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces the new-session action over the context limit', () => {
+    const onNew = vi.fn();
+    setup({ contextTokens: 900_000, contextModel: 'claude-opus-4-8', onNew });
+    fireEvent.click(screen.getByText('nova sessão'));
+    expect(onNew).toHaveBeenCalledTimes(1);
+  });
+});

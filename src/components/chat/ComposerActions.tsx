@@ -1,4 +1,5 @@
-import { Icon } from '../primitives';
+import { Icon, IconButton } from '../primitives';
+import type { Mic } from './mic-types';
 
 interface ComposerActionsProps {
   busy: boolean;
@@ -8,59 +9,94 @@ interface ComposerActionsProps {
   attUploading: boolean;
   onSubmit: () => void;
   onStop: () => void;
+  mic?: Mic;
+  onCall?: () => void;
 }
 
-// 40px on touch: 32px send/stop, 6px apart, was too easy to mis-tap on a phone.
-const btn = 'flex h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11 shrink-0 items-center justify-center rounded-lg transition focus-visible:outline-hidden focus-visible:ring-2';
+// 44px on touch: the one primary action must be an easy target.
+const btn = 'flex h-9 w-9 pointer-coarse:h-11 pointer-coarse:w-11 shrink-0 items-center justify-center rounded-full transition focus-visible:outline-hidden focus-visible:ring-2';
 const idle = 'bg-neutral-800 text-neutral-600';
 
-export function ComposerActions({ busy, paused, hasText, hasAtt, attUploading, onSubmit, onStop }: ComposerActionsProps) {
-  if (busy) {
-    // O stop vem ANTES e o enfileirar fica no slot da direita — o mesmo lugar onde
-    // o enviar mora em repouso. Com a ordem invertida o polegar caía no stop e
-    // interrompia o turno em vez de mandar a mensagem. Pelo mesmo motivo o botão de
-    // envio é sempre renderizado (desabilitado quando não há o que mandar): some-lo
-    // com o composer vazio empurrava o stop de volta pro slot da direita.
-    const nothingToSend = !hasText && !hasAtt;
+function BusyActions({ hasText, hasAtt, attUploading, onSubmit, onStop }: ComposerActionsProps) {
+  // Stop comes BEFORE and enqueue sits in the right slot, where send lives at rest.
+  // With the order reversed the thumb landed on stop and interrupted the turn. For
+  // the same reason enqueue is always rendered (disabled when empty): hiding it
+  // pushed stop back into the right slot.
+  const nothingToSend = !hasText && !hasAtt;
+  return (
+    <div className="flex shrink-0 items-center gap-1.5 pointer-coarse:gap-3">
+      <button
+        type="button"
+        onClick={onStop}
+        aria-label="Interromper resposta"
+        title="Interromper resposta"
+        className={`${btn} bg-neutral-800 text-neutral-200 hover:bg-red-500/20 hover:text-red-400 focus-visible:ring-red-500/40`}
+      >
+        <Icon name="square" size={13} />
+      </button>
+      <button
+        type="button"
+        onClick={onSubmit}
+        disabled={attUploading || nothingToSend}
+        aria-label="Enfileirar mensagem"
+        title={attUploading ? 'Aguarde o anexo terminar de subir' : 'Enfileirar — envia quando o turno atual terminar'}
+        className={`${btn} focus-visible:ring-amber-500/40 ${attUploading || nothingToSend ? idle : 'bg-amber-500/80 text-neutral-950 hover:bg-amber-400'}`}
+      >
+        <Icon name="arrowUp" size={16} />
+      </button>
+    </div>
+  );
+}
+
+function PrimaryAction({ paused, hasText, hasAtt, attUploading, onSubmit, mic }: ComposerActionsProps) {
+  // Dictation owns the slot while listening, even with text: the dictated words make
+  // hasText true and Send would take over, leaving no way to stop the recording.
+  if (mic?.listening) {
     return (
-      <div className="mb-0.5 flex shrink-0 items-center gap-1.5 pointer-coarse:gap-3">
-        <button
-          type="button"
-          onClick={onStop}
-          aria-label="Interromper resposta"
-          title="Interromper resposta"
-          className={`${btn} bg-neutral-800 text-neutral-200 hover:bg-red-500/20 hover:text-red-400 focus-visible:ring-red-500/40`}
-        >
-          <Icon name="square" size={13} />
-        </button>
-        <button
-          type="button"
-          onClick={onSubmit}
-          disabled={attUploading || nothingToSend}
-          aria-label="Enfileirar mensagem"
-          title={attUploading ? 'Aguarde o anexo terminar de subir' : 'Enfileirar — envia quando o turno atual terminar'}
-          className={`${btn} focus-visible:ring-amber-500/40 ${attUploading || nothingToSend ? idle : 'bg-amber-500/80 text-neutral-950 hover:bg-amber-400'}`}
-        >
-          <Icon name="arrowUp" size={16} />
-        </button>
-      </div>
+      <button type="button" onClick={mic.toggle} aria-label="Parar de ditar" title="Parar de ditar" className={`${btn} animate-pulse bg-red-500/20 text-red-400 focus-visible:ring-red-500/40`}>
+        <Icon name="mic" size={16} />
+      </button>
+    );
+  }
+  const canSend = hasText || hasAtt;
+  if (!canSend && !attUploading && mic?.supported) {
+    return (
+      <button type="button" onClick={mic.toggle} aria-label="Ditar por voz" title={mic.error ?? 'Ditar por voz'} className={`${btn} bg-neutral-800 text-neutral-200 hover:bg-neutral-700 focus-visible:ring-orange-500/40`}>
+        <Icon name="mic" size={16} />
+      </button>
     );
   }
   return (
     <button
       type="button"
       onClick={onSubmit}
-      disabled={attUploading || (!hasText && !hasAtt)}
+      disabled={attUploading || !canSend}
       aria-label={paused ? 'Enfileirar mensagem' : 'Enviar mensagem'}
       title={attUploading ? 'Aguarde o anexo terminar de subir' : paused ? 'Enfileirar — envia sozinho quando os tokens resetarem' : undefined}
-      className={`${btn} mb-0.5 focus-visible:ring-orange-500/40
+      className={`${btn} focus-visible:ring-orange-500/40
         ${attUploading
           ? idle
           : paused
           ? (hasText ? 'bg-amber-500/80 text-neutral-950 hover:bg-amber-400' : idle)
-          : (hasText || hasAtt) ? 'bg-orange-500 text-neutral-950 hover:bg-orange-400' : idle}`}
+          : canSend ? 'bg-orange-500 text-neutral-950 hover:bg-orange-400' : idle}`}
     >
       <Icon name={paused ? 'clock' : 'arrowUp'} size={paused ? 14 : 16} />
     </button>
+  );
+}
+
+export function ComposerActions(props: ComposerActionsProps) {
+  if (props.busy) return <BusyActions {...props} />;
+  const showCall = !!props.onCall && !props.hasText && !props.hasAtt && !props.mic?.listening;
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      {/* Phone only: on a narrow screen the call lives in the + menu to leave room for the text. */}
+      {showCall && (
+        <span className="hidden sm:inline-flex">
+          <IconButton icon="phone" label="Ligar" tip="Conversar por voz com a sessão, sem as mãos" onClick={props.onCall} />
+        </span>
+      )}
+      <PrimaryAction {...props} />
+    </div>
   );
 }

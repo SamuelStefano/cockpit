@@ -1,13 +1,12 @@
-import { Button, Icon, Badge } from '../primitives';
+import { IconButton, Popover } from '../primitives';
 import { ChatHeaderCompact } from './ChatHeaderCompact';
+import { ChatHeaderMenu } from './ChatHeaderMenu';
+import { ContextRing } from './ContextRing';
 import { EditableTitle } from './EditableTitle';
-import { HistoryControls } from './HistoryControls';
-import { ExportMenu } from './ExportMenu';
-import { TurnStat } from './TurnStat';
-import { ContextMeter } from './ContextMeter';
+import { useHeaderMenu } from './useHeaderMenu';
 import type { Session, Message } from '../../data/types';
 import { ranOnOtherModel } from '../../cockpit/session-model';
-import { prettyModel } from './toolbar-format';
+import { turnStatParts } from './toolbar-format';
 import type { TurnStats } from '../../../shared/protocol';
 
 interface ChatHeaderProps {
@@ -33,53 +32,44 @@ interface ChatHeaderProps {
   selectedModel?: string;
 }
 
-export function ChatHeader({ session, messages, isEmpty, isMobile, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, onRename, keyboardOpen = false, selectedModel }: ChatHeaderProps) {
+export function ChatHeader({ session, messages, isEmpty, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, onRename, keyboardOpen = false, selectedModel }: ChatHeaderProps) {
+  const menu = useHeaderMenu();
+  const title = session ? session.title : 'Nova sessão';
+  if (keyboardOpen) return <ChatHeaderCompact title={title} onTerminal={onTerminal} terminalRunning={terminalRunning} />;
+
+  const saved = !!session && !session.id.startsWith('new-');
   const ranOn = selectedModel ? ranOnOtherModel(selectedModel, messages) : null;
-  if (keyboardOpen) {
-    return (
-      <ChatHeaderCompact
-        title={session ? session.title : 'Nova sessão'}
-        onTerminal={onTerminal}
-        terminalRunning={terminalRunning}
-      />
-    );
-  }
+  const history = !isEmpty && saved && onOpenFull
+    ? { sessionId: session.id, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow }
+    : null;
+  const canExport = !isEmpty;
+  const hasMenu = !!turnStatParts(lastTurn) || !!ranOn || !!history || canExport;
+
   return (
-    <div className="flex shrink-0 items-center gap-2 border-b border-neutral-800 px-4 py-2.5">
-      <Icon name="message" size={14} className="text-neutral-500" />
-      <EditableTitle
-        id={session?.id}
-        title={session ? session.title : 'Nova sessão'}
-        editable={!!session && !session.id.startsWith('new-')}
-        onRename={onRename}
-      />
-      {session?.hasTerminal && <Badge tone="green" dot className="ml-0.5">terminal</Badge>}
-      {/* Cluster direito num só container: vários ml-auto irmãos se espalham
-          (margens auto dividem o espaço livre); aqui só este wrapper empurra. */}
-      {/* gap maior no dedo: os alvos de 40px do cluster se sobrepõem com 8px de
-          folga entre botões de 28px, e o toque na borda ia pro vizinho. */}
-      <div className="ml-auto flex items-center gap-2 pointer-coarse:gap-3">
-        {ranOn && !isMobile && (
-          <Badge tone="yellow" title={`O último turno rodou em ${prettyModel(ranOn)}, não em ${prettyModel(selectedModel)}`}>
-            rodou em {prettyModel(ranOn)}
-          </Badge>
-        )}
-        <TurnStat stats={lastTurn} />
-        {!isMobile && <ContextMeter tokens={contextTokens} model={contextModel} onNew={onNew} />}
-        {!isEmpty && session && !session.id.startsWith('new-') && onOpenFull && (
-          <HistoryControls
-            sessionId={session.id} fullLoaded={fullLoaded} truncated={truncated}
-            onOpenFull={onOpenFull} onLoadOlder={onLoadOlder} onOpenSummary={onOpenSummary}
-            setFullLoaded={setFullLoaded} beforeGrow={beforeGrow}
-          />
-        )}
-        {!isEmpty && !isMobile && <ExportMenu title={session?.title || 'sessao'} messages={messages} />}
+    <div className="flex h-11 shrink-0 items-center gap-2 border-b border-neutral-800 px-4">
+      <EditableTitle id={session?.id} title={title} editable={saved} onRename={onRename} />
+      <div className="ml-auto flex shrink-0 items-center gap-2 pointer-coarse:gap-3">
+        <ContextRing tokens={contextTokens} model={contextModel} onNew={onNew} />
         {onTerminal && (
-          <Button variant="outline" size="sm" square icon="terminal" onClick={onTerminal} title="Abrir terminais" className="relative">
+          <span className="relative inline-flex">
+            <IconButton icon="terminal" label="Abrir terminais" side="bottom" onClick={onTerminal} />
             {terminalRunning && (
-              <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-neutral-900 bg-green-500" style={{ boxShadow: '0 0 6px var(--ok)' }} />
+              <span className="pointer-events-none absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-neutral-900 bg-green-500" style={{ boxShadow: '0 0 6px var(--ok)' }} />
             )}
-          </Button>
+          </span>
+        )}
+        {hasMenu && (
+          <Popover
+            open={menu.open} onClose={menu.close} side="bottom" align="end" label="Mais ações da conversa"
+            content={
+              <ChatHeaderMenu
+                title={session?.title || 'sessao'} messages={messages} lastTurn={lastTurn} ranOn={ranOn}
+                selectedModel={selectedModel} history={history} canExport={canExport} onDone={menu.close}
+              />
+            }
+          >
+            <IconButton icon="ellipsis" label="Mais ações da conversa" side="bottom" aria-expanded={menu.open} aria-haspopup="dialog" onClick={menu.toggle} />
+          </Popover>
         )}
       </div>
     </div>
