@@ -6,7 +6,11 @@ export DECK_RELAY_URL=wss://deck-relay.devfellowship.com
 # Esta é a box do DONO (Samuel) — role admin = controle total (terminais/admin).
 # Numa box de fellow, omitir (default 'student' = least-capability).
 export DECK_AGENT_ROLE=admin
-exec 9>/tmp/deck-agent.lock
+# Lock no dir do próprio agente (não /tmp: lá vira arquivo de outro usuário e dois
+# agentes na mesma máquina dividiriam o lock).
+AGENT_DIR="${DECK_AGENT_DIR:-$HOME/.deck-agent}"
+mkdir -p "$AGENT_DIR"
+exec 9>"$AGENT_DIR/agent.lock"
 if ! flock -n 9; then echo "[$(date -Is)] outro agente já roda — saindo"; exit 0; fi
 while true; do
   # Overrides locais por-box (NÃO versionado). O agente é quem spawna o run e avalia

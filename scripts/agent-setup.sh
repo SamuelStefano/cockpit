@@ -96,8 +96,10 @@ write_unit() { # write_unit <caminho>  (conteúdo via stdin)
 }
 
 # flock: dois agentes com a MESMA identidade brigam pelo agentId no relay (um chuta
-# o outro em loop). run-agent.sh já usa /tmp/deck-agent.lock — o serviço entra no
-# mesmo lock pra nunca coexistir com o supervisor manual.
+# o outro em loop). O lock vive no AGENT_DIR da própria identidade ($AGENT_DIR/agent.lock),
+# NUNCA em /tmp: lá o arquivo fica de outro usuário (fs.protected_regular → "Permission
+# denied" em loop) e dois agentes na mesma máquina (dono + usuário 'deck') dividiriam o
+# mesmo lock. run-agent.sh usa o mesmo caminho, então serviço e supervisor manual nunca coexistem.
 build_exec_start() {
   if [ -n "$FLOCK_BIN" ]; then
     EXEC_START="$FLOCK_BIN -n $LOCK $NPX_BIN tsx server/agent.ts"
@@ -105,6 +107,57 @@ build_exec_start() {
     echo "[deck] aviso: 'flock' não encontrado — sem trava de instância única (não rode outro agente com a mesma identidade)."
     EXEC_START="$NPX_BIN tsx server/agent.ts"
   fi
+}
+
+# WSL: a distro desliga sozinha quando nenhum processo do Windows a segura, e leva o
+# agente junto. Garante systemd no wsl.conf e registra (se o interop existir) uma tarefa
+# agendada no logon que mantém `wsl.exe --exec sleep infinity` escondido. Nunca falha a
+# instalação; sem interop, só imprime o comando manual. Idempotente.
+is_wsl() {
+  [ -n "${WSL_DISTRO_NAME:-}" ] || [ -e /proc/sys/fs/binfmt_misc/WSLInterop ] \
+    || uname -r 2>/dev/null | grep -qi microsoft
+}
+
+ensure_wsl_systemd() {
+  local conf="${WSL_CONF:-/etc/wsl.conf}"
+  if [ -f "$conf" ] && grep -qiE '^[[:space:]]*systemd[[:space:]]*=[[:space:]]*true' "$conf"; then
+    return 0
+  fi
+  if [ -f "$conf" ] && grep -qiE '^[[:space:]]*systemd[[:space:]]*=' "$conf"; then
+    ${SUDO:-} sed -i -E 's/^[[:space:]]*systemd[[:space:]]*=.*/systemd=true/I' "$conf" || return 1
+  elif [ -f "$conf" ] && grep -qiE '^[[:space:]]*\[boot\]' "$conf"; then
+    ${SUDO:-} sed -i -E '/^[[:space:]]*\[boot\]/I a systemd=true' "$conf" || return 1
+  else
+    printf '\n[boot]\nsystemd=true\n' | ${SUDO:-} tee -a "$conf" >/dev/null || return 1
+  fi
+  echo "[deck] WSL: systemd=true gravado em $conf — rode 'wsl --shutdown' no Windows uma vez pra valer."
+}
+
+setup_wsl_keepalive() {
+  is_wsl || return 0
+  local distro="${WSL_DISTRO_NAME:-Ubuntu}" task manual
+  task="DeckWslKeepAlive-$distro"
+  echo "[deck] WSL detectado ($distro): o Windows desliga a distro quando ociosa e isso derruba o agente."
+  ensure_wsl_systemd || echo "[deck] aviso: não consegui ajustar o wsl.conf — coloque '[boot]' + 'systemd=true' à mão."
+  manual="schtasks.exe /Create /F /SC ONLOGON /TN \"$task\" /TR \"wsl.exe -d $distro --exec sleep infinity\""
+  local done_=0
+  if command -v powershell.exe >/dev/null 2>&1; then
+    local ps="\$a = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -WindowStyle Hidden -Command \"wsl.exe -d $distro --exec sleep infinity\"'; \$t = New-ScheduledTaskTrigger -AtLogOn; \$s = New-ScheduledTaskSettingsSet -Hidden -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero); Register-ScheduledTask -TaskName '$task' -Action \$a -Trigger \$t -Settings \$s -Force | Out-Null; Start-ScheduledTask -TaskName '$task'"
+    if powershell.exe -NoProfile -Command "$ps" >/dev/null 2>&1; then done_=1; fi
+  fi
+  if [ "$done_" = "0" ] && command -v schtasks.exe >/dev/null 2>&1; then
+    if schtasks.exe /Create /F /SC ONLOGON /TN "$task" /TR "wsl.exe -d $distro --exec sleep infinity" >/dev/null 2>&1; then
+      schtasks.exe /Run /TN "$task" >/dev/null 2>&1 || true
+      done_=1
+    fi
+  fi
+  if [ "$done_" = "1" ]; then
+    echo "[deck] WSL: tarefa agendada '$task' registrada (no logon, escondida) — a distro e o agente ficam de pé."
+  else
+    echo "[deck] WSL: sem interop com o Windows — rode UMA vez no CMD/PowerShell do Windows:"
+    echo "  $manual"
+  fi
+  echo "[deck] WSL: alternativa global — em %UserProfile%\\.wslconfig: [wsl2] vmIdleTimeout=-1 (depois 'wsl --shutdown')."
 }
 
 render_unit() {
@@ -325,7 +378,7 @@ EOF
   load_install_env "$dhome/.deck-agent/install.env" || exit 1
 
   SERVICE="deck-agent"; RUN_USER="deck"; HOME="$dhome"
-  FLOCK_BIN="$(command -v flock || true)"; LOCK=/tmp/deck-agent.lock
+  FLOCK_BIN="$(command -v flock || true)"; LOCK="$AGENT_DIR/agent.lock"
   UNIT_PATH="$NODE_BIN:$CLAUDE_DIR:$deck_path"
   build_exec_start
   if can_systemd; then
@@ -343,6 +396,7 @@ EOF
       sh -c 'cd "$1" && shift && touch agent.log && chmod 600 agent.log && nohup sh -c "while :; do \"\$@\"; sleep 3; done" deck-agent-loop "$@" >>agent.log 2>&1 &' _ "$SRC_DIR" $EXEC_START
     echo "[deck] agente rodando em segundo plano (log: $SRC_DIR/agent.log; parar: pkill -u deck -f deck-agent-loop)."
   fi
+  setup_wsl_keepalive || true
 
   if write_deck_agent_wrapper /usr/local/bin/deck-agent; then
     echo "[deck] cadastrar outro navegador nesta VPS: deck-agent enroll-device"
@@ -644,7 +698,7 @@ RUN_USER="$(id -un)"
 NODE_BIN="$NODE_DIR"
 NPX_BIN="$(command -v npx)"
 FLOCK_BIN="$(command -v flock || true)"
-LOCK=/tmp/deck-agent.lock
+LOCK="$AGENT_DIR/agent.lock"
 ROLE="${DECK_AGENT_ROLE:-student}"
 UNIT_PATH="$NODE_BIN:$CLAUDE_DIR:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
@@ -729,6 +783,7 @@ else
   echo "[deck] agente rodando (PID $!, usuário=$RUN_USER, role=$ROLE; parar: pkill -f deck-agent-loop)."
   echo "[deck] logs: tail -f $SRC_DIR/agent.log"
 fi
+setup_wsl_keepalive || true
 
 # Watchdog anti-travamento (vps-guard.sh, a cada 3 min): se a box travar de load
 # (thrash de swap/I/O — aconteceu em 2026-06-11, load 130), mata os vilões de CPU
