@@ -10,6 +10,7 @@ import { slidingWindow } from './throttle';
 import { parseCsvSet, clientIp, originAllowed, tokenFromSubprotocol, pickSubprotocol, rawLength, makeLimiter } from './guards';
 import { parseRootEmails, canSeeAllAccounts, canGrantAdmin, canListAccounts, type AccountRole } from '../../shared/identity';
 import { isRootOnlyFrame } from '../../shared/root-frames';
+import { isBoxId, sanitizeBoxLabel, type BoxesFrame } from '../../shared/boxes';
 
 // Relay T3 (DR-023): roteador WS stateless e autenticado. NÃO spawna nada (a
 // fronteira é garantida pelo boundary.test) e NÃO guarda chave de assinatura — só
@@ -21,7 +22,8 @@ import { isRootOnlyFrame } from '../../shared/root-frames';
 // (REST + service-role) é injetado, mantendo o core testável e sem driver de DB.
 export interface RelayStore {
   // pubkey + conta de um agente pareado e NÃO revogado; null se não existe/revogado.
-  agentById(agentId: string): Promise<{ accountId: string; publicKey: string } | null>;
+  // pairedAt ranks the account's boxes: the earliest-paired online one is the primary.
+  agentById(agentId: string): Promise<{ accountId: string; publicKey: string; pairedAt?: string } | null>;
   // is_admin da conta (pra resolver role admin); root vem do env, não daqui.
   isAdmin(accountId: string): Promise<boolean>;
   // Todas as contas (painel admin: listar usuários). Service-role; só root/admin
@@ -38,6 +40,11 @@ export interface RelayStore {
   createPairingCode(accountId: string, label?: string): Promise<{ code: string; expiresAt: string }>;
   consumePairingCode(code: string): Promise<string | null>;
   createAgent(accountId: string, publicKey: string, label?: string): Promise<string | null>;
+  // The account's paired, non-revoked boxes (kind 'vps'), oldest first.
+  listBoxes(accountId: string): Promise<Array<{ id: string; label: string; lastSeen: string | null }>>;
+  // Scoped to the account: false when the box is not one of its live boxes.
+  renameBox(accountId: string, agentId: string, label: string): Promise<boolean>;
+  revokeBox(accountId: string, agentId: string): Promise<boolean>;
 }
 
 export interface RelayConfig {
@@ -49,7 +56,8 @@ export interface RelayConfig {
   // CSV of exact origins (DECK_ALLOWED_ORIGINS). Empty = any origin (legacy).
   allowedOrigins?: string;
   maxSocketsPerIp?: number;     // DECK_MAX_SOCKETS_PER_IP, default 64
-  maxTabsPerAccount?: number;   // DECK_MAX_TABS_PER_ACCOUNT, default 20
+  maxTabsPerAccount?: number;   // DECK_MAX_TABS_PER_ACCOUNT, default 20 (per box)
+  maxBoxesPerAccount?: number;  // DECK_MAX_BOXES_PER_ACCOUNT, default 10
   store: RelayStore;
   maxPayload?: number;
   // Segredo do /status detalhado (DECK_STATUS_TOKEN). Ausente = só o corpo público.
@@ -62,8 +70,17 @@ export interface RelayConfig {
 const tokenFromUrl = (url: string | undefined): string | null => {
   try { return new URL(url ?? '', 'http://x').searchParams.get('token'); } catch { return null; }
 };
+const boxFromUrl = (url: string | undefined): { box: string | null; peek: boolean } => {
+  try {
+    const q = new URL(url ?? '', 'http://x').searchParams;
+    return { box: q.get('box'), peek: q.get('peek') === '1' };
+  } catch { return { box: null, peek: false }; }
+};
+// Peeks are read-only views of another box (sidebar); bounded on their own so they
+// never eat the tab cap of the box someone switches to.
+const MAX_PEEKS_PER_BOX = 8;
 
-interface AgentState { agentId: string; accountId: string; challenge: string; authed: boolean; helloPending?: boolean }
+interface AgentState { agentId: string; accountId: string; challenge: string; authed: boolean; helloPending?: boolean; rank?: number }
 
 const MAX_TIMER_MS = 2 ** 31 - 1;
 
@@ -75,17 +92,15 @@ export function createRelay(cfg: RelayConfig) {
     throw new Error('resolveIdentity é stub de teste: proibido em produção');
   }
   const registry = new Registry();
-  // Which agent id holds each account's slot. The relay allows one agent per
-  // account; a DIFFERENT agent (a second box paired while the first was down)
-  // used to evict the bound one, which reconnected 1 s later and evicted it back —
-  // forever, with a full bootstrap, DB calls and agent-online to every tab each time.
-  const boundAgentId = new Map<string, { ws: WebSocket; agentId: string }>();
   const startedAt = nowMs();
   const roots = parseRootEmails(cfg.rootEmails);
   const rootIds = parseCsvSet(cfg.rootUserIds);
   const origins = parseCsvSet(cfg.allowedOrigins);
   const acquireIp = makeLimiter(cfg.maxSocketsPerIp ?? 64);
   const maxTabs = cfg.maxTabsPerAccount ?? 20;
+  const maxBoxes = cfg.maxBoxesPerAccount ?? 10;
+  // Rename/revoke write the DB through the service role: bounded like /pair/new.
+  const boxThrottle = slidingWindow(10, 60_000);
   // Agents send no Origin and the sealed channel is opaque: 16KB is far above any
   // legitimate handshake frame (hello/auth/pair) and bounds what an unauthed peer can push.
   const AGENT_PREAUTH_MAX = 16 * 1024;
@@ -99,12 +114,50 @@ export function createRelay(cfg: RelayConfig) {
   // agente); o relay não tem como saber, então o agente reporta via 'agent-caps'.
   // O relay só CASA com o papel admin do browser — nunca concede sozinho (red line:
   // bypass = RCE root). A aplicação real continua no agente (bypassAllowed).
+  // Keyed by agent id: each box reports its own capability.
   const agentBypass = new Map<string, boolean>();
   type BrowserSock = WebSocket & { _role?: AccountRole };
   // Privilegiado = root/admin (canSeeAllAccounts). canBypass só pra esses E se o
   // agente reportou capacidade local; o agente reaplica o gate de qualquer forma.
-  const capsFrame = (role: AccountRole, accountId: string) =>
-    JSON.stringify({ t: 'caps', caps: { role, canBypass: canSeeAllAccounts(role) && (agentBypass.get(accountId) ?? false) } });
+  const capsFrame = (role: AccountRole, agentId: string | null) =>
+    JSON.stringify({ t: 'caps', caps: { role, canBypass: canSeeAllAccounts(role) && !!agentId && (agentBypass.get(agentId) ?? false) } });
+
+  // Labels/last-seen come from the DB; online state from the registry at send
+  // time. Cached per account so an agent flapping doesn't hit the DB each time.
+  const boxRows = new Map<string, Promise<Array<{ id: string; label: string; lastSeen: string | null }>>>();
+  const rowsFor = (accountId: string) => {
+    let p = boxRows.get(accountId);
+    if (!p) {
+      p = cfg.store.listBoxes(accountId);
+      boxRows.set(accountId, p);
+      p.catch(() => { if (boxRows.get(accountId) === p) boxRows.delete(accountId); });
+    }
+    return p;
+  };
+  const boxesFrame = (accountId: string, box: string, rows: Array<{ id: string; label: string; lastSeen: string | null }>): string => {
+    const online = new Set(registry.agentIds(accountId));
+    const frame: BoxesFrame = {
+      t: 'boxes',
+      box: box || null,
+      primary: registry.primary(accountId),
+      boxes: rows.map((r) => ({ id: r.id, label: r.label, online: online.has(r.id), lastSeen: r.lastSeen })),
+    };
+    return JSON.stringify(frame);
+  };
+  const sendBoxes = async (accountId: string, only?: WebSocket) => {
+    if (registry.browserTotal(accountId) === 0) return;
+    try {
+      const rows = await rowsFor(accountId);
+      const send = (s: WebSocket) => { const box = registry.boxOf(accountId, s); if (box !== undefined) s.send(boxesFrame(accountId, box, rows)); };
+      if (only) { if (only.readyState === WebSocket.OPEN) send(only); return; }
+      registry.eachBrowser(accountId, (s) => send(s as WebSocket));
+    } catch (e) { console.error('[relay] boxes:', e); }
+  };
+  const flushPresence = (accountId: string) => {
+    for (const [, sock, present] of registry.presenceChanges(accountId)) {
+      try { sock.send(JSON.stringify({ t: present ? 'browsers-present' : 'no-browsers' })); } catch { /* indo */ }
+    }
+  };
 
   // Resolve a identidade de um JWT. O override (cfg.resolveIdentity) é só pra teste
   // local; em prod é o caminho JWKS real abaixo.
@@ -153,6 +206,7 @@ export function createRelay(cfg: RelayConfig) {
       // logada em loop enche a tabela de graça.
       if (!pairThrottle(id.accountId)) { res.writeHead(429); res.end('slow down'); return; }
       try {
+        if ((await cfg.store.listBoxes(id.accountId)).length >= maxBoxes) { res.writeHead(409); res.end('box limit'); return; }
         const { code, expiresAt } = await cfg.store.createPairingCode(id.accountId);
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ code, expiresAt }));
@@ -211,6 +265,12 @@ export function createRelay(cfg: RelayConfig) {
     const authTimer = setTimeout(() => { try { ws.close(4408, 'auth timeout'); } catch { /* indo */ } }, 20_000);
     authTimer.unref?.();
 
+    // `?box=` only picks WHICH of the JWT account's boxes this tab talks to; it is
+    // never authority. A box of another account resolves to "offline", like an
+    // unknown one. Anything that isn't a uuid is refused before the JWT work.
+    const { box: rawBox, peek } = boxFromUrl(req.url);
+    if ((rawBox !== null && !isBoxId(rawBox)) || (peek && rawBox === null)) { clearTimeout(authTimer); ws.close(4400, 'bad box'); return; }
+    const box = rawBox ? rawBox.toLowerCase() : '';
     const id = await identityFrom(tokenFromSubprotocol(req.headers['sec-websocket-protocol']) ?? tokenFromUrl(req.url));
     clearTimeout(authTimer);
     // The socket may have closed during the await (F5, pre-auth flood, auth
@@ -221,13 +281,13 @@ export function createRelay(cfg: RelayConfig) {
     if (!id) { ws.close(4401, 'auth'); return; }            // default-deny (red line #10)
     const accountId = id.accountId;
     // Checked and registered with no await in between, so concurrent opens can't overshoot.
-    if (registry.browserCount(accountId) >= maxTabs) { ws.close(4429, 'too many tabs'); return; }
+    if (registry.browserCount(accountId, box, peek) >= (peek ? MAX_PEEKS_PER_BOX : maxTabs)) { ws.close(4429, 'too many tabs'); return; }
     (ws as BrowserSock)._role = id.role;                     // pra reemitir caps no agent-caps
     const connId = randomBytes(16).toString('base64url');
     conns.set(connId, { ws, accountId });
     ws.on('close', () => {
       conns.delete(connId);
-      registry.toAgent(accountId, JSON.stringify({ t: 'e2e-gone', c: connId }));
+      registry.toAgent(accountId, box, JSON.stringify({ t: 'e2e-gone', c: connId }));
     });
     // Close at the JWT's expiry with a non-4401 code: the client redials with its
     // (refreshed) token; an expired/revoked one then gets 4401.
@@ -238,21 +298,24 @@ export function createRelay(cfg: RelayConfig) {
       expTimer.unref?.();
       ws.on('close', () => clearTimeout(expTimer));
     }
-    // Primeira aba da conta (0→1) → avisa o agente que há alguém olhando (liga loops).
-    if (registry.addBrowser(accountId, ws)) registry.toAgent(accountId, JSON.stringify({ t: 'browsers-present' }));
+    // Primeira aba de um box (0→1) → avisa aquele agente que há alguém olhando (liga loops).
+    registry.addBrowser(accountId, ws, box, peek);
+    flushPresence(accountId);
     // caps autoritativo do relay (papel da conta vem do JWT). canBypass casa o papel
     // privilegiado com a capacidade que o agente reportou — o gate real é no agente.
-    ws.send(capsFrame(id.role, accountId));
+    const target = registry.resolve(accountId, box);
+    ws.send(capsFrame(id.role, target));
     // Estado ATUAL do agente pra esta aba. Antes só mandava agent-offline; uma aba
     // que conectava com o agente JÁ online nunca recebia agent-online e ficava presa
     // na tela de pareamento (agentOnline inicia false no modo relay).
-    ws.send(JSON.stringify({ t: registry.hasAgent(accountId) ? 'agent-online' : 'agent-offline' }));
+    ws.send(JSON.stringify(target ? { t: 'agent-online', box: target } : { t: 'agent-offline', box: box || null }));
+    void sendBoxes(accountId, ws);
 
     const onFrame = async (s: string) => {
       // Sealed frame: opaque to the relay. The channel id is APPENDED, so it is
       // the last "c" key and wins over any "c" the browser put in the frame.
       if (s.startsWith('{"t":"e2e') && s.endsWith('}')) {
-        if (!registry.toAgent(accountId, `${s.slice(0, -1)},"c":"${connId}"}`)) ws.send(JSON.stringify({ t: 'agent-offline' }));
+        if (!registry.toAgent(accountId, box, `${s.slice(0, -1)},"c":"${connId}"}`)) ws.send(JSON.stringify({ t: 'agent-offline', box: box || null }));
         return;
       }
       // Frames de administração de CONTA (T3): tratados NO RELAY (só ele tem a
@@ -294,6 +357,28 @@ export function createRelay(cfg: RelayConfig) {
         // fala com o banco e não teria o que fazer com ele.
         if (m.t === 'accounts-list' || m.t === 'set-admin') return;
       }
+      // Box management (rename/revoke): the relay owns the box list, so it handles
+      // these itself, scoped to the JWT's account in the DB filter. Never forwarded.
+      if (maybeControlFrame(s, 'box-rename', 'box-revoke')) {
+        let m: { t?: string; id?: unknown; label?: unknown } = {};
+        try { m = JSON.parse(s); } catch { m = {}; }
+        if (m.t === 'box-rename' || m.t === 'box-revoke') {
+          const fail = () => ws.send(JSON.stringify({ t: 'box-error', op: m.t, id: typeof m.id === 'string' ? m.id.slice(0, 64) : null }));
+          if (!isBoxId(m.id) || !boxThrottle(accountId)) { fail(); return; }
+          const target = m.id.toLowerCase();
+          const label = sanitizeBoxLabel(m.label);
+          const ok = m.t === 'box-rename'
+            ? !!label && await cfg.store.renameBox(accountId, target, label)
+            : await cfg.store.revokeBox(accountId, target);
+          if (!ok) { fail(); return; }
+          boxRows.delete(accountId);
+          // Revoked: cut the box now. Its next agent-hello fails (agentById filters
+          // revoked_at); the tabs it served get agent-offline from its close handler.
+          if (m.t === 'box-revoke') registry.agentSocket(accountId, target)?.terminate?.();
+          void sendBoxes(accountId);
+          return;
+        }
+      }
       // Owner-only frames (points, host write-ops) need a root ACCOUNT, and only the
       // relay knows the account role. Parsed, not substring-matched (a JSON escape
       // hides the name); root skips the parse, and browser frames are small (uploads
@@ -304,7 +389,7 @@ export function createRelay(cfg: RelayConfig) {
       }
       // Roteia opaco pro agente DAQUELA conta. A autenticidade fim-a-fim do frame
       // (assinatura, T5) é verificada NO AGENTE, não aqui — o relay não confia em si.
-      if (!registry.toAgent(accountId, s)) ws.send(JSON.stringify({ t: 'agent-offline' }));
+      if (!registry.toAgent(accountId, box, s)) ws.send(JSON.stringify({ t: 'agent-offline', box: box || null }));
     };
 
     // `onFrame` chama o store (accounts-list/set-admin). Rejeição solta num handler
@@ -313,8 +398,12 @@ export function createRelay(cfg: RelayConfig) {
     ws.off('message', buffer);
     ws.on('message', (data) => feed(data.toString()));
     for (const s of early) feed(s);           // drena na ordem de chegada
-    // Última aba (1→0) → avisa o agente que ninguém está olhando (pausa loops).
-    ws.on('close', () => { if (registry.removeBrowser(accountId, ws)) registry.toAgent(accountId, JSON.stringify({ t: 'no-browsers' })); });
+    // Última aba de um box (1→0) → avisa aquele agente que ninguém está olhando (pausa loops).
+    ws.on('close', () => {
+      registry.removeBrowser(accountId, ws);
+      flushPresence(accountId);
+      if (registry.browserTotal(accountId) === 0) boxRows.delete(accountId);
+    });
   });
 
   // ── Agent path: challenge-signature (Ed25519). Pubkey/conta vêm do Store.
@@ -327,7 +416,7 @@ export function createRelay(cfg: RelayConfig) {
     authTimer.unref?.();
     const onAgentFrame = async (raw: import('ws').RawData) => {
       if (!st.authed && rawLength(raw) > AGENT_PREAUTH_MAX) { try { ws.close(4413, 'pre-auth frame too large'); } catch { /* indo */ } return; }
-      let m: { t?: string; agentId?: string; sig?: string; code?: string; publicKey?: string } = {};
+      let m: { t?: string; agentId?: string; sig?: string; code?: string; publicKey?: string; label?: unknown } = {};
       try { m = JSON.parse(raw.toString()); } catch { return; }
       if (!st.authed) {
         if (++attempts > 10) { try { ws.close(4429, 'too many attempts'); } catch { /* indo */ } return; }
@@ -337,9 +426,13 @@ export function createRelay(cfg: RelayConfig) {
           if (!isEd25519Spki(m.publicKey)) { ws.close(4400, 'invalid public key'); return; }
           const accountId = await cfg.store.consumePairingCode(m.code);
           if (!accountId) { ws.close(4401, 'invalid code'); return; }
-          const agentId = await cfg.store.createAgent(accountId, m.publicKey);
+          // /pair/new already refuses at the cap; this catches codes issued in parallel.
+          if ((await cfg.store.listBoxes(accountId)).length >= maxBoxes) { ws.close(4429, 'box limit'); return; }
+          const agentId = await cfg.store.createAgent(accountId, m.publicKey, sanitizeBoxLabel(m.label));
           if (!agentId) { ws.close(4500, 'pair failed'); return; }
+          boxRows.delete(accountId);
           ws.send(JSON.stringify({ t: 'paired', agentId }));
+          void sendBoxes(accountId);
           return;
         }
         if (m.t === 'agent-hello' && typeof m.agentId === 'string') {
@@ -354,6 +447,7 @@ export function createRelay(cfg: RelayConfig) {
           if (st.authed || ws.readyState !== WebSocket.OPEN) return;
           if (!rec) { ws.close(4401, 'unknown agent'); return; }
           st.agentId = m.agentId; st.accountId = rec.accountId; st.challenge = makeChallenge();
+          st.rank = rec.pairedAt ? Date.parse(rec.pairedAt) || Infinity : Infinity;
           (st as AgentState & { pub?: string }).pub = rec.publicKey;
           ws.send(JSON.stringify({ t: 'challenge', nonce: st.challenge }));
           return;
@@ -362,33 +456,36 @@ export function createRelay(cfg: RelayConfig) {
           const pub = (st as AgentState & { pub?: string }).pub ?? '';
           // Verifica sobre challenge+agentId (domain separation; casa com o agente).
           if (!st.challenge || !verifyAgentSignature(pub, `${st.challenge}.${st.agentId}`, m.sig)) { ws.close(4401, 'bad sig'); return; }
-          // Same agent reconnecting (the old socket half-open) still takes over below.
-          // A bound agent that was revoked since it logged in (revocation is only
-          // checked at agent-hello) must not keep the slot either.
-          const cur = boundAgentId.get(st.accountId);
-          if (cur && cur.agentId !== st.agentId && cur.ws.readyState === cur.ws.OPEN && await cfg.store.agentById(cur.agentId)) {
-            ws.close(4409, 'another agent online'); return;
-          }
-          // The store lookup above awaited: a socket that closed meanwhile already ran
-          // its close handler (not authed), so binding it would leave a dead agent bound.
+          // Each box has its own slot: another box of the account is not a conflict.
+          // The SAME agent reconnecting (old socket half-open) takes its slot over.
           if (ws.readyState !== ws.OPEN) return;
           st.authed = true;
           clearTimeout(authTimer);
-          // Termina um socket de agente ANTERIOR da mesma conta (reconnect com o velho
-          // meio-aberto) — senão os dois coexistiam empurrando frames até o heartbeat.
-          const prevAgent = registry.bindAgent(st.accountId, ws);
-          boundAgentId.set(st.accountId, { ws, agentId: st.agentId });
+          const prevPrimary = registry.primary(st.accountId);
+          const prevAgent = registry.bindAgent(st.accountId, st.agentId, ws, st.rank);
           if (prevAgent) { try { (prevAgent as WebSocket).terminate(); } catch { /* já indo */ } }
+          // An earlier-paired box coming back takes the primary over: tabs following
+          // the primary were sealed with the other box and must redial.
+          if (prevPrimary && prevPrimary !== st.agentId && registry.primary(st.accountId) === st.agentId) {
+            const oldPrimary = registry.agentSocket(st.accountId, prevPrimary);
+            for (const [tab, box] of registry.tabsOf(st.accountId, st.agentId)) {
+              if (box) continue;
+              // Its close handler will tell the NEW primary; the old one held the
+              // sealed channel and must drop it now.
+              for (const [c, conn] of conns) if (conn.ws === tab) { try { oldPrimary?.send(JSON.stringify({ t: 'e2e-gone', c })); } catch { /* indo */ } }
+              try { (tab as WebSocket).close(4003, 'primary box changed'); } catch { /* indo */ }
+            }
+          }
           // agent-ready BEFORE the DB write: the socket is already bound, so browser
           // frames route to it from here on, and the agent ignores everything until
           // agent-ready — up to 10 s of `send`s were dropped with no agent-offline.
           ws.send(JSON.stringify({ t: 'agent-ready' }));
           void cfg.store.markAgentSeen(st.agentId).catch(() => { /* last-seen stamp only */ });
-          // Avisa as abas da conta que o agente ficou online.
-          registry.toBrowsers(st.accountId, JSON.stringify({ t: 'agent-online' }));
-          // Estado inicial de presença pro agente recém-pareado: liga os loops só se
-          // já houver aba aberta (senão ficam pausados até a 1ª aba conectar).
-          ws.send(JSON.stringify({ t: registry.browserCount(st.accountId) > 0 ? 'browsers-present' : 'no-browsers' }));
+          // Avisa as abas que alcançam ESTE box que ele ficou online.
+          registry.toBrowsers(st.accountId, st.agentId, JSON.stringify({ t: 'agent-online', box: st.agentId }));
+          // Estado inicial de presença: liga os loops só se já houver aba olhando este box.
+          flushPresence(st.accountId);
+          void sendBoxes(st.accountId);
           return;
         }
         ws.close(4401, 'auth required'); return;
@@ -401,11 +498,11 @@ export function createRelay(cfg: RelayConfig) {
         let m: { t?: string; canBypass?: boolean } = {};
         try { m = JSON.parse(s); } catch { /* repassa abaixo */ }
         if (m.t === 'agent-caps') {
-          agentBypass.set(st.accountId, !!m.canBypass);
-          registry.eachBrowser(st.accountId, (b) => {
+          agentBypass.set(st.agentId, !!m.canBypass);
+          for (const [b] of registry.tabsOf(st.accountId, st.agentId)) {
             const role = (b as BrowserSock)._role;
-            if (role) b.send(capsFrame(role, st.accountId));
-          });
+            if (role) b.send(capsFrame(role, st.agentId));
+          }
           return;
         }
       }
@@ -416,11 +513,11 @@ export function createRelay(cfg: RelayConfig) {
       const directed = /^\{"c":"([A-Za-z0-9_-]{22})"(?:,"p":([01]))?,/.exec(s.slice(0, 40));
       if (directed) {
         const conn = conns.get(directed[1]);
-        if (conn && conn.accountId === st.accountId) registry.toBrowser(st.accountId, conn.ws, `{${s.slice(directed[0].length)}`, directed[2] === '1');
+        if (conn && conn.accountId === st.accountId) registry.toBrowser(st.accountId, st.agentId, conn.ws, `{${s.slice(directed[0].length)}`, directed[2] === '1');
         return;
       }
-      // Autenticado: frame do agente → as abas DAQUELA conta (escopo por conta).
-      registry.toBrowsers(st.accountId, s);
+      // Autenticado: frame do agente → só as abas que alcançam ESTE box.
+      registry.toBrowsers(st.accountId, st.agentId, s);
     };
     // Todo o handshake (pair, agent-hello, agent-auth) aguarda o store. Rejeição
     // solta aqui derrubaria o processo inteiro; fecha só ESTE socket — o agente
@@ -436,11 +533,19 @@ export function createRelay(cfg: RelayConfig) {
       // Só emite agent-offline / apaga bypass se ESTE socket ainda era o agente
       // vinculado. Socket VELHO substituído no rebind (eviction) → unbindAgent false →
       // não derruba o agente NOVO nem manda offline espúrio logo após o online dele.
-      if (st.authed && boundAgentId.get(st.accountId)?.ws === ws) boundAgentId.delete(st.accountId);
-      if (st.authed && registry.unbindAgent(st.accountId, ws)) {
-        agentBypass.delete(st.accountId);
-        registry.toBrowsers(st.accountId, JSON.stringify({ t: 'agent-offline' }));
+      if (!st.authed) return;
+      const tabs = registry.tabsOf(st.accountId, st.agentId);
+      if (!registry.unbindAgent(st.accountId, st.agentId, ws)) return;
+      agentBypass.delete(st.agentId);
+      const next = registry.primary(st.accountId);
+      for (const [tab, box] of tabs) {
+        // A tab following the primary had its sealed channel with THIS box: when
+        // another box becomes primary it must redial and handshake with that one.
+        if (!box && next) { try { (tab as WebSocket).close(4003, 'primary box changed'); } catch { /* indo */ } continue; }
+        try { tab.send(JSON.stringify({ t: 'agent-offline', box: box || null })); } catch { /* indo */ }
       }
+      flushPresence(st.accountId);
+      void sendBoxes(st.accountId);
     });
   });
 

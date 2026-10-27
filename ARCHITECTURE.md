@@ -80,7 +80,25 @@ custo por usuário fica plano (não centraliza inferência num servidor só).
 3. Agente recebe, `serveConnection` processa (mesmo código do backend local), spawna/continua
    `claude -p` no cwd isolado, e faz stream das respostas.
 4. Respostas saem por `broadcast` → `setClientSource([socket do agente])` → relay → todas as
-   abas daquela conta (`registry.toBrowsers`). Escopo é **por conta** o tempo todo.
+   abas daquela conta que estão naquele box (`registry.toBrowsers`). Escopo é **por conta e
+   por box** o tempo todo.
+
+### Vários boxes por conta (multi-box)
+
+Uma conta pareia até `DECK_MAX_BOXES_PER_ACCOUNT` (10) máquinas — cada uma é uma linha
+`agent` (kind `vps`) com `label`. Cada box tem o seu slot no relay; um segundo box não
+derruba o primeiro. A aba escolhe o box no handshake (`/ws?box=<agentId>`): o relay só
+resolve esse id **dentro da conta do JWT** (de outra conta = offline). Sem `?box`, a aba
+segue o **primário** (o box online há mais tempo) — é o caminho de cliente antigo e de
+conta com um box só, sem mudança. Se o primário cai e outro assume, essas abas fecham com
+`4003` e redisca (o canal selado era com o outro box).
+
+- Frames de um box só chegam às abas daquele box; frame selado dirigido exige mesma conta
+  **e** mesmo box; presença (`browsers-present`/`no-browsers`) e `canBypass` são por box.
+- O relay manda `{t:'boxes', box, primary, boxes:[{id,label,online,lastSeen}]}` às abas da
+  conta (nunca aos boxes) e trata `box-rename`/`box-revoke` ele mesmo, com filtro
+  `id` + `account_id` no banco. Revogar corta o socket do box na hora.
+- Rótulo saneado (controle e bidi fora, ≤ 64) no relay e no banco (migration 0007).
 
 ## Health checks e supervisão (resiliência)
 

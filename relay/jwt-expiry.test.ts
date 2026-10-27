@@ -8,6 +8,7 @@ const store: RelayStore = {
   async listAccounts() { return []; }, async setAdmin() { return true; },
   async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: new Date(Date.now() + 600_000).toISOString() }; },
   async consumePairingCode() { return null; }, async createAgent() { return null; },
+      async listBoxes() { return []; }, async renameBox() { return false; }, async revokeBox() { return false; },
 };
 
 describe('browser socket and the JWT expiry', () => {

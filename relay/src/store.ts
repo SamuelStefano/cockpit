@@ -45,10 +45,14 @@ export function supabaseStore(cfg: StoreConfig): RelayStore {
   return {
     async agentById(agentId) {
       const enc = encodeURIComponent(agentId);
-      const row = await getOne<{ account_id: string; public_key: string }>(
-        `/agent?id=eq.${enc}&kind=eq.vps&revoked_at=is.null&select=account_id,public_key`,
-      );
-      return row ? { accountId: row.account_id, publicKey: row.public_key } : null;
+      // A failed read must not look like "unknown agent": the agent backs off for
+      // minutes on that answer, so a PostgREST blip would park every box. Throwing
+      // closes 4500 and the agent retries on its normal backoff.
+      const res = await req(`/agent?id=eq.${enc}&kind=eq.vps&revoked_at=is.null&select=account_id,public_key,paired_at`);
+      if (!res.ok) throw new Error(`agentById failed: ${res.status}`);
+      const rows = (await res.json()) as { account_id: string; public_key: string; paired_at?: string }[];
+      const row = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+      return row ? { accountId: row.account_id, publicKey: row.public_key, pairedAt: row.paired_at } : null;
     },
 
     async isAdmin(accountId) {
@@ -86,6 +90,38 @@ export function supabaseStore(cfg: StoreConfig): RelayStore {
           body: JSON.stringify({ last_seen: new Date().toISOString() }),
         });
       } catch { /* ignore */ }
+    },
+
+    async listBoxes(accountId) {
+      const enc = encodeURIComponent(accountId);
+      const res = await req(`/agent?account_id=eq.${enc}&kind=eq.vps&revoked_at=is.null&select=id,label,last_seen&order=paired_at.asc`);
+      if (!res.ok) throw new Error('listBoxes failed');
+      const rows = (await res.json()) as { id: string; label: string | null; last_seen: string | null }[];
+      return rows.map((r) => ({ id: r.id, label: r.label ?? '', lastSeen: r.last_seen }));
+    },
+
+    // Both writes filter by the JWT's account too: a box id of another account
+    // matches no row. The body carries only the one column each action owns.
+    async renameBox(accountId, agentId, label) {
+      const res = await req(`/agent?id=eq.${encodeURIComponent(agentId)}&account_id=eq.${encodeURIComponent(accountId)}&kind=eq.vps&revoked_at=is.null`, {
+        method: 'PATCH',
+        headers: { prefer: 'return=representation' },
+        body: JSON.stringify({ label }),
+      });
+      if (!res.ok) return false;
+      const rows = (await res.json()) as unknown[];
+      return Array.isArray(rows) && rows.length === 1;
+    },
+
+    async revokeBox(accountId, agentId) {
+      const res = await req(`/agent?id=eq.${encodeURIComponent(agentId)}&account_id=eq.${encodeURIComponent(accountId)}&kind=eq.vps&revoked_at=is.null`, {
+        method: 'PATCH',
+        headers: { prefer: 'return=representation' },
+        body: JSON.stringify({ revoked_at: new Date().toISOString() }),
+      });
+      if (!res.ok) return false;
+      const rows = (await res.json()) as unknown[];
+      return Array.isArray(rows) && rows.length === 1;
     },
 
     // Gera um código de pareamento (entropia no servidor), guarda só o HASH com TTL

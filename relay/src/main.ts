@@ -32,6 +32,7 @@ const { server, shutdown } = createRelay({
   allowedOrigins: process.env.DECK_ALLOWED_ORIGINS,
   maxSocketsPerIp: positiveInt(process.env.DECK_MAX_SOCKETS_PER_IP),
   maxTabsPerAccount: positiveInt(process.env.DECK_MAX_TABS_PER_ACCOUNT),
+  maxBoxesPerAccount: positiveInt(process.env.DECK_MAX_BOXES_PER_ACCOUNT),
   store: supabaseStore({ url: supabaseUrl, serviceKey }),
   statusToken: process.env.DECK_STATUS_TOKEN,
 });

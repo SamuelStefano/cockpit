@@ -35,9 +35,18 @@ function frameType(data: string): string {
   try { return (JSON.parse(data) as { t?: string }).t ?? '?'; } catch { return '?'; }
 }
 
+
+// A tab is bound to one box at open (`?box=<agentId>`) or to '' = the account's
+// primary box, which is what old clients and single-box accounts get. The
+// primary is the online box paired first (rank = paired_at), so a box that blips
+// offline and back gets its place again. A box only ever receives its own tabs'
+// frames and only reaches its own tabs. A "peek" tab (read-only view of another
+// box) gets the box's frames but never counts as someone looking at it.
+interface Tab { box: string; peek: boolean }
 interface Bucket {
-  agent: Sock | null;        // o agente (VPS) pareado daquela conta — no máx 1 ativo
-  browsers: Set<Sock>;       // abas/dispositivos logados na conta
+  agents: Map<string, { sock: Sock; rank: number }>;
+  browsers: Map<Sock, Tab>;
+  present: Map<string, boolean>;  // last presence state sent to each agent
 }
 
 export class Registry {
@@ -45,88 +54,158 @@ export class Registry {
 
   private bucket(accountId: string): Bucket {
     let b = this.byAccount.get(accountId);
-    if (!b) { b = { agent: null, browsers: new Set() }; this.byAccount.set(accountId, b); }
+    if (!b) { b = { agents: new Map(), browsers: new Map(), present: new Map() }; this.byAccount.set(accountId, b); }
     return b;
   }
 
   private gc(accountId: string): void {
     const b = this.byAccount.get(accountId);
-    if (b && !b.agent && b.browsers.size === 0) this.byAccount.delete(accountId);
+    if (b && b.agents.size === 0 && b.browsers.size === 0) this.byAccount.delete(accountId);
   }
 
-  // Faz bind do novo agente e DEVOLVE o socket anterior (se houver e for outro), pra
-  // o caller terminá-lo na hora — senão num reconnect o socket velho meio-aberto
-  // coexistia até o heartbeat (até 30s) ainda empurrando frames pros browsers.
-  bindAgent(accountId: string, sock: Sock): Sock | null {
+  private resolveIn(b: Bucket, box: string): string | null {
+    if (box) return b.agents.has(box) ? box : null;
+    let best: string | null = null, bestRank = Infinity;
+    for (const [id, a] of b.agents) if (best === null || a.rank < bestRank) { best = id; bestRank = a.rank; }
+    return best;
+  }
+
+  // Binds the agent and RETURNS its previous socket (same agentId reconnecting with
+  // the old one half-open) for the caller to terminate. Other boxes are untouched.
+  bindAgent(accountId: string, agentId: string, sock: Sock, rank = Infinity): Sock | null {
     const b = this.bucket(accountId);
-    const prev = b.agent && b.agent !== sock ? b.agent : null;
-    b.agent = sock;
-    return prev;
+    const cur = b.agents.get(agentId)?.sock;
+    b.agents.set(agentId, { sock, rank });
+    if (cur !== sock) b.present.delete(agentId);
+    return cur && cur !== sock ? cur : null;
   }
 
-  // Retorna true se ESTE sock era o agente vinculado e foi desvinculado. false se já
-  // havia sido substituído por um socket novo — o caller NÃO deve emitir agent-offline
-  // nem apagar o bypass (senão o close do socket velho derruba o agente novo).
-  unbindAgent(accountId: string, sock: Sock): boolean {
+  // True if THIS socket was the bound one. false = a newer socket of the same
+  // agent replaced it: the caller must not announce agent-offline.
+  unbindAgent(accountId: string, agentId: string, sock: Sock): boolean {
     const b = this.byAccount.get(accountId);
-    if (b && b.agent === sock) { b.agent = null; this.gc(accountId); return true; }
-    return false;
+    if (!b || b.agents.get(agentId)?.sock !== sock) return false;
+    b.agents.delete(agentId);
+    b.present.delete(agentId);
+    this.gc(accountId);
+    return true;
   }
 
-  // Retorna true se esta é a PRIMEIRA aba da conta (transição 0→1) — o caller avisa
-  // o agente que há browser olhando (liga os loops periódicos).
-  addBrowser(accountId: string, sock: Sock): boolean {
-    const b = this.bucket(accountId);
-    const wasEmpty = b.browsers.size === 0;
-    b.browsers.add(sock);
-    return wasEmpty;
+  addBrowser(accountId: string, sock: Sock, box = '', peek = false): void {
+    this.bucket(accountId).browsers.set(sock, { box, peek });
   }
 
-  // Retorna true se esta era a ÚLTIMA aba (transição 1→0) — o caller avisa o agente
-  // que ninguém está olhando (pausa os loops, economiza quota OAuth/CPU).
-  removeBrowser(accountId: string, sock: Sock): boolean {
+  removeBrowser(accountId: string, sock: Sock): void {
+    const b = this.byAccount.get(accountId);
+    if (!b) return;
+    b.browsers.delete(sock);
+    this.gc(accountId);
+  }
+
+  // Tabs (or peeks) that would reach the same box as `box` (the per-box caps). '' and
+  // the primary's own id count together; all tabs on offline boxes count together.
+  browserCount(accountId: string, box = '', peek = false): number {
+    const b = this.byAccount.get(accountId);
+    if (!b) return 0;
+    const target = this.resolveIn(b, box);
+    let n = 0;
+    for (const t of b.browsers.values()) {
+      if (t.peek !== peek) continue;
+      // Tabs on offline/unknown boxes share one budget, so cycling box ids can't
+      // multiply the cap.
+      if (target ? this.resolveIn(b, t.box) === target : this.resolveIn(b, t.box) === null) n++;
+    }
+    return n;
+  }
+
+  // Which agent a tab bound to `box` talks to right now, or null (offline).
+  resolve(accountId: string, box = ''): string | null {
+    const b = this.byAccount.get(accountId);
+    return b ? this.resolveIn(b, box) : null;
+  }
+
+  primary(accountId: string): string | null { return this.resolve(accountId, ''); }
+
+  boxOf(accountId: string, sock: Sock): string | undefined { return this.byAccount.get(accountId)?.browsers.get(sock)?.box; }
+
+  // Any box online (no argument), or the box a tab bound to `box` reaches.
+  hasAgent(accountId: string, box?: string): boolean {
     const b = this.byAccount.get(accountId);
     if (!b) return false;
-    const had = b.browsers.delete(sock);
-    const nowEmpty = had && b.browsers.size === 0;
-    this.gc(accountId);
-    return nowEmpty;
+    return box === undefined ? b.agents.size > 0 : this.resolveIn(b, box) !== null;
   }
 
-  browserCount(accountId: string): number { return this.byAccount.get(accountId)?.browsers.size ?? 0; }
+  agentSocket(accountId: string, agentId: string): Sock | undefined { return this.byAccount.get(accountId)?.agents.get(agentId)?.sock; }
 
-  hasAgent(accountId: string): boolean { return !!this.byAccount.get(accountId)?.agent; }
+  browserTotal(accountId: string): number { return this.byAccount.get(accountId)?.browsers.size ?? 0; }
 
-  // Itera as abas abertas de uma conta (pra reemitir caps quando o agente reporta
-  // sua capacidade real depois que a aba já conectou). Escopo por conta, sem fan-out.
+  agentIds(accountId: string): string[] { return [...(this.byAccount.get(accountId)?.agents.keys() ?? [])]; }
+
+  // Every open tab of the account, any box (role changes, `boxes` updates).
   eachBrowser(accountId: string, fn: (sock: Sock) => void): void {
     const b = this.byAccount.get(accountId);
     if (!b) return;
-    for (const s of b.browsers) {
+    for (const s of b.browsers.keys()) {
       if (s.readyState !== undefined && s.readyState !== OPEN) continue;
       fn(s);
     }
   }
 
-  // Frame de um browser → o agente DAQUELA conta. Retorna false se não há agente
-  // pareado/online (a UI mostra "agente offline"). Nunca alcança outra conta.
-  toAgent(accountId: string, data: string): boolean {
-    const agent = this.byAccount.get(accountId)?.agent;
+  // Open tabs that currently reach this agent, with the box key they are bound to.
+  tabsOf(accountId: string, agentId: string): Array<[Sock, string]> {
+    const b = this.byAccount.get(accountId);
+    if (!b) return [];
+    const out: Array<[Sock, string]> = [];
+    for (const [s, t] of b.browsers) {
+      if (s.readyState !== undefined && s.readyState !== OPEN) continue;
+      if (this.resolveIn(b, t.box) === agentId) out.push([s, t.box]);
+    }
+    return out;
+  }
+
+  // Presence transitions since the last call, per online agent: true = a (non-peek)
+  // tab looks at it now and none did, false = the reverse. A freshly bound agent
+  // always gets its initial state. The caller sends browsers-present / no-browsers.
+  presenceChanges(accountId: string): Array<[string, Sock, boolean]> {
+    const b = this.byAccount.get(accountId);
+    if (!b) return [];
+    const watched = new Set<string>();
+    for (const t of b.browsers.values()) {
+      if (t.peek) continue;
+      const id = this.resolveIn(b, t.box);
+      if (id) watched.add(id);
+    }
+    const out: Array<[string, Sock, boolean]> = [];
+    for (const [id, a] of b.agents) {
+      const now = watched.has(id);
+      if (b.present.get(id) === now) continue;
+      b.present.set(id, now);
+      out.push([id, a.sock, now]);
+    }
+    return out;
+  }
+
+  // Browser frame → the agent its tab is bound to. false = that box is offline.
+  // Never reaches another box or another account.
+  toAgent(accountId: string, box: string, data: string): boolean {
+    const b = this.byAccount.get(accountId);
+    const id = b ? this.resolveIn(b, box) : null;
+    const agent = id ? b!.agents.get(id)?.sock : undefined;
     if (!agent || (agent.readyState !== undefined && agent.readyState !== OPEN)) return false;
     if (overHardCap(agent)) return false;
     agent.send(data);
     return true;
   }
 
-  // Frame do agente → as abas DAQUELA conta (escopo por conta; nunca fan-out global).
-  // Retorna quantas abas receberam.
-  toBrowsers(accountId: string, data: string): number {
+  // Agent frame → the tabs of that account that reach THIS agent. Returns how many got it.
+  toBrowsers(accountId: string, agentId: string, data: string): number {
     const b = this.byAccount.get(accountId);
     if (!b) return 0;
     let n = 0;
     let dropChecked = false, droppable = false;
-    for (const s of b.browsers) {
+    for (const [s, t] of b.browsers) {
       if (s.readyState !== undefined && s.readyState !== OPEN) continue;
+      if (this.resolveIn(b, t.box) !== agentId) continue;
       if (overHardCap(s)) continue;
       if (s.bufferedAmount !== undefined && s.bufferedAmount > BACKPRESSURE_BYTES) {
         if (!dropChecked) { droppable = DROPPABLE.has(frameType(data)); dropChecked = true; }
@@ -135,18 +214,18 @@ export class Registry {
       s.send(data); n++;
     }
     if (process.env.DECK_RELAY_DEBUG) {
-      let t = '?'; try { t = (JSON.parse(data) as { t?: string }).t ?? '?'; } catch { /* */ }
-      console.error(`[relay][debug] toBrowsers ${t} -> ${n}/${b.browsers.size} browsers (acct ${accountId.slice(0, 8)})`);
+      console.error(`[relay][debug] toBrowsers ${frameType(data)} -> ${n}/${b.browsers.size} browsers (acct ${accountId.slice(0, 8)} box ${agentId.slice(0, 8)})`);
     }
     return n;
   }
 
-  // Sealed frame (T5) → the ONE tab its channel belongs to, and only if that
-  // tab is in the same account as the agent that sent it. The relay can't read
-  // the frame; `droppable` is the agent's plaintext hint for backpressure.
-  toBrowser(accountId: string, sock: Sock, data: string, droppable: boolean): boolean {
+  // Sealed frame (T5) → the ONE tab its channel belongs to, only if that tab is in
+  // the sender's account AND currently reaches the sender's box. The relay can't
+  // read the frame; `droppable` is the agent's plaintext hint for backpressure.
+  toBrowser(accountId: string, agentId: string, sock: Sock, data: string, droppable: boolean): boolean {
     const b = this.byAccount.get(accountId);
-    if (!b || !b.browsers.has(sock)) return false;
+    const t = b?.browsers.get(sock);
+    if (!b || !t || this.resolveIn(b, t.box) !== agentId) return false;
     if (sock.readyState !== undefined && sock.readyState !== OPEN) return false;
     if (overHardCap(sock)) return false;
     if (droppable && sock.bufferedAmount !== undefined && sock.bufferedAmount > BACKPRESSURE_BYTES) return false;
@@ -156,7 +235,7 @@ export class Registry {
 
   stats(): { accounts: number; agents: number; browsers: number } {
     let agents = 0, browsers = 0;
-    for (const b of this.byAccount.values()) { if (b.agent) agents++; browsers += b.browsers.size; }
+    for (const b of this.byAccount.values()) { agents += b.agents.size; browsers += b.browsers.size; }
     return { accounts: this.byAccount.size, agents, browsers };
   }
 }
