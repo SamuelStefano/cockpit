@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Button, Badge, BrandMark, IconButton, Input, Popover, Switch, ToggleChip, Tooltip, UsageRing, toast } from '../../components/primitives';
+import { Avatar, Button, Badge, BrandMark, IconButton, Input, ListRow, Menu, MenuItem, MenuLabel, MenuSeparator, Popover, RiskBadge, SectionTitle, Sheet, Switch, ToggleChip, Tooltip, UsageRing, toast } from '../../components/primitives';
 import { Section } from './Section';
 import { Row } from './Row';
 
 export function PrimitivesGallery() {
   const [pop, setPop] = useState(false);
+  const [sheet, setSheet] = useState(false);
   return (
     <>
       <Section title="Tooltip, IconButton, Popover, UsageRing">
@@ -12,6 +13,27 @@ export function PrimitivesGallery() {
         <Row label="IconButton"><IconButton icon="plus" label="Nova conversa" /><IconButton icon="search" label="Buscar" tip="Buscar ⌘K" /><IconButton icon="x" label="Fechar" variant="secondary" /></Row>
         <Row label="Popover"><Popover open={pop} onClose={() => setPop(false)} label="Exemplo" side="bottom" content={<p className="w-56 p-3 text-[13px] text-neutral-300">Fecha com Esc ou clique fora.</p>}><Button variant="outline" onClick={() => setPop((o) => !o)}>abrir</Button></Popover></Row>
         <Row label="UsageRing"><Tooltip label="Uso do plano 25%"><span><UsageRing value={25} size={28} label="Uso do plano: 25%" /></span></Tooltip><UsageRing value={75} size={28} /><UsageRing value={95} size={28} /><UsageRing value={null} size={28} /></Row>
+      </Section>
+
+      <Section title="Avatar, Menu, Sheet, ListRow, SectionTitle, RiskBadge">
+        <Row label="Avatar"><Avatar name="Samuel Stefano" /><Avatar name="Ana" size={40} /><Avatar name="" /></Row>
+        <Row label="Sheet + Menu">
+          <Sheet open={sheet} onClose={() => setSheet(false)} label="Ações" content={
+            <Menu label="Ações">
+              <MenuLabel>Conversa</MenuLabel>
+              <MenuItem icon="pencil" label="Renomear" right="F2" onClick={() => setSheet(false)} />
+              <MenuItem icon="copy" label="Copiar link" onClick={() => setSheet(false)} />
+              <MenuSeparator />
+              <MenuItem icon="trash" label="Excluir" danger onClick={() => setSheet(false)} />
+            </Menu>
+          }><Button variant="outline" onClick={() => setSheet((o) => !o)}>abrir menu</Button></Sheet>
+        </Row>
+        <Row label="ListRow"><div className="w-96 overflow-hidden rounded-xl border border-neutral-800">
+          <ListRow label="Nome" hint="Como aparece para o time" value="Samuel" />
+          <ListRow label="Notificações" leading={<Avatar name="Ana Lima" size={32} />} onClick={() => toast('clicou')} />
+        </div></Row>
+        <Row label="SectionTitle"><div><SectionTitle>Conta</SectionTitle></div></Row>
+        <Row label="RiskBadge"><RiskBadge risk="read" /><RiskBadge risk="write" /><RiskBadge risk="net" /></Row>
       </Section>
 
       <Section title="Button — variantes">
