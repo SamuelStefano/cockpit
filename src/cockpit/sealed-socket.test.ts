@@ -38,7 +38,7 @@ vi.mock('./preauth-store', () => ({
 const { SealedSocket, enrollThisDevice, retrySeal, sealState, sendRelayFrame, TOFU_UNTIL } = await import('./sealed-socket');
 const { boxStore } = await import('./boxes-store');
 const { SealedHub, agentKeysFrom, tofuWindow } = await import('../../server/e2e/hub');
-const { createEnrollCode, devicePin, listDevices, storePreauth } = await import('../../server/e2e/devices');
+const { createEnrollCode, devicePin, listDevices, revokeDevice, storePreauth } = await import('../../server/e2e/devices');
 const { deviceFrameHandler } = await import('../../server/e2e/manage');
 const { boxPinKey, deriveFromPrf } = await import('../../shared/e2e/passkey');
 const { newDeviceCode } = await import('../../shared/e2e/enroll');
@@ -379,7 +379,7 @@ describe('SealedSocket with a passkey device key', () => {
     dial();
     await settle();
     relay.tamper = null;
-    expect(sealState.get()).toBe('rejected');
+    expect(sealState.get()).toBe('enroll');
     expect(mem.boxPins[BOX]).toBeUndefined();
   });
 
@@ -471,6 +471,43 @@ describe('SealedSocket with a passkey device key', () => {
     await settle();
     expect(sealState.get()).toBe('sealed');
     expect(relay.browser!.sent.find((f) => f.includes('e2e-hello'))).toContain(toB64(mem.passkey.pub));
+  });
+
+  it('a passkey key revoked on the box is not re-added by another synced browser still on its random key', async () => {
+    const keys = agentWithBoxId();
+    const s = dial();
+    await settle();
+    const { code } = await createEnrollCode(keys.pub);
+    await enrollThisDevice(code, 'laptop');
+    await settle();
+    mem.passkey = await deriveFromPrf(PRF);
+    retrySeal();
+    await settle();
+    const pk = toB64(mem.passkey.pub);
+    expect(listDevices().map((d) => d.pub)).toContain(pk);
+    revokeDevice(pk);
+    s.close();
+    await flush();
+    mem.passkeyBoxes = [];
+    dial();
+    await settle();
+    expect(sealState.get()).toBe('sealed');
+    expect(relay.browser!.sent.some((f) => f.includes('e2e-hello') && !f.includes(pk))).toBe(true);
+    expect(listDevices().map((d) => d.pub)).not.toContain(pk);
+    expect(devicePin(pk)).toBeNull();
+  });
+
+  it('a relay that puts a bad pin proof in front of a browser with no pin cannot make it sticky-rejected', async () => {
+    const { s } = await pairedWithDeviceCode();
+    s.close();
+    await flush();
+    mem.boxPins = {};
+    relay.tamper = (f) => (f.includes('"e2e-accept"') ? f.replace(/"pin":"[^"]+"/, `"pin":"${toB64(new Uint8Array(32).fill(1))}"`) : f);
+    dial();
+    await settle();
+    relay.tamper = null;
+    expect(sealState.get()).not.toBe('rejected');
+    expect(mem.boxPins[BOX] ?? []).toEqual([]);
   });
 
   it('a box with no devices trusts this browser on first use, and the passkey pin key follows', async () => {
