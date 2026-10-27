@@ -155,6 +155,17 @@ describe('SealedSocket against the real agent hub', () => {
     expect(sealState.get()).toBe('rejected');
   });
 
+  it('a pinned device seals on redial although agent-online arrives with the hello in flight', async () => {
+    const { s } = await enrolledSocket();
+    s.close();
+    await flush();
+    const again = new SealedSocket('wss://relay/ws', 'jwt', { main: true });
+    again.onmessage = () => {};
+    await flush(); await flush();
+    expect(sealState.get()).toBe('sealed');
+    expect(relay.browser!.sent.filter((f) => f.includes('e2e-hello'))).toHaveLength(1);
+  });
+
   it('sends relay-owned admin frames in the clear and nothing else', async () => {
     const { s } = await enrolledSocket();
     s.send('{"t":"accounts-list"}');
@@ -230,8 +241,8 @@ describe('SealedSocket with a passkey device key', () => {
     return keys;
   }
 
-  function dial(box: string | undefined = BOX) {
-    const s = new SealedSocket(box ? 'wss://relay/ws?box=' + box : 'wss://relay/ws', 'jwt', { box, main: true });
+  function dial(box: string | null = BOX) {
+    const s = new SealedSocket(box ? 'wss://relay/ws?box=' + box : 'wss://relay/ws', 'jwt', { box: box ?? undefined, main: true });
     s.onmessage = () => {};
     return s;
   }
@@ -291,7 +302,7 @@ describe('SealedSocket with a passkey device key', () => {
   it('an unbound passkey socket waits for its box instead of showing the enroll screen', async () => {
     agentWithBoxId();
     mem.passkey = await deriveFromPrf(PRF);
-    dial(undefined);
+    dial(null);
     await settle();
     expect(sealState.get()).toBe('connecting');
     expect(relay.browser!.sent.some((f) => f.includes('e2e-hello'))).toBe(false);

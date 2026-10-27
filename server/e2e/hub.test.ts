@@ -321,7 +321,7 @@ describe('passkey device: agent pin proof for a browser with no pin', () => {
     expect(accepted.provedByPin).toBe(true);
     expect(accepted.hasPin).toBe(true);
     expect(accepted.agentPub).toEqual(h.keys.pub);
-    expect(h.hub.peers.size).toBe(2);
+    expect(h.hub.peers.get(C)?.devicePub).toBe(toB64(synced.pub));
   });
 
   it('refuses a substituted agent key, a bad proof, and a proof for another box', async () => {

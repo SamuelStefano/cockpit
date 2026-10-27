@@ -86,6 +86,7 @@ export class SealedSocket {
   private handshake: DeviceHandshake | null = null;
   private enrolling: { parsed: EnrollCode; resolve: () => void; reject: (e: Error) => void } | null = null;
   private preauthing: { secret: Bytes } | null = null;
+  private starting = false;
   private passkey: { pub: Bytes; pinRoot: CryptoKey } | null = null;
   private readonly box: string | undefined;
   private readonly main: boolean;
@@ -149,6 +150,12 @@ export class SealedSocket {
   // socket has no box id to check against: it waits for the `boxes` frame to
   // bind the dial (the key={box} remount) and only then handshakes.
   private async start(): Promise<void> {
+    if (this.starting) return;
+    this.starting = true;
+    try { await this.begin(); } finally { this.starting = false; }
+  }
+
+  private async begin(): Promise<void> {
     const pins = await pinnedAgents(this.box);
     this.passkey = await passkeyDevice().catch(() => null);
     const viaPin = !!this.passkey && this.box !== undefined;
@@ -198,7 +205,11 @@ export class SealedSocket {
         return;
       }
       if (t === 'agent-offline' && this.channel) { this.fail('agent went offline'); return; }
-      if (t === 'agent-online' && !this.channel && !this.enrolling && !this.preauthing && this.seal !== 'enroll') void this.start();
+      // The relay announces agent-online right after connect, while the hello
+      // sent on open is still in flight: a second hello would make the first
+      // accept arrive against the wrong handshake and read as a refused key.
+      if (t === 'agent-offline' && this.handshake) { this.handshake = null; this.clearTimer(); }
+      if (t === 'agent-online' && !this.channel && !this.handshake && !this.starting && !this.enrolling && !this.preauthing && this.seal !== 'enroll') void this.start();
       this.deliver(s);
       return;
     }
@@ -228,8 +239,10 @@ export class SealedSocket {
         return;
       }
       case 'e2e-unknown-device': {
+        this.handshake = null;
+        if (this.preauthing) return;
         this.clearTimer();
-        if (this.passkey && !this.preauthing && (await this.tryPreauth())) return;
+        if (this.passkey && (await this.tryPreauth())) return;
         this.setSeal('enroll');
         return;
       }
