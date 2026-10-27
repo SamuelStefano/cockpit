@@ -213,6 +213,15 @@ scripts/doctor.sh    watchdog do host (cron)
     único (10 min) com o fingerprint da chave do agente + um segredo de 128 bits. O segredo
     autentica (HMAC) a chave do aparelho e a resposta do agente: o relay não troca nenhuma das duas.
     Um aparelho já cadastrado também gera código (`device-code-new`, dentro do canal selado).
+  - **Conectar aparelho por QR** (`src/cockpit/enroll-link.ts`): "Conectar outro aparelho" (menu
+    do perfil) pede o código pelo canal selado e mostra um QR de `https://<deck>/#enroll=<código>&box=<id>&exp=<ms>`.
+    O código vai só no **fragmento** (nunca chega a servidor, relay nem log); `enroll-link-boot.ts`,
+    primeiro import do `main.tsx`, tira o fragmento da barra (`history.replaceState`) antes de
+    qualquer outro código ler `location`, guarda o link só na aba (`sessionStorage`, atravessa o
+    login) e fixa a box do link. A tela de cadastro roda o enroll sozinha quando o socket, ligado a
+    essa box, pede cadastro; box fora da conta, link expirado ou já usado → mensagem clara, link
+    descartado. Mesmas garantias do código digitado: o relay só vê o MAC, o grant nomeia a box e a
+    box queima o código no primeiro uso.
     `deck-agent` é um wrapper que o `agent-setup.sh` instala (`/usr/local/bin` com root/sudo, senão
     `~/.local/bin`, e sempre `$SRC_DIR/bin`) com usuário do serviço, clone, `DECK_AGENT_DIR`, relay e
     PATH gravados (`printf %q`): roda como o usuário do serviço (re-exec por `sudo -u`/`runuser`) e só
