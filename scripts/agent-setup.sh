@@ -28,6 +28,7 @@
 #   DECK_AGENT_ROLE    admin = controle total nesta box (terminais/admin); default student
 #   DECK_SRC_DIR       onde clonar (default: ~/.deck-src)
 #   DECK_PAIR_CODE     código de pareamento por env (o argv aparece no `ps` da box)
+#   DECK_BOX_LABEL     nome desta máquina no Deck (default: hostname); renomeável no Deck
 #   DECK_ALLOW_ROOT=1  permite rodar como root (default: recusa — o agente herdaria root)
 #   DECK_VPS_GUARD=1   instala o watchdog anti-travamento (MATA processos; leia o aviso)
 #   DECK_AUTO_REDEPLOY=1  arma os git hooks que reiniciam backend/agente a cada pull
@@ -238,6 +239,7 @@ EOF
   [ -n "$CODE" ] && envs+=(DECK_PAIR_CODE="$CODE")
   [ -n "${DECK_RELAY_URL:-}" ] && envs+=(DECK_RELAY_URL="$DECK_RELAY_URL")
   [ -n "${DECK_AGENT_ROLE:-}" ] && envs+=(DECK_AGENT_ROLE="$DECK_AGENT_ROLE")
+  [ -n "${DECK_BOX_LABEL:-}" ] && envs+=(DECK_BOX_LABEL="$DECK_BOX_LABEL")
   [ -n "${DECK_SETUP_URL:-}" ] && envs+=(DECK_SETUP_URL="$DECK_SETUP_URL")
 
   if [ "${DECK_DRY_RUN:-}" = "1" ]; then

@@ -66,3 +66,27 @@ describe('installCrashBackstop', () => {
     expect(codes).toEqual([1, 1]);
   });
 });
+
+describe('redialWaitMs', () => {
+  it('waits long for a revoked/unknown agent and for an old relay holding the slot', async () => {
+    const { redialWaitMs, UNKNOWN_AGENT_WAIT_MS, ANOTHER_AGENT_WAIT_MS } = await import('./agent');
+    expect(redialWaitMs(4401, 'unknown agent', 0)).toBe(UNKNOWN_AGENT_WAIT_MS);
+    expect(redialWaitMs(4409, 'another agent online', 0)).toBe(ANOTHER_AGENT_WAIT_MS);
+  });
+
+  it('keeps the normal backoff for anything else, a bad signature included', async () => {
+    const { redialWaitMs } = await import('./agent');
+    expect(redialWaitMs(4401, 'bad sig', 2)).toBe(backoffMs(2));
+    expect(redialWaitMs(1006, '', 0)).toBe(1_000);
+  });
+});
+
+describe('boxLabel', () => {
+  it('uses DECK_BOX_LABEL and falls back to the hostname', async () => {
+    const { boxLabel } = await import('./agent');
+    const { hostname } = await import('node:os');
+    expect(boxLabel({ DECK_BOX_LABEL: '  PC casa ' })).toBe('PC casa');
+    expect(boxLabel({ DECK_BOX_LABEL: '  ' })).toBe(hostname());
+    expect(boxLabel({})).toBe(hostname());
+  });
+});

@@ -2,7 +2,7 @@ import { WebSocket } from 'ws';
 import { generateKeyPairSync, createPrivateKey, sign as edSign } from 'node:crypto';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
-import { homedir, loadavg, cpus } from 'node:os';
+import { homedir, hostname, loadavg, cpus } from 'node:os';
 import type { Role } from './auth';
 import { capsFor } from './auth';
 import { CONFIG } from './config';
@@ -156,8 +156,22 @@ export const ANOTHER_AGENT_CLOSE = 4409;
 // Past the relay's heartbeat window (~60 s), so a half-open socket of a re-paired
 // box is gone by the next try, without hammering while another box holds the slot.
 export const ANOTHER_AGENT_WAIT_MS = 90_000;
+// The relay no longer knows this agent (revoked from the Deck, or deleted): every
+// retry is a DB read on the relay and can't succeed until someone re-pairs.
+export const UNKNOWN_AGENT_WAIT_MS = 10 * 60_000;
 
-function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: (code: number) => void, onAuthed: () => void): WebSocket {
+export function redialWaitMs(code: number, reason: string, attempt: number): number {
+  if (code === ANOTHER_AGENT_CLOSE) return ANOTHER_AGENT_WAIT_MS;
+  if (code === 4401 && reason === 'unknown agent') return UNKNOWN_AGENT_WAIT_MS;
+  return backoffMs(attempt);
+}
+
+// The name this box shows in the Deck's box list. The relay sanitizes it too.
+export function boxLabel(env: NodeJS.ProcessEnv = process.env): string {
+  return (env.DECK_BOX_LABEL ?? '').trim() || hostname();
+}
+
+function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: (code: number, reason: string) => void, onAuthed: () => void): WebSocket {
   const ws = new WebSocket(`${relayUrl.replace(/\/$/, '')}/agent`);
   let ready = false;
 
@@ -210,7 +224,7 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: (c
 
   ws.on('open', () => { onOpen(); ws.send(JSON.stringify({ t: 'agent-hello', agentId: id.agentId })); });
   ws.on('message', onHandshake);
-  ws.on('close', (code) => { if (activeWs === ws) { setClientSource(null); activeWs = null; browsersPresent = true; } onClose(code); });
+  ws.on('close', (code, reason) => { if (activeWs === ws) { setClientSource(null); activeWs = null; browsersPresent = true; } onClose(code, reason.toString()); });
   ws.on('error', () => { /* o 'close' cuida do reconnect */ });
 
   // Health check do link: ping a cada 30s E checa o pong. Sem checar o pong um
@@ -235,17 +249,16 @@ function connect(relayUrl: string, id: Identity, onOpen: () => void, onClose: (c
   return ws;
 }
 
-// Pareia esta VPS com a conta dona do código. Gera (ou reusa) a keypair local,
-// apresenta código+pubkey ao relay, salva o agentId devolvido. A privada nunca sai.
-export function pairAgent(relayUrl: string, code: string): Promise<void> {
+// Pareia esta máquina com a conta dona do código. Sempre com uma keypair NOVA: o
+// relay recusa a mesma pubkey duas vezes na conta, então reusar a de um box
+// revogado queimava o código sem volta. A identidade antiga só é trocada quando o
+// relay confirma ('paired'). A privada nunca sai.
+export function pairAgent(relayUrl: string, code: string, label = boxLabel()): Promise<void> {
   return new Promise((resolve, reject) => {
-    const existing = loadIdentity();
-    const keys = existing?.privateKeyPem
-      ? { privateKeyPem: existing.privateKeyPem, publicKey: existing.publicKey }
-      : generateIdentityKeys();
+    const keys = generateIdentityKeys();
     const ws = new WebSocket(`${relayUrl.replace(/\/$/, '')}/agent`);
     let done = false;
-    ws.on('open', () => ws.send(JSON.stringify({ t: 'pair', code, publicKey: keys.publicKey })));
+    ws.on('open', () => ws.send(JSON.stringify({ t: 'pair', code, publicKey: keys.publicKey, label })));
     ws.on('message', (raw) => {
       let m: { t?: string; agentId?: string } = {};
       try { m = JSON.parse(raw.toString()); } catch { return; }
@@ -257,7 +270,12 @@ export function pairAgent(relayUrl: string, code: string): Promise<void> {
         resolve();
       }
     });
-    ws.on('close', () => { if (!done) reject(new Error('pareamento falhou (código inválido/expirado?)')); });
+    ws.on('close', (closeCode) => {
+      if (done) return;
+      reject(new Error(closeCode === 4429
+        ? 'pareamento recusado: a conta já tem o limite de máquinas. Revogue uma no Deck e gere outro código.'
+        : 'pareamento falhou (código inválido/expirado?)'));
+    });
     ws.on('error', (e) => { if (!done) reject(e); });
   });
 }
@@ -360,10 +378,11 @@ export function runAgent(relayUrl: string): void {
     connect(
       relayUrl, id,
       () => { /* TCP-open não zera o backoff: auth pode falhar logo após (4401) */ },
-      (code) => {
-        // 4409: another agent of this account is online. Retrying at the normal
-        // backoff kept evicting-and-being-evicted; wait longer and don't reset.
-        const wait = code === ANOTHER_AGENT_CLOSE ? ANOTHER_AGENT_WAIT_MS : backoffMs(attempt++);
+      (code, reason) => {
+        // 4409 (old relays: another box held the slot) and a revoked/unknown agent
+        // wait long and don't count as a backoff step.
+        const wait = redialWaitMs(code, reason, attempt++);
+        if (wait === UNKNOWN_AGENT_WAIT_MS) console.error('[agent] o relay não reconhece esta máquina (revogada?). Pareie de novo com um código novo do Deck.');
         console.error(`[agent] desconectado; reconectando em ${Math.round(wait / 1000)}s`);
         setTimeout(loop, wait);
       },
