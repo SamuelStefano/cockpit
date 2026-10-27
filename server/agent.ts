@@ -507,11 +507,13 @@ export function preauthFromEnv(env: NodeJS.ProcessEnv = process.env): boolean {
 // legível por qualquer usuário local no `ps`. Só o flag explícito ativa o pairing:
 // um DECK_PAIR_CODE esquecido no ambiente não pode transformar o boot do agente
 // em re-pareamento.
+// Device management works on the local trust list only and never needs the relay.
 if (process.argv[1] && process.argv[1].endsWith('agent.ts')) {
-  const url = process.env.DECK_RELAY_URL;
-  if (!url) { console.error('[agent] defina DECK_RELAY_URL'); process.exit(1); }
+  const url = process.env.DECK_RELAY_URL ?? '';
   const pairArg = process.argv.find((a) => a === '--pair' || a.startsWith('--pair='));
   const revokeArg = process.argv.find((a) => a.startsWith('--revoke-device='));
+  const local = process.argv.includes('--enroll-device') || process.argv.includes('--devices') || !!revokeArg;
+  if (!url && !local) { console.error('[agent] defina DECK_RELAY_URL'); process.exit(1); }
   if (process.argv.includes('--enroll-device')) {
     void enrollDeviceCli();
   } else if (process.argv.includes('--devices')) {

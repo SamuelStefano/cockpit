@@ -13,3 +13,5 @@ graphify-out/
 .claude/
 relay/deploy/dist/
 *.tsbuildinfo
+
+/bin/deck-agent

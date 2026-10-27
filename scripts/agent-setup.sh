@@ -142,6 +142,37 @@ claude_logged_in() {
   node -e 'const fs=require("fs");try{const o=JSON.parse(fs.readFileSync(process.env.HOME+"/.claude/.credentials.json","utf8")).claudeAiOauth;process.exit(o&&typeof o.accessToken==="string"&&o.accessToken?0:1)}catch(e){process.exit(1)}' 2>/dev/null
 }
 
+# `deck-agent`: o cadastro de aparelho roda como o usuário do serviço, no clone e com
+# o env da unit — quem está logado como outro usuário (modo isolado) não acerta isso
+# na mão. Valores gravados com %q: nenhum vira shell quando o wrapper roda.
+render_deck_agent_wrapper() {
+  printf '#!/usr/bin/env bash\n# deck-agent: aparelhos do agente Deck desta box (gerado por agent-setup.sh).\n'
+  printf 'RUN_USER=%q\nRUN_HOME=%q\nSRC_DIR=%q\nAGENT_DIR=%q\nRELAY=%q\nUNIT_PATH=%q\n' \
+    "$RUN_USER" "$HOME" "$SRC_DIR" "$AGENT_DIR" "$RELAY" "$UNIT_PATH"
+  cat <<'WRAPPER'
+set -euo pipefail
+usage() { echo "uso: deck-agent enroll-device | devices | revoke-device <início-da-chave>" >&2; exit 2; }
+case "${1:-}" in
+  enroll-device) [ "$#" -eq 1 ] || usage; arg=--enroll-device ;;
+  devices) [ "$#" -eq 1 ] || usage; arg=--devices ;;
+  revoke-device) { [ "$#" -eq 2 ] && [[ "$2" =~ ^[A-Za-z0-9+/=_-]{6,64}$ ]]; } || usage; arg="--revoke-device=$2" ;;
+  *) usage ;;
+esac
+if [ "$(id -u)" != "$(id -u "$RUN_USER")" ]; then
+  self="$(readlink -f "${BASH_SOURCE[0]}")"
+  if [ "$(id -u)" -eq 0 ] && command -v runuser >/dev/null 2>&1; then exec runuser -u "$RUN_USER" -- "$self" "$@"; fi
+  exec sudo -H -u "$RUN_USER" -- "$self" "$@"
+fi
+cd "$SRC_DIR"
+exec env -i HOME="$RUN_HOME" PATH="$UNIT_PATH" DECK_RELAY_URL="$RELAY" DECK_AGENT_DIR="$AGENT_DIR" npx tsx server/agent.ts "$arg"
+WRAPPER
+}
+
+write_deck_agent_wrapper() { # write_deck_agent_wrapper <caminho> [sudo]
+  local dest="$1" sudo="${2:-}"
+  render_deck_agent_wrapper | ( umask 022; $sudo mkdir -p "$(dirname "$dest")" && $sudo tee "$dest" >/dev/null ) && $sudo chmod 755 "$dest"
+}
+
 # Modo isolado: o filho (usuário deck, sem sudo) grava isto em vez de instalar o
 # serviço; o pai root lê e registra a unit. Valores entre aspas simples.
 write_install_env() {
@@ -307,6 +338,12 @@ EOF
     deck_exec env -i HOME="$dhome" PATH="$UNIT_PATH" DECK_RELAY_URL="$RELAY" DECK_AGENT_ROLE="$ROLE" DECK_AGENT_DIR="$AGENT_DIR" \
       sh -c 'cd "$1" && shift && touch agent.log && chmod 600 agent.log && nohup "$@" >>agent.log 2>&1 &' _ "$SRC_DIR" $EXEC_START
     echo "[deck] agente rodando em segundo plano (log: $SRC_DIR/agent.log)."
+  fi
+
+  if write_deck_agent_wrapper /usr/local/bin/deck-agent; then
+    echo "[deck] cadastrar outro navegador nesta VPS: deck-agent enroll-device"
+  else
+    echo "[deck] aviso: não consegui instalar /usr/local/bin/deck-agent; use $SRC_DIR/bin/deck-agent enroll-device"
   fi
 
   if ! deck_exec env -i HOME="$dhome" PATH="$UNIT_PATH" bash -c "$(declare -f claude_logged_in); claude_logged_in"; then
@@ -637,6 +674,18 @@ if [ "${DECK_SKIP_INSTALL:-}" = "1" ]; then
   print_summary
   echo "[deck] DECK_SKIP_INSTALL=1 — não subo o agente sem as deps instaladas. Rode de novo sem a variável."
   exit 0
+fi
+
+write_deck_agent_wrapper "$SRC_DIR/bin/deck-agent" || echo "[deck] aviso: não consegui gravar $SRC_DIR/bin/deck-agent"
+if [ "${DECK_NO_SERVICE:-}" != "1" ]; then
+  if { [ -n "$SUDO" ] || [ "$(id -u)" -eq 0 ]; } && write_deck_agent_wrapper /usr/local/bin/deck-agent "$SUDO"; then
+    WRAPPER=deck-agent
+  elif write_deck_agent_wrapper "$HOME/.local/bin/deck-agent"; then
+    WRAPPER="$HOME/.local/bin/deck-agent"
+  else
+    WRAPPER="$SRC_DIR/bin/deck-agent"
+  fi
+  echo "[deck] cadastrar outro navegador nesta VPS: $WRAPPER enroll-device"
 fi
 
 if [ "${DECK_NO_SERVICE:-}" = "1" ]; then

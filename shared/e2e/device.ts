@@ -85,7 +85,9 @@ export class DeviceHandshake {
       // A device that pinned this box keeps refusing any other key.
       if (!unpinned) throw new AgentKeyError('agent key not pinned on this device', 'mismatch');
       if (!hasPin) {
-        if (proof && this.pinCheck) throw new AgentKeyError('agent pin proof rejected', 'mismatch');
+        // No pin stored here, so nothing contradicts the key: a relay can put a
+        // bad proof in the frame, and that must not be a sticky refusal.
+        if (proof && this.pinCheck) throw new AgentKeyError('agent pin proof rejected', 'unverified');
         if (!(m.tofu === true && this.opts.tofu)) throw new AgentKeyError('agent key unverified', 'unverified');
         tofu = true;
       }

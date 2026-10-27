@@ -51,11 +51,6 @@ export function wsUrlWithToken(token: string): string {
   return buildWsUrl(wsBase(), token);
 }
 
-// The relay URL the agent dials (DECK_RELAY_URL): the browser's WS base without /ws.
-export function relayAgentUrl(): string {
-  return wsBase().replace(/\/ws$/, '');
-}
-
 // Base HTTP do relay (pra /pair/new etc.), derivada da URL do WS: ws→http, wss→
 // https, e /ws no fim vira raiz. Mesma origem do relay, uma fonte só.
 export function relayHttpBase(): string {
