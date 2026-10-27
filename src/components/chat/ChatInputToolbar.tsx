@@ -29,12 +29,13 @@ interface ChatInputToolbarProps {
   effort: Effort;
   setEffort: (e: Effort) => void;
   onOpenSettings: () => void;
+  onCall?: () => void;
 }
 
 // Nenhum controle daqui é bloqueado por turno rodando: todos viram flag no spawn
 // do PRÓXIMO `claude -p`, então travá-los impedia justamente o caso normal —
 // preparar o próximo prompt enquanto o atual ainda responde.
-export function ChatInputToolbar({ mode, setMode, caps, bypass, setBypass, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, onOpenSettings }: ChatInputToolbarProps) {
+export function ChatInputToolbar({ mode, setMode, caps, bypass, setBypass, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, onOpenSettings, onCall }: ChatInputToolbarProps) {
   return (
     // No mobile só o modo (o que mais muda) fica inline; o resto vira um chip de
     // resumo que abre o bottom sheet. Antes era uma linha com scroll-x escondido:
@@ -57,9 +58,20 @@ export function ChatInputToolbar({ mode, setMode, caps, bypass, setBypass, skill
           <Icon name="zap" size={11} /> executa de verdade
         </span>
       )}
+      {onCall && (
+        <button
+          type="button"
+          onClick={onCall}
+          aria-label="Ligar"
+          title="Conversar por voz com a sessão, sem as mãos"
+          className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-neutral-400 transition hover:bg-neutral-800 hover:text-neutral-100 sm:ml-0"
+        >
+          <Icon name="phone" size={16} />
+        </button>
+      )}
       <ComposerSummaryChip
         model={model} models={models} effort={effort} bypass={bypass}
-        onClick={onOpenSettings} className="ml-auto sm:hidden"
+        onClick={onOpenSettings} className={onCall ? 'sm:hidden' : 'ml-auto sm:hidden'}
       />
       <div className="ml-auto hidden shrink-0 items-center gap-x-2 sm:flex sm:min-w-0 sm:max-w-full sm:flex-wrap sm:justify-end sm:gap-y-1.5">
         {/* An ACP agent brings its own tools and reasoning: MCPs, Claude skills and

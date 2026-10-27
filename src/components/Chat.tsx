@@ -5,6 +5,8 @@ import { subscribeRefine } from './primitives/livepreview/refine-bus';
 import { MessageRow, Thinking } from './chat/MessageView';
 import { ChatEmpty, ChatInput } from './chat/ChatInput';
 import { ChatHeader } from './chat/ChatHeader';
+import { CallDock } from './chat/call/CallDock';
+import { useCall } from './chat/call/useCall';
 import { ScrollAffordances } from './chat/ScrollAffordances';
 import { ChatTopics } from './chat/ChatTopics';
 import { useChatTopics } from './chat/useChatTopics';
@@ -33,6 +35,7 @@ export type { Phase };
 
 export function ChatPanel({ session, messages, phase, terminalBusy = false, sessionTodos, draft, setDraft, onSend, onPrompt, onApproveWorkflow, onStop, mode, setMode, caps, claudeReady = true, claudeLogin, agents, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, mcpServers, selectedMcps, setSelectedMcps, slashCommands, contextTokens, contextModel = null, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew, onHandoff, handoffBusy = false, attachments, onUpload, onRemoveAttachment, attPreview = null, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser, onQuote, onMemorize, onRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp, focusSignal = 0, onTerminal, terminalRunning, isMobile = false, keyboardOpen = false, quotaPaused = false, quotaResetsAt = null, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt = 0, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer = null, resumeRun, orchestratorSessionId, turnStatus, botDecor, conn }: ChatPanelProps) {
   const c = useChatPanel({ session, messages, phase, models, model, lastEnd, onSend, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queueRetry, queueRunBg, queueRunNow });
+  const call = useCall({ messages, phase, onSend });
   // Modo iterativo: um refino pedido de dentro de um live preview vira o próximo
   // prompt (o card não tem acesso ao compositor — publica no [[refine-bus]]).
   useEffect(() => subscribeRefine((text) => onPrompt(`Refina a última tela/preview: ${text}`)), [onPrompt]);
@@ -140,6 +143,8 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
 
       <TurnBanners phase={phase} failed={c.failed} resumeOffer={resumeOffer} onResume={resumeOffer && resumeRun ? () => resumeRun(resumeOffer.sessionKey) : undefined} planPending={c.planPending} pendingQuestion={c.pendingQuestion} queuedCount={c.queued.length} lastEnd={lastEnd} retryLast={c.retryLast} retryText={c.retryText} onSend={onSend} onForceQueue={session ? () => queueForce(session.id) : undefined} />
 
+      <CallDock call={call} />
+
       <ChatInput disabled={c.disabled} placeholder={botDecor && c.pendingQuestion ? BOT_ANSWER_PLACEHOLDER : undefined} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
         caps={caps} bypass={bypass} setBypass={setBypass}
         model={model} setModel={setModel} modelLocked={modelLocked} models={models} onRefreshModels={onRefreshModels}
@@ -149,7 +154,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
         queued={c.queued} queuedAtts={c.queuedAtts} queuedModels={c.queuedModels} onRunQueuedBg={c.runQueuedInBgAt} onRunQueuedNow={c.runQueuedNowAt} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onEditQueuedAt={c.editQueuedAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
         queuePaused={queuePaused} queueReleaseAt={queueReleaseAt} onToggleQueuePause={() => queueSetPaused(!queuePaused)}
         queueHeld={c.queueHeld} onResumeQueue={c.resumeQueue}
-        paused={quotaPaused} quotaResetsAt={quotaResetsAt} keyboardOpen={keyboardOpen} />
+        paused={quotaPaused} quotaResetsAt={quotaResetsAt} keyboardOpen={keyboardOpen} onCall={call.supported ? call.dial : undefined} />
 
       {attPreview && onAttClose && <AttachmentModal att={attPreview} onClose={onAttClose} />}
     </div>
