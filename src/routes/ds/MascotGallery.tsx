@@ -22,6 +22,14 @@ export function MascotGallery() {
           ))}
         </Row>
       ))}
+      <Row label="32 px (barra)">
+        {BOT_STATES.map((state) => (
+          <div key={state} data-state={state} className="flex flex-col items-center gap-1">
+            <Mascot mascot={{ shape: 'blob', color: MASCOT_COLORS[0] }} state={state} size={32} />
+            <span className="text-[12px] text-neutral-600">{BOT_STATE_LABEL[state]}</span>
+          </div>
+        ))}
+      </Row>
       <Row label="principal">
         <div className="relative">
           <Mascot mascot={{ shape: 'blob', color: MASCOT_COLORS[0] }} size={56} />

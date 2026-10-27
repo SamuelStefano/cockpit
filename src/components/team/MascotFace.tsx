@@ -8,11 +8,11 @@ export function MascotFace({ state, cx, cy, gap }: MascotFaceProps) {
   const l = cx - gap / 2;
   const r = cx + gap / 2;
   if (state === 'error') {
-    const bar = (x0: number) => `M${x0 - 4.5} ${cy}h9`;
+    const bar = (x0: number) => `M${x0 - 3.5} ${cy}h7`;
     return <path className="mascot-eyes" d={`${bar(l)}${bar(r)}`} stroke={INK} strokeWidth={3.2} strokeLinecap="round" fill="none" />;
   }
   if (state === 'done') {
-    const arc = (x0: number) => `M${x0 - 5.5} ${cy + 3}q5.5-9 11 0`;
+    const arc = (x0: number) => `M${x0 - 4} ${cy + 3}q4-8 8 0`;
     return <path className="mascot-eyes" d={`${arc(l)}${arc(r)}`} stroke={INK} strokeWidth={3.4} strokeLinecap="round" fill="none" />;
   }
   if (state === 'working') {
