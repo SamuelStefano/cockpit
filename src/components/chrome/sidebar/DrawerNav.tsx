@@ -26,8 +26,8 @@ export function DrawerNav({ route, nav, role, counts, onPalette, agents, session
         <SidebarItem icon="search" label="Buscar" ariaLabel={`Comandos (${k})`} expanded onClick={onPalette} />
         {agents && <SidebarAgents {...agents} expanded />}
       </div>
-      {sessions ? <div className="min-h-0 flex-1 border-y border-neutral-800">{sessions}</div> : <div className="flex-1" />}
-      <div className="shrink-0 p-2">
+      {sessions ? <div className="min-h-0 flex-1">{sessions}</div> : <div className="flex-1" />}
+      <div className="mx-2 shrink-0 border-t border-neutral-800 py-2">
         <SidebarNav route={route} nav={nav} role={role} counts={counts} expanded />
       </div>
     </div>

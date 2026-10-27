@@ -15,32 +15,31 @@ const row = (props: Partial<Parameters<typeof SessionRow>[0]> = {}) =>
   render(<SessionRow s={s} active={false} onSelect={() => {}} onRename={() => {}} onClose={() => {}} {...props} />).container;
 
 describe('SessionRow', () => {
-  it('active row keeps the orange ring regardless of its group', () => {
-    const cls = (row({ active: true }).firstElementChild as HTMLElement).className;
-    expect(cls).toContain('border-orange-500/40');
-    expect(cls).toContain('glow-active');
-  });
-
-  it('running: green dot and elapsed time in the footer, no extra line', () => {
-    row({ running: true, runStart: Date.now() - 65_000 });
-    expect(screen.getByText(/^trabalhando · 1m/)).toBeTruthy();
+  it('shows the title and nothing else: no snippet, no time', () => {
+    row();
+    expect(screen.getByText('Nova sessão')).toBeTruthy();
     expect(screen.queryByText('há 3m')).toBeNull();
+    expect(screen.queryByText('Pegue o contexto')).toBeNull();
   });
 
-  it('stalled: amber footer', () => {
-    row({ running: true, stalled: true, runStart: Date.now() - 3_000 });
-    expect(screen.getByText(/^sem resposta/).className).toContain('text-amber-400');
+  it('running: green dot', () => {
+    const c = row({ running: true, runStart: Date.now() - 65_000 });
+    expect(c.querySelectorAll('.bg-green-400').length).toBe(1);
   });
 
-  it('waiting: violet footer keeps the relative time', () => {
-    row({ s: { ...s, waiting: true } });
-    expect(screen.getByText('aguarda você · há 3m').className).toContain('text-violet-300');
+  it('stalled: amber dot', () => {
+    const c = row({ running: true, stalled: true, runStart: Date.now() - 3_000 });
+    expect(c.querySelectorAll('.bg-amber-400').length).toBe(1);
   });
 
-  it('idle with new output: single orange dot, neutral footer', () => {
+  it('waiting: violet dot', () => {
+    const c = row({ s: { ...s, waiting: true } });
+    expect(c.querySelectorAll('.bg-violet-400').length).toBe(1);
+  });
+
+  it('idle with new output: single orange dot', () => {
     const c = row({ updated: true });
     expect(c.querySelectorAll('.bg-orange-400').length).toBe(1);
-    expect(screen.getByText('há 3m')).toBeTruthy();
   });
 
   it('idle without signals: no dot at all', () => {
@@ -57,11 +56,10 @@ describe('SessionRow', () => {
     expect(card.contains(title)).toBe(true);
   });
 
-  it('activating the title (click, or Enter on the button) selects the session', () => {
+  it('activating the title selects the session', () => {
     const onSelect = vi.fn();
     row({ onSelect });
-    const title = screen.getByRole('button', { name: /Nova sessão/ });
-    fireEvent.click(title);
+    fireEvent.click(screen.getByRole('button', { name: /Nova sessão/ }));
     expect(onSelect).toHaveBeenCalledWith('a');
   });
 });

@@ -59,8 +59,8 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
 
       <div className={`flex min-h-0 flex-1 flex-col ${list ? '' : 'scroll-thin overflow-y-auto'}`}>
         {agents && <div className="shrink-0 px-2 pb-2"><SidebarAgents {...agents} expanded={expanded} /></div>}
-        {list ? <div className="min-h-0 flex-1 border-y border-neutral-800/80">{sessions}</div> : <div className="flex-1" />}
-        <div className="shrink-0 px-2 py-1">
+        {list ? <div className="min-h-0 flex-1">{sessions}</div> : <div className="flex-1" />}
+        <div className="mx-2 shrink-0 border-t border-neutral-800/80 py-2">
           <SidebarNav route={route} nav={nav} role={role} counts={navCounts} expanded={expanded} />
         </div>
       </div>

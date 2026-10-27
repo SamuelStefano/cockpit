@@ -1,4 +1,4 @@
-import { Badge, Button, Input, Switch, Tooltip } from './primitives';
+import { Avatar, Badge, Button, Input, Switch, Tooltip, tokens } from './primitives';
 import { connStateColor, connStateLabel, type ConnState } from './primitives/ConnDot';
 import { roleBadge } from './chrome/role-badge';
 import type { NavRole } from './chrome/nav-routes';
@@ -22,6 +22,8 @@ interface ProfileMenuProps {
   conn?: ConnState;
   role?: NavRole;
   placement?: 'down-end' | 'up-start';
+  // 'row' = the sidebar account line (avatar + name), 'rail' = its avatar-only form; 'icon' = the bare round avatar.
+  variant?: 'icon' | 'row' | 'rail';
 }
 
 const PANEL_PLACEMENT = {
@@ -32,7 +34,7 @@ const PANEL_PLACEMENT = {
 // Menu de perfil no header: define nome (usado nas iniciais do chat), faz
 // upload/limpa o avatar e, com conta Supabase, troca a senha. Perfil e toggles
 // vão pro cache local e sobem pra conta (ver lib/profile e lib/account-prefs).
-export function ProfileMenu({ userId, onSignOut, onChangePassword, drops, conn, role, placement = 'down-end' }: ProfileMenuProps = {}) {
+export function ProfileMenu({ userId, onSignOut, onChangePassword, drops, conn, role, placement = 'down-end', variant = 'icon' }: ProfileMenuProps = {}) {
   const { name, avatar, setName, setAvatar, synced, syncFailed, open, setOpen, uploadError, uploading, fileRef, wrapRef, onFile } = useProfileMenu(userId);
   const [showTools, setShowTools] = usePersisted<boolean>(SHOW_TOOLS_KEY, SHOW_TOOLS_DEFAULT);
   const [groupNotes, setGroupNotes] = usePersisted<boolean>(GROUP_NOTES_KEY, GROUP_NOTES_DEFAULT);
@@ -41,6 +43,24 @@ export function ProfileMenu({ userId, onSignOut, onChangePassword, drops, conn, 
   const badge = role ? roleBadge(role) : null;
   return (
     <div ref={wrapRef} className="relative">
+      {variant !== 'icon' ? (
+        <button
+          onClick={() => setOpen((o) => !o)}
+          aria-label="Perfil"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          title={variant === 'rail' ? name || 'Perfil' : undefined}
+          className={`flex h-10 items-center rounded-lg text-left ${variant === 'rail' ? 'w-10 justify-center' : 'w-full min-w-0 gap-2.5 pl-2.5 pr-2'} text-[13px] font-medium text-neutral-200 transition hover:bg-neutral-800/70 pointer-coarse:h-11 ${tokens.focusRing}`}
+        >
+          <span className="relative flex shrink-0">
+            <Avatar name={name} src={avatar || undefined} size={28} />
+            {conn && conn !== 'connected' && (
+              <span aria-hidden="true" className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-neutral-950 ${conn === 'reconnecting' ? 'animate-pulse' : ''}`} style={{ background: connStateColor(conn) }} />
+            )}
+          </span>
+          {variant === 'row' && <span className="min-w-0 flex-1 truncate">{name || 'Sem nome'}</span>}
+        </button>
+      ) : (
       <Tooltip label={[name || 'Perfil', conn && connStateLabel(conn), badge?.label].filter(Boolean).join(' · ')} side={placement === 'up-start' ? 'right' : 'bottom'} disabled={open}>
       <button
         onClick={() => setOpen((o) => !o)}
@@ -61,6 +81,7 @@ export function ProfileMenu({ userId, onSignOut, onChangePassword, drops, conn, 
         )}
       </button>
       </Tooltip>
+      )}
       {open && (
         <div role="dialog" aria-label="Perfil" className={`fade-up absolute z-50 w-60 max-w-[calc(100vw-1rem)] ${PANEL_PLACEMENT[placement]} rounded-xl border border-neutral-800 bg-neutral-900 p-3 shadow-2xl`}>
           <div className="flex items-center gap-2.5">

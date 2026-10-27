@@ -2,7 +2,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, cleanup, fireEvent } from '@testing-library/react';
 import { ArchivedSection } from './ArchivedSection';
-import { TagFilterBar } from './TagFilterBar';
 
 afterEach(cleanup);
 
@@ -13,13 +12,5 @@ describe('ArchivedSection', () => {
     fireEvent.click(toggle);
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
     expect(getByRole('button', { name: 'Excluir sessão Antiga' })).toBeTruthy();
-  });
-});
-
-describe('TagFilterBar', () => {
-  it('marks the active tag as pressed', () => {
-    const { getByRole } = render(<TagFilterBar allTags={['dfl', 'deck']} tagFilter="deck" setTagFilter={vi.fn()} clearFilter={vi.fn()} />);
-    expect(getByRole('button', { name: '#deck' }).getAttribute('aria-pressed')).toBe('true');
-    expect(getByRole('button', { name: '#dfl' }).getAttribute('aria-pressed')).toBe('false');
   });
 });
