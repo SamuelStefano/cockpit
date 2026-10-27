@@ -67,7 +67,7 @@ custo por usuário fica plano (não centraliza inferência num servidor só).
   com a privada; o relay verifica contra a pubkey guardada no Store. (`relay/src/index.ts` path `/agent`.)
 - **Pareamento**: o browser logado faz `POST /pair/new` → relay gera um código single-use/TTL.
   O usuário roda o agente com `--pair=CÓDIGO`; o agente apresenta código+pubkey; o relay
-  consome o código (atômico) e registra o `agentId`. (`pairAgent` em `server/agent.ts`.)
+  consome o código (atômico) e registra o `agentId`. (`pairAgent` em `server/agent-main.ts`.)
   O endpoint aceita o JWT **só** em `Authorization: Bearer` (query string vazaria o token
   pro access log) e é limitado a 5 códigos/min por conta — cada código é uma linha nova
   no banco, então sem teto uma conta logada em loop enche a tabela.
