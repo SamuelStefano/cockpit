@@ -79,7 +79,7 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
             {sessions.length > 0 && <span className="ml-1.5 font-medium normal-case tracking-normal text-neutral-600 tabular-nums">{sessions.length}</span>}
           </span>
           <div className="flex items-center gap-0.5">
-            <button
+            {sessions.length > 0 && <button
               onClick={() => setShowDesc((v) => !v)}
               title={showDesc ? 'Ocultar descrições das sessões' : 'Mostrar descrições das sessões'}
               aria-label="Alternar descrições das sessões"
@@ -87,7 +87,7 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
               className={`rounded-md p-1 transition hover:bg-neutral-800 ${showDesc ? 'text-orange-400/80 hover:text-orange-300' : 'text-neutral-600 hover:text-neutral-300'}`}
             >
               <Icon name="message" size={15} />
-            </button>
+            </button>}
             {onCloseMobile && (
               <button onClick={onCloseMobile} title="Fechar painel de sessões" aria-label="Fechar painel de sessões" className="rounded-md p-1 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200 lg:hidden">
                 <Icon name="x" size={16} />
@@ -123,8 +123,9 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
       <TagFilterBar allTags={allTags} tagFilter={tagFilter} setTagFilter={setTagFilter} clearFilter={() => setTagFilter(null)} />
 
       <div className="scroll-thin mt-2.5 flex-1 space-y-1.5 overflow-y-auto overscroll-contain px-2.5 pb-3">
-        {loading ? (
-          <div className="space-y-1.5">
+        {loading && sessions.length === 0 ? (
+          <div className="space-y-1.5" role="status" aria-label="Carregando sessões">
+            <p className="px-1 text-[11.5px] text-neutral-500">Carregando sessões…</p>
             {Array.from({ length: 4 }).map((_, i) => <SessionSkeletonRow key={i} />)}
           </div>
         ) : filtered.length === 0 ? (

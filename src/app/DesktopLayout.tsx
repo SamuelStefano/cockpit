@@ -4,7 +4,7 @@ import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import { TerminalsPanel, type TerminalsPanelProps } from '../components/Terminals';
 import { CollapsedRail } from '../components/chrome/CollapsedRail';
 import { CollapseBtn } from '../components/chrome/CollapseBtn';
-import { LEFT_RANGE, RIGHT_RANGE, type PanelSide } from './usePanelResize';
+import { LEFT_MIN_PX, LEFT_RANGE, RIGHT_RANGE, type PanelSide } from './usePanelResize';
 
 export interface DesktopLayoutProps {
   sessionsProps: SessionsPanelProps;
@@ -28,7 +28,7 @@ export function DesktopLayout({ sessionsProps, chatProps, termProps, rowRef, lef
         <CollapsedRail side="left" label="Sessões" icon="message" onExpand={() => setLeftCollapsed(false)} />
       ) : (
         <>
-          <div style={{ width: `${leftW}%` }} className="relative min-w-0 shrink-0 border-r border-neutral-800">
+          <div style={{ width: `${leftW}%`, minWidth: LEFT_MIN_PX }} className="relative shrink-0 border-r border-neutral-800">
             <SessionsPanel {...sessionsProps} />
             <CollapseBtn side="left" onClick={() => setLeftCollapsed(true)} />
           </div>
