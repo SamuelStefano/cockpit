@@ -31,15 +31,15 @@ const variants: Record<ButtonVariant, string> = {
 };
 
 const sizes: Record<ButtonSize, string> = {
-  xs: 'h-6 gap-1 px-2 text-[12px] pointer-coarse:min-h-11',
-  sm: 'h-7 gap-1.5 px-2.5 text-[13px] pointer-coarse:min-h-11',
-  md: 'h-8 gap-2 px-3 text-[13px] pointer-coarse:min-h-11',
+  xs: 'h-6 gap-1 px-2 text-[12px]',
+  sm: 'h-7 gap-1.5 px-2.5 text-[13px]',
+  md: 'h-8 gap-2 px-3 text-[13px]',
 };
 
 const squareSizes: Record<ButtonSize, string> = {
-  xs: 'h-6 w-6 pointer-coarse:min-h-11 pointer-coarse:min-w-11',
-  sm: 'h-7 w-7 pointer-coarse:min-h-11 pointer-coarse:min-w-11',
-  md: 'h-8 w-8 pointer-coarse:min-h-11 pointer-coarse:min-w-11',
+  xs: 'h-6 w-6',
+  sm: 'h-7 w-7',
+  md: 'h-8 w-8',
 };
 
 const iconSize: Record<ButtonSize, number> = { xs: 12, sm: 13, md: 15 };
