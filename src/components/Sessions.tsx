@@ -91,7 +91,7 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
               <Icon name="message" size={15} />
             </button>}
             {onCloseMobile && (
-              <button onClick={onCloseMobile} title="Fechar painel de sessões" aria-label="Fechar painel de sessões" className="rounded-md p-1 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200 lg:hidden">
+              <button onClick={onCloseMobile} title="Fechar painel de sessões" aria-label="Fechar painel de sessões" className="flex items-center justify-center rounded-md p-1 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200 lg:hidden pointer-coarse:h-11 pointer-coarse:w-11">
                 <Icon name="x" size={16} />
               </button>
             )}

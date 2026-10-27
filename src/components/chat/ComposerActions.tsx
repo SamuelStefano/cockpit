@@ -11,7 +11,7 @@ interface ComposerActionsProps {
 }
 
 // 40px on touch: 32px send/stop, 6px apart, was too easy to mis-tap on a phone.
-const btn = 'flex h-8 w-8 pointer-coarse:h-10 pointer-coarse:w-10 shrink-0 items-center justify-center rounded-lg transition focus-visible:outline-hidden focus-visible:ring-2';
+const btn = 'flex h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11 shrink-0 items-center justify-center rounded-lg transition focus-visible:outline-hidden focus-visible:ring-2';
 const idle = 'bg-neutral-800 text-neutral-600';
 
 export function ComposerActions({ busy, paused, hasText, hasAtt, attUploading, onSubmit, onStop }: ComposerActionsProps) {

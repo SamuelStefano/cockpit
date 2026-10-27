@@ -4,7 +4,7 @@ import { useMenuKeys } from '../primitives/useMenuKeys';
 import { useComposerPlusMenu } from './useComposerPlusMenu';
 import type { Mic } from './mic-types';
 
-const item = `flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[13px] text-neutral-200 transition hover:bg-neutral-800/60 ${tokens.focusRing}`;
+const item = `flex w-full items-center gap-2.5 px-3 py-2.5 pointer-coarse:min-h-11 text-left text-[13px] text-neutral-200 transition hover:bg-neutral-800/60 ${tokens.focusRing}`;
 
 // No toque, clipe e microfone ocupavam dois slots de 32px na base do composer.
 // Viram um `+` só, com o mini-menu que todo app de mensagem tem. A câmera é um
@@ -29,7 +29,7 @@ export function ComposerPlusMenu({ mic, onAttach, onPhoto }: {
         aria-expanded={open}
         aria-haspopup="menu"
         title={mic.error ?? 'Anexar arquivo, tirar foto ou ditar'}
-        className={`mb-0.5 flex h-8 w-8 items-center justify-center rounded-lg transition ${tokens.focusRing}
+        className={`mb-0.5 flex h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11 items-center justify-center rounded-lg transition ${tokens.focusRing}
           ${mic.listening
             ? 'animate-pulse bg-red-500/20 text-red-400'
             : open

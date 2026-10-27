@@ -11,7 +11,7 @@ export function MicButton({ mic }: { mic: Mic }) {
     <button
       onClick={mic.toggle}
       title={mic.error ?? (mic.listening ? 'Parar de ditar' : 'Ditar por voz')}
-      className={`mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition ${tokens.focusRing}
+      className={`mb-0.5 flex h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11 shrink-0 items-center justify-center rounded-lg transition ${tokens.focusRing}
         ${mic.listening
           ? 'animate-pulse bg-red-500/20 text-red-400'
           : 'text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200'}`}

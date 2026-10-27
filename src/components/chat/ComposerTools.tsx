@@ -37,7 +37,7 @@ export function ComposerTools({ touch, compact, mic, onAttach, onPhoto, onOpenSe
           onClick={onOpenSettings}
           aria-label="Ajustes do próximo prompt"
           title="Modelo, esforço, skills, MCP e permissões do próximo prompt"
-          className={`mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200 ${tokens.focusRing}`}
+          className={`mb-0.5 flex h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11 shrink-0 items-center justify-center rounded-lg text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-200 ${tokens.focusRing}`}
         >
           <Icon name="sliders" size={16} />
         </button>

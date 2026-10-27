@@ -60,7 +60,7 @@ export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette
         <button
           onClick={() => nav('/')}
           title={`Ir pro chat · ${BIT_STATE_LABEL[bitState]}`}
-          className={`flex items-center gap-2 rounded-md ${tokens.focusRing}`}
+          className={`flex items-center gap-2 rounded-md pointer-coarse:min-h-11 ${tokens.focusRing}`}
         >
           <Bit state={bitState} size={30} title={BIT_STATE_LABEL[bitState]} className="-my-1" />
           {/* Em 360–390px o header não fecha a conta com o wordmark e o ConnDot
@@ -91,7 +91,7 @@ export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette
           onClick={onPalette}
           title={`Comandos (${comboLabel(['⌘', 'K'])})`}
           aria-label={`Comandos (${comboLabel(['⌘', 'K'])})`}
-          className={`flex shrink-0 items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/60 py-1.5 text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-300 ${isMobile ? 'px-2' : 'px-2.5'} ${tokens.touchTarget}`}
+          className={`flex shrink-0 items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/60 py-1.5 pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-300 ${isMobile ? 'px-2' : 'px-2.5'}`}
         >
           <Icon name="search" size={14} />
           {!isMobile && <kbd className="font-mono text-[12px] text-neutral-600">{comboLabel(['⌘', 'K'])}</kbd>}

@@ -18,7 +18,7 @@ export function ComposerSummaryChip({ model, models, effort, bypass, onClick, cl
       onClick={onClick}
       aria-label="Ajustes do próximo prompt"
       title="Modelo, esforço, skills, MCP e permissões do próximo prompt"
-      className={`inline-flex min-w-0 shrink items-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-[12px] font-medium text-neutral-400 transition hover:border-neutral-700 hover:text-neutral-200 ${tokens.focusRing} ${className}`}
+      className={`inline-flex min-w-0 shrink items-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 pointer-coarse:min-h-11 text-[12px] font-medium text-neutral-400 transition hover:border-neutral-700 hover:text-neutral-200 ${tokens.focusRing} ${className}`}
     >
       <Icon name="sliders" size={12} className="shrink-0" />
       <span className="truncate">{composerSummary(model, models, effort)}</span>
