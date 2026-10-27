@@ -5,7 +5,7 @@ export function lastAssistantModel(messages: readonly Message[] | undefined): st
   if (!messages) return null;
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
-    if (m.role === 'assistant' && m.model) return stripLongContext(m.model);
+    if (m.role === 'assistant' && m.model && !m.model.startsWith('<')) return stripLongContext(m.model);
   }
   return null;
 }
@@ -15,4 +15,9 @@ export function lastAssistantModel(messages: readonly Message[] | undefined): st
 // task), else the global default seed. Display and send must share this.
 export function resolveSessionModel(override: string | undefined, messages: readonly Message[] | undefined, defaultModel: string): string {
   return override ?? lastAssistantModel(messages) ?? defaultModel;
+}
+
+export function ranOnOtherModel(selected: string, messages: readonly Message[] | undefined): string | null {
+  const ran = lastAssistantModel(messages);
+  return ran && ran !== stripLongContext(selected) ? ran : null;
 }

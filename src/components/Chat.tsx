@@ -85,7 +85,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
         fullLoaded={c.fullLoaded} truncated={truncated} onOpenFull={onOpenFull} onLoadOlder={onLoadOlder} onOpenSummary={onOpenSummary}
         beforeGrow={c.captureAnchor}
         setFullLoaded={c.setFullLoaded} onTerminal={onTerminal} terminalRunning={terminalRunning} onRename={onRename}
-        keyboardOpen={keyboardOpen}
+        keyboardOpen={keyboardOpen} selectedModel={model}
       />
 
       {!claudeReady && !isAgentModel(model) && (agents
