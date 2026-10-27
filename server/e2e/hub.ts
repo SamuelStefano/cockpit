@@ -31,17 +31,17 @@ const DROPPABLE = /^\{"t":"(delta|thinking|stats|bgAgents)"/;
 
 export interface AgentKeys { pub: Bytes; sign: CryptoKey }
 
-// A box with no enrolled device trusts the first one that dials it, but only
-// this long after the agent starts, never past the migration cutoff the browser
-// also enforces, and never with DECK_E2E_TOFU=off.
-export const TOFU_WINDOW_MS = 30 * 60_000;
+// A box with no enrolled device trusts the first one that dials it, until that
+// happens or the migration cutoff the browser also enforces, never with
+// DECK_E2E_TOFU=off. No limit from the agent's start: self-update restarts it,
+// so such a limit would close at a random moment for whoever opens the Deck late.
 
 // One per agent process, shared by the hubs of every relay reconnect: once a
 // device got in on first use, the window stays shut even if the list empties.
 export interface TofuWindow { until: number; spent: boolean }
 
-export function tofuWindow(startedAt: number, env: NodeJS.ProcessEnv = process.env): TofuWindow {
-  return { until: env.DECK_E2E_TOFU === 'off' ? 0 : Math.min(startedAt + TOFU_WINDOW_MS, TOFU_UNTIL), spent: false };
+export function tofuWindow(env: NodeJS.ProcessEnv = process.env): TofuWindow {
+  return { until: env.DECK_E2E_TOFU === 'off' ? 0 : TOFU_UNTIL, spent: false };
 }
 
 // The sealed channel has its OWN key, never the one that answers the relay's

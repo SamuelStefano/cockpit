@@ -67,7 +67,7 @@ custo por usuário fica plano (não centraliza inferência num servidor só).
   com a privada; o relay verifica contra a pubkey guardada no Store. (`relay/src/index.ts` path `/agent`.)
 - **Pareamento**: o browser logado faz `POST /pair/new` → relay gera um código single-use/TTL.
   O usuário roda o agente com `--pair=CÓDIGO`; o agente apresenta código+pubkey; o relay
-  consome o código (atômico) e registra o `agentId`. (`pairAgent` em `server/agent.ts`.)
+  consome o código (atômico) e registra o `agentId`. (`pairAgent` em `server/agent-main.ts`.)
   O endpoint aceita o JWT **só** em `Authorization: Bearer` (query string vazaria o token
   pro access log) e é limitado a 5 códigos/min por conta — cada código é uma linha nova
   no banco, então sem teto uma conta logada em loop enche a tabela.
@@ -116,6 +116,29 @@ A box NÃO pode travar. Camadas:
   - **Recurso**: `startHealthGuard()` a cada 60s; se load1 > 4×cores OU mem < 120MB, chama
     `killAllRuns()` pra liberar a VPS antes do OOM-killer (um `claude -p` desgovernado não trava a box).
   - **Processo**: supervisor `run-agent.sh` (flock singleton) reinicia o agente se ele morrer.
+  - **Self-update** (`server/self-update.ts`): 1 min depois do boot e a cada ~10 min (+ jitter), no
+    clone de onde o agente roda: `git fetch origin main` e, só se o clone está na `main`, sem mudança
+    local rastreada, sem `core.hooksPath` (hooks de auto-redeploy armados mandam no clone) e atrás da
+    `origin/main` por fast-forward, `git merge --ff-only` (hooks e fsmonitor desligados). Mudou
+    `package.json`/`package-lock.json` → `npm ci`; falhou → `git reset --hard` pro commit anterior,
+    `npm ci` de novo e aquele commit não é tentado de novo. Espera não haver turno rodando (máx.
+    30 min; depois reinicia assim mesmo pelo caminho `preserveLive`, e os turnos retomam no boot) e
+    sai; systemd (`Restart=always`) ou o loop do nohup (`DECK_SUPERVISED=1`) sobe o código novo.
+    Sem supervisor que o traga de volta, não atualiza.
+    **Rollback de main quebrada** (`server/self-update-boot.ts`): antes de sair, grava
+    `~/.deck-agent/self-update.json` `{from, to, boots: 0}`. Cada boot com HEAD = `to` conta um; o
+    boot que acha 3 já contados faz `git reset --hard <from>` (+ `npm ci` se as deps mudaram), põe
+    `to` em `self-update-bad.json` (nunca tentado de novo), apaga o marcador, loga
+    `[agent] self-update: <to> failed to boot 3x, rolled back to <from>` e segue no código antigo no
+    mesmo processo. O update vira bom (marcador apagado) com 2 min no ar E uma conexão ao relay;
+    até lá nenhum update novo começa. O check roda em `server/agent.ts`, o entrypoint das units, que
+    só importa builtins + `self-update-boot.ts` e carrega `agent-main.ts` por `import()` dinâmico: o
+    ESM linka o grafo estático inteiro antes de rodar qualquer linha, então um import quebrado não
+    pode impedir o check. Esses dois arquivos têm que continuar sem imports do app. Unit:
+    `StartLimitBurst=10` em 300 s, `RestartSec=5` (o rollback precisa de 4 starts; units antigas
+    com burst 5 ainda cabem). `DECK_SELF_UPDATE=off` desliga. **Confiança**:
+    a fonte é o mesmo repositório GitHub de onde a box foi instalada (nenhuma raiz nova); nada vindo
+    do relay inicia, pula ou direciona uma atualização.
 - **Relay (`relay/src/index.ts`)**: heartbeat ping/pong nos dois servidores (browser+agent),
   timeout de socket pré-auth (agente 15s, browser 20s) e cap de tentativas — defesa contra exaustão.
   - **Falha do store nega, não derruba.** Todo caminho de auth encosta na rede (JWKS +
@@ -219,7 +242,8 @@ scripts/doctor.sh    watchdog do host (cron)
   - **TOFU na box sem aparelho** (`server/e2e/hub.ts`): com `devices.json` vazio ou ausente, o agente
     aceita o PRIMEIRO hello (qualquer chave), marca `tofu: true` no `e2e-accept` e grava o aparelho
     no confirm, sob a trava da lista. Uso único (o primeiro gravado fecha a janela, mesmo que a lista
-    esvazie depois, até o agente reiniciar), só nos 30 min depois do start do processo, log alto na
+    esvazie depois, até o agente reiniciar), aberta até o primeiro aparelho entrar (sem limite a
+    partir do start: o self-update reinicia o agente e tornaria esse limite aleatório), log alto na
     box (`[agent] e2e: first device trusted on first use (<fp>…)`), desligado com `DECK_E2E_TOFU=off`.
     Fechado também enquanto houver pré-autorização viva na box (o navegador do dono está para entrar;
     TOFU só deixaria o relay entrar antes) e nunca depois de `TOFU_UNTIL` (`shared/e2e/tofu.ts`,
@@ -266,8 +290,8 @@ scripts/doctor.sh    watchdog do host (cron)
       box (persistente e válido em todo navegador da passkey). Revogar = revogar o aparelho passkey em
       **cada** box (menu de perfil ou `--revoke-device`) e criar uma passkey nova.
     - **Segredo pendente do pareamento**: legível por XSS na aba durante os 10 min.
-    - **Janela TOFU**: até `TOFU_UNTIL`, nos 30 min depois do start de um agente sem aparelho e sem
-      pré-autorização pendente, quem disca primeiro vira dono, e isso inclui o relay (com uma chave
+    - **Janela TOFU**: até `TOFU_UNTIL`, enquanto um agente não tem aparelho nem pré-autorização
+      pendente (a qualquer momento depois do start, não só nos primeiros minutos), quem disca primeiro vira dono, e isso inclui o relay (com uma chave
       dele, no lugar do navegador). O log alto e a lista de aparelhos mostram quem entrou;
       `DECK_E2E_TOFU=off` fecha a janela.
     - **TOFU forjado contra o navegador**: o `tofu: true` não é assinado. Até `TOFU_UNTIL`, um

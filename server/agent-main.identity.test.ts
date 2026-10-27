@@ -10,7 +10,7 @@ describe('saveIdentity', () => {
     const dir = join(mkdtempSync(join(tmpdir(), 'deck-agent-')), 'agent');
     vi.stubEnv('DECK_AGENT_DIR', dir);
     vi.resetModules();
-    const { saveIdentity } = await import('./agent');
+    const { saveIdentity } = await import('./agent-main');
     saveIdentity({ agentId: 'a', privateKeyPem: 'k', publicKey: 'p' } as never);
     expect(statSync(dir).mode & 0o777).toBe(0o700);
     expect(statSync(join(dir, 'identity.json')).mode & 0o777).toBe(0o600);
@@ -23,7 +23,7 @@ describe('pairAgent', () => {
     const dir = join(mkdtempSync(join(tmpdir(), 'deck-agent-')), 'agent');
     vi.stubEnv('DECK_AGENT_DIR', dir);
     vi.resetModules();
-    const { pairAgent, saveIdentity, loadIdentity, generateIdentityKeys } = await import('./agent');
+    const { pairAgent, saveIdentity, loadIdentity, generateIdentityKeys } = await import('./agent-main');
     const old = { agentId: 'old', ...generateIdentityKeys() };
     saveIdentity(old);
     const wss = new WebSocketServer({ port: 0 });

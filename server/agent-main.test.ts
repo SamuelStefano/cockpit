@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { EventEmitter } from 'node:events';
-import { generateIdentityKeys, signChallenge, challengeMessage, backoffMs, canvasLoopGate, installCrashBackstop } from './agent';
+import { generateIdentityKeys, signChallenge, challengeMessage, backoffMs, canvasLoopGate, installCrashBackstop } from './agent-main';
 import { verifyAgentSignature, makeChallenge } from '../relay/src/verify';
 
 const AID = 'agent-123';
@@ -69,13 +69,13 @@ describe('installCrashBackstop', () => {
 
 describe('redialWaitMs', () => {
   it('waits long for a revoked/unknown agent and for an old relay holding the slot', async () => {
-    const { redialWaitMs, UNKNOWN_AGENT_WAIT_MS, ANOTHER_AGENT_WAIT_MS } = await import('./agent');
+    const { redialWaitMs, UNKNOWN_AGENT_WAIT_MS, ANOTHER_AGENT_WAIT_MS } = await import('./agent-main');
     expect(redialWaitMs(4401, 'unknown agent', 0)).toBe(UNKNOWN_AGENT_WAIT_MS);
     expect(redialWaitMs(4409, 'another agent online', 0)).toBe(ANOTHER_AGENT_WAIT_MS);
   });
 
   it('keeps the normal backoff for anything else, a bad signature included', async () => {
-    const { redialWaitMs } = await import('./agent');
+    const { redialWaitMs } = await import('./agent-main');
     expect(redialWaitMs(4401, 'bad sig', 2)).toBe(backoffMs(2));
     expect(redialWaitMs(1006, '', 0)).toBe(1_000);
   });
@@ -83,7 +83,7 @@ describe('redialWaitMs', () => {
 
 describe('boxLabel', () => {
   it('uses DECK_BOX_LABEL and falls back to the hostname', async () => {
-    const { boxLabel } = await import('./agent');
+    const { boxLabel } = await import('./agent-main');
     const { hostname } = await import('node:os');
     expect(boxLabel({ DECK_BOX_LABEL: '  PC casa ' })).toBe('PC casa');
     expect(boxLabel({ DECK_BOX_LABEL: '  ' })).toBe(hostname());

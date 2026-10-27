@@ -524,7 +524,7 @@ describe('SealedSocket with a passkey device key', () => {
     const keys = (relay as unknown as { keys: { pub: Bytes; sign: CryptoKey } }).keys;
     let hub: InstanceType<typeof SealedHub> | null = null;
     hub = new SealedHub({
-      keys, link: relay.agentLink, onPeersChanged: () => {}, boxId: BOX, tofu: tofuWindow(Date.now()),
+      keys, link: relay.agentLink, onPeersChanged: () => {}, boxId: BOX, tofu: tofuWindow({}),
       intercept: deviceFrameHandler(keys.pub, () => hub, BOX), serve: () => {},
     });
     relay.hub = hub;
@@ -540,7 +540,7 @@ describe('SealedSocket with a passkey device key', () => {
     const keys = (relay as unknown as { keys: { pub: Bytes; sign: CryptoKey } }).keys;
     let hub: InstanceType<typeof SealedHub> | null = null;
     hub = new SealedHub({
-      keys, link: relay.agentLink, onPeersChanged: () => {}, boxId: BOX, tofu: tofuWindow(TOFU_UNTIL),
+      keys, link: relay.agentLink, onPeersChanged: () => {}, boxId: BOX, tofu: tofuWindow({}),
       intercept: deviceFrameHandler(keys.pub, () => hub, BOX), serve: () => {},
     });
     relay.hub = hub;
