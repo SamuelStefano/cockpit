@@ -3,8 +3,7 @@ import { boxLabel } from '../../cockpit/boxes-store';
 import { useBoxes } from '../../cockpit/useBoxes';
 import { enrollThisDevice, sealState } from '../../cockpit/sealed-socket';
 import { defaultDeviceLabel as defaultLabel } from '../../cockpit/device-label';
-import { relayAgentUrl } from '../../cockpit/session';
-import { enrollCommand } from './pairing';
+import { ENROLL_COMMAND, LEGACY_ENROLL_COMMAND } from './pairing';
 
 export function useSealState() {
   return useSyncExternalStore(sealState.subscribe, sealState.get);
@@ -39,7 +38,7 @@ export function useEnrollDevice() {
   // método"; a refused agent key can only be fixed with it, so it opens there.
   const showCode = other || state === 'rejected' || state === 'enroll-failed';
   return {
-    state, boxName, code, setCode, label, setLabel, busy, err, submit, ready, cli: enrollCommand(relayAgentUrl()),
+    state, boxName, code, setCode, label, setLabel, busy, err, submit, ready, cli: ENROLL_COMMAND, legacyCli: LEGACY_ENROLL_COMMAND,
     showCode, showOther: () => setOther(true),
   };
 }

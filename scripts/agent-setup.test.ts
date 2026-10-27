@@ -227,4 +227,59 @@ describe('agent-setup.sh', () => {
       expect(r.stdout).toContain('REJEITADO');
     });
   });
+
+  describe('deck-agent wrapper', () => {
+    // Values with spaces, quotes and $(…): baked with %q, none may run as shell.
+    function gerarWrapper(nome: string, runUser: string) {
+      const dir = join(raiz, nome);
+      const bin = join(dir, 'bin');
+      const src = join(dir, "src dir 'q'");
+      const log = join(dir, 'log');
+      mkdirSync(bin, { recursive: true });
+      mkdirSync(src, { recursive: true });
+      writeFileSync(join(bin, 'npx'), `#!/bin/sh\n{ pwd; echo "ARGS $*"; echo "RELAY=$DECK_RELAY_URL"; echo "DIR=$DECK_AGENT_DIR"; echo "HOME=$HOME"; } >> "${log}"\n`, { mode: 0o755 });
+      writeFileSync(join(bin, 'id'), `#!/bin/sh\ncase "$1 $2" in "-u ") echo 1000;; "-u fellow") echo 1000;; "-u "*) echo 1001;; *) exec /usr/bin/id "$@";; esac\n`, { mode: 0o755 });
+      writeFileSync(join(bin, 'sudo'), `#!/bin/sh\necho "SUDO $*" >> "${log}"\n`, { mode: 0o755 });
+      const dest = join(dir, 'out', 'deck-agent');
+      const r = spawnSync('bash', ['-c', [
+        'set -euo pipefail',
+        extrairFuncao('render_deck_agent_wrapper'),
+        extrairFuncao('write_deck_agent_wrapper'),
+        `RUN_USER=${runUser}; HOME="${dir}/h \\$(touch ${dir}/pwned)"; SRC_DIR="${src}"; AGENT_DIR="${dir}/agent \\"x\\""; RELAY='wss://r.test/$(touch ${dir}/pwned)'; UNIT_PATH="${bin}:/usr/bin:/bin"`,
+        `write_deck_agent_wrapper "${dest}"`,
+      ].join('\n')], { encoding: 'utf8' });
+      expect(r.status, r.stderr).toBe(0);
+      const run = (...args: string[]) => spawnSync(dest, args, { env: { PATH: `${bin}:/usr/bin:/bin` }, encoding: 'utf8' });
+      const lido = () => (existsSync(log) ? readFileSync(log, 'utf8') : '');
+      return { dir, src, dest, run, lido };
+    }
+
+    it('runs the agent as the service user, in the clone, with the baked env', () => {
+      const w = gerarWrapper('wrapper-ok', 'fellow');
+      expect(spawnSync('bash', ['-n', w.dest]).status).toBe(0);
+      expect(w.run('enroll-device').status).toBe(0);
+      const out = w.lido();
+      expect(out).toContain(`${w.src}\nARGS tsx server/agent.ts --enroll-device`);
+      expect(out).toContain(`RELAY=wss://r.test/$(touch ${w.dir}/pwned)`);
+      expect(out).toContain(`DIR=${w.dir}/agent "x"`);
+      expect(out).toContain(`HOME=${w.dir}/h $(touch ${w.dir}/pwned)`);
+      expect(w.run('revoke-device', 'AbCdEf12').status).toBe(0);
+      expect(w.lido()).toContain('ARGS tsx server/agent.ts --revoke-device=AbCdEf12');
+      expect(existsSync(join(w.dir, 'pwned'))).toBe(false);
+    });
+
+    it('rejects anything but its three subcommands', () => {
+      const w = gerarWrapper('wrapper-bad', 'fellow');
+      for (const args of [[], ['--pair'], ['enroll-device', 'x'], ['revoke-device', 'ab;id'], ['revoke-device', 'abc'], ['sh']]) {
+        expect(w.run(...args).status).toBe(2);
+      }
+      expect(w.lido()).toBe('');
+    });
+
+    it('re-execs through sudo as the service user when run by another user', () => {
+      const w = gerarWrapper('wrapper-sudo', 'deck');
+      expect(w.run('enroll-device').status).toBe(0);
+      expect(w.lido()).toBe(`SUDO -H -u deck -- ${w.dest} enroll-device\n`);
+    });
+  });
 });

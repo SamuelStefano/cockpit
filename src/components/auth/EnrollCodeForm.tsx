@@ -10,6 +10,8 @@ export function EnrollCodeForm({ e }: { e: ReturnType<typeof useEnrollDevice> })
         Rode na VPS o comando abaixo e digite aqui o código que ele mostrar (vale uma vez, por 10 minutos).
       </p>
       <CodeBlock code={e.cli} lang="bash" />
+      <p className="mt-2 text-[11.5px] text-neutral-500">VPS instalada antes do comando <code>deck-agent</code> (modo isolado):</p>
+      <CodeBlock code={e.legacyCli} lang="bash" />
       <div className="mt-5 space-y-3">
         <Input mono value={e.code} onChange={(ev) => e.setCode(ev.target.value)} placeholder="XXXX-XXXX-…" autoComplete="off" spellCheck={false} aria-label="Código de cadastro" error={!!e.err} />
         <Input value={e.label} onChange={(ev) => e.setLabel(ev.target.value)} placeholder="Nome deste aparelho" aria-label="Nome deste aparelho" />

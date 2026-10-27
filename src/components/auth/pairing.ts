@@ -102,14 +102,12 @@ export function shellSafeLabel(raw: string): string {
   return sanitizeBoxLabel(raw).replace(/["'`$\\!;&|<>(){}*?~#]/g, '').trim();
 }
 
-const DEFAULT_RELAY = 'wss://deck-relay.devfellowship.com';
+// agent-setup.sh installs `deck-agent` with the box's own user, dirs and relay
+// baked in, so the command is the same on every box and nothing is interpolated.
+export const ENROLL_COMMAND = 'deck-agent enroll-device';
 
-// The relay URL comes from a per-device override; anything that is not a plain
-// ws(s) URL never reaches a command the user pastes into a root shell.
-export function enrollCommand(relayUrl: string): string {
-  const url = /^wss?:\/\/[A-Za-z0-9.\-]+(:\d+)?(\/[A-Za-z0-9._\-/]*)?$/.test(relayUrl) ? relayUrl : DEFAULT_RELAY;
-  return `cd ~/cockpit && DECK_RELAY_URL=${url} npx tsx server/agent.ts --enroll-device`;
-}
+// Boxes installed before the wrapper existed (isolated mode: user `deck`).
+export const LEGACY_ENROLL_COMMAND = "sudo -H -u deck env $(systemctl show deck-agent -p Environment --value) bash -c 'cd ~/.deck-src && npx tsx server/agent.ts --enroll-device'";
 
 // deviceCode (passkey browsers): pre-authorizes this browser on the new box, so
 // it opens the Deck without `--enroll-device`. Env like the pair code, never argv.
