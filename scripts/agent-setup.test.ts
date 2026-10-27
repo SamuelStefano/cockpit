@@ -118,13 +118,13 @@ describe('agent-setup.sh', () => {
       writeFileSync(join(bin, cmd), `#!/bin/sh\necho "SENTINEL: ${cmd} reached" >&2\nexit 99\n`, { mode: 0o755 });
     }
   }
-  function rodarPickNode(home: string, bin: string): { status: number | null; saida: string; dir: string } {
+  function rodarPickNode(home: string, bin: string, env: Record<string, string> = {}): { status: number | null; saida: string; dir: string } {
     const r = spawnSync('bash', ['-c', [
       'set -uo pipefail',
       extrairFuncao('pick_node'),
       'pick_node || exit 3',
       'echo "DIR=$NODE_DIR HOW=$NODE_HOW"',
-    ].join('\n')], { env: { HOME: home, PATH: `${bin}:/usr/bin:/bin` }, encoding: 'utf8' });
+    ].join('\n')], { env: { HOME: home, PATH: `${bin}:/usr/bin:/bin`, ...env }, encoding: 'utf8' });
     return { status: r.status, saida: `${r.stdout}${r.stderr}`, dir: /DIR=(\S*)/.exec(r.stdout)?.[1] ?? '' };
   }
 
@@ -139,16 +139,27 @@ describe('agent-setup.sh', () => {
     expect(r.saida).toContain('HOW=reuse');
   });
 
-  it('pick_node troca um node v18 do PATH pelo do nvm (v20)', () => {
+  it('pick_node troca um node v20 do PATH pelo do nvm (v22)', () => {
     const { home, bin } = caixa('pick-nvm', '#!/bin/sh\n');
-    stubNode(bin, '18.19.0');
-    const nvmBin = join(home, '.nvm/versions/node/v20.11.0/bin');
-    stubNode(nvmBin, '20.11.0');
+    stubNode(bin, '20.19.0');
+    const nvmBin = join(home, '.nvm/versions/node/v22.11.0/bin');
+    stubNode(nvmBin, '22.11.0');
     sentinelas(bin, ['curl']);
     const r = rodarPickNode(home, bin);
     expect(r.saida).not.toContain('SENTINEL');
     expect(r.status).toBe(0);
     expect(r.dir).toBe(nvmBin);
+  });
+
+  it('pick_node reinstala um ~/.deck-node v20: o claude CLI exige node>=22', () => {
+    const { home, bin } = caixa('pick-deck-node-20', '#!/bin/sh\n');
+    stubNode(bin, '20.19.0');
+    stubNode(join(home, '.deck-node/bin'), '20.20.2');
+    sentinelas(bin, ['curl']);
+    const r = rodarPickNode(home, bin, { DECK_DRY_RUN: '1' });
+    expect(r.saida).not.toContain('SENTINEL');
+    expect(r.saida).toContain('HOW=install');
+    expect(fonte).toContain('https://nodejs.org/dist/latest-v22.x');
   });
 
   it('DECK_DRY_RUN=1 imprime o plano e não alcança nenhum instalador', () => {
@@ -163,7 +174,26 @@ describe('agent-setup.sh', () => {
     expect(r.status).toBe(0);
     for (const alvo of ['git:', 'curl:', 'node:', 'build tools:', 'claude:', 'systemd unit:']) expect(r.stdout).toContain(alvo);
     expect(r.stdout).toContain('node: reaproveita');
-    expect(r.stdout).toContain('claude: reaproveita');
+    expect(r.stdout).toContain('claude: instalaria/atualizaria @anthropic-ai/claude-code@latest');
+  });
+
+  it('um CLI, um prefixo: instala @latest em ~/.deck-npm e fixa NPM_CONFIG_PREFIX na unit', () => {
+    expect(fonte).toContain('export NPM_CONFIG_PREFIX="$DECK_NPM_DIR"');
+    expect(fonte).toContain('npm install -g --prefix "$DECK_NPM_DIR" --no-audit --no-fund @anthropic-ai/claude-code@latest');
+    expect(fonte).toContain('Environment=NPM_CONFIG_PREFIX=$HOME/.deck-npm');
+    expect(fonte).toMatch(/nohup env NPM_CONFIG_PREFIX=/);
+    expect(fonte).toMatch(/deck_exec env -i [^\n]*NPM_CONFIG_PREFIX="\$dhome\/\.deck-npm"/);
+  });
+
+  it('find_claude prefere o prefixo gerenciado ao claude do PATH', () => {
+    const { home, bin } = caixa('find-claude', '#!/bin/sh\n');
+    writeFileSync(join(bin, 'claude'), '#!/bin/sh\n', { mode: 0o755 });
+    const managed = join(home, '.deck-npm/bin');
+    mkdirSync(managed, { recursive: true });
+    writeFileSync(join(managed, 'claude'), '#!/bin/sh\n', { mode: 0o755 });
+    const r = spawnSync('bash', ['-c', [extrairFuncao('find_claude'), 'find_claude', 'echo "BIN=$CLAUDE_BIN"'].join('\n')],
+      { env: { HOME: home, PATH: `${bin}:/usr/bin:/bin` }, encoding: 'utf8' });
+    expect(r.stdout.trim()).toBe(`BIN=${join(managed, 'claude')}`);
   });
 
   describe('instalação automática das ferramentas de build', () => {

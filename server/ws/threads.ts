@@ -103,6 +103,10 @@ export interface Thread {
   // tell this apart from a turn that is still generating (see drainParked).
   bgWaitSince?: number;
   lastError?: string;   // último erro reportado pelo processo
+  // The API refused the model because the CLI is too old; the raw 400 is held back
+  // and the turn is retried once after the update (runs.ts healOutdatedCli).
+  cliTooOld?: { required: string | null };
+  cliRetried?: boolean;
   lastExitCode?: number | null; // exit code do `claude saiu (N)` mais recente — insumo do gate de OOM (D1)
   lastExitSignal?: string | null; // sinal do OS, quando disponível (SIGTERM/SIGKILL) — mesmo insumo
   // Snapshot acumulado p/ replay no reconnect (#10). Os frames vão por broadcast.

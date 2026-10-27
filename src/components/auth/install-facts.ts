@@ -3,7 +3,7 @@ export const SETUP_SOURCE_URL = 'https://github.com/SamuelStefano/cockpit/blob/m
 export const DRY_RUN_ENV = 'DECK_DRY_RUN=1';
 
 export const COMMAND_DOES = [
-  'Reaproveita o Node 20+ e o claude CLI que a VPS já tem; só baixa o que faltar, dentro do HOME (~/.deck-node, ~/.deck-npm).',
+  'Reaproveita o Node 22+ e o claude CLI que a VPS já tem; só baixa o que faltar, dentro do HOME (~/.deck-node, ~/.deck-npm).',
   'Clona o repositório em ~/.deck-src e instala as dependências com npm ci.',
   'Gera uma chave Ed25519 em ~/.deck-agent que fica nesta máquina e pareia o agente à sua conta com o código.',
   'Registra o serviço systemd deck-agent (sem systemd, sobe com nohup). O sudo é usado só nesse passo (e para instalar git ou curl, se faltarem).',

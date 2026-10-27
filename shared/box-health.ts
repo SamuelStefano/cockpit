@@ -89,14 +89,16 @@ export function evalClaudeAuth(f: { ready: boolean; held: boolean }): HealthItem
   return { ...base, level: 'ok', detail: 'logado' };
 }
 
-export const MIN_NODE_MAJOR = 20;
+// The claude CLI declares engines node>=22 since 2.1.198: on Node 20 npm keeps
+// installing 2.1.197, which the API refuses for new models.
+export const MIN_NODE_MAJOR = 22;
 
 export function evalNode(version: string): HealthItem {
   const base = { id: 'node' as const, label: 'Node.js' };
   const major = Number(/^v?(\d+)/.exec(version)?.[1] ?? NaN);
   if (!Number.isFinite(major)) return { ...base, level: 'warn', detail: version || 'versão desconhecida' };
   if (major < MIN_NODE_MAJOR) {
-    return { ...base, level: 'error', detail: `${version} (mínimo ${MIN_NODE_MAJOR})`, hint: 'Rode o instalador de novo: ele baixa um Node novo em ~/.deck-node.' };
+    return { ...base, level: 'error', detail: `${version} (mínimo ${MIN_NODE_MAJOR})`, hint: `O Claude Code exige Node ${MIN_NODE_MAJOR}+. Com o Node do instalador (~/.deck-node) o agente atualiza sozinho no próximo boot; num Node do sistema, instale o Node ${MIN_NODE_MAJOR} LTS (ou rode o instalador de novo, que baixa um em ~/.deck-node) e reinicie o deck-agent.` };
   }
   return { ...base, level: 'ok', detail: version };
 }

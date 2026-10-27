@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ClaudeEvent } from './events';
-import { cliPath } from './cli-path';
+import { cliPath, managedPrefix } from './cli-path';
 import { CONFIG } from '../config';
 import { managedEnvSync, mcpServerDefsSync } from '../admin-ops';
 import type { Role } from '../auth';
@@ -501,6 +501,9 @@ export function minimalEnv(): NodeJS.ProcessEnv {
     TERM: 'dumb',
     ...managedEnvSync(),
     PATH: cliPath(),
+    // The CLI's own auto-updater installs with `npm i -g`: pinned here it updates
+    // the binary we spawn instead of creating a second install next to node.
+    NPM_CONFIG_PREFIX: managedPrefix(),
     HOME: process.env.HOME,
     ANTHROPIC_API_KEY: '',
   };
