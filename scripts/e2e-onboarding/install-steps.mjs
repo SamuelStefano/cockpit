@@ -34,7 +34,7 @@ export async function runInstallSteps({ target, step }) {
       'id deck',
       '! id -nG deck | grep -Eqw "sudo|wheel|admin"',
       'test -d /home/deck/.deck-src/.git',
-      'su - deck -c "cd ~/.deck-src && PATH=$(ls -d ~/.deck-node/*/bin 2>/dev/null | head -1):$PATH node -e \\"require(\'node-pty\');require(\'better-sqlite3\');console.log(\'native deps ok\')\\""',
+      'su - deck -c "cd ~/.deck-src && PATH=~/.deck-node/bin:$PATH node -e \\"require(\'node-pty\');require(\'better-sqlite3\');console.log(\'native deps ok\')\\""',
     ].join(' && '), { timeoutMs: 120_000 });
     return tail(out, 5);
   });
