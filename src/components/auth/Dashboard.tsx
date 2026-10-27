@@ -5,6 +5,8 @@ import { PairingStatus } from './PairingStatus';
 import { InstallModePicker } from './InstallModePicker';
 import { PairCommand } from './PairCommand';
 import { PairStep } from './PairStep';
+import { InstallExplainer } from './InstallExplainer';
+import { RelayVisibility } from './RelayVisibility';
 import { BetaNote } from './BetaNote';
 
 // Dashboard de pareamento (DR-023): mostrado quando o usuário está logado mas a VPS
@@ -28,6 +30,7 @@ export function Dashboard({ token, userId, onSignOut }: { token: string; userId?
           <PairStep n={2} title="Cole na sua VPS">
             <PairCommand code={p.code} cmd={p.cmd} busy={p.busy} expired={p.expired} countdown={p.countdown} mode={p.mode} />
             {/* Um só lugar pro erro: com o código já na tela, a falha de "gerar novo código" não aparecia. */}
+            <InstallExplainer mode={p.mode} />
             {p.err && <p className="mt-3 text-[12px] text-red-300">{p.err}</p>}
           </PairStep>
           <PairStep n={3} title="Aguarde a conexão">
@@ -35,6 +38,7 @@ export function Dashboard({ token, userId, onSignOut }: { token: string; userId?
           </PairStep>
         </div>
 
+        <RelayVisibility />
         <BetaNote />
 
         <div className="mt-4 flex items-center justify-between border-t border-neutral-800 pt-4">

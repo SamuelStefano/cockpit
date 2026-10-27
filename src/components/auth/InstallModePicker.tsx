@@ -3,13 +3,13 @@ import type { InstallMode } from './pairing';
 
 const ITEMS: RadioCardItem<InstallMode>[] = [
   {
-    id: 'isolated', icon: 'shield', title: 'isolado',
-    description: 'Usuário deck separado, sem sudo. Não mexe na sua conta, Node nem pacotes.',
+    id: 'isolated', icon: 'shield', title: 'Isolado (usuário deck)',
+    description: 'Recomendado pra testar. O agente roda como o usuário deck, sem sudo: não altera a sua conta, o seu Node nem os seus pacotes.',
     badge: <Badge tone="orange">recomendado</Badge>,
   },
   {
-    id: 'dedicated', icon: 'terminal', title: 'VPS dedicada',
-    description: 'Instala no seu usuário. Pra uma VPS só do Deck.',
+    id: 'dedicated', icon: 'terminal', title: 'Seu usuário (VPS dedicada)',
+    description: 'O agente roda como você e alcança tudo que a sua conta alcança. Só pra uma VPS dedicada ao Deck.',
   },
 ];
 
