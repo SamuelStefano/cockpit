@@ -176,10 +176,15 @@ scripts/doctor.sh    watchdog do host (cron)
   O relay deixou de ser confiável: ele roteia, mas não lê, não forja e não reenvia frame.
   - **Aparelho cadastrado**: cada navegador gera uma chave Ed25519 **não-extraível** (IndexedDB).
     O agente só aceita aparelhos de `~/.deck-agent/devices.json`, escrito só na própria box.
-  - **Cadastro fora do relay**: `npx tsx server/agent.ts --enroll-device` mostra um código de uso
+  - **Cadastro fora do relay**: `deck-agent enroll-device` mostra um código de uso
     único (10 min) com o fingerprint da chave do agente + um segredo de 128 bits. O segredo
     autentica (HMAC) a chave do aparelho e a resposta do agente: o relay não troca nenhuma das duas.
     Um aparelho já cadastrado também gera código (`device-code-new`, dentro do canal selado).
+    `deck-agent` é um wrapper que o `agent-setup.sh` instala (`/usr/local/bin` com root/sudo, senão
+    `~/.local/bin`, e sempre `$SRC_DIR/bin`) com usuário do serviço, clone, `DECK_AGENT_DIR`, relay e
+    PATH gravados (`printf %q`): roda como o usuário do serviço (re-exec por `sudo -u`/`runuser`) e só
+    aceita `enroll-device`, `devices` e `revoke-device <prefixo>`. Esses três não falam com o relay e
+    não exigem `DECK_RELAY_URL`.
   - **Chave por passkey (PRF)** (`shared/e2e/passkey.ts`, `src/cockpit/passkey.ts`): com passkey
     da conta (credencial descobrível, `rpId` = host da SPA, verificação de usuário obrigatória), a
     saída PRF (sal fixo `deck-e2e-device-v1`) vira por HKDF a chave Ed25519 do aparelho (importada
@@ -216,7 +221,12 @@ scripts/doctor.sh    watchdog do host (cron)
     no confirm, sob a trava da lista. Uso único (o primeiro gravado fecha a janela, mesmo que a lista
     esvazie depois, até o agente reiniciar), só nos 30 min depois do start do processo, log alto na
     box (`[agent] e2e: first device trusted on first use (<fp>…)`), desligado com `DECK_E2E_TOFU=off`.
-    O navegador só aceita `tofu: true` se não tem pin para aquela box e o socket está preso a ela.
+    Fechado também enquanto houver pré-autorização viva na box (o navegador do dono está para entrar;
+    TOFU só deixaria o relay entrar antes) e nunca depois de `TOFU_UNTIL` (`shared/e2e/tofu.ts`,
+    10/11/2026), o mesmo corte que o navegador aplica. `devices.json` ausente = vazio; presente mas
+    ilegível ou fora do formato = "tem aparelho" (sem TOFU) e nenhuma escrita o sobrescreve.
+    O navegador só aceita `tofu: true` se não tem pin para aquela box, o socket está preso a ela e
+    ainda é antes de `TOFU_UNTIL`.
   - **Handshake por aba**: X25519 efêmero dos dois lados, transcript assinado pelos dois (papéis
     separados), HKDF → AES-256-GCM com chave por direção. Sequência estritamente crescente: o relay
     pode descartar frame (backpressure), nunca reordenar nem repetir. Frame adulterado derruba o canal.
@@ -224,7 +234,8 @@ scripts/doctor.sh    watchdog do host (cron)
     descartado. `DECK_E2E=off` volta ao modo antigo e existe só pra recuperar uma box sem aparelho.
   - **Navegador**: só abre o app depois do canal; do relay em claro aceita só `agent-online`,
     `agent-offline` e `accounts`. Chave de agente diferente da fixada = tela "a chave mudou", nunca
-    retry. Sem pin e sem prova (nada contra o que checar) = tela de cadastro, que segue tentando.
+    retry. Sem pin e sem prova, ou sem pin e com prova que não confere (nada guardado contradiz a
+    chave; o relay pode pôr qualquer coisa no campo) = tela de cadastro, que segue tentando.
   - **Relay**: dá um id aleatório por aba, carimba no frame do navegador (último `"c"` vence) e
     entrega a resposta do agente só àquela aba, da mesma conta, sem o id.
   - **Só frame descartável pode sumir**: cada frame leva, cifrado, se é crítico e a sequência do último
@@ -232,8 +243,12 @@ scripts/doctor.sh    watchdog do host (cron)
     ou uma negação quebra a cadeia e o canal.
   - **Chave própria**: o canal usa `~/.deck-agent/e2e-key.json`, não a chave que responde ao desafio
     de login do relay (o relay escolhe o desafio; a mesma chave viraria oráculo de assinatura).
-  - Gestão: `--devices`, `--revoke-device=<prefixo>`; dentro do canal, `devices-list`/`device-revoke`
-    (lista no menu de perfil: nome, desde, visto por último, "este aparelho", revogar).
+  - Gestão: `deck-agent devices`, `deck-agent revoke-device <prefixo>`; dentro do canal,
+    `devices-list`/`device-revoke` (lista no menu de perfil: nome, desde, visto por último, "este
+    aparelho", revogar, "Esquecer esta VPS"). Revogar grava, na mesma escrita e trava de
+    `devices.json`, uma lápide `{revoked: pub}` (sem `pub`, então um agente antigo só a descarta):
+    `device-add-passkey` de outro navegador sincronizado e o TOFU recusam aquela chave. Só código de
+    cadastro ou pré-autorização de pareamento limpam a lápide.
     O agente varre os canais a cada 10 s: aparelho revogado (até pela CLI) cai na hora, e todo canal
     se refaz em no máximo 12 h.
   - **Frames de dono (`shared/root-frames.ts`)**: o relay não vê mais o tipo do frame selado, então o
@@ -251,15 +266,22 @@ scripts/doctor.sh    watchdog do host (cron)
       box (persistente e válido em todo navegador da passkey). Revogar = revogar o aparelho passkey em
       **cada** box (menu de perfil ou `--revoke-device`) e criar uma passkey nova.
     - **Segredo pendente do pareamento**: legível por XSS na aba durante os 10 min.
-    - **Janela TOFU**: nos 30 min depois do start de um agente sem aparelho, quem disca primeiro vira
-      dono, e isso inclui o relay (com uma chave dele, no lugar do navegador). O log alto e a lista de
-      aparelhos mostram quem entrou; `DECK_E2E_TOFU=off` fecha a janela. Fora dela o relay não
-      cadastra aparelho. Do lado do navegador o `tofu: true` não é assinado: um navegador sem pin para
-      uma box aceita, a qualquer hora, um "agente" do relay que diga `tofu`. Esse falso agente não
-      alcança a box de verdade (ela não conhece a chave do relay como aparelho), mas o navegador fala
-      com ele até perceber. Só o pin protege: um navegador passkey sem pin para a box também aceita
-      esse `tofu` forjado no lugar da prova. Exposição limitada à primeira discagem de cada navegador
-      a cada box; depois do pin, recusa.
+    - **Janela TOFU**: até `TOFU_UNTIL`, nos 30 min depois do start de um agente sem aparelho e sem
+      pré-autorização pendente, quem disca primeiro vira dono, e isso inclui o relay (com uma chave
+      dele, no lugar do navegador). O log alto e a lista de aparelhos mostram quem entrou;
+      `DECK_E2E_TOFU=off` fecha a janela.
+    - **TOFU forjado contra o navegador**: o `tofu: true` não é assinado. Até `TOFU_UNTIL`, um
+      navegador sem pin para uma box aceita um "agente" do relay que diga `tofu`. Esse falso agente
+      não alcança a box de verdade, mas o navegador fixa a chave dele e, sendo passkey, entrega a ele
+      o `boxPinKey` daquela box dentro do canal (`device-pin`/`device-add-passkey`). Decisão de
+      produto: o pin continua sendo entregue (sem ele, navegadores sincronizados de boxes migradas
+      precisariam de código depois do corte). Consequência: um primeiro uso forjado compromete o canal
+      daquela box **para aquela passkey** (todo navegador onde ela sincroniza, não só um), e isso
+      **não acaba no corte**: com o `boxPinKey`, o relay forja a prova para qualquer navegador da
+      passkey sem pin para a box, antes e depois de `TOFU_UNTIL`. Reset completo: "Esquecer esta VPS"
+      em cada navegador (menu de perfil → aparelhos; apaga deste navegador o pin e a marca passkey da
+      box) **e** criar uma passkey nova (outro `pinRoot`: o `boxPinKey` vazado não vale para ela);
+      na box, revogar o aparelho passkey antigo. Só esquecer, sem passkey nova, não basta.
     - **Box comprometida + relay**: com discagem desviada para uma box comprometida que se diz outra,
       um navegador que nunca fixou a box dialada pode entregar a ela o `boxPinKey` daquela box.
 - **Co-location**: rodar o relay na MESMA box do backend é aceito só pro teste pessoal single-user.
