@@ -175,6 +175,7 @@ User=$RUN_USER
 WorkingDirectory=$SRC_DIR
 Environment=HOME=$HOME
 Environment=PATH=$UNIT_PATH
+Environment=NPM_CONFIG_PREFIX=$HOME/.deck-npm
 Environment=DECK_RELAY_URL=$RELAY
 Environment=DECK_AGENT_ROLE=$ROLE
 Environment=DECK_AGENT_DIR=$AGENT_DIR
@@ -392,7 +393,7 @@ EOF
   else
     echo "[deck] systemd indisponível — subindo com nohup como 'deck' (sobrevive ao SSH, NÃO a reboot)."
     # shellcheck disable=SC2086
-    deck_exec env -i HOME="$dhome" PATH="$UNIT_PATH" DECK_RELAY_URL="$RELAY" DECK_AGENT_ROLE="$ROLE" DECK_AGENT_DIR="$AGENT_DIR" DECK_SUPERVISED=1 \
+    deck_exec env -i HOME="$dhome" PATH="$UNIT_PATH" NPM_CONFIG_PREFIX="$dhome/.deck-npm" DECK_RELAY_URL="$RELAY" DECK_AGENT_ROLE="$ROLE" DECK_AGENT_DIR="$AGENT_DIR" DECK_SUPERVISED=1 \
       sh -c 'cd "$1" && shift && touch agent.log && chmod 600 agent.log && nohup sh -c "while :; do \"\$@\"; sleep 3; done" deck-agent-loop "$@" >>agent.log 2>&1 &' _ "$SRC_DIR" $EXEC_START
     echo "[deck] agente rodando em segundo plano (log: $SRC_DIR/agent.log; parar: pkill -u deck -f deck-agent-loop)."
   fi
@@ -479,6 +480,10 @@ fi
 DRY="${DECK_DRY_RUN:-}"
 DECK_NODE_DIR="$HOME/.deck-node"
 DECK_NPM_DIR="$HOME/.deck-npm"
+# Um CLI, um prefixo: `claude update` e o auto-update do próprio CLI instalam com
+# `npm i -g`, que sem isto cai no prefixo padrão do node (~/.deck-node/lib) — um
+# segundo install que o agente nunca roda (incidente do "does not support this model").
+export NPM_CONFIG_PREFIX="$DECK_NPM_DIR"
 REUSED=""; INSTALLED=""
 note_reused() { REUSED="${REUSED:+$REUSED, }$1"; }
 note_installed() { INSTALLED="${INSTALLED:+$INSTALLED, }$1"; }
@@ -534,13 +539,15 @@ pick_node() {
   NODE_VER="${file#node-v}"; NODE_VER="${NODE_VER%%-linux*}"
 }
 
-# Reaproveita um `claude` existente: PATH, ~/.local/bin, ~/.claude/local, ~/.deck-npm.
+# O `claude` do agente: o do prefixo gerenciado (~/.deck-npm) primeiro, igual ao
+# cliPath() do servidor; depois PATH, ~/.local/bin, ~/.claude/local.
 # Define CLAUDE_BIN (vazio se ausente).
 find_claude() {
   local c
   CLAUDE_BIN=""
+  if [ -x "$HOME/.deck-npm/bin/claude" ]; then CLAUDE_BIN="$HOME/.deck-npm/bin/claude"; return 0; fi
   if c="$(command -v claude 2>/dev/null)"; then CLAUDE_BIN="$c"; return 0; fi
-  for c in "$HOME/.local/bin/claude" "$HOME/.claude/local/claude" "$HOME/.deck-npm/bin/claude"; do
+  for c in "$HOME/.local/bin/claude" "$HOME/.claude/local/claude"; do
     if [ -x "$c" ]; then CLAUDE_BIN="$c"; return 0; fi
   done
   return 0
@@ -562,9 +569,7 @@ if [ "$DRY" = "1" ]; then
   if have_build_tools; then echo "  build tools: reaproveita (make/compilador/python3 presentes)"
   elif build_tools_auto; then echo "  build tools: instalaria make/compilador/python3 via gerenciador de pacotes (root disponível)"
   else echo "  build tools: faltam e a instalação automática está desligada (sem root ou DECK_INSTALL_BUILD_TOOLS=0)"; fi
-  find_claude
-  if [ -n "$CLAUDE_BIN" ]; then echo "  claude: reaproveita $CLAUDE_BIN"
-  else echo "  claude: instalaria @anthropic-ai/claude-code em $HOME/.deck-npm (npm --prefix, sem sudo)"; fi
+  echo "  claude: instalaria/atualizaria @anthropic-ai/claude-code@latest em $HOME/.deck-npm (npm --prefix, sem sudo) — o único CLI que o agente roda e atualiza"
   if [ "${DECK_NO_SERVICE:-}" = "1" ]; then
     echo "  systemd unit: não escrita aqui — o processo root registra a unit (User=deck)"
   elif command -v systemctl >/dev/null 2>&1; then
@@ -591,23 +596,26 @@ fi
 echo "[deck] Node: $NODE_DIR/node (v$NODE_VER)"
 
 # Claude Code CLI: o backend do agente roda `claude` por baixo. Sem ele nenhum turno
-# executa — falha aqui é FATAL. Instala só em ~/.deck-npm, nunca global.
-find_claude
-if [ -z "$CLAUDE_BIN" ]; then
-  echo "[deck] instalando Claude Code CLI em $DECK_NPM_DIR…"
-  npm install -g --prefix "$DECK_NPM_DIR" @anthropic-ai/claude-code >/dev/null 2>&1 || true
+# executa — falha aqui é FATAL. Sempre @latest e sempre em ~/.deck-npm, o mesmo
+# prefixo que o agente resolve e mantém atualizado (server/engine/cli-update.ts):
+# um CLI reaproveitado de outro prefixo envelhecia sem ninguém atualizar.
+echo "[deck] instalando/atualizando o Claude Code CLI (@latest) em $DECK_NPM_DIR…"
+if npm install -g --prefix "$DECK_NPM_DIR" --no-audit --no-fund @anthropic-ai/claude-code@latest >/dev/null 2>&1 \
+  && [ -x "$DECK_NPM_DIR/bin/claude" ]; then
+  CLAUDE_BIN="$DECK_NPM_DIR/bin/claude"
+  note_installed "claude $("$CLAUDE_BIN" --version 2>/dev/null | head -n 1) ($DECK_NPM_DIR)"
+else
   hash -r 2>/dev/null || true
   find_claude
   if [ -z "$CLAUDE_BIN" ]; then
     cat <<'EOF'
 [deck] não consegui instalar o Claude CLI e o agente não roda sem ele.
 Instale manualmente e rode o setup de novo:
-  npm install -g --prefix "$HOME/.deck-npm" @anthropic-ai/claude-code
+  npm install -g --prefix "$HOME/.deck-npm" @anthropic-ai/claude-code@latest
 EOF
     exit 1
   fi
-  note_installed "claude ($DECK_NPM_DIR)"
-else
+  echo "[deck] aviso: npm install em $DECK_NPM_DIR falhou; seguindo com $CLAUDE_BIN (o agente tenta atualizar sozinho)."
   note_reused "claude ($CLAUDE_BIN)"
 fi
 CLAUDE_DIR="$(dirname "$CLAUDE_BIN")"
@@ -622,7 +630,7 @@ if ! "$CLAUDE_BIN" --help 2>/dev/null | grep -q -- '--restricted'; then
   echo "[deck] aviso: este claude ($CLAUDE_BIN) não conhece --restricted."
   echo "       Bots no perfil 'travado' (o padrão) vão falhar até você atualizar o claude."
   echo "       Atualize e rode o setup de novo (ou reinicie o deck-agent):"
-  echo "         npm install -g @anthropic-ai/claude-code@latest"
+  echo "         npm install -g --prefix \"$DECK_NPM_DIR\" @anthropic-ai/claude-code@latest"
 fi
 
 if [ -d "$SRC_DIR/.git" ]; then
@@ -778,7 +786,7 @@ else
   touch "$SRC_DIR/agent.log" && chmod 600 "$SRC_DIR/agent.log"
   # shellcheck disable=SC2086
   # Loop de supervisão: o agente sai sozinho pra subir o código novo (self-update).
-  nohup env DECK_RELAY_URL="$RELAY" DECK_AGENT_ROLE="$ROLE" DECK_AGENT_DIR="$AGENT_DIR" DECK_SUPERVISED=1 \
+  nohup env NPM_CONFIG_PREFIX="$DECK_NPM_DIR" DECK_RELAY_URL="$RELAY" DECK_AGENT_ROLE="$ROLE" DECK_AGENT_DIR="$AGENT_DIR" DECK_SUPERVISED=1 \
     sh -c 'while :; do "$@"; sleep 3; done' deck-agent-loop $EXEC_START >>"$SRC_DIR/agent.log" 2>&1 &
   echo "[deck] agente rodando (PID $!, usuário=$RUN_USER, role=$ROLE; parar: pkill -f deck-agent-loop)."
   echo "[deck] logs: tail -f $SRC_DIR/agent.log"

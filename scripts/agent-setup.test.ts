@@ -163,7 +163,26 @@ describe('agent-setup.sh', () => {
     expect(r.status).toBe(0);
     for (const alvo of ['git:', 'curl:', 'node:', 'build tools:', 'claude:', 'systemd unit:']) expect(r.stdout).toContain(alvo);
     expect(r.stdout).toContain('node: reaproveita');
-    expect(r.stdout).toContain('claude: reaproveita');
+    expect(r.stdout).toContain('claude: instalaria/atualizaria @anthropic-ai/claude-code@latest');
+  });
+
+  it('um CLI, um prefixo: instala @latest em ~/.deck-npm e fixa NPM_CONFIG_PREFIX na unit', () => {
+    expect(fonte).toContain('export NPM_CONFIG_PREFIX="$DECK_NPM_DIR"');
+    expect(fonte).toContain('npm install -g --prefix "$DECK_NPM_DIR" --no-audit --no-fund @anthropic-ai/claude-code@latest');
+    expect(fonte).toContain('Environment=NPM_CONFIG_PREFIX=$HOME/.deck-npm');
+    expect(fonte).toMatch(/nohup env NPM_CONFIG_PREFIX=/);
+    expect(fonte).toMatch(/deck_exec env -i [^\n]*NPM_CONFIG_PREFIX="\$dhome\/\.deck-npm"/);
+  });
+
+  it('find_claude prefere o prefixo gerenciado ao claude do PATH', () => {
+    const { home, bin } = caixa('find-claude', '#!/bin/sh\n');
+    writeFileSync(join(bin, 'claude'), '#!/bin/sh\n', { mode: 0o755 });
+    const managed = join(home, '.deck-npm/bin');
+    mkdirSync(managed, { recursive: true });
+    writeFileSync(join(managed, 'claude'), '#!/bin/sh\n', { mode: 0o755 });
+    const r = spawnSync('bash', ['-c', [extrairFuncao('find_claude'), 'find_claude', 'echo "BIN=$CLAUDE_BIN"'].join('\n')],
+      { env: { HOME: home, PATH: `${bin}:/usr/bin:/bin` }, encoding: 'utf8' });
+    expect(r.stdout.trim()).toBe(`BIN=${join(managed, 'claude')}`);
   });
 
   describe('instalação automática das ferramentas de build', () => {

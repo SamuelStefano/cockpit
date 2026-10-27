@@ -17,6 +17,8 @@ import { priorityCarry } from './priority-carry';
 import { isAwaiting, clearAwaiting } from './awaiting';
 import { parkedHeads, shiftParked, unshiftParked, addParked, findParked, takeParked, promoteParked, parkedView, isQueuePaused, MAX_PARKED_ATTEMPTS, REJECT_MESSAGE, type ParkedItem } from './parked';
 import { resumableId } from './resume';
+import { parseCliTooOld } from '../engine/cli-version-error';
+import { cliUpdater, type CliUpdateResult } from '../engine/cli-update';
 import { quotaHold, burnedByQuota } from './quota';
 import { getLastPlanUsage, notePlanUsageChanged } from './usage-plan';
 import { noteGrokUsageChanged } from './usage-grok';
@@ -939,10 +941,12 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
       }
     },
     onError: (raw, exit) => {
+      if (exit) { thread.lastExitCode = exit.code; thread.lastExitSignal = exit.signal ?? null; }
+      const tooOld = thread.tools.length === 0 && !thread.text.trim() ? parseCliTooOld(raw) : null;
+      if (tooOld) { thread.cliTooOld = tooOld; return; }
       const auth = isAuthFailure(raw);
       const message = auth ? AUTH_MESSAGE : raw;
       thread.lastError = message;
-      if (exit) { thread.lastExitCode = exit.code; thread.lastExitSignal = exit.signal ?? null; }
       broadcast({ t: 'error', sessionKey, message });
       if (auth) markAuthBroken(sessionKey);
       else recordIncident({ kind: 'run-error', sessionKey, sessionId: thread.sessionId, detail: message.slice(0, 400) });
@@ -956,6 +960,16 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
       // turno que já fechou e cairia em cold-busy à toa.
       if (holdsCold) releaseCold(sessionKey);
       if (live && !shouldPreserveLive()) clearRunLive(sessionKey); // fechou: não é mais órfão (salvo no shutdown, onde o boot retoma)
+      if (cliHealable(thread)) {
+        threads.delete(sessionKey);
+        void healOutdatedCli({ sessionKey, thread, resumeId, forkId, queued });
+        return;
+      }
+      if (thread.cliTooOld && !thread.userStopped && thread.tools.length === 0) {
+        thread.endReason ??= 'cli-too-old';
+        thread.lastError = cliHealFailedNote({ ok: false, from: '', to: '', message: 'o modelo segue recusado depois de atualizar' }, thread.cliTooOld.required);
+        broadcast({ t: 'error', sessionKey, message: thread.lastError });
+      }
       // Teto de tokens: um veredito só pro fechamento inteiro (devolver o item
       // drenado, segurar as filas e não retomar em cima do limite).
       const hold = quotaHold();
@@ -1091,6 +1105,61 @@ export function startRun(o: StartRunOptions): 'pane' | 'rejected' | undefined {
     return;
   }
   thread.handle = started.handle;
+}
+
+export function cliHealable(t: Thread): boolean {
+  return !!t.cliTooOld && !t.cliRetried && !t.userStopped && t.tools.length === 0;
+}
+
+export function cliHealedNote(r: CliUpdateResult): string {
+  return `Claude Code atualizado para ${r.to}; reenviando.`;
+}
+
+export function cliHealFailedNote(r: CliUpdateResult, required: string | null): string {
+  const need = required ? ` (o modelo exige a ${required} ou mais nova)` : '';
+  return `O Claude Code desta máquina está desatualizado${need} e a atualização automática falhou: ${r.message}. `
+    + 'Rode `npm install -g --prefix ~/.deck-npm @anthropic-ai/claude-code@latest` na box (ou `deck-agent` → reinstalar) e reenvie.';
+}
+
+// The turn closed on "Claude Code X does not support this model": nothing ran, so
+// the CLI is updated in place (single-flight, even with other turns running — only
+// the binary on disk changes) and the same prompt goes again, once. The session
+// stays "running" in the UI meanwhile: no 'done' until the retry closes.
+async function healOutdatedCli(p: { sessionKey: string; thread: Thread; resumeId?: string; forkId?: string; queued?: boolean }): Promise<void> {
+  const { sessionKey, thread } = p;
+  const required = thread.cliTooOld?.required ?? null;
+  const parked = thread.parked;
+  thread.parked = undefined;
+  let r: CliUpdateResult;
+  try { r = await cliUpdater().heal(required); }
+  catch (e) { r = { ok: false, from: '', to: '', message: (e as Error).message }; }
+  recordIncident({ kind: 'cli-too-old', sessionKey, sessionId: thread.sessionId, detail: `${r.from || '?'} -> ${r.to || '?'} (exigida ${required ?? '?'}): ${r.ok ? 'atualizado' : r.message}`.slice(0, 400) });
+  const closeAsFailed = (message: string) => {
+    if (parked) requeueParked(thread.parkedFrom ?? sessionKey, parked, false);
+    thread.lastError = message;
+    broadcast({ t: 'error', sessionKey, message });
+    broadcast({ t: 'done', sessionKey, sessionId: thread.sessionId ?? '', stopped: true });
+    emitTurnClosed({ sessionKey, sessionId: thread.sessionId, prompt: thread.prompt, text: '', params: thread.params, ok: false, hop: thread.flowHop ?? 0, unattended: true });
+    if (!epochHolds.has(sessionKey)) clearStopEpoch(sessionKey);
+  };
+  if (!r.ok) { closeAsFailed(cliHealFailedNote(r, required)); return; }
+  // The user sent something else while the CLI updated: that turn already runs on it.
+  if (threads.has(sessionKey)) {
+    if (parked) requeueParked(thread.parkedFrom ?? sessionKey, parked, false);
+    return;
+  }
+  broadcast({ t: 'error', sessionKey, message: cliHealedNote(r) });
+  const resumable = !!thread.sessionId && !!resumableId(thread.sessionId);
+  startRun({
+    ...thread.params, ws: null, sessionKey, prompt: thread.prompt,
+    resumeId: resumable ? thread.sessionId : p.resumeId,
+    forkId: resumable ? undefined : p.forkId,
+    queued: p.queued || !!parked, flowHop: thread.flowHop,
+  });
+  const next = threads.get(sessionKey);
+  if (!next || next === thread) { closeAsFailed('Claude Code atualizado, mas não consegui reenviar agora — reenvie a mensagem.'); return; }
+  next.cliRetried = true;
+  if (parked) { next.parked = parked; next.parkedFrom = thread.parkedFrom; }
 }
 
 export function catchSpawn<T>(start: () => T): { handle: T } | { error: string } {

@@ -216,3 +216,23 @@ describe('translate', () => {
     expect(vi.mocked(broadcast)).not.toHaveBeenCalledWith(expect.objectContaining({ t: 'delta' }));
   });
 });
+
+describe('CLI too old for the model', () => {
+  const RAW = 'API Error: 400 Claude Code 2.1.197 does not support this model; version 2.1.280 or newer is required';
+
+  it('holds the synthetic 400 back and flags the turn', () => {
+    const t = register();
+    translate(KEY, t, { type: 'assistant', message: { model: '<synthetic>', content: [{ type: 'text', text: RAW }] } } as never);
+    translate(KEY, t, { type: 'result', subtype: 'success', is_error: true, result: RAW } as never);
+    expect(t.cliTooOld).toEqual({ required: '2.1.280' });
+    expect(t.text).toBe('');
+    expect(vi.mocked(broadcast).mock.calls.some(([m]) => (m as { t: string }).t === 'delta')).toBe(false);
+  });
+
+  it('leaves a real answer that quotes the error alone', () => {
+    const t = register();
+    translate(KEY, t, { type: 'assistant', message: { model: 'claude-opus-5-5', content: [{ type: 'text', text: `The log said: ${RAW}` }] } } as never);
+    expect(t.cliTooOld).toBeUndefined();
+    expect(t.text).toContain('does not support');
+  });
+});
