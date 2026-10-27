@@ -32,7 +32,7 @@ interface Props {
   onGet: () => void;
   onGo: (to: '/onboarding') => void;
   probe?: ProviderProbeView;
-  manage?: { provedores?: ReactNode; ferramentas?: ReactNode };
+  manage?: { provedores?: ReactNode; ferramentas?: ReactNode; chaves?: ReactNode };
 }
 
 const FOOT: Partial<Record<ConnTab, string>> = {
@@ -63,7 +63,8 @@ export function Conexoes({ connected, items, loaded, bots, mcpsState, mcpsBusy, 
   useEffect(() => { if (mcpsState) onGet(); }, [mcpsState, onGet]);
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(id); }, []);
 
-  const tabs = useMemo(() => visibleTabs(items), [items]);
+  const hasVault = !!manage?.chaves;
+  const tabs = useMemo(() => visibleTabs(items, hasVault), [items, hasVault]);
   const active: ConnTab = tabs.includes(tab) ? tab : 'provedores';
   const list = itemsOf(items, active);
   const notice = noticeOf(items, bots);
@@ -137,6 +138,7 @@ export function Conexoes({ connected, items, loaded, bots, mcpsState, mcpsBusy, 
         )}
         {active === 'provedores' && manage?.provedores}
         {active === 'ferramentas' && manage?.ferramentas}
+        {active === 'chaves' && manage?.chaves}
         {active === 'aparelhos' && sealed && <PairDevice link={link} />}
       </div>
       {probe && <AddProvider open={providerOpen} onClose={() => { setProviderOpen(false); if (location.hash === ADD_PROVIDER_HASH) history.replaceState(null, '', '/conexoes'); }} probe={probe} onLogin={() => onGo('/onboarding')} />}

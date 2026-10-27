@@ -27,9 +27,9 @@ export const EMPTY_COPY: Record<ConnTab, { title: string; text: string }> = {
   chaves: { title: 'Nenhuma chave ainda', text: 'Chaves guardadas ficam criptografadas e nunca voltam a aparecer inteiras.' },
 };
 
-export function visibleTabs(items: Connection[]): ConnTab[] {
+export function visibleTabs(items: Connection[], keysManaged = false): ConnTab[] {
   const all = Object.keys(TAB_KIND) as ConnTab[];
-  return all.filter((t) => t !== 'chaves' || items.some((i) => i.kind === 'key'));
+  return all.filter((t) => t !== 'chaves' || keysManaged || items.some((i) => i.kind === 'key'));
 }
 
 export function itemsOf(items: Connection[], tab: ConnTab): Connection[] {
