@@ -217,7 +217,7 @@ function CockpitBody() {
           <Sidebar
             route={route} nav={nav} role={role} onNew={handleNew} onPalette={() => setPalette(true)}
             bitState={bitState} conn={conn.ws} usage={usageDock} account={account}
-            agents={agentsProps} sessions={<SessionsPanel {...sessionsProps} />}
+            agents={agentsProps} sessions={<SessionsPanel {...sessionsProps} embedded />}
           />
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">

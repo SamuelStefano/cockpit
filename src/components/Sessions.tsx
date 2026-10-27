@@ -49,9 +49,11 @@ export interface SessionsPanelProps {
   userId?: string;
   onFunnel?: (ids: string[]) => void;
   funnelBusy?: boolean;
+  // Inside the shell sidebar, which already owns the title and "Nova conversa".
+  embedded?: boolean;
 }
 
-function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marathon, onToggleMarathon, onRename, onDescribe, onClose, onDelete, onStop, archived = [], onUnhide, onCloseMobile, usage = {}, usageModel = {}, cost = {}, running, stalled, updated, runStart = {}, searchResults = [], onSearch, userId, onFunnel, funnelBusy }: SessionsPanelProps) {
+function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marathon, onToggleMarathon, onRename, onDescribe, onClose, onDelete, onStop, archived = [], onUnhide, onCloseMobile, usage = {}, usageModel = {}, cost = {}, running, stalled, updated, runStart = {}, searchResults = [], onSearch, userId, onFunnel, funnelBusy, embedded = false }: SessionsPanelProps) {
   const {
     query, setQuery, confirmId, setConfirmId, deleteId, setDeleteId, pinned, togglePin,
     tagMap, tagFilter, setTagFilter, addTag, removeTag, allTags, dismissedWaiting, dismissWaiting, searchRef, filtered,
@@ -75,7 +77,7 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
     <div className="flex h-full flex-col bg-neutral-950">
       <div className="shrink-0 border-b border-neutral-800/80 p-2.5">
         <BoxSwitcher userId={userId} />
-        <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
+        {!embedded && <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
           <span className="text-[12px] font-semibold uppercase tracking-wider text-neutral-400">
             Sessões
             {sessions.length > 0 && <span className="ml-1.5 font-medium normal-case tracking-normal text-neutral-600 tabular-nums">{sessions.length}</span>}
@@ -96,7 +98,7 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
               </button>
             )}
           </div>
-        </div>
+        </div>}
         <div className="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/80 px-3 py-2.5 transition-colors focus-within:border-orange-500/30 focus-within:bg-neutral-900 focus-within:ring-2 focus-within:ring-orange-500/15">
           <Icon name="search" size={16} className="shrink-0 text-neutral-400" />
           <input
@@ -112,9 +114,11 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
       </div>
 
       <div className="shrink-0 px-2.5 pt-2.5">
-        <Button variant="outline" icon="plus" className="w-full" onClick={() => { onNew(); onCloseMobile?.(); }}>
-          Nova sessão
-        </Button>
+        {!embedded && (
+          <Button variant="outline" icon="plus" className="w-full" onClick={() => { onNew(); onCloseMobile?.(); }}>
+            Nova sessão
+          </Button>
+        )}
         {onFunnel && !query && funnel.candidates.length >= FUNNEL_MIN_OFFER && (
           <Button variant="ghost" size="sm" icon="sparkles" className="mt-1.5 w-full" loading={funnelBusy} onClick={() => funnel.setOpen(true)}>
             Afunilar {funnel.candidates.length} paradas
