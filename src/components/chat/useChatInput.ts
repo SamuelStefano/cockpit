@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { PermMode } from '../../../shared/protocol';
 import { classifySlash } from './slash';
 import { nextRecall, type Caret } from './recall';
@@ -42,8 +42,6 @@ export function useChatInput(args: UseChatInputArgs) {
   // "escolher arquivo" e "abrir a câmera" ao mesmo tempo.
   const cameraRef = useRef<HTMLInputElement>(null);
   const touch = useMemo(isVirtualKeyboardOnly, []);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const closeSettings = useCallback(() => setSettingsOpen(false), []);
   // Ditado por voz escreve direto no composer (value/setValue). Mora aqui pra o
   // textarea poder ficar readOnly enquanto grava (não dá pra digitar e ditar ao
   // mesmo tempo: o próximo trecho reconhecido sobrescreveria o que foi digitado).
@@ -251,5 +249,5 @@ export function useChatInput(args: UseChatInputArgs) {
     if (histIdx !== null) setHistIdx(null); // digitar sai do modo recall
     fitHeight(e.target);
   };
-  return { taRef, fileRef, cameraRef, sel, setSel, showPalette, matches, complete, submit, onKey, onCompositionEnd, grow, pick, ...dnd, mic, ghost, ghostShown, acceptGhost, touch, settingsOpen, openSettings: () => setSettingsOpen(true), closeSettings };
+  return { taRef, fileRef, cameraRef, sel, setSel, showPalette, matches, complete, submit, onKey, onCompositionEnd, grow, pick, ...dnd, mic, ghost, ghostShown, acceptGhost, touch };
 }

@@ -16,24 +16,15 @@ export function ExportMenu({ title, messages }: { title: string; messages: Messa
     catch { toast('Não consegui gerar o PDF — tente o .md', { tone: 'error' }); }
     finally { setBusy(false); }
   };
+  const row = `flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-neutral-300 transition hover:bg-neutral-800/60 hover:text-neutral-100 disabled:opacity-50 pointer-coarse:min-h-11 ${tokens.focusRing}`;
   return (
-    <div className="flex items-center gap-0.5">
-      <button
-        onClick={exportMd}
-        disabled={busy}
-        title="Baixar conversa em Markdown"
-        className={`flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300 disabled:opacity-50 ${tokens.focusRing}`}
-      >
-        <Icon name="download" size={13} /> .md
+    <>
+      <button onClick={exportMd} disabled={busy} title="Baixar conversa em Markdown" className={row}>
+        <Icon name="download" size={13} /> Exportar .md
       </button>
-      <button
-        onClick={exportPdf}
-        disabled={busy}
-        title="Baixar conversa em PDF"
-        className={`flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300 disabled:opacity-50 ${tokens.focusRing}`}
-      >
-        <Icon name={busy ? 'rotate' : 'download'} size={13} className={busy ? 'spin' : ''} /> pdf
+      <button onClick={exportPdf} disabled={busy} title="Baixar conversa em PDF" className={row}>
+        <Icon name={busy ? 'rotate' : 'download'} size={13} className={busy ? 'spin' : ''} /> Exportar pdf
       </button>
-    </div>
+    </>
   );
 }
