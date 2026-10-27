@@ -257,7 +257,9 @@ scripts/doctor.sh    watchdog do host (cron)
       cadastra aparelho. Do lado do navegador o `tofu: true` não é assinado: um navegador sem pin para
       uma box aceita, a qualquer hora, um "agente" do relay que diga `tofu`. Esse falso agente não
       alcança a box de verdade (ela não conhece a chave do relay como aparelho), mas o navegador fala
-      com ele até perceber; navegador com pin ou com prova da passkey recusa.
+      com ele até perceber. Só o pin protege: um navegador passkey sem pin para a box também aceita
+      esse `tofu` forjado no lugar da prova. Exposição limitada à primeira discagem de cada navegador
+      a cada box; depois do pin, recusa.
     - **Box comprometida + relay**: com discagem desviada para uma box comprometida que se diz outra,
       um navegador que nunca fixou a box dialada pode entregar a ela o `boxPinKey` daquela box.
 - **Co-location**: rodar o relay na MESMA box do backend é aceito só pro teste pessoal single-user.
