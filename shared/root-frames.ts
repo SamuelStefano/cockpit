@@ -16,6 +16,7 @@ export const ROOT_ONLY: ReadonlySet<ClientMsg['t']> = new Set<ClientMsg['t']>([
   'admin-cli-install', 'admin-cli-update', 'admin-deck-restart',
   'agent-add-custom', 'agent-probe-draft', 'provider-probe',
   'claude-import-scan', 'claude-import-apply',
+  'versions-restore',
 ]);
 
 // A frame whose own prefix says it belongs to the owner, even if a future one is

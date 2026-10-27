@@ -4,6 +4,7 @@ import type { SkillMeta, SkillRisk } from '../shared/protocol';
 import { CONFIG } from './config';
 import { parseFrontmatter } from './frontmatter';
 import { importSlug, MAX_IMPORT_BYTES } from './contexts';
+import { captureSkill } from './versions/skill-history';
 
 // Surfacing READ-ONLY das skills do agente. Cada skill é um DIRETÓRIO em
 // CONFIG.skillsDir contendo um SKILL.md (com frontmatter name/description). O
@@ -104,8 +105,10 @@ export async function installSkill(slug: string, _name: string, body: string): P
   const sdir = resolve(join(dir, id));
   const full = resolve(join(sdir, 'SKILL.md'));
   if (!sdir.startsWith(dir + '/') || !full.startsWith(sdir + '/') || basename(full) !== 'SKILL.md') return { error: 'caminho inválido' };
+  await captureSkill(id);
   try { await mkdir(sdir, { recursive: true }); await writeFile(full, body, 'utf8'); }
   catch { return { error: 'falha ao gravar' }; }
+  await captureSkill(id);
   return { id };
 }
 

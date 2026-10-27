@@ -30,6 +30,7 @@ import { clearBotQuestion, sendTeamPending } from './team-pending-frames';
 import { sendBotComputer, sendBotFile, sendBotFiles } from './team-files-frames';
 import { validateBotInput } from '../../shared/team';
 import { queueReleaseAt } from './ctx-guard';
+import { diffVersions, restoreVersion, versionsFor } from '../versions/service';
 import { listSkills, readSkill, resolveSkillDeny, installSkill } from '../skills';
 import { getRegistryCatalog, installFromRegistry } from '../skill-registry-runner';
 import { addUploadChunk, readAttachment } from '../attachments';
@@ -891,6 +892,26 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
     }
     case 'skill-list': {
       send(ws, { t: 'skills', items: await listSkills(await getTeam()) });
+      return;
+    }
+    case 'versions-list': {
+      send(ws, { t: 'versions', kind: msg.kind, id: msg.id, items: await versionsFor(msg.kind, msg.id) });
+      return;
+    }
+    case 'versions-diff': {
+      const r = await diffVersions(msg.kind, msg.id, msg.from, msg.to);
+      send(ws, { t: 'versions-diff', kind: msg.kind, id: msg.id, from: msg.from, to: msg.to, ok: r.ok, diff: r.ok ? r.diff : '', message: r.ok ? undefined : r.message });
+      return;
+    }
+    case 'versions-restore': {
+      const denied = msg.kind === 'agent' ? customAgentDenial(role, CONFIG.localOnly) : null;
+      const r = denied ? { ok: false, message: denied } : await restoreVersion(msg.kind, msg.id, msg.version);
+      send(ws, { t: 'versions-restore-result', kind: msg.kind, id: msg.id, ok: r.ok, message: r.message });
+      if (r.ok) {
+        send(ws, { t: 'versions', kind: msg.kind, id: msg.id, items: await versionsFor(msg.kind, msg.id) });
+        if (msg.kind === 'agent') afterAgentsChange();
+        else send(ws, { t: 'skills', items: await listSkills() });
+      }
       return;
     }
     case 'skill-open': {

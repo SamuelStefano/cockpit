@@ -12,6 +12,7 @@ import type { ClaudeImportResult, ClaudeImportScan, ImportKind } from './claude-
 import type { AgentView, AgentPreset, AgentStatus, AgentCustomField } from './agents';
 import type { TeamMessage } from './team-messages';
 import type { BoxHealth, SmokeResult } from './box-health';
+import type { VersionKind, VersionMeta } from './versions';
 
 export interface ToolDiff {
   path: string;
@@ -819,6 +820,9 @@ export type ClientMsg =
   | { t: 'team-file-get'; botId: string; path: string }
   | { t: 'team-computer-get'; botId: string }
   | { t: 'skill-list' }
+  | { t: 'versions-list'; kind: VersionKind; id: string }
+  | { t: 'versions-diff'; kind: VersionKind; id: string; from: string; to: string }
+  | { t: 'versions-restore'; kind: VersionKind; id: string; version: string }
   | { t: 'skill-open'; id: string }
   | { t: 'registry-get'; refresh?: boolean }
   | { t: 'registry-install'; reqId: string; items: RegistryRef[] }
@@ -1015,6 +1019,9 @@ export type ServerMsg =
   | { t: 'agent-custom-result'; ok: boolean; message: string; field?: AgentCustomField; id?: string }
   | { t: 'agent-draft-result'; ok: boolean; status: AgentStatus; message: string; field?: AgentCustomField }
   | { t: 'skills'; items: SkillMeta[] }
+  | { t: 'versions'; kind: VersionKind; id: string; items: VersionMeta[] }
+  | { t: 'versions-diff'; kind: VersionKind; id: string; from: string; to: string; ok: boolean; diff: string; message?: string }
+  | { t: 'versions-restore-result'; kind: VersionKind; id: string; ok: boolean; message: string }
   | { t: 'skill'; id: string; name: string; body: string }
   | { t: 'registry'; catalog: RegistryCatalog | null; error?: string }
   | { t: 'registry-install-result'; reqId: string; ok: boolean; installed: string[]; skipped: string[]; error?: string }
