@@ -44,13 +44,15 @@ const { boxPinKey, deriveFromPrf } = await import('../../shared/e2e/passkey');
 const { newDeviceCode } = await import('../../shared/e2e/enroll');
 const { toB64 } = await import('../../shared/e2e/bytes');
 
-const C = 'CCCCCCCCCCCCCCCCCCCCCC';
 const flush = () => new Promise((r) => setTimeout(r, 40));
+let tabs = 0;
 
-// Plays the relay: stamps the tab id on browser frames, strips it on the way
-// back, and lets a test inject or tamper with frames like a hostile relay would.
+// Plays the relay: stamps each tab's own id on its frames, routes the agent's
+// answers back to that tab only, tells the agent when a tab goes away, and lets
+// a test inject or tamper with frames like a hostile relay would.
 class Relay {
   browser: FakeBrowserWs | null = null;
+  tabs = new Map<string, FakeBrowserWs>();
   toBrowserLog: string[] = [];
   tamper: ((s: string) => string) | null = null;
   agentLink = { OPEN: 1, readyState: 1, bufferedAmount: 0, send: (s: string) => this.fromAgent(s) } as unknown as NodeWs;
@@ -63,24 +65,29 @@ class Relay {
     const out = this.tamper ? this.tamper(plain) : plain;
     if (!out) return;
     this.toBrowserLog.push(out);
-    this.browser?.receive(out);
+    (m ? this.tabs.get(m[1]) : this.browser)?.receive(out);
   }
 
-  held: string[] | null = null;
-  fromBrowser(s: string) {
+  held: [string, string][] | null = null;
+  fromBrowser(c: string, s: string) {
     if (!s.startsWith('{"t":"e2e')) return;
-    if (this.held) { this.held.push(s); return; }
-    this.hub.handle(`${s.slice(0, -1)},"c":"${C}"}`);
+    if (this.held) { this.held.push([c, s]); return; }
+    this.hub.handle(`${s.slice(0, -1)},"c":"${c}"}`);
   }
   release() {
     const q = this.held ?? [];
     this.held = null;
-    for (const s of q) this.fromBrowser(s);
+    for (const [c, s] of q) this.fromBrowser(c, s);
+  }
+  gone(c: string) {
+    this.tabs.delete(c);
+    this.hub.handle(JSON.stringify({ t: 'e2e-gone', c }));
   }
 }
 
 class FakeBrowserWs {
   static relay: Relay;
+  readonly c = String(++tabs).padStart(22, 'C');
   readyState = 0;
   onopen: (() => void) | null = null;
   onmessage: ((ev: { data: string }) => void) | null = null;
@@ -90,11 +97,17 @@ class FakeBrowserWs {
   sent: string[] = [];
   constructor() {
     FakeBrowserWs.relay.browser = this;
+    FakeBrowserWs.relay.tabs.set(this.c, this);
     setTimeout(() => { this.readyState = 1; this.onopen?.(); this.receive('{"t":"agent-online"}'); }, 0);
   }
-  send(s: string) { this.sent.push(s); FakeBrowserWs.relay.fromBrowser(s); }
-  close(code = 1000, reason = '') { this.readyState = 3; this.onclose?.({ code, reason }); }
-  receive(s: string) { this.onmessage?.({ data: s }); }
+  send(s: string) { this.sent.push(s); FakeBrowserWs.relay.fromBrowser(this.c, s); }
+  close(code = 1000, reason = '') {
+    if (this.readyState === 3) return;
+    this.readyState = 3;
+    FakeBrowserWs.relay.gone(this.c);
+    this.onclose?.({ code, reason });
+  }
+  receive(s: string) { if (this.readyState !== 3) this.onmessage?.({ data: s }); }
 }
 (FakeBrowserWs as unknown as { OPEN: number }).OPEN = 1;
 
