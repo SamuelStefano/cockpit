@@ -87,7 +87,7 @@ const TO_RELAY = /^\{"t":"(accounts-list|set-admin|box-rename|box-revoke)"/;
 const HANDSHAKE_MS = 10_000;
 // While a pre-authorization secret is pending, a failed or unanswered attempt is
 // tried again: a relay that drops or forges one answer only delays it.
-const PREAUTH_RETRY_MS = 5_000;
+const PREAUTH_RETRY_MS = 2_000;
 const PIN_RETRY_MS = 1_000;
 // Mirrors the agent's cap: neither end keeps a channel's keys longer than this.
 const MAX_CHANNEL_MS = 12 * 3600_000;

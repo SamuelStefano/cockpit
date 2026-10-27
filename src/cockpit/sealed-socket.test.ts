@@ -35,10 +35,10 @@ vi.mock('./preauth-store', () => ({
   dropPreauth: (s: Bytes) => { mem.preauth = mem.preauth.filter((x) => x !== s); },
 }));
 
-const { SealedSocket, enrollThisDevice, sealState, sendRelayFrame } = await import('./sealed-socket');
+const { SealedSocket, enrollThisDevice, retrySeal, sealState, sendRelayFrame } = await import('./sealed-socket');
 const { boxStore } = await import('./boxes-store');
-const { SealedHub, agentKeysFrom } = await import('../../server/e2e/hub');
-const { createEnrollCode, devicePin, storePreauth } = await import('../../server/e2e/devices');
+const { SealedHub, agentKeysFrom, tofuWindow } = await import('../../server/e2e/hub');
+const { createEnrollCode, devicePin, listDevices, storePreauth } = await import('../../server/e2e/devices');
 const { deviceFrameHandler } = await import('../../server/e2e/manage');
 const { boxPinKey, deriveFromPrf } = await import('../../shared/e2e/passkey');
 const { newDeviceCode } = await import('../../shared/e2e/enroll');
@@ -61,12 +61,21 @@ class Relay {
     const m = /^\{"c":"([A-Za-z0-9_-]{22})"(?:,"p":([01]))?,/.exec(s);
     const plain = m ? `{${s.slice(m[0].length)}` : s;
     const out = this.tamper ? this.tamper(plain) : plain;
+    if (!out) return;
     this.toBrowserLog.push(out);
     this.browser?.receive(out);
   }
 
+  held: string[] | null = null;
   fromBrowser(s: string) {
-    if (s.startsWith('{"t":"e2e')) this.hub.handle(`${s.slice(0, -1)},"c":"${C}"}`);
+    if (!s.startsWith('{"t":"e2e')) return;
+    if (this.held) { this.held.push(s); return; }
+    this.hub.handle(`${s.slice(0, -1)},"c":"${C}"}`);
+  }
+  release() {
+    const q = this.held ?? [];
+    this.held = null;
+    for (const s of q) this.fromBrowser(s);
   }
 }
 
@@ -217,8 +226,39 @@ describe('SealedSocket against the real agent hub', () => {
     expect(sealState.get()).toBe(before);
   });
 
+  function hubFor(boxId: string) {
+    const keys = (relay as unknown as { keys: { pub: Bytes; sign: CryptoKey } }).keys;
+    relay.hub = new SealedHub({ keys, link: relay.agentLink, onPeersChanged: () => {}, boxId, serve: () => {} });
+  }
+
+  it('an enroll code from a box the relay put in place of the dialed one pins nothing', async () => {
+    const box = '22222222-2222-4222-8222-222222222222';
+    hubFor('44444444-4444-4444-8444-444444444444');
+    const s = new SealedSocket('wss://relay/ws?box=' + box, 'jwt', { box, main: true });
+    s.onmessage = () => {};
+    await flush();
+    const { code } = await createEnrollCode((relay as unknown as { keys: { pub: Bytes } }).keys.pub);
+    await expect(enrollThisDevice(code, 'test')).rejects.toThrow();
+    expect(mem.boxPins[box]).toBeUndefined();
+    expect(sealState.get()).toBe('enroll-failed');
+  });
+
+  it('an enroll code never replaces the pin of a box this device already trusts', async () => {
+    const box = '22222222-2222-4222-8222-222222222222';
+    hubFor(box);
+    const s = new SealedSocket('wss://relay/ws?box=' + box, 'jwt', { box, main: true });
+    s.onmessage = () => {};
+    await flush();
+    const other = new Uint8Array(32).fill(3);
+    mem.boxPins[box] = [other];
+    const { code } = await createEnrollCode((relay as unknown as { keys: { pub: Bytes } }).keys.pub);
+    await expect(enrollThisDevice(code, 'test')).rejects.toThrow('já confia');
+    expect(mem.boxPins[box]).toEqual([other]);
+  });
+
   it('enrolling on a bound main socket pins only that box', async () => {
     const box = '22222222-2222-4222-8222-222222222222';
+    hubFor(box);
     const s = new SealedSocket('wss://relay/ws?box=' + box, 'jwt', { box, main: true });
     s.onmessage = () => {};
     await flush();
@@ -328,5 +368,110 @@ describe('SealedSocket with a passkey device key', () => {
     relay.tamper = null;
     expect(sealState.get()).toBe('rejected');
     expect(mem.boxPins[BOX]).toBeUndefined();
+  });
+
+  it('never sends e2e-preauth for a box it already pinned, even when the relay says "unknown device"', async () => {
+    const { keys, s } = await pairedWithDeviceCode();
+    s.close();
+    await flush();
+    const { secret } = await newDeviceCode(mem.passkey!.pub);
+    mem.preauth = [secret];
+    dial();
+    await flush();
+    relay.browser!.receive('{"t":"e2e-unknown-device"}');
+    await settle();
+    expect(relay.browser!.sent.some((f) => f.includes('e2e-preauth'))).toBe(false);
+    expect(mem.boxPins[BOX]).toEqual([keys.pub]);
+  });
+
+  it('a box the relay routes this dial to cannot redeem a secret meant for another box', async () => {
+    const OTHER = '44444444-4444-4444-8444-444444444444';
+    const keys = (relay as unknown as { keys: { pub: Bytes; sign: CryptoKey } }).keys;
+    relay.hub = new SealedHub({ keys, link: relay.agentLink, onPeersChanged: () => {}, boxId: OTHER, serve: () => {} });
+    mem.passkey = await deriveFromPrf(PRF);
+    const { code, secret } = await newDeviceCode(mem.passkey.pub);
+    storePreauth(code);
+    mem.preauth = [secret];
+    dial();
+    await settle();
+    expect(sealState.get()).not.toBe('sealed');
+    expect(mem.boxPins[BOX]).toBeUndefined();
+    expect(listDevices()).toHaveLength(0);
+  });
+
+  it('a forged "pre-authorization failed" only delays it: the browser tries again and seals', async () => {
+    agentWithBoxId();
+    mem.passkey = await deriveFromPrf(PRF);
+    const { code, secret } = await newDeviceCode(mem.passkey.pub);
+    storePreauth(code);
+    mem.preauth = [secret];
+    let forged = false;
+    relay.tamper = (f) => {
+      if (!forged && f.includes('"e2e-preauthed"')) { forged = true; return '{"t":"e2e-preauth-failed"}'; }
+      return f;
+    };
+    dial();
+    await settle();
+    expect(sealState.get()).not.toBe('rejected');
+    await new Promise((r) => setTimeout(r, 2_300));
+    await settle();
+    relay.tamper = null;
+    expect(sealState.get()).toBe('sealed');
+    expect(mem.preauth).toEqual([]);
+  }, 10_000);
+
+  it('a retry while the hello is in flight does not start a second handshake', async () => {
+    const { s } = await pairedWithDeviceCode();
+    s.close();
+    await flush();
+    relay.held = [];
+    dial();
+    await flush();
+    retrySeal();
+    await flush();
+    relay.release();
+    await settle();
+    expect(relay.browser!.sent.filter((f) => f.includes('e2e-hello'))).toHaveLength(1);
+    expect(sealState.get()).toBe('sealed');
+  });
+
+  it('an enrolled random-key browser hands the box its passkey key, then dials with it', async () => {
+    const keys = (relay as unknown as { keys: { pub: Bytes; sign: CryptoKey } }).keys;
+    let hub: InstanceType<typeof SealedHub> | null = null;
+    hub = new SealedHub({ keys, link: relay.agentLink, onPeersChanged: () => {}, boxId: BOX, intercept: deviceFrameHandler(keys.pub, () => hub, BOX), serve: () => {} });
+    relay.hub = hub;
+    const s = dial();
+    await settle();
+    const { code } = await createEnrollCode(keys.pub);
+    await enrollThisDevice(code, 'laptop');
+    await settle();
+    expect(sealState.get()).toBe('sealed');
+    mem.passkey = await deriveFromPrf(PRF);
+    retrySeal();
+    await settle();
+    expect(mem.passkeyBoxes).toContain(BOX);
+    expect(devicePin(toB64(mem.passkey.pub))).toEqual(await boxPinKey(mem.passkey.pinRoot, BOX));
+    s.close();
+    await flush();
+    dial();
+    await settle();
+    expect(sealState.get()).toBe('sealed');
+    expect(relay.browser!.sent.find((f) => f.includes('e2e-hello'))).toContain(toB64(mem.passkey.pub));
+  });
+
+  it('a box with no devices trusts this browser on first use, and the passkey pin key follows', async () => {
+    const keys = (relay as unknown as { keys: { pub: Bytes; sign: CryptoKey } }).keys;
+    let hub: InstanceType<typeof SealedHub> | null = null;
+    hub = new SealedHub({
+      keys, link: relay.agentLink, onPeersChanged: () => {}, boxId: BOX, tofu: tofuWindow(Date.now()),
+      intercept: deviceFrameHandler(keys.pub, () => hub, BOX), serve: () => {},
+    });
+    relay.hub = hub;
+    mem.passkey = await deriveFromPrf(PRF);
+    dial();
+    await settle();
+    expect(sealState.get()).toBe('sealed');
+    expect(mem.boxPins[BOX]).toEqual([keys.pub]);
+    expect(devicePin(toB64(mem.passkey.pub))).toEqual(await boxPinKey(mem.passkey.pinRoot, BOX));
   });
 });
