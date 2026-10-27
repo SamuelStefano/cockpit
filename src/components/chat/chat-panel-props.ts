@@ -103,6 +103,7 @@ export interface ChatPanelProps {
   onQuote?: (text: string) => void;
   onMemorize?: (text: string) => void;
   onRename?: (id: string, title: string) => void;
+  onDelete?: (id: string) => void;
   onOpenFull?: (id: string) => void;
   onLoadOlder?: (id: string) => void;
   onOpenSummary?: (id: string) => void;

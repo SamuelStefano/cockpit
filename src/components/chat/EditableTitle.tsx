@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useEditableTitle } from './useEditableTitle';
 import { tokens } from '../primitives';
 
@@ -6,10 +7,12 @@ interface EditableTitleProps {
   title: string;
   editable: boolean;
   onRename?: (id: string, title: string) => void;
+  startSignal?: number;
 }
 
-export function EditableTitle({ id, title, editable, onRename }: EditableTitleProps) {
+export function EditableTitle({ id, title, editable, onRename, startSignal = 0 }: EditableTitleProps) {
   const { editing, draft, setDraft, inputRef, start, commit, cancel } = useEditableTitle({ id, title, onRename });
+  useEffect(() => { if (startSignal > 0) start(); }, [startSignal]);
 
   if (editing) {
     return (
@@ -23,13 +26,13 @@ export function EditableTitle({ id, title, editable, onRename }: EditableTitlePr
           if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); commit(); }
           else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
         }}
-        className="min-w-0 flex-1 rounded-sm border border-orange-700/60 bg-neutral-800 px-1 py-0.5 text-[13px] font-medium text-neutral-100 outline-hidden"
+        className="min-w-0 flex-1 rounded-sm border border-orange-700/60 bg-neutral-800 px-1 py-0.5 text-[14px] font-medium text-neutral-100 outline-hidden"
       />
     );
   }
 
   if (!editable) {
-    return <span className="truncate text-[13px] font-medium text-neutral-300">{title}</span>;
+    return <span className="truncate text-[14px] font-medium text-neutral-100">{title}</span>;
   }
 
   return (
@@ -37,7 +40,7 @@ export function EditableTitle({ id, title, editable, onRename }: EditableTitlePr
       onClick={start}
       title="Renomear sessão"
       aria-label={`Renomear sessão: ${title}`}
-      className={`min-w-0 truncate rounded-sm px-1 py-0.5 text-left text-[13px] font-medium text-neutral-300 transition hover:bg-neutral-800 hover:text-neutral-100 ${tokens.focusRing}`}
+      className={`min-w-0 truncate rounded-sm px-2 py-1 text-left text-[14px] font-medium text-neutral-100 transition hover:bg-neutral-900 ${tokens.focusRing}`}
     >
       {title}
     </button>

@@ -23,14 +23,13 @@ describe('ChatHeader', () => {
     expect(screen.getByLabelText('Renomear sessão: Minha conversa')).toBeTruthy();
     expect(screen.getByLabelText('Mais ações da conversa')).toBeTruthy();
     expect(screen.queryByLabelText('Abrir terminais')).toBeNull();
-    expect(screen.queryByText('terminal')).toBeNull();
   });
 
   it('puts turn stats, history and export inside the menu', () => {
     setup({ lastTurn: { costUsd: 0.0123, durationMs: 4200, model: 'claude-opus-4-8' }, onOpenFull: vi.fn() });
     expect(screen.queryByText(/Último turno/)).toBeNull();
     fireEvent.click(screen.getByLabelText('Mais ações da conversa'));
-    expect(screen.getByText(/Último turno: \$0\.012 · 4\.2s · opus/)).toBeTruthy();
+    expect(screen.getByText(/\$0\.012 · 4\.2s · opus/)).toBeTruthy();
     expect(screen.getByLabelText('Ver todas as mensagens')).toBeTruthy();
     expect(screen.getByTitle('Baixar conversa em PDF')).toBeTruthy();
   });
@@ -49,11 +48,36 @@ describe('ChatHeader', () => {
     expect(screen.queryByLabelText('Mais ações da conversa')).toBeNull();
   });
 
-  it('shows the terminal button only with a handler, with a live dot when running', () => {
+  it('opens the terminal from the menu only with a handler', () => {
     const onTerminal = vi.fn();
     setup({ onTerminal });
+    fireEvent.click(screen.getByLabelText('Mais ações da conversa'));
     fireEvent.click(screen.getByLabelText('Abrir terminais'));
     expect(onTerminal).toHaveBeenCalledTimes(1);
+    expect(screen.queryByLabelText('Abrir terminais')).toBeNull();
+  });
+
+  it('renames from the menu by focusing the title input', () => {
+    setup({ onRename: vi.fn() });
+    fireEvent.click(screen.getByLabelText('Mais ações da conversa'));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Renomear' }));
+    expect(screen.getByLabelText('Nome da sessão')).toBeTruthy();
+  });
+
+  it('asks before deleting and deletes the open session', () => {
+    const onDelete = vi.fn();
+    setup({ onDelete });
+    fireEvent.click(screen.getByLabelText('Mais ações da conversa'));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Apagar conversa' }));
+    expect(onDelete).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: /Excluir/ }));
+    expect(onDelete).toHaveBeenCalledWith('s1');
+  });
+
+  it('shows the context row in the menu', () => {
+    setup({ contextTokens: 100_000, contextModel: 'claude-opus-4-8' });
+    fireEvent.click(screen.getByLabelText('Mais ações da conversa'));
+    expect(screen.getByRole('meter')).toBeTruthy();
   });
 
   it('surfaces the new-session action over the context limit', () => {
@@ -70,7 +94,7 @@ describe('ChatHeader', () => {
     expect(screen.getByText('Capo')).toBeTruthy();
     expect(screen.getByText('mascote')).toBeTruthy();
     fireEvent.click(screen.getByLabelText('Mais ações da conversa'));
-    const item = screen.getByRole('button', { name: 'Perfil do agente' });
+    const item = screen.getByRole('menuitem', { name: 'Perfil do agente' });
     expect(item.getAttribute('aria-pressed')).toBe('false');
     fireEvent.click(item);
     expect(onProfile).toHaveBeenCalledOnce();

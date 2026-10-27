@@ -5,7 +5,7 @@ import { contextMeter } from './toolbar-format';
 // "nova sessão" action surfaces next to it instead of hiding in a menu.
 export function ContextRing({ tokens, model, onNew }: { tokens: number; model?: string | null; onNew?: () => void }) {
   const m = contextMeter(tokens, model);
-  if (!m) return null;
+  if (!m || m.pct < 70) return null;
   const label = `Contexto ${m.pct}% · ${m.k}k`;
   return (
     <div className="flex items-center gap-2">
