@@ -25,7 +25,7 @@ export function TodoPanel({ todos, header = true }: TodoPanelProps) {
     <div className="px-3 pb-2">
       <div className="rounded-md border border-neutral-800 bg-[#0c0c0c] px-3 py-2">
         {header && (
-          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-neutral-500">
+          <div className="mb-1.5 flex items-center gap-1.5 text-[12px] font-medium text-neutral-500">
             <Icon name="check" size={12} className="text-orange-400" />
             tarefas · {done}/{todos.length}
           </div>
@@ -40,7 +40,7 @@ export function TodoPanel({ todos, header = true }: TodoPanelProps) {
             type="button"
             onClick={() => setShowAll((s) => !s)}
             aria-expanded={showAll}
-            className={`mt-1.5 rounded-sm text-[11px] text-neutral-600 transition hover:text-neutral-400 ${tokens.focusRing}`}
+            className={`mt-1.5 rounded-sm text-[12px] text-neutral-600 transition hover:text-neutral-400 ${tokens.focusRing}`}
           >
             {showAll ? 'mostrar menos' : `mostrar todas (+${hidden})`}
           </button>
@@ -58,7 +58,7 @@ function TodoRow({ todo }: { todo: ToolTodo }) {
   const textCls = status === 'completed' ? 'text-neutral-500 line-through'
     : status === 'in_progress' ? 'text-neutral-100' : 'text-neutral-400';
   return (
-    <li className="flex items-start gap-2 text-[12px] leading-relaxed">
+    <li className="flex items-start gap-2 text-[13px] leading-relaxed">
       <Icon name={icon} size={13} className={`mt-0.5 shrink-0 ${iconCls}`} />
       <span className={textCls}>{label}</span>
     </li>

@@ -29,8 +29,8 @@ export function ConnDot({ label, state, compact }: ConnDotProps) {
           animation: pulse ? 'pulseRing 1.1s ease-out infinite' : 'none',
         }}
       />
-      {!compact && <span className="text-[11px] font-medium text-neutral-400">{label}</span>}
-      <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1 text-[10px] text-neutral-200 shadow-xl group-hover:block">
+      {!compact && <span className="text-[12px] font-medium text-neutral-400">{label}</span>}
+      <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1 text-[12px] text-neutral-200 shadow-xl group-hover:block">
         {description}
       </span>
     </div>

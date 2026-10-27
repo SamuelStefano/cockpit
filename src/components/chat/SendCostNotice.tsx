@@ -20,7 +20,7 @@ export function SendCostNotice({ cost }: SendCostNoticeProps) {
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pb-1.5">
-      <div className={`flex items-start gap-2 rounded-lg border ${tone.border} ${tone.bg} px-2.5 py-1.5 text-[11.5px] leading-snug ${tone.text}`}>
+      <div className={`flex items-start gap-2 rounded-lg border ${tone.border} ${tone.bg} px-2.5 py-1.5 text-[12px] leading-snug ${tone.text}`}>
         <Icon name="zap" size={12} className={`mt-0.5 shrink-0 ${tone.icon}`} />
         <span className="flex-1">
           {grave

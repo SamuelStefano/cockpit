@@ -38,7 +38,7 @@ export function RouteHeader({ title, subtitle, badge, actions, icon, variant = '
           </div>
           {actions && <div className="flex shrink-0 items-center gap-1.5">{actions}</div>}
         </div>
-        {subtitle && <p className="mt-2 flex flex-wrap items-center gap-x-2 text-[12.5px] text-neutral-500">{subtitle}</p>}
+        {subtitle && <p className="mt-2 flex flex-wrap items-center gap-x-2 text-[13px] text-neutral-500">{subtitle}</p>}
         {children && <div className="mt-2.5">{children}</div>}
       </div>
     );
@@ -52,7 +52,7 @@ export function RouteHeader({ title, subtitle, badge, actions, icon, variant = '
           {title}
           {badge}
         </h1>
-        {subtitle && <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12.5px] text-neutral-500">{subtitle}</p>}
+        {subtitle && <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px] text-neutral-500">{subtitle}</p>}
       </div>
       {actions && <div className="flex shrink-0 items-center gap-1.5">{actions}</div>}
     </header>

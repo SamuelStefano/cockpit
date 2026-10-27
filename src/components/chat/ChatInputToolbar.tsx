@@ -48,12 +48,12 @@ export function ChatInputToolbar({ mode, setMode, caps, bypass, setBypass, skill
         </span>
       )}
       {mode === 'auto' && (
-        <span className="hidden items-center gap-1 text-[10.5px] text-amber-400/70 sm:flex">
+        <span className="hidden items-center gap-1 text-[12px] text-amber-400/70 sm:flex">
           <Icon name="zap" size={11} /> roda o ciclo sozinho (com shell)
         </span>
       )}
       {mode === 'acceptEdits' && (
-        <span className="hidden items-center gap-1 text-[10.5px] text-orange-400/70 sm:flex">
+        <span className="hidden items-center gap-1 text-[12px] text-orange-400/70 sm:flex">
           <Icon name="zap" size={11} /> executa de verdade
         </span>
       )}

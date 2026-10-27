@@ -62,7 +62,7 @@ export function SessionRowBadges({ id, relative, stamp, status, pinned, marathon
           </button>
         )}
         {showCost && (
-          <span className="hidden text-[10px] tabular-nums text-neutral-500 lg:inline" title="Custo estimado acumulado desta sessão">{fmtCost(cost)}</span>
+          <span className="hidden text-[12px] tabular-nums text-neutral-500 lg:inline" title="Custo estimado acumulado desta sessão">{fmtCost(cost)}</span>
         )}
         {pinned && (
           <span title="Sessão fixada" className="text-orange-400">
@@ -75,9 +75,9 @@ export function SessionRowBadges({ id, relative, stamp, status, pinned, marathon
           </span>
         )}
         {status ? (
-          <span className={`text-[10.5px] font-medium tabular-nums ${STATUS_TEXT[status.tone]}`} title={status.title}>{status.text}</span>
+          <span className={`text-[12px] font-medium tabular-nums ${STATUS_TEXT[status.tone]}`} title={status.title}>{status.text}</span>
         ) : (
-          <span className="text-[10.5px] tabular-nums text-neutral-600" title={stamp ? `Última atividade: ${stamp}` : 'Última atividade'}>{stamp ?? relative}</span>
+          <span className="text-[12px] tabular-nums text-neutral-600" title={stamp ? `Última atividade: ${stamp}` : 'Última atividade'}>{stamp ?? relative}</span>
         )}
       </span>
     </div>

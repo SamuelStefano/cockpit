@@ -31,14 +31,14 @@ export function SupabaseAuthGate({ auth }: { auth: AuthGateActions }) {
         <BrandMark title="deck" subtitle={SUBTITLE[mode]} className="mb-5" />
 
         {mode === 'forgot' ? (
-          <p className="mb-4 text-[11.5px] leading-relaxed text-neutral-500">
+          <p className="mb-4 text-[12px] leading-relaxed text-neutral-500">
             Informe o e-mail da conta. Mandamos um link pra você definir uma senha nova.
           </p>
         ) : (
           <AuthModeTabs mode={mode} onSelect={switchMode} />
         )}
 
-        <label htmlFor="auth-email" className="mb-1.5 block text-[11px] font-medium text-neutral-400">E-mail</label>
+        <label htmlFor="auth-email" className="mb-1.5 block text-[12px] font-medium text-neutral-400">E-mail</label>
         <Input
           id="auth-email"
           type="email" value={email} onChange={(e) => setEmail(e.target.value)}
@@ -47,7 +47,7 @@ export function SupabaseAuthGate({ auth }: { auth: AuthGateActions }) {
         />
         {mode !== 'forgot' && (
           <>
-            <label htmlFor="auth-password" className="mb-1.5 block text-[11px] font-medium text-neutral-400">Senha</label>
+            <label htmlFor="auth-password" className="mb-1.5 block text-[12px] font-medium text-neutral-400">Senha</label>
             <Input
               id="auth-password"
               type="password" value={password} onChange={(e) => setPassword(e.target.value)}
@@ -73,7 +73,7 @@ export function SupabaseAuthGate({ auth }: { auth: AuthGateActions }) {
           </Button>
         )}
         {mode !== 'forgot' && (
-          <p className="mt-3 text-[11px] leading-relaxed text-neutral-600">
+          <p className="mt-3 text-[12px] leading-relaxed text-neutral-600">
             Depois de entrar, conecte sua VPS pra começar a usar o Deck na sua máquina.
           </p>
         )}

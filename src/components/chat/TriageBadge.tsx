@@ -24,12 +24,12 @@ export function TriageBadge({ action, reason }: { action: TriageAction; reason: 
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${m.cls} ${tokens.focusRing}`}
+        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-medium ${m.cls} ${tokens.focusRing}`}
         title={title}
       >
         <Icon name={m.icon} size={10} /> {m.label}
       </button>
-      {open && <span className="max-w-72 text-right text-[10.5px] leading-snug text-neutral-500">{m.desc}{reason && <> Por quê: {reason}</>}</span>}
+      {open && <span className="max-w-72 text-right text-[12px] leading-snug text-neutral-500">{m.desc}{reason && <> Por quê: {reason}</>}</span>}
     </span>
   );
 }

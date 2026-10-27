@@ -26,8 +26,8 @@ export function OfflineNotice({ show, onReconnect, authRejected = false }: { sho
             <Icon name="circle" size={13} />
           </span>
           <div className="leading-tight">
-            <p className="text-[12px] font-medium text-red-200">{authRejected ? 'Login recusado pelo relay' : 'Backend não acessível'}</p>
-            <p className="text-[11px] text-red-200/70">
+            <p className="text-[13px] font-medium text-red-200">{authRejected ? 'Login recusado pelo relay' : 'Backend não acessível'}</p>
+            <p className="text-[12px] text-red-200/70">
               {authRejected
                 ? <>O relay em <span className="font-mono">{backendHost()}</span> não aceitou a sua sessão. Se não voltar sozinho em alguns segundos, saia e entre de novo.</>
                 : <>O Deck não alcança o servidor em <span className="font-mono">{backendHost()}</span>. Confira se o backend está rodando (ou o túnel/Tailscale). Tentando reconectar…</>}
@@ -36,7 +36,7 @@ export function OfflineNotice({ show, onReconnect, authRejected = false }: { sho
               <button
                 type="button"
                 onClick={onReconnect}
-                className="mt-1.5 mr-3 inline-flex items-center gap-1.5 text-[11px] font-medium text-red-100 transition hover:text-white"
+                className="mt-1.5 mr-3 inline-flex items-center gap-1.5 text-[12px] font-medium text-red-100 transition hover:text-white"
               >
                 <Icon name="rotate" size={12} /> Reconectar agora
               </button>
@@ -44,7 +44,7 @@ export function OfflineNotice({ show, onReconnect, authRejected = false }: { sho
             <button
               type="button"
               onClick={() => setShowConnect((v) => !v)}
-              className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-medium text-red-200/80 transition hover:text-red-100"
+              className="mt-1.5 inline-flex items-center gap-1.5 text-[12px] font-medium text-red-200/80 transition hover:text-red-100"
             >
               <Icon name={showConnect ? 'chevronDown' : 'chevronRight'} size={12} /> Configurar endereço do backend
             </button>

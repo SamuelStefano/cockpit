@@ -20,7 +20,7 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: (id: numbe
       {item.action && (
         <button
           onClick={() => { item.action!.onClick(); onDismiss(id); }}
-          className="shrink-0 text-[12px] font-medium text-orange-400 hover:text-orange-300"
+          className="shrink-0 text-[13px] font-medium text-orange-400 hover:text-orange-300"
         >
           {item.action.label}
         </button>

@@ -31,7 +31,7 @@ export function BenchPreview({ code, repo }: { code: string; repo: string }) {
   return (
     <div className="my-1 overflow-hidden rounded-lg border border-orange-500/25 bg-[#0c0c0c]">
       <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-neutral-800 px-3 py-1.5">
-        <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-orange-300/80">
+        <span className="flex items-center gap-1.5 font-mono text-[12px] uppercase tracking-wider text-orange-300/80">
           <Icon name="zap" size={11} /> bench · {repo}
           {building && <span className="text-neutral-500">· compilando…</span>}
           {!building && bundle && <span className="text-neutral-600">· {bundle.ms}ms</span>}
@@ -55,7 +55,7 @@ export function BenchPreview({ code, repo }: { code: string; repo: string }) {
           <button onClick={() => download('bench.tsx', 'text/plain', draft)} title="Baixar código" aria-label="Baixar código" className={ctrlBtn(false)}><Icon name="download" size={12} /></button>
           <div className="flex items-center gap-0.5 rounded-md bg-neutral-900 p-0.5">
             {(['preview', 'code'] as Tab[]).map((t) => (
-              <button key={t} onClick={() => setTab(t)} aria-pressed={tab === t} className={`rounded-sm px-2 py-0.5 text-[10px] transition ${tab === t ? 'bg-neutral-800 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'} ${tokens.focusRing}`}>
+              <button key={t} onClick={() => setTab(t)} aria-pressed={tab === t} className={`rounded-sm px-2 py-0.5 text-[12px] transition ${tab === t ? 'bg-neutral-800 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'} ${tokens.focusRing}`}>
                 {t === 'preview' ? 'tela' : 'código'}
               </button>
             ))}
@@ -65,13 +65,13 @@ export function BenchPreview({ code, repo }: { code: string; repo: string }) {
 
       {tab === 'code' ? <CodeEditor value={draft} onChange={setDraft} mode="react" /> : !armed ? (
         <div className="flex flex-col items-center gap-2 px-3 py-8 text-center">
-          <p className="max-w-sm text-[11.5px] leading-snug text-neutral-500">
+          <p className="max-w-sm text-[12px] leading-snug text-neutral-500">
             Compila contra o repo <span className="text-neutral-300">{repo}</span> e roda aqui. Leva alguns segundos.
           </p>
           <Button size="sm" icon="play" onClick={arm}>compilar</Button>
         </div>
       ) : full ? (
-        <div className="px-3 py-6 text-center font-mono text-[11px] text-neutral-600">aberto no studio…</div>
+        <div className="px-3 py-6 text-center font-mono text-[12px] text-neutral-600">aberto no studio…</div>
       ) : (
         <PreviewFrame
           frameRef={ref}

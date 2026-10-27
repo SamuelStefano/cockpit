@@ -23,7 +23,7 @@ export function PeerBubble({ message, sender, onQuote }: PeerBubbleProps) {
     <div className="group/peer flex items-end gap-2">
       {sender ? <Mascot mascot={sender.mascot} size={22} name={sender.name} /> : <span className="w-[22px]" />}
       <div className="min-w-0 max-w-[85%]">
-        <div className="mb-0.5 flex items-center gap-1.5 px-1 text-[12px]">
+        <div className="mb-0.5 flex items-center gap-1.5 px-1 text-[13px]">
           <span className="font-medium" style={{ color: sender?.mascot.color }}>{sender?.name ?? message.from}</span>
           <time className="tabular-nums text-neutral-600">{fmtClock(message.ts)}</time>
           {status && <Badge tone={status.tone} title={message.reason}>{status.label}{message.reason ? ` · ${message.reason}` : ''}</Badge>}

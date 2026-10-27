@@ -91,9 +91,9 @@ export const MessageRow = memo(function MessageRow({ msg, avatar, bit, caretOnLa
         {avatar ?? <Bit state={bit ?? 'idle'} still={!bit} size={28} />}
       </div>
       <div className="min-w-0 flex-1 pt-0.5">
-        {showModelLabel && <span className="mb-0.5 block max-w-[260px] truncate px-0.5 font-mono text-[11px] font-medium tracking-tight text-orange-300/90">{modelLabel || 'Claude'}</span>}
+        {showModelLabel && <span className="mb-0.5 block max-w-[260px] truncate px-0.5 font-mono text-[12px] font-medium tracking-tight text-orange-300/90">{modelLabel || 'Claude'}</span>}
         {msg.quick && (
-          <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-300">
+          <div className="mb-1 inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-[12px] font-medium text-sky-300">
             <Icon name="zap" size={10} /> resposta rápida (paralela)
           </div>
         )}
@@ -110,7 +110,7 @@ export const MessageRow = memo(function MessageRow({ msg, avatar, bit, caretOnLa
               {onMemorize && <MemorizeButton onClick={() => onMemorize(messageToText(msg.blocks))} />}
             </div>
             {msg.stats && <TurnStatsLine stats={msg.stats} />}
-            {msg.ts && <time className="whitespace-nowrap text-[10px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
+            {msg.ts && <time className="whitespace-nowrap text-[12px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
           </div>
         )}
       </div>
@@ -136,7 +136,7 @@ function TurnStatsLine({ stats }: { stats: TurnBubbleStats }) {
     ? ` — ${fmtTokens(stats.inputTokens)} in · ${fmtTokens(stats.outputTokens)} out`
     : '';
   return (
-    <span className="whitespace-nowrap text-[10px] tabular-nums text-neutral-600" title={`Gasto do turno: total faturável incl. cache · custo${inOut}`}>
+    <span className="whitespace-nowrap text-[12px] tabular-nums text-neutral-600" title={`Gasto do turno: total faturável incl. cache · custo${inOut}`}>
       {parts.join(' · ')}
     </span>
   );
@@ -148,7 +148,7 @@ function TurnStatsLine({ stats }: { stats: TurnBubbleStats }) {
 // Fonte: stats.durationMs = duration_ms do result do CLI (relógio do turno).
 function ThoughtFor({ ms }: { ms: number }) {
   return (
-    <div className="mt-1 flex items-center gap-1.5 text-[11px] text-neutral-500" title="Tempo total deste turno (relógio do CLI)">
+    <div className="mt-1 flex items-center gap-1.5 text-[12px] text-neutral-500" title="Tempo total deste turno (relógio do CLI)">
       <Icon name="clock" size={11} className="text-orange-400/70" />
       <span className="tabular-nums">Pensou por {fmtDuration(ms)}</span>
     </div>

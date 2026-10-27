@@ -25,7 +25,7 @@ function ClaudeStats({ rate, ctxTokens, ctxModel, lastTurn }: {
   const parts: { k: string; node: React.ReactNode }[] = [];
   if (resetsAt) {
     parts.push({ k: 'rst', node: (
-      <span className="font-mono text-[10.5px] tabular-nums text-yellow-400" title={`Limite Claude: ${rate?.status} — reseta em ${relReset(resetsAt)}`}>
+      <span className="font-mono text-[12px] tabular-nums text-yellow-400" title={`Limite Claude: ${rate?.status} — reseta em ${relReset(resetsAt)}`}>
         <span className="text-neutral-500">limite reseta</span> {relReset(resetsAt)}
       </span>
     ) });
@@ -34,14 +34,14 @@ function ClaudeStats({ rate, ctxTokens, ctxModel, lastTurn }: {
     const pct = ctxPct(ctxTokens, ctxModel);
     const tone = pct >= 75 ? 'text-red-400' : pct >= 50 ? 'text-amber-400' : 'text-neutral-300';
     parts.push({ k: 'ctx', node: (
-      <span className={`font-mono text-[10.5px] tabular-nums ${tone}`} title={`Contexto: ~${ctxTokens.toLocaleString('pt-BR')} tokens (${pct}%)`}>
+      <span className={`font-mono text-[12px] tabular-nums ${tone}`} title={`Contexto: ~${ctxTokens.toLocaleString('pt-BR')} tokens (${pct}%)`}>
         <span className="text-neutral-500">ctx</span> {pct}% · {(ctxTokens / 1000).toFixed(0)}k
       </span>
     ) });
   }
   if (lastTurn?.durationMs !== undefined) {
     parts.push({ k: 'trn', node: (
-      <span className="font-mono text-[10.5px] tabular-nums text-neutral-300" title={`Último turno: ${(lastTurn.durationMs / 1000).toFixed(1)}s${lastTurn.numTurns ? ` · ${lastTurn.numTurns} turno${lastTurn.numTurns === 1 ? '' : 's'}` : ''}`}>
+      <span className="font-mono text-[12px] tabular-nums text-neutral-300" title={`Último turno: ${(lastTurn.durationMs / 1000).toFixed(1)}s${lastTurn.numTurns ? ` · ${lastTurn.numTurns} turno${lastTurn.numTurns === 1 ? '' : 's'}` : ''}`}>
         <span className="text-neutral-500">turno</span> {(lastTurn.durationMs / 1000).toFixed(1)}s
       </span>
     ) });
@@ -73,14 +73,14 @@ function Meter({ label, pct, detail }: MeterProps) {
     // drawn above it: the old hover bubble (absolute, bottom-full) never showed.
     // A native title is not clipped, and the label carries it to screen readers.
     <div role="group" aria-label={detail} title={detail} className="flex shrink-0 items-center gap-1.5">
-      <span className="font-mono text-[10px] font-medium uppercase tracking-wide text-neutral-500">{label}</span>
+      <span className="font-mono text-[12px] font-medium uppercase tracking-wide text-neutral-500">{label}</span>
       <span className="relative h-1.5 w-12 overflow-hidden rounded-full bg-neutral-800">
         <span
           className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-500 ease-out"
           style={{ width: `${Math.max(2, Math.min(100, pct))}%`, background: c, boxShadow: `0 0 6px ${c}` }}
         />
       </span>
-      <span className="font-mono text-[10.5px] tabular-nums text-neutral-300">{Math.round(pct)}%</span>
+      <span className="font-mono text-[12px] tabular-nums text-neutral-300">{Math.round(pct)}%</span>
     </div>
   );
 }
@@ -100,7 +100,7 @@ export function StatusBar({ stats, rate = null, ctxTokens = 0, ctxModel = null, 
   const claude = <ClaudeStats rate={rate} ctxTokens={ctxTokens} ctxModel={ctxModel} lastTurn={lastTurn} />;
   if (!stats) {
     return (
-      <footer className="flex h-7 shrink-0 items-center gap-3 overflow-x-auto border-t border-neutral-800 bg-neutral-950 px-3 text-[10.5px] text-neutral-600">
+      <footer className="flex h-7 shrink-0 items-center gap-3 overflow-x-auto border-t border-neutral-800 bg-neutral-950 px-3 text-[12px] text-neutral-600">
         <span className="shrink-0 font-mono">lendo telemetria…</span>
         {claude}
         {quota}
@@ -135,7 +135,7 @@ export function StatusBar({ stats, rate = null, ctxTokens = 0, ctxModel = null, 
       {stats.saturated && (
         <span
           title={`VPS sob carga alta há ${stats.saturated.seconds}s (${[stats.saturated.cpu && 'CPU', stats.saturated.mem && 'RAM'].filter(Boolean).join(' + ')} acima de 92%). Considere parar runs pesados.`}
-          className="flex shrink-0 items-center gap-1 rounded-sm bg-red-500/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-red-300"
+          className="flex shrink-0 items-center gap-1 rounded-sm bg-red-500/15 px-1.5 py-0.5 font-mono text-[12px] font-semibold text-red-300"
         >
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
           carga alta {stats.saturated.seconds}s

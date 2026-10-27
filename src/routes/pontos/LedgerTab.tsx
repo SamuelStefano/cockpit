@@ -27,9 +27,9 @@ export function LedgerTab({ connected, loaded, points, total, now, glowing, add,
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="min-w-0 flex-1 basis-56">
           <h2 className="text-[15px] font-semibold tracking-tight text-neutral-50">
-            Ledger do agente <span className="font-mono text-[11px] font-normal tabular-nums text-neutral-500">{points.length} linhas · {fmtPts(total)} pt</span>
+            Ledger do agente <span className="font-mono text-[12px] font-normal tabular-nums text-neutral-500">{points.length} linhas · {fmtPts(total)} pt</span>
           </h2>
-          <p className="text-[12px] leading-snug text-neutral-500">Cada task que o agente fecha vira uma linha aqui, com o valor real.</p>
+          <p className="text-[13px] leading-snug text-neutral-500">Cada task que o agente fecha vira uma linha aqui, com o valor real.</p>
         </div>
         <Button variant="secondary" size="sm" icon="plus" onClick={() => setAdding((v) => !v)}>adicionar manual</Button>
       </div>

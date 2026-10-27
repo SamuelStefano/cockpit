@@ -20,9 +20,9 @@ export function AgentCustomSheet({ agents, gate, term, onClose, onSaved }: Agent
   return (
     <Drawer open side="right" width="w-full sm:max-w-md" title="Adicionar agente ACP" onClose={onClose}>
       <div className="flex flex-col gap-4 p-4">
-        <p className="text-[12.5px] leading-relaxed text-neutral-400">Qualquer CLI que fale ACP vira um modelo no seletor. Eu testo antes de salvar.</p>
+        <p className="text-[13px] leading-relaxed text-neutral-400">Qualquer CLI que fale ACP vira um modelo no seletor. Eu testo antes de salvar.</p>
         {!gate.allowed && (
-          <p role="note" className="flex gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-[12px] leading-relaxed text-neutral-300">
+          <p role="note" className="flex gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-[13px] leading-relaxed text-neutral-300">
             <Icon name="shield" size={13} className="mt-0.5 shrink-0 text-neutral-500" />
             {gate.reason}
           </p>

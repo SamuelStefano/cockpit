@@ -36,11 +36,11 @@ export function AreaBudgetEditor({ area, budget, onSave, onClose }: Props) {
     >
       <div className="flex flex-col gap-3">
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium text-neutral-400">teto de contexto (tokens somados das sessões rodando)</span>
+          <span className="text-[12px] font-medium text-neutral-400">teto de contexto (tokens somados das sessões rodando)</span>
           <Input size="sm" mono inputMode="numeric" placeholder="sem teto" value={ctxTokens} onChange={(e) => setCtxTokens(e.target.value.replace(/[^0-9]/g, ''))} />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium text-neutral-400">teto de cpu % (somado dos terminais abertos)</span>
+          <span className="text-[12px] font-medium text-neutral-400">teto de cpu % (somado dos terminais abertos)</span>
           <Input size="sm" mono inputMode="numeric" placeholder="sem teto" value={cpu} onChange={(e) => setCpu(e.target.value.replace(/[^0-9]/g, ''))} />
         </label>
         <Switch

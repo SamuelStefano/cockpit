@@ -44,11 +44,11 @@ export function TrafficChip({ message, outgoing, peer, peerId, onOpen, onQuote }
       </div>
       {open ? (
         <div className="max-w-md rounded-lg border border-neutral-800 bg-neutral-950/70 px-2.5 py-1.5">
-          <p className="whitespace-pre-wrap break-words text-[12.5px] leading-snug text-neutral-300">{message.text}</p>
+          <p className="whitespace-pre-wrap break-words text-[13px] leading-snug text-neutral-300">{message.text}</p>
           {onQuote && <div className="mt-1 flex justify-end"><QuoteButton onClick={() => onQuote(message.text)} withLabel /></div>}
         </div>
       ) : snippet ? (
-        <p className="max-w-md truncate text-[11px] text-neutral-600">{snippet}</p>
+        <p className="max-w-md truncate text-[12px] text-neutral-600">{snippet}</p>
       ) : null}
     </div>
   );

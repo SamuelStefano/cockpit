@@ -41,12 +41,12 @@
   --term-bg: #050506;
   --border: #19191d;
   --border-soft: #141417;
-  --accent: #f97316;
-  --accent-soft: #fb923c;
+  --accent: #3b82f6;
+  --accent-soft: #60a5fa;
   --ok: #22c55e;
   --warn: #eab308;
   --err: #ef4444;
-  --ring: rgba(249, 115, 22, 0.45);
+  --ring: rgba(59,130,246, 0.45);
 }
 
 * { -webkit-tap-highlight-color: transparent; }
@@ -54,7 +54,7 @@
 /* O viewport voltou a permitir pinch-zoom (acessibilidade — `user-scalable=no` saiu).
    O preço no iOS é o zoom automático ao focar campo com fonte < 16px, que só volta
    com pinça manual. Piso de 16px no dedo mata a causa. Regra fora de @layer de
-   propósito: as utilities `text-[12.5px]` estão em camada e ganhariam por cascata. */
+   propósito: as utilities `text-[13px]` estão em camada e ganhariam por cascata. */
 @media (pointer: coarse) {
   input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
   textarea, select { font-size: 16px; }
@@ -76,7 +76,7 @@ body {
   /* Black moderno: base quase preta + um halo laranja sutil no topo (marca) e uma
      leve elevação neutra, pra dar profundidade sem virar preto chapado. */
   background:
-    radial-gradient(120% 75% at 50% -20%, rgba(249, 115, 22, 0.06), transparent 55%),
+    radial-gradient(120% 75% at 50% -20%, rgba(59,130,246, 0.06), transparent 55%),
     radial-gradient(100% 60% at 50% 0%, rgba(255, 255, 255, 0.025), transparent 60%),
     var(--bg-deep);
   background-attachment: fixed;
@@ -100,9 +100,9 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .elev-1 { box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.04), 0 1px 2px rgba(0, 0, 0, 0.35), 0 4px 12px -4px rgba(0, 0, 0, 0.45); }
 .elev-2 { box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05), 0 6px 20px -6px rgba(0, 0, 0, 0.6), 0 2px 6px -1px rgba(0, 0, 0, 0.45); }
 /* Item ativo: aro e halo quentes discretos — o acento vira jóia, não tinta. */
-.glow-active { box-shadow: inset 0 1px 0 0 rgba(249, 115, 22, 0.18), 0 0 0 1px rgba(249, 115, 22, 0.28), 0 4px 16px -6px rgba(249, 115, 22, 0.28); }
+.glow-active { box-shadow: inset 0 1px 0 0 rgba(59,130,246, 0.18), 0 0 0 1px rgba(59,130,246, 0.28), 0 4px 16px -6px rgba(59,130,246, 0.28); }
 /* Botão primário como jóia: highlight interno no topo + sombra quente ancorando. */
-.btn-jewel { box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 8px -2px rgba(249, 115, 22, 0.35); }
+.btn-jewel { box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 8px -2px rgba(59,130,246, 0.35); }
 @media (prefers-reduced-motion: reduce) { .glow-active, .elev-1, .elev-2 { transition: none; } }
 
 .scroll-thin { scrollbar-width: thin; scrollbar-color: #27272c transparent; }
@@ -240,16 +240,33 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   .mascot .mascot-body, .mascot .mascot-eyes, .mascot-dots circle, .mascot-status { animation: none; }
 }
 
+@layer base {
+  button, [role='button'], [role='tab'], [role='menuitem'], summary, a[href] {
+    transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+    transition-duration: 160ms;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  button:active:not(:disabled), [role='button']:active:not([aria-disabled='true']) { transform: scale(0.97); }
+  [role='dialog'], [role='menu'], [role='listbox'] { animation: fadeIn 0.18s ease-out; }
+  [role='dialog'][aria-modal='true'] > :first-child { animation: scaleIn 0.18s cubic-bezier(0.22, 1, 0.36, 1); }
+}
+.row-in { animation: fadeUp 0.2s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+@media (prefers-reduced-motion: reduce) {
+  button, [role='button'], [role='tab'], [role='menuitem'], summary, a[href] { transition-duration: 0.01ms; }
+  button:active:not(:disabled), [role='button']:active:not([aria-disabled='true']) { transform: none; }
+  [role='dialog'], [role='menu'], [role='listbox'], [role='dialog'] > :first-child, .row-in { animation: none; }
+}
+
 pre, code, .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
 .resizer { transition: background 0.15s; }
-.resizer:hover, .resizer.active { background: rgba(249,115,22,0.55); }
+.resizer:hover, .resizer.active { background: rgba(59,130,246,0.55); }
 
-::selection { background: rgba(249,115,22,0.30); }
+::selection { background: rgba(59,130,246,0.30); }
 
 /* Form controls já desenham seu próprio foco (border/ring); o outline global
    dobraria a borda (ex: 2ª borda interna no composer do chat). Por isso o
    :focus-visible global pula input/textarea/select. */
-:focus-visible:not(input):not(textarea):not(select) { outline: 2px solid rgba(249,115,22,0.5); outline-offset: 2px; }
+:focus-visible:not(input):not(textarea):not(select) { outline: 2px solid rgba(59,130,246,0.5); outline-offset: 2px; }
 
 /* Export PDF via print nativo: isola a thread do chat, esconde o resto da app
    (sidebar, terminais, header, input). .print-thread vira fluxo normal. */

@@ -28,7 +28,7 @@ export function Dashboard({ token, userId, onSignOut }: { token: string; userId?
           <PairStep n={2} title="Cole na sua VPS">
             <PairCommand code={p.code} cmd={p.cmd} busy={p.busy} expired={p.expired} countdown={p.countdown} mode={p.mode} />
             {/* Um só lugar pro erro: com o código já na tela, a falha de "gerar novo código" não aparecia. */}
-            {p.err && <p className="mt-3 text-[11.5px] text-red-300">{p.err}</p>}
+            {p.err && <p className="mt-3 text-[12px] text-red-300">{p.err}</p>}
           </PairStep>
           <PairStep n={3} title="Aguarde a conexão">
             <PairingStatus diagnosis={p.diagnosis} probe={p.probe} onTest={p.testConnection} />

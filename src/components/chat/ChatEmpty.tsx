@@ -25,7 +25,7 @@ export function ChatEmpty({ onPrompt, onSeed }: ChatEmptyProps) {
     <div className="flex h-full flex-col items-center justify-center overflow-hidden px-6 text-center">
       <Bit state="wave" size={84} className="fade-up mb-4" />
       <h2 className="fade-up text-[22px] font-semibold tracking-tight text-neutral-100">Em que vamos trabalhar?</h2>
-      <p className="fade-up mt-2 max-w-sm text-[13.5px] leading-relaxed text-neutral-500">
+      <p className="fade-up mt-2 max-w-sm text-[14px] leading-relaxed text-neutral-500">
         Converse com o agente — ele roda comandos direto nos seus terminais da VPS.
       </p>
       <div className="stagger-fade mt-7 grid w-full max-w-lg grid-cols-1 gap-2.5 sm:grid-cols-2">
@@ -36,7 +36,7 @@ export function ChatEmpty({ onPrompt, onSeed }: ChatEmptyProps) {
             className="group relative flex flex-col gap-2 overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/50 p-3.5 text-left transition hover:-translate-y-0.5 hover:border-orange-500/40 hover:bg-neutral-900 hover:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.7)] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40"
           >
             <span className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-600 transition group-hover:text-orange-400">
+              <span className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-neutral-600 transition group-hover:text-orange-400">
                 <Icon name={t.icon} size={12} /> {t.label}
               </span>
               <Icon name="arrowUp" size={13} className="translate-x-1 rotate-45 text-orange-400/0 transition group-hover:translate-x-0 group-hover:text-orange-400/80" />

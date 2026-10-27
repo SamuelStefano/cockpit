@@ -10,7 +10,7 @@ const ROLE_DOT: Record<PackMemberView['role'], string> = {
 
 export function PackMemberChip({ m, onOpen }: { m: PackMemberView; onOpen?: (id: string) => void }) {
   const title = `${m.slug} · ${m.role}${m.author ? ` · ${m.author}` : ''}${m.published ? '' : ' · não publicada'}${m.description ? `\n${m.description}` : ''}`;
-  const base = 'flex items-center gap-1.5 rounded-md border px-2 py-1 font-mono text-[11.5px] transition';
+  const base = 'flex items-center gap-1.5 rounded-md border px-2 py-1 font-mono text-[12px] transition';
   const tone = m.installed
     ? 'border-neutral-700 bg-neutral-900 text-neutral-200 hover:border-orange-500/40'
     : 'border-dashed border-neutral-700 text-neutral-400';

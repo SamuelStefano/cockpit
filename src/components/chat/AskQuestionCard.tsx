@@ -60,7 +60,7 @@ export function AskQuestionCard({ tool, answerable, onAnswer }: AskQuestionCardP
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-sky-500/15 text-sky-300">
           <Icon name="message" size={13} />
         </span>
-        <span className="text-[12px] font-medium text-sky-100">
+        <span className="text-[13px] font-medium text-sky-100">
           {sent ? 'Resposta enviada' : answerable ? 'O Claude precisa da sua escolha' : 'Pergunta do Claude'}
         </span>
       </div>
@@ -69,7 +69,7 @@ export function AskQuestionCard({ tool, answerable, onAnswer }: AskQuestionCardP
         {questions.map((q: ToolQuestion, qi) => (
           <div key={qi} className="space-y-1.5">
             {q.header && (
-              <span className="inline-block rounded-sm bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-sky-300/90">
+              <span className="inline-block rounded-sm bg-sky-500/15 px-1.5 py-0.5 text-[12px] font-medium uppercase tracking-wide text-sky-300/90">
                 {q.header}
               </span>
             )}
@@ -96,9 +96,9 @@ export function AskQuestionCard({ tool, answerable, onAnswer }: AskQuestionCardP
                       {picked && <Icon name="check" size={11} />}
                     </span>
                     <span className="min-w-0">
-                      <span className="block text-[12.5px] font-medium text-neutral-100">{opt.label}</span>
+                      <span className="block text-[13px] font-medium text-neutral-100">{opt.label}</span>
                       {opt.description && (
-                        <span className="block text-[11.5px] leading-snug text-neutral-400">{opt.description}</span>
+                        <span className="block text-[12px] leading-snug text-neutral-400">{opt.description}</span>
                       )}
                     </span>
                   </button>
@@ -112,7 +112,7 @@ export function AskQuestionCard({ tool, answerable, onAnswer }: AskQuestionCardP
           <button
             onClick={submit}
             disabled={!everyAnswered}
-            className="mt-1 inline-flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/15 px-3 py-1.5 text-[12px] font-medium text-sky-100 transition enabled:hover:bg-sky-500/25 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-sky-500/40"
+            className="mt-1 inline-flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/15 px-3 py-1.5 text-[13px] font-medium text-sky-100 transition enabled:hover:bg-sky-500/25 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-sky-500/40"
           >
             <Icon name="check" size={13} /> Enviar resposta
           </button>

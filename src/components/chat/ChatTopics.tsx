@@ -79,9 +79,9 @@ export function ChatTopics({ topics, activeId, open, setOpen, onJump }: ChatTopi
                   type="button"
                   onClick={() => onJump(t.id)}
                   aria-current={current ? 'true' : undefined}
-                  className={`flex w-full items-baseline gap-2 px-3 py-1.5 text-left text-[12.5px] leading-snug transition hover:bg-neutral-800 ${tokens.focusRing} ${current ? 'text-neutral-50' : 'text-neutral-400'}`}
+                  className={`flex w-full items-baseline gap-2 px-3 py-1.5 text-left text-[13px] leading-snug transition hover:bg-neutral-800 ${tokens.focusRing} ${current ? 'text-neutral-50' : 'text-neutral-400'}`}
                 >
-                  <span className={`shrink-0 font-mono text-[10px] tabular-nums ${current ? 'text-orange-400' : 'text-neutral-600'}`}>{i + 1}</span>
+                  <span className={`shrink-0 font-mono text-[12px] tabular-nums ${current ? 'text-orange-400' : 'text-neutral-600'}`}>{i + 1}</span>
                   <span className="line-clamp-2">{t.title}</span>
                 </button>
               );

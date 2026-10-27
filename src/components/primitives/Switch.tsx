@@ -21,8 +21,8 @@ export function Switch({ checked, onChange, label, hint, icon }: SwitchProps) {
     >
       {icon && <Icon name={icon} size={13} className="shrink-0 text-neutral-400" />}
       <span className="min-w-0 flex-1">
-        <span className="block text-[12px] text-neutral-200">{label}</span>
-        {hint && <span className="block text-[10.5px] text-neutral-500">{hint}</span>}
+        <span className="block text-[13px] text-neutral-200">{label}</span>
+        {hint && <span className="block text-[12px] text-neutral-500">{hint}</span>}
       </span>
       <span className={`relative h-4 w-7 shrink-0 rounded-full transition ${checked ? 'bg-orange-500/80' : 'bg-neutral-700'}`}>
         <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all ${checked ? 'left-3.5' : 'left-0.5'}`} />

@@ -45,13 +45,13 @@ export function AuthIntro() {
             </span>
             <div>
               <div className="text-[13px] font-medium text-neutral-200">{f.title}</div>
-              <div className="text-[12px] leading-relaxed text-neutral-500">{f.body}</div>
+              <div className="text-[13px] leading-relaxed text-neutral-500">{f.body}</div>
             </div>
           </div>
         ))}
       </div>
 
-      <p className="mt-6 rounded-lg border border-sky-500/20 bg-sky-500/6 px-3 py-2 text-[11px] leading-relaxed text-neutral-500">
+      <p className="mt-6 rounded-lg border border-sky-500/20 bg-sky-500/6 px-3 py-2 text-[12px] leading-relaxed text-neutral-500">
         <span className="font-medium text-neutral-400">Beta · relay confiável.</span> O relay encaminha sua sessão
         pra sua VPS. A verificação ponta-a-ponta entra antes de abrir pra máquinas de terceiros.
       </p>

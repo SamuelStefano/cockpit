@@ -47,12 +47,12 @@ export function ProfileMenu({ userId, onSignOut, onChangePassword, drops }: Prof
             </span>
             <div className="min-w-0">
               <p className="truncate text-[13px] font-medium text-neutral-200">{name || 'Sem nome'}</p>
-              <p className={`text-[11px] ${synced && syncFailed ? 'text-amber-400' : 'text-neutral-500'}`}>
+              <p className={`text-[12px] ${synced && syncFailed ? 'text-amber-400' : 'text-neutral-500'}`}>
                 {synced ? (syncFailed ? 'Salvo só neste device — não sincronizou' : 'Sincronizado') : 'Perfil local'}
               </p>
             </div>
           </div>
-          <label htmlFor="profile-name" className="mt-3 block text-[11px] font-medium text-neutral-500">Nome</label>
+          <label htmlFor="profile-name" className="mt-3 block text-[12px] font-medium text-neutral-500">Nome</label>
           <Input
             id="profile-name"
             size="sm"
@@ -72,7 +72,7 @@ export function ProfileMenu({ userId, onSignOut, onChangePassword, drops }: Prof
               </Button>
             )}
           </div>
-          {uploadError && <p role="alert" className="mt-1.5 text-[11px] text-red-400">{uploadError}</p>}
+          {uploadError && <p role="alert" className="mt-1.5 text-[12px] text-red-400">{uploadError}</p>}
           <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
 
           <div className="mt-3 space-y-1.5 border-t border-neutral-800 pt-3">

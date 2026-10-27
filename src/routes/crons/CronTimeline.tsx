@@ -14,8 +14,8 @@ export function CronTimeline({ slots, now }: { slots: CronSlot[]; now: number })
   return (
     <div className="mb-4 rounded-xl border border-neutral-800 bg-neutral-900/40 px-3.5 pb-2.5 pt-3 hairline">
       <div className="flex items-center gap-2">
-        <span className="text-[10.5px] font-medium uppercase tracking-[0.12em] text-neutral-500">Próximas 24h</span>
-        <span className="text-[11px] tabular-nums text-neutral-600">{slots.length} disparo{slots.length === 1 ? '' : 's'}</span>
+        <span className="text-[12px] font-medium uppercase tracking-[0.12em] text-neutral-500">Próximas 24h</span>
+        <span className="text-[12px] tabular-nums text-neutral-600">{slots.length} disparo{slots.length === 1 ? '' : 's'}</span>
         {clashing.length > 0 && <Badge tone="yellow" dot className="ml-auto">{clashing.length} colados</Badge>}
       </div>
       <div className="relative mt-3 h-4">
@@ -29,17 +29,17 @@ export function CronTimeline({ slots, now }: { slots: CronSlot[]; now: number })
           />
         ))}
       </div>
-      <div className="relative mt-1 h-3.5 text-[10px] tabular-nums text-neutral-600">
+      <div className="relative mt-1 h-3.5 text-[12px] tabular-nums text-neutral-600">
         {TICK_HOURS.map((h, i) => (
           <span key={h} className={`absolute ${tickAlign(i)}`} style={{ left: `${(h / 24) * 100}%` }}>{fmtHour(now + h * HOUR)}</span>
         ))}
       </div>
       {/* The dots name their cron only in a hover title, which a phone never shows. */}
-      <p className="mt-1.5 truncate text-[11px] text-neutral-500">
+      <p className="mt-1.5 truncate text-[12px] text-neutral-500">
         próximos: {slots.slice(0, 3).map((s) => `${s.name} ${fmtClock(s.at, now)}`).join(' · ')}
       </p>
       {clashing.length > 0 && (
-        <p className="mt-1.5 text-[11px] text-yellow-300/80">
+        <p className="mt-1.5 text-[12px] text-yellow-300/80">
           A menos de 15min um do outro, dividindo a janela de cota: {clashing.map((s) => `${s.name} ${fmtHour(s.at)}`).join(' · ')}
         </p>
       )}

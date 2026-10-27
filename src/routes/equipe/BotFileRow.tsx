@@ -12,9 +12,9 @@ export function BotFileRow({ file, onOpen }: { file: BotFile; onOpen: (path: str
       <Icon name={ICON[fileKind(file.path)]} size={15} className="shrink-0 text-neutral-500" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[13px] text-neutral-200">{file.path.slice(slash + 1)}</span>
-        {slash > 0 && <span className="block truncate text-[11px] text-neutral-600">{file.path.slice(0, slash)}</span>}
+        {slash > 0 && <span className="block truncate text-[12px] text-neutral-600">{file.path.slice(0, slash)}</span>}
       </span>
-      <span className="shrink-0 text-[11px] text-neutral-600">{formatSize(file.size)}</span>
+      <span className="shrink-0 text-[12px] text-neutral-600">{formatSize(file.size)}</span>
     </button>
   );
 }

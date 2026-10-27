@@ -77,21 +77,21 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
 
   return (
     <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
-      <h2 className="mb-3 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-neutral-400">
+      <h2 className="mb-3 flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-wide text-neutral-400">
         <Icon name="zap" size={12} /> Controle do host
       </h2>
 
-      <h3 className="mb-1.5 text-[11px] uppercase tracking-wider text-neutral-500">Tokens de ambiente</h3>
+      <h3 className="mb-1.5 text-[12px] uppercase tracking-wider text-neutral-500">Tokens de ambiente</h3>
       <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
         <Input size="sm" className="min-w-0 flex-1" placeholder="NOME" aria-label="Nome do token de ambiente" aria-invalid={envNameBad} error={envNameBad} value={envName} onChange={(e) => setEnvName(e.target.value)} />
         <Input size="sm" className="min-w-0 flex-1" type="password" placeholder="valor (não volta)" aria-label="Valor do token de ambiente" value={envValue} onChange={(e) => setEnvValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && addEnv()} />
         <Button variant="secondary" size="sm" onClick={addEnv} disabled={!envName.trim() || !envValue || envNameBad}>Salvar</Button>
       </div>
-      {envNameBad && <p role="alert" className="-mt-1 mb-2 text-[11px] text-red-300">Nome inválido: só letras, números e _, sem começar por número (ex: GITHUB_TOKEN).</p>}
+      {envNameBad && <p role="alert" className="-mt-1 mb-2 text-[12px] text-red-300">Nome inválido: só letras, números e _, sem começar por número (ex: GITHUB_TOKEN).</p>}
       {tokens.length > 0 && (
         <ul className="mb-3 flex flex-wrap gap-1.5">
           {tokens.map((t) => (
-            <li key={t} className="flex min-w-0 max-w-full items-center gap-1 wrap-anywhere rounded-md border border-neutral-800 bg-neutral-900/60 px-2 py-0.5 text-[11px] text-neutral-300">
+            <li key={t} className="flex min-w-0 max-w-full items-center gap-1 wrap-anywhere rounded-md border border-neutral-800 bg-neutral-900/60 px-2 py-0.5 text-[12px] text-neutral-300">
               {t}
               <button onClick={() => setPending({ kind: 'env', name: t })} title={`Remover ${t}`} aria-label={`Remover token ${t}`} className={`shrink-0 text-neutral-600 hover:text-red-300 ${ui.touchBox}`}><Icon name="x" size={11} /></button>
             </li>
@@ -99,7 +99,7 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
         </ul>
       )}
 
-      <h3 className="mb-1.5 mt-2 text-[11px] uppercase tracking-wider text-neutral-500">Servidores MCP</h3>
+      <h3 className="mb-1.5 mt-2 text-[12px] uppercase tracking-wider text-neutral-500">Servidores MCP</h3>
       <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
         <Input size="sm" className="min-w-0 flex-1" placeholder="nome" aria-label="Nome do servidor MCP" value={mcpName} onChange={(e) => setMcpName(e.target.value)} />
         <Input size="sm" className="min-w-0 flex-1" placeholder="url http(s) ou comando stdio" aria-label="URL ou comando do servidor MCP" value={mcpTarget} onChange={(e) => setMcpTarget(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && addMcp()} />
@@ -108,7 +108,7 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
       {mcps.length > 0 && (
         <ul className="mb-3 flex flex-wrap gap-1.5">
           {mcps.map((m) => (
-            <li key={m.name} className="flex min-w-0 max-w-full items-center gap-1 wrap-anywhere rounded-md border border-neutral-800 bg-neutral-900/60 px-2 py-0.5 text-[11px] text-neutral-300">
+            <li key={m.name} className="flex min-w-0 max-w-full items-center gap-1 wrap-anywhere rounded-md border border-neutral-800 bg-neutral-900/60 px-2 py-0.5 text-[12px] text-neutral-300">
               {m.name} <span className="text-neutral-600">{m.transport}</span>
               <button onClick={() => setPending({ kind: 'mcp', name: m.name })} title={`Remover ${m.name}`} aria-label={`Remover MCP ${m.name}`} className={`shrink-0 text-neutral-600 hover:text-red-300 ${ui.touchBox}`}><Icon name="x" size={11} /></button>
             </li>
@@ -118,7 +118,7 @@ export function AdminHostOps({ health, adminOp, onEnvSet, onEnvUnset, onMcpAdd, 
 
       {installable.length > 0 && (
         <>
-          <h3 className="mb-1.5 mt-2 text-[11px] uppercase tracking-wider text-neutral-500">Instalar CLI <span className="text-neutral-600">(só loopback)</span></h3>
+          <h3 className="mb-1.5 mt-2 text-[12px] uppercase tracking-wider text-neutral-500">Instalar CLI <span className="text-neutral-600">(só loopback)</span></h3>
           <div className="flex flex-wrap gap-1.5">
             {installable.map((name) => (
               <Button

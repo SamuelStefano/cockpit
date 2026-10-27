@@ -52,7 +52,7 @@ export function TerminalWindowHeader(p: Props) {
       {p.orchestrator
         ? <Icon name="command" size={12} className="text-fuchsia-400" />
         : p.session ? <Dot running={p.running} waiting={p.waiting} /> : <Icon name="terminal" size={12} className="text-orange-400" />}
-      <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-neutral-200">{p.orchestrator ? 'Orchestrator' : n.title}</span>
+      <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-neutral-200">{p.orchestrator ? 'Orchestrator' : n.title}</span>
       {p.orchestrator && <Badge tone="purple">ORCHESTRATOR</Badge>}
       {p.alert && <AlertBadge kind={p.alert} pct={p.pct} />}
       {p.session

@@ -63,13 +63,13 @@ export function CronCard({ cron, bots = [], now, editing, onRun, onToggle, onEdi
           <span className="truncate text-sm font-medium text-neutral-100">{cron.name}</span>
           {cron.botId && <CronBotTag bot={bots.find((b) => b.id === cron.botId)} />}
           <Badge tone={cron.enabled ? 'green' : 'neutral'} dot>{cron.enabled ? 'ativo' : 'pausado'}</Badge>
-          <span className="flex items-center gap-1 text-[11px] text-neutral-500"><Icon name="clock" size={10} />{scheduleLabel(cron.schedule)}</span>
+          <span className="flex items-center gap-1 text-[12px] text-neutral-500"><Icon name="clock" size={10} />{scheduleLabel(cron.schedule)}</span>
           {cron.enabled && (
-            <span className="text-[11px] font-medium tabular-nums text-orange-300/80">{fmtIn(nextRunAt(cron, now), now)}</span>
+            <span className="text-[12px] font-medium tabular-nums text-orange-300/80">{fmtIn(nextRunAt(cron, now), now)}</span>
           )}
         </div>
-        <p className="mt-1 line-clamp-2 text-[12px] text-neutral-400">{cron.prompt}</p>
-        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-neutral-600">
+        <p className="mt-1 line-clamp-2 text-[13px] text-neutral-400">{cron.prompt}</p>
+        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12px] text-neutral-600">
           <span>{fmtLast(cron.lastRun)}</span>
           {cron.model && <span title={cron.model}>· {prettyModel(cron.model)}</span>}
           {cron.mode === 'acceptEdits' && <span>· executa</span>}

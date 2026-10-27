@@ -60,7 +60,7 @@ export function CanvasAreas({ rects, status, onEditBudget, past }: Props) {
               onPointerDown={(e) => e.stopPropagation()}
               onClick={() => onEditBudget(r.area)}
               title={over ? `Orçamento estourado: ${st!.reasons.join(' · ')}` : `Orçamento da área ${r.label}`}
-              className={`pointer-events-auto absolute left-3 top-3 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium shadow-sm transition-colors
+              className={`pointer-events-auto absolute left-3 top-3 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium shadow-sm transition-colors
                 ${over ? 'border-red-500/60 bg-red-500/15 text-red-300' : style.chip}`}
             >
               <Icon name="layers" size={11} />

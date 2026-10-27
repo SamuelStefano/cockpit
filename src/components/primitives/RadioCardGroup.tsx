@@ -48,7 +48,7 @@ export function RadioCardGroup<T extends string>({ items, value, onChange, label
               <span className={`text-[13px] font-medium ${on ? 'text-neutral-100' : 'text-neutral-300'}`}>{it.title}</span>
               {it.badge && <span className="ml-auto">{it.badge}</span>}
             </span>
-            <span className="text-[12px] leading-relaxed text-neutral-400">{it.description}</span>
+            <span className="text-[13px] leading-relaxed text-neutral-400">{it.description}</span>
           </button>
         );
       })}

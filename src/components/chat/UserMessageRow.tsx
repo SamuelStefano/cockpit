@@ -95,7 +95,7 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
       {/* No mobile as ações vão pra linha própria ABAIXO da bolha (order-3): o
           thread tem overflow-x-hidden e ao lado da bolha elas eram clipadas. */}
       <div className="order-3 mt-1 flex w-full shrink-0 items-center justify-end gap-0.5 opacity-100 transition group-hover/u:opacity-100 sm:order-0 sm:w-auto sm:pointer-fine:opacity-0 sm:focus-within:opacity-100 sm:group-hover/u:opacity-100">
-        {msg.ts && <time className="mr-1 text-[10px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
+        {msg.ts && <time className="mr-1 text-[12px] tabular-nums text-neutral-600">{fmtClock(msg.ts)}</time>}
         <CopyTextButton text={msg.text} />
         {onQuote && <QuoteButton onClick={() => onQuote(msg.text)} />}
         {onEditUser && (
@@ -110,7 +110,7 @@ export function UserMessageRow({ msg, onEditUser, onQuote, onOpenAttachment, att
         )}
       </div>
       <div className="flex max-w-[82%] flex-col items-end gap-1">
-        <span className="max-w-[200px] truncate px-1 text-[11px] font-medium text-neutral-500" title={userName || 'Você'}>{userName || 'Você'}</span>
+        <span className="max-w-[200px] truncate px-1 text-[12px] font-medium text-neutral-500" title={userName || 'Você'}>{userName || 'Você'}</span>
         {attachments.length > 0 && (
           <div className="flex flex-wrap justify-end gap-1.5">
             {attachments.map((a) => (

@@ -27,10 +27,10 @@ export function NarrationGroupCard({ notes }: NarrationGroupCardProps) {
           <Icon name="sparkles" size={13} />
         </span>
         <div className="min-w-0 flex-1">
-          <span className="block text-[12px] font-medium text-neutral-300">
+          <span className="block text-[13px] font-medium text-neutral-300">
             {notes.length} notas do agente
           </span>
-          <span className="block truncate text-[10.5px] text-neutral-500">{preview}</span>
+          <span className="block truncate text-[12px] text-neutral-500">{preview}</span>
         </div>
         <Icon
           name="chevronDown"
@@ -46,7 +46,7 @@ export function NarrationGroupCard({ notes }: NarrationGroupCardProps) {
                 re-renderizaria todo o markdown a cada token do streaming. */}
             {everOpen.current && notes.map((n) => (
               <div key={n.id} className="border-l border-neutral-800 pl-2.5">
-                {n.ts && <span className="mb-0.5 block text-[10px] tabular-nums text-neutral-600">{fmtClock(n.ts)}</span>}
+                {n.ts && <span className="mb-0.5 block text-[12px] tabular-nums text-neutral-600">{fmtClock(n.ts)}</span>}
                 <Markdown md={n.md} />
               </div>
             ))}

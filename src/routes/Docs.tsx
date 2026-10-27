@@ -56,7 +56,7 @@ export function Docs() {
         <div className="p-4">
           <div className="mb-4 px-2">
             <div className="font-mono text-[15px] font-semibold lowercase tracking-tight text-neutral-100">documentação</div>
-            <div className="mt-0.5 text-[11px] text-neutral-500">manual do Deck</div>
+            <div className="mt-0.5 text-[12px] text-neutral-500">manual do Deck</div>
           </div>
           <nav className="space-y-0.5">
             {SECTIONS.map((s) => (
@@ -64,7 +64,7 @@ export function Docs() {
                 key={s.id}
                 data-sec={s.id}
                 onClick={() => jump(s.id)}
-                className={`flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left text-[12.5px] transition ${tokens.focusRing}
+                className={`flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left text-[13px] transition ${tokens.focusRing}
                   ${active === s.id ? 'border-orange-500/40 bg-orange-500/15 font-medium text-orange-300' : 'border-transparent text-neutral-500 hover:bg-neutral-900 hover:text-neutral-300'}`}
               >
                 <Icon name={s.icon} size={14} className="shrink-0" />
@@ -85,7 +85,7 @@ export function Docs() {
                 key={s.id}
                 data-sec={s.id}
                 onClick={() => jump(s.id)}
-                className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] transition
+                className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[12px] transition
                   ${active === s.id ? 'border-orange-500/40 bg-orange-500/15 text-orange-300' : 'border-neutral-800 text-neutral-500'}`}
               >
                 <Icon name={s.icon} size={12} /> {s.label}

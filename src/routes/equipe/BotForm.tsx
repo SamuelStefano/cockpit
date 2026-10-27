@@ -25,7 +25,7 @@ export function BotForm({ bot, bots, models, locked = false, onSave, onClose }: 
     <Modal open onClose={onClose} title={bot ? `Editar ${bot.name}` : 'Novo bot'} icon="user"
       footer={(
         <div className="flex w-full items-center justify-between gap-2">
-          <span role="alert" className="text-[12px] text-red-400">{error}</span>
+          <span role="alert" className="text-[13px] text-red-400">{error}</span>
           <div className="flex gap-2">
             <Button variant="ghost" size="sm" onClick={onClose}>Cancelar</Button>
             <Button variant="primary" size="sm" icon={bot ? 'check' : 'plus'} onClick={submit}>{bot ? 'Salvar' : 'Criar'}</Button>

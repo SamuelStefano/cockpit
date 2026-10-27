@@ -23,13 +23,13 @@ export function EditableTitle({ id, title, editable, onRename }: EditableTitlePr
           if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); commit(); }
           else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
         }}
-        className="min-w-0 flex-1 rounded-sm border border-orange-700/60 bg-neutral-800 px-1 py-0.5 text-[12.5px] font-medium text-neutral-100 outline-hidden"
+        className="min-w-0 flex-1 rounded-sm border border-orange-700/60 bg-neutral-800 px-1 py-0.5 text-[13px] font-medium text-neutral-100 outline-hidden"
       />
     );
   }
 
   if (!editable) {
-    return <span className="truncate text-[12.5px] font-medium text-neutral-300">{title}</span>;
+    return <span className="truncate text-[13px] font-medium text-neutral-300">{title}</span>;
   }
 
   return (
@@ -37,7 +37,7 @@ export function EditableTitle({ id, title, editable, onRename }: EditableTitlePr
       onClick={start}
       title="Renomear sessão"
       aria-label={`Renomear sessão: ${title}`}
-      className={`min-w-0 truncate rounded-sm px-1 py-0.5 text-left text-[12.5px] font-medium text-neutral-300 transition hover:bg-neutral-800 hover:text-neutral-100 ${tokens.focusRing}`}
+      className={`min-w-0 truncate rounded-sm px-1 py-0.5 text-left text-[13px] font-medium text-neutral-300 transition hover:bg-neutral-800 hover:text-neutral-100 ${tokens.focusRing}`}
     >
       {title}
     </button>

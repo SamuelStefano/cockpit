@@ -49,7 +49,7 @@ export function FlowEditor({ flow: initial, isNew, node, onSave, onDelete, onClo
       )}
     >
       <div className="space-y-3">
-        <div className="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-[12px]">
+        <div className="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-[13px]">
           <span className="min-w-0 flex-1 truncate text-neutral-200">{from?.title ?? flow.from}</span>
           <span className="shrink-0 text-orange-400">→</span>
           <span className="min-w-0 flex-1 truncate text-right text-neutral-200">{to?.title ?? flow.to}</span>
@@ -58,16 +58,16 @@ export function FlowEditor({ flow: initial, isNew, node, onSave, onDelete, onClo
           <textarea
             value={flow.template} onChange={(e) => patch({ template: e.target.value })} rows={5}
             placeholder={DEFAULT_FLOW_TEMPLATE}
-            className="w-full resize-y rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-[12.5px] text-neutral-100 placeholder:text-neutral-600 focus:border-orange-500/50 focus:outline-hidden"
+            className="w-full resize-y rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-[13px] text-neutral-100 placeholder:text-neutral-600 focus:border-orange-500/50 focus:outline-hidden"
           />
-          <p className="mt-1 text-[10.5px] text-neutral-500">
+          <p className="mt-1 text-[12px] text-neutral-500">
             Use <code className="rounded bg-neutral-800 px-1 py-0.5">{'{{result}}'}</code> onde o resultado da etapa anterior deve entrar.
             Sem o placeholder, o resultado entra logo depois do texto. Vazio usa o padrão.
           </p>
         </div>
         <Switch checked={flow.enabled} onChange={() => patch({ enabled: !flow.enabled })} label="Fluxo ativo" hint="desligado não dispara, mas fica desenhado" icon="zap" />
         <div>
-          <div className="mb-1 text-[10.5px] font-medium uppercase tracking-wide text-neutral-500">Modo do destino</div>
+          <div className="mb-1 text-[12px] font-medium uppercase tracking-wide text-neutral-500">Modo do destino</div>
           <div className="flex flex-wrap gap-1.5">
             {MODES.map((m) => (
               <ToggleChip key={m.label} on={flow.mode === m.value} icon="zap" onClick={() => patch({ mode: m.value })}>{m.label}</ToggleChip>
@@ -75,19 +75,19 @@ export function FlowEditor({ flow: initial, isNew, node, onSave, onDelete, onClo
           </div>
         </div>
         <div>
-          <div className="mb-1 text-[10.5px] font-medium uppercase tracking-wide text-neutral-500">MCPs do destino</div>
+          <div className="mb-1 text-[12px] font-medium uppercase tracking-wide text-neutral-500">MCPs do destino</div>
           <Input
             size="sm" placeholder="nenhum (padrão) — separe por vírgula" value={mcpsText}
             onChange={(e) => setMcpsText(e.target.value)}
             onBlur={() => commitMcps(mcpsText)}
           />
-          <p className="mt-1 text-[10.5px] text-neutral-500">
+          <p className="mt-1 text-[12px] text-neutral-500">
             O turno disparado por este fluxo NUNCA herda bypass nem os MCPs da origem (o resultado que vira o próximo
             prompt é texto do modelo, não confiável) — por padrão roda sem MCP nenhum. Liste aqui só o que este destino precisa.
           </p>
         </div>
         {!isNew && (
-          <p className="text-[10.5px] text-neutral-500">
+          <p className="text-[12px] text-neutral-500">
             {flow.fires === 0 ? 'nunca disparou' : `disparou ${flow.fires}x${flow.lastFiredAt ? ` · última vez ${relPast(flow.lastFiredAt)}` : ''}`}
           </p>
         )}

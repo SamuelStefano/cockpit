@@ -19,9 +19,9 @@ export function PairCommand({ code, cmd, busy, expired, countdown, mode }: PairC
     <div>
       <div className={`rounded-xl border bg-neutral-950 p-3.5 ${expired ? 'border-yellow-500/40' : 'border-neutral-800'}`}>
         {code ? (
-          <code className={`block break-all font-mono text-[12px] leading-relaxed ${expired ? 'text-neutral-600 line-through' : 'text-orange-200'}`}>{cmd}</code>
+          <code className={`block break-all font-mono text-[13px] leading-relaxed ${expired ? 'text-neutral-600 line-through' : 'text-orange-200'}`}>{cmd}</code>
         ) : (
-          <div className="text-[12px] text-neutral-500">{busy ? 'gerando código…' : '—'}</div>
+          <div className="text-[13px] text-neutral-500">{busy ? 'gerando código…' : '—'}</div>
         )}
       </div>
       <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
@@ -35,7 +35,7 @@ export function PairCommand({ code, cmd, busy, expired, countdown, mode }: PairC
           {copied ? 'copiado ✓' : copyFailed ? 'falhou — copie à mão' : 'copiar'}
         </Button>
       </div>
-      <p className="mt-3 text-[11.5px] leading-relaxed text-neutral-500">
+      <p className="mt-3 text-[12px] leading-relaxed text-neutral-500">
         Quer ver antes? Troque <span className={mono}>DECK_PAIR_CODE=…</span> por <span className={mono}>DECK_DRY_RUN=1</span> — mostra o plano sem instalar nada.
         {mode === 'dedicated' && <> Pra controle total (terminais e admin), use <span className={mono}>DECK_AGENT_ROLE=admin</span>.</>}
       </p>

@@ -155,17 +155,17 @@ export function Kanban(p: Props) {
                     aqui" body. From md up, an empty column collapses to a
                     ~44px rail so In progress/Done keep the width (item 5). */}
                 <header className="flex items-center gap-2 px-2.5 py-2 md:hidden" title={STATUS_HINT[status]}>
-                  <span className="text-[11.5px] font-semibold text-neutral-200">{STATUS_LABEL[status]}</span>
+                  <span className="text-[12px] font-semibold text-neutral-200">{STATUS_LABEL[status]}</span>
                   <Badge>0</Badge>
                 </header>
-                <header className="hidden shrink-0 flex-col items-center gap-1 py-2 text-[10px] text-neutral-500 md:flex" title={STATUS_HINT[status]}>
+                <header className="hidden shrink-0 flex-col items-center gap-1 py-2 text-[12px] text-neutral-500 md:flex" title={STATUS_HINT[status]}>
                   <Badge>0</Badge>
                   <span className="[writing-mode:vertical-rl]">{STATUS_LABEL[status]}</span>
                 </header>
               </>
             ) : (
               <header className="flex items-center gap-2 px-2.5 py-2" title={STATUS_HINT[status]}>
-                <span className="text-[11.5px] font-semibold text-neutral-200">{STATUS_LABEL[status]}</span>
+                <span className="text-[12px] font-semibold text-neutral-200">{STATUS_LABEL[status]}</span>
                 <Badge>{cards.length + sessions.length}</Badge>
                 {/* -my-1.5: the chip is ~27px, the other headers' content ~17px —
                     without it Done's header was 43px vs 33px and its title and
@@ -198,7 +198,7 @@ export function Kanban(p: Props) {
               })}
               {orchChildren.length > 0 && (
                 <div className="rounded-lg border border-fuchsia-500/30 bg-fuchsia-500/[0.04] p-1">
-                  <div className="px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-fuchsia-400">Orchestrator</div>
+                  <div className="px-1 py-0.5 text-[12px] font-medium uppercase tracking-wide text-fuchsia-400">Orchestrator</div>
                   <div className="space-y-1.5">
                     {orchChildren.map((s) => (
                       <KanbanSessionItem
@@ -225,14 +225,14 @@ export function Kanban(p: Props) {
                   ))}
                 </div>
               )}
-              {empty && <p className="px-1 py-3 text-center text-[11px] text-neutral-600">nada por aqui</p>}
+              {empty && <p className="px-1 py-3 text-center text-[12px] text-neutral-600">nada por aqui</p>}
             </div>
           </section>
         );
       })}
       </div>
       {(triage.hiddenIdle.length > 0 || p.hiddenSessionIds.size > 0) && (
-        <div className="flex shrink-0 items-center gap-2 px-1 text-[10.5px] text-neutral-600">
+        <div className="flex shrink-0 items-center gap-2 px-1 text-[12px] text-neutral-600">
           {triage.hiddenIdle.length > 0 && <span>{triage.hiddenIdle.length} sessões antigas sem pendência, fora do quadro</span>}
           {p.hiddenSessionIds.size > 0 && (
             <>

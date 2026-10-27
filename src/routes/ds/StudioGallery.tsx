@@ -18,7 +18,7 @@ export function StudioGallery() {
   return (
     <>
       <Section title="Theme playground — acento ao vivo">
-        <p className="mb-3 text-[12px] text-neutral-600">
+        <p className="mb-3 text-[13px] text-neutral-600">
           Ajuste matiz, saturação, raio e densidade e veja os tokens (<code className="text-orange-300">--accent</code>,{' '}
           <code className="text-orange-300">--ring</code>) mudarem no app inteiro em tempo real. Sai da rota → restaura o tema.
         </p>
@@ -26,7 +26,7 @@ export function StudioGallery() {
       </Section>
 
       <Section title="Studio — código editável ao vivo">
-        <p className="mb-3 text-[12px] text-neutral-600">
+        <p className="mb-3 text-[13px] text-neutral-600">
           Bloco <code className="text-orange-300">```preview</code> (React/TSX) ou{' '}
           <code className="text-orange-300">```preview-html</code> vira tela viva num iframe sandbox. Abra a aba{' '}
           <span className="text-orange-300">código</span> e <strong className="text-neutral-400">digite</strong> — a tela
@@ -38,7 +38,7 @@ export function StudioGallery() {
       </Section>
 
       <Section title="Studio nativo — iPhone editável (react-native-web)">
-        <p className="mb-3 text-[12px] text-neutral-600">
+        <p className="mb-3 text-[13px] text-neutral-600">
           Bloco <code className="text-orange-300">```preview-native</code> roda react-native de verdade
           (View, Text, Pressable, StyleSheet) via react-native-web numa moldura de iPhone — sem macOS. Também editável ao
           vivo: digite na aba código e veja o app mudar na tela do telefone.
@@ -47,7 +47,7 @@ export function StudioGallery() {
       </Section>
 
       <Section title="Studio SVG — vetor animado editável">
-        <p className="mb-3 text-[12px] text-neutral-600">
+        <p className="mb-3 text-[13px] text-neutral-600">
           Bloco <code className="text-orange-300">```preview-svg</code> renderiza SVG cru (com <code className="text-orange-300">&lt;animate&gt;</code>,
           SMIL ou CSS) centralizado sobre um xadrez de transparência. Edite os atributos e veja a animação mudar na hora.
         </p>
@@ -55,7 +55,7 @@ export function StudioGallery() {
       </Section>
 
       <Section title="Juiz de código — testes verde/vermelho no sandbox">
-        <p className="mb-3 text-[12px] text-neutral-600">
+        <p className="mb-3 text-[13px] text-neutral-600">
           Bloco <code className="text-orange-300">```preview-test</code> roda <code className="text-orange-300">test()</code> +{' '}
           <code className="text-orange-300">expect()</code> (globais) dentro do sandbox e mostra cada asserção passando ou falhando,
           com resumo <span className="text-neutral-400">N/N</span>. O terceiro test abaixo falha de propósito.

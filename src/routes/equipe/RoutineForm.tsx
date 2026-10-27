@@ -22,14 +22,14 @@ export function RoutineForm({ draft, error, set, onSubmit, onCancel }: RoutineFo
       <div className="flex flex-wrap items-center gap-2">
         <Segmented items={KINDS} value={draft.kind} onChange={(k) => set('kind', k)} label="Agenda" />
         {draft.kind === 'interval'
-          ? <span className="flex items-center gap-1 text-[12.5px] text-neutral-400">
+          ? <span className="flex items-center gap-1 text-[13px] text-neutral-400">
               <input type="number" min={MIN_BOT_ROUTINE_MINUTES} aria-label="Intervalo em minutos" value={draft.everyMinutes || ''}
                 onChange={(e) => set('everyMinutes', e.target.value === '' ? 0 : parseInt(e.target.value, 10))} className={`w-16 ${field}`} /> min
             </span>
           : <input type="time" aria-label="Horário" value={draft.time} onChange={(e) => set('time', e.target.value)} className={field} />}
       </div>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[11.5px] text-neutral-500">{error ?? 'Roda na conversa do bot (horário de Brasília).'}</span>
+        <span className="text-[12px] text-neutral-500">{error ?? 'Roda na conversa do bot (horário de Brasília).'}</span>
         <div className="flex shrink-0 items-center gap-1.5">
           <Button variant="ghost" size="sm" onClick={onCancel}>Cancelar</Button>
           <Button variant="primary" size="sm" icon="plus" onClick={onSubmit} disabled={!!error}>Criar</Button>

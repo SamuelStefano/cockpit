@@ -10,12 +10,12 @@ export function DropRefCard({ dropRef }: { dropRef: DropRef }) {
 
   return (
     <div className="mt-3 rounded-lg border border-orange-500/25 bg-orange-500/[0.06] p-3">
-      <div className="flex items-center gap-1.5 text-[11.5px] font-medium text-orange-300">
+      <div className="flex items-center gap-1.5 text-[12px] font-medium text-orange-300">
         <Icon name="check" size={13} />
         gravado na box do agente — o conteúdo não passou pelo chat
       </div>
-      <code className="mt-2 block truncate font-mono text-[11.5px] text-neutral-300" title={dropRef.path}>{dropRef.path}</code>
-      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10.5px] text-neutral-500">
+      <code className="mt-2 block truncate font-mono text-[12px] text-neutral-300" title={dropRef.path}>{dropRef.path}</code>
+      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[12px] text-neutral-500">
         <span>{fmtDropBytes(dropRef.bytes)}</span>
         <span title={dropRef.sha256}>sha256 {shortSha(dropRef.sha256)}</span>
       </div>

@@ -13,7 +13,7 @@ export function AttachmentChips({ attachments, onRemoveAttachment, onOpen }: Att
   return (
     <div className="mb-2 flex flex-wrap gap-1.5">
       {attachments.map((a) => (
-        <span key={a.path} className={`flex items-center gap-1.5 rounded-lg border ${a.dup ? 'border-yellow-500/40' : 'border-neutral-700'} bg-neutral-800/60 py-1 pl-1 pr-1 text-[11px] text-neutral-300 ${a.uploading ? 'opacity-60' : ''}`}>
+        <span key={a.path} className={`flex items-center gap-1.5 rounded-lg border ${a.dup ? 'border-yellow-500/40' : 'border-neutral-700'} bg-neutral-800/60 py-1 pl-1 pr-1 text-[12px] text-neutral-300 ${a.uploading ? 'opacity-60' : ''}`}>
           <button
             type="button"
             disabled={a.uploading || !onOpen}

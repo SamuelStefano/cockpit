@@ -24,7 +24,7 @@ export function LiveStatsLine({ live }: { live: LiveTurn }) {
   if (live.tokens > 0) parts.push(`~${fmtTokensK(live.tokens)} tokens`);
   if (!parts.length) return null;
   return (
-    <span className="text-[11px] tabular-nums text-neutral-600" title="Turno em andamento: tempo decorrido · estimativa de tokens de saída neste turno">
+    <span className="text-[12px] tabular-nums text-neutral-600" title="Turno em andamento: tempo decorrido · estimativa de tokens de saída neste turno">
       {parts.join(' · ')}
     </span>
   );
@@ -56,7 +56,7 @@ export function ThinkingDots({ live, bit }: { live?: LiveTurn; bit?: BitState })
   return (
     <div className="flex items-center gap-2 pt-1.5">
       {bit && <Bit state={bit} size={20} className="-my-1" />}
-      <span className="text-[12px] text-neutral-500">{verb}…</span>
+      <span className="text-[13px] text-neutral-500">{verb}…</span>
       {live ? <LiveStatsLine live={live} /> : <FallbackElapsed />}
     </div>
   );
@@ -65,7 +65,7 @@ export function ThinkingDots({ live, bit }: { live?: LiveTurn; bit?: BitState })
 // Sem dados de turno ao vivo (ex: replay sem startedAt): só o cronômetro local.
 function FallbackElapsed() {
   const secs = useElapsed();
-  return secs >= 3 ? <span className="text-[11px] tabular-nums text-neutral-600">{fmtElapsed(secs)}</span> : null;
+  return secs >= 3 ? <span className="text-[12px] tabular-nums text-neutral-600">{fmtElapsed(secs)}</span> : null;
 }
 
 export function Thinking({ live, bit = 'thinking' }: { live?: LiveTurn; bit?: BitState }) {

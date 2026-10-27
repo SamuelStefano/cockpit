@@ -28,7 +28,7 @@ export function CronForm({ form, onCancel, now, planUsage, models }: {
   return (
     <div className="mb-5 space-y-2.5 rounded-xl border border-neutral-800 bg-neutral-900/50 p-4">
       {editing && (
-        <div className="flex items-center gap-1.5 text-[12px] font-medium text-orange-300">
+        <div className="flex items-center gap-1.5 text-[13px] font-medium text-orange-300">
           <Icon name="pencil" size={12} /> Editando “{draft.name || 'cron'}”
         </div>
       )}
@@ -71,7 +71,7 @@ export function CronForm({ form, onCancel, now, planUsage, models }: {
         <EffortPicker effort={draft.effort} setEffort={(e) => set('effort', e)} />
       </div>
       <div className="flex items-center justify-between gap-2 pt-0.5">
-        <span className="flex items-center gap-1.5 text-[11.5px] text-neutral-500">
+        <span className="flex items-center gap-1.5 text-[12px] text-neutral-500">
           <Icon name="clock" size={12} /> {scheduleValid(draft) ? <>próxima: <span className="tabular-nums text-neutral-400">{fmtClock(nextRunAt(preview, now), now)} BRT</span></> : 'complete o agendamento pra ver a próxima execução'}
         </span>
         <div className="flex items-center gap-1.5">

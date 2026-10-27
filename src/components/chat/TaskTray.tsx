@@ -21,7 +21,7 @@ export function TaskTray({ todos, isMobile = false, keyboardOpen = false }: {
           onClick={toggle}
           aria-expanded={isMobile ? sheet : !collapsed}
           aria-label={collapsed ? 'Mostrar tarefas' : 'Recolher tarefas'}
-          className={`flex w-full items-center gap-1.5 py-1.5 text-[11px] font-medium text-neutral-500 transition hover:text-neutral-300 ${tokens.focusRing}`}
+          className={`flex w-full items-center gap-1.5 py-1.5 text-[12px] font-medium text-neutral-500 transition hover:text-neutral-300 ${tokens.focusRing}`}
         >
           <Icon name="chevronRight" size={11} aria-hidden="true" className={`transition-transform ${collapsed ? '' : 'rotate-90'}`} />
           <Icon name="check" size={11} aria-hidden="true" className={allDone ? 'text-green-400' : 'text-orange-400'} />

@@ -11,7 +11,7 @@ interface ButtonGroupProps {
 export function ButtonGroup({ label, children, className = '' }: ButtonGroupProps) {
   return (
     <div role="group" aria-label={label} className={`inline-flex items-center gap-0.5 rounded-lg border border-neutral-800 bg-neutral-900/60 p-0.5 ${className}`}>
-      {label && <span className="px-1.5 font-mono text-[10px] lowercase tracking-wide text-neutral-500">{label}</span>}
+      {label && <span className="px-1.5 font-mono text-[12px] lowercase tracking-wide text-neutral-500">{label}</span>}
       {children}
     </div>
   );

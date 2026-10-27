@@ -33,7 +33,7 @@ export function Trend({ series }: { series: DailyUsage[] }) {
   return (
     <div className="mb-4 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <span className="flex items-center gap-1.5 whitespace-nowrap text-[11px] uppercase tracking-wider text-neutral-500">
+        <span className="flex items-center gap-1.5 whitespace-nowrap text-[12px] uppercase tracking-wider text-neutral-500">
           <Icon name="zap" size={12} /> custo por dia
         </span>
         <div className="flex items-center gap-2">
@@ -43,15 +43,15 @@ export function Trend({ series }: { series: DailyUsage[] }) {
                 key={p.id}
                 onClick={() => setPeriod(p.id)}
                 aria-pressed={period === p.id}
-                className={`rounded-md border px-1.5 py-0.5 text-[10.5px] font-medium transition pointer-coarse:px-2.5 pointer-coarse:py-1.5 ${period === p.id ? 'border-orange-500/40 bg-orange-500/15 text-orange-300' : 'border-transparent text-neutral-500 hover:text-neutral-300'}`}
+                className={`rounded-md border px-1.5 py-0.5 text-[12px] font-medium transition pointer-coarse:px-2.5 pointer-coarse:py-1.5 ${period === p.id ? 'border-orange-500/40 bg-orange-500/15 text-orange-300' : 'border-transparent text-neutral-500 hover:text-neutral-300'}`}
               >
                 {p.label}
               </button>
             ))}
           </div>
           {pickedDay
-            ? <span className="whitespace-nowrap font-mono text-[11px] text-neutral-300" aria-live="polite">{dayLabel(pickedDay.day)} · <span className="text-emerald-400/80">{fmtCost(pickedDay.cost)}</span><span className="hidden sm:inline"> · {fmt(pickedDay.output)} out</span></span>
-            : <span className="font-mono text-[11px] text-emerald-400/80">{fmtCost(totalCost)}</span>}
+            ? <span className="whitespace-nowrap font-mono text-[12px] text-neutral-300" aria-live="polite">{dayLabel(pickedDay.day)} · <span className="text-emerald-400/80">{fmtCost(pickedDay.cost)}</span><span className="hidden sm:inline"> · {fmt(pickedDay.output)} out</span></span>
+            : <span className="font-mono text-[12px] text-emerald-400/80">{fmtCost(totalCost)}</span>}
         </div>
       </div>
       {/* gap-0.5 + min-w-0 below sm: 30 bars at gap-1 with each column as wide as
@@ -84,7 +84,7 @@ export function Trend({ series }: { series: DailyUsage[] }) {
                 className={`w-full max-w-[18px] rounded-xs transition-colors ${d.cost <= 0 ? 'bg-neutral-700' : picked === d.day ? 'bg-orange-300' : isToday ? 'bg-orange-500' : 'bg-orange-500/40 group-hover/bar:bg-orange-500/70'}`}
                 style={{ height: `${h}px` }}
               />
-              <span className={`whitespace-nowrap text-[8.5px] tabular-nums ${isToday ? 'font-semibold text-orange-400' : 'text-neutral-600'} ${showLabel ? '' : 'invisible'}`}>{dayNum(d.day)}</span>
+              <span className={`whitespace-nowrap text-[12px] tabular-nums ${isToday ? 'font-semibold text-orange-400' : 'text-neutral-600'} ${showLabel ? '' : 'invisible'}`}>{dayNum(d.day)}</span>
             </button>
           );
         })}

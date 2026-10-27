@@ -75,7 +75,7 @@ export function SkillPicker({ skills, selected, setSelected }: {
         title={active ? `${liveCount} skill(s) ativas neste prompt` : 'Escolher quais skills usar (vazio = todas)'}
       >
         skills
-        {active && <span className="rounded-sm bg-orange-500/30 px-1 text-[10px] tabular-nums text-orange-200">{liveCount}</span>}
+        {active && <span className="rounded-sm bg-orange-500/30 px-1 text-[12px] tabular-nums text-orange-200">{liveCount}</span>}
         <Icon name="chevronDown" size={11} className={open ? 'rotate-180 transition' : 'transition'} />
       </ToggleChip>
 
@@ -103,12 +103,12 @@ export function SkillPicker({ skills, selected, setSelected }: {
                   ${on ? 'border-orange-500 bg-orange-500 text-neutral-950' : 'border-neutral-600'}`}>
                   {on && <Icon name="check" size={11} />}
                 </span>
-                <span className={`min-w-0 flex-1 truncate text-[12.5px] font-medium ${on ? 'text-orange-200' : 'text-neutral-200'}`}>{s.name}</span>
+                <span className={`min-w-0 flex-1 truncate text-[13px] font-medium ${on ? 'text-orange-200' : 'text-neutral-200'}`}>{s.name}</span>
               </button>
             );
           })}
           {filtered.length === 0 && (
-            <p className="px-3 py-3 text-[11.5px] text-neutral-500">Nenhuma skill encontrada.</p>
+            <p className="px-3 py-3 text-[12px] text-neutral-500">Nenhuma skill encontrada.</p>
           )}
         </PickerSheet>
       )}

@@ -30,7 +30,7 @@ export function DraftDispatchModal({ request, pointValue, busy, onConfirm, onClo
         <Button onClick={onConfirm} loading={busy}>{notes.length > 1 ? `Disparar ${notes.length} agentes` : 'Disparar agente'}</Button>
       </>}
     >
-      <div className="flex flex-col gap-3 text-[12.5px] text-neutral-400">
+      <div className="flex flex-col gap-3 text-[13px] text-neutral-400">
         <p>
           O agente cria no DFL <span className="text-neutral-200">{units.length} {units.length === 1 ? 'épico' : 'épicos'}</span> (ou reusa, se já existir),{' '}
           <span className="text-neutral-200">{dls.length} {dls.length === 1 ? 'delivery' : 'deliveries'}</span> e{' '}
@@ -52,10 +52,10 @@ export function DraftDispatchModal({ request, pointValue, busy, onConfirm, onClo
         )}
         {notes.map((note, i) => (
           <details key={i} open={i === 0} className="rounded-md border border-neutral-800 bg-neutral-950/60 px-3 py-2">
-            <summary className="cursor-pointer text-[12px] text-neutral-300">
+            <summary className="cursor-pointer text-[13px] text-neutral-300">
               {notes.length > 1 ? `Nota ${i + 1} de ${notes.length}` : 'Nota exata que o agente recebe'}
             </summary>
-            <pre className="scroll-thin mt-2 max-h-80 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-neutral-400">{note}</pre>
+            <pre className="scroll-thin mt-2 max-h-80 overflow-auto whitespace-pre-wrap font-mono text-[12px] leading-relaxed text-neutral-400">{note}</pre>
           </details>
         ))}
       </div>

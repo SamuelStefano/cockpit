@@ -10,13 +10,13 @@ const chip = () => screen.getByRole('button');
 describe('ToggleChip', () => {
   it('marca o estado ligado com o aro interno do acento', () => {
     render(<ToggleChip on icon="sparkles">skills</ToggleChip>);
-    expect(chip().className).toContain('rgba(249,115,22,0.4)');
+    expect(chip().className).toContain('rgba(59,130,246,0.4)');
     expect(chip().className).toContain('bg-orange-500/15');
   });
 
   it('desligado não pinta acento nenhum', () => {
     render(<ToggleChip on={false} icon="sparkles">skills</ToggleChip>);
-    expect(chip().className).not.toContain('rgba(249,115,22');
+    expect(chip().className).not.toContain('rgba(59,130,246');
     expect(chip().className).toContain('bg-neutral-950');
   });
 

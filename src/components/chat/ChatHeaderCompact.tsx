@@ -11,7 +11,7 @@ export function ChatHeaderCompact({ title, onTerminal, terminalRunning }: {
   return (
     <div className="flex h-8 shrink-0 items-center gap-2 border-b border-neutral-800 px-4">
       <Icon name="message" size={13} className="shrink-0 text-neutral-500" />
-      <span className="min-w-0 flex-1 truncate text-[12.5px] text-neutral-300">{title}</span>
+      <span className="min-w-0 flex-1 truncate text-[13px] text-neutral-300">{title}</span>
       {onTerminal && (
         <Button variant="ghost" size="sm" square icon="terminal" onClick={onTerminal} title="Abrir terminais" className="relative -mr-1">
           {terminalRunning && (

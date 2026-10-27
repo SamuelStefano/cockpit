@@ -17,7 +17,7 @@ export function AgentActions({ card, testing, phrase, onConnect, onTest, onRemov
       {!item && <Button variant="secondary" size="sm" icon="plus" onClick={onConnect}>Só adicionar (já instalei)</Button>}
       {item && status === 'ready' && <Button variant="secondary" size="sm" icon="play" loading={testing} onClick={onTest}>Testar de novo</Button>}
       {item && status !== 'ready' && card.activeStep < 2 && <Button variant="ghost" size="sm" icon="play" loading={testing} onClick={onTest}>Já fiz isso, testar</Button>}
-      {testing && <span aria-live="polite" className="agent-phrase text-[12px] text-neutral-400">{phrase}</span>}
+      {testing && <span aria-live="polite" className="agent-phrase text-[13px] text-neutral-400">{phrase}</span>}
       {item && <Button variant="ghost" size="sm" icon="trash" className="ml-auto" onClick={onRemove}>Remover</Button>}
     </div>
   );

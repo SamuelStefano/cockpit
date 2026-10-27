@@ -14,7 +14,7 @@ export function SkillCard({ s, onClick }: { s: SkillMeta; onClick: () => void })
         </span>
       </div>
       <h3 className="mb-1 line-clamp-1 font-mono text-[13px] font-medium lowercase text-neutral-200 group-hover:text-orange-300">{s.name}</h3>
-      <p className="line-clamp-3 text-[12px] leading-snug text-neutral-500">{s.description || '—'}</p>
+      <p className="line-clamp-3 text-[13px] leading-snug text-neutral-500">{s.description || '—'}</p>
     </button>
   );
 }

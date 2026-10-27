@@ -2,7 +2,7 @@ import { Icon } from '../primitives';
 
 export function BetaNote() {
   return (
-    <p className="mt-6 flex gap-2 text-[11px] leading-relaxed text-neutral-600">
+    <p className="mt-6 flex gap-2 text-[12px] leading-relaxed text-neutral-600">
       <Icon name="alertTriangle" size={12} className="mt-0.5 shrink-0" />
       <span>
         <span className="font-medium text-neutral-500">Beta · relay confiável.</span> Por enquanto o relay é

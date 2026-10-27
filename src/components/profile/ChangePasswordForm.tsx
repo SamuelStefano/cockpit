@@ -33,8 +33,8 @@ export function ChangePasswordForm({ onSubmit }: { onSubmit: (password: string) 
         </form>
       )}
 
-      {f.error && <p role="alert" className="mt-1.5 text-[11px] text-red-400">{f.error}</p>}
-      {f.done && !open && <p className="mt-1.5 text-[11px] text-emerald-400">Senha trocada.</p>}
+      {f.error && <p role="alert" className="mt-1.5 text-[12px] text-red-400">{f.error}</p>}
+      {f.done && !open && <p className="mt-1.5 text-[12px] text-emerald-400">Senha trocada.</p>}
     </div>
   );
 }

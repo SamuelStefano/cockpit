@@ -17,8 +17,8 @@ export function FunnelRow({ s, checked, now, disabled, onToggle }: { s: Session;
       <span className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border transition ${checked ? 'border-orange-500/70 bg-orange-500/80 text-neutral-950' : 'border-neutral-700 bg-neutral-950'}`}>
         {checked && <Icon name="check" size={10} />}
       </span>
-      <span className={`min-w-0 flex-1 truncate text-[12.5px] ${checked ? 'text-neutral-300' : 'text-neutral-500 line-through'}`}>{s.title}</span>
-      <span className="shrink-0 text-[11px] tabular-nums text-neutral-600">{idleLabel(s.mtime, now)}</span>
+      <span className={`min-w-0 flex-1 truncate text-[13px] ${checked ? 'text-neutral-300' : 'text-neutral-500 line-through'}`}>{s.title}</span>
+      <span className="shrink-0 text-[12px] tabular-nums text-neutral-600">{idleLabel(s.mtime, now)}</span>
     </button>
   );
 }

@@ -12,7 +12,7 @@ export function CollapsedRail({ side, label, icon, onExpand }: {
     >
       <Icon name={side === 'left' ? 'chevronRight' : 'chevronLeft'} size={15} />
       <Icon name={icon} size={14} className="text-neutral-600 group-hover:text-orange-400" />
-      <span className="mt-1 text-[10px] font-medium uppercase tracking-wide text-neutral-600 [writing-mode:vertical-rl]">{label}</span>
+      <span className="mt-1 text-[12px] font-medium uppercase tracking-wide text-neutral-600 [writing-mode:vertical-rl]">{label}</span>
     </button>
   );
 }

@@ -7,7 +7,7 @@ import { Icon } from '../primitives';
 export function OrchestratorSessionBanner() {
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pt-3">
-      <div className="flex items-center gap-2 rounded-lg border border-fuchsia-500/30 bg-fuchsia-500/10 px-3 py-2 text-[12.5px] text-fuchsia-200">
+      <div className="flex items-center gap-2 rounded-lg border border-fuchsia-500/30 bg-fuchsia-500/10 px-3 py-2 text-[13px] text-fuchsia-200">
         <Icon name="command" size={13} className="shrink-0 text-fuchsia-400" />
         <span>Esta é a sessão do Orchestrator — mensagens vão pro terminal dele, não pra um turno novo.</span>
       </div>

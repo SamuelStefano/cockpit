@@ -57,7 +57,7 @@ export function GraphList({ graphs, loaded, openId, opening, building, onOpen, o
         ) : graphs.length === 0 ? (
           // The canvas beside/below shows the real empty state; a second full
           // EmptyState here stacked two "Nenhum grafo" blocks on a phone.
-          <p className="px-2 py-3 text-[12px] text-neutral-600">nenhum grafo ainda</p>
+          <p className="px-2 py-3 text-[13px] text-neutral-600">nenhum grafo ainda</p>
         ) : (
           <ul className="flex flex-col gap-1">
             {graphs.map((g) => (
@@ -71,11 +71,11 @@ export function GraphList({ graphs, loaded, openId, opening, building, onOpen, o
                   <div className="min-w-0 flex-1">
                     {/* truncate on the flex row itself never drew the ellipsis (the text is an
                         anonymous flex item): long names were cut mid-letter with no cue. */}
-                    <div className="flex min-w-0 items-center gap-1.5 font-mono text-[12.5px]">
+                    <div className="flex min-w-0 items-center gap-1.5 font-mono text-[13px]">
                       {g.id === 'global' && <Icon name="sparkles" size={12} className="shrink-0 text-orange-400" />}
                       <span className="truncate" title={g.label}>{g.label}</span>
                     </div>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10.5px] text-neutral-500">
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[12px] text-neutral-500">
                       <Badge tone="neutral">{g.nodes.toLocaleString('pt-BR')} nós</Badge>
                       <span>{g.edges.toLocaleString('pt-BR')} arestas</span>
                       {g.ratio && <Badge tone="green">~{g.ratio}x menos tokens</Badge>}
@@ -89,7 +89,7 @@ export function GraphList({ graphs, loaded, openId, opening, building, onOpen, o
                     aria-label={pendingDelete === g.id ? `Confirmar exclusão de ${g.label}` : `Excluir grafo ${g.label}`}
                     onClick={() => clickDelete(g.id)}
                     className={`absolute right-1.5 top-1.5 rounded px-1 py-0.5 transition-opacity ${
-                      pendingDelete === g.id ? 'font-mono text-[10px] text-red-400 opacity-100' : `text-neutral-600 opacity-0 pointer-coarse:opacity-100 hover:text-red-400 focus:opacity-100 group-hover:opacity-100 ${tokens.touchBox}`
+                      pendingDelete === g.id ? 'font-mono text-[12px] text-red-400 opacity-100' : `text-neutral-600 opacity-0 pointer-coarse:opacity-100 hover:text-red-400 focus:opacity-100 group-hover:opacity-100 ${tokens.touchBox}`
                     }`}
                   >
                     {pendingDelete === g.id ? 'confirmar?' : <Icon name="trash" size={13} />}

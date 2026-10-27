@@ -55,9 +55,9 @@ export function QueuedItem({ index, text, atts, expanded, flash, first, last, ed
   return (
     <li ref={liRef} className={`rounded-md transition-colors duration-500 ${flash ? 'bg-orange-500/20' : ''}`}>
       <div className="flex items-start gap-1 pointer-coarse:flex-wrap">
-        <span className="mt-0.5 shrink-0 text-[10px] tabular-nums text-orange-400/50">{index + 1}.</span>
+        <span className="mt-0.5 shrink-0 text-[12px] tabular-nums text-orange-400/50">{index + 1}.</span>
         {atts > 0 && (
-          <span className="mt-0.5 flex shrink-0 items-center gap-0.5 text-[10px] tabular-nums text-orange-300/80" title={`${atts} anexo${atts > 1 ? 's' : ''} amarrado${atts > 1 ? 's' : ''} a este prompt`}>
+          <span className="mt-0.5 flex shrink-0 items-center gap-0.5 text-[12px] tabular-nums text-orange-300/80" title={`${atts} anexo${atts > 1 ? 's' : ''} amarrado${atts > 1 ? 's' : ''} a este prompt`}>
             <Icon name="paperclip" size={10} />{atts > 1 ? atts : ''}
           </span>
         )}
@@ -73,14 +73,14 @@ export function QueuedItem({ index, text, atts, expanded, flash, first, last, ed
               // isComposing: the Enter that confirms an IME/dead-key candidate must not commit mid-word.
               if (e.key === 'Enter' && !e.shiftKey && !touch && !e.nativeEvent.isComposing) { e.preventDefault(); onCommit(); }
             }}
-            className={`flex-1 resize-none rounded-sm border border-orange-500/40 bg-neutral-900 px-1.5 py-1 text-[11.5px] leading-snug text-neutral-200 ${tokens.focusRing}`}
+            className={`flex-1 resize-none rounded-sm border border-orange-500/40 bg-neutral-900 px-1.5 py-1 text-[12px] leading-snug text-neutral-200 ${tokens.focusRing}`}
           />
         ) : (
           <button
             type="button"
             onClick={onToggle}
             title={expanded ? 'Recolher' : 'Ver completo'}
-            className={`flex-1 rounded-sm text-left text-[11.5px] leading-snug ${tokens.focusRing} ${text ? 'text-neutral-300' : 'italic text-neutral-500'} ${expanded ? 'whitespace-pre-wrap wrap-break-word' : 'truncate'}`}
+            className={`flex-1 rounded-sm text-left text-[12px] leading-snug ${tokens.focusRing} ${text ? 'text-neutral-300' : 'italic text-neutral-500'} ${expanded ? 'whitespace-pre-wrap wrap-break-word' : 'truncate'}`}
           >
             {text || (atts > 0 ? 'anexo sem texto' : '')}
           </button>

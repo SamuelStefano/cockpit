@@ -28,7 +28,7 @@ export function ToggleChip({ on, icon, tone = 'accent', children, className = ''
   return (
     <button
       type="button"
-      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition sm:px-2 sm:py-1 ${ring[tone]}
+      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[12px] font-medium transition sm:px-2 sm:py-1 ${ring[tone]}
         ${on ? onTone[tone] : 'border-neutral-800 bg-neutral-950 text-neutral-500 hover:text-neutral-300'} ${className}`}
       {...rest}
     >

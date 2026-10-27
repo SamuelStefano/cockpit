@@ -99,14 +99,14 @@ export function CardEditor({
         <textarea
           value={card.prompt} onChange={(e) => patch({ prompt: e.target.value })} rows={6}
           placeholder={content ? 'briefing: público, ângulo, o que destacar' : 'o que o agente deve fazer'}
-          className="w-full resize-y rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-[12.5px] text-neutral-100 placeholder:text-neutral-600 focus:border-orange-500/50 focus:outline-hidden"
+          className="w-full resize-y rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-[13px] text-neutral-100 placeholder:text-neutral-600 focus:border-orange-500/50 focus:outline-hidden"
         />
         <div>
-          <div className="mb-1 text-[10.5px] font-medium uppercase tracking-wide text-neutral-500">Contextos e sessões que o agente recebe</div>
+          <div className="mb-1 text-[12px] font-medium uppercase tracking-wide text-neutral-500">Contextos e sessões que o agente recebe</div>
           <div className="flex flex-wrap gap-1">
             <Chips ids={card.contextIds} prefix="c" node={node} onRemove={(id) => patch({ contextIds: card.contextIds.filter((x) => x !== id) })} />
             <Chips ids={card.sessionIds} prefix="s" node={node} onRemove={(id) => patch({ sessionIds: card.sessionIds.filter((x) => x !== id) })} />
-            {!card.contextIds.length && !card.sessionIds.length && <span className="text-[11px] text-neutral-600">nenhum — selecione nós no canvas antes de criar o card</span>}
+            {!card.contextIds.length && !card.sessionIds.length && <span className="text-[12px] text-neutral-600">nenhum — selecione nós no canvas antes de criar o card</span>}
           </div>
         </div>
         <CardReusePicker reuse={card.reuse} candidates={candidates} onClear={() => patch({ reuse: undefined })} onPick={pickReuse} />

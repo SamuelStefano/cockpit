@@ -79,8 +79,8 @@ export const CanvasNodeCard = memo(function CanvasNodeCard({ node: n, pos, selec
       )}
       {!compact && (
         <div className="px-2.5 py-1.5">
-          <p className="line-clamp-2 text-[11px] leading-snug text-neutral-400">{n.subtitle || '—'}</p>
-          <div className="mt-1 flex items-center gap-1.5 font-mono text-[9.5px] text-neutral-600">
+          <p className="line-clamp-2 text-[12px] leading-snug text-neutral-400">{n.subtitle || '—'}</p>
+          <div className="mt-1 flex items-center gap-1.5 font-mono text-[12px] text-neutral-600">
             <span>{n.kind === 'session' ? 'sessão' : n.kind === 'context' ? (n.hub ? 'hub' : 'contexto') : 'card'}</span>
             <span>·</span>
             <span>{relPast(n.mtime)}</span>

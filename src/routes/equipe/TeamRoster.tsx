@@ -29,7 +29,7 @@ export function TeamRoster({ views, loaded, selectedId, onSelect, onNew, paused,
           <Button variant="ghost" size="sm" icon="plus" square aria-label="Novo bot" title="Novo bot" onClick={onNew} />
         </div>
       </div>
-      {paused && <p className="px-3 pb-2 text-[12px] text-yellow-400/90">Equipe pausada: mensagens entre bots ficam bloqueadas.</p>}
+      {paused && <p className="px-3 pb-2 text-[13px] text-yellow-400/90">Equipe pausada: mensagens entre bots ficam bloqueadas.</p>}
       {!loaded ? (
         <div className="p-3"><SkeletonCards /></div>
       ) : views.length === 0 ? (

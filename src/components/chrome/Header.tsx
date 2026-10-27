@@ -73,7 +73,7 @@ export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette
             <button
               key={n.to}
               onClick={() => nav(n.to)}
-              className={`rounded-md px-2.5 py-1 font-mono text-[11.5px] lowercase tracking-tight transition focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40
+              className={`rounded-md px-2.5 py-1 font-mono text-[12px] lowercase tracking-tight transition focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-500/40
                 ${route === n.to ? 'bg-orange-500/15 text-orange-300' : 'text-neutral-500 hover:text-neutral-300'}`}
             >
               {n.label}
@@ -94,7 +94,7 @@ export function Header({ conn, isMobile, onMenu, menuOpen, route, nav, onPalette
           className={`flex shrink-0 items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/60 py-1.5 text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-300 ${isMobile ? 'px-2' : 'px-2.5'} ${tokens.touchTarget}`}
         >
           <Icon name="search" size={14} />
-          {!isMobile && <kbd className="font-mono text-[10px] text-neutral-600">{comboLabel(['⌘', 'K'])}</kbd>}
+          {!isMobile && <kbd className="font-mono text-[12px] text-neutral-600">{comboLabel(['⌘', 'K'])}</kbd>}
         </button>
         <div className={`hidden shrink-0 items-center rounded-lg border border-neutral-800 bg-neutral-900/60 py-1 sm:flex ${isMobile ? 'px-2' : 'px-2.5'}`}>
           <ConnDot label="ws" state={conn.ws} compact={isMobile} />

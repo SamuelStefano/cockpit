@@ -11,7 +11,7 @@ interface BrandMarkProps {
 }
 
 const titleSize = { md: 'text-[15px]', lg: 'text-[17px]' } as const;
-const subtitleSize = { md: 'text-[11px]', lg: 'text-[12px]' } as const;
+const subtitleSize = { md: 'text-[12px]', lg: 'text-[13px]' } as const;
 
 // Bit + wordmark das telas de entrada (login por token, login Supabase,
 // pareamento da VPS, painel de intro). Os quatro repetiam o mesmo bloco letra por

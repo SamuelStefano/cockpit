@@ -16,7 +16,7 @@ export function McpAppFrame({ tool }: { tool: ToolCall }) {
       <div className="overflow-hidden rounded-md border border-neutral-800 bg-[#0c0c0c]">
         <div className="flex items-center gap-1.5 border-b border-neutral-800 px-2.5 py-1.5">
           <Icon name="sparkles" size={12} className="shrink-0 text-orange-400" />
-          <span className="truncate font-mono text-[11px] text-neutral-500">{tool.app.uri}</span>
+          <span className="truncate font-mono text-[12px] text-neutral-500">{tool.app.uri}</span>
           <button
             onClick={() => setOpen((o) => !o)}
             title={open ? 'Ocultar o app' : 'Mostrar o app'}

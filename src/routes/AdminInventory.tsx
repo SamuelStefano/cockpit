@@ -7,7 +7,7 @@ export function AdminInventory({ health }: { health: AdminHealth }) {
   return (
     <>
       <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
-        <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-neutral-400">Vínculos</h2>
+        <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wide text-neutral-400">Vínculos</h2>
         <ul className="space-y-2 text-[13px]">
           <li className="flex items-center justify-between">
             <span className="flex items-center gap-2 text-neutral-300"><Dot on={health.claudeAuth} /> Conta Claude (CLI)</span>

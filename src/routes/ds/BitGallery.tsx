@@ -10,7 +10,7 @@ export function BitGallery() {
         {BIT_STATES.map((state) => (
           <div key={state} data-bit-state={state} className="flex flex-col items-center gap-1">
             <Bit state={state} size={88} />
-            <span className="text-[10.5px] text-neutral-600">{BIT_STATE_LABEL[state]}</span>
+            <span className="text-[12px] text-neutral-600">{BIT_STATE_LABEL[state]}</span>
           </div>
         ))}
       </Row>

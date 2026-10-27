@@ -24,7 +24,7 @@ export function Badge({ children, tone = 'neutral', className = '', dot = false,
     yellow: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
     purple: 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30',
   };
-  const cls = `inline-flex items-center gap-1 rounded-full border px-1.5 py-px text-[10px] font-medium leading-none ${tones[tone]} ${className}`;
+  const cls = `inline-flex items-center gap-1 rounded-full border px-1.5 py-px text-[12px] font-medium leading-none ${tones[tone]} ${className}`;
   const body = <>{dot && <span className="h-1 w-1 rounded-full bg-current" />}{children}</>;
   if (href) {
     return (

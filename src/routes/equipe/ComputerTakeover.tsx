@@ -23,7 +23,7 @@ export function ComputerTakeover({ bot, term, onRelease }: ComputerTakeoverProps
         <Button variant="ghost" size="sm" icon="x" onClick={onRelease}>Soltar</Button>
       </header>
       <div className="min-h-0 flex-1">
-        <Suspense fallback={<div className="flex h-full items-center justify-center font-mono text-[12px] text-neutral-600">abrindo terminal…</div>}>
+        <Suspense fallback={<div className="flex h-full items-center justify-center font-mono text-[13px] text-neutral-600">abrindo terminal…</div>}>
           <XtermView id={botTermId(bot.id)} botId={bot.id} term={term} />
         </Suspense>
       </div>

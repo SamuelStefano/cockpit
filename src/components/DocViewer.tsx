@@ -103,13 +103,13 @@ export function DocViewer({
         <div className="flex min-h-0 flex-1">
           {hasOutline && !raw && (
             <nav className="scroll-thin hidden w-56 shrink-0 overscroll-contain overflow-y-auto border-r border-neutral-800/80 px-2 py-4 lg:block">
-              <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-600">Nesta página</p>
+              <p className="mb-2 px-2 text-[12px] font-semibold uppercase tracking-wider text-neutral-600">Nesta página</p>
               {outline.map((o, oi) => (
                 <button
                   key={`${o.slug}-${oi}`}
                   onClick={() => jump(o.slug)}
                   style={{ paddingLeft: 8 + (o.level - 1) * 10 }}
-                  className={`block w-full truncate rounded-md py-1 pr-2 text-left text-[12px] leading-snug transition ${tokens.focusRing}
+                  className={`block w-full truncate rounded-md py-1 pr-2 text-left text-[13px] leading-snug transition ${tokens.focusRing}
                     ${active === o.slug ? 'bg-orange-500/10 font-medium text-orange-300' : 'text-neutral-500 hover:bg-neutral-900 hover:text-neutral-300'}`}
                   title={plainHeading(o.text)}
                 >
@@ -121,7 +121,7 @@ export function DocViewer({
 
           <div ref={scrollRef} className="scroll-thin flex-1 overscroll-contain overflow-y-auto px-4 py-5 sm:px-7">
             {raw ? (
-              <pre className="whitespace-pre-wrap wrap-break-word font-mono text-[12px] leading-relaxed text-neutral-400">{rawBody ?? body}</pre>
+              <pre className="whitespace-pre-wrap wrap-break-word font-mono text-[13px] leading-relaxed text-neutral-400">{rawBody ?? body}</pre>
             ) : (
               <div className="mx-auto max-w-[74ch]">
                 <WikilinkContext.Provider value={onWikilink ?? null}>
