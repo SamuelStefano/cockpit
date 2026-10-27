@@ -6,9 +6,9 @@ import { escapeLayerOpen } from '../primitives/useEscapeLayer';
 // lá, não por este tick — ele só garante que a leitura cai enquanto alguém olha.
 export const OPEN_REFRESH_MS = 15_000;
 
-export function useUsagePanel(onRefresh?: (force?: boolean) => void) {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
+// While `open`, re-reads the number: on open (a click = "look now"), on a tick, and
+// when the tab comes back to the foreground.
+export function useOpenRefresh(open: boolean, onRefresh?: (force?: boolean) => void) {
   // Ref pra o efeito não remontar (e re-disparar o refresh) a cada render do pai.
   const refreshRef = useRef(onRefresh);
   refreshRef.current = onRefresh;
@@ -24,6 +24,12 @@ export function useUsagePanel(onRefresh?: (force?: boolean) => void) {
     document.addEventListener('visibilitychange', onVisible);
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
   }, [open]);
+}
+
+export function useUsagePanel(onRefresh?: (force?: boolean) => void) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  useOpenRefresh(open, onRefresh);
 
   useEffect(() => {
     if (!open) return;

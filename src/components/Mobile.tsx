@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, type ReactNode } from 'react';
 import { MobileDrawer } from './MobileDrawer';
 import { SessionsPanel, type SessionsPanelProps } from './Sessions';
 import { ChatPanel } from './Chat';
@@ -64,9 +64,11 @@ export interface MobileLayoutProps {
   termSheet: boolean;
   setTermSheet: (v: boolean) => void;
   runningTerm: Terminal | undefined;
+  // Shell nav shown above the sessions list inside the drawer.
+  drawerNav?: ReactNode;
 }
 
-export function MobileLayout({ sessionsProps, chatProps, termProps, drawer, setDrawer, termSheet, setTermSheet, runningTerm }: MobileLayoutProps) {
+export function MobileLayout({ sessionsProps, chatProps, termProps, drawer, setDrawer, termSheet, setTermSheet, runningTerm, drawerNav }: MobileLayoutProps) {
   // Hardware keyboard (iPad, Bluetooth phone): Esc closes these two overlays too.
   // They are escape layers so a dialog opened on top of the drawer closes first.
   useEscapeLayer(drawer, () => setDrawer(false));
@@ -80,7 +82,12 @@ export function MobileLayout({ sessionsProps, chatProps, termProps, drawer, setD
 
       {drawer && (
         <MobileDrawer onClose={() => setDrawer(false)}>
-          <SessionsPanel {...sessionsProps} onCloseMobile={() => setDrawer(false)} />
+          <div className="flex h-full min-h-0 flex-col">
+            {drawerNav}
+            <div className="min-h-0 flex-1">
+              <SessionsPanel {...sessionsProps} onCloseMobile={() => setDrawer(false)} />
+            </div>
+          </div>
         </MobileDrawer>
       )}
 

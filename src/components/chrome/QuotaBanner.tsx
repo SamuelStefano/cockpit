@@ -1,9 +1,9 @@
 import { Icon, tokens } from '../primitives';
 
-// Aviso de cota do DESKTOP, num slot da StatusBar. Era `absolute bottom-3 right-3
-// z-30` sobre o painel: com o teclado aberto no celular o viewport encolhe e a
-// pílula caía exatamente sobre a última mensagem. No mobile o aviso agora vive na
-// UsageBar do header, que já está sempre à vista.
+// Desktop quota warning, shown in the main column under the update notices. It used to be
+// `absolute bottom-3 right-3` over the panel: with the phone keyboard open the
+// viewport shrank and the pill landed on the last message. On mobile the usage
+// ring in the top bar carries the warning instead.
 export function QuotaBanner({ onClose, reset }: { onClose: () => void; reset: string }) {
   return (
     <span className="flex shrink-0 items-center gap-1.5 rounded-sm border border-yellow-500/25 bg-yellow-500/10 px-1.5 py-0.5 text-yellow-200/80">

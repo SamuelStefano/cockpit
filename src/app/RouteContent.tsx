@@ -1,4 +1,4 @@
-import { Suspense } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import { MobileLayout } from '../components/Mobile';
 import { DesktopLayout } from './DesktopLayout';
 import { RouteFallback } from './RouteFallback';
@@ -36,6 +36,7 @@ interface MobileState {
   termSheet: boolean;
   setTermSheet: (v: boolean) => void;
   runningTerm: Terminal | undefined;
+  drawerNav?: ReactNode;
 }
 
 interface RouteContentProps {
@@ -153,7 +154,7 @@ export function RouteContent({ route, isMobile, isAdmin, isRoot, connected, cock
           sessionsProps={sessionsProps} chatProps={chatProps} termProps={termProps}
           drawer={mobile.drawer} setDrawer={mobile.setDrawer}
           termSheet={mobile.termSheet} setTermSheet={mobile.setTermSheet}
-          runningTerm={mobile.runningTerm}
+          runningTerm={mobile.runningTerm} drawerNav={mobile.drawerNav}
         />
       );
     }

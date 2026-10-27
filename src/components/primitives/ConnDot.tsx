@@ -6,6 +6,9 @@ const CONN_META: Record<ConnState, { color: string; label: string }> = {
   down:         { color: 'var(--err)',  label: 'caiu' },
 };
 
+export const connStateLabel = (state: ConnState) => CONN_META[state].label;
+export const connStateColor = (state: ConnState) => CONN_META[state].color;
+
 interface ConnDotProps {
   label: string;
   state: ConnState;

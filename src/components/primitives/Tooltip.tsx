@@ -9,6 +9,8 @@ interface TooltipProps {
   side?: TooltipSide;
   delay?: number;
   disabled?: boolean;
+  // Wrapper layout; stretch it (`flex w-full`) around a full-width trigger.
+  className?: string;
 }
 
 const GAP = 8;
@@ -23,7 +25,7 @@ function bubbleStyle(r: DOMRect, side: TooltipSide): React.CSSProperties {
 // Hover/focus label. Touch never shows it (no hover, and a long-press tooltip
 // would fight the context menu), so anything essential must also be in the
 // trigger's aria-label.
-export function Tooltip({ label, children, side = 'top', delay = 350, disabled = false }: TooltipProps) {
+export function Tooltip({ label, children, side = 'top', delay = 350, disabled = false, className = 'inline-flex' }: TooltipProps) {
   const id = useId();
   const wrapRef = useRef<HTMLSpanElement>(null);
   const timer = useRef<number | undefined>(undefined);
@@ -51,7 +53,7 @@ export function Tooltip({ label, children, side = 'top', delay = 350, disabled =
   return (
     <span
       ref={wrapRef}
-      className="inline-flex"
+      className={className}
       onPointerEnter={(e) => { if (e.pointerType !== 'touch') show(false); }}
       onPointerLeave={hide}
       onPointerDown={hide}
