@@ -11,11 +11,12 @@ interface PairCommandProps {
   expired: boolean;
   countdown: string | null;
   mode: InstallMode;
+  onCopy?: () => void;
 }
 
 const mono = 'font-mono text-neutral-400';
 
-export function PairCommand({ code, cmd, busy, expired, countdown, mode }: PairCommandProps) {
+export function PairCommand({ code, cmd, busy, expired, countdown, mode, onCopy }: PairCommandProps) {
   const [copied, copy, copyFailed] = useCopied();
   const wsl = useWslGuide();
   return (
@@ -35,7 +36,7 @@ export function PairCommand({ code, cmd, busy, expired, countdown, mode }: PairC
             {expired ? 'código expirado' : `válido por ${countdown}`}
           </Badge>
         ) : <span />}
-        <Button size="md" icon={copied ? 'check' : 'copy'} disabled={expired || !code} onClick={() => copy(cmd)}>
+        <Button size="md" icon={copied ? 'check' : 'copy'} disabled={expired || !code} onClick={() => { copy(cmd); onCopy?.(); }}>
           {copied ? 'copiado ✓' : copyFailed ? 'falhou — copie à mão' : 'copiar'}
         </Button>
       </div>

@@ -139,6 +139,16 @@ A box NÃO pode travar. Camadas:
     com burst 5 ainda cabem). `DECK_SELF_UPDATE=off` desliga. **Confiança**:
     a fonte é o mesmo repositório GitHub de onde a box foi instalada (nenhuma raiz nova); nada vindo
     do relay inicia, pula ou direciona uma atualização.
+- **Saúde da máquina** (`server/box-health.ts`, julgamento puro em `shared/box-health.ts`): no
+  bootstrap de cada aba, a cada 5 min com aba aberta e sob pedido (`box-health-get`), o agente manda
+  `agent-health` (sempre por `broadcast`/`send`, ou seja, dentro do canal selado) com ok/warn/error +
+  dica de correção para: CLI do claude (path, versão e as flags que todo turno usa, checadas no
+  `--help`), login, código do agente (sha, atrás da main), self-update, Node, node-pty, disco livre e
+  aparelhos. Cada sonda tem timeout; o relatório fica em cache por 60 s. `box-smoke-test` roda um
+  prompt real (haiku, plan) pelo mesmo `run()` dos chats, com cwd em `~/.cockpit/smoke` (não vira
+  chat), e devolve o erro real mapeado para uma dica. No navegador: selo por máquina no seletor,
+  painel "Saúde da máquina", toast quando um item vira erro e checklist de pareamento
+  (`src/cockpit/setup-watch.ts`) que vai de "aguardando a máquina" até "prompt de teste respondeu".
 - **Relay (`relay/src/index.ts`)**: heartbeat ping/pong nos dois servidores (browser+agent),
   timeout de socket pré-auth (agente 15s, browser 20s) e cap de tentativas — defesa contra exaustão.
   - **Falha do store nega, não derruba.** Todo caminho de auth encosta na rede (JWKS +

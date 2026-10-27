@@ -19,6 +19,8 @@ const STUDENT_ALLOWED: ReadonlySet<ClientMsg['t']> = new Set([
   'send', 'stop', 'ping', 'list', 'sync', 'open', 'open-full', 'search',
   'ctx-list', 'ctx-open', 'skill-list', 'skill-open', 'usage-list', 'upload-chunk', 'att-open',
   'refresh-models', 'plan-usage-get', 'grok-usage-get',
+  // Read-only report about the box, and one cheap prompt through the same path as 'send'.
+  'box-health-get', 'box-smoke-test',
   // Logs in the box's own CLI with a code only the human holds: no privilege gained.
   'claude-login-start', 'claude-login-code', 'claude-login-cancel',
   // Read-only `claude mcp list`. Adding (dfl-mcps-add) writes the box's

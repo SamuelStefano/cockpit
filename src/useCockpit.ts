@@ -7,6 +7,7 @@ import { persistableModelOverrides } from './cockpit/model-overrides';
 import { SUPABASE_ENABLED, supabase } from './lib/supabase';
 import { SealedSocket } from './cockpit/sealed-socket';
 import { boxStore } from './cockpit/boxes-store';
+import { boxHealthStore } from './cockpit/box-health-store';
 import { onAuthClose, tokenUnchangedAndLive, RELAY_AUTH_RETRY_MS, shouldRefreshSession, dialOnTokenChange } from './cockpit/ws-auth';
 import { TOKEN_EXPIRED_CLOSE, TOKEN_EXPIRED_EVENT } from './lib/auth-events';
 import { requestNotifyPermission, notifyTurnDone, notifyTurnError } from './lib/notify';
@@ -778,6 +779,8 @@ export function useCockpit(): Cockpit {
         return;
       }
       case 'claude-auth': { setClaudeReady(msg.ready); return; }
+      case 'agent-health': { boxHealthStore.applyHealth(msg.health); return; }
+      case 'box-smoke': { boxHealthStore.applySmoke(msg as unknown as Record<string, unknown>); return; }
       case 'claude-login': { setClaudeLogin({ state: msg.state, url: msg.url, error: msg.error }); return; }
       case 'agent-online': { setAgentOnline(true); return; }
       case 'agent-offline': { setAgentOnline(false); return; }

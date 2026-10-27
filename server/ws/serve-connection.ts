@@ -15,6 +15,7 @@ import { handleTerm, type TermHandle } from './terminal-handler';
 import { createRateLimiter } from './guard';
 import { sendDurableSnapshot } from './snapshot';
 import { authorize } from './authz';
+import { boxHealth, healthFrame } from '../box-health';
 
 // Ciclo de vida de UMA conexão WS, independente do transporte. No modo listen
 // (app de hoje) o attachWs chama isto por socket aceito; no modo dial (agente T3)
@@ -47,6 +48,7 @@ export function serveConnection(ws: WebSocket, opts: { role: Role; root?: boolea
   // second replay loop here: that one sent the same frames again on each connect.
   sendDurableSnapshot(ws);
   collect().then((stats) => send(ws, { t: 'stats', stats })).catch(() => {});
+  boxHealth.get().then((h) => send(ws, healthFrame(h))).catch(() => {});
 
   // terminais anexados por ESTA conexão — pra desanexar no disconnect.
   const myTerms = new Map<string, TermHandle>();

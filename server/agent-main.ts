@@ -40,6 +40,7 @@ import { SealedHub, loadE2eKeys, tofuWindow, type AgentKeys } from './e2e/hub';
 import { deviceFrameHandler } from './e2e/manage';
 import { createEnrollCode, listDevices, revokeDevice, storePreauth } from './e2e/devices';
 import { startSelfUpdate } from './self-update';
+import { startHealthLoop } from './box-health';
 import { agentDir, bootConfirmer, CONFIRM_UPTIME_MS, realFs } from './self-update-boot';
 
 // Entrypoint do AGENTE T3 (DR-023): em vez de escutar (attachWs), DISCA pro relay
@@ -384,6 +385,7 @@ export function runAgent(relayUrl: string): void {
   startPlanUsageLoop(hasClients, () => threads.size > 0);
   startGrokUsageLoop(hasClients, () => threads.size > 0);
   startModelsLoop(hasClients);
+  startHealthLoop(hasClients, broadcast);
   startAuthKeepAlive();
   startSessionsWatch(hasClients);
   startPointsWatch(hasClients);
