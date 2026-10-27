@@ -87,6 +87,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
         beforeGrow={c.captureAnchor}
         setFullLoaded={c.setFullLoaded} onTerminal={onTerminal} terminalRunning={terminalRunning} onRename={onRename}
         keyboardOpen={keyboardOpen} selectedModel={model}
+        agent={botDecor && { name: botDecor.name, avatar: botDecor.avatar, ...botDecor.header }}
       />
 
       {!claudeReady && !isAgentModel(model) && (agents

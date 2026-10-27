@@ -6,18 +6,17 @@ import { botDraftKey } from '../../../shared/team';
 export type UsageAgent = 'claude' | 'grok';
 
 interface UsageAgentCtx {
-  route?: string;
   activeId?: string;
   bots?: TeamBot[];
 }
 
 // Which account the header chip shows: the one the agent on screen spends. In
-// the Equipe the bot's own model decides — the composer model there is whatever
-// the last thread pinned, not who answers this thread. Only Grok has its own
+// an agent's thread the bot's own model decides — the composer model there is
+// whatever the last thread pinned, not who answers this thread. Only Grok has its own
 // meter; every other agent (and every Claude model) stays on the Claude plan.
 export function usageAgentOf(model: string | undefined, ctx: UsageAgentCtx = {}): UsageAgent {
   let m = model;
-  if (ctx.route === '/equipe' && ctx.activeId) {
+  if (ctx.activeId) {
     const bot = ctx.bots?.find((b) => (b.sessionId ?? botDraftKey(b.id)) === ctx.activeId);
     if (bot) m = bot.model;
   }

@@ -2,14 +2,17 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, cleanup, fireEvent } from '@testing-library/react';
 import type { BotComputer as BotComputerData, TeamBot } from '../../../shared/protocol';
-import type { ChatPanelProps } from '../../components/chat/chat-panel-props';
+import type { ChatBotDecor, ChatPanelProps } from '../../components/chat/chat-panel-props';
 import type { TermApi } from '../../cockpit/useTerminals';
 import type { BotComputerApi } from './equipe-props';
 import { BotComputerProvider } from './computer-context';
 import { BotThread } from './BotThread';
 import type { BotView } from './team-view';
 
-vi.mock('../../components/Chat', () => ({ ChatPanel: () => <div>chat</div> }));
+// The header lives in the ChatPanel now: the stub renders what BotThread hands it.
+vi.mock('../../components/Chat', () => ({
+  ChatPanel: ({ botDecor }: { botDecor?: ChatBotDecor }) => <div><span>chat</span>{botDecor?.header?.actions}</div>,
+}));
 vi.mock('../../components/Xterm', () => ({
   XtermView: ({ id, botId }: { id: string; botId?: string }) => <div data-testid="xterm">{id}:{botId}</div>,
 }));

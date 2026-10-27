@@ -8,6 +8,9 @@ import type { Session, Message } from '../../data/types';
 import { ranOnOtherModel } from '../../cockpit/session-model';
 import { turnStatParts } from './toolbar-format';
 import type { TurnStats } from '../../../shared/protocol';
+import type { ChatAgentHeader } from './chat-panel-props';
+
+export type ChatHeaderAgent = ChatAgentHeader & { name: string };
 
 interface ChatHeaderProps {
   session: Session | null;
@@ -30,11 +33,13 @@ interface ChatHeaderProps {
   onRename?: (id: string, title: string) => void;
   keyboardOpen?: boolean;
   selectedModel?: string;
+  // An agent's thread: its mascot and name stand in for the editable session title.
+  agent?: ChatHeaderAgent;
 }
 
-export function ChatHeader({ session, messages, isEmpty, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, onRename, keyboardOpen = false, selectedModel }: ChatHeaderProps) {
+export function ChatHeader({ session, messages, isEmpty, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, onRename, keyboardOpen = false, selectedModel, agent }: ChatHeaderProps) {
   const menu = useHeaderMenu();
-  const title = session ? session.title : 'Nova sessão';
+  const title = agent?.name ?? (session ? session.title : 'Nova sessão');
   if (keyboardOpen) return <ChatHeaderCompact title={title} onTerminal={onTerminal} terminalRunning={terminalRunning} />;
 
   const saved = !!session && !session.id.startsWith('new-');
@@ -43,12 +48,21 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
     ? { sessionId: session.id, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow }
     : null;
   const canExport = !isEmpty;
-  const hasMenu = !!turnStatParts(lastTurn) || !!ranOn || !!history || canExport;
+  const profile = agent?.onProfile ? { open: !!agent.profileOpen, toggle: agent.onProfile } : null;
+  const hasMenu = !!turnStatParts(lastTurn) || !!ranOn || !!history || canExport || !!profile;
 
   return (
     <div className="flex h-11 shrink-0 items-center gap-2 border-b border-neutral-800 px-4">
-      <EditableTitle id={session?.id} title={title} editable={saved} onRename={onRename} />
+      {agent ? (
+        <span className="flex min-w-0 items-center gap-2">
+          {agent.avatar}
+          <span className="truncate text-[14px] font-medium text-neutral-100">{agent.name}</span>
+        </span>
+      ) : (
+        <EditableTitle id={session?.id} title={title} editable={saved} onRename={onRename} />
+      )}
       <div className="ml-auto flex shrink-0 items-center gap-2 pointer-coarse:gap-3">
+        {agent?.actions}
         <ContextRing tokens={contextTokens} model={contextModel} onNew={onNew} />
         {onTerminal && (
           <span className="relative inline-flex">
@@ -64,7 +78,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
             content={
               <ChatHeaderMenu
                 title={session?.title || 'sessao'} messages={messages} lastTurn={lastTurn} ranOn={ranOn}
-                selectedModel={selectedModel} history={history} canExport={canExport} onDone={menu.close}
+                selectedModel={selectedModel} history={history} canExport={canExport} profile={profile} onDone={menu.close}
               />
             }
           >

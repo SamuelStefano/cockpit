@@ -18,6 +18,15 @@ export interface ChatBotDecor {
   empty: ReactNode;
   hideMessage: (m: Message) => boolean;
   extras: TimedExtra<ReactNode>[];
+  header?: ChatAgentHeader;
+}
+
+// What the one-line header shows for an agent's thread instead of the session title.
+export interface ChatAgentHeader {
+  avatar: ReactNode;
+  actions?: ReactNode;
+  onProfile?: () => void;
+  profileOpen?: boolean;
 }
 
 export interface ChatPanelProps {

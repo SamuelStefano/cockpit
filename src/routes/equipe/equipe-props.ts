@@ -1,10 +1,9 @@
-import type { BotFile, Cron, ModelInfo, TeamBot, TeamBotInput, TeamPendingQuestion } from '../../../shared/protocol';
+import type { BotFile, Cron, ModelInfo, TeamBot, TeamBotInput } from '../../../shared/protocol';
 import type { BotFileData } from '../../cockpit/useBotFiles';
 import type { BotComputerState } from '../../cockpit/useBotComputer';
 import type { TermApi } from '../../cockpit/useTerminals';
 import type { ChatPanelProps } from '../../components/chat/chat-panel-props';
-import type { Session } from '../../data/types';
-import type { Phase } from '../../components/chat/useChatPanel';
+import type { BotView } from './team-view';
 import type { TeamMessage } from '../../../shared/team-messages';
 import type { TeamMessagesQuery } from '../../cockpit/useTeam';
 
@@ -35,28 +34,23 @@ export interface BotComputerApi {
   onBotComputerGet: (botId: string) => void;
 }
 
+// The agent surface: an agent's thread in the chat's center, its profile beside it.
 export interface EquipeProps extends CronApi, TeamTrafficApi, BotFilesApi, BotComputerApi {
+  view: BotView;
   term: TermApi;
-  pendingQuestions: TeamPendingQuestion[];
   connected: boolean;
   isMobile: boolean;
   // Non-admin: every bot is locked (the server coerces it anyway), so the form hides profile and mode.
   isAdmin: boolean;
   bots: TeamBot[];
-  teamLoaded: boolean;
-  onTeamGet: () => void;
+  models: ModelInfo[];
   onTeamSave: (bot: TeamBotInput) => void;
   onTeamDelete: (id: string) => void;
-  onOpenBot: (botId: string, sessionId: string | undefined, title: string) => void;
-  sessions: Session[];
-  running: Set<string>;
-  activeId: string;
-  phase: Phase;
-  interrupted: Record<string, string>;
-  runStart: Record<string, number>;
-  models: ModelInfo[];
   chatProps: ChatPanelProps;
+  profileOpen: boolean;
+  onToggleProfile: () => void;
+  onCloseProfile: () => void;
+  onEdit: () => void;
 }
 
-export type EquipePane = 'roster' | 'thread' | 'profile';
 export type BotFormTarget = { mode: 'new' } | { mode: 'edit'; bot: TeamBot } | null;

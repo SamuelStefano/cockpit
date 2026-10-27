@@ -48,8 +48,10 @@ describe('Sidebar', () => {
   it('navigates through primary rows and keeps the rest under "Mais"', () => {
     const p = setup({ role: 'root' });
     expect(screen.queryByRole('button', { name: 'crons' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'equipe' }));
-    expect(p.nav).toHaveBeenCalledWith('/equipe');
+    expect(screen.queryByRole('button', { name: 'chat' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'equipe' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'skills' }));
+    expect(p.nav).toHaveBeenCalledWith('/skills');
     fireEvent.click(screen.getByRole('button', { name: 'Mais' }));
     fireEvent.click(screen.getByRole('button', { name: 'pontos' }));
     expect(p.nav).toHaveBeenCalledWith('/pontos');
@@ -59,7 +61,6 @@ describe('Sidebar', () => {
     setup({ role: 'student' });
     expect(screen.queryByRole('button', { name: 'Mais' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'skills' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'equipe' })).toBeTruthy();
   });
 
   it('hides root-only routes from an admin', () => {
@@ -79,17 +80,26 @@ describe('Sidebar', () => {
     expect(screen.queryByRole('dialog', { name: 'Mais rotas' })).toBeNull();
   });
 
-  it('shows the pending count as a badge, and as a dot in the rail', () => {
-    setup({ navCounts: { '/equipe': 3 } });
-    expect(screen.getByTitle('3 esperando você').textContent).toBe('3');
-    fireEvent.click(screen.getByRole('button', { name: 'Recolher barra lateral' }));
-    expect(screen.getByRole('img', { name: '3 esperando você' })).toBeTruthy();
+  it('marks the current route', () => {
+    setup({ route: '/skills' });
+    expect(screen.getByRole('button', { name: 'skills' }).getAttribute('aria-current')).toBe('page');
   });
 
-  it('marks the current route', () => {
-    setup({ route: '/equipe' });
-    expect(screen.getByRole('button', { name: 'equipe' }).getAttribute('aria-current')).toBe('page');
-    expect(screen.getByRole('button', { name: 'chat' }).getAttribute('aria-current')).toBeNull();
+  it('embeds the conversations list only while expanded', () => {
+    setup({ sessions: <div>lista de conversas</div> });
+    expect(screen.getByText('lista de conversas')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Recolher barra lateral' }));
+    expect(screen.queryByText('lista de conversas')).toBeNull();
+  });
+
+  it('shows the agents section in both modes', () => {
+    const onOpen = vi.fn();
+    const views = ['ana01', 'bia02'].map((id) => ({ bot: { id, name: id.toUpperCase(), mascot: { shape: 'drop', color: '#fff' } }, key: id, preview: '', unread: false, state: 'idle' })) as never;
+    setup({ agents: { views, activeId: null, onOpen, onNew: vi.fn() } });
+    fireEvent.click(screen.getByRole('button', { name: 'BIA02' }));
+    expect(onOpen).toHaveBeenCalledWith('bia02');
+    fireEvent.click(screen.getByRole('button', { name: 'Recolher barra lateral' }));
+    expect(screen.getByRole('button', { name: 'ANA01' })).toBeTruthy();
   });
 
   it('shows the usage reading in the ring button name, not as visible text', () => {
