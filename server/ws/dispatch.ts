@@ -25,10 +25,13 @@ import { fireCron, type CronFire } from './runs';
 import { getTeam, saveBot, deleteBot } from '../team';
 import { getMemories, saveMemory, deleteMemory, validateMemoryInput, readMemoriesSafe } from '../memories';
 import { botTurnFor, botDenyRules } from '../team-prompt';
+import { agentBuilderTurn } from '../engine/triage';
+import { cleanBuildRequest } from './agent-build';
 import { sendTeamMessages, sendTeamPaused, setTeamPause } from './team-frames';
 import { clearBotQuestion, sendTeamPending } from './team-pending-frames';
 import { sendBotComputer, sendBotFile, sendBotFiles } from './team-files-frames';
 import { validateBotInput } from '../../shared/team';
+import { builderPrompt, builderSystemPrompt } from '../../shared/agent-builder';
 import { queueReleaseAt } from './ctx-guard';
 import { diffVersions, restoreVersion, versionsFor } from '../versions/service';
 import { listSkills, readSkill, resolveSkillDeny, installSkill } from '../skills';
@@ -141,6 +144,7 @@ const NOW_RUN_MESSAGE: Record<NowRunReject, string> = {
 
 // Cards with a dfl-task-create-link between its checks and its board write.
 const dflCreatesInFlight = new Set<string>();
+const buildInFlight = new WeakSet<WebSocket>();
 
 export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
   switch (msg.t) {
@@ -868,6 +872,17 @@ export async function handle(ws: WebSocket, msg: ClientMsg, role?: Role) {
       const r = await saveBot(coerceBotForRole(v.bot, role));
       if (!r.ok) { send(ws, { t: 'error', message: r.error }); return; }
       broadcast({ t: 'team', bots: r.bots });
+      return;
+    }
+    case 'agent-build': {
+      const req = cleanBuildRequest(msg);
+      if (!req) { send(ws, { t: 'agent-build-result', reqId: typeof msg.reqId === 'string' ? msg.reqId.slice(0, 64) : '', ok: false, error: 'pedido inválido' }); return; }
+      if (buildInFlight.has(ws)) { send(ws, { t: 'agent-build-result', reqId: req.reqId, ok: false, error: 'espere a resposta anterior' }); return; }
+      buildInFlight.add(ws);
+      try {
+        const text = await agentBuilderTurn(builderSystemPrompt(await listSkills(), req.draft), builderPrompt(req.history), `agent-build-${req.reqId}`);
+        send(ws, text ? { t: 'agent-build-result', reqId: req.reqId, ok: true, text } : { t: 'agent-build-result', reqId: req.reqId, ok: false, error: 'não consegui responder agora, tente de novo' });
+      } finally { buildInFlight.delete(ws); }
       return;
     }
     case 'team-delete': {

@@ -814,6 +814,7 @@ export type ClientMsg =
   | { t: 'team-get' }
   | { t: 'team-save'; bot: TeamBotInput }
   | { t: 'team-delete'; id: string }
+  | { t: 'agent-build'; reqId: string; history: { role: 'user' | 'assistant'; text: string }[]; draft: { name: string; label: string; instructions: string; skills: string[] } }
   | { t: 'team-messages-get'; botId?: string; peer?: string; before?: number }
   | { t: 'team-pause-set'; paused: boolean }
   | { t: 'team-files-get'; botId: string }
@@ -1060,6 +1061,7 @@ export type ServerMsg =
   // Veredito da triagem de um prompt enviado com o turno ocupado. msgId casa a
   // bolha do usuário p/ anexar o selo; quick-answer chega à parte quando answer.
   | { t: 'triage'; sessionKey: string; msgId?: string; action: TriageAction; reason: string }
+  | { t: 'agent-build-result'; reqId: string; ok: boolean; text?: string; error?: string }
   | { t: 'quick-answer'; sessionKey: string; id: string; text: string; ts: number }
   // model = modelo PEDIDO no turno (alias/id); carimba a bolha na hora pra o label
   // não cair no seletor vivo e mudar retroativamente ao trocar de modelo. O 'done'
