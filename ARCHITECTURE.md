@@ -185,24 +185,46 @@ scripts/doctor.sh    watchdog do host (cron)
     saída PRF (sal fixo `deck-e2e-device-v1`) vira por HKDF a chave Ed25519 do aparelho (importada
     não-extraível) e um `pinRoot` (chave HKDF não-extraível). Todo navegador onde a passkey
     sincroniza deriva a mesma chave: a box confia uma vez. Sem PRF, segue a chave aleatória de sempre.
-    Navegador já cadastrado com a chave aleatória não troca de chave (perderia os pins).
-  - **Pin do agente sem TOFU**: o navegador entrega à box, dentro do canal selado e só num socket
+    Navegador já cadastrado com a chave aleatória **migra sem comando**: ao destravar a passkey, ele
+    manda dentro do canal selado `device-add-passkey {pub, label, box, key}` (mesma checagem de box
+    do `device-pin`) e a box passa a confiar na chave passkey com o pin key dela, numa escrita só.
+    Box por box: cada uma que o navegador fixou com a chave aleatória recebe a chave passkey quando
+    o canal com ela abre (`passkey-boxes` no IndexedDB diz com qual chave discar cada box). O Deck
+    oferece a passkey sozinho num aviso dentro do app enquanto não houver uma ativa.
+  - **Pin do agente por prova**: o navegador entrega à box, dentro do canal selado e só num socket
     preso à box (`?box=`), `boxPinKey = HKDF(pinRoot, "box-pin" ‖ boxId)`, guardada em
     `devices.json` junto do aparelho (revogar apaga). No handshake a box manda
     `pin = HMAC(boxPinKey, PROTO ‖ "agent-pin" ‖ agentPub ‖ devicePub ‖ boxId)`; um navegador
     sem pin para aquela box só aceita a chave do agente se a prova bater para o `boxId` que ele
     discou. Chave por box: uma box comprometida não responde por outra. Navegador com pin ignora prova.
+    O `device-pin` só sai para a box do socket e só se o slot dela guarda exatamente a chave do agente
+    deste canal. Lista ocupada na box responde `device-pinned ok:false` sem derrubar o canal.
+  - **Nenhum caminho troca um pin existente**: pré-autorização, prova, TOFU e código de cadastro só
+    preenchem slot vazio. A única troca é o código digitado na tela que avisou "a chave mudou"
+    (agente reinstalado).
   - **Pré-autorização no pareamento**: o comando de setup leva `DECK_DEVICE_CODE` (fingerprint da
-    chave passkey + segredo de 128 bits, só por env); `--pair` guarda (10 min, uso único, mesmas
-    travas dos códigos). No primeiro contato o navegador manda `e2e-preauth` (HMAC do segredo) e a
-    box devolve a chave do agente com HMAC: nenhum comando extra na VPS.
+    chave passkey + segredo de 128 bits, só por env); `--pair` guarda (10 min, mesmas travas dos
+    códigos). O navegador manda `e2e-preauth` só de um socket preso a uma box cujo slot está vazio,
+    nunca em reação a um `e2e-unknown-device` (que o relay pode forjar). Pedido e resposta levam o
+    `boxId`: uma box para onde o relay desviou a discagem recusa sem queimar nada, e o grant dela não
+    confere. Resgate idempotente: o mesmo aparelho pode resgatar de novo até expirar (o grant pode
+    se perder no caminho); outro aparelho não; aparelho revogado não volta. Falha ou silêncio não é
+    pegajoso: o navegador tenta de novo enquanto houver segredo pendente. O segredo pendente fica em
+    `sessionStorage` (só esta aba), um por código de pareamento, por no máximo 10 min.
+  - **TOFU na box sem aparelho** (`server/e2e/hub.ts`): com `devices.json` vazio ou ausente, o agente
+    aceita o PRIMEIRO hello (qualquer chave), marca `tofu: true` no `e2e-accept` e grava o aparelho
+    no confirm, sob a trava da lista. Uso único (o primeiro gravado fecha a janela, mesmo que a lista
+    esvazie depois, até o agente reiniciar), só nos 30 min depois do start do processo, log alto na
+    box (`[agent] e2e: first device trusted on first use (<fp>…)`), desligado com `DECK_E2E_TOFU=off`.
+    O navegador só aceita `tofu: true` se não tem pin para aquela box e o socket está preso a ela.
   - **Handshake por aba**: X25519 efêmero dos dois lados, transcript assinado pelos dois (papéis
     separados), HKDF → AES-256-GCM com chave por direção. Sequência estritamente crescente: o relay
     pode descartar frame (backpressure), nunca reordenar nem repetir. Frame adulterado derruba o canal.
   - **Agente**: por padrão (`DECK_E2E` ≠ `off`) só serve canais selados; frame em claro do relay é
     descartado. `DECK_E2E=off` volta ao modo antigo e existe só pra recuperar uma box sem aparelho.
   - **Navegador**: só abre o app depois do canal; do relay em claro aceita só `agent-online`,
-    `agent-offline` e `accounts`. Chave de agente não fixada no cadastro = tela de cadastro, nunca retry.
+    `agent-offline` e `accounts`. Chave de agente diferente da fixada = tela "a chave mudou", nunca
+    retry. Sem pin e sem prova (nada contra o que checar) = tela de cadastro, que segue tentando.
   - **Relay**: dá um id aleatório por aba, carimba no frame do navegador (último `"c"` vence) e
     entrega a resposta do agente só àquela aba, da mesma conta, sem o id.
   - **Só frame descartável pode sumir**: cada frame leva, cifrado, se é crítico e a sequência do último
@@ -210,7 +232,8 @@ scripts/doctor.sh    watchdog do host (cron)
     ou uma negação quebra a cadeia e o canal.
   - **Chave própria**: o canal usa `~/.deck-agent/e2e-key.json`, não a chave que responde ao desafio
     de login do relay (o relay escolhe o desafio; a mesma chave viraria oráculo de assinatura).
-  - Gestão: `--devices`, `--revoke-device=<prefixo>`; dentro do canal, `devices-list`/`device-revoke`.
+  - Gestão: `--devices`, `--revoke-device=<prefixo>`; dentro do canal, `devices-list`/`device-revoke`
+    (lista no menu de perfil: nome, desde, visto por último, "este aparelho", revogar).
     O agente varre os canais a cada 10 s: aparelho revogado (até pela CLI) cai na hora, e todo canal
     se refaz em no máximo 12 h.
   - **Frames de dono (`shared/root-frames.ts`)**: o relay não vê mais o tipo do frame selado, então o
@@ -219,6 +242,24 @@ scripts/doctor.sh    watchdog do host (cron)
   - **O que NÃO cobre**: quem controla o JS servido pela Vercel controla a ponta do navegador (CSP
     estrita reduz XSS, mas o deploy é raiz de confiança); o relay ainda vê metadados (tamanho, horário,
     conta) e pode derrubar a conexão.
+    - **XSS e passkey**: o WebAuthn devolve a saída PRF ao JS, e o HKDF entrega a semente Ed25519 ao
+      JS, então por um instante, no destravar, a semente (o `d` da chave) está na memória da página.
+      O `exportKey('jwk')` que lê a chave pública dela não aumenta essa exposição (um Ed25519 em JS
+      puro guardaria os mesmos bytes), e só a chave não-extraível fica guardada. Um XSS presente
+      nesse instante leva a chave do aparelho de todo navegador da passkey, para sempre.
+    - **XSS e `pinRoot`**: mesmo não-extraível, um XSS a qualquer hora deriva `boxPinKey` de qualquer
+      box (persistente e válido em todo navegador da passkey). Revogar = revogar o aparelho passkey em
+      **cada** box (menu de perfil ou `--revoke-device`) e criar uma passkey nova.
+    - **Segredo pendente do pareamento**: legível por XSS na aba durante os 10 min.
+    - **Janela TOFU**: nos 30 min depois do start de um agente sem aparelho, quem disca primeiro vira
+      dono, e isso inclui o relay (com uma chave dele, no lugar do navegador). O log alto e a lista de
+      aparelhos mostram quem entrou; `DECK_E2E_TOFU=off` fecha a janela. Fora dela o relay não
+      cadastra aparelho. Do lado do navegador o `tofu: true` não é assinado: um navegador sem pin para
+      uma box aceita, a qualquer hora, um "agente" do relay que diga `tofu`. Esse falso agente não
+      alcança a box de verdade (ela não conhece a chave do relay como aparelho), mas o navegador fala
+      com ele até perceber; navegador com pin ou com prova da passkey recusa.
+    - **Box comprometida + relay**: com discagem desviada para uma box comprometida que se diz outra,
+      um navegador que nunca fixou a box dialada pode entregar a ela o `boxPinKey` daquela box.
 - **Co-location**: rodar o relay na MESMA box do backend é aceito só pro teste pessoal single-user.
   Antes de DFL/fellows: VPS separada pro relay + T5 ligado.
 - **Papel `student` NÃO é sandbox do LLM.** Ele limita a superfície do *Deck*: sem `term-*` (PTY
