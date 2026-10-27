@@ -9,6 +9,8 @@ export interface ComposerSettingsProps {
   mode: PermMode;
   setMode: (m: PermMode) => void;
   caps?: Caps | null;
+  bypass?: boolean;
+  setBypass?: (b: boolean) => void;
   model: string;
   effort: Effort;
   setEffort: (e: Effort) => void;
@@ -76,6 +78,11 @@ export function ComposerSettings(p: ComposerSettingsProps) {
     <section aria-label="Ajustes" className="border-t border-neutral-800 py-1">
       <div className="px-3 pb-1 pt-2 text-[11px] font-medium text-neutral-500">Modo</div>
       <div className="px-3 pb-2"><ModeToggle mode={p.mode} setMode={p.setMode} /></div>
+      {p.caps?.canBypass && p.setBypass && (
+        <button type="button" role="switch" aria-checked={!!p.bypass} aria-label="Bypass de permissões" onClick={() => p.setBypass?.(!p.bypass)} className={row}>
+          <Icon name={p.bypass ? 'shield-off' : 'shield'} size={14} className={p.bypass ? 'text-red-400' : 'text-neutral-500'} /> Pular aprovações <Track on={!!p.bypass} />
+        </button>
+      )}
       {claude && (
         <>
           <button type="button" role="switch" aria-checked={deep} aria-label="Pensar mais" onClick={() => p.setEffort(deep ? 'low' : 'high')} className={row}>

@@ -145,7 +145,7 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
       <CallDock call={call} />
 
       <ChatInput disabled={c.disabled} placeholder={botDecor && c.pendingQuestion ? BOT_ANSWER_PLACEHOLDER : undefined} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
-        caps={caps}
+        caps={caps} bypass={bypass} setBypass={setBypass}
         model={model} setModel={setModel} modelLocked={modelLocked} models={models} onRefreshModels={onRefreshModels}
         effort={effort} setEffort={setEffort}
         mcpServers={mcpServers} selectedMcps={selectedMcps} setSelectedMcps={setSelectedMcps} slashCommands={slashCommands}

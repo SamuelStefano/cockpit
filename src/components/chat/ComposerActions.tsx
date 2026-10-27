@@ -63,7 +63,7 @@ function PrimaryAction({ paused, hasText, hasAtt, attUploading, onSubmit, onCall
   const canSend = hasText || hasAtt;
   if (!canSend && !attUploading && onCall) {
     return (
-      <button type="button" onClick={onCall} aria-label="Ligar" title="Conversar por voz com a sessão, sem as mãos" className={`${btn} bg-neutral-800 text-neutral-100 hover:bg-neutral-700 focus-visible:ring-orange-500/40`}>
+      <button type="button" onClick={onCall} aria-label="Ligar" title="Conversar por voz com a sessão, sem as mãos" className={`${btn} bg-orange-500 text-neutral-950 hover:bg-orange-400 focus-visible:ring-orange-500/40`}>
         <Icon name="audio" size={17} />
       </button>
     );

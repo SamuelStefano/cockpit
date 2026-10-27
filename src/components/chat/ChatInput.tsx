@@ -24,6 +24,8 @@ interface ChatInputProps {
   mode: PermMode;
   setMode: (m: PermMode) => void;
   caps: Caps | null;
+  bypass: boolean;
+  setBypass: (b: boolean) => void;
   model: string;
   setModel: (m: string) => void;
   modelLocked?: string;
@@ -64,17 +66,18 @@ interface ChatInputProps {
 }
 
 export function ChatInput(props: ChatInputProps) {
-  const { disabled, placeholder, onStop, value, setValue, mode, setMode, caps, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, onOpenAttachment, queued, queuedAtts, queuedModels, onRunQueuedBg, onRunQueuedNow, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, queueReleaseAt = 0, onToggleQueuePause, paused = false, quotaResetsAt, onCall } = props;
+  const { disabled, placeholder, onStop, value, setValue, mode, setMode, caps, bypass, setBypass, model, setModel, modelLocked, models, onRefreshModels, effort, setEffort, mcpServers, selectedMcps, setSelectedMcps, attachments, onRemoveAttachment, onOpenAttachment, queued, queuedAtts, queuedModels, onRunQueuedBg, onRunQueuedNow, onCancelQueueAt, onEditQueuedAt, onMoveQueued, queueHeld = false, onResumeQueue, queuePaused = false, queueReleaseAt = 0, onToggleQueuePause, paused = false, quotaResetsAt, onCall } = props;
   const hasAtt = attachments.length > 0;
   const attUploading = attachments.some((a) => a.uploading);
   const resetLabel = quotaResetsAt ? new Date(quotaResetsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
   const { taRef, fileRef, cameraRef, sel, setSel, showPalette, matches, complete, submit, onKey, onCompositionEnd, grow, pick, dragging, onDragEnter, onDragOver, onDragLeave, onDrop, onPaste, mic, ghost, ghostShown, acceptGhost, touch } = useChatInput({ ...props, hasAtt, attUploading });
-  const settings = { mode, setMode, caps, model, effort, setEffort, mcpServers, selectedMcps, setSelectedMcps };
+  const settings = { mode, setMode, caps, bypass, setBypass, model, effort, setEffort, mcpServers, selectedMcps, setSelectedMcps };
   // `relative z-20` na casca: o header sticky do CodeBlock é z-10 no contexto
   // raiz e pintava POR CIMA dos popovers do composer (MCP/skills), cobrindo
   // itens da lista. O composer precisa de um contexto próprio acima dele.
   return (
     <div className="relative z-20 shrink-0 border-t border-neutral-800 bg-neutral-900/60 px-3 py-3 backdrop-blur-sm">
+      <div className="mx-auto w-full max-w-[760px]">
       {hasAtt && <AttachmentChips attachments={attachments} onRemoveAttachment={onRemoveAttachment} onOpen={onOpenAttachment} />}
       {mic.error && <ComposerNotice icon="mic" onDismiss={mic.dismissError}>{mic.error}</ComposerNotice>}
       {mic.hint && <ComposerNotice icon="mic" tone="info" onDismiss={mic.dismissHint}>{mic.hint}</ComposerNotice>}
@@ -134,6 +137,7 @@ export function ChatInput(props: ChatInputProps) {
           onSubmit={submit}
           onStop={onStop}
         />
+      </div>
       </div>
       </div>
     </div>

@@ -85,4 +85,14 @@ describe('ComposerPlus', () => {
     expect(screen.queryByRole('switch', { name: 'Pensar mais' })).toBeNull();
     expect(screen.queryByText('Ferramentas')).toBeNull();
   });
+
+  it('gates the bypass switch on caps.canBypass and toggles it', () => {
+    open();
+    expect(screen.queryByRole('switch', { name: 'Bypass de permissões' })).toBeNull();
+    cleanup();
+    const setBypass = vi.fn();
+    open({ settings: { caps: { canBypass: true } as never, bypass: false, setBypass } });
+    fireEvent.click(screen.getByRole('switch', { name: 'Bypass de permissões' }));
+    expect(setBypass).toHaveBeenCalledWith(true);
+  });
 });
