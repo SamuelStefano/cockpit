@@ -162,6 +162,56 @@ describe('agent-setup.sh', () => {
     expect(r.stdout).toContain('claude: reaproveita');
   });
 
+  describe('instalação automática das ferramentas de build', () => {
+    function rodarAuto(nome: string, uid: number, sudoSh: string | null, env: Record<string, string> = {}): { status: number | null; log: string } {
+      const { home, bin } = caixa(nome, '#!/bin/sh\n');
+      writeFileSync(join(bin, 'id'), `#!/bin/sh\ncase "$1" in -u) echo ${uid};; *) exec /usr/bin/id "$@";; esac\n`, { mode: 0o755 });
+      const log = join(raiz, nome, 'calls.log');
+      writeFileSync(join(bin, 'apt-get'), `#!/bin/sh\necho "apt-get $*" >> "${log}"\n`, { mode: 0o755 });
+      if (sudoSh) writeFileSync(join(bin, 'sudo'), sudoSh.replace('LOG', log), { mode: 0o755 });
+      const r = spawnSync('bash', ['-c', [
+        'set -uo pipefail',
+        `SUDO="${sudoSh ? 'sudo' : ''}"`,
+        extrairFuncao('build_tools_auto'),
+        extrairFuncao('install_build_tools'),
+        'build_tools_auto && install_build_tools',
+      ].join('\n')], { env: { HOME: home, PATH: `${bin}:/usr/bin:/bin`, ...env }, encoding: 'utf8' });
+      return { status: r.status, log: existsSync(log) ? readFileSync(log, 'utf8') : '' };
+    }
+
+    it('com root tenta instalar sozinho via apt-get não interativo', () => {
+      const r = rodarAuto('auto-root', 0, null);
+      expect(r.status).toBe(0);
+      expect(r.log).toContain('apt-get update');
+      expect(r.log).toContain('apt-get install -y build-essential python3');
+    });
+
+    it('sem root e sem sudo sem senha não instala nada', () => {
+      const r = rodarAuto('auto-user', 1000, '#!/bin/sh\necho "sudo $*" >> LOG\nexit 1\n');
+      expect(r.status).not.toBe(0);
+      expect(r.log).not.toContain('apt-get');
+    });
+
+    it('sem root mas com sudo sem senha instala via sudo', () => {
+      const r = rodarAuto('auto-sudo', 1000, '#!/bin/sh\nif [ "$1" = "-n" ]; then exit 0; fi\nexec "$@"\n');
+      expect(r.status).toBe(0);
+      expect(r.log).toContain('apt-get install -y build-essential python3');
+    });
+
+    it('DECK_INSTALL_BUILD_TOOLS=0 desliga mesmo com root', () => {
+      const r = rodarAuto('auto-off', 0, null, { DECK_INSTALL_BUILD_TOOLS: '0' });
+      expect(r.status).not.toBe(0);
+      expect(r.log).toBe('');
+    });
+
+    it('no modo isolado a checagem roda no processo root, antes de entregar pro deck', () => {
+      const i = fonte.indexOf('isolated_parent() {');
+      const corpo = fonte.slice(i, fonte.indexOf('\n}\n', i));
+      expect(corpo.indexOf('if build_tools_auto; then')).toBeGreaterThan(corpo.indexOf('command -v git'));
+      expect(corpo.indexOf('if build_tools_auto; then')).toBeLessThan(corpo.indexOf('DECK_NO_SERVICE=1 bash "$copy"'));
+    });
+  });
+
   describe('modo isolado (DECK_ISOLATED=1)', () => {
     const PERIGOSOS = ['sudo', 'apt-get', 'dnf', 'yum', 'npm', 'npx', 'curl', 'git', 'systemctl', 'crontab', 'claude', 'useradd', 'adduser', 'runuser', 'su'];
 
