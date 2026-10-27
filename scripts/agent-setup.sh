@@ -35,8 +35,9 @@
 #   DECK_AUTO_REDEPLOY=1  arma os git hooks que reiniciam backend/agente a cada pull
 #   DECK_EXTRAS=1      instala os crons extras (hibernação de sessões, triador de incidentes)
 #   DECK_DRY_RUN=1     só detecta e imprime o plano (reaproveita/instalaria); não instala nada
-#   DECK_INSTALL_BUILD_TOOLS=1  se o `npm ci` falhar sem make/compilador/python3, instala
-#                      (sudo + gerenciador de pacotes) e tenta de novo; default: só mostra o comando
+#   DECK_INSTALL_BUILD_TOOLS  faltando make/compilador/python3 (node-pty), instala sozinho quando há
+#                      root (root, ou sudo sem senha) via gerenciador de pacotes. =0 desliga (só mostra
+#                      o comando e sai); =1 força a tentativa mesmo sem root confirmado
 #   DECK_ISOLATED=1    instalação isolada (rode com sudo): cria o usuário `deck` SEM sudo, roda o
 #                      instalador inteiro como ele e deixa só a unit systemd (User=deck) com root.
 #                      Não mexe na sua conta, no seu Node nem nos seus pacotes
@@ -252,6 +253,9 @@ EOF
     if [ "$exists" = "1" ]; then echo "  usuário deck: já existe (reaproveita, home $dhome)"
     else echo "  usuário deck: criaria (useradd -m -s /bin/bash deck), sem sudo/wheel"; fi
     echo "  systemd unit: $unit (User=deck; único arquivo escrito como root)"
+    if have_build_tools; then echo "  build tools: presentes (reaproveita)"
+    elif build_tools_auto; then echo "  build tools: instalaria make/compilador/python3 (processo root, antes de passar pro deck)"
+    else echo "  build tools: faltam e a instalação automática está desligada (DECK_INSTALL_BUILD_TOOLS=0)"; fi
     if [ "$exists" != "1" ]; then
       echo "  o plano do instalador (rodando como deck) aparece depois que o usuário existir."
       exit 0
@@ -286,8 +290,8 @@ EOF
   # node-pty ships no linux prebuild, and the deck user has no sudo to fetch a
   # compiler later — so decide here, before creating anything.
   if ! have_build_tools; then
-    if [ "${DECK_INSTALL_BUILD_TOOLS:-}" = "1" ]; then
-      echo "[deck] instalando ferramentas de build (DECK_INSTALL_BUILD_TOOLS=1)…"
+    if build_tools_auto; then
+      echo "[deck] instalando ferramentas de build (make, compilador C/C++, python3) pra compilar node-pty…"
       install_build_tools && have_build_tools || { echo "[deck] não consegui instalar as ferramentas de build."; exit 1; }
     else
       cat <<EOF
@@ -296,7 +300,7 @@ Nada foi alterado. Instale e rode de novo (não mexe no seu Node):
   Debian/Ubuntu:  sudo apt-get install -y build-essential python3
   Fedora/RHEL:    sudo dnf groupinstall -y "Development Tools" && sudo dnf install -y python3
   Alpine:         sudo apk add build-base python3
-Ou rode de novo com DECK_INSTALL_BUILD_TOOLS=1 na frente do bash.
+Ou rode de novo sem DECK_INSTALL_BUILD_TOOLS=0 (a instalação é automática com root).
 EOF
       exit 1
     fi
@@ -366,7 +370,13 @@ have_build_tools() {
   return 0
 }
 
-# Só roda com DECK_INSTALL_BUILD_TOOLS=1.
+# Instala sozinho por default quando há root; =0 desliga, =1 força.
+build_tools_auto() {
+  case "${DECK_INSTALL_BUILD_TOOLS:-}" in 0) return 1;; 1) return 0;; esac
+  [ "$(id -u)" -eq 0 ] && return 0
+  [ -n "${SUDO:-}" ] && $SUDO -n true >/dev/null 2>&1
+}
+
 install_build_tools() {
   ( umask 022
   if command -v apt-get >/dev/null 2>&1; then
@@ -496,7 +506,8 @@ if [ "$DRY" = "1" ]; then
   if [ "$NODE_HOW" = "reuse" ]; then echo "  node: reaproveita $NODE_DIR/node (v$NODE_VER)"
   else echo "  node: instalaria Node 20 LTS (tarball oficial nodejs.org) em $HOME/.deck-node"; fi
   if have_build_tools; then echo "  build tools: reaproveita (make/compilador/python3 presentes)"
-  else echo "  build tools: não instalaria de início; só se o npm ci falhar e DECK_INSTALL_BUILD_TOOLS=1"; fi
+  elif build_tools_auto; then echo "  build tools: instalaria make/compilador/python3 via gerenciador de pacotes (root disponível)"
+  else echo "  build tools: faltam e a instalação automática está desligada (sem root ou DECK_INSTALL_BUILD_TOOLS=0)"; fi
   find_claude
   if [ -n "$CLAUDE_BIN" ]; then echo "  claude: reaproveita $CLAUDE_BIN"
   else echo "  claude: instalaria @anthropic-ai/claude-code em $HOME/.deck-npm (npm --prefix, sem sudo)"; fi
@@ -583,8 +594,8 @@ else
     if have_build_tools; then
       echo "[deck] npm ci falhou (as ferramentas de build já existem; veja o erro acima)."
       exit 1
-    elif [ "${DECK_INSTALL_BUILD_TOOLS:-}" = "1" ]; then
-      echo "[deck] npm ci falhou sem ferramentas de build — instalando (DECK_INSTALL_BUILD_TOOLS=1)…"
+    elif build_tools_auto; then
+      echo "[deck] npm ci falhou sem ferramentas de build — instalando make, compilador C/C++ e python3…"
       install_build_tools && have_build_tools || { echo "[deck] não consegui instalar as ferramentas de build."; exit 1; }
       note_installed "build tools"
       npm_deps || exit 1
@@ -596,7 +607,7 @@ p/ compilar node-pty e better-sqlite3 nesta plataforma. Instale e rode o setup d
   Fedora/RHEL:    sudo dnf groupinstall -y "Development Tools" && sudo dnf install -y python3
   Alpine:         sudo apk add build-base python3
   Arch:           sudo pacman -S base-devel python
-Ou rode de novo com DECK_INSTALL_BUILD_TOOLS=1 para instalar automaticamente (usa sudo).
+Sem root (ou com DECK_INSTALL_BUILD_TOOLS=0) a instalação automática fica desligada.
 EOF
       exit 1
     fi
