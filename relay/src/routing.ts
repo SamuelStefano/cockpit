@@ -124,6 +124,10 @@ export class Registry {
     return box === undefined ? b.agents.size > 0 : this.resolveIn(b, box) !== null;
   }
 
+  agentSocket(accountId: string, agentId: string): Sock | undefined { return this.byAccount.get(accountId)?.agents.get(agentId); }
+
+  browserTotal(accountId: string): number { return this.byAccount.get(accountId)?.browsers.size ?? 0; }
+
   agentIds(accountId: string): string[] { return [...(this.byAccount.get(accountId)?.agents.keys() ?? [])]; }
 
   // Every open tab of the account, any box (role changes, `boxes` updates).

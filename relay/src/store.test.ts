@@ -112,3 +112,37 @@ describe('supabaseStore pairing', () => {
     expect(body).toMatchObject({ account_id: 'acc-1', public_key: 'PUBKEY', kind: 'vps' });
   });
 });
+
+describe('supabaseStore boxes', () => {
+  it('listBoxes reads only the account live vps boxes, oldest first', async () => {
+    const { impl, calls } = fakeFetch({ '/agent?account_id=eq.': { body: [{ id: 'b1', label: null, last_seen: '2026-10-27T00:00:00Z' }] } });
+    const store = supabaseStore({ ...CFG, fetchImpl: impl });
+    expect(await store.listBoxes('acc-1')).toEqual([{ id: 'b1', label: '', lastSeen: '2026-10-27T00:00:00Z' }]);
+    expect(calls[0].url).toContain('account_id=eq.acc-1');
+    expect(calls[0].url).toContain('kind=eq.vps');
+    expect(calls[0].url).toContain('revoked_at=is.null');
+    expect(calls[0].url).toContain('order=paired_at.asc');
+  });
+
+  it('listBoxes throws on a failed read instead of reporting zero boxes', async () => {
+    const { impl } = fakeFetch({ '/agent': { ok: false } });
+    await expect(supabaseStore({ ...CFG, fetchImpl: impl }).listBoxes('acc-1')).rejects.toThrow();
+  });
+
+  it('renameBox patches only the label, filtered by box AND account', async () => {
+    const { impl, calls } = fakeFetch({ '/agent?id=eq.': { body: [{}] } });
+    const store = supabaseStore({ ...CFG, fetchImpl: impl });
+    expect(await store.renameBox('acc-1', 'b1', 'pc')).toBe(true);
+    expect(calls[0].url).toContain('id=eq.b1&account_id=eq.acc-1');
+    expect(calls[0].init?.method).toBe('PATCH');
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({ label: 'pc' });
+  });
+
+  it('revokeBox patches only revoked_at and is false when no row of the account matched', async () => {
+    const { impl, calls } = fakeFetch({ '/agent?id=eq.': { body: [] } });
+    const store = supabaseStore({ ...CFG, fetchImpl: impl });
+    expect(await store.revokeBox('acc-1', 'other-account-box')).toBe(false);
+    expect(calls[0].url).toContain('account_id=eq.acc-1');
+    expect(Object.keys(JSON.parse(String(calls[0].init?.body)))).toEqual(['revoked_at']);
+  });
+});

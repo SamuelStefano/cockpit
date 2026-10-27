@@ -45,6 +45,7 @@ describe('relay sealed routing (T5)', () => {
       async isAdmin() { return false; }, async listAccounts() { return []; }, async setAdmin() { return true; },
       async markAgentSeen() {}, async createPairingCode() { return { code: 'x', expiresAt: '' }; },
       async consumePairingCode() { return null; }, async createAgent() { return null; },
+      async listBoxes() { return []; }, async renameBox() { return false; }, async revokeBox() { return false; },
     };
     const relay = createRelay({
       iss: 't', jwksUrl: 'http://x', rootEmails: '', store,
