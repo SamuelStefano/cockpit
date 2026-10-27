@@ -29,6 +29,17 @@ describe('ChatEmpty suggestion chips', () => {
   });
 });
 
+describe('ChatEmpty deck-guide entry', () => {
+  it('fills the composer with the deck-guide prompt and never sends it', () => {
+    touch.virtual = false;
+    const onPrompt = vi.fn(); const onSeed = vi.fn();
+    const { getByText } = render(<ChatEmpty onPrompt={onPrompt} onSeed={onSeed} />);
+    fireEvent.click(getByText('Pergunte ao Deck como configurar'));
+    expect(onSeed).toHaveBeenCalledWith(expect.stringContaining('deck-guide'));
+    expect(onPrompt).not.toHaveBeenCalled();
+  });
+});
+
 describe('ChatEmpty layout', () => {
   it('shows exactly three chips and renders the composer between question and chips', () => {
     touch.virtual = false;
