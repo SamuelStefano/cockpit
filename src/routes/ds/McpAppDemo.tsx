@@ -8,8 +8,8 @@ const DEMO_HTML = `<!doctype html>
   :root { color-scheme: dark }
   body { margin:0; font:14px system-ui, sans-serif; background:#0d1117; color:#e6edf3;
          padding:16px; display:flex; flex-direction:column; gap:12px }
-  h1 { font-size:15px; margin:0; color:#3b82f6 }
-  button { background:#3b82f6; color:#0d1117; border:0; border-radius:6px;
+  h1 { font-size:15px; margin:0; color:#f97316 }
+  button { background:#f97316; color:#0d1117; border:0; border-radius:6px;
            padding:8px 14px; font-weight:600; cursor:pointer }
   code { background:#161b22; padding:2px 6px; border-radius:4px }
 </style></head>
