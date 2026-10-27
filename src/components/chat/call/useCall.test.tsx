@@ -70,6 +70,32 @@ describe('useCall', () => {
     expect(speak).toHaveBeenCalledWith(expect.objectContaining({ text: 'Pronto, terminei.' }));
   });
 
+  it('a new chat migrating to its real id keeps the call and speaks the reply', async () => {
+    const useCall = await load();
+    const onSend = vi.fn();
+    type P = { phase: 'idle' | 'thinking'; messages: Message[]; sessionKey: string; pendingIds: Record<string, string> };
+    const { result, rerender } = renderHook((p: P) => useCall({ ...p, onSend }), {
+      initialProps: { phase: 'idle', messages: [], sessionKey: 'new-abc', pendingIds: {} },
+    });
+    act(() => result.current.dial());
+    act(() => FakeRecognition.instances.at(-1)!.say('oi tudo bem.'));
+    act(() => { vi.advanceTimersByTime(1000); });
+    rerender({ phase: 'thinking', messages: [user], sessionKey: 'new-abc', pendingIds: { 'new-abc': 'uuid-1' } });
+    rerender({ phase: 'idle', messages: [user, answer], sessionKey: 'uuid-1', pendingIds: {} });
+    expect(result.current.state.phase).toBe('speaking');
+    expect(speak).toHaveBeenCalledWith(expect.objectContaining({ text: 'Pronto, terminei.' }));
+  });
+
+  it('opening another session hangs up', async () => {
+    const useCall = await load();
+    const { result, rerender } = renderHook((p: { sessionKey: string }) => useCall({ phase: 'idle', messages: [], onSend: vi.fn(), ...p }), {
+      initialProps: { sessionKey: 'uuid-1' },
+    });
+    act(() => result.current.dial());
+    rerender({ sessionKey: 'uuid-2' });
+    expect(result.current.state.phase).toBe('off');
+  });
+
   it('keeps waiting while the speaker is mid-sentence', async () => {
     const useCall = await load();
     const onSend = vi.fn();

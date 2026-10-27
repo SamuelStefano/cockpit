@@ -10,6 +10,10 @@ States: `listening` / `thinking` / `speaking` (+ mute, hang up). Logic lives in 
 `call-machine.ts` (reducer), `utterance.ts` (silence delay, echo/barge-in, spoken summary), `pick-reply.ts`,
 `useCall.ts` (orchestration).
 
+`useCall` lives in `App`, not in `ChatPanel`: the panel is keyed by session id and remounts when a new chat's
+`new-…` key migrates to the real id at the end of its first turn — exactly when the reply should be spoken. That
+migration keeps the call (`session-switch.ts`); opening another session hangs up.
+
 Barge-in: while speaking, the mic keeps listening. Heard text that is a substring of what is being spoken is
 treated as echo and dropped; anything else with ≥ 2 words stops the TTS and becomes the next utterance.
 Headphones give the best result — speakers can still leak echo through noise-cancelling heuristics.

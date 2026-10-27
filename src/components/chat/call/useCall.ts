@@ -8,6 +8,7 @@ import { endOfUtteranceDelay, isBargeIn, isEcho, isSendable } from './utterance'
 import { callSpeechSupported, useCallSpeech } from './useCallSpeech';
 import { useCallRecognizer } from './useCallRecognizer';
 import { useWakeLock } from './useWakeLock';
+import { leftConversation } from './session-switch';
 
 const NO_TURN_START_MS = 20000;
 
@@ -15,9 +16,14 @@ interface Args {
   messages: Message[];
   phase: Phase;
   onSend: (text: string) => void;
+  sessionKey?: string;
+  // `new-…` key -> real session id, as soon as the server reports it.
+  pendingIds?: Record<string, string>;
 }
 
-export function useCall({ messages, phase, onSend }: Args) {
+export type CallApi = ReturnType<typeof useCall>;
+
+export function useCall({ messages, phase, onSend, sessionKey = '', pendingIds }: Args) {
   const supported = callSpeechSupported && speechCtor() !== null;
   const [state, dispatch] = useReducer(callReducer, initialCallState);
   const [heard, setHeard] = useState('');
@@ -88,6 +94,17 @@ export function useCall({ messages, phase, onSend }: Args) {
   useEffect(() => {
     if (state.phase === 'off') { clearSilence(); setHeard(''); awaitingRef.current = false; speech.cancel(); }
   }, [state.phase, speech]);
+
+  const prevKeyRef = useRef(sessionKey);
+  const migratedToRef = useRef<string | undefined>(undefined);
+  if (pendingIds?.[sessionKey]) migratedToRef.current = pendingIds[sessionKey];
+  useEffect(() => {
+    const prev = prevKeyRef.current;
+    prevKeyRef.current = sessionKey;
+    const left = leftConversation(prev, sessionKey, migratedToRef.current);
+    migratedToRef.current = pendingIds?.[sessionKey];
+    if (left) dispatch({ type: 'hangup' });
+  }, [sessionKey, pendingIds]);
 
   useEffect(() => clearSilence, []);
 
