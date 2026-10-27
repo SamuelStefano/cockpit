@@ -6,24 +6,36 @@ import { generateKeyPairSync } from 'node:crypto';
 import type { WebSocket as NodeWs } from 'ws';
 import type { Bytes } from '../../shared/e2e/bytes';
 import type { KeyPair } from '../../shared/e2e/channel';
+import type { PasskeyDevice } from '../../shared/e2e/passkey';
 
-const mem: { pair?: KeyPair; pins: Bytes[]; boxPins: Record<string, Bytes[]> } = { pins: [], boxPins: {} };
+const mem: {
+  pair?: KeyPair; pins: Bytes[]; boxPins: Record<string, Bytes[]>;
+  passkey?: PasskeyDevice; preauth?: Bytes;
+} = { pins: [], boxPins: {} };
 vi.mock('./device-store', async () => {
   const { publicRaw } = await import('../../shared/e2e/channel');
   return {
     deviceKeys: async () => {
+      if (mem.passkey) return { pub: mem.passkey.pub, sign: mem.passkey.pair.privateKey };
       mem.pair ??= await crypto.subtle.generateKey({ name: 'Ed25519' }, false, ['sign', 'verify']) as unknown as KeyPair;
       return { pub: await publicRaw(mem.pair.publicKey), sign: mem.pair.privateKey };
     },
+    passkeyDevice: async () => (mem.passkey ? { pub: mem.passkey.pub, pinRoot: mem.passkey.pinRoot } : null),
+    pendingPreauth: async () => mem.preauth ?? null,
+    clearPreauth: async () => { mem.preauth = undefined; },
     pinnedAgents: async (box?: string) => (box ? (mem.boxPins[box] ?? []) : mem.pins),
-    pinAgent: async (p: Bytes, box?: string) => { (box ? (mem.boxPins[box] ??= []) : mem.pins).push(p); },
+    pinAgent: async (p: Bytes, box?: string) => { if (box) mem.boxPins[box] = [p]; else mem.pins = [p]; },
   };
 });
 
 const { SealedSocket, enrollThisDevice, sealState, sendRelayFrame } = await import('./sealed-socket');
 const { boxStore } = await import('./boxes-store');
 const { SealedHub, agentKeysFrom } = await import('../../server/e2e/hub');
-const { createEnrollCode } = await import('../../server/e2e/devices');
+const { createEnrollCode, devicePin, storePreauth } = await import('../../server/e2e/devices');
+const { deviceFrameHandler } = await import('../../server/e2e/manage');
+const { boxPinKey, deriveFromPrf } = await import('../../shared/e2e/passkey');
+const { newDeviceCode } = await import('../../shared/e2e/enroll');
+const { toB64 } = await import('../../shared/e2e/bytes');
 
 const C = 'CCCCCCCCCCCCCCCCCCCCCC';
 const flush = () => new Promise((r) => setTimeout(r, 40));
@@ -33,13 +45,15 @@ const flush = () => new Promise((r) => setTimeout(r, 40));
 class Relay {
   browser: FakeBrowserWs | null = null;
   toBrowserLog: string[] = [];
+  tamper: ((s: string) => string) | null = null;
   agentLink = { OPEN: 1, readyState: 1, bufferedAmount: 0, send: (s: string) => this.fromAgent(s) } as unknown as NodeWs;
   hub!: InstanceType<typeof SealedHub>;
   served: string[] = [];
 
   fromAgent(s: string) {
     const m = /^\{"c":"([A-Za-z0-9_-]{22})"(?:,"p":([01]))?,/.exec(s);
-    const out = m ? `{${s.slice(m[0].length)}` : s;
+    const plain = m ? `{${s.slice(m[0].length)}` : s;
+    const out = this.tamper ? this.tamper(plain) : plain;
     this.toBrowserLog.push(out);
     this.browser?.receive(out);
   }
@@ -72,7 +86,7 @@ let relay: Relay;
 
 beforeEach(async () => {
   process.env.DECK_AGENT_DIR = mkdtempSync(join(tmpdir(), 'deck-sealed-'));
-  mem.pair = undefined; mem.pins = []; mem.boxPins = {};
+  mem.pair = undefined; mem.pins = []; mem.boxPins = {}; mem.passkey = undefined; mem.preauth = undefined;
   relay = new Relay();
   FakeBrowserWs.relay = relay;
   vi.stubGlobal('WebSocket', FakeBrowserWs);
@@ -196,5 +210,105 @@ describe('SealedSocket against the real agent hub', () => {
     expect(mem.boxPins[box]).toHaveLength(1);
     expect(mem.pins).toHaveLength(0);
     expect(sealState.get()).toBe('sealed');
+  });
+});
+
+describe('SealedSocket with a passkey device key', () => {
+  const BOX = '33333333-3333-4333-8333-333333333333';
+  const PRF = new Uint8Array(32).fill(5);
+  const settle = async () => { for (let i = 0; i < 4; i++) await flush(); };
+
+  function agentWithBoxId() {
+    const keys = (relay as unknown as { keys: { pub: Bytes; sign: CryptoKey } }).keys;
+    let hub: InstanceType<typeof SealedHub> | null = null;
+    hub = new SealedHub({
+      keys, link: relay.agentLink, onPeersChanged: () => {}, boxId: BOX,
+      intercept: deviceFrameHandler(keys.pub, () => hub, BOX),
+      serve: (peer) => peer.on('message', (b: Buffer) => { relay.served.push(b.toString()); }),
+    });
+    relay.hub = hub;
+    return keys;
+  }
+
+  function dial(box: string | undefined = BOX) {
+    const s = new SealedSocket(box ? 'wss://relay/ws?box=' + box : 'wss://relay/ws', 'jwt', { box, main: true });
+    s.onmessage = () => {};
+    return s;
+  }
+
+  async function pairedWithDeviceCode() {
+    const keys = agentWithBoxId();
+    mem.passkey = await deriveFromPrf(PRF);
+    const { code, secret } = await newDeviceCode(mem.passkey.pub);
+    storePreauth(code);
+    mem.preauth = secret;
+    const s = dial();
+    await settle();
+    return { keys, s };
+  }
+
+  it('the browser that showed the setup command opens the Deck with no enroll step', async () => {
+    const { keys } = await pairedWithDeviceCode();
+    expect(sealState.get()).toBe('sealed');
+    expect(mem.boxPins[BOX]).toEqual([keys.pub]);
+    expect(mem.preauth).toBeUndefined();
+    expect(devicePin(toB64(mem.passkey!.pub))).toEqual(await boxPinKey(mem.passkey!.pinRoot, BOX));
+  });
+
+  it('another browser where the passkey synced opens the Deck from the pin proof alone', async () => {
+    const { keys, s } = await pairedWithDeviceCode();
+    s.close();
+    await flush();
+    mem.boxPins = {};
+    mem.passkey = await deriveFromPrf(new Uint8Array(PRF));
+    dial();
+    await settle();
+    expect(sealState.get()).toBe('sealed');
+    expect(mem.boxPins[BOX]).toEqual([keys.pub]);
+  });
+
+  it('a box paired before passkeys: the enroll code enrolls the passkey key and hands over the pin key', async () => {
+    const keys = agentWithBoxId();
+    mem.passkey = await deriveFromPrf(PRF);
+    dial();
+    await settle();
+    expect(sealState.get()).toBe('enroll');
+    const { code } = await createEnrollCode(keys.pub);
+    await enrollThisDevice(code, 'laptop');
+    await settle();
+    expect(sealState.get()).toBe('sealed');
+    expect(devicePin(toB64(mem.passkey.pub))).toEqual(await boxPinKey(mem.passkey.pinRoot, BOX));
+  });
+
+  it('a pin key never crosses the relay in the clear', async () => {
+    await pairedWithDeviceCode();
+    const key = toB64(await boxPinKey(mem.passkey!.pinRoot, BOX));
+    const wire = [...relay.browser!.sent, ...relay.toBrowserLog].join('\n');
+    expect(wire).not.toContain(key);
+    expect(wire).not.toContain('device-pin');
+  });
+
+  it('an unbound passkey socket waits for its box instead of showing the enroll screen', async () => {
+    agentWithBoxId();
+    mem.passkey = await deriveFromPrf(PRF);
+    dial(undefined);
+    await settle();
+    expect(sealState.get()).toBe('connecting');
+    expect(relay.browser!.sent.some((f) => f.includes('e2e-hello'))).toBe(false);
+  });
+
+  it('refuses an agent key the relay substitutes for a browser with no pin', async () => {
+    const { s } = await pairedWithDeviceCode();
+    s.close();
+    await flush();
+    mem.boxPins = {};
+    const { generateKeyPairSync: gen } = await import('node:crypto');
+    const fake = gen('ed25519').publicKey.export({ type: 'spki', format: 'der' });
+    relay.tamper = (f) => (f.includes('"e2e-accept"') ? f.replace(/"agent":"[^"]+"/, `"agent":"${toB64(new Uint8Array(fake.subarray(fake.length - 32)))}"`) : f);
+    dial();
+    await settle();
+    relay.tamper = null;
+    expect(sealState.get()).toBe('rejected');
+    expect(mem.boxPins[BOX]).toBeUndefined();
   });
 });

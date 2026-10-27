@@ -1,13 +1,14 @@
 import { BrandMark, Button, CodeBlock, Input } from '../primitives';
 import { useEnrollDevice } from './useEnrollDevice';
-
-const CLI = 'cd ~/cockpit && npx tsx server/agent.ts --enroll-device';
+import { usePasskeySetup } from './usePasskeySetup';
+import { PasskeyUnlock } from './PasskeyUnlock';
 
 // Shown when the agent does not know this device yet (or refused its key). The
 // code comes from the box itself, never through the relay: that is what lets
 // the browser and the agent trust each other's keys without trusting the relay.
 export function EnrollDevice({ onSignOut }: { onSignOut: () => void }) {
   const e = useEnrollDevice();
+  const pk = usePasskeySetup();
   const rejected = e.state === 'rejected';
   const unsupported = e.state === 'unsupported';
 
@@ -25,10 +26,11 @@ export function EnrollDevice({ onSignOut }: { onSignOut: () => void }) {
             O agente na sua VPS não respondeu ao canal cifrado. Atualize o agente e tente de novo.
           </p>
         )}
+        <PasskeyUnlock pk={pk} />
         <p className="mb-5 mt-4 text-[13px] leading-relaxed text-neutral-400">
-          O relay só repassa bytes cifrados. Para este aparelho falar com a sua VPS, rode na VPS o comando abaixo e digite aqui o código que ele mostrar. Vale uma vez, por 10 minutos.
+          O relay só repassa bytes cifrados. Rode na VPS o comando abaixo e digite aqui o código que ele mostrar (vale uma vez, por 10 minutos). Com passkey, isso é preciso só uma vez por VPS; sem passkey, uma vez por navegador.
         </p>
-        <CodeBlock code={CLI} lang="bash" />
+        <CodeBlock code={e.cli} lang="bash" />
         <div className="mt-5 space-y-3">
           <Input mono value={e.code} onChange={(ev) => e.setCode(ev.target.value)} placeholder="XXXX-XXXX-…" autoComplete="off" spellCheck={false} aria-label="Código de cadastro" error={!!e.err} />
           <Input value={e.label} onChange={(ev) => e.setLabel(ev.target.value)} placeholder="Nome deste aparelho" aria-label="Nome deste aparelho" />

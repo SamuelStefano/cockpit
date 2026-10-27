@@ -88,4 +88,12 @@ describe('setupCommand', () => {
   it('leaves any other account on the student default', () => {
     expect(setupCommand('https://x/s.sh', 'ABC', false)).toBe('curl -fsSL https://x/s.sh | DECK_PAIR_CODE=ABC bash');
   });
+  it('passes the device code as an env var, never as an argument', () => {
+    const dc = 'A'.repeat(52);
+    expect(setupCommand('https://x/s.sh', 'ABC', false, 'isolated', '', dc)).toBe(`curl -fsSL https://x/s.sh | sudo DECK_ISOLATED=1 DECK_DEVICE_CODE=${dc} DECK_PAIR_CODE=ABC bash`);
+    expect(setupCommand('https://x/s.sh', 'ABC', false, 'dedicated', '', dc)).toBe(`curl -fsSL https://x/s.sh | DECK_DEVICE_CODE=${dc} DECK_PAIR_CODE=ABC bash`);
+  });
+  it('drops a device code that is not plain base32', () => {
+    expect(setupCommand('https://x/s.sh', 'ABC', false, 'dedicated', '', '$(id)')).toBe('curl -fsSL https://x/s.sh | DECK_PAIR_CODE=ABC bash');
+  });
 });

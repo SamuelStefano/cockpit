@@ -56,7 +56,9 @@ export class DeviceHandshake {
     const proof = field(m.pin, 32);
     const hasPin = !!proof && !!this.pinCheck && (await this.pinCheck(agentPub, proof));
     const isPinned = this.pinned.some((p) => equalBytes(p, agentPub));
-    if (!isPinned && !hasPin) throw new Error('agent key not pinned on this device');
+    // A proof only stands in for a pin the device does not have yet: a device
+    // that pinned this box at enrollment keeps refusing any other key.
+    if (!isPinned && !(hasPin && this.pinned.length === 0)) throw new Error('agent key not pinned on this device');
     const t: Transcript = { devicePub: this.keys.pub, agentPub, eB: this.eph.pub, nB: this.nB, eA, nA };
     if (!(await verifyTranscript('agent', agentPub, sig, t))) throw new Error('agent signature rejected');
     const mine = await signTranscript('device', this.keys.sign, t);

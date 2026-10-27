@@ -180,6 +180,22 @@ scripts/doctor.sh    watchdog do host (cron)
     único (10 min) com o fingerprint da chave do agente + um segredo de 128 bits. O segredo
     autentica (HMAC) a chave do aparelho e a resposta do agente: o relay não troca nenhuma das duas.
     Um aparelho já cadastrado também gera código (`device-code-new`, dentro do canal selado).
+  - **Chave por passkey (PRF)** (`shared/e2e/passkey.ts`, `src/cockpit/passkey.ts`): com passkey
+    da conta (credencial descobrível, `rpId` = host da SPA, verificação de usuário obrigatória), a
+    saída PRF (sal fixo `deck-e2e-device-v1`) vira por HKDF a chave Ed25519 do aparelho (importada
+    não-extraível) e um `pinRoot` (chave HKDF não-extraível). Todo navegador onde a passkey
+    sincroniza deriva a mesma chave: a box confia uma vez. Sem PRF, segue a chave aleatória de sempre.
+    Navegador já cadastrado com a chave aleatória não troca de chave (perderia os pins).
+  - **Pin do agente sem TOFU**: o navegador entrega à box, dentro do canal selado e só num socket
+    preso à box (`?box=`), `boxPinKey = HKDF(pinRoot, "box-pin" ‖ boxId)`, guardada em
+    `devices.json` junto do aparelho (revogar apaga). No handshake a box manda
+    `pin = HMAC(boxPinKey, PROTO ‖ "agent-pin" ‖ agentPub ‖ devicePub ‖ boxId)`; um navegador
+    sem pin para aquela box só aceita a chave do agente se a prova bater para o `boxId` que ele
+    discou. Chave por box: uma box comprometida não responde por outra. Navegador com pin ignora prova.
+  - **Pré-autorização no pareamento**: o comando de setup leva `DECK_DEVICE_CODE` (fingerprint da
+    chave passkey + segredo de 128 bits, só por env); `--pair` guarda (10 min, uso único, mesmas
+    travas dos códigos). No primeiro contato o navegador manda `e2e-preauth` (HMAC do segredo) e a
+    box devolve a chave do agente com HMAC: nenhum comando extra na VPS.
   - **Handshake por aba**: X25519 efêmero dos dois lados, transcript assinado pelos dois (papéis
     separados), HKDF → AES-256-GCM com chave por direção. Sequência estritamente crescente: o relay
     pode descartar frame (backpressure), nunca reordenar nem repetir. Frame adulterado derruba o canal.

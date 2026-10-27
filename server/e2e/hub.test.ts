@@ -5,10 +5,15 @@ import { join } from 'node:path';
 import { generateKeyPairSync } from 'node:crypto';
 import type { WebSocket } from 'ws';
 import { SealedHub, agentKeysFrom, MAX_CHANNEL_MS, type SealedPeer } from './hub';
-import { createEnrollCode, listDevices, revokeDevice } from './devices';
-import { DeviceHandshake, enrollRequest, enrollResult, type DeviceKeys } from '../../shared/e2e/device';
+import { createEnrollCode, devicePin, listDevices, revokeDevice, storePreauth } from './devices';
+import { deviceFrameHandler } from './manage';
+import {
+  DeviceHandshake, enrollRequest, enrollResult, preauthRequest, preauthResult, type DeviceKeys, type PinCheck,
+} from '../../shared/e2e/device';
 import { publicRaw, type KeyPair } from '../../shared/e2e/channel';
-import { toB64, type Bytes } from '../../shared/e2e/bytes';
+import { ENROLL_TTL_MS, newDeviceCode } from '../../shared/e2e/enroll';
+import { boxPinKey, checkPinProof, deriveFromPrf } from '../../shared/e2e/passkey';
+import { randomBytes, toB64, type Bytes } from '../../shared/e2e/bytes';
 
 const C = 'AAAAAAAAAAAAAAAAAAAAAA';
 
@@ -185,5 +190,213 @@ describe('sealed hub', () => {
     expect(h.hub.handle(JSON.stringify({ t: 'e2e-hello', c: '../x' }))).toBe(true);
     await flush();
     expect(h.sent).toHaveLength(0);
+  });
+});
+
+const BOX = '11111111-1111-4111-8111-111111111111';
+const OTHER_BOX = '22222222-2222-4222-8222-222222222222';
+const PRF = new Uint8Array(32).fill(9);
+
+async function passkeySetup(boxId = BOX) {
+  const keys = await agentKeys();
+  const { sent, link } = fakeLink();
+  const got: string[] = [];
+  let hub: SealedHub | null = null;
+  hub = new SealedHub({
+    keys, link, onPeersChanged: () => {}, boxId,
+    intercept: deviceFrameHandler(keys.pub, () => hub, boxId),
+    serve: (p) => { p.on('message', (b: Buffer) => got.push(b.toString())); },
+  });
+  return { keys, sent, hub, got };
+}
+
+async function passkeyDevice(prf = PRF) {
+  const d = await deriveFromPrf(prf);
+  return { ...d, keys: { pub: d.pub, sign: d.pair.privateKey } as DeviceKeys };
+}
+
+type PSetup = Awaited<ReturnType<typeof passkeySetup>>;
+
+async function preauth(h: PSetup, dev: DeviceKeys, secret: Bytes, label = 'Mac · Chrome') {
+  h.hub.handle(toAgent(await preauthRequest(secret, dev.pub, label))); await flush();
+  return preauthResult(last(h.sent), secret, dev.pub);
+}
+
+async function sealWithPin(h: PSetup, dev: DeviceKeys, pinned: Bytes[], check: PinCheck | null) {
+  const d = new DeviceHandshake(dev, pinned, check);
+  h.hub.handle(toAgent(await d.hello())); await flush();
+  const accepted = await d.accept(last(h.sent));
+  h.hub.handle(toAgent(accepted.confirm)); await flush();
+  return accepted;
+}
+
+function checker(pinRoot: CryptoKey, box: string, devicePub: Bytes): PinCheck {
+  return async (agentPub, proof) => checkPinProof(await boxPinKey(pinRoot, box), proof, agentPub, devicePub, box);
+}
+
+describe('passkey device: pre-authorization at pairing', () => {
+  it('enrolls the device named by DECK_DEVICE_CODE and returns a grant for the real agent key', async () => {
+    const h = await passkeySetup();
+    const dev = await passkeyDevice();
+    const { code, secret } = await newDeviceCode(dev.pub);
+    storePreauth(code);
+    const pinned = await preauth(h, dev.keys, secret);
+    expect(pinned).toEqual(h.keys.pub);
+    expect(listDevices().map((d) => d.label)).toEqual(['Mac · Chrome']);
+  });
+
+  it('refuses a relay that sends its own key with the code fingerprint of another device', async () => {
+    const h = await passkeySetup();
+    const dev = await passkeyDevice();
+    const relayDev = await deviceKeys();
+    const { code, secret } = await newDeviceCode(dev.pub);
+    storePreauth(code);
+    expect(await preauth(h, relayDev, secret)).toBeNull();
+    expect(last(h.sent).t).toBe('e2e-preauth-failed');
+    expect(listDevices()).toHaveLength(0);
+  });
+
+  it('refuses a wrong MAC (relay without the secret)', async () => {
+    const h = await passkeySetup();
+    const dev = await passkeyDevice();
+    const { code } = await newDeviceCode(dev.pub);
+    storePreauth(code);
+    expect(await preauth(h, dev.keys, randomBytes(16))).toBeNull();
+    expect(listDevices()).toHaveLength(0);
+  });
+
+  it('is single use: a replayed request does not enroll again', async () => {
+    const h = await passkeySetup();
+    const dev = await passkeyDevice();
+    const { code, secret } = await newDeviceCode(dev.pub);
+    storePreauth(code);
+    const frame = await preauthRequest(secret, dev.keys.pub, 'a');
+    h.hub.handle(toAgent(frame)); await flush();
+    expect(last(h.sent).t).toBe('e2e-preauthed');
+    revokeDevice(toB64(dev.pub));
+    h.hub.handle(toAgent(frame, 'BBBBBBBBBBBBBBBBBBBBBB')); await flush();
+    expect(last(h.sent).t).toBe('e2e-preauth-failed');
+    expect(listDevices()).toHaveLength(0);
+  });
+
+  it('refuses an expired pre-authorization', async () => {
+    const h = await passkeySetup();
+    const dev = await passkeyDevice();
+    const { code, secret } = await newDeviceCode(dev.pub);
+    storePreauth(code, Date.now() - ENROLL_TTL_MS - 1);
+    expect(await preauth(h, dev.keys, secret)).toBeNull();
+    expect(listDevices()).toHaveLength(0);
+  });
+
+  it('a grant does not verify for an agent key the relay substitutes', async () => {
+    const h = await passkeySetup();
+    const dev = await passkeyDevice();
+    const { code, secret } = await newDeviceCode(dev.pub);
+    storePreauth(code);
+    h.hub.handle(toAgent(await preauthRequest(secret, dev.keys.pub, 'a'))); await flush();
+    const forged = { ...last(h.sent), agent: toB64((await agentKeys()).pub) };
+    expect(await preauthResult(forged, secret, dev.pub)).toBeNull();
+  });
+});
+
+describe('passkey device: agent pin proof for a browser with no pin', () => {
+  async function enrolledWithPin() {
+    const h = await passkeySetup();
+    const dev = await passkeyDevice();
+    const { code, secret } = await newDeviceCode(dev.pub);
+    storePreauth(code);
+    const agentPub = (await preauth(h, dev.keys, secret))!;
+    const first = await sealWithPin(h, dev.keys, [agentPub], checker(dev.pinRoot, BOX, dev.pub));
+    expect(first.hasPin).toBe(false);
+    const key = await boxPinKey(dev.pinRoot, BOX);
+    const f = await first.channel.seal(JSON.stringify({ t: 'device-pin', box: BOX, key: toB64(key) }));
+    h.hub.handle(toAgent({ t: 'e2e', ...f })); await flush();
+    return { h, dev, key };
+  }
+
+  it('a new browser with the same passkey pins the agent from the proof alone', async () => {
+    const { h } = await enrolledWithPin();
+    const synced = await passkeyDevice();
+    const accepted = await sealWithPin(h, synced.keys, [], checker(synced.pinRoot, BOX, synced.pub));
+    expect(accepted.provedByPin).toBe(true);
+    expect(accepted.hasPin).toBe(true);
+    expect(accepted.agentPub).toEqual(h.keys.pub);
+    expect(h.hub.peers.size).toBe(2);
+  });
+
+  it('refuses a substituted agent key, a bad proof, and a proof for another box', async () => {
+    const { h, dev } = await enrolledWithPin();
+    const d = new DeviceHandshake(dev.keys, [], checker(dev.pinRoot, BOX, dev.pub));
+    h.hub.handle(toAgent(await d.hello())); await flush();
+    const real = last(h.sent);
+    const relayAgent = await agentKeys();
+    await expect(d.accept({ ...real, agent: toB64(relayAgent.pub) })).rejects.toThrow();
+
+    const d2 = new DeviceHandshake(dev.keys, [], checker(dev.pinRoot, BOX, dev.pub));
+    h.hub.handle(toAgent(await d2.hello())); await flush();
+    await expect(d2.accept({ ...last(h.sent), pin: toB64(randomBytes(32)) })).rejects.toThrow();
+
+    const d3 = new DeviceHandshake(dev.keys, [], checker(dev.pinRoot, OTHER_BOX, dev.pub));
+    h.hub.handle(toAgent(await d3.hello())); await flush();
+    await expect(d3.accept(last(h.sent))).rejects.toThrow();
+  });
+
+  // The other box knows only its own pin key, and it can claim any box id.
+  it('a compromised box holding its own pin key cannot answer for another box', async () => {
+    const { dev } = await enrolledWithPin();
+    const { setDevicePin } = await import('./devices');
+    setDevicePin(toB64(dev.pub), await boxPinKey(dev.pinRoot, OTHER_BOX));
+    const evil = await passkeySetup(BOX);
+    const d = new DeviceHandshake(dev.keys, [], checker(dev.pinRoot, BOX, dev.pub));
+    evil.hub.handle(toAgent(await d.hello())); await flush();
+    await expect(d.accept(last(evil.sent))).rejects.toThrow();
+  });
+
+  it('a device that already pinned this box ignores a proof for a different agent key', async () => {
+    const { h, dev } = await enrolledWithPin();
+    const d = new DeviceHandshake(dev.keys, [randomBytes(32)], checker(dev.pinRoot, BOX, dev.pub));
+    h.hub.handle(toAgent(await d.hello())); await flush();
+    await expect(d.accept(last(h.sent))).rejects.toThrow('not pinned');
+  });
+
+  it('stores no pin key named for another box', async () => {
+    const h = await passkeySetup();
+    const dev = await passkeyDevice();
+    const { code, secret } = await newDeviceCode(dev.pub);
+    storePreauth(code);
+    const agentPub = (await preauth(h, dev.keys, secret))!;
+    const s = await sealWithPin(h, dev.keys, [agentPub], null);
+    const f = await s.channel.seal(JSON.stringify({ t: 'device-pin', box: OTHER_BOX, key: toB64(await boxPinKey(dev.pinRoot, OTHER_BOX)) }));
+    h.hub.handle(toAgent({ t: 'e2e', ...f })); await flush();
+    expect(devicePin(toB64(dev.pub))).toBeNull();
+  });
+
+  it('revoking the device deletes its pin key, and the device list never carries it', async () => {
+    const { dev, key } = await enrolledWithPin();
+    expect(devicePin(toB64(dev.pub))).toEqual(key);
+    expect(JSON.stringify(listDevices())).not.toContain(toB64(key));
+    revokeDevice(toB64(dev.pub));
+    expect(devicePin(toB64(dev.pub))).toBeNull();
+    const { readFileSync } = await import('node:fs');
+    expect(readFileSync(join(process.env.DECK_AGENT_DIR!, 'devices.json'), 'utf8')).not.toContain(toB64(key));
+  });
+
+  it('never puts the PRF-derived secrets or the device code secret on the relay wire', async () => {
+    const h = await passkeySetup();
+    const dev = await passkeyDevice();
+    const { code, secret } = await newDeviceCode(dev.pub);
+    storePreauth(code);
+    const browserFrames: string[] = [];
+    const frame = await preauthRequest(secret, dev.keys.pub, 'a');
+    browserFrames.push(JSON.stringify(frame));
+    h.hub.handle(toAgent(frame)); await flush();
+    const agentPub = (await preauthResult(last(h.sent), secret, dev.pub))!;
+    const key = await boxPinKey(dev.pinRoot, BOX);
+    const s = await sealWithPin(h, dev.keys, [agentPub], checker(dev.pinRoot, BOX, dev.pub));
+    const f = await s.channel.seal(JSON.stringify({ t: 'device-pin', box: BOX, key: toB64(key) }));
+    browserFrames.push(JSON.stringify({ t: 'e2e', ...f }));
+    h.hub.handle(toAgent({ t: 'e2e', ...f })); await flush();
+    const wire = [...browserFrames, ...h.sent].join('\n');
+    for (const secretText of [toB64(key), toB64(secret), toB64(PRF), code]) expect(wire).not.toContain(secretText);
   });
 });

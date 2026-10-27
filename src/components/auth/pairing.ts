@@ -102,9 +102,12 @@ export function shellSafeLabel(raw: string): string {
   return sanitizeBoxLabel(raw).replace(/["'`$\\!;&|<>(){}*?~#]/g, '').trim();
 }
 
-export function setupCommand(url: string, code: string, admin: boolean, mode: InstallMode = 'dedicated', label = ''): string {
+// deviceCode (passkey browsers): pre-authorizes this browser on the new box, so
+// it opens the Deck without `--enroll-device`. Env like the pair code, never argv.
+export function setupCommand(url: string, code: string, admin: boolean, mode: InstallMode = 'dedicated', label = '', deviceCode = ''): string {
   const safe = shellSafeLabel(label);
   const role = (admin ? 'DECK_AGENT_ROLE=admin ' : '') + (safe ? `DECK_BOX_LABEL="${safe}" ` : '');
-  if (mode === 'isolated') return `curl -fsSL ${url} | sudo DECK_ISOLATED=1 ${role}DECK_PAIR_CODE=${code} bash`;
-  return `curl -fsSL ${url} | ${role}DECK_PAIR_CODE=${code} bash`;
+  const device = /^[A-Z2-7]{52}$/.test(deviceCode) ? `DECK_DEVICE_CODE=${deviceCode} ` : '';
+  if (mode === 'isolated') return `curl -fsSL ${url} | sudo DECK_ISOLATED=1 ${role}${device}DECK_PAIR_CODE=${code} bash`;
+  return `curl -fsSL ${url} | ${role}${device}DECK_PAIR_CODE=${code} bash`;
 }
