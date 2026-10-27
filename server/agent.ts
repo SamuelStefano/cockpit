@@ -125,7 +125,7 @@ let browsersPresent = true;
 // exists only to recover a box whose devices were lost.
 export const E2E_REQUIRED = process.env.DECK_E2E !== 'off';
 let hub: SealedHub | null = null;
-const tofu = tofuWindow(Date.now());
+const tofu = tofuWindow();
 let agentKeys: AgentKeys | null = null;
 
 // Reemite o bootstrap inteiro na chegada de um browser. No modo dial o

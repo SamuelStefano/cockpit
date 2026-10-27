@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { generateKeyPairSync } from 'node:crypto';
 import type { WebSocket } from 'ws';
-import { SealedHub, agentKeysFrom, MAX_CHANNEL_MS, TOFU_WINDOW_MS, tofuWindow, type SealedPeer, type TofuWindow } from './hub';
+import { SealedHub, agentKeysFrom, MAX_CHANNEL_MS, tofuWindow, type SealedPeer, type TofuWindow } from './hub';
 import { createEnrollCode, devicePin, listDevices, revokeDevice, storePreauth, trustFirstDevice } from './devices';
 import { TOFU_UNTIL } from '../../shared/e2e/tofu';
 import { deviceFrameHandler } from './manage';
@@ -480,10 +480,10 @@ describe('pre-authorization grants are bound to a box and survive a lost answer'
 });
 
 describe('trust on first use for a box with no devices', () => {
-  const open30 = () => tofuWindow(Date.now());
+  const open = () => tofuWindow({});
 
   it('trusts the first device, says so in the accept, and logs it on the box', async () => {
-    const h = await passkeySetup(BOX, open30());
+    const h = await passkeySetup(BOX, open());
     const dev = await deviceKeys();
     const logs: string[] = [];
     const orig = console.error;
@@ -502,7 +502,7 @@ describe('trust on first use for a box with no devices', () => {
   });
 
   it('refuses a second device once the first got in', async () => {
-    const h = await passkeySetup(BOX, open30());
+    const h = await passkeySetup(BOX, open());
     await sealedTofu(h, await deviceKeys());
     const second = new DeviceHandshake(await deviceKeys(), [], null, { tofu: true });
     h.hub.handle(toAgent(await second.hello(), 'BBBBBBBBBBBBBBBBBBBBBB')); await flush();
@@ -511,7 +511,7 @@ describe('trust on first use for a box with no devices', () => {
   });
 
   it('of two racing first-use handshakes only one is trusted', async () => {
-    const h = await passkeySetup(BOX, open30());
+    const h = await passkeySetup(BOX, open());
     const a = new DeviceHandshake(await deviceKeys(), [], null, { tofu: true });
     const b = new DeviceHandshake(await deviceKeys(), [], null, { tofu: true });
     h.hub.handle(toAgent(await a.hello(), 'BBBBBBBBBBBBBBBBBBBBBB')); await flush();
@@ -525,15 +525,28 @@ describe('trust on first use for a box with no devices', () => {
     expect(h.hub.peers.size).toBe(1);
   });
 
-  it('refuses after the window', async () => {
-    const h = await passkeySetup(BOX, tofuWindow(Date.now() - TOFU_WINDOW_MS - 1));
+  it('stays open hours after the agent started, until the first device', async () => {
+    const w = open();
+    const h = await passkeySetup(BOX, w);
+    const later = Date.now() + 6 * 3600_000;
+    const now = vi.spyOn(Date, 'now').mockReturnValue(later);
+    try {
+      expect(later).toBeLessThan(TOFU_UNTIL);
+      await sealedTofu(h, await deviceKeys());
+    } finally { now.mockRestore(); }
+    expect(listDevices()).toHaveLength(1);
+    expect(w.spent).toBe(true);
+  });
+
+  it('refuses once the window is closed', async () => {
+    const h = await passkeySetup(BOX, { until: Date.now() - 1, spent: false });
     const d = new DeviceHandshake(await deviceKeys(), [], null, { tofu: true });
     h.hub.handle(toAgent(await d.hello())); await flush();
     expect(last(h.sent).t).toBe('e2e-unknown-device');
   });
 
   it('refuses when a device is already enrolled', async () => {
-    const h = await passkeySetup(BOX, open30());
+    const h = await passkeySetup(BOX, open());
     await enroll(h as unknown as Awaited<ReturnType<typeof setup>>, await deviceKeys());
     const d = new DeviceHandshake(await deviceKeys(), [], null, { tofu: true });
     h.hub.handle(toAgent(await d.hello())); await flush();
@@ -541,7 +554,7 @@ describe('trust on first use for a box with no devices', () => {
   });
 
   it('stays shut after the first device even if the list empties again', async () => {
-    const w = open30();
+    const w = open();
     const h = await passkeySetup(BOX, w);
     const first = await deviceKeys();
     await sealedTofu(h, first);
@@ -553,7 +566,7 @@ describe('trust on first use for a box with no devices', () => {
   });
 
   it('stays shut while a pre-authorization is pending', async () => {
-    const h = await passkeySetup(BOX, open30());
+    const h = await passkeySetup(BOX, open());
     const pk = await passkeyDevice();
     storePreauth((await newDeviceCode(pk.pub)).code);
     const d = new DeviceHandshake(await deviceKeys(), [], null, { tofu: true });
@@ -563,8 +576,8 @@ describe('trust on first use for a box with no devices', () => {
   });
 
   it('shuts at the migration cutoff even for an agent started just before it', async () => {
-    expect(tofuWindow(TOFU_UNTIL - 60_000).until).toBeLessThanOrEqual(TOFU_UNTIL);
-    const h = await passkeySetup(BOX, tofuWindow(TOFU_UNTIL - 60_000));
+    expect(tofuWindow({}).until).toBe(TOFU_UNTIL);
+    const h = await passkeySetup(BOX, tofuWindow({}));
     const d = new DeviceHandshake(await deviceKeys(), [], null, { tofu: true });
     const hello = await d.hello();
     const now = vi.spyOn(Date, 'now').mockReturnValue(TOFU_UNTIL + 1);
@@ -578,7 +591,7 @@ describe('trust on first use for a box with no devices', () => {
     const { writeFileSync, readFileSync } = await import('node:fs');
     const file = join(process.env.DECK_AGENT_DIR!, 'devices.json');
     writeFileSync(file, '[{"pub":"half-writ');
-    const h = await passkeySetup(BOX, open30());
+    const h = await passkeySetup(BOX, open());
     const d = new DeviceHandshake(await deviceKeys(), [], null, { tofu: true });
     h.hub.handle(toAgent(await d.hello())); await flush();
     expect(last(h.sent).t).toBe('e2e-unknown-device');
@@ -590,18 +603,18 @@ describe('trust on first use for a box with no devices', () => {
   });
 
   it('a missing device list is empty and opens first use', async () => {
-    const h = await passkeySetup(BOX, open30());
+    const h = await passkeySetup(BOX, open());
     await sealedTofu(h, await deviceKeys());
     expect(listDevices()).toHaveLength(1);
   });
 
   it('is off with DECK_E2E_TOFU=off', () => {
-    expect(tofuWindow(Date.now(), { DECK_E2E_TOFU: 'off' }).until).toBe(0);
-    expect(tofuWindow(1000, {}).until).toBe(1000 + TOFU_WINDOW_MS);
+    expect(tofuWindow({ DECK_E2E_TOFU: 'off' }).until).toBe(0);
+    expect(tofuWindow({}).until).toBe(TOFU_UNTIL);
   });
 
   it('a browser with a pin for the box rejects tofu:true for any other key', async () => {
-    const h = await passkeySetup(BOX, open30());
+    const h = await passkeySetup(BOX, open());
     const dev = await deviceKeys();
     const d = new DeviceHandshake(dev, [randomBytes(32)], null, { tofu: true });
     h.hub.handle(toAgent(await d.hello())); await flush();
@@ -610,7 +623,7 @@ describe('trust on first use for a box with no devices', () => {
   });
 
   it('a browser not asking for first use treats tofu:true as unverified', async () => {
-    const h = await passkeySetup(BOX, open30());
+    const h = await passkeySetup(BOX, open());
     const d = new DeviceHandshake(await deviceKeys(), []);
     h.hub.handle(toAgent(await d.hello())); await flush();
     await expect(d.accept(last(h.sent))).rejects.toBeInstanceOf(AgentKeyError);
@@ -679,7 +692,7 @@ describe('device management frames', () => {
   });
 
   it('a revoked device never gets back in on first use', async () => {
-    const h = await passkeySetup(BOX, tofuWindow(Date.now()));
+    const h = await passkeySetup(BOX, tofuWindow({}));
     const dev = await deviceKeys();
     const { code } = await createEnrollCode(h.keys.pub);
     h.hub.handle(toAgent((await enrollRequest(code, dev.pub, 'a')).frame)); await flush();
