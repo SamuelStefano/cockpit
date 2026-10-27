@@ -144,6 +144,26 @@ async function enrolledSocket() {
   return { s, got, isOpen: () => opened };
 }
 
+describe('SealedSocket against an agent from before the sealed channel', () => {
+  it('falls back to the relay in clear when the agent never answers the hello', async () => {
+    relay.hub = { handle: () => {} } as unknown as typeof relay.hub;
+    const s = new SealedSocket('wss://relay/ws', 'jwt', { main: true, box: '44444444-4444-4444-8444-444444444444', handshakeMs: 30 });
+    const got: string[] = [];
+    let opened = false;
+    s.onopen = () => { opened = true; };
+    s.onmessage = (ev) => got.push(String(ev.data));
+    await new Promise((r) => setTimeout(r, 120));
+    await flush();
+    expect(opened).toBe(true);
+    expect(sealState.get()).toBe('sealed');
+    s.send('{"t":"list"}');
+    expect(relay.browser!.sent).toContain('{"t":"list"}');
+    relay.browser!.receive('{"t":"sessions","items":[]}');
+    await flush();
+    expect(got).toContain('{"t":"sessions","items":[]}');
+  });
+});
+
 describe('SealedSocket against the real agent hub', () => {
   it('enrolls, seals and round-trips app frames', async () => {
     const { s, got, isOpen } = await enrolledSocket();
