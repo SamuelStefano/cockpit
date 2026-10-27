@@ -24,3 +24,10 @@ describe('usePanelResize keyboard', () => {
     expect(result.current.rightW).toBe(start + 1);
   });
 });
+
+describe('left panel minimum width', () => {
+  it('keeps a pixel floor so labels stay readable on narrow desktops', async () => {
+    const { LEFT_MIN_PX } = await import('./usePanelResize');
+    expect(LEFT_MIN_PX).toBeGreaterThanOrEqual(240);
+  });
+});

@@ -8,7 +8,8 @@ export function CollapsedRail({ side, label, icon, onExpand }: {
     <button
       onClick={onExpand}
       title={`Mostrar ${label}`}
-      className={`group flex w-9 shrink-0 flex-col items-center gap-2 bg-neutral-950 py-3 text-neutral-500 transition hover:bg-neutral-900 hover:text-neutral-200 ${side === 'left' ? 'border-r' : 'border-l'} border-neutral-800`}
+      aria-label={`Mostrar ${label}`}
+      className={`group flex w-11 shrink-0 flex-col items-center gap-2 bg-neutral-950 py-3 text-neutral-500 transition hover:bg-neutral-900 hover:text-neutral-200 ${side === 'left' ? 'border-r' : 'border-l'} border-neutral-800`}
     >
       <Icon name={side === 'left' ? 'chevronRight' : 'chevronLeft'} size={15} />
       <Icon name={icon} size={14} className="text-neutral-600 group-hover:text-orange-400" />

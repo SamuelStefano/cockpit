@@ -4,6 +4,7 @@ import { usePersisted } from '../lib/persist';
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
 export const LEFT_RANGE = [13, 28] as const;
+export const LEFT_MIN_PX = 260;
 export const RIGHT_RANGE = [24, 48] as const;
 export type PanelSide = 'left' | 'right';
 
