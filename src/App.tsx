@@ -26,6 +26,8 @@ import { RouteContent } from './app/RouteContent';
 import { useAgentNav } from './app/useAgentNav';
 import { useCockpit } from './useCockpit';
 import { useBoxes } from './cockpit/useBoxes';
+import { boxStore } from './cockpit/boxes-store';
+import { takeNewIntent } from './cockpit/box-intent';
 import { useRoute } from './useRoute';
 import { loadPref } from './lib/persist';
 import { SUPABASE_ENABLED } from './lib/supabase';
@@ -173,6 +175,7 @@ function CockpitBody() {
     setDrawer(false);
     nav('/');
   }, [cockpitNew, setDrawer, nav]);
+  useEffect(() => { if (takeNewIntent(boxStore.get().pref)) handleNew(); }, [handleNew]);
 
   const call = useCall({ messages, phase, onSend: handleSend, sessionKey: activeSessionId, pendingIds: cockpit.pendingSessionIds });
 

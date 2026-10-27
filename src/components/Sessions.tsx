@@ -1,6 +1,9 @@
 import { SessionsLoadingNote } from './sessions/SessionsLoadingNote';
 import { memo } from 'react';
 import { Icon, Input } from './primitives';
+import { BoxGroups } from './sessions/BoxGroups';
+import { NewSessionButton } from './sessions/NewSessionButton';
+import { useBoxGroups } from './sessions/useBoxGroups';
 import type { Session } from '../data/types';
 import { groupByRecency } from './sessions/group-by-recency';
 import { SessionGroup } from './sessions/SessionGroup';
@@ -43,6 +46,7 @@ export interface SessionsPanelProps {
 
 function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marathon, onToggleMarathon, onRename, onDescribe, onClose, onDelete, onStop, archived = [], onUnhide, onCloseMobile, running, stalled, updated, runStart = {}, userId, searchResults = NO_RESULTS, onSearch, embedded = false }: SessionsPanelProps) {
   const { query, setQuery, searchRef, confirmId, setConfirmId, deleteId, setDeleteId, pinned, togglePin, dismissedWaiting, dismissWaiting, filtered } = useSessionsPanel({ sessions, archived, searchResults, onSearch, userId });
+  const boxes = useBoxGroups({ onNew });
 
   const renderRow = (s: Session) => (
     <SessionRow key={s.id} s={s} active={s.id === activeId}
@@ -81,7 +85,14 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
         />
       </div>
 
-      <div className="scroll-thin mt-1.5 flex-1 space-y-0 overflow-y-auto overscroll-contain px-2 pb-3">
+      {!embedded && boxes.choices.length > 1 && (
+        <div className="shrink-0 px-2.5 pt-2.5">
+          <NewSessionButton choices={boxes.choices} onPick={(box) => { if (box) boxes.newOn(box); else onNew(); onCloseMobile?.(); }} />
+        </div>
+      )}
+
+      <div className="scroll-thin mt-1.5 flex-1 space-y-2 overflow-y-auto overscroll-contain px-2 pb-3">
+        <BoxGroups {...boxes} count={sessions.length} openOn={(box, id) => { boxes.openOn(box, id); onCloseMobile?.(); }}>
         {loading && sessions.length === 0 ? (
           <div className="space-y-1.5" role="status" aria-label="Carregando sessões">
             <SessionsLoadingNote />
@@ -95,6 +106,7 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
           ))
         )}
         {!loading && onUnhide && <ArchivedSection archived={archived} onUnhide={onUnhide} onDelete={onDelete ? setDeleteId : undefined} onView={(id) => { onSelect(id); onCloseMobile && onCloseMobile(); }} />}
+        </BoxGroups>
       </div>
       {confirmId && (
         <ConfirmArchive

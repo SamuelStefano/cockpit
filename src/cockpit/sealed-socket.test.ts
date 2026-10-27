@@ -646,5 +646,4 @@ describe('SealedSocket with a passkey device key', () => {
     expect(mem.boxPins[BOX]).toEqual([keys.pub]);
     expect(relay.served.some((x) => x.startsWith('{"t":"device'))).toBe(false);
   });
-
 });
