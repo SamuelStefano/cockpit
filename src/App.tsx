@@ -12,6 +12,7 @@ import { bitStateFor } from './components/bit/bit-state';
 import type { LinkState } from './components/bit/turn-bit-state';
 import { RouteContent } from './app/RouteContent';
 import { useCockpit } from './useCockpit';
+import { useBoxes } from './cockpit/useBoxes';
 import { useRoute } from './useRoute';
 import { loadPref } from './lib/persist';
 import { SUPABASE_ENABLED } from './lib/supabase';
@@ -38,7 +39,7 @@ import { useChatUrl } from './app/useChatUrl';
 import { usageAgentOf } from './components/chrome/usage-agent';
 import { withoutBotThreads } from './components/sessions/bot-threads';
 
-export function CockpitApp() {
+function CockpitBody() {
   const cockpit = useCockpit();
   const {
     sessions, loading, activeId: activeSessionId, setActiveId: setActiveSessionId,
@@ -217,4 +218,11 @@ export function CockpitApp() {
       <ConfettiHost />
     </div>
   );
+}
+
+// The box is the identity of everything the cockpit holds in memory (sessions,
+// terminals, queues): switching remounts the tree so none of it leaks across boxes.
+export function CockpitApp() {
+  const { current } = useBoxes();
+  return <CockpitBody key={current ?? ''} />;
 }

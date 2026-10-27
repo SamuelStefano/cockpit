@@ -8,6 +8,7 @@ import { ambiguousIds } from './sessions/ambiguous';
 import { SessionGroup } from './sessions/SessionGroup';
 import { SessionRow } from './sessions/SessionRow';
 import { SessionSkeletonRow } from './sessions/SessionSkeletonRow';
+import { BoxSwitcher } from './sessions/BoxSwitcher';
 import { ArchivedSection } from './sessions/ArchivedSection';
 import { ConfirmArchive } from './sessions/ConfirmArchive';
 import { TagFilterBar } from './sessions/TagFilterBar';
@@ -73,6 +74,7 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
   return (
     <div className="flex h-full flex-col bg-neutral-950">
       <div className="shrink-0 border-b border-neutral-800/80 p-2.5">
+        <BoxSwitcher userId={userId} />
         <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
           <span className="text-[12px] font-semibold uppercase tracking-wider text-neutral-400">
             Sessões

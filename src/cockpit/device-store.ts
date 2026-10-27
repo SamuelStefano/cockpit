@@ -1,5 +1,6 @@
 import type { DeviceKeys } from '../../shared/e2e/device';
 import { fromB64, toB64, type Bytes } from '../../shared/e2e/bytes';
+import { isBoxId } from '../../shared/boxes';
 import { publicRaw, type KeyPair } from '../../shared/e2e/channel';
 
 // This device's signing key and the agent keys it trusts. The private key is
@@ -52,13 +53,23 @@ export function deviceKeys(): Promise<DeviceKeys> {
   return cached;
 }
 
-export async function pinnedAgents(): Promise<Bytes[]> {
-  const list = (await get<string[]>('pins')) ?? [];
+// A socket bound to a box reads and writes ONLY that box's slot. The handshake
+// carries no agent id, so falling back to another slot would let a relay answer
+// box A's dial with box B's key. The legacy single `pins` slot serves unbound
+// sockets only and is never copied into a box slot.
+function slot(box?: string): string {
+  if (box === undefined) return 'pins';
+  if (!isBoxId(box)) throw new Error('invalid box id');
+  return `pins:${box.toLowerCase()}`;
+}
+
+export async function pinnedAgents(box?: string): Promise<Bytes[]> {
+  const list = (await get<string[]>(slot(box))) ?? [];
   return list.map(fromB64);
 }
 
-// One account = one agent: a new enrollment REPLACES the pin, so the key of a
-// box that was wiped or re-provisioned stops being trusted right away.
-export async function pinAgent(pub: Bytes): Promise<void> {
-  await put('pins', [toB64(pub)]);
+// A new enrollment REPLACES the box's pin, so the key of a box that was wiped or
+// re-provisioned stops being trusted right away.
+export async function pinAgent(pub: Bytes, box?: string): Promise<void> {
+  await put(slot(box), [toB64(pub)]);
 }

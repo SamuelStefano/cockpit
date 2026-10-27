@@ -36,6 +36,17 @@ export function buildWsUrl(base: string, token: string): string {
   }
 }
 
+// Adds the relay box selector. Pure; works with or without an existing query.
+export function withBox(url: string, box: string): string {
+  try {
+    const u = new URL(url);
+    u.searchParams.set('box', box);
+    return u.toString();
+  } catch {
+    return `${url}${url.includes('?') ? '&' : '?'}box=${encodeURIComponent(box)}`;
+  }
+}
+
 export function wsUrlWithToken(token: string): string {
   return buildWsUrl(wsBase(), token);
 }
