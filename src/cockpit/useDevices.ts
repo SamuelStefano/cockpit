@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { deviceFrames, type DeviceFrame } from './sealed-socket';
+import { deviceFrames, forgetThisBox, type DeviceFrame } from './sealed-socket';
 
 // Devices enrolled on the box this browser is sealed to. The list and the revoke
 // travel only inside the sealed channel (server/e2e/manage.ts).
@@ -42,5 +42,6 @@ export function useDevices(enabled: boolean) {
   }, [enabled, refresh]);
 
   const revoke = useCallback((pub: string) => { deviceFrames.send({ t: 'device-revoke', pub }); }, []);
-  return { items, revoke, refresh };
+  const forget = useCallback(() => { void forgetThisBox(); }, []);
+  return { items, revoke, refresh, forget };
 }

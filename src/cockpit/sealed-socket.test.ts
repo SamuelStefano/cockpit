@@ -24,6 +24,7 @@ vi.mock('./device-store', async () => {
       mem.pair ??= await crypto.subtle.generateKey({ name: 'Ed25519' }, false, ['sign', 'verify']) as unknown as KeyPair;
       return { keys: { pub: await publicRaw(mem.pair.publicKey), sign: mem.pair.privateKey }, passkey: null, upgrade: ref };
     },
+    forgetBox: async (box?: string) => { if (box) mem.boxPins[box] = []; else mem.pins = []; mem.passkeyBoxes = mem.passkeyBoxes.filter((b) => b !== (box ?? '')); },
     markPasskeyBox: async (box?: string) => { if (!mem.passkeyBoxes.includes(box ?? '')) mem.passkeyBoxes.push(box ?? ''); },
     pinnedAgents: async (box?: string) => pinsOf(box),
     pinAgent: async (p: Bytes, box?: string) => pin(p, box),
@@ -35,7 +36,7 @@ vi.mock('./preauth-store', () => ({
   dropPreauth: (s: Bytes) => { mem.preauth = mem.preauth.filter((x) => x !== s); },
 }));
 
-const { SealedSocket, enrollThisDevice, retrySeal, sealState, sendRelayFrame, TOFU_UNTIL } = await import('./sealed-socket');
+const { SealedSocket, enrollThisDevice, forgetThisBox, retrySeal, sealState, sendRelayFrame, TOFU_UNTIL } = await import('./sealed-socket');
 const { boxStore } = await import('./boxes-store');
 const { SealedHub, agentKeysFrom, tofuWindow } = await import('../../server/e2e/hub');
 const { createEnrollCode, devicePin, listDevices, revokeDevice, storePreauth } = await import('../../server/e2e/devices');
@@ -495,6 +496,18 @@ describe('SealedSocket with a passkey device key', () => {
     expect(relay.browser!.sent.some((f) => f.includes('e2e-hello') && !f.includes(pk))).toBe(true);
     expect(listDevices().map((d) => d.pub)).not.toContain(pk);
     expect(devicePin(pk)).toBeNull();
+  });
+
+  it('forgetting the box drops its pin and passkey mark and closes the channel', async () => {
+    await pairedWithDeviceCode();
+    expect(mem.passkeyBoxes).toContain(BOX);
+    let closed = false;
+    relay.browser!.onclose = () => { closed = true; };
+    expect(await forgetThisBox()).toBe(true);
+    await flush();
+    expect(mem.boxPins[BOX]).toEqual([]);
+    expect(mem.passkeyBoxes).not.toContain(BOX);
+    expect(closed).toBe(true);
   });
 
   it('a relay that puts a bad pin proof in front of a browser with no pin cannot make it sticky-rejected', async () => {

@@ -93,6 +93,15 @@ export async function markPasskeyBox(box?: string): Promise<void> {
   if (!list.includes(slot(box))) await put(PASSKEY_BOXES, [...list, slot(box)]);
 }
 
+// "Esquecer esta VPS": the next dial starts from no pin, as on a new browser. It
+// does not undo a pin key a forged first use already handed out; only a new
+// passkey does (adoptPasskey).
+export async function forgetBox(box?: string): Promise<void> {
+  const s = slot(box);
+  await put(s, []);
+  await put(PASSKEY_BOXES, ((await get<string[]>(PASSKEY_BOXES)) ?? []).filter((b) => b !== s));
+}
+
 export async function adoptPasskey(d: PasskeyDevice): Promise<void> {
   await put(PASSKEY, { pair: d.pair, pinRoot: d.pinRoot } satisfies StoredPasskey);
   // A new passkey key is new to every box, including those the old one reached.

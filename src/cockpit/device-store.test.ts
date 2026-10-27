@@ -26,7 +26,7 @@ const fakeIdb = {
 vi.stubGlobal('indexedDB', fakeIdb);
 
 const {
-  pinnedAgents, pinAgent, pinAgentIfEmpty, deviceKeysFor, adoptPasskey, passkeyDevice, markPasskeyBox,
+  pinnedAgents, pinAgent, pinAgentIfEmpty, deviceKeysFor, adoptPasskey, passkeyDevice, markPasskeyBox, forgetBox,
 } = await import('./device-store');
 const { deriveFromPrf } = await import('../../shared/e2e/passkey');
 
@@ -112,5 +112,19 @@ describe('passkey device key', () => {
     const fresh = await deriveFromPrf(new Uint8Array(32).fill(5));
     await adoptPasskey(fresh);
     expect((await deviceKeysFor(A)).passkey).toBeNull();
+  });
+});
+
+describe('forgetting a box', () => {
+  it('clears only that box\'s pin and passkey mark', async () => {
+    await pinAgent(new Uint8Array([1]), A);
+    await pinAgent(new Uint8Array([2]), B);
+    await markPasskeyBox(A);
+    await markPasskeyBox(B);
+    await forgetBox(A);
+    expect(await pinnedAgents(A)).toEqual([]);
+    expect(await pinnedAgents(B)).toEqual([new Uint8Array([2])]);
+    expect(data.get('passkey-boxes')).toEqual([`pins:${B}`]);
+    expect(await pinAgentIfEmpty(new Uint8Array([3]), A)).toBe(true);
   });
 });

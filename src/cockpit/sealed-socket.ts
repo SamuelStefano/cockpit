@@ -7,7 +7,7 @@ import { boxPinKey, checkPinProof } from '../../shared/e2e/passkey';
 import { equalBytes, toB64, type Bytes } from '../../shared/e2e/bytes';
 import { TOFU_UNTIL } from '../../shared/e2e/tofu';
 import {
-  deviceKeysFor, markPasskeyBox, pinAgent, pinAgentIfEmpty, pinnedAgents, type PasskeyRef,
+  deviceKeysFor, forgetBox, markPasskeyBox, pinAgent, pinAgentIfEmpty, pinnedAgents, type PasskeyRef,
 } from './device-store';
 import { dropPreauth, pendingPreauths } from './preauth-store';
 import { defaultDeviceLabel } from './device-label';
@@ -49,6 +49,15 @@ export function enrollThisDevice(code: string, label: string): Promise<void> {
 export function retrySeal(): void {
   mainSocket?.retry();
   void mainSocket?.offerPasskey();
+}
+
+// Drops this browser's pin and passkey mark for the box it is sealed to, then
+// redials as a browser that never saw it.
+export async function forgetThisBox(): Promise<boolean> {
+  const s = mainSocket;
+  if (!s) return false;
+  await s.forget();
+  return true;
 }
 
 // Device management frames (devices list, revoke) ride the main sealed channel
@@ -174,6 +183,11 @@ export class SealedSocket {
       this.enrolling = { parsed, replace, resolve, reject };
       this.raw(JSON.stringify(frame));
     });
+  }
+
+  async forget(): Promise<void> {
+    await forgetBox(this.box);
+    this.fail('box forgotten');
   }
 
   private raw(s: string): void {
@@ -418,7 +432,7 @@ export class SealedSocket {
   // starts a fresh channel and hides the loss. Say so instead of reconnecting
   // silently, so an unconfirmed action gets checked.
   private fail(reason: string, next: SealState = 'connecting'): void {
-    if (this.channel && reason !== 'channel lifetime reached') {
+    if (this.channel && reason !== 'channel lifetime reached' && reason !== 'box forgotten') {
       toast('Conexão cifrada reiniciada — confira se a última ação chegou.', { tone: 'error' });
     }
     this.setSeal(next);
