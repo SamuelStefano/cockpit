@@ -145,10 +145,10 @@ export function ChatPanel({ session, messages, phase, terminalBusy = false, sess
       <CallDock call={call} />
 
       <ChatInput disabled={c.disabled} placeholder={botDecor && c.pendingQuestion ? BOT_ANSWER_PLACEHOLDER : undefined} onSend={onSend} onStop={onStop} value={draft} setValue={setDraft} mode={mode} setMode={setMode}
-        caps={caps} bypass={bypass} setBypass={setBypass}
+        caps={caps}
         model={model} setModel={setModel} modelLocked={modelLocked} models={models} onRefreshModels={onRefreshModels}
         effort={effort} setEffort={setEffort}
-        skills={skills} selectedSkills={selectedSkills} setSelectedSkills={setSelectedSkills} mcpServers={mcpServers} selectedMcps={selectedMcps} setSelectedMcps={setSelectedMcps} slashCommands={slashCommands}
+        mcpServers={mcpServers} selectedMcps={selectedMcps} setSelectedMcps={setSelectedMcps} slashCommands={slashCommands}
         attachments={attachments} onUpload={onUpload} onRemoveAttachment={onRemoveAttachment} onOpenAttachment={onAttOpen} focusSignal={focusSignal}
         queued={c.queued} queuedAtts={c.queuedAtts} queuedModels={c.queuedModels} onRunQueuedBg={c.runQueuedInBgAt} onRunQueuedNow={c.runQueuedNowAt} onQueue={c.enqueue} onCancelQueueAt={c.cancelQueueAt} onEditQueuedAt={c.editQueuedAt} onMoveQueued={c.moveQueuedItem} history={c.sentHistory} pendingConfirm={c.bannerConfirm} onNew={onNew} onShowHelp={onShowHelp}
         queuePaused={queuePaused} queueReleaseAt={queueReleaseAt} onToggleQueuePause={() => queueSetPaused(!queuePaused)}

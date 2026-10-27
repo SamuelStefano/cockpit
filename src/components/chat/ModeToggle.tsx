@@ -1,21 +1,16 @@
 import { tokens } from '../primitives';
 import type { PermMode } from '../../../shared/protocol';
 
-const ACTIVE_TONE: Record<PermMode, string> = {
-  plan: 'bg-neutral-800 text-neutral-100',
-  auto: `bg-amber-500/20 text-amber-300 ${tokens.insetRing.warn}`,
-  acceptEdits: `bg-orange-500/20 text-orange-300 ${tokens.insetRing.accent}`,
-};
+const OPTS: { v: PermMode; label: string; hint: string }[] = [
+  { v: 'plan', label: 'Planejar', hint: 'só descreve o plano' },
+  { v: 'acceptEdits', label: 'Executar', hint: 'edita arquivos e roda comandos' },
+  { v: 'auto', label: 'Sozinho', hint: 'segue o ciclo até o fim' },
+];
 
 export function ModeToggle({ mode, setMode }: { mode: PermMode; setMode: (m: PermMode) => void }) {
-  const opts: { v: PermMode; label: string; hint: string }[] = [
-    { v: 'plan', label: 'Planejar', hint: 'só descreve o plano — nada é executado' },
-    { v: 'acceptEdits', label: 'Executar', hint: 'o agente edita arquivos e roda comandos' },
-    { v: 'auto', label: 'Auto', hint: 'roda o ciclo sozinho — edita arquivos e usa o shell' },
-  ];
   return (
-    <div className="inline-flex shrink-0 items-center rounded-lg border border-neutral-800 bg-neutral-950 p-0.5">
-      {opts.map((o) => {
+    <div className="flex w-full items-center rounded-lg border border-neutral-800 bg-neutral-950 p-0.5">
+      {OPTS.map((o) => {
         const active = mode === o.v;
         return (
           <button
@@ -23,10 +18,9 @@ export function ModeToggle({ mode, setMode }: { mode: PermMode; setMode: (m: Per
             type="button"
             onClick={() => setMode(o.v)}
             title={o.hint}
-            // The active mode was shown by colour alone.
             aria-pressed={active}
-            className={`whitespace-nowrap rounded-md px-2.5 py-1.5 pointer-coarse:min-h-11 text-[12px] font-medium transition sm:px-2 sm:py-1 ${tokens.focusRing}
-              ${active ? ACTIVE_TONE[o.v] : 'text-neutral-500 hover:text-neutral-300'}`}
+            className={`flex-1 whitespace-nowrap rounded-md px-2 py-1.5 pointer-coarse:min-h-11 text-[12px] font-medium transition ${tokens.focusRing}
+              ${active ? 'bg-neutral-800 text-neutral-100' : 'text-neutral-500 hover:text-neutral-300'}`}
           >
             {o.label}
           </button>

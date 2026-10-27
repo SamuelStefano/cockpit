@@ -7,9 +7,13 @@ export type IconName =
   | 'panelRight' | 'circle' | 'user' | 'copy' | 'command' | 'grip' | 'download' | 'paperclip' | 'clock' | 'star' | 'file' | 'tag'
   | 'lock' | 'shield' | 'shield-off' | 'mic' | 'image' | 'camera' | 'sliders' | 'volume' | 'wrapText' | 'smartphone' | 'phone'
   | 'monitor' | 'tablet' | 'maximize' | 'minimize' | 'code' | 'link' | 'layers'
-  | 'users' | 'panelLeft' | 'split' | 'move' | 'external' | 'alertTriangle' | 'ellipsis' | 'clipboard' | 'swap';
+  | 'users' | 'panelLeft' | 'split' | 'move' | 'external' | 'alertTriangle' | 'ellipsis' | 'clipboard' | 'swap'
+  | 'audio' | 'brain' | 'wrench';
 
 const ICON_PATHS: Record<IconName, ReactNode> = {
+  audio: <path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3" />,
+  brain: <><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" /><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" /><path d="M12 5v13" /></>,
+  wrench: <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />,
   terminal: <><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></>,
   file: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></>,
   plus: <><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></>,

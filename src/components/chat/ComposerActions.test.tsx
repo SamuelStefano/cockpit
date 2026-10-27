@@ -65,36 +65,36 @@ describe('ComposerActions', () => {
 describe('ComposerActions primary slot', () => {
   const mic = (over: Partial<{ supported: boolean; listening: boolean }> = {}) => ({ supported: true, listening: false, error: null, toggle: vi.fn(), ...over });
 
-  it('shows the mic when empty and dictates on click', () => {
+  it('shows the dictation mic and dictates on click', () => {
     const m = mic();
     setup({ mic: m });
-    expect(screen.queryByLabelText('Enviar mensagem')).toBeNull();
     fireEvent.click(screen.getByLabelText('Ditar por voz'));
     expect(m.toggle).toHaveBeenCalledTimes(1);
   });
 
-  it('swaps the mic for send as soon as there is text', () => {
+  it('keeps the mic next to send once there is text', () => {
     setup({ mic: mic(), hasText: true });
-    expect(screen.queryByLabelText('Ditar por voz')).toBeNull();
+    expect(screen.getByLabelText('Ditar por voz')).toBeTruthy();
     expect(screen.getByLabelText('Enviar mensagem')).toBeTruthy();
   });
 
-  it('keeps stop-dictation in the slot while listening, even with dictated text', () => {
+  it('turns the mic into stop-dictation while listening', () => {
     const m = mic({ listening: true });
     setup({ mic: m, hasText: true });
-    expect(screen.queryByLabelText('Enviar mensagem')).toBeNull();
     fireEvent.click(screen.getByLabelText('Parar de ditar'));
     expect(m.toggle).toHaveBeenCalledTimes(1);
   });
 
-  it('falls back to a disabled send when dictation is unsupported', () => {
+  it('has no mic when dictation is unsupported and send stays disabled', () => {
     setup({ mic: mic({ supported: false }) });
+    expect(screen.queryByLabelText('Ditar por voz')).toBeNull();
     expect((screen.getByLabelText('Enviar mensagem') as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('offers the call next to the action only when empty', () => {
+  it('empty field: the main button starts the voice call', () => {
     const onCall = vi.fn();
     setup({ mic: mic(), onCall });
+    expect(screen.queryByLabelText('Enviar mensagem')).toBeNull();
     fireEvent.click(screen.getByLabelText('Ligar'));
     expect(onCall).toHaveBeenCalledTimes(1);
     cleanup();
@@ -102,8 +102,9 @@ describe('ComposerActions primary slot', () => {
     expect(screen.queryByLabelText('Ligar')).toBeNull();
   });
 
-  it('never offers the call while a turn runs', () => {
-    setup({ busy: true, onCall: vi.fn() });
+  it('never offers the call or mic while a turn runs', () => {
+    setup({ busy: true, onCall: vi.fn(), mic: mic() });
     expect(screen.queryByLabelText('Ligar')).toBeNull();
+    expect(screen.queryByLabelText('Ditar por voz')).toBeNull();
   });
 });
