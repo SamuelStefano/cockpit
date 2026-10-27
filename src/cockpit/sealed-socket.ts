@@ -321,9 +321,10 @@ export class SealedSocket {
         return;
       }
       case 'e2e-accept': return this.onAccept(m);
+      // Only an answer to this socket's own hello; it never starts a pre-authorization.
       case 'e2e-unknown-device': {
+        if (!this.handshake) return;
         this.handshake = null;
-        if (this.preauthing) return;
         this.clearTimer();
         this.toEnroll();
         return;

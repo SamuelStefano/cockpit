@@ -377,11 +377,12 @@ describe('SealedSocket with a passkey device key', () => {
     const { secret } = await newDeviceCode(mem.passkey!.pub);
     mem.preauth = [secret];
     dial();
-    await flush();
+    await settle();
     relay.browser!.receive('{"t":"e2e-unknown-device"}');
     await settle();
     expect(relay.browser!.sent.some((f) => f.includes('e2e-preauth'))).toBe(false);
     expect(mem.boxPins[BOX]).toEqual([keys.pub]);
+    expect(sealState.get()).toBe('sealed');
   });
 
   it('a box the relay routes this dial to cannot redeem a secret meant for another box', async () => {
