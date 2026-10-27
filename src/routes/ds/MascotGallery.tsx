@@ -1,7 +1,7 @@
 import { Mascot } from '../../components/team/Mascot';
-import { MascotStatusLine } from '../../components/team/MascotStatusLine';
+import { LivingPhrase } from '../../components/team/LivingPhrase';
 import { PrimaryStar } from '../../components/team/PrimaryStar';
-import { MASCOT_STATES, MASCOT_STATE_LABEL } from '../../components/team/mascot-state';
+import { BOT_STATES, BOT_STATE_LABEL } from '../../components/team/botState';
 import { MASCOT_COLORS } from '../../components/team/mascot-shapes';
 import type { MascotShape } from '../../../shared/protocol';
 import { Section } from './Section';
@@ -14,14 +14,22 @@ export function MascotGallery() {
     <Section title="Mascote da Equipe">
       {SHAPES.map((shape, i) => (
         <Row key={shape} label={shape}>
-          {MASCOT_STATES.map((state) => (
+          {BOT_STATES.map((state) => (
             <div key={state} className="flex flex-col items-center gap-1">
               <Mascot mascot={{ shape, color: MASCOT_COLORS[i] }} state={state} size={44} />
-              <span className="text-[12px] text-neutral-600">{MASCOT_STATE_LABEL[state]}</span>
+              <span className="text-[12px] text-neutral-600">{BOT_STATE_LABEL[state]}</span>
             </div>
           ))}
         </Row>
       ))}
+      <Row label="32 px (barra)">
+        {BOT_STATES.map((state) => (
+          <div key={state} data-state={state} className="flex flex-col items-center gap-1">
+            <Mascot mascot={{ shape: 'blob', color: MASCOT_COLORS[0] }} state={state} size={32} />
+            <span className="text-[12px] text-neutral-600">{BOT_STATE_LABEL[state]}</span>
+          </div>
+        ))}
+      </Row>
       <Row label="principal">
         <div className="relative">
           <Mascot mascot={{ shape: 'blob', color: MASCOT_COLORS[0] }} size={56} />
@@ -29,7 +37,7 @@ export function MascotGallery() {
         </div>
       </Row>
       <Row label="status vivo">
-        <MascotStatusLine active startedAt={Date.now()} />
+        <LivingPhrase active startedAt={Date.now()} />
       </Row>
     </Section>
   );

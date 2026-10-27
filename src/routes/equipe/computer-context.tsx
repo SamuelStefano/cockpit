@@ -1,6 +1,6 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import type { TeamBot } from '../../../shared/protocol';
-import type { MascotState } from '../../components/team/mascot-state';
+import type { BotState } from '../../components/team/botState';
 import type { TermApi } from '../../cockpit/useTerminals';
 import type { BotComputerApi } from './equipe-props';
 import { useBotComputerTab } from './useBotComputerTab';
@@ -10,7 +10,7 @@ type Tab = ReturnType<typeof useBotComputerTab>;
 
 export interface ComputerCtx extends Tab {
   bot: TeamBot;
-  state: MascotState;
+  state: BotState;
   term: TermApi;
   connected: boolean;
   isAdmin: boolean;
@@ -21,7 +21,7 @@ const Ctx = createContext<ComputerCtx | null>(null);
 
 interface ProviderProps {
   bot: TeamBot;
-  state: MascotState;
+  state: BotState;
   api: BotComputerApi;
   term: TermApi;
   connected: boolean;

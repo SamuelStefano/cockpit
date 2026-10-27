@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { phraseAt, STATUS_PHRASES, PHRASE_MS } from './status-phrases';
 
 describe('phraseAt', () => {
-  it('starts on the first phrase and advances every 2.5s', () => {
+  it('starts on the first phrase and advances every 4s', () => {
     expect(phraseAt(0)).toBe('Pensando…');
     expect(phraseAt(PHRASE_MS - 1)).toBe('Pensando…');
     expect(phraseAt(PHRASE_MS)).toBe('Ponderando…');
