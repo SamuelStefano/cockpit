@@ -1,6 +1,5 @@
 import { useState, useRef, type ReactNode } from 'react';
 import { MobileDrawer } from './MobileDrawer';
-import { SessionsPanel, type SessionsPanelProps } from './Sessions';
 import { ChatPanel } from './Chat';
 import type { ChatPanelProps } from './chat/chat-panel-props';
 import { TerminalsPanel, type TerminalsPanelProps } from './Terminals';
@@ -56,7 +55,6 @@ function TerminalSheet({ termProps, onClose }: TerminalSheetProps) {
 }
 
 export interface MobileLayoutProps {
-  sessionsProps: SessionsPanelProps;
   chatProps: ChatPanelProps;
   termProps: TerminalsPanelProps;
   drawer: boolean;
@@ -64,11 +62,13 @@ export interface MobileLayoutProps {
   termSheet: boolean;
   setTermSheet: (v: boolean) => void;
   runningTerm: Terminal | undefined;
-  // Shell nav shown above the sessions list inside the drawer.
+  // The drawer's content: the same sections as the desktop sidebar (agents, conversations, more).
   drawerNav?: ReactNode;
+  // An agent's thread, full screen in place of the plain chat.
+  center?: ReactNode;
 }
 
-export function MobileLayout({ sessionsProps, chatProps, termProps, drawer, setDrawer, termSheet, setTermSheet, runningTerm, drawerNav }: MobileLayoutProps) {
+export function MobileLayout({ chatProps, termProps, drawer, setDrawer, termSheet, setTermSheet, runningTerm, drawerNav, center }: MobileLayoutProps) {
   // Hardware keyboard (iPad, Bluetooth phone): Esc closes these two overlays too.
   // They are escape layers so a dialog opened on top of the drawer closes first.
   useEscapeLayer(drawer, () => setDrawer(false));
@@ -77,17 +77,12 @@ export function MobileLayout({ sessionsProps, chatProps, termProps, drawer, setD
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1">
-        <ChatPanel key={chatProps.session?.id ?? 'none'} {...chatProps} onTerminal={() => setTermSheet(true)} terminalRunning={!!runningTerm} />
+        {center ?? <ChatPanel key={chatProps.session?.id ?? 'none'} {...chatProps} onTerminal={() => setTermSheet(true)} terminalRunning={!!runningTerm} />}
       </div>
 
       {drawer && (
         <MobileDrawer onClose={() => setDrawer(false)}>
-          <div className="flex h-full min-h-0 flex-col">
-            {drawerNav}
-            <div className="min-h-0 flex-1">
-              <SessionsPanel {...sessionsProps} onCloseMobile={() => setDrawer(false)} />
-            </div>
-          </div>
+          {drawerNav}
         </MobileDrawer>
       )}
 

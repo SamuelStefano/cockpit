@@ -4,6 +4,7 @@ import { ExportMenu } from './ExportMenu';
 import { HistoryControls } from './HistoryControls';
 import { TurnStat } from './TurnStat';
 import { prettyModel } from './toolbar-format';
+import { Icon } from '../primitives';
 
 interface HistoryProps {
   sessionId: string;
@@ -24,14 +25,24 @@ interface ChatHeaderMenuProps {
   selectedModel?: string;
   history: HistoryProps | null;
   canExport: boolean;
+  profile?: { open: boolean; toggle: () => void } | null;
   onDone: () => void;
 }
 
 // Everything that used to be a badge in the bar: info as text, then the actions.
 // A click on any action closes the menu (delegated: the row components stay dumb).
-export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel, history, canExport, onDone }: ChatHeaderMenuProps) {
+export function ChatHeaderMenu({ title, messages, lastTurn, ranOn, selectedModel, history, canExport, profile, onDone }: ChatHeaderMenuProps) {
   return (
     <div className="w-64 py-1" onClick={(e) => { if ((e.target as HTMLElement).closest('button')) onDone(); }}>
+      {profile && (
+        <button
+          type="button" aria-pressed={profile.open} onClick={profile.toggle}
+          className="flex h-9 w-full items-center gap-2 px-3 text-left text-[13px] text-neutral-200 hover:bg-neutral-800 pointer-coarse:h-11"
+        >
+          <Icon name="user" size={15} className="text-neutral-400" />
+          Perfil do agente
+        </button>
+      )}
       <TurnStat stats={lastTurn} />
       {ranOn && (
         <p className="px-3 py-1.5 text-[12px] text-amber-300/90">

@@ -2,7 +2,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, cleanup, fireEvent } from '@testing-library/react';
 
-vi.mock('./Sessions', () => ({ SessionsPanel: () => null }));
 vi.mock('./Chat', () => ({ ChatPanel: () => null }));
 vi.mock('./Terminals', () => ({ TerminalsPanel: () => null }));
 
@@ -17,12 +16,12 @@ function Dialog({ onClose }: { onClose: () => void }) {
 }
 
 const props = (setDrawer: (v: boolean) => void) => ({
-  sessionsProps: {} as never, chatProps: {} as never, termProps: {} as never,
+  chatProps: {} as never, termProps: {} as never,
   drawer: true, setDrawer, termSheet: false, setTermSheet: vi.fn(), runningTerm: undefined,
 });
 
 describe('MobileLayout Escape', () => {
-  it('closes a dialog opened over the sessions drawer before the drawer', () => {
+  it('closes a dialog opened over the drawer before the drawer', () => {
     const setDrawer = vi.fn();
     const closeDialog = vi.fn();
     const { rerender } = render(<MobileLayout {...props(setDrawer)} />);

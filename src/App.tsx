@@ -4,6 +4,7 @@ import { Sidebar } from './components/chrome/sidebar/Sidebar';
 import { MobileTopBar } from './components/chrome/sidebar/MobileTopBar';
 import { MobileNavDrawer } from './components/chrome/sidebar/MobileNavDrawer';
 import { DrawerNav } from './components/chrome/sidebar/DrawerNav';
+import { SessionsPanel } from './components/Sessions';
 import { QuotaBanner } from './components/chrome/QuotaBanner';
 import { OfflineNotice } from './components/chrome/OfflineNotice';
 import { UpdateNotice } from './components/chrome/UpdateNotice';
@@ -14,6 +15,8 @@ import { BoxHealthHost } from './components/health/BoxHealthHost';
 import { bitStateFor } from './components/bit/bit-state';
 import type { LinkState } from './components/bit/turn-bit-state';
 import { RouteContent } from './app/RouteContent';
+import { AgentFormHost } from './app/AgentFormHost';
+import { useAgentNav } from './app/useAgentNav';
 import { useCockpit } from './useCockpit';
 import { useBoxes } from './cockpit/useBoxes';
 import { useRoute } from './useRoute';
@@ -85,12 +88,12 @@ function CockpitBody() {
   useProfileHydration(sbAuth.session?.user.id);
   useSessionPrefsHydration(sbAuth.session?.user.id);
 
-  const { rowRef, leftW, rightW, leftCollapsed, setLeftCollapsed, rightCollapsed, setRightCollapsed, startDrag, nudge } = usePanelResize();
+  const { rowRef, rightW, rightCollapsed, setRightCollapsed, startDrag, nudge } = usePanelResize();
   const { terminals, activeTermId, setActiveTermId, handleAddTerm, handleCloseTerm, attachable, attachExisting, runningTerm } = useTerminalTabs(term, discoveredTerms, listTerms);
 
   const [quotaClosed, setQuotaClosed] = useState(false);
   const quotaGate = useQuotaGate(planUsage, rate);
-  const usageAgent = usageAgentOf(model, { route, activeId: activeSessionId, bots: cockpit.bots });
+  const usageAgent = usageAgentOf(model, { activeId: activeSessionId, bots: cockpit.bots });
   // Fechar o aviso vale pra ESTA janela de cota: sem o reset, quem fechou uma vez
   // nunca mais era avisado (nem na janela seguinte) até dar F5.
   const quotaWindow = rate?.resetsAt ?? null;
@@ -167,10 +170,21 @@ function CockpitBody() {
   const chatProps = { session: activeSession, messages, phase, terminalBusy, sessionTodos, draft, setDraft, onSend: handleSend, onPrompt: handleSend, onApproveWorkflow, onStop: handleStop, mode, setMode, caps, claudeReady, claudeLogin, agents: cockpit.agents, onClaudeLoginStart, onClaudeLoginCode, onClaudeLoginCancel, bypass, setBypass, model, setModel, models, onRefreshModels, effort, setEffort, skills, selectedSkills, setSelectedSkills, selectedMcps, setSelectedMcps, mcpServers, slashCommands, contextTokens, contextModel, sendCost, liveTurnTokens, turnStartedAt, bgAgents, lastTurn, lastEnd, onNew: handleNew, onHandoff, handoffBusy, attachments, onUpload, onRemoveAttachment, attPreview, onAttOpen, onAttClose, attThumbs, onAttThumb, onEditUser: editUser, onQuote: quoteMsg, onMemorize: memorizeMsg, onRename: handleRename, onOpenFull, onLoadOlder, onOpenSummary, truncated, onShowHelp: () => setHelp(true), focusSignal, isMobile, keyboardOpen, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, queue, queueAdd, queueRemove, queueEdit, queueMove, queueClear, queuePaused, queueReleaseAt, queueSetPaused, queueRetry, queueRunBg, queueRunNow, queueForce, resumeOffer, resumeRun, orchestratorSessionId: orchestratorInfo?.sessionId, conn: link, call };
   const termProps = { terminals, activeId: activeTermId, onSelect: setActiveTermId, onAdd: handleAddTerm, onClose: handleCloseTerm, term, attachable, onAttach: attachExisting };
 
-  const navCounts = { '/equipe': cockpit.pendingQuestions.length };
+  const agent = useAgentNav({
+    bots: cockpit.bots, teamLoaded: cockpit.teamLoaded, sessions, running, activeId: activeSessionId, phase, interrupted: cockpit.interrupted, runStart,
+    pendingQuestions: cockpit.pendingQuestions, teamMessages: cockpit.teamMessages, connected: conn.ws === 'connected', onTeamGet: cockpit.onTeamGet, onOpenBot: cockpit.onOpenBot,
+  }, route, nav);
+  const agentsProps = {
+    views: agent.views, activeId: agent.active?.bot.id ?? null, onNew: agent.openNew,
+    onOpen: (id: string) => { agent.open(id); setDrawer(false); },
+    paused: cockpit.teamPaused, onPauseSet: isAdmin ? cockpit.onTeamPauseSet : undefined,
+  };
   const openPalette = () => { setDrawer(false); setPalette(true); };
   const usageDock = { usageAgent, planUsage, planBlockedUntil, planReadAt, planNextReadAt, onRefreshPlanUsage, grokUsage: cockpit.grokUsage, onRefreshGrokUsage: cockpit.onRefreshGrokUsage, quotaWarn: quotaGate.warn, quotaPaused: quotaGate.paused, quotaResetsAt: quotaGate.resetsAt, stats };
   const account = { userId: sbAuth.session?.user.id, onSignOut: SUPABASE_ENABLED ? sbAuth.signOut : undefined, onChangePassword: SUPABASE_ENABLED ? sbAuth.changePassword : undefined, drops: dropApi };
+
+  const drawerSessions = drawer ? <SessionsPanel {...sessionsProps} onCloseMobile={() => setDrawer(false)} /> : null;
+  const drawerNav = <DrawerNav route={route} nav={nav} role={role} onPalette={openPalette} agents={agentsProps} sessions={drawerSessions} />;
 
   const gate = resolveAuthGate({ sbAuth, seal, ejectPairing, authRequired, submitToken });
   if (gate) return gate;
@@ -201,8 +215,9 @@ function CockpitBody() {
       <div className="flex min-h-0 flex-1">
         {!isMobile && (
           <Sidebar
-            route={route} nav={nav} role={role} navCounts={navCounts} onNew={handleNew} onPalette={() => setPalette(true)}
+            route={route} nav={nav} role={role} onNew={handleNew} onPalette={() => setPalette(true)}
             bitState={bitState} conn={conn.ws} usage={usageDock} account={account}
+            agents={agentsProps} sessions={<SessionsPanel {...sessionsProps} />}
           />
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -227,17 +242,18 @@ function CockpitBody() {
 
           <RouteContent
             route={route} isMobile={isMobile} isAdmin={isAdmin} isRoot={isRoot} connected={conn.ws === 'connected'}
-            cockpit={cockpit} sessionsProps={sessionsProps} chatProps={chatProps} termProps={termProps}
-            onOpenSession={selectSession}
+            cockpit={cockpit} chatProps={chatProps} termProps={termProps}
+            onOpenSession={selectSession} agent={agent}
             onOpenAgentChat={(m) => { handleNew(); setModel(m); nav('/'); }}
-            layout={{ rowRef, leftW, rightW, leftCollapsed, setLeftCollapsed, rightCollapsed, setRightCollapsed, startDrag, nudge }}
-            mobile={{ drawer, setDrawer, termSheet, setTermSheet, runningTerm, drawerNav: <DrawerNav route={route} nav={nav} role={role} counts={navCounts} onPalette={openPalette} /> }}
+            layout={{ rowRef, rightW, rightCollapsed, setRightCollapsed, startDrag, nudge }}
+            mobile={{ drawer, setDrawer, termSheet, setTermSheet, runningTerm, drawerNav }}
           />
         </div>
       </div>
-      {isMobile && route !== '/' && (
-        <MobileNavDrawer open={drawer} onClose={() => setDrawer(false)} route={route} nav={nav} role={role} counts={navCounts} onPalette={openPalette} />
+      {isMobile && route !== '/' && route !== '/equipe' && (
+        <MobileNavDrawer open={drawer} onClose={() => setDrawer(false)} route={route} nav={nav} role={role} onPalette={openPalette} agents={agentsProps} sessions={drawerSessions} />
       )}
+      <AgentFormHost target={agent.form} bots={cockpit.bots} models={models} isAdmin={isAdmin} onSave={cockpit.onTeamSave} onClose={agent.closeForm} />
       <BoxHealthHost />
       <Toaster />
       <ConfettiHost />

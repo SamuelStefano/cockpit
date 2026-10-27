@@ -1,54 +1,29 @@
-import { EmptyState } from '../components/primitives';
-import { TeamRoster } from './equipe/TeamRoster';
+import { Drawer } from '../components/primitives';
 import { ThreadPane } from './equipe/ThreadPane';
 import { BotProfile } from './equipe/BotProfile';
-import { BotForm } from './equipe/BotForm';
-import { useEquipe } from './equipe/useEquipe';
+import { usePeerSelection } from './equipe/usePeerSelection';
 import { BotComputerProvider } from './equipe/computer-context';
 import type { EquipeProps } from './equipe/equipe-props';
 
+// An agent's thread in the chat's own center. Its profile replaces the terminals
+// on the right (desktop) or slides over the thread (phone).
 export function Equipe(p: EquipeProps) {
-  const e = useEquipe(p);
-  const sel = e.selectedView;
-  const roster = <TeamRoster views={e.views} loaded={p.teamLoaded} selectedId={sel?.bot.id ?? null} onSelect={e.select} onNew={e.openNew}
-    paused={p.teamPaused} onPauseSet={p.onTeamPauseSet} />;
-  const thread = (extra: { onBack?: () => void; onProfile?: () => void } = {}) => sel && (
-    <ThreadPane view={sel} peer={e.peer} byId={e.byId} p={p} onOpenPeer={e.openPeer} onClosePeer={e.closePeer} {...extra} />
+  const { view, isMobile, profileOpen } = p;
+  const { byId, peer, openPeer, closePeer } = usePeerSelection(view.bot.id, p.bots, p.connected, p.onTeamMessagesGet);
+  const profile = (
+    <BotProfile view={view} bots={p.bots} models={p.models} onSave={p.onTeamSave} onEdit={p.onEdit} onDelete={p.onTeamDelete}
+      onBack={p.onCloseProfile} connected={p.connected} cronApi={p} filesApi={p} />
   );
-  const form = e.form && (
-    <BotForm key={e.form.mode === 'edit' ? e.form.bot.id : 'new'} bot={e.form.mode === 'edit' ? e.form.bot : null}
-      bots={p.bots} models={p.models} locked={!p.isAdmin} onSave={p.onTeamSave} onClose={e.closeForm} />
-  );
-  const profile = (onBack?: () => void) => sel && (
-    <BotProfile view={sel} bots={p.bots} models={p.models} onSave={p.onTeamSave} onEdit={e.openEdit} onDelete={p.onTeamDelete} onBack={onBack}
-      connected={p.connected} cronApi={p} filesApi={p} />
-  );
-
-  const pane = sel ? e.pane : 'roster';
-  const body = p.isMobile ? (
-    <div className="flex min-h-0 flex-1 flex-col bg-neutral-950">
-      {pane === 'roster' && roster}
-      {pane === 'thread' && thread({ onBack: () => e.setPane('roster'), onProfile: () => e.setPane('profile') })}
-      {pane === 'profile' && profile(() => e.setPane('thread'))}
-      {form}
-    </div>
-  ) : (
-    <div className="flex min-h-0 flex-1 bg-neutral-950">
-      <aside className="w-72 shrink-0 border-r border-neutral-800">{roster}</aside>
-      <main className="min-w-0 flex-1">
-        {sel
-          ? thread()
-          : <EmptyState icon="message" title="Escolha um bot" description="Cada bot tem uma conversa só, que continua de onde parou." />}
-      </main>
-      {sel && <aside className="w-80 shrink-0 border-l border-neutral-800">{profile()}</aside>}
-      {form}
-    </div>
-  );
-
-  if (!sel) return body;
   return (
-    <BotComputerProvider bot={sel.bot} state={sel.state} api={p} term={p.term} connected={p.connected} isAdmin={p.isAdmin} isMobile={p.isMobile}>
-      {body}
+    <BotComputerProvider bot={view.bot} state={view.state} api={p} term={p.term} connected={p.connected} isAdmin={p.isAdmin} isMobile={isMobile}>
+      <div className="flex h-full min-h-0 min-w-0 flex-1">
+        <main className="min-w-0 flex-1">
+          <ThreadPane view={view} peer={peer} byId={byId} p={p} onOpenPeer={openPeer} onClosePeer={closePeer}
+            onProfile={p.onToggleProfile} profileOpen={profileOpen} />
+        </main>
+        {profileOpen && !isMobile && <aside aria-label="Perfil do agente" className="w-80 shrink-0 border-l border-neutral-800 bg-neutral-950">{profile}</aside>}
+      </div>
+      {isMobile && <Drawer open={profileOpen} onClose={p.onCloseProfile} title="Perfil do agente" side="right">{profile}</Drawer>}
     </BotComputerProvider>
   );
 }

@@ -13,11 +13,11 @@ describe('usageAgentOf', () => {
     expect(usageAgentOf(undefined)).toBe('claude');
   });
 
-  it('in the Equipe, the bot of the open thread decides', () => {
+  it('in an agent thread, the bot decides', () => {
     const bots = [{ id: 'grk01', model: 'agent:grok', sessionId: 's-1' }, { id: 'cla01', model: 'claude-sonnet-5-5' }] as TeamBot[];
-    expect(usageAgentOf('claude-opus-5-5', { route: '/equipe', activeId: 's-1', bots })).toBe('grok');
-    expect(usageAgentOf('agent:grok', { route: '/equipe', activeId: 's-1', bots: [{ ...bots[0], model: 'claude-x' }] })).toBe('claude');
-    expect(usageAgentOf('claude-opus-5-5', { route: '/', activeId: 's-1', bots })).toBe('claude');
+    expect(usageAgentOf('claude-opus-5-5', { activeId: 's-1', bots })).toBe('grok');
+    expect(usageAgentOf('agent:grok', { activeId: 's-1', bots: [{ ...bots[0], model: 'claude-x' }] })).toBe('claude');
+    expect(usageAgentOf('claude-opus-5-5', { activeId: 's-2', bots })).toBe('claude');
   });
 });
 

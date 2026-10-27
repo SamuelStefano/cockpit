@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { IconButton, Tooltip, type ConnState } from '../../primitives';
 import { Bit } from '../../bit/Bit';
 import { BIT_STATE_LABEL, type BitState } from '../../bit/bit-state';
@@ -6,6 +7,7 @@ import type { Route } from '../../../useRoute';
 import type { NavRole } from '../nav-routes';
 import { SidebarItem } from './SidebarItem';
 import { SidebarNav } from './SidebarNav';
+import { SidebarAgents, type SidebarAgentsProps } from './SidebarAgents';
 import { SidebarFooter, type AccountProps } from './SidebarFooter';
 import type { UsageDockProps } from './UsageDock';
 import { useSidebarCollapsed } from './useSidebarCollapsed';
@@ -21,13 +23,17 @@ export interface SidebarProps {
   conn: ConnState;
   usage: UsageDockProps;
   account: AccountProps;
+  agents?: SidebarAgentsProps;
+  // The conversations list (SessionsPanel), shown only when expanded.
+  sessions?: ReactNode;
 }
 
-export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitState, conn, usage, account }: SidebarProps) {
+export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitState, conn, usage, account, agents, sessions }: SidebarProps) {
   const { collapsed, toggle } = useSidebarCollapsed();
   const expanded = !collapsed;
   const k = comboLabel(['⌘', 'K']);
   const toggleLabel = expanded ? 'Recolher barra lateral' : 'Expandir barra lateral';
+  const list = expanded && sessions;
   return (
     <aside
       aria-label="Navegação principal"
@@ -51,8 +57,12 @@ export function Sidebar({ route, nav, role, navCounts, onNew, onPalette, bitStat
         />
       </div>
 
-      <div className="scroll-thin min-h-0 flex-1 overflow-y-auto px-2 py-1">
-        <SidebarNav route={route} nav={nav} role={role} counts={navCounts} expanded={expanded} />
+      <div className={`flex min-h-0 flex-1 flex-col ${list ? '' : 'scroll-thin overflow-y-auto'}`}>
+        {agents && <div className="shrink-0 px-2 pb-2"><SidebarAgents {...agents} expanded={expanded} /></div>}
+        {list ? <div className="min-h-0 flex-1 border-y border-neutral-800/80">{sessions}</div> : <div className="flex-1" />}
+        <div className="shrink-0 px-2 py-1">
+          <SidebarNav route={route} nav={nav} role={role} counts={navCounts} expanded={expanded} />
+        </div>
       </div>
 
       <SidebarFooter expanded={expanded} usage={usage} account={account} conn={conn} role={role} />

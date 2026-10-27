@@ -62,4 +62,17 @@ describe('ChatHeader', () => {
     fireEvent.click(screen.getByText('nova sessão'));
     expect(onNew).toHaveBeenCalledTimes(1);
   });
+
+  it('shows the agent instead of the session title and offers its profile in the menu', () => {
+    const onProfile = vi.fn();
+    setup({ agent: { name: 'Capo', avatar: <span>mascote</span>, onProfile, profileOpen: false } });
+    expect(screen.queryByLabelText('Renomear sessão: Minha conversa')).toBeNull();
+    expect(screen.getByText('Capo')).toBeTruthy();
+    expect(screen.getByText('mascote')).toBeTruthy();
+    fireEvent.click(screen.getByLabelText('Mais ações da conversa'));
+    const item = screen.getByRole('button', { name: 'Perfil do agente' });
+    expect(item.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(item);
+    expect(onProfile).toHaveBeenCalledOnce();
+  });
 });

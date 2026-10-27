@@ -1,13 +1,14 @@
 import { Suspense, type ReactNode } from 'react';
 import { MobileLayout } from '../components/Mobile';
 import { DesktopLayout } from './DesktopLayout';
+import { AgentCenter } from './AgentCenter';
+import type { AgentNav } from './useAgentNav';
 import { RouteFallback } from './RouteFallback';
 import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 import {
-  Contextos, Skills, Pontos, Crons, Equipe, Observatorio,
+  Contextos, Skills, Pontos, Crons, Observatorio,
   Graph, Canvas, Admin, Docs, DesignSystem,
 } from './lazyRoutes';
-import type { SessionsPanelProps } from '../components/Sessions';
 import type { ChatPanelProps } from '../components/chat/chat-panel-props';
 import type { TerminalsPanelProps } from '../components/Terminals';
 import type { Terminal } from '../data/types';
@@ -20,10 +21,7 @@ const noop = () => {};
 
 interface LayoutState {
   rowRef: React.RefObject<HTMLDivElement | null>;
-  leftW: number;
   rightW: number;
-  leftCollapsed: boolean;
-  setLeftCollapsed: (v: boolean) => void;
   rightCollapsed: boolean;
   setRightCollapsed: (v: boolean) => void;
   startDrag: (which: PanelSide) => (e: React.PointerEvent<HTMLDivElement>) => void;
@@ -46,16 +44,16 @@ interface RouteContentProps {
   isRoot: boolean;
   connected: boolean;
   cockpit: ReturnType<typeof useCockpit>;
-  sessionsProps: SessionsPanelProps;
   chatProps: ChatPanelProps;
   termProps: TerminalsPanelProps;
   onOpenSession: (id: string) => void;
+  agent: AgentNav;
   onOpenAgentChat: (model: string) => void;
   layout: LayoutState;
   mobile: MobileState;
 }
 
-export function RouteContent({ route, isMobile, isAdmin, isRoot, connected, cockpit, sessionsProps, chatProps, termProps, onOpenSession, onOpenAgentChat, layout, mobile }: RouteContentProps) {
+export function RouteContent({ route, isMobile, isAdmin, isRoot, connected, cockpit, chatProps, termProps, onOpenSession, agent, onOpenAgentChat, layout, mobile }: RouteContentProps) {
   const c = cockpit;
   const view = (() => {
     if (route === '/contextos') {
@@ -88,18 +86,6 @@ export function RouteContent({ route, isMobile, isAdmin, isRoot, connected, cock
         <Crons connected={connected} crons={c.crons} loaded={c.cronsLoaded}
           onCronsGet={c.onCronsGet} onCronSave={c.onCronSave} onCronDelete={c.onCronDelete} onCronRun={c.onCronRun}
           planUsage={c.planUsage} models={c.models} bots={c.bots} onTeamGet={c.onTeamGet} />
-      );
-    }
-    if (route === '/equipe') {
-      return (
-        <Equipe connected={connected} isMobile={isMobile} isAdmin={isAdmin} bots={c.bots} teamLoaded={c.teamLoaded}
-          onTeamGet={c.onTeamGet} onTeamSave={c.onTeamSave} onTeamDelete={c.onTeamDelete} onOpenBot={c.onOpenBot}
-          sessions={c.sessions} running={c.running} activeId={c.activeId} phase={c.phase} interrupted={c.interrupted}
-          runStart={c.runStart} models={c.models} chatProps={chatProps}
-          crons={c.crons} onCronsGet={c.onCronsGet} onCronSave={c.onCronSave} onCronDelete={c.onCronDelete} onCronRun={c.onCronRun}
-          teamMessages={c.teamMessages} teamPaused={c.teamPaused} onTeamMessagesGet={c.onTeamMessagesGet} onTeamPauseSet={c.onTeamPauseSet}
-          pendingQuestions={c.pendingQuestions} botFiles={c.botFiles} botFileData={c.botFileData} onBotFilesGet={c.onBotFilesGet} onBotFileGet={c.onBotFileGet}
-          botComputers={c.botComputers} onBotComputerGet={c.onBotComputerGet} term={c.term} />
       );
     }
     if (route === '/uso') {
@@ -148,10 +134,14 @@ export function RouteContent({ route, isMobile, isAdmin, isRoot, connected, cock
     }
     if (route === '/docs') return <Docs />;
     if (route === '/ds') return <DesignSystem />;
+    // '/' and '/equipe' (a deep link that lands on the primary agent) share one surface.
+    const center = agent.active
+      ? <AgentCenter view={agent.active} agent={agent} cockpit={c} chatProps={chatProps} connected={connected} isMobile={isMobile} isAdmin={isAdmin} />
+      : undefined;
     if (isMobile) {
       return (
         <MobileLayout
-          sessionsProps={sessionsProps} chatProps={chatProps} termProps={termProps}
+          chatProps={chatProps} termProps={termProps} center={center}
           drawer={mobile.drawer} setDrawer={mobile.setDrawer}
           termSheet={mobile.termSheet} setTermSheet={mobile.setTermSheet}
           runningTerm={mobile.runningTerm} drawerNav={mobile.drawerNav}
@@ -160,9 +150,8 @@ export function RouteContent({ route, isMobile, isAdmin, isRoot, connected, cock
     }
     return (
       <DesktopLayout
-        sessionsProps={sessionsProps} chatProps={chatProps} termProps={termProps}
-        rowRef={layout.rowRef} leftW={layout.leftW} rightW={layout.rightW}
-        leftCollapsed={layout.leftCollapsed} setLeftCollapsed={layout.setLeftCollapsed}
+        chatProps={chatProps} termProps={termProps} center={center} hideTerminals={agent.profileOpen}
+        rowRef={layout.rowRef} rightW={layout.rightW}
         rightCollapsed={layout.rightCollapsed} setRightCollapsed={layout.setRightCollapsed}
         startDrag={layout.startDrag} nudge={layout.nudge}
       />
