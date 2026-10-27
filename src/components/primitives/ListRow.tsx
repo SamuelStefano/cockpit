@@ -1,0 +1,28 @@
+import type { ReactNode } from 'react';
+
+interface ListRowProps {
+  label: ReactNode;
+  hint?: ReactNode;
+  leading?: ReactNode;
+  value?: ReactNode;
+  trailing?: ReactNode;
+  onClick?: () => void;
+  className?: string;
+}
+
+export function ListRow({ label, hint, leading, value, trailing, onClick, className = '' }: ListRowProps) {
+  const body = (
+    <>
+      {leading}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[14px] text-neutral-100">{label}</span>
+        {hint && <small className="mt-px block text-[12px] text-neutral-500">{hint}</small>}
+      </span>
+      {value && <span className="text-[13px] text-neutral-400">{value}</span>}
+      {trailing}
+    </>
+  );
+  const cls = `flex min-h-13 w-full items-center gap-3 border-t border-neutral-800 px-4 py-2.5 text-left first:border-t-0 ${className}`;
+  if (onClick) return <button type="button" onClick={onClick} className={`${cls} transition-colors hover:bg-neutral-800/60`}>{body}</button>;
+  return <div className={cls}>{body}</div>;
+}
