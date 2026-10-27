@@ -1,4 +1,6 @@
 import { useState, useSyncExternalStore } from 'react';
+import { boxLabel } from '../../cockpit/boxes-store';
+import { useBoxes } from '../../cockpit/useBoxes';
 import { enrollThisDevice, sealState } from '../../cockpit/sealed-socket';
 
 function defaultLabel(): string {
@@ -14,6 +16,9 @@ export function useSealState() {
 
 export function useEnrollDevice() {
   const state = useSealState();
+  const { boxes, active } = useBoxes();
+  const target = boxes.find((b) => b.id === active);
+  const boxName = target ? boxLabel(target) : '';
   const [code, setCode] = useState('');
   const [label, setLabel] = useState(defaultLabel);
   const [busy, setBusy] = useState(false);
@@ -33,5 +38,5 @@ export function useEnrollDevice() {
   };
 
   const ready = code.replace(/[\s-]/g, '').length >= 52;
-  return { state, code, setCode, label, setLabel, busy, err, submit, ready };
+  return { state, boxName, code, setCode, label, setLabel, busy, err, submit, ready };
 }

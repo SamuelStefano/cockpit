@@ -23,7 +23,7 @@ export interface Pairing {
 
 const SETUP_URL = 'https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh';
 
-export function usePairing(token: string, agentOnline = false, admin = false): Pairing {
+export function usePairing(token: string, agentOnline = false, admin = false, label = ''): Pairing {
   const [code, setCode] = useState('');
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [err, setErr] = useState('');
@@ -54,6 +54,7 @@ export function usePairing(token: string, agentOnline = false, admin = false): P
         headers: { authorization: `Bearer ${tokenRef.current}` },
         signal: ctrl.signal,
       });
+      if (res.status === 409) throw new PairError('limite de máquinas atingido — remova uma máquina antes de adicionar outra');
       if (!res.ok) throw new PairError('falha ao gerar código');
       const data = (await res.json().catch(() => null)) as { code?: string; expiresAt?: string } | null;
       if (!data?.code) throw new PairError('resposta inválida do relay — tente de novo');
@@ -109,7 +110,7 @@ export function usePairing(token: string, agentOnline = false, admin = false): P
 
   return {
     code,
-    cmd: code ? setupCommand(SETUP_URL, code, admin, mode) : '',
+    cmd: code ? setupCommand(SETUP_URL, code, admin, mode, label) : '',
     err,
     busy,
     expired,

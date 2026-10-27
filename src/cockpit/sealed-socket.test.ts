@@ -7,7 +7,7 @@ import type { WebSocket as NodeWs } from 'ws';
 import type { Bytes } from '../../shared/e2e/bytes';
 import type { KeyPair } from '../../shared/e2e/channel';
 
-const mem: { pair?: KeyPair; pins: Bytes[] } = { pins: [] };
+const mem: { pair?: KeyPair; pins: Bytes[]; boxPins: Record<string, Bytes[]> } = { pins: [], boxPins: {} };
 vi.mock('./device-store', async () => {
   const { publicRaw } = await import('../../shared/e2e/channel');
   return {
@@ -15,12 +15,13 @@ vi.mock('./device-store', async () => {
       mem.pair ??= await crypto.subtle.generateKey({ name: 'Ed25519' }, false, ['sign', 'verify']) as unknown as KeyPair;
       return { pub: await publicRaw(mem.pair.publicKey), sign: mem.pair.privateKey };
     },
-    pinnedAgents: async () => mem.pins,
-    pinAgent: async (p: Bytes) => { mem.pins.push(p); },
+    pinnedAgents: async (box?: string) => (box ? (mem.boxPins[box] ?? []) : mem.pins),
+    pinAgent: async (p: Bytes, box?: string) => { (box ? (mem.boxPins[box] ??= []) : mem.pins).push(p); },
   };
 });
 
-const { SealedSocket, enrollThisDevice, sealState } = await import('./sealed-socket');
+const { SealedSocket, enrollThisDevice, sealState, sendRelayFrame } = await import('./sealed-socket');
+const { boxStore } = await import('./boxes-store');
 const { SealedHub, agentKeysFrom } = await import('../../server/e2e/hub');
 const { createEnrollCode } = await import('../../server/e2e/devices');
 
@@ -71,7 +72,7 @@ let relay: Relay;
 
 beforeEach(async () => {
   process.env.DECK_AGENT_DIR = mkdtempSync(join(tmpdir(), 'deck-sealed-'));
-  mem.pair = undefined; mem.pins = [];
+  mem.pair = undefined; mem.pins = []; mem.boxPins = {};
   relay = new Relay();
   FakeBrowserWs.relay = relay;
   vi.stubGlobal('WebSocket', FakeBrowserWs);
@@ -86,7 +87,7 @@ beforeEach(async () => {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 async function enrolledSocket() {
-  const s = new SealedSocket('wss://relay/ws', 'jwt');
+  const s = new SealedSocket('wss://relay/ws', 'jwt', { main: true });
   const got: string[] = [];
   let opened = false;
   s.onopen = () => { opened = true; };
@@ -132,7 +133,7 @@ describe('SealedSocket against the real agent hub', () => {
     s.close();
     await flush();
     mem.pins = [new Uint8Array(32).fill(7)];
-    const again = new SealedSocket('wss://relay/ws', 'jwt');
+    const again = new SealedSocket('wss://relay/ws', 'jwt', { main: true });
     let opened = false;
     again.onopen = () => { opened = true; };
     await flush(); await flush();
@@ -145,5 +146,55 @@ describe('SealedSocket against the real agent hub', () => {
     s.send('{"t":"accounts-list"}');
     await flush();
     expect(relay.browser!.sent).toContain('{"t":"accounts-list"}');
+  });
+
+  it('sends box rename and revoke to the relay in the clear', async () => {
+    const { s } = await enrolledSocket();
+    const id = '11111111-1111-4111-8111-111111111111';
+    sendRelayFrame({ t: 'box-rename', id, label: 'PC' });
+    s.send(JSON.stringify({ t: 'box-revoke', id }));
+    await flush();
+    expect(relay.browser!.sent).toContain(JSON.stringify({ t: 'box-rename', id, label: 'PC' }));
+    expect(relay.browser!.sent).toContain(JSON.stringify({ t: 'box-revoke', id }));
+  });
+
+  it('accepts boxes and box-error from the relay without handing them to the app', async () => {
+    const { got } = await enrolledSocket();
+    boxStore.reset();
+    const id = '11111111-1111-4111-8111-111111111111';
+    relay.browser!.receive(JSON.stringify({ t: 'boxes', box: null, primary: id, boxes: [{ id, label: 'VPS', online: true, lastSeen: null }] }));
+    await flush();
+    expect(boxStore.get().frame?.boxes[0].label).toBe('VPS');
+    expect(got.some((g) => g.includes('"boxes"'))).toBe(false);
+  });
+
+  it('a non-main socket does not drive sealState and pins under its own box', async () => {
+    const main = new SealedSocket('wss://relay/ws', 'jwt', { main: true });
+    await flush();
+    expect(sealState.get()).toBe('enroll');
+    main.close();
+    await flush();
+    const box = '22222222-2222-4222-8222-222222222222';
+    const peek = new SealedSocket('wss://relay/ws?box=' + box, 'jwt', { box });
+    await flush();
+    expect(peek.sealed).toBe('enroll');
+    expect(sealState.get()).toBe('enroll');
+    const before = sealState.get();
+    peek.close(1000);
+    await flush();
+    expect(sealState.get()).toBe(before);
+  });
+
+  it('enrolling on a bound main socket pins only that box', async () => {
+    const box = '22222222-2222-4222-8222-222222222222';
+    const s = new SealedSocket('wss://relay/ws?box=' + box, 'jwt', { box, main: true });
+    s.onmessage = () => {};
+    await flush();
+    const { code } = await createEnrollCode((relay as unknown as { keys: { pub: Bytes } }).keys.pub);
+    await enrollThisDevice(code, 'test');
+    await flush();
+    expect(mem.boxPins[box]).toHaveLength(1);
+    expect(mem.pins).toHaveLength(0);
+    expect(sealState.get()).toBe('sealed');
   });
 });

@@ -1,0 +1,29 @@
+import { useState } from 'react';
+import { Button, Input } from '../primitives';
+import { loadPref } from '../../lib/persist';
+import { usePairing } from '../auth/usePairing';
+import { useAccountAdmin } from '../auth/useAccountAdmin';
+import { InstallModePicker } from '../auth/InstallModePicker';
+import { PairCommand } from '../auth/PairCommand';
+
+// Same code + install command as the first-machine Dashboard, for one more box.
+export function BoxPairing({ userId }: { userId?: string }) {
+  const [label, setLabel] = useState('');
+  const p = usePairing(loadPref<string>('auth.token', ''), false, useAccountAdmin(userId), label);
+  return (
+    <div className="space-y-4">
+      <p className="text-[13px] leading-relaxed text-neutral-400">
+        Rode o comando na outra máquina. Ela aparece aqui sozinha quando conectar, sem derrubar as que já estão online.
+      </p>
+      <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Nome da máquina (opcional)" aria-label="Nome da máquina" maxLength={64} />
+      <InstallModePicker mode={p.mode} onChange={p.setMode} />
+      <PairCommand code={p.code} cmd={p.cmd} busy={p.busy} expired={p.expired} countdown={p.countdown} mode={p.mode} />
+      {p.err && <p role="alert" className="text-[11.5px] text-red-300">{p.err}</p>}
+      <div className="flex justify-end">
+        <Button variant="ghost" size="sm" onClick={p.fetchCode} disabled={p.busy} loading={p.busy}>
+          {p.busy ? 'gerando…' : 'gerar novo código'}
+        </Button>
+      </div>
+    </div>
+  );
+}

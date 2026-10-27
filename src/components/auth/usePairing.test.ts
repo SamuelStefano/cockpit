@@ -44,4 +44,17 @@ describe('usePairing', () => {
     expect(result.current.cmd).not.toContain('sudo');
     expect(result.current.cmd).toContain('DECK_PAIR_CODE=C bash');
   });
+
+  it('explains a 409 as the machine limit', async () => {
+    globalThis.fetch = vi.fn(async () => new Response('{}', { status: 409 })) as never;
+    const { result } = renderHook(() => usePairing('jwt'));
+    await waitFor(() => expect(result.current.err).toMatch(/limite de máquinas/));
+  });
+
+  it('puts the box name in the install command', async () => {
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ code: 'C' }), { status: 200 })) as never;
+    const { result } = renderHook(() => usePairing('jwt', false, false, 'Casa $(rm -rf)'));
+    await waitFor(() => expect(result.current.code).toBe('C'));
+    expect(result.current.cmd).toContain('DECK_BOX_LABEL="Casa rm -rf"');
+  });
 });

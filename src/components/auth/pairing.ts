@@ -1,3 +1,4 @@
+import { sanitizeBoxLabel } from '../../../shared/boxes';
 // Lógica pura do onboarding de pareamento. O dashboard mostrava "aguardando o
 // agente conectar…" pra sempre: o código de pareamento expira em 10min no relay e
 // nada na tela dizia isso, então quem voltava meia hora depois colava um comando
@@ -97,8 +98,13 @@ export type InstallMode = 'isolated' | 'dedicated';
 // up as student and refuses terminals and external agents (Grok) on every turn.
 // Isolated runs through sudo so the script can create the `deck` user; the agent
 // itself never gets sudo.
-export function setupCommand(url: string, code: string, admin: boolean, mode: InstallMode = 'dedicated'): string {
-  const role = admin ? 'DECK_AGENT_ROLE=admin ' : '';
+export function shellSafeLabel(raw: string): string {
+  return sanitizeBoxLabel(raw).replace(/["'`$\\!;&|<>(){}*?~#]/g, '').trim();
+}
+
+export function setupCommand(url: string, code: string, admin: boolean, mode: InstallMode = 'dedicated', label = ''): string {
+  const safe = shellSafeLabel(label);
+  const role = (admin ? 'DECK_AGENT_ROLE=admin ' : '') + (safe ? `DECK_BOX_LABEL="${safe}" ` : '');
   if (mode === 'isolated') return `curl -fsSL ${url} | sudo DECK_ISOLATED=1 ${role}DECK_PAIR_CODE=${code} bash`;
   return `curl -fsSL ${url} | ${role}DECK_PAIR_CODE=${code} bash`;
 }

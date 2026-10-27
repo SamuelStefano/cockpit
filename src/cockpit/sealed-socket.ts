@@ -3,6 +3,7 @@ import type { SealedChannel } from '../../shared/e2e/channel';
 import type { EnrollCode } from '../../shared/e2e/enroll';
 import { deviceKeys, pinAgent, pinnedAgents } from './device-store';
 import { toast } from '../components/primitives/toast-bus';
+import { boxStore } from './boxes-store';
 
 // Relay-mode socket (T5). Same surface useCockpit uses on a WebSocket, but it
 // reports "open" only once a sealed channel to a pinned agent exists, and from
@@ -14,7 +15,7 @@ export type SealState = 'connecting' | 'enroll' | 'enroll-failed' | 'sealed' | '
 
 let state: SealState = 'connecting';
 const listeners = new Set<() => void>();
-let current: SealedSocket | null = null;
+let mainSocket: SealedSocket | null = null;
 
 export const sealState = {
   get: () => state,
@@ -28,13 +29,25 @@ function setState(s: SealState): void {
 }
 
 export function enrollThisDevice(code: string, label: string): Promise<void> {
-  if (!current) return Promise.reject(new Error('sem conexão com o relay'));
-  return current.enroll(code, label);
+  if (!mainSocket) return Promise.reject(new Error('sem conexão com o relay'));
+  return mainSocket.enroll(code, label);
+}
+
+// Plaintext admin frame for the relay (rename/revoke a box) over the main socket.
+export function sendRelayFrame(frame: { t: 'box-rename'; id: string; label: string } | { t: 'box-revoke'; id: string }): void {
+  mainSocket?.send(JSON.stringify(frame));
+}
+
+export interface SealedSocketOptions {
+  // Box this socket is bound to (`?box=` is already in the url); scopes its pins.
+  box?: string;
+  // Only the main socket drives the exported sealState and enrollThisDevice.
+  main?: boolean;
 }
 
 // Frames the relay answers itself (account admin) or emits about the link.
-const FROM_RELAY = new Set(['agent-online', 'agent-offline', 'accounts']);
-const TO_RELAY = /^\{"t":"(accounts-list|set-admin)"/;
+const FROM_RELAY = new Set(['agent-online', 'agent-offline', 'accounts', 'boxes', 'box-error']);
+const TO_RELAY = /^\{"t":"(accounts-list|set-admin|box-rename|box-revoke)"/;
 const HANDSHAKE_MS = 10_000;
 // Mirrors the agent's cap: neither end keeps a channel's keys longer than this.
 const MAX_CHANNEL_MS = 12 * 3600_000;
@@ -57,22 +70,31 @@ export class SealedSocket {
   private channel: SealedChannel | null = null;
   private handshake: DeviceHandshake | null = null;
   private enrolling: { parsed: EnrollCode; resolve: () => void; reject: (e: Error) => void } | null = null;
+  private readonly box: string | undefined;
+  private readonly main: boolean;
+  private seal: SealState = 'connecting';
   private timer: ReturnType<typeof setTimeout> | null = null;
   private chain: Promise<unknown> = Promise.resolve();
 
   // The JWT rides as a subprotocol entry, never in the URL: the relay picks
   // `deck.v1`, and access/error logs that record the URL never see the token.
-  constructor(url: string, token: string) {
-    current = this;
-    // A refused agent key or an agent without T5 stays on screen across the
-    // automatic redials; only a sealed channel or a new enrollment clears it.
-    if (state !== 'rejected' && state !== 'unsupported') setState('connecting');
+  constructor(url: string, token: string, opts: SealedSocketOptions = {}) {
+    this.box = opts.box;
+    this.main = opts.main === true;
+    if (this.main) {
+      mainSocket = this;
+      // A refused agent key or an agent without T5 stays on screen across the
+      // automatic redials; only a sealed channel or a new enrollment clears it.
+      if (state !== 'rejected' && state !== 'unsupported') setState('connecting');
+    }
     this.ws = token ? new WebSocket(url, ['deck.v1', `bearer.${token}`]) : new WebSocket(url);
     this.ws.onmessage = (ev) => { this.chain = this.chain.then(() => this.onFrame(String(ev.data))).catch(() => this.fail('sealed frame rejected')); };
     this.ws.onclose = (ev) => this.finish(ev.code, ev.reason);
     this.ws.onerror = (ev) => this.onerror?.(ev);
     this.ws.onopen = () => { void this.start(); };
   }
+
+  get sealed(): SealState { return this.seal; }
 
   get bufferedAmount(): number { return this.ws.bufferedAmount; }
 
@@ -102,8 +124,8 @@ export class SealedSocket {
   }
 
   private async start(): Promise<void> {
-    const pins = await pinnedAgents();
-    if (!pins.length) { setState('enroll'); return; }
+    const pins = await pinnedAgents(this.box);
+    if (!pins.length) { this.setSeal('enroll'); return; }
     this.handshake = new DeviceHandshake(await deviceKeys(), pins);
     this.raw(JSON.stringify(await this.handshake.hello()));
     this.clearTimer();
@@ -116,8 +138,12 @@ export class SealedSocket {
     const t = m.t;
     if (typeof t !== 'string') return;
     if (FROM_RELAY.has(t)) {
+      if (t === 'boxes' || t === 'box-error') {
+        if (this.main) { if (t === 'boxes') boxStore.applyFrame(m); else boxStore.applyError(m); }
+        return;
+      }
       if (t === 'agent-offline' && this.channel) { this.fail('agent went offline'); return; }
-      if (t === 'agent-online' && !this.channel && !this.enrolling && state !== 'enroll') void this.start();
+      if (t === 'agent-online' && !this.channel && !this.enrolling && this.seal !== 'enroll') void this.start();
       this.deliver(s);
       return;
     }
@@ -140,25 +166,30 @@ export class SealedSocket {
         this.clearTimer();
         this.timer = setTimeout(() => this.fail('channel lifetime reached'), MAX_CHANNEL_MS);
         this.readyState = 1;
-        setState('sealed');
+        this.setSeal('sealed');
         this.onopen?.(new Event('open'));
         return;
       }
-      case 'e2e-unknown-device': this.clearTimer(); setState('enroll'); return;
+      case 'e2e-unknown-device': this.clearTimer(); this.setSeal('enroll'); return;
       case 'e2e-enrolled':
       case 'e2e-enroll-failed': {
         const pending = this.enrolling;
         if (!pending) return;
         this.enrolling = null;
         const pub = await enrollResult(m, pending.parsed, (await deviceKeys()).pub);
-        if (!pub) { setState('enroll-failed'); pending.reject(new Error('código inválido, expirado ou adulterado')); return; }
-        await pinAgent(pub);
+        if (!pub) { this.setSeal('enroll-failed'); pending.reject(new Error('código inválido, expirado ou adulterado')); return; }
+        await pinAgent(pub, this.box);
         pending.resolve();
         void this.start();
         return;
       }
       case 'e2e-reset': this.fail('agent reset the channel'); return;
     }
+  }
+
+  private setSeal(s: SealState): void {
+    this.seal = s;
+    if (this.main) setState(s);
   }
 
   private deliver(data: string): void {
@@ -172,7 +203,7 @@ export class SealedSocket {
     if (this.channel && reason !== 'channel lifetime reached') {
       toast('Conexão cifrada reiniciada — confira se a última ação chegou.', { tone: 'error' });
     }
-    setState(next);
+    this.setSeal(next);
     this.close(SEAL_LOST, reason);
   }
 
@@ -180,7 +211,7 @@ export class SealedSocket {
     this.clearTimer();
     this.channel = null;
     this.readyState = 3;
-    if (current === this) current = null;
+    if (mainSocket === this) mainSocket = null;
     this.onclose?.(new CloseEvent('close', { code, reason }));
   }
 

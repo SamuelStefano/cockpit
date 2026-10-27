@@ -14,7 +14,7 @@ export function EnrollDevice({ onSignOut }: { onSignOut: () => void }) {
   return (
     <div className="flex h-full flex-1 justify-center overflow-y-auto bg-neutral-950 px-4 py-6">
       <div className="my-auto w-full max-w-xl rounded-2xl border border-neutral-800 bg-neutral-900/60 p-5 shadow-2xl sm:p-7">
-        <BrandMark title="cadastrar este aparelho" subtitle="conexão cifrada de ponta a ponta com a sua VPS" bitState="connecting" />
+        <BrandMark title={e.boxName ? `cadastrar este aparelho em ${e.boxName}` : 'cadastrar este aparelho'} subtitle="conexão cifrada de ponta a ponta com a sua VPS" bitState="connecting" />
         {rejected && (
           <p className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-[12.5px] leading-relaxed text-red-200">
             A chave que respondeu não é a da sua VPS cadastrada. Ou o agente foi reinstalado, ou alguém está no meio do caminho. Gere um código novo na VPS e cadastre de novo.
@@ -33,7 +33,7 @@ export function EnrollDevice({ onSignOut }: { onSignOut: () => void }) {
           <Input mono value={e.code} onChange={(ev) => e.setCode(ev.target.value)} placeholder="XXXX-XXXX-…" autoComplete="off" spellCheck={false} aria-label="Código de cadastro" error={!!e.err} />
           <Input value={e.label} onChange={(ev) => e.setLabel(ev.target.value)} placeholder="Nome deste aparelho" aria-label="Nome deste aparelho" />
           {e.err && <p className="text-[11.5px] text-red-300">{e.err}</p>}
-          <Button variant="primary" loading={e.busy} disabled={!e.ready} onClick={() => void e.submit()}>Cadastrar aparelho</Button>
+          <Button variant="primary" loading={e.busy} disabled={!e.ready} onClick={() => void e.submit()}>{e.boxName ? `Cadastrar este aparelho em ${e.boxName}` : 'Cadastrar aparelho'}</Button>
         </div>
         <div className="mt-6 flex justify-end border-t border-neutral-800 pt-4">
           <Button variant="ghost" size="sm" onClick={onSignOut}>Sair</Button>
