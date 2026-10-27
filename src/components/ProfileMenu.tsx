@@ -2,6 +2,7 @@ import { Button, Input, Switch } from './primitives';
 import { AvatarFace } from './avatar/AvatarFace';
 import { useProfileMenu } from './avatar/useProfileMenu';
 import { ChangePasswordForm } from './profile/ChangePasswordForm';
+import { DevicesSection } from './profile/DevicesSection';
 import { DropButton } from './drop/DropButton';
 import type { DropApi } from '../cockpit/useDrops';
 import { usePersisted } from '../lib/persist';
@@ -100,6 +101,8 @@ export function ProfileMenu({ userId, onSignOut, onChangePassword, drops }: Prof
               hint={isIOS() ? 'No iPhone/iPad o app em segundo plano fica pausado: o aviso só sai ao voltar' : 'Beep curto, só com a aba fora de foco'}
             />
           </div>
+
+          {onSignOut && <DevicesSection />}
 
           {drops && <DropButton api={drops} />}
 

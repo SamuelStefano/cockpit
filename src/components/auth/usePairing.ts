@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { relayHttpBase } from '../../cockpit/session';
+import { issueDeviceCode } from '../../cockpit/device-code';
 import { diagnose, isExpired, remainingMs, fmtCountdown, setupCommand, type InstallMode, type RelayProbe, type PairDiagnosis } from './pairing';
 
 // Erros com mensagem própria pro usuário; o resto (TypeError de rede, SyntaxError
@@ -23,8 +24,11 @@ export interface Pairing {
 
 const SETUP_URL = 'https://raw.githubusercontent.com/SamuelStefano/cockpit/main/scripts/agent-setup.sh';
 
-export function usePairing(token: string, agentOnline = false, admin = false, label = ''): Pairing {
+// passkeyVersion: bump it when this browser adopts a passkey, so the shown
+// command gains its DECK_DEVICE_CODE.
+export function usePairing(token: string, agentOnline = false, admin = false, label = '', passkeyVersion = 0): Pairing {
   const [code, setCode] = useState('');
+  const [deviceCode, setDeviceCode] = useState('');
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -94,6 +98,15 @@ export function usePairing(token: string, agentOnline = false, admin = false, la
     return () => { abortRef.current?.abort(); probeRef.current?.abort(); };
   }, [fetchCode]);
 
+  // A fresh device secret per pair code: the one in the shown command is the
+  // only one this browser keeps.
+  useEffect(() => {
+    if (!code) return;
+    let live = true;
+    issueDeviceCode(code).then((c) => { if (live) setDeviceCode(c); }, () => { if (live) setDeviceCode(''); });
+    return () => { live = false; };
+  }, [code, passkeyVersion]);
+
   // Relógio só enquanto há prazo vivo: expirado não precisa mais de tick.
   const expired = isExpired(expiresAt, now);
   useEffect(() => {
@@ -110,7 +123,7 @@ export function usePairing(token: string, agentOnline = false, admin = false, la
 
   return {
     code,
-    cmd: code ? setupCommand(SETUP_URL, code, admin, mode, label) : '',
+    cmd: code ? setupCommand(SETUP_URL, code, admin, mode, label, deviceCode) : '',
     err,
     busy,
     expired,

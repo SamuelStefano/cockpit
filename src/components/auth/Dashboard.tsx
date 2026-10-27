@@ -8,12 +8,16 @@ import { PairStep } from './PairStep';
 import { InstallExplainer } from './InstallExplainer';
 import { RelayVisibility } from './RelayVisibility';
 import { BetaNote } from './BetaNote';
+import { usePasskeySetup } from './usePasskeySetup';
+import { PasskeyUnlock } from './PasskeyUnlock';
 
 // Dashboard de pareamento (DR-023): mostrado quando o usuário está logado mas a VPS
 // dele ainda não está atendendo. Pede um código ao relay e mostra o comando de 1 linha
 // pra rodar na VPS; quando o agente conecta, o App troca pro app de verdade.
 export function Dashboard({ token, userId, onSignOut }: { token: string; userId?: string; onSignOut: () => void }) {
-  const p = usePairing(token, false, useAccountAdmin(userId));
+  const admin = useAccountAdmin(userId);
+  const pk = usePasskeySetup();
+  const p = usePairing(token, false, admin, '', pk.version);
 
   return (
     <div className="flex h-full flex-1 justify-center overflow-y-auto bg-neutral-950 px-4 py-6">
@@ -28,6 +32,7 @@ export function Dashboard({ token, userId, onSignOut }: { token: string; userId?
             <InstallModePicker mode={p.mode} onChange={p.setMode} />
           </PairStep>
           <PairStep n={2} title="Cole na sua VPS">
+            <div className="mb-3"><PasskeyUnlock pk={pk} /></div>
             <PairCommand code={p.code} cmd={p.cmd} busy={p.busy} expired={p.expired} countdown={p.countdown} mode={p.mode} />
             {/* Um só lugar pro erro: com o código já na tela, a falha de "gerar novo código" não aparecia. */}
             <InstallExplainer mode={p.mode} />

@@ -2,13 +2,22 @@ import type { DeviceKeys } from '../../shared/e2e/device';
 import { fromB64, toB64, type Bytes } from '../../shared/e2e/bytes';
 import { isBoxId } from '../../shared/boxes';
 import { publicRaw, type KeyPair } from '../../shared/e2e/channel';
+import type { PasskeyDevice } from '../../shared/e2e/passkey';
 
 // This device's signing key and the agent keys it trusts. The private key is
 // created non-extractable and kept in IndexedDB as a CryptoKey: page code can
 // ask it to sign, but nothing (an XSS included) can copy it off the device.
+// A passkey-derived key (shared/e2e/passkey.ts), when there is one, is used
+// instead of the random key; it is stored the same way, so the passkey prompt
+// happens once per browser and not per page load.
 
 const DB = 'deck-e2e';
 const STORE = 'kv';
+const PASSKEY = 'device-passkey';
+// Boxes that trust the passkey key: the browser talks to them with it. Any other
+// box this browser pinned with its random key keeps that key until the browser
+// hands it the passkey key over its sealed channel (device-add-passkey).
+const PASSKEY_BOXES = 'passkey-boxes';
 
 function db(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -38,19 +47,56 @@ async function put(key: string, value: unknown): Promise<void> {
   });
 }
 
-let cached: Promise<DeviceKeys> | null = null;
+interface StoredPasskey { pair: KeyPair; pinRoot: CryptoKey }
 
-export function deviceKeys(): Promise<DeviceKeys> {
-  cached ??= (async () => {
-    let pair = await get<KeyPair>('device');
-    if (!pair) {
-      pair = await crypto.subtle.generateKey({ name: 'Ed25519' }, false, ['sign', 'verify']) as unknown as KeyPair;
-      await put('device', pair);
-    }
-    return { pub: await publicRaw(pair.publicKey), sign: pair.privateKey };
-  })();
-  cached.catch(() => { cached = null; });
-  return cached;
+export interface PasskeyRef { pub: Bytes; pinRoot: CryptoKey }
+
+async function randomPair(): Promise<KeyPair> {
+  let pair = await get<KeyPair>('device');
+  if (!pair) {
+    pair = await crypto.subtle.generateKey({ name: 'Ed25519' }, false, ['sign', 'verify']) as unknown as KeyPair;
+    await put('device', pair);
+  }
+  return pair;
+}
+
+// The pin root stays a non-extractable HKDF key: per-box pin keys are derived
+// from it when needed and never stored here.
+export async function passkeyDevice(): Promise<PasskeyRef | null> {
+  const p = await get<StoredPasskey>(PASSKEY);
+  return p ? { pub: await publicRaw(p.pair.publicKey), pinRoot: p.pinRoot } : null;
+}
+
+export interface SelectedKeys {
+  keys: DeviceKeys;
+  // Set when `keys` is the passkey key.
+  passkey: PasskeyRef | null;
+  // Set when this browser has a passkey but this box still knows it by its
+  // random key: the sealed channel then hands the box the passkey key.
+  upgrade: PasskeyRef | null;
+}
+
+// Which key to dial a box with: the passkey key, unless the box already pinned
+// on this browser has only ever seen the random one.
+export async function deviceKeysFor(box?: string): Promise<SelectedKeys> {
+  const pk = await get<StoredPasskey>(PASSKEY);
+  const random = await get<KeyPair>('device');
+  const ref = pk ? { pub: await publicRaw(pk.pair.publicKey), pinRoot: pk.pinRoot } : null;
+  const legacy = !!random && (await pinnedAgents(box)).length > 0 && !((await get<string[]>(PASSKEY_BOXES)) ?? []).includes(slot(box));
+  if (pk && ref && !legacy) return { keys: { pub: ref.pub, sign: pk.pair.privateKey }, passkey: ref, upgrade: null };
+  const pair = random ?? await randomPair();
+  return { keys: { pub: await publicRaw(pair.publicKey), sign: pair.privateKey }, passkey: null, upgrade: ref };
+}
+
+export async function markPasskeyBox(box?: string): Promise<void> {
+  const list = (await get<string[]>(PASSKEY_BOXES)) ?? [];
+  if (!list.includes(slot(box))) await put(PASSKEY_BOXES, [...list, slot(box)]);
+}
+
+export async function adoptPasskey(d: PasskeyDevice): Promise<void> {
+  await put(PASSKEY, { pair: d.pair, pinRoot: d.pinRoot } satisfies StoredPasskey);
+  // A new passkey key is new to every box, including those the old one reached.
+  await put(PASSKEY_BOXES, []);
 }
 
 // A socket bound to a box reads and writes ONLY that box's slot. The handshake
@@ -68,8 +114,17 @@ export async function pinnedAgents(box?: string): Promise<Bytes[]> {
   return list.map(fromB64);
 }
 
-// A new enrollment REPLACES the box's pin, so the key of a box that was wiped or
-// re-provisioned stops being trusted right away.
+// Replaces the box's pin. Only for an enroll code typed on the screen that told
+// the user the box's key changed (a reinstalled agent); every other path goes
+// through pinAgentIfEmpty.
 export async function pinAgent(pub: Bytes, box?: string): Promise<void> {
   await put(slot(box), [toB64(pub)]);
+}
+
+// Pre-authorization, pin proofs, first use and enroll codes only fill an empty
+// slot: none of them may replace the agent key this browser already trusts.
+export async function pinAgentIfEmpty(pub: Bytes, box?: string): Promise<boolean> {
+  if ((await pinnedAgents(box)).length > 0) return false;
+  await pinAgent(pub, box);
+  return true;
 }

@@ -5,11 +5,15 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import type { WebSocket } from 'ws';
 import {
-  SealedChannel, newEphemeral, newNonce, signTranscript, verifyTranscript, type Ephemeral, type Transcript,
+  SealedChannel, fingerprint, newEphemeral, newNonce, signTranscript, verifyTranscript, type Ephemeral, type Transcript,
 } from '../../shared/e2e/channel';
-import { grantMac } from '../../shared/e2e/enroll';
+import { grantMac, preauthGrantMac } from '../../shared/e2e/enroll';
+import { pinProof } from '../../shared/e2e/passkey';
 import { fromB64, toB64, type Bytes } from '../../shared/e2e/bytes';
-import { isEnrolled, redeemEnrollCode, touchDevice } from './devices';
+import {
+  cleanLabel, devicePin, hasDevices, hasLivePreauth, isEnrolled, isRevokedDevice, redeemEnrollCode, redeemPreauth, touchDevice, trustFirstDevice,
+} from './devices';
+import { TOFU_UNTIL } from '../../shared/e2e/tofu';
 
 // One SealedPeer per browser channel. It looks like a WebSocket to
 // serveConnection/broadcast, so the agent serves each sealed browser exactly as
@@ -26,6 +30,19 @@ const SWEEP_MS = 10_000;
 const DROPPABLE = /^\{"t":"(delta|thinking|stats|bgAgents)"/;
 
 export interface AgentKeys { pub: Bytes; sign: CryptoKey }
+
+// A box with no enrolled device trusts the first one that dials it, but only
+// this long after the agent starts, never past the migration cutoff the browser
+// also enforces, and never with DECK_E2E_TOFU=off.
+export const TOFU_WINDOW_MS = 30 * 60_000;
+
+// One per agent process, shared by the hubs of every relay reconnect: once a
+// device got in on first use, the window stays shut even if the list empties.
+export interface TofuWindow { until: number; spent: boolean }
+
+export function tofuWindow(startedAt: number, env: NodeJS.ProcessEnv = process.env): TofuWindow {
+  return { until: env.DECK_E2E_TOFU === 'off' ? 0 : Math.min(startedAt + TOFU_WINDOW_MS, TOFU_UNTIL), spent: false };
+}
 
 // The sealed channel has its OWN key, never the one that answers the relay's
 // login challenge: the relay picks that challenge, so the same key would let it
@@ -111,7 +128,7 @@ export class SealedPeer extends EventEmitter {
   terminate(): void { this.close(); }
 }
 
-interface Pending { eph: Ephemeral; t: Transcript; devicePub: string; at: number }
+interface Pending { eph: Ephemeral; t: Transcript; devicePub: string; at: number; tofu: boolean; label: string }
 
 export interface HubOptions {
   keys: AgentKeys;
@@ -119,6 +136,10 @@ export interface HubOptions {
   serve: (peer: SealedPeer) => void;
   intercept?: (peer: SealedPeer, text: string) => boolean;
   onPeersChanged: () => void;
+  // The relay's id for this box: what a passkey device's pin key is bound to.
+  boxId?: string;
+  // When a box with no devices trusts the first one; absent = never.
+  tofu?: TofuWindow;
 }
 
 export class SealedHub {
@@ -169,6 +190,7 @@ export class SealedHub {
       case 'e2e-hello': return this.hello(c, m);
       case 'e2e-confirm': return this.confirm(c, m);
       case 'e2e-enroll': return this.enroll(c, m);
+      case 'e2e-preauth': return this.preauth(c, m);
     }
   }
 
@@ -177,13 +199,19 @@ export class SealedHub {
     const dev = bytesField(m.dev, 32), eB = bytesField(m.eB, 32), nB = bytesField(m.nB, 16);
     if (!dev || !eB || !nB) return;
     const devicePub = toB64(dev);
-    if (!isEnrolled(devicePub)) { this.reply(c, { t: 'e2e-unknown-device' }); return; }
+    const label = typeof m.label === 'string' ? m.label.slice(0, 200) : '';
+    const tofu = !isEnrolled(devicePub) && this.tofuOpen() && !hasDevices() && !isRevokedDevice(devicePub);
+    if (!tofu && !isEnrolled(devicePub)) { this.reply(c, { t: 'e2e-unknown-device' }); return; }
     const eph = await newEphemeral();
     const t: Transcript = { devicePub: dev, agentPub: this.o.keys.pub, eB, nB, eA: eph.pub, nA: newNonce() };
     const sig = await signTranscript('agent', this.o.keys.sign, t);
     this.prunePending();
-    this.pending.set(c, { eph, t, devicePub, at: Date.now() });
-    this.reply(c, { t: 'e2e-accept', agent: toB64(this.o.keys.pub), eA: toB64(t.eA), nA: toB64(t.nA), sig: toB64(sig) });
+    this.pending.set(c, { eph, t, devicePub, at: Date.now(), tofu, label });
+    const pin = !tofu && this.o.boxId ? devicePin(devicePub) : null;
+    const proof = pin ? { pin: toB64(await pinProof(pin, this.o.keys.pub, dev, this.o.boxId!)) } : {};
+    this.reply(c, {
+      t: 'e2e-accept', agent: toB64(this.o.keys.pub), eA: toB64(t.eA), nA: toB64(t.nA), sig: toB64(sig), ...proof, ...(tofu ? { tofu: true } : {}),
+    });
   }
 
   private async confirm(c: string, m: Record<string, unknown>): Promise<void> {
@@ -191,9 +219,14 @@ export class SealedHub {
     this.pending.delete(c);
     if (!p || Date.now() - p.at > HANDSHAKE_TTL_MS) { this.reply(c, { t: 'e2e-reset' }); return; }
     const sig = bytesField(m.sig, 64);
-    // Re-read: a device revoked during the handshake must not get in.
-    if (!sig || !isEnrolled(p.devicePub) || !(await verifyTranscript('device', p.t.devicePub, sig, p.t))) {
+    if (!sig || !(await verifyTranscript('device', p.t.devicePub, sig, p.t))) {
       console.error(`[agent] e2e: handshake signature rejected on channel ${c}`);
+      this.reply(c, { t: 'e2e-reset' });
+      return;
+    }
+    // Re-read: a device revoked during the handshake must not get in, and of two
+    // first-use handshakes only the one that writes the empty list wins.
+    if (p.tofu ? !(await this.trustOnFirstUse(p)) : !isEnrolled(p.devicePub)) {
       this.reply(c, { t: 'e2e-reset' });
       return;
     }
@@ -206,6 +239,21 @@ export class SealedHub {
     this.o.serve(peer);
   }
 
+  // A pending pre-authorization means the owner's browser is about to enroll
+  // itself: first use would only let the relay get in ahead of it.
+  private tofuOpen(): boolean {
+    const w = this.o.tofu, now = Date.now();
+    return !!w && !w.spent && now < w.until && now < TOFU_UNTIL && !hasLivePreauth(now);
+  }
+
+  private async trustOnFirstUse(p: Pending): Promise<boolean> {
+    if (!this.tofuOpen() || !trustFirstDevice(p.t.devicePub, cleanLabel(p.label))) return false;
+    this.o.tofu!.spent = true;
+    const fp = Buffer.from(await fingerprint(p.t.devicePub)).toString('hex').slice(0, 16);
+    console.error(`[agent] e2e: first device trusted on first use (${fp}…)`);
+    return true;
+  }
+
   private async enroll(c: string, m: Record<string, unknown>): Promise<void> {
     const dev = bytesField(m.dev, 32), mac = bytesField(m.mac, 32);
     const label = typeof m.label === 'string' ? m.label.slice(0, 200) : '';
@@ -213,7 +261,19 @@ export class SealedHub {
     const secret = await redeemEnrollCode(this.o.keys.pub, dev, label, mac);
     if (!secret) { this.reply(c, { t: 'e2e-enroll-failed' }); return; }
     console.error(`[agent] e2e: device enrolled (${toB64(dev).slice(0, 8)}…)`);
-    this.reply(c, { t: 'e2e-enrolled', agent: toB64(this.o.keys.pub), mac: toB64(await grantMac(secret, this.o.keys.pub, dev)) });
+    const box = (this.o.boxId ?? '').toLowerCase();
+    this.reply(c, { t: 'e2e-enrolled', agent: toB64(this.o.keys.pub), box, mac: toB64(await grantMac(secret, this.o.keys.pub, dev, box)) });
+  }
+
+  private async preauth(c: string, m: Record<string, unknown>): Promise<void> {
+    const dev = bytesField(m.dev, 32), mac = bytesField(m.mac, 32);
+    const label = typeof m.label === 'string' ? m.label.slice(0, 200) : '';
+    if (!dev || !mac) return;
+    const box = this.o.boxId ?? '';
+    const secret = await redeemPreauth(dev, label, box, mac);
+    if (!secret) { this.reply(c, { t: 'e2e-preauth-failed' }); return; }
+    console.error(`[agent] e2e: device enrolled at pairing (${toB64(dev).slice(0, 8)}…)`);
+    this.reply(c, { t: 'e2e-preauthed', agent: toB64(this.o.keys.pub), mac: toB64(await preauthGrantMac(secret, this.o.keys.pub, dev, box)) });
   }
 
   // connIds come from the relay, so a hostile one could open handshakes forever.

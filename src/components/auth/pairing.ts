@@ -102,9 +102,21 @@ export function shellSafeLabel(raw: string): string {
   return sanitizeBoxLabel(raw).replace(/["'`$\\!;&|<>(){}*?~#]/g, '').trim();
 }
 
-export function setupCommand(url: string, code: string, admin: boolean, mode: InstallMode = 'dedicated', label = ''): string {
+const DEFAULT_RELAY = 'wss://deck-relay.devfellowship.com';
+
+// The relay URL comes from a per-device override; anything that is not a plain
+// ws(s) URL never reaches a command the user pastes into a root shell.
+export function enrollCommand(relayUrl: string): string {
+  const url = /^wss?:\/\/[A-Za-z0-9.\-]+(:\d+)?(\/[A-Za-z0-9._\-/]*)?$/.test(relayUrl) ? relayUrl : DEFAULT_RELAY;
+  return `cd ~/cockpit && DECK_RELAY_URL=${url} npx tsx server/agent.ts --enroll-device`;
+}
+
+// deviceCode (passkey browsers): pre-authorizes this browser on the new box, so
+// it opens the Deck without `--enroll-device`. Env like the pair code, never argv.
+export function setupCommand(url: string, code: string, admin: boolean, mode: InstallMode = 'dedicated', label = '', deviceCode = ''): string {
   const safe = shellSafeLabel(label);
   const role = (admin ? 'DECK_AGENT_ROLE=admin ' : '') + (safe ? `DECK_BOX_LABEL="${safe}" ` : '');
-  if (mode === 'isolated') return `curl -fsSL ${url} | sudo DECK_ISOLATED=1 ${role}DECK_PAIR_CODE=${code} bash`;
-  return `curl -fsSL ${url} | ${role}DECK_PAIR_CODE=${code} bash`;
+  const device = /^[A-Z2-7]{52}$/.test(deviceCode) ? `DECK_DEVICE_CODE=${deviceCode} ` : '';
+  if (mode === 'isolated') return `curl -fsSL ${url} | sudo DECK_ISOLATED=1 ${role}${device}DECK_PAIR_CODE=${code} bash`;
+  return `curl -fsSL ${url} | ${role}${device}DECK_PAIR_CODE=${code} bash`;
 }
