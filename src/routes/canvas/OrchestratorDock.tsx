@@ -57,14 +57,14 @@ export function OrchestratorDock({ orchestrator, dock, term, stats, live, activi
       )}
       <header className="flex h-10 shrink-0 items-center gap-2 border-b border-fuchsia-500/30 bg-fuchsia-500/10 pl-3 pr-1.5">
         <Icon name="command" size={13} className="text-fuchsia-400" />
-        <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-neutral-200">Orchestrator</span>
-        {cpu && <span className="font-mono text-[10px] text-neutral-500">{cpu}</span>}
+        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-neutral-200">Orchestrator</span>
+        {cpu && <span className="font-mono text-[12px] text-neutral-500">{cpu}</span>}
         <Badge tone={live ? 'green' : 'neutral'} dot={live}>{live ? 'rodando' : 'ocioso'}</Badge>
         <Button variant="ghost" size="sm" square icon="x" title="fechar (Ctrl+.)" onClick={() => dock.setOpen(false)} />
       </header>
       <OrchestratorActivityPanel activity={activity} open={activityOpen} onToggle={() => setActivityOpen((o) => !o)} onOpenShell={onOpenShell} />
       <div className="relative min-h-0 flex-1" data-term-active>
-        <Suspense fallback={<div className="flex h-full items-center justify-center font-mono text-[12px] text-neutral-600">abrindo terminal…</div>}>
+        <Suspense fallback={<div className="flex h-full items-center justify-center font-mono text-[13px] text-neutral-600">abrindo terminal…</div>}>
           <XtermView id={termId} term={term} autoFocus={false} />
         </Suspense>
       </div>

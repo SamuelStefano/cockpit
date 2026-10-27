@@ -28,13 +28,13 @@ export function SlashPalette({ matches, sel, setSel, complete }: SlashPalettePro
             onMouseEnter={() => setSel(i)}
             className={`flex w-full items-center gap-2 px-3 py-1.5 text-left transition ${i === sel ? 'bg-orange-500/15' : ''}`}
           >
-            <span className={`font-mono text-[12.5px] ${i === sel ? 'text-orange-200' : 'text-neutral-300'}`}>
+            <span className={`font-mono text-[13px] ${i === sel ? 'text-orange-200' : 'text-neutral-300'}`}>
               <span className="text-neutral-600">/</span>{c}
             </span>
             {local && (
-              <span className="rounded-sm bg-emerald-500/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-emerald-300/90">app</span>
+              <span className="rounded-sm bg-emerald-500/15 px-1 text-[12px] font-semibold uppercase tracking-wide text-emerald-300/90">app</span>
             )}
-            <span className="ml-auto truncate text-[10.5px] text-neutral-500">{slashHint(c)}</span>
+            <span className="ml-auto truncate text-[12px] text-neutral-500">{slashHint(c)}</span>
           </button>
         );
       })}

@@ -3,8 +3,8 @@
 export function AuthFeedback({ error, info }: { error?: string; info?: string }) {
   return (
     <>
-      {error && <p role="alert" className="mt-3 rounded-md border border-red-500/30 bg-red-500/12 px-3 py-2 text-[11.5px] text-red-200">{error}</p>}
-      {info && <p className="mt-3 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11.5px] text-emerald-200">{info}</p>}
+      {error && <p role="alert" className="mt-3 rounded-md border border-red-500/30 bg-red-500/12 px-3 py-2 text-[12px] text-red-200">{error}</p>}
+      {info && <p className="mt-3 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[12px] text-emerald-200">{info}</p>}
     </>
   );
 }

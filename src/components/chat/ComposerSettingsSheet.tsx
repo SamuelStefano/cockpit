@@ -30,7 +30,7 @@ interface ComposerSettingsSheetProps {
 }
 
 const row = 'flex items-center justify-between gap-3 border-b border-neutral-800/70 px-4 py-3 last:border-b-0';
-const label = 'text-[12.5px] font-medium text-neutral-300';
+const label = 'text-[13px] font-medium text-neutral-300';
 
 // Tudo que saiu da barra no celular (A4): modelo, esforço, skills, MCP e bypass.
 // Bottom sheet no mesmo padrão do McpPicker. Só existe abaixo de `sm` — no desktop

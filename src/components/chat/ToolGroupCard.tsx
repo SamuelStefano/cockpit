@@ -39,10 +39,10 @@ export function ToolGroupCard({ tools }: ToolGroupCardProps) {
 
   const ring = status === 'error' ? 'border-red-500/30' : status === 'running' ? 'border-orange-500/30' : 'border-neutral-800';
   const statusEl = status === 'running'
-    ? <span className="flex items-center gap-1 text-[10.5px] font-medium text-neutral-400"><Icon name="rotate" size={11} className="spin text-orange-400" /> rodando…</span>
+    ? <span className="flex items-center gap-1 text-[12px] font-medium text-neutral-400"><Icon name="rotate" size={11} className="spin text-orange-400" /> rodando…</span>
     : status === 'error'
-    ? <span className="flex items-center gap-1 text-[10.5px] font-medium text-red-400"><Icon name="x" size={12} /> {tools.filter((t) => t.status === 'error').length} falhou</span>
-    : <span className="flex items-center gap-1 text-[10.5px] font-medium text-green-400"><Icon name="check" size={12} /> ok{hasMs ? ` ${fmtToolDuration(totalMs)}` : ''}</span>;
+    ? <span className="flex items-center gap-1 text-[12px] font-medium text-red-400"><Icon name="x" size={12} /> {tools.filter((t) => t.status === 'error').length} falhou</span>
+    : <span className="flex items-center gap-1 text-[12px] font-medium text-green-400"><Icon name="check" size={12} /> ok{hasMs ? ` ${fmtToolDuration(totalMs)}` : ''}</span>;
 
   return (
     <div className={`my-2 overflow-hidden rounded-xl border ${ring} bg-neutral-900/70`}>
@@ -55,12 +55,12 @@ export function ToolGroupCard({ tools }: ToolGroupCardProps) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate text-[12px] font-medium text-neutral-200">
+            <span className="truncate text-[13px] font-medium text-neutral-200">
               {tools.length} {tools.length === 1 ? 'ação' : 'ações'}
             </span>
             <span className="shrink-0">{statusEl}</span>
           </div>
-          <span className="block truncate font-mono text-[10.5px] text-neutral-500">{runningLabel ?? breakdown}</span>
+          <span className="block truncate font-mono text-[12px] text-neutral-500">{runningLabel ?? breakdown}</span>
         </div>
         <Icon
           name="chevronDown"

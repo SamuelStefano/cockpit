@@ -46,7 +46,7 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
               <button
                 key={t.id}
                 onClick={() => onSelect(t.id)}
-                className={`group flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-2.5 py-1.5 font-mono text-[11.5px] transition
+                className={`group flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-2.5 py-1.5 font-mono text-[12px] transition
                   ${on
                     ? 'border-orange-500 bg-neutral-900 text-neutral-100'
                     : 'border-transparent text-neutral-500 hover:bg-neutral-900/50 hover:text-neutral-300'}`}
@@ -89,7 +89,7 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
                   key={id}
                   onClick={() => onAttach(id)}
                   title={`Reanexar sessão tmux cockpit-${id}`}
-                  className="flex shrink-0 items-center gap-1 rounded-md border border-dashed border-neutral-700 px-2 py-1 font-mono text-[11px] text-neutral-500 transition hover:border-orange-500/40 hover:text-orange-300"
+                  className="flex shrink-0 items-center gap-1 rounded-md border border-dashed border-neutral-700 px-2 py-1 font-mono text-[12px] text-neutral-500 transition hover:border-orange-500/40 hover:text-orange-300"
                 >
                   <Icon name="terminal" size={11} /> {id}
                 </button>
@@ -106,16 +106,16 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
 
       <div className="relative min-h-0 flex-1">
         {active ? (
-          <Suspense fallback={<div className="flex h-full items-center justify-center font-mono text-[12px] text-neutral-600">abrindo terminal…</div>}>
+          <Suspense fallback={<div className="flex h-full items-center justify-center font-mono text-[13px] text-neutral-600">abrindo terminal…</div>}>
             <XtermView key={active.id} id={active.id} term={term} clipboardRef={clipboardRef} />
           </Suspense>
         ) : (
-          <div className="flex h-full items-center justify-center text-[12px] text-neutral-600">nenhum terminal aberto</div>
+          <div className="flex h-full items-center justify-center text-[13px] text-neutral-600">nenhum terminal aberto</div>
         )}
       </div>
 
       <div className="flex shrink-0 items-center justify-between border-t border-neutral-800 bg-neutral-950/80 px-3 py-1.5">
-        <div className="flex items-center gap-2 font-mono text-[11px]">
+        <div className="flex items-center gap-2 font-mono text-[12px]">
           {active && term.exited.has(active.id)
             ? <><span className="h-2 w-2 rounded-full bg-neutral-600" /><span className="text-neutral-500">encerrado</span></>
             : <><span className="h-2 w-2 rounded-full bg-green-500" style={{ boxShadow: '0 0 6px var(--ok)' }} /><span className="text-green-400">tmux</span></>}
@@ -128,7 +128,7 @@ export function TerminalsPanel({ terminals, activeId, onSelect, onAdd, onClose, 
             <button
               onClick={() => armOrKill(active.id)}
               title="Encerra a sessão tmux"
-              className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition ${killArmed === active.id ? 'border-red-500/60 bg-red-500/15 text-red-300' : 'border-neutral-700 text-neutral-300 hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400'}`}
+              className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-[12px] font-medium transition ${killArmed === active.id ? 'border-red-500/60 bg-red-500/15 text-red-300' : 'border-neutral-700 text-neutral-300 hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400'}`}
             >
               <Icon name="trash" size={11} /> {killArmed === active.id ? 'confirmar?' : 'matar'}
             </button>

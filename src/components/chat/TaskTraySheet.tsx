@@ -21,7 +21,7 @@ export function TaskTraySheet({ todos, onClose }: { todos: ToolTodo[]; onClose: 
       >
         <div className="flex shrink-0 items-center gap-2 border-b border-neutral-800 px-3 py-2">
           <Icon name="check" size={12} className="text-orange-400" />
-          <span className="flex-1 text-[11.5px] font-medium text-neutral-300">tarefas · {done}/{total}</span>
+          <span className="flex-1 text-[12px] font-medium text-neutral-300">tarefas · {done}/{total}</span>
           <button
             onClick={onClose}
             aria-label="Fechar tarefas"

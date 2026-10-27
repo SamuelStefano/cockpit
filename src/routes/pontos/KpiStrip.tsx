@@ -22,7 +22,7 @@ const CELL = 'lg:flex-1 lg:px-4 lg:first:pl-0';
 export function KpiStrip({ m, totals, offPoints, offAmountCents, drafts }: Props) {
   const { cap } = m;
   if (!cap || !totals) {
-    return <p className="border-b border-neutral-800/80 px-4 py-2.5 text-[12px] text-neutral-500">Sem dados do DFL ainda. Sincronize (⟳ no topo) pra ver faturado, em aberto e o teto do mês.</p>;
+    return <p className="border-b border-neutral-800/80 px-4 py-2.5 text-[13px] text-neutral-500">Sem dados do DFL ainda. Sincronize (⟳ no topo) pra ver faturado, em aberto e o teto do mês.</p>;
   }
   const free = Math.max(0, cap.headroomCents - cap.invoiceableCents);
   const bar = (

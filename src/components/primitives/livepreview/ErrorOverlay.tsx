@@ -3,7 +3,7 @@
 export function ErrorOverlay({ message }: { message: string }) {
   return (
     <div className="absolute inset-0 z-30 flex items-start bg-[#0c0c0c]/95 p-3">
-      <pre className="scroll-thin max-h-full overflow-auto whitespace-pre-wrap font-mono text-[11.5px] leading-snug text-red-400">{message}</pre>
+      <pre className="scroll-thin max-h-full overflow-auto whitespace-pre-wrap font-mono text-[12px] leading-snug text-red-400">{message}</pre>
     </div>
   );
 }

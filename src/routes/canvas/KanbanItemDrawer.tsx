@@ -37,7 +37,7 @@ export function KanbanItemDrawer({ item, stats, peek, onPeek, onClose, onOpenSes
     <aside className="absolute inset-x-3 bottom-3 z-[45] flex max-h-[60vh] flex-col overflow-hidden rounded-2xl border border-neutral-700/80 bg-neutral-900/95 shadow-xl backdrop-blur-md sm:inset-x-auto sm:right-3 sm:w-80">
       <div className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2">
         <Icon name="terminal" size={13} className="shrink-0 text-neutral-500" />
-        <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-neutral-100">{item.title}</span>
+        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-neutral-100">{item.title}</span>
         <Button variant="ghost" size="sm" icon="x" onClick={onClose} title="fechar" />
       </div>
       <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 py-2.5">
@@ -50,8 +50,8 @@ export function KanbanItemDrawer({ item, stats, peek, onPeek, onClose, onOpenSes
         </div>
         {item.subtitle && (
           <div>
-            <div className="mb-1 text-[10.5px] font-medium uppercase tracking-wide text-neutral-500">Primeira mensagem</div>
-            <p className="whitespace-pre-wrap text-[11.5px] leading-relaxed text-neutral-400">{item.subtitle}</p>
+            <div className="mb-1 text-[12px] font-medium uppercase tracking-wide text-neutral-500">Primeira mensagem</div>
+            <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-neutral-400">{item.subtitle}</p>
           </div>
         )}
         {/* peek is undefined while the 'canvas-session-peek' read is in
@@ -59,26 +59,26 @@ export function KanbanItemDrawer({ item, stats, peek, onPeek, onClose, onOpenSes
             transcript — both used to render as nothing at all (canvas review
             item 9). */}
         {peek === undefined ? (
-          <div className="flex items-center gap-2 text-[11px] text-neutral-500">
+          <div className="flex items-center gap-2 text-[12px] text-neutral-500">
             <Skeleton className="h-3 w-24" />
             <span>lendo transcript…</span>
           </div>
         ) : peek === null ? (
-          <p className="text-[11px] text-neutral-600">transcript ilegível</p>
+          <p className="text-[12px] text-neutral-600">transcript ilegível</p>
         ) : (
           <>
             {peek.lastAssistant && (
               <div>
-                <div className="mb-1 text-[10.5px] font-medium uppercase tracking-wide text-neutral-500">
+                <div className="mb-1 text-[12px] font-medium uppercase tracking-wide text-neutral-500">
                   Last message{peek.lastAt !== undefined && <span className="normal-case"> · {relPast(peek.lastAt)}</span>}
                 </div>
-                <p className="whitespace-pre-wrap break-words text-[11.5px] leading-relaxed text-neutral-300">{peek.lastAssistant}</p>
+                <p className="whitespace-pre-wrap break-words text-[12px] leading-relaxed text-neutral-300">{peek.lastAssistant}</p>
               </div>
             )}
             {(peek.prs.length > 0 || peek.links.length > 0) && (
               <div>
-                <div className="mb-1 text-[10.5px] font-medium uppercase tracking-wide text-neutral-500">Links</div>
-                <ul className="space-y-0.5 text-[11.5px]">
+                <div className="mb-1 text-[12px] font-medium uppercase tracking-wide text-neutral-500">Links</div>
+                <ul className="space-y-0.5 text-[12px]">
                   {peek.prs.map((pr) => (
                     <li key={pr.url}><a href={pr.url} target="_blank" rel="noopener noreferrer" className="text-fuchsia-300 hover:underline">{pr.label}</a></li>
                   ))}
@@ -90,7 +90,7 @@ export function KanbanItemDrawer({ item, stats, peek, onPeek, onClose, onOpenSes
             )}
           </>
         )}
-        <div className="flex flex-wrap items-center gap-2 text-[11px] text-neutral-500">
+        <div className="flex flex-wrap items-center gap-2 text-[12px] text-neutral-500">
           <span>{item.running ? 'ativa agora' : lastSeenLabel(item.mtime)}</span>
           {pct !== null && stats?.contextTokens !== undefined && <span>ctx {fmtTokens(stats.contextTokens)} ({pct}%)</span>}
         </div>

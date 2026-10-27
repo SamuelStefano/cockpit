@@ -106,9 +106,9 @@ export const TerminalWindow = memo(function TerminalWindow(p: Props) {
       )}
       <div className="relative min-h-0 flex-1" data-term-active={p.active || undefined}>
         {p.maximized ? (
-          <div className="flex h-full items-center justify-center font-mono text-[12px] text-neutral-600">em tela cheia</div>
+          <div className="flex h-full items-center justify-center font-mono text-[13px] text-neutral-600">em tela cheia</div>
         ) : (
-          <Suspense fallback={<div className="flex h-full items-center justify-center font-mono text-[12px] text-neutral-600">abrindo terminal…</div>}>
+          <Suspense fallback={<div className="flex h-full items-center justify-center font-mono text-[13px] text-neutral-600">abrindo terminal…</div>}>
             <XtermView id={p.target.termId} watch={p.target.watch} term={p.term} autoFocus={false} focusKey={p.active ? p.focusN : 0} />
           </Suspense>
         )}
@@ -135,7 +135,7 @@ export const TerminalWindow = memo(function TerminalWindow(p: Props) {
           // background, no backdrop-blur: blurring the live xterm behind it
           // is real GPU cost repeated on every terminal, every frame.
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-neutral-950/70">
-            <span className="rounded-full border border-neutral-700 bg-neutral-900/90 px-2.5 py-1 font-mono text-[10.5px] text-neutral-300">vendo o passado</span>
+            <span className="rounded-full border border-neutral-700 bg-neutral-900/90 px-2.5 py-1 font-mono text-[12px] text-neutral-300">vendo o passado</span>
           </div>
         )}
       </div>

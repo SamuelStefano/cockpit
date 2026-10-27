@@ -18,7 +18,7 @@ export function ContextChip({ active, onClick, label, count, tone }: ContextChip
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition
+      className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition
         ${active ? (CHIP_ACTIVE[tone] ?? CHIP_ACTIVE.neutral) : 'border-neutral-800 text-neutral-500 hover:border-neutral-700 hover:text-neutral-300'}`}
     >
       {label} <span className="tabular-nums opacity-60">{count}</span>

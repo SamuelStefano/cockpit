@@ -13,10 +13,10 @@ interface Props {
 }
 
 const STYLE: Record<CanvasEdgeKind, { stroke: string; dash?: string; width: number }> = {
-  write: { stroke: 'rgba(251,146,60,0.55)', width: 1.6 },
+  write: { stroke: 'rgba(96,165,250,0.55)', width: 1.6 },
   read: { stroke: 'rgba(163,163,163,0.35)', dash: '6 6', width: 1.2 },
   link: { stroke: 'rgba(115,115,115,0.35)', dash: '2 6', width: 1 },
-  card: { stroke: 'rgba(251,146,60,0.8)', dash: '8 5', width: 1.8 },
+  card: { stroke: 'rgba(96,165,250,0.8)', dash: '8 5', width: 1.8 },
   // Inferred, not observed (no tool call proves it) — short dash, dim, and its
   // own opacity scales with match weight so a strong guess reads darker than a
   // weak one even before the node is focused.

@@ -23,7 +23,7 @@ export function TrafficPeek({ items, botId, byId, onOpen, onQuote }: TrafficPeek
         const peerId = m.from === botId ? m.to : m.from;
         return (
           <li key={m.id} className="rounded-lg border border-neutral-800 bg-neutral-950/70 px-2.5 py-1.5">
-            <div className="flex items-center gap-1.5 text-[11px]">
+            <div className="flex items-center gap-1.5 text-[12px]">
               {sender ? <Mascot mascot={sender.mascot} size={12} name={sender.name} /> : null}
               <span className="font-medium" style={{ color: sender?.mascot.color }}>{sender?.name ?? m.from}</span>
               <time className="tabular-nums text-neutral-600">{fmtClock(m.ts)}</time>
@@ -32,12 +32,12 @@ export function TrafficPeek({ items, botId, byId, onOpen, onQuote }: TrafficPeek
                 <Button variant="ghost" size="xs" onClick={() => onOpen(peerId)}>abrir</Button>
               </span>
             </div>
-            <p className="mt-0.5 line-clamp-3 whitespace-pre-wrap break-words text-[12.5px] leading-snug text-neutral-300">{m.text}</p>
+            <p className="mt-0.5 line-clamp-3 whitespace-pre-wrap break-words text-[13px] leading-snug text-neutral-300">{m.text}</p>
           </li>
         );
       })}
       {hidden > 0 && (
-        <li className="px-1 text-[11px] text-neutral-600">+{hidden} anteriores — abre a conversa pra ver o resto</li>
+        <li className="px-1 text-[12px] text-neutral-600">+{hidden} anteriores — abre a conversa pra ver o resto</li>
       )}
     </ul>
   );

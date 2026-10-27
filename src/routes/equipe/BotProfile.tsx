@@ -45,7 +45,7 @@ export function BotProfile({ view, bots, models, onSave, onEdit, onDelete, onBac
         <h2 className="mt-2 text-[17px] font-semibold text-neutral-100">{bot.name}</h2>
         <InlineEdit value={bot.label} onSave={saveLabel} label="cargo" hint={false}
           display={bot.label || <span className="text-neutral-600">Adicionar cargo</span>}
-          validate={(v) => v.trim().length <= 60} className="text-[12.5px] text-neutral-400" />
+          validate={(v) => v.trim().length <= 60} className="text-[13px] text-neutral-400" />
       </div>
       <Tabs items={TABS} active={tab} onChange={setTab} className="justify-center px-3" />
       <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">

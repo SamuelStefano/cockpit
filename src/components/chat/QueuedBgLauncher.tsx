@@ -24,13 +24,13 @@ export function QueuedBgLauncher({ id, model, models, onRun, onCancel }: {
       onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); onCancel(); } }}
       className="mt-1 flex flex-wrap items-center gap-1.5 rounded-md border border-orange-500/25 bg-neutral-950/60 px-1.5 py-1"
     >
-      <span className="text-[10px] text-neutral-400">rodar em paralelo com</span>
+      <span className="text-[12px] text-neutral-400">rodar em paralelo com</span>
       <select
         ref={selRef}
         value={chosen}
         onChange={(e) => setChosen(e.target.value)}
         aria-label="Modelo do agente em background"
-        className={`rounded-sm border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-[11px] text-neutral-300 outline-hidden transition hover:border-neutral-700 focus:border-orange-500/40 sm:px-1.5 sm:py-0.5 sm:text-[10.5px] ${tokens.focusRing}`}
+        className={`rounded-sm border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-[12px] text-neutral-300 outline-hidden transition hover:border-neutral-700 focus:border-orange-500/40 sm:px-1.5 sm:py-0.5 sm:text-[12px] ${tokens.focusRing}`}
       >
         {list.map((o) => <option key={o.id} value={o.id}>{prettyModel(o.id, o.displayName)}</option>)}
       </select>

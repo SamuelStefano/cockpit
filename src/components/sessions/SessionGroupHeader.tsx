@@ -16,7 +16,7 @@ export function SessionGroupHeader({ label, count, inset = false }: { label: str
     ? 'px-1.5 pb-0.5 pt-0.5'
     : 'sticky top-0 z-1 -mx-2.5 bg-neutral-950/95 px-3.5 pb-1 pt-2 backdrop-blur-xs';
   return (
-    <div className={`flex items-center gap-1.5 font-mono text-[9.5px] font-medium uppercase tracking-[0.12em] ${box} ${TONE[label] ?? 'text-neutral-500'}`}>
+    <div className={`flex items-center gap-1.5 font-mono text-[12px] font-medium uppercase tracking-[0.12em] ${box} ${TONE[label] ?? 'text-neutral-500'}`}>
       {label === RUNNING_LABEL && <span className="breathe h-1.5 w-1.5 shrink-0 rounded-full bg-green-400" />}
       {label === 'Fixadas' && <Icon name="star" size={9} className="shrink-0 text-orange-400/80" />}
       <span className="shrink-0">{label}</span>

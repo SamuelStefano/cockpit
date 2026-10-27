@@ -123,7 +123,7 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
         {tab === 'overview' && (
           <>
             {saturated && (
-              <div className="mb-5 flex items-center gap-2 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-[12.5px] text-yellow-200">
+              <div className="mb-5 flex items-center gap-2 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-[13px] text-yellow-200">
                 <Icon name="zap" size={14} />
                 Recursos saturados há {dur(stats!.saturated!.seconds)}
                 {stats!.saturated!.cpu ? ' · CPU' : ''}{stats!.saturated!.mem ? ' · RAM' : ''} — só alerta, nenhuma sessão é tocada.
@@ -156,7 +156,7 @@ export function Admin({ health, stats, onHealthList, accounts, accountsLoaded, o
                   <Stat label="Modo" value={health.permissionMode} icon="shield" />
                 </div>
 
-                <p className="mt-5 text-[11px] text-neutral-600">
+                <p className="mt-5 text-[12px] text-neutral-600">
                   Backend {health.host}:{health.port} · pid {health.pid} · {updatedAt ? `atualizado ${clockTime(updatedAt)}` : 'atualiza a cada 10s'} · loopback-only (sem porta pública até hardening).
                 </p>
               </>

@@ -21,7 +21,7 @@ const sizes: Record<InputSize, string> = {
 // Classe de texto separada de `sizes` pra evitar conflito de precedência entre
 // dois text-[...] arbitrários no mesmo className.
 const textSizes: Record<InputSize, string> = {
-  sm: 'text-[12.5px]',
+  sm: 'text-[13px]',
   md: 'text-[13px]',
 };
 
@@ -29,7 +29,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   { size = 'md', error = false, mono = false, bare = false, icon, suffix, className = '', ...rest },
   ref,
 ) {
-  const text = mono ? 'font-mono text-[12.5px]' : textSizes[size];
+  const text = mono ? 'font-mono text-[13px]' : textSizes[size];
   const border = error
     ? 'border-red-500/50 focus-within:border-red-500/60'
     : bare

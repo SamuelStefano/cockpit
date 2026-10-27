@@ -20,7 +20,7 @@ export function AdminDflMcpRow({ host, canLogin, onLogin }: AdminDflMcpRowProps)
     <li className="flex items-center justify-between gap-3 py-2">
       <div className="min-w-0">
         <div className="truncate text-[13px] text-neutral-200">{host.name}</div>
-        <div className="truncate font-mono text-[11px] text-neutral-600" title={host.detail ?? host.endpoint}>{host.endpoint}</div>
+        <div className="truncate font-mono text-[12px] text-neutral-600" title={host.detail ?? host.endpoint}>{host.endpoint}</div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <Badge tone={s.tone} dot>{s.label}</Badge>

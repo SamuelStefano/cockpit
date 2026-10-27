@@ -20,7 +20,7 @@ export function BotFiles({ botId, api, connected }: BotFilesProps) {
       </div>
       {t.groups.map((g) => (
         <section key={g.label} aria-label={g.label}>
-          <h3 className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">{g.label}</h3>
+          <h3 className="px-2 pb-1 text-[12px] font-semibold uppercase tracking-wide text-neutral-500">{g.label}</h3>
           {g.items.map((f) => <BotFileRow key={f.path} file={f} onOpen={t.open} />)}
         </section>
       ))}

@@ -46,8 +46,8 @@ export function AdminConfirm({
             <Icon name={icon} size={16} />
           </span>
           <div className="min-w-0">
-            <p className="text-[13.5px] font-semibold text-neutral-100">{heading}</p>
-            <p className="mt-1 text-[12px] leading-snug text-neutral-400">{body}</p>
+            <p className="text-[14px] font-semibold text-neutral-100">{heading}</p>
+            <p className="mt-1 text-[13px] leading-snug text-neutral-400">{body}</p>
           </div>
         </div>
         <div className="mt-4 flex items-center justify-end gap-2">

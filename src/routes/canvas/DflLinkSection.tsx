@@ -35,7 +35,7 @@ export function DflLinkSection({ card, isDflArea, snapshot, onLink, onCreateLink
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <Badge tone="orange">DFL</Badge>
-            <span className="ml-1.5 truncate text-[11.5px] text-neutral-300">{linked?.name ?? card.dfl.taskId}</span>
+            <span className="ml-1.5 truncate text-[12px] text-neutral-300">{linked?.name ?? card.dfl.taskId}</span>
           </div>
           <Button size="xs" variant="ghost" onClick={s.unlink}>desvincular</Button>
         </div>
@@ -46,13 +46,13 @@ export function DflLinkSection({ card, isDflArea, snapshot, onLink, onCreateLink
                 a status DFL already has as dev_completed/done — reopening a
                 possibly-invoiced task. Generic wording covers both without
                 the UI needing to know which one triggered it. */}
-            <p className="text-[10.5px] text-yellow-300">
+            <p className="text-[12px] text-yellow-300">
               Essa mudança de status é faturável ou reabre uma task já concluída na DFL. Confirme pra sincronizar.
             </p>
             <ConfirmSync cardId={card.id} onConfirmSync={onConfirmSync} />
           </div>
         )}
-        {card.dfl.error && !card.dfl.awaitingConfirm && <p className="mt-1 text-[10.5px] text-red-400">sync pendente: {card.dfl.error}</p>}
+        {card.dfl.error && !card.dfl.awaitingConfirm && <p className="mt-1 text-[12px] text-red-400">sync pendente: {card.dfl.error}</p>}
       </div>
     );
   }
@@ -63,18 +63,18 @@ export function DflLinkSection({ card, isDflArea, snapshot, onLink, onCreateLink
   if (s.pending) {
     return (
       <div className="rounded-lg border border-orange-500/40 bg-neutral-950 px-2.5 py-2 space-y-2">
-        <p className="text-[10.5px] font-medium uppercase tracking-wide text-orange-400">confirmar antes de enviar pra DFL</p>
+        <p className="text-[12px] font-medium uppercase tracking-wide text-orange-400">confirmar antes de enviar pra DFL</p>
         {s.pending.kind === 'link' ? (
-          <p className="text-[12px] text-neutral-200">Vincular este card à task <strong>{s.pending.taskName}</strong>?</p>
+          <p className="text-[13px] text-neutral-200">Vincular este card à task <strong>{s.pending.taskName}</strong>?</p>
         ) : (
-          <div className="space-y-1 text-[12px] text-neutral-200">
+          <div className="space-y-1 text-[13px] text-neutral-200">
             <p>Criar task <strong>{s.pending.taskName}</strong> em <span className="text-neutral-400">{s.pending.deliveryLabel}</span>:</p>
             <p className="text-neutral-400">por quê: <span className="text-neutral-200">{s.pending.why}</span></p>
             <p className="text-neutral-400">o que: <span className="text-neutral-200">{s.pending.what}</span></p>
           </div>
         )}
-        <p className="text-[10.5px] text-neutral-500">Isso fica visível pra qualquer pessoa com acesso à DFL. Nada do prompt do card é enviado.</p>
-        {s.error && <p className="text-[10.5px] text-red-400">{s.error}</p>}
+        <p className="text-[12px] text-neutral-500">Isso fica visível pra qualquer pessoa com acesso à DFL. Nada do prompt do card é enviado.</p>
+        {s.error && <p className="text-[12px] text-red-400">{s.error}</p>}
         <div className="flex gap-1.5">
           <Button size="sm" variant="secondary" onClick={s.cancelReview} disabled={s.busy}>cancelar</Button>
           <Button size="sm" disabled={s.busy} loading={s.busy} onClick={s.confirm}>confirmar e enviar</Button>
@@ -96,20 +96,20 @@ export function DflLinkSection({ card, isDflArea, snapshot, onLink, onCreateLink
             {s.filtered.map((t) => (
               <button
                 key={t.id} type="button"
-                className="block w-full truncate rounded-sm px-1.5 py-1 text-left text-[11px] text-neutral-300 hover:bg-neutral-800"
+                className="block w-full truncate rounded-sm px-1.5 py-1 text-left text-[12px] text-neutral-300 hover:bg-neutral-800"
                 onClick={() => s.review(t.id)}
               >
                 {t.name} <span className="text-neutral-600">— {t.deliveryName}</span>
               </button>
             ))}
-            {!s.filtered.length && <p className="px-1.5 text-[11px] text-neutral-600">nenhuma task encontrada</p>}
+            {!s.filtered.length && <p className="px-1.5 text-[12px] text-neutral-600">nenhuma task encontrada</p>}
           </div>
         </>
       ) : (
         <>
           <select
             value={s.deliveryPick} onChange={(e) => s.setDeliveryPick(e.target.value)}
-            className="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-[12px] text-neutral-200"
+            className="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-[13px] text-neutral-200"
           >
             <option value="">delivery…</option>
             {s.deliveries.map((d) => <option key={`${d.epicId}|${d.deliveryId}`} value={`${d.epicId}|${d.deliveryId}`}>{d.label}</option>)}
@@ -122,7 +122,7 @@ export function DflLinkSection({ card, isDflArea, snapshot, onLink, onCreateLink
           </Button>
         </>
       )}
-      {s.error && <p className="text-[10.5px] text-red-400">{s.error}</p>}
+      {s.error && <p className="text-[12px] text-red-400">{s.error}</p>}
     </div>
   );
 }
@@ -133,7 +133,7 @@ export function DflLinkSection({ card, isDflArea, snapshot, onLink, onCreateLink
 // loop: busy while the ack is pending, "enviado" once queued, the error if not.
 function ConfirmSync({ cardId, onConfirmSync }: { cardId: string; onConfirmSync: (cardId: string) => Promise<DflWriteResult> }) {
   const [state, setState] = useState<{ busy: boolean; done: boolean; error?: string }>({ busy: false, done: false });
-  if (state.done) return <p className="mt-1 text-[10.5px] text-emerald-300">enviado — sincronizando com a DFL</p>;
+  if (state.done) return <p className="mt-1 text-[12px] text-emerald-300">enviado — sincronizando com a DFL</p>;
   const run = async () => {
     if (state.busy) return;
     setState({ busy: true, done: false });
@@ -143,7 +143,7 @@ function ConfirmSync({ cardId, onConfirmSync }: { cardId: string; onConfirmSync:
   return (
     <>
       <Button size="xs" className="mt-1" onClick={run} loading={state.busy} disabled={state.busy}>confirmar sync</Button>
-      {state.error && <p className="mt-1 text-[10.5px] text-red-400">{state.error}</p>}
+      {state.error && <p className="mt-1 text-[12px] text-red-400">{state.error}</p>}
     </>
   );
 }

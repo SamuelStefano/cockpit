@@ -28,7 +28,7 @@ export function AdminAccounts({ accounts, loaded, onAccountsList, onSetAdmin, ca
   return (
     <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
       <div className="mb-3 flex items-center gap-2">
-        <h2 className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-neutral-400">
+        <h2 className="flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-wide text-neutral-400">
           <Icon name="user" size={12} /> Contas <span className="text-neutral-600">· {accounts.length}</span>
         </h2>
         <Button variant="secondary" size="sm" icon="rotate" title="Atualizar contas" className="ml-auto" onClick={onAccountsList}>
@@ -41,7 +41,7 @@ export function AdminAccounts({ accounts, loaded, onAccountsList, onSetAdmin, ca
           {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-8 w-full rounded-lg" />)}
         </div>
       ) : accounts.length === 0 ? (
-        <span className="text-[12px] text-neutral-600">nenhuma conta</span>
+        <span className="text-[13px] text-neutral-600">nenhuma conta</span>
       ) : (
         <ul className="divide-y divide-neutral-800/70">
           {accounts.map((a) => (
@@ -60,7 +60,7 @@ export function AdminAccounts({ accounts, loaded, onAccountsList, onSetAdmin, ca
       )}
 
       {!canGrant && (
-        <p className="mt-3 text-[11px] text-neutral-600">Só o root concede/revoga admin.</p>
+        <p className="mt-3 text-[12px] text-neutral-600">Só o root concede/revoga admin.</p>
       )}
 
       {pending && (

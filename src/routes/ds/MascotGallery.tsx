@@ -17,7 +17,7 @@ export function MascotGallery() {
           {MASCOT_STATES.map((state) => (
             <div key={state} className="flex flex-col items-center gap-1">
               <Mascot mascot={{ shape, color: MASCOT_COLORS[i] }} state={state} size={44} />
-              <span className="text-[10.5px] text-neutral-600">{MASCOT_STATE_LABEL[state]}</span>
+              <span className="text-[12px] text-neutral-600">{MASCOT_STATE_LABEL[state]}</span>
             </div>
           ))}
         </Row>

@@ -38,7 +38,7 @@ export function LivePreview({ code, lang }: { code: string; lang: string }) {
 
   const overlay = error && (
     <div className="absolute inset-0 z-30 flex items-start bg-[#0c0c0c]/95 p-3">
-      <pre className="scroll-thin max-h-full overflow-auto whitespace-pre-wrap font-mono text-[11.5px] leading-snug text-red-400">{error}</pre>
+      <pre className="scroll-thin max-h-full overflow-auto whitespace-pre-wrap font-mono text-[12px] leading-snug text-red-400">{error}</pre>
     </div>
   );
   const editor = <CodeEditor value={draft} onChange={setDraft} mode={mode} />;
@@ -48,7 +48,7 @@ export function LivePreview({ code, lang }: { code: string; lang: string }) {
   return (
     <div className="my-1 overflow-hidden rounded-lg border border-orange-500/25 bg-[#0c0c0c]">
       <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-neutral-800 px-3 py-1.5">
-        <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-orange-300/80">
+        <span className="flex items-center gap-1.5 font-mono text-[12px] uppercase tracking-wider text-orange-300/80">
           <Icon name={mode === 'native' ? 'smartphone' : mode === 'test' ? 'terminal' : mode === 'svg' ? 'code' : 'zap'} size={11} /> live preview{label}
           {dirty && <span className="text-neutral-500">· editado</span>}
           {mode === 'test' && tests.length > 0 && (
@@ -73,7 +73,7 @@ export function LivePreview({ code, lang }: { code: string; lang: string }) {
           {dirty && <button onClick={reset} title="Voltar ao código original" aria-label="Voltar ao código original" className={ctrlBtn(false)}><Icon name="rotate" size={12} /></button>}
           <div className="flex items-center gap-0.5 rounded-md bg-neutral-900 p-0.5">
             {(['preview', 'code'] as Tab[]).map((t) => (
-              <button key={t} onClick={() => setTab(t)} aria-pressed={tab === t} className={`rounded-sm px-2 py-0.5 text-[10px] transition ${tab === t ? 'bg-neutral-800 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'} ${tokens.focusRing}`}>
+              <button key={t} onClick={() => setTab(t)} aria-pressed={tab === t} className={`rounded-sm px-2 py-0.5 text-[12px] transition ${tab === t ? 'bg-neutral-800 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'} ${tokens.focusRing}`}>
                 {t === 'preview' ? 'tela' : 'código'}
               </button>
             ))}
@@ -82,7 +82,7 @@ export function LivePreview({ code, lang }: { code: string; lang: string }) {
       </div>
 
       {full ? (
-        <div className="px-3 py-6 text-center font-mono text-[11px] text-neutral-600">aberto no studio…</div>
+        <div className="px-3 py-6 text-center font-mono text-[12px] text-neutral-600">aberto no studio…</div>
       ) : tab === 'code' ? editor : (
         <PreviewFrame frameRef={ref} mode={mode} height={height} width={width} overlay={overlay} />
       )}
@@ -92,11 +92,11 @@ export function LivePreview({ code, lang }: { code: string; lang: string }) {
         <Icon name="zap" size={11} className="shrink-0 text-neutral-600" />
         <input value={refine} onChange={(e) => setRefine(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submitRefine(); }}
           placeholder="refina esta tela… (ex: deixa mais escuro, adiciona um botão)"
-          className="min-w-0 flex-1 bg-transparent text-[12px] text-neutral-200 placeholder:text-neutral-600 focus:outline-hidden" />
+          className="min-w-0 flex-1 bg-transparent text-[13px] text-neutral-200 placeholder:text-neutral-600 focus:outline-hidden" />
         <button onClick={() => copy(draft)} title="Copiar código" className={ctrlBtn(false)}><Icon name={copied ? 'check' : 'copy'} size={12} /></button>
         <button onClick={() => download(`preview.${EXT[mode]}`, 'text/plain', draft)} title="Baixar código" className={ctrlBtn(false)}><Icon name="download" size={12} /></button>
         <button onClick={submitRefine} disabled={!refine.trim()}
-          className={`shrink-0 rounded-md px-2 py-1 text-[11px] font-medium transition ${refine.trim() ? 'bg-orange-500/15 text-orange-300 hover:bg-orange-500/25' : 'text-neutral-600'} ${tokens.focusRing}`}>
+          className={`shrink-0 rounded-md px-2 py-1 text-[12px] font-medium transition ${refine.trim() ? 'bg-orange-500/15 text-orange-300 hover:bg-orange-500/25' : 'text-neutral-600'} ${tokens.focusRing}`}>
           refinar
         </button>
       </div>

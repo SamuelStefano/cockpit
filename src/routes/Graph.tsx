@@ -45,9 +45,9 @@ export function Graph(p: Props) {
         <div className="flex shrink-0 items-start gap-2 border-b border-red-500/20 bg-red-500/6 px-4 py-2.5">
           <Badge tone="red">build falhou</Badge>
           <div className="min-w-0 flex-1">
-            <div className="text-[12px] text-neutral-300">{p.buildError}</div>
+            <div className="text-[13px] text-neutral-300">{p.buildError}</div>
             {p.buildLog.length > 0 && (
-              <pre className="mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap font-mono text-[10.5px] leading-relaxed text-neutral-600">{p.buildLog.slice(-12).join('\n')}</pre>
+              <pre className="mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap font-mono text-[12px] leading-relaxed text-neutral-600">{p.buildLog.slice(-12).join('\n')}</pre>
             )}
           </div>
           <Button variant="ghost" size="sm" icon="x" onClick={p.onClearBuildError}>fechar</Button>
@@ -67,13 +67,13 @@ export function Graph(p: Props) {
           <div className="flex min-h-[20rem] flex-1 flex-col lg:min-h-0">
             {p.building ? (
               <div className="min-h-0 flex-1 overflow-y-auto bg-neutral-950 p-4">
-                <div className="mb-2 flex items-center gap-2 font-mono text-[12px] text-orange-300"><Icon name="rotate" size={13} className="animate-spin" /> construindo grafo…</div>
-                <pre className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-neutral-500">{p.buildLog.slice(-40).join('\n')}</pre>
+                <div className="mb-2 flex items-center gap-2 font-mono text-[13px] text-orange-300"><Icon name="rotate" size={13} className="animate-spin" /> construindo grafo…</div>
+                <pre className="whitespace-pre-wrap font-mono text-[12px] leading-relaxed text-neutral-500">{p.buildLog.slice(-40).join('\n')}</pre>
               </div>
             ) : openingThis ? (
               <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
                 <Skeleton className="h-40 w-40 rounded-full" />
-                <span className="font-mono text-[12px] text-neutral-500">abrindo grafo…</span>
+                <span className="font-mono text-[13px] text-neutral-500">abrindo grafo…</span>
               </div>
             ) : p.graph ? (
               <>

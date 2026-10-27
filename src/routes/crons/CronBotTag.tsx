@@ -6,7 +6,7 @@ import { Mascot } from '../../components/team/Mascot';
 export function CronBotTag({ bot }: { bot: TeamBot | undefined }) {
   if (!bot) return <Badge tone="neutral">bot removido</Badge>;
   return (
-    <span className="flex items-center gap-1 text-[11px] text-neutral-400">
+    <span className="flex items-center gap-1 text-[12px] text-neutral-400">
       <Mascot mascot={bot.mascot} size={16} name={bot.name} />{bot.name}
     </span>
   );

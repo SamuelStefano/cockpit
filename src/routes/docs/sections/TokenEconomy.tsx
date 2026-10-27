@@ -63,7 +63,7 @@ export function TokenEconomy() {
           <Card key={c.id} className="text-[13px]">
             <div className="font-medium text-neutral-300">{c.title}</div>
             <div className="mt-0.5 text-neutral-500">{c.why}</div>
-            <code className="mt-1.5 block overflow-x-auto rounded bg-neutral-900/70 px-2 py-1 text-[12px] text-orange-300/90">{c.probe}</code>
+            <code className="mt-1.5 block overflow-x-auto rounded bg-neutral-900/70 px-2 py-1 text-[13px] text-orange-300/90">{c.probe}</code>
           </Card>
         ))}
       </div>

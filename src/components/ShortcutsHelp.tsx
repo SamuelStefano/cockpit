@@ -51,7 +51,7 @@ function Keys({ keys }: { keys: string[] }) {
   return (
     <span className="flex shrink-0 items-center gap-1">
       {keys.map((k) => (
-        <kbd key={k} className="rounded-sm border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[10px] text-neutral-400">{keyLabel(k)}</kbd>
+        <kbd key={k} className="rounded-sm border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[12px] text-neutral-400">{keyLabel(k)}</kbd>
       ))}
     </span>
   );
@@ -82,11 +82,11 @@ export function ShortcutsHelp({ open, onClose }: { open: boolean; onClose: () =>
         <div className="scroll-thin max-h-[60dvh] space-y-4 overscroll-contain overflow-y-auto px-4 py-3.5">
           {GROUPS.map((g) => (
             <div key={g.title}>
-              <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-neutral-600">{g.title}</div>
+              <div className="mb-1.5 text-[12px] font-medium uppercase tracking-wider text-neutral-600">{g.title}</div>
               <div className="space-y-1">
                 {g.items.map((it) => (
                   <div key={it.label} className="flex items-center justify-between gap-3 rounded-md px-1 py-1">
-                    <span className="text-[12.5px] text-neutral-300">{it.label}</span>
+                    <span className="text-[13px] text-neutral-300">{it.label}</span>
                     <Keys keys={it.keys} />
                   </div>
                 ))}
@@ -94,12 +94,12 @@ export function ShortcutsHelp({ open, onClose }: { open: boolean; onClose: () =>
             </div>
           ))}
           <div>
-            <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-neutral-600">Comandos de barra (/)</div>
+            <div className="mb-1.5 text-[12px] font-medium uppercase tracking-wider text-neutral-600">Comandos de barra (/)</div>
             <div className="space-y-1">
               {SLASH.map((s) => (
                 <div key={s.cmd} className="flex items-center justify-between gap-3 rounded-md px-1 py-1">
-                  <span className="text-[12.5px] text-neutral-300">{s.label}</span>
-                  <code className="shrink-0 rounded-sm border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[10px] text-orange-300">{s.cmd}</code>
+                  <span className="text-[13px] text-neutral-300">{s.label}</span>
+                  <code className="shrink-0 rounded-sm border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[12px] text-orange-300">{s.cmd}</code>
                 </div>
               ))}
             </div>

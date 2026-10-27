@@ -22,7 +22,7 @@ export function SaturationBanner({ sessionId, contextTokens, contextModel = null
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pb-1.5">
-      <div className="flex items-center gap-2 text-[11.5px]">
+      <div className="flex items-center gap-2 text-[12px]">
         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${tone.dot}`} />
         <button
           type="button"
@@ -49,7 +49,7 @@ export function SaturationBanner({ sessionId, contextTokens, contextModel = null
       </div>
       {expanded && (
         <div className={`mt-1 rounded-lg border ${tone.border} ${tone.bg} px-3 py-2.5`}>
-          <p className={`text-[12.5px] leading-relaxed ${tone.body}`}>
+          <p className={`text-[13px] leading-relaxed ${tone.body}`}>
             Cada mensagem daqui pra frente reenvia quase todo esse contexto: você paga
             muito por pouca resposta. Migrar salva o contexto e as tarefas num arquivo
             de Contextos, abre um chat novo e arquiva este.

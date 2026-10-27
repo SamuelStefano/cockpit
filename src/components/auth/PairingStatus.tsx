@@ -14,7 +14,7 @@ export function PairingStatus({ diagnosis, probe, onTest }: PairingStatusProps) 
     <div className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
       <div className="flex flex-wrap items-start gap-2">
         <Badge tone={diagnosis.tone} dot>{probe === 'checking' ? 'testando' : 'pareamento'}</Badge>
-        <p className="min-w-[12rem] flex-1 text-[11.5px] leading-relaxed text-neutral-400">{diagnosis.title}</p>
+        <p className="min-w-[12rem] flex-1 text-[12px] leading-relaxed text-neutral-400">{diagnosis.title}</p>
         <Button variant="outline" size="sm" disabled={probe === 'checking'} loading={probe === 'checking'} onClick={onTest}>
           testar conexão
         </Button>
@@ -24,7 +24,7 @@ export function PairingStatus({ diagnosis, probe, onTest }: PairingStatusProps) 
           {diagnosis.steps.map((s) => (
             <li key={s} className="flex items-center gap-2">
               <Icon name="terminal" size={11} className="shrink-0 text-neutral-600" />
-              <code className="min-w-0 break-all font-mono text-[11.5px] text-neutral-300">{s}</code>
+              <code className="min-w-0 break-all font-mono text-[12px] text-neutral-300">{s}</code>
             </li>
           ))}
         </ul>

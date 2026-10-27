@@ -60,7 +60,7 @@ export function GraphCanvas({ graph, onNodeOp }: Props) {
         {x.selectedNode ? (
           <GraphNodeDetail node={x.selectedNode} neighbors={x.neighbors} onSelectNeighbor={selectNeighbor} onClose={x.clearSelection} onNodeOp={onNodeOp} />
         ) : (
-          <div className="flex min-w-0 flex-col gap-1 text-[11px] text-neutral-500">
+          <div className="flex min-w-0 flex-col gap-1 text-[12px] text-neutral-500">
             <span><span className="text-neutral-300">{graph.nodes.length.toLocaleString('pt-BR')}</span> nós · <span className="text-neutral-300">{graph.edges.length.toLocaleString('pt-BR')}</span> arestas · <span className="text-neutral-300">{x.hasRepos ? x.repos.length : graph.communities.length}</span> {x.hasRepos ? 'apps' : 'comunidades'}</span>
             {graph.truncated && (
               <span className="text-amber-500/80">mostrando os {graph.nodes.length.toLocaleString('pt-BR')} nós mais conectados de {graph.totalNodes.toLocaleString('pt-BR')}</span>
@@ -81,13 +81,13 @@ export function GraphCanvas({ graph, onNodeOp }: Props) {
         <div className="pointer-events-none absolute bottom-3 left-3 max-w-xs rounded-lg border border-neutral-800 bg-neutral-900/95 px-3 py-2 shadow-lg">
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: dotColor(hovered) }} />
-            <span className="truncate font-mono text-[12.5px] text-neutral-100">{hovered.label}</span>
-            {hovered.repo && <span className="shrink-0 rounded-sm bg-neutral-800 px-1.5 py-0.5 font-mono text-[10px] text-orange-300">{hovered.repo}</span>}
+            <span className="truncate font-mono text-[13px] text-neutral-100">{hovered.label}</span>
+            {hovered.repo && <span className="shrink-0 rounded-sm bg-neutral-800 px-1.5 py-0.5 font-mono text-[12px] text-orange-300">{hovered.repo}</span>}
           </div>
           {hovered.file && (
-            <div className="mt-1 truncate font-mono text-[11px] text-neutral-500">{hovered.file}{hovered.loc ? `:${hovered.loc}` : ''}</div>
+            <div className="mt-1 truncate font-mono text-[12px] text-neutral-500">{hovered.file}{hovered.loc ? `:${hovered.loc}` : ''}</div>
           )}
-          <div className="mt-1 text-[11px] text-neutral-500">{hovered.communityName ?? `Comunidade ${hovered.community}`} · {hovered.deg} conexões</div>
+          <div className="mt-1 text-[12px] text-neutral-500">{hovered.communityName ?? `Comunidade ${hovered.community}`} · {hovered.deg} conexões</div>
         </div>
       ) : null}
     </div>

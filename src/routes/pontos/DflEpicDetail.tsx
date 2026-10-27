@@ -36,7 +36,7 @@ export function DflEpicDetail({ epic, project }: Props) {
           </ButtonGroup>
         )}
         notice={held && (
-          <p className="mt-2.5 flex items-center gap-2 rounded-md border border-yellow-500/25 bg-yellow-500/[0.06] px-2.5 py-1.5 text-[12px] tabular-nums text-yellow-200">
+          <p className="mt-2.5 flex items-center gap-2 rounded-md border border-yellow-500/25 bg-yellow-500/[0.06] px-2.5 py-1.5 text-[13px] tabular-nums text-yellow-200">
             <Icon name="shield" size={13} className="shrink-0 text-yellow-400" />{e.capText}
           </p>
         )}

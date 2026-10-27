@@ -64,7 +64,7 @@ export function SessionRow({ s, active, highlight, ctx, ctxModel, cost, running,
       ref={rowRef}
       onClick={() => { if (consumeTap()) return; onSelect(s.id); }}
       {...handlers}
-      className={`group relative cursor-pointer rounded-xl border px-3.5 py-2 transition-all duration-150 outline-hidden has-[[data-row-select]:focus-visible]:ring-2 has-[[data-row-select]:focus-visible]:ring-orange-500/40 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none] lg:py-3
+      className={`row-in group relative cursor-pointer rounded-xl border px-3.5 py-2 transition-all duration-150 outline-hidden has-[[data-row-select]:focus-visible]:ring-2 has-[[data-row-select]:focus-visible]:ring-orange-500/40 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none] lg:py-3
         ${active
           ? 'glow-active border-orange-500/40 bg-linear-to-r from-orange-500/9 to-orange-500/3'
           : 'border-transparent hover:border-neutral-800 hover:bg-neutral-900/80'}`}
@@ -76,14 +76,14 @@ export function SessionRow({ s, active, highlight, ctx, ctxModel, cost, running,
             value={draft} onChange={setDraft} onCommit={commit}
             onCancel={() => { setDraft(s.title); setEditing(false); }}
             label="Editar título da sessão"
-            className="w-full select-text rounded-sm border border-orange-500/50 bg-neutral-950 px-1.5 py-0.5 text-[12.5px] font-medium text-neutral-100 outline-hidden ring-2 ring-orange-500/20"
+            className="w-full select-text rounded-sm border border-orange-500/50 bg-neutral-950 px-1.5 py-0.5 text-[13px] font-medium text-neutral-100 outline-hidden ring-2 ring-orange-500/20"
           />
         ) : (
           <button
             type="button"
             data-row-select=""
             aria-current={active ? 'true' : undefined}
-            className={`flex min-w-0 flex-1 cursor-pointer items-start gap-1.5 text-left text-[13.5px] font-medium leading-snug tracking-[-0.01em] outline-hidden ${active ? 'text-neutral-50' : 'text-neutral-300 group-hover:text-neutral-200'}`}
+            className={`flex min-w-0 flex-1 cursor-pointer items-start gap-1.5 text-left text-[14px] font-medium leading-snug tracking-[-0.01em] outline-hidden ${active ? 'text-neutral-50' : 'text-neutral-300 group-hover:text-neutral-200'}`}
           >
             {dot && <span className={`mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} title={status?.title ?? 'Novo output desde a última vez que você abriu'} />}
             {/* Título em até 2 linhas no desktop: um título longo mostra bem mais
@@ -122,12 +122,12 @@ export function SessionRow({ s, active, highlight, ctx, ctxModel, cost, running,
           onCancel={() => { setDescDraft(s.summary || ''); setDescEditing(false); }}
           placeholder="Descrição da sessão…"
           label="Editar descrição da sessão"
-          className="mt-0.5 w-full select-text resize-none rounded-sm border border-orange-500/50 bg-neutral-950 px-1.5 py-1 text-[11.5px] leading-snug text-neutral-200 outline-hidden ring-2 ring-orange-500/20"
+          className="mt-0.5 w-full select-text resize-none rounded-sm border border-orange-500/50 bg-neutral-950 px-1.5 py-1 text-[12px] leading-snug text-neutral-200 outline-hidden ring-2 ring-orange-500/20"
         />
       ) : showDesc || ambiguous ? (
         // Com o toggle de descrição desligado, a linha ambígua ainda mostra o
         // desempate: o título sozinho não diz qual das duas sessões é esta.
-        <p className="line-clamp-2 text-[12px] leading-snug text-neutral-500"><Highlight text={s.summary || s.snippet} term={highlight} /></p>
+        <p className="line-clamp-2 text-[13px] leading-snug text-neutral-500"><Highlight text={s.summary || s.snippet} term={highlight} /></p>
       ) : null)}
       {/* Faixa única de meta: quando/estado, badges e etiquetas fluem juntos numa
           linha (com wrap) — antes cada badge abria a própria linha e o card crescia torto. */}

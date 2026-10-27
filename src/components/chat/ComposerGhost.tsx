@@ -15,7 +15,7 @@ export function ComposerGhost({ value, ghostShown, acceptGhost }: {
       <button
         type="button" tabIndex={-1} onClick={acceptGhost} aria-label={`Completar com: ${ghostShown}`}
         onPointerDown={(e) => e.preventDefault()}
-        className="pointer-events-auto relative z-10 ml-1 rounded-sm border border-neutral-700 px-1 text-[9px] align-middle text-neutral-500 transition before:absolute before:-inset-2 before:content-[''] hover:border-orange-500/40 hover:text-orange-200"
+        className="pointer-events-auto relative z-10 ml-1 rounded-sm border border-neutral-700 px-1 text-[12px] align-middle text-neutral-500 transition before:absolute before:-inset-2 before:content-[''] hover:border-orange-500/40 hover:text-orange-200"
       >
         <span className="sm:hidden">tocar</span><span className="hidden sm:inline">Tab</span>
       </button>

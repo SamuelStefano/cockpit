@@ -74,7 +74,7 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
     <div className="flex h-full flex-col bg-neutral-950">
       <div className="shrink-0 border-b border-neutral-800/80 p-2.5">
         <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+          <span className="text-[12px] font-semibold uppercase tracking-wider text-neutral-400">
             Sessões
             {sessions.length > 0 && <span className="ml-1.5 font-medium normal-case tracking-normal text-neutral-600 tabular-nums">{sessions.length}</span>}
           </span>
@@ -95,17 +95,17 @@ function SessionsPanelImpl({ sessions, loading, activeId, onSelect, onNew, marat
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/80 px-2.5 py-1.5 transition-colors focus-within:border-orange-500/30 focus-within:bg-neutral-900 focus-within:ring-2 focus-within:ring-orange-500/15">
-          <Icon name="search" size={14} className="shrink-0 text-neutral-500" />
+        <div className="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/80 px-3 py-2.5 transition-colors focus-within:border-orange-500/30 focus-within:bg-neutral-900 focus-within:ring-2 focus-within:ring-orange-500/15">
+          <Icon name="search" size={16} className="shrink-0 text-neutral-400" />
           <input
             ref={searchRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar sessões…"
             aria-label="Buscar sessões"
-            className="w-full bg-transparent text-[12.5px] text-neutral-200 placeholder-neutral-600 outline-hidden"
+            className="w-full bg-transparent text-[14px] text-neutral-200 placeholder-neutral-500 outline-hidden"
           />
-          <kbd className="hidden shrink-0 rounded-sm border border-neutral-700 bg-neutral-950 px-1 py-px font-mono text-[9px] text-neutral-500 sm:block">{comboLabel(['⌘', '/'])}</kbd>
+          <kbd className="hidden shrink-0 rounded-sm border border-neutral-700 bg-neutral-950 px-1 py-px font-mono text-[12px] text-neutral-500 sm:block">{comboLabel(['⌘', '/'])}</kbd>
         </div>
       </div>
 

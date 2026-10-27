@@ -28,7 +28,7 @@ export function AttachmentModal({ att, onClose }: { att: AttachmentPreview; onCl
       return (
         <div className="flex flex-col items-center gap-2 py-10 text-neutral-500">
           <Icon name="rotate" size={20} className="animate-spin" />
-          <p className="text-[12px]">Carregando anexo…</p>
+          <p className="text-[13px]">Carregando anexo…</p>
         </div>
       );
     }
@@ -40,7 +40,7 @@ export function AttachmentModal({ att, onClose }: { att: AttachmentPreview; onCl
       <div className="flex flex-col items-center gap-3 py-10 text-neutral-400">
         <Icon name="file" size={26} className="text-neutral-500" />
         <p className="max-w-full truncate px-4 text-[13px]">{att.name}</p>
-        <p className="text-[11px] text-neutral-500">Sem preview pra esse tipo — baixe pra abrir.</p>
+        <p className="text-[12px] text-neutral-500">Sem preview pra esse tipo — baixe pra abrir.</p>
       </div>
     );
   })();

@@ -8,7 +8,7 @@ export function QuotaBanner({ onClose, reset }: { onClose: () => void; reset: st
   return (
     <span className="flex shrink-0 items-center gap-1.5 rounded-sm border border-yellow-500/25 bg-yellow-500/10 px-1.5 py-0.5 text-yellow-200/80">
       <Icon name="zap" size={11} className="shrink-0 text-yellow-400/80" />
-      <span className="truncate font-mono text-[10px]">uso próximo do limite · reseta {reset}</span>
+      <span className="truncate font-mono text-[12px]">uso próximo do limite · reseta {reset}</span>
       <button
         onClick={onClose}
         title="Dispensar"

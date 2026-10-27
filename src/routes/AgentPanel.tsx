@@ -31,7 +31,7 @@ export function AgentPanel({ card, term, testing, celebrating, phrase, message, 
       <div className="agent-panel">
         <div>
           <div className="flex flex-col gap-3.5 rounded-2xl border border-neutral-800 bg-neutral-950 p-4 sm:p-5">
-            <p className="text-[12.5px] leading-relaxed text-neutral-400">
+            <p className="text-[13px] leading-relaxed text-neutral-400">
               {preset.blurb}
               {preset.docs && (
                 <a href={preset.docs} target="_blank" rel="noreferrer" className="ml-1.5 inline-flex items-center gap-1 text-neutral-500 hover:text-orange-300">

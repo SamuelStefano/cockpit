@@ -24,7 +24,7 @@ export function PackPanel({ view, installing, compact, onInstall, onOpen }: Prop
             <Badge tone={complete ? 'green' : 'neutral'}>{installedCount}/{members.length} instaladas</Badge>
           </div>
           <h3 className="text-[14px] font-semibold text-neutral-100">{pack.name}</h3>
-          {!compact && pack.description && <p className="mt-0.5 max-w-2xl text-[12px] leading-snug text-neutral-500">{pack.description}</p>}
+          {!compact && pack.description && <p className="mt-0.5 max-w-2xl text-[13px] leading-snug text-neutral-500">{pack.description}</p>}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {missingSuggested.length > 0 && complete && (

@@ -18,16 +18,16 @@ function Row({ row }: { row: UsageRow }) {
   return (
     <li className="flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-3">
-        <span className="truncate text-[12px] font-medium text-neutral-200">
+        <span className="truncate text-[13px] font-medium text-neutral-200">
           {row.label}
-          {row.scoped && <span className="ml-1.5 text-[10px] uppercase tracking-wide text-neutral-500">modelo</span>}
+          {row.scoped && <span className="ml-1.5 text-[12px] uppercase tracking-wide text-neutral-500">modelo</span>}
         </span>
-        <span className={`shrink-0 text-[12px] font-semibold tabular-nums ${TEXT[row.tone]}`}>{row.pct}%</span>
+        <span className={`shrink-0 text-[13px] font-semibold tabular-nums ${TEXT[row.tone]}`}>{row.pct}%</span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-neutral-800">
         <div className={`h-full rounded-full transition-all ${BAR[row.tone]}`} style={{ width: `${row.pct}%` }} />
       </div>
-      <span className="text-[10px] tabular-nums text-neutral-500">
+      <span className="text-[12px] tabular-nums text-neutral-500">
         {row.resetsAt ? `reseta em ${relReset(row.resetsAt)}` : 'sem reset agendado'}
       </span>
     </li>
@@ -58,9 +58,9 @@ export function UsagePanel({ rows, reset = '', warn = false, blockedUntil = null
       aria-label={title === 'Uso do plano' ? 'Detalhe do uso do plano' : `Detalhe — ${title}`}
       className={`fixed inset-x-3 top-[calc(3rem+env(safe-area-inset-top)+0.5rem)] z-50 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-64 ${tokens.radius.lg} ${tokens.surface.raised} p-3.5`}
     >
-      <p className="mb-3 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{title}</p>
+      <p className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-neutral-500">{title}</p>
       {rows.length === 0 ? (
-        <p className="text-[12px] text-neutral-500">{blocked ? `A conta limitou as consultas de uso. Próxima leitura em ${blocked}.` : 'Lendo da conta…'}</p>
+        <p className="text-[13px] text-neutral-500">{blocked ? `A conta limitou as consultas de uso. Próxima leitura em ${blocked}.` : 'Lendo da conta…'}</p>
       ) : (
         <ul className="flex flex-col gap-3">
           {rows.map((row) => (
@@ -69,24 +69,24 @@ export function UsagePanel({ rows, reset = '', warn = false, blockedUntil = null
         </ul>
       )}
       {rows.length > 0 && (blocked ? (
-        <p className="mt-3 border-t border-neutral-800 pt-2.5 text-[11px] text-amber-300/80">
+        <p className="mt-3 border-t border-neutral-800 pt-2.5 text-[12px] text-amber-300/80">
           número de há {age || 'pouco'} · a conta pediu pausa, próxima leitura em {blocked}
         </p>
       ) : budgetWait ? (
-        <p className="mt-3 border-t border-neutral-800 pt-2.5 text-[11px] text-neutral-500">
+        <p className="mt-3 border-t border-neutral-800 pt-2.5 text-[12px] text-neutral-500">
           lido há {age || 'pouco'} · leituras da hora esgotadas, próxima em {budgetWait}
         </p>
       ) : age && (
-        <p className="mt-3 border-t border-neutral-800 pt-2.5 text-[11px] text-neutral-500">lido há {age}</p>
+        <p className="mt-3 border-t border-neutral-800 pt-2.5 text-[12px] text-neutral-500">lido há {age}</p>
       ))}
       {reset && (
-        <p className={`mt-3 border-t border-neutral-800 pt-2.5 text-[11px] tabular-nums ${warn ? 'text-amber-300/90' : 'text-neutral-500'}`}>
+        <p className={`mt-3 border-t border-neutral-800 pt-2.5 text-[12px] tabular-nums ${warn ? 'text-amber-300/90' : 'text-neutral-500'}`}>
           reseta {reset}
         </p>
       )}
       {secondary && secondary.rows.length > 0 && (
         <div className="mt-3 border-t border-neutral-800 pt-2.5">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{secondary.title}</p>
+          <p className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-neutral-500">{secondary.title}</p>
           <ul className="flex flex-col gap-3">
             {secondary.rows.map((row) => <Row key={row.id} row={row} />)}
           </ul>

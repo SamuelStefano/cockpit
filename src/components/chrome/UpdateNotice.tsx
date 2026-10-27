@@ -10,9 +10,9 @@ export function UpdateNotice({ show, onApply, onDismiss }: { show: boolean; onAp
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-orange-500/15 text-orange-400">
           <Icon name="rotate" size={13} />
         </span>
-        <p className="min-w-0 flex-1 text-[12px] leading-tight text-orange-100">
+        <p className="min-w-0 flex-1 text-[13px] leading-tight text-orange-100">
           Versão nova do Deck disponível.
-          <span className="block text-[11px] text-orange-200/70">Recarregue quando puder — nada é interrompido antes disso.</span>
+          <span className="block text-[12px] text-orange-200/70">Recarregue quando puder — nada é interrompido antes disso.</span>
         </p>
         <Button size="sm" onClick={onApply}>Recarregar</Button>
         <Button variant="ghost" size="sm" square icon="x" aria-label="Dispensar" onClick={onDismiss} />

@@ -47,10 +47,10 @@ export const KanbanSessionItem = memo(function KanbanSessionItem({ item, stats, 
     >
       <div className="flex items-start gap-1.5">
         <Icon name={orchestrator ? 'command' : 'terminal'} size={12} className={`mt-0.5 shrink-0 ${orchestrator ? 'text-fuchsia-400' : 'text-neutral-500'}`} />
-        <button type="button" data-item-select="" aria-current={selected ? 'true' : undefined} className="min-w-0 flex-1 cursor-pointer truncate text-left text-[12px] font-medium leading-snug text-neutral-200 outline-hidden">{item.title}</button>
+        <button type="button" data-item-select="" aria-current={selected ? 'true' : undefined} className="min-w-0 flex-1 cursor-pointer truncate text-left text-[13px] font-medium leading-snug text-neutral-200 outline-hidden">{item.title}</button>
         {orchestrator && <Badge tone="purple">ORCHESTRATOR</Badge>}
       </div>
-      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-neutral-500">
+      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[12px] text-neutral-500">
         {item.area && <span className="rounded border border-neutral-700 px-1 py-0.5 text-neutral-400">{AREA_LABELS[item.area]}</span>}
         <span>{item.running ? 'ativa agora' : lastSeenLabel(item.mtime)}</span>
         {pct !== null && stats?.contextTokens !== undefined && <span>ctx {fmtTokens(stats.contextTokens)} ({pct}%)</span>}

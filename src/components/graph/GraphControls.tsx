@@ -20,7 +20,7 @@ export function GraphControls({ query, onQuery, matchCount, colorMode, onColorMo
           onChange={(e) => onQuery(e.target.value)}
           placeholder="buscar nó…"
           aria-label="Buscar nó no grafo"
-          suffix={matchCount !== null ? <span className={`font-mono text-[10.5px] ${matchCount ? 'text-orange-300' : 'text-neutral-600'}`}>{matchCount}</span> : undefined}
+          suffix={matchCount !== null ? <span className={`font-mono text-[12px] ${matchCount ? 'text-orange-300' : 'text-neutral-600'}`}>{matchCount}</span> : undefined}
         />
       </div>
 
@@ -30,7 +30,7 @@ export function GraphControls({ query, onQuery, matchCount, colorMode, onColorMo
             <button
               key={m}
               onClick={() => onColorMode(m)}
-              className={`px-2.5 py-1.5 font-mono text-[11px] transition-colors ${
+              className={`px-2.5 py-1.5 font-mono text-[12px] transition-colors ${
                 colorMode === m ? 'bg-orange-500/15 text-orange-200' : 'text-neutral-500 hover:text-neutral-300'
               }`}
             >

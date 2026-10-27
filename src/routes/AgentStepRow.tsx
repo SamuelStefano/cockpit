@@ -18,7 +18,7 @@ interface AgentStepRowProps {
 export function AgentStepRow({ step, index, finished, active, running, testing, onRun, onTest }: AgentStepRowProps) {
   if (finished && !active) {
     return (
-      <li className="flex items-center gap-2.5 px-3 py-1.5 text-[12.5px] text-neutral-500">
+      <li className="flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-neutral-500">
         <AgentCheck />
         <span className="truncate">{step.title}</span>
       </li>
@@ -27,10 +27,10 @@ export function AgentStepRow({ step, index, finished, active, running, testing, 
   const { command } = step;
   return (
     <li className={`flex gap-2.5 rounded-lg border-l-2 px-3 py-2.5 ${active ? 'agent-step-current border-orange-500 bg-orange-500/5' : 'border-neutral-800'}`}>
-      <span className={`mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${active ? 'bg-orange-500 text-neutral-950' : 'bg-neutral-800 text-neutral-500'}`}>{index + 1}</span>
+      <span className={`mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold ${active ? 'bg-orange-500 text-neutral-950' : 'bg-neutral-800 text-neutral-500'}`}>{index + 1}</span>
       <div className="min-w-0 flex-1">
-        <p className={`text-[12.5px] font-medium ${active ? 'text-neutral-100' : 'text-neutral-500'}`}>{step.title}</p>
-        {active && <p className="mt-0.5 text-[11.5px] leading-relaxed text-neutral-500">{step.what}</p>}
+        <p className={`text-[13px] font-medium ${active ? 'text-neutral-100' : 'text-neutral-500'}`}>{step.title}</p>
+        {active && <p className="mt-0.5 text-[12px] leading-relaxed text-neutral-500">{step.what}</p>}
         {active && command && (
           <div className="mt-2 flex flex-col gap-2">
             <AgentCopyLine command={command} />

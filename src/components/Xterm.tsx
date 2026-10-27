@@ -41,7 +41,7 @@ export function XtermView({ id, term, watch, botId, autoFocus = true, focusKey, 
       theme: {
         background: '#0a0a0a',
         foreground: '#e5e5e5',
-        cursor: '#f97316',
+        cursor: '#3b82f6',
         cursorAccent: '#0a0a0a',
         selectionBackground: '#3f3f46',
         black: '#171717', red: '#ef4444', green: '#22c55e', yellow: '#eab308',

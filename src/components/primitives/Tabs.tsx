@@ -29,13 +29,13 @@ export function Tabs<T extends string>({ items, active, onChange, className = ''
             <button
               key={it.id} onClick={() => onChange(it.id)}
               type="button" role="tab" aria-selected={on}
-              className={`-mb-px flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2 text-[12.5px] font-medium transition ${compact ? 'max-sm:px-2' : ''} ${
+              className={`-mb-px flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2 text-[13px] font-medium transition ${compact ? 'max-sm:px-2' : ''} ${
                 on ? 'border-orange-500 text-neutral-100' : 'border-transparent text-neutral-500 hover:text-neutral-300'}`}
             >
               {it.icon && <Icon name={it.icon} size={13} className={compact ? 'max-sm:hidden' : undefined} />}
               {it.label}
               {it.count != null && (
-                <span className={`rounded-full px-1.5 py-px text-[10px] tabular-nums ${on ? 'bg-orange-500/15 text-orange-300' : 'bg-neutral-800 text-neutral-500'}`}>{it.count}</span>
+                <span className={`rounded-full px-1.5 py-px text-[12px] tabular-nums ${on ? 'bg-orange-500/15 text-orange-300' : 'bg-neutral-800 text-neutral-500'}`}>{it.count}</span>
               )}
             </button>
           );

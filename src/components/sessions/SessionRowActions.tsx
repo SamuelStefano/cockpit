@@ -91,7 +91,7 @@ export function SessionRowActions({ pinned, running, canStop, canDescribe, marat
               key={it.key}
               role="menuitem"
               onClick={(e) => { e.stopPropagation(); setOpen(false); it.run(); }}
-              className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[12px] transition
+              className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[13px] transition
                 ${it.danger
                   ? 'text-red-400 hover:bg-red-500/10 hover:text-red-300'
                   : 'text-neutral-300 hover:bg-neutral-800 hover:text-neutral-100'}`}

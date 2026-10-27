@@ -17,7 +17,7 @@ export function PrimaryCard({ view, selected, onSelect }: PrimaryCardProps) {
         <span className="absolute -bottom-0.5 -right-0.5"><PrimaryStar size={18} /></span>
       </span>
       <span className="max-w-full truncate text-[14px] font-medium text-neutral-100">{bot.name}</span>
-      {bot.label && <span className="max-w-full truncate rounded-md bg-neutral-800 px-1.5 py-0.5 text-[11.5px] text-neutral-400">{bot.label}</span>}
+      {bot.label && <span className="max-w-full truncate rounded-md bg-neutral-800 px-1.5 py-0.5 text-[12px] text-neutral-400">{bot.label}</span>}
       {unread && <span aria-label="mensagem nova" className="absolute right-2.5 top-2.5 h-2.5 w-2.5 rounded-full bg-sky-500" />}
     </button>
   );

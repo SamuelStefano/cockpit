@@ -65,16 +65,16 @@ export function UsageBar({ usage, compact, warn = false, paused = false, quotaRe
         className={`flex items-center border bg-neutral-900/60 py-1.5 transition-colors hover:bg-neutral-900 ${quotaBorder(warn, paused)} ${tokens.radius.md} ${tokens.focusRing} ${compact ? 'gap-1.5 px-2' : 'gap-2 px-2.5'}`}
       >
         {paused && <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-red-400" />}
-        {!compact && <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{agent === 'grok' ? 'Grok' : 'Uso'}</span>}
+        {!compact && <span className="text-[12px] font-semibold uppercase tracking-wide text-neutral-500">{agent === 'grok' ? 'Grok' : 'Uso'}</span>}
         <div className={`${compact ? 'w-12' : 'w-20'} h-2 overflow-hidden rounded-full bg-neutral-800`}>
           <div className={`h-full rounded-full transition-all ${bar}`} style={{ width: `${pct ?? 0}%` }} />
         </div>
-        <span className={`text-[11px] font-medium tabular-nums ${text}`}>{pct === null ? '—' : `${pct}%`}</span>
+        <span className={`text-[12px] font-medium tabular-nums ${text}`}>{pct === null ? '—' : `${pct}%`}</span>
         {reset && !compact && (
-          <span className="text-[10px] tabular-nums text-neutral-500">reset {reset}</span>
+          <span className="text-[12px] tabular-nums text-neutral-500">reset {reset}</span>
         )}
         {age && !compact && (
-          <span className="text-[10px] tabular-nums text-neutral-600">há {age}</span>
+          <span className="text-[12px] tabular-nums text-neutral-600">há {age}</span>
         )}
       </button>
       {open && <UsagePanel rows={rows} reset={gateReset} warn={warn || paused} blockedUntil={blockedUntil} readAt={readAt} nextReadAt={nextReadAt} title={what} secondary={secondary} />}

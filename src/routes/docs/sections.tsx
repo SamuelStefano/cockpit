@@ -46,7 +46,7 @@ export function DocSections({ year }: { year: number }) {
       <Admin />
       <Internals />
       <RepoMap />
-      <div className="border-t border-neutral-800/80 pt-6 text-center text-[11px] text-neutral-600">
+      <div className="border-t border-neutral-800/80 pt-6 text-center text-[12px] text-neutral-600">
         Deck · manual interno · {year}
       </div>
     </>

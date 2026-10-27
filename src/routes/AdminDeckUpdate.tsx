@@ -24,15 +24,15 @@ export function AdminDeckUpdate({ health, adminOp, onCliUpdate, onDeckRestart }:
 
   return (
     <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 hairline">
-      <h2 className="mb-3 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-neutral-400">
+      <h2 className="mb-3 flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-wide text-neutral-400">
         <Icon name="rotate" size={12} /> Claude Code e Deck
       </h2>
 
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-        <div className="min-w-0 flex-1 text-[12.5px] text-neutral-300">
+        <div className="min-w-0 flex-1 text-[13px] text-neutral-300">
           <span className="text-neutral-500">CLI do Claude</span>{' '}
           <span className="font-mono text-neutral-100">{cli?.version || '—'}</span>
-          {cli?.path && <span className="ml-2 wrap-anywhere font-mono text-[11px] text-neutral-600">{cli.path}</span>}
+          {cli?.path && <span className="ml-2 wrap-anywhere font-mono text-[12px] text-neutral-600">{cli.path}</span>}
         </div>
         <Button variant="secondary" size="sm" icon="download" onClick={u.updateCli} disabled={u.busy !== null || !health} loading={u.busy === 'cli'}>
           Atualizar CLI
@@ -40,10 +40,10 @@ export function AdminDeckUpdate({ health, adminOp, onCliUpdate, onDeckRestart }:
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <div className="min-w-0 flex-1 text-[12.5px] text-neutral-300">
+        <div className="min-w-0 flex-1 text-[13px] text-neutral-300">
           <span className="text-neutral-500">Servidor do Deck</span>{' '}
           <span className="font-mono text-neutral-100">{deck?.bootCommit || '—'}</span>
-          {health && <span className="ml-2 text-[11px] text-neutral-600">no ar há {dur(health.uptimeSec)}</span>}
+          {health && <span className="ml-2 text-[12px] text-neutral-600">no ar há {dur(health.uptimeSec)}</span>}
           <span className="ml-2 inline-flex flex-wrap gap-1 align-middle">
             {behind && <Badge tone="yellow" dot>código novo no disco: {deck!.headCommit}</Badge>}
             {deck?.restartArmed && <Badge tone="orange" dot>restart agendado</Badge>}

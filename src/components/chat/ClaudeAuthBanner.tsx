@@ -44,21 +44,21 @@ export function ClaudeAuthBanner(props: ClaudeAuthBannerProps) {
               )}
               {l.noReply && (
                 <div role="alert" className="flex flex-col gap-2">
-                  <p className="text-[12.5px] text-red-400">
+                  <p className="text-[13px] text-red-400">
                     A VPS não respondeu. O agente pode estar desatualizado — atualize e tente de novo:
                   </p>
                   <CodeBlock code={UPDATE_ISOLATED} lang="bash" />
-                  <p className="text-[12px] text-amber-100/70">Instalação não isolada:</p>
+                  <p className="text-[13px] text-amber-100/70">Instalação não isolada:</p>
                   <CodeBlock code={UPDATE_PLAIN} lang="bash" />
                 </div>
               )}
               {l.stalled && (
-                <p role="alert" className="text-[12.5px] text-red-400">
+                <p role="alert" className="text-[13px] text-red-400">
                   O login demorou demais. Abra a aba Shell e rode <code className={MONO}>claude auth login</code>.
                 </p>
               )}
               {l.error && !l.noReply && !l.stalled && (l.state === 'error' || l.state === 'url') && (
-                <p role="alert" className="text-[12.5px] text-red-400">{l.error}</p>
+                <p role="alert" className="text-[13px] text-red-400">{l.error}</p>
               )}
               {showCode && l.url && (
                 <>
@@ -87,7 +87,7 @@ export function ClaudeAuthBanner(props: ClaudeAuthBannerProps) {
               )}
             </div>
 
-            <details className="mt-3 text-[12px] text-amber-100/70">
+            <details className="mt-3 text-[13px] text-amber-100/70">
               <summary className="cursor-pointer text-amber-200/90">Outras opções</summary>
               <ul className="mt-2 space-y-1.5 leading-relaxed">
                 <li>Pelo terminal da VPS: <code className={MONO}>claude auth login</code></li>

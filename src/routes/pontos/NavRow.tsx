@@ -38,10 +38,10 @@ export function NavRow({ row, active, marked = 0, onSelect }: Props) {
     >
       {active && <span aria-hidden className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-orange-500" />}
       <span aria-hidden className={`h-1.5 w-1.5 shrink-0 rounded-full ${DOT[row.tone]}`} />
-      <span className="min-w-0 flex-1 truncate text-[12.5px]">{row.title}</span>
-      {marked > 0 && <span className="shrink-0 rounded bg-orange-500/20 px-1 font-mono text-[10px] text-orange-300">{marked}</span>}
-      <span className={`${NAV_COLS.pt} font-mono text-[11.5px] tabular-nums text-neutral-400`}>{fmtPts(row.points)}</span>
-      <span className={`${NAV_COLS.brl} font-mono text-[11.5px] tabular-nums text-neutral-500`}>{reaisInt(row.valueCents)}</span>
+      <span className="min-w-0 flex-1 truncate text-[13px]">{row.title}</span>
+      {marked > 0 && <span className="shrink-0 rounded bg-orange-500/20 px-1 font-mono text-[12px] text-orange-300">{marked}</span>}
+      <span className={`${NAV_COLS.pt} font-mono text-[12px] tabular-nums text-neutral-400`}>{fmtPts(row.points)}</span>
+      <span className={`${NAV_COLS.brl} font-mono text-[12px] tabular-nums text-neutral-500`}>{reaisInt(row.valueCents)}</span>
       <span className={NAV_COLS.cap}>
         <ProgressBar size="xs" segments={[
           { value: pct, tone: row.over ? 'yellow' : row.tone === 'paid' ? 'green' : 'orange' },

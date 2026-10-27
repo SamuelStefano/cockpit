@@ -16,12 +16,12 @@ export function TaskSelectionBar({ draft, e }: Props) {
   const s = e.selection;
   return (
     <div className="sticky bottom-2 z-10 mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-lg border border-orange-500/30 bg-neutral-950/95 px-3 py-2 shadow-lg shadow-black/40 backdrop-blur-sm">
-      <span className="text-[12.5px] font-semibold text-neutral-100">{s.count} {s.count === 1 ? 'selecionada' : 'selecionadas'}</span>
-      <span className="font-mono text-[11.5px] tabular-nums text-neutral-400">{fmtPts(s.points)} pt · {brlShort(s.valueCents)}</span>
+      <span className="text-[13px] font-semibold text-neutral-100">{s.count} {s.count === 1 ? 'selecionada' : 'selecionadas'}</span>
+      <span className="font-mono text-[12px] tabular-nums text-neutral-400">{fmtPts(s.points)} pt · {brlShort(s.valueCents)}</span>
       <span className="ml-auto flex flex-wrap items-center gap-1.5">
         {moving.on
           ? <>
-              <span className="text-[11.5px] text-neutral-500">mover para</span>
+              <span className="text-[12px] text-neutral-500">mover para</span>
               {draft.deliveries.map((dl) => (
                 <Button key={dl.id} variant="outline" size="xs" onClick={() => { e.moveTo(dl.id); moving.set(false); }} className="max-w-48">{dl.title}</Button>
               ))}

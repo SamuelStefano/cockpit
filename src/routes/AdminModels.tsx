@@ -9,7 +9,7 @@ export function AdminModels({ models }: { models: ModelInfo[] }) {
   return (
     <div className="space-y-6">
       {catalog.allHidden && (
-        <div role="alert" className="flex items-center gap-2 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-[12.5px] text-yellow-200">
+        <div role="alert" className="flex items-center gap-2 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-[13px] text-yellow-200">
           <Icon name="alertTriangle" size={14} />
           Todos os modelos estão ocultos — o seletor mostra todos até você ligar algum.
         </div>
@@ -25,7 +25,7 @@ export function AdminModels({ models }: { models: ModelInfo[] }) {
       <section>
         <SectionHeader title="Outros agentes" icon="sparkles" count={catalog.agents.length} description="Agentes ACP (Grok, Gemini…) instalados no host." />
         {catalog.agents.length === 0 ? (
-          <p className="text-[12px] text-neutral-500">Nenhum agente instalado — veja a aba Agentes.</p>
+          <p className="text-[13px] text-neutral-500">Nenhum agente instalado — veja a aba Agentes.</p>
         ) : (
           <div className="grid gap-1.5 sm:grid-cols-2">
             {catalog.agents.map((a) => (
@@ -36,7 +36,7 @@ export function AdminModels({ models }: { models: ModelInfo[] }) {
       </section>
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-neutral-800 pt-4">
-        <p className="flex items-center gap-2 text-[11.5px] text-neutral-500">
+        <p className="flex items-center gap-2 text-[12px] text-neutral-500">
           Modelos novos aparecem automaticamente.
           {hiddenCount > 0 && <Badge tone="neutral">{hiddenCount} oculto{hiddenCount > 1 ? 's' : ''}</Badge>}
         </p>

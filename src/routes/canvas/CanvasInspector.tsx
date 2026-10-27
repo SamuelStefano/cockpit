@@ -53,7 +53,7 @@ function FlowList({ flows, node, onEditFlow }: { flows: CanvasFlow[]; node: (id:
             className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left hover:bg-neutral-800/70"
           >
             <Icon name="zap" size={11} className={`shrink-0 ${f.enabled ? 'text-orange-400' : 'text-neutral-600'}`} />
-            <span className="truncate text-[11.5px] text-neutral-300">{node(f.from)?.title ?? f.from} → {node(f.to)?.title ?? f.to}</span>
+            <span className="truncate text-[12px] text-neutral-300">{node(f.from)?.title ?? f.from} → {node(f.to)?.title ?? f.to}</span>
           </button>
         </li>
       ))}
@@ -62,14 +62,14 @@ function FlowList({ flows, node, onEditFlow }: { flows: CanvasFlow[]; node: (id:
 }
 
 function Linked({ nodes, onPick }: { nodes: CanvasNode[]; onPick: (id: string) => void }) {
-  if (!nodes.length) return <p className="text-[11px] text-neutral-600">nada ligado</p>;
+  if (!nodes.length) return <p className="text-[12px] text-neutral-600">nada ligado</p>;
   return (
     <ul className="space-y-0.5">
       {nodes.slice(0, 30).map((n) => (
         <li key={n.id}>
           <button type="button" onClick={() => onPick(n.id)} className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left hover:bg-neutral-800/70">
             <Icon name={n.kind === 'session' ? 'terminal' : n.kind === 'card' ? 'check' : n.hub ? 'layers' : 'file'} size={11} className="shrink-0 text-neutral-500" />
-            <span className="truncate text-[11.5px] text-neutral-300">{n.title}</span>
+            <span className="truncate text-[12px] text-neutral-300">{n.title}</span>
           </button>
         </li>
       ))}
@@ -81,15 +81,15 @@ function Conflicts({ items, onPick }: { items: ConflictInfo[]; onPick: (id: stri
   if (!items.length) return null;
   return (
     <div>
-      <div className="mb-1 flex items-center gap-1 text-[10.5px] font-medium uppercase tracking-wide text-red-400">
+      <div className="mb-1 flex items-center gap-1 text-[12px] font-medium uppercase tracking-wide text-red-400">
         <Icon name="alertTriangle" size={11} /> Conflitos
       </div>
       <ul className="space-y-1">
         {items.map(({ other, files }) => (
           <li key={other.id}>
             <button type="button" onClick={() => onPick(other.id)} className="block w-full rounded-md px-1.5 py-1 text-left hover:bg-neutral-800/70">
-              <span className="block truncate text-[11.5px] text-red-300">{other.title}</span>
-              {files.map((f) => <span key={f} className="block truncate font-mono text-[10px] text-neutral-500">{f}</span>)}
+              <span className="block truncate text-[12px] text-red-300">{other.title}</span>
+              {files.map((f) => <span key={f} className="block truncate font-mono text-[12px] text-neutral-500">{f}</span>)}
             </button>
           </li>
         ))}
@@ -110,7 +110,7 @@ export function CanvasInspector(p: Props) {
   return (
     <aside data-canvas-overlay className="absolute inset-x-3 bottom-16 top-auto z-10 flex max-h-[46vh] flex-col overflow-hidden rounded-2xl border border-neutral-700/80 bg-neutral-900/90 shadow-xl backdrop-blur-md sm:inset-x-auto sm:left-3 sm:top-3 sm:max-h-none sm:w-72">
       <div className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2">
-        <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-neutral-100">{headerTitle}</span>
+        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-neutral-100">{headerTitle}</span>
         <Button variant="ghost" size="sm" icon="x" onClick={p.onClose} title="fechar" />
       </div>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-2.5">
@@ -122,20 +122,20 @@ export function CanvasInspector(p: Props) {
               {one.archived && <Badge>arquivo</Badge>}
               {card && <Badge tone={STATUS_TONE[card.status]}>{STATUS_LABEL[card.status]}</Badge>}
             </div>
-            <p className="whitespace-pre-wrap text-[11.5px] leading-relaxed text-neutral-400">{card ? card.prompt || '—' : shell ? shell.subtitle : one.subtitle || '—'}</p>
-            {one.path && <p className="break-all font-mono text-[10px] text-neutral-600">{one.path}</p>}
+            <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-neutral-400">{card ? card.prompt || '—' : shell ? shell.subtitle : one.subtitle || '—'}</p>
+            {one.path && <p className="break-all font-mono text-[12px] text-neutral-600">{one.path}</p>}
           </div>
         )}
         {one && <Conflicts items={conflicts} onPick={p.onPick} />}
         {one && (
           <div>
-            <div className="mb-1 text-[10.5px] font-medium uppercase tracking-wide text-neutral-500">Ligações</div>
+            <div className="mb-1 text-[12px] font-medium uppercase tracking-wide text-neutral-500">Ligações</div>
             <Linked nodes={p.linked(one.id)} onPick={p.onPick} />
           </div>
         )}
         {one && (incoming.length > 0 || outgoing.length > 0) && (
           <div>
-            <div className="mb-1 text-[10.5px] font-medium uppercase tracking-wide text-neutral-500">Fluxos</div>
+            <div className="mb-1 text-[12px] font-medium uppercase tracking-wide text-neutral-500">Fluxos</div>
             {outgoing.length > 0 && <FlowList flows={outgoing} node={p.node} onEditFlow={p.onEditFlow} />}
             {incoming.length > 0 && <FlowList flows={incoming} node={p.node} onEditFlow={p.onEditFlow} />}
           </div>

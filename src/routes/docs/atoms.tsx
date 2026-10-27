@@ -9,7 +9,7 @@ export function DocFigure({ src, alt, caption }: { src: string; alt: string; cap
     <figure className="my-5 overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900/40">
       <img src={src} alt={alt} className="w-full object-cover" loading="lazy" decoding="async" />
       {caption && (
-        <figcaption className="border-t border-neutral-800/60 px-4 py-2.5 text-[12px] text-neutral-500">{caption}</figcaption>
+        <figcaption className="border-t border-neutral-800/60 px-4 py-2.5 text-[13px] text-neutral-500">{caption}</figcaption>
       )}
     </figure>
   );
@@ -22,10 +22,10 @@ export function SectionTitle({ icon, kicker, title, desc }: { icon: IconName; ki
         <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-orange-500/30 bg-orange-500/10 text-orange-300">
           <Icon name={icon} size={17} />
         </span>
-        <span className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-orange-400/70">{kicker}</span>
+        <span className="text-[12px] font-semibold uppercase tracking-[0.18em] text-orange-400/70">{kicker}</span>
       </div>
       <h2 className="text-[22px] font-semibold tracking-tight text-neutral-100">{title}</h2>
-      <p className="mt-1.5 max-w-2xl text-[13.5px] leading-relaxed text-neutral-400">{desc}</p>
+      <p className="mt-1.5 max-w-2xl text-[14px] leading-relaxed text-neutral-400">{desc}</p>
     </div>
   );
 }
@@ -53,11 +53,11 @@ export function FeatureCard({ icon, tone, title, children }: { icon: IconName; t
 }
 
 export function Pill({ children }: { children: React.ReactNode }) {
-  return <code className="rounded-md border border-neutral-700/60 bg-neutral-950 px-1.5 py-0.5 font-mono text-[11.5px] text-orange-300/90">{children}</code>;
+  return <code className="rounded-md border border-neutral-700/60 bg-neutral-950 px-1.5 py-0.5 font-mono text-[12px] text-orange-300/90">{children}</code>;
 }
 
 export function Kbd({ children }: { children: React.ReactNode }) {
-  return <kbd className="inline-flex min-w-[22px] items-center justify-center rounded-md border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[11px] text-neutral-300 shadow-[0_1px_0_rgba(0,0,0,0.6)]">{children}</kbd>;
+  return <kbd className="inline-flex min-w-[22px] items-center justify-center rounded-md border border-neutral-700 bg-neutral-950 px-1.5 py-0.5 font-mono text-[12px] text-neutral-300 shadow-[0_1px_0_rgba(0,0,0,0.6)]">{children}</kbd>;
 }
 
 export function InfoCard({ icon, iconClass = 'text-orange-300', size = 15, title, className = '', children }: { icon: IconName; iconClass?: string; size?: number; title: string; className?: string; children: React.ReactNode }) {
@@ -76,7 +76,7 @@ export function StepCard({ step, title, children }: { step: number; title: strin
   return (
     <Card>
       <div className="mb-2 flex items-center gap-2">
-        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-orange-500/15 text-[11px] font-semibold text-orange-300">{step}</span>
+        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-orange-500/15 text-[12px] font-semibold text-orange-300">{step}</span>
         <h3 className="text-[14px] font-semibold text-neutral-100">{title}</h3>
       </div>
       <div className="text-[13px] leading-relaxed text-neutral-400">{children}</div>
@@ -95,7 +95,7 @@ export function Callout({ icon, tone, children }: { icon: IconName; tone: keyof 
   return (
     <div className={`mt-3 flex items-start gap-2.5 rounded-xl border ${t.box} p-4`}>
       <Icon name={icon} size={15} className={`mt-0.5 shrink-0 ${t.icon}`} />
-      <p className={`text-[12.5px] leading-relaxed ${t.text}`}>{children}</p>
+      <p className={`text-[13px] leading-relaxed ${t.text}`}>{children}</p>
     </div>
   );
 }
@@ -105,17 +105,17 @@ export function ResourceRow({ r }: { r: typeof RESOURCES[number] }) {
     <Card>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
         <div className="flex shrink-0 items-center gap-3 sm:w-44">
-          <span className={`flex h-12 w-12 items-center justify-center rounded-xl border font-mono text-[12px] font-bold ${r.tone}`}>
+          <span className={`flex h-12 w-12 items-center justify-center rounded-xl border font-mono text-[13px] font-bold ${r.tone}`}>
             {r.key}
           </span>
           <div>
             <div className="text-[14px] font-semibold text-neutral-100">{r.label}</div>
-            <div className="mt-0.5 text-[10.5px] text-neutral-500">fonte: <Pill>{r.source}</Pill></div>
+            <div className="mt-0.5 text-[12px] text-neutral-500">fonte: <Pill>{r.source}</Pill></div>
           </div>
         </div>
         <div className="flex-1 space-y-2.5">
           <p className="text-[13px] leading-relaxed text-neutral-300"><span className="font-medium text-neutral-200">O que é · </span>{r.what}</p>
-          <p className="text-[12.5px] leading-relaxed text-neutral-500"><span className="font-medium text-neutral-400">Como é puxado · </span>{r.how}</p>
+          <p className="text-[13px] leading-relaxed text-neutral-500"><span className="font-medium text-neutral-400">Como é puxado · </span>{r.how}</p>
         </div>
       </div>
     </Card>

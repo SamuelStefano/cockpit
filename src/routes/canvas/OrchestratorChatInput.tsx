@@ -60,10 +60,10 @@ export function OrchestratorChatInput({ onSend, disabled }: Props) {
         }}
         placeholder="mandar mensagem pro orchestrator… (Enter envia, Shift+Enter quebra linha)"
         rows={3}
-        className="w-full resize-none rounded-md border border-neutral-800 bg-neutral-925 px-2.5 py-2 font-mono text-[12.5px] text-neutral-200 placeholder:text-neutral-600 outline-hidden transition focus:border-fuchsia-500/40 disabled:opacity-50"
+        className="w-full resize-none rounded-md border border-neutral-800 bg-neutral-925 px-2.5 py-2 font-mono text-[13px] text-neutral-200 placeholder:text-neutral-600 outline-hidden transition focus:border-fuchsia-500/40 disabled:opacity-50"
       />
       <div className="flex items-center justify-end gap-2">
-        <span className="mr-auto font-mono text-[10.5px] text-neutral-600">↑/↓ histórico</span>
+        <span className="mr-auto font-mono text-[12px] text-neutral-600">↑/↓ histórico</span>
         <Button variant="secondary" size="sm" icon="send" disabled={disabled || !value.trim()} onClick={submit}>enviar</Button>
       </div>
     </div>

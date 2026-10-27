@@ -25,7 +25,7 @@ export function proseBlocks(md: string, keyBase: string, caret: boolean, slugs: 
       const cls = level === 1 ? 'pt-2 text-[20px] font-semibold text-neutral-50'
         : level === 2 ? 'pt-2 text-[17px] font-semibold text-neutral-100'
         : level === 3 ? 'pt-1 text-[16px] font-semibold text-neutral-200'
-        : 'pt-1 text-[12.5px] font-semibold uppercase tracking-wide text-neutral-400';
+        : 'pt-1 text-[13px] font-semibold uppercase tracking-wide text-neutral-400';
       return React.createElement(
         `h${level}`,
         { key: k, id: uniqueHeadingSlug(node.text, slugs), className: `scroll-mt-4 ${cls}` },

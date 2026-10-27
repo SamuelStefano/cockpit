@@ -31,7 +31,7 @@ export function Segmented<T extends string>({ items, value, onChange, label, cla
         return (
           <button
             key={it.id} type="button" role="radio" aria-checked={on} tabIndex={on || (!items.some((x) => x.id === value) && it === items[0]) ? 0 : -1} onClick={() => onChange(it.id)}
-            className={`rounded-[5px] px-2 py-0.5 font-mono text-[10.5px] lowercase transition ${tokens.focusRing} ${
+            className={`rounded-[5px] px-2 py-0.5 font-mono text-[12px] lowercase transition ${tokens.focusRing} ${
               on ? 'bg-neutral-800 text-neutral-100' : 'text-neutral-500 hover:text-neutral-300'}`}
           >
             {it.label}

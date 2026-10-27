@@ -38,7 +38,7 @@ export const CanvasFlowPorts = memo(function CanvasFlowPorts({ nodes, pos, windo
       {portDrag && pos[portDrag.from] && (
         <path
           d={flowCurve(flowOutAnchor(pos[portDrag.from], windows.has(portDrag.from), compact), portDrag)}
-          fill="none" stroke="rgba(251,146,60,0.6)" strokeWidth={2} strokeDasharray="4 4"
+          fill="none" stroke="rgba(96,165,250,0.6)" strokeWidth={2} strokeDasharray="4 4"
         />
       )}
       {ports.map((n) => {

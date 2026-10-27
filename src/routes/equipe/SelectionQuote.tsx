@@ -40,7 +40,7 @@ export function SelectionQuote({ onQuote, children }: SelectionQuoteProps) {
       {sel && (
         <button
           type="button"
-          className={`absolute z-20 rounded-full border border-neutral-700 bg-neutral-900 px-2.5 py-1 text-[11px] font-medium text-neutral-100 shadow-lg ${tokens.focusRing}`}
+          className={`absolute z-20 rounded-full border border-neutral-700 bg-neutral-900 px-2.5 py-1 text-[12px] font-medium text-neutral-100 shadow-lg ${tokens.focusRing}`}
           style={{ left: sel.x, top: Math.max(8, sel.y - 8), transform: 'translate(-50%, -100%)' }}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => { onQuote(sel.text); setSel(null); }}

@@ -16,7 +16,7 @@ export class ChunkErrorBoundary extends Component<{ children: ReactNode }, { fai
     return (
       <div role="alert" className="m-4 flex flex-col items-start gap-3 rounded-xl border border-neutral-800 bg-neutral-900/60 p-4">
         <p className="text-[13px] text-neutral-200">Não consegui carregar esta parte do Deck.</p>
-        <p className="text-[12px] text-neutral-500">A conexão caiu ou saiu uma versão nova. Recarregar resolve.</p>
+        <p className="text-[13px] text-neutral-500">A conexão caiu ou saiu uma versão nova. Recarregar resolve.</p>
         <Button size="sm" icon="rotate" onClick={() => location.reload()}>Recarregar</Button>
       </div>
     );

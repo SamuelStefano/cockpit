@@ -10,7 +10,7 @@ export function ArchivedSection({ archived, onUnhide, onDelete, onView }: { arch
       <button
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500 transition hover:bg-neutral-900 hover:text-neutral-300"
+        className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-[12px] font-semibold uppercase tracking-wider text-neutral-500 transition hover:bg-neutral-900 hover:text-neutral-300"
       >
         <Icon name="chevronRight" size={12} className={`shrink-0 transition-transform duration-150 ${open ? 'rotate-90' : ''}`} />
         Arquivadas <span className="font-medium text-neutral-600 tabular-nums">{archived.length}</span>
@@ -24,18 +24,18 @@ export function ArchivedSection({ archived, onUnhide, onDelete, onView }: { arch
                   <button
                     onClick={() => onView(s.id)}
                     title="Ver conversa (somente leitura)"
-                    className="min-w-0 flex-1 truncate text-left text-[11.5px] font-medium text-neutral-400 transition hover:text-orange-300"
+                    className="min-w-0 flex-1 truncate text-left text-[12px] font-medium text-neutral-400 transition hover:text-orange-300"
                   >
                     {s.title}
                   </button>
                 ) : (
-                  <span className="truncate text-[11.5px] font-medium text-neutral-400">{s.title}</span>
+                  <span className="truncate text-[12px] font-medium text-neutral-400">{s.title}</span>
                 )}
                 <div className="flex shrink-0 items-center gap-0.5 opacity-100 sm:pointer-fine:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                   <button
                     onClick={() => onUnhide(s.id)}
                     title="Restaurar sessão"
-                    className="rounded-sm px-1.5 py-0.5 text-[10.5px] font-medium text-neutral-500 transition hover:bg-neutral-800 hover:text-orange-300"
+                    className="rounded-sm px-1.5 py-0.5 text-[12px] font-medium text-neutral-500 transition hover:bg-neutral-800 hover:text-orange-300"
                   >
                     restaurar
                   </button>
@@ -51,8 +51,8 @@ export function ArchivedSection({ archived, onUnhide, onDelete, onView }: { arch
                   )}
                 </div>
               </div>
-              {s.snippet && <p className="mt-0.5 truncate text-[10.5px] text-neutral-600">{s.snippet}</p>}
-              {s.relative && <p className="mt-0.5 text-[10px] tabular-nums text-neutral-700">{s.relative}</p>}
+              {s.snippet && <p className="mt-0.5 truncate text-[12px] text-neutral-600">{s.snippet}</p>}
+              {s.relative && <p className="mt-0.5 text-[12px] tabular-nums text-neutral-700">{s.relative}</p>}
             </div>
           ))}
         </div>

@@ -54,12 +54,12 @@ export function Queue() {
           <div className="grid gap-2.5 sm:grid-cols-2">
             {TRIAGE.map((t) => (
               <div key={t.label} className={`rounded-xl border p-3 ${t.box}`}>
-                <div className={`mb-1 inline-flex rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide ${t.chip}`}>{t.label}</div>
-                <p className="text-[12.5px] leading-relaxed text-neutral-400">{t.body}</p>
+                <div className={`mb-1 inline-flex rounded-md px-1.5 py-0.5 text-[12px] font-semibold uppercase tracking-wide ${t.chip}`}>{t.label}</div>
+                <p className="text-[13px] leading-relaxed text-neutral-400">{t.body}</p>
               </div>
             ))}
           </div>
-          <p className="mt-3 text-[12px] leading-relaxed text-neutral-500">
+          <p className="mt-3 text-[13px] leading-relaxed text-neutral-500">
             A decisão e o motivo aparecem como uma etiqueta na sua mensagem. Na dúvida, o padrão é sempre <span className="font-medium text-neutral-400">enfileirar</span> — nada se perde.
             Parar o turno (<span className="font-medium text-neutral-400">Esc</span>) significa silêncio: também limpa a fila e cancela qualquer mensagem ainda em triagem.
           </p>

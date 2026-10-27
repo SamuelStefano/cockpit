@@ -24,7 +24,7 @@ export function MdImage({ alt, src }: { alt: string; src: string }) {
     return (
       <span className="my-2 block max-w-md">
         <img src={got.url} alt={alt} className="block max-h-96 rounded-xl border border-neutral-800 bg-white/5 object-contain" />
-        {alt && <span className="mt-1 block text-[12px] text-neutral-500">{alt}</span>}
+        {alt && <span className="mt-1 block text-[13px] text-neutral-500">{alt}</span>}
       </span>
     );
   }

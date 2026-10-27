@@ -54,7 +54,7 @@ export function DenseGallery() {
       <Row label="Drawer">
         <Button variant="secondary" size="sm" icon="layers" onClick={() => setDrawer(true)}>Abrir drawer</Button>
         <Drawer open={drawer} onClose={() => setDrawer(false)} title="Épicos">
-          <p className="p-3 text-[12.5px] text-neutral-400">Painel lateral no celular: o que é coluna fixa no desktop vira gaveta.</p>
+          <p className="p-3 text-[13px] text-neutral-400">Painel lateral no celular: o que é coluna fixa no desktop vira gaveta.</p>
         </Drawer>
       </Row>
     </Section>

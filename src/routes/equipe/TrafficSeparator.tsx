@@ -20,7 +20,7 @@ export function TrafficSeparator({ count, peers, items, botId, byId, onOpen, onQ
   const known = peers.flatMap((p) => (p.bot ? [{ id: p.id, mascot: p.bot.mascot, name: p.bot.name }] : []));
   return (
     <div className="flex flex-col items-center gap-1">
-      <div className="flex flex-wrap items-center justify-center gap-1 text-[12px] text-neutral-500">
+      <div className="flex flex-wrap items-center justify-center gap-1 text-[13px] text-neutral-500">
         <Button
           variant="ghost"
           size="xs"

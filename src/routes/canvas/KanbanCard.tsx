@@ -37,7 +37,7 @@ export const KanbanCard = memo(function KanbanCard({ card, run, sessions, sessio
     >
       <div className="flex items-start gap-1.5">
         <Icon name={card.kind === 'content' ? 'sparkles' : 'zap'} size={12} className="mt-0.5 shrink-0 text-orange-400" />
-        <button type="button" data-item-select="" aria-current={selected ? 'true' : undefined} className="min-w-0 flex-1 cursor-pointer truncate text-left text-[12px] font-medium leading-snug text-neutral-100 outline-hidden">{card.title}</button>
+        <button type="button" data-item-select="" aria-current={selected ? 'true' : undefined} className="min-w-0 flex-1 cursor-pointer truncate text-left text-[13px] font-medium leading-snug text-neutral-100 outline-hidden">{card.title}</button>
         {run === 'running' && <Badge tone="green" dot>rodando</Badge>}
         {/* card.status is STILL 'doing' here (server/canvas/card-review.ts
             only flips it to 'review' on a CLEAN turn close) — idle sessions
@@ -45,7 +45,7 @@ export const KanbanCard = memo(function KanbanCard({ card, run, sessions, sessio
             "looks done" (canvas review item 6). */}
         {run === 'review' && <Badge tone="red">parou sem terminar</Badge>}
       </div>
-      <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-neutral-500">
+      <div className="mt-1 flex flex-wrap items-center gap-1 text-[12px] text-neutral-500">
         {card.kind === 'content' && card.format && <Badge>{FORMAT_LABEL[card.format]}</Badge>}
         {/* dfl.error stays visible even while `pending` retries in the
             background — that's the "sync pendente" badge the card carries

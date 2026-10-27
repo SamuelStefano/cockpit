@@ -30,7 +30,7 @@ export function AgentTile({ card, index, selected, testing, celebrating, onSelec
         <AgentAvatar id={preset.id} name={preset.name} />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[14px] font-semibold text-neutral-100">{preset.name}</span>
-          <span className="block truncate text-[11.5px] text-neutral-500">{preset.vendor}</span>
+          <span className="block truncate text-[12px] text-neutral-500">{preset.vendor}</span>
         </span>
         <Badge tone={testing ? 'orange' : STATUS_TONE[status]} className="gap-1.5 py-0.5 pl-1">
           <Bit state={bitStateForAgent(status, testing, celebrating)} size={16} title={STATUS_LABEL[status]} />
