@@ -35,9 +35,11 @@ interface ChatHeaderProps {
   selectedModel?: string;
   // An agent's thread: its mascot and name stand in for the editable session title.
   agent?: ChatHeaderAgent;
+  // Phone: the single top bar owns the drawer button (☰ · title · one action).
+  onMenu?: () => void;
 }
 
-export function ChatHeader({ session, messages, isEmpty, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, onRename, keyboardOpen = false, selectedModel, agent }: ChatHeaderProps) {
+export function ChatHeader({ session, messages, isEmpty, contextTokens, contextModel = null, lastTurn, onNew, fullLoaded, truncated, onOpenFull, onLoadOlder, onOpenSummary, setFullLoaded, beforeGrow, onTerminal, terminalRunning, onRename, keyboardOpen = false, selectedModel, agent, onMenu }: ChatHeaderProps) {
   const menu = useHeaderMenu();
   const title = agent?.name ?? (session ? session.title : 'Nova sessão');
   if (keyboardOpen) return <ChatHeaderCompact title={title} onTerminal={onTerminal} terminalRunning={terminalRunning} />;
@@ -49,7 +51,43 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
     : null;
   const canExport = !isEmpty;
   const profile = agent?.onProfile ? { open: !!agent.profileOpen, toggle: agent.onProfile } : null;
-  const hasMenu = !!turnStatParts(lastTurn) || !!ranOn || !!history || canExport || !!profile;
+  const phone = !!onMenu;
+  const hasMenu = !!turnStatParts(lastTurn) || !!ranOn || !!history || canExport || !!profile || (phone && !!onTerminal);
+  const moreMenu = hasMenu && (
+    <Popover
+      open={menu.open} onClose={menu.close} side="bottom" align="end" label="Mais ações da conversa"
+      content={
+        <ChatHeaderMenu
+          title={session?.title || 'sessao'} messages={messages} lastTurn={lastTurn} ranOn={ranOn}
+          selectedModel={selectedModel} history={history} canExport={canExport} profile={profile} onDone={menu.close}
+          onTerminal={phone ? onTerminal : undefined} terminalRunning={terminalRunning}
+        />
+      }
+    >
+      <IconButton icon="ellipsis" label="Mais ações da conversa" side="bottom" aria-expanded={menu.open} aria-haspopup="dialog" onClick={menu.toggle} />
+    </Popover>
+  );
+
+  if (phone) {
+    const fresh = !agent && isEmpty;
+    return (
+      <div className="flex h-[52px] shrink-0 items-center gap-1 px-2">
+        <IconButton icon="menu" label="Menu" side="bottom" onClick={onMenu} className="pointer-coarse:h-11 pointer-coarse:w-11" />
+        {agent ? (
+          <span className="flex min-w-0 flex-1 items-center gap-2">
+            {agent.avatar}
+            <span className="truncate text-[15px] font-medium text-neutral-100">{agent.name}</span>
+          </span>
+        ) : fresh ? (
+          <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-neutral-100">Deck</span>
+        ) : (
+          <div className="min-w-0 flex-1"><EditableTitle id={session?.id} title={title} editable={saved} onRename={onRename} /></div>
+        )}
+        {agent?.actions}
+        {fresh ? <IconButton icon="plus" label="Nova conversa" side="bottom" onClick={onNew} className="pointer-coarse:h-11 pointer-coarse:w-11" /> : moreMenu}
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-11 shrink-0 items-center gap-2 border-b border-neutral-800 px-4">
@@ -72,19 +110,7 @@ export function ChatHeader({ session, messages, isEmpty, contextTokens, contextM
             )}
           </span>
         )}
-        {hasMenu && (
-          <Popover
-            open={menu.open} onClose={menu.close} side="bottom" align="end" label="Mais ações da conversa"
-            content={
-              <ChatHeaderMenu
-                title={session?.title || 'sessao'} messages={messages} lastTurn={lastTurn} ranOn={ranOn}
-                selectedModel={selectedModel} history={history} canExport={canExport} profile={profile} onDone={menu.close}
-              />
-            }
-          >
-            <IconButton icon="ellipsis" label="Mais ações da conversa" side="bottom" aria-expanded={menu.open} aria-haspopup="dialog" onClick={menu.toggle} />
-          </Popover>
-        )}
+        {moreMenu}
       </div>
     </div>
   );

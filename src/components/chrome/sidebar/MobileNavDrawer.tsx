@@ -1,14 +1,10 @@
+import type { ReactNode } from 'react';
 import { MobileDrawer } from '../../MobileDrawer';
 import { useEscapeLayer } from '../../primitives/useEscapeLayer';
-import { DrawerNav, type DrawerNavProps } from './DrawerNav';
 
-// Off the chat route there is no sessions list, so the drawer is just the nav.
-export function MobileNavDrawer({ open, onClose, ...nav }: DrawerNavProps & { open: boolean; onClose: () => void }) {
+// Off the chat route the drawer is mounted here; on the chat route MobileLayout owns it.
+export function MobileNavDrawer({ open, onClose, children }: { open: boolean; onClose: () => void; children: ReactNode }) {
   useEscapeLayer(open, onClose);
   if (!open) return null;
-  return (
-    <MobileDrawer onClose={onClose}>
-      <DrawerNav {...nav} />
-    </MobileDrawer>
-  );
+  return <MobileDrawer onClose={onClose}>{children}</MobileDrawer>;
 }
